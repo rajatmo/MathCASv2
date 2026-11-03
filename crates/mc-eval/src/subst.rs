@@ -174,8 +174,65 @@ pub(crate) fn substitute<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, pairs: &[(Sym, 
     s.run(t)
 }
 
+/// Work and value slots of [`plain_small`].
+const SMALL: usize = 48;
+
+/// Substitution into a small term without binding forms, on fixed buffers (no allocation, no sharing of repeated
+/// subterms: most rule right sides are a few nodes). `None` when the term outgrows the buffers.
+fn plain_small<'h>(h: &'h Heap, t: T<'h>, pairs: &[(Sym, T<'h>)], keys: u64) -> Option<T<'h>> {
+    let mut work = [(t, false); SMALL];
+    let mut nw = 1;
+    let mut vals = [t; SMALL];
+    let mut nv = 0;
+    while nw > 0 {
+        nw -= 1;
+        let (u, expanded) = work[nw];
+        if expanded {
+            let View::App { head, args } = h.view(u) else { unreachable!("only compounds are expanded") };
+            let parts = &vals[nv - args.len() - 1..nv];
+            let r = if parts[0] == head && parts[1..] == *args { u } else { h.app(parts[0], &parts[1..]) };
+            nv -= args.len() + 1;
+            vals[nv] = r;
+            nv += 1;
+            continue;
+        }
+        let r = if h.mask(u) & keys == 0 {
+            u
+        } else {
+            match h.view(u) {
+                View::Sym(s) => pairs.iter().rev().find(|(p, _)| *p == s).map_or(u, |(_, v)| *v),
+                View::App { head, args } => {
+                    // the children are visited in order (head first) and leave their results in order
+                    if nw + args.len() + 2 > SMALL || nv + args.len() + 1 > SMALL {
+                        return None;
+                    }
+                    work[nw] = (u, true);
+                    nw += 1;
+                    for &a in args.iter().rev() {
+                        work[nw] = (a, false);
+                        nw += 1;
+                    }
+                    work[nw] = (head, false);
+                    nw += 1;
+                    continue;
+                }
+                _ => u,
+            }
+        };
+        if nv == SMALL {
+            return None;
+        }
+        vals[nv] = r;
+        nv += 1;
+    }
+    Some(vals[0])
+}
+
 /// Substitution into a term without binding forms.
 fn plain<'h>(h: &'h Heap, t: T<'h>, pairs: &[(Sym, T<'h>)], keys: u64) -> T<'h> {
+    if let Some(r) = plain_small(h, t, pairs, keys) {
+        return r;
+    }
     let mut done: FxHashMap<T<'h>, T<'h>> = FxHashMap::default();
     let mut stack = vec![(t, false)];
     let mut parts: Vec<T<'h>> = vec![];

@@ -44,19 +44,13 @@ pub struct EngineConfig {
 }
 
 impl Default for EngineConfig {
-    /// At most 4 threads (the shared-machine rule), the default heap, and the default evaluator with a depth
-    /// limit that fits the pool's stacks in this build (decision G.7).
+    /// At most 4 threads (the shared-machine rule), the default heap, and the default evaluator: its frame limit is
+    /// sized by memory and its native-callback limit by the pool's stacks (package 1a, replacing decision G.7).
     fn default() -> EngineConfig {
         let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(4);
-        let eval = EvalConfig { max_depth: MAX_DEPTH, ..EvalConfig::default() };
-        EngineConfig { threads, heap: mc_core::Config::default(), eval, prelude: true }
+        EngineConfig { threads, heap: mc_core::Config::default(), eval: EvalConfig::default(), prelude: true }
     }
 }
-
-/// The evaluation depth limit: `mc-eval`'s default where its frames are small (optimised builds); unoptimised
-/// frames are several times larger, and a rule's right side costs a few evaluation levels per call, so the 64 MB
-/// stacks of the session's pool hold fewer levels.
-const MAX_DEPTH: u32 = if cfg!(debug_assertions) { 2_000 } else { 20_000 };
 
 /// Root slot of the last result; the statements of the running evaluation follow it.
 const LAST: usize = 0;

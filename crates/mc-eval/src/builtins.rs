@@ -29,6 +29,10 @@ fn int(h: &Heap, t: T<'_>) -> Option<i64> {
 struct Fold(fn(i64, i64) -> Option<i64>, i64);
 
 impl Native for Fold {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         cx.tick(args.len() as u64 / 64)?;
@@ -46,6 +50,10 @@ impl Native for Fold {
 struct Binary(fn(i64, i64) -> Option<i64>);
 
 impl Native for Binary {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [a, b] = args else { return Ok(Reply::Decline) };
@@ -60,6 +68,10 @@ impl Native for Binary {
 struct Compare(fn(i64, i64) -> bool);
 
 impl Native for Compare {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [a, b] = args else { return Ok(Reply::Decline) };
@@ -74,6 +86,10 @@ impl Native for Compare {
 struct Same;
 
 impl Native for Same {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [a, b] = args else { return Ok(Reply::Decline) };
         Ok(Reply::Done(cx.bool(a == b)))
@@ -84,6 +100,10 @@ impl Native for Same {
 struct If;
 
 impl Native for If {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let (c, a, b) = match *args {
             [c, a, b] => (c, a, Some(b)),
@@ -104,6 +124,10 @@ impl Native for If {
 struct Map;
 
 impl Native for Map {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [f, xs] = args else { return Ok(Reply::Decline) };
         let Some(xs) = cx.as_list(*xs) else { return Ok(Reply::Decline) };
@@ -127,6 +151,10 @@ impl Native for Map {
 struct Print;
 
 impl Native for Print {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [x] = args else { return Ok(Reply::Decline) };
         cx.emit(*x)?;
@@ -138,6 +166,10 @@ impl Native for Print {
 struct Define;
 
 impl Native for Define {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [s, v] = args else { return Ok(Reply::Decline) };
         let View::Sym(s) = cx.heap().view(*s) else { return Ok(Reply::Decline) };

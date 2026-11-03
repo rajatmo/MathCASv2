@@ -41,6 +41,15 @@ pub trait Native: Send + Sync {
 
     /// Visit every term handle the native keeps (a safe point).
     fn trace(&mut self, _visit: &mut dyn FnMut(&mut Raw)) {}
+
+    /// Whether [`Native::call`] reads its term `t` (returns it, matches or rewrites it, takes its head from it).
+    /// A native that reads only `args` returns `false`: the evaluator then calls it before building the call with
+    /// the evaluated arguments, and builds that term only if the native declines (decision 1a.6), so arithmetic
+    /// and comparisons in loops make no garbage calls. Its `t` is then the call as it was before its arguments
+    /// were evaluated. Read once, at registration.
+    fn reads_term(&self) -> bool {
+        true
+    }
 }
 
 /// A compiled pattern a native matches with ([`NativeCx::matches`]); made by
@@ -164,6 +173,41 @@ impl<'h> NativeCx<'_, '_, 'h> {
     /// Does `p` match `t`? (Conditions in it run on this task.)
     pub fn matches(&mut self, p: &Pattern, t: T<'h>) -> Res<bool> {
         self.ev.match_pattern(self.cx, p, t)
+    }
+    /// Compile a pattern once, to match many subjects with [`NativeCx::matches`] or [`NativeCx::match_binds`]
+    /// (the same compilation and checks as a definition's left side; a pattern term lowers with
+    /// [`crate::syntax::pattern`]). The pattern holds terms of this evaluation: keep it within the call.
+    pub fn compile_pattern(&self, p: Pat) -> Result<Pattern, DefError> {
+        self.ev.k.compile_pattern(self.ev.heap, p)
+    }
+    /// The first match of `p` against `t`: its bindings in `out` (by variable number). Conditions in it run on
+    /// this task.
+    pub fn match_binds(&mut self, p: &Pattern, t: T<'h>, out: &mut crate::Binds<'h>) -> Res<bool> {
+        self.ev.match_binds(self.cx, p, t, out)
+    }
+    /// Compare two terms by the kernel's canonical order (semantics 8).
+    pub fn cmp(&self, a: T<'h>, b: T<'h>) -> std::cmp::Ordering {
+        self.ev.k.cmp(self.ev.heap, a, b)
+    }
+    /// Sort terms by the kernel's canonical order. Sorting is not interruptible: charge fuel for long inputs.
+    pub fn sort(&self, v: &mut [T<'h>]) {
+        self.ev.k.sort(self.ev.heap, v)
+    }
+    /// The stop flag long-running library code polls ([`Kernel::stop_flag`](crate::Kernel::stop_flag)).
+    pub fn stop_flag(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
+        self.ev.k.stop_flag_ref()
+    }
+    /// Whether the evaluation should stop: the stop flag is raised, an interrupt was requested, or a limit fired.
+    /// A cheap poll for loops between fuel charges.
+    pub fn stopped(&self) -> bool {
+        self.ev.k.stop_flag_ref().load(std::sync::atomic::Ordering::Relaxed) || self.ev.k.ctl.halted()
+    }
+    /// Give `head` a compiled specialisation during an evaluation (an effect of the frontier; see
+    /// [`Kernel::register_compiled`](crate::Kernel::register_compiled)).
+    pub fn register_compiled(&mut self, head: Sym, c: std::sync::Arc<dyn crate::Compiled>) -> Res<()> {
+        self.ev.effect(self.cx)?;
+        crate::compiled::set_compiled(&self.ev.k.defs, &self.ev.k.compiled, head, Some(c));
+        Ok(())
     }
     /// The learned fuel per evaluation of calls with head `s` (granularity estimates).
     pub fn head_cost(&self, s: Sym) -> u64 {
