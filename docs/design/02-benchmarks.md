@@ -8,7 +8,8 @@ document (abstract syntax; concrete syntax is `04-syntax.md`).
 
 - **Machine:** one fixed reference machine, recorded with every run (CPU model, cores, RAM, OS, compiler versions).
   Numbers from different machines are never mixed in one table.
-- **Threads:** single-threaded unless a case says otherwise. Parallel speed is a separate, later suite.
+- **Threads:** single-threaded for classes R, P, N, L and S. Class M (multicore) measures parallel speed separately
+  (section 5, class M).
 - **Timing:** wall-clock time of the measured expression only, excluding startup and parsing (startup is case S10).
   Each case runs once to warm up, then at least 5 times or for at least 2 seconds, whichever is longer; the **median**
   is reported, with the minimum and the interquartile range.
@@ -64,7 +65,7 @@ Memory is reported alongside time; a case that is faster but uses more than 4 ti
 ## 5. The cases
 
 Each case has an id, a description, three sizes (small, medium, large) where it scales, what it stresses, and its
-checker. About 60 cases at up to three sizes give roughly 180 measurements. Cases marked **(alg)** are algorithmic
+checker. About 70 cases at up to three sizes give roughly 210 measurements. Cases marked **(alg)** are algorithmic
 stress cases: they measure whether the right algorithm is used, not constant factors.
 
 ### Class R: rewriting and evaluation
@@ -151,6 +152,29 @@ stress cases: they measure whether the right algorithm is used, not constant fac
 | S9 | Memory per term: hold the result of P1 (large) and report bytes per term | 1 size | term representation | reported, not timed |
 | S10 | Startup: time from launch to the first evaluated result | 1 size | load and initialisation | reported |
 
+### Class M: multicore
+
+Each case runs at 1, 2, 4, 8 and 16 threads. The score is the **speedup** `t(1) / t(k)` and the **efficiency**
+`speedup / k`; the result at every thread count must be identical to the one-thread result (semantics 18.1), checked by
+fingerprint.
+
+| Id | Case | Sizes | Stresses | Check |
+|---|---|---|---|---|
+| M1 | Compiled table of a machine-real expression (L1, parallel) | 10^6, 10^7, 10^8 points | parallel compiled loops | identical |
+| M2 | `pmap` of a special function over a packed array | 10^4, 10^5, 10^6 elements | data parallelism with uneven cost | identical |
+| M3 | Parallel sparse polynomial multiplication (P2 large, P3) | 3 sizes | parallel kernels | identical |
+| M4 | Modular gcd and resultant over many primes | 3 sizes | independent modular images | identical |
+| M5 | Big-integer multiplication | 10^6, 10^7, 10^8 digits | parallel FFT or NTT | identical |
+| M6 | Term-level: a sum of 64 independent heavy subterms (expansions, derivatives) | 3 sizes | speculative parallel arguments (semantics 18.2) | identical |
+| M7 | Tiny tasks: `map` of a trivial function over 10^6 elements | 10^5, 10^6, 10^7 | granularity control | identical, and no slower than 1.1 times one thread |
+| M8 | Concurrent interning: workers building overlapping and distinct terms | 10^6, 10^7, 10^8 terms | concurrent hash-consing | identical |
+| M9 | ODE ensemble: 1000 trajectories | 3 sizes | parallel compiled right-hand sides | identical |
+| M10 | Determinism with randomness: `ptable` of random draws, then reductions | 10^4, 10^5, 10^6 | split random streams (semantics 18.2) | identical for every thread count and seed |
+| M11 | Speculation with effects: arguments that print or define in the middle | 3 shapes | effect ordering (semantics 18.2) | outputs and value identical to sequential |
+
+Targets: efficiency at least 0.7 at 8 threads for M1, M2, M3, M5 and M9 (large sizes); M7 never more than 1.1 times
+slower than one thread; M10 and M11 identical in every run.
+
 ## 6. Mapping to the spikes
 
 | Spike (plan section 5) | Decides with |
@@ -158,6 +182,8 @@ stress cases: they measure whether the right algorithm is used, not constant fac
 | Term store | R3, R8, R9, R10, R11, S3, S6, S8, S9 |
 | AC matcher | R4, R5, R6, R13, S7 |
 | Numbers | N1 to N5, N9 to N12, P11 |
+
+| Parallel evaluation | M6, M7, M8, M10, M11 (and M1, M2 once the compiler exists) |
 
 The read-set tracking question (semantics 13.1) is settled by R11 and R14; the argument-head indexing question (13.2)
 by R13.
@@ -178,4 +204,3 @@ by R13.
 - The integrand set for R6 and the expression set for R7 need to be chosen and fixed (sources with permissive licences
   only).
 - Whether L7 may call an external dense linear-algebra library, or must be native, is a scope decision for the plan.
-- Parallel benchmarks (later suite).

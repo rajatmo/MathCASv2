@@ -1,4 +1,4 @@
-# MathCAS v2: core semantics (draft 2)
+# MathCAS v2: core semantics (draft 3)
 
 This document specifies what the core computes. It does not fix the concrete syntax (that is `04-syntax.md`); the
 notation here is abstract: `f(a, b)` is a compound term, `[a, b]` a list, `p -> r` a rule, `p := r` a delayed
@@ -344,6 +344,7 @@ representations, but users should never need to know which one is in use.
 - Run-time name resolution and dynamic scoping in the core.
 - Automatic machine-to-arbitrary-precision switching.
 - Messages printed as a side effect of evaluation.
+- Separate kernel processes for parallelism (section 18 runs tasks in one shared term store).
 
 ## 13. Assumptions
 
@@ -430,3 +431,54 @@ Points to verify by spike:
 - the cost of read-set tracking on the rewriting benchmarks (13.1); if too high, fall back to declared dependencies for
   native built-ins only;
 - whether argument-head rules disturb compiled matching (13.2): the matcher must index them by argument head.
+
+## 18. Parallel evaluation
+
+Parallelism is an implementation freedom with one guarantee: **it never changes a result.**
+
+### 18.1 Determinism
+
+For any number of threads, including one, an evaluation produces the same value, the same diagnostics in the same
+order, the same outputs in the same order, and the same failures. Two exceptions, both already non-deterministic in
+sequential evaluation: the values of clock-reading functions, and the partial term inside `failure(limit, ...)` (which
+part of the work was done when a limit hit).
+
+### 18.2 What may run in parallel
+
+1. **Inside native built-ins.** Polynomial arithmetic, modular algorithms, big-integer arithmetic, linear algebra,
+   sorting and similar kernels may use threads freely; they are pure functions of their arguments.
+2. **Compiled numeric code over packed arrays** (plan section 4): the iterations of a compiled loop body that performs
+   no effects may run in parallel.
+3. **Independent strict arguments.** When the head of a call is not marked `effect`, its strict arguments may be
+   evaluated in parallel, *speculatively*: if the evaluation of an argument reaches an effect (semantics 9: a
+   definition, input or output, the clock, a random draw), it waits until every argument to its left is complete, and
+   every argument to its right that started before that point is discarded and re-evaluated after it. The observable
+   order of effects is therefore the left-to-right sequential order.
+4. **Listable functions and `map` with a function that performs no effects**, by the same speculative rule, element
+   by element.
+5. **Explicit parallel constructs** `pmap(f, xs)`, `ptable(e, it)` and `parallel([e1, ..., en])`: like their
+   sequential forms, except that each element gets its **own random stream**, split deterministically from the
+   session generator by the element's index. Their results are the same for any number of threads, and the same as
+   evaluating them with one thread; they differ from `map` and `table` only in how random draws are numbered.
+
+### 18.3 Definitions during an evaluation
+
+Definitions are effects, so they are ordered by 18.2 (3): no evaluation can observe a definition made "later" in the
+sequential order. Normal-form stamps (4.3) and the read-set tracking of decision 13.1 make a discarded speculative
+result detectable; an implementation may use them to keep speculative work whose read set the effect did not touch.
+
+### 18.4 Limits and interrupts
+
+Fuel is one budget for the whole evaluation, drawn by every task. Time and memory limits and the interrupt apply to
+all tasks; when one fires, every task stops and the evaluation returns the failure.
+
+### 18.5 Sharing
+
+Terms are immutable and hash-consed (section 1.1), so tasks share them without copying. The interning table, the
+memo of normal forms (4.4) and the collector (plan, decision 1.4) must be safe under concurrency; the memo may be lossy
+(forget entries) but never return a wrong one.
+
+### 18.6 Granularity
+
+Whether and how a parallel-eligible computation is split into tasks is the implementation's choice and has no
+semantic effect. The session parameter `threads` (default: the number of cores) bounds the number of workers.

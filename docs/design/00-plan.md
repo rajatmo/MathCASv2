@@ -88,14 +88,25 @@ it.
 
 ## 5. Spikes (decide the risky parts)
 
-1. **Term store:** hash-consed terms with normal-form flags against v1's representation, on rewriting and structural
-   benchmarks.
-2. **AC matcher:** compiled many-to-one matching for associative-commutative operators against naive matching, on large
-   rule sets.
-3. **Numbers:** ball arithmetic at 10^4 to 10^6 digits against v1's bigfloat, including elementary and elliptic
-   functions.
+- **Spike 1, term store:** hash-consed terms with normal-form flags against v1's representation, on rewriting and structural
+   benchmarks. Done: see `03-spikes.md`.
+- **Spike 1b, arena collection:** reclaiming unreachable terms in the hash-consed arena (pause times, throughput, memory).
+- **Spike 2, matcher:** compiled many-to-one matching with associative-commutative operators against naive matching, plus
+   argument-head rules and read-set tracking (benchmarks R4, R5, R13, R14).
+- **Spike 3, numbers:** big-integer multiplication strategy and ball arithmetic at 10^4 to 10^6 digits against v1's bigfloat.
+- **Spike 4, parallel evaluation:** concurrent interning and memo, work-stealing evaluation with speculative effect ordering
+   (semantics 18), granularity control (benchmark class M).
 
 Each spike ends with a short report: numbers, decision, what it rules out.
+
+## 5a. Parallelism
+
+Three levels, in order of payoff (semantics 18): inside native kernels (polynomials, modular methods, big integers,
+linear algebra); compiled numeric loops over packed arrays (the numeric compiler's output is side-effect-free and
+allocation-free, so a parallel loop is only a schedule); and term-level evaluation of independent strict arguments with
+speculative effect ordering and cost-guided granularity, on a work-stealing scheduler with a concurrent hash-consing
+table (the design of multicore decision-diagram packages). Separate kernel processes that copy data between them are
+ruled out. A general tracing JIT combined with parallel symbolic evaluation is not planned.
 
 ## 6. Lessons carried over from v1
 
@@ -123,12 +134,22 @@ Each spike ends with a short report: numbers, decision, what it rules out.
 - B. Ruijl, Symbolica (modern Rust CAS core; polynomial and rewriting performance).
 - J. Bezanson et al., *Julia: a fresh approach to numerical computing*, SIAM Review, 2017 (type-specialising JIT).
 - C. F. Bolz et al., *Tracing the meta-level: PyPy's tracing JIT compiler*, ICOOOLPS 2009.
+- R. D. Blumofe, C. E. Leiserson, *Scheduling multithreaded computations by work stealing*, JACM 46(5), 1999.
+- E. Mohr, D. A. Kranz, R. H. Halstead, *Lazy task creation*, IEEE TPDS 2(3), 1991.
+- P. W. Trinder, K. Hammond, H.-W. Loidl, S. L. Peyton Jones, *Algorithm + Strategy = Parallelism*, JFP 8(1), 1998.
+- S. Marlow et al., *Seq no more: better strategies for parallel Haskell*, Haskell Symposium 2010.
+- T. van Dijk, J. van de Pol, *Sylvan: multi-core framework for decision diagrams*, STTT 19, 2017.
+- T. Maier, P. Sanders, R. Dementiev, *Concurrent hash tables: fast and general(?)!*, ACM TOPC 5(4), 2019.
+- M. Monagan, R. Pearce, *Parallel sparse polynomial multiplication using heaps*, ISSAC 2009.
+- M. Tentyukov, J. A. M. Vermaseren, *The multithreaded version of FORM*, Comput. Phys. Commun. 181, 2010.
+- G. L. Steele, D. Lea, C. H. Flood, *Fast splittable pseudorandom number generators*, OOPSLA 2014.
+- J. Ragan-Kelley et al., *Halide*, PLDI 2013 (separating algorithm and schedule).
 - T. Würthinger et al., *One VM to rule them all*, Onward! 2013 (self-optimising AST interpreters).
 - R. Fateman, essays on rule-based computer algebra design and its pitfalls.
 
 ## 8. Next documents
 
-- [`01-semantics.md`](01-semantics.md): the core semantics (draft 2).
+- [`01-semantics.md`](01-semantics.md): the core semantics (draft 3, with parallel evaluation).
 - [`02-benchmarks.md`](02-benchmarks.md): the benchmark suite (draft 1).
 - [`03-spikes.md`](03-spikes.md): spike reports (spike 1, term store: done).
 - [`04-syntax.md`](04-syntax.md): the concrete syntax (draft 1).
