@@ -1,0 +1,94 @@
+//! Selection: `select` (by a predicate), `cases` and `count` (by a pattern).
+use crate::ctx::{apply, group_cost, take, Lib};
+use crate::matching::Matcher;
+use mc_core::{Store, View, T};
+use mc_eval::{NativeCx, Reply, Res};
+
+/// `select(xs, f)`: the elements `x` for which `f(x)` is `true`, in order, keeping the head of `xs`. The calls are
+/// evaluated as a group (like `map`); a value other than `true` drops the element, a failure is the result
+/// (decision I.11).
+pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, f] = *args else {
+        return Ok(Reply::Decline);
+    };
+    let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    let cost = group_cost(cx, f);
+    let tests = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        cx.tick(1)?;
+        apply(cx, f, &[xs[i]])
+    })?;
+    let mut out = Vec::with_capacity(xs.len());
+    for (&x, &v) in xs.iter().zip(&tests) {
+        if cx.is_true(v) {
+            out.push(x);
+        } else if lib.is_failure(h, v) {
+            return Ok(Reply::Done(v));
+        }
+    }
+    Ok(lib.rebuilt(h, head, &out))
+}
+
+/// The pattern of `cases` and `count`, and the right side of a rule `p -> r` or `p :> r`.
+fn pattern<'l, 'h>(
+    lib: &'l Lib,
+    cx: &NativeCx<'_, '_, 'h>,
+    t: T<'h>,
+    p: T<'h>,
+    rules: bool,
+) -> Result<(Matcher<'l, 'h>, Option<T<'h>>), Reply<'h>> {
+    let h = cx.heap();
+    let (p, rhs) = match h.view(p) {
+        View::App { head, args: &[l, r] }
+            if rules && (head == h.sym_term(lib.s.rule) || head == h.sym_term(lib.s.rule_delayed)) =>
+        {
+            (l, Some(r))
+        }
+        _ => (p, None),
+    };
+    match Matcher::new(lib, h, p) {
+        Some(m) => Ok((m, rhs)),
+        None => Err(Reply::Done(lib.bad_arg(h, t, 2))),
+    }
+}
+
+/// `cases(xs, p)`: the elements of `xs` that match the pattern `p`, as a list; `cases(xs, p -> r)` (or `p :> r`):
+/// for each match, `r` with the pattern's variables replaced, evaluated.
+pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else {
+        return Ok(Reply::Decline);
+    };
+    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    let (mut m, rhs) = take!(pattern(lib, cx, t, p, true));
+    let mut out = vec![];
+    for &x in xs {
+        if m.matches(cx, x)? {
+            out.push(match rhs {
+                None => x,
+                Some(r) => {
+                    let r = m.substitute(cx, r)?;
+                    cx.eval(r)?
+                }
+            });
+        }
+    }
+    Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `count(xs, p)`: how many elements of `xs` match the pattern `p`.
+pub(crate) fn count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else {
+        return Ok(Reply::Decline);
+    };
+    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    let (mut m, _) = take!(pattern(lib, cx, t, p, false));
+    let mut n = 0i64;
+    for &x in xs {
+        if m.matches(cx, x)? {
+            n += 1;
+        }
+    }
+    Ok(Reply::Done(h.int(n)))
+}

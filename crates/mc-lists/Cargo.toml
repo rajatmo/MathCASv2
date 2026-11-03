@@ -1,0 +1,21 @@
+[package]
+name = "mc-lists"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 list and structure library: construction, access, reshaping, reduction, selection, sorting and strings as natives of the evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the printer, for `to_string`
+mc-syntax = { path = "../mc-syntax" }
+rustc-hash = "2"
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }
+num-bigint = "0.4"
+num-traits = "0.2"
