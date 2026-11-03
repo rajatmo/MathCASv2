@@ -1,0 +1,10 @@
+[package]
+name = "matcher"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spike: pattern matching modulo AC, indexed rule dispatch, argument-head rules and read-set tracking"
+
+[dependencies]
+hashbrown = "0.15"
+rustc-hash = "2"
