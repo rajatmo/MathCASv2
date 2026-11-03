@@ -25,6 +25,12 @@ pub struct RuleView<'h> {
 }
 
 impl<'h> NativeCx<'_, '_, 'h> {
+    /// Mark this evaluation as depending on state that is not a definition (for example which compiled
+    /// specialisations are registered, or their run counters): its result is never memoised, as for cells.
+    pub fn volatile(&mut self) {
+        self.cx.volatile += 1;
+    }
+
     /// The version counter of `s` (semantics 1.2: bumped by every change to its definitions); the read is recorded.
     pub fn version(&mut self, s: Sym) -> u32 {
         self.cx.reads |= bit(s);

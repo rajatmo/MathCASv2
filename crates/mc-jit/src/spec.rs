@@ -5,7 +5,7 @@
 //! registering a native needs the kernel exclusively, which a native does not have). A specialisation applies when
 //! every argument has its parameter's machine type and no definition it read has changed since (version counters,
 //! decision 1b.6); otherwise it declines and the interpreter evaluates the call.
-use crate::adapter::{Compiled, RegisterCompiled};
+use mc_eval::Compiled;
 use crate::front::{front, FnDef, Source};
 use crate::interp::Interp;
 use crate::ir::{self, Ty};
@@ -215,18 +215,8 @@ impl Jit {
                 continue;
             }
             let head = spec.head;
-            let before = k.version(head);
+            // registering a specialisation is not a definition (decision 1a.7): versions and memo entries stay valid
             k.register_compiled(head, spec.clone());
-            let after = k.version(head);
-            // registering defines the head (its version moves) but leaves its rules unchanged: what read them at
-            // `before` is still valid
-            for other in active.values().chain(std::iter::once(&spec)) {
-                for (s, v) in &other.deps {
-                    if *s == head && v.load(Relaxed) == before {
-                        v.store(after, Relaxed);
-                    }
-                }
-            }
             active.insert(head, spec);
             n += 1;
         }
@@ -396,6 +386,8 @@ impl Native for InfoFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [fterm] = args else { return Ok(Reply::Decline) };
+        // the answer is the compiler's state (registrations, run counters), which is not a definition: never memoised
+        cx.volatile();
         let View::Sym(f) = h.view(*fterm) else { return Ok(Reply::Done(failure(h, "not_compiled", &[*fterm]))) };
         let (spec, state) = {
             let active = self.0.active.lock().expect("compiler state").get(&f).cloned();

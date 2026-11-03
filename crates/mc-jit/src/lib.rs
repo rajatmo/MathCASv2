@@ -10,7 +10,7 @@
 //! lowers it to) into the typed tree [`ir::Func`], inlining the functions it calls; [`ir::lower`] if-converts and
 //! lowers it to three-address code [`ir::Lir`]; [`jit`] (Cranelift 0.137) or [`interp`] (the reference back end, and
 //! the fallback when Cranelift fails) runs it; [`rt`] is the run-time side shared by both. [`spec`] wraps the result
-//! as a specialisation, and [`adapter`] registers it through package 1a's hook shape.
+//! as a specialisation, registered with `mc-eval`'s `Kernel::register_compiled`.
 //!
 //! **Exactness** (decision 1b.3): a compiled call gives exactly the interpreter's result, or *declines* and the
 //! interpreter evaluates the call. Integers are exact `i64`s whose overflow declines; an inexact integer quotient
@@ -24,7 +24,6 @@
 //!
 //! Decisions of this package are numbered 1b.1, 1b.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
-pub mod adapter;
 pub mod front;
 pub mod interp;
 pub mod ir;
