@@ -1,0 +1,94 @@
+//! MathCAS v2 number theory (package J of the library round): integer and rational functions, rounding, primes,
+//! prime counting, factorisation and modular arithmetic, as natives of the evaluator.
+//!
+//! The algorithms are plain functions on `mc-arith`'s bare numbers ([`Nat`](mc_arith::num::Nat),
+//! [`Int`](mc_arith::num::Int)), each taking a [`budget::Budget`] that charges fuel and polls the interrupt:
+//!
+//! - [`word`]: machine-word Montgomery arithmetic, deterministic primality below 2^64, roots, Jacobi symbols;
+//! - [`sieve`]: segmented sieves and the table of pi(z); [`count`]: Meissel's prime counting and the k-th prime;
+//! - [`ring`]: arithmetic modulo big odd numbers (Montgomery on fixed limbs, Newton reciprocals above);
+//! - [`prime`]: Baillie-PSW and the next prime; [`gcd`]: the subquadratic half-gcd;
+//! - [`power`]: exact roots, valuations and perfect-power detection; [`factor`]: trial division, rho, ECM, SIQS;
+//! - [`modular`]: modular powers and inverses, primitive roots, orders, phi, divisors;
+//! - [`combin`]: factorials and binomials; [`digits`]: digits, lengths and exponents in a base.
+//!
+//! [`install`] registers the natives listed in [`FUNCTIONS`]. Decisions of this package are numbered J.1, J.2, ...
+//! in the comments where they are applied.
+#![warn(missing_docs)]
+pub mod budget;
+pub mod combin;
+pub mod count;
+pub mod digits;
+pub mod factor;
+pub mod gcd;
+pub mod modular;
+mod natives;
+pub mod power;
+pub mod prime;
+pub mod ring;
+pub mod sieve;
+pub mod word;
+
+use mc_core::Heap;
+use mc_eval::Kernel;
+
+/// The functions [`install`] registers, with a one-line description each.
+pub const FUNCTIONS: &[(&str, &str)] = &[
+    ("mod", "mod(a, m) and mod(a, m, d): the remainder a - m floor((a - d)/m), with the sign of m"),
+    ("quotient", "quotient(a, b): floor(a / b)"),
+    ("gcd", "gcd(...): greatest common divisor of integers and rationals (gcd() = 0)"),
+    ("lcm", "lcm(...): least common multiple of integers and rationals (lcm() = 1)"),
+    ("extended_gcd", "extended_gcd(a, b): [g, [s, t]] with g = gcd(a, b) = s a + t b"),
+    ("floor", "floor(x), floor(x, a): the greatest integer (multiple of a) at most x"),
+    ("ceiling", "ceiling(x), ceiling(x, a): the least integer (multiple of a) at least x"),
+    ("round", "round(x), round(x, a): the nearest integer (multiple of a), ties to even"),
+    ("abs", "abs(x): absolute value of a real or complex number"),
+    ("sign", "sign(x): -1, 0 or 1 for reals, z / abs(z) for complex numbers"),
+    ("numerator", "numerator(x): of a rational, or the factors of a product with positive exponents"),
+    ("denominator", "denominator(x): of a rational, or the factors of a product with negative exponents"),
+    ("factorial", "factorial(n): n! for integers n >= 0"),
+    ("binomial", "binomial(n, k): the binomial coefficient, for integers and rational n"),
+    ("integer_digits", "integer_digits(n), (n, b), (n, b, len): digits of |n| in base b (default 10)"),
+    ("from_digits", "from_digits(digits), (digits, b): the integer with these digits in base b"),
+    ("integer_length", "integer_length(n), (n, b): the number of digits of |n| in base b"),
+    ("integer_exponent", "integer_exponent(n), (n, b): the largest k with b^k dividing n"),
+    ("is_prime", "is_prime(n): primality (deterministic below 2^64, Baillie-PSW above)"),
+    ("next_prime", "next_prime(x), (x, k): the next (k-th next, k-th previous for k < 0) prime"),
+    ("prime", "prime(k): the k-th prime"),
+    ("prime_pi", "prime_pi(x): the number of primes up to x"),
+    ("factor_integer", "factor_integer(n): [[p, e], ...] for integers and rationals"),
+    ("power_mod", "power_mod(a, b, m): a^b mod m, b < 0 by the inverse of a"),
+    ("primitive_root", "primitive_root(n): the smallest primitive root modulo n"),
+    ("euler_phi", "euler_phi(n): Euler's totient"),
+    ("divisors", "divisors(n): the positive divisors of n in increasing order"),
+    ("divisor_sigma", "divisor_sigma(k, n): the sum of the k-th powers of the divisors of n"),
+    ("moebius_mu", "moebius_mu(n): the Moebius function"),
+    ("jacobi_symbol", "jacobi_symbol(a, n): the Jacobi symbol for odd n > 0"),
+    ("multiplicative_order", "multiplicative_order(a, n): the order of a modulo n"),
+];
+
+/// Register the natives of [`FUNCTIONS`] with `k` (strict arguments; the arithmetic ones thread over lists).
+///
+/// The heap names the symbols (decision J.1: a kernel alone cannot make a symbol, so the signature is that of
+/// `mc-engine`'s `arith::install`).
+pub fn install(k: &mut Kernel, h: &Heap) {
+    natives::install(k, h);
+}
+
+/// The thread pool of the unit tests: 4 threads (the shared-machine rule), where the parallel sieves and prime
+/// counting run.
+#[cfg(test)]
+pub(crate) fn test_pool() -> &'static rayon::ThreadPool {
+    static POOL: std::sync::OnceLock<rayon::ThreadPool> = std::sync::OnceLock::new();
+    POOL.get_or_init(|| rayon::ThreadPoolBuilder::new().num_threads(4).build().expect("a pool"))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_table_lists_every_native() {
+        let names: Vec<&str> = super::natives::TABLE.iter().map(|e| e.0).collect();
+        let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
+        assert_eq!(names, listed);
+    }
+}
