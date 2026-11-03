@@ -223,8 +223,7 @@ Report: [`spikes/parallel/REPORT.md`](../../spikes/parallel/REPORT.md).
 
 ### Open items from the spikes
 
-- **Semantics edits proposed by spike 2** (2.2, 2.3, 2.5, 2.8): the AC enumeration order, `x_` under associative
-  heads, incomplete instance checks, and the scope of conditions inside patterns.
+- ~~Semantics edits proposed by spike 2~~: applied in semantics draft 4 (sections 6.1 to 6.3).
 - **Interactions not yet measured together:** the collector with the concurrent store (per-thread young regions break
   the global child-before-parent order), the matcher on the concurrent store, and the number layer's payloads in the
   collected arena.

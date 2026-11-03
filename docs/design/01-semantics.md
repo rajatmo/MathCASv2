@@ -1,4 +1,4 @@
-# MathCAS v2: core semantics (draft 3)
+# MathCAS v2: core semantics (draft 4)
 
 This document specifies what the core computes. It does not fix the concrete syntax (that is `04-syntax.md`); the
 notation here is abstract: `f(a, b)` is a compound term, `[a, b]` a list, `p -> r` a rule, `p := r` a delayed
@@ -209,19 +209,45 @@ passed on; `unquote(q)` evaluates it.
 | `x_` | any single term, bound to `x` |
 | `x_ : T` | a term of type `T` (a type expression, section 16) |
 | `xs__` / `xs___` | one or more / zero or more consecutive arguments, bound to a list |
-| `p | q` | `p` or `q` (both must bind the same variables) |
+| `p \| q` | `p` or `q` (both must bind the same variables) |
 | `p /; c` | `p`, and then `c` evaluates to `true` with the bindings in scope |
 | `x_ = d` | an optional argument with default `d` |
 | literal term | exactly that term |
 
 A variable used twice in a pattern must bind identical terms both times (non-linear patterns).
 
+**Scope of conditions.** A condition attached to a subpattern, `(p /; c)` inside a larger pattern, may use only the
+variables bound inside `p`; a condition on a whole left side (`lhs /; c`, or `when c` on a definition) sees every
+variable of the left side. The matcher may then test an inner condition as soon as its subpattern has matched, in any
+order, without changing which match is found. Referring to an outer variable in an inner condition is a definition-time
+error. (Spike 2, decision 2.8.)
+
 ### 6.2 Matching modulo operator properties
 
 Operators can declare `associative`, `commutative` and an `identity` element (7.3). Matching against such a head is
 modulo those properties: `f(a, x_)` matches `f(b, a)` when `f` is commutative. Matching returns the bindings of the
-**first** match in a defined enumeration order (matches are enumerated in canonical order of the bound arguments), so
-results are deterministic.
+**first** match in the enumeration order below, so results are deterministic.
+
+Under an associative head, a single-term pattern (`_`, `x_`, `x_ : T`, a literal or a compound pattern) matches exactly
+**one** argument; several arguments are matched only by sequence variables (`xs__`, `xs___`). So `f(x_, y_)` against
+`f(a, b, c)` does not match by grouping `f(a, b)` into `x`; `f(x_, ys__)` does, with `ys = [b, c]`. (Spike 2,
+decision 2.3.)
+
+**Enumeration order** (spike 2, decision 2.2):
+
+1. *Commutative heads.* The pattern's arguments are taken in **class order**: literals first, then compound patterns
+   with a fixed head, then typed variables, then other single-term patterns, then sequence variables; within a class,
+   in the order written. Each single-term pattern argument takes the subject's unused arguments in canonical order
+   (section 8). A sequence variable takes subsets of the unused arguments in lexicographic order of their positions, a
+   set before its extensions; the last sequence variable takes all remaining arguments.
+2. *Heads that are not commutative.* Arguments are matched left to right; a sequence variable takes the shortest run
+   first.
+3. Matches of nested patterns are enumerated depth-first in this order; the first complete match whose conditions all
+   hold is the result.
+
+Class order is part of the definition, not an optimisation: it makes most failing matches fail on the first argument
+tried, and because it is fixed, pruning (candidate sets, a bipartite-matching test before the search, skipping repeated
+identical arguments) never changes which match is first.
 
 ### 6.3 Rule order
 
@@ -230,6 +256,12 @@ Within one symbol's rule set, rules are tried **most specific first**:
 - rule A is more specific than rule B if A's left side is an instance of B's (B matches every term A matches); this is
   a syntactic check on patterns, conditions ignored;
 - rules not ordered by this relation are tried in definition order.
+
+The instance check is **sound but may be incomplete**: when it reports that A is an instance of B, that is true; for
+some pairs where A is in fact an instance of B (for example through alternatives or sequence variables), it may not
+report it, and those pairs stay in definition order. The order is therefore always predictable from the definitions
+and the documented check. A new rule is inserted just before the first rule it is an instance of, found through the
+rule index (spike 2, decision 2.5).
 
 Defining a rule whose left side is identical (up to renaming of pattern variables) to an existing rule replaces it.
 *Reason:* the "instance of" relation is decidable and predictable; heuristic specificity orderings are not.
@@ -426,7 +458,18 @@ Decisions on what draft 1 left open. Each can be reopened by a spike or benchmar
 | 13.6 | Exact constants | Symbols with numeric rules and built-in facts; algebraic numbers packed | 15 |
 | 13.7 | Types, patterns and the compiler | One type language; the compiler takes monomorphic machine types only | 16 |
 
-Points to verify by spike:
+Spike outcomes:
+
+| Spike decision | Effect on this document |
+|---|---|
+| 2.2 | Enumeration order of matches specified (6.2). |
+| 2.3 | Single-term patterns under associative heads match one argument (6.2). |
+| 2.5 | The instance check may be incomplete; unordered pairs stay in definition order (6.3). |
+| 2.6 | Decision 13.2 confirmed as written. |
+| 2.7 | Decision 13.1 confirmed: read sets tracked as 64-bit masks propagated through memo hits. |
+| 2.8 | Scope of conditions inside patterns (6.1). |
+
+Points verified by spike 2 (kept for reference):
 
 - the cost of read-set tracking on the rewriting benchmarks (13.1); if too high, fall back to declared dependencies for
   native built-ins only;

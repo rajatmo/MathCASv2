@@ -149,7 +149,7 @@ ruled out. A general tracing JIT combined with parallel symbolic evaluation is n
 
 ## 8. Next documents
 
-- [`01-semantics.md`](01-semantics.md): the core semantics (draft 3, with parallel evaluation).
+- [`01-semantics.md`](01-semantics.md): the core semantics (draft 4, with parallel evaluation and spike 2's matching rules).
 - [`02-benchmarks.md`](02-benchmarks.md): the benchmark suite (draft 1).
 - [`03-spikes.md`](03-spikes.md): spike reports (spikes 1, 1b, 2, 3 and 4: done).
 - [`04-syntax.md`](04-syntax.md): the concrete syntax (draft 1).
