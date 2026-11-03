@@ -55,10 +55,41 @@ fn two_ints(h: &Heap, a: T<'_>, b: T<'_>) -> Option<(i64, i64)> {
     }
 }
 
+/// A machine integer, or a rational with machine-integer parts, as (numerator, positive denominator).
+fn small_ratio(h: &Heap, t: T<'_>) -> Option<(i64, i64)> {
+    match h.view(t) {
+        View::Int(v) => Some((v, 1)),
+        View::Rational { num, den } => match (h.view(num), h.view(den)) {
+            (View::Int(n), View::Int(d)) if d > 0 => Some((n, d)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The product of machine integers and small rationals when it is a machine integer (`c/2` for even `c`): the
+/// common case of exact division in loops, without setting up an [`Arith`].
+fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
+    let (mut n, mut d) = (1i128, 1i128);
+    for &a in args {
+        let (p, q) = small_ratio(h, a)?;
+        n = n.checked_mul(p as i128)?;
+        d = d.checked_mul(q as i128)?;
+    }
+    if n % d != 0 {
+        return None;
+    }
+    i64::try_from(n / d).ok()
+}
+
 /// `add(args...)`.
 struct Add(Stop);
 
 impl Native for Add {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
         let h = cx.heap();
@@ -73,10 +104,15 @@ impl Native for Add {
 struct Mul(Stop);
 
 impl Native for Mul {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
         let h = cx.heap();
-        Ok(Reply::Done(match small_fold(h, args, i64::checked_mul, 1) {
+        let v = small_fold(h, args, i64::checked_mul, 1).or_else(|| small_product(h, args));
+        Ok(Reply::Done(match v {
             Some(v) => h.int(v),
             None => arith(h, &self.0).mul(args),
         }))
@@ -87,6 +123,10 @@ impl Native for Mul {
 struct Pow(Stop);
 
 impl Native for Pow {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [b, e] = args else { return Ok(Reply::Decline) };
         Ok(Reply::Done(arith(cx.heap(), &self.0).pow(*b, *e)))
@@ -97,6 +137,10 @@ impl Native for Pow {
 struct Complex(Stop);
 
 impl Native for Complex {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [re, im] = args else { return Ok(Reply::Decline) };
         Ok(Reply::Done(arith(cx.heap(), &self.0).complex(*re, *im)))
@@ -107,6 +151,10 @@ impl Native for Complex {
 struct BallLiteral(Stop);
 
 impl Native for BallLiteral {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [s, d] = args else { return Ok(Reply::Decline) };
@@ -142,6 +190,10 @@ impl Rel {
 struct Compare(Rel, Stop);
 
 impl Native for Compare {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [a, b] = args else { return Ok(Reply::Decline) };
@@ -167,6 +219,10 @@ struct Equality {
 }
 
 impl Native for Equality {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [a, b] = args else { return Ok(Reply::Decline) };
@@ -191,6 +247,10 @@ impl Native for Equality {
 struct NotSame;
 
 impl Native for NotSame {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [a, b] = args else { return Ok(Reply::Decline) };
         Ok(Reply::Done(cx.bool(a != b)))
@@ -234,6 +294,10 @@ impl Native for Junction {
 struct Not;
 
 impl Native for Not {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [x] = args else { return Ok(Reply::Decline) };
         Ok(if cx.is_true(*x) {
@@ -251,9 +315,25 @@ pub struct ArithOrder;
 
 impl TermOrder for ArithOrder {
     fn cmp<'h>(&self, h: &'h Heap, a: T<'h>, b: T<'h>) -> Ordering {
+        if let Some((x, y)) = two_ints(h, a, b) {
+            return x.cmp(&y);
+        }
         Order::new(h).cmp(a, b)
     }
     fn sort<'h>(&self, h: &'h Heap, v: &mut [T<'h>]) {
+        // machine integers and small rationals (most sums and products in loops) are ordered by value, with no
+        // order to set up: distinct exact numbers never have equal values
+        if v.len() < 2 {
+            return;
+        }
+        if v.iter().all(|&t| small_ratio(h, t).is_some()) {
+            let key = |t: T<'h>| small_ratio(h, t).expect("checked");
+            v.sort_unstable_by(|&a, &b| {
+                let ((p, q), (r, s)) = (key(a), key(b));
+                (p as i128 * s as i128).cmp(&(r as i128 * q as i128))
+            });
+            return;
+        }
         // one order (and its cache of symbol names) per sort
         let o = Order::new(h);
         v.sort_by(|a, b| o.cmp(*a, *b));

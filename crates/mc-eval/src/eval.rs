@@ -28,7 +28,7 @@ use crate::conc::{AppendVec, SymTable};
 use crate::ctl::{Control, Status, FUEL_BLOCK};
 use crate::defs::{Attributes, Defs, Hold, SymDefs};
 use crate::index::{Rhs, Rule, RuleRhs, Scratch};
-use crate::lang::Form;
+use crate::lang::{BlockState, Form};
 use crate::machine::{Frame, SPLIT_NEST};
 use crate::matcher::{Binds, Matcher};
 use crate::native::{Native, NativeCx, Pattern};
@@ -228,8 +228,8 @@ pub struct Kernel {
 
 /// The implementation in a symbol's native slot.
 pub(crate) enum Impl {
-    /// a native function
-    Native(Box<dyn Native>),
+    /// a native function, and whether it reads its call term ([`Native::reads_term`])
+    Native { native: Box<dyn Native>, reads_term: bool },
     /// a language form the evaluator runs as frames of its stack ([`crate::lang`])
     Form(Form),
 }
@@ -238,7 +238,7 @@ impl Trace for Kernel {
     fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
         self.defs.trace(visit);
         for n in self.natives.iter_mut() {
-            if let Impl::Native(n) = n {
+            if let Impl::Native { native: n, .. } = n {
                 n.trace(visit);
             }
         }
@@ -330,7 +330,8 @@ impl Kernel {
 
     /// Give symbol `s` a native implementation (and its attributes). See [`Native`].
     pub fn register(&mut self, s: Sym, a: Attributes, native: Box<dyn Native>) {
-        self.register_impl(s, a, Impl::Native(native));
+        let reads_term = native.reads_term();
+        self.register_impl(s, a, Impl::Native { native, reads_term });
     }
 
     /// Make `s` a language form run as frames of the evaluation stack.
@@ -632,26 +633,47 @@ pub(crate) fn sym_of<'h>(h: &'h Heap, t: T<'h>) -> Option<Sym> {
 /// A compound term in canonical form: under an associative and commutative head, arguments with the same head are
 /// spliced in (one level: they are canonical already) and the arguments sorted by the canonical order.
 fn make<'h>(k: &Kernel, h: &'h Heap, head: T<'h>, args: &[T<'h>]) -> T<'h> {
-    if !sym_of(h, head).is_some_and(|s| k.defs.attrs(s).ac) {
+    let Some(sd) = sym_of(h, head).and_then(|s| k.defs.get(s)).filter(|d| d.attrs().ac) else {
         return h.app(head, args);
-    }
-    let mut v = Vec::with_capacity(args.len());
+    };
+    // the flattened arguments: on a fixed buffer when few (most sums and products), else in a vector
+    let len: usize = args
+        .iter()
+        .map(|&a| match h.view(a) {
+            View::App { head: g, args: inner } if g == head => inner.len(),
+            _ => 1,
+        })
+        .sum();
+    let mut buf = [head; 16];
+    let mut big = vec![];
+    let v: &mut [T<'h>] = if len <= buf.len() { &mut buf[..len] } else { big.resize(len, head); &mut big };
+    let mut n = 0;
     for &a in args {
         match h.view(a) {
-            View::App { head: g, args: inner } if g == head => v.extend_from_slice(inner),
-            _ => v.push(a),
+            View::App { head: g, args: inner } if g == head => {
+                v[n..n + inner.len()].copy_from_slice(inner);
+                n += inner.len();
+            }
+            _ => {
+                v[n] = a;
+                n += 1;
+            }
         }
     }
-    k.order.sort(h, &mut v);
-    if let Some(e) = sym_of(h, head).and_then(|s| k.defs.get(s)).and_then(|d| d.identity(h)) {
-        v.retain(|&a| a != e);
-        match v[..] {
-            [] => return e,
-            [a] => return a,
-            _ => {}
+    k.order.sort(h, v);
+    let Some(e) = sd.identity(h) else { return h.app(head, v) };
+    let mut kept = 0;
+    for i in 0..v.len() {
+        if v[i] != e {
+            v[kept] = v[i];
+            kept += 1;
         }
     }
-    h.app(head, &v)
+    match v[..kept] {
+        [] => e,
+        [a] => a,
+        _ => h.app(head, &v[..kept]),
+    }
 }
 
 /// Per-task evaluation state. The frontier's `Cx` is passed down by `&mut` along the leftmost path.
@@ -697,6 +719,9 @@ pub(crate) struct Cx<'h> {
     pub(crate) stack: Vec<Frame<'h>>,
     /// The values of the arguments being evaluated, for the levels on the stack.
     pub(crate) vals: Vec<T<'h>>,
+    /// Finished blocks' states, for reuse.
+    #[allow(clippy::vec_box)] // boxed: a block frame holds a pointer, so the frames stay small
+    pub(crate) blocks: Vec<Box<BlockState<'h>>>,
 }
 
 impl<'h> Cx<'h> {
@@ -725,6 +750,7 @@ impl<'h> Cx<'h> {
             pool: vec![],
             stack: vec![],
             vals: vec![],
+            blocks: vec![],
         }
     }
 }
@@ -832,6 +858,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             pool: vec![],
             stack: vec![],
             vals: vec![],
+            blocks: vec![],
             ..*cx
         }
     }
@@ -1233,6 +1260,25 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
     }
 
+    /// Whether these arguments may form a split group: two of them are evaluated, and under the lazy rule a pair
+    /// (which splits only before its first element) has a static estimate reaching the grain; a longer group may
+    /// also split later, by measured cost. Arguments that cannot split are evaluated on the stack without the
+    /// group's bookkeeping.
+    pub(crate) fn may_split_args(&self, args: &[T<'h>], hold: Hold) -> bool {
+        // a group needs two evaluated arguments; a held one is passed as it is (and a held cell term would make a
+        // speculative element a hole)
+        if (0..args.len()).filter(|&i| !hold.holds(i)).nth(1).is_none() {
+            return false;
+        }
+        match (self.k.cfg.split, args) {
+            (Split::Lazy, &[a, b]) => {
+                let est = |i: usize, t: T<'h>| if hold.holds(i) { 0 } else { self.estimate(t) };
+                est(0, a) + est(1, b) >= self.k.cfg.grain
+            }
+            _ => true,
+        }
+    }
+
     /// The strict arguments of a call as a group split by the granularity rule (the speculative path of argument
     /// evaluation; [`crate::machine`] evaluates them one at a time otherwise).
     pub(crate) fn split_args(&self, cx: &mut Cx<'h>, args: &'h [T<'h>], hold: Hold) -> Res<Vec<T<'h>>> {
@@ -1325,7 +1371,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             let f0 = cx.fuel;
             // a speculative cell never leaves its task (crate::cells): such a value is redone by the frontier
             let r = match f(self, cx, i) {
-                Ok(v) if !cx.front && self.find_cell(v, |id| id < 0).is_some() => Err(Abort::Hole),
+                Ok(v) if !cx.front && self.find_cell(v, |id| id < 0).is_some() => { Err(Abort::Hole) }
                 r => r,
             };
             match r {

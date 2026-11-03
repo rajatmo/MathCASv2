@@ -104,15 +104,8 @@ enum Vals<'h> {
     Owned(Vec<T<'h>>),
 }
 
-/// What the arguments' values make of a call.
-enum Built<'h> {
-    /// a failure argument: the result
-    Fail(T<'h>),
-    /// a different term (listable threading, an AC canonical form that is no call of the head): evaluate it
-    Again(T<'h>),
-    /// the call to dispatch
-    Call(T<'h>),
-}
+/// Argument values kept on fixed buffers (larger calls use a vector).
+const ARGS: usize = 16;
 
 /// Try an expression returning `Res`; on an abort, the level `$e` fails with it.
 macro_rules! attempt {
@@ -317,7 +310,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         if hold == Hold::All || !(0..args.len()).any(|i| !hold.holds(i) && self.needs_eval(cx, args[i])) {
             return self.after_args(cx, e, Vals::Same, attrs, closure);
         }
-        if args.len() >= 2 && !attrs.effect && self.may_split(cx) {
+        if args.len() >= 2 && !attrs.effect && self.may_split(cx) && self.may_split_args(args, hold) {
             let vals = attempt!(self, cx, e, self.split_args(cx, args, hold));
             return self.after_args(cx, e, Vals::Owned(vals), attrs, closure);
         }
@@ -385,74 +378,151 @@ impl<'k, 'h> Eval<'k, 'h> {
                 Step::Done(v) => Go::Next(self.finish(cx, e, v)),
             };
         }
-        let built = {
-            let (vs, base): (&[T<'h>], usize) = match &vals {
-                Vals::Same => (args, cx.vals.len()),
-                Vals::Stack(base) => (&cx.vals[*base..], *base),
-                Vals::Owned(v) => (v, cx.vals.len()),
-            };
-            let b = self.build(e.t, head, args, vs, attrs);
-            cx.vals.truncate(base);
-            b
+        // the values, off the value stack: on a fixed buffer when few
+        let mut small = [head; ARGS];
+        let mut big: Vec<T<'h>> = vec![];
+        let vs: &[T<'h>] = match vals {
+            Vals::Same => args,
+            Vals::Stack(base) => {
+                let n = cx.vals.len() - base;
+                let dst = if n <= ARGS {
+                    &mut small[..n]
+                } else {
+                    big.resize(n, head);
+                    &mut big[..]
+                };
+                dst.copy_from_slice(&cx.vals[base..]);
+                cx.vals.truncate(base);
+                dst
+            }
+            Vals::Owned(v) => {
+                big = v;
+                &big
+            }
         };
-        match built {
-            Built::Fail(f) => Go::Next(self.finish(cx, e, f)),
-            Built::Again(u) => {
-                attempt!(self, cx, e, self.tick(cx));
-                e.t = u;
-                Go::Again(e)
-            }
-            Built::Call(t) => {
-                e.t = t;
-                self.call(cx, e)
-            }
-        }
-    }
-
-    /// What the evaluated arguments `vals` of `head(args)` make of the call (failures, threading, canonical form).
-    fn build(&self, t: T<'h>, head: T<'h>, args: &'h [T<'h>], vals: &[T<'h>], attrs: Attributes) -> Built<'h> {
-        let h = self.heap;
         if !attrs.handles_failures {
-            if let Some(f) = self.first_failure(vals) {
-                return Built::Fail(f);
+            if let Some(f) = self.first_failure(vs) {
+                return Go::Next(self.finish(cx, e, f));
             }
         }
         // listable functions map over list arguments (semantics 7.2)
         if attrs.listable {
-            if let Some(u) = self.thread(head, vals) {
-                return Built::Again(u);
+            if let Some(u) = self.thread(head, vs) {
+                attempt!(self, cx, e, self.tick(cx));
+                e.t = u;
+                return Go::Again(e);
             }
         }
-        // canonicalise (with an identity element, the result may not be a call of the head any more)
-        if attrs.ac {
-            let t = self.make(head, vals);
-            return if matches!(h.view(t), View::App { head: g, .. } if g == head) { Built::Call(t) } else { Built::Again(t) };
-        }
-        Built::Call(if vals == args { t } else { h.app(head, vals) })
+        // canonicalise: flattened and sorted; with an identity element the result may be no call of the head
+        let mut canon = [head; ARGS];
+        let mut canon_big: Vec<T<'h>> = vec![];
+        let cv: &[T<'h>] = if attrs.ac {
+            match self.canonical(head, vs, &mut canon, &mut canon_big) {
+                Ok(cv) => cv,
+                Err(u) => {
+                    attempt!(self, cx, e, self.tick(cx));
+                    e.t = u;
+                    return Go::Again(e);
+                }
+            }
+        } else {
+            vs
+        };
+        // the call with the evaluated arguments (an AC call is rebuilt: the store shares it if it was canonical)
+        let changed = attrs.ac || !std::ptr::eq(vs, args) && vs != args;
+        self.call(cx, e, head, cv, changed)
     }
 
-    /// The call `e.t` with evaluated arguments: its native implementation (step 3.4) or language form, then its
-    /// compiled specialisation and its rules.
-    fn call(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>) -> Go<'h> {
+    /// The call of `head` on `vals`, the evaluated arguments of `e.t` (`changed`: the call is not `e.t` itself): its
+    /// native implementation (step 3.4) or language form, then its compiled specialisation and its rules. A native
+    /// that does not read its term is called before the call is built (decision 1a.6).
+    fn call(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>, head: T<'h>, vals: &[T<'h>], changed: bool) -> Go<'h> {
         let h = self.heap;
-        let View::App { head, args } = h.view(e.t) else { unreachable!("a call") };
-        let Some(sd) = sym_of(h, head).and_then(|s| self.k.defs.get(s)) else { return self.rules(cx, e) };
-        let n = sd.native.load(Acquire);
-        if n == 0 {
-            return self.rules(cx, e);
-        }
-        match &self.k.natives[n as usize - 1] {
-            Impl::Form(form) => {
+        let native = sym_of(h, head)
+            .and_then(|s| self.k.defs.get(s))
+            .map(|sd| sd.native.load(Acquire))
+            .filter(|&n| n != 0)
+            .map(|n| &self.k.natives[n as usize - 1]);
+        match native {
+            Some(Impl::Form(form)) => {
+                if changed {
+                    e.t = h.app(head, vals);
+                }
+                let View::App { args, .. } = h.view(e.t) else { unreachable!("a call") };
                 e.stage = Stage::Form;
                 cx.stack.push(Frame::Eval(e));
                 let r = lang::start(&mut NativeCx { ev: self, cx }, *form, args);
                 Go::Next(self.form_out(cx, r))
             }
-            Impl::Native(native) => {
+            Some(Impl::Native { native, reads_term }) => {
+                let early = changed && !reads_term;
+                if changed && *reads_term {
+                    e.t = h.app(head, vals);
+                }
                 let t = e.t;
-                let r = native.call(&mut NativeCx { ev: self, cx }, t, args);
+                let r = native.call(&mut NativeCx { ev: self, cx }, t, vals);
+                if early && matches!(r, Ok(Reply::Decline)) {
+                    e.t = h.app(head, vals);
+                }
                 self.native_result(cx, e, r)
             }
+            None => {
+                if changed {
+                    e.t = h.app(head, vals);
+                }
+                self.rules(cx, e)
+            }
+        }
+    }
+
+    /// The canonical arguments of AC head `head` applied to `vals`: calls of the head spliced in (one level: they
+    /// are canonical already), sorted by the canonical order, identity elements dropped (semantics 7.3); on `small`
+    /// when they fit, else on `big`. `Err` with the replacement when an identity element leaves fewer than two.
+    fn canonical<'b>(
+        &self,
+        head: T<'h>,
+        vals: &[T<'h>],
+        small: &'b mut [T<'h>; ARGS],
+        big: &'b mut Vec<T<'h>>,
+    ) -> Result<&'b [T<'h>], T<'h>> {
+        let h = self.heap;
+        let inner = |a: T<'h>| match h.view(a) {
+            View::App { head: g, args } if g == head => Some(args),
+            _ => None,
+        };
+        let len: usize = vals.iter().map(|&a| inner(a).map_or(1, <[T]>::len)).sum();
+        let v: &mut [T<'h>] = if len <= ARGS {
+            &mut small[..len]
+        } else {
+            big.resize(len, head);
+            &mut big[..]
+        };
+        let mut n = 0;
+        for &a in vals {
+            match inner(a) {
+                Some(xs) => {
+                    v[n..n + xs.len()].copy_from_slice(xs);
+                    n += xs.len();
+                }
+                None => {
+                    v[n] = a;
+                    n += 1;
+                }
+            }
+        }
+        self.k.sort(h, v);
+        let Some(id) = sym_of(h, head).and_then(|s| self.k.defs.get(s)).and_then(|d| d.identity(h)) else { return Ok(v) };
+        let mut kept = 0;
+        for i in 0..v.len() {
+            if v[i] != id {
+                v[kept] = v[i];
+                kept += 1;
+            }
+        }
+        match v[..kept] {
+            [] => Err(id),
+            [a] => Err(a),
+            _ => Ok(&v[..kept]),
         }
     }
 

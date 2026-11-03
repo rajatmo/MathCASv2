@@ -74,6 +74,10 @@ impl Native for Closure {
 struct TopLocal;
 
 impl Native for TopLocal {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let sc = cx.ev.k.names.scopes;
@@ -91,6 +95,10 @@ impl Native for TopLocal {
 struct Assign;
 
 impl Native for Assign {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [x, v] = args else { return Ok(Reply::Decline) };
@@ -113,6 +121,10 @@ impl Native for Assign {
 struct LocalCell;
 
 impl Native for LocalCell {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let &[id] = args else { return Ok(Reply::Decline) };
@@ -200,12 +212,26 @@ enum Iter<'h> {
 pub(crate) fn start<'h>(cx: &mut NativeCx<'_, '_, 'h>, form: Form, args: &'h [T<'h>]) -> Res<FormOut<'h>> {
     match form {
         Form::Block => {
-            if args.is_empty() {
-                return Ok(FormOut::Reply(Reply::Done(cx.null())));
+            let h = cx.heap();
+            let sc = &cx.ev.k.names.scopes;
+            match *args {
+                [] => Ok(FormOut::Reply(Reply::Done(cx.null()))),
+                // one statement that binds nothing: the block is that statement (a tail call, H.12)
+                [s] if !matches!(h.view(s), View::App { head, args: &[_, _] } if head == h.sym_term(sc.let_) || head == h.sym_term(sc.var)) => {
+                    cx.tick(1)?;
+                    Ok(FormOut::Reply(Reply::Again(s)))
+                }
+                _ => {
+                    let null = cx.null();
+                    let mut st = cx.cx.blocks.pop().unwrap_or_else(|| {
+                        Box::new(BlockState { stmts: args, i: 0, pairs: vec![], cells: vec![], escapes0: 0, bind: None, last: null })
+                    });
+                    st.stmts = args;
+                    st.escapes0 = cx.cx.escapes;
+                    st.last = null;
+                    block_next(cx, st)
+                }
             }
-            let null = cx.null();
-            let st = BlockState { stmts: args, i: 0, pairs: vec![], cells: vec![], escapes0: cx.cx.escapes, bind: None, last: null };
-            block_next(cx, Box::new(st))
         }
         Form::While => {
             let &[c, body] = args else { return Ok(FormOut::Reply(Reply::Decline)) };
@@ -234,16 +260,30 @@ pub(crate) fn resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>, v: T<'
 /// A form's frame is unwound by an abort: a block frees its cells unless they escaped.
 pub(crate) fn abort<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>) {
     if let Frame::Block(st) = frame {
-        let ev = cx.ev;
-        ev.end_block(cx.cx, &st.cells, st.escapes0, None);
+        end_block(cx, st, None);
     }
 }
 
 /// A block's result: its cells are freed unless the value or an effect may hold them.
 fn block_done<'h>(cx: &mut NativeCx<'_, '_, 'h>, st: Box<BlockState<'h>>, v: T<'h>) -> Res<FormOut<'h>> {
-    let ev = cx.ev;
-    ev.end_block(cx.cx, &st.cells, st.escapes0, Some(v));
+    end_block(cx, st, Some(v));
     Ok(FormOut::Reply(Reply::Done(v)))
+}
+
+/// Blocks kept for reuse per task (their buffers keep their capacity).
+const BLOCK_POOL: usize = 32;
+
+/// The end of a block: its cells, then its state back to the task's pool.
+fn end_block<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: Box<BlockState<'h>>, v: Option<T<'h>>) {
+    let ev = cx.ev;
+    ev.end_block(cx.cx, &st.cells, st.escapes0, v);
+    if cx.cx.blocks.len() < BLOCK_POOL {
+        st.i = 0;
+        st.pairs.clear();
+        st.cells.clear();
+        st.bind = None;
+        cx.cx.blocks.push(st);
+    }
 }
 
 /// Run a block from statement `st.i`: bind or evaluate it. The last statement of a block without cells is returned
@@ -442,6 +482,10 @@ fn apply<'h>(cx: &mut NativeCx<'_, '_, 'h>, rules: &[Compiled<'h>], t: T<'h>, b:
 struct Match;
 
 impl Native for Match {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let &[e, arms] = args else { return Ok(Reply::Decline) };
         let Some(arms) = cx.as_list(arms) else { return Ok(Reply::Decline) };
@@ -524,6 +568,10 @@ fn pass<'h>(cx: &mut NativeCx<'_, '_, 'h>, rules: &[Compiled<'h>], t: T<'h>, ord
 struct Rewrite;
 
 impl Native for Rewrite {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let (e, rules, opts) = match *args {
@@ -590,6 +638,10 @@ fn options<'h>(h: &'h Heap, o: T<'h>) -> Option<Vec<(Sym, T<'h>)>> {
 struct CheckOptions;
 
 impl Native for CheckOptions {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let &[o, known] = args else { return Ok(Reply::Decline) };
@@ -608,6 +660,10 @@ impl Native for CheckOptions {
 struct OptionValue;
 
 impl Native for OptionValue {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let &[o, name, default] = args else { return Ok(Reply::Decline) };

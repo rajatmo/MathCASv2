@@ -41,6 +41,15 @@ pub trait Native: Send + Sync {
 
     /// Visit every term handle the native keeps (a safe point).
     fn trace(&mut self, _visit: &mut dyn FnMut(&mut Raw)) {}
+
+    /// Whether [`Native::call`] reads its term `t` (returns it, matches or rewrites it, takes its head from it).
+    /// A native that reads only `args` returns `false`: the evaluator then calls it before building the call with
+    /// the evaluated arguments, and builds that term only if the native declines (decision 1a.6), so arithmetic
+    /// and comparisons in loops make no garbage calls. Its `t` is then the call as it was before its arguments
+    /// were evaluated. Read once, at registration.
+    fn reads_term(&self) -> bool {
+        true
+    }
 }
 
 /// A compiled pattern a native matches with ([`NativeCx::matches`]); made by

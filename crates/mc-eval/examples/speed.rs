@@ -81,6 +81,27 @@ fn cases() -> Vec<Case> {
             memo: false,
         },
         Case {
+            name: "R1i",
+            size: 25,
+            // R1 on the evaluator's machine-integer built-ins: dispatch without the arithmetic library
+            setup: "rule fib(0) = 0\nrule fib(1) = 1\nrule fib(k_: Int) := iadd(fib(isub(k, 1)), fib(isub(k, 2)))",
+            measure: |n| format!("fib({n})"),
+            expect: |n| (n <= 90).then(|| fib(n)),
+            work: fib_calls,
+            unit: "call",
+            memo: false,
+        },
+        Case {
+            name: "LOOPi",
+            size: 1_000_000,
+            setup: "",
+            measure: |n| format!("{{ var i = 0; while less(i, {n}) {{ i = iadd(i, 1) }}; i }}"),
+            expect: |n| Some(n.to_string()),
+            work: |n| n,
+            unit: "iteration",
+            memo: true,
+        },
+        Case {
             name: "LOOP",
             size: 1_000_000,
             setup: "",

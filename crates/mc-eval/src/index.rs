@@ -52,9 +52,18 @@ impl RuleRhs {
         match self {
             RuleRhs::Native(f) => f(b, h),
             RuleRhs::Term { body, names, vars } => {
-                let pairs: Vec<(Sym, T<'h>)> =
-                    names.iter().zip(vars.iter()).map(|(&s, &v)| (s, crate::subst::value(h, b, v, nm.list))).collect();
-                crate::subst::substitute(h, &nm.scopes, body.get(h), &pairs)
+                let body = body.get(h);
+                let pair = |(&s, &v): (&Sym, &u16)| (s, crate::subst::value(h, b, v, nm.list));
+                // most rules bind a few variables: their pairs on a fixed buffer
+                let mut buf = [(Sym(0), body); 8];
+                if names.len() <= buf.len() {
+                    for (slot, p) in buf.iter_mut().zip(names.iter().zip(vars.iter())) {
+                        *slot = pair(p);
+                    }
+                    return crate::subst::substitute(h, &nm.scopes, body, &buf[..names.len()]);
+                }
+                let pairs: Vec<(Sym, T<'h>)> = names.iter().zip(vars.iter()).map(pair).collect();
+                crate::subst::substitute(h, &nm.scopes, body, &pairs)
             }
         }
     }
