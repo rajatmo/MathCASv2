@@ -292,6 +292,14 @@ impl<E: Default + Send + Sync> SymTable<E> {
         unsafe { &*p.add(off) }
     }
 
+    /// The element of symbol index `i`, mutably, if its segment exists.
+    pub(crate) fn get_mut(&mut self, i: u32) -> Option<&mut E> {
+        let (k, off) = locate(i as usize);
+        let p = *self.segs.get_mut(k)?.get_mut();
+        // SAFETY: as in `get`; `&mut self` excludes readers.
+        (!p.is_null()).then(|| unsafe { &mut *p.add(off) })
+    }
+
     /// Every element of every installed segment, mutably (a safe point).
     pub(crate) fn for_each_mut(&mut self, mut f: impl FnMut(&mut E)) {
         for (k, d) in self.segs.iter_mut().enumerate() {

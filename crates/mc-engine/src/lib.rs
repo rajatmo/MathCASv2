@@ -20,4 +20,5 @@ pub mod arith;
 mod engine;
 pub mod format;
 
-pub use engine::{CoreEngine, EngineConfig};
+pub use engine::{CoreEngine, EngineConfig, Event, RunError, Script};
+pub use mc_load::{InMemory, LoadError, Module, Origin, SourceProvider};

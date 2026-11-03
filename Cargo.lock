@@ -483,6 +483,7 @@ dependencies = [
  "mc-core",
  "mc-eval",
  "mc-lists",
+ "mc-load",
  "mc-numeric",
  "mc-numtheory",
  "mc-poly",
@@ -514,6 +515,14 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "rustc-hash",
+]
+
+[[package]]
+name = "mc-load"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-syntax",
 ]
 
 [[package]]

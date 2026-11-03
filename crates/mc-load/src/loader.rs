@@ -1,0 +1,383 @@
+//! [`Loader`]: the reader state of a session (module table, session imports) and the reading of one input:
+//! header check, parse and lowering, module and import statements, loading of module files, and name resolution
+//! of every statement (decisions F.1 to F.6).
+use crate::error::LoadError;
+use crate::modules::{qualify, split_qualified, Imports, Module, Table};
+use crate::resolve::{defined_name, reserved, Ctx, Env, Fail, Walk};
+use crate::source::{FileSystem, Origin, Source, SourceProvider};
+use crate::stdlib;
+use mc_api::{names, Store, Sym, T};
+use mc_syntax::{as_sym, Diagnostic, Head, Heads, Span, Spanned};
+use std::collections::{BTreeSet, HashSet};
+use std::path::Path;
+
+/// The statements of one input, resolved and ready to evaluate in order.
+#[derive(Debug)]
+pub struct Read<'h> {
+    /// The statements: those of module files loaded by its imports first, then its own. A module statement becomes
+    /// the definitions of its body followed by `null`; an import becomes `null`.
+    pub statements: Vec<T<'h>>,
+    /// Qualified names (`M.f`) of the members of modules this input defines again (a reload): their definitions
+    /// must be cleared before the statements run, so that clauses are not duplicated (decision F.8).
+    pub reloaded: Vec<String>,
+}
+
+/// The reader state of a session.
+pub struct Loader {
+    modules: Table,
+    /// the session's imports: they persist from one input to the next (decision F.4)
+    imports: Imports,
+    provider: Box<dyn SourceProvider>,
+}
+
+impl Default for Loader {
+    /// A loader reading from the file system.
+    fn default() -> Loader {
+        Loader::new(Box::new(FileSystem))
+    }
+}
+
+impl Loader {
+    /// A loader reading module files through `provider`.
+    pub fn new(provider: Box<dyn SourceProvider>) -> Loader {
+        Loader { modules: Table::new(), imports: Imports::default(), provider }
+    }
+
+    /// Read module files through `provider` from now on.
+    pub fn set_provider(&mut self, provider: Box<dyn SourceProvider>) {
+        self.provider = provider;
+    }
+
+    /// The loaded modules, by name.
+    pub fn modules(&self) -> impl Iterator<Item = &Module> {
+        self.modules.values()
+    }
+
+    /// The loaded module `name`.
+    pub fn module(&self, name: &str) -> Option<&Module> {
+        self.modules.get(name)
+    }
+
+    /// Read `text` from `origin` and resolve it, loading the module files its imports need. `known` says whether
+    /// the kernel knows a symbol (a native, rule, attribute or own value). On an error, the reader state is as
+    /// before the call and nothing should be evaluated.
+    pub fn read<'h, S: Store + ?Sized>(
+        &mut self,
+        store: &'h S,
+        text: &str,
+        origin: &Origin,
+        known: &dyn Fn(Sym) -> bool,
+    ) -> Result<Read<'h>, LoadError> {
+        let heads = Heads::new(store);
+        let reserved = reserved(store);
+        let saved = self.modules.clone();
+        let mut imports = std::mem::take(&mut self.imports);
+        let saved_imports = imports.clone();
+        let mut rd = Reader {
+            store,
+            heads: &heads,
+            reserved: &reserved,
+            known,
+            modules: &mut self.modules,
+            provider: &*self.provider,
+            loading: vec![],
+            out: vec![],
+            reloaded: vec![],
+        };
+        match rd.source(text, origin, &mut imports, true) {
+            Ok(()) => {
+                let (statements, mut reloaded) = (rd.out, rd.reloaded);
+                reloaded.sort();
+                reloaded.dedup();
+                self.imports = imports;
+                Ok(Read { statements, reloaded })
+            }
+            Err(e) => {
+                self.modules = saved;
+                self.imports = saved_imports;
+                Err(e)
+            }
+        }
+    }
+
+    /// [`Loader::read`] on the file at `path` (a script, or a module file loaded again).
+    pub fn read_file<'h, S: Store + ?Sized>(
+        &mut self,
+        store: &'h S,
+        path: &Path,
+        known: &dyn Fn(Sym) -> bool,
+    ) -> Result<Read<'h>, LoadError> {
+        let origin = Origin::file(path);
+        let text = self
+            .provider
+            .file(path)
+            .map_err(|e| LoadError::plain(&origin.name, format!("cannot read the file: {e}"), true))?;
+        self.read(store, &text, &origin, known)
+    }
+}
+
+/// An error while reading one source: at a position of this source (the statement's span locates it), or a
+/// complete error from a module file it loaded.
+enum Error {
+    Here(Fail, Span),
+    Elsewhere(LoadError),
+}
+
+/// The state of one [`Loader::read`].
+struct Reader<'a, 'h, S: Store + ?Sized> {
+    store: &'h S,
+    heads: &'a Heads,
+    reserved: &'a HashSet<Sym>,
+    known: &'a dyn Fn(Sym) -> bool,
+    modules: &'a mut Table,
+    provider: &'a dyn SourceProvider,
+    /// the modules whose files are being read, outermost first (cycle detection)
+    loading: Vec<String>,
+    out: Vec<T<'h>>,
+    reloaded: Vec<String>,
+}
+
+impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
+    /// Read one source text: its statements go to `out` in order. `imports` are the imports of its top level.
+    fn source(&mut self, text: &str, origin: &Origin, imports: &mut Imports, in_input: bool) -> Result<(), LoadError> {
+        let at = |ds: Vec<Diagnostic>| LoadError::at(&origin.name, text, ds, in_input);
+        if let Some(d) = header_error(text) {
+            return Err(at(vec![d]));
+        }
+        let stmts = mc_syntax::read_spanned(self.store, text).map_err(at)?;
+        // bare names this source defines at its top level count as known inside its modules (decision F.11)
+        let defined: HashSet<Sym> = stmts
+            .iter()
+            .filter_map(|s| defined_name(self.store, self.heads, unwrap_public(self.store, self.heads, s.term).0))
+            .filter(|&s| split_qualified(&self.store.sym_name(s)).is_none())
+            .collect();
+        for s in &stmts {
+            match self.statement(s, origin, imports, &defined) {
+                Ok(()) => {}
+                Err(Error::Here(fail, span)) => {
+                    let span = locate(text, &fail.name, span);
+                    return Err(at(vec![Diagnostic::new(span, fail.message)]));
+                }
+                Err(Error::Elsewhere(e)) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    fn null(&self) -> T<'h> {
+        self.store.sym_term(self.store.sym(names::NULL))
+    }
+
+    /// One top-level statement.
+    fn statement(&mut self, s: &Spanned<'h>, origin: &Origin, imports: &mut Imports, defined: &HashSet<Sym>) -> Result<(), Error> {
+        let here = |f: Fail| Error::Here(f, s.span);
+        match self.heads.classify(self.store, s.term) {
+            Some((Head::Module, &[name, body])) => self.module(name, body, s, origin, defined),
+            Some((h @ (Head::Import | Head::ImportExcept), args)) => {
+                self.import(h, args, origin, imports, s.span)?;
+                self.out.push(self.null());
+                Ok(())
+            }
+            Some((Head::Public, _)) => Err(here(Fail::new("pub", "`pub` is only allowed in a module body"))),
+            _ => {
+                // defining an imported name at the top level would change the module's function (or define a
+                // bare symbol that every use bypasses): an error (decision F.14)
+                if let Some(d) = defined_name(self.store, self.heads, s.term) {
+                    let n = self.store.sym_name(d);
+                    if let Some(ms) = imports.get(&n) {
+                        let message = format!("cannot define `{n}` here: the name is imported from module {}", ms.join(" and "));
+                        return Err(here(Fail::new(n, message)));
+                    }
+                }
+                let t = self.resolve(Ctx::Top { imports }, s.term).map_err(here)?;
+                self.out.push(t);
+                Ok(())
+            }
+        }
+    }
+
+    fn resolve(&self, ctx: Ctx<'_>, t: T<'h>) -> Result<T<'h>, Fail> {
+        let env = Env { store: self.store, heads: self.heads, modules: &*self.modules, known: self.known, reserved: self.reserved };
+        Walk::new(&env, ctx).statement(t)
+    }
+
+    /// `module M { ... }` (decisions F.2 to F.4): the members are collected and the module registered first, so
+    /// forward references work; then each definition is resolved and emitted in order, then `null`.
+    fn module(&mut self, name: T<'h>, body: T<'h>, s: &Spanned<'h>, origin: &Origin, defined: &HashSet<Sym>) -> Result<(), Error> {
+        let (st, hs) = (self.store, self.heads);
+        let here = |f: Fail| Error::Here(f, s.span);
+        let mname = match as_sym(st, name) {
+            Some(n) => st.sym_name(n),
+            None => return Err(here(Fail::new("module", "a module name must be a name"))),
+        };
+        if mname.contains('.') {
+            return Err(here(Fail::new(mname.clone(), format!("nested modules are not supported yet: `{mname}`"))));
+        }
+        let items: &[T<'h>] = match hs.classify(st, body) {
+            Some((Head::List, items)) => items,
+            _ => &[],
+        };
+        let span_of = |i: usize| s.body.get(i).copied().unwrap_or(s.span);
+        let mut members = BTreeSet::new();
+        let mut public = BTreeSet::new();
+        let mut imports = Imports::default();
+        for (i, &item) in items.iter().enumerate() {
+            let (inner, is_pub) = unwrap_public(st, hs, item);
+            let fail = |f: Fail| Error::Here(f, span_of(i));
+            match hs.classify(st, inner) {
+                Some((Head::Module, _)) => return Err(fail(Fail::new("module", "nested modules are not supported yet"))),
+                Some((h @ (Head::Import | Head::ImportExcept), args)) => {
+                    if is_pub {
+                        return Err(fail(Fail::new("pub", "an import cannot be `pub` (re-exports are not supported)")));
+                    }
+                    self.import(h, args, origin, &mut imports, span_of(i))?;
+                }
+                _ => match defined_name(st, hs, inner) {
+                    Some(d) => {
+                        let n = st.sym_name(d);
+                        let member = match split_qualified(&n) {
+                            Some((m, f)) if m == mname => f.to_string(),
+                            // a definition for another module's member: not a member of this one
+                            Some(_) => continue,
+                            None => n,
+                        };
+                        if self.reserved.contains(&st.sym(&member)) {
+                            let message = format!("`{member}` is a name of the core syntax and cannot be defined in a module");
+                            return Err(fail(Fail::new(member, message)));
+                        }
+                        if is_pub {
+                            public.insert(member.clone());
+                        }
+                        members.insert(member);
+                    }
+                    None if is_pub => {
+                        return Err(fail(Fail::new("pub", "`pub` marks a definition: fn, rule, sym, x = v, let or var")))
+                    }
+                    None => {}
+                },
+            }
+        }
+        if let Some(old) = self.modules.get(&mname) {
+            self.reloaded.extend(old.members.iter().map(|f| qualify(&mname, f)));
+        }
+        let module = Module { name: mname.clone(), origin: origin.name.clone(), members: members.clone(), public };
+        self.modules.insert(mname.clone(), module);
+        for (i, &item) in items.iter().enumerate() {
+            let inner = unwrap_public(st, hs, item).0;
+            if matches!(hs.classify(st, inner), Some((Head::Import | Head::ImportExcept, _))) {
+                continue;
+            }
+            let ctx = Ctx::Module { name: &mname, members: &members, imports: &imports, defined };
+            let t = self.resolve(ctx, inner).map_err(|f| Error::Here(f, span_of(i)))?;
+            self.out.push(t);
+        }
+        self.out.push(self.null());
+        Ok(())
+    }
+
+    /// `import M`, `import M.{f, g}`, `import M except h` into `imports` (decision F.4).
+    fn import(&mut self, h: Head, args: &[T<'h>], origin: &Origin, imports: &mut Imports, span: Span) -> Result<(), Error> {
+        let (st, hs) = (self.store, self.heads);
+        let here = |f: Fail| Error::Here(f, span);
+        let Some(path) = args.first().and_then(|&p| as_sym(st, p)) else {
+            return Err(here(Fail::new("import", "an import names a module")));
+        };
+        let m = st.sym_name(path);
+        self.ensure(&m, origin, span)?;
+        let module = &self.modules[&m];
+        let listed: Vec<String> = match args.get(1).map(|&l| hs.classify(st, l)) {
+            Some(Some((Head::List, names))) => names.iter().filter_map(|&n| as_sym(st, n)).map(|n| st.sym_name(n)).collect(),
+            _ => vec![],
+        };
+        for n in &listed {
+            if !module.public.contains(n) {
+                let why = if module.members.contains(n) {
+                    format!("`{n}` is private to module {m} (mark it `pub` to export it)")
+                } else {
+                    format!("module {m} has no member `{n}`")
+                };
+                return Err(here(Fail::new(n.clone(), why)));
+            }
+        }
+        match (h, args.len()) {
+            (Head::Import, 2) => listed.iter().for_each(|n| imports.add(n, &m)),
+            (Head::ImportExcept, _) => module.public.iter().filter(|n| !listed.contains(n)).for_each(|n| imports.add(n, &m)),
+            _ => module.public.iter().for_each(|n| imports.add(n, &m)),
+        }
+        Ok(())
+    }
+
+    /// Make sure module `m` is in the table, reading its file if needed (decision F.5).
+    fn ensure(&mut self, m: &str, origin: &Origin, span: Span) -> Result<(), Error> {
+        let here = |message: String| Error::Here(Fail::new(m, message), span);
+        if self.modules.contains_key(m) {
+            return Ok(());
+        }
+        if m.contains('.') {
+            return Err(here(format!("nested modules are not supported yet: `{m}`")));
+        }
+        if let Some(i) = self.loading.iter().position(|x| x == m) {
+            let mut chain = self.loading[i..].to_vec();
+            chain.push(m.to_string());
+            return Err(here(format!("import cycle: {}", chain.join(" -> "))));
+        }
+        let file = match &origin.dir {
+            Some(dir) => self.provider.module(m, dir).map_err(|e| here(format!("cannot read the file of module {m}: {e}")))?,
+            None => None,
+        };
+        let standard = || {
+            stdlib::MODULES
+                .iter()
+                .find(|(n, _)| *n == m)
+                .map(|(n, text)| Source { origin: Origin::embedded(stdlib::module_origin(n)), text: text.to_string() })
+        };
+        let Some(src) = file.or_else(standard) else {
+            let place = match &origin.dir {
+                Some(d) if d.as_os_str().is_empty() => " in the current directory".to_string(),
+                Some(d) => format!(" in {}", d.display()),
+                None => String::new(),
+            };
+            return Err(here(format!("no module `{m}`: no file {m}.mc{place} and no standard module of that name")));
+        };
+        self.loading.push(m.to_string());
+        // the top-level imports of a module file are its own, not the session's
+        let r = self.source(&src.text, &src.origin, &mut Imports::default(), false);
+        self.loading.pop();
+        r.map_err(Error::Elsewhere)?;
+        if !self.modules.contains_key(m) {
+            return Err(here(format!("{} does not define module `{m}`", src.origin.name)));
+        }
+        Ok(())
+    }
+}
+
+/// The statement under `pub`, and whether it was there.
+fn unwrap_public<'h, S: Store + ?Sized>(st: &'h S, hs: &Heads, t: T<'h>) -> (T<'h>, bool) {
+    match hs.is(st, t, Head::Public, 1) {
+        Some(a) => (a[0], true),
+        None => (t, false),
+    }
+}
+
+/// An error for a first line `#!...` other than `#! mathcas 2` (decision F.6).
+fn header_error(text: &str) -> Option<Diagnostic> {
+    let first = text.lines().next().unwrap_or("");
+    let rest = first.strip_prefix("#!")?;
+    if rest.split_whitespace().eq(["mathcas", "2"]) {
+        return None;
+    }
+    Some(Diagnostic::new(
+        Span::new(0, first.len()),
+        format!("unknown file header `{}`: a MathCAS v2 file starts with `#! mathcas 2`", first.trim_end()),
+    ))
+}
+
+/// The position of an error about `name` in the statement at `span`: the first occurrence of the name there, or
+/// the start of the statement.
+fn locate(text: &str, name: &str, span: Span) -> Span {
+    mc_syntax::identifiers(text)
+        .into_iter()
+        .find(|(n, sp)| n == name && sp.start >= span.start && sp.start < span.end)
+        .map_or(Span { start: span.start, end: span.start + 1 }, |(_, sp)| sp)
+}
+

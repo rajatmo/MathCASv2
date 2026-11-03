@@ -1,5 +1,5 @@
-# Usage: tools\dist.ps1   -> builds the release binaries and copies them, with the benchmark cases and a short
-# guide, to ..\dist-v2 (outside the repository). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
+# Usage: tools\dist.ps1   -> builds the release binaries and copies them, with the benchmark cases, the example
+# scripts and a short guide, to ..\dist-v2 (outside the repository). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
 # (mirror folder; default Dropbox\Projects\MathCAS-v2-dist when Dropbox exists), CARGO_TARGET_DIR.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -20,6 +20,9 @@ $cases = Join-Path $dist "bench\cases"
 if (Test-Path $cases) { Remove-Item $cases -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $dist "bench") | Out-Null
 Copy-Item (Join-Path $root "bench\cases") $cases -Recurse -Force
+$examples = Join-Path $dist "examples"
+if (Test-Path $examples) { Remove-Item $examples -Recurse -Force }
+Copy-Item (Join-Path $root "examples") $examples -Recurse -Force
 Copy-Item (Join-Path $root "tools\dist-README.txt") (Join-Path $dist "README.txt") -Force
 $rev = (git -C $root rev-parse --short HEAD)
 Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 development build, commit $rev, built $(Get-Date -Format s)" -Encoding utf8

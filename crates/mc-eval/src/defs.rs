@@ -287,6 +287,30 @@ impl Defs {
         sd.version.fetch_add(1, Relaxed);
     }
 
+    /// Whether `s` has any definition: a native, an own value, attributes, an identity element or rules.
+    pub(crate) fn is_defined(&self, s: Sym) -> bool {
+        self.get(s).is_some_and(|d| {
+            d.native.load(Relaxed) != 0
+                || d.own.load(Relaxed) != HOLE
+                || d.attrs.load(Relaxed) != 0
+                || d.identity.load(Relaxed) != HOLE
+                || d.rules().is_some_and(|r| r.len() > 0)
+                || d.has_arg_rules()
+        })
+    }
+
+    /// Remove everything defined for `s` except its native: own value, attributes, identity element, its own rules
+    /// and the argument-head rules it holds. The version counter keeps counting (it never goes back).
+    pub(crate) fn clear(&mut self, s: Sym) {
+        if let Some(sd) = self.syms.get_mut(s.0) {
+            let version = *sd.version.get_mut() + 1;
+            let native = *sd.native.get_mut();
+            *sd = SymDefs::default();
+            *sd.version.get_mut() = version;
+            *sd.native.get_mut() = native;
+        }
+    }
+
     /// Add `rule` to the rules `owner` holds: its own (`outer == None`) or its argument-head rules for `outer`.
     pub(crate) fn define(&self, h: &Heap, owner: Sym, outer: Option<Sym>, ac_top: bool, rule: Rule) {
         let _w = self.writer.lock();

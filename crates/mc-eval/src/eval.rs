@@ -354,6 +354,31 @@ impl Kernel {
         Ok(e)
     }
 
+    /// Remove every definition of `s` (own value, attributes, identity element, rules, including the
+    /// argument-head rules `s` holds) except a native implementation, between evaluations. Used to reload a module
+    /// without duplicating its clauses; counts as a definition of `s` (memoised results that read it are stale).
+    pub fn clear(&mut self, s: Sym) {
+        let e = *self.epoch.get_mut();
+        let b = bit(s);
+        let mut b2 = b;
+        while b2 != 0 {
+            self.last_change[b2.trailing_zeros() as usize].fetch_max(e.wrapping_add(1), Release);
+            b2 &= b2 - 1;
+        }
+        self.defs.clear(s);
+        *self.epoch.get_mut() = e.wrapping_add(1);
+    }
+
+    /// Whether `s` has any definition: a native, an own value, attributes, an identity element or rules.
+    pub fn is_defined(&self, s: Sym) -> bool {
+        self.defs.is_defined(s)
+    }
+
+    /// Whether `s` has a native implementation.
+    pub fn has_native(&self, s: Sym) -> bool {
+        self.defs.get(s).is_some_and(|d| d.native.load(Relaxed) != 0)
+    }
+
     /// Free what definitions retired (also done by every collection). Returns how many allocations were freed.
     pub fn reclaim(&mut self) -> usize {
         self.defs.reclaim()

@@ -7,11 +7,44 @@
 //!
 //! Line editing is the terminal's own (the console's cooked mode keeps a line editor and arrow-key recall); the
 //! loop keeps its own history in memory for `:history` and `:redo` (decision D.10).
+//!
+//! Files and modules (`:load`, `:modules`) need more than the [`Engine`] trait: the loop drives a [`Host`], which
+//! the real engine implements ([`host`]); a plain engine gets a host without file support. [`cli`] is the command
+//! line of the `mc-repl` binary (scripts, `-e`, `-i`, `--no-prelude`).
 use mc_bench::{Engine, EngineError, StopFlag};
 use std::io::{self, BufRead, Write};
 use std::time::Instant;
 
+pub mod cli;
+pub mod host;
 pub mod interrupt;
+
+/// What the loop drives: an engine, and optionally file loading and the module table.
+pub trait Host {
+    /// The engine that evaluates inputs.
+    fn engine(&mut self) -> &mut dyn Engine;
+
+    /// `:load path`: evaluate the file and return the lines to show (output, failures, the last value unless it is
+    /// `null`), or the error to show.
+    fn load(&mut self, path: &str, stop: &StopFlag) -> Result<Vec<String>, String> {
+        let _ = (path, stop);
+        Err("this engine cannot load files".into())
+    }
+
+    /// `:modules`: the loaded modules, each with its public names.
+    fn modules(&self) -> Vec<(String, Vec<String>)> {
+        vec![]
+    }
+}
+
+/// A host for an engine without file support.
+struct Plain(Box<dyn Engine>);
+
+impl Host for Plain {
+    fn engine(&mut self) -> &mut dyn Engine {
+        &mut *self.0
+    }
+}
 
 /// The prompt for a new input and for a continuation line.
 pub const PROMPT: &str = "mc> ";
@@ -27,11 +60,13 @@ Commands:
   :history       list the inputs of this session
   :redo [k]      evaluate input k of the history again (the last one by default)
   :cancel        drop a partly entered multi-line input
+  :load path     evaluate a file (a module file again: its old definitions are replaced)
+  :modules       list the loaded modules and their public names
 Ctrl+C stops the evaluation in progress.";
 
 /// The loop's state: the engine, the stop flag shared with the interrupt handler, the history.
 pub struct Repl {
-    engine: Box<dyn Engine>,
+    host: Box<dyn Host>,
     stop: StopFlag,
     history: Vec<String>,
     timing: bool,
@@ -46,7 +81,12 @@ enum Next {
 impl Repl {
     /// A loop around `engine`; `stop` is the flag the interrupt handler raises.
     pub fn new(engine: Box<dyn Engine>, stop: StopFlag) -> Repl {
-        Repl { engine, stop, history: Vec::new(), timing: false }
+        Repl::with_host(Box::new(Plain(engine)), stop)
+    }
+
+    /// A loop around `host` (with `:load` and `:modules`).
+    pub fn with_host(host: Box<dyn Host>, stop: StopFlag) -> Repl {
+        Repl { host, stop, history: Vec::new(), timing: false }
     }
 
     /// The inputs evaluated so far, oldest first.
@@ -56,7 +96,7 @@ impl Repl {
 
     /// Read from `input` until `:quit` or the end of input, writing prompts and results to `out`.
     pub fn run(&mut self, input: &mut dyn BufRead, out: &mut dyn Write) -> io::Result<()> {
-        writeln!(out, "{} (:help for commands)", self.engine.name())?;
+        writeln!(out, "{} (:help for commands)", self.host.engine().name())?;
         let mut buffer = String::new();
         loop {
             write!(out, "{}", if buffer.is_empty() { PROMPT } else { CONTINUATION })?;
@@ -103,6 +143,22 @@ impl Repl {
         let mut words = line.split_whitespace();
         let name = words.next().unwrap_or("");
         let arg = words.next();
+        if name == ":load" {
+            // the path is the rest of the line (it may contain spaces)
+            let path = line[name.len()..].trim();
+            if path.is_empty() {
+                writeln!(out, "usage: :load path")?;
+                return Ok(Next::Continue);
+            }
+            self.stop.clear();
+            let result = self.host.load(path, &self.stop);
+            self.stop.clear();
+            match result {
+                Ok(lines) => lines.iter().try_for_each(|l| writeln!(out, "{l}"))?,
+                Err(e) => writeln!(out, "{e}")?,
+            }
+            return Ok(Next::Continue);
+        }
         match (name, arg) {
             (":quit" | ":q", None) => return Ok(Next::Quit),
             (":help" | ":h", None) => writeln!(out, "{HELP}")?,
@@ -134,6 +190,15 @@ impl Repl {
                 }
             }
             (":cancel", None) => {}
+            (":modules", None) => {
+                let modules = self.host.modules();
+                if modules.is_empty() {
+                    writeln!(out, "no modules loaded")?;
+                }
+                for (name, public) in modules {
+                    writeln!(out, "{name}: {}", public.join(", "))?;
+                }
+            }
             _ => writeln!(out, "unknown command {line}; :help lists the commands")?,
         }
         Ok(Next::Continue)
@@ -143,7 +208,7 @@ impl Repl {
         // A Ctrl+C pressed while waiting for input must not stop the next evaluation.
         self.stop.clear();
         let start = Instant::now();
-        let result = self.engine.eval(text, &self.stop);
+        let result = self.host.engine().eval(text, &self.stop);
         let elapsed = start.elapsed();
         // The flag served this evaluation; raised later, it means an interrupt at the prompt.
         self.stop.clear();
