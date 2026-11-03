@@ -21,6 +21,7 @@
 //! into right sides is hygienic (6.6). Every loop charges fuel per iteration and every walk over a term is iterative.
 use crate::defs::{Attributes, Hold};
 use crate::eval::{Kernel, Res};
+use crate::machine::{Frame, FormOut};
 use crate::matcher::Binds;
 use crate::native::{Native, NativeCx, Pattern, Reply};
 use crate::pat::has_type;
@@ -67,83 +68,6 @@ impl Native for Closure {
     fn call<'h>(&self, _cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, _args: &[T<'h>]) -> Res<Reply<'h>> {
         Ok(Reply::Done(t))
     }
-}
-
-/// `block(statements...)`.
-struct Block;
-
-impl Native for Block {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, stmts: &[T<'h>]) -> Res<Reply<'h>> {
-        if stmts.is_empty() {
-            return Ok(Reply::Done(cx.null()));
-        }
-        let mut cells = vec![];
-        let escapes0 = cx.cx.escapes;
-        let r = block_body(cx, stmts, &mut cells);
-        let ev = cx.ev;
-        match r {
-            Ok(Reply::Done(v)) => {
-                ev.end_block(cx.cx, &cells, escapes0, Some(v));
-                Ok(Reply::Done(v))
-            }
-            Err(e) => {
-                ev.end_block(cx.cx, &cells, escapes0, None);
-                Err(e)
-            }
-            r => r,
-        }
-    }
-}
-
-/// The statements of a block; the cells it allocates go to `cells`. A last statement in a block without cells is
-/// returned for the evaluator to evaluate (a tail call: deep recursion through blocks adds no native frames).
-fn block_body<'h>(cx: &mut NativeCx<'_, '_, 'h>, stmts: &[T<'h>], cells: &mut Vec<i64>) -> Res<Reply<'h>> {
-    let ev = cx.ev;
-    let h = ev.heap;
-    let sc = &ev.k.names.scopes;
-    let (let_, var) = (h.sym_term(sc.let_), h.sym_term(sc.var));
-    let mut pairs: Vec<(Sym, T<'h>)> = vec![];
-    let mut last = cx.null();
-    for (i, &s0) in stmts.iter().enumerate() {
-        cx.tick(1)?;
-        // a binding's name is not substituted (a later `let` of a name shadows the earlier one)
-        let local = match h.view(s0) {
-            View::App { head, args: &[p, v] } if head == let_ || head == var => Some((head == var, p, v)),
-            _ => None,
-        };
-        if let Some((is_var, p, v)) = local {
-            let Some(x) = sc.binder_name(h, p) else {
-                return Ok(Reply::Done(failure(cx, "definition", &[h.string("a local binding must name a symbol")])));
-            };
-            let val = cx.eval(substitute(h, sc, v, &pairs))?;
-            if is_failure(cx, val) {
-                return Ok(Reply::Done(val));
-            }
-            if declared_type(h, sc, p).is_some_and(|ty| !has_type(h, val, ty)) {
-                return Ok(Reply::Done(failure(cx, "type_mismatch", &[h.sym_term(x), val])));
-            }
-            let bound = if is_var {
-                let (id, cell) = ev.alloc_cell(cx.cx, val);
-                cells.push(id);
-                cell
-            } else {
-                val
-            };
-            pairs.retain(|&(k, _)| k != x);
-            pairs.push((x, bound));
-            last = cx.null();
-            continue;
-        }
-        let s = substitute(h, sc, s0, &pairs);
-        if i + 1 == stmts.len() && cells.is_empty() {
-            return Ok(Reply::Again(s));
-        }
-        last = cx.eval(s)?;
-        if is_failure(cx, last) {
-            return Ok(Reply::Done(last));
-        }
-    }
-    Ok(Reply::Done(last))
 }
 
 /// `let(x, v)` or `var(x, v)` outside a block: the own value of `x`.
@@ -201,32 +125,6 @@ impl Native for LocalCell {
 // ---------------------------------------------------------------------------------------------------------------
 // Loops
 
-/// `while(c, body)`.
-struct While;
-
-impl Native for While {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let &[c, body] = args else { return Ok(Reply::Decline) };
-        loop {
-            cx.tick(1)?;
-            let v = cx.eval(c)?;
-            if cx.is_false(v) {
-                return Ok(Reply::Done(cx.null()));
-            }
-            if !cx.is_true(v) {
-                return Ok(Reply::Done(if is_failure(cx, v) { v } else { failure(cx, "not_boolean", &[v]) }));
-            }
-            let r = cx.eval(body)?;
-            if is_failure(cx, r) {
-                return Ok(Reply::Done(r));
-            }
-        }
-    }
-}
-
-/// `for(x, xs, body)`.
-struct For;
-
 /// The integers of `range(n)` (1 to n), `range(a, b)` or `range(a, b, step)` when the bounds are machine integers.
 fn int_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: T<'h>) -> Res<Option<(i64, i64, i64)>> {
     let h = cx.heap();
@@ -246,40 +144,242 @@ fn int_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: T<'h>) -> Res<Option<(i64, i
     })
 }
 
-impl Native for For {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let &[x, xs, body] = args else { return Ok(Reply::Decline) };
-        let h = cx.heap();
-        let sc = cx.ev.k.names.scopes;
-        let Some(x) = sc.binder_name(h, x) else { return Ok(Reply::Decline) };
-        let run = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>| -> Res<Option<T<'h>>> {
+// ---------------------------------------------------------------------------------------------------------------
+// Forms run as frames: block, while, for
+
+/// The language forms the evaluator runs as frames of its stack ([`crate::machine`]): each statement, condition and
+/// iteration is evaluated above the form's frame, so recursion through a block or a loop body adds no Rust frames
+/// (decision 1a.3). The form's argument modes hold everything; its replies are a native's.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Form {
+    /// `block(statements...)`
+    Block,
+    /// `while(c, body)`
+    While,
+    /// `for(x, xs, body)`
+    For,
+}
+
+/// A block in progress: the statement being evaluated, the bindings so far (substituted into later statements),
+/// the cells it allocated, the escape count at its start.
+pub(crate) struct BlockState<'h> {
+    stmts: &'h [T<'h>],
+    i: usize,
+    pairs: Vec<(Sym, T<'h>)>,
+    cells: Vec<i64>,
+    escapes0: u32,
+    /// the value of statement `i` is bound: `var` or `let`, the binding's pattern and name
+    bind: Option<(bool, T<'h>, Sym)>,
+    /// the value of the last statement (`null` after a binding)
+    last: T<'h>,
+}
+
+/// A `while` loop in progress: waiting for its condition or for its body.
+pub(crate) struct WhileState<'h> {
+    c: T<'h>,
+    body: T<'h>,
+    in_body: bool,
+}
+
+/// A `for` loop in progress: the name bound, the body, what remains to iterate.
+pub(crate) struct ForState<'h> {
+    x: Sym,
+    body: T<'h>,
+    iter: Iter<'h>,
+}
+
+/// What a `for` loop iterates.
+enum Iter<'h> {
+    /// machine integers from `next` to `last` by `step` (`None` once a step would overflow)
+    Range { next: Option<i64>, last: i64, step: i64 },
+    /// the elements of a list from `j`
+    List { items: &'h [T<'h>], j: usize },
+}
+
+/// Start form `form` on the arguments of its call.
+pub(crate) fn start<'h>(cx: &mut NativeCx<'_, '_, 'h>, form: Form, args: &'h [T<'h>]) -> Res<FormOut<'h>> {
+    match form {
+        Form::Block => {
+            if args.is_empty() {
+                return Ok(FormOut::Reply(Reply::Done(cx.null())));
+            }
+            let null = cx.null();
+            let st = BlockState { stmts: args, i: 0, pairs: vec![], cells: vec![], escapes0: cx.cx.escapes, bind: None, last: null };
+            block_next(cx, Box::new(st))
+        }
+        Form::While => {
+            let &[c, body] = args else { return Ok(FormOut::Reply(Reply::Decline)) };
             cx.tick(1)?;
-            let r = cx.eval(substitute(h, &sc, body, &[(x, v)]))?;
-            Ok(is_failure(cx, r).then_some(r))
-        };
-        if let Some((a, b, step)) = int_range(cx, xs)? {
-            let mut i = a;
-            while (step > 0 && i <= b) || (step < 0 && i >= b) {
-                if let Some(f) = run(cx, h.int(i))? {
-                    return Ok(Reply::Done(f));
-                }
-                let Some(next) = i.checked_add(step) else { break };
-                i = next;
-            }
-            return Ok(Reply::Done(cx.null()));
+            Ok(FormOut::Eval(Frame::While(WhileState { c, body, in_body: false }), c))
         }
-        let xs = cx.eval(xs)?;
-        if is_failure(cx, xs) {
-            return Ok(Reply::Done(xs));
-        }
-        let Some(items) = cx.as_list(xs) else { return Ok(Reply::Done(failure(cx, "not_iterable", &[xs]))) };
-        for &v in items {
-            if let Some(f) = run(cx, v)? {
-                return Ok(Reply::Done(f));
-            }
-        }
-        Ok(Reply::Done(cx.null()))
+        Form::For => for_start(cx, args),
     }
+}
+
+/// Resume a form's frame with the value `v` it waited for.
+pub(crate) fn resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>, v: T<'h>) -> Res<FormOut<'h>> {
+    match frame {
+        Frame::Block(st) => block_resume(cx, st, v),
+        Frame::While(st) => while_resume(cx, st, v),
+        Frame::For(st) => {
+            if is_failure(cx, v) {
+                return Ok(FormOut::Reply(Reply::Done(v)));
+            }
+            for_next(cx, st)
+        }
+        Frame::Eval(_) => unreachable!("an evaluation level is not a form"),
+    }
+}
+
+/// A form's frame is unwound by an abort: a block frees its cells unless they escaped.
+pub(crate) fn abort<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>) {
+    if let Frame::Block(st) = frame {
+        let ev = cx.ev;
+        ev.end_block(cx.cx, &st.cells, st.escapes0, None);
+    }
+}
+
+/// A block's result: its cells are freed unless the value or an effect may hold them.
+fn block_done<'h>(cx: &mut NativeCx<'_, '_, 'h>, st: Box<BlockState<'h>>, v: T<'h>) -> Res<FormOut<'h>> {
+    let ev = cx.ev;
+    ev.end_block(cx.cx, &st.cells, st.escapes0, Some(v));
+    Ok(FormOut::Reply(Reply::Done(v)))
+}
+
+/// Run a block from statement `st.i`: bind or evaluate it. The last statement of a block without cells is returned
+/// for the evaluator to evaluate (a tail call, decision H.12).
+fn block_next<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: Box<BlockState<'h>>) -> Res<FormOut<'h>> {
+    let ev = cx.ev;
+    let h = ev.heap;
+    let sc = &ev.k.names.scopes;
+    let Some(&s0) = st.stmts.get(st.i) else {
+        let v = st.last;
+        return block_done(cx, st, v);
+    };
+    if let Err(a) = cx.tick(1) {
+        abort(cx, Frame::Block(st));
+        return Err(a);
+    }
+    // a binding's name is not substituted (a later `let` of a name shadows the earlier one)
+    match h.view(s0) {
+        View::App { head, args: &[p, v] } if head == h.sym_term(sc.let_) || head == h.sym_term(sc.var) => {
+            let Some(x) = sc.binder_name(h, p) else {
+                let f = failure(cx, "definition", &[h.string("a local binding must name a symbol")]);
+                return block_done(cx, st, f);
+            };
+            st.bind = Some((head == h.sym_term(sc.var), p, x));
+            let v = substitute(h, sc, v, &st.pairs);
+            Ok(FormOut::Eval(Frame::Block(st), v))
+        }
+        _ => {
+            let s = substitute(h, sc, s0, &st.pairs);
+            if st.i + 1 == st.stmts.len() && st.cells.is_empty() {
+                return Ok(FormOut::Reply(Reply::Again(s)));
+            }
+            st.bind = None;
+            Ok(FormOut::Eval(Frame::Block(st), s))
+        }
+    }
+}
+
+/// A block's statement has value `v`.
+fn block_resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: Box<BlockState<'h>>, v: T<'h>) -> Res<FormOut<'h>> {
+    let ev = cx.ev;
+    let h = ev.heap;
+    // a statement whose value is a failure ends the block with it (H.9)
+    if is_failure(cx, v) {
+        return block_done(cx, st, v);
+    }
+    match st.bind.take() {
+        Some((is_var, p, x)) => {
+            if declared_type(h, &ev.k.names.scopes, p).is_some_and(|ty| !has_type(h, v, ty)) {
+                let f = failure(cx, "type_mismatch", &[h.sym_term(x), v]);
+                return block_done(cx, st, f);
+            }
+            let bound = if is_var {
+                let (id, cell) = ev.alloc_cell(cx.cx, v);
+                st.cells.push(id);
+                cell
+            } else {
+                v
+            };
+            st.pairs.retain(|&(k, _)| k != x);
+            st.pairs.push((x, bound));
+            st.last = cx.null();
+        }
+        None => st.last = v,
+    }
+    st.i += 1;
+    block_next(cx, st)
+}
+
+/// A `while` loop's condition or body has value `v`.
+fn while_resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: WhileState<'h>, v: T<'h>) -> Res<FormOut<'h>> {
+    if st.in_body {
+        if is_failure(cx, v) {
+            return Ok(FormOut::Reply(Reply::Done(v)));
+        }
+        cx.tick(1)?;
+        st.in_body = false;
+        let c = st.c;
+        return Ok(FormOut::Eval(Frame::While(st), c));
+    }
+    if cx.is_false(v) {
+        return Ok(FormOut::Reply(Reply::Done(cx.null())));
+    }
+    if !cx.is_true(v) {
+        let f = if is_failure(cx, v) { v } else { failure(cx, "not_boolean", &[v]) };
+        return Ok(FormOut::Reply(Reply::Done(f)));
+    }
+    st.in_body = true;
+    let body = st.body;
+    Ok(FormOut::Eval(Frame::While(st), body))
+}
+
+/// Start `for(x, xs, body)`: a machine-integer `range(...)` is iterated without building it, anything else is
+/// evaluated and must be a list.
+fn for_start<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &'h [T<'h>]) -> Res<FormOut<'h>> {
+    let &[x, xs, body] = args else { return Ok(FormOut::Reply(Reply::Decline)) };
+    let h = cx.heap();
+    let Some(x) = cx.ev.k.names.scopes.binder_name(h, x) else { return Ok(FormOut::Reply(Reply::Decline)) };
+    let iter = match int_range(cx, xs)? {
+        Some((a, b, step)) => Iter::Range { next: Some(a), last: b, step },
+        None => {
+            let xs = cx.eval(xs)?;
+            if is_failure(cx, xs) {
+                return Ok(FormOut::Reply(Reply::Done(xs)));
+            }
+            let Some(items) = cx.as_list(xs) else {
+                return Ok(FormOut::Reply(Reply::Done(failure(cx, "not_iterable", &[xs]))));
+            };
+            Iter::List { items, j: 0 }
+        }
+    };
+    for_next(cx, ForState { x, body, iter })
+}
+
+/// The next iteration of a `for` loop, or its end (`null`).
+fn for_next<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: ForState<'h>) -> Res<FormOut<'h>> {
+    let h = cx.heap();
+    let v = match &mut st.iter {
+        Iter::Range { next, last, step } => match *next {
+            Some(i) if (*step > 0 && i <= *last) || (*step < 0 && i >= *last) => {
+                *next = i.checked_add(*step);
+                h.int(i)
+            }
+            _ => return Ok(FormOut::Reply(Reply::Done(cx.null()))),
+        },
+        Iter::List { items, j } => match items.get(*j) {
+            Some(&v) => {
+                *j += 1;
+                v
+            }
+            None => return Ok(FormOut::Reply(Reply::Done(cx.null()))),
+        },
+    };
+    cx.tick(1)?;
+    let body = substitute(h, &cx.ev.k.names.scopes, st.body, &[(st.x, v)]);
+    Ok(FormOut::Eval(Frame::For(st), body))
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -523,13 +623,13 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let a = |hold| Attributes { hold, ..Attributes::default() };
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("fn"), a(Hold::All), Box::new(Closure));
-    k.register(h.sym("block"), a(Hold::All), Box::new(Block));
+    k.register_form(h.sym("block"), a(Hold::All), Form::Block);
     k.register(h.sym("let"), fx(Hold::First), Box::new(TopLocal));
     k.register(h.sym("var"), fx(Hold::First), Box::new(TopLocal));
     k.register(h.sym("assign"), a(Hold::First), Box::new(Assign));
     k.register(h.sym("local_cell"), a(Hold::None), Box::new(LocalCell));
-    k.register(h.sym("while"), a(Hold::All), Box::new(While));
-    k.register(h.sym("for"), a(Hold::All), Box::new(For));
+    k.register_form(h.sym("while"), a(Hold::All), Form::While);
+    k.register_form(h.sym("for"), a(Hold::All), Form::For);
     k.register(h.sym("match"), a(Hold::Rest), Box::new(Match));
     k.register(h.sym("rewrite"), a(Hold::None), Box::new(Rewrite));
     k.register(h.sym("check_options"), a(Hold::None), Box::new(CheckOptions));

@@ -21,12 +21,14 @@
 #![warn(missing_docs)]
 pub mod builtins;
 mod cells;
+pub mod compiled;
 mod conc;
 pub mod ctl;
 mod defs;
 pub mod eval;
 mod index;
 mod lang;
+mod machine;
 pub mod matcher;
 pub mod native;
 pub mod order;
@@ -37,7 +39,8 @@ pub mod workloads;
 
 pub use ctl::{Control, Status};
 pub use defs::{Attributes, Hold};
-pub use eval::{session, Abort, CondCx, EvalConfig, EvalStats, Evaluation, Kernel, Res, Split};
+pub use compiled::Compiled;
+pub use eval::{session, Abort, CondCx, EvalConfig, EvalStats, Evaluation, Kernel, Res, Split, DEFAULT_MAX_DEPTH, DEFAULT_MAX_NEST};
 pub use index::Rhs;
 pub use matcher::{Binds, Val};
 pub use native::{ElemFn, Native, NativeCx, Pattern, Reply};

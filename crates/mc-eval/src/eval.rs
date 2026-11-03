@@ -23,19 +23,21 @@
 //! **Conditions are pure** (6.1, A.6): an effect reached while a condition runs gives
 //! `failure(effect_in_condition)` as the value of the term whose rule's condition reached it.
 use crate::cells::Cells;
-use crate::conc::SymTable;
+use crate::compiled::{compiled_of, set_compiled, Compiled};
+use crate::conc::{AppendVec, SymTable};
 use crate::ctl::{Control, Status, FUEL_BLOCK};
 use crate::defs::{Attributes, Defs, Hold, SymDefs};
 use crate::index::{Rhs, Rule, RuleRhs, Scratch};
+use crate::lang::Form;
+use crate::machine::{Frame, SPLIT_NEST};
 use crate::matcher::{Binds, Matcher};
-use crate::native::{Native, NativeCx, Pattern, Reply};
+use crate::native::{Native, NativeCx, Pattern};
 use crate::order::{StructuralOrder, TermOrder};
 use crate::pat::{compile, has_type, Canon, DefError, Pat};
 use crate::subst::Scopes;
 use mc_core::{Heap, Raw, Roots, Store, Sym, Trace, View, T};
 use parking_lot::Mutex;
-use std::borrow::Cow;
-use std::sync::atomic::{AtomicU32, Ordering::*};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::*};
 use std::sync::Arc;
 
 /// Why an evaluation step stopped early. Never seen by users: [`Kernel::eval`] turns it into a value.
@@ -78,13 +80,41 @@ pub struct EvalConfig {
     pub memo: bool,
     /// default fuel budget of one top-level evaluation
     pub fuel: i64,
-    /// deepest nesting of evaluations before `failure(limit, depth)` (decision F.11)
+    /// deepest nesting of evaluations (frames of the evaluation stack) before `failure(limit, depth)`; the frames
+    /// live on the heap, so this bounds memory, not the Rust stack (decision 1a.1)
     pub max_depth: u32,
+    /// deepest nesting of native callbacks (natives, conditions and speculative groups evaluating terms through
+    /// the evaluator) before `failure(limit, depth)`: the one nesting that still uses the Rust stack (decision 1a.2)
+    pub max_nest: u32,
 }
+
+/// Memory the default frame limit allows the evaluation stack of one task (decision 1a.1).
+pub const DEFAULT_STACK_BYTES: usize = 1 << 28;
+
+/// The default [`EvalConfig::max_depth`]: [`DEFAULT_STACK_BYTES`] of frames, counting two frames per level (an
+/// evaluation level and a language form above it), about 1.8 million levels. Unoptimised builds, which are for
+/// tests, stop runaway recursions sooner.
+pub const DEFAULT_MAX_DEPTH: u32 = if cfg!(debug_assertions) {
+    1 << 17
+} else {
+    (DEFAULT_STACK_BYTES / (2 * std::mem::size_of::<crate::machine::Frame<'static>>())) as u32
+};
+
+/// The default [`EvalConfig::max_nest`]: what the 64 MB stacks of a session's pool hold with room to spare
+/// (unoptimised builds have frames several times larger).
+pub const DEFAULT_MAX_NEST: u32 = if cfg!(debug_assertions) { 1_000 } else { 10_000 };
 
 impl Default for EvalConfig {
     fn default() -> EvalConfig {
-        EvalConfig { split: Split::Lazy, grain: 1 << 10, poll: 1 << 9, memo: true, fuel: i64::MAX, max_depth: 20_000 }
+        EvalConfig {
+            split: Split::Lazy,
+            grain: 1 << 10,
+            poll: 1 << 9,
+            memo: true,
+            fuel: i64::MAX,
+            max_depth: DEFAULT_MAX_DEPTH,
+            max_nest: DEFAULT_MAX_NEST,
+        }
     }
 }
 
@@ -174,11 +204,15 @@ fn hole<'h>() -> T<'h> {
 /// `&mut self`, so at most one frontier exists and definitions made during it come from that frontier only (I2.5).
 pub struct Kernel {
     pub(crate) defs: Defs,
-    natives: Vec<Box<dyn Native>>,
+    pub(crate) natives: Vec<Impl>,
+    /// compiled specialisations ([`Kernel::register_compiled`]); a symbol's slot holds an index + 1
+    pub(crate) compiled: AppendVec<Arc<dyn Compiled>>,
+    /// the flag long-running library code polls ([`Kernel::stop_flag`])
+    stop: Arc<AtomicBool>,
     /// learned fuel per evaluation, by head symbol (granularity)
     cost: SymTable<AtomicU32>,
     order: Box<dyn TermOrder>,
-    ctl: Arc<Control>,
+    pub(crate) ctl: Arc<Control>,
     /// the definition epoch: bumped by every definition
     epoch: AtomicU32,
     /// the last epoch at which a symbol with each read-set bit was defined
@@ -187,16 +221,26 @@ pub struct Kernel {
     /// the cells of mutable locals
     pub(crate) cells: Cells,
     pub(crate) names: Names,
-    cfg: EvalConfig,
+    pub(crate) cfg: EvalConfig,
     /// Terms the session keeps across evaluations (history, inputs); traced with the kernel.
     pub roots: Roots,
+}
+
+/// The implementation in a symbol's native slot.
+pub(crate) enum Impl {
+    /// a native function
+    Native(Box<dyn Native>),
+    /// a language form the evaluator runs as frames of its stack ([`crate::lang`])
+    Form(Form),
 }
 
 impl Trace for Kernel {
     fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
         self.defs.trace(visit);
         for n in self.natives.iter_mut() {
-            n.trace(visit);
+            if let Impl::Native(n) = n {
+                n.trace(visit);
+            }
         }
         self.out.get_mut().iter_mut().for_each(&mut *visit);
         self.cells.trace(visit);
@@ -216,6 +260,8 @@ impl Kernel {
         let mut k = Kernel {
             defs: Defs::default(),
             natives: vec![],
+            compiled: AppendVec::default(),
+            stop: Arc::new(AtomicBool::new(false)),
             cost: SymTable::default(),
             order: Box::new(StructuralOrder::default()),
             ctl: Arc::new(Control::default()),
@@ -284,11 +330,66 @@ impl Kernel {
 
     /// Give symbol `s` a native implementation (and its attributes). See [`Native`].
     pub fn register(&mut self, s: Sym, a: Attributes, native: Box<dyn Native>) {
+        self.register_impl(s, a, Impl::Native(native));
+    }
+
+    /// Make `s` a language form run as frames of the evaluation stack.
+    pub(crate) fn register_form(&mut self, s: Sym, a: Attributes, form: Form) {
+        self.register_impl(s, a, Impl::Form(form));
+    }
+
+    fn register_impl(&mut self, s: Sym, a: Attributes, imp: Impl) {
         let i = self.natives.len() as u32;
-        self.natives.push(native);
+        self.natives.push(imp);
         self.set_attributes(s, a);
         let e = *self.epoch.get_mut();
         self.defined(e, bit(s), || self.defs.set_native(s, i));
+    }
+
+    /// Give calls with head `head` a compiled specialisation (see [`Compiled`]), replacing any earlier one. After
+    /// the arguments are evaluated and the head's native (if any) declined, the evaluator offers the call to `c`
+    /// before trying rules; `c` returns the value or declines. A specialisation must give the value the rules would
+    /// give, so registering one is not a definition (memoised results stay valid); it is removed by
+    /// [`Kernel::remove_compiled`] and by [`Kernel::clear`].
+    pub fn register_compiled(&mut self, head: Sym, c: Arc<dyn Compiled>) {
+        set_compiled(&self.defs, &self.compiled, head, Some(c));
+    }
+
+    /// Remove the compiled specialisation of `head`, if it has one.
+    pub fn remove_compiled(&mut self, head: Sym) {
+        set_compiled(&self.defs, &self.compiled, head, None);
+    }
+
+    /// The compiled specialisation of `head`, if it has one.
+    pub fn compiled(&self, head: Sym) -> Option<Arc<dyn Compiled>> {
+        compiled_of(&self.defs, &self.compiled, head).cloned()
+    }
+
+    /// The stop flag libraries poll in long loops (arithmetic on huge numbers, sorting): raised together with
+    /// [`Control::interrupt`] by the session's owner, cleared by it before an evaluation. Natives reach it through
+    /// [`NativeCx::stop_flag`]; a kernel starts with a flag of its own.
+    pub fn stop_flag(&self) -> Arc<AtomicBool> {
+        self.stop.clone()
+    }
+
+    #[inline]
+    pub(crate) fn stop_flag_ref(&self) -> &Arc<AtomicBool> {
+        &self.stop
+    }
+
+    /// Use `flag` as the stop flag (an engine sharing one flag between the kernel and its libraries).
+    pub fn set_stop_flag(&mut self, flag: Arc<AtomicBool>) {
+        self.stop = flag;
+    }
+
+    /// Compare two terms by the canonical order (semantics 8; the order [`Kernel::set_order`] installed).
+    pub fn cmp<'h>(&self, h: &'h Heap, a: T<'h>, b: T<'h>) -> std::cmp::Ordering {
+        self.order.cmp(h, a, b)
+    }
+
+    /// Sort terms by the canonical order.
+    pub fn sort<'h>(&self, h: &'h Heap, v: &mut [T<'h>]) {
+        self.order.sort(h, v)
     }
 
     /// Declare (or remove) the identity element of an associative and commutative symbol (semantics 7.3): its
@@ -465,7 +566,7 @@ impl Kernel {
     /// Did a definition after epoch `from` (up to `to`) touch read set `deps`? Conservative: a definition after `to`
     /// also counts.
     #[inline]
-    fn changed(&self, from: u32, to: u32, deps: u64) -> bool {
+    pub(crate) fn changed(&self, from: u32, to: u32, deps: u64) -> bool {
         if from == to {
             return false;
         }
@@ -483,7 +584,7 @@ impl Kernel {
     }
 
     #[inline]
-    fn learn(&self, s: Sym, fuel: u64) {
+    pub(crate) fn learn(&self, s: Sym, fuel: u64) {
         let c = self.cost.get_or_init(s.0);
         let old = c.load(Relaxed) as u64;
         let new = (old * 3 + fuel.min(u32::MAX as u64)) / 4;
@@ -521,7 +622,7 @@ impl Canon for CanonOf<'_> {
 
 /// The symbol of a symbol term.
 #[inline]
-fn sym_of<'h>(h: &'h Heap, t: T<'h>) -> Option<Sym> {
+pub(crate) fn sym_of<'h>(h: &'h Heap, t: T<'h>) -> Option<Sym> {
     match h.view(t) {
         View::Sym(s) => Some(s),
         _ => None,
@@ -556,14 +657,14 @@ fn make<'h>(k: &Kernel, h: &'h Heap, head: T<'h>, args: &[T<'h>]) -> T<'h> {
 /// Per-task evaluation state. The frontier's `Cx` is passed down by `&mut` along the leftmost path.
 pub(crate) struct Cx<'h> {
     /// May perform effects (the task on the sequential frontier).
-    front: bool,
+    pub(crate) front: bool,
     /// The definition epoch this task started from (stamps and validation use it).
-    epoch: u32,
+    pub(crate) epoch: u32,
     /// Read set of the evaluation in progress (a 64-bit mask, decision 2.7).
     pub(crate) reads: u64,
-    effects: u32,
+    pub(crate) effects: u32,
     /// Fuel of the work this task keeps: on the frontier, what was charged to the budget.
-    fuel: u64,
+    pub(crate) fuel: u64,
     /// Fuel in hand (drawn from the budget on the frontier, from the share otherwise).
     avail: u64,
     /// A speculative task's remaining share (decision F.3).
@@ -580,7 +681,10 @@ pub(crate) struct Cx<'h> {
     pub(crate) escapes: u32,
     /// The cell allocation counter at the frontier's latest split: speculative tasks may read older cells.
     pub(crate) split_born: u64,
-    depth: u32,
+    /// Evaluation levels in progress on this task and the tasks it was split from (the frame limit).
+    pub(crate) depth: u32,
+    /// Nested drivers in progress on this task and the tasks it was split from (the native-callback limit).
+    pub(crate) nest: u32,
     threads: u32,
     splits: u64,
     redos: u64,
@@ -589,6 +693,10 @@ pub(crate) struct Cx<'h> {
     /// Dispatch scratch, one per active dispatch frame.
     #[allow(clippy::vec_box)] // boxed: popping and pushing a frame moves a pointer, not the buffers
     pool: Vec<Box<Scratch<'h>>>,
+    /// The evaluation stack ([`crate::machine`]).
+    pub(crate) stack: Vec<Frame<'h>>,
+    /// The values of the arguments being evaluated, for the levels on the stack.
+    pub(crate) vals: Vec<T<'h>>,
 }
 
 impl<'h> Cx<'h> {
@@ -608,12 +716,15 @@ impl<'h> Cx<'h> {
             escapes: 0,
             split_born: 0,
             depth: 0,
+            nest: 0,
             threads,
             splits: 0,
             redos: 0,
             holes: 0,
             next_poll: 0,
             pool: vec![],
+            stack: vec![],
+            vals: vec![],
         }
     }
 }
@@ -624,7 +735,7 @@ pub(crate) struct Eval<'k, 'h> {
     pub(crate) k: &'k Kernel,
 }
 
-enum Step<'h> {
+pub(crate) enum Step<'h> {
     Done(T<'h>),
     Again(T<'h>),
 }
@@ -719,6 +830,8 @@ impl<'k, 'h> Eval<'k, 'h> {
             holes: 0,
             next_poll: 0,
             pool: vec![],
+            stack: vec![],
+            vals: vec![],
             ..*cx
         }
     }
@@ -794,168 +907,21 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     // --- evaluation ------------------------------------------------------------------------------------------
 
-    /// Evaluate `t` to normal form.
-    pub(crate) fn eval(&self, cx: &mut Cx<'h>, t: T<'h>) -> Res<T<'h>> {
+    /// The value the compiled specialisation of the call's head gives, if the head has one and it accepts the
+    /// arguments ([`crate::compiled`]). Consulting it is a read of the head.
+    #[inline]
+    pub(crate) fn compiled(&self, cx: &mut Cx<'h>, t: T<'h>) -> Option<T<'h>> {
         let h = self.heap;
-        match h.view(t) {
-            View::App { .. } => {}
-            View::Sym(s) => return self.eval_sym(cx, s, t),
-            _ => return Ok(t),
-        }
-        self.tick(cx)?;
-        // a term that refers to a cell is volatile (its value depends on the cell): not looked up
-        let memo = self.k.cfg.memo && h.mask(t) & bit(self.k.names.local_cell) == 0;
-        if memo {
-            if let Some(hit) = h.memo_get(t) {
-                // the epoch fast path, then the read-set check (semantics 4.3); a hit passes its read set on (2.7)
-                if hit.epoch == cx.epoch || (hit.epoch < cx.epoch && !self.k.changed(hit.epoch, cx.epoch, hit.deps)) {
-                    cx.reads |= hit.deps;
-                    return Ok(hit.value);
-                }
-            }
-        }
-        if cx.depth >= self.k.cfg.max_depth {
-            if cx.front {
-                self.k.ctl.fail(Status::Depth);
-                return Err(Abort::Limit);
-            }
-            return Err(Abort::Hole);
-        }
-        let (reads0, effects0, epoch0, fuel0, volatile0) = (cx.reads, cx.effects, cx.epoch, cx.fuel, cx.volatile);
-        cx.reads = 0;
-        cx.depth += 1;
-        let r = self.eval_inner(cx, t);
-        cx.depth -= 1;
-        let mut deps = cx.reads;
-        if let Ok(v) = r {
-            // a normal form stays normal while none of its symbols (or the term's) gains a definition
-            deps |= h.mask(t) | h.mask(v);
-        }
-        cx.reads = reads0 | deps;
-        let v = r?;
-        if let View::App { head, .. } = h.view(t) {
-            if let Some(s) = sym_of(h, head) {
-                self.k.learn(s, cx.fuel - fuel0);
-            }
-        }
-        // results that involve effects or cells are never memoised (semantics 9, 6.7); stamped with the start epoch
-        if memo && cx.effects == effects0 && cx.volatile == volatile0 {
-            h.memo_put(t, v, epoch0, deps);
-            if v != t {
-                h.memo_put(v, v, epoch0, deps);
-            }
-        }
-        Ok(v)
-    }
-
-    /// A symbol: its own value, evaluated, or itself. The read is recorded either way.
-    fn eval_sym(&self, cx: &mut Cx<'h>, s: Sym, t: T<'h>) -> Res<T<'h>> {
+        let View::App { head, args } = h.view(t) else { return None };
+        let s = sym_of(h, head)?;
+        let c = compiled_of(&self.k.defs, &self.k.compiled, s)?;
         cx.reads |= bit(s);
-        match self.k.defs.own(self.heap, s) {
-            Some(v) if v != t => {
-                self.tick(cx)?;
-                self.eval(cx, v)
-            }
-            _ => Ok(t),
-        }
-    }
-
-    fn eval_inner(&self, cx: &mut Cx<'h>, mut t: T<'h>) -> Res<T<'h>> {
-        let h = self.heap;
-        loop {
-            let (head, args) = match h.view(t) {
-                View::App { head, args } => (head, args),
-                View::Sym(s) => return self.eval_sym(cx, s, t),
-                _ => return Ok(t),
-            };
-            let hs = sym_of(h, head);
-            let sd = hs.and_then(|s| self.k.defs.get(s));
-            // 4.1 step 3.1: the head
-            let hv = match hs {
-                Some(s) => {
-                    cx.reads |= bit(s);
-                    match sd.and_then(|d| d.own(h)).filter(|&v| v != head) {
-                        Some(v) => self.eval(cx, v)?,
-                        None => head,
-                    }
-                }
-                None => self.eval(cx, head)?,
-            };
-            if hv != head {
-                self.tick(cx)?;
-                t = h.app(hv, args);
-                continue;
-            }
-            // a closure applied to arguments (semantics 6.7): its body with the parameters bound, evaluated in this
-            // loop (a tail call)
-            if hs.is_none() {
-                if let Some((params, body)) = self.closure(head) {
-                    match self.apply(cx, head, params, body, args)? {
-                        Step::Again(u) => {
-                            self.tick(cx)?;
-                            t = u;
-                            continue;
-                        }
-                        Step::Done(v) => return Ok(v),
-                    }
-                }
-            }
-            let attrs = sd.map_or_else(Attributes::default, SymDefs::attrs);
-            // 3.2: the arguments, by the head's argument modes
-            let vals = self.eval_args(cx, args, attrs)?;
-            if !attrs.handles_failures {
-                if let Some(f) = self.first_failure(&vals) {
-                    return Ok(f);
-                }
-            }
-            // listable functions map over list arguments (semantics 7.2)
-            if attrs.listable {
-                if let Some(u) = self.thread(head, &vals) {
-                    self.tick(cx)?;
-                    t = u;
-                    continue;
-                }
-            }
-            // 3.3: canonicalise (with an identity element, the result may not be a call of the head any more)
-            if attrs.ac {
-                t = self.make(head, &vals);
-                if !matches!(h.view(t), View::App { head: g, .. } if g == head) {
-                    self.tick(cx)?;
-                    continue;
-                }
-            } else if *vals != *args {
-                t = h.app(head, &vals);
-            }
-            // 3.4: a native implementation
-            if let Some(n) = sd.map(|d| d.native.load(Acquire)).filter(|&n| n != 0) {
-                match self.call_native(cx, n - 1, t) {
-                    Ok(Some(Step::Done(v))) => return Ok(v),
-                    Ok(Some(Step::Again(u))) => {
-                        self.tick(cx)?;
-                        t = u;
-                        continue;
-                    }
-                    Ok(None) => {}
-                    Err(Abort::EffectInCondition) if cx.in_cond == 0 => return Ok(self.effect_failure()),
-                    Err(e) => return Err(e),
-                }
-            }
-            // 3.5: rules
-            match self.dispatch(cx, t) {
-                Ok(Some(u)) => {
-                    self.tick(cx)?;
-                    t = u;
-                }
-                Ok(None) => return Ok(t),
-                Err(Abort::EffectInCondition) if cx.in_cond == 0 => return Ok(self.effect_failure()),
-                Err(e) => return Err(e),
-            }
-        }
+        c.call(&mut NativeCx { ev: self, cx }, args)
     }
 
     /// The parameters and body of a closure `fn(list(params), body)`.
     #[inline]
-    fn closure(&self, f: T<'h>) -> Option<(&'h [T<'h>], T<'h>)> {
+    pub(crate) fn closure(&self, f: T<'h>) -> Option<(&'h [T<'h>], T<'h>)> {
         let h = self.heap;
         let View::App { head, args: &[ps, body] } = h.view(f) else { return None };
         if head != self.sym(self.k.names.scopes.fn_) {
@@ -967,31 +933,34 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
     }
 
-    /// Apply closure `f` to `args`: arguments evaluated except at `held` parameters (a failure among them is the
-    /// result), bound to the parameters in order (`optional` defaults evaluated when an argument is missing, `typed`
-    /// checked, `rest` taking the remaining arguments as a list), and substituted into the body hygienically.
-    /// A call the parameters do not accept gives `failure(no_match, f, [args])`.
-    fn apply(&self, cx: &mut Cx<'h>, f: T<'h>, params: &[T<'h>], body: T<'h>, args: &[T<'h>]) -> Res<Step<'h>> {
-        let h = self.heap;
+    /// The argument modes of a closure: its `held` parameters (a `held` `rest` parameter holds every argument from
+    /// its position on). `None` if a parameter is malformed (the call gives `failure(no_match, ...)`).
+    pub(crate) fn closure_hold(&self, params: &[T<'h>]) -> Option<Hold> {
         let sc = &self.k.names.scopes;
-        let mut infos = Vec::with_capacity(params.len());
         let mut hold = 0u32;
         for (i, &p) in params.iter().enumerate() {
-            let Some(info) = Param::of(h, sc, p) else {
-                return Ok(Step::Done(self.no_match(f, args)));
-            };
+            let info = Param::of(self.heap, sc, p)?;
             if info.held {
                 hold |= if info.rest { !0u32 << i.min(31) } else { 1u32 << i.min(31) };
             }
-            infos.push(info);
         }
-        let vals = self.eval_args(cx, args, Attributes { hold: Hold::from_mask(hold), ..Attributes::default() })?;
-        if let Some(fail) = self.first_failure(&vals) {
+        Some(Hold::from_mask(hold))
+    }
+
+    /// Apply closure `f` to its evaluated arguments `vals` (a failure among them is the result): bound to the
+    /// parameters in order (`optional` defaults evaluated when an argument is missing, seeing the parameters before
+    /// them; `typed` checked; `rest` taking the remaining arguments as a list) and substituted into the body
+    /// hygienically. A call the parameters do not accept gives `failure(no_match, f, [args])`.
+    pub(crate) fn bind_closure(&self, cx: &mut Cx<'h>, f: T<'h>, params: &[T<'h>], body: T<'h>, vals: &[T<'h>]) -> Res<Step<'h>> {
+        let h = self.heap;
+        let sc = &self.k.names.scopes;
+        if let Some(fail) = self.first_failure(vals) {
             return Ok(Step::Done(fail));
         }
         let mut pairs: Vec<(Sym, T<'h>)> = Vec::with_capacity(params.len());
         let mut j = 0;
-        for info in &infos {
+        for &p in params {
+            let Some(info) = Param::of(h, sc, p) else { return Ok(Step::Done(self.no_match(f, vals))) };
             if info.rest {
                 pairs.push((info.name, h.call(self.k.names.list, &vals[j..])));
                 j = vals.len();
@@ -1005,15 +974,15 @@ impl<'k, 'h> Eval<'k, 'h> {
                 let d = crate::subst::substitute(h, sc, d, &pairs);
                 self.eval(cx, d)?
             } else {
-                return Ok(Step::Done(self.no_match(f, &vals)));
+                return Ok(Step::Done(self.no_match(f, vals)));
             };
             if info.ty.is_some_and(|ty| !has_type(h, v, ty)) {
-                return Ok(Step::Done(self.no_match(f, &vals)));
+                return Ok(Step::Done(self.no_match(f, vals)));
             }
             pairs.push((info.name, v));
         }
         if j < vals.len() {
-            return Ok(Step::Done(self.no_match(f, &vals)));
+            return Ok(Step::Done(self.no_match(f, vals)));
         }
         Ok(Step::Again(crate::subst::substitute(h, sc, body, &pairs)))
     }
@@ -1027,7 +996,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// A listable call with list arguments: the list of calls on corresponding elements, the other arguments
     /// broadcast; `failure(shape_mismatch)` for lists of different lengths. `None` without list arguments.
-    fn thread(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
+    pub(crate) fn thread(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
         let h = self.heap;
         let list = self.sym(self.k.names.list);
         let as_list = |t: T<'h>| match h.view(t) {
@@ -1138,29 +1107,18 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
     }
 
-    fn effect_failure(&self) -> T<'h> {
+    pub(crate) fn effect_failure(&self) -> T<'h> {
         let h = self.heap;
         h.app(self.sym(self.k.names.failure), &[self.sym(self.k.names.effect_in_condition)])
     }
 
     /// The first argument that is a failure (semantics 10).
     #[inline]
-    fn first_failure(&self, vals: &[T<'h>]) -> Option<T<'h>> {
+    pub(crate) fn first_failure(&self, vals: &[T<'h>]) -> Option<T<'h>> {
         let h = self.heap;
         let fb = bit(self.k.names.failure);
         let failure = self.sym(self.k.names.failure);
         vals.iter().copied().find(|&a| h.mask(a) & fb != 0 && matches!(h.view(a), View::App { head, .. } if head == failure))
-    }
-
-    fn call_native(&self, cx: &mut Cx<'h>, n: u32, t: T<'h>) -> Res<Option<Step<'h>>> {
-        let native = &self.k.natives[n as usize];
-        let View::App { args, .. } = self.heap.view(t) else { return Ok(None) };
-        let mut ncx = NativeCx { ev: self, cx };
-        Ok(match native.call(&mut ncx, t, args)? {
-            Reply::Done(v) => Some(Step::Done(v)),
-            Reply::Again(u) => Some(Step::Again(u)),
-            Reply::Decline => None,
-        })
     }
 
     /// The replacement from the first matching rule for `t`: argument-head rules of the arguments' heads in argument
@@ -1240,17 +1198,17 @@ impl<'k, 'h> Eval<'k, 'h> {
     // --- groups ----------------------------------------------------------------------------------------------
 
     #[inline]
-    fn may_split(&self, cx: &Cx<'h>) -> bool {
+    pub(crate) fn may_split(&self, cx: &Cx<'h>) -> bool {
         match self.k.cfg.split {
             Split::Never => false,
-            Split::Lazy => cx.threads >= 2,
-            Split::Always => true,
+            Split::Lazy => cx.threads >= 2 && cx.nest < SPLIT_NEST,
+            Split::Always => cx.nest < SPLIT_NEST,
         }
     }
 
     /// Whether evaluating `a` can change it (a compound term, or a symbol with an own value).
     #[inline]
-    fn needs_eval(&self, cx: &mut Cx<'h>, a: T<'h>) -> bool {
+    pub(crate) fn needs_eval(&self, cx: &mut Cx<'h>, a: T<'h>) -> bool {
         match self.heap.view(a) {
             View::App { .. } => true,
             View::Sym(s) => {
@@ -1275,28 +1233,18 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
     }
 
-    fn eval_args<'a>(&self, cx: &mut Cx<'h>, args: &'a [T<'h>], attrs: Attributes) -> Res<Cow<'a, [T<'h>]>> {
-        let hold = attrs.hold;
-        if hold == Hold::All || !(0..args.len()).any(|i| !hold.holds(i) && self.needs_eval(cx, args[i])) {
-            return Ok(Cow::Borrowed(args));
-        }
+    /// The strict arguments of a call as a group split by the granularity rule (the speculative path of argument
+    /// evaluation; [`crate::machine`] evaluates them one at a time otherwise).
+    pub(crate) fn split_args(&self, cx: &mut Cx<'h>, args: &'h [T<'h>], hold: Hold) -> Res<Vec<T<'h>>> {
         let mut out = args.to_vec();
-        if args.len() >= 2 && !attrs.effect && self.may_split(cx) {
-            let est = |i: usize| if hold.holds(i) { 0 } else { self.estimate(args[i]) };
-            let k = args.len().min(8);
-            let hint = (0..k).map(est).sum::<u64>() * args.len() as u64 / k as u64;
-            let f = |ev: &Self, cx: &mut Cx<'h>, i: usize| if hold.holds(i) { Ok(args[i]) } else { ev.eval(cx, args[i]) };
-            if self.range(cx, 0, args.len(), hint, &mut out, &mut vec![0; args.len()], &est, &f)? {
-                return Err(Abort::Hole);
-            }
-        } else {
-            for (i, o) in out.iter_mut().enumerate() {
-                if !hold.holds(i) {
-                    *o = self.eval(cx, *o)?;
-                }
-            }
+        let est = |i: usize| if hold.holds(i) { 0 } else { self.estimate(args[i]) };
+        let k = args.len().min(8);
+        let hint = (0..k).map(est).sum::<u64>() * args.len() as u64 / k as u64;
+        let f = |ev: &Self, cx: &mut Cx<'h>, i: usize| if hold.holds(i) { Ok(args[i]) } else { ev.eval(cx, args[i]) };
+        if self.range(cx, 0, args.len(), hint, &mut out, &mut vec![0; args.len()], &est, &f)? {
+            return Err(Abort::Hole);
         }
-        Ok(Cow::Owned(out))
+        Ok(out)
     }
 
     /// `n` elements `f(0..n)`, split by the granularity rule; `c` is the estimated cost of one element.

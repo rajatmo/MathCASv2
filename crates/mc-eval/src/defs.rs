@@ -138,6 +138,8 @@ pub(crate) struct SymDefs {
     identity: AtomicU32,
     /// index + 1 of the symbol's native implementation (0: none)
     pub(crate) native: AtomicU32,
+    /// index + 1 of the symbol's compiled specialisation in the kernel's table (0: none; [`crate::Compiled`])
+    pub(crate) compiled: AtomicU32,
     rules: OnceLock<Box<RuleSet>>,
     args: AtomicPtr<ArgNode>,
 }
@@ -155,6 +157,7 @@ impl Default for SymDefs {
             attrs: AtomicU64::new(0),
             identity: AtomicU32::new(HOLE),
             native: AtomicU32::new(0),
+            compiled: AtomicU32::new(0),
             rules: OnceLock::new(),
             args: AtomicPtr::new(null_mut()),
         }
@@ -287,6 +290,12 @@ impl Defs {
         sd.version.fetch_add(1, Relaxed);
     }
 
+    /// Link symbol `s` to compiled specialisation `slot` (index + 1; 0 unlinks). Not a definition: no version.
+    pub(crate) fn set_compiled(&self, s: Sym, slot: u32) {
+        let _w = self.writer.lock();
+        self.syms.get_or_init(s.0).compiled.store(slot, Release);
+    }
+
     /// Whether `s` has any definition: a native, an own value, attributes, an identity element or rules.
     pub(crate) fn is_defined(&self, s: Sym) -> bool {
         self.get(s).is_some_and(|d| {
@@ -300,7 +309,8 @@ impl Defs {
     }
 
     /// Remove everything defined for `s` except its native: own value, attributes, identity element, its own rules
-    /// and the argument-head rules it holds. The version counter keeps counting (it never goes back).
+    /// and the argument-head rules it holds, and its compiled specialisation (compiled from the rules). The version
+    /// counter keeps counting (it never goes back).
     pub(crate) fn clear(&mut self, s: Sym) {
         if let Some(sd) = self.syms.get_mut(s.0) {
             let version = *sd.version.get_mut() + 1;
