@@ -1,0 +1,22 @@
+[package]
+name = "mc-lsp"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 language server: diagnostics, definitions, hover, completion and document symbols over stdio"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-lists = { path = "../mc-lists" }
+mc-load = { path = "../mc-load" }
+mc-numeric = { path = "../mc-numeric" }
+mc-numtheory = { path = "../mc-numtheory" }
+mc-poly = { path = "../mc-poly" }
+mc-syntax = { path = "../mc-syntax" }
+serde_json = "1"
+
+[[bin]]
+name = "mc-lsp"
+path = "src/main.rs"
+# no documentation for the binary: its name is the library's, and the two would collide
+doc = false

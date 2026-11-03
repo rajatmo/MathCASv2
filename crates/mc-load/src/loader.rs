@@ -4,6 +4,7 @@
 use crate::error::LoadError;
 use crate::modules::{qualify, split_qualified, Imports, Module, Table};
 use crate::resolve::{defined_name, reserved, Ctx, Env, Fail, Walk};
+use crate::sites::{Definition, DefinitionKind, Recorder, Resolution, Sites};
 use crate::source::{FileSystem, Origin, Source, SourceProvider};
 use crate::stdlib;
 use mc_api::{names, Store, Sym, T};
@@ -68,6 +69,31 @@ impl Loader {
         origin: &Origin,
         known: &dyn Fn(Sym) -> bool,
     ) -> Result<Read<'h>, LoadError> {
+        self.read_with(store, text, origin, known, None).0
+    }
+
+    /// [`Loader::read`], also recording where every name is defined and what the names of each statement resolve
+    /// to, in the input and in the module files it reads (for editor support: go to definition, hover). The
+    /// sites are returned after an error too, as far as reading got.
+    pub fn read_recorded<'h, S: Store + ?Sized>(
+        &mut self,
+        store: &'h S,
+        text: &str,
+        origin: &Origin,
+        known: &dyn Fn(Sym) -> bool,
+    ) -> (Result<Read<'h>, LoadError>, Sites) {
+        let (r, rec) = self.read_with(store, text, origin, known, Some(Recorder::default()));
+        (r, rec.map(|r| r.sites).unwrap_or_default())
+    }
+
+    fn read_with<'h, S: Store + ?Sized>(
+        &mut self,
+        store: &'h S,
+        text: &str,
+        origin: &Origin,
+        known: &dyn Fn(Sym) -> bool,
+        recorder: Option<Recorder>,
+    ) -> (Result<Read<'h>, LoadError>, Option<Recorder>) {
         let heads = Heads::new(store);
         let reserved = reserved(store);
         let saved = self.modules.clone();
@@ -83,8 +109,11 @@ impl Loader {
             loading: vec![],
             out: vec![],
             reloaded: vec![],
+            recorder,
         };
-        match rd.source(text, origin, &mut imports, true) {
+        let r = rd.source(text, origin, &mut imports, true);
+        let recorder = rd.recorder.take();
+        let r = match r {
             Ok(()) => {
                 let (statements, mut reloaded) = (rd.out, rd.reloaded);
                 reloaded.sort();
@@ -97,7 +126,8 @@ impl Loader {
                 self.imports = saved_imports;
                 Err(e)
             }
-        }
+        };
+        (r, recorder)
     }
 
     /// [`Loader::read`] on the file at `path` (a script, or a module file loaded again).
@@ -135,11 +165,24 @@ struct Reader<'a, 'h, S: Store + ?Sized> {
     loading: Vec<String>,
     out: Vec<T<'h>>,
     reloaded: Vec<String>,
+    /// the sites being recorded, for [`Loader::read_recorded`]
+    recorder: Option<Recorder>,
 }
 
 impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
     /// Read one source text: its statements go to `out` in order. `imports` are the imports of its top level.
     fn source(&mut self, text: &str, origin: &Origin, imports: &mut Imports, in_input: bool) -> Result<(), LoadError> {
+        if let Some(rec) = self.recorder.as_mut() {
+            rec.identifiers.push(mc_syntax::identifiers(text));
+        }
+        let r = self.source_here(text, origin, imports, in_input);
+        if let Some(rec) = self.recorder.as_mut() {
+            rec.identifiers.pop();
+        }
+        r
+    }
+
+    fn source_here(&mut self, text: &str, origin: &Origin, imports: &mut Imports, in_input: bool) -> Result<(), LoadError> {
         let at = |ds: Vec<Diagnostic>| LoadError::at(&origin.name, text, ds, in_input);
         if let Some(d) = header_error(text) {
             return Err(at(vec![d]));
@@ -189,16 +232,30 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
                         return Err(here(Fail::new(n, message)));
                     }
                 }
-                let t = self.resolve(Ctx::Top { imports }, s.term).map_err(here)?;
+                let t = self.resolve(Ctx::Top { imports }, s.term, origin, s.span).map_err(here)?;
                 self.out.push(t);
                 Ok(())
             }
         }
     }
 
-    fn resolve(&self, ctx: Ctx<'_>, t: T<'h>) -> Result<T<'h>, Fail> {
-        let env = Env { store: self.store, heads: self.heads, modules: &*self.modules, known: self.known, reserved: self.reserved };
-        Walk::new(&env, ctx).statement(t)
+    /// Statement `t` (at `span` of `origin`) with its names resolved; recorded when recording.
+    fn resolve(&mut self, ctx: Ctx<'_>, t: T<'h>, origin: &Origin, span: Span) -> Result<T<'h>, Fail> {
+        let (st, hs) = (self.store, self.heads);
+        let env = Env { store: st, heads: hs, modules: &*self.modules, known: self.known, reserved: self.reserved };
+        let mut walk = Walk::new(&env, ctx);
+        let r = walk.statement(t)?;
+        let Some(rec) = self.recorder.as_mut() else { return Ok(r) };
+        let mut names: Vec<(String, String)> = walk.resolved().map(|(w, to)| (st.sym_name(w), st.sym_name(to))).collect();
+        names.sort();
+        rec.sites.resolutions.push(Resolution { origin: origin.clone(), span, names });
+        if let Some(d) = defined_name(st, hs, r) {
+            let written = defined_name(st, hs, t).map(|w| st.sym_name(w)).unwrap_or_default();
+            let name_span = rec.locate(&written, span);
+            let kind = DefinitionKind::Value;
+            rec.sites.definitions.push(Definition { name: st.sym_name(d), kind, origin: origin.clone(), span, name_span });
+        }
+        Ok(r)
     }
 
     /// `module M { ... }` (decisions F.2 to F.4): the members are collected and the module registered first, so
@@ -262,13 +319,18 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
         }
         let module = Module { name: mname.clone(), origin: origin.name.clone(), members: members.clone(), public };
         self.modules.insert(mname.clone(), module);
+        if let Some(rec) = self.recorder.as_mut() {
+            let name_span = rec.locate(&mname, s.span);
+            let (kind, span) = (DefinitionKind::Module, s.span);
+            rec.sites.definitions.push(Definition { name: mname.clone(), kind, origin: origin.clone(), span, name_span });
+        }
         for (i, &item) in items.iter().enumerate() {
             let inner = unwrap_public(st, hs, item).0;
             if matches!(hs.classify(st, inner), Some((Head::Import | Head::ImportExcept, _))) {
                 continue;
             }
             let ctx = Ctx::Module { name: &mname, members: &members, imports: &imports, defined };
-            let t = self.resolve(ctx, inner).map_err(|f| Error::Here(f, span_of(i)))?;
+            let t = self.resolve(ctx, inner, origin, span_of(i)).map_err(|f| Error::Here(f, span_of(i)))?;
             self.out.push(t);
         }
         self.out.push(self.null());

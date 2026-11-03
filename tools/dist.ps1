@@ -1,5 +1,5 @@
 # Usage: tools\dist.ps1   -> builds the release binaries and copies them, with the benchmark cases, the example
-# scripts and a short guide, to ..\dist-v2 (outside the repository). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
+# scripts, the VS Code extension (folder and .vsix) and a short guide, to ..\dist-v2 (outside the repository). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
 # (mirror folder; default Dropbox\Projects\MathCAS-v2-dist when Dropbox exists), CARGO_TARGET_DIR.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -8,12 +8,12 @@ $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Pa
 
 Push-Location $root
 try {
-    cargo build --release --offline -p mc-repl -p mc-engine
+    cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp
     if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 } finally { Pop-Location }
 
 New-Item -ItemType Directory -Force $dist | Out-Null
-foreach ($exe in @("mc-repl.exe", "mc-bench.exe")) {
+foreach ($exe in @("mc-repl.exe", "mc-bench.exe", "mc-lsp.exe")) {
     Copy-Item (Join-Path $targetDir "release\$exe") (Join-Path $dist $exe) -Force
 }
 $cases = Join-Path $dist "bench\cases"
@@ -23,6 +23,13 @@ Copy-Item (Join-Path $root "bench\cases") $cases -Recurse -Force
 $examples = Join-Path $dist "examples"
 if (Test-Path $examples) { Remove-Item $examples -Recurse -Force }
 Copy-Item (Join-Path $root "examples") $examples -Recurse -Force
+# the editor extension: the folder (install by copying, see its INSTALL.txt) and a packed .vsix
+$editors = Join-Path $dist "editors"
+if (Test-Path $editors) { Remove-Item $editors -Recurse -Force }
+New-Item -ItemType Directory -Force $editors | Out-Null
+Copy-Item (Join-Path $root "editors\vscode") (Join-Path $editors "vscode") -Recurse -Force
+Get-ChildItem $dist -Filter "mathcas-*.vsix" | Remove-Item -Force
+& (Join-Path $PSScriptRoot "vsix.ps1") -OutDir $dist | Out-Null
 Copy-Item (Join-Path $root "tools\dist-README.txt") (Join-Path $dist "README.txt") -Force
 $rev = (git -C $root rev-parse --short HEAD)
 Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 development build, commit $rev, built $(Get-Date -Format s)" -Encoding utf8

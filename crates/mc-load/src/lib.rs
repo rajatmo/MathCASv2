@@ -21,7 +21,8 @@
 //! - [`source`](mod@source): [`Origin`], [`SourceProvider`] with [`FileSystem`] and [`InMemory`];
 //! - [`Module`]: an entry of the module table;
 //! - [`LoadError`]: read-time errors with `file:line:column`, the source line and a caret;
-//! - [`stdlib`]: the embedded prelude and standard modules.
+//! - [`stdlib`]: the embedded prelude and standard modules;
+//! - [`sites`]: definition sites and name resolutions recorded by [`Loader::read_recorded`] for editor support.
 //!
 //! Decisions of this package are numbered F.1, F.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
@@ -29,10 +30,12 @@ mod error;
 mod loader;
 mod modules;
 mod resolve;
+pub mod sites;
 pub mod source;
 pub mod stdlib;
 
 pub use error::LoadError;
 pub use loader::{Loader, Read};
 pub use modules::Module;
+pub use sites::{Definition, DefinitionKind, Resolution, Sites};
 pub use source::{FileSystem, InMemory, Origin, Source, SourceProvider};

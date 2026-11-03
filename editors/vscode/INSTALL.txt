@@ -1,0 +1,43 @@
+MathCAS for VS Code
+===================
+
+Syntax colouring for .mc scripts and .mcn notebooks, and, through the mc-lsp language server: error diagnostics
+while typing, go to definition (also into imported module files), hover (a definition's first line and the comment
+above it, or a library function's description), completion (keywords, library and prelude names, the file's own
+definitions, imported names, and module members after "M."), and the outline of a file. Two commands run code
+with mc-repl in a terminal: "MathCAS: Run File" (also the run button in the editor title) and "MathCAS: Run
+Selection" (the selection, or the current line, as mc-repl -e). The extension is plain JavaScript and needs
+nothing besides VS Code and the MathCAS programs.
+
+Install
+-------
+1. Put mc-repl and mc-lsp (mc-repl.exe and mc-lsp.exe on Windows) in one folder, and that folder on PATH; or set
+   their paths in the settings below.
+2. Copy this folder (the one holding package.json) into the VS Code extensions folder, under the name
+   mathcas.mathcas-0.1.0:
+     Windows:        %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.1.0
+     macOS, Linux:   ~/.vscode/extensions/mathcas.mathcas-0.1.0
+   For example, in PowerShell from the folder holding this file:
+     Copy-Item -Recurse . "$env:USERPROFILE\.vscode\extensions\mathcas.mathcas-0.1.0"
+3. Restart VS Code (or run "Developer: Reload Window") and open a .mc file. "MathCAS" shows as its language in the
+   status bar; messages of the language server go to the "MathCAS" output panel.
+
+To try the extension without installing it, start VS Code with it loaded for one window:
+     code --extensionDevelopmentPath=<this folder>
+
+To remove it, delete the mathcas.mathcas-0.1.0 folder from the extensions folder and restart VS Code.
+
+Settings
+--------
+  mathcas.repl.path      mc-repl, for the run commands (default "mc-repl", looked up on PATH)
+  mathcas.server.path    mc-lsp (default: mc-lsp next to mc-repl, else mc-lsp on PATH)
+  mathcas.server.enable  start the language server (default true)
+"MathCAS: Restart Language Server" restarts it, for example after installing a new mc-lsp.
+
+Notes
+-----
+- Imports are looked up as mc-repl does: M.mc next to the importing file, then the standard modules. Unsaved
+  changes in an open module file are used at once by the files importing it.
+- In a .mcn notebook only the code cells are checked; text and output blocks are skipped.
+- Run Selection runs the code in a fresh session in the file's folder: definitions from the rest of the file are
+  not there unless the selection includes them.

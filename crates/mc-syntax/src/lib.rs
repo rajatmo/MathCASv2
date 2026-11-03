@@ -30,6 +30,8 @@ mod span;
 mod stack;
 
 pub use heads::{as_sym, Head, Heads};
+/// The reserved words of the language (04 section 2), for editor support (completion, grammars).
+pub use ident::KEYWORDS;
 pub use lower::lower_program;
 pub use parser::{parse, Parsed, MAX_DEPTH};
 pub use print::{DefaultNumberFormat, NumberFormat, Printer};
