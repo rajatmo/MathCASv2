@@ -1,0 +1,26 @@
+| case | size | store | total ms | phases (ms) | GCs | pause total | pause max | pause mean | live nodes after last GC | reserved after last GC MB | max reserved after GC MB | peak heap MB | overhead | check | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| S3 parts | 1000000 | hc+imm+stamps | 50.57 | build 3.17, 10^4 replacements 47.40 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 132.4 | +2% | ok |  |
+| S3 parts | 1000000 | none | 49.62 | build 3.26, 10^4 replacements 46.39 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 132.4 | +0% | ok |  |
+| S3 parts | 1000000 | A | 53.52 | build 3.08, 10^4 replacements 50.44 | 20 | 19.77 | 1.39 | 0.989 | 1001 | 12.3 | 12.3 | 28.7 | +8% | ok |  |
+| S3 parts | 1000000 | A-fl | 33.36 | build 2.95, 10^4 replacements 30.46 | 20 | 8.30 | 0.630 | 0.415 | 1001 | 8.3 | 8.3 | 8.4 | -33% | ok |  |
+| S3 parts | 1000000 | B | 44.04 | build 2.89, 10^4 replacements 41.15 | 20 | 18.96 | 1.15 | 0.948 | 1001 | 8.3 | 8.3 | 8.3 | -11% | ok |  |
+| S3 parts | 1000000 | C | 38.06 | build 2.89, 10^4 replacements 35.17 | 15 (10 minor) | 11.19 | 1.17 | 0.746 | 1001 | 16.5 | 16.6 | 16.6 | -23% | ok |  |
+| S3 parts | 1000000 | C1 | 43.66 | build 2.93, 10^4 replacements 40.76 | 86 (77 minor) | 18.49 | 1.11 | 0.215 | 1379 | 16.5 | 16.5 | 16.6 | -12% | ok |  |
+| S3 parts | 1000000 | C0 | 65.88 | build 2.95, 10^4 replacements 62.88 | 10021 (10001 minor) | 40.93 | 1.14 | 0.004 | 1163 | 8.3 | 8.3 | 9.8 | +33% | ok |  |
+| R10 replace | 1000000 | hc+imm+stamps | 151 | build 62.67, safe point (tree live) 0.000, replace 86.25, safe point (tree dead) 0.000 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 47.2 | +1% | ok |  |
+| R10 replace | 1000000 | none | 149 | build 60.67, safe point (tree live) 0.000, replace 87.16, safe point (tree dead) 0.000 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 47.2 | +0% | ok |  |
+| R10 replace | 1000000 | A | 159 | build 60.39, safe point (tree live) 5.28, replace 82.58, safe point (tree dead) 10.81 | 2 | 16.45 | 11.21 | 8.22 | 362857 | 48.2 | 48.2 | 49.4 | +7% | ok |  |
+| R10 replace | 1000000 | A-fl | 161 | build 60.93, safe point (tree live) 5.33, replace 82.72, safe point (tree dead) 11.89 | 2 | 17.38 | 12.08 | 8.69 | 362857 | 49.8 | 49.8 | 50.9 | +8% | ok |  |
+| R10 replace | 1000000 | B | 169 | build 61.02, safe point (tree live) 8.27, replace 86.10, safe point (tree dead) 13.03 | 2 | 21.89 | 13.67 | 10.94 | 362857 | 46.1 | 46.1 | 47.4 | +14% | ok |  |
+| R10 replace | 1000000 | C | 182 | build 60.93, safe point (tree live) 21.06, replace 81.85, safe point (tree dead) 17.61 | 3 (2 minor) | 38.89 | 17.61 | 12.96 | 707932 | 48.8 | 48.8 | 52.5 | +22% | ok |  |
+| R10 replace | 1000000 | C1 | 190 | build 63.42, safe point (tree live) 20.96, replace 85.57, safe point (tree dead) 18.93 | 3 (2 minor) | 40.99 | 18.93 | 13.66 | 707932 | 48.8 | 48.8 | 52.5 | +28% | ok |  |
+| R10 replace | 1000000 | C0 | 207 | build 69.88, safe point (tree live) 21.94, replace 101, safe point (tree dead) 20.33 | 3 (2 minor) | 44.80 | 20.33 | 14.93 | 707932 | 48.8 | 48.8 | 52.5 | +39% | ok |  |
+| R11 re-eval | 1000000 | hc+imm+stamps | 183 | build 69.82, eval 82.00, collect 0.000, re-eval (unrelated change) 0.000, collect 0.000, re-eval (s3 changed) 31.21 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 34.7 | +18% | ok | misses eval 363311, misses unrelated 0, misses s3 113602 |
+| R11 re-eval | 1000000 | none | 156 | build 63.94, eval 69.81, collect 0.000, re-eval (unrelated change) 0.000, collect 0.000, re-eval (s3 changed) 22.10 | 0 | 0.000 | 0.000 | 0.000 | - | - | - | 34.7 | +0% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | A | 169 | build 62.99, eval 70.26, collect 8.06, re-eval (unrelated change) 0.000, collect 7.36, re-eval (s3 changed) 19.71 | 2 | 15.33 | 7.97 | 7.67 | 496056 | 31.4 | 31.4 | 34.7 | +8% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | A-fl | 164 | build 62.99, eval 66.91, collect 7.77, re-eval (unrelated change) 0.000, collect 7.20, re-eval (s3 changed) 19.13 | 2 | 15.73 | 8.44 | 7.86 | 496056 | 31.4 | 31.4 | 34.7 | +5% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | B | 181 | build 63.01, eval 70.15, collect 11.89, re-eval (unrelated change) 0.000, collect 11.94, re-eval (s3 changed) 22.07 | 2 | 23.76 | 11.92 | 11.88 | 496056 | 31.4 | 31.4 | 34.7 | +16% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | C | 188 | build 62.55, eval 70.32, collect 33.31, re-eval (unrelated change) 0.000, collect 0.000, re-eval (s3 changed) 20.43 | 2 (1 minor) | 33.25 | 21.37 | 16.62 | 496056 | 36.0 | 36.0 | 40.0 | +21% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | C1 | 191 | build 63.20, eval 69.90, collect 34.12, re-eval (unrelated change) 0.000, collect 0.000, re-eval (s3 changed) 21.35 | 2 (1 minor) | 34.02 | 22.07 | 17.01 | 496056 | 36.0 | 36.0 | 40.0 | +22% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |
+| R11 re-eval | 1000000 | C0 | 183 | build 62.78, eval 68.92, collect 33.29, re-eval (unrelated change) 0.000, collect 0.000, re-eval (s3 changed) 18.33 | 2 (1 minor) | 33.11 | 21.28 | 16.56 | 496056 | 36.0 | 36.0 | 40.0 | +18% | ok | misses eval 456099, misses unrelated 0, misses s3 134571 |

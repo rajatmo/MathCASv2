@@ -1,0 +1,10 @@
+[package]
+name = "collect"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spike 1b: collecting the hash-consed term arena (mark-sweep, compaction, generational)"
+
+[dependencies]
+hashbrown = "0.15"
+rustc-hash = "2"
