@@ -72,6 +72,9 @@ impl CoreEngine {
         let session = Session::with_state(cfg.heap, cfg.threads, |h| {
             let mut k = Kernel::new(h, cfg.eval);
             arith::install(&mut k, h, &arith_stop);
+            // the libraries poll the same stop flag as the arithmetic (decision G.5)
+            mc_lists::install(&mut k, h, &arith_stop);
+            mc_numeric::install_with_stop(&mut k, h, &arith_stop);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

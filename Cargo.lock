@@ -482,6 +482,8 @@ dependencies = [
  "mc-bench",
  "mc-core",
  "mc-eval",
+ "mc-lists",
+ "mc-numeric",
  "mc-syntax",
 ]
 
