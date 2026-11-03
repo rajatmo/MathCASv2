@@ -115,3 +115,10 @@ private `squared_deviations`.
 - `print` returns its argument, so a script ending in `print(...)` shows the value twice.
 - `unique` is O(n^2).
 - The engine's known library names come from the `FUNCTIONS` lists; a constant missing from them becomes `M.name`.
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- **Reload clears `@on` attachments (9.6):** `Module::attached: BTreeSet<(holder, outer)>` records the module body's
+  `@on(holder)` attachments (from `define_rule`/`define_fn` decorators, resolved names); `Read::detached` gives the old
+  module's attachments when an input reloads it, and the engine clears all of `holder`'s rules for that `outer` (a rule
+  with the same pair defined outside the module goes too).

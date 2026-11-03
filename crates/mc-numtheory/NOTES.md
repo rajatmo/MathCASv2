@@ -121,3 +121,9 @@ non-power rejected in 0.9 s.
 - Not supported: gamma-based `factorial`/`binomial` for inexact reals; modular square roots in `power_mod`; Gaussian
   integers in `mod`/`gcd`; symbolic `abs`/`sign` simplification. `mod`/`floor` on balls only when the floor is decided;
   `abs` of a ball containing zero returns a valid but wider enclosure.
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- `gcd` and `lcm` removed from registration and `FUNCTIONS` (owned by `mc-poly`, 9.1); new public
+  `number_gcd_lcm(cx, args, lcm)` (integers and rationals by the half-gcd; declines otherwise). The test harness `Nt`
+  also installs `mc-poly` (dev-dependency); `gcd(x, 2)` now gives `1`.

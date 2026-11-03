@@ -117,3 +117,23 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
 - `mc-eval`: `Arith::cmp` (or `Order`) for sorting and match enumeration; `compare`/`equal` for three-valued
   comparisons (`Undecided` stays unevaluated).
 - Re-run these tests against `mc-core` (so far only against `RefStore`).
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- **Clean returns after a stop (9.2):** `num::after_stop(what)` panics as before without a pending stop and lets the
+  caller return any (discarded) value after one; applied at every panic site a stopped computation reaches (`Nat::sub`
+  underflow, division by zero in `divrem_u64`/`divrem`/`Divisor::new`/`divrem`, the `isqrt` correction loop,
+  `Mag::div_up`, `Float::div`, `Float::sqrt` of a negative, `Float::to_sci`, `Rat::new`, `rat_to_ball`); the debug
+  assertions in `div_exact` and `Divisor` relaxed the same way. Tests `num::stop_tests` run every public operation under
+  a raised flag and under a simulated flag raised at 12 points.
+- **Faster decimal conversion (9.4):** no reciprocal for the top power of ten (only compared); each power's reciprocal
+  seeded from the square of the previous plus one Newton step (`recip_seeded`, `Divisor::from_root`); an exact Newton
+  correction; from 256 limbs a `Divisor` keeps the NTT transforms of its reciprocal and itself (`ntt::Spectrum`), with
+  the remainder computed as a half-length cyclic product modulo B^m - 1 (`ntt::mul_cyclic`); the NTT split into
+  `forward`/`backward`/`reconstruct`. 10^6 digits 0.176 -> 0.117 s, 10^7 digits 3.18 -> 1.85 s (`from_decimal` 0.08 s
+  and 1.1 s unchanged). Tool: `examples/decimal.rs`. Tests: `ntt::spectrum_products_match`,
+  `nat::divisors_match_division`, `nat::decimal_matches_reference` up to 9000 limbs and 10^120000 +- small.
+- **Negative powers of machine reals:** `Num::pow_int` took the reciprocal and negated the exponent (`2.0^-1` gave 2.0,
+  `3.0/7.0` gave 21.0); a machine real now takes the signed exponent. Test `number::negative_integer_powers` (machine
+  reals, rationals, balls, complex). Also fixes `mc-jit`'s compiled code (it goes through `Num::pow`).
+- Gap: `mc-numeric`'s L.11 workaround (square roots with the stop flag off) can now be lifted.

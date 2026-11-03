@@ -116,3 +116,12 @@ in a parenthesised group followed by `->` read back as a function type.
 - `mc-arith` implements `NumberFormat` (fast decimal integers; balls with only correct digits).
 - The REPL and bench harness call `read(store, src)`, show `Diagnostic::render(src)`, and print with
   `Printer::program`.
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- **Series printing (9.3):** `series_data(x, x0, [c...], v, p)` (integer v, p; at most p - v coefficients) prints as a
+  sum plus an order term: `1 + x + x^2/2 + O(x^3)`, `x^-1 - x/6 + O(x^4)`, `exp(1) + exp(1)*(x - 1) + O((x - 1)^2)`,
+  `O(x^3)`; rational coefficients `n*x^k/d` (or `n/(d*x^m)`), negatives with ` - `; other shapes print as calls. The text
+  reads back as that sum (`series(text, x, x0, n)` gives the same `series_data`). Private `Run::series`,
+  `series_term`, `series_power`; re-export `string_literal`; truncated series named as a faithfulness exception.
+  Tests `tests/series.rs` (18 printing, 3 read-back).

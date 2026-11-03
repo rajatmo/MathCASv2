@@ -107,3 +107,13 @@ P7 at m=100 takes about 10 ms.
 - P2's property `length(result) == binomial(2m + 5, 5)` was wrong: `1 + x + y + z + t` has four variables, so the
   result has `binomial(2m + 4, 4)` terms (135751 at m=20). Fixed by the coordinator.
 - P11 builds `p` with `range` and lambdas (the crate test builds it directly in Rust).
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- **`gcd` and `lcm` have one owner (9.1):** exact numbers go to `mc_numtheory::number_gcd_lcm` (half-gcd) inside
+  `mc-arith`'s stop scope; everything else to the polynomial gcd/lcm; an inexact number gives
+  `failure(argument, gcd|lcm, ...)`. The old Lehmer number path is gone. Measured: 104,687 digits 79-87 ms (half-gcd
+  direct 73-77, Lehmer 97-106); 418,745 digits 406 ms (410; Lehmer 1.66 s). Test `tests/gcd_dispatch.rs`.
+- `series` reads an order term `O((x - x0)^p)` (also `O(x)`, `O(1)`) as a zero series of precision p, so printed series
+  read back; `normal` drops `O(...)` terms. `FUNCTIONS` gains `lcm` and `O` (a known name without a native).
+- New dependency `mc-numtheory`, dev-dependency `mc-bench`.

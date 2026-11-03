@@ -141,3 +141,11 @@ Two language features block most cases and are evaluator work, not library: lamb
 - `mc-arith`'s stop path computes garbage after a stop; other kernels could in principle panic on `Nat::sub`
   underflow (not observed; audit).
 - Machine-real comparison follows IEEE: `1/3 == 0.3333333333333333` is `true`.
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- The install-order comment reflects 9.1 (`gcd`/`lcm` owned by `mc-poly`); after the `reloaded` loop the engine calls
+  `k.clear_attached` for every pair in `read.detached` (9.6). Tests: a reload test in `tests/modules.rs`; session cases
+  `1.0/4.0`, `2.0^-3`, `3.0/7.0`, `u/v` for reals, rationals, balls in `tests/engine.rs`.
+- Harness re-runs (guard, 3 GB): N9 10^5 14.1 ms, 10^6 172 ms, 10^7 2.80 s (was the time limit), all pass; P4 5/10/15
+  pass; P12 100 and 1000 pass, 10^4 still stops at its known limit.

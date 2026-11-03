@@ -271,3 +271,8 @@ Shared files changed: `bench/cases/R/R2.mc` (the rule uses a block, because defi
 - Cell assignment counts as an effect for purity, so speculative tasks can only write cells they allocated.
 - A failure value containing a cell keeps it alive for the session; escaping frontier cells are never reclaimed.
 - `replace_at` was not done.
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- Additions in `defs.rs` only: crate-private `Defs::clear_arg_rules(holder, outer)` and
+  `pub fn Kernel::clear_attached(&mut self, holder, outer)` (counts as a definition of both symbols), for 9.6.

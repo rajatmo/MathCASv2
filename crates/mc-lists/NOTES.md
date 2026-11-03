@@ -132,3 +132,9 @@ Library alone at 10^7 elements (peak 1.3 GB): `range` 52 ms, `sum` 23 ms, `rever
 - Check `max`, `min`, `sum`, `product`, `count`, `apply`, `split` against packages J, K, L for clashes.
 - The tests dev-depend on `mc-engine`; once `mc-engine` depends on `mc-lists`, Cargo accepts the dev-dependency cycle.
 - Un-ignore the lambda tests after H, and `original_texts` after H and J (`mod`).
+
+## Package 9 (library and kernel gaps, branch `lib/p9-gaps`, commit 536c775)
+
+- New native `unique(xs)`: identity comparison, first occurrence kept, any head, linear with a hash set, fuel per element
+  (`Meter`); in `FUNCTIONS`. Tests: 8 cases incl. 2*10^5 elements, an oracle property test, a fuel-limit test. (The
+  prelude's O(n^2) `unique` is removed.)
