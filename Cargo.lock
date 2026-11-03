@@ -155,6 +155,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-core"
+version = "0.0.0"
+dependencies = [
+ "crossbeam-utils",
+ "mc-api",
+ "parking_lot",
+ "rayon",
+ "rustc-hash",
+]
+
+[[package]]
 name = "num-bigint"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"

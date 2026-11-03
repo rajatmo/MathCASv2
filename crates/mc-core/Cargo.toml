@@ -1,0 +1,13 @@
+[package]
+name = "mc-core"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 core store: concurrent hash-consed arena, generational collector, number payloads, memo, sessions"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+crossbeam-utils = "0.8"
+parking_lot = "0.12"
+rayon = "1.12"
+rustc-hash = "2"
