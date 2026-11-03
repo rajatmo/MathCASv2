@@ -240,24 +240,14 @@ pub(crate) fn polynomial_gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, l
     Ok(Out::Done(env.conv().to_term(&acc, &ring, m)?))
 }
 
-/// `gcd(a, b, ...)`: of exact numbers (integers; for rationals the gcd of the numerators over the lcm of the
-/// denominators), otherwise of polynomials (decision K.5).
-pub(crate) fn gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
-    let nums: Option<Vec<Rat>> = args.iter().map(|&a| env.ar.num(a).and_then(|x| x.as_rat().cloned())).collect();
-    if let Some(qs) = nums {
-        let (mut n, mut d) = (Z::ZERO, Z::ONE);
-        for q in &qs {
-            m.step(1)?;
-            let (a, b) = rat_parts(q);
-            n = n.gcd(&a);
-            d = d.mul(&b).div_exact(&d.gcd(&b));
-        }
-        return Ok(Out::Done(env.conv().rat_term(&rat_of(&n, &d))));
-    }
+/// `gcd(a, b, ...)` and `lcm(a, b, ...)` of polynomials (decision K.5). Calls whose arguments are all exact numbers
+/// never get here: the native sends them to mc-numtheory's half-gcd first (decision 9.1).
+pub(crate) fn gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, lcm: bool) -> WorkResult<Out<'h>> {
     if args.iter().any(|&a| env.ar.num(a).is_some_and(|x| x.as_rat().is_none())) {
-        return Ok(env.arg_failure("gcd takes exact numbers or polynomials"));
+        let name = if lcm { "lcm" } else { "gcd" };
+        return Ok(env.arg_failure(&format!("{name} takes exact numbers or polynomials")));
     }
-    polynomial_gcd(env, args, m, false)
+    polynomial_gcd(env, args, m, lcm)
 }
 
 /// `failure(division_by_zero)`.

@@ -172,6 +172,13 @@ fn access_agrees_with_slices() {
             };
             assert_eq!(env.eval(&format!("xs[{a}:{b}]")), want, "{xs:?}[{a}:{b}]");
         }
+        let mut firsts: Vec<i64> = vec![];
+        for &x in &xs {
+            if !firsts.contains(&x) {
+                firsts.push(x);
+            }
+        }
+        assert_eq!(env.eval("unique(xs)"), list(&firsts), "unique {xs:?}");
         let mut rev = xs.clone();
         rev.reverse();
         assert_eq!(env.eval("reverse(xs)"), list(&rev));

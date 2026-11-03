@@ -10,10 +10,13 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+# the half-gcd for gcd and lcm of exact numbers (this crate owns both names)
+mc-numtheory = { path = "../mc-numtheory" }
 rustc-hash = "2"
 
 [dev-dependencies]
 mc-engine = { path = "../mc-engine" }
+mc-bench = { path = "../mc-bench" }
 mc-syntax = { path = "../mc-syntax" }
 num-bigint = "0.4"
 num-traits = "0.2"

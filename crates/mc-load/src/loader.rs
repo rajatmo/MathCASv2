@@ -7,7 +7,7 @@ use crate::resolve::{defined_name, reserved, Ctx, Env, Fail, Walk};
 use crate::sites::{Definition, DefinitionKind, Recorder, Resolution, Sites};
 use crate::source::{FileSystem, Origin, Source, SourceProvider};
 use crate::stdlib;
-use mc_api::{names, Store, Sym, T};
+use mc_api::{names, Store, Sym, View, T};
 use mc_syntax::{as_sym, Diagnostic, Head, Heads, Span, Spanned};
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
@@ -21,6 +21,10 @@ pub struct Read<'h> {
     /// Qualified names (`M.f`) of the members of modules this input defines again (a reload): their definitions
     /// must be cleared before the statements run, so that clauses are not duplicated (decision F.8).
     pub reloaded: Vec<String>,
+    /// (holder, outer) pairs of the argument-head rules that the modules this input defines again attached the last
+    /// time (`@on(holder)` on a rule for `outer`): they must be cleared too, since the holder need not be a member
+    /// (decision 9.6 of the library-gaps package).
+    pub detached: Vec<(String, String)>,
 }
 
 /// The reader state of a session.
@@ -110,16 +114,19 @@ impl Loader {
             out: vec![],
             reloaded: vec![],
             recorder,
+            detached: vec![],
         };
         let r = rd.source(text, origin, &mut imports, true);
         let recorder = rd.recorder.take();
         let r = match r {
             Ok(()) => {
-                let (statements, mut reloaded) = (rd.out, rd.reloaded);
+                let (statements, mut reloaded, mut detached) = (rd.out, rd.reloaded, rd.detached);
                 reloaded.sort();
                 reloaded.dedup();
+                detached.sort();
+                detached.dedup();
                 self.imports = imports;
-                Ok(Read { statements, reloaded })
+                Ok(Read { statements, reloaded, detached })
             }
             Err(e) => {
                 self.modules = saved;
@@ -167,6 +174,7 @@ struct Reader<'a, 'h, S: Store + ?Sized> {
     reloaded: Vec<String>,
     /// the sites being recorded, for [`Loader::read_recorded`]
     recorder: Option<Recorder>,
+    detached: Vec<(String, String)>,
 }
 
 impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
@@ -316,14 +324,22 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
         }
         if let Some(old) = self.modules.get(&mname) {
             self.reloaded.extend(old.members.iter().map(|f| qualify(&mname, f)));
+            self.detached.extend(old.attached.iter().cloned());
         }
-        let module = Module { name: mname.clone(), origin: origin.name.clone(), members: members.clone(), public };
+        let module = Module {
+            name: mname.clone(),
+            origin: origin.name.clone(),
+            members: members.clone(),
+            public,
+            attached: BTreeSet::new(),
+        };
         self.modules.insert(mname.clone(), module);
         if let Some(rec) = self.recorder.as_mut() {
             let name_span = rec.locate(&mname, s.span);
             let (kind, span) = (DefinitionKind::Module, s.span);
             rec.sites.definitions.push(Definition { name: mname.clone(), kind, origin: origin.clone(), span, name_span });
         }
+        let mut attached = BTreeSet::new();
         for (i, &item) in items.iter().enumerate() {
             let inner = unwrap_public(st, hs, item).0;
             if matches!(hs.classify(st, inner), Some((Head::Import | Head::ImportExcept, _))) {
@@ -331,7 +347,13 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
             }
             let ctx = Ctx::Module { name: &mname, members: &members, imports: &imports, defined };
             let t = self.resolve(ctx, inner, origin, span_of(i)).map_err(|f| Error::Here(f, span_of(i)))?;
+            if let Some((holder, outer)) = attachment(st, hs, t) {
+                attached.insert((st.sym_name(holder), st.sym_name(outer)));
+            }
             self.out.push(t);
+        }
+        if let Some(m) = self.modules.get_mut(&mname) {
+            m.attached = attached;
         }
         self.out.push(self.null());
         Ok(())
@@ -411,6 +433,21 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
         }
         Ok(())
     }
+}
+
+/// (holder, outer) for a resolved definition attached with the decorator `on(holder)` to a rule for `outer`:
+/// `define_fn(lhs, body, options, type, list(decorators))` or `define_rule(rule, list(decorators))`.
+fn attachment<'h, S: Store + ?Sized>(st: &'h S, hs: &Heads, t: T<'h>) -> Option<(Sym, Sym)> {
+    let decs = match hs.classify(st, t)? {
+        (Head::DefineFn, [_, _, _, _, decs]) | (Head::DefineRule, [_, decs]) => *decs,
+        _ => return None,
+    };
+    let Some((Head::List, decs)) = hs.classify(st, decs) else { return None };
+    let holder = decs.iter().find_map(|&d| match st.view(d) {
+        View::App { head, args: &[s] } if as_sym(st, head).is_some_and(|h| st.sym_name(h) == "on") => as_sym(st, s),
+        _ => None,
+    })?;
+    Some((holder, defined_name(st, hs, t)?))
 }
 
 /// The statement under `pub`, and whether it was there.

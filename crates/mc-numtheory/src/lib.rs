@@ -29,15 +29,13 @@ pub mod ring;
 pub mod sieve;
 pub mod word;
 
-use mc_core::Heap;
-use mc_eval::Kernel;
+use mc_core::{Heap, T};
+use mc_eval::{Kernel, NativeCx, Reply, Res};
 
 /// The functions [`install`] registers, with a one-line description each.
 pub const FUNCTIONS: &[(&str, &str)] = &[
     ("mod", "mod(a, m) and mod(a, m, d): the remainder a - m floor((a - d)/m), with the sign of m"),
     ("quotient", "quotient(a, b): floor(a / b)"),
-    ("gcd", "gcd(...): greatest common divisor of integers and rationals (gcd() = 0)"),
-    ("lcm", "lcm(...): least common multiple of integers and rationals (lcm() = 1)"),
     ("extended_gcd", "extended_gcd(a, b): [g, [s, t]] with g = gcd(a, b) = s a + t b"),
     ("floor", "floor(x), floor(x, a): the greatest integer (multiple of a) at most x"),
     ("ceiling", "ceiling(x), ceiling(x, a): the least integer (multiple of a) at least x"),
@@ -73,6 +71,18 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 /// `mc-engine`'s `arith::install`).
 pub fn install(k: &mut Kernel, h: &Heap) {
     natives::install(k, h);
+}
+
+/// `gcd(a, ...)` (or `lcm(a, ...)` when `lcm`) of exact numbers by the half-gcd: gcd(p/q, r/s) = gcd(p, r) / lcm(q, s),
+/// lcm(p/q, r/s) = lcm(p, r) / gcd(q, s), gcd() = 0, lcm() = 1. Declines unless every argument is an integer or a
+/// rational.
+///
+/// This package does not register `gcd` and `lcm`: `mc-poly` owns both names (they also apply to polynomials) and
+/// sends exact numbers here, so integer gcds get the subquadratic algorithm without two natives competing for one
+/// name (decision 9.1 of the library-gaps package). Call it inside `mc-arith`'s stop scope so that single big
+/// products stop too.
+pub fn number_gcd_lcm<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], lcm: bool) -> Res<Reply<'h>> {
+    natives::gcd_lcm(cx, args, !lcm)
 }
 
 /// The thread pool of the unit tests: 4 threads (the shared-machine rule), where the parallel sieves and prime

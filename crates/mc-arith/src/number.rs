@@ -82,7 +82,11 @@ fn rat_to_ball(q: &Rat, p: u64) -> Ball {
         return Ball { mid, rad };
     }
     let num = Ball::exact(Float::new(q.num.neg, q.num.mag.clone(), 0));
-    num.div(&Ball::from_nat(q.den.clone()), p).expect("a positive denominator excludes zero")
+    num.div(&Ball::from_nat(q.den.clone()), p).unwrap_or_else(|| {
+        // a zero denominator is garbage from a stopped product
+        crate::num::after_stop("a positive denominator excludes zero");
+        Ball::exact(Float::zero())
+    })
 }
 
 fn ball_to_f64(b: &Ball) -> f64 {
@@ -470,6 +474,11 @@ impl Num {
                 Kind::Ball => Err(NumError::Unevaluated),
             };
         };
+        // a machine real takes the signed exponent directly (one rounding, and no reciprocal before it)
+        if let Num::Real(Real::Machine(v)) = self {
+            let e = e as f64;
+            return Ok(Num::Real(Real::Machine(v.powf(if n.neg { -e } else { e }))));
+        }
         let base = if n.neg { self.recip()? } else { self.clone() };
         match &base {
             Num::Real(Real::Exact(q)) => {
@@ -479,7 +488,8 @@ impl Num {
                 }
                 Ok(Num::rat(q.pow_u64(e)))
             }
-            Num::Real(Real::Machine(v)) => Ok(Num::Real(Real::Machine(v.powf(if n.neg { -(e as f64) } else { e as f64 })))),
+            // not reached (handled above); a reciprocal of a machine real is a machine real
+            Num::Real(Real::Machine(v)) => Ok(Num::Real(Real::Machine(v.powf(e as f64)))),
             Num::Real(Real::Ball(b, p)) => {
                 // the exponent grows linearly in e; keep it far from overflowing i64
                 let scale = b.mid.top().unsigned_abs() + b.rad.e.unsigned_abs() + p + 64;
@@ -725,6 +735,40 @@ mod tests {
             for (j, b) in nums.iter().enumerate() {
                 assert_eq!(a.cmp_canonical(b), i.cmp(&j), "{a:?} {b:?}");
             }
+        }
+    }
+
+    #[test]
+    fn negative_integer_powers() {
+        let m = 1 << 20;
+        let pw = |x: Num, k: i64| x.pow_int(&Int::from_i64(k), m).unwrap();
+        let machine = |x: f64| Num::Real(Real::Machine(x));
+        // machine reals: the reciprocal power, not the positive one
+        for (x, k, want) in [(2.0, -1, 0.5), (2.0, -3, 0.125), (7.0, -1, 1.0 / 7.0), (-2.0, -3, -0.125), (0.5, -2, 4.0)] {
+            match pw(machine(x), k) {
+                Num::Real(Real::Machine(v)) => assert_eq!(v, want, "{x}^{k}"),
+                r => panic!("{r:?}"),
+            }
+        }
+        // division of machine reals is a product with the -1st power
+        match machine(3.0).mul(&pw(machine(7.0), -1)) {
+            Num::Real(Real::Machine(v)) => assert!((v - 3.0 / 7.0).abs() < 1e-15, "{v}"),
+            r => panic!("{r:?}"),
+        }
+        // rationals: exact
+        let rat = |n, d| Rat::new(Int::from_i64(n), Int::from_i64(d));
+        assert_eq!(pw(Num::rat(rat(2, 3)), -2).as_rat(), Some(&rat(9, 4)));
+        assert_eq!(pw(Num::int(-3), -3).as_rat(), Some(&rat(-1, 27)));
+        // balls: an enclosure of the reciprocal power
+        let r = pw(Num::Real(ball(4, 1, 64)), -2);
+        assert_eq!(r.kind(), Kind::Ball);
+        assert_ne!(equal(&r, &Num::Real(q(1, 16))), Some(false), "an enclosure of 1/16");
+        assert_eq!(equal(&r, &Num::int(16)), Some(false));
+        // complex machine numbers
+        let i = Num::complex(Real::Machine(0.0), Real::Machine(2.0));
+        match pw(i, -1) {
+            Num::Complex(Real::Machine(a), Real::Machine(b)) => assert!(a.abs() < 1e-15 && (b + 0.5).abs() < 1e-15),
+            r => panic!("{r:?}"),
         }
     }
 

@@ -11,7 +11,11 @@
 //! - [`float`]: correctly rounded conversion of exact values to machine reals.
 //!
 //! Long loops poll a cooperative stop flag (semantics 10) installed per thread by [`StopScope`]; a stopped kernel
-//! returns an unspecified value, which the caller must discard.
+//! returns an unspecified value, which the caller must discard. Once the flag is up, a long product returns early
+//! with wrong limbs, so the invariants of exact arithmetic (a difference is non-negative, a divisor is nonzero, a
+//! correction loop converges) may fail in every later step: each such check consults [`stopped`] and, after a stop,
+//! gives an arbitrary value instead of panicking ([`after_stop`]). Every public operation therefore returns, quickly
+//! and without panicking, once the flag is raised (tests in `stop_tests`).
 mod ball;
 pub mod float;
 pub mod gcd;
@@ -19,6 +23,8 @@ mod int;
 mod nat;
 mod ntt;
 mod rat;
+#[cfg(test)]
+mod stop_tests;
 
 pub use ball::{Ball, Float, Mag};
 pub use int::Int;
@@ -36,7 +42,21 @@ thread_local! {
 /// Has the stop flag of the current thread's scope been raised?
 #[inline]
 pub fn stopped() -> bool {
+    #[cfg(test)]
+    if stop_tests::countdown() {
+        return true;
+    }
     STOP.with(|s| s.borrow().as_ref().is_some_and(|f| f.load(Ordering::Relaxed)))
+}
+
+/// An invariant of exact arithmetic failed: expected after a stop (the value computed is discarded anyway), a bug
+/// otherwise. Returns normally only when the stop flag is up.
+#[cold]
+#[inline(never)]
+pub(crate) fn after_stop(what: &str) {
+    if !stopped() {
+        panic!("{what}");
+    }
 }
 
 /// Installs a stop flag for the current thread until dropped, restoring the previous one (scopes nest).

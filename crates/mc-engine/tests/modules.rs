@@ -91,6 +91,48 @@ fn reloading_a_module_file_replaces_its_definitions() {
 }
 
 #[test]
+fn reloading_a_module_clears_the_rules_it_attached_to_other_symbols() {
+    // the module's `area` has argument-head rules held by the session's `square` and `circle` (`@on`): those are
+    // not members, so only the module's record of its attachments clears them on a reload (decision 9.6)
+    let v1 = "module shapes {
+  pub @on(square) rule area(square(a_)) := a^2
+  pub fn area(s) = 0
+}";
+    let v2 = "module shapes {
+  pub @on(circle) rule area(circle(r_)) := 3r^2
+  pub fn area(s) = 0
+}";
+    let fs = files().with("shapes.mc", v1);
+    let mut e = CoreEngine::new();
+    e.set_sources(Box::new(fs.clone()));
+    let stop = StopFlag::new();
+    // session symbols with a definition (an attribute), so that the module's text names them
+    eval(&mut e, "@listable sym square
+@listable sym circle");
+    let areas = "[shapes.area(square(3)), shapes.area(circle(2))]";
+    e.eval_file(Path::new("shapes.mc"), &stop).unwrap();
+    assert_eq!(eval(&mut e, areas), "[9, 0]");
+    // the same text again
+    e.eval_file(Path::new("shapes.mc"), &stop).unwrap();
+    assert_eq!(eval(&mut e, areas), "[9, 0]");
+    // a changed module: the rule held by `square` is gone, the new one held by `circle` works
+    fs.insert("shapes.mc", v2);
+    e.eval_file(Path::new("shapes.mc"), &stop).unwrap();
+    assert_eq!(eval(&mut e, areas), "[0, 12]");
+    let attached: Vec<_> = e.modules().flat_map(|m| m.attached.iter().cloned()).collect();
+    assert_eq!(attached, [("circle".to_string(), "shapes.area".to_string())]);
+    // a module defined at the prompt again is a reload too
+    eval(&mut e, "module shapes {
+  pub @on(square) rule area(square(a_)) := 4a
+  pub fn area(s) = 0
+}");
+    assert_eq!(eval(&mut e, areas), "[12, 0]");
+    eval(&mut e, "module shapes { pub fn area(s) = 0 }");
+    assert_eq!(eval(&mut e, areas), "[0, 0]");
+    assert_eq!(e.modules().flat_map(|m| m.attached.iter()).count(), 0);
+}
+
+#[test]
 fn nothing_is_evaluated_on_a_read_error() {
     let mut e = engine_with_files(EngineConfig::default());
     assert!(eval(&mut e, "print(1)\nx = 5\nimport geo\ngeo.sq(1)").starts_with("error"));

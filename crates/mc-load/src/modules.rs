@@ -12,6 +12,9 @@ pub struct Module {
     pub members: BTreeSet<String>,
     /// the members marked `pub`
     pub public: BTreeSet<String>,
+    /// (holder, outer) for every rule of the body attached with `@on(holder)` to calls of `outer` (qualified names):
+    /// argument-head rules the module defines on symbols that need not be its members, cleared on a reload
+    pub attached: BTreeSet<(String, String)>,
 }
 
 impl Module {

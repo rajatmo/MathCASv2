@@ -28,6 +28,8 @@ impl Nt {
             let mut k = Kernel::new(h, cfg);
             mc_engine::arith::install(&mut k, h, &stop);
             mc_numtheory::install(&mut k, h);
+            // `gcd` and `lcm` belong to mc-poly, which sends exact numbers to this crate (decision 9.1)
+            mc_poly::install(&mut k, h, &stop);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

@@ -24,9 +24,12 @@ impl Rat {
     pub fn from_i64(v: i64) -> Rat {
         Rat::from_int(Int::from_i64(v))
     }
-    /// num / den reduced (den != 0).
+    /// num / den reduced (den != 0; zero for den = 0 after a stop).
     pub fn new(num: Int, den: Int) -> Rat {
-        assert!(!den.is_zero(), "division by zero");
+        if den.is_zero() {
+            super::after_stop("division by zero");
+            return Rat::from_i64(0);
+        }
         let g = gcd(&num.mag, &den.mag);
         let neg = num.neg != den.neg;
         Rat { num: Int::new(neg, div_exact(&num.mag, &g)), den: div_exact(&den.mag, &g) }
