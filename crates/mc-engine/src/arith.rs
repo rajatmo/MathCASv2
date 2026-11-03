@@ -367,3 +367,42 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     let i = arith(h, stop).complex(h.int(0), h.int(1));
     k.set_own(h.sym("im"), i);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Machine integers and small rationals, made by `mc-arith` (so rationals are canonical).
+    fn numbers(h: &Heap) -> Vec<T<'_>> {
+        let a = Arith::new(h);
+        let mut v = vec![];
+        for p in [-7i64, -2, -1, 0, 1, 3, 5, 12, i64::MAX, i64::MIN + 1] {
+            v.push(h.int(p));
+            for q in [2i64, 3, 7] {
+                v.push(a.mul(&[h.int(p), a.pow(h.int(q), h.int(-1))]));
+            }
+        }
+        v
+    }
+
+    #[test]
+    fn the_fast_paths_agree_with_the_general_order_and_product() {
+        let h = Heap::new(mc_core::Config::default());
+        let v = numbers(&h);
+        let mut fast = v.clone();
+        ArithOrder.sort(&h, &mut fast);
+        let mut general = v.clone();
+        let o = Order::new(&h);
+        general.sort_by(|a, b| o.cmp(*a, *b));
+        assert_eq!(fast, general);
+        let a = Arith::new(&h);
+        for &x in &v {
+            for &y in &v {
+                assert_eq!(ArithOrder.cmp(&h, x, y), o.cmp(x, y));
+                if let Some(p) = small_product(&h, &[x, y]) {
+                    assert_eq!(h.int(p), a.mul(&[x, y]));
+                }
+            }
+        }
+    }
+}
