@@ -8,6 +8,7 @@ mc-repl.exe     the interactive REPL
 mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
 mc-lsp.exe      the language server for editors (see "Editor support" below)
 mc-kernel.exe   the kernel for notebooks and editors: JSON lines over stdio (protocol 1)
+quickstart.pdf  a quick start guide (source: docs\guide\quickstart.tex in the repository)
 
 REPL
 ----

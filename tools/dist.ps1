@@ -31,6 +31,7 @@ Copy-Item (Join-Path $root "editors\vscode") (Join-Path $editors "vscode") -Recu
 Get-ChildItem $dist -Filter "mathcas-*.vsix" | Remove-Item -Force
 & (Join-Path $PSScriptRoot "vsix.ps1") -OutDir $dist | Out-Null
 Copy-Item (Join-Path $root "tools\dist-README.txt") (Join-Path $dist "README.txt") -Force
+Copy-Item (Join-Path $root "docs\guide\quickstart.pdf") (Join-Path $dist "quickstart.pdf") -Force
 $rev = (git -C $root rev-parse --short HEAD)
 Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 development build, commit $rev, built $(Get-Date -Format s)" -Encoding utf8
 Get-ChildItem $dist | Select-Object Name, Length

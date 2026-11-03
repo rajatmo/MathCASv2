@@ -1,0 +1,425 @@
+% MathCAS v2 quick start guide. Build: latexmk -pdf quickstart.tex (or pdflatex twice).
+% Every example below was run through the current development build; outputs are copied verbatim.
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{kw}{RGB}{0,70,140}
+\definecolor{cm}{RGB}{110,110,110}
+\definecolor{st}{RGB}{150,60,0}
+\definecolor{bg}{RGB}{246,247,249}
+\definecolor{fr}{RGB}{215,218,224}
+
+\lstdefinelanguage{mathcas}{
+  morekeywords={let,var,fn,rule,sym,module,pub,import,if,then,else,while,for,in,match,when,held,and,or,not,true,false,null},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+\lstset{
+  language=mathcas,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  commentstyle=\color{cm}\itshape,
+  stringstyle=\color{st},
+  backgroundcolor=\color{bg},
+  frame=single, rulecolor=\color{fr}, framesep=4pt,
+  columns=fullflexible, keepspaces=true,
+  breaklines=true, breakatwhitespace=true,
+  showstringspaces=false,
+  aboveskip=6pt, belowskip=6pt,
+  literate={~}{{\char126}}1,
+}
+% a REPL exchange: input lines start with "mc> ", the next line is the output
+\lstnewenvironment{repl}{}{}
+\lstnewenvironment{shell}{\lstset{language={},keywordstyle={}}}{}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\setlist{itemsep=2pt,topsep=4pt}
+% long function names in running text cannot hyphenate: let the spacing stretch instead of overrunning the margin
+\emergencystretch=3em
+
+\title{\textbf{MathCAS v2}\\[4pt]\large Quick start guide}
+\author{}
+\date{Development build, November 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\noindent MathCAS v2 is a computer algebra system with its own small language: exact and arbitrary-precision
+numbers, symbolic algebra, rules and pattern matching, functions with types, modules, a compiler for numeric
+loops, and automatic parallel evaluation. This guide gets you from a first expression to scripts, modules,
+notebooks and editor support in a few pages. Everything shown here was run on the current build.
+
+\tableofcontents
+
+\section{Getting started}
+
+The distribution folder holds:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\code{mc-repl.exe} & the interactive REPL; also runs scripts and notebooks \\
+\code{mc-kernel.exe} & the kernel for notebooks and editors (JSON lines over standard input and output) \\
+\code{mc-lsp.exe} & the language server for editors \\
+\code{mc-bench.exe} & the benchmark harness (cases under \code{bench\textbackslash cases}) \\
+\code{examples\textbackslash} & a script, a module file and a notebook to read and run \\
+\code{editors\textbackslash vscode}, \code{mathcas-0.1.0.vsix} & the VS Code extension \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Start the REPL and type an expression; the value is printed below it:
+
+\begin{repl}
+mc> 2^100 + 1
+1267650600228229401496703205377
+mc> 6/4 + 1/3
+11/6
+\end{repl}
+
+\noindent Input continues on the next line while brackets are open. \textbf{Ctrl+C} stops a running evaluation
+and keeps the session. REPL commands:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\code{:help} & list the commands \\
+\code{:time} & toggle timing (prints \code{time: ... ms} after each result) \\
+\code{:history}, \code{:redo [k]} & show earlier inputs, run one again \\
+\code{:load file.mc} & read and run a file (a module file is reloaded cleanly) \\
+\code{:modules} & loaded modules and their public names \\
+\code{:cancel}, \code{:quit} & drop the current multi-line input, leave \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Numbers}
+
+Integers and rationals are exact and unbounded. Arithmetic stays exact unless you ask for numbers.
+
+\begin{repl}
+mc> x + 2x + y*x
+3*x + x*y
+mc> sqrt(-4)
+2im
+mc> exp(1.5)
+4.4816890703380645
+mc> 1/0
+failure(division_by_zero)
+\end{repl}
+
+\noindent \code{n(x, digits)} evaluates to arbitrary precision. Results are \emph{balls}: a value with a
+guaranteed error bound, and only correct digits are shown. A ball literal is written \code{value\char126digits}.
+
+\begin{repl}
+mc> n(pi, 30)
+3.1415926535897932384626433832795029
+mc> n(sqrt(2), 40)
+1.4142135623730950488016887242096980785696719
+mc> 1.25~20 * 2
+2.5000000000000000000
+\end{repl}
+
+\noindent Mixing kinds gives the least exact one present (exact $<$ ball $<$ machine real). Errors are values
+too: \code{failure(...)} terms propagate through a computation instead of stopping the session.
+
+\section{Algebra}
+
+\begin{repl}
+mc> (1 + x)^3 |> expand
+1 + 3*x + 3*x^2 + x^3
+mc> factor(x^4 - 1)
+(-1 + x)*(1 + x)*(1 + x^2)
+mc> series(exp(x), x, 0, 5)
+1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+mc> resultant(x^2 - 2, x - y, x)
+-2 + y^2
+mc> gcd(2^40 - 1, 2^60 - 1)
+1048575
+\end{repl}
+
+\noindent Also available: \code{together}, \code{cancel}, \code{coefficient}, \code{coefficient\_list},
+\code{degree}, \code{variables}, \code{polynomial\_gcd}, \code{polynomial\_quotient}, \code{normal},
+\code{discriminant} and more. A series reads back: its printed form, with \code{O(x\^{}n)}, is valid input.
+
+\section{Lists and functions}
+
+Lists are written \code{[a, b, c]}; indexing starts at 1, and \code{xs[i:j]} is a slice.
+
+\begin{repl}
+mc> xs = [3, 1, 4, 1, 5, 9, 2, 6]
+null
+mc> sort(xs)
+[1, 1, 2, 3, 4, 5, 6, 9]
+mc> xs[2:4]
+[1, 4, 1]
+mc> map(k => k^2, range(5))
+[1, 4, 9, 16, 25]
+mc> select(range(20), is_prime)
+[2, 3, 5, 7, 11, 13, 17, 19]
+\end{repl}
+
+\noindent \code{x => body} is a function (a lambda); \code{\&(\&1 + 1)} is the short form with slots. The pipe
+\code{a |> f(b, \_)} passes \code{a} where the \code{\_} stands, so a computation reads left to right:
+
+\begin{repl}
+mc> range(10) |> map(k => k^2, _) |> sum
+385
+mc> fold((a, b) => a + b, 0, range(10))
+55
+\end{repl}
+
+\noindent \code{range(n)} is $1, \dots, n$. Further list functions include \code{length}, \code{part},
+\code{first}, \code{last}, \code{rest}, \code{take}, \code{drop}, \code{reverse}, \code{flatten},
+\code{transpose}, \code{join}, \code{split}, \code{unique}, \code{count}, \code{cases}, \code{nest},
+\code{nest\_list}, \code{fold\_list} and \code{apply}.
+
+\section{Defining things}
+
+\subsection{Values}
+
+At the top level, \code{x = v} gives the symbol \code{x} a value:
+
+\begin{repl}
+mc> x = 5
+null
+mc> x^2 + 1
+26
+\end{repl}
+
+\subsection{Functions: \code{fn}}
+
+A function is a list of clauses tried in order. Parameters may be typed (\code{Int}, \code{Rational},
+\code{Real}, \code{Number}, \code{String}, \code{Symbol}, ...) and guarded with \code{when}. A call no clause
+accepts gives \code{failure(no\_match, ...)}.
+
+\begin{lstlisting}
+fn fact(0) = 1
+fn fact(k: Int) when k > 0 = k*fact(k - 1)
+\end{lstlisting}
+\begin{repl}
+mc> fact(20)
+2432902008176640000
+\end{repl}
+
+\subsection{Rules and patterns: \code{rule}}
+
+Rules rewrite terms that match a pattern. \code{x\_} matches one argument, \code{xs\_\_} one or more,
+\code{xs\_\_\_} zero or more; \code{x\_: Int} adds a type. \code{=} evaluates the right side once,
+\code{:=} at every use.
+
+\begin{lstlisting}
+rule fib(0) = 0
+rule fib(1) = 1
+rule fib(k_: Int) := fib(k - 1) + fib(k - 2)
+\end{lstlisting}
+\begin{repl}
+mc> fib(80)
+23416728348467685
+\end{repl}
+
+\noindent This naive recursion is fast because MathCAS remembers normal forms it has computed (the
+\emph{memo}): each \code{fib(k)} is evaluated once, until a definition it depends on changes.
+
+\subsection{Blocks, loops and \code{match}}
+
+\begin{repl}
+mc> { var s = 0; for k in range(100) { s = s + k }; s }
+5050
+mc> match 7 { 0 => "zero", n_: Int when n > 0 => "positive", _ => "other" }
+"positive"
+\end{repl}
+
+\noindent In a block \code{\{ ...; ... \}}, \code{let} binds a name and \code{var} makes a mutable local;
+\code{while c \{ ... \}} and \code{for x in xs \{ ... \}} loop. \code{if c then a else b} is an expression.
+
+\subsection{Rewriting}
+
+\code{rewrite(e, rules)} applies rules to every part of \code{e} once; with \code{strategy: fixed\_point} it
+repeats until nothing changes.
+
+\begin{repl}
+mc> rewrite(sin(t)^2 + cos(t)^2, [sin(a_)^2 + cos(a_)^2 -> 1])
+1
+mc> rewrite(f(f(f(f(x)))), [f(f(a_)) -> g(a)], strategy: fixed_point)
+g(g(x))
+\end{repl}
+
+\section{Number theory}
+
+\begin{repl}
+mc> factor_integer(2^32 + 1)
+[[641, 1], [6700417, 1]]
+mc> prime(1000)
+7919
+\end{repl}
+
+\noindent Also: \code{is\_prime}, \code{next\_prime}, \code{prime\_pi}, \code{mod}, \code{power\_mod},
+\code{euler\_phi}, \code{divisors}, \code{divisor\_sigma}, \code{moebius\_mu}, \code{jacobi\_symbol},
+\code{primitive\_root}, \code{multiplicative\_order}, \code{extended\_gcd}, \code{lcm}, \code{binomial},
+\code{factorial}, \code{integer\_digits}, \code{from\_digits}, \code{integer\_length}.
+
+\section{Speed: compiled functions and parallel evaluation}
+
+\paragraph{Compiling.} A function with typed parameters (\code{Int} or \code{Real}) whose body uses arithmetic,
+comparisons, \code{if}, \code{let}/\code{var}, \code{while}, \code{for} over ranges and the elementary functions
+can be compiled to machine code: put \code{@compiled} before \code{fn}, or call \code{compile(f)}.
+
+\begin{lstlisting}
+@compiled fn collatz(k: Int) = {
+  var c = k
+  var s = 0
+  while c != 1 { c = if mod(c, 2) == 0 then c/2 else 3c + 1; s = s + 1 }
+  s
+}
+\end{lstlisting}
+\begin{repl}
+mc> collatz(27)
+111
+\end{repl}
+
+\noindent Compiled code is exact: on an integer overflow or anything it cannot do natively, the call falls back
+to the interpreter, so results never change. \code{compiled\_info(f)} shows what was compiled (types, code size,
+how many calls ran compiled and how many fell back). A compiled call is interrupted by Ctrl+C like any other.
+
+\paragraph{Parallel evaluation} is on by default and needs no annotation: the arguments of a call (for example the
+elements of a \code{map}) are evaluated speculatively on up to 4 threads when they are expensive enough, and the
+result is always the same as a sequential run. \code{mc-repl -{}-threads 1} turns it off.
+
+\section{Scripts, modules and notebooks}
+
+\subsection{Scripts}
+
+A script is a \code{.mc} file, optionally starting with \code{\#! mathcas 2}. \code{mc-repl file.mc} reads the
+whole file (nothing runs if it has a syntax error), runs its statements, shows what they print and the value of
+the last one:
+
+\begin{shell}
+> mc-repl examples\hello.mc
+Exact arithmetic: 1/2
+A big number: 2^100 = 1267650600228229401496703205376
+The Collatz path of 6: [6, 3, 10, 5, 16, 8, 4, 2, 1]
+Running sums: [1, 3, 6, 10, 15]
+Odd numbers below 20: 10
+[3, 1, 4, 5, 9, 2, 6]
+\end{shell}
+
+\noindent Command line: \code{mc-repl [options] [file.mc ...]} with \code{-e SOURCE} (evaluate, repeatable),
+\code{-i} (enter the REPL afterwards), \code{-{}-no-prelude}, \code{-{}-threads N}. Exit codes: 0 ok, 1 read error,
+2 a statement failed, 130 interrupted.
+
+\subsection{Modules}
+
+\begin{lstlisting}
+module temperature {
+  pub fn to_kelvin(c) = c + scale     # pub: exported
+  scale = 27315/100                    # private to the module
+}
+\end{lstlisting}
+
+\noindent \code{import M} brings the public names of \code{M} into scope, \code{import M.\{f, g\}} only some,
+\code{import M except h} all but some; \code{M.f} always names a public member. Names are resolved when the source
+is read, never while it runs. \code{import vectors} loads \code{vectors.mc} from the folder of the importing file
+(or the current folder at the REPL); a file is loaded once per session, and \code{:load} reloads it. The standard
+module \code{stats} is built in: \code{import stats} gives \code{mean}, \code{variance}, \code{std\_dev},
+\code{median} and \code{geometric\_mean}.
+
+\paragraph{The prelude.} Every session starts with a small library written in MathCAS itself:
+\code{is\_even}, \code{is\_odd}, \code{clamp}, \code{log\_base}, \code{count\_if}, \code{every}, \code{some},
+\code{member}, \code{zip}, \code{flat\_map}, \code{accumulate}, \code{dot}, \code{norm}, \code{fix\_point},
+\code{say} (print several values on one line). \code{-{}-no-prelude} starts without it.
+
+\subsection{Notebooks}
+
+A notebook (\code{.mcn}) is a plain text file of cells; it reads as a script too.
+
+\begin{lstlisting}
+#! mathcas 2 notebook
+
+#% text
+# Prose lines start with "# ".
+
+#% cell
+print(1/3 + 1/6)
+2^100
+#% output
+#| 1/2
+#= 1267650600228229401496703205376
+\end{lstlisting}
+
+\noindent \code{mc-repl notebook.mcn} runs the code cells in order in one session; \code{mc-repl -{}-update
+notebook.mcn} also writes each cell's output back below it. Output lines start with \code{\#|} (printed),
+\code{\#=} (the value) or \code{\#!} (a failure or an error).
+
+\section{Editors and the kernel}
+
+\paragraph{VS Code.} Install the extension with \code{code -{}-install-extension mathcas-0.1.0.vsix} (or copy
+\code{editors\textbackslash vscode} into your extensions folder), and keep \code{mc-repl.exe} and
+\code{mc-lsp.exe} together on your \code{PATH}. You get syntax colouring, errors as you type, go to definition
+(also across imports), hover, completion (\code{M.} lists a module's members), an outline, and the commands
+\emph{MathCAS: Run File} and \emph{MathCAS: Run Selection}.
+
+\paragraph{The kernel protocol.} \code{mc-kernel} reads one JSON request per line and answers with JSON lines,
+which is how notebook front ends and editors talk to it:
+
+\begin{shell}
+> {"type":"eval","id":1,"src":"x = 6\nx * 7"}
+< {"id":1,"type":"value","printed":"42"}
+< {"id":1,"type":"done","status":"ok","millis":0}
+\end{shell}
+
+\noindent Requests: \code{eval}, \code{interrupt}, \code{complete}, \code{modules}, \code{reset},
+\code{shutdown}.
+
+\section{Syntax at a glance}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Write} & \textbf{Meaning} \\
+\midrule
+\code{a + b}, \code{a - b}, \code{a*b}, \code{a/b}, \code{a\^{}b}, \code{2x} & arithmetic (juxtaposition multiplies) \\
+\code{==}, \code{!=}, \code{<}, \code{<=}, \code{>}, \code{>=} & comparisons \\
+\code{===}, \code{!==} & structurally identical / not identical \\
+\code{and}, \code{or}, \code{not}, \code{true}, \code{false}, \code{null} & logic and constants \\
+\code{[a, b]}, \code{xs[i]}, \code{xs[i:j]} & list, element, slice \\
+\code{x => e}, \code{\&(\&1 + 1)} & function, short function \\
+\code{a |> f(b, \_)} & pipe: \code{f(b, a)} \\
+\code{rewrite(e, rs, strategy: fixed\_point)} & named option \\
+\code{x = v} & define a value \\
+\code{fn f(x: Int) when c = e} & function clause, typed and guarded \\
+\code{rule f(x\_) := e}, \code{rule f(0) = 1} & rule (delayed / immediate) \\
+\code{x\_}, \code{xs\_\_}, \code{xs\_\_\_}, \code{x\_: Int} & patterns: one, one or more, zero or more, typed \\
+\code{\{ let a = 1; var b = 2; ... \}} & block with an immutable and a mutable local \\
+\code{if c then a else b} & conditional expression \\
+\code{while c \{ ... \}}, \code{for k in xs \{ ... \}} & loops \\
+\code{match e \{ p => r, ... \}} & pattern match \\
+\code{@listable}, \code{@compiled}, \code{@commutative}, ... & decorators on definitions \\
+\code{module M \{ pub ... \}}, \code{import M} & modules \\
+\code{1.25\char126 40}, \code{3im}, \code{pi}, \code{e}, \code{inf} & ball literal, complex unit, constants \\
+\code{\# ...} & comment \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Not there yet}
+
+This is an early build. Missing so far: plots and graphics; differentiation (the prime notation \code{f'} is
+read, but not evaluated yet), equation solving, integration and differential equations; a notebook window
+(notebooks run from the command line and the kernel protocol is in place). Rule
+patterns inside sums match whole sums only: \code{sin(a\_)\^{}2 + cos(a\_)\^{}2 -> 1} rewrites
+\code{sin(t)\^{}2 + cos(t)\^{}2} but not the same terms inside a longer sum yet.
+
+\end{document}

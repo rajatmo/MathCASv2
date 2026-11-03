@@ -1,0 +1,8 @@
+# LaTeX build files (latexmk -pdf quickstart.tex); the PDF itself is kept
+*.aux
+*.log
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+*.synctex.gz
