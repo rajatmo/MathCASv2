@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["spikes/*"]
+members = ["crates/*", "spikes/*"]
 
 [profile.release]
 debug = 1

@@ -1,4 +1,4 @@
-# MathCAS v2: core semantics (draft 4)
+# MathCAS v2: core semantics (draft 5)
 
 This document specifies what the core computes. It does not fix the concrete syntax (that is `04-syntax.md`); the
 notation here is abstract: `f(a, b)` is a compound term, `[a, b]` a list, `p -> r` a rule, `p := r` a delayed
@@ -221,6 +221,10 @@ variables bound inside `p`; a condition on a whole left side (`lhs /; c`, or `wh
 variable of the left side. The matcher may then test an inner condition as soon as its subpattern has matched, in any
 order, without changing which match is found. Referring to an outer variable in an inner condition is a definition-time
 error. (Spike 2, decision 2.8.)
+
+**Conditions are pure.** A condition may be evaluated any number of times and in any order while a match is searched
+(candidate pre-tests, backtracking), so it must not perform effects (section 9). An effect reached inside a condition
+gives `failure(effect_in_condition)`. (Assembly decision A.6.)
 
 ### 6.2 Matching modulo operator properties
 
@@ -512,8 +516,11 @@ result detectable; an implementation may use them to keep speculative work whose
 
 ### 18.4 Limits and interrupts
 
-Fuel is one budget for the whole evaluation, drawn by every task. Time and memory limits and the interrupt apply to
-all tasks; when one fires, every task stops and the evaluation returns the failure.
+Fuel is one budget for the whole evaluation, drawn by every task. Only the frontier (the task on the sequential path)
+decides a limit failure: a speculative task that exhausts its share stops and leaves its work undone, and the frontier
+redoes it under its own budget, so discarded speculative work never changes the result (assembly decision A.5). Time
+and memory limits and the interrupt apply to all tasks; when one fires, every task stops and the evaluation returns the
+failure.
 
 ### 18.5 Sharing
 

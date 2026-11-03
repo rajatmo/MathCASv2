@@ -1,0 +1,9 @@
+[package]
+name = "mc-api"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 core interface contract: handles, views, the Store trait, a reference store and conformance checks"
+
+[dependencies]
+parking_lot = "0.12"
