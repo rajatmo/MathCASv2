@@ -63,3 +63,72 @@ pub fn show<S: Store>(st: &S, t: T<'_>) -> String {
         }
     }
 }
+
+/// The stores the tests run on: the reference store of `mc-api` and the real store of `mc-core` (used from the test
+/// thread, with no safe points, so nothing is collected).
+pub enum TestStore {
+    Ref(mc_api::RefStore),
+    Core(Box<mc_core::Heap>),
+}
+
+impl TestStore {
+    /// One store of each kind.
+    pub fn all() -> Vec<TestStore> {
+        vec![TestStore::Ref(mc_api::RefStore::new()), TestStore::Core(Box::new(mc_core::Heap::new(mc_core::Config::no_collect())))]
+    }
+    /// A new, empty store of the same kind.
+    pub fn fresh(&self) -> TestStore {
+        match self {
+            TestStore::Ref(_) => TestStore::Ref(mc_api::RefStore::new()),
+            TestStore::Core(_) => TestStore::Core(Box::new(mc_core::Heap::new(mc_core::Config::no_collect()))),
+        }
+    }
+}
+
+macro_rules! delegate {
+    ($self:ident, $s:ident => $e:expr) => {
+        match $self {
+            TestStore::Ref($s) => $e,
+            TestStore::Core($s) => $e,
+        }
+    };
+}
+
+impl Store for TestStore {
+    fn sym(&self, name: &str) -> mc_api::Sym {
+        delegate!(self, s => s.sym(name))
+    }
+    fn sym_name(&self, x: mc_api::Sym) -> String {
+        delegate!(self, s => s.sym_name(x))
+    }
+    fn sym_term<'h>(&'h self, x: mc_api::Sym) -> T<'h> {
+        delegate!(self, s => s.sym_term(x))
+    }
+    fn int<'h>(&'h self, v: i64) -> T<'h> {
+        delegate!(self, s => s.int(v))
+    }
+    fn big_int<'h>(&'h self, neg: bool, mag: &[u64]) -> T<'h> {
+        delegate!(self, s => s.big_int(neg, mag))
+    }
+    fn rational<'h>(&'h self, num: T<'h>, den: T<'h>) -> T<'h> {
+        delegate!(self, s => s.rational(num, den))
+    }
+    fn real<'h>(&'h self, v: f64) -> T<'h> {
+        delegate!(self, s => s.real(v))
+    }
+    fn ball<'h>(&'h self, neg: bool, words: &[u64]) -> T<'h> {
+        delegate!(self, s => s.ball(neg, words))
+    }
+    fn string<'h>(&'h self, x: &str) -> T<'h> {
+        delegate!(self, s => s.string(x))
+    }
+    fn app<'h>(&'h self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
+        delegate!(self, s => s.app(head, args))
+    }
+    fn view<'h>(&'h self, t: T<'h>) -> View<'h> {
+        delegate!(self, s => s.view(t))
+    }
+    fn structural_hash(&self, t: T<'_>) -> u64 {
+        delegate!(self, s => s.structural_hash(t))
+    }
+}

@@ -97,4 +97,13 @@ mod tests {
         }
         assert!(!stopped());
     }
+
+    #[test]
+    fn stopped_decimal_conversion_ends() {
+        // squarings that stop return zero; the conversion must not wait for a zero to grow
+        let x = Nat::from_u64(7).pow_u64(1 << 22);
+        let flag = Arc::new(AtomicBool::new(true));
+        let _scope = StopScope::enter(Some(&flag));
+        assert!(x.to_decimal().len() < 1000);
+    }
 }

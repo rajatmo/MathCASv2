@@ -7,7 +7,8 @@
 mod common;
 
 use common::{big_of, Rng};
-use mc_api::{RefStore, Store, View, T};
+use common::TestStore;
+use mc_api::{Store, View, T};
 use mc_arith::Arith;
 use num_bigint::BigInt;
 use std::collections::BTreeMap;
@@ -71,7 +72,7 @@ fn tree<'h>(rng: &mut Rng, items: &[T<'h>], op: &dyn Fn(T<'h>, T<'h>) -> T<'h>, 
 
 /// One monomial, built in a random way: the coefficient possibly split into two factors, each exponent split
 /// into several powers, the factors shuffled and multiplied in a random tree.
-fn build_mono<'h>(a: &Arith<'h, RefStore>, rng: &mut Rng, m: &Mono) -> T<'h> {
+fn build_mono<'h>(a: &Arith<'h, TestStore>, rng: &mut Rng, m: &Mono) -> T<'h> {
     let st = a.store();
     let mut f = vec![];
     if rng.below(2) == 0 {
@@ -97,7 +98,7 @@ fn build_mono<'h>(a: &Arith<'h, RefStore>, rng: &mut Rng, m: &Mono) -> T<'h> {
 
 /// A polynomial built in a random way: monomials possibly split into two with summing coefficients, cancelling
 /// pairs added, terms shuffled and summed in a random tree, sometimes as a difference of a negation.
-fn build_poly<'h>(a: &Arith<'h, RefStore>, rng: &mut Rng, monos: &[Mono]) -> T<'h> {
+fn build_poly<'h>(a: &Arith<'h, TestStore>, rng: &mut Rng, monos: &[Mono]) -> T<'h> {
     let mut terms = vec![];
     for m in monos {
         if rng.below(3) == 0 {
@@ -126,7 +127,7 @@ fn rng_free_choice(l: T<'_>, r: T<'_>) -> bool {
 
 /// The reference: monomials collected in a map, zero coefficients dropped, then the canonical structure built
 /// directly in the store (numbers first, factors and terms sorted by the canonical order).
-fn reference<'h>(a: &Arith<'h, RefStore>, monos: &[Mono]) -> T<'h> {
+fn reference<'h>(a: &Arith<'h, TestStore>, monos: &[Mono]) -> T<'h> {
     let st = a.store();
     let mut coll: BTreeMap<[u32; 3], (i64, i64)> = BTreeMap::new();
     for m in monos {
@@ -172,19 +173,20 @@ fn reference<'h>(a: &Arith<'h, RefStore>, monos: &[Mono]) -> T<'h> {
 
 #[test]
 fn canonical_polynomials_are_unique_and_match_the_reference() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let mut rng = Rng(101);
-    let cases = 400;
-    for case in 0..cases {
-        let monos: Vec<Mono> = (0..rng.range(0, 7)).map(|_| rand_mono(&mut rng)).collect();
-        let want = reference(&a, &monos);
-        for way in 0..4 {
-            let got = build_poly(&a, &mut rng, &monos);
-            assert_eq!(got, want, "case {case} way {way}: {} against {}", common::show(&st, got), common::show(&st, want));
-        }
-        if case % 100 == 99 {
-            println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let mut rng = Rng(101);
+        let cases = 400;
+        for case in 0..cases {
+            let monos: Vec<Mono> = (0..rng.range(0, 7)).map(|_| rand_mono(&mut rng)).collect();
+            let want = reference(&a, &monos);
+            for way in 0..4 {
+                let got = build_poly(&a, &mut rng, &monos);
+                assert_eq!(got, want, "case {case} way {way}: {} against {}", common::show(&st, got), common::show(&st, want));
+            }
+            if case % 100 == 99 {
+                println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+            }
         }
     }
 }
@@ -218,7 +220,7 @@ fn rand_expr(rng: &mut Rng, depth: u32) -> E {
     }
 }
 
-fn build<'h>(a: &Arith<'h, RefStore>, e: &E) -> T<'h> {
+fn build<'h>(a: &Arith<'h, TestStore>, e: &E) -> T<'h> {
     let st = a.store();
     match e {
         E::Var(i) => st.sym_term(st.sym(VARS[*i])),
@@ -283,7 +285,7 @@ fn expand_expr(e: &E) -> Poly {
 }
 
 /// The expansion of a canonical term, read back from the store.
-fn expand_term(st: &RefStore, t: T<'_>) -> Poly {
+fn expand_term(st: &TestStore, t: T<'_>) -> Poly {
     if let Some(v) = big_of(st, t) {
         return pconst(v, 1.into());
     }
@@ -325,26 +327,27 @@ fn same(p: &Poly, q: &Poly) -> bool {
 
 #[test]
 fn canonical_forms_expand_like_the_expression() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let mut rng = Rng(202);
-    let cases = 2000;
-    for case in 0..cases {
-        let e = rand_expr(&mut rng, 4);
-        let t = build(&a, &e);
-        assert!(same(&expand_term(&st, t), &expand_expr(&e)), "case {case}: {}", common::show(&st, t));
-        // canonicalising again changes nothing: the top level of a canonical term is a fixed point
-        if let View::App { head, args } = st.view(t) {
-            let again = match common::show(&st, head).as_str() {
-                "add" => a.add(args),
-                "mul" => a.mul(args),
-                "pow" => a.pow(args[0], args[1]),
-                _ => t,
-            };
-            assert_eq!(again, t, "case {case}: not a fixed point: {}", common::show(&st, t));
-        }
-        if case % 500 == 499 {
-            println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let mut rng = Rng(202);
+        let cases = 2000;
+        for case in 0..cases {
+            let e = rand_expr(&mut rng, 4);
+            let t = build(&a, &e);
+            assert!(same(&expand_term(&st, t), &expand_expr(&e)), "case {case}: {}", common::show(&st, t));
+            // canonicalising again changes nothing: the top level of a canonical term is a fixed point
+            if let View::App { head, args } = st.view(t) {
+                let again = match common::show(&st, head).as_str() {
+                    "add" => a.add(args),
+                    "mul" => a.mul(args),
+                    "pow" => a.pow(args[0], args[1]),
+                    _ => t,
+                };
+                assert_eq!(again, t, "case {case}: not a fixed point: {}", common::show(&st, t));
+            }
+            if case % 500 == 499 {
+                println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+            }
         }
     }
 }

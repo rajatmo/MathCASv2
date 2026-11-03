@@ -1,0 +1,289 @@
+//! `mc-arith` plugged into the evaluator: natives for the arithmetic heads, the comparisons and the logical
+//! connectives, and `mc-arith`'s canonical order for associative and commutative heads.
+//!
+//! | head | attributes | result |
+//! |---|---|---|
+//! | `add`, `mul` | AC, strict | the canonical sum or product (semantics 3) |
+//! | `pow` | strict | the canonical power |
+//! | `complex` | strict | a complex number when both parts are real numbers, else the term |
+//! | `ball_literal(text, digits)` | strict | the ball of a `1.25~40` literal (decision C.6) |
+//! | `equal`, `unequal` | strict | decided for numbers (three-valued, 2.5), identical terms and strings |
+//! | `less`, `less_equal`, `greater`, `greater_equal` | strict | decided for real numbers (three-valued) |
+//! | `not_same` | strict | `true` unless the arguments are identical |
+//! | `and`, `or` | held | evaluated left to right, stopping at the first deciding value |
+//! | `not` | strict | `true` / `false` negated |
+//!
+//! The symbol `im` gets the own value `complex(0, 1)`.
+//!
+//! A comparison that is not decided (overlapping balls, symbolic arguments) declines, so the call stays unevaluated
+//! unless a rule applies. The registrations replace `mc-eval`'s machine-integer comparisons (decision F.13), which
+//! stay as `iadd`, `imul`, ... for its own tests. The natives keep only symbols, so they need no tracing.
+use mc_api::names;
+use mc_arith::{Arith, Cmp3, Order};
+use mc_core::{Heap, Store, Sym, View, T};
+use mc_eval::order::TermOrder;
+use mc_eval::{Attributes, Hold, Kernel, Native, NativeCx, Reply, Res};
+use std::cmp::Ordering;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+/// The flag `mc-arith`'s long numeric loops poll; the engine raises it with the evaluator's interrupt.
+type Stop = Arc<AtomicBool>;
+
+fn arith<'h>(h: &'h Heap, stop: &Stop) -> Arith<'h, Heap> {
+    Arith::new(h).with_stop(stop.clone())
+}
+
+/// Fuel for an arithmetic call: one unit per 16 arguments (the call itself is charged by the evaluator).
+fn charge(cx: &mut NativeCx<'_, '_, '_>, args: &[T<'_>]) -> Res<()> {
+    cx.tick(args.len() as u64 / 16)
+}
+
+/// The fold of machine integers that does not overflow (most sums and products in loops), without setting up an
+/// [`Arith`].
+fn small_fold(h: &Heap, args: &[T<'_>], op: fn(i64, i64) -> Option<i64>, unit: i64) -> Option<i64> {
+    args.iter().try_fold(unit, |acc, &a| match h.view(a) {
+        View::Int(v) => op(acc, v),
+        _ => None,
+    })
+}
+
+fn two_ints(h: &Heap, a: T<'_>, b: T<'_>) -> Option<(i64, i64)> {
+    match (h.view(a), h.view(b)) {
+        (View::Int(x), View::Int(y)) => Some((x, y)),
+        _ => None,
+    }
+}
+
+/// `add(args...)`.
+struct Add(Stop);
+
+impl Native for Add {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        charge(cx, args)?;
+        let h = cx.heap();
+        Ok(Reply::Done(match small_fold(h, args, i64::checked_add, 0) {
+            Some(v) => h.int(v),
+            None => arith(h, &self.0).add(args),
+        }))
+    }
+}
+
+/// `mul(args...)`.
+struct Mul(Stop);
+
+impl Native for Mul {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        charge(cx, args)?;
+        let h = cx.heap();
+        Ok(Reply::Done(match small_fold(h, args, i64::checked_mul, 1) {
+            Some(v) => h.int(v),
+            None => arith(h, &self.0).mul(args),
+        }))
+    }
+}
+
+/// `pow(base, exp)`.
+struct Pow(Stop);
+
+impl Native for Pow {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [b, e] = args else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(arith(cx.heap(), &self.0).pow(*b, *e)))
+    }
+}
+
+/// `complex(re, im)`.
+struct Complex(Stop);
+
+impl Native for Complex {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [re, im] = args else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(arith(cx.heap(), &self.0).complex(*re, *im)))
+    }
+}
+
+/// `ball_literal(text, digits)`: a literal that does not convert (an exponent beyond the size limit) stays.
+struct BallLiteral(Stop);
+
+impl Native for BallLiteral {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [s, d] = args else { return Ok(Reply::Decline) };
+        let (View::Str(text), View::Int(digits @ 1..)) = (h.view(*s), h.view(*d)) else { return Ok(Reply::Decline) };
+        Ok(match arith(h, &self.0).ball_from_decimal(text, digits as u64) {
+            Some(b) => Reply::Done(b),
+            None => Reply::Decline,
+        })
+    }
+}
+
+/// The order relations.
+#[derive(Clone, Copy)]
+enum Rel {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
+impl Rel {
+    fn holds(self, o: Ordering) -> bool {
+        match self {
+            Rel::Less => o.is_lt(),
+            Rel::LessEqual => o.is_le(),
+            Rel::Greater => o.is_gt(),
+            Rel::GreaterEqual => o.is_ge(),
+        }
+    }
+}
+
+/// `less(a, b)` and the other order relations on real numbers.
+struct Compare(Rel, Stop);
+
+impl Native for Compare {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [a, b] = args else { return Ok(Reply::Decline) };
+        if let Some((x, y)) = two_ints(h, *a, *b) {
+            return Ok(Reply::Done(cx.bool(self.0.holds(x.cmp(&y)))));
+        }
+        Ok(match arith(h, &self.1).compare(*a, *b) {
+            Some(Cmp3::Less) => Reply::Done(cx.bool(self.0.holds(Ordering::Less))),
+            Some(Cmp3::Equal) => Reply::Done(cx.bool(self.0.holds(Ordering::Equal))),
+            Some(Cmp3::Greater) => Reply::Done(cx.bool(self.0.holds(Ordering::Greater))),
+            // NaN: every order relation is false (2.5)
+            Some(Cmp3::Unordered) => Reply::Done(cx.bool(false)),
+            Some(Cmp3::Undecided) | None => Reply::Decline,
+        })
+    }
+}
+
+/// `equal(a, b)` (`negate`: `unequal`). Numbers compare by value (three-valued); otherwise identical terms are equal
+/// and distinct strings unequal; anything else is not decided.
+struct Equality {
+    negate: bool,
+    stop: Stop,
+}
+
+impl Native for Equality {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [a, b] = args else { return Ok(Reply::Decline) };
+        let decided = if let Some((x, y)) = two_ints(h, *a, *b) {
+            Some(x == y)
+        } else {
+            match arith(h, &self.stop).equal(*a, *b) {
+                Some(d) => d,
+                // numbers first: a NaN is not equal to itself
+                None if a == b => Some(true),
+                None => matches!((h.view(*a), h.view(*b)), (View::Str(_), View::Str(_))).then_some(false),
+            }
+        };
+        Ok(match decided {
+            Some(e) => Reply::Done(cx.bool(e != self.negate)),
+            None => Reply::Decline,
+        })
+    }
+}
+
+/// `not_same(a, b)`.
+struct NotSame;
+
+impl Native for NotSame {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [a, b] = args else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(cx.bool(a != b)))
+    }
+}
+
+/// `and(...)` (`is_and`) and `or(...)`, arguments held: evaluated left to right; the first deciding value (`false`
+/// for `and`, `true` for `or`) or failure is the result; neutral values are dropped; what remains stays as the call
+/// (or is the result, when one argument remains).
+struct Junction {
+    is_and: bool,
+    failure: Sym,
+}
+
+impl Native for Junction {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let (decide, neutral) = (cx.bool(!self.is_and), cx.bool(self.is_and));
+        let mut rest = vec![];
+        for &a in args {
+            cx.tick(1)?;
+            let v = cx.eval(a)?;
+            let failed = matches!(h.view(v), View::App { head, .. } if head == h.sym_term(self.failure));
+            if v == decide || failed {
+                return Ok(Reply::Done(v));
+            }
+            if v != neutral {
+                rest.push(v);
+            }
+        }
+        let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(match rest.as_slice() {
+            [] => neutral,
+            [v] => *v,
+            _ => h.app(head, &rest),
+        }))
+    }
+}
+
+/// `not(x)`.
+struct Not;
+
+impl Native for Not {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [x] = args else { return Ok(Reply::Decline) };
+        Ok(if cx.is_true(*x) {
+            Reply::Done(cx.bool(false))
+        } else if cx.is_false(*x) {
+            Reply::Done(cx.bool(true))
+        } else {
+            Reply::Decline
+        })
+    }
+}
+
+/// `mc-arith`'s canonical order (semantics 8), replacing `mc-eval`'s structural stand-in (decision F.9).
+pub struct ArithOrder;
+
+impl TermOrder for ArithOrder {
+    fn cmp<'h>(&self, h: &'h Heap, a: T<'h>, b: T<'h>) -> Ordering {
+        Order::new(h).cmp(a, b)
+    }
+    fn sort<'h>(&self, h: &'h Heap, v: &mut [T<'h>]) {
+        // one order (and its cache of symbol names) per sort
+        let o = Order::new(h);
+        v.sort_by(|a, b| o.cmp(*a, *b));
+    }
+}
+
+/// Register the natives and the order with `k`. `stop` is the flag `mc-arith` polls.
+pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
+    let strict = Attributes::default();
+    let ac = Attributes { ac: true, ..strict };
+    let held = Attributes { hold: Hold::All, ..strict };
+    let mut reg = |name: &str, a: Attributes, n: Box<dyn Native>| k.register(h.sym(name), a, n);
+    reg(names::ADD, ac, Box::new(Add(stop.clone())));
+    reg(names::MUL, ac, Box::new(Mul(stop.clone())));
+    reg(names::POW, strict, Box::new(Pow(stop.clone())));
+    reg(names::COMPLEX, strict, Box::new(Complex(stop.clone())));
+    reg("ball_literal", strict, Box::new(BallLiteral(stop.clone())));
+    reg("equal", strict, Box::new(Equality { negate: false, stop: stop.clone() }));
+    reg("unequal", strict, Box::new(Equality { negate: true, stop: stop.clone() }));
+    reg("less", strict, Box::new(Compare(Rel::Less, stop.clone())));
+    reg("less_equal", strict, Box::new(Compare(Rel::LessEqual, stop.clone())));
+    reg("greater", strict, Box::new(Compare(Rel::Greater, stop.clone())));
+    reg("greater_equal", strict, Box::new(Compare(Rel::GreaterEqual, stop.clone())));
+    reg("not_same", strict, Box::new(NotSame));
+    let failure = h.sym(names::FAILURE);
+    reg("and", held, Box::new(Junction { is_and: true, failure }));
+    reg("or", held, Box::new(Junction { is_and: false, failure }));
+    reg("not", strict, Box::new(Not));
+    k.set_order(Box::new(ArithOrder));
+    // the imaginary unit `im` (04-syntax section 4), so that `3 - im` is a number like `3 - 1im`
+    let i = arith(h, stop).complex(h.int(0), h.int(1));
+    k.set_own(h.sym("im"), i);
+}

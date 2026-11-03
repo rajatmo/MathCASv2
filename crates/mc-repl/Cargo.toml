@@ -7,3 +7,4 @@ description = "MathCAS v2 read-eval-print loop with a pluggable engine"
 
 [dependencies]
 mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

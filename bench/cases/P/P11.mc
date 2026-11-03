@@ -9,4 +9,4 @@ s = rewrite(p, [x -> 1])
 #@ measure
 expand(p*p)
 #@ property
-length(result) == 2n - 1 and rewrite(result, [x -> 1]) == s^2
+length(result) == 2m - 1 and rewrite(result, [x -> 1]) == s^2

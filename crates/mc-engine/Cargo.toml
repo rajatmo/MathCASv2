@@ -1,0 +1,20 @@
+[package]
+name = "mc-engine"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 engine: the core assembled (syntax, evaluator, arithmetic on the real store) behind the harness's Engine trait"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-bench = { path = "../mc-bench" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+mc-syntax = { path = "../mc-syntax" }
+
+# no documentation for the binary: its name is the harness library's, and the two would collide
+[[bin]]
+name = "mc-bench"
+path = "src/bin/mc-bench.rs"
+doc = false

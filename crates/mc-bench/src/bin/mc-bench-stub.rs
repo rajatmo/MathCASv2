@@ -1,5 +1,5 @@
-//! The benchmark binary with the stub engine. Once `mc-eval` exists, a binary of the same shape with the real engine
-//! runs the suite; the harness itself does not change.
+//! The benchmark binary with the stub engine, for the harness's own tests. The `mc-bench` binary of `mc-engine` has
+//! the same shape with the real engine.
 use mc_bench::memory::CountingAlloc;
 use mc_bench::stub::StubEngine;
 use mc_bench::Engine;

@@ -20,4 +20,4 @@ pub mod runner;
 pub mod stub;
 pub mod summary;
 
-pub use engine::{Engine, EngineError, EngineFactory, Evaluated, StopFlag};
+pub use engine::{Engine, EngineError, EngineFactory, Evaluated, RaiseHook, StopFlag};

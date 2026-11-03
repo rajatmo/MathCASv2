@@ -5,7 +5,8 @@
 mod common;
 
 use common::{show, Rng};
-use mc_api::{RefStore, Store, View, T};
+use common::TestStore;
+use mc_api::{Store, View, T};
 use mc_arith::Arith;
 
 /// Bases: symbols and rationals (as numerator, denominator).
@@ -46,7 +47,7 @@ fn cpow(z: C, w: C) -> C {
     (r * y.cos(), r * y.sin())
 }
 
-fn base_term<'h>(a: &Arith<'h, RefStore>, i: usize) -> T<'h> {
+fn base_term<'h>(a: &Arith<'h, TestStore>, i: usize) -> T<'h> {
     let st = a.store();
     let (s, n, d) = BASES[i];
     if s.is_empty() {
@@ -65,7 +66,7 @@ fn base_value(i: usize) -> C {
 }
 
 /// A term's value in complex machine arithmetic (recursion is fine on these small terms).
-fn eval(st: &RefStore, t: T<'_>) -> C {
+fn eval(st: &TestStore, t: T<'_>) -> C {
     match st.view(t) {
         View::Int(v) => (v as f64, 0.0),
         View::Rational { num, den } => (eval(st, num).0 / eval(st, den).0, 0.0),
@@ -92,7 +93,7 @@ fn eval(st: &RefStore, t: T<'_>) -> C {
     }
 }
 
-fn tree<'h>(a: &Arith<'h, RefStore>, rng: &mut Rng, items: &[T<'h>]) -> T<'h> {
+fn tree<'h>(a: &Arith<'h, TestStore>, rng: &mut Rng, items: &[T<'h>]) -> T<'h> {
     if items.len() <= 1 || rng.below(3) == 0 {
         return a.mul(items);
     }
@@ -103,58 +104,59 @@ fn tree<'h>(a: &Arith<'h, RefStore>, rng: &mut Rng, items: &[T<'h>]) -> T<'h> {
 
 #[test]
 fn products_of_powers_are_unique_and_correct() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let mut rng = Rng(707);
-    let cases = 1500;
-    for case in 0..cases {
-        let factors: Vec<(usize, usize)> =
-            (0..rng.range(1, 6)).map(|_| (rng.below(BASES.len() as u64) as usize, rng.below(EXPS.len() as u64) as usize)).collect();
-        let q = |(n, d): (i64, i64)| a.rational(a.int(n), a.int(d));
-        // one: factor by factor, shuffled, in a random tree
-        let mut f: Vec<T<'_>> = factors.iter().map(|&(b, e)| a.pow(base_term(&a, b), q(EXPS[e]))).collect();
-        rng.shuffle(&mut f);
-        let one = tree(&a, &mut rng, &f);
-        // two: the exponents of each base added first
-        let mut by_base: Vec<(usize, T<'_>)> = vec![];
-        for &(b, e) in &factors {
-            match by_base.iter_mut().find(|(x, _)| *x == b) {
-                Some((_, s)) => *s = a.add(&[*s, q(EXPS[e])]),
-                None => by_base.push((b, q(EXPS[e]))),
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let mut rng = Rng(707);
+        let cases = 1500;
+        for case in 0..cases {
+            let factors: Vec<(usize, usize)> =
+                (0..rng.range(1, 6)).map(|_| (rng.below(BASES.len() as u64) as usize, rng.below(EXPS.len() as u64) as usize)).collect();
+            let q = |(n, d): (i64, i64)| a.rational(a.int(n), a.int(d));
+            // one: factor by factor, shuffled, in a random tree
+            let mut f: Vec<T<'_>> = factors.iter().map(|&(b, e)| a.pow(base_term(&a, b), q(EXPS[e]))).collect();
+            rng.shuffle(&mut f);
+            let one = tree(&a, &mut rng, &f);
+            // two: the exponents of each base added first
+            let mut by_base: Vec<(usize, T<'_>)> = vec![];
+            for &(b, e) in &factors {
+                match by_base.iter_mut().find(|(x, _)| *x == b) {
+                    Some((_, s)) => *s = a.add(&[*s, q(EXPS[e])]),
+                    None => by_base.push((b, q(EXPS[e]))),
+                }
             }
-        }
-        let mut g: Vec<T<'_>> = by_base.iter().map(|&(b, s)| a.pow(base_term(&a, b), s)).collect();
-        rng.shuffle(&mut g);
-        let two = tree(&a, &mut rng, &g);
-        // three: positive composite bases split (6^e = 2^e 3^e, 12^e = 2^(2e) 3^e, (2/3)^e = 2^e 3^-e)
-        let mut h = vec![];
-        for &(b, e) in &factors {
-            let ex = q(EXPS[e]);
-            let two_e = a.mul(&[a.int(2), ex]);
-            let three_e = a.mul(&[a.int(3), ex]);
-            match BASES[b] {
-                ("", 6, 1) => h.extend([a.pow(a.int(2), ex), a.pow(a.int(3), ex)]),
-                ("", 12, 1) => h.extend([a.pow(a.int(2), two_e), a.pow(a.int(3), ex)]),
-                ("", 8, 1) => h.push(a.pow(a.int(2), three_e)),
-                ("", 2, 3) => h.extend([a.pow(a.int(2), ex), a.pow(a.int(3), a.neg(ex))]),
-                ("", 1, 2) => h.push(a.pow(a.int(2), a.neg(ex))),
-                _ => h.push(a.pow(base_term(&a, b), ex)),
+            let mut g: Vec<T<'_>> = by_base.iter().map(|&(b, s)| a.pow(base_term(&a, b), s)).collect();
+            rng.shuffle(&mut g);
+            let two = tree(&a, &mut rng, &g);
+            // three: positive composite bases split (6^e = 2^e 3^e, 12^e = 2^(2e) 3^e, (2/3)^e = 2^e 3^-e)
+            let mut h = vec![];
+            for &(b, e) in &factors {
+                let ex = q(EXPS[e]);
+                let two_e = a.mul(&[a.int(2), ex]);
+                let three_e = a.mul(&[a.int(3), ex]);
+                match BASES[b] {
+                    ("", 6, 1) => h.extend([a.pow(a.int(2), ex), a.pow(a.int(3), ex)]),
+                    ("", 12, 1) => h.extend([a.pow(a.int(2), two_e), a.pow(a.int(3), ex)]),
+                    ("", 8, 1) => h.push(a.pow(a.int(2), three_e)),
+                    ("", 2, 3) => h.extend([a.pow(a.int(2), ex), a.pow(a.int(3), a.neg(ex))]),
+                    ("", 1, 2) => h.push(a.pow(a.int(2), a.neg(ex))),
+                    _ => h.push(a.pow(base_term(&a, b), ex)),
+                }
             }
-        }
-        rng.shuffle(&mut h);
-        let three = tree(&a, &mut rng, &h);
-        assert_eq!(one, two, "case {case}: {} against {}", show(&st, one), show(&st, two));
-        assert_eq!(one, three, "case {case}: {} against {}", show(&st, one), show(&st, three));
-        // the value: the product of the principal powers
-        let want = factors.iter().fold((1.0, 0.0), |acc, &(b, e)| {
-            let (n, d) = EXPS[e];
-            cmul(acc, cpow(base_value(b), (n as f64 / d as f64, 0.0)))
-        });
-        let got = eval(&st, one);
-        let err = (got.0 - want.0).hypot(got.1 - want.1);
-        assert!(err <= 1e-9 * want.0.hypot(want.1).max(1.0), "case {case}: {} is {got:?}, want {want:?}", show(&st, one));
-        if case % 500 == 499 {
-            println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+            rng.shuffle(&mut h);
+            let three = tree(&a, &mut rng, &h);
+            assert_eq!(one, two, "case {case}: {} against {}", show(&st, one), show(&st, two));
+            assert_eq!(one, three, "case {case}: {} against {}", show(&st, one), show(&st, three));
+            // the value: the product of the principal powers
+            let want = factors.iter().fold((1.0, 0.0), |acc, &(b, e)| {
+                let (n, d) = EXPS[e];
+                cmul(acc, cpow(base_value(b), (n as f64 / d as f64, 0.0)))
+            });
+            let got = eval(&st, one);
+            let err = (got.0 - want.0).hypot(got.1 - want.1);
+            assert!(err <= 1e-9 * want.0.hypot(want.1).max(1.0), "case {case}: {} is {got:?}, want {want:?}", show(&st, one));
+            if case % 500 == 499 {
+                println!("[{}/{cases} {}%]", case + 1, (case + 1) * 100 / cases);
+            }
         }
     }
 }

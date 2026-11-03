@@ -78,7 +78,7 @@ mod verify;
 mod young;
 
 pub use gc::{GcEvent, GcKind, GcStats};
-pub use handle::{SMALL_MAX, SMALL_MIN};
+pub use handle::{HOLE, SMALL_MAX, SMALL_MIN};
 pub use heap::{Config, Heap, MemoHit};
 pub use mc_api::{Store, Sym, View, T};
 pub use roots::{Raw, Roots, Trace};

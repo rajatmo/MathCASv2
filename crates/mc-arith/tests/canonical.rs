@@ -2,13 +2,14 @@
 mod common;
 
 use common::show;
-use mc_api::{RefStore, Store, T};
+use common::TestStore;
+use mc_api::{Store, T};
 use mc_arith::{Arith, Cmp3};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 struct Env<'h> {
-    a: Arith<'h, RefStore>,
+    a: Arith<'h, TestStore>,
 }
 
 impl<'h> Env<'h> {
@@ -33,10 +34,11 @@ impl<'h> Env<'h> {
     }
 }
 
-fn with_env(f: impl FnOnce(&Env)) {
-    let st = RefStore::new();
-    let env = Env { a: Arith::new(&st) };
-    f(&env);
+fn with_env(f: impl Fn(&Env)) {
+    for st in TestStore::all() {
+        let env = Env { a: Arith::new(&st) };
+        f(&env);
+    }
 }
 
 #[test]
@@ -216,15 +218,16 @@ fn powers_of_symbols() {
 
 #[test]
 fn failures_propagate_and_stop_interrupts() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let x = st.sym_term(st.sym("x"));
-    let f = a.div(a.int(1), a.int(0));
-    assert_eq!(a.add(&[x, f]), f);
-    assert_eq!(a.mul(&[f, x]), f);
-    assert_eq!(a.pow(x, f), f);
-    let flag = Arc::new(AtomicBool::new(true));
-    let a = Arith::new(&st).with_stop(flag);
-    let t = a.add(&[x, x]);
-    assert_eq!(show(&st, t), "failure(interrupted, add(x, x))");
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let x = st.sym_term(st.sym("x"));
+        let f = a.div(a.int(1), a.int(0));
+        assert_eq!(a.add(&[x, f]), f);
+        assert_eq!(a.mul(&[f, x]), f);
+        assert_eq!(a.pow(x, f), f);
+        let flag = Arc::new(AtomicBool::new(true));
+        let a = Arith::new(&st).with_stop(flag);
+        let t = a.add(&[x, x]);
+        assert_eq!(show(&st, t), "failure(interrupted, add(x, x))");
+    }
 }

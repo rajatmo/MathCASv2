@@ -452,6 +452,7 @@ name = "mc-arith"
 version = "0.0.0"
 dependencies = [
  "mc-api",
+ "mc-core",
  "num-bigint",
  "num-traits",
  "rustc-hash",
@@ -473,6 +474,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-engine"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-eval",
+ "mc-syntax",
+]
+
+[[package]]
 name = "mc-eval"
 version = "0.0.0"
 dependencies = [
@@ -489,6 +502,7 @@ name = "mc-repl"
 version = "0.0.0"
 dependencies = [
  "mc-bench",
+ "mc-engine",
 ]
 
 [[package]]

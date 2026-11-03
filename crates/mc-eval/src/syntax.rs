@@ -300,7 +300,8 @@ fn reply<'h>(cx: &NativeCx<'_, '_, 'h>, r: Result<(), DefError>) -> Reply<'h> {
         Ok(()) => cx.null(),
         Err(e) => {
             let h = cx.heap();
-            h.call(h.sym("failure"), &[h.sym_term(h.sym("definition")), h.string(&e.to_string())])
+            use mc_api::names;
+            h.call(h.sym(names::FAILURE), &[h.sym_term(h.sym(names::failure::DEFINITION)), h.string(&e.to_string())])
         }
     })
 }

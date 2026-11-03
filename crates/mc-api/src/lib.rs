@@ -115,5 +115,9 @@ pub mod names {
         pub const INTERRUPTED: &str = "interrupted";
         pub const NO_MATCH: &str = "no_match";
         pub const EFFECT_IN_CONDITION: &str = "effect_in_condition";
+        /// `failure(limit, depth)`: the evaluation nested deeper than the evaluator's limit.
+        pub const DEPTH: &str = "depth";
+        /// `failure(definition, message)`: a malformed definition.
+        pub const DEFINITION: &str = "definition";
     }
 }

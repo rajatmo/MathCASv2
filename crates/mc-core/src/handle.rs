@@ -6,7 +6,11 @@
 //!   into the old region.
 //!
 //! Young indices of the last young segment are never handed out, so `0x7FFF_FFFE` and `0x7FFF_FFFF` are free for
-//! the evaluator's holes (I1).
+//! the evaluator's holes (I1); the latter is [`HOLE`].
+
+/// A handle id the store never hands out: the evaluator marks elements a speculative task left unfinished with it.
+/// It must never be viewed or passed to the store.
+pub const HOLE: u32 = 0x7FFF_FFFF;
 
 pub(crate) const IMM: u32 = 1 << 31;
 /// Within immediates: a symbol.

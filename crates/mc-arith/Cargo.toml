@@ -12,3 +12,5 @@ rustc-hash = "2"
 [dev-dependencies]
 num-bigint = "0.4"
 num-traits = "0.2"
+# the integration tests also run on the real store
+mc-core = { path = "../mc-core" }

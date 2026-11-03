@@ -15,6 +15,11 @@ use std::sync::OnceLock;
 pub trait TermOrder: Send + Sync {
     /// Compare two terms of `h`.
     fn cmp<'h>(&self, h: &'h Heap, a: T<'h>, b: T<'h>) -> Ordering;
+
+    /// Sort `v` by the order. An order with per-call setup (caches) overrides this to set up once per sort.
+    fn sort<'h>(&self, h: &'h Heap, v: &mut [T<'h>]) {
+        v.sort_by(|a, b| self.cmp(h, *a, *b));
+    }
 }
 
 /// The structural stand-in for the canonical order (see the module documentation).

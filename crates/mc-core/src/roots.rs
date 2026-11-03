@@ -14,6 +14,7 @@ use mc_api::T;
 /// safe point goes stale at that safe point: it may then name a collected term or, after a major collection,
 /// another term.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(transparent)]
 pub struct Raw(pub(crate) u32);
 
 impl Raw {
@@ -27,6 +28,19 @@ impl Raw {
     #[inline]
     pub fn get<'h>(self, _h: &'h Heap) -> T<'h> {
         T::from_raw(self.0)
+    }
+
+    /// The handle's bits, to keep it in an atomic slot (for example an own value read without locks). A container
+    /// holding bits must turn them back into a `Raw` with [`Raw::from_bits`] and visit it at every safe point.
+    #[inline]
+    pub fn to_bits(self) -> u32 {
+        self.0
+    }
+
+    /// The `Raw` of bits from [`Raw::to_bits`] (or [`HOLE`](crate::HOLE), which names no term).
+    #[inline]
+    pub fn from_bits(bits: u32) -> Raw {
+        Raw(bits)
     }
 }
 

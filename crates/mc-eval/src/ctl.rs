@@ -10,6 +10,7 @@
 //!
 //! **Status**: the first failure is recorded by compare-and-swap; once it is set, every task stops at its next poll.
 //! [`Status`] maps to the failure terms of semantics 10 (decision F.4).
+use mc_api::names::failure as tag;
 use std::mem::{offset_of, size_of};
 use std::sync::atomic::{AtomicI64, AtomicU32, Ordering::*};
 
@@ -72,11 +73,11 @@ impl Status {
     pub fn failure_tags(self) -> &'static [&'static str] {
         match self {
             Status::Running => &[],
-            Status::Interrupted => &["interrupted"],
-            Status::Fuel => &["limit", "fuel"],
+            Status::Interrupted => &[tag::INTERRUPTED],
+            Status::Fuel => &[tag::LIMIT, tag::FUEL],
             Status::Index => &["index"],
-            Status::DivZero => &["division_by_zero"],
-            Status::Depth => &["limit", "depth"],
+            Status::DivZero => &[tag::DIVISION_BY_ZERO],
+            Status::Depth => &[tag::LIMIT, tag::DEPTH],
         }
     }
 }
@@ -88,9 +89,16 @@ impl Default for Control {
 }
 
 impl Control {
-    /// Ask the running evaluation to stop (any thread; every task stops at its next poll).
+    /// Ask the running evaluation to stop (any thread; every task stops at its next poll). A request made before an
+    /// evaluation begins stops that evaluation at its first poll: requests are kept until
+    /// [`Control::clear_interrupt`].
     pub fn interrupt(&self) {
         self.stop.store(1, Release);
+    }
+
+    /// Withdraw an interrupt request (between evaluations, by the session's owner).
+    pub fn clear_interrupt(&self) {
+        self.stop.store(0, Release);
     }
 
     /// The current status.
@@ -98,10 +106,10 @@ impl Control {
         Status::from_u32(self.status.load(Acquire))
     }
 
-    /// Prepare for a new evaluation with this budget.
+    /// Prepare for a new evaluation with this budget. A pending interrupt request is kept, so that one raised just
+    /// before the evaluation begins is not lost.
     pub(crate) fn begin(&self, fuel: i64) {
         self.fuel.store(fuel.max(0), Relaxed);
-        self.stop.store(0, Relaxed);
         self.status.store(0, Release);
     }
 
@@ -166,9 +174,14 @@ mod tests {
         c.interrupt();
         assert!(c.halted());
         assert_eq!(c.status(), Status::Fuel);
+        c.clear_interrupt();
         c.begin(10);
+        assert!(!c.halted());
         c.interrupt();
         assert!(c.halted());
         assert_eq!(c.status(), Status::Interrupted);
+        // a request made before an evaluation begins is kept
+        c.begin(10);
+        assert!(c.halted());
     }
 }

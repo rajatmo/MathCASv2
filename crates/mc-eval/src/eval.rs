@@ -137,7 +137,7 @@ impl Names {
             false_: h.sym(names::FALSE),
             null: h.sym(names::NULL),
             failure: h.sym(names::FAILURE),
-            effect_in_condition: h.sym("effect_in_condition"),
+            effect_in_condition: h.sym(names::failure::EFFECT_IN_CONDITION),
         }
     }
 }
@@ -148,8 +148,8 @@ pub(crate) fn bit(s: Sym) -> u64 {
     1u64 << (s.0 % 64)
 }
 
-/// The placeholder for an element a speculative task could not complete (a handle `mc-core` never hands out).
-pub(crate) const HOLE: u32 = 0x7FFF_FFFF;
+// The placeholder for an element a speculative task could not complete (a handle `mc-core` never hands out).
+use mc_core::HOLE;
 
 #[inline]
 fn hole<'h>() -> T<'h> {
@@ -193,11 +193,8 @@ impl Trace for Kernel {
 
 /// A session whose state is a [`Kernel`] (with the built-ins registered).
 pub fn session(heap: mc_core::Config, threads: usize, cfg: EvalConfig) -> mc_core::Session<Kernel> {
-    // the session makes its heap, and the kernel needs it to name its symbols: start from a kernel bound to a
-    // scratch heap and replace it (decision F.12)
-    let mut s = mc_core::Session::new(heap, threads, Kernel::new(&Heap::new(mc_core::Config::no_collect()), cfg));
-    s.state = Kernel::new(&s.heap, cfg);
-    s
+    // the kernel names its symbols in the session's own heap
+    mc_core::Session::with_state(heap, threads, |h| Kernel::new(h, cfg))
 }
 
 impl Kernel {
@@ -408,11 +405,11 @@ impl Kernel {
         let value = match r {
             Ok(v) => v,
             Err(Abort::Limit) => ev.failure(status.failure_tags()),
-            Err(Abort::EffectInCondition) => ev.failure(&["effect_in_condition"]),
+            Err(Abort::EffectInCondition) => ev.failure(&[mc_api::names::failure::EFFECT_IN_CONDITION]),
             // the frontier never leaves a hole; should one reach the top, report a stop rather than a wrong value
             Err(Abort::Hole) => {
                 debug_assert!(false, "a hole reached the top of an evaluation");
-                ev.failure(&["interrupted"])
+                ev.failure(&[mc_api::names::failure::INTERRUPTED])
             }
         };
         Evaluation { value, status, stats: EvalStats { splits: cx.splits, redos: cx.redos, fuel: cx.fuel, holes: cx.holes } }
@@ -497,7 +494,7 @@ fn make<'h>(k: &Kernel, h: &'h Heap, head: T<'h>, args: &[T<'h>]) -> T<'h> {
             _ => v.push(a),
         }
     }
-    v.sort_by(|a, b| k.order.cmp(h, *a, *b));
+    k.order.sort(h, &mut v);
     h.app(head, &v)
 }
 

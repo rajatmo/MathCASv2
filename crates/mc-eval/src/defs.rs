@@ -2,12 +2,11 @@
 //! 7.3), shared by every task of an evaluation and written by one writer at a time (the session between evaluations,
 //! or the frontier task during one; I2.4, I2.5).
 //!
-//! An own value is a boxed [`Raw`] behind an atomic pointer: a redefinition swaps the pointer and retires the old box
-//! until a safe point, so a reader may keep using what it loaded. (A plain atomic handle would need to turn a `Raw`
-//! back into bits while tracing, which `mc-core` does not offer; see the report.)
+//! An own value is a handle in an atomic slot ([`Raw::to_bits`]; [`HOLE`] when there is none): a redefinition stores
+//! the new handle, and a reader keeps using the term it loaded, which stays valid until the next safe point.
 use crate::conc::SymTable;
 use crate::index::{Rule, RuleSet};
-use mc_core::{Heap, Raw, Sym, T};
+use mc_core::{Heap, Raw, Sym, HOLE, T};
 use parking_lot::Mutex;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering::*};
@@ -81,11 +80,6 @@ impl Attributes {
     }
 }
 
-/// An own value.
-struct Own {
-    value: Raw,
-}
-
 /// Argument-head rules a symbol holds for one outer head: a prepend-only list.
 struct ArgNode {
     outer: Sym,
@@ -95,7 +89,8 @@ struct ArgNode {
 
 /// One symbol's definitions.
 pub(crate) struct SymDefs {
-    own: AtomicPtr<Own>,
+    /// the own value's handle bits, or [`HOLE`]
+    own: AtomicU32,
     version: AtomicU32,
     attrs: AtomicU32,
     /// index + 1 of the symbol's native implementation (0: none)
@@ -112,7 +107,7 @@ unsafe impl Sync for SymDefs {}
 impl Default for SymDefs {
     fn default() -> Self {
         SymDefs {
-            own: AtomicPtr::new(null_mut()),
+            own: AtomicU32::new(HOLE),
             version: AtomicU32::new(0),
             attrs: AtomicU32::new(0),
             native: AtomicU32::new(0),
@@ -126,9 +121,8 @@ impl SymDefs {
     /// The own value.
     #[inline]
     pub(crate) fn own<'h>(&self, h: &'h Heap) -> Option<T<'h>> {
-        let p = self.own.load(Acquire);
-        // SAFETY: own-value boxes are retired, not freed, until a safe point (`&mut`).
-        (!p.is_null()).then(|| unsafe { &*p }.value.get(h))
+        let bits = self.own.load(Acquire);
+        (bits != HOLE).then(|| Raw::from_bits(bits).get(h))
     }
 
     #[inline]
@@ -177,11 +171,6 @@ impl SymDefs {
 
 impl Drop for SymDefs {
     fn drop(&mut self) {
-        let o = *self.own.get_mut();
-        if !o.is_null() {
-            // SAFETY: from `Box::into_raw`, reachable once.
-            drop(unsafe { Box::from_raw(o) });
-        }
         let mut p = *self.args.get_mut();
         while !p.is_null() {
             // SAFETY: every node came from `Box::into_raw` and is reachable once.
@@ -195,14 +184,8 @@ impl Drop for SymDefs {
 #[derive(Default)]
 pub(crate) struct Defs {
     syms: SymTable<SymDefs>,
-    /// Serialises writers (uncontended: only the frontier or the session defines) and keeps retired own values.
-    writer: Mutex<Retired>,
-}
-
-#[derive(Default)]
-struct Retired {
-    #[allow(clippy::vec_box)] // the boxes are what readers may still point into
-    own: Vec<Box<Own>>,
+    /// Serialises writers (uncontended: only the frontier or the session defines).
+    writer: Mutex<()>,
 }
 
 impl Defs {
@@ -226,13 +209,9 @@ impl Defs {
     }
 
     pub(crate) fn set_own(&self, s: Sym, v: T<'_>) {
-        let mut w = self.writer.lock();
+        let _w = self.writer.lock();
         let sd = self.syms.get_or_init(s.0);
-        let old = sd.own.swap(Box::into_raw(Box::new(Own { value: Raw::new(v) })), AcqRel);
-        if !old.is_null() {
-            // SAFETY: `old` came from `Box::into_raw` and is no longer reachable from the slot.
-            w.own.push(unsafe { Box::from_raw(old) });
-        }
+        sd.own.store(Raw::new(v).to_bits(), Release);
         sd.version.fetch_add(1, Relaxed);
     }
 
@@ -274,10 +253,11 @@ impl Defs {
     pub(crate) fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
         self.reclaim();
         self.syms.for_each_mut(|sd| {
-            let o = *sd.own.get_mut();
-            if !o.is_null() {
-                // SAFETY: `&mut self`: no reader; the box is live.
-                visit(&mut unsafe { &mut *o }.value);
+            let bits = sd.own.get_mut();
+            if *bits != HOLE {
+                let mut r = Raw::from_bits(*bits);
+                visit(&mut r);
+                *bits = r.to_bits();
             }
             sd.for_each_rule_set(|rs| rs.trace(visit));
         });
@@ -285,9 +265,7 @@ impl Defs {
 
     /// Free everything retired by definitions (a safe point). Returns how many allocations were freed.
     pub(crate) fn reclaim(&mut self) -> usize {
-        let w = self.writer.get_mut();
-        let mut n = w.own.len();
-        w.own.clear();
+        let mut n = 0;
         self.syms.for_each_mut(|sd| sd.for_each_rule_set(|rs| n += rs.reclaim()));
         n
     }

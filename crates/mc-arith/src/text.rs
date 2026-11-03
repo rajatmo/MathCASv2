@@ -141,6 +141,13 @@ impl Digits {
     }
 }
 
+/// A ball given by its payload words ([`mc_api::View::Ball`]) for printing, as [`ball`]; `None` if the words are not
+/// a ball payload.
+pub fn ball_words(neg: bool, words: &[u64]) -> Option<String> {
+    let (b, p) = crate::term::decode_ball(neg, words)?;
+    Some(ball(&b, p))
+}
+
 /// A real number for printing.
 pub fn real(x: &Real) -> String {
     match x {

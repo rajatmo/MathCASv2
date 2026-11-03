@@ -29,12 +29,19 @@ pub struct Session<St: Trace + Send> {
 impl<St: Trace + Send> Session<St> {
     /// A session on a pool of `threads` workers (deep evaluations get 64 MB stacks).
     pub fn new(cfg: Config, threads: usize, state: St) -> Session<St> {
+        Session::with_state(cfg, threads, |_| state)
+    }
+
+    /// A session whose state is built from its own heap (for example a state that names symbols when it is made).
+    pub fn with_state(cfg: Config, threads: usize, state: impl FnOnce(&Heap) -> St) -> Session<St> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(threads.max(1))
             .stack_size(64 << 20)
             .build()
             .expect("thread pool");
-        Session { heap: Heap::new(cfg), state, pool, work_time: Duration::ZERO, safe_time: Duration::ZERO, steps: 0 }
+        let heap = Heap::new(cfg);
+        let state = state(&heap);
+        Session { heap, state, pool, work_time: Duration::ZERO, safe_time: Duration::ZERO, steps: 0 }
     }
 
     /// Worker threads of the session's pool.

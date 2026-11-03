@@ -536,7 +536,8 @@ impl Nat {
         isqrt(self)
     }
 
-    /// Decimal digits, most significant first, by divide and conquer over powers 10^(19 2^k).
+    /// Decimal digits, most significant first, by divide and conquer over powers 10^(19 2^k). Polls the stop flag:
+    /// a stopped conversion returns quickly with incomplete text.
     pub fn to_decimal(&self) -> String {
         to_decimal(self)
     }
@@ -702,7 +703,8 @@ fn recip(b: &Nat) -> Nat {
     } else {
         (Nat::from_u64(1), b.clone())
     };
-    // the error analysis bounds this by about 20 steps; the cap only guards against a mistake in it
+    // the error analysis bounds this by about 20 steps; the cap only guards against a mistake in it (a stopped
+    // product breaks the analysis: then the result is discarded anyway, so skip the quadratic fallback)
     for _ in 0..64 {
         if p > target {
             v = v.sub_u64(1);
@@ -713,6 +715,9 @@ fn recip(b: &Nat) -> Nat {
         } else {
             return v;
         }
+    }
+    if super::stopped() {
+        return v;
     }
     Nat { limbs: divrem_knuth(&target.limbs, &b.limbs).0 }
 }
@@ -848,10 +853,17 @@ fn to_decimal(x: &Nat) -> String {
     // pows[k] = 10^(19 2^k), up to the first one above sqrt(x)
     let mut pows = vec![Nat::from_u64(TEN19)];
     while pows.last().unwrap().bits() * 2 <= x.bits() + 1 {
+        // a stopped product is not a power of ten (it may be zero, which would never end the loop)
+        if super::stopped() {
+            return String::new();
+        }
         let next = pows.last().unwrap().square();
         pows.push(next);
     }
     let divs: Vec<Divisor> = pows.iter().map(Divisor::new).collect();
+    if super::stopped() {
+        return String::new();
+    }
     let mut out = String::with_capacity((x.bits() as f64 * std::f64::consts::LOG10_2) as usize + 20);
     dec_top(x, &pows, &divs, &mut out);
     out

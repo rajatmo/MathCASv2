@@ -20,7 +20,7 @@ fn config(name: &str, cases_dir: PathBuf, only: &[&str]) -> RunConfig {
         cases_dir,
         results_dir,
         only: only.iter().map(|s| s.to_string()).collect(),
-        child: (PathBuf::from(env!("CARGO_BIN_EXE_mc-bench")), vec![OsString::from("child")]),
+        child: (PathBuf::from(env!("CARGO_BIN_EXE_mc-bench-stub")), vec![OsString::from("child")]),
         memory_ceiling: 4 << 30,
         grace: Duration::from_secs(1),
         system: "stub 0".into(),

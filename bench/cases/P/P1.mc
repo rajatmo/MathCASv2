@@ -8,4 +8,4 @@ f = expand((1 + x + y + z)^m)
 #@ measure
 expand(f*(f + 1))
 #@ property
-length(result) == binomial(2n + 3, 3) and rewrite(result, [x -> 1, y -> 1, z -> 1]) == 4^m*(4^m + 1)
+length(result) == binomial(2m + 3, 3) and rewrite(result, [x -> 1, y -> 1, z -> 1]) == 4^m*(4^m + 1)

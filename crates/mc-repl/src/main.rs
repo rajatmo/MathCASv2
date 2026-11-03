@@ -1,7 +1,6 @@
-//! The REPL with the stub engine. Once `mc-eval` exists, the real engine is plugged in here; the loop does not
-//! change.
-use mc_bench::stub::StubEngine;
+//! The REPL with the real engine (`mc-engine`); the loop itself is engine-agnostic and tested with the stub.
 use mc_bench::StopFlag;
+use mc_engine::CoreEngine;
 use mc_repl::{interrupt, Repl};
 use std::io;
 use std::process::ExitCode;
@@ -13,7 +12,7 @@ fn main() -> ExitCode {
         Ok(false) => eprintln!("note: Ctrl+C cannot interrupt evaluations on this platform"),
         Err(e) => eprintln!("note: no interrupt handler ({e})"),
     }
-    let mut repl = Repl::new(Box::new(StubEngine::new()), stop);
+    let mut repl = Repl::new(Box::new(CoreEngine::new()), stop);
     match repl.run(&mut io::stdin().lock(), &mut io::stdout().lock()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

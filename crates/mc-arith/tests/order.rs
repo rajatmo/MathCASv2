@@ -4,7 +4,8 @@
 mod common;
 
 use common::{show, Rng};
-use mc_api::{RefStore, Store, T};
+use common::TestStore;
+use mc_api::{Store, T};
 use mc_arith::{Arith, Cmp3};
 use std::cmp::Ordering;
 
@@ -59,7 +60,7 @@ fn rand_spec(rng: &mut Rng, depth: u32) -> Spec {
     }
 }
 
-fn build<'h>(a: &Arith<'h, RefStore>, s: &Spec) -> T<'h> {
+fn build<'h>(a: &Arith<'h, TestStore>, s: &Spec) -> T<'h> {
     let st = a.store();
     let q = |n: i64, d: i64| a.rational(a.int(n), a.int(d));
     match s {
@@ -85,108 +86,111 @@ fn order_is_total_antisymmetric_transitive_and_stable() {
     let mut rng = Rng(606);
     let specs: Vec<Spec> = (0..300).map(|_| rand_spec(&mut rng, 3)).collect();
 
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let mut terms: Vec<T<'_>> = specs.iter().map(|s| build(&a, s)).collect();
-    let n = terms.len();
-    for (k, &x) in terms.iter().enumerate() {
-        for &y in &terms {
-            let o = a.cmp(x, y);
-            assert_eq!(o == Ordering::Equal, x == y, "equal exactly for one term: {} {}", show(&st, x), show(&st, y));
-            assert_eq!(a.cmp(y, x), o.reverse(), "antisymmetric: {} {}", show(&st, x), show(&st, y));
-        }
-        if k % 100 == 99 {
-            println!("[{}/{n} {}%]", k + 1, (k + 1) * 100 / n);
-        }
-    }
-    terms.sort_by(|&x, &y| a.cmp(x, y));
-    terms.dedup();
-    // a sorted list is ordered pairwise only if the order is transitive
-    for i in 0..terms.len() {
-        for j in i + 1..terms.len() {
-            assert_eq!(a.cmp(terms[i], terms[j]), Ordering::Less, "transitive: {} {}", show(&st, terms[i]), show(&st, terms[j]));
-        }
-    }
-    // consistent with decided comparisons of exact numbers and balls
-    for &x in &terms {
-        for &y in &terms {
-            let machine = |t: T<'_>| matches!(st.view(t), mc_api::View::Real(_));
-            if machine(x) || machine(y) {
-                continue;
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let mut terms: Vec<T<'_>> = specs.iter().map(|s| build(&a, s)).collect();
+        let n = terms.len();
+        for (k, &x) in terms.iter().enumerate() {
+            for &y in &terms {
+                let o = a.cmp(x, y);
+                assert_eq!(o == Ordering::Equal, x == y, "equal exactly for one term: {} {}", show(&st, x), show(&st, y));
+                assert_eq!(a.cmp(y, x), o.reverse(), "antisymmetric: {} {}", show(&st, x), show(&st, y));
             }
-            match a.compare(x, y) {
-                Some(Cmp3::Less) => assert_eq!(a.cmp(x, y), Ordering::Less),
-                Some(Cmp3::Greater) => assert_eq!(a.cmp(x, y), Ordering::Greater),
-                _ => {}
+            if k % 100 == 99 {
+                println!("[{}/{n} {}%]", k + 1, (k + 1) * 100 / n);
             }
         }
-    }
-    let first: Vec<String> = terms.iter().map(|&t| show(&st, t)).collect();
+        terms.sort_by(|&x, &y| a.cmp(x, y));
+        terms.dedup();
+        // a sorted list is ordered pairwise only if the order is transitive
+        for i in 0..terms.len() {
+            for j in i + 1..terms.len() {
+                assert_eq!(a.cmp(terms[i], terms[j]), Ordering::Less, "transitive: {} {}", show(&st, terms[i]), show(&st, terms[j]));
+            }
+        }
+        // consistent with decided comparisons of exact numbers and balls
+        for &x in &terms {
+            for &y in &terms {
+                let machine = |t: T<'_>| matches!(st.view(t), mc_api::View::Real(_));
+                if machine(x) || machine(y) {
+                    continue;
+                }
+                match a.compare(x, y) {
+                    Some(Cmp3::Less) => assert_eq!(a.cmp(x, y), Ordering::Less),
+                    Some(Cmp3::Greater) => assert_eq!(a.cmp(x, y), Ordering::Greater),
+                    _ => {}
+                }
+            }
+        }
+        let first: Vec<String> = terms.iter().map(|&t| show(&st, t)).collect();
 
-    // stability: another store, other terms created first, the specs built in reverse order
-    let st2 = RefStore::new();
-    let a2 = Arith::new(&st2);
-    for i in 0..100 {
-        st2.call(st2.sym("junk"), &[st2.int(i)]);
-        st2.sym(&format!("s{i}"));
+        // stability: another store, other terms created first, the specs built in reverse order
+        let st2 = st.fresh();
+        let a2 = Arith::new(&st2);
+        for i in 0..100 {
+            st2.call(st2.sym("junk"), &[st2.int(i)]);
+            st2.sym(&format!("s{i}"));
+        }
+        let mut terms2: Vec<T<'_>> = specs.iter().rev().map(|s| build(&a2, s)).collect();
+        terms2.sort_by(|&x, &y| a2.cmp(x, y));
+        terms2.dedup();
+        let second: Vec<String> = terms2.iter().map(|&t| show(&st2, t)).collect();
+        assert_eq!(first, second, "the order does not depend on creation order");
     }
-    let mut terms2: Vec<T<'_>> = specs.iter().rev().map(|s| build(&a2, s)).collect();
-    terms2.sort_by(|&x, &y| a2.cmp(x, y));
-    terms2.dedup();
-    let second: Vec<String> = terms2.iter().map(|&t| show(&st2, t)).collect();
-    assert_eq!(first, second, "the order does not depend on creation order");
 }
 
 #[test]
 fn draft_order_rules() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let s = |n: &str| st.sym_term(st.sym(n));
-    let f = st.sym("f");
-    let seq = [
-        a.int(-1),
-        a.int(0),
-        st.real(0.0),
-        a.complex(a.int(0), a.int(1)),
-        a.rational(a.int(1), a.int(2)),
-        st.real(0.5),
-        a.int(1),
-        st.string("a"),
-        st.string("b"),
-        s("a"),
-        s("alg.a"),
-        s("core.a"),
-        s("b"),
-        st.call(f, &[]),
-        st.call(f, &[a.int(1)]),
-        st.call(f, &[a.int(2)]),
-        st.call(f, &[a.int(1), a.int(1)]),
-        st.call(st.sym("g"), &[]),
-        st.app(st.call(f, &[]), &[]),
-    ];
-    for (i, &x) in seq.iter().enumerate() {
-        for (j, &y) in seq.iter().enumerate() {
-            assert_eq!(a.cmp(x, y), i.cmp(&j), "{} {}", show(&st, x), show(&st, y));
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let s = |n: &str| st.sym_term(st.sym(n));
+        let f = st.sym("f");
+        let seq = [
+            a.int(-1),
+            a.int(0),
+            st.real(0.0),
+            a.complex(a.int(0), a.int(1)),
+            a.rational(a.int(1), a.int(2)),
+            st.real(0.5),
+            a.int(1),
+            st.string("a"),
+            st.string("b"),
+            s("a"),
+            s("alg.a"),
+            s("core.a"),
+            s("b"),
+            st.call(f, &[]),
+            st.call(f, &[a.int(1)]),
+            st.call(f, &[a.int(2)]),
+            st.call(f, &[a.int(1), a.int(1)]),
+            st.call(st.sym("g"), &[]),
+            st.app(st.call(f, &[]), &[]),
+        ];
+        for (i, &x) in seq.iter().enumerate() {
+            for (j, &y) in seq.iter().enumerate() {
+                assert_eq!(a.cmp(x, y), i.cmp(&j), "{} {}", show(&st, x), show(&st, y));
+            }
         }
     }
 }
 
 #[test]
 fn deep_terms_need_no_deep_stack() {
-    let st = RefStore::new();
-    let a = Arith::new(&st);
-    let g = st.sym("g");
-    let (mut x, mut y) = (st.sym_term(st.sym("x")), st.sym_term(st.sym("y")));
-    for _ in 0..200_000 {
-        x = st.call(g, &[x]);
-        y = st.call(g, &[y]);
+    for st in TestStore::all() {
+        let a = Arith::new(&st);
+        let g = st.sym("g");
+        let (mut x, mut y) = (st.sym_term(st.sym("x")), st.sym_term(st.sym("y")));
+        for _ in 0..200_000 {
+            x = st.call(g, &[x]);
+            y = st.call(g, &[y]);
+        }
+        assert_eq!(a.cmp(x, y), Ordering::Less);
+        // a raw sum nested 200 000 deep flattens without recursion
+        let mut s = a.int(1);
+        let add = st.sym("add");
+        for _ in 0..200_000 {
+            s = st.call(add, &[a.int(1), s]);
+        }
+        assert_eq!(a.add(&[s]), a.int(200_001));
     }
-    assert_eq!(a.cmp(x, y), Ordering::Less);
-    // a raw sum nested 200 000 deep flattens without recursion
-    let mut s = a.int(1);
-    let add = st.sym("add");
-    for _ in 0..200_000 {
-        s = st.call(add, &[a.int(1), s]);
-    }
-    assert_eq!(a.add(&[s]), a.int(200_001));
 }

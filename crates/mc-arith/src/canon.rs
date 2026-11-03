@@ -151,6 +151,16 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         let b = crate::num::Ball { mid: mb.mid, rad: mb.rad.add(&up) };
         Some(self.number(&Num::Real(Real::Ball(b, p))))
     }
+    /// The ball of a decimal literal (`1.25`, `-2e-10`, `3.`, `7`) at `digits` decimal digits of working precision
+    /// (04-syntax section 2, `1.25~40`): the exact decimal value rounded to ceil(digits log2 10) bits, with the
+    /// rounding error as the radius. `None` for a malformed text, or a decimal exponent whose exact value would pass
+    /// the size limit.
+    pub fn ball_from_decimal(&self, text: &str, digits: u64) -> Option<T<'h>> {
+        let q = decimal_value(text, self.max_bits)?;
+        let p = crate::text::digits_to_bits(digits).max(crate::number::MIN_PREC);
+        Some(self.number(&Num::Real(Real::Exact(q).to_kind(crate::number::Kind::Ball, p))))
+    }
+
     /// `complex(re, im)`: a number when both parts are real numbers (with contagion between the parts and an exact
     /// zero imaginary part dropped), otherwise the term as given.
     pub fn complex(&self, re: T<'h>, im: T<'h>) -> T<'h> {
@@ -520,5 +530,52 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             return factors[0];
         }
         self.st.app(self.n.mul, &factors)
+    }
+}
+
+/// The exact value of a decimal text `[-]digits[.digits][e[+-]digits]` (at least one digit before the exponent).
+/// `None` if malformed, or if 10^|exponent| would need more than `max_bits` bits.
+fn decimal_value(text: &str, max_bits: u64) -> Option<Rat> {
+    let (neg, rest) = match text.strip_prefix('-') {
+        Some(r) => (true, r),
+        None => (false, text),
+    };
+    let (mantissa, exp) = match rest.find(['e', 'E']) {
+        Some(i) => {
+            let e = &rest[i + 1..];
+            let e = e.strip_prefix('+').unwrap_or(e);
+            (&rest[..i], e.parse::<i64>().ok()?)
+        }
+        None => (rest, 0),
+    };
+    let (int, frac) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    let digits = format!("{int}{frac}");
+    let num = crate::num::Nat::from_decimal(&digits)?;
+    let e10 = exp.checked_sub(frac.len() as i64)?;
+    // 10^k has about 3.33 k bits
+    if e10.unsigned_abs().saturating_mul(10) / 3 > max_bits {
+        return None;
+    }
+    let scale = crate::num::Nat::from_u64(10).pow_u64(e10.unsigned_abs());
+    let num = Int::new(neg, num);
+    Some(if e10 >= 0 { Rat::from_int(num.mul(&Int::from_nat(scale))) } else { Rat::new(num, Int::from_nat(scale)) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decimal_value;
+    use crate::num::{Int, Rat};
+
+    #[test]
+    fn decimal_literals() {
+        let q = |n, d| Rat::new(Int::from_i64(n), Int::from_i64(d));
+        assert_eq!(decimal_value("1.25", 1 << 20), Some(q(5, 4)));
+        assert_eq!(decimal_value("-2e-3", 1 << 20), Some(q(-1, 500)));
+        assert_eq!(decimal_value("3.", 1 << 20), Some(q(3, 1)));
+        assert_eq!(decimal_value("1.5E+2", 1 << 20), Some(q(150, 1)));
+        assert_eq!(decimal_value("7", 1 << 20), Some(q(7, 1)));
+        assert_eq!(decimal_value("1e100000", 1000), None);
+        assert_eq!(decimal_value("1.2.3", 1 << 20), None);
+        assert_eq!(decimal_value("e5", 1 << 20), None);
     }
 }
