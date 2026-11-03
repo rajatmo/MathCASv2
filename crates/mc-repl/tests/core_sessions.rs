@@ -1,4 +1,5 @@
-//! The REPL with the real engine, on the transcript in `tests/sessions/core.txt`.
+//! The REPL with the real engine, on the transcripts in `tests/sessions/`: `core.txt` (the core) and `language.txt`
+//! (closures, blocks, loops, `match`, `rewrite`, definitions, output).
 use mc_bench::StopFlag;
 use mc_engine::CoreEngine;
 use mc_repl::Repl;
@@ -28,9 +29,9 @@ fn parse(transcript: &str) -> Vec<Entry> {
     entries
 }
 
-#[test]
-fn the_core_session_runs_end_to_end() {
-    let entries = parse(include_str!("sessions/core.txt"));
+/// Run a transcript through the REPL and compare its output line by line.
+fn run(transcript: &str) {
+    let entries = parse(transcript);
     assert!(entries.len() > 30);
     let input: String = entries.iter().flat_map(|e| e.input.iter()).map(|l| format!("{l}\n")).collect();
     let mut repl = Repl::new(Box::new(CoreEngine::new()), StopFlag::new());
@@ -52,4 +53,14 @@ fn the_core_session_runs_end_to_end() {
         assert_eq!(got, want, "line {}", i + 1);
     }
     assert_eq!(out, want);
+}
+
+#[test]
+fn the_core_session_runs_end_to_end() {
+    run(include_str!("sessions/core.txt"));
+}
+
+#[test]
+fn the_language_session_runs_end_to_end() {
+    run(include_str!("sessions/language.txt"));
 }

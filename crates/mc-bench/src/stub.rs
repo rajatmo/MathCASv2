@@ -55,7 +55,7 @@ impl Engine for StubEngine {
         }
         let printed = value.to_string();
         self.last = Some(value);
-        Ok(Evaluated { fingerprint: Some(fnv1a(printed.as_bytes())), printed })
+        Ok(Evaluated { fingerprint: Some(fnv1a(printed.as_bytes())), printed, output: vec![] })
     }
 
     fn bind_last(&mut self, name: &str) -> Result<(), EngineError> {

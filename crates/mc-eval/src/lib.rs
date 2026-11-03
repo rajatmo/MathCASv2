@@ -12,17 +12,21 @@
 //! - [`native`]: the interface built-ins (and `mc-arith`) implement; [`builtins`]: the minimal set.
 //! - [`order`]: the canonical-order hook and its structural stand-in.
 //! - [`syntax`]: the pattern and definition terms `mc-syntax` produces, as patterns and definition natives.
+//! - `lang`: closures, blocks, `let`/`var`/assignment, `while`, `for`, `match`, `rewrite` (package H); `cells`: the
+//!   mutable locals behind `var`; `subst`: hygienic substitution (semantics 6.6).
 //! - [`workloads`]: I2's cases R4, R5, R13, R14, S7, R14e and MR as sessions, for tests and measurements.
 //!
 //! A session is [`session`]: its state is the [`Kernel`], a root container, and each top-level evaluation is one
 //! [`Session::step`](mc_core::Session::step), with a safe point after it.
 #![warn(missing_docs)]
 pub mod builtins;
+mod cells;
 mod conc;
 pub mod ctl;
 mod defs;
 pub mod eval;
 mod index;
+mod lang;
 pub mod matcher;
 pub mod native;
 pub mod order;

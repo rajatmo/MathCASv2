@@ -73,14 +73,20 @@ pub fn run(case: &Case, index: usize, factory: &EngineFactory) -> ChildReport {
     let stop = StopFlag::new();
     let start = Instant::now();
     let _watchdog = Watchdog::start(case.limits.time, stop.clone());
-    let mut engine = factory();
+    let make = || {
+        let mut e = factory();
+        // a setting the engine does not know leaves the case measured with its defaults (the note says so)
+        let unset = (!case.memo).then(|| e.configure("memo", "off").err()).flatten();
+        (e, unset)
+    };
+    let (mut engine, unset) = make();
     let mut report = ChildReport {
         engine: engine.name(),
         outcome: Outcome::Ok,
         times: Vec::new(),
         peak_bytes: None,
         check: None,
-        note: String::new(),
+        note: unset.map_or_else(String::new, |e| format!("engine setting not applied: {e}")),
     };
     let setup = case.setup_source(index);
     let fail = |report: &mut ChildReport, phase: &str, e: EngineError| {
@@ -116,7 +122,7 @@ pub fn run(case: &Case, index: usize, factory: &EngineFactory) -> ChildReport {
             break;
         }
         if case.fresh_session {
-            engine = factory();
+            engine = make().0;
             if let Err(e) = engine.eval(&setup, &stop) {
                 fail(&mut report, "setup", e);
                 return report;

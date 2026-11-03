@@ -32,6 +32,7 @@
 //! | `reps` | `<min reps>, <min time>` | `5, 2s` |
 //! | `session` | `shared` (one session for all repetitions) or `fresh` (a new session and setup for each) | `shared` |
 //! | `threads` | the thread count the case runs at | `1` |
+//! | `memo` | `on` or `off`: whether the engine may memoise normal forms (off measures the work itself, not the cache; passed to [`Engine::configure`](crate::Engine::configure)) | `on` |
 //!
 //! Section markers `#@ setup`, `#@ measure` and `#@ property` start code sections; the code runs to the next marker.
 //! The measured expression is the `measure` section; `property` is evaluated after timing with the result bound to
@@ -114,6 +115,8 @@ pub struct Case {
     pub reps: RepPolicy,
     pub fresh_session: bool,
     pub threads: u32,
+    /// Whether the engine may memoise (the `memo` directive).
+    pub memo: bool,
     pub setup: String,
     pub measure: String,
     pub property: String,
@@ -224,6 +227,7 @@ impl Parser {
                 reps: RepPolicy::default(),
                 fresh_session: false,
                 threads: 1,
+                memo: true,
                 setup: String::new(),
                 measure: String::new(),
                 property: String::new(),
@@ -314,6 +318,13 @@ impl Parser {
                     "fresh" => true,
                     "shared" => false,
                     _ => return Err(self.err(format!("session must be shared or fresh, not {value}"))),
+                }
+            }
+            "memo" => {
+                self.case.memo = match value {
+                    "on" => true,
+                    "off" => false,
+                    _ => return Err(self.err(format!("memo must be on or off, not {value}"))),
                 }
             }
             "threads" => {
@@ -500,6 +511,8 @@ mod tests {
     fn unsized_case() {
         let c = Case::parse(&path(), "#@ check: exact\n#@ expect: 4\n#@ measure\n2+2\n").unwrap();
         assert_eq!((c.measurement_count(), c.size_label(0)), (1, UNSIZED));
+        assert!(c.memo);
+        assert!(!Case::parse(&path(), "#@ memo: off\n#@ measure\n2+2\n").unwrap().memo);
         assert_eq!(c.expected(0), Ok(Some("4".into())));
     }
 
@@ -507,6 +520,7 @@ mod tests {
     fn errors_name_the_line() {
         let cases = [
             ("#@ measure\n1\n#@ bogus: 1\n", 3, "unknown directive"),
+            ("#@ memo: maybe\n#@ measure\n1\n", 1, "memo must be on or off"),
             ("1 + 1\n#@ measure\n1\n", 1, "code before"),
             ("#@ case: R2\n#@ measure\n1\n", 1, "does not match"),
             ("#@ check: property\n#@ measure\n1\n", 0, "property section"),

@@ -167,3 +167,107 @@ Without memo, charged fuel is identical in every configuration (e.g. MR at 37484
   `held`, `effect`.
 - `optional`, `held`, and other decorators give `failure(definition, "...")`; sequence variables stand for `list(...)`
   in right sides.
+
+
+# Package H: language features (added to `mc-eval`)
+
+Status: built and committed (branch `lib/h-lang`, commit 491c98d). Closures, blocks, loops, `match`, `rewrite` and
+the definition features work through `mc-engine`; results are identical under `mc-core` stress collection at 1 and 4
+threads, lazy and always-split, memo on and off; R2, R9 and R12 evaluate their language parts correctly (library stubs
+for missing functions). The native interface stayed source-compatible (additions only).
+
+Shared files changed: `bench/cases/R/R2.mc` (the rule uses a block, because definitions return `null`:
+`rule fib(k_: Int) := { let v = fib(k - 1) + fib(k - 2); fib(k) = v; v }`) and `bench/cases/R/R1.mc`
+(`#@ memo: off`, so it measures dispatch).
+
+## What was built
+
+- **`subst.rs`**: hygienic substitution (semantics 6.6), iterative, skipping subterms by mask, sharing work across
+  repeated subterms, with a fast path for terms without binding forms. Binding forms: `fn(list(params), body)`;
+  `block` with `let`/`var`; `for`; `rule`/`rule_delayed`; `set`/`set_delayed` with a compound left side;
+  `define_fn`. A bound name shadows the substitution in its scope; a bound name that would capture a substituted value
+  is renamed (H.2). All rule right sides and term conditions go through it.
+- **`cells.rs`**: the mutable lexical locals behind `var` (H.3–H.5).
+- **`lang.rs`**: natives for `fn` (a closure is a normal form), `block`, top-level `let`/`var`, `assign`,
+  `local_cell`, `while`, `for`, `match`, `rewrite`, `check_options`, `option_value`; `rule_delayed` and `condition`
+  hold their second argument.
+- **Evaluator:** closure application when the evaluated head is `fn(list(ps), body)`: arguments evaluated except at
+  `held` parameters; `typed` checked; `optional` defaults evaluated, seeing earlier parameters; `rest` takes the
+  remaining arguments as a list; the body is substituted and evaluated in the evaluator loop (a tail call); a call the
+  parameters do not accept gives `failure(no_match, closure, [args])`. `listable` threads over list arguments
+  (`failure(shape_mismatch)` for unequal lengths). Identity elements applied in `make`. Evaluations that read or
+  allocate cells are never memoised. `if(c, a)` gives `null` when `c` is false.
+- **Definitions:** direct `held(p)` arguments set per-position holding; direct `optional(p, d)` arguments expand into
+  rules with and without the argument; `define_fn` options after `;` (including `failure(unknown_option, name)`); `fn`
+  installs a catch-all `f(args___) := failure(no_match, f, args)`; `rule` keeps an open rule set; decorators
+  `listable`, `effect`, `held`, `handles_failures`, `associative` + `commutative`, `identity(e)`, `on(s)` on
+  `define_rule`, `define_fn` and `define_sym`.
+- **`rewrite(e, rules[, strategy: once | fixed_point | innermost])`:** `once` (default) is one pass over all subterms,
+  outermost first; `fixed_point` and `innermost` repeat passes, evaluating after each, until nothing changes (fuel
+  bounds the passes); every walk is iterative.
+
+## Public API additions
+
+- `Hold::Positions(u32)`, `Hold::mask`, `Hold::from_mask`; `Attributes::listable` (attributes stored as `u64`);
+  `Kernel::set_identity`.
+- `mc_bench::Evaluated::output: Vec<String>` (struct literals updated across the repo); `Engine::configure(option,
+  value)` with a default error; the `#@ memo: on|off` case directive (`child.rs` calls `configure("memo", "off")`; an
+  engine without support runs the case with a note).
+- `CoreEngine::configure` for memo, and `CoreEngine::install(f)` to register natives (e.g. a library's `install`).
+- The REPL prints output lines before the result.
+
+## Tests
+
+- `crates/mc-engine/tests/language.rs` (4 tests): a 50-entry session covering every feature; the same session at 1
+  thread, 4 threads lazy and 4 threads always-split, each under stress collection, memo on and off, all identical;
+  cells under speculation (a frontier cell read by many speculative tasks, private cells per element, closures
+  escaping from map elements); R2 (m = 1000 release, 200 debug), R9 (10^4 → 10001), R12 (10^4 → 261), with stub
+  natives for `mod`, `max`, `range`, `nest`, `depth`.
+- `crates/mc-repl/tests/sessions/language.txt`: a 50-input REPL transcript (`core_sessions.rs` runs both transcripts).
+- Unit test of hygienic substitution including a 200,000-deep term; mc-bench case-directive tests.
+
+## Measurements (busy machine, release)
+
+| Run | Result |
+|---|---|
+| R1, memo off | fib(30) 3.7 s, about 2.7 µs per call; fib(20) 30 ms |
+| R2 | 10^3 in 8.9 ms, 10^4 in 111 ms, both pass; 10^5 stops at the depth limit |
+| Interpreted loop | about 1.3 µs per `while i < n { i = i + 1 }` iteration (general evaluation and arithmetic, not cells) |
+
+## Decisions
+
+- **H.1** Lexical scope by substitution: `let` substitutes its value into later statements (one substitution per
+  statement); closures capture by having those values substituted into them.
+- **H.2** Renamed binders become `y$k`, with the smallest `k` occurring neither in the substituted values nor in the
+  form (deterministic, not writable as a plain identifier).
+- **H.3** `var x` stands for `local_cell(id)`; reading gives the stored value (a normal form, not re-evaluated); cells
+  are not definitions and carry no version; an evaluation that reads or allocates a cell is volatile (not memoised).
+- **H.4** Two id spaces keep printed results deterministic across thread counts: the frontier allocates the smallest
+  free positive id (blocks free their cells at the end unless the value or an effect may hold them); speculative tasks
+  use negative task-owned ids, and a speculative result containing one becomes a hole.
+- **H.5** Only a cell's owner writes it (anyone else leaves a hole); a frontier write to a cell a speculative task may
+  be reading bumps the read-set bit of `local_cell`; inside a condition only cells allocated within it may be written.
+- **H.6** Holding is a property of the function (the union of all clauses' `held` positions).
+- **H.7** Optional parameters (at most 6 per clause) expand into rules with and without the argument; the default is
+  bound by `let`, which also checks a declared type.
+- **H.8** Options after `;` add a variant with a trailing `named(options$, options(___))` argument; the body is wrapped
+  as `block(check_options(...), let(name, option_value(options$, "name", default)), ..., body)`.
+- **H.9** In blocks, `while` and `for`, a failure statement ends the construct with that failure; a non-boolean
+  `while` condition gives `failure(not_boolean, c)`; a typed `let` mismatch gives `failure(type_mismatch, x, v)`.
+- **H.10** `let`/`var` outside a block define the symbol's own value; `assign` on a symbol sets its own value and
+  returns the value.
+- **H.11** `for` iterates `range(n)`, `range(a, b)`, `range(a, b, step)` with machine-integer bounds directly (inclusive;
+  `range(n)` = 1..n) without building the list.
+- **H.12** A block whose cells allocated nothing returns its last statement for the evaluator to evaluate (tail calls
+  through blocks and `if`: `deep(100000)` works); blocks with cells evaluate the last statement themselves.
+- **H.13** `identity(e)` requires `associative` + `commutative`; `on(s)` is not allowed on a `sym` declaration.
+- **H.14** Patterns in `match` and `rewrite` are compiled on every call (no cache).
+
+## Known gaps
+
+- The evaluator still recurses once per evaluation level (depth limit): R2 at 10^5 reports it; R9 at large sizes
+  relies on the memo.
+- Result types of `fn` and parametric parameter types (`List(Int)`) are not checked.
+- Cell assignment counts as an effect for purity, so speculative tasks can only write cells they allocated.
+- A failure value containing a cell keeps it alive for the session; escaping frontier cells are never reclaimed.
+- `replace_at` was not done.

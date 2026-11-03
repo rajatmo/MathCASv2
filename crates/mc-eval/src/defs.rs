@@ -9,7 +9,7 @@ use crate::index::{Rule, RuleSet};
 use mc_core::{Heap, Raw, Sym, HOLE, T};
 use parking_lot::Mutex;
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering::*};
+use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicU64, Ordering::*};
 use std::sync::OnceLock;
 
 /// Argument modes (semantics 5) of the built-ins and of symbols given attributes.
@@ -24,6 +24,9 @@ pub enum Hold {
     Rest,
     /// no argument is evaluated
     All,
+    /// argument `i` is held when bit `i` is set (`i < 31`); bit 31 holds every argument from position 31 on (the
+    /// mode of `held` parameters, 04 section 6.5, and of `for`)
+    Positions(u32),
 }
 
 impl Hold {
@@ -35,22 +38,50 @@ impl Hold {
             Hold::First => i == 0,
             Hold::Rest => i > 0,
             Hold::All => true,
+            Hold::Positions(m) => m >> i.min(31) & 1 != 0,
         }
     }
-    fn bits(self) -> u32 {
-        self as u32
+    /// The mode as a position mask (bit 31 standing for every later position).
+    pub fn mask(self) -> u32 {
+        match self {
+            Hold::None => 0,
+            Hold::First => 1,
+            Hold::Rest => !1,
+            Hold::All => !0,
+            Hold::Positions(m) => m,
+        }
     }
-    fn from_bits(b: u32) -> Hold {
-        match b & 3 {
+    /// The simplest mode holding exactly the positions of `mask`.
+    pub fn from_mask(mask: u32) -> Hold {
+        match mask {
+            0 => Hold::None,
+            1 => Hold::First,
+            m if m == !1 => Hold::Rest,
+            m if m == !0 => Hold::All,
+            m => Hold::Positions(m),
+        }
+    }
+    fn bits(self) -> u64 {
+        match self {
+            Hold::None => 0,
+            Hold::First => 1,
+            Hold::Rest => 2,
+            Hold::All => 3,
+            Hold::Positions(m) => 4 | (m as u64) << 32,
+        }
+    }
+    fn from_bits(b: u64) -> Hold {
+        match b & 7 {
             0 => Hold::None,
             1 => Hold::First,
             2 => Hold::Rest,
-            _ => Hold::All,
+            3 => Hold::All,
+            _ => Hold::Positions((b >> 32) as u32),
         }
     }
 }
 
-/// Symbol attributes (semantics 5, 7.3, 9).
+/// Symbol attributes (semantics 5, 7.2, 7.3, 9).
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct Attributes {
     /// argument modes
@@ -62,21 +93,31 @@ pub struct Attributes {
     pub effect: bool,
     /// the function receives failures as arguments instead of returning the first one (semantics 10)
     pub handles_failures: bool,
+    /// the function maps over list arguments of equal length, broadcasting the others (semantics 7.2)
+    pub listable: bool,
 }
 
-const A_AC: u32 = 1 << 2;
-const A_EFFECT: u32 = 1 << 3;
-const A_FAILURES: u32 = 1 << 4;
+const A_AC: u64 = 1 << 3;
+const A_EFFECT: u64 = 1 << 4;
+const A_FAILURES: u64 = 1 << 5;
+const A_LISTABLE: u64 = 1 << 6;
 
 impl Attributes {
-    fn bits(self) -> u32 {
+    fn bits(self) -> u64 {
         self.hold.bits()
             | if self.ac { A_AC } else { 0 }
             | if self.effect { A_EFFECT } else { 0 }
             | if self.handles_failures { A_FAILURES } else { 0 }
+            | if self.listable { A_LISTABLE } else { 0 }
     }
-    pub(crate) fn from_bits(b: u32) -> Attributes {
-        Attributes { hold: Hold::from_bits(b), ac: b & A_AC != 0, effect: b & A_EFFECT != 0, handles_failures: b & A_FAILURES != 0 }
+    pub(crate) fn from_bits(b: u64) -> Attributes {
+        Attributes {
+            hold: Hold::from_bits(b),
+            ac: b & A_AC != 0,
+            effect: b & A_EFFECT != 0,
+            handles_failures: b & A_FAILURES != 0,
+            listable: b & A_LISTABLE != 0,
+        }
     }
 }
 
@@ -92,7 +133,9 @@ pub(crate) struct SymDefs {
     /// the own value's handle bits, or [`HOLE`]
     own: AtomicU32,
     version: AtomicU32,
-    attrs: AtomicU32,
+    attrs: AtomicU64,
+    /// the identity element's handle bits (semantics 7.3), or [`HOLE`]
+    identity: AtomicU32,
     /// index + 1 of the symbol's native implementation (0: none)
     pub(crate) native: AtomicU32,
     rules: OnceLock<Box<RuleSet>>,
@@ -109,7 +152,8 @@ impl Default for SymDefs {
         SymDefs {
             own: AtomicU32::new(HOLE),
             version: AtomicU32::new(0),
-            attrs: AtomicU32::new(0),
+            attrs: AtomicU64::new(0),
+            identity: AtomicU32::new(HOLE),
             native: AtomicU32::new(0),
             rules: OnceLock::new(),
             args: AtomicPtr::new(null_mut()),
@@ -128,6 +172,13 @@ impl SymDefs {
     #[inline]
     pub(crate) fn attrs(&self) -> Attributes {
         Attributes::from_bits(self.attrs.load(Relaxed))
+    }
+
+    /// The identity element, if one was declared.
+    #[inline]
+    pub(crate) fn identity<'h>(&self, h: &'h Heap) -> Option<T<'h>> {
+        let bits = self.identity.load(Acquire);
+        (bits != HOLE).then(|| Raw::from_bits(bits).get(h))
     }
 
     #[inline]
@@ -222,6 +273,13 @@ impl Defs {
         sd.version.fetch_add(1, Relaxed);
     }
 
+    pub(crate) fn set_identity(&self, s: Sym, e: Option<T<'_>>) {
+        let _w = self.writer.lock();
+        let sd = self.syms.get_or_init(s.0);
+        sd.identity.store(e.map_or(HOLE, |e| Raw::new(e).to_bits()), Release);
+        sd.version.fetch_add(1, Relaxed);
+    }
+
     pub(crate) fn set_native(&self, s: Sym, index: u32) {
         let _w = self.writer.lock();
         let sd = self.syms.get_or_init(s.0);
@@ -253,11 +311,12 @@ impl Defs {
     pub(crate) fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
         self.reclaim();
         self.syms.for_each_mut(|sd| {
-            let bits = sd.own.get_mut();
-            if *bits != HOLE {
-                let mut r = Raw::from_bits(*bits);
-                visit(&mut r);
-                *bits = r.to_bits();
+            for bits in [sd.own.get_mut(), sd.identity.get_mut()] {
+                if *bits != HOLE {
+                    let mut r = Raw::from_bits(*bits);
+                    visit(&mut r);
+                    *bits = r.to_bits();
+                }
             }
             sd.for_each_rule_set(|rs| rs.trace(visit));
         });

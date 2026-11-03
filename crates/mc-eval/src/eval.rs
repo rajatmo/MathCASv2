@@ -22,6 +22,7 @@
 //!
 //! **Conditions are pure** (6.1, A.6): an effect reached while a condition runs gives
 //! `failure(effect_in_condition)` as the value of the term whose rule's condition reached it.
+use crate::cells::Cells;
 use crate::conc::SymTable;
 use crate::ctl::{Control, Status, FUEL_BLOCK};
 use crate::defs::{Attributes, Defs, Hold, SymDefs};
@@ -29,7 +30,8 @@ use crate::index::{Rhs, Rule, RuleRhs, Scratch};
 use crate::matcher::{Binds, Matcher};
 use crate::native::{Native, NativeCx, Pattern, Reply};
 use crate::order::{StructuralOrder, TermOrder};
-use crate::pat::{compile, Canon, DefError, Pat};
+use crate::pat::{compile, has_type, Canon, DefError, Pat};
+use crate::subst::Scopes;
 use mc_core::{Heap, Raw, Roots, Store, Sym, Trace, View, T};
 use parking_lot::Mutex;
 use std::borrow::Cow;
@@ -126,6 +128,11 @@ pub(crate) struct Names {
     pub(crate) null: Sym,
     pub(crate) failure: Sym,
     pub(crate) effect_in_condition: Sym,
+    pub(crate) no_match: Sym,
+    /// the term a `var` stands for: `local_cell(id)` (see [`crate::cells`])
+    pub(crate) local_cell: Sym,
+    /// the binding forms (hygienic substitution, closures)
+    pub(crate) scopes: Scopes,
 }
 
 impl Names {
@@ -138,6 +145,9 @@ impl Names {
             null: h.sym(names::NULL),
             failure: h.sym(names::FAILURE),
             effect_in_condition: h.sym(names::failure::EFFECT_IN_CONDITION),
+            no_match: h.sym(names::failure::NO_MATCH),
+            local_cell: h.sym("local_cell"),
+            scopes: Scopes::new(h),
         }
     }
 }
@@ -174,6 +184,8 @@ pub struct Kernel {
     /// the last epoch at which a symbol with each read-set bit was defined
     last_change: [AtomicU32; 64],
     out: Mutex<Vec<Raw>>,
+    /// the cells of mutable locals
+    pub(crate) cells: Cells,
     pub(crate) names: Names,
     cfg: EvalConfig,
     /// Terms the session keeps across evaluations (history, inputs); traced with the kernel.
@@ -187,6 +199,7 @@ impl Trace for Kernel {
             n.trace(visit);
         }
         self.out.get_mut().iter_mut().for_each(&mut *visit);
+        self.cells.trace(visit);
         self.roots.trace(visit);
     }
 }
@@ -209,6 +222,7 @@ impl Kernel {
             epoch: AtomicU32::new(1),
             last_change: std::array::from_fn(|_| AtomicU32::new(0)),
             out: Mutex::new(vec![]),
+            cells: Cells::default(),
             names: Names::new(h),
             cfg,
             roots: Roots::new(),
@@ -235,7 +249,7 @@ impl Kernel {
     // --- definitions between evaluations ---------------------------------------------------------------------
 
     /// Record a definition of symbols with read-set `bits` at the next epoch, around `define`.
-    fn defined<R>(&self, from: u32, bits: u64, define: impl FnOnce() -> R) -> (R, u32) {
+    pub(crate) fn defined<R>(&self, from: u32, bits: u64, define: impl FnOnce() -> R) -> (R, u32) {
         let e = from.wrapping_add(1);
         let mut b = bits;
         while b != 0 {
@@ -275,6 +289,13 @@ impl Kernel {
         self.set_attributes(s, a);
         let e = *self.epoch.get_mut();
         self.defined(e, bit(s), || self.defs.set_native(s, i));
+    }
+
+    /// Declare (or remove) the identity element of an associative and commutative symbol (semantics 7.3): its
+    /// canonical form drops identity arguments, is the identity with no arguments and the argument with one.
+    pub fn set_identity(&mut self, s: Sym, e: Option<T<'_>>) {
+        let ep = *self.epoch.get_mut();
+        self.defined(ep, bit(s), || self.defs.set_identity(s, e));
     }
 
     /// Replace the canonical order (normally by `mc-arith`'s). Terms already canonicalised keep their order.
@@ -396,6 +417,7 @@ impl Kernel {
 
     /// Evaluate `t` with a fuel budget.
     pub fn eval_with<'h>(&mut self, h: &'h Heap, t: T<'h>, fuel: i64) -> Evaluation<'h> {
+        self.cells.begin();
         let k: &Kernel = self;
         k.ctl.begin(fuel);
         let ev = Eval { heap: h, k };
@@ -495,6 +517,14 @@ fn make<'h>(k: &Kernel, h: &'h Heap, head: T<'h>, args: &[T<'h>]) -> T<'h> {
         }
     }
     k.order.sort(h, &mut v);
+    if let Some(e) = sym_of(h, head).and_then(|s| k.defs.get(s)).and_then(|d| d.identity(h)) {
+        v.retain(|&a| a != e);
+        match v[..] {
+            [] => return e,
+            [a] => return a,
+            _ => {}
+        }
+    }
     h.app(head, &v)
 }
 
@@ -515,6 +545,16 @@ pub(crate) struct Cx<'h> {
     share: u64,
     /// How many conditions this task is inside (effects are refused when nonzero, A.6).
     pub(crate) in_cond: u32,
+    /// The cell allocation counter when the outermost condition was entered: older cells are read-only inside.
+    pub(crate) cond_born: u64,
+    /// The task's id for cell ownership (0: the frontier; see [`crate::cells`]).
+    pub(crate) task: u64,
+    /// Reads and allocations of cells: an evaluation that made any is not memoised.
+    pub(crate) volatile: u32,
+    /// Effects that may have stored a cell term somewhere outliving a block (its cells are then kept).
+    pub(crate) escapes: u32,
+    /// The cell allocation counter at the frontier's latest split: speculative tasks may read older cells.
+    pub(crate) split_born: u64,
     depth: u32,
     threads: u32,
     splits: u64,
@@ -537,6 +577,11 @@ impl<'h> Cx<'h> {
             avail: 0,
             share: 0,
             in_cond: 0,
+            cond_born: 0,
+            task: 0,
+            volatile: 0,
+            escapes: 0,
+            split_born: 0,
             depth: 0,
             threads,
             splits: 0,
@@ -634,7 +679,23 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// The context of a speculative task split off `cx`: its share is what `cx` could still spend.
     fn speculative(&self, cx: &Cx<'h>) -> Cx<'h> {
         let share = cx.avail + if cx.front { self.k.ctl.remaining() } else { cx.share };
-        Cx { front: false, reads: 0, effects: 0, fuel: 0, avail: 0, share, splits: 0, redos: 0, holes: 0, next_poll: 0, pool: vec![], ..*cx }
+        Cx {
+            front: false,
+            reads: 0,
+            effects: 0,
+            fuel: 0,
+            avail: 0,
+            share,
+            task: self.k.cells.task(),
+            volatile: 0,
+            escapes: 0,
+            splits: 0,
+            redos: 0,
+            holes: 0,
+            next_poll: 0,
+            pool: vec![],
+            ..*cx
+        }
     }
 
     /// Effects are allowed on the frontier, outside conditions (semantics 18.2, A.6).
@@ -654,6 +715,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// Append to the output (an effect).
     pub(crate) fn emit(&self, cx: &mut Cx<'h>, t: T<'h>) -> Res<()> {
         self.effect(cx)?;
+        self.note_store(cx, t);
         self.k.out.lock().push(Raw::new(t));
         Ok(())
     }
@@ -661,10 +723,30 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// `s = v` during an evaluation (an effect of the frontier).
     pub(crate) fn set_own(&self, cx: &mut Cx<'h>, s: Sym, v: T<'h>) -> Res<()> {
         self.effect(cx)?;
+        self.note_store(cx, v);
         debug_assert_eq!(cx.epoch, self.k.epoch.load(Relaxed), "only the frontier defines");
         let ((), e) = self.k.defined(cx.epoch, bit(s), || self.k.defs.set_own(s, v));
         cx.epoch = e;
         Ok(())
+    }
+
+    /// The identity element changed during an evaluation (an effect of the frontier).
+    pub(crate) fn set_identity(&self, cx: &mut Cx<'h>, s: Sym, v: Option<T<'h>>) -> Res<()> {
+        self.effect(cx)?;
+        if let Some(v) = v {
+            self.note_store(cx, v);
+        }
+        let ((), e) = self.k.defined(cx.epoch, bit(s), || self.k.defs.set_identity(s, v));
+        cx.epoch = e;
+        Ok(())
+    }
+
+    /// `v` is stored where it outlives the current block: if it may hold a cell, the block's cells escape.
+    #[inline]
+    pub(crate) fn note_store(&self, cx: &mut Cx<'h>, v: T<'h>) {
+        if self.heap.mask(v) & bit(self.k.names.local_cell) != 0 {
+            cx.escapes += 1;
+        }
     }
 
     /// Attributes changed during an evaluation (an effect of the frontier).
@@ -679,6 +761,8 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// speculative tasks may be reading it.
     pub(crate) fn define_rule(&self, cx: &mut Cx<'h>, lhs: Pat, rhs: RuleRhs, attach: Option<Sym>) -> Res<Result<(), DefError>> {
         self.effect(cx)?;
+        // a rule's terms may hold cells: conservatively, every rule definition lets them escape
+        cx.escapes += 1;
         debug_assert_eq!(cx.epoch, self.k.epoch.load(Relaxed), "only the frontier defines");
         Ok(self.k.define_rule(self.heap, cx.epoch, lhs, rhs, attach).map(|e| cx.epoch = e))
     }
@@ -694,7 +778,8 @@ impl<'k, 'h> Eval<'k, 'h> {
             _ => return Ok(t),
         }
         self.tick(cx)?;
-        let memo = self.k.cfg.memo;
+        // a term that refers to a cell is volatile (its value depends on the cell): not looked up
+        let memo = self.k.cfg.memo && h.mask(t) & bit(self.k.names.local_cell) == 0;
         if memo {
             if let Some(hit) = h.memo_get(t) {
                 // the epoch fast path, then the read-set check (semantics 4.3); a hit passes its read set on (2.7)
@@ -711,7 +796,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             }
             return Err(Abort::Hole);
         }
-        let (reads0, effects0, epoch0, fuel0) = (cx.reads, cx.effects, cx.epoch, cx.fuel);
+        let (reads0, effects0, epoch0, fuel0, volatile0) = (cx.reads, cx.effects, cx.epoch, cx.fuel, cx.volatile);
         cx.reads = 0;
         cx.depth += 1;
         let r = self.eval_inner(cx, t);
@@ -728,8 +813,8 @@ impl<'k, 'h> Eval<'k, 'h> {
                 self.k.learn(s, cx.fuel - fuel0);
             }
         }
-        // results that involve effects are never memoised (semantics 9); stamped with the start epoch (4.8)
-        if memo && cx.effects == effects0 {
+        // results that involve effects or cells are never memoised (semantics 9, 6.7); stamped with the start epoch
+        if memo && cx.effects == effects0 && cx.volatile == volatile0 {
             h.memo_put(t, v, epoch0, deps);
             if v != t {
                 h.memo_put(v, v, epoch0, deps);
@@ -776,6 +861,20 @@ impl<'k, 'h> Eval<'k, 'h> {
                 t = h.app(hv, args);
                 continue;
             }
+            // a closure applied to arguments (semantics 6.7): its body with the parameters bound, evaluated in this
+            // loop (a tail call)
+            if hs.is_none() {
+                if let Some((params, body)) = self.closure(head) {
+                    match self.apply(cx, head, params, body, args)? {
+                        Step::Again(u) => {
+                            self.tick(cx)?;
+                            t = u;
+                            continue;
+                        }
+                        Step::Done(v) => return Ok(v),
+                    }
+                }
+            }
             let attrs = sd.map_or_else(Attributes::default, SymDefs::attrs);
             // 3.2: the arguments, by the head's argument modes
             let vals = self.eval_args(cx, args, attrs)?;
@@ -784,9 +883,21 @@ impl<'k, 'h> Eval<'k, 'h> {
                     return Ok(f);
                 }
             }
-            // 3.3: canonicalise
+            // listable functions map over list arguments (semantics 7.2)
+            if attrs.listable {
+                if let Some(u) = self.thread(head, &vals) {
+                    self.tick(cx)?;
+                    t = u;
+                    continue;
+                }
+            }
+            // 3.3: canonicalise (with an identity element, the result may not be a call of the head any more)
             if attrs.ac {
                 t = self.make(head, &vals);
+                if !matches!(h.view(t), View::App { head: g, .. } if g == head) {
+                    self.tick(cx)?;
+                    continue;
+                }
             } else if *vals != *args {
                 t = h.app(head, &vals);
             }
@@ -814,6 +925,191 @@ impl<'k, 'h> Eval<'k, 'h> {
                 Err(Abort::EffectInCondition) if cx.in_cond == 0 => return Ok(self.effect_failure()),
                 Err(e) => return Err(e),
             }
+        }
+    }
+
+    /// The parameters and body of a closure `fn(list(params), body)`.
+    #[inline]
+    fn closure(&self, f: T<'h>) -> Option<(&'h [T<'h>], T<'h>)> {
+        let h = self.heap;
+        let View::App { head, args: &[ps, body] } = h.view(f) else { return None };
+        if head != self.sym(self.k.names.scopes.fn_) {
+            return None;
+        }
+        match h.view(ps) {
+            View::App { head: l, args } if l == self.sym(self.k.names.list) => Some((args, body)),
+            _ => None,
+        }
+    }
+
+    /// Apply closure `f` to `args`: arguments evaluated except at `held` parameters (a failure among them is the
+    /// result), bound to the parameters in order (`optional` defaults evaluated when an argument is missing, `typed`
+    /// checked, `rest` taking the remaining arguments as a list), and substituted into the body hygienically.
+    /// A call the parameters do not accept gives `failure(no_match, f, [args])`.
+    fn apply(&self, cx: &mut Cx<'h>, f: T<'h>, params: &[T<'h>], body: T<'h>, args: &[T<'h>]) -> Res<Step<'h>> {
+        let h = self.heap;
+        let sc = &self.k.names.scopes;
+        let mut infos = Vec::with_capacity(params.len());
+        let mut hold = 0u32;
+        for (i, &p) in params.iter().enumerate() {
+            let Some(info) = Param::of(h, sc, p) else {
+                return Ok(Step::Done(self.no_match(f, args)));
+            };
+            if info.held {
+                hold |= if info.rest { !0u32 << i.min(31) } else { 1u32 << i.min(31) };
+            }
+            infos.push(info);
+        }
+        let vals = self.eval_args(cx, args, Attributes { hold: Hold::from_mask(hold), ..Attributes::default() })?;
+        if let Some(fail) = self.first_failure(&vals) {
+            return Ok(Step::Done(fail));
+        }
+        let mut pairs: Vec<(Sym, T<'h>)> = Vec::with_capacity(params.len());
+        let mut j = 0;
+        for info in &infos {
+            if info.rest {
+                pairs.push((info.name, h.call(self.k.names.list, &vals[j..])));
+                j = vals.len();
+                continue;
+            }
+            let v = if j < vals.len() {
+                j += 1;
+                vals[j - 1]
+            } else if let Some(d) = info.default {
+                // a default sees the parameters before it
+                let d = crate::subst::substitute(h, sc, d, &pairs);
+                self.eval(cx, d)?
+            } else {
+                return Ok(Step::Done(self.no_match(f, &vals)));
+            };
+            if info.ty.is_some_and(|ty| !has_type(h, v, ty)) {
+                return Ok(Step::Done(self.no_match(f, &vals)));
+            }
+            pairs.push((info.name, v));
+        }
+        if j < vals.len() {
+            return Ok(Step::Done(self.no_match(f, &vals)));
+        }
+        Ok(Step::Again(crate::subst::substitute(h, sc, body, &pairs)))
+    }
+
+    /// `failure(no_match, f, [args])` (04 section 6.2).
+    pub(crate) fn no_match(&self, f: T<'h>, args: &[T<'h>]) -> T<'h> {
+        let h = self.heap;
+        let nm = &self.k.names;
+        h.call(nm.failure, &[self.sym(nm.no_match), f, h.call(nm.list, args)])
+    }
+
+    /// A listable call with list arguments: the list of calls on corresponding elements, the other arguments
+    /// broadcast; `failure(shape_mismatch)` for lists of different lengths. `None` without list arguments.
+    fn thread(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
+        let h = self.heap;
+        let list = self.sym(self.k.names.list);
+        let as_list = |t: T<'h>| match h.view(t) {
+            View::App { head, args } if head == list => Some(args),
+            _ => None,
+        };
+        let mut n = None;
+        for &v in vals {
+            if let Some(xs) = as_list(v) {
+                match n {
+                    None => n = Some(xs.len()),
+                    Some(m) if m != xs.len() => return Some(self.failure(&["shape_mismatch"])),
+                    Some(_) => {}
+                }
+            }
+        }
+        let n = n?;
+        let mut parts = Vec::with_capacity(vals.len());
+        let elems: Vec<T<'h>> = (0..n)
+            .map(|i| {
+                parts.clear();
+                parts.extend(vals.iter().map(|&v| as_list(v).map_or(v, |xs| xs[i])));
+                h.app(head, &parts)
+            })
+            .collect();
+        Some(h.app(list, &elems))
+    }
+
+    // --- cells (crate::cells) --------------------------------------------------------------------------------
+
+    /// A new cell holding `v`: its id and the term `local_cell(id)` standing for it.
+    pub(crate) fn alloc_cell(&self, cx: &mut Cx<'h>, v: T<'h>) -> (i64, T<'h>) {
+        cx.volatile += 1;
+        let id = self.k.cells.alloc(cx.front, cx.task, v);
+        (id, self.heap.call(self.k.names.local_cell, &[self.heap.int(id)]))
+    }
+
+    /// The value of cell `id`, if it is allocated (the read is recorded and makes the evaluation volatile).
+    pub(crate) fn read_cell(&self, cx: &mut Cx<'h>, id: i64) -> Option<T<'h>> {
+        cx.volatile += 1;
+        cx.reads |= bit(self.k.names.local_cell);
+        self.k.cells.slot(id)?.get(self.heap)
+    }
+
+    /// Write `v` to cell `id`; false when there is no such cell. Only the cell's owner writes (others leave a
+    /// hole), and inside a condition only cells allocated in it.
+    pub(crate) fn write_cell(&self, cx: &mut Cx<'h>, id: i64, v: T<'h>) -> Res<bool> {
+        let Some(slot) = self.k.cells.slot(id) else { return Ok(false) };
+        let born = slot.born.load(Relaxed);
+        let owned = if id > 0 { cx.front } else { slot.owner.load(Relaxed) == cx.task };
+        if !owned {
+            // the frontier never meets a speculative cell; a speculative task cannot write the frontier's
+            return if cx.front { Ok(false) } else { Err(Abort::Hole) };
+        }
+        if cx.in_cond > 0 && born <= cx.cond_born {
+            return Err(Abort::EffectInCondition);
+        }
+        if cx.front && born <= cx.split_born {
+            // a speculative task may have read it: speculative work that did is redone
+            let ((), e) = self.k.defined(cx.epoch, bit(self.k.names.local_cell), || ());
+            cx.epoch = e;
+        }
+        cx.volatile += 1;
+        self.note_store(cx, v);
+        slot.set(v);
+        Ok(true)
+    }
+
+    /// The ids of the cells `t` refers to that satisfy `pred` (the first one found).
+    pub(crate) fn find_cell(&self, t: T<'h>, pred: impl Fn(i64) -> bool) -> Option<i64> {
+        let h = self.heap;
+        let lc = self.sym(self.k.names.local_cell);
+        let b = h.mask(lc);
+        if h.mask(t) & b == 0 {
+            return None;
+        }
+        let mut seen = rustc_hash::FxHashSet::default();
+        let mut stack = vec![t];
+        while let Some(u) = stack.pop() {
+            if h.mask(u) & b == 0 || !seen.insert(u) {
+                continue;
+            }
+            if let View::App { head, args } = h.view(u) {
+                if head == lc {
+                    if let [a] = args {
+                        if let View::Int(id) = h.view(*a) {
+                            if pred(id) {
+                                return Some(id);
+                            }
+                        }
+                    }
+                }
+                stack.push(head);
+                stack.extend_from_slice(args);
+            }
+        }
+        None
+    }
+
+    /// The end of a block that allocated `cells` (frontier cells; `escapes0` the escape count at its start): they
+    /// are freed unless the block's value or an effect may hold them.
+    pub(crate) fn end_block(&self, cx: &mut Cx<'h>, cells: &[i64], escapes0: u32, value: Option<T<'h>>) {
+        if cells.is_empty() || !cx.front {
+            return;
+        }
+        if cx.escapes == escapes0 && value.is_none_or(|v| self.find_cell(v, |id| cells.contains(&id)).is_none()) {
+            self.k.cells.free(cells);
         }
     }
 
@@ -883,7 +1179,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             }
             found
         };
-        Ok(found.map(|r| r.rhs.build(&sc.out, h, self.k.names.list)))
+        Ok(found.map(|r| r.rhs.build(&sc.out, h, &self.k.names)))
     }
 
     /// Does compiled pattern `p` match `t`?
@@ -892,6 +1188,21 @@ impl<'k, 'h> Eval<'k, 'h> {
         let r = {
             let mt = Matcher::new(self, cx);
             let m = mt.matches(&p.pat, p.nvars, t, &mut sc.binds);
+            match mt.stopped() {
+                Some(a) => Err(a),
+                None => Ok(m),
+            }
+        };
+        cx.pool.push(sc);
+        r
+    }
+
+    /// The first match of `p` against `t`, its bindings in `out`.
+    pub(crate) fn match_binds(&self, cx: &mut Cx<'h>, p: &Pattern, t: T<'h>, out: &mut Binds<'h>) -> Res<bool> {
+        let mut sc = cx.pool.pop().unwrap_or_default();
+        let r = {
+            let mt = Matcher::new(self, cx);
+            let m = mt.first(&p.pat, p.nvars, t, &mut sc.binds, out);
             match mt.stopped() {
                 Some(a) => Err(a),
                 None => Ok(m),
@@ -1005,10 +1316,20 @@ impl<'k, 'h> Eval<'k, 'h> {
                 let epoch0 = cx.epoch;
                 let mut rc = self.speculative(cx);
                 cx.splits += 1;
+                // cells: the speculative part may read every cell allocated so far; a speculative left part runs
+                // under a new id, so neither half writes the cells they share
+                let task = cx.task;
+                if cx.front {
+                    cx.split_born = self.k.cells.born();
+                } else {
+                    cx.task = self.k.cells.task();
+                }
                 let (rl, rr) = rayon::join(
                     || self.range(cx, i, mid, 0, left, lf, est, f),
                     || self.range(&mut rc, mid, hi, 0, right, rf, est, f),
                 );
+                cx.task = task;
+                cx.volatile += rc.volatile;
                 cx.splits += rc.splits;
                 cx.redos += rc.redos;
                 cx.holes += rc.holes;
@@ -1029,7 +1350,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                 return Ok(holes);
             }
             let f0 = cx.fuel;
-            match f(self, cx, i) {
+            // a speculative cell never leaves its task (crate::cells): such a value is redone by the frontier
+            let r = match f(self, cx, i) {
+                Ok(v) if !cx.front && self.find_cell(v, |id| id < 0).is_some() => Err(Abort::Hole),
+                r => r,
+            };
+            match r {
                 Ok(v) => {
                     out[i - lo] = v;
                     fuels[i - lo] = cx.fuel - f0;
@@ -1093,6 +1419,45 @@ impl<'k, 'h> Eval<'k, 'h> {
     }
 }
 
+/// A closure parameter: `x`, with the wrappers `held`, `rest`, `typed(_, T)`, `optional(_, d)` (any order).
+struct Param<'h> {
+    name: Sym,
+    held: bool,
+    rest: bool,
+    ty: Option<crate::pat::Ty>,
+    default: Option<T<'h>>,
+}
+
+impl<'h> Param<'h> {
+    fn of(h: &'h Heap, sc: &Scopes, mut p: T<'h>) -> Option<Param<'h>> {
+        let mut info = Param { name: sc.fn_, held: false, rest: false, ty: None, default: None };
+        // wrappers nest a few levels at most
+        for _ in 0..8 {
+            match h.view(p) {
+                View::Sym(s) => {
+                    info.name = s;
+                    return Some(info);
+                }
+                View::App { head, args } => {
+                    let w = sym_of(h, head)?;
+                    match args {
+                        [_] if w == sc.held => info.held = true,
+                        [_] if w == sc.rest => info.rest = true,
+                        [_] if w == sc.any => {}
+                        // a type that is not one of the atomic types is not checked
+                        [_, ty] if w == sc.typed => info.ty = crate::syntax::type_of(h, *ty).ok(),
+                        [_, d] if w == sc.optional => info.default = Some(*d),
+                        _ => return None,
+                    }
+                    p = args[0];
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+}
+
 /// What a condition sees: the shared heap, its declared variables, own values and the evaluator, with every read
 /// entering the task's read set (I2.3). Effects are refused (A.6).
 pub struct CondCx<'a, 'k, 'h> {
@@ -1145,10 +1510,10 @@ impl<'h> CondCx<'_, '_, 'h> {
     /// with `true`.
     pub(crate) fn term_condition(&mut self, body: Raw, names: &[Sym]) -> Res<bool> {
         let h = self.ev.heap;
-        let list = self.ev.k.names.list;
+        let nm = &self.ev.k.names;
         let pairs: Vec<(Sym, T<'h>)> =
-            names.iter().zip(self.vars.iter()).map(|(&s, &v)| (s, crate::subst::value(h, self.binds, v, list))).collect();
-        let t = crate::subst::substitute(h, body.get(h), &pairs);
+            names.iter().zip(self.vars.iter()).map(|(&s, &v)| (s, crate::subst::value(h, self.binds, v, nm.list))).collect();
+        let t = crate::subst::substitute(h, &nm.scopes, body.get(h), &pairs);
         let r = self.eval(t)?;
         Ok(self.is_true(r))
     }

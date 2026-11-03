@@ -60,7 +60,7 @@ fn definition_terms_install_rules() {
                 // c = iadd(1, 2)
                 b.c("set", &[b.s("c"), b.c("iadd", &[b.i(1), b.i(2)])]),
                 // a malformed definition: a failure value, nothing installed
-                b.c("set_delayed", &[b.c("bad", &[b.c("optional", &[any(x), b.i(0)])]), x]),
+                b.c("set_delayed", &[b.c("bad", &[b.c("g", &[b.c("optional", &[any(x), b.i(0)])])]), x]),
             ];
             let list = b.c("list", &defs);
             show(h, k.eval(h, list).value)
@@ -82,6 +82,6 @@ fn definition_terms_install_rules() {
     }
     assert_eq!(results[0], results[1]);
     let (defs, (uses, _)) = &results[0];
-    assert_eq!(defs, "failure(definition, \"not supported yet: optional arguments\")");
+    assert_eq!(defs, "failure(definition, \"not supported yet: optional arguments other than direct arguments of a definition\")");
     assert_eq!(uses, "list(3628800, got(list(1, 2)), both(g(5), 6), pair(h(5), 6), z, 4)");
 }

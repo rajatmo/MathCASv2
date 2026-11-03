@@ -8,7 +8,8 @@
 #@ setup
 rule fib(0) = 0
 rule fib(1) = 1
-rule fib(k_: Int) := fib(k) = fib(k - 1) + fib(k - 2)
+# definitions return null (semantics 6.4): the block defines fib(k) and returns its value
+rule fib(k_: Int) := { let v = fib(k - 1) + fib(k - 2); fib(k) = v; v }
 #@ measure
 fib(m)
 #@ property

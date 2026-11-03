@@ -148,7 +148,12 @@ impl Repl {
         // The flag served this evaluation; raised later, it means an interrupt at the prompt.
         self.stop.clear();
         match result {
-            Ok(value) => writeln!(out, "{}", value.printed)?,
+            Ok(value) => {
+                for line in &value.output {
+                    writeln!(out, "{line}")?;
+                }
+                writeln!(out, "{}", value.printed)?
+            }
             Err(EngineError::Syntax { message, offset }) => {
                 let (line_no, col, line) = locate(text, offset);
                 writeln!(out, "syntax error at line {line_no}, column {col}: {message}")?;

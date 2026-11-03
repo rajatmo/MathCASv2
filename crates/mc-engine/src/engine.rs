@@ -79,6 +79,11 @@ impl CoreEngine {
         CoreEngine { session, ctl, arith_stop, hook: None, has_last: false }
     }
 
+    /// Run `f` on the kernel between evaluations, for example to register more natives (a library's `install`).
+    pub fn install(&mut self, f: impl for<'h> FnOnce(&mut Kernel, &'h mc_core::Heap) + Send) {
+        self.session.step(|h, k| f(k, h));
+    }
+
     /// Route raises of `stop` to the evaluator's interrupt and `mc-arith`'s flag.
     fn attach(&mut self, stop: &StopFlag) {
         if self.hook.as_ref().is_some_and(|h| h.flag().same(stop)) {
@@ -113,7 +118,8 @@ impl CoreEngine {
                 // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
                 let _scope = StopScope::enter(Some(arith_stop));
                 let printed = Printer::with_numbers(h, Box::new(ArithNumbers)).expr(e.value);
-                Ok(Some(Evaluated { printed, fingerprint: Some(mc_core::shapes::fingerprint(h, e.value)) }))
+                let output = output(h, k);
+                Ok(Some(Evaluated { printed, fingerprint: Some(mc_core::shapes::fingerprint(h, e.value)), output }))
             });
             // an interrupt can also end inside arithmetic, as `failure(interrupted, ...)` in a finished value
             if stop.is_raised() {
@@ -132,6 +138,18 @@ impl Default for CoreEngine {
     fn default() -> CoreEngine {
         CoreEngine::new()
     }
+}
+
+/// The session output of this call to [`Engine::eval`] (it is cleared at the start of each): strings as their
+/// text, other terms printed.
+fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<String> {
+    k.output(h)
+        .into_iter()
+        .map(|t| match h.view(t) {
+            mc_core::View::Str(s) => s.to_string(),
+            _ => Printer::with_numbers(h, Box::new(ArithNumbers)).expr(t),
+        })
+        .collect()
 }
 
 /// The first diagnostic as the error (its message and offset; the caller renders the position), with the others
@@ -168,12 +186,24 @@ impl Engine for CoreEngine {
             Ok(terms.len())
         })?;
         let r = if n == 0 {
-            Ok(Evaluated { printed: names::NULL.into(), fingerprint: None })
+            Ok(Evaluated { printed: names::NULL.into(), fingerprint: None, output: vec![] })
         } else {
             self.run(n, stop)
         };
         self.session.state.roots.truncate(LAST + 1);
         r
+    }
+
+    /// Settings: `memo` `on` or `off` (memoisation of normal forms, `EvalConfig::memo`).
+    fn configure(&mut self, option: &str, value: &str) -> Result<(), EngineError> {
+        let memo = match (option, value) {
+            ("memo", "on") => true,
+            ("memo", "off") => false,
+            _ => return Err(EngineError::Other(format!("unknown engine setting {option}: {value}"))),
+        };
+        let k = &mut self.session.state;
+        k.set_config(EvalConfig { memo, ..*k.config() });
+        Ok(())
     }
 
     fn bind_last(&mut self, name: &str) -> Result<(), EngineError> {

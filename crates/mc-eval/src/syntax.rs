@@ -12,9 +12,11 @@
 //! | `named(x, p)` | `x @ p` |
 //! | `condition(p, c)` | `p /; c`: `c` is a term evaluated with the bindings substituted; it may mention only variables bound in `p` |
 //! | `alternatives(p, q, ...)` | `p \| q \| ...` |
+//! | `held(p)` | `p` (the argument position is held: see the definitions below) |
 //! | any other compound or atom | itself, with patterns inside |
 //!
-//! `optional(p, d)` and `held(p)` are not supported yet ([`DefError::Unsupported`]).
+//! `optional(p, d)` is supported as a direct argument of a definition's left side (below); elsewhere it is
+//! [`DefError::Unsupported`].
 //!
 //! Definitions, as natives (effects, so ordered like every other effect; a malformed definition evaluates to
 //! `failure(definition, message)`):
@@ -24,14 +26,25 @@
 //! | `set_delayed(s, e)` | own value `e`, evaluated when `s` is read |
 //! | `set_delayed(lhs, e)` | rule `lhs := e` |
 //! | `set(s, v)`, `set(lhs, v)` | `v` evaluated first, then as above |
-//! | `define_rule(rule_delayed(L, R), list(decs))`, `define_rule(rule(L, R), list(decs))` | rule `L := R` (with `rule`, `R` evaluated first) |
-//! | `define_fn(lhs, body, list(opts), result_type, list(decs))` | rule `lhs := body` (options must be empty; the result type is not checked yet) |
-//! | `define_sym(s, list(decs))` | attributes from decorators: `associative` with `commutative` (AC), `held`, `effect` |
+//! | `define_rule(rule_delayed(L, R), list(decs))`, `define_rule(rule(L, R), list(decs))` | rule `L := R` (with `rule`, `R` evaluated first); an open rule set |
+//! | `define_fn(lhs, body, list(opts), result_type, list(decs))` | rule `lhs := body`, plus the catch-all `f(args___) := failure(no_match, f, args)` (04 section 6.2); the result type is not checked yet |
+//! | `define_sym(s, list(decs))` | the decorators' properties |
+//!
+//! Left sides: a direct argument `held(p)` holds that position of the head (a held sequence variable, every
+//! position from there on; decision H.6); a direct argument `optional(p, d)` (`p` a named blank, possibly typed)
+//! defines the rule with the argument and one without it whose right side (and condition) is
+//! `block(let(x, d), ...)` (H.7); options `optional(p, d)` after `;` add a variant with a trailing
+//! `options(...)` argument, read by `option_value` and checked by `check_options` (H.8).
+//!
+//! Decorators (04 section 6.4): `listable`, `effect`, `held` (all arguments), `handles_failures`, `associative`
+//! with `commutative`, `identity(e)` (with both), on the head symbol; `on(s)` stores the rules with `s` (an
+//! argument-head rule, semantics 6.5). Others give `failure(definition, ...)`.
 //!
 //! Right sides are terms in which the variables are written as their symbols; a sequence variable stands for the
-//! list of its terms (semantics 6.1).
+//! list of its terms (semantics 6.1); substitution into them is hygienic (6.6).
 use crate::defs::{Attributes, Hold};
 use crate::eval::{Kernel, Res};
+use crate::index::RuleRhs;
 use crate::native::{Native, NativeCx, Reply};
 use crate::pat::{alt, blank, cond_term, named, seq0, seq1, typed, var, DefError, Pat, Ty, MAX_PATTERN_DEPTH};
 use mc_core::{Heap, Raw, Store, Sym, View, T};
@@ -50,6 +63,8 @@ struct Heads {
     alternatives: Sym,
     rule: Sym,
     rule_delayed: Sym,
+    let_: Sym,
+    block: Sym,
 }
 
 impl Heads {
@@ -66,6 +81,8 @@ impl Heads {
             alternatives: h.sym("alternatives"),
             rule: h.sym("rule"),
             rule_delayed: h.sym("rule_delayed"),
+            let_: h.sym("let"),
+            block: h.sym("block"),
         }
     }
 
@@ -119,7 +136,7 @@ fn symbols<'h>(h: &'h Heap, t: T<'h>, out: &mut Vec<Sym>) {
     }
 }
 
-fn type_of(h: &Heap, t: T<'_>) -> Result<Ty, DefError> {
+pub(crate) fn type_of(h: &Heap, t: T<'_>) -> Result<Ty, DefError> {
     let Some(s) = sym_of(h, t) else { return Err(DefError::UnknownType) };
     Ok(match h.sym_name(s).as_str() {
         "integer" | "Integer" | "Int" => Ty::Integer,
@@ -228,8 +245,10 @@ impl<'h> Lower<'_, 'h> {
                 cond_term(inner, &vars, &names, args[1])
             }
             _ if is(hd.alternatives) => alt(args.iter().map(|&a| self.convert(a, depth + 1)).collect::<Result<_, _>>()?),
-            _ if is(hd.optional) => return Err(DefError::Unsupported("optional arguments")),
-            _ if is(hd.held) => return Err(DefError::Unsupported("held parameters")),
+            _ if is(hd.optional) => {
+                return Err(DefError::Unsupported("optional arguments other than direct arguments of a definition"))
+            }
+            1 if is(hd.held) => self.convert(args[0], depth + 1)?,
             _ => {
                 let Pat::Lit(head) = self.convert(head, depth + 1)? else { return Err(DefError::Unsupported("a pattern in a head")) };
                 let args = args.iter().map(|&a| self.convert(a, depth + 1)).collect::<Result<_, _>>()?;
@@ -277,21 +296,263 @@ pub fn define<'h>(k: &mut Kernel, h: &'h Heap, lhs: T<'h>, body: T<'h>) -> Resul
 // ---------------------------------------------------------------------------------------------------------------
 // The definition natives
 
-fn define_now<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, body: T<'h>) -> Res<Result<(), DefError>> {
+/// The decorators of a definition (04 section 6.4) that have a meaning here.
+#[derive(Default)]
+struct Decorators<'h> {
+    /// `on(s)`: store the rule with `s` (an argument-head rule, semantics 6.5)
+    attach: Option<Sym>,
+    ac: bool,
+    listable: bool,
+    effect: bool,
+    held: bool,
+    handles_failures: bool,
+    identity: Option<T<'h>>,
+}
+
+impl<'h> Decorators<'h> {
+    fn read(h: &'h Heap, decs: &[T<'h>]) -> Result<Decorators<'h>, DefError> {
+        let mut d = Decorators::default();
+        let (mut assoc, mut comm) = (false, false);
+        for &dec in decs {
+            match h.view(dec) {
+                View::Sym(s) => match h.sym_name(s).as_str() {
+                    "associative" => assoc = true,
+                    "commutative" => comm = true,
+                    "listable" => d.listable = true,
+                    "effect" => d.effect = true,
+                    "held" => d.held = true,
+                    "handles_failures" => d.handles_failures = true,
+                    _ => return Err(DefError::Unsupported("this decorator")),
+                },
+                View::App { head, args: &[a] } => match sym_of(h, head).map(|s| h.sym_name(s)).as_deref() {
+                    Some("on") => d.attach = Some(sym_of(h, a).ok_or(DefError::BadAttachment)?),
+                    Some("identity") => d.identity = Some(a),
+                    _ => return Err(DefError::Unsupported("this decorator")),
+                },
+                _ => return Err(DefError::Unsupported("this decorator")),
+            }
+        }
+        if assoc != comm {
+            return Err(DefError::Unsupported("associative without commutative, or the reverse"));
+        }
+        if d.identity.is_some() && !assoc {
+            return Err(DefError::Unsupported("an identity element without associative and commutative"));
+        }
+        d.ac = assoc;
+        Ok(d)
+    }
+
+    /// Give `s` these properties and the argument modes of its `held` parameters (`held_mask`, by position).
+    fn apply(&self, cx: &mut NativeCx<'_, '_, 'h>, s: Sym, held_mask: u32) -> Res<()> {
+        let old = cx.attributes(s);
+        let mut a = old;
+        a.ac |= self.ac;
+        a.listable |= self.listable;
+        a.effect |= self.effect;
+        a.handles_failures |= self.handles_failures;
+        if self.held {
+            a.hold = Hold::All;
+        }
+        if held_mask != 0 {
+            a.hold = Hold::from_mask(a.hold.mask() | held_mask);
+        }
+        if a != old {
+            cx.set_attributes(s, a)?;
+        }
+        if let Some(e) = self.identity {
+            let ev = cx.ev;
+            ev.set_identity(cx.cx, s, Some(e))?;
+        }
+        Ok(())
+    }
+}
+
+/// The local binding an optional parameter's pattern stands for when its argument is missing: `any(x)` gives `x`,
+/// `typed(any(x), T)` gives `typed(x, T)` (checked when bound). Also the variable's name.
+fn default_binding<'h>(h: &'h Heap, hd: &Heads, p: T<'h>) -> Result<(T<'h>, Sym), DefError> {
+    let unsupported = DefError::Unsupported("an optional parameter that is not a named blank");
+    match call_of(h, p) {
+        Some((s, &[x])) if s == hd.any => Ok((x, sym_of(h, x).ok_or(unsupported)?)),
+        Some((s, &[inner, ty])) if s == hd.typed => match call_of(h, inner) {
+            Some((a, &[x])) if a == hd.any => {
+                let name = sym_of(h, x).ok_or(unsupported)?;
+                Ok((h.call(hd.typed, &[x, ty]), name))
+            }
+            _ => Err(unsupported),
+        },
+        _ => Err(unsupported),
+    }
+}
+
+/// Most optional parameters of one clause (each doubles the rules it defines).
+const MAX_OPTIONAL: usize = 6;
+
+/// One rule of a definition: its left side (a term pattern) and right side.
+struct Clause<'h> {
+    lhs: T<'h>,
+    body: T<'h>,
+}
+
+/// The rules a clause `lhs := body` stands for, and the argument positions held by `held` parameters: `optional`
+/// parameters expand to a rule with the argument and one without it, whose body (and condition) binds the default
+/// by `let` (04 section 6.2); options after `;` (`opts`, 04 section 7) add a trailing `options(...)` argument read
+/// by `option_value`, unknown names giving `failure(unknown_option, name)`.
+fn clauses<'h>(h: &'h Heap, hd: &Heads, lhs: T<'h>, body: T<'h>, opts: &[T<'h>]) -> Result<(Vec<Clause<'h>>, u32), DefError> {
+    let (core, cond) = match call_of(h, lhs) {
+        Some((s, &[p, c])) if s == hd.condition => (p, Some(c)),
+        _ => (lhs, None),
+    };
+    let View::App { head: f, args } = h.view(core) else { return Ok((vec![Clause { lhs, body }], 0)) };
+    let mut held = 0u32;
+    let mut plain = Vec::with_capacity(args.len());
+    for (i, &a) in args.iter().enumerate() {
+        match call_of(h, a) {
+            Some((s, &[p])) if s == hd.held => {
+                let rest = matches!(call_of(h, p), Some((q, _)) if q == hd.seq0 || q == hd.seq1);
+                held |= if rest { !0u32 << i.min(31) } else { 1u32 << i.min(31) };
+                plain.push(p);
+            }
+            _ => plain.push(a),
+        }
+    }
+    let optional: Vec<usize> =
+        (0..plain.len()).filter(|&i| matches!(call_of(h, plain[i]), Some((s, &[_, _])) if s == hd.optional)).collect();
+    if optional.len() > MAX_OPTIONAL {
+        return Err(DefError::TooLarge);
+    }
+    if optional.is_empty() && opts.is_empty() && held == 0 {
+        return Ok((vec![Clause { lhs, body }], 0));
+    }
+    // the options' bindings: (binding, name, default)
+    let mut named = vec![];
+    for &o in opts {
+        let Some((s, &[p, d])) = call_of(h, o) else { return Err(DefError::Unsupported("an option without a default")) };
+        if s != hd.optional {
+            return Err(DefError::Unsupported("an option without a default"));
+        }
+        let (b, name) = default_binding(h, hd, p)?;
+        named.push((b, name, d));
+    }
+    let o = h.sym_term(h.sym("options$"));
+    let block = |stmts: Vec<T<'h>>, last: T<'h>| {
+        if stmts.is_empty() {
+            last
+        } else {
+            let mut s = stmts;
+            s.push(last);
+            h.call(hd.block, &s)
+        }
+    };
+    let mut out = vec![];
+    // all optional arguments present first; bit j of `absent` drops the j-th optional argument
+    for absent in 0u32..1 << optional.len() {
+        let mut xs = Vec::with_capacity(plain.len() + 1);
+        let mut lets = vec![];
+        for (i, &a) in plain.iter().enumerate() {
+            match optional.iter().position(|&k| k == i) {
+                Some(j) => {
+                    let Some((_, &[p, d])) = call_of(h, a) else { unreachable!("an optional argument") };
+                    if absent >> j & 1 != 0 {
+                        lets.push(h.call(hd.let_, &[default_binding(h, hd, p)?.0, d]));
+                    } else {
+                        xs.push(p);
+                    }
+                }
+                None => xs.push(a),
+            }
+        }
+        let cond = cond.map(|c| block(lets.clone(), c));
+        for given in if named.is_empty() { &[false][..] } else { &[true, false][..] } {
+            let mut xs = xs.clone();
+            let mut stmts = vec![];
+            if *given {
+                xs.push(h.call(hd.named, &[o, h.call(h.sym("options"), &[h.call(hd.seq0, &[])])]));
+                let names: Vec<T<'h>> = named.iter().map(|(_, n, _)| h.string(&h.sym_name(*n))).collect();
+                stmts.push(h.call(h.sym("check_options"), &[o, h.call(h.sym(mc_api::names::LIST), &names)]));
+            }
+            stmts.extend(lets.iter().copied());
+            for &(b, name, d) in &named {
+                let v = if *given { h.call(h.sym("option_value"), &[o, h.string(&h.sym_name(name)), d]) } else { d };
+                stmts.push(h.call(hd.let_, &[b, v]));
+            }
+            let mut lhs = h.app(f, &xs);
+            if let Some(c) = cond {
+                lhs = h.call(hd.condition, &[lhs, c]);
+            }
+            out.push(Clause { lhs, body: block(stmts, body) });
+        }
+    }
+    Ok((out, held))
+}
+
+/// Define `lhs := body` (a symbol's own value, or the rules of [`clauses`]), attached to `attach` if given; the
+/// decorators' properties go to the left side's head. With `checked` (a `fn`), the head also gets the catch-all
+/// `f(args___) := failure(no_match, f, args)` (04 section 6.2), which every clause is an instance of, so it is tried
+/// last.
+#[allow(clippy::too_many_arguments)]
+fn define_now<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    hd: &Heads,
+    lhs: T<'h>,
+    body: T<'h>,
+    opts: &[T<'h>],
+    decs: &[T<'h>],
+    checked: bool,
+) -> Res<Result<(), DefError>> {
     let h = cx.heap();
     if let View::Sym(s) = h.view(lhs) {
+        if !decs.is_empty() || !opts.is_empty() {
+            cx.effect()?;
+            return Ok(Err(DefError::Unsupported("decorators or options on a value definition")));
+        }
         cx.set_own(s, body)?;
         return Ok(Ok(()));
     }
-    let l = match pattern(h, lhs) {
-        Ok(l) => l,
+    let plan = Decorators::read(h, decs).and_then(|d| clauses(h, hd, lhs, body, opts).map(|c| (d, c)));
+    let lowered = plan.and_then(|(d, (cs, held))| {
+        let rules = cs.iter().map(|c| pattern(h, c.lhs).map(|l| (l, c.body))).collect::<Result<Vec<_>, _>>()?;
+        Ok((d, rules, held))
+    });
+    let (decs, rules, held) = match lowered {
+        Ok(x) => x,
         Err(e) => {
             cx.effect()?; // a definition attempt is ordered like the definition itself
             return Ok(Err(e));
         }
     };
-    let vars: Vec<u16> = (0..l.names.len() as u16).collect();
-    cx.define_term(l.pat, body, &l.names, &vars)
+    let f = head_symbol(h, hd, lhs);
+    if let Some(f) = f {
+        decs.apply(cx, f, held)?;
+    }
+    for (l, body) in rules {
+        let vars: Vec<u16> = (0..l.names.len() as u16).collect();
+        let rhs = RuleRhs::Term { body: Raw::new(body), names: l.names.into(), vars: vars.into() };
+        let ev = cx.ev;
+        if let Err(e) = ev.define_rule(cx.cx, l.pat, rhs, decs.attach)? {
+            return Ok(Err(e));
+        }
+    }
+    if let (true, Some(f)) = (checked, f) {
+        let args = h.sym("args$");
+        let all = pattern(h, h.call(f, &[h.call(hd.seq0, &[h.sym_term(args)])])).expect("a catch-all pattern");
+        let nm = &cx.ev.k.names;
+        let fail = h.call(nm.failure, &[h.sym_term(nm.no_match), h.sym_term(f), h.sym_term(args)]);
+        let rhs = RuleRhs::Term { body: Raw::new(fail), names: all.names.into(), vars: vec![0].into() };
+        let ev = cx.ev;
+        if let Err(e) = ev.define_rule(cx.cx, all.pat, rhs, None)? {
+            return Ok(Err(e));
+        }
+    }
+    Ok(Ok(()))
+}
+
+/// The head symbol of a definition's left side (under a top condition).
+fn head_symbol(h: &Heap, hd: &Heads, lhs: T<'_>) -> Option<Sym> {
+    let core = match call_of(h, lhs) {
+        Some((s, &[p, _])) if s == hd.condition => p,
+        _ => lhs,
+    };
+    call_of(h, core).map(|(s, _)| s)
 }
 
 /// `null`, or `failure(definition, message)`.
@@ -307,12 +568,12 @@ fn reply<'h>(cx: &NativeCx<'_, '_, 'h>, r: Result<(), DefError>) -> Reply<'h> {
 }
 
 /// `set_delayed(lhs, e)` and `set(lhs, v)` (the attributes decide whether the value was evaluated).
-struct SetDef;
+struct SetDef(Heads);
 
 impl Native for SetDef {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [lhs, v] = a else { return Ok(Reply::Decline) };
-        let r = define_now(cx, *lhs, *v)?;
+        let r = define_now(cx, &self.0, *lhs, *v, &[], &[], false)?;
         Ok(reply(cx, r))
     }
 }
@@ -325,31 +586,24 @@ impl Native for DefineRule {
         let h = cx.heap();
         let [r, decs] = a else { return Ok(Reply::Decline) };
         let Some((s, [l, rhs])) = call_of(h, *r) else { return Ok(Reply::Decline) };
+        let Some(decs) = cx.as_list(*decs) else { return Ok(Reply::Decline) };
         if !(s == self.0.rule || s == self.0.rule_delayed) {
             return Ok(Reply::Decline);
         }
-        if cx.as_list(*decs).is_some_and(|d| !d.is_empty()) {
-            cx.effect()?;
-            return Ok(reply(cx, Err(DefError::Unsupported("rule decorators"))));
-        }
         let body = if s == self.0.rule { cx.eval(*rhs)? } else { *rhs };
-        let r = define_now(cx, *l, body)?;
+        let r = define_now(cx, &self.0, *l, body, &[], decs, false)?;
         Ok(reply(cx, r))
     }
 }
 
 /// `define_fn(lhs, body, list(options), result_type | null, list(decorators))`.
-struct DefineFn;
+struct DefineFn(Heads);
 
 impl Native for DefineFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [lhs, body, opts, _result, decs] = a else { return Ok(Reply::Decline) };
-        let empty = |cx: &NativeCx<'_, '_, 'h>, t| cx.as_list(t).is_some_and(|l| l.is_empty());
-        if !empty(cx, *opts) || !empty(cx, *decs) {
-            cx.effect()?;
-            return Ok(reply(cx, Err(DefError::Unsupported("function options and decorators"))));
-        }
-        let r = define_now(cx, *lhs, *body)?;
+        let (Some(opts), Some(decs)) = (cx.as_list(*opts), cx.as_list(*decs)) else { return Ok(Reply::Decline) };
+        let r = define_now(cx, &self.0, *lhs, *body, opts, decs, true)?;
         Ok(reply(cx, r))
     }
 }
@@ -363,33 +617,24 @@ impl Native for DefineSym {
         let [s, decs] = a else { return Ok(Reply::Decline) };
         let (Some(s), Some(decs)) = (sym_of(h, *s), cx.as_list(*decs)) else { return Ok(Reply::Decline) };
         cx.effect()?;
-        let mut attrs = cx.attributes(s);
-        let (mut assoc, mut comm) = (false, false);
-        for &d in decs {
-            match sym_of(h, d).map(|d| h.sym_name(d)).as_deref() {
-                Some("associative") => assoc = true,
-                Some("commutative") => comm = true,
-                Some("held") => attrs.hold = Hold::All,
-                Some("effect") => attrs.effect = true,
-                _ => return Ok(reply(cx, Err(DefError::Unsupported("this decorator")))),
+        match Decorators::read(h, decs) {
+            Ok(d) if d.attach.is_none() => {
+                d.apply(cx, s, 0)?;
+                Ok(reply(cx, Ok(())))
             }
+            Ok(_) => Ok(reply(cx, Err(DefError::Unsupported("on(...) on a symbol declaration")))),
+            Err(e) => Ok(reply(cx, Err(e))),
         }
-        if assoc != comm {
-            return Ok(reply(cx, Err(DefError::Unsupported("associative without commutative, or the reverse"))));
-        }
-        attrs.ac |= assoc;
-        cx.set_attributes(s, attrs)?;
-        Ok(reply(cx, Ok(())))
     }
 }
 
 /// Register the definition natives.
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
-    k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef));
-    k.register(h.sym("set"), fx(Hold::First), Box::new(SetDef));
+    k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
+    k.register(h.sym("set"), fx(Hold::First), Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("define_rule"), fx(Hold::All), Box::new(DefineRule(Heads::new(h))));
-    k.register(h.sym("define_fn"), fx(Hold::All), Box::new(DefineFn));
+    k.register(h.sym("define_fn"), fx(Hold::All), Box::new(DefineFn(Heads::new(h))));
     k.register(h.sym("define_sym"), fx(Hold::All), Box::new(DefineSym));
 }
 

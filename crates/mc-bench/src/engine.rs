@@ -96,6 +96,9 @@ pub struct Evaluated {
     /// A structural fingerprint of the result, for `exact hash` checks of results too large to store. Engines that
     /// cannot compute one return `None`, and hash checks then report `unchecked`.
     pub fingerprint: Option<u64>,
+    /// What the evaluation printed (`print` and other output functions, semantics 9), one entry per output, in
+    /// order. The harness ignores it; the REPL shows it before the result.
+    pub output: Vec<String>,
 }
 
 /// Why an evaluation produced no result. Failures of the language (`failure(...)` terms, semantics 10) are ordinary
@@ -137,6 +140,12 @@ pub trait Engine {
     /// Define the symbol `name` with the value of the most recent successful evaluation, so that code evaluated
     /// later can refer to it (property checks use `result`, the REPL may use it for the last output).
     fn bind_last(&mut self, name: &str) -> Result<(), EngineError>;
+
+    /// Change a setting of the engine for the evaluations that follow (a case directive such as `memo: off`).
+    /// Engines without the setting return an error; the default knows no settings.
+    fn configure(&mut self, option: &str, value: &str) -> Result<(), EngineError> {
+        Err(EngineError::Other(format!("unknown engine setting {option}: {value}")))
+    }
 }
 
 /// Makes fresh engines: each case runs in a new session (02-benchmarks section 1), and cases that ask for it get a

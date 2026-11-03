@@ -48,12 +48,13 @@ pub(crate) enum RuleRhs {
 
 impl RuleRhs {
     /// The replacement for these bindings.
-    pub(crate) fn build<'h>(&self, b: &Binds<'h>, h: &'h Heap, list: Sym) -> T<'h> {
+    pub(crate) fn build<'h>(&self, b: &Binds<'h>, h: &'h Heap, nm: &crate::eval::Names) -> T<'h> {
         match self {
             RuleRhs::Native(f) => f(b, h),
             RuleRhs::Term { body, names, vars } => {
-                let pairs: Vec<(Sym, T<'h>)> = names.iter().zip(vars.iter()).map(|(&s, &v)| (s, crate::subst::value(h, b, v, list))).collect();
-                crate::subst::substitute(h, body.get(h), &pairs)
+                let pairs: Vec<(Sym, T<'h>)> =
+                    names.iter().zip(vars.iter()).map(|(&s, &v)| (s, crate::subst::value(h, b, v, nm.list))).collect();
+                crate::subst::substitute(h, &nm.scopes, body.get(h), &pairs)
             }
         }
     }

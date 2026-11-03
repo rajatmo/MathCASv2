@@ -6,7 +6,7 @@
 //! | `isub`, `iquo`, `imod` | two machine integers | difference, Euclidean quotient and remainder (declines on a zero or, for `imod`, negative divisor) |
 //! | `less`, `less_equal`, `greater`, `greater_equal` | two machine integers | `true` / `false` |
 //! | `same` | two terms | `true` when identical |
-//! | `if` | condition, then, else (the last two held) | the chosen branch, evaluated |
+//! | `if` | condition, then, else (the last two held; the else branch may be missing) | the chosen branch, evaluated (`null` for a false condition without else) |
 //! | `map` | function, `list(...)` | `list(f(x)...)`, elements as a speculative group |
 //! | `print` | a term | the term; appends it to the output (effect) |
 //! | `define` | symbol (held), value | `null`; sets the own value (effect) |
@@ -85,11 +85,15 @@ struct If;
 
 impl Native for If {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let [c, a, b] = args else { return Ok(Reply::Decline) };
-        Ok(if cx.is_true(*c) {
-            Reply::Again(*a)
-        } else if cx.is_false(*c) {
-            Reply::Again(*b)
+        let (c, a, b) = match *args {
+            [c, a, b] => (c, a, Some(b)),
+            [c, a] => (c, a, None),
+            _ => return Ok(Reply::Decline),
+        };
+        Ok(if cx.is_true(c) {
+            Reply::Again(a)
+        } else if cx.is_false(c) {
+            b.map_or(Reply::Done(cx.null()), Reply::Again)
         } else {
             Reply::Decline
         })
@@ -161,4 +165,5 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     reg("print", Attributes { effect: true, ..strict }, Box::new(Print));
     reg("define", Attributes { hold: Hold::First, effect: true, ..strict }, Box::new(Define));
     crate::syntax::register(k, h);
+    crate::lang::register(k, h);
 }

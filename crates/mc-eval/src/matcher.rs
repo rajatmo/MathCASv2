@@ -167,6 +167,10 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
     /// (A.6): the context counts how deep in conditions it is.
     fn cond(&self, c: &Cond, b: &Binds<'h>) -> Option<bool> {
         let mut g = self.cx.borrow_mut();
+        if g.in_cond == 0 {
+            // cells allocated before this point are read-only inside the condition (crate::cells)
+            g.cond_born = self.ev.k.cells.born();
+        }
         g.in_cond += 1;
         let r = {
             let mut cc = CondCx { ev: self.ev, cx: &mut g, binds: b, vars: &c.vars };
