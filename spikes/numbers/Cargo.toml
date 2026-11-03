@@ -1,0 +1,16 @@
+[package]
+name = "numbers"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spike: big-integer multiplication (schoolbook, Karatsuba, three-prime NTT) and ball arithmetic"
+
+[dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
+
+[features]
+# Compares against v1's big numbers. Cargo resolves optional path dependencies even when the feature is off, so a
+# path dependency would make the crate unbuildable without the v1 repository; build.rs instead locates v1's number
+# sources (read-only) and the crate compiles them as modules only when this feature is on.
+v1 = []
