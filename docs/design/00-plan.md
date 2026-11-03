@@ -129,3 +129,4 @@ Each spike ends with a short report: numbers, decision, what it rules out.
 - [`01-semantics.md`](01-semantics.md): the core semantics (draft 2).
 - [`02-benchmarks.md`](02-benchmarks.md): the benchmark suite (draft 1).
 - `03-spikes.md`: spike reports as they complete.
+- [`04-syntax.md`](04-syntax.md): the concrete syntax (draft 1).

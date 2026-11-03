@@ -262,6 +262,9 @@ local variables) are renamed when needed so that a substituted term never captur
 - `fn(x, y) -> body` is a closure with **lexical** scope. Closures capture the bindings visible where they are
   created.
 - `let(x = a, body)` introduces lexical local names.
+- A block may introduce **mutable lexical locals** (`var` in the surface syntax): cells visible only in that block
+  and in closures created inside it, assigned by `x = v`. They are never symbol definitions, carry no version and do
+  not affect normal-form stamps; a term read from a local is an ordinary value.
 - There is no dynamic scoping in the core. `with_values(x = a, body)` (temporarily changing a symbol's own value) is a
   library function defined in terms of definitions and their removal, and is marked as having an effect.
 
