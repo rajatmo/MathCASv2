@@ -1,0 +1,14 @@
+[package]
+name = "mc-arith"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 canonical arithmetic: exact, ball and machine numbers, the add/mul/pow canonicaliser and the canonical order"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+rustc-hash = "2"
+
+[dev-dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
