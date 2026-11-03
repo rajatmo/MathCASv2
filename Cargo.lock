@@ -484,6 +484,7 @@ dependencies = [
  "mc-eval",
  "mc-lists",
  "mc-numeric",
+ "mc-poly",
  "mc-syntax",
 ]
 
@@ -525,6 +526,21 @@ dependencies = [
  "mc-eval",
  "mc-syntax",
  "num-bigint",
+ "rustc-hash",
+]
+
+[[package]]
+name = "mc-poly"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-syntax",
+ "num-bigint",
+ "num-traits",
  "rustc-hash",
 ]
 

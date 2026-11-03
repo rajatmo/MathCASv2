@@ -8,4 +8,4 @@ f = expand((1 + x + y + z + t)^m)
 #@ measure
 expand(f*(f + 1))
 #@ property
-length(result) == binomial(2m + 5, 5) and rewrite(result, [x -> 1, y -> 1, z -> 1, t -> 1]) == 5^m*(5^m + 1)
+length(result) == binomial(2m + 4, 4) and rewrite(result, [x -> 1, y -> 1, z -> 1, t -> 1]) == 5^m*(5^m + 1)
