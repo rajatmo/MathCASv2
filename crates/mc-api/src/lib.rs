@@ -49,7 +49,9 @@ pub enum View<'h> {
     /// A machine real (IEEE binary64).
     Real(f64),
     /// A ball (semantics 2.3): sign and payload words `[exp, radius mantissa, radius exponent, mantissa limbs...]`
-    /// (integration decision I3.5).
+    /// (integration decision I3.5). The working precision p is the bit width of the midpoint mantissa, which is
+    /// stored widened to exactly p bits; a zero midpoint keeps p in the `exp` word (`mc-arith` decision B.2). Equal
+    /// balls at the same precision therefore have equal words.
     Ball { neg: bool, words: &'h [u64] },
     Str(&'h str),
     Sym(Sym),
@@ -102,4 +104,16 @@ pub mod names {
     pub const TRUE: &str = "true";
     pub const FALSE: &str = "false";
     pub const NULL: &str = "null";
+
+    /// Failure tags (semantics 10): `failure(TAG, details...)`.
+    pub mod failure {
+        pub const DIVISION_BY_ZERO: &str = "division_by_zero";
+        pub const LIMIT: &str = "limit";
+        pub const MEMORY: &str = "memory";
+        pub const FUEL: &str = "fuel";
+        pub const TIME: &str = "time";
+        pub const INTERRUPTED: &str = "interrupted";
+        pub const NO_MATCH: &str = "no_match";
+        pub const EFFECT_IN_CONDITION: &str = "effect_in_condition";
+    }
 }

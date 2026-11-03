@@ -448,6 +448,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-arith"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "num-bigint",
+ "num-traits",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mc-bench"
 version = "0.0.0"
 
