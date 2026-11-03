@@ -1,9 +1,9 @@
-# MathCAS v2: core semantics (draft 1)
+# MathCAS v2: core semantics (draft 2)
 
 This document specifies what the core computes. It does not fix the concrete syntax (that is `04-syntax.md`); the
 notation here is abstract: `f(a, b)` is a compound term, `[a, b]` a list, `p -> r` a rule, `p := r` a delayed
 definition. Every rule of evaluation the implementation follows must be written here. Where this draft makes a choice,
-the reason is given. Open questions are collected in section 13.
+the reason is given. Decisions on draft 1's open questions are logged in section 17.
 
 Words: **must** is a requirement on any implementation; **term** is a value of the core; **normal form** is a term
 that evaluation leaves unchanged under the current definitions.
@@ -125,7 +125,8 @@ The canonical form of a sum or product:
 5. arguments ordered by the **canonical order** (section 8).
 
 `pow` is canonicalised for numeric bases and exponents (2.4) and for `pow(pow(x, a), b)` only where the combination is
-valid for all values (integer `b`, or `x` known positive); otherwise left as is.
+valid for all complex values of `x` (for example integer `b`); otherwise left as is. The canonicaliser never consults
+assumptions (section 13): rewrites that hold only under assumptions belong to `refine` and `simplify`.
 
 Subtraction and division are not separate operators: `a - b` constructs `add(a, mul(-1, b))` and `a / b` constructs
 `mul(a, pow(b, -1))`.
@@ -147,7 +148,8 @@ Evaluation `eval(t)` under the current definitions:
    2. evaluate each argument according to the head's argument modes (section 5), left to right;
    3. if the head is a canonicalised constructor (section 3), canonicalise;
    4. if the head is a built-in with a native implementation, call it; it either returns a result or declines;
-   5. otherwise try the head's rule set (section 6) on the term; the first rule that matches gives the replacement;
+   5. otherwise try the argument-head rules (6.5) and then the head's rule set (section 6) on the term; the first
+      rule that matches gives the replacement;
    6. if a replacement was produced, evaluate it (this is a loop, not recursion, and each iteration costs fuel);
       otherwise the term is in normal form: stamp it (4.3) and return it.
 
@@ -169,8 +171,11 @@ term was found normal; the stamp is valid while the dependency version is unchan
 Consequence: changing the definition of `f` re-opens only terms that contain `f`. *Reason:* this is the precise form of
 the timestamp trick v1's reference language uses informally, and it lets evaluation skip normal subterms in O(1).
 
-Rules whose right sides depend on symbols not in the term (for example through a condition that reads a global value)
-must declare those symbols, or the stamp may be stale. **Open:** whether to track this automatically (13.1).
+Rules can depend on symbols that are not in the term, for example through a condition that reads a global value. The
+evaluator therefore **tracks reads**: every evaluation records the set of symbols whose own values or rule sets it
+consulted, and the normal-form stamp covers the term's symbols plus that read set. A stamp is valid while none of those
+symbols' versions has changed. As a fast path, a session-wide definition counter that has not moved since the stamp
+validates it without looking at the set. (Decision 13.1.)
 
 ### 4.4 Memoisation
 
@@ -202,7 +207,7 @@ passed on; `unquote(q)` evaluates it.
 |---|---|
 | `_` | any single term |
 | `x_` | any single term, bound to `x` |
-| `x_ : T` | a term whose type (head or number kind) is `T` |
+| `x_ : T` | a term of type `T` (a type expression, section 16) |
 | `xs__` / `xs___` | one or more / zero or more consecutive arguments, bound to a list |
 | `p | q` | `p` or `q` (both must bind the same variables) |
 | `p /; c` | `p`, and then `c` evaluates to `true` with the bindings in scope |
@@ -237,12 +242,22 @@ Defining a rule whose left side is identical (up to renaming of pattern variable
 - For a symbol `x`, `x = r` defines its own value.
 - Definitions return `null` and increment the symbol's version (4.3).
 
-### 6.5 Substitution is hygienic
+### 6.5 Argument-head rules
 
-Pattern variables are substituted into the right side as terms. Binding forms inside the right side (functions, 6.6;
+A rule may be attached to a symbol `s` instead of the head when `s` is the head of one of the left side's arguments at
+depth one: `area(square(a_)) := a^2` can be stored with `square`. This lets a new kind of object extend a generic
+function without editing that function's rule set.
+
+When evaluating `h(a1, ..., an)` (4.1 step 3.5), the rules attached to the heads of `a1`, ..., `an` are tried first, in
+argument order, and then the rules of `h`. Within each symbol, 6.3 applies. Attachment deeper than depth one is not
+supported. (Decision 13.2.)
+
+### 6.6 Substitution is hygienic
+
+Pattern variables are substituted into the right side as terms. Binding forms inside the right side (functions, 6.7;
 local variables) are renamed when needed so that a substituted term never captures a bound variable.
 
-### 6.6 Functions and scoping
+### 6.7 Functions and scoping
 
 - `fn(x, y) -> body` is a closure with **lexical** scope. Closures capture the bindings visible where they are
   created.
@@ -280,8 +295,8 @@ for enumerating matches (6.2). Draft order:
 3. then symbols, by name, then module path;
 4. then compound terms: by head, then by number of arguments, then argument by argument.
 
-Printing may use a different, presentation-oriented order (for example polynomials by degree); that is a property of
-the printer, not of the term. **Open:** whether to order monomials by degree in the canonical order itself (13.3).
+Printing uses a different, presentation-oriented order (for example polynomials by descending degree); that is a
+property of the printer, not of the term. Packed polynomials keep their own internal monomial order. (Decision 13.3.)
 
 ## 9. Effects and state
 
@@ -327,22 +342,88 @@ representations, but users should never need to know which one is in use.
 - Automatic machine-to-arbitrary-precision switching.
 - Messages printed as a side effect of evaluation.
 
-## 13. Open questions
+## 13. Assumptions
 
-1. **Hidden dependencies of rules.** Should the evaluator track the symbols a condition or right side reads (so stamps
-   stay valid automatically), or must rules declare them? Tracking is safer; declaring is cheaper.
-2. **Upvalues.** Rules attached to an argument's symbol rather than the head (for example defining `area(square(_))`
-   on `square`) are useful for extensibility. Include them in the core, or provide them through operator dispatch on
-   types?
-3. **Canonical order of polynomials.** Order monomials by degree in the canonical order (helps printing and some
-   algorithms), or keep the simple structural order and let the printer reorder?
-4. **Assumptions.** How facts like "x is positive" reach the canonicaliser (3) and simplification: a scoped assumption
-   context, or explicit arguments to the functions that need them?
-5. **Simplification.** Specify the cost function for equality-saturation simplification here, or leave it to the
-   library?
-6. **Exact constants.** Are `pi`, `e` and friends symbols with numerical-evaluation rules, or a small exact-constant
-   kind of term with canonical arithmetic of their own?
-7. **Types.** How the gradual type system of the surface language maps onto the pattern types in 6.1 and onto the
-   numeric compiler.
+- An **assumption context** is a set of facts: domain facts (`x in reals`, `n in integers`), sign and order facts
+  (`x > 0`, `a <= b`), and equalities used as side conditions.
+- `assuming(facts, body)` evaluates `body` with the context extended by `facts`. The context is lexically scoped to that
+  evaluation, not global state.
+- Only functions that declare `uses_assumptions` in their signature read the context (`refine`, `simplify`,
+  `integrate`, `limit`, `solve`, ...). For those functions the context is part of the evaluation's dependencies (4.3),
+  so a result found under one context is never reused under another.
+- The canonicaliser (section 3) and ordinary rules never read assumptions. A rule that needs a fact states it as a
+  condition that calls a decision function (`is_positive(x)`), which is itself an assumption-using function.
 
-Each open question gets a short decision note in this document once a spike or a benchmark settles it.
+*Reason:* keeping assumptions out of the canonicaliser keeps the cheap, always-on simplifications context-free and
+cacheable; scoping them to an evaluation avoids hidden global state. (Decision 13.4.)
+
+## 14. Simplification
+
+`simplify(e)` searches for an equivalent form of `e` by equality saturation: it applies a rule set of equivalences to
+an e-graph of `e` until saturation or until its fuel share runs out, then extracts the cheapest form.
+
+- The **default cost** of a term is its size: the number of nodes, with every atom costing 1. Ties are broken by the
+  canonical order (section 8), so the result is deterministic.
+- `simplify(e, cost -> c)` takes another cost function; the library ships a few (size, size with heavy weights on
+  special functions, "fewest non-polynomial operations").
+- Equivalence rule sets are libraries, not part of the core; the core specifies only the search, the extraction and
+  determinism.
+
+(Decision 13.5.)
+
+## 15. Exact constants
+
+`pi`, `e`, `euler_gamma`, `catalan` and the like are ordinary symbols with:
+
+- numerical-evaluation rules (2.6) backed by ball algorithms;
+- built-in facts available to decision functions (`pi` is a positive real, `e` is a positive real, ...);
+- ordinary rules for exact identities (`sin(pi) -> 0`, `log(e) -> 1`).
+
+Algebraic numbers (roots of polynomials) are a packed kind of term (section 11) with exact arithmetic, not symbols.
+*Reason:* a separate constant kind would add a term kind and special canonicalisation for little gain; algebraic
+numbers do need exact arithmetic, which a packed form provides. (Decision 13.6.)
+
+## 16. Types
+
+One type language serves patterns (6.1), signatures and the surface language's gradual types:
+
+```
+T ::= any
+    | integer | rational | machine_real | ball | string | symbol
+    | complex(T)                  -- with T a real number type
+    | real                        -- integer | rational | machine_real | ball
+    | number                      -- real | complex(real)
+    | list(T) | array(T, rank)    -- array: rectangular, packed when T is a machine number type
+    | head(f)                     -- a compound term with head f
+    | T | T                       -- union
+    | T where predicate           -- refinement checked at run time
+```
+
+- A pattern `x_ : T` matches exactly the terms of type `T`.
+- Type annotations in the surface language are checked where they can be decided statically and turned into run-time
+  checks elsewhere (gradual typing).
+- The numeric compiler (plan section 4) accepts functions whose arguments and intermediate values have **monomorphic
+  machine types**: `integer` limited to 64 bits, `machine_real`, `complex(machine_real)`, and `array` of these. Any
+  other type makes the function interpreted.
+
+(Decision 13.7.)
+
+## 17. Decision log
+
+Decisions on what draft 1 left open. Each can be reopened by a spike or benchmark result, recorded here.
+
+| # | Question | Decision | Section |
+|---|---|---|---|
+| 13.1 | Dependencies that rules read outside the term | Tracked automatically (read sets), with a session-counter fast path | 4.3 |
+| 13.2 | Rules attached to argument symbols | Yes, at depth one only, tried before the head's rules | 6.5 |
+| 13.3 | Degree order of monomials in the canonical order | No: structural canonical order; the printer and packed polynomials order by degree | 8 |
+| 13.4 | How assumptions reach computations | Scoped context, read only by functions that declare it; never by the canonicaliser | 13 |
+| 13.5 | Cost function for simplification | Size by default with canonical-order tie-break; others selectable | 14 |
+| 13.6 | Exact constants | Symbols with numeric rules and built-in facts; algebraic numbers packed | 15 |
+| 13.7 | Types, patterns and the compiler | One type language; the compiler takes monomorphic machine types only | 16 |
+
+Points to verify by spike:
+
+- the cost of read-set tracking on the rewriting benchmarks (13.1); if too high, fall back to declared dependencies for
+  native built-ins only;
+- whether argument-head rules disturb compiled matching (13.2): the matcher must index them by argument head.
