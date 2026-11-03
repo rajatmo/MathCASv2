@@ -38,7 +38,9 @@
 //!
 //! Decorators (04 section 6.4): `listable`, `effect`, `held` (all arguments), `handles_failures`, `associative`
 //! with `commutative`, `identity(e)` (with both), on the head symbol; `on(s)` stores the rules with `s` (an
-//! argument-head rule, semantics 6.5). Others give `failure(definition, ...)`.
+//! argument-head rule, semantics 6.5). On a `fn`, `compiled` evaluates `compile(f)` after the definition (the numeric
+//! compiler, package 1b): the definition's value is `null` when that gives `f`, else what it gave. Others give
+//! `failure(definition, ...)`.
 //!
 //! Right sides are terms in which the variables are written as their symbols; a sequence variable stands for the
 //! list of its terms (semantics 6.1); substitution into them is hygienic (6.6).
@@ -606,9 +608,26 @@ impl Native for DefineFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [lhs, body, opts, _result, decs] = a else { return Ok(Reply::Decline) };
         let (Some(opts), Some(decs)) = (cx.as_list(*opts), cx.as_list(*decs)) else { return Ok(Reply::Decline) };
-        let r = define_now(cx, &self.0, *lhs, *body, opts, decs, true)?;
+        // `@compiled` (package 1b): define without it, then evaluate `compile(f)`
+        let h = cx.heap();
+        let compiled = h.sym_term(h.sym("compiled"));
+        let rest: Vec<T<'h>> = decs.iter().copied().filter(|&d| d != compiled).collect();
+        let r = define_now(cx, &self.0, *lhs, *body, opts, &rest, true)?;
+        if let (Ok(()), true, Some(f)) = (&r, rest.len() < decs.len(), head_symbol(h, &self.0, *lhs)) {
+            return Ok(Reply::Done(compile_after(cx, f)?));
+        }
         Ok(reply(cx, r))
     }
+}
+
+/// The value of a definition decorated `@compiled`: `compile(f)` is evaluated after the definition (the numeric
+/// compiler registers `compile`); its value `f` means success and the definition gives `null`, anything else
+/// (`failure(not_compilable, f, reason)`, or `compile(f)` unevaluated when no compiler is installed) is the value.
+fn compile_after<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: Sym) -> Res<T<'h>> {
+    let h = cx.heap();
+    let ft = h.sym_term(f);
+    let v = cx.eval(h.call(h.sym("compile"), &[ft]))?;
+    Ok(if v == ft { cx.null() } else { v })
 }
 
 /// `define_sym(s, list(decorators))`.

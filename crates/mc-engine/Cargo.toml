@@ -11,6 +11,7 @@ mc-arith = { path = "../mc-arith" }
 mc-bench = { path = "../mc-bench" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+mc-jit = { path = "../mc-jit" }
 mc-lists = { path = "../mc-lists" }
 mc-load = { path = "../mc-load" }
 mc-numeric = { path = "../mc-numeric" }

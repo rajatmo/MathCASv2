@@ -1,0 +1,22 @@
+[package]
+name = "mc-jit"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 numeric compiler: typed functions to machine code through Cranelift, as compiled specialisations of the evaluator"
+
+[dependencies]
+cranelift-codegen = "=0.137.0"
+cranelift-frontend = "=0.137.0"
+cranelift-jit = "=0.137.0"
+cranelift-module = "=0.137.0"
+cranelift-native = "=0.137.0"
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+mc-numeric = { path = "../mc-numeric" }
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

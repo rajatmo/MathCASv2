@@ -1,0 +1,199 @@
+//! The LIR interpreter: the reference back end for differential tests, and the fallback when Cranelift cannot
+//! compile a function or does not support the host (decision E.7).
+//!
+//! Labels are resolved to instruction indices once; registers are untyped 64-bit words (reals by their bits,
+//! booleans as 0 or 1). Register indices are checked when the program is built, so the run loop indexes freely.
+use crate::ir::{BOp, Cc, FOp, IOp, Lir, Op, OpdK};
+use crate::rt::{self, Env, Exit, EXACT_REAL_INT, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
+
+/// A LIR function prepared for interpretation. Immutable: every call has its own registers.
+pub struct Interp {
+    code: Vec<Op>,
+    nregs: usize,
+    params: Vec<u32>,
+}
+
+/// Every register operand of an instruction (destinations included).
+fn operands(op: &Op) -> Vec<u32> {
+    match op {
+        Op::IConst(d, _) | Op::FConst(d, _) | Op::BConst(d, _) | Op::Ret(d) | Op::Bail(d) | Op::Br(d, _, _) => vec![*d],
+        Op::Mov(d, a) | Op::FAbs(d, a) | Op::BNot(d, a) | Op::ToReal(d, a) | Op::Floor(d, a) | Op::Math(_, d, a) => {
+            vec![*d, *a]
+        }
+        Op::IChk(_, d, a, b) | Op::FBin(_, d, a, b) | Op::ICmp(_, d, a, b) | Op::FCmp(_, d, a, b) | Op::BBin(_, d, a, b) => {
+            vec![*d, *a, *b]
+        }
+        Op::IAddOv(d, o, a, b) | Op::Sel(d, o, a, b) => vec![*d, *o, *a, *b],
+        Op::Num(_, d, opds) => std::iter::once(*d).chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
+        Op::Jmp(_) | Op::Label(_) | Op::Poll => vec![],
+    }
+}
+
+impl Interp {
+    /// Prepare `lir`. Panics on a register out of range (a lowering defect).
+    pub fn new(lir: &Lir) -> Interp {
+        let mut at = vec![0u32; lir.nlabels as usize];
+        let mut pc = 0u32;
+        for op in &lir.code {
+            if let Op::Label(l) = op {
+                at[*l as usize] = pc;
+            } else {
+                pc += 1;
+            }
+        }
+        let nregs = lir.regs.len();
+        let mut code = Vec::with_capacity(pc as usize);
+        for op in &lir.code {
+            assert!(operands(op).iter().all(|&r| (r as usize) < nregs), "register out of range");
+            match op {
+                Op::Label(_) => {}
+                Op::Jmp(l) => code.push(Op::Jmp(at[*l as usize])),
+                Op::Br(c, a, b) => code.push(Op::Br(*c, at[*a as usize], at[*b as usize])),
+                o => code.push(o.clone()),
+            }
+        }
+        Interp { code, nregs, params: lir.params.clone() }
+    }
+
+    /// Number of instructions.
+    pub fn instructions(&self) -> usize {
+        self.code.len()
+    }
+
+    /// Call with the parameters as words (reals by their bits). Returns the result word, or 0 with the exit set.
+    pub fn call(&self, args: &[u64], env: &mut Env) -> u64 {
+        assert_eq!(args.len(), self.params.len(), "argument count");
+        let mut regs = vec![0u64; self.nregs];
+        for (&p, &a) in self.params.iter().zip(args) {
+            regs[p as usize] = a;
+        }
+        match self.run(&mut regs, env) {
+            Ok(v) => v,
+            Err(e) => {
+                if env.exit == Exit::Done as u32 {
+                    env.exit = e as u32;
+                }
+                0
+            }
+        }
+    }
+
+    fn run(&self, r: &mut [u64], env: &mut Env) -> Result<u64, Exit> {
+        let code = &self.code[..];
+        let mut count = POLL_EVERY;
+        let gi = |r: &[u64], k: u32| r[k as usize] as i64;
+        let gf = |r: &[u64], k: u32| f64::from_bits(r[k as usize]);
+        let mut pc = 0usize;
+        loop {
+            let op = &code[pc];
+            pc += 1;
+            match *op {
+                Op::IConst(d, n) => r[d as usize] = n as u64,
+                Op::FConst(d, x) => r[d as usize] = x.to_bits(),
+                Op::BConst(d, b) => r[d as usize] = b as u64,
+                Op::Mov(d, a) => r[d as usize] = r[a as usize],
+                Op::IChk(o, d, a, b) => {
+                    let (x, y) = (gi(r, a), gi(r, b));
+                    let v = match o {
+                        IOp::Add => x.checked_add(y),
+                        IOp::Sub => x.checked_sub(y),
+                        IOp::Mul => x.checked_mul(y),
+                        IOp::DivExact => rt::floor_divmod(x, y).and_then(|(q, m)| (m == 0).then_some(q)),
+                        IOp::Quot => rt::floor_divmod(x, y).map(|(q, _)| q),
+                        IOp::Mod => rt::floor_divmod(x, y).map(|(_, m)| m),
+                        IOp::Pow => rt::ipow_exact(x, y),
+                    };
+                    r[d as usize] = v.ok_or(Exit::Decline)? as u64;
+                }
+                Op::IAddOv(d, of, a, b) => {
+                    let (v, o) = gi(r, a).overflowing_add(gi(r, b));
+                    r[d as usize] = v as u64;
+                    r[of as usize] = o as u64;
+                }
+                Op::FBin(o, d, a, b) => {
+                    let (x, y) = (gf(r, a), gf(r, b));
+                    r[d as usize] = match o {
+                        FOp::Add => x + y,
+                        FOp::Sub => x - y,
+                        FOp::Mul => x * y,
+                        FOp::Div => x / y,
+                    }
+                    .to_bits();
+                }
+                Op::FAbs(d, a) => r[d as usize] = gf(r, a).abs().to_bits(),
+                Op::ICmp(c, d, a, b) => {
+                    let (x, y) = (gi(r, a), gi(r, b));
+                    r[d as usize] = cmp(c, x.partial_cmp(&y)) as u64;
+                }
+                Op::FCmp(c, d, a, b) => {
+                    let (x, y) = (gf(r, a), gf(r, b));
+                    r[d as usize] = cmp(c, x.partial_cmp(&y)) as u64;
+                }
+                Op::BBin(o, d, a, b) => {
+                    let (x, y) = (r[a as usize], r[b as usize]);
+                    r[d as usize] = match o {
+                        BOp::And => x & y,
+                        BOp::Or => x | y,
+                    };
+                }
+                Op::BNot(d, a) => r[d as usize] = r[a as usize] ^ 1,
+                Op::Sel(d, c, a, b) => r[d as usize] = if r[c as usize] != 0 { r[a as usize] } else { r[b as usize] },
+                Op::ToReal(d, a) => {
+                    let x = gi(r, a);
+                    if !(-EXACT_REAL_INT..=EXACT_REAL_INT).contains(&x) {
+                        return Err(Exit::Decline);
+                    }
+                    r[d as usize] = (x as f64).to_bits();
+                }
+                Op::Floor(d, a) => r[d as usize] = rt::floor_exact(gf(r, a)).ok_or(Exit::Decline)? as u64,
+                Op::Math(f, d, a) => r[d as usize] = rt::math_fn(f)(gf(r, a)).to_bits(),
+                Op::Num(o, d, ref opds) => {
+                    let mut words = Vec::with_capacity(opds.len() * OPD_WORDS);
+                    for &(k, a, b) in opds {
+                        let tag = match k {
+                            OpdK::Int => OPD_INT,
+                            OpdK::Real => OPD_REAL,
+                            OpdK::Ratio => OPD_RATIO,
+                        };
+                        words.extend([tag, r[a as usize], r[b as usize]]);
+                    }
+                    r[d as usize] = rt::num_words(o, &words).ok_or(Exit::Decline)?.to_bits();
+                }
+                Op::Bail(c) => {
+                    if r[c as usize] != 0 {
+                        return Err(Exit::Decline);
+                    }
+                }
+                Op::Jmp(t) => pc = t as usize,
+                Op::Br(c, a, b) => pc = if r[c as usize] != 0 { a as usize } else { b as usize },
+                Op::Label(_) => {}
+                Op::Poll => {
+                    count -= 1;
+                    if count == 0 {
+                        count = POLL_EVERY;
+                        // SAFETY: `env` is a live environment made by `Env::with`.
+                        if unsafe { rt::poll(env) } != 0 {
+                            return Err(Exit::Stopped);
+                        }
+                    }
+                }
+                Op::Ret(v) => return Ok(r[v as usize]),
+            }
+        }
+    }
+}
+
+/// A comparison's truth from the operands' order (`None`: unordered, a NaN).
+fn cmp(c: Cc, o: Option<std::cmp::Ordering>) -> bool {
+    use std::cmp::Ordering::*;
+    match (c, o) {
+        (Cc::Ne, None) => true,
+        (_, None) => false,
+        (Cc::Lt, Some(o)) => o == Less,
+        (Cc::Le, Some(o)) => o != Greater,
+        (Cc::Gt, Some(o)) => o == Greater,
+        (Cc::Ge, Some(o)) => o != Less,
+        (Cc::Eq, Some(o)) => o == Equal,
+        (Cc::Ne, Some(o)) => o != Equal,
+    }
+}

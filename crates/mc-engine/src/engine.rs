@@ -10,6 +10,10 @@
 //! (semantics 1.2, package F) and loads the module files imports need; the evaluator sees plain statements on
 //! qualified symbols. The engine starts by evaluating the prelude (`lib/prelude.mc`, embedded) unless
 //! [`EngineConfig::prelude`] is off.
+//!
+//! The numeric compiler (`mc-jit`, package 1b) is installed with the libraries: `compile(f)` queues a compiled
+//! specialisation, which the engine registers after the statement that made it (registration needs the kernel
+//! exclusively), so it applies from the next statement on.
 use crate::arith;
 use crate::format::ArithNumbers;
 use mc_api::names;
@@ -72,11 +76,13 @@ pub struct CoreEngine {
     /// names the libraries give a meaning without a definition (constants such as `pi`): known to name
     /// resolution like defined symbols (decision F.16)
     library_names: HashSet<Sym>,
+    /// the numeric compiler: specialisations `compile` queued are registered after each statement (package 1b)
+    jit: mc_jit::Jit,
 }
 
 /// The names of every installed library's functions and constants, and `inf`.
 fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
-    let lists = [mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS];
+    let lists = [mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_jit::FUNCTIONS];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
 
@@ -142,6 +148,7 @@ impl CoreEngine {
     /// An engine with these settings.
     pub fn with_config(cfg: EngineConfig) -> CoreEngine {
         let arith_stop = Arc::new(AtomicBool::new(false));
+        let mut jit = None;
         let session = Session::with_state(cfg.heap, cfg.threads, |h| {
             let mut k = Kernel::new(h, cfg.eval);
             arith::install(&mut k, h, &arith_stop);
@@ -151,13 +158,23 @@ impl CoreEngine {
             mc_numtheory::install(&mut k, h);
             // after any integer gcd: mc-poly's gcd also handles integers and rationals (K.5)
             mc_poly::install(&mut k, h, &arith_stop);
+            jit = Some(mc_jit::install(&mut k, h));
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });
         let ctl = session.state.control();
         let library_names = library_names(&session.heap);
-        let mut e =
-            CoreEngine { session, ctl, arith_stop, hook: None, has_last: false, loader: Loader::default(), library_names };
+        let jit = jit.expect("the compiler is installed");
+        let mut e = CoreEngine {
+            session,
+            ctl,
+            arith_stop,
+            hook: None,
+            has_last: false,
+            loader: Loader::default(),
+            library_names,
+            jit,
+        };
         if cfg.prelude {
             let origin = Origin::embedded(stdlib::PRELUDE_ORIGIN);
             if let Err(err) = e.eval_in(stdlib::PRELUDE, &origin, &StopFlag::new()) {
@@ -203,6 +220,11 @@ impl CoreEngine {
     /// The loaded modules, by name.
     pub fn modules(&self) -> impl Iterator<Item = &Module> {
         self.loader.modules()
+    }
+
+    /// The numeric compiler of the session (package 1b).
+    pub fn jit(&self) -> &mc_jit::Jit {
+        &self.jit
     }
 
     /// Whether symbol `name` has a native implementation (for tests of the prelude).
@@ -296,10 +318,12 @@ impl CoreEngine {
         let mut events = vec![];
         for i in 1..=n {
             let last = i == n;
-            let arith_stop = &self.arith_stop;
+            let (arith_stop, jit) = (&self.arith_stop, &self.jit);
             let r = self.session.step(|h, k| {
                 let t = k.roots.get(h, i);
                 let e = k.eval(h, t);
+                // what `compile` queued takes effect from the next statement on
+                jit.flush(k);
                 match e.status {
                     Status::Interrupted => return Err(EngineError::Stopped),
                     Status::Fuel => return Err(EngineError::Limit("fuel".into())),
