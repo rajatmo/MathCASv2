@@ -1,0 +1,12 @@
+[package]
+name = "mc-syntax"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 concrete syntax: lexer, parser, lowering to core terms and printer (docs/design/04-syntax.md)"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+
+[dev-dependencies]
+num-bigint = "0.4"
