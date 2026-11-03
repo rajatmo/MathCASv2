@@ -31,15 +31,21 @@ What works
   1.25~40 * 2, 2 + 3im                        ball literals, complex numbers
   print("hi")                                 output
   1/0                                         failure(division_by_zero)
+  mod(17, 5), gcd(12, 18), factorial(30)      number theory
+  is_prime(97), factor_integer(360)
+  expand((x + 1)^5), factor(x^2 - 1)          polynomials
+  resultant(x^2 - 2, x - y, x)
 
-Not yet (being built now)
--------------------------
-  number theory (mod, gcd, factorial, primes, factor_integer);
-  polynomials (expand, factor, series, resultant).
+Not yet
+-------
+  loading .mc files and a startup prelude; modules and imports;
+  the JIT is built but not wired in (loops are interpreted, about 1 us per iteration);
+  series results print in their raw internal form.
 
 Benchmarks
 ----------
   mc-bench.exe list
   mc-bench.exe run --cases bench\cases --only R1 --mem-ceiling 4GB
 Every case runs in its own child process with a memory cap and a timeout and prints [k/N pct%] progress.
-Most cases still need library functions that are not in this build.
+Last full run: 61 of 70 measurements pass their check, none wrong; 3 have no stored reference, 6 stop at a guard
+(time, memory or evaluation depth). Some short medians (about 0.1 ms) are memo hits on repeated runs.
