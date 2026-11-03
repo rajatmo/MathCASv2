@@ -20,7 +20,7 @@ use mc_eval::{Control, EvalConfig, Kernel, Status};
 use mc_load::{stdlib, LoadError, Loader, Module, Origin, SourceProvider};
 use mc_syntax::Printer;
 use mc_api::Sym;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -173,13 +173,25 @@ impl CoreEngine {
     /// Evaluate `src` from `origin` (a file name, `<repl>`, `<-e>`; its directory is where `import` looks for
     /// module files first). The whole text is read and resolved before any of it runs (decision F.6).
     pub fn eval_in(&mut self, src: &str, origin: &Origin, stop: &StopFlag) -> Result<Script, RunError> {
-        self.evaluate(Input::Text(src, origin), stop)
+        self.evaluate(Input::Text(src, origin), stop, &mut |_| {})
+    }
+
+    /// [`CoreEngine::eval_in`], also handing every event to `sink` as soon as its statement has finished, before
+    /// the next statement runs (the kernel protocol streams output this way).
+    pub fn eval_streaming(
+        &mut self,
+        src: &str,
+        origin: &Origin,
+        stop: &StopFlag,
+        sink: &mut dyn FnMut(&Event),
+    ) -> Result<Script, RunError> {
+        self.evaluate(Input::Text(src, origin), stop, sink)
     }
 
     /// Evaluate the file at `path` as a script: the same as [`CoreEngine::eval_in`] on its text, from its
     /// directory. A module file evaluated again replaces the old definitions of its module (decision F.8).
     pub fn eval_file(&mut self, path: &Path, stop: &StopFlag) -> Result<Script, RunError> {
-        self.evaluate(Input::File(path), stop)
+        self.evaluate(Input::File(path), stop, &mut |_| {})
     }
 
     /// Read script and module files through `provider` (the file system by default; tests use
@@ -198,7 +210,32 @@ impl CoreEngine {
         self.session.step(|h, k| k.has_native(h.sym(name)))
     }
 
-    fn evaluate(&mut self, input: Input<'_>, stop: &StopFlag) -> Result<Script, RunError> {
+    /// The names a completion can offer, sorted: every defined symbol with a plain name (natives, the prelude,
+    /// session definitions), the libraries' names without definitions (constants), the loaded modules and their
+    /// public members as `M.f`. Qualified private members and names that are not identifiers are left out.
+    pub fn names(&mut self) -> Vec<String> {
+        let library = &self.library_names;
+        let mut names: BTreeSet<String> = self.session.step(|h, k| {
+            (0..h.sym_count() as u32)
+                .map(Sym)
+                .filter(|&s| k.is_defined(s) || library.contains(&s))
+                .map(|s| h.sym_name(s))
+                .filter(|n| is_identifier(n))
+                .collect()
+        });
+        for m in self.loader.modules() {
+            names.insert(m.name.clone());
+            names.extend(m.public.iter().map(|p| m.qualified(p)));
+        }
+        names.into_iter().collect()
+    }
+
+    fn evaluate(
+        &mut self,
+        input: Input<'_>,
+        stop: &StopFlag,
+        sink: &mut dyn FnMut(&Event),
+    ) -> Result<Script, RunError> {
         self.attach(stop);
         // withdraw an old request before looking at the flag: a raise after this check reaches the evaluation
         self.ctl.clear_interrupt();
@@ -230,7 +267,7 @@ impl CoreEngine {
             let last = Evaluated { printed: names::NULL.into(), fingerprint: None, output: vec![] };
             Ok(Script { events: vec![], last, last_is_null: true })
         } else {
-            self.run(n, stop).map_err(RunError::Engine)
+            self.run(n, stop, sink).map_err(RunError::Engine)
         };
         self.session.state.roots.truncate(LAST + 1);
         r
@@ -255,7 +292,7 @@ impl CoreEngine {
 
     /// Evaluate statements `1..=n` of the roots; the last one's value is the result. Output is collected after
     /// each statement, so that it stays in order with the failures of statements.
-    fn run(&mut self, n: usize, stop: &StopFlag) -> Result<Script, EngineError> {
+    fn run(&mut self, n: usize, stop: &StopFlag, sink: &mut dyn FnMut(&Event)) -> Result<Script, EngineError> {
         let mut events = vec![];
         for i in 1..=n {
             let last = i == n;
@@ -293,8 +330,10 @@ impl CoreEngine {
                 return Err(EngineError::Stopped);
             }
             let (output, fail, value) = r?;
+            let start = events.len();
             events.extend(output.into_iter().map(Event::Output));
             events.extend(fail.map(Event::Failure));
+            events[start..].iter().for_each(&mut *sink);
             if let Some((printed, fingerprint, last_is_null)) = value {
                 self.has_last = true;
                 let output = events
@@ -327,6 +366,12 @@ fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<String> {
             _ => Printer::with_numbers(h, Box::new(ArithNumbers)).expr(t),
         })
         .collect()
+}
+
+/// Whether `name` is a plain identifier (a letter or `_`, then letters, digits, `_`): the names completion offers.
+fn is_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_alphabetic() || c == '_') && chars.all(|c| c.is_alphanumeric() || c == '_')
 }
 
 /// Whether `t` is the symbol named `name`.
