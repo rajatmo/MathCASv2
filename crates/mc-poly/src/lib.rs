@@ -45,7 +45,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("variables", "variables(p): the variables (kernels) of p"),
     ("polynomial_gcd", "polynomial_gcd(p, q, ...): the greatest common divisor of polynomials"),
     ("polynomial_lcm", "polynomial_lcm(p, q, ...): the least common multiple of polynomials"),
-    ("gcd", "gcd(a, b, ...): the gcd of exact numbers, or of polynomials"),
+    ("gcd", "gcd(a, b, ...): the gcd of exact numbers (gcd() = 0), or of polynomials"),
+    ("lcm", "lcm(a, b, ...): the least common multiple of exact numbers (lcm() = 1), or of polynomials"),
     ("polynomial_quotient", "polynomial_quotient(p, q, x): the quotient of p by q as polynomials in x"),
     ("polynomial_remainder", "polynomial_remainder(p, q, x): the remainder of p by q as polynomials in x"),
     ("factor", "factor(p): the factorisation over the integers"),
@@ -56,6 +57,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("cancel", "cancel(e): each term of e in lowest terms"),
     ("series", "series(e, x, x0, n): the power series of e in x at x0 up to the power n"),
     ("normal", "normal(s): a series as its truncated sum (other terms unchanged)"),
+    ("O", "O(x^n): the order term of a printed series; series(... + O(x^n), x, 0, k) reads it back"),
 ];
 
 /// The table of natives: (name, function).
@@ -68,6 +70,7 @@ const TABLE: &[(&str, PolyFn)] = &[
     ("polynomial_gcd", PolyFn::PolynomialGcd),
     ("polynomial_lcm", PolyFn::PolynomialLcm),
     ("gcd", PolyFn::Gcd),
+    ("lcm", PolyFn::Lcm),
     ("polynomial_quotient", PolyFn::PolynomialQuotient),
     ("polynomial_remainder", PolyFn::PolynomialRemainder),
     ("factor", PolyFn::Factor),

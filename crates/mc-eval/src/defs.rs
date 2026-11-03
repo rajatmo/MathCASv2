@@ -311,6 +311,34 @@ impl Defs {
         }
     }
 
+    /// Remove the argument-head rules `holder` holds for outer head `outer`, keeping its others in order. Returns
+    /// whether there were any (then the version counter counts a definition).
+    pub(crate) fn clear_arg_rules(&mut self, holder: Sym, outer: Sym) -> bool {
+        let Some(sd) = self.syms.get_mut(holder.0) else { return false };
+        let mut nodes = Vec::new();
+        let mut p = *sd.args.get_mut();
+        while !p.is_null() {
+            // SAFETY: `&mut self`: no reader; every node came from `Box::into_raw` and is reachable once.
+            let b = unsafe { Box::from_raw(p) };
+            p = b.next;
+            nodes.push(b);
+        }
+        let before = nodes.len();
+        nodes.retain(|n| n.outer != outer);
+        let found = nodes.len() < before;
+        // relink in the original order
+        let mut head = null_mut();
+        for mut n in nodes.into_iter().rev() {
+            n.next = head;
+            head = Box::into_raw(n);
+        }
+        *sd.args.get_mut() = head;
+        if found {
+            *sd.version.get_mut() += 1;
+        }
+        found
+    }
+
     /// Add `rule` to the rules `owner` holds: its own (`outer == None`) or its argument-head rules for `outer`.
     pub(crate) fn define(&self, h: &Heap, owner: Sym, outer: Option<Sym>, ac_top: bool, rule: Rule) {
         let _w = self.writer.lock();
@@ -351,5 +379,18 @@ impl Defs {
         let mut n = 0;
         self.syms.for_each_mut(|sd| sd.for_each_rule_set(|rs| n += rs.reclaim()));
         n
+    }
+}
+
+impl crate::eval::Kernel {
+    /// Remove the argument-head rules `holder` holds for the outer head `outer` (the rules `@on(holder) rule
+    /// outer(...) := ...` attached), between evaluations; other definitions of both symbols stay. Used when a module
+    /// that attached such rules to a symbol it does not own is loaded again, so that its old rules go
+    /// ([`Kernel::clear`](crate::eval::Kernel::clear) covers only the module's own members). Counts as a definition
+    /// of both symbols (memoised results that read them are stale).
+    pub fn clear_attached(&mut self, holder: Sym, outer: Sym) {
+        let e = self.epoch();
+        self.defs.clear_arg_rules(holder, outer);
+        self.defined(e, crate::eval::bit(holder) | crate::eval::bit(outer), || ());
     }
 }

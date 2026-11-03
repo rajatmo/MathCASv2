@@ -594,7 +594,12 @@ enum Kind<'h> {
     Func(&'static str, T<'h>),
     /// a series_data term in x at the same point
     Data(T<'h>),
+    /// `O((x - x0)^p)`: an unknown remainder of order p (the printed form of a series reads back with one)
+    Order(i64),
 }
+
+/// The head of an order term `O((x - x0)^p)` (decision 9.3 of the library-gaps package).
+pub(crate) const ORDER: &str = "O";
 
 const FUNCS: [&str; 10] = ["exp", "log", "sin", "cos", "tan", "sinh", "cosh", "tanh", "atan", "sqrt"];
 
@@ -617,6 +622,7 @@ fn evaluate<'h, R: Ring<'h>>(
 ) -> SRes<Ser<R::C>> {
     let h = env.h();
     let sa = Arithm { r, cap };
+    let order_head = env.sym(ORDER);
     // which subterms involve x
     let mut dep: FxHashMap<T<'h>, bool> = FxHashMap::default();
     {
@@ -629,7 +635,8 @@ fn evaluate<'h, R: Ring<'h>>(
             match h.view(t) {
                 View::App { head, args } => {
                     if done {
-                        let d = args.iter().any(|a| dep[a]) || dep.get(&head).copied().unwrap_or(false);
+                        // an order term involves x even when it is O(1)
+                        let d = head == order_head || args.iter().any(|a| dep[a]) || dep.get(&head).copied().unwrap_or(false);
                         dep.insert(t, d);
                     } else {
                         stack.push((t, true));
@@ -644,7 +651,25 @@ fn evaluate<'h, R: Ring<'h>>(
             }
         }
     }
+    // the base of the powers in an order term O((x - x0)^p), in the canonical form the printed text reads back as
+    let base = if req.x0 == h.int(0) { req.x } else { env.ar.sub(req.x, req.x0) };
+    let order = |a: T<'h>| -> Option<i64> {
+        if a == base {
+            return Some(1);
+        }
+        match h.view(a) {
+            View::App { head, args: &[b, p] } if head == env.hd.pow && b == base => env.int(p),
+            _ => None,
+        }
+    };
     let kind = |t: T<'h>| -> Kind<'h> {
+        if let View::App { head, args: &[a] } = h.view(t) {
+            if head == order_head {
+                if let Some(p) = if a == h.int(1) { Some(0) } else { order(a) } {
+                    return Kind::Order(p);
+                }
+            }
+        }
         if !dep[&t] {
             return Kind::Const(t);
         }
@@ -735,6 +760,7 @@ fn evaluate<'h, R: Ring<'h>>(
                     tasks.push(Task::Visit(a));
                 }
                 Kind::Data(t) => vals.push(read_data(env, r, &sa, t, m)?),
+                Kind::Order(p) => vals.push(sa.make(p, vec![], p, m)?),
             },
             Task::Add(n) => {
                 let xs = vals.split_off(vals.len() - n);
@@ -885,7 +911,8 @@ fn data_term<'h>(env: &Env<'h>, req: &Request<'h>, cs: Vec<T<'h>>, val: i64, pre
     h.call(h.sym("series_data"), &[req.x, req.x0, l, h.int(val), h.int(prec)])
 }
 
-/// `normal(e)`: a `series_data` term as its sum (other terms unchanged; lists element by element).
+/// `normal(e)`: a `series_data` term as its sum, a sum with order terms `O(...)` without them (other terms unchanged;
+/// lists element by element).
 pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
     let [e] = args else {
         return Ok(env.arg_failure("normal(e) takes one argument"));
@@ -895,6 +922,11 @@ pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) ->
         let View::App { head, args } = h.view(t) else {
             return Ok(t);
         };
+        // a sum with order terms (a printed series read back): the sum without them
+        if head == env.hd.add && args.iter().any(|&a| matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER))) {
+            let rest: Vec<T<'h>> = args.iter().copied().filter(|&a| !matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER))).collect();
+            return Ok(env.ar.add(&rest));
+        }
         if head != env.sym("series_data") || args.len() != 5 {
             return Ok(t);
         }

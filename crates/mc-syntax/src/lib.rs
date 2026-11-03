@@ -12,8 +12,8 @@
 //! - [`parse`] gives the syntax tree ([`ast`]) and every lexical and syntax error with its position.
 //! - [`lower_program`] turns the tree into terms (shapes documented on [`Head`]).
 //! - [`read`] does both and fails if anything is wrong; nothing of an erroneous input should be evaluated.
-//! - [`Printer`] writes terms back; for every term except balls and non-finite machine reals, the text reads back
-//!   to the identical term.
+//! - [`Printer`] writes terms back; for every term except balls, non-finite machine reals and truncated power series
+//!   (printed as `1 + x + O(x^2)`), the text reads back to the identical term.
 //! - [`scope`] and [`Heads`] let later passes over lowered terms (name resolution in `mc-load`) see local bindings
 //!   exactly as lowering and the printer do; [`identifiers`] gives the position of every name in a text.
 pub mod ast;
@@ -30,6 +30,8 @@ mod span;
 mod stack;
 
 pub use heads::{as_sym, Head, Heads};
+/// A string's literal with escapes (what the printer writes for a string term).
+pub use ident::string_literal;
 pub use lower::lower_program;
 pub use parser::{parse, Parsed, MAX_DEPTH};
 pub use print::{DefaultNumberFormat, NumberFormat, Printer};

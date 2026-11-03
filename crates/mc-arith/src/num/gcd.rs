@@ -177,11 +177,11 @@ pub fn div_exact(x: &Nat, d: &Nat) -> Nat {
     }
     if d.limbs.len() == 1 {
         let (q, r) = x.divrem_u64(d.limbs[0]);
-        debug_assert_eq!(r, 0, "inexact division");
+        debug_assert!(r == 0 || super::stopped(), "inexact division");
         return q;
     }
     let (q, r) = x.divrem(d);
-    debug_assert!(r.is_zero(), "inexact division");
+    debug_assert!(r.is_zero() || super::stopped(), "inexact division");
     q
 }
 

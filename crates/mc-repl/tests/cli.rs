@@ -77,6 +77,23 @@ fn failures_are_reported_and_the_script_goes_on() {
 }
 
 #[test]
+fn a_value_already_printed_is_not_shown_again() {
+    // a script ending in print(...) shows the value once (decision 9.5)
+    for (src, want) in [
+        ("print(1 + 1)", "2\n"),
+        ("print(\"done\")", "done\n"),
+        ("print(\"a \\\"quoted\\\" word\")", "a \"quoted\" word\n"),
+        ("x = 5; print(x); x + 1", "5\n6\n"),
+        ("print(2); 3", "2\n3\n"),
+        ("print(\"3\"); 3", "3\n"),
+        ("print(1); null", "1\n"),
+    ] {
+        let (code, out, err) = run(&["-e", src]);
+        assert_eq!((code, out.as_str(), err.as_str()), (0, want, ""), "{src}");
+    }
+}
+
+#[test]
 fn read_errors_stop_everything() {
     let (code, out, err) = run(&["-e", "print(1); null", "-e", "print(2)\n1 +", "-e", "print(3)"]);
     assert_eq!(code, 1);
@@ -102,8 +119,8 @@ fn options() {
     let (code, out, _) = run(&["--help"]);
     assert_eq!(code, 0);
     assert!(out.starts_with("usage: mc-repl [options] [file.mc ...]"), "{out}");
-    let (code, out, _) = run(&["--no-prelude", "-e", "unique([1, 1])"]);
-    assert_eq!((code, out.as_str()), (0, "unique([1, 1])\n"));
+    let (code, out, _) = run(&["--no-prelude", "-e", "clamp(5, 0, 3)"]);
+    assert_eq!((code, out.as_str()), (0, "clamp(5, 0, 3)\n"));
     // -i: the REPL starts afterwards, in the same session
     let o = mc(&["-i", "examples/vectors.mc"], ":modules\nvectors.plus(vectors.e1, vectors.e2)\n");
     assert_eq!(o.status.code(), Some(0));

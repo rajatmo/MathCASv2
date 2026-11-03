@@ -273,48 +273,63 @@ fn dit(p: u64, a: &mut [u64], tw: &[[u64; 2]]) {
     dit_level(lo, hi, &tw[h..n], p);
 }
 
-/// Cyclic convolution of a and b modulo one prime, length n (a power of two, at least a.len() + b.len() - 1);
-/// returns the residues of the product's coefficients in [0, p). `square` reuses the transform of a.
-fn conv_mod(i: usize, a: &[u64], b: &[u64], n: usize, square: bool) -> Vec<u64> {
+/// The forward transform of `a` (a.len() <= n) modulo prime `i` at length n (a power of two): residues in [0, 2p),
+/// in bit-reversed order.
+fn forward(i: usize, a: &[u64], n: usize) -> Vec<u64> {
     let pr = &primes()[i];
     let p = pr.p;
     assert!(n.trailing_zeros() <= pr.k, "transform length beyond the primes' 2-adicity");
     // a limb is below 2^64 < 8p: two conditional subtractions bring it into [0, 2p)
-    let load = |x: &[u64]| -> Vec<u64> {
-        let mut f = vec![0u64; n];
-        for (d, &v) in f.iter_mut().zip(x) {
-            *d = csub(csub(v, 4 * p), 2 * p);
-        }
-        f
-    };
+    let mut f = vec![0u64; n];
+    for (d, &v) in f.iter_mut().zip(a) {
+        *d = csub(csub(v, 4 * p), 2 * p);
+    }
     TABLES.with(|t| {
         let mut t = t.borrow_mut();
         let tab = &mut t[i];
         tab.grow(pr, n);
-        let mut fa = load(a);
-        dif(p, &mut fa, &tab.fwd);
-        // Montgomery products of residues below 2p (4p^2 < p 2^64): results in [0, p), with a factor R^-1
-        if square {
-            for x in fa.iter_mut() {
-                *x = pr.mul(*x, *x);
-            }
-        } else {
-            let mut fb = load(b);
-            dif(p, &mut fb, &tab.fwd);
-            for (x, y) in fa.iter_mut().zip(&fb) {
-                *x = pr.mul(*x, *y);
-            }
-        }
+        dif(p, &mut f, &tab.fwd);
+    });
+    f
+}
+
+/// The pointwise product of two forward transforms modulo prime `i` (`fb` = None: the square of `fa`), transformed
+/// back: the residues in [0, p) of the cyclic convolution's coefficients.
+fn backward(i: usize, mut fa: Vec<u64>, fb: Option<&[u64]>) -> Vec<u64> {
+    let pr = &primes()[i];
+    let p = pr.p;
+    let n = fa.len();
+    // Montgomery products of residues below 2p (4p^2 < p 2^64): results in [0, p), with a factor R^-1
+    match fb {
+        None => fa.iter_mut().for_each(|x| *x = pr.mul(*x, *x)),
+        Some(fb) => fa.iter_mut().zip(fb).for_each(|(x, y)| *x = pr.mul(*x, *y)),
+    }
+    TABLES.with(|t| {
+        let mut t = t.borrow_mut();
+        let tab = &mut t[i];
+        tab.grow(pr, n);
         dit(p, &mut fa, &tab.inv);
-        // the inverse transform added a factor n: multiplying by k = R / n mod p leaves the plain coefficient
-        let ninv = powmod(n as u64 % p, p - 2, p);
-        let k = mulmod(((1u128 << 64) % p as u128) as u64, ninv, p);
-        let kp = shoup(k, p);
-        for x in fa.iter_mut() {
-            *x = csub(mul_shoup(*x, k, kp, p), p);
-        }
-        fa
-    })
+    });
+    // the inverse transform added a factor n: multiplying by k = R / n mod p leaves the plain coefficient
+    let ninv = powmod(n as u64 % p, p - 2, p);
+    let k = mulmod(((1u128 << 64) % p as u128) as u64, ninv, p);
+    let kp = shoup(k, p);
+    for x in fa.iter_mut() {
+        *x = csub(mul_shoup(*x, k, kp, p), p);
+    }
+    fa
+}
+
+/// Cyclic convolution of a and b modulo one prime, length n (a power of two, at least a.len() + b.len() - 1);
+/// returns the residues of the product's coefficients in [0, p). `square` reuses the transform of a.
+fn conv_mod(i: usize, a: &[u64], b: &[u64], n: usize, square: bool) -> Vec<u64> {
+    let fa = forward(i, a, n);
+    if square {
+        backward(i, fa, None)
+    } else {
+        let fb = forward(i, b, n);
+        backward(i, fa, Some(&fb))
+    }
 }
 
 /// a - b mod p for a, b in [0, p).
@@ -362,9 +377,93 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
         }
         res.push(conv_mod(i, a, b, n, square));
     }
+    let mut out = vec![0u64; len];
+    let carry = reconstruct(&res, &mut out);
+    debug_assert!(carry == 0 || super::stopped());
+    out
+}
+
+/// The three transforms of one operand at one length, for several products with the same operand (the divisors of
+/// radix conversion): a product with a spectrum costs two transforms per prime instead of three.
+pub struct Spectrum {
+    f: Vec<Vec<u64>>,
+}
+
+impl Spectrum {
+    /// The transforms of `a` at length n, a power of two with n >= a.len().
+    pub fn new(a: &[u64], n: usize) -> Spectrum {
+        debug_assert!(n.is_power_of_two() && a.len() <= n);
+        Spectrum { f: (0..3).map(|i| forward(i, a, n)).collect() }
+    }
+    /// The transform length.
+    pub fn size(&self) -> usize {
+        self.f[0].len()
+    }
+}
+
+/// The residues of the cyclic convolution of `a` (a.len() <= the spectrum's length) with the spectrum's operand,
+/// or `None` after a stop.
+fn conv_spectrum(a: &[u64], b: &Spectrum) -> Option<Vec<Vec<u64>>> {
+    let n = b.size();
+    let mut res = Vec::with_capacity(3);
+    for i in 0..3 {
+        if super::stopped() {
+            return None;
+        }
+        res.push(backward(i, forward(i, a, n), Some(&b.f[i])));
+    }
+    Some(res)
+}
+
+/// a b for b given by its spectrum, whose length must be at least a.len() + b.len() - 1: exactly `len` limbs
+/// (len >= a.len() + b.len()).
+pub fn mul_spectrum(a: &[u64], b: &Spectrum, len: usize) -> Vec<u64> {
+    let Some(res) = conv_spectrum(a, b) else { return vec![0; len] };
+    let mut out = vec![0u64; len];
+    let carry = reconstruct(&res, &mut out);
+    debug_assert!(carry == 0 || super::stopped());
+    out
+}
+
+/// a b mod (B^n - 1) (B = 2^64) for b given by its spectrum of length n and a.len() <= n: n limbs, the cyclic
+/// convolution with the carry out of the top limb added back at the bottom (B^n = 1). The value B^n - 1 itself is
+/// returned as zero.
+pub fn mul_cyclic(a: &[u64], b: &Spectrum) -> Vec<u64> {
+    let n = b.size();
+    let Some(res) = conv_spectrum(a, b) else { return vec![0; n] };
+    let mut out = vec![0u64; n];
+    let carry = reconstruct(&res, &mut out);
+    wrap_carry(&mut out, carry);
+    out
+}
+
+/// out + c B^n mod (B^n - 1) into out, for n = out.len(): c is added at the bottom, and the carry out of the top
+/// again until none is left (the second pass carries at most one); B^n - 1 becomes zero.
+pub(crate) fn wrap_carry(out: &mut [u64], c: u128) {
+    let mut c = c;
+    while c != 0 {
+        let mut carry = c;
+        for o in out.iter_mut() {
+            if carry == 0 {
+                break;
+            }
+            let s = *o as u128 + (carry as u64 as u128);
+            *o = s as u64;
+            carry = (carry >> 64) + (s >> 64);
+        }
+        c = carry;
+    }
+    if out.iter().all(|&x| x == u64::MAX) {
+        out.fill(0);
+    }
+}
+
+/// The limbs of the convolution whose coefficient residues are `res` (one vector per prime) into `out`
+/// (coefficients beyond the transform length are zero, so `out` may be longer); returns the carry out of the top.
+fn reconstruct(res: &[Vec<u64>], out: &mut [u64]) -> u128 {
     let [p1, p2, p3] = primes();
     let k = crt();
-    let mut out = vec![0u64; len];
+    let n = res[0].len();
     let mut carry: u128 = 0;
     for (i, o) in out.iter_mut().enumerate() {
         // the last limb (index la + lb - 1) has no coefficient of its own when n = la + lb - 1
@@ -391,8 +490,7 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
         let s2 = w2 + (s1 >> 64);
         carry = (s1 as u64 as u128) | (s2 << 64);
     }
-    debug_assert_eq!(carry, 0);
-    out
+    carry
 }
 
 #[cfg(test)]
@@ -428,5 +526,46 @@ mod tests {
         let mut want = vec![0u64; 600];
         crate::num::nat::mul_school(&a, &a, &mut want);
         assert_eq!(mul(&a, &a), want);
+    }
+
+    /// a b mod (B^n - 1) by schoolbook and folding the product's n-limb chunks.
+    fn cyclic_reference(a: &[u64], b: &[u64], n: usize) -> Vec<u64> {
+        let mut full = vec![0u64; a.len() + b.len()];
+        crate::num::nat::mul_school(a, b, &mut full);
+        let mut out = vec![0u64; n];
+        let mut carry = 0u128;
+        for chunk in full.chunks(n) {
+            let mut c = 0u128;
+            for (i, o) in out.iter_mut().enumerate() {
+                let s = *o as u128 + chunk.get(i).copied().unwrap_or(0) as u128 + c;
+                *o = s as u64;
+                c = s >> 64;
+            }
+            carry += c;
+        }
+        wrap_carry(&mut out, carry);
+        out
+    }
+
+    #[test]
+    fn spectrum_products_match() {
+        let mut rng = crate::num::Rng(8);
+        for (la, lb, n) in [(1usize, 1usize, 2usize), (40, 70, 128), (64, 64, 128), (100, 3, 128), (300, 211, 512)] {
+            let a: Vec<u64> = (0..la).map(|_| rng.next_u64()).collect();
+            let b: Vec<u64> = (0..lb).map(|_| rng.next_u64()).collect();
+            let s = Spectrum::new(&b, n);
+            assert_eq!(mul_spectrum(&a, &s, la + lb), mul(&a, &b), "{la}x{lb}");
+        }
+        for (la, lb, n) in [(1usize, 1usize, 1usize), (64, 64, 64), (100, 128, 128), (511, 300, 512), (5, 9, 16)] {
+            let a: Vec<u64> = (0..la).map(|_| rng.next_u64()).collect();
+            let b: Vec<u64> = (0..lb).map(|_| rng.next_u64()).collect();
+            let s = Spectrum::new(&b, n);
+            assert_eq!(mul_cyclic(&a, &s), cyclic_reference(&a, &b, n), "{la}x{lb} mod B^{n} - 1");
+        }
+        // all-ones operands: the largest carries; (B^n - 1)^2 is zero modulo B^n - 1
+        let ones = vec![u64::MAX; 64];
+        assert_eq!(mul_cyclic(&ones, &Spectrum::new(&ones, 64)), vec![0u64; 64]);
+        let a = vec![u64::MAX; 63];
+        assert_eq!(mul_cyclic(&a, &Spectrum::new(&a, 64)), cyclic_reference(&a, &a, 64));
     }
 }

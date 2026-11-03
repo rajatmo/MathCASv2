@@ -141,6 +141,7 @@ pub(crate) enum PolyFn {
     PolynomialGcd,
     PolynomialLcm,
     Gcd,
+    Lcm,
     PolynomialQuotient,
     PolynomialRemainder,
     Factor,
@@ -162,6 +163,14 @@ pub(crate) struct PolyNative {
 
 impl Native for PolyNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if let PolyFn::Gcd | PolyFn::Lcm = self.f {
+            // this crate owns `gcd` and `lcm`; exact numbers go to the half-gcd of mc-numtheory (decision 9.1)
+            let _scope = StopScope::enter(Some(&self.stop));
+            match mc_numtheory::number_gcd_lcm(cx, args, self.f == PolyFn::Lcm)? {
+                Reply::Decline => {}
+                r => return Ok(r),
+            }
+        }
         let h = cx.heap();
         let env = Env { ar: Arith::new(h).with_stop(self.stop.clone()), hd: Heads::new(h), name: self.name };
         let _scope = StopScope::enter(Some(&self.stop));
@@ -200,7 +209,8 @@ fn dispatch<'h>(f: PolyFn, env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Work
         PolyFn::Variables => fns::variables(env, args, m),
         PolyFn::PolynomialGcd => fns::polynomial_gcd(env, args, m, false),
         PolyFn::PolynomialLcm => fns::polynomial_gcd(env, args, m, true),
-        PolyFn::Gcd => fns::gcd(env, args, m),
+        PolyFn::Gcd => fns::gcd(env, args, m, false),
+        PolyFn::Lcm => fns::gcd(env, args, m, true),
         PolyFn::PolynomialQuotient => fns::polynomial_division(env, args, m, true),
         PolyFn::PolynomialRemainder => fns::polynomial_division(env, args, m, false),
         PolyFn::Factor => fns::factor(env, args, m, false),

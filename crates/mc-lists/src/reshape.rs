@@ -1,9 +1,10 @@
-//! Rebuilding: `append`, `prepend`, `join`, `reverse`, `flatten`, `transpose`, `apply`.
+//! Rebuilding: `append`, `prepend`, `join`, `reverse`, `unique`, `flatten`, `transpose`, `apply`.
 //!
 //! These keep the head of their operand; a result with a head other than `list` is evaluated again (decision I.3).
 use crate::ctx::{charge_copy, take, Lib, Meter, MAX_LEN};
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
+use rustc_hash::FxHashSet;
 
 /// `append(xs, x)`: `x` added at the end.
 pub(crate) fn append<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
@@ -65,6 +66,26 @@ pub(crate) fn reverse<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
     charge_copy(cx, xs.len())?;
     let v: Vec<T<'h>> = xs.iter().rev().copied().collect();
     Ok(lib.rebuilt(h, head, &v))
+}
+
+/// `unique(xs)`: the arguments without repetitions, in the order of their first occurrence, compared by identity
+/// (`===`: one hash-consed term each); linear time with a hash set (it replaced the prelude's quadratic definition).
+pub(crate) fn unique<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs] = *args else {
+        return Ok(Reply::Decline);
+    };
+    let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    let mut seen = FxHashSet::default();
+    let mut out = Vec::new();
+    let mut meter = Meter::default();
+    for &x in xs {
+        meter.step(cx)?;
+        if seen.insert(x) {
+            out.push(x);
+        }
+    }
+    Ok(lib.rebuilt(h, head, &out))
 }
 
 /// `flatten(xs)`: arguments with the same head as `xs` spliced in, at every level; `flatten(xs, d)`: down to

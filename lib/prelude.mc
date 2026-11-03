@@ -24,9 +24,6 @@ fn some(xs, p) = count_if(xs, p) > 0
 # member(xs, x): whether x is an element of xs (compared by identity)
 fn member(xs, x) = some(xs, y => y === x)
 
-# unique(xs): the elements of xs without repetitions, in order of first occurrence
-fn unique(xs) = fold((seen, x) => if member(seen, x) then seen else append(seen, x), [], xs)
-
 # zip(xs, ys): the list of pairs [xs[i], ys[i]], as long as the shorter list
 fn zip(xs, ys) = range(min(length(xs), length(ys))) |> map(i => [xs[i], ys[i]], _)
 

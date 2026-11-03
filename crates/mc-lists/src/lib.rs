@@ -115,6 +115,8 @@ functions! {
         "join(xs, ys, ...): the elements of terms with one head, in order";
     "reverse" => reshape::reverse,
         "reverse(xs): the elements in reverse order";
+    "unique" => reshape::unique,
+        "unique(xs): the elements without repetitions (compared by identity), in order of first occurrence";
     "flatten" => reshape::flatten,
         "flatten(xs), flatten(xs, d): nested terms with the head of xs spliced in (to depth d)";
     "transpose" => reshape::transpose,

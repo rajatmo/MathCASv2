@@ -149,7 +149,8 @@ impl CoreEngine {
             mc_lists::install(&mut k, h, &arith_stop);
             mc_numeric::install_with_stop(&mut k, h, &arith_stop);
             mc_numtheory::install(&mut k, h);
-            // after any integer gcd: mc-poly's gcd also handles integers and rationals (K.5)
+            // mc-poly owns `gcd` and `lcm` and sends exact numbers to mc-numtheory's half-gcd (decision 9.1): no two
+            // libraries register one name, so the order of these calls does not matter
             mc_poly::install(&mut k, h, &arith_stop);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
@@ -220,6 +221,10 @@ impl CoreEngine {
             // a module defined again: its old clauses go first (decision F.8)
             for name in &read.reloaded {
                 k.clear(h.sym(name));
+            }
+            // and the argument-head rules it attached to other symbols (decision 9.6)
+            for (holder, outer) in &read.detached {
+                k.clear_attached(h.sym(holder), h.sym(outer));
             }
             for &t in &read.statements {
                 k.roots.push(t);

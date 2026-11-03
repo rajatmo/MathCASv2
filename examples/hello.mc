@@ -10,7 +10,7 @@ fn collatz(n: Int) = prepend(collatz(if is_even(n) then n/2 else 3n + 1), n)
 
 say("The Collatz path of 6: ", collatz(6))
 
-# functions from the prelude: unique, accumulate, count_if
+# unique (a library function) and, from the prelude, accumulate and count_if
 say("Running sums: ", accumulate(range(5)))
 say("Odd numbers below 20: ", count_if(range(20), is_odd))
 

@@ -432,8 +432,8 @@ fn lcm_nat(a: &Nat, b: &Nat, cx: &mut dyn Budget) -> Res<Nat> {
 }
 
 /// gcd and lcm of integers and rationals: gcd(p/q, r/s) = gcd(p, r) / lcm(q, s), lcm(p/q, r/s) = lcm(p, r) /
-/// gcd(q, s).
-fn gcd_lcm<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], is_gcd: bool) -> Res<Reply<'h>> {
+/// gcd(q, s). Declines unless every argument is an exact number.
+pub(crate) fn gcd_lcm<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], is_gcd: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
     if is_gcd {
         if let [a, b] = args {
@@ -464,14 +464,6 @@ fn gcd_lcm<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], is_gcd: bool) -> R
         return done(h.int(1));
     }
     done(rat_term(h, &Rat::new(Int::from_nat(num), Int::from_nat(den))))
-}
-
-fn gcd<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    gcd_lcm(cx, args, true)
-}
-
-fn lcm<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    gcd_lcm(cx, args, false)
 }
 
 fn extended_gcd<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
@@ -854,8 +846,6 @@ fn multiplicative_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<
 pub(crate) const TABLE: &[(&str, bool, Body)] = &[
     ("mod", true, mod_),
     ("quotient", true, quotient),
-    ("gcd", false, gcd),
-    ("lcm", false, lcm),
     ("extended_gcd", false, extended_gcd),
     ("floor", true, floor),
     ("ceiling", true, ceiling),

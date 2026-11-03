@@ -19,6 +19,7 @@ fn long_native_loops_charge_fuel() {
         "length(select(ys, g))",
         "length(array(g, 10^5))",
         "nest(g, 1, 10^6)",
+        "length(unique(ys))",
     ] {
         assert_eq!(env.eval_with(src, 1000), "status Fuel", "{src}");
         assert!(!env.eval(src).starts_with("status"), "{src}");

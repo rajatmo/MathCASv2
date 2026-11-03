@@ -8,3 +8,5 @@ description = "MathCAS v2 read-eval-print loop with a pluggable engine"
 [dependencies]
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
+# string literals, to recognise a value that the last `print` already showed
+mc-syntax = { path = "../mc-syntax" }

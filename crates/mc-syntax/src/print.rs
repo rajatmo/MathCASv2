@@ -1,7 +1,9 @@
 //! The printer: core terms back to the concrete syntax.
 //!
 //! **Faithfulness.** For every term the store can hold except balls and non-finite machine reals (whose text comes
-//! from the pluggable [`NumberFormat`]), the printed text reads back, through [`crate::read`], to the identical term.
+//! from the pluggable [`NumberFormat`]) and truncated power series (`series_data(...)`, written as their sum with an
+//! order term `O(x^p)`, which `series` reads back), the printed text reads back, through [`crate::read`], to the
+//! identical term.
 //! Special syntax is used only when the term has exactly the shape lowering produces for it (shapes on
 //! [`crate::heads::Head`]); any other term prints as a plain call, `` `if`(c) `` with backquotes for keyword heads.
 //! Context-dependent readings are tracked while printing, with the same functions lowering uses (`scope.rs`): which
@@ -21,6 +23,10 @@ use crate::prec::*;
 use crate::scope::{lambda_param_names, pattern_vars, statement_binding, Bind, Scopes};
 use mc_api::{Store, Sym, View, T};
 use std::collections::HashMap;
+
+/// The head of a truncated power series `series_data(x, x0, [c_v, ..., c_(p-1)], v, p)` (the result of `mc-poly`'s
+/// `series`): the sum of c_k (x - x0)^k plus an unknown remainder of order p.
+const SERIES_DATA: &str = "series_data";
 
 /// Text of the number kinds whose conversion belongs to `mc-arith`. The default converts big integers with a simple
 /// quadratic algorithm and writes balls as their payload.
@@ -58,6 +64,8 @@ pub struct Printer<'h, S: Store + ?Sized> {
     store: &'h S,
     heads: Heads,
     numbers: Box<dyn NumberFormat + 'h>,
+    /// the head of truncated power series, printed as sums with an order term (see [`Run::series`])
+    series_data: Sym,
 }
 
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
@@ -66,7 +74,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
-        Printer { store, heads: Heads::new(store), numbers }
+        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA) }
     }
 
     /// A term as an expression.
@@ -366,6 +374,9 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 if let Some(r) = self.derivative(head, args, v) {
                     return r;
                 }
+                if let Some(r) = self.series(head, args, v) {
+                    return r;
+                }
                 if let Some((h, args)) = self.classify(t) {
                     if let Some(r) = self.special(t, h, args, ctx, v) {
                         return r;
@@ -387,6 +398,118 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
         let f = self.sym_of(*f)?;
         v.push(Task::Owned(format!("{}{}", self.ident(f), "'".repeat(n as usize))));
         Some((POSTFIX, false))
+    }
+
+    /// A truncated power series `series_data(x, x0, [c_v, ...], v, p)` with at most p - v coefficients, as
+    /// the sum of its nonzero terms followed by the order term: `1 + x + x^2/2 + O(x^3)`, `(x - 1) + O((x - 1)^2)`.
+    /// The text reads back as that sum, an `add` with an `O(...)` call, which `series` reads as the same series (the
+    /// one form this printer does not keep: decision 9.3 of the library-gaps package).
+    fn series(&self, head: T<'h>, args: &'h [T<'h>], v: &mut Vec<Task<'h>>) -> Option<(u8, bool)> {
+        let st = self.store();
+        if self.sym_of(head) != Some(self.p.series_data) {
+            return None;
+        }
+        let [x, x0, cs, val, prec] = args else { return None };
+        let Some((Head::List, cs)) = self.classify(*cs) else { return None };
+        let (View::Int(val), View::Int(prec)) = (st.view(*val), st.view(*prec)) else { return None };
+        // the coefficients of t^val, t^(val+1), ...; missing ones up to the order are zero
+        if prec.checked_sub(val).is_none_or(|n| n < cs.len() as i64) {
+            return None;
+        }
+        let mut first = true;
+        for (i, &c) in cs.iter().enumerate() {
+            if matches!(st.view(c), View::Int(0)) {
+                continue;
+            }
+            self.series_term(c, *x, *x0, val + i as i64, first, v);
+            first = false;
+        }
+        v.push(Task::Text(if first { "O(" } else { " + O(" }));
+        self.series_power(*x, *x0, prec, v);
+        v.push(Task::Text(")"));
+        Some(if first { (POSTFIX, false) } else { (ADD, false) })
+    }
+
+    /// One term c (x - x0)^k of a series, with its sign as ` - ` (or a leading `-`) when c is a negative number or
+    /// `mul(-1, b)`; a rational coefficient n/d is written `n*x^k/d` (`n/(d*x^m)` for k = -m < 0).
+    fn series_term(&self, c: T<'h>, x: T<'h>, x0: T<'h>, k: i64, first: bool, v: &mut Vec<Task<'h>>) {
+        let st = self.store();
+        let sign = |neg: bool, v: &mut Vec<Task<'h>>| match (first, neg) {
+            (true, false) => {}
+            (true, true) => v.push(Task::Text("-")),
+            (false, false) => v.push(Task::Text(" + ")),
+            (false, true) => v.push(Task::Text(" - ")),
+        };
+        let number = match st.view(c) {
+            View::Int(_) | View::BigInt { .. } => Some((self.int_text(c), None)),
+            View::Rational { num, den } => Some((self.int_text(num), Some(self.int_text(den).0))),
+            _ => None,
+        };
+        if let Some(((n, neg), d)) = number {
+            sign(neg, v);
+            let one = n == "1";
+            match (k, d) {
+                (0, None) => v.push(Task::Owned(n)),
+                (0, Some(d)) => v.push(Task::Owned(format!("{n}/{d}"))),
+                (k, Some(d)) if k < 0 => {
+                    v.push(Task::Owned(format!("{n}/({d}*")));
+                    self.series_power(x, x0, -k, v);
+                    v.push(Task::Text(")"));
+                }
+                (k, d) => {
+                    if !one {
+                        v.push(Task::Owned(n + "*"));
+                    }
+                    self.series_power(x, x0, k, v);
+                    if let Some(d) = d {
+                        v.push(Task::Owned(format!("/{d}")));
+                    }
+                }
+            }
+            return;
+        }
+        let (neg, c) = match self.is(c, Head::Mul, 2) {
+            Some([m, b]) if matches!(st.view(*m), View::Int(-1)) => (true, *b),
+            _ => (false, c),
+        };
+        sign(neg, v);
+        v.push(Task::Expr(c, Ctx::at(if k == 0 { ADD + 1 } else { MUL })));
+        if k != 0 {
+            v.push(Task::Text("*"));
+            self.series_power(x, x0, k, v);
+        }
+    }
+
+    /// (x - x0)^k as a factor (`x`, `x^k`, `(x - x0)^k`; k = 0 only inside `O`, as `1`).
+    fn series_power(&self, x: T<'h>, x0: T<'h>, k: i64, v: &mut Vec<Task<'h>>) {
+        if k == 0 {
+            v.push(Task::Text("1"));
+            return;
+        }
+        let st = self.store();
+        if matches!(st.view(x0), View::Int(0)) {
+            v.push(Task::Expr(x, Ctx::at(POSTFIX)));
+        } else {
+            v.push(Task::Text("("));
+            v.push(Task::Expr(x, Ctx::at(ADD + 1)));
+            match self.literal(x0) {
+                Some((txt, true)) => v.push(Task::Owned(format!(" + {txt}"))),
+                _ => match st.view(x0) {
+                    View::Rational { num, den } if self.int_text(num).1 => {
+                        v.push(Task::Owned(format!(" + {}/{}", self.int_text(num).0, self.int_text(den).0)))
+                    }
+                    _ => {
+                        v.push(Task::Text(" - "));
+                        v.push(Task::Expr(x0, Ctx::at(MUL)));
+                    }
+                },
+            }
+            v.push(Task::Text(")"));
+        }
+        // `x^-2` reads back with the exponent's prefix minus
+        if k != 1 {
+            v.push(Task::Owned(format!("^{k}")));
+        }
     }
 
     /// A call `head(args)`, with a trailing `options(name -> v, ...)` as named arguments.

@@ -95,7 +95,10 @@ impl Mag {
     }
     /// Upper bound of self / o for o > 0 (o a lower bound of the true divisor).
     pub fn div_up(&self, o: &Mag) -> Mag {
-        assert!(!o.is_zero(), "Mag::div_up by zero");
+        if o.is_zero() {
+            super::after_stop("Mag::div_up by zero");
+            return Mag::ZERO;
+        }
         if self.is_zero() {
             return Mag::ZERO;
         }
@@ -319,7 +322,10 @@ impl Float {
     }
     /// Quotient rounded to p bits: a truncated quotient with p + 2 bits (error below its last unit), then rounding.
     pub fn div(&self, o: &Float, p: u64) -> (Float, Mag) {
-        assert!(!o.is_zero(), "Float::div by zero");
+        if o.is_zero() {
+            super::after_stop("Float::div by zero");
+            return (Float::zero(), Mag::ZERO);
+        }
         if self.is_zero() {
             return (Float::zero(), Mag::ZERO);
         }
@@ -333,7 +339,10 @@ impl Float {
     /// Square root rounded to p bits (self >= 0): a floor root with p + 2 bits, then rounding. The floor is always
     /// counted as inexact (a squaring to prove exactness would cost more than the bound loses).
     pub fn sqrt(&self, p: u64) -> (Float, Mag) {
-        assert!(!self.neg, "Float::sqrt of a negative number");
+        if self.neg {
+            super::after_stop("Float::sqrt of a negative number");
+            return (Float::zero(), Mag::ZERO);
+        }
         if self.is_zero() {
             return (Float::zero(), Mag::ZERO);
         }
@@ -376,7 +385,8 @@ impl Float {
                 Ordering::Equal => return (s, e10),
             }
         }
-        panic!("to_sci: exponent estimate did not settle");
+        super::after_stop("to_sci: exponent estimate did not settle");
+        ("0".repeat(d), 0)
     }
 }
 

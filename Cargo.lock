@@ -548,6 +548,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-poly",
  "mc-syntax",
  "num-bigint",
  "num-traits",
@@ -560,9 +561,11 @@ version = "0.0.0"
 dependencies = [
  "mc-api",
  "mc-arith",
+ "mc-bench",
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-numtheory",
  "mc-syntax",
  "num-bigint",
  "num-traits",
@@ -575,6 +578,7 @@ version = "0.0.0"
 dependencies = [
  "mc-bench",
  "mc-engine",
+ "mc-syntax",
 ]
 
 [[package]]

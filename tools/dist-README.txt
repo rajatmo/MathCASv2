@@ -27,7 +27,7 @@ A file may start with the line  #! mathcas 2 .
                                            except area); geo.area(1) works as well
 `import M` loads M.mc from the importing file's folder (the current folder at the REPL), or a standard module:
   import stats                             mean, median, variance, std_dev, geometric_mean
-The prelude, loaded at startup, adds: is_even, is_odd, clamp, log_base, count_if, every, some, member, unique, zip,
+The prelude, loaded at startup, adds: is_even, is_odd, clamp, log_base, count_if, every, some, member, zip,
 flat_map, accumulate, dot, norm, fix_point, say (print several values on one line). See examples\ for scripts.
 
 What works

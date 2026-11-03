@@ -12,6 +12,10 @@ const KARA_THRESH: usize = 24;
 const NTT_THRESH: usize = 1500;
 /// Newton division when both the divisor and the quotient have at least this many limbs.
 const NEWTON_THRESH: usize = 150;
+/// A [`Divisor`] keeps the transforms of its reciprocal and of itself from this many limbs on: with the transforms
+/// reused, NTT products beat Karatsuba below the NTT's own threshold (radix conversion at 10^7 digits measured
+/// about 5% faster than with the threshold at 1500).
+const SPECTRA_THRESH: usize = 256;
 
 /// Multiplication thresholds for one top-level call. Tests force each algorithm through it to cross-check them.
 #[derive(Clone, Copy, Debug)]
@@ -399,15 +403,20 @@ impl Nat {
     pub fn add_u64(&self, v: u64) -> Nat {
         self.add(&Nat::from_u64(v))
     }
-    /// self - o; panics if o > self.
+    /// self - o; panics if o > self (gives zero after a stop: see [`super::after_stop`]).
     pub fn sub(&self, o: &Nat) -> Nat {
-        assert!(self.limbs.len() >= o.limbs.len(), "Nat::sub underflow");
+        if self.limbs.len() < o.limbs.len() {
+            super::after_stop("Nat::sub underflow");
+            return Nat::zero();
+        }
         let mut r = self.limbs.clone();
-        let b = sub_into(&mut r, &o.limbs);
-        assert_eq!(b, 0, "Nat::sub underflow");
+        if sub_into(&mut r, &o.limbs) != 0 {
+            super::after_stop("Nat::sub underflow");
+            return Nat::zero();
+        }
         Nat::from_limbs(r)
     }
-    /// self - v; panics if v > self.
+    /// self - v; panics if v > self (zero after a stop).
     pub fn sub_u64(&self, v: u64) -> Nat {
         self.sub(&Nat::from_u64(v))
     }
@@ -496,16 +505,22 @@ impl Nat {
         r.shl(tz * e)
     }
 
-    /// (floor(self / d), self mod d) for a machine word d > 0.
+    /// (floor(self / d), self mod d) for a machine word d > 0 (zeros for d = 0 after a stop).
     pub fn divrem_u64(&self, d: u64) -> (Nat, u64) {
-        assert!(d != 0, "division by zero");
+        if d == 0 {
+            super::after_stop("division by zero");
+            return (Nat::zero(), 0);
+        }
         let (q, r) = divrem_1(&self.limbs, d);
         (Nat { limbs: q }, r)
     }
 
-    /// (floor(self / d), self mod d)
+    /// (floor(self / d), self mod d) for d > 0 (zeros for d = 0 after a stop).
     pub fn divrem(&self, d: &Nat) -> (Nat, Nat) {
-        assert!(!d.is_zero(), "division by zero");
+        if d.is_zero() {
+            super::after_stop("division by zero");
+            return (Nat::zero(), Nat::zero());
+        }
         if self.cmp(d) == Ordering::Less {
             return (Nat::zero(), self.clone());
         }
@@ -666,27 +681,43 @@ fn divrem_truncated(a: &Nat, d: &Nat, ql: usize) -> (Nat, Nat) {
             break;
         }
     }
-    debug_assert!(r < *d);
+    debug_assert!(r < *d || super::stopped());
     (q, r)
 }
 
 /// floor((2^(2n) - 1) / b) for n = bits(b): a reciprocal with n + 1 bits, exact.
 ///
-/// Recursion on the top half of b gives a reciprocal with about n/2 correct bits; one Newton step
-/// v + v (2^(2n) - b v) / 2^(2n) squares the relative error to O(2^-n), so the result is within a small constant of
-/// the exact value, and a bounded correction loop makes it exact.
+/// Recursion on the top half of b gives a reciprocal with about n/2 correct bits, then one Newton step
+/// ([`newton_recip`]).
 fn recip(b: &Nat) -> Nat {
     let n = b.bits();
-    let target = Nat::pow2(2 * n).sub_u64(1);
     if b.limbs.len() < NEWTON_THRESH.max(2) {
         // below the threshold divrem itself uses schoolbook (or the one-limb path), never Newton
-        return target.divrem(b).0;
+        return Nat::pow2(2 * n).sub_u64(1).divrem(b).0;
     }
-    let h = n.div_ceil(2);
-    let l = n - h;
-    let vh = recip(&b.shr(l));
+    let l = n - n.div_ceil(2);
+    newton_recip(b, &recip(&b.shr(l)), l)
+}
+
+/// [`recip`] of b from an approximation with about bits(b)/2 correct bits (the square of the reciprocal of b's
+/// square root, in radix conversion): one Newton step instead of the whole recursion.
+fn recip_seeded(b: &Nat, approx: &Nat) -> Nat {
+    if b.limbs.len() < NEWTON_THRESH.max(2) {
+        return recip(b);
+    }
+    let l = b.bits() - b.bits().div_ceil(2);
+    newton_recip(b, &approx.shr(l), l)
+}
+
+/// floor((2^(2n) - 1) / b) for n = bits(b) from vh 2^l, an approximation with about n - l correct bits: one Newton
+/// step v + v (2^(2n) - b v) / 2^(2n) squares the relative error to O(2^-n), leaving the result within a small
+/// constant of the exact value; the remaining error is then divided out exactly (two divisions with one-limb
+/// quotients), whatever its size.
+fn newton_recip(b: &Nat, vh: &Nat, l: u64) -> Nat {
+    let n = b.bits();
+    let target = Nat::pow2(2 * n).sub_u64(1);
     // v0 = vh 2^l; its low l bits are zero, so products use vh and a shift
-    let bv0 = b.mul(&vh).shl(l);
+    let bv0 = b.mul(vh).shl(l);
     let two2n = Nat::pow2(2 * n);
     // e = 2^(2n) - b v0 (signed). The correction v0 e / 2^(2n) = vh e / 2^(2n - l) needs only the top bits of e:
     // dropping k = n - 64 bits changes it by less than vh 2^k / 2^(2n - l) < 2^-63.
@@ -703,23 +734,18 @@ fn recip(b: &Nat) -> Nat {
     } else {
         (Nat::from_u64(1), b.clone())
     };
-    // the error analysis bounds this by about 20 steps; the cap only guards against a mistake in it (a stopped
-    // product breaks the analysis: then the result is discarded anyway, so skip the quadratic fallback)
-    for _ in 0..64 {
-        if p > target {
-            v = v.sub_u64(1);
-            p = p.sub(b);
-        } else if target.sub(&p) >= *b {
-            v = v.add_u64(1);
-            p = p.add(b);
-        } else {
-            return v;
-        }
-    }
+    // a stopped product breaks the analysis (the quotients below could be long): the result is discarded anyway
     if super::stopped() {
         return v;
     }
-    Nat { limbs: divrem_knuth(&target.limbs, &b.limbs).0 }
+    // now v b = p; make v b <= target < (v + 1) b
+    if p > target {
+        let (k, r) = p.sub(&target).divrem(b);
+        let k = if r.is_zero() { k } else { k.add_u64(1) };
+        v = v.sub(&k);
+        p = p.sub(&k.mul(b));
+    }
+    v.add(&target.sub(&p).divrem(b).0)
 }
 
 /// A divisor with its reciprocal, for repeated divisions by the same number (radix conversion divides by each power
@@ -729,14 +755,62 @@ pub struct Divisor {
     /// floor((2^(2n) - 1) / d), or empty when d is short enough for schoolbook division
     v: Option<Nat>,
     n: u64,
+    /// for a divisor long enough for the NTT: the transforms of v and d, reused by every division
+    spectra: Option<Spectra>,
+}
+
+/// The transforms a long [`Divisor`] keeps. Each division multiplies the top of x by v and the quotient by d; with
+/// v's transform kept, the first product costs two transforms per prime instead of three. The second product is
+/// needed only modulo B^m - 1 for a B^m above the remainder, so it is a cyclic convolution of half the length (the
+/// remainder x - q d is below 4d, and B^m - 1 > 8d), with d's transform kept too: one division costs about three
+/// full-length transforms per prime instead of six.
+struct Spectra {
+    v: super::ntt::Spectrum,
+    d: super::ntt::Spectrum,
 }
 
 impl Divisor {
-    /// A divisor and, when it is long, its Newton reciprocal.
+    /// A divisor (d > 0) and, when it is long, its Newton reciprocal. After a stop a zero divisor is accepted: its
+    /// divisions give zeros.
     pub fn new(d: &Nat) -> Divisor {
-        assert!(!d.is_zero(), "division by zero");
-        let v = (d.limbs.len() >= NEWTON_THRESH.max(2)).then(|| recip(d));
-        Divisor { d: d.clone(), v, n: d.bits() }
+        if d.is_zero() {
+            super::after_stop("division by zero");
+        }
+        if d.limbs.len() >= NEWTON_THRESH.max(2) {
+            return Divisor::with_recip(d, recip(d));
+        }
+        Divisor { d: d.clone(), v: None, n: d.bits(), spectra: None }
+    }
+
+    /// The divisor d^2 (`square`) from the divisor d (`root`): when d has a reciprocal, its square has about half
+    /// the bits of d^2's, so one Newton step finishes it (radix conversion squares its divisors).
+    fn from_root(square: &Nat, root: &Divisor) -> Divisor {
+        let Some(v) = root.v.as_ref().filter(|_| square.limbs.len() >= NEWTON_THRESH.max(2)) else {
+            return Divisor::new(square);
+        };
+        // v^2 is about 2^(4n) / d^2 and the reciprocal of d^2 is about 2^(2 bits(d^2)) / d^2
+        let shift = 4 * root.n - 2 * square.bits();
+        Divisor::with_recip(square, recip_seeded(square, &v.square().shr(shift)))
+    }
+
+    /// A long divisor with its reciprocal v = floor((2^(2n) - 1) / d).
+    fn with_recip(d: &Nat, v: Nat) -> Divisor {
+        let n = d.bits();
+        let spectra = (d.limbs.len() >= SPECTRA_THRESH).then(|| {
+            // the top of x has at most n + 64 bits
+            let top = (n + 64).div_ceil(64) as usize;
+            Spectra {
+                v: super::ntt::Spectrum::new(&v.limbs, (top + v.limbs.len() - 1).next_power_of_two()),
+                d: super::ntt::Spectrum::new(&d.limbs, Divisor::cyclic_limbs(n)),
+            }
+        });
+        Divisor { d: d.clone(), v: Some(v), n, spectra }
+    }
+
+    /// The length m of the cyclic product for an n-bit divisor: a power of two with B^m >= 2^(n + 3) > 8d, so that
+    /// a quotient (below 2^(n + 1)) has at most m limbs and a remainder (below 4d) is below B^m - 1.
+    fn cyclic_limbs(n: u64) -> usize {
+        ((n + 3).div_ceil(64) as usize).next_power_of_two()
     }
 
     /// (floor(x / d), x mod d) for x < 2^(2n): q = floor(top(x) v / 2^(2n - s)) with the low s = n - 64 bits of x
@@ -745,10 +819,22 @@ impl Divisor {
     fn divrem_2n(&self, x: &Nat) -> (Nat, Nat) {
         let Some(v) = &self.v else { return x.divrem(&self.d) };
         let n = self.n;
-        debug_assert!(x.bits() <= 2 * n);
+        debug_assert!(x.bits() <= 2 * n || super::stopped());
         let s = n.saturating_sub(64);
-        let mut q = x.shr(s).mul(v).shr(2 * n - s);
-        let mut r = x.sub(&q.mul(&self.d));
+        let top = x.shr(s);
+        let (mut q, mut r) = match &self.spectra {
+            Some(sp) if top.limbs.len() + v.limbs.len() - 1 <= sp.v.size() => {
+                let len = top.limbs.len() + v.limbs.len();
+                let q = Nat::from_limbs(super::ntt::mul_spectrum(&top.limbs, &sp.v, len)).shr(2 * n - s);
+                let r = self.remainder_cyclic(x, &q, &sp.d);
+                (q, r)
+            }
+            _ => {
+                let q = top.mul(v).shr(2 * n - s);
+                let r = x.sub(&q.mul(&self.d));
+                (q, r)
+            }
+        };
         for _ in 0..8 {
             if r < self.d {
                 break;
@@ -756,14 +842,42 @@ impl Divisor {
             q = q.add_u64(1);
             r = r.sub(&self.d);
         }
-        debug_assert!(r < self.d);
+        debug_assert!(r < self.d || super::stopped());
         (q, r)
+    }
+
+    /// x - q d for a quotient q at most a few units too small, from the cyclic product q d mod (B^m - 1) and x
+    /// folded modulo B^m - 1: the difference is below B^m - 1, so its residue is the value.
+    fn remainder_cyclic(&self, x: &Nat, q: &Nat, ds: &super::ntt::Spectrum) -> Nat {
+        let m = ds.size();
+        if q.limbs.len() > m {
+            // only a stopped product gives such a quotient; the value is discarded
+            super::after_stop("quotient longer than the cyclic product");
+            return Nat::zero();
+        }
+        let qd = super::ntt::mul_cyclic(&q.limbs, ds);
+        // x mod (B^m - 1): the sum of its m-limb pieces, with the carries wrapped around
+        let mut f = vec![0u64; m];
+        let mut carry = 0u128;
+        for piece in x.limbs.chunks(m) {
+            carry += add_into(&mut f, piece) as u128;
+        }
+        super::ntt::wrap_carry(&mut f, carry);
+        // (f - qd) mod (B^m - 1): on a borrow the wrapped difference is B^m too large, so subtract one more
+        if sub_into(&mut f, &qd) != 0 {
+            sub_into(&mut f, &[1]);
+        }
+        Nat::from_limbs(f)
     }
 
     /// (floor(a / d), a mod d) for any a: chunks of n bits from the top, each chunk with the running remainder below
     /// 2^(2n).
     pub fn divrem(&self, a: &Nat) -> (Nat, Nat) {
         let n = self.n;
+        if n == 0 {
+            // a zero divisor, accepted only after a stop
+            return (Nat::zero(), Nat::zero());
+        }
         let ab = a.bits();
         if ab <= 2 * n {
             return self.divrem_2n(a);
@@ -823,7 +937,9 @@ fn isqrt(x: &Nat) -> Nat {
             }
         }
     }
-    unreachable!("isqrt correction did not converge")
+    // a stopped product breaks the error analysis: the result is discarded
+    super::after_stop("isqrt correction did not converge");
+    r
 }
 
 pub fn isqrt_u128(v: u128) -> u128 {
@@ -860,7 +976,15 @@ fn to_decimal(x: &Nat) -> String {
         let next = pows.last().unwrap().square();
         pows.push(next);
     }
-    let divs: Vec<Divisor> = pows.iter().map(Divisor::new).collect();
+    // divisors for all but the last power (which only bounds x in dec_top), each from the one before
+    let mut divs: Vec<Divisor> = Vec::with_capacity(pows.len());
+    for p in &pows[..pows.len() - 1] {
+        let d = match divs.last() {
+            Some(root) => Divisor::from_root(p, root),
+            None => Divisor::new(p),
+        };
+        divs.push(d);
+    }
     if super::stopped() {
         return String::new();
     }
@@ -879,9 +1003,11 @@ fn dec_top(x: &Nat, pows: &[Nat], divs: &[Divisor], out: &mut String) {
         }
         return;
     }
-    // the largest k with pows[k] <= x: x = q 10^(19 2^k) + r with q < 10^(19 2^k) (pows[k+1] > x or close to it)
+    // the largest k with pows[k] <= x that has a divisor: x = q 10^(19 2^k) + r, with q < 10^(19 2^k) unless x is
+    // beyond the last divisor's square (then the quotient is split again: a few more divisions by a divisor that
+    // exists are cheaper than the reciprocal of one more power)
     let mut k = 0;
-    while k + 1 < pows.len() && pows[k + 1] <= *x {
+    while k + 1 < divs.len() && pows[k + 1] <= *x {
         k += 1;
     }
     let (q, r) = divs[k].divrem(x);
@@ -1024,6 +1150,33 @@ mod tests {
         let t = Nat::pow(10, 5000);
         assert_eq!(t.to_decimal(), format!("1{}", "0".repeat(5000)));
         assert_eq!(t.sub_u64(1).to_decimal(), "9".repeat(5000));
+        // divisors with kept transforms (from about 256 limbs) and seeded reciprocals; boundaries of every split
+        let x = rand_nat(&mut rng, 9000);
+        assert_eq!(x.to_decimal(), to_nb(&x).to_string());
+        let t = Nat::pow(10, 120_000);
+        assert_eq!(t.to_decimal(), format!("1{}", "0".repeat(120_000)));
+        assert_eq!(t.sub_u64(1).to_decimal(), "9".repeat(120_000));
+        assert_eq!(t.add_u64(7).to_decimal(), format!("1{}7", "0".repeat(119_999)));
+    }
+
+    #[test]
+    fn divisors_match_division() {
+        let mut rng = Rng(5);
+        for &(dl, al) in &[(200usize, 390usize), (300, 600), (300, 1700), (1600, 3100), (2100, 9000)] {
+            let d = rand_nat(&mut rng, dl);
+            let dv = Divisor::new(&d);
+            let reference = |a: &Nat, d: &Nat| (to_nb(a) / to_nb(d), to_nb(a) % to_nb(d));
+            for a in [rand_nat(&mut rng, al), d.mul(&rand_nat(&mut rng, al - dl)), d.square().sub_u64(1)] {
+                let (q, r) = dv.divrem(&a);
+                assert_eq!((to_nb(&q), to_nb(&r)), reference(&a, &d), "{dl} {al}");
+            }
+            // a reciprocal from the root's: the divisor of d^2
+            let sq = Divisor::from_root(&d.square(), &dv);
+            let a = rand_nat(&mut rng, 4 * dl - 1);
+            let (q, r) = sq.divrem(&a);
+            assert_eq!((to_nb(&q), to_nb(&r)), reference(&a, &d.square()), "square of {dl}");
+            assert_eq!(sq.v, Some(recip(&d.square())));
+        }
     }
 
     #[test]
