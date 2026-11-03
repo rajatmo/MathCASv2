@@ -229,3 +229,73 @@ Report: [`spikes/parallel/REPORT.md`](../../spikes/parallel/REPORT.md).
   collected arena.
 - **Missing benchmark cases:** M1, M2, M3, M5 and M9 need the numeric compiler and the parallel kernels; N3 to N5, N9,
   N10 and N12; R1 to R3 and R6 on the matcher.
+
+## Integration spike: the designs compose
+
+Three pieces, run in parallel on a busy machine (noisy numbers accepted; conclusions drawn only where they survive a
+factor of about 1.5). Every configuration of every piece matches its sequential reference, including stress modes
+that collect at every safe point. Full reports next to the code.
+
+### I1: collector × concurrent store
+
+Report: [`spikes/int_gc/REPORT.md`](../../spikes/int_gc/REPORT.md).
+
+- Composes, and the type system enforces it: evaluations run in a higher-ranked `&'h Heap` scope, the safe point
+  needs `&mut Heap`, and keeping a handle across a safe point, returning one from a step, or moving one into an
+  unscoped task fail to compile (checked by `compile_fail` tests).
+- Private per-thread young tables are ruled out: workers rebuild each other's fresh terms (4.6 % of promoted terms),
+  so canonicity needs one shared young table with per-thread allocation chunks.
+- Global creation order is not worth restoring: promotion in per-thread chunk order with a stack only for
+  out-of-order edges (0.1 to 8.6 % of edges) marks 2.5 to 4 times faster than a topological traversal.
+- Memory: LS 522 → 71 MB, S3 117 → 30 MB; evaluation itself gets faster (LS 1915 → 989 ms). The cost is in safe
+  points: with a serial marker, M6a spends 416 ms in safe points against 316 ms evaluating at 4 threads.
+- Decisions I1.1 to I1.9, notably: one shared young table (I1.1, I1.3); chunk-order promotion, amending 1b.4 (I1.2);
+  young and old memos indexed by structural hash, replacing the write barrier (I1.4); the safe point is the end of
+  `Session::step` (I1.6); copy phases on the idle pool, marking and slide sequential (I1.7).
+
+### I2: matcher and evaluator on the concurrent store
+
+Report: [`spikes/int_match/REPORT.md`](../../spikes/int_match/REPORT.md).
+
+- Conditions that evaluate terms work and scale like native ones (3.44 against 3.45 times at 4 threads); the borrow
+  checker proves no condition runs during a safe point.
+- Read sets through matching are necessary (untracked conditions go stale even sequentially) and sufficient (correct
+  through mid-run redefinitions and rule insertions in parallel runs).
+- Rule indexes need no locks or snapshots: a single writer updates them in place, readers see each definition before
+  or after; a reader-writer lock was 1.3 times slower and can deadlock.
+- Matching scales 2.8 to 3.8 times at 4 threads at about spike 2's single-thread cost (1.01 to 1.07; S7 1.24).
+- A dense memo (one entry per term id) replaces spike 4's hashed memo (about 2 times faster sequentially), amending 4.8.
+- Decisions I2.1 to I2.9.
+
+### I3: numbers in the collected arena
+
+Report: [`spikes/int_numbers/REPORT.md`](../../spikes/int_numbers/REPORT.md).
+
+- Numbers through the store cost 0.89 to 1.04 times bare arithmetic at 10^5 to 10^6 digits (small factorials 1.5
+  times faster, thanks to immediates); interning a 10^6-digit ball costs 0.04 ms against 935 ms to compute it.
+- Hybrid placement: payloads of at most 64 words in a limb arena that moves with the nodes, larger ones owned by the
+  node and freed in the sliding pass.
+- The collection trigger must count payload bytes (otherwise 717 MB against 7 MB peak); numbers are hashed in full on
+  construction (sampled hashing is 125 times slower on structured inputs; not interning big numbers breaks identity).
+- Decisions I3.1 to I3.7: three integer tiers through one canonicalising constructor (immediate, one-word node,
+  payload); rationals as pairs of integer terms; a ball as one payload node; kernels compute bare and intern results.
+
+### Corrections and conflicts the final assembly must resolve
+
+- **Spike 4 bug, found independently by I1 and I2:** the parallel hash of nodes wider than 2^15 arguments dropped the
+  combined length, so one term could get several ids. Fixed in both integration crates; `spikes/parallel` still has
+  it.
+- **Spike 4 memo ordering:** the seqlock writer needs a release fence (I2.8).
+- **Memo layout conflict:** I1 indexes the memo by structural hash so that renumbering does not move entries; I2 makes
+  it dense by term id for speed. The assembly needs one scheme: a dense memo re-keyed (or cleared, since it is weak)
+  at each collection, or a hash-indexed memo with better locality.
+- **Index keys:** I2's rule indexes are keyed by term ids, which a moving collector renumbers; they must be traced and
+  re-keyed at safe points, or keyed by structural hash.
+- **Payload finalisation for young nodes:** I1's minor collection never visits dead young nodes, so payload-owning
+  young nodes (I3) need a per-cycle list to free the unmarked ones.
+- **Per-region limb arena:** I3's limb arena must become per-thread chunks like I1's argument arena.
+- **Fuel in speculative tasks:** discarded speculative work can exhaust the shared budget; only the frontier should
+  decide a limit failure (I2 follow-up).
+- **Conditions may run more than once:** semantics 6.1 should say so, or forbid effects in conditions (I2 follow-up).
+- **Serial marking caps parallel speedup** (I1 finding 5): parallel marking and block-wise sliding are needed for
+  promotion-heavy parallel sessions.

@@ -89,6 +89,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "int_gc"
+version = "0.0.0"
+dependencies = [
+ "collect",
+ "crossbeam-utils",
+ "hashbrown",
+ "parallel",
+ "parking_lot",
+ "rayon",
+ "rayon-core",
+ "rustc-hash",
+]
+
+[[package]]
+name = "int_match"
+version = "0.0.0"
+dependencies = [
+ "crossbeam-utils",
+ "matcher",
+ "parking_lot",
+ "rayon",
+ "rayon-core",
+ "rustc-hash",
+]
+
+[[package]]
 name = "int_numbers"
 version = "0.0.0"
 dependencies = [
