@@ -24,7 +24,6 @@ workspace 458 passed, 0 failed, 6 ignored; clippy clean.
   functions are inlined, recursion refused; anything else refused with a reason.
 - `spec.rs`: `Specialisation` (implements `Compiled`), the natives `compile` and `compiled_info`, the `Jit` handle
   (`install`, `flush`, `polls`, `info`).
-  merges).
 - Natives: `compile(f)` and `compile(f, back_end: "interpreter")` return `f` or `failure(not_compilable, f, "reason")`;
   `compiled_info(f)` lists `params`, `result`, `hir_nodes`, `lir_instructions`, `code_bytes`, `back_end`,
   `compile_microseconds`, `inlined`, `state` (pending / active / stale), `runs`, `declines` (and `fallback`), or
@@ -72,7 +71,7 @@ workspace 458 passed, 0 failed, 6 ignored; clippy clean.
 ## Public API and edits outside the crate
 
 - `mc-jit`: `install(k, h) -> Jit`; `Jit::{flush, polls, info}`; `build(&Func, inlined, Backend) -> Built`;
-  `Built::call`; `Backend`, `Info`; modules `ir`, `front` (`Source`, `FnDef`, `front`), `rt`, `adapter`; `FUNCTIONS`.
+  `Built::call`; `Backend`, `Info`; modules `ir`, `front` (`Source`, `FnDef`, `front`), `rt`; `FUNCTIONS`.
 - `mc-eval` (additions; `eval.rs` untouched): `src/inspect.rs` with `NativeCx::version(s)` (read recorded),
   `NativeCx::rules(s) -> Vec<RuleView>` (read recorded), `NativeCx::has_native(s)`, `pub struct RuleView`; `lib.rs`
   `mod inspect` and re-export; `syntax.rs` the `compiled` decorator in `DefineFn::call` and `compile_after`.
@@ -113,8 +112,8 @@ to both (handed to package 9).
 ## Known gaps
 
 - Calls stay interpreted within the statement that compiles the function (1b.5).
-- With the adapter, a replaced specialisation's native and code stay in the kernel's append-only native list until the
-  session ends (1a's registry drops it).
+- A replaced specialisation stays in `mc-eval`'s append-only registry until the session ends (1a.7), so its machine
+  code is not freed.
 - Not compiled: complex numbers, lists/arrays, strings, closures, recursion, multi-clause or conditional functions,
   `mod`/`quotient` on reals, global constants (`pi`).
 - NaN payload bits may differ between back ends (all NaNs print alike).
