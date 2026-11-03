@@ -127,5 +127,5 @@ Each spike ends with a short report: numbers, decision, what it rules out.
 ## 8. Next documents
 
 - [`01-semantics.md`](01-semantics.md): the core semantics (draft 2).
-- `02-benchmarks.md`: the benchmark suite, case by case, with how each is measured.
+- [`02-benchmarks.md`](02-benchmarks.md): the benchmark suite (draft 1).
 - `03-spikes.md`: spike reports as they complete.
