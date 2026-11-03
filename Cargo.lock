@@ -498,6 +498,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-lists"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-syntax",
+ "num-bigint",
+ "num-traits",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mc-numeric"
 version = "0.0.0"
 dependencies = [
