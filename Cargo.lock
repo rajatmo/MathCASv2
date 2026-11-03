@@ -495,7 +495,9 @@ name = "mc-eval"
 version = "0.0.0"
 dependencies = [
  "mc-api",
+ "mc-bench",
  "mc-core",
+ "mc-engine",
  "parking_lot",
  "rayon",
  "rayon-core",

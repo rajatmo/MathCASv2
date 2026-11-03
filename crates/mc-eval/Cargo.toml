@@ -13,3 +13,8 @@ rayon = "1.12"
 # for `current_thread_has_pending_tasks`, which the lazy granularity rule consults (spike 4)
 rayon-core = "1.12"
 rustc-hash = "2"
+
+[dev-dependencies]
+# the speed example drives the assembled engine (a development-only cycle: the engine depends on this crate)
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }
