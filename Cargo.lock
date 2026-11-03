@@ -480,6 +480,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-syntax"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "num-bigint",
+]
+
+[[package]]
 name = "memmap2"
 version = "0.9.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
