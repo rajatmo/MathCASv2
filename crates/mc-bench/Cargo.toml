@@ -1,0 +1,10 @@
+[package]
+name = "mc-bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 benchmark harness: case files, guarded child-process runs, progress, results and summary"
+
+# No dependencies on purpose: the harness drives any engine through the `Engine` trait, so it neither parses nor
+# evaluates the concrete syntax itself (decision D.1).
+[dependencies]
