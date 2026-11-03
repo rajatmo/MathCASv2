@@ -19,3 +19,5 @@ core's semantics.
 ## Status
 
 Design phase. Start with [docs/design/00-plan.md](docs/design/00-plan.md).
+
+Spikes live in `spikes/`; run one with `cargo run --release -p termstore` (add `--quick` for the small sizes).

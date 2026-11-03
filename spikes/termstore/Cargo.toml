@@ -1,0 +1,10 @@
+[package]
+name = "termstore"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spike: hash-consed terms with normal-form stamps against a v1-style reference-counted tree"
+
+[dependencies]
+hashbrown = "0.15"
+rustc-hash = "2"

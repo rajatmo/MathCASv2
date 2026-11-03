@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = ["spikes/termstore"]
+
+[profile.release]
+debug = 1

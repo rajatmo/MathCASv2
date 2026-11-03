@@ -26,6 +26,8 @@ Architecture is decided by measurement against stated goals, top down:
 ### Layer 0: term store
 - Hash-consed terms: each distinct term is stored once, so equality is a pointer comparison and per-term caches are
   cheap.
+- Small integers (and later symbols) are immediates encoded in the term handle, not stored (spike 1, decision 1.2).
+- A collector reclaims unreachable terms at safe points between evaluations (spike 1, decision 1.4; spike 1b).
 - Per-term metadata: hash, depth, free-symbol set, and a *normal-form flag* (the term is known to be fully evaluated
   under the current rule set version).
 - Arena allocation; no per-node reference counting on the hot path.
@@ -128,5 +130,5 @@ Each spike ends with a short report: numbers, decision, what it rules out.
 
 - [`01-semantics.md`](01-semantics.md): the core semantics (draft 2).
 - [`02-benchmarks.md`](02-benchmarks.md): the benchmark suite (draft 1).
-- `03-spikes.md`: spike reports as they complete.
+- [`03-spikes.md`](03-spikes.md): spike reports (spike 1, term store: done).
 - [`04-syntax.md`](04-syntax.md): the concrete syntax (draft 1).
