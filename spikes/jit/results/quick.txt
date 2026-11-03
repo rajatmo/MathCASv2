@@ -1,0 +1,137 @@
+spike E: numeric compiler (quick mode; busy shared machine, noisy numbers)
+
+[1/11 0%] compile
+    function        LIR ins  lower us  interp us  cl none us cl speed us    B none   B speed
+    l1                   32       5.9        1.0       108.8       134.8       320       368
+    l1_table             67      12.1        2.2       306.4       392.4       880      1056
+    escape               37       5.5        1.3       151.7       195.4       287       289
+    mandel               68      10.3        2.1       340.3       426.1       800       952
+    lorenz               45       6.3        1.6       178.6       232.3       342       306
+    lorenz_rk4          175      35.1        4.9       444.9       528.1      1648      1344
+    newton_f              4       1.5        0.3        57.0        69.0        80        80
+    newton_df             5       1.4        0.3        50.3        61.8        97        97
+    newton_solve         60       9.4        1.9       281.7       348.9       825       827
+    monte_carlo          82      13.3        2.6       208.2       279.8       480       496
+    (compile = LIR to finalised code incl. the uniform entry; B = bytes of the main function; host has FMA: true)
+    total for the 10 functions: 2.13 ms (none), 2.67 ms (speed)
+
+[2/11 9%] L1 expression table
+
+  L1 at 5000 points (term level)
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    term (hash-consed eval)         5000      4.525      905.08       1.0         -         -  fe26b41e8fe5f28a
+    term store after one call: 98 nodes
+
+  L1 at 100000 points
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    interp table                  100000      8.902       89.02      10.2       1.0      7.59  4c894f9d4d41179a
+    interp scalar per point       100000      6.679       66.79      13.6       1.3      5.70  4c894f9d4d41179a
+    jit scalar per point          100000      1.501       15.01      60.3       5.9      1.28  4c894f9d4d41179a
+    jit table (opt none)          100000      1.408       14.08      64.3       6.3      1.20  4c894f9d4d41179a
+    jit table                     100000      1.445       14.45      62.6       6.2      1.23  4c894f9d4d41179a
+    native                        100000      1.173       11.73      77.2       7.6      1.00  4c894f9d4d41179a
+
+[3/11 18%] L9 Mandelbrot
+
+  L9 50x50 (term level; 171076 iterations)
+    back end                        iter    time ms     ns/iter    x term  x interp  / native  fingerprint
+    term per pixel                171076     38.975      227.82       1.0         -         -  e4d3dc3a9723a1f8
+
+  L9 200x200, 256 iterations (2707838 iterations, checksum 2707838)
+    back end                        iter    time ms     ns/iter    x term  x interp  / native  fingerprint
+    interp loop                  2707838     97.973       36.18       6.3       1.0     15.33  ef32563f31b6a37a
+    jit escape per pixel         2707838      5.161        1.91     119.5      19.0      0.81  ef32563f31b6a37a
+    hand x86-64 per pixel        2707838      5.060        1.87     121.9      19.4      0.79  ef32563f31b6a37a
+    native escape per pixel      2707838      6.389        2.36      96.6      15.3      1.00  ef32563f31b6a37a
+    jit loop (opt none)          2707838      5.627        2.08     109.6      17.4      0.88  ef32563f31b6a37a
+    jit loop                     2707838      5.206        1.92     118.5      18.8      0.81  ef32563f31b6a37a
+    native loop                  2707838      6.376        2.35      96.8      15.4      1.00  ef32563f31b6a37a
+    code bytes: hand escape 240, cranelift escape 289
+
+[4/11 27%] L3 Lorenz RK4
+
+  L3 Lorenz, 300 RK4 steps (term level)
+    back end                        step    time ms     ns/step    x term  x interp  / native  fingerprint
+    term rhs, host RK4               300      1.122     3739.33       1.0         -         -  60cee2b2597208ae
+
+  L3 Lorenz, 10000 RK4 steps, dt = 0.001 (t = 10); y = [-4.902687553795507, -3.743872935386244, 24.69085811347378]
+    back end                        step    time ms     ns/step    x term  x interp  / native  fingerprint
+    interp rhs, host RK4           10000      2.161      216.07      17.3       1.0     19.22  9e92ad4d9a7b3f6a
+    interp whole RK4 loop          10000      2.812      281.16      13.3       0.8     25.01  9e92ad4d9a7b3f6a
+    jit rhs, host RK4              10000      0.332       33.23     112.5       6.5      2.96  9e92ad4d9a7b3f6a
+    jit whole RK4 loop             10000      0.108       10.78     346.9      20.0      0.96  9e92ad4d9a7b3f6a
+    native rhs, host RK4           10000      0.112       11.24     332.7      19.2      1.00  9e92ad4d9a7b3f6a
+
+[5/11 36%] L5 Newton
+
+  L5 Newton, 100 solves (term level)
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    term f and f', host Newton       100      0.169     1685.00       1.0         -         -  3805a6c25cc48fd7
+
+  L5 Newton, x e^x = a, 1000 solves; max relative residual 4.3e-16
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    interp f and f', host           1000      0.152      152.30      11.1       1.0      2.36  1ed8357898f54db8
+    interp whole solve              1000      0.310      309.80       5.4       0.5      4.80  1ed8357898f54db8
+    jit f and f', host              1000      0.082       81.80      20.6       1.9      1.27  1ed8357898f54db8
+    jit whole solve                 1000      0.076       75.90      22.2       2.0      1.17  1ed8357898f54db8
+    native f and f', host           1000      0.065       64.60      26.1       2.4      1.00  1ed8357898f54db8
+    native whole solve              1000      0.068       67.70      24.9       2.2      1.05  1ed8357898f54db8
+
+[6/11 45%] L10 Monte Carlo
+
+  L10 Monte Carlo, 5000 draws (term level)
+    back end                        draw    time ms     ns/draw    x term  x interp  / native  fingerprint
+    term whole loop                 5000      6.203     1240.64       1.0         -         -  0000000000000f3c
+
+  L10 Monte Carlo, 1000000 points, count 785522, pi ~ 3.14209
+    back end                        draw    time ms     ns/draw    x term  x interp  / native  fingerprint
+    interp whole loop            1000000    135.923      135.92       9.1       1.0     56.14  00000000000bfc72
+    jit, branch (pass off)       1000000      4.693        4.69     264.3      29.0      1.94  00000000000bfc72
+    jit, select in source        1000000      2.139        2.14     579.9      63.5      0.88  00000000000bfc72
+    jit, branch + if-convert     1000000      1.994        1.99     622.1      68.2      0.82  00000000000bfc72
+    native                       1000000      2.421        2.42     512.4      56.1      1.00  00000000000bfc72
+
+[7/11 55%] M1 parallel compiled loops
+    kernel                              threads    time ms  speedup efficiency  fingerprint
+    M1 L1 table, 100000 points                1       1.48     1.00       1.00  4c894f9d4d41179a
+    M1 L1 table, 100000 points                2       0.84     1.77       0.88  4c894f9d4d41179a
+    M1 L1 table, 100000 points                4       0.57     2.60       0.65  4c894f9d4d41179a
+    M1 L1 table interp, 100000 points         1       8.65     1.00       1.00  4c894f9d4d41179a
+    M1 L1 table interp, 100000 points         2       4.59     1.88       0.94  4c894f9d4d41179a
+    M1 L1 table interp, 100000 points         4       3.16     2.74       0.68  4c894f9d4d41179a
+    L9 Mandelbrot 200x200, row tasks          1       5.26     1.00       1.00  ef32563f31b6a37a
+    L9 Mandelbrot 200x200, row tasks          2       2.64     2.00       1.00  ef32563f31b6a37a
+    L9 Mandelbrot 200x200, row tasks          4       1.39     3.77       0.94  ef32563f31b6a37a
+    L5 Newton solve, 1000 solves              1       0.08     1.00       1.00  1ed8357898f54db8
+    L5 Newton solve, 1000 solves              2       0.08     0.98       0.49  1ed8357898f54db8
+    L5 Newton solve, 1000 solves              4       0.08     1.00       0.25  1ed8357898f54db8
+    L10 Monte Carlo, 1000000 draws            1       1.98     1.00       1.00  de99264d01ab6e3f
+    L10 Monte Carlo, 1000000 draws            2       1.05     1.89       0.94  de99264d01ab6e3f
+    L10 Monte Carlo, 1000000 draws            4       0.53     3.72       0.93  de99264d01ab6e3f
+
+[8/11 64%] poll cost
+    poll              mandel jit ms mandel interp ms  L1 jit ms  MC jit ms  MC jit 4 thr ms
+    Off                        5.24            93.77       1.38       1.96             0.52
+    Every(1)                   5.24            92.96       1.49       2.31             5.31
+    Every(64)                  5.15           105.57       1.44       1.99             0.58
+    Every(1024)                5.22           101.10       1.43       2.00             0.53
+    Every(65536)               5.19           100.17       1.42       2.00             0.52
+    (mandel interp at 200x200; the other columns at the sizes above)
+
+[9/11 73%] fused multiply-add
+    L1 with x^3 - 2x + 1 in Horner form, 100000 points
+    unfused: jit 1.41 ms, native 1.15 ms
+    fused:   jit 1.41 ms (vfmadd), native 1.23 ms (f64::mul_add)
+    outputs that differ between fused and unfused: 17627 of 100000 (max 4964 ulp); all back ends agree within each form
+
+[10/11 82%] interrupt latency
+    jit MC loop                  returned      2.4 us after the stop request
+    interp MC loop               returned     65.0 us after the stop request
+    jit Mandelbrot 3000x3000     returned      1.5 us after the stop request
+    jit MC loop, 4 threads       returned     91.5 us after the stop request
+
+[11/11 91%] break-even
+    L1 scalar: compile 119 us; per call: term 883 ns, interp 63 ns, jit 15.1 ns
+    compiling pays for itself after 2509 calls against the LIR interpreter, 137 calls against term evaluation
+
+[11/11 100%] done in 5.5 s; all back ends agreed

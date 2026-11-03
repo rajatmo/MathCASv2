@@ -1,0 +1,196 @@
+spike E: numeric compiler (full mode; busy shared machine, noisy numbers)
+
+[1/11 0%] compile
+    function        LIR ins  lower us  interp us  cl none us cl speed us    B none   B speed
+    l1                   32       5.4        1.0       102.9       124.4       320       368
+    l1_table             67      11.8        2.1       293.8       374.2       880      1056
+    escape               37       5.3        1.2       151.3       186.9       287       289
+    mandel               68       9.8        2.1       316.7       397.1       800       952
+    lorenz               45       6.0        1.5       177.5       225.8       342       306
+    lorenz_rk4          175      30.0        4.7       430.4       487.3      1648      1344
+    newton_f              4       1.5        0.3        53.0        65.8        80        80
+    newton_df             5       1.3        0.3        49.6        58.7        97        97
+    newton_solve         60       9.2        1.8       275.4       346.3       825       827
+    monte_carlo          82      13.0        2.5       202.0       265.9       480       496
+    (compile = LIR to finalised code incl. the uniform entry; B = bytes of the main function; host has FMA: true)
+    total for the 10 functions: 2.05 ms (none), 2.53 ms (speed)
+
+[2/11 9%] L1 expression table
+
+  L1 at 20000 points (term level)
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    term (hash-consed eval)        20000     17.838      891.90       1.0         -         -  7a10b737094d31ab
+    term store after one call: 98 nodes
+
+  L1 at 100000 points
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    interp table                  100000      8.764       87.64      10.2       1.0      7.66  4c894f9d4d41179a
+    interp scalar per point       100000      5.796       57.96      15.4       1.5      5.06  4c894f9d4d41179a
+    jit scalar per point          100000      1.513       15.13      58.9       5.8      1.32  4c894f9d4d41179a
+    jit table (opt none)          100000      1.410       14.10      63.3       6.2      1.23  4c894f9d4d41179a
+    jit table                     100000      1.452       14.52      61.4       6.0      1.27  4c894f9d4d41179a
+    native                        100000      1.145       11.45      77.9       7.7      1.00  4c894f9d4d41179a
+
+  L1 at 1000000 points
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    interp table                 1000000     89.677       89.68       9.9       1.0      7.72  f9c2a4558ed1f207
+    interp scalar per point      1000000     61.785       61.78      14.4       1.5      5.32  f9c2a4558ed1f207
+    jit scalar per point         1000000     15.230       15.23      58.6       5.9      1.31  f9c2a4558ed1f207
+    jit table (opt none)         1000000     14.750       14.75      60.5       6.1      1.27  f9c2a4558ed1f207
+    jit table                    1000000     14.703       14.70      60.7       6.1      1.27  f9c2a4558ed1f207
+    native                       1000000     11.612       11.61      76.8       7.7      1.00  f9c2a4558ed1f207
+
+  L1 at 10000000 points
+    back end                       point    time ms    ns/point    x term  x interp  / native  fingerprint
+    jit scalar per point        10000000    154.640       15.46      57.7         -      1.21  4139898a40091230
+    jit table (opt none)        10000000    144.124       14.41      61.9         -      1.13  4139898a40091230
+    jit table                   10000000    148.161       14.82      60.2         -      1.16  4139898a40091230
+    native                      10000000    127.781       12.78      69.8         -      1.00  4139898a40091230
+
+[3/11 18%] L9 Mandelbrot
+
+  L9 100x100 (term level; 678819 iterations)
+    back end                        iter    time ms     ns/iter    x term  x interp  / native  fingerprint
+    term per pixel                678819    168.404      248.08       1.0         -         -  8863ddbf8157f223
+
+  L9 200x200, 256 iterations (2707838 iterations, checksum 2707838)
+    back end                        iter    time ms     ns/iter    x term  x interp  / native  fingerprint
+    interp loop                  2707838     99.966       36.92       6.7       1.0     15.65  ef32563f31b6a37a
+    jit escape per pixel         2707838      5.164        1.91     130.1      19.4      0.81  ef32563f31b6a37a
+    hand x86-64 per pixel        2707838      5.057        1.87     132.8      19.8      0.79  ef32563f31b6a37a
+    native escape per pixel      2707838      6.389        2.36     105.1      15.6      1.00  ef32563f31b6a37a
+    jit loop (opt none)          2707838      5.625        2.08     119.4      17.8      0.88  ef32563f31b6a37a
+    jit loop                     2707838      5.198        1.92     129.2      19.2      0.81  ef32563f31b6a37a
+    native loop                  2707838      6.382        2.36     105.3      15.7      1.00  ef32563f31b6a37a
+
+  L9 1000x1000, 256 iterations (67461438 iterations, checksum 67461438)
+    back end                        iter    time ms     ns/iter    x term  x interp  / native  fingerprint
+    interp loop                 67461438   2698.619       40.00       6.2       1.0     16.92  927a91006625b659
+    jit escape per pixel        67461438    128.672        1.91     130.1      21.0      0.81  927a91006625b659
+    hand x86-64 per pixel       67461438    126.316        1.87     132.5      21.4      0.79  927a91006625b659
+    native escape per pixel     67461438    159.536        2.36     104.9      16.9      1.00  927a91006625b659
+    jit loop (opt none)         67461438    138.815        2.06     120.6      19.4      0.87  927a91006625b659
+    jit loop                    67461438    128.662        1.91     130.1      21.0      0.81  927a91006625b659
+    native loop                 67461438    159.070        2.36     105.2      17.0      1.00  927a91006625b659
+    code bytes: hand escape 240, cranelift escape 289
+
+[4/11 27%] L3 Lorenz RK4
+
+  L3 Lorenz, 1000 RK4 steps (term level)
+    back end                        step    time ms     ns/step    x term  x interp  / native  fingerprint
+    term rhs, host RK4              1000      3.844     3844.00       1.0         -         -  9da83469f82018bb
+
+  L3 Lorenz, 10000 RK4 steps, dt = 0.001 (t = 10); y = [-4.902687553795507, -3.743872935386244, 24.69085811347378]
+    back end                        step    time ms     ns/step    x term  x interp  / native  fingerprint
+    interp rhs, host RK4           10000      2.174      217.41      17.7       1.0     18.89  9e92ad4d9a7b3f6a
+    interp whole RK4 loop          10000      2.843      284.26      13.5       0.8     24.70  9e92ad4d9a7b3f6a
+    jit rhs, host RK4              10000      0.343       34.33     112.0       6.3      2.98  9e92ad4d9a7b3f6a
+    jit whole RK4 loop             10000      0.112       11.24     342.0      19.3      0.98  9e92ad4d9a7b3f6a
+    native rhs, host RK4           10000      0.115       11.51     334.0      18.9      1.00  9e92ad4d9a7b3f6a
+
+  L3 Lorenz, 100000 RK4 steps, dt = 0.001 (t = 100); y = [-14.049873527878516, -2.4443765635501267, 43.526222914526]
+    back end                        step    time ms     ns/step    x term  x interp  / native  fingerprint
+    interp rhs, host RK4          100000     19.335      193.35      19.9       1.0     17.38  704380980179440f
+    interp whole RK4 loop         100000     30.093      300.93      12.8       0.6     27.04  704380980179440f
+    jit rhs, host RK4             100000      3.360       33.60     114.4       5.8      3.02  704380980179440f
+    jit whole RK4 loop            100000      1.093       10.92     351.9      17.7      0.98  704380980179440f
+    native rhs, host RK4          100000      1.113       11.13     345.4      17.4      1.00  704380980179440f
+
+[5/11 36%] L5 Newton
+
+  L5 Newton, 300 solves (term level)
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    term f and f', host Newton       300      0.535     1781.67       1.0         -         -  92488c60cea307f4
+
+  L5 Newton, x e^x = a, 1000 solves; max relative residual 4.3e-16
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    interp f and f', host           1000      0.155      155.40      11.5       1.0      2.37  1ed8357898f54db8
+    interp whole solve              1000      0.314      314.30       5.7       0.5      4.79  1ed8357898f54db8
+    jit f and f', host              1000      0.083       83.00      21.5       1.9      1.27  1ed8357898f54db8
+    jit whole solve                 1000      0.076       76.50      23.3       2.0      1.17  1ed8357898f54db8
+    native f and f', host           1000      0.066       65.60      27.2       2.4      1.00  1ed8357898f54db8
+    native whole solve              1000      0.066       66.10      27.0       2.4      1.01  1ed8357898f54db8
+
+  L5 Newton, x e^x = a, 10000 solves; max relative residual 4.4e-16
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    interp f and f', host          10000      1.567      156.66      11.4       1.0      2.42  bb450196466b0384
+    interp whole solve             10000      3.088      308.77       5.8       0.5      4.78  bb450196466b0384
+    jit f and f', host             10000      0.830       83.02      21.5       1.9      1.28  bb450196466b0384
+    jit whole solve                10000      0.764       76.43      23.3       2.0      1.18  bb450196466b0384
+    native f and f', host          10000      0.646       64.62      27.6       2.4      1.00  bb450196466b0384
+    native whole solve             10000      0.649       64.90      27.5       2.4      1.00  bb450196466b0384
+
+  L5 Newton, x e^x = a, 100000 solves; max relative residual 4.5e-16
+    back end                       solve    time ms    ns/solve    x term  x interp  / native  fingerprint
+    interp f and f', host         100000     16.317      163.17      10.9       1.0      2.54  69eda5a01e8e57af
+    interp whole solve            100000     31.095      310.95       5.7       0.5      4.84  69eda5a01e8e57af
+    jit f and f', host            100000      8.285       82.85      21.5       2.0      1.29  69eda5a01e8e57af
+    jit whole solve               100000      7.656       76.56      23.3       2.1      1.19  69eda5a01e8e57af
+    native f and f', host         100000      6.423       64.23      27.7       2.5      1.00  69eda5a01e8e57af
+    native whole solve            100000      6.452       64.52      27.6       2.5      1.00  69eda5a01e8e57af
+
+[6/11 45%] L10 Monte Carlo
+
+  L10 Monte Carlo, 20000 draws (term level)
+    back end                        draw    time ms     ns/draw    x term  x interp  / native  fingerprint
+    term whole loop                20000     29.640     1482.00       1.0         -         -  0000000000003d3f
+
+  L10 Monte Carlo, 1000000 points, count 785522, pi ~ 3.14209
+    back end                        draw    time ms     ns/draw    x term  x interp  / native  fingerprint
+    interp whole loop            1000000    158.026      158.03       9.4       1.0     63.73  00000000000bfc72
+    jit, branch (pass off)       1000000      4.762        4.76     311.2      33.2      1.92  00000000000bfc72
+    jit, select in source        1000000      2.170        2.17     682.9      72.8      0.88  00000000000bfc72
+    jit, branch + if-convert     1000000      2.014        2.01     736.0      78.5      0.81  00000000000bfc72
+    native                       1000000      2.480        2.48     597.7      63.7      1.00  00000000000bfc72
+
+  L10 Monte Carlo, 10000000 points, count 7856421, pi ~ 3.14257
+    back end                        draw    time ms     ns/draw    x term  x interp  / native  fingerprint
+    jit, branch (pass off)      10000000     47.801        4.78     310.0         -      1.94  000000000077e125
+    jit, select in source       10000000     21.701        2.17     682.9         -      0.88  000000000077e125
+    jit, branch + if-convert    10000000     20.242        2.02     732.2         -      0.82  000000000077e125
+    native                      10000000     24.646        2.46     601.3         -      1.00  000000000077e125
+
+[7/11 55%] M1 parallel compiled loops
+    kernel                              threads    time ms  speedup efficiency  fingerprint
+    M1 L1 table, 10000000 points              1     157.91     1.00       1.00  4139898a40091230
+    M1 L1 table, 10000000 points              2      84.97     1.86       0.93  4139898a40091230
+    M1 L1 table, 10000000 points              4      47.59     3.32       0.83  4139898a40091230
+    M1 L1 table interp, 1000000 points        1      89.83     1.00       1.00  8476b150e5a93c60
+    M1 L1 table interp, 1000000 points        2      49.18     1.83       0.91  8476b150e5a93c60
+    M1 L1 table interp, 1000000 points        4      24.09     3.73       0.93  8476b150e5a93c60
+    L9 Mandelbrot 1000x1000, row tasks        1     135.83     1.00       1.00  927a91006625b659
+    L9 Mandelbrot 1000x1000, row tasks        2      68.22     1.99       1.00  927a91006625b659
+    L9 Mandelbrot 1000x1000, row tasks        4      34.65     3.92       0.98  927a91006625b659
+    L5 Newton solve, 100000 solves            1       7.87     1.00       1.00  69eda5a01e8e57af
+    L5 Newton solve, 100000 solves            2       4.21     1.87       0.94  69eda5a01e8e57af
+    L5 Newton solve, 100000 solves            4       2.10     3.75       0.94  69eda5a01e8e57af
+    L10 Monte Carlo, 10000000 draws           1      20.33     1.00       1.00  3099bb714c01c605
+    L10 Monte Carlo, 10000000 draws           2      10.21     1.99       1.00  3099bb714c01c605
+    L10 Monte Carlo, 10000000 draws           4       5.25     3.87       0.97  3099bb714c01c605
+
+[8/11 64%] poll cost
+    poll              mandel jit ms mandel interp ms  L1 jit ms  MC jit ms  MC jit 4 thr ms
+    Off                      131.26           106.37       1.39       1.97             0.52
+    Every(1)                 130.83            97.00       1.51       2.33             5.08
+    Every(64)                128.04            99.05       1.45       2.00             0.57
+    Every(1024)              129.30            97.04       1.43       2.00             0.53
+    Every(65536)             129.45            96.17       1.44       2.02             0.53
+    (mandel interp at 200x200; the other columns at the sizes above)
+
+[9/11 73%] fused multiply-add
+    L1 with x^3 - 2x + 1 in Horner form, 10000000 points
+    unfused: jit 143.78 ms, native 116.45 ms
+    fused:   jit 141.98 ms (vfmadd), native 124.22 ms (f64::mul_add)
+    outputs that differ between fused and unfused: 1750780 of 10000000 (max 635413 ulp); all back ends agree within each form
+
+[10/11 82%] interrupt latency
+    jit MC loop                  returned      2.4 us after the stop request
+    interp MC loop               returned    122.4 us after the stop request
+    jit Mandelbrot 3000x3000     returned      1.7 us after the stop request
+    jit MC loop, 4 threads       returned     85.2 us after the stop request
+
+[11/11 91%] break-even
+    L1 scalar: compile 122 us; per call: term 879 ns, interp 61 ns, jit 15.0 ns
+    compiling pays for itself after 2663 calls against the LIR interpreter, 141 calls against term evaluation
+
+[11/11 100%] done in 20.8 s; all back ends agreed
