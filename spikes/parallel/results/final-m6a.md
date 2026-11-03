@@ -1,0 +1,82 @@
+| case | size | store | split | threads | median ms | speedup | efficiency | vs seq | splits | redos | check |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| M6a deriv | 1000 | C:optimistic | never | 1 | 20.20 | | | 1.00 | 0 | 0 | ref  |
+| M6a deriv | 1000 | C:optimistic | lazy | 1 | 19.71 | 1.00 | 1.00 | 0.98 | 0 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | lazy | 2 | 11.55 | 1.71 | 0.85 | 0.57 | 14 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | lazy | 4 | 6.89 | 2.86 | 0.71 | 0.34 | 43 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | lazy | 8 | 4.64 | 4.25 | 0.53 | 0.23 | 61 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | lazy | 16 | 4.39 | 4.49 | 0.28 | 0.22 | 99 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | static | 1 | 20.00 | 1.00 | 1.00 | 0.99 | 211 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | static | 2 | 11.58 | 1.73 | 0.86 | 0.57 | 205 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | static | 4 | 6.92 | 2.89 | 0.72 | 0.34 | 204 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | static | 8 | 4.96 | 4.03 | 0.50 | 0.25 | 202 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | static | 16 | 4.09 | 4.89 | 0.31 | 0.20 | 202 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | always | 1 | 20.56 | 1.00 | 1.00 | 1.02 | 19904 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | always | 2 | 11.69 | 1.76 | 0.88 | 0.58 | 19906 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | always | 4 | 7.02 | 2.93 | 0.73 | 0.35 | 19907 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | always | 8 | 4.94 | 4.16 | 0.52 | 0.24 | 19906 | 0 | ok  |
+| M6a deriv | 1000 | C:optimistic | always | 16 | 4.37 | 4.70 | 0.29 | 0.22 | 19907 | 0 | ok  |
+| M6a deriv | 1000 | B:sharded | lazy | 1 | 17.80 | 1.00 | 1.00 | 0.88 | 0 | 0 | ok  |
+| M6a deriv | 1000 | B:sharded | lazy | 2 | 10.52 | 1.69 | 0.85 | 0.52 | 14 | 0 | ok  |
+| M6a deriv | 1000 | B:sharded | lazy | 4 | 6.38 | 2.79 | 0.70 | 0.32 | 34 | 0 | ok  |
+| M6a deriv | 1000 | B:sharded | lazy | 8 | 4.36 | 4.08 | 0.51 | 0.22 | 64 | 0 | ok  |
+| M6a deriv | 1000 | B:sharded | lazy | 16 | 4.11 | 4.33 | 0.27 | 0.20 | 112 | 0 | ok  |
+| M6a deriv | 1000 | A:locked | lazy | 1 | 17.57 | 1.00 | 1.00 | 0.87 | 0 | 0 | ok  |
+| M6a deriv | 1000 | A:locked | lazy | 2 | 12.83 | 1.37 | 0.69 | 0.64 | 14 | 0 | ok  |
+| M6a deriv | 1000 | A:locked | lazy | 4 | 12.28 | 1.43 | 0.36 | 0.61 | 36 | 0 | ok  |
+| M6a deriv | 1000 | A:locked | lazy | 8 | 29.66 | 0.59 | 0.07 | 1.47 | 60 | 0 | ok  |
+| M6a deriv | 1000 | A:locked | lazy | 16 | 42.34 | 0.42 | 0.03 | 2.10 | 99 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | never | 1 | 87.72 | | | 1.00 | 0 | 0 | ref  |
+| M6a deriv | 5000 | C:optimistic | lazy | 1 | 88.38 | 1.00 | 1.00 | 1.01 | 0 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | lazy | 2 | 48.68 | 1.82 | 0.91 | 0.55 | 19 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | lazy | 4 | 28.82 | 3.07 | 0.77 | 0.33 | 67 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | lazy | 8 | 18.20 | 4.86 | 0.61 | 0.21 | 137 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | lazy | 16 | 17.73 | 4.98 | 0.31 | 0.20 | 474 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | static | 1 | 86.20 | 1.00 | 1.00 | 0.98 | 2440 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | static | 2 | 48.56 | 1.78 | 0.89 | 0.55 | 2229 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | static | 4 | 28.24 | 3.05 | 0.76 | 0.32 | 1948 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | static | 8 | 18.66 | 4.62 | 0.58 | 0.21 | 1814 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | static | 16 | 14.31 | 6.02 | 0.38 | 0.16 | 1679 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | always | 1 | 89.59 | 1.00 | 1.00 | 1.02 | 93915 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | always | 2 | 49.67 | 1.80 | 0.90 | 0.57 | 93918 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | always | 4 | 31.41 | 2.85 | 0.71 | 0.36 | 93917 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | always | 8 | 19.92 | 4.50 | 0.56 | 0.23 | 93916 | 0 | ok  |
+| M6a deriv | 5000 | C:optimistic | always | 16 | 15.71 | 5.70 | 0.36 | 0.18 | 93911 | 0 | ok  |
+| M6a deriv | 5000 | B:sharded | lazy | 1 | 85.29 | 1.00 | 1.00 | 0.97 | 0 | 0 | ok  |
+| M6a deriv | 5000 | B:sharded | lazy | 2 | 48.26 | 1.77 | 0.88 | 0.55 | 20 | 0 | ok  |
+| M6a deriv | 5000 | B:sharded | lazy | 4 | 27.24 | 3.13 | 0.78 | 0.31 | 54 | 0 | ok  |
+| M6a deriv | 5000 | B:sharded | lazy | 8 | 18.30 | 4.66 | 0.58 | 0.21 | 167 | 0 | ok  |
+| M6a deriv | 5000 | B:sharded | lazy | 16 | 16.03 | 5.32 | 0.33 | 0.18 | 391 | 0 | ok  |
+| M6a deriv | 5000 | A:locked | lazy | 1 | 84.42 | 1.00 | 1.00 | 0.96 | 0 | 0 | ok  |
+| M6a deriv | 5000 | A:locked | lazy | 2 | 60.82 | 1.39 | 0.69 | 0.69 | 19 | 0 | ok  |
+| M6a deriv | 5000 | A:locked | lazy | 4 | 67.31 | 1.25 | 0.31 | 0.77 | 55 | 0 | ok  |
+| M6a deriv | 5000 | A:locked | lazy | 8 | 152.41 | 0.55 | 0.07 | 1.74 | 140 | 0 | ok  |
+| M6a deriv | 5000 | A:locked | lazy | 16 | 196.10 | 0.43 | 0.03 | 2.24 | 515 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | never | 1 | 428.49 | | | 1.00 | 0 | 0 | ref  |
+| M6a deriv | 20000 | C:optimistic | lazy | 1 | 415.06 | 1.00 | 1.00 | 0.97 | 0 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | lazy | 2 | 234.19 | 1.77 | 0.89 | 0.55 | 21 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | lazy | 4 | 134.17 | 3.09 | 0.77 | 0.31 | 71 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | lazy | 8 | 97.39 | 4.26 | 0.53 | 0.23 | 672 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | lazy | 16 | 85.31 | 4.87 | 0.30 | 0.20 | 2197 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | static | 1 | 421.70 | 1.00 | 1.00 | 0.98 | 10691 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | static | 2 | 232.53 | 1.81 | 0.91 | 0.54 | 9882 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | static | 4 | 129.50 | 3.26 | 0.81 | 0.30 | 9678 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | static | 8 | 80.01 | 5.27 | 0.66 | 0.19 | 8950 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | static | 16 | 60.84 | 6.93 | 0.43 | 0.14 | 8214 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | always | 1 | 451.74 | 1.00 | 1.00 | 1.05 | 358404 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | always | 2 | 243.88 | 1.85 | 0.93 | 0.57 | 358651 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | always | 4 | 133.12 | 3.39 | 0.85 | 0.31 | 358686 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | always | 8 | 80.91 | 5.58 | 0.70 | 0.19 | 358605 | 0 | ok  |
+| M6a deriv | 20000 | C:optimistic | always | 16 | 63.28 | 7.14 | 0.45 | 0.15 | 358407 | 0 | ok  |
+| M6a deriv | 20000 | B:sharded | lazy | 1 | 401.60 | 1.00 | 1.00 | 0.94 | 0 | 0 | ok  |
+| M6a deriv | 20000 | B:sharded | lazy | 2 | 243.37 | 1.65 | 0.83 | 0.57 | 21 | 0 | ok  |
+| M6a deriv | 20000 | B:sharded | lazy | 4 | 146.80 | 2.74 | 0.68 | 0.34 | 130 | 0 | ok  |
+| M6a deriv | 20000 | B:sharded | lazy | 8 | 118.07 | 3.40 | 0.43 | 0.28 | 1012 | 0 | ok  |
+| M6a deriv | 20000 | B:sharded | lazy | 16 | 108.25 | 3.71 | 0.23 | 0.25 | 1403 | 0 | ok  |
+| M6a deriv | 20000 | A:locked | lazy | 1 | 418.86 | 1.00 | 1.00 | 0.98 | 0 | 0 | ok  |
+| M6a deriv | 20000 | A:locked | lazy | 2 | 393.36 | 1.06 | 0.53 | 0.92 | 32 | 0 | ok  |
+| M6a deriv | 20000 | A:locked | lazy | 4 | 440.56 | 0.95 | 0.24 | 1.03 | 202 | 0 | ok  |
+| M6a deriv | 20000 | A:locked | lazy | 8 | 688.90 | 0.61 | 0.08 | 1.61 | 762 | 0 | ok  |
+| M6a deriv | 20000 | A:locked | lazy | 16 | 958.61 | 0.44 | 0.03 | 2.24 | 1781 | 0 | ok  |
+
+all checks ok
