@@ -100,6 +100,11 @@ impl<'e, 'a, 'h, S: Store + ?Sized> Walk<'e, 'a, 'h, S> {
         Walk { env, ctx, scopes: Scopes::default(), cache: HashMap::new(), failure }
     }
 
+    /// Every name resolved so far outside a local binding, with its resolution (for recorded reads).
+    pub(crate) fn resolved(&self) -> impl Iterator<Item = (Sym, Sym)> + '_ {
+        self.cache.iter().map(|(&w, &r)| (w, r))
+    }
+
     /// The statement `t` with every name resolved.
     pub(crate) fn statement(&mut self, t: T<'h>) -> R<'h> {
         self.term(t)

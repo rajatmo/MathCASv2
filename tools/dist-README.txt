@@ -6,6 +6,7 @@ works" below). VERSION.txt names the commit.
 
 mc-repl.exe     the interactive REPL
 mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
+mc-lsp.exe      the language server for editors (see "Editor support" below)
 
 REPL
 ----
@@ -29,6 +30,16 @@ A file may start with the line  #! mathcas 2 .
   import stats                             mean, median, variance, std_dev, geometric_mean
 The prelude, loaded at startup, adds: is_even, is_odd, clamp, log_base, count_if, every, some, member, unique, zip,
 flat_map, accumulate, dot, norm, fix_point, say (print several values on one line). See examples\ for scripts.
+
+Editor support
+--------------
+editors\vscode is a VS Code extension (no dependencies): syntax colouring for .mc and .mcn, error diagnostics while
+typing, go to definition (also into imported module files), hover, completion (including module members after
+"M."), the outline, and the commands "MathCAS: Run File" and "MathCAS: Run Selection". With this folder on PATH:
+  code --install-extension mathcas-0.1.0.vsix
+or copy editors\vscode to %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.1.0 and restart VS Code
+(editors\vscode\INSTALL.txt has the details and the settings). Other editors can start mc-lsp.exe as a language
+server over stdio.
 
 What works
 ----------

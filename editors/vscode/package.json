@@ -1,0 +1,69 @@
+{
+  "name": "mathcas",
+  "displayName": "MathCAS",
+  "description": "MathCAS v2 language support: syntax colouring, diagnostics, go to definition, hover, completion and outline through the mc-lsp language server, and commands to run files and selections with mc-repl. No dependencies; install by copying this folder (see INSTALL.txt).",
+  "version": "0.1.0",
+  "publisher": "mathcas",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:mathcas"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "mathcas",
+        "aliases": ["MathCAS", "mathcas"],
+        "extensions": [".mc", ".mcn"],
+        "firstLine": "^#!\\s*mathcas\\b",
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "mathcas",
+        "scopeName": "source.mathcas",
+        "path": "./syntaxes/mathcas.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      { "command": "mathcas.runFile", "title": "Run File", "category": "MathCAS", "icon": "$(play)" },
+      { "command": "mathcas.runSelection", "title": "Run Selection", "category": "MathCAS" },
+      { "command": "mathcas.restartServer", "title": "Restart Language Server", "category": "MathCAS" }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "mathcas.runFile", "when": "editorLangId == mathcas" },
+        { "command": "mathcas.runSelection", "when": "editorLangId == mathcas" }
+      ],
+      "editor/title/run": [
+        { "command": "mathcas.runFile", "when": "editorLangId == mathcas" }
+      ],
+      "editor/context": [
+        { "command": "mathcas.runSelection", "when": "editorLangId == mathcas", "group": "mathcas@1" },
+        { "command": "mathcas.runFile", "when": "editorLangId == mathcas", "group": "mathcas@2" }
+      ]
+    },
+    "configuration": {
+      "title": "MathCAS",
+      "properties": {
+        "mathcas.server.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Start the mc-lsp language server for MathCAS files."
+        },
+        "mathcas.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path of the mc-lsp language server. Empty: mc-lsp next to mc-repl (the mathcas.repl.path setting, or mc-repl found on PATH), else mc-lsp on PATH."
+        },
+        "mathcas.repl.path": {
+          "type": "string",
+          "default": "mc-repl",
+          "description": "Path of mc-repl, used by the Run File and Run Selection commands (a bare name is looked up on PATH)."
+        }
+      }
+    }
+  }
+}

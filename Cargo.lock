@@ -542,6 +542,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-lsp"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-lists",
+ "mc-load",
+ "mc-numeric",
+ "mc-numtheory",
+ "mc-poly",
+ "mc-syntax",
+ "serde_json",
+]
+
+[[package]]
 name = "mc-numeric"
 version = "0.0.0"
 dependencies = [

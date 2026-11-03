@@ -1,0 +1,156 @@
+//! The names every MathCAS session knows before it reads a file: the keywords, the libraries' functions (their
+//! `FUNCTIONS` lists), the evaluator's own natives and the prelude's definitions. They feed completion and hover,
+//! and name resolution (a name the kernel knows stays bare inside a module, as in the engine).
+use crate::outline::{self, Item, ItemKind};
+use mc_load::stdlib;
+use std::collections::BTreeMap;
+
+/// The natives of the evaluator and the engine that a program calls by name, beyond the libraries' `FUNCTIONS`
+/// lists (the operators' heads, such as `add`, are written as operators and left out).
+const CORE: &[(&str, &str)] = &[
+    ("map", "map(f, xs): the list [f(x) for each element x of xs]"),
+    ("print", "print(x): writes x to the output and returns it"),
+    ("define", "define(s, v): gives the symbol s the value v"),
+    ("im", "im: the imaginary unit, complex(0, 1)"),
+    ("inf", "inf: positive infinity (also written ∞)"),
+];
+
+/// Where a known name comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Origin {
+    /// a library or evaluator function or constant
+    Library,
+    /// a definition of the prelude (`lib/prelude.mc`)
+    Prelude,
+}
+
+/// A known name: where it comes from, a one-line description, and for prelude definitions the signature line and
+/// the comment above it.
+#[derive(Clone, Debug)]
+pub struct Entry {
+    /// library or prelude
+    pub origin: Origin,
+    /// the description (library), or the definition's first line (prelude)
+    pub detail: String,
+    /// the comment above a prelude definition
+    pub doc: Option<String>,
+}
+
+/// The known names, by name.
+pub struct Library {
+    entries: BTreeMap<String, Entry>,
+}
+
+impl Default for Library {
+    fn default() -> Library {
+        Library::new()
+    }
+}
+
+impl Library {
+    /// Every library list, the evaluator's natives and the prelude.
+    pub fn new() -> Library {
+        let mut entries = BTreeMap::new();
+        let lists = [CORE, mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS];
+        for (name, desc) in lists.iter().flat_map(|l| l.iter()) {
+            let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None };
+            entries.entry(name.to_string()).or_insert(e);
+        }
+        let text = stdlib::PRELUDE;
+        let parsed = mc_syntax::parse(text);
+        let ids = mc_syntax::identifiers(text);
+        let sigs = Signatures::new(text);
+        for it in outline::items(&parsed.program, &ids) {
+            if it.kind == ItemKind::Module {
+                continue;
+            }
+            let (detail, doc) = sigs.of(&it);
+            entries.entry(it.name).or_insert(Entry { origin: Origin::Prelude, detail, doc });
+        }
+        Library { entries }
+    }
+
+    /// The entry of a known name.
+    pub fn get(&self, name: &str) -> Option<&Entry> {
+        self.entries.get(name)
+    }
+
+    /// Whether a session knows `name` before reading anything.
+    pub fn knows(&self, name: &str) -> bool {
+        self.entries.contains_key(name)
+    }
+
+    /// Every known name, in order.
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &Entry)> {
+        self.entries.iter().map(|(n, e)| (n.as_str(), e))
+    }
+}
+
+/// Signature lines and comments of one text's definitions, for hover, completion and the outline.
+pub struct Signatures<'t> {
+    /// the lines, without line breaks
+    lines: Vec<&'t str>,
+    /// the byte offset of each line's start
+    starts: Vec<usize>,
+}
+
+impl<'t> Signatures<'t> {
+    /// The lines of `text`.
+    pub fn new(text: &'t str) -> Signatures<'t> {
+        let lines = text.split('\n').map(|l| l.trim_end_matches('\r')).collect();
+        let mut starts = vec![0];
+        starts.extend(text.match_indices('\n').map(|(i, _)| i + 1));
+        Signatures { lines, starts }
+    }
+
+    /// The line holding byte `name_at` (the definition's signature line, trimmed, shortened if very long), and the
+    /// comment lines directly above the statement starting at byte `stmt_at` (their `#` removed).
+    pub fn at(&self, stmt_at: usize, name_at: usize) -> (String, Option<String>) {
+        let line_of = |at: usize| self.starts.partition_point(|&s| s <= at) - 1;
+        let mut sig = self.lines[line_of(name_at)].trim().to_string();
+        if sig.chars().count() > 160 {
+            sig = sig.chars().take(160).collect::<String>() + " ...";
+        }
+        let mut doc = vec![];
+        let mut l = line_of(stmt_at);
+        while l > 0 {
+            l -= 1;
+            match self.lines[l].trim().strip_prefix('#') {
+                Some(c) if !c.starts_with('!') && !c.starts_with('%') => doc.push(c.strip_prefix(' ').unwrap_or(c).trim_end()),
+                _ => break,
+            }
+        }
+        doc.reverse();
+        (sig, (!doc.is_empty()).then(|| doc.join("\n")))
+    }
+
+    /// [`Signatures::at`] for a definition of the text's outline.
+    pub fn of(&self, it: &Item) -> (String, Option<String>) {
+        self.at(it.span.start as usize, it.name_span.start as usize)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn known_names() {
+        let lib = Library::new();
+        assert_eq!(lib.get("range").unwrap().origin, Origin::Library);
+        assert!(lib.get("factor").unwrap().detail.starts_with("factor("));
+        let clamp = lib.get("clamp").unwrap();
+        assert_eq!(clamp.origin, Origin::Prelude);
+        assert_eq!(clamp.detail, "fn clamp(x, lo, hi) = min(max(x, lo), hi)");
+        assert_eq!(clamp.doc.as_deref(), Some("clamp(x, lo, hi): x limited to the interval [lo, hi]"));
+        assert!(lib.knows("map") && lib.knows("pi") && !lib.knows("no_such_name"));
+    }
+
+    #[test]
+    fn signatures_and_comments() {
+        let text = "#! mathcas 2\n# one\n#two\nfn f(x) =\n  x\n";
+        assert_eq!(Signatures::new(text).at(24, 27), ("fn f(x) =".into(), Some("one\ntwo".into())));
+        assert_eq!(Signatures::new("x = 1").at(0, 0), ("x = 1".into(), None));
+        assert_eq!(Signatures::new("x = 1\n").at(6, 6), (String::new(), None));
+    }
+}
