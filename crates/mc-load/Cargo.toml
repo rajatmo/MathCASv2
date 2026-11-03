@@ -1,0 +1,10 @@
+[package]
+name = "mc-load"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 source loading: files, modules, imports and read-time name resolution, the prelude and the standard modules"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-syntax = { path = "../mc-syntax" }

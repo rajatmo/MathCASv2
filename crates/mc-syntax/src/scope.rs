@@ -3,7 +3,8 @@
 //! Lowering needs them for one decision: whether `x = v` assigns a `var` local (`assign(x, v)`), is an error (`x` is
 //! bound by `let`, a parameter or a pattern), or defines the symbol `x` (`set(x, v)`) (04 section 3.5). The printer
 //! has to make the same decision in reverse, so both compute bound names with the functions here, from the
-//! **lowered terms** of the binding constructs: the two sides cannot drift apart.
+//! **lowered terms** of the binding constructs: the two sides cannot drift apart. Name resolution (`mc-load`) uses
+//! the same functions, so a locally bound name is never mistaken for a global one.
 use crate::heads::{as_sym, Head, Heads};
 use mc_api::{Store, Sym, View, T};
 use std::collections::HashSet;
@@ -25,6 +26,7 @@ pub struct Scopes {
 }
 
 impl Scopes {
+    /// A new, empty frame.
     pub fn push(&mut self) {
         self.frames.push(self.entries.len());
     }
@@ -33,10 +35,12 @@ impl Scopes {
         self.push();
         self.entries.extend(syms.into_iter().map(|s| (s, Bind::Let)));
     }
+    /// Drop the innermost frame and its bindings.
     pub fn pop(&mut self) {
         let n = self.frames.pop().unwrap_or(0);
         self.entries.truncate(n);
     }
+    /// Bind `s` in the innermost frame.
     pub fn bind(&mut self, s: Sym, b: Bind) {
         self.entries.push((s, b));
     }

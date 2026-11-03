@@ -189,7 +189,7 @@ fn language_results_are_the_same_under_collection_stress_and_at_1_and_4_threads(
         for memo in ["on", "off"] {
             let d = EngineConfig::default();
             let cfg = EvalConfig { split, ..d.eval };
-            let mut e = engine(EngineConfig { threads, heap: mc_core::Config::stress(), eval: cfg });
+            let mut e = engine(EngineConfig { threads, heap: mc_core::Config::stress(), eval: cfg, ..d });
             e.configure("memo", memo).expect("memo is a setting");
             let got: Vec<String> = SESSION.iter().map(|(src, _)| eval(&mut e, src)).collect();
             assert_eq!(got, reference, "{threads} threads, {split:?}, under stress, memo {memo}");
@@ -209,7 +209,7 @@ map(k => { var c = k; () => c }, [1, 2, 3])";
     // lazy splitting, and splitting every group (maximal speculation)
     for split in [Split::Lazy, Split::Always, Split::Always] {
         let d = EngineConfig::default();
-        let cfg = EngineConfig { threads: 4, heap: mc_core::Config::stress(), eval: EvalConfig { split, ..d.eval } };
+        let cfg = EngineConfig { threads: 4, heap: mc_core::Config::stress(), eval: EvalConfig { split, ..d.eval }, ..d };
         let mut e = engine(cfg);
         assert_eq!(eval(&mut e, src), reference);
         assert_eq!(eval(&mut e, "{ var base = 100; let xs = map(k => steps(k) + base, range(300)); base = 0; [max(xs), map(k => base + k, [1, 2])] }"), "[227, [1, 2]]");

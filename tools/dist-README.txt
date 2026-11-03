@@ -9,8 +9,26 @@ mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
 
 REPL
 ----
-Run mc-repl.exe and type expressions. Commands: :help, :time (toggle timing), :history, :redo [k], :cancel, :quit.
+Run mc-repl.exe and type expressions. Commands: :help, :time (toggle timing), :history, :redo [k], :cancel, :quit,
+:load file.mc (evaluate a file; a module file again replaces its definitions), :modules (loaded modules).
 Input continues on the next line while brackets are open. Ctrl+C stops a running evaluation.
+
+Scripts and modules
+-------------------
+  mc-repl.exe examples\hello.mc          run a script: it prints its output and the value of its last statement
+  mc-repl.exe a.mc b.mc                  several files in order, in one session
+  mc-repl.exe -e "factor(x^4 - 1)"       evaluate source given on the command line (repeatable)
+  mc-repl.exe -i examples\vectors.mc     enter the REPL afterwards
+  mc-repl.exe --no-prelude               start without the prelude; --help lists the options
+Exit codes: 0 ok, 1 read error (nothing of that file runs), 2 a top-level statement gave a failure, 130 interrupted.
+A file may start with the line  #! mathcas 2 .
+  module geo { pub fn area(r) = pi*r^2 }   a module; members marked pub are exported
+  import geo                               bring its public names into scope (also import geo.{area}, import geo
+                                           except area); geo.area(1) works as well
+`import M` loads M.mc from the importing file's folder (the current folder at the REPL), or a standard module:
+  import stats                             mean, median, variance, std_dev, geometric_mean
+The prelude, loaded at startup, adds: is_even, is_odd, clamp, log_base, count_if, every, some, member, unique, zip,
+flat_map, accumulate, dot, norm, fix_point, say (print several values on one line). See examples\ for scripts.
 
 What works
 ----------
@@ -38,7 +56,7 @@ What works
 
 Not yet
 -------
-  loading .mc files and a startup prelude; modules and imports;
+  nested modules, re-exports;
   the JIT is built but not wired in (loops are interpreted, about 1 us per iteration);
   series results print in their raw internal form.
 

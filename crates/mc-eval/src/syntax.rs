@@ -532,7 +532,10 @@ fn define_now<'h>(
             return Ok(Err(e));
         }
     }
-    if let (true, Some(f)) = (checked, f) {
+    // A clause `f(xs...)` without a condition already matches every call; the catch-all has the same pattern and
+    // would replace it, so it is left out.
+    let catches_all = matches!(call_of(h, lhs), Some((_, &[p])) if matches!(call_of(h, p), Some((s, &[_])) if s == hd.seq0));
+    if let (true, Some(f), false) = (checked, f, catches_all) {
         let args = h.sym("args$");
         let all = pattern(h, h.call(f, &[h.call(hd.seq0, &[h.sym_term(args)])])).expect("a catch-all pattern");
         let nm = &cx.ev.k.names;

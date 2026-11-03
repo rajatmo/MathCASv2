@@ -1,0 +1,85 @@
+# A REPL session on files, modules and the prelude (package F), checked by tests/core_sessions.rs (run in
+# crates/mc-repl, so the examples are two folders up). Each `mc> ` line is an input, the lines after it are the
+# output.
+
+# The prelude is loaded at startup
+mc> unique([1, 2, 1, 3])
+[1, 2, 3]
+mc> [is_even(10), clamp(7, 0, 5), dot([1, 2], [3, 4])]
+[true, 5, 11]
+mc> say("one ", 1, " two ", 2)
+one 1 two 2
+null
+mc> :modules
+no modules loaded
+
+# A module file, loaded with :load
+mc> :load ../../examples/vectors.mc
+mc> :modules
+vectors: angle, e1, e2, plus, times
+mc> vectors.plus([1, 2], [3, 4])
+[4, 6]
+mc> vectors.cosine([1, 0], [0, 1])
+syntax error at line 1, column 1: `vectors.cosine` is private to module vectors (mark it `pub` to export it)
+  vectors.cosine([1, 0], [0, 1])
+  ^
+mc> plus(e1, e2)
+plus(e1, e2)
+mc> import vectors
+null
+mc> plus(e1, e2)
+[1, 1]
+mc> times(3, e2)
+[0, 3]
+
+# An import persists for the session; a local binding shadows it
+mc> (e1 => e1 + 1)(1)
+2
+
+# Loading again replaces the module's definitions instead of adding clauses
+mc> :load ../../examples/vectors.mc
+mc> plus(e1, e1)
+[2, 0]
+
+# A module typed at the prompt; forward references inside it work
+mc> module shapes {
+..>   pub fn area(r) = pi*square_of(r)
+..>   fn square_of(x) = x^2
+..> }
+null
+mc> shapes.area(2)
+4*pi
+mc> import shapes.{area}
+null
+mc> area(3)
+9*pi
+
+# The standard module stats
+mc> import stats except geometric_mean
+null
+mc> [mean([1, 2, 3, 4]), median([5, 1, 3])]
+[5/2, 3]
+mc> geometric_mean([1, 4])
+geometric_mean([1, 4])
+mc> stats.geometric_mean([1, 4])
+2
+mc> :modules
+shapes: area
+stats: geometric_mean, mean, median, std_dev, variance
+vectors: angle, e1, e2, plus, times
+
+# Errors: an unknown module, an ambiguous name
+mc> import nowhere
+syntax error at line 1, column 8: no module `nowhere`: no file nowhere.mc in the current directory and no standard module of that name
+  import nowhere
+         ^
+mc> module other { pub fn mean(xs) = 0 }
+null
+mc> import other
+null
+mc> mean([1])
+syntax error at line 1, column 1: `mean` is ambiguous: it is imported from modules stats and other
+  mean([1])
+  ^
+mc> other.mean([1])
+0
