@@ -7,6 +7,7 @@ works" below). VERSION.txt names the commit.
 mc-repl.exe     the interactive REPL
 mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
 mc-lsp.exe      the language server for editors (see "Editor support" below)
+mc-kernel.exe   the kernel for notebooks and editors: JSON lines over stdio (protocol 1)
 
 REPL
 ----
@@ -30,6 +31,15 @@ A file may start with the line  #! mathcas 2 .
   import stats                             mean, median, variance, std_dev, geometric_mean
 The prelude, loaded at startup, adds: is_even, is_odd, clamp, log_base, count_if, every, some, member, unique, zip,
 flat_map, accumulate, dot, norm, fix_point, say (print several values on one line). See examples\ for scripts.
+
+Notebooks
+---------
+  mc-repl.exe examples
+otebook.mcn            run a notebook's code cells, printing their output
+  mc-repl.exe --update examples
+otebook.mcn   also write each cell's output back into the file
+A .mcn file is plain text: "#! mathcas 2 notebook", then cells marked "#% cell" (code), "#% text" (prose as
+"# ..." lines) and "#% output" (the last run's output: "#|" print, "#=" value, "#!" failure or error).
 
 Editor support
 --------------
