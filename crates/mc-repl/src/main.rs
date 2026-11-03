@@ -26,8 +26,13 @@ fn main() -> ExitCode {
         Ok(false) => {}
         Err(e) => eprintln!("note: no interrupt handler ({e})"),
     }
-    let mut engine = CoreEngine::with_config(EngineConfig { prelude: options.prelude, ..EngineConfig::default() });
-    let code = cli::run(&mut engine, &options.items, &stop, &mut io::stdout().lock(), &mut io::stderr().lock());
+    let mut config = EngineConfig { prelude: options.prelude, ..EngineConfig::default() };
+    if let Some(n) = options.threads {
+        config.threads = n;
+    }
+    let mut engine = CoreEngine::with_config(config);
+    let (items, update) = (&options.items, options.update);
+    let code = cli::run_with(&mut engine, items, update, &stop, &mut io::stdout().lock(), &mut io::stderr().lock());
     // with -i the REPL starts even after an error, so the session can be inspected
     if !interactive {
         return ExitCode::from(code);

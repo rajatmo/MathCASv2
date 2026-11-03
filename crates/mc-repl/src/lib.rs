@@ -10,7 +10,8 @@
 //!
 //! Files and modules (`:load`, `:modules`) need more than the [`Engine`] trait: the loop drives a [`Host`], which
 //! the real engine implements ([`host`]); a plain engine gets a host without file support. [`cli`] is the command
-//! line of the `mc-repl` binary (scripts, `-e`, `-i`, `--no-prelude`).
+//! line of the `mc-repl` binary (scripts, notebooks, `-e`, `-i`, `--no-prelude`); [`notebook`] runs `.mcn`
+//! notebooks.
 use mc_bench::{Engine, EngineError, StopFlag};
 use std::io::{self, BufRead, Write};
 use std::time::Instant;
@@ -18,6 +19,7 @@ use std::time::Instant;
 pub mod cli;
 pub mod host;
 pub mod interrupt;
+pub mod notebook;
 
 /// What the loop drives: an engine, and optionally file loading and the module table.
 pub trait Host {
