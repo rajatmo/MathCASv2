@@ -208,7 +208,7 @@ passed on; `unquote(q)` evaluates it.
 | `_` | any single term |
 | `x_` | any single term, bound to `x` |
 | `x_ : T` | a term of type `T` (a type expression, section 16) |
-| `xs__` / `xs___` | one or more / zero or more consecutive arguments, bound to a list |
+| `xs__` / `xs___` | one or more / zero or more consecutive arguments, bound to a list (under an associative-commutative head, to that head applied to them: 6.2) |
 | `p \| q` | `p` or `q` (both must bind the same variables) |
 | `p /; c` | `p`, and then `c` evaluates to `true` with the bindings in scope |
 | `x_ = d` | an optional argument with default `d` |
@@ -234,8 +234,21 @@ modulo those properties: `f(a, x_)` matches `f(b, a)` when `f` is commutative. M
 
 Under an associative head, a single-term pattern (`_`, `x_`, `x_ : T`, a literal or a compound pattern) matches exactly
 **one** argument; several arguments are matched only by sequence variables (`xs__`, `xs___`). So `f(x_, y_)` against
-`f(a, b, c)` does not match by grouping `f(a, b)` into `x`; `f(x_, ys__)` does, with `ys = [b, c]`. (Spike 2,
-decision 2.3.)
+`f(a, b, c)` does not match by grouping `f(a, b)` into `x`; `f(x_, ys__)` does. (Spike 2, decision 2.3.)
+
+**Sequence variables under associative-commutative heads** stand for the head applied to the arguments they take, not
+for a list: matching `x_ + rs___` against `a + b + c` binds `rs` to `b + c`, so `1 + rs` means `1 + b + c`.
+Evaluation makes a run of one argument that argument and an empty run the identity element (`add()` is `0`). Under any
+other head a sequence variable stands for the list of its arguments (`f(x_, ys__)` against `f(a, b, c)` gives
+`ys = [b, c]` when `f` is not AC). *Reason:* the rest of a sum is a sum; as a list it would put a list inside the
+arithmetic (`1 + [b, c]`). (Decision 6.2a, November 2026.)
+
+**`rewrite` and parts of a call.** A rule given to `rewrite` whose left side is a call of an associative-commutative
+head and has no sequence variable among that call's arguments also rewrites part of a longer call of the head: it is
+tried as written, then with an implicit rest (`p + q` as `p + q + rest__`), and the replacement joins the rest:
+`rewrite(x + sin(u)^2 + cos(u)^2, [sin(a_)^2 + cos(a_)^2 -> 1])` gives `1 + x`. Function rules (`rule`, `fn`) and
+`match` still match whole terms. *Reason:* rule application is how identities are used on expressions (04 section 1);
+an identity that only applied to a whole sum would rarely fire. (Decision 6.2b, November 2026.)
 
 **Enumeration order** (spike 2, decision 2.2):
 

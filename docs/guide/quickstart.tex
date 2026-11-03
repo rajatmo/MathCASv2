@@ -247,11 +247,14 @@ mc> match 7 { 0 => "zero", n_: Int when n > 0 => "positive", _ => "other" }
 \subsection{Rewriting}
 
 \code{rewrite(e, rules)} applies rules to every part of \code{e} once; with \code{strategy: fixed\_point} it
-repeats until nothing changes.
+repeats until nothing changes. A rule for part of a sum or product also applies inside a longer one, and the rest
+of a sum matched by \code{r\_\_\_} is itself a sum.
 
 \begin{repl}
-mc> rewrite(sin(t)^2 + cos(t)^2, [sin(a_)^2 + cos(a_)^2 -> 1])
-1
+mc> rewrite(x + sin(u)^2 + cos(u)^2 + y, [sin(a_)^2 + cos(a_)^2 -> 1])
+1 + x + y
+mc> rewrite(a + b + c, [x_ + r__ -> f(r)])
+f(b + c)
 mc> rewrite(f(f(f(f(x)))), [f(f(a_)) -> g(a)], strategy: fixed_point)
 g(g(x))
 \end{repl}
@@ -418,8 +421,6 @@ which is how notebook front ends and editors talk to it:
 
 This is an early build. Missing so far: plots and graphics; differentiation (the prime notation \code{f'} is
 read, but not evaluated yet), equation solving, integration and differential equations; a notebook window
-(notebooks run from the command line and the kernel protocol is in place). Rule
-patterns inside sums match whole sums only: \code{sin(a\_)\^{}2 + cos(a\_)\^{}2 -> 1} rewrites
-\code{sin(t)\^{}2 + cos(t)\^{}2} but not the same terms inside a longer sum yet.
+(notebooks run from the command line and the kernel protocol is in place).
 
 \end{document}

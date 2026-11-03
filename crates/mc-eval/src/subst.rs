@@ -130,11 +130,16 @@ impl Scopes {
     }
 }
 
-/// The term variable `v` stands for: its term, or `list(...)` of a sequence variable's terms (semantics 6.1).
+/// The term variable `v` stands for: its term, or `list(...)` of a sequence variable's terms (semantics 6.1); a
+/// sequence variable that took arguments of an associative-commutative call stands for that head applied to them
+/// (`add(b, c)`; evaluation makes a single term itself and an empty run the identity, semantics 6.2).
 pub(crate) fn value<'h>(h: &'h Heap, b: &Binds<'h>, v: u16, list: Sym) -> T<'h> {
     match b.get(v) {
         Val::One(t) => t,
-        Val::Seq(..) => h.call(list, b.seq(v)),
+        Val::Seq(..) => match b.seq_head(v) {
+            Some(hd) => h.app(hd, b.seq(v)),
+            None => h.call(list, b.seq(v)),
+        },
         Val::Unbound => h.call(list, &[]),
     }
 }

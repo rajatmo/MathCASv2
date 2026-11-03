@@ -24,7 +24,7 @@ use crate::eval::{Kernel, Res};
 use crate::machine::{Frame, FormOut};
 use crate::matcher::Binds;
 use crate::native::{Native, NativeCx, Pattern, Reply};
-use crate::pat::has_type;
+use crate::pat::{has_type, Pat};
 use crate::subst::substitute;
 use mc_core::{Heap, Store, Sym, View, T};
 use rustc_hash::FxHashMap;
@@ -430,11 +430,15 @@ struct Compiled<'h> {
     pat: Pattern,
     names: Vec<Sym>,
     rhs: T<'h>,
+    /// For `rewrite`, when the left side is a call of an associative-commutative head without a sequence variable:
+    /// the same pattern with an implicit rest (`f(p, q, rest__)`), the rest's variable and the head, so the rule also
+    /// rewrites part of a longer call (`a + b + c` with `a + b -> r` gives `r + c`).
+    part: Option<(Pattern, u16, T<'h>)>,
 }
 
 /// Compile `rule(l, r)` or `rule_delayed(l, r)`; `None` if `t` is not a rule, `Err` with a failure term if its
 /// pattern is malformed.
-fn compile<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Result<Option<Compiled<'h>>, T<'h>> {
+fn compile<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>, parts: bool) -> Result<Option<Compiled<'h>>, T<'h>> {
     let h = cx.heap();
     let sc = &cx.ev.k.names.scopes;
     let View::App { head, args: &[l, r] } = h.view(t) else { return Ok(None) };
@@ -443,8 +447,20 @@ fn compile<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Result<Option<Compiled<'h
     }
     let bad = |e: crate::pat::DefError| failure(cx, "definition", &[h.string(&e.to_string())]);
     let low = crate::syntax::pattern(h, l).map_err(bad)?;
+    let lhs = parts.then(|| low.pat.clone());
     let pat = cx.ev.k.compile_pattern(h, low.pat).map_err(bad)?;
-    Ok(Some(Compiled { pat, names: low.names, rhs: r }))
+    // the left side as written is a call without sequence variables (compiled, an all-literal call is one literal
+    // term, so the head's properties are read from the version with the rest)
+    let part = match lhs {
+        Some(Pat::App { head, mut args, info }) if !args.iter().any(Pat::is_seq) => {
+            let rest = pat.nvars as u16;
+            args.push(Pat::Seq { var: Some(rest), min: 1 });
+            let p = cx.ev.k.compile_pattern(h, Pat::App { head, args, info }).map_err(bad)?;
+            matches!(&p.pat, Pat::App { info, .. } if info.ac).then(|| (p, rest, head.get(h)))
+        }
+        _ => None,
+    };
+    Ok(Some(Compiled { pat, names: low.names, rhs: r, part }))
 }
 
 /// The rules of `t`: a rule, or a list of rules. `Ok(None)` if `t` is neither.
@@ -455,7 +471,7 @@ fn compile_all<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Result<Option<Vec<Com
     };
     let mut out = Vec::with_capacity(items.len());
     for r in items {
-        match compile(cx, r)? {
+        match compile(cx, r, true)? {
             Some(c) => out.push(c),
             None => return Ok(None),
         }
@@ -468,11 +484,22 @@ fn apply<'h>(cx: &mut NativeCx<'_, '_, 'h>, rules: &[Compiled<'h>], t: T<'h>, b:
     let ev = cx.ev;
     let h = ev.heap;
     let nm = &ev.k.names;
+    let replace = |b: &Binds<'h>, r: &Compiled<'h>| {
+        let pairs: Vec<(Sym, T<'h>)> =
+            r.names.iter().enumerate().map(|(v, &s)| (s, crate::subst::value(h, b, v as u16, nm.list))).collect();
+        substitute(h, &nm.scopes, r.rhs, &pairs)
+    };
     for r in rules {
         if ev.match_binds(cx.cx, &r.pat, t, b)? {
-            let pairs: Vec<(Sym, T<'h>)> =
-                r.names.iter().enumerate().map(|(v, &s)| (s, crate::subst::value(h, b, v as u16, nm.list))).collect();
-            return Ok(Some(substitute(h, &nm.scopes, r.rhs, &pairs)));
+            return Ok(Some(replace(b, r)));
+        }
+        // part of a longer call of the same AC head: the replacement joins the arguments it did not use
+        if let Some((p, rest, head)) = &r.part {
+            if ev.match_binds(cx.cx, p, t, b)? {
+                let mut args = vec![replace(b, r)];
+                args.extend_from_slice(b.seq(*rest));
+                return Ok(Some(h.app(*head, &args)));
+            }
         }
     }
     Ok(None)
@@ -492,7 +519,7 @@ impl Native for Match {
         let mut b = Binds::default();
         for &arm in arms {
             cx.tick(1)?;
-            let rule = match compile(cx, arm) {
+            let rule = match compile(cx, arm, false) {
                 Ok(Some(r)) => r,
                 Ok(None) => return Ok(Reply::Decline),
                 Err(f) => return Ok(Reply::Done(f)),

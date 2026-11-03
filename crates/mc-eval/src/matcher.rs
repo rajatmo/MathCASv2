@@ -39,6 +39,11 @@ pub enum Val<'h> {
 pub struct Binds<'h> {
     vals: Vec<Val<'h>>,
     seq: Vec<T<'h>>,
+    /// per sequence variable: the associative-commutative head whose arguments it took, if any (semantics 6.2:
+    /// such a run stands for that head applied to it, not for a list)
+    wrap: Vec<Option<T<'h>>>,
+    /// while matching the arguments of an AC call: its head
+    ac_head: Option<T<'h>>,
 }
 
 impl<'h> Binds<'h> {
@@ -46,6 +51,9 @@ impl<'h> Binds<'h> {
         self.vals.clear();
         self.vals.resize(n, Val::Unbound);
         self.seq.clear();
+        self.wrap.clear();
+        self.wrap.resize(n, None);
+        self.ac_head = None;
     }
     /// The value of variable `v`.
     pub fn get(&self, v: u16) -> Val<'h> {
@@ -65,6 +73,11 @@ impl<'h> Binds<'h> {
             other => panic!("variable {v} is not bound to a sequence: {other:?}"),
         }
     }
+    /// For a sequence variable that took arguments of an associative-commutative call: that call's head. Its value
+    /// is then the head applied to the run (`add(b, c)`), not a list (semantics 6.2).
+    pub fn seq_head(&self, v: u16) -> Option<T<'h>> {
+        self.wrap.get(v as usize).copied().flatten()
+    }
     /// Number of variable slots.
     pub fn len(&self) -> usize {
         self.vals.len()
@@ -77,6 +90,8 @@ impl<'h> Binds<'h> {
     pub(crate) fn copy_from(&mut self, o: &Binds<'h>) {
         self.vals.clone_from(&o.vals);
         self.seq.clone_from(&o.seq);
+        self.wrap.clone_from(&o.wrap);
+        self.ac_head = o.ac_head;
     }
 }
 
@@ -228,8 +243,10 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
                 let off = b.seq.len();
                 b.seq.extend(ts);
                 b.vals[v as usize] = Val::Seq(off as u32, (b.seq.len() - off) as u32);
+                b.wrap[v as usize] = b.ac_head;
                 let r = k(b);
                 b.vals[v as usize] = Val::Unbound;
+                b.wrap[v as usize] = None;
                 b.seq.truncate(off);
                 r
             }
@@ -271,13 +288,23 @@ impl<'a, 'k, 'h> Matcher<'a, 'k, 'h> {
                 if th != head.get(h) {
                     return false;
                 }
-                if info.ac {
-                    self.m_ac(args, info, ts, b, k)
-                } else if !info.has_seq {
-                    ts.len() == args.len() && self.m_fixed(args, ts, b, k)
-                } else {
-                    ts.len() >= info.min as usize && self.m_seq(args, ts, b, k)
+                if !info.has_seq {
+                    return if info.ac { self.m_ac(args, info, ts, b, k) } else { ts.len() == args.len() && self.m_fixed(args, ts, b, k) };
                 }
+                // sequence variables bound inside this call remember its head if it is AC; the continuation runs
+                // outside the call, so it sees the outer head again
+                let outer = b.ac_head;
+                b.ac_head = if info.ac { Some(th) } else { None };
+                let k = &mut |b: &mut Binds<'h>| {
+                    let inner = b.ac_head;
+                    b.ac_head = outer;
+                    let r = k(b);
+                    b.ac_head = inner;
+                    r
+                };
+                let r = if info.ac { self.m_ac(args, info, ts, b, k) } else { ts.len() >= info.min as usize && self.m_seq(args, ts, b, k) };
+                b.ac_head = outer;
+                r
             }
             Pat::Alt(ps) => ps.iter().any(|q| self.m(q, t, b, k)),
             Pat::Named(v, q) => self.m(q, t, b, &mut |b| self.bind_one(Some(*v), t, b, k)),
