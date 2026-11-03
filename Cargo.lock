@@ -89,6 +89,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "int_numbers"
+version = "0.0.0"
+dependencies = [
+ "hashbrown",
+ "num-bigint",
+ "num-traits",
+ "rustc-hash",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
