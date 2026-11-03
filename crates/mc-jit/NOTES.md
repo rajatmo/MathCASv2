@@ -24,7 +24,6 @@ workspace 458 passed, 0 failed, 6 ignored; clippy clean.
   functions are inlined, recursion refused; anything else refused with a reason.
 - `spec.rs`: `Specialisation` (implements `Compiled`), the natives `compile` and `compiled_info`, the `Jit` handle
   (`install`, `flush`, `polls`, `info`).
-- `adapter.rs`: a temporary copy of package 1a's `register_compiled` hook (to be replaced by 1a's registry when it
   merges).
 - Natives: `compile(f)` and `compile(f, back_end: "interpreter")` return `f` or `failure(not_compilable, f, "reason")`;
   `compiled_info(f)` lists `params`, `result`, `hir_nodes`, `lir_instructions`, `code_bytes`, `back_end`,
@@ -122,9 +121,11 @@ to both (handed to package 9).
 - The per-call version check costs one lookup per inlined function.
 - No L-class bench cases exist, so none were measured.
 
-## Reconciling with package 1a
+## Reconciled with package 1a (commit e611795)
 
-1. Delete `adapter.rs` and use `mc_eval::{Compiled, ...}` with 1a's `Kernel::register_compiled(head, Arc<dyn
-   Compiled>)`; the call in `Jit::flush` reads the same (`NativeCx` has three lifetimes `'a, 'k, 'h`).
-2. Keep `Jit::flush` unless 1a offers registration from a native as an effect.
-3. `inspect.rs` reads `Eval`/`Cx` internals (`ev.k.defs`, `cx.reads`): adjust if 1a renames them.
+- `adapter.rs` is gone: specialisations register with `mc-eval`'s `Kernel::register_compiled`. Registering is not a
+  definition (1a.7), so the version forwarding in `Jit::flush` was removed.
+- `compiled_info` reports registrations and run counters, which are not definitions, so it calls the new
+  `NativeCx::volatile()` and is never memoised (otherwise a recompiled function kept reporting `stale`).
+- `Jit::flush` stays; `NativeCx::register_compiled` (an effect) now exists and would let `compile(f)` take effect
+  within its own statement (1b.5) if `compile` used it.

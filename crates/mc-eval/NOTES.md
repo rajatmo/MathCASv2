@@ -276,3 +276,100 @@ Shared files changed: `bench/cases/R/R2.mc` (the rule uses a block, because defi
 
 - Additions in `defs.rs` only: crate-private `Defs::clear_arg_rules(holder, outer)` and
   `pub fn Kernel::clear_attached(&mut self, holder, outer)` (counts as a definition of both symbols), for 9.6.
+
+## Package 1a (explicit-stack evaluator and evaluator speed, branch `lib/p1a-eval`; merge 502c9bb)
+
+All targets met: R2 at m = 10^5 passes through the harness (1.996 s median, check pass, peak 2.4 GB); a 10^6-deep
+linear recursion passes (1 and 2 threads, lazy and always-split); the native-interface additions and
+`register_compiled` exist with tests. On the branch: workspace 455 passed; clippy clean.
+
+### What was built
+
+- **`machine.rs`: evaluation on an explicit, heap-allocated stack.** `Frame::Eval` is one evaluation level (start term
+  = memo key, the term being reduced, saved read set, effect, fuel and cell counters, a `Stage`: waiting for its head,
+  its next strict argument, a symbol's own value, or a form above it). Argument values go on a per-task value stack
+  (`Cx::vals`); the driver (`Eval::eval`) moves values up and aborts down; replacements loop inside one level. Memo
+  stamps, read sets, learned costs, holes, validation, effect-in-condition conversion and failure propagation follow
+  the old code step for step.
+- **`lang.rs`: `block`, `while`, `for` are frames** (`Form`, registered with the internal `Kernel::register_form`), so
+  recursion through a non-tail block statement or a loop body adds no Rust frames; a one-statement block that binds
+  nothing is that statement (tail call, H.12); block states pooled per task.
+- **`compiled.rs`: the hook for package 1b.** `trait Compiled: Send + Sync { fn call<'h>(&self, cx: &mut
+  NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Option<T<'h>>; }`; `Kernel::register_compiled(&mut self, head: Sym, c:
+  Arc<dyn Compiled>)`, `remove_compiled`, `compiled(head)`, and `NativeCx::register_compiled(head, c) -> Res<()>` (an
+  effect of the frontier). A slot per symbol in `SymDefs`; specialisations in an append-only table.
+- **Native-interface additions (package I's requests):** `NativeCx::compile_pattern(Pat)`,
+  `NativeCx::match_binds(&Pattern, t, &mut Binds)`; `NativeCx::cmp`/`sort` and `Kernel::cmp`/`sort` (canonical order);
+  `Kernel::stop_flag()`, `Kernel::set_stop_flag(Arc<AtomicBool>)`, `NativeCx::stop_flag()`, `NativeCx::stopped()`;
+  `Native::reads_term()` (provided, default `true`).
+- **Speed:** natives that do not read their term are called before the evaluated call is built; AC canonical forms,
+  rule right sides and small substitutions (`subst::plain_small`) on fixed buffers; a pair of arguments that cannot
+  split skips the group bookkeeping. `examples/speed.rs` measures R1, R1i, LOOP, LOOPi, R12, R2, DEEP with progress.
+
+### Decisions
+
+- **1a.1** `EvalConfig::max_depth` is a frame limit sized by memory: optimised builds `DEFAULT_STACK_BYTES` (256 MiB)
+  over two 72-byte frames per level (about 1.86 million levels), unoptimised 2^17; still `failure(limit, depth)` (a
+  hole on a speculative task). A runaway recursion uses about 1.3 GB before it stops. Replaces F.11.
+- **1a.2** Native callbacks (`NativeCx::eval`, conditions, split-group elements) still nest Rust frames, bounded by
+  `EvalConfig::max_nest` (10,000 optimised, 1,000 unoptimised; 10,000 fit the pool's 64 MB stacks); over it,
+  `failure(limit, depth)`.
+- **1a.3** `block`, `while`, `for` run as frames; `has_native` stays true for them; attributes unchanged.
+- **1a.4** Groups stop splitting at callback nesting `SPLIT_NEST` (48): deep recursions split near the root only.
+- **1a.5** A pair of arguments takes the split path only if the lazy rule could split it; a group needs two evaluated
+  arguments. This fixed a held-cell waste (`assign(local_cell(-k), ...)` made every speculative element a hole): R12
+  at 2 threads had 28,000 holes and 9,000 redos, and is now twice as fast as at 1 thread.
+- **1a.6** A native with `reads_term() == false` is called on the evaluated arguments before the call term is built
+  (its `t` is the call before argument evaluation); the term is built only if it declines.
+- **1a.7** The compiled specialisation is consulted after the arguments and after a native declines, before
+  argument-head rules and the head's rules; consulting records the head in the read set; registering is not a
+  definition (no epoch or version change); `Kernel::clear` unlinks it; table entries are never freed. Consequence: a
+  native whose answer depends on registrations must call `NativeCx::volatile()` (added at the merge; `compiled_info`
+  does).
+- **1a.8** The kernel owns a stop flag; the engine still passes its own to the libraries and does not yet share it
+  (`set_stop_flag`).
+
+### Edits outside `mc-eval`
+
+- `mc-engine/src/engine.rs`: `EngineConfig::default()` uses `EvalConfig::default()`; `MAX_DEPTH` (G.7) removed.
+- `mc-engine/src/arith.rs` (additions): `ArithOrder::cmp`/`sort` order machine integers and small rationals by value
+  without building `mc_arith::Order`; `small_ratio`/`small_product` fast path for products coming out as machine
+  integers; `reads_term() = false` on Add, Mul, Pow, Complex, BallLiteral, Compare, Equality, NotSame, Not; a unit test.
+- `mc-eval/Cargo.toml`: dev-dependencies `mc-engine`, `mc-bench` (a development-only cycle for the example and tests).
+- `Kernel::natives` is now `Vec<Impl>` (`Impl::Native { native, reads_term }` or `Impl::Form(Form)`).
+
+### Tests
+
+`tests/machine.rs` (7): 10^6-deep linear recursion (1 thread lazy, 2 lazy, 2 always-split); the frame limit gives
+`failure(limit, depth)` and the session continues; callback nesting just under/over the default; compiled
+specialisations (rules alone, registration from a native, decline on overflow and non-integers, removal, `clear`) at 1
+and 4 threads under stress collection; natives compiling and matching a pattern, sorting and comparing, seeing the stop
+flag; recursion to 10^5 through a block statement, a `while` body and a `for` body; R2 at 10^5 with its Cassini
+property. Every earlier test passes unchanged.
+
+### Measurements (busy machine, +-20%, release, `-j 2`, medians of 3-5 fresh-engine runs)
+
+| Case | Before | After | Speed-up |
+|---|---|---|---|
+| R1 `fib(25)`, memo off, 2 threads | 1357 ns/call | 315 ns/call | 4.3x |
+| R1 `fib(25)`, memo off, 1 thread | 1815 ns/call | 527-615 ns/call | about 3.2x |
+| `while i < n { i = i + 1 }`, n = 10^6, 2 threads | 2082-2290 ns/iter | 492-620 ns/iter | 3.4-4.2x |
+| same loop, 1 thread | 1867 ns/iter | 493-548 ns/iter | about 3.6x |
+| R12 m = 10^4, 2 threads | 4015 ms | 718-918 ms | 4.4-5.6x |
+| R2 m = 5000, 2 threads | 60 ms | 39 ms | 1.5x |
+| R2 m = 10^4 | depth limit | 89 ms (harness) | - |
+| R2 m = 10^5, 2 threads | depth limit | 1.58 s, peak 2.4 GB | - |
+| DEEP n = 10^6 | depth limit | 1339 ns/level, peak 675 MB | - |
+
+Harness: R1 passes at m = 20, 25, 30 (m = 30 in 626 ms, against 3.7 s before); R2 at 10^3, 10^4, 10^5 (6.9 ms, 89 ms,
+2.0 s); R12 at 10^4 (471 ms) and 10^5 (7.3 s), time limit at 10^6 (the compiled R12c handles it).
+
+### Known gaps
+
+- `and`/`or` (`Junction` in `mc-engine`), conditions, `map` elements, `match` and other natives still nest Rust frames
+  per callback (bounded by `max_nest`): recursion through `or` stops at 10,000 levels.
+- In loops the largest remaining cost is `mc-core`'s young-table hash-consing (about 45% of samples), then
+  `mc_numtheory`'s `mod` and the general `Arith::new` path (interns 12 symbols per call).
+- Substitution into right sides with binding forms still uses hash maps.
+- The engine does not share its stop flag with the kernel yet (1a.8).
+
