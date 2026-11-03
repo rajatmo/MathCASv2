@@ -1,0 +1,17 @@
+[package]
+name = "int_gc"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Integration spike I1: the generational collector of spike 1b under the concurrent store and parallel evaluator of spike 4"
+
+[dependencies]
+hashbrown = "0.15"
+rustc-hash = "2"
+rayon = "1.12"
+rayon-core = "1.13"
+parking_lot = "0.12"
+crossbeam-utils = "0.8"
+# baselines only: spike 1b's single-threaded collector and spike 4's store without collection, run unchanged
+collect = { path = "../collect" }
+parallel = { path = "../parallel" }
