@@ -2,36 +2,30 @@ MathCAS v2 - development build
 ==============================
 
 This is an early build of the v2 core: the language reads, evaluates and prints, but the library is still small
-(see "What works" below). VERSION.txt names the commit.
-
-mc-repl.exe     the interactive REPL
-mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
-
-REPL
-----
-Run mc-repl.exe and type expressions. Commands: :help, :time (toggle timing), :history, :redo [k], :cancel, :quit.
-Input continues on the next line while brackets are open. Ctrl+C stops a running evaluation.
-
-What works
+(see "What works
 ----------
   2^100 + 1                                   exact big integers
   6/4 + 1/3                                   exact rationals (11/6)
   x + 2x + y*x                                symbolic collection (3*x + x*y)
   fn fact(0) = 1                              functions with literal clauses
   fn fact(k: Int) when k > 0 = k*fact(k - 1)  typed parameters and conditions
-  fact(30)
   rule f(a_, b__) := [a, b]                   rules with sequence patterns
-  f(1, 2, 3)                                  [1, [2, 3]]
-  1.25~40 * 2                                 ball (arbitrary precision) literals
-  2 + 3im                                     complex numbers
+  map(x => x^2, range(5))                     lambdas and list functions
+  select(range(10), k => k > 6)
+  sum(range(100)), sort([3, 1, 2]), flatten, transpose, part (xs[i]), nest, fold, ...
+  { var s = 0; for k in range(10) { s = s + k }; s }    blocks, var/let, for/while
+  match e { 0 => "zero", n_: Int => "int" }   match
+  rewrite(e, [sin(a_)^2 + cos(a_)^2 -> 1])    rule application
+  n(pi, 50), n(sqrt(2), 100)                  arbitrary precision (balls, only correct digits shown)
+  sin(pi/6), exp(1.5), log(-1)                elementary functions, exact and numeric
+  1.25~40 * 2, 2 + 3im                        ball literals, complex numbers
+  print("hi")                                 output
   1/0                                         failure(division_by_zero)
-  1 < 2 and not (3 < 2)                       comparisons and logic
 
 Not yet (being built now)
 -------------------------
-  lambdas (x => ...), blocks with let/var, while/for, match;
-  list functions (range, length, sum, select, sort, ...); number theory (mod, gcd, factorial, primes);
-  polynomials (expand, factor, series); numerics (n(...), pi, sin, exp, ...).
+  number theory (mod, gcd, factorial, primes, factor_integer);
+  polynomials (expand, factor, series, resultant).
 
 Benchmarks
 ----------
