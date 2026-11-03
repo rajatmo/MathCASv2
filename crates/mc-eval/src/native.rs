@@ -1,0 +1,191 @@
+//! The native-function interface (semantics 7.1): how built-ins, and later `mc-arith`'s arithmetic, plug into the
+//! evaluator.
+//!
+//! A native is registered for a symbol with its [`Attributes`](crate::Attributes) ([`Kernel::register`](crate::Kernel::register)).
+//! When a call `f(args...)` with that head is evaluated, the evaluator first evaluates the arguments by the
+//! attributes' argument modes, returns a failure argument unless the native handles failures, canonicalises an AC
+//! head, and then calls [`Native::call`] with the term and its arguments. The native returns:
+//!
+//! - [`Reply::Done`] with a normal form (it is not evaluated again);
+//! - [`Reply::Again`] with a replacement, which the evaluator evaluates (a loop iteration that costs fuel);
+//! - [`Reply::Decline`]: the rules of the symbol are tried next (4.1 step 3.5).
+//!
+//! Through [`NativeCx`] a native can charge fuel for its loops (semantics 7.1: every input-dependent loop must; the
+//! charge also polls the interrupt), evaluate terms with its reads recorded, perform effects (refused speculatively
+//! and inside conditions, then retried in order by the frontier), match compiled patterns, rewrite once with the
+//! rules, and evaluate a group of elements with speculative parallelism (`map`). Natives are shared by every task
+//! (`Sync`); one that keeps terms must hold them as [`Raw`] and visit them in [`Native::trace`].
+//!
+//! `mc-arith` plugs in by registering natives for `add`, `mul`, `pow` and the comparisons (strict, `add` and `mul`
+//! AC), and by replacing the canonical order with [`Kernel::set_order`](crate::Kernel::set_order).
+use crate::eval::{Cx, Eval, Res};
+use crate::index::{Rhs, RuleRhs};
+use crate::pat::{DefError, Pat};
+use mc_core::{Heap, Raw, Store, Sym, View, T};
+
+/// What a native call produced.
+#[derive(Clone, Copy, Debug)]
+pub enum Reply<'h> {
+    /// the normal form
+    Done(T<'h>),
+    /// a replacement to evaluate
+    Again(T<'h>),
+    /// not applicable: try the rules
+    Decline,
+}
+
+/// A native implementation of a symbol.
+pub trait Native: Send + Sync {
+    /// Evaluate the call `t` (with arguments `args`, already evaluated by the argument modes).
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>>;
+
+    /// Visit every term handle the native keeps (a safe point).
+    fn trace(&mut self, _visit: &mut dyn FnMut(&mut Raw)) {}
+}
+
+/// A compiled pattern a native matches with ([`NativeCx::matches`]); made by
+/// [`Kernel::compile_pattern`](crate::Kernel::compile_pattern). It holds terms: a native keeping one traces it.
+#[derive(Clone)]
+pub struct Pattern {
+    pub(crate) pat: Pat,
+    pub(crate) nvars: usize,
+}
+
+impl Pattern {
+    pub(crate) fn new(pat: Pat) -> Pattern {
+        let nvars = pat.n_vars();
+        Pattern { pat, nvars }
+    }
+    /// Visit the pattern's handles.
+    pub fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
+        self.pat.trace(visit);
+    }
+}
+
+/// The function computing element `i` of a group ([`NativeCx::group`]).
+pub type ElemFn<'f, 'h> = dyn Fn(&mut NativeCx<'_, '_, 'h>, usize) -> Res<T<'h>> + Sync + 'f;
+
+/// A native's access to the evaluation task that called it.
+pub struct NativeCx<'a, 'k, 'h> {
+    pub(crate) ev: &'a Eval<'k, 'h>,
+    pub(crate) cx: &'a mut Cx<'h>,
+}
+
+impl<'h> NativeCx<'_, '_, 'h> {
+    /// The shared heap.
+    #[inline]
+    pub fn heap(&self) -> &'h Heap {
+        self.ev.heap
+    }
+    /// `true` or `false`.
+    pub fn bool(&self, b: bool) -> T<'h> {
+        let n = &self.ev.k.names;
+        self.ev.sym(if b { n.true_ } else { n.false_ })
+    }
+    /// `null`
+    pub fn null(&self) -> T<'h> {
+        self.ev.sym(self.ev.k.names.null)
+    }
+    /// `list(items...)`
+    pub fn list(&self, items: &[T<'h>]) -> T<'h> {
+        self.ev.heap.app(self.ev.sym(self.ev.k.names.list), items)
+    }
+    /// Is `t` a list? Its elements.
+    pub fn as_list(&self, t: T<'h>) -> Option<&'h [T<'h>]> {
+        match self.ev.heap.view(t) {
+            View::App { head, args } if head == self.ev.sym(self.ev.k.names.list) => Some(args),
+            _ => None,
+        }
+    }
+    /// Is `t` the symbol `true`?
+    pub fn is_true(&self, t: T<'h>) -> bool {
+        t == self.ev.sym(self.ev.k.names.true_)
+    }
+    /// Is `t` the symbol `false`?
+    pub fn is_false(&self, t: T<'h>) -> bool {
+        t == self.ev.sym(self.ev.k.names.false_)
+    }
+    /// `failure(tags...)`
+    pub fn failure(&self, tags: &[&str]) -> T<'h> {
+        self.ev.failure(tags)
+    }
+    /// The compound term `head(args)` in canonical form (AC heads flattened and sorted).
+    pub fn make(&self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
+        self.ev.make(head, args)
+    }
+    /// Charge `n` units of fuel (and poll the interrupt). Every input-dependent loop of a native must.
+    pub fn tick(&mut self, n: u64) -> Res<()> {
+        self.ev.spend(self.cx, n)
+    }
+    /// Evaluate `t` on this task: its reads enter the caller's read set.
+    pub fn eval(&mut self, t: T<'h>) -> Res<T<'h>> {
+        self.ev.eval(self.cx, t)
+    }
+    /// Announce an effect: refused (an abort the evaluator handles) on a speculative task or inside a condition.
+    /// Call it before performing any effect not offered below.
+    pub fn effect(&mut self) -> Res<()> {
+        self.ev.effect(self.cx)
+    }
+    /// Append `t` to the session output (an effect).
+    pub fn emit(&mut self, t: T<'h>) -> Res<()> {
+        self.ev.emit(self.cx, t)
+    }
+    /// `s = v` (an effect).
+    pub fn set_own(&mut self, s: Sym, v: T<'h>) -> Res<()> {
+        self.ev.set_own(self.cx, s, v)
+    }
+    /// `lhs := rhs`, attached to `attach` if given (an effect).
+    pub fn define(&mut self, lhs: Pat, rhs: Rhs, attach: Option<Sym>) -> Res<Result<(), DefError>> {
+        self.ev.define_rule(self.cx, lhs, RuleRhs::Native(rhs), attach)
+    }
+    /// `lhs := body` with a term right side in which symbol `names[i]` stands for pattern variable `vars[i]` (an
+    /// effect).
+    pub fn define_term(&mut self, lhs: Pat, body: T<'h>, names: &[Sym], vars: &[u16]) -> Res<Result<(), DefError>> {
+        let rhs = RuleRhs::Term { body: Raw::new(body), names: names.into(), vars: vars.into() };
+        self.ev.define_rule(self.cx, lhs, rhs, None)
+    }
+    /// Change the attributes of `s` (an effect).
+    pub fn set_attributes(&mut self, s: Sym, a: crate::Attributes) -> Res<()> {
+        self.ev.set_attributes(self.cx, s, a)
+    }
+    /// The kernel's attributes of `s`.
+    pub fn attributes(&self, s: Sym) -> crate::Attributes {
+        self.ev.k.defs.attrs(s)
+    }
+    /// The own value of `s` (the read is recorded).
+    pub fn value(&mut self, s: Sym) -> Option<T<'h>> {
+        self.cx.reads |= crate::eval::bit(s);
+        self.ev.k.defs.own(self.ev.heap, s)
+    }
+    /// The replacement the first matching rule gives for `t`, without evaluating it.
+    pub fn rewrite_once(&mut self, t: T<'h>) -> Res<Option<T<'h>>> {
+        self.ev.dispatch(self.cx, t)
+    }
+    /// Does `p` match `t`? (Conditions in it run on this task.)
+    pub fn matches(&mut self, p: &Pattern, t: T<'h>) -> Res<bool> {
+        self.ev.match_pattern(self.cx, p, t)
+    }
+    /// The learned fuel per evaluation of calls with head `s` (granularity estimates).
+    pub fn head_cost(&self, s: Sym) -> u64 {
+        self.ev.k.head_cost(s)
+    }
+    /// Is `t` a function declared `effect` (a symbol, or a call whose head is one)?
+    pub fn is_effect(&self, t: T<'h>) -> bool {
+        let h = self.ev.heap;
+        let s = match h.view(t) {
+            View::Sym(s) => Some(s),
+            View::App { head, .. } => match h.view(head) {
+                View::Sym(s) => Some(s),
+                _ => None,
+            },
+            _ => None,
+        };
+        s.is_some_and(|s| self.ev.k.defs.attrs(s).effect)
+    }
+    /// The elements `f(0) ... f(n-1)`, evaluated as a group: split into speculative tasks by the granularity rule,
+    /// with effects in sequential order (semantics 18.2 item 4). `cost` estimates one element's fuel (0: unknown or
+    /// effectful, which keeps the group sequential until measured).
+    pub fn group(&mut self, n: usize, cost: u64, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
+        self.ev.group(self.cx, cost, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
+    }
+}

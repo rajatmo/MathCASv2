@@ -1,0 +1,15 @@
+[package]
+name = "mc-eval"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 evaluator: pattern matcher, rule indexes and the speculative parallel evaluator on mc-core"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+parking_lot = "0.12"
+rayon = "1.12"
+# for `current_thread_has_pending_tasks`, which the lazy granularity rule consults (spike 4)
+rayon-core = "1.12"
+rustc-hash = "2"

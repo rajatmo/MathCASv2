@@ -473,6 +473,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-eval"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-core",
+ "parking_lot",
+ "rayon",
+ "rayon-core",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mc-repl"
 version = "0.0.0"
 dependencies = [
