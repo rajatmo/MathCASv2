@@ -1,8 +1,18 @@
 MathCAS v2 - development build
 ==============================
 
-This is an early build of the v2 core: the language reads, evaluates and prints, but the library is still small
-(see "What works
+This is an early build of the v2 core: the language reads, evaluates and prints; the library is growing (see "What
+works" below). VERSION.txt names the commit.
+
+mc-repl.exe     the interactive REPL
+mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
+
+REPL
+----
+Run mc-repl.exe and type expressions. Commands: :help, :time (toggle timing), :history, :redo [k], :cancel, :quit.
+Input continues on the next line while brackets are open. Ctrl+C stops a running evaluation.
+
+What works
 ----------
   2^100 + 1                                   exact big integers
   6/4 + 1/3                                   exact rationals (11/6)
