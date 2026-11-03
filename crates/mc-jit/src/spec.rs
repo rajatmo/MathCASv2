@@ -1,0 +1,434 @@
+//! Compiled specialisations and the natives `compile` and `compiled_info`.
+//!
+//! `compile(f)` reads `f`'s definition through the native interface, runs the front end, lowering and a back end,
+//! and queues the result; [`Jit::flush`] registers queued specialisations between evaluations (decision 1b.5:
+//! registering a native needs the kernel exclusively, which a native does not have). A specialisation applies when
+//! every argument has its parameter's machine type and no definition it read has changed since (version counters,
+//! decision 1b.6); otherwise it declines and the interpreter evaluates the call.
+use crate::adapter::{Compiled, RegisterCompiled};
+use crate::front::{front, FnDef, Source};
+use crate::interp::Interp;
+use crate::ir::{self, Ty};
+use crate::jit::{self, Code};
+use crate::rt::{Env, Exit};
+use mc_core::{Heap, Store, Sym, View, T};
+use mc_eval::pat::{Pat, Ty as PatTy};
+use mc_eval::{Attributes, Control, Hold, Kernel, Native, NativeCx, Reply, Res};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
+/// Which back end runs a specialisation.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Backend {
+    /// machine code from Cranelift
+    Cranelift,
+    /// the LIR interpreter (requested, or the fallback when Cranelift fails)
+    Interpreter,
+}
+
+impl Backend {
+    /// The name `compiled_info` reports and `compile(f, back_end: ...)` accepts.
+    pub fn name(self) -> &'static str {
+        match self {
+            Backend::Cranelift => "cranelift",
+            Backend::Interpreter => "interpreter",
+        }
+    }
+}
+
+/// What a compilation produced, for `compiled_info`.
+#[derive(Clone, Debug)]
+pub struct Info {
+    /// the parameter types
+    pub params: Vec<Ty>,
+    /// the result type
+    pub result: Ty,
+    /// HIR nodes
+    pub hir_nodes: usize,
+    /// LIR instructions
+    pub lir_instructions: usize,
+    /// machine code bytes (0 for the interpreter)
+    pub code_bytes: usize,
+    /// the back end running it
+    pub back_end: Backend,
+    /// why Cranelift was not used when it was asked for
+    pub fallback: Option<String>,
+    /// front end, lowering and back end, in microseconds
+    pub compile_micros: u64,
+    /// the functions inlined into it
+    pub inlined: Vec<Sym>,
+}
+
+enum Back {
+    Native(Box<Code>),
+    Interp(Interp),
+}
+
+/// A function compiled from its HIR, ready to call with words (no kernel needed: tests and differential checks use
+/// it directly).
+pub struct Built {
+    back: Back,
+    /// the LIR (kept for inspection and differential tests)
+    pub lir: ir::Lir,
+    /// what was compiled
+    pub info: Info,
+}
+
+impl Built {
+    /// Call with the parameters as words, polling with `poll`.
+    pub fn call(&self, ctl: &Control, args: &[u64], poll: &mut crate::rt::PollFn<'_>) -> (u64, Exit) {
+        Env::with(ctl, poll, |env| match &self.back {
+            Back::Native(c) => c.call(args, env),
+            Back::Interp(i) => i.call(args, env),
+        })
+    }
+}
+
+/// Lower `func` and compile it with `backend` (falling back to the interpreter when Cranelift fails).
+pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Built, String> {
+    let t0 = Instant::now();
+    let lir = ir::lower(func)?;
+    let (back, back_end, code_bytes, fallback) = match backend {
+        Backend::Cranelift => match jit::compile(&lir) {
+            Ok(c) => {
+                let n = c.code_bytes;
+                (Back::Native(Box::new(c)), Backend::Cranelift, n, None)
+            }
+            Err(e) => (Back::Interp(Interp::new(&lir)), Backend::Interpreter, 0, Some(e)),
+        },
+        Backend::Interpreter => (Back::Interp(Interp::new(&lir)), Backend::Interpreter, 0, None),
+    };
+    let params = func.params.iter().map(|&p| func.vars[p as usize]).collect();
+    let result = ir::type_of(func, &func.ret)?;
+    let info = Info {
+        params,
+        result,
+        hir_nodes: ir::size(func),
+        lir_instructions: lir.len(),
+        code_bytes,
+        back_end,
+        fallback,
+        compile_micros: t0.elapsed().as_micros() as u64,
+        inlined,
+    };
+    Ok(Built { back, lir, info })
+}
+
+/// A compiled specialisation of one head.
+pub struct Specialisation {
+    head: Sym,
+    built: Built,
+    /// every function it read with the version it read (the head first)
+    deps: Vec<(Sym, AtomicU32)>,
+    ctl: Arc<Control>,
+    polls: Arc<AtomicU64>,
+    /// calls that ran compiled to the end, and calls that declined (diagnostics for `compiled_info`)
+    runs: AtomicU64,
+    declines: AtomicU64,
+}
+
+impl Specialisation {
+    /// What was compiled.
+    pub fn info(&self) -> &Info {
+        &self.built.info
+    }
+
+    /// Are the definitions it read unchanged?
+    fn current(&self, version: &mut dyn FnMut(Sym) -> u32) -> bool {
+        self.deps.iter().all(|(s, v)| version(*s) == v.load(Relaxed))
+    }
+}
+
+impl Compiled for Specialisation {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Option<T<'h>> {
+        let params = &self.built.info.params;
+        if args.len() != params.len() {
+            return None;
+        }
+        let h = cx.heap();
+        let mut words = Vec::with_capacity(args.len());
+        for (&a, &t) in args.iter().zip(params) {
+            words.push(match (h.view(a), t) {
+                (View::Int(v), Ty::Int) => v as u64,
+                (View::Real(x), Ty::Real) => x.to_bits(),
+                // a big integer, an exact or inexact non-machine number, anything else: the interpreter's
+                _ => return None,
+            });
+        }
+        if !self.current(&mut |s| cx.version(s)) {
+            self.declines.fetch_add(1, Relaxed);
+            return None;
+        }
+        let (r, exit) = {
+            // the fuel of compiled loops is the task's (decision F.3: a speculative task spends its own share)
+            let mut poll = |n: u64| {
+                self.polls.fetch_add(1, Relaxed);
+                cx.tick(n).is_ok()
+            };
+            self.built.call(&self.ctl, &words, &mut poll)
+        };
+        // a decline or a stop: the interpreter evaluates the call (and stops at its first poll after a stop)
+        if exit != Exit::Done {
+            self.declines.fetch_add(1, Relaxed);
+            return None;
+        }
+        self.runs.fetch_add(1, Relaxed);
+        Some(match self.built.info.result {
+            Ty::Int => h.int(r as i64),
+            Ty::Real => h.real(f64::from_bits(r)),
+            Ty::Bool => cx.bool(r != 0),
+        })
+    }
+}
+
+/// The compiler's state in one kernel: queued and registered specialisations.
+struct Shared {
+    pending: Mutex<Vec<Arc<Specialisation>>>,
+    active: Mutex<HashMap<Sym, Arc<Specialisation>>>,
+    polls: Arc<AtomicU64>,
+    ctl: Arc<Control>,
+}
+
+impl Shared {
+    /// Whether `s`'s native implementation is a specialisation of ours.
+    fn owns(&self, s: Sym) -> bool {
+        self.active.lock().expect("compiler state").contains_key(&s)
+    }
+}
+
+/// The compiler installed in a kernel. Cheap to clone; [`Jit::flush`] must run between evaluations (the engine
+/// calls it after every statement).
+#[derive(Clone)]
+pub struct Jit(Arc<Shared>);
+
+impl Jit {
+    /// Register the specialisations `compile` queued since the last flush; returns how many. A queued
+    /// specialisation whose definitions changed since it was compiled is dropped.
+    pub fn flush(&self, k: &mut Kernel) -> usize {
+        let pending = std::mem::take(&mut *self.0.pending.lock().expect("compiler state"));
+        let mut active = self.0.active.lock().expect("compiler state");
+        let mut n = 0;
+        for spec in pending {
+            if !spec.current(&mut |s| k.version(s)) {
+                continue;
+            }
+            let head = spec.head;
+            let before = k.version(head);
+            k.register_compiled(head, spec.clone());
+            let after = k.version(head);
+            // registering defines the head (its version moves) but leaves its rules unchanged: what read them at
+            // `before` is still valid
+            for other in active.values().chain(std::iter::once(&spec)) {
+                for (s, v) in &other.deps {
+                    if *s == head && v.load(Relaxed) == before {
+                        v.store(after, Relaxed);
+                    }
+                }
+            }
+            active.insert(head, spec);
+            n += 1;
+        }
+        n
+    }
+
+    /// Polls made by compiled loops so far (each charges [`crate::rt::POLL_EVERY`] fuel).
+    pub fn polls(&self) -> u64 {
+        self.0.polls.load(Relaxed)
+    }
+
+    /// The registered specialisation of `f`.
+    pub fn info(&self, f: Sym) -> Option<Info> {
+        self.0.active.lock().expect("compiler state").get(&f).map(|s| s.info().clone())
+    }
+}
+
+/// Register `compile` and `compiled_info` with `k`; the returned handle flushes queued specialisations.
+pub fn install(k: &mut Kernel, h: &Heap) -> Jit {
+    let shared = Arc::new(Shared {
+        pending: Mutex::new(vec![]),
+        active: Mutex::new(HashMap::new()),
+        polls: Arc::new(AtomicU64::new(0)),
+        ctl: k.control(),
+    });
+    let held = Attributes { hold: Hold::All, ..Attributes::default() };
+    k.register(h.sym("compile"), Attributes { effect: true, ..held }, Box::new(CompileFn(shared.clone())));
+    k.register(h.sym("compiled_info"), held, Box::new(InfoFn(shared.clone())));
+    Jit(shared)
+}
+
+/// The kernel's definitions as the front end's [`Source`], recording the version of every function read.
+struct KernelSource<'c, 'a, 'k, 'h> {
+    cx: &'c mut NativeCx<'a, 'k, 'h>,
+    shared: &'c Shared,
+    versions: HashMap<Sym, u32>,
+}
+
+impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
+    fn function(&mut self, f: Sym) -> Result<FnDef<'h>, String> {
+        let h = self.cx.heap();
+        let name = h.sym_name(f);
+        if self.cx.has_native(f) && !self.shared.owns(f) {
+            return Err(format!("`{name}` has a native implementation"));
+        }
+        if self.cx.attributes(f) != Attributes::default() {
+            return Err(format!("`{name}` has attributes (held arguments, listable, ...)"));
+        }
+        self.versions.insert(f, self.cx.version(f));
+        let rules = self.cx.rules(f);
+        let clause = match rules.as_slice() {
+            [] => return Err(format!("`{name}` has no definition")),
+            [c] => c,
+            [c, last] if catch_all(h, f, &last.lhs) => c,
+            _ => return Err(format!("`{name}` has more than one clause")),
+        };
+        let Pat::App { head, args, .. } = &clause.lhs else {
+            return Err(format!("`{name}` is defined by a pattern with a condition or alternatives"));
+        };
+        if head.get(h) != h.sym_term(f) {
+            return Err(format!("`{name}` is defined by a pattern with another head"));
+        }
+        let body = clause.body.ok_or_else(|| format!("`{name}` has a native right side"))?;
+        let mut params = vec![];
+        for (i, a) in args.iter().enumerate() {
+            let Pat::Blank { var: Some(v), ty } = a else {
+                return Err(format!("parameter {} of `{name}` is not a named parameter", i + 1));
+            };
+            let pos = clause.vars.iter().position(|x| x == v).ok_or("a parameter without a name")?;
+            let sym = clause.names[pos];
+            let t = match ty {
+                Some(PatTy::Integer) => Ty::Int,
+                Some(PatTy::Real | PatTy::MachineReal | PatTy::Number) => Ty::Real,
+                Some(_) => return Err(format!("parameter `{}` of `{name}` has a type other than Int or Real", h.sym_name(sym))),
+                None => return Err(format!("parameter `{}` of `{name}` has no type (Int or Real)", h.sym_name(sym))),
+            };
+            params.push((sym, t));
+        }
+        Ok(FnDef { params, body })
+    }
+}
+
+/// `f(args___)`: the catch-all a `fn` definition adds.
+fn catch_all(h: &Heap, f: Sym, p: &Pat) -> bool {
+    matches!(p, Pat::App { head, args, .. } if head.get(h) == h.sym_term(f) && matches!(args.as_slice(), [Pat::Seq { min: 0, .. }]))
+}
+
+/// `failure(tag, details...)`.
+fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
+    let mut a = vec![h.sym_term(h.sym(tag))];
+    a.extend_from_slice(details);
+    h.call(h.sym(mc_api::names::FAILURE), &a)
+}
+
+/// The back end asked for by `compile(f, back_end: "...")`.
+fn backend_option<'h>(h: &'h Heap, opts: T<'h>) -> Result<Backend, String> {
+    let bad = || "the only option is back_end: \"cranelift\" or \"interpreter\"".to_string();
+    let View::App { head, args } = h.view(opts) else { return Err(bad()) };
+    if head != h.sym_term(h.sym("options")) {
+        return Err(bad());
+    }
+    let mut b = Backend::Cranelift;
+    for &o in args {
+        let View::App { args: [name, value], .. } = h.view(o) else { return Err(bad()) };
+        match (h.view(*name), h.view(*value)) {
+            (View::Sym(n), View::Str(v)) if h.sym_name(n) == "back_end" => {
+                b = match v {
+                    "cranelift" => Backend::Cranelift,
+                    "interpreter" => Backend::Interpreter,
+                    _ => return Err(bad()),
+                }
+            }
+            _ => return Err(bad()),
+        }
+    }
+    Ok(b)
+}
+
+/// `compile(f)`, `compile(f, back_end: "interpreter")`.
+struct CompileFn(Arc<Shared>);
+
+impl Native for CompileFn {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let (fterm, backend) = match args {
+            [f] => (*f, Ok(Backend::Cranelift)),
+            [f, opts] => (*f, backend_option(h, *opts)),
+            _ => return Ok(Reply::Decline),
+        };
+        // compiling changes how calls dispatch: ordered like a definition
+        cx.effect()?;
+        let not = |reason: &str| failure(h, "not_compilable", &[fterm, h.string(reason)]);
+        let View::Sym(f) = h.view(fterm) else { return Ok(Reply::Done(not("not a function name"))) };
+        let backend = match backend {
+            Ok(b) => b,
+            Err(e) => return Ok(Reply::Done(not(&e))),
+        };
+        let mut src = KernelSource { cx, shared: &self.0, versions: HashMap::new() };
+        let built = front(h, f, &mut src).and_then(|fr| {
+            let inlined = fr.deps[1..].to_vec();
+            build(&fr.func, inlined, backend).map(|b| (b, fr.deps))
+        });
+        let versions = src.versions;
+        let (built, deps) = match built {
+            Ok(x) => x,
+            Err(e) => return Ok(Reply::Done(not(&e))),
+        };
+        let deps = deps.into_iter().map(|s| (s, AtomicU32::new(versions[&s]))).collect();
+        let spec = Specialisation {
+            head: f,
+            built,
+            deps,
+            ctl: self.0.ctl.clone(),
+            polls: self.0.polls.clone(),
+            runs: AtomicU64::new(0),
+            declines: AtomicU64::new(0),
+        };
+        self.0.pending.lock().expect("compiler state").push(Arc::new(spec));
+        Ok(Reply::Done(fterm))
+    }
+}
+
+/// `compiled_info(f)`.
+struct InfoFn(Arc<Shared>);
+
+impl Native for InfoFn {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [fterm] = args else { return Ok(Reply::Decline) };
+        let View::Sym(f) = h.view(*fterm) else { return Ok(Reply::Done(failure(h, "not_compiled", &[*fterm]))) };
+        let (spec, state) = {
+            let active = self.0.active.lock().expect("compiler state").get(&f).cloned();
+            let pending = self.0.pending.lock().expect("compiler state").iter().rev().find(|s| s.head == f).cloned();
+            match (pending, active) {
+                (Some(p), _) => (p, "pending"),
+                (None, Some(a)) => (a, "active"),
+                (None, None) => return Ok(Reply::Done(failure(h, "not_compiled", &[*fterm]))),
+            }
+        };
+        let state = if state == "active" && !spec.current(&mut |s| cx.version(s)) { "stale" } else { state };
+        let i = spec.info();
+        let sym = |n: &str| h.sym_term(h.sym(n));
+        let int = |n: usize| h.int(n as i64);
+        let rule = |n: &str, v: T<'h>| h.call(h.sym(mc_api::names::RULE), &[sym(n), v]);
+        let types: Vec<T<'h>> = i.params.iter().map(|t| sym(t.name())).collect();
+        let inlined: Vec<T<'h>> = i.inlined.iter().map(|&s| h.sym_term(s)).collect();
+        let mut items = vec![
+            rule("params", cx.list(&types)),
+            rule("result", sym(i.result.name())),
+            rule("hir_nodes", int(i.hir_nodes)),
+            rule("lir_instructions", int(i.lir_instructions)),
+            rule("code_bytes", int(i.code_bytes)),
+            rule("back_end", h.string(i.back_end.name())),
+            rule("compile_microseconds", int(i.compile_micros as usize)),
+            rule("inlined", cx.list(&inlined)),
+            rule("state", h.string(state)),
+            rule("runs", int(spec.runs.load(Relaxed) as usize)),
+            rule("declines", int(spec.declines.load(Relaxed) as usize)),
+        ];
+        if let Some(why) = &i.fallback {
+            items.push(rule("fallback", h.string(why)));
+        }
+        Ok(Reply::Done(cx.list(&items)))
+    }
+}
