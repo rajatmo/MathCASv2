@@ -484,6 +484,7 @@ dependencies = [
  "mc-eval",
  "mc-lists",
  "mc-numeric",
+ "mc-numtheory",
  "mc-poly",
  "mc-syntax",
 ]
@@ -527,6 +528,21 @@ dependencies = [
  "mc-syntax",
  "num-bigint",
  "rustc-hash",
+]
+
+[[package]]
+name = "mc-numtheory"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-syntax",
+ "num-bigint",
+ "num-traits",
+ "rayon",
 ]
 
 [[package]]

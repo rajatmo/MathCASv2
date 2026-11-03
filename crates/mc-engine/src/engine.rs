@@ -75,6 +75,7 @@ impl CoreEngine {
             // the libraries poll the same stop flag as the arithmetic (decision G.5)
             mc_lists::install(&mut k, h, &arith_stop);
             mc_numeric::install_with_stop(&mut k, h, &arith_stop);
+            mc_numtheory::install(&mut k, h);
             // after any integer gcd: mc-poly's gcd also handles integers and rationals (K.5)
             mc_poly::install(&mut k, h, &arith_stop);
             k.roots.push(h.sym_term(h.sym(names::NULL)));

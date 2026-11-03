@@ -13,6 +13,7 @@ mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-lists = { path = "../mc-lists" }
 mc-numeric = { path = "../mc-numeric" }
+mc-numtheory = { path = "../mc-numtheory" }
 mc-poly = { path = "../mc-poly" }
 mc-syntax = { path = "../mc-syntax" }
 
