@@ -47,12 +47,17 @@ Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"
 Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-0.1.0.vsix"""; \
   Description: "Install the MathCAS extension into VS Code"; Check: VsCodeFound; \
   Flags: postinstall unchecked skipifsilent runhidden
+Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --kernel ""{app}\mc-kernel.exe"""; \
+  Description: "Register the MathCAS kernel with Jupyter (notebooks in Jupyter and VS Code)"; Check: JupyterFound; \
+  Flags: postinstall skipifsilent runhidden
 Filename: "{app}\quickstart.pdf"; Description: "Open the quick start guide"; \
   Flags: postinstall shellexec skipifsilent unchecked
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/c code --uninstall-extension mathcas.mathcas"; Check: VsCodeFound; \
   Flags: runhidden; RunOnceId: "VsCodeExtension"
+Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --uninstall"; Check: JupyterFound; \
+  Flags: runhidden; RunOnceId: "JupyterKernel"
 
 [Code]
 const
@@ -65,6 +70,15 @@ var
 begin
   Result := Exec(ExpandConstant('{cmd}'), '/c where code >nul 2>nul', '', SW_HIDE, ewWaitUntilTerminated, Code)
     and (Code = 0);
+end;
+
+{ a Python on the PATH with ipykernel: what the Jupyter kernel needs }
+function JupyterFound: Boolean;
+var
+  Code: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'), '/c python -c "import ipykernel, jupyter_client" >nul 2>nul', '',
+    SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
 end;
 
 { the PATH of this install's scope: the user's for a per-user install, the machine's for all users }

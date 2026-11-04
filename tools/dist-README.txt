@@ -35,12 +35,17 @@ flat_map, accumulate, dot, norm, fix_point, say (print several values on one lin
 
 Notebooks
 ---------
-  mc-repl.exe examples
-otebook.mcn            run a notebook's code cells, printing their output
-  mc-repl.exe --update examples
-otebook.mcn   also write each cell's output back into the file
+  mc-repl.exe examples\notebook.mcn            run a notebook's code cells, printing their output
+  mc-repl.exe --update examples\notebook.mcn   also write each cell's output back into the file
 A .mcn file is plain text: "#! mathcas 2 notebook", then cells marked "#% cell" (code), "#% text" (prose as
 "# ..." lines) and "#% output" (the last run's output: "#|" print, "#=" value, "#!" failure or error).
+
+Jupyter and VS Code notebooks
+-----------------------------
+jupyter\ holds a Jupyter kernel: .ipynb notebooks run MathCAS in Jupyter Notebook, JupyterLab and VS Code (Jupyter
+extension; pick the kernel "MathCAS v2"). Needs Python with ipykernel; register it with
+  python jupyter\install.py
+(the installer offers this). jupyter\INSTALL.txt has the details; examples\jupyter.ipynb is a sample.
 
 Editor support
 --------------
