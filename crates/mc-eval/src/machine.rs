@@ -655,9 +655,12 @@ impl<'k, 'h> Eval<'k, 'h> {
             return false;
         }
         match h.view(v) {
-            View::App { head, args: [tag, ..] } if sym_of(h, head) == Some(n.failure) => {
-                matches!(sym_of(h, *tag), Some(t) if t == n.interrupted || t == n.limit)
-            }
+            // compared by name: interning the tags when the kernel starts would shift the ids of every later
+            // symbol, and with them the read-set bits (a collision there makes memo entries look stale)
+            View::App { head, args: [tag, ..] } if sym_of(h, head) == Some(n.failure) => sym_of(h, *tag).is_some_and(|t| {
+                let name = h.sym_name(t);
+                name == mc_api::names::failure::INTERRUPTED || name == mc_api::names::failure::LIMIT
+            }),
             _ => false,
         }
     }
