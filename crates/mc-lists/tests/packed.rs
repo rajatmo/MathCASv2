@@ -49,6 +49,15 @@ fn elems<'h>(h: &'h Heap, t: T<'h>) -> Vec<T<'h>> {
     }
 }
 
+/// Element `i` of a packed operand, or the scalar operand itself.
+fn at<'h>(h: &'h Heap, t: T<'h>, i: usize) -> T<'h> {
+    if h.packed(t).is_some() {
+        elems(h, t)[i]
+    } else {
+        t
+    }
+}
+
 #[test]
 fn element_wise_arithmetic_is_the_threaded_result() {
     let mut env = Env::new();
@@ -79,8 +88,7 @@ fn element_wise_arithmetic_is_the_threaded_result() {
             for op in [add, mul] {
                 let got = eval(h, k, h.call(op, &[a, b]));
                 // the reference: each element's scalar call, as threading evaluates it
-                let at = |t: T<'_>, i: usize| if h.packed(t).is_some() { elems(h, t)[i] } else { t };
-                let want: Vec<T<'_>> = (0..n).map(|i| eval(h, k, h.call(op, &[at(a, i), at(b, i)]))).collect();
+                let want: Vec<T<'_>> = (0..n).map(|i| eval(h, k, h.call(op, &[at(h, a, i), at(h, b, i)]))).collect();
                 assert_eq!(elems(h, got), want, "round {round}: {} of kinds {ka}, {kb}", h.sym_name(op));
                 fast += h.packed(got).is_some() as usize;
             }
