@@ -11,13 +11,15 @@
 //! | provably different | `failure(no_limit, limit, f)` |
 //! | either side unknown, or equality not decided | the call stays unevaluated |
 //!
-//! An unknown limit leaves the call as it is (decision C.2), like `integrate` without an antiderivative. A list
-//! `f` maps elementwise.
+//! An unknown limit leaves the call as it is (decision C.2), like `integrate` without an antiderivative. Inexact
+//! numbers in `f` or `a` are rationalized first and the limit given numerically (decision C.3). A list `f` maps
+//! elementwise.
 pub(crate) mod walk;
 
 use self::walk::Lim;
 use crate::integrate::definite::{sign, Pt};
-use crate::integrate::is_free;
+use crate::integrate::{apply, is_free};
+use rustc_hash::FxHashSet;
 use crate::term::Build;
 use mc_api::{names, Store, View, T};
 use mc_arith::num::StopScope;
@@ -60,6 +62,51 @@ pub fn limit<'h>(
     if is_free(b, f, x) {
         return Ok(Outcome::Value(f));
     }
+    if inexact(b, f) || inexact(b, a) {
+        // decision C.3: inexact numbers cancel to 0.0/0.0 under the walk; the limit is taken on the rationalized
+        // input and the value given numerically
+        let (fe, ae) = (apply(cx, b, "rationalize", &[f])?, apply(cx, b, "rationalize", &[a])?);
+        if inexact(b, fe) || inexact(b, ae) {
+            return Ok(Outcome::Unknown);
+        }
+        return Ok(match exact_limit(cx, b, fe, x, ae, direction)? {
+            Outcome::Value(v) => Outcome::Value(apply(cx, b, "n", &[v])?),
+            o => o,
+        });
+    }
+    exact_limit(cx, b, f, x, a, direction)
+}
+
+/// Does `t` contain an inexact number (a machine real or a ball)?
+fn inexact<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let mut seen = FxHashSet::default();
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        match h.view(u) {
+            View::Real(_) | View::Ball { .. } => return true,
+            View::App { head, args } => {
+                stack.push(head);
+                stack.extend_from_slice(args);
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+/// [`limit`] of exact `f` and `a`.
+fn exact_limit<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    f: T<'h>,
+    x: T<'h>,
+    a: T<'h>,
+    direction: Direction,
+) -> Res<Outcome<'h>> {
     let inf = b.heap().sym_term(b.heap().sym("inf"));
     let one = |cx: &mut NativeCx<'_, '_, 'h>, pt, side| walk::limit(cx, b, f, x, pt, side);
     let l = match (a, direction) {

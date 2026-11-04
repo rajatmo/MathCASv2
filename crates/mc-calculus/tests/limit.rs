@@ -23,6 +23,8 @@ const AT_POINTS: &[(&str, &str)] = &[
     ("limit(x^2, x -> a)", "a^2"),
     ("limit((a^x - 1)/x, x -> 0)", "log(a)"),
     ("limit(x*log(x), x -> 0)", "0"),
+    ("limit(sinh(x)/x, x -> 0)", "1"),
+    ("limit(x/abs(x - 1), x -> 1)", "inf"),
 ];
 
 /// One-sided limits.
@@ -66,6 +68,21 @@ const AT_INFINITY: &[(&str, &str)] = &[
     ("limit(atan(x), x -> -inf)", "(-1/2)*pi"),
     ("limit(exp(x) - x^100, x -> inf)", "inf"),
     ("limit(1/x, x -> inf, direction: from_below)", "0"),
+    ("limit(cosh(x)/exp(x), x -> inf)", "1/2"),
+    ("limit(log(x + 1) - log(x), x -> inf)", "0"),
+    ("limit(log(x) - log(2*x), x -> inf)", "log(1/2)"),
+    ("limit(2*log(x) - log(x^2 + 1), x -> inf)", "0"),
+    ("limit(x^2/cosh(x), x -> inf)", "0"),
+];
+
+/// Inexact numbers: the limit of the rationalized input, given numerically (decision C.3).
+const INEXACT: &[(&str, &str)] = &[
+    ("limit((x^2 - 1)/(x - 1), x -> 1.0)", "2.0"),
+    ("limit(sin(x)/x, x -> 0.0)", "1.0"),
+    ("limit(sin(0.5*x)/x, x -> 0)", "0.5"),
+    ("limit(1.5/x, x -> 0.0, direction: from_above)", "inf"),
+    ("limit(1/x, x -> 0.0)", "failure(no_limit, limit, x^-1)"),
+    ("limit(x^2, x -> 0.5)", "0.25"),
 ];
 
 /// Two-sided limits whose sides differ (decision C.1), and argument failures.
@@ -117,6 +134,11 @@ fn limits_at_infinity() {
 }
 
 #[test]
+fn inexact_points_and_functions() {
+    check(INEXACT);
+}
+
+#[test]
 fn different_sides_and_argument_failures() {
     check(FAILURES);
 }
@@ -132,7 +154,7 @@ fn undecided_limits_return_quickly() {
     let mut s = Sys::new();
     for src in [
         "limit(sin(x)*exp(x), x -> inf)",
-        "limit(log(x) - log(2*x), x -> inf)",
+        "limit((x + 1)^(1/3) - x^(1/3), x -> inf)",
         "limit(sin(1/x)/x, x -> 0)",
         "limit(x^sin(x), x -> inf)",
         "limit(gamma(x)/x, x -> 0)",
@@ -148,7 +170,7 @@ fn undecided_limits_return_quickly() {
 fn one_and_four_threads_agree() {
     let mut one = Sys::with_threads(1);
     let mut four = Sys::with_threads(4);
-    for (src, _) in AT_POINTS.iter().chain(ONE_SIDED).chain(AT_INFINITY).chain(FAILURES).chain(OTHERS) {
+    for (src, _) in AT_POINTS.iter().chain(ONE_SIDED).chain(AT_INFINITY).chain(INEXACT).chain(FAILURES).chain(OTHERS) {
         assert_eq!(one.run(src), four.run(src), "{src}");
     }
 }

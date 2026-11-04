@@ -9,10 +9,10 @@
 //!    factors, and an algebraic factor tending to 0 beats logarithms (decision 2C4.7);
 //! 3. a bounded factor (`sin(u)`, `cos(u)`, `atan(u)`, `tanh(u)` of a real `u`) times factors tending to 0 tends to
 //!    0, and a bounded term does not change the infinite limit of a sum (decision C.4);
-//! 4. in a product `0·∞`, `abs(u)` replaced by `±u` when the sign of `u` near the point is known, else a sum
-//!    factor distributed over the others; then L'Hospital's rule, written `0/0` and else `∞/∞` (decision C.5);
-//! 5. a sum that is still indeterminate (`∞ - ∞`) brought over a common denominator with `together` and the
-//!    quotient's limit taken.
+//! 4. in a product `0·∞`, `abs(u)` replaced by `±u` when the sign of `u` near the point is known and `sinh`,
+//!    `cosh` by exponentials, else a sum factor distributed over the others; then L'Hospital's rule, written `0/0` and else `∞/∞` (decision C.5);
+//! 5. a sum that is still indeterminate (`∞ - ∞`): its logarithms of positive arguments combined into one, else
+//!    the sum brought over a common denominator with `together` and the quotient's limit taken.
 //!
 //! Every step is exact; when none applies the result is `None` (no answer is better than a wrong one). Steps 4 and
 //! 5 charge [`REWRITE_COST`] levels of the depth budget, so they nest a bounded number of times.
@@ -188,7 +188,8 @@ fn side_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, t: T<'h>,
 }
 
 /// A product rewritten so the walk can take it: `abs(u)` (or a power of it) as `±u` when the sign of `u` near
-/// the point is known, else one sum factor distributed over the others. `None` when neither applies.
+/// the point is known and `sinh`, `cosh` as exponentials, else one sum factor distributed over the others.
+/// `None` when nothing applies.
 fn rewrite_product<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     b: &Build<'h>,
@@ -205,6 +206,15 @@ fn rewrite_product<'h>(
         };
         let u = match call_of(b, base) {
             Some((n, [u])) if n == "abs" => *u,
+            Some((n, [u])) if n == "sinh" || n == "cosh" => {
+                // exponentials, so the dominance rules and the product of exponentials apply
+                let sg = if n == "sinh" { -1 } else { 1 };
+                let ex = |v: T<'h>| b.call("exp", &[v]);
+                let half = b.mul(&[b.rat(1, 2), b.add(&[ex(*u), b.mul(&[b.int(sg), ex(b.neg(*u))])])]);
+                out.push(p.map_or(half, |p| b.pow(half, p)));
+                changed = true;
+                continue;
+            }
             _ => {
                 out.push(a);
                 continue;
@@ -257,6 +267,9 @@ fn sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>
         if let Some(r) = dominant_term(cx, b, g, args, &infs, t, d)? {
             return Ok(Some(r));
         }
+        if let Some(r) = combined_logs(cx, b, args, t, d)? {
+            return Ok(Some(r));
+        }
         return common_denominator(cx, b, g, t, d);
     }
     if inf != 0 {
@@ -267,6 +280,32 @@ fn sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>
         return indeterminate_sum(cx, b, g, t, d);
     }
     Ok(Some(fin(cx, b.add(&fins), 0)?))
+}
+
+/// `∞ - ∞` between logarithms: the terms `c·log(u)` (c rational, u positive near the point) of a sum combined
+/// into one `log(Π u^c)`, which holds for positive u; the limit of the new sum, or `None`.
+fn combined_logs<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>], t: T<'h>, d: u32) -> R<'h> {
+    if d + REWRITE_COST > MAX_DEPTH {
+        return Ok(None);
+    }
+    let (mut powers, mut rest) = (Vec::new(), Vec::new());
+    for &a in args {
+        let (c, l) = match args_of(b, a, b.hd.mul) {
+            Some([c, l]) if matches!(b.heap().view(*c), View::Int(_) | View::Rational { .. }) => (*c, *l),
+            _ => (b.one(), a),
+        };
+        match call_of(b, l) {
+            Some((n, [u])) if n == "log" && side_of(cx, b, *u, t, d)? == Some(1) => powers.push(b.pow(*u, c)),
+            _ => rest.push(a),
+        }
+    }
+    if powers.len() < 2 {
+        return Ok(None);
+    }
+    let product = apply(cx, b, "together", &[b.mul(&powers)])?;
+    rest.push(b.call("log", &[product]));
+    let s = cx.eval(b.add(&rest))?;
+    lim(cx, b, s, t, d + REWRITE_COST)
 }
 
 /// A sum with a term of unknown limit: the series, else a common denominator.
