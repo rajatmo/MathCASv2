@@ -68,6 +68,12 @@ const CASES: &[(&str, &str, &[&str])] = &[
     ("rpow", "fn rpow(x: Real, y: Real) = x^y", &["2.0, 0.5", "-8.0, 0.5", "-2.0, 3.0", "0.0, -1.0", "1e308*10.0, 0.0"]),
     ("ipow", "fn ipow(x: Real, n: Int) = x^n + 2^x", &["1.5, 3", "2.0, -2", "-2.0, 0", "0.0, -1"]),
     ("calls", "fn calls(n: Int, x: Real) = sq(n) + sq(mod(sq(n), 7)) + floor(half(x)) + (if pos(x) then 1 else 0)", &["3, 2.5", "-4, -1.0", "3037000500, 1.0"]),
+    ("mandel", "fn mandel(cr: Real, ci: Real) = { var x = 0.0; var y = 0.0; var k = 0; while k < 100 and x*x + y*y <= 4.0 { let t = x*x - y*y + cr; y = 2.0*x*y + ci; x = t; k = k + 1 }; k }", &["0.0, 0.0", "-0.75, 0.1", "0.3, 0.5", "-2.0, 0.0", "0.25, 0.0", "1.0, 1.0", "0.0*(1e308*10.0), 0.0", "1e308*10.0, 0.0", "-0.0, -0.0"]),
+    ("poly", "fn poly(x: Real, y: Real, z: Real) = x^2 + y^3 - x*y*z + 2.5*x*y*z*z + x^-3 - 3*x*y", &["1.5, -2.5, 0.1", "1e300, 1e300, -1e-300", "-0.0, 0.0, -0.0", "4.9e-324, 1.7976931348623157e308, 2.0", "0.0*(1e308*10.0), 1.0, 2.0", "1e308*10.0, -1e308*10.0, 0.5"]),
+    ("sum6", "fn sum6(a: Real, b: Real, c: Real, d: Real, e: Real, f: Real) = a + b + c + d + e + f + 1", &["0.1, 0.2, 0.3, 1e16, -1e16, 0.4", "-0.0, -0.0, -0.0, -0.0, -0.0, -0.0", "1e308, 1e308, -1e308, -1e308, 1.0, 2.0", "3.0, 1e-17, 1e-17, 1e-17, 1e-17, -3.0"]),
+    ("sum8", "fn sum8(a: Real, b: Real, c: Real, d: Real, e: Real, f: Real, g: Real, h: Real) = a + b + c + d + e + f + g + h", &["0.1, 0.2, 0.3, 1e16, -1e16, 0.4, 0.5, 0.6", "1.0, 1e-16, 1e-16, 1e-16, 1e-16, 1e-16, 1e-16, -1.0"]),
+    ("bigx", "fn bigx(x: Real, a: Int, b: Int) = a*b*x + x*a/b + 3*x*y(a)", &["1.5, 1099511627776, 1099511627776", "0.1, 3, 7", "-0.0, 0, 5", "2.0, 9223372036854775807, 2", "0.3, 9007199254740993, -3", "1.0, 5, 0"]),
+    ("pw", "fn pw(x: Real, n: Int) = x^n * x^-2 + x^(1/3) + x^(3/2) + x^(4/2)", &["2.0, 3", "-8.0, 3", "0.5, -1075", "1e308*10.0, 2", "-0.0, -1", "0.0*(1e308*10.0), 1", "1.0000000000000002, 9223372036854775807"]),
     ("gen", "fn gen(n: Int) = { var a = 0; var b = 1; var k = 0; while k < n and a >= 0 { var t = a + b; a = b; b = t; k = k + 1 }; a }", &["10", "90", "92", "93", "200"]),
 ];
 
@@ -76,7 +82,7 @@ fn engines(threads: usize) -> [CoreEngine; 3] {
     let mut es = [engine(threads), engine(threads), engine(threads)];
     for e in es.iter_mut() {
         // functions the cases call (inlined)
-        assert_eq!(eval(e, "fn sq(n: Int) = n*n + 1\nfn half(x: Real) = x*0.5\nfn pos(x: Real) = x > 0.0"), "null");
+        assert_eq!(eval(e, "fn sq(n: Int) = n*n + 1\nfn half(x: Real) = x*0.5\nfn pos(x: Real) = x > 0.0\nfn y(a: Int) = 2*a"), "null");
     }
     for (name, def, _) in CASES {
         for e in es.iter_mut() {
@@ -144,6 +150,32 @@ fn r12c_finds_the_longest_collatz_chain() {
     eval(&mut i, r12.split("#@ measure").next().unwrap());
     assert_eq!(eval(&mut i, "range(3000) |> map(collatz_steps, _) |> max"), eval(&mut e, "longest(3000)"));
     assert!(compiled < Duration::from_secs(5), "{compiled:?}");
+}
+
+/// The Mandelbrot escape-count grid (also `examples/mandelbrot.rs`): powers, three-operand sums and products of
+/// machine reals, and products with exact rational parts, all inline.
+const MANDELBROT: &str = "\
+@compiled fn escape(cr: Real, ci: Real) = { var x = 0.0; var y = 0.0; var k = 0; while k < 100 and x*x + y*y <= 4.0 { let t = x*x - y*y + cr; y = 2.0*x*y + ci; x = t; k = k + 1 }; k }
+@compiled fn grid(n: Int) = { var total = 0; for i in range(n) { for j in range(n) { total = total + escape(-2.0 + 3.0*i/n, -1.5 + 3.0*j/n) } }; total }";
+
+#[test]
+fn the_mandelbrot_grid_runs_inline() {
+    let mut e = engine(1);
+    let mut plain = engine(1);
+    for def in MANDELBROT.lines() {
+        assert_eq!(eval(&mut e, def), "null", "{def}");
+        assert_eq!(eval(&mut plain, def.trim_start_matches("@compiled ")), "null");
+    }
+    assert_eq!(info(&mut e, "grid", "inlined"), "[escape]");
+    for n in ["1", "7", "40"] {
+        assert_eq!(eval(&mut e, &format!("grid({n})")), eval(&mut plain, &format!("grid({n})")), "grid({n})");
+    }
+    assert_eq!(info(&mut e, "grid", "declines"), "0");
+    // about 1.9 million iterations of the loop: tens of milliseconds inline, seconds through the arithmetic's code
+    let t0 = Instant::now();
+    assert_eq!(eval(&mut e, "grid(300)"), "1893529");
+    let compiled = t0.elapsed();
+    assert!(compiled < Duration::from_secs(1), "{compiled:?}");
 }
 
 #[test]

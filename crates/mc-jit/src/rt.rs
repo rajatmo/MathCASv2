@@ -1,5 +1,6 @@
 //! The run-time side of compiled code: the environment block every compiled call receives, and the helpers both
-//! back ends call (the poll, exact integer powers, the arithmetic's own operations, the elementary functions).
+//! back ends call (the poll, exact integer powers, the arithmetic's own operations, its powers of machine reals,
+//! the order key of machine reals, the elementary functions).
 //!
 //! **ABI** (decision 1b.4, after spike E's E.6): a compiled function takes its parameters (an `Int` as `i64`, a
 //! `Real` as `f64`) and then a pointer to an [`Env`]; it returns one word (a boolean as 0 or 1). Its uniform entry
@@ -144,6 +145,33 @@ pub fn ipow_exact(a: i64, n: i64) -> Option<i64> {
         -1 => Some(if n % 2 == 0 { 1 } else { -1 }),
         _ => a.checked_pow(u32::try_from(n).ok()?),
     }
+}
+
+/// `x^k` for a machine real `x` and an integer `k != 0`, exactly as the arithmetic computes it
+/// (`mc_arith::Num::pow_int`): one `powf` with the signed exponent converted to a machine real, with no reciprocal
+/// and no repeated multiplication. (`k = 0` gives the exact 1 there, which compiled code declines before calling.)
+pub extern "C" fn pow_int(x: f64, k: i64) -> f64 {
+    let e = k.unsigned_abs() as f64;
+    x.powf(if k < 0 { -e } else { e })
+}
+
+/// `x^c` for machine reals whose power is real, as the arithmetic computes it (`mc_arith::Num::pow_machine`).
+pub extern "C" fn pow_real(x: f64, c: f64) -> f64 {
+    x.powf(c)
+}
+
+/// The integer whose signed order is the canonical order of machine reals (`mc_arith::Num::cmp_canonical`): IEEE
+/// total order, which puts -0.0 before 0.0 as the canonical order's tie-break does. The one difference is NaN,
+/// which the canonical order puts after every number while total order puts a NaN with the sign bit first; a sum
+/// or product with a NaN operand is a NaN either way, so only the payload of that NaN can differ.
+pub fn order_key(x: f64) -> i64 {
+    let b = x.to_bits() as i64;
+    b ^ (((b >> 63) as u64) >> 1) as i64
+}
+
+/// The machine real whose [`order_key`] is `k` (the map is its own inverse on the bits).
+pub fn from_order_key(k: i64) -> f64 {
+    f64::from_bits((k ^ (((k >> 63) as u64) >> 1) as i64) as u64)
 }
 
 /// The tag of a [`NumOp`] operand in the helper's operand array.

@@ -82,6 +82,8 @@ struct Imports {
     poll: FuncId,
     num: FuncId,
     ipow: FuncId,
+    pow_int: FuncId,
+    pow_real: FuncId,
 }
 
 /// Compile one LIR function to machine code.
@@ -97,10 +99,12 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
-    let helpers: [(&str, *const u8); 8] = [
+    let helpers: [(&str, *const u8); 10] = [
         ("mc_jit_poll", rt::poll as *const u8),
         ("mc_jit_num", rt::num as *const u8),
         ("mc_jit_ipow", rt::ipow as *const u8),
+        ("mc_jit_pow_int", rt::pow_int as *const u8),
+        ("mc_jit_pow_real", rt::pow_real as *const u8),
         ("floor", c_floor as *const u8),
         ("ceil", c_ceil as *const u8),
         ("trunc", c_trunc as *const u8),
@@ -127,6 +131,8 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         poll: import(&mut module, "mc_jit_poll", &[ptr], types::I32)?,
         num: import(&mut module, "mc_jit_num", &[ptr, types::I64, ptr, types::I64], types::I64)?,
         ipow: import(&mut module, "mc_jit_ipow", &[ptr, types::I64, types::I64], types::I64)?,
+        pow_int: import(&mut module, "mc_jit_pow_int", &[types::F64, types::I64], types::F64)?,
+        pow_real: import(&mut module, "mc_jit_pow_real", &[types::F64, types::F64], types::F64)?,
     };
 
     let mut ctx = module.make_context();
@@ -151,6 +157,8 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
             poll: module.declare_func_in_func(imports.poll, b.func),
             num: module.declare_func_in_func(imports.num, b.func),
             ipow: module.declare_func_in_func(imports.ipow, b.func),
+            pow_int: module.declare_func_in_func(imports.pow_int, b.func),
+            pow_real: module.declare_func_in_func(imports.pow_real, b.func),
         };
         let mut g = Gen::new(&mut b, lir, rty, refs, ptr);
         g.body();
@@ -202,6 +210,8 @@ struct Refs {
     poll: FuncRef,
     num: FuncRef,
     ipow: FuncRef,
+    pow_int: FuncRef,
+    pow_real: FuncRef,
 }
 
 struct Gen<'a, 'b> {
@@ -412,6 +422,46 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.set(d, v);
                 self.set(of, o)
             }
+            Op::IMulOv(d, of, a, b) => {
+                let (x, y) = (self.get(a), self.get(b));
+                let (v, o) = self.b.ins().smul_overflow(x, y);
+                self.set(d, v);
+                self.set(of, o)
+            }
+            Op::IMinMax(max, d, a, b) => {
+                let (x, y) = (self.get(a), self.get(b));
+                let v = if max { self.b.ins().smax(x, y) } else { self.b.ins().smin(x, y) };
+                self.set(d, v)
+            }
+            Op::IToF(d, a) => {
+                let x = self.get(a);
+                let v = self.b.ins().fcvt_from_sint(types::F64, x);
+                self.set(d, v)
+            }
+            Op::FTrunc(d, a) => {
+                let x = self.get(a);
+                let v = self.b.ins().trunc(x);
+                self.set(d, v)
+            }
+            Op::FKey(d, a) => {
+                let x = self.get(a);
+                let bits = self.b.ins().bitcast(i64t, MemFlagsData::new(), x);
+                let v = self.order_key(bits);
+                self.set(d, v)
+            }
+            Op::FromKey(d, a) => {
+                let k = self.get(a);
+                let bits = self.order_key(k);
+                let v = self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits);
+                self.set(d, v)
+            }
+            Op::PowI(d, a, b) | Op::PowF(d, a, b) => {
+                let (x, y) = (self.get(a), self.get(b));
+                let f = if matches!(op, Op::PowI(..)) { self.refs.pow_int } else { self.refs.pow_real };
+                let call = self.b.ins().call(f, &[x, y]);
+                let v = self.b.inst_results(call)[0];
+                self.set(d, v)
+            }
             Op::FBin(o, d, a, b) => {
                 let (x, y) = (self.get(a), self.get(b));
                 let v = match o {
@@ -558,6 +608,14 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.terminated = true;
             }
         }
+    }
+
+    /// [`rt::order_key`] on the bits of a machine real, and its inverse on a key: flip the 63 low bits when the sign
+    /// bit is set.
+    fn order_key(&mut self, bits: Value) -> Value {
+        let sign = self.b.ins().sshr_imm_u(bits, 63);
+        let low = self.b.ins().ushr_imm_u(sign, 1);
+        self.b.ins().bxor(bits, low)
     }
 
     /// Interrupt and fuel check at a loop back edge (decision E.5): every [`POLL_EVERY`] iterations read the control

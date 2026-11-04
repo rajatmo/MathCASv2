@@ -11,9 +11,16 @@
 //!   every loop back edge carries a [`Op::Poll`]. Both back ends ([`crate::interp`], [`crate::jit`]) consume it, so
 //!   it is the one definition of every operation's order and of every decline.
 //!
-//! Operations whose machine-real semantics are not a single IEEE operation (powers, sums and products of more than
-//! two operands or with exact rational parts) are calls into the arithmetic's own code ([`crate::rt::num`]), so
-//! that they agree with the interpreter by construction.
+//! Powers, and sums and products of more than two operands or with exact parts ([`E::Num`]), are lowered to the
+//! very computation the arithmetic (`mc_arith::Num`) performs (decision J.2): a power of a machine real is one
+//! `powf` call; a sum or product folds its exact operands exactly, converts that part once (correctly rounded),
+//! then adds or multiplies the machine reals in canonical order, which a sorting network establishes at run time.
+//! What the inline code cannot compute exactly as the arithmetic does (an exact part beyond 64 bits, more than
+//! [`MAX_SORTED`] machine reals, a rational in a sum, an exact base) calls the arithmetic itself
+//! ([`crate::rt::num`]), so that results agree with the interpreter by construction.
+use crate::rt::EXACT_REAL_INT;
+use mc_arith::num::{Int, Rat};
+use mc_arith::Real;
 
 /// A HIR variable: an index into [`Func::vars`].
 pub type V = u32;
@@ -476,6 +483,32 @@ pub enum K {
     B,
 }
 
+/// Most machine reals of one sum or product sorted inline; with more, the arithmetic's own code sorts them.
+pub const MAX_SORTED: usize = 6;
+
+/// Sorting networks for 2 to [`MAX_SORTED`] values (comparators as index pairs, the minimum to the first), each
+/// with the fewest comparators known for its size.
+pub const NETWORKS: [&[(usize, usize)]; MAX_SORTED + 1] = [
+    &[],
+    &[],
+    &[(0, 1)],
+    &[(0, 1), (0, 2), (1, 2)],
+    &[(0, 1), (2, 3), (0, 2), (1, 3), (1, 2)],
+    &[(0, 1), (3, 4), (2, 4), (2, 3), (0, 3), (0, 2), (1, 4), (1, 3), (1, 2)],
+    &[(1, 2), (4, 5), (0, 2), (3, 5), (0, 1), (3, 4), (2, 5), (0, 3), (1, 4), (2, 4), (1, 3), (2, 3)],
+];
+
+/// What lowering knows of the exponent of a power of machine reals.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Exp {
+    /// a run-time value
+    Unknown,
+    /// integral or not finite: the power is real for every base
+    Integral,
+    /// finite and not integral: the power is real only for a base >= 0, a NaN or an infinity
+    Fractional,
+}
+
 /// A LIR register.
 pub type R = u32;
 /// A LIR label.
@@ -530,6 +563,22 @@ pub enum Op {
     /// `d = op(operands)` through the arithmetic; declines unless the result is a machine real. Each operand is its
     /// kind and its registers (the second is the denominator of a ratio, else equal to the first).
     Num(NumOp, R, Vec<(OpdK, R, R)>),
+    /// `d = a b` wrapping, `of` = whether it overflowed (exact parts of products)
+    IMulOv(R, R, R, R),
+    /// `d = max(a, b)` (`true`) or `min(a, b)` of integers
+    IMinMax(bool, R, R, R),
+    /// `d = a` rounded to the nearest machine real (ties to even): exact up to 2^53, never declines
+    IToF(R, R),
+    /// `d = trunc(a)` (towards zero; infinities and NaN unchanged)
+    FTrunc(R, R),
+    /// `d` = the integer whose signed order is the canonical order of machine reals ([`crate::rt::order_key`])
+    FKey(R, R),
+    /// `d` = the machine real whose key is `a` (the inverse of [`Op::FKey`])
+    FromKey(R, R),
+    /// `d = a^k` for a machine real `a` and an integer `k != 0`, as the arithmetic computes it ([`crate::rt::pow_int`])
+    PowI(R, R, R),
+    /// `d = a^c` for machine reals with a real result ([`crate::rt::pow_real`]; the domain was checked before)
+    PowF(R, R, R),
     /// decline when `c` is true
     Bail(R),
     /// jump
@@ -713,28 +762,7 @@ impl Lower<'_> {
                 self.emit(Op::Math(*f, d, ra));
                 d
             }
-            E::Num(op, opds) => {
-                let mut rs = Vec::with_capacity(opds.len());
-                for o in opds {
-                    rs.push(match o {
-                        Opd::Int(x) => {
-                            let r = self.ex(x);
-                            (OpdK::Int, r, r)
-                        }
-                        Opd::Real(x) => {
-                            let r = self.ex(x);
-                            (OpdK::Real, r, r)
-                        }
-                        Opd::Ratio(n, dd) => {
-                            let (rn, rd) = (self.ex(n), self.ex(dd));
-                            (OpdK::Ratio, rn, rd)
-                        }
-                    });
-                }
-                let d = self.reg(K::F);
-                self.emit(Op::Num(*op, d, rs));
-                d
-            }
+            E::Num(op, opds) => self.num(*op, opds),
             E::Sel(c, a, b) => {
                 let t = type_of(self.func, a).expect("checked");
                 let (rc, ra, rb) = (self.ex(c), self.ex(a), self.ex(b));
@@ -743,6 +771,250 @@ impl Lower<'_> {
                 d
             }
         }
+    }
+
+    /// An [`E::Num`]: the operands in order, then the arithmetic's computation inline where it can be.
+    fn num(&mut self, op: NumOp, opds: &[Opd]) -> R {
+        let mut rs = Vec::with_capacity(opds.len());
+        for o in opds {
+            rs.push(match o {
+                Opd::Int(x) => {
+                    let r = self.ex(x);
+                    (OpdK::Int, r, r)
+                }
+                Opd::Real(x) => {
+                    let r = self.ex(x);
+                    (OpdK::Real, r, r)
+                }
+                Opd::Ratio(n, dd) => {
+                    let (rn, rd) = (self.ex(n), self.ex(dd));
+                    (OpdK::Ratio, rn, rd)
+                }
+            });
+        }
+        match op {
+            NumOp::Pow => self.pow(opds, rs),
+            NumOp::Sum | NumOp::Product => self.fold(op, rs),
+        }
+    }
+
+    /// The arithmetic's own code: [`Op::Num`].
+    fn helper(&mut self, op: NumOp, rs: Vec<(OpdK, R, R)>) -> R {
+        let d = self.reg(K::F);
+        self.emit(Op::Num(op, d, rs));
+        d
+    }
+
+    fn bnot(&mut self, a: R) -> R {
+        let d = self.reg(K::B);
+        self.emit(Op::BNot(d, a));
+        d
+    }
+
+    /// `a or b`, where a missing `a` is false.
+    fn bor(&mut self, a: Option<R>, b: R) -> R {
+        match a {
+            None => b,
+            Some(a) => {
+                let d = self.reg(K::B);
+                self.emit(Op::BBin(BOp::Or, d, a, b));
+                d
+            }
+        }
+    }
+
+    fn icmp(&mut self, c: Cc, a: R, b: R) -> R {
+        let d = self.reg(K::B);
+        self.emit(Op::ICmp(c, d, a, b));
+        d
+    }
+
+    /// `x^k` for a machine real and an integer: `Num::pow_int` gives the exact 1 for `k = 0` (declined: the result
+    /// is not a machine real) and otherwise one `powf` with the signed exponent.
+    fn pow_int(&mut self, x: R, k: R) -> R {
+        let zero = self.iconst(0);
+        let z = self.icmp(Cc::Eq, k, zero);
+        self.emit(Op::Bail(z));
+        let d = self.reg(K::F);
+        self.emit(Op::PowI(d, x, k));
+        d
+    }
+
+    /// `x^c` for machine reals as `Num::pow_machine` computes it: `powf` when the result is real (x >= 0, x a NaN
+    /// or an infinity, or c integral or not finite); otherwise the result is complex and the call declines. What is
+    /// known of a constant exponent saves the run-time test.
+    fn pow_real(&mut self, x: R, c: R, exp: Exp) -> R {
+        if exp != Exp::Integral {
+            let zero = self.fconst(0.0);
+            let nonneg = self.fcmp(Cc::Ge, x, zero);
+            let nan = self.fcmp(Cc::Ne, x, x);
+            let mut ok = self.bor(Some(nonneg), nan);
+            let ax = self.reg(K::F);
+            self.emit(Op::FAbs(ax, x));
+            let inf = self.fconst(f64::INFINITY);
+            let is_inf = self.fcmp(Cc::Eq, ax, inf);
+            ok = self.bor(Some(ok), is_inf);
+            if exp == Exp::Unknown {
+                // c.fract() == 0 or c not finite: trunc(c) == c holds for the integral values and the infinities,
+                // and a NaN is the remaining non-finite exponent
+                let t = self.reg(K::F);
+                self.emit(Op::FTrunc(t, c));
+                let integral = self.fcmp(Cc::Eq, t, c);
+                ok = self.bor(Some(ok), integral);
+                let cnan = self.fcmp(Cc::Ne, c, c);
+                ok = self.bor(Some(ok), cnan);
+            }
+            let bad = self.bnot(ok);
+            self.emit(Op::Bail(bad));
+        }
+        let d = self.reg(K::F);
+        self.emit(Op::PowF(d, x, c));
+        d
+    }
+
+    /// A power with a machine-real base, inline; an exact base goes to the arithmetic.
+    fn pow(&mut self, opds: &[Opd], rs: Vec<(OpdK, R, R)>) -> R {
+        let [(OpdK::Real, x, _), (ek, e, _)] = rs[..] else { return self.helper(NumOp::Pow, rs) };
+        match ek {
+            OpdK::Int => self.pow_int(x, e),
+            OpdK::Real => self.pow_real(x, e, Exp::Unknown),
+            OpdK::Ratio => {
+                // a constant rational exponent is converted here exactly as the arithmetic converts it
+                let Opd::Ratio(E::Int(n), E::Int(den)) = opds[1] else { return self.helper(NumOp::Pow, rs) };
+                if den == 0 {
+                    return self.helper(NumOp::Pow, rs);
+                }
+                let q = Rat::new(Int::from_i64(n), Int::from_i64(den));
+                if q.is_int() {
+                    return match q.num.to_i64() {
+                        Some(k) => {
+                            let k = self.iconst(k);
+                            self.pow_int(x, k)
+                        }
+                        None => self.helper(NumOp::Pow, rs),
+                    };
+                }
+                // the machine real nearest q, which can be integral (q beyond 2^53)
+                let c = Real::Exact(q).to_f64();
+                let exp = if c.fract() == 0.0 || !c.is_finite() { Exp::Integral } else { Exp::Fractional };
+                let rc = self.fconst(c);
+                self.pow_real(x, rc, exp)
+            }
+        }
+    }
+
+    /// A sum or product with machine reals as `Num::sum` / `Num::product` computes it: the exact operands combined
+    /// exactly and converted once (correctly rounded), then the machine reals in canonical order, folded from the
+    /// left starting with the exact part. The exact part is computed inline when it fits 64 bits (and, for a
+    /// product with rational parts, when numerator and denominator are exactly machine reals, so that one IEEE
+    /// division rounds the quotient correctly); otherwise, and for a rational in a sum or more than
+    /// [`MAX_SORTED`] machine reals, the arithmetic computes the whole operation.
+    fn fold(&mut self, op: NumOp, rs: Vec<(OpdK, R, R)>) -> R {
+        let reals: Vec<R> = rs.iter().filter(|o| o.0 == OpdK::Real).map(|o| o.1).collect();
+        let has_ratio = rs.iter().any(|o| o.0 == OpdK::Ratio);
+        if reals.is_empty() || reals.len() > MAX_SORTED || (op == NumOp::Sum && has_ratio) {
+            return self.helper(op, rs);
+        }
+        let fop = if op == NumOp::Sum { FOp::Add } else { FOp::Mul };
+        // the exact part: numerator (and denominator), and when it cannot be computed here
+        let mut bad: Option<R> = None;
+        let (mut num, mut den): (Option<R>, Option<R>) = (None, None);
+        for &(k, a, b) in rs.iter().filter(|o| o.0 != OpdK::Real) {
+            num = Some(self.exact_step(op, &mut bad, num, a));
+            if k == OpdK::Ratio {
+                den = Some(self.exact_step(op, &mut bad, den, b));
+            }
+        }
+        let exact = num.map(|n| {
+            let nf = self.reg(K::F);
+            self.emit(Op::IToF(nf, n));
+            let Some(dn) = den else { return nf };
+            let (lo, hi, zero) = (self.iconst(-EXACT_REAL_INT), self.iconst(EXACT_REAL_INT), self.iconst(0));
+            for v in [n, dn] {
+                let below = self.icmp(Cc::Lt, v, lo);
+                bad = Some(self.bor(bad, below));
+                let above = self.icmp(Cc::Gt, v, hi);
+                bad = Some(self.bor(bad, above));
+            }
+            let dz = self.icmp(Cc::Eq, dn, zero);
+            bad = Some(self.bor(bad, dz));
+            let df = self.reg(K::F);
+            self.emit(Op::IToF(df, dn));
+            let q = self.reg(K::F);
+            self.emit(Op::FBin(FOp::Div, q, nf, df));
+            // the exact zero converts to +0, whatever the sign of the denominator
+            let nz = self.icmp(Cc::Eq, n, zero);
+            let pz = self.fconst(0.0);
+            let d = self.reg(K::F);
+            self.emit(Op::Sel(d, nz, pz, q));
+            d
+        });
+        let d = self.reg(K::F);
+        let done = bad.map(|bad| {
+            // the arithmetic itself, on the same operands, when the exact part is out of reach
+            let (slow, fast, done) = (self.label(), self.label(), self.label());
+            self.emit(Op::Br(bad, slow, fast));
+            self.emit(Op::Label(slow));
+            self.emit(Op::Num(op, d, rs.clone()));
+            self.emit(Op::Jmp(done));
+            self.emit(Op::Label(fast));
+            done
+        });
+        let sorted = self.sort(&reals);
+        let mut it = sorted.into_iter();
+        let mut acc = match exact {
+            Some(x) => x,
+            None => it.next().expect("a machine real"),
+        };
+        for x in it {
+            let s = self.reg(K::F);
+            self.emit(Op::FBin(fop, s, acc, x));
+            acc = s;
+        }
+        self.emit(Op::Mov(d, acc));
+        if let Some(done) = done {
+            self.emit(Op::Label(done));
+        }
+        d
+    }
+
+    /// One step of an exact sum or product `acc op x` (the first operand alone starts it), wrapping, with its
+    /// overflow joined to `bad`.
+    fn exact_step(&mut self, op: NumOp, bad: &mut Option<R>, acc: Option<R>, x: R) -> R {
+        let Some(y) = acc else { return x };
+        let (d, of) = (self.reg(K::I), self.reg(K::B));
+        self.emit(if op == NumOp::Sum { Op::IAddOv(d, of, y, x) } else { Op::IMulOv(d, of, y, x) });
+        *bad = Some(self.bor(*bad, of));
+        d
+    }
+
+    /// The machine reals in `xs` in canonical order: their order keys through a sorting network (the minimum and
+    /// the maximum of each compared pair), then back to machine reals. Equal keys are equal bit patterns, so the
+    /// result does not depend on how ties are broken.
+    fn sort(&mut self, xs: &[R]) -> Vec<R> {
+        if xs.len() < 2 {
+            return xs.to_vec();
+        }
+        let mut keys: Vec<R> = Vec::with_capacity(xs.len());
+        for &x in xs {
+            let k = self.reg(K::I);
+            self.emit(Op::FKey(k, x));
+            keys.push(k);
+        }
+        for &(i, j) in NETWORKS[xs.len()] {
+            let (lo, hi) = (self.reg(K::I), self.reg(K::I));
+            self.emit(Op::IMinMax(false, lo, keys[i], keys[j]));
+            self.emit(Op::IMinMax(true, hi, keys[i], keys[j]));
+            keys[i] = lo;
+            keys[j] = hi;
+        }
+        keys.into_iter()
+            .map(|k| {
+                let x = self.reg(K::F);
+                self.emit(Op::FromKey(x, k));
+                x
+            })
+            .collect()
     }
 
     fn block(&mut self, b: &[S]) {
