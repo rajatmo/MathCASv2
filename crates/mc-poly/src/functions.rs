@@ -230,7 +230,7 @@ pub(crate) fn polynomial_gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, l
             let g = qgcd(&acc, p, m)?;
             let prod = acc.mul(p, m)?;
             let (gc, gp) = g.primitive();
-            let q = prod.num.div_exact(&gp, m)?.expect("the gcd divides the product");
+            let q = crate::work::exact(prod.num.div_exact(&gp, m)?, "the gcd divides the product")?;
             QPoly::new(q, prod.den).scale(&gc.recip().expect("a nonzero gcd"))
         };
     }

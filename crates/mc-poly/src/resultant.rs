@@ -133,7 +133,7 @@ fn content(a: &[Poly], m: &mut Meter) -> WorkResult<Poly> {
 }
 
 fn div_all(a: &[Poly], d: &Poly, m: &mut Meter) -> WorkResult<Vec<Poly>> {
-    a.iter().map(|c| Ok(c.div_exact(d, m)?.expect("an exact division in the subresultant algorithm"))).collect()
+    a.iter().map(|c| crate::work::exact(c.div_exact(d, m)?, "an exact division in the subresultant algorithm")).collect()
 }
 
 /// The subresultant algorithm over Z[other variables].

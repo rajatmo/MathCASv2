@@ -29,7 +29,7 @@ impl RatFun {
         RatFun { num: Poly::constant(nv, n), den: Poly::constant(nv, d) }
     }
     fn div(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
-        Ok(a.div_exact(b, m)?.expect("a gcd divides"))
+        crate::work::exact(a.div_exact(b, m)?, "a gcd divides")
     }
     /// Lowest terms with a positive leading coefficient in the denominator.
     fn reduced(num: Poly, den: Poly, m: &mut Meter) -> WorkResult<RatFun> {

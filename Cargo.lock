@@ -525,6 +525,7 @@ dependencies = [
  "mc-numtheory",
  "mc-poly",
  "mc-roots",
+ "mc-simplify",
  "mc-strings",
  "mc-syntax",
 ]
@@ -607,6 +608,7 @@ dependencies = [
  "mc-numtheory",
  "mc-poly",
  "mc-roots",
+ "mc-simplify",
  "mc-strings",
  "mc-syntax",
  "serde_json",
@@ -681,6 +683,19 @@ dependencies = [
  "mc-engine",
  "mc-eval",
  "mc-numeric",
+]
+
+[[package]]
+name = "mc-simplify"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "rustc-hash",
 ]
 
 [[package]]

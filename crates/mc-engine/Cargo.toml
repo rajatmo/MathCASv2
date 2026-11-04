@@ -20,6 +20,7 @@ mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-poly = { path = "../mc-poly" }
 mc-roots = { path = "../mc-roots" }
+mc-simplify = { path = "../mc-simplify" }
 mc-strings = { path = "../mc-strings" }
 mc-syntax = { path = "../mc-syntax" }
 
