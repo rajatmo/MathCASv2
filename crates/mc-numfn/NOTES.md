@@ -169,3 +169,98 @@ outside MathCAS (mpmath 1.4.1, scipy 1.18.1); each case's note says how.
 ## Package N4b: `par`
 
 `par::{Par, ParStats, par_expr, PAR_MIN_POINTS}`: a `NumFn` whose large `eval_flat` batches (256 points or more) of compiled code run split across the session's threads, identical to sequential; opt-in (`compile_expr`/`Auto` do not use it). Details: `crates/mc-jit/NOTES.md`, section "Package N4b".
+
+## Package N1: roots on the compiler (`mc-numfn` cache, `mc-roots`)
+
+Status: merged (branch `lib/r6-n1`, commits 6e44cca, d24dab7, 6ba6bcb, from main 6376b35). L5 passes at all three
+sizes, 2.3-2.4x faster than interpreted; L5h checks 1000 digits and passes. Every earlier `mc-roots` and `mc-numfn`
+test passes unchanged (also under `MC_NUMFN=compiled` and `interpreted`). On the branch: full suite 709 passed, 0
+failed, 6 ignored; clippy clean for both crates.
+
+### What was built
+
+1. **A process-wide cache of compiled code** (`mc-numfn/src/cache.rs`). Every finite machine real in the prepared
+   body becomes an extra scalar parameter `numfn·const·k`, so `x - 0.3*sin(x) - 0.006` compiles once as
+   `(x, c1, c2) => ...` and each instance appends its constants to its inputs. Key: the lifted body's shape (DAG
+   post-order; variables and constants by position, other symbols by name, other atoms by value with rational parts
+   in place; variable kinds; the `consts` flag). At most `CAPACITY` = 512 families, least recently used evicted;
+   bodies over 65,536 distinct nodes or with an atom the key cannot encode compile per instance as before. Scoped code
+   is checked with `ExprFn::current` (1b.6) before every use and dropped after a redefinition (also when a compiled
+   call declines). Refusals are cached with the versions of the body's symbols and retried once one changes.
+2. **`Auto` uses the cache.** Default `Policy::Family { after: 32 }` counts the whole family's evaluations; an
+   instance whose family is cached runs compiled from its first call. Derivatives and Jacobians from `d` go the same
+   way, so Newton, secant, Brent and Broyden run on compiled `f64` once their family compiles.
+3. **Minimisation on the compiled backend**: `find_minimum`/`find_maximum` (Brent, BFGS with symbolic or
+   central-difference gradient, Newton with the Hessian, the polish, the final value) use `Auto` instead of
+   `Machine` (gap 5). Complex Newton and the ball refinement stay interpreted.
+4. **`compile: auto | true | false`** on `find_root`, `find_minimum`, `find_maximum` (`Policy::default()`,
+   `Compiled`, `Interpreted`; other values `failure(argument, f, compile)`); `MC_NUMFN` stays a measurement aid.
+5. **Gap 2 fixed** (999 digits printed for `digits: 1000`). Cause: the result was rounded to exactly
+   `digits_to_bits(d)` bits, half an ulp of which can be half a unit in the d-th digit, so the printer (correct digits
+   only) dropped it. Fix: keep the guard bits `n(x, d)` keeps (`mc_numeric::numeval::first_precision(d)`); if the
+   ball would print more than d digits, give it the smallest radius that prevents a (d+1)-th digit. At most d digits
+   print, and d print unless the value is within that radius of a rounding boundary (about 10% of values).
+
+### Decisions
+
+- **N1.1** Only finite machine reals are lifted (integers, rationals, infinities, NaN shape the code and stay
+  literals). A lifted call gives bitwise the instance's own compiled result (1b.3: compiled code matches the
+  interpreter for every value of a `Real` parameter; substituting the constants back gives the instance's body).
+- **N1.2** Family key as above; equal constants share one node under hash-consing and so one parameter; variable
+  names do not matter (`w^2 - ...` and `x^2 - ...` are one family).
+- **N1.3** Scope: code that inlined no function serves every kernel in the process (it holds no heap data); code that
+  inlined user functions, and refusals, belong to one kernel (heap address plus a `Weak` to its stop flag, which keeps
+  the address from being reused; entries of ended kernels are pruned).
+- **N1.4** The family counter is shared (`Arc<AtomicU64>`): a solver called once per parameter compiles once.
+- **N1.5** `Policy::Family { after }` is the new default; `Policy::Auto { after }` stays per instance (an existing
+  api test needs a 2-evaluation `auto:3` instance to stay interpreted: `Auto` counts its own evaluations, then takes
+  the family's code without compiling). `MC_NUMFN`: `auto` (family, default), `auto:N` (per instance), `family:N`,
+  `compiled`, `interpreted`.
+- **N1.6** The `compile:` option replaces the environment variable for users.
+- **N1.7** `digits: d` results: guard bits plus the at-most-d-digits radius (item 5).
+- **N1.8** A refused lifted body falls back to the instance's own body once; whether that compiles is cached.
+
+### API additions (`mc-numfn`)
+
+`Compiled::cached(cx, vars, body, consts)`, `Compiled::lifted() -> &[f64]`, `Policy::Family { after }` (default),
+`Stats::cache_hits`, `Stats::cache_misses`, `cache_stats() -> CacheStats` (hits, misses, compiles, evictions,
+invalidations, families), `clear_cache()`, `CAPACITY`. Signatures of `Compiled::new`, `try_eval`, `inputs`,
+`outputs`, `info`, `Auto::new`, `refusal`, `compiled`, `interpreted` unchanged. `Compiled` holds an `Arc<ExprFn>`;
+`ExprFn` is `Send + Sync`.
+
+Edits outside: `bench/cases/L/L5.mc` (the property was quadratic, about 140 s at 10^5; it now maps over
+`transpose([result, range(m)])`), `L5h.mc` (`check: digits 1000`).
+
+### Tests
+
+- `mc-numfn` (14; new: 1 unit, `tests/cache.rs` 4): 250 random expressions interpreted vs own compiled vs cached
+  lifted code, bitwise (declines coincide); a family compiling once at its 33rd evaluation, then hits from the first
+  call; renamed variables share a family; `auto:N` per instance; two kernels (dependency-free code shared, inlined
+  user functions per kernel, redefinition invalidates); cached refusals retried after a definition.
+- `mc-roots` (22; new `tests/compile.rs` 3): 16 problems over every machine path, families of 30-60 solves, identical
+  for `compile: false`, `true`, `auto` and default at 1 and 4 threads; option values and failures; `digits: 1000`
+  prints exactly 1000 digits, four other cases at most d digits, all correct (checked with Python's `decimal`).
+
+### Measurements (release, guarded, busy machine; medians)
+
+| L5 Kepler solves | 10^3 | 10^4 | 10^5 |
+|---|---|---|---|
+| main before N1, default policy | 141 ms | 1.80 s | 14.2 s (property past the limit) |
+| `compile: false` | 120 ms | 1.26 s | 12.6 s |
+| default (family cache) | 51.6 ms | 526 ms | 5.45 s |
+| `compile: true` | 51.5 ms | 527 ms | 5.54 s |
+
+L5h (1000 digits): 10.1 ms. At 10^4 (about 49 us per solve) building the equation costs about 14 us and the
+remaining 35 us in `find_root` is evaluator calls (`n` of the body, `d`, `n` of the derivative, the residual) and
+closures; the Newton steps are negligible.
+
+### Known gaps
+
+1. `find_root`'s fixed cost per call (`n`, `d`, `n` of the derivative) now dominates L5; caching the derivative per
+   family would not be bitwise exact (constants fold differently), so it was not done.
+2. A cached refusal is retried only when a symbol of the body itself changes version, not one deeper inside an
+   inlined function's definition (speed only, never results).
+3. Global cache counters are shared by all kernels and threads (tests assert the per-`Auto` `Stats`).
+4. Complex Newton and the ball refinement stay interpreted (NUM.5).
+5. Under `digits: d` a value within half a unit of the (d+1)-th digit of a d-digit rounding boundary prints d - 1
+   digits (about 10% of values): the least possible with a correct-digits printer and a cap of d.

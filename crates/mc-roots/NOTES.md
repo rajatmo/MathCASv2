@@ -96,3 +96,7 @@ with the symbolic derivative or Jacobian) runs each function through `mc_numfn::
 for refused and declined calls, so results are unchanged; all tests also pass with `MC_NUMFN=compiled`. Complex
 Newton, minimisation and the ball refinement stay interpreted. Gap 3 above is closed for those paths; L5 measurements
 are in `crates/mc-numfn/NOTES.md`.
+
+## Package N1
+
+Root finding and minimisation run on compiled code through `mc-numfn`'s family cache (one compilation per family of equations differing only in machine-real constants); `compile: auto | true | false` option; minimisation on `Auto`; `digits: d` results print exactly d digits (at most d; d unless within half a unit of a rounding boundary). Details, decisions N1.1-N1.8 and measurements: `crates/mc-numfn/NOTES.md`, section "Package N1".
