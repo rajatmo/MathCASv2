@@ -39,3 +39,23 @@ fn the_operator_alone() {
         assert_eq!(s.run(&format!("f{marks}(t) === {op}(t)")), "true");
     }
 }
+
+#[test]
+fn known_functions_resolve_outside_d() {
+    let mut s = Sys::new();
+    for (src, want) in [
+        ("sin'(x)", "cos(x)"),
+        ("sin''(x)", "-sin(x)"),
+        ("exp'(2*y)", "exp(2*y)"),
+        ("atan'(x)", "(1 + x^2)^-1"),
+        ("derivative(1)(log)(3)", "1/3"),
+        ("d(sin'(x), x)", "-sin(x)"),
+        // unknown functions, the operator alone and a wrong number of arguments stay as they are
+        ("f'(x)", "f'(x)"),
+        ("sin'", "sin'"),
+        ("derivative(1)", "derivative(1)"),
+        ("derivative(1, 0)(sin)(x)", "derivative(1, 0)(sin)(x)"),
+    ] {
+        assert_eq!(s.run(src), want, "{src}");
+    }
+}

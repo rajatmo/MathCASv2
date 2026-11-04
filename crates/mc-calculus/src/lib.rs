@@ -45,4 +45,5 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 /// engine's arithmetic stop flag).
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     k.register(h.sym("d"), Attributes::default(), Box::new(natives::D { stop: stop.clone() }));
+    k.register(h.sym("derivative"), Attributes::default(), Box::new(natives::DerivativeAt { stop: stop.clone() }));
 }

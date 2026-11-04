@@ -137,3 +137,38 @@ fn gradient<'h>(b: &Build<'h>, t: T<'h>, xs: &[T<'h>], tick: &mut crate::diff::T
     }
     Ok(out.pop().expect("one result"))
 }
+
+/// `derivative(n1, ..., nk)(f)(a1, ..., ak)` for a known function `f`: its derivative at the arguments, so `sin'(x)`
+/// is `cos(x)` outside `d` too (decision 2A.7). A curried call of the native; an unknown `f`, a wrong number of
+/// arguments or orders that are not non-negative integers leave the call as it is.
+pub struct DerivativeAt {
+    /// the flag `mc-arith` polls in long numeric loops
+    pub stop: Arc<AtomicBool>,
+}
+
+impl Native for DerivativeAt {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+        let _scope = StopScope::enter(Some(&self.stop));
+        let b = Build::new(h, &self.stop);
+        let Some((orders, f)) = b.as_derivative(head) else { return Ok(Reply::Decline) };
+        if orders.len() != args.len() || orders.iter().any(|&n| n < 0) {
+            return Ok(Reply::Decline);
+        }
+        let known = b.sym_of(f).is_some_and(|s| crate::rules::partials(&h.sym_name(s), args.len()).is_some());
+        if !known {
+            return Ok(Reply::Decline);
+        }
+        let mut tick = |n: u64| cx.tick(n);
+        match crate::diff::resolve(&b, f, &orders, args, &mut tick) {
+            Ok(r) => Ok(Reply::Again(r)),
+            Err(Halt::Abort(a)) => Err(a),
+            Err(Halt::Unsupported) => Ok(Reply::Decline),
+        }
+    }
+
+    fn curried(&self) -> bool {
+        true
+    }
+}
