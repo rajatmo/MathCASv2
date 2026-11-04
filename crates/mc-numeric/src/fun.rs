@@ -1,4 +1,5 @@
 //! The elementary functions as one enumeration: names, and evaluation on balls and on machine numbers.
+use crate::cball::{self, CBall};
 use crate::elementary as el;
 use crate::machine::{self, C64};
 use mc_arith::num::Ball;
@@ -134,6 +135,24 @@ impl Fun {
             Fun::Cosh => el::cosh(x, p),
             Fun::Tanh => el::tanh(x, p),
             Fun::Sqrt => el::sqrt(x, p),
+        }
+    }
+
+    /// An enclosure of f on the complex ball at `p` bits (principal branches, [`crate::cball`]), or `None`.
+    pub fn cball(self, z: &CBall, p: u64) -> Option<CBall> {
+        match self {
+            Fun::Exp => cball::exp(z, p),
+            Fun::Log => cball::log(z, p),
+            Fun::Sin => cball::sin(z, p),
+            Fun::Cos => cball::cos(z, p),
+            Fun::Tan => cball::tan(z, p),
+            Fun::Atan => cball::atan(z, p),
+            Fun::Asin => cball::asin(z, p),
+            Fun::Acos => cball::acos(z, p),
+            Fun::Sinh => cball::sinh(z, p),
+            Fun::Cosh => cball::cosh(z, p),
+            Fun::Tanh => cball::tanh(z, p),
+            Fun::Sqrt => cball::sqrt(z, p),
         }
     }
 

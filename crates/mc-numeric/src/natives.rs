@@ -10,9 +10,10 @@
 //!
 //! The comparison natives of the engine decline for anything that is not a number, so the rules here see exactly
 //! the comparisons involving constants and functions (decision L.8).
+use crate::cball::CBall;
 use crate::exact::Exact;
 use crate::fun::{Fun, Mach};
-use crate::numeval::{self, ball_term, first_precision, mach_term, Names, Target};
+use crate::numeval::{self, cball_term, first_precision, mach_term, Names, Target};
 use mc_api::{names, Store, Sym, View, T};
 use mc_arith::num::{stopped, StopScope};
 use mc_arith::{Arith, Cmp3, Num, Real, DEFAULT_MAX_BITS};
@@ -68,6 +69,20 @@ impl Native for Elementary {
         }
         let _scope = StopScope::enter(Some(&self.stop));
         let ar = Arith::new(h).with_stop(self.stop.clone());
+        // complex balls (N0C.1); sqrt of one is computed here, not left as a power
+        if let Some(Num::Complex(Real::Ball(re, pa), Real::Ball(im, pb))) = ar.num(*x) {
+            let p = pa.max(pb);
+            cx.tick(1 + p / 1024)?;
+            let r = self.f.cball(&CBall::new(re, im), p);
+            if stopped() {
+                return interrupted(cx, t);
+            }
+            match r {
+                Some(r) => return Ok(Reply::Done(cball_term(&ar, r, p))),
+                None if self.f != Fun::Sqrt => return Ok(Reply::Decline),
+                None => {}
+            }
+        }
         if self.f == Fun::Sqrt {
             let half = ar.rational(h.int(1), h.int(2));
             return Ok(Reply::Done(ar.pow(*x, half)));
@@ -78,12 +93,17 @@ impl Native for Elementary {
         let v = match ar.num(*x) {
             Some(Num::Real(Real::Ball(b, p))) => {
                 cx.tick(1 + p / 1024)?;
-                let r = self.f.ball(&b, p);
+                // outside the real domain: the principal complex value (N0C.4, as L.9 for machine reals)
+                let r = match self.f.ball(&b, p) {
+                    Some(r) => Some(CBall::real(r)),
+                    None if stopped() => None,
+                    None => self.f.cball(&CBall::real(b), p),
+                };
                 if stopped() {
                     return interrupted(cx, t);
                 }
                 match r {
-                    Some(r) => ball_term(&ar, r, p),
+                    Some(r) => cball_term(&ar, r, p),
                     None => return Ok(Reply::Decline),
                 }
             }
@@ -91,7 +111,7 @@ impl Native for Elementary {
             Some(Num::Complex(Real::Machine(re), Real::Machine(im))) => {
                 mach_term(&ar, self.f.machine(Mach::Complex(crate::machine::C64::new(re, im))))
             }
-            // exact numbers stay (L.2), complex balls have no ball functions here (L.12)
+            // exact numbers stay (L.2)
             _ => return Ok(Reply::Decline),
         };
         Ok(Reply::Done(v))

@@ -203,3 +203,159 @@ force); iterative walks over 10^4-element lists and 10^4-deep nests.
 3. `arg` of closed complex terms (`sin(1) + im*cos(1)`) stays unevaluated (no complex-ball elementary functions).
 4. `precision`/`accuracy` of a term is the least over its numbers, not error propagation.
 5. `arg(complex(-1.0, -0.0)) = -pi` (IEEE signed zeros).
+
+## Package N0C (roadmap 07, N0 item 4: elementary functions on complex balls; branch `n0-complex-balls`)
+
+### What was built
+
+- **`cball` (public):** `CBall { re: Ball, im: Ball }` (a rectangle) with exact `neg`, `conj`, `mul_i`, `div_i`, and
+  `add`, `sub`, `mul`, `mul_real`, `square`, `div`, `recip`, `round`, `has_digits`, `is_real`, `contains_zero`;
+  functions `exp`, `log`, `sqrt`, `sin`, `cos`, `sin_cos`, `tan`, `sinh`, `cosh`, `sinh_cosh_c`, `tanh`, `atan`,
+  `asin`, `acos`, `pow_int`, `pow_rat`, `pow` (complex exponent), `abs`, `arg` (moved here from `parts`). Each is a
+  ball expression of the real ball functions of the parts, as in Arb's `acb`:
+
+  | function | formula |
+  |---|---|
+  | exp | e^a (cos b + i sin b) |
+  | log | log(a^2 + b^2)/2 + i arg z (log\|b\| on the imaginary axis) |
+  | arg | atan(b/a), atan(b/a) ± pi, ±pi/2 - atan(a/b) by quadrant; exact 0 / pi on the real axis |
+  | sqrt | t = sqrt((\|z\| + a)/2), t + i b/(2t) for a >= 0; t = sqrt((\|z\| - a)/2), \|b\|/(2t) + i sign(b) t for a < 0 (no cancellation) |
+  | sin, cos, sinh, cosh | products of the real sin/cos and sinh/cosh (one exp) of the parts |
+  | tan | (sin 2a + i sinh 2b)/(cos 2a + cosh 2b); tanh z = -i tan(iz) |
+  | atan | (log(1 + iz) - log(1 - iz))/(2i), with -log2\|z\| guard bits |
+  | asin | -i log(iz + sqrt(1 - z^2)) after reducing to Re z >= 0 >= Im z (asin(-z) = -asin z, asin(conj z) = conj asin z), where the sum does not cancel; acos = pi/2 - asin |
+  | z^n | binary powering with log2 n guard bits; negative n by a reciprocal |
+  | z^q, z^w | half-integers through sqrt; otherwise exp(w log z) with \|w log z\| guard bits; 0^w = 0 for Re w > 0 |
+- **`Fun::cball`**: the dispatch over the twelve functions.
+- **`numeval`**: complex numbers (`Node::CNum`) and (-1)^q units are numeric nodes; islands evaluate with
+  `Graph::eval_complex` (refinement and the digits criterion as for real balls); `Graph::build_with_vars` +
+  `Graph::eval_complex_at` evaluate an *expression in given variables* on complex balls without building number
+  terms (for N2); `ball_power(&Num, &Num)` gives principal ball powers; `cball_term`. The (-1)^q leaf path of
+  `numericize` is gone (those units are islands now).
+- **Natives**: the elementary functions evaluate complex-ball arguments (`sqrt` included); a real ball outside a real
+  domain (`log(-2.5~20)`, `asin(2.0~20)`) gives the principal complex ball.
+- **`mc-engine` (outside this crate, 11 lines in `src/arith.rs`, native `Pow`):** when `Arith::pow` leaves a power
+  of numbers with a ball unevaluated (B.13), it calls `mc_numeric::numeval::ball_power` under the stop flag's scope.
+  So `z^(1/2)`, `z^(1/3)`, `z^z` for a complex ball z, `2.0~30^(1/3)`, `2^(1.5~30)`, `(-2.0~30)^(1/3)` evaluate
+  (closes package L's request 3 and 1C's gap 1).
+
+Examples (release REPL):
+
+    n(exp(1 + 2im), 30)     complex(-1.1312043837568136384312552555107947, 2.471726672004818927616930893551665)
+    n(sqrt(1 + 1im), 30)    complex(1.0986841134678099660398011952406784, 0.45508986056222734130435775782246857)
+    n(log(-2 + 1im), 30)    complex(0.8047189562170501873003796666130938, 2.6779450445889871222483871518182885)
+    n(atan(1 + 1im), 30)    complex(1.0172219678978513677227889615504829, 0.4023594781085250936501898333065469)
+    n((1 + 2im)^(1/3), 30)  complex(1.219616507971757622571496581351432, 0.4717112677893890047819389461677654)
+    n(log(-2), 20)          complex(0.693147180559945309417232, 3.14159265358979323846264)
+    n(asin(2), 20)          complex(1.570796326794896619231322, -1.316957896924816708625046)
+    z = n(1 + 2im, 30); z^z complex(-0.22251715680177260839710476114667904, 0.10070913113607538371230775446157579)
+    n(exp(1 + pi*im), 30)   complex(-2.71828182845904523536028747135266, ball(-2.6036779231074204528e-35, 6.55e-35))
+    exp(im*pi)              -1   (exact identities run first, unchanged)
+
+### Decisions
+
+- **N0C.1** Complex ball functions are ball expressions of the real ball functions of the parts (table above), so
+  every radius is propagated by construction (rigorous, not tight: the parts are treated independently). Functions
+  take p bits, work with 8-16 guard bits (more for small arguments of atan/asin and large |w log z| in powers) and
+  round to p. Natives evaluate complex-ball arguments at the larger part precision.
+- **N0C.2** Branches are the principal ones of `machine::C64` (same formulas): log, sqrt and non-integer powers cut
+  along the negative real axis, atan along the imaginary axis beyond ±i, asin/acos along the real axis beyond ±1.
+  Balls have no signed zero: an exact zero imaginary part is the upper side (`log(-2) = log 2 + i pi`, as the machine
+  functions for +0.0; `asin(2) = pi/2 - 1.317i` as `C64::asin`). A region that touches a cut with an inexact part
+  (imaginary part 0 ± r on the negative axis), contains a pole (tan) or a singular point (log 0, atan(±i)) has **no
+  value** (`None`; the call stays unevaluated; `n` refines and may report `precision_not_reached`). This is Arb's
+  analytic mode, what rigorous integration needs (the function is not analytic there). A covering ball (imaginary
+  part [-pi, pi]) was rejected: it encloses the principal values, but would let integration bounds treat a
+  non-analytic integrand as analytic.
+- **N0C.3** A real argument (exact zero imaginary part) inside the real domain uses the real ball function, so real
+  results keep an exact zero imaginary part and print as real balls; exact zero parts stay exact through the
+  arithmetic.
+- **N0C.4** `n` evaluates complex islands; a real island whose real evaluation fails where the complex one succeeds
+  (an argument provably outside a real domain: `log(-2)`, `asin(2)`, `sqrt(1 - pi)`) continues with complex balls,
+  consistent with L.9 for machine reals (was `precision_not_reached`); the natives do the same for a real ball
+  (was: the call stays; `tests/limits.rs` updated). `is_real` decides `false` once the imaginary part excludes 0
+  (`is_real(log(-2))`, `is_real(exp(im))`; was undecided); comparisons and signs ignore complex islands (as before);
+  `rationalize` skips them.
+- **N0C.5** A complex ball has d correct digits when each part has, or when its radius is below 10^-d times a lower
+  bound of the other part (which has d digits): a tiny part next to a large one is accepted relative to |z|, and
+  prints as `ball(m, r)` (`n(exp(1 + pi*im), 30)` above).
+- **N0C.6** Powers: integer exponents by binary powering, half-integers through sqrt, other rationals and complex
+  exponents as exp(w log z); `e^w = exp(w)`; `0^w` is 0 for Re w > 0 and has no value otherwise; through the
+  engine's `pow` for numbers (`ball_power`), inside `n` for islands.
+- **N0C.7** `abs` of a region that may contain 0 is the enclosure [0 ± (|a| + |b|)] (always a value); elsewhere
+  sqrt(a^2 + b^2).
+- **N0C.8** `Graph::build_with_vars(st, ar, nm, t, &[x, ...])` turns given symbols into variable nodes; such islands
+  have no real-ball value and NaN machine values, and are meant for `eval_complex_at`.
+
+### Tests (`tests/complex_balls.rs`, 8 tests; 2 unit tests in `cball`)
+
+- Containment: 200 random arguments per precision (40 in debug) at 30 and 100 digits, parts (2u - 1) 10^v with v in
+  [-1.5, 1] plus 64 random low bits, one in eight on an axis, radius zero, one unit at p, or relative 2^-20; for each
+  of 18 operations (12 functions, z^7, z^(1/3), z^(-5/2), z^(0.75 - 1.25i), abs, arg) the reference at **3p bits**
+  at the midpoint and the four corners lies inside the result (for an exact result part, the reference contains
+  it). The references are independent where possible: exp, sin, cos, tan, sinh, cosh, tanh from a Taylor-series
+  exp written in the test (complex ball arithmetic, its own tail bound); log, sqrt, atan, asin, acos, z^(1/3) are
+  checked at 3p to invert those references and to lie in the principal range. Exact arguments must give more than
+  p/2 correct bits. At most 20% misses per operation (poles, cuts, wide regions). A mutation shrinking exp's real
+  radius by 8 is caught at once.
+- Machine agreement: 1000 random points in [-3, 3]^2 and the cut points (-2, 2, -3, -0.5, 1.5 on the real axis, ±2i)
+  for all 12 functions, against `Fun::machine` at 15 digits (relative 1e-12, 1e-13 on the cuts).
+- Identities at 30 and 100 digits on 150 random arguments: exp(log z) contains z, sqrt(z)^2 contains z,
+  sin^2 + cos^2 and cosh^2 - sinh^2 contain 1, tan overlaps sin/cos (overlap for regions).
+- Branch cuts at the API: on the exact axis from above; regions across the negative axis (log, sqrt, arg, z^(1/3)),
+  across the asin/acos and atan cuts give `None`; just above/below the cut gives the two sides; points (log 0,
+  atan(±i), tan(pi/2), 0^w); abs near 0.
+- Through the evaluator: the examples above, exact values (`exp(im*pi) = -1`, `exp(im*pi/2) = im`,
+  `log(-1) = im*pi`, `sqrt(-4) = 2im`), complex balls as arguments (`exp(z)`, `sqrt(z)`, `z^(1/2)`, `z^z`,
+  `exp(log(z))`, `n(abs(z))`, `arg(z)`), real balls outside a domain, machine values unchanged, `is_real`, a cut with
+  an inexact imaginary part (`log(-2 + y*im)` with y = 0 ± r stays), the tiny-part criterion, 1000 digits.
+- Interruption: a raised flag before `n(f(3 + 5im), 10^4)` for exp, log, sin, atan, asin gives
+  `failure(interrupted, ...)` at once; raised 50 ms into `n(atan(1 + 2im), 10^6)`, `n(log(-2 + 1im), 10^6)`,
+  `n(exp(1 + 2im)^(1/3), 10^6)` (with the evaluator's interrupt) each stops well within the 5 s bound (the whole
+  test takes 0.2 s); afterwards `n(exp(1 + 2im), 20)` is correct, and 10^4 digits complete.
+- Expressions in variables: exp(x) sin(x) + x^(1/3) + abs(x) pi through `build_with_vars`/`eval_complex_at` at
+  exact points and a region (corners checked), 50 digits; no argument or a region across the cut gives `None`.
+
+### Measurements (busy 4-core machine, release, `examples/cball_bench.rs`; z = 1.3 + 2.7i with 117-bit parts; in
+parentheses the real ball function of the real part at the same precision)
+
+| function | 30 digits | 100 digits | 1000 digits | 10^4 digits |
+|---|---|---|---|---|
+| exp | 53 µs (24 µs) | 99 µs (46 µs) | 1.1 ms (0.46 ms) | 39 ms (9.4 ms) |
+| log | 116 µs (44 µs) | 280 µs (132 µs) | 2.9 ms (1.4 ms) | 81 ms (32 ms) |
+| sin | 86 µs (28 µs) | 108 µs (51 µs) | 1.2 ms (0.62 ms) | 44 ms (30 ms) |
+| cos, tan | 59 µs | 110 µs | 1.2 ms | 42-44 ms |
+| sqrt | 3.3 µs (0.6 µs) | 4.8 µs (1.6 µs) | 46 µs (17 µs) | 4.0 ms (1.5 ms) |
+| atan | 341 µs (66 µs) | 586 µs (136 µs) | 5.0 ms (1.3 ms) | 134 ms (45 ms) |
+| asin, acos | 235 µs | 360-570 µs | 2.6 ms | 72 ms |
+| sinh, cosh, tanh | 53-58 µs | 105-152 µs | 1.1-1.3 ms | 40-51 ms |
+
+pow(z, w) and z^(1/3) at 100 digits: 0.5-0.6 ms. Through the evaluator (first call, printing excluded):
+`n(exp(1 + 2im), d)` 0.24 / 0.13 / 0.91 / 32 ms at d = 30 / 100 / 1000 / 10^4; `n(log(1 + 2im), d)`
+0.24 / 0.50 / 3.1 / 70 ms; `n(sin(1 + 2im), d)` 0.11 / 0.13 / 0.84 / 37 ms. A complex exp costs a real exp plus a
+real sin_cos; log a real log plus a real atan (arg); atan two complex logs.
+
+### Known gaps
+
+1. Radii are rigorous but not optimal: parts are treated independently (no midpoint-radius split of the complex
+   argument as in Arb's `acb_exp`), so wide input regions get radii a small factor larger than necessary.
+2. Relative accuracy is lost near zeros of the result: log z for |z| near 1, sinh/sin imaginary parts for tiny
+   imaginary arguments (sinh from one exp), acos near 1; `n`'s refinement compensates, the Rust API gives correct but
+   wider balls.
+3. `abs` of number terms is `mc-numtheory`'s native (it works in the engine; this crate's test harness has only
+   `n(abs(z))`); `arg`/`abs` of closed complex terms without `n` stay unevaluated (1C gap 3).
+4. Large imaginary parts: tan/tanh, sin/cos with |Im z| beyond 2^40 have no value (exp's range, L.5).
+5. No covering mode across cuts (N0C.2); a caller needing both sides must split the region.
+6. Found in `mc-eval` (not fixed here): a term evaluated while the stop flag is raised keeps its
+   `failure(interrupted, ...)` result in the session: after `n(exp(1 + 2im), d)` evaluated with the flag raised,
+   `1 + 2im` itself evaluates to `failure(interrupted, 2im + 1)` for the rest of the session (the test uses other
+   literals).
+
+### What N2 can call
+
+- Points: `mc_numeric::cball::{exp, log, sqrt, sin, cos, tan, sinh, cosh, tanh, atan, asin, acos}(z: &CBall, p: u64)
+  -> Option<CBall>`, `sin_cos`, `sinh_cosh_c` (pairs), `pow_int(z, &Int, p)`, `pow_rat(z, &Rat, p)`,
+  `pow(z, w: &CBall, p)`, `abs(z, p) -> Option<Ball>`, `arg(z, p) -> Option<Ball>`, `Fun::cball(f, z, p)`.
+- Expressions: `let g = Graph::build_with_vars(st, &ar, &Names::new(st), expr, &[x]); let is =
+  g.island(g.node(expr)?);` then `g.eval_complex_at(&is, p, &[z]) -> Option<CBall>` per point (an enclosure of f
+  over the region z; `None` where f has no analytic value on the region: a cut, pole or singular point).

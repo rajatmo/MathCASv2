@@ -199,6 +199,9 @@ fn rationalize_closed<'h>(
 ) -> Res<Option<T<'h>>> {
     let Some(i) = g.node(u) else { return Ok(None) };
     let is = g.island(i);
+    if is.is_complex() {
+        return Ok(None);
+    }
     if is.is_machine() {
         let v = match g.eval_machine(&is) {
             crate::fun::Mach::Real(v) => v,
