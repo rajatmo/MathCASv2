@@ -30,6 +30,14 @@ pub(crate) struct Syms {
     pub named: Sym,
     pub condition: Sym,
     pub alternatives: Sym,
+    /// `failure(not_found, f)`: a search found nothing and no default was given
+    pub not_found: Sym,
+    pub fn_: Sym,
+    pub table: Sym,
+    pub add: Sym,
+    pub complex: Sym,
+    /// the head of an association (package 1B): `part` leaves its indexing to the association's rules
+    pub assoc: Sym,
 }
 
 impl Syms {
@@ -52,6 +60,12 @@ impl Syms {
             named: h.sym("named"),
             condition: h.sym("condition"),
             alternatives: h.sym("alternatives"),
+            not_found: h.sym("not_found"),
+            fn_: h.sym("fn"),
+            table: h.sym("table"),
+            add: h.sym(names::ADD),
+            complex: h.sym(names::COMPLEX),
+            assoc: h.sym("assoc"),
         }
     }
 }
@@ -104,6 +118,20 @@ impl Lib {
         self.fail(h, self.s.limit, &[h.sym_term(self.s.memory), t])
     }
 
+    /// `failure(shape_mismatch, f)` for the call `t` with head `f`.
+    pub fn shape<'h>(&self, h: &'h Heap, t: T<'h>) -> T<'h> {
+        let f = match h.view(t) {
+            View::App { head, .. } => head,
+            _ => t,
+        };
+        self.fail(h, self.s.shape_mismatch, &[f])
+    }
+
+    /// `rule(k, v)`, that is `k -> v`.
+    pub fn rule<'h>(&self, h: &'h Heap, k: T<'h>, v: T<'h>) -> T<'h> {
+        h.call(self.s.rule, &[k, v])
+    }
+
     /// Is `t` a failure?
     pub fn is_failure(&self, h: &Heap, t: T<'_>) -> bool {
         matches!(h.view(t), View::App { head, .. } if head == h.sym_term(self.s.failure))
@@ -149,6 +177,11 @@ impl Lib {
         }
     }
 }
+
+/// The most argument slots (elements of the result and of its sublists, each sublist counting one more) a
+/// combinatorial function (`subsets`, `tuples`, `permutations`, `outer`, `inner`, `array`, `constant_array`,
+/// `table`) builds: a larger result is refused before anything is allocated (decision 1A.4).
+pub(crate) const MAX_CELLS: u128 = 1 << 26;
 
 /// `return Ok(reply)` when an argument check gives a reply instead of a value.
 macro_rules! take {
@@ -206,6 +239,94 @@ impl Meter {
 /// The fuel of a copy of `n` elements, charged before it (the copy itself is too fast to need polling).
 pub(crate) fn charge_copy(cx: &mut NativeCx<'_, '_, '_>, n: usize) -> Res<()> {
     cx.tick(n as u64 / PER_UNIT as u64)
+}
+
+/// Argument `k` of the call `t` as a count: a nonnegative machine integer; a symbol or compound term declines, a
+/// negative number or other atom is a failure.
+pub(crate) fn count_operand<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: T<'h>, k: usize) -> Result<usize, Reply<'h>> {
+    match lib.int_operand(h, t, a, k)? {
+        n @ 0.. => Ok(n as usize),
+        _ => Err(Reply::Done(lib.bad_arg(h, t, k))),
+    }
+}
+
+/// A dimension argument (argument `k` of `t`): a count `n`, or a list of counts `[n1, ..., nd]`. A symbol or a
+/// symbolic entry declines; anything else is `failure(argument, f, k)`; a logical size (the elements of every
+/// level) over [`MAX_CELLS`] is `failure(limit, memory, t)`.
+pub(crate) fn dims_operand<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: T<'h>, k: usize) -> Result<Vec<usize>, Reply<'h>> {
+    let ds = match h.view(a) {
+        View::App { head, args } if head == h.sym_term(lib.s.list) => {
+            args.iter().map(|&d| count_operand(lib, h, t, d, k).map_err(|_| ())).collect::<Result<Vec<_>, ()>>()
+        }
+        _ => return count_operand(lib, h, t, a, k).map(|n| vec![n]),
+    };
+    let ds = ds.map_err(|()| match h.view(a) {
+        View::App { args, .. } if args.iter().any(|&d| matches!(h.view(d), View::Sym(_) | View::App { .. })) => {
+            Reply::Decline
+        }
+        _ => Reply::Done(lib.bad_arg(h, t, k)),
+    })?;
+    if ds.is_empty() {
+        return Err(Reply::Done(lib.bad_arg(h, t, k)));
+    }
+    if cells(&ds) > MAX_CELLS {
+        return Err(Reply::Done(lib.too_large(h, t)));
+    }
+    Ok(ds)
+}
+
+/// The argument slots of a rectangular nested list with dimensions `ds`: the elements of every level, saturating.
+pub(crate) fn cells(ds: &[usize]) -> u128 {
+    let (mut level, mut total) = (1u128, 0u128);
+    for &d in ds {
+        level = level.saturating_mul(d as u128);
+        total = total.saturating_add(level);
+    }
+    total
+}
+
+/// Nest the flat elements `xs` (row-major) into lists of dimensions `ds` (nonempty, product `xs.len()`).
+pub(crate) fn nest_flat<'h>(cx: &NativeCx<'_, '_, 'h>, mut xs: Vec<T<'h>>, ds: &[usize]) -> T<'h> {
+    if let Some(z) = ds.iter().position(|&d| d == 0) {
+        // no elements: the levels above the first empty one still have their lengths
+        let mut row = cx.list(&[]);
+        for &d in ds[..z].iter().rev() {
+            row = cx.list(&vec![row; d]);
+        }
+        return row;
+    }
+    for &d in ds.iter().skip(1).rev() {
+        xs = xs.chunks(d).map(|c| cx.list(c)).collect();
+    }
+    cx.list(&xs)
+}
+
+/// The values `f(x)` for every `x` of `xs`, evaluated as a group (like `map`). A failure among them is returned
+/// as `Err` (the result of the function that asked, decision I.11).
+pub(crate) fn keys<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    xs: &[T<'h>],
+) -> Res<Result<Vec<T<'h>>, T<'h>>> {
+    let h = cx.heap();
+    let cost = group_cost(cx, f);
+    let ks = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        cx.tick(1)?;
+        apply(cx, f, &[xs[i]])
+    })?;
+    Ok(match ks.iter().find(|&&k| lib.is_failure(h, k)) {
+        Some(&e) => Err(e),
+        None => Ok(ks),
+    })
+}
+
+/// The predicate `f(x)` as a decision: `Ok(true)` for `true`, `Ok(false)` for any other value, `Err` with a
+/// failure value (decision I.11).
+pub(crate) fn truth<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>) -> Res<Result<bool, T<'h>>> {
+    cx.tick(1)?;
+    let v = apply(cx, f, &[x])?;
+    Ok(if lib.is_failure(cx.heap(), v) { Err(v) } else { Ok(cx.is_true(v)) })
 }
 
 /// Evaluate the call `f(args...)` of a function-valued argument.

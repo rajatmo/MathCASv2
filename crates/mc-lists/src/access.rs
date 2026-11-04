@@ -46,6 +46,10 @@ pub(crate) fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     if idx.len() > MAX_INDICES {
         return Ok(Reply::Done(lib.bad_arg(h, t, MAX_INDICES + 2)));
     }
+    // an association is indexed by key, not by position: its argument-head rules decide (decision 1A.16)
+    if matches!(h.view(x), View::App { head, .. } if head == h.sym_term(lib.s.assoc)) {
+        return Ok(Reply::Decline);
+    }
     let mut rebuilt = false;
     match part_at(lib, cx, x, idx, &mut rebuilt)? {
         Ok(v) if rebuilt => Ok(Reply::Again(v)),

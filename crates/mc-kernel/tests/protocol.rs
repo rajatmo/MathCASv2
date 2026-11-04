@@ -229,7 +229,7 @@ fn completion_modules_and_reset() {
     assert!(fac.windows(2).all(|w| w[0] < w[1]), "sorted: {fac:?}");
     assert!(fac.iter().all(|n| n.starts_with("fac")), "{fac:?}");
     assert!(names(&mut k, 2, "euler_g").contains(&"euler_gamma".to_string()));
-    assert_eq!(names(&mut k, 3, "uniq"), ["unique"], "the prelude");
+    assert_eq!(names(&mut k, 3, "uniq"), ["unique", "unique_by"], "library functions");
     assert!(names(&mut k, 4, "pri").contains(&"print".to_string()), "a built-in");
     assert!(names(&mut k, 5, "my_").is_empty());
     let all = names(&mut k, 6, "");

@@ -1,5 +1,6 @@
-//! Constructors and iteration: `range`, `array`, `nest`, `nest_list`, `fold`, `fold_list`.
-use crate::ctx::{apply, group_cost, take, Lib, Meter, MAX_LEN};
+//! Constructors and iteration: `range`, `array`, `table`, `nest`, `nest_list`, `fold`, `fold_list`, and the maps
+//! `map_indexed`, `map_thread`, `scan`.
+use crate::ctx::{apply, count_operand, dims_operand, group_cost, nest_flat, take, Lib, Meter, MAX_CELLS, MAX_LEN};
 use mc_arith::{Kind, Num, Real};
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
@@ -112,26 +113,160 @@ fn int_range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: i64, b: 
     Ok(Reply::Done(cx.list(&out)))
 }
 
-/// `array(f, n)`: `[f(1), ..., f(n)]`, the calls evaluated as a group (like `map`).
+/// `array(f, n)`: `[f(1), ..., f(n)]`; `array(f, [n1, ..., nd])`: the nested lists of `f(i1, ..., id)`. The calls
+/// are evaluated as a group (like `map`).
 pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, n] = *args else {
         return Ok(Reply::Decline);
     };
-    let n = take!(lib.int_operand(h, t, n, 2));
-    if n < 0 {
-        return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
-    }
-    if n as u64 > MAX_LEN as u64 {
-        return Ok(Reply::Done(lib.too_large(h, t)));
-    }
+    let ds = take!(dims_operand(lib, h, t, n, 2));
+    let total: usize = ds.iter().product();
     let cost = group_cost(cx, f);
-    let out = cx.group(n as usize, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let ds_ = &ds;
+    let out = cx.group(total, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
         let h = cx.heap();
-        apply(cx, f, &[h.int(i as i64 + 1)])
+        // the multi-index of flat position i, row-major, 1-based
+        let mut ix = vec![h.int(0); ds_.len()];
+        let mut r = i;
+        for (k, &d) in ds_.iter().enumerate().rev() {
+            ix[k] = h.int((r % d) as i64 + 1);
+            r /= d;
+        }
+        apply(cx, f, &ix)
+    })?;
+    Ok(Reply::Done(nest_flat(cx, out, &ds)))
+}
+
+/// The values an iterator of `table` runs over: a list's elements, or `1, ..., n` for an integer `n` (none for
+/// `n <= 0`). A symbolic range declines.
+fn iterator_values<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    t: T<'h>,
+    r: T<'h>,
+    k: usize,
+) -> Res<Result<Vec<T<'h>>, Reply<'h>>> {
+    let h = cx.heap();
+    let r = cx.eval(r)?;
+    if let Some(xs) = cx.as_list(r) {
+        return Ok(Ok(xs.to_vec()));
+    }
+    Ok(match h.view(r) {
+        View::Int(n) if n as i128 > MAX_CELLS as i128 => Err(Reply::Done(lib.too_large(h, t))),
+        View::Int(n) => {
+            crate::ctx::charge_copy(cx, n.max(0) as usize)?;
+            Ok((1..=n).map(|i| h.int(i)).collect())
+        }
+        _ if lib.is_failure(h, r) => Err(Reply::Done(r)),
+        View::Sym(_) | View::App { .. } => Err(Reply::Decline),
+        _ => Err(Reply::Done(lib.bad_arg(h, t, k))),
+    })
+}
+
+/// `table(e, n)`: `e` evaluated `n` times; `table(e, k, r)`: the list of the values of `e` with `k` bound to each
+/// value of the range `r` (a list, or an integer `n` for `1, ..., n`); `table(e, k1, r1, k2, r2, ...)`: nested
+/// lists, the first iterator outermost, each range evaluated with the iterators before it bound. Every argument is
+/// held: `e` is the body of a closure `k => e` (lexical, hygienic: semantics 6.7), called on each value as a group
+/// like `map` (decision 1A.14).
+pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let (e, k, r) = match *args {
+        [e, n] => {
+            let n = cx.eval(n)?;
+            if lib.is_failure(h, n) {
+                return Ok(Reply::Done(n));
+            }
+            let n = take!(count_operand(lib, h, t, n, 2));
+            if n as u128 > MAX_CELLS {
+                return Ok(Reply::Done(lib.too_large(h, t)));
+            }
+            let out = cx.group(n, 0, &|cx: &mut NativeCx<'_, '_, 'h>, _| {
+                cx.tick(1)?;
+                cx.eval(e)
+            })?;
+            return Ok(Reply::Done(cx.list(&out)));
+        }
+        [e, k, r, ..] if args.len() % 2 == 1 => (e, k, r),
+        _ => return Ok(Reply::Decline),
+    };
+    if !matches!(h.view(k), View::Sym(_)) {
+        return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
+    }
+    let vs = take!(iterator_values(lib, cx, t, r, 3)?);
+    // the remaining iterators run inside the body
+    let body = if args.len() > 3 {
+        let mut inner = vec![e];
+        inner.extend_from_slice(&args[3..]);
+        h.call(lib.s.table, &inner)
+    } else {
+        e
+    };
+    let f = cx.eval(h.call(lib.s.fn_, &[cx.list(&[k]), body]))?;
+    let cost = group_cost(cx, f);
+    let vs_ = &vs;
+    let out = cx.group(vs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        cx.tick(1)?;
+        apply(cx, f, &[vs_[i]])
     })?;
     Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `map_indexed(f, xs)`: `[f(x1, 1), f(x2, 2), ...]`, each element with its position (an integer, decision
+/// 1A.15), evaluated as a group.
+pub(crate) fn map_indexed<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [f, xs] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 2));
+    let cost = group_cost(cx, f);
+    let out = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        cx.tick(1)?;
+        let h = cx.heap();
+        apply(cx, f, &[xs[i], h.int(i as i64 + 1)])
+    })?;
+    Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `map_thread(f, [xs, ys, ...])`: `[f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]`, evaluated as a group;
+/// lists of different lengths are `failure(shape_mismatch, map_thread)`.
+pub(crate) fn map_thread<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [f, xss] = *args else { return Ok(Reply::Decline) };
+    let xss = take!(lib.list_operand(h, t, xss, 2));
+    let mut lists = Vec::with_capacity(xss.len());
+    for &xs in xss {
+        let Some(xs) = cx.as_list(xs) else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+        if lists.first().is_some_and(|l: &&[T<'h>]| l.len() != xs.len()) {
+            return Ok(Reply::Done(lib.shape(h, t)));
+        }
+        lists.push(xs);
+    }
+    let n = lists.first().map_or(0, |l| l.len());
+    let cost = group_cost(cx, f);
+    let lists_ = &lists;
+    let out = cx.group(n, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        cx.tick(1)?;
+        let call: Vec<T<'h>> = lists_.iter().map(|l| l[i]).collect();
+        apply(cx, f, &call)
+    })?;
+    Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `scan(f, xs)`: `f(x)` evaluated for each element in order, for its effects (`print`, definitions); the value
+/// is `null`, or the first failure `f` gives (which ends the scan).
+pub(crate) fn scan<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [f, xs] = *args else { return Ok(Reply::Decline) };
+    let (_, xs) = take!(lib.operand(h, t, xs, 2));
+    for &x in xs {
+        cx.tick(1)?;
+        let v = apply(cx, f, &[x])?;
+        if lib.is_failure(h, v) {
+            return Ok(Reply::Done(v));
+        }
+    }
+    Ok(Reply::Done(cx.null()))
 }
 
 /// The count argument of `nest` and `nest_list`: a nonnegative machine integer.
