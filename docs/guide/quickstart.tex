@@ -379,7 +379,7 @@ a real function in one variable, the result is \emph{verified}: the ball is prov
 
 \begin{repl}
 mc> find_root(cos(x) == x, [x, 1], digits: 40)
-[x -> 0.739085133215160641655312087673873404013]
+[x -> 0.7390851332151606416553120876738734040134]
 mc> find_root(sin(x), [x, 3], digits: 60)
 [x -> 3.1415926535897932384626433832795028841971693993751058209749]
 \end{repl}
@@ -425,6 +425,133 @@ mc> find_root(d(f, x), [x, 2.5])
 \end{repl}
 
 \noindent When you need the position accurately, solve $f'(x) = 0$ with \code{find\_root}, as on the last line.
+
+\section{Numeric integration}
+
+Many integrals have no closed form that \code{integrate} can find; it then leaves them as they are.
+\code{n\_integrate(f, [x, a, b])} computes their value numerically.
+
+\begin{repl}
+mc> integrate(exp(-x^2), [x, 0, 1])
+integrate(exp(-x^2), [x, 0, 1])
+mc> n_integrate(exp(-x^2), [x, 0, 1])
+0.7468241328124272
+mc> n_integrate(exp(-x^2), [x, -inf, inf])
+1.7724538509055163
+\end{repl}
+
+\noindent (The last one is $\sqrt\pi$.) By default the integrand is compiled, the interval is split adaptively
+where the integrand is hard (Gauss--Kronrod rules), and the result is good to about eight digits relative,
+usually to all sixteen. Singularities at the ends are handled by a second method (double-exponential rules),
+chosen automatically:
+
+\begin{repl}
+mc> n_integrate(1/sqrt(x), [x, 0, 1])
+1.9999999999999998
+mc> n_integrate(log(x)^2, [x, 0, 1])
+2.0
+\end{repl}
+
+\paragraph{Ranges.} \code{inf} and \code{-inf} are allowed as limits. List known trouble spots inside the range
+between the limits, \code{[x, a, s1, s2, b]}, to split there. More ranges give a multiple integral; inner limits
+may depend on outer variables:
+
+\begin{repl}
+mc> n_integrate(1/(1 + x^2), [x, -1, 0, 1])
+1.5707963267948966
+mc> n_integrate(x*y, [x, 0, 1], [y, 0, x])
+0.12500000000000003
+\end{repl}
+
+\paragraph{Many digits, and guarantees.} \code{digits: d} integrates on balls to \code{d} digits. The error is
+then estimated, not proved; add \code{rigorous: true} for a ball that is guaranteed to contain the integral
+(for integrands built from the elementary functions, on a finite range).
+
+\begin{repl}
+mc> n_integrate(exp(-x^2), [x, 0, 1], digits: 40)
+0.746824132812427025399467436131853005354500
+mc> n_integrate(exp(-x^2), [x, 0, 1], digits: 30, rigorous: true)
+0.74682413281242702539946743613185
+\end{repl}
+
+\paragraph{When it fails.} A divergent integral or one that cannot reach the goal gives a failure with the
+estimate and the error estimate, as \code{find\_root} does:
+
+\begin{repl}
+mc> n_integrate(1/x, [x, 0, 1])
+failure(not_converged, n_integrate, 44.501326166534795, 13.112269516493784)
+\end{repl}
+
+\noindent Other options: \code{accuracy\_goal} and \code{precision\_goal} (in digits); \code{method}, either
+\code{gauss\_kronrod} or \code{double\_exponential}; \code{max\_subdivisions}; and \code{compile: false}.
+
+\section{Differential equations}
+
+\code{n\_dsolve(equations, unknowns, [t, t0, t1])} solves ordinary differential equations numerically. Write the
+equations with primes and give the initial conditions as equations too. The result is a list of rules, like
+\code{find\_root}'s: each unknown becomes an \code{interpolating\_function}, a function you can evaluate anywhere
+in the range.
+
+\begin{repl}
+mc> sol = n_dsolve([y'(t) == -y(t)/2, y(0) == 1], y, [t, 0, 10])
+mc> sol
+[y -> interpolating_function("y", [0.0, 10.0], 39, "66d23807a7863f0f")]
+mc> rewrite(y(2), sol)
+0.3678794417481203
+mc> rewrite(y([0, 1, 2]), sol)
+[1.0, 0.6065306598001193, 0.3678794417481203]
+\end{repl}
+
+\noindent The summary shows the range and the number of steps taken (39). The exact value $e^{-1}$ is
+0.36787944117144233: by default the solution is accurate to about eight digits; ask for more with
+\code{precision\_goal: 12}. Evaluating outside the range gives \code{failure(out\_of\_range, ...)}.
+
+\paragraph{Higher order and systems.} Second and higher derivatives are written with more primes; systems list
+their unknowns. Products must be written with \code{*} (\code{x(t)*y(t)}: \code{x(t) y(t)} or
+\code{x(t)(28 - z(t))} would read as a call). The Lorenz system:
+
+\begin{lstlisting}
+lor = n_dsolve([x'(t) == 10*(y(t) - x(t)),
+                y'(t) == x(t)*(28 - z(t)) - y(t),
+                z'(t) == x(t)*y(t) - 8*z(t)/3,
+                x(0) == 1, y(0) == 1, z(0) == 1], [x, y, z], [t, 0, 20])
+\end{lstlisting}
+\begin{repl}
+mc> rewrite([x(20), y(20), z(20)], lor)
+[13.804638918840993, 12.968730181543803, 34.912416415052746]
+\end{repl}
+
+\paragraph{Stiff equations.} Some equations mix very fast and very slow behaviour; explicit methods then crawl.
+\code{n\_dsolve} notices this and switches to an implicit method (\code{method: stiff} forces it). The Van der Pol
+oscillator with $\mu = 1000$ is a classic test:
+
+\begin{repl}
+mc> vdp = n_dsolve([v''(t) == 1000*(1 - v(t)^2)*v'(t) - v(t), v(0) == 2, v'(0) == 0], v, [t, 0, 3000])
+mc> vdp
+[v -> interpolating_function("v", [0.0, 3000.0], 2920, "8caf0157fb22950b")]
+\end{repl}
+
+\noindent That took about 5 ms. The right-hand side is compiled, as for \code{n\_integrate}.
+
+\paragraph{Events.} \code{events: [g == 0]} stops the integration where \code{g} crosses zero: here, when a
+dropped ball reaches the ground. The rules then also say where it stopped.
+
+\begin{repl}
+mc> fall = n_dsolve([h''(t) == -9.81, h(0) == 10, h'(0) == 0], h, [t, 0, 5], events: [h(t) == 0])
+mc> fall
+[h -> interpolating_function("h", [0.0, 1.4278431229270643], 4, "196ff5f967e63e16"), events -> [[1.4278431229270643, 1]]]
+\end{repl}
+
+\paragraph{One value, many digits.} \code{n\_dsolve\_value(equations, expr, range)} gives the value of an
+expression of the solution directly. With \code{digits: d} it switches to a Taylor-series method on balls. The
+equation $y' = 1 + y^2$, $y(0) = 0$ has the solution $\tan t$:
+
+\begin{repl}
+mc> n_dsolve_value([y'(t) == 1 + y(t)^2, y(0) == 0], y(3/2), [t, 0, 3/2], digits: 30)
+14.10141994717171938764608365199
+mc> n(tan(3/2), 30)
+14.10141994717171938764608365198776
+\end{repl}
 
 \section{Fast numeric loops: the compiler}
 
@@ -523,8 +650,29 @@ mc> 4.0*count_if(range(100000), k => random_real()^2 + random_real()^2 < 1)/1000
 \end{repl}
 
 \noindent The error of such an estimate shrinks like $1/\sqrt{N}$: a hundred times more points for one more
-digit. (Compiled code cannot draw random numbers yet, so simulations like this one run interpreted; this is
-being added.)
+digit. So simulations want speed: compiled functions can draw random numbers, and draw exactly the numbers
+the interpreter would.
+
+\begin{lstlisting}
+@compiled fn mc_pi(k: Int) = {
+  var hits = 0
+  for i in range(k) {
+    let a = random_real()
+    let b = random_real()
+    if a*a + b*b < 1.0 then hits = hits + 1 else hits
+  }
+  4.0*hits/k
+}
+\end{lstlisting}
+\begin{repl}
+mc> seed(7)
+mc> mc_pi(10^7)
+3.140728
+\end{repl}
+
+\noindent Ten million points take about a quarter of a second. Compiled code also handles complex numbers
+(\code{complex(x, y)}, \code{im}, arithmetic, \code{abs}, \code{exp} and the other elementary functions): a
+Mandelbrot escape-time loop compiles.
 
 \section{Failures, limits and interrupts}
 
@@ -562,6 +710,8 @@ takes too long. MathCAS reports all of these as values instead of crashing or ha
 \code{series(f, x, x0, k)} & power series to order \code{k} \\
 \code{find\_root(f, [x, x0])} and variants & roots (Newton, secant, Brent, systems, complex) \\
 \code{find\_minimum}, \code{find\_maximum} & local extrema (Brent, BFGS) \\
+\code{n\_integrate(f, [x, a, b])} & numeric integral (also infinite and multiple ranges) \\
+\code{n\_dsolve(eqs, y, [t, t0, t1])}, \code{n\_dsolve\_value} & differential equations \\
 \code{nest(f, x, k)}, \code{nest\_list(f, x, k)} & iterate a function \\
 \code{range}, \code{table}, \code{map}, \code{sum}, \code{total} & build and reduce lists \\
 \code{@compiled fn}, \code{compile(f)}, \code{compiled\_info(f)} & compile to machine code, inspect \\
@@ -573,9 +723,7 @@ takes too long. MathCAS reports all of these as values instead of crashing or ha
 
 \section{Coming next}
 
-Numeric integration (\code{n\_integrate}, for integrals with no closed form such as
-$\int_0^1 e^{-x^2}\,dx$, which \code{integrate} leaves unevaluated today), differential equations
-(\code{n\_dsolve}), compiled random numbers and complex arithmetic, packed numeric arrays, and plots. Special
-functions (\code{gamma}, \code{zeta}, Bessel functions), linear algebra and equation solving follow after.
+Packed numeric arrays (long lists of numbers stored compactly and computed on directly), plots, and then
+special functions (\code{gamma}, \code{zeta}, Bessel functions), linear algebra and equation solving.
 
 \end{document}
