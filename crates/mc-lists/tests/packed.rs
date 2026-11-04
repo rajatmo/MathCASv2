@@ -21,7 +21,7 @@ impl Rng {
             [0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::MAX, f64::MIN_POSITIVE / 4.0, 1e300, -1e-300, 0.1];
         match self.next() % 8 {
             0 => SPECIAL[(self.next() % 9) as usize],
-            1 => f64::from_bits(self.next()).abs().min(1e308) * if self.next() % 2 == 0 { 1.0 } else { -1.0 },
+            1 => f64::from_bits(self.next()).abs().min(1e308) * if self.next().is_multiple_of(2) { 1.0 } else { -1.0 },
             _ => (self.next() % 2001) as f64 / 8.0 - 125.0,
         }
     }
@@ -83,7 +83,7 @@ fn element_wise_arithmetic_is_the_threaded_result() {
                 }
             };
             let (ka, kb) = (round % 4, (round / 4) % 4);
-            let (ka, kb) = if ka >= 2 && kb >= 2 { (0, kb) } else { (ka as u64, kb as u64) };
+            let (ka, kb) = if ka >= 2 && kb >= 2 { (0, kb) } else { (ka, kb) };
             let (a, b) = (make(ka), make(kb));
             for op in [add, mul] {
                 let got = eval(h, k, h.call(op, &[a, b]));

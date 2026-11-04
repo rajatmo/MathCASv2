@@ -17,5 +17,7 @@ rustc-hash = "2"
 [dev-dependencies]
 # the tests evaluate source text on the assembled core
 mc-engine = { path = "../mc-engine" }
+# the engine trait, for the measurement example
+mc-bench = { path = "../mc-bench" }
 num-bigint = "0.4"
 num-traits = "0.2"

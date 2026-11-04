@@ -54,11 +54,13 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let mut m = Meter::default();
     if kind == Kind::Machine {
         // machine reals straight into a packed payload (decision N4a.9): the same elements as below
+        // `a + k*step` in machine arithmetic, as `Real::add` and `Real::mul` compute it for machine reals (k below
+        // 2^28 converts exactly)
+        let (a, s) = (a.to_f64(), s.to_f64());
         let mut out = Vec::with_capacity(n);
         for k in 0..n {
             m.step(cx)?;
-            let x = if k == 0 { a.clone() } else { a.add(&Real::int(k as i64).mul(&s)) };
-            out.push(x.to_f64());
+            out.push(if k == 0 { a } else { a + k as f64 * s });
         }
         return Ok(Reply::Done(h.reals(&out)));
     }
