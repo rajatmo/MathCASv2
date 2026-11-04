@@ -42,7 +42,7 @@ pub fn factor(p: &Poly, square_free_only: bool, m: &mut Meter) -> WorkResult<Fac
                 factors.push((Poly::var(nv, v), k));
             }
         }
-        rest = rest.div_exact(&Poly::monomial(&low, Z::ONE), m)?.expect("a monomial content divides");
+        rest = crate::work::exact(rest.div_exact(&Poly::monomial(&low, Z::ONE), m)?, "a monomial content divides")?;
     }
     // contents with respect to each variable split the polynomial into parts in fewer variables
     let mut work = vec![rest];
@@ -58,7 +58,7 @@ pub fn factor(p: &Poly, square_free_only: bool, m: &mut Meter) -> WorkResult<Fac
         for &v in &used {
             let c = content_in(&q, v, m)?;
             if !c.is_constant() {
-                let pp = q.div_exact(&c, m)?.expect("the content divides");
+                let pp = crate::work::exact(q.div_exact(&c, m)?, "the content divides")?;
                 work.push(c);
                 work.push(pp);
                 split = true;
@@ -129,7 +129,7 @@ fn content_in(q: &Poly, v: usize, m: &mut Meter) -> WorkResult<Poly> {
 /// no content in v): (s_i, i) with q = prod s_i^i up to sign, the s_i square-free and pairwise coprime.
 fn square_free(q: &Poly, v: usize, m: &mut Meter) -> WorkResult<Vec<(Poly, u32)>> {
     let div =
-        |a: &Poly, b: &Poly, m: &mut Meter| -> WorkResult<Poly> { Ok(a.div_exact(b, m)?.expect("an exact division")) };
+        |a: &Poly, b: &Poly, m: &mut Meter| -> WorkResult<Poly> { crate::work::exact(a.div_exact(b, m)?, "an exact division") };
     let mut out = vec![];
     let d = q.derivative(v);
     let a0 = gcd(q, &d, m)?.primitive().1;

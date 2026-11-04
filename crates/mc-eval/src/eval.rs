@@ -228,8 +228,9 @@ pub struct Kernel {
 
 /// The implementation in a symbol's native slot.
 pub(crate) enum Impl {
-    /// a native function, and whether it reads its call term ([`Native::reads_term`])
-    Native { native: Box<dyn Native>, reads_term: bool },
+    /// a native function, whether it reads its call term ([`Native::reads_term`]) and whether it takes curried
+    /// calls ([`Native::curried`])
+    Native { native: Box<dyn Native>, reads_term: bool, curried: bool },
     /// a language form the evaluator runs as frames of its stack ([`crate::lang`])
     Form(Form),
 }
@@ -331,7 +332,8 @@ impl Kernel {
     /// Give symbol `s` a native implementation (and its attributes). See [`Native`].
     pub fn register(&mut self, s: Sym, a: Attributes, native: Box<dyn Native>) {
         let reads_term = native.reads_term();
-        self.register_impl(s, a, Impl::Native { native, reads_term });
+        let curried = native.curried();
+        self.register_impl(s, a, Impl::Native { native, reads_term, curried });
     }
 
     /// Make `s` a language form run as frames of the evaluation stack.

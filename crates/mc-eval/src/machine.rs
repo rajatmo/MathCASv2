@@ -20,7 +20,7 @@ use crate::eval::{bit, sym_of, Abort, Cx, Eval, Impl, Res, Step};
 use crate::lang::{self, BlockState, ForState, WhileState};
 use crate::native::{NativeCx, Reply};
 use crate::ctl::Status;
-use mc_core::{Store, View, T};
+use mc_core::{Heap, Store, Sym, View, T};
 use std::sync::atomic::Ordering::*;
 
 /// Native-callback nesting beyond which groups are no longer split (the split path evaluates its elements through
@@ -438,11 +438,16 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// that does not read its term is called before the call is built (decision 1a.6).
     fn call(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>, head: T<'h>, vals: &[T<'h>], changed: bool) -> Go<'h> {
         let h = self.heap;
-        let native = sym_of(h, head)
-            .and_then(|s| self.k.defs.get(s))
-            .map(|sd| sd.native.load(Acquire))
-            .filter(|&n| n != 0)
-            .map(|n| &self.k.natives[n as usize - 1]);
+        let native_of = |s: Sym| {
+            self.k.defs.get(s).map(|sd| sd.native.load(Acquire)).filter(|&n| n != 0).map(|n| &self.k.natives[n as usize - 1])
+        };
+        let native = match sym_of(h, head) {
+            Some(s) => native_of(s),
+            // a curried call `f(a..)(b..)`: the native of the innermost head symbol, if it takes such calls
+            None => innermost_head(h, head)
+                .and_then(native_of)
+                .filter(|n| matches!(n, Impl::Native { curried: true, .. })),
+        };
         match native {
             Some(Impl::Form(form)) => {
                 if changed {
@@ -454,9 +459,11 @@ impl<'k, 'h> Eval<'k, 'h> {
                 let r = lang::start(&mut NativeCx { ev: self, cx }, *form, args);
                 Go::Next(self.form_out(cx, r))
             }
-            Some(Impl::Native { native, reads_term }) => {
+            Some(Impl::Native { native, reads_term, curried }) => {
+                // a curried call is always built: its native reads the head from the term
+                let reads_term = *reads_term || *curried;
                 let early = changed && !reads_term;
-                if changed && *reads_term {
+                if changed && reads_term {
                     e.t = h.app(head, vals);
                 }
                 let t = e.t;
@@ -645,5 +652,16 @@ impl<'k, 'h> Eval<'k, 'h> {
             cx.vals.truncate(base as usize);
         }
         Next::Err(a)
+    }
+}
+
+/// The innermost head symbol of a curried head `f(a..)(b..)...` (the head of a call whose head is compound).
+fn innermost_head<'h>(h: &'h Heap, mut t: T<'h>) -> Option<Sym> {
+    loop {
+        match h.view(t) {
+            View::App { head, .. } => t = head,
+            View::Sym(s) => return Some(s),
+            _ => return None,
+        }
     }
 }
