@@ -54,7 +54,7 @@ impl Library {
     /// Every library list, the evaluator's natives and the prelude.
     pub fn new() -> Library {
         let mut entries = BTreeMap::new();
-        let lists = [CORE, mc_lists::FUNCTIONS, mc_assoc::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_calculus::FUNCTIONS, mc_strings::FUNCTIONS, mc_roots::FUNCTIONS, mc_simplify::FUNCTIONS, mc_random::FUNCTIONS];
+        let lists = [CORE, mc_lists::FUNCTIONS, mc_assoc::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_calculus::FUNCTIONS, mc_strings::FUNCTIONS, mc_roots::FUNCTIONS, mc_ode::FUNCTIONS, mc_simplify::FUNCTIONS, mc_random::FUNCTIONS];
         for (name, desc) in lists.iter().flat_map(|l| l.iter()) {
             let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None };
             entries.entry(name.to_string()).or_insert(e);

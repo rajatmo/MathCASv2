@@ -524,6 +524,7 @@ dependencies = [
  "mc-load",
  "mc-numeric",
  "mc-numtheory",
+ "mc-ode",
  "mc-poly",
  "mc-random",
  "mc-roots",
@@ -608,6 +609,7 @@ dependencies = [
  "mc-load",
  "mc-numeric",
  "mc-numtheory",
+ "mc-ode",
  "mc-poly",
  "mc-random",
  "mc-roots",
@@ -660,6 +662,22 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "rayon",
+]
+
+[[package]]
+name = "mc-ode"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-numeric",
+ "mc-numfn",
+ "parking_lot",
+ "rustc-hash",
 ]
 
 [[package]]
