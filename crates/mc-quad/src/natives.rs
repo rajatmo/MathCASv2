@@ -99,13 +99,16 @@ fn point<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, t: T<'h>, inne
     Ok(inner.then_some(Point::Expr(t)))
 }
 
+/// The variables of the ranges and the points of each.
+type Ranges<'h> = (Vec<Sym>, Vec<Vec<Point<'h>>>);
+
 /// The ranges (arguments 2, 3, ...): a variable and at least two points each; infinities only at the ends;
 /// distinct variables. `Err(k)`: argument k is malformed.
 fn ranges<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     ar: &Arith<'h, Heap>,
     specs: &[T<'h>],
-) -> Res<Result<(Vec<Sym>, Vec<Vec<Point<'h>>>), usize>> {
+) -> Res<Result<Ranges<'h>, usize>> {
     let mut vars = Vec::new();
     let mut out = Vec::new();
     for (i, &s) in specs.iter().enumerate() {

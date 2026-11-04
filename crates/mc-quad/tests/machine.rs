@@ -19,13 +19,13 @@ fn classic_cases() {
         ("n_integrate(exp(x), [x, -inf, 0])", 1.0, 1e-13),
         ("n_integrate(1/x^2, [x, 1, inf])", 1.0, 1e-13),
         // sin(x)/x is 0/0 at 0: Si(100)
-        ("n_integrate(sin(x)/x, [x, 0, 100])", 1.5622254668890562934, 1e-13),
+        ("n_integrate(sin(x)/x, [x, 0, 100])", 1.562_225_466_889_056_3, 1e-13),
         // a near-singular peak of width 1e-4
-        ("n_integrate(1/((x - 0.3)^2 + 1e-8), [x, 0, 1])", 31411.164631269202577, 1e-13),
+        ("n_integrate(1/((x - 0.3)^2 + 1e-8), [x, 0, 1])", 31_411.164_631_269_203, 1e-13),
         // an interior singularity at a splitting point
-        ("n_integrate(log(abs(x - 0.3)), [x, 0, 0.3, 1])", -1.6108643020548934630, 1e-13),
+        ("n_integrate(log(abs(x - 0.3)), [x, 0, 0.3, 1])", -1.610_864_302_054_893_4, 1e-13),
         // oscillatory: about 500 periods
-        ("n_integrate(exp(-x)*cos(1000*x), [x, 0, pi])", 9.567851249511027991e-7, 1e-15),
+        ("n_integrate(exp(-x)*cos(1000*x), [x, 0, pi])", 9.567_851_249_511_027e-7, 1e-15),
         ("n_integrate(x^2, [x, 0, 3])", 9.0, 1e-15),
         ("n_integrate(x^2, [x, 3, 0])", -9.0, 1e-15),
         ("n_integrate(cos(x), [x, 0, pi/2])", 1.0, 1e-15),

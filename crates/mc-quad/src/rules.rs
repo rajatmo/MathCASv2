@@ -106,13 +106,15 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
         let piv = (col..n).max_by(|&i, &j| a[i][col].abs().total_cmp(&a[j][col].abs())).expect("rows");
         a.swap(col, piv);
         b.swap(col, piv);
-        for row in col + 1..n {
-            let f = a[row][col] / a[col][col];
+        let (top, rest) = a.split_at_mut(col + 1);
+        let pivot = &top[col];
+        for (i, r) in rest.iter_mut().enumerate() {
+            let f = r[col] / pivot[col];
             if f != 0.0 {
-                for k in col..n {
-                    a[row][k] -= f * a[col][k];
+                for (x, &p) in r[col..].iter_mut().zip(&pivot[col..]) {
+                    *x -= f * p;
                 }
-                b[row] -= f * b[col];
+                b[col + 1 + i] -= f * b[col];
             }
         }
     }
@@ -128,7 +130,7 @@ fn solve(mut a: Vec<Vec<f64>>, mut b: Vec<f64>) -> Vec<f64> {
 pub fn gauss_kronrod(n: usize) -> Rule {
     let (gx, gw) = gauss_legendre(n);
     // E_{n+1} = P_{n+1} + sum_j c_j P_j with j of the parity of n + 1; orthogonal to P_n P_k for odd k <= n
-    let js: Vec<usize> = (0..=n).filter(|j| (j + n + 1) % 2 == 0).collect();
+    let js: Vec<usize> = (0..=n).filter(|j| (j + n + 1).is_multiple_of(2)).collect();
     let ks: Vec<usize> = (0..=n).filter(|k| k % 2 == 1).collect();
     debug_assert_eq!(js.len(), ks.len());
     let a: Vec<Vec<f64>> = ks.iter().map(|&k| js.iter().map(|&j| triple(n, j, k)).collect()).collect();
@@ -272,12 +274,12 @@ mod tests {
         // QUADPACK's qk15 table (the largest nodes and their weights)
         let r = gk15();
         let near = |a: f64, b: f64| (a - b).abs() < 2e-16;
-        assert!(near(r.nodes[14], 0.991455371120812639206854697526329));
-        assert!(near(r.nodes[13], 0.949107912342758524526189684047851));
-        assert!(near(r.kronrod[14], 0.022935322010529224963732008058970));
-        assert!(near(r.kronrod[7], 0.209482141084727828012999174891714));
-        assert!(near(r.gauss[13], 0.129484966168869693270611432679082));
-        assert!(near(r.gauss[7], 0.417959183673469387755102040816327));
+        assert!(near(r.nodes[14], 0.991_455_371_120_812_6));
+        assert!(near(r.nodes[13], 0.949_107_912_342_758_5));
+        assert!(near(r.kronrod[14], 0.022_935_322_010_529_224));
+        assert!(near(r.kronrod[7], 0.209_482_141_084_727_82));
+        assert!(near(r.gauss[13], 0.129_484_966_168_869_7));
+        assert!(near(r.gauss[7], 0.417_959_183_673_469_4));
         assert_eq!(gk61().len(), 61);
     }
 }
