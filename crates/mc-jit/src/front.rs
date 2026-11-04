@@ -209,6 +209,7 @@ fn run<'h>(
         nodes: 0,
         numeric,
         consts: [(h.sym("pi"), std::f64::consts::PI), (h.sym("e"), std::f64::consts::E)],
+        im: h.sym("im"),
     };
     let mut words = vec![];
     for &(s, a) in params {
@@ -457,6 +458,8 @@ struct Fe<'h, 's> {
     /// `pi` and `e` in that body are their machine reals (decision N0.1)
     numeric: bool,
     consts: [(Sym, f64); 2],
+    /// the imaginary unit `im` (the exact `complex(0, 1)`)
+    im: Sym,
 }
 
 fn int(e: E, t: Ty) -> Res<E> {
@@ -657,7 +660,7 @@ impl<'h> Fe<'h, '_> {
                                 Ok(Val::S(E::Num(NumOp::Pow, vec![Opd::Real(x), Opd::Ratio(E::Int(1), E::Int(2))]), Ty::Real))
                             }
                             Val::C(a, b) => Ok(self.pair(Pair::Num(NumOp::Pow, vec![Opd::Complex(a, b), Opd::Ratio(E::Int(1), E::Int(2))]))),
-                            _ => Err("`sqrt` of an exact, boolean or list value (the result stays exact)".into()),
+                            _ => Err("`sqrt` of an exact or boolean value (the result stays exact)".into()),
                         }
                     }
                     Some(Prim::Math(f)) => {
@@ -665,7 +668,7 @@ impl<'h> Fe<'h, '_> {
                         match self.value(args[0])? {
                             Val::S(x, Ty::Real) => Ok(Val::S(E::Math(f, b(x)), Ty::Real)),
                             Val::C(a, b) => Ok(self.pair(Pair::Math(f, a, b))),
-                            _ => Err(format!("`{}` of an exact, boolean or list value (the result stays exact)", f.name())),
+                            _ => Err(format!("`{}` of an exact or boolean value (the result stays exact)", f.name())),
                         }
                     }
                     Some(p @ (Prim::Re | Prim::ImPart | Prim::Conjugate)) => {
@@ -856,6 +859,9 @@ impl<'h> Fe<'h, '_> {
 
     /// An exact complex literal `complex(a, b)` with integer parts (`im` is `complex(0, 1)`), if `t` is one.
     fn exact_complex(&self, t: T<'h>) -> Res<Option<Operand>> {
+        if let View::Sym(s) = self.h.view(t) {
+            return Ok((s == self.im && self.lookup(s).is_none()).then_some(Operand::CExact(0, 1)));
+        }
         let Some((Prim::Complex, [re, im])) = self.prim_of(t) else { return Ok(None) };
         Ok(match (self.h.view(*re), self.h.view(*im)) {
             (View::Int(a), View::Int(b)) => Some(Operand::CExact(a, b)),

@@ -2,9 +2,11 @@
 //! LIR interpreter and on Cranelift's code, for arguments that include the ends of `i64`, signed zeros, infinities
 //! and NaN; and every operation that can decline does so on both at the same operands.
 use mc_eval::Control;
-use mc_jit::ir::{BOp, Cc, FOp, Func, IOp, Lib, NumOp, Opd, Ty, E, S};
+use mc_jit::ir::{BOp, Cc, Draw, FOp, Func, IOp, Lib, NumOp, Opd, Pair, Ty, E, S};
 use mc_jit::ir::NETWORKS;
-use mc_jit::rt::{from_order_key, num_words, order_key, Exit, OPD_INT, OPD_RATIO, OPD_REAL};
+use mc_jit::rt::{cmath_value, cnum_words, from_order_key, num_words, order_key, Exit, OPD_CEXACT, OPD_COMPLEX, OPD_INT, OPD_RATIO, OPD_REAL};
+use mc_random::draw::{normal_ok, real_range_ok};
+use mc_random::Stream;
 use mc_jit::{build, Backend, Built};
 
 /// A small deterministic generator (xorshift64*).
@@ -546,4 +548,245 @@ fn order_keys_follow_the_canonical_order() {
             }
         }
     }
+}
+
+/// An operand kind of [`check_cnum`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CKind {
+    /// a machine complex number (two real parameters)
+    C,
+    /// a machine real
+    R,
+    /// an integer
+    I,
+    /// an exact complex constant with integer parts
+    X(i64, i64),
+}
+
+/// The pair `(re, im)` a function with two outputs wrote, or `None` when it declined.
+fn run_pair(f: &Built, args: &[u64]) -> Option<(f64, f64)> {
+    let ctl = Control::default();
+    ctl.fuel.store(i64::MAX / 2, std::sync::atomic::Ordering::Relaxed);
+    let mut out = [0u64; 2];
+    let (_, exit) = f.call_out(&ctl, args, &mut out, &mut |_| true);
+    (exit == Exit::Done).then(|| (f64::from_bits(out[0]), f64::from_bits(out[1])))
+}
+
+fn same_pair(x: Option<(f64, f64)>, y: Option<(f64, f64)>) -> bool {
+    match (x, y) {
+        (Some(a), Some(b)) => same_real(Some(a.0), Some(b.0)) && same_real(Some(a.1), Some(b.1)),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+/// `op` of operands of the kinds `kinds` as an [`S::Pair`] on both back ends against the arithmetic
+/// (`rt::cnum_words`, that is `mc_arith::Num`), for `tuples` random arguments; returns (done, declined).
+fn check_cnum(op: NumOp, kinds: &[CKind], r: &mut Rng, tuples: usize) -> (usize, usize) {
+    let mut vars = vec![];
+    let mut opds = vec![];
+    for &k in kinds {
+        let v = vars.len() as u32;
+        match k {
+            CKind::C => {
+                vars.extend([Ty::Real, Ty::Real]);
+                opds.push(Opd::Complex(E::Var(v), E::Var(v + 1)));
+            }
+            CKind::R => {
+                vars.push(Ty::Real);
+                opds.push(Opd::Real(E::Var(v)));
+            }
+            CKind::I => {
+                vars.push(Ty::Int);
+                opds.push(Opd::Int(E::Var(v)));
+            }
+            CKind::X(a, b) => opds.push(Opd::CExact(E::Int(a), E::Int(b))),
+        }
+    }
+    let np = vars.len() as u32;
+    vars.extend([Ty::Real, Ty::Real]);
+    let params = (0..np).collect();
+    let body = vec![S::Pair(np, np + 1, Pair::Num(op, opds)), S::Out(0, E::Var(np)), S::Out(1, E::Var(np + 1))];
+    let f = Func { name: "c".into(), vars: vars.clone(), params, body, ret: E::Int(0) };
+    let built = [Backend::Interpreter, Backend::Cranelift].map(|be| build(&f, vec![], be).unwrap());
+    let (mut done, mut declined) = (0, 0);
+    for _ in 0..tuples {
+        let args: Vec<u64> =
+            vars[..np as usize].iter().map(|t| if *t == Ty::Real { r.real().to_bits() } else { r.opd_int() as u64 }).collect();
+        let mut words = vec![];
+        let mut at = 0;
+        for &k in kinds {
+            match k {
+                CKind::C => {
+                    words.extend([OPD_COMPLEX, args[at], args[at + 1]]);
+                    at += 2;
+                }
+                CKind::R => {
+                    words.extend([OPD_REAL, args[at], 0]);
+                    at += 1;
+                }
+                CKind::I => {
+                    words.extend([OPD_INT, args[at], 0]);
+                    at += 1;
+                }
+                CKind::X(a, b) => words.extend([OPD_CEXACT, a as u64, b as u64]),
+            }
+        }
+        let want = cnum_words(op, &words);
+        for b in &built {
+            let got = run_pair(b, &args);
+            assert!(same_pair(want, got), "{op:?} {kinds:?} on {args:x?}: arithmetic {want:?}, compiled {got:?} ({:?})", b.info.back_end);
+        }
+        if want.is_some() {
+            done += 1;
+        } else {
+            declined += 1;
+        }
+    }
+    (done, declined)
+}
+
+#[test]
+fn complex_pairs_are_the_arithmetics() {
+    let mut r = Rng(0x5eed_c0de_1234_5678);
+    use CKind::{C, I, R, X};
+    let shapes: &[&[CKind]] = &[
+        &[C, C],
+        &[C, R],
+        &[R, C],
+        &[C, I],
+        &[C, C, C],
+        &[C, R, C, I],
+        &[X(0, 1), R, R],
+        &[X(2, -3), C, C],
+        &[C, C, C, C, C],
+    ];
+    let (mut done, mut declined) = (0, 0);
+    for kinds in shapes {
+        for op in [NumOp::Sum, NumOp::Product] {
+            let (d, n) = check_cnum(op, kinds, &mut r, 500);
+            done += d;
+            declined += n;
+        }
+    }
+    // powers: complex bases to integer, real and complex exponents; real and integer bases to complex exponents
+    for kinds in [[C, I], [C, R], [C, C], [R, C], [I, C], [C, X(0, 1)]] {
+        let (d, n) = check_cnum(NumOp::Pow, &kinds, &mut r, 2000);
+        done += d;
+        declined += n;
+    }
+    assert!(done > 10_000 && declined > 100, "{done} done, {declined} declined");
+}
+
+#[test]
+fn complex_functions_are_mc_numerics() {
+    let mut r = Rng(31337);
+    for f in Lib::ALL {
+        let body = vec![S::Pair(2, 3, Pair::Math(f, E::Var(0), E::Var(1))), S::Out(0, E::Var(2)), S::Out(1, E::Var(3))];
+        let func = Func { name: "m".into(), vars: vec![Ty::Real; 4], params: vec![0, 1], body, ret: E::Int(0) };
+        let built = [Backend::Interpreter, Backend::Cranelift].map(|be| build(&func, vec![], be).unwrap());
+        for _ in 0..2000 {
+            let (x, y) = (r.real(), r.real());
+            let want = Some(cmath_value(f, x, y));
+            for bt in &built {
+                let got = run_pair(bt, &[x.to_bits(), y.to_bits()]);
+                assert!(same_pair(want, got), "{f:?} at {x:e} {y:e}: {want:?} vs {got:?} ({:?})", bt.info.back_end);
+            }
+        }
+    }
+}
+
+#[test]
+fn negation_flips_the_sign() {
+    let f = Func { name: "n".into(), vars: vec![Ty::Real], params: vec![0], body: vec![], ret: E::NegF(b(E::Var(0))) };
+    let built = [Backend::Interpreter, Backend::Cranelift].map(|be| build(&f, vec![], be).unwrap());
+    for &x in SPECIAL {
+        for bt in &built {
+            let (v, exit) = run(bt, &[x.to_bits()]);
+            assert_eq!(exit, Exit::Done);
+            assert!(same_real(Some(-x), Some(f64::from_bits(v))), "-{x:e}");
+            if !x.is_nan() {
+                assert_eq!(v, (-x).to_bits());
+            }
+        }
+    }
+}
+
+#[test]
+fn draws_are_the_streams() {
+    // a loop drawing reals, normals and integers with arguments that include ranges the natives refuse: the values
+    // are the stream's own conversions, and a refused range declines
+    let mut r = Rng(99);
+    // params a, b (reals), lo, hi, n (ints); locals: the sums s (reals), t (normals), u (integers), the loop variable
+    let vars = vec![Ty::Real, Ty::Real, Ty::Int, Ty::Int, Ty::Int, Ty::Real, Ty::Real, Ty::Int, Ty::Int];
+    let draw = |d: Draw, x: u32, y: u32| E::Draw(d, b(E::Var(x)), b(E::Var(y)));
+    let body = vec![
+        S::For {
+            var: 8,
+            lo: E::Int(1),
+            hi: E::Var(4),
+            step: E::Int(1),
+            body: vec![
+                S::Set(5, E::F(FOp::Add, b(E::Var(5)), b(draw(Draw::Real, 0, 1)))),
+                S::Set(6, E::F(FOp::Add, b(E::Var(6)), b(draw(Draw::Normal, 0, 1)))),
+                S::Set(7, E::I(IOp::Add, b(E::Var(7)), b(draw(Draw::Integer, 2, 3)))),
+            ],
+        },
+        S::Out(0, E::Var(5)),
+        S::Out(1, E::Var(6)),
+        S::Out(2, E::Var(7)),
+    ];
+    let f = Func { name: "d".into(), vars, params: vec![0, 1, 2, 3, 4], body, ret: E::Int(0) };
+    let built = [Backend::Interpreter, Backend::Cranelift].map(|be| build(&f, vec![], be).unwrap());
+    assert!(built.iter().all(|bt| bt.draws()));
+    let reals = [0.0, 1.0, -2.5, 3.0, f64::INFINITY, f64::NAN, -0.0, 1e300, 0.5];
+    let ints = [0, 1, 6, -3, i64::MIN, i64::MAX, 100];
+    let (mut done, mut declined) = (0, 0);
+    for case in 0..600u64 {
+        let (a, bb) = (r.pick(&reals), r.pick(&reals));
+        let (lo, hi) = (r.pick(&ints), r.pick(&ints));
+        let n = r.below(20) as i64;
+        // the expected values from the stream itself; `None` where a draw is refused or the integer sum overflows
+        let mut s = Stream::from_key(case);
+        let want = (|| {
+            let (mut x, mut y, mut z) = (0.0f64, 0.0f64, 0i64);
+            for _ in 0..n {
+                if !(real_range_ok(a, bb) && normal_ok(a, bb) && lo <= hi) {
+                    return None;
+                }
+                x += s.real_in(a, bb - a);
+                y += s.normal_scaled(a, bb);
+                z = z.checked_add(s.int_in(lo, hi))?;
+            }
+            Some((x, y, z))
+        })();
+        let args = [a.to_bits(), bb.to_bits(), lo as u64, hi as u64, n as u64];
+        for bt in &built {
+            let mut st = Stream::from_key(case);
+            let ctl = Control::default();
+            ctl.fuel.store(i64::MAX / 2, std::sync::atomic::Ordering::Relaxed);
+            let mut out = [0u64; 3];
+            let (_, exit) = bt.call_with(&ctl, &args, &mut out, Some(&mut st), &mut |_| true);
+            match want {
+                Some((x, y, z)) => {
+                    assert_eq!(exit, Exit::Done, "{case}");
+                    assert!(same_real(Some(x), Some(f64::from_bits(out[0]))), "{case}: reals");
+                    assert!(same_real(Some(y), Some(f64::from_bits(out[1]))), "{case}: normals");
+                    assert_eq!(z, out[2] as i64, "{case}: integers");
+                    assert_eq!(st, s, "{case}: the stream moved as far as the draws");
+                    done += 1;
+                }
+                None => {
+                    assert_eq!(exit, Exit::Decline, "{case}");
+                    declined += 1;
+                }
+            }
+            // without a stream a draw declines
+            if n > 0 {
+                let (_, exit) = bt.call_with(&ctl, &args, &mut out, None, &mut |_| true);
+                assert_eq!(exit, Exit::Decline);
+            }
+        }
+    }
+    assert!(done > 100 && declined > 100, "{done} done, {declined} declined");
 }
