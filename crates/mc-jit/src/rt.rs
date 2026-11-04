@@ -50,7 +50,15 @@ pub struct Env {
     /// host holds the generator's lock for the whole call and restores the stream when the call does not complete,
     /// so that the interpreter, evaluating the call instead, draws the same numbers.
     pub stream: *mut Stream,
+    /// The vectors the call made ([`vec_new`]), freed with the environment unless one became the result.
+    vectors: Vec<Vec<u64>>,
+    /// The words of a vector result ([`vec_out`]), taken by the host after the call.
+    result: Option<Vec<u64>>,
 }
+
+/// The most words of one vector compiled code makes (2^26, the library's `table` limit: a larger `table` is the
+/// interpreter's `failure(limit, ...)`, so the compiled call declines).
+pub const MAX_VECTOR: i64 = 1 << 26;
 
 /// Byte offset of [`Env::ctl`] (ABI).
 pub const ENV_CTL: i32 = std::mem::offset_of!(Env, ctl) as i32;
@@ -96,6 +104,8 @@ impl Env {
             out: out.as_mut_ptr(),
             nout: out.len(),
             stream: stream.map_or(std::ptr::null_mut(), |s| s as *mut Stream),
+            vectors: vec![],
+            result: None,
         };
         let r = f(&mut env);
         if let Some(payload) = env.panic.take() {
@@ -131,6 +141,35 @@ impl Env {
             self.exit = Exit::Decline as u32;
         }
     }
+
+    /// The words of the vector result the call set ([`crate::ir::Op::VOut`]), once.
+    pub fn take_result(&mut self) -> Option<Vec<u64>> {
+        self.result.take()
+    }
+
+    /// Check the stop flag and charge `n` units of fuel through the host's poll; `false` (with the exit set) when
+    /// the call must stop.
+    fn charge(&mut self, n: u64) -> bool {
+        let ctl = self.control();
+        if ctl.stop.load(Relaxed) != 0 || ctl.status.load(Relaxed) != 0 {
+            self.exit = Exit::Stopped as u32;
+            return false;
+        }
+        // SAFETY: `poll` points to the `&mut PollFn` that `Env::with` keeps alive for the whole call.
+        let f = unsafe { &mut *self.poll.cast::<&mut PollFn<'_>>() };
+        match catch_unwind(AssertUnwindSafe(|| f(n))) {
+            Ok(true) => true,
+            Ok(false) => {
+                self.exit = Exit::Stopped as u32;
+                false
+            }
+            Err(payload) => {
+                self.panic = Some(payload);
+                self.exit = Exit::Stopped as u32;
+                false
+            }
+        }
+    }
 }
 
 /// The poll of compiled code, every [`POLL_EVERY`] iterations: returns nonzero when the call must stop (and has set
@@ -141,25 +180,123 @@ impl Env {
 pub unsafe extern "C" fn poll(env: *mut Env) -> u32 {
     // SAFETY: the caller's contract.
     let env = unsafe { &mut *env };
-    let ctl = env.control();
-    if ctl.stop.load(Relaxed) != 0 || ctl.status.load(Relaxed) != 0 {
-        env.exit = Exit::Stopped as u32;
-        return 1;
+    u32::from(!env.charge(POLL_EVERY))
+}
+
+/// A new zeroed vector of `n` words owned by the call's environment (package P); its address, or 0 with a decline
+/// for a negative `n`, one beyond [`MAX_VECTOR`], or memory the allocator refuses.
+///
+/// # Safety
+/// `env` points to a live [`Env`].
+pub unsafe extern "C" fn vec_new(env: *mut Env, n: i64) -> u64 {
+    // SAFETY: the caller's contract.
+    let env = unsafe { &mut *env };
+    if !(0..=MAX_VECTOR).contains(&n) {
+        env.decline();
+        return 0;
     }
-    // SAFETY: `poll` points to the `&mut PollFn` that `Env::with` keeps alive for the whole call.
-    let f = unsafe { &mut *env.poll.cast::<&mut PollFn<'_>>() };
-    match catch_unwind(AssertUnwindSafe(|| f(POLL_EVERY))) {
-        Ok(true) => 0,
-        Ok(false) => {
-            env.exit = Exit::Stopped as u32;
-            1
-        }
-        Err(payload) => {
-            env.panic = Some(payload);
-            env.exit = Exit::Stopped as u32;
-            1
-        }
+    let mut v: Vec<u64> = Vec::new();
+    if v.try_reserve_exact(n as usize).is_err() {
+        env.decline();
+        return 0;
     }
+    v.resize(n as usize, 0);
+    let p = v.as_mut_ptr() as u64;
+    env.vectors.push(v);
+    p
+}
+
+/// Set the call's result to the `n` leaves of the vector at `base`: a vector the call made is moved (its first `n`
+/// words), any other (an argument's payload) copied. Declines for a negative `n`.
+///
+/// # Safety
+/// `env` points to a live [`Env`]; `base` is the address of `n` readable words (a vector the call made, or an
+/// argument's leaves, which the host keeps alive for the call).
+pub unsafe extern "C" fn vec_out(env: *mut Env, base: u64, n: i64) -> u64 {
+    // SAFETY: the caller's contract.
+    let env = unsafe { &mut *env };
+    if n < 0 {
+        env.decline();
+        return 0;
+    }
+    let n = n as usize;
+    let words = match env.vectors.iter().position(|v| v.as_ptr() as u64 == base && v.len() >= n) {
+        Some(k) => {
+            let mut v = env.vectors.swap_remove(k);
+            v.truncate(n);
+            v
+        }
+        // SAFETY: the caller's contract.
+        None => unsafe { vector(base, n as i64) }.to_vec(),
+    };
+    env.result = Some(words);
+    0
+}
+
+/// The `n` words at `base` (none for `n <= 0`).
+///
+/// # Safety
+/// `base` is the address of `n` readable words when `n > 0`.
+unsafe fn vector<'a>(base: u64, n: i64) -> &'a [u64] {
+    if n <= 0 {
+        return &[];
+    }
+    // SAFETY: the caller's contract.
+    unsafe { std::slice::from_raw_parts(base as *const u64, n as usize) }
+}
+
+/// The fuel of a reduction over `n` leaves (the library's `sum` on a payload: a copy and a sort, about n/4 units).
+fn reduction_fuel(n: usize) -> u64 {
+    (n as u64 / 4).max(1)
+}
+
+/// `sum(v)` of `n` machine reals at `base`, as the library's `sum` computes it (decision N4a.10): ascending (IEEE
+/// total order, which puts -0.0 before 0.0 as the canonical order does) and folded from an exact zero, +0.0. A NaN
+/// declines (the general path decides), and so does an empty vector (whose sum is the exact 0).
+pub fn sum_reals(data: &[f64]) -> Option<f64> {
+    if data.is_empty() || data.iter().any(|x| x.is_nan()) {
+        return None;
+    }
+    let mut v = data.to_vec();
+    v.sort_unstable_by(f64::total_cmp);
+    Some(v.iter().fold(0.0, |acc, &x| acc + x))
+}
+
+/// `sum(v)` of machine integers: exact, `None` beyond `i64` (the interpreter's sum is a big integer).
+pub fn sum_ints(data: &[i64]) -> Option<i64> {
+    i64::try_from(data.iter().map(|&x| x as i128).sum::<i128>()).ok()
+}
+
+/// [`sum_reals`] for compiled code: charges the fuel of the work first; declines (or stops) returning 0.0.
+///
+/// # Safety
+/// `env` points to a live [`Env`]; `base` is the address of `n` readable machine reals.
+pub unsafe extern "C" fn vsum_real(env: *mut Env, base: u64, n: i64) -> f64 {
+    // SAFETY: the caller's contract.
+    let (env, w) = unsafe { (&mut *env, vector(base, n)) };
+    if !env.charge(reduction_fuel(w.len())) {
+        return 0.0;
+    }
+    sum_reals(mc_api::packed::words_reals(w)).unwrap_or_else(|| {
+        env.decline();
+        0.0
+    })
+}
+
+/// [`sum_ints`] for compiled code, as [`vsum_real`].
+///
+/// # Safety
+/// As [`vsum_real`], with `n` machine integers.
+pub unsafe extern "C" fn vsum_int(env: *mut Env, base: u64, n: i64) -> i64 {
+    // SAFETY: the caller's contract.
+    let (env, w) = unsafe { (&mut *env, vector(base, n)) };
+    if !env.charge(reduction_fuel(w.len())) {
+        return 0;
+    }
+    sum_ints(mc_api::packed::words_ints(w)).unwrap_or_else(|| {
+        env.decline();
+        0
+    })
 }
 
 /// `a^n` exactly for `n >= 0`; declines (returning 0) for a negative exponent or a result beyond `i64`.

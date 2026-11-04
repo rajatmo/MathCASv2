@@ -90,6 +90,10 @@ struct Imports {
     draw_real: FuncId,
     draw_normal: FuncId,
     draw_int: FuncId,
+    vec_new: FuncId,
+    vec_out: FuncId,
+    vsum_real: FuncId,
+    vsum_int: FuncId,
 }
 
 /// The host's target description, made once per process (decision N0.8: detecting the host and building the
@@ -114,7 +118,11 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
-    let helpers: [(&str, *const u8); 15] = [
+    let helpers: [(&str, *const u8); 19] = [
+        ("mc_jit_vec_new", rt::vec_new as *const u8),
+        ("mc_jit_vec_out", rt::vec_out as *const u8),
+        ("mc_jit_vsum_real", rt::vsum_real as *const u8),
+        ("mc_jit_vsum_int", rt::vsum_int as *const u8),
         ("mc_jit_poll", rt::poll as *const u8),
         ("mc_jit_num", rt::num as *const u8),
         ("mc_jit_cnum", rt::cnum as *const u8),
@@ -158,6 +166,10 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         draw_real: import(&mut module, "mc_jit_draw_real", &[ptr, types::F64, types::F64], types::F64)?,
         draw_normal: import(&mut module, "mc_jit_draw_normal", &[ptr, types::F64, types::F64], types::F64)?,
         draw_int: import(&mut module, "mc_jit_draw_int", &[ptr, types::I64, types::I64], types::I64)?,
+        vec_new: import(&mut module, "mc_jit_vec_new", &[ptr, types::I64], types::I64)?,
+        vec_out: import(&mut module, "mc_jit_vec_out", &[ptr, types::I64, types::I64], types::I64)?,
+        vsum_real: import(&mut module, "mc_jit_vsum_real", &[ptr, types::I64, types::I64], types::F64)?,
+        vsum_int: import(&mut module, "mc_jit_vsum_int", &[ptr, types::I64, types::I64], types::I64)?,
     };
 
     let mut ctx = module.make_context();
@@ -189,6 +201,10 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
             draw_real: module.declare_func_in_func(imports.draw_real, b.func),
             draw_normal: module.declare_func_in_func(imports.draw_normal, b.func),
             draw_int: module.declare_func_in_func(imports.draw_int, b.func),
+            vec_new: module.declare_func_in_func(imports.vec_new, b.func),
+            vec_out: module.declare_func_in_func(imports.vec_out, b.func),
+            vsum_real: module.declare_func_in_func(imports.vsum_real, b.func),
+            vsum_int: module.declare_func_in_func(imports.vsum_int, b.func),
         };
         let mut g = Gen::new(&mut b, lir, rty, refs, ptr);
         g.body();
@@ -247,6 +263,10 @@ struct Refs {
     draw_real: FuncRef,
     draw_normal: FuncRef,
     draw_int: FuncRef,
+    vec_new: FuncRef,
+    vec_out: FuncRef,
+    vsum_real: FuncRef,
+    vsum_int: FuncRef,
 }
 
 struct Gen<'a, 'b> {
@@ -667,6 +687,37 @@ impl<'a, 'b> Gen<'a, 'b> {
                 let out = self.b.ins().load(self.ptr, self.mf, self.env, ENV_OUT);
                 self.b.ins().store(self.mf, v, out, (8 * k) as i32);
             }
+            Op::Load(d, base, i) => {
+                // lowering checked the index against the vector's length
+                let addr = self.word_addr(base, i);
+                let v = self.b.ins().load(ty(self.lir.regs[d as usize]), self.mf, addr, 0);
+                self.set(d, v)
+            }
+            Op::Store(base, i, v) => {
+                let addr = self.word_addr(base, i);
+                let x = self.get(v);
+                self.b.ins().store(self.mf, x, addr, 0);
+            }
+            Op::VNew(d, n) => {
+                let n = self.get(n);
+                let call = self.b.ins().call(self.refs.vec_new, &[self.env, n]);
+                let v = self.b.inst_results(call)[0];
+                self.check_exit();
+                self.set(d, v)
+            }
+            Op::VOut(base, n) => {
+                let (p, n) = (self.get(base), self.get(n));
+                self.b.ins().call(self.refs.vec_out, &[self.env, p, n]);
+                self.check_exit();
+            }
+            Op::VSum(d, base, n) => {
+                let (p, n) = (self.get(base), self.get(n));
+                let f = if self.lir.regs[d as usize] == K::I { self.refs.vsum_int } else { self.refs.vsum_real };
+                let call = self.b.ins().call(f, &[self.env, p, n]);
+                let v = self.b.inst_results(call)[0];
+                self.check_exit();
+                self.set(d, v)
+            }
             Op::Ret(r) => {
                 let mut v = self.get(r);
                 if self.lir.regs[r as usize] == K::B {
@@ -676,6 +727,13 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.terminated = true;
             }
         }
+    }
+
+    /// The address of word `i` of the vector at `base`: `base + 8 i`.
+    fn word_addr(&mut self, base: u32, i: u32) -> Value {
+        let (p, i) = (self.get(base), self.get(i));
+        let off = self.b.ins().ishl_imm_u(i, 3);
+        self.b.ins().iadd(p, off)
     }
 
     /// The helper's operand array on the stack ([`OPD_WORDS`] words per operand: tag and two registers); its address.

@@ -10,6 +10,15 @@
 //! buffer), `n(pi)` and `n(e)` (bare `pi` and `e` in numeric expressions), and [`expr`]: compiling an expression
 //! in given variables, or a closure `(t, y) => ...`, from Rust (`mc-numfn` builds its compiled backend on it).
 //!
+//! Package P added **vectors of run-time length**: an untyped parameter is a vector of machine reals or integers
+//! (one compiled variant per leaf type), read from a packed array's payload without unpacking (a short list's
+//! leaves are copied); `v[i]` with a run-time index, `length(v)`, `sum(v)`, `total(v)`, `for x in v`, and `table`
+//! (whose result is a vector the call makes, returned to the session as one packed array).
+//!
+//! ```text
+//! @compiled fn moments(v) = { let n = length(v); let m = sum(v)/n; [m, sum(table((x - m)^2, x, v))/(n - 1)] }
+//! ```
+//!
 //! Pipeline (spike E, decisions E.1 to E.8): [`front`] turns the function's definition (the terms `mc-syntax`
 //! lowers it to) into the typed tree [`ir::Func`], inlining the functions it calls; [`ir::lower`] if-converts and
 //! lowers it to three-address code [`ir::Lir`]; [`jit`] (Cranelift 0.137) or [`interp`] (the reference back end, and
@@ -27,7 +36,8 @@
 //! the evaluator's control block and charges 1024 fuel to the calling task (a speculative task spends its own
 //! share). A stopped call declines, and the interpreter then stops at its first poll with the usual failure.
 //!
-//! Decisions are numbered 1b.1, 1b.2, ... (round 3) and J.1, J.2, ... (round 4) in the comments where they apply.
+//! Decisions are numbered 1b.1, 1b.2, ... (round 3), J.1, J.2, ... (round 4) and P.1, P.2, ... (round 7) in the
+//! comments where they apply.
 #![warn(missing_docs)]
 pub mod batch;
 pub mod expr;
@@ -39,14 +49,14 @@ pub mod rt;
 pub mod spec;
 
 pub use expr::{closure_parts, compile_closure, compile_expr, Call, ClosureParam, ExprFn};
-pub use front::{Arg, Shape};
+pub use front::{Arg, Input, Param, Shape};
 pub use spec::{build, install, Backend, Built, Info, Jit};
 
 /// The functions this crate gives a meaning, with one-line descriptions.
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "compile",
-        "compile(f): give the typed function f (Int and Real parameters) a compiled specialisation; f, or failure(not_compilable, f, reason)",
+        "compile(f): give the typed function f (Int and Real parameters; untyped parameters are vectors of machine numbers) a compiled specialisation; f, or failure(not_compilable, f, reason)",
     ),
     (
         "compiled_info",

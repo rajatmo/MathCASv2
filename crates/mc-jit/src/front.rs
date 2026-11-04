@@ -17,6 +17,15 @@
 //! `n(x)` of a machine real or an integer compile everywhere; bare `pi` and `e` only in the body of a numeric
 //! [`front_expr`] (whose callers gave it to `n`), since the interpreter keeps them exact.
 //!
+//! **Vectors** (package P): an untyped parameter of a compiled function is a vector of run-time length whose leaves
+//! are all `Int` or all `Real` ([`front_vectors`] compiles one variant per leaf type, decision P.3); it is two `Int`
+//! words, the address of its leaves and their number, which only the operations below see: `v[i]` with any integer
+//! index ([`E::Elem`], declining outside the vector as `part` fails), `length(v)`, `sum(v)` and `total(v)`
+//! ([`E::VSum`]), `for x in v`, passing `v` to an inlined function's untyped parameter, `let`, and `if` with vectors
+//! on both sides. `table(e, n)`, `table(e, k, n)` and `table(e, k, v)` of machine numbers make a new vector
+//! ([`S::VNew`], [`S::Store`]); a vector result is the call's vector result ([`S::VOut`]). Arithmetic on vectors and
+//! vectors inside lists are refused.
+//!
 //! **Types** are inferred: each local has the type of its first value and keeps it (assigning `0` to a `Real`
 //! local is refused, since the interpreter would hold the exact `0`); the branches of an `if` used as a value have
 //! one type; a value whose type would depend on run-time values (`max(0, x)` with `x` real) is refused.
@@ -47,10 +56,43 @@ use std::collections::HashMap;
 /// A function the front end may compile or inline: typed parameters and the body, in which each parameter is
 /// written as its symbol.
 pub struct FnDef<'h> {
-    /// parameter symbols and types, in order
-    pub params: Vec<(Sym, Ty)>,
+    /// parameter symbols and kinds, in order
+    pub params: Vec<(Sym, Param)>,
     /// the body
     pub body: T<'h>,
+}
+
+/// A parameter of a compiled or inlined function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Param {
+    /// a machine integer or real (a parameter typed `Int`, or `Real`, `MachineReal`, `Number`)
+    Scalar(Ty),
+    /// a vector of machine numbers of any length (package P, decision P.2: an untyped parameter), read through its
+    /// payload; the leaves' type is the compiled variant's ([`front_vectors`])
+    Vector,
+}
+
+/// How a compiled function takes one argument (for the host and `compiled_info`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Input {
+    /// one word of this type
+    Scalar(Ty),
+    /// this many machine reals, one word each ([`Arg::Vector`])
+    Words(usize),
+    /// a vector of leaves of this type (`Int` or `Real`) as two words: the address of its leaves and their number
+    /// (package P)
+    Vector(Ty),
+}
+
+impl Input {
+    /// The type as the language writes it (`Int`, `Real`, `List[Real]`).
+    pub fn name(self) -> String {
+        match self {
+            Input::Scalar(t) => t.name().to_string(),
+            Input::Words(n) => format!("[Real; {n}]"),
+            Input::Vector(t) => format!("List[{}]", t.name()),
+        }
+    }
 }
 
 /// Where the front end finds functions (the evaluator's definitions, through a native's context).
@@ -73,8 +115,10 @@ pub struct Front {
     /// [`front_expr`] the inlined ones
     pub deps: Vec<Sym>,
     /// the shape of the result: a scalar is the function's return value; a list is written to the output buffer,
-    /// its leaves in row-major order (decision N0.3)
+    /// its leaves in row-major order (decision N0.3); a vector is the environment's vector result (package P)
     pub result: Shape,
+    /// how the function takes its arguments, in order
+    pub inputs: Vec<Input>,
 }
 
 /// The shape of a value: a scalar of a machine type, or a list of values (nested lists allowed).
@@ -86,15 +130,18 @@ pub enum Shape {
     List(Vec<Shape>),
     /// a machine complex number: two `Real` leaves, the real and the imaginary part (package N4b)
     Complex,
+    /// a vector of machine numbers whose length is known only at run time (package P), held as two `Int` words
+    /// (the address of its leaves and their number); only a function's result or a local, never inside a list
+    Vector(Ty),
 }
 
 impl Shape {
-    /// The number of scalar leaves.
+    /// The number of scalar leaves (the two words of a vector).
     pub fn leaves(&self) -> usize {
         match self {
             Shape::Scalar(_) => 1,
             Shape::List(items) => items.iter().map(Shape::leaves).sum(),
-            Shape::Complex => 2,
+            Shape::Complex | Shape::Vector(_) => 2,
         }
     }
 
@@ -105,6 +152,7 @@ impl Shape {
                 Shape::Scalar(t) => out.push(*t),
                 Shape::List(items) => items.iter().for_each(|i| go(i, out)),
                 Shape::Complex => out.extend([Ty::Real, Ty::Real]),
+                Shape::Vector(_) => out.extend([Ty::Int, Ty::Int]),
             }
         }
         let mut out = vec![];
@@ -115,18 +163,19 @@ impl Shape {
     /// Whether a complex number occurs in the shape.
     pub fn has_complex(&self) -> bool {
         match self {
-            Shape::Scalar(_) => false,
+            Shape::Scalar(_) | Shape::Vector(_) => false,
             Shape::List(items) => items.iter().any(Shape::has_complex),
             Shape::Complex => true,
         }
     }
 
-    /// The shape as the language writes types (`Real`, `[Real, Int]`, `Complex`).
+    /// The shape as the language writes types (`Real`, `[Real, Int]`, `Complex`, `List[Real]`).
     pub fn name(&self) -> String {
         match self {
             Shape::Scalar(t) => t.name().to_string(),
             Shape::List(items) => format!("[{}]", items.iter().map(Shape::name).collect::<Vec<_>>().join(", ")),
             Shape::Complex => "Complex".to_string(),
+            Shape::Vector(t) => format!("List[{}]", t.name()),
         }
     }
 }
@@ -161,10 +210,33 @@ const MAX_INLINE: usize = 32;
 /// Compile `f` (looked up through `src`) to HIR. The constants `pi` and `e` are compiled only inside `n(...)`,
 /// where the interpreter gives a machine real too (decision N0.1).
 pub fn front<'h>(h: &'h Heap, f: Sym, src: &mut dyn Source<'h>) -> Result<Front, String> {
+    front_vectors(h, f, src, Ty::Real)
+}
+
+/// [`front`] with `elem` (`Int` or `Real`) as the leaves' type of every vector parameter (decision P.3: a function
+/// with vector parameters compiles one variant per leaf type).
+pub fn front_vectors<'h>(h: &'h Heap, f: Sym, src: &mut dyn Source<'h>, elem: Ty) -> Result<Front, String> {
     let def = src.function(f)?;
-    let params: Vec<(Sym, Arg)> =
-        def.params.iter().map(|&(s, t)| (s, if t == Ty::Int { Arg::Int } else { Arg::Real })).collect();
+    let params: Vec<(Sym, In)> = def
+        .params
+        .iter()
+        .map(|&(s, p)| {
+            (s, match p {
+                Param::Scalar(Ty::Int) => In::Arg(Arg::Int),
+                Param::Scalar(_) => In::Arg(Arg::Real),
+                Param::Vector => In::Vector(elem),
+            })
+        })
+        .collect();
     run(h, format!("mc_{}", f.0), Some(f), &params, def.body, src, false)
+}
+
+/// A parameter as [`run`] takes it.
+#[derive(Clone, Copy)]
+enum In {
+    Arg(Arg),
+    /// a vector of leaves of this type: two `Int` words, address and length
+    Vector(Ty),
 }
 
 /// Compile the expression `body` in the parameters `params` to HIR (decision N0.4): the function
@@ -182,14 +254,19 @@ pub fn front_expr<'h>(
     if distinct.len() != params.len() {
         return Err("a parameter named twice".into());
     }
-    run(h, "mc_expr".into(), None, params, body, src, numeric)
+    let params: Vec<(Sym, In)> = params.iter().map(|&(s, a)| (s, In::Arg(a))).collect();
+    let fr = run(h, "mc_expr".into(), None, &params, body, src, numeric)?;
+    if matches!(fr.result, Shape::Vector(_)) {
+        return Err("a vector result of a length known only at run time".into());
+    }
+    Ok(fr)
 }
 
 fn run<'h>(
     h: &'h Heap,
     name: String,
     f: Option<Sym>,
-    params: &[(Sym, Arg)],
+    params: &[(Sym, In)],
     body: T<'h>,
     src: &mut dyn Source<'h>,
     numeric: bool,
@@ -212,15 +289,17 @@ fn run<'h>(
         im: h.sym("im"),
     };
     let mut words = vec![];
+    let mut inputs = vec![];
     for &(s, a) in params {
         match a {
-            Arg::Int | Arg::Real => {
-                let t = if a == Arg::Int { Ty::Int } else { Ty::Real };
+            In::Arg(Arg::Int | Arg::Real) => {
+                let t = if matches!(a, In::Arg(Arg::Int)) { Ty::Int } else { Ty::Real };
                 let v = fe.var(t);
                 fe.bind(s, v, t, false);
                 words.push(v);
+                inputs.push(Input::Scalar(t));
             }
-            Arg::Vector(n) => {
+            In::Arg(Arg::Vector(n)) => {
                 let mut items = vec![];
                 for _ in 0..n {
                     let v = fe.var(Ty::Real);
@@ -228,6 +307,13 @@ fn run<'h>(
                     items.push(Val::S(E::Var(v), Ty::Real));
                 }
                 fe.bind_list(s, items);
+                inputs.push(Input::Words(n));
+            }
+            In::Vector(t) => {
+                let (base, len) = (fe.var(Ty::Int), fe.var(Ty::Int));
+                words.extend([base, len]);
+                fe.bind_vector(s, E::Var(base), E::Var(len), t);
+                inputs.push(Input::Vector(t));
             }
         }
     }
@@ -235,6 +321,10 @@ fn run<'h>(
     let result = value.shape();
     let ret = match value {
         Val::S(e, _) => e,
+        Val::V(base, len, _) => {
+            fe.emit(S::VOut(base, len));
+            E::Int(0)
+        }
         list => {
             for (k, (e, t)) in list.leaves().into_iter().enumerate() {
                 if t == Ty::Bool {
@@ -247,17 +337,23 @@ fn run<'h>(
     };
     let body = fe.out.pop().expect("the function's block");
     let func = Func { name, vars: fe.vars, params: words, body, ret };
-    Ok(Front { func, deps: fe.deps, result })
+    Ok(Front { func, deps: fe.deps, result, inputs })
 }
 
-/// A value during compilation: a scalar expression, a list of values whose length is known (decision N0.3), or a
-/// machine complex number as its two parts (decision N4b.3).
+/// A value during compilation: a scalar expression, a list of values whose length is known (decision N0.3), a
+/// machine complex number as its two parts (decision N4b.3), or a vector whose length is known at run time only
+/// (package P): the address of its leaves, their number, their type.
 #[derive(Clone, Debug)]
 enum Val {
     S(E, Ty),
     L(Vec<Val>),
     C(E, E),
+    V(E, E, Ty),
 }
+
+/// Why a vector cannot stand where a number is expected.
+const VECTOR_AS_NUMBER: &str =
+    "a vector where a number is expected (an untyped parameter is a vector of machine numbers; arithmetic on vectors is not compiled)";
 
 impl Val {
     fn shape(&self) -> Shape {
@@ -265,16 +361,19 @@ impl Val {
             Val::S(_, t) => Shape::Scalar(*t),
             Val::L(items) => Shape::List(items.iter().map(Val::shape).collect()),
             Val::C(..) => Shape::Complex,
+            Val::V(_, _, t) => Shape::Vector(*t),
         }
     }
 
-    /// The scalar leaves in row-major order (a complex number gives its real, then its imaginary part).
+    /// The scalar leaves in row-major order (a complex number gives its real, then its imaginary part; a vector its
+    /// address, then its length).
     fn leaves(self) -> Vec<(E, Ty)> {
         fn go(v: Val, out: &mut Vec<(E, Ty)>) {
             match v {
                 Val::S(e, t) => out.push((e, t)),
                 Val::L(items) => items.into_iter().for_each(|i| go(i, out)),
                 Val::C(a, b) => out.extend([(a, Ty::Real), (b, Ty::Real)]),
+                Val::V(a, n, _) => out.extend([(a, Ty::Int), (n, Ty::Int)]),
             }
         }
         let mut out = vec![];
@@ -290,6 +389,10 @@ impl Val {
             Shape::Complex => {
                 let re = leaves.next().expect("a real part");
                 Val::C(re, leaves.next().expect("an imaginary part"))
+            }
+            Shape::Vector(t) => {
+                let base = leaves.next().expect("an address");
+                Val::V(base, leaves.next().expect("a length"), *t)
             }
         }
     }
@@ -333,6 +436,8 @@ enum Prim {
     ImPart,
     Conjugate,
     Draw(Draw),
+    Sum,
+    Table,
 }
 
 fn prims(h: &Heap) -> HashMap<Sym, Prim> {
@@ -379,6 +484,9 @@ fn prims(h: &Heap) -> HashMap<Sym, Prim> {
         ("random_real", Prim::Draw(Draw::Real)),
         ("random_normal", Prim::Draw(Draw::Normal)),
         ("random_integer", Prim::Draw(Draw::Integer)),
+        ("sum", Prim::Sum),
+        ("total", Prim::Sum),
+        ("table", Prim::Table),
     ];
     for (n, p) in fixed {
         m.insert(h.sym(n), p);
@@ -398,6 +506,8 @@ struct Bind {
     mutable: bool,
     list: Option<Vec<Val>>,
     cplx: Option<(V, V)>,
+    /// a vector: address, length (computed once: variables or constants), leaf type
+    vector: Option<(E, E, Ty)>,
 }
 
 /// A local's declared type: `Int`; `Real` or `Number` (an integer or a machine real here); `MachineReal`.
@@ -485,16 +595,23 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn bind(&mut self, s: Sym, var: V, ty: Ty, mutable: bool) {
-        self.scopes.last_mut().expect("a scope").push((s, Bind { var, ty, mutable, list: None, cplx: None }));
+        let b = Bind { var, ty, mutable, list: None, cplx: None, vector: None };
+        self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_list(&mut self, s: Sym, items: Vec<Val>) {
-        let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items), cplx: None };
+        let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items), cplx: None, vector: None };
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_complex(&mut self, s: Sym, re: V, im: V, mutable: bool) {
-        let b = Bind { var: re, ty: Ty::Real, mutable, list: None, cplx: Some((re, im)) };
+        let b = Bind { var: re, ty: Ty::Real, mutable, list: None, cplx: Some((re, im)), vector: None };
+        self.scopes.last_mut().expect("a scope").push((s, b));
+    }
+
+    /// Bind `s` to a vector, whose address and length must be variables or constants (computed once).
+    fn bind_vector(&mut self, s: Sym, base: E, len: E, t: Ty) {
+        let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: None, cplx: None, vector: Some((base, len, t)) };
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
@@ -590,6 +707,7 @@ impl<'h> Fe<'h, '_> {
             Val::S(e, ty) => Ok((e, ty)),
             Val::L(_) => Err("a list where a number is expected".into()),
             Val::C(..) => Err("a complex number where a real number or an integer is expected".into()),
+            Val::V(..) => Err(VECTOR_AS_NUMBER.into()),
         }
     }
 
@@ -610,6 +728,7 @@ impl<'h> Fe<'h, '_> {
                 Some(Prim::False) => Ok(Val::S(E::Bool(false), Ty::Bool)),
                 _ => match self.lookup(s) {
                     Some(Bind { list: Some(items), .. }) => Ok(Val::L(items)),
+                    Some(Bind { vector: Some((base, len, t)), .. }) => Ok(Val::V(base, len, t)),
                     Some(Bind { cplx: Some((re, im)), .. }) => Ok(Val::C(E::Var(re), E::Var(im))),
                     Some(bd) => Ok(Val::S(E::Var(bd.var), bd.ty)),
                     None => match self.constant(s) {
@@ -625,15 +744,30 @@ impl<'h> Fe<'h, '_> {
             View::App { head, args } => {
                 let View::Sym(s) = h.view(head) else { return Err("a call whose head is not a symbol".into()) };
                 match self.prims.get(&s).copied() {
-                    Some(Prim::List) => Ok(Val::L(args.iter().map(|&a| self.value(a)).collect::<Res<Vec<_>>>()?)),
+                    Some(Prim::List) => {
+                        let items = args.iter().map(|&a| self.value(a)).collect::<Res<Vec<_>>>()?;
+                        if items.iter().any(|v| matches!(v.shape(), Shape::Vector(_))) {
+                            return Err("a list of vectors (a matrix does not compile)".into());
+                        }
+                        Ok(Val::L(items))
+                    }
                     Some(Prim::Part) => self.part(args),
                     Some(Prim::Length) => {
                         self.arity(s, args, 1)?;
                         match self.value(args[0])? {
                             Val::L(items) => Ok(Val::S(E::Int(items.len() as i64), Ty::Int)),
+                            Val::V(_, len, _) => Ok(Val::S(len, Ty::Int)),
                             Val::S(..) | Val::C(..) => Err("`length` of a number".into()),
                         }
                     }
+                    Some(Prim::Sum) => {
+                        self.arity(s, args, 1)?;
+                        match self.value(args[0])? {
+                            Val::V(base, len, t) => Ok(Val::S(E::VSum(t, b(base), b(len)), t)),
+                            _ => Err(format!("`{}` of something other than a vector", self.name(s))),
+                        }
+                    }
+                    Some(Prim::Table) => self.table(args),
                     Some(Prim::N) => self.numeric_value(s, args).map(sc),
                     Some(Prim::If) => match args {
                         [c, x, y] => self.if_value(*c, *x, *y),
@@ -720,6 +854,13 @@ impl<'h> Fe<'h, '_> {
     fn part(&mut self, args: &'h [T<'h>]) -> Res<Val> {
         let Some((&base, idx)) = args.split_first() else { return Err("`part` without arguments".into()) };
         let mut v = self.value(base)?;
+        if let Val::V(base, len, t) = v {
+            // a vector by a run-time index (package P): one index, an integer
+            let [i] = idx else { return Err("a vector indexed by other than one integer".into()) };
+            let (i, ti) = self.expr(*i)?;
+            let i = int(i, ti).map_err(|_| "a vector indexed by other than an integer".to_string())?;
+            return Ok(Val::S(E::Elem(t, b(base), b(len), b(i)), t));
+        }
         for &i in idx {
             let View::Int(k) = self.h.view(i) else { return Err("an index that is not a constant integer".into()) };
             let Val::L(items) = v else { return Err("an index into a number".into()) };
@@ -780,6 +921,8 @@ impl<'h> Fe<'h, '_> {
             | Prim::Conjugate
             | Prim::Complex
             | Prim::Draw(_)
+            | Prim::Sum
+            | Prim::Table
             | Prim::Assign => Err(format!("`{}` outside its place", self.name(s))),
             Prim::Let | Prim::Var | Prim::While | Prim::For => {
                 Err(format!("`{}` used as a value (its value is null)", self.name(s)))
@@ -907,6 +1050,7 @@ impl<'h> Fe<'h, '_> {
             Val::S(_, Ty::Bool) => Err("arithmetic on a boolean".into()),
             Val::C(a, b) => Ok(Operand::Complex(a, b)),
             Val::L(_) => Err("a list where a number is expected".into()),
+            Val::V(..) => Err(VECTOR_AS_NUMBER.into()),
         }
     }
 
@@ -1195,7 +1339,7 @@ impl<'h> Fe<'h, '_> {
     /// real part and conjugate, and its imaginary part is the exact 0.
     fn complex_part(&mut self, p: Prim, v: Val) -> Res<Val> {
         match (p, v) {
-            (_, Val::S(_, Ty::Bool) | Val::L(_)) => Err("the complex part of a boolean or a list".into()),
+            (_, Val::S(_, Ty::Bool) | Val::L(_) | Val::V(..)) => Err("the complex part of a boolean or a list".into()),
             (Prim::ImPart, Val::S(..)) => Ok(Val::S(E::Int(0), Ty::Int)),
             (_, v @ Val::S(..)) => Ok(v),
             (Prim::Re, Val::C(a, _)) => Ok(Val::S(a, Ty::Real)),
@@ -1272,6 +1416,62 @@ impl<'h> Fe<'h, '_> {
         let t = if d == Draw::Integer { Ty::Int } else { Ty::Real };
         let v = self.temp(E::Draw(d, b(a), b(c)), t);
         Ok(Val::S(v, t))
+    }
+
+    /// `table(e, n)`, `table(e, k, n)` and `table(e, k, v)` (package P, decision P.4): a new vector of the values of
+    /// `e`, a machine number of one type, computed in order (`k` from 1 to `n`, or each element of the vector `v`):
+    /// the library's order. `table(e, n)` with `n < 0` and counts beyond [`crate::rt::MAX_VECTOR`] are the
+    /// library's failures, so the compiled call declines there; `table(e, k, n)` with `n <= 0` is the empty list.
+    fn table(&mut self, args: &'h [T<'h>]) -> Res<Val> {
+        // the body, the name bound in it, the vector whose elements it takes (if any), and the count
+        let (e, binder, over, count) = match args {
+            [e, n] => {
+                let (n, t) = self.expr(*n)?;
+                let n = int(n, t).map_err(|_| "a `table` count that is not an integer".to_string())?;
+                (*e, None, None, n)
+            }
+            [e, k, r] => {
+                let View::Sym(k) = self.h.view(*k) else { return Err("a `table` iterator that is not a name".into()) };
+                match self.value(*r)? {
+                    Val::S(n, Ty::Int) => {
+                        // 1, ..., n: no values for n <= 0
+                        let n = self.held(n, Ty::Int);
+                        let neg = E::Cmp(Cc::Lt, b(n.clone()), b(E::Int(0)));
+                        (*e, Some(k), None, E::Sel(b(neg), b(E::Int(0)), b(n)))
+                    }
+                    Val::V(base, len, t) => (*e, Some(k), Some((base, len.clone(), t)), len),
+                    _ => return Err("a `table` over something other than a count or a vector".into()),
+                }
+            }
+            _ => return Err("`table` with nested iterators or other arguments (a matrix does not compile)".into()),
+        };
+        let len = self.temp(count, Ty::Int);
+        let base = self.var(Ty::Int);
+        let i = self.var(Ty::Int);
+        let (body, t) = self.stmts(|fe| {
+            fe.scoped(|fe| {
+                match (binder, over) {
+                    (Some(k), None) => fe.bind(k, i, Ty::Int, false),
+                    (Some(k), Some((vb, vl, vt))) => {
+                        let x = fe.var(vt);
+                        fe.emit(S::Set(x, E::Elem(vt, b(vb), b(vl), b(E::Var(i)))));
+                        fe.bind(k, x, vt, false);
+                    }
+                    (None, _) => {}
+                }
+                let (x, t) = match fe.value(e)? {
+                    Val::S(_, Ty::Bool) => return Err("a `table` of booleans".into()),
+                    Val::S(x, t) => (x, t),
+                    _ => return Err("a `table` whose values are not machine numbers (lists and complex values do not compile)".into()),
+                };
+                let at = E::I(IOp::Sub, b(E::Var(i)), b(E::Int(1)));
+                fe.emit(S::Store(E::Var(base), len.clone(), at, x));
+                Ok(t)
+            })
+        })?;
+        self.emit(S::VNew(base, len.clone()));
+        self.emit(S::For { var: i, lo: E::Int(1), hi: len.clone(), step: E::Int(1), body });
+        Ok(Val::V(E::Var(base), len, t))
     }
 
     fn power_of(&mut self, x: E, tx: Ty, y: E, ty: Ty) -> Res<(E, Ty)> {
@@ -1389,15 +1589,27 @@ impl<'h> Fe<'h, '_> {
         if def.params.len() != args.len() {
             return Err(format!("`{name}` called with {} arguments", args.len()));
         }
+        // the arguments, in order: scalars in fresh variables, vectors as they are (their address and length are
+        // variables or constants already)
         let mut vals = vec![];
-        for (&a, &(_, pt)) in args.iter().zip(&def.params) {
-            let (x, tx) = self.expr(a)?;
-            if tx != pt {
-                return Err(format!("`{name}` called with a {} value for a {} parameter", tx.name(), pt.name()));
-            }
-            let v = self.var(pt);
-            self.emit(S::Set(v, x));
-            vals.push(v);
+        for (&a, &(_, p)) in args.iter().zip(&def.params) {
+            vals.push(match p {
+                Param::Scalar(pt) => {
+                    let (x, tx) = self.expr(a)?;
+                    if tx != pt {
+                        return Err(format!("`{name}` called with a {} value for a {} parameter", tx.name(), pt.name()));
+                    }
+                    let v = self.var(pt);
+                    self.emit(S::Set(v, x));
+                    Val::S(E::Var(v), pt)
+                }
+                Param::Vector => match self.value(a)? {
+                    v @ Val::V(..) => v,
+                    other => {
+                        return Err(format!("`{name}` called with a {} value for a vector parameter", other.shape().name()))
+                    }
+                },
+            });
         }
         if !self.deps.contains(&f) {
             self.deps.push(f);
@@ -1406,8 +1618,12 @@ impl<'h> Fe<'h, '_> {
         let saved = self.base;
         self.scopes.push(vec![]);
         self.base = self.scopes.len() - 1;
-        for (&(s, t), v) in def.params.iter().zip(vals) {
-            self.bind(s, v, t, false);
+        for (&(s, _), v) in def.params.iter().zip(vals) {
+            match v {
+                Val::S(E::Var(v), t) => self.bind(s, v, t, false),
+                Val::V(base, len, t) => self.bind_vector(s, base, len, t),
+                _ => unreachable!("arguments are variables or vectors"),
+            }
         }
         self.stack.push(f);
         let r = self.value(def.body);
@@ -1436,6 +1652,15 @@ impl<'h> Fe<'h, '_> {
                         self.emit(S::Set(re, a));
                         self.emit(S::Set(im, bb));
                         self.bind_complex(x, re, im, p == Prim::Var);
+                        return Ok(());
+                    }
+                    vector @ Val::V(..) => {
+                        // a vector local is bound once (package P)
+                        if declared.is_some() || p == Prim::Var {
+                            return Err(format!("`{}` holds a vector and is declared with a type or as a `var`", self.name(x)));
+                        }
+                        let Val::V(base, len, t) = self.hold(vector) else { unreachable!("a vector") };
+                        self.bind_vector(x, base, len, t);
                         return Ok(());
                     }
                     list => {
@@ -1559,7 +1784,21 @@ impl<'h> Fe<'h, '_> {
     fn for_loop(&mut self, x: T<'h>, range: T<'h>, body: T<'h>) -> Res<()> {
         let View::Sym(x) = self.h.view(x) else { return Err("a `for` over a pattern".into()) };
         let Some((Prim::Range, bounds)) = self.prim_of(range) else {
-            return Err("a `for` loop over something other than `range(...)`".into());
+            // the elements of a vector, in order (package P)
+            let Val::V(base, len, t) = self.value(range)? else {
+                return Err("a `for` loop over something other than `range(...)` or a vector".into());
+            };
+            let i = self.var(Ty::Int);
+            let (body, ()) = self.stmts(|fe| {
+                fe.scoped(|fe| {
+                    let e = fe.var(t);
+                    fe.emit(S::Set(e, E::Elem(t, b(base), b(len.clone()), b(E::Var(i)))));
+                    fe.bind(x, e, t, false);
+                    fe.stmt(body)
+                })
+            })?;
+            self.emit(S::For { var: i, lo: E::Int(1), hi: len, step: E::Int(1), body });
+            return Ok(());
         };
         let mut v = vec![];
         for &a in bounds {
