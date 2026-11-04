@@ -122,7 +122,7 @@ fn lorenz_against_the_reference() {
     let v = numbers(&s.run(
         "n_dsolve_value([x'(t) == 10*(y(t) - x(t)), y'(t) == x(t)*(28 - z(t)) - y(t), z'(t) == x(t)*y(t) - 8/3*z(t), x(0) == 1, y(0) == 1, z(0) == 1], [x(10), y(10), z(10)], [t, 0, 10], accuracy_goal: 10, precision_goal: 10)",
     ));
-    let reference = [-4.9026875411346457319, -3.7438729218029196163, 24.690858102790555453];
+    let reference = [-4.902_687_541_134_646, -3.743_872_921_802_92, 24.690_858_102_790_557];
     for (a, b) in v.iter().zip(reference) {
         assert!((a - b).abs() < 1e-6, "{v:?}");
     }

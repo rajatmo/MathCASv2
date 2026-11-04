@@ -58,6 +58,9 @@ const SAFE: f64 = 0.9;
 const GROW: f64 = 6.0;
 const SHRINK: f64 = 0.2;
 
+/// Coefficients of a combination of stages: `(stage, coefficient)`.
+type Combination = &'static [(usize, f64)];
+
 /// The state of the method between steps.
 pub(crate) struct Rodas {
     n: usize,
@@ -96,8 +99,8 @@ impl Rodas {
 
     /// `u = y + sum a_j k_j`.
     fn combine(&mut self, y: &[f64], a: &[(usize, f64)]) {
-        for i in 0..self.n {
-            self.u[i] = y[i] + a.iter().map(|&(j, c)| c * self.k[j][i]).sum::<f64>();
+        for (i, (out, &yi)) in self.u.iter_mut().zip(y).enumerate() {
+            *out = yi + a.iter().map(|&(j, c)| c * self.k[j][i]).sum::<f64>();
         }
     }
 
@@ -154,7 +157,7 @@ impl<'h> Stepper<'h> for Rodas {
         self.du.copy_from_slice(&self.f0);
         self.solve(0, h, &[], D1);
         // stages 2-4 at intermediate points, 5 and 6 at the end of the step
-        let stages: [(f64, &[(usize, f64)], &[(usize, f64)], f64); 3] = [
+        let stages: [(f64, Combination, Combination, f64); 3] = [
             (C2, &[(0, A21)], &[(0, C21)], D2),
             (C3, &[(0, A31), (1, A32)], &[(0, C31), (1, C32)], D3),
             (C4, &[(0, A41), (1, A42), (2, A43)], &[(0, C41), (1, C42), (2, C43)], D4),

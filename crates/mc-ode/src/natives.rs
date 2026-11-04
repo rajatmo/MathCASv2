@@ -280,7 +280,7 @@ impl Solve {
                         return Ok(Err(failure(h, "not_numeric", &[h.sym_term(h.sym(name)), at])));
                     }
                     taylor::End::MaxSteps | taylor::End::StepSize => {
-                        return Ok(Err(failure(h, "not_converged", &[h.sym_term(h.sym(name)), h.null_term(), h.real(run.t)])));
+                        return Ok(Err(failure(h, "not_converged", &[h.sym_term(h.sym(name)), cx.null(), h.real(run.t)])));
                     }
                 }
                 if forward {
@@ -345,17 +345,6 @@ impl Solve {
             return Ok(h.call(h.sym("fn"), &[params, v]));
         }
         Ok(v)
-    }
-}
-
-/// `options.events` etc. borrow the call's terms; a null term for failures without an estimate.
-trait NullTerm<'h> {
-    fn null_term(&'h self) -> T<'h>;
-}
-
-impl<'h> NullTerm<'h> for Heap {
-    fn null_term(&'h self) -> T<'h> {
-        self.sym_term(self.sym(names::NULL))
     }
 }
 

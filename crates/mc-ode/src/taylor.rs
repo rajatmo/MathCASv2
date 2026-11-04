@@ -17,7 +17,7 @@
 use crate::util::{self, mentions};
 use mc_api::names;
 use mc_arith::num::float::f64_to_dyadic;
-use mc_arith::num::{Ball, Float, Mag};
+use mc_arith::num::{Ball, Float, Int, Mag, Rat};
 use mc_arith::{Arith, Kind, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{NativeCx, Res};
@@ -31,7 +31,6 @@ enum Op {
     Time,
     State(usize),
     Add(Vec<usize>),
-    Neg(usize),
     Mul(usize, usize),
     Div(usize, usize),
     Exp(usize),
@@ -280,8 +279,6 @@ pub(crate) fn tape<'h>(
         }
         outputs.push(memo[&root]);
     }
-    // a negation node is never needed: sums of products with -1 are products with the constant -1
-    let _ = Op::Neg;
     Ok(Ok(Tape { ops: b.ops, outputs, p }))
 }
 
@@ -310,10 +307,9 @@ fn exponent(e: &Num) -> Exponent {
             return Exponent::Int(i);
         }
     }
-    if let Some(q) = e.as_rat() {
-        if !q.is_int() && mc_arith::number::equal(e, &Num::rat(mc_arith::num::Rat::new(mc_arith::num::Int::from_i64(1), mc_arith::num::Int::from_i64(2)))) == Some(true) {
-            return Exponent::Half;
-        }
+    let half = Num::rat(Rat::new(Int::from_i64(1), Int::from_i64(2)));
+    if e.as_rat().is_some() && mc_arith::number::equal(e, &half) == Some(true) {
+        return Exponent::Half;
     }
     Exponent::Real
 }
@@ -373,7 +369,6 @@ impl Tape {
                     }
                     acc
                 }
-                Op::Neg(a) => s.c[*a][k].neg(),
                 Op::Mul(a, b) => conv(&s.c[*a], &s.c[*b], k, 0, k, |_| 1, p),
                 Op::Div(a, b) => {
                     // q_k = (a_k - sum_{j=1..k} b_j q_{k-j}) / b_0

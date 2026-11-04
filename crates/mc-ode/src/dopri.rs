@@ -94,9 +94,9 @@ impl Dopri {
 
     /// `ystage = y + h * sum(a_j k_j)`.
     fn stage(&mut self, y: &[f64], h: f64, a: &[(usize, f64)]) {
-        for i in 0..self.n {
+        for (i, (out, &yi)) in self.ystage.iter_mut().zip(y).enumerate() {
             let s: f64 = a.iter().map(|&(j, c)| c * self.k[j][i]).sum();
-            self.ystage[i] = y[i] + h * s;
+            *out = yi + h * s;
         }
     }
 
