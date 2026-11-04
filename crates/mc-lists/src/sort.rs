@@ -1,11 +1,12 @@
-//! Sorting: `sort(xs)` by the canonical order, `sort(xs, by)` by a predicate, and `ordered`.
+//! Sorting: `sort(xs)` by the canonical order, `sort(xs, by)` by a predicate, `ordered`; and by keys: `sort_by`,
+//! `ordering`, `max_by`, `min_by` (the kernel's canonical order through [`NativeCx::cmp`]).
 //!
 //! The canonical order is `mc-arith`'s [`Order`] (semantics 8), the order the engine installs as the kernel's order
 //! hook; `NativeCx` offers no access to the hook itself (decision I.12). Integers, strings, symbols and compound
 //! structure are compared directly (`Canonical`: the same answer, without building number values). Both sorts are
 //! one stable merge sort that only asks "must `b` come before `a`?", so an inconsistent predicate gives some
 //! permutation, never a panic, and every comparison charges fuel and polls the interrupt.
-use crate::ctx::{apply, take, Lib, Meter};
+use crate::ctx::{apply, keys, take, Lib, Meter};
 use mc_arith::Order;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Abort, NativeCx, Reply, Res};
@@ -140,9 +141,9 @@ impl<'h> Canonical<'h> {
 const RUN: usize = 16;
 
 /// Stable merge sort of `v` where `before(b, a)` says `b` must precede `a` (strictly).
-fn merge_sort<'h>(
-    v: &mut Vec<T<'h>>,
-    before: &mut dyn FnMut(T<'h>, T<'h>) -> Result<bool, Halt<'h>>,
+fn merge_sort<'h, E: Copy>(
+    v: &mut Vec<E>,
+    before: &mut dyn FnMut(E, E) -> Result<bool, Halt<'h>>,
 ) -> Result<(), Halt<'h>> {
     let n = v.len();
     for lo in (0..n).step_by(RUN) {
@@ -256,6 +257,96 @@ pub(crate) fn ordered<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         }
     }
     Ok(Reply::Done(cx.bool(true)))
+}
+
+/// The positions `0..n` sorted stably by the canonical order of `key[i]`, charging fuel per comparison.
+fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<usize>> {
+    let mut ix: Vec<usize> = (0..key.len()).collect();
+    let mut m = Meter::default();
+    match merge_sort(&mut ix, &mut |b, a| {
+        m.step(cx)?;
+        Ok(cx.cmp(key[b], key[a]) == Ordering::Less)
+    }) {
+        Ok(()) => Ok(ix),
+        Err(Halt::Abort(a)) => Err(a),
+        Err(Halt::Fail(_)) => unreachable!("the canonical order does not fail"),
+    }
+}
+
+/// `sort_by(xs, f)`: the elements ordered by the canonical order of `f(x)` (stable: equal keys keep their order).
+/// Each `f(x)` is evaluated once, as a group.
+pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, f] = *args else { return Ok(Reply::Decline) };
+    let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    let key = match keys(lib, cx, f, xs)? {
+        Ok(k) => k,
+        Err(e) => return Ok(Reply::Done(e)),
+    };
+    let ix = order_by_keys(cx, &key)?;
+    let v: Vec<T<'h>> = ix.iter().map(|&i| xs[i]).collect();
+    Ok(lib.rebuilt(h, head, &v))
+}
+
+/// `ordering(xs)`: the positions of the elements in sorted order (`xs[ordering(xs)]` is `sort(xs)`; equal
+/// elements by position); `ordering(xs, n)`: the first `n` of them, the last `-n` for negative `n`.
+pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let (xs, n) = match *args {
+        [xs] => (xs, None),
+        [xs, n] => (xs, Some(n)),
+        _ => return Ok(Reply::Decline),
+    };
+    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    let n = match n {
+        Some(n) => Some(take!(lib.int_operand(h, t, n, 2))),
+        None => None,
+    };
+    let ix = order_by_keys(cx, xs)?;
+    let len = ix.len() as i64;
+    let (lo, hi) = match n {
+        None => (0, ix.len()),
+        Some(n) if (0..=len).contains(&n) => (0, n as usize),
+        Some(n) if (-len..0).contains(&n) => ((len + n) as usize, ix.len()),
+        Some(n) => return Ok(Reply::Done(lib.bad_index(h, h.int(n), ix.len()))),
+    };
+    let v: Vec<T<'h>> = ix[lo..hi].iter().map(|&i| h.int(i as i64 + 1)).collect();
+    Ok(Reply::Done(cx.list(&v)))
+}
+
+/// The element of `xs` whose key `f(x)` is largest (`max`) or smallest by the canonical order; the first of equal
+/// keys. An empty `xs` is `failure(index, 1, 0)`, as for `first`.
+fn extreme_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], max: bool) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, f] = *args else { return Ok(Reply::Decline) };
+    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    if xs.is_empty() {
+        return Ok(Reply::Done(lib.bad_index(h, h.int(1), 0)));
+    }
+    let key = match keys(lib, cx, f, xs)? {
+        Ok(k) => k,
+        Err(e) => return Ok(Reply::Done(e)),
+    };
+    let want = if max { Ordering::Greater } else { Ordering::Less };
+    let mut best = 0;
+    let mut m = Meter::default();
+    for i in 1..key.len() {
+        m.step(cx)?;
+        if cx.cmp(key[i], key[best]) == want {
+            best = i;
+        }
+    }
+    Ok(Reply::Done(xs[best]))
+}
+
+/// `max_by(xs, f)`: the first element with the largest `f(x)`.
+pub(crate) fn max_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    extreme_by(lib, cx, t, args, true)
+}
+
+/// `min_by(xs, f)`: the first element with the smallest `f(x)`.
+pub(crate) fn min_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    extreme_by(lib, cx, t, args, false)
 }
 
 #[cfg(test)]

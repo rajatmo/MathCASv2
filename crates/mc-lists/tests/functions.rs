@@ -324,7 +324,6 @@ fn function_valued_arguments_may_be_natives_and_rules() {
 }
 
 #[test]
-#[ignore = "needs lambdas (package H)"]
 fn lambdas() {
     check(
         &mut Env::new(),
