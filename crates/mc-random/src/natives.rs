@@ -1,5 +1,6 @@
 //! The natives: argument checks (pure), then the effect, then the draws under one lock of the session state.
 use crate::{Generator, Rng};
+use mc_api::packed::build_nested;
 use mc_api::{names, Store, View, T};
 use mc_arith::num::{Int, Nat};
 use mc_arith::{Arith, Num, Real};
@@ -145,19 +146,6 @@ fn integer_range<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Checked<'h, (Int, I
     }
 }
 
-/// Nested lists of the shape `dims` from the flat elements, row-major.
-fn nest<'h>(cx: &NativeCx<'_, '_, 'h>, flat: &[T<'h>], dims: &[usize]) -> T<'h> {
-    match dims {
-        [] => flat[0],
-        [_] => cx.list(flat),
-        [d, rest @ ..] => {
-            let size: usize = rest.iter().product();
-            let rows: Vec<T<'h>> = (0..*d).map(|i| nest(cx, &flat[i * size..(i + 1) * size], rest)).collect();
-            cx.list(&rows)
-        }
-    }
-}
-
 impl RandomNative {
     /// The job and the shape of the result (`None`: one value), or a reply (decline or failure).
     #[allow(clippy::type_complexity)]
@@ -254,57 +242,73 @@ impl Native for RandomNative {
             _ => {}
         }
         let n: usize = dims.as_ref().map_or(1, |d| d.iter().product());
-        let mut flat: Vec<T<'h>> = Vec::with_capacity(n.min(1 << 20));
-        {
+        // the draws, in the stream's order; machine numbers as plain leaves (decision P.1: the result is built
+        // from them as one payload, never as element terms)
+        let leaves = {
             let mut g = self.rng.lock();
             let s = g.stream();
             match &job {
                 Job::Real(a, b) => {
                     let w = b - a;
+                    let mut v = leaf_buffer::<f64>(n);
                     for _ in 0..n {
                         cx.tick(1)?;
-                        flat.push(h.real(s.real_in(*a, w)));
+                        v.push(s.real_in(*a, w));
                     }
+                    Leaves::Reals(v)
                 }
-                Job::Integer(a, b) => {
-                    // machine ranges without the big-integer layer
-                    if let (Some(a), Some(b)) = (a.to_i64(), b.to_i64()) {
+                // machine ranges without the big-integer layer
+                Job::Integer(a, b) => match (a.to_i64(), b.to_i64()) {
+                    (Some(a), Some(b)) => {
+                        let mut v = leaf_buffer::<i64>(n);
                         for _ in 0..n {
                             cx.tick(1)?;
-                            flat.push(h.int(s.int_in(a, b)));
+                            v.push(s.int_in(a, b));
                         }
-                    } else {
+                        Leaves::Ints(v)
+                    }
+                    _ => {
+                        let mut v = Vec::with_capacity(n.min(1 << 20));
                         for _ in 0..n {
                             cx.tick(1)?;
-                            flat.push(ar.integer(&s.integer(a, b)));
+                            v.push(ar.integer(&s.integer(a, b)));
                         }
+                        Leaves::Terms(v)
                     }
-                }
+                },
                 Job::Normal(mu, sigma) => {
                     // pairs; an odd count drops the last pair's second value (as Stream::normals)
+                    let mut v = leaf_buffer::<f64>(n);
                     for i in 0..n.div_ceil(2) {
                         cx.tick(2)?;
                         let (x, y) = s.normal_pair();
-                        flat.push(h.real(mu + sigma * x));
+                        v.push(mu + sigma * x);
                         if 2 * i + 1 < n {
-                            flat.push(h.real(mu + sigma * y));
+                            v.push(mu + sigma * y);
                         }
                     }
+                    Leaves::Reals(v)
                 }
                 Job::Choice(items) => {
+                    let mut v = Vec::with_capacity(n.min(1 << 20));
                     for _ in 0..n {
                         cx.tick(1)?;
-                        flat.push(items[s.below(items.len() as u64) as usize]);
+                        v.push(items[s.below(items.len() as u64) as usize]);
                     }
+                    Leaves::Terms(v)
                 }
                 Job::Seed(_) | Job::RandomSeed | Job::Sample(..) => unreachable!(),
             }
-        }
-        Ok(Reply::Done(match &dims {
-            None => flat[0],
-            // a shape with a zero dimension: nested empty lists down to it
-            Some(d) if n == 0 => nest_empty(cx, d),
-            Some(d) => nest(cx, &flat, d),
+        };
+        Ok(Reply::Done(match (&dims, leaves) {
+            (None, Leaves::Reals(v)) => h.real(v[0]),
+            (None, Leaves::Ints(v)) => h.int(v[0]),
+            (None, Leaves::Terms(v)) => v[0],
+            // the store packs these exactly as it would pack the list built element by element (N4a.1), and
+            // builds nested empty lists for a shape with a zero dimension
+            (Some(d), Leaves::Reals(v)) => h.real_array(d, &v),
+            (Some(d), Leaves::Ints(v)) => h.int_array(d, &v),
+            (Some(d), Leaves::Terms(v)) => build_nested(h, d, n, |i| v[i]),
         }))
     }
 
@@ -313,13 +317,21 @@ impl Native for RandomNative {
     }
 }
 
-/// The nested lists of a shape with a zero dimension.
-fn nest_empty<'h>(cx: &NativeCx<'_, '_, 'h>, dims: &[usize]) -> T<'h> {
-    match dims {
-        [] | [0, ..] | [_] => cx.list(&[]),
-        [d, rest @ ..] => {
-            let row = nest_empty(cx, rest);
-            cx.list(&vec![row; *d])
-        }
+/// The drawn leaves of a result.
+enum Leaves<'h> {
+    Reals(Vec<f64>),
+    Ints(Vec<i64>),
+    /// big integers and chosen elements
+    Terms(Vec<T<'h>>),
+}
+
+/// A buffer for `n` machine-number leaves: reserved exactly when the allocator grants it (so the peak is the payload
+/// and the store's copy of it, with no doubling slack), else grown as drawn (a count the memory cannot hold then
+/// fails as it did when the elements were terms).
+fn leaf_buffer<X>(n: usize) -> Vec<X> {
+    let mut v = Vec::new();
+    if v.try_reserve_exact(n).is_err() {
+        v.reserve(n.min(1 << 20));
     }
+    v
 }
