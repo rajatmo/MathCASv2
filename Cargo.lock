@@ -524,6 +524,7 @@ dependencies = [
  "mc-numeric",
  "mc-numtheory",
  "mc-poly",
+ "mc-strings",
  "mc-syntax",
 ]
 
@@ -614,6 +615,7 @@ version = "0.0.0"
 dependencies = [
  "mc-api",
  "mc-arith",
+ "mc-bench",
  "mc-core",
  "mc-engine",
  "mc-eval",
@@ -662,6 +664,18 @@ dependencies = [
  "mc-bench",
  "mc-engine",
  "mc-kernel",
+ "mc-syntax",
+]
+
+[[package]]
+name = "mc-strings"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
  "mc-syntax",
 ]
 

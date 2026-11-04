@@ -36,6 +36,7 @@ pub struct Names {
     add: Sym,
     mul: Sym,
     pow: Sym,
+    abs: Sym,
     consts: [(Sym, Const); 4],
     funs: [(Sym, Fun); 12],
 }
@@ -47,6 +48,7 @@ impl Names {
             add: st.sym(names::ADD),
             mul: st.sym(names::MUL),
             pow: st.sym(names::POW),
+            abs: st.sym("abs"),
             consts: Const::ALL.map(|c| (st.sym(c.name()), c)),
             funs: Fun::ALL.map(|f| (st.sym(f.name()), f)),
         }
@@ -86,6 +88,8 @@ enum Node {
     Mul(Vec<u32>),
     Pow(u32, u32),
     Fun(Fun, u32),
+    /// |x| (the absolute value is part of numerical evaluation, so it is refined with the rest: package 1C)
+    Abs(u32),
 }
 
 /// The numeric nodes of a term.
@@ -172,6 +176,8 @@ impl<'h> Graph<'h> {
             Node::Pow(kids[0], kids[1])
         } else if let (Some(f), [k]) = (nm.fun(s), kids.as_slice()) {
             Node::Fun(f, *k)
+        } else if let (true, [k]) = (s == nm.abs, kids.as_slice()) {
+            Node::Abs(*k)
         } else {
             return None;
         };
@@ -203,7 +209,7 @@ impl<'h> Graph<'h> {
                 Node::Num(_) | Node::Const(_) => {}
                 Node::Add(k) | Node::Mul(k) => stack.extend(k),
                 Node::Pow(a, b) => stack.extend([a, b]),
-                Node::Fun(_, a) => stack.push(*a),
+                Node::Fun(_, a) | Node::Abs(a) => stack.push(*a),
             }
         }
         let order = (0..=root).filter(|&i| seen[i as usize]).collect();
@@ -241,6 +247,11 @@ impl<'h> Graph<'h> {
                 }
                 Node::Pow(a, b) => self.pow_ball(&vals, *a, *b, p)?,
                 Node::Fun(f, a) => f.ball(&vals[a], p)?,
+                // |x| over [m - r, m + r] lies in [|m| - r, |m| + r], also when the ball contains zero
+                Node::Abs(a) => {
+                    let x = &vals[a];
+                    Ball { mid: x.mid.abs(), rad: x.rad }
+                }
             };
             vals.insert(i, v);
         }
@@ -277,6 +288,10 @@ impl<'h> Graph<'h> {
                     }
                 }
                 Node::Fun(f, a) => f.machine(vals[a]),
+                Node::Abs(a) => match vals[a] {
+                    Mach::Real(v) => Mach::Real(v.abs()),
+                    Mach::Complex(z) => Mach::Real(z.re.hypot(z.im)),
+                },
             };
             vals.insert(i, v);
         }
@@ -373,7 +388,14 @@ pub fn numericize<'h, S: Store + ?Sized>(
                 continue;
             }
             View::App { head, args } => {
-                let new: Vec<T<'h>> = args.iter().map(|a| done[a]).collect();
+                let mut new: Vec<T<'h>> = args.iter().map(|a| done[a]).collect();
+                // an exact exponent outside an island stays exact: x^-1 with x a ball is a ball, x^(-1.000~) is
+                // not evaluated (package 1C)
+                if let (true, [_, e]) = (head == st.sym_term(nm.pow), args) {
+                    if ar.num(*e).is_some_and(|x| x.is_exact()) {
+                        new[1] = *e;
+                    }
+                }
                 if new.as_slice() == args {
                     u
                 } else {

@@ -8,6 +8,10 @@
 //! - [`exact`]: exact identities (`sin(pi) = 0`, `log(e) = 1`, `cos(pi/3) = 1/2`, `exp(log(x)) = x`, parity);
 //! - [`numeval`]: numerical evaluation of terms, `n(e)` and `n(e, d)` with precision doubling, comparisons and
 //!   sign decisions by refinement;
+//! - [`value`]: exact values behind inexact numbers, decimal digits of balls, the simplest rational in an interval;
+//! - the number functions of roadmap package 1C (private modules `parts`, `approx`, `piecewise`): `re`,
+//!   `im_part`, `conjugate`, `arg`, rules extending `abs` and `sign` to closed terms, `precision`, `accuracy`,
+//!   `set_precision`, `rationalize`, `chop`, `clip`, `rescale`, `unit_step`, and `n(e, digits: d)`;
 //! - [`install`] / [`install_with_stop`]: the natives and the comparison rules for an `mc-eval` kernel.
 //!
 //! ```
@@ -40,16 +44,43 @@
 //! - **L.10** The elementary functions map over a list argument (there is no `listable` attribute yet).
 //! - **L.11** Integer square roots run with the stop flag off (they cannot survive a stopped multiplication).
 //! - **L.12** No ball functions of complex balls: such calls stay unevaluated.
+//!
+//! Package 1C (number functions; details in the modules):
+//!
+//! - **1C.1** Complex parts of numbers are exact operations on the parts: `im_part` of any real is the exact 0;
+//!   `arg` of any real is exact (0 or pi), of an exact complex number an exact `atan` form evaluated again.
+//! - **1C.2** On terms, `re`, `im_part`, `conjugate` distribute over sums of c * (-1)^q * (known-real factors);
+//!   known real: closed numeric terms with real values and calls of `re`, `im_part`, `abs`, `arg`.
+//! - **1C.3** `chop` replaces inexact reals below delta (a ball entirely) by the exact 0, complex parts
+//!   separately; a chopped imaginary part leaves the real part alone.
+//! - **1C.4** `precision` and `accuracy` are decimal digits as machine reals, `inf` for exact; a ball's come from
+//!   its working precision and its radius, whichever is worse; over a term the least.
+//! - **1C.5** `set_precision` resets every number to a ball whose radius is only the new rounding (machine reals
+//!   by their binary value), then evaluates closed subterms; `inf` gives exact binary values.
+//! - **1C.6** `rationalize(x)`: the simplest rational in an inexact number's interval if within 10^-4/q^2;
+//!   `rationalize(x, dx)`: the simplest rational within dx for every kind of real, closed terms by refinement.
+//! - **1C.7** `abs` and `sign` of closed terms that are not numbers are rules here (the natives for numbers are
+//!   `mc-numtheory`'s); they decide signs by refinement and use the decomposition of 1C.2.
+//! - **1C.8** `unit_step` and `clip` give exact results where the answer is a bound or a step value: `clip(5.0)`
+//!   is 1, `unit_step(2.5)` is 1; undecided comparisons leave the call.
+//! - **1C.9** `n(e, digits: d)` is `n(e, d)`; both forms together must agree; other options are
+//!   `failure(unknown_option, name)`.
+//! - **1C.10** `rescale(xs)` of equal values gives zeros.
 #![warn(missing_docs)]
 
+mod approx;
 pub mod consts;
 pub mod elementary;
 pub mod exact;
 pub mod fun;
 pub mod machine;
 mod natives;
+mod numbers;
 pub mod numeval;
+mod parts;
+mod piecewise;
 mod series;
+pub mod value;
 
 pub use fun::Fun;
 pub use natives::{failure_tags, install, install_with_stop};
@@ -72,8 +103,23 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("cosh", "cosh(x): the hyperbolic cosine"),
     ("tanh", "tanh(x): the hyperbolic tangent"),
     ("sqrt", "sqrt(x): the principal square root, the canonical power x^(1/2)"),
-    ("n", "n(e): machine numbers; n(e, d): balls with at least d correct digits, or failure(precision_not_reached, b)"),
+    (
+        "n",
+        "n(e): machine numbers; n(e, d), n(e, digits: d): balls with d correct digits, or precision_not_reached",
+    ),
     ("is_positive", "is_positive(x): true/false for a number or closed numeric expression when decided"),
     ("is_negative", "is_negative(x): true/false for a number or closed numeric expression when decided"),
     ("is_real", "is_real(x): true for real numbers and real closed numeric expressions, false for non-real numbers"),
+    ("re", numbers::description("re")),
+    ("im_part", numbers::description("im_part")),
+    ("conjugate", numbers::description("conjugate")),
+    ("arg", numbers::description("arg")),
+    ("precision", numbers::description("precision")),
+    ("accuracy", numbers::description("accuracy")),
+    ("set_precision", numbers::description("set_precision")),
+    ("rationalize", numbers::description("rationalize")),
+    ("chop", numbers::description("chop")),
+    ("clip", numbers::description("clip")),
+    ("rescale", numbers::description("rescale")),
+    ("unit_step", numbers::description("unit_step")),
 ];

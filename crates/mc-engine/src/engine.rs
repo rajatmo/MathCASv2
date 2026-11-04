@@ -84,6 +84,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_poly::FUNCTIONS,
         mc_jit::FUNCTIONS,
         mc_calculus::FUNCTIONS,
+        mc_strings::FUNCTIONS,
     ];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
@@ -164,6 +165,7 @@ impl CoreEngine {
             mc_poly::install(&mut k, h, &arith_stop);
             mc_calculus::install(&mut k, h, &arith_stop);
             jit = Some(mc_jit::install(&mut k, h));
+            mc_strings::install(&mut k, h);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

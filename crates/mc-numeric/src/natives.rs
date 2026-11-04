@@ -4,7 +4,7 @@
 //! |---|---|
 //! | `exp`, `log`, `sin`, ... | an exact identity, a ball or machine value for a number, else unevaluated; lists map |
 //! | `sqrt(x)` | the canonical power `x^(1/2)` |
-//! | `n(e)`, `n(e, d)` | numerical evaluation (semantics 2.6); `failure(precision_not_reached, best)` |
+//! | `n(e)`, `n(e, d)`, `n(e, digits: d)` | numerical evaluation (semantics 2.6); `failure(precision_not_reached, best)` |
 //! | `is_positive`, `is_negative`, `is_real` | `true`/`false` for numbers and closed numeric terms when decided |
 //! | rules on `less`, ..., `equal`, `unequal` | decided by refinement for closed numeric terms |
 //!
@@ -107,13 +107,23 @@ struct NumericN {
 impl Native for NumericN {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let (x, target) = match args {
-            [x] => (*x, Target::Machine),
-            [x, d] => match h.view(*d) {
-                View::Int(d @ 1..) => (*x, Target::Digits(d as u64)),
-                _ => return Ok(Reply::Done(failure(h, failure_tags::INVALID_ARGUMENT, t))),
-            },
+        // the option form n(x, digits: d) is n(x, d) (decision 1C.9)
+        let (args, digits) = match split_options(h, args) {
+            Ok(split) => split,
+            Err(name) => return Ok(Reply::Done(failure(h, "unknown_option", h.sym_term(name)))),
+        };
+        let d = match (args, digits) {
+            ([_], None) => None,
+            (&[_, d], None) | (&[_], Some(d)) => Some(d),
+            (&[_, d], Some(e)) if d == e => Some(d),
+            ([_, _], Some(_)) => return Ok(Reply::Done(failure(h, failure_tags::INVALID_ARGUMENT, t))),
             _ => return Ok(Reply::Decline),
+        };
+        let x = args[0];
+        let target = match d.map(|d| h.view(d)) {
+            None => Target::Machine,
+            Some(View::Int(d @ 1..)) => Target::Digits(d as u64),
+            Some(_) => return Ok(Reply::Done(failure(h, failure_tags::INVALID_ARGUMENT, t))),
         };
         if let Target::Digits(d) = target {
             if first_precision(d) > DEFAULT_MAX_BITS {
@@ -136,6 +146,30 @@ impl Native for NumericN {
             Reply::Again(r.term)
         })
     }
+}
+
+/// The arguments before a trailing `options(name -> v, ...)`, and the value of its `digits` option; `Err` with the
+/// name of any other option. The last occurrence of a repeated option wins.
+fn split_options<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> Result<(&'a [T<'h>], Option<T<'h>>), Sym> {
+    let Some((&last, rest)) = args.split_last() else { return Ok((args, None)) };
+    let View::App { head, args: rules } = h.view(last) else { return Ok((args, None)) };
+    if head != h.sym_term(h.sym("options")) {
+        return Ok((args, None));
+    }
+    let rule = h.sym_term(h.sym(names::RULE));
+    let digits = h.sym("digits");
+    let mut value = None;
+    for &r in rules {
+        match h.view(r) {
+            View::App { head, args: &[k, v] } if head == rule => match h.view(k) {
+                View::Sym(s) if s == digits => value = Some(v),
+                View::Sym(s) => return Err(s),
+                _ => return Ok((args, None)),
+            },
+            _ => return Ok((args, None)),
+        }
+    }
+    Ok((rest, value))
 }
 
 /// `is_positive(x)`, `is_negative(x)` and `is_real(x)`.
@@ -282,6 +316,7 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for rel in Rel::ALL {
         define_comparison(k, h, rel, &nm, stop);
     }
+    crate::numbers::install(k, h, &nm, stop);
 }
 
 #[cfg(test)]

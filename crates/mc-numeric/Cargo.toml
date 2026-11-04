@@ -13,6 +13,7 @@ mc-eval = { path = "../mc-eval" }
 rustc-hash = "2"
 
 [dev-dependencies]
+mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
 mc-syntax = { path = "../mc-syntax" }
 num-bigint = "0.4"
