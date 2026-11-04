@@ -75,6 +75,10 @@ const CASES: &[(&str, &str, &[&str])] = &[
     ("bigx", "fn bigx(x: Real, a: Int, b: Int) = a*b*x + x*a/b + 3*x*y(a)", &["1.5, 1099511627776, 1099511627776", "0.1, 3, 7", "-0.0, 0, 5", "2.0, 9223372036854775807, 2", "0.3, 9007199254740993, -3", "1.0, 5, 0"]),
     ("pw", "fn pw(x: Real, n: Int) = x^n * x^-2 + x^(1/3) + x^(3/2) + x^(4/2)", &["2.0, 3", "-8.0, 3", "0.5, -1075", "1e308*10.0, 2", "-0.0, -1", "0.0*(1e308*10.0), 1", "1.0000000000000002, 9223372036854775807"]),
     ("gen", "fn gen(n: Int) = { var a = 0; var b = 1; var k = 0; while k < n and a >= 0 { var t = a + b; a = b; b = t; k = k + 1 }; a }", &["10", "90", "92", "93", "200"]),
+    // package N0: list results, constant indices, `length`, `n` of the constants
+    ("vecs", "fn vecs(x: Real, n: Int) = { let v = [x*x, x + n, [n, 2.5]]; [v[3][1], v[-1][2]*v[1], length(v), if x > 0.0 then [x, n] else [-x, n + 1]] }", &["1.5, 3", "-2.0, 9223372036854775807", "0.0*(1e308*10.0), -4", "-0.0, 0"]),
+    ("npi", "fn npi(x: Real, k: Int) = x*n(pi) + n(e) - n(k) + n(x)", &["1.5, 3", "-0.0, 9007199254740993", "1e308*10.0, 0"]),
+    ("jac", "fn jac(x: Real, y: Real) = [[2.0*x, 1.0], [y, x*y - sin(y)]]", &["1.0, 2.0", "-0.5, 1e300", "0.0, -0.0"]),
 ];
 
 /// Engines with and without the compiler, given the same definitions.
@@ -199,7 +203,7 @@ fn functions_outside_the_subset_are_refused_with_a_reason() {
     let cases = [
         ("fn a1(n: Int) = n + z", "the free name `z`"),
         ("fn a2(n: Int) = if n < 1 then 1 else n*a2(n - 1)", "the recursive call of `a2`"),
-        ("fn a3(n: Int) = [n]", "the call of `list`: `list` has no definition"),
+        ("fn a3(n: Int) = [n][2]", "the index 2 of a list of length 1"),
         ("fn a4(n: Int) = if n < 1 then 1 else 2.5", "`if` branches of types Int and Real"),
         ("fn a5(n: Int) = { var s = 0; s = 1.5; s }", "`s` holds a Int value and is assigned a Real value"),
         ("fn a6(n: Int) = n/2 + 1/3", "exact rational arithmetic (the result can be a rational)"),
@@ -208,6 +212,9 @@ fn functions_outside_the_subset_are_refused_with_a_reason() {
         ("fn a9(x: Real) = mod(x, 2)", "`mod` of a machine real"),
         ("fn a10(s: String) = s", "parameter `s` of `a10` has a type other than Int or Real"),
         ("fn a11(n: Int) = if n > 0 then 1", "an `if` without `else` used as a value (it can be null)"),
+        ("fn a12(x: Real) = x*pi", "the constant `pi` (the interpreter keeps it exact; n(pi) is its machine real)"),
+        ("fn a13(x: Real) = [x, x] + 1.0", "a list where a number is expected"),
+        ("fn a14(x: Real, k: Int) = [x][k]", "an index that is not a constant integer"),
     ];
     for (def, why) in cases {
         assert_eq!(eval(&mut e, def), "null", "{def}");

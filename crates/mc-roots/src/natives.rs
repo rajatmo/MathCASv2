@@ -152,6 +152,18 @@ fn residual<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, t: T<'h>) -
     }
 }
 
+/// The machine-real view of a closure: interpreted, compiled by `mc-jit` as `mc_numfn::Policy::default()` says
+/// (package N0), with the interpreter evaluating every call the compiled code declines. Constants are not folded
+/// by the compiler (`consts` false): after `n` none are left, and if `n` failed the interpreter keeps them exact.
+fn auto<'r, 'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: &'r mut TermFn<'h>,
+    ar: &'r Arith<'h, Heap>,
+) -> mc_numfn::Auto<'h, Machine<'r, 'h>> {
+    let (vars, body) = (f.vars().to_vec(), f.body());
+    mc_numfn::Auto::new(cx, Machine { f, ar }, &vars, body, false, mc_numfn::Policy::default())
+}
+
 /// The expression with its numeric constants evaluated: by `n` at machine precision, or to `digits` digits
 /// (decision R.9). The variables stay symbols; a failure of `n` leaves the expression as it is.
 fn numeric<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, digits: Option<u64>) -> Res<T<'h>> {
@@ -330,8 +342,10 @@ impl Native for FindRoot {
             to_nums(newton::solve(cx, &mut fv, jd, x0, &goals, None)?)
         } else {
             let Some(x0) = scalars::<f64>(&starts) else { return Ok(bad_argument(h, NAME, h.int(2))) };
-            let mut fv = Machine { f: &mut fm, ar: &ar };
-            let mut jv = jm.as_mut().map(|j| Machine { f: j, ar: &ar });
+            // machine reals: compiled when the policy says, the interpreter for refused and declined calls
+            // (package N0; the results are the interpreter's)
+            let mut fv = auto(cx, &mut fm, &ar);
+            let mut jv = jm.as_mut().map(|j| auto(cx, j, &ar));
             let jd = jv.as_mut().map(|j| j as &mut dyn NumFn<'h, f64>);
             to_nums(match method {
                 RootMethod::Newton { symbolic: true } if jd.is_none() && n == 1 => {

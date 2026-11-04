@@ -38,12 +38,19 @@ pub struct Env {
     poll: *mut c_void,
     /// A panic raised inside the host's poll, resumed once the compiled code has returned.
     panic: Option<Box<dyn std::any::Any + Send>>,
+    /// The output buffer of a vector result (decision N0.3): [`crate::ir::Op::Out`] writes word `k` at `out + 8k`;
+    /// null with `nout` 0 for a scalar call.
+    pub out: *mut u64,
+    /// The length of the output buffer in words (the host checks it covers every slot before the call).
+    pub nout: usize,
 }
 
 /// Byte offset of [`Env::ctl`] (ABI).
 pub const ENV_CTL: i32 = std::mem::offset_of!(Env, ctl) as i32;
 /// Byte offset of [`Env::exit`] (ABI).
 pub const ENV_EXIT: i32 = std::mem::offset_of!(Env, exit) as i32;
+/// Byte offset of [`Env::out`] (ABI).
+pub const ENV_OUT: i32 = std::mem::offset_of!(Env, out) as i32;
 /// Byte offset of the stop flag and status pair in [`Control`], read as one 64-bit word (both zero: running).
 pub const CTL_STOP_STATUS: i32 = mc_eval::ctl::CTL_STOP as i32;
 const _: () = assert!(mc_eval::ctl::CTL_STATUS == mc_eval::ctl::CTL_STOP + 4);
@@ -57,12 +64,19 @@ pub type PollFn<'a> = dyn FnMut(u64) -> bool + 'a;
 impl Env {
     /// Run `f` with an environment for the control block `ctl` whose polls call `poll`.
     pub fn with<R>(ctl: &Control, poll: &mut PollFn<'_>, f: impl FnOnce(&mut Env) -> R) -> (R, Exit) {
+        Env::with_out(ctl, poll, &mut [], f)
+    }
+
+    /// [`Env::with`] with the output buffer `out` for a vector result.
+    pub fn with_out<R>(ctl: &Control, poll: &mut PollFn<'_>, out: &mut [u64], f: impl FnOnce(&mut Env) -> R) -> (R, Exit) {
         let mut p: &mut PollFn<'_> = poll;
         let mut env = Env {
             ctl,
             exit: Exit::Done as u32,
             poll: (&mut p as *mut &mut PollFn<'_>).cast(),
             panic: None,
+            out: out.as_mut_ptr(),
+            nout: out.len(),
         };
         let r = f(&mut env);
         if let Some(payload) = env.panic.take() {
@@ -80,6 +94,16 @@ impl Env {
     pub fn control(&self) -> &Control {
         // SAFETY: `ctl` comes from a reference that outlives the environment (`Env::with`).
         unsafe { &*self.ctl }
+    }
+
+    /// Write output word `k`; `false` when the buffer is too short (the interpreter back end checks every write).
+    pub fn write_out(&mut self, k: usize, w: u64) -> bool {
+        if k >= self.nout {
+            return false;
+        }
+        // SAFETY: `out` points to `nout` live words (`Env::with_out`), and `k < nout`.
+        unsafe { *self.out.add(k) = w };
+        true
     }
 
     /// Record a decline (the first exit wins).

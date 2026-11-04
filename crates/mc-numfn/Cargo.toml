@@ -1,0 +1,20 @@
+[package]
+name = "mc-numfn"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 numeric functions: the NumFn trait over machine reals, complex numbers and balls, with interpreted, compiled (mc-jit) and batch backends and automatic fallback"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+mc-jit = { path = "../mc-jit" }
+# complex machine numbers
+mc-numeric = { path = "../mc-numeric" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

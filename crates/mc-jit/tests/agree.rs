@@ -187,6 +187,61 @@ fn random_programs_agree_on_both_back_ends() {
     assert!(done > 1000 && declined > 300, "{done} done, {declined} declined");
 }
 
+/// Package N0: random programs with a vector result (1-6 output words, written by `S::Out`, also inside loops and
+/// branches) give the same words and exit on both back ends; a buffer shorter than the outputs declines.
+#[test]
+fn random_vector_programs_agree_on_both_back_ends() {
+    let mut r = Rng(0x2545_f491_4f6c_dd1d);
+    let (mut done, mut declined) = (0, 0);
+    for k in 0..200 {
+        let mut f = program(&mut r, k);
+        let n = 1 + r.below(6) as u32;
+        let mut tys = vec![];
+        for slot in 0..n {
+            let (e, t) = if r.below(2) == 0 { (real_e(&mut r, 2), Ty::Real) } else { (int_e(&mut r, 2), Ty::Int) };
+            tys.push(t);
+            // some outputs written early and overwritten later, some inside a branch
+            match r.below(4) {
+                0 => {
+                    f.body.insert(2, S::Out(slot, e.clone()));
+                    f.body.push(S::Out(slot, e));
+                }
+                1 => f.body.push(S::If(bool_e(&mut r, 2), vec![S::Out(slot, e.clone())], vec![S::Out(slot, e)])),
+                _ => f.body.push(S::Out(slot, e)),
+            }
+        }
+        f.ret = E::Int(0);
+        let interp = build(&f, vec![], Backend::Interpreter).unwrap();
+        let jit = build(&f, vec![], Backend::Cranelift).unwrap();
+        assert_eq!((interp.outputs(), jit.outputs()), (n as usize, n as usize));
+        for _ in 0..12 {
+            let args = [r.int() as u64, r.int() as u64, r.pick(REALS).to_bits(), r.pick(REALS).to_bits()];
+            let call = |b: &Built| {
+                let ctl = Control::default();
+                ctl.fuel.store(i64::MAX / 2, std::sync::atomic::Ordering::Relaxed);
+                let mut out = vec![0u64; n as usize];
+                let (_, e) = b.call_out(&ctl, &args, &mut out, &mut |_| true);
+                (out, e)
+            };
+            let ((oa, ea), (oc, ec)) = (call(&interp), call(&jit));
+            assert_eq!(ea, ec, "program {k} on {args:?}");
+            if ea == Exit::Done {
+                done += 1;
+                for (i, t) in tys.iter().enumerate() {
+                    assert!(same(*t, (oa[i], ea), (oc[i], ec)), "program {k} slot {i} on {args:?}: {oa:?} vs {oc:?}");
+                }
+            } else {
+                declined += 1;
+            }
+            // too short a buffer: declined before running
+            let ctl = Control::default();
+            let mut short = vec![0u64; n as usize - 1];
+            assert_eq!(jit.call_out(&ctl, &args, &mut short, &mut |_| true).1, Exit::Decline);
+        }
+    }
+    assert!(done > 400 && declined > 100, "{done} done, {declined} declined");
+}
+
 /// `f(a, b)` with integer parameters on both back ends: the result, or `None` for a decline.
 fn int2(op: impl Fn(E, E) -> E, a: i64, b2: i64) -> [Option<i64>; 2] {
     let f = Func { name: "t".into(), vars: vec![Ty::Int, Ty::Int], params: vec![0, 1], body: vec![], ret: op(E::Var(0), E::Var(1)) };
