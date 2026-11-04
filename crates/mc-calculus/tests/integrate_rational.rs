@@ -107,8 +107,10 @@ fn declines() {
     assert_eq!(s.run("integrate(1/(x^2 + sqrt(x)), x)"), "integrate((x^(1/2) + x^2)^-1, x)");
     // residues of degree 3: cube roots
     assert_eq!(s.run("integrate(1/(x^3 - 2), x)"), "integrate((-2 + x^3)^-1, x)");
-    // inexact coefficients
-    assert_eq!(s.run("integrate(1/(x^2 + 0.5), x)"), "integrate((0.5 + x^2)^-1, x)");
+    // inexact coefficients: the rational method declines them; since the merge the elementary method's quadratic
+    // table integrates them (sqrt(2)*atan(sqrt(2)*x) in machine numbers), so check that result by differentiation
+    let out = s.run("FF = integrate(1/(x^2 + 0.5), x); n(rewrite(d(FF, x) - 1/(x^2 + 0.5), [x -> 0.7]))");
+    assert!(out.parse::<f64>().is_ok_and(|v| v.abs() < 1e-12), "{out}");
     // the session goes on
     assert_eq!(s.run("integrate(1/(x^2 + 1), x)"), "atan(x)");
 }

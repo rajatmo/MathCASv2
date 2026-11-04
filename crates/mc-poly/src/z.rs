@@ -156,8 +156,12 @@ impl Z {
     pub fn mul_i64(&self, v: i64) -> Z {
         self.mul(&Z::S(v))
     }
-    /// The truncated quotient and remainder (remainder with the sign of self); `d` nonzero.
+    /// The truncated quotient and remainder (remainder with the sign of self); `d` nonzero (after a stop, a zero
+    /// `d` gives `(0, 0)`, as [`Z::div_exact`]).
     pub fn divrem(&self, d: &Z) -> (Z, Z) {
+        if d.is_zero() && mc_arith::num::stopped() {
+            return (Z::ZERO, Z::ZERO);
+        }
         match (self, d) {
             (Z::S(a), Z::S(b)) if !(*a == i64::MIN && *b == -1) => (Z::S(a / b), Z::S(a % b)),
             _ => {
@@ -168,7 +172,14 @@ impl Z {
         }
     }
     /// self / d for a divisor known to divide self exactly.
+    ///
+    /// A zero divisor is a bug, except after the stop flag was raised: `mc-arith`'s kernels then return arbitrary
+    /// values (a content or gcd of 0, for example), which the caller discards when its next work charge stops it.
+    /// The quotient is then 0 instead of a panic.
     pub fn div_exact(&self, d: &Z) -> Z {
+        if d.is_zero() && mc_arith::num::stopped() {
+            return Z::ZERO;
+        }
         match (self, d) {
             (Z::S(a), Z::S(b)) if !(*a == i64::MIN && *b == -1) => Z::S(a / b),
             _ => {
