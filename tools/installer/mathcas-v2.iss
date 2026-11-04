@@ -21,7 +21,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ChangesEnvironment=yes
-UninstallDisplayIcon={app}\mc-repl.exe
+SetupIconFile=icon.ico
+UninstallDisplayIcon={app}\icon.ico
 UninstallDisplayName=MathCAS v2
 SourceDir={#SourceDir}
 OutputDir={#OutputDir}
@@ -37,7 +38,7 @@ Name: "addtopath"; Description: "Add MathCAS to the PATH (mc-repl, mc-kernel and
 Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"
+Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 quick start guide"; Filename: "{app}\quickstart.pdf"
 Name: "{group}\MathCAS v2 examples"; Filename: "{app}\examples"
 Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"

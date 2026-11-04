@@ -17,6 +17,7 @@ $manifest = @"
     <DisplayName>$(& $esc $pkg.displayName)</DisplayName>
     <Description xml:space="preserve">$(& $esc $pkg.description)</Description>
     <Categories>Programming Languages</Categories>
+    <Icon>extension/icon.png</Icon>
     <Properties>
       <Property Id="Microsoft.VisualStudio.Code.Engine" Value="$($pkg.engines.vscode)" />
     </Properties>
@@ -27,6 +28,7 @@ $manifest = @"
   <Dependencies />
   <Assets>
     <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" />
+    <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/icon.png" Addressable="true" />
   </Assets>
 </PackageManifest>
 "@
@@ -35,6 +37,7 @@ $types = @"
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension=".json" ContentType="application/json" />
   <Default Extension=".js" ContentType="application/javascript" />
+  <Default Extension=".png" ContentType="image/png" />
   <Default Extension=".txt" ContentType="text/plain" />
   <Default Extension=".vsixmanifest" ContentType="text/xml" />
 </Types>
