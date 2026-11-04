@@ -209,8 +209,9 @@ impl Options {
     /// The working precision of the ball refinement in bits (the asked digits plus guard digits) and the precision
     /// of the result, both for `digits: d`. The result keeps guard bits beyond d digits, as `n(x, d)` does
     /// (`mc-numeric`'s first precision): rounded to exactly d digits' worth of bits, the rounding error alone
-    /// (half a unit in the last bit) is a fair fraction of a unit in the d-th digit, so that digit was often not
-    /// certain and the printer, which shows only correct digits, showed d - 1 of them (decision N1.7).
+    /// (half a unit in the last bit, up to half a unit in the d-th digit) often made the d-th digit uncertain, and
+    /// the printer, which shows only correct digits, showed d - 1 of them. The refinement then caps the result at
+    /// d digits (`refine::result_num`, decision N1.7).
     pub fn ball_precision(&self) -> Option<(u64, u64)> {
         self.digits.map(|d| (digits_to_bits(d + GUARD_DIGITS), mc_numeric::numeval::first_precision(d)))
     }

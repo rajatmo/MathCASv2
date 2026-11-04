@@ -383,7 +383,8 @@ impl Native for FindRoot {
         };
         let Some((p, p0)) = opts.ball_precision() else { return Ok(Reply::Done(rules(h, &ar, &vars, &x))) };
         // refinement with balls (decision R.9), with the derivative for Newton steps and the verification
-        let d = opts.digits.unwrap_or(0) + options::GUARD_DIGITS;
+        let digits = opts.digits.unwrap_or(0);
+        let d = digits + options::GUARD_DIGITS;
         let mut fb = TermFn::new(h, &vars, numeric(cx, body, Some(d))?);
         let mut jb = match symbolic {
             Some(dt) => Some(TermFn::new(h, &vars, numeric(cx, dt, Some(d))?)),
@@ -398,7 +399,7 @@ impl Native for FindRoot {
             }
             Refine::Interrupted => return Ok(Reply::Done(failure(h, names::failure::INTERRUPTED, &[]))),
         };
-        let xs: Vec<Num> = r.x.iter().map(|v| refine::round_num(v, p0)).collect();
+        let xs: Vec<Num> = r.x.iter().map(|v| refine::result_num(v, p0, digits)).collect();
         let found = rules(h, &ar, &vars, &xs);
         if !r.converged {
             let tags = [h.sym_term(h.sym(NAME)), found, h.real(pow2(r.err_log2))];
@@ -533,7 +534,8 @@ impl Native for FindExtremum {
         let (Some(g), Some(hs)) = (grad, hess) else {
             return Ok(bad_argument(h, name, h.sym_term(h.sym("digits"))));
         };
-        let d = opts.digits.unwrap_or(0) + options::GUARD_DIGITS;
+        let digits = opts.digits.unwrap_or(0);
+        let d = digits + options::GUARD_DIGITS;
         let mut gb = TermFn::new(h, &vars, numeric(cx, g, Some(d))?);
         let mut hb = TermFn::new(h, &vars, numeric(cx, hs, Some(d))?);
         let mut ob = TermFn::new(h, &vars, numeric(cx, obj, Some(d))?);
@@ -550,8 +552,8 @@ impl Native for FindExtremum {
             return Ok(Reply::Done(failure(h, "not_numeric", &[f, rules(h, &ar, &vars, &r.x)])));
         };
         let v = if self.maximum { v.neg() } else { v };
-        let xs: Vec<Num> = r.x.iter().map(|v| refine::round_num(v, p0)).collect();
-        let found = cx.list(&[ar.number(&refine::round_num(&v, p0)), rules(h, &ar, &vars, &xs)]);
+        let xs: Vec<Num> = r.x.iter().map(|v| refine::result_num(v, p0, digits)).collect();
+        let found = cx.list(&[ar.number(&refine::result_num(&v, p0, digits)), rules(h, &ar, &vars, &xs)]);
         if !r.converged {
             let tags = [h.sym_term(h.sym(name)), found, h.real(pow2(r.err_log2))];
             return Ok(Reply::Done(failure(h, "not_converged", &tags)));

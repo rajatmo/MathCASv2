@@ -126,11 +126,41 @@ fn round_real(r: &Real, p: u64) -> Real {
     }
 }
 
-/// A number rounded to the result precision `p`.
-pub(crate) fn round_num(n: &Num, p: u64) -> Num {
+/// An upper bound of half a unit in the (d + 1)-th significant digit of a number whose first digit has the
+/// decimal exponent `exp10`: 0.5 10^(exp10 - d).
+fn half_unit_after(exp10: i64, d: u64) -> Mag {
+    let k = exp10 - d as i64;
+    let ten = |e: u64| Float::new(false, Nat::pow(10, e), 0);
+    let half = Mag::pow2(-1);
+    if k >= 0 {
+        half.mul(&Mag::from_float_up(&ten(k as u64)))
+    } else {
+        half.div_up(&Mag::from_float_down(&ten(k.unsigned_abs())))
+    }
+}
+
+/// A real result under `digits: d`: rounded to the result precision `p` (which keeps guard bits beyond d
+/// digits), and showing at most d digits: a ball that would print more gets the radius of half a unit in the
+/// (d + 1)-th digit, the least radius that keeps the printer from showing d + 1 digits (decision N1.7).
+fn result_real(r: &Real, p: u64, d: u64) -> Real {
+    let r = round_real(r, p);
+    let Real::Ball(b, q) = &r else { return r };
+    match mc_arith::text::ball_digits(b, *q) {
+        Some(dg) if dg.digits.len() as u64 > d && !b.mid.is_zero() => {
+            let rad = half_unit_after(dg.exp10, d);
+            let smaller = !b.rad.is_zero() && (rad.e, rad.m) < (b.rad.e, b.rad.m);
+            let rad = if smaller { b.rad } else { rad };
+            Real::Ball(Ball { mid: b.mid.clone(), rad }, *q)
+        }
+        _ => r,
+    }
+}
+
+/// A result under `digits: d` ([`result_real`] on each part).
+pub(crate) fn result_num(n: &Num, p: u64, d: u64) -> Num {
     match n {
-        Num::Real(r) => Num::Real(round_real(r, p)),
-        Num::Complex(a, b) => Num::Complex(round_real(a, p), round_real(b, p)),
+        Num::Real(r) => Num::Real(result_real(r, p, d)),
+        Num::Complex(a, b) => Num::Complex(result_real(a, p, d), result_real(b, p, d)),
     }
 }
 

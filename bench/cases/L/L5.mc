@@ -10,5 +10,5 @@
 #@ measure
 map(k => rewrite(x, find_root(x - 0.3*sin(x) == 6.0*k/m, [x, 1.0])), range(m))
 #@ property
-# every root satisfies its equation to a few ulps (whole-list arithmetic: indexing result[k] in a loop is quadratic)
-length(result) == m and max(abs(result - 0.3*sin(result) - 6.0*range(m)/m)) < 1e-14
+# every root satisfies its equation to a few ulps (over pairs [root, k]: indexing result[k] in a loop is quadratic)
+length(result) == m and max(map(v => abs(v[1] - 0.3*sin(v[1]) - 6.0*v[2]/m), transpose([result, range(m)]))) < 1e-14

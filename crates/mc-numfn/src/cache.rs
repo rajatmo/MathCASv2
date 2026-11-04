@@ -20,9 +20,9 @@
 //! ([`Owner`]). A scoped entry is checked before every use: code by its inlined functions' version counters
 //! (decision 1b.6: a redefinition invalidates it), a refusal by the versions of the symbols of the body.
 //!
-//! **Counting** (decision N1.4): a family counts the evaluations of all its instances, so [`crate::Policy::Auto`]
-//! compiles once the family, not one instance, has been evaluated often enough; on a hit an instance runs compiled
-//! from its first call.
+//! **Counting** (decision N1.4): a family counts the evaluations of all its instances, so [`crate::Policy::Family`]
+//! (the default) compiles once the family, not one instance, has been evaluated often enough; on a hit an instance
+//! runs compiled from its first call.
 //!
 //! The cache holds at most [`CAPACITY`] families and evicts the least recently used one. Statistics are process-wide
 //! ([`cache_stats`]); each [`crate::Auto`] also reports its own hit or miss in [`crate::Stats`].
@@ -206,6 +206,24 @@ fn put_str(k: &mut Vec<u8>, s: &str) {
     k.extend_from_slice(s.as_bytes());
 }
 
+/// An integer atom; `None` for anything else.
+fn put_int(k: &mut Vec<u8>, v: View<'_>) -> Option<()> {
+    match v {
+        View::Int(i) => {
+            k.push(tok::INT);
+            put_u64(k, i as u64);
+        }
+        View::BigInt { neg, mag } => {
+            k.push(tok::BIG);
+            k.push(neg as u8);
+            put_u64(k, mag.len() as u64);
+            mag.iter().for_each(|&w| put_u64(k, w));
+        }
+        _ => return None,
+    }
+    Some(())
+}
+
 /// `body` in `vars` with its machine reals lifted (decision N1.1), and its family key (decision N1.2); `None` when
 /// the body is larger than [`MAX_NODES`] (the walks are bounded by it) or holds an atom the key cannot encode.
 /// `consts` is [`crate::Compiled::new`]'s flag.
@@ -272,20 +290,12 @@ pub(crate) fn lift<'h>(h: &'h Heap, vars: &[Var], body: T<'h>, consts: bool) -> 
                     put_u64(&mut key, v.to_bits());
                 }
             }
-            View::Int(i) => {
-                key.push(tok::INT);
-                put_u64(&mut key, i as u64);
-            }
-            View::BigInt { neg, mag } => {
-                key.push(tok::BIG);
-                key.push(neg as u8);
-                put_u64(&mut key, mag.len() as u64);
-                mag.iter().for_each(|&w| put_u64(&mut key, w));
-            }
+            View::Int(_) | View::BigInt { .. } => put_int(&mut key, h.view(u))?,
             View::Rational { num, den } => {
+                // the parts are integers, not nodes of the walk: encoded in place
                 key.push(tok::RAT);
-                put_u64(&mut key, ids[&num] as u64);
-                put_u64(&mut key, ids[&den] as u64);
+                put_int(&mut key, h.view(num))?;
+                put_int(&mut key, h.view(den))?;
             }
             View::Ball { neg, words } => {
                 key.push(tok::BALL);

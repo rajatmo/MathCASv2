@@ -154,30 +154,41 @@ pub enum Policy {
     Interpreted,
     /// at construction
     Compiled,
-    /// after this many evaluations (points) with the interpreted backend: compiling a small expression costs
-    /// 0.2-0.5 ms, about 10-50 interpreted evaluations of 10-30 us
+    /// after this many evaluations (points) of this instance with the interpreted backend: compiling a small
+    /// expression costs 0.2-0.5 ms, about 10-50 interpreted evaluations of 10-30 us (code the cache already holds
+    /// is taken then, without compiling)
     Auto {
         /// evaluations before compiling
         after: u64,
     },
+    /// after this many evaluations of the expression's whole family in the code cache (decision N1.4): an
+    /// instance whose family the cache holds runs compiled from its first call, so solvers called once per
+    /// parameter value compile once (the default)
+    Family {
+        /// evaluations of the family before compiling
+        after: u64,
+    },
 }
 
-/// Evaluations before [`Policy::Auto`] compiles by default.
+/// Evaluations before [`Policy::Family`] (the default) and [`Policy::Auto`] compile by default.
 pub const DEFAULT_AFTER: u64 = 32;
 
 impl Default for Policy {
-    /// [`Policy::Auto`] after [`DEFAULT_AFTER`] evaluations, unless the environment variable `MC_NUMFN` says
-    /// `interpreted`, `compiled`, `auto` or `auto:N` (a measurement aid, read once per process).
+    /// [`Policy::Family`] after [`DEFAULT_AFTER`] evaluations, unless the environment variable `MC_NUMFN` says
+    /// `interpreted`, `compiled`, `auto` (the default), `auto:N` ([`Policy::Auto`], per instance) or `family:N`
+    /// (a measurement aid, read once per process).
     fn default() -> Policy {
         static P: OnceLock<Policy> = OnceLock::new();
-        *P.get_or_init(|| match std::env::var("MC_NUMFN").as_deref() {
-            Ok("interpreted") => Policy::Interpreted,
-            Ok("compiled") => Policy::Compiled,
-            Ok(s) if s.starts_with("auto:") => match s[5..].parse() {
-                Ok(n) => Policy::Auto { after: n },
-                Err(_) => Policy::Auto { after: DEFAULT_AFTER },
-            },
-            _ => Policy::Auto { after: DEFAULT_AFTER },
+        *P.get_or_init(|| {
+            let var = std::env::var("MC_NUMFN").unwrap_or_default();
+            let count = |s: &str| s.parse().unwrap_or(DEFAULT_AFTER);
+            match var.as_str() {
+                "interpreted" => Policy::Interpreted,
+                "compiled" => Policy::Compiled,
+                s if s.starts_with("auto:") => Policy::Auto { after: count(&s[5..]) },
+                s if s.starts_with("family:") => Policy::Family { after: count(&s[7..]) },
+                _ => Policy::Family { after: DEFAULT_AFTER },
+            }
         })
     }
 }
@@ -186,9 +197,10 @@ impl Default for Policy {
 /// (refused: always interpreted) and every declined call is evaluated by `I`. Both evaluate the same body, so the
 /// results are the interpreter's (decision N0.2).
 ///
-/// Unless the policy is [`Policy::Interpreted`], the code comes from the process-wide cache (decision N1.4): on a
-/// hit the instance runs compiled from its first call; on a miss [`Policy::Auto`] counts the evaluations of the
-/// whole family and compiles once they pass its threshold.
+/// Unless the policy is [`Policy::Interpreted`], the code comes from the process-wide cache (decision N1.4). Under
+/// [`Policy::Family`] (the default) an instance whose family the cache holds runs compiled from its first call, and
+/// on a miss the evaluations of the whole family are counted; [`Policy::Auto`] counts this instance's evaluations
+/// and then takes the family's code from the cache, or compiles it.
 pub struct Auto<'h, I> {
     interp: I,
     vars: Vec<Var>,
@@ -232,28 +244,36 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
         if policy == Policy::Interpreted {
             return a;
         }
-        if let Some(lifted) = cache::lift(cx.heap(), vars, body, consts) {
-            let (found, seen) = cache::lookup(cx, &lifted.key);
-            match found {
-                Found::Code(code) => {
-                    a.stats.cache_hits = 1;
+        let Some(lifted) = cache::lift(cx.heap(), vars, body, consts) else {
+            // too large for a key: compiled per instance, as without the cache
+            if policy == Policy::Compiled {
+                a.compile(cx);
+            }
+            return a;
+        };
+        let (found, seen) = cache::lookup(cx, &lifted.key);
+        let now = matches!(policy, Policy::Compiled | Policy::Family { .. });
+        match found {
+            Found::Code(code) => {
+                a.stats.cache_hits = 1;
+                if now {
                     a.tried = true;
                     a.adopt(Compiled { code, lifted: lifted.values.clone() });
                 }
-                Found::Refused { why, unlifted } => {
-                    a.stats.cache_hits = 1;
-                    if !unlifted {
-                        // neither the family nor this body compiles
-                        a.tried = true;
-                        a.refusal = Some(why.to_string());
-                    }
-                    // else this body compiles on its own, per instance (no family)
-                    return a;
-                }
-                Found::Miss => a.stats.cache_misses = 1,
             }
-            a.family = Some((lifted, seen));
+            Found::Refused { why, unlifted } => {
+                a.stats.cache_hits = 1;
+                if !unlifted {
+                    // neither the family nor this body compiles
+                    a.tried = true;
+                    a.refusal = Some(why.to_string());
+                }
+                // else this body compiles on its own, per instance (no family)
+                return a;
+            }
+            Found::Miss => a.stats.cache_misses = 1,
         }
+        a.family = Some((lifted, seen));
         if policy == Policy::Compiled && !a.tried {
             a.compile(cx);
         }
@@ -279,9 +299,18 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
         self.tried = true;
         let t0 = std::time::Instant::now();
         let made = match &self.family {
-            Some((lifted, _)) => match compile_family(cx, lifted, &self.vars, self.body, self.consts) {
-                Made::Code(c) => Ok(c),
-                Made::Refused(why, own) => own.ok_or(why),
+            // the family may have been compiled since this instance looked (by another instance, or before a
+            // `Policy::Auto` instance reached its count)
+            Some((lifted, _)) => match cache::lookup(cx, &lifted.key).0 {
+                Found::Code(code) => Ok(Compiled { code, lifted: lifted.values.clone() }),
+                Found::Refused { why, unlifted: false } => Err(why.to_string()),
+                Found::Refused { why, unlifted: true } => {
+                    Compiled::new(cx, &self.vars, self.body, self.consts).map_err(|_| why.to_string())
+                }
+                Found::Miss => match compile_family(cx, lifted, &self.vars, self.body, self.consts) {
+                    Made::Code(c) => Ok(c),
+                    Made::Refused(why, own) => own.ok_or(why),
+                },
             },
             None => Compiled::new(cx, &self.vars, self.body, self.consts),
         };
@@ -298,12 +327,12 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
     fn ready(&mut self, cx: &mut NativeCx<'_, '_, 'h>, n: u64) -> bool {
         self.seen += n;
         if !self.tried {
-            let seen = match &self.family {
-                Some((_, family)) => family.fetch_add(n, Relaxed) + n,
-                None => self.seen,
+            let seen = match (&self.family, self.policy) {
+                (Some((_, family)), Policy::Family { .. }) => family.fetch_add(n, Relaxed) + n,
+                _ => self.seen,
             };
             match self.policy {
-                Policy::Auto { after } if seen > after => self.compile(cx),
+                Policy::Auto { after } | Policy::Family { after } if seen > after => self.compile(cx),
                 Policy::Compiled => self.compile(cx),
                 _ => {}
             }
