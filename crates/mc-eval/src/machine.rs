@@ -635,13 +635,31 @@ impl<'k, 'h> Eval<'k, 'h> {
                 self.k.learn(s, cx.fuel - e.fuel0);
             }
         }
-        if e.memo && cx.effects == e.effects0 && cx.volatile == e.volatile0 {
+        // a failure from an interrupt or a limit describes this run, not the term: natives that see the arithmetic
+        // stop flag return `failure(interrupted, ...)` as a value, and memoising it would make the term fail for the
+        // rest of the session
+        if e.memo && cx.effects == e.effects0 && cx.volatile == e.volatile0 && !self.transient_failure(v) {
             h.memo_put(e.t0, v, e.epoch0, deps);
             if v != e.t0 {
                 h.memo_put(v, v, e.epoch0, deps);
             }
         }
         Next::Ret(v)
+    }
+
+    /// Is `v` a failure tagged `interrupted` or `limit` (semantics 10: they depend on the run, not on the term)?
+    fn transient_failure(&self, v: T<'h>) -> bool {
+        let h = self.heap;
+        let n = &self.k.names;
+        if h.mask(v) & bit(n.failure) == 0 {
+            return false;
+        }
+        match h.view(v) {
+            View::App { head, args: [tag, ..] } if sym_of(h, head) == Some(n.failure) => {
+                matches!(sym_of(h, *tag), Some(t) if t == n.interrupted || t == n.limit)
+            }
+            _ => false,
+        }
     }
 
     /// Level `e` stops with abort `a`: its reads stay recorded, the argument values it pushed are dropped.

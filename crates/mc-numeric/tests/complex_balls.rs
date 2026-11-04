@@ -568,13 +568,15 @@ fn a_raised_flag_stops_complex_computations() {
     stop.store(true, Relaxed);
     let t0 = Instant::now();
     for f in ["exp", "log", "sin", "atan", "asin"] {
-        // (other literals than below: a term evaluated under a raised flag keeps its failure in the session)
         let src = format!("n({f}(3 + 5im), 10000)");
         let r = e.eval(&src);
         assert!(r.starts_with("failure(interrupted, "), "{src}: {r}");
     }
     assert!(t0.elapsed() < Duration::from_secs(2), "{:?}", t0.elapsed());
     stop.store(false, Relaxed);
+    // the same terms evaluate once the flag is down: a failure from an interrupt is never memoised
+    assert_eq!(e.eval("3 + 5im"), "complex(3, 5)");
+    assert!(e.eval("n(exp(3 + 5im), 20)").starts_with("complex(5.6975"), "{}", e.eval("n(exp(3 + 5im), 20)"));
     // raised during a long computation, with the evaluator's interrupt as the engine does
     for src in ["n(atan(1 + 2im), 1000000)", "n(log(-2 + 1im), 1000000)", "n(exp(1 + 2im)^(1/3), 1000000)"] {
         let raiser = {
