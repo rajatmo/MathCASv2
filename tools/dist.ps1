@@ -33,7 +33,7 @@ Get-ChildItem $dist -Filter "mathcas-*.vsix" | Remove-Item -Force
 Copy-Item (Join-Path $root "tools\dist-README.txt") (Join-Path $dist "README.txt") -Force
 Copy-Item (Join-Path $root "docs\guide\quickstart.pdf") (Join-Path $dist "quickstart.pdf") -Force
 # the application icon (also embedded in the executables): the installer and its shortcuts use it
-Copy-Item (Join-Path $root "assetspp\icon.ico") (Join-Path $dist "icon.ico") -Force
+Copy-Item (Join-Path $root "assets\app\icon.ico") (Join-Path $dist "icon.ico") -Force
 $rev = (git -C $root rev-parse --short HEAD)
 Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 development build, commit $rev, built $(Get-Date -Format s)" -Encoding utf8
 Get-ChildItem $dist | Select-Object Name, Length
