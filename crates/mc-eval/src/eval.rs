@@ -153,6 +153,9 @@ pub struct Evaluation<'h> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Names {
     pub(crate) list: Sym,
+    /// the arithmetic heads (packed element-wise arithmetic, `crate::packed`)
+    pub(crate) add: Sym,
+    pub(crate) mul: Sym,
     pub(crate) true_: Sym,
     pub(crate) false_: Sym,
     pub(crate) null: Sym,
@@ -170,6 +173,8 @@ impl Names {
         use mc_api::names;
         Names {
             list: h.sym(names::LIST),
+            add: h.sym(names::ADD),
+            mul: h.sym(names::MUL),
             true_: h.sym(names::TRUE),
             false_: h.sym(names::FALSE),
             null: h.sym(names::NULL),
@@ -1023,6 +1028,37 @@ impl<'k, 'h> Eval<'k, 'h> {
         h.call(nm.failure, &[self.sym(nm.no_match), f, h.call(nm.list, args)])
     }
 
+    /// Is `t` a packed array (semantics 11) while `list` has no definitions? Then `t` is its own normal form: its
+    /// head is the inert symbol `list` and its elements are numbers, so evaluating it would only unpack it (decision
+    /// N4a.6). The read of `list` is recorded as evaluating the compound term would.
+    #[inline]
+    pub(crate) fn is_inert_packed(&self, cx: &mut Cx<'h>, t: T<'h>) -> bool {
+        if self.heap.packed(t).is_none() {
+            return false;
+        }
+        let list = self.k.names.list;
+        cx.reads |= bit(list);
+        !self.k.defs.is_defined(list)
+    }
+
+    /// A listable `add` or `mul` over packed arrays computed on their payloads (`crate::packed`): the normal form, or
+    /// `None` when the shortcut does not apply and ordinary threading follows.
+    pub(crate) fn thread_packed(&self, cx: &mut Cx<'h>, head: T<'h>, vals: &[T<'h>]) -> Res<Option<T<'h>>> {
+        let nm = &self.k.names;
+        let op = if head == self.sym(nm.add) {
+            crate::packed::Op::Add
+        } else if head == self.sym(nm.mul) {
+            crate::packed::Op::Mul
+        } else {
+            return Ok(None);
+        };
+        if self.k.defs.is_defined(nm.list) {
+            return Ok(None);
+        }
+        cx.reads |= bit(nm.list);
+        crate::packed::elementwise(self.heap, op, vals, &mut |n| self.spend(cx, n))
+    }
+
     /// A listable call with list arguments: the list of calls on corresponding elements, the other arguments
     /// broadcast; `failure(shape_mismatch)` for lists of different lengths. `None` without list arguments.
     pub(crate) fn thread(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
@@ -1147,7 +1183,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         let h = self.heap;
         let fb = bit(self.k.names.failure);
         let failure = self.sym(self.k.names.failure);
-        vals.iter().copied().find(|&a| h.mask(a) & fb != 0 && matches!(h.view(a), View::App { head, .. } if head == failure))
+        vals.iter()
+            .copied()
+            .find(|&a| h.mask(a) & fb != 0 && h.packed(a).is_none() && matches!(h.view(a), View::App { head, .. } if head == failure))
     }
 
     /// The replacement from the first matching rule for `t`: argument-head rules of the arguments' heads in argument
@@ -1238,6 +1276,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// Whether evaluating `a` can change it (a compound term, or a symbol with an own value).
     #[inline]
     pub(crate) fn needs_eval(&self, cx: &mut Cx<'h>, a: T<'h>) -> bool {
+        if self.is_inert_packed(cx, a) {
+            return false;
+        }
         match self.heap.view(a) {
             View::App { .. } => true,
             View::Sym(s) => {
@@ -1253,6 +1294,10 @@ impl<'k, 'h> Eval<'k, 'h> {
     #[inline]
     fn estimate(&self, a: T<'h>) -> u64 {
         let h = self.heap;
+        if h.packed(a).is_some() {
+            // a packed array is a normal form unless `list` has definitions: nothing to split
+            return 1;
+        }
         match h.view(a) {
             View::App { head, args } => match sym_of(h, head) {
                 Some(s) if self.k.defs.attrs(s).effect => 0,

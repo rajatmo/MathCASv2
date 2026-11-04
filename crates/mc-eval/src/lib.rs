@@ -14,6 +14,8 @@
 //! - [`syntax`]: the pattern and definition terms `mc-syntax` produces, as patterns and definition natives.
 //! - `lang`: closures, blocks, `let`/`var`/assignment, `while`, `for`, `match`, `rewrite` (package H); `cells`: the
 //!   mutable locals behind `var`; `subst`: hygienic substitution (semantics 6.6).
+//! - `packed`: packed arrays (semantics 11) as normal forms without unpacking, and element-wise `add`/`mul` on their
+//!   payloads.
 //! - `inspect`: read access to a symbol's version and rules for natives that analyse definitions (the numeric
 //!   compiler, package 1b).
 //! - [`workloads`]: I2's cases R4, R5, R13, R14, S7, R14e and MR as sessions, for tests and measurements.
@@ -32,6 +34,7 @@ mod index;
 mod inspect;
 mod lang;
 mod machine;
+mod packed;
 pub mod matcher;
 pub mod native;
 pub mod order;
