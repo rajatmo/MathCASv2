@@ -17,6 +17,7 @@ mc-load = { path = "../mc-load" }
 mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-poly = { path = "../mc-poly" }
+mc-strings = { path = "../mc-strings" }
 mc-syntax = { path = "../mc-syntax" }
 
 # no documentation for the binary: its name is the harness library's, and the two would collide

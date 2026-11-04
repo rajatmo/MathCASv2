@@ -447,7 +447,16 @@ fn compile<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>, parts: bool) -> Result<Optio
     }
     let bad = |e: crate::pat::DefError| failure(cx, "definition", &[h.string(&e.to_string())]);
     let low = crate::syntax::pattern(h, l).map_err(bad)?;
-    let lhs = parts.then(|| low.pat.clone());
+    // a left side without pattern syntax lowers to one literal term (decided by a symbol-mask test that can give
+    // false positives, so the same call may also come out structural); for parts of AC calls it is the call of its
+    // literal arguments either way
+    let lhs = parts.then(|| match &low.pat {
+        Pat::Lit(l) => match h.view(l.get(h)) {
+            View::App { head, args } => crate::pat::app(head, args.iter().map(|&a| crate::pat::lit(a)).collect()),
+            _ => low.pat.clone(),
+        },
+        p => p.clone(),
+    });
     let pat = cx.ev.k.compile_pattern(h, low.pat).map_err(bad)?;
     // the left side as written is a call without sequence variables (compiled, an all-literal call is one literal
     // term, so the head's properties are read from the version with the rest)
