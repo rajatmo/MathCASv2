@@ -4,6 +4,8 @@
 //! - [`consts`]: `pi`, `e`, `euler_gamma`, `catalan` as balls by binary splitting, cached;
 //! - [`elementary`]: exp, log, sin, cos, tan, atan, asin, acos, sinh, cosh, tanh, sqrt and real powers on balls,
 //!   with enclosures (bit-burst series, Newton steps with a rigorous last step);
+//! - [`cball`]: the same functions, `abs`, `arg` and powers on complex balls (principal branches, enclosures from
+//!   the real ball functions of the parts; roadmap 07 package N0 item 4);
 //! - [`machine`]: the one shared set of machine-real functions (spike E decision E.4) and complex extensions;
 //! - [`exact`]: exact identities (`sin(pi) = 0`, `log(e) = 1`, `cos(pi/3) = 1/2`, `exp(log(x)) = x`, parity);
 //! - [`numeval`]: numerical evaluation of terms, `n(e)` and `n(e, d)` with precision doubling, comparisons and
@@ -43,7 +45,24 @@
 //!   `mc-arith`'s machine powers do.
 //! - **L.10** The elementary functions map over a list argument (there is no `listable` attribute yet).
 //! - **L.11** Integer square roots run with the stop flag off (they cannot survive a stopped multiplication).
-//! - **L.12** No ball functions of complex balls: such calls stay unevaluated.
+//! - **L.12** (superseded by N0C.1) No ball functions of complex balls: such calls stay unevaluated.
+//!
+//! Package N0C (complex balls; details in [`cball`] and `NOTES.md`):
+//!
+//! - **N0C.1** Complex ball functions are ball expressions of the real ball functions of the parts (Arb's `acb`
+//!   approach); the natives evaluate complex-ball arguments (`sqrt(z)` of a complex ball is computed, not left as
+//!   a power).
+//! - **N0C.2** Principal branches of [`machine::C64`]; an exact zero imaginary part is the upper side of a cut; a
+//!   region touching a cut with an inexact part, a pole or a singular point has no value (`None`, the call stays).
+//! - **N0C.3** Real arguments inside a real domain use the real functions: real results keep an exact zero
+//!   imaginary part.
+//! - **N0C.4** `n` evaluates complex islands (complex numbers and (-1)^q units are numeric nodes); a real island
+//!   whose real evaluation fails where the complex one succeeds (log(-2), asin(2)) continues complex, and a real
+//!   ball outside a real domain gives the principal complex value (as L.9 for machine reals); `is_real` decides
+//!   `false` for an imaginary part that excludes 0; comparisons ignore complex islands.
+//! - **N0C.5** A complex ball has d digits when each part has, or is below 10^-d times the other part.
+//! - **N0C.6** Powers: integers by binary powering, half-integers through sqrt, others exp(w log z); the engine's
+//!   `pow` calls [`numeval::ball_power`] for ball powers `mc-arith` leaves unevaluated.
 //!
 //! Package 1C (number functions; details in the modules):
 //!
@@ -69,6 +88,7 @@
 #![warn(missing_docs)]
 
 mod approx;
+pub mod cball;
 pub mod consts;
 pub mod elementary;
 pub mod exact;
@@ -91,7 +111,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("e", "the constant e, the base of the natural logarithm; a positive real"),
     ("euler_gamma", "Euler's constant gamma = 0.5772... (Brent-McMillan under n); a positive real"),
     ("catalan", "Catalan's constant G = 0.9159...; a positive real"),
-    ("exp", "exp(x): e^x; exact at 0, 1, log(y) and q pi i; balls and machine numbers numerically"),
+    ("exp", "exp(x): e^x; exact at 0, 1, log(y) and q pi i; real and complex balls and machine numbers numerically"),
     ("log", "log(x): the principal natural logarithm; exact at 1, e, e^q, exp(q) and -1"),
     ("sin", "sin(x): the sine; exact at rational multiples of pi with denominator 1, 2, 3, 4 or 6"),
     ("cos", "cos(x): the cosine; exact at rational multiples of pi with denominator 1, 2, 3, 4 or 6"),

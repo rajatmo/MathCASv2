@@ -129,7 +129,18 @@ impl Native for Pow {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [b, e] = args else { return Ok(Reply::Decline) };
-        Ok(Reply::Done(arith(cx.heap(), &self.0).pow(*b, *e)))
+        let ar = arith(cx.heap(), &self.0);
+        let r = ar.pow(*b, *e);
+        // ball powers mc-arith leaves unevaluated (its B.13): principal values from mc-numeric's complex balls
+        if let (None, Some(x), Some(y)) = (ar.num(r), ar.num(*b), ar.num(*e)) {
+            if x.kind() == mc_arith::Kind::Ball || y.kind() == mc_arith::Kind::Ball {
+                let _scope = mc_arith::num::StopScope::enter(Some(&self.0));
+                if let Some(v) = mc_numeric::numeval::ball_power(&x, &y) {
+                    return Ok(Reply::Done(ar.number(&v)));
+                }
+            }
+        }
+        Ok(Reply::Done(r))
     }
 }
 

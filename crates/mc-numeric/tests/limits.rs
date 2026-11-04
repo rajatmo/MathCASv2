@@ -16,8 +16,8 @@ fn argument_errors_and_unreachable_precision_are_failures() {
     // a fixed-accuracy ball cannot be refined
     let b = e.eval("n(1.1~10 + pi, 30)");
     assert!(b.starts_with("failure(precision_not_reached, 4.24"), "{b}");
-    // undefined numerically everywhere: log of a negative real stays a call, and n reports it
-    assert_eq!(e.eval("log(-2.5~20)"), "log(-2.5000000000000000000)");
+    // outside the real domain a ball gives the principal complex value (N0C.4; was: the call stays)
+    assert_eq!(e.eval("log(-2.5~20)"), "complex(0.9162907318741550652, 3.141592653589793238)");
     // a failure argument is returned (strictness)
     assert_eq!(e.eval("n(1/0, 10)"), "failure(division_by_zero)");
 }

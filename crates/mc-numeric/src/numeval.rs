@@ -10,6 +10,7 @@
 //! real (contagion, 2.2) or the target is a machine real. `n(e, d)` doubles p from d log2(10) + 16 bits until the
 //! ball has d correct digits or p passes the cap, then gives `failure(precision_not_reached, best)` (spike 3
 //! decision 3.6, decision L.7).
+use crate::cball::{self, CBall};
 use crate::consts::Const;
 use crate::elementary as el;
 use crate::fun::{Fun, Mach};
@@ -83,6 +84,8 @@ impl Names {
 #[derive(Clone, Debug)]
 enum Node {
     Num(Real),
+    /// a complex number (package N0C: complex islands)
+    CNum(Real, Real),
     Const(Const),
     Add(Vec<u32>),
     Mul(Vec<u32>),
@@ -90,6 +93,8 @@ enum Node {
     Fun(Fun, u32),
     /// |x| (the absolute value is part of numerical evaluation, so it is refined with the rest: package 1C)
     Abs(u32),
+    /// the k-th variable of [`Graph::build_with_vars`]
+    Var(u32),
 }
 
 /// The numeric nodes of a term.
@@ -108,11 +113,28 @@ pub struct Island {
     machine: bool,
     /// the largest precision of a ball inside (0 if none)
     ball_prec: u64,
+    /// a complex number, or a negative exact base to a non-integer exact power, inside: complex balls
+    /// (decision N0C.4)
+    complex: bool,
 }
 
 impl<'h> Graph<'h> {
     /// Reads `t` (iteratively; shared subterms once).
     pub fn build<S: Store + ?Sized>(st: &'h S, ar: &Arith<'h, S>, nm: &Names, t: T<'h>) -> Graph<'h> {
+        Graph::build_with_vars(st, ar, nm, t, &[])
+    }
+
+    /// Reads `t` with the symbols `vars` as numeric variables (node k for `vars[k]`): an expression in given
+    /// variables, to evaluate at many points with [`Graph::eval_complex_at`] without building number terms (for
+    /// solvers and integrators, roadmap 07 N2). Islands containing variables have no value in
+    /// [`Graph::eval_ball`] and give NaN in [`Graph::eval_machine`].
+    pub fn build_with_vars<S: Store + ?Sized>(
+        st: &'h S,
+        ar: &Arith<'h, S>,
+        nm: &Names,
+        t: T<'h>,
+        vars: &[Sym],
+    ) -> Graph<'h> {
         let mut g = Graph { nodes: vec![], index: FxHashMap::default() };
         let mut stack = vec![(t, false)];
         while let Some((t, expanded)) = stack.pop() {
@@ -120,16 +142,19 @@ impl<'h> Graph<'h> {
                 continue;
             }
             if let Some(x) = ar.num(t) {
-                let node = match x {
-                    Num::Real(r) => Some(g.push(Node::Num(r))),
-                    Num::Complex(..) => None,
-                };
+                let node = Some(match x {
+                    Num::Real(r) => g.push(Node::Num(r)),
+                    Num::Complex(re, im) => g.push(Node::CNum(re, im)),
+                });
                 g.index.insert(t, node);
                 continue;
             }
             match st.view(t) {
                 View::Sym(s) => {
-                    let node = nm.constant(s).map(|c| g.push(Node::Const(c)));
+                    let node = match vars.iter().position(|&v| v == s) {
+                        Some(k) => Some(g.push(Node::Var(k as u32))),
+                        None => nm.constant(s).map(|c| g.push(Node::Const(c))),
+                    };
                     g.index.insert(t, node);
                 }
                 View::App { args, .. } if !expanded => {
@@ -164,15 +189,7 @@ impl<'h> Graph<'h> {
         } else if s == nm.mul {
             Node::Mul(kids)
         } else if s == nm.pow && kids.len() == 2 {
-            // a negative base to a non-integer exact power is not real (a unit like (-1)^(1/3), handled by the
-            // caller as a complex number)
-            if let (Node::Num(Real::Exact(b)), Node::Num(Real::Exact(e))) =
-                (&self.nodes[kids[0] as usize], &self.nodes[kids[1] as usize])
-            {
-                if b.num.neg && !e.is_int() {
-                    return None;
-                }
-            }
+            // a negative base to a non-integer exact power (a unit like (-1)^(1/3)) makes the island complex
             Node::Pow(kids[0], kids[1])
         } else if let (Some(f), [k]) = (nm.fun(s), kids.as_slice()) {
             Node::Fun(f, *k)
@@ -198,7 +215,7 @@ impl<'h> Graph<'h> {
     pub fn island(&self, root: u32) -> Island {
         let mut seen = vec![false; root as usize + 1];
         let mut stack = vec![root];
-        let (mut machine, mut ball_prec) = (false, 0);
+        let (mut machine, mut ball_prec, mut complex) = (false, 0, false);
         while let Some(i) = stack.pop() {
             if std::mem::replace(&mut seen[i as usize], true) {
                 continue;
@@ -206,19 +223,39 @@ impl<'h> Graph<'h> {
             match &self.nodes[i as usize] {
                 Node::Num(Real::Machine(_)) => machine = true,
                 Node::Num(Real::Ball(_, p)) => ball_prec = ball_prec.max(*p),
-                Node::Num(_) | Node::Const(_) => {}
+                Node::CNum(re, im) => {
+                    complex = true;
+                    for r in [re, im] {
+                        match r {
+                            Real::Machine(_) => machine = true,
+                            Real::Ball(_, p) => ball_prec = ball_prec.max(*p),
+                            Real::Exact(_) => {}
+                        }
+                    }
+                }
+                Node::Num(_) | Node::Const(_) | Node::Var(_) => {}
                 Node::Add(k) | Node::Mul(k) => stack.extend(k),
-                Node::Pow(a, b) => stack.extend([a, b]),
+                Node::Pow(a, b) => {
+                    if let (Node::Num(Real::Exact(x)), Node::Num(Real::Exact(e))) =
+                        (&self.nodes[*a as usize], &self.nodes[*b as usize])
+                    {
+                        complex |= x.num.neg && !e.is_int();
+                    }
+                    stack.extend([a, b]);
+                }
                 Node::Fun(_, a) | Node::Abs(a) => stack.push(*a),
             }
         }
         let order = (0..=root).filter(|&i| seen[i as usize]).collect();
-        Island { order, root, machine, ball_prec }
+        Island { order, root, machine, ball_prec, complex }
     }
 
-    /// The island's value as a ball at working precision `p`, or `None` (a domain or undecided case, or a raised
-    /// stop flag).
+    /// The island's value as a ball at working precision `p`, or `None` (a domain or undecided case, a complex
+    /// island, or a raised stop flag).
     pub fn eval_ball(&self, is: &Island, p: u64) -> Option<Ball> {
+        if is.complex {
+            return None;
+        }
         let mut vals: FxHashMap<u32, Ball> = FxHashMap::default();
         for &i in &is.order {
             if stopped() {
@@ -231,6 +268,7 @@ impl<'h> Graph<'h> {
                     _ => return None,
                 },
                 Node::Const(c) => c.ball(p)?,
+                Node::CNum(..) | Node::Var(_) => return None,
                 Node::Add(k) => {
                     let mut s = Ball::from_i64(0);
                     for j in k {
@@ -268,12 +306,71 @@ impl<'h> Graph<'h> {
         }
     }
 
+    /// The island's value as a complex ball at working precision `p` (principal branches, [`crate::cball`]), or
+    /// `None` (no value on the region: a point, pole or cut, or a raised stop flag). Real subterms inside their
+    /// real domains keep exact zero imaginary parts, so a real island gives the same value as [`Graph::eval_ball`].
+    pub fn eval_complex(&self, is: &Island, p: u64) -> Option<CBall> {
+        self.eval_complex_at(is, p, &[])
+    }
+
+    /// [`Graph::eval_complex`] with the variables of [`Graph::build_with_vars`] bound to `args` (a variable
+    /// without an argument: `None`). The result encloses f(z) for every z in the argument regions.
+    pub fn eval_complex_at(&self, is: &Island, p: u64, args: &[CBall]) -> Option<CBall> {
+        let ball = |r: &Real| match r {
+            Real::Ball(b, _) => Some(b.clone()),
+            r => match r.to_kind(Kind::Ball, p) {
+                Real::Ball(b, _) => Some(b),
+                _ => None,
+            },
+        };
+        let mut vals: FxHashMap<u32, CBall> = FxHashMap::default();
+        for &i in &is.order {
+            if stopped() {
+                return None;
+            }
+            let v = match &self.nodes[i as usize] {
+                Node::Num(r) => CBall::real(ball(r)?),
+                Node::CNum(re, im) => CBall::new(ball(re)?, ball(im)?),
+                Node::Const(c) => CBall::real(c.ball(p)?),
+                Node::Add(k) => {
+                    let mut s = CBall::from_i64(0);
+                    for j in k {
+                        s = s.add(&vals[j], p);
+                    }
+                    s
+                }
+                Node::Mul(k) => {
+                    let mut s = CBall::from_i64(1);
+                    for j in k {
+                        s = s.mul(&vals[j], p);
+                    }
+                    s
+                }
+                Node::Pow(a, b) => {
+                    let z = &vals[a];
+                    match &self.nodes[*b as usize] {
+                        Node::Num(Real::Exact(q)) => cball::pow_rat(z, q, p)?,
+                        _ if matches!(self.nodes[*a as usize], Node::Const(Const::E)) => cball::exp(&vals[b], p)?,
+                        _ => cball::pow(z, &vals[b], p)?,
+                    }
+                }
+                Node::Fun(f, a) => f.cball(&vals[a], p)?,
+                Node::Abs(a) => CBall::real(cball::abs(&vals[a], p)?),
+                Node::Var(k) => args.get(*k as usize)?.clone(),
+            };
+            vals.insert(i, v);
+        }
+        vals.remove(&is.root)
+    }
+
     /// The island's value in machine arithmetic.
     pub fn eval_machine(&self, is: &Island) -> Mach {
         let mut vals: FxHashMap<u32, Mach> = FxHashMap::default();
         for &i in &is.order {
             let v = match &self.nodes[i as usize] {
                 Node::Num(r) => Mach::Real(r.to_f64()),
+                Node::CNum(re, im) => Mach::Complex(crate::machine::C64::new(re.to_f64(), im.to_f64())),
+                Node::Var(_) => Mach::Real(f64::NAN),
                 Node::Const(c) => Mach::Real(c.machine()),
                 Node::Add(k) => fold(k.iter().map(|j| vals[j]), 0.0, |a, b| a + b, |a, b| a + b),
                 Node::Mul(k) => fold(k.iter().map(|j| vals[j]), 1.0, |a, b| a * b, |a, b| a * b),
@@ -317,6 +414,10 @@ impl Island {
     pub fn is_machine(&self) -> bool {
         self.machine
     }
+    /// Does the island compute with complex balls from the start (a complex number or a complex unit inside)?
+    pub fn is_complex(&self) -> bool {
+        self.complex
+    }
 }
 
 /// A machine number as a term.
@@ -330,6 +431,52 @@ pub fn mach_term<'h, S: Store + ?Sized>(ar: &Arith<'h, S>, m: Mach) -> T<'h> {
 /// A ball at precision p as a term.
 pub fn ball_term<'h, S: Store + ?Sized>(ar: &Arith<'h, S>, b: Ball, p: u64) -> T<'h> {
     ar.number(&Num::Real(Real::Ball(b, p)))
+}
+
+/// The principal power b^e of two numbers with at least one ball among their parts and no machine real, where
+/// `mc-arith` has no algorithm (its decision B.13: a ball to a non-half-integer or ball exponent, a complex ball to
+/// a non-integer exponent). Computed with complex balls at the largest ball precision of the operands ([`cball::pow`],
+/// [`cball::pow_rat`] for an exact exponent); `None` when there is no enclosure (a base region touching the
+/// negative real axis, 0 to a power whose real part is not positive) or a raised stop flag (decision N0C.5).
+pub fn ball_power(b: &Num, e: &Num) -> Option<Num> {
+    let parts = |x: &Num| match x {
+        Num::Real(r) => [r.clone(), Real::int(0)],
+        Num::Complex(re, im) => [re.clone(), im.clone()],
+    };
+    let all: Vec<Real> = parts(b).into_iter().chain(parts(e)).collect();
+    if all.iter().any(|r| r.kind() == Kind::Machine) {
+        return None;
+    }
+    let p = all.iter().filter_map(Real::prec).max()?;
+    let ball = |r: &Real| match r.to_kind(Kind::Ball, p) {
+        Real::Ball(x, _) => Some(x),
+        _ => None,
+    };
+    let [a, c] = parts(b);
+    let z = CBall::new(ball(&a)?, ball(&c)?);
+    let r = match e.as_rat() {
+        Some(q) => cball::pow_rat(&z, q, p)?,
+        None => {
+            let [x, y] = parts(e);
+            cball::pow(&z, &CBall::new(ball(&x)?, ball(&y)?), p)?
+        }
+    };
+    if stopped() {
+        return None;
+    }
+    Some(if r.is_real() {
+        Num::Real(Real::Ball(r.re, p))
+    } else {
+        Num::Complex(Real::Ball(r.re, p), Real::Ball(r.im, p))
+    })
+}
+
+/// A complex ball at precision p as a term: a real ball when the imaginary part is an exact zero.
+pub fn cball_term<'h, S: Store + ?Sized>(ar: &Arith<'h, S>, z: CBall, p: u64) -> T<'h> {
+    if z.is_real() {
+        return ball_term(ar, z.re, p);
+    }
+    ar.number(&Num::Complex(Real::Ball(z.re, p), Real::Ball(z.im, p)))
 }
 
 /// What `n` aims for.
@@ -375,12 +522,6 @@ pub fn numericize<'h, S: Store + ?Sized>(
             done.insert(u, v);
             continue;
         }
-        if !expanded {
-            if let Some(v) = leaf_value(ar, nm, u, target) {
-                done.insert(u, v);
-                continue;
-            }
-        }
         let v = match st.view(u) {
             View::App { args, .. } if !expanded => {
                 stack.push((u, true));
@@ -408,44 +549,6 @@ pub fn numericize<'h, S: Store + ?Sized>(
     }
     let term = done[&t];
     Ok(Numeric { term, reached, is_number: ar.num(term).is_some() })
-}
-
-/// Terms outside islands that still have a numeric value: exact complex numbers and the complex units
-/// (-1)^q.
-fn leaf_value<'h, S: Store + ?Sized>(ar: &Arith<'h, S>, nm: &Names, t: T<'h>, target: Target) -> Option<T<'h>> {
-    let (kind, p) = match target {
-        Target::Machine => (Kind::Machine, 0),
-        Target::Digits(d) => (Kind::Ball, first_precision(d)),
-    };
-    if let Some(x) = ar.num(t) {
-        return Some(ar.number(&x.to_kind(kind, p)));
-    }
-    // (-1)^q = cos(q pi) + i sin(q pi)
-    let st = ar.store();
-    let View::App { head, args: [b, e] } = st.view(t) else {
-        return None;
-    };
-    if head != st.sym_term(nm.pow) || ar.num(*b).and_then(|x| x.as_rat().cloned())? != mc_arith::num::Rat::from_i64(-1)
-    {
-        return None;
-    }
-    let q = ar.num(*e)?.as_rat()?.clone();
-    let angle = Real::Exact(q);
-    match target {
-        Target::Machine => {
-            let a = angle.to_f64() * std::f64::consts::PI;
-            Some(ar.number(&Num::Complex(Real::Machine(a.cos()), Real::Machine(a.sin()))))
-        }
-        Target::Digits(_) => {
-            let w = p + 16;
-            let Real::Ball(qb, _) = angle.to_kind(Kind::Ball, w) else {
-                return None;
-            };
-            let a = qb.mul(&Const::Pi.ball(w)?, w);
-            let (s, c) = el::sin_cos(&a, p)?;
-            Some(ar.number(&Num::Complex(Real::Ball(c, p), Real::Ball(s, p))))
-        }
-    }
 }
 
 /// d log2(10) + guard bits.
@@ -477,26 +580,51 @@ fn island_value<'h, S: Store + ?Sized>(
     };
     let p0 = first_precision(d);
     let cap = cap(p0);
+    let digits = d.min(u32::MAX as u64) as u32;
     let mut p = p0;
     let mut best = None;
+    // real balls first; an island that is complex, or whose real evaluation fails where the complex one succeeds
+    // (an argument provably outside a real domain: log(-2), asin(2)), continues with complex balls (N0C.4)
+    let mut complex = is.complex;
     loop {
         tick(is.order.len() as u64 + p / 1024)?;
-        let b = g.eval_ball(&is, p);
+        let v = if complex {
+            g.eval_complex(&is, p).map(Err)
+        } else {
+            match g.eval_ball(&is, p) {
+                Some(b) => Some(Ok(b)),
+                None if stopped() => None,
+                None => {
+                    let z = g.eval_complex(&is, p);
+                    complex = z.is_some();
+                    z.map(Err)
+                }
+            }
+        };
         if stopped() {
             // the evaluator's tick turns the interrupt into its failure; this value is discarded
             tick(0)?;
             return Ok((u, false));
         }
-        if let Some(b) = b {
-            if b.has_digits(d.min(u32::MAX as u64) as u32) {
-                let (b, q) = if p > p0 { (el::round(b, p0), p0) } else { (b, p) };
-                return Ok((ball_term(ar, b, q), true));
+        match v {
+            Some(Ok(b)) => {
+                if b.has_digits(digits) {
+                    let (b, q) = if p > p0 { (el::round(b, p0), p0) } else { (b, p) };
+                    return Ok((ball_term(ar, b, q), true));
+                }
+                best = Some(ball_term(ar, b, p));
             }
-            best = Some((b, p));
+            Some(Err(z)) => {
+                if z.has_digits(digits) {
+                    let (z, q) = if p > p0 { (z.round(p0), p0) } else { (z, p) };
+                    return Ok((cball_term(ar, z, q), true));
+                }
+                best = Some(cball_term(ar, z, p));
+            }
+            None => {}
         }
         if p.saturating_mul(2) > cap {
-            let v = best.map_or(u, |(b, q)| ball_term(ar, b, q));
-            return Ok((v, false));
+            return Ok((best.unwrap_or(u), false));
         }
         p *= 2;
     }
@@ -513,6 +641,9 @@ pub fn compare<'h, S: Store + ?Sized>(st: &'h S, ar: &Arith<'h, S>, nm: &Names, 
         return None;
     }
     let (xa, xb) = (g.island(ia), g.island(ib));
+    if xa.complex || xb.complex {
+        return None;
+    }
     if xa.machine || xb.machine {
         return match (g.eval_machine(&xa), g.eval_machine(&xb)) {
             (Mach::Real(x), Mach::Real(y)) => Some(x.partial_cmp(&y).map_or(Cmp3::Unordered, from_ordering)),
@@ -572,14 +703,26 @@ pub fn is_real<'h, S: Store + ?Sized>(st: &'h S, ar: &Arith<'h, S>, nm: &Names, 
     }
     let g = Graph::build(st, ar, nm, t);
     let is = g.island(g.node(t)?);
-    // a real value exists when evaluation succeeds at some precision (every node operation is real)
+    if is.machine {
+        return matches!(g.eval_machine(&is), Mach::Real(v) if v.is_finite()).then_some(true);
+    }
+    // a real value exists when evaluation succeeds at some precision (every node operation is real); a complex
+    // value whose imaginary part excludes 0 is not real (N0C.4)
     let mut p = 64;
     while p <= COMPARE_CAP {
-        if is.machine {
-            return matches!(g.eval_machine(&is), Mach::Real(v) if v.is_finite()).then_some(true);
-        }
         if g.eval_ball(&is, p).is_some() {
             return Some(true);
+        }
+        if stopped() {
+            return None;
+        }
+        if let Some(z) = g.eval_complex(&is, p) {
+            if z.is_real() {
+                return Some(true);
+            }
+            if !z.im.contains_zero() {
+                return Some(false);
+            }
         }
         p *= 2;
     }

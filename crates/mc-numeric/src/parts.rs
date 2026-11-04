@@ -17,8 +17,6 @@
 //!
 //! Derivatives (for package 2A): none of these is holomorphic. For a real variable x: `re(x) = x`, `im_part(x) = 0`,
 //! `conjugate(x) = x`, `arg(x) = pi * unit_step(-x)` (x != 0), `abs(x)' = sign(x)`, `sign(x)' = 0` (x != 0).
-use crate::consts::Const;
-use crate::elementary as el;
 use crate::numbers::Env;
 use crate::numeval;
 use mc_api::{Store, Sym, T};
@@ -243,39 +241,10 @@ fn pi_times<'h>(env: &Env, h: &'h Heap, ar: &Arith<'h, Heap>, n: i64, d: i64) ->
     h.call(env.s.mul, &[real_term(ar, Real::Exact(q)), h.sym_term(env.s.pi)])
 }
 
-/// The principal argument of a complex ball a + bi, at precision p: `None` when a ball containing zero puts the
-/// point on the branch cut or at the origin.
+/// The principal argument of a complex ball a + bi at precision p ([`crate::cball::arg`]): `None` when a ball
+/// containing zero puts the point on the branch cut or at the origin.
 fn ball_arg(a: &Ball, b: &Ball, p: u64) -> Option<Ball> {
-    let w = p + 16;
-    let side = |x: &Ball| {
-        if x.contains_zero() {
-            None
-        } else {
-            Some(!x.mid.neg)
-        }
-    };
-    let pi = Const::Pi.ball(w)?;
-    let r = match (side(a), side(b)) {
-        // right half plane: atan(b/a)
-        (Some(true), _) => el::atan(&b.div(a, w)?, w)?,
-        // left half plane, above or below the cut: atan(b/a) +- pi
-        (Some(false), Some(up)) => {
-            let t = el::atan(&b.div(a, w)?, w)?;
-            if up {
-                t.add(&pi, w)
-            } else {
-                t.sub(&pi, w)
-            }
-        }
-        // near the imaginary axis: +-pi/2 - atan(a/b)
-        (_, Some(up)) => {
-            let half = pi.mul(&Ball::from_ratio(1, 2, w), w);
-            let hp = if up { half } else { half.neg() };
-            hp.sub(&el::atan(&a.div(b, w)?, w)?, w)
-        }
-        _ => return None,
-    };
-    Some(el::round(r, p))
+    crate::cball::arg(&crate::cball::CBall::new(a.clone(), b.clone()), p)
 }
 
 /// `arg(z)`.
@@ -469,6 +438,7 @@ pub(crate) fn define_abs_sign(k: &mut Kernel, h: &Heap, env: &Arc<Env>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::consts::Const;
 
     #[test]
     fn ball_arguments() {
