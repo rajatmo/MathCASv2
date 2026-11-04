@@ -12,7 +12,12 @@ pub struct Sys {
 
 impl Sys {
     pub fn new() -> Sys {
-        let cfg = EngineConfig { threads: 1, ..EngineConfig::default() };
+        Sys::with_threads(1)
+    }
+
+    /// An engine with `threads` threads.
+    pub fn with_threads(threads: usize) -> Sys {
+        let cfg = EngineConfig { threads, ..EngineConfig::default() };
         Sys { engine: CoreEngine::with_config(cfg), stop: StopFlag::new() }
     }
 

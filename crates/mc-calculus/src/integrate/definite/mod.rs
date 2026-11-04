@@ -7,7 +7,7 @@
 //!   `[a, b]` are found ([`points`]: zeros of the bases of negative and fractional powers, of the arguments of `log`,
 //!   of the denominators of every argument, ...). Between consecutive critical points `F` is a continuous
 //!   antiderivative, so the integral is the sum over the pieces of `F(right⁻) - F(left⁺)`; the one-sided values at
-//!   critical points and at `±inf` come from a small limit helper ([`limit`]), the others by substitution. An
+//!   critical points and at `±inf` come from the limit walk of [`crate::limit`], the others by substitution. An
 //!   infinite one-sided value means the integral diverges (decision 2C4.2). A jump of `F` (`atan(1/x)` at 0) is
 //!   handled by the splitting, an integrable endpoint singularity (`x^(-1/2)` at 0) by the limit.
 //! - **other bounds** (symbols, complex numbers): `F(b) - F(a)` only when `f` and `F` are continuous for every real
@@ -18,10 +18,9 @@
 //! is `None` and the call stays unevaluated: no answer is better than a wrong one.
 //!
 //! Decisions are numbered 2C4.1, 2C4.2, ... and recorded in `notes/2c-definite.md`.
-mod limit;
 mod points;
 
-use self::limit::Lim;
+use crate::limit::walk::{self as limit, Lim};
 use super::{antiderivative, apply, args_of, is_free};
 use crate::term::Build;
 use mc_api::{names, Store, View, T};

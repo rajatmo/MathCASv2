@@ -408,7 +408,13 @@ impl Interpolating {
             }
             return Ok(Some(cx.list(&out)));
         }
-        let Some(v) = ar.num(x) else { return Ok(None) };
+        // a closed numeric time (`pi/2`, `sqrt(2)`) through `n`: at machine precision, or at the working
+        // precision of a ball solution (decision C.7); a symbolic time leaves the call as it is
+        let digits = match &sol.data {
+            Data::Machine(_) => None,
+            Data::Taylor(tl) => Some(taylor::digits_of(tl.p)),
+        };
+        let Some(v) = number(cx, ar, x, digits)? else { return Ok(None) };
         Ok(Some(match sol.value(i, order, &v) {
             Some(Value::Machine(r)) => h.real(r),
             Some(Value::Number(r)) => ar.number(&r),
