@@ -214,7 +214,8 @@ fn equations<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Vec<T<'h>>> {
     Ok(out)
 }
 
-/// Reduce `eqs` in the unknowns `ys` and the independent variable `t` to a first-order system. `Ok(Err(message))`
+/// Reduce `eqs` in the unknowns `ys` and the independent variable `t` to a first-order system; closed initial
+/// values and points are evaluated by `n` to `digits` (machine precision for `None`). `Ok(Err(message))`
 /// when the equations do not have a supported form.
 pub(crate) fn reduce<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -222,6 +223,7 @@ pub(crate) fn reduce<'h>(
     eqs: T<'h>,
     ys: &[Sym],
     t: Sym,
+    digits: Option<u64>,
 ) -> Res<Result<System<'h>, Refusal>> {
     let h = cx.heap();
     if ys.contains(&t) {
@@ -266,7 +268,7 @@ pub(crate) fn reduce<'h>(
         let Some(((i, d, x), v)) = cond else {
             return Ok(Err(format!("equation {} is neither a differential equation in {} nor an initial condition", k + 1, h.sym_name(t))));
         };
-        let (Some(x), Some(v)) = (util::number(cx, ar, x, None)?, util::number(cx, ar, v, None)?) else {
+        let (Some(x), Some(v)) = (util::number(cx, ar, x, digits)?, util::number(cx, ar, v, digits)?) else {
             return Ok(Err(format!("initial condition {} is not numeric", k + 1)));
         };
         conditions.push((i, d, x, v));

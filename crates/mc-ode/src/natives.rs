@@ -51,6 +51,11 @@ const TAYLOR_GUARD: u64 = 20;
 const FINE_DIGITS: u64 = 10;
 const COARSE_DIGITS: u64 = 4;
 
+/// The working precision of the Taylor method in bits.
+fn taylor_bits(opts: &Options<'_>) -> u64 {
+    digits_to_bits(opts.taylor_digits() + TAYLOR_GUARD)
+}
+
 /// A solved system: the solution's key and data, and the events found.
 struct Solved<'h> {
     sys: System<'h>,
@@ -60,10 +65,15 @@ struct Solved<'h> {
 }
 
 /// The range `[t, a, b]`: the variable and the ends as numbers.
-fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, r: T<'h>) -> Res<Option<(Sym, Num, Num)>> {
+fn range<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    r: T<'h>,
+    digits: Option<u64>,
+) -> Res<Option<(Sym, Num, Num)>> {
     let Some(&[t, a, b]) = cx.as_list(r) else { return Ok(None) };
     let View::Sym(t) = cx.heap().view(t) else { return Ok(None) };
-    let (Some(a), Some(b)) = (number(cx, ar, a, None)?, number(cx, ar, b, None)?) else { return Ok(None) };
+    let (Some(a), Some(b)) = (number(cx, ar, a, digits)?, number(cx, ar, b, digits)?) else { return Ok(None) };
     if real(&a).is_none() || real(&b).is_none() {
         return Ok(None);
     }
@@ -115,8 +125,10 @@ impl Solve {
     ) -> Res<Result<Solved<'h>, T<'h>>> {
         let h = cx.heap();
         let name = self.name();
-        let Some((t, a, b)) = range(cx, ar, range_term)? else { return Ok(Err(bad_argument(h, name, h.int(3)))) };
-        let sys = match system::reduce(cx, ar, eqs, ys, t)? {
+        // under digits: closed initial values and ends at the working precision of the Taylor method
+        let digits = opts.high_precision().then(|| taylor::digits_of(taylor_bits(opts)));
+        let Some((t, a, b)) = range(cx, ar, range_term, digits)? else { return Ok(Err(bad_argument(h, name, h.int(3)))) };
+        let sys = match system::reduce(cx, ar, eqs, ys, t, digits)? {
             Ok(s) => s,
             Err(m) => return Ok(Err(bad_argument(h, name, h.string(&m)))),
         };
@@ -243,7 +255,7 @@ impl Solve {
             return Ok(Err(bad_argument(h, name, h.string("events need machine precision"))));
         }
         let d = opts.taylor_digits();
-        let p = digits_to_bits(d + TAYLOR_GUARD);
+        let p = taylor_bits(opts);
         let tape = match taylor::tape(cx, ar, sys.rhs, sys.t, &sys.state, p)? {
             Ok(t) => t,
             Err(m) => return Ok(Err(bad_argument(h, name, h.string(&m)))),

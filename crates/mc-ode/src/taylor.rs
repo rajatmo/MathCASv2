@@ -120,9 +120,13 @@ impl Builder {
 
 /// A number as a ball at `p` bits.
 fn ball_of(n: &Num, p: u64) -> Option<Ball> {
-    match n.as_real()?.to_kind(Kind::Ball, p) {
-        Real::Ball(b, _) => Some(b),
-        _ => None,
+    match n.as_real()? {
+        // a machine real is a dyadic number: exactly that ball
+        Real::Machine(x) => x.is_finite().then(|| ball_f64(*x)),
+        r => match r.to_kind(Kind::Ball, p) {
+            Real::Ball(b, _) => Some(b),
+            _ => None,
+        },
     }
 }
 
@@ -135,7 +139,7 @@ pub(crate) fn ball_f64(x: f64) -> Ball {
 }
 
 /// The digits of the working precision for `bits` bits, for `n(_, digits)`.
-fn digits_of(bits: u64) -> u64 {
+pub(crate) fn digits_of(bits: u64) -> u64 {
     (bits as f64 * std::f64::consts::LOG10_2).ceil() as u64 + 2
 }
 
