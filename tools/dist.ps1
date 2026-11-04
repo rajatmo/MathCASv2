@@ -29,6 +29,11 @@ if (Test-Path $editors) { Remove-Item $editors -Recurse -Force }
 New-Item -ItemType Directory -Force $editors | Out-Null
 Copy-Item (Join-Path $root "editors\vscode") (Join-Path $editors "vscode") -Recurse -Force
 Get-ChildItem $dist -Filter "mathcas-*.vsix" | Remove-Item -Force
+# the Jupyter kernel (register with: python jupyter\install.py)
+$jupyter = Join-Path $dist "jupyter"
+if (Test-Path $jupyter) { Remove-Item $jupyter -Recurse -Force }
+New-Item -ItemType Directory -Force $jupyter | Out-Null
+Get-ChildItem (Join-Path $root "editors\jupyter") -File | Copy-Item -Destination $jupyter -Force
 & (Join-Path $PSScriptRoot "vsix.ps1") -OutDir $dist | Out-Null
 Copy-Item (Join-Path $root "tools\dist-README.txt") (Join-Path $dist "README.txt") -Force
 Copy-Item (Join-Path $root "docs\guide\quickstart.pdf") (Join-Path $dist "quickstart.pdf") -Force

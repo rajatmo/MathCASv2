@@ -95,6 +95,12 @@ mc> exp(1.5)
 \noindent Longer work goes into a script file \code{work.mc}, run with \code{mc-repl work.mc} (add \code{-i}
 to stay in the REPL afterwards). \code{say(a, b, ...)} prints its arguments from a script.
 
+\paragraph{Notebooks.} Every example in this tutorial also runs in a Jupyter notebook, in Jupyter itself or in
+VS Code. With Python and \code{ipykernel} installed, the installer registers the kernel (or run
+\code{python jupyter\textbackslash install.py} in the program folder). Then open a \code{.ipynb} file, choose the
+kernel \textbf{MathCAS v2}, and each cell shows the value of its last statement. Interrupt stops a running cell;
+restart gives a fresh session. \code{examples\textbackslash jupyter.ipynb} is a sample.
+
 \section{Three kinds of numbers}
 
 MathCAS keeps three kinds of numbers apart, and knowing which one you hold is the key to numeric work.
