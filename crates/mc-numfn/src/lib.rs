@@ -13,6 +13,10 @@
 //! and every call the compiled code declines evaluated by the interpreter (decision 1b.3), so results never depend
 //! on the compiler.
 //!
+//! Compiled code comes from a process-wide cache (package N1, [`cache_stats`]): bodies that differ only in their
+//! machine-real constants form a *family* compiled once, with the constants lifted to parameters, so a solver
+//! called once per parameter value compiles once ([`Policy::Family`], the default).
+//!
 //! ```text
 //! // inside a native: f(t, y) = [y[2], -y[1]] for an ODE right-hand side
 //! let vars = [Var::scalar(t), Var::vector(y, 2)];
@@ -21,8 +25,10 @@
 //! if f.eval(cx, &[0.0, 1.0, 0.5], &mut dy)? { ... }      // inputs flat: t, y[1], y[2]
 //! ```
 //!
-//! Decisions of this package are numbered N0.1, N0.2, ... (shared with the compiler extensions in `mc-jit`).
+//! Decisions of this package are numbered N0.1, N0.2, ... (shared with the compiler extensions in `mc-jit`) and
+//! N1.1, N1.2, ... (the code cache).
 #![warn(missing_docs)]
+mod cache;
 mod compiled;
 mod interp;
 pub mod par;
@@ -30,6 +36,7 @@ mod prep;
 mod term;
 mod value;
 
+pub use cache::{cache_stats, clear_cache, CacheStats, CAPACITY};
 pub use compiled::{Auto, Compiled, Policy, DEFAULT_AFTER};
 pub use interp::{CentralGradient, Interpreted, Machine};
 pub use par::{par_expr, Par, ParStats, PAR_MIN_POINTS};
@@ -134,8 +141,12 @@ pub struct Stats {
     pub declined: u64,
     /// evaluations by the interpreted backend (declined ones included)
     pub interpreted: u64,
-    /// the compiler's time, in microseconds (0 when nothing was compiled)
+    /// the compiler's time, in microseconds (0 when nothing was compiled, also when the code came from the cache)
     pub compile_micros: u64,
+    /// 1 when the code cache held the expression's family (compiled code, or the compiler's refusal)
+    pub cache_hits: u64,
+    /// 1 when the code cache had nothing for the expression's family (compiled later as the policy says)
+    pub cache_misses: u64,
 }
 
 /// The kind of a variable.
