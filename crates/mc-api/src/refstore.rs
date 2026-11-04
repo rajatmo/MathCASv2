@@ -1,7 +1,11 @@
 //! A simple reference implementation of [`Store`]: append-only, one lock, no collection. It exists so that generic
 //! crates can be built and tested before `mc-core`, and as the reference the real store is checked against. It is not
 //! fast and never frees anything.
-use crate::{Store, Sym, View, T};
+//!
+//! It packs by the rule of [`crate::packed`]: a packable `list(...)` is stored as the compound term (so its view is
+//! the stored arguments) with a copy of its leaves as the payload [`Store::packed`] returns.
+use crate::packed::{pack_shape, words_ints, words_reals, Elem};
+use crate::{names, Packed, Store, Sym, View, T};
 use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
@@ -24,7 +28,11 @@ struct Node {
     key: Box<Key>,
     args: Box<[u32]>,
     hash: u64,
+    /// the packed payload of a packable list: leaf kind, dimensions, leaves
+    packed: Option<Box<Payload>>,
 }
+
+type Payload = (Elem, Vec<u64>, Vec<u64>);
 
 #[derive(Default)]
 struct Inner {
@@ -46,6 +54,10 @@ impl RefStore {
     }
 
     fn intern<'h>(&'h self, key: Key) -> T<'h> {
+        self.intern_packed(key, None)
+    }
+
+    fn intern_packed<'h>(&'h self, key: Key, packed: Option<Payload>) -> T<'h> {
         let mut g = self.inner.lock();
         if let Some(&id) = g.index.get(&key) {
             return T::from_raw(id);
@@ -69,7 +81,7 @@ impl RefStore {
             _ => Box::new([]),
         };
         let id = g.nodes.len() as u32;
-        g.nodes.push(Node { key: Box::new(key.clone()), args, hash });
+        g.nodes.push(Node { key: Box::new(key.clone()), args, hash, packed: packed.map(Box::new) });
         g.index.insert(key, id);
         T::from_raw(id)
     }
@@ -130,7 +142,8 @@ impl Store for RefStore {
         self.intern(Key::Str(s.to_string()))
     }
     fn app<'h>(&'h self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
-        self.intern(Key::App(head.raw(), args.iter().map(|a| a.raw()).collect()))
+        let packed = if head == self.sym_term(self.sym(names::LIST)) { pack_shape(self, args) } else { None };
+        self.intern_packed(Key::App(head.raw(), args.iter().map(|a| a.raw()).collect()), packed)
     }
     fn view<'h>(&'h self, t: T<'h>) -> View<'h> {
         let (k, args, _) = self.node(t);
@@ -152,5 +165,16 @@ impl Store for RefStore {
     fn structural_hash(&self, t: T<'_>) -> u64 {
         let g = self.inner.lock();
         g.nodes[t.raw() as usize].hash
+    }
+    fn packed<'h>(&'h self, t: T<'h>) -> Option<Packed<'h>> {
+        let g = self.inner.lock();
+        let p: *const Payload = &**g.nodes[t.raw() as usize].packed.as_ref()?;
+        drop(g);
+        // SAFETY: as in `node`: the payload box is never moved or dropped while the store lives.
+        let (elem, dims, data) = unsafe { &*p };
+        Some(match elem {
+            Elem::Real => Packed::Reals { dims, data: words_reals(data) },
+            Elem::Int => Packed::Ints { dims, data: words_ints(data) },
+        })
     }
 }

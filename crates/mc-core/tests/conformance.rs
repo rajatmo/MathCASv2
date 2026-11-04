@@ -3,19 +3,19 @@ use mc_core::{Config, Heap, Roots, Session, Store};
 
 #[test]
 fn conformance_fresh_heap() {
-    mc_api::conformance::check(&Heap::new(Config::default()));
+    mc_api::conformance::check_packing(&Heap::new(Config::default()));
 }
 
 #[test]
 fn conformance_without_collection() {
-    mc_api::conformance::check(&Heap::new(Config::no_collect()));
+    mc_api::conformance::check_packing(&Heap::new(Config::no_collect()));
 }
 
 #[test]
 fn conformance_on_a_pool() {
     // on a pool thread, wide compounds hash in parallel and collections copy on the pool
     let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().unwrap();
-    pool.install(|| mc_api::conformance::check(&Heap::new(Config::default())));
+    pool.install(|| mc_api::conformance::check_packing(&Heap::new(Config::default())));
 }
 
 /// After collections the old region is populated: the checks' lookups then go through the old table, and terms
@@ -24,7 +24,7 @@ fn conformance_on_a_pool() {
 fn conformance_with_an_old_region() {
     let mut s = Session::new(Config::stress(), 4, Roots::new());
     s.step(|h: &Heap, keep: &mut Roots| {
-        mc_api::conformance::check(h);
+        mc_api::conformance::check_packing(h);
         let f = h.sym("f");
         let x = h.sym_term(h.sym("x"));
         keep.push(h.call(f, &[x, h.int(1)]));
@@ -36,7 +36,7 @@ fn conformance_with_an_old_region() {
     s.collect_full();
     assert!(s.heap.old_len() >= 5);
     let old = s.heap.old_len();
-    s.step(|h: &Heap, _: &mut Roots| mc_api::conformance::check(h));
+    s.step(|h: &Heap, _: &mut Roots| mc_api::conformance::check_packing(h));
     s.read(|h, keep| {
         let f = h.sym("f");
         assert_eq!(keep.get(h, 0), h.call(f, &[h.sym_term(h.sym("x")), h.int(1)]));

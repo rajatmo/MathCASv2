@@ -11,7 +11,7 @@
 //! directory, the next cycle starts at the next segment boundary, and every thread's cached chunks are invalidated
 //! by a generation number. A handle from a previous cycle finds a null segment and panics instead of reading a
 //! reused node (no id reuse until the 2^30 young id space wraps, I1.5).
-use crate::node::{box_bytes, box_words, free_box, Node, Region, ARENA_MAX, NODE};
+use crate::node::{box_bytes, box_owned, box_words, free_box, Node, Region, ARENA_MAX, NODE};
 use parking_lot::Mutex;
 use std::cell::Cell;
 use std::ptr::{null_mut, NonNull};
@@ -239,6 +239,19 @@ impl YoungArena {
                 id
             }
         }
+    }
+
+    /// Store a new payload node whose words come in their own box: a long payload keeps the box (no copy), a short
+    /// one is copied into the slab like any other.
+    pub(crate) fn store_box(&self, mut n: Node, words: Box<[u64]>) -> u32 {
+        if words.len() <= ARENA_MAX {
+            return self.store(n, Body::Words(&words));
+        }
+        let len = words.len();
+        n.data = box_owned(words);
+        let id = self.push(n);
+        self.note_boxed(id, box_bytes(len));
+        id
     }
 
     /// The node at a young index. Panics on an index of a previous cycle (a handle that was not rooted across a
