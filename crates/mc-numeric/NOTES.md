@@ -123,3 +123,83 @@ release; clippy and `cargo doc` clean with `#![warn(missing_docs)]`. Dependencie
   engine's `mc-arith` stop flag.
 - Optionally wire request 3 (real ball powers) into the engine's `pow`.
 - N1 at 10^5 and 10^6 has no reference file.
+
+## Package 1C (roadmap phase 1: numbers; branch `lib/r4-numtext`, commit 7934fb3)
+
+All 1C number targets built, plus 2A's two requests (one part open, gap 1). On the branch: workspace 549 passed;
+clippy and `cargo doc` clean. Its `lang.rs` fix duplicated main's b33430f (main's kept at the merge).
+
+### What was built
+
+- `value` (public): exact values behind inexact numbers: the rational of a machine real or a ball midpoint; the
+  interval a number stands for (half an ulp each side for machine reals, the ball for balls); log10 of magnitudes of
+  any exponent; ball precision and accuracy in decimal digits; `simplest(lo, hi)`, the rational with the smallest
+  denominator in a closed interval (continued fractions, fuel per partial quotient).
+- `numbers` (private): shared symbols and stop flag, the native table, the iterative walks `map_leaves`, `for_numbers`.
+- `parts`: `re`, `im_part`, `conjugate`, `arg`, and the rules on `abs` and `sign`. `approx`: `precision`, `accuracy`,
+  `set_precision`, `rationalize`, `chop`. `piecewise`: `clip`, `rescale`, `unit_step`. `natives`: `n(x, digits: d)`.
+- `numeval` (2A's requests): `abs` is a node of numerical evaluation (`Node::Abs`, ball rule {|m|, r}, valid when the
+  ball contains 0), refined with the rest of an island; an exact exponent of `pow` outside an island stays exact
+  (`n(1/(1 + abs(v)), 25)` gives `(1.0000000000000000000000000000 + abs(v))^-1`; `n(1/(1 + abs(1 - pi)), 25)` reaches
+  25 digits).
+- Listability: `re`, `im_part`, `conjugate`, `arg`, `unit_step` are `listable`; `chop`, `rationalize`, `set_precision`
+  reach every number inside any term; `clip`, `rescale` map over a list first argument. 12 new `FUNCTIONS` entries;
+  the `n` entry mentions `digits:`.
+
+### Decisions
+
+- **1C.1** Parts of numbers are exact operations on the parts: `im_part` of a real is exact 0; `arg` of a real is exact
+  0 or pi; `arg` of an exact complex is an exact form evaluated again (`arg(1 + im)` is `pi/4`, `arg(-3 - 4im)` is
+  `atan(4/3) - pi`); inexact complex: machine atan2 (IEEE signed zeros) or a ball argument by quadrants (a ball across
+  the branch cut or the origin stays unevaluated).
+- **1C.2** Parts of terms: a term splits into summands c (-1)^q r1..., with at most one complex unit and known-real r's
+  (closed numeric terms with real values, or calls of `re`, `im_part`, `abs`, `arg`); `re`, `im_part`, `conjugate`
+  distribute over that form; identities for any x (`re(re(x)) = re(x)`, `im_part(abs(x)) = 0`,
+  `conjugate(conjugate(x)) = x`, `re(conjugate(x)) = re(x)`, `im_part(conjugate(x)) = -im_part(x)`,
+  `arg(abs(x)) = 0`); anything else unevaluated.
+- **1C.3** `chop(x[, delta])`: delta default 10^-10, any positive real; an inexact real chopped to exact 0 when
+  |x| < delta, a ball only when |m| + r < delta; complex parts separately; exact numbers never chopped.
+- **1C.4** `precision`/`accuracy` in decimal digits as machine reals (`inf` for exact): machine reals precision
+  53 log10 2, accuracy that minus log10|x| (1075 log10 2 for zero); balls accuracy min(p log10 2 - log10|m|, -log10 r),
+  precision accuracy + log10|m| (at least 0); over a term the least over its numbers.
+- **1C.5** `set_precision(x, d)` is the deliberate exit from enclosure: every number becomes a ball of ceil(d log2 10)
+  bits whose radius is only the new rounding (old radius dropped; machine reals at their binary value); closed
+  subterms evaluated to d digits; `d = inf` gives exact binary values; bad d is `invalid_argument`, too large
+  `failure(limit, memory, ...)`.
+- **1C.6** `rationalize(x)`: the simplest rational in an inexact number's interval, kept if within 10^-4/q^2 (else
+  unchanged; exact numbers and closed terms unchanged). `rationalize(x, dx)`: the simplest rational within dx widened
+  by the number's interval, for every kind of real; closed numeric terms decided exactly by refinement
+  (`rationalize(pi, 1/100) = 22/7`). Deliberate difference: an exact x is rationalized too
+  (`rationalize(355/113, 1/100) = 22/7`).
+- **1C.7** `abs` and `sign` of closed non-number terms are rules from `mc-numeric` (number natives stay in
+  `mc-numtheory`): a closed real term of decided sign gives +-t distributed over sums (`abs(1 - pi) = -1 + pi`); the
+  single-summand form of 1C.2 gives |c|(+-r...) or (c/|c|)(-1)^q(+-1) for `sign`; `abs(conjugate(x)) = abs(x)`.
+- **1C.8** `clip` returns its bounds as given and `unit_step` exact 0 or 1 for every kind of real; comparisons through
+  refinement (undecided: unevaluated); `clip` with lo > hi is `invalid_argument`; decided factors 1 are dropped from a
+  remaining `unit_step`.
+- **1C.9** `n(e, digits: d)` equals `n(e, d)`; both allowed only if equal; other options `failure(unknown_option, name)`.
+- **1C.10** `rescale(xs)` uses the list's extremes (equal values give zeros); `rescale(x, [a, a])` is
+  `division_by_zero`.
+
+Exact semantics for derivatives (2A, real x): `re(x) = x`, `im_part(x) = 0`, `conjugate(x) = x`,
+`arg(x) = pi unit_step(-x)` (x != 0), `abs' = sign`, `sign' = 0` and `unit_step' = 0` away from 0, `clip' = 1` on
+(lo, hi) and 0 outside, `rescale` slope (d - c)/(b - a); `chop`, `rationalize`, `set_precision` have none.
+
+### Tests
+
+Unit 17 (8 new: simplest rationals against brute force on 2000 intervals; exact values and intervals of machine
+reals; digits; the closeness rule; chop thresholds including an exponent of -10^6; ball `arg` in every quadrant and on
+the cut; real signs). `tests/numbers.rs` 14: parts of numbers and terms, `arg`/`abs`/`sign` of closed terms,
+precision and accuracy, `set_precision`, `rationalize`, `chop`, clip/rescale/unit_step, `digits:`, `n` through `abs`
+and powers, for exact, rational, ball and machine inputs, lists, symbols and failures; random properties (60 each:
+`re + im*im_part = z`, `z conjugate(z) = abs(z)^2`, `n(arg(z))` against atan2, `rationalize(x, dx)` minimal by brute
+force); iterative walks over 10^4-element lists and 10^4-deep nests.
+
+### Known gaps
+
+1. `pow(ball, ball)` stays unevaluated in general (belongs in `mc-arith` or the engine's `pow` native: an exactly
+   integral ball exponent to `pow_int`, others to `elementary::pow`); inside `n` exact exponents stay exact.
+2. `rationalize` of a 10^6-digit ball is one continued-fraction step per partial quotient (interruptible, slow).
+3. `arg` of closed complex terms (`sin(1) + im*cos(1)`) stays unevaluated (no complex-ball elementary functions).
+4. `precision`/`accuracy` of a term is the least over its numbers, not error propagation.
+5. `arg(complex(-1.0, -0.0)) = -pi` (IEEE signed zeros).

@@ -605,6 +605,7 @@ dependencies = [
  "mc-numeric",
  "mc-numtheory",
  "mc-poly",
+ "mc-strings",
  "mc-syntax",
  "serde_json",
 ]
