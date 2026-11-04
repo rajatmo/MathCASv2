@@ -581,6 +581,7 @@ name = "mc-lsp"
 version = "0.0.0"
 dependencies = [
  "mc-api",
+ "mc-calculus",
  "mc-lists",
  "mc-load",
  "mc-numeric",

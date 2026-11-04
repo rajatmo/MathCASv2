@@ -13,6 +13,9 @@ const CORE: &[(&str, &str)] = &[
     ("define", "define(s, v): gives the symbol s the value v"),
     ("im", "im: the imaginary unit, complex(0, 1)"),
     ("inf", "inf: positive infinity (also written ∞)"),
+    // the numeric compiler's natives (`mc-jit`, not a dependency here: it would pull the code generator into the server)
+    ("compile", "compile(f): compiles the typed function f to machine code (calls fall back to the interpreter when needed)"),
+    ("compiled_info", "compiled_info(f): what was compiled for f: types, code size, back end, runs and declines"),
 ];
 
 /// Where a known name comes from.
@@ -51,7 +54,7 @@ impl Library {
     /// Every library list, the evaluator's natives and the prelude.
     pub fn new() -> Library {
         let mut entries = BTreeMap::new();
-        let lists = [CORE, mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS];
+        let lists = [CORE, mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_calculus::FUNCTIONS];
         for (name, desc) in lists.iter().flat_map(|l| l.iter()) {
             let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None };
             entries.entry(name.to_string()).or_insert(e);
