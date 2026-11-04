@@ -828,6 +828,9 @@ impl<'h> Fe<'h, '_> {
         if let Some(c) = self.exact_complex(t)? {
             return Ok(c);
         }
+        if let Some(c) = self.exact_constant_term(t) {
+            return Self::constant_operand(&c);
+        }
         if let Some((Prim::Pow, [base, e])) = self.prim_of(t) {
             if let View::Int(k @ i64::MIN..=-1) = h.view(*e) {
                 let bv = self.value(*base)?;
@@ -844,6 +847,56 @@ impl<'h> Fe<'h, '_> {
         }
         let v = self.value(t)?;
         Self::operand_of(v)
+    }
+
+    /// The value of a sum or product of exact constants with an exact complex one among them (`2 + 3im` written in
+    /// parentheses stays a sum in the body), computed by the arithmetic; `None` for anything else.
+    fn exact_constant_term(&self, t: T<'h>) -> Option<Num> {
+        fn go<'h>(fe: &Fe<'h, '_>, t: T<'h>, complex: &mut bool) -> Option<Num> {
+            let h = fe.h;
+            match h.view(t) {
+                View::Int(n) => return Some(Num::int(n)),
+                View::Rational { num, den } => {
+                    let (View::Int(n), View::Int(d)) = (h.view(num), h.view(den)) else { return None };
+                    return Some(Num::rat(Rat::new(Int::from_i64(n), Int::from_i64(d))));
+                }
+                _ => {}
+            }
+            if let Ok(Some(Operand::CExact(a, b))) = fe.exact_complex(t) {
+                *complex = true;
+                return Some(Num::complex(Real::int(a), Real::int(b)));
+            }
+            let (p, args) = fe.prim_of(t)?;
+            let nums = args.iter().map(|&a| go(fe, a, complex)).collect::<Option<Vec<Num>>>()?;
+            match p {
+                Prim::Add => Some(Num::sum(nums)),
+                Prim::Mul => Some(Num::product(nums)),
+                _ => None,
+            }
+        }
+        let mut complex = false;
+        let v = go(self, t, &mut complex)?;
+        complex.then_some(v)
+    }
+
+    /// An exact constant as an operand (an integer, a ratio of machine integers, a complex number with integer
+    /// parts).
+    fn constant_operand(c: &Num) -> Res<Operand> {
+        let small = |r: &Real| match r {
+            Real::Exact(q) => Some((q.num.to_i64()?, Int::from_nat(q.den.clone()).to_i64()?)),
+            _ => None,
+        };
+        let bad = || "an exact constant beyond machine integers or with rational complex parts".to_string();
+        match c {
+            Num::Real(r) => match small(r).ok_or_else(bad)? {
+                (n, 1) => Ok(Operand::Int(E::Int(n))),
+                (n, d) => Ok(Operand::Ratio(E::Int(n), E::Int(d))),
+            },
+            Num::Complex(a, b) => match (small(a), small(b)) {
+                (Some((x, 1)), Some((y, 1))) => Ok(Operand::CExact(x, y)),
+                _ => Err(bad()),
+            },
+        }
     }
 
     /// A computed value as an operand of a sum or product.
