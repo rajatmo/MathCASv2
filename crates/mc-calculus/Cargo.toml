@@ -10,6 +10,7 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+mc-poly = { path = "../mc-poly" }
 rustc-hash = "2"
 
 [dev-dependencies]

@@ -19,7 +19,9 @@
 //!
 //! Decisions of this package are numbered 2A.1, 2A.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
+pub mod apart;
 pub mod diff;
+pub mod integrate;
 mod natives;
 pub mod rules;
 pub mod term;
@@ -39,6 +41,11 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "derivative",
         "derivative(n)(f): the n-th derivative of the function f, written f', f'', ...; derivative(n1, ..., nk)(f) for k arguments",
     ),
+    (
+        "integrate",
+        "integrate(f, x): an antiderivative in x (no constant added); integrate(f, [x, a, b]) the definite integral from a to b",
+    ),
+    ("apart", "apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) when e has one variable"),
 ];
 
 /// Register the natives of this package with `k`. `stop` is the flag `mc-arith`'s number kernels poll (the
@@ -46,4 +53,6 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     k.register(h.sym("d"), Attributes::default(), Box::new(natives::D { stop: stop.clone() }));
     k.register(h.sym("derivative"), Attributes::default(), Box::new(natives::DerivativeAt { stop: stop.clone() }));
+    k.register(h.sym("integrate"), Attributes::default(), Box::new(natives::Integrate { stop: stop.clone() }));
+    k.register(h.sym("apart"), Attributes::default(), Box::new(natives::Apart { stop: stop.clone() }));
 }

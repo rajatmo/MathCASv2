@@ -493,6 +493,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-poly",
  "rustc-hash",
 ]
 
