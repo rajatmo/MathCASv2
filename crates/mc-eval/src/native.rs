@@ -50,6 +50,14 @@ pub trait Native: Send + Sync {
     fn reads_term(&self) -> bool {
         true
     }
+
+    /// Whether the native is also called for *curried* calls `f(a..)(b..)`, `f(a..)(b..)(c..)`, ...: calls whose
+    /// head is a compound term with this symbol as its innermost head. `t` is then the whole call, `args` its own
+    /// (outermost) arguments; declining leaves the call as it was. Off by default: a native sees only calls with
+    /// its symbol as the head. Read once, at registration.
+    fn curried(&self) -> bool {
+        false
+    }
 }
 
 /// A compiled pattern a native matches with ([`NativeCx::matches`]); made by

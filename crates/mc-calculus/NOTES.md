@@ -81,9 +81,9 @@ higher orders and multi-argument operators print as `derivative(5)(f)`, `derivat
 
 ## Known gaps and requests
 
-1. `derivative(n)(f)` evaluates only inside `d`: `sin'(x)` alone stays `sin'(x)`, because `mc-eval` dispatches natives
-   and rules on symbol heads only. Request to `mc-eval`: dispatch calls with compound heads (`g(a..)(b..)`) on the
-   innermost head symbol; then `derivative(n)(known)` could evaluate and `sin'(x)` would become `cos(x)`.
+1. ~~`derivative(n)(f)` evaluates only inside `d`.~~ Done (decision 2A.7): `mc-eval` natives can opt in to curried
+   calls (`Native::curried`), dispatched on the innermost head symbol; the `derivative` native resolves
+   `derivative(n...)(known)(args)`, so `sin'(x)` is `cos(x)`. Unknown functions stay as the operator.
 2. In `n` (handed to package 1C): outside a numeric island exact exponents become balls and `pow(ball, ball)` stays
    unevaluated (`n(1/(1 + abs(v)), 25)` leaves `2.26^-1.000`); `abs` over a ball is not refined.
 3. Not covered: `max`/`min` with more than two arguments or a list (unknown functions); `d` of a series (unevaluated);
