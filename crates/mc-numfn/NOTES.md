@@ -165,3 +165,7 @@ outside MathCAS (mpmath 1.4.1, scipy 1.18.1); each case's note says how.
    parameters of named functions are not compiled.
 7. The shared target directory is also written by other worktrees: a stale `mc-jit` build once made an engine test
    fail until cargo rebuilt it.
+
+## Package N4b: `par`
+
+`par::{Par, ParStats, par_expr, PAR_MIN_POINTS}`: a `NumFn` whose large `eval_flat` batches (256 points or more) of compiled code run split across the session's threads, identical to sequential; opt-in (`compile_expr`/`Auto` do not use it). Details: `crates/mc-jit/NOTES.md`, section "Package N4b".

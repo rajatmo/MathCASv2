@@ -187,3 +187,7 @@ The generator costs under 10 ns per word.
 5. Only machine reals: there are no ball-valued uniform draws at a given precision yet. They would be 53·k-bit
    mantissas from k words.
 6. Draws in `random_real([a, b])` with |a| much larger than b − a lose the low bits of `u` to rounding.
+
+## Package N4b
+
+Compiled draws: `Stream::real_in`, `normal_scaled`, `int_in` and `draw::real_range_ok`, `normal_ok` are the conversions the natives and the compiled helpers share, so compiled and interpreted draws agree bit for bit. Gap 2 above is done; see `crates/mc-jit/NOTES.md`, section "Package N4b".

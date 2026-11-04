@@ -243,3 +243,114 @@ Global constants, lists of known length, closures, and a Rust API to compile an 
 - Lists are compile-time trees: no loops over elements with a variable index, no list parameters of named functions
   (their length is unknown), no packed arrays (N4).
 - Compiling a small expression still costs 0.24-0.29 ms (one JIT module per function).
+
+## Package N4b: compiled random draws, compiled complex numbers, parallel batches
+
+Status: merged (branch `lib/r6-n4b`, commits 4561344..e43932d, from main 6376b35). Compiled draws are the
+interpreter's bit for bit; compiled machine complex numbers are the interpreter's values bit for bit or decline;
+large batches of a compiled expression run split across the session's threads with results identical to
+sequential. L9 is new and L10 is a compiled loop; both pass at every size. On the branch: full suite 712 passed,
+0 failed, 6 ignored; clippy clean for mc-jit, mc-random, mc-numfn. `mc-jit` refuses arithmetic on lists ("a list
+where a number is expected"), so main's list threading of `+`, `*`, `^` cannot disagree with compiled code.
+
+### What was built
+
+1. **Random draws in compiled code** (mc-jit, mc-random): `random_real()`, `random_real(b)`, `random_real([a, b])`,
+   `random_normal()`, `random_normal(mu, sigma)`, `random_integer(n)`, `random_integer([a, b])` compile in named
+   functions as HIR `E::Draw` / LIR `Op::Draw`, through run-time helpers on the session stream that call the same
+   `mc_random::Stream` conversions the natives now use. A count argument and `random_choice`/`random_sample` are
+   refused with a reason.
+2. **Machine complex numbers** (mc-jit): `complex(x, y)`, `im` and exact complex constants as operands,
+   `+ - * /`, integer powers, `abs`, `re`, `im_part`, `conjugate` compiled; other powers, `sqrt` and `exp` ... `tanh`
+   on complex arguments through helpers calling the interpreter's own code. Complex values can be locals, branches,
+   list leaves and results (`compiled_info` reports `Complex`).
+3. **Parallel batches**: `mc-jit/src/batch.rs` (`batch::run`, `Batch`, `pool_threads`) splits one compiled
+   expression's calls over the rayon pool; `mc-numfn/src/par.rs`: `Par<'h, I>`, a `NumFn` whose large `eval_flat`
+   batches run split, with `I` (normally `Auto`) as the sequential backend; `par_expr(cx, expr, vars, opts)`.
+4. Agreement tests extended to draws and complex numbers (IR level and through the engine).
+
+### Decisions
+
+- **N4b.1 Draw order.** Each draw is its own statement where the front end meets the call: arguments first, left
+  to right, only in the branch taken (`if`, `and`/`or`, `while` conditions), the interpreter's order. Draws live in
+  temporaries, so none is duplicated or dropped (`[r(), 1.0][2]`), and if-conversion never moves one into the
+  untaken branch.
+- **N4b.2 Drawing code is an effect.** A drawing specialisation calls `cx.effect()` first and declines on a
+  speculative task or inside a condition (the interpreter then reports the hole or failure); it holds the generator
+  lock for the call and passes the stream in `Env.stream`; a declined or stopped call restores the saved stream
+  position, so the interpreter's redo draws the same numbers; a range the native would refuse declines before
+  drawing. The generator is attached with `Jit::set_rng`; without it draws are refused; `compile_expr` never draws.
+- **N4b.3 Complex numbers are pairs of real HIR expressions** (no new HIR type, `Ty` unchanged). Inline, step for
+  step like `mc_arith::Num`: sums and products of two inexact operands without an exact part, or of an exact part and
+  one inexact operand (these commute bit for bit); multiplication `(ac - bd) + (ad + bc)i`; integer powers by
+  `Num`'s binary powering with the reciprocal `(a, -b)/(a^2 + b^2)` first for negative powers; `abs` as
+  `(a*a + b*b)^(1/2)` through the real-power path. Everything else is `S::Pair` (LIR `Op::CNum`/`Op::CMath`) calling
+  `Num::sum`/`product`/`pow` or `mc_numeric::Fun::machine`. Exact complex constants compile only as operands, folded
+  at compile time; elsewhere they are refused (the interpreter keeps them exact). No `Complex` parameter type (the
+  pattern types have none).
+- **N4b.4 Additions only.** `Shape::Complex` (two `Real` leaves); `compile_expr` refuses complex results, so
+  `mc-numfn` sees reals only.
+- **N4b.5 Splitting.** Only compiled `ExprFn`s (pure, immutable) are split. The calling thread and up to
+  `threads - 1` pool tasks claim blocks dynamically, each point writing only its outputs. Sequential when the pool
+  has one thread, fewer than `PAR_MIN_POINTS` (256) points, or an inlined function was redefined. Declined or
+  unfinished points are evaluated in order by the sequential backend on the calling thread: identical to sequential,
+  the same at 1 and 4 threads.
+- **N4b.6 Fuel and interrupts in split batches.** One fuel unit per point charged first; fuel of loops on other
+  threads goes to a shared counter the calling thread charges in its polls and while waiting; a limit or interrupt
+  raises the batch's stop word, read by every compiled poll. The calling thread never blocks (it yields; tasks
+  starting after the blocks ran out return at once), so nested batches cannot deadlock.
+
+### API additions
+
+- mc-jit `ir`: `Draw` (Real, Normal, Integer), `E::NegF`, `E::Draw`, `S::Pair`, `Pair::{Num, Math}`,
+  `Opd::{Complex, CExact}`, `OpdK::{Complex, CExact}`, `Op::{FNeg, Draw, CNum, CMath}`, `ir::draws(&Lir)`.
+- mc-jit `rt`: `Env.stream`, `Env::with_stream`, `cnum`, `cnum_words`, `cmath`, `cmath_value`, `draw_value`,
+  `draw_real`, `draw_normal`, `draw_int`, `OPD_COMPLEX`, `OPD_CEXACT`.
+- mc-jit: `front::Source::draws` (default), `Shape::Complex`, `Shape::has_complex`; `spec::Built::call_with`,
+  `Built::draws`, `Jit::set_rng`; `expr::ExprFn::call_detached`, `call_f64_detached`, `draws`; module `batch`.
+- mc-random: `Stream::real_in`, `normal_scaled`, `int_in`; `draw::real_range_ok`, `normal_ok` (the natives use them).
+- mc-numfn: `par::{Par, ParStats, par_expr, PAR_MIN_POINTS}`.
+
+Edits outside the owned crates: two install lines in `mc-engine` (`mc_random::install` returns the generator,
+handed to the JIT with `set_rng`); `mod par`/`pub use` in `mc-numfn/src/lib.rs` and `mc-numfn/tests/par.rs`;
+`mc-jit` depends on `mc-random` and `rayon 1.12`; `bench/cases/L/L9.mc` new, `L10.mc` a compiled loop.
+
+### Tests (11 new, 1 extended)
+
+- `mc-jit/tests/agree.rs` (4 new, both back ends): complex pairs against `mc_arith::Num` (over 10,000 results),
+  11 complex functions x 2,000 arguments against `mc-numeric`, negation, draws against direct `Stream` calls
+  (refused ranges, integer overflow, no stream; stream positions).
+- `mc-jit/tests/engine.rs`: 4 complex cases (NaN, infinities, signed zeros) equal to the interpreter, both back ends,
+  4 threads.
+- `mc-jit/tests/n4b.rs` (4, memo off): 11 drawing functions in 16 seeded programs equal to the interpreter at 1 and 4
+  threads (ran compiled; the declining ones declined); the Monte Carlo checksum; draws refused outside compiled
+  functions; 150 random complex expressions x 8 points bitwise (over 130 compile).
+- `mc-numfn/tests/par.rs` (3): split batches bitwise equal to sequential for 6 expressions at 10, 300 and 5,000 points,
+  engine threads 1 and 4; fuel limit and interrupt across a 4-thread batch; speedup measurement.
+
+### Measurements (busy shared machine, release, guard)
+
+| case | interpreted | compiled (harness median) |
+|---|---|---|
+| L9 m = 200 | 17.2 s (one REPL run) | 25.9 ms (about 670x) |
+| L9 m = 1000 / 3000 | | 637 ms / 5.73 s |
+| L10 10^6 | 5.8 s (scalar loop; the old list form 10.3 s) | 38.4 ms (about 150x) |
+| L10 10^7 / 10^8 | | 386 ms / 3.89 s |
+
+L9 checksums 1907889, 47555025, 427703486 (equal to the interpreter at m = 40, 200 and to an independent IEEE
+reimplementation at 40, 200, 1000). L10 after `seed(2026)`: 786153, 7854611, 78542706 (10^6 equals the interpreted
+loop). Parallel split of a Mandelbrot expression, 40,000 points: 1.7x at 2 threads, 2.5x at 3, 3.1x at 4.
+
+### Known gaps
+
+- Draws: expressions (`compile_expr`, `mc-numfn`) never draw and drawing code is never split; per-element streams for
+  `pmap`/`ptable` (mc-random gap 1) not built; no fuel per draw (loop polls only).
+- Complex: no `Complex` parameter type, no complex values into inlined functions; `compile_expr` refuses complex
+  results; exact complex values outside sum/product operands, `arg`, comparisons of complex numbers and `n(z)` refused;
+  exact complex constants with rational parts refused; three or more inexact operands and non-integer powers go
+  through the helper (correct, slower); NaN sign/payload may differ (J.6).
+- Batches: `Par` is opt-in (`compile_expr`/`Auto` do not use it: N1-N3 integrate it by calling `par_expr`); the
+  256-point threshold is fixed; the calling thread yields while waiting.
+- Bench: `--only` takes one id per guard call (guard splits arguments on commas).
+- One fail-fast run saw `mc-calculus/tests/apart.rs::interruption` panic once ("division by the zero polynomial" in
+  `mc-poly`); it passed on every rerun: likely the known stop-flag race in the arithmetic.
