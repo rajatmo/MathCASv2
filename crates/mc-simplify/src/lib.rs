@@ -134,7 +134,8 @@ impl Native for SimplifyNative {
         let _scope = StopScope::enter(Some(&self.stop));
         let b = B::new(h, &self.stop);
         let facts = if self.f.uses_assumptions() { cx.assumptions() } else { &[] };
-        let mut f = if facts.is_empty() { None } else { Some(Facts::new(cx, &b, &self.syms, facts)?) };
+        // refine runs without facts too: some of its rules need none (`log(x^(1/2))`)
+        let mut f = if facts.is_empty() && !matches!(self.f, Fun::Refine) { None } else { Some(Facts::new(cx, &b, &self.syms, facts)?) };
         let r = match self.f {
             Fun::Simplify => simplify::simplify(cx, &b, f.as_mut(), *e)?,
             Fun::TrigExpand => trig::trig_expand(cx, &b, *e)?,

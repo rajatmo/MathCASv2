@@ -16,6 +16,8 @@
 //! | `sin(k pi)`, `tan(k pi)` | `0` | `k` an integer |
 //! | `cos(k pi)` | `(-1)^k` | `k` an integer |
 //! | `cos(k pi)`, `sin(k pi)` | `0`, `(-1)^(k - 1/2)` | `k - 1/2` an integer |
+//! | `sin(v + k pi)`, `cos(v + k pi)`, `tan(v + k pi)` | `(-1)^k sin(v)`, `(-1)^k cos(v)`, `tan(v)` | `k` an integer |
+//! | `(-1)^k` | `(-1)^k0` | `k0`: the integer terms of `k` with even coefficients dropped |
 //! | `a < b`, `a <= b`, `a > b`, `a >= b`, `a == b`, `a != b` | `true`, `false` | decided by the facts |
 //!
 //! `exp(log(x)) = x` needs no fact: the evaluator applies it already.
@@ -76,7 +78,7 @@ fn power<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, ba
         return Ok(match f.parity(cx, c, 0)? {
             Some(true) => Some(b.int(1)),
             Some(false) => Some(b.int(-1)),
-            None => None,
+            None => even_part_dropped(cx, b, f, c)?.map(|k| b.pow(base, k)),
         });
     }
     let ic = f.info(cx, c)?;
@@ -248,11 +250,54 @@ fn trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, s: 
     if s != hd.tan && f.info(cx, m)?.kind == Kind::Integer {
         return Ok(Some(if s == hd.cos { b.int(0) } else { b.pow(b.int(-1), m) }));
     }
-    Ok(None)
+    // a shift by an integer multiple of pi: sin(v + k pi) = (-1)^k sin(v), the same for cos, tan(v + k pi) = tan(v)
+    let (mut shift, mut rest) = (vec![], vec![]);
+    for t in b.terms(k) {
+        if f.info(cx, t)?.kind == Kind::Integer {
+            shift.push(t);
+        } else {
+            rest.push(t);
+        }
+    }
+    if shift.is_empty() || rest.is_empty() {
+        return Ok(None);
+    }
+    let v = b.mul(&[b.add(&rest), h.sym_term(pi)]);
+    let inner = b.call(s, &[apply(cx, b, "expand", v)?]);
+    Ok(Some(if s == hd.tan { inner } else { b.mul(&[b.pow(b.int(-1), b.add(&shift)), inner]) }))
 }
 
 /// `-u`, distributed over a sum (`-(x - 1)` is `1 - x`).
 fn negate<'h>(b: &B<'h>, u: T<'h>) -> T<'h> {
     let terms: Vec<T<'h>> = b.terms(u).into_iter().map(|t| b.neg(t)).collect();
     b.add(&terms)
+}
+
+/// The exponent `k` of `(-1)^k` with the even part of each integer term dropped (`3*n + 4` becomes `n` for an
+/// integer `n`), when that changes it.
+fn even_part_dropped<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, k: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    if f.info(cx, k)?.kind != Kind::Integer {
+        return Ok(None);
+    }
+    let two = b.int(2);
+    let mut out = Vec::new();
+    let mut changed = false;
+    for t in b.terms(k) {
+        cx.tick(1)?;
+        // the integer coefficient of the term and the rest, which must be an integer itself
+        let (c, rest) = match b.call_of(t) {
+            Some((g, [c, rest @ ..])) if g == b.hd.mul && matches!(h.view(*c), View::Int(_) | View::BigInt { .. }) => (*c, b.mul(rest)),
+            _ if matches!(h.view(t), View::Int(_) | View::BigInt { .. }) => (t, b.int(1)),
+            _ => (b.int(1), t),
+        };
+        if f.info(cx, rest)?.kind != Kind::Integer {
+            out.push(t);
+            continue;
+        }
+        let r = cx.eval(b.call_named("mod", &[c, two]))?;
+        changed |= r != c;
+        out.push(b.mul(&[r, rest]));
+    }
+    Ok(changed.then(|| b.add(&out)))
 }
