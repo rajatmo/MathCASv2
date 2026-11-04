@@ -172,7 +172,9 @@ impl CoreEngine {
             mc_roots::install(&mut k, h, &arith_stop);
             mc_simplify::install(&mut k, h, &arith_stop);
             // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
-            mc_random::install(&mut k, h);
+            let rng = mc_random::install(&mut k, h);
+            // compiled functions draw from the same generator (package N4b)
+            jit.as_ref().expect("the compiler is installed").set_rng(rng);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

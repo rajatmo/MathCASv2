@@ -562,6 +562,7 @@ dependencies = [
  "mc-engine",
  "mc-eval",
  "mc-numeric",
+ "mc-random",
 ]
 
 [[package]]

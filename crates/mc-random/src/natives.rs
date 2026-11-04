@@ -123,7 +123,7 @@ fn real_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Checked<'h, (f
             None => return Ok(Err(MSG)),
         },
     };
-    Ok(if a <= b && (b - a).is_finite() { Ok((a, b)) } else { Err(MSG) })
+    Ok(if crate::draw::real_range_ok(a, b) { Ok((a, b)) } else { Err(MSG) })
 }
 
 /// The range of `random_integer`: `n` ([0, n], n >= 0) or `[a, b]`, integers with a <= b (decision RNG.8).
@@ -193,7 +193,7 @@ impl RandomNative {
             },
             (Fun::Normal, []) => Ok((Job::Normal(0.0, 1.0), None)),
             (Fun::Normal, [mu, sigma, n @ ..]) if n.len() <= 1 => match (real(cx, *mu)?, real(cx, *sigma)?) {
-                (Some(mu), Some(sigma)) if sigma >= 0.0 => count(cx, n.first()).map(|s| (Job::Normal(mu, sigma), s)),
+                (Some(mu), Some(sigma)) if crate::draw::normal_ok(mu, sigma) => count(cx, n.first()).map(|s| (Job::Normal(mu, sigma), s)),
                 _ => fail("the mean must be a real and the standard deviation a real >= 0"),
             },
             (Fun::Choice, [xs, n @ ..]) if n.len() <= 1 => match cx.as_list(*xs) {
@@ -263,17 +263,15 @@ impl Native for RandomNative {
                     let w = b - a;
                     for _ in 0..n {
                         cx.tick(1)?;
-                        flat.push(h.real(a + w * s.uniform()));
+                        flat.push(h.real(s.real_in(*a, w)));
                     }
                 }
                 Job::Integer(a, b) => {
                     // machine ranges without the big-integer layer
                     if let (Some(a), Some(b)) = (a.to_i64(), b.to_i64()) {
-                        let w = (b as i128 - a as i128) as u128;
                         for _ in 0..n {
                             cx.tick(1)?;
-                            let r = if w == u64::MAX as u128 { s.next_u64() } else { s.below(w as u64 + 1) };
-                            flat.push(ar.integer(&Int::from_i64(a).add(&Int::from_u64(r))));
+                            flat.push(h.int(s.int_in(a, b)));
                         }
                     } else {
                         for _ in 0..n {

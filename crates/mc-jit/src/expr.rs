@@ -13,9 +13,14 @@
 //! a loop's poll found the evaluation stopped: the caller then evaluates the call with the interpreter, which gives
 //! the result, or stops at its first poll (decision 1b.8). A call also declines when a function it inlined has been
 //! redefined since it was compiled (decision 1b.6).
+//!
+//! An expression never draws (random draws are refused: it has no session stream) and its results are machine
+//! reals and integers (a complex result is refused; complex numbers inside the expression compile). So every
+//! `ExprFn` is pure, and [`ExprFn::call_detached`] may run it on several threads at once (package N4b, decision
+//! N4b.5: `mc_numfn::par` splits batches across threads with it).
 use crate::front::{front_expr, Arg, Shape};
 use crate::ir::Ty;
-use crate::rt::Exit;
+use crate::rt::{Exit, PollFn};
 use crate::spec::{build, Backend, Built, Info, KernelSource};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Control, NativeCx};
@@ -84,15 +89,26 @@ impl ExprFn {
     /// Call with the inputs as words (an `Int` as `i64`, a `Real` by its bits), the outputs as words. `out` must
     /// have [`ExprFn::outputs`] words.
     pub fn call_words(&self, cx: &mut NativeCx<'_, '_, '_>, args: &[u64], out: &mut [u64]) -> Call {
-        if args.len() != self.words || out.len() != self.outputs() || !self.current(cx) {
+        if !self.current(cx) {
+            return Call::Declined;
+        }
+        let mut poll = |n: u64| cx.tick(n).is_ok();
+        self.call_detached(&self.ctl, args, out, &mut poll)
+    }
+
+    /// Call without an evaluation context, from any thread (decision N4b.5): `ctl` is the control block whose stop
+    /// flag and status the loops read, `poll` charges the loops' fuel ([`crate::rt::POLL_EVERY`] per call; `false`
+    /// stops the call). The caller must have checked [`ExprFn::current`] on the evaluation's thread before (that
+    /// check records the reads). Inputs and outputs as in [`ExprFn::call_words`].
+    pub fn call_detached(&self, ctl: &Control, args: &[u64], out: &mut [u64], poll: &mut PollFn<'_>) -> Call {
+        if args.len() != self.words || out.len() != self.outputs() {
             return Call::Declined;
         }
         let list = matches!(self.shape, Shape::List(_));
-        let mut poll = |n: u64| cx.tick(n).is_ok();
         let (r, exit) = if list {
-            self.built.call_out(&self.ctl, args, out, &mut poll)
+            self.built.call_out(ctl, args, out, poll)
         } else {
-            self.built.call_out(&self.ctl, args, &mut [], &mut poll)
+            self.built.call_out(ctl, args, &mut [], poll)
         };
         match exit {
             Exit::Done => {
@@ -106,10 +122,21 @@ impl ExprFn {
         }
     }
 
+    /// Call with machine reals without an evaluation context (decision N4b.5): [`ExprFn::call_f64`] through
+    /// [`ExprFn::call_detached`], with its contract.
+    pub fn call_f64_detached(&self, ctl: &Control, args: &[f64], out: &mut [f64], poll: &mut PollFn<'_>) -> Call {
+        self.f64_words(args, out, |w, o| self.call_detached(ctl, w, o, poll))
+    }
+
     /// Call with machine reals: every parameter is `Real` or a vector; the outputs are converted to machine reals
     /// (an integer result rounded to the nearest, as the arithmetic's `to_f64` does). Declines for an `Int`
     /// parameter or a boolean output.
     pub fn call_f64(&self, cx: &mut NativeCx<'_, '_, '_>, args: &[f64], out: &mut [f64]) -> Call {
+        self.f64_words(args, out, |w, o| self.call_words(cx, w, o))
+    }
+
+    /// The machine reals `args` as words for `call`, and its output words as machine reals in `out`.
+    fn f64_words(&self, args: &[f64], out: &mut [f64], call: impl FnOnce(&mut [u64], &mut [u64]) -> Call) -> Call {
         if self.args.contains(&Arg::Int) || out.len() != self.outputs() {
             return Call::Declined;
         }
@@ -132,7 +159,7 @@ impl ExprFn {
             obig.resize(out.len(), 0);
             &mut obig
         };
-        let r = self.call_words(cx, w, o);
+        let r = call(w, o);
         if r != Call::Done {
             return r;
         }
@@ -162,6 +189,9 @@ pub fn compile_expr<'h>(
     let fr = front_expr(h, params, body, &mut src, numeric)?;
     let versions = src.versions;
     let built = build(&fr.func, fr.deps.clone(), backend)?;
+    if fr.result.has_complex() {
+        return Err("a complex result (expressions compile to machine reals; complex values inside them compile)".into());
+    }
     let leaf_types = fr.result.leaf_types();
     if leaf_types.contains(&Ty::Bool) && leaf_types.len() > 1 {
         return Err("a boolean in a list result".into());

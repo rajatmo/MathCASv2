@@ -16,6 +16,7 @@ mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-numeric = { path = "../mc-numeric" }
+mc-random = { path = "../mc-random" }
 
 [dev-dependencies]
 mc-bench = { path = "../mc-bench" }
