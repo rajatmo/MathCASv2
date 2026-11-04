@@ -1,0 +1,23 @@
+[package]
+name = "mc-ode"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 numerical ordinary differential equations: n_dsolve and n_dsolve_value (Dormand-Prince 5(4), Rodas4 for stiff systems, Taylor series under digits) with interpolating-function results"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the NumFn trait and its compiled and interpreted backends (package N0)
+mc-numfn = { path = "../mc-numfn" }
+# elementary functions on balls (the Taylor method)
+mc-numeric = { path = "../mc-numeric" }
+parking_lot = "0.12"
+rustc-hash = "2"
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

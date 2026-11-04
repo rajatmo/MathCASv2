@@ -87,6 +87,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_strings::FUNCTIONS,
         mc_roots::FUNCTIONS,
         mc_quad::FUNCTIONS,
+        mc_ode::FUNCTIONS,
         mc_simplify::FUNCTIONS,
         mc_random::FUNCTIONS,
     ];
@@ -172,6 +173,7 @@ impl CoreEngine {
             mc_strings::install(&mut k, h);
             mc_roots::install(&mut k, h, &arith_stop);
             mc_quad::install(&mut k, h, &arith_stop);
+            mc_ode::install(&mut k, h, &arith_stop);
             mc_simplify::install(&mut k, h, &arith_stop);
             // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
             let rng = mc_random::install(&mut k, h);
