@@ -1,0 +1,16 @@
+[package]
+name = "mc-random"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 random numbers: the session generator (counter-based Philox4x32-10), seed, random_real, random_integer, random_normal, random_choice, random_sample"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

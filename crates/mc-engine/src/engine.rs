@@ -87,6 +87,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_strings::FUNCTIONS,
         mc_roots::FUNCTIONS,
         mc_simplify::FUNCTIONS,
+        mc_random::FUNCTIONS,
     ];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
@@ -170,6 +171,8 @@ impl CoreEngine {
             mc_strings::install(&mut k, h);
             mc_roots::install(&mut k, h, &arith_stop);
             mc_simplify::install(&mut k, h, &arith_stop);
+            // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
+            mc_random::install(&mut k, h);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });
