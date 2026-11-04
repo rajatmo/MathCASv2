@@ -104,7 +104,7 @@ pub fn run(
     charge: &mut dyn FnMut(u64) -> bool,
 ) -> Batch {
     let (ni, no) = (code.inputs(), code.outputs());
-    let n = if no == 0 { 0 } else { out.len() / no };
+    let n = out.len().checked_div(no).unwrap_or(0);
     if no == 0 || out.len() != n * no || args.len() != n * ni {
         return Batch { done: vec![false; n], stopped: false, threads: 0 };
     }
