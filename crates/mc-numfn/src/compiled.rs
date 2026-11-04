@@ -161,7 +161,7 @@ pub enum Policy {
         /// evaluations before compiling
         after: u64,
     },
-    /// after this many evaluations of the expression's whole family in the code cache (decision N1.4): an
+    /// after this many evaluations of the expression's whole family in the code cache (decisions N1.4, N1.5): an
     /// instance whose family the cache holds runs compiled from its first call, so solvers called once per
     /// parameter value compile once (the default)
     Family {

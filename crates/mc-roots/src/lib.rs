@@ -40,11 +40,11 @@ use std::sync::Arc;
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "find_root",
-        "find_root(f, [x, x0]): a root of f (or of lhs == rhs) near x0 as [x -> root]; [x, x0, x1] secant, [x, x0, a, b] in a bracket, [[x, x0], [y, y0]] systems; digits: d for balls",
+        "find_root(f, [x, x0]): a root of f (or of lhs == rhs) near x0 as [x -> root]; [x, x0, x1] secant, [x, x0, a, b] in a bracket, [[x, x0], [y, y0]] systems; digits: d for balls; compile: auto | true | false",
     ),
     (
         "find_minimum",
-        "find_minimum(f, [x, x0]): a local minimum near x0 as [f_min, [x -> x_min]]; [[x, x0], [y, y0]] for several variables (BFGS); digits: d for balls",
+        "find_minimum(f, [x, x0]): a local minimum near x0 as [f_min, [x -> x_min]]; [[x, x0], [y, y0]] for several variables (BFGS); digits: d for balls; compile: auto | true | false",
     ),
     (
         "find_maximum",
