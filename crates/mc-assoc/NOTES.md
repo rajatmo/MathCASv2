@@ -31,8 +31,8 @@ from the same table as the registration). Outside the crate: `mc-engine` (depend
 - **1B.3** Every function is strict; `is_failure`/`failure_tag` receive failures as values (failures propagate, so
   `is_failure(f(failure(x)))` is `true`).
 - **1B.4 Part access.** Argument-head rules `part(a @ assoc(___), k_) := lookup(a, k)` and
-  `part(a @ assoc(___), k_, ks__) := part(lookup(a, k), ks...)`; they run after `mc-lists`' `part` declines, so until
-  `part` declines on associations, integer, string and list indices are positional (`m[3]` is the 3rd entry).
+  `part(a @ assoc(___), k_, ks__) := part(lookup(a, k), ks...)`; `mc-lists`' `part` declines on associations (1A.16), so every key,
+  including integers, strings and lists, is a key: `m[3]` is the value of key 3.
 - **1B.5** `lookup` of a missing key without default is `failure(missing_key, k)`; a list is always one key.
 - **1B.6 Index.** A cache from association handles to `FxHashMap<key handle, position>` (16 associations, 2^23 keys,
   LRU, `parking_lot::Mutex`), emptied in `Native::trace` at every collection (no handles across a safe point);
@@ -90,7 +90,7 @@ all-literal AC left side depended on symbol numbering. Fixed on main (b33430f) b
 
 ## Known gaps
 
-- `a[k]` reaches `lookup` only for symbol and compound keys until `part` declines on associations (asked of 1A).
+- `xs[1, k]` where `xs[1]` is an association still indexes it by position (`part` checks only its first argument).
 - `insert`/`delete_key` copy (O(n) each; n inserts O(n^2)); build from a list or with `merge` instead (O(n)).
 - The index is dropped at every safe point and rebuilt once per statement; one cache lock shared by all tasks.
 - Identity comparison only (no custom equality, no custom `key_sort` order); `is_subset` takes two arguments;

@@ -117,7 +117,7 @@ fn access() {
             ("key_exists(m, 4)", "false"),
             ("key_exists(assoc(), 4)", "false"),
             ("key_exists(7, 4)", "failure(argument, key_exists, 1)"),
-            // part access through the argument-head rules on `assoc` (1B.4): keys that are not integers or strings
+            // part access through the argument-head rules on `assoc` (1B.4; `part` declines on associations, 1A.16)
             ("m[a]", "1"),
             ("m[f(u)]", "z"),
             ("lookup(m, [1])", "y"),
@@ -126,10 +126,10 @@ fn access() {
             ("assoc(a -> [5, 6])[a, 2]", "6"),
             ("assoc(a -> assoc(b -> 7))[a][b]", "7"),
             ("assoc(a -> assoc(b -> 7))[a, b]", "7"),
-            // integer, string and list indices are taken by `part` itself, by position (1B.4)
-            ("m[3]", "3 -> x"),
-            ("m[[1]]", "assoc(a -> 1)"),
-            ("m[\"s\"]", "failure(index, \"s\", 5)"),
+            // integer, string and list keys are keys too, never positions
+            ("m[3]", "x"),
+            ("m[[1]]", "y"),
+            ("m[\"s\"]", "[1, 2]"),
         ],
     );
 }

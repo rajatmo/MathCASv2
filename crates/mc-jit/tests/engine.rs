@@ -227,24 +227,24 @@ fn functions_outside_the_subset_are_refused_with_a_reason() {
 #[test]
 fn a_changed_definition_drops_what_inlined_it() {
     let mut e = engine(1);
-    eval(&mut e, "fn inner(n: Int) = n + 1\n@compiled fn outer(n: Int) = 2*inner(n)");
-    assert_eq!(eval(&mut e, "outer(5)"), "12");
-    assert_eq!(info(&mut e, "outer", "state"), "\"active\"");
+    eval(&mut e, "fn inc(n: Int) = n + 1\n@compiled fn twice_inc(n: Int) = 2*inc(n)");
+    assert_eq!(eval(&mut e, "twice_inc(5)"), "12");
+    assert_eq!(info(&mut e, "twice_inc", "state"), "\"active\"");
     // redefining the inlined function: the specialisation declines and the interpreter uses the new definition
-    eval(&mut e, "fn inner(n: Int) = n + 100");
-    assert_eq!(eval(&mut e, "outer(5)"), "210");
-    assert_eq!(info(&mut e, "outer", "state"), "\"stale\"");
+    eval(&mut e, "fn inc(n: Int) = n + 100");
+    assert_eq!(eval(&mut e, "twice_inc(5)"), "210");
+    assert_eq!(info(&mut e, "twice_inc", "state"), "\"stale\"");
     // compiling again picks the new definition up
-    assert_eq!(eval(&mut e, "compile(outer)"), "outer");
-    assert_eq!(eval(&mut e, "outer(5)"), "210");
-    assert_eq!(info(&mut e, "outer", "state"), "\"active\"");
+    assert_eq!(eval(&mut e, "compile(twice_inc)"), "twice_inc");
+    assert_eq!(eval(&mut e, "twice_inc(5)"), "210");
+    assert_eq!(info(&mut e, "twice_inc", "state"), "\"active\"");
     // compiling an inlined function after its caller keeps the caller's specialisation valid
-    assert_eq!(eval(&mut e, "compile(inner)"), "inner");
-    assert_eq!(info(&mut e, "outer", "state"), "\"active\"");
-    assert_eq!(eval(&mut e, "outer(1)"), "202");
+    assert_eq!(eval(&mut e, "compile(inc)"), "inc");
+    assert_eq!(info(&mut e, "twice_inc", "state"), "\"active\"");
+    assert_eq!(eval(&mut e, "twice_inc(1)"), "202");
     // redefining the compiled function itself
-    eval(&mut e, "fn outer(n: Int) = 3*n");
-    assert_eq!(eval(&mut e, "outer(5)"), "15");
+    eval(&mut e, "fn twice_inc(n: Int) = 3*n");
+    assert_eq!(eval(&mut e, "twice_inc(5)"), "15");
     // a module reload clears the definitions: the old specialisation must not answer
     eval(&mut e, "module M { pub fn g(n: Int) = n - 1 }");
     eval(&mut e, "compile(M.g)");

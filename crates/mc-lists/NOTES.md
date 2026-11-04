@@ -138,3 +138,97 @@ Library alone at 10^7 elements (peak 1.3 GB): `range` 52 ms, `sum` 23 ms, `rever
 - New native `unique(xs)`: identity comparison, first occurrence kept, any head, linear with a hash set, fuel per element
   (`Meter`); in `FUNCTIONS`. Tests: 8 cases incl. 2*10^5 elements, an oracle property test, a fuel-limit test. (The
   prelude's O(n^2) `unique` is removed.)
+
+## Package 1A (roadmap phase 1: predicates and structure; branch `lib/r4-lists`, commit 9dfb161)
+
+Every 1A target is built with a `FUNCTIONS` entry and tests; clippy clean. Registration through the existing
+`mc_lists::install` (no `mc-engine` edits). At the merge the JIT test's `inner`/`outer` user functions were renamed
+(`inc`, `twice_inc`: `inner` and `outer` are now natives) and 1B's `a[k]` tests moved to key semantics (1A.16).
+
+### What was built (new modules)
+
+- `predicates`: kinds `is_integer`, `is_rational`, `is_number`, `is_exact`, `is_inexact`, `is_machine_number`,
+  `is_string`, `is_symbol`, `is_atom`; shapes `is_list`, `is_vector(v[, test])`, `is_matrix(m[, test])`; quantifiers
+  `all_true`, `any_true`, `none_true` (stop at the first deciding element).
+- `search`: `free_of(t, p)` (every depth, heads included, each distinct subterm once), `member_of(xs, p)` (level 1),
+  `position(t, p)` (index lists for `part`), `select_first(xs, f[, d])`; patterns through `NativeCx::compile_pattern`
+  and `matches` (AC matching, effect-refusing conditions); a pattern without constructs compares by identity.
+- `arrange`: `riffle`, `catenate`, `partition(xs, n[, d])`, `rotate_left`/`rotate_right(xs[, k])`,
+  `pad_left`/`pad_right(xs, n[, x])`, `constant_array(c, n | [dims])` (shared rows), `thread(f(...))`.
+- `group`: `tally`, `gather`, `gather_by(xs, f[, r])`, `unique_by`, `count_by` (rules `k -> n`), one hash-map pass each.
+- `combinat`: `subsets(xs[, n | [n] | [a, b]])`, `tuples(xs, n)` and `tuples([xs1, ...])`, `permutations(xs[, spec])`,
+  `outer(f, xs, ...)`, `inner(f, a, b[, g])`.
+- `sort` additions: `sort_by`, `ordering(xs[, n])`, `max_by`, `min_by` (kernel order, `NativeCx::cmp`); the merge sort is
+  generic over its element type.
+- `construct` additions: `table` (all arguments held; `table(e, n)`, `table(e, k, r)`, more `k, r` pairs for nesting),
+  `array(f, [n1, ..., nd])`, `map_indexed`, `map_thread`, `scan`.
+- `ctx` helpers: `keys`, `truth`, `count_operand`, `dims_operand`, `cells`, `nest_flat`, `shape`, `rule`, `MAX_CELLS`.
+
+### Decisions
+
+- **1A.1** Kind predicates always answer `true`/`false` (a symbol is not an unknown number: `is_integer(n)` is false).
+- **1A.2** `is_rational` means an exact real (integers count).
+- **1A.3** `is_atom(1 + 2im)` is false: a complex number is the compound `complex(re, im)` (consistent with `length`
+  and `part`; deliberately different from the reference system).
+- **1A.4** Combinatorial and array results over `MAX_CELLS` = 2^26 argument slots (all levels) are refused before
+  allocation with `failure(limit, memory, call)` (`subsets`, `tuples`, `permutations` by an exponential-generating-
+  function estimate plus a guard while building, `outer`, `inner`, `array`, `constant_array`, `table`, `partition`);
+  `array(f, n)` now refuses n above 2^26.
+- **1A.5** Pattern searches use the evaluator's compiled patterns; `cases` and `count` still use the local matcher.
+- **1A.6** `position` lists a part after its head and arguments, arguments in order (`position([[a]], _)` is
+  `[[0], [1, 0], [1, 1], [1], []]`).
+- **1A.7** Groups in the order of their first element, compared by identity.
+- **1A.8** No list-form `group_by` (1B's association form owns the name); the list form is `gather_by(xs, f[, r])`.
+- **1A.9** `delete_duplicates_by` is `unique_by` (the `by` form of `unique`).
+- **1A.10** `riffle(xs, ys)` with a list `ys` needs length n or n - 1, else `failure(shape_mismatch, riffle)` (no
+  cycling).
+- **1A.11** The padding element is used as is, even a list (no cyclic padding).
+- **1A.12** `permutations` gives distinct arrangements, lexicographic by position, each at its first occurrence.
+- **1A.13** `outer` uses the first level of each list.
+- **1A.14** `table` is held and built as the closure `fn([k], e)` (lexical, hygienic: with a global `k = 10`,
+  `table(k, k, 3)` is `[1, 2, 3]`); elements evaluated as a group like `map`; a range is a list or an integer n
+  (1..n); a symbolic range leaves the call unevaluated.
+- **1A.15** `map_indexed` passes an integer index `f(x, i)`.
+- **1A.16** `part` declines when its first argument is an `assoc(...)` call (so 1B's rules handle every key).
+- Also: `max_by`/`min_by` return the first extreme element (empty list: `failure(index, 1, 0)`); `select_first` with no
+  match and no default is `failure(not_found, select_first)`; `inner` handles up to matrices; a failure from a
+  predicate or key function is the result.
+
+Edit outside the crate: `mc-kernel/tests/protocol.rs` (completion of `uniq` is `["unique", "unique_by"]`).
+
+### Tests
+
+- `tests/foundations.rs` (10, about 330 cases): normal, edge and failure cases for every function; every 1A target has
+  exactly one non-empty `FUNCTIONS` entry and no name is listed twice; `group_by` is not registered.
+- `tests/structure_properties.rs` (7, fixed seed) against Rust oracles: permutations, subsets, tuples; ordering,
+  `sort_by`, `max_by`, `min_by` against stable sorts; `gather_by`, `count_by`, `unique_by`, `tally` against hash maps;
+  partition, rotations, padding, riffle against slices; `position`, `free_of` against a recursive walk; `inner`,
+  `outer`, nested `table` against matrix products.
+- `tests/limits.rs`: 22 new loops end in `Fuel` under a 1000-unit budget; 4 new session sources identical at 1 and 4
+  threads and under stress. `tests/functions.rs`: the lambda tests are no longer ignored. Unit tests: exact and
+  saturating binomials, arrangement counts. `tests/measure_structure.rs`: an ignored measurement test.
+
+### Measurements (release, guard, peak 378 MB, busy machine)
+
+| Statement | Time |
+|---|---|
+| `permutations(range(9))` (362,880 lists) | 54 ms |
+| `subsets(range(20))` | 131 ms |
+| `tuples(range(10), 6)` | 98 ms |
+| `tally` of 10^6 / `gather_by` of 10^5 / `sort_by` of 10^5 | 6.5 / 5.7 / 17 ms |
+| `ordering` of 10^6 | 80 ms |
+| `position(range(10^6), _: Int)` / `free_of` of 10^6 | 157 / 20 ms |
+| `partition(10^6, 2, 1)` | 83 ms |
+| `table(k^2, k, 10^5)` / `table` 300 x 300 | 152 / 38 ms |
+| `outer(imul, ...)` 1000 x 1000 / `inner(mul, m, m)` 100 x 100 | 178 / 21 ms |
+| `constant_array(0, [1000, 1000])` | 0.2 ms |
+
+### Known gaps
+
+- The prelude's `every`, `some`, `member` overlap `all_true`, `any_true`, `member_of` (not removed yet).
+- `position` and `free_of` take no level argument; `outer`/`inner` go no deeper than lists of lists; `table` iterators
+  take lists or counts only.
+- `position` lists every path: on a heavily shared term the cost is exponential in depth (bounded by fuel and
+  `MAX_LEN`); `free_of` visits each distinct subterm once.
+- `cases` and `count` still use the local `matching.rs` adapter.
+- `part` checks only its first argument for an association (`xs[1, k]` with an association at `xs[1]` is positional).
