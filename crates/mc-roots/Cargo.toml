@@ -1,0 +1,19 @@
+[package]
+name = "mc-roots"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 numerical root finding and minimisation: find_root (Newton, secant, Brent, Broyden, verified balls), find_minimum and find_maximum as natives of the evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# complex machine numbers
+mc-numeric = { path = "../mc-numeric" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

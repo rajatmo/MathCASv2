@@ -19,6 +19,7 @@ mc-load = { path = "../mc-load" }
 mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-poly = { path = "../mc-poly" }
+mc-roots = { path = "../mc-roots" }
 mc-strings = { path = "../mc-strings" }
 mc-syntax = { path = "../mc-syntax" }
 
