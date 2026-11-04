@@ -1,20 +1,32 @@
-//! A minimal, conservative one-sided limit: the value of an antiderivative at an endpoint or a critical point.
+//! The one-sided limit walk: the limit of a term as its variable tends to a point from one side.
 //!
 //! The point is moved to `t → 0⁺` (`x = c + t`, `x = c - t`, `x = 1/t`, `x = -1/t`), and the limit is computed by
-//! a walk over the term: constants, sums, products, constant powers, `exp`, `log`, `atan`, `sin`, `cos`, `sinh`,
-//! `cosh`, `tanh`. Indeterminate forms (`∞ - ∞`, `0·∞`, a sum that tends to 0 under a negative power) go to the
-//! leading term of `series(g, t, 0, n)`, and in products to two dominance rules: `exp(u)` with `u → ±∞` algebraic
-//! beats algebraic and logarithmic factors, and an algebraic factor tending to 0 beats logarithms. Everything else
-//! gives `None` (decision 2C4.7).
-use super::{call_of, is_failure, sign, subst, Pt};
+//! a walk over the term: constants, sums, products, constant powers, `exp`, `log`, `atan`, `sin`, `cos`, `tan`,
+//! `sinh`, `cosh`, `tanh`, `asin`, `acos`, `abs`. Indeterminate forms are resolved, in this order, by
+//!
+//! 1. the leading term of `series(g, t, 0, n)` (n = 4, 8, 16);
+//! 2. in products, two dominance rules: `exp(u)` with `u → ±∞` algebraic beats algebraic and logarithmic
+//!    factors, and an algebraic factor tending to 0 beats logarithms (decision 2C4.7);
+//! 3. a bounded factor (`sin(u)`, `cos(u)`, `atan(u)`, `tanh(u)` of a real `u`) times factors tending to 0 tends to
+//!    0, and a bounded term does not change the infinite limit of a sum (decision C.4);
+//! 4. in a product `0·∞`, `abs(u)` replaced by `±u` when the sign of `u` near the point is known, else a sum
+//!    factor distributed over the others; then L'Hospital's rule, written `0/0` and else `∞/∞` (decision C.5);
+//! 5. a sum that is still indeterminate (`∞ - ∞`) brought over a common denominator with `together` and the
+//!    quotient's limit taken.
+//!
+//! Every step is exact; when none applies the result is `None` (no answer is better than a wrong one). Steps 4 and
+//! 5 charge [`REWRITE_COST`] levels of the depth budget, so they nest a bounded number of times.
+use crate::diff::{Diff, Halt};
+use crate::integrate::definite::{call_of, is_failure, sign, subst, Pt};
 use crate::integrate::{apply, args_of, is_free};
 use crate::term::Build;
 use mc_api::{Store, View, T};
 use mc_eval::{NativeCx, Res};
+use std::cmp::Ordering;
 
 /// A limit.
 #[derive(Clone, Copy, Debug)]
-pub(super) enum Lim<'h> {
+pub(crate) enum Lim<'h> {
     /// A finite value (evaluated). When it is 0 the second field is the side it is approached from: 1 from above,
     /// -1 from below, 0 not known.
     Fin(T<'h>, i8),
@@ -27,9 +39,12 @@ type R<'h> = Res<Option<Lim<'h>>>;
 /// The deepest nesting the walk follows.
 const MAX_DEPTH: u32 = 200;
 
+/// The depth a rewriting step (L'Hospital's rule, a common denominator) costs: at most four of them nest.
+const REWRITE_COST: u32 = 50;
+
 /// The limit of `g` as `x` tends to `pt` from the side `side` (1: from above, -1: from below; ignored at an
 /// infinity), or `None`.
-pub(super) fn limit<'h>(
+pub(crate) fn limit<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     b: &Build<'h>,
     g: T<'h>,
@@ -87,7 +102,7 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
                     1 => Some(Lim::Inf(-1)),
                     _ => None,
                 },
-                Lim::Fin(v, _) => Some(fin(cx, b, b.call("log", &[v]), 0)?),
+                Lim::Fin(v, _) => Some(fin(cx, b.call("log", &[v]), 0)?),
                 Lim::Inf(1) => Some(Lim::Inf(1)),
                 Lim::Inf(_) => None,
             })
@@ -98,7 +113,7 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
                 // these functions keep 0 at 0 and its side, except cos and cosh (value 1)
                 Lim::Fin(v, s) => {
                     let s = if v == b.zero() && f != "cos" && f != "cosh" { s } else { 0 };
-                    Some(fin(cx, b, b.call(f, &[v]), s)?)
+                    Some(fin(cx, b.call(f, &[v]), s)?)
                 }
                 Lim::Inf(sg) => match f {
                     "atan" => Some(Lim::Fin(b.mul(&[b.rat(sg.into(), 2), b.sym(b.heap().sym("pi"))]), 0)),
@@ -109,6 +124,28 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
                 },
             })
         }
+        ("tan", [u]) => {
+            // continuous where cos does not vanish; at a pole, sin(u)/cos(u) (the side of cos(u) → 0 decides)
+            let Some(Lim::Fin(v, s)) = lim(cx, b, *u, t, d)? else { return Ok(None) };
+            let c = cx.eval(b.call("cos", &[v]))?;
+            match sign(cx, b, c)? {
+                Some(1 | -1) => Ok(Some(fin(cx, b.call("tan", &[v]), if v == b.zero() { s } else { 0 })?)),
+                Some(_) => {
+                    let q = b.mul(&[b.call("sin", &[*u]), b.powi(b.call("cos", &[*u]), -1)]);
+                    lim(cx, b, q, t, d)
+                }
+                None => Ok(None),
+            }
+        }
+        ("sign", [u]) => Ok(side_of(cx, b, *u, t, d)?.map(|s| Lim::Fin(b.int(s.into()), 0))),
+        ("abs", [u]) => {
+            let Some(l) = lim(cx, b, *u, t, d)? else { return Ok(None) };
+            Ok(Some(match l {
+                Lim::Fin(v, _) if v == b.zero() => Lim::Fin(v, 1),
+                Lim::Fin(v, _) => fin(cx, b.call("abs", &[v]), 0)?,
+                Lim::Inf(_) => Lim::Inf(1),
+            }))
+        }
         (f @ ("asin" | "acos"), [u]) => {
             // continuous on [-1, 1]; elsewhere (and at infinities) not decided here
             let Some(Lim::Fin(v, s)) = lim(cx, b, *u, t, d)? else { return Ok(None) };
@@ -116,14 +153,14 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
                 return Ok(None);
             }
             let s = if v == b.zero() && f == "asin" { s } else { 0 };
-            Ok(Some(fin(cx, b, b.call(f, &[v]), s)?))
+            Ok(Some(fin(cx, b.call(f, &[v]), s)?))
         }
         _ => series(cx, b, g, t),
     }
 }
 
 /// `Lim::Fin` of the evaluated `v`.
-fn fin<'h>(cx: &mut NativeCx<'_, '_, 'h>, _b: &Build<'h>, v: T<'h>, s: i8) -> Res<Lim<'h>> {
+fn fin<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>, s: i8) -> Res<Lim<'h>> {
     Ok(Lim::Fin(cx.eval(v)?, s))
 }
 
@@ -139,15 +176,75 @@ fn approach<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, t: T<'h>
     })
 }
 
+/// The sign (1 or -1) of `u` for small positive t, when its limit decides it: a nonzero real limit, an
+/// infinity, or 0 approached from a known side.
+fn side_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, t: T<'h>, d: u32) -> Res<Option<i8>> {
+    Ok(match lim(cx, b, u, t, d)? {
+        Some(Lim::Fin(v, s)) if v == b.zero() => Some(approach(cx, b, u, t, s)?).filter(|&s| s != 0),
+        Some(Lim::Fin(v, _)) => sign(cx, b, v)?.filter(|&s| s != 0),
+        Some(Lim::Inf(s)) => Some(s),
+        None => None,
+    })
+}
+
+/// A product rewritten so the walk can take it: `abs(u)` (or a power of it) as `±u` when the sign of `u` near
+/// the point is known, else one sum factor distributed over the others. `None` when neither applies.
+fn rewrite_product<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    args: &[T<'h>],
+    t: T<'h>,
+    d: u32,
+) -> Res<Option<T<'h>>> {
+    let mut out = Vec::with_capacity(args.len());
+    let mut changed = false;
+    for &a in args {
+        let (base, p) = match args_of(b, a, b.hd.pow) {
+            Some([base, p]) if is_free(b, *p, t) => (*base, Some(*p)),
+            _ => (a, None),
+        };
+        let u = match call_of(b, base) {
+            Some((n, [u])) if n == "abs" => *u,
+            _ => {
+                out.push(a);
+                continue;
+            }
+        };
+        match side_of(cx, b, u, t, d)? {
+            Some(s) => {
+                let signed = b.mul(&[b.int(s.into()), u]);
+                out.push(p.map_or(signed, |p| b.pow(signed, p)));
+                changed = true;
+            }
+            None => out.push(a),
+        }
+    }
+    if changed {
+        return Ok(Some(cx.eval(b.mul(&out))?));
+    }
+    let Some(at) = args.iter().position(|&a| args_of(b, a, b.hd.add).is_some()) else { return Ok(None) };
+    let others: Vec<T<'h>> = args.iter().enumerate().filter(|&(i, _)| i != at).map(|(_, &a)| a).collect();
+    let terms = args_of(b, args[at], b.hd.add).expect("a sum");
+    let mut distributed = Vec::with_capacity(terms.len());
+    for &s in terms {
+        let mut fs = others.clone();
+        fs.push(s);
+        distributed.push(b.mul(&fs));
+    }
+    Ok(Some(cx.eval(b.add(&distributed))?))
+}
+
 /// The limit of a sum.
 fn sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>], t: T<'h>, d: u32) -> R<'h> {
     let mut fins = Vec::with_capacity(args.len());
     let mut infs = Vec::new();
     let mut inf = 0i8;
     let mut mixed = false;
+    let mut bounded_terms = false;
     for &a in args {
         match lim(cx, b, a, t, d)? {
-            None => return series(cx, b, g, t),
+            None if bounded(b, a, t) => bounded_terms = true,
+            None => return indeterminate_sum(cx, b, g, t, d),
             Some(Lim::Fin(v, _)) => fins.push(v),
             Some(Lim::Inf(s)) => {
                 infs.push((a, s));
@@ -157,12 +254,40 @@ fn sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>
         }
     }
     if mixed {
-        return dominant_term(cx, b, g, args, &infs, t, d);
+        if let Some(r) = dominant_term(cx, b, g, args, &infs, t, d)? {
+            return Ok(Some(r));
+        }
+        return common_denominator(cx, b, g, t, d);
     }
     if inf != 0 {
+        // a bounded term does not change an infinite limit
         return Ok(Some(Lim::Inf(inf)));
     }
-    Ok(Some(fin(cx, b, b.add(&fins), 0)?))
+    if bounded_terms {
+        return indeterminate_sum(cx, b, g, t, d);
+    }
+    Ok(Some(fin(cx, b.add(&fins), 0)?))
+}
+
+/// A sum with a term of unknown limit: the series, else a common denominator.
+fn indeterminate_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, d: u32) -> R<'h> {
+    if let Some(r) = series(cx, b, g, t)? {
+        return Ok(Some(r));
+    }
+    common_denominator(cx, b, g, t, d)
+}
+
+/// The limit of `together(g)` when that is a different term (a quotient whose factors the product rules and
+/// L'Hospital's rule can take), within the depth budget.
+fn common_denominator<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, d: u32) -> R<'h> {
+    if d + REWRITE_COST > MAX_DEPTH {
+        return Ok(None);
+    }
+    let q = apply(cx, b, "together", &[g])?;
+    if q == g || is_failure(b, q) || args_of(b, q, b.hd.add).is_some() {
+        return Ok(None);
+    }
+    lim(cx, b, q, t, d + REWRITE_COST)
 }
 
 /// `∞ - ∞` in a sum: the series first; else for an infinite term `a`, `g = a·(1 + Σ others/a)`, and when the
@@ -195,37 +320,104 @@ fn dominant_term<'h>(
 /// The limit of a product.
 fn product<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, args: &[T<'h>], t: T<'h>, d: u32) -> R<'h> {
     let mut fins = Vec::new();
-    let mut zero_side = 1i8;
-    let (mut zeros, mut infs, mut inf_sign) = (0, 0, 1i8);
+    let (mut small, mut big, mut finite, mut bnd) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    let (mut zero_side, mut inf_sign) = (1i8, 1i8);
     for &a in args {
         match lim(cx, b, a, t, d)? {
+            None if bounded(b, a, t) => bnd.push(a),
             None => return dominance(cx, b, g, args, t, d),
             Some(Lim::Fin(v, s)) if v == b.zero() => {
-                zeros += 1;
+                small.push(a);
                 zero_side *= s;
             }
-            Some(Lim::Fin(v, _)) => fins.push(v),
+            Some(Lim::Fin(v, _)) => {
+                fins.push(v);
+                finite.push(a);
+            }
             Some(Lim::Inf(s)) => {
-                infs += 1;
+                big.push(a);
                 inf_sign *= s;
             }
         }
     }
-    if zeros > 0 && infs > 0 {
-        return dominance(cx, b, g, args, t, d);
+    if !bnd.is_empty() {
+        // bounded factors: the product tends to 0 when the other factors do (decision C.4)
+        let others: Vec<T<'h>> = small.iter().chain(&big).chain(&finite).copied().collect();
+        let tends_to_zero = match (small.is_empty(), big.is_empty()) {
+            (true, _) => false,
+            (false, true) => true,
+            (false, false) => matches!(lim(cx, b, b.mul(&others), t, d)?, Some(Lim::Fin(v, _)) if v == b.zero()),
+        };
+        return Ok(tends_to_zero.then(|| Lim::Fin(b.zero(), 0)));
+    }
+    if !small.is_empty() && !big.is_empty() {
+        if let Some(r) = dominance(cx, b, g, args, t, d)? {
+            return Ok(Some(r));
+        }
+        if d + REWRITE_COST <= MAX_DEPTH {
+            if let Some(q) = rewrite_product(cx, b, args, t, d)?.filter(|&q| q != g) {
+                if let Some(r) = lim(cx, b, q, t, d + REWRITE_COST)? {
+                    return Ok(Some(r));
+                }
+            }
+        }
+        let mut num = small;
+        num.extend_from_slice(&finite);
+        return lhospital(cx, b, &num, &big, t, d);
     }
     let rest = cx.eval(b.mul(&fins))?;
-    if infs > 0 {
+    if !big.is_empty() {
         return Ok(match sign(cx, b, rest)? {
             Some(s @ (1 | -1)) => Some(Lim::Inf(s * inf_sign)),
             _ => None,
         });
     }
-    if zeros > 0 {
+    if !small.is_empty() {
         let s = sign(cx, b, rest)?.unwrap_or(0);
         return Ok(Some(Lim::Fin(b.zero(), zero_side * s)));
     }
     Ok(Some(Lim::Fin(rest, 0)))
+}
+
+/// L'Hospital's rule on a product `0·∞`: `small` (factors tending to 0, with the finite ones) and `big` (factors
+/// tending to an infinity). First as `0/0`, `small / (1/big)`, then as `∞/∞`, `big / (1/small)`: the limit of the
+/// quotient of the derivatives in t, when it exists, is the limit (decision C.5).
+fn lhospital<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    small: &[T<'h>],
+    big: &[T<'h>],
+    t: T<'h>,
+    d: u32,
+) -> R<'h> {
+    if d + REWRITE_COST > MAX_DEPTH {
+        return Ok(None);
+    }
+    let inverse = |fs: &[T<'h>]| b.mul(&fs.iter().map(|&f| b.powi(f, -1)).collect::<Vec<_>>());
+    for (num, den) in [(b.mul(small), inverse(big)), (b.mul(big), inverse(small))] {
+        let (num, den) = (cx.eval(num)?, cx.eval(den)?);
+        let derivatives = {
+            let mut tick = |n: u64| cx.tick(n);
+            let dn = Diff::new(b, t).of(num, &mut tick);
+            dn.and_then(|dn| Ok((dn, Diff::new(b, t).of(den, &mut tick)?)))
+        };
+        let (dn, dd) = match derivatives {
+            Ok(p) => p,
+            Err(Halt::Abort(a)) => return Err(a),
+            Err(Halt::Unsupported) => continue,
+        };
+        if b.is_zero(dd) {
+            continue;
+        }
+        let q = cx.eval(b.div(dn, dd))?;
+        if is_failure(b, q) {
+            continue;
+        }
+        if let Some(r) = lim(cx, b, q, t, d + REWRITE_COST)? {
+            return Ok(Some(r));
+        }
+    }
+    Ok(None)
 }
 
 /// A product with an indeterminate form: the dominance rules (module comment), else the series.
@@ -320,11 +512,50 @@ fn algebraic<'h>(b: &Build<'h>, u: T<'h>, t: T<'h>) -> bool {
     true
 }
 
+/// Is `a` bounded for small positive t: `sin(u)`, `cos(u)`, `atan(u)` or `tanh(u)` with `u` real there?
+fn bounded<'h>(b: &Build<'h>, a: T<'h>, t: T<'h>) -> bool {
+    matches!(call_of(b, a), Some((n, [u])) if matches!(n.as_str(), "sin" | "cos" | "atan" | "tanh") && real(b, *u, t))
+}
+
+/// Is `u` real for every positive t: built from `t`, real numbers, `pi` and `e` by sums, products, integer
+/// powers and the real functions `exp`, `sin`, `cos`, `atan`, `sinh`, `cosh`, `tanh`? (Other symbols may be
+/// complex, so they are not accepted.)
+fn real<'h>(b: &Build<'h>, u: T<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let (pi, e) = (h.sym("pi"), b.hd.e);
+    let mut stack = vec![u];
+    let mut visited = 0;
+    while let Some(v) = stack.pop() {
+        visited += 1;
+        if visited > 10_000 {
+            return false;
+        }
+        match h.view(v) {
+            View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) => continue,
+            View::Sym(s) if v == t || s == pi || s == e => continue,
+            _ => {}
+        }
+        if let Some(args) = args_of(b, v, b.hd.add).or_else(|| args_of(b, v, b.hd.mul)) {
+            stack.extend_from_slice(args);
+            continue;
+        }
+        match call_of(b, v) {
+            Some((n, [base, p])) if n == "pow" && matches!(h.view(*p), View::Int(_)) => stack.push(*base),
+            Some((n, [base, p])) if n == "pow" && b.sym_of(*base) == Some(e) => stack.push(*p),
+            Some((n, [a])) if matches!(n.as_str(), "exp" | "sin" | "cos" | "atan" | "sinh" | "cosh" | "tanh") => {
+                stack.push(*a)
+            }
+            _ => return false,
+        }
+    }
+    true
+}
+
 /// The limit of `exp(u)`.
 fn exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, t: T<'h>, d: u32) -> R<'h> {
     Ok(match lim(cx, b, u, t, d)? {
         None => None,
-        Some(Lim::Fin(v, _)) => Some(fin(cx, b, b.call("exp", &[v]), 0)?),
+        Some(Lim::Fin(v, _)) => Some(fin(cx, b.call("exp", &[v]), 0)?),
         Some(Lim::Inf(1)) => Some(Lim::Inf(1)),
         Some(Lim::Inf(_)) => Some(Lim::Fin(b.zero(), 1)),
     })
@@ -335,7 +566,7 @@ fn power<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, p: T<'h>, t
     let Some(l) = lim(cx, b, u, t, d)? else { return Ok(None) };
     if let Lim::Fin(v, _) = l {
         if v != b.zero() {
-            return Ok(Some(fin(cx, b, b.pow(v, p), 0)?));
+            return Ok(Some(fin(cx, b.pow(v, p), 0)?));
         }
     }
     // the sign of p, and its parity when it is an integer: (-1)^p
@@ -371,61 +602,28 @@ fn power<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, p: T<'h>, t
 /// The limit from the leading term `c t^k` of `series(g, t, 0, n)` (n = 4, 8, 16 until a term shows).
 fn series<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>) -> R<'h> {
     let h = b.heap();
-    let o = h.sym("O");
+    let data = h.sym("series_data");
     for n in [4, 8, 16] {
         cx.tick(1)?;
         let s = apply(cx, b, "series", &[g, t, b.zero(), b.int(n)])?;
-        if is_failure(b, s) || !is_free(b, s, h.sym_term(h.sym("series"))) {
-            return Ok(None);
-        }
-        let terms: Vec<T<'h>> = match args_of(b, s, b.hd.add) {
-            Some(ts) => ts.to_vec(),
-            None => vec![s],
-        };
-        let mut lead: Option<(i64, T<'h>)> = None;
-        for term in terms {
-            if args_of(b, term, o).is_some() {
+        // the packed form series_data(t, 0, [c_v, c_(v+1), ...], v, p): the first coefficient that is not 0
+        let Some([_, _, cs, v, _]) = args_of(b, s, data) else { return Ok(None) };
+        let (Some(cs), View::Int(v)) = (args_of(b, *cs, b.hd.list), h.view(*v)) else { return Ok(None) };
+        for (i, &c) in cs.iter().enumerate() {
+            if is_failure(b, c) {
+                return Ok(None);
+            }
+            let sc = sign(cx, b, c)?;
+            if sc == Some(0) {
                 continue;
             }
-            let Some((k, c)) = monomial(b, term, t) else { return Ok(None) };
-            match lead {
-                Some((k0, _)) if k0 <= k => {}
-                _ => lead = Some((k, c)),
-            }
+            return Ok(match ((v + i as i64).cmp(&0), sc) {
+                (Ordering::Less, None) => None,
+                (Ordering::Less, Some(s)) => Some(Lim::Inf(s)),
+                (Ordering::Equal, _) => Some(Lim::Fin(c, 0)),
+                (Ordering::Greater, s) => Some(Lim::Fin(b.zero(), s.unwrap_or(0))),
+            });
         }
-        let Some((k, c)) = lead else { continue };
-        let sc = sign(cx, b, c)?;
-        return Ok(match (k.cmp(&0), sc) {
-            (_, None | Some(0)) if k <= 0 => None,
-            (std::cmp::Ordering::Less, Some(s)) => Some(Lim::Inf(s)),
-            (std::cmp::Ordering::Equal, _) => Some(Lim::Fin(c, 0)),
-            (_, s) => Some(Lim::Fin(b.zero(), s.unwrap_or(0))),
-        });
     }
     Ok(None)
-}
-
-/// A term `c t^k` (integer k, c free of t) as `(k, c)`.
-fn monomial<'h>(b: &Build<'h>, term: T<'h>, t: T<'h>) -> Option<(i64, T<'h>)> {
-    let fs: Vec<T<'h>> = match args_of(b, term, b.hd.mul) {
-        Some(fs) => fs.to_vec(),
-        None => vec![term],
-    };
-    let (mut k, mut cs) = (0i64, Vec::new());
-    for f in fs {
-        if f == t {
-            k += 1;
-        } else if let Some([base, e]) = args_of(b, f, b.hd.pow).filter(|a| a[0] == t) {
-            let _ = base;
-            match b.heap().view(*e) {
-                View::Int(e) => k += e,
-                _ => return None,
-            }
-        } else if is_free(b, f, t) {
-            cs.push(f);
-        } else {
-            return None;
-        }
-    }
-    Some((k, b.mul(&cs)))
 }

@@ -53,7 +53,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     (
         "interpolating_function",
-        "interpolating_function(\"y\", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list), failure(out_of_range, t, [lo, hi]) outside; \"y'\" names the derivative",
+        "interpolating_function(\"y\", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list; exact times such as pi/2 through n), failure(out_of_range, t, [lo, hi]) outside; \"y'\" names the derivative, which d(f(u), u) gives",
     ),
 ];
 

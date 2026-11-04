@@ -70,7 +70,7 @@ impl Native for D {
 }
 
 /// Is `t` something `d` can differentiate in: not a number, string, list, sum, product or power?
-fn variable<'h>(b: &Build<'h>, t: T<'h>) -> Result<T<'h>, &'static str> {
+pub(crate) fn variable<'h>(b: &Build<'h>, t: T<'h>) -> Result<T<'h>, &'static str> {
     let h = b.heap();
     if b.ar.num(t).is_some() {
         return Err("a number is not a variable");
@@ -156,6 +156,9 @@ impl Native for DerivativeAt {
         if orders.len() != args.len() || orders.iter().any(|&n| n < 0) {
             return Ok(Reply::Decline);
         }
+        if let Some(g) = interpolating_derivative(&b, f, &orders) {
+            return Ok(Reply::Again(h.app(g, args)));
+        }
         let known = b.sym_of(f).is_some_and(|s| crate::rules::partials(&h.sym_name(s), args.len()).is_some());
         if !known {
             return Ok(Reply::Decline);
@@ -171,6 +174,28 @@ impl Native for DerivativeAt {
     fn curried(&self) -> bool {
         true
     }
+}
+
+/// The highest derivative order written as primes on an interpolating function's name.
+const MAX_PRIMES: i64 = 1000;
+
+/// `derivative(n)(interpolating_function("y", rest...))` is the interpolating function of the n-th derivative,
+/// `interpolating_function("y" + n primes, rest...)`: the solution store of `n_dsolve` reads the primes as the
+/// derivative order (decision C.6). `None` for anything else.
+fn interpolating_derivative<'h>(b: &Build<'h>, f: T<'h>, orders: &[i64]) -> Option<T<'h>> {
+    let h = b.heap();
+    let &[n @ 0..=MAX_PRIMES] = orders else { return None };
+    let View::App { head, args: [name, rest @ ..] } = h.view(f) else { return None };
+    if b.sym_of(head).map(|s| h.sym_name(s)).as_deref() != Some("interpolating_function") {
+        return None;
+    }
+    let View::Str(name) = h.view(*name) else { return None };
+    let mut primed = String::with_capacity(name.len() + n as usize);
+    primed.push_str(name);
+    primed.extend(std::iter::repeat_n('\'', n as usize));
+    let mut items = vec![h.string(&primed)];
+    items.extend_from_slice(rest);
+    Some(h.app(head, &items))
 }
 
 /// `integrate(f, x)`: an antiderivative; `integrate(f, [x, a, b])`: the definite integral. A list `f` integrates
