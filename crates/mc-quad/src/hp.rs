@@ -223,7 +223,11 @@ pub(crate) fn integrate<'h>(
                 if j == 0 && side < 0 {
                     continue;
                 }
-                let Some((x, w)) = node(pc, side * j, 0, &half_pi, p) else { break };
+                // a node at the end: the finer levels still have nodes before it
+                let Some((x, w)) = node(pc, side * j, 0, &half_pi, p) else {
+                    r[k] = j;
+                    break;
+                };
                 let mut y = [zero.clone()];
                 if !f.eval(cx, &[num(x.clone(), p)], &mut y)? {
                     if j < 2 {

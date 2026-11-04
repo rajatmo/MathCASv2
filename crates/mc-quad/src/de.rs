@@ -85,7 +85,11 @@ pub(crate) fn integrate<'h, S: Scalar>(
                     continue;
                 }
                 let t = (side * j) as f64;
-                let Some((x, w)) = node(p, t) else { break };
+                // a node at the end: the finer levels still have nodes before it
+                let Some((x, w)) = node(p, t) else {
+                    range[k] = j;
+                    break;
+                };
                 let (mut y, mut e) = ([S::real(0.0)], [0.0]);
                 match f.eval(cx, &[x], &mut y, &mut e)? {
                     Ok(()) => {}
