@@ -309,6 +309,10 @@ impl Heap {
     /// The packed node of `words` (the dimensions, then the leaves).
     fn packed_node<'h>(&'h self, ints: bool, rank: usize, words: Vec<u64>) -> T<'h> {
         let (dims, data) = words.split_at(rank);
+        if self.list() == HOLE {
+            // a packed array built before anyone named `list` (straight from `reals`, say)
+            self.sym(names::LIST);
+        }
         let (hash, mask) = packed_hash(self.meta_bits(self.list()), ints, dims, data);
         let node = Node::new(Kind::Packed, hash, mask, packed_flags(ints, rank), 0, words.len());
         T::from_raw(self.intern_owned(node, words))
