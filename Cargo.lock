@@ -465,6 +465,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-assoc"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-lists",
+ "mc-syntax",
+ "parking_lot",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mc-bench"
 version = "0.0.0"
 
@@ -498,6 +513,7 @@ version = "0.0.0"
 dependencies = [
  "mc-api",
  "mc-arith",
+ "mc-assoc",
  "mc-bench",
  "mc-calculus",
  "mc-core",

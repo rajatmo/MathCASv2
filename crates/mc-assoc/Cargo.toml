@@ -1,0 +1,20 @@
+[package]
+name = "mc-assoc"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 sets and associations: set operations on lists, insertion-ordered maps from terms to terms, and failure predicates, as natives of the evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+parking_lot = "0.12"
+rustc-hash = "2"
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }
+mc-lists = { path = "../mc-lists" }
+mc-syntax = { path = "../mc-syntax" }
+mc-bench = { path = "../mc-bench" }
