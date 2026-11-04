@@ -6,6 +6,10 @@
 //! @compiled fn collatz_steps(k: Int) = { var c = k; var s = 0; while c != 1 { ...; s = s + 1 }; s }
 //! ```
 //!
+//! Package N0 added lists of known length (vector parameters `y` read as `y[k]`, list results written to an output
+//! buffer), `n(pi)` and `n(e)` (bare `pi` and `e` in numeric expressions), and [`expr`]: compiling an expression
+//! in given variables, or a closure `(t, y) => ...`, from Rust (`mc-numfn` builds its compiled backend on it).
+//!
 //! Pipeline (spike E, decisions E.1 to E.8): [`front`] turns the function's definition (the terms `mc-syntax`
 //! lowers it to) into the typed tree [`ir::Func`], inlining the functions it calls; [`ir::lower`] if-converts and
 //! lowers it to three-address code [`ir::Lir`]; [`jit`] (Cranelift 0.137) or [`interp`] (the reference back end, and
@@ -25,6 +29,7 @@
 //!
 //! Decisions are numbered 1b.1, 1b.2, ... (round 3) and J.1, J.2, ... (round 4) in the comments where they apply.
 #![warn(missing_docs)]
+pub mod expr;
 pub mod front;
 pub mod interp;
 pub mod ir;
@@ -32,6 +37,8 @@ pub mod jit;
 pub mod rt;
 pub mod spec;
 
+pub use expr::{closure_parts, compile_closure, compile_expr, Call, ClosureParam, ExprFn};
+pub use front::{Arg, Shape};
 pub use spec::{build, install, Backend, Built, Info, Jit};
 
 /// The functions this crate gives a meaning, with one-line descriptions.

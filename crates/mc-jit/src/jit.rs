@@ -5,7 +5,7 @@
 //! the parameters followed by the [`Env`] pointer, and a uniform entry `fn(args: *const u64, env: *mut Env) -> u64`
 //! that the host calls.
 use crate::ir::{BOp, Cc, FOp, IOp, Lib, Lir, Op, OpdK, K};
-use crate::rt::{self, Env, Exit, CTL_STOP_STATUS, ENV_CTL, ENV_EXIT, EXACT_REAL_INT, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
+use crate::rt::{self, Env, Exit, CTL_STOP_STATUS, ENV_CTL, ENV_EXIT, ENV_OUT, EXACT_REAL_INT, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{
     types, AbiParam, Block, FuncRef, InstBuilder, MemFlagsData, StackSlotData, StackSlotKind, Type, UserFuncName, Value,
@@ -86,16 +86,25 @@ struct Imports {
     pow_real: FuncId,
 }
 
+/// The host's target description, made once per process (decision N0.8: detecting the host and building the
+/// flags took a large share of compiling a small expression).
+fn host_isa() -> Result<cranelift_codegen::isa::OwnedTargetIsa, String> {
+    static ISA: std::sync::OnceLock<Result<cranelift_codegen::isa::OwnedTargetIsa, String>> = std::sync::OnceLock::new();
+    ISA.get_or_init(|| {
+        let mut fb = settings::builder();
+        let set = |fb: &mut settings::Builder, k: &str, v: &str| fb.set(k, v).map_err(|e| e.to_string());
+        set(&mut fb, "opt_level", "speed")?;
+        set(&mut fb, "use_colocated_libcalls", "false")?;
+        set(&mut fb, "is_pic", "true")?;
+        let isa = cranelift_native::builder().map_err(|e| format!("host: {e}"))?;
+        isa.finish(settings::Flags::new(fb)).map_err(|e| e.to_string())
+    })
+    .clone()
+}
+
 /// Compile one LIR function to machine code.
 pub fn compile(lir: &Lir) -> Result<Code, String> {
-    let mut fb = settings::builder();
-    let set = |fb: &mut settings::Builder, k: &str, v: &str| fb.set(k, v).map_err(|e| e.to_string());
-    set(&mut fb, "opt_level", "speed")?;
-    set(&mut fb, "use_colocated_libcalls", "false")?;
-    set(&mut fb, "is_pic", "true")?;
-    let isa = cranelift_native::builder().map_err(|e| format!("host: {e}"))?;
-    let isa = isa.finish(settings::Flags::new(fb)).map_err(|e| e.to_string())?;
-    let mut jb = JITBuilder::with_isa(isa, default_libcall_names());
+    let mut jb = JITBuilder::with_isa(host_isa()?, default_libcall_names());
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
@@ -599,6 +608,12 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.terminated = false;
             }
             Op::Poll => self.poll(),
+            Op::Out(k, r) => {
+                // the host checked that the buffer covers every slot (`Built::call_out`)
+                let v = self.get(r);
+                let out = self.b.ins().load(self.ptr, self.mf, self.env, ENV_OUT);
+                self.b.ins().store(self.mf, v, out, (8 * k) as i32);
+            }
             Op::Ret(r) => {
                 let mut v = self.get(r);
                 if self.lir.regs[r as usize] == K::B {

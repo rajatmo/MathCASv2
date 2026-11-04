@@ -633,6 +633,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-numfn"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-jit",
+ "mc-numeric",
+]
+
+[[package]]
 name = "mc-numtheory"
 version = "0.0.0"
 dependencies = [
@@ -698,6 +712,7 @@ dependencies = [
  "mc-engine",
  "mc-eval",
  "mc-numeric",
+ "mc-numfn",
 ]
 
 [[package]]

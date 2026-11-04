@@ -16,7 +16,9 @@ pub struct Interp {
 /// Every register operand of an instruction (destinations included).
 fn operands(op: &Op) -> Vec<u32> {
     match op {
-        Op::IConst(d, _) | Op::FConst(d, _) | Op::BConst(d, _) | Op::Ret(d) | Op::Bail(d) | Op::Br(d, _, _) => vec![*d],
+        Op::IConst(d, _) | Op::FConst(d, _) | Op::BConst(d, _) | Op::Ret(d) | Op::Bail(d) | Op::Br(d, _, _) | Op::Out(_, d) => {
+            vec![*d]
+        }
         Op::Mov(d, a)
         | Op::FAbs(d, a)
         | Op::BNot(d, a)
@@ -205,6 +207,11 @@ impl Interp {
                     }
                 }
                 Op::Ret(v) => return Ok(r[v as usize]),
+                Op::Out(k, v) => {
+                    if !env.write_out(k as usize, r[v as usize]) {
+                        return Err(Exit::Decline);
+                    }
+                }
             }
         }
     }

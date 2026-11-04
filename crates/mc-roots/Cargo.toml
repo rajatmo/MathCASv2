@@ -10,6 +10,8 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+# the NumFn trait and its backends (package N0)
+mc-numfn = { path = "../mc-numfn" }
 # complex machine numbers
 mc-numeric = { path = "../mc-numeric" }
 

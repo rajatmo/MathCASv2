@@ -200,3 +200,46 @@ edits outside the crate.
 More than 6 machine reals in one sum or product, rationals inside a sum, exact bases, run-time rational exponents, and
 exact parts beyond 64 bits (or 2^53 with ratios) use the helper (correct, slower); `powf` stays a call; no common
 subexpression elimination of repeated powers; NaN sign/payload as J.6.
+
+## Package N0 (numerics foundation, part a; branch `n0-numfn`)
+
+Global constants, lists of known length, closures, and a Rust API to compile an expression in given variables (what
+`mc-numfn`'s compiled backend is built on). Decisions are numbered N0.x, shared with `crates/mc-numfn/NOTES.md`.
+
+### What changed
+
+- `front.rs`: values are scalars or lists of known shape (`Val`); list literals (nested), `let` bindings of lists,
+  constant indices `y[k]` (negative from the end), `length(y)`, `if` with lists of one shape; arithmetic on lists is
+  refused (the interpreter leaves `[1.0, 2.0] + 1.0` unevaluated; only the elementary functions are listable there,
+  and they are not threaded here). A list result goes to the output buffer, leaves row-major (N0.3).
+  `front_expr(h, &[(Sym, Arg)], body, src, numeric)` compiles `(p1, ..., pn) => body` with `Arg::{Int, Real,
+  Vector(n)}` (N0.4). `n(pi)`, `n(e)`, `n(x)` compile everywhere; bare `pi`/`e` only at the top level of a numeric
+  `front_expr` (N0.1). `Front` gained `result: Shape`.
+- `ir.rs`: HIR statement `S::Out(k, e)`, LIR `Op::Out(k, r)`, `ir::outputs(&Lir)`. `rt.rs`: `Env::out`/`Env::nout`
+  (`ENV_OUT`), `Env::with_out`, `Env::write_out` (bounds-checked; the interpreter back end uses it). `jit.rs`: `Out`
+  stores to `env.out + 8k` (the host checks the buffer length first); the host ISA is cached in a `OnceLock` (N0.8).
+- `spec.rs`: `Built::call_out(ctl, args, out, poll)`, `Built::outputs()`; `Info::shape`; `compile(f)` of a function
+  with a list result returns the list (`compiled_info` shows its shape as a string, e.g. `"[Real, Int]"`).
+- `expr.rs` (new): `compile_expr(cx, params, body, numeric, backend) -> Result<ExprFn, String>`,
+  `compile_closure(cx, f, &[Arg], numeric, backend)`, `closure_parts(h, f)`, `admits(type_name, Arg)`; `ExprFn::
+  {args, inputs, outputs, shape, output_types, info, current, call_words, call_f64}`; `Call::{Done, Declined,
+  Stopped}`. An `ExprFn` owns a private `Control`; compiled loops poll through `cx.tick` (1b.7); a call declines if an
+  inlined function changed version (1b.6).
+
+### Tests
+
+- `tests/agree.rs` (8, 1 new): `random_vector_programs_agree_on_both_back_ends`: 200 random programs writing 1-6
+  output words (early writes overwritten later, writes inside branches) x 12 argument tuples: same words and exit on
+  Cranelift and the LIR interpreter; a buffer shorter than the outputs declines.
+- `tests/engine.rs` (9, extended): cases `vecs` (lists, `let` of a list, nested indices, negative index, `length`,
+  `if` over lists, an integer leaf), `npi` (`n(pi)`, `n(e)`, `n(k)` declining beyond 2^53), `jac` (a nested list
+  result) on both back ends and at 4 threads; refusals of bare `pi`, arithmetic on a list, a variable index, an index
+  out of range (replacing the old `[n]` refusal: list results now compile).
+- The agreement of compiled and interpreted evaluation of random expressions and closures with vectors is in
+  `crates/mc-numfn/tests/agree.rs` (through the engine).
+
+### Known gaps
+
+- Lists are compile-time trees: no loops over elements with a variable index, no list parameters of named functions
+  (their length is unknown), no packed arrays (N4).
+- Compiling a small expression still costs 0.24-0.29 ms (one JIT module per function).

@@ -6,7 +6,7 @@
 //! every argument has its parameter's machine type and no definition it read has changed since (version counters,
 //! decision 1b.6); otherwise it declines and the interpreter evaluates the call.
 use mc_eval::Compiled;
-use crate::front::{front, FnDef, Source};
+use crate::front::{front, FnDef, Shape, Source};
 use crate::interp::Interp;
 use crate::ir::{self, Ty};
 use crate::jit::{self, Code};
@@ -43,8 +43,10 @@ impl Backend {
 pub struct Info {
     /// the parameter types
     pub params: Vec<Ty>,
-    /// the result type
+    /// the result type (`Int` for a list result, whose words go to the output buffer)
     pub result: Ty,
+    /// the result's shape (a list result: its leaves are the output words, decision N0.3)
+    pub shape: Shape,
     /// HIR nodes
     pub hir_nodes: usize,
     /// LIR instructions
@@ -70,6 +72,7 @@ enum Back {
 /// it directly).
 pub struct Built {
     back: Back,
+    outputs: usize,
     /// the LIR (kept for inspection and differential tests)
     pub lir: ir::Lir,
     /// what was compiled
@@ -83,6 +86,23 @@ impl Built {
             Back::Native(c) => c.call(args, env),
             Back::Interp(i) => i.call(args, env),
         })
+    }
+
+    /// Call with the parameters as words, writing a vector result's words into `out` (decision N0.3); declines when
+    /// `out` is shorter than the function's outputs ([`Built::outputs`]).
+    pub fn call_out(&self, ctl: &Control, args: &[u64], out: &mut [u64], poll: &mut crate::rt::PollFn<'_>) -> (u64, Exit) {
+        if out.len() < self.outputs || args.len() != self.info.params.len() {
+            return (0, Exit::Decline);
+        }
+        Env::with_out(ctl, poll, out, |env| match &self.back {
+            Back::Native(c) => c.call(args, env),
+            Back::Interp(i) => i.call(args, env),
+        })
+    }
+
+    /// The number of output words of a vector result (0 for a scalar function).
+    pub fn outputs(&self) -> usize {
+        self.outputs
     }
 }
 
@@ -105,6 +125,7 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
     let info = Info {
         params,
         result,
+        shape: Shape::Scalar(result),
         hir_nodes: ir::size(func),
         lir_instructions: lir.len(),
         code_bytes,
@@ -113,7 +134,8 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
         compile_micros: t0.elapsed().as_micros() as u64,
         inlined,
     };
-    Ok(Built { back, lir, info })
+    let outputs = ir::outputs(&lir);
+    Ok(Built { back, outputs, lir, info })
 }
 
 /// A compiled specialisation of one head.
@@ -161,13 +183,15 @@ impl Compiled for Specialisation {
             self.declines.fetch_add(1, Relaxed);
             return None;
         }
+        let list = matches!(self.built.info.shape, Shape::List(_));
+        let mut out = vec![0u64; if list { self.built.outputs() } else { 0 }];
         let (r, exit) = {
             // the fuel of compiled loops is the task's (decision F.3: a speculative task spends its own share)
             let mut poll = |n: u64| {
                 self.polls.fetch_add(1, Relaxed);
                 cx.tick(n).is_ok()
             };
-            self.built.call(&self.ctl, &words, &mut poll)
+            self.built.call_out(&self.ctl, &words, &mut out, &mut poll)
         };
         // a decline or a stop: the interpreter evaluates the call (and stops at its first poll after a stop)
         if exit != Exit::Done {
@@ -175,16 +199,36 @@ impl Compiled for Specialisation {
             return None;
         }
         self.runs.fetch_add(1, Relaxed);
-        Some(match self.built.info.result {
-            Ty::Int => h.int(r as i64),
-            Ty::Real => h.real(f64::from_bits(r)),
-            Ty::Bool => cx.bool(r != 0),
-        })
+        if list {
+            return Some(list_term(cx, &self.built.info.shape, &mut out.into_iter()));
+        }
+        Some(word_term(cx, self.built.info.result, r))
+    }
+}
+
+/// The term of a result word of type `t`.
+fn word_term<'h>(cx: &NativeCx<'_, '_, 'h>, t: Ty, w: u64) -> T<'h> {
+    let h = cx.heap();
+    match t {
+        Ty::Int => h.int(w as i64),
+        Ty::Real => h.real(f64::from_bits(w)),
+        Ty::Bool => cx.bool(w != 0),
+    }
+}
+
+/// The (nested) list term of shape `s` from its leaves' words in row-major order.
+fn list_term<'h>(cx: &NativeCx<'_, '_, 'h>, s: &Shape, words: &mut impl Iterator<Item = u64>) -> T<'h> {
+    match s {
+        Shape::Scalar(t) => word_term(cx, *t, words.next().unwrap_or(0)),
+        Shape::List(items) => {
+            let v: Vec<T<'h>> = items.iter().map(|i| list_term(cx, i, words)).collect();
+            cx.list(&v)
+        }
     }
 }
 
 /// The compiler's state in one kernel: queued and registered specialisations.
-struct Shared {
+pub(crate) struct Shared {
     pending: Mutex<Vec<Arc<Specialisation>>>,
     active: Mutex<HashMap<Sym, Arc<Specialisation>>>,
     polls: Arc<AtomicU64>,
@@ -249,17 +293,18 @@ pub fn install(k: &mut Kernel, h: &Heap) -> Jit {
 }
 
 /// The kernel's definitions as the front end's [`Source`], recording the version of every function read.
-struct KernelSource<'c, 'a, 'k, 'h> {
-    cx: &'c mut NativeCx<'a, 'k, 'h>,
-    shared: &'c Shared,
-    versions: HashMap<Sym, u32>,
+pub(crate) struct KernelSource<'c, 'a, 'k, 'h> {
+    pub(crate) cx: &'c mut NativeCx<'a, 'k, 'h>,
+    /// the compiler's state, whose specialisations do not count as natives (none for `compile_expr`)
+    pub(crate) shared: Option<&'c Shared>,
+    pub(crate) versions: HashMap<Sym, u32>,
 }
 
 impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
     fn function(&mut self, f: Sym) -> Result<FnDef<'h>, String> {
         let h = self.cx.heap();
         let name = h.sym_name(f);
-        if self.cx.has_native(f) && !self.shared.owns(f) {
+        if self.cx.has_native(f) && !self.shared.is_some_and(|sh| sh.owns(f)) {
             return Err(format!("`{name}` has a native implementation"));
         }
         if self.cx.attributes(f) != Attributes::default() {
@@ -354,10 +399,13 @@ impl Native for CompileFn {
             Ok(b) => b,
             Err(e) => return Ok(Reply::Done(not(&e))),
         };
-        let mut src = KernelSource { cx, shared: &self.0, versions: HashMap::new() };
+        let mut src = KernelSource { cx, shared: Some(&self.0), versions: HashMap::new() };
         let built = front(h, f, &mut src).and_then(|fr| {
             let inlined = fr.deps[1..].to_vec();
-            build(&fr.func, inlined, backend).map(|b| (b, fr.deps))
+            build(&fr.func, inlined, backend).map(|mut b| {
+                b.info.shape = fr.result;
+                (b, fr.deps)
+            })
         });
         let versions = src.versions;
         let (built, deps) = match built {
@@ -407,7 +455,10 @@ impl Native for InfoFn {
         let inlined: Vec<T<'h>> = i.inlined.iter().map(|&s| h.sym_term(s)).collect();
         let mut items = vec![
             rule("params", cx.list(&types)),
-            rule("result", sym(i.result.name())),
+            rule("result", match &i.shape {
+                Shape::Scalar(t) => sym(t.name()),
+                list => h.string(&list.name()),
+            }),
             rule("hir_nodes", int(i.hir_nodes)),
             rule("lir_instructions", int(i.lir_instructions)),
             rule("code_bytes", int(i.code_bytes)),

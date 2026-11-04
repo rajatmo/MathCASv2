@@ -86,3 +86,13 @@ collector; interrupts stop at about 300 ms); unit linear solves.
 5. Brent landing on a pole reports `not_numeric`; no brackets in several variables or for minimisation.
 6. BFGS on nonsmooth objectives ends `not_converged` with a good estimate.
 7. `n_minimize`/`n_maximize` (global methods) not done.
+
+## Package N0: on `mc-numfn`
+
+`NumFn`, `TermFn`, `Machine`, `CentralGradient` and `Scalar` moved to `mc-numfn` (public there); `func.rs` and
+`scalar.rs` re-export them, the tests are untouched and pass. The machine-real root finding (Newton, secant, Brent,
+with the symbolic derivative or Jacobian) runs each function through `mc_numfn::Auto` (`natives::auto`): compiled by
+`mc-jit` after 32 evaluations by default (`MC_NUMFN=interpreted|compiled|auto:N` for measurements), the interpreter
+for refused and declined calls, so results are unchanged; all tests also pass with `MC_NUMFN=compiled`. Complex
+Newton, minimisation and the ball refinement stay interpreted. Gap 3 above is closed for those paths; L5 measurements
+are in `crates/mc-numfn/NOTES.md`.

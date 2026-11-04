@@ -227,6 +227,9 @@ pub enum S {
     Set(V, E),
     /// `e` evaluated for its declines only
     Eval(E),
+    /// output slot `k` of a vector result = `e` (decision N0.3: written to the [`crate::rt::Env`]'s output buffer;
+    /// a function with outputs returns its scalar result as usual, which callers ignore)
+    Out(u32, E),
     /// `if c { a } else { b }`
     If(E, Vec<S>, Vec<S>),
     /// `while c { body }`
@@ -353,6 +356,11 @@ fn check_block(func: &Func, b: &[S]) -> Result<(), String> {
             S::Eval(e) => {
                 type_of(func, e)?;
             }
+            S::Out(_, e) => {
+                if type_of(func, e)? == Ty::Bool {
+                    return Err("a boolean output".into());
+                }
+            }
             S::If(c, t, e) => {
                 want(func, c, Ty::Bool)?;
                 check_block(func, t)?;
@@ -408,7 +416,7 @@ pub fn size(func: &Func) -> usize {
         ss.iter()
             .map(|s| {
                 1 + match s {
-                    S::Set(_, x) | S::Eval(x) => e(x),
+                    S::Set(_, x) | S::Eval(x) | S::Out(_, x) => e(x),
                     S::If(c, t, f) => e(c) + b(t) + b(f),
                     S::While(c, body) => e(c) + b(body),
                     S::For { lo, hi, step, body, .. } => e(lo) + e(hi) + e(step) + b(body),
@@ -591,6 +599,8 @@ pub enum Op {
     Poll,
     /// return the value of a register
     Ret(R),
+    /// write a register (an `I` or `F` word) to slot `k` of the environment's output buffer (decision N0.3)
+    Out(u32, R),
 }
 
 /// A function in LIR.
@@ -1030,6 +1040,10 @@ impl Lower<'_> {
                 S::Eval(e) => {
                     self.ex(e);
                 }
+                S::Out(k, e) => {
+                    let r = self.ex(e);
+                    self.emit(Op::Out(*k, r));
+                }
                 S::If(c, t, e) => {
                     let rc = self.ex(c);
                     let (lt, le, lend) = (self.label(), self.label(), self.label());
@@ -1117,4 +1131,10 @@ pub fn lower(func: &Func) -> Result<Lir, String> {
     lw.emit(Op::Ret(r));
     let ret = lw.regs[r as usize];
     Ok(Lir { name: func.name.clone(), regs: lw.regs, params, ret, code: lw.code, nlabels: lw.nlabels })
+}
+
+/// The number of output slots a LIR function writes (one more than the largest slot of an [`Op::Out`]; 0 for a
+/// scalar function).
+pub fn outputs(lir: &Lir) -> usize {
+    lir.code.iter().filter_map(|o| if let Op::Out(k, _) = o { Some(*k as usize + 1) } else { None }).max().unwrap_or(0)
 }
