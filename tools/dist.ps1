@@ -8,7 +8,7 @@ $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Pa
 
 Push-Location $root
 try {
-    cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp -p mc-kernel
+    cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp -p mc-kernel -p mc-bench
     if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 } finally { Pop-Location }
 
