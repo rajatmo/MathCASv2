@@ -206,7 +206,7 @@ fn product_to_sum<'h>(b: &B<'h>, node: T<'h>) -> Option<T<'h>> {
     for f in b.factors(node) {
         let (base, k) = b.int_power(f);
         match which(b, base, &[hd.sin, hd.cos]) {
-            Some(su) if k >= 1 => trig.extend(std::iter::repeat(su).take(k as usize)),
+            Some(su) if k >= 1 => trig.extend(std::iter::repeat_n(su, k as usize)),
             _ => rest.push(f),
         }
     }

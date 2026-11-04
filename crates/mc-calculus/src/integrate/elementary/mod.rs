@@ -117,7 +117,7 @@ pub(crate) fn normalize<'h>(b: &Build<'h>, f: T<'h>) -> T<'h> {
         let sum: Vec<T<'h>> = exps.iter().filter_map(|&g| unary(b, g).map(|(_, u)| u)).collect();
         Some(b.mul(&[b.mul(&rest), b.call("exp", &[b.add(&sum)])]))
     };
-    rewrite(b, f, &mut |t| args_of(b, t, b.hd.mul).and_then(&merged))
+    rewrite(b, f, &mut |t| args_of(b, t, b.hd.mul).and_then(merged))
 }
 
 /// A product with a sum factor, or a power of a sum, expanded and integrated term by term.
