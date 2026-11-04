@@ -3,8 +3,8 @@
 //!
 //! | head | attributes | result |
 //! |---|---|---|
-//! | `add`, `mul` | AC, strict | the canonical sum or product (semantics 3) |
-//! | `pow` | strict | the canonical power |
+//! | `add`, `mul` | AC, listable, strict | the canonical sum or product (semantics 3); over lists element-wise |
+//! | `pow` | listable, strict | the canonical power; over lists element-wise |
 //! | `complex` | strict | a complex number when both parts are real numbers, else the term |
 //! | `ball_literal(text, digits)` | strict | the ball of a `1.25~40` literal (decision C.6) |
 //! | `equal`, `unequal` | strict | decided for numbers (three-valued, 2.5), identical terms and strings |
@@ -354,12 +354,15 @@ impl TermOrder for ArithOrder {
 /// Register the natives and the order with `k`. `stop` is the flag `mc-arith` polls.
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     let strict = Attributes::default();
-    let ac = Attributes { ac: true, ..strict };
+    // `add`, `mul` and `pow` thread over lists (semantics 7.2): `a - b` and `a / b` are sums and products of
+    // powers, so subtraction and division thread too
+    let ac = Attributes { ac: true, listable: true, ..strict };
+    let listable = Attributes { listable: true, ..strict };
     let held = Attributes { hold: Hold::All, ..strict };
     let mut reg = |name: &str, a: Attributes, n: Box<dyn Native>| k.register(h.sym(name), a, n);
     reg(names::ADD, ac, Box::new(Add(stop.clone())));
     reg(names::MUL, ac, Box::new(Mul(stop.clone())));
-    reg(names::POW, strict, Box::new(Pow(stop.clone())));
+    reg(names::POW, listable, Box::new(Pow(stop.clone())));
     reg(names::COMPLEX, strict, Box::new(Complex(stop.clone())));
     reg("ball_literal", strict, Box::new(BallLiteral(stop.clone())));
     reg("equal", strict, Box::new(Equality { negate: false, stop: stop.clone() }));
