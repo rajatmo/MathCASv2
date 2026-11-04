@@ -71,6 +71,12 @@ impl ExprFn {
         &self.shape
     }
 
+    /// Whether the code draws random numbers: never for an expression (draws are refused), so every `ExprFn` may
+    /// be called from several threads at once ([`crate::batch`]).
+    pub fn draws(&self) -> bool {
+        self.built.draws()
+    }
+
     /// The types of the outputs.
     pub fn output_types(&self) -> &[Ty] {
         &self.leaf_types

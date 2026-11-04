@@ -29,6 +29,7 @@
 //!
 //! Decisions are numbered 1b.1, 1b.2, ... (round 3) and J.1, J.2, ... (round 4) in the comments where they apply.
 #![warn(missing_docs)]
+pub mod batch;
 pub mod expr;
 pub mod front;
 pub mod interp;
