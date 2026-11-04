@@ -57,7 +57,7 @@ pub enum View<'h> {
     Ball { neg: bool, words: &'h [u64] },
     Str(&'h str),
     Sym(Sym),
-    /// A compound term: head (any term) and arguments.
+    /// A compound term: head (any term) and arguments. A packed array ([`packed`]) views as its `list(...)` too.
     App { head: T<'h>, args: &'h [T<'h>] },
 }
 

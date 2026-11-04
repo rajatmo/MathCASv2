@@ -87,7 +87,7 @@ impl Heap {
                 assert!(dims.iter().all(|&d| d >= 1), "packed {at:#x}: an empty dimension");
                 assert_eq!(dims.iter().product::<u64>(), data.len() as u64, "packed {at:#x}: dimensions and leaves");
                 assert!(data.len() >= PACK_MIN, "packed {at:#x}: fewer leaves than the packing threshold");
-                let want = packed_hash(self.meta_bits(self.list), n.head & 1 != 0, dims, data);
+                let want = packed_hash(self.meta_bits(self.list()), n.head & 1 != 0, dims, data);
                 assert_eq!((n.hash, n.mask), want, "packed {at:#x}: hash and mask of the compound term");
             }
             Kind::Rat => {

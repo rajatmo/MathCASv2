@@ -153,9 +153,6 @@ pub struct Evaluation<'h> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Names {
     pub(crate) list: Sym,
-    /// the arithmetic heads (packed element-wise arithmetic, `crate::packed`)
-    pub(crate) add: Sym,
-    pub(crate) mul: Sym,
     pub(crate) true_: Sym,
     pub(crate) false_: Sym,
     pub(crate) null: Sym,
@@ -173,8 +170,6 @@ impl Names {
         use mc_api::names;
         Names {
             list: h.sym(names::LIST),
-            add: h.sym(names::ADD),
-            mul: h.sym(names::MUL),
             true_: h.sym(names::TRUE),
             false_: h.sym(names::FALSE),
             null: h.sym(names::NULL),
@@ -1044,13 +1039,16 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// A listable `add` or `mul` over packed arrays computed on their payloads (`crate::packed`): the normal form, or
     /// `None` when the shortcut does not apply and ordinary threading follows.
     pub(crate) fn thread_packed(&self, cx: &mut Cx<'h>, head: T<'h>, vals: &[T<'h>]) -> Res<Option<T<'h>>> {
+        let h = self.heap;
         let nm = &self.k.names;
-        let op = if head == self.sym(nm.add) {
-            crate::packed::Op::Add
-        } else if head == self.sym(nm.mul) {
-            crate::packed::Op::Mul
-        } else {
+        if !vals.iter().any(|&v| h.packed(v).is_some()) {
             return Ok(None);
+        }
+        // the heads are recognised by name: interning them here would shift symbol indices (and read-set bits)
+        let op = match sym_of(h, head).map(|s| h.sym_name(s)).as_deref() {
+            Some(mc_api::names::ADD) => crate::packed::Op::Add,
+            Some(mc_api::names::MUL) => crate::packed::Op::Mul,
+            _ => return Ok(None),
         };
         if self.k.defs.is_defined(nm.list) {
             return Ok(None);

@@ -16,7 +16,9 @@ use crate::young::{Body, YoungArena, YoungTable};
 use mc_api::packed::{build_nested, int_words, pack_shape, real_words, words_ints, words_reals, Elem, MAX_RANK};
 use mc_api::{names, Packed, Store, Sym, View, PACK_MIN, T};
 use rayon::prelude::*;
+use crate::handle::HOLE;
 use std::cell::Cell;
+use std::sync::atomic::{AtomicU32, Ordering::Relaxed};
 
 /// Heap configuration.
 #[derive(Clone, Copy, Debug)]
@@ -75,8 +77,9 @@ pub struct Heap {
     pub(crate) gc: GcState,
     /// the arguments of packed arrays viewed in this cycle (emptied at every collection)
     pub(crate) unpacked: Unpacked,
-    /// the handle bits of the symbol `list`, the head of packed arrays
-    pub(crate) list: u32,
+    /// the handle bits of the symbol `list`, the head of packed arrays, once it exists ([`HOLE`] before). It is not
+    /// interned up front, so that symbol indices (and the read-set bits derived from them) stay as they were.
+    list: AtomicU32,
 }
 
 impl Default for Heap {
@@ -153,11 +156,9 @@ const PAR_UNPACK: usize = 1 << 14;
 impl Heap {
     /// An empty heap.
     pub fn new(cfg: Config) -> Heap {
-        let syms = Symbols::new();
-        let list = sym_bits(syms.intern(names::LIST).0);
         Heap {
             cfg,
-            syms,
+            syms: Symbols::new(),
             old: OldRegion::new(),
             young: YoungArena::new(),
             ytable: YoungTable::new(),
@@ -166,7 +167,7 @@ impl Heap {
             side: SideMemo::new(),
             gc: GcState::default(),
             unpacked: Unpacked::new(),
-            list,
+            list: AtomicU32::new(HOLE),
         }
     }
 
@@ -266,6 +267,12 @@ impl Heap {
     // ----------------------------------------------------------------------------------------------------------
     // Packed arrays (semantics 11, decisions N4a.1 to N4a.4)
 
+    /// The handle bits of `list` ([`HOLE`] while no symbol of that name exists, so no packed array either).
+    #[inline]
+    pub(crate) fn list(&self) -> u32 {
+        self.list.load(Relaxed)
+    }
+
     /// The payload words of a stored node, from its region.
     #[inline]
     fn words_of(&self, b: u32, n: &Node) -> &[u64] {
@@ -302,7 +309,7 @@ impl Heap {
     /// The packed node of `words` (the dimensions, then the leaves).
     fn packed_node<'h>(&'h self, ints: bool, rank: usize, words: Vec<u64>) -> T<'h> {
         let (dims, data) = words.split_at(rank);
-        let (hash, mask) = packed_hash(self.meta_bits(self.list), ints, dims, data);
+        let (hash, mask) = packed_hash(self.meta_bits(self.list()), ints, dims, data);
         let node = Node::new(Kind::Packed, hash, mask, packed_flags(ints, rank), 0, words.len());
         T::from_raw(self.intern_owned(node, words))
     }
@@ -358,7 +365,7 @@ impl Heap {
                 }
                 Some(self.packed_node(f.head & 1 != 0, rank + 1, words))
             }
-            Kind::App if f.head == self.list => {
+            Kind::App if f.head == self.list() => {
                 let (elem, dims, data) = pack_shape(self, args)?;
                 if data.len() + dims.len() > MAX_LEN {
                     return None;
@@ -525,7 +532,11 @@ impl Heap {
 
 impl Store for Heap {
     fn sym(&self, name: &str) -> Sym {
-        self.syms.intern(name)
+        let s = self.syms.intern(name);
+        if name == names::LIST {
+            self.list.store(sym_bits(s.0), Relaxed);
+        }
+        s
     }
 
     fn sym_name(&self, s: Sym) -> String {
@@ -601,7 +612,7 @@ impl Store for Heap {
     }
 
     fn app<'h>(&'h self, head: T<'h>, args: &[T<'h>]) -> T<'h> {
-        if head.raw() == self.list && !args.is_empty() {
+        if head.raw() == self.list() && !args.is_empty() {
             if let Some(t) = self.try_pack(args) {
                 return t;
             }
@@ -623,13 +634,13 @@ impl Store for Heap {
         if b & YOUNG != 0 {
             let n = self.young.node(b & LOW);
             if n.kind() == Kind::Packed {
-                return View::App { head: T::from_raw(self.list), args: self.unpacked_args(b, n) };
+                return View::App { head: T::from_raw(self.list()), args: self.unpacked_args(b, n) };
             }
             node_view(&self.young, n)
         } else {
             let n = self.old.node(b);
             if n.kind() == Kind::Packed {
-                return View::App { head: T::from_raw(self.list), args: self.unpacked_args(b, n) };
+                return View::App { head: T::from_raw(self.list()), args: self.unpacked_args(b, n) };
             }
             node_view(&self.old, n)
         }
