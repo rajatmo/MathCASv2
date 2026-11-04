@@ -428,7 +428,9 @@ impl<'h> Fe<'h, '_> {
                 let (x, tx) = self.expr(*base)?;
                 if tx == Ty::Int {
                     let k = k.checked_neg().ok_or("an exponent beyond 64 bits")?;
-                    return Ok(Operand::Ratio(E::Int(1), E::I(IOp::Pow, b(x), b(E::Int(k)))));
+                    // b^-1 (a division) needs no power
+                    let den = if k == 1 { x } else { E::I(IOp::Pow, b(x), b(E::Int(k))) };
+                    return Ok(Operand::Ratio(E::Int(1), den));
                 }
                 // a machine real to a negative power: a value like any other
                 let (v, _) = self.power_of(x, tx, E::Int(k), Ty::Int)?;
@@ -443,7 +445,8 @@ impl<'h> Fe<'h, '_> {
     }
 
     /// `add(...)`: exact integers add exactly; with machine reals, the arithmetic's canonical sum (exact operands
-    /// first, then the inexact ones in canonical order), inline when it is one IEEE addition.
+    /// first, then the inexact ones in canonical order): one IEEE addition for two operands, otherwise an
+    /// [`E::Num`] that lowering expands inline.
     fn sum(&mut self, args: &'h [T<'h>]) -> Res<(E, Ty)> {
         let ops = args.iter().map(|&a| self.operand(a)).collect::<Res<Vec<_>>>()?;
         self.fold(NumOp::Sum, ops)

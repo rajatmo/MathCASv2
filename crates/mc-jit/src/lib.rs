@@ -14,15 +14,16 @@
 //!
 //! **Exactness** (decision 1b.3): a compiled call gives exactly the interpreter's result, or *declines* and the
 //! interpreter evaluates the call. Integers are exact `i64`s whose overflow declines; an inexact integer quotient
-//! declines; machine-real operations that are not one IEEE operation (powers, square roots, sums and products of
-//! more than two operands or with exact rational parts) call the arithmetic's own code; elementary functions are
-//! `mc-numeric`'s shared machine functions, declining outside their real domain.
+//! declines; powers, square roots, and sums and products of more than two operands or with exact rational parts
+//! compute inline exactly what the arithmetic (`mc_arith::Num`) computes, in its order and with its single `powf`
+//! (package J), and call the arithmetic's own code for what the inline code cannot reproduce; elementary functions
+//! are `mc-numeric`'s shared machine functions, declining outside their real domain.
 //!
 //! **Interrupts and fuel** (decision E.5): every loop back edge counts down; every 1024 iterations the code reads
 //! the evaluator's control block and charges 1024 fuel to the calling task (a speculative task spends its own
 //! share). A stopped call declines, and the interpreter then stops at its first poll with the usual failure.
 //!
-//! Decisions of this package are numbered 1b.1, 1b.2, ... in the comments where they are applied.
+//! Decisions are numbered 1b.1, 1b.2, ... (round 3) and J.1, J.2, ... (round 4) in the comments where they apply.
 #![warn(missing_docs)]
 pub mod front;
 pub mod interp;

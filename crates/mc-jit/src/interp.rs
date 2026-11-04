@@ -17,13 +17,25 @@ pub struct Interp {
 fn operands(op: &Op) -> Vec<u32> {
     match op {
         Op::IConst(d, _) | Op::FConst(d, _) | Op::BConst(d, _) | Op::Ret(d) | Op::Bail(d) | Op::Br(d, _, _) => vec![*d],
-        Op::Mov(d, a) | Op::FAbs(d, a) | Op::BNot(d, a) | Op::ToReal(d, a) | Op::Floor(d, a) | Op::Math(_, d, a) => {
-            vec![*d, *a]
-        }
-        Op::IChk(_, d, a, b) | Op::FBin(_, d, a, b) | Op::ICmp(_, d, a, b) | Op::FCmp(_, d, a, b) | Op::BBin(_, d, a, b) => {
-            vec![*d, *a, *b]
-        }
-        Op::IAddOv(d, o, a, b) | Op::Sel(d, o, a, b) => vec![*d, *o, *a, *b],
+        Op::Mov(d, a)
+        | Op::FAbs(d, a)
+        | Op::BNot(d, a)
+        | Op::ToReal(d, a)
+        | Op::Floor(d, a)
+        | Op::Math(_, d, a)
+        | Op::IToF(d, a)
+        | Op::FTrunc(d, a)
+        | Op::FKey(d, a)
+        | Op::FromKey(d, a) => vec![*d, *a],
+        Op::IChk(_, d, a, b)
+        | Op::FBin(_, d, a, b)
+        | Op::ICmp(_, d, a, b)
+        | Op::FCmp(_, d, a, b)
+        | Op::BBin(_, d, a, b)
+        | Op::IMinMax(_, d, a, b)
+        | Op::PowI(d, a, b)
+        | Op::PowF(d, a, b) => vec![*d, *a, *b],
+        Op::IAddOv(d, o, a, b) | Op::IMulOv(d, o, a, b) | Op::Sel(d, o, a, b) => vec![*d, *o, *a, *b],
         Op::Num(_, d, opds) => std::iter::once(*d).chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
         Op::Jmp(_) | Op::Label(_) | Op::Poll => vec![],
     }
@@ -110,6 +122,21 @@ impl Interp {
                     r[d as usize] = v as u64;
                     r[of as usize] = o as u64;
                 }
+                Op::IMulOv(d, of, a, b) => {
+                    let (v, o) = gi(r, a).overflowing_mul(gi(r, b));
+                    r[d as usize] = v as u64;
+                    r[of as usize] = o as u64;
+                }
+                Op::IMinMax(max, d, a, b) => {
+                    let (x, y) = (gi(r, a), gi(r, b));
+                    r[d as usize] = if max { x.max(y) } else { x.min(y) } as u64;
+                }
+                Op::IToF(d, a) => r[d as usize] = (gi(r, a) as f64).to_bits(),
+                Op::FTrunc(d, a) => r[d as usize] = gf(r, a).trunc().to_bits(),
+                Op::FKey(d, a) => r[d as usize] = rt::order_key(gf(r, a)) as u64,
+                Op::FromKey(d, a) => r[d as usize] = rt::from_order_key(gi(r, a)).to_bits(),
+                Op::PowI(d, a, b) => r[d as usize] = rt::pow_int(gf(r, a), gi(r, b)).to_bits(),
+                Op::PowF(d, a, b) => r[d as usize] = rt::pow_real(gf(r, a), gf(r, b)).to_bits(),
                 Op::FBin(o, d, a, b) => {
                     let (x, y) = (gf(r, a), gf(r, b));
                     r[d as usize] = match o {
