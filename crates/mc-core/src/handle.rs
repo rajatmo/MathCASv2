@@ -2,10 +2,11 @@
 //!
 //! - Bit 31 set: an **immediate**. Bit 30 set: a symbol, its index in the low 30 bits. Bit 30 clear: a small integer,
 //!   two's complement in the low 30 bits (decision 1b.3).
-//! - Bit 31 clear: a **stored** term. Bit 30 set: young, an index into the young arena. Bit 30 clear: old, an index
-//!   into the old region.
+//! - Bit 31 clear: a **stored** term. Bit 30 set: young; then bit 29 clear: an index into the young arena (below
+//!   2^29), bit 29 set: a **scratch** term (slot, page and index of a scratch scope, see `scratch`). Bit 30 clear:
+//!   old, an index into the old region.
 //!
-//! Young indices of the last young segment are never handed out, so `0x7FFF_FFFE` and `0x7FFF_FFFF` are free for
+//! The two highest scratch indices of a page are never handed out, so `0x7FFF_FFFE` and `0x7FFF_FFFF` are free for
 //! the evaluator's holes (I1); the latter is [`HOLE`].
 
 /// A handle id the store never hands out: the evaluator marks elements a speculative task left unfinished with it.

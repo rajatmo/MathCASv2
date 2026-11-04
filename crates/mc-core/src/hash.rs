@@ -6,6 +6,13 @@
 //! - Payloads (big integers, balls, strings) are hashed in full with four independent lanes (I3.4).
 use rayon::prelude::*;
 
+/// Hash in parallel? On a pool thread outside a scratch scope: the jobs read the nodes of the term, and a scratch
+/// term can be read only by the thread of its scope (decision G.2).
+#[inline]
+fn par_here() -> bool {
+    rayon::current_thread_index().is_some() && !crate::scratch::scratch_active()
+}
+
 pub(crate) const K: u64 = 0x9E37_79B9_7F4A_7C15;
 
 /// Arguments from which a compound term is hashed on the pool (when built inside one).
@@ -105,7 +112,7 @@ fn fold(args: &[u32], meta: &impl Fn(u32) -> (u64, u64)) -> Part {
 /// Hash and symbol mask of a compound term from its head's and arguments' `(hash, mask)`. Wide terms built on a
 /// pool thread are hashed in parallel; the result is the same either way.
 pub(crate) fn app_hash(head: (u64, u64), args: &[u32], meta: impl Fn(u32) -> (u64, u64) + Sync) -> (u64, u64) {
-    let (p, m, _) = if args.len() >= PAR_ARGS && rayon::current_thread_index().is_some() {
+    let (p, m, _) = if args.len() >= PAR_ARGS && par_here() {
         args.par_chunks(PAR_CHUNK).map(|c| fold(c, &meta)).reduce(
             || (0, 0, 0),
             // the combined length must be carried (A.8): resetting it makes the hash depend on the reduction tree
@@ -122,7 +129,7 @@ pub(crate) fn app_hash(head: (u64, u64), args: &[u32], meta: impl Fn(u32) -> (u6
 /// thread (the same value as the sequential fold, as in [`app_hash`]).
 fn poly(n: usize, h: &(impl Fn(usize) -> u64 + Sync)) -> u64 {
     let seq = |r: std::ops::Range<usize>| r.fold(0u64, |acc, i| acc.wrapping_mul(K).wrapping_add(h(i)));
-    if n >= PAR_ARGS && rayon::current_thread_index().is_some() {
+    if n >= PAR_ARGS && par_here() {
         let chunks = n.div_ceil(PAR_CHUNK);
         let (p, _) = (0..chunks)
             .into_par_iter()
@@ -167,7 +174,7 @@ pub(crate) fn packed_hash(list: (u64, u64), ints: bool, dims: &[u64], data: &[u6
         return (row_hash(0), list.1);
     }
     // the hashes of the innermost rows, then level by level outwards
-    let mut level: Vec<u64> = if rows >= 64 && rayon::current_thread_index().is_some() {
+    let mut level: Vec<u64> = if rows >= 64 && par_here() {
         (0..rows).into_par_iter().with_min_len(64).map(row_hash).collect()
     } else {
         (0..rows).map(row_hash).collect()

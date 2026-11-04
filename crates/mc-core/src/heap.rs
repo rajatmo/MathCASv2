@@ -12,6 +12,7 @@ use crate::node::{Kind, Node, Region, MAX_LEN};
 use crate::old::OldRegion;
 use crate::symbols::Symbols;
 use crate::unpack::Unpacked;
+use crate::scratch::{detached, scratch_active, Slots, SCR};
 use crate::young::{Body, YoungArena, YoungTable};
 use mc_api::packed::{build_nested, int_words, pack_shape, real_words, words_ints, words_reals, Elem, MAX_RANK};
 use mc_api::{names, Packed, Store, Sym, View, PACK_MIN, T};
@@ -34,11 +35,13 @@ pub struct Config {
     pub stress: bool,
     /// Run the copying phases of collections on the pool's workers when the safe point runs on a pool thread (I1.7).
     pub par_gc: bool,
+    /// Allow scratch scopes ([`Heap::scratch`]); off, every request runs without one.
+    pub scratch: bool,
 }
 
 impl Default for Config {
     fn default() -> Config {
-        Config { collect: true, nursery: 1 << 20, min_major: 4 << 20, stress: false, par_gc: true }
+        Config { collect: true, nursery: 1 << 20, min_major: 4 << 20, stress: false, par_gc: true, scratch: true }
     }
 }
 
@@ -77,6 +80,8 @@ pub struct Heap {
     pub(crate) gc: GcState,
     /// the arguments of packed arrays viewed in this cycle (emptied at every collection)
     pub(crate) unpacked: Unpacked,
+    /// the scratch slots ([`Heap::scratch`])
+    pub(crate) slots: Slots,
     /// the handle bits of the symbol `list`, the head of packed arrays, once it exists ([`HOLE`] before). It is not
     /// interned up front, so that symbol indices (and the read-set bits derived from them) stay as they were.
     list: AtomicU32,
@@ -167,6 +172,7 @@ impl Heap {
             side: SideMemo::new(),
             gc: GcState::default(),
             unpacked: Unpacked::new(),
+            slots: Slots::new(),
             list: AtomicU32::new(HOLE),
         }
     }
@@ -182,6 +188,9 @@ impl Heap {
     #[inline]
     pub(crate) fn node(&self, b: u32) -> &Node {
         if b & YOUNG != 0 {
+            if b & SCR != 0 {
+                return self.scratch_node(b);
+            }
             self.young.node(b & LOW)
         } else {
             self.old.node(b)
@@ -204,7 +213,10 @@ impl Heap {
         }
     }
 
-    fn intern(&self, proto: Node, body: Body, may_be_old: bool) -> u32 {
+    pub(crate) fn intern(&self, proto: Node, body: Body, may_be_old: bool) -> u32 {
+        if let Some(s) = self.scope() {
+            return self.intern_scratch(s, proto, body, may_be_old);
+        }
         if may_be_old && self.old.table.count > 0 {
             if let Some(id) = self.old.table.find(proto.hash, |id| same(&self.old, self.old.node(id), &proto, body)) {
                 return id;
@@ -219,7 +231,10 @@ impl Heap {
     }
 
     /// Intern a payload node from words it takes over: a long payload becomes the node's box without a copy.
-    fn intern_owned(&self, proto: Node, words: Vec<u64>) -> u32 {
+    pub(crate) fn intern_owned(&self, proto: Node, words: Vec<u64>) -> u32 {
+        if let Some(s) = self.scope() {
+            return self.intern_scratch_owned(s, proto, words);
+        }
         let raw = Box::into_raw(words.into_boxed_slice());
         // SAFETY: `raw` is a live boxed slice until it is either handed to the arena or freed below.
         let w: &[u64] = unsafe { &*raw };
@@ -414,19 +429,23 @@ impl Heap {
     /// The arguments of packed node `b`: its leaves as terms (rank 1) or its rows as arrays, made on first use in
     /// this cycle and kept until the next collection (decision N4a.4).
     fn unpacked_args<'h>(&'h self, b: u32, n: &'h Node) -> &'h [T<'h>] {
-        let a = self.unpacked.get_or_make(b, || {
+        let make = || {
             let p = self.packed_view(b, n);
-            let par = p.count() >= PAR_UNPACK && rayon::current_thread_index().is_some();
+            // inside a scratch scope the arguments are made on this thread (decision G.2); the parallel jobs run
+            // detached, so a job executed by a thread waiting inside a scope builds shared terms
+            let par = p.count() >= PAR_UNPACK && rayon::current_thread_index().is_some() && !scratch_active();
             let dims = p.dims();
             if dims.len() == 1 {
                 return match p {
-                    Packed::Reals { data, .. } if par => {
-                        data.par_iter().with_min_len(4096).map(|&v| self.real(v).raw()).collect()
-                    }
+                    Packed::Reals { data, .. } if par => data
+                        .par_chunks(4096)
+                        .flat_map_iter(|c| detached(|| c.iter().map(|&v| self.real(v).raw()).collect::<Vec<_>>()))
+                        .collect(),
                     Packed::Reals { data, .. } => data.iter().map(|&v| self.real(v).raw()).collect(),
-                    Packed::Ints { data, .. } if par => {
-                        data.par_iter().with_min_len(4096).map(|&v| self.int(v).raw()).collect()
-                    }
+                    Packed::Ints { data, .. } if par => data
+                        .par_chunks(4096)
+                        .flat_map_iter(|c| detached(|| c.iter().map(|&v| self.int(v).raw()).collect::<Vec<_>>()))
+                        .collect(),
                     Packed::Ints { data, .. } => data.iter().map(|&v| self.int(v).raw()).collect(),
                 };
             }
@@ -437,11 +456,15 @@ impl Heap {
                 Packed::Ints { data, .. } => self.int_array(&sub, &data[i * row..(i + 1) * row]).raw(),
             };
             if par {
-                (0..dims[0] as usize).into_par_iter().map(make).collect()
+                (0..dims[0] as usize).into_par_iter().map(|i| detached(|| make(i))).collect()
             } else {
                 (0..dims[0] as usize).map(make).collect()
             }
-        });
+        };
+        let a = match self.scope() {
+            Some(s) => self.scratch_unpacked(s, b, make),
+            None => self.unpacked.get_or_make(b, make),
+        };
         // SAFETY: `T` is a transparent `u32` plus a zero-sized brand; the slice lives until the next collection,
         // which needs `&mut self`.
         unsafe { std::slice::from_raw_parts(a.as_ptr() as *const T<'h>, a.len()) }
@@ -474,14 +497,23 @@ impl Heap {
     #[inline]
     pub fn memo_get<'h>(&'h self, t: T<'h>) -> Option<MemoHit<'h>> {
         let b = t.raw();
-        let it = if is_young(b) {
+        let it = match self.scope() {
+            Some(s) => self.scratch_memo_get(s, b),
+            None => self.shared_memo_get(b),
+        }?;
+        Some(MemoHit { value: T::from_raw(it.val), epoch: it.epoch, deps: it.deps })
+    }
+
+    /// The shared memo's entry for the (non-scratch) handle `b`.
+    #[inline]
+    pub(crate) fn shared_memo_get(&self, b: u32) -> Option<Item> {
+        if is_young(b) {
             self.ymemo.entry(b & LOW)?.get(b)
         } else if is_old(b) {
             self.omemo.entry(b).and_then(|e| e.get(b)).or_else(|| self.side.get(b))
         } else {
             None
-        }?;
-        Some(MemoHit { value: T::from_raw(it.val), epoch: it.epoch, deps: it.deps })
+        }
     }
 
     /// Memoise `value` as the normal form of `key`, stamped with the evaluation's start epoch and read set. Lossy:
@@ -491,6 +523,11 @@ impl Heap {
     pub fn memo_put(&self, key: T<'_>, value: T<'_>, epoch: u32, deps: u64) {
         let (k, v) = (key.raw(), value.raw());
         let it = Item { key: k, val: v, epoch, deps };
+        if let Some(s) = self.scope() {
+            if self.scratch_memo_put(s, it) {
+                return;
+            }
+        }
         if is_young(k) {
             self.ymemo.entry_or_alloc(k & LOW).put(it);
         } else if is_old(k) {
@@ -526,6 +563,7 @@ impl Heap {
             + self.ymemo.bytes()
             + self.omemo.bytes()
             + self.side.bytes()
+            + self.slots.reserved()
     }
 
     /// Bytes of boxed payloads (old and young).
@@ -636,7 +674,7 @@ impl Store for Heap {
             return if is_sym(b) { View::Sym(Sym(b & LOW)) } else { View::Int(small_value(b)) };
         }
         if b & YOUNG != 0 {
-            let n = self.young.node(b & LOW);
+            let n = if b & SCR != 0 { self.scratch_node(b) } else { self.young.node(b & LOW) };
             if n.kind() == Kind::Packed {
                 return View::App { head: T::from_raw(self.list()), args: self.unpacked_args(b, n) };
             }

@@ -10,7 +10,7 @@
 //! At a minor collection (`&mut`, so no task is running) the arena is reset wholesale: its segments leave the
 //! directory, the next cycle starts at the next segment boundary, and every thread's cached chunks are invalidated
 //! by a generation number. A handle from a previous cycle finds a null segment and panics instead of reading a
-//! reused node (no id reuse until the 2^30 young id space wraps, I1.5).
+//! reused node (no id reuse until the 2^29 young id space wraps, I1.5).
 use crate::node::{box_bytes, box_owned, box_words, free_box, Node, Region, ARENA_MAX, NODE};
 use parking_lot::Mutex;
 use std::cell::Cell;
@@ -19,8 +19,9 @@ use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicU64, AtomicUsize, Ordering::
 
 const SEG_BITS: u32 = 16;
 const SEG_LEN: usize = 1 << SEG_BITS;
-/// Young indices are below 2^30; the last segment is never allocated (its ids are the evaluator's holes).
-const MAX_SEGS: usize = 1 << (30 - SEG_BITS);
+/// Young indices are below 2^29 (the upper half of the 30-bit index space names scratch terms, see `scratch`); the
+/// last segment is never allocated.
+const MAX_SEGS: usize = 1 << (29 - SEG_BITS);
 /// Ids a thread reserves at a time.
 pub(crate) const ID_CHUNK: u32 = 256;
 /// Words of a slab (64 KB): argument slots (two per word) and arena payloads. Requests above an eighth of a slab
@@ -28,7 +29,7 @@ pub(crate) const ID_CHUNK: u32 = 256;
 const SLAB: usize = 1 << 13;
 /// Entries of a box-list chunk.
 const BOX_CHUNK: usize = 64;
-/// An unused box-list slot (young indices are below 2^30).
+/// An unused box-list slot (young indices are below 2^29).
 const NO_ID: u32 = u32::MAX;
 /// Segments and slabs kept for reuse after a reset (fresh pages cost more than the collection, 1b.6).
 const SEG_POOL: usize = 4;
@@ -148,7 +149,7 @@ impl YoungArena {
                 let start = c
                     .checked_mul(ID_CHUNK)
                     .filter(|&s| (s as usize) < (MAX_SEGS - 1) * SEG_LEN)
-                    .expect("young id space full (one evaluation made more than 2^30 terms)");
+                    .expect("young id space full (one evaluation made more than 2^29 terms)");
                 self.ensure_seg((start >> SEG_BITS) as usize);
                 l.next = start;
                 l.end = start + ID_CHUNK;
