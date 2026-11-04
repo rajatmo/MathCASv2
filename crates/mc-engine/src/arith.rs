@@ -354,7 +354,8 @@ impl TermOrder for ArithOrder {
 /// Register the natives and the order with `k`. `stop` is the flag `mc-arith` polls.
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     let strict = Attributes::default();
-    let ac = Attributes { ac: true, ..strict };
+    // `add` and `mul` thread over lists (semantics 7.2); packed arrays element-wise on their payloads (N4a.7)
+    let ac = Attributes { ac: true, listable: true, ..strict };
     let held = Attributes { hold: Hold::All, ..strict };
     let mut reg = |name: &str, a: Attributes, n: Box<dyn Native>| k.register(h.sym(name), a, n);
     reg(names::ADD, ac, Box::new(Add(stop.clone())));

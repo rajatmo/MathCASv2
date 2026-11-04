@@ -2,7 +2,7 @@
 //! and small helpers for arguments, failures, fuel and calls of function-valued arguments.
 use mc_api::names;
 use mc_arith::Arith;
-use mc_core::{Heap, Store, Sym, View, T};
+use mc_core::{Heap, Packed, Store, Sym, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -199,6 +199,36 @@ pub(crate) fn compound<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, &'h [T<'h>])
     match h.view(t) {
         View::App { head, args } => Some((head, args)),
         _ => None,
+    }
+}
+
+/// Arguments `lo..hi` of the packed array `p` as a term: the elements (rank 1) or rows (above), packed again when
+/// long enough. `lo..hi` is within the first dimension.
+pub(crate) fn packed_slice<'h>(h: &'h Heap, p: Packed<'h>, lo: usize, hi: usize) -> T<'h> {
+    let dims = p.dims();
+    let row = p.count() / dims[0] as usize;
+    let mut sub: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
+    sub[0] = hi - lo;
+    match p {
+        Packed::Reals { data, .. } => h.real_array(&sub, &data[lo * row..hi * row]),
+        Packed::Ints { data, .. } => h.int_array(&sub, &data[lo * row..hi * row]),
+    }
+}
+
+/// Argument `k` (0-based) of the packed array `p`: a machine number (rank 1) or a row, without unpacking `p`.
+pub(crate) fn packed_arg<'h>(h: &'h Heap, p: Packed<'h>, k: usize) -> T<'h> {
+    let dims = p.dims();
+    if dims.len() == 1 {
+        return match p {
+            Packed::Reals { data, .. } => h.real(data[k]),
+            Packed::Ints { data, .. } => h.int(data[k]),
+        };
+    }
+    let row = p.count() / dims[0] as usize;
+    let sub: Vec<usize> = dims[1..].iter().map(|&d| d as usize).collect();
+    match p {
+        Packed::Reals { data, .. } => h.real_array(&sub, &data[k * row..(k + 1) * row]),
+        Packed::Ints { data, .. } => h.int_array(&sub, &data[k * row..(k + 1) * row]),
     }
 }
 
