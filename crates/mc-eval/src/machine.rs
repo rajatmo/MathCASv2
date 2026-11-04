@@ -121,6 +121,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// Evaluate `t` to normal form on this task: a driver over the task's stack, nested in the caller's.
     pub(crate) fn eval(&self, cx: &mut Cx<'h>, t: T<'h>) -> Res<T<'h>> {
         let h = self.heap;
+        if self.is_inert_packed(cx, t) {
+            return Ok(t);
+        }
         match h.view(t) {
             View::App { .. } => {}
             View::Sym(s) => {
@@ -168,6 +171,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// Start evaluating `t`: atoms and symbols at once, compound terms from the memo or as a new level.
     fn enter(&self, cx: &mut Cx<'h>, t: T<'h>) -> Next<'h> {
         let h = self.heap;
+        if self.is_inert_packed(cx, t) {
+            return Next::Ret(t);
+        }
         match h.view(t) {
             View::App { .. } => {}
             View::Sym(s) => {
@@ -336,7 +342,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         e.stage = stage(i);
         while i < args.len() {
             let a = args[i];
-            if !attrs.hold.holds(i) {
+            if !attrs.hold.holds(i) && !self.is_inert_packed(cx, a) {
                 match h.view(a) {
                     View::App { .. } => return self.suspend(cx, e, stage(i), a),
                     View::Sym(s) => {
@@ -407,6 +413,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         // listable functions map over list arguments (semantics 7.2)
         if attrs.listable {
+            if let Some(v) = attempt!(self, cx, e, self.thread_packed(cx, head, vs)) {
+                return Go::Next(self.finish(cx, e, v));
+            }
             if let Some(u) = self.thread(head, vs) {
                 attempt!(self, cx, e, self.tick(cx));
                 e.t = u;
@@ -493,8 +502,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         big: &'b mut Vec<T<'h>>,
     ) -> Result<&'b [T<'h>], T<'h>> {
         let h = self.heap;
-        let inner = |a: T<'h>| match h.view(a) {
-            View::App { head: g, args } if g == head => Some(args),
+        // a packed array is a `list`, never a call of an AC head: not viewed (that would unpack it)
+        let inner = |a: T<'h>| match h.packed(a).is_none().then(|| h.view(a)) {
+            Some(View::App { head: g, args }) if g == head => Some(args),
             _ => None,
         };
         let len: usize = vals.iter().map(|&a| inner(a).map_or(1, <[T]>::len)).sum();

@@ -203,7 +203,8 @@ impl Heap {
             return;
         }
         let stress = self.cfg.stress;
-        let minor = !self.ytable.is_empty() && (stress || self.young.young_bytes() >= self.cfg.nursery);
+        let young = self.young.young_bytes() + self.unpacked.bytes();
+        let minor = !self.ytable.is_empty() && (stress || young >= self.cfg.nursery);
         if !minor {
             return;
         }
@@ -252,6 +253,8 @@ impl Heap {
 
     fn minor(&mut self, roots: &mut [&mut dyn Trace]) {
         let t0 = Instant::now();
+        // unpacked arguments hold young handles: the cache goes with the cycle (N4a.4)
+        self.unpacked.clear();
         let (lo, hi) = self.young.range();
         let n = (hi - lo) as usize;
         let old0 = self.old.nodes.len();
@@ -392,6 +395,7 @@ impl Heap {
 
     fn major(&mut self, roots: &mut [&mut dyn Trace]) {
         let t0 = Instant::now();
+        self.unpacked.clear();
         let n = self.old.nodes.len();
         let mut bits = vec![0u64; n.div_ceil(64)];
         trace_all(roots, &mut |x: &mut Raw| {

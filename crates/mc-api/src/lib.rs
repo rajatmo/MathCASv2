@@ -8,7 +8,9 @@
 use std::marker::PhantomData;
 
 pub mod conformance;
+pub mod packed;
 mod refstore;
+pub use packed::{Elem, Packed, PACK_MIN};
 pub use refstore::RefStore;
 
 /// A term handle: 32 bits, `Copy`, branded with the lifetime of the store borrow that produced it. Equal terms are
@@ -55,7 +57,7 @@ pub enum View<'h> {
     Ball { neg: bool, words: &'h [u64] },
     Str(&'h str),
     Sym(Sym),
-    /// A compound term: head (any term) and arguments.
+    /// A compound term: head (any term) and arguments. A packed array ([`packed`]) views as its `list(...)` too.
     App { head: T<'h>, args: &'h [T<'h>] },
 }
 
@@ -88,6 +90,36 @@ pub trait Store: Sync {
     fn call<'h>(&'h self, head: Sym, args: &[T<'h>]) -> T<'h> {
         let h = self.sym_term(head);
         self.app(h, args)
+    }
+
+    /// The payload of a packed array (semantics 11, [`packed`]), read without unpacking; `None` for every other
+    /// term. A store that does not pack returns `None` always (the default). The term itself is the `list` its view
+    /// shows: the payload is a faster way to read the same elements.
+    fn packed<'h>(&'h self, t: T<'h>) -> Option<Packed<'h>> {
+        let _ = t;
+        None
+    }
+
+    /// The rectangular `list(...)` of machine reals with dimensions `dims` (outermost first) and leaves `data` in
+    /// row-major order: the same term as building it element by element, packed when the rule says so. Panics
+    /// unless the product of `dims` is `data.len()`.
+    fn real_array<'h>(&'h self, dims: &[usize], data: &[f64]) -> T<'h> {
+        packed::build_nested(self, dims, data.len(), |i| self.real(data[i]))
+    }
+
+    /// The rectangular `list(...)` of machine integers, as [`Store::real_array`].
+    fn int_array<'h>(&'h self, dims: &[usize], data: &[i64]) -> T<'h> {
+        packed::build_nested(self, dims, data.len(), |i| self.int(data[i]))
+    }
+
+    /// The list of machine reals `[data...]` (packed when long enough).
+    fn reals<'h>(&'h self, data: &[f64]) -> T<'h> {
+        self.real_array(&[data.len()], data)
+    }
+
+    /// The list of machine integers `[data...]` (packed when long enough).
+    fn ints<'h>(&'h self, data: &[i64]) -> T<'h> {
+        self.int_array(&[data.len()], data)
     }
 }
 

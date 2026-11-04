@@ -2,7 +2,7 @@
 //!
 //! Indices are 1-based; a negative index counts from the end (`-1` is the last argument); index 0 is the head. An
 //! index outside the term gives `failure(index, i, n)` with `n` the number of arguments (decision I.5).
-use crate::ctx::{charge_copy, compound, take, Lib};
+use crate::ctx::{charge_copy, compound, packed_arg, packed_slice, take, Lib};
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
@@ -12,6 +12,10 @@ pub(crate) fn length<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
     let [x] = *args else {
         return Ok(Reply::Decline);
     };
+    // a packed array's length is its first dimension (decision N4a.8: read without unpacking)
+    if let Some(p) = h.packed(x) {
+        return Ok(Reply::Done(h.int(p.len() as i64)));
+    }
     Ok(Reply::Done(h.int(compound(h, x).map_or(0, |(_, a)| a.len()) as i64)))
 }
 
@@ -47,7 +51,7 @@ pub(crate) fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
         return Ok(Reply::Done(lib.bad_arg(h, t, MAX_INDICES + 2)));
     }
     // an association is indexed by key, not by position: its argument-head rules decide (decision 1A.16)
-    if matches!(h.view(x), View::App { head, .. } if head == h.sym_term(lib.s.assoc)) {
+    if h.packed(x).is_none() && matches!(h.view(x), View::App { head, .. } if head == h.sym_term(lib.s.assoc)) {
         return Ok(Reply::Decline);
     }
     let mut rebuilt = false;
@@ -71,6 +75,30 @@ fn part_at<'h>(
     let h = cx.heap();
     let mut x = x;
     for (k, &i) in idx.iter().enumerate() {
+        // a packed array: an element, a row or a final span straight from the payload (decision N4a.8)
+        if let Some(p) = h.packed(x) {
+            let n = p.len();
+            match h.view(i) {
+                View::Int(j) => {
+                    match position(j, n) {
+                        Some(0) => x = h.sym_term(lib.s.list),
+                        Some(q) => x = packed_arg(h, p, q - 1),
+                        None => return Ok(Err(Stop::Fail(lib.bad_index(h, i, n)))),
+                    }
+                    continue;
+                }
+                View::App { head: g, args: ab } if g == h.sym_term(lib.s.span) && ab.len() == 2 && k + 1 == idx.len() => {
+                    return Ok(match span(lib, h, ab[0], ab[1], n) {
+                        Ok((lo, hi)) => {
+                            charge_copy(cx, (hi - lo) * (p.count() / n))?;
+                            Ok(packed_slice(h, p, lo, hi))
+                        }
+                        Err(s) => Err(s),
+                    });
+                }
+                _ => {}
+            }
+        }
         let (head, args) = match h.view(x) {
             View::App { head, args } => (head, args),
             // `s[1]` for a symbol `s` without a value stays as it is

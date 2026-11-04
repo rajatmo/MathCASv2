@@ -6,7 +6,7 @@
 //! a single canonicaliser call with the exact total.
 use crate::ctx::{int128, take, Lib, Meter};
 use mc_arith::{Arith, Cmp3};
-use mc_core::{Heap, Store, View, T};
+use mc_core::{Heap, Packed, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
 /// `add` or `mul`.
@@ -81,12 +81,40 @@ fn reduce<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, op: Op, xs: &[T<'h>]) ->
     Ok(op.of(&ar, &other))
 }
 
+/// The sum of every leaf of a packed array, computed on its payload exactly as [`reduce`] computes it on the
+/// leaves (decision N4a.10): machine integers summed exactly (in 128 bits, which `2^28` leaves cannot overflow);
+/// machine reals added in the canonical order, ascending by value, from an exact zero (semantics 2.2, `mc-arith`
+/// decision B.5). Equal values are interchangeable in that order, and the running sum starts at `+0.0`, so it never
+/// depends on how ties are broken. `None` (the general path) when a real is a NaN.
+fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    crate::ctx::charge_copy(cx, p.count())?;
+    match p {
+        Packed::Ints { data, .. } => Ok(Some(int128(h, data.iter().map(|&v| v as i128).sum()))),
+        Packed::Reals { data, .. } => {
+            if data.iter().any(|x| x.is_nan()) {
+                return Ok(None);
+            }
+            let mut v = data.to_vec();
+            v.sort_unstable_by(f64::total_cmp);
+            // the sort is n log n: charged like the canonicaliser's own pass
+            cx.tick(v.len() as u64 / 4)?;
+            Ok(Some(h.real(v.iter().fold(0.0, |acc, &x| acc + x))))
+        }
+    }
+}
+
 /// `sum(xs)`: the canonical sum of the elements of the list `xs` (`0` for `[]`).
 pub(crate) fn sum<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs] = *args else {
         return Ok(Reply::Decline);
     };
+    if let Some(p) = h.packed(xs).filter(|p| p.rank() == 1) {
+        if let Some(v) = packed_sum(cx, p)? {
+            return Ok(Reply::Done(v));
+        }
+    }
     let xs = take!(lib.list_operand(h, t, xs, 1));
     Ok(Reply::Done(reduce(lib, cx, Op::Add, xs)?))
 }
@@ -130,6 +158,11 @@ pub(crate) fn total<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let [xs] = *args else {
         return Ok(Reply::Decline);
     };
+    if let Some(p) = h.packed(xs) {
+        if let Some(v) = packed_sum(cx, p)? {
+            return Ok(Reply::Done(v));
+        }
+    }
     let xs = take!(lib.list_operand(h, t, xs, 1));
     let all = leaves(lib, cx, xs)?;
     Ok(Reply::Done(reduce(lib, cx, Op::Add, &all)?))

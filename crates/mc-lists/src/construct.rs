@@ -51,8 +51,20 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let kind = [&a, &b, &s].iter().map(|r| r.kind()).max().expect("three");
     let prec = [&a, &b, &s].iter().filter_map(|r| r.prec()).max().unwrap_or(mc_arith::number::MIN_PREC);
     let (a, s) = (a.to_kind(kind, prec), s.to_kind(kind, prec));
-    let mut out = Vec::with_capacity(n);
     let mut m = Meter::default();
+    if kind == Kind::Machine {
+        // machine reals straight into a packed payload (decision N4a.9): the same elements as below
+        // `a + k*step` in machine arithmetic, as `Real::add` and `Real::mul` compute it for machine reals (k below
+        // 2^28 converts exactly)
+        let (a, s) = (a.to_f64(), s.to_f64());
+        let mut out = Vec::with_capacity(n);
+        for k in 0..n {
+            m.step(cx)?;
+            out.push(if k == 0 { a } else { a + k as f64 * s });
+        }
+        return Ok(Reply::Done(h.reals(&out)));
+    }
+    let mut out = Vec::with_capacity(n);
     let mut x = a.clone();
     for k in 0..n {
         m.step(cx)?;
@@ -104,13 +116,14 @@ fn int_range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: i64, b: 
     let mut x = a;
     for k in 0..n {
         m.step(cx)?;
-        out.push(h.int(x));
+        out.push(x);
         if k + 1 < n {
             // stays between a and b, so no overflow
             x += s;
         }
     }
-    Ok(Reply::Done(cx.list(&out)))
+    // machine integers straight into a packed payload when long enough (decision N4a.9)
+    Ok(Reply::Done(h.ints(&out)))
 }
 
 /// `array(f, n)`: `[f(1), ..., f(n)]`; `array(f, [n1, ..., nd])`: the nested lists of `f(i1, ..., id)`. The calls

@@ -355,7 +355,8 @@ impl TermOrder for ArithOrder {
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     let strict = Attributes::default();
     // `add`, `mul` and `pow` thread over lists (semantics 7.2): `a - b` and `a / b` are sums and products of
-    // powers, so subtraction and division thread too
+    // powers, so subtraction and division thread too; two-operand `add`/`mul` on packed arrays work on their
+    // payloads (N4a.7)
     let ac = Attributes { ac: true, listable: true, ..strict };
     let listable = Attributes { listable: true, ..strict };
     let held = Attributes { hold: Hold::All, ..strict };

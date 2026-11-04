@@ -1,6 +1,9 @@
 //! Heap invariants (I1's and I3's stress checks), verified before and after every collection in stress mode.
 use crate::handle::{is_imm, is_old, is_sym, is_young, LOW, SMALL_MAX, SMALL_MIN, YOUNG};
 use crate::heap::{is_small_int, same};
+use crate::hash::packed_hash;
+use mc_api::packed::MAX_RANK;
+use mc_api::PACK_MIN;
 use crate::young::Body;
 use crate::node::{box_bytes, for_each_child, Kind, Node, Region};
 use crate::roots::{Raw, Trace};
@@ -21,7 +24,9 @@ impl Heap {
     /// - Both regions: every node is in exactly one interning table and is found again there by its content; its
     ///   children are valid handles; numbers are canonical (a `Word` never holds an immediate value, an integer
     ///   payload has at least two limbs and a nonzero top limb, a rational has a nonzero integer numerator and an
-    ///   integer denominator above 1, reduced when both fit a word; strings are UTF-8 with zero padding).
+    ///   integer denominator above 1, reduced when both fit a word; strings are UTF-8 with zero padding; a packed
+    ///   array has consistent dimensions, at least the packing threshold of leaves, and the hash and mask of the
+    ///   compound term it stands for).
     /// - Old region: no child is young and every child id is in range; argument slots and arena payload words are
     ///   contiguous in id order with no slack; boxed bytes add up; the old memo is parallel to the nodes, each valid
     ///   entry keyed by its own id with an old or immediate value in range.
@@ -73,6 +78,17 @@ impl Heap {
                 let all: Vec<u8> = w.iter().flat_map(|x| x.to_ne_bytes()).collect();
                 assert!(std::str::from_utf8(&all[..bytes]).is_ok(), "string {at:#x}: not UTF-8");
                 assert!(all[bytes..].iter().all(|&c| c == 0), "string {at:#x}: padding");
+            }
+            Kind::Packed => {
+                let w = r.words(n);
+                let rank = (n.head >> 1) as usize;
+                assert!((1..=MAX_RANK).contains(&rank) && rank <= w.len(), "packed {at:#x}: rank {rank}");
+                let (dims, data) = w.split_at(rank);
+                assert!(dims.iter().all(|&d| d >= 1), "packed {at:#x}: an empty dimension");
+                assert_eq!(dims.iter().product::<u64>(), data.len() as u64, "packed {at:#x}: dimensions and leaves");
+                assert!(data.len() >= PACK_MIN, "packed {at:#x}: fewer leaves than the packing threshold");
+                let want = packed_hash(self.meta_bits(self.list()), n.head & 1 != 0, dims, data);
+                assert_eq!((n.hash, n.mask), want, "packed {at:#x}: hash and mask of the compound term");
             }
             Kind::Rat => {
                 let (num, den) = (n.head, n.data as u32);

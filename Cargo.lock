@@ -585,6 +585,7 @@ version = "0.0.0"
 dependencies = [
  "mc-api",
  "mc-arith",
+ "mc-bench",
  "mc-core",
  "mc-engine",
  "mc-eval",

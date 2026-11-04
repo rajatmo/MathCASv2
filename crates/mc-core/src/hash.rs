@@ -118,6 +118,67 @@ pub(crate) fn app_hash(head: (u64, u64), args: &[u32], meta: impl Fn(u32) -> (u6
     (finalize(start.wrapping_mul(kpow(args.len())).wrapping_add(p)), m | head.1)
 }
 
+/// The polynomial part `sum h(i) K^(n-1-i)` of `n` argument hashes, in parallel for wide terms built on a pool
+/// thread (the same value as the sequential fold, as in [`app_hash`]).
+fn poly(n: usize, h: &(impl Fn(usize) -> u64 + Sync)) -> u64 {
+    let seq = |r: std::ops::Range<usize>| r.fold(0u64, |acc, i| acc.wrapping_mul(K).wrapping_add(h(i)));
+    if n >= PAR_ARGS && rayon::current_thread_index().is_some() {
+        let chunks = n.div_ceil(PAR_CHUNK);
+        let (p, _) = (0..chunks)
+            .into_par_iter()
+            .map(|c| {
+                let r = c * PAR_CHUNK..((c + 1) * PAR_CHUNK).min(n);
+                (seq(r.clone()), r.len())
+            })
+            .reduce(|| (0, 0), |(h1, n1), (h2, n2)| (h1.wrapping_mul(kpow(n2)).wrapping_add(h2), n1 + n2));
+        p
+    } else {
+        seq(0..n)
+    }
+}
+
+/// The hash of a compound term from its head's hash, its argument count and [`poly`] of its arguments.
+#[inline]
+fn close(head: u64, n: usize, p: u64) -> u64 {
+    let start = 0x33u64.wrapping_mul(K).wrapping_add(head);
+    finalize(start.wrapping_mul(kpow(n)).wrapping_add(p))
+}
+
+/// The hash of a machine integer term, whichever tier holds it (immediate or one-limb `Word`).
+#[inline]
+pub(crate) fn machine_int_hash(v: i64) -> u64 {
+    if (crate::SMALL_MIN..=crate::SMALL_MAX).contains(&v) {
+        small_int_hash(v)
+    } else {
+        word_hash(v < 0, v.unsigned_abs())
+    }
+}
+
+/// Hash and symbol mask of a packed array: exactly those of the compound `list(...)` it stands for ([`app_hash`] of
+/// the rows, recursively), computed from the leaves without building them. `list` is the `(hash, mask)` of the
+/// symbol `list`, `ints` the leaf kind, `dims` the dimensions (outermost first), `data` the leaves as words.
+pub(crate) fn packed_hash(list: (u64, u64), ints: bool, dims: &[u64], data: &[u64]) -> (u64, u64) {
+    let leaf = |w: u64| if ints { machine_int_hash(w as i64) } else { real_hash(w) };
+    let (&last, outer) = dims.split_last().expect("a packed array has a rank");
+    let d = last as usize;
+    let rows = data.len() / d;
+    let row_hash = |r: usize| close(list.0, d, poly(d, &|i| leaf(data[r * d + i])));
+    if outer.is_empty() {
+        return (row_hash(0), list.1);
+    }
+    // the hashes of the innermost rows, then level by level outwards
+    let mut level: Vec<u64> = if rows >= 64 && rayon::current_thread_index().is_some() {
+        (0..rows).into_par_iter().with_min_len(64).map(row_hash).collect()
+    } else {
+        (0..rows).map(row_hash).collect()
+    };
+    for &k in outer.iter().rev() {
+        let k = k as usize;
+        level = (0..level.len() / k).map(|r| close(list.0, k, poly(k, &|i| level[r * k + i]))).collect();
+    }
+    (level[0], list.1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +192,30 @@ mod tests {
         for _ in 0..8 {
             assert_eq!(pool.install(|| app_hash((5, 0), &args, meta)), seq);
         }
+    }
+
+    #[test]
+    fn packed_hashes_are_the_compound_hashes() {
+        let list = (finalize(77), 1u64 << 9);
+        // a vector of reals, wide enough for the parallel fold, against app_hash over the leaves' hashes
+        let n = 2 * PAR_ARGS + 5;
+        let data: Vec<u64> = (0..n as u64).map(|i| (i as f64 * 0.5).to_bits()).collect();
+        let ids: Vec<u32> = (0..n as u32).collect();
+        let want = app_hash(list, &ids, |i| (real_hash(data[i as usize]), 0));
+        assert_eq!(packed_hash(list, false, &[n as u64], &data), want);
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().unwrap();
+        assert_eq!(pool.install(|| packed_hash(list, false, &[n as u64], &data)), want);
+        // a 3 x 100 matrix of integers across the tiers: rows first
+        let ints: Vec<i64> = (0..300).map(|i| (i - 150) * (1 << 25)).collect();
+        let words: Vec<u64> = ints.iter().map(|&v| v as u64).collect();
+        let rows: Vec<u64> = (0..3)
+            .map(|r| {
+                let ids: Vec<u32> = (0..100).collect();
+                app_hash(list, &ids, |i| (machine_int_hash(ints[r * 100 + i as usize]), 0)).0
+            })
+            .collect();
+        let want = app_hash(list, &[0, 1, 2], |i| (rows[i as usize], list.1));
+        assert_eq!(packed_hash(list, true, &[3, 100], &words), want);
+        assert_eq!(pool.install(|| packed_hash(list, true, &[3, 100], &words)), want);
     }
 }

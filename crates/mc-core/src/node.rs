@@ -11,6 +11,11 @@
 //! | `Real` | 0 | IEEE bits | 0 |
 //! | `Int`, `Ball` | sign (0/1) | payload words: see below | words |
 //! | `Str` | byte length | UTF-8 bytes packed into words, zero padded | words |
+//! | `Packed` | leaf kind (bit 0: 0 reals, 1 integers) and rank (above) | dimensions, then the leaves | words |
+//!
+//! A `Packed` node is a rectangular `list(...)` of machine numbers held as one payload (semantics 11, decision
+//! N4a.1): it has no children, its hash and mask are those of the compound term it stands for, and its view is that
+//! compound term (the heap unpacks the arguments on demand, see `unpack`).
 //!
 //! Payload placement is a function of the length (I3.2, A.4): at most [`ARENA_MAX`] words live in a limb arena
 //! (young: a pointer into a per-thread chunk; old: an index into the old limb array, sliding with the nodes); longer
@@ -40,6 +45,7 @@ pub(crate) enum Kind {
     Int,
     Ball,
     Str,
+    Packed,
 }
 
 const KIND_SHIFT: u32 = 29;
@@ -63,7 +69,8 @@ impl Node {
             3 => Kind::Real,
             4 => Kind::Int,
             5 => Kind::Ball,
-            _ => Kind::Str,
+            6 => Kind::Str,
+            _ => Kind::Packed,
         }
     }
 
@@ -80,7 +87,7 @@ impl Node {
 
     #[inline]
     pub(crate) fn is_payload(&self) -> bool {
-        matches!(self.kind(), Kind::Int | Kind::Ball | Kind::Str)
+        matches!(self.kind(), Kind::Int | Kind::Ball | Kind::Str | Kind::Packed)
     }
 
     /// A payload in a box owned by the node.
@@ -118,6 +125,11 @@ impl Node {
 pub(crate) fn box_words(words: &[u64]) -> u64 {
     let b: Box<[u64]> = words.into();
     Box::into_raw(b) as *mut u64 as u64
+}
+
+/// Take ownership of `words` as a node's box (no copy); returns the pointer for `data`.
+pub(crate) fn box_owned(words: Box<[u64]>) -> u64 {
+    Box::into_raw(words) as *mut u64 as u64
 }
 
 /// Free the box of a boxed node.

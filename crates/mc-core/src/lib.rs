@@ -74,12 +74,13 @@ mod segs;
 mod session;
 pub mod shapes;
 mod symbols;
+mod unpack;
 mod verify;
 mod young;
 
 pub use gc::{GcEvent, GcKind, GcStats};
 pub use handle::{HOLE, SMALL_MAX, SMALL_MIN};
 pub use heap::{Config, Heap, MemoHit};
-pub use mc_api::{Store, Sym, View, T};
+pub use mc_api::{Packed, Store, Sym, View, PACK_MIN, T};
 pub use roots::{Raw, Roots, Trace};
 pub use session::Session;
