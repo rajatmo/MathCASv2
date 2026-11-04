@@ -1,15 +1,24 @@
 #! mathcas 2
 #@ title: Monte Carlo estimate of pi with the explicit generator
-#@ stresses: random generation (mc-random), a loop over blocks of draws
-#@ note: hits of m uniform points in the unit square inside the quarter disc, drawn in blocks of 10^5 pairs. Checked by a property (4 hits/m within 5 standard deviations of pi), which does not depend on the generator's bits; the seeded count itself is reproducible (decision RNG.2). Compiled code cannot draw yet (numerics roadmap N4), so 10^7 and 10^8 are expected to reach the time limit until then.
+#@ stresses: random generation in a compiled loop (mc-jit draws from mc-random's session stream)
+#@ note: hits of m uniform points in the unit square inside the quarter disc, after seed(2026). The compiled loop draws exactly the interpreter's numbers (decision N4b.2), so the seeded count is exact: 786153 at 10^6 is also what the interpreted loop gives, and what the earlier list form of this case (sum(map(inside, random_real(1.0, [10^5, 2]))) in blocks) counted. The property 4 hits/m within 5 standard deviations of pi holds at every size.
 #@ sizes: m = 10^6, 10^7, 10^8
-#@ check: property
+#@ check: exact
 #@ reps: 3, 1s
 #@ limits: time 40s, memory 4GB
 #@ memo: off
+#@ expect 10^6: 786153
+#@ expect 10^7: 7854611
+#@ expect 10^8: 78542706
 #@ setup
-fn inside(p) = if p[1]^2 + p[2]^2 < 1.0 then 1 else 0
+@compiled fn hits(m: Int) = {
+  var h = 0
+  for k in range(m) {
+    let x = random_real()
+    let y = random_real()
+    if x^2 + y^2 < 1.0 then h = h + 1
+  }
+  h
+}
 #@ measure
-{ seed(2026); var hits = 0; for c in range(m/10^5) { hits = hits + sum(map(inside, random_real(1.0, [10^5, 2]))) }; hits }
-#@ property
-abs(4.0*result/m - n(pi)) < 5.0*sqrt(n(pi)*(4 - n(pi))/m)
+{ seed(2026); hits(m) }
