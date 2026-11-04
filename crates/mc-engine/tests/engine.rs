@@ -147,3 +147,29 @@ fn the_depth_limit_is_an_engine_limit() {
     }
     assert_eq!(eval(&mut e, "2 + 2"), "4");
 }
+
+/// `+`, `*` and `^` (and so `-` and `/`) thread over lists element-wise, broadcasting non-list operands and
+/// nesting; lists of different lengths give `failure(shape_mismatch)` (semantics 7.2).
+#[test]
+fn arithmetic_threads_over_lists() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("[1, 2, 3] + [4, 5, 6]", "[5, 7, 9]"),
+        ("2*[1, 2, 3]", "[2, 4, 6]"),
+        ("[1, 2]*[3, 4]", "[3, 8]"),
+        ("[1, 2] + 1", "[2, 3]"),
+        ("x*[a, b] + [1, 2]", "[1 + a*x, 2 + b*x]"),
+        ("[[1, 2], [3, 4]] + 1", "[[2, 3], [4, 5]]"),
+        ("[[1, 2], [3, 4]]*[10, 100]", "[[10, 20], [300, 400]]"),
+        ("[1, 2]^2", "[1, 4]"),
+        ("2^[1, 2, 3]", "[2, 4, 8]"),
+        ("[1, 2] - [3, 4]", "[-2, -2]"),
+        ("[1, 2]/2", "[1/2, 1]"),
+        ("[1, 2]/[3, 4]", "[1/3, 1/2]"),
+        ("[1.5, 2.5]*2", "[3.0, 5.0]"),
+        ("[] + []", "[]"),
+        ("[1, 2] + [1, 2, 3]", "failure(shape_mismatch)"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

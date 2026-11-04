@@ -286,6 +286,17 @@ mc> table(n(k*pi/4), k, range(0, 4))
 [0.0, 0.7853981633974483, 1.5707963267948966, 2.356194490192345, 3.141592653589793]
 \end{repl}
 
+\noindent Arithmetic works element by element on lists, so a whole vector of values is one expression:
+
+\begin{repl}
+mc> [1, 2, 3] + [10, 20, 30]
+[11, 22, 33]
+mc> n(pi)*[1, 2, 3]/2
+[1.5707963267948966, 3.141592653589793, 4.71238898038469]
+mc> [1, 2, 3]^2
+[1, 4, 9]
+\end{repl}
+
 \section{Iterations}
 
 \code{nest\_list(f, x, k)} applies \code{f} to \code{x} \code{k} times and keeps every step: a fixed-point

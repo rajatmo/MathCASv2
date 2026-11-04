@@ -330,6 +330,12 @@ charge fuel in every loop whose trip count depends on input (section 10).
 A function may declare `listable`: called with list arguments of equal length, it maps over them element-wise (and
 broadcasts non-list arguments). Lists of unequal length give `failure(shape_mismatch)`.
 
+`add`, `mul` and `pow` are listable, so arithmetic is element-wise on lists: `[1, 2] + [3, 4]` is `[4, 6]`,
+`2*[1, 2]` is `[2, 4]`, and subtraction and division (section 3) follow. Threading happens before
+canonicalisation, one level at a time, so nested lists thread level by level (`[[1, 2], [3, 4]] + 1`) and a
+list against a list of lists pairs elements with rows. Products of lists in the sense of linear algebra are
+functions (`dot`), not `*`.
+
 ### 7.3 Operator properties
 
 `associative`, `commutative`, `identity(e)` and `idempotent` may be declared on a symbol. They affect matching (6.2)
