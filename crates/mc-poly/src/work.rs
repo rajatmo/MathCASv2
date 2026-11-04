@@ -76,3 +76,14 @@ impl<'w> Meter<'w> {
         &mut *self.work
     }
 }
+
+/// The quotient of an exact division that must divide: `Ok` with it, or, when it does not divide because the stop
+/// flag was raised inside an arithmetic kernel (which then returns arbitrary values, `mc-arith` num module), a stop.
+/// Without a stop a failed division is a bug and panics with `what`.
+pub fn exact<X>(q: Option<X>, what: &str) -> WorkResult<X> {
+    match q {
+        Some(q) => Ok(q),
+        None if mc_arith::num::stopped() => Err(Halt::Stopped),
+        None => panic!("{what}"),
+    }
+}
