@@ -1,7 +1,7 @@
 #! mathcas 2
 #@ title: Numeric integration of smooth and oscillatory integrands
 #@ stresses: adaptive Gauss-Kronrod quadrature, compiled integrands (15-node batches)
-#@ note: EXPECTED TO FAIL until package N2 (n_integrate) lands: the calls stay unevaluated and the digits check fails. The API is the one planned in docs/design/07-numerics.md. The integrands exp(-x) cos(k x) on [0, pi] go from smooth (k = 1) to about 3000 oscillations (k = 10^4). Reference: the closed form integral = (1 - (-1)^k e^-pi)/(1 + k^2) (two integrations by parts), summed in mpmath at 30 digits; the closed form was checked against mpmath's quadrature for k = 1, 7, 40 to 25 digits.
+#@ note: Package N2 (n_integrate, crates/mc-quad). The integrands exp(-x) cos(k x) on [0, pi] go from smooth (k = 1) to about 3000 oscillations (k = 10^4); adaptive Gauss-Kronrod with the 61-point rule on unresolved intervals, the integrand compiled. Reference: the closed form integral = (1 - (-1)^k e^-pi)/(1 + k^2) (two integrations by parts), summed in mpmath at 30 digits; the closed form was checked against mpmath's quadrature for k = 1, 7, 40 to 25 digits.
 #@ sizes: m = 10^2, 10^3, 10^4
 #@ check: digits 10
 #@ memo: off
