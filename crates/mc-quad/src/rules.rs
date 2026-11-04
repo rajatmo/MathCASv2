@@ -188,7 +188,23 @@ pub fn gauss_kronrod(n: usize) -> Rule {
             wh[i]
         })
         .collect();
-    Rule { nodes: nodes.iter().map(|v| v.0).collect(), kronrod, gauss: nodes.iter().map(|v| v.1).collect() }
+    let gauss: Vec<f64> = nodes.iter().map(|v| v.1).collect();
+    Rule { nodes: nodes.iter().map(|v| v.0).collect(), kronrod: normalised(kronrod), gauss: normalised(gauss) }
+}
+
+/// Weights scaled so that their sum, accumulated in node order as the rules use them, is 2 as nearly as machine
+/// arithmetic allows (constants then integrate to their exact value).
+fn normalised(w: Vec<f64>) -> Vec<f64> {
+    let mut w = w;
+    for _ in 0..4 {
+        let s: f64 = w.iter().sum();
+        if s == 2.0 {
+            break;
+        }
+        let f = 2.0 / s;
+        w.iter_mut().for_each(|v| *v *= f);
+    }
+    w
 }
 
 /// The 7-point Gauss rule in the 15-point Kronrod rule (QUADPACK's `qk15`): the default rule.

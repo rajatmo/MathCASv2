@@ -11,7 +11,7 @@
 //! use mc_bench::{Engine, StopFlag};
 //! let mut e = mc_engine::CoreEngine::new();
 //! let stop = StopFlag::new();
-//! assert_eq!(e.eval("n_integrate(x^2, [x, 0, 3])", &stop).unwrap().printed, "9.0");
+//! assert_eq!(e.eval("n_integrate(exp(-x^2), [x, -inf, inf])", &stop).unwrap().printed, "1.7724538509055163");
 //! ```
 //!
 //! Decisions of this package are numbered N2.1, N2.2, ... in the comments where they are applied.
