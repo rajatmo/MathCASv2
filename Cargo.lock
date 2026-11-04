@@ -469,6 +469,19 @@ name = "mc-bench"
 version = "0.0.0"
 
 [[package]]
+name = "mc-calculus"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "rustc-hash",
+]
+
+[[package]]
 name = "mc-core"
 version = "0.0.0"
 dependencies = [
@@ -486,6 +499,7 @@ dependencies = [
  "mc-api",
  "mc-arith",
  "mc-bench",
+ "mc-calculus",
  "mc-core",
  "mc-eval",
  "mc-jit",

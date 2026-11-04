@@ -1,0 +1,17 @@
+[package]
+name = "mc-calculus"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 calculus: symbolic differentiation (d, gradients, higher and mixed derivatives, the derivative operator)"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }
