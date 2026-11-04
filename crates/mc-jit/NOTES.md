@@ -128,3 +128,75 @@ to both (handed to package 9).
   `NativeCx::volatile()` and is never memoised (otherwise a recompiled function kept reporting `stale`).
 - `Jit::flush` stays; `NativeCx::register_compiled` (an effect) now exists and would let `compile(f)` take effect
   within its own statement (1b.5) if `compile` used it.
+
+## Package J (JIT real arithmetic, branch `lib/r4-jit`, commit 47b60c8; merge 9dcb14f)
+
+Compiled code computes powers of machine reals and sums/products of 3+ operands (or with exact parts) inline,
+bit-identical to the interpreter except NaN sign/payload. Mandelbrot `grid(300)`: 3.69 s -> 0.015 s. On the branch:
+workspace 523 passed; clippy clean.
+
+### What the interpreter computes
+
+- The stored body is canonical (`x*x` is `x^2`; `x*x - y*y + cr` is `add(cr, mul(-1, y^2), x^2)`; `3.0*i/n` is
+  `mul(3.0, i, n^-1)`); at run time `add`/`mul` of numbers are `Num::sum`/`Num::product`, `pow` is `Num::pow`.
+- `x^k` (machine real, integer k): k = 0 gives exact `1`; otherwise one `powf` with the signed exponent as a real
+  (`x.powf(+-(|k| as f64))`): no repeated multiplication, binary powering or reciprocal.
+- `x^c` (both machine reals): `powf` when x >= 0, x NaN or infinite, c integral, or c not finite; otherwise complex.
+- `x^(n/d)` (constant rational): the exponent converted to a machine real once (correctly rounded), then the same
+  rule; an integer-valued n/d takes the integer rule.
+- Sums and products (`Num::fold`): exact operands combined exactly; that exact value, if any, converted once to the
+  nearest machine real (ties to even; exact zero is +0) starts the fold even when zero; the machine reals sorted by
+  `cmp_canonical` (by value, -0.0 before 0.0, NaN last); then a left fold.
+
+### Decisions
+
+- **J.1** Inline code reproduces the arithmetic step for step, never approximates (no unrolling, no `x*x` for
+  `powf`); refines 1b.3: `rt::num` remains only for what inline code cannot reproduce.
+- **J.2** Powers: real^int bails at k = 0, then `rt::pow_int` (mirrors `pow_int`); real^real: the `pow_machine`
+  real-result test (`FTrunc`), bail otherwise, then `rt::pow_real` (`powf`); real^constant rational: converted at
+  compile time with `Real::Exact(q).to_f64()`, the test dropped when known; `sqrt` takes the `x^(1/2)` path. Exact
+  bases and run-time ratio exponents still use the helper.
+- **J.3** Canonical order at run time: each real maps to a total-order integer key (flip the 63 low bits when the
+  sign bit is set); a sorting network of `smin`/`smax` (1, 3, 5, 9, 12 comparators for 2-6 values, checked by the 0-1
+  principle) sorts the keys; keys map back (the map is its own inverse); equal keys are equal bit patterns, so ties
+  never matter. `MAX_SORTED = 6`; beyond it the helper.
+- **J.4** Exact parts: integers folded with overflow-flagged ops (`IAddOv`, new `IMulOv`), converted with `IToF`; with
+  ratios the result is `N/D`, one IEEE division of `IToF(N)` by `IToF(D)` (correctly rounded for |N|, |D| <= 2^53,
+  D != 0; N = 0 gives +0). Overflow, out-of-range values or a zero divisor branch to a slow path that calls the helper
+  on the same operands (nothing that computed before now declines). A rational inside a sum still uses the helper.
+- **J.5** `b^-1` (integer b) becomes a ratio with denominator b directly.
+- **J.6** NaN: only the sign and payload of a NaN result can differ (any NaN operand makes the result NaN); tests treat
+  all NaNs as one value.
+
+### API additions
+
+LIR ops `IMulOv`, `IMinMax`, `IToF`, `FTrunc`, `FKey`, `FromKey`, `PowI`, `PowF` (both back ends); `ir::MAX_SORTED`,
+`ir::NETWORKS`; `rt::pow_int`, `rt::pow_real`, `rt::order_key`, `rt::from_order_key`; example `examples/mandelbrot.rs`
+(`cargo run --release -p mc-jit --example mandelbrot -- [n] [reps]`, memo off, checked against the interpreter). No
+edits outside the crate.
+
+### Tests (6 new, 1 extended)
+
+- `tests/agree.rs` (7, 4 new): `sums_and_products_are_the_arithmetics` (142 shapes x 400 random tuples: 1-8 reals,
+  0-2 integers, 0-2 ratios shuffled; random bits, +-0, +-inf, +-NaN, subnormals, extremes, cancelling pairs, values one
+  bit apart, integers at 2^53+-1 and the i64 ends; bitwise against `mc_arith::Num` except NaN; disabling the sort
+  fails it); `powers_are_the_arithmetics` (real^int, real^real, real^ratio, int^real, int^ratio, 20,000 tuples each;
+  23 constant exponents x 2000 values); `sorting_networks_sort`; `order_keys_follow_the_canonical_order`.
+- `tests/engine.rs` (9, 1 new): cases `mandel`, `poly`, `sum6`, `sum8` (helper), `bigx` (overflow slow path, zero
+  divisor), `pw` on both back ends and at 4 threads; `the_mandelbrot_grid_runs_inline` (`grid(300) = 1893529`, no
+  declines, under 1 s).
+
+### Measurements (busy machine, release, guard)
+
+| Run | Before | After |
+|---|---|---|
+| `grid(300)`, memo off | 3.69 s (median of 3) | 0.015 s (median of 9) |
+| R12c 10^4 / 10^5 / 10^6 | 3.46 ms / 43.5 ms / 529 ms | 2.14 ms / 27.0 ms / 327 ms (integer code unchanged: noise) |
+
+`grid(300)` is about 1.9 million iterations (about 8 ns each); `escape` is 76 LIR instructions and 960 bytes of code.
+
+### Known gaps
+
+More than 6 machine reals in one sum or product, rationals inside a sum, exact bases, run-time rational exponents, and
+exact parts beyond 64 bits (or 2^53 with ratios) use the helper (correct, slower); `powf` stays a call; no common
+subexpression elimination of repeated powers; NaN sign/payload as J.6.
