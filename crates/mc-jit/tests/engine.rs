@@ -79,6 +79,11 @@ const CASES: &[(&str, &str, &[&str])] = &[
     ("vecs", "fn vecs(x: Real, n: Int) = { let v = [x*x, x + n, [n, 2.5]]; [v[3][1], v[-1][2]*v[1], length(v), if x > 0.0 then [x, n] else [-x, n + 1]] }", &["1.5, 3", "-2.0, 9223372036854775807", "0.0*(1e308*10.0), -4", "-0.0, 0"]),
     ("npi", "fn npi(x: Real, k: Int) = x*n(pi) + n(e) - n(k) + n(x)", &["1.5, 3", "-0.0, 9007199254740993", "1e308*10.0, 0"]),
     ("jac", "fn jac(x: Real, y: Real) = [[2.0*x, 1.0], [y, x*y - sin(y)]]", &["1.0, 2.0", "-0.5, 1e300", "0.0, -0.0"]),
+    // package N4b: machine complex numbers (inline arithmetic, integer powers, parts, the helpers)
+    ("cplx", "fn cplx(x: Real, y: Real) = { let z = complex(x, y); let w = x + y*im; [z*w + 2, z^3 - z^-2, 1/z, conjugate(z)*im, abs(z) + re(z) - im_part(z), im_part(x) + 1, 3*z - z^2 + 1.5, z + w + 1.0] }", &["1.5, -2.0", "-0.0, 3.0", "0.0, 0.0", "1e308*10.0, 1.0", "0.0*(1e308*10.0), 2.0", "1e200, -1e200", "4.9e-324, -0.0"]),
+    ("cfun", "fn cfun(x: Real, y: Real) = { let z = complex(x, y); [exp(z), log(z), sqrt(z), sin(z), z^0.5, 2^z, z^(1/3), z^x, tanh(z)] }", &["1.5, -2.0", "-1.0, 0.0", "0.0, 0.0", "-0.0, -0.0", "1e308*10.0, 1.0", "700.0, 3.0"]),
+    ("cloop", "fn cloop(cr: Real, ci: Real) = { let c = complex(cr, ci); var z = complex(0.0, 0.0); var k = 0; while k < 256 and abs(z) <= 2.0 { z = z^2 + c; k = k + 1 }; if k < 256 then k else -k }", &["0.0, 0.0", "-0.75, 0.1", "0.3, 0.5", "-2.0, 0.0", "0.25, 0.0", "1.0, 1.0", "-0.0, -0.0", "0.0*(1e308*10.0), 0.0"]),
+    ("cres", "fn cres(x: Real, n: Int) = { var z = complex(x, 1); for k in range(n) { z = z * complex(0.5, x) - k }; z }", &["0.5, 3", "-1.5, 10", "1e300, 4", "0.0, 0"]),
 ];
 
 /// Engines with and without the compiler, given the same definitions.

@@ -16,6 +16,9 @@ mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-numeric = { path = "../mc-numeric" }
+mc-random = { path = "../mc-random" }
+# parallel batches of compiled expressions (package N4b)
+rayon = "1.12"
 
 [dev-dependencies]
 mc-bench = { path = "../mc-bench" }

@@ -4,7 +4,7 @@
 //! Labels are resolved to instruction indices once; registers are untyped 64-bit words (reals by their bits,
 //! booleans as 0 or 1). Register indices are checked when the program is built, so the run loop indexes freely.
 use crate::ir::{BOp, Cc, FOp, IOp, Lir, Op, OpdK};
-use crate::rt::{self, Env, Exit, EXACT_REAL_INT, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
+use crate::rt::{self, Env, Exit, EXACT_REAL_INT, OPD_CEXACT, OPD_COMPLEX, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
 
 /// A LIR function prepared for interpretation. Immutable: every call has its own registers.
 pub struct Interp {
@@ -28,7 +28,11 @@ fn operands(op: &Op) -> Vec<u32> {
         | Op::IToF(d, a)
         | Op::FTrunc(d, a)
         | Op::FKey(d, a)
+        | Op::FNeg(d, a)
         | Op::FromKey(d, a) => vec![*d, *a],
+        Op::Draw(_, d, a, b) => vec![*d, *a, *b],
+        Op::CMath(_, d, e, a, b) => vec![*d, *e, *a, *b],
+        Op::CNum(_, d, e, opds) => [*d, *e].into_iter().chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
         Op::IChk(_, d, a, b)
         | Op::FBin(_, d, a, b)
         | Op::ICmp(_, d, a, b)
@@ -177,16 +181,22 @@ impl Interp {
                 Op::Floor(d, a) => r[d as usize] = rt::floor_exact(gf(r, a)).ok_or(Exit::Decline)? as u64,
                 Op::Math(f, d, a) => r[d as usize] = rt::math_fn(f)(gf(r, a)).to_bits(),
                 Op::Num(o, d, ref opds) => {
-                    let mut words = Vec::with_capacity(opds.len() * OPD_WORDS);
-                    for &(k, a, b) in opds {
-                        let tag = match k {
-                            OpdK::Int => OPD_INT,
-                            OpdK::Real => OPD_REAL,
-                            OpdK::Ratio => OPD_RATIO,
-                        };
-                        words.extend([tag, r[a as usize], r[b as usize]]);
-                    }
-                    r[d as usize] = rt::num_words(o, &words).ok_or(Exit::Decline)?.to_bits();
+                    r[d as usize] = rt::num_words(o, &opd_words(r, opds)).ok_or(Exit::Decline)?.to_bits();
+                }
+                Op::CNum(o, d, e, ref opds) => {
+                    let (a, b) = rt::cnum_words(o, &opd_words(r, opds)).ok_or(Exit::Decline)?;
+                    r[d as usize] = a.to_bits();
+                    r[e as usize] = b.to_bits();
+                }
+                Op::CMath(f, d, e, a, b) => {
+                    let (x, y) = rt::cmath_value(f, gf(r, a), gf(r, b));
+                    r[d as usize] = x.to_bits();
+                    r[e as usize] = y.to_bits();
+                }
+                Op::FNeg(d, a) => r[d as usize] = (-gf(r, a)).to_bits(),
+                Op::Draw(k, d, a, b) => {
+                    // SAFETY: `env` is a live environment whose stream, if any, is this call's (`Env::with_stream`).
+                    r[d as usize] = unsafe { rt::draw_value(env, k, r[a as usize], r[b as usize]) }.ok_or(Exit::Decline)?;
                 }
                 Op::Bail(c) => {
                     if r[c as usize] != 0 {
@@ -214,6 +224,26 @@ impl Interp {
                 }
             }
         }
+    }
+}
+
+/// The helper's operand words ([`rt::OPD_WORDS`] per operand) from the registers.
+fn opd_words(r: &[u64], opds: &[(OpdK, u32, u32)]) -> Vec<u64> {
+    let mut words = Vec::with_capacity(opds.len() * OPD_WORDS);
+    for &(k, a, b) in opds {
+        words.extend([opd_tag(k), r[a as usize], r[b as usize]]);
+    }
+    words
+}
+
+/// The helper's tag of an operand kind.
+pub(crate) fn opd_tag(k: OpdK) -> u64 {
+    match k {
+        OpdK::Int => OPD_INT,
+        OpdK::Real => OPD_REAL,
+        OpdK::Ratio => OPD_RATIO,
+        OpdK::Complex => OPD_COMPLEX,
+        OpdK::CExact => OPD_CEXACT,
     }
 }
 

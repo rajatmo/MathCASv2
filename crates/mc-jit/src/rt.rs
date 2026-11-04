@@ -1,15 +1,18 @@
 //! The run-time side of compiled code: the environment block every compiled call receives, and the helpers both
 //! back ends call (the poll, exact integer powers, the arithmetic's own operations, its powers of machine reals,
-//! the order key of machine reals, the elementary functions).
+//! the order key of machine reals, the elementary functions, random draws from the session stream, the complex
+//! functions).
 //!
 //! **ABI** (decision 1b.4, after spike E's E.6): a compiled function takes its parameters (an `Int` as `i64`, a
 //! `Real` as `f64`) and then a pointer to an [`Env`]; it returns one word (a boolean as 0 or 1). Its uniform entry
 //! `extern "C" fn(args: *const u64, env: *mut Env) -> u64` reads the parameters from memory. A call ends normally
 //! with [`Env::exit`] at [`Exit::Done`]; a decline or a stop sets it and returns 0.
-use crate::ir::{Lib, NumOp};
+use crate::ir::{Draw, Lib, NumOp};
 use mc_arith::num::{Int, Rat};
 use mc_arith::{Num, Real, DEFAULT_MAX_BITS};
 use mc_eval::Control;
+use mc_random::draw::{normal_ok, real_range_ok};
+use mc_random::Stream;
 use std::ffi::c_void;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::Ordering::Relaxed;
@@ -43,6 +46,10 @@ pub struct Env {
     pub out: *mut u64,
     /// The length of the output buffer in words (the host checks it covers every slot before the call).
     pub nout: usize,
+    /// The session's random stream for the draws of this call (package N4b), or null: a draw then declines. The
+    /// host holds the generator's lock for the whole call and restores the stream when the call does not complete,
+    /// so that the interpreter, evaluating the call instead, draws the same numbers.
+    pub stream: *mut Stream,
 }
 
 /// Byte offset of [`Env::ctl`] (ABI).
@@ -69,6 +76,17 @@ impl Env {
 
     /// [`Env::with`] with the output buffer `out` for a vector result.
     pub fn with_out<R>(ctl: &Control, poll: &mut PollFn<'_>, out: &mut [u64], f: impl FnOnce(&mut Env) -> R) -> (R, Exit) {
+        Env::with_stream(ctl, poll, out, None, f)
+    }
+
+    /// [`Env::with_out`] with the random stream the call's draws come from.
+    pub fn with_stream<R>(
+        ctl: &Control,
+        poll: &mut PollFn<'_>,
+        out: &mut [u64],
+        stream: Option<&mut Stream>,
+        f: impl FnOnce(&mut Env) -> R,
+    ) -> (R, Exit) {
         let mut p: &mut PollFn<'_> = poll;
         let mut env = Env {
             ctl,
@@ -77,6 +95,7 @@ impl Env {
             panic: None,
             out: out.as_mut_ptr(),
             nout: out.len(),
+            stream: stream.map_or(std::ptr::null_mut(), |s| s as *mut Stream),
         };
         let r = f(&mut env);
         if let Some(payload) = env.panic.take() {
@@ -204,6 +223,10 @@ pub const OPD_INT: u64 = 0;
 pub const OPD_REAL: u64 = 1;
 /// An exact rational operand: numerator, denominator.
 pub const OPD_RATIO: u64 = 2;
+/// A machine complex operand: real part, imaginary part.
+pub const OPD_COMPLEX: u64 = 3;
+/// An exact complex operand with integer parts: real part, imaginary part.
+pub const OPD_CEXACT: u64 = 4;
 
 /// The words of one [`NumOp`] operand: tag, value (or numerator), denominator.
 pub const OPD_WORDS: usize = 3;
@@ -234,30 +257,165 @@ pub unsafe extern "C" fn num(env: *mut Env, op: u64, ops: *const u64, n: u64) ->
 
 /// The helper's code on safe data: the machine real result of `op`, or `None`.
 pub fn num_words(op: NumOp, words: &[u64]) -> Option<f64> {
+    match num_value(op, words)? {
+        Num::Real(Real::Machine(v)) => Some(v),
+        _ => None,
+    }
+}
+
+/// The value of `op` on the operands in `words`, computed by the arithmetic (`None`: a zero denominator, or an
+/// error of the arithmetic).
+fn num_value(op: NumOp, words: &[u64]) -> Option<Num> {
+    let m = |w: u64| Real::Machine(f64::from_bits(w));
     let nums = words
         .as_chunks::<OPD_WORDS>()
         .0
         .iter()
         .map(|w| match w[0] {
             OPD_INT => Some(Num::int(w[1] as i64)),
-            OPD_REAL => Some(Num::Real(Real::Machine(f64::from_bits(w[1])))),
+            OPD_REAL => Some(Num::Real(m(w[1]))),
+            OPD_COMPLEX => Some(Num::Complex(m(w[1]), m(w[2]))),
+            OPD_CEXACT => Some(Num::complex(Real::int(w[1] as i64), Real::int(w[2] as i64))),
             _ => {
                 let den = w[2] as i64;
                 (den != 0).then(|| Num::rat(Rat::new(Int::from_i64(w[1] as i64), Int::from_i64(den))))
             }
         })
         .collect::<Option<Vec<Num>>>()?;
-    let r = match op {
+    Some(match op {
         NumOp::Sum => Num::sum(nums),
         NumOp::Product => Num::product(nums),
         NumOp::Pow => {
             let [b, e] = nums.as_slice() else { return None };
             b.pow(e, DEFAULT_MAX_BITS).ok()?
         }
-    };
-    match r {
-        Num::Real(Real::Machine(v)) => Some(v),
+    })
+}
+
+/// The machine complex result of `op` on the operands in `words` as the arithmetic computes it, or `None` when the
+/// result is anything else (a real or exact number, an error).
+pub fn cnum_words(op: NumOp, words: &[u64]) -> Option<(f64, f64)> {
+    match num_value(op, words)? {
+        Num::Complex(Real::Machine(a), Real::Machine(b)) => Some((a, b)),
         _ => None,
+    }
+}
+
+/// [`num`] with a machine complex result: returns the real part's bits and writes the imaginary part's to `im`;
+/// declines (returning 0) for any other result.
+///
+/// # Safety
+/// `env` points to a live [`Env`]; `ops` points to `n * OPD_WORDS` readable words; `im` to one writable word.
+pub unsafe extern "C" fn cnum(env: *mut Env, op: u64, ops: *const u64, n: u64, im: *mut u64) -> u64 {
+    // SAFETY: the caller's contract.
+    let words = unsafe { std::slice::from_raw_parts(ops, n as usize * OPD_WORDS) };
+    let op = match op {
+        0 => NumOp::Sum,
+        1 => NumOp::Product,
+        _ => NumOp::Pow,
+    };
+    match cnum_words(op, words) {
+        Some((a, b)) => {
+            // SAFETY: the caller's contract.
+            unsafe { *im = b.to_bits() };
+            a.to_bits()
+        }
+        None => {
+            // SAFETY: the caller's contract.
+            unsafe { &mut *env }.decline();
+            0
+        }
+    }
+}
+
+/// The principal value of the elementary function `f` at `re + im i`, as the interpreter computes it for a machine
+/// complex argument (`mc_numeric::Fun::machine`).
+pub fn cmath_value(f: Lib, re: f64, im: f64) -> (f64, f64) {
+    use mc_numeric::fun::Mach;
+    use mc_numeric::machine::C64;
+    let fun = mc_numeric::Fun::from_name(f.name()).expect("every compiled function is an elementary function");
+    let z = fun.machine(Mach::Complex(C64::new(re, im))).c64();
+    (z.re, z.im)
+}
+
+/// [`cmath_value`] for compiled code: `f` is the index of the function in [`Lib::ALL`]; returns the real part and
+/// writes the imaginary part to `im`.
+///
+/// # Safety
+/// `im` points to one writable machine real.
+pub unsafe extern "C" fn cmath(f: u64, re: f64, im_in: f64, im: *mut f64) -> f64 {
+    let (a, b) = cmath_value(Lib::ALL[f as usize], re, im_in);
+    // SAFETY: the caller's contract.
+    unsafe { *im = b };
+    a
+}
+
+/// A draw on the call's stream, or `None` (no stream attached, or arguments the native would refuse: the call
+/// declines before the stream moves, and the interpreter gives the native's failure).
+///
+/// # Safety
+/// `env` points to a live [`Env`] whose `stream` is null or points to a stream nothing else uses during the call.
+pub unsafe fn draw_value(env: *mut Env, d: Draw, a: u64, b: u64) -> Option<u64> {
+    // SAFETY: the caller's contract.
+    let env = unsafe { &mut *env };
+    if env.stream.is_null() {
+        return None;
+    }
+    // SAFETY: as above: the host holds the generator's lock for the whole call.
+    let s = unsafe { &mut *env.stream };
+    let (x, y) = (f64::from_bits(a), f64::from_bits(b));
+    match d {
+        Draw::Real => real_range_ok(x, y).then(|| s.real_in(x, y - x).to_bits()),
+        Draw::Normal => normal_ok(x, y).then(|| s.normal_scaled(x, y).to_bits()),
+        Draw::Integer => ((a as i64) <= (b as i64)).then(|| s.int_in(a as i64, b as i64) as u64),
+    }
+}
+
+/// `random_real([a, b])` for compiled code (declines like [`draw_value`]).
+///
+/// # Safety
+/// As [`draw_value`].
+pub unsafe extern "C" fn draw_real(env: *mut Env, a: f64, b: f64) -> f64 {
+    // SAFETY: the caller's contract.
+    match unsafe { draw_value(env, Draw::Real, a.to_bits(), b.to_bits()) } {
+        Some(w) => f64::from_bits(w),
+        None => {
+            // SAFETY: the caller's contract.
+            unsafe { &mut *env }.decline();
+            0.0
+        }
+    }
+}
+
+/// `random_normal(mu, sigma)` for compiled code (declines like [`draw_value`]).
+///
+/// # Safety
+/// As [`draw_value`].
+pub unsafe extern "C" fn draw_normal(env: *mut Env, mu: f64, sigma: f64) -> f64 {
+    // SAFETY: the caller's contract.
+    match unsafe { draw_value(env, Draw::Normal, mu.to_bits(), sigma.to_bits()) } {
+        Some(w) => f64::from_bits(w),
+        None => {
+            // SAFETY: the caller's contract.
+            unsafe { &mut *env }.decline();
+            0.0
+        }
+    }
+}
+
+/// `random_integer([a, b])` for compiled code (declines like [`draw_value`]).
+///
+/// # Safety
+/// As [`draw_value`].
+pub unsafe extern "C" fn draw_int(env: *mut Env, a: i64, b: i64) -> i64 {
+    // SAFETY: the caller's contract.
+    match unsafe { draw_value(env, Draw::Integer, a as u64, b as u64) } {
+        Some(w) => w as i64,
+        None => {
+            // SAFETY: the caller's contract.
+            unsafe { &mut *env }.decline();
+            0
+        }
     }
 }
 

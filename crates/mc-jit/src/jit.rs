@@ -4,8 +4,9 @@
 //! dropped (when its specialisation is replaced). The ABI is [`crate::rt`]'s: the native calling convention with
 //! the parameters followed by the [`Env`] pointer, and a uniform entry `fn(args: *const u64, env: *mut Env) -> u64`
 //! that the host calls.
-use crate::ir::{BOp, Cc, FOp, IOp, Lib, Lir, Op, OpdK, K};
-use crate::rt::{self, Env, Exit, CTL_STOP_STATUS, ENV_CTL, ENV_EXIT, ENV_OUT, EXACT_REAL_INT, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
+use crate::interp::opd_tag;
+use crate::ir::{BOp, Cc, Draw, FOp, IOp, Lib, Lir, Op, OpdK, K};
+use crate::rt::{self, Env, Exit, CTL_STOP_STATUS, ENV_CTL, ENV_EXIT, ENV_OUT, EXACT_REAL_INT, OPD_WORDS, POLL_EVERY};
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{
     types, AbiParam, Block, FuncRef, InstBuilder, MemFlagsData, StackSlotData, StackSlotKind, Type, UserFuncName, Value,
@@ -84,6 +85,11 @@ struct Imports {
     ipow: FuncId,
     pow_int: FuncId,
     pow_real: FuncId,
+    cnum: FuncId,
+    cmath: FuncId,
+    draw_real: FuncId,
+    draw_normal: FuncId,
+    draw_int: FuncId,
 }
 
 /// The host's target description, made once per process (decision N0.8: detecting the host and building the
@@ -108,9 +114,14 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
-    let helpers: [(&str, *const u8); 10] = [
+    let helpers: [(&str, *const u8); 15] = [
         ("mc_jit_poll", rt::poll as *const u8),
         ("mc_jit_num", rt::num as *const u8),
+        ("mc_jit_cnum", rt::cnum as *const u8),
+        ("mc_jit_cmath", rt::cmath as *const u8),
+        ("mc_jit_draw_real", rt::draw_real as *const u8),
+        ("mc_jit_draw_normal", rt::draw_normal as *const u8),
+        ("mc_jit_draw_int", rt::draw_int as *const u8),
         ("mc_jit_ipow", rt::ipow as *const u8),
         ("mc_jit_pow_int", rt::pow_int as *const u8),
         ("mc_jit_pow_real", rt::pow_real as *const u8),
@@ -142,6 +153,11 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         ipow: import(&mut module, "mc_jit_ipow", &[ptr, types::I64, types::I64], types::I64)?,
         pow_int: import(&mut module, "mc_jit_pow_int", &[types::F64, types::I64], types::F64)?,
         pow_real: import(&mut module, "mc_jit_pow_real", &[types::F64, types::F64], types::F64)?,
+        cnum: import(&mut module, "mc_jit_cnum", &[ptr, types::I64, ptr, types::I64, ptr], types::I64)?,
+        cmath: import(&mut module, "mc_jit_cmath", &[types::I64, types::F64, types::F64, ptr], types::F64)?,
+        draw_real: import(&mut module, "mc_jit_draw_real", &[ptr, types::F64, types::F64], types::F64)?,
+        draw_normal: import(&mut module, "mc_jit_draw_normal", &[ptr, types::F64, types::F64], types::F64)?,
+        draw_int: import(&mut module, "mc_jit_draw_int", &[ptr, types::I64, types::I64], types::I64)?,
     };
 
     let mut ctx = module.make_context();
@@ -168,6 +184,11 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
             ipow: module.declare_func_in_func(imports.ipow, b.func),
             pow_int: module.declare_func_in_func(imports.pow_int, b.func),
             pow_real: module.declare_func_in_func(imports.pow_real, b.func),
+            cnum: module.declare_func_in_func(imports.cnum, b.func),
+            cmath: module.declare_func_in_func(imports.cmath, b.func),
+            draw_real: module.declare_func_in_func(imports.draw_real, b.func),
+            draw_normal: module.declare_func_in_func(imports.draw_normal, b.func),
+            draw_int: module.declare_func_in_func(imports.draw_int, b.func),
         };
         let mut g = Gen::new(&mut b, lir, rty, refs, ptr);
         g.body();
@@ -221,6 +242,11 @@ struct Refs {
     ipow: FuncRef,
     pow_int: FuncRef,
     pow_real: FuncRef,
+    cnum: FuncRef,
+    cmath: FuncRef,
+    draw_real: FuncRef,
+    draw_normal: FuncRef,
+    draw_int: FuncRef,
 }
 
 struct Gen<'a, 'b> {
@@ -561,29 +587,56 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.set(d, v)
             }
             Op::Num(o, d, ref opds) => {
-                let words = (opds.len() * OPD_WORDS * 8) as u32;
-                let ss = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, words, 3));
-                for (i, &(k, a, b)) in opds.iter().enumerate() {
-                    let base = (i * OPD_WORDS * 8) as i32;
-                    let tag = match k {
-                        OpdK::Int => OPD_INT,
-                        OpdK::Real => OPD_REAL,
-                        OpdK::Ratio => OPD_RATIO,
-                    };
-                    let t = self.b.ins().iconst(i64t, tag as i64);
-                    self.b.ins().stack_store(self.ptr, t, ss, base);
-                    let va = self.get(a);
-                    self.b.ins().stack_store(self.ptr, va, ss, base + 8);
-                    let vb = self.get(b);
-                    self.b.ins().stack_store(self.ptr, vb, ss, base + 16);
-                }
-                let addr = self.b.ins().stack_addr(self.ptr, ss, 0);
+                let addr = self.opd_slot(opds);
                 let code = self.b.ins().iconst(i64t, rt::num_op_code(o) as i64);
                 let n = self.b.ins().iconst(i64t, opds.len() as i64);
                 let call = self.b.ins().call(self.refs.num, &[self.env, code, addr, n]);
                 let bits = self.b.inst_results(call)[0];
                 self.check_exit();
                 let v = self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits);
+                self.set(d, v)
+            }
+            Op::CNum(o, d, e, ref opds) => {
+                let addr = self.opd_slot(opds);
+                let im = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8, 3));
+                let im_addr = self.b.ins().stack_addr(self.ptr, im, 0);
+                let code = self.b.ins().iconst(i64t, rt::num_op_code(o) as i64);
+                let n = self.b.ins().iconst(i64t, opds.len() as i64);
+                let call = self.b.ins().call(self.refs.cnum, &[self.env, code, addr, n, im_addr]);
+                let bits = self.b.inst_results(call)[0];
+                self.check_exit();
+                let re = self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits);
+                let iv = self.b.ins().stack_load(self.ptr, types::F64, im, 0);
+                self.set(d, re);
+                self.set(e, iv)
+            }
+            Op::CMath(f, d, e, a, b) => {
+                let (x, y) = (self.get(a), self.get(b));
+                let im = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8, 3));
+                let im_addr = self.b.ins().stack_addr(self.ptr, im, 0);
+                let i = Lib::ALL.iter().position(|&l| l == f).expect("a library function");
+                let code = self.b.ins().iconst(i64t, i as i64);
+                let call = self.b.ins().call(self.refs.cmath, &[code, x, y, im_addr]);
+                let re = self.b.inst_results(call)[0];
+                let iv = self.b.ins().stack_load(self.ptr, types::F64, im, 0);
+                self.set(d, re);
+                self.set(e, iv)
+            }
+            Op::FNeg(d, a) => {
+                let x = self.get(a);
+                let v = self.b.ins().fneg(x);
+                self.set(d, v)
+            }
+            Op::Draw(k, d, a, b) => {
+                let (x, y) = (self.get(a), self.get(b));
+                let f = match k {
+                    Draw::Real => self.refs.draw_real,
+                    Draw::Normal => self.refs.draw_normal,
+                    Draw::Integer => self.refs.draw_int,
+                };
+                let call = self.b.ins().call(f, &[self.env, x, y]);
+                let v = self.b.inst_results(call)[0];
+                self.check_exit();
                 self.set(d, v)
             }
             Op::Bail(c) => {
@@ -623,6 +676,22 @@ impl<'a, 'b> Gen<'a, 'b> {
                 self.terminated = true;
             }
         }
+    }
+
+    /// The helper's operand array on the stack ([`OPD_WORDS`] words per operand: tag and two registers); its address.
+    fn opd_slot(&mut self, opds: &[(OpdK, u32, u32)]) -> Value {
+        let words = (opds.len() * OPD_WORDS * 8) as u32;
+        let ss = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, words, 3));
+        for (i, &(k, a, b)) in opds.iter().enumerate() {
+            let base = (i * OPD_WORDS * 8) as i32;
+            let t = self.b.ins().iconst(types::I64, opd_tag(k) as i64);
+            self.b.ins().stack_store(self.ptr, t, ss, base);
+            let va = self.get(a);
+            self.b.ins().stack_store(self.ptr, va, ss, base + 8);
+            let vb = self.get(b);
+            self.b.ins().stack_store(self.ptr, vb, ss, base + 16);
+        }
+        self.b.ins().stack_addr(self.ptr, ss, 0)
     }
 
     /// [`rt::order_key`] on the bits of a machine real, and its inverse on a key: flip the 63 low bits when the sign

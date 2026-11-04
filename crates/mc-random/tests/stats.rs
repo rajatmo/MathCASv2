@@ -37,7 +37,7 @@ fn uniform_reals() {
         assert!(c < 27.9, "seed {seed}: chi-square {c} for {bins:?}");
         // successive pairs on a 4 x 4 grid, 15 degrees of freedom: 99.9% quantile 37.7
         let mut grid = [0u64; 16];
-        for p in xs.chunks_exact(2) {
+        for p in xs.as_chunks::<2>().0 {
             grid[(p[0] * 4.0) as usize * 4 + (p[1] * 4.0) as usize] += 1;
         }
         let c = chi2(&grid);

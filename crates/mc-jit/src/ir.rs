@@ -18,6 +18,11 @@
 //! What the inline code cannot compute exactly as the arithmetic does (an exact part beyond 64 bits, more than
 //! [`MAX_SORTED`] machine reals, a rational in a sum, an exact base) calls the arithmetic itself
 //! ([`crate::rt::num`]), so that results agree with the interpreter by construction.
+//!
+//! Package N4b added **random draws** ([`E::Draw`], [`Op::Draw`]: the session generator's own conversions, called
+//! through [`crate::rt`]) and **machine complex numbers**, which the front end splits into their real and imaginary
+//! parts: inline arithmetic on the parts where it is the arithmetic's own step, and statements [`S::Pair`] (LIR
+//! [`Op::CNum`], [`Op::CMath`]) that call the arithmetic or `mc-numeric`'s complex functions for the rest.
 use crate::rt::EXACT_REAL_INT;
 use mc_arith::num::{Int, Rat};
 use mc_arith::Real;
@@ -161,6 +166,29 @@ impl Lib {
     }
 }
 
+/// A random draw from the session generator (package N4b): the conversions `mc_random::Stream::real_in`,
+/// `normal_scaled` and `int_in`, the very code the natives draw with.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Draw {
+    /// `random_real([a, b])`: `a + (b - a) u` with `u` uniform in [0, 1); declines for a range the native refuses
+    Real,
+    /// `random_normal(mu, sigma)`: `mu + sigma z` with `z` standard normal; declines for arguments the native refuses
+    Normal,
+    /// `random_integer([a, b])`: uniform in [a, b]; declines for `a > b`
+    Integer,
+}
+
+impl Draw {
+    /// The function's name in the language.
+    pub fn name(self) -> &'static str {
+        match self {
+            Draw::Real => "random_real",
+            Draw::Normal => "random_normal",
+            Draw::Integer => "random_integer",
+        }
+    }
+}
+
 /// An arithmetic operation computed by the arithmetic's own code ([`crate::rt::num`]).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum NumOp {
@@ -181,6 +209,20 @@ pub enum Opd {
     Real(E),
     /// the exact rational `num / den` (a zero denominator declines)
     Ratio(E, E),
+    /// a machine complex number: real and imaginary part, machine reals ([`S::Pair`] only)
+    Complex(E, E),
+    /// an exact complex number with integer parts ([`S::Pair`] only)
+    CExact(E, E),
+}
+
+/// What an [`S::Pair`] computes: a machine complex number.
+#[derive(Clone, Debug)]
+pub enum Pair {
+    /// an operation of the arithmetic (`mc_arith::Num`) whose result is a machine complex number (declines otherwise)
+    Num(NumOp, Vec<Opd>),
+    /// an elementary function of the machine complex number with these parts: its principal value as `mc-numeric`
+    /// computes it
+    Math(Lib, E, E),
 }
 
 /// HIR expressions. Every operand has the type the operation names; [`type_of`] checks it.
@@ -218,6 +260,12 @@ pub enum E {
     Num(NumOp, Vec<Opd>),
     /// `c ? a : b`, both sides evaluated (they are pure)
     Sel(Box<E>, Box<E>, Box<E>),
+    /// `-x` of a machine real (the sign bit flipped)
+    NegF(Box<E>),
+    /// a random draw with two arguments (machine reals for [`Draw::Real`] and [`Draw::Normal`], integers for
+    /// [`Draw::Integer`]); an effect: the front end evaluates it once, in a statement of its own, in the order the
+    /// interpreter draws
+    Draw(Draw, Box<E>, Box<E>),
 }
 
 /// HIR statements.
@@ -230,6 +278,8 @@ pub enum S {
     /// output slot `k` of a vector result = `e` (decision N0.3: written to the [`crate::rt::Env`]'s output buffer;
     /// a function with outputs returns its scalar result as usual, which callers ignore)
     Out(u32, E),
+    /// `(re, im) = p`: both `Real` variables receive the parts of a machine complex result (may decline)
+    Pair(V, V, Pair),
     /// `if c { a } else { b }`
     If(E, Vec<S>, Vec<S>),
     /// `while c { body }`
@@ -320,25 +370,22 @@ pub fn type_of(func: &Func, e: &E) -> Result<Ty, String> {
             want(func, a, Real)?;
             Int
         }
-        E::AbsF(a) | E::Math(_, a) => {
+        E::AbsF(a) | E::Math(_, a) | E::NegF(a) => {
             want(func, a, Real)?;
             Real
         }
         E::Num(op, opds) => {
-            if *op == NumOp::Pow && opds.len() != 2 {
-                return Err("a power takes two operands".into());
+            if opds.iter().any(|o| matches!(o, Opd::Complex(..) | Opd::CExact(..))) {
+                return Err("a complex operand of a real operation".into());
             }
-            for o in opds {
-                match o {
-                    Opd::Int(x) => want(func, x, Int)?,
-                    Opd::Real(x) => want(func, x, Real)?,
-                    Opd::Ratio(n, d) => {
-                        want(func, n, Int)?;
-                        want(func, d, Int)?;
-                    }
-                }
-            }
+            check_opds(func, *op, opds)?;
             Real
+        }
+        E::Draw(d, a, b) => {
+            let t = if *d == Draw::Integer { Int } else { Real };
+            want(func, a, t)?;
+            want(func, b, t)?;
+            t
         }
         E::Sel(c, a, b) => {
             want(func, c, Bool)?;
@@ -347,6 +394,28 @@ pub fn type_of(func: &Func, e: &E) -> Result<Ty, String> {
             t
         }
     })
+}
+
+/// The operands of a [`NumOp`] have their types.
+fn check_opds(func: &Func, op: NumOp, opds: &[Opd]) -> Result<(), String> {
+    if op == NumOp::Pow && opds.len() != 2 {
+        return Err("a power takes two operands".into());
+    }
+    for o in opds {
+        match o {
+            Opd::Int(x) => want(func, x, Ty::Int)?,
+            Opd::Real(x) => want(func, x, Ty::Real)?,
+            Opd::Ratio(a, b) | Opd::CExact(a, b) => {
+                want(func, a, Ty::Int)?;
+                want(func, b, Ty::Int)?;
+            }
+            Opd::Complex(a, b) => {
+                want(func, a, Ty::Real)?;
+                want(func, b, Ty::Real)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn check_block(func: &Func, b: &[S]) -> Result<(), String> {
@@ -359,6 +428,20 @@ fn check_block(func: &Func, b: &[S]) -> Result<(), String> {
             S::Out(_, e) => {
                 if type_of(func, e)? == Ty::Bool {
                     return Err("a boolean output".into());
+                }
+            }
+            S::Pair(re, im, p) => {
+                for v in [re, im] {
+                    if func.vars.get(*v as usize) != Some(&Ty::Real) {
+                        return Err("a complex part that is not a machine real".into());
+                    }
+                }
+                match p {
+                    Pair::Num(op, opds) => check_opds(func, *op, opds)?,
+                    Pair::Math(_, a, b) => {
+                        want(func, a, Ty::Real)?;
+                        want(func, b, Ty::Real)?;
+                    }
                 }
             }
             S::If(c, t, e) => {
@@ -401,22 +484,27 @@ pub fn size(func: &Func) -> usize {
         1 + match x {
             E::Int(_) | E::Real(_) | E::Bool(_) | E::Var(_) => 0,
             E::I(_, a, b) | E::F(_, a, b) | E::Cmp(_, a, b) | E::Logic(_, a, b) | E::MinMaxF(_, a, b) => e(a) + e(b),
-            E::Not(a) | E::ToReal(a) | E::Floor(a) | E::AbsF(a) | E::Math(_, a) => e(a),
-            E::Num(_, os) => os
-                .iter()
-                .map(|o| match o {
-                    Opd::Int(x) | Opd::Real(x) => e(x),
-                    Opd::Ratio(n, d) => e(n) + e(d),
-                })
-                .sum(),
+            E::Not(a) | E::ToReal(a) | E::Floor(a) | E::AbsF(a) | E::Math(_, a) | E::NegF(a) => e(a),
+            E::Num(_, os) => opds(os),
             E::Sel(c, a, b) => e(c) + e(a) + e(b),
+            E::Draw(_, a, b) => e(a) + e(b),
         }
+    }
+    fn opds(os: &[Opd]) -> usize {
+        os.iter()
+            .map(|o| match o {
+                Opd::Int(x) | Opd::Real(x) => e(x),
+                Opd::Ratio(a, b) | Opd::Complex(a, b) | Opd::CExact(a, b) => e(a) + e(b),
+            })
+            .sum()
     }
     fn b(ss: &[S]) -> usize {
         ss.iter()
             .map(|s| {
                 1 + match s {
                     S::Set(_, x) | S::Eval(x) | S::Out(_, x) => e(x),
+                    S::Pair(_, _, Pair::Num(_, os)) => opds(os),
+                    S::Pair(_, _, Pair::Math(_, x, y)) => e(x) + e(y),
                     S::If(c, t, f) => e(c) + b(t) + b(f),
                     S::While(c, body) => e(c) + b(body),
                     S::For { lo, hi, step, body, .. } => e(lo) + e(hi) + e(step) + b(body),
@@ -435,9 +523,10 @@ fn speculable(e: &E) -> bool {
     match e {
         E::Int(_) | E::Real(_) | E::Bool(_) | E::Var(_) => true,
         E::F(_, a, b) | E::Cmp(_, a, b) | E::Logic(_, a, b) => speculable(a) && speculable(b),
-        E::Not(a) | E::AbsF(a) => speculable(a),
+        E::Not(a) | E::AbsF(a) | E::NegF(a) => speculable(a),
         E::Sel(c, a, b) => speculable(c) && speculable(a) && speculable(b),
-        E::I(..) | E::ToReal(_) | E::Floor(_) | E::MinMaxF(..) | E::Math(..) | E::Num(..) => false,
+        // a draw is an effect: never evaluated on a branch not taken
+        E::I(..) | E::ToReal(_) | E::Floor(_) | E::MinMaxF(..) | E::Math(..) | E::Num(..) | E::Draw(..) => false,
     }
 }
 
@@ -531,6 +620,10 @@ pub enum OpdK {
     Real,
     /// two `I` registers: numerator and denominator
     Ratio,
+    /// two `F` registers: real and imaginary part
+    Complex,
+    /// two `I` registers: the integer real and imaginary part of an exact complex number
+    CExact,
 }
 
 /// LIR instructions. Destinations come first.
@@ -587,6 +680,15 @@ pub enum Op {
     PowI(R, R, R),
     /// `d = a^c` for machine reals with a real result ([`crate::rt::pow_real`]; the domain was checked before)
     PowF(R, R, R),
+    /// `d = -a` of a machine real
+    FNeg(R, R),
+    /// `d` = a draw from the session generator with the arguments `a`, `b` (an `F` or, for [`Draw::Integer`], an
+    /// `I` result); declines when the arguments are outside the native's domain or no generator is attached
+    Draw(Draw, R, R, R),
+    /// `(re, im) = op(operands)` through the arithmetic; declines unless the result is a machine complex number
+    CNum(NumOp, R, R, Vec<(OpdK, R, R)>),
+    /// `(re, im) = f(a + b i)`, `mc-numeric`'s principal complex value
+    CMath(Lib, R, R, R, R),
     /// decline when `c` is true
     Bail(R),
     /// jump
@@ -773,6 +875,18 @@ impl Lower<'_> {
                 d
             }
             E::Num(op, opds) => self.num(*op, opds),
+            E::NegF(a) => {
+                let ra = self.ex(a);
+                let d = self.reg(K::F);
+                self.emit(Op::FNeg(d, ra));
+                d
+            }
+            E::Draw(dr, a, b) => {
+                let (ra, rb) = (self.ex(a), self.ex(b));
+                let d = self.reg(if *dr == Draw::Integer { K::I } else { K::F });
+                self.emit(Op::Draw(*dr, d, ra, rb));
+                d
+            }
             E::Sel(c, a, b) => {
                 let t = type_of(self.func, a).expect("checked");
                 let (rc, ra, rb) = (self.ex(c), self.ex(a), self.ex(b));
@@ -783,8 +897,8 @@ impl Lower<'_> {
         }
     }
 
-    /// An [`E::Num`]: the operands in order, then the arithmetic's computation inline where it can be.
-    fn num(&mut self, op: NumOp, opds: &[Opd]) -> R {
+    /// The registers of operands, evaluated in order.
+    fn opds(&mut self, opds: &[Opd]) -> Vec<(OpdK, R, R)> {
         let mut rs = Vec::with_capacity(opds.len());
         for o in opds {
             rs.push(match o {
@@ -796,12 +910,23 @@ impl Lower<'_> {
                     let r = self.ex(x);
                     (OpdK::Real, r, r)
                 }
-                Opd::Ratio(n, dd) => {
-                    let (rn, rd) = (self.ex(n), self.ex(dd));
-                    (OpdK::Ratio, rn, rd)
+                Opd::Ratio(a, b) | Opd::Complex(a, b) | Opd::CExact(a, b) => {
+                    let (ra, rb) = (self.ex(a), self.ex(b));
+                    let k = match o {
+                        Opd::Ratio(..) => OpdK::Ratio,
+                        Opd::Complex(..) => OpdK::Complex,
+                        _ => OpdK::CExact,
+                    };
+                    (k, ra, rb)
                 }
             });
         }
+        rs
+    }
+
+    /// An [`E::Num`]: the operands in order, then the arithmetic's computation inline where it can be.
+    fn num(&mut self, op: NumOp, opds: &[Opd]) -> R {
+        let rs = self.opds(opds);
         match op {
             NumOp::Pow => self.pow(opds, rs),
             NumOp::Sum | NumOp::Product => self.fold(op, rs),
@@ -887,6 +1012,8 @@ impl Lower<'_> {
         let [(OpdK::Real, x, _), (ek, e, _)] = rs[..] else { return self.helper(NumOp::Pow, rs) };
         match ek {
             OpdK::Int => self.pow_int(x, e),
+            // complex operands are statements of their own (`S::Pair`), never real powers
+            OpdK::Complex | OpdK::CExact => self.helper(NumOp::Pow, rs),
             OpdK::Real => self.pow_real(x, e, Exp::Unknown),
             OpdK::Ratio => {
                 // a constant rational exponent is converted here exactly as the arithmetic converts it
@@ -1044,6 +1171,19 @@ impl Lower<'_> {
                     let r = self.ex(e);
                     self.emit(Op::Out(*k, r));
                 }
+                S::Pair(re, im, p) => {
+                    let (dre, dim) = (self.home[*re as usize], self.home[*im as usize]);
+                    match p {
+                        Pair::Num(op, opds) => {
+                            let rs = self.opds(opds);
+                            self.emit(Op::CNum(*op, dre, dim, rs));
+                        }
+                        Pair::Math(f, a, b) => {
+                            let (ra, rb) = (self.ex(a), self.ex(b));
+                            self.emit(Op::CMath(*f, dre, dim, ra, rb));
+                        }
+                    }
+                }
                 S::If(c, t, e) => {
                     let rc = self.ex(c);
                     let (lt, le, lend) = (self.label(), self.label(), self.label());
@@ -1131,6 +1271,12 @@ pub fn lower(func: &Func) -> Result<Lir, String> {
     lw.emit(Op::Ret(r));
     let ret = lw.regs[r as usize];
     Ok(Lir { name: func.name.clone(), regs: lw.regs, params, ret, code: lw.code, nlabels: lw.nlabels })
+}
+
+/// Whether a LIR function draws from the session generator (then it is an effect: compiled calls run on the
+/// frontier, and the parallel batch evaluation does not split it).
+pub fn draws(lir: &Lir) -> bool {
+    lir.code.iter().any(|o| matches!(o, Op::Draw(..)))
 }
 
 /// The number of output slots a LIR function writes (one more than the largest slot of an [`Op::Out`]; 0 for a

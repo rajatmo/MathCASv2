@@ -25,12 +25,14 @@
 #![warn(missing_docs)]
 mod compiled;
 mod interp;
+pub mod par;
 mod prep;
 mod term;
 mod value;
 
 pub use compiled::{Auto, Compiled, Policy, DEFAULT_AFTER};
 pub use interp::{CentralGradient, Interpreted, Machine};
+pub use par::{par_expr, Par, ParStats, PAR_MIN_POINTS};
 pub use prep::{prepare, replace};
 pub use term::{leaves, TermFn};
 pub use value::{all_finite, norm, norm2, Scalar, Value};

@@ -24,7 +24,23 @@
 //! **Control flow inside expressions** (`if`, `and`, `or`, blocks, inlined calls) becomes statements assigning a
 //! temporary, so HIR expressions stay straight-line and both sides of `and`/`or` keep the interpreter's
 //! short-circuit order.
-use crate::ir::{Cc, Func, IOp, Lib, NumOp, Opd, Ty, E, FOp, S, V};
+//!
+//! **Random draws** (package N4b, decision N4b.1): `random_real()`, `random_real(b)`, `random_real([a, b])`,
+//! `random_normal()`, `random_normal(mu, sigma)`, `random_integer(n)` and `random_integer([a, b])` compile, when
+//! the source allows draws ([`Source::draws`]), to [`E::Draw`]: each draw is a statement of its own, emitted where the
+//! front end meets it, which is the interpreter's evaluation order (arguments first, left to right, only the branch
+//! taken), so compiled code consumes the stream exactly as the interpreter does.
+//!
+//! **Complex numbers** (package N4b, decision N4b.3): a machine complex value is a pair of machine-real HIR
+//! expressions (its parts). `complex(x, y)`, sums and products with complex operands, integer powers, `abs`, `re`,
+//! `im_part` and `conjugate` compute inline exactly the steps of `mc_arith::Num` (sums and products of two inexact
+//! operands, or of an exact part and one inexact operand; integer powers by its binary powering; reciprocals); the
+//! rest (three or more inexact operands, other powers, `sqrt`, the elementary functions) is a statement
+//! [`S::Pair`] that calls the arithmetic or `mc-numeric` themselves. Exact complex numbers are compiled only as
+//! constant operands of a sum or product (`y*im`).
+use crate::ir::{Cc, Draw, Func, IOp, Lib, NumOp, Opd, Pair, Ty, E, FOp, S, V};
+use mc_arith::num::{Int, Rat};
+use mc_arith::{Kind, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
 use std::collections::HashMap;
 
@@ -41,6 +57,12 @@ pub struct FnDef<'h> {
 pub trait Source<'h> {
     /// The definition of `f`, or why it is not a function of the subset.
     fn function(&mut self, f: Sym) -> Result<FnDef<'h>, String>;
+
+    /// Whether the code may draw from the session generator (a compiled function whose host attaches the stream);
+    /// otherwise random draws are refused.
+    fn draws(&self) -> bool {
+        false
+    }
 }
 
 /// The front end's result.
@@ -62,6 +84,8 @@ pub enum Shape {
     Scalar(Ty),
     /// a list literal of these shapes
     List(Vec<Shape>),
+    /// a machine complex number: two `Real` leaves, the real and the imaginary part (package N4b)
+    Complex,
 }
 
 impl Shape {
@@ -70,6 +94,7 @@ impl Shape {
         match self {
             Shape::Scalar(_) => 1,
             Shape::List(items) => items.iter().map(Shape::leaves).sum(),
+            Shape::Complex => 2,
         }
     }
 
@@ -79,6 +104,7 @@ impl Shape {
             match s {
                 Shape::Scalar(t) => out.push(*t),
                 Shape::List(items) => items.iter().for_each(|i| go(i, out)),
+                Shape::Complex => out.extend([Ty::Real, Ty::Real]),
             }
         }
         let mut out = vec![];
@@ -86,11 +112,21 @@ impl Shape {
         out
     }
 
-    /// The shape as the language writes types (`Real`, `[Real, Int]`).
+    /// Whether a complex number occurs in the shape.
+    pub fn has_complex(&self) -> bool {
+        match self {
+            Shape::Scalar(_) => false,
+            Shape::List(items) => items.iter().any(Shape::has_complex),
+            Shape::Complex => true,
+        }
+    }
+
+    /// The shape as the language writes types (`Real`, `[Real, Int]`, `Complex`).
     pub fn name(&self) -> String {
         match self {
             Shape::Scalar(t) => t.name().to_string(),
             Shape::List(items) => format!("[{}]", items.iter().map(Shape::name).collect::<Vec<_>>().join(", ")),
+            Shape::Complex => "Complex".to_string(),
         }
     }
 }
@@ -173,6 +209,7 @@ fn run<'h>(
         nodes: 0,
         numeric,
         consts: [(h.sym("pi"), std::f64::consts::PI), (h.sym("e"), std::f64::consts::E)],
+        im: h.sym("im"),
     };
     let mut words = vec![];
     for &(s, a) in params {
@@ -213,11 +250,13 @@ fn run<'h>(
     Ok(Front { func, deps: fe.deps, result })
 }
 
-/// A value during compilation: a scalar expression, or a list of values whose length is known (decision N0.3).
+/// A value during compilation: a scalar expression, a list of values whose length is known (decision N0.3), or a
+/// machine complex number as its two parts (decision N4b.3).
 #[derive(Clone, Debug)]
 enum Val {
     S(E, Ty),
     L(Vec<Val>),
+    C(E, E),
 }
 
 impl Val {
@@ -225,15 +264,17 @@ impl Val {
         match self {
             Val::S(_, t) => Shape::Scalar(*t),
             Val::L(items) => Shape::List(items.iter().map(Val::shape).collect()),
+            Val::C(..) => Shape::Complex,
         }
     }
 
-    /// The scalar leaves in row-major order.
+    /// The scalar leaves in row-major order (a complex number gives its real, then its imaginary part).
     fn leaves(self) -> Vec<(E, Ty)> {
         fn go(v: Val, out: &mut Vec<(E, Ty)>) {
             match v {
                 Val::S(e, t) => out.push((e, t)),
                 Val::L(items) => items.into_iter().for_each(|i| go(i, out)),
+                Val::C(a, b) => out.extend([(a, Ty::Real), (b, Ty::Real)]),
             }
         }
         let mut out = vec![];
@@ -246,6 +287,10 @@ impl Val {
         match s {
             Shape::Scalar(t) => Val::S(leaves.next().expect("a leaf per scalar"), *t),
             Shape::List(items) => Val::L(items.iter().map(|i| Val::rebuild(i, leaves)).collect()),
+            Shape::Complex => {
+                let re = leaves.next().expect("a real part");
+                Val::C(re, leaves.next().expect("an imaginary part"))
+            }
         }
     }
 }
@@ -283,6 +328,11 @@ enum Prim {
     Part,
     Length,
     N,
+    Complex,
+    Re,
+    ImPart,
+    Conjugate,
+    Draw(Draw),
 }
 
 fn prims(h: &Heap) -> HashMap<Sym, Prim> {
@@ -322,6 +372,13 @@ fn prims(h: &Heap) -> HashMap<Sym, Prim> {
         ("part", Prim::Part),
         ("length", Prim::Length),
         ("n", Prim::N),
+        ("complex", Prim::Complex),
+        ("re", Prim::Re),
+        ("im_part", Prim::ImPart),
+        ("conjugate", Prim::Conjugate),
+        ("random_real", Prim::Draw(Draw::Real)),
+        ("random_normal", Prim::Draw(Draw::Normal)),
+        ("random_integer", Prim::Draw(Draw::Integer)),
     ];
     for (n, p) in fixed {
         m.insert(h.sym(n), p);
@@ -332,13 +389,15 @@ fn prims(h: &Heap) -> HashMap<Sym, Prim> {
     m
 }
 
-/// A local binding: a scalar variable, or (with `list`) a list of values bound once.
+/// A local binding: a scalar variable, (with `list`) a list of values bound once, or (with `cplx`) the two `Real`
+/// variables of a complex number.
 #[derive(Clone)]
 struct Bind {
     var: V,
     ty: Ty,
     mutable: bool,
     list: Option<Vec<Val>>,
+    cplx: Option<(V, V)>,
 }
 
 /// A local's declared type: `Int`; `Real` or `Number` (an integer or a machine real here); `MachineReal`.
@@ -355,6 +414,26 @@ enum Operand {
     Real(E),
     /// an exact rational `num / den` (a rational literal, or `b^-k` for an integer `b`)
     Ratio(E, E),
+    /// a machine complex number
+    Complex(E, E),
+    /// an exact complex constant with integer parts (`im`, `2 + 3im`)
+    CExact(i64, i64),
+}
+
+impl Operand {
+    fn exact(&self) -> bool {
+        matches!(self, Operand::Int(_) | Operand::Ratio(..) | Operand::CExact(..))
+    }
+
+    fn opd(self) -> Opd {
+        match self {
+            Operand::Int(x) => Opd::Int(x),
+            Operand::Real(x) => Opd::Real(x),
+            Operand::Ratio(n, d) => Opd::Ratio(n, d),
+            Operand::Complex(a, b) => Opd::Complex(a, b),
+            Operand::CExact(a, b) => Opd::CExact(E::Int(a), E::Int(b)),
+        }
+    }
 }
 
 type Res<X> = Result<X, String>;
@@ -379,6 +458,8 @@ struct Fe<'h, 's> {
     /// `pi` and `e` in that body are their machine reals (decision N0.1)
     numeric: bool,
     consts: [(Sym, f64); 2],
+    /// the imaginary unit `im` (the exact `complex(0, 1)`)
+    im: Sym,
 }
 
 fn int(e: E, t: Ty) -> Res<E> {
@@ -404,11 +485,16 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn bind(&mut self, s: Sym, var: V, ty: Ty, mutable: bool) {
-        self.scopes.last_mut().expect("a scope").push((s, Bind { var, ty, mutable, list: None }));
+        self.scopes.last_mut().expect("a scope").push((s, Bind { var, ty, mutable, list: None, cplx: None }));
     }
 
     fn bind_list(&mut self, s: Sym, items: Vec<Val>) {
-        let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items) };
+        let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items), cplx: None };
+        self.scopes.last_mut().expect("a scope").push((s, b));
+    }
+
+    fn bind_complex(&mut self, s: Sym, re: V, im: V, mutable: bool) {
+        let b = Bind { var: re, ty: Ty::Real, mutable, list: None, cplx: Some((re, im)) };
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
@@ -465,6 +551,21 @@ impl<'h> Fe<'h, '_> {
         E::Var(v)
     }
 
+    /// `e` computed once: a variable or constant as it is, anything else in a temporary (for operands used twice).
+    fn held(&mut self, e: E, t: Ty) -> E {
+        match e {
+            E::Var(_) | E::Int(_) | E::Real(_) | E::Bool(_) => e,
+            e => self.temp(e, t),
+        }
+    }
+
+    /// The machine complex number `p` computes, in two fresh variables.
+    fn pair(&mut self, p: Pair) -> Val {
+        let (re, im) = (self.var(Ty::Real), self.var(Ty::Real));
+        self.emit(S::Pair(re, im, p));
+        Val::C(E::Var(re), E::Var(im))
+    }
+
     /// The head and arguments of a call with a symbol head.
     fn call_of(&self, t: T<'h>) -> Option<(Sym, &'h [T<'h>])> {
         match self.h.view(t) {
@@ -488,6 +589,7 @@ impl<'h> Fe<'h, '_> {
         match self.value(t)? {
             Val::S(e, ty) => Ok((e, ty)),
             Val::L(_) => Err("a list where a number is expected".into()),
+            Val::C(..) => Err("a complex number where a real number or an integer is expected".into()),
         }
     }
 
@@ -508,6 +610,7 @@ impl<'h> Fe<'h, '_> {
                 Some(Prim::False) => Ok(Val::S(E::Bool(false), Ty::Bool)),
                 _ => match self.lookup(s) {
                     Some(Bind { list: Some(items), .. }) => Ok(Val::L(items)),
+                    Some(Bind { cplx: Some((re, im)), .. }) => Ok(Val::C(E::Var(re), E::Var(im))),
                     Some(bd) => Ok(Val::S(E::Var(bd.var), bd.ty)),
                     None => match self.constant(s) {
                         Some(x) if self.numeric && self.stack.len() == self.top => Ok(Val::S(E::Real(x), Ty::Real)),
@@ -528,7 +631,7 @@ impl<'h> Fe<'h, '_> {
                         self.arity(s, args, 1)?;
                         match self.value(args[0])? {
                             Val::L(items) => Ok(Val::S(E::Int(items.len() as i64), Ty::Int)),
-                            Val::S(..) => Err("`length` of a number".into()),
+                            Val::S(..) | Val::C(..) => Err("`length` of a number".into()),
                         }
                     }
                     Some(Prim::N) => self.numeric_value(s, args).map(sc),
@@ -538,6 +641,51 @@ impl<'h> Fe<'h, '_> {
                         _ => Err("a malformed `if`".into()),
                     },
                     Some(Prim::Block) => self.scoped(|fe| fe.block_value(args)),
+                    Some(Prim::Add) => self.sum(args),
+                    Some(Prim::Mul) => self.product(args),
+                    Some(Prim::Pow) => {
+                        self.arity(s, args, 2)?;
+                        self.power(args[0], args[1])
+                    }
+                    Some(Prim::Abs) => {
+                        self.arity(s, args, 1)?;
+                        let v = self.value(args[0])?;
+                        self.abs(v)
+                    }
+                    Some(Prim::Sqrt) => {
+                        self.arity(s, args, 1)?;
+                        // sqrt(x) is the canonical power x^(1/2)
+                        match self.value(args[0])? {
+                            Val::S(x, Ty::Real) => {
+                                Ok(Val::S(E::Num(NumOp::Pow, vec![Opd::Real(x), Opd::Ratio(E::Int(1), E::Int(2))]), Ty::Real))
+                            }
+                            Val::C(a, b) => Ok(self.pair(Pair::Num(NumOp::Pow, vec![Opd::Complex(a, b), Opd::Ratio(E::Int(1), E::Int(2))]))),
+                            _ => Err("`sqrt` of an exact or boolean value (the result stays exact)".into()),
+                        }
+                    }
+                    Some(Prim::Math(f)) => {
+                        self.arity(s, args, 1)?;
+                        match self.value(args[0])? {
+                            Val::S(x, Ty::Real) => Ok(Val::S(E::Math(f, b(x)), Ty::Real)),
+                            Val::C(a, b) => Ok(self.pair(Pair::Math(f, a, b))),
+                            _ => Err(format!("`{}` of an exact or boolean value (the result stays exact)", f.name())),
+                        }
+                    }
+                    Some(p @ (Prim::Re | Prim::ImPart | Prim::Conjugate)) => {
+                        self.arity(s, args, 1)?;
+                        let v = self.value(args[0])?;
+                        self.complex_part(p, v)
+                    }
+                    Some(Prim::Complex) => self.complex(args),
+                    Some(Prim::Draw(d)) => self.draw(d, args),
+                    Some(Prim::Assign) => {
+                        self.assign(args)?;
+                        let View::Sym(x) = self.h.view(args[0]) else { unreachable!("checked by assign") };
+                        match self.lookup(x).expect("checked by assign") {
+                            Bind { cplx: Some((re, im)), .. } => Ok(Val::C(E::Var(re), E::Var(im))),
+                            bd => Ok(Val::S(E::Var(bd.var), bd.ty)),
+                        }
+                    }
                     Some(p) => self.prim(p, s, args).map(sc),
                     None => self.inline(s, args),
                 }
@@ -596,12 +744,6 @@ impl<'h> Fe<'h, '_> {
 
     fn prim(&mut self, p: Prim, s: Sym, args: &'h [T<'h>]) -> Res<(E, Ty)> {
         match p {
-            Prim::Add => self.sum(args),
-            Prim::Mul => self.product(args),
-            Prim::Pow => {
-                self.arity(s, args, 2)?;
-                self.power(args[0], args[1])
-            }
             Prim::Cmp(c) => {
                 self.arity(s, args, 2)?;
                 let (x, tx) = self.expr(args[0])?;
@@ -621,15 +763,24 @@ impl<'h> Fe<'h, '_> {
                 Ok((E::Not(b(x)), Ty::Bool))
             }
             // handled by `value`
-            Prim::If | Prim::Block | Prim::List | Prim::Part | Prim::Length | Prim::N => {
-                Err(format!("`{}` outside its place", self.name(s)))
-            }
-            Prim::Assign => {
-                self.assign(args)?;
-                let View::Sym(x) = self.h.view(args[0]) else { unreachable!("checked by assign") };
-                let bd = self.lookup(x).expect("checked by assign");
-                Ok((E::Var(bd.var), bd.ty))
-            }
+            Prim::If
+            | Prim::Block
+            | Prim::List
+            | Prim::Part
+            | Prim::Length
+            | Prim::N
+            | Prim::Add
+            | Prim::Mul
+            | Prim::Pow
+            | Prim::Abs
+            | Prim::Sqrt
+            | Prim::Math(_)
+            | Prim::Re
+            | Prim::ImPart
+            | Prim::Conjugate
+            | Prim::Complex
+            | Prim::Draw(_)
+            | Prim::Assign => Err(format!("`{}` outside its place", self.name(s))),
             Prim::Let | Prim::Var | Prim::While | Prim::For => {
                 Err(format!("`{}` used as a value (its value is null)", self.name(s)))
             }
@@ -651,36 +802,7 @@ impl<'h> Fe<'h, '_> {
                     _ => Err("`floor` of a boolean".into()),
                 }
             }
-            Prim::Abs => {
-                self.arity(s, args, 1)?;
-                match self.expr(args[0])? {
-                    (x, Ty::Int) => {
-                        // |x| = x < 0 ? 0 - x : x (0 - x declines only for MIN, whose absolute value is not an i64)
-                        let x = self.temp(x, Ty::Int);
-                        let neg = E::I(IOp::Sub, b(E::Int(0)), b(x.clone()));
-                        let lt = E::Cmp(Cc::Lt, b(x.clone()), b(E::Int(0)));
-                        Ok((E::Sel(b(lt), b(neg), b(x)), Ty::Int))
-                    }
-                    (x, Ty::Real) => Ok((E::AbsF(b(x)), Ty::Real)),
-                    _ => Err("`abs` of a boolean".into()),
-                }
-            }
             Prim::Min | Prim::Max => self.extreme(p == Prim::Max, args),
-            Prim::Sqrt => {
-                self.arity(s, args, 1)?;
-                // sqrt(x) is the canonical power x^(1/2)
-                match self.expr(args[0])? {
-                    (x, Ty::Real) => Ok((E::Num(NumOp::Pow, vec![Opd::Real(x), Opd::Ratio(E::Int(1), E::Int(2))]), Ty::Real)),
-                    _ => Err("`sqrt` of an exact or boolean value (the result stays exact)".into()),
-                }
-            }
-            Prim::Math(f) => {
-                self.arity(s, args, 1)?;
-                match self.expr(args[0])? {
-                    (x, Ty::Real) => Ok((E::Math(f, b(x)), Ty::Real)),
-                    _ => Err(format!("`{}` of an exact or boolean value (the result stays exact)", f.name())),
-                }
-            }
             Prim::Range | Prim::Typed => Err(format!("`{}` outside its place", self.name(s))),
             Prim::True | Prim::False => Err("a call of `true` or `false`".into()),
         }
@@ -693,7 +815,8 @@ impl<'h> Fe<'h, '_> {
         }
     }
 
-    /// An operand of a sum or product: an exact rational literal, `b^-k` (exact), or a value.
+    /// An operand of a sum or product: an exact rational literal, an exact complex constant, `b^-k` (exact), or a
+    /// value.
     fn operand(&mut self, t: T<'h>) -> Res<Operand> {
         let h = self.h;
         if let View::Rational { num, den } = h.view(t) {
@@ -702,43 +825,262 @@ impl<'h> Fe<'h, '_> {
                 _ => Err("a rational literal beyond 64 bits".into()),
             };
         }
+        if let Some(c) = self.exact_complex(t)? {
+            return Ok(c);
+        }
+        if let Some(c) = self.exact_constant_term(t) {
+            return Self::constant_operand(&c);
+        }
         if let Some((Prim::Pow, [base, e])) = self.prim_of(t) {
             if let View::Int(k @ i64::MIN..=-1) = h.view(*e) {
-                let (x, tx) = self.expr(*base)?;
-                if tx == Ty::Int {
+                let bv = self.value(*base)?;
+                if let Val::S(x, Ty::Int) = bv {
                     let k = k.checked_neg().ok_or("an exponent beyond 64 bits")?;
                     // b^-1 (a division) needs no power
                     let den = if k == 1 { x } else { E::I(IOp::Pow, b(x), b(E::Int(k))) };
                     return Ok(Operand::Ratio(E::Int(1), den));
                 }
-                // a machine real to a negative power: a value like any other
-                let (v, _) = self.power_of(x, tx, E::Int(k), Ty::Int)?;
-                return Ok(Operand::Real(v));
+                // a machine real or complex number to a negative power: a value like any other
+                let v = self.power_val(bv, Val::S(E::Int(k), Ty::Int))?;
+                return Self::operand_of(v);
             }
         }
-        match self.expr(t)? {
-            (x, Ty::Int) => Ok(Operand::Int(x)),
-            (x, Ty::Real) => Ok(Operand::Real(x)),
-            (_, Ty::Bool) => Err("arithmetic on a boolean".into()),
+        let v = self.value(t)?;
+        Self::operand_of(v)
+    }
+
+    /// The value of a sum or product of exact constants with an exact complex one among them (`2 + 3im` written in
+    /// parentheses stays a sum in the body), computed by the arithmetic; `None` for anything else.
+    fn exact_constant_term(&self, t: T<'h>) -> Option<Num> {
+        fn go<'h>(fe: &Fe<'h, '_>, t: T<'h>, complex: &mut bool) -> Option<Num> {
+            let h = fe.h;
+            match h.view(t) {
+                View::Int(n) => return Some(Num::int(n)),
+                View::Rational { num, den } => {
+                    let (View::Int(n), View::Int(d)) = (h.view(num), h.view(den)) else { return None };
+                    return Some(Num::rat(Rat::new(Int::from_i64(n), Int::from_i64(d))));
+                }
+                _ => {}
+            }
+            if let Ok(Some(Operand::CExact(a, b))) = fe.exact_complex(t) {
+                *complex = true;
+                return Some(Num::complex(Real::int(a), Real::int(b)));
+            }
+            let (p, args) = fe.prim_of(t)?;
+            let nums = args.iter().map(|&a| go(fe, a, complex)).collect::<Option<Vec<Num>>>()?;
+            match p {
+                Prim::Add => Some(Num::sum(nums)),
+                Prim::Mul => Some(Num::product(nums)),
+                _ => None,
+            }
         }
+        let mut complex = false;
+        let v = go(self, t, &mut complex)?;
+        complex.then_some(v)
+    }
+
+    /// An exact constant as an operand (an integer, a ratio of machine integers, a complex number with integer
+    /// parts).
+    fn constant_operand(c: &Num) -> Res<Operand> {
+        let small = |r: &Real| match r {
+            Real::Exact(q) => Some((q.num.to_i64()?, Int::from_nat(q.den.clone()).to_i64()?)),
+            _ => None,
+        };
+        let bad = || "an exact constant beyond machine integers or with rational complex parts".to_string();
+        match c {
+            Num::Real(r) => match small(r).ok_or_else(bad)? {
+                (n, 1) => Ok(Operand::Int(E::Int(n))),
+                (n, d) => Ok(Operand::Ratio(E::Int(n), E::Int(d))),
+            },
+            Num::Complex(a, b) => match (small(a), small(b)) {
+                (Some((x, 1)), Some((y, 1))) => Ok(Operand::CExact(x, y)),
+                _ => Err(bad()),
+            },
+        }
+    }
+
+    /// A computed value as an operand of a sum or product.
+    fn operand_of(v: Val) -> Res<Operand> {
+        match v {
+            Val::S(x, Ty::Int) => Ok(Operand::Int(x)),
+            Val::S(x, Ty::Real) => Ok(Operand::Real(x)),
+            Val::S(_, Ty::Bool) => Err("arithmetic on a boolean".into()),
+            Val::C(a, b) => Ok(Operand::Complex(a, b)),
+            Val::L(_) => Err("a list where a number is expected".into()),
+        }
+    }
+
+    /// An exact complex literal `complex(a, b)` with integer parts (`im` is `complex(0, 1)`), if `t` is one.
+    fn exact_complex(&self, t: T<'h>) -> Res<Option<Operand>> {
+        if let View::Sym(s) = self.h.view(t) {
+            return Ok((s == self.im && self.lookup(s).is_none()).then_some(Operand::CExact(0, 1)));
+        }
+        let Some((Prim::Complex, [re, im])) = self.prim_of(t) else { return Ok(None) };
+        Ok(match (self.h.view(*re), self.h.view(*im)) {
+            (View::Int(a), View::Int(b)) => Some(Operand::CExact(a, b)),
+            (View::Int(_) | View::Rational { .. } | View::BigInt { .. }, View::Rational { .. } | View::BigInt { .. })
+            | (View::Rational { .. } | View::BigInt { .. }, View::Int(_)) => {
+                return Err("an exact complex number with a rational or big part".into())
+            }
+            _ => None,
+        })
     }
 
     /// `add(...)`: exact integers add exactly; with machine reals, the arithmetic's canonical sum (exact operands
     /// first, then the inexact ones in canonical order): one IEEE addition for two operands, otherwise an
-    /// [`E::Num`] that lowering expands inline.
-    fn sum(&mut self, args: &'h [T<'h>]) -> Res<(E, Ty)> {
+    /// [`E::Num`] that lowering expands inline; with complex numbers [`Fe::complex_fold`].
+    fn sum(&mut self, args: &'h [T<'h>]) -> Res<Val> {
         let ops = args.iter().map(|&a| self.operand(a)).collect::<Res<Vec<_>>>()?;
         self.fold(NumOp::Sum, ops)
     }
 
     /// `mul(...)`: exact integers multiply exactly (with `b^-k` factors an exact division); with machine reals, the
-    /// canonical product.
-    fn product(&mut self, args: &'h [T<'h>]) -> Res<(E, Ty)> {
+    /// canonical product; with complex numbers [`Fe::complex_fold`].
+    fn product(&mut self, args: &'h [T<'h>]) -> Res<Val> {
         let ops = args.iter().map(|&a| self.operand(a)).collect::<Res<Vec<_>>>()?;
         self.fold(NumOp::Product, ops)
     }
 
-    fn fold(&mut self, op: NumOp, ops: Vec<Operand>) -> Res<(E, Ty)> {
+    fn fold(&mut self, op: NumOp, ops: Vec<Operand>) -> Res<Val> {
+        if ops.iter().any(|o| matches!(o, Operand::Complex(..) | Operand::CExact(..))) {
+            return self.complex_fold(op, ops);
+        }
+        let (e, t) = self.real_fold(op, ops)?;
+        Ok(Val::S(e, t))
+    }
+
+    /// A sum or product with a complex operand, as `Num::sum` / `Num::product` computes it (decision N4b.3): the
+    /// exact operands combined exactly and converted to machine numbers, then the inexact ones folded in canonical
+    /// order starting with the exact part. Two inexact operands without an exact part, or one with it, need no
+    /// order (complex addition and multiplication of two operands commute bit for bit), so they are computed
+    /// inline with the arithmetic's formulas; anything else calls the arithmetic.
+    fn complex_fold(&mut self, op: NumOp, ops: Vec<Operand>) -> Res<Val> {
+        let (exact, inexact): (Vec<Operand>, Vec<Operand>) = ops.into_iter().partition(Operand::exact);
+        if inexact.is_empty() {
+            return Err("exact complex arithmetic (the result stays exact)".into());
+        }
+        let inline = if exact.is_empty() { inexact.len() <= 2 } else { inexact.len() == 1 };
+        if !inline {
+            let opds = exact.into_iter().chain(inexact).map(Operand::opd).collect();
+            return Ok(self.pair(Pair::Num(op, opds)));
+        }
+        let mut acc = if exact.is_empty() {
+            None
+        } else if exact.iter().any(|o| matches!(o, Operand::CExact(..))) {
+            Some(Self::exact_constant(op, &exact)?)
+        } else {
+            // computed integers and rationals: exact + 0.0 (exact * 1.0) is the exact part converted as the
+            // arithmetic converts it (correctly rounded; the exact zero gives +0.0)
+            let unit = if op == NumOp::Sum { 0.0 } else { 1.0 };
+            let mut opds: Vec<Opd> = exact.into_iter().map(Operand::opd).collect();
+            opds.push(Opd::Real(E::Real(unit)));
+            Some(Val::S(E::Num(op, opds), Ty::Real))
+        };
+        for o in inexact {
+            let x = match o {
+                Operand::Real(x) => Val::S(x, Ty::Real),
+                Operand::Complex(a, b) => Val::C(a, b),
+                _ => unreachable!("inexact operands"),
+            };
+            acc = Some(match acc {
+                None => x,
+                Some(a) => self.op2(op, a, x),
+            });
+        }
+        Ok(acc.expect("an inexact operand"))
+    }
+
+    /// The exact constant operands of a sum or product (one an exact complex number) combined by the arithmetic
+    /// and converted to a machine number (`to_kind`), as the arithmetic's fold starts.
+    fn exact_constant(op: NumOp, exact: &[Operand]) -> Res<Val> {
+        let mut nums = vec![];
+        for o in exact {
+            nums.push(match o {
+                Operand::Int(E::Int(n)) => Num::int(*n),
+                Operand::Ratio(E::Int(n), E::Int(d)) if *d != 0 => Num::rat(Rat::new(Int::from_i64(*n), Int::from_i64(*d))),
+                Operand::CExact(a, b) => Num::complex(Real::int(*a), Real::int(*b)),
+                _ => return Err("an exact complex number with a computed exact operand".into()),
+            });
+        }
+        let v = if op == NumOp::Sum { Num::sum(nums) } else { Num::product(nums) };
+        match v.to_kind(Kind::Machine, 0) {
+            Num::Real(Real::Machine(x)) => Ok(Val::S(E::Real(x), Ty::Real)),
+            Num::Complex(Real::Machine(a), Real::Machine(b)) => Ok(Val::C(E::Real(a), E::Real(b))),
+            _ => Err("an exact part that is not a machine number".into()),
+        }
+    }
+
+    /// `x + y` or `x y` of two machine numbers (reals or complex), as `Num::add` / `Num::mul` compute it with `x`
+    /// as the left operand.
+    fn op2(&mut self, op: NumOp, x: Val, y: Val) -> Val {
+        let f = |o: FOp, a: E, c: E| E::F(o, b(a), b(c));
+        match (x, y) {
+            (Val::S(p, _), Val::S(q, _)) => Val::S(f(if op == NumOp::Sum { FOp::Add } else { FOp::Mul }, p, q), Ty::Real),
+            // real + complex: (a + c) + d i; real * complex: a c + a d i (`Num::complex(a.mul(c), a.mul(d))`)
+            (Val::S(a, _), Val::C(c, d)) | (Val::C(c, d), Val::S(a, _)) => {
+                if op == NumOp::Sum {
+                    Val::C(f(FOp::Add, a, c), d)
+                } else {
+                    let a = self.held(a, Ty::Real);
+                    Val::C(f(FOp::Mul, a.clone(), c), f(FOp::Mul, a, d))
+                }
+            }
+            (Val::C(a, bb), Val::C(c, d)) => {
+                if op == NumOp::Sum {
+                    Val::C(f(FOp::Add, a, c), f(FOp::Add, bb, d))
+                } else {
+                    self.cmul((a, bb), (c, d))
+                }
+            }
+            _ => unreachable!("numbers"),
+        }
+    }
+
+    /// `(a + b i)(c + d i)` as `Num::mul` computes it: `(a c - b d) + (a d + b c) i` (the subtraction is the
+    /// addition of `-(b d)`, the same IEEE operation), the parts held in temporaries.
+    fn cmul(&mut self, x: (E, E), y: (E, E)) -> Val {
+        let (a, bb) = (self.held(x.0, Ty::Real), self.held(x.1, Ty::Real));
+        let (c, d) = (self.held(y.0, Ty::Real), self.held(y.1, Ty::Real));
+        let m = |p: &E, q: &E| E::F(FOp::Mul, b(p.clone()), b(q.clone()));
+        let re = E::F(FOp::Sub, b(m(&a, &c)), b(m(&bb, &d)));
+        let im = E::F(FOp::Add, b(m(&a, &d)), b(m(&bb, &c)));
+        let (re, im) = (self.temp(re, Ty::Real), self.temp(im, Ty::Real));
+        Val::C(re, im)
+    }
+
+    /// `z^k` for a machine complex `z` and an integer constant `k != 0`, as `Num::pow_int` computes it: the
+    /// reciprocal `(a - b i) / (a^2 + b^2)` first for `k < 0`, then binary powering (square, and multiply by the
+    /// base for each one bit after the leading one).
+    fn cpow_int(&mut self, a: E, bb: E, k: i64) -> Res<Val> {
+        if k == 0 {
+            return Err("a complex number to the power 0 (the result is the exact 1)".into());
+        }
+        let (mut a, mut bb) = (self.held(a, Ty::Real), self.held(bb, Ty::Real));
+        if k < 0 {
+            let m = |p: &E| E::F(FOp::Mul, b(p.clone()), b(p.clone()));
+            let d = E::F(FOp::Add, b(m(&a)), b(m(&bb)));
+            let d = self.temp(d, Ty::Real);
+            let re = E::F(FOp::Div, b(a.clone()), b(d.clone()));
+            let im = E::F(FOp::Div, b(E::NegF(b(bb.clone()))), b(d));
+            (a, bb) = (self.temp(re, Ty::Real), self.temp(im, Ty::Real));
+        }
+        let e = k.unsigned_abs();
+        let base = (a, bb);
+        let mut r = Val::C(base.0.clone(), base.1.clone());
+        let mut i = 63 - e.leading_zeros();
+        while i > 0 {
+            i -= 1;
+            let Val::C(p, q) = r else { unreachable!("complex") };
+            r = self.cmul((p.clone(), q.clone()), (p, q));
+            if (e >> i) & 1 == 1 {
+                let Val::C(p, q) = r else { unreachable!("complex") };
+                r = self.cmul((p, q), base.clone());
+            }
+        }
+        Ok(r)
+    }
+
+    fn real_fold(&mut self, op: NumOp, ops: Vec<Operand>) -> Res<(E, Ty)> {
         let reals = ops.iter().filter(|o| matches!(o, Operand::Real(_))).count();
         let ratios = ops.iter().filter(|o| matches!(o, Operand::Ratio(..))).count();
         let (iop, fop, unit) = if op == NumOp::Sum { (IOp::Add, FOp::Add, 0) } else { (IOp::Mul, FOp::Mul, 1) };
@@ -756,7 +1098,7 @@ impl<'h> Fe<'h, '_> {
                         num = join(num, n);
                         den = join(den, d);
                     }
-                    Operand::Real(_) => unreachable!("no reals"),
+                    Operand::Real(_) | Operand::Complex(..) | Operand::CExact(..) => unreachable!("integers and ratios"),
                 }
             }
             let num = num.unwrap_or(E::Int(unit));
@@ -774,7 +1116,7 @@ impl<'h> Fe<'h, '_> {
             let mut it = ops.into_iter().map(|o| match o {
                 Operand::Int(x) => E::ToReal(b(x)),
                 Operand::Real(x) => x,
-                Operand::Ratio(..) => unreachable!("no ratios"),
+                Operand::Ratio(..) | Operand::Complex(..) | Operand::CExact(..) => unreachable!("integers and reals"),
             });
             let (x, y) = (it.next().expect("two"), it.next().expect("two"));
             return Ok((E::F(fop, b(x), b(y)), Ty::Real));
@@ -785,32 +1127,151 @@ impl<'h> Fe<'h, '_> {
             }
             unreachable!("one real operand");
         }
-        let opds = ops
-            .into_iter()
-            .map(|o| match o {
-                Operand::Int(x) => Opd::Int(x),
-                Operand::Real(x) => Opd::Real(x),
-                Operand::Ratio(n, d) => Opd::Ratio(n, d),
-            })
-            .collect();
+        let opds = ops.into_iter().map(Operand::opd).collect();
         Ok((E::Num(op, opds), Ty::Real))
     }
 
     /// `pow(a, e)`.
-    fn power(&mut self, base: T<'h>, e: T<'h>) -> Res<(E, Ty)> {
+    fn power(&mut self, base: T<'h>, e: T<'h>) -> Res<Val> {
         let h = self.h;
-        let (x, tx) = self.expr(base)?;
+        let bv = self.value(base)?;
         if let View::Rational { num, den } = h.view(e) {
             let (View::Int(n), View::Int(d)) = (h.view(num), h.view(den)) else {
                 return Err("a rational exponent beyond 64 bits".into());
             };
-            return match tx {
-                Ty::Real => Ok((E::Num(NumOp::Pow, vec![Opd::Real(x), Opd::Ratio(E::Int(n), E::Int(d))]), Ty::Real)),
+            let q = Opd::Ratio(E::Int(n), E::Int(d));
+            return match bv {
+                Val::S(x, Ty::Real) => Ok(Val::S(E::Num(NumOp::Pow, vec![Opd::Real(x), q]), Ty::Real)),
+                Val::C(a, bb) => Ok(self.pair(Pair::Num(NumOp::Pow, vec![Opd::Complex(a, bb), q]))),
                 _ => Err("an exact power with a rational exponent (the result stays exact)".into()),
             };
         }
-        let (y, ty) = self.expr(e)?;
-        self.power_of(x, tx, y, ty)
+        if let Some(c) = self.exact_complex(e)? {
+            // a power with an exact complex exponent: the arithmetic computes it (a machine base, or declines)
+            let base = Self::operand_of(bv)?;
+            return Ok(self.pair(Pair::Num(NumOp::Pow, vec![base.opd(), c.opd()])));
+        }
+        let ev = self.value(e)?;
+        self.power_val(bv, ev)
+    }
+
+    /// The power of two computed values: complex bases to integer constants inline ([`Fe::cpow_int`]), other powers
+    /// with a complex base or exponent by the arithmetic, real ones as before.
+    fn power_val(&mut self, bv: Val, ev: Val) -> Res<Val> {
+        match (bv, ev) {
+            (Val::C(a, bb), Val::S(E::Int(k), Ty::Int)) => self.cpow_int(a, bb, k),
+            (bv @ Val::C(..), ev) | (bv, ev @ Val::C(..)) => {
+                let (x, y) = (Self::operand_of(bv)?, Self::operand_of(ev)?);
+                Ok(self.pair(Pair::Num(NumOp::Pow, vec![x.opd(), y.opd()])))
+            }
+            (Val::S(x, tx), Val::S(y, ty)) => self.power_of(x, tx, y, ty).map(|(e, t)| Val::S(e, t)),
+            _ => Err("a power of a list".into()),
+        }
+    }
+
+    /// `abs(x)`: integers and machine reals as before; a machine complex number as the native computes it,
+    /// `(a a + b b)^(1/2)` (the canonical sum and power of the parts' squares).
+    fn abs(&mut self, v: Val) -> Res<Val> {
+        match v {
+            Val::S(x, Ty::Int) => {
+                // |x| = x < 0 ? 0 - x : x (0 - x declines only for MIN, whose absolute value is not an i64)
+                let x = self.temp(x, Ty::Int);
+                let neg = E::I(IOp::Sub, b(E::Int(0)), b(x.clone()));
+                let lt = E::Cmp(Cc::Lt, b(x.clone()), b(E::Int(0)));
+                Ok(Val::S(E::Sel(b(lt), b(neg), b(x)), Ty::Int))
+            }
+            Val::S(x, Ty::Real) => Ok(Val::S(E::AbsF(b(x)), Ty::Real)),
+            Val::C(a, bb) => {
+                let (a, bb) = (self.held(a, Ty::Real), self.held(bb, Ty::Real));
+                let sq = |p: E| E::F(FOp::Mul, b(p.clone()), b(p));
+                let s = E::F(FOp::Add, b(sq(a)), b(sq(bb)));
+                Ok(Val::S(E::Num(NumOp::Pow, vec![Opd::Real(s), Opd::Ratio(E::Int(1), E::Int(2))]), Ty::Real))
+            }
+            _ => Err("`abs` of a boolean or a list".into()),
+        }
+    }
+
+    /// `re(z)`, `im_part(z)`, `conjugate(z)` of a number: the parts of a complex number; a real number is its own
+    /// real part and conjugate, and its imaginary part is the exact 0.
+    fn complex_part(&mut self, p: Prim, v: Val) -> Res<Val> {
+        match (p, v) {
+            (_, Val::S(_, Ty::Bool) | Val::L(_)) => Err("the complex part of a boolean or a list".into()),
+            (Prim::ImPart, Val::S(..)) => Ok(Val::S(E::Int(0), Ty::Int)),
+            (_, v @ Val::S(..)) => Ok(v),
+            (Prim::Re, Val::C(a, _)) => Ok(Val::S(a, Ty::Real)),
+            (Prim::ImPart, Val::C(_, bb)) => Ok(Val::S(bb, Ty::Real)),
+            (_, Val::C(a, bb)) => Ok(Val::C(a, E::NegF(b(bb)))),
+        }
+    }
+
+    /// `complex(x, y)` of machine numbers: a machine complex number (an integer part is converted, as the
+    /// arithmetic's contagion does; an imaginary part 0.0 stays). Both parts exact give an exact number: refused.
+    fn complex(&mut self, args: &'h [T<'h>]) -> Res<Val> {
+        let [re, im] = args else { return Err("`complex` with other than two arguments".into()) };
+        let (x, tx) = self.expr(*re)?;
+        let (y, ty) = self.expr(*im)?;
+        let real = |e: E, t: Ty| -> Res<E> {
+            match t {
+                Ty::Real => Ok(e),
+                Ty::Int => Ok(E::ToReal(b(e))),
+                Ty::Bool => Err("a complex number with a boolean part".to_string()),
+            }
+        };
+        if tx == Ty::Int && ty == Ty::Int {
+            return Err("an exact complex number (the result stays exact)".into());
+        }
+        Ok(Val::C(real(x, tx)?, real(y, ty)?))
+    }
+
+    /// A machine real argument of a draw: a machine real, an integer (converted), or a rational literal.
+    fn draw_real_arg(&mut self, v: Val) -> Res<E> {
+        match v {
+            Val::S(x, Ty::Real) => Ok(x),
+            Val::S(x, Ty::Int) => Ok(E::ToReal(b(x))),
+            _ => Err("a random draw with a range that is not of numbers".into()),
+        }
+    }
+
+    /// `random_real(...)`, `random_normal(...)`, `random_integer(...)` (decision N4b.1): the arguments, then the draw
+    /// as a statement of its own.
+    fn draw(&mut self, d: Draw, args: &'h [T<'h>]) -> Res<Val> {
+        if !self.src.draws() {
+            return Err(format!("`{}`: a random draw (only compiled functions of a session draw)", d.name()));
+        }
+        let pair = |fe: &mut Self, t: T<'h>| -> Res<Option<(Val, Val)>> {
+            Ok(match fe.value(t)? {
+                Val::L(items) => match <[Val; 2]>::try_from(items) {
+                    Ok([x, y]) => Some((x, y)),
+                    Err(_) => return Err("a random draw with a range of other than two numbers".into()),
+                },
+                v => {
+                    // `b` alone: [0, b]
+                    let zero = if d == Draw::Integer { Val::S(E::Int(0), Ty::Int) } else { Val::S(E::Real(0.0), Ty::Real) };
+                    Some((zero, v))
+                }
+            })
+        };
+        let (a, c) = match (d, args) {
+            (Draw::Real | Draw::Normal, []) => (E::Real(0.0), E::Real(1.0)),
+            (Draw::Real, [r]) => {
+                let (x, y) = pair(self, *r)?.expect("a range");
+                (self.draw_real_arg(x)?, self.draw_real_arg(y)?)
+            }
+            (Draw::Integer, [r]) => match pair(self, *r)?.expect("a range") {
+                (Val::S(x, Ty::Int), Val::S(y, Ty::Int)) => (x, y),
+                _ => return Err("`random_integer` with a range that is not of integers".into()),
+            },
+            (Draw::Normal, [mu, sigma]) => {
+                let mu = self.value(*mu)?;
+                let mu = self.draw_real_arg(mu)?;
+                let sigma = self.value(*sigma)?;
+                (mu, self.draw_real_arg(sigma)?)
+            }
+            _ => return Err(format!("`{}` with a count or other arguments (a list of draws)", d.name())),
+        };
+        let t = if d == Draw::Integer { Ty::Int } else { Ty::Real };
+        let v = self.temp(E::Draw(d, b(a), b(c)), t);
+        Ok(Val::S(v, t))
     }
 
     fn power_of(&mut self, x: E, tx: Ty, y: E, ty: Ty) -> Res<(E, Ty)> {
@@ -966,6 +1427,17 @@ impl<'h> Fe<'h, '_> {
                 let (x, declared) = self.binder(*lhs)?;
                 let (e, ty) = match self.value(*v)? {
                     Val::S(e, ty) => (e, ty),
+                    Val::C(a, bb) => {
+                        // a complex local: two machine-real variables (decision N4b.3)
+                        if declared.is_some() {
+                            return Err(format!("`{}` holds a complex number and is declared with a type", self.name(x)));
+                        }
+                        let (re, im) = (self.var(Ty::Real), self.var(Ty::Real));
+                        self.emit(S::Set(re, a));
+                        self.emit(S::Set(im, bb));
+                        self.bind_complex(x, re, im, p == Prim::Var);
+                        return Ok(());
+                    }
                     list => {
                         // a list is bound once, its leaves in temporaries (decision N0.3)
                         if declared.is_some() || p == Prim::Var {
@@ -1045,6 +1517,16 @@ impl<'h> Fe<'h, '_> {
         let Some(bd) = self.lookup(x) else { return Err(format!("an assignment to the free name `{}`", self.name(x))) };
         if !bd.mutable {
             return Err(format!("an assignment to `{}`, which is not a `var`", self.name(x)));
+        }
+        if let Some((re, im)) = bd.cplx {
+            let Val::C(a, bb) = self.value(*v)? else {
+                return Err(format!("`{}` holds a complex number and is assigned another value", self.name(x)));
+            };
+            // both parts computed before either is assigned (each may read the other)
+            let (a, bb) = (self.temp(a, Ty::Real), self.temp(bb, Ty::Real));
+            self.emit(S::Set(re, a));
+            self.emit(S::Set(im, bb));
+            return Ok(());
         }
         let (e, ty) = self.expr(*v)?;
         if ty != bd.ty {

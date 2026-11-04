@@ -5,18 +5,26 @@
 //! registering a native needs the kernel exclusively, which a native does not have). A specialisation applies when
 //! every argument has its parameter's machine type and no definition it read has changed since (version counters,
 //! decision 1b.6); otherwise it declines and the interpreter evaluates the call.
+//!
+//! **Draws** (package N4b, decision N4b.2): a specialisation that draws is an effect. Its call announces the effect
+//! first (declining on a speculative task or inside a condition, where the interpreter then reports the same), takes
+//! the session generator's lock for the whole call and gives the code the session stream; a call that declines or
+//! stops puts the stream back where it was, so the interpreter, evaluating the call instead, draws the very
+//! numbers the interpreted call would have drawn.
 use mc_eval::Compiled;
 use crate::front::{front, FnDef, Shape, Source};
 use crate::interp::Interp;
 use crate::ir::{self, Ty};
 use crate::jit::{self, Code};
-use crate::rt::{Env, Exit};
+use crate::rt::{Env, Exit, PollFn};
+use mc_arith::{Arith, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::pat::{Pat, Ty as PatTy};
 use mc_eval::{Attributes, Control, Hold, Kernel, Native, NativeCx, Reply, Res};
+use mc_random::{Rng, Stream};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 /// Which back end runs a specialisation.
@@ -73,6 +81,7 @@ enum Back {
 pub struct Built {
     back: Back,
     outputs: usize,
+    draws: bool,
     /// the LIR (kept for inspection and differential tests)
     pub lir: ir::Lir,
     /// what was compiled
@@ -91,10 +100,24 @@ impl Built {
     /// Call with the parameters as words, writing a vector result's words into `out` (decision N0.3); declines when
     /// `out` is shorter than the function's outputs ([`Built::outputs`]).
     pub fn call_out(&self, ctl: &Control, args: &[u64], out: &mut [u64], poll: &mut crate::rt::PollFn<'_>) -> (u64, Exit) {
+        self.call_with(ctl, args, out, None, poll)
+    }
+
+    /// [`Built::call_out`] with the random stream the code's draws come from (package N4b; without one, a draw
+    /// declines). The caller makes sure nothing else uses the stream during the call and restores it when the call
+    /// does not complete.
+    pub fn call_with(
+        &self,
+        ctl: &Control,
+        args: &[u64],
+        out: &mut [u64],
+        stream: Option<&mut Stream>,
+        poll: &mut PollFn<'_>,
+    ) -> (u64, Exit) {
         if out.len() < self.outputs || args.len() != self.info.params.len() {
             return (0, Exit::Decline);
         }
-        Env::with_out(ctl, poll, out, |env| match &self.back {
+        Env::with_stream(ctl, poll, out, stream, |env| match &self.back {
             Back::Native(c) => c.call(args, env),
             Back::Interp(i) => i.call(args, env),
         })
@@ -103,6 +126,12 @@ impl Built {
     /// The number of output words of a vector result (0 for a scalar function).
     pub fn outputs(&self) -> usize {
         self.outputs
+    }
+
+    /// Whether the code draws from the session generator (an effect, decision N4b.2); code that does not is pure
+    /// and may run on several threads at once (decision N4b.5).
+    pub fn draws(&self) -> bool {
+        self.draws
     }
 }
 
@@ -135,7 +164,8 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
         inlined,
     };
     let outputs = ir::outputs(&lir);
-    Ok(Built { back, outputs, lir, info })
+    let draws = ir::draws(&lir);
+    Ok(Built { back, outputs, draws, lir, info })
 }
 
 /// A compiled specialisation of one head.
@@ -149,6 +179,8 @@ pub struct Specialisation {
     /// calls that ran compiled to the end, and calls that declined (diagnostics for `compiled_info`)
     runs: AtomicU64,
     declines: AtomicU64,
+    /// the session generator, for code that draws
+    rng: Option<Rng>,
 }
 
 impl Specialisation {
@@ -183,23 +215,41 @@ impl Compiled for Specialisation {
             self.declines.fetch_add(1, Relaxed);
             return None;
         }
-        let list = matches!(self.built.info.shape, Shape::List(_));
-        let mut out = vec![0u64; if list { self.built.outputs() } else { 0 }];
+        // decision N4b.2: drawing code runs only where the interpreter's draw would (the frontier, outside
+        // conditions), with the session stream
+        let rng = match (self.built.draws(), &self.rng) {
+            (false, _) => None,
+            (true, Some(rng)) if cx.effect().is_ok() => Some(rng),
+            (true, _) => {
+                self.declines.fetch_add(1, Relaxed);
+                return None;
+            }
+        };
+        let mut guard = rng.map(|r| r.lock());
+        let saved = guard.as_mut().map(|g| g.stream().clone());
+        let words_out = !matches!(self.built.info.shape, Shape::Scalar(_));
+        let mut out = vec![0u64; if words_out { self.built.outputs() } else { 0 }];
         let (r, exit) = {
             // the fuel of compiled loops is the task's (decision F.3: a speculative task spends its own share)
             let mut poll = |n: u64| {
                 self.polls.fetch_add(1, Relaxed);
                 cx.tick(n).is_ok()
             };
-            self.built.call_out(&self.ctl, &words, &mut out, &mut poll)
+            let stream = guard.as_mut().map(|g| g.stream());
+            self.built.call_with(&self.ctl, &words, &mut out, stream, &mut poll)
         };
-        // a decline or a stop: the interpreter evaluates the call (and stops at its first poll after a stop)
+        // a decline or a stop: the interpreter evaluates the call (and stops at its first poll after a stop), from
+        // the stream position the call started at
         if exit != Exit::Done {
+            if let (Some(g), Some(s)) = (guard.as_mut(), saved) {
+                *g.stream() = s;
+            }
             self.declines.fetch_add(1, Relaxed);
             return None;
         }
+        drop(guard);
         self.runs.fetch_add(1, Relaxed);
-        if list {
+        if words_out {
             return Some(list_term(cx, &self.built.info.shape, &mut out.into_iter()));
         }
         Some(word_term(cx, self.built.info.result, r))
@@ -216,13 +266,18 @@ fn word_term<'h>(cx: &NativeCx<'_, '_, 'h>, t: Ty, w: u64) -> T<'h> {
     }
 }
 
-/// The (nested) list term of shape `s` from its leaves' words in row-major order.
+/// The term of a value of shape `s` from its leaves' words in row-major order (a list, a complex number).
 fn list_term<'h>(cx: &NativeCx<'_, '_, 'h>, s: &Shape, words: &mut impl Iterator<Item = u64>) -> T<'h> {
     match s {
         Shape::Scalar(t) => word_term(cx, *t, words.next().unwrap_or(0)),
         Shape::List(items) => {
             let v: Vec<T<'h>> = items.iter().map(|i| list_term(cx, i, words)).collect();
             cx.list(&v)
+        }
+        Shape::Complex => {
+            let mut part = || Real::Machine(f64::from_bits(words.next().unwrap_or(0)));
+            let (re, im) = (part(), part());
+            Arith::new(cx.heap()).number(&Num::Complex(re, im))
         }
     }
 }
@@ -233,6 +288,8 @@ pub(crate) struct Shared {
     active: Mutex<HashMap<Sym, Arc<Specialisation>>>,
     polls: Arc<AtomicU64>,
     ctl: Arc<Control>,
+    /// the session generator compiled draws use ([`Jit::set_rng`]); without it draws are not compiled
+    rng: OnceLock<Rng>,
 }
 
 impl Shared {
@@ -276,6 +333,12 @@ impl Jit {
     pub fn info(&self, f: Sym) -> Option<Info> {
         self.0.active.lock().expect("compiler state").get(&f).map(|s| s.info().clone())
     }
+
+    /// Attach the session's random generator (the one `mc_random::install` returned), so that compiled functions
+    /// may draw from it (package N4b). Only the first call has an effect; functions compiled before it do not draw.
+    pub fn set_rng(&self, rng: Rng) {
+        let _ = self.0.rng.set(rng);
+    }
 }
 
 /// Register `compile` and `compiled_info` with `k`; the returned handle flushes queued specialisations.
@@ -285,6 +348,7 @@ pub fn install(k: &mut Kernel, h: &Heap) -> Jit {
         active: Mutex::new(HashMap::new()),
         polls: Arc::new(AtomicU64::new(0)),
         ctl: k.control(),
+        rng: OnceLock::new(),
     });
     let held = Attributes { hold: Hold::All, ..Attributes::default() };
     k.register(h.sym("compile"), Attributes { effect: true, ..held }, Box::new(CompileFn(shared.clone())));
@@ -301,6 +365,10 @@ pub(crate) struct KernelSource<'c, 'a, 'k, 'h> {
 }
 
 impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
+    fn draws(&self) -> bool {
+        self.shared.is_some_and(|sh| sh.rng.get().is_some())
+    }
+
     fn function(&mut self, f: Sym) -> Result<FnDef<'h>, String> {
         let h = self.cx.heap();
         let name = h.sym_name(f);
@@ -421,6 +489,7 @@ impl Native for CompileFn {
             polls: self.0.polls.clone(),
             runs: AtomicU64::new(0),
             declines: AtomicU64::new(0),
+            rng: self.0.rng.get().cloned(),
         };
         self.0.pending.lock().expect("compiler state").push(Arc::new(spec));
         Ok(Reply::Done(fterm))

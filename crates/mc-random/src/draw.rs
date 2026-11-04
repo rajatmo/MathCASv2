@@ -6,6 +6,16 @@ use mc_arith::num::{Int, Nat};
 
 const TWO_M53: f64 = 1.0 / (1u64 << 53) as f64;
 
+/// Whether `[a, b]` is a range `random_real` draws from: finite ends, `a <= b`, a finite width.
+pub fn real_range_ok(a: f64, b: f64) -> bool {
+    a.is_finite() && b.is_finite() && a <= b && (b - a).is_finite()
+}
+
+/// Whether `random_normal(mu, sigma)` draws: a finite mean and a finite standard deviation `sigma >= 0`.
+pub fn normal_ok(mu: f64, sigma: f64) -> bool {
+    mu.is_finite() && sigma.is_finite() && sigma >= 0.0
+}
+
 impl Stream {
     /// A uniform real in [0, 1): the top 53 bits of one word, times 2^-53 (every multiple of 2^-53 equally likely).
     #[inline]
@@ -72,6 +82,30 @@ impl Stream {
         let r = (-2.0 * u1.ln()).sqrt();
         let (s, c) = (std::f64::consts::TAU * u2).sin_cos();
         (r * c, r * s)
+    }
+
+    /// A uniform real `a + w u` with `u` in [0, 1) (decision RNG.5): the value of `random_real([a, a + w])`. The
+    /// natives and compiled code (`mc-jit`'s run time) both draw through it, so their draws are the same bits.
+    #[inline]
+    pub fn real_in(&mut self, a: f64, w: f64) -> f64 {
+        a + w * self.uniform()
+    }
+
+    /// A normal real `mu + sigma z` from the first value of one Box–Muller pair (the second is dropped, as for a
+    /// scalar `random_normal`): two words.
+    #[inline]
+    pub fn normal_scaled(&mut self, mu: f64, sigma: f64) -> f64 {
+        mu + sigma * self.normal_pair().0
+    }
+
+    /// A uniform integer in [a, b] for machine integers `a <= b`, without the big-integer layer: a range of 2^64
+    /// values takes one word as it is, smaller ones [`Stream::below`]. The result lies in [a, b], so it is an `i64`.
+    #[inline]
+    pub fn int_in(&mut self, a: i64, b: i64) -> i64 {
+        debug_assert!(a <= b);
+        let w = (b as i128 - a as i128) as u128;
+        let r = if w == u64::MAX as u128 { self.next_u64() } else { self.below(w as u64 + 1) };
+        (a as i128 + r as i128) as i64
     }
 
     /// `n` standard normal reals: `ceil(n / 2)` pairs; an odd count drops the last pair's second value.
