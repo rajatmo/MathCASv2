@@ -159,9 +159,6 @@ pub(crate) struct Names {
     pub(crate) failure: Sym,
     pub(crate) effect_in_condition: Sym,
     pub(crate) no_match: Sym,
-    /// the tags of failures that describe one run, not the term: never memoised
-    pub(crate) interrupted: Sym,
-    pub(crate) limit: Sym,
     /// the term a `var` stands for: `local_cell(id)` (see [`crate::cells`])
     pub(crate) local_cell: Sym,
     /// the binding forms (hygienic substitution, closures)
@@ -179,8 +176,6 @@ impl Names {
             failure: h.sym(names::FAILURE),
             effect_in_condition: h.sym(names::failure::EFFECT_IN_CONDITION),
             no_match: h.sym(names::failure::NO_MATCH),
-            interrupted: h.sym(names::failure::INTERRUPTED),
-            limit: h.sym(names::failure::LIMIT),
             local_cell: h.sym("local_cell"),
             scopes: Scopes::new(h),
         }
