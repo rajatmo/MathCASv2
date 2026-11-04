@@ -23,12 +23,14 @@
 //!
 //! Decisions of this package are numbered N0.1, N0.2, ... (shared with the compiler extensions in `mc-jit`).
 #![warn(missing_docs)]
+mod cache;
 mod compiled;
 mod interp;
 mod prep;
 mod term;
 mod value;
 
+pub use cache::{cache_stats, clear_cache, CacheStats, CAPACITY};
 pub use compiled::{Auto, Compiled, Policy, DEFAULT_AFTER};
 pub use interp::{CentralGradient, Interpreted, Machine};
 pub use prep::{prepare, replace};
@@ -132,8 +134,12 @@ pub struct Stats {
     pub declined: u64,
     /// evaluations by the interpreted backend (declined ones included)
     pub interpreted: u64,
-    /// the compiler's time, in microseconds (0 when nothing was compiled)
+    /// the compiler's time, in microseconds (0 when nothing was compiled, also when the code came from the cache)
     pub compile_micros: u64,
+    /// 1 when the code cache held the expression's family (compiled code, or the compiler's refusal)
+    pub cache_hits: u64,
+    /// 1 when the code cache had nothing for the expression's family (compiled later as the policy says)
+    pub cache_misses: u64,
 }
 
 /// The kind of a variable.

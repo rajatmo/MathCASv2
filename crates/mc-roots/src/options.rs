@@ -4,6 +4,7 @@ use mc_api::names;
 use mc_arith::text::digits_to_bits;
 use mc_arith::Arith;
 use mc_core::{Heap, Store, Sym, View, T};
+use mc_numfn::Policy;
 
 /// Decimal digits of a machine real (53 bits).
 pub(crate) const MACHINE_DIGITS: f64 = 15.954589770191003;
@@ -57,6 +58,8 @@ pub(crate) struct Options {
     pub method: Option<Method>,
     /// `verify: true`: an unverified root under `digits:` is a failure
     pub verify: bool,
+    /// `compile: auto | true | false`: when the machine-real functions are compiled (decision N1.6)
+    pub compile: Policy,
 }
 
 /// Why the options were refused.
@@ -81,6 +84,7 @@ pub(crate) fn split<'a, 'h>(
         max_iterations: None,
         method: None,
         verify: false,
+        compile: Policy::default(),
     };
     let Some((&last, rest)) = args.split_last() else { return Ok((args, o)) };
     let View::App { head, args: rules } = h.view(last) else { return Ok((args, o)) };
@@ -113,6 +117,17 @@ pub(crate) fn split<'a, 'h>(
             "verify" => match h.view(v) {
                 View::Sym(s) if h.sym_name(s) == names::TRUE => o.verify = true,
                 View::Sym(s) if h.sym_name(s) == names::FALSE => o.verify = false,
+                _ => return Err(bad()),
+            },
+            "compile" => match h.view(v) {
+                View::Sym(s) => {
+                    o.compile = match h.sym_name(s).as_str() {
+                        "auto" => Policy::default(),
+                        names::TRUE => Policy::Compiled,
+                        names::FALSE => Policy::Interpreted,
+                        _ => return Err(bad()),
+                    }
+                }
                 _ => return Err(bad()),
             },
             _ => return Err(OptionError::Unknown(name)),
@@ -192,8 +207,11 @@ impl Options {
     }
 
     /// The working precision of the ball refinement in bits (the asked digits plus guard digits) and the precision
-    /// of the result, both for `digits: d`.
+    /// of the result, both for `digits: d`. The result keeps guard bits beyond d digits, as `n(x, d)` does
+    /// (`mc-numeric`'s first precision): rounded to exactly d digits' worth of bits, the rounding error alone
+    /// (half a unit in the last bit) is a fair fraction of a unit in the d-th digit, so that digit was often not
+    /// certain and the printer, which shows only correct digits, showed d - 1 of them (decision N1.7).
     pub fn ball_precision(&self) -> Option<(u64, u64)> {
-        self.digits.map(|d| (digits_to_bits(d + GUARD_DIGITS), digits_to_bits(d)))
+        self.digits.map(|d| (digits_to_bits(d + GUARD_DIGITS), mc_numeric::numeval::first_precision(d)))
     }
 }

@@ -1,39 +1,97 @@
 //! The compiled backend (`mc-jit`, machine reals) and [`Auto`], which runs it with the interpreted backend as the
 //! fallback for every call it declines (decision 1b.3: correctness never depends on the compiler).
+use crate::cache::{self, Found, Lifted};
 use crate::{Arg, Backend, NumFn, Stats, Var};
 use mc_core::{Sym, T};
 use mc_eval::{NativeCx, Res};
 use mc_jit::{Call, ExprFn};
-use std::sync::OnceLock;
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+use std::sync::{Arc, OnceLock};
 
 /// An expression compiled to machine code for machine-real arguments. A call either gives the interpreter's
-/// result or declines (decision 1b.3); it cannot fall back on its own (see [`Auto`]).
+/// result or declines (decision 1b.3); it cannot fall back on its own (see [`Auto`]). Code from the cache
+/// ([`Compiled::cached`]) is shared by a family of expressions and called with this instance's constants after
+/// the inputs (decision N1.1).
 pub struct Compiled {
-    code: ExprFn,
+    code: Arc<ExprFn>,
+    /// the lifted constants, passed after the inputs
+    lifted: Vec<f64>,
+}
+
+/// Compile `body` in `vars`; the reason when the compiler refuses.
+fn compile_code<'h>(cx: &mut NativeCx<'_, '_, 'h>, vars: &[Var], body: T<'h>, consts: bool) -> Result<ExprFn, String> {
+    let params: Vec<(Sym, mc_jit::Arg)> = vars
+        .iter()
+        .map(|v| {
+            (
+                v.sym,
+                match v.arg {
+                    Arg::Scalar => mc_jit::Arg::Real,
+                    Arg::Vector(n) => mc_jit::Arg::Vector(n),
+                },
+            )
+        })
+        .collect();
+    let code = mc_jit::compile_expr(cx, &params, body, consts, mc_jit::Backend::Cranelift)?;
+    if code.output_types().contains(&mc_jit::ir::Ty::Bool) {
+        return Err("a boolean result".into());
+    }
+    Ok(code)
+}
+
+/// How a compilation through the cache went.
+enum Made {
+    /// the family's code (from the cache or compiled now)
+    Code(Compiled),
+    /// the lifted body is refused; `unlifted`: this instance's own body compiles (`Some`)
+    Refused(String, Option<Compiled>),
+}
+
+/// Compile the lifted body of a family that missed the cache and record the outcome; on a refusal, try the
+/// instance's own body (`vars`, `body`) once and record whether it compiles.
+fn compile_family<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    lifted: &Lifted<'h>,
+    vars: &[Var],
+    body: T<'h>,
+    consts: bool,
+) -> Made {
+    match compile_code(cx, &lifted.params, lifted.body, consts) {
+        Ok(code) => {
+            let code = Arc::new(code);
+            cache::insert_code(cx, &lifted.key, code.clone());
+            Made::Code(Compiled { code, lifted: lifted.values.clone() })
+        }
+        Err(why) => {
+            let own = Compiled::new(cx, vars, body, consts).ok();
+            let checks = cache::checks(cx, body);
+            cache::insert_refusal(cx, &lifted.key, &why, checks, own.is_some());
+            Made::Refused(why, own)
+        }
+    }
 }
 
 impl Compiled {
-    /// Compile `body` in `vars` (scalars and vectors of known length). `consts`: the body is meant numerically
-    /// (it went through `n`), so bare `pi` and `e` are machine reals (decision N0.1). The reason is given when
-    /// the compiler refuses.
+    /// Compile `body` in `vars` (scalars and vectors of known length), for this body alone. `consts`: the body is
+    /// meant numerically (it went through `n`), so bare `pi` and `e` are machine reals (decision N0.1). The reason
+    /// is given when the compiler refuses.
     pub fn new<'h>(cx: &mut NativeCx<'_, '_, 'h>, vars: &[Var], body: T<'h>, consts: bool) -> Result<Compiled, String> {
-        let params: Vec<(Sym, mc_jit::Arg)> = vars
-            .iter()
-            .map(|v| {
-                (
-                    v.sym,
-                    match v.arg {
-                        Arg::Scalar => mc_jit::Arg::Real,
-                        Arg::Vector(n) => mc_jit::Arg::Vector(n),
-                    },
-                )
-            })
-            .collect();
-        let code = mc_jit::compile_expr(cx, &params, body, consts, mc_jit::Backend::Cranelift)?;
-        if code.output_types().contains(&mc_jit::ir::Ty::Bool) {
-            return Err("a boolean result".into());
+        Ok(Compiled { code: Arc::new(compile_code(cx, vars, body, consts)?), lifted: vec![] })
+    }
+
+    /// [`Compiled::new`] through the process-wide cache (decisions N1.1 to N1.3): the code of `body`'s family with
+    /// its machine reals lifted to parameters, compiled now if the cache has none. Calls give bitwise the results
+    /// of [`Compiled::new`]'s code. A refused family gives the reason (a body too large for a key compiles alone).
+    pub fn cached<'h>(cx: &mut NativeCx<'_, '_, 'h>, vars: &[Var], body: T<'h>, consts: bool) -> Result<Compiled, String> {
+        let Some(lifted) = cache::lift(cx.heap(), vars, body, consts) else { return Compiled::new(cx, vars, body, consts) };
+        match cache::lookup(cx, &lifted.key).0 {
+            Found::Code(code) => Ok(Compiled { code, lifted: lifted.values }),
+            Found::Refused { why, .. } => Err(why.to_string()),
+            Found::Miss => match compile_family(cx, &lifted, vars, body, consts) {
+                Made::Code(c) => Ok(c),
+                Made::Refused(why, _) => Err(why),
+            },
         }
-        Ok(Compiled { code })
     }
 
     /// Evaluate at `args`: `Some(finite)` with the outputs written (`Some(false)`: a value is not finite, as the
@@ -41,15 +99,31 @@ impl Compiled {
     /// so that the interpreter must evaluate it. One unit of fuel per call.
     pub fn try_eval(&self, cx: &mut NativeCx<'_, '_, '_>, args: &[f64], out: &mut [f64]) -> Res<Option<bool>> {
         cx.tick(1)?;
-        Ok(match self.code.call_f64(cx, args, out) {
+        let call = if self.lifted.is_empty() {
+            self.code.call_f64(cx, args, out)
+        } else {
+            let n = args.len() + self.lifted.len();
+            let mut small = [0.0; 16];
+            let mut big = vec![];
+            let all: &mut [f64] = if n <= small.len() {
+                &mut small[..n]
+            } else {
+                big.resize(n, 0.0);
+                &mut big
+            };
+            all[..args.len()].copy_from_slice(args);
+            all[args.len()..].copy_from_slice(&self.lifted);
+            self.code.call_f64(cx, all, out)
+        };
+        Ok(match call {
             Call::Done => Some(out.iter().all(|v| v.is_finite())),
             Call::Declined | Call::Stopped => None,
         })
     }
 
-    /// The number of scalar inputs.
+    /// The number of scalar inputs (the lifted constants not counted).
     pub fn inputs(&self) -> usize {
-        self.code.inputs()
+        self.code.inputs() - self.lifted.len()
     }
 
     /// The number of scalar outputs.
@@ -57,9 +131,19 @@ impl Compiled {
         self.code.outputs()
     }
 
-    /// Sizes, back end and compile time of the code.
+    /// Sizes, back end and compile time of the code (of the family's code when it came from the cache).
     pub fn info(&self) -> &mc_jit::Info {
         self.code.info()
+    }
+
+    /// The constants lifted to parameters (empty for code made by [`Compiled::new`]).
+    pub fn lifted(&self) -> &[f64] {
+        &self.lifted
+    }
+
+    /// Are the functions the code inlined unchanged (decision 1b.6)?
+    fn current(&self, cx: &mut NativeCx<'_, '_, '_>) -> bool {
+        self.code.current(cx)
     }
 }
 
@@ -101,6 +185,10 @@ impl Default for Policy {
 /// The compiled backend with the interpreted one `I` as fallback: calls run compiled when the expression compiles
 /// (refused: always interpreted) and every declined call is evaluated by `I`. Both evaluate the same body, so the
 /// results are the interpreter's (decision N0.2).
+///
+/// Unless the policy is [`Policy::Interpreted`], the code comes from the process-wide cache (decision N1.4): on a
+/// hit the instance runs compiled from its first call; on a miss [`Policy::Auto`] counts the evaluations of the
+/// whole family and compiles once they pass its threshold.
 pub struct Auto<'h, I> {
     interp: I,
     vars: Vec<Var>,
@@ -112,12 +200,14 @@ pub struct Auto<'h, I> {
     refusal: Option<String>,
     tried: bool,
     seen: u64,
+    /// the lifted body and the family's evaluation counter (`None`: compiled per instance, as without the cache)
+    family: Option<(Lifted<'h>, Arc<AtomicU64>)>,
     stats: Stats,
 }
 
 impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
     /// `interp` evaluates `body` in `vars`; the compiled backend is made from the same body when `policy` says
-    /// (`consts` as in [`Compiled::new`]).
+    /// (`consts` as in [`Compiled::new`]), through the cache.
     pub fn new(
         cx: &mut NativeCx<'_, '_, 'h>,
         interp: I,
@@ -136,45 +226,102 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
             refusal: None,
             tried: false,
             seen: 0,
+            family: None,
             stats: Stats::default(),
         };
-        if policy == Policy::Compiled {
+        if policy == Policy::Interpreted {
+            return a;
+        }
+        if let Some(lifted) = cache::lift(cx.heap(), vars, body, consts) {
+            let (found, seen) = cache::lookup(cx, &lifted.key);
+            match found {
+                Found::Code(code) => {
+                    a.stats.cache_hits = 1;
+                    a.tried = true;
+                    a.adopt(Compiled { code, lifted: lifted.values.clone() });
+                }
+                Found::Refused { why, unlifted } => {
+                    a.stats.cache_hits = 1;
+                    if !unlifted {
+                        // neither the family nor this body compiles
+                        a.tried = true;
+                        a.refusal = Some(why.to_string());
+                    }
+                    // else this body compiles on its own, per instance (no family)
+                    return a;
+                }
+                Found::Miss => a.stats.cache_misses = 1,
+            }
+            a.family = Some((lifted, seen));
+        }
+        if policy == Policy::Compiled && !a.tried {
             a.compile(cx);
         }
         a
     }
 
+    /// Use `c` if its shape is the interpreted backend's (decision N0.9), else record the refusal.
+    fn adopt(&mut self, c: Compiled) {
+        if c.inputs() == self.interp.inputs() && c.outputs() == self.interp.outputs() {
+            self.compiled = Some(c);
+        } else {
+            self.refusal = Some(format!(
+                "{} inputs and {} outputs compiled, {} and {} interpreted",
+                c.inputs(),
+                c.outputs(),
+                self.interp.inputs(),
+                self.interp.outputs()
+            ));
+        }
+    }
+
     fn compile(&mut self, cx: &mut NativeCx<'_, '_, 'h>) {
         self.tried = true;
-        match Compiled::new(cx, &self.vars, self.body, self.consts) {
-            Ok(c) if c.inputs() == self.interp.inputs() && c.outputs() == self.interp.outputs() => {
-                self.stats.compile_micros = c.info().compile_micros;
-                self.compiled = Some(c);
-            }
+        let t0 = std::time::Instant::now();
+        let made = match &self.family {
+            Some((lifted, _)) => match compile_family(cx, lifted, &self.vars, self.body, self.consts) {
+                Made::Code(c) => Ok(c),
+                Made::Refused(why, own) => own.ok_or(why),
+            },
+            None => Compiled::new(cx, &self.vars, self.body, self.consts),
+        };
+        match made {
             Ok(c) => {
-                self.refusal = Some(format!(
-                    "{} inputs and {} outputs compiled, {} and {} interpreted",
-                    c.inputs(),
-                    c.outputs(),
-                    self.interp.inputs(),
-                    self.interp.outputs()
-                ))
+                self.stats.compile_micros = t0.elapsed().as_micros() as u64;
+                self.adopt(c);
             }
             Err(e) => self.refusal = Some(e),
         }
     }
 
-    /// Compile now if the policy says so after `n` more evaluations.
+    /// Compile now if the policy says so after `n` more evaluations (of the whole family, when it is cached).
     fn ready(&mut self, cx: &mut NativeCx<'_, '_, 'h>, n: u64) -> bool {
         self.seen += n;
         if !self.tried {
-            if let Policy::Auto { after } = self.policy {
-                if self.seen > after {
-                    self.compile(cx);
-                }
+            let seen = match &self.family {
+                Some((_, family)) => family.fetch_add(n, Relaxed) + n,
+                None => self.seen,
+            };
+            match self.policy {
+                Policy::Auto { after } if seen > after => self.compile(cx),
+                Policy::Compiled => self.compile(cx),
+                _ => {}
             }
         }
         self.compiled.is_some()
+    }
+
+    /// A call of the compiled code declined. If a function it inlined was redefined (decision 1b.6), the code and
+    /// its cache entry are dropped, so that the next call compiles the current definition.
+    fn declined(&mut self, cx: &mut NativeCx<'_, '_, 'h>) {
+        self.stats.declined += 1;
+        if self.compiled.as_ref().is_some_and(|c| !c.current(cx)) {
+            if let Some((lifted, _)) = &self.family {
+                cache::invalidate(cx, &lifted.key);
+            }
+            self.compiled = None;
+            self.tried = false;
+        }
     }
 
     /// Why the expression is not compiled (`None` when it is, or compilation was not tried yet).
@@ -201,7 +348,7 @@ impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Auto<'h, I> {
                 self.stats.compiled += 1;
                 return Ok(ok);
             }
-            self.stats.declined += 1;
+            self.declined(cx);
         }
         self.stats.interpreted += 1;
         self.interp.eval(cx, args, out)
@@ -216,19 +363,26 @@ impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Auto<'h, I> {
         let mut rest = vec![];
         let mut ok = true;
         for (i, (p, o)) in points.iter().zip(outs.iter_mut()).enumerate() {
-            let c = self.compiled.as_ref().expect("compiled");
-            match c.try_eval(cx, p, o)? {
+            let done = match self.compiled.as_ref() {
+                Some(c) => c.try_eval(cx, p, o)?,
+                None => None,
+            };
+            match done {
                 Some(fine) => {
                     self.stats.compiled += 1;
                     ok &= fine;
                 }
-                None => rest.push(i),
+                None => {
+                    if self.compiled.is_some() {
+                        self.declined(cx);
+                    }
+                    rest.push(i);
+                }
             }
         }
         if rest.is_empty() {
             return Ok(ok);
         }
-        self.stats.declined += rest.len() as u64;
         self.stats.interpreted += rest.len() as u64;
         let pts: Vec<Vec<f64>> = rest.iter().map(|&i| points[i].clone()).collect();
         let mut os: Vec<Vec<f64>> = rest.iter().map(|&i| outs[i].clone()).collect();
@@ -252,14 +406,19 @@ impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Auto<'h, I> {
         let mut ok = true;
         for k in 0..n {
             let (a, o) = (&args[k * ni..(k + 1) * ni], &mut out[k * no..(k + 1) * no]);
-            let c = self.compiled.as_ref().expect("compiled");
-            match c.try_eval(cx, a, o)? {
+            let done = match self.compiled.as_ref() {
+                Some(c) => c.try_eval(cx, a, o)?,
+                None => None,
+            };
+            match done {
                 Some(fine) => {
                     self.stats.compiled += 1;
                     ok &= fine;
                 }
                 None => {
-                    self.stats.declined += 1;
+                    if self.compiled.is_some() {
+                        self.declined(cx);
+                    }
                     self.stats.interpreted += 1;
                     ok &= self.interp.eval(cx, a, o)?;
                 }

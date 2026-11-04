@@ -24,6 +24,7 @@ use mc_arith::{Arith, Num};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Native, NativeCx, Reply, Res};
 use mc_numeric::machine::C64;
+use mc_numfn::Policy;
 use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -152,16 +153,19 @@ fn residual<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, t: T<'h>) -
     }
 }
 
-/// The machine-real view of a closure: interpreted, compiled by `mc-jit` as `mc_numfn::Policy::default()` says
-/// (package N0), with the interpreter evaluating every call the compiled code declines. Constants are not folded
-/// by the compiler (`consts` false): after `n` none are left, and if `n` failed the interpreter keeps them exact.
+/// The machine-real view of a closure: interpreted, or compiled by `mc-jit` as the `compile:` option says
+/// (`mc_numfn::Policy`; packages N0 and N1: the code comes from the process-wide cache, so a family of bodies
+/// differing in their constants compiles once), with the interpreter evaluating every call the compiled code
+/// declines. Constants are not folded by the compiler (`consts` false): after `n` none are left, and if `n` failed
+/// the interpreter keeps them exact.
 fn auto<'r, 'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     f: &'r mut TermFn<'h>,
     ar: &'r Arith<'h, Heap>,
+    policy: Policy,
 ) -> mc_numfn::Auto<'h, Machine<'r, 'h>> {
     let (vars, body) = (f.vars().to_vec(), f.body());
-    mc_numfn::Auto::new(cx, Machine { f, ar }, &vars, body, false, mc_numfn::Policy::default())
+    mc_numfn::Auto::new(cx, Machine { f, ar }, &vars, body, false, policy)
 }
 
 /// The expression with its numeric constants evaluated: by `n` at machine precision, or to `digits` digits
@@ -344,8 +348,8 @@ impl Native for FindRoot {
             let Some(x0) = scalars::<f64>(&starts) else { return Ok(bad_argument(h, NAME, h.int(2))) };
             // machine reals: compiled when the policy says, the interpreter for refused and declined calls
             // (package N0; the results are the interpreter's)
-            let mut fv = auto(cx, &mut fm, &ar);
-            let mut jv = jm.as_mut().map(|j| auto(cx, j, &ar));
+            let mut fv = auto(cx, &mut fm, &ar, opts.compile);
+            let mut jv = jm.as_mut().map(|j| auto(cx, j, &ar, opts.compile));
             let jd = jv.as_mut().map(|j| j as &mut dyn NumFn<'h, f64>);
             to_nums(match method {
                 RootMethod::Newton { symbolic: true } if jd.is_none() && n == 1 => {
@@ -456,27 +460,34 @@ impl Native for FindExtremum {
             Some(t) => Some(TermFn::new(h, &vars, numeric(cx, t, None)?)),
             None => None,
         };
+        // machine reals: compiled as the `compile:` option says (package N1), the interpreter for refused and
+        // declined calls, so the results are the interpreter's
+        let pol = opts.compile;
         let coarse = match (opts.method, n) {
             (Some(Method::Newton), _) => match (gm.as_mut(), hm.as_mut()) {
                 (Some(g), Some(hs)) => {
-                    let mut gv = Machine { f: g, ar: &ar };
-                    let mut hv = Machine { f: hs, ar: &ar };
+                    let mut gv = auto(cx, g, &ar, pol);
+                    let mut hv = auto(cx, hs, &ar, pol);
                     newton::solve(cx, &mut gv, Some(&mut hv), x0, &goals, None)?
                 }
                 _ => return Ok(bad_argument(h, name, h.sym_term(h.sym("method")))),
             },
             (None | Some(Method::Brent), 1) if !list => {
-                minimize::brent_min(cx, &mut Machine { f: &mut fm, ar: &ar }, x0[0], &goals)?
+                let mut fv = auto(cx, &mut fm, &ar, pol);
+                minimize::brent_min(cx, &mut fv, x0[0], &goals)?
             }
             (None | Some(Method::Bfgs), _) => {
-                let gv = gm.as_mut().map(|g| Machine { f: g, ar: &ar });
-                match gv {
-                    Some(mut g) => minimize::bfgs(cx, &mut Machine { f: &mut fm, ar: &ar }, &mut g, x0, &goals)?,
+                let mut fv = auto(cx, &mut fm, &ar, pol);
+                match gm.as_mut() {
+                    Some(g) => {
+                        let mut gv = auto(cx, g, &ar, pol);
+                        minimize::bfgs(cx, &mut fv, &mut gv, x0, &goals)?
+                    }
                     None => {
                         // forward the objective twice: once for values, once for the differences
                         let mut fd = TermFn::new(h, &vars, mobj);
-                        let mut g = CentralGradient { f: Machine { f: &mut fd, ar: &ar }, n };
-                        minimize::bfgs(cx, &mut Machine { f: &mut fm, ar: &ar }, &mut g, x0, &goals)?
+                        let mut g = CentralGradient { f: auto(cx, &mut fd, &ar, pol), n };
+                        minimize::bfgs(cx, &mut fv, &mut g, x0, &goals)?
                     }
                 }
             }
@@ -492,12 +503,12 @@ impl Native for FindExtremum {
         // polishing by Newton on the gradient (decision R.12): after a converged search, accepted if it converges
         // without raising f
         if let (true, Some(g), Some(hs)) = (converged, gm.as_mut(), hm.as_mut()) {
-            let mut gv = Machine { f: g, ar: &ar };
-            let mut hv = Machine { f: hs, ar: &ar };
+            let mut gv = auto(cx, g, &ar, pol);
+            let mut hv = auto(cx, hs, &ar, pol);
             if let Outcome::Done { x: xp, converged: true, err: ep, .. } =
                 newton::solve(cx, &mut gv, Some(&mut hv), x.clone(), &goals, None)?
             {
-                let mut fv = Machine { f: &mut fm, ar: &ar };
+                let mut fv = auto(cx, &mut fm, &ar, pol);
                 let (mut a, mut b) = ([0.0], [0.0]);
                 if fv.eval(cx, &x, &mut a)? && fv.eval(cx, &xp, &mut b)? && b[0] <= a[0] + 4.0 * f64::EPSILON * a[0].abs()
                 {
@@ -507,7 +518,7 @@ impl Native for FindExtremum {
         }
         let mut fx = [0.0];
         let fval = |v: f64| if self.maximum { -v } else { v };
-        let mut fv = Machine { f: &mut fm, ar: &ar };
+        let mut fv = auto(cx, &mut fm, &ar, pol);
         if !fv.eval(cx, &x, &mut fx)? {
             let pt: Vec<Num> = x.iter().map(|v| v.to_num()).collect();
             return Ok(Reply::Done(failure(h, "not_numeric", &[f, rules(h, &ar, &vars, &pt)])));
