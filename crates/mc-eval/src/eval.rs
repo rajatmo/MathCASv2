@@ -221,6 +221,8 @@ pub struct Kernel {
     /// the cells of mutable locals
     pub(crate) cells: Cells,
     pub(crate) names: Names,
+    /// the symbols of assumption contexts, once [`crate::assume::install`] ran
+    pub(crate) assume: Option<crate::assume::Syms>,
     pub(crate) cfg: EvalConfig,
     /// Terms the session keeps across evaluations (history, inputs); traced with the kernel.
     pub roots: Roots,
@@ -271,6 +273,7 @@ impl Kernel {
             out: Mutex::new(vec![]),
             cells: Cells::default(),
             names: Names::new(h),
+            assume: None,
             cfg,
             roots: Roots::new(),
         };
@@ -724,6 +727,9 @@ pub(crate) struct Cx<'h> {
     /// Finished blocks' states, for reuse.
     #[allow(clippy::vec_box)] // boxed: a block frame holds a pointer, so the frames stay small
     pub(crate) blocks: Vec<Box<BlockState<'h>>>,
+    /// The assumption context (`list(facts...)`, see [`crate::assume`]); `None` when empty. Copied into speculative
+    /// tasks.
+    pub(crate) assume: Option<T<'h>>,
 }
 
 impl<'h> Cx<'h> {
@@ -753,6 +759,7 @@ impl<'h> Cx<'h> {
             stack: vec![],
             vals: vec![],
             blocks: vec![],
+            assume: None,
         }
     }
 }

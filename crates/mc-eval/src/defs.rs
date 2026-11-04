@@ -95,12 +95,15 @@ pub struct Attributes {
     pub handles_failures: bool,
     /// the function maps over list arguments of equal length, broadcasting the others (semantics 7.2)
     pub listable: bool,
+    /// the function reads the assumption context (semantics 13): its calls depend on it (see [`crate::assume`])
+    pub uses_assumptions: bool,
 }
 
 const A_AC: u64 = 1 << 3;
 const A_EFFECT: u64 = 1 << 4;
 const A_FAILURES: u64 = 1 << 5;
 const A_LISTABLE: u64 = 1 << 6;
+const A_ASSUMPTIONS: u64 = 1 << 7;
 
 impl Attributes {
     fn bits(self) -> u64 {
@@ -109,6 +112,7 @@ impl Attributes {
             | if self.effect { A_EFFECT } else { 0 }
             | if self.handles_failures { A_FAILURES } else { 0 }
             | if self.listable { A_LISTABLE } else { 0 }
+            | if self.uses_assumptions { A_ASSUMPTIONS } else { 0 }
     }
     pub(crate) fn from_bits(b: u64) -> Attributes {
         Attributes {
@@ -117,6 +121,7 @@ impl Attributes {
             effect: b & A_EFFECT != 0,
             handles_failures: b & A_FAILURES != 0,
             listable: b & A_LISTABLE != 0,
+            uses_assumptions: b & A_ASSUMPTIONS != 0,
         }
     }
 }

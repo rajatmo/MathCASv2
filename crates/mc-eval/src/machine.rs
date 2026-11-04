@@ -194,9 +194,19 @@ impl<'k, 'h> Eval<'k, 'h> {
         // a term that refers to a cell is volatile (its value depends on the cell): not looked up
         let memo = self.k.cfg.memo && h.mask(t) & bit(self.k.names.local_cell) == 0;
         if memo {
+            // the epoch fast path, then the read-set check (semantics 4.3); a hit passes its read set on (2.7)
+            let valid = |hit: &mc_core::MemoHit<'h>| {
+                hit.epoch == cx.epoch || (hit.epoch < cx.epoch && !self.k.changed(hit.epoch, cx.epoch, hit.deps))
+            };
             if let Some(hit) = h.memo_get(t) {
-                // the epoch fast path, then the read-set check (semantics 4.3); a hit passes its read set on (2.7)
-                if hit.epoch == cx.epoch || (hit.epoch < cx.epoch && !self.k.changed(hit.epoch, cx.epoch, hit.deps)) {
+                if valid(&hit) && self.plain_memo_ok(cx, hit.deps) {
+                    cx.reads |= hit.deps;
+                    return Next::Ret(hit.value);
+                }
+            }
+            // inside an assumption context, a result that depended on it is stored under the context's key
+            if let Some(hit) = self.context_key(cx, t).and_then(|k| h.memo_get(k)) {
+                if valid(&hit) {
                     cx.reads |= hit.deps;
                     return Next::Ret(hit.value);
                 }
@@ -306,6 +316,10 @@ impl<'k, 'h> Eval<'k, 'h> {
             }
         }
         let attrs = hs.and_then(|s| self.k.defs.get(s)).map_or_else(Attributes::default, SymDefs::attrs);
+        // the call of a head that reads the assumption context depends on it (semantics 13, `crate::assume`)
+        if attrs.uses_assumptions {
+            cx.reads |= self.assume_bit();
+        }
         self.eval_args(cx, e, args, attrs, false)
     }
 
@@ -649,9 +663,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         // stop flag return `failure(interrupted, ...)` as a value, and memoising it would make the term fail for the
         // rest of the session
         if e.memo && cx.effects == e.effects0 && cx.volatile == e.volatile0 && !self.transient_failure(v) {
-            h.memo_put(e.t0, v, e.epoch0, deps);
+            h.memo_put(self.memo_key(cx, e.t0, deps), v, e.epoch0, deps);
             if v != e.t0 {
-                h.memo_put(v, v, e.epoch0, deps);
+                h.memo_put(self.memo_key(cx, v, deps), v, e.epoch0, deps);
             }
         }
         Next::Ret(v)

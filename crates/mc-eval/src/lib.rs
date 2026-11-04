@@ -18,11 +18,14 @@
 //!   payloads.
 //! - `inspect`: read access to a symbol's version and rules for natives that analyse definitions (the numeric
 //!   compiler, package 1b).
+//! - [`assume`]: assumption contexts (semantics 13), the held form `assuming` and the memo key of evaluations that
+//!   depend on a context.
 //! - [`workloads`]: I2's cases R4, R5, R13, R14, S7, R14e and MR as sessions, for tests and measurements.
 //!
 //! A session is [`session`]: its state is the [`Kernel`], a root container, and each top-level evaluation is one
 //! [`Session::step`](mc_core::Session::step), with a safe point after it.
 #![warn(missing_docs)]
+pub mod assume;
 pub mod builtins;
 mod cells;
 pub mod compiled;

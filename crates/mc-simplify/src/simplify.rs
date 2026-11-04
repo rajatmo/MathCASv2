@@ -10,10 +10,14 @@
 //!   `expand` (package K), `trig_reduce`, the Pythagorean substitutions followed by `expand` or `together`,
 //!   `tan`/`sec`/... as sines and cosines followed by `together`, `exp_to_trig`, products of exponentials as one
 //!   exponential, and the sign convention for sines and cosines of sums (decision 2B.4).
+//!   Inside `assuming` (decision A.6), `refine` under the context's facts is one more move, and the input and the
+//!   result are refined.
 //! - **Search**: breadth first to [`DEPTH`] moves, keeping the [`BEAM`] cheapest new forms per level; forms are
 //!   hash-consed, so duplicates are found by handle.
 //! - **Inside out**: the arguments of other functions are simplified first (`sin((x^2 - 1)/(x - 1))` becomes
 //!   `sin(1 + x)`), and lists element by element.
+use crate::facts::Facts;
+use crate::refine::refine;
 use crate::term::{apply, leaf_count, rewrite, B};
 use crate::trig::{exp_combine, exp_to_trig, normal_signs, pythagoras, to_sin_cos, trig_reduce, Pythagoras};
 use mc_api::{Store, T};
@@ -41,6 +45,8 @@ enum Move {
     ExpToTrig,
     ExpCombine,
     Signs,
+    /// `refine` under the facts of the context (only inside `assuming`)
+    Refine,
 }
 
 const MOVES: [Move; 13] = [
@@ -59,8 +65,12 @@ const MOVES: [Move; 13] = [
     Move::Signs,
 ];
 
-fn step<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, m: Move, t: T<'h>) -> Res<T<'h>> {
+fn step<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut Facts<'_, 'h>>, m: Move, t: T<'h>) -> Res<T<'h>> {
     match m {
+        Move::Refine => match facts {
+            Some(f) => refine(cx, b, f, t),
+            None => Ok(t),
+        },
         Move::Together => apply(cx, b, "together", t),
         Move::Cancel => apply(cx, b, "cancel", t),
         Move::Factor => apply(cx, b, "factor", t),
@@ -98,7 +108,7 @@ fn searchable<'h>(b: &B<'h>, t: T<'h>) -> bool {
 }
 
 /// The cheapest form of `t` the search finds (its arguments already simplified).
-fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut Facts<'_, 'h>>, t: T<'h>) -> Res<T<'h>> {
     if !searchable(b, t) {
         return Ok(t);
     }
@@ -110,8 +120,9 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> 
     for _ in 0..DEPTH {
         let mut next: Vec<(u64, T<'h>)> = Vec::new();
         for &u in &level {
-            for m in MOVES {
-                let r = step(cx, b, m, u)?;
+            let refine = facts.is_some().then_some(Move::Refine);
+            for m in MOVES.into_iter().chain(refine) {
+                let r = step(cx, b, facts, m, u)?;
                 // a move that fails (a limit inside a kernel, a failure term) is not a form
                 if !seen.insert(r) || h_is_failure(b, r) {
                     continue;
@@ -140,8 +151,23 @@ fn h_is_failure<'h>(b: &B<'h>, t: T<'h>) -> bool {
     matches!(b.call_of(t), Some((s, _)) if s == h.sym(mc_api::names::FAILURE))
 }
 
-/// `simplify(e)`.
-pub fn simplify<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+/// `simplify(e)`. With `facts` (inside `assuming`, decision A.6) the search also refines, and the input and the
+/// result are refined; without, the moves are only the equivalences valid for every value.
+pub fn simplify<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mut facts: Option<&mut Facts<'_, 'h>>, t: T<'h>) -> Res<T<'h>> {
+    let facts = &mut facts;
+    let t = match facts {
+        Some(f) => refine(cx, b, f, t)?,
+        None => t,
+    };
+    let r = inside_out(cx, b, facts, t)?;
+    match facts {
+        Some(f) => refine(cx, b, f, r),
+        None => Ok(r),
+    }
+}
+
+/// The search on the arguments of non-arithmetic functions first, then on the whole term.
+fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut Facts<'_, 'h>>, t: T<'h>) -> Res<T<'h>> {
     // inside out: every argument of a function other than the arithmetic (and every element of a list) is
     // simplified before the call it is in; the arithmetic is searched as a whole
     let arith = [b.hd.add, b.hd.mul, b.hd.pow, b.hd.complex];
@@ -153,7 +179,7 @@ pub fn simplify<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T
         let mut changed = false;
         let mut out = Vec::with_capacity(args.len());
         for &a in args {
-            let r = if s == b.hd.list || !searchable(b, a) { a } else { search(cx, b, a)? };
+            let r = if s == b.hd.list || !searchable(b, a) { a } else { search(cx, b, facts, a)? };
             changed |= r != a;
             out.push(r);
         }
@@ -164,10 +190,10 @@ pub fn simplify<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T
         if s == b.hd.list {
             let mut out = Vec::with_capacity(items.len());
             for &a in items {
-                out.push(search(cx, b, a)?);
+                out.push(search(cx, b, facts, a)?);
             }
             return Ok(b.call(s, &out));
         }
     }
-    search(cx, b, inner)
+    search(cx, b, facts, inner)
 }

@@ -4,23 +4,45 @@
 //!
 //! which hold for positive real `a`, `b` (and real `u`), so `power_expand(sqrt(x^2))` is `x`. It is a formal
 //! transformation, deliberately not used by `simplify` (decision 2B.3).
+//!
+//! Inside `assuming` (decision A.7) the context is read: `e` is refined first (the laws that hold under the facts,
+//! `sqrt(x^2)` is `-x` for `x < 0`), and a law is then not applied to a base the facts prove negative.
+use crate::facts::Facts;
+use crate::refine::refine;
 use crate::term::{fixed, B};
 use mc_api::T;
 use mc_eval::{NativeCx, Res};
 
-/// `power_expand(e)`.
-pub fn power_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
-    fixed(cx, b, t, 64, &mut |_, b, node| {
+/// `power_expand(e)`, with the facts of the context if there are any.
+pub fn power_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mut facts: Option<&mut Facts<'_, 'h>>, t: T<'h>) -> Res<T<'h>> {
+    let t = match facts.as_deref_mut() {
+        Some(f) => refine(cx, b, f, t)?,
+        None => t,
+    };
+    // a base the facts prove negative keeps its law unapplied
+    let mut negative = |cx: &mut NativeCx<'_, '_, 'h>, bases: &[T<'h>]| -> Res<bool> {
+        let Some(f) = facts.as_deref_mut() else { return Ok(false) };
+        for &a in bases {
+            let i = f.info(cx, a)?;
+            if f.negative(&i) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    };
+    fixed(cx, b, t, 64, &mut |cx, b, node| {
         let hd = &b.hd;
         if let Some((s, [base, c])) = b.call_of(node) {
             if s == hd.pow {
                 if let Some((g, fs)) = b.call_of(*base) {
-                    if g == hd.mul {
+                    if g == hd.mul && !negative(cx, fs)? {
                         let ps: Vec<T<'h>> = fs.iter().map(|&f| b.pow(f, *c)).collect();
                         return Ok(Some(b.mul(&ps)));
                     }
                     if let (true, [a, e]) = (g == hd.pow, fs) {
-                        return Ok(Some(b.pow(*a, b.mul(&[*e, *c]))));
+                        if !negative(cx, &[*a])? {
+                            return Ok(Some(b.pow(*a, b.mul(&[*e, *c]))));
+                        }
                     }
                 }
             }
@@ -30,11 +52,11 @@ pub fn power_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> R
             return Ok(Some(v));
         }
         match b.call_of(u) {
-            Some((g, fs)) if g == hd.mul => {
+            Some((g, fs)) if g == hd.mul && !negative(cx, fs)? => {
                 let ls: Vec<T<'h>> = fs.iter().map(|&f| b.call(hd.log, &[f])).collect();
                 Ok(Some(b.add(&ls)))
             }
-            Some((g, [a, e])) if g == hd.pow => Ok(Some(b.mul(&[*e, b.call(hd.log, &[*a])]))),
+            Some((g, [a, e])) if g == hd.pow && !negative(cx, &[*a])? => Ok(Some(b.mul(&[*e, b.call(hd.log, &[*a])]))),
             _ => Ok(None),
         }
     })

@@ -36,8 +36,8 @@
 //! `block(let(x, d), ...)` (H.7); options `optional(p, d)` after `;` add a variant with a trailing
 //! `options(...)` argument, read by `option_value` and checked by `check_options` (H.8).
 //!
-//! Decorators (04 section 6.4): `listable`, `effect`, `held` (all arguments), `handles_failures`, `associative`
-//! with `commutative`, `identity(e)` (with both), on the head symbol; `on(s)` stores the rules with `s` (an
+//! Decorators (04 section 6.4): `listable`, `effect`, `held` (all arguments), `handles_failures`, `uses_assumptions`,
+//! `associative` with `commutative`, `identity(e)` (with both), on the head symbol; `on(s)` stores the rules with `s` (an
 //! argument-head rule, semantics 6.5). On a `fn`, `compiled` evaluates `compile(f)` after the definition (the numeric
 //! compiler, package 1b): the definition's value is `null` when that gives `f`, else what it gave. Others give
 //! `failure(definition, ...)`.
@@ -308,6 +308,7 @@ struct Decorators<'h> {
     effect: bool,
     held: bool,
     handles_failures: bool,
+    uses_assumptions: bool,
     identity: Option<T<'h>>,
 }
 
@@ -324,6 +325,7 @@ impl<'h> Decorators<'h> {
                     "effect" => d.effect = true,
                     "held" => d.held = true,
                     "handles_failures" => d.handles_failures = true,
+                    "uses_assumptions" => d.uses_assumptions = true,
                     _ => return Err(DefError::Unsupported("this decorator")),
                 },
                 View::App { head, args: &[a] } => match sym_of(h, head).map(|s| h.sym_name(s)).as_deref() {
@@ -352,6 +354,7 @@ impl<'h> Decorators<'h> {
         a.listable |= self.listable;
         a.effect |= self.effect;
         a.handles_failures |= self.handles_failures;
+        a.uses_assumptions |= self.uses_assumptions;
         if self.held {
             a.hold = Hold::All;
         }
