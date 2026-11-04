@@ -89,3 +89,28 @@ higher orders and multi-argument operators print as `derivative(5)(f)`, `derivat
 3. Not covered: `max`/`min` with more than two arguments or a list (unknown functions); `d` of a series (unevaluated);
    a symbolic order `[x, n]` (read as a gradient); `factorial`, `binomial` until gamma and polygamma exist (phase 3C).
 4. Results are canonical, not simplified: `-1*(-1 + x)*(1 + x)^-2 + (1 + x)^-1`, `cos(x)/x + -1*x^-2*sin(x)` (phase 2B).
+
+# Package 2C: integration and partial fractions
+
+Built by four work packages in parallel on a shared skeleton (commit `051f448`), merged on branch `calculus-2c`.
+Each package's full report is in `notes/`:
+
+| item | report | contents |
+|---|---|---|
+| skeleton | — | `integrate(f, x)`, `integrate(f, [x, a, b])` and `apart(e[, x])` natives; the dispatcher `integrate::antiderivative` (linearity, constant factors, base table `x^n`, `1/x`, `exp`, `sin`, `cos`), then rational, then elementary; test helper `check_antiderivative` |
+| 1 `apart` | [`notes/2c-apart.md`](notes/2c-apart.md) | partial fractions over Q(parameters): factor over Z, polynomial part, extended Euclid per prime power |
+| 2 rational | [`notes/2c-rational.md`](notes/2c-rational.md) | Hermite reduction + Rothstein–Trager with Trager's gcds; real output (log of real quadratics plus atan, Rioboo); residue fields of degree 2 and even quartics; symbolic parameters |
+| 3 elementary | [`notes/2c-elementary.md`](notes/2c-elementary.md) | table with linear arguments, derivative-divides substitution, tabular parts and LIATE, powers of sin/cos |
+| 4 definite | [`notes/2c-definite.md`](notes/2c-definite.md) | F(b) - F(a) with breaking points of f and F located (Sturm counts), one-sided limits by a private helper, `failure(divergent, integrate, f)` |
+
+Cross tests (`tests/integrate_cross.rs`): definite integrals over rational and elementary antiderivatives
+(`integrate(1/(1 + x^2), [x, 0, inf])` is `pi/2`, `integrate(x*exp(-x), [x, 0, inf])` is 1), elementary integrals with
+rational sub-integrals (`x*atan(x)`, `exp(2x)/(1 + exp(x))`), `apart` then `integrate`, and the roadmap's exit test:
+a mixed corpus whose antiderivatives differentiate back to the integrand.
+
+Known gaps across the package (details in the reports):
+- residue fields of degree 3 or non-even quartics (`1/(x^3 - 2)`) need a root-sum result;
+- no erf/Si/Ei results, no Risch algorithm; `exp(-x^2)*x^2` stays unevaluated;
+- results are not simplified (`(-1/2)*log(4) + (1/2)*log(2)`);
+- `d` has no rules for sec, csc, cot and the inverse hyperbolic functions, and `n` cannot evaluate sec, csc, cot;
+- `limit` (item 5) is not built; `integrate/definite/limit.rs` is a private, conservative helper it can replace.

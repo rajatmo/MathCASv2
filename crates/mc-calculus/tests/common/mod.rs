@@ -75,3 +75,26 @@ impl Lcg {
 pub fn number(s: &str) -> f64 {
     s.trim_end_matches('.').parse::<f64>().unwrap_or_else(|_| panic!("not a number: {s}"))
 }
+
+impl Sys {
+    /// Check `integrate(f, x)` by differentiation: the result must contain no `integrate`, and `d(F, x) - f` must
+    /// simplify to 0 or vanish numerically (to about 20 digits) at the given points (source text such as
+    /// `"(3/7)"`, chosen inside the domain). `Ok` with the printed antiderivative, `Err` with the details.
+    pub fn check_antiderivative(&mut self, f: &str, points: &[&str]) -> Result<String, String> {
+        let shown = self.run(&format!("ff = {f}; FF = integrate(ff, x); FF"));
+        if shown.contains("integrate(") {
+            return Err(format!("integrate({f}, x) not found: {shown}"));
+        }
+        if self.run("simplify(d(FF, x) - ff)") == "0" {
+            return Ok(shown);
+        }
+        for p in points {
+            let out = self.run(&format!("n(1 + rewrite((d(FF, x) - ff)*10^20, [x -> {p}]), 30)"));
+            let ok = out.trim_end_matches('.').parse::<f64>().is_ok_and(|v| (v - 1.0).abs() < 1.0);
+            if !ok {
+                return Err(format!("integrate({f}, x) = {shown}: d(F, x) - f at x = {p} is {out}"));
+            }
+        }
+        Ok(shown)
+    }
+}

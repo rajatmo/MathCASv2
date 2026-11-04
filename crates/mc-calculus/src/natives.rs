@@ -172,3 +172,79 @@ impl Native for DerivativeAt {
         true
     }
 }
+
+/// `integrate(f, x)`: an antiderivative; `integrate(f, [x, a, b])`: the definite integral. A list `f` integrates
+/// elementwise. When no method applies the call stays as it is.
+pub struct Integrate {
+    /// the flag `mc-arith` polls in long numeric loops
+    pub stop: Arc<AtomicBool>,
+}
+
+/// `failure(argument, name, message)`.
+fn named_failure<'h>(h: &'h Heap, name: &str, message: &str) -> T<'h> {
+    let tags = [h.sym_term(h.sym("argument")), h.sym_term(h.sym(name)), h.string(message)];
+    h.call(h.sym(names::FAILURE), &tags)
+}
+
+impl Native for Integrate {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [f, spec] = args else { return Ok(Reply::Decline) };
+        let _scope = StopScope::enter(Some(&self.stop));
+        let b = Build::new(h, &self.stop);
+        // [x, a, b]: a definite integral
+        let bounds = match h.view(*spec) {
+            View::App { head, args: [x, lo, hi] } if b.sym_of(head) == Some(b.hd.list) => Some((*x, *lo, *hi)),
+            View::App { head, .. } if b.sym_of(head) == Some(b.hd.list) => {
+                return Ok(Reply::Done(named_failure(h, "integrate", "the range is [x, a, b]")))
+            }
+            _ => None,
+        };
+        let x = bounds.map_or(*spec, |(x, _, _)| x);
+        let x = match variable(&b, x) {
+            Ok(x) => x,
+            Err(message) => return Ok(Reply::Done(named_failure(h, "integrate", message))),
+        };
+        let one = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| match bounds {
+            Some((_, lo, hi)) => crate::integrate::definite::integrate(cx, &b, f, x, lo, hi),
+            None => crate::integrate::antiderivative(cx, &b, f, x, 0),
+        };
+        let r = match h.view(*f) {
+            View::App { head, args: items } if b.sym_of(head) == Some(b.hd.list) => {
+                let mut out = Vec::with_capacity(items.len());
+                for &g in items {
+                    match one(cx, g)? {
+                        Some(r) => out.push(r),
+                        None => return Ok(Reply::Decline),
+                    }
+                }
+                Some(h.call(b.hd.list, &out))
+            }
+            _ => one(cx, *f)?,
+        };
+        Ok(r.map_or(Reply::Decline, Reply::Again))
+    }
+}
+
+/// `apart(e)`, `apart(e, x)`: partial fractions.
+pub struct Apart {
+    /// the flag `mc-arith` polls in long numeric loops
+    pub stop: Arc<AtomicBool>,
+}
+
+impl Native for Apart {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let _scope = StopScope::enter(Some(&self.stop));
+        let b = Build::new(h, &self.stop);
+        let (e, x) = match args {
+            [e] => (*e, None),
+            [e, x] => match variable(&b, *x) {
+                Ok(x) => (*e, Some(x)),
+                Err(message) => return Ok(Reply::Done(named_failure(h, "apart", message))),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        Ok(crate::apart::apart(cx, &b, e, x)?.map_or(Reply::Decline, Reply::Again))
+    }
+}
