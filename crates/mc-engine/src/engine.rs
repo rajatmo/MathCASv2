@@ -76,7 +76,14 @@ pub struct CoreEngine {
 
 /// The names of every installed library's functions and constants, and `inf`.
 fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
-    let lists = [mc_lists::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_jit::FUNCTIONS];
+    let lists = [
+        mc_lists::FUNCTIONS,
+        mc_assoc::FUNCTIONS,
+        mc_numeric::FUNCTIONS,
+        mc_numtheory::FUNCTIONS,
+        mc_poly::FUNCTIONS,
+        mc_jit::FUNCTIONS,
+    ];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
 
@@ -148,6 +155,7 @@ impl CoreEngine {
             arith::install(&mut k, h, &arith_stop);
             // the libraries poll the same stop flag as the arithmetic (decision G.5)
             mc_lists::install(&mut k, h, &arith_stop);
+            mc_assoc::install(&mut k, h);
             mc_numeric::install_with_stop(&mut k, h, &arith_stop);
             mc_numtheory::install(&mut k, h);
             // mc-poly owns `gcd` and `lcm` and sends exact numbers to mc-numtheory's half-gcd (decision 9.1): no two

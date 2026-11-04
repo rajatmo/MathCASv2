@@ -8,6 +8,7 @@ description = "MathCAS v2 engine: the core assembled (syntax, evaluator, arithme
 [dependencies]
 mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
+mc-assoc = { path = "../mc-assoc" }
 mc-bench = { path = "../mc-bench" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
