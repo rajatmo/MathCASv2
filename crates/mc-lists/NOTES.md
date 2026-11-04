@@ -232,3 +232,7 @@ Edit outside the crate: `mc-kernel/tests/protocol.rs` (completion of `uniq` is `
   `MAX_LEN`); `free_of` visits each distinct subterm once.
 - `cases` and `count` still use the local `matching.rs` adapter.
 - `part` checks only its first argument for an association (`xs[1, k]` with an association at `xs[1]` is positional).
+
+## Package N4a
+
+Packed real and integer arrays (store node, contract, evaluator hooks, payload fast paths): see `crates/mc-core/NOTES.md`, section "Package N4a".

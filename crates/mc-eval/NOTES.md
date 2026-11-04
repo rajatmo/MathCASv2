@@ -373,3 +373,7 @@ Harness: R1 passes at m = 20, 25, 30 (m = 30 in 626 ms, against 3.7 s before); R
 - Substitution into right sides with binding forms still uses hash maps.
 - The engine does not share its stop flag with the kernel yet (1a.8).
 
+
+## Package N4a
+
+Packed real and integer arrays (store node, contract, evaluator hooks, payload fast paths): see `crates/mc-core/NOTES.md`, section "Package N4a".

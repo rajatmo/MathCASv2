@@ -34,7 +34,7 @@ fn flat_map(f, xs) = flatten(map(f, xs), 1)
 fn accumulate(xs) = rest(fold_list((a, b) => a + b, 0, xs))
 
 # dot(u, v): the scalar product of two vectors of equal length
-fn dot(u, v) = sum(map(i => u[i]*v[i], range(length(u))))
+fn dot(u, v) = sum(u*v)
 
 # norm(v): the Euclidean length of a vector
 fn norm(v) = sqrt(dot(v, v))
