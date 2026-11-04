@@ -525,6 +525,7 @@ dependencies = [
  "mc-numeric",
  "mc-numtheory",
  "mc-poly",
+ "mc-quad",
  "mc-random",
  "mc-roots",
  "mc-simplify",
@@ -612,6 +613,7 @@ dependencies = [
  "mc-numeric",
  "mc-numtheory",
  "mc-poly",
+ "mc-quad",
  "mc-random",
  "mc-roots",
  "mc-simplify",
@@ -681,6 +683,20 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "rustc-hash",
+]
+
+[[package]]
+name = "mc-quad"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-numeric",
+ "mc-numfn",
 ]
 
 [[package]]

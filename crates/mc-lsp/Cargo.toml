@@ -15,6 +15,7 @@ mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-poly = { path = "../mc-poly" }
 mc-random = { path = "../mc-random" }
+mc-quad = { path = "../mc-quad" }
 mc-roots = { path = "../mc-roots" }
 mc-simplify = { path = "../mc-simplify" }
 mc-strings = { path = "../mc-strings" }

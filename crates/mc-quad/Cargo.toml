@@ -1,0 +1,21 @@
+[package]
+name = "mc-quad"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 numerical integration: n_integrate (adaptive Gauss-Kronrod, tanh-sinh, rigorous Clenshaw-Curtis with ball error bounds) as a native of the evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the NumFn trait and its backends (package N0)
+mc-numfn = { path = "../mc-numfn" }
+# complex machine numbers, ball elementary functions and constants
+mc-numeric = { path = "../mc-numeric" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }
