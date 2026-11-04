@@ -104,6 +104,9 @@ Exit: one shared suite of identities across the packages (for example `d(polylog
 Prerequisite: the JIT inlines powers and sums of machine reals (in progress; Mandelbrot test case in
 `tools-private` quick comparison).
 
+The detailed plan for this phase, including arbitrary precision (balls) and the compiler extensions it needs, is
+[`07-numerics.md`](07-numerics.md) (packages N0-N5).
+
 Exit: the L-class benchmark cases (`02-benchmarks.md`) pass and are compiled where they can be.
 
 ### Phase 5: visualisation and data

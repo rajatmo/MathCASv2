@@ -154,3 +154,5 @@ ruled out. A general tracing JIT combined with parallel symbolic evaluation is n
 - [`03-spikes.md`](03-spikes.md): spike reports (spikes 1, 1b, 2, 3 and 4: done).
 - [`04-syntax.md`](04-syntax.md): the concrete syntax (draft 1).
 - [`05-assembly.md`](05-assembly.md): assembly decisions, crate layout and interface contract for milestone M1.
+- [`06-roadmap.md`](06-roadmap.md): the library roadmap after M1.
+- [`07-numerics.md`](07-numerics.md): numerics with the compiler and at any precision (roots, integrals, ODEs).
