@@ -16,38 +16,36 @@ use mc_arith::Real;
 use mc_numeric::cball::CBall;
 use mc_numeric::elementary as el;
 
-/// log2 of the Euler-Maclaurin remainder bound for sigma (and |s| = a), N and M, in machine arithmetic (only to
-/// choose N and M; the rigorous bound is computed with balls).
-fn bound_log2(sigma: f64, a: f64, n: f64, m: u64) -> f64 {
-    let mut l = 2.0;
-    for i in 0..2 * m {
-        l += (a + i as f64).max(1e-300).log2();
-    }
-    l -= 2.0 * m as f64 * (2.0 * std::f64::consts::PI).log2();
-    l += (1.0 - sigma - 2.0 * m as f64) * n.log2();
-    l - (sigma + 2.0 * m as f64 - 1.0).max(1e-300).log2()
-}
-
-/// (N, M) for a target of 2^-target: the cheapest pair whose bound reaches it (a power costs about four terms of
-/// the correction sum).
+/// (N, M) for a remainder below 2^-target: the cheapest pair whose bound reaches it (a power costs about four
+/// terms of the correction sum). The bound 4 |(s)_2M| / (2 pi)^2M N^(1 - sigma - 2M) / (sigma + 2M - 1) is followed
+/// in machine arithmetic (log2, incrementally in M), only to choose; the rigorous bound is computed with balls.
 fn choose(sigma: f64, a: f64, target: f64) -> Option<(u64, u64)> {
+    let l2pi = (2.0 * std::f64::consts::PI).log2();
     let mut best: Option<(u64, u64, f64)> = None;
     let mut n = 2u64;
     while n < 1 << 22 {
+        if stopped() {
+            return None;
+        }
+        let ln = (n as f64).log2();
+        let mut poch = 0.0;
         let mut prev = f64::INFINITY;
         for m in 1..=(4 * target as u64 + 64) {
-            if sigma + 2.0 * m as f64 - 1.0 <= 0.0 {
+            let mf = m as f64;
+            poch += (a + 2.0 * mf - 2.0).max(1e-300).log2() + (a + 2.0 * mf - 1.0).max(1e-300).log2();
+            let den = sigma + 2.0 * mf - 1.0;
+            if den <= 0.0 {
                 continue;
             }
-            let b = bound_log2(sigma, a, n as f64, m);
+            let b = 2.0 + poch - 2.0 * mf * l2pi + (1.0 - sigma - 2.0 * mf) * ln - den.log2();
             if b < -target {
-                let cost = 4.0 * n as f64 + m as f64;
+                let cost = 4.0 * n as f64 + mf;
                 if best.is_none_or(|(_, _, c)| cost < c) {
                     best = Some((n, m, cost));
                 }
                 break;
             }
-            if b > prev {
+            if b > prev || best.is_some_and(|(_, _, c)| 4.0 * n as f64 + mf > c) {
                 break;
             }
             prev = b;

@@ -9,7 +9,7 @@ use mc_arith::num::{stopped, Int, Nat, Rat};
 use std::sync::{Mutex, OnceLock};
 
 /// The largest index 2n served (beyond it the callers use other methods or stay unevaluated).
-pub const MAX_INDEX: u64 = 20_000;
+pub const MAX_INDEX: u64 = 8_000;
 
 fn cache() -> &'static Mutex<Vec<Rat>> {
     static CACHE: OnceLock<Mutex<Vec<Rat>>> = OnceLock::new();
