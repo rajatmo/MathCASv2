@@ -10,7 +10,8 @@ it finds them; by hand, from the distribution folder:
   python jupyter\install.py                      register for the current user (mc-kernel.exe found next to it)
   python jupyter\install.py --kernel PATH        use another mc-kernel executable
   python jupyter\install.py --sys-prefix         register in the current Python environment instead
-  python jupyter\install.py --uninstall          remove it again
+  python jupyter\install.py --default            also make it the kernel new notebooks start with
+  python jupyter\install.py --uninstall          remove it again (and the default setting)
   jupyter kernelspec list                        check: "mathcas" is listed
 
 Using it
@@ -20,6 +21,7 @@ Using it
 - Each cell shows the value of its last statement; print/say output appears above it; a failure value is shown in
   red and the run continues; read errors stop "run all". Interrupt stops a running cell and keeps the session;
   restart starts a fresh one. Tab completes names (library, prelude, your definitions, module members).
+- Plots: plot(f, [x, a, b]) and list_plot(data) show as images in the cell (examples\plots.ipynb).
 - examples\jupyter.ipynb is a sample notebook.
 
 Files: mathcas_kernel.py (the kernel: a wrapper that talks to mc-kernel.exe over its JSON-lines protocol),

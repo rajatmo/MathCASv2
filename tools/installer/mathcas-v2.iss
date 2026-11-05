@@ -47,8 +47,8 @@ Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"
 Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-0.1.0.vsix"""; \
   Description: "Install the MathCAS extension into VS Code"; Check: VsCodeFound; \
   Flags: postinstall unchecked skipifsilent runhidden
-Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --kernel ""{app}\mc-kernel.exe"""; \
-  Description: "Register the MathCAS kernel with Jupyter (notebooks in Jupyter and VS Code)"; Check: JupyterFound; \
+Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --kernel ""{app}\mc-kernel.exe"" --default"; \
+  Description: "Register the MathCAS kernel with Jupyter, as the default kernel (notebooks in Jupyter and VS Code)"; Check: JupyterFound; \
   Flags: postinstall skipifsilent runhidden
 Filename: "{app}\quickstart.pdf"; Description: "Open the quick start guide"; \
   Flags: postinstall shellexec skipifsilent unchecked
