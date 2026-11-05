@@ -146,7 +146,7 @@ impl Doc {
         let mut nb = nb;
         nb.mark_saved();
         let mut view = View::new(palette);
-        view.zoom = zoom;
+        view.set_magnification(zoom);
         let mut kernel = KernelProcess::new(default_kernel(), ctx.clone());
         kernel.dir = path.and_then(|p| p.parent().map(Path::to_path_buf));
         kernel.origin = path.map(|p| p.display().to_string());
@@ -716,14 +716,14 @@ impl App {
     }
 
     fn step_zoom(&mut self, d: i32) {
-        let i = ZOOMS.iter().position(|&z| z >= self.doc.view.zoom - 0.01).unwrap_or(2) as i32;
+        let i = ZOOMS.iter().position(|&z| z >= self.doc.view.magnification() - 0.01).unwrap_or(2) as i32;
         let j = (i + d).clamp(0, ZOOMS.len() as i32 - 1) as usize;
         self.set_zoom(ZOOMS[j]);
     }
 
     fn set_zoom(&mut self, z: f32) {
-        self.doc.view.zoom = z.clamp(0.5, 3.0);
-        self.settings.magnification = self.doc.view.zoom;
+        self.doc.view.set_magnification(z.clamp(0.5, 3.0));
+        self.settings.magnification = self.doc.view.magnification();
         self.settings.save();
         self.doc.scroll_pending = true;
     }
@@ -1510,7 +1510,7 @@ impl App {
                 });
                 ui.menu_button("Magnification", |ui| {
                     for z in ZOOMS {
-                        if ui.radio((self.doc.view.zoom - z).abs() < 0.01, format!("{:.0} %", z * 100.0)).clicked() {
+                        if ui.radio((self.doc.view.magnification() - z).abs() < 0.01, format!("{:.0} %", z * 100.0)).clicked() {
                             self.set_zoom(z);
                             ui.close();
                         }
@@ -1723,12 +1723,12 @@ impl App {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 egui::ComboBox::from_id_salt("zoom")
-                    .selected_text(format!("{:.0} %", self.doc.view.zoom * 100.0))
+                    .selected_text(format!("{:.0} %", self.doc.view.magnification() * 100.0))
                     .width(72.0)
                     .show_ui(ui, |ui| {
                         for z in ZOOMS {
                             if ui
-                                .selectable_label((self.doc.view.zoom - z).abs() < 0.01, format!("{:.0} %", z * 100.0))
+                                .selectable_label((self.doc.view.magnification() - z).abs() < 0.01, format!("{:.0} %", z * 100.0))
                                 .clicked()
                             {
                                 self.set_zoom(z);
@@ -2038,7 +2038,7 @@ impl App {
 
     /// Set the magnification (for the self-test).
     pub fn set_magnification(&mut self, z: f32) {
-        self.doc.view.zoom = z;
+        self.doc.view.set_magnification(z);
     }
 
     /// The tabs as `title`, `*title` (modified), `[title]` (active) (for the self-test).
@@ -2112,8 +2112,8 @@ impl eframe::App for App {
         // Ctrl+wheel magnifies the notebook (not the chrome)
         let zoom_delta = ctx.input(|i| if i.modifiers.ctrl { i.zoom_delta() } else { 1.0 });
         if zoom_delta != 1.0 && zoom_delta.is_finite() {
-            let z = (self.doc.view.zoom * zoom_delta).clamp(0.5, 3.0);
-            self.doc.view.zoom = z;
+            let z = (self.doc.view.magnification() * zoom_delta).clamp(0.5, 3.0);
+            self.doc.view.set_magnification(z);
         }
         if ctx.input(|i| i.pointer.delta() != egui::Vec2::ZERO || i.pointer.any_pressed()) {
             self.pointer_hidden = false;
@@ -2161,8 +2161,8 @@ impl eframe::App for App {
         if (0..self.tabs.len()).any(|i| self.tab_busy(i)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
-        if self.settings.caret_blink && matches!(self.doc.nb.selection(), Selection::Caret { .. } | Selection::Gap(_)) {
-            // the caret and the insertion line blink: a repaint when the phase changes
+        if self.settings.caret_blink && matches!(self.doc.nb.selection(), Selection::Caret { .. }) {
+            // the caret blinks: a repaint when the phase changes (the insertion line is steady)
             let next = self.doc.view.next_blink(ctx.input(|i| i.time));
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(next + 0.005));
         }

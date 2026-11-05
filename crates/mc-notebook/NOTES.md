@@ -1,6 +1,6 @@
 # mc-notebook: the notebook window (notebook round, P6)
 
-eframe/egui 0.37 (glow), a library plus the `mc-notebook` binary. Milestones M1 and M2 of
+eframe/egui 0.37 (wgpu), a library plus the `mc-notebook` binary. Milestones M1 and M2 of
 `docs/design/08-notebook.md` are done; M3 except visual indentation, operator glyph rendering and line wrapping of
 inputs.
 
@@ -72,8 +72,8 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   cursor); hand over buttons, links and "+"; closed hand while dragging cells or tabs; hidden while typing.
 - **Caret**: on the baseline at the font's height, snapped to device pixels, 2 px at 100 %, 530 ms blink (setting to
   turn off), shown at once after keys, clicks and scrolls, hidden while text is selected; empty cells get a full line
-  (was a dot); fixed a crash selecting from a line end; insertion line full width, blinking, with a "+" menu (Input,
-  Text, Other style); drag selection auto-scrolls; IME composition shown underlined with the caret position reported;
+  (was a dot); fixed a crash selecting from a line end; insertion line full width, a steady hairline (it blinked
+  first: distracting, user decision), with a "+" menu (Input, Text, Other style); drag selection auto-scrolls; IME composition shown underlined with the caret position reported;
   bracket tooltips (style and label).
 - **Look**: labels on the first baseline 10 pt from the content, crisp bracket paths, hairline rules visible in One
   Dark, empty-notebook hint, flat toolbar with tooltips and a kernel menu, dialog buttons with faces, menu check marks
@@ -82,3 +82,18 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   `tabs`, `about`, `ime`, `imecommit`; `MCNB_CONFIG_DIR` gives tests their own settings folder.
 - Gaps: no pixel comparison with the reference (by eye); the caret on Segoe UI headings reaches slightly above cap
   height; 100 % shots emulate the scale; input methods tested with injected events only.
+
+## Rendering and text size (after a machine reset)
+
+- A machine (Ryzen 7700X, Radeon iGPU plus RX 6750 XT, driver 32.0.21036.18) reset while the notebook was open: two
+  GPU timeouts (LiveKernelEvent 141) and an IOMMU fault from the RX 6750 XT 30 s before. The window's own work per
+  frame is under 2 ms and nothing in the paint code is unbounded, so the driver hang is the likely cause, but it was
+  not reproduced. Since then the notebook draws with wgpu on **Direct3D 12** (`main.rs`; eframe's default may pick
+  Vulkan), on the discrete GPU that can present to the window, else integrated, else the software renderer
+  (`choose_adapter`); explicit vsync; if no Direct3D 12 device starts, the default choice. `WGPU_BACKEND`
+  (`vulkan`, `dx12`, `gl`) overrides the backend.
+- With the RX 6750 XT disabled, any eframe window (a bare probe too) ran at about 6 frames per second with a core
+  busy: the machine's graphics state, not the notebook.
+- **Text size**: the styles' sizes are typographic points; `View::zoom` is the magnification times `PX_PER_PT`
+  (96/72), so a 13 pt Input cell is 17.3 px at 100 % (it was 13 px, 3/4 of the intended size).
+  `View::magnification`/`set_magnification` are the user's value (menus, Ctrl+wheel, settings).

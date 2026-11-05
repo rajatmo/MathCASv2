@@ -86,13 +86,18 @@ pub enum Hit {
 /// The caret's blink period (half on, half off), as the platform's default.
 pub const BLINK: f64 = 0.53;
 
+/// Egui points per typographic point: the styles' sizes are points (Input 13 pt), drawn as a word processor does at
+/// 100 % on a 96 dpi screen (13 pt = 17.3 px); before this the sizes were taken as pixels and text was 3/4 size.
+pub const PX_PER_PT: f32 = 96.0 / 72.0;
+
 /// The canvas state that lives across frames.
 pub struct View {
     laid: HashMap<CellId, Laid>,
     /// cell tops relative to the canvas top, and the total height
     tops: Vec<f32>,
     heights: Vec<f32>,
-    /// the magnification (1.0 = 100 %)
+    /// the scale from the styles' sizes (typographic points) to egui points: the magnification (1.0 = 100 %) times
+    /// `PX_PER_PT`; set through `set_magnification`
     pub zoom: f32,
     /// the canvas width of the last frame
     pub width: f32,
@@ -127,7 +132,7 @@ impl View {
             laid: HashMap::new(),
             tops: vec![],
             heights: vec![],
-            zoom: 1.0,
+            zoom: PX_PER_PT,
             width: 800.0,
             origin: Pos2::ZERO,
             palette,
@@ -560,12 +565,13 @@ impl View {
             let max_col = self.max_col;
             let right = origin.x + self.bracket_base(max_col) - HOOK - 6.0;
             let dragging = self.drop_gap.is_some();
-            // the line blinks with the caret's rhythm, as the reference's does; a drop target does not
-            if dragging || self.caret_on(time) {
-                let width = (2.0 * ppp).round().max(1.0) / ppp;
-                let color = if dragging { p.accent } else { p.guide_line() };
-                painter.hline(origin.x + 26.0..=right, y, Stroke::new(width, color));
-            }
+            // a steady hairline (a blinking line was distracting, user decision); a drop target is 2 px in the accent
+            let (width, color) = if dragging {
+                ((2.0 * ppp).round().max(1.0) / ppp, p.accent)
+            } else {
+                (hairline(painter), p.guide_line())
+            };
+            painter.hline(origin.x + 26.0..=right, y, Stroke::new(width, color));
             if !dragging {
                 let center = origin + self.plus_center(g).to_vec2();
                 let hot = self.plus_hover;
@@ -658,6 +664,16 @@ impl View {
         } else {
             self.gap_y(g)
         }
+    }
+
+    /// The magnification (1.0 = 100 %).
+    pub fn magnification(&self) -> f32 {
+        self.zoom / PX_PER_PT
+    }
+
+    /// Set the magnification (1.0 = 100 %).
+    pub fn set_magnification(&mut self, m: f32) {
+        self.zoom = m * PX_PER_PT;
     }
 
     /// The caret is drawn now (blink phase; always right after it moved).
