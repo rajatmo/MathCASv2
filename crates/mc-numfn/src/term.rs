@@ -2,6 +2,7 @@
 //! 4A, moved from `mc-roots`): the expression in named variables becomes `fn([x1, ..., xn], body)`, applied to
 //! number terms (a list term for a vector variable). A body that is a (nested) list gives its leaves in row-major
 //! order, so one closure computes a whole residual vector or Jacobian.
+use crate::value::Value;
 use crate::{Arg, Var};
 use mc_api::names;
 use mc_arith::{Arith, Num};
@@ -101,7 +102,8 @@ impl<'h> TermFn<'h> {
         ls.into_iter().map(|t| ar.num(t)).collect()
     }
 
-    /// Evaluate at the terms `args` (one per variable): the outputs as numbers, or `None`.
+    /// Evaluate at the terms `args` (one per variable): the outputs as numbers, or `None`. The evaluation runs in a
+    /// scratch scope ([`NativeCx::scratch`]): its terms are dropped once the outputs are read (decision G.5).
     pub fn eval_terms(
         &mut self,
         cx: &mut NativeCx<'_, '_, 'h>,
@@ -109,8 +111,28 @@ impl<'h> TermFn<'h> {
         args: &[T<'h>],
     ) -> Res<Option<Vec<Num>>> {
         self.calls += 1;
-        let v = cx.eval(self.call(args))?;
-        Ok(self.read(ar, v))
+        let this = &*self;
+        cx.scratch(|cx| {
+            let v = cx.eval(this.call(args))?;
+            Ok(this.read(ar, v))
+        })
+    }
+
+    /// The value at the scalar inputs `inputs`, read by `out` from the outputs (`None`: not numeric). The input
+    /// terms, the evaluation and the reading run in one scratch scope (decision G.5), so nothing it makes outlives
+    /// the call.
+    pub fn eval_with<S: Value, R: 'static>(
+        &self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        ar: &Arith<'h, Heap>,
+        inputs: &[S],
+        mut out: impl FnMut(Option<Vec<Num>>) -> R,
+    ) -> Res<R> {
+        cx.scratch(|cx| {
+            let numbers: Vec<T<'h>> = inputs.iter().map(|a| ar.number(&a.to_number())).collect();
+            let v = cx.eval(self.call(&self.terms(&numbers)))?;
+            Ok(out(self.read(ar, v)))
+        })
     }
 }
 

@@ -234,6 +234,40 @@ impl<'h> NativeCx<'_, '_, 'h> {
         };
         s.is_some_and(|s| self.ev.k.defs.attrs(s).effect)
     }
+    /// Run `f` in a scratch scope (decisions G.1 to G.3): the terms it makes that are not already shared are kept
+    /// apart and dropped when it returns, so a native evaluating many times (an interpreted integrand, an ODE
+    /// right-hand side) does not grow the heap until the statement ends. `f` returns plain data (machine numbers,
+    /// arithmetic numbers): no handle made in the scope may outlive it.
+    ///
+    /// Inside the scope the evaluation does not split into parallel tasks and refuses effects: an effect makes `f`
+    /// run again without a scope, which then performs it as usual (so `f` must be repeatable: it performed no
+    /// effect before the refusal). Cells written in the scope are given shared copies of their values when it ends.
+    /// Without a free scope (one is open on this task already, every slot is taken, or the heap's configuration
+    /// turns them off) `f` simply runs. Results are the same either way.
+    pub fn scratch<R: 'static>(&mut self, mut f: impl FnMut(&mut NativeCx<'_, '_, 'h>) -> Res<R>) -> Res<R> {
+        let h = self.ev.heap;
+        let Some(sc) = h.scratch() else { return f(self) };
+        let outer = self.cx.scratch_cells.replace(vec![]);
+        self.cx.serial += 1;
+        let r = f(self);
+        self.cx.serial -= 1;
+        let written = std::mem::replace(&mut self.cx.scratch_cells, outer).unwrap_or_default();
+        for id in written {
+            if let Some(slot) = self.ev.k.cells.slot(id) {
+                if let Some(v) = slot.get(h) {
+                    if h.is_scratch(v) {
+                        slot.set(sc.export(v));
+                    }
+                }
+            }
+        }
+        drop(sc);
+        match r {
+            Err(crate::Abort::Scratch) => f(self),
+            r => r,
+        }
+    }
+
     /// The elements `f(0) ... f(n-1)`, evaluated as a group: split into speculative tasks by the granularity rule,
     /// with effects in sequential order (semantics 18.2 item 4). `cost` estimates one element's fuel (0: unknown or
     /// effectful, which keeps the group sequential until measured).

@@ -7,6 +7,7 @@ use crate::{Backend, NumFn, Prep, Var};
 use mc_arith::{Arith, Num};
 use mc_core::{Heap, T};
 use mc_eval::{NativeCx, Res};
+use std::sync::Mutex;
 
 /// A [`TermFn`] with the arithmetic it builds number terms with: the interpreted view of the closure, borrowing
 /// both (what `mc-roots` uses: one closure serves several views and the ball refinement).
@@ -15,13 +16,6 @@ pub struct Machine<'r, 'h> {
     pub f: &'r mut TermFn<'h>,
     /// the arithmetic number terms are built with
     pub ar: &'r Arith<'h, Heap>,
-}
-
-impl<'h> Machine<'_, 'h> {
-    fn terms<S: Value>(&self, args: &[S]) -> Vec<T<'h>> {
-        let numbers: Vec<T<'h>> = args.iter().map(|a| self.ar.number(&a.to_number())).collect();
-        self.f.terms(&numbers)
-    }
 }
 
 /// Values of numbers: `false` unless every value is a finite value of the type.
@@ -35,22 +29,35 @@ fn values<S: Value>(nums: &[Num], out: &mut [S]) -> bool {
     true
 }
 
-impl<'h, S: Value> NumFn<'h, S> for Machine<'_, 'h> {
+impl<'h, S: Value + 'static> NumFn<'h, S> for Machine<'_, 'h> {
+    /// One evaluation in a scratch scope (decision G.5): the number terms, the call and everything the evaluator
+    /// makes for it are dropped once the outputs are read.
     fn eval(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S], out: &mut [S]) -> Res<bool> {
-        let terms = self.terms(args);
-        let Some(nums) = self.f.eval_terms(cx, self.ar, &terms)? else { return Ok(false) };
-        Ok(values(&nums, out))
+        self.f.calls += 1;
+        self.f.eval_with(cx, self.ar, args, |nums| nums.is_some_and(|n| values(&n, out)))
     }
 
+    /// The points as a group (parallel when the evaluator splits it), each evaluated in a scratch scope on the task
+    /// that runs it; the outputs are read there and handed back through `got`, the group's own values are `null`.
     fn eval_batch(&mut self, cx: &mut NativeCx<'_, '_, 'h>, points: &[Vec<S>], outs: &mut [Vec<S>]) -> Res<bool> {
-        let calls: Vec<T<'h>> = points.iter().map(|p| self.f.call(&self.terms(p))).collect();
-        self.f.calls += calls.len() as u64;
-        // the cost estimate is unknown before the first evaluations (0 lets the evaluator measure it)
-        let values_ = cx.group(calls.len(), 0, &|cx, i| cx.eval(calls[i]))?;
-        for (v, o) in values_.into_iter().zip(outs.iter_mut()) {
-            let Some(nums) = self.f.read(self.ar, v) else { return Ok(false) };
-            if !values(&nums, o) {
-                return Ok(false);
+        self.f.calls += points.len() as u64;
+        let f: &TermFn<'h> = self.f;
+        let got: Vec<Mutex<Option<Vec<S>>>> = outs.iter().map(|_| Mutex::new(None)).collect();
+        let shapes: &[Vec<S>] = outs;
+        // the cost estimate is unknown before the first evaluations (0 lets the evaluator measure it); an element
+        // redone by the frontier overwrites what a discarded speculative run stored
+        cx.group(points.len(), 0, &|cx, i| {
+            // arithmetic is not shared between tasks: each element builds and reads numbers with its own
+            let ar = Arith::new(cx.heap());
+            let mut o = shapes[i].clone();
+            let ok = f.eval_with(cx, &ar, &points[i], |nums| nums.is_some_and(|n| values(&n, &mut o)))?;
+            *got[i].lock().unwrap_or_else(|e| e.into_inner()) = ok.then_some(o);
+            Ok(cx.null())
+        })?;
+        for (g, o) in got.into_iter().zip(outs.iter_mut()) {
+            match g.into_inner().unwrap_or_else(|e| e.into_inner()) {
+                Some(v) => *o = v,
+                None => return Ok(false),
             }
         }
         Ok(true)
@@ -117,7 +124,7 @@ impl<'h> Interpreted<'h> {
     }
 }
 
-impl<'h, S: Value> NumFn<'h, S> for Interpreted<'h> {
+impl<'h, S: Value + 'static> NumFn<'h, S> for Interpreted<'h> {
     fn eval(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S], out: &mut [S]) -> Res<bool> {
         Machine { f: &mut self.f, ar: &self.ar }.eval(cx, args, out)
     }

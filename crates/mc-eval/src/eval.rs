@@ -51,6 +51,9 @@ pub enum Abort {
     Limit,
     /// An effect was reached inside a condition (A.6).
     EffectInCondition,
+    /// An effect was reached on the frontier while a scratch scope was open: the native that opened it runs the
+    /// evaluation again without one ([`NativeCx::scratch`], decision G.3). Never leaves that native.
+    Scratch,
 }
 
 /// A result that may abort.
@@ -562,6 +565,11 @@ impl Kernel {
                 debug_assert!(false, "a hole reached the top of an evaluation");
                 ev.failure(&[mc_api::names::failure::INTERRUPTED])
             }
+            // caught by the native that opened the scope
+            Err(Abort::Scratch) => {
+                debug_assert!(false, "a scratch abort reached the top of an evaluation");
+                ev.failure(&[mc_api::names::failure::INTERRUPTED])
+            }
         };
         Evaluation { value, status, stats: EvalStats { splits: cx.splits, redos: cx.redos, fuel: cx.fuel, holes: cx.holes } }
     }
@@ -709,6 +717,11 @@ pub(crate) struct Cx<'h> {
     pub(crate) depth: u32,
     /// Nested drivers in progress on this task and the tasks it was split from (the native-callback limit).
     pub(crate) nest: u32,
+    /// Scratch scopes open on this task ([NativeCx::scratch], decision G.3): groups are not split and effects are
+    /// refused while one is.
+    pub(crate) serial: u32,
+    /// Cells written while a scratch scope is open: their values are copied out of it when it ends.
+    pub(crate) scratch_cells: Option<Vec<i64>>,
     threads: u32,
     splits: u64,
     redos: u64,
@@ -744,6 +757,8 @@ impl<'h> Cx<'h> {
             split_born: 0,
             depth: 0,
             nest: 0,
+            serial: 0,
+            scratch_cells: None,
             threads,
             splits: 0,
             redos: 0,
@@ -861,6 +876,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             stack: vec![],
             vals: vec![],
             blocks: vec![],
+            scratch_cells: None,
             ..*cx
         }
     }
@@ -872,6 +888,10 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         if !cx.front {
             return Err(Abort::Hole);
+        }
+        if cx.serial > 0 {
+            // an effect could store terms of the scope where they outlive it (decision G.3)
+            return Err(Abort::Scratch);
         }
         cx.effects += 1;
         Ok(())
@@ -1094,6 +1114,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     pub(crate) fn alloc_cell(&self, cx: &mut Cx<'h>, v: T<'h>) -> (i64, T<'h>) {
         cx.volatile += 1;
         let id = self.k.cells.alloc(cx.front, cx.task, v);
+        if let Some(c) = cx.scratch_cells.as_mut() {
+            c.push(id);
+        }
         (id, self.heap.call(self.k.names.local_cell, &[self.heap.int(id)]))
     }
 
@@ -1125,6 +1148,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         cx.volatile += 1;
         self.note_store(cx, v);
         slot.set(v);
+        if let Some(c) = cx.scratch_cells.as_mut() {
+            c.push(id);
+        }
         Ok(true)
     }
 
@@ -1264,6 +1290,10 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     #[inline]
     pub(crate) fn may_split(&self, cx: &Cx<'h>) -> bool {
+        if cx.serial > 0 {
+            // a scratch scope's terms stay on its thread (decision G.2)
+            return false;
+        }
         match self.k.cfg.split {
             Split::Never => false,
             Split::Lazy => cx.threads >= 2 && cx.nest < SPLIT_NEST,
@@ -1388,9 +1418,11 @@ impl<'k, 'h> Eval<'k, 'h> {
                 } else {
                     cx.task = self.k.cells.task();
                 }
+                // the speculative part may run on a thread waiting inside a scratch scope: detached, its terms are
+                // shared (decision G.2)
                 let (rl, rr) = rayon::join(
                     || self.range(cx, i, mid, 0, left, lf, est, f),
-                    || self.range(&mut rc, mid, hi, 0, right, rf, est, f),
+                    || mc_core::detached(|| self.range(&mut rc, mid, hi, 0, right, rf, est, f)),
                 );
                 cx.task = task;
                 cx.volatile += rc.volatile;
