@@ -149,3 +149,8 @@ Two language features block most cases and are evaluator work, not library: lamb
   `1.0/4.0`, `2.0^-3`, `3.0/7.0`, `u/v` for reals, rationals, balls in `tests/engine.rs`.
 - Harness re-runs (guard, 3 GB): N9 10^5 14.1 ms, 10^6 172 ms, 10^7 2.80 s (was the time limit), all pass; P4 5/10/15
   pass; P12 100 and 1000 pass, 10^4 still stops at its known limit.
+
+## `timing(e)` (port of the reheating notebook)
+
+`timing(e)` holds its argument, evaluates it once and gives `[seconds, value]` (wall clock). It is an effect native
+(Hold::All), so a repeated timing of the same term is not answered from the memo. Registered in `history.rs`.
