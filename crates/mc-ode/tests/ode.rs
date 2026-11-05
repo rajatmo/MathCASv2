@@ -236,3 +236,36 @@ fn failures() {
     let r = s.run("n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 10], max_steps: 5)");
     assert!(r.starts_with("[y -> interpolating_function(\"y\", [0.0, 0."), "{r}");
 }
+
+/// Explicit equations (one `+-y^(m)` term per equation) are solved without differentiating; they give the
+/// solutions of the same equations written so that the general path (a constant coefficient matrix inverted
+/// exactly) runs, step for step.
+#[test]
+fn explicit_and_general_forms_agree() {
+    let mut s = Sys::new();
+    let pairs = [
+        // y' + k y == s against 2 y' == 2 (s - k y)
+        ("[y'(t) + 0.7*y(t) == 1.5, y(0) == 0]", "[2*y'(t) == 2*(1.5 - 0.7*y(t)), y(0) == 0]", "y"),
+        ("[-y'(t) == y(t) - 1.5, y(0) == 0]", "[3*y'(t) == 3*(1.5 - y(t)), y(0) == 0]", "y"),
+        ("[y''(t) == -y(t), y(0) == 1, y'(0) == 0]", "[2*y''(t) == -2*y(t), y(0) == 1, y'(0) == 0]", "y"),
+        (
+            "[x'(t) == z(t), z'(t) == -x(t), x(0) == 0, z(0) == 1]",
+            "[x'(t) + z'(t) == z(t) - x(t), x'(t) - z'(t) == z(t) + x(t), x(0) == 0, z(0) == 1]",
+            "x",
+        ),
+    ];
+    for (fast, general, y) in pairs {
+        let a = numbers(&s.run(&format!("n_dsolve_value({fast}, [{y}(0.5), {y}(2)], [t, 0, 2])")));
+        let b = numbers(&s.run(&format!("n_dsolve_value({general}, [{y}(0.5), {y}(2)], [t, 0, 2])")));
+        for (u, v) in a.iter().zip(&b) {
+            assert!(close(*u, *v, 1e-12), "{fast}: {a:?} against {b:?}");
+        }
+    }
+    // values: y = (1.5/0.7)(1 - e^-0.7t), cos t, sin t
+    let v = numbers(&s.run("n_dsolve_value([y'(t) + 0.7*y(t) == 1.5, y(0) == 0], [y(1)], [t, 0, 1])"));
+    assert!(close(v[0], 1.5 / 0.7 * (1.0 - (-0.7f64).exp()), 1e-7), "{v:?}");
+    let v = numbers(&s.run("n_dsolve_value([x'(t) == z(t), z'(t) == -x(t), x(0) == 0, z(0) == 1], [x(1), z(1)], [t, 0, 1])"));
+    assert!(close(v[0], 1f64.sin(), 1e-7) && close(v[1], 1f64.cos(), 1e-7), "{v:?}");
+    // a highest derivative in two terms of one residual still goes the general way; a nonlinear one is refused
+    assert!(s.run("n_dsolve_value([y'(t)^2 == 1, y(0) == 0], y(1), [t, 0, 1])").contains("implicit equation"));
+}

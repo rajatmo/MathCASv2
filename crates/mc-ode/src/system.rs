@@ -364,6 +364,9 @@ fn solve_highest<'h>(
 ) -> Res<Result<Vec<T<'h>>, Refusal>> {
     let h = cx.heap();
     let m = highest.len();
+    if let Some(out) = explicit_highest(cx, ar, residuals, highest)? {
+        return Ok(Ok(out));
+    }
     let implicit = || Err("implicit equation".to_string());
     let hs: Vec<T<'h>> = highest.iter().map(|&s| h.sym_term(s)).collect();
     let spec = cx.list(&hs);
@@ -410,6 +413,58 @@ fn solve_highest<'h>(
         out[j] = Some(cx.eval(h.call(h.sym(names::MUL), &[neg_b[e], h.call(h.sym(names::POW), &[a[e * m + j], h.int(-1)])]))?);
     }
     Ok(Ok(out.into_iter().map(|v| v.expect("a bijection")).collect()))
+}
+
+/// The common explicit form without differentiating: every residual is a sum with one term `h_j` or `-h_j` and no
+/// other occurrence of a highest derivative, each `h_j` in one residual. Then `A` is a signed permutation and
+/// `h_j = -(r - h_j)` (or `r + h_j`): the result of the general path, as `A` is inverted exactly. `None` for any
+/// other form.
+fn explicit_highest<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    residuals: &[T<'h>],
+    highest: &[Sym],
+) -> Res<Option<Vec<T<'h>>>> {
+    let h = cx.heap();
+    let add = h.sym_term(h.sym(names::ADD));
+    let mul = h.sym_term(h.sym(names::MUL));
+    let minus_one = h.int(-1);
+    let mut out: Vec<Option<T<'h>>> = vec![None; highest.len()];
+    for &r in residuals {
+        let View::App { head, args } = h.view(r) else { return Ok(None) };
+        if head != add {
+            return Ok(None);
+        }
+        // the one argument that is +-h_j
+        let mut found = None;
+        for (i, &a) in args.iter().enumerate() {
+            let (sign, s) = match h.view(a) {
+                View::Sym(s) => (1, s),
+                View::App { head, args: &[c, x] } if head == mul && c == minus_one => match h.view(x) {
+                    View::Sym(s) => (-1, s),
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            if let Some(j) = highest.iter().position(|&q| q == s) {
+                if found.is_some() {
+                    return Ok(None);
+                }
+                found = Some((i, j, sign));
+            }
+        }
+        let Some((i, j, sign)) = found else { return Ok(None) };
+        if out[j].is_some() {
+            return Ok(None);
+        }
+        let rest: Vec<T<'h>> = args.iter().enumerate().filter(|&(k, _)| k != i).map(|(_, &a)| a).collect();
+        let b = ar.add(&rest);
+        if mentions(cx, b, highest)? {
+            return Ok(None);
+        }
+        out[j] = Some(if sign == 1 { cx.eval(ar.neg(b))? } else { cx.eval(b)? });
+    }
+    Ok(out.into_iter().collect())
 }
 
 /// The inverse of an m by m matrix of numbers by Gauss–Jordan elimination (exact for exact entries); `None` when
