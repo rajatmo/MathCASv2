@@ -1,8 +1,8 @@
 #! mathcas 2
 # A bubble wall from a first-order phase transition (a port of a research notebook): the thermal function J_B,
-# an effective potential V(h, T), the O(3) bounce by shooting, its action S(x0), the nucleation condition S = 140
-# and the O(4) wall profile. Run: mc-repl examples/wall_profile.mc  (about 20 s; plots are written as PNG files
-# to the current folder).
+# an effective potential V(h, T), the O(3) bounce by shooting, its action S(x0), the nucleation condition S = 140,
+# the O(4) wall profile and its oscillating tail. Run: mc-repl examples/wall_profile.mc  (about 20 s; plots are
+# written as PNG files to the current folder).
 
 # --- 1. the thermal function J_B and the effective potential
 
@@ -18,7 +18,7 @@ JB = interpolation(jbtab)
 dJB = interpolation(djbtab)
 say("tables: ", length(jbtab), " points; J_B(1.234) = ", JB(1.234), ", direct ", jb(1.234))
 
-g = 0.7
+g = sqrt(0.7)
 fn f(x, x0) = 1/(2*pi^2)*(g^4/16*x^4*(log(x/x0) - 1/4) + JB(min(g*x, 25.0)) - JB(0.0))
 fn df(x, x0) = 1/(2*pi^2)*(g^4/4*x^3*log(max(x, 1.0e-9)/x0) + g*dJB(min(g*max(x, 1.0e-9), 25.0)))
 
@@ -53,8 +53,8 @@ wmax = 20.0
 # x_c(x0) by shooting over the grid, interpolated
 fn xc_of(x0) = a /. find_root(shoot(x0, a), [a, 5, 1, 10])
 # points where shooting fails (no sign change in [1, 10]) are left out
-xctab = drop_failures(table([x0, xc_of(x0)], x0, range(10, 2000, 10)))
-say(length(xctab), " of 200 shooting points")
+xctab = drop_failures(table([x0, xc_of(x0)], x0, range(10, 1000, 10)))
+say(length(xctab), " of 100 shooting points")
 xcInt = interpolation(xctab)
 
 say("x_c(83.75) = ", xcInt(83.75))
@@ -68,7 +68,7 @@ fn action(b) = {
 setab = drop_failures(table([b, action(b)], b, map(p => p[1], xctab)))
 say(length(setab), " action points")
 SE = interpolation(setab)
-x0n = x0 /. find_root(SE(x0) == 140, [x0, 1500, setab[1][1], setab[-1][1]])
+x0n = x0 /. find_root(SE(x0) == 140, [x0, 100, setab[1][1], setab[-1][1]])
 xcn = xcInt(x0n)
 say("S = 140 at x0 = ", x0n, ", x_c = ", xcn)
 
@@ -78,4 +78,20 @@ xsol = x /. n_dsolve([x''(w) + 3/w*x'(w) + df(x(w), x0n) == 0, x(w0) == xcn - w0
 export_data("bounce.png", plot(x(z) /. bounce(x0n, xcn), [z, z0, domain_end(bounce(x0n, xcn))]))
 export_data("wall_profile.png", plot(xsol(w)/x0n, [w, w0, wmax]))
 export_data("action.png", list_log_log_plot(setab))
-say("first zero of x/x0 - 1: ", find_root(xsol(w)/x0n - 1, [w, 1, 0.05, 5.5]))
+
+# --- 4. the oscillating tail: first zero of x/x0 - 1, first turning point, and the amplitude there
+wc = w /. find_root(xsol(w)/x0n - 1, [w, 1, 0.05, 5.5])
+wk = w /. find_root(xsol'(w)/x0n, [w, 5.5, 5.3, 5.7])
+# the amplitude eps_k from the third-order expansion eps - 5/6 eps^2 + 3/16 eps^3 = x(wk)/x0 - 1
+# (`e` is the constant e, hence `ep`; the equation is written as a difference, since `==` of two numbers is a
+# boolean)
+ek = ep /. find_root(ep - 5/6*ep^2 + 3/16*ep^3 - (xsol(wk)/x0n - 1), [ep, 0])
+jk = ek^2 - 11/9*ek^4
+jc = jk*(wk/wc)^3
+say("first zero w_c = ", wc, ", first turning point w_k = ", wk)
+say("eps_k = ", ek, ", j_k = ", jk, ", j_c = ", jc)
+
+# the approximate envelope x0 (1 + eps(w) cos(theta(w))) against the exact profile
+fn eps_of(w) = sqrt(jc)*(wc/w)^(3/2)
+fn theta(w) = g^2*x0n/(2*sqrt(2)*pi)*((w - wk) - 23/24*jc*wc^3/wk^2)
+export_data("envelope.png", plot([1 + eps_of(w)*cos(theta(w)), xsol(w)/x0n], [w, wc, wmax]))

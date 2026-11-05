@@ -32,7 +32,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     (
         "interpolation",
-        "interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a natural cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])",
+        "interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])",
     ),
     (
         "export_data",

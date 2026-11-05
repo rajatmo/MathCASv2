@@ -1,4 +1,4 @@
-//! `interpolation(data)`: a natural cubic spline (or a piecewise-linear interpolant) through tabulated data, as a
+//! `interpolation(data)`: a not-a-knot cubic spline (or a piecewise-linear interpolant) through tabulated data, as a
 //! callable value `interpolated(xs, ys, ms)` (ms: the second derivatives at the nodes; all zero for linear).
 use crate::failure;
 use mc_api::names;
@@ -73,7 +73,7 @@ impl Native for Interpolation {
         }
         let xs: Vec<f64> = pts.iter().map(|p| p.0).collect();
         let ys: Vec<f64> = pts.iter().map(|p| p.1).collect();
-        let ms = if linear || xs.len() < 3 { vec![0.0; xs.len()] } else { natural_spline(&xs, &ys) };
+        let ms = if linear || xs.len() < 3 { vec![0.0; xs.len()] } else { not_a_knot_spline(&xs, &ys) };
         let list = |v: &[f64]| h.reals(v);
         Ok(Reply::Done(h.call(h.sym("interpolated"), &[list(&xs), list(&ys), list(&ms)])))
     }
@@ -97,23 +97,42 @@ fn method<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<bool> {
     }
 }
 
-/// The second derivatives of the natural cubic spline through (xs, ys) (zero at both ends): the tridiagonal system
-/// h_{i-1} M_{i-1} + 2 (h_{i-1} + h_i) M_i + h_i M_{i+1} = 6 (s_i - s_{i-1}), solved by the Thomas algorithm.
-fn natural_spline(xs: &[f64], ys: &[f64]) -> Vec<f64> {
+/// The second derivatives M_i of the not-a-knot cubic spline through (xs, ys), n >= 3 points.
+///
+/// Interior rows: h_{i-1} M_{i-1} + 2 (h_{i-1} + h_i) M_i + h_i M_{i+1} = 6 (s_i - s_{i-1}). The end conditions make
+/// the third derivative continuous at the second and the second-to-last node, (M_1 - M_0)/h_0 = (M_2 - M_1)/h_1 and
+/// likewise at the other end, so the first two and the last two pieces are one cubic each. Unlike the natural spline
+/// (M = 0 at both ends) this does not force zero curvature at the ends: a function with y'' != 0 there (for example
+/// a thermal integral near 0) is followed, and every cubic is reproduced exactly. M_0 and M_{n-1} are eliminated
+/// into the first and last interior rows; the remaining tridiagonal system is solved by the Thomas algorithm.
+/// Three points give the parabola through them.
+fn not_a_knot_spline(xs: &[f64], ys: &[f64]) -> Vec<f64> {
     let n = xs.len();
     let hs: Vec<f64> = xs.windows(2).map(|w| w[1] - w[0]).collect();
     let slopes: Vec<f64> = (0..n - 1).map(|i| (ys[i + 1] - ys[i]) / hs[i]).collect();
-    let mut diag = vec![0.0; n];
-    let mut rhs = vec![0.0; n];
-    let mut sup = vec![0.0; n];
+    if n == 3 {
+        return vec![2.0 * (slopes[1] - slopes[0]) / (xs[2] - xs[0]); 3];
+    }
+    // rows 1..=n-2 of the tridiagonal system: sub[i] M_{i-1} + diag[i] M_i + sup[i] M_{i+1} = rhs[i]
+    let (mut sub, mut diag, mut sup, mut rhs) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 1..n - 1 {
+        sub[i] = hs[i - 1];
         diag[i] = 2.0 * (hs[i - 1] + hs[i]);
         sup[i] = hs[i];
         rhs[i] = 6.0 * (slopes[i] - slopes[i - 1]);
     }
-    // forward elimination over the interior rows 1..n-1 (M_0 = M_{n-1} = 0)
+    // M_0 = ((h_0 + h_1) M_1 - h_0 M_2)/h_1 into row 1
+    let (h0, h1) = (hs[0], hs[1]);
+    diag[1] += h0 * (h0 + h1) / h1;
+    sup[1] -= h0 * h0 / h1;
+    sub[1] = 0.0;
+    // M_{n-1} = ((h_{n-2} + h_{n-3}) M_{n-2} - h_{n-2} M_{n-3})/h_{n-3} into row n-2
+    let (ha, hb) = (hs[n - 3], hs[n - 2]);
+    diag[n - 2] += hb * (hb + ha) / ha;
+    sub[n - 2] -= hb * hb / ha;
+    sup[n - 2] = 0.0;
     for i in 2..n - 1 {
-        let w = hs[i - 1] / diag[i - 1];
+        let w = sub[i] / diag[i - 1];
         diag[i] -= w * sup[i - 1];
         rhs[i] -= w * rhs[i - 1];
     }
@@ -121,6 +140,8 @@ fn natural_spline(xs: &[f64], ys: &[f64]) -> Vec<f64> {
     for i in (1..n - 1).rev() {
         m[i] = (rhs[i] - sup[i] * m[i + 1]) / diag[i];
     }
+    m[0] = ((h0 + h1) * m[1] - h0 * m[2]) / h1;
+    m[n - 1] = ((hb + ha) * m[n - 2] - hb * m[n - 3]) / ha;
     m
 }
 
@@ -193,6 +214,48 @@ mod tests {
     fn the_spline_of_a_line_is_the_line() {
         let xs = [0.0, 1.0, 2.5, 4.0];
         let ys: Vec<f64> = xs.iter().map(|x| 3.0 * x - 1.0).collect();
-        assert!(natural_spline(&xs, &ys).iter().all(|m| m.abs() < 1e-12));
+        assert!(not_a_knot_spline(&xs, &ys).iter().all(|m| m.abs() < 1e-12));
+    }
+
+    /// Not-a-knot reproduces every cubic: the second derivatives are exact, also at the ends (a natural spline would
+    /// give 0 there), on uneven nodes and for the smallest sizes.
+    #[test]
+    fn the_spline_of_a_cubic_is_the_cubic() {
+        let p = |x: f64| 2.0 * x * x * x - 3.0 * x * x + 0.5 * x - 7.0;
+        let p2 = |x: f64| 12.0 * x - 6.0;
+        for xs in [vec![0.0, 1.0, 2.5, 4.0], vec![-1.0, -0.2, 0.3, 1.1, 2.0, 3.7, 4.0], vec![0.0, 0.5, 1.0, 1.5, 2.0]] {
+            let ys: Vec<f64> = xs.iter().map(|&x| p(x)).collect();
+            let ms = not_a_knot_spline(&xs, &ys);
+            for (x, m) in xs.iter().zip(&ms) {
+                assert!((m - p2(*x)).abs() < 1e-9, "x = {x}: {m} vs {}", p2(*x));
+            }
+            // and the values between the nodes
+            for k in 0..=40 {
+                let x = xs[0] + (xs[xs.len() - 1] - xs[0]) * k as f64 / 40.0;
+                let v = mc_numeric::spline::value(&xs, &ys, &ms, x).unwrap();
+                assert!((v - p(x)).abs() < 1e-9, "x = {x}: {v} vs {}", p(x));
+            }
+        }
+    }
+
+    #[test]
+    fn three_points_give_the_parabola() {
+        let xs = [0.0, 1.0, 3.0];
+        let ys: Vec<f64> = xs.iter().map(|x| 1.5 * x * x - x + 2.0).collect();
+        assert!(not_a_knot_spline(&xs, &ys).iter().all(|m| (m - 3.0).abs() < 1e-12));
+    }
+
+    /// A function with curvature at the end of the table (y = x^2 + x^3 near 0, y''(0) = 2) is followed between the
+    /// first nodes; the natural spline's y''(0) = 0 gave a large relative error there.
+    #[test]
+    fn curvature_at_the_ends_is_kept() {
+        let f = |x: f64| x * x + x * x * x;
+        let xs: Vec<f64> = (0..=50).map(|k| k as f64 * 0.02).collect();
+        let ys: Vec<f64> = xs.iter().map(|&x| f(x)).collect();
+        let ms = not_a_knot_spline(&xs, &ys);
+        for x in [0.003, 0.005, 0.01, 0.015, 0.97, 0.995] {
+            let v = mc_numeric::spline::value(&xs, &ys, &ms, x).unwrap();
+            assert!(((v - f(x)) / f(x)).abs() < 1e-9, "x = {x}: {v} vs {}", f(x));
+        }
     }
 }
