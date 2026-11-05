@@ -92,6 +92,13 @@ pub(crate) fn is_scratch(b: u32) -> bool {
     b & (IMM | YOUNG | SCR) == YOUNG | SCR
 }
 
+/// Is `t` a scratch term ([`Heap::is_scratch`] without the heap)? Caches keyed by handles that outlive one
+/// evaluation must not keep scratch terms: later scopes reuse their handles.
+#[inline]
+pub fn is_scratch_term(t: T<'_>) -> bool {
+    is_scratch(t.raw())
+}
+
 thread_local! {
     /// The scope open on this thread (null: none).
     static ACTIVE: Cell<*const Slot> = const { Cell::new(null()) };
