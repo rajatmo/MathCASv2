@@ -377,3 +377,7 @@ Harness: R1 passes at m = 20, 25, 30 (m = 30 in 626 ms, against 3.7 s before); R
 ## Package N4a
 
 Packed real and integer arrays (store node, contract, evaluator hooks, payload fast paths): see `crates/mc-core/NOTES.md`, section "Package N4a".
+
+## Round 7 package A
+
+The assumption context (`src/assume.rs`): `Cx::assume`, the held form `assuming`, `Attributes::uses_assumptions` (bit 7), the read-set bit of `assuming` as the dependency, memo entries keyed `assume$memo(t, ctx)` for evaluations that depended on a nonempty context, `NativeCx::assumptions()` and `eval_assuming`, the decorator `@uses_assumptions`. Details and decisions A.1-A.8: `crates/mc-simplify/NOTES.md`, section "Round 7 package A".

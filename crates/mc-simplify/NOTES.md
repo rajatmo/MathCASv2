@@ -102,3 +102,109 @@ arguments leaves the call unevaluated.
    corpus uses `1/cos`.
 6. Printing: complex coefficients print as `complex(0, -1/2)*(...)`, and `3 + 2im` prints as `complex(3, 2)`; that is
    the printer, not this crate.
+
+## Round 7 package A: assumptions (`assuming`, `refine`, assumption-aware `simplify`)
+
+Status: merged (branch `lib/r7-a`, commits 8a27dae, 4488736, f5ae588, from main 216fdea). On the branch: full suite
+779 passed, 0 failed; clippy clean. `assuming(x > 0, simplify(sqrt(x^2)))` is `x`; without facts it stays
+`(x^2)^(1/2)`; no memo reuse across contexts; 1 and 4 threads identical. The evaluator side is
+`crates/mc-eval/src/assume.rs` (see `crates/mc-eval/NOTES.md`, section "Round 7 package A").
+
+### What was built
+
+- **Evaluator** (`mc-eval/src/assume.rs`): the context is one term `list(facts...)`, flattened (`and` and lists
+  split, `true` dropped), sorted by the canonical order and deduplicated (equal fact sets are one handle); held in the
+  task context as `Cx::assume: Option<T>`, lexically scoped (restored when the body returns, also on abort), copied
+  into speculative tasks. The held form `assuming(facts, body)` (facts evaluated, body held; declares
+  `uses_assumptions`; wrong arity declines). A call of a head declaring `uses_assumptions`, or a native reading the
+  context, sets the read-set bit of the symbol `assuming`, which travels like any read (up through evaluations,
+  through memo hits, back from speculative tasks). Memo: an evaluation in a nonempty context whose read set has the
+  bit is stored under `assume$memo(t, context)`, everything else under `t`; inside a nonempty context an entry under
+  `t` is accepted only if its read set lacks the bit; outside contexts plain entries are always valid; a bit
+  collision only sends more entries to the keyed form (conservative).
+- **mc-simplify** `facts.rs`: normalised facts and a decision engine giving each expression a kind (integer,
+  rational, real, unknown) and a range (bounds, strictness, nonzero) from its structure (sums add bounds, numeric
+  coefficients scale, products multiply signs; rules for powers, `exp`, `log`, `abs`, `sign`, `sin`/`cos`,
+  `sinh`/`tanh`/`atan`, `cosh`, `floor`/`ceiling`/`round`), met with the facts about the expression (`e op c`, and
+  `a op b` when `a - b` is `±e`); closed numeric expressions decided by mc-numeric's refinement; depth 48, fuel ticks.
+  `refine.rs`: the rules, bottom up and evaluated, to a fixed point (at most 16 rounds). `simplify` and
+  `power_expand` read the context.
+
+### Refinements (all tested in `refinement_table`, each with a "no facts, unchanged" counterpart)
+
+| form | becomes | when |
+|---|---|---|
+| `(x^a)^c` | `x^(a c)` | `x >= 0` and `a`, `c` real; or `a` a real number in (-1, 1] |
+| `(x^a)^c` | `abs(x)^(a c)` | `x` real, `a` an even integer, `c` real (`sqrt(x^2)` → `abs(x)`) |
+| `sqrt(sum)` | factored first, then the rules above | `sqrt(x^2+2x+1)` → `1 + x` for `x > -1` |
+| `(p q)^c` | `p^c q^c` for factors `p >= 0` | `c` not an integer |
+| `abs(x)^n` | `x^n` | `x` real, `n` even |
+| `(-1)^k` | `1` / `-1`; `(-1)^k0` (even integer parts dropped) | `k` even / odd; `(-1)^(3n+4m+2)` → `(-1)^n` |
+| `abs(x)`, `sign(x)` | `x`/`-x`; `1`/`-1`/`0` | sign known; known-sign factors pulled out of products |
+| `log(x^a)` | `a log x` | `x > 0` and `a` real; or `a` in (-1, 1] |
+| `log(p q)` | `Σ log p_i + log(rest)` | factors `p_i > 0` |
+| `log(exp(u))` | `u` | `u` real |
+| `sin(kπ)`, `tan(kπ)`; `cos(kπ)` | `0`; `(-1)^k` | `k` an integer |
+| `cos((k+½)π)`, `sin((k+½)π)` | `0`, `(-1)^k` | `k` an integer |
+| `sin(v+kπ)`, `cos(v+kπ)`, `tan(v+kπ)` | `(-1)^k sin v`, `(-1)^k cos v`, `tan v` | `k` an integer |
+| comparisons | `true` / `false` | decided by the facts |
+
+### Decisions
+
+- **A.1** The context is a canonical `list` term in the evaluation task, inherited by speculative tasks, restored
+  after the body; facts are evaluated in the outer context.
+- **A.2** The dependency is the read-set bit of `assuming`, set at dispatch of a `uses_assumptions` head (`with_head`)
+  and by `NativeCx::assumptions()` / `eval_assuming`; only evaluations that depended on a nonempty context are keyed
+  by it, so context-free work is shared across contexts (tested).
+- **A.3** Facts: `<`, `<=`, `>`, `>=`, `==`, `!=` between any expressions; `element(x, D)`, `element([x, y], D)` with
+  D in `integers`, `rationals`, `reals`, `complexes`, `positive_`/`negative_`/`nonnegative_`/`nonpositive_integers`,
+  `positive_`/`negative_rationals`, `positive_`/`negative_`/`nonnegative_`/`nonpositive_reals`; `and`s and lists. An
+  order fact makes both sides real; unknown facts are ignored. `element(x, reals)` because `in` is not an infix
+  operator yet.
+- **A.4** Assumption-aware decision functions registered in mc-simplify replace the registrations of `is_positive`,
+  `is_negative`, `is_real` (mc-numeric) and `is_integer` (mc-lists), keeping their attributes plus
+  `uses_assumptions`; outside contexts the answers are unchanged (same `numeval` calls; `is_integer` structural,
+  `false` for unknowns per 1A.1); inside, `is_integer` is `true` when the facts prove it. New `is_nonnegative`.
+  Undecided calls stay unevaluated. (Chosen over a hook in mc-numeric to edit no crate not owned.)
+- **A.5** `refine(e, facts)` is `refine(e)` under the extended context; it runs without facts too (some rules need
+  none: `log(x^(1/2))` → `(1/2) log x`).
+- **A.6** `simplify` in a nonempty context refines its input, adds `Refine` as a search move, refines the result;
+  with an empty context it is unchanged.
+- **A.7** `power_expand` in a context refines first, then applies its formal laws except to bases proved negative;
+  outside contexts unchanged.
+- **A.8** `eval_assuming` without `mc_eval::assume::install` gives `failure(not_installed, assuming)`;
+  mc-simplify's `install` calls it.
+
+### API additions
+
+mc-eval: `pub mod assume` (`install(&mut Kernel, &Heap)`, `ASSUMING`), `NativeCx::assumptions() -> &'h [T<'h>]`,
+`NativeCx::eval_assuming(&[T], T) -> Res<T>`, `Attributes::uses_assumptions` (bit `1 << 7`), decorator
+`@uses_assumptions`. mc-simplify: modules `facts` (`Facts`, `Info`, `Kind`, `Range`, `Bound`, `Syms`, `DOMAINS`) and
+`refine`; `simplify::simplify` and `power::power_expand` take `Option<&mut Facts>`; `FUNCTIONS` gain `assuming`,
+`refine`, `is_nonnegative`, `element` and the 14 domain names; depends on mc-numeric.
+
+mc-eval edits: `assume.rs` (new); `lib.rs` (`pub mod assume`); `defs.rs` (the flag and its bit); `eval.rs`
+(`Cx::assume`, `Kernel::assume`); `machine.rs` (`enter`: validity closure, `plain_memo_ok`, second lookup under the
+context key; `finish`: `memo_key(...)`; `with_head`: the read bit); `syntax.rs` (the decorator).
+
+### Tests
+
+mc-eval `tests/assume.rs` (3): context flattened, sorted, deduplicated, nested merge and restore, body held; counting
+natives show no reuse across contexts (also through a rule), reuse within one context, context-free results shared;
+`map` over 300 elements at 1 thread lazy, 4 lazy, 4 always-split, 4 always-split with stress collection.
+mc-simplify `tests/assume.rs` (7): the 68-row refinement table; about 30 fact and context cases; decision functions
+unchanged outside and aware inside (also a rule whose condition calls `is_positive`); no reuse across contexts
+(`fn f(u) = simplify(sqrt(u^2))` gives `(x^2)^(1/2)`, `x`, `-x`, `abs(x)`, `(x^2)^(1/2)`); 1 vs 4 threads,
+always-split, memo on and off; refinements keep the value at random points satisfying the facts; interrupt.
+
+### Known gaps
+
+1. Package G's safe point must root `Cx::assume` and treat keyed memo terms like any memo entry.
+2. `x in D` needs an infix `in` in mc-syntax lowered to `element(x, D)`.
+3. `limit`, `integrate`, `solve` can use the context by registering `uses_assumptions` and reading
+   `cx.assumptions()` or calling the decision functions (`limit(exp(a*x), x -> inf)` with `a > 0`).
+4. Decision engine: bounds are numbers or come from signs (`x > pi` only proves `x > 0`); no transitive reasoning
+   between facts beyond the difference match; contradictory facts not detected.
+5. `refine` factors a sum under a fractional power on every pass (costly on huge polynomials; fuel-bounded).
+6. Inside contexts `is_integer(e)` can be `true` for non-number terms (deliberate extension of 1A.1).
+7. The printer shows `-x*y` as `-1*x*y`.
