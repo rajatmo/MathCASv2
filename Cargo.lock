@@ -590,6 +590,7 @@ dependencies = [
  "mc-eval",
  "mc-io",
  "mc-jit",
+ "mc-linalg",
  "mc-lists",
  "mc-load",
  "mc-numeric",
@@ -665,6 +666,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-linalg"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-poly",
+]
+
+[[package]]
 name = "mc-lists"
 version = "0.0.0"
 dependencies = [
@@ -696,6 +710,7 @@ dependencies = [
  "mc-assoc",
  "mc-calculus",
  "mc-io",
+ "mc-linalg",
  "mc-lists",
  "mc-load",
  "mc-numeric",

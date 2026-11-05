@@ -33,12 +33,6 @@ fn flat_map(f, xs) = flatten(map(f, xs), 1)
 # accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]
 fn accumulate(xs) = rest(fold_list((a, b) => a + b, 0, xs))
 
-# dot(u, v): the scalar product of two vectors of equal length
-fn dot(u, v) = sum(u*v)
-
-# norm(v): the Euclidean length of a vector
-fn norm(v) = sqrt(dot(v, v))
-
 # fix_point(f, x): f applied repeatedly from x until the value no longer changes
 fn fix_point(f, x) = {
   var a = x

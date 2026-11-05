@@ -1,0 +1,19 @@
+[package]
+name = "mc-linalg"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 linear algebra: determinants, inverses, elimination, eigensystems, decompositions and vector calculus on exact, symbolic, ball and machine matrices"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# exact and symbolic elimination over integer polynomials in the entries' kernels; factoring characteristic polynomials
+mc-poly = { path = "../mc-poly" }
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+# tests that evaluate source text through the assembled core
+mc-engine = { path = "../mc-engine" }

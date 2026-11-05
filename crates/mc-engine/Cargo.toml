@@ -14,6 +14,7 @@ mc-calculus = { path = "../mc-calculus" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-jit = { path = "../mc-jit" }
+mc-linalg = { path = "../mc-linalg" }
 mc-lists = { path = "../mc-lists" }
 mc-load = { path = "../mc-load" }
 mc-numeric = { path = "../mc-numeric" }
