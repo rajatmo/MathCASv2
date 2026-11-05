@@ -21,6 +21,7 @@ pub mod keys;
 mod notebook;
 pub mod script;
 mod style;
+pub mod tabs;
 pub mod text;
 
 pub use cell::{Cell, CellId, EvalMark, Props};

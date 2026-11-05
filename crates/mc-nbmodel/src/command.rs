@@ -48,8 +48,16 @@ pub enum AppAction {
     Save,
     /// File ▸ Save as...
     SaveAs,
-    /// File ▸ Close
+    /// File ▸ Close: close the active tab (Ctrl+W)
     Close,
+    /// the next tab (Ctrl+Tab, Ctrl+PageDown)
+    NextTab,
+    /// the previous tab (Ctrl+Shift+Tab, Ctrl+PageUp)
+    PrevTab,
+    /// the n-th tab, 1-based; 9 is the last (Ctrl+1 ... Ctrl+9)
+    NthTab(u8),
+    /// reopen the last closed tab (Ctrl+Shift+T)
+    ReopenTab,
     /// the style list with type-ahead (Alt+0)
     OtherStyle,
     /// the interrupt dialog (Alt+,)
@@ -296,7 +304,12 @@ impl Command {
                 AppAction::Open => "open a notebook",
                 AppAction::Save => "save",
                 AppAction::SaveAs => "save as",
-                AppAction::Close => "close",
+                AppAction::Close => "close the notebook (tab)",
+                AppAction::NextTab => "next tab",
+                AppAction::PrevTab => "previous tab",
+                AppAction::NthTab(9) => "last tab",
+                AppAction::NthTab(_) => "tab by number",
+                AppAction::ReopenTab => "reopen the closed tab",
                 AppAction::OtherStyle => "other style...",
                 AppAction::InterruptDialog => "interrupt...",
                 AppAction::ScrollLines(_) => "scroll one line",

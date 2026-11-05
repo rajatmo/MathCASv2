@@ -2,7 +2,11 @@
 //! egui's raw input hook, takes screenshots and measures frame times. Script lines (one step per line, `#` comments):
 //!
 //! - `out <dir>`: where screenshots and the log go (default: the script's folder)
-//! - `open <file>` / `new`: load a notebook (no path is kept, so nothing is saved by accident)
+//! - `open <file>`: open a notebook in a tab (as File > Open); `new`: replace the active tab's notebook by an empty
+//!   one; `newtab`: a new Untitled tab
+//! - `ppp <x>`: emulate a display scale (1 = 100 %, 1.5 = 150 %)
+//! - `rclick <x> <y>` / `mclick <x> <y>` / `shiftclick <x> <y>` / `tripleclick <x> <y>`; `drag <x0> <y0> <x1> <y1>`
+//!   (a primary drag in steps); `move <x> <y>` (the pointer moves; the log gets the pointer shape a frame later)
 //! - `generate <n>`: load a generated notebook of `n` cells of mixed styles (the performance probe)
 //! - `theme light|dark|system`, `zoom <factor>`, `size <w> <h>`
 //! - `keys <keys>`: chords and quoted text as in the key scripts, sent as egui key and text events
@@ -11,6 +15,8 @@
 //! - `shot <name>`: a screenshot `<name>.png`
 //! - `probe <label>`: log the frame time of the next frames
 //! - `scroll <pixels>`: scroll the notebook
+//! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
+//! - `sel`: write the selection to the log; `about` / `about off`: the About dialog
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
 //!   notebook text to `<name>.mcn`
 //! - `init yes|no|always`: answer the initialization question
@@ -33,6 +39,10 @@ pub struct SelfTest {
     log: Vec<String>,
     probe: Option<(String, Vec<f64>, u32)>,
     pending: Vec<Event>,
+    /// events for the following frames, one batch per frame
+    later: Vec<Vec<Event>>,
+    /// log the pointer shape after this frame (the `move` step)
+    cursor_log: Option<String>,
     frame: u64,
 }
 
@@ -43,7 +53,18 @@ impl SelfTest {
         let dir = std::path::Path::new(path).parent().map(PathBuf::from).unwrap_or_default();
         let steps =
             text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_string).collect();
-        Some(SelfTest { steps, next: 0, wait: 3, dir, log: vec![], probe: None, pending: vec![], frame: 0 })
+        Some(SelfTest {
+            steps,
+            next: 0,
+            wait: 3,
+            dir,
+            log: vec![],
+            probe: None,
+            pending: vec![],
+            later: vec![],
+            cursor_log: None,
+            frame: 0,
+        })
     }
 
     fn write_log(&self) {
@@ -56,6 +77,9 @@ impl SelfTest {
 
     /// Put the pending events into this frame's input.
     pub fn inject(&mut self, _app: &mut App, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if self.pending.is_empty() && !self.later.is_empty() {
+            self.pending = self.later.remove(0);
+        }
         for e in self.pending.drain(..) {
             if let Event::Key { modifiers, pressed: true, .. } = &e {
                 raw.events.push(Event::ModifiersChanged(*modifiers));
@@ -68,6 +92,10 @@ impl SelfTest {
     pub fn after_frame(&mut self, app: &mut App, ctx: &egui::Context) {
         self.frame += 1;
         ctx.request_repaint();
+        if let Some(at) = self.cursor_log.take() {
+            let icon = ctx.output(|o| o.cursor_icon);
+            self.log.push(format!("pointer at {at}: {icon:?}"));
+        }
         if let Some((label, times, left)) = &mut self.probe {
             times.push(app.frame_ms);
             *left -= 1;
@@ -90,7 +118,9 @@ impl SelfTest {
             self.wait -= 1;
             return;
         }
-        let Some(step) = self.steps.get(self.next).cloned() else { return };
+        let Some(step) = self.steps.get(self.next).cloned() else {
+            return;
+        };
         self.next += 1;
         self.wait = 2;
         let (cmd, arg) = step.split_once(' ').unwrap_or((step.as_str(), ""));
@@ -105,6 +135,68 @@ impl SelfTest {
                 self.log.push(format!("open {arg}: {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
             }
             "new" => app.load_notebook(Notebook::new()),
+            "newtab" => app.new_tab(),
+            "ppp" => {
+                let want: f32 = arg.parse().unwrap_or(1.0);
+                let native = ctx.pixels_per_point() / ctx.zoom_factor();
+                ctx.set_zoom_factor(want / native);
+                self.wait = 6;
+            }
+            "move" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    self.pending.push(Event::PointerMoved(egui::pos2(v[0], v[1])));
+                    self.cursor_log = Some(arg.to_string());
+                }
+            }
+            "rclick" | "mclick" | "shiftclick" | "tripleclick" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    let p = egui::pos2(v[0], v[1]);
+                    let (button, modifiers, n) = match cmd {
+                        "rclick" => (PointerButton::Secondary, Modifiers::NONE, 1),
+                        "mclick" => (PointerButton::Middle, Modifiers::NONE, 1),
+                        "shiftclick" => (PointerButton::Primary, Modifiers::SHIFT, 1),
+                        _ => (PointerButton::Primary, Modifiers::NONE, 3),
+                    };
+                    self.pending.push(Event::PointerMoved(p));
+                    if modifiers.shift {
+                        self.pending.push(Event::ModifiersChanged(modifiers));
+                    }
+                    for _ in 0..n {
+                        for pressed in [true, false] {
+                            self.pending.push(Event::PointerButton { pos: p, button, pressed, modifiers });
+                        }
+                    }
+                    if modifiers.shift {
+                        self.pending.push(Event::ModifiersChanged(Modifiers::NONE));
+                    }
+                }
+            }
+            "drag" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 4 {
+                    let (a, b) = (egui::pos2(v[0], v[1]), egui::pos2(v[2], v[3]));
+                    self.pending.push(Event::PointerMoved(a));
+                    self.pending.push(Event::PointerButton {
+                        pos: a,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Modifiers::NONE,
+                    });
+                    // one move per frame, then the release
+                    for k in 1..=8 {
+                        self.later.push(vec![Event::PointerMoved(a + (b - a) * (k as f32 / 8.0))]);
+                    }
+                    self.later.push(vec![Event::PointerButton {
+                        pos: b,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        modifiers: Modifiers::NONE,
+                    }]);
+                    self.wait = 12;
+                }
+            }
             "generate" => {
                 let n: usize = arg.parse().unwrap_or(1000);
                 let start = std::time::Instant::now();
@@ -176,6 +268,16 @@ impl SelfTest {
                 self.log.push(format!("save {arg}: {ok}, {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
             }
             "log" => self.log.push(arg.to_string()),
+            "ime" => self
+                .pending
+                .push(Event::Ime(egui::ImeEvent::Preedit { text: arg.to_string(), active_range_chars: None })),
+            "imecommit" => self.pending.push(Event::Ime(egui::ImeEvent::Commit(arg.to_string()))),
+            "tabs" => {
+                let list: Vec<String> = app.tabs_summary();
+                self.log.push(format!("tabs: {}", list.join(" ")));
+            }
+            "about" => app.show_about(arg != "off"),
+            "sel" => self.log.push(format!("selection: {:?}", app.notebook().selection())),
             "init" => app.answer_init(
                 match arg {
                     "no" => mc_nbmodel::InitAnswer::No,

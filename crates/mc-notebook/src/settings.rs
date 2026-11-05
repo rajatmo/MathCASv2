@@ -7,6 +7,26 @@ use std::path::{Path, PathBuf};
 /// How many recent files are remembered.
 const RECENT: usize = 10;
 
+/// A tab of the last session.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SessionTab {
+    /// the notebook
+    pub path: PathBuf,
+    /// the scroll offset (points)
+    pub offset: f32,
+    /// the caret: cell index and byte position
+    pub caret: Option<(usize, usize)>,
+}
+
+/// The tabs of the last session (only tabs with a file are kept).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Session {
+    /// the tabs in order
+    pub tabs: Vec<SessionTab>,
+    /// the active one
+    pub active: usize,
+}
+
 /// The settings.
 #[derive(Clone, Debug)]
 pub struct Settings {
@@ -20,6 +40,14 @@ pub struct Settings {
     pub save_without_outputs: bool,
     /// show the toolbar
     pub show_toolbar: bool,
+    /// reopen the last session's tabs at start
+    pub restore_session: bool,
+    /// the tabs of the last session
+    pub session: Session,
+    /// the caret blinks (off: a steady caret)
+    pub caret_blink: bool,
+    /// the window's last position and inner size: x, y, width, height (points)
+    pub window: Option<[f32; 4]>,
     /// where the settings are read from and written to (`None`: not saved, as in the self-test)
     file: Option<PathBuf>,
 }
@@ -32,12 +60,22 @@ impl Default for Settings {
             recent: vec![],
             save_without_outputs: false,
             show_toolbar: true,
+            restore_session: true,
+            session: Session::default(),
+            caret_blink: true,
+            window: None,
             file: None,
         }
     }
 }
 
-fn settings_file() -> Option<PathBuf> {
+/// The folder of the settings and of the single-instance file: `MCNB_CONFIG_DIR` when set, else none in the
+/// self-test (which keeps nothing), else the user's settings folder.
+pub fn config_dir() -> Option<PathBuf> {
+    // a folder of its own (tests of the single instance and the session)
+    if let Some(d) = std::env::var_os("MCNB_CONFIG_DIR") {
+        return Some(PathBuf::from(d));
+    }
     if std::env::var_os("MCNB_SELFTEST").is_some() {
         return None;
     }
@@ -45,7 +83,11 @@ fn settings_file() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))
         .or_else(|| std::env::var_os("HOME").map(|h| Path::new(&h).join(".config")))?;
-    Some(base.join("MathCAS").join("notebook.json"))
+    Some(base.join("MathCAS"))
+}
+
+fn settings_file() -> Option<PathBuf> {
+    Some(config_dir()?.join("notebook.json"))
 }
 
 impl Settings {
@@ -69,6 +111,31 @@ impl Settings {
         }
         s.save_without_outputs = v.get("save_without_outputs").and_then(Value::as_bool).unwrap_or(false);
         s.show_toolbar = v.get("show_toolbar").and_then(Value::as_bool).unwrap_or(true);
+        s.restore_session = v.get("restore_session").and_then(Value::as_bool).unwrap_or(true);
+        s.caret_blink = v.get("caret_blink").and_then(Value::as_bool).unwrap_or(true);
+        if let Some(w) = v.get("window").and_then(Value::as_array) {
+            let w: Vec<f32> = w.iter().filter_map(Value::as_f64).map(|x| x as f32).collect();
+            if w.len() == 4 && w[2] >= 200.0 && w[3] >= 150.0 {
+                s.window = Some([w[0], w[1], w[2], w[3]]);
+            }
+        }
+        if let Some(sess) = v.get("session") {
+            s.session.active = sess.get("active").and_then(Value::as_u64).unwrap_or(0) as usize;
+            for t in sess.get("tabs").and_then(Value::as_array).into_iter().flatten() {
+                let Some(path) = t.get("path").and_then(Value::as_str) else {
+                    continue;
+                };
+                let caret = t
+                    .get("caret")
+                    .and_then(Value::as_array)
+                    .and_then(|c| Some((c.first()?.as_u64()? as usize, c.get(1)?.as_u64()? as usize)));
+                s.session.tabs.push(SessionTab {
+                    path: PathBuf::from(path),
+                    offset: t.get("offset").and_then(Value::as_f64).unwrap_or(0.0) as f32,
+                    caret,
+                });
+            }
+        }
         s
     }
 
@@ -81,6 +148,17 @@ impl Settings {
             "recent": self.recent.iter().map(|p| p.display().to_string()).collect::<Vec<_>>(),
             "save_without_outputs": self.save_without_outputs,
             "show_toolbar": self.show_toolbar,
+            "restore_session": self.restore_session,
+            "caret_blink": self.caret_blink,
+            "window": self.window,
+            "session": {
+                "active": self.session.active,
+                "tabs": self.session.tabs.iter().map(|t| json!({
+                    "path": t.path.display().to_string(),
+                    "offset": t.offset,
+                    "caret": t.caret.map(|(i, p)| vec![i, p]),
+                })).collect::<Vec<_>>(),
+            },
         });
         if let Some(d) = f.parent() {
             let _ = std::fs::create_dir_all(d);
@@ -91,6 +169,8 @@ impl Settings {
     /// Remember a notebook as recently used.
     pub fn add_recent(&mut self, p: &Path) {
         let p = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        // `C:\x`, not the verbatim `\\?\C:\x` of canonicalisation on Windows
+        let p = p.to_str().and_then(|s| s.strip_prefix(r"\\?\")).map_or(p.clone(), PathBuf::from);
         self.recent.retain(|q| q != &p);
         self.recent.insert(0, p);
         self.recent.truncate(RECENT);

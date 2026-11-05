@@ -20,6 +20,8 @@ pub const BRACKET_PITCH: f32 = 7.0;
 const HOOK: f32 = 3.0;
 /// The gap between the content's right edge and the first bracket column.
 const BRACKET_GAP: f32 = 10.0;
+/// The gap between a label's right edge and the content (points at 100 %).
+const LABEL_GAP: f32 = 10.0;
 /// Off-screen cells laid out per frame to refine their estimated heights.
 const REFINE_PER_FRAME: usize = 64;
 
@@ -77,7 +79,12 @@ pub enum Hit {
     Bracket(Bracket),
     /// between cells: the insertion point before cell `i`
     Gap(usize),
+    /// the "+" button of the insertion point before cell `i`
+    Plus(usize),
 }
+
+/// The caret's blink period (half on, half off), as the platform's default.
+pub const BLINK: f64 = 0.53;
 
 /// The canvas state that lives across frames.
 pub struct View {
@@ -95,10 +102,14 @@ pub struct View {
     pub palette: Palette,
     /// the time the caret last moved (blink phase)
     pub blink_from: f64,
+    /// the caret blinks (off: steady)
+    pub blink: bool,
     /// the bracket under the pointer
     pub hover: Option<Bracket>,
     /// an insertion line to draw while cells are dragged
     pub drop_gap: Option<usize>,
+    /// the pointer is on the insertion point's "+" button
+    pub plus_hover: bool,
     /// the largest bracket column of the groups
     max_col: usize,
     /// the caret, for bracket matching
@@ -121,8 +132,10 @@ impl View {
             origin: Pos2::ZERO,
             palette,
             blink_from: 0.0,
+            blink: true,
             hover: None,
             drop_gap: None,
+            plus_hover: false,
             max_col: 0,
             caret: None,
             defined: None,
@@ -215,6 +228,11 @@ impl View {
         cuts.retain(|&c| c <= text.len() && text.is_char_boundary(c));
         cuts.sort_unstable();
         cuts.dedup();
+        if text.is_empty() {
+            // an empty cell still has one line of its font's height (and a caret of that height)
+            job.append("", 0.0, base.clone());
+            return;
+        }
         let bold_font = Face::CodeBold.font(base.font_id.size);
         for w in cuts.windows(2) {
             let (a, b) = (w[0], w[1]);
@@ -346,6 +364,11 @@ impl View {
     /// What is at `p` (canvas coordinates).
     pub fn hit(&mut self, ctx: &egui::Context, nb: &Notebook, p: Pos2) -> Hit {
         let n = nb.cells().len();
+        if let Selection::Gap(g) = nb.selection() {
+            if (p - self.plus_center(*g)).length() <= 8.0 * self.zoom.max(1.0) {
+                return Hit::Plus(*g);
+            }
+        }
         let max_col = self.max_col;
         let base = self.bracket_base(max_col);
         if p.x >= base - HOOK - 3.0 {
@@ -365,7 +388,9 @@ impl View {
         }
         // the visible cell under the point
         let i = (0..n).find(|&i| nb.is_visible(i) && p.y >= self.tops[i] && p.y < self.tops[i] + self.heights[i]);
-        let Some(i) = i else { return Hit::Gap(if p.y < TOP_PAD * self.zoom { 0 } else { n }) };
+        let Some(i) = i else {
+            return Hit::Gap(if p.y < TOP_PAD * self.zoom { 0 } else { n });
+        };
         let c = &nb.cells()[i];
         let m = c.style.info().margins;
         let content_top = self.tops[i] + m[2] * self.zoom;
@@ -432,7 +457,7 @@ impl View {
             // backgrounds and rules
             if c.style == Style::Code && !c.expr_view {
                 let bg = Rect::from_min_max(
-                    pos2(content.x - 8.0 * z, r.top() + 2.0),
+                    pos2(content.x - 6.0 * z, r.top() + 2.0),
                     pos2(origin.x + rr + 4.0, r.bottom() - 2.0),
                 );
                 painter.rect_filled(bg, 2.0, p.code_bg());
@@ -448,9 +473,11 @@ impl View {
                 let y = r.top() + (info.margins[2] * z * 0.35).max(2.0);
                 // the Section rule runs across the window, the Program rules across the content
                 let from = if c.style == Style::Program { content.x } else { origin.x + 6.0 };
-                painter.hline(from..=origin.x + rr, y, Stroke::new(1.0, p.border));
+                let y = painter.round_to_pixel_center(y);
+                let rule = Stroke::new(hairline(painter), p.rule());
+                painter.hline(from..=origin.x + rr, y, rule);
                 if c.style == Style::Program {
-                    painter.hline(content.x..=origin.x + rr, r.bottom() - 3.0, Stroke::new(1.0, p.border));
+                    painter.hline(content.x..=origin.x + rr, painter.round_to_pixel_center(r.bottom() - 3.0), rule);
                 }
             }
             // the text selection
@@ -483,19 +510,42 @@ impl View {
                 _ => None,
             };
             if let Some(label) = label {
+                // right-aligned 10 pt before the content, on the first line's baseline (design 2.6)
                 let lg = painter.layout_no_wrap(label, label_font.clone(), p.gutter);
-                let row = g.rows.first().map_or(lg.size().y, |r| r.rect().height());
-                let y = top + row * 0.78 - lg.size().y * 0.78;
-                painter.galley(pos2(content.x - 6.0 * z - lg.size().x, y), lg, p.gutter);
+                let baseline =
+                    |g: &Galley| g.rows.first().and_then(|r| r.row.glyphs.first().map(|gl| r.pos.y + gl.pos.y));
+                let content_base =
+                    baseline(&g).unwrap_or_else(|| g.rows.first().map_or(0.0, |r| r.rect().height() * 0.8));
+                let label_base = baseline(&lg).unwrap_or(lg.size().y * 0.8);
+                let y = snap(painter, top + content_base - label_base);
+                painter.galley(pos2(content.x - LABEL_GAP * z - lg.size().x, y), lg, p.gutter);
             }
             // the caret
-            if let Selection::Caret { cell, pos, .. } = sel {
-                if cell == c.id && ((time - self.blink_from) % 1.0) < 0.6 {
+            if let Selection::Caret { cell, pos, anchor } = sel {
+                // no caret beside a text selection, as in the reference
+                if cell == c.id && anchor == pos && self.caret_on(time) {
                     let chars = c.text[..pos.min(c.text.len())].chars().count();
                     let cr = g.pos_from_cursor(CCursor::new(chars)).translate(content.to_vec2());
-                    let x = cr.left().round();
-                    painter.vline(x, cr.top()..=cr.bottom(), Stroke::new(2.0, p.cursor));
+                    paint_caret(painter, cr, &g, chars, p.cursor);
                 }
+            }
+        }
+        if n == 0 {
+            // the empty notebook says how to begin
+            let c = pos2(clip.center().x, clip.top() + clip.height() * 0.38);
+            painter.text(c, Align2::CENTER_BOTTOM, "An empty notebook", Face::Prose.font(18.0), p.weak);
+            let hints = [
+                "Type to start an Input cell  ·  Alt+7 for a Text cell  ·  Alt+4 for a Section",
+                "Shift+Enter evaluates  ·  Ctrl+O opens a notebook  ·  Ctrl+N a new one",
+            ];
+            for (k, h) in hints.into_iter().enumerate() {
+                painter.text(
+                    c + vec2(0.0, 12.0 + 20.0 * k as f32),
+                    Align2::CENTER_TOP,
+                    h,
+                    Face::Ui.font(13.0),
+                    p.faint,
+                );
             }
         }
         self.paint_brackets(painter, nb, origin, clip, &selected);
@@ -505,23 +555,31 @@ impl View {
             _ => None,
         });
         if let Some(g) = gap {
-            let y = origin.y + self.gap_y(g);
+            let ppp = ctx.pixels_per_point();
+            let y = painter.round_to_pixel_center(origin.y + self.gap_line_y(g));
             let max_col = self.max_col;
-            let right = origin.x + self.bracket_base(max_col) - 6.0;
-            painter.hline(
-                origin.x + 22.0..=right,
-                y,
-                Stroke::new(1.5, if self.drop_gap.is_some() { p.accent } else { p.weak }),
-            );
-            if self.drop_gap.is_none() {
-                let center = pos2(origin.x + 12.0, y);
-                painter.circle_stroke(center, 6.0, Stroke::new(1.0, p.gutter));
-                painter.hline(center.x - 3.0..=center.x + 3.0, y, Stroke::new(1.0, p.gutter));
-                painter.vline(center.x, y - 3.0..=y + 3.0, Stroke::new(1.0, p.gutter));
+            let right = origin.x + self.bracket_base(max_col) - HOOK - 6.0;
+            let dragging = self.drop_gap.is_some();
+            // the line blinks with the caret's rhythm, as the reference's does; a drop target does not
+            if dragging || self.caret_on(time) {
+                let width = (2.0 * ppp).round().max(1.0) / ppp;
+                let color = if dragging { p.accent } else { p.guide_line() };
+                painter.hline(origin.x + 26.0..=right, y, Stroke::new(width, color));
+            }
+            if !dragging {
+                let center = origin + self.plus_center(g).to_vec2();
+                let hot = self.plus_hover;
+                let color = if hot { p.accent } else { p.gutter };
+                if hot {
+                    painter.circle_filled(center, 7.0, p.over_bg(p.accent, 0.12));
+                }
+                painter.circle_stroke(center, 7.0, Stroke::new(1.0, color));
+                painter.hline(center.x - 3.5..=center.x + 3.5, center.y, Stroke::new(1.2, color));
+                painter.vline(center.x, center.y - 3.5..=center.y + 3.5, Stroke::new(1.2, color));
                 if nb.gap_style() != Style::Input {
-                    let font = Face::Ui.font(10.0);
+                    let font = Face::Ui.font(10.5);
                     painter.text(
-                        pos2(origin.x + 24.0, y - 2.0),
+                        pos2(origin.x + 28.0, y - 3.0),
                         Align2::LEFT_BOTTOM,
                         nb.gap_style().info().name,
                         font,
@@ -551,7 +609,7 @@ impl View {
                 Bracket::Cell(id) => nb.cell(id).map_or(EvalMark::None, |c| c.eval),
                 Bracket::Group(..) => EvalMark::None,
             };
-            let (color, width) = match mark {
+            let (color, width): (Color32, f32) = match mark {
                 EvalMark::Running => (p.accent, 2.0),
                 EvalMark::Queued => (p.yellow, 1.5),
                 EvalMark::Error => (p.red, 1.5),
@@ -562,10 +620,19 @@ impl View {
                 let fill = Rect::from_min_max(pos2(x - HOOK - 1.0, top), pos2(x + 1.5, bottom));
                 painter.rect_filled(fill, 0.0, p.over_bg(p.accent, 0.35));
             }
-            let stroke = Stroke::new(width, if is_selected { p.accent } else { color });
-            painter.vline(x, top..=bottom, stroke);
-            painter.hline(x - HOOK..=x, top, stroke);
-            painter.hline(x - HOOK..=x, bottom, stroke);
+            // one path on device-pixel centres, so the hooks join the stem cleanly and nothing blurs
+            let stroke =
+                Stroke::new(hairline(painter) * width.round().max(1.0), if is_selected { p.accent } else { color });
+            let (x, top, bottom) = (
+                painter.round_to_pixel_center(x),
+                painter.round_to_pixel_center(top),
+                painter.round_to_pixel_center(bottom),
+            );
+            let hook = snap(painter, HOOK * self.zoom.max(1.0));
+            painter.add(egui::Shape::line(
+                vec![pos2(x - hook, top), pos2(x, top), pos2(x, bottom), pos2(x - hook, bottom)],
+                stroke,
+            ));
             let closed = head.is_some_and(|h| nb.cells()[h].closed.is_some());
             if closed {
                 let tri = vec![
@@ -576,6 +643,31 @@ impl View {
                 painter.add(egui::Shape::convex_polygon(tri, stroke.color, Stroke::NONE));
             }
         }
+    }
+
+    /// The centre of the "+" button of the insertion point before cell `g` (canvas coordinates).
+    pub fn plus_center(&self, g: usize) -> Pos2 {
+        pos2(14.0, self.gap_line_y(g))
+    }
+
+    /// Where the insertion line before cell `g` is drawn: on the boundary between cells, a little below the last
+    /// cell so it does not touch it.
+    pub fn gap_line_y(&self, g: usize) -> f32 {
+        if g >= self.tops.len() && !self.tops.is_empty() {
+            self.total_height() + 5.0 * self.zoom
+        } else {
+            self.gap_y(g)
+        }
+    }
+
+    /// The caret is drawn now (blink phase; always right after it moved).
+    pub fn caret_on(&self, time: f64) -> bool {
+        !self.blink || (((time - self.blink_from) / BLINK) as u64).is_multiple_of(2)
+    }
+
+    /// The seconds until the caret's blink phase changes.
+    pub fn next_blink(&self, time: f64) -> f64 {
+        BLINK - (time - self.blink_from).rem_euclid(BLINK)
     }
 
     /// The visual lines of a cell's content as byte ranges.
@@ -625,15 +717,57 @@ fn paint_selection(painter: &Painter, g: &Galley, text: &str, origin: Pos2, a: u
         let (rs, re) = (idx, idx + n);
         let (s, e) = (ca.max(rs), cb.min(re));
         if s < e || (s == e && row.ends_with_newline && ca <= re && cb > re) {
-            let x0 = if s > rs { row.row.glyphs[s - rs].pos.x } else { 0.0 };
-            let x1 = if e < re {
-                row.row.glyphs[e - rs].pos.x
-            } else {
-                row.rect().width() + if cb > re { 4.0 } else { 0.0 }
-            };
+            let x_at = |k: usize| row.row.glyphs.get(k).map_or(row.rect().width(), |g| g.pos.x);
+            let x0 = if s > rs { x_at(s - rs) } else { 0.0 };
+            let x1 = if e < re { x_at(e - rs) } else { row.rect().width() + if cb > re { 4.0 } else { 0.0 } };
             let rr = Rect::from_min_max(pos2(x0, row.rect().top()), pos2(x1.max(x0 + 2.0), row.rect().bottom()));
             painter.rect_filled(rr.translate(origin.to_vec2() + vec2(row.pos.x, 0.0)), 0.0, color);
         }
         idx = re + usize::from(row.ends_with_newline);
     }
+}
+
+/// The caret: a bar of the line's font height (the glyph's ascent down to its line height, so it stands on the
+/// baseline whatever the row's other fonts), on whole device pixels, 2 px at 100 % (design 2.9).
+fn paint_caret(painter: &Painter, row_rect: Rect, g: &Galley, chars: usize, color: Color32) {
+    let ppp = painter.pixels_per_point();
+    let (top, bottom) = match glyph_near(g, chars) {
+        Some((baseline, ascent, height)) => {
+            let top = row_rect.top() + baseline - ascent;
+            (top, (top + height).min(row_rect.bottom()))
+        }
+        None => (row_rect.top(), row_rect.bottom()),
+    };
+    let w = (2.0 * ppp).round().max(1.0) / ppp;
+    let x = (row_rect.left() * ppp).round() / ppp;
+    let snap = |y: f32| (y * ppp).round() / ppp;
+    painter.rect_filled(Rect::from_min_max(pos2(x - w * 0.5, snap(top)), pos2(x + w * 0.5, snap(bottom))), 0.0, color);
+}
+
+/// The glyph next to character `chars` of a galley (before it, or after it at a line start): its baseline in the
+/// row, its font's ascent and line height.
+fn glyph_near(g: &Galley, chars: usize) -> Option<(f32, f32, f32)> {
+    let mut idx = 0;
+    for row in &g.rows {
+        let n = row.row.glyphs.len();
+        if chars <= idx + n {
+            let k = chars - idx;
+            let gl = if k > 0 { row.row.glyphs.get(k - 1) } else { row.row.glyphs.first() }?;
+            return Some((gl.pos.y, gl.font_ascent, gl.font_height));
+        }
+        idx += n + usize::from(row.ends_with_newline);
+    }
+    None
+}
+
+/// One device pixel at 100 % - 150 %, two at 200 % (in points): lines stay crisp at every scale.
+fn hairline(painter: &Painter) -> f32 {
+    let ppp = painter.pixels_per_point();
+    ppp.floor().max(1.0) / ppp
+}
+
+/// `v` on a device-pixel edge.
+fn snap(painter: &Painter, v: f32) -> f32 {
+    let ppp = painter.pixels_per_point();
+    (v * ppp).round() / ppp
 }

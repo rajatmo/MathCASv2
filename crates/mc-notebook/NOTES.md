@@ -52,3 +52,33 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   screenshot comparison not done; scrolling far past the end can overshoot while estimated heights refine.
 - M4 (graphics, large outputs), M5 (typeset output), M6 (2D input), M7 not started: `display` responses show as
   their printed text; alias templates stay marked.
+
+## Tabs, pointer, caret and polish (package nb-polish)
+
+- **Tabs**: the tab model is `mc_nbmodel::tabs` (order, active tab, Untitled-N numbering, close one/others/to the
+  right with per-tab unsaved prompts, window close asks once, reopen closed `Ctrl+Shift+T`, an already open file
+  activates its tab; 19 tab scripts in `mc-nbmodel/tests/tabs/`). Tab bar (`tabbar.rs`): modified dot, close button,
+  middle-click close, drag to reorder, context menu (Close, Close others, Close to the right, Copy path, Reveal in
+  Explorer), path tooltip, busy spinner, overflow arrows + list + wheel, "+" for a new notebook. One kernel per tab,
+  started on its first evaluation; closing a tab shuts its kernel down. Keys: `Ctrl+N`, `Ctrl+O` (several files),
+  `Ctrl+W`, `Ctrl+Tab`/`Ctrl+Shift+Tab`, `Ctrl+PageDown`/`PageUp`, `Ctrl+1..7` and `Ctrl+9` (last); `Ctrl+8` stays
+  "toggle initialization cell" (the reference binding). The typesetting commands keep their shifted spellings
+  (`Ctrl+@ % ^ &`); M6 will need other keys for "next expression" and "convert to traditional" (key table `keys.rs`).
+  Closing the last tab leaves a fresh Untitled tab; a blank Untitled tab is replaced by the next file opened.
+- **Single instance** (`instance.rs`): a loopback socket whose port and random token are in
+  `%APPDATA%/MathCAS/instance.json`; a later launch with files hands them over and exits, else opens its own window.
+- **Session restore** (default on): open file tabs, active tab, scroll and caret; window size and position remembered.
+- **Pointer**: I-beam over cell content only; arrow over brackets, margins, labels and gaps (egui has no insert-cell
+  cursor); hand over buttons, links and "+"; closed hand while dragging cells or tabs; hidden while typing.
+- **Caret**: on the baseline at the font's height, snapped to device pixels, 2 px at 100 %, 530 ms blink (setting to
+  turn off), shown at once after keys, clicks and scrolls, hidden while text is selected; empty cells get a full line
+  (was a dot); fixed a crash selecting from a line end; insertion line full width, blinking, with a "+" menu (Input,
+  Text, Other style); drag selection auto-scrolls; IME composition shown underlined with the caret position reported;
+  bracket tooltips (style and label).
+- **Look**: labels on the first baseline 10 pt from the content, crisp bracket paths, hairline rules visible in One
+  Dark, empty-notebook hint, flat toolbar with tooltips and a kernel menu, dialog buttons with faces, menu check marks
+  and right-aligned shortcuts, slim scroll bar, About dialog with the icon; notebooks open at the top.
+- Self-test steps added: `ppp`, `move`, `rclick`, `mclick`, `shiftclick`, `tripleclick`, `drag`, `newtab`, `sel`,
+  `tabs`, `about`, `ime`, `imecommit`; `MCNB_CONFIG_DIR` gives tests their own settings folder.
+- Gaps: no pixel comparison with the reference (by eye); the caret on Segoe UI headings reaches slightly above cap
+  height; 100 % shots emulate the scale; input methods tested with injected events only.

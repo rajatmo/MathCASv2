@@ -126,6 +126,53 @@ impl Palette {
         }
     }
 
+    /// Lines in the chrome that must show on the panel colour (One Dark's border is darker than its panel).
+    pub fn border_strong(&self) -> Color32 {
+        if self.dark {
+            hex(0x181a1f)
+        } else {
+            hex(0xd0d0d2)
+        }
+    }
+
+    /// The insertion line between cells: the guide token in One Light; in One Dark the guide is too close to the
+    /// background for a line one pixel or two thick, so faint text is used.
+    pub fn guide_line(&self) -> Color32 {
+        if self.dark {
+            self.faint
+        } else {
+            self.guide
+        }
+    }
+
+    /// Section and Program rules: the border token in One Light; One Dark's border is darker than its background,
+    /// so a lighter grey keeps the rule visible.
+    pub fn rule(&self) -> Color32 {
+        if self.dark {
+            hex(0x4b5263)
+        } else {
+            hex(0xd0d0d2)
+        }
+    }
+
+    /// An inactive tab or a small button under the pointer.
+    pub fn tab_hover(&self) -> Color32 {
+        if self.dark {
+            hex(0x2c313a)
+        } else {
+            hex(0xe0e0e1)
+        }
+    }
+
+    /// A small button pressed, or the close button of a tab under the pointer.
+    pub fn tab_close_hover(&self) -> Color32 {
+        if self.dark {
+            hex(0x3a3f4b)
+        } else {
+            hex(0xd4d4d6)
+        }
+    }
+
     /// The Code cell background: panel at 50 % over the background.
     pub fn code_bg(&self) -> Color32 {
         lerp(self.bg, self.panel, 0.5)
@@ -168,8 +215,15 @@ impl Palette {
             st.bg_stroke = Stroke::new(1.0, stroke);
             st.fg_stroke.color = self.text;
         }
-        w.inactive.weak_bg_fill = Color32::TRANSPARENT;
-        w.inactive.bg_stroke = Stroke::NONE;
+        // buttons in dialogs have a face and an outline (menus and the toolbar make theirs flat)
+        let face = if self.dark { hex(0x333842) } else { hex(0xffffff) };
+        let outline = if self.dark { hex(0x4b5263) } else { hex(0xc8c8ca) };
+        w.inactive.weak_bg_fill = face;
+        w.inactive.bg_fill = face;
+        w.inactive.bg_stroke = Stroke::new(1.0, outline);
+        w.hovered.bg_stroke = Stroke::new(1.0, self.accent.gamma_multiply(0.7));
+        // links, buttons and the "+" show the pointing hand
+        v.interact_cursor = Some(egui::CursorIcon::PointingHand);
         w.noninteractive.bg_stroke = Stroke::new(1.0, if self.dark { hex(0x3e4451) } else { self.border });
         v.window_corner_radius = CornerRadius::same(6);
         v.menu_corner_radius = CornerRadius::same(5);
@@ -177,8 +231,12 @@ impl Palette {
         ctx.all_styles_mut(|s| {
             s.spacing.item_spacing = egui::vec2(8.0, 4.0);
             s.spacing.button_padding = egui::vec2(8.0, 3.0);
-            s.spacing.scroll = egui::style::ScrollStyle::solid();
-            s.spacing.scroll.bar_width = 10.0;
+            // a slim scroll bar that widens under the pointer
+            s.spacing.scroll = egui::style::ScrollStyle::thin();
+            s.spacing.scroll.bar_width = 8.0;
+            s.spacing.scroll.floating_allocated_width = 0.0;
+            s.spacing.interact_size.y = 22.0;
+            s.spacing.menu_margin = egui::Margin::symmetric(6, 5);
             s.text_styles.insert(TextStyle::Body, FontId::new(14.0, FontFamily::Proportional));
             s.text_styles.insert(TextStyle::Button, FontId::new(14.0, FontFamily::Proportional));
             s.text_styles.insert(TextStyle::Small, FontId::new(11.0, FontFamily::Proportional));

@@ -299,6 +299,22 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+S", Any, C::App(AppAction::Save)),
         ("Ctrl+Shift+S", Any, C::App(AppAction::SaveAs)),
         ("Ctrl+W", Any, C::App(AppAction::Close)),
+        // tabs (the window's; design guess of the polish package: Ctrl+8 stays the initialization key of the
+        // reference, so tab 8 has no number key, and the typesetting keys Ctrl+2/5/6/7 keep their shifted
+        // spellings Ctrl+@ % ^ &)
+        ("Ctrl+Tab", Any, C::App(AppAction::NextTab)),
+        ("Ctrl+PageDown", Any, C::App(AppAction::NextTab)),
+        ("Ctrl+Shift+Tab", Any, C::App(AppAction::PrevTab)),
+        ("Ctrl+PageUp", Any, C::App(AppAction::PrevTab)),
+        ("Ctrl+Shift+T", Any, C::App(AppAction::ReopenTab)),
+        ("Ctrl+1", Any, C::App(AppAction::NthTab(1))),
+        ("Ctrl+2", Any, C::App(AppAction::NthTab(2))),
+        ("Ctrl+3", Any, C::App(AppAction::NthTab(3))),
+        ("Ctrl+4", Any, C::App(AppAction::NthTab(4))),
+        ("Ctrl+5", Any, C::App(AppAction::NthTab(5))),
+        ("Ctrl+6", Any, C::App(AppAction::NthTab(6))),
+        ("Ctrl+7", Any, C::App(AppAction::NthTab(7))),
+        ("Ctrl+9", Any, C::App(AppAction::NthTab(9))),
         ("Ctrl+F", Any, C::App(AppAction::Find)),
         ("Ctrl+E", Any, C::App(AppAction::Find)),
         ("F3", Any, C::App(AppAction::FindNext(true))),
@@ -310,35 +326,24 @@ pub fn table() -> Vec<Binding> {
     ]);
     // reserved by the reference: they do nothing rather than something else
     for k in [
-        "Ctrl+9",
         "Ctrl+0",
-        "Ctrl+4",
         "Ctrl+$",
-        "Ctrl+1",
         "Ctrl+J",
-        "Ctrl+PageUp",
-        "Ctrl+PageDown",
         "Alt+Left",
         "Alt+Right",
         "F7",
         // the typesetting keys of two-dimensional input (design 4.2), until the box editor exists
         "Ctrl+/",
-        "Ctrl+6",
         "Ctrl+^",
         "Ctrl+-",
         "Ctrl+_",
-        "Ctrl+2",
         "Ctrl+@",
-        "Ctrl+7",
         "Ctrl+&",
         "Ctrl+Shift+,",
-        "Ctrl+5",
         "Ctrl+%",
         "Ctrl+Space",
         "Ctrl+Enter",
         "Ctrl+,",
-        "Ctrl+Tab",
-        "Ctrl+Shift+Tab",
     ] {
         t.push((k, Any, C::Nop));
     }
