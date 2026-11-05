@@ -283,3 +283,160 @@ fn bad_requests_and_the_end_of_input() {
     assert_eq!(summary(&k.until_done(json!(7))), [s("output", json!("last")), s("done", json!("ok"))]);
     assert_eq!(k.wait(), Some(0));
 }
+
+/// `(type, n, main field)` of each response of a notebook evaluation.
+fn numbered(rs: &[Value]) -> Vec<(String, Value, Value)> {
+    rs.iter()
+        .map(|r| {
+            let t = r["type"].as_str().unwrap().to_string();
+            let v = match t.as_str() {
+                "output" | "message" => r["text"].clone(),
+                "value" | "failure" | "display" => r["printed"].clone(),
+                "error" => r["message"].clone(),
+                "done" => json!([r["status"], r["first"], r["next"]]),
+                _ => r.clone(),
+            };
+            (t, r["n"].clone(), v)
+        })
+        .collect()
+}
+
+fn nb(t: &str, n: Value, v: Value) -> (String, Value, Value) {
+    (t.to_string(), n, v)
+}
+
+/// An `eval` as the notebook sends it.
+fn cell(id: u64, src: &str) -> Value {
+    json!({"type": "eval", "id": id, "cell": format!("c{id}"), "src": src, "values": "each", "numbered": true})
+}
+
+#[test]
+fn hello_announces_the_notebook_additions() {
+    let mut k = Kernel::start();
+    k.send(json!({"type": "shutdown"}));
+    let _ = k.recv();
+    assert_eq!(k.wait(), Some(0));
+    // the capabilities, read from a fresh kernel's first line
+    let out = Command::new(env!("CARGO_BIN_EXE_mc-kernel"))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .output()
+        .expect("mc-kernel runs");
+    let hello: Value = serde_json::from_str(String::from_utf8_lossy(&out.stdout).lines().next().unwrap()).unwrap();
+    assert_eq!(hello["protocol"], 1);
+    assert_eq!(
+        hello["capabilities"],
+        json!(["values_each", "numbered", "history", "display", "message", "names", "shutdown_interrupt"])
+    );
+}
+
+#[test]
+fn notebook_evaluations_number_and_show_every_statement() {
+    let mut k = Kernel::start();
+    // the observed numbering: `1+1 / 3+3` as the second input gives Out[2] and Out[3]; the next input is In[4]
+    let rs = k.ask(cell(1, "x = 1;"));
+    assert_eq!(numbered(&rs), [nb("done", Value::Null, json!(["ok", 1, 2]))]);
+    let rs = k.ask(cell(2, "1+1\n3+3"));
+    assert_eq!(
+        numbered(&rs),
+        [
+            nb("value", json!(2), json!("2")),
+            nb("value", json!(3), json!("6")),
+            nb("done", Value::Null, json!(["ok", 2, 4])),
+        ]
+    );
+    assert!(rs.iter().all(|r| r["cell"] == "c2"));
+    // print per call (text with line ends), hidden values, failures, history
+    let rs = k.ask(cell(3, "print(\"a\\nb\"); y = 2\nfn f(t) = t + y\nf(1)\n1/0;\nout(2) + out(-2)"));
+    assert_eq!(
+        numbered(&rs),
+        [
+            nb("output", json!(4), json!("a\nb")),
+            nb("value", json!(7), json!("3")),
+            nb("failure", json!(8), json!("failure(division_by_zero)")),
+            nb("value", json!(9), json!("5")),
+            nb("done", Value::Null, json!(["failure", 4, 10])),
+        ]
+    );
+    // a read error takes a number; its error carries it
+    let rs = k.ask(cell(4, "1 +"));
+    assert_eq!(rs[0]["n"], 10);
+    assert_eq!(rs[0]["line"], 1);
+    assert_eq!(numbered(&rs)[1], nb("done", Value::Null, json!(["error", 10, 11])));
+    // warnings of library code are messages; a plot is a display
+    let src = "n_dsolve([w'(t) == w(t), w(0) == 1], w, [t, 0, 10], max_steps: 3);\nplot(sin(t), [t, 0, 1])";
+    let rs = k.ask(cell(5, src));
+    let m = &rs[0];
+    assert_eq!((m["type"].as_str(), m["tag"].as_str(), m["n"].as_u64()), (Some("message"), Some("n_dsolve"), Some(11)));
+    assert!(rs[0]["text"].as_str().unwrap().starts_with("the step limit was reached"), "{}", rs[0]);
+    let d = &rs[1];
+    let shape = (d["type"].as_str(), d["kind"].as_str(), d["n"].as_u64());
+    assert_eq!(shape, (Some("display"), Some("image"), Some(12)), "{d}");
+    assert_eq!((d["width"].as_u64(), d["height"].as_u64()), (Some(640), Some(400)));
+    assert!(std::path::Path::new(d["path"].as_str().unwrap()).is_file());
+    assert!(d["printed"].as_str().unwrap().starts_with("image(\""));
+    // an interrupted statement keeps its number: next - 1 is the one that was running
+    k.send(cell(6, &format!("7\n{FOREVER}\n8")));
+    assert_eq!(numbered(&[k.recv()]), [nb("value", json!(13), json!("7"))]);
+    k.send(json!({"type": "interrupt", "id": 6}));
+    assert_eq!(numbered(&k.until_done(json!(6))), [nb("done", Value::Null, json!(["interrupted", 13, 15]))]);
+    // numbered with the last value only
+    let rs = k.ask(json!({"type": "eval", "id": 7, "src": "1\n2", "numbered": true}));
+    assert_eq!(numbered(&rs), [nb("value", json!(16), json!("2")), nb("done", Value::Null, json!(["ok", 15, 17]))]);
+    // reset: a fresh session, the counter at 1 and the history gone
+    k.ask(json!({"type": "reset", "id": 8}));
+    let rs = k.ask(cell(9, "out(1)"));
+    assert_eq!(numbered(&rs)[0], nb("failure", json!(1), json!("failure(history, 1)")));
+    assert_eq!(k.wait(), Some(0));
+}
+
+#[test]
+fn old_clients_see_protocol_one_unchanged() {
+    let mut k = Kernel::start();
+    // no `n`, no `first`/`next`, warnings as output lines, a plot as its value, the last value only
+    let src = "1\nn_dsolve([y'(t) == y(t), y(0) == 1], y, [t, 0, 10], max_steps: 3);\nplot(sin(t), [t, 0, 1])";
+    let rs = k.eval(1, src);
+    assert_eq!(rs.len(), 3, "{rs:?}");
+    assert_eq!(rs[0]["type"], "output");
+    assert!(rs[0]["text"].as_str().unwrap().starts_with("n_dsolve: the step limit was reached"), "{}", rs[0]);
+    assert_eq!(rs[1]["type"], "value");
+    assert!(rs[1]["printed"].as_str().unwrap().starts_with("image("));
+    for r in &rs {
+        let o = r.as_object().unwrap();
+        assert!(!o.contains_key("n") && !o.contains_key("first") && !o.contains_key("next"), "{r}");
+    }
+    // unnumbered evaluations do not touch the history
+    let rs = k.eval(2, "out(1)");
+    assert_eq!(summary(&rs), [s("failure", json!("failure(history, 1)")), s("done", json!("failure"))]);
+    assert_eq!(k.wait(), Some(0));
+}
+
+#[test]
+fn names_and_a_prompt_shutdown() {
+    let mut k = Kernel::start();
+    k.eval(1, "my_v = 1\nfn my_f(x) = x\nmodule my_m { pub fn g(x) = x }");
+    let rs = k.ask(json!({"type": "names", "id": 2, "prefix": "my_"}));
+    assert_eq!(
+        rs[0]["names"],
+        json!([
+            {"name": "my_f", "kind": "function"},
+            {"name": "my_m", "kind": "module"},
+            {"name": "my_m.g", "kind": "function"},
+            {"name": "my_v", "kind": "value"},
+        ])
+    );
+    assert_eq!(rs[1]["status"], "ok");
+    let all = k.ask(json!({"type": "names", "id": 3}));
+    let all = all[0]["names"].as_array().unwrap();
+    assert!(all.iter().any(|n| n["name"] == "sin" && n["kind"] == "function"));
+    assert!(all.iter().any(|n| n["name"] == "pi" && n["kind"] == "value"));
+    // quitting a busy kernel: `shutdown` with `interrupt` stops the running evaluation and cancels the queued one
+    k.send(json!({"type": "eval", "id": 4, "src": format!("print(\"go\")\n{FOREVER}")}));
+    assert_eq!(summary(&[k.recv()]), [s("output", json!("go"))]);
+    k.send(json!({"type": "eval", "id": 5, "src": "1"}));
+    k.send(json!({"type": "shutdown", "id": 6, "interrupt": true}));
+    assert_eq!(summary(&k.until_done(json!(4))), [s("done", json!("interrupted"))]);
+    assert_eq!(summary(&k.until_done(json!(5))), [s("done", json!("interrupted"))]);
+    assert_eq!(summary(&k.until_done(json!(6))), [s("done", json!("ok"))]);
+    assert_eq!(k.wait(), Some(0));
+}

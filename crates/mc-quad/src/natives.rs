@@ -262,10 +262,11 @@ fn reply<'h, S: Scalar>(
         let mag = value.abs();
         if err.is_finite() && mag.is_finite() && *err <= USABLE * mag {
             let msg = format!(
-                "n_integrate: the goals were not met; the estimate's relative error is about {:.1e} (pass precision_goal: or accuracy_goal: to accept it silently)",
+                "the goals were not met; the estimate's relative error is about {:.1e} (pass precision_goal: or accuracy_goal: to accept it silently)",
                 err / mag
             );
-            cx.eval(h.call(h.sym("print"), &[h.string(&msg)]))?;
+            // a warning (the engine's `message`): scripts print it as `n_integrate: text`, notebooks as a message
+            cx.eval(h.call(h.sym("message"), &[h.sym_term(h.sym("n_integrate")), h.string(&msg)]))?;
             return Ok(Reply::Done(scalar_term(ar, *value)));
         }
     }

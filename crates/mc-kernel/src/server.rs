@@ -3,11 +3,15 @@
 //! Two threads: a reader parses request lines and handles `interrupt` at once (raising the stop flag of the
 //! running evaluation, or marking a queued one cancelled); every other request goes, in order, to the thread that
 //! owns the engine, which evaluates and writes all responses. Evaluations are therefore sequential, and a
-//! `complete` sent during a long evaluation is answered after it.
-use crate::cell::{run_cell, ErrorReport, Status};
-use crate::protocol::{parse_request, Body, ModuleInfo, Request, Response, PROTOCOL};
+//! `complete` sent during a long evaluation is answered after it. A `shutdown` with `interrupt` is also handled by
+//! the reader: it interrupts the running evaluation and cancels the queued ones, so that quitting a busy kernel is
+//! prompt.
+use crate::cell::{run_cell, run_each, EachEvent, ErrorReport, Status};
+use crate::protocol::{
+    parse_request, Body, DisplayKind, ModuleInfo, NameInfo, Request, Response, Values, CAPABILITIES, PROTOCOL,
+};
 use mc_bench::{Engine, StopFlag};
-use mc_engine::{CoreEngine, EngineConfig, Origin};
+use mc_engine::{CoreEngine, EachOptions, EngineConfig, Origin, Report};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -53,6 +57,16 @@ fn interrupt(shared: &Shared, stop: &StopFlag, id: Option<Value>) {
     }
 }
 
+/// `shutdown` with `interrupt`: interrupt the running evaluation and cancel every queued one.
+fn stop_all(shared: &Shared, stop: &StopFlag) {
+    let mut ev = lock(shared);
+    if ev.running.is_some() {
+        stop.raise();
+    }
+    let queued = ev.queued.clone();
+    ev.cancelled.extend(queued);
+}
+
 /// Read request lines until the end of the input or a `shutdown`.
 fn read_requests(input: impl BufRead, tx: mpsc::Sender<Message>, shared: Shared, stop: StopFlag) {
     for line in input.lines() {
@@ -66,8 +80,10 @@ fn read_requests(input: impl BufRead, tx: mpsc::Sender<Message>, shared: Shared,
                 continue;
             }
             Ok(r) => {
-                if let Request::Eval { id, .. } = &r {
-                    lock(&shared).queued.push(id.clone());
+                match &r {
+                    Request::Eval { id, .. } => lock(&shared).queued.push(id.clone()),
+                    Request::Shutdown { interrupt: true, .. } => stop_all(&shared, &stop),
+                    _ => {}
                 }
                 Message::Request(r)
             }
@@ -94,8 +110,21 @@ impl Writer<'_> {
     }
 
     fn done(&mut self, id: &Value, cell: &Option<String>, status: Status, start: Instant) -> io::Result<()> {
+        self.done_numbered(id, cell, status, start, None)
+    }
+
+    /// `done`, with the first number used and the line counter after a numbered evaluation.
+    fn done_numbered(
+        &mut self,
+        id: &Value,
+        cell: &Option<String>,
+        status: Status,
+        start: Instant,
+        numbers: Option<(u64, u64)>,
+    ) -> io::Result<()> {
         let millis = start.elapsed().as_millis().try_into().unwrap_or(u64::MAX);
-        self.send(id, cell, Body::Done { status, millis })
+        let (first, next) = (numbers.map(|n| n.0), numbers.map(|n| n.1));
+        self.send(id, cell, Body::Done { status, millis, first, next })
     }
 }
 
@@ -114,8 +143,12 @@ fn origin(origin: Option<&str>, cell: Option<&str>) -> Origin {
 pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, config: EngineConfig) -> io::Result<()> {
     let mut engine = CoreEngine::with_config(config);
     let mut w = Writer { out: output };
-    let hello =
-        Body::Hello { protocol: PROTOCOL, version: env!("CARGO_PKG_VERSION").to_string(), engine: engine.name() };
+    let hello = Body::Hello {
+        protocol: PROTOCOL,
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        engine: engine.name(),
+        capabilities: CAPABILITIES.iter().map(|c| c.to_string()).collect(),
+    };
     w.send(&Value::Null, &None, hello)?;
     let shared = Shared::default();
     let stop = StopFlag::new();
@@ -138,7 +171,7 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
         };
         let id = request.id();
         match request {
-            Request::Eval { cell, src, origin: file, line, .. } => {
+            Request::Eval { cell, src, origin: file, line, values, numbered, .. } => {
                 let cancelled = {
                     let mut ev = lock(&shared);
                     if let Some(i) = ev.queued.iter().position(|q| *q == id) {
@@ -157,25 +190,57 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
                         }
                     }
                 };
+                let first = engine.line();
                 let status = if cancelled {
                     Status::Interrupted
                 } else {
                     let origin = origin(file.as_deref(), cell.as_deref());
+                    let line = line.unwrap_or(1).max(1);
+                    let each = values == Some(Values::Each);
                     let mut written = Ok(());
-                    let status = run_cell(&mut engine, &src, &origin, line.unwrap_or(1).max(1), &stop, &mut |e| {
+                    let mut send = |body: Body| {
                         if written.is_ok() {
-                            written = w.send(&id, &cell, e.into());
+                            written = w.send(&id, &cell, body);
                         }
-                    });
+                    };
+                    let status = if each || numbered {
+                        let options = EachOptions { numbered };
+                        // numbered with `values: "last"`: only the value of the last statement, if it is shown
+                        let mut last = None;
+                        let status = run_each(&mut engine, &src, &origin, line, &stop, options, &mut |e| match e {
+                            EachEvent::Report(r @ Report::Value { .. }) if !each => last = Some(r),
+                            e => send(each_body(e)),
+                        });
+                        let next = engine.line();
+                        if let Some(r @ Report::Value { n, .. }) = last {
+                            if n == Some(next - 1) {
+                                send(each_body(EachEvent::Report(r)));
+                            }
+                        }
+                        status
+                    } else {
+                        run_cell(&mut engine, &src, &origin, line, &stop, &mut |e| send(e.into()))
+                    };
                     lock(&shared).running = None;
                     written?;
                     status
                 };
-                w.done(&id, &cell, status, start)?;
+                let numbers = numbered.then(|| (first, engine.line()));
+                w.done_numbered(&id, &cell, status, start, numbers)?;
             }
             Request::Complete { prefix, .. } => {
                 let names = engine.names().into_iter().filter(|n| n.starts_with(&prefix)).collect();
                 w.send(&id, &None, Body::Completions { names })?;
+                w.done(&id, &None, Status::Ok, start)?;
+            }
+            Request::Names { prefix, .. } => {
+                let names = engine
+                    .name_kinds()
+                    .into_iter()
+                    .filter(|(n, _)| n.starts_with(&prefix))
+                    .map(|(name, kind)| NameInfo { name, kind: kind.as_str().to_string() })
+                    .collect();
+                w.send(&id, &None, Body::Names { names })?;
                 w.done(&id, &None, Status::Ok, start)?;
             }
             Request::Modules { .. } => {
@@ -211,10 +276,25 @@ impl From<crate::cell::CellEvent> for Body {
     fn from(e: crate::cell::CellEvent) -> Body {
         use crate::cell::CellEvent;
         match e {
-            CellEvent::Output(text) => Body::Output { text },
-            CellEvent::Value(printed) => Body::Value { printed },
-            CellEvent::Failure(printed) => Body::Failure { printed },
+            CellEvent::Output(text) => Body::Output { text, n: None },
+            CellEvent::Value(printed) => Body::Value { printed, n: None },
+            CellEvent::Failure(printed) => Body::Failure { printed, n: None },
             CellEvent::Error(r) => Body::Error(r),
         }
+    }
+}
+
+/// The response for an event of a statement-by-statement evaluation: a value naming a readable PNG file becomes
+/// a `display`.
+fn each_body(e: EachEvent) -> Body {
+    match e {
+        EachEvent::Report(Report::Output { n, text }) => Body::Output { text, n },
+        EachEvent::Report(Report::Message { n, tag, text }) => Body::Message { text, tag, n },
+        EachEvent::Report(Report::Failure { n, printed }) => Body::Failure { printed, n },
+        EachEvent::Report(Report::Value { n, printed, image: None }) => Body::Value { printed, n },
+        EachEvent::Report(Report::Value { n, printed, image: Some(i) }) => {
+            Body::Display { kind: DisplayKind::Image, path: i.path, width: i.width, height: i.height, printed, n }
+        }
+        EachEvent::Error(r) => Body::Error(r),
     }
 }

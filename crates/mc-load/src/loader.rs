@@ -25,6 +25,10 @@ pub struct Read<'h> {
     /// time (`@on(holder)` on a rule for `outer`): they must be cleared too, since the holder need not be a member
     /// (decision 9.6 of the library-gaps package).
     pub detached: Vec<(String, String)>,
+    /// For each top-level statement of the input itself (not of the module files it loads), in order: the index in
+    /// `statements` of its last term (a module or import statement's closing `null`, any other statement's term),
+    /// so that front ends can tell the input's statements apart (per-statement values, line numbers).
+    pub ends: Vec<usize>,
 }
 
 /// The reader state of a session.
@@ -112,6 +116,7 @@ impl Loader {
             provider: &*self.provider,
             loading: vec![],
             out: vec![],
+            ends: vec![],
             reloaded: vec![],
             recorder,
             detached: vec![],
@@ -120,13 +125,13 @@ impl Loader {
         let recorder = rd.recorder.take();
         let r = match r {
             Ok(()) => {
-                let (statements, mut reloaded, mut detached) = (rd.out, rd.reloaded, rd.detached);
+                let (statements, ends, mut reloaded, mut detached) = (rd.out, rd.ends, rd.reloaded, rd.detached);
                 reloaded.sort();
                 reloaded.dedup();
                 detached.sort();
                 detached.dedup();
                 self.imports = imports;
-                Ok(Read { statements, reloaded, detached })
+                Ok(Read { statements, reloaded, detached, ends })
             }
             Err(e) => {
                 self.modules = saved;
@@ -171,6 +176,8 @@ struct Reader<'a, 'h, S: Store + ?Sized> {
     /// the modules whose files are being read, outermost first (cycle detection)
     loading: Vec<String>,
     out: Vec<T<'h>>,
+    /// the index in `out` of the last term of each top-level statement of the input ([`Read::ends`])
+    ends: Vec<usize>,
     reloaded: Vec<String>,
     /// the sites being recorded, for [`Loader::read_recorded`]
     recorder: Option<Recorder>,
@@ -204,6 +211,7 @@ impl<'a, 'h, S: Store + ?Sized> Reader<'a, 'h, S> {
             .collect();
         for s in &stmts {
             match self.statement(s, origin, imports, &defined) {
+                Ok(()) if in_input => self.ends.push(self.out.len() - 1),
                 Ok(()) => {}
                 Err(Error::Here(fail, span)) => {
                     let span = locate(text, &fail.name, span);

@@ -16,6 +16,7 @@
 //! exclusively), so it applies from the next statement on.
 use crate::arith;
 use crate::format::ArithNumbers;
+use crate::history;
 use mc_api::names;
 use mc_arith::num::StopScope;
 use mc_bench::{Engine, EngineError, Evaluated, RaiseHook, StopFlag};
@@ -24,7 +25,7 @@ use mc_eval::{Control, EvalConfig, Kernel, Status};
 use mc_load::{stdlib, LoadError, Loader, Module, Origin, SourceProvider};
 use mc_syntax::Printer;
 use mc_api::Sym;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
@@ -72,6 +73,8 @@ pub struct CoreEngine {
     library_names: HashSet<Sym>,
     /// the numeric compiler: specialisations `compile` queued are registered after each statement (package 1b)
     jit: mc_jit::Jit,
+    /// the line counter of numbered evaluations: the number the next statement gets (08-notebook 2.6)
+    line: u64,
 }
 
 /// The names of every installed library's functions and constants, and `inf`.
@@ -197,6 +200,8 @@ impl CoreEngine {
             let list = h.sym(names::LIST);
             let a = k.attributes(list);
             k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
+            // the notebook protocol's history (`out`) and library warnings (`message`)
+            crate::history::install(&mut k, h);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });
@@ -212,6 +217,7 @@ impl CoreEngine {
             loader: Loader::default(),
             library_names,
             jit,
+            line: 1,
         };
         if cfg.prelude {
             let origin = Origin::embedded(stdlib::PRELUDE_ORIGIN);
@@ -228,7 +234,7 @@ impl CoreEngine {
     /// Evaluate `src` from `origin` (a file name, `<repl>`, `<-e>`; its directory is where `import` looks for
     /// module files first). The whole text is read and resolved before any of it runs (decision F.6).
     pub fn eval_in(&mut self, src: &str, origin: &Origin, stop: &StopFlag) -> Result<Script, RunError> {
-        self.evaluate(Input::Text(src, origin), stop, &mut |_| {})
+        self.evaluate(Input::Text(src, origin), stop, None, &mut |_| {})
     }
 
     /// [`CoreEngine::eval_in`], also handing every event to `sink` as soon as its statement has finished, before
@@ -240,13 +246,53 @@ impl CoreEngine {
         stop: &StopFlag,
         sink: &mut dyn FnMut(&Event),
     ) -> Result<Script, RunError> {
-        self.evaluate(Input::Text(src, origin), stop, sink)
+        let mut legacy = |s: Step<'_>| match s {
+            Step::Event(e) => sink(e),
+            Step::Report(_) => {}
+        };
+        self.evaluate(Input::Text(src, origin), stop, None, &mut legacy)
+    }
+
+    /// Evaluate `src` from `origin` as [`CoreEngine::eval_streaming`] does, reporting every top-level statement of
+    /// `src` (08-notebook 5.2): a [`Report::Value`] for each statement whose value is shown (not `null`, which
+    /// definitions give, and not followed by `;`), a [`Report::Failure`] for each failure, `print` output one
+    /// report per call, warnings of library code as [`Report::Message`]. All reports of a statement are handed to
+    /// `sink` when it finishes, before the next one starts.
+    ///
+    /// With [`EachOptions::numbered`], each statement of `src` takes the next number of the session's line counter
+    /// ([`CoreEngine::line`]) when it starts, its reports carry it, and its value (unless `null`) is kept for
+    /// `out(n)`. A read error then takes one number (nothing runs); an interrupted or stopped statement keeps its.
+    /// Returns whether some statement's value was a failure.
+    pub fn eval_each(
+        &mut self,
+        src: &str,
+        origin: &Origin,
+        stop: &StopFlag,
+        options: EachOptions,
+        sink: &mut dyn FnMut(Report),
+    ) -> Result<bool, RunError> {
+        let suppressed = suppressed(src);
+        let mut each = |s: Step<'_>| match s {
+            Step::Report(r) => sink(r),
+            Step::Event(_) => {}
+        };
+        let plan = Plan { numbered: options.numbered, suppressed, terms: vec![] };
+        let r = self.evaluate(Input::Text(src, origin), stop, Some(plan), &mut each);
+        if options.numbered && matches!(r, Err(RunError::Read(_))) {
+            self.line += 1;
+        }
+        r.map(|s| s.failed())
+    }
+
+    /// The line counter: the number the next statement of a numbered evaluation gets (1 in a fresh engine).
+    pub fn line(&self) -> u64 {
+        self.line
     }
 
     /// Evaluate the file at `path` as a script: the same as [`CoreEngine::eval_in`] on its text, from its
     /// directory. A module file evaluated again replaces the old definitions of its module (decision F.8).
     pub fn eval_file(&mut self, path: &Path, stop: &StopFlag) -> Result<Script, RunError> {
-        self.evaluate(Input::File(path), stop, &mut |_| {})
+        self.evaluate(Input::File(path), stop, None, &mut |_| {})
     }
 
     /// Read script and module files through `provider` (the file system by default; tests use
@@ -274,18 +320,37 @@ impl CoreEngine {
     /// session definitions), the libraries' names without definitions (constants), the loaded modules and their
     /// public members as `M.f`. Qualified private members and names that are not identifiers are left out.
     pub fn names(&mut self) -> Vec<String> {
+        self.name_kinds().into_iter().map(|(n, _)| n).collect()
+    }
+
+    /// [`CoreEngine::names`] with what each name is (for colouring in editors): a module, a value (an own value,
+    /// or a library constant), a function (a native or rules), or a symbol with only attributes.
+    pub fn name_kinds(&mut self) -> Vec<(String, NameKind)> {
         let library = &self.library_names;
-        let mut names: BTreeSet<String> = self.session.step(|h, k| {
+        let kind = |h: &mc_core::Heap, k: &Kernel, s: Sym| {
+            if k.value_of(h, s).is_some() || (library.contains(&s) && !k.is_defined(s)) {
+                NameKind::Value
+            } else if k.has_native(s) || k.rule_count(s) > 0 {
+                NameKind::Function
+            } else {
+                NameKind::Symbol
+            }
+        };
+        let mut names: BTreeMap<String, NameKind> = self.session.step(|h, k| {
             (0..h.sym_count() as u32)
                 .map(Sym)
                 .filter(|&s| k.is_defined(s) || library.contains(&s))
-                .map(|s| h.sym_name(s))
-                .filter(|n| is_identifier(n))
+                .map(|s| (h.sym_name(s), s))
+                .filter(|(n, _)| is_identifier(n))
+                .map(|(n, s)| (n, kind(h, k, s)))
                 .collect()
         });
-        for m in self.loader.modules() {
-            names.insert(m.name.clone());
-            names.extend(m.public.iter().map(|p| m.qualified(p)));
+        let members: Vec<String> = self.loader.modules().flat_map(|m| m.public.iter().map(|p| m.qualified(p))).collect();
+        let modules: Vec<String> = self.loader.modules().map(|m| m.name.clone()).collect();
+        let kinds: Vec<NameKind> = self.session.step(|h, k| members.iter().map(|q| kind(h, k, h.sym(q))).collect());
+        names.extend(members.into_iter().zip(kinds));
+        for m in modules {
+            names.insert(m, NameKind::Module);
         }
         names.into_iter().collect()
     }
@@ -294,7 +359,8 @@ impl CoreEngine {
         &mut self,
         input: Input<'_>,
         stop: &StopFlag,
-        sink: &mut dyn FnMut(&Event),
+        mut plan: Option<Plan>,
+        sink: &mut dyn FnMut(Step<'_>),
     ) -> Result<Script, RunError> {
         self.attach(stop);
         // withdraw an old request before looking at the flag: a raise after this check reaches the evaluation
@@ -304,7 +370,7 @@ impl CoreEngine {
             return Err(RunError::Engine(EngineError::Stopped));
         }
         let (loader, names) = (&mut self.loader, &self.library_names);
-        let n = self.session.step(|h, k| {
+        let (n, ends) = self.session.step(|h, k| {
             k.clear_output();
             let read = {
                 let known = |s| k.is_defined(s) || names.contains(&s);
@@ -325,13 +391,16 @@ impl CoreEngine {
             for &t in &read.statements {
                 k.roots.push(t);
             }
-            Ok(read.statements.len())
+            Ok((read.statements.len(), read.ends))
         })?;
+        if let Some(p) = plan.as_mut() {
+            p.lay_out(n, &ends, self.line);
+        }
         let r = if n == 0 {
             let last = Evaluated { printed: names::NULL.into(), fingerprint: None, output: vec![] };
             Ok(Script { events: vec![], last, last_is_null: true })
         } else {
-            self.run(n, stop, sink).map_err(RunError::Engine)
+            self.run(n, stop, plan.as_ref(), sink).map_err(RunError::Engine)
         };
         self.session.state.roots.truncate(LAST + 1);
         r
@@ -355,13 +424,33 @@ impl CoreEngine {
     }
 
     /// Evaluate statements `1..=n` of the roots; the last one's value is the result. Output is collected after
-    /// each statement, so that it stays in order with the failures of statements.
-    fn run(&mut self, n: usize, stop: &StopFlag, sink: &mut dyn FnMut(&Event)) -> Result<Script, EngineError> {
+    /// each statement, so that it stays in order with the failures of statements. With a `plan`
+    /// ([`CoreEngine::eval_each`]) the statements of the input are numbered, their values kept for `out(n)` and
+    /// reported one by one; `sink` gets both kinds of step, the events of scripts and the reports of `eval_each`.
+    fn run(
+        &mut self,
+        n: usize,
+        stop: &StopFlag,
+        plan: Option<&Plan>,
+        sink: &mut dyn FnMut(Step<'_>),
+    ) -> Result<Script, EngineError> {
         let mut events = vec![];
+        // the number in `out#line`
+        let mut current: Option<u64> = None;
         for i in 1..=n {
             let last = i == n;
+            let term = plan.map_or(TermPlan::default(), |p| p.terms[i - 1]);
+            // a numbered statement takes its number when its first term starts
+            let new_line = term.number.filter(|&nr| Some(nr) != current);
+            if let Some(nr) = new_line {
+                self.line = nr + 1;
+                current = Some(nr);
+            }
             let (arith_stop, jit) = (&self.arith_stop, &self.jit);
             let r = self.session.step(|h, k| {
+                if let Some(nr) = new_line {
+                    k.set_own(h.sym(history::LINE), h.int(nr as i64));
+                }
                 let t = k.roots.get(h, i);
                 let e = k.eval(h, t);
                 // what `compile` queued takes effect from the next statement on
@@ -376,31 +465,61 @@ impl CoreEngine {
                 let output = output(h, k);
                 k.clear_output();
                 let failure = is_failure(h, e.value);
-                if !last && !failure {
-                    return Ok((output, None, None));
+                let is_null = is_sym(h, e.value, names::NULL);
+                // the history: the value of every numbered statement but `null`, shown or not
+                if let (Some(nr), Some(_), false) = (term.number, term.ends, is_null) {
+                    k.set_own(h.sym(&history::entry(nr)), e.value);
+                }
+                let show = !failure && !is_null && term.ends == Some(true);
+                let mut done = Finished { output, fail: None, value: None, last: None };
+                if !last && !failure && !show {
+                    return Ok(done);
                 }
                 // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
                 let _scope = StopScope::enter(Some(arith_stop));
                 let printed = Printer::with_numbers(h, Box::new(ArithNumbers)).expr(e.value);
-                let fail = failure.then(|| printed.clone());
-                if !last {
-                    return Ok((output, fail, None));
+                done.fail = failure.then(|| printed.clone());
+                // `print(x)` returns x: a statement whose value its last output line already shows does not show it
+                // again (the scripts' rule, decision 9.5 of the library-gaps package)
+                if show && !echoes(done.output.last(), &printed) {
+                    let image =
+                        mc_plot::image_of(h, e.value).map(|(path, width, height)| Image { path, width, height });
+                    done.value = Some((printed.clone(), image));
                 }
-                k.roots.set(LAST, e.value);
-                let is_null = is_sym(h, e.value, names::NULL);
-                let fingerprint = Some(mc_core::shapes::fingerprint(h, e.value));
-                Ok((output, fail, Some((printed, fingerprint, is_null))))
+                if last {
+                    k.roots.set(LAST, e.value);
+                    let fingerprint = Some(mc_core::shapes::fingerprint(h, e.value));
+                    done.last = Some((printed, fingerprint, is_null));
+                }
+                Ok(done)
             });
             // an interrupt can also end inside arithmetic, as `failure(interrupted, ...)` in a finished value
             if stop.is_raised() {
                 return Err(EngineError::Stopped);
             }
-            let (output, fail, value) = r?;
+            let Finished { output, fail, value, last } = r?;
+            // the number of the statement the term belongs to
+            let n = term.number;
             let start = events.len();
-            events.extend(output.into_iter().map(Event::Output));
-            events.extend(fail.map(Event::Failure));
-            events[start..].iter().for_each(&mut *sink);
-            if let Some((printed, fingerprint, last_is_null)) = value {
+            for o in output {
+                let (event, report) = match o {
+                    Emitted::Text(s) => (Event::Output(s.clone()), Report::Output { n, text: s }),
+                    Emitted::Message(tag, text) => {
+                        (Event::Output(format!("{tag}: {text}")), Report::Message { n, tag, text })
+                    }
+                };
+                events.push(event);
+                sink(Step::Report(report));
+            }
+            if let Some(printed) = fail {
+                events.push(Event::Failure(printed.clone()));
+                sink(Step::Report(Report::Failure { n, printed }));
+            }
+            events[start..].iter().for_each(|e| sink(Step::Event(e)));
+            if let Some((printed, image)) = value {
+                sink(Step::Report(Report::Value { n, printed, image }));
+            }
+            if let Some((printed, fingerprint, last_is_null)) = last {
                 self.has_last = true;
                 let output = events
                     .iter()
@@ -417,21 +536,182 @@ impl CoreEngine {
     }
 }
 
+/// What one statement's step hands back: its output, its failure printed, its shown value (printed, and the image
+/// it names), and for the last statement its value printed, fingerprinted and whether it is `null`.
+struct Finished {
+    output: Vec<Emitted>,
+    fail: Option<String>,
+    value: Option<(String, Option<Image>)>,
+    last: Option<(String, Option<u64>, bool)>,
+}
+
+/// One item of the session output.
+enum Emitted {
+    /// `print` output: a string as its text, another term printed
+    Text(String),
+    /// `message(tag, text)`
+    Message(String, String),
+}
+
+/// What [`CoreEngine::run`] hands its sink: an event of scripts, or a report of [`CoreEngine::eval_each`].
+enum Step<'a> {
+    Event(&'a Event),
+    Report(Report),
+}
+
+/// What a name is, for [`CoreEngine::name_kinds`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameKind {
+    /// a native or a symbol with rules
+    Function,
+    /// a symbol with an own value, or a library constant
+    Value,
+    /// a loaded module
+    Module,
+    /// a defined symbol with neither (attributes only)
+    Symbol,
+}
+
+impl NameKind {
+    /// The kind's name in the kernel protocol.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            NameKind::Function => "function",
+            NameKind::Value => "value",
+            NameKind::Module => "module",
+            NameKind::Symbol => "symbol",
+        }
+    }
+}
+
+/// Options of [`CoreEngine::eval_each`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EachOptions {
+    /// number the statements with the session's line counter and keep their values for `out(n)`
+    pub numbered: bool,
+}
+
+/// What [`CoreEngine::eval_each`] reports, in order. `n` is the statement's number in a numbered evaluation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Report {
+    /// the text of one `print` call (it may contain line ends)
+    Output {
+        /// the number of the statement that printed
+        n: Option<u64>,
+        /// the text
+        text: String,
+    },
+    /// a warning of library code (`message(tag, text)`): the function's name and the text
+    Message {
+        /// the number of the statement that warned
+        n: Option<u64>,
+        /// who warns: a function's name
+        tag: String,
+        /// the warning
+        text: String,
+    },
+    /// a statement's value is shown
+    Value {
+        /// the statement's number
+        n: Option<u64>,
+        /// the value in the concrete syntax
+        printed: String,
+        /// the picture the value names, when it is an image term of a readable PNG file
+        image: Option<Image>,
+    },
+    /// a top-level statement's value is a `failure(...)`
+    Failure {
+        /// the statement's number
+        n: Option<u64>,
+        /// the failure in the concrete syntax
+        printed: String,
+    },
+}
+
+/// A picture a value names: `image("path")` of a PNG file and its size in pixels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Image {
+    /// the file, as the value names it
+    pub path: String,
+    /// width in pixels
+    pub width: u32,
+    /// height in pixels
+    pub height: u32,
+}
+
+/// How [`CoreEngine::eval_each`] treats the terms of one read.
+struct Plan {
+    numbered: bool,
+    /// for each statement of the input: whether a `;` follows it
+    suppressed: Vec<bool>,
+    /// for each term to evaluate
+    terms: Vec<TermPlan>,
+}
+
+#[derive(Clone, Copy, Default)]
+struct TermPlan {
+    /// the number of the input statement the term belongs to (numbered evaluations)
+    number: Option<u64>,
+    /// set on the last term of an input statement: whether its value is shown (no `;` after it)
+    ends: Option<bool>,
+}
+
+impl Plan {
+    /// Lay the plan over the `n` terms of a read whose input statements end at `ends` (indices of terms),
+    /// numbering from `line`.
+    fn lay_out(&mut self, n: usize, ends: &[usize], line: u64) {
+        let mut terms = vec![TermPlan::default(); n];
+        let mut start = 0;
+        for (j, &end) in ends.iter().enumerate().filter(|&(_, &end)| end < n) {
+            let number = self.numbered.then_some(line + j as u64);
+            terms[start..=end].iter_mut().for_each(|t| t.number = number);
+            terms[end].ends = Some(!self.suppressed.get(j).copied().unwrap_or(false));
+            start = end + 1;
+        }
+        self.terms = terms;
+    }
+}
+
+/// For each top-level statement of `src`: whether a `;` follows it on its line (its value is not shown).
+fn suppressed(src: &str) -> Vec<bool> {
+    let parsed = mc_syntax::parse(src);
+    parsed
+        .program
+        .stmts
+        .iter()
+        .map(|s| {
+            src.get(s.span.end as usize..).is_some_and(|rest| rest.trim_start_matches([' ', '\t']).starts_with(';'))
+        })
+        .collect()
+}
+
 impl Default for CoreEngine {
     fn default() -> CoreEngine {
         CoreEngine::new()
     }
 }
 
-/// The session output since it was last cleared: strings as their text, other terms printed.
-fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<String> {
+/// The session output since it was last cleared: strings as their text, warnings, other terms printed.
+fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<Emitted> {
     k.output(h)
         .into_iter()
         .map(|t| match h.view(t) {
-            mc_core::View::Str(s) => s.to_string(),
-            _ => Printer::with_numbers(h, Box::new(ArithNumbers)).expr(t),
+            mc_core::View::Str(s) => Emitted::Text(s.to_string()),
+            _ => match history::as_message(h, t) {
+                Some((tag, text)) => Emitted::Message(tag, text),
+                None => Emitted::Text(Printer::with_numbers(h, Box::new(ArithNumbers)).expr(t)),
+            },
         })
         .collect()
+}
+
+/// Whether `output` (a statement's last output) is the text of `printed`: the same text, or a string's text when
+/// `printed` is its literal.
+fn echoes(output: Option<&Emitted>, printed: &str) -> bool {
+    let Some(Emitted::Text(line)) = output else { return false };
+    let mut literal = String::new();
+    mc_syntax::string_literal(line, &mut literal);
+    line == printed || literal == printed
 }
 
 /// Whether `name` is a plain identifier (a letter or `_`, then letters, digits, `_`): the names completion offers.

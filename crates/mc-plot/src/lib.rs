@@ -146,6 +146,39 @@ fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
     Ok(direct(v).filter(|x| x.is_finite()))
 }
 
+/// The display hint for front ends: the PNG file an image term `image("path")` names and its size in pixels
+/// (width, height), read from the file's header. `None` when `t` is not an image term or the file is not a
+/// readable PNG; the value is then shown as text.
+pub fn image_of<'h>(h: &'h Heap, t: T<'h>) -> Option<(String, u32, u32)> {
+    let View::App { head, args } = h.view(t) else { return None };
+    let (View::Sym(s), [path]) = (h.view(head), args) else { return None };
+    let View::Str(path) = h.view(*path) else { return None };
+    if h.sym_name(s) != "image" {
+        return None;
+    }
+    let (w, ht) = png_size(std::path::Path::new(path))?;
+    Some((path.to_string(), w, ht))
+}
+
+/// The width and height of the PNG file at `path`, from its signature and `IHDR` chunk.
+pub fn png_size(path: &std::path::Path) -> Option<(u32, u32)> {
+    use std::io::Read;
+    let mut head = [0u8; 24];
+    std::fs::File::open(path).ok()?.read_exact(&mut head).ok()?;
+    png_header_size(&head)
+}
+
+/// The size in the first 24 bytes of a PNG file: the signature, then the `IHDR` chunk's length, type, width and
+/// height (big-endian).
+fn png_header_size(head: &[u8; 24]) -> Option<(u32, u32)> {
+    const SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    if head[..8] != SIGNATURE || &head[12..16] != b"IHDR" {
+        return None;
+    }
+    let be = |i: usize| u32::from_be_bytes([head[i], head[i + 1], head[i + 2], head[i + 3]]);
+    Some((be(16), be(20))).filter(|&(w, h)| w > 0 && h > 0)
+}
+
 /// The image term for a written PNG file.
 fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
@@ -439,5 +472,24 @@ fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
             .filter(|c| *c > 0.0 && c.is_finite())
             .map(Axis::SignedLog),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn png_header() {
+        let mut head = [0u8; 24];
+        head[..8].copy_from_slice(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]);
+        head[8..12].copy_from_slice(&13u32.to_be_bytes());
+        head[12..16].copy_from_slice(b"IHDR");
+        head[16..20].copy_from_slice(&640u32.to_be_bytes());
+        head[20..24].copy_from_slice(&400u32.to_be_bytes());
+        assert_eq!(png_header_size(&head), Some((640, 400)));
+        head[12] = b'X';
+        assert_eq!(png_header_size(&head), None);
+        assert_eq!(png_size(std::path::Path::new("no such file.png")), None);
     }
 }

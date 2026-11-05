@@ -19,6 +19,9 @@
 pub mod arith;
 mod engine;
 pub mod format;
+mod history;
 
-pub use engine::{CoreEngine, EngineConfig, Event, RunError, Script};
+pub use engine::{CoreEngine, EachOptions, EngineConfig, Event, Image, NameKind, Report, RunError, Script};
+/// The functions the engine itself adds for notebooks (`out`, `message`), with a one-line description.
+pub use history::FUNCTIONS;
 pub use mc_load::{InMemory, LoadError, Module, Origin, SourceProvider};

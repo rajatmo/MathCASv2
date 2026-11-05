@@ -187,12 +187,13 @@ impl Solve {
         let (sol, key) = self.keep(sol);
         let solved = Solved { sys, key, sol, events: found };
         // a blow-up or the step limit: the part computed is the solution (its domain ends where the run stopped),
-        // with a printed warning (semantics 10: a value with a warning is still the value)
+        // with a warning (semantics 10: a value with a warning is still the value)
         for run in [&fwd, &bwd] {
             if matches!(run.end, End::MaxSteps | End::StepSize) {
                 let why = if run.end == End::MaxSteps { "the step limit was reached" } else { "the step size vanished (a singularity?)" };
-                let msg = format!("{name}: {why} at t = {}; the solution covers the part computed", run.t);
-                cx.eval(h.call(h.sym("print"), &[h.string(&msg)]))?;
+                let msg = format!("{why} at t = {}; the solution covers the part computed", run.t);
+                // a warning (the engine's `message`): scripts print it as `name: text`, notebooks as a message
+                cx.eval(h.call(h.sym("message"), &[h.sym_term(h.sym(name)), h.string(&msg)]))?;
                 break;
             }
         }

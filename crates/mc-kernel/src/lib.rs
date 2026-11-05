@@ -65,7 +65,7 @@
 //!
 //! | `type` | fields | meaning |
 //! |---|---|---|
-//! | `output` | `text` | a line of `print` output |
+//! | `output` | `text` | the text of one `print` call (the text of a string, other values printed) |
 //! | `failure` | `printed` | a top-level statement's value is a `failure(...)`; the evaluation goes on |
 //! | `value` | `printed` | the value of the last statement, unless it is `null` or a failure already sent |
 //! | `error` | `message`, `line`, `column`, `origin`, `rendered` | a read error (nothing ran), a limit, a bad request |
@@ -97,6 +97,43 @@
 //! < {"id":2,"type":"done","status":"error","millis":0}
 //! > {"type":"complete","id":3,"prefix":"fac"}
 //! < {"id":3,"type":"completions","names":["factor","factor_integer","factorial"]}
+//! < {"id":3,"type":"done","status":"ok","millis":0}
+//! ```
+//!
+//! ## Notebook additions
+//!
+//! Optional request fields and new responses for notebook front ends (design 08-notebook 5.2 and 5.6). A client
+//! that does not ask for them sees exactly the responses above. `hello` lists them in `capabilities` (a client
+//! uses an addition only when it is listed; a kernel without the field has none):
+//!
+//! ```text
+//! {"id":null,"type":"hello","protocol":1,"version":"0.0.0","engine":"mathcas-v2 0.0.0","capabilities":["values_each","numbered","history","display","message","names","shutdown_interrupt"]}
+//! ```
+//!
+//! | capability | request | effect |
+//! |---|---|---|
+//! | `values_each` | `eval` with `values: "each"` (default `"last"`) | a `value` for **every** top-level statement whose value is shown: not `null` (definitions and assignments are `null`), not followed by `;` on its line, not what its own last `print` line already shows (`print(x)` returns `x`); `output` is one response per `print` call, its `text` may contain line ends |
+//! | `numbered` | `eval` with `numbered: true` | each top-level statement of `src` (an `import` or a `module` is one) takes the next number of the session's line counter (1 in a fresh session, after `reset` too) when it starts; `output`, `message`, `value`, `display`, `failure` carry the statement's number `n`; `done` carries `first` (the first number of the request) and `next` (the counter after it); a read error takes one number, carried by its `error` as `n`, as is a limit's; an interrupted statement keeps its number, so on `done` status `interrupted` the statement `next - 1` was running |
+//! | `history` | (numbered evaluations) | `out(n)` gives the value of statement `n` (hidden values and failures included, `null` not kept), `out()` the previous statement's, `out(-k)` the k-th previous; a number without a value gives `failure(history, n)` |
+//! | `display` | (`values: "each"`) | a value `image("path")` naming a readable PNG file is sent as `display` with `kind: "image"`, `path`, `width`, `height` (pixels) and `printed` (the value as text), instead of `value` |
+//! | `message` | (`values: "each"`) | a warning of library code (`message(tag, text)`) is sent as `message` with `text` and `tag` (the function's name); without `values: "each"` it is an `output` line `tag: text`, as before |
+//! | `names` | `names` with `prefix` (default `""`) | `names`: `[{name, kind}]` sorted by name, the names `complete` offers with `kind` `function`, `value`, `module` or `symbol`; then `done` |
+//! | `shutdown_interrupt` | `shutdown` with `interrupt: true` | the running evaluation is interrupted and the queued ones are cancelled (`done` `interrupted`) before the shutdown's `done`: quitting a busy kernel |
+//!
+//! `numbered: true` without `values: "each"` numbers the statements and sends only the last statement's value
+//! (when shown). An example exchange:
+//!
+//! ```text
+//! > {"type":"eval","id":1,"cell":"c1","src":"1+1\n3+3;\nprint(\"hi\")","values":"each","numbered":true}
+//! < {"id":1,"cell":"c1","type":"value","printed":"2","n":1}
+//! < {"id":1,"cell":"c1","type":"output","text":"hi","n":3}
+//! < {"id":1,"cell":"c1","type":"done","status":"ok","millis":0,"first":1,"next":4}
+//! > {"type":"eval","id":2,"cell":"c2","src":"out(2) + 1\nplot(sin(t), [t, 0, 1])","values":"each","numbered":true}
+//! < {"id":2,"cell":"c2","type":"value","printed":"7","n":4}
+//! < {"id":2,"cell":"c2","type":"display","kind":"image","path":"/tmp/mathcas-plots/plot-1-0.png","width":640,"height":400,"printed":"image(\"/tmp/mathcas-plots/plot-1-0.png\")","n":5}
+//! < {"id":2,"cell":"c2","type":"done","status":"ok","millis":9,"first":4,"next":6}
+//! > {"type":"names","id":3,"prefix":"ou"}
+//! < {"id":3,"type":"names","names":[{"name":"out","kind":"function"},{"name":"outer","kind":"function"}]}
 //! < {"id":3,"type":"done","status":"ok","millis":0}
 //! ```
 //!
@@ -151,6 +188,6 @@ pub mod notebook;
 pub mod protocol;
 pub mod server;
 
-pub use cell::{run_cell, CellEvent, ErrorReport, Status};
+pub use cell::{run_cell, run_each, CellEvent, EachEvent, ErrorReport, Status};
 pub use notebook::Notebook;
-pub use protocol::{Body, Request, Response, PROTOCOL};
+pub use protocol::{Body, Request, Response, Values, CAPABILITIES, PROTOCOL};

@@ -183,3 +183,46 @@ Small evals: 0-1 ms (`millis`); an interrupt ends a running loop within millisec
   changed (a one-line addition to `mc-load`'s `header_error` would accept it).
 - `reset` briefly holds two sessions.
 - Ctrl+C on the binary during a notebook run is not tested (the library path is).
+
+## Notebook additions (round NB, package P2; design 08-notebook.md section 5.2)
+
+Protocol 1 stays compatible: a request without the new fields gets exactly the old responses (tested). mc-repl and
+the Jupyter kernel needed no change.
+
+- `hello` has `capabilities`: `values_each`, `numbered`, `history`, `display`, `message`, `names`,
+  `shutdown_interrupt` (`protocol::CAPABILITIES`). Clients use an addition only when it is listed.
+- `eval` takes `values: "last" | "each"` (default `last`) and `numbered: bool` (default false).
+- `values: "each"`: a `value` per top-level statement whose value is shown (not `null`, not followed by `;` on its
+  line, not already shown by the statement's own last `print`); one `output` per `print` call (text may hold
+  newlines).
+- `numbered: true`: each top-level statement of `src` takes the next number of the kernel's line counter (an
+  `import` or `module` statement counts as one; starts at 1, again after `reset`); `output`, `message`, `value`,
+  `display`, `failure`, `error` carry `n`; `done` carries `first` and `next`. An interrupted statement keeps its number
+  (`next - 1` on `done` `interrupted`). `numbered` without `each` sends only the last shown value.
+- `message` responses (`{"type":"message","text":...,"tag":"n_dsolve","n":1}`) for library warnings through the new
+  native `message(tag, text)` (mc-ode and mc-quad use it); without `each` they are the old `tag: text` output line.
+- `display` responses for plots: `{"type":"display","kind":"image","path":...,"width":640,"height":400,"printed":...,"n":5}`
+  (`mc_plot::image_of` reads the PNG header; anything else is a plain `value`).
+- `names` request (`prefix` optional): `{"type":"names","names":[{"name":"out","kind":"function"}, ...]}` then `done`;
+  kinds `function`, `value`, `module`, `symbol`; public module members as `M.f`.
+- History: `out(n)` the value of statement n (hidden values and failures too, not `null`), `out()` the previous,
+  `out(-k)` the k-th previous; missing: `failure(history, n)`; `out(0)`: `failure(argument, out, 1)`. Only in numbered
+  evaluations; `reset` clears it. No `%` syntax (design section 13). Stored in own values of hidden symbols
+  (`out#line`, `out#n`), invisible to programs, `names` and `complete`.
+- `shutdown` with `interrupt: true` interrupts the running evaluation, cancels the queued ones (`done` `interrupted`
+  each), answers and exits; a plain `shutdown` keeps the old behaviour (answers what was read before it). Abort is
+  the existing `interrupt`.
+
+API: mc-engine `CoreEngine::eval_each(src, origin, stop, EachOptions { numbered }, sink: FnMut(Report)) -> Result<bool,
+RunError>` with `Report::{Output, Message, Value { image }, Failure}`, `CoreEngine::line()`,
+`CoreEngine::name_kinds()`; mc-kernel `cell::run_each`, `EachEvent`, `protocol::{Values, CAPABILITIES, NameInfo,
+DisplayKind}`, new `Body` variants `Display`, `Message`, `Names`. `CellEvent`/`run_cell` unchanged. Outside: mc-load
+`Read::ends` (so statements loaded from module files are not numbered), `out` and `message` in mc-lsp.
+
+Tests: mc-engine `tests/each.rs` (5), mc-kernel `tests/protocol.rs` (+4 through the binary), unit tests for request
+and response shapes and the PNG header.
+
+Known gaps: history never trimmed; `print` output not streamed within a statement; an interrupt landing as a
+statement finishes drops that statement's output (as before); `;` hides a value only when it follows the statement
+on the same line; `names` without a prefix sends about 1,500 entries in one response; display knows PNG only (SVG is
+M7); the kill-on-no-answer timers of 5.6 are client side.
