@@ -67,6 +67,41 @@ fn small_ratio(h: &Heap, t: T<'_>) -> Option<(i64, i64)> {
     }
 }
 
+/// The sum or product of finite machine reals and machine integers with at least one machine real, folded as
+/// `mc-arith` folds numbers (decision B.5): the integers exactly first, then the machine reals in canonical order
+/// (for finite reals the IEEE total order), so the result is bit for bit what [`Arith`] gives, without setting it
+/// up. `None` for any other arguments (or an exact part that overflows).
+fn machine_fold(h: &Heap, args: &[T<'_>], product: bool) -> Option<f64> {
+    let mut exact: i128 = i128::from(product);
+    let mut has_exact = false;
+    let mut reals: [f64; 8] = [0.0; 8];
+    let mut n = 0;
+    for &a in args {
+        match h.view(a) {
+            View::Int(v) => {
+                exact = if product { exact.checked_mul(v as i128)? } else { exact.checked_add(v as i128)? };
+                has_exact = true;
+            }
+            View::Real(x) if x.is_finite() && n < reals.len() => {
+                reals[n] = x;
+                n += 1;
+            }
+            _ => return None,
+        }
+    }
+    if n == 0 {
+        return None;
+    }
+    let reals = &mut reals[..n];
+    reals.sort_by(f64::total_cmp);
+    let op = |a: f64, b: f64| if product { a * b } else { a + b };
+    let (mut acc, rest) = if has_exact { (exact as f64, &reals[..]) } else { (reals[0], &reals[1..]) };
+    for &x in rest {
+        acc = op(acc, x);
+    }
+    Some(acc)
+}
+
 /// The product of machine integers and small rationals when it is a machine integer (`c/2` for even `c`): the
 /// common case of exact division in loops, without setting up an [`Arith`].
 fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
@@ -158,8 +193,11 @@ impl Native for Add {
             return self.call(cx, _t, &v);
         }
         let h = cx.heap();
-        Ok(Reply::Done(match small_fold(h, args, i64::checked_add, 0) {
-            Some(v) => h.int(v),
+        if let Some(v) = small_fold(h, args, i64::checked_add, 0) {
+            return Ok(Reply::Done(h.int(v)));
+        }
+        Ok(Reply::Done(match machine_fold(h, args, false) {
+            Some(v) => h.real(v),
             None => arith(h, &self.0).add(args),
         }))
     }
@@ -180,8 +218,11 @@ impl Native for Mul {
         }
         let h = cx.heap();
         let v = small_fold(h, args, i64::checked_mul, 1).or_else(|| small_product(h, args));
-        Ok(Reply::Done(match v {
-            Some(v) => h.int(v),
+        if let Some(v) = v {
+            return Ok(Reply::Done(h.int(v)));
+        }
+        Ok(Reply::Done(match machine_fold(h, args, true) {
+            Some(v) => h.real(v),
             None => arith(h, &self.0).mul(args),
         }))
     }
@@ -490,5 +531,37 @@ mod tests {
                 }
             }
         }
+    }
+    #[test]
+    fn the_machine_fold_is_bitwise_the_general_sum_and_product() {
+        let h = Heap::new(mc_core::Config::default());
+        let a = Arith::new(&h);
+        let reals = [0.1, -0.0, 0.0, 1.0e308, -1.0e308, 3.0, -2.5, 1.0e-300, 7.0 / 3.0, -1.0e16, 1.0];
+        let ints = [0i64, 1, -1, 3, i64::MAX, i64::MIN + 1];
+        let mut terms: Vec<T<'_>> = reals.iter().map(|&x| h.real(x)).collect();
+        terms.extend(ints.iter().map(|&v| h.int(v)));
+        // every sequence of 2 to 4 operands from a fixed pseudo-random walk over the terms
+        let mut state = 12345u64;
+        let mut next = || {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (state >> 33) as usize
+        };
+        let mut checked = 0;
+        for _ in 0..5000 {
+            let k = 2 + next() % 3;
+            let args: Vec<T<'_>> = (0..k).map(|_| terms[next() % terms.len()]).collect();
+            for product in [false, true] {
+                if let Some(v) = machine_fold(&h, &args, product) {
+                    let want = if product { a.mul(&args) } else { a.add(&args) };
+                    assert_eq!(h.real(v), want, "{args:?} product {product}");
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 5000);
+        // not taken: no machine real, a non-finite real, a symbol
+        assert!(machine_fold(&h, &[h.int(1), h.int(2)], false).is_none());
+        assert!(machine_fold(&h, &[h.real(f64::INFINITY), h.real(1.0)], false).is_none());
+        assert!(machine_fold(&h, &[h.real(1.0), h.sym_term(h.sym("x"))], true).is_none());
     }
 }
