@@ -107,6 +107,9 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
 /// `sum(xs)`: the canonical sum of the elements of the list `xs` (`0` for `[]`).
 pub(crate) fn sum<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if args.len() == 2 {
+        return crate::sums::iterated(lib, cx, t, args);
+    }
     let [xs] = *args else {
         return Ok(Reply::Decline);
     };

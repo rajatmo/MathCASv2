@@ -61,6 +61,7 @@ mod search;
 mod select;
 mod sort;
 mod strings;
+mod sums;
 
 use ctx::Lib;
 use mc_core::{Heap, Store, T};
@@ -145,7 +146,9 @@ functions! {
     "apply" => reshape::apply,
         "apply(f, xs): the head of xs replaced by f";
     "sum" => reduce::sum,
-        "sum(xs): the canonical sum of the elements";
+        "sum(xs): the canonical sum of the elements; sum(f, [k, a, b]), sum(f, [k, n]): the sum of f for k from a to b (exact for integer bounds; closed forms for polynomial and geometric terms, symbolic or infinite bounds; zeta for k^-s)";
+    "piecewise" => sums::piecewise,
+        "piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call";
     "product" => reduce::product,
         "product(xs): the canonical product of the elements";
     "total" => reduce::total,
@@ -263,7 +266,7 @@ functions! {
 }
 
 /// The functions whose arguments are all held; every other one is strict.
-const HELD: &[&str] = &["table"];
+const HELD: &[&str] = &["table", "piecewise"];
 
 /// Register every function of [`FUNCTIONS`] with `k`, all strict (decision I.2) except those of `HELD`. `stop` is
 /// the flag `mc-arith`'s long loops poll, the one the engine raises with the evaluator's interrupt (decision I.1).

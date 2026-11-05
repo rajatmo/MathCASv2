@@ -42,3 +42,17 @@ fn failures() {
     assert_eq!(eval(&mut e, r#"export_data("a.png", 5)"#), "failure(argument, export_data, 2)");
     assert_eq!(eval(&mut e, r#"export_data("a.csv", 5)"#), "failure(argument, export_data, 2)");
 }
+
+#[test]
+fn interpolation() {
+    let mut e = CoreEngine::new();
+    eval(&mut e, "f = interpolation(table([x, sin(x)], x, range(0, 6.3, 0.1)))");
+    assert_eq!(eval(&mut e, "abs(f(1.0) - sin(1.0)) < 1e-5"), "true");
+    assert_eq!(eval(&mut e, "abs(f(pi/2) - 1) < 1e-5"), "true");
+    assert!(eval(&mut e, "f(7)").starts_with("failure(out_of_range, 7, [0.0, 6.3"));
+    assert_eq!(eval(&mut e, "interpolation([1, 4, 9, 16], method: linear)(2.5)"), "6.5");
+    // the spline through a line is the line
+    assert_eq!(eval(&mut e, "interpolation([[0, 1], [1, 3], [2.5, 6], [4, 9]])(3)"), "7.0");
+    assert_eq!(eval(&mut e, "interpolation([[1, 2], [1, 3]])"), "failure(argument, interpolation, 1)");
+    assert_eq!(eval(&mut e, "interpolation([5])"), "failure(argument, interpolation, 1)");
+}

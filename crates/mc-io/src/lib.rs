@@ -18,6 +18,8 @@
 //! program order), and imported values are never memoised.
 #![warn(missing_docs)]
 
+mod interp;
+
 use mc_api::names;
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
@@ -29,6 +31,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "import_data(file), import_data(file, format): the data of a file: csv, tsv, txt/dat (lists of rows), lines, json, png (image(path)); the format from the extension unless given",
     ),
     (
+        "interpolation",
+        "interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a natural cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])",
+    ),
+    (
         "export_data",
         "export_data(file, data), export_data(file, data, format): write data (lists of rows or values; json; an image(path) as png); gives the file name",
     ),
@@ -38,6 +44,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 pub fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("import_data"), Attributes::default(), Box::new(Import));
     k.register(h.sym("export_data"), Attributes::default(), Box::new(Export));
+    k.register(h.sym("interpolation"), Attributes::default(), Box::new(interp::Interpolation));
+    k.register(h.sym("interpolated"), Attributes::default(), Box::new(interp::Interpolated));
 }
 
 fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {

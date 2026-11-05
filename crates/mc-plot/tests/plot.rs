@@ -47,3 +47,19 @@ fn bad_arguments_fail() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+#[test]
+fn log_scale_plots_are_png_images() {
+    let mut e = CoreEngine::new();
+    for src in [
+        "log_plot(exp(x), [x, -5, 20])",
+        "log_plot(x, [x, 2, 5])",
+        "log_log_plot([x^2, 1/x], [x, 0.01, 1.0e5])",
+        "list_log_plot([1, 10, 100, 0, -5])",
+        "list_log_log_plot(table([10.0^k, 2.0^k], k, 10), joined: true)",
+    ] {
+        assert_eq!(png_size(&eval(&mut e, src)), (640, 400), "{src}");
+    }
+    assert_eq!(eval(&mut e, "log_log_plot(x, [x, -1, 1])"), "failure(argument, log_log_plot, 2)");
+    assert_eq!(eval(&mut e, "list_log_plot([0, -1])"), "failure(argument, list_log_plot, 1)");
+}
