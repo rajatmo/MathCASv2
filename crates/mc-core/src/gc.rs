@@ -189,8 +189,13 @@ impl<X> SyncPtr<X> {
 }
 
 fn trace_all(roots: &mut [&mut dyn Trace], f: &mut dyn FnMut(&mut Raw)) {
+    let mut checked = |r: &mut Raw| {
+        // a root never names a scratch term: its scope ended before the safe point (decision G.2)
+        assert!(!crate::scratch::is_scratch(r.0), "a root holds the scratch term {:#x} after its scope ended", r.0);
+        f(r)
+    };
     for r in roots.iter_mut() {
-        r.trace(f);
+        r.trace(&mut checked);
     }
 }
 
@@ -199,6 +204,7 @@ impl Heap {
     /// caller keeps is in one of `roots`, which the collector may rewrite. Collects when the triggers say so (or
     /// always, in stress mode).
     pub fn safe_point(&mut self, roots: &mut [&mut dyn Trace]) {
+        self.slots.trim();
         if !self.cfg.collect {
             return;
         }

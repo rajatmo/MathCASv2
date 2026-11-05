@@ -66,7 +66,8 @@ impl Indexes {
     /// Keep `index` as the index of association `a`, evicting the least recently used entries to make room.
     pub fn put(&self, a: T<'_>, index: Arc<KeyIndex>) {
         let n = index.len();
-        if n > MAX_KEYS {
+        // a scratch term's handle is reused by later scratch scopes of the same statement
+        if n > MAX_KEYS || mc_core::is_scratch_term(a) {
             return;
         }
         let mut g = self.0.lock();
