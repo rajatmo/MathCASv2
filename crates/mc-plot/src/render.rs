@@ -329,7 +329,8 @@ fn draw(c: &mut dyn Canvas, series: &[Series], look: &Look) {
                 .iter()
                 .filter_map(|&(x, y)| y.map(|y| (sx(x), sy(y))))
                 .collect();
-            c.dots(&pts, 3.0, color, clip);
+            let n: usize = series.iter().map(|s| s.points.len()).sum();
+            c.dots(&pts, dot_radius(n), color, clip);
         }
     }
     legend(c, series.len(), look, clip);
@@ -376,6 +377,12 @@ fn legend(c: &mut dyn Canvas, n: usize, look: &Look, area: (f32, f32, f32, f32))
         let top = mid - 0.55 * ascent(LABEL_SIZE);
         c.text(s, x0 + SAMPLE + 6.0, top, 0.0, LABEL_SIZE);
     }
+}
+
+/// The radius of the points of a point plot with `n` points in all: 3 px up to 100 points, then shrinking as
+/// 1/sqrt(n) to 1 px from 900 points, so that dense clouds (a Markov chain's 10^4 samples) keep their structure.
+pub(crate) fn dot_radius(n: usize) -> f32 {
+    (3.0 * (100.0 / n.max(1) as f32).sqrt()).clamp(1.0, 3.0)
 }
 
 /// A tick label with its top at `y`, aligned at `x`; powers of ten as "10" with a raised, smaller exponent.
@@ -929,6 +936,15 @@ fn raster_text(pm: &mut Pixmap, s: &str, at: (f32, f32), ax: f32, size: f32, up:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dense_point_clouds_get_smaller_points() {
+        assert_eq!(dot_radius(1), 3.0);
+        assert_eq!(dot_radius(100), 3.0);
+        assert!((dot_radius(400) - 1.5).abs() < 1e-6);
+        assert_eq!(dot_radius(10_000), 1.0);
+        assert_eq!(dot_radius(0), 3.0);
+    }
 
     #[test]
     fn labels_have_no_float_noise() {
