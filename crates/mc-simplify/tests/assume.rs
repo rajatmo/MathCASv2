@@ -235,9 +235,12 @@ fn one_and_four_threads_agree() {
     }
 }
 
+/// A variable and the interval its random values come from.
+type Var = (&'static str, f64, f64);
+
 /// Refinements against their inputs at random points satisfying the facts: `(input, facts, (variable, low,
 /// high)...)`.
-const NUMERIC: &[(&str, &str, &[(&str, f64, f64)])] = &[
+const NUMERIC: &[(&str, &str, &[Var])] = &[
     ("sqrt(x^2)", "x < 0", &[("x", -5.0, -0.1)]),
     ("sqrt(x^2)", "element(x, reals)", &[("x", -5.0, 5.0)]),
     ("sqrt(x^2 - 2*x + 1)", "x < 1", &[("x", -4.0, 0.9)]),
