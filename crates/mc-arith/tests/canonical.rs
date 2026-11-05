@@ -231,3 +231,60 @@ fn failures_propagate_and_stop_interrupts() {
         assert_eq!(show(&st, t), "failure(interrupted, add(x, x))");
     }
 }
+
+#[test]
+fn signed_infinities() {
+    // B.17: inf absorbs finite reals, keeps only the sign of a real coefficient; opposite signs and 0*inf fail
+    with_env(|e| {
+        let a = &e.a;
+        let (x, inf) = (e.s("x"), e.s("inf"));
+        let minf = a.neg(inf);
+        e.check(minf, "mul(-1, inf)");
+        e.check(a.add(&[inf, e.i(1)]), "inf");
+        e.check(a.add(&[e.r(-3.0), inf]), "inf");
+        e.check(a.add(&[minf, e.q(1, 2), e.r(2.5)]), "mul(-1, inf)");
+        e.check(a.add(&[inf, inf]), "inf");
+        e.check(a.mul(&[e.i(2), inf]), "inf");
+        e.check(a.mul(&[e.r(-0.5), inf]), "mul(-1, inf)");
+        e.check(a.mul(&[e.q(-1, 2), a.add(&[inf, e.r(-3.0)])]), "mul(-1, inf)");
+        e.check(a.mul(&[inf, inf]), "inf");
+        e.check(a.pow(inf, e.q(1, 2)), "inf");
+        e.check(a.pow(minf, e.i(2)), "inf");
+        e.check(a.div(x, inf), "0");
+        e.check(a.mul(&[a.pow(e.i(2), e.q(1, 2)), inf]), "inf");
+        e.check(a.mul(&[e.i(3), x, inf]), "mul(inf, x)");
+        e.check(a.add(&[inf, x, e.i(1)]), "add(inf, x)");
+        e.check(a.pow(inf, e.i(0)), "1");
+        e.check(a.add(&[inf, minf]), "failure(indeterminate, add(inf, mul(-1, inf)))");
+        e.check(a.mul(&[e.i(0), inf]), "failure(indeterminate, mul(0, inf))");
+        e.check(a.mul(&[e.r(0.0), inf]), "failure(indeterminate, mul(0.0, inf))");
+        // a complex coefficient stays
+        let i = a.complex(e.i(0), e.i(1));
+        e.check(a.mul(&[i, inf]), "mul(complex(0, 1), inf)");
+        // a machine infinity is a number and is not absorbed
+        let big = e.r(f64::INFINITY);
+        assert!(e.show(a.add(&[inf, big])).starts_with("add("));
+    });
+}
+
+#[test]
+fn comparisons_with_infinities() {
+    with_env(|e| {
+        let a = &e.a;
+        let inf = e.s("inf");
+        let minf = a.neg(inf);
+        assert_eq!(a.compare(e.r(1.0e300), inf), Some(Cmp3::Less));
+        assert_eq!(a.compare(inf, e.i(5)), Some(Cmp3::Greater));
+        assert_eq!(a.compare(e.r(-0.3), minf), Some(Cmp3::Greater));
+        assert_eq!(a.compare(minf, inf), Some(Cmp3::Less));
+        assert_eq!(a.compare(minf, minf), Some(Cmp3::Equal));
+        assert_eq!(a.compare(e.r(f64::INFINITY), inf), Some(Cmp3::Equal));
+        assert_eq!(a.compare(e.r(f64::NAN), inf), Some(Cmp3::Unordered));
+        assert_eq!(a.compare(e.s("x"), inf), None);
+        assert_eq!(a.equal(inf, inf), Some(Some(true)));
+        assert_eq!(a.equal(inf, minf), Some(Some(false)));
+        assert_eq!(a.equal(inf, e.i(1)), Some(Some(false)));
+        assert_eq!(a.equal(inf, a.complex(e.i(0), e.i(1))), Some(Some(false)));
+        assert_eq!(a.equal(inf, e.s("x")), None);
+    });
+}

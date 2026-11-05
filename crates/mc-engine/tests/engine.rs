@@ -257,3 +257,19 @@ u[1] !== v[1]"), "true");
     assert_eq!(eval(&mut e, "timing()"), "timing()");
     assert_eq!(eval(&mut e, "timing(1, 2)"), "timing(1, 2)");
 }
+
+#[test]
+fn infinities_in_arithmetic_and_comparisons() {
+    // mc-arith B.17 through the evaluator: what a Metropolis step computes when a proposal leaves the prior's support
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("[inf + 1, -3.0 + inf, -1/2*(inf - 3.0), 2*inf, -0.5*inf, inf*inf, 1/inf]", "[inf, inf, -inf, inf, -inf, inf, 0]"),
+        ("[1.0 < inf, -0.3 < -inf, -inf < inf, inf <= inf, max(1, inf), min(2.5, -inf)]", "[true, false, true, true, inf, -inf]"),
+        ("[inf == inf, inf == 1.0, inf != -inf]", "[true, false, true]"),
+        ("inf - inf", "failure(indeterminate, inf - inf)"),
+        ("0*inf", "failure(indeterminate, 0*inf)"),
+        ("x + inf", "inf + x"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

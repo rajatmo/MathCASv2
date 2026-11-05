@@ -14,6 +14,8 @@ pub mod failure_tags {
     pub const MEMORY: &str = "memory";
     /// `failure(interrupted, partial)`: the stop flag was raised (semantics 10).
     pub const INTERRUPTED: &str = "interrupted";
+    /// `failure(indeterminate, partial)`: a sum of infinities of opposite signs, or zero times infinity.
+    pub const INDETERMINATE: &str = "indeterminate";
 }
 
 /// The heads and constants the canonicaliser builds and recognises.
@@ -27,6 +29,8 @@ pub(crate) struct Names<'h> {
     pub limit: T<'h>,
     pub memory: T<'h>,
     pub interrupted: T<'h>,
+    /// the constant `inf` (positive infinity; `-inf` is `mul(-1, inf)`)
+    pub inf: T<'h>,
     pub zero: T<'h>,
     pub one: T<'h>,
     pub minus_one: T<'h>,
@@ -45,6 +49,7 @@ impl<'h> Names<'h> {
             limit: s(failure_tags::LIMIT),
             memory: s(failure_tags::MEMORY),
             interrupted: s(failure_tags::INTERRUPTED),
+            inf: s("inf"),
             zero: st.int(0),
             one: st.int(1),
             minus_one: st.int(-1),

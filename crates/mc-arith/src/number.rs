@@ -153,6 +153,13 @@ impl Real {
             Real::Machine(v) => *v > 0.0,
         }
     }
+    /// Finite (not a machine infinity or NaN).
+    pub fn is_finite(&self) -> bool {
+        match self {
+            Real::Machine(v) => v.is_finite(),
+            _ => true,
+        }
+    }
     /// Provably negative.
     pub fn is_negative(&self) -> bool {
         match self {

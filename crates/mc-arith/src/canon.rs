@@ -182,14 +182,52 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
     pub fn cmp(&self, a: T<'h>, b: T<'h>) -> Ordering {
         self.order.cmp(a, b)
     }
-    /// Three-valued comparison of two real numbers (semantics 2.5); `None` unless both are real numbers.
+    /// Three-valued comparison of two extended real numbers (semantics 2.5): real numbers, `inf` and `-inf`
+    /// (B.17); `None` for anything else.
     pub fn compare(&self, a: T<'h>, b: T<'h>) -> Option<Cmp3> {
-        Some(crate::number::compare(&real_of(self.st, a)?, &real_of(self.st, b)?))
+        let ext = |t| match self.inf_sign(t) {
+            Some(s) => Some(Err(s)),
+            None => real_of(self.st, t).map(Ok),
+        };
+        Some(match (ext(a)?, ext(b)?) {
+            (Ok(x), Ok(y)) => crate::number::compare(&x, &y),
+            (Err(s), Err(r)) => cmp3(s.cmp(&r)),
+            (Ok(x), Err(r)) => compare_to_inf(&x, r),
+            (Err(s), Ok(y)) => match compare_to_inf(&y, s) {
+                Cmp3::Less => Cmp3::Greater,
+                Cmp3::Greater => Cmp3::Less,
+                c => c,
+            },
+        })
     }
-    /// Mathematical equality of two numbers: `Some(Some(b))` when decided, `Some(None)` when undecided (overlapping
-    /// balls), `None` unless both are numbers.
+    /// Mathematical equality of two numbers or signed infinities: `Some(Some(b))` when decided, `Some(None)` when
+    /// undecided (overlapping balls), `None` unless both are numbers or infinities (B.17).
     pub fn equal(&self, a: T<'h>, b: T<'h>) -> Option<Option<bool>> {
+        if self.inf_sign(a).is_some() || self.inf_sign(b).is_some() {
+            return match self.compare(a, b) {
+                Some(c) => Some(Some(c == Cmp3::Equal)),
+                // an infinity is not a complex number
+                None if self.num(a).is_some() || self.num(b).is_some() => Some(Some(false)),
+                None => None,
+            };
+        }
         Some(crate::number::equal(&self.num(a)?, &self.num(b)?))
+    }
+    /// `failure(indeterminate, partial)` (the tag is interned only here: a new symbol in every canonicaliser
+    /// would shift the numbering of the session's later symbols).
+    fn indeterminate(&self, partial: T<'h>) -> T<'h> {
+        let tag = self.st.sym_term(self.st.sym(crate::term::failure_tags::INDETERMINATE));
+        self.st.app(self.n.failure, &[tag, partial])
+    }
+    /// The sign of a signed infinity: 1 for `inf`, -1 for `-inf` (`mul(-1, inf)`), `None` for any other term.
+    pub fn inf_sign(&self, t: T<'h>) -> Option<i8> {
+        if t == self.n.inf {
+            return Some(1);
+        }
+        match self.st.view(t) {
+            mc_api::View::App { head, args: [m, x] } if head == self.n.mul && *m == self.n.minus_one && *x == self.n.inf => Some(-1),
+            _ => None,
+        }
     }
 
     // ------------------------------------------------------------------ the canonicaliser
@@ -311,6 +349,21 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                     index.insert(rest, terms.len());
                     terms.push((rest, vec![coef]));
                 }
+            }
+        }
+        // signed infinities absorb finite real numbers; opposite signs are indeterminate (B.17)
+        if let Some(&i) = index.get(&self.n.inf) {
+            if let Some(reals) = terms[i].1.iter().map(Num::as_real).collect::<Option<Vec<&Real>>>() {
+                let pos = reals.iter().any(|r| r.is_positive());
+                let neg = reals.iter().any(|r| r.is_negative());
+                if pos == neg || reals.iter().any(|r| !r.is_positive() && !r.is_negative()) {
+                    let raw = self.st.app(self.n.add, args);
+                    return self.indeterminate(raw);
+                }
+                if nums.iter().all(|x| x.as_real().is_some_and(Real::is_finite)) {
+                    nums.clear();
+                }
+                terms[i].1 = vec![Num::int(if pos { 1 } else { -1 })];
             }
         }
         let mut out = Vec::with_capacity(terms.len() + 1);
@@ -464,6 +517,15 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             let groups = std::mem::take(&mut p.groups);
             p.index.clear();
             for (base, exps) in groups {
+                if base == self.n.inf && exps.len() > 1 {
+                    // inf^a inf^b with a > 0 > b (inf/inf) is indeterminate (B.17)
+                    let signs = |pos: bool| {
+                        exps.iter().any(|&k| real_of(self.st, k).is_some_and(|r| if pos { r.is_positive() } else { r.is_negative() }))
+                    };
+                    if signs(true) && signs(false) {
+                        return self.indeterminate(raw(&items));
+                    }
+                }
                 let e = if exps.len() == 1 { exps[0] } else { self.add(&exps) };
                 if matches!(self.shape(e), Shape::Failure) {
                     return e;
@@ -498,7 +560,31 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         self.finish_product(p, || raw(&items))
     }
 
-    fn finish_product(&self, p: Product<'h>, raw: impl FnOnce() -> T<'h>) -> T<'h> {
+    fn finish_product(&self, mut p: Product<'h>, raw: impl FnOnce() -> T<'h>) -> T<'h> {
+        if let Some(j) = p.groups.iter().position(|(b, _)| *b == self.n.inf) {
+            match real_of(self.st, p.groups[j].1[0]) {
+                // inf^a is inf for a > 0 and 0 for a < 0 (B.17)
+                Some(a) if a.is_negative() => {
+                    p.groups.remove(j);
+                    p.coef.push(Num::int(0));
+                }
+                Some(a) if a.is_positive() && p.rad_units.is_empty() => {
+                    p.groups[j].1[0] = self.n.one;
+                    // a real coefficient keeps only its sign; positive radicals go
+                    let c = Num::product(std::mem::take(&mut p.coef));
+                    match c.as_real() {
+                        Some(r) if r.is_positive() => {}
+                        Some(r) if r.is_negative() => p.coef.push(Num::int(-1)),
+                        Some(_) => return self.indeterminate(raw()),
+                        None => p.coef.push(c),
+                    }
+                    if c_is_real(&p.coef) {
+                        p.rad_pos.clear();
+                    }
+                }
+                _ => {}
+            }
+        }
         let mut c = Num::product(p.coef);
         if c.is_zero() {
             return self.number(&c);
@@ -530,6 +616,36 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             return factors[0];
         }
         self.st.app(self.n.mul, &factors)
+    }
+}
+
+/// Whether the collected numeric factors are all real (or none).
+fn c_is_real(coef: &[Num]) -> bool {
+    coef.iter().all(|x| x.as_real().is_some())
+}
+
+fn cmp3(o: Ordering) -> Cmp3 {
+    match o {
+        Ordering::Less => Cmp3::Less,
+        Ordering::Equal => Cmp3::Equal,
+        Ordering::Greater => Cmp3::Greater,
+    }
+}
+
+/// A real number against the infinity of sign `s`: a machine infinity of the same sign is equal, NaN unordered.
+fn compare_to_inf(x: &Real, s: i8) -> Cmp3 {
+    if let Real::Machine(v) = x {
+        if v.is_nan() {
+            return Cmp3::Unordered;
+        }
+        if v.is_infinite() && (*v > 0.0) == (s > 0) {
+            return Cmp3::Equal;
+        }
+    }
+    if s > 0 {
+        Cmp3::Less
+    } else {
+        Cmp3::Greater
     }
 }
 

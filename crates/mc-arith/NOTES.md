@@ -28,7 +28,7 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
   correct digits (`Digits { neg, digits, exp10 }`, `to_text`, e.g. `3.1415926535897932385`; no correct digit prints as
   `ball(m, r)`); `digits_to_bits`.
 - **Failures produced:** `failure(division_by_zero)`, `failure(limit, memory, partial)`, `failure(interrupted,
-  partial)`. A failure argument to add, mul or pow is returned as the result.
+  partial)`, `failure(indeterminate, partial)` (B.17). A failure argument to add, mul or pow is returned as the result.
 
 ## Tests (29 unit, 19 integration; about 2 s in release)
 
@@ -92,6 +92,15 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
   job.
 - **B.15** Exact powers larger than `max_bits` (default 2^28 bits) give `failure(limit, memory, pow(b, e))`.
 - **B.16** A raised stop flag gives `failure(interrupted, <raw term>)`.
+- **B.17** Signed infinities: `inf` and `-inf` (`mul(-1, inf)`) are extended reals. In a sum, `inf` absorbs the finite
+  real numbers (`inf + 1`, `-3.0 + inf` are `inf`; a machine infinity or NaN is not absorbed; other terms stay:
+  `inf + x`); infinities of opposite signs give `failure(indeterminate, partial)`. In a product a real coefficient
+  keeps only its sign (`2*inf` is `inf`, `-0.5*inf` is `-inf`, positive radicals go, a complex coefficient stays);
+  `inf^a` is `inf` for real a > 0 and 0 for a < 0; `0*inf` (any zero, an exception to B.6) and `inf/inf` are
+  `failure(indeterminate, partial)`. `compare` and `equal` decide between real numbers and signed infinities (a
+  machine infinity equals the infinity of its sign), so `1.0 < inf` is `true` and `x < -inf` is `false` for every
+  real x. The tag `indeterminate` is interned only when such a failure is built (interning it in every
+  canonicaliser shifted the numbering of later session symbols, which `mc-assoc`'s fuel test noticed).
 
 ## Contract requests (applied by the coordinator)
 
