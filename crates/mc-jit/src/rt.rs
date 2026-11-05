@@ -576,7 +576,7 @@ pub mod math {
             }
         )*};
     }
-    wrap!(exp, log, sin, cos, tan, atan, asin, acos, sinh, cosh, tanh);
+    wrap!(exp, log, sin, cos, tan, atan, asin, acos, sinh, cosh, tanh, log1p, expm1);
 }
 
 /// The C entry of an elementary function.
@@ -593,6 +593,8 @@ pub fn math_fn(f: Lib) -> extern "C" fn(f64) -> f64 {
         Lib::Sinh => math::sinh,
         Lib::Cosh => math::cosh,
         Lib::Tanh => math::tanh,
+        Lib::Log1p => math::log1p,
+        Lib::Expm1 => math::expm1,
     }
 }
 

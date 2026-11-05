@@ -173,3 +173,22 @@ fn arithmetic_threads_over_lists() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+/// `e /. rules` is `rewrite(e, rules)`; it binds looser than `->`, chains left to right, and `/.` before a digit
+/// stays a division.
+#[test]
+fn the_rewrite_operator() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("x^2 /. x -> 3", "9"),
+        ("x + y /. [x -> 1, y -> 2]", "3"),
+        ("x^2 /. x -> y /. y -> 4", "16"),
+        ("[x, x^2] /. x -> 2", "[2, 4]"),
+        ("f(x) /. f(u_) :> u^2", "x^2"),
+        ("x /. find_root(cos(x) == x, [x, 1])", "0.7390851332151607"),
+        ("(x + y)^2 /. x -> 1 |> expand", "1 + 2*y + y^2"),
+        ("a/0.5", "2.0*a"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

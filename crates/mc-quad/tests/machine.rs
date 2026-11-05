@@ -49,9 +49,10 @@ fn methods_agree_on_smooth_integrands() {
         close(f, a, c, 1e-15);
     }
     // the Gauss–Kronrod method alone on an endpoint singularity reaches its depth limit near the goal (the
-    // automatic choice takes the double-exponential rule here)
+    // automatic choice takes the double-exponential rule here); the estimate is usable, so it is the value (with a
+    // printed warning)
     let out = s.run("n_integrate(1/sqrt(x), [x, 0, 1], method: gauss_kronrod)");
-    assert!(out.starts_with("failure(not_converged, n_integrate, 1.99999999"), "{out}");
+    assert!(out.starts_with("1.99999999"), "{out}");
 }
 
 #[test]

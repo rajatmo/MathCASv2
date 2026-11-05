@@ -146,8 +146,9 @@ fn failures() {
         // no real root: the iteration stops at the stationary point of |f|
         ("find_root(x^2 + 1, [x, 1])", "failure(not_converged, find_root, [x -> 0.0], 1.0)"),
         ("find_root(x^2 - 2, [x, 1], max_iterations: 2)", "failure(not_converged, find_root, [x -> 1.4166666666666667], 0.08333333333333326)"),
-        // a pole in the bracket: Brent's method converges to it, the residual test refuses it
-        ("find_root(tan(x), [x, 1, 1, 2])", "failure(not_converged, find_root, [x -> 1.5707963267948974], 4.440892098500626e-16)"),
+        // a pole in the bracket: Brent's method bisects towards it until the bracket is within the goals, and
+        // the residual (far larger than at the bracket's ends) refuses it
+        ("find_root(tan(x), [x, 1, 1, 2])", "failure(not_converged, find_root, [x -> 1.5707963398388178], 8.831496201011646e-9)"),
         // no sign change and the root outside the bracket
         ("find_root(exp(x) - 3, [x, 0.5, 0, 1])", "failure(not_converged, find_root, [x -> 1.0], 0.5)"),
         // a free symbol

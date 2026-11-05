@@ -92,3 +92,38 @@ pub(crate) fn count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     }
     Ok(Reply::Done(h.int(n)))
 }
+
+/// `drop_failures(xs)`: the elements of `xs` that neither are nor contain a failure (a table row
+/// `[x, failure(...)]` is dropped whole). Each element is searched iteratively; shared subterms once.
+pub(crate) fn drop_failures<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let failure = h.sym_term(lib.s.failure);
+    let mut kept = Vec::with_capacity(xs.len());
+    for &x in xs {
+        cx.tick(1)?;
+        let mut stack = vec![x];
+        let mut seen = std::collections::HashSet::new();
+        let mut bad = false;
+        while let Some(u) = stack.pop() {
+            if !seen.insert(u) {
+                continue;
+            }
+            if let View::App { head, args } = h.view(u) {
+                if head == failure {
+                    bad = true;
+                    break;
+                }
+                // packed arrays hold only numbers
+                if h.packed(u).is_none() {
+                    stack.extend_from_slice(args);
+                }
+            }
+        }
+        if !bad {
+            kept.push(x);
+        }
+    }
+    Ok(Reply::Done(h.app(h.sym_term(lib.s.list), &kept)))
+}

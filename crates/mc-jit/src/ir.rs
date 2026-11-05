@@ -140,12 +140,29 @@ pub enum Lib {
     Cosh,
     /// hyperbolic tangent
     Tanh,
+    /// log(1 + x)
+    Log1p,
+    /// e^x - 1
+    Expm1,
 }
 
 impl Lib {
     /// Every function, in the order of the back ends' tables.
-    pub const ALL: [Lib; 11] =
-        [Lib::Exp, Lib::Log, Lib::Sin, Lib::Cos, Lib::Tan, Lib::Atan, Lib::Asin, Lib::Acos, Lib::Sinh, Lib::Cosh, Lib::Tanh];
+    pub const ALL: [Lib; 13] = [
+        Lib::Exp,
+        Lib::Log,
+        Lib::Sin,
+        Lib::Cos,
+        Lib::Tan,
+        Lib::Atan,
+        Lib::Asin,
+        Lib::Acos,
+        Lib::Sinh,
+        Lib::Cosh,
+        Lib::Tanh,
+        Lib::Log1p,
+        Lib::Expm1,
+    ];
 
     /// The function's name in the language.
     pub fn name(self) -> &'static str {
@@ -161,6 +178,8 @@ impl Lib {
             Lib::Sinh => "sinh",
             Lib::Cosh => "cosh",
             Lib::Tanh => "tanh",
+            Lib::Log1p => "log1p",
+            Lib::Expm1 => "expm1",
         }
     }
 

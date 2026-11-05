@@ -78,6 +78,7 @@ fn infix(tok: &Tok) -> Option<(u8, Infix)> {
             P::Assign => (prec::ASSIGN, Infix::Bin(Set)),
             P::ColonAssign => (prec::ASSIGN, Infix::Bin(SetDelayed)),
             P::Pipe => (prec::PIPE, Infix::Bin(Pipe)),
+            P::Replace => (prec::PIPE, Infix::Bin(Replace)),
             P::Arrow => (prec::RULE, Infix::Bin(Rule)),
             P::ColonArrow => (prec::RULE, Infix::Bin(RuleDelayed)),
             P::Bar => (prec::ALT, Infix::Nary(NaryOp::Alternatives)),

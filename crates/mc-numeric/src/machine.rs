@@ -61,6 +61,15 @@ pub fn pow(x: f64, y: f64) -> f64 {
     x.powf(y)
 }
 
+/// log(1 + x), accurate for small x (the stable form `n` uses for `log(1 + u)`)
+pub fn log1p(x: f64) -> f64 {
+    x.ln_1p()
+}
+/// e^x - 1, accurate for small x (the stable form for `exp(u) - 1`)
+pub fn expm1(x: f64) -> f64 {
+    x.exp_m1()
+}
+
 /// A machine function of one argument.
 pub type RealFn = fn(f64) -> f64;
 

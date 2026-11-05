@@ -185,6 +185,11 @@ impl CoreEngine {
             let rng = mc_random::install(&mut k, h);
             // compiled functions draw from the same generator (package N4b)
             jit.as_ref().expect("the compiler is installed").set_rng(rng);
+            // a list is data: a failure is kept as an element, not propagated to the whole list (semantics 10), so a
+            // table with a few failed entries can still be filtered (`select(xs, x => not is_failure(x))`)
+            let list = h.sym(names::LIST);
+            let a = k.attributes(list);
+            k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
             k.roots.push(h.sym_term(h.sym(names::NULL)));
             k
         });

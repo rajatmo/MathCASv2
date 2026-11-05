@@ -238,10 +238,38 @@ fn machine_call<'h>(
             let bounds = self::bounds(cx, vars, points, &nopts)?;
             let mut p = Problem { f: cf, ranges: bounds, plan };
             let outcome = p.solve(cx)?;
-            return Ok(Reply::Done(result(h, ar, f, vars, outcome)));
+            return reply(cx, ar, f, vars, outcome);
         }
     }
-    Ok(Reply::Done(result(h, ar, f, vars, outcome)))
+    reply(cx, ar, f, vars, outcome)
+}
+
+/// Estimates whose error estimate is below this fraction of their magnitude are returned with a warning when the
+/// goals are not met (semantics 10: a value with a warning is still the value); worse ones are failures. Divergent
+/// integrals can show deceptively small estimates (about 1e-4 for 1/x on [1, inf)), hence the tight bound.
+const USABLE: f64 = 1e-6;
+
+/// The reply for a machine outcome; an unconverged but usable estimate prints a warning and is the value.
+fn reply<'h, S: Scalar>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    f: T<'h>,
+    vars: &[Sym],
+    o: Outcome<S>,
+) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    if let Outcome::Done { value, err, converged: false, .. } = &o {
+        let mag = value.abs();
+        if err.is_finite() && mag.is_finite() && *err <= USABLE * mag {
+            let msg = format!(
+                "n_integrate: the goals were not met; the estimate's relative error is about {:.1e} (pass precision_goal: or accuracy_goal: to accept it silently)",
+                err / mag
+            );
+            cx.eval(h.call(h.sym("print"), &[h.string(&msg)]))?;
+            return Ok(Reply::Done(scalar_term(ar, *value)));
+        }
+    }
+    Ok(Reply::Done(result(h, ar, f, vars, o)))
 }
 
 /// Is `f` a finite complex number at the point?

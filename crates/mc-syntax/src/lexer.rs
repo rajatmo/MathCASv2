@@ -54,6 +54,8 @@ pub enum P {
     Assign,
     ColonAssign,
     Pipe,
+    /// `/.`: rewrite with rules
+    Replace,
     Arrow,
     ColonArrow,
     FatArrow,
@@ -92,6 +94,7 @@ impl P {
             P::Assign => "=",
             P::ColonAssign => ":=",
             P::Pipe => "|>",
+            P::Replace => "/.",
             P::Arrow => "->",
             P::ColonArrow => ":>",
             P::FatArrow => "=>",
@@ -127,6 +130,7 @@ const PUNCT: &[(&str, P)] = &[
     (":=", P::ColonAssign),
     (":>", P::ColonArrow),
     ("|>", P::Pipe),
+    ("/.", P::Replace),
     ("->", P::Arrow),
     ("=>", P::FatArrow),
     ("(", P::LParen),
@@ -305,6 +309,10 @@ impl<'s> Lexer<'s> {
         let start = self.pos;
         let rest = &self.src[self.pos..];
         for &(text, p) in PUNCT {
+            // `a/.5` is a division by 0.5, not a rewrite
+            if p == P::Replace && rest.starts_with(text) && rest[text.len()..].starts_with(|c: char| c.is_ascii_digit()) {
+                continue;
+            }
             if rest.starts_with(text) {
                 self.pos += text.len();
                 match p {

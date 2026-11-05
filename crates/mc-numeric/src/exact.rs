@@ -187,6 +187,7 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
             Fun::Sinh | Fun::Tanh => (x == zero).then_some(zero),
             Fun::Cosh => (x == zero).then_some(one),
             Fun::Sqrt => None,
+            Fun::Log1p | Fun::Expm1 => (x == zero).then_some(zero),
         }
     }
 

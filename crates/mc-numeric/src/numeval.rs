@@ -41,7 +41,7 @@ pub struct Names {
     pow: Sym,
     abs: Sym,
     consts: [(Sym, Const); 4],
-    funs: [(Sym, Fun); 12],
+    funs: [(Sym, Fun); 14],
 }
 
 impl Names {

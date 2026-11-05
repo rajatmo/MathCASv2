@@ -133,7 +133,14 @@ impl Native for Interpolated {
         let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
         let View::App { args: &[xt, yt, mt], .. } = h.view(head) else { return Ok(Reply::Decline) };
         let &[x] = args else { return Ok(Reply::Decline) };
-        let (Some(xs), Some(ys), Some(ms)) = (reals(cx, xt)?, reals(cx, yt)?, reals(cx, mt)?) else {
+        // the nodes are packed arrays (64 points or more): read in place, no copy per call
+        let slice = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<std::borrow::Cow<'h, [f64]>>> {
+            if let Some(d) = h.packed(t).and_then(|p| p.reals()) {
+                return Ok(Some(std::borrow::Cow::Borrowed(d)));
+            }
+            Ok(reals(cx, t)?.map(std::borrow::Cow::Owned))
+        };
+        let (Some(xs), Some(ys), Some(ms)) = (slice(cx, xt)?, slice(cx, yt)?, slice(cx, mt)?) else {
             return Ok(Reply::Decline);
         };
         if xs.len() < 2 || xs.len() != ys.len() || xs.len() != ms.len() {

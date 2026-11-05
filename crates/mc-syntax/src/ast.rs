@@ -25,6 +25,8 @@ pub enum BinOp {
     Set,
     SetDelayed,
     Pipe,
+    /// `e /. rules`: `rewrite(e, rules)`
+    Replace,
     Rule,
     RuleDelayed,
     When,

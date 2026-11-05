@@ -58,6 +58,10 @@ const ANALYTIC: &[&str] = &[
     names::POW,
     "exp",
     "log",
+    // the stable forms the numeric preparation writes for log(1 + u) and exp(u) - 1: their complex-ball versions
+    // are log and exp of a shifted ball, so they prove analyticity the same way
+    "log1p",
+    "expm1",
     "sqrt",
     "sin",
     "cos",

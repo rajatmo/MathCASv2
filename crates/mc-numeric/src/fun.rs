@@ -31,6 +31,10 @@ pub enum Fun {
     Tanh,
     /// the square root (principal)
     Sqrt,
+    /// log(1 + x)
+    Log1p,
+    /// e^x - 1
+    Expm1,
 }
 
 /// A machine number: real, or complex when a function leaves the real line.
@@ -54,7 +58,7 @@ impl Mach {
 
 impl Fun {
     /// Every function.
-    pub const ALL: [Fun; 12] = [
+    pub const ALL: [Fun; 14] = [
         Fun::Exp,
         Fun::Log,
         Fun::Sin,
@@ -67,6 +71,8 @@ impl Fun {
         Fun::Cosh,
         Fun::Tanh,
         Fun::Sqrt,
+        Fun::Log1p,
+        Fun::Expm1,
     ];
 
     /// The symbol name.
@@ -84,6 +90,8 @@ impl Fun {
             Fun::Cosh => "cosh",
             Fun::Tanh => "tanh",
             Fun::Sqrt => "sqrt",
+            Fun::Log1p => "log1p",
+            Fun::Expm1 => "expm1",
         }
     }
 
@@ -102,6 +110,8 @@ impl Fun {
             Fun::Cosh => "cosh(x): the hyperbolic cosine",
             Fun::Tanh => "tanh(x): the hyperbolic tangent",
             Fun::Sqrt => "sqrt(x): the principal square root, the power x^(1/2) (exact radicals in canonical form)",
+            Fun::Log1p => "log1p(x): log(1 + x), accurate for small x (n and the solvers use it for log(1 + u))",
+            Fun::Expm1 => "expm1(x): e^x - 1, accurate for small x (n and the solvers use it for exp(u) - 1)",
         }
     }
 
@@ -135,6 +145,8 @@ impl Fun {
             Fun::Cosh => el::cosh(x, p),
             Fun::Tanh => el::tanh(x, p),
             Fun::Sqrt => el::sqrt(x, p),
+            Fun::Log1p => el::log1p(x, p),
+            Fun::Expm1 => el::expm1(x, p),
         }
     }
 
@@ -153,6 +165,8 @@ impl Fun {
             Fun::Cosh => cball::cosh(z, p),
             Fun::Tanh => cball::tanh(z, p),
             Fun::Sqrt => cball::sqrt(z, p),
+            Fun::Log1p => cball::log(&z.add(&CBall::from_i64(1), p + 64), p),
+            Fun::Expm1 => cball::exp(z, p + 64).map(|e| e.add(&CBall::from_i64(-1), p)),
         }
     }
 
@@ -171,6 +185,8 @@ impl Fun {
             Fun::Cosh => machine::cosh,
             Fun::Tanh => machine::tanh,
             Fun::Sqrt => machine::sqrt,
+            Fun::Log1p => machine::log1p,
+            Fun::Expm1 => machine::expm1,
         }
     }
 
@@ -180,6 +196,7 @@ impl Fun {
         if let Mach::Real(v) = x {
             let real = match self {
                 Fun::Log | Fun::Sqrt => v >= 0.0 || v.is_nan(),
+                Fun::Log1p => v >= -1.0 || v.is_nan(),
                 Fun::Asin | Fun::Acos => (-1.0..=1.0).contains(&v) || v.is_nan(),
                 _ => true,
             };
@@ -201,6 +218,8 @@ impl Fun {
             Fun::Cosh => z.cosh(),
             Fun::Tanh => z.tanh(),
             Fun::Sqrt => z.sqrt(),
+            Fun::Log1p => (z + C64::real(1.0)).log(),
+            Fun::Expm1 => z.exp() - C64::real(1.0),
         })
     }
 }

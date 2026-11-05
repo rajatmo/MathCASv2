@@ -522,6 +522,20 @@ pub fn tanh(x: &Ball, p: u64) -> Option<Ball> {
     Some(round(r, p))
 }
 
+/// log(1 + x): 1 + x formed with enough extra bits that the sum loses nothing a p-bit result needs, then log.
+pub fn log1p(x: &Ball, p: u64) -> Option<Ball> {
+    let extra = (-x.rel_bits().min(0.0) as u64).saturating_add(64).min(1 << 20);
+    let one = Ball::from_i64(1);
+    log(&x.add(&one, p + extra), p)
+}
+
+/// e^x - 1: e^x at enough extra bits that the subtraction keeps p bits, then minus 1.
+pub fn expm1(x: &Ball, p: u64) -> Option<Ball> {
+    let extra = (-x.rel_bits().min(0.0) as u64).saturating_add(64).min(1 << 20);
+    let e = exp(x, p + extra)?;
+    Some(round(e.sub(&Ball::from_i64(1), p + extra), p))
+}
+
 /// sqrt(x) for a provably positive ball, or an exact zero. The integer square root below cannot be interrupted (L.11)
 /// (its correction loop does not survive the garbage of a stopped multiplication), so it runs with the stop flag
 /// off; it costs a few multiplications.

@@ -150,6 +150,13 @@ pub(crate) fn brent<'h>(
             d = m;
             e = m;
         }
+        // a bisection within the goals ends the search: interpolation failed, so the function is not smooth at
+        // this scale (a kink, a jump, or noise from an inner solver) and further halvings only chase that; smooth
+        // functions converge by interpolation steps to full precision as before
+        if d == m && m.abs() <= goals.tol(b.abs()) {
+            converged = true;
+            break;
+        }
         (a, fa) = (b, fb);
         b += if d.abs() > tol { d } else { tol.copysign(m) };
         match value(cx, f, b)? {
@@ -157,6 +164,8 @@ pub(crate) fn brent<'h>(
             None => return Ok(Outcome::NotNumeric(vec![b])),
         }
     }
-    let ok = converged && err <= goals.tol(b.abs()) && residual_ok(fb.abs(), scale, goals);
+    // a sign change within a bracket narrower than the goals locates the root (or a jump of the function) to the
+    // goals, so the residual test does not veto it
+    let ok = converged && err <= goals.tol(b.abs()) && (residual_ok(fb.abs(), scale, goals) || fb.abs() <= scale);
     Ok(Outcome::Done { x: vec![b], err, converged: ok, iterations })
 }

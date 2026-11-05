@@ -159,6 +159,8 @@ functions! {
         "min(xs), min(a, b, ...): the smallest real number (lists flattened)";
     "select" => select::select,
         "select(xs, f): the elements x with f(x) true";
+    "drop_failures" => select::drop_failures,
+        "drop_failures(xs): the elements of xs that neither are nor contain a failure (rows [x, failure(...)] are dropped whole)";
     "cases" => select::cases,
         "cases(xs, p): the elements matching the pattern p; cases(xs, p -> r): r for each match";
     "count" => select::count,

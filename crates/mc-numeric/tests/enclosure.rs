@@ -48,6 +48,9 @@ fn argument(rng: &mut Rng, f: Fun, p: u64) -> Ball {
         Fun::Asin | Fun::Acos => 1.98 * u - 0.99,
         Fun::Sinh | Fun::Cosh | Fun::Tanh => 60.0 * u - 30.0,
         Fun::Sqrt => (30.0 * u - 15.0).exp(),
+        // small arguments are where the stable forms matter
+        Fun::Log1p => (1.8 * u - 0.9) * 10f64.powf(-12.0 * rng.unit()),
+        Fun::Expm1 => (2.0 * u - 1.0) * 10f64.powf(1.0 - 13.0 * rng.unit()),
     };
     let mid = float(v);
     let mid = mid.add_exact(&Float::new(rng.below(2) == 1, Nat::from_u64(rng.next()), mid.top() - 53 - 64));

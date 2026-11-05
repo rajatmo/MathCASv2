@@ -574,6 +574,11 @@ impl<'h, S: Store + ?Sized> Lowerer<'h, S> {
         let h = match op {
             BinOp::Set => return self.set(a, b, span),
             BinOp::Pipe => return self.pipe(a, b),
+            BinOp::Replace => {
+                let (e, r) = (self.expr(a)?, self.expr(b)?);
+                let rewrite = self.store.sym_term(self.store.sym("rewrite"));
+                return Ok(self.store.app(rewrite, &[e, r]));
+            }
             BinOp::SetDelayed => Head::SetDelayed,
             BinOp::Rule => Head::Rule,
             BinOp::RuleDelayed => Head::RuleDelayed,
