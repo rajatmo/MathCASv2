@@ -15,6 +15,7 @@ use super::rgamma_coefficients;
 use crate::bernoulli::dd_table;
 use crate::dd::{exp_scaled, log, sin_cos_pi_any, Scaled, DD, HALF_LN_2PI, LN_PI, PI};
 use mc_arith::num::{Int, Rat};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::sync::OnceLock;
 
 /// 1/Gamma(1 + z) for |z| <= 1/2.
@@ -242,7 +243,7 @@ pub fn digamma(x: f64) -> f64 {
 /// |t|^-(n+1) with the sign of t^-(n+1), scaled.
 fn inv_pow(t: DD, n: u64) -> Scaled {
     let m = exp_scaled(log(t.abs()).mul_f(-((n + 1) as f64)));
-    if t.hi < 0.0 && n % 2 == 0 {
+    if t.hi < 0.0 && n.is_multiple_of(2) {
         m.neg()
     } else {
         m
@@ -357,8 +358,10 @@ mod tests {
         assert_eq!(log_gamma(2.0).0, 0.0);
         // ln Gamma(1 + z) = -gamma z + zeta(2)/2 z^2 - ..., z = 2^-33
         let z = 2f64.powi(-33);
-        assert!(ulps(log_gamma(1.0 + z).0, -0.577_215_664_901_532_9 * z + 0.822_467_033_424_113_2 * z * z) <= 2.0);
-        assert!(ulps(digamma(1.0), -0.577_215_664_901_532_9) <= 1.0);
+        assert!(
+            ulps(log_gamma(1.0 + z).0, -std::f64::consts::EULER_GAMMA * z + 0.822_467_033_424_113_2 * z * z) <= 2.0
+        );
+        assert!(ulps(digamma(1.0), -std::f64::consts::EULER_GAMMA) <= 1.0);
         assert!(ulps(digamma(0.5), -1.963_510_026_021_423_5) <= 1.0);
         assert!(ulps(polygamma(1.0, 1.0), 1.644_934_066_848_226_4) <= 2.0);
         assert!(ulps(beta(0.5, 0.5), std::f64::consts::PI) <= 1.0);

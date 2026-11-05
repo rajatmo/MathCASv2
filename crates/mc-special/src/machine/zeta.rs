@@ -4,6 +4,7 @@
 //! overflows nor underflows early).
 use super::gamma::{em_coefficients, gamma_scaled, lgamma_stirling};
 use crate::dd::{exp, exp_scaled, log, sin_cos_pi_any, DD, LN_2PI};
+use std::ops::{Add, Div, Mul, Neg};
 
 const M: u64 = 16;
 

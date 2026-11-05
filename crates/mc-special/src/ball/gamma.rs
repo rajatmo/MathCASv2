@@ -17,7 +17,7 @@
 //! - **beta:** exp(ln Gamma(a) + ln Gamma(b) - ln Gamma(a + b)) for a, b > 0, else Gamma(a) Gamma(b) / Gamma(a + b).
 use super::{contains_int_at_most, int, is_pos, log2_up, lower, mag_up, pi, rat_ball, real, refine, sin_pi, widen};
 use crate::bernoulli::b2n;
-use mc_arith::num::{stopped, Ball, Int, Mag, Rat};
+use mc_arith::num::{stopped, Ball, Int, Rat};
 use mc_arith::Real;
 use mc_numeric::cball::CBall;
 use mc_numeric::elementary as el;
@@ -321,15 +321,9 @@ pub fn rgamma_taylor(count: usize, p: u64) -> Option<Vec<Ball>> {
     Some(e)
 }
 
-/// An upper bound of |x| as a radius (re-exported for the Bessel module).
-pub fn bound(b: &Ball) -> Mag {
-    mag_up(b)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mc_arith::num::Float;
 
     fn digits(b: &Ball, d: usize) -> String {
         let (s, e) = b.mid.to_sci(d);
@@ -362,6 +356,5 @@ mod tests {
         // ln(2 sqrt(pi)) = 1.2655121234846453964889...
         assert_eq!(digits(&lg.re, 20), "12655121234846453965e0");
         assert!(lg.im.mid.neg);
-        let _ = Float::zero();
     }
 }

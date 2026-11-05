@@ -7,6 +7,8 @@
 //! 2^995 works on a scaled copy. [`Scaled`] carries an extra binary exponent for results that would leave the double
 //! range.
 
+use std::ops::{Add, Div, Mul, Neg, Sub};
+
 /// A double-double number hi + lo.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DD {
@@ -82,11 +84,6 @@ impl DD {
     pub fn to_f64(self) -> f64 {
         self.hi + self.lo
     }
-    /// -x.
-    #[inline]
-    pub fn neg(self) -> DD {
-        DD { hi: -self.hi, lo: -self.lo }
-    }
     /// |x|.
     #[inline]
     pub fn abs(self) -> DD {
@@ -96,32 +93,11 @@ impl DD {
             self
         }
     }
-    /// x + y.
-    #[inline]
-    pub fn add(self, o: DD) -> DD {
-        let (s, e) = two_sum(self.hi, o.hi);
-        let (t, f) = two_sum(self.lo, o.lo);
-        let (s, e) = quick_two_sum(s, e + t);
-        let (hi, lo) = quick_two_sum(s, e + f);
-        DD { hi, lo }
-    }
     /// x + y for a double y.
     #[inline]
     pub fn add_f(self, o: f64) -> DD {
         let (s, e) = two_sum(self.hi, o);
         let (hi, lo) = quick_two_sum(s, e + self.lo);
-        DD { hi, lo }
-    }
-    /// x - y.
-    #[inline]
-    pub fn sub(self, o: DD) -> DD {
-        self.add(o.neg())
-    }
-    /// x y.
-    #[inline]
-    pub fn mul(self, o: DD) -> DD {
-        let (p, e) = two_prod(self.hi, o.hi);
-        let (hi, lo) = quick_two_sum(p, e + (self.hi * o.lo + self.lo * o.hi));
         DD { hi, lo }
     }
     /// x y for a double y.
@@ -136,16 +112,6 @@ impl DD {
     pub fn ldexp(self, k: i32) -> DD {
         let s = pow2(k);
         DD { hi: self.hi * s, lo: self.lo * s }
-    }
-    /// x / y (three quotient digits).
-    pub fn div(self, o: DD) -> DD {
-        let q1 = self.hi / o.hi;
-        let r = self.sub(o.mul_f(q1));
-        let q2 = r.hi / o.hi;
-        let r = r.sub(o.mul_f(q2));
-        let q3 = r.hi / o.hi;
-        let (hi, lo) = quick_two_sum(q1, q2);
-        DD { hi, lo }.add_f(q3)
     }
     /// x / y for a double y.
     pub fn div_f(self, o: f64) -> DD {
@@ -186,6 +152,110 @@ impl DD {
     /// The nearest integer to hi (ties away from zero), as a double.
     pub fn round_hi(self) -> f64 {
         self.hi.round()
+    }
+}
+
+impl std::ops::Neg for DD {
+    type Output = DD;
+    /// -x.
+    #[inline]
+    fn neg(self) -> DD {
+        DD { hi: -self.hi, lo: -self.lo }
+    }
+}
+
+impl std::ops::Add for DD {
+    type Output = DD;
+    /// x + y.
+    #[inline]
+    fn add(self, o: DD) -> DD {
+        let (s, e) = two_sum(self.hi, o.hi);
+        let (t, f) = two_sum(self.lo, o.lo);
+        let (s, e) = quick_two_sum(s, e + t);
+        let (hi, lo) = quick_two_sum(s, e + f);
+        DD { hi, lo }
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)] // x + (-y)
+impl std::ops::Sub for DD {
+    type Output = DD;
+    /// x - y.
+    #[inline]
+    fn sub(self, o: DD) -> DD {
+        self.add(o.neg())
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)] // the error-free product needs sums
+impl std::ops::Mul for DD {
+    type Output = DD;
+    /// x y.
+    #[inline]
+    fn mul(self, o: DD) -> DD {
+        let (p, e) = two_prod(self.hi, o.hi);
+        let (hi, lo) = quick_two_sum(p, e + (self.hi * o.lo + self.lo * o.hi));
+        DD { hi, lo }
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)] // long division needs products and sums
+impl std::ops::Div for DD {
+    type Output = DD;
+    /// x / y (three quotient digits).
+    fn div(self, o: DD) -> DD {
+        let q1 = self.hi / o.hi;
+        let r = self.sub(o.mul_f(q1));
+        let q2 = r.hi / o.hi;
+        let r = r.sub(o.mul_f(q2));
+        let q3 = r.hi / o.hi;
+        let (hi, lo) = quick_two_sum(q1, q2);
+        DD { hi, lo }.add_f(q3)
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)] // the exponents add
+impl std::ops::Mul for Scaled {
+    type Output = Scaled;
+    /// x y.
+    fn mul(self, o: Scaled) -> Scaled {
+        Scaled { m: self.m.mul(o.m), e: self.e + o.e }.norm()
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)] // the exponents subtract
+impl std::ops::Div for Scaled {
+    type Output = Scaled;
+    /// x / y.
+    fn div(self, o: Scaled) -> Scaled {
+        Scaled { m: self.m.div(o.m), e: self.e - o.e }.norm()
+    }
+}
+
+impl std::ops::Add for Scaled {
+    type Output = Scaled;
+    /// x + y.
+    fn add(self, o: Scaled) -> Scaled {
+        if self.m.hi == 0.0 {
+            return o;
+        }
+        if o.m.hi == 0.0 {
+            return self;
+        }
+        let (big, small) = if self.e >= o.e { (self, o) } else { (o, self) };
+        let d = big.e - small.e;
+        if d > 200 {
+            return big;
+        }
+        Scaled { m: big.m.add(small.m.ldexp(-(d as i32))), e: big.e }.norm()
+    }
+}
+
+impl std::ops::Neg for Scaled {
+    type Output = Scaled;
+    /// -x.
+    fn neg(self) -> Scaled {
+        Scaled { m: self.m.neg(), e: self.e }
     }
 }
 
@@ -259,36 +329,9 @@ impl Scaled {
         let (_, k) = frexp(self.m.hi);
         Scaled { m: self.m.ldexp(-k), e: self.e + k as i64 }
     }
-    /// x y.
-    pub fn mul(self, o: Scaled) -> Scaled {
-        Scaled { m: self.m.mul(o.m), e: self.e + o.e }.norm()
-    }
     /// x y for a double-double y.
     pub fn mul_dd(self, o: DD) -> Scaled {
         self.mul(Scaled::new(o))
-    }
-    /// x / y.
-    pub fn div(self, o: Scaled) -> Scaled {
-        Scaled { m: self.m.div(o.m), e: self.e - o.e }.norm()
-    }
-    /// x + y.
-    pub fn add(self, o: Scaled) -> Scaled {
-        if self.m.hi == 0.0 {
-            return o;
-        }
-        if o.m.hi == 0.0 {
-            return self;
-        }
-        let (big, small) = if self.e >= o.e { (self, o) } else { (o, self) };
-        let d = big.e - small.e;
-        if d > 200 {
-            return big;
-        }
-        Scaled { m: big.m.add(small.m.ldexp(-(d as i32))), e: big.e }.norm()
-    }
-    /// -x.
-    pub fn neg(self) -> Scaled {
-        Scaled { m: self.m.neg(), e: self.e }
     }
     /// The nearest double, with IEEE overflow to infinity and underflow to zero.
     pub fn to_f64(self) -> f64 {

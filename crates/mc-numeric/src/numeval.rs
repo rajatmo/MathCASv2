@@ -199,10 +199,9 @@ impl<'h> Graph<'h> {
             Node::Fun(f, *k)
         } else if let (true, [k]) = (s == nm.abs, kids.as_slice()) {
             Node::Abs(*k)
-        } else if let Some(f) = library::any().then(|| library::lookup(&st.sym_name(s), kids.len())).flatten() {
-            Node::Lib(f, kids)
         } else {
-            return None;
+            let f = library::any().then(|| library::lookup(&st.sym_name(s), kids.len())).flatten()?;
+            Node::Lib(f, kids)
         };
         Some(self.push(node))
     }

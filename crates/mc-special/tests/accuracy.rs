@@ -149,7 +149,8 @@ fn bessel_grid() {
         println!("[{j}/{} {}%]", nus.len(), 100 * j / nus.len());
         for i in 0..per {
             // log-spaced in [1e-6, 700] with jitter
-            let x = (1e-6f64.ln() + (700f64.ln() - 1e-6f64.ln()) * (i as f64 + rng.unit()) / per as f64).exp().min(700.0);
+            let x =
+                (1e-6f64.ln() + (700f64.ln() - 1e-6f64.ln()) * (i as f64 + rng.unit()) / per as f64).exp().min(700.0);
             let r = ball::bessel::bessel_k(&exact(nu), &exact(x), P).expect("K reference");
             tk.add(ulps(bessel::bessel_k(nu, x), &r.re), format!("{nu}, {x}"));
             let r = ball::bessel::bessel_i(&exact(nu), &exact(x), P).expect("I reference");

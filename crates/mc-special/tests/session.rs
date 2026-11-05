@@ -153,7 +153,12 @@ fn identities() {
     for (nu, x) in [("1/3", "2"), ("2", "7/2"), ("5/2", "1/10"), ("10", "30"), ("0", "12")] {
         // K_{nu+1} = K_{nu-1} + 2 nu/x K_nu, and the Wronskian I_nu K_{nu+1} + I_{nu+1} K_nu = 1/x
         zero(&mut s, &format!("(bessel_k({nu} + 1, {x}) - bessel_k({nu} - 1, {x}) - 2*({nu})/({x})*bessel_k({nu}, {x}))/bessel_k({nu}, {x})"));
-        zero(&mut s, &format!("({x})*(bessel_i({nu}, {x})*bessel_k({nu} + 1, {x}) + bessel_i({nu} + 1, {x})*bessel_k({nu}, {x})) - 1"));
+        zero(
+            &mut s,
+            &format!(
+                "({x})*(bessel_i({nu}, {x})*bessel_k({nu} + 1, {x}) + bessel_i({nu} + 1, {x})*bessel_k({nu}, {x})) - 1"
+            ),
+        );
     }
     zero(&mut s, "beta(7/3, 5/4) - gamma(7/3)*gamma(5/4)/gamma(7/3 + 5/4)");
     zero(&mut s, "zeta(-3/2) - 2*(2*pi)^(-5/2)*sin(-3*pi/4)*gamma(5/2)*zeta(5/2)");
@@ -207,6 +212,21 @@ fn derivatives() {
 }
 
 #[test]
+fn numeric_solvers_and_compiled_code() {
+    let mut s = Sys::new();
+    // n_integrate, find_root and compiled functions reach the machine path (the compiler declines these calls
+    // and the interpreter evaluates them)
+    let i = number(&s.run("n_integrate(bessel_k(1, x), [x, 1, 2])"));
+    // the integral is K_0(1) - K_0(2)
+    assert!((i - (0.421_024_438_240_708_3 - 0.113_893_872_749_533_4)).abs() < 1e-12, "{i}");
+    let r = number(&s.run("rewrite(x, find_root(digamma(x), [x, 1.5]))"));
+    assert!((r - 1.461_632_144_968_362_3).abs() < 1e-12, "{r}");
+    s.run("@compiled fn g(x: Real) = gamma(x)*zeta(x)");
+    let v = number(&s.run("g(2.5)"));
+    assert!((v - 1.329_340_388_179_137 * 1.341_487_257_250_917).abs() < 1e-13, "{v}");
+}
+
+#[test]
 fn threads_agree() {
     let inputs = [
         "n(gamma(1/3), 60)",
@@ -231,7 +251,10 @@ fn interrupts() {
     for src in ["n(gamma(1/3), 200000)", "n(zeta(7/3), 200000)", "n(bessel_k(1/3, 40), 200000)"] {
         let (r, took) = s.interrupted(src, Duration::from_millis(100));
         let shown = format!("{r:?}");
-        assert!(r.is_err() || shown.contains("interrupted") || shown.contains("precision_not_reached"), "{src}: {shown}");
+        assert!(
+            r.is_err() || shown.contains("interrupted") || shown.contains("precision_not_reached"),
+            "{src}: {shown}"
+        );
         assert!(took < Duration::from_secs(10), "{src}: {took:?}");
     }
     // afterwards the session still computes

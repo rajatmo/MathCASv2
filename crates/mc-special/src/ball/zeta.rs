@@ -9,7 +9,7 @@
 //! - **The functional equation** for s <= -1: zeta(s) = 2 (2 pi)^(s-1) sin(pi s / 2) Gamma(1 - s) zeta(1 - s), with
 //!   sin(pi s / 2) reduced exactly so that the trivial zeros keep their relative accuracy.
 use super::gamma::gamma_pos;
-use super::{float_of, int, log2_up, lower, mag_up, pi, rat_ball, real, refine, sin_pi, upper, widen};
+use super::{int, log2_up, lower, mag_up, pi, rat_ball, real, refine, sin_pi, upper, widen};
 use crate::bernoulli::b2n;
 use mc_arith::num::{stopped, Ball, Int, Rat};
 use mc_arith::Real;
@@ -130,9 +130,8 @@ fn poch_2m(s: &Ball, m: u64, wp: u64) -> Ball {
 /// zeta(s) on a ball excluding 1.
 pub fn zeta_ball(s: &Ball, wp: u64) -> Option<Ball> {
     let one = int(1);
-    if s.cmp3(&one).is_none() {
-        return None;
-    }
+    // a ball containing the pole has no value
+    s.cmp3(&one)?;
     if super::f64_of(&lower(s)) > -1.0 {
         return euler_maclaurin(s, wp);
     }
@@ -157,11 +156,6 @@ pub fn zeta(s: &Real, p: u64) -> Option<CBall> {
     refine(p, guard, |wp| Some(real(zeta_ball(&super::real_ball(s, wp)?, wp)?)))
 }
 
-/// A ball at the double nearest x (for tests and the tables).
-pub fn exact_f64(x: f64) -> Ball {
-    Ball::exact(float_of(x))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,9 +167,7 @@ mod tests {
 
     #[test]
     fn published_values() {
-        let z = |n: i64, d: i64| {
-            zeta(&Real::Exact(Rat::new(Int::from_i64(n), Int::from_i64(d))), 200).unwrap().re
-        };
+        let z = |n: i64, d: i64| zeta(&Real::Exact(Rat::new(Int::from_i64(n), Int::from_i64(d))), 200).unwrap().re;
         // Apery's constant 1.2020569031595942853997381615114499907649862923404988817922715553...
         assert_eq!(digits(&z(3, 1), 50), "12020569031595942853997381615114499907649862923405e0");
         // zeta(1/2) = -1.4603545088095868128894991525152980125030...
@@ -186,6 +178,5 @@ mod tests {
         // zeta(2) = pi^2/6, zeta(60) - 1 ~ 8.67e-19
         assert_eq!(digits(&z(2, 1), 30), "164493406684822643647241516665e0");
         assert!(zeta(&Real::Exact(Rat::from_i64(1)), 64).is_none());
-        let _ = exact_f64(0.5);
     }
 }

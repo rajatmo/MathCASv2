@@ -132,6 +132,6 @@ mod tests {
         assert_eq!(b60.den, Nat::from_u64(56786730));
         assert_eq!(b60.num.mag.to_decimal(), "1215233140483755572040304994079820246041491");
         assert!(b60.num.neg);
-        assert!(rat_to_dd(&r(1, 3)).mul_f(3.0).sub(DD::ONE).hi.abs() < 1e-32);
+        assert!((rat_to_dd(&r(1, 3)).mul_f(3.0) - DD::ONE).hi.abs() < 1e-32);
     }
 }

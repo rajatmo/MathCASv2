@@ -5,8 +5,11 @@ use mc_arith::Real;
 use mc_special::functions::Special;
 use std::time::Instant;
 
+/// A function, its machine arguments and its exact arguments (as numerator, denominator).
+type Case = (Special, [f64; 2], [(i64, i64); 2]);
+
 fn main() {
-    let cases: [(Special, [f64; 2], [(i64, i64); 2]); 8] = [
+    let cases: [Case; 8] = [
         (Special::Gamma, [7.3, 0.0], [(22, 3), (0, 1)]),
         (Special::LogGamma, [7.3, 0.0], [(22, 3), (0, 1)]),
         (Special::Digamma, [7.3, 0.0], [(22, 3), (0, 1)]),
@@ -36,7 +39,7 @@ fn main() {
         let exact: Vec<Real> =
             q[..f.arity()].iter().map(|&(n, d)| Real::Exact(Rat::new(Int::from_i64(n), Int::from_i64(d)))).collect();
         for d in digits {
-            let p = (d as f64 * 3.3219).ceil() as u64;
+            let p = (d as f64 * std::f64::consts::LOG2_10).ceil() as u64;
             let n = if d >= 1000 { 1 } else { 5 };
             let t = Instant::now();
             for _ in 0..n {

@@ -91,11 +91,13 @@ impl Native for Fun {
                 Special::Polygamma if nums[0].as_ref().is_some_and(|n| n.is_exact_zero()) => {
                     Reply::Again(h.call(h.sym("digamma"), &[args[1]]))
                 }
-                Special::BesselK | Special::BesselI if nums[1].is_none() => match nums[0].as_ref().and_then(Num::as_rat) {
-                    Some(nu) if self.f == Special::BesselK => exact_reply(h, t, rules.bessel_k(nu, args[1])),
-                    Some(nu) => exact_reply(h, t, rules.bessel_i(nu, args[1])),
-                    None => Reply::Decline,
-                },
+                Special::BesselK | Special::BesselI if nums[1].is_none() => {
+                    match nums[0].as_ref().and_then(Num::as_rat) {
+                        Some(nu) if self.f == Special::BesselK => exact_reply(h, t, rules.bessel_k(nu, args[1])),
+                        Some(nu) => exact_reply(h, t, rules.bessel_i(nu, args[1])),
+                        None => Reply::Decline,
+                    }
+                }
                 _ => Reply::Decline,
             });
         };

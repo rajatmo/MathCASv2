@@ -4,8 +4,8 @@
 //!   r_k = (x^2/4) / ((k + 1)(k + 1 + nu)) is at most 1/2 (it decreases from there on), the tail after a term t is at
 //!   most 2|t|. Exact integer orders allow any real x (I_n(-x) = (-1)^n I_n(x)); other orders need x > 0.
 //! - **K_n, integer n:** the series with digamma coefficients (Abramowitz and Stegun 9.6.11)
-//!   K_n(x) = (1/2)(x/2)^-n sum_{k<n} (n-k-1)!/k! (-x^2/4)^k + (-1)^(n+1) ln(x/2) I_n(x)
-//!   + (-1)^n (1/2)(x/2)^n sum_k (psi(k+1) + psi(n+k+1)) (x^2/4)^k / (k! (n+k)!), psi(k+1) = H_k - gamma; the
+//!   K_n(x) = (1/2)(x/2)^-n sum_{k<n} (n-k-1)!/k! (-x^2/4)^k + (-1)^(n+1) ln(x/2) I_n(x) +
+//!   (-1)^n (1/2)(x/2)^n sum_k (psi(k+1) + psi(n+k+1)) (x^2/4)^k / (k! (n+k)!), psi(k+1) = H_k - gamma; the
 //!   coefficient ratio is at most 1 + 2.4/(k+1) from k = 1 on, which bounds the tail as for I.
 //! - **K_nu, other nu:** pi/2 (I_-nu(x) - I_nu(x)) / sin(nu pi).
 //! - **Large x:** the asymptotic expansion K_nu(x) = sqrt(pi/(2x)) e^-x (sum_{k<K} a_k(nu) / x^k + R_K),
@@ -15,7 +15,7 @@
 //! - **Ball arguments** (a nonzero radius): K_nu(x) decreases in x > 0 and increases in |nu|, so its range over the
 //!   box is [K(min |nu|, x_hi), K(max |nu|, x_lo)], evaluated at those exact corners (decision SF.8).
 use super::gamma::gamma_ball;
-use super::{euler_gamma, float_int, hull, int, is_pos, log2_up, lower, mag_up, pi, real, refine, upper, widen};
+use super::{euler_gamma, hull, int, is_pos, log2_up, lower, mag_up, pi, real, refine, upper, widen};
 use mc_arith::num::{stopped, Ball, Float, Int, Nat};
 use mc_arith::Real;
 use mc_numeric::cball::CBall;
@@ -93,7 +93,7 @@ fn k_int_series(n: u64, x: &Ball, wp: u64) -> Option<Ball> {
     // the logarithmic part
     let i = i_ball(&int(n as i64), Some(n as i64), x, wp)?;
     let b = el::log(&half, wp)?.mul(&i, wp);
-    let b = if n % 2 == 0 { b.neg() } else { b };
+    let b = if n.is_multiple_of(2) { b.neg() } else { b };
     // the digamma series: u_k = q^k / (k! (n+k)!), c_k = H_k + H_{n+k} - 2 gamma
     let g2 = euler_gamma(wp)?.mul(&int(2), wp);
     let mut hk = int(0);
@@ -251,10 +251,7 @@ pub fn bessel_k(nu: &Real, x: &Real, p: u64) -> Option<CBall> {
 /// I_nu(x) to p bits.
 pub fn bessel_i(nu: &Real, x: &Real, p: u64) -> Option<CBall> {
     let n = int_of(nu);
-    let xb = super::real_ball(x, p)?;
-    let guard = 24 + if n.is_none() { 0 } else { 8 };
-    let _ = float_int(&xb.mid);
-    refine(p, guard, |wp| {
+    refine(p, 24, |wp| {
         let v = super::real_ball(nu, wp)?;
         let xw = super::real_ball(x, wp)?;
         // I_n(-x) = (-1)^n I_n(x): the series in x^2 handles negative x for integer orders directly

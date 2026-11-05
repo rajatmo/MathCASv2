@@ -45,7 +45,7 @@ fn args(f: Special, rng: &mut Lcg) -> Vec<Rat> {
 }
 
 fn check_at(digits: u64, per: usize) {
-    let p = (digits as f64 * 3.3219).ceil() as u64;
+    let p = (digits as f64 * std::f64::consts::LOG2_10).ceil() as u64;
     let mut rng = Lcg(digits);
     let mut checked = 0;
     for f in ALL {
@@ -58,7 +58,12 @@ fn check_at(digits: u64, per: usize) {
                 continue;
             };
             assert!(cinside(&want, &r), "{}({a:?}) at {digits} digits", f.name());
-            assert!(ball::accuracy(&r.re) >= p as f64 - 4.0 || r.re.contains_zero(), "{}({a:?}): {} bits", f.name(), ball::accuracy(&r.re));
+            assert!(
+                ball::accuracy(&r.re) >= p as f64 - 4.0 || r.re.contains_zero(),
+                "{}({a:?}): {} bits",
+                f.name(),
+                ball::accuracy(&r.re)
+            );
             checked += 1;
         }
         assert!(misses * 5 <= per, "{}: {misses} of {per} without a value", f.name());
@@ -97,14 +102,9 @@ fn ball_arguments() {
                     })
                     .collect();
                 if let Some(v) = f.ball_value(&pts, p) {
-                    assert!(cinside(&v, &r) || overlap(&v, &r), "{}({a:?}) corner {corner}", f.name());
+                    assert!(cinside(&v, &r), "{}({a:?}) corner {corner}", f.name());
                 }
             }
         }
     }
-}
-
-/// The midpoint rounding of the corner points (p + 64 bits) can leave them a hair outside the argument ball.
-fn overlap(a: &CBall, b: &CBall) -> bool {
-    a.re.cmp3(&b.re).is_none()
 }

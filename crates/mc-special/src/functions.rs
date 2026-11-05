@@ -82,8 +82,8 @@ impl Special {
     pub fn real_domain(self, a: &[f64]) -> bool {
         match self {
             Special::Polygamma => a[0] >= 0.0 && a[0] == a[0].floor(),
-            Special::BesselK => !(a[1] < 0.0),
-            Special::BesselI => !(a[1] < 0.0) || a[0] == a[0].floor(),
+            Special::BesselK => a[1] >= 0.0 || a[1].is_nan(),
+            Special::BesselI => a[1] >= 0.0 || a[1].is_nan() || a[0] == a[0].floor(),
             _ => true,
         }
     }

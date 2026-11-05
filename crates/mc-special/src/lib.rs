@@ -40,10 +40,10 @@ pub mod functions;
 pub mod machine;
 mod natives;
 
-pub use natives::failure_tags;
 use functions::Special;
 use mc_core::Heap;
 use mc_eval::Kernel;
+pub use natives::failure_tags;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 

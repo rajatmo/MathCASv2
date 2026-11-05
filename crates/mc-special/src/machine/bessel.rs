@@ -8,6 +8,7 @@
 //! intermediate values are scaled double-doubles, so only the final rounding overflows or underflows.
 use super::rgamma_coefficients;
 use crate::dd::{exp, exp_scaled, log, sin_cos_pi, sin_cos_pi_any, Scaled, DD, PI};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 const EPS: f64 = 1e-33;
 const MAXIT: u32 = 2_000_000;
