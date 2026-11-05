@@ -39,7 +39,9 @@ def main():
     where = ap.add_mutually_exclusive_group()
     where.add_argument("--sys-prefix", action="store_true", help="install into the current environment")
     where.add_argument("--system", action="store_true", help="install for all users")
-    ap.add_argument("--uninstall", action="store_true", help="remove the kernel spec")
+    ap.add_argument("--uninstall", action="store_true", help="remove the kernel spec (and the default setting)")
+    ap.add_argument("--default", action="store_true",
+                    help="make MathCAS the kernel new notebooks start with (Jupyter Notebook and JupyterLab)")
     args = ap.parse_args()
 
     from jupyter_client.kernelspec import KernelSpecManager
@@ -51,6 +53,7 @@ def main():
             print("removed the MathCAS kernel spec")
         except Exception as err:  # not installed
             print("nothing to remove:", err)
+        set_default(False)
         return 0
 
     try:
@@ -80,7 +83,35 @@ def main():
                                        prefix=sys.prefix if args.sys_prefix else None)
     print("installed the MathCAS v2 kernel spec in", dest)
     print("  kernel:", kernel)
+    if args.default:
+        set_default(True)
     return 0
+
+
+def set_default(on):
+    """Make "mathcas" the default kernel of the Jupyter server (on), or drop that setting if it is ours (off).
+    The setting is MultiKernelManager.default_kernel_name in the user's jupyter_server_config.json."""
+    from jupyter_core.paths import jupyter_config_dir
+
+    path = os.path.join(jupyter_config_dir(), "jupyter_server_config.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        cfg = {}
+    mkm = cfg.setdefault("MultiKernelManager", {})
+    if on:
+        mkm["default_kernel_name"] = NAME
+    elif mkm.get("default_kernel_name") == NAME:
+        del mkm["default_kernel_name"]
+        if not mkm:
+            del cfg["MultiKernelManager"]
+    else:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+    print(("made MathCAS v2 the default kernel in " if on else "removed the default kernel setting from ") + path)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,21 @@
+[package]
+name = "mc-plot"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 plots, first version: plot and list_plot rendered to PNG images"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# compiled evaluation of the plotted function
+mc-numfn = { path = "../mc-numfn" }
+# rasterising lines, points and the frame; PNG encoding
+tiny-skia = "0.11"
+# tick labels: glyphs from a system font
+ab_glyph = "0.2"
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

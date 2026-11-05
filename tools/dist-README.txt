@@ -45,7 +45,8 @@ Jupyter and VS Code notebooks
 jupyter\ holds a Jupyter kernel: .ipynb notebooks run MathCAS in Jupyter Notebook, JupyterLab and VS Code (Jupyter
 extension; pick the kernel "MathCAS v2"). Needs Python with ipykernel; register it with
   python jupyter\install.py
-(the installer offers this). jupyter\INSTALL.txt has the details; examples\jupyter.ipynb is a sample.
+(the installer offers this, as the default kernel). Plots (plot, list_plot) show as images in
+notebook cells; in the REPL they print image("path.png"), a PNG file you can open. jupyter\INSTALL.txt has the details; examples\jupyter.ipynb is a sample.
 
 Editor support
 --------------

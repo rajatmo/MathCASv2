@@ -9,6 +9,7 @@ install.py), next to this file, or on the PATH.
 Run by Jupyter as `python mathcas_kernel.py -f <connection file>` (see install.py).
 """
 
+import base64
 import json
 import os
 import queue
@@ -22,6 +23,9 @@ from ipykernel.kernelapp import IPKernelApp
 from ipykernel.kernelbase import Kernel
 
 __version__ = "0.1.0"
+
+# the value of a plot: image("path/to/file.png") (mc-plot writes paths with forward slashes, no escapes)
+_IMAGE = re.compile(r'^image\("([^"\\]+\.png)"\)$')
 
 # an identifier, optionally qualified (M.f), ending at the cursor: what completion completes
 _WORD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*\.?$")
@@ -130,6 +134,15 @@ class MathCASKernel(Kernel):
     def _send_interrupt_children(self):
         self.backend.interrupt()
 
+    def _mime(self, printed):
+        """The display data of a printed value: a plot's `image("file.png")` shows the picture itself."""
+        data = {"text/plain": printed}
+        m = _IMAGE.match(printed)
+        if m and os.path.isfile(m.group(1)):
+            with open(m.group(1), "rb") as fh:
+                data["image/png"] = base64.b64encode(fh.read()).decode("ascii")
+        return data
+
     def _stream(self, name, text):
         if not self.silent_now:
             self.send_response(self.iopub_socket, "stream", {"name": name, "text": text})
@@ -150,7 +163,7 @@ class MathCASKernel(Kernel):
                 elif kind == "value" and not silent:
                     self.send_response(self.iopub_socket, "execute_result", {
                         "execution_count": self.execution_count,
-                        "data": {"text/plain": r["printed"]},
+                        "data": self._mime(r["printed"]),
                         "metadata": {},
                     })
                 elif kind == "error":
