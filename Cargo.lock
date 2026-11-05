@@ -2255,6 +2255,7 @@ version = "0.0.0"
 dependencies = [
  "mc-bench",
  "mc-engine",
+ "mc-nbfile",
  "serde",
  "serde_json",
  "winresource",

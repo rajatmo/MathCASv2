@@ -4,6 +4,7 @@ MathCAS v2 - development build
 This is an early build of the v2 core: the language reads, evaluates and prints; the library is growing (see "What
 works" below). VERSION.txt names the commit.
 
+mc-notebook.exe the notebook window: .mcn notebooks with cells, In/Out labels, grouping, themes (mc-notebook file.mcn)
 mc-repl.exe     the interactive REPL
 mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
 mc-lsp.exe      the language server for editors (see "Editor support" below)

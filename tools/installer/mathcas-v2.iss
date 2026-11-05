@@ -1,7 +1,8 @@
 ; MathCAS v2 installer (Inno Setup 6). Built by tools\package.ps1, which passes:
 ;   /DAppVersion=<commit> /DSourceDir=<dist folder> /DOutputDir=<packages folder> /DOutputName=<file name>
 ; Per-user by default (no administrator rights), all users on request; Start Menu entries; optional PATH entry
-; (removed again on uninstall); optional VS Code extension on the last page.
+; (removed again on uninstall); optional VS Code extension on the last page; the notebook app with a Start Menu
+; entry and, optionally, the .mcn file association.
 
 #ifndef AppVersion
   #define AppVersion "dev"
@@ -33,17 +34,27 @@ WizardStyle=modern
 
 [Tasks]
 Name: "addtopath"; Description: "Add MathCAS to the PATH (mc-repl, mc-kernel and mc-lsp in any terminal)"
+Name: "mcnassoc"; Description: "Open .mcn notebooks with the MathCAS notebook"
 
 [Files]
 Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
+Name: "{group}\MathCAS v2 Notebook"; Filename: "{app}\mc-notebook.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 quick start guide"; Filename: "{app}\quickstart.pdf"
 Name: "{group}\MathCAS v2 examples"; Filename: "{app}\examples"
 Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"
 
+[Registry]
+; the .mcn association (per user, or for all users in an administrator install), removed on uninstall
+Root: HKA; Subkey: "Software\Classes\.mcn"; ValueType: string; ValueName: ""; ValueData: "MathCAS.Notebook";   Flags: uninsdeletevalue; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook"; ValueType: string; ValueName: ""; ValueData: "MathCAS notebook";   Flags: uninsdeletekey; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook\DefaultIcon"; ValueType: string; ValueName: "";   ValueData: "{app}\icon.ico"; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook\shell\open\command"; ValueType: string; ValueName: "";   ValueData: """{app}\mc-notebook.exe"" ""%1"""; Tasks: mcnassoc
+
 [Run]
+Filename: "{app}\mc-notebook.exe"; Description: "Open the MathCAS notebook";   Flags: postinstall nowait skipifsilent unchecked
 Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-0.1.0.vsix"""; \
   Description: "Install the MathCAS extension into VS Code"; Check: VsCodeFound; \
   Flags: postinstall unchecked skipifsilent runhidden

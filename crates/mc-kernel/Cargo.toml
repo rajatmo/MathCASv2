@@ -6,6 +6,7 @@ publish = false
 description = "MathCAS v2 kernel protocol (JSON lines over stdio), the .mcn notebook format and the notebook runner"
 
 [dependencies]
+mc-nbfile = { path = "../mc-nbfile" }
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
 serde = { version = "1", features = ["derive"] }

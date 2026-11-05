@@ -3,7 +3,13 @@
 //! a stop records itself and clears the outputs after it.
 use mc_bench::StopFlag;
 use mc_engine::{CoreEngine, EngineConfig, Event, Origin};
-use mc_kernel::notebook::{self, CellKind, Notebook, OutputKind};
+use mc_kernel::notebook::{self, Cell, Notebook, OutputKind, OutputLine};
+
+/// The output block of a cell, if it has one.
+fn output(c: &Cell) -> Option<Vec<OutputLine>> {
+    let lines: Vec<OutputLine> = c.output_lines().cloned().collect();
+    (!lines.is_empty()).then_some(lines)
+}
 use mc_kernel::{CellEvent, Status};
 use std::path::{Path, PathBuf};
 
@@ -33,7 +39,7 @@ fn the_sample_notebook_is_up_to_date() {
     assert_eq!(status, Status::Failure, "the sample shows a failure");
     assert_eq!(again.print(), text, "a run gives the outputs recorded in the sample");
     // every kind of output line occurs
-    let kinds: Vec<OutputKind> = nb.cells.iter().filter_map(|c| c.output()).flatten().map(|l| l.kind).collect();
+    let kinds: Vec<OutputKind> = nb.cells.iter().filter_map(output).flatten().map(|l| l.kind).collect();
     for k in [OutputKind::Print, OutputKind::Value, OutputKind::Message] {
         assert!(kinds.contains(&k), "{k:?}");
     }
@@ -60,14 +66,14 @@ fn a_notebook_reads_as_a_script() {
     let recorded: Vec<String> = nb
         .cells
         .iter()
-        .filter_map(|c| c.output())
+        .filter_map(output)
         .flatten()
         .filter(|l| l.kind != OutputKind::Value)
         .map(|l| l.text.clone())
         .collect();
     assert_eq!(printed, recorded);
     // and its value is the last cell's value
-    let last = nb.cells.iter().filter_map(|c| c.output()).next_back().unwrap();
+    let last = nb.cells.iter().filter_map(output).next_back().unwrap();
     assert_eq!(r.last.printed, last.last().unwrap().text);
 }
 
@@ -88,8 +94,8 @@ fn rewriting_is_idempotent_and_positions_are_notebook_lines() {
     assert_eq!(err.column, Some(4));
     assert!(err.rendered.contains("t.mcn:"), "{}", err.rendered);
     // the cell after the error lost its stale output; the cells before got theirs
-    assert_eq!(nb.cells[3].output(), None);
-    assert_eq!(nb.cells[0].output().unwrap().len(), 2);
+    assert_eq!(output(&nb.cells[3]), None);
+    assert_eq!(output(&nb.cells[0]).unwrap().len(), 2);
     assert!(written.contains("#% cell\nx + 1\n#% output\n#= 3\n\n"), "{written}");
     // a second run changes nothing
     let mut again = Notebook::parse(&written).unwrap();
@@ -113,9 +119,9 @@ fn a_stop_is_recorded_and_clears_later_outputs() {
     stop.raise();
     let (status, events) = run(&mut nb, &std::env::temp_dir(), &stop);
     assert_eq!((status, events.len()), (Status::Interrupted, 0));
-    let CellKind::Code { output: Some(out), .. } = &nb.cells[1].kind else { panic!() };
+    let out = output(&nb.cells[1]).expect("an output block");
     assert_eq!((out[0].kind, out[0].text.as_str()), (OutputKind::Message, "interrupted"));
-    assert_eq!(nb.cells[2].output(), None);
+    assert_eq!(output(&nb.cells[2]), None);
     assert_eq!(nb.cells[0].prose().unwrap(), "t");
 }
 
