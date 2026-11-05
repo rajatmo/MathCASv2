@@ -314,6 +314,20 @@ fn term_flat<'h>(h: &'h Heap, t: T<'h>, d0: usize, depth: usize, out: &mut Vec<F
             Step::Exit(i) => out[i].next = out.len() as u32,
             Step::Enter(u, d) => {
                 let i = out.len();
+                // a packed array that is not expanded gives its key without being unpacked: its head is `list`
+                // and its arity the first dimension (viewing it would build every leaf)
+                if d >= depth {
+                    if let Some(p) = h.packed(u) {
+                        let head = h.sym_term(h.sym(mc_api::names::LIST));
+                        let key = QKey::K(Key { kind: KeyKind::App, term: head, arity: p.dims()[0] as u32 });
+                        out.push(Flat { key, next: 0, expanded: false });
+                        if let Some(p) = path.as_deref_mut() {
+                            p.push((key, d));
+                        }
+                        out[i].next = out.len() as u32;
+                        continue;
+                    }
+                }
                 match h.view(u) {
                     View::App { head, args } => {
                         let expanded = d < depth;

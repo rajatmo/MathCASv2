@@ -613,6 +613,11 @@ impl Kernel {
 /// The head symbol of a compound term.
 #[inline]
 fn head_of<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    // a packed array's head is `list`: viewing it would unpack every leaf (argument-head dispatch of any call
+    // with a packed argument)
+    if h.packed(t).is_some() {
+        return Some(h.sym_term(h.sym(mc_api::names::LIST)));
+    }
     match h.view(t) {
         View::App { head, .. } => Some(head),
         _ => None,
