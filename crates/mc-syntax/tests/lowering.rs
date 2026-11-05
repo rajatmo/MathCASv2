@@ -183,3 +183,40 @@ fn definitions() {
         ("import core except e", "import_except(core, list(e))"),
     ]);
 }
+
+/// Unicode operator characters read exactly as their ASCII spellings (04 section 2).
+#[test]
+fn unicode_operators() {
+    let same = [
+        ("a → b", "a -> b"),
+        ("f(x_) ⧴ x", "f(x_) :> x"),
+        ("a ≤ b", "a <= b"),
+        ("a ≥ b", "a >= b"),
+        ("a ≠ b", "a != b"),
+        ("a ⩵ b", "a == b"),
+        ("a ≡ b", "a === b"),
+        ("a ≢ b", "a !== b"),
+        ("a × b · c ⋅ d", "a * b * c * d"),
+        ("a ÷ b", "a / b"),
+        ("a − b", "a - b"),
+        ("−3", "-3"),
+        ("p ∧ q ∨ ¬r", "p and q or not r"),
+        ("for k ∈ xs { k }", "for k in xs { k }"),
+        ("ⅇ^(ⅈ*π)", "e^(im*pi)"),
+        ("3ⅈ + 2.5ⅈ", "3im + 2.5im"),
+        ("2∞", "2inf"),
+        ("√x", "sqrt(x)"),
+        ("√(x + 1)", "sqrt(x + 1)"),
+        ("√x^2", "sqrt(x)^2"),
+        ("2√2", "2*sqrt(2)"),
+        ("√√x", "sqrt(sqrt(x))"),
+        ("√f'(x)", "sqrt(f'(x))"),
+    ];
+    let mut bad = Vec::new();
+    for (a, b) in same {
+        if lower(a) != lower(b) {
+            bad.push(format!("{a:?} gives {}, {b:?} gives {}", lower(a), lower(b)));
+        }
+    }
+    assert!(bad.is_empty(), "\n{}", bad.join("\n"));
+}

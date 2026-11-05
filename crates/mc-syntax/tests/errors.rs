@@ -138,3 +138,21 @@ fn printer_handles_deep_terms() {
     };
     std::thread::Builder::new().stack_size(1 << 20).spawn(run).unwrap().join().unwrap();
 }
+
+/// Placeholders and characters with no meaning (08-notebook.md sections 3.9 and 4.3).
+#[test]
+fn placeholders_and_unicode_errors() {
+    let cases = [
+        ("□/B", "1:1", "a placeholder `□` is not filled in"),
+        ("A/□", "1:3", "a placeholder `□` is not filled in"),
+        ("f(□, □)", "1:3", "a placeholder `□` is not filled in"),
+        ("∀x", "1:1", "unexpected character `∀` (U+2200): it has no meaning in MathCAS syntax"),
+        ("x ±", "1:3", "has no meaning"),
+        ("30°", "1:3", "angles are in radians"),
+    ];
+    let bad: Vec<String> = cases.iter().filter_map(|&(s, p, m)| one(s, p, m)).collect();
+    assert!(bad.is_empty(), "\n{}", bad.join("\n"));
+    // one error per statement: the first placeholder of each
+    let es = errors("□ + □\nx + □");
+    assert_eq!(es, ["1:1: a placeholder `□` is not filled in: replace it with an expression", "2:5: a placeholder `□` is not filled in: replace it with an expression"]);
+}

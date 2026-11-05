@@ -125,3 +125,32 @@ in a parenthesised group followed by `->` read back as a function type.
   reads back as that sum (`series(text, x, x0, n)` gives the same `series_data`). Private `Run::series`,
   `series_term`, `series_power`; re-export `string_literal`; truncated series named as a faithfulness exception.
   Tests `tests/series.rs` (18 printing, 3 read-back).
+
+## Editor support (notebook round, package P7)
+
+- **Unicode operators** (one token each, same as the ASCII spelling; the printer still writes ASCII): `→` `->`,
+  `⧴` `:>`, `≤ ≥ ≠ ⩵` `<= >= != ==`, `≡ ≢` `=== !==`, `× · ⋅` `*`, `÷` `/`, `−` `-`, `∧ ∨ ¬` `and or not`, `∈` `in`;
+  `√` prefix square root binding like a call (`√x^2` is `(√x)^2`, `2√2` is `2*sqrt(2)`); `ⅇ` = `e`, `ⅈ` = `im`
+  (`3ⅈ` an imaginary literal). Meaningless symbols (`∀ ± ∫ ∑ ∂ ↔`) give a clear lexical error (`°`: angles are in
+  radians). Public table `UNICODE_OPERATORS`, `unicode_operator(c)`.
+- **Placeholder** `□` (`PLACEHOLDER`) is a token; the parser reports the first unfilled placeholder per statement
+  without cascading errors.
+- **Colouring** (`src/colour.rs`): `classify(src)`, `colour(src, defined) -> Colouring { tokens, errors, incomplete,
+  lexical_only, pairs }` with `class_at`, `matching_bracket`, `enclosing_brackets`, `pair_at`; `TokenClass::{Operator,
+  Global, Undefined, Local, PatternVar, Shadowing, Keyword, Constant, Number, String, Comment, Placeholder, SyntaxError,
+  UnmatchedBracket}`. Scopes computed from tokens and the bracket tree (stable while typing): `let`/`var` to the end
+  of the block, `fn` parameters, lambdas, `for`, pattern names on rule left sides; names defined in the cell count as
+  defined. Errors at the end of input set `incomplete` only (`SHOW_ERRORS_AT_END = false`); above
+  `LEXICAL_ONLY_ABOVE = 100_000` bytes lexical colouring only. Every call is total, run on the reserved-stack thread.
+- `names_in_scope(src, offset)` (locals for completion), `extend_selection(src, start, end)` (all observed 3.4
+  vectors; `None` when the whole content is selected).
+- Docs: `docs/design/04-syntax.md` Unicode operator table, placeholder, aliases, section 14 "Editor support".
+- Tests: `tests/colour.rs` (11, incl. every-prefix stability, 35 hostile inputs, linear-time checks, golden snapshot
+  `tests/corpus/colour.snap`, re-bless with `MC_BLESS=1`), `tests/select.rs` (2), +1 lowering (23 Unicode spellings),
+  +1 errors, fuzz generators with Unicode tokens.
+- Measurements (release): `colour` 0.14 ms for 10 lines, 0.77 ms for 100, 6.5 ms for 1,000 (53 KB), 29 ms for 10,000
+  lines lexical-only; linear but not incremental (debounce large cells).
+- Gaps: not incremental; `names_in_scope`/`extend_selection` have no lexical-only cutoff; signature-based classes
+  (M7) not done; rare scope heuristics (a `for` iterable containing a brace block; `f(x_) when x > 0` without a rule
+  operator leaves `x` global; bare-name `match` arm patterns coloured as lambda binders); the VS Code grammar does
+  not know the Unicode operators.

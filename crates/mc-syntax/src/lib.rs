@@ -14,9 +14,13 @@
 //! - [`read`] does both and fails if anything is wrong; nothing of an erroneous input should be evaluated.
 //! - [`Printer`] writes terms back; for every term except balls, non-finite machine reals and truncated power series
 //!   (printed as `1 + x + O(x^2)`), the text reads back to the identical term.
+//! - [`colour`] (and [`classify`]) give the colouring class of every token of a cell, its bracket pairs and errors,
+//!   for the notebook editor; [`names_in_scope`] the local names visible at a position; [`extend_selection`] the
+//!   next syntactic unit around a selection.
 //! - [`scope`] and [`Heads`] let later passes over lowered terms (name resolution in `mc-load`) see local bindings
 //!   exactly as lowering and the printer do; [`identifiers`] gives the position of every name in a text.
 pub mod ast;
+mod colour;
 mod heads;
 mod ident;
 mod lexer;
@@ -26,16 +30,23 @@ mod parser;
 mod prec;
 mod print;
 pub mod scope;
+mod select;
 mod span;
 mod stack;
 
+pub use colour::{
+    classify, colour, names_in_scope, Colouring, LocalKind, LocalName, TokenClass, LEXICAL_ONLY_ABOVE, SHOW_ERRORS_AT_END,
+};
 pub use heads::{as_sym, Head, Heads};
+/// Unicode operator characters and their ASCII spellings; the template placeholder `□`.
+pub use ident::{unicode_operator, PLACEHOLDER, UNICODE_OPERATORS};
 /// The reserved words of the language (04 section 2), for editor support (completion, grammars).
 pub use ident::KEYWORDS;
 /// A string's literal with escapes (what the printer writes for a string term).
 pub use ident::string_literal;
 pub use lower::lower_program;
 pub use parser::{parse, Parsed, MAX_DEPTH};
+pub use select::extend_selection;
 pub use print::{DefaultNumberFormat, NumberFormat, Printer};
 pub use span::{render_all, Diagnostic, LineCol, LineIndex, Span};
 

@@ -26,9 +26,47 @@ pub fn is_ident_continue(c: char) -> bool {
 pub fn alias(run: &str) -> Option<&'static str> {
     match run {
         "π" => Some("pi"),
+        "ⅇ" => Some("e"),
+        "ⅈ" => Some("im"),
         _ => None,
     }
 }
+
+/// Unicode characters that read exactly as an ASCII operator or keyword (04 section 2): each character on the left
+/// is one token, the same token as the text on the right. `√` is the prefix square root (`√x` is `sqrt(x)`); the
+/// letters `π`, `ⅇ`, `ⅈ` and the symbol `∞` are names (see [`alias`] and [`symbol_alias`]).
+pub const UNICODE_OPERATORS: &[(char, &str)] = &[
+    ('→', "->"),
+    ('⧴', ":>"),
+    ('≤', "<="),
+    ('≥', ">="),
+    ('≠', "!="),
+    ('⩵', "=="),
+    ('≡', "==="),
+    ('≢', "!=="),
+    ('×', "*"),
+    ('·', "*"),
+    ('⋅', "*"),
+    ('÷', "/"),
+    ('−', "-"),
+    ('∧', "and"),
+    ('∨', "or"),
+    ('¬', "not"),
+    ('∈', "in"),
+    ('√', "sqrt"),
+];
+
+/// The ASCII spelling of a Unicode operator character ([`UNICODE_OPERATORS`]).
+pub fn unicode_operator(c: char) -> Option<&'static str> {
+    if c.is_ascii() {
+        return None;
+    }
+    UNICODE_OPERATORS.iter().find(|e| e.0 == c).map(|e| e.1)
+}
+
+/// The placeholder of a template slot (`□`, U+25A1). It is not valid syntax: input containing one reads as an error
+/// at the first placeholder (08-notebook.md section 4.3).
+pub const PLACEHOLDER: char = '□';
 
 /// Characters that are not identifier characters but read as a name on their own.
 pub fn symbol_alias(c: char) -> Option<&'static str> {
@@ -116,6 +154,7 @@ mod tests {
         assert!(!is_plain_name("1x"));
         assert!(!is_plain_name("if"));
         assert!(!is_plain_name("π"));
+        assert!(!is_plain_name("ⅇ"));
         assert!(!is_plain_name("a b"));
         assert!(!is_plain_name("M."));
         assert!(!is_plain_name(""));

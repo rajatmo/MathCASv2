@@ -30,7 +30,12 @@ pub fn parse(src: &str) -> Parsed {
 /// [`parse`] on the current stack.
 pub(crate) fn parse_here(src: &str) -> Parsed {
     let lexed = lex(src);
-    let mut p = Parser { toks: lexed.tokens, pos: 0, errors: lexed.errors, depth: 0, slot_depth: 0, no_lambda: false };
+    parse_tokens(&lexed.tokens, lexed.errors)
+}
+
+/// Parses lexed tokens (ending with [`Tok::Eof`]); `errors` are the lexical errors, kept in the result.
+pub(crate) fn parse_tokens(toks: &[Token], errors: Vec<Diagnostic>) -> Parsed {
+    let mut p = Parser { toks, pos: 0, errors, depth: 0, slot_depth: 0, no_lambda: false };
     let stmts = p.statements(Mode::Top);
     let mut errors = p.errors;
     errors.sort_by_key(|d| d.span.start);
@@ -50,8 +55,8 @@ enum Mode {
     Block,
 }
 
-struct Parser {
-    toks: Vec<Token>,
+struct Parser<'t> {
+    toks: &'t [Token],
     pos: usize,
     errors: Vec<Diagnostic>,
     depth: u32,
@@ -107,7 +112,7 @@ fn is_comparison(tok: &Tok) -> bool {
     matches!(infix(tok), Some((prec::CMP, _)))
 }
 
-impl Parser {
+impl Parser<'_> {
     // ---- token access ----
 
     fn peek(&self) -> &Tok {
@@ -553,6 +558,14 @@ impl Parser {
                 let span = start.to(e.span);
                 Ok(Expr { kind: ExprKind::Not(Box::new(e)), span })
             }
+            Tok::Sqrt => {
+                // `√x` is `sqrt(x)`; the operand is a primary with its postfixes (`√x^2` is `(√x)^2`).
+                let start = self.bump().span;
+                let e = self.nested(|p| if *p.peek() == Tok::Sqrt { p.prefix() } else { p.postfix_expr() })?;
+                let span = start.to(e.span);
+                let f = Expr { kind: ExprKind::Name("sqrt".into()), span: start };
+                Ok(Expr { kind: ExprKind::Call(Box::new(f), vec![Arg { name: None, value: e }]), span })
+            }
             _ => self.postfix_expr(),
         }
     }
@@ -702,6 +715,9 @@ impl Parser {
                 ExprKind::For(name, Box::new(it), Box::new(body))
             }
             Tok::Kw("match") => self.match_expr()?,
+            Tok::Placeholder => {
+                return Err(self.error_here("a placeholder `□` is not filled in: replace it with an expression"))
+            }
             t => return Err(self.error_here(format!("expected an expression, found {}", t.describe()))),
         };
         Ok((Expr { kind, span: start.to(self.prev_span()) }, false))

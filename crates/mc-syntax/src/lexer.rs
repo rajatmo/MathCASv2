@@ -5,7 +5,7 @@
 //!   of open brackets for this; inside `{...}` new lines are significant again (blocks, modules, match arms).
 //! - **Juxtaposition** (`2x`, `3(a+b)`): a [`Tok::Juxt`] token is inserted between a number and a name or `(` that
 //!   follows it with no space in between (decision C.3). Two names never multiply.
-use crate::ident::{alias, is_ident_continue, is_ident_start, is_keyword, symbol_alias};
+use crate::ident::{alias, is_ident_continue, is_ident_start, is_keyword, symbol_alias, unicode_operator, PLACEHOLDER};
 use crate::span::{Diagnostic, Span};
 
 /// The kind of a pattern token: `x_`, `xs__`, `xs___`.
@@ -172,6 +172,10 @@ pub enum Tok {
     Punct(P),
     /// Implicit multiplication of a number and an adjacent name or parenthesis.
     Juxt,
+    /// `√`: the prefix square root.
+    Sqrt,
+    /// `□`: an unfilled template slot; never valid (08-notebook.md section 4.3).
+    Placeholder,
     Newline,
     Eof,
 }
@@ -189,6 +193,8 @@ impl Tok {
             Tok::Prime(_) => "`'`".into(),
             Tok::Punct(p) => format!("`{}`", p.text()),
             Tok::Juxt => "a juxtaposed factor".into(),
+            Tok::Sqrt => "`√`".into(),
+            Tok::Placeholder => "a placeholder `□`".into(),
             Tok::Newline => "end of line".into(),
             Tok::Eof => "end of input".into(),
         }
@@ -206,12 +212,22 @@ pub struct Token {
 pub struct Lexed {
     pub tokens: Vec<Token>,
     pub errors: Vec<Diagnostic>,
+    /// The spans of the comments (`#` to the end of the line, without the line end).
+    pub comments: Vec<Span>,
 }
 
 pub fn lex(src: &str) -> Lexed {
-    let mut lx = Lexer { src, pos: 0, tokens: Vec::new(), errors: Vec::new(), brackets: Vec::new(), space: true };
+    let mut lx = Lexer {
+        src,
+        pos: 0,
+        tokens: Vec::new(),
+        errors: Vec::new(),
+        comments: Vec::new(),
+        brackets: Vec::new(),
+        space: true,
+    };
     lx.run();
-    Lexed { tokens: lx.tokens, errors: lx.errors }
+    Lexed { tokens: lx.tokens, errors: lx.errors, comments: lx.comments }
 }
 
 struct Lexer<'s> {
@@ -219,6 +235,7 @@ struct Lexer<'s> {
     pos: usize,
     tokens: Vec<Token>,
     errors: Vec<Diagnostic>,
+    comments: Vec<Span>,
     /// Open brackets: `(`, `[` or `{`.
     brackets: Vec<char>,
     /// Whitespace was seen since the last token.
@@ -246,7 +263,7 @@ impl<'s> Lexer<'s> {
 
     fn push(&mut self, tok: Tok, start: usize) {
         // Juxtaposition: a number directly followed by a name or `(`.
-        if matches!(tok, Tok::Ident(_) | Tok::Punct(P::LParen)) && !self.space {
+        if matches!(tok, Tok::Ident(_) | Tok::Punct(P::LParen) | Tok::Sqrt) && !self.space {
             if let Some(Token { tok: Tok::Num(_), span, .. }) = self.tokens.last() {
                 let at = span.end as usize;
                 self.tokens.push(Token { tok: Tok::Juxt, span: Span::new(at, at) });
@@ -285,6 +302,7 @@ impl<'s> Lexer<'s> {
                         }
                         self.bump();
                     }
+                    self.comments.push(Span::new(start, self.pos));
                     self.space = true;
                 }
                 '"' => self.string(),
@@ -298,6 +316,11 @@ impl<'s> Lexer<'s> {
                     self.push(Tok::Ident(name), start);
                     self.primes();
                 }
+                PLACEHOLDER => {
+                    self.bump();
+                    self.push(Tok::Placeholder, start);
+                }
+                c if unicode_operator(c).is_some() => self.unicode_operator(c),
                 _ => self.punct(),
             }
         }
@@ -346,10 +369,37 @@ impl<'s> Lexer<'s> {
             '\'' => "a prime mark `'` must directly follow a name".to_string(),
             '~' => "`~` must directly follow the digits of a number (a ball literal such as `1.25~40`)".to_string(),
             '!' => "unexpected `!`; inequality is `!=` and negation is `not`".to_string(),
+            '°' => "unexpected character `°`: angles are in radians (write `x*pi/180`)".to_string(),
+            c if !c.is_ascii() => {
+                format!("unexpected character `{c}` (U+{:04X}): it has no meaning in MathCAS syntax", c as u32)
+            }
             c => format!("unexpected character `{c}`"),
         };
         self.error(start, msg);
         self.space = true;
+    }
+
+    /// A Unicode operator character (`ident::UNICODE_OPERATORS`): the token of its ASCII spelling.
+    fn unicode_operator(&mut self, c: char) {
+        let start = self.pos;
+        let text = unicode_operator(c).unwrap_or("");
+        if text == "sqrt" {
+            self.bump();
+            self.push(Tok::Sqrt, start);
+            return;
+        }
+        if let Some(kw) = crate::ident::KEYWORDS.iter().copied().find(|k| *k == text) {
+            self.bump();
+            self.push(Tok::Kw(kw), start);
+            return;
+        }
+        match PUNCT.iter().find(|e| e.0 == text) {
+            Some(&(_, p)) => {
+                self.bump();
+                self.push(Tok::Punct(p), start);
+            }
+            None => self.punct(),
+        }
     }
 
     /// An identifier run: a name, a keyword, a pattern (`x_`, `__`), or a qualified name `M.f`.
@@ -632,10 +682,18 @@ impl<'s> Lexer<'s> {
                 NumKind::Int { digits: text, radix: 10 }
             }
         };
-        let imag = self.src[self.pos..].starts_with("im")
-            && !self.src[self.pos + 2..].chars().next().is_some_and(is_ident_continue);
+        // The imaginary suffix: `im` or `ⅈ`, not followed by more identifier characters.
+        let rest = &self.src[self.pos..];
+        let suffix = if rest.starts_with("im") {
+            2
+        } else if rest.starts_with('ⅈ') {
+            'ⅈ'.len_utf8()
+        } else {
+            0
+        };
+        let imag = suffix > 0 && !rest[suffix..].chars().next().is_some_and(is_ident_continue);
         if imag {
-            self.pos += 2;
+            self.pos += suffix;
         }
         self.push(Tok::Num(NumLit { kind, imag }), start);
     }

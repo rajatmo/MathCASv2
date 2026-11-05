@@ -36,11 +36,44 @@ const TOKENS: &[&str] = &[
     ".", "...", "=", ":=", "|>", "->", ":>", "=>", "|", "==", "!=", "<", "<=", ">", ">=", "===", "!==", "+", "*", "/",
     "^", "@", "'", "''", "~", "!", "let", "var", "fn", "rule", "sym", "module", "pub", "import", "if", "then", "else",
     "while", "for", "in", "match", "when", "held", "and", "or", "not", "except", "where", "Int", "List[", "\n", "\n",
-    "# c\n", "\t", "‽", "\\",
+    "# c\n", "\t", "‽", "\\", "→", "⧴", "≤", "≥", "≠", "⩵", "≡", "×", "·", "÷", "−", "∧", "∨", "¬", "∈", "√", "ⅇ",
+    "ⅈ", "3ⅈ", "□", "∀",
 ];
+
+/// The colouring of any text: ranges in order, inside the text, on character boundaries, not empty. Every call
+/// starts reserved-stack threads, so one input in four is checked.
+fn check_colour(src: &str) {
+    static CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if !CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed).is_multiple_of(4) {
+        return;
+    }
+    let c = mc_syntax::colour(src, Some(&|n: &str| n.len().is_multiple_of(2)));
+    let mut end = 0;
+    for (r, _) in &c.tokens {
+        assert!(r.start >= end && r.start < r.end && r.end <= src.len(), "{src:?}: bad range {r:?}");
+        assert!(src.is_char_boundary(r.start) && src.is_char_boundary(r.end), "{src:?}: {r:?}");
+        end = r.end;
+    }
+    for &(o, c) in &c.pairs {
+        assert!(o < c && c < src.len());
+    }
+    let mut mid = src.len() / 2;
+    while !src.is_char_boundary(mid) {
+        mid -= 1;
+    }
+    let _ = mc_syntax::names_in_scope(src, mid);
+    // extend selection grows strictly and stays inside the text
+    let (mut s, mut e) = (mid, mid);
+    for _ in 0..3 {
+        let Some(r) = mc_syntax::extend_selection(src, s, e) else { break };
+        assert!(r.start <= s && r.end >= e && r.len() > e - s && r.end <= src.len(), "{src:?}: {s}..{e} -> {r:?}");
+        (s, e) = (r.start, r.end);
+    }
+}
 
 /// Reads `src`; if it is valid, checks the print round trip. Panics (fails the test) on any violation.
 fn check_text(store: &RefStore, src: &str) {
+    check_colour(src);
     let parsed = parse(src);
     let index = LineIndex::new(src);
     for d in &parsed.errors {
@@ -84,7 +117,7 @@ fn random_token_streams() {
 fn random_text() {
     let store = RefStore::new();
     let mut rng = Rng(seed(42));
-    let chars: Vec<char> = "ab_x1 0.~e\"\\`'(){}[],;:=<>!|&@#+-*/^\nθπ∞é\u{1}\u{7f}".chars().collect();
+    let chars: Vec<char> = "ab_x1 0.~e\"\\`'(){}[],;:=<>!|&@#+-*/^\nθπ∞é\u{1}\u{7f}→≤√□ⅈ".chars().collect();
     for _ in 0..6_000 * scale() {
         let len = rng.below(30);
         let src: String = (0..len).map(|_| *rng.pick(&chars)).collect();

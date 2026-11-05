@@ -65,6 +65,25 @@ area(1)                                      # pi
   carries the given working precision. `ball(m, r)` builds a ball with an explicit radius.
 - **Strings:** `"..."` with escapes `\n \t \" \\ \u{...}`. No interpolation in the core syntax.
 - **Prime marks:** `f'`, `f''`, ... written directly after a name (no space) are derivatives (section 8).
+- **Unicode operators:** each of these characters is one token, the same token as its ASCII spelling, so text typed
+  with the notebook's aliases (08-notebook.md section 3.9) reads as written. The printer always writes ASCII.
+
+  | Character | Reads as | Character | Reads as | Character | Reads as |
+  |---|---|---|---|---|---|
+  | `→` | `->` | `≡` | `===` | `−` (minus sign) | `-` |
+  | `⧴` | `:>` | `≢` | `!==` | `∧` | `and` |
+  | `≤` | `<=` | `×` | `*` | `∨` | `or` |
+  | `≥` | `>=` | `·`, `⋅` | `*` | `¬` | `not` |
+  | `≠` | `!=` | `÷` | `/` | `∈` | `in` (`for k ∈ xs`) |
+  | `⩵` | `==` | `√` | prefix square root | | |
+
+  `√x` is `sqrt(x)`; its operand is a primary with its calls, indices and primes, so `√x^2` is `(√x)^2`,
+  `√(x + 1)` is `sqrt(x + 1)`, `2√2` is `2*sqrt(2)`. Other mathematical symbols with no meaning in the language
+  (`∀`, `±`, `∫`, `∑`, `∂`, ...) are errors that name the character and its code point; `°` explains that angles are
+  in radians. Letter-like characters (`ℏ`, `ℓ`, `ⅆ`, Greek) are identifier characters.
+- **Placeholder:** `□` (U+25A1) marks an unfilled slot of a notebook template (08-notebook.md section 4.3). It is a
+  token of its own and never valid: reading text that contains one fails with "a placeholder `□` is not filled in"
+  at the first placeholder of each statement.
 
 ## 3. Expressions
 
@@ -138,7 +157,9 @@ it is a pattern.
   `im` can be shadowed by a local binding or excluded: `import core except e`. *Reason:* `e` and `im` are the
   standard names in mathematics and numerical computing; making them shadowable avoids stealing the names from users
   who need them as variables.
-- Unicode aliases: `π` is `pi`, `∞` is `inf`.
+- Unicode aliases: `π` is `pi`, `∞` is `inf`, `ⅇ` (double-struck e) is `e`, `ⅈ` (double-struck i) is `im`; a
+  number with the suffix `ⅈ` is imaginary like one with `im` (`3ⅈ` is `3im`). An alias is a whole identifier: `πr`
+  is the name `πr`.
 - Printing shows only the correct digits of a ball (`n(pi, 20)` prints `3.1415926535897932385`); the input form
   `ball(m, r)` shows midpoint and radius.
 
@@ -315,7 +336,73 @@ args       ::= arg { ',' arg }
 arg        ::= expr | name ':' expr
 ```
 
-## 14. Decisions in this draft, with reasons
+## 14. Editor support
+
+`mc-syntax` gives the notebook editor (08-notebook.md sections 3.4 and 3.10 to 3.12) these functions, all linear in
+the length of a cell and total (any text, finished or not, gives a result; nothing panics):
+
+- `colour(text, defined) -> Colouring` and `classify(text)` (the same with no name set): the class of every token,
+  as sorted byte ranges, plus the bracket pairs and the errors.
+- `names_in_scope(text, offset)`: the local names visible at a position, innermost first (completion).
+- `extend_selection(text, start, end)`: the next syntactic unit around a selection.
+- `Colouring::matching_bracket(caret)`, `enclosing_brackets(start, end)`, `pair_at(offset)`: bracket matching and
+  "check balance".
+
+### 14.1 Colouring classes
+
+| Class | Tokens |
+|---|---|
+| `Operator` | operators, punctuation, prime marks, `√`, matched brackets |
+| `Global` | a global name: defined, or any global name when no name set is given |
+| `Undefined` | a global name the name set does not define (and not defined in the cell) |
+| `Local` | a name bound by `let`, `var`, a `fn` or lambda parameter or a `for` loop, where bound and used; slots `&k` |
+| `PatternVar` | `x_`, `xs__`, `_`, the `x` of `x @ p`, and uses of a pattern name in its rule |
+| `Shadowing` | the binding occurrence of a local or pattern name that hides a defined global name |
+| `Keyword` | reserved words except the constants; `where` in a type; `∧ ∨ ¬ ∈` |
+| `Constant` | `true`, `false`, `null` |
+| `Number`, `String`, `Comment` | literals with their suffixes and quotes; `#` to the end of the line |
+| `Placeholder` | `□` |
+| `SyntaxError` | the token at a syntax error, or characters the lexer cannot read |
+| `UnmatchedBracket` | a bracket with no partner |
+
+The scopes are computed on the token stream, not the syntax tree, so that they stay stable while a statement is
+being typed (the parser drops a statement with an error). The walk follows the bracket tree and the grammar's binders:
+
+- `let x` and `var x` bind `x` from the end of their statement to the end of the enclosing block (or cell); the
+  value does not see the new binding (`let x = x + 1`).
+- `fn f(params; options)` binds its parameters in its condition, result type and body; a pattern parameter binds its
+  pattern names; defaults see earlier parameters.
+- `x => e` and `(x, y: T) => e` bind in the body, which runs to the end of the argument, element or statement.
+- `for x in xs { ... }` binds `x` in the block.
+- In a statement, argument or element, each `->`, `:>`, `=`, `:=` (and the first `=>` of a `match` arm) binds the
+  pattern names of its left side for the rest of it: `f(x_) := x^2`, `[a_ -> a + 1]`, `match e { [h_, t__] => h }`.
+- Type names after `:`, option names in calls (`digits:` in `n(x, digits: 50)`), decorators, module names and
+  imported names are never variables.
+- Names defined in the cell (`fn f`, `rule f(...)`, `sym s`, `module M`, top-level `x = ...` and `f(...) := ...`)
+  count as defined, so a cell's own definitions are not `Undefined` before it is evaluated.
+
+Rules for unfinished text: an error at the end of the input (an unfinished statement, a string running to the end)
+colours nothing and sets `Colouring::incomplete`; an error at a closing bracket while some bracket is unmatched colours
+nothing (the unmatched bracket is shown). A name just typed may change class when the next token arrives (`y` becomes
+`Local` when `=>` follows); every earlier name keeps its class. Texts over 100,000 bytes are coloured lexically
+(brackets included, no scopes, no syntax errors).
+
+### 14.2 Brackets
+
+A closing bracket pairs with the nearest open bracket of its kind; open brackets left between them are unmatched
+(`{ g(x }` marks only the `(`). Brackets in strings and comments do not count. `matching_bracket(caret)` prefers the
+bracket just before the caret to the one just after it.
+
+### 14.3 Extend selection
+
+Units are tokens, every expression of the syntax tree, the contents of every bracket pair (argument and element
+sequences), parenthesised groups with their parentheses (not the parentheses of a call), statements, and the whole
+content. From a caret: inside or at the edge of a name or literal, that token; between a name and a following
+operator, bracket or comma, the smallest unit around the name (`f|(x)` gives `f(x)`, `b|*c` gives `b*c`); touching
+only an operator, bracket or comma, the smallest unit around it. From a selection, the smallest unit strictly
+containing it; `None` after the whole content (the editor selects the cell).
+
+## 15. Decisions in this draft, with reasons
 
 | Choice | Reason |
 |---|---|
@@ -328,3 +415,8 @@ arg        ::= expr | name ':' expr
 | No slot sequences, no splicing | The core has no sequence splicing (semantics 1.3). |
 | `var` for mutable locals | Loops need local state; `var` keeps it lexical and separate from symbol definitions. |
 | No legacy escape | v2 has no legacy core; compatibility is a translator into this syntax. |
+| Unicode operators as tokens, ASCII when printing | Notebook aliases insert `→`, `≤`, `×` ...; reading them as the ASCII tokens keeps one grammar, and printed text stays plain ASCII. |
+| `∈` reads as `in` | The only membership syntax is the loop `for x in xs`; a set-membership operator would need a library head first. |
+| `√` binds like a call | `√x^2` as `(√x)^2` follows the usual precedence of prefix radicals in linear input; `√(x^2)` needs parentheses. |
+| `□` is a token that is always an error | One clear message at the first placeholder instead of an unexpected-character error followed by cascades. |
+| Scopes from tokens, not the tree | Colouring must not flicker while a statement is unfinished; the token walk is linear and never fails. |
