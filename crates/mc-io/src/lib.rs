@@ -11,6 +11,7 @@
 //! | `lines` | a list of strings, one per line | a list of values, one per line |
 //! | `json` | lists, numbers, strings, `true`/`false`, `null`; objects as lists of rules `key -> value` | the same |
 //! | `png` | `image(path)` | an `image(path)` value: the PNG is copied |
+//! | `pdf` | (not read) | a plot's `image(path)` value: the vector PDF written next to its PNG is copied |
 //!
 //! Fields that read as integers become integers, then machine reals, else strings (quotes in CSV removed).
 //! Exported values: integers and machine reals as numbers (reals keep a decimal point or exponent, so they read
@@ -36,7 +37,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     (
         "export_data",
-        "export_data(file, data), export_data(file, data, format): write data (lists of rows or values; json; an image(path) as png); gives the file name",
+        "export_data(file, data), export_data(file, data, format): write data (lists of rows or values; json; an image(path) as png; a plot as a vector pdf); gives the file name",
     ),
 ];
 
@@ -62,6 +63,7 @@ enum Format {
     Lines,
     Json,
     Png,
+    Pdf,
 }
 
 impl Format {
@@ -73,6 +75,7 @@ impl Format {
             "lines" => Format::Lines,
             "json" => Format::Json,
             "png" => Format::Png,
+            "pdf" => Format::Pdf,
             _ => return None,
         })
     }
@@ -113,6 +116,9 @@ impl Native for Import {
         // reading a file depends on the world: in program order, never memoised
         cx.effect()?;
         cx.volatile();
+        if format == Format::Pdf {
+            return Ok(Reply::Done(failure(h, "io", &[file, h.string("reading pdf files is not supported")])));
+        }
         if format == Format::Png {
             let ok = std::fs::read(&path).map(|b| b.starts_with(b"\x89PNG")).unwrap_or(false);
             return Ok(Reply::Done(if ok {
@@ -140,7 +146,7 @@ impl Native for Import {
                 Ok(j) => from_json(h, &j),
                 Err(e) => failure(h, "io", &[file, h.string(&e.to_string())]),
             },
-            Format::Png => unreachable!("handled above"),
+            Format::Png | Format::Pdf => unreachable!("handled above"),
         };
         Ok(Reply::Done(v))
     }
@@ -234,6 +240,18 @@ impl Native for Export {
         let written: Result<(), String> = match format {
             Format::Png => match image_path(h, data) {
                 Some(src) => std::fs::copy(src, &path).map(|_| ()).map_err(|e| e.to_string()),
+                None => return Ok(Reply::Done(failure(h, "argument", &[h.sym_term(h.sym("export_data")), h.int(2)]))),
+            },
+            // a plot's vector twin: the same name with .pdf (mc-plot writes it next to the PNG)
+            Format::Pdf => match image_path(h, data) {
+                Some(src) => {
+                    let pdf = std::path::Path::new(src).with_extension("pdf");
+                    if pdf.is_file() {
+                        std::fs::copy(&pdf, &path).map(|_| ()).map_err(|e| e.to_string())
+                    } else {
+                        Err("this image has no vector version (only plots do)".to_string())
+                    }
+                }
                 None => return Ok(Reply::Done(failure(h, "argument", &[h.sym_term(h.sym("export_data")), h.int(2)]))),
             },
             Format::Json => {

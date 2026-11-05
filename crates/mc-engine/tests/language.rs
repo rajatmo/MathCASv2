@@ -162,7 +162,9 @@ const SESSION: &[(&str, &str)] = &[
     ("sc(2, bogus: 1)", "failure(unknown_option, bogus)"),
     ("fn hf(held e, x) = x\nhf(print(1), print(2))", "2 | 2"),
     ("fn fact(n: Int) = if n == 0 then 1 else n*fact(n - 1)\nfact(20)", "2432902008176640000"),
-    ("fact(x)", "failure(no_match, fact, [x])"),
+    // a symbolic argument may satisfy a type or condition later: the call stays (04 section 6.2)
+    ("fact(x)", "fact(x)"),
+    ("fact(\"a\")", "failure(no_match, fact, [\"a\"])"),
     ("rule open(0) = zero\nopen(1)", "open(1)"),
     ("@listable fn sq(x) = x^2\nsq([1, 2, 3])", "[1, 4, 9]"),
     ("sq([1, 2], [3])", "failure(shape_mismatch)"),

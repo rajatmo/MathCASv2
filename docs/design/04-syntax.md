@@ -179,8 +179,13 @@ Patterns are ordinary expressions; they are only interpreted as patterns on the 
   `n: Int = 10` (trailing) and a rest parameter `rest...` (last, bound to a list).
 - `fn name(params) when c = body` adds a condition.
 - `fn name(params): T = body` declares the result type.
-- Clauses accumulate. A call that matches no clause gives `failure(no_match, name, args)`.
-- `fn` lowers to rules plus that final catch-all, so `fn` and `rule` are the same machinery with a different default.
+- Clauses accumulate. A call with ground arguments (numbers, strings, numeric constants and terms built from them,
+  no free symbols) that matches no clause gives `failure(no_match, name, args)`. A call with a symbolic argument
+  that matches no clause stays unevaluated, like a `rule` call: a type test or condition may be undecided for a
+  symbol (`h(y)` for `fn h(x) when x > 0`), and numeric code (`find_root`, `plot`, `n_integrate`) substitutes
+  numbers later. So `fact("a")` fails at once, while `fact(x)` stays `fact(x)`.
+- `fn` lowers to rules plus that final catch-all (guarded by `is_ground(args)`), so `fn` and `rule` are the same
+  machinery with a different default.
 
 ### 6.3 Values
 

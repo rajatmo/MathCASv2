@@ -534,8 +534,13 @@ impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
     }
 }
 
-/// `f(args___)`: the catch-all a `fn` definition adds.
+/// `f(args___)`: the catch-all a `fn` definition adds (under its `is_ground(args)` condition; compiled code only
+/// sees machine numbers, which are ground).
 fn catch_all(h: &Heap, f: Sym, p: &Pat) -> bool {
+    let p = match p {
+        Pat::Cond(inner, _) => inner,
+        p => p,
+    };
     matches!(p, Pat::App { head, args, .. } if head.get(h) == h.sym_term(f) && matches!(args.as_slice(), [Pat::Seq { min: 0, .. }]))
 }
 

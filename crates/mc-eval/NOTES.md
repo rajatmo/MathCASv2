@@ -199,7 +199,8 @@ Shared files changed: `bench/cases/R/R2.mc` (the rule uses a block, because defi
   allocate cells are never memoised. `if(c, a)` gives `null` when `c` is false.
 - **Definitions:** direct `held(p)` arguments set per-position holding; direct `optional(p, d)` arguments expand into
   rules with and without the argument; `define_fn` options after `;` (including `failure(unknown_option, name)`); `fn`
-  installs a catch-all `f(args___) := failure(no_match, f, args)`; `rule` keeps an open rule set; decorators
+  installs a catch-all `f(args___) := failure(no_match, f, args)` guarded by `is_ground(args)` (2026-11: a call
+  with a symbolic argument stays unevaluated, so `find_root(h(x) - 4, ...)` works for guarded `fn`s); `rule` keeps an open rule set; decorators
   `listable`, `effect`, `held`, `handles_failures`, `associative` + `commutative`, `identity(e)`, `on(s)` on
   `define_rule`, `define_fn` and `define_sym`.
 - **`rewrite(e, rules[, strategy: once | fixed_point | innermost])`:** `once` (default) is one pass over all subterms,

@@ -192,3 +192,46 @@ fn the_rewrite_operator() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+/// A `fn` with no matching clause fails on ground arguments but stays unevaluated on symbolic ones, where a
+/// condition or a type test may be undecided, so numeric code can substitute numbers later (04 section 6.2).
+#[test]
+fn checked_functions_stay_symbolic_on_symbolic_arguments() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("fn h(x) when x > 0 = x^2", "null"),
+        ("h(3)", "9"),
+        ("h(-3)", "failure(no_match, h, [-3])"),
+        ("h(y)", "h(y)"),
+        ("h(pi)", "pi^2"),
+        ("h(-pi)", "failure(no_match, h, [-pi])"),
+        ("x /. find_root(h(x) - 4, [x, 1])", "2.0"),
+        ("fn k(x: Int) = x + 1", "null"),
+        ("k(\"a\")", "failure(no_match, k, [\"a\"])"),
+        ("k([1])", "failure(no_match, k, [[1]])"),
+        ("k(y)", "k(y)"),
+        ("k(2)", "3"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}
+
+/// Numeric constants and closed numeric expressions take the kind of an inexact operand: a machine real makes them
+/// machine reals, a ball (without machine reals) a ball at its precision; exact arithmetic keeps them exact.
+#[test]
+fn constants_follow_inexact_contagion() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("0.5*pi", "1.5707963267948966"),
+        ("2.0^pi", "8.824977827076287"),
+        ("1.5 + sqrt(2)", "2.914213562373095"),
+        ("x*0.5*pi", "1.5707963267948966*x"),
+        ("cos(0.5*sqrt(2)/pi) - cos(0.22507907903927651)", "0.0"),
+        ("2*pi", "2*pi"),
+        ("1 + pi", "1 + pi"),
+        ("2.0*f(1)", "2.0*f(1)"),
+        ("1.5~30*pi", "4.7123889803846898576939650749192543"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

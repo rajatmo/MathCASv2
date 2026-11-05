@@ -541,8 +541,13 @@ fn define_now<'h>(
     // would replace it, so it is left out.
     let catches_all = matches!(call_of(h, lhs), Some((_, &[p])) if matches!(call_of(h, p), Some((s, &[_])) if s == hd.seq0));
     if let (true, Some(f), false) = (checked, f, catches_all) {
+        // The catch-all fires only on ground arguments (no free symbols): with a symbolic argument a clause's
+        // condition or type test may be undecided, so the call stays unevaluated like any symbolic term, and
+        // numeric code (find_root, plot, n_integrate) can substitute numbers later (04 section 6.2).
         let args = h.sym("args$");
-        let all = pattern(h, h.call(f, &[h.call(hd.seq0, &[h.sym_term(args)])])).expect("a catch-all pattern");
+        let call = h.call(f, &[h.call(hd.seq0, &[h.sym_term(args)])]);
+        let guarded = h.call(hd.condition, &[call, h.call(h.sym("is_ground"), &[h.sym_term(args)])]);
+        let all = pattern(h, guarded).expect("a catch-all pattern");
         let nm = &cx.ev.k.names;
         let fail = h.call(nm.failure, &[h.sym_term(nm.no_match), h.sym_term(f), h.sym_term(args)]);
         let rhs = RuleRhs::Term { body: Raw::new(fail), names: all.names.into(), vars: vec![0].into() };
@@ -654,8 +659,42 @@ impl Native for DefineSym {
 }
 
 /// Register the definition natives.
+/// Numeric constants: symbols that stand for a number, so a term built from them and numbers is ground.
+const CONSTANTS: [&str; 7] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio", "inf", "im"];
+
+/// Is `t` ground: no free symbol other than the numeric constants, at any depth below compound heads? Numbers,
+/// strings and packed arrays are ground; heads are not inspected (`square(1)` is ground).
+pub(crate) fn is_ground(h: &Heap, t: T<'_>) -> bool {
+    if h.packed(t).is_some() {
+        return true;
+    }
+    match h.view(t) {
+        View::Sym(s) => {
+            let n = h.sym_name(s);
+            CONSTANTS.contains(&n.as_str()) || n == "true" || n == "false" || n == "null"
+        }
+        View::App { args, .. } => args.iter().all(|&a| is_ground(h, a)),
+        _ => true,
+    }
+}
+
+/// `is_ground(args...)`: `true` when every argument is ground ([`is_ground`]); the condition of a `fn`'s catch-all.
+struct IsGround;
+
+impl Native for IsGround {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        Ok(Reply::Done(cx.bool(args.iter().all(|&a| is_ground(h, a)))))
+    }
+}
+
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
+    k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
     k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("set"), fx(Hold::First), Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("define_rule"), fx(Hold::All), Box::new(DefineRule(Heads::new(h))));

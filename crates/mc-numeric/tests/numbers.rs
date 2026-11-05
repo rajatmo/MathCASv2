@@ -173,7 +173,9 @@ fn set_precision() {
         ("set_precision(1.0~3/3, 20)", "0.33349609375000000000"),
         ("precision(set_precision(1.0~3/3, 20))", "20.16900970948674"),
         ("set_precision(complex(0.1, 0.2), 10)", "complex(0.100000000, 0.2000000000)"),
-        ("set_precision(pi + 0.1, 20)", "3.24159265358979324401376"),
+        // `pi + 0.1` is a machine real first (constants take a machine real's kind), then widened to 20 digits
+        ("set_precision(pi + 0.1, 20)", "3.2415926535897932048"),
+        ("set_precision(pi + 1/10, 20)", "3.24159265358979323846"),
         ("set_precision([1/2, x + 0.25], 10)", "[0.5000000000, 0.2500000000 + x]"),
         ("set_precision(0.1, inf)", "3602879701896397/36028797018963968"),
         ("set_precision(1/3, inf)", "1/3"),

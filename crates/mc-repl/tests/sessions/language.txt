@@ -91,7 +91,7 @@ null
 mc> fact(20)
 2432902008176640000
 mc> fact(x)
-failure(no_match, fact, [x])
+fact(x)
 mc> @listable fn sq(x) = x^2
 null
 mc> sq([1, 2, 3])

@@ -82,6 +82,68 @@ fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
     i64::try_from(n / d).ok()
 }
 
+/// Numeric constants (semantics 15): symbols that stand for a real number.
+const CONSTANTS: [&str; 5] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio"];
+
+/// Is `t` a closed numeric expression that is not itself a number: built only from numbers and numeric constants
+/// (`pi`, `2^(1/2)`, `cos(1)/pi`)? Heads are not inspected; `n` decides whether it really has a value.
+fn closed_numeric(h: &Heap, t: T<'_>) -> bool {
+    fn leaves_numeric(h: &Heap, t: T<'_>) -> bool {
+        match h.view(t) {
+            View::Sym(s) => CONSTANTS.contains(&h.sym_name(s).as_str()),
+            View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves_numeric(h, a)),
+            View::Str(_) => false,
+            _ => true,
+        }
+    }
+    match h.view(t) {
+        View::Sym(_) => leaves_numeric(h, t),
+        View::App { head, args } => {
+            head != h.sym_term(h.sym(names::LIST)) && h.packed(t).is_none() && !args.is_empty() && leaves_numeric(h, t)
+        }
+        _ => false,
+    }
+}
+
+/// Contagion for constants (semantics 2.2 extended to section 15): when a machine real is among the arguments,
+/// every closed numeric argument (`pi`, `2^(1/2)`) is replaced by its machine value, so `0.5*pi` is
+/// `1.5707963267948966` and not `0.5*pi`; with a ball and no machine real, by a ball at the ball's precision
+/// (`1.5~30 * pi` is a 30-digit ball). `None` when nothing changes (the common case costs one scan).
+fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
+    let h = cx.heap();
+    let machine = args.iter().any(|&a| matches!(h.view(a), View::Real(_)));
+    let ball = if machine { None } else { args.iter().copied().find(|&a| matches!(h.view(a), View::Ball { .. })) };
+    if !(machine || ball.is_some()) || !args.iter().any(|&a| closed_numeric(h, a)) {
+        return Ok(None);
+    }
+    // the digits of the ball (its precision, rounded up)
+    let digits = match ball {
+        Some(b) => match h.view(cx.eval(h.call(h.sym("precision"), &[b]))?) {
+            View::Real(p) if p.is_finite() && p >= 1.0 => Some(h.int(p.ceil() as i64)),
+            View::Int(p) if p >= 1 => Some(h.int(p)),
+            _ => return Ok(None),
+        },
+        None => None,
+    };
+    let mut out = Vec::with_capacity(args.len());
+    let mut changed = false;
+    for &a in args {
+        if closed_numeric(h, a) {
+            let v = match digits {
+                Some(d) => cx.eval(h.call(h.sym("n"), &[a, d]))?,
+                None => cx.eval(h.call(h.sym("n"), &[a]))?,
+            };
+            if matches!(h.view(v), View::Real(_) | View::Ball { .. }) {
+                out.push(v);
+                changed = true;
+                continue;
+            }
+        }
+        out.push(a);
+    }
+    Ok(changed.then_some(out))
+}
+
 /// `add(args...)`.
 struct Add(Stop);
 
@@ -92,6 +154,9 @@ impl Native for Add {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
+        if let Some(v) = machine_constants(cx, args)? {
+            return self.call(cx, _t, &v);
+        }
         let h = cx.heap();
         Ok(Reply::Done(match small_fold(h, args, i64::checked_add, 0) {
             Some(v) => h.int(v),
@@ -110,6 +175,9 @@ impl Native for Mul {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
+        if let Some(v) = machine_constants(cx, args)? {
+            return self.call(cx, _t, &v);
+        }
         let h = cx.heap();
         let v = small_fold(h, args, i64::checked_mul, 1).or_else(|| small_product(h, args));
         Ok(Reply::Done(match v {
@@ -129,6 +197,9 @@ impl Native for Pow {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [b, e] = args else { return Ok(Reply::Decline) };
+        if let Some(v) = machine_constants(cx, args)? {
+            return self.call(cx, _t, &v);
+        }
         let ar = arith(cx.heap(), &self.0);
         let r = ar.pow(*b, *e);
         // ball powers mc-arith leaves unevaluated (its B.13): principal values from mc-numeric's complex balls

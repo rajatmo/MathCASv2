@@ -1,8 +1,8 @@
 #! mathcas 2
 # A bubble wall from a first-order phase transition (a port of a research notebook): the thermal function J_B,
 # an effective potential V(h, T), the O(3) bounce by shooting, its action S(x0), the nucleation condition S = 140,
-# the O(4) wall profile and its oscillating tail. Run: mc-repl examples/wall_profile.mc  (about 20 s; plots are
-# written as PNG files to the current folder).
+# the O(4) wall profile and its oscillating tail. Run: mc-repl examples/wall_profile.mc  (about 10 s; plots are
+# written as PDF and PNG files to the current folder).
 
 # --- 1. the thermal function J_B and the effective potential
 
@@ -25,7 +25,10 @@ fn df(x, x0) = 1/(2*pi^2)*(g^4/4*x^3*log(max(x, 1.0e-9)/x0) + g*dJB(min(g*max(x,
 say("f(50, 83.75) = ", n(f(50, 83.75)), ", df(50, 83.75) = ", n(df(50, 83.75)))
 # df against a central difference of f
 say("check: ", n((f(50.001, 83.75) - f(49.999, 83.75))/0.002))
-export_data("veff.png", plot(f(x, 83.75), [x, 0.001, 150]))
+# V_eff/T^4 on a log h/T axis and a signed-log value axis (both signs, linear within 1e-8 of 0); PNG and vector PDF
+veff = plot(f(x, 83.75), [x, 0.001, 1000], x_scale: log, y_scale: signed_log(1.0e-8))
+export_data("veff.png", veff)
+export_data("veff.pdf", veff)
 export_data("jb.png", plot([JB(x), dJB(x)], [x, 0, 25]))
 
 # --- 2. the O(3) bounce by shooting
@@ -75,8 +78,8 @@ say("S = 140 at x0 = ", x0n, ", x_c = ", xcn)
 # the O(4) wall profile: x'' + 3/w x' + V'(x) = 0
 xsol = x /. n_dsolve([x''(w) + 3/w*x'(w) + df(x(w), x0n) == 0, x(w0) == xcn - w0^2/8*df(xcn, x0n),
                       x'(w0) == -w0/4*df(xcn, x0n)], x, [w, w0, wmax])
-export_data("bounce.png", plot(x(z) /. bounce(x0n, xcn), [z, z0, domain_end(bounce(x0n, xcn))]))
-export_data("wall_profile.png", plot(xsol(w)/x0n, [w, w0, wmax]))
+export_data("bounce.pdf", plot(x(z) /. bounce(x0n, xcn), [z, z0, domain_end(bounce(x0n, xcn))]))
+export_data("wall_profile.pdf", plot(xsol(w)/x0n, [w, w0, wmax]))
 export_data("action.png", list_log_log_plot(setab))
 
 # --- 4. the oscillating tail: first zero of x/x0 - 1, first turning point, and the amplitude there
@@ -94,4 +97,4 @@ say("eps_k = ", ek, ", j_k = ", jk, ", j_c = ", jc)
 # the approximate envelope x0 (1 + eps(w) cos(theta(w))) against the exact profile
 fn eps_of(w) = sqrt(jc)*(wc/w)^(3/2)
 fn theta(w) = g^2*x0n/(2*sqrt(2)*pi)*((w - wk) - 23/24*jc*wc^3/wk^2)
-export_data("envelope.png", plot([1 + eps_of(w)*cos(theta(w)), xsol(w)/x0n], [w, wc, wmax]))
+export_data("envelope.pdf", plot([1 + eps_of(w)*cos(theta(w)), xsol(w)/x0n], [w, wc, wmax]))

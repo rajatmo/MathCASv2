@@ -14,7 +14,7 @@ use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
 use mc_numfn::{NumFn, Options, Var};
-use render::{Scale, Series};
+use render::{Axis, Scale, Series};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Every function of this package with a one-line description.
@@ -31,34 +31,94 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("log_log_plot", "log_log_plot(f, [x, a, b]): plot with logarithmic x and y axes (0 < a < b)"),
     ("list_log_plot", "list_log_plot(data): list_plot with a logarithmic y axis"),
     ("list_log_log_plot", "list_log_log_plot(data): list_plot with logarithmic x and y axes"),
+    ("log_linear_plot", "log_linear_plot(f, [x, a, b]): plot with a logarithmic x axis (0 < a < b)"),
+    ("list_log_linear_plot", "list_log_linear_plot(data): list_plot with a logarithmic x axis"),
+    (
+        "x_scale",
+        "option of every plot: x_scale: linear | log | signed_log | signed_log(c) (sign(v) log10(1 + |v|/c), default c = 1; linear near 0, logarithmic far from it, both signs)",
+    ),
+    ("y_scale", "option of every plot: y_scale: linear | log | signed_log | signed_log(c), as x_scale"),
 ];
 
 /// Register the natives with `k`.
 pub fn install(k: &mut Kernel, h: &Heap) {
     let lin = Scale::default();
-    let ylog = Scale { xlog: false, ylog: true };
-    let both = Scale { xlog: true, ylog: true };
-    k.register(h.sym("plot"), Attributes::default(), Box::new(Plot { name: "plot", scale: lin }));
-    k.register(h.sym("log_plot"), Attributes::default(), Box::new(Plot { name: "log_plot", scale: ylog }));
-    k.register(h.sym("log_log_plot"), Attributes::default(), Box::new(Plot { name: "log_log_plot", scale: both }));
-    k.register(h.sym("list_plot"), Attributes::default(), Box::new(ListPlot { name: "list_plot", scale: lin }));
-    k.register(h.sym("list_log_plot"), Attributes::default(), Box::new(ListPlot { name: "list_log_plot", scale: ylog }));
+    let ylog = Scale {
+        x: Axis::Linear,
+        y: Axis::Log,
+    };
+    let xlog = Scale {
+        x: Axis::Log,
+        y: Axis::Linear,
+    };
+    let both = Scale {
+        x: Axis::Log,
+        y: Axis::Log,
+    };
+    k.register(
+        h.sym("plot"),
+        Attributes::default(),
+        Box::new(Plot {
+            name: "plot",
+            scale: lin,
+        }),
+    );
+    k.register(
+        h.sym("log_plot"),
+        Attributes::default(),
+        Box::new(Plot {
+            name: "log_plot",
+            scale: ylog,
+        }),
+    );
+    k.register(
+        h.sym("log_log_plot"),
+        Attributes::default(),
+        Box::new(Plot {
+            name: "log_log_plot",
+            scale: both,
+        }),
+    );
+    k.register(
+        h.sym("list_plot"),
+        Attributes::default(),
+        Box::new(ListPlot {
+            name: "list_plot",
+            scale: lin,
+        }),
+    );
+    k.register(
+        h.sym("list_log_plot"),
+        Attributes::default(),
+        Box::new(ListPlot {
+            name: "list_log_plot",
+            scale: ylog,
+        }),
+    );
     k.register(
         h.sym("list_log_log_plot"),
         Attributes::default(),
-        Box::new(ListPlot { name: "list_log_log_plot", scale: both }),
+        Box::new(ListPlot {
+            name: "list_log_log_plot",
+            scale: both,
+        }),
     );
-}
-
-/// `v` on an axis: its logarithm on a log axis (`None` when not positive), else itself.
-fn on_axis(v: f64, log: bool) -> Option<f64> {
-    if !log {
-        Some(v)
-    } else if v > 0.0 {
-        Some(v.log10())
-    } else {
-        None
-    }
+    k.register(
+        h.sym("log_linear_plot"),
+        Attributes::default(),
+        Box::new(Plot {
+            name: "log_linear_plot",
+            scale: xlog,
+        }),
+    );
+    k.register(
+        h.sym("list_log_linear_plot"),
+        Attributes::default(),
+        Box::new(ListPlot {
+            name: "list_log_linear_plot",
+            scale: xlog,
+        }),
+    );
 }
 
 fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
@@ -91,18 +151,34 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
 }
 
-/// Write the rendered plot to a fresh file and give its image term (or a failure).
-fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], joined: bool, scale: Scale) -> Res<Reply<'h>> {
+/// Write the rendered plot to a fresh PNG file, and the same plot as a vector PDF next to it (same name, `.pdf`:
+/// `export_data("f.pdf", plot)` copies it), and give the PNG's image term (or a failure).
+fn finish<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    series: &[Series],
+    joined: bool,
+    scale: Scale,
+) -> Res<Reply<'h>> {
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join("mathcas-plots");
-    let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
+    let path = dir.join(format!(
+        "plot-{}-{}.png",
+        std::process::id(),
+        COUNT.fetch_add(1, Ordering::Relaxed)
+    ));
     let written = std::fs::create_dir_all(&dir)
         .map_err(|e| e.to_string())
-        .and_then(|_| render::render(series, joined, scale).ok_or_else(|| "rendering failed".to_string()))
-        .and_then(|png| std::fs::write(&path, png).map_err(|e| e.to_string()));
+        .and_then(|_| {
+            render::render(series, joined, scale).ok_or_else(|| "rendering failed".to_string())
+        })
+        .and_then(|png| std::fs::write(&path, png).map_err(|e| e.to_string()))
+        .and_then(|()| {
+            let pdf = render::render_pdf(series, joined, scale);
+            std::fs::write(path.with_extension("pdf"), pdf).map_err(|e| e.to_string())
+        });
     Ok(Reply::Done(match written {
         // forward slashes: the path prints without escapes on every system
         Ok(()) => image(h, &path.to_string_lossy().replace('\\', "/")),
@@ -120,12 +196,25 @@ impl Native for Plot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
-        let [f, spec] = args else { return Ok(Reply::Decline) };
-        let Some(&[xv, a, b]) = cx.as_list(*spec) else { return Ok(bad(h, name, 2)) };
-        let View::Sym(x) = h.view(xv) else { return Ok(bad(h, name, 2)) };
-        let (Some(a), Some(b)) = (real(cx, a)?, real(cx, b)?) else { return Ok(bad(h, name, 2)) };
+        let (f, spec, scale) = match args {
+            [f, spec] => (f, spec, self.scale),
+            [f, spec, o] => match plot_options(cx, *o, self.scale, false) {
+                Some((scale, _)) => (f, spec, scale),
+                None => return Ok(bad(h, name, 3)),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        let Some(&[xv, a, b]) = cx.as_list(*spec) else {
+            return Ok(bad(h, name, 2));
+        };
+        let View::Sym(x) = h.view(xv) else {
+            return Ok(bad(h, name, 2));
+        };
+        let (Some(a), Some(b)) = (real(cx, a)?, real(cx, b)?) else {
+            return Ok(bad(h, name, 2));
+        };
         // the sampled interval, on the x axis (logarithms on a log axis)
-        let (Some(ua), Some(ub)) = (on_axis(a, self.scale.xlog), on_axis(b, self.scale.xlog)) else {
+        let (Some(ua), Some(ub)) = (scale.x.to(a), scale.x.to(b)) else {
             return Ok(bad(h, name, 2));
         };
         if ua >= ub {
@@ -138,9 +227,9 @@ impl Native for Plot {
         };
         let mut series = Vec::with_capacity(fs.len());
         for f in fs {
-            series.push(sample(cx, f, x, ua, ub, self.scale)?);
+            series.push(sample(cx, f, x, ua, ub, scale)?);
         }
-        finish(cx, &series, true, self.scale)
+        finish(cx, &series, true, scale)
     }
 }
 
@@ -150,9 +239,20 @@ impl Native for Plot {
 /// halvings and `BUDGET` evaluations in all. `None` where the value is not a finite real.
 /// The interval [a, b] and the points are on the axes (logarithms on log axes), so refinement adapts to the curve as
 /// it is drawn.
-fn sample<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: Sym, a: f64, b: f64, scale: Scale) -> Res<Series> {
+fn sample<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    x: Sym,
+    a: f64,
+    b: f64,
+    scale: Scale,
+) -> Res<Series> {
     let fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x)], &Options::default())?;
-    let mut s = Sampler { fun, evals: 0, scale };
+    let mut s = Sampler {
+        fun,
+        evals: 0,
+        scale,
+    };
     let mut grid = Vec::with_capacity(INITIAL);
     for k in 0..INITIAL {
         let xk = a + (b - a) * k as f64 / (INITIAL - 1) as f64;
@@ -196,10 +296,14 @@ impl<'h> Sampler<'h> {
         if self.evals.is_multiple_of(64) {
             cx.tick(1)?;
         }
-        let x = if self.scale.xlog { 10f64.powf(u) } else { u };
+        let x = self.scale.x.from(u);
         let mut out = [0.0];
         let ok = self.fun.eval(cx, &[x], &mut out)?;
-        Ok(if ok && out[0].is_finite() { on_axis(out[0], self.scale.ylog) } else { None })
+        Ok(if ok && out[0].is_finite() {
+            self.scale.y.to(out[0])
+        } else {
+            None
+        })
     }
 
     /// Push the points of (p, q], refined; `p` is already pushed. Recursion depth is at most `DEPTH`.
@@ -241,15 +345,17 @@ impl Native for ListPlot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
-        let (data, joined) = match args {
-            [d] => (*d, false),
-            [d, o] => match joined_option(cx, *o) {
-                Some(j) => (*d, j),
+        let (data, joined, sc) = match args {
+            [d] => (*d, false, self.scale),
+            [d, o] => match plot_options(cx, *o, self.scale, true) {
+                Some((sc, j)) => (*d, j, sc),
                 None => return Ok(bad(h, name, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
-        let Some(items) = cx.as_list(data) else { return Ok(bad(h, name, 1)) };
+        let Some(items) = cx.as_list(data) else {
+            return Ok(bad(h, name, 1));
+        };
         let mut pts = Vec::with_capacity(items.len());
         for (i, &it) in items.iter().enumerate() {
             if i % 4096 == 0 {
@@ -260,12 +366,11 @@ impl Native for ListPlot {
                 Some(_) => return Ok(bad(h, name, 1)),
                 None => (Some(i as f64 + 1.0), real(cx, it)?),
             };
-            let sc = self.scale;
             match p {
                 // a point whose x is not on a log axis (not positive) is left out
                 (Some(px), y) => {
-                    if let Some(u) = on_axis(px, sc.xlog) {
-                        pts.push((u, y.and_then(|y| on_axis(y, sc.ylog))));
+                    if let Some(u) = sc.x.to(px) {
+                        pts.push((u, y.and_then(|y| sc.y.to(y))));
                     }
                 }
                 (None, _) => return Ok(bad(h, name, 1)),
@@ -274,24 +379,65 @@ impl Native for ListPlot {
         if pts.iter().all(|p| p.1.is_none()) {
             return Ok(bad(h, name, 1));
         }
-        finish(cx, &[Series { points: pts }], joined, self.scale)
+        finish(cx, &[Series { points: pts }], joined, sc)
     }
 }
 
-/// `options(joined -> true | false)`: the option's value, or `None` for anything else.
-fn joined_option<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<bool> {
+/// The plot options `options(k -> v, ...)`: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`)
+/// and, when `joined_ok`, `joined` (`true` / `false`). The scale starts from `base`. `None` for anything else.
+fn plot_options<'h>(
+    cx: &NativeCx<'_, '_, 'h>,
+    o: T<'h>,
+    base: Scale,
+    joined_ok: bool,
+) -> Option<(Scale, bool)> {
     let h = cx.heap();
-    let View::App { head, args } = h.view(o) else { return None };
+    let View::App { head, args } = h.view(o) else {
+        return None;
+    };
     if head != h.sym_term(h.sym("options")) {
         return None;
     }
-    let mut joined = false;
+    let (mut scale, mut joined) = (base, false);
     for &r in args {
-        let View::App { head, args: kv } = h.view(r) else { return None };
-        if head != h.sym_term(h.sym(names::RULE)) || kv.len() != 2 || kv[0] != h.sym_term(h.sym("joined")) {
+        let View::App {
+            head,
+            args: &[k, v],
+        } = h.view(r)
+        else {
+            return None;
+        };
+        if head != h.sym_term(h.sym(names::RULE)) {
             return None;
         }
-        joined = kv[1] == h.sym_term(h.sym("true"));
+        let View::Sym(k) = h.view(k) else { return None };
+        match h.sym_name(k).as_str() {
+            "joined" if joined_ok => joined = v == h.sym_term(h.sym("true")),
+            "x_scale" => scale.x = axis_option(h, v)?,
+            "y_scale" => scale.y = axis_option(h, v)?,
+            _ => return None,
+        }
     }
-    Some(joined)
+    Some((scale, joined))
+}
+
+/// An axis scale: `linear`, `log`, `signed_log` (c = 1) or `signed_log(c)` with a number c > 0.
+fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
+    let num = |t: T<'_>| match h.view(t) {
+        View::Int(i) => Some(i as f64),
+        View::Real(x) => Some(x),
+        _ => None,
+    };
+    match h.view(v) {
+        View::Sym(s) => match h.sym_name(s).as_str() {
+            "linear" => Some(Axis::Linear),
+            "log" => Some(Axis::Log),
+            "signed_log" => Some(Axis::SignedLog(1.0)),
+            _ => None,
+        },
+        View::App { head, args: &[c] } if head == h.sym_term(h.sym("signed_log")) => num(c)
+            .filter(|c| *c > 0.0 && c.is_finite())
+            .map(Axis::SignedLog),
+        _ => None,
+    }
 }

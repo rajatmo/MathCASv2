@@ -24,7 +24,9 @@ fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
 }
 
 fn reals<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
-    let Some(items) = cx.as_list(t) else { return Ok(None) };
+    let Some(items) = cx.as_list(t) else {
+        return Ok(None);
+    };
     let mut v = Vec::with_capacity(items.len());
     for &x in items {
         match real(cx, x)? {
@@ -36,7 +38,11 @@ fn reals<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
 }
 
 fn bad<'h>(h: &'h mc_core::Heap, k: i64) -> Reply<'h> {
-    Reply::Done(failure(h, "argument", &[h.sym_term(h.sym("interpolation")), h.int(k)]))
+    Reply::Done(failure(
+        h,
+        "argument",
+        &[h.sym_term(h.sym("interpolation")), h.int(k)],
+    ))
 }
 
 impl Native for Interpolation {
@@ -50,7 +56,9 @@ impl Native for Interpolation {
             },
             _ => return Ok(Reply::Decline),
         };
-        let Some(items) = cx.as_list(data) else { return Ok(bad(h, 1)) };
+        let Some(items) = cx.as_list(data) else {
+            return Ok(bad(h, 1));
+        };
         let mut pts = Vec::with_capacity(items.len());
         for (i, &it) in items.iter().enumerate() {
             if i % 4096 == 0 {
@@ -73,20 +81,35 @@ impl Native for Interpolation {
         }
         let xs: Vec<f64> = pts.iter().map(|p| p.0).collect();
         let ys: Vec<f64> = pts.iter().map(|p| p.1).collect();
-        let ms = if linear || xs.len() < 3 { vec![0.0; xs.len()] } else { not_a_knot_spline(&xs, &ys) };
+        let ms = if linear || xs.len() < 3 {
+            vec![0.0; xs.len()]
+        } else {
+            not_a_knot_spline(&xs, &ys)
+        };
         let list = |v: &[f64]| h.reals(v);
-        Ok(Reply::Done(h.call(h.sym("interpolated"), &[list(&xs), list(&ys), list(&ms)])))
+        Ok(Reply::Done(h.call(
+            h.sym("interpolated"),
+            &[list(&xs), list(&ys), list(&ms)],
+        )))
     }
 }
 
 /// `options(method -> cubic | linear)`: `Some(true)` for linear.
 fn method<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<bool> {
     let h = cx.heap();
-    let View::App { head, args: &[r] } = h.view(o) else { return None };
+    let View::App { head, args: &[r] } = h.view(o) else {
+        return None;
+    };
     if head != h.sym_term(h.sym("options")) {
         return None;
     }
-    let View::App { head, args: &[k, v] } = h.view(r) else { return None };
+    let View::App {
+        head,
+        args: &[k, v],
+    } = h.view(r)
+    else {
+        return None;
+    };
     if head != h.sym_term(h.sym(names::RULE)) || k != h.sym_term(h.sym("method")) {
         return None;
     }
@@ -114,7 +137,8 @@ fn not_a_knot_spline(xs: &[f64], ys: &[f64]) -> Vec<f64> {
         return vec![2.0 * (slopes[1] - slopes[0]) / (xs[2] - xs[0]); 3];
     }
     // rows 1..=n-2 of the tridiagonal system: sub[i] M_{i-1} + diag[i] M_i + sup[i] M_{i+1} = rhs[i]
-    let (mut sub, mut diag, mut sup, mut rhs) = (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
+    let (mut sub, mut diag, mut sup, mut rhs) =
+        (vec![0.0; n], vec![0.0; n], vec![0.0; n], vec![0.0; n]);
     for i in 1..n - 1 {
         sub[i] = hs[i - 1];
         diag[i] = 2.0 * (hs[i - 1] + hs[i]);
@@ -151,17 +175,29 @@ pub(crate) struct Interpolated;
 impl Native for Interpolated {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
-        let View::App { args: &[xt, yt, mt], .. } = h.view(head) else { return Ok(Reply::Decline) };
-        let &[x] = args else { return Ok(Reply::Decline) };
-        // the nodes are packed arrays (64 points or more): read in place, no copy per call
-        let slice = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<std::borrow::Cow<'h, [f64]>>> {
-            if let Some(d) = h.packed(t).and_then(|p| p.reals()) {
-                return Ok(Some(std::borrow::Cow::Borrowed(d)));
-            }
-            Ok(reals(cx, t)?.map(std::borrow::Cow::Owned))
+        let View::App { head, .. } = h.view(t) else {
+            return Ok(Reply::Decline);
         };
-        let (Some(xs), Some(ys), Some(ms)) = (slice(cx, xt)?, slice(cx, yt)?, slice(cx, mt)?) else {
+        let View::App {
+            args: &[xt, yt, mt],
+            ..
+        } = h.view(head)
+        else {
+            return Ok(Reply::Decline);
+        };
+        let &[x] = args else {
+            return Ok(Reply::Decline);
+        };
+        // the nodes are packed arrays (64 points or more): read in place, no copy per call
+        let slice =
+            |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<std::borrow::Cow<'h, [f64]>>> {
+                if let Some(d) = h.packed(t).and_then(|p| p.reals()) {
+                    return Ok(Some(std::borrow::Cow::Borrowed(d)));
+                }
+                Ok(reals(cx, t)?.map(std::borrow::Cow::Owned))
+            };
+        let (Some(xs), Some(ys), Some(ms)) = (slice(cx, xt)?, slice(cx, yt)?, slice(cx, mt)?)
+        else {
             return Ok(Reply::Decline);
         };
         if xs.len() < 2 || xs.len() != ys.len() || xs.len() != ms.len() {
@@ -194,9 +230,17 @@ impl Native for Interpolated {
 }
 
 /// The interpolant at `x` (a failure outside the data's range), or `None` for a symbolic `x`.
-fn value_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[f64], ys: &[f64], ms: &[f64], x: T<'h>) -> Res<Option<T<'h>>> {
+fn value_at<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    xs: &[f64],
+    ys: &[f64],
+    ms: &[f64],
+    x: T<'h>,
+) -> Res<Option<T<'h>>> {
     let h = cx.heap();
-    let Some(xv) = real(cx, x)? else { return Ok(None) };
+    let Some(xv) = real(cx, x)? else {
+        return Ok(None);
+    };
     let (lo, hi) = (xs[0], xs[xs.len() - 1]);
     if !(lo..=hi).contains(&xv) {
         let dom = h.call(h.sym(names::LIST), &[h.real(lo), h.real(hi)]);
@@ -223,7 +267,11 @@ mod tests {
     fn the_spline_of_a_cubic_is_the_cubic() {
         let p = |x: f64| 2.0 * x * x * x - 3.0 * x * x + 0.5 * x - 7.0;
         let p2 = |x: f64| 12.0 * x - 6.0;
-        for xs in [vec![0.0, 1.0, 2.5, 4.0], vec![-1.0, -0.2, 0.3, 1.1, 2.0, 3.7, 4.0], vec![0.0, 0.5, 1.0, 1.5, 2.0]] {
+        for xs in [
+            vec![0.0, 1.0, 2.5, 4.0],
+            vec![-1.0, -0.2, 0.3, 1.1, 2.0, 3.7, 4.0],
+            vec![0.0, 0.5, 1.0, 1.5, 2.0],
+        ] {
             let ys: Vec<f64> = xs.iter().map(|&x| p(x)).collect();
             let ms = not_a_knot_spline(&xs, &ys);
             for (x, m) in xs.iter().zip(&ms) {
@@ -242,7 +290,9 @@ mod tests {
     fn three_points_give_the_parabola() {
         let xs = [0.0, 1.0, 3.0];
         let ys: Vec<f64> = xs.iter().map(|x| 1.5 * x * x - x + 2.0).collect();
-        assert!(not_a_knot_spline(&xs, &ys).iter().all(|m| (m - 3.0).abs() < 1e-12));
+        assert!(not_a_knot_spline(&xs, &ys)
+            .iter()
+            .all(|m| (m - 3.0).abs() < 1e-12));
     }
 
     /// A function with curvature at the end of the table (y = x^2 + x^3 near 0, y''(0) = 2) is followed between the
