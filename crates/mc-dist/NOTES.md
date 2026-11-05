@@ -66,6 +66,9 @@ JIT) and `mc-lsp`; test expectations in `crates/mc-repl/tests/sessions/modules.t
 - **DI.10** Kurtosis is plain (3 for a normal), not excess.
 - **DI.11** A moment that does not exist gives `failure(undefined, f, d)`, an infinite one `inf`; with symbolic
   parameters existence is assumed. `std_dev` gives sigma, (b - a)/sqrt(12), 1/l, sqrt(k) theta directly.
+- **DI.12** A data matrix (a list of rows of one length, or a packed array of rank 2) gives the list of the
+  statistics of its columns: `mean`, `variance`, `std_dev`, `skewness`, `kurtosis`, `median`, `quantile`, `moment`,
+  `central_moment` (`mean([[1, 2], [3, 4]])` is `[2, 3]`; `quantile(m, [q1, q2])` is one list per column).
 
 ## Accuracy and tests
 

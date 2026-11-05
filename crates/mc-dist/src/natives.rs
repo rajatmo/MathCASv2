@@ -611,9 +611,57 @@ fn dyadic_rat(neg: bool, man: Nat, e: i64) -> Rat {
     }
 }
 
+/// The columns of a data matrix: a list of rows that are lists of one length (at least 1), or a packed array of
+/// rank 2. `None` for anything else (a flat data list among them).
+fn columns<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Vec<T<'h>>> {
+    let h = cx.heap();
+    if let Some(Packed::Reals { dims: &[n, m], data }) = h.packed(t) {
+        let (n, m) = (n as usize, m as usize);
+        return Some((0..m).map(|j| h.reals(&(0..n).map(|i| data[i * m + j]).collect::<Vec<f64>>())).collect());
+    }
+    let rows = cx.as_list(t)?;
+    let first = cx.as_list(*rows.first()?)?;
+    let m = first.len();
+    if m == 0 {
+        return None;
+    }
+    let mut cols: Vec<Vec<T<'h>>> = vec![Vec::with_capacity(rows.len()); m];
+    for &r in rows {
+        let r = cx.as_list(r).filter(|r| r.len() == m)?;
+        for (c, &x) in cols.iter_mut().zip(r) {
+            c.push(x);
+        }
+    }
+    Some(cols.iter().map(|c| cx.list(c)).collect())
+}
+
 impl Native for DistNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        // a statistic of a data matrix is the list of the statistics of its columns (DI.12)
+        let column_wise = matches!(
+            self.f,
+            Fun::Mean | Fun::Variance | Fun::StdDev | Fun::Skewness | Fun::Kurtosis | Fun::Median | Fun::Quantile | Fun::Moment | Fun::CentralMoment
+        );
+        if let (true, Some(&xs)) = (column_wise, args.first()) {
+            if let Some(cols) = columns(cx, xs) {
+                cx.tick(cols.len() as u64)?;
+                let b = B::new(h);
+                let calls: Vec<T<'h>> = cols
+                    .into_iter()
+                    .map(|c| {
+                        let mut a = vec![c];
+                        a.extend_from_slice(&args[1..]);
+                        b.call(self.name, &a)
+                    })
+                    .collect();
+                return Ok(Reply::Again(cx.list(&calls)));
+            }
+            // rows of different lengths are not data
+            if cx.as_list(xs).is_some_and(|items| items.iter().any(|&x| cx.as_list(x).is_some())) {
+                return Ok(Reply::Decline);
+            }
+        }
         let is_data = |t: T<'h>| cx.as_list(t).is_some() || h.packed(t).is_some();
         match (self.f, args) {
             (Fun::Pdf, &[d, x]) => self.point(cx, Point::Pdf, d, x),
