@@ -12,14 +12,14 @@ fn start(text: &str) -> Editor {
     Editor::new(Row::text(text))
 }
 
-/// A structure command at the end of `text`, then `Q`, `Ctrl+Space`, `Z`.
+/// A structure command at the end of `text`, then `Q`, `Ctrl+Space`; `Z` marks where the caret is then (the
+/// design's tables type a `Z` there; typing it would now put an implicit `*` before it, see `implicit_times`).
 fn run(text: &str, s: Structure) -> String {
     let mut ed = start(text);
     assert!(ed.structure(s));
     ed.insert_char('Q');
     assert!(ed.exit_structure());
-    ed.insert_char('Z');
-    ed.notation().replace('▮', "")
+    ed.notation().replace('▮', "Z")
 }
 
 #[test]
@@ -27,15 +27,15 @@ fn structure_table() {
     use Structure::*;
     let cols = [Fraction, Superscript, Subscript, Radical, GridRow, GridColumn];
     let table: &[(&str, [&str; 6])] = &[
-        ("1+x", ["1+(x/Q)Z", "1+(x^Q)Z", "1+(x_Q)Z", "1+x√(Q)Z", "1+grid[[x],[Q]]Z", "1+grid[[x,Q]]Z"]),
-        ("f(x)", ["(f(x)/Q)Z", "(f(x)^Q)Z", "(f(x)_Q)Z", "f(x)√(Q)Z", "grid[[f(x)],[Q]]Z", "grid[[f(x),Q]]Z"]),
-        ("a*b", ["a*(b/Q)Z", "a*(b^Q)Z", "a*(b_Q)Z", "a*b√(Q)Z", "a*grid[[b],[Q]]Z", "a*grid[[b,Q]]Z"]),
-        ("(a+b)", ["((a+b)/Q)Z", "((a+b)^Q)Z", "((a+b)_Q)Z", "(a+b)√(Q)Z", "grid[[(a+b)],[Q]]Z", "grid[[(a+b),Q]]Z"]),
-        ("[a, b]", ["([a, b]/Q)Z", "([a, b]^Q)Z", "([a, b]_Q)Z", "[a, b]√(Q)Z", "grid[[[a, b]],[Q]]Z", "grid[[[a, b],Q]]Z"]),
+        ("1+x", ["1+(x/Q)Z", "1+(x^Q)Z", "1+(x_Q)Z", "1+x*√(Q)Z", "1+grid[[x],[Q]]Z", "1+grid[[x,Q]]Z"]),
+        ("f(x)", ["(f(x)/Q)Z", "(f(x)^Q)Z", "(f(x)_Q)Z", "f(x)*√(Q)Z", "grid[[f(x)],[Q]]Z", "grid[[f(x),Q]]Z"]),
+        ("a*b", ["a*(b/Q)Z", "a*(b^Q)Z", "a*(b_Q)Z", "a*b*√(Q)Z", "a*grid[[b],[Q]]Z", "a*grid[[b,Q]]Z"]),
+        ("(a+b)", ["((a+b)/Q)Z", "((a+b)^Q)Z", "((a+b)_Q)Z", "(a+b)*√(Q)Z", "grid[[(a+b)],[Q]]Z", "grid[[(a+b),Q]]Z"]),
+        ("[a, b]", ["([a, b]/Q)Z", "([a, b]^Q)Z", "([a, b]_Q)Z", "[a, b]*√(Q)Z", "grid[[[a, b]],[Q]]Z", "grid[[[a, b],Q]]Z"]),
         // a subscript on a superscript box wraps the base in parentheses; a superscript nests
-        ("x^2 (box)", ["((x^2)/Q)Z", "((x^2)^Q)Z", "(((x^2))_Q)Z", "(x^2)√(Q)Z", "grid[[(x^2)],[Q]]Z", "grid[[(x^2),Q]]Z"]),
+        ("x^2 (box)", ["((x^2)/Q)Z", "((x^2)^Q)Z", "(((x^2))_Q)Z", "(x^2)*√(Q)Z", "grid[[(x^2)],[Q]]Z", "grid[[(x^2),Q]]Z"]),
         ("", ["(Q/□)Z", "(Q^□)Z", "(Q_□)Z", "√(Q)Z", "grid[[□],[Q]]Z", "grid[[□,Q]]Z"]),
-        ("x+", ["x+(Q/□)Z", "x(+^Q)Z", "x(+_Q)Z", "x+√(Q)Z", "grid[[x+],[Q]]Z", "grid[[x+,Q]]Z"]),
+        ("x+", ["x+(Q/□)Z", "x*(+^Q)Z", "x*(+_Q)Z", "x+√(Q)Z", "grid[[x+],[Q]]Z", "grid[[x+,Q]]Z"]),
     ];
     let mut n = 0;
     for (text, expected) in table {
@@ -53,7 +53,7 @@ fn over_and_under_take_what_superscript_takes() {
         assert_eq!(run("1+x", s), format!("1+(x {word} Q)Z"));
         assert_eq!(run("f(x)", s), format!("(f(x) {word} Q)Z"));
         assert_eq!(run("", s), format!("(Q {word} □)Z"));
-        assert_eq!(run("x+", s), format!("x(+ {word} Q)Z"));
+        assert_eq!(run("x+", s), format!("x*(+ {word} Q)Z"));
     }
 }
 
@@ -67,7 +67,7 @@ fn operands_are_primaries() {
         ("f''", "(f''^Q)Z"),
         ("a + \"s\"", "a + (\"s\"^Q)Z"),
         ("m[1]", "(m[1]^Q)Z"),
-        ("x ", "x (Q^□)Z"),
+        ("x ", "x *(Q^□)Z"),
     ] {
         assert_eq!(run(text, Structure::Superscript), want, "{text}");
     }
@@ -270,11 +270,11 @@ fn aliases_and_templates() {
     assert_eq!(ed.escape(), AliasOutcome::Started);
     ed.insert_text("intt");
     assert_eq!(ed.escape(), AliasOutcome::Replaced);
-    assert_eq!(ed.notation(), "x = α∫[□](⟦□⟧)");
+    assert_eq!(ed.notation(), "x = α*∫[□](⟦□⟧)");
     ed.insert_char('f');
     ed.next_placeholder();
     ed.insert_char('t');
-    assert_eq!(ed.text(), "x = α((integrate(f, t)))");
+    assert_eq!(ed.text(), "x = α*((integrate(f, t)))");
     // an unknown alias stays, marked, until edited
     let mut ed = Editor::new(Row::new());
     ed.escape();
@@ -316,4 +316,43 @@ fn paste_cut_and_text_round_trip() {
     let t = ed.text();
     assert_eq!(Editor::from_text(&t).root(), ed.root());
     assert!(matches!(ed.root().0.last(), Some(Item::Box(_))));
+}
+
+/// Implicit multiplication: a `*` goes where a box would touch an operand (a name, a closing bracket, a prime, a
+/// string, a box; after a box also a number or `(`), so the text never reads as a call or fails to read; a number
+/// before a box is left alone (`2√2` already multiplies), and the caret stays right after what was typed.
+#[test]
+fn implicit_times_between_boxes_and_operands() {
+    let typed = |text: &str, s: Structure, after: &str| {
+        let mut ed = Editor::from_text(text);
+        assert!(ed.structure(s));
+        ed.insert_char('Q');
+        assert!(ed.exit_structure());
+        ed.insert_text(after);
+        ed.notation()
+    };
+    assert_eq!(typed("x", Structure::Radical, ""), "x*√(Q)▮");
+    assert_eq!(typed("2", Structure::Radical, ""), "2√(Q)▮");
+    assert_eq!(typed("x2", Structure::Radical, ""), "x2*√(Q)▮");
+    assert_eq!(typed("f(a)", Structure::Radical, ""), "f(a)*√(Q)▮");
+    assert_eq!(typed("x+", Structure::Radical, ""), "x+√(Q)▮");
+    assert_eq!(typed("", Structure::Radical, "y"), "√(Q)*y▮");
+    assert_eq!(typed("", Structure::Radical, "(y)"), "√(Q)*(y)▮");
+    assert_eq!(typed("", Structure::Radical, "2"), "√(Q)*2▮");
+    assert_eq!(typed("", Structure::Radical, "+y"), "√(Q)+y▮");
+    assert_eq!(typed("", Structure::Radical, "[1]"), "√(Q)[1]▮");
+    assert_eq!(typed("", Structure::Radical, " y"), "√(Q)* y▮");
+    // a box after a box
+    let mut ed = Editor::from_text("((sqrt(a)))");
+    assert!(ed.structure(Structure::Radical));
+    assert_eq!(ed.notation(), "√(a)*√(▮□)");
+    // typing in front of a box: the `*` follows the caret
+    let mut ed = Editor::from_text("((sqrt(a)))");
+    ed.move_home(false);
+    ed.insert_char('k');
+    assert_eq!(ed.notation(), "k▮*√(a)");
+    ed.insert_char('2');
+    assert_eq!(ed.notation(), "k2▮*√(a)");
+    // the text reads as a product
+    assert_eq!(ed.text(), "k2*((sqrt(a)))");
 }

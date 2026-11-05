@@ -64,6 +64,12 @@ Design `docs/design/08-notebook.md` section 4 and 3.9. Dependencies: `mc-syntax`
 12. `((image("p")))` is the canonical form of a graphic box (missing from the 4.4 table).
 13. `typeset_output`/`typeset_input` parse on a scoped thread with 32 MB stack; all other recursion is bounded by
     `MAX_NESTING`.
+14. Implicit multiplication (user decision): wherever an insertion (typing, paste, template, structure command)
+    makes a box touch an operand, the editor inserts a visible `*` (`Editor::implicit_times`): before a box after a
+    name, closing bracket, prime, string or box; after a box before a name, number, `(` or string (spaces between
+    skipped). A number before a box is left alone (`2√2` already multiplies) and `[` after a box stays an index.
+    Without it `x((sqrt(Q)))` would read as the call `x(sqrt(Q))`, `((sqrt(Q)))(y)` would call the root and
+    `((sqrt(Q)))x` would not read. The caret stays right after what was typed.
 
 ## Tests
 
@@ -82,8 +88,6 @@ read canonical text 6.6 us.
 
 ## Known gaps
 
-- Design question: a box right after a name or closing bracket reads as a call (`x((sqrt(Q)))` is `x(sqrt(Q))`),
-  where the reference front end multiplies; decide: show as a call, or have the editor insert `*`.
 - A slot whose own text has unbalanced brackets outside strings does not reload as the same tree.
 - For "edit output as typeset input" use `typeset_input(printed)` (the output form has display substitutions that
   are not valid input); copy outputs from their printed text.

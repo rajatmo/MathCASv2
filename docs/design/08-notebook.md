@@ -1362,3 +1362,6 @@ To check by hand in the reference front end; each guess is what this spec implem
 - **NB.10** Indentation in input cells is visual; files store exactly what was typed.
 - **NB.11** Every behaviour is a `Command` on the model and tested with key scripts; golden screenshots are local.
 - **NB.12** v1's MATH-table code, STIX Two Math, palette and keymap design are reused; its editor and app code are not.
+- **NB.13** Implicit multiplication in typeset input (user decision): where a box would touch an operand, the box
+  editor inserts a visible `*` (`x*√Q`, `√Q*y`), so canonical text never reads as a call; a number before a box
+  needs none (`2√2`).

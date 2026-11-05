@@ -215,22 +215,60 @@ impl Editor {
     }
 
     /// Inserts items at the caret, replacing the selection or a slot's lone placeholder; the caret goes after them.
-    fn insert_items(&mut self, items: Vec<Item>) {
+    /// Returns where the inserted items start (after a `*` put in front of them, see [`Editor::implicit_times`]).
+    fn insert_items(&mut self, items: Vec<Item>) -> usize {
         self.delete_selection();
         self.unknown = None;
         let offset = self.caret.offset;
+        let path = self.caret.path.clone();
         let row = self.row_mut();
         if row.is_placeholder() && !items.is_empty() {
             row.0.clear();
             let n = items.len();
             row.0.extend(items);
             self.caret.offset = n;
-            return;
+            return 0;
         }
         let at = offset.min(row.len());
         let n = items.len();
         row.0.splice(at..at, items);
         self.caret.offset = at + n;
+        self.implicit_times(&path, at, at + n)
+    }
+
+    /// Implicit multiplication (a user decision for the box editor): where newly inserted items `start..end` of the
+    /// row at `path` make a box touch an operand, a `*` goes between them, since the text would otherwise read as a
+    /// call (`x((sqrt(Q)))` is `x(sqrt(Q))`, `((sqrt(Q)))(y)` calls the root) or not read at all (`((sqrt(Q)))x`).
+    /// The caret keeps its place relative to what was typed. Returns the start of the inserted items afterwards.
+    fn implicit_times(&mut self, path: &RowPath, start: usize, end: usize) -> usize {
+        let Some(row) = self.root.at(path) else { return start };
+        let at_end = needs_times(row, end);
+        let at_start = needs_times(row, start);
+        if at_end {
+            // the caret stays before this `*` (right after what was typed)
+            self.insert_times(path, end, false);
+        }
+        if at_start {
+            self.insert_times(path, start, true);
+            return start + 1;
+        }
+        start
+    }
+
+    /// Inserts a `*` at `i` in the row at `path`, moving the caret along when it is after `i` (or at `i` and
+    /// `shift_at` holds) or inside a box at or after `i`.
+    fn insert_times(&mut self, path: &RowPath, i: usize, shift_at: bool) {
+        let Some(row) = self.root.at_mut(path) else { return };
+        // a space before the boundary stays before the `*`, so `((sqrt(Q))) x` becomes `((sqrt(Q))) *x`
+        row.0.insert(i, Item::Char('*'));
+        let d = path.len();
+        if self.caret.path.len() > d && self.caret.path[..d] == path[..] {
+            if self.caret.path[d].item >= i {
+                self.caret.path[d].item += 1;
+            }
+        } else if self.caret.path == *path && (self.caret.offset > i || (shift_at && self.caret.offset == i)) {
+            self.caret.offset += 1;
+        }
     }
 
     /// Types a character (`□` inserts a placeholder).
@@ -267,10 +305,8 @@ impl Editor {
         }
         let base_path = self.caret.path.clone();
         self.delete_selection();
-        let replaced_placeholder = self.row().is_placeholder();
-        let start = if replaced_placeholder { 0 } else { self.caret.offset };
         let n = row.len();
-        self.insert_items(row.0);
+        let start = self.insert_items(row.0);
         match mark {
             Some((mut p, k)) => {
                 if let Some(first) = p.first_mut() {
@@ -706,12 +742,14 @@ impl Editor {
         };
         let end = if replacing_placeholder { 0 } else { end };
         row.0.splice(at..end, [Item::Box(Box::new(node))]);
-        let mut p = self.caret.path.clone();
+        let row_path = self.caret.path.clone();
+        let mut p = row_path.clone();
         p.push(Step { item: at, slot });
         let slot_row = self.root.at(&p).cloned().unwrap_or_default();
         // a radical over a selection leaves the caret at the end of the radicand
         let offset = if s == Structure::Radical && has { slot_row.len() } else { 0 };
         self.caret = Caret { path: p, offset };
+        self.implicit_times(&row_path, at, at + 1);
         true
     }
 
@@ -981,6 +1019,41 @@ impl Editor {
 }
 
 /// The start of the primary ending at `k` in `row`, if any.
+/// Whether a `*` belongs at the boundary before item `j` of `row`: a box meets an operand across it (spaces and tabs
+/// between them skipped). Left of a box: a box, a closing bracket, a prime, a string or an identifier (a number is
+/// left alone: `2((sqrt(2)))` already multiplies). Right of a box: a box, an identifier or number, `(` or a string
+/// (`[` after a box is an index).
+fn needs_times(row: &Row, j: usize) -> bool {
+    if j == 0 || j > row.len() {
+        return false;
+    }
+    let blank = |it: &Item| matches!(it, Item::Char(' ' | '\t'));
+    let Some(l) = (0..j).rev().find(|&i| !blank(&row.0[i])) else { return false };
+    let Some(r) = (j..row.len()).find(|&i| !blank(&row.0[i])) else { return false };
+    // only the boundary itself, or the spaces next to it, may separate them
+    if !(l + 1 == j || r == j) {
+        return false;
+    }
+    let left_box = matches!(row.0[l], Item::Box(_));
+    let right_box = matches!(row.0[r], Item::Box(_));
+    let left_end = match row.0[l] {
+        Item::Box(_) => true,
+        Item::Char(c) if is_close(c) || c == '\'' || c == '"' => true,
+        Item::Char(c) if is_word(c) => {
+            // an identifier, not a number: its first character is not a digit
+            let s = word_start(row, l + 1);
+            matches!(row.0[s], Item::Char(f) if !f.is_ascii_digit() && f != '.')
+        }
+        _ => false,
+    };
+    let right_start = match row.0[r] {
+        Item::Box(_) => true,
+        Item::Char(c) => is_word(c) || c == '(' || c == '"',
+        Item::Placeholder => false,
+    };
+    (right_box && left_end) || (left_box && right_start)
+}
+
 fn primary_before(row: &Row, k: usize) -> Option<Range<usize>> {
     if k == 0 {
         return None;
