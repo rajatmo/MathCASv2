@@ -765,6 +765,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-numeric",
  "rustc-hash",
 ]
 
