@@ -108,6 +108,12 @@ fn steed(mu: f64, x: DD) -> (Scaled, Scaled) {
         q1 = q2;
         q2 = qnew;
         q = q.add(c.mul(qnew));
+        if q2.hi.abs() < 1e-200 {
+            // q_k decay while c_k grow; only the products c_k q_k matter
+            q1 = q1.mul_f(1e200);
+            q2 = q2.mul_f(1e200);
+            c = c.mul_f(1e-200);
+        }
         b = b.add_f(2.0);
         d = b.add(a.mul(d)).recip();
         delh = b.mul(d).add_f(-1.0).mul(delh);

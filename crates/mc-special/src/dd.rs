@@ -3,9 +3,9 @@
 //! dominated by that final rounding (decision SF.3).
 //!
 //! The error-free transformations are Knuth's two-sum and Dekker's product with Veltkamp splitting (no fused
-//! multiply-add: the default x86-64 target has none, and a library `fma` call is slow). Values are kept well inside
-//! the exponent range (|x| < 2^995, where the split cannot overflow); [`Scaled`] carries an extra binary exponent for
-//! results that would leave it.
+//! multiply-add: the default x86-64 target has none, and a library `fma` call is slow); the split of values above
+//! 2^995 works on a scaled copy. [`Scaled`] carries an extra binary exponent for results that would leave the double
+//! range.
 
 /// A double-double number hi + lo.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,6 +42,11 @@ fn quick_two_sum(a: f64, b: f64) -> (f64, f64) {
 
 #[inline]
 fn split(a: f64) -> (f64, f64) {
+    if a.abs() > 6.7e299 {
+        // 134217729 a would overflow: split a scaled copy (exact powers of two)
+        let (h, l) = split(a * 3.725_290_298_461_914e-9);
+        return (h * 268_435_456.0, l * 268_435_456.0);
+    }
     let c = 134_217_729.0 * a;
     let h = c - (c - a);
     (h, a - h)
