@@ -134,7 +134,7 @@ pub(crate) fn solve<'h, S: Scalar>(
 }
 
 /// Backtracking from the full step `d`: the first point x + t d (t = 1, 1/2, ...) with a numeric residual and
-/// |f|^2 <= (1 - 2 ALPHA t) phi.
+/// |f|^2 <= (1 - 2 ALPHA t) phi; none once the step no longer moves x.
 fn line_search<'h, S: Scalar>(
     cx: &mut NativeCx<'_, '_, 'h>,
     f: &mut dyn NumFn<'h, S>,
@@ -149,6 +149,10 @@ fn line_search<'h, S: Scalar>(
         cx.tick(1)?;
         let mut xt: Vec<S> = x.iter().zip(d).map(|(&a, &b)| a + S::real(t) * b).collect();
         project(&mut xt, bounds);
+        // a step too small to move x (at a root, at the noise level of f): halving it further cannot help
+        if xt.iter().zip(x).all(|(&a, &b)| (a - b).abs() == 0.0) {
+            break;
+        }
         if all_finite(&xt) && f.eval(cx, &xt, &mut ft)? && norm2(&ft) <= (1.0 - 2.0 * ALPHA * t) * phi {
             return Ok(Some((xt, ft)));
         }

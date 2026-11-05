@@ -35,7 +35,8 @@ dev `mc-engine`, `mc-bench`. Registration lines in `mc-engine` and `mc-lsp` only
 ## Decisions
 
 - **R.1** `lhs == rhs` stands for `lhs - rhs`; residuals must be scalars.
-- **R.2** Damped Newton by backtracking (sufficient decrease 1 - 2e-4 t, at most 40 halvings); a singular Jacobian
+- **R.2** Damped Newton by backtracking (sufficient decrease 1 - 2e-4 t, at most 40 halvings, none once the step no
+  longer moves x: at a root f is at its noise level and no halving decreases it); a singular Jacobian
   takes a Levenberg-Marquardt step.
 - **R.3** Convergence: error estimate is the last step; goals max(10^-accuracy_goal, 10^-precision_goal \|x\|); the
   residual must also be small, which rejects poles and jumps (`tan(x)` on [1, 2]).
