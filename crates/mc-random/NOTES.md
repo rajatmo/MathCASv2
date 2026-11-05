@@ -191,3 +191,32 @@ The generator costs under 10 ns per word.
 ## Package N4b
 
 Compiled draws: `Stream::real_in`, `normal_scaled`, `int_in` and `draw::real_range_ok`, `normal_ok` are the conversions the natives and the compiled helpers share, so compiled and interpreted draws agree bit for bit. Gap 2 above is done; see `crates/mc-jit/NOTES.md`, section "Package N4b".
+
+## Round 7 package P: producers build payloads
+
+`random_real`, `random_normal` and `random_integer` (when the range fits machine integers) with a count `n` or a shape
+`[n1, ...]` draw into a plain number buffer (reserved exactly when the allocator allows) and build the result with
+`Store::real_array` / `int_array`, packed whenever the packing rule says so. Scalar draws, big-integer ranges and
+`random_choice` still build element terms. Nested results go through `mc_api::packed::build_nested` (replacing the
+crate's own `nest`, `nest_empty`). Draw order, fuel per element and failures are unchanged.
+
+**P.1** Packing is canonical, so the result is the same handle as the old element-by-element build.
+
+Tests (`tests/producers.rs`, 6, written and passing on the old code first): uniform, normal and integer lists are bit
+for bit the session stream at sizes 0-1001 (around the packing threshold) and several ranges (`[0, pi]`, the full i64
+range); big ranges still give big integers; shapes are row-major, empty dimensions give nested empty lists; packed
+results equal the same draws made one at a time (`table`, `===`); identical at 1 and 4 threads and under the stress
+collector.
+
+Measurements (`cargo run -p mc-random --example producers -- <case>`, n = 10^7, one case per process):
+
+| statement | before | after |
+|---|---|---|
+| `random_real(1.0, n)` | 1551 ms, peak 965 MB | 91 ms, peak 158 MB |
+| `random_real([-1, 1], n)` | 1558 ms, 967 MB | 91 ms, 160 MB |
+| `random_normal(0, 1, n)` | 1650 ms, 965 MB | 158 ms, 158 MB |
+| `random_integer([1, 6], n)` | 114 ms, 147 MB | 99 ms, 160 MB |
+| `random_real(1.0, [n/100, 100])` | 1614 ms, 1052 MB | 91 ms, 160 MB |
+
+The peak is the 80 MB payload plus the store's copy (an owned packed constructor in mc-core would halve it). The
+compiled-code half of package P is in `crates/mc-jit/NOTES.md`, section "Round 7 package P".

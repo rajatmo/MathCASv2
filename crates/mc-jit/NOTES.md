@@ -354,3 +354,87 @@ loop). Parallel split of a Mandelbrot expression, 40,000 points: 1.7x at 2 threa
 - Bench: `--only` takes one id per guard call (guard splits arguments on commas).
 - One fail-fast run saw `mc-calculus/tests/apart.rs::interruption` panic once ("division by the zero polynomial" in
   `mc-poly`); it passed on every rerun: likely the known stop-flag race in the arithmetic.
+
+## Round 7 package P: vectors in compiled code
+
+Status: merged (branch `lib/r7-p`, commits 0ba66f8, dcbeaf7, b86a291, from main 216fdea). On the branch: full suite
+781 passed, 0 failed, 6 ignored; clippy clean. The mc-random half is described in `crates/mc-random/NOTES.md`
+("Round 7 package P").
+
+### What was built
+
+Compiled functions take vectors of run-time length. An **untyped parameter** of a compiled function is a vector of
+machine numbers; the function compiles one variant per leaf type (reals, integers), whichever compile. A call reads
+a packed payload without unpacking; a short list of all machine reals or all machine integers is copied element by
+element. On a vector `v`: `v[i]` with any integer index (negative from the end as `part`; declines outside),
+`length(v)`, `sum(v)`, `total(v)`, `for x in v`, passing `v` to an inlined function's untyped parameter,
+`let w = v`, `if c then v else w`, and `table(e, n)`, `table(e, k, n)`, `table(e, k, v)` of machine numbers (a new
+vector inside the call). A vector result comes back as one packed array (`real_array`/`int_array`). Refused with a
+reason: arithmetic on vectors, vectors inside list literals, `var` vectors, `table` of lists or booleans, nested
+`table` iterators. New IR: HIR `E::Elem`, `E::VSum`, `S::VNew`, `S::Store`, `S::VOut`; LIR (both back ends) `Load`,
+`Store`, `VNew`, `VOut`, `VSum`; run-time `rt::vec_new`, `vec_out`, `vsum_real`, `vsum_int`, `sum_reals`, `sum_ints`,
+`MAX_VECTOR`.
+
+### Decisions
+
+- **P.2 Vector parameter = untyped parameter.** mc-eval's pattern types have no list type (`type_of` accepts scalar
+  names only; `v: List`, `v: Reals`, `v: List[Real]` are `DefError::UnknownType`), so until that changes an untyped
+  parameter of a compiled function is a vector; using it as a number is refused ("a vector where a number is
+  expected ..."; the old "has no type (Int or Real)" message is gone, `tests/engine.rs` updated).
+- **P.3 One variant per leaf type**: the real-leaf variant compiles first; the integer-leaf variant too when the
+  function has vector parameters or the first failed; all vectors of one call share one leaf type, which selects the
+  variant (mixed leaf types decline). `compiled_info` shows `params -> ["List[Real]"]`, `vector_leaves -> [Real, Int]`.
+- **P.4 `table` follows the library**: computed in order (k = 1..n or over the vector); `table(e, k, n)` with n <= 0
+  is `[]`; `table(e, n)` with n < 0 or above 2^26 (`MAX_CELLS`) declines so the interpreter gives the failure.
+- **P.5 Non-packed arguments**: a packed rank-1 payload is borrowed for the call; a compound list of at least one
+  element, all machine reals or all machine integers, is copied (always under 64 leaves, longer ones are packed);
+  everything else declines (empty lists, mixed leaves, big integers, matrices, numbers).
+- **P.6 Vector results** are moved out of the call's environment (copied when the result is an argument's own
+  payload) and built as one packed array.
+- **P.7 `sum`/`total` of a vector** are exactly the library's: integers summed exactly in 128 bits (decline if not
+  `i64`); reals sorted ascending then folded from +0.0 (decline on NaN or an empty vector); fuel n/4 charged through
+  the host poll first.
+- **P.8** Index checks are lowered to existing operations (wrapping add, select, compare, bail) followed by an
+  unchecked `Load`; a `Store` is checked against the length too.
+
+### API additions (mc-jit)
+
+`front::{Param, Input, front_vectors}`; `FnDef.params: Vec<(Sym, Param)>` (was `(Sym, Ty)`, used only in mc-jit);
+`Front.inputs`, `Shape::Vector(Ty)`, `Info.inputs`; `Built::call_vector`, `Env::take_result`; the IR and run-time
+items above; re-exports `Input`, `Param`; `compile_expr` refuses vector results; `compile`'s `FUNCTIONS` text
+mentions vector parameters.
+
+### Tests
+
+`mc-jit/tests/packed.rs` (6): 15 functions x 75 calls agree with the interpreter on Cranelift and on the LIR
+interpreter (packed and short vectors of reals and integers, -0.0, NaN, near-`i64::MAX` overflow, out-of-range and
+`i64::MIN` indices, empty, mixed, matrix and number arguments; all ran compiled, decline counts checked); same at 4
+threads and inside `map` on speculative tasks; variants and `compiled_info`; 10 refusals with reasons; the statistics
+kernel with seeded draws equals the interpreter; fuel stops vector loops, `table` and `sum` at 1 and 4 threads.
+
+### Measurements (`cargo run -p mc-jit --example moments -- 10000000 3 100000`, memo off)
+
+| case | interpreted | compiled |
+|---|---|---|
+| `mc(n)`: draw, mean, variance via `table` and `sum`, n = 10^7 | about 50 s (scaled from 10^5) | 0.887 s |
+| `mc(10^5)` | 0.511 s | 9.9 ms (52x, equal values) |
+| `moments(w)`, indexed two-pass loop, 10^5 packed | 1.018 s | 6.6 ms (154x) |
+| `moments(v)`, 10^7 packed | | 1.48 s, of which 1.32 s is the call itself (gap 1); the loop about 0.16 s (8 ns per iteration, `powf` for `^2`) |
+
+### Known gaps
+
+1. **Call overhead in mc-eval**: calling any named function with a 10^7 packed argument costs about 1.3-1.5 s before
+   the body runs (interpreted `fn one(x) = 1` 1.5 s; compiled `fn vl(v) = length(v)` 1.4 s; a closure call 0.2 ms;
+   `length(v)` 0.2 ms): probably an unpacking `view` on the named-call path. `[v]` repacks the payload into a rank-2
+   array (copying it), by the packing rule.
+2. Vectors only (rank 1): no matrices, no variable index into a list of compile-time length, no arithmetic on
+   vectors, no `var` vectors.
+3. A vector argument with mixed integer and real leaves, or an empty list, declines.
+4. `x^2` stays a `powf` call to match the interpreter bit for bit (J.1).
+5. `sum` on a vector sorts a copy (as the library): O(n log n) and a transient copy.
+6. Draws inside compiled code never run in parallel (as N4b).
+7. With several vector parameters only the all-real and all-integer variants exist.
+8. Needs: mc-eval `type_of` accepting `List[Real]` / `List[Int]` (04-syntax section 9) for typed vector parameters;
+   mc-core an owned packed constructor (`real_array_owned(dims, Vec<f64>)`, as `intern_owned`), since `array_of`
+   copies the leaves (producer and result peaks about 2x the payload); a safe point must not run inside `cx.tick`
+   while compiled code holds payload borrows.
