@@ -159,7 +159,7 @@ impl Native for DerivativeAt {
         if let Some(g) = interpolating_derivative(&b, f, &orders) {
             return Ok(Reply::Again(h.app(g, args)));
         }
-        let known = b.sym_of(f).is_some_and(|s| crate::rules::partials(&h.sym_name(s), args.len()).is_some());
+        let known = b.sym_of(f).is_some_and(|s| crate::rules::resolvable(&h.sym_name(s), &orders));
         if !known {
             return Ok(Reply::Decline);
         }

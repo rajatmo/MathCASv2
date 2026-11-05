@@ -11,7 +11,7 @@
 //! valid away from the breakpoints (v2 has no distributions); `abs(u)` differentiates to `sign(u) u'`; `re`, `im_part`
 //! and `conjugate` commute with differentiation (they are linear over the reals).
 use crate::term::Build;
-use mc_api::T;
+use mc_api::{Store, T};
 
 /// The arity of a row that matches any number of arguments.
 pub const ANY: usize = usize::MAX;
@@ -51,6 +51,36 @@ fn pick<'h>(b: &Build<'h>, cmp: &str, a: &[T<'h>], first: bool) -> T<'h> {
     let c = b.call(cmp, &[a[0], a[1]]);
     let (t, f) = if first { (b.one(), b.zero()) } else { (b.zero(), b.one()) };
     b.call("if", &[c, t, f])
+}
+
+/// `derivative(1, 0)(f)(a0, a1)`: a partial derivative in an order argument, which has no closed form (see
+/// [`OPAQUE`]).
+fn order_partial<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
+    let f = b.sym(b.heap().sym(f));
+    b.app(b.derivative(&[1, 0], f), a)
+}
+
+/// `f(a0 - 1, a1) + f(a0 + 1, a1)` (the Bessel recurrences).
+fn bessel_sum<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
+    let lo = b.call(f, &[b.sub(a[0], b.one()), a[1]]);
+    let hi = b.call(f, &[b.add(&[a[0], b.one()]), a[1]]);
+    b.add(&[lo, hi])
+}
+
+/// d/dx beta(x, y) = beta(x, y) (digamma(x) - digamma(x + y)).
+fn beta_partial<'h>(b: &Build<'h>, x: T<'h>, y: T<'h>) -> T<'h> {
+    let d = b.sub(b.call("digamma", &[x]), b.call("digamma", &[b.add(&[x, y])]));
+    b.mul(&[b.call("beta", &[x, y]), d])
+}
+
+/// Partial derivatives that are the operator itself (name, arity, argument): differentiating
+/// `derivative(n...)(f)` in such an argument keeps the operator instead of resolving it again, which would not end.
+pub const OPAQUE: &[(&str, usize, usize)] = &[("polygamma", 2, 0), ("bessel_k", 2, 0), ("bessel_i", 2, 0)];
+
+/// Can `derivative(orders)(name)` be resolved into a term (a known function, no order in an [`OPAQUE`] argument)?
+pub fn resolvable(name: &str, orders: &[i64]) -> bool {
+    partials(name, orders.len()).is_some()
+        && !orders.iter().enumerate().any(|(i, &n)| n > 0 && OPAQUE.contains(&(name, orders.len(), i)))
 }
 
 /// The rows. Keep related functions together; see the module documentation for the conventions.
@@ -98,6 +128,32 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     // max(a, b) and min(a, b): the derivative of the larger (smaller) argument, away from ties
     ("max", 2, Rule::Partials(&[|b, a| pick(b, "greater_equal", a, true), |b, a| pick(b, "greater_equal", a, false)])),
     ("min", 2, Rule::Partials(&[|b, a| pick(b, "less_equal", a, true), |b, a| pick(b, "less_equal", a, false)])),
+    // special functions (package SF); derivatives in the orders nu, n have no closed form: the operator stays
+    ("gamma", 1, Rule::Partials(&[|b, a| b.mul(&[b.call("gamma", &[a[0]]), b.call("digamma", &[a[0]])])])),
+    ("log_gamma", 1, Rule::Partials(&[|b, a| b.call("digamma", &[a[0]])])),
+    ("digamma", 1, Rule::Partials(&[|b, a| b.call("polygamma", &[b.one(), a[0]])])),
+    (
+        "polygamma",
+        2,
+        Rule::Partials(&[|b, a| order_partial(b, "polygamma", a), |b, a| {
+            b.call("polygamma", &[b.add(&[a[0], b.one()]), a[1]])
+        }]),
+    ),
+    ("beta", 2, Rule::Partials(&[|b, a| beta_partial(b, a[0], a[1]), |b, a| beta_partial(b, a[1], a[0])])),
+    (
+        "bessel_k",
+        2,
+        Rule::Partials(&[|b, a| order_partial(b, "bessel_k", a), |b, a| {
+            b.mul(&[b.rat(-1, 2), bessel_sum(b, "bessel_k", a)])
+        }]),
+    ),
+    (
+        "bessel_i",
+        2,
+        Rule::Partials(&[|b, a| order_partial(b, "bessel_i", a), |b, a| {
+            b.mul(&[b.rat(1, 2), bessel_sum(b, "bessel_i", a)])
+        }]),
+    ),
     // complex parts, linear over the reals
     ("re", 1, Rule::Linear),
     ("im_part", 1, Rule::Linear),

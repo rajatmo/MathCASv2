@@ -2,7 +2,8 @@
 //! sign decisions.
 //!
 //! A term is read once into a [`Graph`] (an explicit stack, shared subterms once): every subterm built only from
-//! real numbers, constants, `add`, `mul`, `pow` and the elementary functions is a numeric node. A maximal numeric
+//! real numbers, constants, `add`, `mul`, `pow`, the elementary functions and the registered library functions
+//! ([`crate::library`]) is a numeric node. A maximal numeric
 //! subterm is an *island*; the rest of the term (free symbols, other heads, lists) is kept, with each island
 //! replaced by its value, so `n` maps over lists and through any structure (decision L.6).
 //!
@@ -14,6 +15,7 @@ use crate::cball::{self, CBall};
 use crate::consts::Const;
 use crate::elementary as el;
 use crate::fun::{Fun, Mach};
+use crate::library::{self, LibRef};
 use mc_api::{names, Store, Sym, View, T};
 use mc_arith::num::{stopped, Ball};
 use mc_arith::{Arith, Cmp3, Kind, Num, Real};
@@ -95,6 +97,8 @@ enum Node {
     Abs(u32),
     /// the k-th variable of [`Graph::build_with_vars`]
     Var(u32),
+    /// a registered library function of its arguments (package SF, [`crate::library`])
+    Lib(LibRef, Vec<u32>),
 }
 
 /// The numeric nodes of a term.
@@ -196,7 +200,8 @@ impl<'h> Graph<'h> {
         } else if let (true, [k]) = (s == nm.abs, kids.as_slice()) {
             Node::Abs(*k)
         } else {
-            return None;
+            let f = library::any().then(|| library::lookup(&st.sym_name(s), kids.len())).flatten()?;
+            Node::Lib(f, kids)
         };
         Some(self.push(node))
     }
@@ -234,7 +239,7 @@ impl<'h> Graph<'h> {
                     }
                 }
                 Node::Num(_) | Node::Const(_) | Node::Var(_) => {}
-                Node::Add(k) | Node::Mul(k) => stack.extend(k),
+                Node::Add(k) | Node::Mul(k) | Node::Lib(_, k) => stack.extend(k),
                 Node::Pow(a, b) => {
                     if let (Node::Num(Real::Exact(x)), Node::Num(Real::Exact(e))) =
                         (&self.nodes[*a as usize], &self.nodes[*b as usize])
@@ -290,10 +295,27 @@ impl<'h> Graph<'h> {
                     let x = &vals[a];
                     Ball { mid: x.mid.abs(), rad: x.rad }
                 }
+                Node::Lib(f, k) => {
+                    let args: Vec<Real> = k.iter().map(|j| self.lib_arg(*j, vals[j].clone(), p)).collect();
+                    let z = f.0.ball(&args, p)?;
+                    if !z.is_real() {
+                        return None;
+                    }
+                    z.re
+                }
             };
             vals.insert(i, v);
         }
         vals.remove(&is.root)
+    }
+
+    /// A library function's argument: an exact number as itself (the function rounds it at its own precision),
+    /// anything else as its ball.
+    fn lib_arg(&self, j: u32, b: Ball, p: u64) -> Real {
+        match &self.nodes[j as usize] {
+            Node::Num(Real::Exact(q)) => Real::Exact(q.clone()),
+            _ => Real::Ball(b, p),
+        }
     }
 
     fn pow_ball(&self, vals: &FxHashMap<u32, Ball>, a: u32, b: u32, p: u64) -> Option<Ball> {
@@ -357,6 +379,18 @@ impl<'h> Graph<'h> {
                 Node::Fun(f, a) => f.cball(&vals[a], p)?,
                 Node::Abs(a) => CBall::real(cball::abs(&vals[a], p)?),
                 Node::Var(k) => args.get(*k as usize)?.clone(),
+                // library functions of real arguments only (complex arguments have no value here)
+                Node::Lib(f, k) => {
+                    let mut xs = Vec::with_capacity(k.len());
+                    for j in k {
+                        let z = &vals[j];
+                        if !z.is_real() {
+                            return None;
+                        }
+                        xs.push(self.lib_arg(*j, z.re.clone(), p));
+                    }
+                    f.0.ball(&xs, p)?
+                }
             };
             vals.insert(i, v);
         }
@@ -389,6 +423,16 @@ impl<'h> Graph<'h> {
                     Mach::Real(v) => Mach::Real(v.abs()),
                     Mach::Complex(z) => Mach::Real(z.re.hypot(z.im)),
                 },
+                Node::Lib(f, k) => {
+                    let xs: Option<Vec<f64>> = k
+                        .iter()
+                        .map(|j| match vals[j] {
+                            Mach::Real(v) => Some(v),
+                            Mach::Complex(_) => None,
+                        })
+                        .collect();
+                    xs.map_or(Mach::Real(f64::NAN), |xs| f.0.machine(&xs))
+                }
             };
             vals.insert(i, v);
         }

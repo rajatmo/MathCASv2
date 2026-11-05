@@ -142,7 +142,7 @@ impl<'b, 'h> Diff<'b, 'h> {
             return Err(Halt::Unsupported);
         }
         if let Some((orders, f)) = b.as_derivative(head).filter(|(o, _)| o.len() == args.len()) {
-            let known = b.sym_of(f).and_then(|s| rules::partials(&h.sym_name(s), args.len()));
+            let known = b.sym_of(f).map(|s| h.sym_name(s));
             let mut parts = Vec::with_capacity(args.len());
             for (i, &a) in args.iter().enumerate() {
                 if b.is_zero(self.dv(a)) {
@@ -151,9 +151,9 @@ impl<'b, 'h> Diff<'b, 'h> {
                 }
                 let mut o = orders.clone();
                 o[i] += 1;
-                parts.push(match known {
-                    Some(_) => resolve(b, f, &o, args, tick)?,
-                    None => b.app(b.derivative(&o, f), args),
+                parts.push(match &known {
+                    Some(name) if rules::resolvable(name, &o) => resolve(b, f, &o, args, tick)?,
+                    _ => b.app(b.derivative(&o, f), args),
                 });
             }
             return Ok(self.chain(args, |i| parts[i]));

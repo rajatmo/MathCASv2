@@ -7,7 +7,7 @@
 //! with the machine value of |D|.
 mod common;
 use common::{number, Lcg, Sys};
-use mc_calculus::rules::{Rule, RULES};
+use mc_calculus::rules::{Rule, OPAQUE, RULES};
 
 /// Check `d(f, var)` against the central difference at `x = px, y = py`; `Err` with the details on a mismatch.
 fn agree(s: &mut Sys, f: &str, var: &str, px: &str, py: &str) -> Result<(), String> {
@@ -51,7 +51,13 @@ fn every_rule_of_the_table() {
         let Rule::Partials(ps) = rule else { unreachable!() };
         assert_eq!(ps.len(), arity, "{name}: one partial per argument");
         for i in 0..arity {
-            let args: Vec<&str> = (0..arity).map(|j| if j == i { DEPENDENT } else { CONSTANTS[j % 3] }).collect();
+            // a partial in an order argument is the operator itself (no value to compare)
+            if OPAQUE.contains(&(name, arity, i)) {
+                continue;
+            }
+            // polygamma's order is an integer
+            let constant = |j: usize| if name == "polygamma" && j == 0 { "2" } else { CONSTANTS[j % 3] };
+            let args: Vec<&str> = (0..arity).map(|j| if j == i { DEPENDENT } else { constant(j) }).collect();
             // abs is also checked on the negative side
             let shifted = format!("({DEPENDENT} - 3/5)");
             let variants = if name == "abs" { vec![args.join(", "), shifted] } else { vec![args.join(", ")] };

@@ -92,6 +92,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_io::FUNCTIONS,
         mc_simplify::FUNCTIONS,
         mc_random::FUNCTIONS,
+        mc_special::FUNCTIONS,
     ];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
@@ -179,6 +180,7 @@ impl CoreEngine {
             mc_plot::install(&mut k, h);
             mc_io::install(&mut k, h);
             mc_simplify::install(&mut k, h, &arith_stop);
+            mc_special::install(&mut k, h, &arith_stop);
             // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
             let rng = mc_random::install(&mut k, h);
             // compiled functions draw from the same generator (package N4b)

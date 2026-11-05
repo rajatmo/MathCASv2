@@ -26,6 +26,7 @@ mc-quad = { path = "../mc-quad" }
 mc-random = { path = "../mc-random" }
 mc-roots = { path = "../mc-roots" }
 mc-simplify = { path = "../mc-simplify" }
+mc-special = { path = "../mc-special" }
 mc-strings = { path = "../mc-strings" }
 mc-syntax = { path = "../mc-syntax" }
 

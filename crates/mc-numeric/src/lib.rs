@@ -10,6 +10,8 @@
 //! - [`exact`]: exact identities (`sin(pi) = 0`, `log(e) = 1`, `cos(pi/3) = 1/2`, `exp(log(x)) = x`, parity);
 //! - [`numeval`]: numerical evaluation of terms, `n(e)` and `n(e, d)` with precision doubling, comparisons and
 //!   sign decisions by refinement;
+//! - [`library`]: the registry through which other crates' functions of real arguments (the special functions)
+//!   become numeric nodes of [`numeval`];
 //! - [`value`]: exact values behind inexact numbers, decimal digits of balls, the simplest rational in an interval;
 //! - the number functions of roadmap package 1C (private modules `parts`, `approx`, `piecewise`): `re`,
 //!   `im_part`, `conjugate`, `arg`, rules extending `abs` and `sign` to closed terms, `precision`, `accuracy`,
@@ -93,6 +95,7 @@ pub mod consts;
 pub mod elementary;
 pub mod exact;
 pub mod fun;
+pub mod library;
 pub mod machine;
 mod natives;
 mod numbers;
