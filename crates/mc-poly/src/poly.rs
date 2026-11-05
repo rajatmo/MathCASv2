@@ -404,7 +404,13 @@ impl Poly {
     /// The exact quotient self / d, or `None` when d does not divide self over the integers. Sparse division in
     /// lexicographic order: the leading term of the remainder must be divisible by the leading term of d.
     pub fn div_exact(&self, d: &Poly, m: &mut Meter) -> WorkResult<Option<Poly>> {
-        assert!(!d.is_zero(), "division by the zero polynomial");
+        if d.is_zero() {
+            // a divisor computed after the stop flag was raised may be anything, zero included (`work::exact`)
+            if mc_arith::num::stopped() {
+                return Err(crate::work::Halt::Stopped);
+            }
+            panic!("division by the zero polynomial");
+        }
         if self.is_zero() {
             return Ok(Some(Poly::zero(self.nv)));
         }

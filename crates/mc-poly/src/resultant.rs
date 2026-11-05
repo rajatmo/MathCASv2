@@ -171,11 +171,11 @@ fn subresultant(a: &Poly, b: &Poly, v: usize, m: &mut Meter) -> WorkResult<Poly>
         b = div_all(&r, &d, m)?;
         g = a[a.len() - 1].clone();
         // h = g^delta / h^(delta - 1)
-        h = if delta == 0 { h } else { g.pow(delta, m)?.div_exact(&h.pow(delta - 1, m)?, m)?.expect("exact") };
+        h = if delta == 0 { h } else { crate::work::exact(g.pow(delta, m)?.div_exact(&h.pow(delta - 1, m)?, m)?, "the subresultant h divides")? };
         if b.len() == 1 {
             let da = (a.len() - 1) as u64;
             // h = lc(b)^deg(a) / h^(deg(a) - 1)
-            let hh = b[0].pow(da, m)?.div_exact(&h.pow(da - 1, m)?, m)?.expect("exact");
+            let hh = crate::work::exact(b[0].pow(da, m)?.div_exact(&h.pow(da - 1, m)?, m)?, "the subresultant h divides")?;
             let r = hh.mul(&t, m)?;
             return Ok(if s < 0 { r.neg() } else { r });
         }
