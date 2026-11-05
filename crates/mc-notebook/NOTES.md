@@ -83,17 +83,34 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
 - Gaps: no pixel comparison with the reference (by eye); the caret on Segoe UI headings reaches slightly above cap
   height; 100 % shots emulate the scale; input methods tested with injected events only.
 
-## Rendering and text size (after a machine reset)
+## Graphics, text size, input storms
 
-- A machine (Ryzen 7700X, Radeon iGPU plus RX 6750 XT, driver 32.0.21036.18) reset while the notebook was open: two
-  GPU timeouts (LiveKernelEvent 141) and an IOMMU fault from the RX 6750 XT 30 s before. The window's own work per
-  frame is under 2 ms and nothing in the paint code is unbounded, so the driver hang is the likely cause, but it was
-  not reproduced. Since then the notebook draws with wgpu on **Direct3D 12** (`main.rs`; eframe's default may pick
-  Vulkan), on the discrete GPU that can present to the window, else integrated, else the software renderer
-  (`choose_adapter`); explicit vsync; if no Direct3D 12 device starts, the default choice. `WGPU_BACKEND`
-  (`vulkan`, `dx12`, `gl`) overrides the backend.
-- With the RX 6750 XT disabled, any eframe window (a bare probe too) ran at about 6 frames per second with a core
-  busy: the machine's graphics state, not the notebook.
+- **GPU and interface** (`gpu.rs`): the integrated GPU first (user decision: a notebook needs little, and the
+  discrete card stays out of it), then discrete, virtual, software; `MCNB_GPU=discrete|software`. Interfaces in order
+  of trust: Windows Direct3D 12 then GL (Vulkan only through `WGPU_BACKEND=vulkan`: AMD's Vulkan driver
+  `amdvlk64.dll` 32.0.21036.18 crashed a bare eframe window with an access violation on the test machine, and a
+  machine reset with GPU driver timeouts while the notebook ran with eframe's default choice, which can pick Vulkan
+  on the discrete card); Linux Vulkan then GL; Android GLES then Vulkan; Apple Metal. `WGPU_BACKEND` names one.
+  Explicit vsync. A start that fails without a device tries the next interface; a driver crash ends the process, so
+  each start marks the interface in `gpu.json` (settings folder) and clears the mark after the second frame: a mark
+  found at the next start means a crash, and that interface is skipped from then on (`gpu.json` also records the
+  last adapter; delete it to forget).
+- Measured with a bare eframe window (Ryzen 7700X iGPU, 2560x1440): Direct3D 12 59 fps, GL 59 fps, Vulkan crash.
+  While the discrete card was disabled after the reset every window ran at about 6 fps with a core busy; that
+  cleared once the card was back.
 - **Text size**: the styles' sizes are typographic points; `View::zoom` is the magnification times `PX_PER_PT`
-  (96/72), so a 13 pt Input cell is 17.3 px at 100 % (it was 13 px, 3/4 of the intended size).
-  `View::magnification`/`set_magnification` are the user's value (menus, Ctrl+wheel, settings).
+  (96/72), so a 13 pt Input cell is 17.3 px at 100 % (it was 13 px). `View::magnification`/`set_magnification` are the
+  user's value (menus, Ctrl+wheel, settings).
+- **Input storm** (`tools/nb-storm.ps1`, Windows): real window messages (characters, keys with modifiers set on the
+  window's input queue, moves, clicks, double clicks, drags, wheel, Ctrl+wheel, resizes, minimize/restore,
+  Shift+Enter evaluations) at a set rate into a job object with a memory cap; samples CPU, memory, handles and
+  threads each second and stops on a window that does not answer within 5 s; `-Check` confirms modifiers get
+  through. Shortcuts opening system file dialogs, quitting or touching the clipboard are not sent.
+- Storm findings, fixed: (1) Ctrl+wheel set the magnification continuously, so every wheel event made a new text
+  size and egui's glyph atlas filled with them (+600 MB); the wheel now steps through the menu's magnifications, one
+  per notch. (2) egui's atlas grows to the GPU's largest texture (8192: 256 MB, plus its GPU copy) before clearing at
+  80 % full; `raw_input_hook` caps egui's textures at 4096 (64 MB), the window surface is unaffected. (3) A minimized
+  window's place (-32000 on Windows) was saved as the window's place; minimized, maximized and tiny rects are no
+  longer saved and implausible saved places are ignored.
+- Not yet portable: fonts are read from the Windows font folder (Linux/Android fall back to egui's fonts), the
+  clipboard's cell format is Windows-only, the storm driver is Windows-only.

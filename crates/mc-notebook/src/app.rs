@@ -41,6 +41,9 @@ pub fn icon_data() -> Option<egui::IconData> {
 
 /// Magnifications offered (design 4.10: 50 % - 300 %).
 const ZOOMS: [f32; 9] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+
+/// The largest texture egui makes (its glyph atlas): see `raw_input_hook`.
+const MAX_TEXTURE_SIDE: usize = 4096;
 /// Two clicks closer than this (seconds) count as a double click.
 const DOUBLE_CLICK: f64 = 0.4;
 
@@ -215,6 +218,11 @@ pub struct App {
     pub(crate) icon: Option<egui::TextureHandle>,
     /// the duration of the last frame's work, for the status bar's probe and the self-test
     pub frame_ms: f64,
+    /// the GPU the window draws with, and the frames shown so far (the second clears the start's crash mark)
+    gpu: Option<eframe::wgpu::AdapterInfo>,
+    frames_shown: u64,
+    /// Ctrl+wheel turns not yet taken as a magnification step
+    wheel_zoom: f32,
 }
 
 impl App {
@@ -260,6 +268,9 @@ impl App {
             window_rect: None,
             icon: None,
             frame_ms: 0.0,
+            gpu: None,
+            frames_shown: 0,
+            wheel_zoom: 1.0,
         };
         app.tabs.add(None, None);
         // the self-test restores a session only from a folder of its own (MCNB_CONFIG_DIR)
@@ -2036,6 +2047,16 @@ impl App {
         self.settings.theme = c;
     }
 
+    /// The GPU the window draws with (`main` sets it after creating the window).
+    pub fn set_gpu(&mut self, info: Option<eframe::wgpu::AdapterInfo>) {
+        self.gpu = info;
+    }
+
+    /// The GPU the window draws with.
+    pub fn gpu(&self) -> Option<&eframe::wgpu::AdapterInfo> {
+        self.gpu.as_ref()
+    }
+
     /// Set the magnification (for the self-test).
     pub fn set_magnification(&mut self, z: f32) {
         self.doc.view.set_magnification(z);
@@ -2086,6 +2107,10 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        // egui's glyph atlas grows to the largest texture the GPU takes before it is cleared at 80 % full: at 8192
+        // that is 256 MB in memory plus its copy on the GPU (an input storm grew the window by 600 MB). 4096 bounds it
+        // at 64 MB; the window's own surface is not limited by this.
+        raw.max_texture_side = Some(raw.max_texture_side.unwrap_or(MAX_TEXTURE_SIDE).min(MAX_TEXTURE_SIDE));
         if let Some(mut st) = self.selftest.take() {
             st.inject(self, ctx, raw);
             self.selftest = Some(st);
@@ -2094,6 +2119,13 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let start = std::time::Instant::now();
+        // the second frame: the first one reached the screen, the graphics interface works
+        self.frames_shown += 1;
+        if self.frames_shown == 2 {
+            if let Some(info) = &self.gpu {
+                crate::gpu::started(info);
+            }
+        }
         let ctx = ui.ctx().clone();
         self.update_theme(&ctx);
         self.sync_tabs();
@@ -2111,9 +2143,14 @@ impl eframe::App for App {
         }
         // Ctrl+wheel magnifies the notebook (not the chrome)
         let zoom_delta = ctx.input(|i| if i.modifiers.ctrl { i.zoom_delta() } else { 1.0 });
-        if zoom_delta != 1.0 && zoom_delta.is_finite() {
-            let z = (self.doc.view.magnification() * zoom_delta).clamp(0.5, 3.0);
-            self.doc.view.set_magnification(z);
+        // in the menu's steps, one per notch: a continuous magnification makes every frame a new text size, and
+        // each size fills the glyph atlas anew (a wheel storm grew the window by 600 MB)
+        if zoom_delta != 1.0 && zoom_delta.is_finite() && zoom_delta > 0.0 {
+            self.wheel_zoom *= zoom_delta;
+            if self.wheel_zoom >= 1.08 || self.wheel_zoom <= 1.0 / 1.08 {
+                self.step_zoom(if self.wheel_zoom > 1.0 { 1 } else { -1 });
+                self.wheel_zoom = 1.0;
+            }
         }
         if ctx.input(|i| i.pointer.delta() != egui::Vec2::ZERO || i.pointer.any_pressed()) {
             self.pointer_hidden = false;
@@ -2170,9 +2207,13 @@ impl eframe::App for App {
         // the window's place, remembered for the next start
         if let Some(r) = ctx.input(|i| i.viewport().inner_rect) {
             let outer = ctx.input(|i| i.viewport().outer_rect).unwrap_or(r);
-            let maximized =
-                ctx.input(|i| i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false));
-            if !maximized {
+            // a maximized, full-screen or minimized window keeps the last normal place (a minimized one sits at
+            // -32000 on Windows and would reopen off the screen)
+            let special = ctx.input(|i| {
+                let v = i.viewport();
+                v.maximized.unwrap_or(false) || v.fullscreen.unwrap_or(false) || v.minimized.unwrap_or(false)
+            });
+            if !special && r.width() >= 100.0 && r.height() >= 100.0 && outer.min.x > -10000.0 && outer.min.y > -10000.0 {
                 self.window_rect = Some((outer.min, r.size()));
             }
         }

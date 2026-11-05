@@ -3,6 +3,7 @@
 pub mod app;
 mod clip;
 mod fonts;
+pub mod gpu;
 mod highlight;
 mod input;
 pub mod instance;

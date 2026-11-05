@@ -115,7 +115,9 @@ impl Settings {
         s.caret_blink = v.get("caret_blink").and_then(Value::as_bool).unwrap_or(true);
         if let Some(w) = v.get("window").and_then(Value::as_array) {
             let w: Vec<f32> = w.iter().filter_map(Value::as_f64).map(|x| x as f32).collect();
-            if w.len() == 4 && w[2] >= 200.0 && w[3] >= 150.0 {
+            // a place off every screen (a minimized window's -32000) or absurdly large is not restored
+            let sane = |x: f32| x.is_finite() && (-10000.0..=30000.0).contains(&x);
+            if w.len() == 4 && w.iter().all(|&x| sane(x)) && w[2] >= 200.0 && w[3] >= 150.0 {
                 s.window = Some([w[0], w[1], w[2], w[3]]);
             }
         }
