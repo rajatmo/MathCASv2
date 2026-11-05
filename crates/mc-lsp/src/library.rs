@@ -19,6 +19,7 @@ const CORE: &[(&str, &str)] = &[
     // the engine's notebook natives (`mc_engine::FUNCTIONS`)
     ("out", "out(n): the value of numbered statement n of a notebook session; out() the last value, out(-k) the k-th previous one"),
     ("message", "message(tag, text): a warning from tag (a function's name); front ends show it apart from print output"),
+    ("timing", "timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds"),
 ];
 
 /// Where a known name comes from.

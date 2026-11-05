@@ -235,3 +235,25 @@ fn constants_follow_inexact_contagion() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+#[test]
+fn timing_gives_the_seconds_and_the_value_and_evaluates_once() {
+    let mut e = CoreEngine::new();
+    // the argument is evaluated inside timing, once (print is an effect)
+    assert_eq!(eval(&mut e, "t = timing(print(sum(range(100000))))\nt[2]"), "5000050000");
+    assert_eq!(eval(&mut e, "[is_number(t[1]), t[1] >= 0, t[1] < 60]"), "[true, true, true]");
+    // the value is whatever the argument gives: a symbolic term, a failure
+    assert_eq!(eval(&mut e, "timing(x + x)[2]"), "2*x");
+    assert_eq!(eval(&mut e, "timing(1/0)[2]"), "failure(division_by_zero)");
+    // a definition in the timed expression takes effect; a statement after the timing sees it
+    assert_eq!(eval(&mut e, "timing(w = 5)\nw + 1"), "6");
+    // each timing measures: the same term timed twice is not answered from the memo
+    assert_eq!(eval(&mut e, "u = timing(length(range(10^6)))
+v = timing(length(range(10^6)))
+u[1] !== v[1]"), "true");
+    // a longer evaluation takes measurably longer
+    assert_eq!(eval(&mut e, "timing(length(range(3*10^6)))[1] > timing(1)[1]"), "true");
+    // wrong argument counts stay unevaluated
+    assert_eq!(eval(&mut e, "timing()"), "timing()");
+    assert_eq!(eval(&mut e, "timing(1, 2)"), "timing(1, 2)");
+}
