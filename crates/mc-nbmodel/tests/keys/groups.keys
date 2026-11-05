@@ -1,0 +1,408 @@
+Grouping (design 2.3) and open/closed groups (design 2.4). Cells are named by their first word.
+
+=== titles: Subtitle and Subsubtitle are plain members of the Title's group
+--- before
+#% title
+# T
+#% subtitle
+# st
+#% subsubtitle
+# sst
+#% text
+# x
+#% title
+# T2
+#% text
+# y
+--- groups
+{T st sst x} {T2 y}
+
+=== sections nest by level
+--- before
+#% text
+# t0
+#% section
+# S
+#% subsection
+# SS
+#% subsubsection
+# SSS
+#% text
+# a
+#% subsection
+# SS2
+#% text
+# b
+#% section
+# S2
+--- groups
+t0 {S {SS {SSS a}} {SS2 b}} S2
+
+=== inputs collect the outputs right after them
+--- before
+#% cell
+i
+#% output n=1
+#= o
+#% text
+# t
+#% cell
+i2
+#% output n=2
+#| p
+#? m
+#= o2
+#% output n=3
+#= o3
+#% cell
+i3
+#% cell
+i4
+#% output n=4
+#= o4
+--- groups
+{i o} t {i2 p m o2 o3} i3 {i4 o4}
+
+=== outputs after text are plain cells
+--- before
+#% code
+c
+#% output n=1
+#= o
+#% cell
+i
+#% text
+# t
+--- groups
+{c o} i t
+
+=== items collect items of higher level
+--- before
+#% item
+# i
+#% itemparagraph
+# ip
+#% subitem
+# s
+#% subsubitem
+# ss
+#% subitem
+# s2
+#% item
+# i2
+#% text
+# t
+#% itemnumbered
+# n
+#% subitemnumbered
+# sn
+--- groups
+{i ip {s ss} s2} i2 t {n sn}
+
+=== items collect input groups inside sections
+--- before
+#% section
+# S
+#% item
+# i
+#% subitem
+# s
+#% cell
+c
+#% output n=1
+#= o
+#% subsection
+# SS
+--- groups
+{S {i {s {c o}}} SS}
+
+=== a whole document
+--- before
+#% title
+# Title
+#% section
+# S1
+#% text
+# t
+#% cell
+In
+#% output n=1
+#= Out
+#% cell
+x
+#% subsection
+# Sub
+#% item
+# i1
+#% subitem
+# s1
+#% item
+# i2
+#% text
+# t2
+#% section
+# S2
+#% code
+c
+#% output n=2
+#? m
+#| pr
+#= o
+#% chapter
+# cc
+#% section
+# sec
+--- groups
+{Title {S1 t {In Out} x {Sub {i1 s1} i2 t2}} {S2 {c m pr o}} {cc sec}}
+
+=== a cell typed after a section's text joins the section
+--- before
+#% section
+# S
+
+#% text
+# t
+‖
+--- keys
+"x"
+--- groups
+{S t x}
+
+=== double-clicking a group's bracket closes it showing its first cell, again opens it
+--- before
+#% section
+# S
+
+#% text
+# t
+--- keys
+DoubleBracket(0,2)
+--- after
+#% section closed
+# S
+
+#% text
+# t
+‖
+
+=== double-clicking a closed group's bracket opens it
+--- before
+#% section closed
+# S
+
+#% text
+# t
+--- keys
+DoubleBracket(0,2)
+--- after
+#% section
+# S
+
+#% text
+# t
+‖
+
+=== double-clicking a single cell's bracket does nothing
+--- before
+#% text
+# t
+--- keys
+DoubleBracket(0,1)
+--- after
+#% text
+# t
+‖
+
+=== Ctrl+' in an output closes the input group showing the output
+--- before
+#% cell label=1
+print(1)
+2
+#% output n=2
+#| 1
+#= 2▮
+--- keys
+Ctrl+'
+--- after
+#% cell label=1 shown=3
+print(1)
+2
+#% output n=2
+#| 1
+#= 2▮
+
+=== Ctrl+' in the input closes the group showing the input; again opens it
+--- before
+#% cell label=1
+2▮
+#% output n=1
+#= 2
+--- keys
+Ctrl+'
+--- after
+#% cell label=1 closed
+2▮
+#% output n=1
+#= 2
+
+=== Ctrl+' twice opens the group again
+--- before
+#% cell label=1
+2▮
+#% output n=1
+#= 2
+--- keys
+Ctrl+' Ctrl+'
+--- after
+#% cell label=1
+2▮
+#% output n=1
+#= 2
+
+=== Ctrl+A then Ctrl+} closes every group, nested ones too; Ctrl+{ opens them
+--- before
+#% section
+# S
+#% subsection
+# SS
+#% text
+# a
+#% cell
+x
+#% output n=1
+#= 1
+‖
+--- keys
+Ctrl+A Ctrl+}
+--- after
+#% section closed ◆
+# S
+
+#% subsection closed ◆
+# SS
+
+#% text ◆
+# a
+
+#% cell closed ◆
+x
+#% output n=1
+#= 1 ◆
+
+=== Ctrl+{ opens every group of the selection
+--- before
+#% section closed
+# S
+#% subsection closed
+# SS
+#% text
+# a
+--- keys
+Ctrl+A Ctrl+{
+--- after
+#% section ◆
+# S
+
+#% subsection ◆
+# SS
+
+#% text ◆
+# a
+
+=== a cell typed after a closed group's head lands in the group and opens it
+--- before
+#% section closed
+# S
+
+#% text
+# t
+‖
+--- keys
+"x"
+--- after
+#% section
+# S
+
+#% text
+# t
+
+#% cell
+x▮
+--- groups
+{S t x}
+
+=== Down skips the cells hidden in a closed group, keeping the column
+--- before
+#% section closed
+# S▮
+
+#% text
+# hidden
+
+#% section
+# S2
+--- keys
+Down Down
+--- after
+#% section closed
+# S
+
+#% text
+# hidden
+
+#% section
+# S▮2
+
+=== cells grouped by hand
+--- before
+#% text
+# a
+
+#% text
+# b
+
+#% text
+# c
+--- keys
+Bracket(0) Shift+Bracket(1) Ctrl+Shift+G
+--- after
+#% text together ◆
+# a
+
+#% text together ◆
+# b
+
+#% text
+# c
+--- groups
+{a b} c
+
+=== ungrouping removes the marks of the whole run
+--- before
+#% text together
+# a▮
+
+#% text together
+# b
+
+#% text
+# c
+--- keys
+Ctrl+Shift+U
+--- groups
+a b c
+
+=== manual grouping keeps only groups by hand
+--- before
+#! mathcas 2 notebook grouping=manual
+
+#% section
+# S
+
+#% text together
+# a
+
+#% text together
+# b
+--- groups
+S {a b}

@@ -1,0 +1,25 @@
+[package]
+name = "mc-notebook"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 notebook window: cells, evaluation in a separate mc-kernel process, One Light and One Dark themes"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mc-notebook"
+path = "src/main.rs"
+
+[dependencies]
+eframe = "0.37.0"
+mc-nbfile = { path = "../mc-nbfile" }
+mc-nbmodel = { path = "../mc-nbmodel" }
+mc-syntax = { path = "../mc-syntax" }
+png = "0.18"
+rfd = "0.17.2"
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5.4"

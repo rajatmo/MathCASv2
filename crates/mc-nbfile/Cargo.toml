@@ -1,0 +1,8 @@
+[package]
+name = "mc-nbfile"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 .mcn notebook files: reading, writing and atomic saving"
+
+[dependencies]

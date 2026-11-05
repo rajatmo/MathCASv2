@@ -1,0 +1,11 @@
+[package]
+name = "mc-nbmodel"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 notebook document model: cells, styles, grouping, selection, commands, key table, undo, evaluation queue"
+
+[dependencies]
+mc-boxes = { path = "../mc-boxes" }
+mc-nbfile = { path = "../mc-nbfile" }
+mc-syntax = { path = "../mc-syntax" }

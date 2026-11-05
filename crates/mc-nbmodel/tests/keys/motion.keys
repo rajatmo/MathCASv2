@@ -1,0 +1,242 @@
+Caret movement within and across cells (design 3.1, 3.3).
+
+=== Down on the last line goes to the insertion point below; again into the next cell keeping the column
+--- before
+#% cell
+ab▮c
+
+#% cell
+xyz
+--- keys
+Down
+--- after
+#% cell
+abc
+
+‖
+#% cell
+xyz
+
+=== Down twice reaches the next cell at the same column
+--- before
+#% cell
+ab▮c
+
+#% cell
+xyz
+--- keys
+Down Down
+--- after
+#% cell
+abc
+
+#% cell
+xy▮z
+
+=== Up mirrors Down
+--- before
+#% cell
+abc
+
+#% cell
+x▮yz
+--- keys
+Up Up
+--- after
+#% cell
+a▮bc
+
+#% cell
+xyz
+
+=== Up and Down move between lines inside a cell, keeping the goal column
+--- before
+#% cell
+abc
+d▮
+efgh
+--- keys
+Down End Up Up
+--- after
+#% cell
+abc▮
+d
+efgh
+
+=== Right at the end goes to the insertion point after the cell, then into the next one
+--- before
+#% cell
+a▮
+
+#% cell
+b
+--- keys
+Right Right
+--- after
+#% cell
+a
+
+#% cell
+▮b
+
+=== Left at the start goes to the insertion point before the cell
+--- before
+#% cell
+a
+
+#% cell
+▮b
+--- keys
+Left
+--- after
+#% cell
+a
+
+‖
+#% cell
+b
+
+=== movement skips Message cells
+--- before
+#% cell label=1
+1 +
+#% output
+#! error
+‖
+
+#% cell
+x
+--- keys
+Up
+--- after
+#% cell label=1
+1 +
+#% output
+#! error
+‖
+
+#% cell
+x
+
+=== Ctrl+Home and Ctrl+End
+--- before
+#% cell
+a▮
+
+#% cell
+b
+--- keys
+Ctrl+End
+--- after
+#% cell
+a
+
+#% cell
+b
+‖
+
+=== Ctrl+Home goes before the first cell
+--- before
+#% cell
+a
+
+#% cell
+b▮
+--- keys
+Ctrl+Home
+--- after
+‖
+#% cell
+a
+
+#% cell
+b
+
+=== word motion
+--- before
+#% cell
+▮f(aa + b)
+--- keys
+Ctrl+Right Ctrl+Right Ctrl+Right Ctrl+Right
+--- after
+#% cell
+f(aa + ▮b)
+
+=== Shift extends the selection; Left collapses it to its start
+--- before
+#% cell
+a▮bcd
+--- keys
+Shift+Right Shift+Right
+--- after
+#% cell
+a⟦bc⟧d
+
+=== Left collapses a selection to its start
+--- before
+#% cell
+a⟦bc⟧d
+--- keys
+Left
+--- after
+#% cell
+a▮bcd
+
+=== Home and End
+--- before
+#% cell
+ab▮c
+--- keys
+Home "<" End ">"
+--- after
+#% cell
+<abc>▮
+
+=== Shift+Down at an insertion point selects the next cell; again extends
+--- before
+‖
+#% text
+# a
+
+#% text
+# b
+--- keys
+Shift+Down Shift+Down
+--- after
+#% text ◆
+# a
+
+#% text ◆
+# b
+
+=== clicking between cells sets the insertion point
+--- before
+#% cell
+a▮
+
+#% cell
+b
+--- keys
+Gap(1)
+--- after
+#% cell
+a
+
+‖
+#% cell
+b
+
+=== Up from an insertion point goes into the output above
+--- before
+#% cell label=1
+1
+#% output n=1
+#= 1
+‖
+--- keys
+Up
+--- after
+#% cell label=1
+1
+#% output n=1
+#= ▮1
