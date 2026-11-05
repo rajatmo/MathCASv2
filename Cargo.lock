@@ -869,6 +869,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-special"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-numeric",
+ "mc-syntax",
+]
+
+[[package]]
 name = "mc-strings"
 version = "0.0.0"
 dependencies = [
