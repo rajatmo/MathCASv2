@@ -3,7 +3,7 @@
 //!
 //! Labels are resolved to instruction indices once; registers are untyped 64-bit words (reals by their bits,
 //! booleans as 0 or 1). Register indices are checked when the program is built, so the run loop indexes freely.
-use crate::ir::{BOp, Cc, FOp, IOp, Lir, Op, OpdK};
+use crate::ir::{BOp, Cc, FOp, IOp, Lir, Op, OpdK, K};
 use crate::rt::{self, Env, Exit, EXACT_REAL_INT, OPD_CEXACT, OPD_COMPLEX, OPD_INT, OPD_RATIO, OPD_REAL, OPD_WORDS, POLL_EVERY};
 
 /// A LIR function prepared for interpretation. Immutable: every call has its own registers.
@@ -11,6 +11,8 @@ pub struct Interp {
     code: Vec<Op>,
     nregs: usize,
     params: Vec<u32>,
+    /// the kind of every register (for helpers with an integer or a real result)
+    kinds: Vec<K>,
 }
 
 /// Every register operand of an instruction (destinations included).
@@ -30,7 +32,8 @@ fn operands(op: &Op) -> Vec<u32> {
         | Op::FKey(d, a)
         | Op::FNeg(d, a)
         | Op::FromKey(d, a) => vec![*d, *a],
-        Op::Draw(_, d, a, b) => vec![*d, *a, *b],
+        Op::Draw(_, d, a, b) | Op::Load(d, a, b) | Op::Store(d, a, b) | Op::VSum(d, a, b) => vec![*d, *a, *b],
+        Op::VNew(d, a) | Op::VOut(d, a) => vec![*d, *a],
         Op::CMath(_, d, e, a, b) => vec![*d, *e, *a, *b],
         Op::CNum(_, d, e, opds) => [*d, *e].into_iter().chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
         Op::IChk(_, d, a, b)
@@ -70,7 +73,7 @@ impl Interp {
                 o => code.push(o.clone()),
             }
         }
-        Interp { code, nregs, params: lir.params.clone() }
+        Interp { code, nregs, params: lir.params.clone(), kinds: lir.regs.clone() }
     }
 
     /// Number of instructions.
@@ -222,8 +225,47 @@ impl Interp {
                         return Err(Exit::Decline);
                     }
                 }
+                Op::Load(d, base, i) => {
+                    // SAFETY: lowering checked `0 <= i < len` against the vector's length, and the vector is an
+                    // argument's leaves or one the call made, alive for the call (`rt::Env`)
+                    r[d as usize] = unsafe { *(r[base as usize] as *const u64).add(r[i as usize] as usize) };
+                }
+                Op::Store(base, i, v) => {
+                    // SAFETY: as for `Load`; stores go only to vectors the call made
+                    unsafe { *(r[base as usize] as *mut u64).add(r[i as usize] as usize) = r[v as usize] };
+                }
+                Op::VNew(d, n) => {
+                    // SAFETY: `env` is a live environment.
+                    r[d as usize] = unsafe { rt::vec_new(env, gi(r, n)) };
+                    exited(env)?;
+                }
+                Op::VOut(base, n) => {
+                    // SAFETY: `env` is live; `base` holds `n` words (lowering and the host's arguments).
+                    unsafe { rt::vec_out(env, r[base as usize], gi(r, n)) };
+                    exited(env)?;
+                }
+                Op::VSum(d, base, n) => {
+                    // SAFETY: as for `VOut`.
+                    r[d as usize] = unsafe {
+                        if self.kinds[d as usize] == K::I {
+                            rt::vsum_int(env, r[base as usize], gi(r, n)) as u64
+                        } else {
+                            rt::vsum_real(env, r[base as usize], gi(r, n)).to_bits()
+                        }
+                    };
+                    exited(env)?;
+                }
             }
         }
+    }
+}
+
+/// After a helper that may set the exit: leave with it.
+fn exited(env: &Env) -> Result<(), Exit> {
+    match env.exit {
+        0 => Ok(()),
+        1 => Err(Exit::Decline),
+        _ => Err(Exit::Stopped),
     }
 }
 

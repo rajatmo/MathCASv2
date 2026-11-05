@@ -23,6 +23,10 @@
 //! through [`crate::rt`]) and **machine complex numbers**, which the front end splits into their real and imaginary
 //! parts: inline arithmetic on the parts where it is the arithmetic's own step, and statements [`S::Pair`] (LIR
 //! [`Op::CNum`], [`Op::CMath`]) that call the arithmetic or `mc-numeric`'s complex functions for the rest.
+//!
+//! Package P added **vectors of run-time length**: an address and a length held in `Int` variables, read by
+//! [`E::Elem`] (bounds checked in the lowering, then [`Op::Load`]) and [`E::VSum`], and made by [`S::VNew`] and
+//! [`S::Store`] in the call's environment; [`S::VOut`] makes one the call's result.
 use crate::rt::EXACT_REAL_INT;
 use mc_arith::num::{Int, Rat};
 use mc_arith::Real;
@@ -266,6 +270,14 @@ pub enum E {
     /// [`Draw::Integer`]); an effect: the front end evaluates it once, in a statement of its own, in the order the
     /// interpreter draws
     Draw(Draw, Box<E>, Box<E>),
+    /// element `i` (from 1; a negative `i` counts from the end, as `part` does) of the vector of `len` leaves of type
+    /// `Int` or `Real` at address `base` (package P: a packed payload, a list's leaves copied by the host, or a vector
+    /// the code made); declines when `i` is outside the vector
+    Elem(Ty, Box<E>, Box<E>, Box<E>),
+    /// `sum(v)` of the vector at `base` with `len` leaves, as the interpreter's `sum` computes it: integers exactly
+    /// (declining beyond `i64`), machine reals ascending from an exact zero (declining for a NaN or an empty vector,
+    /// whose sum is the exact 0)
+    VSum(Ty, Box<E>, Box<E>),
 }
 
 /// HIR statements.
@@ -280,6 +292,15 @@ pub enum S {
     Out(u32, E),
     /// `(re, im) = p`: both `Real` variables receive the parts of a machine complex result (may decline)
     Pair(V, V, Pair),
+    /// `base = ` the address of a new vector of `len` words, all zero, owned by the call's environment (package P);
+    /// declines for a negative `len` or one beyond [`crate::rt::MAX_VECTOR`]
+    VNew(V, E),
+    /// word `i` (from 0) of the vector at `base` with `len` words `= e` (an `Int` or `Real` value); declines unless
+    /// `0 <= i < len`
+    Store(E, E, E, E),
+    /// the function's result is the vector at `base` with `len` leaves (package P; the host builds the packed list
+    /// from them, a function with this result returns its scalar result as usual, which callers ignore)
+    VOut(E, E),
     /// `if c { a } else { b }`
     If(E, Vec<S>, Vec<S>),
     /// `while c { body }`
@@ -393,7 +414,29 @@ pub fn type_of(func: &Func, e: &E) -> Result<Ty, String> {
             want(func, b, t)?;
             t
         }
+        E::Elem(t, base, len, i) => {
+            leaf_type(*t)?;
+            for x in [base, len, i] {
+                want(func, x, Int)?;
+            }
+            *t
+        }
+        E::VSum(t, base, len) => {
+            leaf_type(*t)?;
+            want(func, base, Int)?;
+            want(func, len, Int)?;
+            *t
+        }
     })
+}
+
+/// A vector's leaves are integers or machine reals.
+fn leaf_type(t: Ty) -> Result<(), String> {
+    if t == Ty::Bool {
+        Err("a vector of booleans".into())
+    } else {
+        Ok(())
+    }
 }
 
 /// The operands of a [`NumOp`] have their types.
@@ -444,6 +487,22 @@ fn check_block(func: &Func, b: &[S]) -> Result<(), String> {
                     }
                 }
             }
+            S::VNew(base, len) => {
+                if func.vars.get(*base as usize) != Some(&Ty::Int) {
+                    return Err("a vector address that is not an integer variable".into());
+                }
+                want(func, len, Ty::Int)?;
+            }
+            S::Store(base, len, i, e) => {
+                for x in [base, len, i] {
+                    want(func, x, Ty::Int)?;
+                }
+                leaf_type(type_of(func, e)?)?;
+            }
+            S::VOut(base, len) => {
+                want(func, base, Ty::Int)?;
+                want(func, len, Ty::Int)?;
+            }
             S::If(c, t, e) => {
                 want(func, c, Ty::Bool)?;
                 check_block(func, t)?;
@@ -486,8 +545,8 @@ pub fn size(func: &Func) -> usize {
             E::I(_, a, b) | E::F(_, a, b) | E::Cmp(_, a, b) | E::Logic(_, a, b) | E::MinMaxF(_, a, b) => e(a) + e(b),
             E::Not(a) | E::ToReal(a) | E::Floor(a) | E::AbsF(a) | E::Math(_, a) | E::NegF(a) => e(a),
             E::Num(_, os) => opds(os),
-            E::Sel(c, a, b) => e(c) + e(a) + e(b),
-            E::Draw(_, a, b) => e(a) + e(b),
+            E::Sel(c, a, b) | E::Elem(_, c, a, b) => e(c) + e(a) + e(b),
+            E::Draw(_, a, b) | E::VSum(_, a, b) => e(a) + e(b),
         }
     }
     fn opds(os: &[Opd]) -> usize {
@@ -502,7 +561,9 @@ pub fn size(func: &Func) -> usize {
         ss.iter()
             .map(|s| {
                 1 + match s {
-                    S::Set(_, x) | S::Eval(x) | S::Out(_, x) => e(x),
+                    S::Set(_, x) | S::Eval(x) | S::Out(_, x) | S::VNew(_, x) => e(x),
+                    S::Store(p, q, r, s) => e(p) + e(q) + e(r) + e(s),
+                    S::VOut(p, q) => e(p) + e(q),
                     S::Pair(_, _, Pair::Num(_, os)) => opds(os),
                     S::Pair(_, _, Pair::Math(_, x, y)) => e(x) + e(y),
                     S::If(c, t, f) => e(c) + b(t) + b(f),
@@ -525,8 +586,16 @@ fn speculable(e: &E) -> bool {
         E::F(_, a, b) | E::Cmp(_, a, b) | E::Logic(_, a, b) => speculable(a) && speculable(b),
         E::Not(a) | E::AbsF(a) | E::NegF(a) => speculable(a),
         E::Sel(c, a, b) => speculable(c) && speculable(a) && speculable(b),
-        // a draw is an effect: never evaluated on a branch not taken
-        E::I(..) | E::ToReal(_) | E::Floor(_) | E::MinMaxF(..) | E::Math(..) | E::Num(..) | E::Draw(..) => false,
+        // a draw is an effect: never evaluated on a branch not taken; an element access can decline
+        E::I(..)
+        | E::ToReal(_)
+        | E::Floor(_)
+        | E::MinMaxF(..)
+        | E::Math(..)
+        | E::Num(..)
+        | E::Draw(..)
+        | E::Elem(..)
+        | E::VSum(..) => false,
     }
 }
 
@@ -703,6 +772,18 @@ pub enum Op {
     Ret(R),
     /// write a register (an `I` or `F` word) to slot `k` of the environment's output buffer (decision N0.3)
     Out(u32, R),
+    /// `d` = word `i` (from 0) of the vector at address `base` (an `I` or `F` result; lowering checked the index)
+    Load(R, R, R),
+    /// word `i` (from 0) of the vector at address `base` = `v` (lowering checked the index)
+    Store(R, R, R),
+    /// `d` = the address of a new zeroed vector of `n` words in the environment ([`crate::rt::vec_new`]; declines
+    /// for a negative `n` or one beyond [`crate::rt::MAX_VECTOR`])
+    VNew(R, R),
+    /// the result is the vector at address `base` with `n` leaves ([`crate::rt::vec_out`])
+    VOut(R, R),
+    /// `d = sum(v)` of the vector at `base` with `n` leaves, `d` an `I` or `F` register ([`crate::rt::vsum_int`],
+    /// [`crate::rt::vsum_real`]; may decline, and charges fuel for its work)
+    VSum(R, R, R),
 }
 
 /// A function in LIR.
@@ -894,7 +975,39 @@ impl Lower<'_> {
                 self.emit(Op::Sel(d, rc, ra, rb));
                 d
             }
+            E::Elem(t, base, len, i) => {
+                let (rb, rl, ri) = (self.ex(base), self.ex(len), self.ex(i));
+                // `part`'s index: i - 1 for i >= 1, len + i for i <= -1 (wrapping: the side not taken may overflow)
+                let zero = self.iconst(0);
+                let neg = self.icmp(Cc::Lt, ri, zero);
+                let (back, of1) = (self.reg(K::I), self.reg(K::B));
+                self.emit(Op::IAddOv(back, of1, ri, rl));
+                let m1 = self.iconst(-1);
+                let (front, of2) = (self.reg(K::I), self.reg(K::B));
+                self.emit(Op::IAddOv(front, of2, ri, m1));
+                let j = self.reg(K::I);
+                self.emit(Op::Sel(j, neg, back, front));
+                self.bail_outside(j, rl);
+                let d = self.reg(kind(*t));
+                self.emit(Op::Load(d, rb, j));
+                d
+            }
+            E::VSum(t, base, len) => {
+                let (rb, rl) = (self.ex(base), self.ex(len));
+                let d = self.reg(kind(*t));
+                self.emit(Op::VSum(d, rb, rl));
+                d
+            }
         }
+    }
+
+    /// Decline unless `0 <= j < len`.
+    fn bail_outside(&mut self, j: R, len: R) {
+        let zero = self.iconst(0);
+        let below = self.icmp(Cc::Lt, j, zero);
+        let above = self.icmp(Cc::Ge, j, len);
+        let bad = self.bor(Some(below), above);
+        self.emit(Op::Bail(bad));
     }
 
     /// The registers of operands, evaluated in order.
@@ -1170,6 +1283,21 @@ impl Lower<'_> {
                 S::Out(k, e) => {
                     let r = self.ex(e);
                     self.emit(Op::Out(*k, r));
+                }
+                S::VNew(base, len) => {
+                    let rl = self.ex(len);
+                    let d = self.home[*base as usize];
+                    self.emit(Op::VNew(d, rl));
+                }
+                S::Store(base, len, i, e) => {
+                    let (rb, rl, ri) = (self.ex(base), self.ex(len), self.ex(i));
+                    let rv = self.ex(e);
+                    self.bail_outside(ri, rl);
+                    self.emit(Op::Store(rb, ri, rv));
+                }
+                S::VOut(base, len) => {
+                    let (rb, rl) = (self.ex(base), self.ex(len));
+                    self.emit(Op::VOut(rb, rl));
                 }
                 S::Pair(re, im, p) => {
                     let (dre, dim) = (self.home[*re as usize], self.home[*im as usize]);

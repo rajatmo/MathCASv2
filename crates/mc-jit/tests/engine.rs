@@ -196,7 +196,7 @@ fn the_decorator_compiles_at_definition() {
     // a function outside the subset is still defined; the definition's value says why it is not compiled
     assert_eq!(
         eval(&mut e, "@compiled fn untyped(n) = n + 1"),
-        "failure(not_compilable, untyped, \"parameter `n` of `untyped` has no type (Int or Real)\")"
+        "failure(not_compilable, untyped, \"a vector where a number is expected (an untyped parameter is a vector of machine numbers; arithmetic on vectors is not compiled)\")"
     );
     assert_eq!(eval(&mut e, "untyped(1)"), "2");
     assert_eq!(eval(&mut e, "compiled_info(untyped)"), "failure(not_compiled, untyped)");
@@ -215,7 +215,7 @@ fn functions_outside_the_subset_are_refused_with_a_reason() {
         ("fn a7(x: Real) = max(0, x)", "`min` or `max` of an integer and a machine real (the result's type would depend on the values)"),
         ("fn a8(n: Int) = sin(n)", "`sin` of an exact or boolean value (the result stays exact)"),
         ("fn a9(x: Real) = mod(x, 2)", "`mod` of a machine real"),
-        ("fn a10(s: String) = s", "parameter `s` of `a10` has a type other than Int or Real"),
+        ("fn a10(s: String) = s", "parameter `s` of `a10` has a type other than Int or Real (an untyped parameter is a vector)"),
         ("fn a11(n: Int) = if n > 0 then 1", "an `if` without `else` used as a value (it can be null)"),
         ("fn a12(x: Real) = x*pi", "the constant `pi` (the interpreter keeps it exact; n(pi) is its machine real)"),
         ("fn a13(x: Real) = [x, x] + 1.0", "a list where a number is expected"),

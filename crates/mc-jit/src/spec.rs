@@ -12,11 +12,12 @@
 //! stops puts the stream back where it was, so the interpreter, evaluating the call instead, draws the very
 //! numbers the interpreted call would have drawn.
 use mc_eval::Compiled;
-use crate::front::{front, FnDef, Shape, Source};
+use crate::front::{front_vectors, FnDef, Input, Param, Shape, Source};
 use crate::interp::Interp;
 use crate::ir::{self, Ty};
 use crate::jit::{self, Code};
 use crate::rt::{Env, Exit, PollFn};
+use mc_api::packed::{int_words, real_words, words_ints, words_reals, Packed};
 use mc_arith::{Arith, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::pat::{Pat, Ty as PatTy};
@@ -49,8 +50,10 @@ impl Backend {
 /// What a compilation produced, for `compiled_info`.
 #[derive(Clone, Debug)]
 pub struct Info {
-    /// the parameter types
+    /// the types of the parameter words (a vector takes two `Int` words: address and length)
     pub params: Vec<Ty>,
+    /// how the function takes its arguments (a scalar, or a vector of `Int` or `Real` leaves: package P)
+    pub inputs: Vec<Input>,
     /// the result type (`Int` for a list result, whose words go to the output buffer)
     pub result: Ty,
     /// the result's shape (a list result: its leaves are the output words, decision N0.3)
@@ -114,12 +117,29 @@ impl Built {
         stream: Option<&mut Stream>,
         poll: &mut PollFn<'_>,
     ) -> (u64, Exit) {
+        let ((r, _), exit) = self.call_vector(ctl, args, out, stream, poll);
+        (r, exit)
+    }
+
+    /// [`Built::call_with`] that also returns the words of a vector result ([`Shape::Vector`], package P), when the
+    /// call set one.
+    pub fn call_vector(
+        &self,
+        ctl: &Control,
+        args: &[u64],
+        out: &mut [u64],
+        stream: Option<&mut Stream>,
+        poll: &mut PollFn<'_>,
+    ) -> ((u64, Option<Vec<u64>>), Exit) {
         if out.len() < self.outputs || args.len() != self.info.params.len() {
-            return (0, Exit::Decline);
+            return ((0, None), Exit::Decline);
         }
-        Env::with_stream(ctl, poll, out, stream, |env| match &self.back {
-            Back::Native(c) => c.call(args, env),
-            Back::Interp(i) => i.call(args, env),
+        Env::with_stream(ctl, poll, out, stream, |env| {
+            let r = match &self.back {
+                Back::Native(c) => c.call(args, env),
+                Back::Interp(i) => i.call(args, env),
+            };
+            (r, env.take_result())
         })
     }
 
@@ -149,9 +169,10 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
         },
         Backend::Interpreter => (Back::Interp(Interp::new(&lir)), Backend::Interpreter, 0, None),
     };
-    let params = func.params.iter().map(|&p| func.vars[p as usize]).collect();
+    let params: Vec<Ty> = func.params.iter().map(|&p| func.vars[p as usize]).collect();
     let result = ir::type_of(func, &func.ret)?;
     let info = Info {
+        inputs: params.iter().map(|&t| Input::Scalar(t)).collect(),
         params,
         result,
         shape: Shape::Scalar(result),
@@ -171,7 +192,9 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
 /// A compiled specialisation of one head.
 pub struct Specialisation {
     head: Sym,
-    built: Built,
+    /// the compiled code; a function with vector parameters has one variant per leaf type that compiled, `Real`
+    /// first (decision P.3), and a call runs the one its vectors' leaves select
+    variants: Vec<Built>,
     /// every function it read with the version it read (the head first)
     deps: Vec<(Sym, AtomicU32)>,
     ctl: Arc<Control>,
@@ -184,9 +207,17 @@ pub struct Specialisation {
 }
 
 impl Specialisation {
-    /// What was compiled.
+    /// What was compiled (the first variant).
     pub fn info(&self) -> &Info {
-        &self.built.info
+        &self.variants[0].info
+    }
+
+    /// The leaf types of the vector parameters of each variant (none without vector parameters).
+    fn vector_leaves(&self) -> Vec<Ty> {
+        self.variants
+            .iter()
+            .filter_map(|b| b.info.inputs.iter().find_map(|i| if let Input::Vector(t) = i { Some(*t) } else { None }))
+            .collect()
     }
 
     /// Are the definitions it read unchanged?
@@ -197,19 +228,40 @@ impl Specialisation {
 
 impl Compiled for Specialisation {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Option<T<'h>> {
-        let params = &self.built.info.params;
-        if args.len() != params.len() {
+        let inputs = &self.info().inputs;
+        if args.len() != inputs.len() {
             return None;
         }
         let h = cx.heap();
-        let mut words = Vec::with_capacity(args.len());
-        for (&a, &t) in args.iter().zip(params) {
-            words.push(match (h.view(a), t) {
-                (View::Int(v), Ty::Int) => v as u64,
-                (View::Real(x), Ty::Real) => x.to_bits(),
+        // the vectors' leaves (decision P.5): a packed payload as it is, a short list's machine numbers copied; every
+        // vector of one call has leaves of one type, which selects the variant
+        let mut vectors: Vec<(Ty, Leaves<'h>)> = vec![];
+        for (&a, i) in args.iter().zip(inputs) {
+            if let Input::Vector(_) = i {
+                let v = vector_arg(cx, a)?;
+                if vectors.first().is_some_and(|w| w.0 != v.0) {
+                    return None;
+                }
+                vectors.push(v);
+            }
+        }
+        let built = match vectors.first() {
+            None => &self.variants[0],
+            Some((t, _)) => self.variants.iter().find(|b| b.info.inputs.contains(&Input::Vector(*t)))?,
+        };
+        let mut words = Vec::with_capacity(built.info.params.len());
+        let mut vs = vectors.iter();
+        for (&a, i) in args.iter().zip(&built.info.inputs) {
+            match (*i, h.view(a)) {
+                (Input::Scalar(Ty::Int), View::Int(v)) => words.push(v as u64),
+                (Input::Scalar(Ty::Real), View::Real(x)) => words.push(x.to_bits()),
+                (Input::Vector(_), _) => {
+                    let w = vs.next().expect("a vector per vector parameter").1.words();
+                    words.extend([w.as_ptr() as u64, w.len() as u64]);
+                }
                 // a big integer, an exact or inexact non-machine number, anything else: the interpreter's
                 _ => return None,
-            });
+            }
         }
         if !self.current(&mut |s| cx.version(s)) {
             self.declines.fetch_add(1, Relaxed);
@@ -217,7 +269,7 @@ impl Compiled for Specialisation {
         }
         // decision N4b.2: drawing code runs only where the interpreter's draw would (the frontier, outside
         // conditions), with the session stream
-        let rng = match (self.built.draws(), &self.rng) {
+        let rng = match (built.draws(), &self.rng) {
             (false, _) => None,
             (true, Some(rng)) if cx.effect().is_ok() => Some(rng),
             (true, _) => {
@@ -227,17 +279,20 @@ impl Compiled for Specialisation {
         };
         let mut guard = rng.map(|r| r.lock());
         let saved = guard.as_mut().map(|g| g.stream().clone());
-        let words_out = !matches!(self.built.info.shape, Shape::Scalar(_));
-        let mut out = vec![0u64; if words_out { self.built.outputs() } else { 0 }];
-        let (r, exit) = {
+        let shape = &built.info.shape;
+        let words_out = matches!(shape, Shape::List(_) | Shape::Complex);
+        let mut out = vec![0u64; if words_out { built.outputs() } else { 0 }];
+        let ((r, vector), exit) = {
             // the fuel of compiled loops is the task's (decision F.3: a speculative task spends its own share)
             let mut poll = |n: u64| {
                 self.polls.fetch_add(1, Relaxed);
                 cx.tick(n).is_ok()
             };
             let stream = guard.as_mut().map(|g| g.stream());
-            self.built.call_with(&self.ctl, &words, &mut out, stream, &mut poll)
+            built.call_vector(&self.ctl, &words, &mut out, stream, &mut poll)
         };
+        // the payloads the code read stay borrowed until here
+        drop(vectors);
         // a decline or a stop: the interpreter evaluates the call (and stops at its first poll after a stop), from
         // the stream position the call started at
         if exit != Exit::Done {
@@ -248,12 +303,66 @@ impl Compiled for Specialisation {
             return None;
         }
         drop(guard);
+        if let Shape::Vector(t) = *shape {
+            // decision P.6: a vector result is built as one payload (packed when long enough)
+            let w = vector?;
+            self.runs.fetch_add(1, Relaxed);
+            return Some(match t {
+                Ty::Int => h.int_array(&[w.len()], words_ints(&w)),
+                _ => h.real_array(&[w.len()], words_reals(&w)),
+            });
+        }
         self.runs.fetch_add(1, Relaxed);
         if words_out {
-            return Some(list_term(cx, &self.built.info.shape, &mut out.into_iter()));
+            return Some(list_term(cx, shape, &mut out.into_iter()));
         }
-        Some(word_term(cx, self.built.info.result, r))
+        Some(word_term(cx, built.info.result, r))
     }
+}
+
+/// The leaves of a vector argument: borrowed from a packed payload, or copied from a short list.
+enum Leaves<'h> {
+    Payload(&'h [u64]),
+    Copied(Vec<u64>),
+}
+
+impl Leaves<'_> {
+    fn words(&self) -> &[u64] {
+        match self {
+            Leaves::Payload(w) => w,
+            Leaves::Copied(w) => w,
+        }
+    }
+}
+
+/// A vector argument's leaf type and leaves (decision P.5): a packed vector's payload, read without unpacking; a
+/// compound list of at least one element, all machine reals or all machine integers, element by element (such a
+/// list is shorter than the packing threshold: longer ones are packed). Anything else (an empty list, mixed
+/// leaves, big integers, matrices, other terms) is `None`: the call declines.
+fn vector_arg<'h>(cx: &NativeCx<'_, '_, 'h>, a: T<'h>) -> Option<(Ty, Leaves<'h>)> {
+    let h = cx.heap();
+    if let Some(p) = h.packed(a) {
+        return match p {
+            _ if p.rank() != 1 => None,
+            Packed::Reals { data, .. } => Some((Ty::Real, Leaves::Payload(real_words(data)))),
+            Packed::Ints { data, .. } => Some((Ty::Int, Leaves::Payload(int_words(data)))),
+        };
+    }
+    let items = cx.as_list(a)?;
+    let t = match h.view(*items.first()?) {
+        View::Real(_) => Ty::Real,
+        View::Int(_) => Ty::Int,
+        _ => return None,
+    };
+    let mut w = Vec::with_capacity(items.len());
+    for &x in items {
+        w.push(match (h.view(x), t) {
+            (View::Real(v), Ty::Real) => v.to_bits(),
+            (View::Int(v), Ty::Int) => v as u64,
+            _ => return None,
+        });
+    }
+    Some((t, Leaves::Copied(w)))
 }
 
 /// The term of a result word of type `t`.
@@ -279,6 +388,7 @@ fn list_term<'h>(cx: &NativeCx<'_, '_, 'h>, s: &Shape, words: &mut impl Iterator
             let (re, im) = (part(), part());
             Arith::new(cx.heap()).number(&Num::Complex(re, im))
         }
+        Shape::Vector(_) => unreachable!("the front end refuses vectors inside lists"),
     }
 }
 
@@ -400,13 +510,19 @@ impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
             };
             let pos = clause.vars.iter().position(|x| x == v).ok_or("a parameter without a name")?;
             let sym = clause.names[pos];
-            let t = match ty {
-                Some(PatTy::Integer) => Ty::Int,
-                Some(PatTy::Real | PatTy::MachineReal | PatTy::Number) => Ty::Real,
-                Some(_) => return Err(format!("parameter `{}` of `{name}` has a type other than Int or Real", h.sym_name(sym))),
-                None => return Err(format!("parameter `{}` of `{name}` has no type (Int or Real)", h.sym_name(sym))),
+            let p = match ty {
+                Some(PatTy::Integer) => Param::Scalar(Ty::Int),
+                Some(PatTy::Real | PatTy::MachineReal | PatTy::Number) => Param::Scalar(Ty::Real),
+                Some(_) => {
+                    return Err(format!(
+                        "parameter `{}` of `{name}` has a type other than Int or Real (an untyped parameter is a vector)",
+                        h.sym_name(sym)
+                    ))
+                }
+                // decision P.2: the pattern types have no vector type, so an untyped parameter is a vector
+                None => Param::Vector,
             };
-            params.push((sym, t));
+            params.push((sym, p));
         }
         Ok(FnDef { params, body })
     }
@@ -468,22 +584,50 @@ impl Native for CompileFn {
             Err(e) => return Ok(Reply::Done(not(&e))),
         };
         let mut src = KernelSource { cx, shared: Some(&self.0), versions: HashMap::new() };
-        let built = front(h, f, &mut src).and_then(|fr| {
-            let inlined = fr.deps[1..].to_vec();
-            build(&fr.func, inlined, backend).map(|mut b| {
-                b.info.shape = fr.result;
-                (b, fr.deps)
+        let mut compile = |elem: Ty| {
+            front_vectors(h, f, &mut src, elem).and_then(|fr| {
+                let inlined = fr.deps[1..].to_vec();
+                build(&fr.func, inlined, backend).map(|mut b| {
+                    b.info.shape = fr.result;
+                    b.info.inputs = fr.inputs;
+                    (b, fr.deps)
+                })
             })
-        });
-        let versions = src.versions;
-        let (built, deps) = match built {
-            Ok(x) => x,
-            Err(e) => return Ok(Reply::Done(not(&e))),
         };
+        // decision P.3: the variant for vectors of machine reals, and, when the function has vector parameters (or
+        // the first variant failed, possibly on a real leaf), the one for vectors of machine integers
+        let first = compile(Ty::Real);
+        let vectors = first.as_ref().map_or(true, |(b, _)| b.info.inputs.iter().any(|i| matches!(i, Input::Vector(_))));
+        let second = if vectors { compile(Ty::Int).ok() } else { None };
+        let versions = src.versions;
+        let mut variants = vec![];
+        let mut deps: Vec<Sym> = vec![];
+        let reason = match first {
+            Ok(x) => {
+                variants.push(x);
+                None
+            }
+            Err(e) => Some(e),
+        };
+        variants.extend(second.filter(|(b, _)| b.info.inputs.iter().any(|i| matches!(i, Input::Vector(_)))));
+        if variants.is_empty() {
+            return Ok(Reply::Done(not(&reason.expect("a failed variant"))));
+        }
+        let variants: Vec<Built> = variants
+            .into_iter()
+            .map(|(b, ds)| {
+                for s in ds {
+                    if !deps.contains(&s) {
+                        deps.push(s);
+                    }
+                }
+                b
+            })
+            .collect();
         let deps = deps.into_iter().map(|s| (s, AtomicU32::new(versions[&s]))).collect();
         let spec = Specialisation {
             head: f,
-            built,
+            variants,
             deps,
             ctl: self.0.ctl.clone(),
             polls: self.0.polls.clone(),
@@ -520,7 +664,15 @@ impl Native for InfoFn {
         let sym = |n: &str| h.sym_term(h.sym(n));
         let int = |n: usize| h.int(n as i64);
         let rule = |n: &str, v: T<'h>| h.call(h.sym(mc_api::names::RULE), &[sym(n), v]);
-        let types: Vec<T<'h>> = i.params.iter().map(|t| sym(t.name())).collect();
+        let types: Vec<T<'h>> = i
+            .inputs
+            .iter()
+            .map(|t| match t {
+                Input::Scalar(t) => sym(t.name()),
+                // a vector parameter: its leaves are the first variant's
+                other => h.string(&other.name()),
+            })
+            .collect();
         let inlined: Vec<T<'h>> = i.inlined.iter().map(|&s| h.sym_term(s)).collect();
         let mut items = vec![
             rule("params", cx.list(&types)),
@@ -538,6 +690,12 @@ impl Native for InfoFn {
             rule("runs", int(spec.runs.load(Relaxed) as usize)),
             rule("declines", int(spec.declines.load(Relaxed) as usize)),
         ];
+        let leaves = spec.vector_leaves();
+        if !leaves.is_empty() {
+            // the leaf types the vector parameters compiled for (decision P.3)
+            let ts: Vec<T<'h>> = leaves.iter().map(|t| sym(t.name())).collect();
+            items.push(rule("vector_leaves", cx.list(&ts)));
+        }
         if let Some(why) = &i.fallback {
             items.push(rule("fallback", h.string(why)));
         }
