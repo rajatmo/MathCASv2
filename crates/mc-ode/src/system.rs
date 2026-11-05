@@ -41,6 +41,9 @@ pub(crate) struct System<'h> {
     pub start: T<'h>,
     /// the initial state (numbers, exact where given exactly)
     pub initial: Vec<Num>,
+    /// initial values that depend on the parameters of `parametric_n_dsolve_value`: (component, expression); the
+    /// component's entry of `initial` is a placeholder until the parameters have values
+    pub initial_terms: Vec<(usize, T<'h>)>,
 }
 
 impl<'h> System<'h> {
@@ -215,7 +218,8 @@ fn equations<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Vec<T<'h>>> {
 }
 
 /// Reduce `eqs` in the unknowns `ys` and the independent variable `t` to a first-order system; closed initial
-/// values and points are evaluated by `n` to `digits` (machine precision for `None`). `Ok(Err(message))`
+/// values and points are evaluated by `n` to `digits` (machine precision for `None`); an initial value that
+/// mentions one of the parameters `params` is kept as an expression (`System::initial_terms`). `Ok(Err(message))`
 /// when the equations do not have a supported form.
 pub(crate) fn reduce<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -224,6 +228,7 @@ pub(crate) fn reduce<'h>(
     ys: &[Sym],
     t: Sym,
     digits: Option<u64>,
+    params: &[Sym],
 ) -> Res<Result<System<'h>, Refusal>> {
     let h = cx.heap();
     if ys.contains(&t) {
@@ -233,8 +238,8 @@ pub(crate) fn reduce<'h>(
     let reader = Reader { h, unknowns: ys.to_vec(), derivative: h.sym_term(h.sym("derivative")) };
     let tt = h.sym_term(t);
     let mut differential: Vec<T<'h>> = vec![];
-    // (unknown, order, point, value)
-    let mut conditions: Vec<(usize, usize, Num, Num)> = vec![];
+    // (unknown, order, point, value), the value a number or (with parameters) an expression
+    let mut conditions: Vec<(usize, usize, Num, Result<Num, T<'h>>)> = vec![];
     let mut orders = vec![0usize; ys.len()];
     let mut seen_derivative = vec![false; ys.len()];
     for (k, e) in equations(cx, eqs)?.into_iter().enumerate() {
@@ -268,8 +273,13 @@ pub(crate) fn reduce<'h>(
         let Some(((i, d, x), v)) = cond else {
             return Ok(Err(format!("equation {} is neither a differential equation in {} nor an initial condition", k + 1, h.sym_name(t))));
         };
-        let (Some(x), Some(v)) = (util::number(cx, ar, x, digits)?, util::number(cx, ar, v, digits)?) else {
+        let Some(x) = util::number(cx, ar, x, digits)? else {
             return Ok(Err(format!("initial condition {} is not numeric", k + 1)));
+        };
+        let v = match util::number(cx, ar, v, digits)? {
+            Some(n) => Ok(n),
+            None if !params.is_empty() && mentions(cx, v, params)? => Err(v),
+            None => return Ok(Err(format!("initial condition {} is not numeric", k + 1))),
         };
         conditions.push((i, d, x, v));
     }
@@ -316,7 +326,7 @@ pub(crate) fn reduce<'h>(
     }
     let rhs = cx.eval(cx.list(&rhs))?;
     // the initial conditions: one per component, all at one point
-    let mut initial: Vec<Option<Num>> = vec![None; n];
+    let mut initial: Vec<Option<Result<Num, T<'h>>>> = vec![None; n];
     let mut start: Option<Num> = None;
     for (i, d, x, v) in conditions {
         let u = &unknowns[i];
@@ -330,7 +340,12 @@ pub(crate) fn reduce<'h>(
         }
         let slot = &mut initial[u.at + d];
         if let Some(old) = slot {
-            if mc_arith::number::equal(old, &v) != Some(true) {
+            let same = match (&*old, &v) {
+                (Ok(a), Ok(b)) => mc_arith::number::equal(a, b) == Some(true),
+                (Err(a), Err(b)) => a == b,
+                _ => false,
+            };
+            if !same {
                 return Ok(Err(format!("conflicting initial conditions for {}", printed_name(h, u.sym, d))));
             }
         }
@@ -338,16 +353,21 @@ pub(crate) fn reduce<'h>(
     }
     let Some(start) = start else { return Ok(Err("no initial conditions".into())) };
     let mut init = Vec::with_capacity(n);
+    let mut initial_terms = vec![];
     for (k, v) in initial.into_iter().enumerate() {
         match v {
-            Some(v) => init.push(v),
+            Some(Ok(v)) => init.push(v),
+            Some(Err(e)) => {
+                init.push(Num::int(0));
+                initial_terms.push((k, e));
+            }
             None => {
                 let u = unknowns.iter().rev().find(|u| u.at <= k).expect("a component's unknown");
                 return Ok(Err(format!("missing initial condition for {}", printed_name(h, u.sym, k - u.at))));
             }
         }
     }
-    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init }))
+    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init, initial_terms }))
 }
 
 /// `y`, `y'`, `y''`, ... for messages.

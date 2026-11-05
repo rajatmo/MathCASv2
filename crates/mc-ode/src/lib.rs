@@ -9,6 +9,7 @@
 //! - `dense`, `events`: dense output and zero crossings of event functions;
 //! - `taylor`: the Taylor series method on balls under `digits:`;
 //! - `solution`: solutions kept by the session and the `interpolating_function` terms naming them;
+//! - `parametric`: `parametric_n_dsolve_value`, the system reduced once into a `parametric_function` term;
 //! - `natives`: argument forms, results and failures.
 //!
 //! ```
@@ -29,6 +30,7 @@ mod lu;
 mod model;
 mod natives;
 mod options;
+mod parametric;
 mod rodas;
 mod solution;
 mod step;
@@ -52,6 +54,14 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "n_dsolve_value(eqs, expr, [t, t0, t1]): expr (in y(t), y'(t), ...) along the numerical solution: a closure of t, or a number for expr = y(t1); the options of n_dsolve",
     ),
     (
+        "parametric_n_dsolve_value",
+        "parametric_n_dsolve_value(eqs, expr, [t, t0, t1], [p1, ..., pm]): a parametric_function f of the parameters, the equations reduced once; f(v1, ..., vm) is n_dsolve_value with the parameters set to the values (initial values and options may use them); the options of n_dsolve",
+    ),
+    (
+        "parametric_function",
+        "parametric_function(params, expr, data): the result of parametric_n_dsolve_value; f(v1, ..., vm) integrates with the parameters set to the numbers v1, ..., vm (a symbolic value leaves the call as it is)",
+    ),
+    (
         "interpolating_function",
         "interpolating_function(\"y\", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list; exact times such as pi/2 through n), failure(out_of_range, t, [lo, hi]) outside; \"y'\" names the derivative, which d(f(u), u) gives",
     ),
@@ -62,9 +72,15 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     let a = Attributes::default();
     let store = Arc::new(solution::Store::default());
-    let solve = |value| Box::new(natives::Solve { stop: stop.clone(), store: store.clone(), value });
-    k.register(h.sym("n_dsolve"), a, solve(false));
-    k.register(h.sym("n_dsolve_value"), a, solve(true));
+    let solve = |kind| natives::Solve { stop: stop.clone(), store: store.clone(), kind };
+    k.register(h.sym("n_dsolve"), a, Box::new(solve(natives::Kind::Rules)));
+    k.register(h.sym("n_dsolve_value"), a, Box::new(solve(natives::Kind::Value)));
+    k.register(h.sym("parametric_n_dsolve_value"), a, Box::new(solve(natives::Kind::Parametric)));
+    k.register(
+        h.sym("parametric_function"),
+        a,
+        Box::new(natives::ParametricCall { solve: solve(natives::Kind::Parametric) }),
+    );
     k.register(
         h.sym("interpolating_function"),
         a,

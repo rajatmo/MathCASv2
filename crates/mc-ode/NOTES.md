@@ -23,6 +23,9 @@ mc-lsp.
 
 ## API
 
+- `parametric_n_dsolve_value(eqs, expr, [t, t0, t1], [p1, ..., pm])` gives `parametric_function(...)`; `f(v1, ..., vm)`
+  is the value of `expr` for those parameter values (N3.12).
+
 - `n_dsolve(eqs, y | [y, z, ...], [t, t0, t1], options)` gives
   `[y -> interpolating_function("y", [lo, hi], steps, "key"), ...]`, plus `events -> [[t_e, k], ...]` with `events:`.
 - `n_dsolve_value(eqs, expr, [t, t0, t1], options)`: `expr` may use `y(x)`, `y'(x)`, ...; unknowns inferred from the
@@ -66,6 +69,13 @@ mc-lsp.
   initial values and range ends evaluated with `n` at the working precision (`y(0) == e` works); goals default to d.
 - **N3.11 Domain**: the range plus the initial point; integration runs from that point to both ends (t1 < t0 and
   conditions inside the range work).
+- **N3.12 Parametric solutions**: `parametric_n_dsolve_value(eqs, expr, [t, t0, t1], [p1, ..., pm], options)` reduces
+  the equations once with the parameters as symbols (initial values may use them) into the term
+  `parametric_function(params, expr, data)`, whose data is the reduced system (no state outlives a native call but
+  terms the session holds). A call `f(v1, ..., vm)` with real values substitutes them into the right-hand side, the
+  initial values, `expr` and the options and integrates as `n_dsolve_value` (identical results); a symbolic value
+  leaves the call unevaluated. A small equation solved 10^4 times: 0.37 s by `n_dsolve_value`, 0.23 s by a
+  parametric function.
 
 ## Edits outside the crate
 

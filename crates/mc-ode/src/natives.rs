@@ -15,6 +15,7 @@ use crate::events::Events;
 use crate::model::{self, Model};
 use crate::options::{self, Method, OptionError, Options};
 use crate::solution::{self, Data, Solution, Store, Value};
+use crate::parametric;
 use crate::system::{self, printed_name, System};
 use crate::taylor;
 use crate::util::{bad_argument, failure, mentions, number, real, rules};
@@ -27,14 +28,31 @@ use mc_eval::{Native, NativeCx, Reply, Res};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-/// `n_dsolve(...)` and `n_dsolve_value(...)`.
+/// What a [`Solve`] native gives.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Kind {
+    /// `n_dsolve`: the rules of the unknowns
+    Rules,
+    /// `n_dsolve_value`: the value of an expression
+    Value,
+    /// `parametric_n_dsolve_value`: a `parametric_function` of the parameters, reduced once
+    Parametric,
+}
+
+/// `n_dsolve(...)`, `n_dsolve_value(...)` and `parametric_n_dsolve_value(...)`.
 pub(crate) struct Solve {
     /// the flag `mc-arith` polls in long numeric loops
     pub stop: Arc<AtomicBool>,
     /// the session's solutions
     pub store: Arc<Store>,
-    /// `n_dsolve_value`: the value of an expression instead of the rules
-    pub value: bool,
+    /// what the call gives
+    pub kind: Kind,
+}
+
+/// `parametric_function(params, expr, data)(v1, ..., vm)`: the value of `expr` for the parameters' values.
+pub(crate) struct ParametricCall {
+    /// the solver, with kind `Parametric` (its name in failures)
+    pub solve: Solve,
 }
 
 /// `interpolating_function(...)(t)`.
@@ -106,15 +124,17 @@ fn solution_rules<'h>(h: &'h Heap, s: &Solved<'h>) -> T<'h> {
 
 impl Solve {
     fn name(&self) -> &'static str {
-        if self.value {
-            "n_dsolve_value"
-        } else {
-            "n_dsolve"
+        match self.kind {
+            Kind::Rules => "n_dsolve",
+            Kind::Value => "n_dsolve_value",
+            Kind::Parametric => "parametric_n_dsolve_value",
         }
     }
 
-    /// Reduce and integrate; `Err` with the failure term to return.
-    fn solve<'h>(
+    /// The range and the reduced system (`params` are the parameters of `parametric_n_dsolve_value`); `Err` with
+    /// the failure term to return.
+    #[allow(clippy::too_many_arguments)]
+    fn reduce<'h>(
         &self,
         cx: &mut NativeCx<'_, '_, 'h>,
         ar: &Arith<'h, Heap>,
@@ -122,16 +142,32 @@ impl Solve {
         ys: &[Sym],
         range_term: T<'h>,
         opts: &Options<'h>,
-    ) -> Res<Result<Solved<'h>, T<'h>>> {
+        params: &[Sym],
+    ) -> Res<Result<(System<'h>, Num, Num), T<'h>>> {
         let h = cx.heap();
         let name = self.name();
         // under digits: closed initial values and ends at the working precision of the Taylor method
         let digits = opts.high_precision().then(|| taylor::digits_of(taylor_bits(opts)));
         let Some((t, a, b)) = range(cx, ar, range_term, digits)? else { return Ok(Err(bad_argument(h, name, h.int(3)))) };
-        let sys = match system::reduce(cx, ar, eqs, ys, t, digits)? {
-            Ok(s) => s,
-            Err(m) => return Ok(Err(bad_argument(h, name, h.string(&m)))),
-        };
+        Ok(match system::reduce(cx, ar, eqs, ys, t, digits, params)? {
+            Ok(s) => Ok((s, a, b)),
+            Err(m) => Err(bad_argument(h, name, h.string(&m))),
+        })
+    }
+
+    /// Integrate a reduced system over the range [a, b] (and the initial point); `Err` with the failure term to
+    /// return.
+    fn integrate<'h>(
+        &self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        ar: &Arith<'h, Heap>,
+        sys: System<'h>,
+        opts: &Options<'h>,
+        a: Num,
+        b: Num,
+    ) -> Res<Result<Solved<'h>, T<'h>>> {
+        let h = cx.heap();
+        let name = self.name();
         let Some(s) = ar.num(sys.start).and_then(|v| real(&v)) else {
             return Ok(Err(bad_argument(h, name, h.string("the initial point is not real"))));
         };
@@ -354,34 +390,57 @@ impl Solve {
 }
 
 impl Native for Solve {
-    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, all: &[T<'h>]) -> Res<Reply<'h>> {
         let name = self.name();
         let h = cx.heap();
         let ar = Arith::new(h).with_stop(self.stop.clone());
-        let (args, opts) = match options::split(h, &ar, args) {
+        let (args, opts) = match options::split(h, &ar, all) {
             Ok(v) => v,
             Err(OptionError::Unknown(s)) => return Ok(Reply::Done(failure(h, "unknown_option", &[h.sym_term(s)]))),
             Err(OptionError::Bad(s)) => return Ok(Reply::Done(bad_argument(h, name, h.sym_term(s)))),
         };
-        let &[eqs, second, range_term] = args else { return Ok(Reply::Decline) };
+        let (eqs, second, range_term, params) = match (self.kind, args) {
+            (Kind::Parametric, &[eqs, expr, r, ps]) => (eqs, expr, r, Some(ps)),
+            (Kind::Rules | Kind::Value, &[eqs, second, r]) => (eqs, second, r, None),
+            _ => return Ok(Reply::Decline),
+        };
+        // the parameters: distinct symbols
+        let ps: Vec<Sym> = match params {
+            None => vec![],
+            Some(p) => match system::unknowns(cx, p) {
+                Some((ps, true)) if cx.as_list(p).is_some_and(|items| items.iter().all(|&u| matches!(h.view(u), View::Sym(_)))) => ps,
+                _ => return Ok(Reply::Done(bad_argument(h, name, h.int(4)))),
+            },
+        };
         let _scope = StopScope::enter(Some(&self.stop));
-        let ys = if self.value {
+        let ys = if self.kind == Kind::Rules {
+            match system::unknowns(cx, second) {
+                Some((ys, _)) => ys,
+                None => return Ok(Reply::Done(bad_argument(h, name, h.int(2)))),
+            }
+        } else {
             let ys = system::inferred_unknowns(cx, eqs)?;
             if ys.is_empty() {
                 return Ok(Reply::Done(bad_argument(h, name, h.string("no derivative of an unknown"))));
             }
             ys
-        } else {
-            match system::unknowns(cx, second) {
-                Some((ys, _)) => ys,
-                None => return Ok(Reply::Done(bad_argument(h, name, h.int(2)))),
-            }
         };
-        let solved = match self.solve(cx, &ar, eqs, &ys, range_term, &opts)? {
+        if ps.iter().any(|p| ys.contains(p)) {
+            return Ok(Reply::Done(bad_argument(h, name, h.string("a parameter is also an unknown"))));
+        }
+        let (sys, a, b) = match self.reduce(cx, &ar, eqs, &ys, range_term, &opts, &ps)? {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        if let Some(p) = params {
+            let options = if args.len() < all.len() { all[all.len() - 1] } else { cx.null() };
+            return Ok(Reply::Done(parametric::term(h, &ar, &sys, p, second, (&a, &b), options)));
+        }
+        let solved = match self.integrate(cx, &ar, sys, &opts, a, b)? {
             Ok(s) => s,
             Err(f) => return Ok(Reply::Done(f)),
         };
-        if self.value {
+        if self.kind == Kind::Value {
             return Ok(Reply::Done(self.substitute(cx, &solved, second)?));
         }
         let mut out = solution_rules(h, &solved);
@@ -395,6 +454,75 @@ impl Native for Solve {
             out = list(&all);
         }
         Ok(Reply::Done(out))
+    }
+}
+
+impl Native for ParametricCall {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let solve = &self.solve;
+        let name = solve.name();
+        // only the curried call f(v1, ..., vm) of f = parametric_function(params, expr, data)
+        let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+        let View::App { args: &[params, expr, data], .. } = h.view(head) else { return Ok(Reply::Decline) };
+        let ar = Arith::new(h).with_stop(solve.stop.clone());
+        let Some(p) = parametric::Parts::read(cx, params, data) else {
+            return Ok(Reply::Done(bad_argument(h, "parametric_function", h.string("not a parametric function"))));
+        };
+        if args.len() != p.params.len() {
+            return Ok(Reply::Done(bad_argument(h, name, h.string(&format!("{} parameter values expected", p.params.len())))));
+        }
+        // numeric values only (a symbolic call stays as it is)
+        let mut values = Vec::with_capacity(args.len());
+        for &v in args {
+            match ar.num(v) {
+                Some(n) if n.as_real().is_some() => values.push(v),
+                Some(_) => return Ok(Reply::Done(bad_argument(h, name, h.string("the parameter values must be real")))),
+                // a closed numeric value (pi/2) through n; a symbolic one leaves the call as it is
+                None => match number(cx, &ar, v, None)? {
+                    Some(n) if n.as_real().is_some() => values.push(ar.number(&n)),
+                    _ => return Ok(Reply::Decline),
+                },
+            }
+        }
+        let _scope = StopScope::enter(Some(&solve.stop));
+        let subst = |u: T<'h>| {
+            mc_numfn::replace(h, u, &mut |x| match h.view(x) {
+                View::Sym(s) => p.params.iter().position(|&q| q == s).map(|i| values[i]),
+                _ => None,
+            })
+        };
+        let opts = match p.options {
+            None => options::split(h, &ar, &[]).ok().expect("no options").1,
+            Some(o) => {
+                let o = subst(o);
+                match options::split(h, &ar, &[o]) {
+                    Ok((_, opts)) => opts,
+                    Err(OptionError::Unknown(s)) => return Ok(Reply::Done(failure(h, "unknown_option", &[h.sym_term(s)]))),
+                    Err(OptionError::Bad(s)) => return Ok(Reply::Done(bad_argument(h, name, h.sym_term(s)))),
+                }
+            }
+        };
+        let digits = opts.high_precision().then(|| taylor::digits_of(taylor_bits(&opts)));
+        let rhs = cx.eval(subst(p.rhs))?;
+        let mut initial = Vec::with_capacity(p.initial.len());
+        for &v in &p.initial {
+            let v = if ar.num(v).is_some() { v } else { subst(v) };
+            match number(cx, &ar, v, digits)? {
+                Some(n) => initial.push(n),
+                None => return Ok(Reply::Done(bad_argument(h, name, h.string("the initial values are not numeric")))),
+            }
+        }
+        let sys = System { t: p.t, unknowns: p.unknowns, state: p.state, rhs, start: p.start, initial, initial_terms: vec![] };
+        let solved = match solve.integrate(cx, &ar, sys, &opts, p.a, p.b)? {
+            Ok(s) => s,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        Ok(Reply::Done(solve.substitute(cx, &solved, subst(expr))?))
+    }
+
+    fn curried(&self) -> bool {
+        true
     }
 }
 
