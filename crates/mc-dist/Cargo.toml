@@ -1,0 +1,20 @@
+[package]
+name = "mc-dist"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 probability distributions and data statistics: distribution terms, pdf, cdf, quantile, moments, random variates, estimation"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+mc-numeric = { path = "../mc-numeric" }
+mc-random = { path = "../mc-random" }
+mc-special = { path = "../mc-special" }
+
+[dev-dependencies]
+# tests that evaluate source text through the assembled core
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

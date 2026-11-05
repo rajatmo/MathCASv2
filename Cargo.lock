@@ -578,6 +578,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-dist"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-arith",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "mc-numeric",
+ "mc-random",
+ "mc-special",
+]
+
+[[package]]
 name = "mc-engine"
 version = "0.0.0"
 dependencies = [
@@ -587,6 +602,7 @@ dependencies = [
  "mc-bench",
  "mc-calculus",
  "mc-core",
+ "mc-dist",
  "mc-eval",
  "mc-io",
  "mc-jit",
@@ -710,6 +726,7 @@ dependencies = [
  "mc-api",
  "mc-assoc",
  "mc-calculus",
+ "mc-dist",
  "mc-io",
  "mc-linalg",
  "mc-lists",

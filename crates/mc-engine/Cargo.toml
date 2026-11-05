@@ -12,6 +12,7 @@ mc-assoc = { path = "../mc-assoc" }
 mc-bench = { path = "../mc-bench" }
 mc-calculus = { path = "../mc-calculus" }
 mc-core = { path = "../mc-core" }
+mc-dist = { path = "../mc-dist" }
 mc-eval = { path = "../mc-eval" }
 mc-jit = { path = "../mc-jit" }
 mc-linalg = { path = "../mc-linalg" }

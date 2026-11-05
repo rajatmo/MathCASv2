@@ -65,7 +65,7 @@ mc> stats.geometric_mean([1, 4])
 2
 mc> :modules
 shapes: area
-stats: geometric_mean, mean, median, std_dev, variance
+stats: correlation, covariance, geometric_mean, mean, median, std_dev, variance
 vectors: angle, e1, e2, plus, times
 
 # Errors: an unknown module, an ambiguous name

@@ -240,7 +240,7 @@ fn completion_modules_and_reset() {
         "my_value = 1\nfn my_fun(x) = x\nmodule geo { pub fn area(r) = pi*r^2\n fn helper(x) = x }\nimport stats",
     );
     assert_eq!(names(&mut k, 8, "my_"), ["my_fun", "my_value"]);
-    assert_eq!(names(&mut k, 9, "geo"), ["geo", "geo.area"], "private members are not offered");
+    assert_eq!(names(&mut k, 9, "geo"), ["geo", "geo.area", "geometric_distribution"], "private members are not offered");
     assert_eq!(names(&mut k, 10, "stats.m"), ["stats.mean", "stats.median"]);
     let rs = k.ask(json!({"type": "modules", "id": 11}));
     assert_eq!(rs[0]["type"], "modules");
@@ -248,7 +248,7 @@ fn completion_modules_and_reset() {
         rs[0]["modules"],
         json!([
             {"name": "geo", "origin": "<input>", "public": ["area"]},
-            {"name": "stats", "origin": "lib/stats.mc", "public": ["geometric_mean", "mean", "median", "std_dev", "variance"]},
+            {"name": "stats", "origin": "lib/stats.mc", "public": ["correlation", "covariance", "geometric_mean", "mean", "median", "std_dev", "variance"]},
         ])
     );
     // reset: a fresh session with the prelude

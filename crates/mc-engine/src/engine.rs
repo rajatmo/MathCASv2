@@ -95,6 +95,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_special::FUNCTIONS,
         mc_linalg::FUNCTIONS,
         mc_solve::FUNCTIONS,
+        mc_dist::FUNCTIONS,
     ];
     lists.iter().flat_map(|l| l.iter().map(|e| e.0)).chain(["inf"]).map(|n| h.sym(n)).collect()
 }
@@ -188,7 +189,9 @@ impl CoreEngine {
             // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
             let rng = mc_random::install(&mut k, h);
             // compiled functions draw from the same generator (package N4b)
-            jit.as_ref().expect("the compiler is installed").set_rng(rng);
+            jit.as_ref().expect("the compiler is installed").set_rng(rng.clone());
+            // distributions draw their variates from the same generator (package 3D)
+            mc_dist::install(&mut k, h, rng);
             // a list is data: a failure is kept as an element, not propagated to the whole list (semantics 10), so a
             // table with a few failed entries can still be filtered (`select(xs, x => not is_failure(x))`)
             let list = h.sym(names::LIST);
