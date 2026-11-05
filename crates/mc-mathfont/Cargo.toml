@@ -1,0 +1,10 @@
+[package]
+name = "mc-mathfont"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 math font: the bundled STIX Two Math (SIL Open Font License 1.1) and its OpenType MATH data (constants, italic corrections, size variants, glyph assemblies, outlines)"
+
+[dependencies]
+ttf-parser = { version = "0.25", default-features = false, features = ["std", "opentype-layout"] }
+ab_glyph_rasterizer = "0.1"

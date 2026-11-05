@@ -553,6 +553,15 @@ name = "mc-bench"
 version = "0.0.0"
 
 [[package]]
+name = "mc-boxes"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-mathfont",
+ "mc-syntax",
+]
+
+[[package]]
 name = "mc-calculus"
 version = "0.0.0"
 dependencies = [
@@ -746,6 +755,14 @@ dependencies = [
  "mc-syntax",
  "serde_json",
  "winresource",
+]
+
+[[package]]
+name = "mc-mathfont"
+version = "0.0.0"
+dependencies = [
+ "ab_glyph_rasterizer",
+ "ttf-parser",
 ]
 
 [[package]]

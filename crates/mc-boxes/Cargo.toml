@@ -1,0 +1,14 @@
+[package]
+name = "mc-boxes"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 two-dimensional typesetting without UI: box tree, caret and structure editing, canonical box text, printed output to boxes, aliases, layout and line breaking over a metrics trait"
+
+[dependencies]
+mc-syntax = { path = "../mc-syntax" }
+mc-mathfont = { path = "../mc-mathfont" }
+
+[dev-dependencies]
+# the canonical text and its linear form must read to the same terms
+mc-api = { path = "../mc-api" }
