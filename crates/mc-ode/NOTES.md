@@ -113,3 +113,7 @@ L3 t = 10 max error 1e-8 against the reference; L4 relative errors 7e-11 / 1e-10
 5. The Taylor method's error is an estimate (no verified enclosures); functions outside its set give a clear failure.
 6. The store keeps every solution of a session (no eviction).
 7. Vector-valued unknowns written as list arithmetic are not supported (unknowns are scalar functions).
+
+## Round 7 package C
+
+`d` of interpolating functions (primes added to the name, in mc-calculus' `DerivativeAt`) and exact times (`g(pi/2)` evaluated with `n` at the solution's precision, in `Interpolating::at`): see `crates/mc-calculus/NOTES.md`, section "Round 7 package C".

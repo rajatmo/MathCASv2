@@ -114,3 +114,80 @@ Known gaps across the package (details in the reports):
 - results are not simplified (`(-1/2)*log(4) + (1/2)*log(2)`);
 - `d` has no rules for sec, csc, cot and the inverse hyperbolic functions, and `n` cannot evaluate sec, csc, cot;
 - `limit` (item 5) is not built; `integrate/definite/limit.rs` is a private, conservative helper it can replace.
+
+## Round 7 package C: public `limit`, `d` of interpolating functions, exact times
+
+Status: merged (branch `lib/r7-c`, commits 5f4f9f4, 9693969, from main 216fdea; merge 02483a9). On the branch: full
+suite 782 passed, 0 failed, 6 ignored; clippy clean; L3, L4, L3h pass.
+
+### What was built
+
+1. **`limit`** (`src/limit/`): `limit(f, x -> a)`, `direction: from_above | from_below | two_sided`, `a` may be
+   `inf`/`-inf`, a list `f` maps elementwise. The walk moved from `integrate/definite/limit.rs` to `limit/walk.rs`
+   (definite integration uses it from there) and gained `tan` (a pole as `sin/cos`), `abs`, `sign`, bounded factors,
+   rewrites in `0·∞` products (`abs(u)` to `±u`, `sinh`/`cosh` to exponentials, distributing a sum factor, then
+   L'Hospital) and in `∞ - ∞` sums (combining logarithms of positive arguments, then `together`). **Bug fixed:** the
+   old helper read `series` results as sums, but `series` returns `series_data(x, x0, [c...], v, p)`, so its series
+   step never fired; it now reads the leading nonzero coefficient.
+2. **`d` of interpolating functions**: `DerivativeAt` turns `derivative(n)(interpolating_function("y", rest...))`
+   into `interpolating_function("y" + n primes, rest...)`, so `d(g(u), u)`, `d(g(u), [u, 2])`, `g'(1)`, `g''(x)`
+   and chain rules (`d(g(u^2), u)`) work; mc-ode already reads primes as the derivative order.
+3. **Exact times** (`mc-ode` `Interpolating::at`): a time that is not a number goes through `util::number` (`n` at
+   machine precision, or `taylor::digits_of(p)` for ball solutions): `g(pi/2)`, `g(sqrt(2))`, `g([1, pi/2])`
+   evaluate; symbolic times stay unevaluated; `g(3*pi)` gives `failure(out_of_range, 3*pi, [lo, hi])`.
+
+### Decisions
+
+- **C.1** A two-sided limit is the common value of both sides; sides that provably differ (finite vs finite, or an
+  infinity involved) give `failure(no_limit, limit, f)`; an unknown side or undecided equality leaves the call.
+- **C.2** An undecided limit stays unevaluated (as `integrate`), not `failure(not_decided, ...)`.
+- **C.3** Inexact numbers in `f` or `a` are rationalized, the limit taken exactly, the result given through `n`
+  (`limit((x^2-1)/(x-1), x -> 1.0)` is `2.0`): the walk otherwise computed `0.0/0.0`.
+- **C.4** A bounded factor (`sin`, `cos`, `atan`, `tanh` of a provably real argument) times factors tending to 0
+  tends to 0; a bounded term does not change the infinite limit of a sum.
+- **C.5** Rewriting steps only after series and dominance fail: the `abs`, `sinh`/`cosh` and distribution rewrites,
+  L'Hospital (`0/0` then `∞/∞`), combined logarithms, `together`; each costs 50 of the 200-level depth budget (at most
+  four nest; failing cases return in milliseconds). L'Hospital is one-sided at t → 0+ on elementary functions,
+  accepted only when the walk finds the limit of the derivative quotient.
+- **C.6** `derivative(n)(interpolating_function(...))` adds n primes for n in 0..=1000; larger orders and
+  multi-argument operators (`derivative(1, 1)`) stay unevaluated.
+- **C.7** Exact times evaluate at the solution's precision (N3.10's working precision for ball solutions).
+- **C.8** Limits are along the real line; at `±inf` the direction is the finite side (a contrary `direction:` gives
+  `failure(argument, limit, "an infinity is approached from the finite side")`); unknown functions (`f(x)`,
+  `gamma(x)`) are never assumed continuous.
+
+### API
+
+`limit` in `FUNCTIONS`; Rust `mc_calculus::limit::{limit, Direction, Outcome, LimitFn}` (`limit(cx, b, f, x, a,
+direction) -> Res<Outcome>`, `Outcome = Value(T) | NoLimit | Unknown`). Failures: `failure(no_limit, limit, f)`,
+`failure(argument, limit, "the point is x -> a" | "the point depends on the variable" | "a number is not a variable" |
+"direction is ..." | "an infinity is ...")`, `failure(unknown_option, name)`. No edits outside mc-calculus, mc-ode.
+
+### Tests
+
+`mc-calculus/tests/limit.rs` (9): points, one-sided, infinities, inexact, failures, undecided and other forms, hard
+cases under 5 s, 1 vs 4 threads identical, definite integrals through the walk. `mc-ode/tests/calculus.rs` (4):
+derivative terms `===` to hand-written names, values near exact solutions (y' = -y to about 1e-9; x'' = -x: x', x'',
+x''' to 1e-9 / 1e-6 / 1e-3), chain and product rules, the 0-th derivative; exact times (`pi/2`, `sqrt(2)`, lists,
+out of range keeping `3*pi`, symbolic); a 30-digit ball solution at `pi/2` and its derivative agree with
+`n(exp(-pi/2), 40)` in at least 28 digits; 1 vs 4 threads.
+
+Limits in the tests include: `sin(x)/x` → 1, `(1 + 1/n)^n` → e, `x*log(x)` → 0, `(exp(x) - 1 - x)/x^2` → 1/2,
+`(1 - cos(x))/x^2` → 1/2, `(a^x - 1)/x` → log(a), `(2x^2 + 1)/(3x^2 - x)` at inf → 2/3, `(1 + a/x)^x` → exp(a),
+`sqrt(x^2 + x) - x` → 1/2, `x^(1/x)` → 1, `log(x) - log(2x)` → log(1/2), `1/x` at 0 → inf / -inf / no_limit,
+`tan(x)` at pi/2 → inf / -inf / no_limit, `x^x` at 0+ → 1; unevaluated: `sin(x)` at inf, `sin(1/x)`, `f(x)`,
+`x^a` at 0.
+
+### Known gaps
+
+1. Not decided: `(x+1)^(1/3) - x^(1/3)` at inf (no Puiseux series), `sinh(x)/cosh(x)` at inf, `sin(x)*exp(x)`,
+   continuity of non-elementary functions (`gamma(x)` at 1, `floor`).
+2. Symbolic parameters whose sign matters (`x^a` at 0, `exp(a*x)` at inf) stay unevaluated: round 7 package A's
+   assumptions could decide them through `uses_assumptions` on `limit` and `NativeCx::assumptions()`.
+3. Inexact inputs are rationalized, so `limit(x^2, x -> 0.1)` is `0.01`, not `0.010000000000000002`.
+4. `0.0 + exp(-pi/2)` does not become a number (evaluator).
+5. Derivatives beyond the dense output's degree 4 come from the interpolant (x''' to about 1e-3).
+6. No interrupt test specific to `limit` (fuel is ticked per node; no case slow enough to interrupt reliably).
+7. Flaky test outside the package: `mc-calculus/tests/apart.rs::interruption` failed twice in guarded runs with a
+   panic in `mc-poly` (`poly.rs:407`, "division by the zero polynomial") while `apart` is interrupted; it passed in 5
+   later runs. Likely a race in `mc-poly` when the stop flag is raised mid-computation: needs an owner.
