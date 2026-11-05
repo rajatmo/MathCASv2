@@ -211,7 +211,7 @@ pub(crate) struct Slot {
     off: Cell<usize>,
     /// allocations of the scope beyond the slabs (long argument lists and payloads), freed when it ends
     big: UnsafeCell<Vec<(*mut u64, usize)>>,
-    table: UnsafeCell<Table>,
+    table: RefCell<Table>,
     memo: RefCell<FxHashMap<u32, Item>>,
     /// unpacked arguments of packed arrays viewed in the scope
     unpacked: RefCell<FxHashMap<u32, *mut [u32]>>,
@@ -259,7 +259,7 @@ impl Slot {
             slab: Cell::new(0),
             off: Cell::new(0),
             big: UnsafeCell::new(vec![]),
-            table: UnsafeCell::new(Table::new()),
+            table: RefCell::new(Table::new()),
             memo: RefCell::new(FxHashMap::default()),
             unpacked: RefCell::new(FxHashMap::default()),
         }
@@ -371,14 +371,9 @@ impl Slot {
         self.push(n)
     }
 
-    fn table(&self) -> &mut Table {
-        // SAFETY: owner-only access (type docs); no caller keeps the borrow across another call into the slot.
-        unsafe { &mut *self.table.get() }
-    }
-
     /// Does the private table hold a term with this structural hash?
     fn has_hash(&self, hash: u64) -> bool {
-        self.table().find(hash, |p| self.at(p).hash == hash).is_ok()
+        self.table.borrow().find(hash, |p| self.at(p).hash == hash).is_ok()
     }
 
     /// Start a scope: pages move on, so handles of the previous scope are recognised as stale.
@@ -402,7 +397,7 @@ impl Slot {
                 free_words(p, n);
             }
         }
-        self.table().clear();
+        self.table.borrow_mut().clear();
         self.memo.borrow_mut().clear();
         for (_, p) in self.unpacked.borrow_mut().drain() {
             // SAFETY: made by `Box::into_raw` in `unpacked`, freed once.
@@ -586,7 +581,7 @@ impl Heap {
     /// same), then the shared tables (look-up only, and only when no part is scratch), else store it privately.
     pub(crate) fn intern_scratch(&self, s: &Slot, proto: Node, body: Body, may_be_old: bool) -> u32 {
         let young = &self.young;
-        let found = s.table().find(proto.hash, |p| same(young, s.at(p), &proto, body));
+        let found = s.table.borrow().find(proto.hash, |p| same(young, s.at(p), &proto, body));
         let at = match found {
             Ok(p) => return s.handle(p),
             Err(at) => at,
@@ -608,7 +603,7 @@ impl Heap {
         }
         let b = s.store(proto, body);
         // the table did not change since the probe
-        s.table().insert(at, proto.hash, s.len.get() - 1);
+        s.table.borrow_mut().insert(at, proto.hash, s.len.get() - 1);
         b
     }
 
@@ -616,7 +611,7 @@ impl Heap {
     pub(crate) fn intern_scratch_owned(&self, s: &Slot, proto: Node, words: Vec<u64>) -> u32 {
         let young = &self.young;
         let w: &[u64] = &words;
-        let at = match s.table().find(proto.hash, |p| same(young, s.at(p), &proto, Body::Words(w))) {
+        let at = match s.table.borrow().find(proto.hash, |p| same(young, s.at(p), &proto, Body::Words(w))) {
             Ok(p) => return s.handle(p),
             Err(at) => at,
         };
@@ -629,7 +624,7 @@ impl Heap {
             return YOUNG | id;
         }
         let b = s.store_owned(proto, words.into_boxed_slice());
-        s.table().insert(at, proto.hash, s.len.get() - 1);
+        s.table.borrow_mut().insert(at, proto.hash, s.len.get() - 1);
         b
     }
 
@@ -659,7 +654,7 @@ impl Heap {
     /// terms always may (an old term existed before the scope began, so the scope found it instead of making a
     /// twin); a young term is checked through at most [`TWIN_CHECK`] nodes, beyond which the answer is no.
     fn twin_free(&self, s: &Slot, v: u32) -> bool {
-        if is_imm(v) || is_old(v) || s.table().count == 0 {
+        if is_imm(v) || is_old(v) || s.table.borrow().count == 0 {
             return true;
         }
         let mut stack = vec![v];
