@@ -1198,6 +1198,19 @@ impl App {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         let weak = self.view.palette.weak;
+        // the file name first, from the right, so the items on the left get the remaining width and are truncated
+        // instead of running into it
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            let name = self.path.as_ref().map_or("Untitled".to_string(), |p| p.display().to_string());
+            let m = if self.nb.is_modified() { " (modified)" } else { "" };
+            ui.add(egui::Label::new(RichText::new(format!("{name}{m}")).color(weak).small()).truncate());
+            ui.add_space(12.0);
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| self.status_items(ui, weak));
+        });
+    }
+
+    /// The left part of the status bar: kernel, last time, current cell, message.
+    fn status_items(&mut self, ui: &mut egui::Ui, weak: egui::Color32) {
         ui.horizontal_centered(|ui| {
             let (color, text) = self.kernel_indicator();
             let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
@@ -1221,13 +1234,8 @@ impl App {
                 ui.label(RichText::new(s).color(weak).small());
             }
             if !self.status.is_empty() {
-                ui.label(RichText::new(format!("· {}", self.status)).color(weak).small());
+                ui.add(egui::Label::new(RichText::new(format!("· {}", self.status)).color(weak).small()).truncate());
             }
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let name = self.path.as_ref().map_or("Untitled".to_string(), |p| p.display().to_string());
-                let m = if self.nb.is_modified() { " (modified)" } else { "" };
-                ui.label(RichText::new(format!("{name}{m}")).color(weak).small());
-            });
         });
     }
 
