@@ -13,6 +13,6 @@ mc-eval = { path = "../mc-eval" }
 mc-numeric = { path = "../mc-numeric" }
 
 [dev-dependencies]
+mc-bench = { path = "../mc-bench" }
 # tests that evaluate source text through the assembled core
 mc-engine = { path = "../mc-engine" }
-mc-syntax = { path = "../mc-syntax" }
