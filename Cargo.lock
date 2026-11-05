@@ -2360,6 +2360,7 @@ dependencies = [
  "png 0.18.1",
  "rfd",
  "serde_json",
+ "winresource",
 ]
 
 [[package]]
