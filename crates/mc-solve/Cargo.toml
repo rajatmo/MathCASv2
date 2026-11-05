@@ -1,0 +1,20 @@
+[package]
+name = "mc-solve"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 equation solving: polynomial equations by radicals and root objects, linear and polynomial systems (Groebner bases), elimination, numeric roots, real inequalities in one variable"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# zero tests and machine values of closed numeric terms, complex balls for root refinement
+mc-numeric = { path = "../mc-numeric" }
+mc-poly = { path = "../mc-poly" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

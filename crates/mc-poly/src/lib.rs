@@ -10,8 +10,10 @@
 #![warn(missing_docs)]
 pub mod convert;
 pub mod factor;
+pub mod fglm;
 mod functions;
 pub mod gcd;
+pub mod groebner;
 pub mod modp;
 pub mod mul;
 mod natives;

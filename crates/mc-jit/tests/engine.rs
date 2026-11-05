@@ -53,7 +53,7 @@ const CASES: &[(&str, &str, &[&str])] = &[
     ("sum3", "fn sum3(x: Real, y: Real, z: Real) = x + y + z", &["1e16, 3.0, -1e16", "3.0, 1e16, -1e16", "0.1, 0.2, 0.3", "-0.0, -0.0, -0.0", "1e308*10.0, -1e308*10.0, 1.0"]),
     ("mixed", "fn mixed(x: Real, n: Int) = x*n + n/3 + 1/7 + 2x - n", &["2.5, 3", "-0.0, 0", "1e300, 9007199254740993", "0.1, -7"]),
     ("prod", "fn prod(x: Real, y: Real) = 3*x*y + x*y*x - (1/3)*y", &["2.5, 3.5", "1e200, 1e200", "-0.0, 4.0"]),
-    ("roots", "fn roots(x: Real) = sqrt(x) + x^(1/3) + x^2 - x^-1 + x^0.5", &["2.0", "4.0", "0.0", "-8.0", "1e308*10.0"]),
+    ("radicals", "fn radicals(x: Real) = sqrt(x) + x^(1/3) + x^2 - x^-1 + x^0.5", &["2.0", "4.0", "0.0", "-8.0", "1e308*10.0"]),
     ("elem", "fn elem(x: Real) = exp(x) + log(x) + sin(x)*cos(x) + atan(x) - tan(x) + sinh(x)/cosh(x) + tanh(x)", &["0.5", "2.0", "-1.0", "0.0", "1e308*10.0"]),
     ("arcs", "fn arcs(x: Real) = asin(x) + acos(x)", &["0.5", "-1.0", "1.5", "-1.5"]),
     ("logic", "fn logic(x: Real, y: Real) = if x < y and not(x == y) or y != y then max(x, y) else min(x, y) - abs(x)", &["1.0, 2.0", "2.0, 1.0", "-0.0, 0.0", "0.0*(1e308*10.0), 1.0", "1.0, 0.0*(1e308*10.0)"]),
