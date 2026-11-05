@@ -73,9 +73,139 @@ fn beta_partial<'h>(b: &Build<'h>, x: T<'h>, y: T<'h>) -> T<'h> {
     b.mul(&[b.call("beta", &[x, y]), d])
 }
 
+/// `derivative(...)(f)(a)` in argument `i` (a partial derivative with no closed form, see [`OPAQUE`]).
+fn opaque_partial<'h>(b: &Build<'h>, f: &str, a: &[T<'h>], i: usize) -> T<'h> {
+    let mut orders = vec![0; a.len()];
+    orders[i] = 1;
+    let f = b.sym(b.heap().sym(f));
+    b.app(b.derivative(&orders, f), a)
+}
+
+/// `pi`
+fn pi<'h>(b: &Build<'h>) -> T<'h> {
+    b.sym(b.heap().sym("pi"))
+}
+
+/// `2/sqrt(pi) e^(s u^2)` (the error-function derivatives).
+fn gauss<'h>(b: &Build<'h>, u: T<'h>, s: i64) -> T<'h> {
+    let e = b.call("exp", &[b.mul(&[b.int(s), pw(b, u, 2)])]);
+    b.mul(&[b.int(2), b.pow(pi(b), b.rat(-1, 2)), e])
+}
+
+/// `s sqrt(pi)/2 e^(f(u)^2)` (the inverse error-function derivatives).
+fn inverse_gauss<'h>(b: &Build<'h>, f: &str, u: T<'h>, s: i64) -> T<'h> {
+    let y = b.call(f, &[u]);
+    b.mul(&[b.rat(s, 2), b.pow(pi(b), b.rat(1, 2)), b.call("exp", &[pw(b, y, 2)])])
+}
+
+/// `f(u)/u` (the sine and cosine integral derivatives).
+fn over<'h>(b: &Build<'h>, f: &str, u: T<'h>) -> T<'h> {
+    b.div(b.call(f, &[u]), u)
+}
+
+/// `(1 - m sin(phi)^2)^(k/2)`.
+fn delta<'h>(b: &Build<'h>, phi: T<'h>, m: T<'h>, k: i64) -> T<'h> {
+    let s2 = pw(b, b.call("sin", &[phi]), 2);
+    b.pow(b.sub(b.one(), b.mul(&[m, s2])), b.rat(k, 2))
+}
+
+/// `x^(a-1) (1-x)^(b-1)` (the incomplete beta integrand).
+fn beta_density<'h>(b: &Build<'h>, x: T<'h>, p: T<'h>, q: T<'h>) -> T<'h> {
+    let l = b.pow(x, b.sub(p, b.one()));
+    let r = b.pow(b.sub(b.one(), x), b.sub(q, b.one()));
+    b.mul(&[l, r])
+}
+
+/// `-x^(a-1) e^-x` (the x-derivative of gamma(a, x)).
+fn gamma_density<'h>(b: &Build<'h>, a: T<'h>, x: T<'h>) -> T<'h> {
+    b.neg(b.mul(&[b.pow(x, b.sub(a, b.one())), b.call("exp", &[b.neg(x)])]))
+}
+
+/// `(f(nu - 1, x) - f(nu + 1, x))/2` (the J and Y recurrences).
+fn bessel_diff<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
+    let lo = b.call(f, &[b.sub(a[0], b.one()), a[1]]);
+    let hi = b.call(f, &[b.add(&[a[0], b.one()]), a[1]]);
+    b.mul(&[b.rat(1, 2), b.sub(lo, hi)])
+}
+
+/// d/dm F(phi | m) = E(phi|m)/(2m(1-m)) - F(phi|m)/(2m) - sin(2 phi)/(4 (1-m) sqrt(1 - m sin^2 phi)).
+fn ell_f_m<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let (phi, m) = (a[0], a[1]);
+    let om = b.sub(b.one(), m);
+    let e = b.div(b.call("elliptic_e", &[phi, m]), b.mul(&[b.int(2), m, om]));
+    let f = b.div(b.call("elliptic_f", &[phi, m]), b.mul(&[b.int(2), m]));
+    let s = b.call("sin", &[b.mul(&[b.int(2), phi])]);
+    let t = b.div(b.mul(&[s, delta(b, phi, m, -1)]), b.mul(&[b.int(4), om]));
+    b.sub(b.sub(e, f), t)
+}
+
+/// d/dm K(m) = (E(m) - (1-m) K(m))/(2 m (1-m)).
+fn ell_k_m<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let m = a[0];
+    let om = b.sub(b.one(), m);
+    let num = b.sub(b.call("elliptic_e", &[m]), b.mul(&[om, b.call("elliptic_k", &[m])]));
+    b.div(num, b.mul(&[b.int(2), m, om]))
+}
+
+/// The z-derivative of 2F1: a b / c 2F1(a+1, b+1; c+1; z).
+fn hyp2f1_z<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let up = |t| b.add(&[t, b.one()]);
+    let f = b.call("hypergeometric_2f1", &[up(a[0]), up(a[1]), up(a[2]), a[3]]);
+    b.mul(&[a[0], a[1], pw(b, a[2], -1), f])
+}
+
+/// The z-derivative of 1F1: a / b 1F1(a+1; b+1; z).
+fn hyp1f1_z<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let up = |t| b.add(&[t, b.one()]);
+    let f = b.call("hypergeometric_1f1", &[up(a[0]), up(a[1]), a[2]]);
+    b.mul(&[a[0], pw(b, a[1], -1), f])
+}
+
+/// The derivative of inverse_jacobi_sn in v: ((1 - v^2)(1 - m v^2))^(-1/2).
+fn ijsn_v<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let v2 = pw(b, a[0], 2);
+    let p = b.mul(&[b.sub(b.one(), v2), b.sub(b.one(), b.mul(&[a[1], v2]))]);
+    b.pow(p, b.rat(-1, 2))
+}
+
+/// The derivative of elliptic_pi(n, phi, m) in phi.
+fn ell_pi_phi<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
+    let s2 = pw(b, b.call("sin", &[a[1]]), 2);
+    let den = b.sub(b.one(), b.mul(&[a[0], s2]));
+    b.div(delta(b, a[1], a[2], -1), den)
+}
+
 /// Partial derivatives that are the operator itself (name, arity, argument): differentiating
 /// `derivative(n...)(f)` in such an argument keeps the operator instead of resolving it again, which would not end.
-pub const OPAQUE: &[(&str, usize, usize)] = &[("polygamma", 2, 0), ("bessel_k", 2, 0), ("bessel_i", 2, 0)];
+pub const OPAQUE: &[(&str, usize, usize)] = &[
+    ("polygamma", 2, 0),
+    ("bessel_k", 2, 0),
+    ("bessel_i", 2, 0),
+    ("bessel_j", 2, 0),
+    ("bessel_y", 2, 0),
+    ("gamma", 2, 0),
+    ("gamma_regularized", 2, 0),
+    ("beta", 3, 1),
+    ("beta", 3, 2),
+    ("beta_regularized", 3, 1),
+    ("beta_regularized", 3, 2),
+    ("exp_integral_e", 2, 0),
+    ("polylog", 2, 0),
+    ("hypergeometric_2f1", 4, 0),
+    ("hypergeometric_2f1", 4, 1),
+    ("hypergeometric_2f1", 4, 2),
+    ("hypergeometric_1f1", 3, 0),
+    ("hypergeometric_1f1", 3, 1),
+    ("hypergeometric_0f1", 2, 0),
+    ("elliptic_pi", 2, 0),
+    ("elliptic_pi", 2, 1),
+    ("elliptic_pi", 3, 0),
+    ("elliptic_pi", 3, 2),
+    ("jacobi_sn", 2, 1),
+    ("jacobi_cn", 2, 1),
+    ("jacobi_dn", 2, 1),
+    ("inverse_jacobi_sn", 2, 1),
+];
 
 /// Can `derivative(orders)(name)` be resolved into a term (a known function, no order in an [`OPAQUE`] argument)?
 pub fn resolvable(name: &str, orders: &[i64]) -> bool {
@@ -154,6 +284,150 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             b.mul(&[b.rat(1, 2), bessel_sum(b, "bessel_i", a)])
         }]),
     ),
+    // package 3C: error functions, incomplete gamma and beta, exponential integrals, polylog, hypergeometric,
+    // Bessel J/Y, Airy, elliptic integrals and Jacobi functions; parameter derivatives without a closed form stay
+    // operators (OPAQUE)
+    ("erf", 1, Rule::Partials(&[|b, a| gauss(b, a[0], -1)])),
+    ("erfc", 1, Rule::Partials(&[|b, a| b.neg(gauss(b, a[0], -1))])),
+    ("erfi", 1, Rule::Partials(&[|b, a| gauss(b, a[0], 1)])),
+    ("inverse_erf", 1, Rule::Partials(&[|b, a| inverse_gauss(b, "inverse_erf", a[0], 1)])),
+    ("inverse_erfc", 1, Rule::Partials(&[|b, a| inverse_gauss(b, "inverse_erfc", a[0], -1)])),
+    ("gamma", 2, Rule::Partials(&[|b, a| opaque_partial(b, "gamma", a, 0), |b, a| gamma_density(b, a[0], a[1])])),
+    (
+        "gamma_regularized",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "gamma_regularized", a, 0), |b, a| {
+            b.div(gamma_density(b, a[0], a[1]), b.call("gamma", &[a[0]]))
+        }]),
+    ),
+    (
+        "beta",
+        3,
+        Rule::Partials(&[
+            |b, a| beta_density(b, a[0], a[1], a[2]),
+            |b, a| opaque_partial(b, "beta", a, 1),
+            |b, a| opaque_partial(b, "beta", a, 2),
+        ]),
+    ),
+    (
+        "beta_regularized",
+        3,
+        Rule::Partials(&[
+            |b, a| b.div(beta_density(b, a[0], a[1], a[2]), b.call("beta", &[a[1], a[2]])),
+            |b, a| opaque_partial(b, "beta_regularized", a, 1),
+            |b, a| opaque_partial(b, "beta_regularized", a, 2),
+        ]),
+    ),
+    ("exp_integral_ei", 1, Rule::Partials(&[|b, a| over(b, "exp", a[0])])),
+    (
+        "exp_integral_e",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "exp_integral_e", a, 0), |b, a| {
+            b.neg(b.call("exp_integral_e", &[b.sub(a[0], b.one()), a[1]]))
+        }]),
+    ),
+    ("log_integral", 1, Rule::Partials(&[|b, a| pw(b, b.call("log", &[a[0]]), -1)])),
+    ("sin_integral", 1, Rule::Partials(&[|b, a| over(b, "sin", a[0])])),
+    ("cos_integral", 1, Rule::Partials(&[|b, a| over(b, "cos", a[0])])),
+    ("sinh_integral", 1, Rule::Partials(&[|b, a| over(b, "sinh", a[0])])),
+    ("cosh_integral", 1, Rule::Partials(&[|b, a| over(b, "cosh", a[0])])),
+    (
+        "polylog",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "polylog", a, 0), |b, a| {
+            b.div(b.call("polylog", &[b.sub(a[0], b.one()), a[1]]), a[1])
+        }]),
+    ),
+    (
+        "hypergeometric_2f1",
+        4,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hypergeometric_2f1", a, 0),
+            |b, a| opaque_partial(b, "hypergeometric_2f1", a, 1),
+            |b, a| opaque_partial(b, "hypergeometric_2f1", a, 2),
+            hyp2f1_z,
+        ]),
+    ),
+    (
+        "hypergeometric_1f1",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hypergeometric_1f1", a, 0),
+            |b, a| opaque_partial(b, "hypergeometric_1f1", a, 1),
+            hyp1f1_z,
+        ]),
+    ),
+    (
+        "hypergeometric_0f1",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "hypergeometric_0f1", a, 0), |b, a| {
+            let f = b.call("hypergeometric_0f1", &[b.add(&[a[0], b.one()]), a[1]]);
+            b.mul(&[pw(b, a[0], -1), f])
+        }]),
+    ),
+    ("bessel_j", 2, Rule::Partials(&[|b, a| order_partial(b, "bessel_j", a), |b, a| bessel_diff(b, "bessel_j", a)])),
+    ("bessel_y", 2, Rule::Partials(&[|b, a| order_partial(b, "bessel_y", a), |b, a| bessel_diff(b, "bessel_y", a)])),
+    ("airy_ai", 1, Rule::Partials(&[|b, a| b.call("airy_ai_prime", &[a[0]])])),
+    ("airy_bi", 1, Rule::Partials(&[|b, a| b.call("airy_bi_prime", &[a[0]])])),
+    ("airy_ai_prime", 1, Rule::Partials(&[|b, a| b.mul(&[a[0], b.call("airy_ai", &[a[0]])])])),
+    ("airy_bi_prime", 1, Rule::Partials(&[|b, a| b.mul(&[a[0], b.call("airy_bi", &[a[0]])])])),
+    ("elliptic_k", 1, Rule::Partials(&[ell_k_m])),
+    (
+        "elliptic_e",
+        1,
+        Rule::Partials(&[|b, a| {
+            let d = b.sub(b.call("elliptic_e", &[a[0]]), b.call("elliptic_k", &[a[0]]));
+            b.div(d, b.mul(&[b.int(2), a[0]]))
+        }]),
+    ),
+    (
+        "elliptic_e",
+        2,
+        Rule::Partials(&[|b, a| delta(b, a[0], a[1], 1), |b, a| {
+            let d = b.sub(b.call("elliptic_e", &[a[0], a[1]]), b.call("elliptic_f", &[a[0], a[1]]));
+            b.div(d, b.mul(&[b.int(2), a[1]]))
+        }]),
+    ),
+    ("elliptic_f", 2, Rule::Partials(&[|b, a| delta(b, a[0], a[1], -1), ell_f_m])),
+    (
+        "elliptic_pi",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "elliptic_pi", a, 0), |b, a| opaque_partial(b, "elliptic_pi", a, 1)]),
+    ),
+    (
+        "elliptic_pi",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "elliptic_pi", a, 0),
+            ell_pi_phi,
+            |b, a| opaque_partial(b, "elliptic_pi", a, 2),
+        ]),
+    ),
+    (
+        "jacobi_sn",
+        2,
+        Rule::Partials(&[
+            |b, a| b.mul(&[b.call("jacobi_cn", a), b.call("jacobi_dn", a)]),
+            |b, a| opaque_partial(b, "jacobi_sn", a, 1),
+        ]),
+    ),
+    (
+        "jacobi_cn",
+        2,
+        Rule::Partials(&[
+            |b, a| b.neg(b.mul(&[b.call("jacobi_sn", a), b.call("jacobi_dn", a)])),
+            |b, a| opaque_partial(b, "jacobi_cn", a, 1),
+        ]),
+    ),
+    (
+        "jacobi_dn",
+        2,
+        Rule::Partials(&[
+            |b, a| b.neg(b.mul(&[a[1], b.call("jacobi_sn", a), b.call("jacobi_cn", a)])),
+            |b, a| opaque_partial(b, "jacobi_dn", a, 1),
+        ]),
+    ),
+    ("inverse_jacobi_sn", 2, Rule::Partials(&[ijsn_v, |b, a| opaque_partial(b, "inverse_jacobi_sn", a, 1)])),
     // complex parts, linear over the reals
     ("re", 1, Rule::Linear),
     ("im_part", 1, Rule::Linear),

@@ -3,7 +3,7 @@ name = "mc-special"
 version = "0.0.0"
 edition = "2021"
 publish = false
-description = "MathCAS v2 special functions: gamma, log_gamma, digamma, polygamma, beta, zeta, bessel_k, bessel_i (exact values, machine reals, rigorous balls)"
+description = "MathCAS v2 special functions: gamma family, zeta, Bessel, error functions, incomplete gamma and beta, exponential integrals, polylog, hypergeometric, elliptic and Jacobi functions (exact values, machine reals, rigorous balls)"
 
 [dependencies]
 mc-api = { path = "../mc-api" }

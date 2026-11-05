@@ -78,7 +78,8 @@ fn symbolic_and_failures() {
         ("bessel_i(1/3, -2.0)", "bessel_i(1/3, -2.0)"),
         ("polygamma(1/2, 2.0)", "polygamma(1/2, 2.0)"),
         ("gamma(1 + 2im)", "gamma(complex(1, 2))"),
-        ("gamma(1, 2)", "gamma(1, 2)"),
+        ("gamma(1, 2)", "exp(-2)"),
+        ("gamma(1, 2, 3)", "gamma(1, 2, 3)"),
         ("bessel_k([1, 2], [3])", "failure(shape_mismatch)"),
         // machine poles follow IEEE / the C library
         ("gamma(-2.0)", "machine_real(\"nan\")"),

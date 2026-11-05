@@ -41,6 +41,8 @@ fn args(f: Special, rng: &mut Lcg) -> Vec<Rat> {
         Special::Beta => vec![r(rng, -5, 20), r(rng, -5, 20)],
         Special::Zeta => vec![r(rng, -30, 40)],
         Special::BesselK | Special::BesselI => vec![r(rng, -6, 12), r(rng, 0, 60)],
+        // the 3C functions have their own enclosure tests (accuracy_*.rs)
+        _ => vec![],
     }
 }
 
@@ -48,7 +50,7 @@ fn check_at(digits: u64, per: usize) {
     let p = (digits as f64 * std::f64::consts::LOG2_10).ceil() as u64;
     let mut rng = Lcg(digits);
     let mut checked = 0;
-    for f in ALL {
+    for f in ALL.iter().copied().filter(|f| f.is_original()) {
         let mut misses = 0;
         for _ in 0..per {
             let a: Vec<Real> = args(f, &mut rng).into_iter().map(Real::Exact).collect();
@@ -86,7 +88,7 @@ fn ball_arguments() {
     // a ball argument's enclosure contains the values at its two ends and its midpoint
     let p = 200;
     let mut rng = Lcg(5);
-    for f in ALL {
+    for f in ALL.iter().copied().filter(|f| f.is_original()) {
         for _ in 0..6 {
             let a = args(f, &mut rng);
             let rad = Mag::pow2(-40);

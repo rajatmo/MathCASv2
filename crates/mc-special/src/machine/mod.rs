@@ -5,7 +5,14 @@
 //! (zeta(1), digamma at negative integers), one-sided ones a signed infinity. Arguments where the value is complex
 //! (K_nu or non-integer I_nu at x < 0) give NaN here and stay unevaluated in the natives.
 pub mod bessel;
+pub mod bessel_j;
+pub mod elliptic;
+pub mod erf;
+pub mod expint;
 pub mod gamma;
+pub mod hyper;
+pub mod incomplete;
+pub mod polylog;
 pub mod zeta;
 
 use crate::dd::DD;

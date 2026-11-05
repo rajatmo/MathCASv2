@@ -31,11 +31,34 @@
 //!   hull of the values at two exact corners.
 //! - **SF.9** `n` reaches the functions through a registry in `mc-numeric` (the smallest correct change: one node
 //!   kind in its numerical evaluation), so they are refined with the rest of their island.
+//!
+//! Package 3C added, at the same four levels: `erf`, `erfc`, `erfi`, `inverse_erf`, `inverse_erfc` ([`machine::erf`],
+//! [`ball::erf`]); the incomplete `gamma(a, x)`, `gamma_regularized`, `beta(z, a, b)`, `beta_regularized`
+//! ([`machine::incomplete`], [`ball::incomplete`]); `exp_integral_ei`, `exp_integral_e`, `log_integral`,
+//! `sin_integral`, `cos_integral`, `sinh_integral`, `cosh_integral` (`expint`); `polylog` (`polylog`);
+//! `hypergeometric_2f1`, `hypergeometric_1f1`, `hypergeometric_0f1`, `hypergeometric_pfq` (`hyper`); `bessel_j`,
+//! `bessel_y`, `airy_ai`, `airy_bi`, `airy_ai_prime`, `airy_bi_prime` (`bessel_j`); `elliptic_k`, `elliptic_e` (one
+//! and two arguments), `elliptic_f`, `elliptic_pi` (two and three arguments), `jacobi_sn`, `jacobi_cn`, `jacobi_dn`,
+//! `inverse_jacobi_sn` (`elliptic`). Decisions:
+//!
+//! - **3C.1** A name may have several arities (`gamma(x)` / `gamma(a, x)`, `beta(a, b)` / `beta(z, a, b)`,
+//!   `elliptic_e(m)` / `elliptic_e(phi, m)`, `elliptic_pi(n, m)` / `elliptic_pi(n, phi, m)`): one variant of
+//!   [`functions::Special`] per arity, one native per name, one library function of `n` per name and arity.
+//! - **3C.2** Exact closed forms only at special points (`exact_more`); poles give `failure(pole, call)` as SF.1
+//!   (also `inverse_erf(±1)`, `elliptic_k(1)`, `log_integral(1)`).
+//! - **3C.3** A machine point where the value is complex or undefined (NaN from the machine path) leaves the call
+//!   unevaluated, except for the SF functions, which keep SF.3.
+//! - **3C.4** Complex machine arguments are evaluated for `erf`, `erfc`, `erfi` and for `polylog` of integer order
+//!   (also on the cut z > 1, the limit from below); other complex arguments stay unevaluated.
+//! - **3C.5** `hypergeometric_pfq` is its own native (list parameters are not library functions of `n`): lengths
+//!   (0,1), (1,1), (2,1) become the named functions, other machine or ball parameters evaluate directly, and inside
+//!   `n` the parameters are numericized first and the native evaluates the result.
 #![warn(missing_docs)]
 pub mod ball;
 pub mod bernoulli;
 pub mod dd;
 pub mod exact;
+mod exact_more;
 pub mod functions;
 pub mod machine;
 mod natives;
@@ -57,6 +80,39 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     (Special::Zeta.name(), Special::Zeta.description()),
     (Special::BesselK.name(), Special::BesselK.description()),
     (Special::BesselI.name(), Special::BesselI.description()),
+    (Special::Erf.name(), Special::Erf.description()),
+    (Special::Erfc.name(), Special::Erfc.description()),
+    (Special::Erfi.name(), Special::Erfi.description()),
+    (Special::InverseErf.name(), Special::InverseErf.description()),
+    (Special::InverseErfc.name(), Special::InverseErfc.description()),
+    (Special::GammaRegularized.name(), Special::GammaRegularized.description()),
+    (Special::BetaRegularized.name(), Special::BetaRegularized.description()),
+    (Special::ExpIntegralEi.name(), Special::ExpIntegralEi.description()),
+    (Special::ExpIntegralE.name(), Special::ExpIntegralE.description()),
+    (Special::LogIntegral.name(), Special::LogIntegral.description()),
+    (Special::SinIntegral.name(), Special::SinIntegral.description()),
+    (Special::CosIntegral.name(), Special::CosIntegral.description()),
+    (Special::SinhIntegral.name(), Special::SinhIntegral.description()),
+    (Special::CoshIntegral.name(), Special::CoshIntegral.description()),
+    (Special::Polylog.name(), Special::Polylog.description()),
+    (Special::Hyp2F1.name(), Special::Hyp2F1.description()),
+    (Special::Hyp1F1.name(), Special::Hyp1F1.description()),
+    (Special::Hyp0F1.name(), Special::Hyp0F1.description()),
+    (Special::BesselJ.name(), Special::BesselJ.description()),
+    (Special::BesselY.name(), Special::BesselY.description()),
+    (Special::AiryAi.name(), Special::AiryAi.description()),
+    (Special::AiryBi.name(), Special::AiryBi.description()),
+    (Special::AiryAiPrime.name(), Special::AiryAiPrime.description()),
+    (Special::AiryBiPrime.name(), Special::AiryBiPrime.description()),
+    (Special::EllipticK.name(), Special::EllipticK.description()),
+    (Special::EllipticE.name(), Special::EllipticE.description()),
+    (Special::EllipticF.name(), Special::EllipticF.description()),
+    (Special::EllipticPi.name(), Special::EllipticPi.description()),
+    (Special::JacobiSn.name(), Special::JacobiSn.description()),
+    (Special::JacobiCn.name(), Special::JacobiCn.description()),
+    (Special::JacobiDn.name(), Special::JacobiDn.description()),
+    (Special::InverseJacobiSn.name(), Special::InverseJacobiSn.description()),
+    functions::PFQ,
 ];
 
 /// Register the natives of [`FUNCTIONS`] with `k` and the functions with `mc-numeric`'s numerical evaluation;
@@ -69,7 +125,9 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
 mod tests {
     #[test]
     fn the_table_lists_every_function() {
-        let names: Vec<&str> = super::functions::ALL.iter().map(|f| f.name()).collect();
+        let mut names: Vec<&str> =
+            super::functions::ALL.iter().filter(|f| f.primary()).map(|f| f.name()).collect();
+        names.push(super::functions::PFQ.0);
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         assert_eq!(names, listed);
     }

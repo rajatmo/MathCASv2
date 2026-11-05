@@ -8,7 +8,14 @@
 //! (the K_nu series for large x, sin(pi x) near integers) is absorbed by the retries, and exact arguments are
 //! rounded at each working precision rather than once.
 pub mod bessel;
+pub mod bessel_j;
+pub mod elliptic;
+pub mod erf;
+pub mod expint;
 pub mod gamma;
+pub mod hyper;
+pub mod incomplete;
+pub mod polylog;
 pub mod zeta;
 
 use mc_arith::num::{stopped, Ball, Float, Int, Mag, Nat, Rat};

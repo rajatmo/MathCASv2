@@ -109,3 +109,53 @@ interrupts at 200000 digits stop in about 120 ms.
 7. Exact caps: gamma n <= 2^20; sums 10^4 terms; polygamma order <= 1000; log_gamma at integers n <= 1000; zeta
    2n <= 500; half-integer Bessel order <= 200.5.
 8. The library registry is process-wide.
+
+## Phase 3C: more special functions
+
+41 `FUNCTIONS` entries, each with exact special values, machine values (measured within 0.5 ulp on every grid
+except one documented terminating alternating 1F1 case), rigorous balls at any precision (truncation bounded, precision
+doubled by `refine`) and derivatives in `mc-calculus`:
+
+| group | functions |
+|---|---|
+| error functions | `erf`, `erfc`, `erfi`, `inverse_erf`, `inverse_erfc` |
+| incomplete gamma and beta | `gamma(a, x)` (upper), `gamma_regularized` (Q), `beta(z, a, b)` (B_z), `beta_regularized` (I_z) |
+| exponential integrals | `exp_integral_ei`, `exp_integral_e(nu, x)`, `log_integral`, `sin_integral`, `cos_integral`, `sinh_integral`, `cosh_integral` |
+| polylog | `polylog(s, z)` |
+| hypergeometric | `hypergeometric_2f1`, `hypergeometric_1f1`, `hypergeometric_0f1`, `hypergeometric_pfq([as], [bs], z)` |
+| Bessel and Airy | `bessel_j`, `bessel_y`, `airy_ai`, `airy_bi`, `airy_ai_prime`, `airy_bi_prime` |
+| elliptic | `elliptic_k(m)`, `elliptic_e(m)`, `elliptic_e(phi, m)`, `elliptic_f(phi, m)`, `elliptic_pi(n, m)`, `elliptic_pi(n, phi, m)` (m = k^2) |
+| Jacobi | `jacobi_sn`, `jacobi_cn`, `jacobi_dn`, `inverse_jacobi_sn` |
+
+Rust API for other crates (all `f64`, public): `machine::erf::{erf, erfc, erfi, inverse_erf, inverse_erfc,
+erf_complex}`, `machine::incomplete::{gamma_p, gamma_q, gamma_upper, gamma_lower, beta_reg, beta_inc,
+inverse_gamma_p, inverse_gamma_q, inverse_beta_reg}`, `machine::elliptic::{carlson_rf, carlson_rd, carlson_rj,
+carlson_rc, amplitude}`; balls `ball::erf::*`, `ball::incomplete::*`, `ball::elliptic::carlson_*`,
+`ball::hyper::pfq_sum`.
+
+Decisions: **3C.1** one native per name with several arities (`gamma(x)`/`gamma(a, x)`, `beta`, `elliptic_e`,
+`elliptic_pi`). **3C.2** exact closed forms only at special points (`exact_more.rs`); poles give `failure(pole, call)`.
+**3C.3** a machine point with a complex or undefined value leaves the new functions unevaluated. **3C.4** complex
+machine arguments for erf/erfc/erfi and integer-order polylog (on the cut z > 1 the limit from below).
+**3C.5** `hypergeometric_pfq` is its own native (list parameters), reducing to the named functions.
+
+Algorithms (each module documents its own and its error bounds): double-double machine paths (erf Taylor tables and
+the Laplace continued fraction; Temme / series / Legendre fraction for incomplete gamma; the beta continued fraction;
+E1/Ei series, fraction and asymptotics; polylog series, log expansion with zeta values, eta form, inversion; 2F1 by
+the four transformations; Kummer and asymptotics for 1F1; Steed's method and Hankel for J/Y; Carlson duplication and
+AGM; descending Landen for Jacobi); ball paths with proven remainders (DLMF 7.12.1, 8.11(ii), 6.12, 10.17(iii),
+10.40.10, a derived Ei bound) and monotonicity-checked Newton for inverses.
+
+Tests: `tests/session_3c.rs` (exact values and poles, machine and complex values, `n` to 20-40 digits against
+reference values, 33 derivatives against central differences at 60 digits, 1 vs 4 threads, interrupts) and seven
+`accuracy_*` files (grids against 160-bit references, random enclosures at 50 and 300 digits: 1,963 in all).
+Measurements: erf 0.1 us, incomplete gamma 3-5 us, 2F1 12-20 us, elliptic K/E 0.35 us, J/Y 3-26 us (machine);
+50-digit balls 0.03-8 ms.
+
+Known gaps: complex arguments only for erf/erfc/erfi and integer-order polylog (no complex balls); non-integer
+polylog off the real range near large negative z and for z > 1; pFq with p = q + 1 at |z| >= 1 only for 2F1 or
+terminating; ball 1F1 for |z| > 2^20; incomplete gamma for very large a (cost ~sqrt(a), NaN beyond ~1e10, no Temme
+uniform expansion); elliptic m > 1 only where real; machine J/Y for |nu| > 1e6; ball Ei range limits; no user-level
+inverse regularized gamma/beta (Rust API exists); no derivative for `hypergeometric_pfq`; no symbolic symmetries
+(erf(-x) = -erf(x)); `dd::split` recurses on +-inf (new code guards its inputs); compiled code declines these calls.
+mc-dist still uses its private stopgaps (its DI.2) and can switch to the API above.
