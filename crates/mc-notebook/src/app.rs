@@ -196,6 +196,7 @@ pub struct App {
     kernel_log: bool,
     keyboard_help: bool,
     about: bool,
+    about_tab: crate::about::Tab,
     error: Option<String>,
     selftest: Option<SelfTest>,
     /// the find bar's text, when it is open
@@ -254,6 +255,7 @@ impl App {
             kernel_log: false,
             keyboard_help: false,
             about: false,
+            about_tab: crate::about::Tab::About,
             error: None,
             selftest,
             find: None,
@@ -1985,30 +1987,19 @@ impl App {
                     self.icon = Some(ctx.load_texture("mc-notebook-icon", img, egui::TextureOptions::LINEAR));
                 }
             }
-            let icon = self.icon.clone();
+            let kernel = format!(
+                "{} ({})",
+                default_kernel().display(),
+                crate::about::words(&format!("{:?}", self.doc.nb.kernel_state()))
+            );
+            let info = crate::about::SystemInfo::gather(
+                self.gpu.as_ref(),
+                ctx.pixels_per_point(),
+                self.doc.view.magnification(),
+                &kernel,
+            );
             let weak = self.doc.view.palette.weak;
-            center(egui::Window::new("About MathCAS Notebook").title_bar(true)).show(ctx, |ui| {
-                ui.set_width(320.0);
-                ui.vertical_centered(|ui| {
-                    ui.add_space(6.0);
-                    if let Some(t) = &icon {
-                        ui.add(egui::Image::new(t).fit_to_exact_size(vec2(72.0, 72.0)));
-                    }
-                    ui.add_space(6.0);
-                    ui.label(RichText::new("MathCAS Notebook").heading());
-                    ui.label(RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION"))).color(weak));
-                    ui.add_space(6.0);
-                    ui.label("Notebooks for the MathCAS language.");
-                    ui.label(RichText::new("Colours: Atom One Light and One Dark.").color(weak).small());
-                    ui.add_space(10.0);
-                    if ui.add(egui::Button::new("OK").min_size(vec2(80.0, 0.0))).clicked()
-                        || ui.input(|i| i.key_pressed(Key::Escape) || i.key_pressed(Key::Enter))
-                    {
-                        self.about = false;
-                    }
-                    ui.add_space(4.0);
-                });
-            });
+            crate::about::show(ctx, &mut self.about, &mut self.about_tab, self.icon.as_ref(), weak, &info);
         }
     }
 
