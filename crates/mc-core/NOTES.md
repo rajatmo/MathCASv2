@@ -242,3 +242,107 @@ S8 equal; S7 10^6 48-56 ms vs 58-61 ms (about 5-10% slower, noisy). S1 and S8 at
 5. Building a packable list from element terms and viewing it once is 10-17% slower than a compound term (N4a.3).
 6. S7 may be slightly slower (within noise).
 7. Compiled code (`mc-jit`) does not take packed arrays as arguments yet.
+
+## Round 7 package G: scratch scopes (memory in long-running natives)
+
+Status: merged (branch `lib/r7-g`, commits c84ac43, ef73c8c, c638d91, b1c0ce4, 8845793, from main 216fdea). Interpreted
+L6 at 10^4 and interpreted L3 at t = 1000 complete under a 1 GB cap; results bitwise identical with scopes on and off,
+at 1 and 4 threads and under `Config::stress()`. On the branch: full suite 784 passed, 0 failed, 6 ignored; clippy
+clean.
+
+### What was built
+
+- **Scratch scopes** (`src/scratch.rs`): `Heap::scratch()` opens a scope on the calling thread and returns a
+  `Scratch<'h>` guard (not `Send`). While open, a new term is looked up in the scope's private table, then in the
+  shared old and young tables (look-up only, and only when no part is a scratch term), and if found nowhere stored in
+  the scope's slot. 16 slots per heap, each with node segments, argument and payload slabs, large allocations, a
+  private table, a private memo and private unpacked arguments. Dropping the guard releases everything for the next
+  scope; storage beyond a small allowance is freed at the next safe point. Scratch handles are
+  `YOUNG | bit 29 | slot (4 bits) | page (4 bits) | index (21 bits)`; pages advance from scope to scope, so a handle
+  used after its scope or on another thread panics with a clear message instead of reading reused memory. The young
+  index space drops to 2^29.
+- **`NativeCx::scratch(f)`** (mc-eval): runs `f` in a scope; `f` returns a `'static` value (machine numbers or `Num`,
+  no handles). Inside, groups are not split; an effect raises `Abort::Scratch` and `f` runs again without a scope
+  (the effect happens once); cells written in the scope get shared copies of their values at the end
+  (`Scratch::export`). With no scope available (one already open on this task, all slots taken, `Config::scratch`
+  false) `f` just runs.
+- **mc-numfn's interpreted backends use it**, so `mc-roots`, `mc-quad`, `mc-ode` benefit unchanged: `Machine::eval`
+  (and so `Interpreted` and `Auto`'s fallback) builds the inputs, evaluates and reads the result in one scope;
+  `Machine::eval_batch` keeps the parallel group, each element opening its own scope on the task that runs it with
+  its own `Arith` (not shareable across threads), outputs through per-element slots, the group's values `null`;
+  `TermFn::eval_terms` is scoped (mc-roots' ball refinement benefits).
+- **Packed arguments on calls** (mc-eval, a fix for round 7 package P's finding): `head_of`, used by argument-head
+  dispatch for every call, viewed (unpacked) the argument; it now reads `list` from the payload, as does the rule
+  index's `term_flat` for packed arrays it does not expand. `fn one(x) = 1; one(v)` with 10^7 reals: 1.36 s to
+  0.046 s; an undefined `g(v)`: 1.51 s to 0.046 s.
+
+### Decisions
+
+- **G.1 A scratch region, not a safe point inside a native.** A collection inside a statement would need every live
+  handle as a root, including the frames above the native and other threads' tasks, which are plain values on Rust
+  stacks the brand cannot name. So collections still happen only at `Session::step` safe points (`&mut Heap`); a
+  scope only releases its own private storage when the closure that opened it returns. Consequences: compiled calls
+  are unaffected (nothing moves or is freed inside `cx.tick`; a packed array made in a scope lives until the closure
+  returns, after any compiled call in it); the assumption context needs no rooting (nothing is forwarded; an
+  `assuming` body nests inside the closure, so its context is restored before the scope ends; `assume$memo` keys
+  built in a scope go to the private memo).
+- **G.2 Safety argument**: no scratch handle may be used after its scope ends, by four rules. (a) Only the owning
+  thread sees its scope (a thread-local pointer; a scratch handle resolves only on its thread while the scope is
+  open, anything else panics); the evaluator does not split work inside a scope, and every parallel job that may
+  build terms runs `mc_core::detached` (the evaluator's speculative half of `range`, mc-core's parallel unpacking);
+  parallel hashing is sequential inside a scope, so a job stolen by a thread waiting in a scope never builds into it.
+  (b) No shared structure stores a scratch handle: any term with a scratch part is a scratch term, so shared tables
+  never hold one; memo entries with a scratch key or value go to the private memo; packed arrays viewed in a scope are
+  unpacked privately; effects are refused and retried; cells are exported; the GC asserts no root is a scratch handle.
+  (c) Results leave as plain data (the closure's result is `'static`). (d) Handles stay canonical: the private table
+  is probed first; a shared memo hit whose value is young is accepted only if none of its parts (checked through at
+  most 64 nodes) has a structural hash present in the private table (otherwise a miss), so another thread's later
+  shared twin of a scratch term cannot reach the scope through the memo. The brand cannot enforce (a) statically
+  (scratch handles share `'h`): the checks are dynamic and exercised by the stress tests.
+- **G.3** Effects in a scope run the closure again without one; `effect()` refuses only on the frontier with a scope
+  open (conditions and speculative tasks unchanged). Fuel of the refused attempt is charged twice; results unaffected.
+- **G.4** Scratch handles are reused across scopes (2^29 ids cannot cover a long statement), so any cache keyed by raw
+  handle bits that outlives one evaluation must skip scratch terms (`Heap::is_scratch`, `mc_core::is_scratch_term`);
+  the only one in the workspace, mc-assoc's index cache, is guarded.
+- **G.5** One scope per interpreted evaluation, or per group element.
+- **G.6** Nested scopes run inline in the outer one (an inner native's garbage lives until the outer evaluation ends).
+
+### API additions
+
+mc-core: `Config::scratch` (default true, also in `stress()`), `Heap::scratch() -> Option<Scratch>`,
+`Heap::is_scratch`, `Heap::scratch_stats() -> ScratchStats { scopes, terms, largest, declined }`, `Scratch::export`,
+`Scratch::terms`, free functions `detached`, `scratch_active`, `is_scratch_term`, constant `SLOTS`. mc-eval:
+`NativeCx::scratch`, `Abort::Scratch`. mc-numfn: `TermFn::eval_with`; `Machine` and `Interpreted` require
+`S: 'static` (`f64`, `C64`, `Num` are). Outside: `crates/mc-assoc/src/index.rs` `Indexes::put` skips scratch
+associations (G.4).
+
+### Tests
+
+mc-core `tests/scratch.rs` (8): privacy and canonical handles; export of compound, rational, string, big-integer and
+packed terms; stale handles panic (also on another thread); memo privacy and the twin check; private unpacked
+arguments; 20,000 scopes do not grow the heap; parallel scopes equal the reference; scopes off by configuration.
+mc-eval `tests/scratch.rs` (4): no terms left behind; effects retried and done once; cells keep shared values (also
+under stress); identical with and without scopes at 1 and 4 threads, under stress, parallel map, nested scopes.
+mc-eval `tests/packed_calls.rs` (1). mc-numfn `tests/scratch.rs` (2): 10 interpreted solver cases (1-D and 2-D
+integrals, a complex integrand, a 30-digit integral, `find_root` scalar and system, `find_minimum`, Lorenz, a stiff
+`n_dsolve`) identical with scopes off and on at 1 and 4 threads, with and without stress; interpreted evaluations
+really run in scopes.
+
+### Measurements (release, guarded, `MC_NUMFN=interpreted`, 3 threads, busy machine)
+
+| run | before | after |
+|---|---|---|
+| L6 10^3 interpreted | 2842 MB, 27 s | 7 MB, 29-30 s |
+| L6 10^4 interpreted | out of memory (3 GB) | 23 MB, 2713 s, under a 1 GB cap (value 2.3e-13 from the reference, as compiled) |
+| L3 t = 100 interpreted | 539 MB, 3 s | 15 MB, 3 s |
+| L3 t = 1000 interpreted | over the 3 GB cap | 114 MB, 30 s, under a 1 GB cap (bitwise equal to the compiled run) |
+
+### Known gaps
+
+1. Interpreted L6 is about 8-10% slower (an `Arith::new` per batch element: mc-arith has no `Sync` number builder;
+   the private memo and table).
+2. Interpreted L6 does not get faster with threads (old and new alike); not investigated.
+3. The safety checks are dynamic: a native closure could write a scratch handle into a captured variable; misuse
+   panics rather than corrupting memory, but a stale view slice is unsound in principle.
+4. Nested natives (an integrand calling `n_integrate`) run inline in the outer scope.
+5. A scope making more than about 33 million terms in one evaluation panics.

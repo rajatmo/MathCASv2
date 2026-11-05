@@ -381,3 +381,7 @@ Packed real and integer arrays (store node, contract, evaluator hooks, payload f
 ## Round 7 package A
 
 The assumption context (`src/assume.rs`): `Cx::assume`, the held form `assuming`, `Attributes::uses_assumptions` (bit 7), the read-set bit of `assuming` as the dependency, memo entries keyed `assume$memo(t, ctx)` for evaluations that depended on a nonempty context, `NativeCx::assumptions()` and `eval_assuming`, the decorator `@uses_assumptions`. Details and decisions A.1-A.8: `crates/mc-simplify/NOTES.md`, section "Round 7 package A".
+
+## Round 7 package G
+
+Scratch scopes: `NativeCx::scratch(f)` runs one evaluation in a private region dropped when it ends; the interpreted `NumFn` backends use it, so long interpreted solver runs stay in bounded memory. Also: calls with packed arguments no longer unpack them (`head_of`, rule index keys). Details, the safety argument G.2 and measurements: `crates/mc-core/NOTES.md`, section "Round 7 package G".

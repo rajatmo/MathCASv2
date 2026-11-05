@@ -264,3 +264,7 @@ closures; the Newton steps are negligible.
 4. Complex Newton and the ball refinement stay interpreted (NUM.5).
 5. Under `digits: d` a value within half a unit of the (d+1)-th digit of a d-digit rounding boundary prints d - 1
    digits (about 10% of values): the least possible with a correct-digits printer and a cap of d.
+
+## Round 7 package G
+
+Scratch scopes: `NativeCx::scratch(f)` runs one evaluation in a private region dropped when it ends; the interpreted `NumFn` backends use it, so long interpreted solver runs stay in bounded memory. Also: calls with packed arguments no longer unpack them (`head_of`, rule index keys). Details, the safety argument G.2 and measurements: `crates/mc-core/NOTES.md`, section "Round 7 package G".
