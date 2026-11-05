@@ -14,7 +14,7 @@ use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
 use mc_numfn::{NumFn, Options, Var};
-use render::{Axis, Scale, Series};
+use render::{Axis, Corner, Look, Scale, Series};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Every function of this package with a one-line description.
@@ -38,6 +38,16 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of every plot: x_scale: linear | log | signed_log | signed_log(c) (sign(v) log10(1 + |v|/c), default c = 1; linear near 0, logarithmic far from it, both signs)",
     ),
     ("y_scale", "option of every plot: y_scale: linear | log | signed_log | signed_log(c), as x_scale"),
+    ("x_label", "option of every plot: x_label: \"text\", the label under the x axis"),
+    ("y_label", "option of every plot: y_label: \"text\", the label beside the y axis (read upwards)"),
+    (
+        "legend",
+        "option of every plot: legend: [\"text\", ...], one entry per curve or data set, in order, in a framed box",
+    ),
+    (
+        "legend_position",
+        "option of every plot: legend_position: top_right (default) | top_left | bottom_left | bottom_right",
+    ),
 ];
 
 /// Register the natives with `k`.
@@ -186,12 +196,7 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
 
 /// Write the rendered plot to a fresh PNG file, and the same plot as a vector PDF next to it (same name, `.pdf`:
 /// `export_data("f.pdf", plot)` copies it), and give the PNG's image term (or a failure).
-fn finish<'h>(
-    cx: &mut NativeCx<'_, '_, 'h>,
-    series: &[Series],
-    joined: bool,
-    scale: Scale,
-) -> Res<Reply<'h>> {
+fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look) -> Res<Reply<'h>> {
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
@@ -205,11 +210,11 @@ fn finish<'h>(
     let written = std::fs::create_dir_all(&dir)
         .map_err(|e| e.to_string())
         .and_then(|_| {
-            render::render(series, joined, scale).ok_or_else(|| "rendering failed".to_string())
+            render::render(series, look).ok_or_else(|| "rendering failed".to_string())
         })
         .and_then(|png| std::fs::write(&path, png).map_err(|e| e.to_string()))
         .and_then(|()| {
-            let pdf = render::render_pdf(series, joined, scale);
+            let pdf = render::render_pdf(series, look);
             std::fs::write(path.with_extension("pdf"), pdf).map_err(|e| e.to_string())
         });
     Ok(Reply::Done(match written {
@@ -229,14 +234,20 @@ impl Native for Plot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
-        let (f, spec, scale) = match args {
-            [f, spec] => (f, spec, self.scale),
-            [f, spec, o] => match plot_options(cx, *o, self.scale, false) {
-                Some((scale, _)) => (f, spec, scale),
+        let base = Look {
+            scale: self.scale,
+            joined: true,
+            ..Look::default()
+        };
+        let (f, spec, look) = match args {
+            [f, spec] => (f, spec, base),
+            [f, spec, o] => match plot_options(cx, *o, base, false) {
+                Some(look) => (f, spec, look),
                 None => return Ok(bad(h, name, 3)),
             },
             _ => return Ok(Reply::Decline),
         };
+        let scale = look.scale;
         let Some(&[xv, a, b]) = cx.as_list(*spec) else {
             return Ok(bad(h, name, 2));
         };
@@ -262,7 +273,7 @@ impl Native for Plot {
         for f in fs {
             series.push(sample(cx, f, x, ua, ub, scale)?);
         }
-        finish(cx, &series, true, scale)
+        finish(cx, &series, &look)
     }
 }
 
@@ -378,14 +389,19 @@ impl Native for ListPlot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let name = self.name;
-        let (data, joined, sc) = match args {
-            [d] => (*d, false, self.scale),
-            [d, o] => match plot_options(cx, *o, self.scale, true) {
-                Some((sc, j)) => (*d, j, sc),
+        let base = Look {
+            scale: self.scale,
+            ..Look::default()
+        };
+        let (data, look) = match args {
+            [d] => (*d, base),
+            [d, o] => match plot_options(cx, *o, base, true) {
+                Some(look) => (*d, look),
                 None => return Ok(bad(h, name, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
+        let sc = look.scale;
         let Some(items) = cx.as_list(data) else {
             return Ok(bad(h, name, 1));
         };
@@ -412,18 +428,19 @@ impl Native for ListPlot {
         if pts.iter().all(|p| p.1.is_none()) {
             return Ok(bad(h, name, 1));
         }
-        finish(cx, &[Series { points: pts }], joined, sc)
+        finish(cx, &[Series { points: pts }], &look)
     }
 }
 
-/// The plot options `options(k -> v, ...)`: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`)
-/// and, when `joined_ok`, `joined` (`true` / `false`). The scale starts from `base`. `None` for anything else.
+/// The plot options `options(k -> v, ...)`: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`),
+/// `x_label`, `y_label` (strings), `legend` (a list of strings), `legend_position` (a corner) and, when
+/// `joined_ok`, `joined` (`true` / `false`), applied to `base`. `None` for anything else.
 fn plot_options<'h>(
     cx: &NativeCx<'_, '_, 'h>,
     o: T<'h>,
-    base: Scale,
+    base: Look,
     joined_ok: bool,
-) -> Option<(Scale, bool)> {
+) -> Option<Look> {
     let h = cx.heap();
     let View::App { head, args } = h.view(o) else {
         return None;
@@ -431,7 +448,11 @@ fn plot_options<'h>(
     if head != h.sym_term(h.sym("options")) {
         return None;
     }
-    let (mut scale, mut joined) = (base, false);
+    let mut look = base;
+    let text = |t: T<'h>| match h.view(t) {
+        View::Str(s) => Some(s.to_string()),
+        _ => None,
+    };
     for &r in args {
         let View::App {
             head,
@@ -445,13 +466,35 @@ fn plot_options<'h>(
         }
         let View::Sym(k) = h.view(k) else { return None };
         match h.sym_name(k).as_str() {
-            "joined" if joined_ok => joined = v == h.sym_term(h.sym("true")),
-            "x_scale" => scale.x = axis_option(h, v)?,
-            "y_scale" => scale.y = axis_option(h, v)?,
+            "joined" if joined_ok => look.joined = v == h.sym_term(h.sym("true")),
+            "x_scale" => look.scale.x = axis_option(h, v)?,
+            "y_scale" => look.scale.y = axis_option(h, v)?,
+            "x_label" => look.x_label = Some(text(v)?),
+            "y_label" => look.y_label = Some(text(v)?),
+            "legend" => {
+                look.legend = cx
+                    .as_list(v)?
+                    .iter()
+                    .map(|&e| text(e))
+                    .collect::<Option<_>>()?
+            }
+            "legend_position" => look.legend_at = corner_option(h, v)?,
             _ => return None,
         }
     }
-    Some((scale, joined))
+    Some(look)
+}
+
+/// A corner: `top_right`, `top_left`, `bottom_left` or `bottom_right`.
+fn corner_option(h: &Heap, v: T<'_>) -> Option<Corner> {
+    let View::Sym(s) = h.view(v) else { return None };
+    match h.sym_name(s).as_str() {
+        "top_right" => Some(Corner::TopRight),
+        "top_left" => Some(Corner::TopLeft),
+        "bottom_left" => Some(Corner::BottomLeft),
+        "bottom_right" => Some(Corner::BottomRight),
+        _ => None,
+    }
 }
 
 /// An axis scale: `linear`, `log`, `signed_log` (c = 1) or `signed_log(c)` with a number c > 0.

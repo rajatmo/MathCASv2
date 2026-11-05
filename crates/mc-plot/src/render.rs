@@ -1,6 +1,7 @@
-//! Drawing a plot: a frame with nice-number ticks and labels, curves or points. One drawing routine ([`draw`])
-//! paints onto a [`Canvas`]; two canvases turn it into PNG bytes (rasterised with tiny-skia) and into a one-page
-//! vector PDF (lines, markers and Helvetica text; no fonts embedded).
+//! Drawing a plot: a frame with nice-number ticks and labels, curves or points, axis labels and a legend. One
+//! drawing routine ([`draw`]) paints onto a [`Canvas`]; two canvases turn it into PNG bytes (rasterised with
+//! tiny-skia) and into a one-page vector PDF (lines, markers, Helvetica text with Greek letters from Symbol; no fonts
+//! embedded).
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
 use std::fmt::Write as _;
 use std::sync::OnceLock;
@@ -76,6 +77,34 @@ pub(crate) struct Scale {
     pub(crate) x: Axis,
     pub(crate) y: Axis,
 }
+
+/// A corner of the plot area (where the legend goes).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Corner {
+    #[default]
+    TopRight,
+    TopLeft,
+    BottomLeft,
+    BottomRight,
+}
+
+/// Everything about a plot's appearance besides its data: axis scales, lines or points, axis labels and the
+/// legend (one entry per series, in order; series beyond the entries have none).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Look {
+    pub(crate) scale: Scale,
+    /// lines (true) or points
+    pub(crate) joined: bool,
+    pub(crate) x_label: Option<String>,
+    pub(crate) y_label: Option<String>,
+    pub(crate) legend: Vec<String>,
+    pub(crate) legend_at: Corner,
+}
+
+/// Text size of axis labels and legend entries.
+const LABEL_SIZE: f32 = 13.0;
+/// Extra margin for an axis label.
+const LABEL_ROOM: f32 = 20.0;
 
 /// A tick label: plain text, or ±10 to an integer power (drawn with a superscript).
 #[derive(Debug, PartialEq)]
@@ -182,10 +211,18 @@ trait Canvas {
     fn dots(&mut self, centres: &[(f32, f32)], r: f32, color: Rgb, clip: (f32, f32, f32, f32));
     /// Text at `size` pixels with its top at `y`, aligned at `x` (`ax`: 0 left, 0.5 centre, 1 right).
     fn text(&mut self, s: &str, x: f32, y: f32, ax: f32, size: f32);
+    /// Text turned a quarter turn anticlockwise (read upwards) with its top at `x`, centred on `cy`.
+    fn vtext(&mut self, s: &str, x: f32, cy: f32, size: f32);
+    /// A filled rectangle.
+    fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Rgb);
 }
 
-/// Paint the plot of `series` (lines when `joined`, else points) with the axes of `scale`.
-fn draw(c: &mut dyn Canvas, series: &[Series], joined: bool, scale: Scale) {
+/// Paint the plot of `series` as `look` says.
+fn draw(c: &mut dyn Canvas, series: &[Series], look: &Look) {
+    let (scale, joined) = (look.scale, look.joined);
+    // the plot area: room for the axis labels left of and below the frame
+    let ml = ML + if look.y_label.is_some() { LABEL_ROOM } else { 0.0 };
+    let mb = MB + if look.x_label.is_some() { LABEL_ROOM } else { 0.0 };
     let (x0, x1) =
         padded(range(series.iter().flat_map(|s| {
             s.points.iter().filter(|p| p.1.is_some()).map(|p| p.0)
@@ -196,8 +233,8 @@ fn draw(c: &mut dyn Canvas, series: &[Series], joined: bool, scale: Scale) {
             .flat_map(|s| s.points.iter().filter_map(|p| p.1))
             .collect(),
     ));
-    let (pw, ph) = (W as f32 - ML - MR, H as f32 - MT - MB);
-    let sx = |x: f64| ML + ((x - x0) / (x1 - x0)) as f32 * pw;
+    let (pw, ph) = (W as f32 - ml - MR, H as f32 - MT - mb);
+    let sx = |x: f64| ml + ((x - x0) / (x1 - x0)) as f32 * pw;
     let sy = |y: f64| MT + ((y1 - y) / (y1 - y0)) as f32 * ph;
     // grid, ticks and labels
     let (xmajor, xminor) = axis(x0, x1, scale.x);
@@ -206,19 +243,25 @@ fn draw(c: &mut dyn Canvas, series: &[Series], joined: bool, scale: Scale) {
         c.line((sx(u), MT), (sx(u), MT + ph), FAINT, 1.0);
     }
     for u in yminor {
-        c.line((ML, sy(u)), (ML + pw, sy(u)), FAINT, 1.0);
+        c.line((ml, sy(u)), (ml + pw, sy(u)), FAINT, 1.0);
     }
     for (t, l) in &xmajor {
         c.line((sx(*t), MT), (sx(*t), MT + ph), GRID, 1.0);
         draw_label(c, l, sx(*t), MT + ph + 6.0, 0.5);
     }
     for (t, l) in &ymajor {
-        c.line((ML, sy(*t)), (ML + pw, sy(*t)), GRID, 1.0);
-        draw_label(c, l, ML - 6.0, sy(*t) - 7.0, 1.0);
+        c.line((ml, sy(*t)), (ml + pw, sy(*t)), GRID, 1.0);
+        draw_label(c, l, ml - 6.0, sy(*t) - 7.0, 1.0);
     }
-    c.rect(ML, MT, pw, ph, FRAME, 1.0);
+    c.rect(ml, MT, pw, ph, FRAME, 1.0);
+    if let Some(l) = &look.x_label {
+        c.text(l, ml + pw / 2.0, H as f32 - LABEL_ROOM - 2.0, 0.5, LABEL_SIZE);
+    }
+    if let Some(l) = &look.y_label {
+        c.vtext(l, 6.0, MT + ph / 2.0, LABEL_SIZE);
+    }
     // the data, clipped to the plot area
-    let clip = (ML, MT, pw, ph);
+    let clip = (ml, MT, pw, ph);
     for (k, s) in series.iter().enumerate() {
         let color = COLORS[k % COLORS.len()];
         if joined {
@@ -249,6 +292,49 @@ fn draw(c: &mut dyn Canvas, series: &[Series], joined: bool, scale: Scale) {
             c.dots(&pts, 3.0, color, clip);
         }
     }
+    legend(c, series.len(), look, clip);
+}
+
+/// The legend: a framed box in a corner of the plot area `area` (x, y, w, h) with a line (or a dot) in each
+/// series' colour and its entry.
+fn legend(c: &mut dyn Canvas, n: usize, look: &Look, area: (f32, f32, f32, f32)) {
+    let entries: Vec<&String> = look.legend.iter().take(n).collect();
+    if entries.is_empty() {
+        return;
+    }
+    const PAD: f32 = 8.0;
+    const SAMPLE: f32 = 24.0;
+    const ROW: f32 = 18.0;
+    let text_w = entries
+        .iter()
+        .map(|s| text_width(s, LABEL_SIZE))
+        .fold(0.0, f32::max);
+    let w = PAD + SAMPLE + 6.0 + text_w + PAD;
+    let h = 2.0 * PAD - 4.0 + ROW * entries.len() as f32;
+    let (ax, ay, aw, ah) = area;
+    let x = match look.legend_at {
+        Corner::TopLeft | Corner::BottomLeft => ax + 10.0,
+        Corner::TopRight | Corner::BottomRight => ax + aw - 10.0 - w,
+    };
+    let y = match look.legend_at {
+        Corner::TopLeft | Corner::TopRight => ay + 10.0,
+        Corner::BottomLeft | Corner::BottomRight => ay + ah - 10.0 - h,
+    };
+    c.fill_rect(x, y, w, h, (255, 255, 255));
+    c.rect(x, y, w, h, FRAME, 1.0);
+    let bounds = (x, y, w, h);
+    for (k, s) in entries.into_iter().enumerate() {
+        let color = COLORS[k % COLORS.len()];
+        let mid = y + PAD - 2.0 + ROW * (k as f32 + 0.5);
+        let x0 = x + PAD;
+        if look.joined {
+            c.polylines(&[vec![(x0, mid), (x0 + SAMPLE, mid)]], color, 2.0, bounds);
+        } else {
+            c.dots(&[(x0 + SAMPLE / 2.0, mid)], 3.0, color, bounds);
+        }
+        let top = mid - 0.55 * ascent(LABEL_SIZE);
+        c.text(s, x0 + SAMPLE + 6.0, top, 0.0, LABEL_SIZE);
+    }
 }
 
 /// A tick label with its top at `y`, aligned at `x`; powers of ten as "10" with a raised, smaller exponent.
@@ -270,19 +356,19 @@ fn draw_label(c: &mut dyn Canvas, l: &Label, x: f32, y: f32, ax: f32) {
     }
 }
 
-/// The PNG bytes of the plot of `series` (lines when `joined`, else points), with the axes of `scale`.
-pub(crate) fn render(series: &[Series], joined: bool, scale: Scale) -> Option<Vec<u8>> {
+/// The PNG bytes of the plot of `series` as `look` says.
+pub(crate) fn render(series: &[Series], look: &Look) -> Option<Vec<u8>> {
     let mut pm = Pixmap::new(W, H)?;
     pm.fill(Color::WHITE);
-    draw(&mut Raster(&mut pm), series, joined, scale);
+    draw(&mut Raster(&mut pm), series, look);
     pm.encode_png().ok()
 }
 
 /// The bytes of a one-page vector PDF of the same plot (page size W x H points).
-pub(crate) fn render_pdf(series: &[Series], joined: bool, scale: Scale) -> Vec<u8> {
+pub(crate) fn render_pdf(series: &[Series], look: &Look) -> Vec<u8> {
     let mut v = Vector(String::new());
     v.0.push_str("1 j 1 J\n");
-    draw(&mut v, series, joined, scale);
+    draw(&mut v, series, look);
     pdf_document(&v.0)
 }
 
@@ -392,7 +478,18 @@ impl Canvas for Raster<'_> {
     }
 
     fn text(&mut self, s: &str, x: f32, y: f32, ax: f32, size: f32) {
-        raster_text(self.0, s, x, y, ax, size);
+        raster_text(self.0, s, (x, y), ax, size, false);
+    }
+
+    fn vtext(&mut self, s: &str, x: f32, cy: f32, size: f32) {
+        raster_text(self.0, s, (x, cy), 0.5, size, true);
+    }
+
+    fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Rgb) {
+        if let Some(r) = tiny_skia::Rect::from_xywh(x, y, w, h) {
+            self.0
+                .fill_rect(r, &paint(color), Transform::identity(), None);
+        }
     }
 }
 
@@ -488,25 +585,84 @@ impl Canvas for Vector {
     }
 
     fn text(&mut self, s: &str, x: f32, y: f32, ax: f32, size: f32) {
-        // Helvetica's WinAnsi encoding has no minus sign: a hyphen stands in
-        let s = s.replace('\u{2212}', "-");
-        let left = x - ax * text_width(&s, size);
+        let left = x - ax * text_width(s, size);
         let base = y + ascent(size);
-        let esc: String = s
-            .chars()
-            .flat_map(|c| match c {
-                '(' | ')' | '\\' => vec!['\\', c],
-                c if c.is_ascii() => vec![c],
-                _ => vec!['?'],
-            })
-            .collect();
         self.color(TEXT, "rg");
         let _ = writeln!(
             self.0,
-            "BT /F1 {size:.1} Tf {left:.2} {:.2} Td ({esc}) Tj ET",
-            fy(base)
+            "BT 1 0 0 1 {left:.2} {:.2} Tm {}ET",
+            fy(base),
+            pdf_runs(s, size)
         );
     }
+
+    fn vtext(&mut self, s: &str, x: f32, cy: f32, size: f32) {
+        // the baseline runs upwards, an ascent right of the top edge x
+        let start = cy + text_width(s, size) / 2.0;
+        self.color(TEXT, "rg");
+        let _ = writeln!(
+            self.0,
+            "BT 0 1 -1 0 {:.2} {:.2} Tm {}ET",
+            x + ascent(size),
+            fy(start),
+            pdf_runs(s, size)
+        );
+    }
+
+    fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Rgb) {
+        self.color(color, "rg");
+        let _ = writeln!(self.0, "{x:.2} {:.2} {w:.2} {h:.2} re f", fy(y + h));
+    }
+}
+
+/// The Symbol font's letter for a Greek letter (its encoding puts Greek on Latin letters), `None` for others.
+fn symbol_letter(c: char) -> Option<char> {
+    const LOWER: &str = "abgdezhqiklmnxoprVstufcyw";
+    const UPPER: &str = "ABGDEZHQIKLMNXOPR?STUFCYW";
+    let (k, set) = match c {
+        '\u{3b1}'..='\u{3c9}' => (c as u32 - 0x3b1, LOWER),
+        '\u{391}'..='\u{3a9}' => (c as u32 - 0x391, UPPER),
+        '\u{3d5}' => return Some('j'),
+        _ => return None,
+    };
+    set.chars().nth(k as usize).filter(|&l| l != '?')
+}
+
+/// The text operators for `s` at `size`: runs of Helvetica (WinAnsi: ASCII and Latin-1; the minus sign as a
+/// hyphen, other characters as `?`) and of Symbol for Greek letters.
+fn pdf_runs(s: &str, size: f32) -> String {
+    let mut out = String::new();
+    let mut font = 0;
+    let mut run = String::new();
+    let flush = |out: &mut String, font: i32, run: &mut String| {
+        if !run.is_empty() {
+            let _ = write!(out, "/F{font} {size:.1} Tf ({run}) Tj ");
+            run.clear();
+        }
+    };
+    for c in s.chars() {
+        let (f, c) = match symbol_letter(c) {
+            Some(l) => (2, l),
+            None => (1, if c == '\u{2212}' { '-' } else { c }),
+        };
+        if f != font {
+            flush(&mut out, font, &mut run);
+            font = f;
+        }
+        match c {
+            '(' | ')' | '\\' => {
+                run.push('\\');
+                run.push(c);
+            }
+            c if c.is_ascii() => run.push(c),
+            c if ('\u{a0}'..='\u{ff}').contains(&c) => {
+                let _ = write!(run, "\\{:03o}", c as u32);
+            }
+            _ => run.push('?'),
+        }
+    }
+    flush(&mut out, font, &mut run);
+    out
 }
 
 /// A one-page PDF around `content`, with Helvetica as font `F1`.
@@ -515,10 +671,11 @@ fn pdf_document(content: &str) -> Vec<u8> {
         "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
         format!(
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {W} {H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {W} {H}] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>"
         ),
         format!("<< /Length {} >>\nstream\n{content}endstream", content.len()),
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>".to_string(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Symbol >>".to_string(),
     ];
     let mut out = String::from("%PDF-1.4\n");
     let mut offsets = vec![];
@@ -669,14 +826,23 @@ fn ascent(size: f32) -> f32 {
     }
 }
 
-/// Draw `s` at `size` pixels with its top at `y`, aligned at `x` (`ax`: 0 left, 0.5 centre, 1 right).
-fn raster_text(pm: &mut Pixmap, s: &str, x: f32, y: f32, ax: f32, size: f32) {
+/// Draw `s` at `size` pixels with its top at `y`, aligned at `x` (`ax`: 0 left, 0.5 centre, 1 right), where
+/// `(x, y) = at`. Turned (`up`): read upwards, its top at `x` and aligned on `y`.
+fn raster_text(pm: &mut Pixmap, s: &str, at: (f32, f32), ax: f32, size: f32, up: bool) {
     let Some(font) = font() else { return };
     let scale = PxScale::from(size);
     let sf = font.as_scaled(scale);
     let width: f32 = s.chars().map(|c| sf.h_advance(font.glyph_id(c))).sum();
-    let mut pen = x - ax * width;
-    let base = y + sf.ascent();
+    // laid out flat with its top at 0 and its aligned point at 0, then moved (and turned) to `at`
+    let mut pen = -ax * width;
+    let base = sf.ascent();
+    let place = |px: i32, py: i32| {
+        if up {
+            (at.0 as i32 + py, at.1 as i32 - px)
+        } else {
+            (at.0 as i32 + px, at.1 as i32 + py)
+        }
+    };
     let (w, h) = (pm.width() as i32, pm.height() as i32);
     for c in s.chars() {
         let id = font.glyph_id(c);
@@ -688,7 +854,7 @@ fn raster_text(pm: &mut Pixmap, s: &str, x: f32, y: f32, ax: f32, size: f32) {
         let bb = og.px_bounds();
         let pixels = pm.pixels_mut();
         og.draw(|gx, gy, cov| {
-            let (px, py) = (bb.min.x as i32 + gx as i32, bb.min.y as i32 + gy as i32);
+            let (px, py) = place(bb.min.x as i32 + gx as i32, bb.min.y as i32 + gy as i32);
             if px < 0 || py < 0 || px >= w || py >= h {
                 return;
             }
@@ -769,7 +935,14 @@ mod tests {
                 .map(|k| (k as f64, Some((k as f64).sin())))
                 .collect(),
         };
-        let pdf = render_pdf(&[s], true, Scale::default());
+        let look = Look {
+            joined: true,
+            x_label: Some("z (GeV)".into()),
+            y_label: Some("ρ_φ".into()),
+            legend: vec!["sin".into()],
+            ..Look::default()
+        };
+        let pdf = render_pdf(&[s], &look);
         let text = String::from_utf8(pdf).unwrap();
         assert!(text.starts_with("%PDF-1.4") && text.ends_with("%%EOF\n"));
         // the xref offsets point at the objects
@@ -784,7 +957,7 @@ mod tests {
             .parse()
             .unwrap();
         assert_eq!(start, xref);
-        for (i, line) in text[xref..].lines().skip(3).take(5).enumerate() {
+        for (i, line) in text[xref..].lines().skip(3).take(6).enumerate() {
             let off: usize = line[..10].parse().unwrap();
             assert!(
                 text[off..].starts_with(&format!("{} 0 obj", i + 1)),
@@ -806,5 +979,25 @@ mod tests {
         let body = &text[text.find(open).unwrap() + open.len()..];
         assert_eq!(body.find("endstream").unwrap(), len);
         assert!(text.contains(" l\n") && text.contains("Tj ET"));
+        // the labels: Greek letters in Symbol, the y label turned, the legend's box filled
+        assert!(text.contains("(z \\(GeV\\)) Tj"), "{text}");
+        assert!(text.contains("/F2 13.0 Tf (r) Tj /F1 13.0 Tf (_) Tj /F2 13.0 Tf (f) Tj"));
+        assert!(text.contains("0 1 -1 0 ") && text.contains(" re f\n"));
+        assert!(text.contains("/BaseFont /Symbol"));
+    }
+
+    #[test]
+    fn symbol_letters_and_pdf_runs() {
+        assert_eq!(symbol_letter('α'), Some('a'));
+        assert_eq!(symbol_letter('ω'), Some('w'));
+        assert_eq!(symbol_letter('φ'), Some('f'));
+        assert_eq!(symbol_letter('Ω'), Some('W'));
+        assert_eq!(symbol_letter('Γ'), Some('G'));
+        assert_eq!(symbol_letter('a'), None);
+        assert_eq!(symbol_letter('\u{3a2}'), None);
+        assert_eq!(pdf_runs("", 10.0), "");
+        assert_eq!(pdf_runs("a(b)", 10.0), "/F1 10.0 Tf (a\\(b\\)) Tj ");
+        assert_eq!(pdf_runs("\u{2212}1 µ€", 10.0), "/F1 10.0 Tf (-1 \\265?) Tj ");
+        assert_eq!(pdf_runs("μ_A", 10.0), "/F2 10.0 Tf (m) Tj /F1 10.0 Tf (_A) Tj ");
     }
 }
