@@ -94,3 +94,30 @@ fn plots_take_axis_labels_and_legends() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+#[test]
+fn curves_take_colors_and_dash_patterns() {
+    let mut e = CoreEngine::new();
+    for src in [
+        "plot([x, x^2, x^3, x^4], [x, 0, 1], line_style: [solid, dashed, dotted, dot_dashed])",
+        "plot([x, x^2], [x, 0, 1], colors: [\"#560591\", \"#808000\"], line_style: [dashed], legend: [\"a\", \"b\"])",
+        "plot([x, x^2, x^3], [x, 0, 1], colors: [\"#e0115f\"])",
+        "list_plot([1, 4, 9], joined: true, colors: [\"#000000\"], line_style: [dotted])",
+        "list_plot([1, 4, 9], colors: [\"#000000\"])",
+    ] {
+        assert_eq!(png_size(&eval(&mut e, src)), (640, 400), "{src}");
+    }
+    let printed = eval(&mut e, "plot(x, [x, 0, 1], colors: [\"#ff0000\"], line_style: [dashed])");
+    let path = printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(&printed);
+    let pdf = String::from_utf8_lossy(&std::fs::read(std::path::Path::new(path).with_extension("pdf")).unwrap()).to_string();
+    assert!(pdf.contains("1.000 0.000 0.000 RG") && pdf.contains("[8.0 5.0] 0 d"), "{pdf}");
+    for src in [
+        "plot(x, [x, 0, 1], colors: \"#ff0000\")",
+        "plot(x, [x, 0, 1], colors: [\"red\"])",
+        "plot(x, [x, 0, 1], colors: [\"#ff00\"])",
+        "plot(x, [x, 0, 1], line_style: [wavy])",
+        "plot(x, [x, 0, 1], line_style: dashed)",
+    ] {
+        assert_eq!(eval(&mut e, src), "failure(argument, plot, 3)", "{src}");
+    }
+}

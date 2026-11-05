@@ -36,7 +36,7 @@ const FRAME: Rgb = (60, 60, 60);
 /// Label text: 85% black, as the raster text blends it.
 const TEXT: Rgb = (38, 38, 38);
 
-type Rgb = (u8, u8, u8);
+pub(crate) type Rgb = (u8, u8, u8);
 
 /// The scale of one axis. Coordinates on the axis are the transformed values ([`Axis::to`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -88,8 +88,31 @@ pub(crate) enum Corner {
     BottomRight,
 }
 
-/// Everything about a plot's appearance besides its data: axis scales, lines or points, axis labels and the
-/// legend (one entry per series, in order; series beyond the entries have none).
+/// How a curve is stroked.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Dash {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+    DotDashed,
+}
+
+impl Dash {
+    /// The dash pattern (on, off, ...) in pixels for a line of width 2; empty for a solid line.
+    fn pattern(self) -> &'static [f32] {
+        match self {
+            Dash::Solid => &[],
+            Dash::Dashed => &[8.0, 5.0],
+            Dash::Dotted => &[0.5, 4.5],
+            Dash::DotDashed => &[8.0, 4.0, 0.5, 4.0],
+        }
+    }
+}
+
+/// Everything about a plot's appearance besides its data: axis scales, lines or points, axis labels, the legend
+/// (one entry per series, in order; series beyond the entries have none), and per series a colour and a dash
+/// pattern (series beyond the lists take the default colour cycle and solid lines).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Look {
     pub(crate) scale: Scale,
@@ -99,6 +122,23 @@ pub(crate) struct Look {
     pub(crate) y_label: Option<String>,
     pub(crate) legend: Vec<String>,
     pub(crate) legend_at: Corner,
+    pub(crate) colors: Vec<Rgb>,
+    pub(crate) dashes: Vec<Dash>,
+}
+
+impl Look {
+    /// The colour of series `k`.
+    fn color(&self, k: usize) -> Rgb {
+        self.colors
+            .get(k)
+            .copied()
+            .unwrap_or(COLORS[k % COLORS.len()])
+    }
+
+    /// The dash pattern of series `k`.
+    fn dash(&self, k: usize) -> Dash {
+        self.dashes.get(k).copied().unwrap_or_default()
+    }
 }
 
 /// Text size of axis labels and legend entries.
@@ -199,11 +239,11 @@ trait Canvas {
     fn line(&mut self, a: (f32, f32), b: (f32, f32), color: Rgb, width: f32);
     /// A rectangle's outline.
     fn rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Rgb, width: f32);
-    /// Polylines (each a run of points), clipped to the rectangle `clip` (x, y, w, h).
+    /// Polylines (each a run of points) with the dash pattern `dash`, clipped to the rectangle `clip` (x, y, w, h).
     fn polylines(
         &mut self,
         runs: &[Vec<(f32, f32)>],
-        color: Rgb,
+        stroke: (Rgb, Dash),
         width: f32,
         clip: (f32, f32, f32, f32),
     );
@@ -263,7 +303,7 @@ fn draw(c: &mut dyn Canvas, series: &[Series], look: &Look) {
     // the data, clipped to the plot area
     let clip = (ml, MT, pw, ph);
     for (k, s) in series.iter().enumerate() {
-        let color = COLORS[k % COLORS.len()];
+        let color = look.color(k);
         if joined {
             let span = y1 - y0;
             let mut runs: Vec<Vec<(f32, f32)>> = vec![];
@@ -282,7 +322,7 @@ fn draw(c: &mut dyn Canvas, series: &[Series], look: &Look) {
                 prev = y;
             }
             runs.retain(|r| r.len() > 1);
-            c.polylines(&runs, color, 2.0, clip);
+            c.polylines(&runs, (color, look.dash(k)), 2.0, clip);
         } else {
             let pts: Vec<(f32, f32)> = s
                 .points
@@ -324,11 +364,12 @@ fn legend(c: &mut dyn Canvas, n: usize, look: &Look, area: (f32, f32, f32, f32))
     c.rect(x, y, w, h, FRAME, 1.0);
     let bounds = (x, y, w, h);
     for (k, s) in entries.into_iter().enumerate() {
-        let color = COLORS[k % COLORS.len()];
+        let color = look.color(k);
         let mid = y + PAD - 2.0 + ROW * (k as f32 + 0.5);
         let x0 = x + PAD;
         if look.joined {
-            c.polylines(&[vec![(x0, mid), (x0 + SAMPLE, mid)]], color, 2.0, bounds);
+            let sample = [vec![(x0, mid), (x0 + SAMPLE, mid)]];
+            c.polylines(&sample, (color, look.dash(k)), 2.0, bounds);
         } else {
             c.dots(&[(x0 + SAMPLE / 2.0, mid)], 3.0, color, bounds);
         }
@@ -434,7 +475,7 @@ impl Canvas for Raster<'_> {
     fn polylines(
         &mut self,
         runs: &[Vec<(f32, f32)>],
-        color: Rgb,
+        (color, dash): (Rgb, Dash),
         width: f32,
         clip: (f32, f32, f32, f32),
     ) {
@@ -447,8 +488,16 @@ impl Canvas for Raster<'_> {
             }
         }
         if let Some(path) = pb.finish() {
+            let pattern = dash.pattern();
             let st = Stroke {
                 width,
+                // round caps turn the short dashes of a dotted line into dots
+                line_cap: if pattern.is_empty() {
+                    tiny_skia::LineCap::Butt
+                } else {
+                    tiny_skia::LineCap::Round
+                },
+                dash: tiny_skia::StrokeDash::new(pattern.to_vec(), 0.0),
                 ..Stroke::default()
             };
             self.0.stroke_path(
@@ -544,7 +593,7 @@ impl Canvas for Vector {
     fn polylines(
         &mut self,
         runs: &[Vec<(f32, f32)>],
-        color: Rgb,
+        (color, dash): (Rgb, Dash),
         width: f32,
         clip: (f32, f32, f32, f32),
     ) {
@@ -552,6 +601,11 @@ impl Canvas for Vector {
         self.clip(clip);
         self.color(color, "RG");
         let _ = writeln!(self.0, "{width:.2} w");
+        let pattern = dash.pattern();
+        if !pattern.is_empty() {
+            let p: Vec<String> = pattern.iter().map(|v| format!("{v:.1}")).collect();
+            let _ = writeln!(self.0, "[{}] 0 d", p.join(" "));
+        }
         for r in runs {
             let _ = writeln!(self.0, "{:.2} {:.2} m", r[0].0, fy(r[0].1));
             for p in &r[1..] {
@@ -940,6 +994,8 @@ mod tests {
             x_label: Some("z (GeV)".into()),
             y_label: Some("ρ_φ".into()),
             legend: vec!["sin".into()],
+            colors: vec![(86, 5, 145)],
+            dashes: vec![Dash::Dashed],
             ..Look::default()
         };
         let pdf = render_pdf(&[s], &look);
@@ -984,6 +1040,9 @@ mod tests {
         assert!(text.contains("/F2 13.0 Tf (r) Tj /F1 13.0 Tf (_) Tj /F2 13.0 Tf (f) Tj"));
         assert!(text.contains("0 1 -1 0 ") && text.contains(" re f\n"));
         assert!(text.contains("/BaseFont /Symbol"));
+        // the curve's colour and dashes (and the legend's sample)
+        assert_eq!(text.matches("0.337 0.020 0.569 RG").count(), 2);
+        assert_eq!(text.matches("[8.0 5.0] 0 d").count(), 2);
     }
 
     #[test]

@@ -14,7 +14,7 @@ use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
 use mc_numfn::{NumFn, Options, Var};
-use render::{Axis, Corner, Look, Scale, Series};
+use render::{Axis, Corner, Dash, Look, Rgb, Scale, Series};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Every function of this package with a one-line description.
@@ -47,6 +47,14 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "legend_position",
         "option of every plot: legend_position: top_right (default) | top_left | bottom_left | bottom_right",
+    ),
+    (
+        "colors",
+        "option of every plot: colors: [\"#rrggbb\", ...], the colour of each curve or data set in order (the default cycle after the list)",
+    ),
+    (
+        "line_style",
+        "option of plot and joined list plots: line_style: [solid | dashed | dotted | dot_dashed, ...], one per curve in order (solid after the list)",
     ),
 ];
 
@@ -433,7 +441,8 @@ impl Native for ListPlot {
 }
 
 /// The plot options `options(k -> v, ...)`: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`),
-/// `x_label`, `y_label` (strings), `legend` (a list of strings), `legend_position` (a corner) and, when
+/// `x_label`, `y_label` (strings), `legend` (a list of strings), `legend_position` (a corner), `colors` (a list
+/// of `"#rrggbb"` strings), `line_style` (a list of `solid`, `dashed`, `dotted`, `dot_dashed`) and, when
 /// `joined_ok`, `joined` (`true` / `false`), applied to `base`. `None` for anything else.
 fn plot_options<'h>(
     cx: &NativeCx<'_, '_, 'h>,
@@ -479,10 +488,43 @@ fn plot_options<'h>(
                     .collect::<Option<_>>()?
             }
             "legend_position" => look.legend_at = corner_option(h, v)?,
+            "colors" => {
+                look.colors = cx
+                    .as_list(v)?
+                    .iter()
+                    .map(|&e| text(e).and_then(|s| hex_color(&s)))
+                    .collect::<Option<_>>()?
+            }
+            "line_style" => {
+                look.dashes = cx
+                    .as_list(v)?
+                    .iter()
+                    .map(|&e| dash_option(h, e))
+                    .collect::<Option<_>>()?
+            }
             _ => return None,
         }
     }
     Some(look)
+}
+
+/// A colour written `#rrggbb` (hexadecimal red, green, blue).
+fn hex_color(s: &str) -> Option<Rgb> {
+    let d = s.strip_prefix('#').filter(|d| d.len() == 6 && d.is_ascii())?;
+    let c = |i: usize| u8::from_str_radix(&d[i..i + 2], 16).ok();
+    Some((c(0)?, c(2)?, c(4)?))
+}
+
+/// A dash pattern: `solid`, `dashed`, `dotted` or `dot_dashed`.
+fn dash_option(h: &Heap, v: T<'_>) -> Option<Dash> {
+    let View::Sym(s) = h.view(v) else { return None };
+    match h.sym_name(s).as_str() {
+        "solid" => Some(Dash::Solid),
+        "dashed" => Some(Dash::Dashed),
+        "dotted" => Some(Dash::Dotted),
+        "dot_dashed" => Some(Dash::DotDashed),
+        _ => None,
+    }
 }
 
 /// A corner: `top_right`, `top_left`, `bottom_left` or `bottom_right`.
@@ -521,6 +563,15 @@ fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hex_colors() {
+        assert_eq!(hex_color("#560591"), Some((86, 5, 145)));
+        assert_eq!(hex_color("#FFffff"), Some((255, 255, 255)));
+        for bad in ["560591", "#56059", "#5605911", "#56059g", "#\u{e9}0591", ""] {
+            assert_eq!(hex_color(bad), None, "{bad}");
+        }
+    }
 
     #[test]
     fn png_header() {
