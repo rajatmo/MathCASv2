@@ -269,3 +269,21 @@ fn explicit_and_general_forms_agree() {
     // a highest derivative in two terms of one residual still goes the general way; a nonlinear one is refused
     assert!(s.run("n_dsolve_value([y'(t)^2 == 1, y(0) == 0], y(1), [t, 0, 1])").contains("implicit equation"));
 }
+
+/// Values that are numbers do not keep their solutions (N3.13); solutions that terms name stay usable.
+#[test]
+fn numeric_values_do_not_keep_named_solutions_from_working() {
+    let mut s = Sys::new();
+    let eqs = "[y'(t) == -y(t), y(0) == 1]";
+    s.run(&format!("sol = n_dsolve({eqs}, y, [t, 0, 1]); g = n_dsolve_value({eqs}, y(t), [t, 0, 1])"));
+    // the same solution again, as numbers, many times
+    let v = number(&s.run(&format!("sum(table(n_dsolve_value({eqs}, y(1), [t, 0, 1]), i, 50))/50")));
+    assert!(close(v, (-1f64).exp(), 1e-7), "{v}");
+    let p = s.run("f = parametric_n_dsolve_value([y'(t) == -k*y(t), y(0) == 1], y(1), [t, 0, 1], [k]); f(1.0)");
+    assert!(close(number(&p), (-1f64).exp(), 1e-7), "{p}");
+    // the rules and the closure made before still evaluate
+    assert!(close(number(&s.run("rewrite(y(0.5), sol)")), (-0.5f64).exp(), 1e-7));
+    assert!(close(number(&s.run("g(0.5)")), (-0.5f64).exp(), 1e-7));
+    // and the solution of a value is gone only when nothing names it: a closure keeps it
+    assert!(close(number(&s.run("h = parametric_n_dsolve_value([y'(t) == -k*y(t), y(0) == 1], y(t), [t, 0, 1], [k])(2.0); h(1)")), (-2f64).exp(), 1e-7));
+}

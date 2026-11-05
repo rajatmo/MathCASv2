@@ -128,20 +128,31 @@ pub(crate) struct Store {
 }
 
 impl Store {
-    /// Keep `s`; its key (equal solutions share one; a hash collision with a different one takes the next salt).
-    pub fn insert(&self, s: Solution) -> u64 {
+    /// Keep `s`: the kept solution, its key (equal solutions share one; a hash collision with a different one takes
+    /// the next salt) and whether it is new (no equal solution was kept before).
+    pub fn insert(&self, s: Solution) -> (Arc<Solution>, u64, bool) {
         let mut map = self.map.lock();
         let mut salt = 0;
         loop {
             let key = s.hash(salt);
             match map.get(&key) {
-                Some(old) if **old == s => return key,
+                Some(old) if **old == s => return (old.clone(), key, false),
                 Some(_) => salt += 1,
                 None => {
-                    map.insert(key, Arc::new(s));
-                    return key;
+                    let a = Arc::new(s);
+                    map.insert(key, a.clone());
+                    return (a, key, true);
                 }
             }
+        }
+    }
+
+    /// Forget the solution `sol` of `key` unless someone else holds it (a thread evaluating an equal solution
+    /// got it from the store, under the lock, and still holds it).
+    pub fn forget(&self, key: u64, sol: &Arc<Solution>) {
+        let mut map = self.map.lock();
+        if map.get(&key).is_some_and(|a| Arc::ptr_eq(a, sol) && Arc::strong_count(a) == 2) {
+            map.remove(&key);
         }
     }
 

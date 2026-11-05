@@ -76,6 +76,10 @@ mc-lsp.
   initial values, `expr` and the options and integrates as `n_dsolve_value` (identical results); a symbolic value
   leaves the call unevaluated. A small equation solved 10^4 times: 0.37 s by `n_dsolve_value`, 0.23 s by a
   parametric function.
+- **N3.13 Solutions of numeric values are not kept**: a value of `n_dsolve_value` or of a parametric function that
+  does not name its solution (a number or a list of numbers, not a closure of t) forgets the solution at once,
+  when it was new to the store and no other thread holds it; a loop of solves no longer fills the store (known gap
+  6 remains for `n_dsolve` rules and closures).
 
 ## Edits outside the crate
 

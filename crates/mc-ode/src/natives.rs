@@ -78,6 +78,8 @@ fn taylor_bits(opts: &Options<'_>) -> u64 {
 struct Solved<'h> {
     sys: System<'h>,
     key: u64,
+    /// the solution was new to the store (no equal one was kept before)
+    fresh: bool,
     sol: Arc<Solution>,
     events: Vec<(f64, usize)>,
 }
@@ -220,8 +222,8 @@ impl Solve {
         };
         let mut found = events.map(|e| e.found).unwrap_or_default();
         found.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.cmp(&q.1)));
-        let (sol, key) = self.keep(sol);
-        let solved = Solved { sys, key, sol, events: found };
+        let (sol, key, fresh) = self.keep(sol);
+        let solved = Solved { sys, key, fresh, sol, events: found };
         // a blow-up or the step limit: the part computed is the solution (its domain ends where the run stopped),
         // with a warning (semantics 10: a value with a warning is still the value)
         for run in [&fwd, &bwd] {
@@ -236,9 +238,20 @@ impl Solve {
         Ok(Ok(solved))
     }
 
-    fn keep(&self, sol: Solution) -> (Arc<Solution>, u64) {
-        let key = self.store.insert(sol);
-        (self.store.get(key).expect("just inserted"), key)
+    fn keep(&self, sol: Solution) -> (Arc<Solution>, u64, bool) {
+        let (sol, key, fresh) = self.store.insert(sol);
+        (sol, key, fresh)
+    }
+
+    /// The value of `expr` along a solution, for `n_dsolve_value` and parametric functions: a new solution that the
+    /// value does not name (a number, not a closure of t) is forgotten at once, so that a loop of solves does not
+    /// fill the store (decision N3.13).
+    fn value<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, s: &Solved<'h>, expr: T<'h>) -> Res<T<'h>> {
+        let v = self.substitute(cx, s, expr)?;
+        if s.fresh && !mentions(cx, v, &[cx.heap().sym("interpolating_function")])? {
+            self.store.forget(s.key, &s.sol);
+        }
+        Ok(v)
     }
 
     /// The event functions of `events: [g == 0, ...]` (an expression g stands for g == 0).
@@ -349,8 +362,8 @@ impl Solve {
             steps,
             data: Data::Taylor(solution::Taylor { p, out, fine, coarse }),
         };
-        let (sol, key) = self.keep(sol);
-        Ok(Ok(Solved { sys, key, sol, events: vec![] }))
+        let (sol, key, fresh) = self.keep(sol);
+        Ok(Ok(Solved { sys, key, fresh, sol, events: vec![] }))
     }
 
     /// `expr` with the unknowns replaced by the solution: `y^(d)(x)` by the dense output of the component (or its
@@ -441,7 +454,7 @@ impl Native for Solve {
             Err(f) => return Ok(Reply::Done(f)),
         };
         if self.kind == Kind::Value {
-            return Ok(Reply::Done(self.substitute(cx, &solved, second)?));
+            return Ok(Reply::Done(self.value(cx, &solved, second)?));
         }
         let mut out = solution_rules(h, &solved);
         if opts.events.is_some() {
@@ -518,7 +531,7 @@ impl Native for ParametricCall {
             Ok(s) => s,
             Err(f) => return Ok(Reply::Done(f)),
         };
-        Ok(Reply::Done(solve.substitute(cx, &solved, subst(expr))?))
+        Ok(Reply::Done(solve.value(cx, &solved, subst(expr))?))
     }
 
     fn curried(&self) -> bool {
