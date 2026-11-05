@@ -629,6 +629,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-numeric",
  "serde_json",
 ]
 
