@@ -145,3 +145,15 @@ fn failures() {
         assert!(out.starts_with("failure(not_converged, n_integrate, "), "{src}: {out}");
     }
 }
+
+/// log(1 + u) and exp(u) - 1 are evaluated in their stable forms (log1p, expm1): the thermal integrand
+/// log(1 - exp(-r)) converges at large r, where the plain form loses five digits.
+#[test]
+fn stable_forms() {
+    let mut s = Sys::new();
+    let jb = s.run("n_integrate(y^2*log(1 - exp(-sqrt(y^2 + 625))), [y, 0, inf])");
+    let v: f64 = jb.parse().unwrap_or_else(|_| panic!("{jb}"));
+    assert!((v + 2.3417398800487363e-9).abs() < 1e-17, "{jb}");
+    assert_eq!(s.run("log1p(1.0e-20)"), "1e-20");
+    assert_eq!(s.run("expm1(1.0e-20)"), "1e-20");
+}

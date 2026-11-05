@@ -289,6 +289,8 @@ pub enum E {
     /// [`Draw::Integer`]); an effect: the front end evaluates it once, in a statement of its own, in the order the
     /// interpreter draws
     Draw(Draw, Box<E>, Box<E>),
+    /// the spline registered as `id` (`mc_numeric::spline`) at a machine real; declines outside its data
+    Spline(u32, Box<E>),
     /// element `i` (from 1; a negative `i` counts from the end, as `part` does) of the vector of `len` leaves of type
     /// `Int` or `Real` at address `base` (package P: a packed payload, a list's leaves copied by the host, or a vector
     /// the code made); declines when `i` is outside the vector
@@ -427,6 +429,10 @@ pub fn type_of(func: &Func, e: &E) -> Result<Ty, String> {
             want(func, b, t)?;
             t
         }
+        E::Spline(_, a) => {
+            want(func, a, Real)?;
+            Real
+        }
         E::Sel(c, a, b) => {
             want(func, c, Bool)?;
             let t = type_of(func, a)?;
@@ -562,7 +568,7 @@ pub fn size(func: &Func) -> usize {
         1 + match x {
             E::Int(_) | E::Real(_) | E::Bool(_) | E::Var(_) => 0,
             E::I(_, a, b) | E::F(_, a, b) | E::Cmp(_, a, b) | E::Logic(_, a, b) | E::MinMaxF(_, a, b) => e(a) + e(b),
-            E::Not(a) | E::ToReal(a) | E::Floor(a) | E::AbsF(a) | E::Math(_, a) | E::NegF(a) => e(a),
+            E::Not(a) | E::ToReal(a) | E::Floor(a) | E::AbsF(a) | E::Math(_, a) | E::NegF(a) | E::Spline(_, a) => e(a),
             E::Num(_, os) => opds(os),
             E::Sel(c, a, b) | E::Elem(_, c, a, b) => e(c) + e(a) + e(b),
             E::Draw(_, a, b) | E::VSum(_, a, b) => e(a) + e(b),
@@ -613,6 +619,7 @@ fn speculable(e: &E) -> bool {
         | E::Math(..)
         | E::Num(..)
         | E::Draw(..)
+        | E::Spline(..)
         | E::Elem(..)
         | E::VSum(..) => false,
     }
@@ -773,6 +780,8 @@ pub enum Op {
     /// `d` = a draw from the session generator with the arguments `a`, `b` (an `F` or, for [`Draw::Integer`], an
     /// `I` result); declines when the arguments are outside the native's domain or no generator is attached
     Draw(Draw, R, R, R),
+    /// `d` = the spline `id` at `a`; declines outside its data
+    Spline(u32, R, R),
     /// `(re, im) = op(operands)` through the arithmetic; declines unless the result is a machine complex number
     CNum(NumOp, R, R, Vec<(OpdK, R, R)>),
     /// `(re, im) = f(a + b i)`, `mc-numeric`'s principal complex value
@@ -985,6 +994,12 @@ impl Lower<'_> {
                 let (ra, rb) = (self.ex(a), self.ex(b));
                 let d = self.reg(if *dr == Draw::Integer { K::I } else { K::F });
                 self.emit(Op::Draw(*dr, d, ra, rb));
+                d
+            }
+            E::Spline(id, a) => {
+                let ra = self.ex(a);
+                let d = self.reg(K::F);
+                self.emit(Op::Spline(*id, d, ra));
                 d
             }
             E::Sel(c, a, b) => {

@@ -524,6 +524,26 @@ pub unsafe extern "C" fn draw_real(env: *mut Env, a: f64, b: f64) -> f64 {
     }
 }
 
+/// The spline registered as `id` at `x` (`mc_numeric::spline`), or `None` outside its data: the interpreter's value.
+pub fn spline_value(id: u32, x: f64) -> Option<f64> {
+    mc_numeric::spline::get(id)?.at(x)
+}
+
+/// [`spline_value`] for compiled code: declines outside the data.
+///
+/// # Safety
+/// `env` is the live environment of the running call.
+pub unsafe extern "C" fn spline(env: *mut Env, id: i64, x: f64) -> f64 {
+    match spline_value(id as u32, x) {
+        Some(v) => v,
+        None => {
+            // SAFETY: the caller's contract.
+            unsafe { &mut *env }.decline();
+            0.0
+        }
+    }
+}
+
 /// `random_normal(mu, sigma)` for compiled code (declines like [`draw_value`]).
 ///
 /// # Safety

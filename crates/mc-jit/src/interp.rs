@@ -33,7 +33,7 @@ fn operands(op: &Op) -> Vec<u32> {
         | Op::FNeg(d, a)
         | Op::FromKey(d, a) => vec![*d, *a],
         Op::Draw(_, d, a, b) | Op::Load(d, a, b) | Op::Store(d, a, b) | Op::VSum(d, a, b) => vec![*d, *a, *b],
-        Op::VNew(d, a) | Op::VOut(d, a) => vec![*d, *a],
+        Op::VNew(d, a) | Op::VOut(d, a) | Op::Spline(_, d, a) => vec![*d, *a],
         Op::CMath(_, d, e, a, b) => vec![*d, *e, *a, *b],
         Op::CNum(_, d, e, opds) => [*d, *e].into_iter().chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
         Op::IChk(_, d, a, b)
@@ -197,6 +197,9 @@ impl Interp {
                     r[e as usize] = y.to_bits();
                 }
                 Op::FNeg(d, a) => r[d as usize] = (-gf(r, a)).to_bits(),
+                Op::Spline(id, d, a) => {
+                    r[d as usize] = rt::spline_value(id, gf(r, a)).ok_or(Exit::Decline)?.to_bits();
+                }
                 Op::Draw(k, d, a, b) => {
                     // SAFETY: `env` is a live environment whose stream, if any, is this call's (`Env::with_stream`).
                     r[d as usize] = unsafe { rt::draw_value(env, k, r[a as usize], r[b as usize]) }.ok_or(Exit::Decline)?;

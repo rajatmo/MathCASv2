@@ -186,10 +186,14 @@ impl Solve {
         found.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.cmp(&q.1)));
         let (sol, key) = self.keep(sol);
         let solved = Solved { sys, key, sol, events: found };
+        // a blow-up or the step limit: the part computed is the solution (its domain ends where the run stopped),
+        // with a printed warning (semantics 10: a value with a warning is still the value)
         for run in [&fwd, &bwd] {
             if matches!(run.end, End::MaxSteps | End::StepSize) {
-                let partial = solution_rules(h, &solved);
-                return Ok(Err(failure(h, "not_converged", &[h.sym_term(h.sym(name)), partial, h.real(run.t)])));
+                let why = if run.end == End::MaxSteps { "the step limit was reached" } else { "the step size vanished (a singularity?)" };
+                let msg = format!("{name}: {why} at t = {}; the solution covers the part computed", run.t);
+                cx.eval(h.call(h.sym("print"), &[h.string(&msg)]))?;
+                break;
             }
         }
         Ok(Ok(solved))

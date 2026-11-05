@@ -479,6 +479,12 @@ impl<'h> Source<'h> for KernelSource<'_, '_, '_, 'h> {
         self.shared.is_some_and(|sh| sh.rng.get().is_some())
     }
 
+    fn constant(&mut self, s: Sym) -> Option<T<'h>> {
+        let v = self.cx.own_value(s)?;
+        self.versions.insert(s, self.cx.version(s));
+        Some(v)
+    }
+
     fn function(&mut self, f: Sym) -> Result<FnDef<'h>, String> {
         let h = self.cx.heap();
         let name = h.sym_name(f);

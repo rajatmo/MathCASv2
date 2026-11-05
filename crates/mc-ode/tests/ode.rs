@@ -229,9 +229,10 @@ fn failures() {
     for (src, want) in cases {
         assert_eq!(s.run(src), want, "{src}");
     }
-    // a blow-up at t = 1 and a step limit: the partial solution and the time reached
+    // a blow-up at t = 1 and a step limit: the partial solution (with a printed warning), its domain ending where
+    // the run stopped
     let r = s.run("n_dsolve([y'(t) == y(t)^2, y(0) == 1], y, [t, 0, 2])");
-    assert!(r.starts_with("failure(not_converged, n_dsolve, [y -> interpolating_function(\"y\", [0.0, 1.0"), "{r}");
+    assert!(r.starts_with("[y -> interpolating_function(\"y\", [0.0, 1.0"), "{r}");
     let r = s.run("n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 10], max_steps: 5)");
-    assert!(r.starts_with("failure(not_converged, n_dsolve, [y -> interpolating_function(\"y\", [0.0, 0."), "{r}");
+    assert!(r.starts_with("[y -> interpolating_function(\"y\", [0.0, 0."), "{r}");
 }

@@ -105,6 +105,12 @@ pub trait Source<'h> {
     fn draws(&self) -> bool {
         false
     }
+
+    /// The value of the global `s` when the code may use it as a constant (an interpolation bound to a name), the
+    /// read recorded so that redefining `s` invalidates the code; `None` otherwise.
+    fn constant(&mut self, _s: Sym) -> Option<T<'h>> {
+        None
+    }
 }
 
 /// The front end's result.
@@ -742,6 +748,23 @@ impl<'h> Fe<'h, '_> {
                 },
             },
             View::App { head, args } => {
+                if let Some(v) = self.spline_call(head, args)? {
+                    return Ok(v);
+                }
+                // a global bound to an interpolation, called: the interpolation itself
+                if let View::Sym(g) = h.view(head) {
+                    if self.lookup(g).is_none() {
+                        if let Some(value) = self.src.constant(g) {
+                            if let Some(v) = self.spline_call(value, args)? {
+                                // a read like an inlined function's: redefining g invalidates the code (1b.6)
+                                if !self.deps.contains(&g) {
+                                    self.deps.push(g);
+                                }
+                                return Ok(v);
+                            }
+                        }
+                    }
+                }
                 let View::Sym(s) = h.view(head) else { return Err("a call whose head is not a symbol".into()) };
                 match self.prims.get(&s).copied() {
                     Some(Prim::List) => {
@@ -1368,6 +1391,33 @@ impl<'h> Fe<'h, '_> {
     }
 
     /// A machine real argument of a draw: a machine real, an integer (converted), or a rational literal.
+    /// `interpolated(xs, ys, ms)(x)` (the value of `interpolation`, mc-io) whose nodes are packed real arrays: a call
+    /// of the registered spline (`mc_numeric::spline`), the interpreter's own evaluation; `None` for other calls.
+    fn spline_call(&mut self, head: T<'h>, args: &'h [T<'h>]) -> Res<Option<Val>> {
+        let h = self.h;
+        let View::App { head: inner, args: data } = h.view(head) else { return Ok(None) };
+        let View::Sym(s) = h.view(inner) else { return Ok(None) };
+        if self.name(s) != "interpolated" {
+            return Ok(None);
+        }
+        let reals = |t: T<'h>| h.packed(t).and_then(|p| p.reals());
+        let (&[xt, yt, mt], &[x]) = (data, args) else { return Err("a call of an interpolation with other than one argument".into()) };
+        let (Some(xs), Some(ys), Some(ms)) = (reals(xt), reals(yt), reals(mt)) else {
+            return Err("an interpolation of fewer than 64 points (its nodes are not a packed array)".into());
+        };
+        if xs.len() < 2 || ys.len() != xs.len() || ms.len() != xs.len() {
+            return Err("a malformed interpolation".into());
+        }
+        let id = mc_numeric::spline::register(xs, ys, ms);
+        let xv = self.value(x)?;
+        let xe = match xv {
+            Val::S(e, Ty::Real) => e,
+            Val::S(e, Ty::Int) => E::ToReal(b(e)),
+            _ => return Err("an interpolation at a value that is not a number".into()),
+        };
+        Ok(Some(Val::S(E::Spline(id, b(xe)), Ty::Real)))
+    }
+
     fn draw_real_arg(&mut self, v: Val) -> Res<E> {
         match v {
             Val::S(x, Ty::Real) => Ok(x),

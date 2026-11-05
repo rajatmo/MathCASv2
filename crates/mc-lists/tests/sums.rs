@@ -47,3 +47,18 @@ fn piecewise() {
         assert_eq!(eval(&mut e, src), want, "{src}");
     }
 }
+
+/// Failures are kept as list elements; drop_failures removes elements that are or contain one.
+#[test]
+fn failures_in_lists() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("[1, 1/0]", "[1, failure(division_by_zero)]"),
+        ("[1, 1/0] + 1", "[2, failure(division_by_zero)]"),
+        ("drop_failures([[1, 2], [3, 1/0], 1/0, [4, [5, 1/0]], 6])", "[[1, 2], 6]"),
+        ("drop_failures(table([k, if k == 2 then 1/0 else k], k, 3))", "[[1, 1], [3, 3]]"),
+        ("f(1/0)", "failure(division_by_zero)"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

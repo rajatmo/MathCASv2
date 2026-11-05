@@ -88,6 +88,7 @@ struct Imports {
     cnum: FuncId,
     cmath: FuncId,
     draw_real: FuncId,
+    spline: FuncId,
     draw_normal: FuncId,
     draw_int: FuncId,
     vec_new: FuncId,
@@ -118,7 +119,7 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
-    let helpers: [(&str, *const u8); 19] = [
+    let helpers: [(&str, *const u8); 20] = [
         ("mc_jit_vec_new", rt::vec_new as *const u8),
         ("mc_jit_vec_out", rt::vec_out as *const u8),
         ("mc_jit_vsum_real", rt::vsum_real as *const u8),
@@ -128,6 +129,7 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         ("mc_jit_cnum", rt::cnum as *const u8),
         ("mc_jit_cmath", rt::cmath as *const u8),
         ("mc_jit_draw_real", rt::draw_real as *const u8),
+        ("mc_jit_spline", rt::spline as *const u8),
         ("mc_jit_draw_normal", rt::draw_normal as *const u8),
         ("mc_jit_draw_int", rt::draw_int as *const u8),
         ("mc_jit_ipow", rt::ipow as *const u8),
@@ -164,6 +166,7 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         cnum: import(&mut module, "mc_jit_cnum", &[ptr, types::I64, ptr, types::I64, ptr], types::I64)?,
         cmath: import(&mut module, "mc_jit_cmath", &[types::I64, types::F64, types::F64, ptr], types::F64)?,
         draw_real: import(&mut module, "mc_jit_draw_real", &[ptr, types::F64, types::F64], types::F64)?,
+        spline: import(&mut module, "mc_jit_spline", &[ptr, types::I64, types::F64], types::F64)?,
         draw_normal: import(&mut module, "mc_jit_draw_normal", &[ptr, types::F64, types::F64], types::F64)?,
         draw_int: import(&mut module, "mc_jit_draw_int", &[ptr, types::I64, types::I64], types::I64)?,
         vec_new: import(&mut module, "mc_jit_vec_new", &[ptr, types::I64], types::I64)?,
@@ -199,6 +202,7 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
             cnum: module.declare_func_in_func(imports.cnum, b.func),
             cmath: module.declare_func_in_func(imports.cmath, b.func),
             draw_real: module.declare_func_in_func(imports.draw_real, b.func),
+            spline: module.declare_func_in_func(imports.spline, b.func),
             draw_normal: module.declare_func_in_func(imports.draw_normal, b.func),
             draw_int: module.declare_func_in_func(imports.draw_int, b.func),
             vec_new: module.declare_func_in_func(imports.vec_new, b.func),
@@ -261,6 +265,7 @@ struct Refs {
     cnum: FuncRef,
     cmath: FuncRef,
     draw_real: FuncRef,
+    spline: FuncRef,
     draw_normal: FuncRef,
     draw_int: FuncRef,
     vec_new: FuncRef,
@@ -645,6 +650,14 @@ impl<'a, 'b> Gen<'a, 'b> {
             Op::FNeg(d, a) => {
                 let x = self.get(a);
                 let v = self.b.ins().fneg(x);
+                self.set(d, v)
+            }
+            Op::Spline(id, d, a) => {
+                let x = self.get(a);
+                let idv = self.b.ins().iconst(types::I64, id as i64);
+                let call = self.b.ins().call(self.refs.spline, &[self.env, idv, x]);
+                let v = self.b.inst_results(call)[0];
+                self.check_exit();
                 self.set(d, v)
             }
             Op::Draw(k, d, a, b) => {

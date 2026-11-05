@@ -37,6 +37,12 @@ impl<'h> NativeCx<'_, '_, 'h> {
         self.ev.k.defs.version(s)
     }
 
+    /// The own value of `s` (recorded as a read, like [`NativeCx::rules`]).
+    pub fn own_value(&mut self, s: Sym) -> Option<T<'h>> {
+        self.cx.reads |= bit(s);
+        self.ev.k.defs.own(self.ev.heap, s)
+    }
+
     /// The rules `s` holds for itself, in rule order; the read is recorded. Argument-head rules other symbols attach
     /// to `s` (semantics 6.5) are not included.
     pub fn rules(&mut self, s: Sym) -> Vec<RuleView<'h>> {

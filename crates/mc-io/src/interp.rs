@@ -181,12 +181,8 @@ fn value_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[f64], ys: &[f64], ms: &[f64
         let dom = h.call(h.sym(names::LIST), &[h.real(lo), h.real(hi)]);
         return Ok(Some(failure(h, "out_of_range", &[x, dom])));
     }
-    // the interval [x_i, x_{i+1}] holding xv
-    let i = xs.partition_point(|&a| a <= xv).clamp(1, xs.len() - 1) - 1;
-    let hi_ = xs[i + 1] - xs[i];
-    let (a, b) = ((xs[i + 1] - xv) / hi_, (xv - xs[i]) / hi_);
-    let v = a * ys[i] + b * ys[i + 1] + ((a * a * a - a) * ms[i] + (b * b * b - b) * ms[i + 1]) * hi_ * hi_ / 6.0;
-    Ok(Some(h.real(v)))
+    // the evaluation compiled code shares (bit for bit the same value)
+    Ok(mc_numeric::spline::value(xs, ys, ms, xv).map(|v| h.real(v)))
 }
 
 #[cfg(test)]

@@ -100,6 +100,7 @@ pub mod machine;
 mod natives;
 mod numbers;
 pub mod numeval;
+pub mod spline;
 mod parts;
 mod piecewise;
 mod series;

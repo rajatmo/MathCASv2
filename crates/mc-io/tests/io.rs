@@ -56,3 +56,22 @@ fn interpolation() {
     assert_eq!(eval(&mut e, "interpolation([[1, 2], [1, 3]])"), "failure(argument, interpolation, 1)");
     assert_eq!(eval(&mut e, "interpolation([5])"), "failure(argument, interpolation, 1)");
 }
+
+/// A compiled function calling an interpolation (bound to a name, or reached through n_integrate's compiled
+/// integrand) gives the interpreter's value bit for bit, declines outside the data, and is invalidated when the
+/// name is redefined.
+#[test]
+fn compiled_interpolation() {
+    let mut e = CoreEngine::new();
+    eval(&mut e, "S = interpolation(table([x, sin(x)], x, range(0, 6.3, 0.05)))");
+    eval(&mut e, "@compiled fn sq(t: Real) = S(t)^2 + 1.0");
+    assert_eq!(eval(&mut e, "sq(1.3) === S(1.3)^2 + 1.0"), "true");
+    assert_eq!(eval(&mut e, "compiled_info(sq)[1]"), "params -> [Real]");
+    assert!(eval(&mut e, "sq(9.0)").starts_with("failure(out_of_range, 9.0, "));
+    assert_eq!(
+        eval(&mut e, "n_integrate(S(x)^2, [x, 0, 6]) === n_integrate(S(x)^2, [x, 0, 6], compile: false)"),
+        "true"
+    );
+    eval(&mut e, "S = interpolation(table([x, cos(x)], x, range(0, 6.3, 0.05)))");
+    assert_eq!(eval(&mut e, "sq(1.3) === S(1.3)^2 + 1.0"), "true");
+}

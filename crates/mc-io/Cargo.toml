@@ -9,6 +9,8 @@ description = "MathCAS v2 import and export of data files: lists as CSV, TSV, te
 mc-api = { path = "../mc-api" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+# the spline evaluation compiled code shares
+mc-numeric = { path = "../mc-numeric" }
 serde_json = "1"
 
 [dev-dependencies]
