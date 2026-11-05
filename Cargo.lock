@@ -588,6 +588,7 @@ dependencies = [
  "mc-calculus",
  "mc-core",
  "mc-eval",
+ "mc-io",
  "mc-jit",
  "mc-lists",
  "mc-load",
@@ -616,6 +617,18 @@ dependencies = [
  "rayon",
  "rayon-core",
  "rustc-hash",
+]
+
+[[package]]
+name = "mc-io"
+version = "0.0.0"
+dependencies = [
+ "mc-api",
+ "mc-bench",
+ "mc-core",
+ "mc-engine",
+ "mc-eval",
+ "serde_json",
 ]
 
 [[package]]
@@ -680,6 +693,7 @@ dependencies = [
  "mc-api",
  "mc-assoc",
  "mc-calculus",
+ "mc-io",
  "mc-lists",
  "mc-load",
  "mc-numeric",

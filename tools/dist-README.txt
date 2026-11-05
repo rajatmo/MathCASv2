@@ -46,7 +46,9 @@ jupyter\ holds a Jupyter kernel: .ipynb notebooks run MathCAS in Jupyter Noteboo
 extension; pick the kernel "MathCAS v2"). Needs Python with ipykernel; register it with
   python jupyter\install.py
 (the installer offers this, as the default kernel). Plots (plot, list_plot) show as images in
-notebook cells; in the REPL they print image("path.png"), a PNG file you can open. jupyter\INSTALL.txt has the details; examples\jupyter.ipynb is a sample.
+notebook cells; in the REPL they print image("path.png"), a PNG file you can open.
+Data files: import_data("file.csv") and export_data("file.csv", data) read and write lists as csv, tsv,
+txt/dat (whitespace tables), lines and json; export_data("plot.png", plot(...)) saves a plot. jupyter\INSTALL.txt has the details; examples\jupyter.ipynb is a sample.
 
 Editor support
 --------------

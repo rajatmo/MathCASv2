@@ -20,6 +20,7 @@ mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-ode = { path = "../mc-ode" }
 mc-plot = { path = "../mc-plot" }
+mc-io = { path = "../mc-io" }
 mc-poly = { path = "../mc-poly" }
 mc-quad = { path = "../mc-quad" }
 mc-random = { path = "../mc-random" }

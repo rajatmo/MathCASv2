@@ -2,7 +2,7 @@
 //!
 //! A plot evaluates to `image("path")`, where `path` is a PNG file in the system's temporary folder
 //! (`mathcas-plots/`); front ends show it (the Jupyter kernel displays it inline). There is no graphics term model
-//! yet: that comes with the data-structure work for file formats. Functions are sampled uniformly on 600 points
+//! yet: that comes with the data-structure work for file formats. Functions are sampled adaptively (64 even points, refined where the curve bends or stops)
 //! through `mc_numfn::compile_expr` (compiled when it pays); a value that is not a finite real breaks the curve, and
 //! so does a jump larger than the visible range (a pole). The y range is robust: the 1% and 99% quantiles of the
 //! sampled values, widened to the full range when no value lies far outside them.
@@ -29,8 +29,6 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Samples per curve.
-const SAMPLES: usize = 600;
 
 /// Register the natives with `k`.
 pub fn install(k: &mut Kernel, h: &Heap) {
@@ -113,20 +111,86 @@ impl Native for Plot {
     }
 }
 
-/// The curve of `f` in `x` on [a, b]: `None` where the value is not a finite real.
+/// The curve of `f` in `x` on [a, b], sampled adaptively: `INITIAL` even points, then each interval is halved
+/// while its midpoint lies more than `TOLERANCE` (as a fraction of the visible y range, about half a pixel) off the
+/// chord, or while the value is a number at one end and not at the other (to find where it stops), up to `DEPTH`
+/// halvings and `BUDGET` evaluations in all. `None` where the value is not a finite real.
 fn sample<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: Sym, a: f64, b: f64) -> Res<Series> {
-    let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x)], &Options::default())?;
-    let mut pts = Vec::with_capacity(SAMPLES);
-    let mut out = [0.0];
-    for k in 0..SAMPLES {
-        if k % 64 == 0 {
-            cx.tick(1)?;
+    let fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x)], &Options::default())?;
+    let mut s = Sampler { fun, evals: 0 };
+    let mut grid = Vec::with_capacity(INITIAL);
+    for k in 0..INITIAL {
+        let xk = a + (b - a) * k as f64 / (INITIAL - 1) as f64;
+        grid.push((xk, s.at(cx, xk)?));
+    }
+    // the visible y range of the coarse curve sets the tolerance
+    let span = {
+        let (lo, hi) = render::robust(grid.iter().filter_map(|p| p.1).collect());
+        if hi > lo {
+            hi - lo
+        } else {
+            1.0
         }
-        let xk = a + (b - a) * k as f64 / (SAMPLES - 1) as f64;
-        let ok = fun.eval(cx, &[xk], &mut out)?;
-        pts.push((xk, if ok && out[0].is_finite() { Some(out[0]) } else { None }));
+    };
+    let mut pts = vec![grid[0]];
+    for w in grid.windows(2) {
+        s.refine(cx, w[0], w[1], span, DEPTH, &mut pts)?;
     }
     Ok(Series { points: pts })
+}
+
+/// Even points before refinement.
+const INITIAL: usize = 64;
+/// Halvings of an initial interval at most.
+const DEPTH: u32 = 10;
+/// Evaluations per curve at most.
+const BUDGET: u64 = 20_000;
+/// Deviation from the chord, as a fraction of the visible y range, that asks for a halving.
+const TOLERANCE: f64 = 0.0015;
+
+struct Sampler<'h> {
+    fun: Box<dyn NumFn<'h, f64> + 'h>,
+    evals: u64,
+}
+
+impl<'h> Sampler<'h> {
+    fn at(&mut self, cx: &mut NativeCx<'_, '_, 'h>, x: f64) -> Res<Option<f64>> {
+        self.evals += 1;
+        if self.evals.is_multiple_of(64) {
+            cx.tick(1)?;
+        }
+        let mut out = [0.0];
+        let ok = self.fun.eval(cx, &[x], &mut out)?;
+        Ok(if ok && out[0].is_finite() { Some(out[0]) } else { None })
+    }
+
+    /// Push the points of (p, q], refined; `p` is already pushed. Recursion depth is at most `DEPTH`.
+    fn refine(
+        &mut self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        p: (f64, Option<f64>),
+        q: (f64, Option<f64>),
+        span: f64,
+        depth: u32,
+        out: &mut Vec<(f64, Option<f64>)>,
+    ) -> Res<()> {
+        if depth > 0 && self.evals < BUDGET {
+            let xm = 0.5 * (p.0 + q.0);
+            let m = (xm, self.at(cx, xm)?);
+            let split = match (p.1, m.1, q.1) {
+                (Some(a), Some(c), Some(b)) => (c - 0.5 * (a + b)).abs() > TOLERANCE * span,
+                (None, None, None) => false,
+                _ => true,
+            };
+            if split {
+                self.refine(cx, p, m, span, depth - 1, out)?;
+                return self.refine(cx, m, q, span, depth - 1, out);
+            }
+            out.push(m);
+        }
+        out.push(q);
+        Ok(())
+    }
 }
 
 /// `list_plot(data)`, `list_plot(data, joined: true)`.

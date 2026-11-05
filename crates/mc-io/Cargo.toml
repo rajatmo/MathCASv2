@@ -1,0 +1,16 @@
+[package]
+name = "mc-io"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 import and export of data files: lists as CSV, TSV, text and JSON; PNG images"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+serde_json = "1"
+
+[dev-dependencies]
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }

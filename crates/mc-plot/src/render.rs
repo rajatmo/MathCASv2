@@ -15,9 +15,17 @@ const ML: f32 = 64.0;
 const MT: f32 = 16.0;
 const MR: f32 = 16.0;
 const MB: f32 = 40.0;
-/// A colour-blind-safe cycle (Okabe-Ito).
-const COLORS: [(u8, u8, u8); 7] =
-    [(0, 114, 178), (213, 94, 0), (0, 158, 115), (204, 121, 167), (230, 159, 0), (86, 180, 233), (0, 0, 0)];
+/// The default colour cycle: modern earth tones with strong contrast on white, ordered so neighbouring curves
+/// differ in both hue and lightness: deep teal, terracotta, ochre, aubergine, olive, slate indigo, espresso.
+const COLORS: [(u8, u8, u8); 7] = [
+    (0x1B, 0x5E, 0x63),
+    (0xC1, 0x50, 0x2E),
+    (0xC9, 0x9A, 0x2E),
+    (0x5B, 0x2C, 0x4F),
+    (0x6B, 0x7A, 0x2F),
+    (0x34, 0x50, 0x6E),
+    (0x3B, 0x2A, 0x22),
+];
 
 /// The PNG bytes of the plot of `series` (lines when `joined`, else points).
 pub(crate) fn render(series: &[Series], joined: bool) -> Option<Vec<u8>> {
@@ -101,7 +109,7 @@ fn range(v: impl Iterator<Item = f64>) -> (f64, f64) {
 }
 
 /// The 1%..99% quantile range, or the full range when no value lies more than half that range outside it.
-fn robust(mut v: Vec<f64>) -> (f64, f64) {
+pub(crate) fn robust(mut v: Vec<f64>) -> (f64, f64) {
     if v.len() < 10 {
         return range(v.into_iter());
     }
