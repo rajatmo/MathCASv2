@@ -10,7 +10,7 @@
 use crate::facts::Facts;
 use crate::refine::refine;
 use crate::term::{fixed, B};
-use mc_api::T;
+use mc_api::{Store, T};
 use mc_eval::{NativeCx, Res};
 
 /// `power_expand(e)`, with the facts of the context if there are any.
@@ -34,6 +34,15 @@ pub fn power_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mut facts: Opt
         let hd = &b.hd;
         if let Some((s, [base, c])) = b.call_of(node) {
             if s == hd.pow {
+                if let Some((g, _)) = b.call_of(*base) {
+                    // a sum under a non-integer power: factored, so the law can split it (G51)
+                    if g == hd.add && !matches!(b.heap().view(*c), mc_api::View::Int(_)) {
+                        let fac = crate::term::apply(cx, b, "factor", *base)?;
+                        if fac != *base && b.call_of(fac).is_some_and(|(h2, _)| h2 == hd.mul || h2 == hd.pow) {
+                            return Ok(Some(b.pow(fac, *c)));
+                        }
+                    }
+                }
                 if let Some((g, fs)) = b.call_of(*base) {
                     if g == hd.mul && !negative(cx, fs)? {
                         let ps: Vec<T<'h>> = fs.iter().map(|&f| b.pow(f, *c)).collect();

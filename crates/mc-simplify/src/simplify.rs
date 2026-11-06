@@ -249,7 +249,20 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>>
                 }
                 Ok(Some(b.add(&[b.add(&ints), b.call(s, &[b.add(&rest)])])))
             }
-            _ if s == b.hd.pow => denest(cx, b, args),
+            _ if s == b.hd.pow => {
+                if let Some(r) = denest(cx, b, args)? {
+                    return Ok(Some(r));
+                }
+                // a compound exponent expanded when that is smaller (G51: mp^(-2 (4 - k) + 6 - k) is mp^(-2 + k))
+                let [base, ex] = args else { return Ok(None) };
+                if b.call_of(*ex).is_some() && !b.is_number(*ex) {
+                    let e2 = apply(cx, b, "expand", *ex)?;
+                    if leaf_count(h, e2) < leaf_count(h, *ex) {
+                        return Ok(Some(b.pow(*base, e2)));
+                    }
+                }
+                Ok(None)
+            }
             _ => Ok(None),
         }
     })?;

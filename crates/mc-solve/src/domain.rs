@@ -144,7 +144,11 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             }
         }
         for &c in &conds {
-            let v = cx.eval(h.call(h.sym("rewrite"), &[c, s]))?;
+            let mut v = cx.eval(h.call(h.sym("rewrite"), &[c, s]))?;
+            if !cx.is_true(v) && !cx.is_false(v) && !no_facts {
+                // decided by the facts of the context (G51: -sqrt(positive) > 0 is false)
+                v = cx.eval(h.call(h.sym("refine"), &[v]))?;
+            }
             if cx.is_false(v) || strict && !cx.is_true(v) {
                 continue 'sol;
             }

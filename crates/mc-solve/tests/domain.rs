@@ -26,6 +26,8 @@ fn solve_with_domains_and_conditions() {
         ("solve(sqrt(a*x) == b, x)", "[[x -> a^-1*b^2]]"),
         // the facts of assuming about the unknowns
         ("assuming(x > 0, solve(x^2 == 4, x))", "[[x -> 2]]"),
+        // the facts decide the sign of a symbolic root (G51)
+        ("assuming(phi > 0 and a > 0, solve(phi^2 == a, phi))", "[[phi -> a^(1/2)]]"),
         ("assuming(element(n, integers), solve(x^2 == 4, x))", "[[x -> -2], [x -> 2]]"),
     ]);
 }

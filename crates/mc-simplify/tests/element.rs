@@ -103,3 +103,12 @@ fn simplify_preparation() {
         ("simplify(conjugate(f(z)))", "conjugate(f(z))"),
     ]);
 }
+
+#[test]
+fn exponents_and_radicands_g51() {
+    check(&[
+        ("assuming(mp > 0, simplify(mp^(-2*(4 - k) - (-2 - (4 - k)))))", "mp^(-2 + k)"),
+        ("simplify(x^(3*(a + 1) - 3*a))", "x^3"),
+        ("power_expand(sqrt(al*t^4 + al*q^2*t^4 + 2*al*q*t^4))", "(1 + q)*al^(1/2)*t^2"),
+    ]);
+}
