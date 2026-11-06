@@ -1204,23 +1204,76 @@ fn legend_items<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<&'h [T<'h>]> 
 
 /// The `legend_label` option inside `line_legend(..., legend_label: t)` (also inside `placed(...)`).
 fn legend_label<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<T<'h>> {
+    legend_option(cx, v, "legend_label")
+}
+
+/// Option `key` inside `line_legend(..., key: t)` (also inside `placed(...)`).
+fn legend_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>, key: &str) -> Option<T<'h>> {
     let h = cx.heap();
     let View::App { head, args } = h.view(v) else { return None };
     let View::Sym(s) = h.view(head) else { return None };
     match h.sym_name(s).as_str() {
-        "placed" => legend_label(cx, *args.first()?),
+        "placed" => legend_option(cx, *args.first()?, key),
         "line_legend" | "swatch_legend" | "point_legend" | "bar_legend" => args.iter().find_map(|&a| {
             let View::App { head, args: rs } = h.view(a) else { return None };
             if !is_sym(h, head, "options") {
                 return None;
             }
             rs.iter().find_map(|&r| match h.view(r) {
-                View::App { args: &[k, t], .. } if is_sym(h, k, "legend_label") => Some(t),
+                View::App { args: &[k, t], .. } if is_sym(h, k, key) => Some(t),
                 _ => None,
             })
         }),
         _ => None,
     }
+}
+
+/// The corner of `placed(legend, pos)`: pos `[horizontal, vertical]` (`left`, `right`, `center` or a number 0..1;
+/// `top`, `bottom`, `center` or a number 0..1), a corner (`top_left`, ...), or one side (`left`, `right`, `top`,
+/// `bottom`, `before`, `after`, `above`, `below`).
+fn placed_corner(h: &Heap, v: T<'_>) -> Option<Corner> {
+    let View::App { head, args } = h.view(v) else { return None };
+    if !is_sym(h, head, "placed") || args.len() < 2 {
+        return None;
+    }
+    let pos = args[1];
+    if let Some(c) = corner_option(h, pos) {
+        return Some(c);
+    }
+    let name = |t: T<'_>| match h.view(t) {
+        View::Sym(s) => Some(h.sym_name(s)),
+        _ => None,
+    };
+    let num = |t: T<'_>| mc_graphics::num::number(h, t);
+    // (left?, top?)
+    let (left, top) = match h.view(pos) {
+        View::App { head, args: &[x, y] } if is_sym(h, head, mc_api::names::LIST) => {
+            let left = match name(x).as_deref() {
+                Some("left" | "before") => true,
+                Some("right" | "after" | "center") => false,
+                _ => num(x)? < 0.5,
+            };
+            let top = match name(y).as_deref() {
+                Some("top" | "above" | "center") => true,
+                Some("bottom" | "below") => false,
+                _ => num(y)? >= 0.5,
+            };
+            (left, top)
+        }
+        View::Sym(_) => match name(pos)?.as_str() {
+            "left" | "before" => (true, true),
+            "right" | "after" | "top" | "above" => (false, true),
+            "bottom" | "below" => (false, false),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    Some(match (left, top) {
+        (true, true) => Corner::TopLeft,
+        (false, true) => Corner::TopRight,
+        (true, false) => Corner::BottomLeft,
+        (false, false) => Corner::BottomRight,
+    })
 }
 
 /// The marker of legend entries the plot fills in with its series' names.
@@ -1252,6 +1305,31 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
             // a title over the entries: legend_label inside line_legend(...) or placed(...)
             if let Some(t) = legend_label(cx, v) {
                 look.graphics.push(("legend_title".to_string(), t));
+            }
+            if let Some(c) = placed_corner(h, v) {
+                look.legend_at = c;
+            }
+            if let Some(t) = legend_option(cx, v, "legend_layout") {
+                look.graphics.push(("legend_layout".to_string(), t));
+            }
+            // legend_function: frame (a frame with rounded corners), or a function framing its argument with a
+            // rounding_radius; none: no frame
+            if let Some(f) = legend_option(cx, v, "legend_function") {
+                let frame = if is(f, "none") {
+                    Some(h.sym_term(h.sym("none")))
+                } else if is(f, "frame") || is(f, "framed") {
+                    Some(h.real(5.0))
+                } else {
+                    let printed = mc_syntax::Printer::new(h).expr(f);
+                    printed.find("rounding_radius").map(|k| {
+                        let r: String = printed[k..].chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+                        h.real(r.parse().unwrap_or(0.0))
+                    })
+                    .or_else(|| printed.contains("framed").then(|| h.real(0.0)))
+                };
+                if let Some(fr) = frame {
+                    look.graphics.push(("legend_frame".to_string(), fr));
+                }
             }
             let items = legend_items(cx, v)?;
             look.legend = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e))).collect();

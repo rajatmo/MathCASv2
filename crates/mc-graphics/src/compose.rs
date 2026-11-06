@@ -147,17 +147,27 @@ fn cell<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Cell<'h>> {
             return Ok(Cell::Picture(t, (p.width as f64, p.height as f64)));
         }
     }
+    // column([a, b, ...]): laid out as a one-column grid
+    if let View::App { head, args: &[items] } = h.view(t) {
+        if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "column") {
+            if let Some(items) = cx.as_list(items) {
+                let rows: Vec<T<'h>> = items.iter().map(|&e| h.call(h.sym(names::LIST), &[e])).collect();
+                let g = h.call(h.sym("grid"), &[h.call(h.sym(names::LIST), &rows)]);
+                let g = cx.eval(g)?;
+                if crate::is_graphics(h, g) {
+                    return cell(cx, g);
+                }
+            }
+        }
+    }
     let t = resolve(cx, t)?;
     if crate::is_graphics(h, t) {
         if let Ok(s) = crate::page_size(h, t) {
             return Ok(Cell::Picture(t, (s.0 as f64, s.1 as f64)));
         }
     }
-    let inner = match h.view(t) {
-        View::App { head, args } if !args.is_empty() && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "style") => args[0],
-        _ => t,
-    };
-    let ts = typeset(&Label::of(h, inner), TEXT as f32);
+    // measured at its own font size when styled with one, as it is drawn
+    let ts = typeset(&Label::of(h, t), TEXT as f32);
     Ok(Cell::Label(t, (ts.width as f64, ts.height as f64)))
 }
 

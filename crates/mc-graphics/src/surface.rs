@@ -64,6 +64,28 @@ impl Path {
         p
     }
 
+    /// A rectangle with corners rounded to radius `r` (at most half the shorter side).
+    pub fn rounded_rect(x: f32, y: f32, w: f32, h: f32, r: f32) -> Path {
+        let r = r.min(w / 2.0).min(h / 2.0).max(0.0);
+        if r == 0.0 {
+            return Path::rect(x, y, w, h);
+        }
+        // the cubic approximation of a quarter circle
+        let k = 0.552_284_8 * r;
+        let mut p = Path::default();
+        p.move_to(x + r, y);
+        p.line_to(x + w - r, y);
+        p.cubic_to(x + w - r + k, y, x + w, y + r - k, x + w, y + r);
+        p.line_to(x + w, y + h - r);
+        p.cubic_to(x + w, y + h - r + k, x + w - r + k, y + h, x + w - r, y + h);
+        p.line_to(x + r, y + h);
+        p.cubic_to(x + r - k, y + h, x, y + h - r + k, x, y + h - r);
+        p.line_to(x, y + r);
+        p.cubic_to(x, y + r - k, x + r - k, y, x + r, y);
+        p.close();
+        p
+    }
+
     /// An open polyline (or a closed polygon).
     pub fn polyline(pts: &[(f32, f32)], closed: bool) -> Path {
         let mut p = Path::default();

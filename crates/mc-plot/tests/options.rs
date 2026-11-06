@@ -297,3 +297,105 @@ fn letter_styles_hex_grid_lines_and_dense_layouts() {
     assert!(png_size(&p).0 > 900);
     assert!(row < single * 4 + std::time::Duration::from_secs(2), "row {row:?} vs one plot {single:?}");
 }
+
+/// The position and scale of the first glyph of the label `text` in an SVG: (x, y, scale).
+fn label_at(svg: &str, text: &str) -> Option<(f64, f64, f64)> {
+    let start = svg.find(&format!(r#"aria-label="{text}""#))?;
+    let rest = &svg[start..];
+    let t = &rest[rest.find("translate(")? + "translate(".len()..];
+    let (xy, rest) = t.split_once(')')?;
+    let (x, y) = xy.split_once(' ')?;
+    let s = &rest[rest.find("scale(")? + "scale(".len()..];
+    Some((x.parse().ok()?, y.parse().ok()?, s[..s.find(')')?].parse().ok()?))
+}
+
+/// The plot area (x, y, w, h): the first `rect` (the clip of the plot area) of an SVG.
+fn area(svg: &str) -> (f64, f64, f64, f64) {
+    let r = &svg[svg.find("<rect ").expect("a plot area")..];
+    let attr = |k: &str| -> f64 {
+        let s = &r[r.find(&format!(" {k}=\"")).unwrap() + k.len() + 3..];
+        s[..s.find('"').unwrap()].parse().unwrap()
+    };
+    (attr("x"), attr("y"), attr("width"), attr("height"))
+}
+
+/// The glyphs drawn for the label `text` in an SVG.
+fn glyph_count(svg: &str, text: &str) -> usize {
+    let start = svg.find(&format!(r#"aria-label="{text}""#)).expect(text);
+    let rest = &svg[start..];
+    rest[..rest.find("</g>").unwrap()].matches("<use").count()
+}
+
+/// Vertical marks 2 points long (minor ticks) in an SVG's paths.
+fn short_marks(svg: &str) -> usize {
+    let p = |t: &str| t.trim().split_once(' ').and_then(|(a, b)| Some((a.parse::<f64>().ok()?, b.parse::<f64>().ok()?)));
+    svg.split(['M', 'L', '"'])
+        .collect::<Vec<_>>()
+        .windows(2)
+        .filter(|w| matches!((p(w[0]), p(w[1])), (Some((x0, y0)), Some((x1, y1))) if x0 == x1 && ((y0 - y1).abs() - 2.0).abs() < 1e-6))
+        .count()
+}
+
+/// Gap queue G69: frame ticks per side, given ticks in data values on log axes next to the plot's own powers of
+/// ten, TeX in tick labels, long tick lists with minor marks.
+#[test]
+fn given_ticks_in_data_values_frame_ticks_and_minor_marks() {
+    let mut e = CoreEngine::new();
+    // frame_ticks [[left, right], [bottom, top]]: the left ones given, the bottom ones automatic
+    let s = svg(&is_image(&mut e, r#"plot(x^4, [x, 0.1, 1.1], frame_ticks: [[[[0, "0"], [1.0, "one"]], none], [automatic, none]])"#));
+    assert!(s.contains(r#"aria-label="one""#) && s.contains(r#"aria-label="0.4""#), "given left ticks and automatic bottom ones");
+    assert!(!s.contains(r#"aria-label="1.4""#), "no automatic left ticks");
+    // a tick at 10 on a log axis from 1 to 100 is in the middle; the y axis keeps its automatic ticks
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 1, 100], x_scale: log, ticks: [[[10, "ten"]], automatic])"#));
+    let (ax, _, aw, _) = area(&s);
+    let (x, _, _) = label_at(&s, "ten").expect("the given tick");
+    assert!((x - (ax + aw / 2.0)).abs() < 0.04 * aw, "ten at {x}, area {ax} + {aw}");
+    assert!(s.contains(r#"aria-label="20""#));
+    // automatic ticks on a log axis are powers of ten, with minor marks (half as long) between them
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 1, 1000], x_scale: log, ticks: [automatic, [[500, "half"]]])"#));
+    assert!(s.contains(r#"aria-label="half""#));
+    assert!(short_marks(&s) >= 16, "minor marks: {}", short_marks(&s));
+    // TeX in a tick label: \times is a sign, not a tab
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 0, 1], ticks: [[[0.5, r"$5.0\times 10^{18}$"]], automatic])"#));
+    assert_eq!(glyph_count(&s, r"$5.0\times 10^{18}$"), 8, "5.0×10 and 18");
+    // a long list of ticks with minor marks
+    let s = svg(&is_image(
+        &mut e,
+        r#"plot(x, [x, 0.001, 100], x_scale: log, ticks: [join([[0.01, "a"], [1, "b"]], flatten(table([m*10.0^k, "", 0.5], k, range(-3, 2), m, range(2, 9)), 1)), automatic])"#,
+    ));
+    assert!(s.contains(r#"aria-label="a""#) && s.contains(r#"aria-label="b""#));
+    assert!(short_marks(&s) >= 40, "minor marks: {}", short_marks(&s));
+}
+
+/// Gap queue G66, G72, G78: legends in a row with a rounded frame, placed in a corner, dashed styles given as lists.
+#[test]
+fn legend_layouts_frames_and_places() {
+    let mut e = CoreEngine::new();
+    let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_layout: "Row", legend_function: frame))"#));
+    let ((xa, ya, _), (xb, yb, _)) = (label_at(&s, "a").unwrap(), label_at(&s, "b").unwrap());
+    assert!(ya == yb && xb > xa + 10.0, "side by side: {xa} {ya}, {xb} {yb}");
+    assert!(s.split("<path d=").skip(1).any(|p| p[..p.find('>').unwrap()].contains('C') && p.contains("stroke=")), "a rounded frame");
+    // placed(legend, [left, bottom]): the bottom left corner
+    let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: placed(line_legend(["a", "b"]), [left, bottom]))"#));
+    let (ax, ay, aw, ah) = area(&s);
+    let (x, y, _) = label_at(&s, "a").unwrap();
+    assert!(x < ax + aw / 4.0 && y > ay + ah * 0.75, "a at {x} {y}");
+    // a list of directives is one curve's style: dashed, with the legend
+    let s = svg(&is_image(&mut e, r#"plot([sin(x), cos(x)], [x, 0, 3], plot_style: [[blue, dashed], [red]], legend: ["a", "b"])"#));
+    assert!(s.contains("stroke-dasharray") && s.contains(r#"aria-label="b""#));
+}
+
+/// Gap queue G74: label sizes (label_style, styled frame labels), framed columns inside graphics.
+#[test]
+fn label_sizes_and_framed_columns() {
+    let mut e = CoreEngine::new();
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 0, 1], frame_label: ["x", "y"], label_style: 16)"#));
+    let (tick, label) = (label_at(&s, "0.2").unwrap().2, label_at(&s, "x").unwrap().2);
+    assert!(label > tick * 1.2, "label {label} (16 pt) vs tick {tick}");
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 0, 1], font_size: 10, frame_label: ["x", style(r"$\frac{h}{v}$", font_size(12))])"#));
+    assert!(!s.contains("style("), "the style is applied, not printed");
+    let (tick, label) = (label_at(&s, "0.2").unwrap().2, label_at(&s, r"$\frac{h}{v}$").unwrap().2);
+    assert!(label > tick, "label {label} vs tick {tick}");
+    let s = svg(&is_image(&mut e, r#"plot(x, [x, 0, 1], epilog: inset(framed(column(["a", "b"])), scaled([0.5, 0.5])))"#));
+    assert!(s.contains(r#"aria-label="a""#) && s.contains(r#"aria-label="b""#) && !s.contains("column("));
+}

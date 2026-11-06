@@ -41,6 +41,8 @@ pub struct Plan {
     pub range: [(f64, f64); 2],
     /// x and y ticks with their typeset labels
     ticks: [Vec<(f64, Option<Typeset>)>; 2],
+    /// x and y minor tick marks (half length, no labels)
+    minor: [Vec<f64>; 2],
     /// where the axes cross: y of the x axis and x of the y axis, in plot coordinates
     origin: (f64, f64),
     /// clip the primitives to the plot area (an explicit plot range)
@@ -199,6 +201,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
     let guess_h = o.image_size.1.unwrap_or(guess_w * ratio);
     let decorated = |k: usize| o.frame || o.axes[k];
     let mut tk: [Vec<(f64, Option<Label>)>; 2] = [vec![], vec![]];
+    let mut minor: [Vec<f64>; 2] = [vec![], vec![]];
     for k in 0..2 {
         if !(decorated(0) || decorated(1)) || !(o.frame || o.axes[k]) {
             continue;
@@ -207,7 +210,10 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         tk[k] = match &o.ticks[k] {
             Ticks::Auto => ticks::auto(lo, hi, tick_count(if k == 0 { guess_w } else { guess_h })),
             Ticks::None => vec![],
-            Ticks::List(v) => v.iter().filter(|(u, _)| *u >= lo && *u <= hi).cloned().collect(),
+            Ticks::List(v, mn) => {
+                minor[k] = mn.iter().copied().filter(|u| *u >= lo && *u <= hi).collect();
+                v.iter().filter(|(u, _)| *u >= lo && *u <= hi).cloned().collect()
+            }
         };
     }
     let [tx, ty] = tk;
@@ -240,7 +246,8 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         let last = ticks[0].last().and_then(|t| t.1.as_ref()).map_or(0.0, |t| t.width);
         m[2] = m[2].max(last / 2.0 + 1.0);
     }
-    let labels = |l: &Option<Label>| l.as_ref().map(|l| typeset(l, fs));
+    let lfs = o.label_size.map_or(fs, |v| v as f32);
+    let labels = |l: &Option<Label>| l.as_ref().map(|l| typeset(l, lfs));
     let frame_labels = [labels(&o.frame_label[0]), labels(&o.frame_label[1])];
     let axes_labels = [labels(&o.axes_label[0]), labels(&o.axes_label[1])];
     if o.frame {
@@ -311,6 +318,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         area: area.map(|v| v as f32),
         range,
         ticks,
+        minor,
         origin,
         clip,
         bar,
@@ -584,6 +592,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     let o = &g.opts;
     let [ax, ay, aw, ah] = p.area;
     let fs = o.font_size as f32;
+    let lfs = o.label_size.map_or(fs, |v| v as f32);
     let thin = Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt };
     if o.frame {
         s.stroke(&Path::rect(ax, ay, aw, ah), &thin);
@@ -604,15 +613,25 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
                 draw_label(s, t, (ax - GAP - t.width, y - t.height / 2.0), false, TEXT);
             }
         }
+        for &u in &p.minor[0] {
+            let x = p.px(u);
+            marks.add_polyline(&[(x, ay + ah), (x, ay + ah - TICK / 2.0)], false);
+            marks.add_polyline(&[(x, ay), (x, ay + TICK / 2.0)], false);
+        }
+        for &u in &p.minor[1] {
+            let y = p.py(u);
+            marks.add_polyline(&[(ax, y), (ax + TICK / 2.0, y)], false);
+            marks.add_polyline(&[(ax + aw, y), (ax + aw - TICK / 2.0, y)], false);
+        }
         s.stroke(&marks, &thin);
         let tick_h = p.ticks[0].iter().filter_map(|t| t.1.as_ref()).map(|t| t.height).fold(0.0, f32::max);
         let tick_w = p.ticks[1].iter().filter_map(|t| t.1.as_ref()).map(|t| t.width).fold(0.0, f32::max);
         if let Some(l) = &o.frame_label[0] {
-            let t = typeset(l, fs);
+            let t = typeset(l, lfs);
             draw_label(s, &t, (ax + aw / 2.0 - t.width / 2.0, ay + ah + 2.0 + tick_h + GAP), false, TEXT);
         }
         if let Some(l) = &o.frame_label[1] {
-            let t = typeset(l, fs);
+            let t = typeset(l, lfs);
             let left = ax - GAP - tick_w - GAP - t.height;
             draw_label(s, &t, (left, ay + ah / 2.0 + t.width / 2.0), true, TEXT);
         }
@@ -630,8 +649,12 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
                     draw_label(s, t, (x - t.width / 2.0, oy + TICK + 1.0), false, TEXT);
                 }
             }
+            for &u in &p.minor[0] {
+                let x = p.px(u);
+                lines.add_polyline(&[(x, oy), (x, oy + TICK / 2.0)], false);
+            }
             if let Some(l) = &o.axes_label[0] {
-                let t = typeset(l, fs);
+                let t = typeset(l, lfs);
                 draw_label(s, &t, (ax + aw + GAP, oy - t.height / 2.0), false, TEXT);
             }
         }
@@ -645,8 +668,12 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
                     draw_label(s, t, (ox - TICK - 1.0 - t.width, y - t.height / 2.0), false, TEXT);
                 }
             }
+            for &u in &p.minor[1] {
+                let y = p.py(u);
+                lines.add_polyline(&[(ox, y), (ox - TICK / 2.0, y)], false);
+            }
             if let Some(l) = &o.axes_label[1] {
-                let t = typeset(l, fs);
+                let t = typeset(l, lfs);
                 draw_label(s, &t, (ox - t.width / 2.0, ay - GAP - t.height), false, TEXT);
             }
         }
@@ -657,7 +684,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     if let Some(l) = &o.plot_label {
         let t = typeset(l, fs * 1.15);
         let top = if o.axes[1] && o.axes_label[1].is_some() && !o.frame {
-            ay - GAP - typeset(o.axes_label[1].as_ref().unwrap_or(l), fs).height - GAP - t.height
+            ay - GAP - typeset(o.axes_label[1].as_ref().unwrap_or(l), lfs).height - GAP - t.height
         } else {
             ay - GAP - t.height - if p.ticks[1].is_empty() { 0.0 } else { 2.0 }
         };
@@ -682,8 +709,15 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     let text_w = labels.iter().map(|t| t.width).fold(0.0, f32::max);
     let text_w = text_w.max(title.as_ref().map_or(0.0, |t| t.width - sample_w));
     let rows: Vec<f32> = labels.iter().map(|t| t.height.max(fs * 1.4)).collect();
-    let w = PAD + sample_w + text_w + PAD;
-    let h = 2.0 * PAD - 4.0 + rows.iter().sum::<f32>() + title_h;
+    // in a row: each entry its sample and label wide, SPACE between entries
+    const SPACE: f32 = 12.0;
+    let row_w: f32 = labels.iter().map(|t| sample_w + t.width).sum::<f32>() + SPACE * labels.len().saturating_sub(1) as f32;
+    let row_h = rows.iter().copied().fold(0.0, f32::max);
+    let (w, h) = if o.legend_row {
+        (PAD + row_w.max(title.as_ref().map_or(0.0, |t| t.width)) + PAD, 2.0 * PAD - 4.0 + row_h + title_h)
+    } else {
+        (PAD + sample_w + text_w + PAD, 2.0 * PAD - 4.0 + rows.iter().sum::<f32>() + title_h)
+    };
     let [ax, ay, aw, ah] = p.area;
     let x = match o.legend_position {
         Corner::TopLeft | Corner::BottomLeft => ax + 10.0,
@@ -693,9 +727,11 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
         Corner::TopLeft | Corner::TopRight => ay + 10.0,
         Corner::BottomLeft | Corner::BottomRight => ay + ah - 10.0 - h,
     };
-    let bx = Path::rect(x, y, w, h);
+    let bx = Path::rounded_rect(x, y, w, h, o.legend_frame.unwrap_or(0.0) as f32);
     s.fill(&bx, Rgba::WHITE);
-    s.stroke(&bx, &Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt });
+    if o.legend_frame.is_some() {
+        s.stroke(&bx, &Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt });
+    }
     s.clip([x, y, w, h]);
     let mut top = y + PAD - 2.0;
     if let Some(t) = &title {
@@ -704,10 +740,12 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
         let rule = Pen { color: Rgba { a: 0.35, ..FRAME }, width: 0.5, dash: vec![], cap: Cap::Butt };
         s.stroke(&Path::polyline(&[(x + PAD / 2.0, top - 2.0), (x + w - PAD / 2.0, top - 2.0)], false), &rule);
     }
+    let mut left = x + PAD;
     for ((e, t), row) in o.legend.iter().zip(&labels).zip(&rows) {
+        let row = if o.legend_row { &row_h } else { row };
         let mid = top + row / 2.0;
         let st = &g.styles[e.style];
-        let x0 = x + PAD;
+        let x0 = left;
         match e.marker {
             Marker::Line => {
                 let mut pen = pen_of(st, aw);
@@ -726,7 +764,11 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             Marker::None => {}
         }
         draw_label(s, t, (x0 + sample_w, mid - t.height / 2.0), false, TEXT);
-        top += row;
+        if o.legend_row {
+            left += sample_w + t.width + SPACE;
+        } else {
+            top += row;
+        }
     }
     s.unclip();
 }

@@ -66,7 +66,8 @@ impl Axis {
         match self {
             Axis::Linear => Some(v),
             Axis::Log => (v > 0.0).then(|| v.log10()),
-            Axis::SignedLog(c) => Some(v.signum() * (v.abs() / c).ln_1p() / std::f64::consts::LN_10),
+            // linear inside the threshold (|v| <= c maps to [-1, 1]), one unit per decade outside it
+            Axis::SignedLog(c) => Some(if v.abs() <= c { v / c } else { v.signum() * (1.0 + (v.abs() / c).log10()) }),
         }
     }
 
@@ -75,7 +76,13 @@ impl Axis {
         match self {
             Axis::Linear => u,
             Axis::Log => 10f64.powf(u),
-            Axis::SignedLog(c) => u.signum() * c * (u.abs() * std::f64::consts::LN_10).exp_m1(),
+            Axis::SignedLog(c) => {
+                if u.abs() <= 1.0 {
+                    u * c
+                } else {
+                    u.signum() * c * 10f64.powf(u.abs() - 1.0)
+                }
+            }
         }
     }
 }
@@ -324,6 +331,10 @@ fn signed_log_axis(lo: f64, hi: f64, c: f64) -> AxisTicks {
         .map(|(u, neg, k)| (u, Label::Pow10 { neg, k }))
         .collect();
     if (lo..=hi).contains(&0.0) {
+        // labels too near 0 would overlap its label (and each other across 0): keep those at least 1/12 of the
+        // axis away
+        let gap = (hi - lo) / 12.0;
+        major.retain(|(u, _)| u.abs() >= gap);
         major.push((0.0, Label::Text("0".into())));
     }
     major.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -660,7 +671,12 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
                 grid.push(b.sym(if look.origin_axes { "none" } else { "automatic" }));
             }
             Some((major, minor)) => {
-                ticks.push(b.list(&major.iter().map(|(u, l)| b.list(&[h.real(*u), b.label(l)])).collect::<Vec<_>>()));
+                let none = b.sym("none");
+                let marks = major
+                    .iter()
+                    .map(|(u, l)| b.list(&[h.real(*u), b.label(l)]))
+                    .chain(minor.iter().map(|&u| b.list(&[h.real(u), none, h.real(0.5)])));
+                ticks.push(b.list(&marks.collect::<Vec<_>>()));
                 let lines: Vec<T<'h>> = minor
                     .iter()
                     .map(|&u| (u, FAINT))
@@ -731,7 +747,12 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
     }
     // the options given for the graphic replace the plot's own of the same name
     let decoration_label = if look.origin_axes { "axes_label" } else { "frame_label" };
+    let own_ticks = opts.iter().find(|r| rule_name(h, **r).as_deref() == Some("ticks")).and_then(|r| match h.view(*r) {
+        mc_core::View::App { args: &[_, v], .. } => Some(v),
+        _ => None,
+    });
     for (name, v) in &look.graphics {
+        let frame_ticks = name == "frame_ticks";
         let name = match name.as_str() {
             "axes_label" | "frame_label" => decoration_label,
             "frame_ticks" => "ticks",
@@ -739,6 +760,7 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         };
         opts.retain(|r| rule_name(h, *r).as_deref() != Some(name));
         let v = match name {
+            "ticks" => given_ticks(&b, *v, frame_ticks, look.scale, own_ticks),
             "grid_lines" => log_positions(&b, *v, look.scale),
             // positions of the content given in data values, placed on the axes (logarithms on log axes)
             "epilog" | "prolog" if look.scale.x != Axis::Linear || look.scale.y != Axis::Linear => on_axes(&b, *v, look.scale, 0),
@@ -767,6 +789,63 @@ fn error_bars<'h>(b: &B<'h>, bars: &[Bar], [(x0, x1), (y0, y1)]: [(f64, f64); 2]
         }
     }
     b.list(&[b.call("absolute_thickness", &[b.h.real(1.0)]), b.call("absolute_dashing", &[b.list(&[])]), b.call("line", &[b.list(&segs)])])
+}
+
+/// The ticks option `[x, y]` for ticks given to a plot (`ticks` or, with `frame`, `frame_ticks`): per axis
+/// `automatic` (the plot's own ticks from `own`, powers of ten on log axes), `none`, or a list of positions,
+/// `[position, label]` or `[position, label, length]` given in data values and placed on the axes. `frame_ticks`
+/// may give the sides, `[[left, right], [bottom, top]]`; the left and bottom ones count.
+fn given_ticks<'h>(b: &B<'h>, v: T<'h>, frame: bool, scale: Scale, own: Option<T<'h>>) -> T<'h> {
+    use mc_core::View;
+    let h = b.h;
+    let as_list = |t: T<'h>| match h.view(t) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) => Some(args),
+        _ => None,
+    };
+    let sym = |t: T<'h>, names: &[&str]| matches!(h.view(t), View::Sym(s) if names.contains(&h.sym_name(s).as_str()));
+    let auto = |t: T<'h>| sym(t, &["automatic", "all", "true"]);
+    let off = |t: T<'h>| sym(t, &["none", "false"]);
+    let num = |t: T<'h>| mc_graphics::num::number(h, t).is_some();
+    // one tick: a position, or [position, label] or [position, label, length] (a label is not a number or list)
+    let tick = |t: T<'h>| num(t) || as_list(t).is_some_and(|l| (2..=3).contains(&l.len()) && num(l[0]) && !num(l[1]) && as_list(l[1]).is_none());
+    let tick_list = |t: T<'h>| as_list(t).is_some_and(|l| l.iter().all(|&e| tick(e)));
+    let axis_spec = |t: T<'h>| auto(t) || off(t) || tick_list(t);
+    let two = |t: T<'h>| as_list(t).and_then(|l| if let &[a, c] = l { Some([a, c]) } else { None });
+    let [x, y] = match two(v) {
+        _ if tick_list(v) || !as_list(v).is_some() => [v, v],
+        // per side, [[left, right], [bottom, top]]
+        Some([a, c]) if frame && [a, c].iter().all(|&t| two(t).is_some_and(|s| s.iter().all(|&e| axis_spec(e)))) => {
+            [two(c).map_or(c, |s| s[0]), two(a).map_or(a, |s| s[0])]
+        }
+        Some([a, c]) if axis_spec(a) && axis_spec(c) => [a, c],
+        _ => [v, v],
+    };
+    let own = own.and_then(as_list).filter(|l| l.len() == 2);
+    let axis = |t: T<'h>, k: usize, ax: Axis| -> T<'h> {
+        if auto(t) {
+            return own.map_or_else(|| b.sym("automatic"), |o| o[k]);
+        }
+        if off(t) {
+            return b.sym("none");
+        }
+        let Some(items) = as_list(t) else { return t };
+        let moved: Vec<T<'h>> = items
+            .iter()
+            .filter_map(|&e| match as_list(e) {
+                Some(&[p, ref rest @ ..]) if !rest.is_empty() => {
+                    let u = ax.to(mc_graphics::num::number(h, p)?)?;
+                    let mut a = vec![h.real(u)];
+                    a.extend_from_slice(rest);
+                    Some(b.list(&a))
+                }
+                Some(_) => None,
+                // a bare position is labelled with its value
+                None => mc_graphics::num::number(h, e).and_then(|p| ax.to(p)).map(|u| b.list(&[h.real(u), e])),
+            })
+            .collect();
+        b.list(&moved)
+    };
+    b.list(&[axis(x, 0, scale.x), axis(y, 1, scale.y)])
 }
 
 /// Grid lines `[xs, ys]` given in data values, placed on the axes (logarithms on log axes); each a position or
@@ -910,6 +989,27 @@ mod tests {
         assert!(major.iter().any(|(_, l)| *l == Label::Pow10 { neg: false, k: 10 }));
         assert!(major.len() <= 11, "{}", major.len());
         assert!(major.windows(2).all(|w| w[0].0 < w[1].0));
+    }
+
+    #[test]
+    fn signed_log_is_linear_inside_the_threshold() {
+        let ax = Axis::SignedLog(1e-8);
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
+        assert!(close(ax.to(1e-9).unwrap(), 0.1) && close(ax.to(1e-8).unwrap(), 1.0) && close(ax.to(1e-6).unwrap(), 3.0));
+        assert!(close(ax.to(-5e-9).unwrap(), -0.5));
+        // a value at the threshold sits on the threshold's tick level
+        assert!(close(ax.from(1.0), 1e-8));
+    }
+
+    #[test]
+    fn signed_log_labels_near_zero_do_not_crowd() {
+        for (lo, hi, c) in [(-1e10, 1e10, 1e-8), (-1.0, 3.0, 1e-8), (-100.0, 100.0, 1.0)] {
+            let ax = Axis::SignedLog(c);
+            let (u0, u1) = (ax.to(lo).unwrap(), ax.to(hi).unwrap());
+            let (major, _) = axis(u0, u1, ax).unwrap();
+            let gap = (u1 - u0) / 12.0;
+            assert!(major.windows(2).all(|w| w[1].0 - w[0].0 >= gap - 1e-9), "{lo} {hi} {c}: {major:?}");
+        }
     }
 
     #[test]

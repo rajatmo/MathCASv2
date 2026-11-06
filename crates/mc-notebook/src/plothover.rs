@@ -32,7 +32,7 @@ pub enum Scale {
     Linear,
     /// base-10 logarithm (positive values only)
     Log,
-    /// `sign(v) ln(1 + |v|/c)`: logarithmic far from 0, linear near it
+    /// `v/c` for `|v| <= c`, else `sign(v) (1 + log10(|v|/c))`: linear near 0, logarithmic far from it
     SignedLog(f64),
 }
 
@@ -47,7 +47,13 @@ impl Scale {
                     f64::NAN
                 }
             }
-            Scale::SignedLog(c) => v.signum() * (v.abs() / c).ln_1p(),
+            Scale::SignedLog(c) => {
+                if v.abs() <= c {
+                    v / c
+                } else {
+                    v.signum() * (1.0 + (v.abs() / c).log10())
+                }
+            }
         }
     }
 
@@ -55,7 +61,13 @@ impl Scale {
         match self {
             Scale::Linear => t,
             Scale::Log => 10f64.powf(t),
-            Scale::SignedLog(c) => t.signum() * c * t.abs().exp_m1(),
+            Scale::SignedLog(c) => {
+                if t.abs() <= 1.0 {
+                    t * c
+                } else {
+                    t.signum() * c * 10f64.powf(t.abs() - 1.0)
+                }
+            }
         }
     }
 }

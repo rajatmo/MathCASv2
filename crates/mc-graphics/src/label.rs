@@ -30,6 +30,8 @@ pub struct Label {
     /// the text as written (a string label's source, an expression's printed form), for text extraction and
     /// accessibility
     pub text: String,
+    /// its own font size in points (`style(x, font_size(n))`), over the size it is typeset at
+    pub size: Option<f32>,
 }
 
 /// A label string (with `$...$` math) as plain text for places that cannot draw it, such as a tooltip: TeX commands
@@ -113,14 +115,14 @@ fn node_text(n: &Node, out: &mut String) {
 impl Label {
     /// Plain text, nothing interpreted (tick labels).
     pub fn plain(s: &str) -> Label {
-        Label { row: Row(s.chars().map(Item::Char).collect()), traditional: false, math: false, text: s.to_string() }
+        Label { row: Row(s.chars().map(Item::Char).collect()), traditional: false, math: false, text: s.to_string(), size: None }
     }
 
     /// A string label: text with `$...$` math.
     pub fn text(s: &str) -> Label {
         let mut p = TexParser { chars: s.chars().collect(), pos: 0, math: false };
         let row = p.text_row();
-        Label { row, traditional: false, math: s.contains('$'), text: s.to_string() }
+        Label { row, traditional: false, math: s.contains('$'), text: s.to_string(), size: None }
     }
 
     /// The label of an expression (see the module documentation).
@@ -128,8 +130,18 @@ impl Label {
         if let View::Str(s) = h.view(t) {
             return Label::text(s);
         }
+        // a styled label: its content at its font size (other styles are not used here)
+        if let View::App { head, args } = h.view(t) {
+            if !args.is_empty() && matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "style") {
+                let mut st = crate::model::Style::default();
+                let _ = crate::model::styled(h, &args[1..], &mut st);
+                let mut l = Label::of(h, args[0]);
+                l.size = st.font_size.map(|v| v as f32).or(l.size);
+                return l;
+            }
+        }
         let row = term_row(h, t, 0);
-        Label { row, traditional: true, math: true, text: mc_syntax::Printer::new(h).expr(t) }
+        Label { row, traditional: true, math: true, text: mc_syntax::Printer::new(h).expr(t), size: None }
     }
 
     /// A number written `m × 10^k` (the exponent raised), or plainly when `k` is 0.
@@ -144,7 +156,7 @@ impl Label {
             items.push(Item::Char('\u{d7}'));
         }
         items.extend(ten.0);
-        Label { row: Row(items), traditional: false, math: true, text: format!("{mantissa}\u{d7}10^{k}") }
+        Label { row: Row(items), traditional: false, math: true, text: format!("{mantissa}\u{d7}10^{k}"), size: None }
     }
 }
 
@@ -444,6 +456,7 @@ pub struct Typeset {
 
 /// Lay a label out at font size `size`.
 pub fn typeset(label: &Label, size: f32) -> Typeset {
+    let size = label.size.unwrap_or(size);
     let opts = LayoutOptions {
         size,
         display: false,

@@ -210,8 +210,8 @@ pub enum Ticks {
     Auto,
     /// none
     None,
-    /// these positions with these labels (`None`: a tick without a label)
-    List(Vec<(f64, Option<Label>)>),
+    /// these positions with these labels (`None`: a tick without a label), and minor marks (half as long, no label)
+    List(Vec<(f64, Option<Label>)>, Vec<f64>),
 }
 
 /// Grid lines across one axis.
@@ -278,6 +278,8 @@ pub struct Opts {
     pub axes_label: [Option<Label>; 2],
     /// labels below and left of the frame
     pub frame_label: [Option<Label>; 2],
+    /// the font size of the frame and axes labels (`label_style`; `None`: the graphic's `font_size`)
+    pub label_size: Option<f64>,
     /// a title above
     pub plot_label: Option<Label>,
     /// the plot area's shape
@@ -294,6 +296,10 @@ pub struct Opts {
     pub legend: Vec<LegendEntry>,
     /// where the legend goes
     pub legend_position: Corner,
+    /// legend entries side by side (`legend_layout: row`) instead of one below the other
+    pub legend_row: bool,
+    /// the legend's frame: `Some(r)` a frame with corners rounded to radius r (0: square), `None` no frame
+    pub legend_frame: Option<f64>,
     /// the size of tick labels, other labels and text without a `font_size` directive
     pub font_size: f64,
     /// a colour bar right of the plot area
@@ -328,6 +334,7 @@ impl Default for Opts {
             frame: false,
             axes_label: [None, None],
             frame_label: [None, None],
+            label_size: None,
             plot_label: None,
             aspect: Aspect::Auto,
             image_size: (None, None),
@@ -336,6 +343,8 @@ impl Default for Opts {
             grid: [Grid::None, Grid::None],
             legend: Vec::new(),
             legend_position: Corner::TopRight,
+            legend_row: false,
+            legend_frame: Some(0.0),
             font_size: 10.0,
             color_bar: None,
             legend_title: None,
@@ -389,8 +398,11 @@ pub const DIRECTIVES: [&str; 12] = [
 ];
 
 /// The option names of `graphics` that change the picture.
-pub const OPTIONS: [&str; 23] = [
+pub const OPTIONS: [&str; 26] = [
     "legend_title",
+    "legend_layout",
+    "legend_frame",
+    "label_style",
     "color_bar",
     "plot_range",
     "plot_range_padding",
@@ -418,7 +430,6 @@ pub const OPTIONS: [&str; 23] = [
 /// Options of styling or interaction the renderers take no notice of: accepted without remark.
 pub const HARMLESS: &[&str] = &[
     "base_style",
-    "label_style",
     "ticks_style",
     "frame_style",
     "axes_style",
@@ -1476,6 +1487,28 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         }
         "plot_range_clipping" => o.clip = Some(boolean(h, v)?),
         "legend_title" => o.legend_title = label_opt(h, v),
+        "legend_layout" => {
+            let name = match h.view(v) {
+                View::Sym(s) => h.sym_name(s),
+                View::Str(s) => s.to_lowercase(),
+                _ => return None,
+            };
+            o.legend_row = match name.as_str() {
+                "row" => true,
+                "column" => false,
+                _ => return None,
+            }
+        }
+        "legend_frame" => {
+            // true or `frame`: a square frame; a number: corners rounded to that radius; false or none: no frame
+            o.legend_frame = if sym_is(h, v, "none") || sym_is(h, v, names::FALSE) {
+                None
+            } else if sym_is(h, v, names::TRUE) || sym_is(h, v, "frame") {
+                Some(0.0)
+            } else {
+                Some(number(h, v).filter(|r| (0.0..=100.0).contains(r))?)
+            }
+        }
         "plot_legends" => {
             // a list of labels: a legend of line samples in the order of the content's colours is not known here,
             // so the entries are labels without samples
@@ -1608,6 +1641,20 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             }
         }
         "font_size" => o.font_size = number(h, v).filter(|s| *s > 0.0 && *s <= 1000.0)?,
+        "label_style" => {
+            // a font size (a number, font_size(n), font_size -> n), alone, in a list or in directive(...); other
+            // styles are not used
+            let specs: Vec<T<'_>> = match list(h, v) {
+                Some(l) => l.to_vec(),
+                None => match head_name(h, v) {
+                    Some((n, a)) if n == "directive" => a.to_vec(),
+                    _ => vec![v],
+                },
+            };
+            let mut st = Style::default();
+            let _ = styled(h, &specs, &mut st);
+            o.label_size = st.font_size;
+        }
         "color_bar" => {
             o.color_bar = if sym_is(h, v, "none") {
                 None
@@ -1653,15 +1700,29 @@ fn ticks<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Ticks> {
     }
     let items = list(h, t)?;
     let mut out = Vec::with_capacity(items.len());
+    let mut minor = vec![];
     for &e in items {
         if let Some(u) = number(h, e) {
             out.push((u, Some(Label::plain(&short(u)))));
-        } else {
-            let &[u, l] = list(h, e)? else { return None };
-            out.push((number(h, u)?, label_opt(h, l)));
+            continue;
+        }
+        match *list(h, e)? {
+            [u, l] => out.push((number(h, u)?, label_opt(h, l))),
+            // [position, label, length]: a length below 1 (relative to a normal tick) is a minor mark; the length
+            // may be a pair [inward, outward], of which the first counts
+            [u, l, len] => {
+                let len = number(h, len).or_else(|| list(h, len).and_then(|v| v.first().and_then(|&x| number(h, x))))?;
+                let u = number(h, u)?;
+                if len < 1.0 {
+                    minor.push(u);
+                } else {
+                    out.push((u, label_opt(h, l)));
+                }
+            }
+            _ => return None,
         }
     }
-    Some(Ticks::List(out))
+    Some(Ticks::List(out, minor))
 }
 
 /// Grid lines across one axis: `automatic`, `none`, or a list of positions or `[position, style]` pairs.

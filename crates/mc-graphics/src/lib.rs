@@ -128,6 +128,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve",
     ),
     ("legend_position", "option of graphics and plots: legend_position: top_right (default) | top_left | bottom_left | bottom_right"),
+    ("legend_layout", "option of graphics and plots: legend_layout: column (default) | row, the entries one below the other or side by side"),
+    ("legend_frame", "option of graphics and plots: legend_frame: true (default, square) | r (corners rounded to radius r points) | none"),
     ("epilog", "option of graphics and plots: epilog: content, graphics drawn over everything else"),
     ("prolog", "option of graphics and plots: prolog: content, graphics drawn before everything else"),
     ("axes_origin", "option of graphics: axes_origin: [x, y], where the axes cross (automatic: at 0)"),
