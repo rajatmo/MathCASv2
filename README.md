@@ -108,7 +108,7 @@ A file may start with `#! mathcas 2`. Scripts are `.mc`; notebooks are `.mcn` (p
 | `lib/` | the prelude and standard modules, in MathCAS itself |
 | `docs/design/` | design documents (below) |
 | `bench/` | benchmark cases and results |
-| `spikes/` | the measured prototypes the design was decided on |
+| `spikes/` | the measured prototypes the design was decided on (outside the workspace; build one in its own folder) |
 | `editors/`, `examples/`, `tools/`, `assets/` | editor support, examples, build and packaging scripts, icons |
 
 Most crates have a `NOTES.md` with their design decisions and known gaps.

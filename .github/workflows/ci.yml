@@ -1,0 +1,68 @@
+# Tests and lints on every push and pull request: the whole workspace on Windows (the release platform: test suite and
+# clippy with warnings as errors) and on Linux (build and tests; marked experimental until the portability work lands,
+# so a Linux failure is reported without failing the run).
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # line tables only in CI: smaller target folders, faster links
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  windows:
+    name: Windows (tests, clippy)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy && rustup default stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: win-ci-${{ hashFiles('Cargo.lock') }}
+          restore-keys: win-ci-
+      - name: Clippy
+        run: cargo clippy --release --locked --workspace --all-targets -- -D warnings
+      - name: Test suite
+        run: cargo test --release --locked --workspace --no-fail-fast
+      - name: Documentation pages match a fresh run
+        run: cargo run --release --locked -p mc-docs --bin mc-docs-pages -- check
+
+  linux:
+    name: Linux (build, tests; experimental)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries for the windowing crates
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl-dev libfontconfig-dev
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: linux-ci-${{ hashFiles('Cargo.lock') }}
+          restore-keys: linux-ci-
+      - name: Build
+        run: cargo build --release --locked --workspace --all-targets
+      - name: Test suite
+        run: cargo test --release --locked --workspace --no-fail-fast

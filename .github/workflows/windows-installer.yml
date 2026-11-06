@@ -1,5 +1,5 @@
 # Builds the Windows packages (standalone zip and Inno Setup installer) with the repository's own scripts,
-# tools\dist.ps1 and tools\package.ps1, and runs the test suite on Windows.
+# tools\dist.ps1 and tools\package.ps1 (the tests run in ci.yml).
 # Artifacts: MathCAS-v2-<commit>-win-x64.{exe,zip}. Start it by hand (Actions > Windows installer > Run workflow)
 # or by pushing to main.
 name: Windows installer
@@ -68,23 +68,3 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  test:
-    runs-on: windows-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-      - name: Rust toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: win-test-${{ hashFiles('Cargo.lock') }}
-          restore-keys: win-test-
-      - name: Test suite
-        env:
-          CARGO_PROFILE_RELEASE_DEBUG: "0"
-        run: cargo test --release --workspace --no-fail-fast

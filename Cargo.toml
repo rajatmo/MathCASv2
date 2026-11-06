@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "spikes/*"]
+members = ["crates/*"]
+# the design spikes are kept for reference, outside the build: `cargo build` in a spike's own folder builds it
+exclude = ["spikes"]
 
 [profile.release]
 debug = 1

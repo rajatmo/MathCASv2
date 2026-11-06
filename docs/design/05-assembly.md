@@ -28,7 +28,7 @@ crates/
   mc-eval     matcher, rule indexes and evaluator (from integration piece I2), built after mc-core lands
   mc-bench    benchmark harness: case files, guards, progress, results
   mc-repl     the read-eval-print loop
-spikes/       the spike crates, kept for reference and comparison
+spikes/       the spike crates, kept for reference and comparison (excluded from the workspace)
 ```
 
 `mc-arith`, `mc-syntax` and `mc-bench` depend only on `mc-api` and are written generically over the `Store` trait, so
