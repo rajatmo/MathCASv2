@@ -146,7 +146,7 @@ struct Scene {
 }
 
 /// Segments around a circle for spheres, cylinders and cones.
-const ROUND: usize = 32;
+const ROUND: usize = 40;
 
 fn sphere(c: P3, r: [f64; 3], out: &mut Vec<Prim>) {
     let (nlat, nlon) = (ROUND / 2, ROUND);
@@ -357,6 +357,7 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
                 _ => return None,
             };
             let colors = opts.and_then(|o| face_colors(h, o, rings.len()));
+            let mesh = rings.len() > 8;
             for (k, pts) in rings.into_iter().enumerate() {
                 if name == "triangle" && pts.len() > 3 {
                     for t in pts.chunks(3).filter(|c| c.len() == 3) {
@@ -364,7 +365,7 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
                     }
                 } else if pts.len() >= 3 {
                     let color = colors.as_ref().and_then(|c| c.get(k).copied());
-                    out.push(Prim::Face { pts, smooth: colors.is_some(), color });
+                    out.push(Prim::Face { pts, smooth: colors.is_some() || mesh, color });
                 }
             }
         }
@@ -702,6 +703,18 @@ fn shade(c: Rgba, n: P3, cam: &Camera, view: P3) -> Rgba {
     Rgba { r: (c.r * k + spec).min(1.0), g: (c.g * k + spec).min(1.0), b: (c.b * k + spec).min(1.0), a: c.a }
 }
 
+/// Newell's normal of a polygon (not normalised).
+fn newell(q: &[P3]) -> P3 {
+    let mut nrm = [0.0; 3];
+    for i in 0..q.len() {
+        let (a, b) = (q[i], q[(i + 1) % q.len()]);
+        nrm[0] += (a[1] - b[1]) * (a[2] + b[2]);
+        nrm[1] += (a[2] - b[2]) * (a[0] + b[0]);
+        nrm[2] += (a[0] - b[0]) * (a[1] + b[1]);
+    }
+    nrm
+}
+
 /// The default colour of faces in 3D graphics: a warm light gray-beige (lighting gives it shape).
 const FACE: Rgba = Rgba::rgb(0.86, 0.84, 0.80);
 /// The box and axes.
@@ -792,6 +805,20 @@ fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Fai
     // depth bias of lines over the faces they lie on
     let bias = 0.004 * dot(eye, eye).sqrt();
     let mut n = 0usize;
+    // smooth shading: at each vertex of a smooth face the mean of the normals of the faces around it (each
+    // turned to agree with the first seen), each face lit as the mean of its vertices' light
+    let key = |p: P3| p.map(|v| (v * 1e9).round() as i64);
+    let mut vnormals: std::collections::HashMap<[i64; 3], P3> = std::collections::HashMap::new();
+    for e in &sc.elems {
+        if let Prim::Face { pts, smooth: true, .. } = &e.prim {
+            let fnrm = unit(newell(&pts.iter().map(|&p| cam.scaled(p)).collect::<Vec<_>>()));
+            for &p in pts {
+                let acc = vnormals.entry(key(p)).or_insert([0.0; 3]);
+                let f = if dot(*acc, fnrm) < 0.0 { [-fnrm[0], -fnrm[1], -fnrm[2]] } else { fnrm };
+                *acc = add(*acc, f, 1.0);
+            }
+        }
+    }
     for e in &sc.elems {
         n += 1;
         if n.is_multiple_of(POLL) && stop() {
@@ -800,6 +827,7 @@ fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Fai
         let st = &sc.styles[e.style];
         match &e.prim {
             Prim::Face { pts, smooth, color } => {
+                let corners = pts;
                 let pts = if clip { clip_polygon(pts.clone(), lo, hi) } else { pts.clone() };
                 if pts.len() < 3 {
                     continue;
@@ -840,7 +868,22 @@ fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Fai
                         }
                     }
                 };
-                let lit = shade(base, nrm, &cam, view);
+                let lit = if *smooth && !clip {
+                    // the mean of the light at the corners, each with its vertex normal turned to the eye
+                    let mut acc = Rgba { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+                    for &p in corners.iter() {
+                        let mut vn = vnormals.get(&key(p)).map_or(nrm, |&v| unit(v));
+                        if dot(vn, view) < 0.0 {
+                            vn = [-vn[0], -vn[1], -vn[2]];
+                        }
+                        let c = shade(base, vn, &cam, view);
+                        acc = Rgba { r: acc.r + c.r, g: acc.g + c.g, b: acc.b + c.b, a: acc.a + c.a };
+                    }
+                    let k = corners.len() as f64;
+                    Rgba { r: acc.r / k, g: acc.g / k, b: acc.b / k, a: acc.a / k }
+                } else {
+                    shade(base, nrm, &cam, view)
+                };
                 let ps: Vec<(model::Pt, f64)> = pts.iter().map(|&p| proj(p)).collect();
                 let depth = ps.iter().map(|p| p.1).sum::<f64>() / ps.len() as f64;
                 let mut s = Style { face: Face::Color(lit), ..Style::default() };
