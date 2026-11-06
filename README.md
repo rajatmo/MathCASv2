@@ -94,8 +94,10 @@ A file may start with `#! mathcas 2`. Scripts are `.mc`; notebooks are `.mcn` (p
 ### Distribution
 
 `powershell -File tools/dist.ps1` builds a release folder (programs, examples, guide, editor support) and
-`tools/package.ps1` the Windows installer and zip. CI builds the installer
-([.github/workflows/windows-installer.yml](.github/workflows/windows-installer.yml)).
+`tools/package.ps1` the Windows installer and zip. Every push to `main` publishes the Windows installer, the zip and
+the Linux tarball as the rolling **nightly** pre-release ([nightly.yml](.github/workflows/nightly.yml)); pushing a
+tag `v<version>` that matches the workspace version publishes a numbered release with that version's changelog
+([release.yml](.github/workflows/release.yml)). Both build through [packages.yml](.github/workflows/packages.yml).
 
 ## Repository layout
 

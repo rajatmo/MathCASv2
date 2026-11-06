@@ -1,8 +1,7 @@
 # Tests and lints on every push and pull request: the whole workspace on Windows and on Linux (test suite, clippy with
 # warnings as errors, the documentation pages); both jobs are required. The test suite includes the licence check of
-# the shipped dependencies (crates/mc-bench/tests/notices.rs). On pushes to main the Linux job also builds the release
-# tarball (packaging/linux/build-tarball.sh), smoke-tests it and keeps it as an artifact; the Windows packages come
-# from windows-installer.yml.
+# the shipped dependencies (crates/mc-bench/tests/notices.rs). Packages come from nightly.yml (every push to main,
+# the rolling `nightly` pre-release) and release.yml (tags v<version>), both through packages.yml.
 name: CI
 
 on:
@@ -45,7 +44,7 @@ jobs:
         run: cargo run --release --locked -p mc-docs --bin mc-docs-pages -- check
 
   linux:
-    name: Linux (tests, clippy, tarball)
+    name: Linux (tests, clippy)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -69,18 +68,3 @@ jobs:
         run: cargo test --release --locked --workspace --no-fail-fast
       - name: Documentation pages match a fresh run
         run: cargo run --release --locked -p mc-docs --bin mc-docs-pages -- check
-      - name: Release tarball (packaging/linux/build-tarball.sh)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: JOBS=4 bash packaging/linux/build-tarball.sh dist-linux
-      - name: Smoke test the tarball
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          mkdir smoke && tar -C smoke -xzf dist-linux/MathCAS-v2-*.tar.gz
-          bash packaging/linux/smoke.sh smoke/MathCAS-v2-* smoke-work
-      - uses: actions/upload-artifact@v4
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          name: MathCAS-v2-linux-x64
-          path: dist-linux/MathCAS-v2-*.tar.gz
-          if-no-files-found: error
-          retention-days: 30

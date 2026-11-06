@@ -1,0 +1,44 @@
+# Nightly: on every push to main, build the packages (packages.yml) and publish them as the rolling pre-release
+# `nightly`, replacing the previous one. Numbered releases come from tags (release.yml).
+name: Nightly
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    uses: ./.github/workflows/packages.yml
+
+  publish:
+    name: Rolling pre-release
+    needs: packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Replace the nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          cat > notes.md <<EOF
+          The latest build of \`main\` ($short, $(date -u +%Y-%m-%d)). Not a release: for a numbered version see the
+          releases tagged \`v*\`. Windows: the installer (.exe) or the zip; Linux: the tarball (see its README).
+          EOF
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly packages/MathCAS-v2-* --prerelease --target "$GITHUB_SHA" \
+            --title "MathCAS v2 nightly ($short)" --notes-file notes.md
