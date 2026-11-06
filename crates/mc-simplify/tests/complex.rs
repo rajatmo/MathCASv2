@@ -17,5 +17,9 @@ fn parts_of_functions_and_arithmetic() {
         ("complex_expand([cos(x + im*y), cosh(im*x)])", "[cos(x)*cosh(y) + -1im*sin(x)*sinh(y), cos(x)]"),
         ("complex_expand(conjugate(x*y + im))", "-1im + x*y"),
         ("complex_expand(f(x))", "f(x)"),
+        // abs of a real expression squared (G46); real functions of rewritten arguments
+        ("complex_expand(abs(x + im*y)^2)", "x^2 + y^2"),
+        ("complex_expand(abs((1im - 1im*exp(1im*w))/w)^2)", "w^-2*(1 - cos(w))^2 + w^-2*sin(w)^2"),
+        ("complex_expand(sin(re(z)), z)", "sin(re(z))"),
     ]);
 }

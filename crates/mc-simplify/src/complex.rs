@@ -110,7 +110,13 @@ impl<'a, 'h> Expander<'a, 'h> {
             let pb = self.parts(cx, *base)?;
             let pe = self.parts(cx, *ex)?;
             if pb.1 == z && pe.1 == z {
-                return Ok((t, z));
+                // abs(w)^n = w^n for a real w and an even n
+                if let (Some(w), View::Int(n)) = (b.unary(pb.0, h.sym("abs")), h.view(pe.0)) {
+                    if n % 2 == 0 {
+                        return Ok((b.pow(w, pe.0), z));
+                    }
+                }
+                return Ok((b.pow(pb.0, pe.0), z));
             }
             if let (View::Int(n), true) = (h.view(*ex), pe.1 == z) {
                 if n.abs() <= MAX_POWER && n != 0 {
@@ -157,13 +163,13 @@ impl<'a, 'h> Expander<'a, 'h> {
             "conjugate" => (a, b.neg(c)),
             "abs" => {
                 if c == z {
-                    (t, z)
+                    (self.named("abs", &[a]), z)
                 } else {
                     (b.pow(b.add(&[b.powi(a, 2), b.powi(c, 2)]), b.rat(1, 2)), z)
                 }
             }
             "arg" if c != z => (self.named("arg", &[self.join((a, c))]), z),
-            _ if c == z => (t, z),
+            _ if c == z => (b.call(s, &[a]), z),
             "exp" => return self.exp(cx, *u),
             "sin" => (b.mul(&[sin(a), cosh(c)]), b.mul(&[cos(a), sinh(c)])),
             "cos" => (b.mul(&[cos(a), cosh(c)]), b.neg(b.mul(&[sin(a), sinh(c)]))),

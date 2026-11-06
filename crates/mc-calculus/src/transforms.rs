@@ -51,6 +51,45 @@ impl Native for Fourier {
 impl Fourier {
     fn one<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>, w: T<'h>) -> Res<Option<T<'h>>> {
         let h = b.heap();
+        // sign(t - a) as unit_step(t - a) - unit_step(a - t), then linearity over the expanded sum (G45)
+        let f = self.split_signs(cx, b, f, t)?;
+        if let View::App { head, args } = h.view(f) {
+            if b.sym_of(head) == Some(b.hd.add) {
+                let mut out = Vec::with_capacity(args.len());
+                for &g in args {
+                    match self.term(cx, b, g, t, w)? {
+                        Some(r) => out.push(r),
+                        None => return Ok(None),
+                    }
+                }
+                return Ok(Some(cx.eval(b.add(&out))?));
+            }
+        }
+        self.term(cx, b, f, t, w)
+    }
+
+    /// `f` with every `sign(u)` (u mentioning t) written with unit steps, expanded.
+    fn split_signs<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>) -> Res<T<'h>> {
+        let h = b.heap();
+        let mut found = false;
+        let mut stack = vec![f];
+        while let Some(u) = stack.pop() {
+            if let View::App { head, args } = h.view(u) {
+                if b.sym_of(head) == Some(h.sym("sign")) && args.len() == 1 && !is_free(b, args[0], t) {
+                    found = true;
+                }
+                stack.extend(args.iter().copied());
+            }
+        }
+        if !found {
+            return Ok(f);
+        }
+        let replaced = replace_sign(b, f, t);
+        cx.eval(b.call("expand", &[replaced]))
+    }
+
+    fn term<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>, w: T<'h>) -> Res<Option<T<'h>>> {
+        let h = b.heap();
         let i = h.call(h.sym(names::COMPLEX), &[b.int(0), b.int(if self.inverse { -1 } else { 1 })]);
         let kernel = b.call("exp", &[b.mul(&[i, w, t])]);
         let norm = b.pow(b.mul(&[b.int(2), b.sym(h.sym("pi"))]), b.rat(-1, 2));
@@ -64,9 +103,17 @@ impl Fourier {
         };
         for g in factors {
             match self.step_bound(cx, b, g, t)? {
-                Some((true, a)) => lo = a,
-                Some((false, a)) => hi = a,
+                // several steps: the larger lower bound, the smaller upper bound
+                Some((true, a)) => lo = if lo == b.neg(inf) { a } else { cx.eval(b.call("max", &[lo, a]))? },
+                Some((false, a)) => hi = if hi == inf { a } else { cx.eval(b.call("min", &[hi, a]))? },
                 None => rest.push(g),
+            }
+        }
+        // an empty box
+        if lo != b.neg(inf) && hi != inf {
+            let d = cx.eval(b.sub(hi, lo))?;
+            if crate::integrate::definite::sign(cx, b, d)? == Some(-1) {
+                return Ok(Some(b.zero()));
             }
         }
         let g = cx.eval(b.mul(&[b.mul(&rest), kernel]))?;
@@ -146,4 +193,20 @@ fn gaussian<'h>(cx: &mut NativeCx<'_, '_, 'h>, bd: &Build<'h>, g: T<'h>, t: T<'h
     let root = bd.pow(bd.div(bd.sym(h.sym("pi")), a), bd.rat(1, 2));
     let ex = bd.add(&[bd.div(bd.mul(&[b1, b1]), bd.mul(&[bd.int(4), a])), d]);
     Ok(Some(cx.eval(bd.mul(&[bd.mul(&coef), root, bd.call("exp", &[ex])]))?))
+}
+
+/// `f` with each `sign(u)` (u mentioning t) replaced by `unit_step(u) - unit_step(-u)`.
+fn replace_sign<'h>(b: &Build<'h>, f: T<'h>, t: T<'h>) -> T<'h> {
+    let h = b.heap();
+    match h.view(f) {
+        View::App { head, args } => {
+            if b.sym_of(head) == Some(h.sym("sign")) && args.len() == 1 && !is_free(b, args[0], t) {
+                let u = args[0];
+                return b.sub(b.call("unit_step", &[u]), b.call("unit_step", &[b.neg(u)]));
+            }
+            let new: Vec<T<'h>> = args.iter().map(|&a| replace_sign(b, a, t)).collect();
+            b.app(head, &new)
+        }
+        _ => f,
+    }
 }

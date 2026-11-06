@@ -51,5 +51,8 @@ fn fourier_transforms() {
         ("inverse_fourier_transform(exp(-w^2/4)/sqrt(2), w, t)", "exp(-t^2)"),
         ("fourier_transform(unit_step(t)*unit_step(1 - t), t, w)", "(1/2)*(1im/w + -1im*exp(1im*w)/w)*2^(1/2)*pi^(-1/2)"),
         ("fourier_transform(g(t), t, w)", "fourier_transform(g(t), t, w)"),
+        // sums, sign flips inside a box, and empty boxes (G45)
+        ("simplify(fourier_transform(unit_step(t)*unit_step(1 - t)*sign(t - 1/2), t, w) - fourier_transform(unit_step(t - 1/2)*unit_step(1 - t) - unit_step(t)*unit_step(1/2 - t), t, w))", "0"),
+        ("fourier_transform(unit_step(t - 2)*unit_step(1 - t), t, w)", "0"),
     ]);
 }
