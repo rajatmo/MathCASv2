@@ -699,7 +699,12 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
             n => n,
         };
         opts.retain(|r| rule_name(h, *r).as_deref() != Some(name));
-        let v = if name == "grid_lines" { log_positions(&b, *v, look.scale) } else { *v };
+        let v = match name {
+            "grid_lines" => log_positions(&b, *v, look.scale),
+            // positions of the content given in data values, placed on the axes (logarithms on log axes)
+            "epilog" | "prolog" if look.scale.x != Axis::Linear || look.scale.y != Axis::Linear => on_axes(&b, *v, look.scale, 0),
+            _ => *v,
+        };
         opts.push(b.rule(name, v));
     }
     b.call("graphics", &[b.list(&content), b.call("options", &opts)])
@@ -731,6 +736,68 @@ fn log_positions<'h>(b: &B<'h>, v: T<'h>, scale: Scale) -> T<'h> {
         b.list(&moved)
     };
     b.list(&[axis(xs, scale.x), axis(ys, scale.y)])
+}
+
+/// Graphics content with the positions of its primitives (given in data values) placed on the axes of `scale`.
+/// Positions are the coordinate arguments of `point`, `line`, `polygon`, `arrow`, `bezier_curve`, `rectangle`,
+/// `disk`, `circle` (the centre), `text` and `inset` (the position); other terms are left as they are.
+fn on_axes<'h>(b: &B<'h>, t: T<'h>, scale: Scale, depth: usize) -> T<'h> {
+    use mc_core::View;
+    let h = b.h;
+    if depth > 32 {
+        return t;
+    }
+    let View::App { head, args } = h.view(t) else { return t };
+    let View::Sym(s) = h.view(head) else { return t };
+    let name = h.sym_name(s);
+    let positions: &[usize] = match name.as_str() {
+        n if n == mc_api::names::LIST => {
+            let a: Vec<T<'h>> = args.iter().map(|&e| on_axes(b, e, scale, depth + 1)).collect();
+            return b.list(&a);
+        }
+        "point" | "line" | "polygon" | "arrow" | "bezier_curve" | "disk" | "circle" => &[0],
+        "rectangle" => &[0, 1],
+        "text" | "inset" => &[1],
+        "style" | "tooltip" | "annotation" => {
+            let mut a = args.to_vec();
+            if let Some(first) = a.first_mut() {
+                *first = on_axes(b, *first, scale, depth + 1);
+            }
+            return h.app(head, &a);
+        }
+        _ => return t,
+    };
+    let mut a = args.to_vec();
+    for &k in positions {
+        if let Some(e) = a.get_mut(k) {
+            *e = place(b, *e, scale, depth);
+        }
+    }
+    h.app(head, &a)
+}
+
+/// A position `[x, y]` (or nested lists of them) moved onto the axes; a point with no place (a log of a value not
+/// above 0) is left as it is.
+fn place<'h>(b: &B<'h>, t: T<'h>, scale: Scale, depth: usize) -> T<'h> {
+    use mc_core::View;
+    let h = b.h;
+    if depth > 32 {
+        return t;
+    }
+    let View::App { head, args } = h.view(t) else { return t };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) {
+        return t;
+    }
+    if let [x, y] = args {
+        if let (Some(x), Some(y)) = (mc_graphics::num::number(h, *x), mc_graphics::num::number(h, *y)) {
+            return match (scale.x.to(x), scale.y.to(y)) {
+                (Some(u), Some(v)) => h.reals(&[u, v]),
+                _ => t,
+            };
+        }
+    }
+    let a: Vec<T<'h>> = args.iter().map(|&e| place(b, e, scale, depth + 1)).collect();
+    b.list(&a)
 }
 
 /// The option name of a rule `name -> value`.

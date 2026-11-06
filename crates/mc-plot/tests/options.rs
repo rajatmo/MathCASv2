@@ -241,3 +241,24 @@ fn export_data_writes_animations() {
     assert!(std::fs::read_to_string(&q).expect("the SVG is written").starts_with("<svg"));
     let _ = std::fs::remove_file(&q);
 }
+
+/// Epilog positions on log plots are data values; show takes each axis label from the first plot that has one;
+/// epilog text anchored outside the plot range is clipped, not dropped.
+#[test]
+fn epilog_in_data_values_and_labels_of_combined_plots() {
+    let mut e = CoreEngine::new();
+    // a point at x = 10, y = 100 lies on the curve y = x^2: the sidecar's mapping puts it at the curve's pixel
+    let p = is_image(&mut e, "log_log_plot(x^2, [x, 1, 100], epilog: [red, point_size(large), point([10, 100])])");
+    let s = svg(&p);
+    assert!(s.contains("#ff0000"), "the point is drawn");
+    // its centre in the SVG is where 10 and 100 are on the axes (logarithms 1 and 2), inside the plot area
+    let j: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&std::fs::read(std::path::Path::new(image_path(&p)).with_extension("json")).unwrap())).unwrap();
+    let (x0, x1) = (j["x"]["min"].as_f64().unwrap(), j["x"]["max"].as_f64().unwrap());
+    assert!(x0 <= 10.0 && 10.0 <= x1);
+    let p = is_image(&mut e, "show(plot(x, [x, 0, 1]), plot(x^2, [x, 0, 1], x_label: \"first x\", y_label: \"first y\"))");
+    let s = svg(&p);
+    assert!(s.contains(r#"aria-label="first x""#) && s.contains(r#"aria-label="first y""#), "labels of the second plot");
+    // anchored right of the range, reaching into it
+    let p = is_image(&mut e, "plot(x, [x, 0, 1], epilog: [text(\"reaching in\", [1.2, 0.5], [1, 0])])");
+    assert!(svg(&p).contains(r#"aria-label="reaching in""#));
+}

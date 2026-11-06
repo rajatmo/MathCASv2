@@ -309,6 +309,31 @@ impl Native for Show {
                 rules.push(("plot_range".into(), range));
             }
         }
+        // axis and frame labels: for each axis the first graphic's that is not `none`
+        for key in ["frame_label", "axes_label"] {
+            if own.is_some_and(|o| model::rules(h, o).is_ok_and(|rs| rs.iter().any(|(k, _)| k == key))) {
+                continue;
+            }
+            let mut pair: [Option<T<'h>>; 2] = [None, None];
+            for &o in &graphic_opts {
+                let Some(v) = o.and_then(|o| model::rules(h, o).ok()).and_then(|rs| rs.into_iter().find(|(k, _)| k == key)).map(|r| r.1) else {
+                    continue;
+                };
+                if let Some(&[x, y]) = cx.as_list(v) {
+                    for (slot, l) in pair.iter_mut().zip([x, y]) {
+                        if slot.is_none() && !matches!(h.view(l), View::Sym(s) if h.sym_name(s) == "none") {
+                            *slot = Some(l);
+                        }
+                    }
+                }
+            }
+            if pair.iter().any(Option::is_some) {
+                let none = h.sym_term(h.sym("none"));
+                let v = cx.list(&[pair[0].unwrap_or(none), pair[1].unwrap_or(none)]);
+                rules.retain(|(k, _)| k != key);
+                rules.push((key.into(), v));
+            }
+        }
         // explicit ticks and grid lines (the powers of ten of log plots): those of every graphic, per axis
         for key in ["ticks", "grid_lines"] {
             if own.is_some_and(|o| model::rules(h, o).is_ok_and(|rs| rs.iter().any(|(k, _)| k == key))) || graphic_opts.len() < 2 {
