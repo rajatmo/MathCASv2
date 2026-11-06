@@ -428,6 +428,21 @@ impl Special {
         }
     }
 
+    /// An enclosure at precision p for complex ball arguments (package p6-numeric: log gamma, gamma, the error
+    /// functions, zeta), or `None`.
+    pub fn ball_complex(self, a: &[CBall], p: u64) -> Option<CBall> {
+        use ball::complex as bc;
+        match self {
+            S::Gamma => bc::gamma(&a[0], p),
+            S::LogGamma => bc::log_gamma(&a[0], p),
+            S::Erf => bc::erf(&a[0], p),
+            S::Erfc => bc::erfc(&a[0], p),
+            S::Erfi => bc::erfi(&a[0], p),
+            S::Zeta => bc::zeta(&a[0], p),
+            _ => None,
+        }
+    }
+
     /// An enclosure at precision p.
     pub fn ball_value(self, a: &[Real], p: u64) -> Option<CBall> {
         use ball::{bessel_j as bj, elliptic as el, erf, expint as ei, incomplete as inc};
@@ -504,6 +519,12 @@ impl LibraryFn for Special {
             return None;
         }
         Special::machine_complex(*self, args)
+    }
+    fn ball_complex(&self, args: &[CBall], p: u64) -> Option<CBall> {
+        if args.len() != self.arity() {
+            return None;
+        }
+        Special::ball_complex(*self, args, p)
     }
 }
 

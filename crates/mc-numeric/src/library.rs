@@ -29,6 +29,11 @@ pub trait LibraryFn: Send + Sync {
         let _ = args;
         None
     }
+    /// An enclosure at precision `p` for complex ball arguments, where the function has one.
+    fn ball_complex(&self, args: &[CBall], p: u64) -> Option<CBall> {
+        let _ = (args, p);
+        None
+    }
 }
 
 /// A registered function (a `'static` reference, compared by name).

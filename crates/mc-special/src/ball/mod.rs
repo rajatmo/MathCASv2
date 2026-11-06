@@ -9,6 +9,7 @@
 //! rounded at each working precision rather than once.
 pub mod bessel;
 pub mod bessel_j;
+pub mod complex;
 pub mod elliptic;
 pub mod erf;
 pub mod expint;

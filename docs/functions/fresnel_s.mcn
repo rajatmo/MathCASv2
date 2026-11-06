@@ -37,4 +37,4 @@ fresnel_s(-x)
 # See also
 
 #% text
-# `erf`, `fresnel_s`, `fresnel_c`
+# `erf`, `fresnel_c`

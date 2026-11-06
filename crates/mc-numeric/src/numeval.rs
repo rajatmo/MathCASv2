@@ -381,15 +381,17 @@ impl<'h> Graph<'h> {
                 Node::Var(k) => args.get(*k as usize)?.clone(),
                 // library functions of real arguments only (complex arguments have no value here)
                 Node::Lib(f, k) => {
-                    let mut xs = Vec::with_capacity(k.len());
-                    for j in k {
-                        let z = &vals[j];
-                        if !z.is_real() {
-                            return None;
+                    if k.iter().any(|j| !vals[j].is_real()) {
+                        // complex arguments: the function's complex-ball enclosure, if it has one
+                        let zs: Vec<CBall> = k.iter().map(|j| vals[j].clone()).collect();
+                        f.0.ball_complex(&zs, p)?
+                    } else {
+                        let mut xs = Vec::with_capacity(k.len());
+                        for j in k {
+                            xs.push(self.lib_arg(*j, vals[j].re.clone(), p));
                         }
-                        xs.push(self.lib_arg(*j, z.re.clone(), p));
+                        f.0.ball(&xs, p)?
                     }
-                    f.0.ball(&xs, p)?
                 }
             };
             vals.insert(i, v);

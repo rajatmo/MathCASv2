@@ -73,3 +73,30 @@ fn numeric_values() {
     close(&s.run("bessel_k_scaled(1, 800.0)/bessel_k_scaled(2, 800.0)"), 0.9981279260279697);
     close(&s.run("bessel_k_scaled(0, 2.0)"), 0.8415682150707714);
 }
+
+#[test]
+fn complex_balls() {
+    check(&[
+        ("n(gamma(2 + im), 20)", "complex(0.652965496420166727838646, 0.343065839816545357588736)"),
+        ("n(erf(1 + im), 20)", "complex(1.316151281697947644880271, 0.190453469237834686284109)"),
+        ("n(zeta(1/2 + 14*im), 20)", "complex(0.02224114260999358924621320, -0.1032581232664500579023631)"),
+        ("n(zeta(-1/2 + im), 20)", "complex(-0.000817893132952544793833011, -0.2230716886977776482748017)"),
+    ]);
+}
+
+#[test]
+fn complex_machine_values() {
+    let mut s = common::Sys::new();
+    for (src, re, im) in [
+        ("gamma(2.3 + im)", 0.7191409365372845, 0.5406144679098517),
+        ("bessel_j(7/3 + im, 4.5 - im)", 1.1890836033640924, 0.7156530815957034),
+        ("elliptic_k(2.5 + im)", 1.1551450606569333, 0.9528453714670535),
+        ("zeta(-1.5 + im, 2.5 - im)", 0.01848680919483777, 1.6755337843020792),
+    ] {
+        let got = s.run(src);
+        let inner = got.trim_start_matches("complex(").trim_end_matches(')');
+        let (a, b) = inner.split_once(", ").expect("a complex value");
+        assert!((common::number(a) - re).abs() <= 1e-10 * re.abs().max(1.0), "{src}: {got}");
+        assert!((common::number(b) - im).abs() <= 1e-10 * im.abs().max(1.0), "{src}: {got}");
+    }
+}

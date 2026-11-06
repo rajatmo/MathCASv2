@@ -18,6 +18,7 @@ use mc_arith::num::{stopped, Rat, StopScope};
 use mc_arith::{Arith, Num, Real};
 use mc_core::{Heap, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
+use mc_numeric::cball::CBall;
 use mc_numeric::fun::Mach;
 use mc_numeric::machine::C64;
 use mc_numeric::numeval::{cball_term, mach_term};
@@ -180,6 +181,41 @@ impl Native for Fun {
                     return Ok(Reply::Done(mach_term(&ar, Mach::Complex(z))));
                 }
                 return Ok(Reply::Decline);
+            }
+            // complex balls: the complex-ball enclosures
+            if nums.iter().all(Option::is_some) && nums.iter().flatten().any(|n| n.kind() == mc_arith::Kind::Ball) {
+                let p = nums
+                    .iter()
+                    .flatten()
+                    .filter_map(|n| match n {
+                        Num::Real(r) => r.prec(),
+                        Num::Complex(a, b) => a.prec().max(b.prec()),
+                    })
+                    .max()
+                    .unwrap_or(64);
+                let zs: Vec<CBall> = nums
+                    .iter()
+                    .flatten()
+                    .map(|n| {
+                        let ball = |r: &Real| match r.to_kind(mc_arith::Kind::Ball, p) {
+                            Real::Ball(b, _) => b,
+                            _ => mc_arith::num::Ball::from_i64(0),
+                        };
+                        match n {
+                            Num::Real(r) => CBall::real(ball(r)),
+                            Num::Complex(a, b) => CBall::new(ball(a), ball(b)),
+                        }
+                    })
+                    .collect();
+                cx.tick(1 + p / 256)?;
+                let r = {
+                    let _scope = StopScope::enter(Some(&self.stop));
+                    f.ball_complex(&zs, p)
+                };
+                return Ok(match r {
+                    Some(z) => Reply::Done(cball_term(&ar, z, p)),
+                    None => Reply::Decline,
+                });
             }
             if !f.is_original() {
                 return Ok(exact_reply(h, t, more.rule(f, args)));
