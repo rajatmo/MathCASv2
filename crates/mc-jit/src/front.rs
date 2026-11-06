@@ -293,6 +293,9 @@ fn run<'h>(
         numeric,
         consts: [(h.sym("pi"), std::f64::consts::PI), (h.sym("e"), std::f64::consts::E)],
         im: h.sym("im"),
+        memo: vec![HashMap::new()],
+        epoch: 0,
+        epochs: 0,
     };
     let mut words = vec![];
     let mut inputs = vec![];
@@ -594,6 +597,13 @@ struct Fe<'h, 's> {
     consts: [(Sym, f64); 2],
     /// the imaginary unit `im` (the exact `complex(0, 1)`)
     im: Sym,
+    /// common subexpressions (round 13, decision LC.6): the values of pure subterms already computed, one table
+    /// per open statement list (a value computed in a branch is not available after it), keyed by the term and the
+    /// binding environment it was computed in
+    memo: Vec<HashMap<(T<'h>, u64), Val>>,
+    /// the current binding environment: a new number for every binding, scope, inlined body and assignment
+    epoch: u64,
+    epochs: u64,
 }
 
 fn int(e: E, t: Ty) -> Res<E> {
@@ -618,19 +628,65 @@ impl<'h> Fe<'h, '_> {
         (self.vars.len() - 1) as V
     }
 
+    /// A new binding environment (the memo's entries of the old one stay valid in it only when restored).
+    fn new_epoch(&mut self) -> u64 {
+        let old = self.epoch;
+        self.epochs += 1;
+        self.epoch = self.epochs;
+        old
+    }
+
+    /// Forget every common subexpression (an assignment, or a loop whose body may assign).
+    fn forget(&mut self) {
+        self.memo.iter_mut().for_each(HashMap::clear);
+        self.new_epoch();
+    }
+
+    /// Whether the value of `t` may be computed once and reused (decision LC.6): a pure call whose value depends only
+    /// on the bindings (arithmetic, comparisons, elementary, special and inlined functions), not one with an
+    /// effect, a branch or a binding inside.
+    fn memoizable(&self, t: T<'h>) -> bool {
+        if self.src.draws() {
+            return false;
+        }
+        match self.call_of(t) {
+            Some((s, _)) => !matches!(
+                self.prims.get(&s),
+                Some(
+                    Prim::If
+                        | Prim::Block
+                        | Prim::Let
+                        | Prim::Var
+                        | Prim::Assign
+                        | Prim::While
+                        | Prim::For
+                        | Prim::Draw(_)
+                        | Prim::Table
+                        | Prim::Piecewise
+                        | Prim::And
+                        | Prim::Or
+                )
+            ),
+            None => false,
+        }
+    }
+
     fn bind(&mut self, s: Sym, var: V, ty: Ty, mutable: bool) {
+        self.new_epoch();
         let b = Bind { var, ty, mutable, list: None, cplx: None, vector: None };
         // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_list(&mut self, s: Sym, items: Vec<Val>) {
+        self.new_epoch();
         let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items), cplx: None, vector: None };
         // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_complex(&mut self, s: Sym, re: V, im: V, mutable: bool) {
+        self.new_epoch();
         let b = Bind { var: re, ty: Ty::Real, mutable, list: None, cplx: Some((re, im)), vector: None };
         // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
@@ -638,6 +694,7 @@ impl<'h> Fe<'h, '_> {
 
     /// Bind `s` to a vector, whose address and length must be variables or constants (computed once).
     fn bind_vector(&mut self, s: Sym, base: E, len: E, t: Ty) {
+        self.new_epoch();
         let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: None, cplx: None, vector: Some((base, len, t)) };
         // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
@@ -669,16 +726,20 @@ impl<'h> Fe<'h, '_> {
     /// Build a statement list with `f`.
     fn stmts<R>(&mut self, f: impl FnOnce(&mut Self) -> Res<R>) -> Res<(Vec<S>, R)> {
         self.out.push(vec![]);
+        self.memo.push(HashMap::new());
         let r = f(self);
+        self.memo.pop();
         // invariant: pushed two lines above; `f` pushes and pops in pairs
         let ss = self.out.pop().expect("the statement list");
         r.map(|r| (ss, r))
     }
 
-    /// Run `f` in a new scope.
+    /// Run `f` in a new scope (the binding environment before it is the one after it).
     fn scoped<R>(&mut self, f: impl FnOnce(&mut Self) -> Res<R>) -> Res<R> {
         self.scopes.push(vec![]);
+        let saved = self.new_epoch();
         let r = f(self);
+        self.epoch = saved;
         self.scopes.pop();
         r
     }
@@ -743,6 +804,26 @@ impl<'h> Fe<'h, '_> {
 
     /// A value: a scalar, or a list of known length (decision N0.3).
     fn value(&mut self, t: T<'h>) -> Res<Val> {
+        if !self.memoizable(t) {
+            return self.compute(t);
+        }
+        let key = (t, self.epoch);
+        if let Some(v) = self.memo.iter().rev().find_map(|m| m.get(&key)) {
+            return Ok(v.clone());
+        }
+        let v = self.compute(t)?;
+        // an assignment inside (an inlined call's own locals) moved to another environment: not kept
+        if self.epoch != key.1 || matches!(v, Val::V(..)) {
+            return Ok(v);
+        }
+        let v = self.hold(v);
+        // invariant: the function's statement list and its memo table are open while values are computed
+        self.memo.last_mut().expect("a memo table").insert(key, v.clone());
+        Ok(v)
+    }
+
+    /// [`Fe::value`] without the common subexpressions.
+    fn compute(&mut self, t: T<'h>) -> Res<Val> {
         self.tick()?;
         let h = self.h;
         let sc = |(e, ty): (E, Ty)| Val::S(e, ty);
@@ -1938,6 +2019,7 @@ impl<'h> Fe<'h, '_> {
         }
         // the callee's body sees only its parameters
         let saved = self.base;
+        let saved_epoch = self.new_epoch();
         self.scopes.push(vec![]);
         self.base = self.scopes.len() - 1;
         for (&(s, _), v) in def.params.iter().zip(vals) {
@@ -1953,6 +2035,7 @@ impl<'h> Fe<'h, '_> {
         self.stack.pop();
         self.scopes.pop();
         self.base = saved;
+        self.epoch = saved_epoch;
         r
     }
 
@@ -2062,6 +2145,13 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn assign(&mut self, args: &'h [T<'h>]) -> Res<()> {
+        let r = self.assign_inner(args);
+        // values computed before may read the variable assigned
+        self.forget();
+        r
+    }
+
+    fn assign_inner(&mut self, args: &'h [T<'h>]) -> Res<()> {
         let [x, v] = args else { return Err("a malformed assignment".into()) };
         let View::Sym(x) = self.h.view(*x) else { return Err("an assignment to a compound target".into()) };
         let Some(bd) = self.lookup(x) else { return Err(format!("an assignment to the free name `{}`", self.name(x))) };
@@ -2087,6 +2177,14 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn while_loop(&mut self, c: T<'h>, body: T<'h>) -> Res<()> {
+        // the body may assign what values computed before the loop read
+        self.forget();
+        let r = self.while_inner(c, body);
+        self.forget();
+        r
+    }
+
+    fn while_inner(&mut self, c: T<'h>, body: T<'h>) -> Res<()> {
         let (cs, ce) = self.stmts(|fe| fe.boolean(c))?;
         let (mut bs, ()) = self.stmts(|fe| fe.scoped(|fe| fe.stmt(body)))?;
         if cs.is_empty() {
@@ -2107,6 +2205,14 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn for_loop(&mut self, x: T<'h>, range: T<'h>, body: T<'h>) -> Res<()> {
+        // the body may assign what values computed before the loop read
+        self.forget();
+        let r = self.for_inner(x, range, body);
+        self.forget();
+        r
+    }
+
+    fn for_inner(&mut self, x: T<'h>, range: T<'h>, body: T<'h>) -> Res<()> {
         let View::Sym(x) = self.h.view(x) else { return Err("a `for` over a pattern".into()) };
         let Some((Prim::Range, bounds)) = self.prim_of(range) else {
             // the elements of a vector, in order (package P)
