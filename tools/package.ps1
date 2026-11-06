@@ -39,7 +39,7 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)) { throw "Inno Setup failed (e
 Remove-Item $stage -Recurse -Force
 Get-ChildItem $out -Filter "$name.*" | Select-Object Name, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }
 
-$mirror = if ($env:MATHCAS_V2_MIRROR) { $env:MATHCAS_V2_MIRROR } else { Join-Path $env:USERPROFILE "Dropbox\Projects\MathCAS-v2-packages" }
+$mirror = if ($env:MATHCAS_V2_MIRROR) { $env:MATHCAS_V2_MIRROR } else { Join-Path $env:USERPROFILE "Dropbox\MathCAS v2\packages" }
 if (Test-Path (Split-Path -Parent $mirror)) {
     New-Item -ItemType Directory -Force $mirror | Out-Null
     Copy-Item (Join-Path $out "$name.*") $mirror -Force

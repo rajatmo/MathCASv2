@@ -1,6 +1,6 @@
 # Usage: tools\dist.ps1   -> builds the release binaries and copies them, with the benchmark cases, the example
 # scripts, the VS Code extension (folder and .vsix) and a short guide, to ..\dist (outside the repository; builds from ..\build\target unless CARGO_TARGET_DIR is set). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
-# (mirror folder; default Dropbox\Projects\MathCAS-v2-dist when Dropbox exists), CARGO_TARGET_DIR.
+# (mirror folder; default Dropbox\MathCAS v2\dist when Dropbox exists), CARGO_TARGET_DIR.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path (Split-Path -Parent $root) "dist" }
@@ -51,7 +51,7 @@ Copy-Item (Join-Path $root "LICENSE") (Join-Path $dist "LICENSE.txt") -Force
 Copy-Item (Join-Path $root "CHANGELOG.md") (Join-Path $dist "CHANGELOG.md") -Force
 Get-ChildItem $dist | Select-Object Name, Length
 
-$mirror = if ($env:MATHCAS_V2_MIRROR) { $env:MATHCAS_V2_MIRROR } else { Join-Path $env:USERPROFILE "Dropbox\Projects\MathCAS-v2-dist" }
+$mirror = if ($env:MATHCAS_V2_MIRROR) { $env:MATHCAS_V2_MIRROR } else { Join-Path $env:USERPROFILE "Dropbox\MathCAS v2\dist" }
 if (Test-Path (Split-Path -Parent $mirror)) {
     New-Item -ItemType Directory -Force $mirror | Out-Null
     Copy-Item (Join-Path $dist "*") $mirror -Recurse -Force
