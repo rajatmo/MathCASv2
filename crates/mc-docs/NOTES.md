@@ -20,7 +20,8 @@ Specification: `docs/design/09-docs.md` (also the crate's module documentation).
 The window: home page with five area tiles (documented functions as links, topics, "All N functions" to the guide);
 guide pages by topic with descriptions; incremental search (arrows, Enter, Esc); function pages (usage panel in the
 code font coloured by `mc_syntax::colour`, Details collapsed, example groups collapsible with Basic examples open,
-`In[n]:=`/`Out[n]=` numbered per group, print and message lines in their colours, PNG images, See also links); a
+inputs at the group's content edge in the bold code font, outputs indented behind a thin rule (round 11: no
+`In[n]:=`/`Out[n]=` labels, as in the notebook), print and message lines in their colours, PNG images, See also links); a
 function without a page shows its catalogue description; back/forward/home (buttons, Alt+Left/Right/Home, mouse
 buttons 4 and 5); `Ctrl+F` find in page (Enter/F3, Shift for previous; opens collapsed sections); F1 opens the name
 typed in the search box; `mc-docs <name|guide:area|search:text>`; theme cycles system/light/dark starting from the
@@ -60,6 +61,27 @@ notebook's saved theme; selectable text; "Open as notebook" copies the page and 
 `table`, `plot`, `d`, `integrate`, `solve`, `simplify`, `expand`, `n_integrate`, `n_dsolve`, `find_root`: about 175
 inputs, every output written by the engine, 10 plot images; every input under 0.1 s. They show unevaluated cases,
 failures, generic solutions and `x /. solve(...)` staying as `rewrite(...)`.
+
+## Round 11 (package docs)
+
+- 112 new pages (177 in all): the functions the research scripts in `examples/` use, the everyday list, string,
+  association and session functions, and the core functions of each guide (data, plots, symbolic, numbers, special
+  functions, linear algebra). Pages show real behaviour, including the surprising cases, under "Possible issues".
+- The example cells have no `In[n]:=`/`Out[n]=` labels (as in the notebook): inputs start at the group's edge,
+  outputs are indented behind a thin rule.
+- Search ties: functions with a page first, then by how many pages' examples call the function, then shorter names.
+- Guides: "k of n with a page" per topic and an "Without a page yet" list per area; function pages end with
+  previous/next links in their area's guide order and a link to the guide.
+- The catalogue lists the prelude's functions (`say`, `count_if`, `zip`, ...) under Language, checked against the
+  engine.
+- The runner runs each page with its current directory set to a fresh temporary folder (`runner::scratch`), so files
+  a page writes by relative name stay out of the repository; the previous directory is restored after the page.
+- `mc-docs-pages missing`: the catalogued functions without a page, by area and topic.
+
+Decisions: DOC.11 inputs and outputs without labels, outputs marked by an indent and a 2-point rule in the border
+colour (both themes). DOC.12 search tie order as above ("usage" is counted from the pages' inputs, not from user
+sessions). DOC.13 prelude functions are catalogued in `mc-docs` (no library lists them). DOC.14 the page runner owns
+the process's current directory while a page runs (pages run one at a time in every caller).
 
 ## Tests and measurements
 

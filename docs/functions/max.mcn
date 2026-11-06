@@ -1,0 +1,149 @@
+#! mathcas 2 notebook
+
+#% title
+# max
+
+#% text
+# `max(a, b, ...)` gives the largest of the real numbers `a`, `b`, ....
+
+#% text
+# `max(xs)` gives the largest element of the list `xs`; nested lists are searched through.
+
+#% section
+# Details
+
+#% item
+# Exact, rational, machine and ball numbers are compared by value; the result keeps its kind.
+
+#% item
+# Closed numeric expressions such as `pi` and `sqrt(2)` are not compared: the call stays (apply `n` first).
+
+#% item
+# With symbolic arguments the call stays, keeping only the arguments that may still be the largest.
+
+#% item
+# `max([])` is a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+max(3, 7, 2)
+#% output
+#= 7
+
+#% cell
+max([4, 1, 9, 2])
+#% output
+#= 9
+
+#% cell
+max([[1, 5], [3, 2]])
+#% output
+#= 5
+
+#% subsection
+# Scope
+
+#% text
+# Numbers of different kinds:
+
+#% cell
+max(1/3, 0.3, 2/7)
+#% output
+#= 1/3
+
+#% text
+# Symbols:
+
+#% cell
+max(x, 2, 5)
+#% output
+#= max(x, 2, 5)
+
+#% cell
+max([])
+#% output
+#! failure(argument, max, 1)
+
+#% subsection
+# Applications
+
+#% text
+# A value kept away from zero before a logarithm, as in the wall-profile script:
+
+#% cell
+fn safe_log(x) = log(max(x, 1.0e-9))
+[safe_log(2.0), safe_log(0.0)]
+#% output
+#= [0.6931471805599453, -20.72326583694641]
+
+#% text
+# The range of a data set:
+
+#% cell
+data = [2.3, -0.7, 4.1, 1.8]
+max(data) - min(data)
+#% output
+#= 4.8
+
+#% subsection
+# Properties and relations
+
+#% text
+# `clamp` limits a value from both sides with `min` and `max`:
+
+#% cell
+clamp(12, 0, 10)
+#% output
+#= 10
+
+#% text
+# `max_by` compares by a key and returns the element:
+
+#% cell
+max_by(["kiwi", "banana", "fig"], string_length)
+#% output
+#= "banana"
+
+#% text
+# The position of the maximum:
+
+#% cell
+v = [3, 8, 1]
+position(v, max(v))
+#% output
+#= [[2]]
+
+#% subsection
+# Possible issues
+
+#% text
+# Strings are not numbers and are not compared:
+
+#% cell
+max("a", "b")
+#% output
+#= max("a", "b")
+
+#% text
+# Closed numeric expressions stay unevaluated; their numerical values compare:
+
+#% cell
+max(pi, 3.2, sqrt(10))
+#% output
+#= max(pi, 3.2, 10^(1/2))
+
+#% cell
+max(n([pi, 3.2, sqrt(10)]))
+#% output
+#= 3.2
+
+#% section
+# See also
+
+#% text
+# `min`, `max_by`, `clamp`, `sort`, `find_maximum`

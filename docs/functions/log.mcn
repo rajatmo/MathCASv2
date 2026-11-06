@@ -1,0 +1,165 @@
+#! mathcas 2 notebook
+
+#% title
+# log
+
+#% text
+# `log(x)` gives the principal natural logarithm of `x`.
+
+#% section
+# Details
+
+#% item
+# Exact values: `log(1)` is 0, `log(e)` is 1, `log(e^q)` and `log(exp(q))` are `q` for a rational `q`, and `log(-1)` is `im*pi`.
+
+#% item
+# Other exact arguments stay unevaluated: `log(8)` is kept as it is. Use `n` for a numerical value.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. A negative real argument gives a complex value with imaginary part `pi`.
+
+#% item
+# The branch cut runs along the negative real axis; the imaginary part of the result lies in (-`pi`, `pi`].
+
+#% item
+# `log` is listable: it applies to each element of a list.
+
+#% item
+# For a logarithm to another base, use `log_base`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log(1)
+#% output
+#= 0
+
+#% cell
+log(e^3)
+#% output
+#= 3
+
+#% text
+# A machine number:
+
+#% cell
+log(2.0)
+#% output
+#= 0.6931471805599453
+
+#% text
+# The logarithm of -1:
+
+#% cell
+log(-1)
+#% output
+#= 1im*pi
+
+#% subsection
+# Scope
+
+#% text
+# A ball, and 30 digits from an exact argument:
+
+#% cell
+log(2~30)
+#% output
+#= 0.693147180559945309417232121458
+
+#% cell
+n(log(2), 30)
+#% output
+#= 0.6931471805599453094172321214581766
+
+#% text
+# A negative machine number gives a complex value:
+
+#% cell
+log(-2.0)
+#% output
+#= complex(0.6931471805599453, 3.141592653589793)
+
+#% text
+# A complex argument:
+
+#% cell
+n(log(1 + im))
+#% output
+#= complex(0.3465735902799727, 0.7853981633974483)
+
+#% text
+# Each element of a list:
+
+#% cell
+log([1, e, e^2])
+#% output
+#= [0, 1, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The logarithm undoes the exponential for a real exact argument:
+
+#% cell
+log(exp(2))
+#% output
+#= 2
+
+#% text
+# The exponential undoes the logarithm for any argument:
+
+#% cell
+exp(log(x))
+#% output
+#= x
+
+#% text
+# The derivative:
+
+#% cell
+d(log(x), x)
+#% output
+#= x^-1
+
+#% subsection
+# Possible issues
+
+#% text
+# `log(exp(x))` is not `x` in general, because the imaginary part of `x` may lie outside the principal range:
+
+#% cell
+log(exp(x))
+#% output
+#= log(exp(x))
+
+#% text
+# Products are not split into sums of logarithms:
+
+#% cell
+log(x*y)
+#% output
+#= log(x*y)
+
+#% text
+# The logarithm of 0 stays unevaluated; a machine 0 gives negative infinity:
+
+#% cell
+log(0)
+#% output
+#= log(0)
+
+#% cell
+log(0.0)
+#% output
+#= machine_real("-inf")
+
+#% section
+# See also
+
+#% text
+# `exp`, `log_base`, `log_gamma`, `sqrt`, `n`

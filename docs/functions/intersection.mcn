@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# intersection
+
+#% text
+# `intersection(xs, ys, ...)` gives the elements that occur in every one of the lists, without repetitions, in canonical order.
+
+#% section
+# Details
+
+#% item
+# The result is sorted and has no repeated elements.
+
+#% item
+# Elements are compared by identity.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+intersection([1, 2, 3, 4], [3, 4, 5])
+#% output
+#= [3, 4]
+
+#% cell
+intersection([a, b, c], [b, c, d], [c, b])
+#% output
+#= [b, c]
+
+#% cell
+intersection([1, 2], [3])
+#% output
+#= []
+
+#% subsection
+# Applications
+
+#% text
+# The common divisors of two numbers, and the greatest of them:
+
+#% cell
+cd = intersection(divisors(48), divisors(180))
+[cd, max(cd)]
+#% output
+#= [[1, 2, 3, 4, 6, 12], 12]
+
+#% text
+# Letters that two words share:
+
+#% cell
+intersection(characters("listen"), characters("silent"))
+#% output
+#= ["e", "i", "l", "n", "s", "t"]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The greatest common divisor is the largest common divisor:
+
+#% cell
+gcd(48, 180)
+#% output
+#= 12
+
+#% text
+# `complement` gives what is in the first list and not in the others:
+
+#% cell
+complement([1, 2, 3, 4], [3, 4, 5])
+#% output
+#= [1, 2]
+
+#% section
+# See also
+
+#% text
+# `union`, `complement`, `is_subset`, `member_of`, `gcd`

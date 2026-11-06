@@ -1,0 +1,106 @@
+#! mathcas 2 notebook
+
+#% title
+# drop
+
+#% text
+# `drop(xs, n)` gives the list `xs` without its first `n` elements.
+
+#% text
+# `drop(xs, -n)` gives `xs` without its last `n` elements.
+
+#% section
+# Details
+
+#% item
+# `n` must be an integer whose size is at most the length of `xs`.
+
+#% item
+# `drop(xs, 1)` is `rest(xs)`; `drop(xs, -1)` is `most(xs)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+drop([a, b, c, d, e], 2)
+#% output
+#= [c, d, e]
+
+#% cell
+drop([a, b, c, d, e], -2)
+#% output
+#= [a, b, c]
+
+#% cell
+drop([1, 2], 2)
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# A header row removed from a table of data:
+
+#% cell
+rows = [["x", "y"], [1, 2.5], [2, 3.1]]
+drop(rows, 1)
+#% output
+#= [[1, 2.5], [2, 3.1]]
+
+#% subsection
+# Applications
+
+#% text
+# The burn-in of a chain discarded before averaging:
+
+#% cell
+seed(9); chain = nest_list(x => 0.5*x + random_real([-1, 1]), 10.0, 200)
+[mean(chain), mean(drop(chain, 50))]
+#% output
+#= [0.15378672430595883, 0.03174436173039171]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `drop` keeps what `take` leaves:
+
+#% cell
+xs = range(6)
+[take(xs, 2), drop(xs, 2)]
+#% output
+#= [[1, 2], [3, 4, 5, 6]]
+
+#% cell
+drop(xs, -1) === most(xs)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Dropping more than there is:
+
+#% cell
+drop([1, 2], 3)
+#% output
+#! failure(index, 3, 2)
+
+#% text
+# To remove failures from a list, use `drop_failures`, not `drop`:
+
+#% cell
+drop_failures([1, failure(no_root, find_root), 3])
+#% output
+#= [1, 3]
+
+#% section
+# See also
+
+#% text
+# `take`, `rest`, `most`, `drop_failures`, `select`

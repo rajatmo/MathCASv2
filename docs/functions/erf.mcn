@@ -1,0 +1,152 @@
+#! mathcas 2 notebook
+
+#% title
+# erf
+
+#% text
+# `erf(x)` gives the error function of `x`, `2/sqrt(pi)` times the integral of `exp(-t^2)` for `t` from 0 to `x`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 7.2.1. `erf` is odd, and tends to 1 as `x` tends to `inf`.
+
+#% item
+# `erf(0)` is 0; other exact arguments stay unevaluated. Use `n` for a numerical value.
+
+#% item
+# Machine numbers, balls and complex machine numbers give numerical values.
+
+#% item
+# Close to 1, the difference `1 - erf(x)` loses all digits; use `erfc(x)`, which stays accurate deep in the tail.
+
+#% item
+# `erf` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+erf(1.0)
+#% output
+#= 0.8427007929497149
+
+#% cell
+erf(-1.0)
+#% output
+#= -0.8427007929497149
+
+#% text
+# 30 digits:
+
+#% cell
+n(erf(1), 30)
+#% output
+#= 0.8427007929497148693412206350826093
+
+#% subsection
+# Scope
+
+#% text
+# A ball:
+
+#% cell
+erf(1/2~30)
+#% output
+#= 0.52049987781304653768274665389
+
+#% text
+# A complex machine number:
+
+#% cell
+erf(1.0 + 1.0*im)
+#% output
+#= complex(1.3161512816979477, 0.19045346923783468)
+
+#% text
+# Each element of a list:
+
+#% cell
+erf([0.0, 0.5, 1.0])
+#% output
+#= [0.0, 0.5204998778130465, 0.8427007929497149]
+
+#% subsection
+# Applications
+
+#% text
+# The probability that a normal random value lies within one standard deviation of its mean:
+
+#% cell
+erf(1/sqrt(2.0))
+#% output
+#= 0.6826894921370859
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative is a Gaussian:
+
+#% cell
+d(erf(x), x)
+#% output
+#= 2*exp(-x^2)*pi^(-1/2)
+
+#% text
+# The integral of the Gaussian gives the same value:
+
+#% cell
+n_integrate(2/sqrt(pi)*exp(-t^2), [t, 0, 1])
+#% output
+#= 0.842700792949715
+
+#% text
+# `erfc` is the complement:
+
+#% cell
+erf(0.3) + erfc(0.3)
+#% output
+#= 1.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Far in the tail, `1 - erf(x)` is 0 in machine numbers; `erfc` keeps the value:
+
+#% cell
+1 - erf(6.0)
+#% output
+#= 0.0
+
+#% cell
+erfc(6.0)
+#% output
+#= 2.1519736712498913e-17
+
+#% text
+# The limit at infinity is not taken:
+
+#% cell
+erf(inf)
+#% output
+#= erf(inf)
+
+#% text
+# A numerical value of `erf` at an exact complex number is wrong:
+
+#% cell
+n(erf(1 + im))
+#% output
+#= machine_real("nan")
+
+#% section
+# See also
+
+#% text
+# `erfc`, `erfi`, `inverse_erfc`, `normal_distribution`, `gamma`

@@ -1,0 +1,107 @@
+#! mathcas 2 notebook
+
+#% title
+# total
+
+#% text
+# `total(xs)` gives the sum of every element of the list `xs`, at every depth of nesting.
+
+#% section
+# Details
+
+#% item
+# Nested lists are summed through: `total([[1, 2], [3]])` is 6.
+
+#% item
+# The empty list totals 0.
+
+#% item
+# `sum(xs)` adds the elements of the top level only.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+total([1, 2, 3, 4])
+#% output
+#= 10
+
+#% cell
+total([[1, 2], [3, 4]])
+#% output
+#= 10
+
+#% cell
+total([a, b, 2a])
+#% output
+#= b + 3*a
+
+#% subsection
+# Scope
+
+#% text
+# Fractions and reals:
+
+#% cell
+total([1/2, 1/3, 1/6])
+#% output
+#= 1
+
+#% cell
+total([0.1, 0.2, 0.3])
+#% output
+#= 0.6000000000000001
+
+#% cell
+total([])
+#% output
+#= 0
+
+#% subsection
+# Applications
+
+#% text
+# The sum of all the entries of a matrix:
+
+#% cell
+total(table(i*j, i, 4, j, 4))
+#% output
+#= 100
+
+#% text
+# A probability distribution normalised to 1:
+
+#% cell
+w = [3, 1, 4, 2]
+w/total(w)
+#% output
+#= [3/10, 1/10, 2/5, 1/5]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `sum` adds the top-level elements; for a matrix it leaves the sum of the rows unevaluated (see `sum`), while `total` adds every entry:
+
+#% cell
+m = [[1, 2], [3, 4]]
+[sum(m), total(m)]
+#% output
+#= [[1, 2] + [3, 4], 10]
+
+#% text
+# `accumulate` gives the running totals:
+
+#% cell
+last(accumulate([5, 6, 7])) == total([5, 6, 7])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `sum`, `accumulate`, `product`, `mean`, `fold`

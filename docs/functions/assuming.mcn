@@ -1,0 +1,173 @@
+#! mathcas 2 notebook
+
+#% title
+# assuming
+
+#% text
+# `assuming(facts, body)` evaluates `body` with the facts added to the assumptions, so that functions such as `simplify` and `refine` can use them.
+
+#% section
+# Details
+
+#% item
+# A fact is an inequality (`x > 0`, `a <= b`), a domain fact `element(n, integers)`, or several facts joined by `and` or given as a list.
+
+#% item
+# Domains are `integers`, `rationals`, `reals`, `complexes` and their positive, negative and nonnegative parts such as `positive_reals`.
+
+#% item
+# The facts hold only while `body` is evaluated; the value of `body` is the value of the call.
+
+#% item
+# Calls of `assuming` nest: the inner facts are added to the outer ones.
+
+#% item
+# `simplify`, `refine`, `power_expand`, `limit` and the tests `is_positive`, `is_negative`, `is_nonnegative` use the assumptions. Other functions ignore them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Without an assumption, sqrt(x^2) cannot be simplified:
+
+#% cell
+sqrt(x^2)
+#% output
+#= (x^2)^(1/2)
+
+#% text
+# For positive and for negative x:
+
+#% cell
+assuming(x > 0, simplify(sqrt(x^2)))
+#% output
+#= x
+
+#% cell
+assuming(x < 0, simplify(sqrt(x^2)))
+#% output
+#= -x
+
+#% text
+# An integer parameter:
+
+#% cell
+assuming(element(n, integers), refine(sin(n*pi)))
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# Several facts, joined by `and` or in a list:
+
+#% cell
+assuming(x > 0 and y > 0, simplify(sqrt(x^2*y^2)))
+#% output
+#= x*y
+
+#% cell
+assuming([x > 0, y < 0], refine(abs(x*y)))
+#% output
+#= -1*x*y
+
+#% text
+# Facts that imply the sign of an expression:
+
+#% cell
+assuming(x > 2, refine(abs(x - 1)))
+#% output
+#= -1 + x
+
+#% cell
+assuming(x > 1, is_positive(x - 1))
+#% output
+#= true
+
+#% text
+# Nested calls combine their facts:
+
+#% cell
+assuming(x > 0, assuming(y > 0, refine(abs(x*y))))
+#% output
+#= x*y
+
+#% text
+# Logarithms:
+
+#% cell
+assuming(x > 0, simplify(log(x^2) - 2log(x)))
+#% output
+#= 0
+
+#% cell
+assuming(x > 0, refine(log(exp(x))))
+#% output
+#= x
+
+#% subsection
+# Applications
+
+#% text
+# Simplify a solution under the conditions a model guarantees, here a positive parameter and a negative one:
+
+#% cell
+assuming(q > 0 and p < 0, simplify(abs(t /. first(solve(t^4 == q*p^2, t)))))
+#% output
+#= q^(1/4)*(-p)^(1/2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `refine` with facts as a second argument does the same for one expression:
+
+#% cell
+refine(abs(x), x > 0)
+#% output
+#= x
+
+#% text
+# The facts are dropped after the call:
+
+#% cell
+assuming(x > 0, refine(abs(x))) + refine(abs(x))
+#% output
+#= x + abs(x)
+
+#% subsection
+# Possible issues
+
+#% text
+# `solve` ignores the assumptions:
+
+#% cell
+assuming(x > 0, solve(x^2 == 4, x))
+#% output
+#= [[x -> -2], [x -> 2]]
+
+#% text
+# `integrate` does not use them either, so this integral, 1/a for a > 0, stays unevaluated:
+
+#% cell
+assuming(a > 0, integrate(exp(-a*x), [x, 0, inf]))
+#% output
+#= integrate(exp(-1*a*x), [x, 0, inf])
+
+#% text
+# Some consequences are not drawn: floor(x) is 0 for 0 < x < 1, and max(a, b) is a for a > b.
+
+#% cell
+[assuming(x > 0 and x < 1, refine(floor(x))), assuming(a > b, refine(max(a, b)))]
+#% output
+#= [floor(x), max(a, b)]
+
+#% section
+# See also
+
+#% text
+# `refine`, `simplify`, `element`, `power_expand`, `is_positive`, `integers`

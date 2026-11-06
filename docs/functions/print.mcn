@@ -1,0 +1,146 @@
+#! mathcas 2 notebook
+
+#% title
+# print
+
+#% text
+# `print(x)` writes `x` as a line of output and gives `x` itself.
+
+#% section
+# Details
+
+#% item
+# A string is written as its text, without quotes; any other value in its printed form.
+
+#% item
+# The line is output of the evaluation, shown before the value of the cell; a cell can print many lines.
+
+#% item
+# Because the value is `x`, `print` can be wrapped around any part of a computation to watch it without changing the result.
+
+#% item
+# `print` takes one argument. To print several values on one line, use `say`, which joins its arguments and gives `null`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+print("Hello")
+#% output
+#| Hello
+#= "Hello"
+
+#% text
+# The value is printed and also returned:
+
+#% cell
+print(1/3 + 1/6)
+#% output
+#| 1/2
+#= 1/2
+
+#% text
+# Several lines from one cell, then its value:
+
+#% cell
+print("first"); print("second"); 42
+#% output
+#| first
+#| second
+#= 42
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic expressions and lists:
+
+#% cell
+print(integrate(x*exp(x), x));
+#% output
+#| -exp(x) + x*exp(x)
+#= -exp(x) + x*exp(x)
+
+#% cell
+print(table(k^2, k, 5));
+#% output
+#| [1, 4, 9, 16, 25]
+#= [1, 4, 9, 16, 25]
+
+#% text
+# A machine real prints with the digits needed to read it back, a ball with its correct digits:
+
+#% cell
+print(0.1 + 0.2); print(n(pi, 30));
+#% output
+#| 0.30000000000000004
+#| 3.1415926535897932384626433832795029
+#= 3.1415926535897932384626433832795029
+
+#% subsection
+# Applications
+
+#% text
+# Watching an iteration from inside a loop:
+
+#% cell
+{
+  var x = 1.0
+  for k in range(4) {
+    x = print((x + 2/x)/2)
+  }
+}
+#% output
+#| 1.5
+#| 1.4166666666666665
+#| 1.4142156862745097
+#| 1.4142135623746899
+
+#% text
+# Seeing the intermediate value of a nested computation:
+
+#% cell
+sqrt(print(3^2 + 4^2))
+#% output
+#| 25
+#= 5
+
+#% subsection
+# Properties and relations
+
+#% text
+# `print(x)` gives `x`:
+
+#% cell
+print(7) === 7
+#% output
+#| 7
+#= true
+
+#% text
+# `say` joins several parts on one line and gives `null`:
+
+#% cell
+say("k = ", 3, ", k^2 = ", 9)
+#% output
+#| k = 3, k^2 = 9
+
+#% subsection
+# Possible issues
+
+#% text
+# With more than one argument, `print` prints nothing and the call stays as it is:
+
+#% cell
+print("x =", 2)
+#% output
+#= print("x =", 2)
+
+#% section
+# See also
+
+#% text
+# `say`, `to_string`, `message`, `timing`

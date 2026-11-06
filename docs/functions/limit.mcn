@@ -1,0 +1,188 @@
+#! mathcas 2 notebook
+
+#% title
+# limit
+
+#% text
+# `limit(f, x -> a)` gives the limit of `f` as `x` tends to `a` along the real numbers.
+
+#% text
+# `limit(f, x -> a, direction: from_above)` and `direction: from_below` give the limits from one side.
+
+#% section
+# Details
+
+#% item
+# The point `a` may be a number, a symbolic expression, `inf` or `-inf`.
+
+#% item
+# The limit may be `inf` or `-inf`.
+
+#% item
+# When the two sides have different limits, the result is `failure(no_limit, limit, f)`.
+
+#% item
+# When the limit cannot be decided, the call stays unevaluated.
+
+#% item
+# Options:
+
+#% subitem
+# `direction: from_above` (x decreasing to `a`) or `from_below` (x increasing to `a`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A classical limit:
+
+#% cell
+limit(sin(x)/x, x -> 0)
+#% output
+#= 1
+
+#% text
+# A limit at infinity:
+
+#% cell
+limit((1 + 1/x)^x, x -> inf)
+#% output
+#= e
+
+#% text
+# A removable singularity:
+
+#% cell
+limit((x^2 - 1)/(x - 1), x -> 1)
+#% output
+#= 2
+
+#% text
+# An infinite limit:
+
+#% cell
+limit(1/x^2, x -> 0)
+#% output
+#= inf
+
+#% subsection
+# Scope
+
+#% text
+# Indeterminate forms 0 times infinity, 0^0 and infinity minus infinity:
+
+#% cell
+[limit(x*log(x), x -> 0), limit(x^x, x -> 0), limit(sqrt(x^2 + x) - x, x -> inf)]
+#% output
+#= [0, 1, 1/2]
+
+#% text
+# Symbolic parameters:
+
+#% cell
+[limit((1 + a/x)^x, x -> inf), limit((a^x - 1)/x, x -> 0)]
+#% output
+#= [exp(a), log(a)]
+
+#% text
+# Rational functions at infinity:
+
+#% cell
+limit((3x^2 + 1)/(2x^2 - x), x -> inf)
+#% output
+#= 3/2
+
+#% text
+# A bounded factor times a vanishing one:
+
+#% cell
+limit(x*sin(1/x), x -> 0)
+#% output
+#= 0
+
+#% subsection
+# Options
+
+#% text
+# The two sides of a pole:
+
+#% cell
+[limit(1/x, x -> 0, direction: from_above), limit(1/x, x -> 0, direction: from_below)]
+#% output
+#= [inf, -inf]
+
+#% text
+# An essential singularity, with different limits on each side:
+
+#% cell
+[limit(exp(1/x), x -> 0, direction: from_above), limit(exp(1/x), x -> 0, direction: from_below)]
+#% output
+#= [inf, 0]
+
+#% subsection
+# Applications
+
+#% text
+# A derivative from its definition as the limit of a difference quotient:
+
+#% cell
+limit(((x + h)^3 - x^3)/h, h -> 0)
+#% output
+#= 3*x^2
+
+#% text
+# The leading behaviour of a difference, through a limit of the ratio:
+
+#% cell
+limit((sin(x) - x)/x^3, x -> 0)
+#% output
+#= -1/6
+
+#% subsection
+# Properties and relations
+
+#% text
+# The limit agrees with the constant term of the series:
+
+#% cell
+[limit((1 - cos(x))/x^2, x -> 0), series((1 - cos(x))/x^2, x, 0, 2)]
+#% output
+#= [1/2, 1/2 - x^2/24 + O(x^3)]
+
+#% subsection
+# Possible issues
+
+#% text
+# A limit from both sides at a pole of odd order does not exist:
+
+#% cell
+limit(1/x, x -> 0)
+#% output
+#! failure(no_limit, limit, x^-1)
+
+#% cell
+limit(abs(x)/x, x -> 0)
+#% output
+#! failure(no_limit, limit, abs(x)/x)
+
+#% text
+# An oscillation without a limit, or a jump of `floor`, is not decided, and the call stays as it is:
+
+#% cell
+limit(sin(1/x), x -> 0)
+#% output
+#= limit(sin(x^-1), x -> 0)
+
+#% cell
+limit(floor(x), x -> 1)
+#% output
+#= limit(floor(x), x -> 1)
+
+#% section
+# See also
+
+#% text
+# `series`, `d`, `sum`, `integrate`

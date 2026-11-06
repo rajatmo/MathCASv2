@@ -1,0 +1,112 @@
+#! mathcas 2 notebook
+
+#% title
+# count
+
+#% text
+# `count(xs, p)` gives the number of elements of the list `xs` that match the pattern `p`.
+
+#% section
+# Details
+
+#% item
+# A plain value as the pattern counts its occurrences: `count(xs, 0)`.
+
+#% item
+# Only the elements of `xs` are tested.
+
+#% item
+# To count by a test function, use `count_if`; to count every distinct element, `tally` or `counts`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count([a, b, a, c, a], a)
+#% output
+#= 3
+
+#% cell
+count([1, 2.5, 3, x], _: Int)
+#% output
+#= 2
+
+#% cell
+count([f(1), g(2), f(3)], f(_))
+#% output
+#= 2
+
+#% subsection
+# Scope
+
+#% text
+# A pattern with a condition:
+
+#% cell
+count([5, -2, 7, -1, 0], k_ when k > 0)
+#% output
+#= 2
+
+#% text
+# Strings:
+
+#% cell
+count(characters("mississippi"), "s")
+#% output
+#= 4
+
+#% subsection
+# Applications
+
+#% text
+# How often each letter occurs in a word, for one letter:
+
+#% cell
+count(characters("abracadabra"), "a")
+#% output
+#= 5
+
+#% subsection
+# Properties and relations
+
+#% text
+# `tally` counts every distinct element at once:
+
+#% cell
+tally(characters("mississippi"))
+#% output
+#= [["m", 1], ["i", 4], ["s", 4], ["p", 2]]
+
+#% text
+# `count_if` counts by a test function:
+
+#% cell
+count_if([5, -2, 7, -1, 0], x => x > 0)
+#% output
+#= 2
+
+#% subsection
+# Possible issues
+
+#% text
+# A failure pattern is itself a failure and passes through the call instead of being matched; count failures with `count_if` and `is_failure`:
+
+#% cell
+results = [1.2, failure(not_converged, find_root), 0.7]
+count(results, failure(___))
+#% output
+#! failure(___)
+
+#% cell
+count_if(results, is_failure)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `count_if`, `tally`, `counts`, `cases`, `position`

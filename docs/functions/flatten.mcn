@@ -1,0 +1,115 @@
+#! mathcas 2 notebook
+
+#% title
+# flatten
+
+#% text
+# `flatten(xs)` gives the elements of the nested list `xs` at every depth, as one flat list.
+
+#% text
+# `flatten(xs, d)` flattens only the first `d` levels of nesting.
+
+#% section
+# Details
+
+#% item
+# Only sublists with the same head as `xs` are spliced in; other terms stay whole.
+
+#% item
+# The order is the order in which the elements are written.
+
+#% item
+# `flatten(xs, 1)` removes one level: a list of lists becomes the list of their elements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+flatten([[1, 2], [3, [4, 5]], 6])
+#% output
+#= [1, 2, 3, 4, 5, 6]
+
+#% cell
+flatten([[1, [2]], [[3]]], 1)
+#% output
+#= [1, [2], [3]]
+
+#% cell
+flatten([])
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# Terms with other heads are kept:
+
+#% cell
+flatten([f(1, 2), [3, 4]])
+#% output
+#= [f(1, 2), 3, 4]
+
+#% text
+# A matrix as the list of its entries, row by row:
+
+#% cell
+flatten([[1, 2, 3], [4, 5, 6]])
+#% output
+#= [1, 2, 3, 4, 5, 6]
+
+#% subsection
+# Applications
+
+#% text
+# All the coordinates of a list of points, for their range:
+
+#% cell
+pts = [[0.5, 2.0], [1.5, -1.0], [3.0, 0.25]]
+[min(flatten(pts)), max(flatten(pts))]
+#% output
+#= [-1.0, 3.0]
+
+#% text
+# A list of lists of results built in a nested table, made flat:
+
+#% cell
+flatten(table(i*j, i, 3, j, i))
+#% output
+#= [1, 2, 4, 3, 6, 9]
+
+#% subsection
+# Properties and relations
+
+#% text
+# One level of flattening is `catenate` for a list of lists:
+
+#% cell
+flatten([[1, 2], [3]], 1) === catenate([[1, 2], [3]])
+#% output
+#= true
+
+#% text
+# `flat_map` maps and then flattens one level:
+
+#% cell
+flat_map(k => [k, -k], [1, 2, 3])
+#% output
+#= [1, -1, 2, -2, 3, -3]
+
+#% text
+# The number of entries of a matrix:
+
+#% cell
+length(flatten([[1, 2, 3], [4, 5, 6]]))
+#% output
+#= 6
+
+#% section
+# See also
+
+#% text
+# `catenate`, `join`, `flat_map`, `partition`, `depth`

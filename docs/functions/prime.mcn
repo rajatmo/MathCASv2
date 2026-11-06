@@ -1,0 +1,130 @@
+#! mathcas 2 notebook
+
+#% title
+# prime
+
+#% text
+# `prime(k)` gives the `k`-th prime number.
+
+#% section
+# Details
+
+#% item
+# The primes are counted from `prime(1)`, which is 2.
+
+#% item
+# `k` must be a positive integer; any other argument stays unevaluated.
+
+#% item
+# `prime` is listable: it applies to each element of a list.
+
+#% item
+# `prime_pi` is the inverse: `prime_pi(prime(k))` is `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+prime(1)
+#% output
+#= 2
+
+#% cell
+prime(10)
+#% output
+#= 29
+
+#% text
+# The first ten primes:
+
+#% cell
+prime(range(10))
+#% output
+#= [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+#% subsection
+# Scope
+
+#% text
+# Large indices:
+
+#% cell
+prime(10^6)
+#% output
+#= 15485863
+
+#% cell
+prime(10^7)
+#% output
+#= 179424673
+
+#% subsection
+# Applications
+
+#% text
+# The gaps between consecutive primes:
+
+#% cell
+table(prime(k + 1) - prime(k), k, 15)
+#% output
+#= [1, 2, 2, 4, 2, 4, 2, 4, 6, 2, 6, 4, 2, 4, 6]
+
+#% text
+# The sum of the first hundred primes:
+
+#% cell
+sum(prime(range(100)))
+#% output
+#= 24133
+
+#% subsection
+# Properties and relations
+
+#% text
+# `prime_pi` counts the primes up to a number, so it undoes `prime`:
+
+#% cell
+prime_pi(prime(1000))
+#% output
+#= 1000
+
+#% text
+# `next_prime` steps from one prime to the next:
+
+#% cell
+next_prime(prime(50)) == prime(51)
+#% output
+#= true
+
+#% text
+# Every `prime(k)` passes the primality test:
+
+#% cell
+is_prime(prime(range(5)))
+#% output
+#= [true, true, true, true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# There is no zeroth prime, and the index must be an integer:
+
+#% cell
+prime(0)
+#% output
+#= prime(0)
+
+#% cell
+prime(2.5)
+#% output
+#= prime(2.5)
+
+#% section
+# See also
+
+#% text
+# `is_prime`, `prime_pi`, `next_prime`, `factor_integer`

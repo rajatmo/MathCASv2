@@ -1,0 +1,98 @@
+#! mathcas 2 notebook
+
+#% title
+# string_replace
+
+#% text
+# `string_replace(s, a -> b)` gives `s` with every occurrence of the string `a` replaced by `b`.
+
+#% text
+# `string_replace(s, [a1 -> b1, a2 -> b2, ...])` applies several replacements in one pass; `string_replace(s, rules, n)` makes at most `n`.
+
+#% text
+# `string_replace(s, a, b)` is the same as `string_replace(s, a -> b)`.
+
+#% section
+# Details
+
+#% item
+# The string is scanned from left to right; at each position the first rule whose text matches is used, and the scan continues after the replaced text, so replacements are not replaced again.
+
+#% item
+# Matching is literal: no patterns or wildcards.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_replace("a cat and a hat", "at" -> "og")
+#% output
+#= "a cog and a hog"
+
+#% cell
+string_replace("x + y", ["x" -> "y", "y" -> "x"])
+#% output
+#= "y + x"
+
+#% cell
+string_replace("aaa", "a", "b")
+#% output
+#= "bbb"
+
+#% subsection
+# Scope
+
+#% text
+# At most two replacements:
+
+#% cell
+string_replace("1-2-3-4", "-" -> "+", 2)
+#% output
+#= "1+2+3-4"
+
+#% subsection
+# Applications
+
+#% text
+# Turning a decimal comma into a point before reading a number:
+
+#% cell
+to_expression(string_replace("3,75", "," -> "."))
+#% output
+#= 3.75
+
+#% text
+# A file name with spaces made safe:
+
+#% cell
+string_replace("wall profile final.pdf", " " -> "_")
+#% output
+#= "wall_profile_final.pdf"
+
+#% subsection
+# Properties and relations
+
+#% text
+# A swap in one pass works, since replaced text is not scanned again:
+
+#% cell
+string_replace("ab", ["a" -> "b", "b" -> "a"])
+#% output
+#= "ba"
+
+#% text
+# Replacing with the empty string deletes:
+
+#% cell
+string_replace("1,000,000", "," -> "")
+#% output
+#= "1000000"
+
+#% section
+# See also
+
+#% text
+# `string_split`, `string_join`, `string_contains`, `string_trim`

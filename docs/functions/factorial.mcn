@@ -1,0 +1,143 @@
+#! mathcas 2 notebook
+
+#% title
+# factorial
+
+#% text
+# `factorial(n)` gives the factorial `n!` = 1*2*...*`n` of the integer `n >= 0`.
+
+#% section
+# Details
+
+#% item
+# `factorial(0)` is 1.
+
+#% item
+# The result is an exact integer of any size.
+
+#% item
+# Only exact integers `n >= 0` are evaluated; negative integers, fractions, machine reals and symbols stay unevaluated. For non-integer arguments use `gamma`: `n!` is `gamma(n + 1)`.
+
+#% item
+# `factorial` is listable: it applies to each element of a list.
+
+#% item
+# There is no postfix `!` operator; write `factorial(n)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factorial(5)
+#% output
+#= 120
+
+#% cell
+factorial(0)
+#% output
+#= 1
+
+#% cell
+factorial(20)
+#% output
+#= 2432902008176640000
+
+#% subsection
+# Scope
+
+#% text
+# A large factorial:
+
+#% cell
+factorial(50)
+#% output
+#= 30414093201713378043612608166064768844377641568960512000000000000
+
+#% text
+# The number of digits of 1000!:
+
+#% cell
+length(integer_digits(factorial(1000)))
+#% output
+#= 2568
+
+#% text
+# Each element of a list:
+
+#% cell
+factorial(range(0, 6))
+#% output
+#= [1, 1, 2, 6, 24, 120, 720]
+
+#% subsection
+# Applications
+
+#% text
+# The number of ways to choose 3 of 10 things:
+
+#% cell
+factorial(10)/(factorial(3)*factorial(7))
+#% output
+#= 120
+
+#% subsection
+# Properties and relations
+
+#% text
+# The gamma function extends the factorial:
+
+#% cell
+gamma(6) == factorial(5)
+#% output
+#= true
+
+#% cell
+gamma(3/2)
+#% output
+#= (1/2)*pi^(1/2)
+
+#% text
+# The exponents of the primes in a factorial:
+
+#% cell
+factor_integer(factorial(20))
+#% output
+#= [[2, 18], [3, 8], [5, 4], [7, 2], [11, 1], [13, 1], [17, 1], [19, 1]]
+
+#% subsection
+# Possible issues
+
+#% text
+# Fractions, negative integers and machine reals are not evaluated:
+
+#% cell
+factorial(1/2)
+#% output
+#= factorial(1/2)
+
+#% cell
+factorial(-1)
+#% output
+#= factorial(-1)
+
+#% cell
+factorial(5.0)
+#% output
+#= factorial(5.0)
+
+#% text
+# A ratio of symbolic factorials is not reduced:
+
+#% cell
+simplify(factorial(n + 1)/factorial(n))
+#% output
+#= factorial(1 + n)/factorial(n)
+
+#% section
+# See also
+
+#% text
+# `gamma`, `binomial`, `log_gamma`, `product`

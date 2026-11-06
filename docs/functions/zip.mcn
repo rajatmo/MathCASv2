@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# zip
+
+#% text
+# `zip(xs, ys)` gives the list of pairs `[xs[i], ys[i]]`, as long as the shorter of the two lists.
+
+#% section
+# Details
+
+#% item
+# Elements beyond the length of the shorter list are dropped.
+
+#% item
+# `zip` is defined in the prelude; `transpose([xs, ys])` gives the same pairs for lists of equal length.
+
+#% item
+# For more than two lists, use `transpose` or `map_thread`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+zip([1, 2, 3], [a, b, c])
+#% output
+#= [[1, a], [2, b], [3, c]]
+
+#% cell
+zip(["x", "y"], [10, 20, 30])
+#% output
+#= [["x", 10], ["y", 20]]
+
+#% subsection
+# Applications
+
+#% text
+# Points for a plot or an interpolation from separate lists of abscissas and values:
+
+#% cell
+xs = range(0, 1, 1/4)
+zip(xs, xs^2)
+#% output
+#= [[0, 0], [1/4, 1/16], [1/2, 1/4], [3/4, 9/16], [1, 1]]
+
+#% text
+# The scalar product by hand:
+
+#% cell
+total(map(p => p[1]*p[2], zip([1, 2, 3], [4, 5, 6])))
+#% output
+#= 32
+
+#% text
+# Consecutive differences, pairing a list with itself shifted:
+
+#% cell
+v = [1, 4, 9, 16, 25]
+map(p => p[2] - p[1], zip(v, rest(v)))
+#% output
+#= [3, 5, 7, 9]
+
+#% subsection
+# Properties and relations
+
+#% text
+# For lists of equal length, `transpose` gives the same pairs:
+
+#% cell
+zip([1, 2], [3, 4]) === transpose([[1, 2], [3, 4]])
+#% output
+#= true
+
+#% text
+# `map_thread` applies a function to the paired elements directly:
+
+#% cell
+map_thread((a, b) => a*b, [[1, 2, 3], [4, 5, 6]])
+#% output
+#= [4, 10, 18]
+
+#% subsection
+# Possible issues
+
+#% text
+# Unequal lengths are cut without warning:
+
+#% cell
+zip(range(5), [a, b])
+#% output
+#= [[1, a], [2, b]]
+
+#% section
+# See also
+
+#% text
+# `transpose`, `map_thread`, `riffle`, `partition`

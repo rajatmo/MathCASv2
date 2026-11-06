@@ -1,0 +1,116 @@
+#! mathcas 2 notebook
+
+#% title
+# join
+
+#% text
+# `join(xs, ys, ...)` gives one list of the elements of the lists `xs`, `ys`, ... in order.
+
+#% section
+# Details
+
+#% item
+# Any number of lists may be joined; `join(xs)` is `xs`.
+
+#% item
+# Only one level is joined: elements that are lists stay lists.
+
+#% item
+# The arguments must all have the same head; joining terms with another head (`join(f(a), f(b))`) gives `f(a, b)`.
+
+#% item
+# For a list of lists, `catenate(xss)` joins them all.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+join([1, 2], [3, 4])
+#% output
+#= [1, 2, 3, 4]
+
+#% cell
+join([a], [], [b, c], [d])
+#% output
+#= [a, b, c, d]
+
+#% cell
+join([[1, 2]], [[3, 4]])
+#% output
+#= [[1, 2], [3, 4]]
+
+#% subsection
+# Scope
+
+#% text
+# Terms with another head:
+
+#% cell
+join(f(a, b), f(c))
+#% output
+#= f(a, b, c)
+
+#% subsection
+# Applications
+
+#% text
+# The x values of a fine grid near 0 joined to a coarse grid further out:
+
+#% cell
+join(range(0, 1, 1/4), range(2, 4))
+#% output
+#= [0, 1/4, 1/2, 3/4, 1, 2, 3, 4]
+
+#% text
+# Data from several runs combined before a summary:
+
+#% cell
+run1 = [1.2, 0.9, 1.1]
+run2 = [1.0, 1.3]
+mean(join(run1, run2))
+#% output
+#= 1.1
+
+#% subsection
+# Properties and relations
+
+#% text
+# Lengths add:
+
+#% cell
+length(join(range(3), range(5)))
+#% output
+#= 8
+
+#% text
+# `catenate` joins a list of lists; `append` adds a single element:
+
+#% cell
+catenate([[1, 2], [3], [4, 5]])
+#% output
+#= [1, 2, 3, 4, 5]
+
+#% cell
+[join([1, 2], [3]), append([1, 2], [3])]
+#% output
+#= [[1, 2, 3], [1, 2, [3]]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A list and a non-list cannot be joined:
+
+#% cell
+join([1, 2], 3)
+#% output
+#! failure(argument, join, 2)
+
+#% section
+# See also
+
+#% text
+# `catenate`, `append`, `prepend`, `flatten`, `union`

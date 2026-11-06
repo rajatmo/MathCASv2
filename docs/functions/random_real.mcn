@@ -1,0 +1,166 @@
+#! mathcas 2 notebook
+
+#% title
+# random_real
+
+#% text
+# `random_real()` gives a uniformly distributed machine real in [0, 1).
+
+#% text
+# `random_real(b)` gives a uniform real in [0, b).
+
+#% text
+# `random_real([a, b])` gives a uniform real in [a, b).
+
+#% text
+# `random_real(range, n)` gives a list of `n` such reals; `random_real(range, [n1, n2, ...])` gives nested lists.
+
+#% section
+# Details
+
+#% item
+# The numbers come from the session's generator; `seed(k)` makes them repeatable.
+
+#% item
+# The ends may be any real numbers, exact or inexact, or closed numeric expressions such as `pi`; `a` must not exceed `b`.
+
+#% item
+# A list of numbers drawn at once is the same as the same number of single draws.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A number between 0 and 1:
+
+#% cell
+seed(1); random_real()
+#% output
+#= 0.4219463724596497
+
+#% text
+# Between 0 and 10:
+
+#% cell
+random_real(10)
+#% output
+#= 6.413152138724026
+
+#% text
+# Between -1 and 1:
+
+#% cell
+random_real([-1, 1])
+#% output
+#= -0.44204816920710077
+
+#% text
+# Four numbers:
+
+#% cell
+random_real([0, 1], 4)
+#% output
+#= [0.04373894403144052, 0.8968298384314126, 0.07900383719904425, 0.20179147560471555]
+
+#% subsection
+# Scope
+
+#% text
+# A 2 x 3 array:
+
+#% cell
+random_real(1, [2, 3])
+#% output
+#= [[0.38170935472141676, 0.7747576805661607, 0.275631237785959], [0.9213178355622352, 0.5757369651451368, 0.979494810489959]]
+
+#% text
+# An end given as a closed expression:
+
+#% cell
+random_real([pi, 4])
+#% output
+#= 3.9391755715400643
+
+#% text
+# An empty list:
+
+#% cell
+random_real([0, 1], 0)
+#% output
+#= []
+
+#% subsection
+# Applications
+
+#% text
+# Estimate pi from the fraction of random points of the square [0, 1] x [0, 1] that lie inside the quarter circle:
+
+#% cell
+seed(3); pts = random_real(1, [20000, 2]); 4*count_if(pts, p => p[1]^2 + p[2]^2 < 1)/20000.0
+#% output
+#= 3.1204
+
+#% text
+# A Monte Carlo estimate of the integral of exp(-x^2) over [0, 1], and the exact value:
+
+#% cell
+seed(4); mean(map(x => exp(-x^2), random_real([0, 1], 20000)))
+#% output
+#= 0.746192616600769
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1])
+#% output
+#= 0.7468241328124272
+
+#% subsection
+# Properties and relations
+
+#% text
+# The mean of many uniform numbers is close to 1/2, and their variance close to 1/12:
+
+#% cell
+seed(5); u = random_real([0, 1], 10^4); [mean(u), variance(u), 1/12.0]
+#% output
+#= [0.5013935124190826, 0.08379382942363774, 0.08333333333333333]
+
+#% text
+# The same draws as `random_variate` of the uniform distribution:
+
+#% cell
+seed(6); random_real([0, 1], 2)
+#% output
+#= [0.7426042934169479, 0.3657268086662666]
+
+#% cell
+seed(6); random_variate(uniform_distribution([0, 1]), 2)
+#% output
+#= [0.7426042934169479, 0.3657268086662666]
+
+#% subsection
+# Possible issues
+
+#% text
+# The lower end must not exceed the upper one:
+
+#% cell
+random_real([5, 2])
+#% output
+#! failure(argument, random_real, "the range must be a real b >= 0 or a list [a, b] of reals with a <= b")
+
+#% text
+# A symbolic range is not allowed:
+
+#% cell
+random_real(b)
+#% output
+#! failure(argument, random_real, "the range must be a real b >= 0 or a list [a, b] of reals with a <= b")
+
+#% section
+# See also
+
+#% text
+# `seed`, `random_integer`, `random_normal`, `random_variate`, `uniform_distribution`, `random_choice`

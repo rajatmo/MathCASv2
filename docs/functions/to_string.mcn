@@ -1,0 +1,104 @@
+#! mathcas 2 notebook
+
+#% title
+# to_string
+
+#% text
+# `to_string(t)` gives the printed form of `t` as a string.
+
+#% section
+# Details
+
+#% item
+# The text is the input form the system prints: reading it back with `to_expression` gives the term again.
+
+#% item
+# A string stays itself (without added quotes).
+
+#% item
+# Machine reals print with the shortest digits that read back to the same number; balls with their correct digits.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+to_string(2^100)
+#% output
+#= "1267650600228229401496703205376"
+
+#% cell
+to_string(x^2 + 1/3)
+#% output
+#= "1/3 + x^2"
+
+#% cell
+to_string("text")
+#% output
+#= "text"
+
+#% subsection
+# Scope
+
+#% cell
+to_string([1, 2.5, "a"])
+#% output
+#= "[1, 2.5, \"a\"]"
+
+#% cell
+to_string(0.1 + 0.2)
+#% output
+#= "0.30000000000000004"
+
+#% cell
+to_string(n(pi, 25))
+#% output
+#= "3.14159265358979323846264338328"
+
+#% subsection
+# Applications
+
+#% text
+# A label for a plot from a parameter value:
+
+#% cell
+k = 3
+string_join("k = ", to_string(k))
+#% output
+#= "k = 3"
+
+#% text
+# The number of decimal digits of a large number:
+
+#% cell
+string_length(to_string(factorial(100)))
+#% output
+#= 158
+
+#% subsection
+# Properties and relations
+
+#% text
+# `to_expression` reads the text back:
+
+#% cell
+e1 = (x + 1)^3/7
+to_expression(to_string(e1)) === e1
+#% output
+#= true
+
+#% text
+# `say` uses `to_string` for each of its arguments:
+
+#% cell
+say("value: ", 2/3)
+#% output
+#| value: 2/3
+
+#% section
+# See also
+
+#% text
+# `to_expression`, `string_join`, `say`, `print`, `string_length`

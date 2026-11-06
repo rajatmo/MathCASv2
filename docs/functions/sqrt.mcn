@@ -1,0 +1,176 @@
+#! mathcas 2 notebook
+
+#% title
+# sqrt
+
+#% text
+# `sqrt(x)` gives the principal square root of `x`.
+
+#% section
+# Details
+
+#% item
+# `sqrt(x)` is the power `x^(1/2)`; there is no separate square-root head.
+
+#% item
+# Exact integers and fractions are simplified by taking out square factors: `sqrt(8)` is `2*2^(1/2)`.
+
+#% item
+# The square root of a negative number is imaginary: `sqrt(-4)` is `2im`.
+
+#% item
+# Machine numbers and balls give numerical values; a negative machine real gives a complex number.
+
+#% item
+# `sqrt` is listable: it applies to each element of a list.
+
+#% item
+# `sqrt(x^2)` is not `x`, since that holds only for `x >= 0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sqrt(16)
+#% output
+#= 4
+
+#% text
+# Square factors are taken out:
+
+#% cell
+sqrt(8)
+#% output
+#= 2*2^(1/2)
+
+#% text
+# A negative argument:
+
+#% cell
+sqrt(-4)
+#% output
+#= 2im
+
+#% text
+# A machine number:
+
+#% cell
+sqrt(2.0)
+#% output
+#= 1.4142135623730951
+
+#% subsection
+# Scope
+
+#% text
+# A fraction:
+
+#% cell
+sqrt(2/9)
+#% output
+#= (1/3)*2^(1/2)
+
+#% text
+# A ball, or 40 digits from the exact root:
+
+#% cell
+sqrt(2~40)
+#% output
+#= 1.414213562373095048801688724209698078570
+
+#% cell
+n(sqrt(2), 40)
+#% output
+#= 1.4142135623730950488016887242096980785696719
+
+#% text
+# Each element of a list:
+
+#% cell
+sqrt([1, 4, 9, 2])
+#% output
+#= [1, 2, 3, 2^(1/2)]
+
+#% text
+# A complex machine number:
+
+#% cell
+sqrt(4.0*im)
+#% output
+#= complex(1.4142135623730951, 1.4142135623730951)
+
+#% text
+# Derivative and integral:
+
+#% cell
+d(sqrt(x), x)
+#% output
+#= (1/2)*x^(-1/2)
+
+#% cell
+integrate(sqrt(x), x)
+#% output
+#= (2/3)*x^(3/2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `sqrt(x)` is the same expression as `x^(1/2)`:
+
+#% cell
+sqrt(x) === x^(1/2)
+#% output
+#= true
+
+#% text
+# Squaring a square root gives the argument back:
+
+#% cell
+sqrt(x)^2
+#% output
+#= x
+
+#% text
+# Products of exact roots combine:
+
+#% cell
+sqrt(12)*sqrt(3)
+#% output
+#= 6
+
+#% subsection
+# Possible issues
+
+#% text
+# `sqrt(x^2)` stays as it is, because `x` might be negative or complex:
+
+#% cell
+sqrt(x^2)
+#% output
+#= (x^2)^(1/2)
+
+#% text
+# The root of an exact complex number is not computed:
+
+#% cell
+sqrt(3 + 4im)
+#% output
+#= complex(3, 4)^(1/2)
+
+#% text
+# The root of a negative machine real has a small spurious real part and an error in the last digit:
+
+#% cell
+sqrt(-9.0)
+#% output
+#= complex(1.8369701987210302e-16, 3.0000000000000004)
+
+#% section
+# See also
+
+#% text
+# `exp`, `log`, `abs`, `n`, `simplify`

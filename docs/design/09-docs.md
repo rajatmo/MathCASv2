@@ -49,7 +49,8 @@ existence and its pixel size; and in release builds that no input takes more tha
 [`app::DocsApp`]: a home page with the five areas of the system as guide tiles, guide pages listing every
 function of an area by topic with its one-line description, incremental search (name prefixes first, then
 words of the usage and descriptions), function pages drawn from the `.mcn` files (usage block in the code font
-with syntax colouring, collapsible Details and example groups with `In[n]:=`/`Out[n]=` labels and images, See
+with syntax colouring, collapsible Details and example groups (inputs on the left edge in the code font, each input's outputs indented
+behind a thin rule; no `In`/`Out` labels) and images, See
 
 ## Writing and checking pages
 

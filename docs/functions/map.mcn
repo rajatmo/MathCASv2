@@ -1,0 +1,149 @@
+#! mathcas 2 notebook
+
+#% title
+# map
+
+#% text
+# `map(f, xs)` gives the list `[f(x1), f(x2), ...]` of `f` applied to each element of the list `xs`.
+
+#% section
+# Details
+
+#% item
+# `f` may be a function name, a lambda `x => ...`, a slot function `&(...)` or any expression that can be called.
+
+#% item
+# The results are collected in order; `map(f, [])` is `[]`.
+
+#% item
+# Only the top level of `xs` is visited: a nested list is passed to `f` whole.
+
+#% item
+# Many arithmetic functions are listable and act on lists by themselves, so `sin(xs)` needs no `map`.
+
+#% item
+# In a pipe, `xs |> map(f, _)` puts the list in the second argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map(f, [a, b, c])
+#% output
+#= [f(a), f(b), f(c)]
+
+#% cell
+map(x => x^2, [1, 2, 3, 4])
+#% output
+#= [1, 4, 9, 16]
+
+#% cell
+map(length, [[1], [1, 2], []])
+#% output
+#= [1, 2, 0]
+
+#% subsection
+# Scope
+
+#% text
+# A slot function:
+
+#% cell
+map(&(&1 + 10), [1, 2, 3])
+#% output
+#= [11, 12, 13]
+
+#% text
+# Each element of a list of pairs is one argument:
+
+#% cell
+map(p => p[1]*p[2], [[1, 2], [3, 4], [5, 6]])
+#% output
+#= [2, 12, 30]
+
+#% text
+# Any callable value, here a function built by another function:
+
+#% cell
+map(derivative(1)(sin), [0, pi/2, pi])
+#% output
+#= [1, 0, -1]
+
+#% text
+# In a pipe:
+
+#% cell
+range(5) |> map(k => factorial(k), _)
+#% output
+#= [1, 2, 6, 24, 120]
+
+#% subsection
+# Applications
+
+#% text
+# Evaluating a function at sample points:
+
+#% cell
+map(x => n(exp(-x^2)), range(0, 2, 1/2))
+#% output
+#= [1.0, 0.7788007830714049, 0.36787944117144233, 0.10539922456186433, 0.01831563888873418]
+
+#% text
+# The lengths of the words of a sentence:
+
+#% cell
+map(string_length, string_split("maps apply functions elementwise"))
+#% output
+#= [4, 5, 9, 11]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `map` keeps the length of the list:
+
+#% cell
+length(map(x => 0, range(7)))
+#% output
+#= 7
+
+#% text
+# For listable functions, applying to the list directly gives the same:
+
+#% cell
+map(sqrt, [1, 4, 9]) === sqrt([1, 4, 9])
+#% output
+#= true
+
+#% text
+# `map_indexed` also passes the position, `map_thread` walks several lists together:
+
+#% cell
+map_indexed((x, i) => x^i, [a, b, c])
+#% output
+#= [a, b^2, c^3]
+
+#% subsection
+# Possible issues
+
+#% text
+# A nested list is passed whole; map twice to reach the inner elements:
+
+#% cell
+map(x => x + 1, [[1, 2], [3]])
+#% output
+#= [[2, 3], [4]]
+
+#% cell
+map(row => map(x => x^2, row), [[1, 2], [3]])
+#% output
+#= [[1, 4], [9]]
+
+#% section
+# See also
+
+#% text
+# `map_indexed`, `map_thread`, `select`, `table`, `fold`, `apply`

@@ -1,0 +1,180 @@
+#! mathcas 2 notebook
+
+#% title
+# exp
+
+#% text
+# `exp(x)` gives the exponential function of `x`, `e` to the power `x`.
+
+#% section
+# Details
+
+#% item
+# Exact values: `exp(0)` is 1, `exp(1)` is `e`, `exp(log(y))` is `y`, and `exp(q*pi*im)` for a rational `q` is a root of unity in closed form when `cos` and `sin` of `q*pi` are known exactly.
+
+#% item
+# Other exact arguments stay unevaluated: `exp(2)` is kept as it is. Use `n` for a numerical value.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `exp` is listable: it applies to each element of a list.
+
+#% item
+# Products of exponentials are not combined automatically: `exp(x)*exp(y)` stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exp(0)
+#% output
+#= 1
+
+#% cell
+exp(1)
+#% output
+#= e
+
+#% text
+# A machine number:
+
+#% cell
+exp(2.0)
+#% output
+#= 7.38905609893065
+
+#% text
+# The exponential undoes the logarithm:
+
+#% cell
+exp(log(5))
+#% output
+#= 5
+
+#% subsection
+# Scope
+
+#% text
+# Imaginary multiples of `pi` give exact values:
+
+#% cell
+exp(pi*im)
+#% output
+#= -1
+
+#% cell
+exp(pi*im/3)
+#% output
+#= 1/2 + complex(0, 1/2)*3^(1/2)
+
+#% text
+# A ball, and 30 digits from an exact argument:
+
+#% cell
+exp(1~30)
+#% output
+#= 2.71828182845904523536028747135
+
+#% cell
+n(exp(1), 30)
+#% output
+#= 2.7182818284590452353602874713526625
+
+#% text
+# A complex machine number:
+
+#% cell
+exp(1.0 + 2.0*im)
+#% output
+#= complex(-1.1312043837568135, 2.4717266720048188)
+
+#% text
+# Each element of a list:
+
+#% cell
+exp([0, 1, log(2)])
+#% output
+#= [1, e, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `exp` is its own derivative, up to the chain rule:
+
+#% cell
+d(exp(3x), x)
+#% output
+#= 3*exp(3*x)
+
+#% text
+# The power series:
+
+#% cell
+series(exp(x), x, 0, 5)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+
+#% text
+# `exp(x)` and `e^x` agree to any number of digits:
+
+#% cell
+n(exp(2), 30)
+#% output
+#= 7.389056098930650227230427460575008
+
+#% cell
+n(e^2, 30)
+#% output
+#= 7.389056098930650227230427460575008
+
+#% subsection
+# Possible issues
+
+#% text
+# Large machine arguments overflow to infinity; use an exact argument and `n` with digits instead:
+
+#% cell
+exp(1000.0)
+#% output
+#= machine_real("inf")
+
+#% cell
+n(exp(1000), 20)
+#% output
+#= 1.970071114017046993888879e434
+
+#% text
+# Limits are not taken at infinity:
+
+#% cell
+exp(-inf)
+#% output
+#= exp(-inf)
+
+#% text
+# Only a bare logarithm is cancelled; a multiple of a logarithm stays:
+
+#% cell
+exp(2*log(3))
+#% output
+#= exp(2*log(3))
+
+#% text
+# Machine values of `exp(2)` and `e^2` are computed in different ways and may differ in the last bit:
+
+#% cell
+n(exp(2)) - n(e^2)
+#% output
+#= 8.881784197001252e-16
+
+#% section
+# See also
+
+#% text
+# `log`, `sin`, `cos`, `exp_to_trig`, `sqrt`, `n`

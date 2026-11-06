@@ -1,0 +1,124 @@
+#! mathcas 2 notebook
+
+#% title
+# list_log_log_plot
+
+#% text
+# `list_log_log_plot([[x1, y1], [x2, y2], ...])` draws the points with logarithmic x and y axes.
+
+#% text
+# `list_log_log_plot([y1, y2, ...])` takes the values at x = 1, 2, ....
+
+#% text
+# `list_log_log_plot([data1, data2, ...])` draws several data sets.
+
+#% section
+# Details
+
+#% item
+# `list_log_log_plot` is `list_plot` with `x_scale: log` and `y_scale: log`, and takes the same options.
+
+#% item
+# On these axes a power law y = c x^k is a straight line of slope k.
+
+#% item
+# Points with a coordinate that is not positive are left out.
+
+#% item
+# The value is `image("path")`, a PNG file.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A cubic law is a straight line:
+
+#% cell
+list_log_log_plot(table([x, x^3], x, [1, 2, 5, 10, 20, 50, 100]))
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-1.png")
+
+#% text
+# Values at x = 1, 2, 3, ...:
+
+#% cell
+list_log_log_plot(table(k^2, k, 20))
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-2.png")
+
+#% text
+# A falling power law:
+
+#% cell
+list_log_log_plot(table([2^k, 1.0/2^k], k, range(0, 10)))
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-3.png")
+
+#% subsection
+# Scope
+
+#% text
+# Two data sets with a legend:
+
+#% cell
+list_log_log_plot([table([x, x^2], x, [1, 10, 100]), table([x, x^3], x, [1, 10, 100])], legend: ["x^2", "x^3"])
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-4.png")
+
+#% text
+# Points with zero or negative coordinates are left out:
+
+#% cell
+list_log_log_plot([[1, 1], [0, 2], [-1, 3], [10, 10]])
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-5.png")
+
+#% subsection
+# Options
+
+#% text
+# Joined points and labels:
+
+#% cell
+list_log_log_plot(table([x, x^2], x, [1, 10, 100, 1000]), joined: true, x_label: "size", y_label: "cost")
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-6.png")
+
+#% subsection
+# Applications
+
+#% text
+# The cost of an algorithm of order n log n, nearly a line of slope 1:
+
+#% cell
+list_log_log_plot(table([n, n*log(n)], n, [10, 100, 1000, 10^4, 10^5]), joined: true)
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-7.png")
+
+#% text
+# The error of a numerical derivative by a central difference falls like h^2 until rounding takes over:
+
+#% cell
+list_log_log_plot(table([h, abs((sin(1 + h) - sin(1 - h))/(2h) - cos(1))], h, table(10.0^-k, k, range(1, 12))))
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-8.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same plot as `list_plot` with logarithmic axes:
+
+#% cell
+list_plot(table([x, x^3], x, [1, 10, 100]), x_scale: log, y_scale: log)
+#% output
+#= image("list_log_log_plot.files/list_log_log_plot-9.png")
+
+#% section
+# See also
+
+#% text
+# `list_plot`, `list_log_plot`, `list_log_linear_plot`, `log_log_plot`, `x_scale`

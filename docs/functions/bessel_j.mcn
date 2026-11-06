@@ -1,0 +1,149 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_j
+
+#% text
+# `bessel_j(nu, x)` gives the Bessel function of the first kind of order `nu`.
+
+#% section
+# Details
+
+#% item
+# `bessel_j(nu, x)` is the solution of Bessel's equation `x^2 y'' + x y' + (x^2 - nu^2) y = 0` that is regular at 0 for `nu >= 0` (DLMF 10.2.2).
+
+#% item
+# Exact values: at `x` = 0 for integer orders, and half-integer orders in terms of `sin` and `cos`. Other exact arguments stay unevaluated.
+
+#% item
+# Real machine numbers and balls give numerical values, for integer and fractional orders. A negative `x` is allowed for integer orders.
+
+#% item
+# `bessel_j` is listable in both arguments.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_j(0, 1.0)
+#% output
+#= 0.7651976865579666
+
+#% cell
+bessel_j(1, 2.5)
+#% output
+#= 0.49709410246427405
+
+#% text
+# The value at 0:
+
+#% cell
+bessel_j(0, 0)
+#% output
+#= 1
+
+#% text
+# 30 digits:
+
+#% cell
+n(bessel_j(0, 1), 30)
+#% output
+#= 0.7651976865579665514497175261026632
+
+#% subsection
+# Scope
+
+#% text
+# A half-integer order has a closed form:
+
+#% cell
+bessel_j(1/2, x)
+#% output
+#= 2^(1/2)*(pi*x)^(-1/2)*sin(x)
+
+#% text
+# A fractional order:
+
+#% cell
+bessel_j(2.5, 3.0)
+#% output
+#= 0.41271003220971597
+
+#% text
+# Large orders and large arguments:
+
+#% cell
+bessel_j(50, 1.0)
+#% output
+#= 2.9060049481732392e-80
+
+#% cell
+bessel_j(0, 1000.0)
+#% output
+#= 0.024786686152420176
+
+#% text
+# A list of orders:
+
+#% cell
+bessel_j([0, 1, 2], 1.0)
+#% output
+#= [0.7651976865579666, 0.4400505857449335, 0.11490348493190047]
+
+#% subsection
+# Applications
+
+#% text
+# The first zero of `bessel_j(0, x)`, which fixes the lowest frequency of a vibrating drum:
+
+#% cell
+find_root(bessel_j(0, x) == 0, [x, 2.4])
+#% output
+#= [x -> 2.404825557695773]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(bessel_j(0, x), x)
+#% output
+#= (1/2)*(bessel_j(-1, x) - bessel_j(1, x))
+
+#% text
+# The sum of the squares of all integer orders is 1 (DLMF 10.23.3):
+
+#% cell
+bessel_j(0, 2.0)^2 + 2*sum(bessel_j(k, 2.0)^2, [k, 1, 20])
+#% output
+#= 1.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Complex arguments are not evaluated:
+
+#% cell
+bessel_j(0, 1.0 + 1.0*im)
+#% output
+#= bessel_j(0, complex(1.0, 1.0))
+
+#% text
+# A fractional order at a negative argument has a complex value, which is not computed:
+
+#% cell
+bessel_j(1/3, -2.0)
+#% output
+#= bessel_j(1/3, -2.0)
+
+#% section
+# See also
+
+#% text
+# `bessel_y`, `bessel_i`, `bessel_k`, `hypergeometric_0f1`

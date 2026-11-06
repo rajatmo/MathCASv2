@@ -1,0 +1,119 @@
+#! mathcas 2 notebook
+
+#% title
+# sort
+
+#% text
+# `sort(xs)` gives the elements of `xs` in canonical order.
+
+#% text
+# `sort(xs, by)` orders them so that `by(a, b)` is true for each element `a` placed before `b`.
+
+#% section
+# Details
+
+#% item
+# The canonical order puts numbers first, by value, then other terms in a fixed structural order; strings are ordered by their characters.
+
+#% item
+# Exact and inexact numbers are compared by value.
+
+#% item
+# With a comparison `by`, typically `(a, b) => a > b` for decreasing order, the sort is stable.
+
+#% item
+# To order by a computed key, `sort_by` is simpler; for the positions of the sorted elements, `ordering`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sort([3, 1, 4, 1, 5, 9, 2, 6])
+#% output
+#= [1, 1, 2, 3, 4, 5, 6, 9]
+
+#% cell
+sort(["pear", "apple", "fig"])
+#% output
+#= ["apple", "fig", "pear"]
+
+#% cell
+sort([3, 1, 2], (a, b) => a > b)
+#% output
+#= [3, 2, 1]
+
+#% subsection
+# Scope
+
+#% text
+# Numbers of every kind, by value:
+
+#% cell
+sort([1/2, 0.4, sqrt(2), 1, -3])
+#% output
+#= [-3, 0.4, 1/2, 1, 2^(1/2)]
+
+#% text
+# Symbols and expressions in canonical order:
+
+#% cell
+sort([c, b, a, x^2, 2])
+#% output
+#= [2, a, b, c, x^2]
+
+#% text
+# Lists are compared element by element:
+
+#% cell
+sort([[2, 1], [1, 5], [1, 2]])
+#% output
+#= [[1, 2], [1, 5], [2, 1]]
+
+#% subsection
+# Applications
+
+#% text
+# The median by hand, from the sorted data:
+
+#% cell
+data = [7, 2, 9, 4, 5]
+sort(data)[3]
+#% output
+#= 5
+
+#% text
+# Points ordered by distance from the origin:
+
+#% cell
+sort([[3, 4], [1, 1], [0, 2]], (p, q) => norm(p) < norm(q))
+#% output
+#= [[1, 1], [0, 2], [3, 4]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Sorting keeps every element, repeated ones included; `unique` removes repetitions:
+
+#% cell
+xs = [2, 1, 2, 3, 1]
+[sort(xs), sort(unique(xs))]
+#% output
+#= [[1, 1, 2, 2, 3], [1, 2, 3]]
+
+#% text
+# Sorting a sorted list changes nothing:
+
+#% cell
+sort(sort(xs)) === sort(xs)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `sort_by`, `ordering`, `reverse`, `max`, `min`, `unique`

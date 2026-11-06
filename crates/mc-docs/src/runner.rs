@@ -49,9 +49,43 @@ fn lines_of(events: &[CellEvent], status: Status) -> Vec<OutputLine> {
     out
 }
 
+/// The working folder of page `name`'s run: a fresh folder under the system's temporary folder, so that files a
+/// page writes and reads by relative names (`export_data("points.csv", ...)`) neither litter the repository nor
+/// depend on what an earlier run left behind.
+pub fn scratch(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("mathcas-docs-run-{}", std::process::id())).join(name)
+}
+
+/// Remove page `name`'s working folder (after its images have been read).
+fn clean(name: &str) {
+    let _ = std::fs::remove_dir_all(scratch(name));
+}
+
 /// Run every code cell of `nb` (page `name`, in folder `dir`), writing each cell's new output into `nb` as it goes
 /// (so later cells' error positions are those of the rewritten page). `progress` hears `(k, n)` before input k.
+///
+/// The run's current directory is the page's [`scratch`] folder, emptied first; the previous one is restored at
+/// the end. (The current directory is the process's: pages run one at a time.)
 pub fn run(name: &str, nb: &mut Notebook, dir: &Path, progress: &mut dyn FnMut(usize, usize)) -> Vec<Ran> {
+    let work = scratch(name);
+    clean(name);
+    let _ = std::fs::create_dir_all(&work);
+    let before = std::env::current_dir().ok();
+    let moved = std::env::set_current_dir(&work).is_ok();
+    let out = run_in(name, nb, dir, &work, progress);
+    if let (true, Some(b)) = (moved, before) {
+        let _ = std::env::set_current_dir(b);
+    }
+    out
+}
+
+fn run_in(
+    name: &str,
+    nb: &mut Notebook,
+    dir: &Path,
+    work: &Path,
+    progress: &mut dyn FnMut(usize, usize),
+) -> Vec<Ran> {
     let mut engine = CoreEngine::new();
     let origin = Origin::new(format!("{name}.mcn"), Some(dir.to_path_buf()));
     let stop = StopFlag::new();
@@ -85,7 +119,15 @@ pub fn run(name: &str, nb: &mut Notebook, dir: &Path, progress: &mut dyn FnMut(u
             let file = if j == 1 { format!("{name}-{}.png", k + 1) } else { format!("{name}-{}-{j}.png", k + 1) };
             let rel = format!("{name}.files/{file}");
             l.text = format!("image(\"{rel}\")");
-            let made = if Path::new(&path).is_absolute() { PathBuf::from(&path) } else { dir.join(&path) };
+            // a relative path is relative to the run's working folder (an image read back from a file the page
+            // wrote), else to the page's folder
+            let made = if Path::new(&path).is_absolute() {
+                PathBuf::from(&path)
+            } else if work.join(&path).exists() {
+                work.join(&path)
+            } else {
+                dir.join(&path)
+            };
             images.push((rel, made));
         }
         nb.cells[i].set_output((!lines.is_empty()).then(|| lines.clone()));
@@ -123,10 +165,17 @@ pub fn update(name: &str, dir: &Path, progress: &mut dyn FnMut(usize, usize)) ->
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut nb = Notebook::parse(&text).map_err(|e| format!("{name}.mcn:{}: {}", e.line, e.message))?;
     let ran = run(name, &mut nb, dir, progress);
+    let result = write_back(name, dir, &path, &text, &nb, &ran);
+    clean(name);
+    result
+}
+
+/// The second half of [`update`]: copy the images into the page's `.files` folder and write the page.
+fn write_back(name: &str, dir: &Path, path: &Path, text: &str, nb: &Notebook, ran: &[Ran]) -> Result<Updated, String> {
     let folder = dir.join(format!("{name}.files"));
     let mut done = Updated { inputs: ran.len(), ..Updated::default() };
     let mut keep = vec![];
-    for r in &ran {
+    for r in ran {
         done.slowest = done.slowest.max(r.secs);
         for (rel, made) in &r.images {
             let target = dir.join(rel);
@@ -151,7 +200,7 @@ pub fn update(name: &str, dir: &Path, progress: &mut dyn FnMut(usize, usize)) ->
     }
     let new = nb.print();
     done.changed = new != text;
-    mc_nbfile::write_atomic(&path, &new).map_err(|e| format!("{}: {e}", path.display()))?;
+    mc_nbfile::write_atomic(path, &new).map_err(|e| format!("{}: {e}", path.display()))?;
     Ok(done)
 }
 
@@ -228,6 +277,7 @@ pub fn check(name: &str, dir: &Path, known: &dyn Fn(&str) -> bool, progress: &mu
             problems.push(problem(marker(r.cell), format!("the input took {:.2} s (at most {SLOW_SECS} s)", r.secs)));
         }
     }
+    clean(name);
     checked.inputs = ran.len();
     checked.problems = problems;
     checked

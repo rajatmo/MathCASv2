@@ -1,0 +1,90 @@
+#! mathcas 2 notebook
+
+#% title
+# timing
+
+#% text
+# `timing(e)` evaluates `e` and gives `[seconds, value]`: the wall-clock time the evaluation took and its value.
+
+#% section
+# Details
+
+#% item
+# The time is in seconds, as a machine real; it depends on the machine and its load, so pages and tests should not rely on its value.
+
+#% item
+# The expression is held and evaluated once, inside the timing.
+
+#% item
+# Printed output of the evaluation appears as usual.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The value is the second element:
+
+#% cell
+r = timing(sum(range(10^5)))
+r[2]
+#% output
+#= 5000050000
+
+#% cell
+is_real(r[1]) and r[1] >= 0
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Any expression, including a block:
+
+#% cell
+timing({ let a = 2^1000; integer_length(a) })[2]
+#% output
+#= 302
+
+#% subsection
+# Applications
+
+#% text
+# Stage times of a script, as the reheating and MCMC scripts report them: time each stage and keep its value.
+
+#% cell
+stage = timing(n_integrate(exp(-x^2), [x, -inf, inf]))
+q = stage[2]
+q
+#% output
+#= 1.7724538509055163
+
+#% text
+# A comparison of two ways to compute the same value: both values agree.
+
+#% cell
+t1 = timing(total(range(10^4)))
+t2 = timing(sum(k, [k, 1, 10^4]))
+t1[2] == t2[2]
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# The value is what the expression gives without `timing`:
+
+#% cell
+timing(factor(x^4 - 1))[2] === factor(x^4 - 1)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `say`, `print`, `n_integrate`, `n_dsolve`

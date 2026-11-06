@@ -1,0 +1,150 @@
+#! mathcas 2 notebook
+
+#% title
+# random_integer
+
+#% text
+# `random_integer(n)` gives a uniformly distributed integer from 0 to `n`.
+
+#% text
+# `random_integer([a, b])` gives a uniform integer from `a` to `b`, both included.
+
+#% text
+# `random_integer(range, n)` gives a list of `n` such integers; `random_integer(range, [n1, n2, ...])` gives nested lists.
+
+#% section
+# Details
+
+#% item
+# The integers come from the session's generator; `seed(k)` makes them repeatable.
+
+#% item
+# Every integer of the range is equally likely: the draw is unbiased.
+
+#% item
+# The ends may be integers of any size; `a` must not exceed `b`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An integer from 0 to 10:
+
+#% cell
+seed(1); random_integer(10)
+#% output
+#= 4
+
+#% text
+# The throw of a die:
+
+#% cell
+random_integer([1, 6])
+#% output
+#= 4
+
+#% text
+# Ten throws:
+
+#% cell
+random_integer([1, 6], 10)
+#% output
+#= [2, 1, 6, 1, 2, 3, 5, 2, 6, 4]
+
+#% subsection
+# Scope
+
+#% text
+# A 3 x 4 array of bits:
+
+#% cell
+random_integer([0, 1], [3, 4])
+#% output
+#= [[1, 1, 1, 1], [1, 1, 1, 1], [1, 0, 1, 1]]
+
+#% text
+# Negative ends:
+
+#% cell
+random_integer([-5, 5], 8)
+#% output
+#= [5, 0, 5, 2, 2, 5, 5, -2]
+
+#% text
+# Integers far beyond the machine range:
+
+#% cell
+random_integer([10^30, 10^30 + 5])
+#% output
+#= 1000000000000000000000000000002
+
+#% subsection
+# Applications
+
+#% text
+# The frequencies of 600 throws of a die:
+
+#% cell
+seed(2); tally(sort(random_integer([1, 6], 600)))
+#% output
+#= [[1, 92], [2, 111], [3, 95], [4, 97], [5, 104], [6, 101]]
+
+#% text
+# The sum of two dice, thrown 2000 times, as a histogram:
+
+#% cell
+seed(3); histogram(random_integer([1, 6], 2000) + random_integer([1, 6], 2000))
+#% output
+#= image("random_integer.files/random_integer-8.png")
+
+#% text
+# A random walk of steps -1 and +1:
+
+#% cell
+seed(4); list_line_plot(accumulate(2*random_integer([0, 1], 200) - 1))
+#% output
+#= image("random_integer.files/random_integer-9.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Integers from 1 to 3 counted:
+
+#% cell
+seed(5); counts(random_integer([1, 3], 300))
+#% output
+#= assoc(1 -> 100, 2 -> 94, 3 -> 106)
+
+#% text
+# `random_choice` picks from a list instead of a range:
+
+#% cell
+seed(5); random_choice(["heads", "tails"], 4)
+#% output
+#= ["heads", "heads", "tails", "tails"]
+
+#% subsection
+# Possible issues
+
+#% text
+# The range must be ordered, and made of integers:
+
+#% cell
+random_integer([6, 1])
+#% output
+#! failure(argument, random_integer, "the range must be an integer n >= 0 or a list [a, b] of integers with a <= b")
+
+#% cell
+random_integer(2.5)
+#% output
+#! failure(argument, random_integer, "the range must be an integer n >= 0 or a list [a, b] of integers with a <= b")
+
+#% section
+# See also
+
+#% text
+# `seed`, `random_real`, `random_choice`, `random_sample`, `random_variate`, `tally`

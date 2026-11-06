@@ -1,0 +1,126 @@
+#! mathcas 2 notebook
+
+#% title
+# count_if
+
+#% text
+# `count_if(xs, p)` gives how many elements `x` of the list `xs` have `p(x)` true.
+
+#% section
+# Details
+
+#% item
+# `p` is a function returning `true` or `false`; an element for which it gives anything else is not counted.
+
+#% item
+# `count_if(xs, p)` is `length(select(xs, p))`; it is defined in the prelude.
+
+#% item
+# To count elements matching a pattern instead of a test, use `count`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count_if([1, 2, 3, 4, 5, 6], is_even)
+#% output
+#= 3
+
+#% cell
+count_if(range(100), k => mod(k, 7) == 0)
+#% output
+#= 14
+
+#% cell
+count_if([], is_odd)
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# Any test function, including ones on strings:
+
+#% cell
+count_if(["apple", "fig", "banana", "kiwi"], s => string_length(s) > 4)
+#% output
+#= 2
+
+#% cell
+count_if(range(100), is_prime)
+#% output
+#= 25
+
+#% text
+# Elements of any kind:
+
+#% cell
+count_if([1, x, 2.5, "a", [1]], is_number)
+#% output
+#= 2
+
+#% subsection
+# Applications
+
+#% text
+# The acceptance count of a Markov chain: positions where the state changed.
+
+#% cell
+chain = [1, 1, 2, 2, 2, 3, 1, 1]
+count_if(range(length(chain) - 1), i => chain[i + 1] !== chain[i])
+#% output
+#= 3
+
+#% text
+# The share of random points inside the unit quarter circle, close to pi/4:
+
+#% cell
+seed(5); pts = random_real(1, [2000, 2])
+n(count_if(pts, p => p[1]^2 + p[2]^2 < 1)/2000)
+#% output
+#= 0.7825
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same count from `select`:
+
+#% cell
+length(select(range(20), is_odd))
+#% output
+#= 10
+
+#% cell
+count_if(range(20), is_odd)
+#% output
+#= 10
+
+#% text
+# `count` takes a pattern rather than a function:
+
+#% cell
+count([1, x, 2, y], _: Int)
+#% output
+#= 2
+
+#% subsection
+# Possible issues
+
+#% text
+# A test that does not decide (here a comparison with a symbol) is not counted:
+
+#% cell
+count_if([1, a, 3], x => x > 0)
+#% output
+#= 2
+
+#% section
+# See also
+
+#% text
+# `select`, `count`, `every`, `some`, `tally`

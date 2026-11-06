@@ -1,0 +1,152 @@
+#! mathcas 2 notebook
+
+#% title
+# seed
+
+#% text
+# `seed(n)` resets the session's random generator to the state given by the integer `n`.
+
+#% text
+# `seed()` resets the generator to a fresh seed taken from the operating system.
+
+#% section
+# Details
+
+#% item
+# After `seed(n)`, the same sequence of random draws follows every time, in every session.
+
+#% item
+# The seed may be any integer, negative or large.
+
+#% item
+# Every random function draws from the one session generator: `random_real`, `random_integer`, `random_normal`, `random_choice`, `random_sample` and `random_variate`.
+
+#% item
+# `random_seed()` gives the seed in use, so that `seed(random_seed())` at the start of a run reproduces its draws.
+
+#% item
+# The value of `seed(n)` is `null`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The same seed gives the same number:
+
+#% cell
+seed(42); random_real()
+#% output
+#= 0.3354948980859701
+
+#% cell
+seed(42); random_real()
+#% output
+#= 0.3354948980859701
+
+#% text
+# A different seed gives different numbers:
+
+#% cell
+seed(5); random_integer([1, 100], 3)
+#% output
+#= [16, 47, 78]
+
+#% cell
+seed(6); random_integer([1, 100], 3)
+#% output
+#= [75, 37, 90]
+
+#% subsection
+# Scope
+
+#% text
+# Negative and large seeds:
+
+#% cell
+seed(-3); random_real()
+#% output
+#= 0.7452519927418313
+
+#% cell
+seed(10^30); random_real()
+#% output
+#= 0.14631505769903186
+
+#% text
+# The seed in use:
+
+#% cell
+seed(42); random_seed()
+#% output
+#= 42
+
+#% subsection
+# Applications
+
+#% text
+# Make a simulation repeatable: the same seed gives the same mean of a thousand draws.
+
+#% cell
+fn sample_mean(k) = { seed(k); mean(random_variate(normal_distribution(), 1000)) }
+
+#% cell
+[sample_mean(1), sample_mean(1), sample_mean(2)]
+#% output
+#= [-0.014223777477516185, -0.014223777477516185, 0.021634131600667073]
+
+#% text
+# Record a fresh seed so that a run can be repeated later:
+
+#% cell
+seed(); r = random_seed(); seed(r); a1 = random_real(); seed(r); a2 = random_real(); a1 == a2
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# One draw of a list gives the same numbers as the same number of single draws:
+
+#% cell
+seed(5); [random_real(), random_real()]
+#% output
+#= [0.15201353064460954, 0.4626817449000663]
+
+#% cell
+seed(5); random_real([0, 1], 2)
+#% output
+#= [0.15201353064460954, 0.4626817449000663]
+
+#% text
+# All the random functions share the generator, so `random_normal` and `random_variate` of the standard normal distribution agree:
+
+#% cell
+seed(5); random_normal()
+#% output
+#= -1.8879088883270938
+
+#% cell
+seed(5); random_variate(normal_distribution())
+#% output
+#= -1.8879088883270938
+
+#% subsection
+# Possible issues
+
+#% text
+# The seed must be an integer:
+
+#% cell
+seed(2.5)
+#% output
+#! failure(argument, seed, "the seed must be an integer")
+
+#% section
+# See also
+
+#% text
+# `random_seed`, `random_real`, `random_integer`, `random_normal`, `random_variate`

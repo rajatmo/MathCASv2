@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# sort_by
+
+#% text
+# `sort_by(xs, f)` gives the elements of `xs` ordered by the canonical order of their keys `f(x)`.
+
+#% section
+# Details
+
+#% item
+# The sort is stable: elements with equal keys keep their order.
+
+#% item
+# For decreasing order, sort by the negated key or reverse the result.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sort_by(["ccc", "a", "bb"], string_length)
+#% output
+#= ["a", "bb", "ccc"]
+
+#% cell
+sort_by([-3, 1, -2, 4], abs)
+#% output
+#= [1, -2, -3, 4]
+
+#% cell
+sort_by([[1, "b"], [2, "a"]], last)
+#% output
+#= [[2, "a"], [1, "b"]]
+
+#% subsection
+# Scope
+
+#% text
+# Equal keys keep the input order:
+
+#% cell
+sort_by(["bc", "a", "ab", "c"], string_length)
+#% output
+#= ["a", "c", "bc", "ab"]
+
+#% text
+# Decreasing order through a negated key:
+
+#% cell
+sort_by([3, 1, 2], x => -x)
+#% output
+#= [3, 2, 1]
+
+#% subsection
+# Applications
+
+#% text
+# The most frequent elements first, from a tally:
+
+#% cell
+sort_by(tally([a, b, a, c, a, b]), p => -p[2])
+#% output
+#= [[a, 3], [b, 2], [c, 1]]
+
+#% text
+# Numerical roots ordered by their real parts:
+
+#% cell
+sort_by(map(s => x /. s, n_solve(x^3 + 1 == 0, x)), re)
+#% output
+#= [-1.0, complex(0.5, -0.8660254037844386), complex(0.5, 0.8660254037844386)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Sorting by the identity is `sort`:
+
+#% cell
+sort_by([3, 1, 2], x => x) === sort([3, 1, 2])
+#% output
+#= true
+
+#% text
+# `max_by` and `min_by` give the ends of the order directly:
+
+#% cell
+[max_by(["ccc", "a", "bb"], string_length), min_by(["ccc", "a", "bb"], string_length)]
+#% output
+#= ["ccc", "a"]
+
+#% section
+# See also
+
+#% text
+# `sort`, `ordering`, `max_by`, `min_by`, `gather_by`

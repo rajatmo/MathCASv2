@@ -64,6 +64,20 @@ impl DocsApp {
             .into_iter()
             .filter_map(|n| lib.page_text(&n).map(|t| (n.clone(), Page::read(&n, &t).0)))
             .collect();
+        // every page's example inputs, to count how much each function is used
+        let inputs: Vec<String> = pages
+            .values()
+            .map(|p| {
+                p.inputs()
+                    .filter_map(|(_, b)| match b {
+                        crate::page::Block::Input { source, .. } => Some(source.as_str()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            })
+            .collect();
+        let uses = crate::search::uses(cat.entries.iter().map(|e| e.name), &inputs);
         let items = cat
             .entries
             .iter()
@@ -73,7 +87,12 @@ impl DocsApp {
                     words.push('\n');
                     words.push_str(&p.words().to_lowercase());
                 }
-                Searchable { name: e.name.to_string(), words }
+                Searchable {
+                    name: e.name.to_string(),
+                    words,
+                    documented: pages.contains_key(e.name),
+                    uses: uses.get(e.name).copied().unwrap_or(0),
+                }
             })
             .collect();
         let theme = mc_notebook::settings::Settings::load().theme;

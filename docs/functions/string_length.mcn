@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# string_length
+
+#% text
+# `string_length(s)` gives the number of characters of the string `s`.
+
+#% section
+# Details
+
+#% item
+# Characters are counted, not bytes: accented letters, Greek letters and other symbols count as one each.
+
+#% item
+# `length` of a string is 0, since a string is an atom.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_length("hello")
+#% output
+#= 5
+
+#% cell
+string_length("")
+#% output
+#= 0
+
+#% cell
+string_length("αβγ")
+#% output
+#= 3
+
+#% subsection
+# Applications
+
+#% text
+# The longest word of a sentence:
+
+#% cell
+words = string_split("measure the lengths of these words")
+max_by(words, string_length)
+#% output
+#= "measure"
+
+#% text
+# The number of digits of `2^1000`:
+
+#% cell
+string_length(to_string(2^1000))
+#% output
+#= 302
+
+#% subsection
+# Properties and relations
+
+#% text
+# The number of characters is the length of the list of characters:
+
+#% cell
+string_length("naïve") == length(characters("naïve"))
+#% output
+#= true
+
+#% text
+# `integer_length` counts digits directly:
+
+#% cell
+integer_length(2^1000)
+#% output
+#= 302
+
+#% subsection
+# Possible issues
+
+#% text
+# `length` does not count characters:
+
+#% cell
+length("hello")
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `characters`, `string_take`, `to_string`, `length`, `integer_length`

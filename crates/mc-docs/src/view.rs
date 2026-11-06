@@ -5,7 +5,7 @@ use mc_ui::fonts::Face;
 use crate::inline::{spans, Span};
 use crate::library::Library;
 use crate::page::{image_path, Block, Page};
-use eframe::egui::{self, vec2, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke};
+use eframe::egui::{self, pos2, vec2, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke};
 use eframe::epaint::text::{ByteIndex, LayoutJob, LayoutSection, TextFormat};
 use mc_nbfile::{OutputKind, OutputLine};
 use mc_notebook::theme::Palette;
@@ -17,9 +17,8 @@ use std::sync::Arc;
 /// Text sizes in egui points.
 const BODY: f32 = 15.0;
 const CODE: f32 = 14.0;
-const LABEL: f32 = 11.5;
-/// The width of the `In[n]:=` column.
-const LABEL_COLUMN: f32 = 62.0;
+/// How far outputs sit right of their input (the rule that marks them is drawn in this margin).
+const OUTPUT_INDENT: i8 = 14;
 /// The widest the content gets (wider windows centre it).
 pub const MAX_WIDTH: f32 = 980.0;
 
@@ -404,20 +403,92 @@ impl Draw<'_> {
 
     // ----- guides -----
 
-    /// Every function of `area`, by topic, with its description.
+    /// Every function of `area`, by topic, with its description and how many of the topic's functions have a page;
+    /// at the end, the functions of the area without a page yet.
     pub fn guide(&mut self, ui: &mut egui::Ui, area: Area) {
         ui.add_space(14.0);
         self.heading(ui, area.title(), 26.0, self.p.text);
         self.prose(ui, area.blurb(), BODY, self.p.weak);
-        for (topic, entries) in self.cat.topics(area) {
+        let cat = self.cat;
+        let topics = cat.topics(area);
+        let mut without: Vec<&str> = vec![];
+        for (topic, entries) in &topics {
             ui.add_space(14.0);
-            self.heading(ui, topic, 18.0, self.p.blue);
+            let documented = entries.iter().filter(|e| self.pages.contains_key(e.name)).count();
+            ui.horizontal(|ui| {
+                self.heading(ui, topic, 18.0, self.p.blue);
+                ui.label(
+                    RichText::new(format!("{documented} of {} with a page", entries.len())).size(12.5).color(self.p.faint),
+                );
+            });
             ui.add_space(2.0);
             for e in entries {
                 self.entry_row(ui, e);
+                if !self.pages.contains_key(e.name) {
+                    without.push(e.name);
+                }
             }
         }
+        if !without.is_empty() {
+            ui.add_space(18.0);
+            self.heading(ui, &format!("Without a page yet ({})", without.len()), 18.0, self.p.blue);
+            self.prose(
+                ui,
+                "These functions show only their one-line description; the pages above have examples.",
+                13.0,
+                self.p.faint,
+            );
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for n in without {
+                    self.name_link(ui, n, 13.5);
+                    ui.add_space(4.0);
+                }
+            });
+        }
         ui.add_space(24.0);
+    }
+
+    /// The documented functions before and after `name` in its area, in the guide's order (by topic, then name).
+    pub fn neighbours(&self, name: &str) -> (Option<&'static str>, Option<&'static str>) {
+        let Some(e) = self.cat.get(name) else { return (None, None) };
+        let order: Vec<&'static str> = self
+            .cat
+            .topics(e.area)
+            .into_iter()
+            .flat_map(|(_, v)| v.into_iter().map(|e| e.name))
+            .filter(|n| self.pages.contains_key(*n))
+            .collect();
+        match order.iter().position(|n| *n == name) {
+            Some(i) => (i.checked_sub(1).map(|j| order[j]), order.get(i + 1).copied()),
+            None => (None, None),
+        }
+    }
+
+    /// The row under a page: the previous and next documented functions of its area, and the area's guide.
+    fn area_navigation(&mut self, ui: &mut egui::Ui, name: &str) {
+        let Some(area) = self.cat.get(name).map(|e| e.area) else { return };
+        let (prev, next) = self.neighbours(name);
+        ui.add_space(14.0);
+        ui.separator();
+        ui.horizontal(|ui| {
+            if let Some(p) = prev {
+                if ui.link(RichText::new(format!("←  {p}")).font(Face::Code.font(CODE))).clicked() {
+                    self.go = Some(Loc::Page(p.to_string()));
+                }
+            }
+            ui.add_space(16.0);
+            if ui.link(RichText::new(area.title()).size(13.5).color(self.p.blue)).clicked() {
+                self.go = Some(Loc::Guide(area));
+            }
+            if let Some(n) = next {
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if ui.link(RichText::new(format!("{n}  →")).font(Face::Code.font(CODE))).clicked() {
+                        self.go = Some(Loc::Page(n.to_string()));
+                    }
+                });
+            }
+        });
     }
 
     fn entry_row(&mut self, ui: &mut egui::Ui, e: &Entry) {
@@ -544,6 +615,7 @@ impl Draw<'_> {
                 }
             });
         }
+        self.area_navigation(ui, name);
         ui.add_space(30.0);
     }
 
@@ -593,9 +665,9 @@ impl Draw<'_> {
         );
     }
 
-    /// An example group: its texts and inputs with their outputs, numbered from 1.
+    /// An example group: its texts and inputs with their outputs. Inputs start at the group's content edge, in the
+    /// bold code font with syntax colouring; each input's outputs follow, indented behind a thin rule.
     fn group(&mut self, ui: &mut egui::Ui, name: &str, blocks: &[Block]) {
-        let mut n = 0;
         for b in blocks {
             match b {
                 Block::Text(t) => {
@@ -603,61 +675,52 @@ impl Draw<'_> {
                     self.prose(ui, t, BODY, self.p.text);
                 }
                 Block::Input { source, output, .. } => {
-                    n += 1;
                     ui.add_space(4.0);
-                    self.labelled(ui, &format!("In[{n}]:="), |d, ui| {
-                        let mut job = LayoutJob::default();
-                        d.colours.append_code(&mut job, source, d.p, CODE, true);
-                        d.text(ui, job);
-                    });
-                    self.outputs(ui, name, n, output);
+                    let mut job = LayoutJob::default();
+                    self.colours.append_code(&mut job, source, self.p, CODE, true);
+                    self.text(ui, job);
+                    if !output.is_empty() {
+                        self.outputs(ui, name, output);
+                    }
                 }
             }
         }
         ui.add_space(8.0);
     }
 
-    /// A row with a label in the gutter column and content beside it.
-    fn labelled(&mut self, ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut Self, &mut egui::Ui)) {
-        ui.horizontal_top(|ui| {
-            ui.allocate_ui_with_layout(vec2(LABEL_COLUMN, 18.0), Layout::right_to_left(Align::Min), |ui| {
-                ui.set_width(LABEL_COLUMN);
+    /// The output lines of one input, as runs of the same kind (values, print lines, messages, notes; images
+    /// drawn), indented behind a thin vertical rule so that they read apart from the input above.
+    fn outputs(&mut self, ui: &mut egui::Ui, name: &str, lines: &[OutputLine]) {
+        let rule = if self.p.dark { self.p.rule() } else { self.p.border };
+        let r = Frame::new().inner_margin(Margin { left: OUTPUT_INDENT, right: 0, top: 1, bottom: 1 }).show(ui, |ui| {
+            let mut k = 0;
+            while k < lines.len() {
+                let kind = lines[k].kind;
+                let end = (k..lines.len()).find(|&j| lines[j].kind != kind).unwrap_or(lines.len());
+                let run = &lines[k..end];
+                k = end;
                 ui.add_space(2.0);
-                ui.label(RichText::new(label).font(Face::Prose.font(LABEL)).color(self.p.gutter));
-            });
-            ui.vertical(|ui| add(self, ui));
-        });
-    }
-
-    /// The output lines of input `n`: runs of the same kind, values labelled `Out[n]=`, images drawn.
-    fn outputs(&mut self, ui: &mut egui::Ui, name: &str, n: usize, lines: &[OutputLine]) {
-        let mut k = 0;
-        while k < lines.len() {
-            let kind = lines[k].kind;
-            let end = (k..lines.len()).find(|&j| lines[j].kind != kind).unwrap_or(lines.len());
-            let run = &lines[k..end];
-            k = end;
-            ui.add_space(3.0);
-            if kind == OutputKind::Value && run.len() == 1 {
-                if let Some(path) = image_path(&run[0]) {
-                    let path = path.to_string();
-                    self.labelled(ui, &format!("Out[{n}]="), |d, ui| d.image(ui, name, &path));
-                    continue;
+                if kind == OutputKind::Value && run.len() == 1 {
+                    if let Some(path) = image_path(&run[0]) {
+                        let path = path.to_string();
+                        self.image(ui, name, &path);
+                        continue;
+                    }
                 }
-            }
-            let text = run.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
-            let (label, color) = match kind {
-                OutputKind::Value => (format!("Out[{n}]="), self.p.text),
-                OutputKind::Print => (String::new(), self.p.text),
-                OutputKind::Message => (String::new(), self.p.dark_red),
-                OutputKind::Note => (String::new(), self.p.orange),
-            };
-            self.labelled(ui, &label, |d, ui| {
+                let text = run.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n");
+                let color = match kind {
+                    OutputKind::Value | OutputKind::Print => self.p.text,
+                    OutputKind::Message => self.p.dark_red,
+                    OutputKind::Note => self.p.orange,
+                };
                 let mut job = LayoutJob::default();
                 job.append(&text, 0.0, TextFormat { font_id: Face::Code.font(CODE), color, ..TextFormat::default() });
-                d.text(ui, job);
-            });
-        }
+                self.text(ui, job);
+            }
+        });
+        let rect = r.response.rect;
+        let x = rect.left() + 3.0;
+        ui.painter().line_segment([pos2(x, rect.top() + 3.0), pos2(x, rect.bottom() - 1.0)], Stroke::new(2.0, rule));
     }
 
     fn image(&mut self, ui: &mut egui::Ui, _page: &str, rel: &str) {

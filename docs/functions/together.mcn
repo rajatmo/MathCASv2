@@ -1,0 +1,157 @@
+#! mathcas 2 notebook
+
+#% title
+# together
+
+#% text
+# `together(e)` writes a sum of fractions as one fraction over a common denominator, in lowest terms.
+
+#% section
+# Details
+
+#% item
+# Common factors of the numerator and the denominator cancel.
+
+#% item
+# Functions such as `sin(x)` are treated as variables.
+
+#% item
+# `together` maps over lists.
+
+#% item
+# Powers with fractional or symbolic exponents are not brought together.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two fractions over a common denominator:
+
+#% cell
+together(1/x + 1/y)
+#% output
+#= (x + y)/x/y
+
+#% cell
+together(1/(x - 1) - 1/(x + 1))
+#% output
+#= 2/(-1 + x^2)
+
+#% text
+# Common factors cancel:
+
+#% cell
+together((x^2 - 1)/(x - 1))
+#% output
+#= 1 + x
+
+#% subsection
+# Scope
+
+#% text
+# Several variables:
+
+#% cell
+together(a/b + c/d)
+#% output
+#= (a*d + b*c)/b/d
+
+#% cell
+together(1/(a + b) + 1/(a - b))
+#% output
+#= 2*a/(-b^2 + a^2)
+
+#% text
+# A polynomial plus fractions:
+
+#% cell
+together(1 + 1/x + 1/x^2)
+#% output
+#= (1 + x + x^2)*x^-2
+
+#% text
+# Functions as variables:
+
+#% cell
+together(sin(x) + 1/sin(x))
+#% output
+#= (1 + sin(x)^2)/sin(x)
+
+#% text
+# A list:
+
+#% cell
+together([1/x + 1, 1/y + 1])
+#% output
+#= [(1 + x)/x, (1 + y)/y]
+
+#% text
+# Inexact coefficients:
+
+#% cell
+together(1.5/x + 1/y)
+#% output
+#= (x + 1.5*y)/x/y
+
+#% subsection
+# Applications
+
+#% text
+# Simplify a sum of fractions that cancels down:
+
+#% cell
+together(x/(x^2 - 1) + 1/(x + 1))
+#% output
+#= (-1 + 2*x)/(-1 + x^2)
+
+#% text
+# The numerator of the combined fraction, to find where it vanishes:
+
+#% cell
+numerator(together(x + 1/x - 5/2))
+#% output
+#= 2 + -5*x + 2*x^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# `apart` splits the fraction again:
+
+#% cell
+together(1/x - 1/(x + 1))
+#% output
+#= (x + x^2)^-1
+
+#% cell
+apart(together(1/x - 1/(x + 1)))
+#% output
+#= -(1 + x)^-1 + x^-1
+
+#% text
+# `cancel` puts each term in lowest terms without a common denominator:
+
+#% cell
+cancel((x^2 - 1)/(x - 1) + 1/x)
+#% output
+#= 1 + x + x^-1
+
+#% subsection
+# Possible issues
+
+#% text
+# Powers with fractional exponents stay apart:
+
+#% cell
+together(sqrt(x) + 1/sqrt(x))
+#% output
+#= x^(-1/2) + x^(1/2)
+
+#% section
+# See also
+
+#% text
+# `apart`, `cancel`, `factor`, `numerator`, `denominator`, `simplify`

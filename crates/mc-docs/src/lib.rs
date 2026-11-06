@@ -48,7 +48,7 @@
 //! [`app::DocsApp`]: a home page with the five areas of the system as guide tiles, guide pages listing every
 //! function of an area by topic with its one-line description, incremental search (name prefixes first, then
 //! words of the usage and descriptions), function pages drawn from the `.mcn` files (usage block in the code font
-//! with syntax colouring, collapsible Details and example groups with `In[n]:=`/`Out[n]=` labels and images, See
+//! with syntax colouring, collapsible Details and example groups (inputs at the group's edge in the code font, outputs indented behind a thin rule) and images, See
 //! also links), back/forward/home, find in page (`Ctrl+F`), One Light and One Dark, selectable text, and "Open as
 //! notebook" (a copy of the page in a temporary folder, opened in `mc-notebook`).
 pub mod app;

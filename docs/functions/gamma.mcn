@@ -1,0 +1,181 @@
+#! mathcas 2 notebook
+
+#% title
+# gamma
+
+#% text
+# `gamma(x)` gives the gamma function of `x`.
+
+#% text
+# `gamma(a, x)` gives the upper incomplete gamma function, the integral of `t^(a - 1)*exp(-t)` for `t` from `x` to `inf`.
+
+#% section
+# Details
+
+#% item
+# For `x > 0`, `gamma(x)` is the integral of `t^(x - 1)*exp(-t)` for `t` from 0 to `inf` (DLMF 5.2.1); at a positive integer `n` it is `(n - 1)!`.
+
+#% item
+# `gamma` has poles at 0, -1, -2, ...; an exact pole gives `failure(pole, ...)`.
+
+#% item
+# Exact values: integers, and half-integers as rational multiples of `sqrt(pi)`. Other exact arguments stay unevaluated.
+
+#% item
+# Real machine numbers and balls give numerical values.
+
+#% item
+# `gamma(a, x)` (DLMF 8.2.2) is exact for some small `a`, such as `gamma(1, x)` = `exp(-x)` and `gamma(1/2, x)` in terms of `erfc`; machine numbers and balls give numerical values.
+
+#% item
+# `gamma` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gamma(5)
+#% output
+#= 24
+
+#% cell
+gamma(1/2)
+#% output
+#= pi^(1/2)
+
+#% text
+# A machine number:
+
+#% cell
+gamma(2.5)
+#% output
+#= 1.329340388179137
+
+#% text
+# The incomplete gamma function:
+
+#% cell
+gamma(2, 1)
+#% output
+#= 2*exp(-1)
+
+#% subsection
+# Scope
+
+#% text
+# Half-integers, also negative ones:
+
+#% cell
+gamma(-1/2)
+#% output
+#= -2*pi^(1/2)
+
+#% text
+# 30 digits:
+
+#% cell
+n(gamma(1/3), 30)
+#% output
+#= 2.678938534707747633655692940974678
+
+#% text
+# Negative machine numbers between the poles:
+
+#% cell
+gamma(-1.5)
+#% output
+#= 2.363271801207355
+
+#% text
+# Each element of a list:
+
+#% cell
+gamma([1, 2, 3, 4])
+#% output
+#= [1, 1, 2, 6]
+
+#% text
+# The incomplete gamma function, exact and numeric:
+
+#% cell
+gamma(1/2, 1)
+#% output
+#= erfc(1)*pi^(1/2)
+
+#% cell
+n(gamma(1/2, 1), 20)
+#% output
+#= 0.278805585280661976499233
+
+#% subsection
+# Properties and relations
+
+#% text
+# The gamma function extends the factorial:
+
+#% cell
+gamma(11) == factorial(10)
+#% output
+#= true
+
+#% text
+# The reflection formula at `x` = 1/2 gives `pi`:
+
+#% cell
+gamma(1/2)^2
+#% output
+#= pi
+
+#% text
+# The derivative is expressed by `digamma`:
+
+#% cell
+d(gamma(x), x)
+#% output
+#= digamma(x)*gamma(x)
+
+#% subsection
+# Possible issues
+
+#% text
+# The poles give a failure:
+
+#% cell
+gamma(0)
+#% output
+#! failure(pole, gamma(0))
+
+#% text
+# Machine numbers overflow above about 171:
+
+#% cell
+gamma(172.0)
+#% output
+#= machine_real("inf")
+
+#% cell
+log_gamma(172.0)
+#% output
+#= 711.71472580229
+
+#% text
+# Complex arguments are not supported: they stay unevaluated or give a wrong value:
+
+#% cell
+gamma(1.0 + 1.0*im)
+#% output
+#= gamma(complex(1.0, 1.0))
+
+#% cell
+n(gamma(1 + im))
+#% output
+#= machine_real("nan")
+
+#% section
+# See also
+
+#% text
+# `factorial`, `log_gamma`, `digamma`, `polygamma`, `beta`, `erfc`

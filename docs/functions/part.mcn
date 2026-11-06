@@ -1,0 +1,156 @@
+#! mathcas 2 notebook
+
+#% title
+# part
+
+#% text
+# `part(t, i)`, written `t[i]`, gives the `i`-th element of the list `t` (the `i`-th argument of a term).
+
+#% text
+# `part(t, i, j, ...)`, written `t[i, j, ...]`, goes down one level per index.
+
+#% text
+# `part(t, span(i, j))`, written `t[i:j]`, gives the elements from position `i` to `j`; a list of indices, `t[[i1, i2, ...]]`, gives several.
+
+#% section
+# Details
+
+#% item
+# Indices start at 1. Negative indices count from the end: `t[-1]` is the last element.
+
+#% item
+# `t[0]` is the head of a term.
+
+#% item
+# An index past the end gives a failure `failure(index, i, n)` naming the index and the length.
+
+#% item
+# On an association, `a[k]` looks up the key `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+xs = [a, b, c, d, e]
+xs[2]
+#% output
+#= b
+
+#% cell
+xs[-1]
+#% output
+#= e
+
+#% cell
+xs[2:4]
+#% output
+#= [b, c, d]
+
+#% cell
+[[1, 2], [3, 4]][2, 1]
+#% output
+#= 3
+
+#% subsection
+# Scope
+
+#% text
+# Several positions at once:
+
+#% cell
+xs[[1, 3, 5]]
+#% output
+#= [a, c, e]
+
+#% text
+# A whole column of a matrix: every row, then one index:
+
+#% cell
+m = [[1, 2, 3], [4, 5, 6]]
+map(row => row[2], m)
+#% output
+#= [2, 5]
+
+#% text
+# The head and arguments of a term:
+
+#% cell
+[f(x, y)[0], f(x, y)[2]]
+#% output
+#= [f, y]
+
+#% text
+# A key of an association:
+
+#% cell
+assoc("mass" -> 2.5, "charge" -> -1)["mass"]
+#% output
+#= 2.5
+
+#% subsection
+# Applications
+
+#% text
+# The value from a pair `[time, value]`, as the scripts unpack the results of `timing`:
+
+#% cell
+r = timing(sum(range(1000)))
+r[2]
+#% output
+#= 500500
+
+#% text
+# The end of a solution's domain, from the nested structure of the solution:
+
+#% cell
+s = n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 2])
+(y /. s)[2]
+#% output
+#= [0.0, 2.0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `first` and `last` are `part` with 1 and -1:
+
+#% cell
+[first(xs) === xs[1], last(xs) === xs[-1]]
+#% output
+#= [true, true]
+
+#% text
+# `take` is a span from 1:
+
+#% cell
+take(xs, 3) === xs[1:3]
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# An index past the end:
+
+#% cell
+xs[9]
+#% output
+#! failure(index, 9, 5)
+
+#% text
+# Index 0 is the head, not the first element:
+
+#% cell
+xs[0]
+#% output
+#= list
+
+#% section
+# See also
+
+#% text
+# `first`, `last`, `take`, `position`, `lookup`

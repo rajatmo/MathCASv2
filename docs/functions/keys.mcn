@@ -1,0 +1,85 @@
+#! mathcas 2 notebook
+
+#% title
+# keys
+
+#% text
+# `keys(a)` gives the list of the keys of the association `a`, in order.
+
+#% section
+# Details
+
+#% item
+# The order is the order of the entries, which is the order they were first inserted.
+
+#% item
+# `values` gives the values in the same order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+keys(assoc("a" -> 1, "b" -> 2, "c" -> 3))
+#% output
+#= ["a", "b", "c"]
+
+#% cell
+keys(assoc())
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% cell
+keys(assoc(x -> 1, 2 -> y, [1] -> z))
+#% output
+#= [x, 2, [1]]
+
+#% subsection
+# Applications
+
+#% text
+# The distinct words of a text, in order of first use, from their counts:
+
+#% cell
+keys(counts(string_split("to be or not to be")))
+#% output
+#= ["to", "be", "or", "not"]
+
+#% text
+# The groups made by `group_by`:
+
+#% cell
+keys(group_by(range(10), k => mod(k, 3)))
+#% output
+#= [1, 2, 0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `keys` and `values` rebuild the association with `map_thread`:
+
+#% cell
+a = assoc("p" -> 1, "q" -> 2)
+assoc(map_thread((k, v) => k -> v, [keys(a), values(a)])) === a
+#% output
+#= true
+
+#% text
+# `key_sort` orders the entries by key:
+
+#% cell
+keys(key_sort(assoc("b" -> 1, "a" -> 2)))
+#% output
+#= ["a", "b"]
+
+#% section
+# See also
+
+#% text
+# `values`, `assoc`, `to_rules`, `key_exists`, `key_sort`

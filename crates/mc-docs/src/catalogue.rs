@@ -93,12 +93,30 @@ const LANGUAGE: &[(&str, &str)] = &[
     ("or", "or(a, b, ...): a or b, evaluated left to right, stopping at the first true"),
     ("not", "not(a): the negation of a truth value"),
     ("map", "map(f, xs): [f(x1), f(x2), ...] for the list xs"),
-    ("print", "print(x, ...): write the values as a line of output; the value is null"),
+    ("print", "print(x): write x as a line of output (a string as its text); the value is x"),
     ("rewrite", "rewrite(e, rule) or rewrite(e, [rules]): e with every part a rule matches replaced"),
     ("is_ground", "is_ground(e): whether e holds no unknown symbol"),
     ("complex", "complex(re, im): the complex number re + im*im"),
     ("expm1", "expm1(x): exp(x) - 1, accurate for small x"),
     ("log1p", "log1p(x): log(1 + x), accurate for small x"),
+];
+
+/// The prelude's functions (`lib/prelude.mc`, written in the language itself and defined in every session): no
+/// library lists them, so they are described here. A test checks each is defined by the engine.
+const PRELUDE: &[(&str, &str)] = &[
+    ("say", "say(x, ...): print the arguments on one line, strings as their text; the value is null"),
+    ("is_even", "is_even(n): whether the integer n is even"),
+    ("is_odd", "is_odd(n): whether the integer n is odd"),
+    ("clamp", "clamp(x, lo, hi): x limited to the interval [lo, hi]"),
+    ("log_base", "log_base(b, x): the logarithm of x to base b, exact when x is a power of the integer b"),
+    ("count_if", "count_if(xs, p): how many elements x of xs have p(x) true"),
+    ("every", "every(xs, p): whether p(x) is true for every element x of xs"),
+    ("some", "some(xs, p): whether p(x) is true for at least one element x of xs"),
+    ("member", "member(xs, x): whether x is an element of xs, compared by identity"),
+    ("zip", "zip(xs, ys): the pairs [xs[i], ys[i]], as long as the shorter list"),
+    ("flat_map", "flat_map(f, xs): the lists f(x) for each element x of xs, joined into one list"),
+    ("accumulate", "accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]"),
+    ("fix_point", "fix_point(f, x): f applied repeatedly from x until the value no longer changes"),
 ];
 
 /// Natives that the syntax lowers to (definitions, blocks, control, bindings) or that serve other natives: not
@@ -139,6 +157,7 @@ type Functions = &'static [(&'static str, &'static str)];
 fn sources() -> Vec<(&'static str, Area, Functions)> {
     vec![
         ("Language", Area::Core, LANGUAGE),
+        ("Language", Area::Core, PRELUDE),
         ("Lists", Area::Core, mc_lists::FUNCTIONS),
         ("Associations and sets", Area::Core, mc_assoc::FUNCTIONS),
         ("Strings", Area::Core, mc_strings::FUNCTIONS),
@@ -251,6 +270,14 @@ mod tests {
         // and the language list names only functions that exist
         for (n, _) in LANGUAGE {
             assert!(engine.has_native(n), "{n}");
+        }
+        // and the prelude list names only functions the prelude defines
+        let kinds = engine.name_kinds();
+        for (n, _) in PRELUDE {
+            assert!(
+                kinds.iter().any(|(k, kind)| k == n && *kind == mc_engine::NameKind::Function),
+                "prelude function {n} is not defined"
+            );
         }
     }
 }

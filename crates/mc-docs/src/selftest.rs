@@ -28,6 +28,8 @@ impl SelfTest {
     /// The self-test of the script at `path`.
     pub fn load(path: &str) -> Option<SelfTest> {
         let text = std::fs::read_to_string(path).ok()?;
+        // editors and shells on Windows often start a UTF-8 file with a byte-order mark
+        let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
         let dir = Path::new(path).parent().map(PathBuf::from).unwrap_or_default();
         let steps =
             text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_string).collect();

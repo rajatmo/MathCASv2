@@ -1,0 +1,102 @@
+#! mathcas 2 notebook
+
+#% title
+# string_split
+
+#% text
+# `string_split(s)` gives the list of the words of `s`: the pieces between runs of white space.
+
+#% text
+# `string_split(s, sep)` gives the pieces of `s` between the occurrences of the string `sep`.
+
+#% text
+# `string_split(s, [sep1, sep2, ...])` splits at any of several separators; `string_split(s, sep, n)` gives at most `n` pieces.
+
+#% section
+# Details
+
+#% item
+# Without a separator, leading and trailing white space gives no empty pieces.
+
+#% item
+# With a separator, every occurrence splits, so neighbouring separators give empty strings.
+
+#% item
+# `string_join` with the separator between the pieces rebuilds the string.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_split("  the quick  brown fox ")
+#% output
+#= ["the", "quick", "brown", "fox"]
+
+#% cell
+string_split("a,b,,c", ",")
+#% output
+#= ["a", "b", "", "c"]
+
+#% cell
+string_split("2026-11-06", "-")
+#% output
+#= ["2026", "11", "06"]
+
+#% subsection
+# Scope
+
+#% text
+# Several separators:
+
+#% cell
+string_split("x=1; y=2", ["; ", "="])
+#% output
+#= ["x", "1", "y", "2"]
+
+#% text
+# At most two pieces:
+
+#% cell
+string_split("key: value: more", ": ", 2)
+#% output
+#= ["key", "value: more"]
+
+#% subsection
+# Applications
+
+#% text
+# Numbers read from a line of text:
+
+#% cell
+map(to_expression, string_split("3.5 1.25 -2", " "))
+#% output
+#= [3.5, 1.25, -2]
+
+#% text
+# The words of a sentence counted:
+
+#% cell
+length(string_split("one two three four"))
+#% output
+#= 4
+
+#% subsection
+# Properties and relations
+
+#% text
+# Joining the pieces with the separator gives the string back:
+
+#% cell
+s = "a/b/c"
+string_join(riffle(string_split(s, "/"), "/")) == s
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `string_join`, `characters`, `string_replace`, `split`, `string_trim`

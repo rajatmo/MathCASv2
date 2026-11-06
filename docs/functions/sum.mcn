@@ -1,0 +1,172 @@
+#! mathcas 2 notebook
+
+#% title
+# sum
+
+#% text
+# `sum(xs)` gives the sum of the elements of the list `xs`.
+
+#% text
+# `sum(f, [k, a, b])` gives the sum of `f` for `k` from `a` to `b`.
+
+#% text
+# `sum(f, [k, n])` gives the sum of `f` for `k` from 1 to `n`.
+
+#% section
+# Details
+
+#% item
+# With integer bounds, the terms are added one by one, exactly.
+
+#% item
+# With symbolic or infinite bounds, closed forms are found for polynomial terms, geometric terms and powers `k^-s` (through `zeta`).
+
+#% item
+# A sum that has no closed form known to the system stays as it is.
+
+#% item
+# The variable is local to the sum.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sum([1, 2, 3, 4])
+#% output
+#= 10
+
+#% cell
+sum(k^2, [k, 1, 10])
+#% output
+#= 385
+
+#% cell
+sum(k, [k, n])
+#% output
+#= (1/2)*n*(1 + n)
+
+#% cell
+sum(1/k^2, [k, 1, inf])
+#% output
+#= (1/6)*pi^2
+
+#% subsection
+# Scope
+
+#% text
+# A polynomial term with a symbolic bound:
+
+#% cell
+sum(k^3, [k, 1, n])
+#% output
+#= (1/4)*n^2*(1 + n)^2
+
+#% text
+# A geometric series, finite and infinite:
+
+#% cell
+sum(x^k, [k, 0, n])
+#% output
+#= (-1 + x^(1 + n))/(-1 + x)
+
+#% cell
+sum((1/2)^k, [k, 0, inf])
+#% output
+#= 2
+
+#% text
+# Exact terms stay exact:
+
+#% cell
+sum(1/k, [k, 1, 10])
+#% output
+#= 7381/2520
+
+#% subsection
+# Applications
+
+#% text
+# A partial sum of the series for `e`, compared with the constant:
+
+#% cell
+s = sum(1/factorial(k), [k, 0, 15])
+n(s - e)
+#% output
+#= -5.062616992290714e-14
+
+#% text
+# The mean of a list by hand:
+
+#% cell
+data = [2.5, 3.0, 4.5]
+sum(data)/length(data)
+#% output
+#= 3.333333333333333
+
+#% subsection
+# Properties and relations
+
+#% text
+# Gauss's formula, checked at a value:
+
+#% cell
+sum(k, [k, 1, n]) /. n -> 100
+#% output
+#= 5050
+
+#% text
+# The infinite sum of `1/k^4` is a value of `zeta`:
+
+#% cell
+sum(1/k^4, [k, 1, inf])
+#% output
+#= (1/90)*pi^4
+
+#% text
+# `total` sums through every level of nesting:
+
+#% cell
+[sum([[1, 2], [3, 4]]), total([[1, 2], [3, 4]])]
+#% output
+#= [[1, 2] + [3, 4], 10]
+
+#% subsection
+# Possible issues
+
+#% text
+# A sum without a known closed form stays as it is:
+
+#% cell
+sum(1/factorial(k)^2, [k, 0, n])
+#% output
+#= sum(factorial(k)^-2, [k, 0, n])
+
+#% text
+# The harmonic series diverges; the call stays:
+
+#% cell
+sum(1/k, [k, 1, inf])
+#% output
+#= sum(k^-1, [k, 1, inf])
+
+#% text
+# A list of vectors is not added component by component: the sum stays unevaluated. Use `total` on each column, or `fold`:
+
+#% cell
+sum([[1, 2], [3, 4], [5, 6]])
+#% output
+#= [1, 2] + [3, 4] + [5, 6]
+
+#% cell
+fold((a, b) => a + b, [[1, 2], [3, 4], [5, 6]])
+#% output
+#= [9, 12]
+
+#% section
+# See also
+
+#% text
+# `total`, `product`, `accumulate`, `zeta`, `table`

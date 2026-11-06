@@ -1,0 +1,122 @@
+#! mathcas 2 notebook
+
+#% title
+# lookup
+
+#% text
+# `lookup(a, k)` gives the value of key `k` in the association `a`.
+
+#% text
+# `lookup(a, k, d)` gives `d` when `a` has no key `k`.
+
+#% section
+# Details
+
+#% item
+# Without a default, a missing key gives `failure(missing_key, k)`.
+
+#% item
+# `a[k]` is `lookup(a, k)`.
+
+#% item
+# Keys are compared by identity: `1` and `1.0` are different keys.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+a = assoc("H" -> 1.008, "He" -> 4.003, "Li" -> 6.94)
+lookup(a, "He")
+#% output
+#= 4.003
+
+#% cell
+lookup(a, "Ne", missing("unknown"))
+#% output
+#= missing("unknown")
+
+#% cell
+lookup(a, "Ne")
+#% output
+#! failure(missing_key, "Ne")
+
+#% subsection
+# Scope
+
+#% text
+# Keys of any kind:
+
+#% cell
+lookup(assoc([0, 0] -> "origin"), [0, 0])
+#% output
+#= "origin"
+
+#% subsection
+# Applications
+
+#% text
+# Known values from a table, computed values for the rest:
+
+#% cell
+special = assoc(0 -> 1, 1 -> 1)
+fn g(k) = if key_exists(special, k) then special[k] else k*g(k - 1)
+g(5)
+#% output
+#= 120
+
+#% text
+# Translating codes to names:
+
+#% cell
+names = assoc("n" -> "neutron", "p" -> "proton")
+map(c => lookup(names, c, "?"), ["p", "n", "x"])
+#% output
+#= ["proton", "neutron", "?"]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `key_exists` tests for a key without reading it:
+
+#% cell
+[key_exists(a, "Li"), key_exists(a, "Ne")]
+#% output
+#= [true, false]
+
+#% text
+# Indexing gives the same as `lookup`:
+
+#% cell
+a["Li"] === lookup(a, "Li")
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# An exact and a machine number are different keys:
+
+#% cell
+lookup(assoc(1 -> "one"), 1.0, "not found")
+#% output
+#= "not found"
+
+#% text
+# The default is evaluated before the lookup, even when the key exists; a default that recurses never ends, so test with `key_exists` instead (as above):
+
+#% cell
+lookup(assoc(1 -> 2), 1, print("default evaluated"))
+#% output
+#| default evaluated
+#= 2
+
+#% section
+# See also
+
+#% text
+# `assoc`, `key_exists`, `part`, `keys`, `values`

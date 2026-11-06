@@ -1,0 +1,136 @@
+#! mathcas 2 notebook
+
+#% title
+# round
+
+#% text
+# `round(x)` gives the integer nearest to `x`.
+
+#% text
+# `round(x, a)` gives the multiple of `a` nearest to `x`.
+
+#% section
+# Details
+
+#% item
+# A value exactly halfway between two integers goes to the even one: `round(2.5)` is 2 and `round(3.5)` is 4.
+
+#% item
+# Exact integers, fractions, machine reals and balls give exact integers.
+
+#% item
+# A complex number is rounded in its real and imaginary parts separately.
+
+#% item
+# `round(x, a)` is `a*round(x/a)`.
+
+#% item
+# `round` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+round(2.4)
+#% output
+#= 2
+
+#% cell
+round(7/2)
+#% output
+#= 4
+
+#% text
+# Ties go to the even integer:
+
+#% cell
+round([0.5, 1.5, 2.5, 3.5])
+#% output
+#= [0, 2, 2, 4]
+
+#% subsection
+# Scope
+
+#% text
+# Nearest multiples:
+
+#% cell
+round(1234, 100)
+#% output
+#= 1200
+
+#% cell
+round(17, 5)
+#% output
+#= 15
+
+#% text
+# Negative numbers:
+
+#% cell
+round(-2.5)
+#% output
+#= -2
+
+#% text
+# A complex number:
+
+#% cell
+round(2.5 + 3.5im)
+#% output
+#= complex(2, 4)
+
+#% text
+# A ball:
+
+#% cell
+round(n(pi, 30))
+#% output
+#= 3
+
+#% subsection
+# Applications
+
+#% text
+# The integer closest to `e^(pi*sqrt(163))`, from enough digits:
+
+#% cell
+round(n(e^(pi*sqrt(163)), 40))
+#% output
+#= 262537412640768744
+
+#% subsection
+# Properties and relations
+
+#% text
+# `round` lies between `floor` and `ceiling`:
+
+#% cell
+[floor(2.6), round(2.6), ceiling(2.6)]
+#% output
+#= [2, 3, 3]
+
+#% subsection
+# Possible issues
+
+#% text
+# Exact real constants are not rounded; give a numerical value first:
+
+#% cell
+round(pi)
+#% output
+#= round(pi)
+
+#% cell
+round(n(pi))
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `floor`, `ceiling`, `chop`, `rationalize`

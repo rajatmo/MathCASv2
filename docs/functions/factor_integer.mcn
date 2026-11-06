@@ -1,0 +1,148 @@
+#! mathcas 2 notebook
+
+#% title
+# factor_integer
+
+#% text
+# `factor_integer(n)` gives the prime factorization of the integer `n` as a list of pairs `[p, e]` of a prime and its exponent.
+
+#% text
+# `factor_integer(r)` gives the factorization of the rational number `r`, with negative exponents for the primes of the denominator.
+
+#% section
+# Details
+
+#% item
+# The primes are in increasing order.
+
+#% item
+# A negative number has the pair `[-1, 1]` first.
+
+#% item
+# `factor_integer(1)` is `[[1, 1]]` and `factor_integer(0)` is `[[0, 1]]`.
+
+#% item
+# Large factors are found by Pollard's rho method and the elliptic curve method; a number with two very large prime factors can take a long time.
+
+#% item
+# Only exact integers and fractions are factored; any other argument stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factor_integer(360)
+#% output
+#= [[2, 3], [3, 2], [5, 1]]
+
+#% cell
+factor_integer(17)
+#% output
+#= [[17, 1]]
+
+#% text
+# A negative number:
+
+#% cell
+factor_integer(-12)
+#% output
+#= [[-1, 1], [2, 2], [3, 1]]
+
+#% subsection
+# Scope
+
+#% text
+# Fractions:
+
+#% cell
+factor_integer(3/8)
+#% output
+#= [[2, -3], [3, 1]]
+
+#% cell
+factor_integer(-45/14)
+#% output
+#= [[-1, 1], [2, -1], [3, 2], [5, 1], [7, -1]]
+
+#% text
+# Larger numbers:
+
+#% cell
+factor_integer(factorial(20))
+#% output
+#= [[2, 18], [3, 8], [5, 4], [7, 2], [11, 1], [13, 1], [17, 1], [19, 1]]
+
+#% cell
+factor_integer(10^20 + 1)
+#% output
+#= [[73, 1], [137, 1], [1676321, 1], [5964848081, 1]]
+
+#% text
+# The Fermat number 2^64 + 1 and the larger 2^128 + 1:
+
+#% cell
+factor_integer(2^64 + 1)
+#% output
+#= [[274177, 1], [67280421310721, 1]]
+
+#% cell
+factor_integer(2^128 + 1)
+#% output
+#= [[59649589127497217, 1], [5704689200685129054721, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Multiplying the powers gives the number back:
+
+#% cell
+product(map(p => p[1]^p[2], factor_integer(360)))
+#% output
+#= 360
+
+#% text
+# The number of divisors is the product of the exponents plus one:
+
+#% cell
+product(map(p => p[2] + 1, factor_integer(360)))
+#% output
+#= 24
+
+#% cell
+length(divisors(360))
+#% output
+#= 24
+
+#% subsection
+# Possible issues
+
+#% text
+# `factor_integer` does not map over lists:
+
+#% cell
+factor_integer([12, 15])
+#% output
+#= factor_integer([12, 15])
+
+#% cell
+map(factor_integer, [12, 15])
+#% output
+#= [[[2, 2], [3, 1]], [[3, 1], [5, 1]]]
+
+#% text
+# A machine real is not factored:
+
+#% cell
+factor_integer(2.0)
+#% output
+#= factor_integer(2.0)
+
+#% section
+# See also
+
+#% text
+# `is_prime`, `divisors`, `prime`, `gcd`, `euler_phi`

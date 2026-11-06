@@ -1,0 +1,194 @@
+#! mathcas 2 notebook
+
+#% title
+# n
+
+#% text
+# `n(e)` gives the numerical value of `e` as machine numbers.
+
+#% text
+# `n(e, d)` gives the value of `e` as balls with at least `d` correct decimal digits.
+
+#% text
+# `n(e, digits: d)` is the same as `n(e, d)`.
+
+#% section
+# Details
+
+#% item
+# Machine numbers are double-precision reals with about 16 significant digits; `n(e)` evaluates in machine arithmetic.
+
+#% item
+# `n(e, d)` evaluates with arbitrary-precision balls: a midpoint and an error bound. The working precision starts a little above `d` digits and doubles until the ball has `d` correct digits.
+
+#% item
+# Only the correct digits of a ball are printed; often there are a few more than `d`.
+
+#% item
+# When `d` digits are not reached before a precision cap, for example because the exact value is 0, the result is `failure(precision_not_reached, best)` with the best ball found.
+
+#% item
+# `n` works through any structure: lists, equations and sums are kept, and every numeric part inside them is replaced by its value. Symbols stay as they are.
+
+#% item
+# A machine real anywhere in a numeric part makes that part a machine computation, even under `n(e, d)`.
+
+#% item
+# `d` must be a positive integer.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A machine approximation of `pi`:
+
+#% cell
+n(pi)
+#% output
+#= 3.141592653589793
+
+#% text
+# `pi` to 30 digits:
+
+#% cell
+n(pi, 30)
+#% output
+#= 3.1415926535897932384626433832795029
+
+#% text
+# The option form of the number of digits:
+
+#% cell
+n(sqrt(2), digits: 50)
+#% output
+#= 1.414213562373095048801688724209698078569671875376948073
+
+#% text
+# A fraction:
+
+#% cell
+n(1/3)
+#% output
+#= 0.3333333333333333
+
+#% subsection
+# Scope
+
+#% text
+# Each element of a list:
+
+#% cell
+n([1/2, 1/3, pi])
+#% output
+#= [0.5, 0.3333333333333333, 3.141592653589793]
+
+#% text
+# Complex values:
+
+#% cell
+n(exp(1 + im))
+#% output
+#= complex(1.4686939399158851, 2.2873552871788423)
+
+#% cell
+n(exp(1 + im), 20)
+#% output
+#= complex(1.468693939915885157138968, 2.287355287178842391208172)
+
+#% text
+# Special functions:
+
+#% cell
+n(gamma(1/3), 25)
+#% output
+#= 2.6789385347077476336556929410
+
+#% text
+# Symbols are kept and the numeric parts evaluated:
+
+#% cell
+n(x + 1/2)
+#% output
+#= 0.5 + x
+
+#% text
+# A large argument needs extra working precision, which `n` adds by itself:
+
+#% cell
+n(sin(10^30), 20)
+#% output
+#= -0.0901169019121380580303864
+
+#% subsection
+# Applications
+
+#% text
+# The exponential of `pi*sqrt(163)` is very close to an integer, which only enough digits reveal:
+
+#% cell
+n(e^(pi*sqrt(163)), 40)
+#% output
+#= 262537412640768743.999999999999250072597198
+
+#% text
+# A numerical value of a definite integral:
+
+#% cell
+n(integrate(sin(x), [x, 0, 1]))
+#% output
+#= 0.45969769413186023
+
+#% subsection
+# Properties and relations
+
+#% text
+# A ball literal written with `~` is already an arbitrary-precision number:
+
+#% cell
+1.25~40
+#% output
+#= 1.250000000000000000000000000000000000000
+
+#% text
+# Two equal balls differ by a ball around 0 whose radius is the error bound:
+
+#% cell
+n(sqrt(2), 20) - n(sqrt(2), 20)
+#% output
+#= ball(0, 2.15e-25)
+
+#% subsection
+# Possible issues
+
+#% text
+# An expression whose exact value is 0 never gets correct relative digits:
+
+#% cell
+n(log(6) - log(2) - log(3), 10)
+#% output
+#! failure(precision_not_reached, ball(1.0116816456736594506e-963, 1.79e-963))
+
+#% text
+# A machine real in the input makes the whole computation machine precision:
+
+#% cell
+n(1e-30 + pi, 20)
+#% output
+#= 3.141592653589793
+
+#% text
+# The number of digits must be positive:
+
+#% cell
+n(pi, 0)
+#% output
+#! failure(invalid_argument, n(pi, 0))
+
+#% section
+# See also
+
+#% text
+# `chop`, `precision`, `accuracy`, `set_precision`, `rationalize`, `n_integrate`

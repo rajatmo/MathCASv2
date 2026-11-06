@@ -1,0 +1,112 @@
+#! mathcas 2 notebook
+
+#% title
+# piecewise
+
+#% text
+# `piecewise([[v1, c1], [v2, c2], ...])` gives the value `vi` of the first case whose condition `ci` is true, and 0 when none is.
+
+#% text
+# `piecewise(cases, default)` gives `default` when no condition is true.
+
+#% section
+# Details
+
+#% item
+# The conditions are tried in order; later cases may assume the earlier conditions were false.
+
+#% item
+# When a condition cannot be decided (it involves a symbol), the call stays, so it can be plotted, integrated or differentiated as a function of that symbol.
+
+#% item
+# Inside a function, `if ... then ... else` is often simpler; `piecewise` is a value that symbolic functions understand.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = piecewise([[x^2, x < 0], [x, x < 1]], 1)
+f /. x -> -2
+#% output
+#= 4
+
+#% cell
+f /. x -> 1/2
+#% output
+#= 1/2
+
+#% cell
+f /. x -> 5
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# Without a default, 0:
+
+#% cell
+piecewise([[1, 3 < 2]])
+#% output
+#= 0
+
+#% text
+# With a symbol, the call stays:
+
+#% cell
+f
+#% output
+#= piecewise([[x^2, x < 0], [x, x < 1]], 1)
+
+#% subsection
+# Applications
+
+#% text
+# A tent function, plotted:
+
+#% cell
+tent = piecewise([[1 + t, t < 0], [1 - t, t < 1]], 0)
+plot(tent, [t, -2, 2])
+#% output
+#= image("piecewise.files/piecewise-6.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same choice written with `if`, for numbers:
+
+#% cell
+fn g(x) = if x < 0 then x^2 else if x < 1 then x else 1
+[g(-2), g(1/2), g(5)]
+#% output
+#= [4, 1/2, 1]
+
+#% text
+# `unit_step` is a two-case piecewise function:
+
+#% cell
+[unit_step(-1), unit_step(2)]
+#% output
+#= [0, 1]
+
+#% subsection
+# Possible issues
+
+#% text
+# The derivative of a piecewise function is not worked out case by case; the result is not usable:
+
+#% cell
+d(tent, t)
+#% output
+#= [[derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0), derivative(1, 0)(less)(t, 0)*derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0)], [-derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0), derivative(1, 0)(less)(t, 1)*derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0)]]
+
+#% section
+# See also
+
+#% text
+# `unit_step`, `clamp`, `abs`, `plot`, `d`

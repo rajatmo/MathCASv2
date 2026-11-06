@@ -1,0 +1,132 @@
+#! mathcas 2 notebook
+
+#% title
+# log_plot
+
+#% text
+# `log_plot(f, [x, a, b])` draws the curve of `f` for `x` from `a` to `b` with a logarithmic y axis.
+
+#% text
+# `log_plot([f1, f2, ...], [x, a, b])` draws several curves.
+
+#% section
+# Details
+
+#% item
+# `log_plot` is `plot` with `y_scale: log`, and takes the same options.
+
+#% item
+# Values that are not positive have no logarithm and are left out, which breaks the curve.
+
+#% item
+# On a logarithmic axis an exponential exp(c x) is a straight line of slope c.
+
+#% item
+# The value is `image("path")`, a PNG file.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential function is a straight line:
+
+#% cell
+log_plot(exp(x), [x, 0, 10])
+#% output
+#= image("log_plot.files/log_plot-1.png")
+
+#% text
+# Several curves:
+
+#% cell
+log_plot([exp(x), exp(2x), x^2], [x, 0.1, 5])
+#% output
+#= image("log_plot.files/log_plot-2.png")
+
+#% text
+# A Gaussian is a parabola:
+
+#% cell
+log_plot(exp(-x^2), [x, -5, 5])
+#% output
+#= image("log_plot.files/log_plot-3.png")
+
+#% subsection
+# Scope
+
+#% text
+# Values over many orders of magnitude:
+
+#% cell
+log_plot(gamma(x), [x, 0.5, 10])
+#% output
+#= image("log_plot.files/log_plot-4.png")
+
+#% text
+# Zeros of the function drop down the axis:
+
+#% cell
+log_plot(abs(sin(x)), [x, 0, 10])
+#% output
+#= image("log_plot.files/log_plot-5.png")
+
+#% subsection
+# Options
+
+#% text
+# Labels and a legend:
+
+#% cell
+log_plot([exp(x), exp(-x)], [x, -3, 3], x_label: "x", legend: ["growth", "decay"])
+#% output
+#= image("log_plot.files/log_plot-6.png")
+
+#% text
+# A fixed vertical range:
+
+#% cell
+log_plot(exp(x), [x, 0, 10], plot_range: [1, 10^3])
+#% output
+#= image("log_plot.files/log_plot-7.png")
+
+#% subsection
+# Applications
+
+#% text
+# Radioactive decay of two isotopes and their sum; each separate decay is a straight line:
+
+#% cell
+log_plot([exp(-t), 0.5*exp(-t/5), exp(-t) + 0.5*exp(-t/5)], [t, 0, 15], x_label: "t", legend: ["fast", "slow", "total"])
+#% output
+#= image("log_plot.files/log_plot-8.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same plot as `plot` with a logarithmic y axis:
+
+#% cell
+plot(exp(x), [x, 0, 10], y_scale: log)
+#% output
+#= image("log_plot.files/log_plot-9.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Where the function is negative nothing is drawn:
+
+#% cell
+log_plot(x^2 - 1, [x, -2, 2])
+#% output
+#= image("log_plot.files/log_plot-10.png")
+
+#% section
+# See also
+
+#% text
+# `plot`, `log_log_plot`, `log_linear_plot`, `list_log_plot`, `y_scale`

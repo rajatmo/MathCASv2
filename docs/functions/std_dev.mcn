@@ -1,0 +1,148 @@
+#! mathcas 2 notebook
+
+#% title
+# std_dev
+
+#% text
+# `std_dev(xs)` gives the sample standard deviation of the list of values `xs`.
+
+#% text
+# `std_dev(d)` gives the standard deviation of the distribution `d`.
+
+#% section
+# Details
+
+#% item
+# The sample standard deviation is `sqrt(variance(xs))`, with the divisor n - 1.
+
+#% item
+# Exact values give an exact result, machine reals a machine real.
+
+#% item
+# For a list of rows, the standard deviation is taken column by column.
+
+#% item
+# A list needs at least two elements.
+
+#% item
+# A distribution without a finite variance gives `failure(undefined, std_dev, d)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The standard deviation of four integers:
+
+#% cell
+std_dev([1, 2, 3, 4])
+#% output
+#= (1/3)*15^(1/2)
+
+#% text
+# Of machine reals:
+
+#% cell
+std_dev([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0])
+#% output
+#= 2.138089935299395
+
+#% text
+# Of a distribution:
+
+#% cell
+std_dev(normal_distribution(mu, sigma))
+#% output
+#= sigma
+
+#% subsection
+# Scope
+
+#% text
+# Column by column:
+
+#% cell
+std_dev([[1, 2], [3, 4], [5, 9]])
+#% output
+#= [2, 13^(1/2)]
+
+#% text
+# Of several distributions:
+
+#% cell
+[std_dev(exponential_distribution(l)), std_dev(poisson_distribution(4)), std_dev(uniform_distribution([0, 1]))]
+#% output
+#= [l^-1, 2, (1/6)*3^(1/2)]
+
+#% text
+# Of symbols:
+
+#% cell
+std_dev([a, b])
+#% output
+#= ((a + (-1/2)*(a + b))^2 + (b + (-1/2)*(a + b))^2)^(1/2)
+
+#% subsection
+# Applications
+
+#% text
+# The spread of simulated data, close to the 3 it was drawn with:
+
+#% cell
+seed(2); std_dev(random_variate(normal_distribution(0, 3), 10^4))
+#% output
+#= 3.0279636615805514
+
+#% text
+# The standard error of a mean, std_dev/sqrt(n):
+
+#% cell
+seed(3); xs = random_real([0, 1], 400); [mean(xs), std_dev(xs)/sqrt(400)]
+#% output
+#= [0.4872697517955293, 0.014293262934954927]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The square is the variance:
+
+#% cell
+std_dev([1, 2, 3, 4])^2 == variance([1, 2, 3, 4])
+#% output
+#= true
+
+#% text
+# With the divisor n instead of n - 1, from the second central moment:
+
+#% cell
+sqrt(central_moment([1, 2, 3, 4], 2))
+#% output
+#= (1/2)*5^(1/2)
+
+#% subsection
+# Possible issues
+
+#% text
+# One value has no sample standard deviation:
+
+#% cell
+std_dev([5])
+#% output
+#! failure(argument, std_dev, "the list needs at least two elements")
+
+#% text
+# A distribution with infinite variance:
+
+#% cell
+std_dev(student_t_distribution(1))
+#% output
+#! failure(undefined, std_dev, student_t_distribution(1))
+
+#% section
+# See also
+
+#% text
+# `variance`, `mean`, `median`, `central_moment`, `quantile`

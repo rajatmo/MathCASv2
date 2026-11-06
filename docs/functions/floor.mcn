@@ -1,0 +1,157 @@
+#! mathcas 2 notebook
+
+#% title
+# floor
+
+#% text
+# `floor(x)` gives the greatest integer less than or equal to `x`.
+
+#% text
+# `floor(x, a)` gives the greatest multiple of `a` less than or equal to `x`.
+
+#% section
+# Details
+
+#% item
+# Exact integers, fractions, machine reals and balls give exact integers.
+
+#% item
+# A machine real gives the integer of its exact binary value.
+
+#% item
+# A complex number is floored in its real and imaginary parts separately.
+
+#% item
+# `floor(x, a)` is `a*floor(x/a)`.
+
+#% item
+# `floor` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+floor(2.7)
+#% output
+#= 2
+
+#% text
+# Negative numbers round down, away from 0:
+
+#% cell
+floor(-2.7)
+#% output
+#= -3
+
+#% cell
+floor(7/2)
+#% output
+#= 3
+
+#% subsection
+# Scope
+
+#% text
+# Multiples of a step:
+
+#% cell
+floor(7, 3)
+#% output
+#= 6
+
+#% cell
+floor(2.7, 0.5)
+#% output
+#= 2.5
+
+#% cell
+floor(17/3, 1/4)
+#% output
+#= 11/2
+
+#% text
+# A ball:
+
+#% cell
+floor(n(pi, 30))
+#% output
+#= 3
+
+#% text
+# A complex number:
+
+#% cell
+floor(3 + 2.5im)
+#% output
+#= complex(3, 2)
+
+#% text
+# Each element of a list:
+
+#% cell
+floor([1.5, -1.5, 2])
+#% output
+#= [1, -2, 2]
+
+#% text
+# A large machine real, exactly:
+
+#% cell
+floor(1e20)
+#% output
+#= 100000000000000000000
+
+#% subsection
+# Applications
+
+#% text
+# The integer part of a number just below an integer, exactly:
+
+#% cell
+floor(1 - 10^-60)
+#% output
+#= 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# `ceiling` rounds up, `floor` down:
+
+#% cell
+[floor(2.1), ceiling(2.1)]
+#% output
+#= [2, 3]
+
+#% text
+# `mod` is defined through `floor`:
+
+#% cell
+17 - 5*floor(17/5) == mod(17, 5)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Exact real constants are not floored; give a numerical value first:
+
+#% cell
+floor(pi)
+#% output
+#= floor(pi)
+
+#% cell
+floor(n(pi))
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `ceiling`, `round`, `mod`, `quotient`

@@ -1,0 +1,176 @@
+#! mathcas 2 notebook
+
+#% title
+# import_data
+
+#% text
+# `import_data(file)` gives the data of `file`, in the format named by its extension.
+
+#% text
+# `import_data(file, format)` reads `file` in the named format.
+
+#% text
+# `import_data(file, element)` gives one element of the file, such as `"dataset"` or `"dimensions"`.
+
+#% text
+# `import_data(file, "page", k)` gives page `k` of a PDF file as an image.
+
+#% section
+# Details
+
+#% item
+# The path is relative to the current directory.
+
+#% item
+# `csv`, `tsv`, `txt` and `dat` files give a list of rows, each a list of fields. Fields that read as integers become integers, then machine reals, else strings.
+
+#% item
+# `lines` gives a list of strings, one per line.
+
+#% item
+# `json` gives lists, numbers, strings, `true`, `false` and `null`; an object becomes a list of rules `key -> value`.
+
+#% item
+# The element `"dataset"` reads a CSV, TSV, text or JSON file as a dataset: the first row names the columns.
+
+#% item
+# A `png` file gives `image(path)`. Its elements are `"data"` (the pixels as reals in [0, 1]), `"dimensions"` (`[width, height]`), `"channels"` and `"bit_depth"`.
+
+#% item
+# A `pdf` file gives its pages as images. Its elements are `"pages"`, `"page", k`, `"page_count"` and `"text"`; the option `dpi: d` sets the resolution of the pages (150 by default).
+
+#% item
+# A missing or unreadable file gives `failure(io, file, message)`.
+
+#% item
+# `import_data` is an effect: the file is read every time, never remembered.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Write a small CSV file, then read it:
+
+#% cell
+export_data("squares.csv", table([k, k^2], k, 5)); import_data("squares.csv")
+#% output
+#= [[1, 1], [2, 4], [3, 9], [4, 16], [5, 25]]
+
+#% text
+# The same file as a list of lines:
+
+#% cell
+import_data("squares.csv", lines)
+#% output
+#= ["1,1", "2,4", "3,9", "4,16", "5,25"]
+
+#% text
+# The size of an image file:
+
+#% cell
+export_data("curve.png", plot(x^2, [x, -1, 1])); import_data("curve.png", "dimensions")
+#% output
+#= [640, 400]
+
+#% subsection
+# Scope
+
+#% text
+# A file with a header row, read as a dataset:
+
+#% cell
+export_data("people.csv", [["name", "age"], ["Ann", 31], ["Bo", 27]]); import_data("people.csv", "dataset")
+#% output
+#= name | age
+#= -----+----
+#= Ann  |  31
+#= Bo   |  27
+#= dataset: 2 rows, 2 columns
+
+#% text
+# Read as rows, the header is the first row:
+
+#% cell
+import_data("people.csv")
+#% output
+#= [["name", "age"], ["Ann", 31], ["Bo", 27]]
+
+#% text
+# A JSON object gives rules:
+
+#% cell
+export_data("point.json", ["x" -> 1.5, "y" -> [1, 2]]); import_data("point.json")
+#% output
+#= ["x" -> 1.5, "y" -> [1, 2]]
+
+#% text
+# The number of channels and the bit depth of a PNG file:
+
+#% cell
+[import_data("curve.png", "channels"), import_data("curve.png", "bit_depth")]
+#% output
+#= [4, 8]
+
+#% text
+# The pixels of a small image:
+
+#% cell
+export_data("tiny.png", [[0, 1], [1, 0]]); import_data("tiny.png", "data")
+#% output
+#= [[[0.0], [1.0]], [[1.0], [0.0]]]
+
+#% text
+# A page of a PDF file, as an image:
+
+#% cell
+export_data("curve.pdf", plot(x^3, [x, -1, 1])); import_data("curve.pdf", "page", 1)
+#% output
+#= image("import_data.files/import_data-9.png")
+
+#% subsection
+# Applications
+
+#% text
+# Read a table of measurements and fit a straight line through it by least squares:
+
+#% cell
+export_data("measured.csv", [[1, 2.1], [2, 3.9], [3, 6.2], [4, 7.8]]); pts = import_data("measured.csv")
+
+#% cell
+find_minimum(total(map(p => (p[2] - a*p[1] - b)^2, pts)), [[a, 1], [b, 0]])
+#% output
+#= [0.08199999999999995, [a -> 1.94, b -> 0.15000000000000002]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A file that does not exist:
+
+#% cell
+import_data("missing.csv")
+#% output
+#! failure(io, "missing.csv", "The system cannot find the file specified. (os error 2)")
+
+#% text
+# Without a header row, the first row of numbers is taken as the column names of a dataset:
+
+#% cell
+import_data("squares.csv", "dataset")
+#% output
+#=   1 | 1_2
+#= ----+----
+#=   2 |   4
+#=   3 |   9
+#=   4 |  16
+#=   5 |  25
+#= dataset: 4 rows, 2 columns
+
+#% section
+# See also
+
+#% text
+# `export_data`, `image`, `image_data`, `dataset`, `table`

@@ -1,0 +1,146 @@
+#! mathcas 2 notebook
+
+#% title
+# is_prime
+
+#% text
+# `is_prime(n)` gives `true` if the integer `n` is a prime number, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# Below 2^64 the test is deterministic. Above it uses the Baillie-PSW test, which has no known counterexample.
+
+#% item
+# A negative integer is prime when its absolute value is: `is_prime(-7)` is `true`.
+
+#% item
+# 0 and 1 are not prime.
+
+#% item
+# Anything that is not an integer gives `false`, including machine reals such as `7.0` and symbols.
+
+#% item
+# `is_prime` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_prime(7)
+#% output
+#= true
+
+#% cell
+is_prime(1)
+#% output
+#= false
+
+#% text
+# Each element of a list:
+
+#% cell
+is_prime([2, 3, 4, 5])
+#% output
+#= [true, true, false, true]
+
+#% subsection
+# Scope
+
+#% text
+# Mersenne numbers 2^p - 1:
+
+#% cell
+is_prime(2^61 - 1)
+#% output
+#= true
+
+#% cell
+is_prime(2^127 - 1)
+#% output
+#= true
+
+#% text
+# The first prime after 2^64 and the first after 10^100:
+
+#% cell
+is_prime(2^64 + 13)
+#% output
+#= true
+
+#% cell
+is_prime(10^100 + 267)
+#% output
+#= true
+
+#% text
+# A negative integer:
+
+#% cell
+is_prime(-7)
+#% output
+#= true
+
+#% subsection
+# Applications
+
+#% text
+# The primes below 30:
+
+#% cell
+select(range(30), is_prime)
+#% output
+#= [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The Carmichael number 561 satisfies Fermat's little theorem for every base prime to it, yet is composite:
+
+#% cell
+power_mod(2, 560, 561)
+#% output
+#= 1
+
+#% cell
+is_prime(561)
+#% output
+#= false
+
+#% text
+# A composite number has a factorization with more than one prime:
+
+#% cell
+factor_integer(3215031751)
+#% output
+#= [[151, 1], [751, 1], [28351, 1]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A machine real is never prime, even if it has an integer value:
+
+#% cell
+is_prime(7.0)
+#% output
+#= false
+
+#% text
+# A symbol gives `false`, not an unevaluated test:
+
+#% cell
+is_prime(x)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `prime`, `next_prime`, `prime_pi`, `factor_integer`, `power_mod`

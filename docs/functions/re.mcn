@@ -1,0 +1,138 @@
+#! mathcas 2 notebook
+
+#% title
+# re
+
+#% text
+# `re(z)` gives the real part of the complex number `z`.
+
+#% section
+# Details
+
+#% item
+# Exact, machine and ball numbers give their real part; a real number is its own real part.
+
+#% item
+# Closed numeric expressions whose value the system knows in exact form, such as `exp(im*pi/3)`, give an exact real part.
+
+#% item
+# A symbol stays inside `re`, since it may be complex.
+
+#% item
+# `re` is listable: it applies to each element of a list.
+
+#% item
+# The imaginary part is `im_part(z)`. The name `im` is the imaginary unit, not a function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+re(3 + 4im)
+#% output
+#= 3
+
+#% cell
+re(1.0 + 2.0*im)
+#% output
+#= 1.0
+
+#% text
+# A real number is its own real part:
+
+#% cell
+re(-7)
+#% output
+#= -7
+
+#% subsection
+# Scope
+
+#% text
+# An exact complex fraction:
+
+#% cell
+re(1/2 + 3im/4)
+#% output
+#= 1/2
+
+#% text
+# Closed numeric expressions:
+
+#% cell
+re(exp(im*pi/3))
+#% output
+#= 1/2
+
+#% cell
+re(log(-1))
+#% output
+#= 0
+
+#% text
+# A ball:
+
+#% cell
+re(n(exp(im), 20))
+#% output
+#= 0.540302305868139717400937
+
+#% text
+# Each element of a list:
+
+#% cell
+re([1 + im, 2 - 3im])
+#% output
+#= [1, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The real and imaginary parts:
+
+#% cell
+[re(3 + 4im), im_part(3 + 4im)]
+#% output
+#= [3, 4]
+
+#% text
+# Conjugation does not change the real part:
+
+#% cell
+re(conjugate(z))
+#% output
+#= re(z)
+
+#% subsection
+# Possible issues
+
+#% text
+# A symbol may be complex, so its real part stays:
+
+#% cell
+re(x + im*y)
+#% output
+#= re(x + 1im*y)
+
+#% text
+# Closed forms without a known exact value stay; use `n` for a value:
+
+#% cell
+re(exp(1 + im))
+#% output
+#= re(exp(complex(1, 1)))
+
+#% cell
+n(re(exp(1 + im)))
+#% output
+#= 1.4686939399158851
+
+#% section
+# See also
+
+#% text
+# `im_part`, `abs`, `arg`, `conjugate`

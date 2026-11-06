@@ -1,0 +1,192 @@
+#! mathcas 2 notebook
+
+#% title
+# find_minimum
+
+#% text
+# `find_minimum(f, [x, x0])` searches for a local minimum of `f` starting from `x = x0`, and gives `[f_min, [x -> x_min]]`.
+
+#% text
+# `find_minimum(f, [[x, x0], [y, y0], ...])` searches in several variables.
+
+#% section
+# Details
+
+#% item
+# The minimum found is local: the one the search reaches from the starting point.
+
+#% item
+# In one variable the search uses Brent's method; in several, the BFGS method. A converged result is polished by Newton steps on the gradient.
+
+#% item
+# The derivatives are found symbolically when they exist, else by differences.
+
+#% item
+# Options:
+
+#% subitem
+# `method: brent | bfgs | newton` chooses the method.
+
+#% subitem
+# `digits: d` refines the minimum to a ball of `d` digits.
+
+#% subitem
+# `max_iterations: k` bounds the number of steps.
+
+#% subitem
+# `compile: auto | true | false` controls whether the function is compiled to machine code for the search.
+
+#% item
+# When the search does not settle, the result is a `failure(not_converged, ...)` holding the last point and an error estimate.
+
+#% item
+# `find_maximum` searches for a maximum in the same way.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The minimum of a parabola:
+
+#% cell
+find_minimum(x^2 - 4x + 1, [x, 0])
+#% output
+#= [-3.0, [x -> 2.0]]
+
+#% text
+# Two local minima of a quartic, reached from two starting points:
+
+#% cell
+find_minimum(x^4 - 3x^2 + x, [x, 1])
+#% output
+#= [-1.0702301817761541, [x -> 1.1309011226299859]]
+
+#% cell
+find_minimum(x^4 - 3x^2 + x, [x, -1])
+#% output
+#= [-3.5139050389347894, [x -> -1.3008395659415772]]
+
+#% text
+# Two variables:
+
+#% cell
+find_minimum(x^2 + y^2 + x*y - 3x, [[x, 0], [y, 0]])
+#% output
+#= [-3.0, [x -> 2.0, y -> -1.0]]
+
+#% subsection
+# Scope
+
+#% text
+# The Rosenbrock function, with its long curved valley:
+
+#% cell
+find_minimum(100(y - x^2)^2 + (1 - x)^2, [[x, -1.2], [y, 1]])
+#% output
+#= [0.0, [x -> 1.0, y -> 1.0]]
+
+#% text
+# Transcendental and special functions:
+
+#% cell
+find_minimum(x*log(x), [x, 0.5])
+#% output
+#= [-0.36787944117144233, [x -> 0.36787944117144233]]
+
+#% cell
+find_minimum(gamma(x), [x, 1.5])
+#% output
+#= [0.8856031944108887, [x -> 1.4616321449683622]]
+
+#% subsection
+# Options
+
+#% text
+# The minimum to 25 digits:
+
+#% cell
+find_minimum(sin(x) + cos(2x), [x, 2], digits: 25)
+#% output
+#= [ball(0, 1.64e-34), [x -> 1.570796326794896619231322]]
+
+#% text
+# Newton's method:
+
+#% cell
+find_minimum(x^4 - 3x^2 + x, [x, 1], method: newton)
+#% output
+#= [-1.0702301817761541, [x -> 1.1309011226299859]]
+
+#% subsection
+# Applications
+
+#% text
+# Fit a straight line to data by least squares:
+
+#% cell
+pts = [[1, 2.1], [2, 3.9], [3, 6.2], [4, 7.8]]; find_minimum(total(map(p => (p[2] - a*p[1] - b)^2, pts)), [[a, 1], [b, 0]])
+#% output
+#= [0.08199999999999995, [a -> 1.94, b -> 0.15000000000000002]]
+
+#% text
+# Use the position of the minimum:
+
+#% cell
+r = find_minimum(1/x + x, [x, 3]); x /. r[2]
+#% output
+#= 1.0
+
+#% subsection
+# Properties and relations
+
+#% text
+# `find_maximum` finds a maximum:
+
+#% cell
+find_maximum(sin(x), [x, 1])
+#% output
+#= [1.0, [x -> 1.5707963267948966]]
+
+#% text
+# The minimum of x^4 - 3x^2 + x lies where its derivative vanishes:
+
+#% cell
+find_root(d(x^4 - 3x^2 + x, x) == 0, [x, 1])
+#% output
+#= [x -> 1.1309011226299859]
+
+#% subsection
+# Possible issues
+
+#% text
+# A function without a minimum makes the search run away:
+
+#% cell
+find_minimum(exp(x), [x, 0])
+#% output
+#! failure(not_converged, find_minimum, [0.0, [x -> -1.370839154678994e16]], 5236139639782012.0)
+
+#% text
+# At a kink the minimum is found less accurately:
+
+#% cell
+find_minimum(abs(x - 1), [x, 0])
+#% output
+#= [3.2061011623341074e-9, [x -> 1.0000000032061012]]
+
+#% text
+# An equation is not a function to minimise:
+
+#% cell
+find_minimum(x^2 - 4x + 1 == 0, [x, 0])
+#% output
+#! failure(argument, find_minimum, 1)
+
+#% section
+# See also
+
+#% text
+# `find_maximum`, `find_root`, `d`, `n_solve`, `compile`

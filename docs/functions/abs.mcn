@@ -1,0 +1,138 @@
+#! mathcas 2 notebook
+
+#% title
+# abs
+
+#% text
+# `abs(x)` gives the absolute value of the real or complex number `x`.
+
+#% section
+# Details
+
+#% item
+# For a complex number `a + b*im` the absolute value is `sqrt(a^2 + b^2)`.
+
+#% item
+# Exact numbers give exact results; exact real expressions such as `1 - sqrt(2)` are resolved by their sign.
+
+#% item
+# Machine numbers and balls give numbers of the same kind.
+
+#% item
+# A symbol stays inside `abs`, since its sign is not known.
+
+#% item
+# `abs` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+abs(-3)
+#% output
+#= 3
+
+#% cell
+abs(-2.5)
+#% output
+#= 2.5
+
+#% text
+# The modulus of a complex number:
+
+#% cell
+abs(3 + 4im)
+#% output
+#= 5
+
+#% text
+# Each element of a list:
+
+#% cell
+abs([-1, 2, -3])
+#% output
+#= [1, 2, 3]
+
+#% subsection
+# Scope
+
+#% text
+# Exact real expressions:
+
+#% cell
+abs(-pi)
+#% output
+#= pi
+
+#% cell
+abs(1 - sqrt(2))
+#% output
+#= -1 + 2^(1/2)
+
+#% cell
+abs(sin(1) - 1)
+#% output
+#= 1 - sin(1)
+
+#% text
+# A complex machine number:
+
+#% cell
+abs(1.0 + 1.0*im)
+#% output
+#= 1.4142135623730951
+
+#% text
+# Balls:
+
+#% cell
+abs(n(1 - sqrt(2), 25))
+#% output
+#= 0.41421356237309504880168872421
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative of `abs` for real arguments is the sign:
+
+#% cell
+d(abs(x), x)
+#% output
+#= sign(x)
+
+#% text
+# The absolute value of a complex number is its distance from 0, the same as the norm of the pair of its parts:
+
+#% cell
+abs(1 + im) == norm([1, 1])
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A symbolic argument stays, even when its sign seems clear:
+
+#% cell
+abs(x^2)
+#% output
+#= abs(x^2)
+
+#% text
+# The absolute value of an infinity is not taken:
+
+#% cell
+abs(-inf)
+#% output
+#= abs(-inf)
+
+#% section
+# See also
+
+#% text
+# `sign`, `arg`, `re`, `im_part`, `conjugate`, `norm`

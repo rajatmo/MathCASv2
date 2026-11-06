@@ -1,0 +1,112 @@
+#! mathcas 2 notebook
+
+#% title
+# take
+
+#% text
+# `take(xs, n)` gives the first `n` elements of the list `xs`.
+
+#% text
+# `take(xs, -n)` gives the last `n` elements.
+
+#% section
+# Details
+
+#% item
+# `n` must be an integer whose size is at most the length of `xs`; asking for more elements than there are gives a failure.
+
+#% item
+# `take(xs, 0)` is `[]`.
+
+#% item
+# For a span from position `i` to `j`, index with `xs[i:j]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take([a, b, c, d, e], 2)
+#% output
+#= [a, b]
+
+#% cell
+take([a, b, c, d, e], -2)
+#% output
+#= [d, e]
+
+#% cell
+take(range(10), 0)
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# The first rows of a matrix:
+
+#% cell
+take([[1, 2], [3, 4], [5, 6]], 2)
+#% output
+#= [[1, 2], [3, 4]]
+
+#% text
+# A span by index, for comparison:
+
+#% cell
+range(10)[3:6]
+#% output
+#= [3, 4, 5, 6]
+
+#% subsection
+# Applications
+
+#% text
+# Keeping the last 900 of 1000 samples of a chain, after a burn-in:
+
+#% cell
+seed(1); chain = accumulate(random_real([-0.1, 0.1], 1000))
+length(take(chain, -900))
+#% output
+#= 900
+
+#% text
+# The three most common letters of a sentence, from its tally sorted by count:
+
+#% cell
+letters = select(characters("the quick brown fox jumps over the lazy dog"), c => c != " ")
+take(sort_by(tally(letters), p => -p[2]), 3)
+#% output
+#= [["o", 4], ["e", 3], ["t", 2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `take` and `drop` split a list:
+
+#% cell
+xs = range(7)
+join(take(xs, 3), drop(xs, 3)) === xs
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# More elements than the list has:
+
+#% cell
+take([1, 2, 3], 5)
+#% output
+#! failure(index, 5, 3)
+
+#% section
+# See also
+
+#% text
+# `drop`, `first`, `last`, `part`, `partition`

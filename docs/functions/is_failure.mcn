@@ -1,0 +1,121 @@
+#! mathcas 2 notebook
+
+#% title
+# is_failure
+
+#% text
+# `is_failure(x)` gives `true` if `x` is a failure `failure(tag, ...)`, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# A failure is the value a computation gives when it cannot produce a result: its tag says why (`no_match`, `argument`, `not_converged`, `missing_key`, ...).
+
+#% item
+# Failures pass through most functions unchanged, so a failure deep in a computation becomes its value. `is_failure` is one of the few functions that receive the failure as an argument instead.
+
+#% item
+# A list that contains a failure is not itself a failure; `drop_failures` removes such elements from a list.
+
+#% item
+# `failure_tag(x)` gives the tag.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_failure(failure(not_found, "key"))
+#% output
+#= true
+
+#% cell
+is_failure(42)
+#% output
+#= false
+
+#% cell
+is_failure(lookup(assoc(), "k"))
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# The failures of numerical functions:
+
+#% cell
+is_failure(find_root(x^2 + 1, [x, 1]))
+#% output
+#= true
+
+#% cell
+failure_tag(find_root(x^2 + 1, [x, 1]))
+#% output
+#= not_converged
+
+#% subsection
+# Applications
+
+#% text
+# Counting the failed points of a scan; the list keeps its failures as elements:
+
+#% cell
+results = map(a => find_root(x^2 - a, [x, 1]), [4, -1, 9])
+count_if(results, is_failure)
+#% output
+#= 1
+
+#% text
+# A fallback when a computation fails:
+
+#% cell
+fn root_or_missing(a) = if is_failure(find_root(x^2 - a, [x, 1])) then missing("no root") else x /. find_root(x^2 - a, [x, 1])
+map(root_or_missing, [4, -1])
+#% output
+#= [2.0, missing("no root")]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A list holding a failure is not a failure:
+
+#% cell
+is_failure([1, failure(a, f)])
+#% output
+#= false
+
+#% text
+# `drop_failures` removes failed elements from a list:
+
+#% cell
+drop_failures(results)
+#% output
+#= [[x -> 2.0], [x -> 3.0]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A failure is not stored by an assignment: the failure is the value of the statement and the name stays unassigned, so test the computation itself, not a name it was assigned to:
+
+#% cell
+r = find_root(x^2 + 1, [x, 1])
+#% output
+#! failure(not_converged, find_root, [x -> 0.0], 1.0)
+
+#% cell
+is_failure(r)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `failure_tag`, `drop_failures`, `find_root`, `lookup`

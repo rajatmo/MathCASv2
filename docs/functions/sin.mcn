@@ -1,0 +1,156 @@
+#! mathcas 2 notebook
+
+#% title
+# sin
+
+#% text
+# `sin(x)` gives the sine of `x`, with `x` in radians.
+
+#% section
+# Details
+
+#% item
+# `sin(q*pi)` is exact for a rational `q` whose denominator is 1, 2, 3, 4 or 6; other exact arguments stay unevaluated.
+
+#% item
+# A minus sign is taken out: `sin(-x)` is `-sin(x)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; large arguments are reduced accurately.
+
+#% item
+# `sin` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sin(pi/6)
+#% output
+#= 1/2
+
+#% cell
+sin(pi/4)
+#% output
+#= (1/2)*2^(1/2)
+
+#% text
+# A machine number:
+
+#% cell
+sin(1.0)
+#% output
+#= 0.8414709848078965
+
+#% text
+# Each element of a list:
+
+#% cell
+sin([0, pi/2, pi])
+#% output
+#= [0, 1, 0]
+
+#% subsection
+# Scope
+
+#% text
+# Multiples of `pi` beyond one turn:
+
+#% cell
+sin(100pi + pi/6)
+#% output
+#= 1/2
+
+#% text
+# A ball, and 30 digits from an exact argument:
+
+#% cell
+sin(1~30)
+#% output
+#= 0.841470984807896506652502321630
+
+#% cell
+n(sin(1), 30)
+#% output
+#= 0.8414709848078965066525023216302990
+
+#% text
+# A complex machine number:
+
+#% cell
+sin(1.0 + 2.0*im)
+#% output
+#= complex(3.165778513216168, 1.959601041421606)
+
+#% text
+# A large argument:
+
+#% cell
+sin(1e20)
+#% output
+#= -0.6452512852657808
+
+#% text
+# The sine is odd:
+
+#% cell
+sin(-x)
+#% output
+#= -sin(x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The Pythagorean identity:
+
+#% cell
+simplify(sin(x)^2 + cos(x)^2)
+#% output
+#= 1
+
+#% text
+# The derivative and an integral:
+
+#% cell
+d(sin(x), x)
+#% output
+#= cos(x)
+
+#% cell
+integrate(sin(x)^2, x)
+#% output
+#= (-1/4)*sin(2*x) + (1/2)*x
+
+#% subsection
+# Possible issues
+
+#% text
+# Multiples of `pi` with other denominators stay unevaluated:
+
+#% cell
+sin(pi/5)
+#% output
+#= sin((1/5)*pi)
+
+#% cell
+n(sin(pi/5))
+#% output
+#= 0.5877852522924731
+
+#% text
+# A shift by a full period is not removed from a symbolic argument:
+
+#% cell
+sin(x + 2pi)
+#% output
+#= sin(x + 2*pi)
+
+#% section
+# See also
+
+#% text
+# `cos`, `tan`, `asin`, `sinh`, `trig_reduce`, `exp_to_trig`
