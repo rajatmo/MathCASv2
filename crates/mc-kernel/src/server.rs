@@ -141,7 +141,7 @@ fn origin(origin: Option<&str>, cell: Option<&str>) -> Origin {
 /// or the end of the input (the requests read before it are still answered). Returns an error only when
 /// `output` cannot be written.
 pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, config: EngineConfig) -> io::Result<()> {
-    let mut engine = CoreEngine::with_config(config);
+    let mut engine = crate::front_end::session(config);
     let mut w = Writer { out: output };
     let hello = Body::Hello {
         protocol: PROTOCOL,
@@ -179,7 +179,7 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
             Ok(Err(e)) => return Err(e),
             Err(note) => {
                 lock(&shared).running = None;
-                engine = CoreEngine::with_config(config);
+                engine = crate::front_end::session(config);
                 let why = format!("internal error: {}; the session was reset", note.text());
                 w.send(&id, &None, Body::Error(ErrorReport::plain(why)))?;
                 w.done(&id, &None, Status::Error, start)?;
@@ -296,7 +296,7 @@ fn handle(
             w.done(&id, &None, Status::Ok, start)?;
         }
         Request::Reset { .. } => {
-            *engine = CoreEngine::with_config(config);
+            *engine = crate::front_end::session(config);
             w.done(&id, &None, Status::Ok, start)?;
         }
         Request::Shutdown { .. } => {

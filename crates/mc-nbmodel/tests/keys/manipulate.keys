@@ -1,0 +1,51 @@
+Interactive controls (round 13): a manipulate value shows its result at the initial positions; moving a control
+keeps its position on the output and shows the result there. The fake kernel answers a control's evaluation with
+its source, so the scripts show what the kernel was asked.
+
+=== a manipulate value asks for its result at the initial positions
+--- before
+#% cell
+manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
+#% output n=1
+#= manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
+#% output manipulated
+#= { let a = 0; let b = 1.0; a+1 }
+‖
+
+=== moving a control keeps its position and shows the new result; the file reads back the same
+--- before
+#% cell
+manipulate(a+1, [a, 0, 10, 1])▮
+--- keys
+Shift+Enter Control(1,0,7) ControlDone(1,0,3)
+--- after
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1])
+#% output n=1 controls=3
+#= manipulate(a+1, [a, 0, 10, 1])
+#% output manipulated
+#= { let a = 3; a+1 }
+‖
+
+=== a saved position is evaluated from where it was, and re-evaluating the input starts at the initial one
+--- before
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1])▮
+#% output n=1 controls=5
+#= manipulate(a+1, [a, 0, 10, 1])
+#% output manipulated
+#= 6
+--- keys
+Control(1,0,6)
+--- after
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1])▮
+#% output n=1 controls=6
+#= manipulate(a+1, [a, 0, 10, 1])
+#% output manipulated
+#= { let a = 6; a+1 }

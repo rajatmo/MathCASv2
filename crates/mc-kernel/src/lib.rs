@@ -186,6 +186,7 @@
 //! leaves the file unchanged.
 #![warn(missing_docs)]
 pub mod cell;
+pub mod front_end;
 pub mod notebook;
 pub mod protocol;
 pub mod server;

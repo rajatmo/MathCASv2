@@ -20,6 +20,14 @@ pub enum KernelRequest {
         /// the cell's first line in the notebook file
         line: u32,
     },
+    /// evaluate `src` for an interactive control (`manipulate`, round 13): a value per statement, not numbered (no
+    /// labels, no `out` entries)
+    Side {
+        /// the request id
+        id: u64,
+        /// the text
+        src: String,
+    },
     /// stop the evaluation with this id
     Interrupt {
         /// the `eval` request's id
@@ -149,6 +157,20 @@ pub(crate) struct Running {
     pub sizes: VecDeque<Option<String>>,
 }
 
+/// The evaluation of a `manipulate` output's controls that runs (round 13).
+#[derive(Clone, Debug)]
+pub(crate) struct ManipRun {
+    /// the `manipulate` output
+    pub cell: CellId,
+    pub req: u64,
+    /// the positions evaluated
+    pub values: Vec<f64>,
+    /// the last value (or failure) it showed
+    pub result: Option<(String, bool)>,
+    /// it was interrupted for a newer position
+    pub interrupted: bool,
+}
+
 /// The evaluation state of a notebook.
 #[derive(Clone, Debug)]
 pub(crate) struct EvalState {
@@ -165,6 +187,9 @@ pub(crate) struct EvalState {
     pub init_settled: bool,
     /// cells waiting for the answer to the initialization question
     pub pending: Option<Vec<CellId>>,
+    /// the running evaluation of controls, and the newest position waiting for it
+    pub manip: Option<ManipRun>,
+    pub manip_next: Option<(CellId, Vec<f64>)>,
 }
 
 impl Default for EvalState {
@@ -180,6 +205,8 @@ impl Default for EvalState {
             last_millis: None,
             init_settled: false,
             pending: None,
+            manip: None,
+            manip_next: None,
         }
     }
 }
@@ -419,7 +446,33 @@ impl Notebook {
         n.or_else(|| self.eval.running.as_ref().map(|r| r.number))
     }
 
+    /// A response to the running evaluation of controls; `false` when `m` is not one.
+    fn on_manipulate(&mut self, m: &KernelMsg) -> bool {
+        let Some(run) = &mut self.eval.manip else { return false };
+        let req = run.req;
+        match m {
+            KernelMsg::Value { id, printed, .. } | KernelMsg::Display { id, printed, .. } if *id == req => {
+                run.result = Some((printed.clone(), false));
+            }
+            KernelMsg::Failure { id, printed, .. } if *id == req => run.result = Some((printed.clone(), true)),
+            KernelMsg::Error { id, rendered, .. } if *id == req => run.result = Some((rendered.clone(), true)),
+            KernelMsg::Output { id, .. } | KernelMsg::Message { id, .. } if *id == req => {}
+            KernelMsg::Done { id, interrupted, .. } if *id == req => {
+                let interrupted = *interrupted;
+                self.finish_manipulate(interrupted);
+                if self.eval.running.is_none() && self.eval.manip.is_none() {
+                    self.eval.state = KernelState::Idle;
+                }
+            }
+            _ => return false,
+        }
+        true
+    }
+
     fn on_message(&mut self, m: KernelMsg) {
+        if self.on_manipulate(&m) {
+            return;
+        }
         let current = self.eval.running.as_ref().map(|r| r.req);
         let mine = |id: u64| current == Some(id);
         match m {
@@ -435,6 +488,13 @@ impl Notebook {
             KernelMsg::Value { id, printed, n } if mine(id) => {
                 let label = self.number(n);
                 self.add_generated(Style::Output, &printed, label, false, false);
+                // a `manipulate` value: its result at the initial positions is asked for at once (round 13)
+                let made = self.eval.running.as_ref().filter(|r| !r.discard).and_then(|r| r.last_out);
+                if let Some(out) = made {
+                    if let Some((_, values)) = self.manipulate_of(out) {
+                        self.request_manipulate(out, values, false);
+                    }
+                }
             }
             KernelMsg::Display { id, printed, n } if mine(id) => {
                 let label = self.number(n);
@@ -488,6 +548,13 @@ impl Notebook {
                 self.eval.state = KernelState::Idle;
             }
             KernelMsg::Exited { why } => {
+                if let Some(run) = self.eval.manip.take() {
+                    if let Some(i) = self.index_of(run.cell) {
+                        self.cells[i].eval = EvalMark::None;
+                        self.retouch(i);
+                    }
+                }
+                self.eval.manip_next = None;
                 if self.eval.running.is_some() {
                     self.add_generated(Style::Message, &format!("the kernel stopped: {why}"), None, true, false);
                     if let Some(i) = self.eval.running.as_ref().and_then(|r| self.index_of(r.cell)) {

@@ -391,6 +391,9 @@ fn step(word: &str) -> Result<Step, String> {
         ("Click", [i, p]) => return Ok(Step::Command(Command::ClickText(CellId(u64::MAX - *i as u64), *p, shift))),
         // cells named by index, as `Click`
         ("Resize", [i]) => Command::ResizeGraphic(CellId(u64::MAX - *i as u64), None),
+        // `Control(i, k, v)` moves control k of the manipulate output in cell i to v (integers), `ControlDone` lets go
+        ("Control", [i, k, v]) => Command::SetControl(CellId(u64::MAX - *i as u64), *k, *v as f64, false),
+        ("ControlDone", [i, k, v]) => Command::SetControl(CellId(u64::MAX - *i as u64), *k, *v as f64, true),
         ("Resize", [i, w, h]) => {
             Command::ResizeGraphic(CellId(u64::MAX - *i as u64), Some((*w as u32, *h as u32)))
         }
@@ -440,6 +443,10 @@ pub fn run_steps(nb: &mut Notebook, steps: &[Step], env: &mut FakeEnv, kernel: &
                 // `Click(i,pos)` names the cell by index
                 let i = (u64::MAX - id.0) as usize;
                 nb.cells().get(i).map(|c| Command::ClickText(c.id, *p, *shift))
+            }
+            Step::Command(Command::SetControl(id, k, v, done)) => {
+                let i = (u64::MAX - id.0) as usize;
+                nb.cells().get(i).map(|c| Command::SetControl(c.id, *k, *v, *done))
             }
             Step::Command(Command::ResizeGraphic(id, size)) => {
                 let i = (u64::MAX - id.0) as usize;

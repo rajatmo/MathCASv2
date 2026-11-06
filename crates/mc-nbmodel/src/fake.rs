@@ -18,12 +18,32 @@ pub struct FakeKernel {
     /// an evaluation that runs until interrupted: (request id, first number)
     looping: Option<(u64, u32)>,
     out: VecDeque<KernelMsg>,
+    /// evaluations of controls are kept unanswered (a slow kernel) until [`FakeKernel::release`]
+    pub hold_side: bool,
+    held: Vec<(u64, String)>,
 }
 
 impl FakeKernel {
     /// A kernel with the protocol additions (`numbered`) or without them.
     pub fn new(numbered: bool) -> FakeKernel {
-        FakeKernel { numbered, log: vec![], counter: 1, started: false, looping: None, out: VecDeque::new() }
+        FakeKernel {
+            numbered,
+            log: vec![],
+            counter: 1,
+            started: false,
+            looping: None,
+            out: VecDeque::new(),
+            hold_side: false,
+            held: vec![],
+        }
+    }
+
+    /// Answer the evaluations of controls kept by `hold_side` (each with its source as its value).
+    pub fn release(&mut self) {
+        for (id, src) in std::mem::take(&mut self.held) {
+            self.out.push_back(KernelMsg::Value { id, printed: src, n: None });
+            self.out.push_back(KernelMsg::Done { id, interrupted: false, first: None, next: None, millis: 0 });
+        }
     }
 
     /// Whether the process is running.
@@ -142,7 +162,25 @@ impl KernelLink for FakeKernel {
                 }
                 self.eval(id, &src);
             }
+            // the evaluation of a control answers with its source, so scripts see what was asked
+            KernelRequest::Side { id, src } => {
+                if !self.started {
+                    self.started = true;
+                    self.counter = 1;
+                    self.out.push_back(KernelMsg::Hello { engine: "fake 0".into() });
+                }
+                if self.hold_side {
+                    self.held.push((id, src));
+                } else {
+                    self.out.push_back(KernelMsg::Value { id, printed: src, n: None });
+                    self.out.push_back(KernelMsg::Done { id, interrupted: false, first: None, next: None, millis: 0 });
+                }
+            }
             KernelRequest::Interrupt { id } => {
+                if let Some(k) = self.held.iter().position(|(h, _)| *h == id) {
+                    self.held.remove(k);
+                    self.out.push_back(KernelMsg::Done { id, interrupted: true, first: None, next: None, millis: 0 });
+                }
                 if let Some((run, first)) = self.looping {
                     if run == id {
                         self.looping = None;

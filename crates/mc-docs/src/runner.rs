@@ -87,6 +87,7 @@ fn run_in(
     progress: &mut dyn FnMut(usize, usize),
 ) -> Vec<Ran> {
     let mut engine = CoreEngine::new();
+    mc_kernel::front_end::install(&mut engine);
     let origin = Origin::new(format!("{name}.mcn"), Some(dir.to_path_buf()));
     let stop = StopFlag::new();
     let code: Vec<usize> = (0..nb.cells.len()).filter(|&i| nb.cells[i].is_code()).collect();

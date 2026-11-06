@@ -221,6 +221,9 @@ pub enum Command {
     /// set (`Some`) or remove (`None`) attributes of an Output cell's block, kept in the file: a 3D picture's view
     /// (`view`, `zoom`, `vertical`), a `manipulate` output's control values (`controls`); an undo unit
     SetOutputAttrs(CellId, Vec<(String, Option<String>)>),
+    /// move control `k` of a `manipulate` output to a value; `true` when the slider is let go (round 13). The
+    /// position is kept on the output and evaluated; not an undo unit
+    SetControl(CellId, usize, f64, bool),
     /// a box key (NBUI.5: `Ctrl+2` square root, `Ctrl+/` fraction, `Ctrl+6` power); a plain code cell takes boxes
     /// from then on
     Structure(Structure),
@@ -329,6 +332,7 @@ impl Command {
             MoveCells(..) => "move cells",
             ResizeGraphic(..) => "resize the graphic",
             SetOutputAttrs(..) => "change the output's view",
+            SetControl(..) => "move a control",
             Structure(s) => match s {
                 mc_boxes::Structure::Fraction => "fraction",
                 mc_boxes::Structure::Superscript => "power",

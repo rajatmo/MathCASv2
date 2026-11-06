@@ -178,6 +178,7 @@ impl Notebook {
             C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
             C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
             C::SetOutputAttrs(id, attrs) => fx.beep = !self.set_output_attrs(id, attrs),
+            C::SetControl(id, k, v, done) => fx.beep = !self.set_control(id, k, v, done),
             // without a typeset cell at the caret (handled before): nothing to act on
             C::Structure(_) | C::ExitStructure => fx.beep = true,
             C::ClickBox(id, path, offset, extend) => self.click_box(id, &path, offset, extend),

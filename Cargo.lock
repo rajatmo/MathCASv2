@@ -2478,8 +2478,10 @@ dependencies = [
 name = "mc-kernel"
 version = "0.2.0"
 dependencies = [
+ "mc-api",
  "mc-bench",
  "mc-engine",
+ "mc-eval",
  "mc-nbfile",
  "serde",
  "serde_json",

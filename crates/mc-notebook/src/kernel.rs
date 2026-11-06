@@ -239,6 +239,21 @@ impl KernelLink for KernelProcess {
                 }
                 self.write(v);
             }
+            KernelRequest::Side { id, src } => {
+                if self.child.is_none() {
+                    if let Err(e) = self.start() {
+                        self.note(&format!("[{e}]"));
+                        let _ = self.tx.send(KernelMsg::Exited { why: e });
+                        return;
+                    }
+                }
+                // a control's evaluation (manipulate): a value per statement, no numbers, no history
+                let mut v = json!({"type": "eval", "id": id, "cell": "manipulate", "src": src, "values": "each"});
+                if let Some(o) = &self.origin {
+                    v["origin"] = json!(o);
+                }
+                self.write(v);
+            }
             KernelRequest::Interrupt { id } => self.write(json!({"type": "interrupt", "id": id})),
             KernelRequest::Shutdown => self.stop(),
         }

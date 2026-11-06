@@ -12,6 +12,9 @@ description = "MathCAS v2 kernel protocol (JSON lines over stdio), the .mcn note
 mc-nbfile = { path = "../mc-nbfile" }
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
+# attributes of the heads front ends handle (`front_end`)
+mc-eval = { path = "../mc-eval" }
+mc-api = { path = "../mc-api" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

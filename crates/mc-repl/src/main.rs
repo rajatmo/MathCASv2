@@ -40,6 +40,7 @@ fn main() -> ExitCode {
         config.threads = n;
     }
     let mut engine = CoreEngine::with_config(config);
+    mc_kernel::front_end::install(&mut engine);
     let (items, update) = (&options.items, options.update);
     let code = cli::run_with(&mut engine, items, update, &stop, &mut io::stdout().lock(), &mut io::stderr().lock());
     // with -i the REPL starts even after an error, so the session can be inspected
