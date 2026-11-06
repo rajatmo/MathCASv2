@@ -133,6 +133,18 @@ pub(crate) fn split<'a, 'h>(
                 View::Int(d @ 1..) if d as u64 <= MAX_DIGITS => o.digits = Some(d as u64),
                 _ => return Err(bad()),
             },
+            // working_precision: machine_precision (or a value at most 16) keeps machine reals; more digits are
+            // `digits`
+            "working_precision" => match h.view(v) {
+                View::Sym(s) if h.sym_name(s) == "machine_precision" => {}
+                View::Int(1..=16) => {}
+                View::Int(d @ 17..) if d as u64 <= MAX_DIGITS => o.digits = Some(d as u64),
+                _ => match ar.num(v).and_then(|n| n.as_real().map(|r| r.to_f64())) {
+                    Some(x) if x > 0.0 && x <= 16.0 => {}
+                    Some(x) if x > 16.0 && x <= MAX_DIGITS as f64 => o.digits = Some(x.ceil() as u64),
+                    _ => return Err(bad()),
+                },
+            },
             "accuracy_goal" => o.accuracy_goal = Some(goal(h, ar, v).ok_or_else(bad)?),
             "precision_goal" => o.precision_goal = Some(goal(h, ar, v).ok_or_else(bad)?),
             "max_steps" => match h.view(v) {

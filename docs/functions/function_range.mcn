@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# function_range
+
+#% text
+# `function_range(f, x, y)` gives the values of `f` over the reals as a condition on `y`; `function_range([f, cond], x, y)` on the part where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# The range is found from the global minimum and maximum (`minimize`, `maximize`), so the function is taken to be continuous on a connected domain.
+
+#% item
+# A side without a bound drops out of the condition; `true` means every real value.
+
+#% item
+# When an extremum is a limit that is not attained the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+function_range(x^2, x, y)
+#% output
+#= y >= 0
+
+#% text
+# A cubic takes every value:
+
+#% cell
+function_range(x^3, x, y)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# On an interval:
+
+#% cell
+function_range([x^2 + 1, -1 <= x and x <= 2], x, y)
+#% output
+#= 1 <= y and y <= 5
+
+#% text
+# A downward parabola:
+
+#% cell
+function_range(4 - x^2, x, y)
+#% output
+#= y <= 4
+
+#% subsection
+# Properties and relations
+
+#% text
+# The ends are the minimum and the maximum:
+
+#% cell
+minimize([x^2 + 1, -1 <= x and x <= 2], x)
+#% output
+#= [1, [x -> 0]]
+
+#% cell
+maximize([x^2 + 1, -1 <= x and x <= 2], x)
+#% output
+#= [5, [x -> 2]]
+
+#% section
+# See also
+
+#% text
+# `minimize`, `maximize`, `function_domain`

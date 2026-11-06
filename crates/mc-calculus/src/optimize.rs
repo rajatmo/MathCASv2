@@ -43,6 +43,8 @@ pub enum Kind {
     ArgMax,
     /// `find_instance`
     FindInstance,
+    /// `function_range`
+    Range,
 }
 
 /// The native.
@@ -95,6 +97,9 @@ impl<'h> C<'_, '_, '_, '_, 'h> {
 impl Native for OptNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        if self.kind == Kind::Range {
+            return range(cx, &self.stop, args);
+        }
         let [fc, xs] = args else { return Ok(Reply::Decline) };
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
@@ -388,4 +393,41 @@ fn find_instance<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>, vars: &[T<'h>])
         out.push(c.rule(x, v));
     }
     Ok(Some(c.list(&[c.list(&out)])))
+}
+
+/// `function_range(f, x, y)`, `function_range([f, cond], x, y)`: the values of `f` as a condition on `y`, from the
+/// global minimum and maximum (one variable, continuous on a connected domain assumed): `a <= y <= b`, `y >= a`,
+/// `y <= b` or `true`.
+fn range<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [fc, x, y] = args else { return Ok(Reply::Decline) };
+    if !matches!(h.view(*x), View::Sym(_)) || !matches!(h.view(*y), View::Sym(_)) {
+        return Ok(Reply::Decline);
+    }
+    let _scope = StopScope::enter(Some(stop));
+    let b = Build::new(h, stop);
+    let mut c = C { cx, b: &b };
+    let (f, cond) = match c.cx.as_list(*fc) {
+        Some([f, k]) => (*f, Some(*k)),
+        Some(_) => return Ok(Reply::Decline),
+        None => (*fc, None),
+    };
+    let Some((lo, _)) = minimize1(&mut c, f, cond, *x)? else { return Ok(Reply::Decline) };
+    let Some((hi, _)) = minimize1(&mut c, b.neg(f), cond, *x)? else { return Ok(Reply::Decline) };
+    let hi = c.cx.eval(b.neg(hi))?;
+    let inf = c.inf();
+    let mut parts = vec![];
+    if lo != b.neg(inf) {
+        parts.push(b.call("greater_equal", &[*y, lo]));
+    }
+    if hi != inf {
+        parts.push(b.call("less_equal", &[*y, hi]));
+    }
+    let r = match parts.as_slice() {
+        [] => c.cx.bool(true),
+        [p] => *p,
+        [_, u] => b.call("and", &[b.call("less_equal", &[lo, *y]), *u]),
+        _ => return Ok(Reply::Decline),
+    };
+    Ok(Reply::Done(c.cx.eval(r)?))
 }

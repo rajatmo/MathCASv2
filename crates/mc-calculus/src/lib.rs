@@ -70,6 +70,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("max_value", "max_value(f, x): the global maximum value"),
     ("arg_min", "arg_min(f, x): a point where the global minimum is attained"),
     ("arg_max", "arg_max(f, x): a point where the global maximum is attained"),
+    ("function_range", "function_range(f, x, y): the values of f as a condition on y (a <= y and y <= b, y >= a, ...), from the global minimum and maximum"),
     ("find_instance", "find_instance(cond, x), find_instance(cond, [x, y]): one point satisfying cond, [[x -> v]] ([] when there is none)"),
     ("d_solve", "d_solve(eqs, y, x): the solutions [[y -> fn([x], sol)]] of an ordinary differential equation for y(x) (constant-coefficient linear, Euler, first-order linear, separable), with conditions y(x0) == v; constants c(1), c(2), ..."),
     ("d_solve_value", "d_solve_value(eqs, y(x), x): the solution of d_solve as an expression"),
@@ -113,6 +114,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         ("arg_min", optimize::Kind::ArgMin),
         ("arg_max", optimize::Kind::ArgMax),
         ("find_instance", optimize::Kind::FindInstance),
+        ("function_range", optimize::Kind::Range),
     ] {
         k.register(h.sym(name), Attributes::default(), Box::new(optimize::OptNative { kind, stop: stop.clone() }));
     }

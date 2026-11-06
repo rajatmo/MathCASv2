@@ -27,3 +27,13 @@ fn instances() {
         ("find_instance(x^2 < 0, x)", "[]"),
     ]);
 }
+
+#[test]
+fn ranges() {
+    check(&[
+        ("function_range(x^2, x, y)", "y >= 0"),
+        ("function_range(x^3, x, y)", "true"),
+        ("function_range([x^2 + 1, -1 <= x and x <= 2], x, y)", "1 <= y and y <= 5"),
+        ("function_range(-x^2 + 4, x, y)", "y <= 4"),
+    ]);
+}

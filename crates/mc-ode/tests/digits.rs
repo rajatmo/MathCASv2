@@ -119,3 +119,12 @@ fn bessel_k_in_the_right_hand_side() {
     let q = s.run("n_dsolve_value([y'(t) == bessel_k(0, 1 + t), y(0) == 0], y(1), [t, 0, 1], digits: 25)");
     assert!(q.starts_with("0.2311658856930504"), "{q}");
 }
+
+#[test]
+fn working_precision_as_digits() {
+    let mut s = Sys::new();
+    let r = s.run("n_dsolve_value([y'(t) == -y(t), y(0) == 1], y(1), [t, 0, 1], working_precision: 30)");
+    assert!(r.starts_with("0.3678794411714423215955"), "{r}");
+    let m = s.run("n_dsolve_value([y'(t) == -y(t), y(0) == 1], y(1), [t, 0, 1], working_precision: machine_precision)");
+    assert!(m.starts_with("0.36787944"), "{m}");
+}
