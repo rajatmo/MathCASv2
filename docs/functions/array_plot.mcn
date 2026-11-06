@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# array_plot
+
+#% text
+# `array_plot(m)` draws a matrix as cells, row 1 at the top: numbers from 0 (white) to 1 (black), colours as they are, `true` black and `false` white.
+
+#% section
+# Details
+
+#% item
+# Numbers outside [0, 1] are scaled from the least to the greatest.
+
+#% item
+# Options: `color_function` (a gradient), `mesh: true` (lines between cells), and the options of `graphics`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A pattern of zeros and ones:
+
+#% cell
+array_plot([[1, 0, 1, 0], [0, 1, 0, 1], [1, 1, 0, 0]])
+#% output
+#= image("array_plot.files/array_plot-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Colours and booleans:
+
+#% cell
+array_plot([[red, blue, green], [true, false, true]])
+#% output
+#= image("array_plot.files/array_plot-2.png")
+
+#% text
+# The parity of binomial coefficients:
+
+#% cell
+array_plot(table(mod(binomial(i, j), 2), i, range(0, 31), j, range(0, 31)))
+#% output
+#= image("array_plot.files/array_plot-3.png")
+
+#% subsection
+# Options
+
+#% text
+# A gradient and lines between cells:
+
+#% cell
+array_plot(table(i*j, i, 8, j, 8), color_function: viridis, mesh: true)
+#% output
+#= image("array_plot.files/array_plot-4.png")
+
+#% section
+# See also
+
+#% text
+# `matrix_plot`, `raster`, `list_density_plot`

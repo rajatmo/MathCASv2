@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# list_contour_plot
+
+#% text
+# `list_contour_plot(m)` draws the contours of a matrix of values, rows from the bottom up.
+
+#% text
+# `list_contour_plot([[x, y, f], ...])` draws the contours of scattered values.
+
+#% section
+# Details
+
+#% item
+# Scattered values are interpolated on a 60 by 60 grid; far from all points there is nothing.
+
+#% item
+# Options: `contours`, `color_function`, `color_bar`, `data_range`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A matrix of values:
+
+#% cell
+list_contour_plot(table(sin(i/4)*cos(j/5), i, 30, j, 30))
+#% output
+#= image("list_contour_plot.files/list_contour_plot-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Scattered values:
+
+#% cell
+seed(4); list_contour_plot(map(p => [p[1], p[2], p[1]^2 + p[2]], table([random_real(), random_real()], 100)))
+#% output
+#= image("list_contour_plot.files/list_contour_plot-2.png")
+
+#% subsection
+# Options
+
+#% text
+# Chosen levels and coordinates:
+
+#% cell
+list_contour_plot(table(i*j, i, 10, j, 10), contours: [10, 30, 60], data_range: [[0, 1], [0, 1]])
+#% output
+#= image("list_contour_plot.files/list_contour_plot-3.png")
+
+#% section
+# See also
+
+#% text
+# `contour_plot`, `list_density_plot`, `list_plot3d`

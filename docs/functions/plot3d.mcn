@@ -1,0 +1,91 @@
+#! mathcas 2 notebook
+
+#% title
+# plot3d
+
+#% text
+# `plot3d(f, [x, a, b], [y, c, d])` draws the surface z = f(x, y) over the rectangle, lit, with mesh lines and axes in a box.
+
+#% text
+# `plot3d([f1, f2, ...], [x, a, b], [y, c, d])` draws several surfaces.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% item
+# f is sampled on a grid of 61 by 61 points (`plot_points` changes it); where f is not a real number the surface has a hole.
+
+#% item
+# Heights are clipped to a robust range so that poles do not flatten the rest; `plot_range` gives the range of z.
+
+#% item
+# Options: `mesh: none` or `mesh: n`; `color_function` colours by height; `plot_style` colours each surface; `view_point`, `box_ratios`, `axes_label`, `plot_label` as for `graphics3d`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A saddle:
+
+#% cell
+plot3d(x^2 - y^2, [x, -1, 1], [y, -1, 1])
+#% output
+#= image("plot3d.files/plot3d-1.png")
+
+#% text
+# A product of waves:
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 2pi], [y, 0, 2pi])
+#% output
+#= image("plot3d.files/plot3d-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Two surfaces:
+
+#% cell
+plot3d([x + y, x - y], [x, 0, 1], [y, 0, 1])
+#% output
+#= image("plot3d.files/plot3d-3.png")
+
+#% text
+# A pole is clipped:
+
+#% cell
+plot3d(1/(x^2 + y^2), [x, -1, 1], [y, -1, 1])
+#% output
+#= image("plot3d.files/plot3d-4.png")
+
+#% subsection
+# Options
+
+#% text
+# Coloured by height, without mesh lines, with labelled axes:
+
+#% cell
+plot3d(exp(-(x^2 + y^2)), [x, -2, 2], [y, -2, 2], color_function: viridis, mesh: none, axes_label: ["$x$", "$y$", "$z$"])
+#% output
+#= image("plot3d.files/plot3d-5.png")
+
+#% text
+# Seen from above:
+
+#% cell
+plot3d(sin(x*y), [x, 0, 3], [y, 0, 3], view_point: above)
+#% output
+#= image("plot3d.files/plot3d-6.png")
+
+#% section
+# See also
+
+#% text
+# `parametric_plot3d`, `list_plot3d`, `density_plot`, `contour_plot`, `graphics3d`

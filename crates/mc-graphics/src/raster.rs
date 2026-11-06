@@ -38,6 +38,16 @@ impl Raster {
         self.pm.encode_png().ok()
     }
 
+    /// The page's pixels: width, height and straight (not premultiplied) RGBA bytes, the top row first.
+    pub fn rgba(&self) -> (u32, u32, Vec<u8>) {
+        let mut out = Vec::with_capacity(self.pm.data().len());
+        for p in self.pm.pixels() {
+            let c = p.demultiply();
+            out.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
+        }
+        (self.pm.width(), self.pm.height(), out)
+    }
+
     fn transform(&self) -> Transform {
         Transform::from_scale(self.scale, self.scale)
     }

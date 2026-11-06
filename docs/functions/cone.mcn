@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# cone
+
+#% text
+# `cone([[x1, y1, z1], [x2, y2, z2]], r)` is a cone with a base of radius r at the first point and its apex at the second, in `graphics3d`.
+
+#% text
+# `cone()` stands on the unit disk at z = -1 with its apex at z = 1.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(cone())
+#% output
+#= image("cone.files/cone-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A wide and a narrow cone:
+
+#% cell
+graphics3d([cone([[0, 0, 0], [0, 0, 1]], 1), red, cone([[3, 0, 0], [3, 0, 2]], 0.3)])
+#% output
+#= image("cone.files/cone-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# A cone pointing sideways, with axes:
+
+#% cell
+graphics3d(cone([[0, 0, 0], [2, 0, 0]], 0.5), axes: true)
+#% output
+#= image("cone.files/cone-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

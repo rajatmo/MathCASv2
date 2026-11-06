@@ -165,7 +165,7 @@ pub fn colour<S: Store + ?Sized>(h: &S, t: T<'_>) -> Colour {
             }
             let shape_ok = match name.as_str() {
                 "rgb_color" => matches!(args.len(), 3 | 4),
-                "hue" => matches!(args.len(), 1 | 3 | 4),
+                "hue" => matches!(args.len(), 1..=4),
                 _ => matches!(args.len(), 1 | 2),
             };
             if !shape_ok {
@@ -177,6 +177,7 @@ pub fn colour<S: Store + ?Sized>(h: &S, t: T<'_>) -> Colour {
             let c = match (name.as_str(), args.len()) {
                 ("rgb_color", n) => Rgba { r: v[0], g: v[1], b: v[2], a: if n == 4 { v[3] } else { 1.0 } },
                 ("hue", 1) => Rgba::from_hsb(v[0], 1.0, 1.0),
+                ("hue", 2) => Rgba::from_hsb(v[0], v[1], 1.0),
                 ("hue", n) => Rgba { a: if n == 4 { v[3] } else { 1.0 }, ..Rgba::from_hsb(v[0], v[1], v[2]) },
                 (_, n) => Rgba { a: if n == 2 { v[1] } else { 1.0 }, ..Rgba::rgb(v[0], v[0], v[0]) },
             };

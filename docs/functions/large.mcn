@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# large
+
+#% text
+# `large` is a size: `image_size: large` is 576 points wide; `point_size(large)`, `thickness(large)`, `arrowheads(large)` and font sizes take it too.
+
+#% section
+# Details
+
+#% item
+# `point_size(large)` draws points 6.5 points across.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# As an image size:
+
+#% cell
+graphics(disk(), image_size: large)
+#% output
+#= image("large.files/large-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Points of this size:
+
+#% cell
+graphics([point_size(large), point([[0, 0], [1, 1]])])
+#% output
+#= image("large.files/large-2.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Line widths:
+
+#% cell
+graphics([thickness(large), line([[0, 0], [1, 0.5]])])
+#% output
+#= image("large.files/large-3.png")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `thickness`, `arrowheads`

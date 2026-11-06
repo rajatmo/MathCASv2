@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# triangle
+
+#% text
+# `triangle([p1, p2, p3])` is a filled triangle in `graphics3d`; `triangle([[...], ...])` several.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(triangle([[0, 0, 0], [1, 0, 0], [0, 1, 1]]))
+#% output
+#= image("triangle.files/triangle-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# The faces of a tetrahedron:
+
+#% cell
+p = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]; graphics3d(triangle([p[[1, 2, 3]], p[[1, 2, 4]], p[[1, 3, 4]], p[[2, 3, 4]]]))
+#% output
+#= image("triangle.files/triangle-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# In colours:
+
+#% cell
+graphics3d([red, triangle([[0, 0, 0], [1, 0, 0], [0, 1, 1]]), blue, triangle([[0, 0, 1], [1, 1, 0], [1, 0, 1]])])
+#% output
+#= image("triangle.files/triangle-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

@@ -292,8 +292,6 @@ fn what_cannot_be_rendered_fails() {
         ("graphics(point([a, 1]))", "not_numeric"),
         ("graphics(foo(1))", "not_graphics"),
         ("graphics([red, 7])", "not_graphics"),
-        ("graphics(point([1, 2]), bogus: 1)", "unknown_option"),
-        ("graphics(point([1, 2]), frame: 3)", "option"),
         ("point([1, 2])", "not_graphics"),
         ("graphics(1, 2, 3)", "not_graphics"),
     ] {

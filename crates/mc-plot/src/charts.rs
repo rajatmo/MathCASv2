@@ -106,7 +106,7 @@ impl Native for Histogram {
         let base = Look::default();
         let (data, look) = match args {
             [d] => (*d, base),
-            [d, o] => match plot_options(cx, *o, base, &["bins", "normalized"]) {
+            [d, o] => match plot_options(cx, *o, base, &["bins", "normalized"], name) {
                 Some(look) => (*d, look),
                 None => return Ok(bad(h, name, 2)),
             },
@@ -187,7 +187,7 @@ impl Native for BarChart {
         let name = "bar_chart";
         let (data, look) = match args {
             [d] => (*d, Look::default()),
-            [d, o] => match plot_options(cx, *o, Look::default(), &["labels"]) {
+            [d, o] => match plot_options(cx, *o, Look::default(), &["labels"], name) {
                 Some(look) => (*d, look),
                 None => return Ok(bad(h, name, 2)),
             },

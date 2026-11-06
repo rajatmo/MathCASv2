@@ -11,10 +11,13 @@
 //! math with scripts and Greek letters).
 #![warn(missing_docs)]
 
+mod anim;
 mod charts;
 mod curves;
 mod fields;
 mod figure;
+mod more;
+mod plots3d;
 mod sidecar;
 
 use figure::{Axis, Corner, Dash, Extra, Filling, Look, Rgb, Scale, Series};
@@ -95,6 +98,54 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     ("normalized", "option of histogram: normalized: true scales the bars so that their area is 1 (a probability density)"),
     ("labels", "option of bar_chart: labels: [\"a\", \"b\", ...], the labels under the bars or groups"),
+    (
+        "plot3d",
+        "plot3d(f, [x, a, b], [y, c, d]): the surface z = f(x, y) in perspective, lit, with mesh lines and axes; plot3d([f1, f2, ...], ...) several (options mesh, plot_points, color_function, plot_style, plot_range, view_point, box_ratios)",
+    ),
+    (
+        "parametric_plot3d",
+        "parametric_plot3d([fx, fy, fz], [u, a, b], [v, c, d]): a parametric surface; parametric_plot3d([fx, fy, fz], [u, a, b]): a space curve",
+    ),
+    ("spherical_plot3d", "spherical_plot3d(r, [theta, a, b], [phi, c, d]): the surface at distance r from the origin at polar angle theta and azimuth phi"),
+    ("revolution_plot3d", "revolution_plot3d(f, [t, a, b]): the surface swept by the curve z = f(t), at distance t from the z axis, turned once about it"),
+    ("list_plot3d", "list_plot3d(matrix): the surface of a matrix of heights (rows along y); list_plot3d([[x, y, z], ...]): a surface through scattered points"),
+    ("list_point_plot3d", "list_point_plot3d([[x, y, z], ...]): points in space, with axes"),
+    ("list_line_plot3d", "list_line_plot3d([[x, y, z], ...]): a line through points in space, with axes"),
+    (
+        "list_contour_plot",
+        "list_contour_plot(matrix): contours of a matrix of values (rows from the bottom up); list_contour_plot([[x, y, f], ...]): of scattered values, interpolated (options contours, color_function, color_bar, data_range)",
+    ),
+    (
+        "export_animation",
+        "export_animation(\"file.gif\", [g1, g2, ...]): the graphics (or plots) as the frames of an animated GIF, looping (option frame_rate: frames per second, default 10); gives the path",
+    ),
+    ("re_im_plot", "re_im_plot(f, [x, a, b]): the real and the imaginary part of f plotted together"),
+    ("abs_arg_plot", "abs_arg_plot(f, [x, a, b]): the modulus and the argument of f plotted together"),
+    (
+        "discrete_plot",
+        "discrete_plot(f, [n, a, b]): the values of f at n = a, a + 1, ..., b as points with stems to the axis; [n, a, b, step] or [n, [values]] for other points; discrete_plot([f1, f2], ...) several",
+    ),
+    ("list_polar_plot", "list_polar_plot([r1, r2, ...]): the radii at equally spaced angles from 0; list_polar_plot([[theta, r], ...]): at the given angles"),
+    (
+        "complex_plot",
+        "complex_plot(f, [z, z0, z1]): f over the rectangle with corners z0 and z1 by domain colouring: the hue is the argument (red for positive reals), dark near zeros, light near poles",
+    ),
+    ("complex_plot3d", "complex_plot3d(f, [z, z0, z1]): the modulus of f over the rectangle as a surface, coloured by the argument"),
+    (
+        "array_plot",
+        "array_plot(m): a matrix as cells, row 1 at the top: numbers from 0 (white) to 1 (black), colours as they are, true black (options color_function, mesh)",
+    ),
+    ("matrix_plot", "matrix_plot(m): a matrix as cells coloured from blue (negative) through white to red (positive), with row and column numbers"),
+    ("pie_chart", "pie_chart([v1, v2, ...]): a disk cut into sectors in proportion to the values, in the plot colours (options labels / chart_labels, legend)"),
+    (
+        "color_data",
+        "color_data(name): a colour scheme as a function of t in [0, 1]; color_data(name, t) its colour at t; color_data(k, i): the i-th plot colour; color_data(name, \"ColorList\"): the scheme's colours",
+    ),
+    ("line_thickness", "option of plot and list plots: line_thickness: [w1, w2, ...], the width of each curve in points (cycled; default 2)"),
+    ("mesh", "option of 3D plots: mesh: none | n (n mesh lines each way; default 15)"),
+    ("plot_style", "option of every plot: plot_style: directives, or a list of them (one per curve or surface, cycled): colours, thick, dashed, ..."),
+    ("plot_legends", "option of every plot: plot_legends: [\"a\", \"b\", ...] (labels or expressions), automatic for the plotted expressions; also line_legend([...]) and placed([...], pos)"),
+    ("plot_labels", "option of plot: plot_labels: [l1, l2, ...], a label at the right end of each curve, in its colour"),
     ("x_label", "option of every plot: x_label: \"text\", the label under the x axis ($...$ for math: \"$E_\\\\gamma$ (GeV)\")"),
     ("y_label", "option of every plot: y_label: \"text\", the label beside the y axis (read upwards)"),
     (
@@ -190,6 +241,9 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     curves::install(k, h);
     fields::install(k, h);
     charts::install(k, h);
+    plots3d::install(k, h);
+    anim::install(k, h);
+    more::install(k, h);
 }
 
 pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
@@ -266,6 +320,21 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
+    if !look.ignored.is_empty() {
+        let who = if look.who.is_empty() { "plot" } else { look.who };
+        let text = format!("options not used: {}", look.ignored.join(", "));
+        cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
+    }
+    // `plot_legends: automatic`: the series' names
+    let auto;
+    let look = if look.legend.first().is_some_and(|l| l == AUTO_LEGEND) {
+        let mut l = look.clone();
+        l.legend = series.iter().map(|s| s.name.clone()).collect();
+        auto = l;
+        &auto
+    } else {
+        look
+    };
     let g = figure::figure(h, series, look, &extra);
     let stop = cx.stop_flag().clone();
     let rendered = mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
@@ -281,7 +350,39 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
     Ok(Reply::Done(match write_files(&files, &json) {
-        Ok(path) => image(h, &path),
+        Ok(path) => {
+            // remembered, so that show(...) and layouts can use the plot as a graphic
+            mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            image(h, &path)
+        }
+        Err(e) => failure(h, "io", &[h.string(&e)]),
+    }))
+}
+
+/// A plot built as a graphics term `g` (2D or 3D) of its own: a message naming the options not used, then the
+/// term rendered to a fresh PNG with SVG and PDF siblings and a data sidecar without series; the PNG's image
+/// term (or a failure).
+pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &str, ignored: &[String]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    cx.effect()?;
+    if !ignored.is_empty() {
+        let text = format!("options not used: {}", ignored.join(", "));
+        cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
+    }
+    let stop = cx.stop_flag().clone();
+    let (files, layout) = match mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
+        Ok(r) => r,
+        Err(f) => {
+            cx.tick(1)?;
+            return Ok(Reply::Done(f.term(h)));
+        }
+    };
+    let json = sidecar::json(&layout, Scale::default(), &[]);
+    Ok(Reply::Done(match write_files(&files, &json) {
+        Ok(path) => {
+            mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            image(h, &path)
+        }
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
 }
@@ -290,19 +391,19 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
 fn entries(series: &[Series], look: &Look, layout: &mc_graphics::Layout) -> Vec<sidecar::Entry> {
     let sc = look.scale;
     let data = |(x, y): (f64, f64)| (sc.x.from(x), sc.y.from(y));
-    let span = layout.range[1].1 - layout.range[1].0;
+    let span = if look.data { f64::INFINITY } else { layout.range[1].1 - layout.range[1].0 };
     let mut out = vec![];
     for (k, s) in series.iter().enumerate() {
         // the legend's text as a tooltip shows it (`$...$` math as plain characters)
         let name = look.legend.get(k).map(|l| mc_graphics::label::plain_text(l)).unwrap_or_else(|| s.name.clone());
         let color = look.color(k);
-        let pieces = if look.joined {
+        let pieces = if look.is_joined(k) {
             // as drawn: a lone point between breaks is not part of the line
             figure::runs(&s.points, span).into_iter().filter(|r| r.len() > 1).collect()
         } else {
             vec![s.points.iter().filter_map(|&(x, y)| y.map(|y| (x, y))).collect()]
         };
-        let kind = if look.joined { sidecar::Kind::Line } else { sidecar::Kind::Points };
+        let kind = if look.is_joined(k) { sidecar::Kind::Line } else { sidecar::Kind::Points };
         for p in pieces {
             let points: Vec<(f64, f64)> = p.into_iter().map(data).filter(|p| p.0.is_finite() && p.1.is_finite()).collect();
             if !points.is_empty() {
@@ -369,7 +470,7 @@ impl Native for Plot {
         };
         let (f, spec, look) = match args {
             [f, spec] => (f, spec, base),
-            [f, spec, o] => match plot_options(cx, *o, base, CURVE_OPTIONS) {
+            [f, spec, o] => match plot_options(cx, *o, base, CURVE_OPTIONS, name) {
                 Some(look) => (f, spec, look),
                 None => return Ok(bad(h, name, 3)),
             },
@@ -549,6 +650,41 @@ pub(crate) fn data_sets<'h>(cx: &NativeCx<'_, '_, 'h>, data: T<'h>) -> Option<Ve
     Some(if several { items.to_vec() } else { vec![data] })
 }
 
+/// Data without labels: `data -> labels` is the data, an association its values, an item `v -> label` the value
+/// v (in lists and in lists of data sets).
+pub(crate) fn unlabelled<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let head_is = |t: T<'h>, n: &str| matches!(h.view(t), View::App { head, .. } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == n));
+    let mut d = data;
+    if head_is(d, names::RULE) {
+        if let View::App { args: &[l, _], .. } = h.view(d) {
+            d = l;
+        }
+    }
+    if head_is(d, "assoc") {
+        d = cx.eval(h.call(h.sym("values"), &[d]))?;
+    }
+    let Some(items) = cx.as_list(d) else { return Ok(d) };
+    if !items.iter().any(|&e| head_is(e, names::RULE) || head_is(e, "assoc") || cx.as_list(e).is_some_and(|l| l.iter().any(|&x| head_is(x, names::RULE)))) {
+        return Ok(d);
+    }
+    let items = items.to_vec();
+    let mut out = Vec::with_capacity(items.len());
+    for e in items {
+        out.push(if head_is(e, names::RULE) {
+            match h.view(e) {
+                View::App { args: &[l, _], .. } => l,
+                _ => e,
+            }
+        } else if cx.as_list(e).is_some() || head_is(e, "assoc") {
+            unlabelled(cx, e)?
+        } else {
+            e
+        });
+    }
+    Ok(cx.list(&out))
+}
+
 /// Points on the axes; `None` where there is no value.
 type Points = Vec<(f64, Option<f64>)>;
 
@@ -585,17 +721,19 @@ impl Native for ListPlot {
         let base = Look {
             scale: self.scale,
             joined: name == "list_line_plot",
+            data: true,
             ..Look::default()
         };
         let allowed = if name == "list_line_plot" { CURVE_OPTIONS } else { LIST_OPTIONS };
         let (data, look) = match args {
             [d] => (*d, base),
-            [d, o] => match plot_options(cx, *o, base, allowed) {
+            [d, o] => match plot_options(cx, *o, base, allowed, name) {
                 Some(look) => (*d, look),
                 None => return Ok(bad(h, name, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
+        let data = unlabelled(cx, data)?;
         let Some(sets) = data_sets(cx, data) else {
             return Ok(bad(h, name, 1));
         };
@@ -620,13 +758,14 @@ impl Native for ListPlot {
     }
 }
 
-/// The plot options `options(k -> v, ...)` applied to `base`; `None` for an option the plot does not take or a value
-/// the option does not take. Every plot takes `x_label`, `y_label` (strings), `legend` (a list of strings),
-/// `legend_position` (a corner), `colors` (a list of `"#rrggbb"` strings) and `plot_range`; `extra` names the
-/// others it takes: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`), `line_style` (a list
-/// of `solid`, `dashed`, `dotted`, `dot_dashed`), `joined` (`true` / `false`), `filling`, `color_function`,
-/// `color_bar`, `plot_points`, `contours`, `data_range`, `bins`, `normalized`, `labels`.
-pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look, extra: &[&str]) -> Option<Look> {
+/// The plot options `options(k -> v, ...)` applied to `base`; `None` when `o` is not an options term. Every plot
+/// takes `x_label`, `y_label`, `legend` / `plot_legends`, `legend_position`, `colors`, `plot_style`, `plot_range`,
+/// `plot_labels`, `frame`, `axes` and the options of the graphic (`plot_label`, `ticks`, `frame_ticks`, `grid_lines`,
+/// `axes_label`, `frame_label`, `image_size`, `aspect_ratio`, `background`, `epilog`, `prolog`, ...); `extra`
+/// names the others it takes: `x_scale`, `y_scale`, `line_style`, `joined`, `filling`, `color_function`,
+/// `color_bar`, `plot_points`, `contours`, `data_range`, `bins`, `normalized`, `labels`. An option the plot does not
+/// use, or a value an option does not take, is left out and named in a message when the plot is drawn.
+pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look<'h>, extra: &[&str], who: &'static str) -> Option<Look<'h>> {
     let h = cx.heap();
     let View::App { head, args } = h.view(o) else {
         return None;
@@ -635,129 +774,366 @@ pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look, 
         return None;
     }
     let mut look = base;
+    look.who = who;
+    for &r in args {
+        let View::App { args: &[k, v], .. } = h.view(r) else {
+            look.ignored.push(mc_syntax::Printer::new(h).expr(r));
+            continue;
+        };
+        let View::Sym(k) = h.view(k) else {
+            look.ignored.push(mc_syntax::Printer::new(h).expr(r));
+            continue;
+        };
+        let key = h.sym_name(k);
+        match one_option(cx, &key, v, &mut look, extra) {
+            Some(true) => {}
+            Some(false) if SILENT.contains(&key.as_str()) => {}
+            Some(false) => look.ignored.push(key),
+            None => look.ignored.push(format!("{key}: {}", mc_syntax::Printer::new(h).expr(v))),
+        }
+    }
+    Some(look)
+}
+
+/// Options of how a plot is computed, or of styling the renderer takes no notice of: accepted without remark.
+const SILENT: &[&str] = &[
+    "max_recursion",
+    "working_precision",
+    "performance_goal",
+    "evaluated",
+    "evaluation_monitor",
+    "method",
+    "plot_points",
+    "max_plot_points",
+    "plot_theme",
+    "plot_highlighting",
+    "image_padding",
+    "label_style",
+    "base_style",
+    "ticks_style",
+    "axes_style",
+    "frame_style",
+    "content_selectable",
+    "rotate_label",
+    "target_units",
+];
+
+/// Whether `t` is the symbol `name`.
+fn is_sym(h: &Heap, t: T<'_>, name: &str) -> bool {
+    matches!(h.view(t), View::Sym(s) if h.sym_name(s) == name)
+}
+
+/// The entries of a legend specification: a list, or the list inside `placed(...)`, `line_legend(...)`,
+/// `swatch_legend(...)`, `point_legend(...)` (its last list argument).
+fn legend_items<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<&'h [T<'h>]> {
+    let h = cx.heap();
+    if let Some(items) = cx.as_list(v) {
+        return Some(items);
+    }
+    let View::App { head, args } = h.view(v) else { return None };
+    let View::Sym(s) = h.view(head) else { return None };
+    match h.sym_name(s).as_str() {
+        "placed" => legend_items(cx, *args.first()?),
+        "line_legend" | "swatch_legend" | "point_legend" | "bar_legend" => args.iter().rev().find_map(|&a| cx.as_list(a)),
+        _ => None,
+    }
+}
+
+/// The `legend_label` option inside `line_legend(..., legend_label: t)` (also inside `placed(...)`).
+fn legend_label<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<T<'h>> {
+    let h = cx.heap();
+    let View::App { head, args } = h.view(v) else { return None };
+    let View::Sym(s) = h.view(head) else { return None };
+    match h.sym_name(s).as_str() {
+        "placed" => legend_label(cx, *args.first()?),
+        "line_legend" | "swatch_legend" | "point_legend" | "bar_legend" => args.iter().find_map(|&a| {
+            let View::App { head, args: rs } = h.view(a) else { return None };
+            if !is_sym(h, head, "options") {
+                return None;
+            }
+            rs.iter().find_map(|&r| match h.view(r) {
+                View::App { args: &[k, t], .. } if is_sym(h, k, "legend_label") => Some(t),
+                _ => None,
+            })
+        }),
+        _ => None,
+    }
+}
+
+/// The marker of legend entries the plot fills in with its series' names.
+pub(crate) const AUTO_LEGEND: &str = "\u{0}automatic";
+
+/// One option: `Some(true)` used, `Some(false)` not taken by this plot, `None` a value it does not take.
+fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Look<'h>, extra: &[&str]) -> Option<bool> {
+    let h = cx.heap();
     let text = |t: T<'h>| match h.view(t) {
         View::Str(s) => Some(s.to_string()),
         _ => None,
     };
     let num = |t: T<'h>| mc_graphics::num::number(h, t);
-    let is = |t: T<'h>, name: &str| matches!(h.view(t), View::Sym(s) if h.sym_name(s) == name);
-    for &r in args {
-        let View::App {
-            head,
-            args: &[k, v],
-        } = h.view(r)
-        else {
-            return None;
-        };
-        if head != h.sym_term(h.sym(names::RULE)) {
-            return None;
+    let is = |t: T<'h>, name: &str| is_sym(h, t, name);
+    let takes = |k: &str| extra.contains(&k);
+    match key {
+        "x_label" => look.x_label = Some(text(v)?),
+        "y_label" => look.y_label = Some(text(v)?),
+        "legend" | "plot_legends" | "chart_legends" => {
+            if is(v, "none") {
+                look.legend.clear();
+                return Some(true);
+            }
+            if is(v, "automatic") || text(v).is_some_and(|s| s == "Expressions") || is(v, "expressions") {
+                look.legend = vec![AUTO_LEGEND.to_string()];
+                look.legend_terms = vec![];
+                return Some(true);
+            }
+            // a title over the entries: legend_label inside line_legend(...) or placed(...)
+            if let Some(t) = legend_label(cx, v) {
+                look.graphics.push(("legend_title".to_string(), t));
+            }
+            let items = legend_items(cx, v)?;
+            look.legend = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e))).collect();
+            look.legend_terms = if items.iter().all(|&e| text(e).is_some()) { vec![] } else { items.to_vec() };
         }
-        let View::Sym(k) = h.view(k) else { return None };
-        let key = h.sym_name(k);
-        let common = matches!(key.as_str(), "x_label" | "y_label" | "legend" | "legend_position" | "colors" | "plot_range");
-        if !common && !extra.contains(&key.as_str()) {
-            return None;
+        "legend_position" => look.legend_at = corner_option(h, v)?,
+        "colors" => {
+            // "#rrggbb" strings or colour values
+            let byte = |x: f64| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+            let one = |e: T<'h>| match text(e) {
+                Some(s) => hex_color(&s),
+                None => match mc_graphics::color::colour(h, e) {
+                    mc_graphics::color::Colour::Value(c) => Some((byte(c.r), byte(c.g), byte(c.b))),
+                    _ => None,
+                },
+            };
+            look.colors = match cx.as_list(v) {
+                Some(items) => items.iter().map(|&e| one(e)).collect::<Option<_>>()?,
+                None => vec![one(v)?],
+            }
         }
-        match key.as_str() {
-            "joined" => look.joined = is(v, "true"),
-            "x_scale" => look.scale.x = axis_option(h, v)?,
-            "y_scale" => look.scale.y = axis_option(h, v)?,
-            "x_label" => look.x_label = Some(text(v)?),
-            "y_label" => look.y_label = Some(text(v)?),
-            "legend" => {
-                look.legend = cx
-                    .as_list(v)?
-                    .iter()
-                    .map(|&e| text(e))
-                    .collect::<Option<_>>()?
+        "line_thickness" => {
+            // points, one per curve (cycled)
+            let ws: Vec<f64> = match cx.as_list(v) {
+                Some(items) => items.iter().map(|&e| num(e).filter(|w| *w > 0.0)).collect::<Option<_>>()?,
+                None => vec![num(v).filter(|w| *w > 0.0)?],
+            };
+            look.thickness = ws;
+        }
+        "plot_style" | "chart_style" => {
+            if is(v, "automatic") || is(v, "none") {
+                return Some(true);
             }
-            "legend_position" => look.legend_at = corner_option(h, v)?,
-            "colors" => {
-                look.colors = cx
-                    .as_list(v)?
-                    .iter()
-                    .map(|&e| text(e).and_then(|s| hex_color(&s)))
-                    .collect::<Option<_>>()?
-            }
-            "line_style" => {
-                look.dashes = cx
-                    .as_list(v)?
-                    .iter()
-                    .map(|&e| dash_option(h, e))
-                    .collect::<Option<_>>()?
-            }
-            "plot_range" => look.range = range_option(cx, v)?,
-            "filling" => {
-                look.filling = Some(if is(v, "axis") {
-                    Filling::Axis
-                } else if is(v, "bottom") {
-                    Filling::Bottom
-                } else if is(v, "top") {
-                    Filling::Top
-                } else if let Some(c) = num(v) {
-                    Filling::Value(c)
-                } else {
-                    let &[i, j] = cx.as_list(v)? else { return None };
-                    let index = |t: T<'h>| match h.view(t) {
-                        View::Int(k) if k >= 1 => Some(k as usize - 1),
-                        _ => None,
-                    };
-                    Filling::Between(index(i)?, index(j)?)
-                });
-                if is(v, "none") {
-                    look.filling = None;
-                }
-            }
-            "color_function" => look.gradient = Some(mc_graphics::gradient::read(h, v)?),
-            "color_bar" => {
-                look.hide_color_bar = if is(v, "true") {
-                    false
-                } else if is(v, "false") || is(v, "none") {
-                    true
-                } else {
+            let entries: Vec<T<'h>> = match cx.as_list(v) {
+                Some(items) if !items.is_empty() => items.to_vec(),
+                Some(_) => return Some(true),
+                None => vec![v],
+            };
+            let mut colors = Vec::with_capacity(entries.len());
+            for (k, &e) in entries.iter().enumerate() {
+                let mut st = mc_graphics::model::Style::default();
+                let specs = cx.as_list(e).map(|l| l.to_vec()).unwrap_or_else(|| vec![e]);
+                if mc_graphics::model::styled(h, &specs, &mut st).is_err() {
                     return None;
                 }
+                let c = st.color;
+                let byte = |x: f64| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+                let own = st.color != mc_graphics::model::Style::default().color || specs.iter().any(|&s| is(s, "black"));
+                colors.push(if own { (byte(c.r), byte(c.g), byte(c.b)) } else { look.color(k) });
             }
-            "plot_points" => match h.view(v) {
-                View::Int(n) if (2..=400).contains(&n) => look.plot_points = Some(n as usize),
-                _ => return None,
-            },
-            "contours" => {
-                look.contours = Some(match h.view(v) {
-                    View::Int(n) if (1..=100).contains(&n) => figure::Contours::Count(n as usize),
-                    _ => {
-                        let vs = cx.as_list(v)?.iter().map(|&e| num(e)).collect::<Option<Vec<f64>>>()?;
-                        if vs.is_empty() || vs.len() > 100 {
-                            return None;
-                        }
-                        figure::Contours::Values(vs)
-                    }
-                })
+            look.colors = colors;
+            look.styles = entries;
+        }
+        "plot_range" => {
+            look.full = is(v, "all") || is(v, "full");
+            look.range = match num(v) {
+                Some(r) if r > 0.0 => [[None; 2], [Some(-r), Some(r)]],
+                _ if is(v, "full") => [[None; 2]; 2],
+                _ => range_option(cx, v)?,
             }
-            "data_range" => {
-                let &[x, y] = cx.as_list(v)? else { return None };
-                let pair = |t: T<'h>| -> Option<[f64; 2]> {
-                    let &[a, b] = cx.as_list(t)? else { return None };
-                    let (a, b) = (num(a)?, num(b)?);
-                    (a < b).then_some([a, b])
+        }
+        "plot_labels" => {
+            if is(v, "none") {
+                return Some(true);
+            }
+            look.curve_labels = match cx.as_list(v) {
+                Some(items) => items.to_vec(),
+                None if is(v, "automatic") || text(v).is_some_and(|s| s == "Expressions") => vec![],
+                None => vec![v],
+            };
+        }
+        "frame" => {
+            look.origin_axes = !cx.is_true(v);
+            look.bare = false;
+        }
+        "axes" => {
+            if cx.is_false(v) && look.origin_axes {
+                look.bare = true;
+            }
+        }
+        "joined" if takes("joined") => match cx.as_list(v) {
+            // per data set
+            Some(items) => {
+                look.joined_each = items.iter().map(|&e| cx.is_true(e)).collect();
+                look.joined = false;
+            }
+            None => look.joined = cx.is_true(v),
+        },
+        "x_scale" if takes("x_scale") => look.scale.x = axis_option(h, v)?,
+        "y_scale" if takes("y_scale") => look.scale.y = axis_option(h, v)?,
+        "scaling_functions" if takes("y_scale") => {
+            // "Log" / "Log10" for y, or [x, y]
+            let one = |t: T<'h>| match text(t).as_deref() {
+                Some("Log" | "Log10" | "Log2") => Some(Axis::Log),
+                None if is(t, "none") || is(t, "automatic") => Some(Axis::Linear),
+                _ => None,
+            };
+            match cx.as_list(v) {
+                Some(&[x, y]) => {
+                    look.scale.x = one(x)?;
+                    look.scale.y = one(y)?;
+                }
+                _ => look.scale.y = one(v)?,
+            }
+        }
+        "line_style" if takes("line_style") => look.dashes = cx.as_list(v)?.iter().map(|&e| dash_option(h, e)).collect::<Option<_>>()?,
+        "filling" if takes("filling") => {
+            if is(v, "none") || cx.is_false(v) {
+                look.filling = None;
+                return Some(true);
+            }
+            if let Some(f) = filling_value(cx, v) {
+                look.filling = Some(f);
+                return Some(true);
+            }
+            // rules: i -> axis | bottom | top | c | [j] | j, one or a list of them
+            let rules: Vec<T<'h>> = match cx.as_list(v) {
+                Some(items) => items.to_vec(),
+                None => vec![v],
+            };
+            for r in rules {
+                let View::App { head, args: &[i, w] } = h.view(r) else { return None };
+                if head != h.sym_term(h.sym(names::RULE)) {
+                    return None;
+                }
+                let View::Int(i) = h.view(i) else { return None };
+                if i < 1 {
+                    return None;
+                }
+                let i = i as usize - 1;
+                // [target, style]: the style is not used
+                let w = match cx.as_list(w) {
+                    Some(&[t, s]) if cx.as_list(s).is_some() || !matches!(h.view(s), View::Int(_)) => t,
+                    _ => w,
                 };
-                look.data_range = Some([pair(x)?, pair(y)?]);
+                let target = match cx.as_list(w) {
+                    Some(&[j]) => Some(j),
+                    _ => None,
+                };
+                let f = match target.map(|j| h.view(j)) {
+                    Some(View::Int(j)) if j >= 1 => Filling::Between(i, j as usize - 1),
+                    Some(_) => return None,
+                    None => filling_value(cx, w)?,
+                };
+                look.fill_each.push((i, f));
             }
-            "bins" => look.bins = bins_option(cx, v)?,
-            "normalized" => {
-                look.normalized = if is(v, "true") {
-                    true
-                } else if is(v, "false") {
-                    false
-                } else {
-                    return None;
-                }
-            }
-            "labels" => look.labels = cx.as_list(v)?.iter().map(|&e| text(e)).collect::<Option<_>>()?,
-            _ => return None,
         }
+        "filling_style" if takes("filling") => {}
+        "color_function" if takes("color_function") => {
+            look.gradient = Some(match mc_graphics::gradient::read(h, v) {
+                Some(g) => g,
+                None => match text(v) {
+                    Some(s) => mc_graphics::gradient::scheme(&s),
+                    None => return Some(false),
+                },
+            })
+        }
+        "color_bar" if takes("color_bar") => {
+            look.hide_color_bar = if is(v, "true") || is(v, "automatic") {
+                false
+            } else if is(v, "false") || is(v, "none") {
+                true
+            } else {
+                return None;
+            }
+        }
+        "plot_points" if takes("plot_points") => match h.view(v) {
+            View::Int(n) if (2..=400).contains(&n) => look.plot_points = Some(n as usize),
+            View::Int(n) if n > 400 => look.plot_points = Some(400),
+            _ => return None,
+        },
+        "contours" if takes("contours") => {
+            look.contours = Some(match h.view(v) {
+                View::Int(n) if (1..=100).contains(&n) => figure::Contours::Count(n as usize),
+                _ => {
+                    let vs = cx.as_list(v)?.iter().map(|&e| num(e)).collect::<Option<Vec<f64>>>()?;
+                    if vs.is_empty() || vs.len() > 100 {
+                        return None;
+                    }
+                    figure::Contours::Values(vs)
+                }
+            })
+        }
+        "data_range" if takes("data_range") => {
+            if is(v, "automatic") || is(v, "all") {
+                return Some(true);
+            }
+            let &[x, y] = cx.as_list(v)? else { return None };
+            let pair = |t: T<'h>| -> Option<[f64; 2]> {
+                let &[a, b] = cx.as_list(t)? else { return None };
+                let (a, b) = (num(a)?, num(b)?);
+                (a < b).then_some([a, b])
+            };
+            look.data_range = Some([pair(x)?, pair(y)?]);
+        }
+        "bins" if takes("bins") => look.bins = bins_option(cx, v)?,
+        "normalized" if takes("normalized") => {
+            look.normalized = if is(v, "true") {
+                true
+            } else if is(v, "false") {
+                false
+            } else {
+                return None;
+            }
+        }
+        "labels" | "chart_labels" if takes("labels") => {
+            let items = match legend_items(cx, v) {
+                Some(items) => items,
+                None if is(v, "automatic") || is(v, "none") => return Some(true),
+                None => return None,
+            };
+            look.labels = items.iter().map(|&e| text(e).unwrap_or_else(|| mc_syntax::Printer::new(h).expr(e))).collect()
+        }
+        k if mc_graphics::model::known_option(k) => {
+            if !mc_graphics::model::HARMLESS.contains(&k) {
+                look.graphics.push((k.to_string(), v));
+            }
+        }
+        _ => return Some(false),
     }
-    Some(look)
+    Some(true)
+}
+
+/// A filling written as a value: `axis`, `bottom`, `top`, a number, or `[i, j]` (between curves i and j).
+fn filling_value<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<Filling> {
+    let h = cx.heap();
+    let is = |name: &str| is_sym(h, v, name);
+    if is("axis") || is("true") || is("automatic") {
+        return Some(Filling::Axis);
+    }
+    if is("bottom") {
+        return Some(Filling::Bottom);
+    }
+    if is("top") {
+        return Some(Filling::Top);
+    }
+    if let Some(c) = mc_graphics::num::number(h, v) {
+        return Some(Filling::Value(c));
+    }
+    let &[i, j] = cx.as_list(v)? else { return None };
+    let index = |t: T<'h>| match h.view(t) {
+        View::Int(k) if k >= 1 => Some(k as usize - 1),
+        _ => None,
+    };
+    Some(Filling::Between(index(i)?, index(j)?))
 }
 
 /// `plot_range:` `automatic` / `all`, `[y0, y1]`, or `[[x0, x1], [y0, y1]]`; an end may be `automatic`.

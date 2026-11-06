@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_plot
+
+#% text
+# `discrete_plot(f, [n, a, b])` draws the values of f at n = a, a + 1, ..., b as points with stems to the axis.
+
+#% text
+# `discrete_plot(f, [n, a, b, step])` and `discrete_plot(f, [n, [v1, v2, ...]])` take other points; a list of functions draws several.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% item
+# `filling` replaces the stems by a filling.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sequence:
+
+#% cell
+discrete_plot(1/n, [n, 1, 10])
+#% output
+#= image("discrete_plot.files/discrete_plot-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Two sequences at even n:
+
+#% cell
+discrete_plot([n, n^2/10], [n, 0, 10, 2])
+#% output
+#= image("discrete_plot.files/discrete_plot-2.png")
+
+#% text
+# At chosen points:
+
+#% cell
+discrete_plot(sin(k), [k, [1, 2, 5, 9]])
+#% output
+#= image("discrete_plot.files/discrete_plot-3.png")
+
+#% subsection
+# Options
+
+#% text
+# With a legend:
+
+#% cell
+discrete_plot(2^-k, [k, 0, 10], plot_legends: ["$2^{-k}$"])
+#% output
+#= image("discrete_plot.files/discrete_plot-4.png")
+
+#% section
+# See also
+
+#% text
+# `list_plot`, `plot`

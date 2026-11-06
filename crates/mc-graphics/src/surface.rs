@@ -198,6 +198,84 @@ pub trait Surface {
     fn unclip(&mut self);
 }
 
+/// A surface drawing on another one moved by `(dx, dy)` and scaled by `s` (an inset graphic in its rectangle).
+pub struct Placed<'a> {
+    /// the surface drawn on
+    pub inner: &'a mut dyn Surface,
+    /// where the inset's origin goes
+    pub dx: f32,
+    /// where the inset's origin goes
+    pub dy: f32,
+    /// the scale
+    pub s: f32,
+}
+
+impl Placed<'_> {
+    fn p(&self, x: f32, y: f32) -> (f32, f32) {
+        (self.dx + self.s * x, self.dy + self.s * y)
+    }
+    fn path(&self, p: &Path) -> Path {
+        let segs = p
+            .segs
+            .iter()
+            .map(|s| match *s {
+                Seg::Move(x, y) => {
+                    let (x, y) = self.p(x, y);
+                    Seg::Move(x, y)
+                }
+                Seg::Line(x, y) => {
+                    let (x, y) = self.p(x, y);
+                    Seg::Line(x, y)
+                }
+                Seg::Cubic(a, b, c, d, e, f) => {
+                    let ((a, b), (c, d), (e, f)) = (self.p(a, b), self.p(c, d), self.p(e, f));
+                    Seg::Cubic(a, b, c, d, e, f)
+                }
+                Seg::Close => Seg::Close,
+            })
+            .collect();
+        Path { segs }
+    }
+    fn rect(&self, r: [f32; 4]) -> [f32; 4] {
+        let (x, y) = self.p(r[0], r[1]);
+        [x, y, r[2] * self.s, r[3] * self.s]
+    }
+}
+
+impl Surface for Placed<'_> {
+    fn fill(&mut self, path: &Path, color: Rgba) {
+        let p = self.path(path);
+        self.inner.fill(&p, color);
+    }
+    fn stroke(&mut self, path: &Path, pen: &Pen) {
+        let p = self.path(path);
+        let pen = Pen { color: pen.color, width: pen.width * self.s, dash: pen.dash.iter().map(|d| d * self.s).collect(), cap: pen.cap };
+        self.inner.stroke(&p, &pen);
+    }
+    fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba) {
+        let c: Vec<(f32, f32)> = centres.iter().map(|&(x, y)| self.p(x, y)).collect();
+        self.inner.dots(&c, d * self.s, color);
+    }
+    fn text(&mut self, t: &Text<'_>) {
+        let s = self.s;
+        let glyphs: Vec<Glyph> = t.glyphs.iter().map(|g| Glyph { x: g.x * s, y: g.y * s, size: g.size * s, ..*g }).collect();
+        let rules: Vec<[f32; 4]> = t.rules.iter().map(|r| [r[0] * s, r[1] * s, r[2] * s, r[3] * s]).collect();
+        let origin = self.p(t.origin.0, t.origin.1);
+        self.inner.text(&Text { glyphs: &glyphs, rules: &rules, text: t.text, origin, up: t.up, color: t.color });
+    }
+    fn image(&mut self, rect: [f32; 4], cols: usize, rows: usize, rgba: &[u8]) {
+        let r = self.rect(rect);
+        self.inner.image(r, cols, rows, rgba);
+    }
+    fn clip(&mut self, rect: [f32; 4]) {
+        let r = self.rect(rect);
+        self.inner.clip(r);
+    }
+    fn unclip(&mut self) {
+        self.inner.unclip();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

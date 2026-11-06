@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# dashed
+
+#% text
+# `dashed` is a graphics directive: dashed lines.
+
+#% section
+# Details
+
+#% item
+# It applies to what follows it in its list; it can stand in `directive(...)`, `edge_form(...)` and `plot_style`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# In a graphic:
+
+#% cell
+graphics([dashed, circle(), dotted, circle([0, 0], 0.7), dot_dashed, circle([0, 0], 0.4)])
+#% output
+#= image("dashed.files/dashed-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# As a plot style:
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: dashed)
+#% output
+#= image("dashed.files/dashed-2.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Combined with a colour:
+
+#% cell
+graphics([directive(red, dashed), line([[0, 0], [1, 1]])])
+#% output
+#= image("dashed.files/dashed-3.png")
+
+#% section
+# See also
+
+#% text
+# `directive`, `thickness`, `dashing`

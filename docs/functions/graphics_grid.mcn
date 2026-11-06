@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# graphics_grid
+
+#% text
+# `graphics_grid([[g11, g12, ...], [g21, ...], ...])` is one graphic with the graphics (or plots) in rows and columns.
+
+#% section
+# Details
+
+#% item
+# The value is a `graphics` term; `frame: all` draws lines between the cells.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Four plots:
+
+#% cell
+graphics_grid([[plot(sin(x), [x, 0, 6]), plot(cos(x), [x, 0, 6])], [plot(x, [x, 0, 1]), plot(x^2, [x, 0, 1])]])
+#% output
+#= image("graphics_grid.files/graphics_grid-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Graphics made in a table:
+
+#% cell
+graphics_grid(table(graphics([hue((i + j)/8), disk()]), i, 3, j, 4))
+#% output
+#= image("graphics_grid.files/graphics_grid-2.png")
+
+#% subsection
+# Options
+
+#% text
+# Lines between the cells:
+
+#% cell
+graphics_grid([[graphics(disk()), graphics(circle())]], frame: all)
+#% output
+#= image("graphics_grid.files/graphics_grid-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics_row`, `graphics_column`, `grid`

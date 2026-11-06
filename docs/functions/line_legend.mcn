@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# line_legend
+
+#% text
+# `line_legend([colours], [labels])` is a legend of line samples, for `plot_legends` and `legended`.
+
+#% text
+# `line_legend([labels])` takes the plot's colours.
+
+#% section
+# Details
+
+#% item
+# The option `legend_label: t` puts a title over the entries.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# In a plot:
+
+#% cell
+plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["linear", "square"]))
+#% output
+#= image("line_legend.files/line_legend-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# With a title:
+
+#% cell
+plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_label: "$T_c$ = 68 GeV"))
+#% output
+#= image("line_legend.files/line_legend-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# Beside a graphic:
+
+#% cell
+legended(graphics([red, line([[0, 0], [1, 1]])]), line_legend([red], ["a line"]))
+#% output
+#= image("line_legend.files/line_legend-3.png")
+
+#% section
+# See also
+
+#% text
+# `swatch_legend`, `legended`, `plot`

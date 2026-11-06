@@ -53,7 +53,7 @@ impl Native for Planar {
         let base = Look { joined: true, equal: true, origin_axes: self.polar, ..Look::default() };
         let (f, spec, look) = match args {
             [f, spec] => (*f, *spec, base),
-            [f, spec, o] => match plot_options(cx, *o, base, OPTIONS) {
+            [f, spec, o] => match plot_options(cx, *o, base, OPTIONS, name) {
                 Some(look) => (*f, *spec, look),
                 None => return Ok(bad(h, name, 3)),
             },

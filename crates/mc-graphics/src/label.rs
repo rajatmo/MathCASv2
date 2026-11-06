@@ -288,6 +288,28 @@ impl TexParser {
                 r
             }
             "mathit" => self.atom(depth + 1),
+            // accents: a combining mark after the (last character of the) argument
+            "bar" | "overline" | "hat" | "widehat" | "tilde" | "widetilde" | "vec" | "dot" | "ddot" | "check" | "breve"
+            | "acute" | "grave" => {
+                let mark = match name.as_str() {
+                    "bar" => '\u{0304}',
+                    "overline" => '\u{0305}',
+                    "hat" | "widehat" => '\u{0302}',
+                    "tilde" | "widetilde" => '\u{0303}',
+                    "vec" => '\u{20D7}',
+                    "dot" => '\u{0307}',
+                    "ddot" => '\u{0308}',
+                    "check" => '\u{030C}',
+                    "breve" => '\u{0306}',
+                    "acute" => '\u{0301}',
+                    _ => '\u{0300}',
+                };
+                let mut r = self.atom(depth + 1);
+                r.0.push(Item::Char(mark));
+                r
+            }
+            // sizes of delimiters: the delimiter itself follows
+            "left" | "right" | "big" | "Big" | "bigg" | "Bigg" | "bigl" | "bigr" | "Bigl" | "Bigr" => Row::new(),
             // operator names: upright
             n if OPERATOR_NAMES.contains(&n) => Row::text(n),
             _ => match mc_boxes::aliases::lookup(&format!("\\{name}")) {

@@ -159,6 +159,19 @@ pub enum Shape {
         /// the upper-right corner
         to: Pt,
     },
+    /// `inset(graphic, position, offset, width)`: a whole graphic drawn in a rectangle of the page
+    Inset {
+        /// the graphic
+        graphic: Box<Graphic>,
+        /// its page size at its natural scale (points)
+        natural: (f64, f64),
+        /// where it goes
+        at: Pt,
+        /// which point of its rectangle is at `at`, as for text
+        offset: (f64, f64),
+        /// its width in plot coordinates (`None`: its natural size in points)
+        width: Option<f64>,
+    },
     /// `text(expr, position, offset)`
     Text {
         /// the label
@@ -285,6 +298,14 @@ pub struct Opts {
     pub font_size: f64,
     /// a colour bar right of the plot area
     pub color_bar: Option<ColorBar>,
+    /// a title over the legend's entries
+    pub legend_title: Option<Label>,
+    /// where the axes cross (`None`: at 0, or at the lower end of a range without 0)
+    pub origin: Option<(f64, f64)>,
+    /// clip the primitives to the plot area (`None`: when the plot range is given)
+    pub clip: Option<bool>,
+    /// options left out: names nothing reads, and values an option does not take (in the order given)
+    pub ignored: Vec<String>,
 }
 
 /// A colour bar: the gradient from the bottom to the top of the bar, the values at its ends, and a label.
@@ -317,6 +338,10 @@ impl Default for Opts {
             legend_position: Corner::TopRight,
             font_size: 10.0,
             color_bar: None,
+            legend_title: None,
+            origin: None,
+            clip: None,
+            ignored: Vec::new(),
         }
     }
 }
@@ -363,8 +388,9 @@ pub const DIRECTIVES: [&str; 12] = [
     "scaled",
 ];
 
-/// The option names of `graphics`.
-pub const OPTIONS: [&str; 16] = [
+/// The option names of `graphics` that change the picture.
+pub const OPTIONS: [&str; 23] = [
+    "legend_title",
     "color_bar",
     "plot_range",
     "plot_range_padding",
@@ -377,13 +403,54 @@ pub const OPTIONS: [&str; 16] = [
     "image_size",
     "background",
     "ticks",
+    "frame_ticks",
     "grid_lines",
     "legend",
     "legend_position",
     "font_size",
+    "axes_origin",
+    "plot_range_clipping",
+    "epilog",
+    "prolog",
+    "plot_legends",
 ];
 
-fn head_name<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<(String, &'h [T<'h>])> {
+/// Options of styling or interaction the renderers take no notice of: accepted without remark.
+pub const HARMLESS: &[&str] = &[
+    "base_style",
+    "label_style",
+    "ticks_style",
+    "frame_style",
+    "axes_style",
+    "grid_lines_style",
+    "image_padding",
+    "image_margins",
+    "plot_region",
+    "content_selectable",
+    "rotate_label",
+    "alignment_point",
+    "baseline_position",
+    "format_type",
+    "method",
+    "plot_theme",
+    "coordinates_tool_options",
+    "axes_edge",
+    "frame_margins",
+    "spherical_region",
+    "view_angle",
+    "view_vertical",
+    "lighting",
+    "rotation_action",
+    "tooltip",
+    "plot_range_padding_style",
+];
+
+/// Whether `graphics` knows the option `name` (reads it, or ignores it on purpose).
+pub fn known_option(name: &str) -> bool {
+    OPTIONS.contains(&name) || HARMLESS.contains(&name)
+}
+
+pub(crate) fn head_name<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<(String, &'h [T<'h>])> {
     match h.view(t) {
         View::App { head, args } => match h.view(head) {
             View::Sym(s) => Some((h.sym_name(s), args)),
@@ -393,14 +460,14 @@ fn head_name<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<(String, &'h [
     }
 }
 
-fn list<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<&'h [T<'h>]> {
+pub(crate) fn list<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<&'h [T<'h>]> {
     match head_name(h, t) {
         Some((n, args)) if n == names::LIST => Some(args),
         _ => None,
     }
 }
 
-fn sym_is<S: Store + ?Sized>(h: &S, t: T<'_>, name: &str) -> bool {
+pub(crate) fn sym_is<S: Store + ?Sized>(h: &S, t: T<'_>, name: &str) -> bool {
     matches!(h.view(t), View::Sym(s) if h.sym_name(s) == name)
 }
 
@@ -501,7 +568,35 @@ fn radii<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<(f64, f64), B
 /// Read the primitive `name(args)`. `Ok(None)` when `name` is not a primitive.
 pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Option<Shape>, Bad> {
     let origin = Pt { x: 0.0, y: 0.0, scaled: false };
+    // options of a primitive (`vertex_colors`, `spline_closed`, ...) are accepted and not used
+    let args = match args.split_last() {
+        Some((&o, rest)) if head_name(h, o).is_some_and(|(n, _)| n == "options") => rest,
+        _ => args,
+    };
     let s = match (name, args) {
+        ("polygon", [r]) if is_rule(h, *r) => Shape::Polygon(with_holes(h, None, *r)?),
+        ("polygon", [p, r]) if is_rule(h, *r) => Shape::Polygon(with_holes(h, points(h, *p, 1).ok(), *r)?),
+        ("polygon", [p, faces]) => {
+            // points and faces as lists of 1-based indices into them
+            let pts = points(h, *p, 1)?;
+            let faces = list(h, *faces).ok_or(Bad::Arg(2))?;
+            let one = |f: T<'_>| -> Result<Vec<Pt>, Bad> {
+                list(h, f)
+                    .ok_or(Bad::Arg(2))?
+                    .iter()
+                    .map(|&i| match h.view(i) {
+                        View::Int(k) if k >= 1 && (k as usize) <= pts.len() => Ok(pts[k as usize - 1]),
+                        _ => Err(Bad::Arg(2)),
+                    })
+                    .collect()
+            };
+            let rings = if faces.first().is_some_and(|&f| list(h, f).is_some()) {
+                faces.iter().map(|&f| one(f)).collect::<Result<_, _>>()?
+            } else {
+                vec![one(args[1])?]
+            };
+            Shape::Polygon(rings)
+        }
         ("point", [p]) => Shape::Points(if is_position(h, *p) { vec![point(h, *p, 1)?] } else { points(h, *p, 1)? }),
         ("line", [p]) => Shape::Line(runs(h, *p, 1)?),
         ("polygon", [p]) => Shape::Polygon(runs(h, *p, 1)?),
@@ -519,6 +614,12 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
             }
             Shape::Rect(a, b)
         }
+        // primitives shared with 3D graphics, in two dimensions
+        ("triangle", []) => Shape::Polygon(vec![vec![origin, Pt { x: 1.0, y: 0.0, scaled: false }, Pt { x: 0.0, y: 1.0, scaled: false }]]),
+        ("triangle", [p]) => Shape::Polygon(runs(h, *p, 1)?),
+        ("ball", _) if args.len() <= 2 => return shape(h, "disk", args),
+        ("ellipsoid", [c, r]) => return shape(h, "disk", &[*c, *r]),
+        ("text", [e]) => Shape::Text { label: Label::of(h, *e), at: origin, offset: (0.0, 0.0) },
         ("circle" | "disk", _) if args.len() <= 3 => {
             let c = match args.first() {
                 Some(&c) => point(h, c, 1)?,
@@ -549,11 +650,20 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
             Shape::Text { label: Label::of(h, *e), at, offset }
         }
         ("raster", [c, rest @ ..]) if rest.len() <= 2 => {
-            let grad = match rest.get(1) {
-                Some(&g) => gradient::read(h, g).ok_or(Bad::Arg(3))?,
-                None => Gradient::named("gray").ok_or(Bad::Arg(3))?,
+            // a third argument [lo, hi] is the range of the values (gray from lo to hi)
+            let span = rest.get(1).and_then(|&g| match list(h, g) {
+                Some(&[a, b]) => Some((number(h, a)?, number(h, b)?)).filter(|(a, b)| b > a),
+                _ => None,
+            });
+            let grad = match (rest.get(1), span) {
+                (Some(_), Some(_)) => Gradient::named("gray").ok_or(Bad::Arg(3))?,
+                (Some(&g), None) => gradient::read(h, g).ok_or(Bad::Arg(3))?,
+                (None, _) => Gradient::named("gray").ok_or(Bad::Arg(3))?,
             };
-            let (cols, rows, rgba) = cells(h, *c, &grad)?;
+            let (cols, rows, rgba) = match span {
+                Some((a, b)) => scaled_cells(h, *c, &grad, a, b)?,
+                None => cells(h, *c, &grad)?,
+            };
             let (from, to) = match rest.first() {
                 Some(&r) => match list(h, r) {
                     Some(&[p, q]) => {
@@ -575,6 +685,49 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         _ => return Ok(None),
     };
     Ok(Some(s))
+}
+
+fn is_rule<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
+    head_name(h, t).is_some_and(|(n, a)| n == names::RULE && a.len() == 2)
+}
+
+/// The rings of `outer -> [hole, ...]`: rings of positions, or of 1-based indices into `pts`; the outer ring
+/// anticlockwise and the holes clockwise, so that filling cuts the holes out.
+fn with_holes<S: Store + ?Sized>(h: &S, pts: Option<Vec<Pt>>, r: T<'_>) -> Result<Vec<Vec<Pt>>, Bad> {
+    let Some((_, &[outer, holes])) = head_name(h, r) else { return Err(Bad::Arg(2)) };
+    let ring = |t: T<'_>| -> Result<Vec<Pt>, Bad> {
+        match (&pts, list(h, t)) {
+            (Some(pts), Some(items)) if items.iter().all(|&i| matches!(h.view(i), View::Int(_))) => items
+                .iter()
+                .map(|&i| match h.view(i) {
+                    View::Int(k) if k >= 1 && (k as usize) <= pts.len() => Ok(pts[k as usize - 1]),
+                    _ => Err(Bad::Arg(2)),
+                })
+                .collect(),
+            _ => points(h, t, 2),
+        }
+    };
+    let area = |r: &[Pt]| -> f64 {
+        (0..r.len())
+            .map(|i| {
+                let (a, b) = (r[i], r[(i + 1) % r.len()]);
+                a.x * b.y - b.x * a.y
+            })
+            .sum()
+    };
+    let mut o = ring(outer)?;
+    if area(&o) < 0.0 {
+        o.reverse();
+    }
+    let mut rings = vec![o];
+    for &hl in list(h, holes).ok_or(Bad::Arg(2))? {
+        let mut q = ring(hl)?;
+        if area(&q) > 0.0 {
+            q.reverse();
+        }
+        rings.push(q);
+    }
+    Ok(rings)
 }
 
 /// The most cells of a `raster`.
@@ -654,6 +807,31 @@ fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, 
     Ok((cols, rows.len(), rgba))
 }
 
+/// The cells of a raster of numbers in [lo, hi] (each scaled to [0, 1]).
+fn scaled_cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient, lo: f64, hi: f64) -> Result<(usize, usize, Vec<u8>), Bad> {
+    let rows_t = list(h, t).ok_or(Bad::Arg(1))?;
+    let mut rows = vec![];
+    for &r in rows_t {
+        let vals: Vec<f64> = match h.packed(r) {
+            Some(Packed::Reals { data, .. }) => data.to_vec(),
+            Some(Packed::Ints { data, .. }) => data.iter().map(|&v| v as f64).collect(),
+            None => list(h, r).ok_or(Bad::Arg(1))?.iter().map(|&e| number(h, e).unwrap_or(f64::NAN)).collect(),
+        };
+        rows.push(vals);
+    }
+    let cols = rows.first().map_or(0, |r| r.len());
+    if cols == 0 || rows.iter().any(|r| r.len() != cols) || rows.len().saturating_mul(cols) > MAX_CELLS {
+        return Err(Bad::Arg(1));
+    }
+    let mut rgba = Vec::with_capacity(rows.len() * cols * 4);
+    for r in rows.iter().rev() {
+        for &v in r {
+            rgba.extend_from_slice(&if v.is_finite() { grad.at((v - lo) / (hi - lo)).bytes() } else { [0, 0, 0, 0] });
+        }
+    }
+    Ok((cols, rows.len(), rgba))
+}
+
 /// Dash patterns by name, in points for a line 2 points wide.
 fn named_dashes(name: &str) -> Option<Vec<Size>> {
     let p: &[f64] = match name {
@@ -664,6 +842,56 @@ fn named_dashes(name: &str) -> Option<Vec<Size>> {
         _ => return None,
     };
     Some(p.iter().map(|&v| Size::Abs(v)).collect())
+}
+
+/// The directives that are symbols (besides the colours): `thick`, `thin`, `dashed`, `dotted`, `dot_dashed`, and
+/// the text styles `bold`, `italic`, `plain`, `underlined` (accepted; labels keep the math font's shapes).
+/// `false` for any other symbol.
+pub fn symbol_directive(name: &str, style: &mut Style) -> bool {
+    match name {
+        "thick" => style.thickness = Size::Abs(2.0),
+        "thin" => style.thickness = Size::Abs(0.5),
+        "dashed" | "dotted" | "dot_dashed" => style.dashing = named_dashes(name).unwrap_or_default(),
+        "bold" | "italic" | "plain" | "underlined" => {}
+        _ => return false,
+    }
+    true
+}
+
+/// The symbol directives, for the documentation and name lookup.
+pub const SYMBOL_DIRECTIVES: [&str; 9] = ["thick", "thin", "dashed", "dotted", "dot_dashed", "bold", "italic", "plain", "underlined"];
+
+/// A size given by name (`tiny`, `small`, `medium`, `large`) for the directive `kind`.
+fn named_size<S: Store + ?Sized>(h: &S, t: T<'_>, kind: &str) -> Option<Size> {
+    let View::Sym(s) = h.view(t) else { return None };
+    let k = match h.sym_name(s).as_str() {
+        "tiny" => 0,
+        "small" => 1,
+        "medium" => 2,
+        "large" => 3,
+        _ => return None,
+    };
+    Some(match kind {
+        "thickness" | "absolute_thickness" => Size::Abs([0.25, 0.5, 1.0, 2.0][k]),
+        "point_size" | "absolute_point_size" => Size::Abs([2.0, 3.0, 4.5, 6.5][k]),
+        "dashing" | "absolute_dashing" => Size::Abs([1.0, 2.0, 4.0, 8.0][k]),
+        "arrowheads" => Size::Rel([0.015, 0.025, 0.04, 0.06][k]),
+        "font_size" => Size::Abs([7.0, 9.0, 12.0, 16.0][k]),
+        _ => return None,
+    })
+}
+
+/// A text option inside `directive(...)` or `style(...)`: `font_size -> n`, `font_color -> c`; others are not used.
+fn text_rule<S: Store + ?Sized>(h: &S, k: T<'_>, v: T<'_>, style: &mut Style) {
+    if sym_is(h, k, "font_size") {
+        if let Some(n) = number(h, v).filter(|n| *n > 0.0 && *n <= 1000.0) {
+            style.font_size = Some(n);
+        }
+    } else if sym_is(h, k, "font_color") {
+        if let Colour::Value(c) = colour(h, v) {
+            style.color = c;
+        }
+    }
 }
 
 /// A length argument: a non-negative number.
@@ -678,16 +906,46 @@ fn length<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<f64, Bad> {
 
 /// Apply the directive `t` to `style`. `Ok(false)` when `t` is not a directive (nor a colour).
 pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Result<bool, Bad> {
-    if let View::Sym(_) = h.view(t) {
+    if let View::Sym(s) = h.view(t) {
         return match colour(h, t) {
             Colour::Value(c) => {
                 style.color = c;
                 Ok(true)
             }
-            _ => Ok(false),
+            _ => Ok(symbol_directive(&h.sym_name(s), style)),
         };
     }
     let Some((name, args)) = head_name(h, t) else { return Ok(false) };
+    if name == "directive" {
+        // several directives as one; what is not a directive (a font option, a number) styles text or nothing
+        for &d in args {
+            if let Some(v) = number(h, d) {
+                if v > 0.0 && v <= 1000.0 {
+                    style.font_size = Some(v);
+                }
+                continue;
+            }
+            if let Some((r, &[k, v])) = head_name(h, d).filter(|(n, _)| n == names::RULE) {
+                let _ = r;
+                text_rule(h, k, v, style);
+                continue;
+            }
+            if let Some((_, rs)) = head_name(h, d).filter(|(n, _)| n == "options") {
+                for &r in rs {
+                    if let Some((_, &[k, v])) = head_name(h, r).filter(|(n, _)| n == names::RULE) {
+                        text_rule(h, k, v, style);
+                    }
+                }
+                continue;
+            }
+            match directive(h, d, style) {
+                Ok(_) => {}
+                Err(Bad::Symbolic) => return Err(Bad::Symbolic),
+                Err(_) => {}
+            }
+        }
+        return Ok(true);
+    }
     match colour(h, t) {
         Colour::Value(c) => {
             style.color = c;
@@ -697,9 +955,13 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         Colour::Bad if crate::color::HEADS.contains(&name.as_str()) => return Err(Bad::Arity),
         Colour::Bad => {}
     }
+    let kind = name.clone();
     let one = |rel: bool| -> Result<Size, Bad> {
         match args {
-            [v] => length(h, *v, 1).map(|v| if rel { Size::Rel(v) } else { Size::Abs(v) }),
+            [v] => match named_size(h, *v, &kind) {
+                Some(s) => Ok(s),
+                None => length(h, *v, 1).map(|v| if rel { Size::Rel(v) } else { Size::Abs(v) }),
+            },
             _ => Err(Bad::Arity),
         }
     };
@@ -718,12 +980,37 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         },
         "thickness" => style.thickness = one(true)?,
         "arrowheads" => {
-            let [v] = args else { return Err(Bad::Arity) };
+            let [v, ..] = args else { return Err(Bad::Arity) };
+            let size = |e: T<'_>| -> Result<f64, Bad> {
+                match named_size(h, e, "arrowheads") {
+                    Some(Size::Rel(s)) => Ok(s),
+                    _ => scalar(h, e, 1).map(f64::abs),
+                }
+            };
             style.arrowheads = match list(h, *v) {
-                Some(&[a, b]) => Some([length(h, a, 1)?, length(h, b, 1)?]),
+                Some(&[a, b]) if list(h, a).is_none() && list(h, b).is_none() => Some([size(a)?, size(b)?]),
+                // [[s, position, shape], ...]: the sizes at the start and the end
+                Some(heads) if !heads.is_empty() && heads.iter().all(|&e| list(h, e).is_some()) => {
+                    let mut ends = [0.0, 0.0];
+                    for &hd in heads {
+                        let parts = list(h, hd).unwrap_or_default();
+                        let s = parts.first().map(|&e| size(e)).transpose()?.unwrap_or(0.04);
+                        let at = parts.get(1).and_then(|&p| number(h, p)).unwrap_or(1.0);
+                        ends[usize::from(at > 0.5)] = s;
+                    }
+                    Some(ends)
+                }
                 Some(_) => return Err(Bad::Arg(1)),
                 None if sym_is(h, *v, "automatic") => None,
-                None => Some([0.0, length(h, *v, 1)?]),
+                None => {
+                    let s = size(*v)?;
+                    // a negative size turns the head round: at the start
+                    if number(h, *v).is_some_and(|x| x < 0.0) {
+                        Some([s, 0.0])
+                    } else {
+                        Some([0.0, s])
+                    }
+                }
             };
         }
         "absolute_thickness" => style.thickness = one(false)?,
@@ -736,10 +1023,22 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
             })
         }
         "dashing" | "absolute_dashing" => {
-            let [v] = args else { return Err(Bad::Arity) };
+            // an offset and a cap style after the pattern are accepted and not used
+            let [v, ..] = args else { return Err(Bad::Arity) };
             let rel = name == "dashing";
+            let sized = |d: f64| if rel { Size::Rel(d) } else { Size::Abs(d) };
             style.dashing = match (h.view(*v), list(h, *v)) {
-                (View::Sym(s), _) => named_dashes(&h.sym_name(s)).ok_or(Bad::Arg(1))?,
+                (View::Sym(s), _) => match named_dashes(&h.sym_name(s)) {
+                    Some(d) => d,
+                    None => match named_size(h, *v, "dashing") {
+                        Some(d) => vec![d, d],
+                        None => return Err(Bad::Arg(1)),
+                    },
+                },
+                _ if number(h, *v).is_some() => {
+                    let d = length(h, *v, 1)?;
+                    vec![sized(d), sized(d)]
+                }
                 (_, Some(items)) => items
                     .iter()
                     .map(|&d| length(h, d, 1).map(|d| if rel { Size::Rel(d) } else { Size::Abs(d) }))
@@ -809,6 +1108,9 @@ pub const POLL: usize = 4096;
 
 /// Read a `graphics(content)` or `graphics(content, options(...))` term. `stop` is polled in loops over the input.
 pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Result<Graphic, Failure> {
+    if crate::three::is_graphics3d(h, t) {
+        return crate::three::read(h, t, stop);
+    }
     let (content, opts) = match head_name(h, t) {
         Some((n, args)) if n == "graphics" => match args {
             [c] => (*c, None),
@@ -818,9 +1120,18 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
         _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
     };
     let mut g = Graphic { items: Vec::new(), styles: vec![Style::default()], opts: Opts::default() };
-    // the content: a stack of (remaining elements, the style index current in that list)
-    let single = [content];
-    let mut stack: Vec<(&[T<'_>], usize)> = vec![(&single[..], 0)];
+    // the content, with the options `prolog` (drawn first) and `epilog` (drawn last)
+    let extra = |key: &str| -> Option<T<'_>> {
+        let o = opts?;
+        let (_, rs) = head_name(h, o).filter(|(n, _)| n == "options")?;
+        rs.iter().find_map(|&r| match head_name(h, r) {
+            Some((n, &[k, v])) if n == names::RULE && sym_is(h, k, key) => Some(v),
+            _ => None,
+        })
+    };
+    let seq: Vec<T<'_>> = extra("prolog").into_iter().chain([content]).chain(extra("epilog")).collect();
+    // a stack of (remaining elements, the style index current in that list)
+    let mut stack: Vec<(&[T<'_>], usize)> = vec![(&seq[..], 0)];
     let mut seen = 0usize;
     while let Some((rest, style)) = stack.last_mut() {
         let Some((&e, tail)) = rest.split_first() else {
@@ -838,10 +1149,52 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
             continue;
         }
         if let Some((name, args)) = head_name(h, e) {
-            if name == "graphics" {
-                // a graphic inside a graphic: its content, its options ignored
+            if name == "graphics" || (TRANSPARENT.contains(&name.as_str()) && !args.is_empty()) {
+                // a graphic inside a graphic: its content, its options ignored; a tooltip or annotation: what it
+                // annotates
                 stack.push((&args[..args.len().min(1)], cur));
                 continue;
+            }
+            if name == "style" && !args.is_empty() {
+                // the content in its own scope, styled by the rest
+                let mut s = g.styles[cur].clone();
+                styled(h, &args[1..], &mut s).map_err(|b| bad_item(h, e, b))?;
+                g.styles.push(s);
+                stack.push((&args[..1], g.styles.len() - 1));
+                continue;
+            }
+            if name == "inset" && !args.is_empty() {
+                g.items.push(Item { shape: inset(h, args, stop).map_err(|f| if f.tag == "interrupted" { f } else { bad_item(h, e, Bad::Arg(1)) })?, style: cur });
+                continue;
+            }
+            if name == "text" && args.len() >= 2 {
+                if let Some((_, inner)) = head_name(h, args[0]).filter(|(n, a)| n == "style" && !a.is_empty()) {
+                    // a styled label: its colour and size for this text
+                    let mut s = g.styles[cur].clone();
+                    styled(h, &inner[1..], &mut s).map_err(|b| bad_item(h, e, b))?;
+                    let Some(Shape::Text { at, offset, .. }) = shape(h, "text", args).map_err(|b| bad_item(h, e, b))? else {
+                        continue;
+                    };
+                    g.styles.push(s);
+                    let label = Label::of(h, inner[0]);
+                    g.items.push(Item { shape: Shape::Text { label, at, offset }, style: g.styles.len() - 1 });
+                    continue;
+                }
+            }
+            if matches!(name.as_str(), "disk" | "circle") {
+                // several centres: one primitive each
+                if let Some(cs) = args.first().and_then(|&c| list(h, c)).filter(|_| several_centres(h, args)) {
+                    for &c in cs {
+                        let mut a = vec![c];
+                        a.extend_from_slice(&args[1..]);
+                        match shape(h, &name, &a) {
+                            Ok(Some(shape)) => g.items.push(Item { shape, style: cur }),
+                            Ok(None) => {}
+                            Err(bad) => return Err(bad_item(h, e, bad)),
+                        }
+                    }
+                    continue;
+                }
             }
             match shape(h, &name, args) {
                 Ok(Some(shape)) => {
@@ -870,6 +1223,91 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
     Ok(g)
 }
 
+thread_local! {
+    /// How deep insets are nested in the graphic being read.
+    static INSET_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// Insets nested deeper than this are left out.
+const MAX_INSETS: usize = 8;
+
+/// `inset(obj)`, `inset(obj, pos)`, `inset(obj, pos, offset)`, `inset(obj, pos, offset, width)`: a graphic (or a
+/// label for anything else) at `pos` (default: the middle of the plot range).
+fn inset<S: Store + ?Sized>(h: &S, args: &[T<'_>], stop: &dyn Fn() -> bool) -> Result<Shape, Failure> {
+    let at = match args.get(1) {
+        Some(&p) => point(h, p, 2).map_err(|_| Failure::new("argument", "inset position"))?,
+        None => Pt { x: 0.5, y: 0.5, scaled: true },
+    };
+    let offset = match args.get(2).and_then(|&o| list(h, o)) {
+        Some(&[a, b]) => (number(h, a).unwrap_or(0.0), number(h, b).unwrap_or(0.0)),
+        _ => (0.0, 0.0),
+    };
+    let width = args.get(3).and_then(|&w| match list(h, w) {
+        Some(&[w, _]) => number(h, w),
+        _ => number(h, w),
+    });
+    let obj = args[0];
+    if !crate::is_graphics(h, obj) {
+        let inner = match head_name(h, obj) {
+            Some((n, a)) if n == "style" && !a.is_empty() => a[0],
+            _ => obj,
+        };
+        return Ok(Shape::Text { label: Label::of(h, inner), at, offset });
+    }
+    let depth = INSET_DEPTH.with(|d| d.get());
+    if depth >= MAX_INSETS {
+        return Err(Failure::new("too_large", "insets nested too deep"));
+    }
+    INSET_DEPTH.with(|d| d.set(depth + 1));
+    let sub = read(h, obj, stop);
+    INSET_DEPTH.with(|d| d.set(depth));
+    let sub = sub?;
+    let p = crate::page::plan(&sub, stop)?;
+    Ok(Shape::Inset { graphic: Box::new(sub), natural: (p.width as f64, p.height as f64), at, offset, width })
+}
+
+/// Whether the first argument of `disk` or `circle` is a list of centres.
+pub fn several_centres<S: Store + ?Sized>(h: &S, args: &[T<'_>]) -> bool {
+    args.first().and_then(|&c| list(h, c)).is_some_and(|cs| cs.first().is_some_and(|&c| list(h, c).is_some()))
+}
+
+/// Wrappers drawn as their first argument (what they annotate).
+pub const TRANSPARENT: [&str; 8] =
+    ["tooltip", "annotation", "mouseover", "hyperlink", "status_area", "popup_window", "event_handler", "dynamic"];
+
+/// The styles of `style(content, s1, s2, ...)`: directives, numbers (a font size), `font_size -> n`,
+/// `font_color -> c`; other things (font families, weights) are not used.
+pub fn styled<S: Store + ?Sized>(h: &S, specs: &[T<'_>], style: &mut Style) -> Result<(), Bad> {
+    for &d in specs {
+        if let Some(v) = number(h, d) {
+            if v > 0.0 && v <= 1000.0 {
+                style.font_size = Some(v);
+            }
+            continue;
+        }
+        if let Some(Size::Abs(v)) = named_size(h, d, "font_size") {
+            style.font_size = Some(v);
+            continue;
+        }
+        match head_name(h, d) {
+            Some((n, &[k, v])) if n == names::RULE => text_rule(h, k, v, style),
+            Some((n, rs)) if n == "options" => {
+                for &r in rs {
+                    if let Some((_, &[k, v])) = head_name(h, r).filter(|(n, _)| n == names::RULE) {
+                        text_rule(h, k, v, style);
+                    }
+                }
+            }
+            _ => {
+                if let Err(Bad::Symbolic) = directive(h, d, style) {
+                    return Err(Bad::Symbolic);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The rules of an `options(...)` term as (name, value) pairs.
 pub fn rules<'h, S: Store + ?Sized>(h: &'h S, o: T<'h>) -> Result<Vec<(String, T<'h>)>, Failure> {
     let Some((n, args)) = head_name(h, o) else {
@@ -891,21 +1329,27 @@ pub fn rules<'h, S: Store + ?Sized>(h: &'h S, o: T<'h>) -> Result<Vec<(String, T
     Ok(out)
 }
 
-/// Read the options; style lists in grid lines and legend entries are added to `styles`.
+/// Read the options; style lists in grid lines and legend entries are added to `styles`. An option nothing reads,
+/// or a value an option does not take, is left out and named in [`Opts::ignored`] (harmless styling options are
+/// left out silently).
 pub fn options<S: Store + ?Sized>(h: &S, o: T<'_>, styles: &mut Vec<Style>) -> Result<Opts, Failure> {
     let mut opts = Opts::default();
     for (name, v) in rules(h, o)? {
+        if HARMLESS.contains(&name.as_str()) || name == "epilog" || name == "prolog" {
+            continue;
+        }
         if !OPTIONS.contains(&name.as_str()) {
-            return Err(Failure::new("unknown_option", name));
+            opts.ignored.push(name);
+            continue;
         }
         if option(h, &name, v, &mut opts, styles).is_none() {
-            return Err(Failure::new("option", format!("{name}: {}", mc_syntax::Printer::new(h).expr(v))));
+            opts.ignored.push(format!("{name}: {}", mc_syntax::Printer::new(h).expr(v)));
         }
     }
     Ok(opts)
 }
 
-fn boolean<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<bool> {
+pub(crate) fn boolean<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<bool> {
     if sym_is(h, t, names::TRUE) {
         Some(true)
     } else if sym_is(h, t, names::FALSE) {
@@ -916,12 +1360,12 @@ fn boolean<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<bool> {
 }
 
 /// A label option value: `none` or a label.
-fn label_opt<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Label> {
+pub(crate) fn label_opt<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Label> {
     (!sym_is(h, t, "none")).then(|| Label::of(h, t))
 }
 
 /// A range `[a, b]` with numbers or `automatic` ends.
-fn range<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<[Option<f64>; 2]> {
+pub(crate) fn range<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<[Option<f64>; 2]> {
     if sym_is(h, t, "automatic") || sym_is(h, t, "all") {
         return Some([None, None]);
     }
@@ -950,7 +1394,9 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
     };
     match name {
         "plot_range" => {
-            o.plot_range = if let Some(r) = number(h, v) {
+            o.plot_range = if sym_is(h, v, "full") {
+                [[None, None], [None, None]]
+            } else if let Some(r) = number(h, v) {
                 (r > 0.0).then_some(())?;
                 [[None, None], [Some(-r), Some(r)]]
             } else if let Some([x, y]) = pair(v).filter(|[x, _]| list(h, *x).is_some() || sym_is(h, *x, "automatic")) {
@@ -962,11 +1408,30 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         "plot_range_padding" => {
             o.padding = if sym_is(h, v, "none") {
                 Some(0.0)
-            } else if sym_is(h, v, "automatic") {
+            } else if sym_is(h, v, "automatic") || sym_is(h, v, "all") {
                 None
+            } else if let Some((n, &[f])) = head_name(h, v).filter(|(n, _)| n == "scaled") {
+                let _ = n;
+                Some(number(h, f).filter(|p| *p >= 0.0)?)
             } else {
                 Some(number(h, v).filter(|p| *p >= 0.0)?)
             }
+        }
+        "axes_origin" => {
+            o.origin = if sym_is(h, v, "automatic") {
+                None
+            } else {
+                let [x, y] = pair(v)?;
+                Some((number(h, y)?, number(h, x)?))
+            }
+        }
+        "plot_range_clipping" => o.clip = Some(boolean(h, v)?),
+        "legend_title" => o.legend_title = label_opt(h, v),
+        "plot_legends" => {
+            // a list of labels: a legend of line samples in the order of the content's colours is not known here,
+            // so the entries are labels without samples
+            let items = list(h, v)?;
+            o.legend = items.iter().map(|&e| LegendEntry { label: Label::of(h, e), style: 0, marker: Marker::None }).collect();
         }
         "axes" => {
             o.axes = match boolean(h, v) {
@@ -977,7 +1442,24 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
                 }
             }
         }
-        "frame" => o.frame = boolean(h, v)?,
+        "frame" => {
+            o.frame = match boolean(h, v) {
+                Some(b) => b,
+                // per side: [[left, right], [bottom, top]] or [bottom, left, top, right]: a frame when any side has one
+                None if sym_is(h, v, "all") => true,
+                None if sym_is(h, v, "none") => false,
+                None => {
+                    let mut any = false;
+                    for &e in list(h, v)? {
+                        match list(h, e) {
+                            Some(sides) => any |= sides.iter().any(|&b| boolean(h, b) == Some(true)),
+                            None => any |= boolean(h, e)?,
+                        }
+                    }
+                    any
+                }
+            }
+        }
         "axes_label" | "frame_label" => {
             let labels = match pair(v) {
                 Some([x, y]) => [label_opt(h, x), label_opt(h, y)],
@@ -992,7 +1474,7 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         }
         "plot_label" => o.plot_label = label_opt(h, v),
         "aspect_ratio" => {
-            o.aspect = if sym_is(h, v, "automatic") {
+            o.aspect = if sym_is(h, v, "automatic") || sym_is(h, v, "all") {
                 Aspect::Auto
             } else if sym_is(h, v, "full") {
                 Aspect::Full
@@ -1002,8 +1484,10 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
         }
         "image_size" => {
             let size = |t: T<'_>| -> Option<Option<f64>> {
-                if sym_is(h, t, "automatic") {
+                if sym_is(h, t, "automatic") || sym_is(h, t, "all") || sym_is(h, t, "full") {
                     Some(None)
+                } else if let Some(w) = named_width(h, t) {
+                    Some(Some(w))
                 } else {
                     number(h, t).filter(|w| *w >= 1.0 && *w <= MAX_SIDE).map(Some)
                 }
@@ -1023,7 +1507,24 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
                 }
             }
         }
-        "ticks" => {
+        "ticks" | "frame_ticks" => {
+            if let Some(b) = boolean(h, v) {
+                o.ticks = if b { [Ticks::Auto, Ticks::Auto] } else { [Ticks::None, Ticks::None] };
+                return Some(());
+            }
+            if sym_is(h, v, "all") {
+                o.ticks = [Ticks::Auto, Ticks::Auto];
+                return Some(());
+            }
+            // frame ticks per side, [[left, right], [bottom, top]]: the left and the bottom ones are drawn
+            let v = match pair(v) {
+                Some([a, b]) if name == "frame_ticks" && list(h, a).is_some_and(|l| l.len() == 2) && list(h, b).is_some_and(|l| l.len() == 2) => {
+                    let (l, bt) = (list(h, a)?[0], list(h, b)?[0]);
+                    o.ticks = [ticks(h, bt).unwrap_or(Ticks::Auto), ticks(h, l).unwrap_or(Ticks::Auto)];
+                    return Some(());
+                }
+                _ => v,
+            };
             // two specifications (`automatic`, `none` or lists) are one per axis; anything else is for both
             let spec = |e: T<'_>| sym_is(h, e, "automatic") || sym_is(h, e, "none") || list(h, e).is_some();
             o.ticks = match pair(v).filter(|[x, y]| spec(*x) && spec(*y)) {
@@ -1035,9 +1536,9 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             }
         }
         "grid_lines" => {
-            o.grid = if sym_is(h, v, "none") {
+            o.grid = if sym_is(h, v, "none") || sym_is(h, v, names::FALSE) {
                 [Grid::None, Grid::None]
-            } else if sym_is(h, v, "automatic") {
+            } else if sym_is(h, v, "automatic") || sym_is(h, v, "all") || sym_is(h, v, names::TRUE) {
                 [Grid::Auto, Grid::Auto]
             } else {
                 let [x, y] = pair(v)?;
@@ -1081,12 +1582,24 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
 /// The largest image side in points.
 pub const MAX_SIDE: f64 = 20_000.0;
 
+/// The width of a named image size: `tiny`, `small`, `medium`, `large`.
+pub(crate) fn named_width<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<f64> {
+    let View::Sym(s) = h.view(t) else { return None };
+    Some(match h.sym_name(s).as_str() {
+        "tiny" => 100.0,
+        "small" => 180.0,
+        "medium" => 360.0,
+        "large" => 576.0,
+        _ => return None,
+    })
+}
+
 /// Ticks of one axis: `automatic`, `none`, or a list of positions or `[position, label]` pairs.
 fn ticks<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Ticks> {
-    if sym_is(h, t, "automatic") {
+    if sym_is(h, t, "automatic") || sym_is(h, t, "all") || sym_is(h, t, names::TRUE) {
         return Some(Ticks::Auto);
     }
-    if sym_is(h, t, "none") {
+    if sym_is(h, t, "none") || sym_is(h, t, names::FALSE) {
         return Some(Ticks::None);
     }
     let items = list(h, t)?;
@@ -1104,10 +1617,10 @@ fn ticks<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Ticks> {
 
 /// Grid lines across one axis: `automatic`, `none`, or a list of positions or `[position, style]` pairs.
 fn grid<S: Store + ?Sized>(h: &S, t: T<'_>, styles: &mut Vec<Style>) -> Option<Grid> {
-    if sym_is(h, t, "automatic") {
+    if sym_is(h, t, "automatic") || sym_is(h, t, "all") || sym_is(h, t, names::TRUE) {
         return Some(Grid::Auto);
     }
-    if sym_is(h, t, "none") {
+    if sym_is(h, t, "none") || sym_is(h, t, names::FALSE) {
         return Some(Grid::None);
     }
     let items = list(h, t)?;

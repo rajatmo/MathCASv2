@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# sphere
+
+#% text
+# `sphere([x, y, z], r)` is a sphere of radius r centred at [x, y, z] in `graphics3d`.
+
+#% text
+# `sphere()` is the unit sphere at the origin; `sphere([c1, c2, ...], r)` several.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(sphere())
+#% output
+#= image("sphere.files/sphere-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Several spheres in colours:
+
+#% cell
+graphics3d([red, sphere([0, 0, 0], 1), blue, sphere([2.5, 0, 0], 0.5), green, sphere([[0, 2, 0], [2, 2, 0]], 0.4)])
+#% output
+#= image("sphere.files/sphere-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# A translucent sphere around a point:
+
+#% cell
+graphics3d([opacity(0.4), sphere(), opacity(1), black, point_size(large), point([0, 0, 0])])
+#% output
+#= image("sphere.files/sphere-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `cuboid`, `plot3d`

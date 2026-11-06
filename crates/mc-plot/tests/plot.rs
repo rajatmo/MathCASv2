@@ -9,6 +9,16 @@ fn eval(e: &mut CoreEngine, src: &str) -> String {
     }
 }
 
+/// `src` evaluates to `want`; `"image"` stands for any image (a plot drawn).
+fn expect(e: &mut CoreEngine, src: &str, want: &str) {
+    let got = eval(e, src);
+    if want == "image" {
+        assert!(got.starts_with("image(\""), "{src} -> {got}");
+    } else {
+        assert_eq!(got, want, "{src}");
+    }
+}
+
 /// The path in a printed `image("path")`.
 fn image_path(printed: &str) -> &str {
     printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(printed)
@@ -52,9 +62,8 @@ fn bad_arguments_fail() {
         ("plot(x, [x, 0, a])", "failure(argument, plot, 2)"),
         ("list_plot(5)", "failure(argument, list_plot, 1)"),
         ("list_plot([a, b])", "failure(argument, list_plot, 1)"),
-        ("list_plot([1, 2], sideways: 1)", "failure(argument, list_plot, 2)"),
     ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
+        expect(&mut e, src, want);
     }
 }
 
@@ -96,13 +105,13 @@ fn plots_take_axis_labels_and_legends() {
     assert!(svg.contains(r#"aria-label="time (s)""#) && svg.contains(r#"aria-label="line""#), "{svg}");
     assert!(sibling(path, "pdf").starts_with("%PDF-1.4"));
     for (src, want) in [
-        ("plot(x, [x, 0, 1], x_label: 5)", "failure(argument, plot, 3)"),
-        ("plot(x, [x, 0, 1], legend: \"a\")", "failure(argument, plot, 3)"),
-        ("plot(x, [x, 0, 1], legend: [a])", "failure(argument, plot, 3)"),
-        ("plot(x, [x, 0, 1], legend_position: middle)", "failure(argument, plot, 3)"),
-        ("list_plot([1, 2], y_label: [\"a\"])", "failure(argument, list_plot, 2)"),
+        ("plot(x, [x, 0, 1], x_label: 5)", "image"),
+        ("plot(x, [x, 0, 1], legend: \"a\")", "image"),
+        ("plot(x, [x, 0, 1], legend: [a])", "image"),
+        ("plot(x, [x, 0, 1], legend_position: middle)", "image"),
+        ("list_plot([1, 2], y_label: [\"a\"])", "image"),
     ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
+        expect(&mut e, src, want);
     }
 }
 
@@ -128,7 +137,8 @@ fn curves_take_colors_and_dash_patterns() {
         "plot(x, [x, 0, 1], line_style: [wavy])",
         "plot(x, [x, 0, 1], line_style: dashed)",
     ] {
-        assert_eq!(eval(&mut e, src), "failure(argument, plot, 3)", "{src}");
+        // values an option does not take are left out (named in a message): the plot is drawn
+        expect(&mut e, src, "image");
     }
 }
 
@@ -282,9 +292,9 @@ fn plane_curves() {
         ("parametric_plot(t, [t, 0, 1])", "failure(argument, parametric_plot, 1)"),
         ("parametric_plot([[t]], [t, 0, 1])", "failure(argument, parametric_plot, 1)"),
         ("parametric_plot([a, b], [t, 0, 1])", "failure(argument, parametric_plot, 1)"),
-        ("polar_plot(1, [t, 0, 1], filling: axis)", "failure(argument, polar_plot, 3)"),
+        ("polar_plot(1, [t, 0, 1], filling: axis)", "image"),
     ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
+        expect(&mut e, src, want);
     }
 }
 
@@ -309,14 +319,9 @@ fn lines_of_data_and_fillings() {
     picture(&mut e, "plot([sin(x), cos(x)], [x, 0, 2*pi], filling: [1, 2])", "filling_between");
     picture(&mut e, "plot(exp(x), [x, 0, 3], filling: bottom, plot_range: [0, 10])", "filling_bottom");
     picture(&mut e, "list_line_plot([1, 3, 2, 5, 4], filling: 2)", "filling_value");
-    for (src, want) in [
-        ("plot(x, [x, 0, 1], filling: [1, 2])", "failure(argument, plot, 3)"),
-        ("plot(x, [x, 0, 1], filling: sideways)", "failure(argument, plot, 3)"),
-        ("plot(x, [x, 0, 1], plot_range: [1, 0])", "failure(argument, plot, 3)"),
-        ("list_line_plot([1, 2], joined: false)", "failure(argument, list_line_plot, 2)"),
-    ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
-    }
+    expect(&mut e, "plot(x, [x, 0, 1], filling: [1, 2])", "failure(argument, plot, 3)");
+    // options in rule form and of other plots are accepted
+    expect(&mut e, "list_line_plot([1, 2], joined: false, plot_range: [1, 0])", "image");
 }
 
 #[test]
@@ -376,14 +381,14 @@ fn density_and_contour_plots() {
         ("density_plot(x, [x, 0, 1], [x, 0, 1])", "failure(argument, density_plot, 3)"),
         ("density_plot(x, [x, 0, 1], [y, 1, 0])", "failure(argument, density_plot, 3)"),
         ("density_plot(a, [x, 0, 1], [y, 0, 1])", "failure(argument, density_plot, 1)"),
-        ("density_plot(x, [x, 0, 1], [y, 0, 1], contours: 3)", "failure(argument, density_plot, 4)"),
-        ("contour_plot(x, [x, 0, 1], [y, 0, 1], contours: 0)", "failure(argument, contour_plot, 4)"),
-        ("contour_plot(x, [x, 0, 1], [y, 0, 1], plot_points: 1)", "failure(argument, contour_plot, 4)"),
+        ("density_plot(x, [x, 0, 1], [y, 0, 1], contours: 3)", "image"),
+        ("contour_plot(x, [x, 0, 1], [y, 0, 1], contours: 0)", "image"),
+        ("contour_plot(x, [x, 0, 1], [y, 0, 1], plot_points: 1)", "image"),
         ("list_density_plot([1, 2])", "failure(argument, list_density_plot, 1)"),
         ("list_density_plot([[1, 2], [3]])", "failure(argument, list_density_plot, 1)"),
-        ("list_density_plot([[1, 2], [3, 4]], data_range: [[1, 0], [0, 1]])", "failure(argument, list_density_plot, 2)"),
+        ("list_density_plot([[1, 2], [3, 4]], data_range: [[1, 0], [0, 1]])", "image"),
     ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
+        expect(&mut e, src, want);
     }
 }
 
@@ -414,12 +419,12 @@ fn histograms_and_bar_charts() {
     for (src, want) in [
         ("histogram([])", "failure(argument, histogram, 1)"),
         ("histogram([1, a])", "failure(argument, histogram, 1)"),
-        ("histogram([1, 2], bins: 0)", "failure(argument, histogram, 2)"),
+        ("histogram([1, 2], bins: 0)", "image"),
         ("histogram([1, 2], bins: [1.0e-9])", "failure(argument, histogram, 2)"),
         ("bar_chart(5)", "failure(argument, bar_chart, 1)"),
         ("bar_chart([])", "failure(argument, bar_chart, 1)"),
-        ("bar_chart([1, 2], bins: 3)", "failure(argument, bar_chart, 2)"),
+        ("bar_chart([1, 2], bins: 3)", "image"),
     ] {
-        assert_eq!(eval(&mut e, src), want, "{src}");
+        expect(&mut e, src, want);
     }
 }

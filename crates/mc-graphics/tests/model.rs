@@ -41,7 +41,8 @@ fn primitives_stay_and_are_checked() {
         ("text(\"a\", scaled([0.5, 0.5]), [-1, 0])", "text(\"a\", scaled([0.5, 0.5]), [-1, 0])"),
         // wrong arguments: a failure naming the argument
         ("point(\"x\")", "failure(argument, point, 1)"),
-        ("point([1, 2, 3])", "failure(argument, point, 1)"),
+        // coordinates in three dimensions: a primitive of 3D graphics
+        ("point([1, 2, 3])", "point([1, 2, 3])"),
         ("circle([0, 0], -1)", "failure(argument, circle, 2)"),
         ("disk([0, 0], 1, [0])", "failure(argument, disk, 3)"),
         ("rectangle([0, 0], [1, 2, 3])", "failure(argument, rectangle, 2)"),
@@ -101,11 +102,12 @@ fn graphics_numericises_and_checks() {
         ("graphics([])", "graphics([])"),
         ("graphics(foo(1))", "failure(not_graphics, \"foo(1)\")"),
         ("graphics([red, 7])", "failure(not_graphics, \"7\")"),
-        ("graphics(point([1, 2]), bogus: 1)", "failure(unknown_option, \"bogus\")"),
-        ("graphics(point([1, 2]), axes: maybe)", "failure(option, \"axes: maybe\")"),
-        ("graphics(point([1, 2]), plot_range: [2, 1])", "failure(option, \"plot_range: [2, 1]\")"),
-        ("graphics(point([1, 2]), image_size: -5)", "failure(option, \"image_size: -5\")"),
-        ("graphics(point([1, 2]), legend: [[7, \"a\"]])", "failure(option, \"legend: [[7, \\\"a\\\"]]\")"),
+        // options nothing reads, and values an option does not take, are left out (named in `Opts::ignored`)
+        ("graphics(point([1, 2]), bogus: 1)", "graphics(point([1, 2]), bogus: 1)"),
+        ("graphics(point([1, 2]), axes: maybe)", "graphics(point([1, 2]), axes: maybe)"),
+        ("graphics(point([1, 2]), plot_range: [2, 1])", "graphics(point([1, 2]), plot_range: [2, 1])"),
+        ("graphics(point([1, 2]), image_size: -5)", "graphics(point([1, 2]), image_size: -5)"),
+        ("graphics(point([1, 2]), legend: [[7, \"a\"]])", "graphics(point([1, 2]), legend: [[7, \"a\"]])"),
         // a graphic inside a graphic is its content
         ("graphics([graphics(point([1, 2]), frame: true)])", "graphics([graphics(point([1, 2]), frame: true)])"),
     ]);
@@ -120,7 +122,7 @@ fn show_combines_graphics() {
         ),
         ("show([graphics(point([1, 2])), graphics(point([3, 4]))])", "graphics([point([1, 2]), point([3, 4])])"),
         ("show(graphics(point([1, 2])), 5)", "failure(argument, show, 2)"),
-        ("show(graphics(point([1, 2])), bogus: 1)", "failure(unknown_option, \"bogus\")"),
+        ("show(graphics(point([1, 2])), bogus: 1)", "graphics([point([1, 2])], bogus: 1)"),
     ]);
 }
 
@@ -154,7 +156,8 @@ fn arrowheads_gradients_and_colour_bars() {
     check(&[
         ("arrowheads(0.05)", "arrowheads(0.05)"),
         ("arrowheads([0.05, 0])", "arrowheads([0.05, 0])"),
-        ("arrowheads(-1)", "failure(argument, arrowheads, 1)"),
+        // a negative size: the head at the start
+        ("arrowheads(-1)", "arrowheads(-1)"),
         ("arrowheads([1, 2, 3])", "failure(argument, arrowheads, 1)"),
         ("gradient_color(gray, 0.25)", "rgb_color(0.25, 0.25, 0.25)"),
         ("gradient_color(\"gray\", 2)", "rgb_color(1.0, 1.0, 1.0)"),
@@ -166,7 +169,7 @@ fn arrowheads_gradients_and_colour_bars() {
         ("gradient_color(gray, \"a\")", "failure(argument, gradient_color, 2)"),
         ("graphics([point([0, 0])], color_bar: [viridis, [0, 1]])", "graphics([point([0, 0])], color_bar: [viridis, [0, 1]])"),
         ("graphics([point([0, 0])], color_bar: none)", "graphics([point([0, 0])], color_bar: none)"),
-        ("graphics([point([0, 0])], color_bar: [viridis, [1, 0]])", "failure(option, \"color_bar: [viridis, [1, 0]]\")"),
-        ("graphics([point([0, 0])], color_bar: [nope, [0, 1]])", "failure(option, \"color_bar: [nope, [0, 1]]\")"),
+        ("graphics([point([0, 0])], color_bar: [viridis, [1, 0]])", "graphics([point([0, 0])], color_bar: [viridis, [1, 0]])"),
+        ("graphics([point([0, 0])], color_bar: [nope, [0, 1]])", "graphics([point([0, 0])], color_bar: [nope, [0, 1]])"),
     ]);
 }

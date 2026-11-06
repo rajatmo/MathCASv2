@@ -1,0 +1,80 @@
+#! mathcas 2 notebook
+
+#% title
+# color_data
+
+#% text
+# `color_data(name)` is a colour scheme as a function of t in [0, 1].
+
+#% text
+# `color_data(name, t)` is its colour at t.
+
+#% text
+# `color_data(k, i)` with integers is the i-th of the plot colours.
+
+#% text
+# `color_data(name, "ColorList")` lists the scheme's colours.
+
+#% section
+# Details
+
+#% item
+# A name is a gradient name (`viridis`, `thermal`, `cool_warm`, `ocean`, `earth`, `rainbow`, `gray`) or a string describing a scheme (`"rainbow"`, `"temperature"`, `"sunset"`, ...), which picks the nearest gradient.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A colour of a scheme:
+
+#% cell
+color_data("rainbow", 0.3)
+#% output
+#= rgb_color(0.10862745098039216, 0.6549019607843137, 0.7823529411764706)
+
+#% text
+# The scheme as a function:
+
+#% cell
+f = color_data(viridis); f(0.5)
+#% output
+#= rgb_color(0.13529411764705881, 0.5647058823529412, 0.5470588235294118)
+
+#% subsection
+# Scope
+
+#% text
+# The plot colours:
+
+#% cell
+table(color_data(1, i), i, 3)
+#% output
+#= [rgb_color(0.10588235294117647, 0.3686274509803922, 0.38823529411764707), rgb_color(0.7568627450980392, 0.3137254901960784, 0.1803921568627451), rgb_color(0.788235294117647, 0.6039215686274509, 0.1803921568627451)]
+
+#% text
+# A scheme's colours:
+
+#% cell
+color_data(ocean, "ColorList")
+#% output
+#= [rgb_color(0.03137254901960784, 0.11372549019607843, 0.34509803921568627), rgb_color(0.13725490196078433, 0.27450980392156865, 0.5607843137254902), rgb_color(0.1568627450980392, 0.4745098039215686, 0.7254901960784313), rgb_color(0.24705882352941178, 0.6588235294117647, 0.7686274509803922), rgb_color(0.5254901960784314, 0.8117647058823529, 0.7294117647058823), rgb_color(0.8274509803921568, 0.9333333333333333, 0.7098039215686275), rgb_color(1.0, 1.0, 0.8509803921568627)]
+
+#% subsection
+# Applications
+
+#% text
+# Disks coloured along a scheme:
+
+#% cell
+graphics(table([color_data("sunset", k/9), disk([k, 0], 0.45)], k, range(0, 9)))
+#% output
+#= image("color_data.files/color_data-5.png")
+
+#% section
+# See also
+
+#% text
+# `gradient_color`, `blend`, `density_plot`

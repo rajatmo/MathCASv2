@@ -124,6 +124,15 @@ fn bounds(items: &[Item], stop: &dyn Fn() -> bool) -> Result<[(f64, f64); 2], Fa
                 }
             }
             Shape::Text { at, .. } => add(at),
+            Shape::Inset { at, natural, offset, width: Some(w), .. } if !at.scaled => {
+                // its rectangle in plot coordinates (its height as its natural shape says)
+                let ht = w * natural.1 / natural.0.max(1e-9);
+                let left = at.x - (1.0 + offset.0) / 2.0 * w;
+                let bottom = at.y - (1.0 + offset.1) / 2.0 * ht;
+                add(&Pt { x: left, y: bottom, scaled: false });
+                add(&Pt { x: left + w, y: bottom + ht, scaled: false });
+            }
+            Shape::Inset { at, .. } => add(at),
             Shape::Raster { from, to, .. } => {
                 add(from);
                 add(to);
@@ -173,7 +182,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         let hi = given[1].unwrap_or(hi + pad * len);
         range[k] = if hi > lo { (lo, hi) } else { widen((lo, lo), 0.0) };
     }
-    let clip = o.plot_range.iter().flatten().any(Option::is_some);
+    let clip = o.clip.unwrap_or_else(|| o.plot_range.iter().flatten().any(Option::is_some));
     let fs = o.font_size as f32;
     // the plot area's shape (height over width)
     let ratio = match o.aspect {
@@ -205,7 +214,10 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
     let ticks = [typeset_ticks(tx, fs), typeset_ticks(ty, fs)];
     // where the axes cross: at 0, or at the range's lower end when 0 is outside it
     let cross = |(lo, hi): (f64, f64)| if lo <= 0.0 && 0.0 <= hi { 0.0 } else { lo };
-    let origin = (cross(range[1]), cross(range[0]));
+    let origin = match o.origin {
+        Some((y, x)) => (y.clamp(range[1].0, range[1].1), x.clamp(range[0].0, range[0].1)),
+        None => (cross(range[1]), cross(range[0])),
+    };
     let max_w = |v: &[(f64, Option<Typeset>)]| v.iter().filter_map(|t| t.1.as_ref()).map(|t| t.width).fold(0.0, f32::max);
     let max_h = |v: &[(f64, Option<Typeset>)]| v.iter().filter_map(|t| t.1.as_ref()).map(|t| t.height).fold(0.0, f32::max);
     // margins: left, top, right, bottom
@@ -505,6 +517,22 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
             }
             s.stroke(&path, &pen_of(st, aw));
         }
+        Shape::Inset { graphic, natural, at, offset, width } => {
+            let (x, y) = p.at(*at);
+            let w = match width {
+                Some(w) if at.scaled => *w as f32 * aw,
+                Some(w) => p.scale((*w, 0.0)).0,
+                None => natural.0 as f32,
+            };
+            let k = w / (natural.0 as f32).max(1e-6);
+            let ht = natural.1 as f32 * k;
+            let left = x - (1.0 + offset.0 as f32) / 2.0 * w;
+            let top = y - (1.0 - offset.1 as f32) / 2.0 * ht;
+            if let Ok(sub) = plan(graphic, &|| false) {
+                let mut placed = crate::surface::Placed { inner: s, dx: left, dy: top, s: k };
+                let _ = paint(graphic, &sub, &mut placed, &|| false);
+            }
+        }
         Shape::Text { label, at, offset } => {
             let size = st.font_size.unwrap_or(g.opts.font_size) as f32;
             let t = typeset(label, size);
@@ -649,10 +677,13 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     let labels: Vec<Typeset> = o.legend.iter().map(|e| typeset(&e.label, fs)).collect();
     let has_sample = o.legend.iter().any(|e| e.marker != Marker::None);
     let sample_w = if has_sample { SAMPLE + 6.0 } else { 0.0 };
+    let title = o.legend_title.as_ref().map(|l| typeset(l, fs));
+    let title_h = title.as_ref().map_or(0.0, |t| t.height.max(fs * 1.4) + 2.0);
     let text_w = labels.iter().map(|t| t.width).fold(0.0, f32::max);
+    let text_w = text_w.max(title.as_ref().map_or(0.0, |t| t.width - sample_w));
     let rows: Vec<f32> = labels.iter().map(|t| t.height.max(fs * 1.4)).collect();
     let w = PAD + sample_w + text_w + PAD;
-    let h = 2.0 * PAD - 4.0 + rows.iter().sum::<f32>();
+    let h = 2.0 * PAD - 4.0 + rows.iter().sum::<f32>() + title_h;
     let [ax, ay, aw, ah] = p.area;
     let x = match o.legend_position {
         Corner::TopLeft | Corner::BottomLeft => ax + 10.0,
@@ -667,6 +698,12 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     s.stroke(&bx, &Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt });
     s.clip([x, y, w, h]);
     let mut top = y + PAD - 2.0;
+    if let Some(t) = &title {
+        draw_label(s, t, (x + (w - t.width) / 2.0, top + (title_h - 2.0 - t.height) / 2.0), false, TEXT);
+        top += title_h;
+        let rule = Pen { color: Rgba { a: 0.35, ..FRAME }, width: 0.5, dash: vec![], cap: Cap::Butt };
+        s.stroke(&Path::polyline(&[(x + PAD / 2.0, top - 2.0), (x + w - PAD / 2.0, top - 2.0)], false), &rule);
+    }
     for ((e, t), row) in o.legend.iter().zip(&labels).zip(&rows) {
         let mid = top + row / 2.0;
         let st = &g.styles[e.style];

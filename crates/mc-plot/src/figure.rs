@@ -124,7 +124,7 @@ impl Dash {
 /// (one entry per series, in order; series beyond the entries have none), and per series a colour and a dash
 /// pattern (series beyond the lists take the default colour cycle and solid lines).
 #[derive(Clone, Debug, Default)]
-pub(crate) struct Look {
+pub(crate) struct Look<'h> {
     pub(crate) scale: Scale,
     /// lines (true) or points
     pub(crate) joined: bool,
@@ -167,6 +167,30 @@ pub(crate) struct Look {
     pub(crate) normalized: bool,
     /// `labels:` of bar charts
     pub(crate) labels: Vec<String>,
+    /// options of the graphic given to the plot (`plot_label`, `ticks`, `epilog`, ...), applied over the plot's own
+    pub(crate) graphics: Vec<(String, T<'h>)>,
+    /// `plot_style:` directives of each series (cycled), drawn after the plot's own style
+    pub(crate) styles: Vec<T<'h>>,
+    /// `filling:` per series (0-based), as rules give it
+    pub(crate) fill_each: Vec<(usize, Filling)>,
+    /// `plot_labels:` a label at the end of each series
+    pub(crate) curve_labels: Vec<T<'h>>,
+    /// legend entries that are expressions rather than strings (`plot_legends: [x^2, ...]`), by series
+    pub(crate) legend_terms: Vec<T<'h>>,
+    /// `axes: false` (and no frame): no frame, no axes
+    pub(crate) bare: bool,
+    /// `line_thickness:` the width of each curve in points (cycled; default 2)
+    pub(crate) thickness: Vec<f64>,
+    /// `joined: [true, false, ...]`: per data set (the rest as `joined`)
+    pub(crate) joined_each: Vec<bool>,
+    /// data rather than a sampled function: lines are never broken at jumps
+    pub(crate) data: bool,
+    /// `plot_range: all`: the whole range of the values (not the robust one)
+    pub(crate) full: bool,
+    /// the plot's name (the tag of its messages)
+    pub(crate) who: &'static str,
+    /// options given and not used (named in a message)
+    pub(crate) ignored: Vec<String>,
 }
 
 /// The levels of a contour plot: so many evenly between the least and greatest value, or these.
@@ -197,10 +221,15 @@ pub(crate) enum Filling {
     Between(usize, usize),
 }
 
-impl Look {
+impl Look<'_> {
     /// The colour of series `k`.
     pub(crate) fn color(&self, k: usize) -> Rgb {
         self.colors.get(k).copied().unwrap_or(COLORS[k % COLORS.len()])
+    }
+
+    /// Whether series `k` is drawn as a line.
+    pub(crate) fn is_joined(&self, k: usize) -> bool {
+        self.joined_each.get(k).copied().unwrap_or(self.joined)
     }
 
     /// The dash pattern of series `k`.
@@ -376,16 +405,20 @@ impl<'h> B<'h> {
         }
     }
     /// The style of series `k`: colour, and for lines the width and dash pattern.
-    fn style(&self, look: &Look, k: usize, point_d: f64) -> Vec<T<'h>> {
+    fn style(&self, look: &Look<'h>, k: usize, point_d: f64) -> Vec<T<'h>> {
         let mut s = vec![self.color(look.color(k))];
-        if look.joined {
-            s.push(self.call("absolute_thickness", &[self.h.real(CURVE)]));
+        if look.is_joined(k) {
+            let w = if look.thickness.is_empty() { CURVE } else { look.thickness[k % look.thickness.len()] };
+            s.push(self.call("absolute_thickness", &[self.h.real(w)]));
             let p = look.dash(k).pattern();
             if !p.is_empty() {
                 s.push(self.call("absolute_dashing", &[self.reals(p)]));
             }
         } else {
             s.push(self.call("absolute_point_size", &[self.h.real(point_d)]));
+        }
+        if !look.styles.is_empty() {
+            s.push(look.styles[k % look.styles.len()]);
         }
         s
     }
@@ -430,7 +463,7 @@ pub(crate) fn ranges(series: &[Series], look: &Look, bounds: Option<[(f64, f64);
         (a, b) => a.or(b),
     };
     let x = union((!xs.is_empty()).then(|| range(xs.into_iter())), bounds.map(|b| b[0])).unwrap_or((0.0, 1.0));
-    let y = union((!ys.is_empty()).then(|| robust(ys)), bounds.map(|b| b[1])).unwrap_or((0.0, 1.0));
+    let y = union((!ys.is_empty()).then(|| if look.full { range(ys.into_iter()) } else { robust(ys) }), bounds.map(|b| b[1])).unwrap_or((0.0, 1.0));
     let (mut x, mut y) = if look.exact && x.1 > x.0 && y.1 > y.0 { (x, y) } else { (padded(x), padded(y)) };
     for (r, given, ax) in [(&mut x, look.range[0], look.scale.x), (&mut y, look.range[1], look.scale.y)] {
         let lo = given[0].and_then(|v| ax.to(v)).unwrap_or(r.0);
@@ -443,9 +476,28 @@ pub(crate) fn ranges(series: &[Series], look: &Look, bounds: Option<[(f64, f64);
 }
 
 /// The filled regions of `look.filling`, each in its series' colour, faint.
-fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look, [_, (y0, y1)]: [(f64, f64); 2]) -> Vec<T<'h>> {
+fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look<'h>, [_, (y0, y1)]: [(f64, f64); 2]) -> Vec<T<'h>> {
+    if !look.fill_each.is_empty() {
+        let mut out = vec![];
+        for &(k, f) in &look.fill_each {
+            if k >= series.len() {
+                continue;
+            }
+            let one = Look { filling: Some(f), fill_each: vec![], colors: look.colors.clone(), scale: look.scale, ..Look::default() };
+            let mut part = match f {
+                Filling::Between(..) => fillings(b, series, &one, [(0.0, 1.0), (y0, y1)]),
+                _ => {
+                    let only: Vec<Series> =
+                        series.iter().enumerate().map(|(i, s)| Series { points: if i == k { s.points.clone() } else { vec![] }, name: String::new() }).collect();
+                    fillings(b, &only, &one, [(0.0, 1.0), (y0, y1)])
+                }
+            };
+            out.append(&mut part);
+        }
+        return out;
+    }
     let Some(fill) = look.filling else { return vec![] };
-    let span = y1 - y0;
+    let span = if look.data { f64::INFINITY } else { y1 - y0 };
     let mut out = vec![];
     let style = |k: usize| vec![b.color(look.color(k)), b.call("opacity", &[b.h.real(FILL_OPACITY)])];
     match fill {
@@ -536,7 +588,7 @@ pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], span: 
 }
 
 /// The `graphics` term of the plot of `series` (and `extra`) as `look` says.
-pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look, extra: &Extra<'h>) -> T<'h> {
+pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra: &Extra<'h>) -> T<'h> {
     let b = B { h };
     let [(x0, x1), (y0, y1)] = ranges(series, look, extra.bounds);
     let n: usize = series.iter().map(|s| s.points.len()).sum();
@@ -545,8 +597,8 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look, extra: &Ex
     content.extend(fillings(&b, series, look, [(x0, x1), (y0, y1)]));
     for (k, s) in series.iter().enumerate() {
         let mut part = b.style(look, k, point_d);
-        if look.joined {
-            let mut runs = runs(&s.points, y1 - y0);
+        if look.is_joined(k) {
+            let mut runs = runs(&s.points, if look.data { f64::INFINITY } else { y1 - y0 });
             runs.retain(|r| r.len() > 1);
             let runs: Vec<T<'h>> = runs.iter().map(|r| b.points(r)).collect();
             part.push(b.call("line", &[b.list(&runs)]));
@@ -606,7 +658,16 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look, extra: &Ex
         let stops: Vec<T<'h>> = g.stops().iter().map(|&c| rgb_term(h, c)).collect();
         opts.push(b.rule("color_bar", b.list(&[b.list(&stops), b.reals(&[lo, hi])])));
     }
-    let markers = look.joined || series.is_empty();
+    // plot_labels: each at the right end of its series, in its colour
+    for (k, (&l, s)) in look.curve_labels.iter().zip(series).enumerate() {
+        if matches!(h.view(l), mc_core::View::Sym(sy) if h.sym_name(sy) == "none") {
+            continue;
+        }
+        let Some(&(x, Some(y))) = s.points.iter().rev().find(|p| p.1.is_some_and(|y| y >= y0 && y <= y1) && p.0 >= x0 && p.0 <= x1) else { continue };
+        let at = b.reals(&[x, y]);
+        content.push(b.list(&[b.color(look.color(k)), b.call("text", &[l, at, b.reals(&[-1.2, 0.0])])]));
+    }
+    let markers = |k: usize| look.is_joined(k) || series.is_empty();
     let entries: Vec<T<'h>> = look
         .legend
         .iter()
@@ -616,16 +677,69 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look, extra: &Ex
             if let Some(&c) = look.legend_swatches.get(k) {
                 return b.list(&[b.list(&[b.color(c)]), h.string(l), b.sym("swatch")]);
             }
-            let marker = b.sym(if markers { "line" } else { "point" });
+            let marker = b.sym(if markers(k) { "line" } else { "point" });
             let style = b.style(look, k, 6.0);
-            b.list(&[b.list(&style), h.string(l), marker])
+            let label = look.legend_terms.get(k).copied().unwrap_or_else(|| h.string(l));
+            b.list(&[b.list(&style), label, marker])
         })
         .collect();
     if !entries.is_empty() {
         opts.push(b.rule("legend", b.list(&entries)));
         opts.push(b.rule("legend_position", b.sym(look.legend_at.name())));
     }
+    if look.bare {
+        opts.retain(|r| !matches!(rule_name(h, *r).as_deref(), Some("frame" | "axes" | "frame_label" | "axes_label")));
+    }
+    // the options given for the graphic replace the plot's own of the same name
+    let decoration_label = if look.origin_axes { "axes_label" } else { "frame_label" };
+    for (name, v) in &look.graphics {
+        let name = match name.as_str() {
+            "axes_label" | "frame_label" => decoration_label,
+            "frame_ticks" => "ticks",
+            n => n,
+        };
+        opts.retain(|r| rule_name(h, *r).as_deref() != Some(name));
+        let v = if name == "grid_lines" { log_positions(&b, *v, look.scale) } else { *v };
+        opts.push(b.rule(name, v));
+    }
     b.call("graphics", &[b.list(&content), b.call("options", &opts)])
+}
+
+/// Grid lines `[xs, ys]` given in data values, placed on the axes (logarithms on log axes); each a position or
+/// `[position, style]`.
+fn log_positions<'h>(b: &B<'h>, v: T<'h>, scale: Scale) -> T<'h> {
+    use mc_core::View;
+    let h = b.h;
+    let as_list = |t: T<'h>| match h.view(t) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) => Some(args),
+        _ => None,
+    };
+    let Some(&[xs, ys]) = as_list(v) else { return v };
+    let axis = |t: T<'h>, ax: Axis| -> T<'h> {
+        if ax == Axis::Linear {
+            return t;
+        }
+        let Some(items) = as_list(t) else { return t };
+        let moved: Vec<T<'h>> = items
+            .iter()
+            .filter_map(|&e| match as_list(e) {
+                Some(&[p, s]) => mc_graphics::num::number(h, p).and_then(|p| ax.to(p)).map(|u| b.list(&[h.real(u), s])),
+                Some(_) => None,
+                None => mc_graphics::num::number(h, e).and_then(|p| ax.to(p)).map(|u| h.real(u)),
+            })
+            .collect();
+        b.list(&moved)
+    };
+    b.list(&[axis(xs, scale.x), axis(ys, scale.y)])
+}
+
+/// The option name of a rule `name -> value`.
+fn rule_name<'h>(h: &'h Heap, r: T<'h>) -> Option<String> {
+    let mc_core::View::App { args: &[k, _], .. } = h.view(r) else { return None };
+    match h.view(k) {
+        mc_core::View::Sym(s) => Some(h.sym_name(s)),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

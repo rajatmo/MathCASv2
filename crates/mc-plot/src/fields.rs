@@ -20,7 +20,8 @@ use std::collections::HashMap;
 pub(crate) fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("density_plot"), Attributes::default(), Box::new(Field { contour: false }));
     k.register(h.sym("contour_plot"), Attributes::default(), Box::new(Field { contour: true }));
-    k.register(h.sym("list_density_plot"), Attributes::default(), Box::new(ListDensity));
+    k.register(h.sym("list_density_plot"), Attributes::default(), Box::new(ListDensity { contour: false }));
+    k.register(h.sym("list_contour_plot"), Attributes::default(), Box::new(ListDensity { contour: true }));
 }
 
 /// The page of these plots: the plot area about square, the colour bar right of it.
@@ -96,7 +97,7 @@ impl Native for Field {
         let base = Look { exact: true, size: Some(SIZE), ..Look::default() };
         let (f, sx, sy, look) = match args {
             [f, sx, sy] => (*f, *sx, *sy, base),
-            [f, sx, sy, o] => match plot_options(cx, *o, base, allowed) {
+            [f, sx, sy, o] => match plot_options(cx, *o, base, allowed, name) {
                 Some(look) => (*f, *sx, *sy, look),
                 None => return Ok(bad(h, name, 4)),
             },
@@ -108,19 +109,40 @@ impl Native for Field {
             return Ok(bad(h, name, 3));
         }
         let n = look.plot_points.unwrap_or(if self.contour { 80 } else { 100 });
-        let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
+        // equations `lhs == rhs` (one or a list): the curves where they hold
+        let equations: Option<Vec<T<'h>>> = if self.contour {
+            let items: Vec<T<'h>> = cx.as_list(f).map(|l| l.to_vec()).unwrap_or_else(|| vec![f]);
+            items.iter().map(|&e| equation(h, e)).collect::<Option<Vec<_>>>().map(|v| {
+                v.into_iter()
+                    .map(|(l, r)| h.call(h.sym(mc_api::names::ADD), &[l, h.call(h.sym(mc_api::names::MUL), &[h.int(-1), r])]))
+                    .collect()
+            })
+        } else {
+            None
+        };
         let xs: Vec<f64> = (0..n).map(|i| a + (b - a) * i as f64 / (n - 1) as f64).collect();
         let ys: Vec<f64> = (0..n).map(|j| c + (d - c) * j as f64 / (n - 1) as f64).collect();
-        let mut v = Vec::with_capacity(n * n);
-        let mut out = [0.0];
-        for &yj in &ys {
-            cx.tick(1)?;
-            for &xi in &xs {
-                let ok = fun.eval(cx, &[xi, yj], &mut out)?;
-                v.push(if ok && out[0].is_finite() { out[0] } else { f64::NAN });
+        let sample = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| -> Res<Grid> {
+            let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
+            let mut v = Vec::with_capacity(n * n);
+            let mut out = [0.0];
+            for &yj in &ys {
+                cx.tick(1)?;
+                for &xi in &xs {
+                    let ok = fun.eval(cx, &[xi, yj], &mut out)?;
+                    v.push(if ok && out[0].is_finite() { out[0] } else { f64::NAN });
+                }
             }
+            Ok(Grid { xs: xs.clone(), ys: ys.clone(), v })
+        };
+        if let Some(eqs) = equations {
+            let mut grids = Vec::with_capacity(eqs.len());
+            for e in eqs {
+                grids.push(sample(cx, e)?);
+            }
+            return curves_of(cx, &grids, look);
         }
-        let grid = Grid { xs, ys, v };
+        let grid = sample(cx, f)?;
         let Some(extent) = grid.extent() else { return Ok(bad(h, name, 1)) };
         if self.contour {
             contours(cx, &grid, extent, look)
@@ -238,6 +260,45 @@ fn contours<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), 
     let (nx, ny) = (grid.xs.len(), grid.ys.len());
     look.bar_range = Some(extent);
     let extra = Extra { under, bounds: Some([(grid.xs[0], grid.xs[nx - 1]), (grid.ys[0], grid.ys[ny - 1])]), entries: vec![] };
+    finish(cx, &[], &look, extra)
+}
+
+/// `lhs == rhs` as its two sides.
+fn equation<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
+    match h.view(t) {
+        View::App { head, args: &[l, r] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "equal") => Some((l, r)),
+        _ => None,
+    }
+}
+
+/// The curves where each grid's values are 0 (the equations of a contour plot), each in its colour, without
+/// filled regions or a colour bar.
+fn curves_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, grids: &[Grid], mut look: Look<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let list = |items: &[T<'h>]| h.call(h.sym(mc_api::names::LIST), items);
+    let mut under = vec![];
+    for (k, g) in grids.iter().enumerate() {
+        cx.tick(1)?;
+        let mut lines = vec![];
+        for l in level_lines(g, 0.0) {
+            let flat: Vec<f64> = l.iter().flat_map(|&(x, y)| [x, y]).collect();
+            lines.push(h.real_array(&[l.len(), 2], &flat));
+        }
+        if !lines.is_empty() {
+            let (r, gr, b) = look.color(k);
+            let c = Rgba::rgb(r as f64 / 255.0, gr as f64 / 255.0, b as f64 / 255.0);
+            let mut part = vec![mc_graphics::rgb_term(h, c), h.call(h.sym("absolute_thickness"), &[h.real(2.0)])];
+            if !look.styles.is_empty() {
+                part.push(look.styles[k % look.styles.len()]);
+            }
+            part.push(h.call(h.sym("line"), &[list(&lines)]));
+            under.push(list(&part));
+        }
+    }
+    let g = &grids[0];
+    let (nx, ny) = (g.xs.len(), g.ys.len());
+    look.bar_range = None;
+    let extra = Extra { under, bounds: Some([(g.xs[0], g.xs[nx - 1]), (g.ys[0], g.ys[ny - 1])]), entries: vec![] };
     finish(cx, &[], &look, extra)
 }
 
@@ -396,22 +457,41 @@ fn join(segs: &[Segment], points: &HashMap<Edge, (f64, f64)>) -> Vec<Vec<(f64, f
 }
 
 /// `list_density_plot(matrix)`: rows from the bottom up, at x = 1..columns, y = 1..rows unless `data_range` says.
-struct ListDensity;
+struct ListDensity {
+    contour: bool,
+}
 
 impl Native for ListDensity {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let name = "list_density_plot";
+        let name = if self.contour { "list_contour_plot" } else { "list_density_plot" };
         let base = Look { exact: true, size: Some(SIZE), ..Look::default() };
+        let allowed: &[&str] =
+            if self.contour { &["color_function", "color_bar", "data_range", "contours"] } else { &["color_function", "color_bar", "data_range"] };
         let (m, look) = match args {
             [m] => (*m, base),
-            [m, o] => match plot_options(cx, *o, base, &["color_function", "color_bar", "data_range"]) {
+            [m, o] => match plot_options(cx, *o, base, allowed, name) {
                 Some(look) => (*m, look),
                 None => return Ok(bad(h, name, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
         let Some(rows) = cx.as_list(m) else { return Ok(bad(h, name, 1)) };
+        // scattered values [[x, y, f], ...]: interpolated onto a grid
+        if rows.len() > 3 && rows.iter().all(|&r| cx.as_list(r).is_some_and(|l| l.len() == 3)) {
+            let mut pts = Vec::with_capacity(rows.len());
+            for &r in rows {
+                let l = cx.as_list(r).unwrap_or(&[]);
+                let mut p = [0.0; 3];
+                for (k, &e) in l.iter().enumerate() {
+                    p[k] = real(cx, e)?.unwrap_or(f64::NAN);
+                }
+                pts.push(p);
+            }
+            let Some(grid) = scattered_grid(cx, &pts)? else { return Ok(bad(h, name, 1)) };
+            let Some(extent) = grid.extent() else { return Ok(bad(h, name, 1)) };
+            return if self.contour { contours(cx, &grid, extent, look) } else { density(cx, &grid, extent, look) };
+        }
         let mut v = vec![];
         let mut cols = 0;
         for (j, &r) in rows.iter().enumerate() {
@@ -448,8 +528,57 @@ impl Native for ListDensity {
         let ys = (0..ny).map(|j| y0 + (y1 - y0) * j as f64 / (ny - 1) as f64).collect();
         let grid = Grid { xs, ys, v };
         let Some(extent) = grid.extent() else { return Ok(bad(h, name, 1)) };
-        density(cx, &grid, extent, look)
+        if self.contour {
+            contours(cx, &grid, extent, look)
+        } else {
+            density(cx, &grid, extent, look)
+        }
     }
+}
+
+/// Scattered values `[x, y, f]` on a 60 x 60 grid over their extent: at each grid point the
+/// inverse-distance-weighted mean of the values (NaN farther than twice the typical spacing of the points from
+/// all of them).
+fn scattered_grid(cx: &mut NativeCx<'_, '_, '_>, pts: &[[f64; 3]]) -> Res<Option<Grid>> {
+    let pts: Vec<[f64; 3]> = pts.iter().copied().filter(|p| p.iter().all(|v| v.is_finite())).collect();
+    if pts.len() < 3 {
+        return Ok(None);
+    }
+    let ext = |k: usize| pts.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), p| (a.min(p[k]), b.max(p[k])));
+    let ((x0, x1), (y0, y1)) = (ext(0), ext(1));
+    if x1 <= x0 || y1 <= y0 {
+        return Ok(None);
+    }
+    let n = 60;
+    let spacing = ((x1 - x0) * (y1 - y0) / pts.len() as f64).sqrt();
+    let xs: Vec<f64> = (0..n).map(|i| x0 + (x1 - x0) * i as f64 / (n - 1) as f64).collect();
+    let ys: Vec<f64> = (0..n).map(|j| y0 + (y1 - y0) * j as f64 / (n - 1) as f64).collect();
+    let mut v = Vec::with_capacity(n * n);
+    for &y in &ys {
+        cx.tick(1)?;
+        for &x in &xs {
+            let (mut ws, mut zs, mut near) = (0.0, 0.0, f64::INFINITY);
+            let mut exact = None;
+            for q in &pts {
+                let (dx, dy) = ((q[0] - x) / (x1 - x0), (q[1] - y) / (y1 - y0));
+                let d2 = dx * dx + dy * dy;
+                near = near.min(((q[0] - x).powi(2) + (q[1] - y).powi(2)).sqrt());
+                if d2 < 1e-24 {
+                    exact = Some(q[2]);
+                    break;
+                }
+                let w = 1.0 / (d2 * d2);
+                ws += w;
+                zs += w * q[2];
+            }
+            v.push(match exact {
+                Some(z) => z,
+                None if near <= 2.0 * spacing => zs / ws,
+                None => f64::NAN,
+            });
+        }
+    }
+    Ok(Some(Grid { xs, ys, v }))
 }
 
 #[cfg(test)]

@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_plot
+
+#% text
+# `matrix_plot(m)` draws a matrix as cells coloured from blue (negative) through white (0) to red (positive), with row and column numbers.
+
+#% section
+# Details
+
+#% item
+# Row 1 is at the top; the colours are scaled by the largest absolute value.
+
+#% item
+# Options: `color_function` (a gradient from the least to the greatest value), and the options of `graphics`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A small matrix:
+
+#% cell
+matrix_plot([[1, -2], [3, 0.5]])
+#% output
+#= image("matrix_plot.files/matrix_plot-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A larger one:
+
+#% cell
+matrix_plot(table(sin(i*j/10), i, 30, j, 30))
+#% output
+#= image("matrix_plot.files/matrix_plot-2.png")
+
+#% subsection
+# Options
+
+#% text
+# With another gradient:
+
+#% cell
+matrix_plot(table(i - j, i, 6, j, 6), color_function: thermal)
+#% output
+#= image("matrix_plot.files/matrix_plot-3.png")
+
+#% section
+# See also
+
+#% text
+# `array_plot`, `list_density_plot`

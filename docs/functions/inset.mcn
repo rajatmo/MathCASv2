@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# inset
+
+#% text
+# `inset(obj, [x, y])` places a graphic, a plot or an expression inside a graphic, centred at [x, y].
+
+#% text
+# `inset(obj, pos, offset, width)` puts the point `offset` of its rectangle at pos ([-1, -1] its lower left corner) and makes it `width` wide in plot coordinates.
+
+#% section
+# Details
+
+#% item
+# Without a width a graphic keeps its own size in points; without a position it goes in the middle.
+
+#% item
+# An expression is drawn as a label.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A plot inside a circle:
+
+#% cell
+graphics([circle([0, 0], 1), inset(plot(sin(x), [x, 0, 6]), [0, 0], [0, 0], 1.2)])
+#% output
+#= image("inset.files/inset-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A formula as an inset:
+
+#% cell
+graphics([disk(), inset("$x^2 + y^2 \\le 1$", [0, 1.3])])
+#% output
+#= image("inset.files/inset-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# A small picture in a plot's corner:
+
+#% cell
+plot(x^2, [x, 0, 1], epilog: inset(graphics3d(sphere()), [0.25, 0.75], [0, 0], 0.3))
+#% output
+#= image("inset.files/inset-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `grid`, `text`

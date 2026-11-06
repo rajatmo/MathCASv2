@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_plot3d
+
+#% text
+# `complex_plot3d(f, [z, z0, z1])` draws the modulus of f over the rectangle with corners z0 and z1 as a surface, coloured by the argument.
+
+#% section
+# Details
+
+#% item
+# Heights are clipped above a robust range, so poles do not flatten the rest.
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A pole:
+
+#% cell
+complex_plot3d(1/z, [z, -1 - im, 1 + im])
+#% output
+#= image("complex_plot3d.files/complex_plot3d-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A polynomial:
+
+#% cell
+complex_plot3d(z^3 - 1, [z, -1.5 - 1.5im, 1.5 + 1.5im])
+#% output
+#= image("complex_plot3d.files/complex_plot3d-2.png")
+
+#% subsection
+# Options
+
+#% text
+# From above:
+
+#% cell
+complex_plot3d(z^2, [z, -1 - im, 1 + im], view_point: above)
+#% output
+#= image("complex_plot3d.files/complex_plot3d-3.png")
+
+#% section
+# See also
+
+#% text
+# `complex_plot`, `plot3d`

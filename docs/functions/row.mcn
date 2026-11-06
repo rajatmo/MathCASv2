@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# row
+
+#% text
+# `row([a, b, ...])` with graphics or plots among the parts is one graphic with the parts side by side.
+
+#% section
+# Details
+
+#% item
+# A row of expressions only stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A plot and its formula:
+
+#% cell
+row([plot(x^2, [x, -1, 1]), "$y = x^2$"])
+#% output
+#= image("row.files/row-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Expressions alone:
+
+#% cell
+row([1, 2, 3])
+#% output
+#= row([1, 2, 3])
+
+#% subsection
+# Properties and relations
+
+#% text
+# Like graphics_row for graphics:
+
+#% cell
+row([graphics(disk()), graphics(circle())])
+#% output
+#= image("row.files/row-3.png")
+
+#% section
+# See also
+
+#% text
+# `column`, `grid`, `graphics_row`

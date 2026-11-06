@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# pie_chart
+
+#% text
+# `pie_chart([v1, v2, ...])` draws a disk cut into sectors in proportion to the values, anticlockwise from the right, in the plot colours.
+
+#% section
+# Details
+
+#% item
+# The values must be at least 0, and not all 0.
+
+#% item
+# Options: `chart_labels` (or `labels`) beside the sectors, `legend`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Three parts:
+
+#% cell
+pie_chart([1, 2, 3])
+#% output
+#= image("pie_chart.files/pie_chart-1.png")
+
+#% subsection
+# Options
+
+#% text
+# Labels and a legend:
+
+#% cell
+pie_chart([30, 50, 20], chart_labels: ["a", "b", "c"], legend: ["alpha", "beta", "gamma"])
+#% output
+#= image("pie_chart.files/pie_chart-2.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Negative values are refused:
+
+#% cell
+pie_chart([1, -1])
+#% output
+#! failure(argument, pie_chart, 1)
+
+#% section
+# See also
+
+#% text
+# `bar_chart`, `histogram`

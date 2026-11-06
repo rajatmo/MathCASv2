@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# cuboid
+
+#% text
+# `cuboid(pmin, pmax)` is the box with opposite corners pmin and pmax in `graphics3d`.
+
+#% text
+# `cuboid([x, y, z])` is the unit cube with its lowest corner there; `cuboid()` at the origin.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(cuboid())
+#% output
+#= image("cuboid.files/cuboid-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A row of cubes:
+
+#% cell
+graphics3d(table([hue(k/5), cuboid([1.5k, 0, 0])], k, 5))
+#% output
+#= image("cuboid.files/cuboid-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# A long box seen from the front:
+
+#% cell
+graphics3d(cuboid([0, 0, 0], [3, 1, 1]), view_point: front)
+#% output
+#= image("cuboid.files/cuboid-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

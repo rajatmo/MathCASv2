@@ -65,6 +65,31 @@ impl Gradient {
     }
 }
 
+/// The gradient for a colour scheme named in words (`"rainbow"`, `"temperature"`, `"sunset"`, `"ocean blue"`, ...):
+/// the nearest of ours by what the words describe; [`Gradient::default_gradient`] when nothing
+/// is near.
+pub fn scheme(name: &str) -> Gradient {
+    let n = name.to_ascii_lowercase().replace([' ', '_', '-'], "");
+    let pick = if let Some(g) = NAMED.iter().find(|(k, _, _)| k.replace('_', "") == n) {
+        g.0
+    } else if n.contains("rainbow") || n.contains("spectrum") || n.contains("visible") {
+        "rainbow"
+    } else if n.contains("temperature") || n.contains("thermometer") || n.contains("redblue") || n.contains("bluered") || n.contains("coolwarm") {
+        "cool_warm"
+    } else if n.contains("sunset") || n.contains("heat") || n.contains("fire") || n.contains("solar") || n.contains("thermal") || n.contains("hot") {
+        "thermal"
+    } else if n.contains("aqua") || n.contains("ocean") || n.contains("blue") || n.contains("deepsea") || n.contains("sea") {
+        "ocean"
+    } else if n.contains("earth") || n.contains("terrain") || n.contains("avocado") || n.contains("brown") || n.contains("fruit") || n.contains("land") {
+        "earth"
+    } else if n.contains("gray") || n.contains("grey") || n.contains("monochrome") {
+        "gray"
+    } else {
+        "viridis"
+    };
+    Gradient::named(pick).unwrap_or_else(Gradient::default_gradient)
+}
+
 /// A gradient written as a term: a gradient's name (a symbol or a string) or a list of colours (colour terms or
 /// `"#rrggbb"` strings).
 pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Gradient> {

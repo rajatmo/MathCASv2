@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# ellipsoid
+
+#% text
+# `ellipsoid([x, y, z], [rx, ry, rz])` is an ellipsoid with semi-axes along the coordinate axes in `graphics3d`.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(ellipsoid([0, 0, 0], [2, 1, 1]))
+#% output
+#= image("ellipsoid.files/ellipsoid-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Flattened and stretched:
+
+#% cell
+graphics3d([ellipsoid([0, 0, 0], [2, 1, 0.5]), red, ellipsoid([0, 3, 0], [0.5, 0.5, 1.5])])
+#% output
+#= image("ellipsoid.files/ellipsoid-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# With axes:
+
+#% cell
+graphics3d(ellipsoid([0, 0, 0], [1, 2, 3]), axes: true)
+#% output
+#= image("ellipsoid.files/ellipsoid-3.png")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# graphics3d
+
+#% text
+# `graphics3d(content)` is a three-dimensional graphic of primitives and directives, seen in perspective, lit, in a box.
+
+#% text
+# `graphics3d(content, options...)` takes options such as `axes`, `view_point`, `box_ratios`, `plot_range`, `boxed`.
+
+#% section
+# Details
+
+#% item
+# The primitives are `sphere`, `ball`, `ellipsoid`, `cuboid`, `cylinder`, `cone`, `tube`, `polygon`, `triangle`, `line`, `point`, `arrow` and `text`; directives (colours, `opacity`, `thickness`, `point_size`, `edge_form`, `face_form`) work as in two dimensions.
+
+#% item
+# Faces are lit by a soft ambient light, a key light from the upper left and a fill light, and drawn far to near; the picture is drawn like any graphic, so PNG, SVG and PDF agree and labels are typeset.
+
+#% item
+# Like `graphics`, a value is shown as its picture: a PNG with SVG and PDF copies; `export_data` writes it.
+
+#% item
+# `view_point: [x, y, z]` is the eye in units of the box (default `[1.3, -2.4, 2]`); `front`, `back`, `left`, `right`, `above`, `below` name views along the axes.
+
+#% item
+# Options nothing reads are left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sphere:
+
+#% cell
+graphics3d(sphere())
+#% output
+#= image("graphics3d.files/graphics3d-1.png")
+
+#% text
+# Primitives side by side, with axes:
+
+#% cell
+graphics3d([sphere(), red, cuboid([2, -0.5, -0.5]), blue, cylinder([[4, 0, -1], [4, 0, 1]], 0.5)], axes: true)
+#% output
+#= image("graphics3d.files/graphics3d-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lines, points, arrows and text:
+
+#% cell
+graphics3d([thick, line([[0, 0, 0], [1, 1, 1]]), point_size(large), point([1, 0, 1]), arrow([[0, 0, 0], [0, 0, 1]]), text("$z$", [0, 0, 1.15])])
+#% output
+#= image("graphics3d.files/graphics3d-3.png")
+
+#% text
+# A translucent polygon over a cone:
+
+#% cell
+graphics3d([cone([[0, 0, 0], [0, 0, 1]], 0.5), opacity(0.5), orange, polygon([[-1, -1, 0.5], [1, -1, 0.5], [1, 1, 0.5], [-1, 1, 0.5]])])
+#% output
+#= image("graphics3d.files/graphics3d-4.png")
+
+#% subsection
+# Options
+
+#% text
+# Seen from above, without the box:
+
+#% cell
+graphics3d([sphere(), cuboid([1, 1, -1])], view_point: above, boxed: false)
+#% output
+#= image("graphics3d.files/graphics3d-5.png")
+
+#% text
+# Axis labels with math:
+
+#% cell
+graphics3d(cuboid(), axes: true, axes_label: ["$x$", "$y$", "$z$"])
+#% output
+#= image("graphics3d.files/graphics3d-6.png")
+
+#% section
+# See also
+
+#% text
+# `sphere`, `cuboid`, `plot3d`, `graphics`

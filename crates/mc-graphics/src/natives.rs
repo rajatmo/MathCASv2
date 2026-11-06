@@ -20,13 +20,15 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     for name in HEADS {
         k.register(h.sym(name), a(), Box::new(ColourTerm(name)));
     }
-    k.register(h.sym("graphics"), a(), Box::new(Graphics));
+    k.register(h.sym("graphics"), a(), Box::new(Graphics("graphics")));
+    k.register(h.sym("graphics3d"), a(), Box::new(Graphics("graphics3d")));
     k.register(h.sym("show"), a(), Box::new(Show));
     k.register(h.sym("color_convert"), a(), Box::new(ColorConvert));
     k.register(h.sym("blend"), a(), Box::new(Blend));
     k.register(h.sym("lighter"), a(), Box::new(Shade { name: "lighter", towards: Rgba::WHITE }));
     k.register(h.sym("darker"), a(), Box::new(Shade { name: "darker", towards: Rgba::BLACK }));
     k.register(h.sym("gradient_color"), a(), Box::new(GradientColor));
+    crate::compose::install(k, h);
 }
 
 /// `gradient_color(g, t)`: the colour of gradient `g` at `t` (clamped to [0, 1]); a symbolic `t` leaves it.
@@ -69,6 +71,15 @@ impl Native for Primitive {
         let h = cx.heap();
         cx.tick(1)?;
         Ok(match model::shape(h, self.0, args) {
+            // coordinates in three (or more) dimensions: a primitive of 3D graphics or a region
+            Err(Bad::Arg(k))
+                if matches!((self.0, k), ("point" | "line" | "polygon" | "arrow" | "bezier_curve", 1) | ("text", 2))
+                    && args.get(k - 1).is_some_and(|&a| crate::three::is_coords(h, a)) =>
+            {
+                Reply::Decline
+            }
+            // several centres: each is checked when the graphic is read
+            Err(Bad::Arg(1)) if matches!(self.0, "disk" | "circle") && model::several_centres(h, args) => Reply::Decline,
             Err(Bad::Arg(k)) => bad(h, self.0, k),
             _ => Reply::Decline,
         })
@@ -96,6 +107,12 @@ struct ColourTerm(&'static str);
 impl Native for ColourTerm {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        if let [l] = args {
+            // the components as one list: rgb_color([r, g, b]), hue([h, s, b]), ...
+            if let Some(items) = cx.as_list(*l).filter(|v| (1..=4).contains(&v.len())) {
+                return Ok(Reply::Again(h.call(h.sym(self.0), items)));
+            }
+        }
         if let (true, [s]) = (self.0 == "rgb_color", args) {
             if let View::Str(s) = h.view(*s) {
                 return Ok(match hex_color(s) {
@@ -130,7 +147,7 @@ const MAX_DEPTH: usize = 64;
 /// `graphics(content)`, `graphics(content, options(...))`: numeric constants and closed numeric expressions in
 /// coordinates become machine reals (`pi` -> 3.14159...), labels of `text` are left alone; then the graphic is
 /// read: content that is not graphics, and bad options, give failures; symbolic coordinates leave it as it is.
-struct Graphics;
+struct Graphics(&'static str);
 
 impl Native for Graphics {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
@@ -146,7 +163,7 @@ impl Native for Graphics {
             changed |= v != a;
             new.push(v);
         }
-        let g = if changed { h.call(h.sym("graphics"), &new) } else { t };
+        let g = if changed { h.call(h.sym(self.0), &new) } else { t };
         let stop = cx.stop_flag().clone();
         let stopped = move || stop.load(std::sync::atomic::Ordering::Relaxed);
         Ok(Reply::Done(match model::read(h, g, &stopped) {
@@ -177,7 +194,11 @@ fn numeric<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, depth: usize, seen: &mut
                         || n == names::RULE
                         || n == "options"
                         || n == "graphics"
+                        || n == "graphics3d"
+                        || n == "style"
+                        || n == "directive"
                         || n == "scaled"
+                        || crate::three::PRIMITIVES.contains(&n.as_str())
                         || PRIMITIVES.contains(&n.as_str())
                         || DIRECTIVES.contains(&n.as_str())
                         || HEADS.contains(&n.as_str())
@@ -254,8 +275,21 @@ impl Native for Show {
                 None => flat.push((i, g)),
             }
         }
+        // plots (`image(path)`) as the graphics they were drawn from
+        for e in flat.iter_mut() {
+            e.1 = crate::compose::resolve(cx, e.1)?;
+        }
+        let own_range = rules.iter().any(|(k, _)| k == "plot_range");
+        let mut graphic_opts = vec![];
+        let mut legends: Vec<T<'h>> = vec![];
         for (i, g) in flat {
             cx.tick(1)?;
+            if let View::App { args: ga, .. } = h.view(g) {
+                graphic_opts.push(ga.get(1).copied());
+                if let Some(Some(l)) = ga.get(1).map(|&o| model::rules(h, o).ok().and_then(|rs| rs.into_iter().find(|(k, _)| k == "legend").map(|r| r.1))) {
+                    legends.extend(cx.as_list(l).unwrap_or(&[]).iter().copied());
+                }
+            }
             let View::App { head, args: ga } = h.view(g) else { return Ok(bad(h, "show", i + 1)) };
             if head != h.sym_term(h.sym("graphics")) || ga.is_empty() || ga.len() > 2 {
                 return Ok(bad(h, "show", i + 1));
@@ -266,6 +300,48 @@ impl Native for Show {
                     return Ok(Reply::Done(f.term(h)));
                 }
             }
+        }
+        // combined plots: the union of their ranges, all their legends
+        if !own_range && graphic_opts.len() > 1 {
+            if let Some([x0, x1, y0, y1]) = crate::compose::union_range(h, &graphic_opts) {
+                let range = cx.list(&[h.reals(&[x0, x1]), h.reals(&[y0, y1])]);
+                rules.retain(|(k, _)| k != "plot_range");
+                rules.push(("plot_range".into(), range));
+            }
+        }
+        // explicit ticks and grid lines (the powers of ten of log plots): those of every graphic, per axis
+        for key in ["ticks", "grid_lines"] {
+            if own.is_some_and(|o| model::rules(h, o).is_ok_and(|rs| rs.iter().any(|(k, _)| k == key))) || graphic_opts.len() < 2 {
+                continue;
+            }
+            let per: Option<Vec<[&[T<'h>]; 2]>> = graphic_opts
+                .iter()
+                .map(|&o| {
+                    let v = model::rules(h, o?).ok()?.into_iter().find(|(k, _)| k == key)?.1;
+                    let &[x, y] = cx.as_list(v)? else { return None };
+                    Some([cx.as_list(x)?, cx.as_list(y)?])
+                })
+                .collect();
+            if let Some(per) = per {
+                let axis = |k: usize| -> T<'h> {
+                    let mut seen: Vec<T<'h>> = vec![];
+                    for p in &per {
+                        for &e in p[k] {
+                            if !seen.contains(&e) {
+                                seen.push(e);
+                            }
+                        }
+                    }
+                    cx.list(&seen)
+                };
+                let merged = cx.list(&[axis(0), axis(1)]);
+                rules.retain(|(k, _)| k != key);
+                rules.push((key.into(), merged));
+            }
+        }
+        if legends.len() > 1 && !own.is_some_and(|o| model::rules(h, o).is_ok_and(|rs| rs.iter().any(|(k, _)| k == "legend"))) {
+            rules.retain(|(k, _)| k != "legend");
+            rules.push(("legend".into(), cx.list(&legends)));
         }
         let rule = h.sym(names::RULE);
         let rs: Vec<T<'h>> = rules.iter().map(|(k, v)| h.call(rule, &[h.sym_term(h.sym(k)), *v])).collect();
@@ -330,6 +406,32 @@ impl Native for Blend {
             _ => return Ok(Reply::Decline),
         };
         let Some(items) = cx.as_list(cs).filter(|v| !v.is_empty()) else { return Ok(bad(h, "blend", 1)) };
+        // [[t1, c1], [t2, c2], ...]: colours at given values, mixed linearly between them
+        if let (Some(t), true) = (at, items.iter().all(|&e| cx.as_list(e).is_some_and(|p| p.len() == 2))) {
+            let mut stops = Vec::with_capacity(items.len());
+            for &e in items {
+                let &[u, c] = cx.as_list(e).unwrap_or(&[]) else { return Ok(bad(h, "blend", 1)) };
+                let Some(u) = number(h, u) else { return Ok(bad(h, "blend", 1)) };
+                match colour_arg(h, "blend", c, 1) {
+                    Ok(c) => stops.push((u, c)),
+                    Err(r) => return Ok(r.unwrap_or(Reply::Decline)),
+                }
+            }
+            stops.sort_by(|a, b| a.0.total_cmp(&b.0));
+            let Some(t) = number(h, t) else {
+                return Ok(if is_symbolic(h, t) { Reply::Decline } else { bad(h, "blend", 2) });
+            };
+            let k = stops.partition_point(|s| s.0 <= t);
+            let c = if k == 0 {
+                stops[0].1
+            } else if k == stops.len() {
+                stops[k - 1].1
+            } else {
+                let (a, b) = (stops[k - 1], stops[k]);
+                a.1.mix(b.1, if b.0 > a.0 { (t - a.0) / (b.0 - a.0) } else { 0.0 })
+            };
+            return Ok(Reply::Done(rgb_term(h, c)));
+        }
         let mut v = Vec::with_capacity(items.len());
         for &c in items {
             cx.tick(1)?;
@@ -337,6 +439,17 @@ impl Native for Blend {
                 Ok(c) => v.push(c),
                 Err(r) => return Ok(r.unwrap_or(Reply::Decline)),
             }
+        }
+        // [w1, w2, ...]: the mean weighted by these
+        if let Some(ws) = at.and_then(|t| cx.as_list(t)) {
+            let w: Option<Vec<f64>> = ws.iter().map(|&x| number(h, x).filter(|x| *x >= 0.0)).collect();
+            let Some(w) = w.filter(|w| w.len() == v.len() && w.iter().sum::<f64>() > 0.0) else { return Ok(bad(h, "blend", 2)) };
+            let total: f64 = w.iter().sum();
+            let mut c = Rgba { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+            for (k, x) in v.iter().zip(&w) {
+                c = Rgba { r: c.r + k.r * x / total, g: c.g + k.g * x / total, b: c.b + k.b * x / total, a: c.a + k.a * x / total };
+            }
+            return Ok(Reply::Done(rgb_term(h, c)));
         }
         let c = match at {
             None => {
@@ -381,6 +494,15 @@ impl Native for Shade {
             [c, f] => (*c, Some(*f)),
             _ => return Ok(Reply::Decline),
         };
+        // a list of colours: each
+        if let Some(cs) = cx.as_list(c) {
+            let parts: Vec<T<'h>> = cs.iter().map(|&k| {
+                let mut a = vec![k];
+                a.extend(f);
+                h.call(h.sym(self.name), &a)
+            }).collect();
+            return Ok(Reply::Again(cx.list(&parts)));
+        }
         let c = match colour_arg(h, self.name, c, 1) {
             Ok(c) => c,
             Err(r) => return Ok(r.unwrap_or(Reply::Decline)),

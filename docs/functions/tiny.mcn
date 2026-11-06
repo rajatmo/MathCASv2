@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# tiny
+
+#% text
+# `tiny` is a size: `image_size: tiny` is 100 points wide; `point_size(tiny)`, `thickness(tiny)`, `arrowheads(tiny)` and font sizes take it too.
+
+#% section
+# Details
+
+#% item
+# `point_size(tiny)` draws points 2 points across.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# As an image size:
+
+#% cell
+graphics(disk(), image_size: tiny)
+#% output
+#= image("tiny.files/tiny-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Points of this size:
+
+#% cell
+graphics([point_size(tiny), point([[0, 0], [1, 1]])])
+#% output
+#= image("tiny.files/tiny-2.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Line widths:
+
+#% cell
+graphics([thickness(tiny), line([[0, 0], [1, 0.5]])])
+#% output
+#= image("tiny.files/tiny-3.png")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `thickness`, `arrowheads`

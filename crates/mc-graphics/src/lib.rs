@@ -30,6 +30,7 @@
 #![warn(missing_docs)]
 
 pub mod color;
+pub mod compose;
 pub mod gradient;
 pub mod label;
 pub mod model;
@@ -40,6 +41,7 @@ mod pdf;
 mod raster;
 pub mod surface;
 mod svg;
+pub mod three;
 pub mod ticks;
 
 pub use natives::{install, rgb_term};
@@ -126,6 +128,58 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve",
     ),
     ("legend_position", "option of graphics and plots: legend_position: top_right (default) | top_left | bottom_left | bottom_right"),
+    ("epilog", "option of graphics and plots: epilog: content, graphics drawn over everything else"),
+    ("prolog", "option of graphics and plots: prolog: content, graphics drawn before everything else"),
+    ("axes_origin", "option of graphics: axes_origin: [x, y], where the axes cross (automatic: at 0)"),
+    ("frame_ticks", "option of graphics: frame_ticks: automatic | none | [[left, right], [bottom, top]], the frame's ticks (the left and bottom ones are drawn)"),
+    ("plot_range_clipping", "option of graphics: plot_range_clipping: true | false, whether what lies outside the plot range is cut off"),
+    (
+        "graphics3d",
+        "graphics3d(content), graphics3d(content, options...): a three-dimensional graphic of primitives (sphere, cuboid, cylinder, cone, tube, polygon, triangle, line, point, arrow, text) seen in perspective, lit, in a box; rendered to PNG, SVG or PDF",
+    ),
+    ("sphere", "sphere(), sphere([x, y, z]), sphere([x, y, z], r), sphere([c1, c2, ...], r): spheres in 3D graphics (radius 1 by default)"),
+    ("ball", "ball([x, y, z], r): a solid ball in 3D graphics (drawn as its sphere)"),
+    ("ellipsoid", "ellipsoid([x, y, z], [rx, ry, rz]): an axis-aligned ellipsoid in 3D graphics"),
+    ("cuboid", "cuboid(), cuboid([x, y, z]), cuboid(pmin, pmax): an axis-aligned box in 3D graphics (the unit cube at a corner by default)"),
+    ("cylinder", "cylinder(), cylinder([[x1, y1, z1], [x2, y2, z2]], r): a cylinder between two points with radius r (default 1)"),
+    ("cone", "cone(), cone([[x1, y1, z1], [x2, y2, z2]], r): a cone with its base of radius r at the first point and its apex at the second"),
+    ("tube", "tube([p1, p2, ...], r): a tube of radius r (default 0.05) along a path in 3D graphics"),
+    ("triangle", "triangle([p1, p2, p3]): a triangle in 3D graphics; triangle([[...], ...]) several"),
+    ("view_point", "option of graphics3d and 3D plots: view_point: [x, y, z] (in units of the box, default [1.3, -2.4, 2]) or front, back, left, right, above, below"),
+    ("box_ratios", "option of graphics3d and 3D plots: box_ratios: [a, b, c], the side lengths of the box (automatic: the data's)"),
+    ("boxed", "option of graphics3d: boxed: true | false, the edges of the box drawn (default true)"),
+    ("graphics_row", "graphics_row([g1, g2, ...]): the graphics (or plots) side by side, as one graphic"),
+    ("graphics_column", "graphics_column([g1, g2, ...]): the graphics (or plots) one above the other, as one graphic"),
+    ("graphics_grid", "graphics_grid([[g11, g12, ...], ...]): the graphics (or plots) in rows and columns, as one graphic"),
+    (
+        "grid",
+        "grid([[a, b, ...], ...]): the parts (graphics, plots, expressions typeset) in rows and columns, as one graphic; frame: true | all draws a frame or lines between the cells",
+    ),
+    ("row", "row([a, b, ...]): with graphics or plots among them, the parts side by side as one graphic"),
+    ("framed", "framed(x): x (a graphic, a plot or an expression) in a frame (options background, frame_style)"),
+    ("labeled", "labeled(x, label), labeled(x, label, top | bottom | left | right): x with a label beside it (below by default)"),
+    ("legended", "legended(x, [labels]), legended(x, line_legend([colours], [labels])): x with a legend at its right"),
+    ("inset", "inset(obj, [x, y]), inset(obj, pos, offset, width): a graphic, plot or expression placed inside a graphic"),
+    ("line_legend", "line_legend([colours], [labels]): a legend of line samples (in plot_legends and legended)"),
+    ("swatch_legend", "swatch_legend([colours], [labels]): a legend of colour swatches (in plot_legends and legended)"),
+    ("thick", "directive: lines 2 points wide"),
+    ("thin", "directive: lines half a point wide"),
+    ("dashed", "directive: dashed lines (also a value of dashing and of line_style)"),
+    ("dotted", "directive: dotted lines (also a value of dashing and of line_style)"),
+    ("dot_dashed", "directive: dot-dashed lines (also a value of dashing and of line_style)"),
+    ("bold", "a text style of style(...): accepted; labels keep the math font"),
+    ("italic", "a text style of style(...): accepted; labels keep the math font"),
+    ("plain", "a text style of style(...): accepted"),
+    ("underlined", "a text style of style(...): accepted"),
+    ("tiny", "a size: thickness(tiny), point_size(tiny), arrowheads(tiny), image_size: tiny (100 points), a font size"),
+    ("small", "a size: thickness(small), point_size(small), arrowheads(small), image_size: small (180 points), a font size"),
+    ("medium", "a size: thickness(medium), point_size(medium), image_size: medium (360 points), a font size"),
+    ("large", "a size: thickness(large), point_size(large), arrowheads(large), image_size: large (576 points), a font size"),
+    ("directive", "directive(d1, d2, ...): several directives as one (colours, thickness, dashing, opacity, a font size)"),
+    (
+        "style",
+        "style(expr, s1, s2, ...): expr shown with styles: colours, a font size (a number), bold, italic, directives; inside graphics the styles apply to the content",
+    ),
     (
         "color_bar",
         "option of graphics: color_bar: [gradient, [lo, hi]] or [gradient, [lo, hi], label], a bar of the gradient's colours with a scale from lo to hi right of the plot; none; in density and contour plots true | false",
@@ -181,7 +235,7 @@ pub enum Format {
 pub fn is_graphics<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
     match h.view(t) {
         View::App { head, args } => {
-            matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "graphics") && matches!(args.len(), 1 | 2)
+            matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "graphics" | "graphics3d")) && matches!(args.len(), 1 | 2)
         }
         _ => false,
     }
@@ -198,6 +252,20 @@ pub fn page_size<S: Store + ?Sized>(h: &S, t: T<'_>) -> Result<(f32, f32), Failu
 pub fn render<S: Store + ?Sized>(h: &S, t: T<'_>, format: Format) -> Result<Vec<u8>, Failure> {
     let mut v = render_formats(h, t, &[format], &|| false)?;
     Ok(v.pop().unwrap_or_default())
+}
+
+/// Render a graphics term to pixels at `scale` pixels per point: width, height and straight RGBA bytes, the top
+/// row first (frames of animations).
+pub fn render_rgba<S: Store + ?Sized>(h: &S, t: T<'_>, scale: f32, stop: &dyn Fn() -> bool) -> Result<(u32, u32, Vec<u8>), Failure> {
+    if !(scale > 0.0 && scale <= 16.0) {
+        return Err(Failure::new("argument", format!("scale {scale}")));
+    }
+    let g = model::read(h, t, stop)?;
+    let p = page::plan(&g, stop)?;
+    let mut r = raster::Raster::new(p.width, p.height, scale)
+        .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?;
+    page::paint(&g, &p, &mut r, stop)?;
+    Ok(r.rgba())
 }
 
 /// Where a rendered graphic's plot area lies and what it shows: what a front end needs to map a pixel of the PNG

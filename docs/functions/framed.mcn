@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# framed
+
+#% text
+# `framed(x)` is x (a graphic, a plot or an expression) in a frame.
+
+#% section
+# Details
+
+#% item
+# Options: `background` (a colour under it), `frame_style` (the frame's colour).
+
+#% item
+# The value is a `graphics` term.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A framed graphic:
+
+#% cell
+framed(graphics(disk()))
+#% output
+#= image("framed.files/framed-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A framed expression:
+
+#% cell
+framed(x^2 + 1)
+#% output
+#= image("framed.files/framed-2.png")
+
+#% subsection
+# Options
+
+#% text
+# A coloured frame and background:
+
+#% cell
+framed("note", frame_style: red, background: light_gray)
+#% output
+#= image("framed.files/framed-3.png")
+
+#% section
+# See also
+
+#% text
+# `labeled`, `grid`, `inset`
