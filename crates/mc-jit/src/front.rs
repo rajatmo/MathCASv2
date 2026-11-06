@@ -293,6 +293,7 @@ fn run<'h>(
         numeric,
         consts: [(h.sym("pi"), std::f64::consts::PI), (h.sym("e"), std::f64::consts::E)],
         im: h.sym("im"),
+        carried: 0,
         memo: vec![HashMap::new()],
         epoch: 0,
         epochs: 0,
@@ -601,6 +602,8 @@ struct Fe<'h, 's> {
     /// per open statement list (a value computed in a branch is not available after it), keyed by the term and the
     /// binding environment it was computed in
     memo: Vec<HashMap<(T<'h>, u64), Val>>,
+    /// the caller's locals named by data given to inlined functions, renamed (decision LC.7)
+    carried: u64,
     /// the current binding environment: a new number for every binding, scope, inlined body and assignment
     epoch: u64,
     epochs: u64,
@@ -848,14 +851,17 @@ impl<'h> Fe<'h, '_> {
                             "the constant `{}` (the interpreter keeps it exact; n({0}) is its machine real)",
                             self.name(s)
                         )),
-                        None => Err(format!("the free name `{}`", self.name(s))),
+                        None => match self.global_number(s) {
+                            Some(v) => self.compute(v),
+                            None => Err(format!("the free name `{}`", self.name(s))),
+                        },
                     },
                 },
             },
             View::App { head, args } => {
                 // `derivative(n)(f)` of an interpolation or a solution of `n_dsolve` (or of a global bound to one):
                 // the term mc-calculus rewrites it to
-                if let Some((target, dep)) = self.derivative_head(head) {
+                if let Some(target) = self.derivative_head(head) {
                     let v = match self.spline_call(target, args)? {
                         Some(v) => Some(v),
                         None => match crate::callee::resolve(h, target, args.len()) {
@@ -864,9 +870,6 @@ impl<'h> Fe<'h, '_> {
                         },
                     };
                     if let Some(v) = v {
-                        if let Some(g) = dep.filter(|g| !self.deps.contains(g)) {
-                            self.deps.push(g);
-                        }
                         return Ok(v);
                     }
                 }
@@ -898,6 +901,12 @@ impl<'h> Fe<'h, '_> {
                         }
                     }
                 }
+                // a head that is data known at compile time (`r["f"](x)` with `r` an association): the data called
+                if !matches!(h.view(head), View::Sym(_)) {
+                    if let Some(d) = self.data_term(head).filter(|&d| d != head) {
+                        return self.compute(h.app(d, args));
+                    }
+                }
                 let View::Sym(s) = h.view(head) else { return Err("a call whose head is not a symbol".into()) };
                 match self.prims.get(&s).copied() {
                     Some(Prim::List) => {
@@ -907,7 +916,10 @@ impl<'h> Fe<'h, '_> {
                         }
                         Ok(Val::L(items))
                     }
-                    Some(Prim::Part) => self.part(args),
+                    Some(Prim::Part) => match self.fold_part(t) {
+                        Some(e) => self.value(e),
+                        None => self.part(args),
+                    },
                     Some(Prim::Length) => {
                         self.arity(s, args, 1)?;
                         match self.value(args[0])? {
@@ -1135,6 +1147,14 @@ impl<'h> Fe<'h, '_> {
                 _ => Err("a rational literal beyond 64 bits".into()),
             };
         }
+        if let View::Sym(g) = h.view(t) {
+            // a global holding a number: its value (an exact rational is an operand like a literal)
+            if self.lookup(g).is_none() && !self.prims.contains_key(&g) && self.constant(g).is_none() {
+                if let Some(v) = self.global_number(g) {
+                    return self.operand(v);
+                }
+            }
+        }
         if let Some(c) = self.exact_complex(t)? {
             return Ok(c);
         }
@@ -1241,14 +1261,79 @@ impl<'h> Fe<'h, '_> {
     /// first, then the inexact ones in canonical order): one IEEE addition for two operands, otherwise an
     /// [`E::Num`] that lowering expands inline; with complex numbers [`Fe::complex_fold`].
     fn sum(&mut self, args: &'h [T<'h>]) -> Res<Val> {
-        let ops = args.iter().map(|&a| self.operand(a)).collect::<Res<Vec<_>>>()?;
+        let ops = self.operands(args)?;
         self.fold(NumOp::Sum, ops)
+    }
+
+    /// The operands of a sum or product. A closed numeric operand (`pi`, `pi^-3`, `sqrt(2)`) with a machine real
+    /// among the others is its machine value, as the evaluator's contagion for constants makes it (`n` of the
+    /// operand, computed here once; decision LC.9); without one it stays exact and is refused.
+    fn operands(&mut self, args: &'h [T<'h>]) -> Res<Vec<Operand>> {
+        let mut ops: Vec<Option<Operand>> = Vec::with_capacity(args.len());
+        let mut first_err = None;
+        for &a in args {
+            match self.operand(a) {
+                Ok(o) => ops.push(Some(o)),
+                Err(e) if self.closed_numeric(a) => {
+                    first_err.get_or_insert(e);
+                    ops.push(None);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        if let Some(e) = first_err {
+            let machine = ops.iter().flatten().any(|o| matches!(o, Operand::Real(_) | Operand::Complex(..)));
+            if !machine {
+                return Err(e);
+            }
+            for (o, &a) in ops.iter_mut().zip(args) {
+                if o.is_none() {
+                    *o = Some(Operand::Real(E::Real(self.machine_value(a).ok_or(e.clone())?)));
+                }
+            }
+        }
+        Ok(ops.into_iter().flatten().collect())
+    }
+
+    /// Whether `t` is a closed numeric term that is not a number (the evaluator's test for its contagion into
+    /// constants: numbers and the numeric constants at the leaves).
+    fn closed_numeric(&self, t: T<'h>) -> bool {
+        fn leaves(fe: &Fe<'_, '_>, t: T<'_>) -> bool {
+            match fe.h.view(t) {
+                View::Sym(s) => {
+                    ["pi", "e", "euler_gamma", "catalan", "golden_ratio"].contains(&fe.h.sym_name(s).as_str())
+                        && fe.lookup(s).is_none()
+                }
+                View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves(fe, a)),
+                View::Str(_) => false,
+                _ => true,
+            }
+        }
+        let list = self.h.sym("list");
+        match self.h.view(t) {
+            View::Sym(_) => leaves(self, t),
+            View::App { head, args } => {
+                head != self.h.sym_term(list) && self.h.packed(t).is_none() && !args.is_empty() && leaves(self, t)
+            }
+            _ => false,
+        }
+    }
+
+    /// `n(t)`, the machine real of a closed numeric term (the numerical evaluation `n` performs), if it is one.
+    fn machine_value(&self, t: T<'h>) -> Option<f64> {
+        use mc_numeric::numeval::{numericize, Names, Target};
+        let ar = mc_arith::Arith::new(self.h);
+        let r = numericize(self.h, &ar, &Names::new(self.h), t, Target::Machine, &mut |_| Ok(())).ok()?;
+        match self.h.view(r.term) {
+            View::Real(v) if r.reached => Some(v),
+            _ => None,
+        }
     }
 
     /// `mul(...)`: exact integers multiply exactly (with `b^-k` factors an exact division); with machine reals, the
     /// canonical product; with complex numbers [`Fe::complex_fold`].
     fn product(&mut self, args: &'h [T<'h>]) -> Res<Val> {
-        let ops = args.iter().map(|&a| self.operand(a)).collect::<Res<Vec<_>>>()?;
+        let ops = self.operands(args)?;
         self.fold(NumOp::Product, ops)
     }
 
@@ -1600,10 +1685,139 @@ impl<'h> Fe<'h, '_> {
         Ok(Some(Val::S(E::Spline(id, b(xe)), Ty::Real)))
     }
 
-    /// `derivative(n)(f)` where `f` (or the value of the global `f`, then also returned) is an interpolation or a
+    /// Data known at compile time (decision LC.7): a string, an association, an interpolation or a solution of
+    /// `n_dsolve` written in the body, the value of a global holding one (the read recorded, so that redefining
+    /// the global invalidates the code), or `part` of such data by constant keys or indices (folded); `None`
+    /// otherwise.
+    fn data_term(&mut self, t: T<'h>) -> Option<T<'h>> {
+        let h = self.h;
+        match h.view(t) {
+            View::Str(_) => Some(t),
+            View::Sym(g) if self.lookup(g).is_none() && !self.prims.contains_key(&g) && self.constant(g).is_none() => {
+                let v = self.src.constant(g)?;
+                let d = self.data_term(v).filter(|&d| d == v)?;
+                if !self.deps.contains(&g) {
+                    self.deps.push(g);
+                }
+                Some(d)
+            }
+            View::App { head, args } => match h.view(head) {
+                View::Sym(s) => match self.name(s).as_str() {
+                    "assoc" | "interpolating_function" | "interpolated" => Some(t),
+                    "list" if args.iter().any(|&a| matches!(h.view(a), View::App { .. } | View::Str(_))) => {
+                        // a list holding data: each element data or a number
+                        args.iter().all(|&a| self.closed_value(a)).then_some(t)
+                    }
+                    "part" => self.fold_part(t),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Whether `t` is a number or data (a list element that may be put in the body as it is).
+    fn closed_value(&mut self, t: T<'h>) -> bool {
+        match self.h.view(t) {
+            View::Int(_) | View::BigInt { .. } | View::Real(_) | View::Rational { .. } | View::Str(_) => true,
+            _ => self.data_term(t) == Some(t),
+        }
+    }
+
+    /// `part(d, k1, k2, ...)` of data `d` by constant keys (an association's) or indices (a list's): the element,
+    /// folded at compile time; `None` when `t` is no such call or a key is missing (the interpreter's failure).
+    fn fold_part(&mut self, t: T<'h>) -> Option<T<'h>> {
+        let h = self.h;
+        let (Prim::Part, [base, idx @ ..]) = self.prim_of(t)? else { return None };
+        let mut d = self.data_term(*base)?;
+        for &k in idx {
+            let View::App { head, args } = h.view(d) else { return None };
+            let View::Sym(s) = h.view(head) else { return None };
+            d = match (self.name(s).as_str(), h.view(k)) {
+                ("assoc", View::Str(_)) => args.iter().find_map(|&r| match h.view(r) {
+                    View::App { args: &[key, v], .. } if key == k => Some(v),
+                    _ => None,
+                })?,
+                ("list", View::Int(i)) => {
+                    let n = args.len() as i64;
+                    let at = match i {
+                        1.. if i <= n => i - 1,
+                        ..=-1 if -i <= n => n + i,
+                        _ => return None,
+                    };
+                    args[at as usize]
+                }
+                _ => return None,
+            };
+        }
+        Some(d)
+    }
+
+    /// The value of the global `g` when it is a number (a machine real, an integer, an exact rational), the read
+    /// recorded so that redefining `g` invalidates the code (decision LC.8: inlined functions read global
+    /// constants as the interpreter does).
+    fn global_number(&mut self, g: Sym) -> Option<T<'h>> {
+        let v = self.src.constant(g)?;
+        if !matches!(self.h.view(v), View::Int(_) | View::Real(_) | View::Rational { .. }) {
+            return None;
+        }
+        if !self.deps.contains(&g) {
+            self.deps.push(g);
+        }
+        Some(v)
+    }
+
+    /// The symbols occurring in `t`, each once.
+    fn symbols(&self, t: T<'h>) -> Vec<Sym> {
+        let mut out = vec![];
+        let mut seen = std::collections::HashSet::new();
+        let mut stack = vec![t];
+        while let Some(t) = stack.pop() {
+            if !seen.insert(t) {
+                continue;
+            }
+            match self.h.view(t) {
+                View::Sym(s) => out.push(s),
+                View::App { head, args } => {
+                    stack.push(head);
+                    stack.extend_from_slice(args);
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// `body` with each symbol of `subst` replaced by its term (the data an inlined function was given).
+    fn substitute(&self, body: T<'h>, subst: &[(Sym, T<'h>)]) -> T<'h> {
+        fn go<'h>(h: &'h Heap, t: T<'h>, subst: &[(Sym, T<'h>)], seen: &mut HashMap<T<'h>, T<'h>>) -> T<'h> {
+            if let Some(&r) = seen.get(&t) {
+                return r;
+            }
+            let r = match h.view(t) {
+                View::Sym(s) => subst.iter().find(|p| p.0 == s).map_or(t, |p| p.1),
+                View::App { head, args } => {
+                    let nh = go(h, head, subst, seen);
+                    let na: Vec<T<'h>> = args.iter().map(|&a| go(h, a, subst, seen)).collect();
+                    if nh == head && na.iter().zip(args).all(|(x, y)| x == y) {
+                        t
+                    } else {
+                        h.app(nh, &na)
+                    }
+                }
+                _ => t,
+            };
+            seen.insert(t, r);
+            r
+        }
+        go(self.h, body, subst, &mut HashMap::new())
+    }
+
+    /// `derivative(n)(f)` where `f` (data: the value of a global, an element of an association, ...) is an interpolation or a
     /// solution of `n_dsolve`: the term mc-calculus' `DerivativeAt` makes of it (decision C.6: the order added as
     /// the fourth argument of `interpolated(...)`, or as primes on the name of `interpolating_function(...)`).
-    fn derivative_head(&mut self, head: T<'h>) -> Option<(T<'h>, Option<Sym>)> {
+    fn derivative_head(&mut self, head: T<'h>) -> Option<T<'h>> {
         let h = self.h;
         let View::App { head: d, args: &[f] } = h.view(head) else { return None };
         let View::App { head: dsym, args: &[n] } = h.view(d) else { return None };
@@ -1611,11 +1825,8 @@ impl<'h> Fe<'h, '_> {
             return None;
         }
         let View::Int(n @ 0..=1000) = h.view(n) else { return None };
-        let (f, dep) = match h.view(f) {
-            View::Sym(g) if self.lookup(g).is_none() => (self.src.constant(g)?, Some(g)),
-            View::App { .. } => (f, None),
-            _ => return None,
-        };
+        // a global's read is recorded by `data_term`
+        let f = self.data_term(f)?;
         let View::App { head: fh, args: data } = h.view(f) else { return None };
         let View::Sym(fs) = h.view(fh) else { return None };
         let target = match (self.name(fs).as_str(), data) {
@@ -1632,7 +1843,7 @@ impl<'h> Fe<'h, '_> {
             }
             _ => return None,
         };
-        Some((target, dep))
+        Some(target)
     }
 
     /// A machine-real argument of a library call, and whether it is inexact: a machine real, an integer
@@ -1995,8 +2206,18 @@ impl<'h> Fe<'h, '_> {
         // the arguments, in order: scalars in fresh variables, vectors as they are (their address and length are
         // variables or constants already)
         let mut vals = vec![];
-        for (&a, &(_, p)) in args.iter().zip(&def.params) {
-            vals.push(match p {
+        // untyped parameters given data (an association, a string, an interpolation, a solution): the data itself is
+        // put in the body, where `part` of it and calls of it are folded at compile time (decision LC.7)
+        let mut data: Vec<(Sym, T<'h>)> = vec![];
+        for (&a, &(s, p)) in args.iter().zip(&def.params) {
+            if p == Param::Vector {
+                if let Some(d) = self.data_term(a) {
+                    data.push((s, d));
+                    vals.push(None);
+                    continue;
+                }
+            }
+            vals.push(Some(match p {
                 Param::Scalar(pt) => {
                     let (x, tx) = self.expr(a)?;
                     if tx != pt {
@@ -2006,14 +2227,39 @@ impl<'h> Fe<'h, '_> {
                     self.emit(S::Set(v, x));
                     Val::S(E::Var(v), pt)
                 }
+                // an untyped parameter of an inlined function takes the argument's own value (the interpreter binds
+                // whatever it is given): a number in a fresh variable, a complex number or a list held once, a
+                // vector as it is (round 13)
                 Param::Vector => match self.value(a)? {
                     v @ Val::V(..) => v,
-                    other => {
-                        return Err(format!("`{name}` called with a {} value for a vector parameter", other.shape().name()))
+                    Val::S(_, Ty::Bool) => return Err(format!("`{name}` called with a boolean")),
+                    Val::S(x, t) => {
+                        let v = self.var(t);
+                        self.emit(S::Set(v, x));
+                        Val::S(E::Var(v), t)
                     }
+                    other => self.hold(other),
                 },
-            });
+            }));
         }
+        // the data may name the caller's locals (a parameter, a lifted constant): they get fresh names bound in the
+        // callee to the same variables, since the callee's body sees only its own parameters
+        let mut carried: Vec<(Sym, Bind)> = vec![];
+        for d in data.iter_mut() {
+            let mut renames: Vec<(Sym, T<'h>)> = vec![];
+            for x in self.symbols(d.1) {
+                if let Some(bd) = self.lookup(x) {
+                    self.carried += 1;
+                    let fresh = self.h.sym(&format!("jit\u{b7}carried\u{b7}{}", self.carried));
+                    renames.push((x, self.h.sym_term(fresh)));
+                    carried.push((fresh, bd));
+                }
+            }
+            if !renames.is_empty() {
+                d.1 = self.substitute(d.1, &renames);
+            }
+        }
+        let body = if data.is_empty() { def.body } else { self.substitute(def.body, &data) };
         if !self.deps.contains(&f) {
             self.deps.push(f);
         }
@@ -2022,16 +2268,30 @@ impl<'h> Fe<'h, '_> {
         let saved_epoch = self.new_epoch();
         self.scopes.push(vec![]);
         self.base = self.scopes.len() - 1;
+        for (fresh, bd) in carried {
+            // invariant: the callee's scope was pushed just above
+            self.scopes.last_mut().expect("a scope").push((fresh, bd));
+        }
         for (&(s, _), v) in def.params.iter().zip(vals) {
+            let Some(v) = v else { continue };
             match v {
                 Val::S(E::Var(v), t) => self.bind(s, v, t, false),
                 Val::V(base, len, t) => self.bind_vector(s, base, len, t),
-                // invariant: the parameters are bound from `vals`, built as variables or vectors by the caller
-                _ => unreachable!("arguments are variables or vectors"),
+                Val::C(E::Var(re), E::Var(im)) => self.bind_complex(s, re, im, false),
+                Val::L(items) => self.bind_list(s, items),
+                // a complex number held in constants: in variables
+                Val::C(a, b) => {
+                    let (re, im) = (self.var(Ty::Real), self.var(Ty::Real));
+                    self.emit(S::Set(re, a));
+                    self.emit(S::Set(im, b));
+                    self.bind_complex(s, re, im, false)
+                }
+                // invariant: scalars are bound in fresh variables above
+                Val::S(..) => unreachable!("a scalar argument in a variable"),
             }
         }
         self.stack.push(f);
-        let r = self.value(def.body);
+        let r = self.value(body);
         self.stack.pop();
         self.scopes.pop();
         self.base = saved;

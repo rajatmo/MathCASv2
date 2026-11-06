@@ -217,7 +217,7 @@ fn functions_outside_the_subset_are_refused_with_a_reason() {
         ("fn a9(x: Real) = mod(x, 2)", "`mod` of a machine real"),
         ("fn a10(s: String) = s", "parameter `s` of `a10` has a type other than Int or Real (an untyped parameter is a vector)"),
         ("fn a11(n: Int) = if n > 0 then 1", "an `if` without `else` used as a value (it can be null)"),
-        ("fn a12(x: Real) = x*pi", "the constant `pi` (the interpreter keeps it exact; n(pi) is its machine real)"),
+        ("fn a12(n: Int) = n*pi", "the constant `pi` (the interpreter keeps it exact; n(pi) is its machine real)"),
         ("fn a13(x: Real) = [x, x] + 1.0", "a list where a number is expected"),
         ("fn a14(x: Real, k: Int) = [x][k]", "an index that is not a constant integer"),
     ];

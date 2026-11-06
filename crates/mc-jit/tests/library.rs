@@ -264,3 +264,64 @@ fn right_hand_sides_with_special_functions_and_steps_give_the_interpreters_solut
         assert_eq!(a, b, "{rhs}");
     }
 }
+
+#[test]
+fn common_subexpressions_are_computed_once_and_forgotten_after_assignments() {
+    let mut t = Three::new("");
+    let defs = [
+        ("cs", "fn cs(x: Real) = (x*2.0 + 1.0)*(x*2.0 + 1.0) + exp(x*2.0 + 1.0)/(x*2.0 + 1.0)"),
+        (
+            "cl",
+            "fn cl(x: Real) = { var y = x; var s = 0.0; for i in range(3) { s = s + y*2.0; y = y + 1.0 }; s + y*2.0 + x*2.0 }",
+        ),
+        ("cw", "fn cw(x: Real) = { var y = x*x; var k = 0; while y*y < 100.0 { y = y*y + 1.0; k = k + 1 }; y*y + k }"),
+        ("cb", "fn cb(x: Real) = if x > 0.0 then sin(x*3.0) + sin(x*3.0) else cos(x*3.0)*sin(x*3.0)"),
+    ];
+    for (n, d) in defs {
+        t.define(n, d);
+    }
+    for x in ["-1.5", "0.0", "0.5", "2.0", "1e300", "0.0*(1e308*10.0)"] {
+        for (n, _) in defs {
+            t.same(&format!("{n}({x})"));
+        }
+    }
+    for (n, _) in defs {
+        assert!(t.counts(n).0 > 0, "{n}");
+    }
+}
+
+#[test]
+fn constants_globals_and_data_arguments_are_read_as_the_interpreter_reads_them() {
+    let setup = "c0 = 2.5\nc1 = 7/4\nc2 = 3\n".to_string()
+        + TABLE
+        + "\nr = assoc(\"a\" -> 2.5, \"f\" -> interpolation(tab), \"v\" -> [1.0, 3.0], \"s\" -> assoc(\"b\" -> 0.25))\n\
+           fn pick(r, x: Real) = r[\"a\"]*x + r[\"f\"](x) + r[\"v\"][2] + r[\"s\"][\"b\"]*derivative(1)(r[\"f\"])(x)\n\
+           fn hh(a, b) = a*b + 1";
+    let mut t = Three::new(&setup);
+    let defs = [
+        ("kc", "fn kc(x: Real) = x/(64*pi^3) + sqrt(2)*x + x*euler_gamma - e*x^2 + catalan + x*pi"),
+        ("gc", "fn gc(x: Real) = c0*x + c1*x - c2 + x^c2"),
+        ("dg", "fn dg(x: Real) = pick(r, x) + hh(x, 2) + hh(3, x) + hh(x, x)"),
+    ];
+    for (n, d) in defs {
+        t.define(n, d);
+    }
+    for x in ["0.0", "0.37", "1.5", "4.9", "-2.0", "7.0"] {
+        for (n, _) in defs {
+            t.same(&format!("{n}({x})"));
+        }
+    }
+    for (n, _) in defs {
+        assert!(t.counts(n).0 > 0, "{n}");
+    }
+    // redefining a global read by compiled code invalidates it
+    for e in t.es.iter_mut() {
+        eval(e, "c0 = -1.25");
+    }
+    assert_eq!(t.same("gc(2.0)"), "6.0");
+    // an integral of a function given an association: compiled and interpreted agree
+    let mut e = engine();
+    eval(&mut e, &setup);
+    let compiled = eval(&mut e, "n_integrate(pick(r, u)*exp(-u), [u, 0, 4])");
+    assert_eq!(compiled, eval(&mut e, "n_integrate(pick(r, u)*exp(-u), [u, 0, 4], compile: false)"));
+}
