@@ -42,6 +42,31 @@ pub trait Metrics {
         let _ = path;
         (8.0, 5.0)
     }
+
+    /// The font `c` is drawn in. Default: [`role_of`] (the math font for everything it has beyond Latin-1); a
+    /// painter that draws in its text font gives [`FontRole::Text`] for every character that font has.
+    fn role(&self, c: char) -> FontRole {
+        role_of(c)
+    }
+
+    /// The height of the math axis (the middle of a minus sign; fraction bars and centred delimiters sit on it)
+    /// in ems, when the text font says (`None`: the math font's MATH constant).
+    fn axis_height(&self) -> Option<f32> {
+        None
+    }
+
+    /// The distance between the baselines of two plain text lines in ems, when the painter's text lines have one
+    /// (`None`: the layout's own spacing). Lines no taller than a text line are then exactly this far apart, as in
+    /// the painter's plain text.
+    fn line_pitch(&self) -> Option<f32> {
+        None
+    }
+
+    /// Traditional form draws single-letter names in math italics (the math font's letters). Default true; a
+    /// painter that keeps every letter in its text font says false.
+    fn italic_letters(&self) -> bool {
+        true
+    }
 }
 
 /// The font role of a character: the math font for what the text font lacks (Greek, math symbols, letter-like

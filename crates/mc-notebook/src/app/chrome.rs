@@ -3,7 +3,16 @@ use super::*;
 
 impl App {
     pub(super) fn menu_item(&self, ui: &mut egui::Ui, label: &str, cmd: Command, fire: &mut Option<Command>) {
-        let mut b = egui::Button::new(label);
+        self.menu_item_with(ui, egui::Button::new(label), cmd, fire);
+    }
+
+    /// A menu item with a check mark (or the room for one), the icon set's check.
+    pub(super) fn check_menu_item(&self, ui: &mut egui::Ui, on: bool, label: &str, cmd: Command, fire: &mut Option<Command>) {
+        self.menu_item_with(ui, egui::Button::image_and_text(check_mark(ui, on), label), cmd, fire);
+    }
+
+    fn menu_item_with(&self, ui: &mut egui::Ui, b: egui::Button<'_>, cmd: Command, fire: &mut Option<Command>) {
+        let mut b = b;
         if let Some(k) = self.keys.chord_of(&cmd) {
             b = b.shortcut_text(k);
         }
@@ -20,7 +29,7 @@ impl App {
     }
 
     pub(super) fn style_menu(&self, ui: &mut egui::Ui, fire: &mut Option<Command>) {
-        ui.menu_button("Style", |ui| {
+        submenu(ui, "Style", |ui| {
             for s in Style::ALL.into_iter().filter(|s| !s.generated()) {
                 self.menu_item(ui, s.info().name, Command::SetStyle(s), fire);
             }
@@ -39,7 +48,7 @@ impl App {
             let r = ui.menu_button("File", |ui| {
                 self.menu_item(ui, "New", Command::App(AppAction::New), &mut fire);
                 self.menu_item(ui, "Open...", Command::App(AppAction::Open), &mut fire);
-                ui.menu_button("Open recent", |ui| {
+                submenu(ui, "Open recent", |ui| {
                     for p in self.settings.recent.clone() {
                         if ui.button(p.display().to_string()).clicked() {
                             self.open(&p);
@@ -53,7 +62,7 @@ impl App {
                 if check_item(ui, &mut self.settings.save_without_outputs, "Save without outputs") {
                     self.settings.save();
                 }
-                ui.menu_button("Export", |ui| {
+                submenu(ui, "Export", |ui| {
                     if ui.button("Script (.mc)...").clicked() {
                         local = Some("export");
                         ui.close();
@@ -75,7 +84,7 @@ impl App {
                 ui.separator();
                 self.menu_item(ui, "Cut", Command::Cut, &mut fire);
                 self.menu_item(ui, "Copy", Command::Copy, &mut fire);
-                ui.menu_button("Copy as", |ui| {
+                submenu(ui, "Copy as", |ui| {
                     self.menu_item(ui, "Plain text", Command::CopyPlain, &mut fire);
                     self.menu_item(ui, "LaTeX", Command::CopyLatex, &mut fire);
                 });
@@ -105,7 +114,7 @@ impl App {
             menu_ids.push(('i', r.response.id));
             let r = ui.menu_button("Format", |ui| {
                 self.style_menu(ui, &mut fire);
-                ui.menu_button("Output form", |ui| {
+                submenu(ui, "Output form", |ui| {
                     if check_item(ui, &mut self.settings.typeset_output, "Typeset output by default") {
                         self.settings.save();
                         self.doc.view.typeset_outputs = self.settings.typeset_output;
@@ -116,7 +125,7 @@ impl App {
                     self.menu_item(ui, "Linear text", Command::ToLinear, &mut fire);
                     self.menu_item(ui, "Traditional", Command::OutputForm(mc_nbmodel::OutputForm::Traditional), &mut fire);
                 });
-                ui.menu_button("Theme", |ui| {
+                submenu(ui, "Theme", |ui| {
                     for (c, name) in [
                         (ThemeChoice::System, "System"),
                         (ThemeChoice::Light, "One Light"),
@@ -129,7 +138,7 @@ impl App {
                         }
                     }
                 });
-                ui.menu_button("Magnification", |ui| {
+                submenu(ui, "Magnification", |ui| {
                     for z in ZOOMS {
                         if ui.radio((self.doc.view.magnification() - z).abs() < 0.01, format!("{:.0} %", z * 100.0)).clicked() {
                             self.set_zoom(z);
@@ -140,9 +149,8 @@ impl App {
             });
             menu_ids.push(('o', r.response.id));
             let r = ui.menu_button("Cell", |ui| {
-                ui.menu_button("Cell properties", |ui| {
+                submenu(ui, "Cell properties", |ui| {
                     let c = self.doc.nb.current_cell().and_then(|id| self.doc.nb.cell(id)).cloned();
-                    let flag = |on: Option<bool>| if on.unwrap_or(false) { "✓ " } else { "    " };
                     let props: [(&str, Option<bool>, Command); 4] = [
                         ("Editable", c.as_ref().map(|c| c.editable()), Command::ToggleEditable),
                         ("Evaluatable", c.as_ref().map(|c| c.evaluatable()), Command::ToggleEvaluatable),
@@ -150,26 +158,16 @@ impl App {
                         ("Initialization cell", c.as_ref().map(|c| c.initialization()), Command::ToggleInitialization),
                     ];
                     for (name, on, cmd) in props {
-                        self.menu_item(ui, &format!("{}{name}", flag(on)), cmd, &mut fire);
+                        self.check_menu_item(ui, on.unwrap_or(false), name, cmd, &mut fire);
                     }
                 });
-                ui.menu_button("Grouping", |ui| {
+                submenu(ui, "Grouping", |ui| {
                     self.menu_item(ui, "Group together", Command::GroupTogether, &mut fire);
                     self.menu_item(ui, "Ungroup", Command::Ungroup, &mut fire);
                     ui.separator();
                     let manual = self.doc.nb.manual_grouping();
-                    self.menu_item(
-                        ui,
-                        if manual { "    Automatic grouping" } else { "✓ Automatic grouping" },
-                        Command::SetManualGrouping(false),
-                        &mut fire,
-                    );
-                    self.menu_item(
-                        ui,
-                        if manual { "✓ Manual grouping" } else { "    Manual grouping" },
-                        Command::SetManualGrouping(true),
-                        &mut fire,
-                    );
+                    self.check_menu_item(ui, !manual, "Automatic grouping", Command::SetManualGrouping(false), &mut fire);
+                    self.check_menu_item(ui, manual, "Manual grouping", Command::SetManualGrouping(true), &mut fire);
                     ui.separator();
                     self.menu_item(ui, "Open all subgroups", Command::OpenAll, &mut fire);
                     self.menu_item(ui, "Close all subgroups", Command::CloseAll, &mut fire);
@@ -228,8 +226,10 @@ impl App {
                 let active = self.tabs.active();
                 let list: Vec<(String, bool)> = self.tabs.iter().map(|t| (t.title(), t.modified)).collect();
                 for (k, (title, modified)) in list.into_iter().enumerate() {
-                    let mut b =
-                        egui::Button::selectable(k == active, if modified { format!("{title}  ●") } else { title });
+                    // a modified notebook: the icon set's dot after its title
+                    let tint = if modified { ui.visuals().weak_text_color() } else { Color32::TRANSPARENT };
+                    let dot = icons::image(ui.ctx(), Icon::Dot, 10.0, tint);
+                    let mut b = egui::Button::selectable(k == active, (title, dot));
                     if let Some(key) = [1, 2, 3, 4, 5, 6, 7]
                         .get(k)
                         .and_then(|n| self.keys.chord_of(&Command::App(AppAction::NthTab(*n))))
@@ -320,26 +320,29 @@ impl App {
                 .on_hover_text("Style of the selected cells (Alt+1 ... Alt+9, Alt+0 for others)");
             ui.add_space(4.0);
             toolbar_separator(ui, &p);
-            let tool = |ui: &mut egui::Ui, glyph: &str, glyph_color: Color32, text: &str, enabled: bool, tip: &str| {
-                let gc = if enabled { glyph_color } else { p.faint };
-                let b = egui::Button::new((RichText::new(glyph).color(gc), RichText::new(text)))
+            let tool = |ui: &mut egui::Ui, icon: Icon, icon_color: Color32, text: &str, enabled: bool, tip: &str| {
+                let ic = if enabled { icon_color } else { p.faint };
+                let b = egui::Button::image_and_text(icons::image(ui.ctx(), icon, TOOL_ICON, ic), text)
                     .frame_when_inactive(false)
                     .min_size(vec2(0.0, 26.0));
                 ui.add_enabled(enabled, b).on_hover_text(tip).on_disabled_hover_text(tip)
             };
-            if tool(ui, "▶", p.green, "Evaluate", true, "Evaluate the selected cells (Shift+Enter)").clicked() {
+            if tool(ui, Icon::Evaluate, p.green, "Evaluate", true, "Evaluate the selected cells (Shift+Enter)").clicked() {
                 fire = Some(Command::Evaluate);
             }
             let busy = self.doc.nb.kernel_state() == KernelState::Busy;
-            if tool(ui, "■", p.red, "Abort", busy, "Abort the evaluation (Alt+.)").clicked() {
+            if tool(ui, Icon::Abort, p.red, "Abort", busy, "Abort the evaluation (Alt+.)").clicked() {
                 fire = Some(Command::Abort);
             }
             toolbar_separator(ui, &p);
             // the kernel indicator: a flat button with the state's dot, a menu on click
             let (color, text) = self.kernel_indicator();
-            let b = egui::Button::new((RichText::new("●").color(color), RichText::new(text.clone()).color(p.weak)))
-                .frame_when_inactive(false)
-                .min_size(vec2(0.0, 26.0));
+            let b = egui::Button::image_and_text(
+                icons::image(ui.ctx(), Icon::Kernel, TOOL_ICON, color),
+                RichText::new(text.clone()).color(p.weak),
+            )
+            .frame_when_inactive(false)
+            .min_size(vec2(0.0, 26.0));
             let resp = ui.add(b).on_hover_text(format!("{text}: click for the kernel menu"));
             egui::Popup::menu(&resp).show(|ui| {
                 let running = !matches!(self.doc.nb.kernel_state(), KernelState::NotStarted | KernelState::Stopped);
@@ -371,12 +374,13 @@ impl App {
                     })
                     .response
                     .on_hover_text("Magnification of the notebook (Ctrl+wheel, Ctrl+Alt+= / Ctrl+Alt+-)");
-                let (glyph, name) = match self.settings.theme {
-                    ThemeChoice::System => ("◐", "System"),
-                    ThemeChoice::Light => ("☀", "Light"),
-                    ThemeChoice::Dark => ("☾", "Dark"),
+                ui.add(icons::image(ui.ctx(), Icon::Zoom, TOOL_ICON, p.weak));
+                let (icon, name) = match self.settings.theme {
+                    ThemeChoice::System => (Icon::ThemeSystem, "System"),
+                    ThemeChoice::Light => (Icon::ThemeLight, "Light"),
+                    ThemeChoice::Dark => (Icon::ThemeDark, "Dark"),
                 };
-                if tool(ui, glyph, p.yellow, name, true, "Theme: System, One Light, One Dark (click to change)")
+                if tool(ui, icon, p.yellow, name, true, "Theme: System, One Light, One Dark (click to change)")
                     .clicked()
                 {
                     self.settings.theme = match self.settings.theme {
@@ -418,8 +422,7 @@ impl App {
     pub(super) fn status_items(&mut self, ui: &mut egui::Ui, weak: egui::Color32) {
         ui.horizontal_centered(|ui| {
             let (color, text) = self.kernel_indicator();
-            let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-            ui.painter().circle_filled(r.center(), 4.0, color);
+            ui.add(icons::image(ui.ctx(), Icon::Kernel, 12.0, color));
             let engine =
                 if self.doc.nb.engine().is_empty() { String::new() } else { format!(" · {}", self.doc.nb.engine()) };
             ui.label(RichText::new(format!("{text}{engine}")).color(weak).small());
@@ -451,4 +454,19 @@ impl App {
             });
         });
     }
+}
+
+/// The size of the toolbar's icons (points).
+const TOOL_ICON: f32 = 15.0;
+
+/// A submenu: its label and the icon set's chevron on the right.
+fn submenu<R>(ui: &mut egui::Ui, label: &str, add: impl FnOnce(&mut egui::Ui) -> R) {
+    let chevron = icons::image(ui.ctx(), Icon::ChevronRight, 12.0, ui.visuals().text_color());
+    let _ = egui::containers::menu::SubMenuButton::from_button(egui::Button::new(label).right_text(chevron)).ui(ui, add);
+}
+
+/// The check mark of a menu item, or the same room without one.
+pub(super) fn check_mark(ui: &egui::Ui, on: bool) -> egui::Image<'static> {
+    let color = if on { ui.visuals().text_color() } else { Color32::TRANSPARENT };
+    icons::image(ui.ctx(), Icon::Check, 13.0, color)
 }

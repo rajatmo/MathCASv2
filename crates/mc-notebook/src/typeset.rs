@@ -1,7 +1,9 @@
-//! Painting typeset content (design 4.7, 9.6; decision NB5.4): box layouts from `mc_boxes` drawn with the bundled
-//! math font. Everything typeset (letters and digits too) is measured and drawn with the math font, so the layout's
-//! metrics are exactly what is painted and nothing depends on the system's fonts; the rare character the math font
-//! lacks is measured and drawn with the cell's text font through egui.
+//! Painting typeset content (design 4.7, 4.10, 9.6; decisions NB5.4, NBUI.2): box layouts from `mc_boxes` drawn in
+//! the cell's own text font. Letters, digits, operators and every other character the cell's font (its family's
+//! chain before the math font) has are measured with that font's own glyph extents and drawn by egui exactly as the
+//! cell's plain text is, in runs, so typing a structure key changes nothing about how the other characters look.
+//! The bundled math font draws only what the text font lacks: stretched delimiters, radical signs, big operators,
+//! placeholders and symbols the text font has no glyph for.
 //!
 //! Glyphs are rasterised at the device pixel size (with four horizontal sub-pixel phases) into one texture atlas of
 //! our own, uploaded piecewise when a glyph is first drawn and never per frame. The atlas starts at 1024 x 1024
@@ -10,10 +12,12 @@
 //! the round 9 lesson of egui's own atlas). Each frame the visible glyphs of a layout become one mesh.
 use crate::theme::Palette;
 use eframe::egui::{self, pos2, vec2, Color32, ColorImage, Mesh, Painter, Pos2, Rect, TextureHandle, TextureOptions};
+use eframe::epaint::text::{LayoutJob, TextFormat};
 use mc_boxes::layout::{metrics::math_char, CharMetrics, Draw, FontRole, Layout, LayoutOptions, Metrics};
 use mc_boxes::Row;
 use mc_mathfont::{font, rasterize_shifted, Glyph};
 use mc_nbmodel::CellId;
+use mc_ui::fonts::{Face, FaceFonts, FontSet};
 use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
@@ -62,12 +66,36 @@ pub struct Glyphs {
     next_y: usize,
     /// full this frame: clear before the next
     full: bool,
+    /// the window's text fonts (typeset cells measure their characters with them) and how often they changed
+    fonts: Arc<FontSet>,
+    font_gen: u32,
 }
 
 impl Glyphs {
     /// An empty atlas (the texture is made when the first glyph is drawn).
     pub fn new(ctx: &egui::Context) -> Glyphs {
-        Glyphs { ctx: ctx.clone(), tex: None, side: ATLAS_START, slots: HashMap::new(), shelves: vec![], next_y: 0, full: false }
+        Glyphs {
+            ctx: ctx.clone(),
+            tex: None,
+            side: ATLAS_START,
+            slots: HashMap::new(),
+            shelves: vec![],
+            next_y: 0,
+            full: false,
+            fonts: Arc::new(FontSet::new(&egui::FontDefinitions::empty())),
+            font_gen: 0,
+        }
+    }
+
+    /// The window's fonts changed (typeset layouts made with the old ones are stale).
+    pub fn set_fonts(&mut self, fonts: FontSet) {
+        self.fonts = Arc::new(fonts);
+        self.font_gen = self.font_gen.wrapping_add(1);
+    }
+
+    /// The text fonts of `face`, and the generation of the window's fonts (part of every typeset layout's key).
+    pub fn face(&self, face: Face) -> (Arc<FaceFonts>, u32) {
+        (self.fonts.face(face), self.font_gen)
     }
 
     /// At the start of a frame: an atlas that filled up last frame starts again (larger once).
@@ -162,67 +190,140 @@ impl Glyphs {
     }
 }
 
-/// Metrics for the layout: the math font for everything it has, the cell's text font (measured by egui, at 1 em)
-/// for the rest. Every character of the row is measured once up front (a font lookup per character drawn made the
-/// layout of a 25,000-character output twice as slow).
-pub struct BoxMetrics {
-    chars: HashMap<char, CharMetrics>,
+/// The cell's text font as typeset content uses it: the face, its fonts' glyph extents, and egui's line metrics of
+/// the face (so a typeset line is exactly as tall as a plain one, with its baseline at the same place).
+#[derive(Clone, Debug)]
+pub struct TextFont {
+    /// the fonts of the cell's face before the math font
+    pub fonts: Arc<FaceFonts>,
+    /// egui's baseline in a row of the face, from the row's top, in ems
+    pub ascent: f32,
+    /// egui's row height of the face in ems
+    pub row: f32,
 }
 
-impl BoxMetrics {
-    /// Metrics for laying out `row`: the characters the math font lacks are measured with `measure` (advance of a
-    /// character at 1 em).
-    pub fn for_row(row: &Row, measure: &mut dyn FnMut(char) -> f32) -> BoxMetrics {
+impl TextFont {
+    /// The text font of `face` measured by egui at `size` points (the cell's size: egui rounds its row metrics to
+    /// pixels, so they are taken at the size they are drawn at).
+    pub fn new(ctx: &egui::Context, face: Face, fonts: Arc<FaceFonts>, size: f32) -> TextFont {
+        let size = size.max(1.0);
+        let (ascent, row) = ctx.fonts_mut(|f| {
+            let g = f.layout_no_wrap("x".to_string(), face.font(size), Color32::WHITE);
+            let base = g.rows.first().and_then(|r| r.row.glyphs.first()).map_or(0.8 * size, |gl| gl.pos.y);
+            (base, g.size().y.max(base))
+        });
+        TextFont { fonts, ascent: ascent / size, row: row / size }
+    }
+}
+
+/// Metrics for the layout (NBUI.2): the cell's text font for every character it has, its row metrics for the lines
+/// and the axis of its minus sign; the math font for the rest and for the MATH constants a text font has not got.
+/// Every character of the row is measured once up front (a font lookup per character drawn made the layout of a
+/// 25,000-character output twice as slow).
+pub struct CellMetrics {
+    font: TextFont,
+    axis: Option<f32>,
+    chars: HashMap<char, (FontRole, CharMetrics)>,
+}
+
+impl CellMetrics {
+    /// Metrics for laying out `row` in `font`.
+    pub fn for_row(row: &Row, font: &TextFont) -> CellMetrics {
         let mut chars = HashMap::new();
         let mut stack = vec![row];
         while let Some(r) = stack.pop() {
             for it in &r.0 {
                 match it {
                     mc_boxes::Item::Char(c) if !chars.contains_key(c) => {
-                        let m = if font().glyph(*c).is_some() {
-                            math_char(*c)
-                        } else {
-                            CharMetrics { advance: measure(*c), ascent: 0.75, descent: 0.25 }
-                        };
-                        chars.insert(*c, m);
+                        chars.insert(*c, measure(&font.fonts, *c));
                     }
                     mc_boxes::Item::Box(b) => stack.extend(b.slots()),
                     _ => {}
                 }
             }
         }
-        BoxMetrics { chars }
+        // the placeholder is the math font's
+        chars.insert('□', (FontRole::Math, math_char('□')));
+        CellMetrics { axis: font.fonts.axis(), font: font.clone(), chars }
+    }
+
+    fn get(&self, c: char) -> (FontRole, CharMetrics) {
+        match self.chars.get(&c) {
+            Some(m) => *m,
+            // a symbol the layout adds itself (`∂`, `d`, `lim`, `→`, `=`): measured now
+            None => measure(&self.font.fonts, c),
+        }
     }
 }
 
-impl Metrics for BoxMetrics {
-    fn char(&self, c: char, _role: FontRole) -> CharMetrics {
-        match self.chars.get(&c) {
-            Some(m) => *m,
-            None => math_char(c),
+/// The font and extent of `c`: the text font's when it has a glyph, else the math font's; a character neither has
+/// is left to egui's fallbacks at an average advance.
+fn measure(fonts: &FaceFonts, c: char) -> (FontRole, CharMetrics) {
+    if let Some(b) = fonts.glyph(c) {
+        return (FontRole::Text, CharMetrics { advance: b.advance, ascent: b.ascent, descent: b.descent });
+    }
+    if font().glyph(c).is_some() {
+        return (FontRole::Math, math_char(c));
+    }
+    (FontRole::Text, CharMetrics { advance: 0.6, ascent: 0.7, descent: 0.0 })
+}
+
+impl Metrics for CellMetrics {
+    fn char(&self, c: char, role: FontRole) -> CharMetrics {
+        match (role, self.get(c)) {
+            (FontRole::Math, (FontRole::Text, _)) => math_char(c),
+            (_, (_, m)) => m,
         }
     }
 
     fn line(&self, _role: FontRole) -> (f32, f32) {
-        // the math font's own ascent and descent are tall (they cover its big operators): a text line is 0.8 / 0.25
-        (0.8, 0.25)
+        // a typeset line of plain characters is a row of the cell's plain text: same height, same baseline
+        (self.font.ascent, (self.font.row - self.font.ascent).max(0.0))
+    }
+
+    fn role(&self, c: char) -> FontRole {
+        self.get(c).0
+    }
+
+    fn axis_height(&self) -> Option<f32> {
+        self.axis
+    }
+
+    fn line_pitch(&self) -> Option<f32> {
+        Some(self.font.row)
+    }
+
+    fn italic_letters(&self) -> bool {
+        // no math italics in cells: every letter stays in the cell's font
+        false
     }
 }
 
-/// The advance (at 1 em) of a character in the cell's text font, measured by egui.
-fn text_advance(ctx: &egui::Context, text_font: &egui::FontId, c: char) -> f32 {
-    let f = egui::FontId::new(64.0, text_font.family.clone());
-    ctx.fonts_mut(|fs| fs.glyph_width(&f, c)) / 64.0
-}
-
-/// Lay out `row` with the math font.
-pub fn lay_out(ctx: &egui::Context, row: &Row, opts: &LayoutOptions, text_font: &egui::FontId) -> Layout {
-    let m = BoxMetrics::for_row(row, &mut |c| text_advance(ctx, text_font, c));
+/// Lay out `row` in the cell's text font.
+pub fn lay_out(row: &Row, opts: &LayoutOptions, font: &TextFont) -> Layout {
+    let m = CellMetrics::for_row(row, font);
     mc_boxes::layout::layout(row, &m, opts)
 }
 
-/// What a cached layout depends on: the cell's revision, the content width and the zoom (as bits).
-pub type LayoutKey = (u64, u32, u32);
+/// Let the first line's superscripts reach up to `above` (and the last line's subscripts down to `below`, layout
+/// units) into the cell's margins instead of growing the cell: the first baseline stays where the cell's plain text
+/// has it, so a superscript typed into a line moves nothing else (NBUI.3).
+pub fn keep_baseline(lay: &mut Layout, font: &TextFont, size: f32, above: f32, below: f32) {
+    let over = (lay.baseline - font.ascent * size).clamp(0.0, above.max(0.0));
+    if over > 0.0 {
+        lay.translate(0.0, -over);
+        lay.height -= over;
+    }
+    if let Some(last) = lay.lines.last() {
+        let depth = lay.height - last.baseline;
+        let under = (depth - (font.row - font.ascent) * size).clamp(0.0, below.max(0.0));
+        lay.height -= under;
+    }
+}
+
+/// What a cached layout depends on: the cell's revision, the content width and the zoom (as bits), the generation
+/// of the window's fonts.
+pub type LayoutKey = (u64, u32, u32, u32);
 
 /// A typeset output to lay out in the background.
 pub struct Job {
@@ -236,8 +337,12 @@ pub struct Job {
     pub opts: LayoutOptions,
     /// the options of typeset output
     pub output: mc_boxes::OutputOptions,
-    /// advances (1 em) of the output's characters the math font lacks, measured with the text font
-    pub fallback: HashMap<char, f32>,
+    /// the output's text font
+    pub font: TextFont,
+    /// right-justify the lines at this width (outputs)
+    pub right: Option<f32>,
+    /// how far scripts may reach into the margins above and below (see [`keep_baseline`])
+    pub reach: (f32, f32),
 }
 
 /// A finished background layout.
@@ -248,8 +353,6 @@ pub struct Done {
     pub key: LayoutKey,
     /// the layout
     pub layout: Arc<Layout>,
-    /// the right end of each of its lines
-    pub rights: Arc<Vec<f32>>,
 }
 
 /// Typesetting of large outputs on a worker thread (NB5.6): a 25,000-character output takes about 25 ms to
@@ -276,10 +379,12 @@ impl Background {
                 }
                 for j in batch {
                     let row = mc_boxes::typeset_output_with(&j.text, j.output).row;
-                    let m = BoxMetrics::for_row(&row, &mut |c| j.fallback.get(&c).copied().unwrap_or(0.6));
-                    let layout = mc_boxes::layout::layout(&row, &m, &j.opts);
-                    let rights = Arc::new(line_rights(&layout));
-                    if done.send(Done { id: j.id, key: j.key, layout: Arc::new(layout), rights }).is_err() {
+                    let mut layout = lay_out(&row, &j.opts, &j.font);
+                    keep_baseline(&mut layout, &j.font, j.opts.size, j.reach.0, j.reach.1);
+                    if let Some(w) = j.right {
+                        layout.align_right(w);
+                    }
+                    if done.send(Done { id: j.id, key: j.key, layout: Arc::new(layout) }).is_err() {
                         return;
                     }
                     ctx.request_repaint();
@@ -300,20 +405,7 @@ impl Background {
     }
 }
 
-/// The advances of the characters of `text` the math font lacks (for a background layout).
-pub fn fallback_advances(ctx: &egui::Context, text: &str, text_font: &egui::FontId) -> HashMap<char, f32> {
-    let mut out = HashMap::new();
-    let f = font();
-    for c in text.chars() {
-        if !out.contains_key(&c) && f.glyph(c).is_none() {
-            out.insert(c, text_advance(ctx, text_font, c));
-        }
-    }
-    out
-}
-
-/// How typeset content is drawn: its colour, the theme, the frame colour of graphics and the cell's text font (for
-/// characters the math font lacks).
+/// How typeset content is drawn: its colour, the theme, the frame colour of graphics and the cell's text face.
 pub struct Ink<'a> {
     /// the text colour
     pub color: Color32,
@@ -321,22 +413,34 @@ pub struct Ink<'a> {
     pub dark: bool,
     /// frames of graphics
     pub border: Color32,
-    /// the cell's text font
-    pub text_font: &'a egui::FontId,
+    /// the cell's text face (characters of the text font are drawn in it by egui)
+    pub face: Face,
     /// colours of the characters by layout row and item (syntax colouring of typeset input); others in `color`
     pub colours: Option<&'a [Vec<Color32>]>,
 }
 
 impl<'a> Ink<'a> {
-    /// The ink of a palette for text of `color` in `text_font`.
-    pub fn new(p: &Palette, color: Color32, text_font: &'a egui::FontId) -> Ink<'a> {
-        Ink { color, dark: p.dark, border: p.border_strong(), text_font, colours: None }
+    /// The ink of a palette for text of `color` in `face`.
+    pub fn new(p: &Palette, color: Color32, face: Face) -> Ink<'a> {
+        Ink { color, dark: p.dark, border: p.border_strong(), face, colours: None }
     }
+}
+
+/// A run of text-font characters that follow each other on one baseline at one size: drawn as one egui galley, so
+/// the characters are placed and rasterised exactly as in plain text.
+struct Run {
+    /// left of the first character and its baseline (layout units)
+    x: f32,
+    y: f32,
+    size: f32,
+    /// where the next character of the run would start
+    next: f32,
+    job: LayoutJob,
 }
 
 /// Paint a layout with its top-left at `origin` (screen), the parts within `clip` only.
 pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, clip: Rect, ink: &Ink<'_>) {
-    let (color, text_font) = (ink.color, ink.text_font);
+    let color = ink.color;
     let ppp = painter.pixels_per_point();
     let f = font();
     let tex_id = glyphs.texture().id();
@@ -361,22 +465,37 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
         let uv = Rect::from_min_size(pos2(s.x as f32 / side, s.y as f32 / side), vec2(s.w as f32 / side, s.h as f32 / side));
         mesh.add_rect_with_uv(r, uv, color);
     };
+    let mut run: Option<Run> = None;
+    let flush = |run: &mut Option<Run>| {
+        let Some(r) = run.take() else { return };
+        let galley = painter.layout_job(r.job);
+        // the galley's first baseline on the run's baseline, on a device pixel as plain text's is
+        let base = galley.rows.first().and_then(|row| row.row.glyphs.first()).map_or(r.size * 0.8, |g| g.pos.y);
+        painter.galley(pos2(origin.x + r.x, snap(origin.y + r.y) - base), galley, color);
+    };
     for d in &l.items {
         match d {
-            Draw::Char { c, size, x, y, row, index, .. } => {
+            Draw::Char { c, role, size, x, y, row, index, advance } => {
                 if c.is_whitespace() || !visible(*y, *size) {
                     continue;
                 }
                 let color = ink.colours.and_then(|t| t.get(*row as usize)?.get(*index as usize)).copied().unwrap_or(color);
-                match f.glyph(*c) {
-                    Some(g) => glyph_at(&mut mesh, glyphs, g, *size, *x, *y, color),
-                    None => {
-                        // a character the math font lacks: the text font, on the baseline
-                        let font = egui::FontId::new(*size, text_font.family.clone());
-                        let galley = painter.layout_no_wrap(c.to_string(), font, color);
-                        let base = galley.rows.first().and_then(|r| r.row.glyphs.first()).map_or(*size * 0.8, |gl| gl.pos.y);
-                        painter.galley(pos2(origin.x + x, snap(origin.y + y - base)), galley, color);
+                if *role == FontRole::Math {
+                    if let Some(g) = f.glyph(*c) {
+                        glyph_at(&mut mesh, glyphs, g, *size, *x, *y, color);
+                        continue;
                     }
+                }
+                let joins = run.as_ref().is_some_and(|r| r.y == *y && r.size == *size && (r.next - x).abs() <= 0.01 * size);
+                if !joins {
+                    flush(&mut run);
+                    run = Some(Run { x: *x, y: *y, size: *size, next: *x, job: LayoutJob::default() });
+                }
+                if let Some(r) = run.as_mut() {
+                    let mut buf = [0u8; 4];
+                    let format = TextFormat { font_id: ink.face.font(*size), color, ..TextFormat::default() };
+                    r.job.append(c.encode_utf8(&mut buf), 0.0, format);
+                    r.next = x + advance;
                 }
             }
             Draw::Placeholder { x, y, size, .. } => {
@@ -407,6 +526,7 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
             }
         }
     }
+    flush(&mut run);
     if !mesh.is_empty() {
         painter.add(egui::Shape::mesh(mesh));
     }
@@ -414,23 +534,7 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
 
 /// The right end of each line of a layout (selection highlights and the caret after a typeset output).
 pub fn line_rights(l: &Layout) -> Vec<f32> {
-    let mut right: Vec<f32> = l.lines.iter().map(|ln| ln.indent).collect();
-    // lines are in order: the first whose bottom is at or below y
-    let line_of = |y: f32| l.lines.partition_point(|ln| ln.bottom + 0.01 < y).min(l.lines.len().saturating_sub(1));
-    let f = font();
-    let mut advance: HashMap<char, f32> = HashMap::new();
-    for d in &l.items {
-        let (x1, y) = match d {
-            Draw::Char { x, y, size, c, .. } => (x + *advance.entry(*c).or_insert_with(|| math_char(*c).advance) * size, *y),
-            Draw::Placeholder { x, y, size, .. } => (x + math_char('□').advance * size, *y),
-            Draw::Glyph { x, y, glyph, size } => (x + f.metrics(*glyph).advance * size, *y),
-            Draw::Rule { x, y, w, .. } | Draw::Graphic { x, y, w, .. } => (x + w, *y),
-        };
-        if let Some(r) = right.get_mut(line_of(y)) {
-            *r = r.max(x1);
-        }
-    }
-    right
+    l.lines.iter().map(|ln| ln.right).collect()
 }
 
 #[cfg(test)]
@@ -451,16 +555,26 @@ mod tests {
     #[test]
     fn a_long_polynomial_typesets_and_lays_out() {
         let ctx = egui::Context::default();
+        let defs = mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled);
+        ctx.set_fonts(defs.clone());
+        let set = mc_ui::fonts::FontSet::new(&defs);
+        // egui has fonts once a frame ran
+        let mut font = None;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            font = Some(TextFont::new(ui.ctx(), Face::Code, set.face(Face::Code), 17.3));
+        });
+        let font = font.expect("a frame ran");
+        // a line of plain text is as tall as egui's row of the code font
+        assert!(font.row > 1.0 && font.row < 1.4 && font.ascent > 0.6 && font.ascent < font.row, "{font:?}");
         let text = polynomial();
-        let font = egui::FontId::monospace(17.3);
         // the first run warms the font tables up
         let row = mc_boxes::typeset_output(&text).row;
-        let _ = lay_out(&ctx, &row, &LayoutOptions::output(17.3, Some(900.0)), &font);
+        let _ = lay_out(&row, &LayoutOptions::output(17.3, Some(900.0)), &font);
         let t = std::time::Instant::now();
         let row = mc_boxes::typeset_output(&text).row;
         let typeset = t.elapsed().as_secs_f64() * 1e3;
         let t = std::time::Instant::now();
-        let l = lay_out(&ctx, &row, &LayoutOptions::output(17.3, Some(900.0)), &font);
+        let l = lay_out(&row, &LayoutOptions::output(17.3, Some(900.0)), &font);
         let layout = t.elapsed().as_secs_f64() * 1e3;
         let t = std::time::Instant::now();
         let rights = line_rights(&l);

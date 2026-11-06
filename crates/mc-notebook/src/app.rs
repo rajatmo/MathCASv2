@@ -2,6 +2,7 @@
 //! the canvas, files, settings and the kernel link.
 use mc_ui::clipboard::{Clipboard, Contents, Picture};
 use mc_ui::fonts;
+use mc_ui::icons::{self, Icon};
 use crate::images::Images;
 use crate::typeset::Glyphs;
 use crate::input;
@@ -92,6 +93,9 @@ impl Env for AppEnv<'_> {
     }
     fn atomic(&mut self, cell: &Cell) -> bool {
         self.view.shows_typeset_output(cell)
+    }
+    fn box_line_edge(&mut self, cell: &Cell, offset: usize, end: bool) -> Option<usize> {
+        self.view.box_line_edge(self.ctx, cell, offset, end)
     }
 }
 
@@ -278,7 +282,9 @@ impl App {
     /// The window with the notebooks at `paths` (and the last session's tabs, when that setting is on).
     pub fn new(cc: &eframe::CreationContext<'_>, paths: Vec<PathBuf>, selftest: Option<SelfTest>) -> App {
         let ctx = cc.egui_ctx.clone();
-        fonts::install(&ctx);
+        let defs = fonts::definitions(fonts::Source::from_env());
+        let font_set = fonts::FontSet::new(&defs);
+        ctx.set_fonts(defs);
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
         let settings = Settings::load();
         let palette = settings.theme.palette(ctx.system_theme().is_some_and(|t| t == egui::Theme::Dark));
@@ -286,6 +292,7 @@ impl App {
         let instance = crate::instance::Server::start(&ctx);
         let images = Rc::new(RefCell::new(Images::new(&ctx)));
         let glyphs = Rc::new(RefCell::new(Glyphs::new(&ctx)));
+        glyphs.borrow_mut().set_fonts(font_set);
         let mut app = App {
             doc: Doc::new(Notebook::new(), None, &ctx, &images, &glyphs, palette, zoom),
             images,
@@ -598,8 +605,7 @@ impl eframe::App for App {
 /// A menu item with a check mark that toggles `on`; `true` when clicked. (egui's checkbox draws its box with the
 /// widget outline that menus remove, so it would show no box at all.)
 fn check_item(ui: &mut egui::Ui, on: &mut bool, label: &str) -> bool {
-    let mark = if *on { "✓" } else { "  " };
-    let r = ui.add(egui::Button::new((RichText::new(mark), label)));
+    let r = ui.add(egui::Button::image_and_text(chrome::check_mark(ui, *on), label));
     focus_ring(ui, &r);
     let clicked = r.clicked();
     if clicked {

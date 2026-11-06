@@ -4,7 +4,7 @@
 //! Internally lengths are ems of the base size with y up from the baseline; [`Engine::run`] converts to output
 //! units with y down at the end.
 use super::lines::{break_lines, LineSpan, PieceInfo, CLASS_ANY};
-use super::metrics::{role_of, FontRole, Metrics};
+use super::metrics::{FontRole, Metrics};
 use super::{Draw, Layout, Line, LayoutOptions, RowGeom, Stop};
 use crate::ops::{is_binary, is_close, is_open, is_relation, is_word, pair_at};
 use crate::tree::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
@@ -81,7 +81,7 @@ impl Ctx {
 /// A painted element, internal coordinates.
 #[derive(Clone, Debug)]
 enum D {
-    Char { c: char, role: FontRole, size: f32, x: f32, y: f32, row: u32, index: u32 },
+    Char { c: char, role: FontRole, size: f32, x: f32, y: f32, row: u32, index: u32, w: f32 },
     Ph { x: f32, y: f32, size: f32, row: u32, index: u32 },
     Glyph { glyph: u16, size: f32, x: f32, y: f32 },
     /// lower-left corner
@@ -119,7 +119,7 @@ impl Frag {
     fn place(&mut self, other: &Frag, dx: f32, dy: f32) {
         for it in &other.items {
             self.items.push(match it.clone() {
-                D::Char { c, role, size, x, y, row, index } => D::Char { c, role, size, x: x + dx, y: y + dy, row, index },
+                D::Char { c, role, size, x, y, row, index, w } => D::Char { c, role, size, x: x + dx, y: y + dy, row, index, w },
                 D::Ph { x, y, size, row, index } => D::Ph { x: x + dx, y: y + dy, size, row, index },
                 D::Glyph { glyph, size, x, y } => D::Glyph { glyph, size, x: x + dx, y: y + dy },
                 D::Rule { x, y, w, h } => D::Rule { x: x + dx, y: y + dy, w, h },
@@ -185,6 +185,8 @@ struct RootLine {
     h: f32,
     d: f32,
     indent: f32,
+    /// the line's right end (its width, the indent included)
+    right: f32,
 }
 
 /// A line of a row while it is assembled.
@@ -224,7 +226,9 @@ impl<'m> Engine<'m> {
             .items
             .iter()
             .map(|d| match d.clone() {
-                D::Char { c, role, size: s, x, y, row, index } => Draw::Char { c, role, size: s * size, x: x * size, y: ty(y), row, index },
+                D::Char { c, role, size: s, x, y, row, index, w } => {
+                    Draw::Char { c, role, size: s * size, x: x * size, y: ty(y), row, index, advance: w * size }
+                }
                 D::Ph { x, y, size: s, row, index } => Draw::Placeholder { x: x * size, y: ty(y), size: s * size, row, index },
                 D::Glyph { glyph, size: s, x, y } => Draw::Glyph { glyph, size: s * size, x: x * size, y: ty(y) },
                 D::Rule { x, y, w, h } => Draw::Rule { x: x * size, y: ty(y + h), w: w * size, h: h * size },
@@ -246,13 +250,14 @@ impl<'m> Engine<'m> {
             .root_lines
             .take()
             .into_iter()
-            .map(|RootLine { start, end, base, h, d, indent }| Line {
+            .map(|RootLine { start, end, base, h, d, indent, right }| Line {
                 top: ty(base + h),
                 baseline: ty(base),
                 bottom: ty(base - d),
                 start,
                 end,
                 indent: indent * size,
+                right: right * size,
             })
             .collect();
         Layout { width: frag.w * size, height: (frag.h + frag.d) * size, baseline: top * size, items, lines, rows }
@@ -268,7 +273,7 @@ impl<'m> Engine<'m> {
     }
 
     fn axis(&self, ctx: Ctx) -> f32 {
-        self.f.constants.axis_height * self.scale(ctx)
+        self.m.axis_height().unwrap_or(self.f.constants.axis_height) * self.scale(ctx)
     }
 
     // ---- characters ----
@@ -288,7 +293,7 @@ impl<'m> Engine<'m> {
         if let Some(w) = space {
             return Frag::kern(w * s);
         }
-        let role = role_of(c);
+        let role = self.m.role(c);
         let m = self.m.char(c, role);
         if c.is_whitespace() {
             return Frag::kern(m.advance * s);
@@ -297,7 +302,7 @@ impl<'m> Engine<'m> {
             w: m.advance * s,
             h: m.ascent * s,
             d: m.descent * s,
-            items: vec![D::Char { c, role, size: s, x: 0.0, y: 0.0, row, index }],
+            items: vec![D::Char { c, role, size: s, x: 0.0, y: 0.0, row, index, w: m.advance * s }],
             stops: vec![],
         }
     }
@@ -312,7 +317,7 @@ impl<'m> Engine<'m> {
     }
 
     fn italic_of(&self, c: char, ctx: Ctx) -> f32 {
-        if role_of(c) != FontRole::Math {
+        if self.m.role(c) != FontRole::Math {
             return 0.0;
         }
         self.f.glyph(c).map_or(0.0, |g| self.f.italic_correction(g)) * self.scale(ctx)
@@ -387,7 +392,13 @@ impl<'m> Engine<'m> {
         for (k, l) in lines.iter().enumerate() {
             if k > 0 {
                 let s = self.scale(ctx);
-                base -= (prev_d + LINE_GAP * s + l.frag.h).max(BASELINE_SKIP * s);
+                let skip = match self.m.line_pitch() {
+                    // lines of plain text exactly as far apart as the painter's text lines, taller ones apart
+                    Some(p) if prev_d + l.frag.h <= (strut_h + strut_d) * 1.001 => p * s,
+                    Some(p) => (prev_d + LINE_GAP * s + l.frag.h).max(p * s),
+                    None => (prev_d + LINE_GAP * s + l.frag.h).max(BASELINE_SKIP * s),
+                };
+                base -= skip;
             }
             out.place(&l.frag, 0.0, base);
             out.w = out.w.max(l.frag.w);
@@ -396,7 +407,15 @@ impl<'m> Engine<'m> {
             }
             out.d = out.d.max(l.frag.d - base);
             prev_d = l.frag.d;
-            root.push(RootLine { start: l.first_item, end: l.end_item, base, h: l.frag.h, d: l.frag.d, indent: l.span.indent });
+            root.push(RootLine {
+                start: l.first_item,
+                end: l.end_item,
+                base,
+                h: l.frag.h,
+                d: l.frag.d,
+                indent: l.span.indent,
+                right: l.frag.w,
+            });
         }
         if path.is_empty() {
             *self.root_lines.borrow_mut() = root;
@@ -419,7 +438,7 @@ impl<'m> Engine<'m> {
                         k += n;
                         continue;
                     }
-                    let shown = if self.o.traditional { traditional_char(row, k, *c) } else { *c };
+                    let shown = if self.o.traditional && self.m.italic_letters() { traditional_char(row, k, *c) } else { *c };
                     Piece { frag: self.char_frag(shown, ctx, id, k as u32), ch: Some(*c), first: k, count: 1, class: char_class(*c) }
                 }
                 Item::Placeholder => {

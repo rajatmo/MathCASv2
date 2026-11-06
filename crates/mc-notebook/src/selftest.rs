@@ -16,7 +16,8 @@
 //! - `probe <label>`: log the frame time of the next frames
 //! - `scroll <pixels>`: scroll the notebook
 //! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
-//! - `sel`: write the selection to the log; `hit <x> <y>`: what is at a window position; `images`: the picture
+//! - `sel`: write the selection to the log; `boxes`: the box caret or selection of the typeset cell or output with
+//!   the caret, in the box notation; `hit <x> <y>`: what is at a window position; `images`: the picture
 //!   cache's size; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
 //!   write the clipboard's text to the log; `focus`: the focused widget and whether a popup is open
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
@@ -165,14 +166,20 @@ impl SelfTest {
                     if modifiers.shift {
                         self.pending.push(Event::ModifiersChanged(modifiers));
                     }
-                    for _ in 0..n {
-                        for pressed in [true, false] {
-                            self.pending.push(Event::PointerButton { pos: p, button, pressed, modifiers });
+                    // one click per frame (as a hand clicks), the modifier released a frame after the last
+                    for k in 0..n {
+                        let clicks: Vec<Event> =
+                            [true, false].map(|pressed| Event::PointerButton { pos: p, button, pressed, modifiers }).into();
+                        if k == 0 {
+                            self.pending.extend(clicks);
+                        } else {
+                            self.later.push(clicks);
                         }
                     }
                     if modifiers.shift {
-                        self.pending.push(Event::ModifiersChanged(Modifiers::NONE));
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
                     }
+                    self.wait = 2 + n as u32;
                 }
             }
             "drag" => {
@@ -214,41 +221,54 @@ impl SelfTest {
                 }
                 self.wait = 6;
             }
-            "keys" => match parse_steps(arg) {
-                Ok(steps) => {
-                    for s in steps {
-                        match s {
-                            Step::Key(c) => self.pending.extend(key_events(c)),
-                            Step::Type(t) => {
-                                for ch in t.chars() {
-                                    if ch == '\n' {
-                                        self.pending.extend(key_events(Chord::parse("Enter").expect("valid")));
-                                    } else {
-                                        self.pending.push(Event::Text(ch.to_string()));
+            "keys" => {
+                match parse_steps(arg) {
+                    Ok(steps) => {
+                        for s in steps {
+                            match s {
+                                Step::Key(c) => self.pending.extend(key_events(c)),
+                                Step::Type(t) => {
+                                    for ch in t.chars() {
+                                        if ch == '\n' {
+                                            self.pending.extend(key_events(Chord::parse("Enter").expect("valid")));
+                                        } else {
+                                            self.pending.push(Event::Text(ch.to_string()));
+                                        }
                                     }
                                 }
+                                _ => self.log.push(format!("keys: unsupported step {s:?}")),
                             }
-                            _ => self.log.push(format!("keys: unsupported step {s:?}")),
                         }
                     }
+                    Err(e) => self.log.push(format!("keys: {e}")),
                 }
-                Err(e) => self.log.push(format!("keys: {e}")),
-            },
+                // the modifiers of the last chord are released (a later click is not a Shift+click)
+                if self.pending.iter().any(|e| matches!(e, Event::Key { modifiers, .. } if !modifiers.is_none())) {
+                    self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                }
+            }
             "click" | "dblclick" => {
                 let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
                 if v.len() == 2 {
                     let p = egui::pos2(v[0], v[1]);
                     self.pending.push(Event::PointerMoved(p));
-                    for _ in 0..if cmd == "click" { 1 } else { 2 } {
-                        for pressed in [true, false] {
-                            self.pending.push(Event::PointerButton {
+                    let n = if cmd == "click" { 1 } else { 2 };
+                    for k in 0..n {
+                        let clicks: Vec<Event> = [true, false]
+                            .map(|pressed| Event::PointerButton {
                                 pos: p,
                                 button: PointerButton::Primary,
                                 pressed,
                                 modifiers: Modifiers::NONE,
-                            });
+                            })
+                            .into();
+                        if k == 0 {
+                            self.pending.extend(clicks);
+                        } else {
+                            self.later.push(clicks);
                         }
                     }
+                    self.wait = 2 + n;
                 }
             }
             "wait" => self.wait = arg.parse().unwrap_or(10),
@@ -286,6 +306,15 @@ impl SelfTest {
                 self.log.push(format!("focus: {focused:?}, popup open: {popup}"));
             }
             "sel" => self.log.push(format!("selection: {:?}", app.notebook().selection())),
+            "boxes" => {
+                let nb = app.notebook();
+                let line = match (nb.box_editor(), nb.output_editor()) {
+                    (Some((id, e)), _) => format!("boxes: input {} {}", id.0, e.notation()),
+                    (None, Some((id, e))) => format!("boxes: output {} {}", id.0, e.notation()),
+                    (None, None) => "boxes: none".to_string(),
+                };
+                self.log.push(line);
+            }
             "hit" => {
                 let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
                 if v.len() == 2 {

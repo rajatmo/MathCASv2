@@ -2800,6 +2800,7 @@ dependencies = [
  "eframe",
  "mc-mathfont",
  "png 0.18.1",
+ "resvg",
  "serde_json",
  "ttf-parser",
  "winit",

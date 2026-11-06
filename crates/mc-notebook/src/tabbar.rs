@@ -3,6 +3,7 @@
 //! and a list of all tabs when they do not fit, and a "+" for a new notebook.
 use crate::app::App;
 use mc_ui::fonts::Face;
+use mc_ui::icons::{self, Icon};
 use eframe::egui::{self, pos2, vec2, Color32, CursorIcon, Rect, Sense, Stroke};
 
 /// The height of the tab strip (points).
@@ -122,16 +123,10 @@ impl App {
             // busy spinner or modified dot, then the title
             let mut tx = r.left() + 12.0;
             if self.tab_busy(i) {
+                // the spinner icon, turning
                 let c = pos2(tx + 5.0, r.center().y + 1.0);
-                clip.circle_stroke(c, 5.0, Stroke::new(1.5, p.border_strong()));
-                let a0 = (time * 6.0) as f32;
-                let pts: Vec<egui::Pos2> = (0..=12)
-                    .map(|k| {
-                        let a = a0 + k as f32 * 0.13;
-                        c + vec2(a.cos(), a.sin()) * 5.0
-                    })
-                    .collect();
-                clip.add(egui::Shape::line(pts, Stroke::new(1.5, p.accent)));
+                let a = (time * 6.0) as f32;
+                icons::paint_turned(&clip, Icon::Spinner, Rect::from_center_size(c, vec2(13.0, 13.0)), p.accent, a);
                 tx += 16.0;
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(33));
             }
@@ -154,16 +149,13 @@ impl App {
             }
             if is_active || hovered {
                 if modified && !close_hover && !hovered {
-                    clip.circle_filled(close_r.center(), 3.5, color);
+                    icons::paint(&clip, Icon::Dot, Rect::from_center_size(close_r.center(), vec2(11.0, 11.0)), color);
                 } else {
-                    let c = close_r.center();
-                    let s = 3.5;
-                    let st = Stroke::new(1.3, if close_hover { p.text } else { color });
-                    clip.line_segment([c + vec2(-s, -s), c + vec2(s, s)], st);
-                    clip.line_segment([c + vec2(-s, s), c + vec2(s, -s)], st);
+                    let tint = if close_hover { p.text } else { color };
+                    icons::paint(&clip, Icon::Close, Rect::from_center_size(close_r.center(), vec2(12.0, 12.0)), tint);
                 }
             } else if modified {
-                clip.circle_filled(close_r.center(), 3.5, color);
+                icons::paint(&clip, Icon::Dot, Rect::from_center_size(close_r.center(), vec2(11.0, 11.0)), color);
             }
             // interaction
             if close_resp.clicked() || resp.middle_clicked() {
@@ -254,8 +246,9 @@ impl App {
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| {
                     for (k, t) in titles.iter().enumerate() {
                         let modified = self.tabs.get(k).is_some_and(|t| t.modified);
-                        let label = if modified { format!("{t}  ●") } else { t.clone() };
-                        if ui.selectable_label(k == active, label).clicked() {
+                        let tint = if modified { ui.visuals().weak_text_color() } else { Color32::TRANSPARENT };
+                        let dot = icons::image(ui.ctx(), Icon::Dot, 10.0, tint);
+                        if ui.add(egui::Button::selectable(k == active, (t.as_str(), dot))).clicked() {
                             cmd = Some(TabCmd::Activate(k));
                         }
                     }
@@ -343,25 +336,13 @@ pub(crate) enum Glyph {
 }
 
 pub(crate) fn paint_glyph(painter: &egui::Painter, c: egui::Pos2, g: Glyph, color: Color32) {
-    let st = Stroke::new(1.4, color);
-    match g {
-        Glyph::Plus => {
-            painter.line_segment([c + vec2(-5.0, 0.0), c + vec2(5.0, 0.0)], st);
-            painter.line_segment([c + vec2(0.0, -5.0), c + vec2(0.0, 5.0)], st);
-        }
-        Glyph::Left => {
-            painter.line_segment([c + vec2(2.0, -4.0), c + vec2(-2.0, 0.0)], st);
-            painter.line_segment([c + vec2(-2.0, 0.0), c + vec2(2.0, 4.0)], st);
-        }
-        Glyph::Right => {
-            painter.line_segment([c + vec2(-2.0, -4.0), c + vec2(2.0, 0.0)], st);
-            painter.line_segment([c + vec2(2.0, 0.0), c + vec2(-2.0, 4.0)], st);
-        }
-        Glyph::Down => {
-            painter.line_segment([c + vec2(-4.0, -2.0), c + vec2(0.0, 2.0)], st);
-            painter.line_segment([c + vec2(0.0, 2.0), c + vec2(4.0, -2.0)], st);
-        }
-    }
+    let icon = match g {
+        Glyph::Plus => Icon::Plus,
+        Glyph::Left => Icon::ChevronLeft,
+        Glyph::Right => Icon::ChevronRight,
+        Glyph::Down => Icon::ChevronDown,
+    };
+    icons::paint(painter, icon, Rect::from_center_size(c, vec2(14.0, 14.0)), color);
 }
 
 /// Show a file in the system's file manager.

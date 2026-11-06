@@ -1,0 +1,16 @@
+% The application icon at 16 and 24 pixels: the same design as icon.tex with the hairlines of the calligraphic
+% letters thickened (drawn filled and stroked in their own colour), a bigger M and no margin, so it stays legible.
+\documentclass[tikz,border=0pt]{standalone}
+\definecolor{bgtop}{RGB}{78,58,128}
+\definecolor{bgbottom}{RGB}{172,44,122}
+\definecolor{gold}{RGB}{246,193,72}
+% #2 drawn with text rendering mode 2 (fill, then stroke #1 wide in the stroke colour set before)
+\newcommand{\thick}[2]{\pdfliteral{q 2 Tr #1 w}#2\pdfliteral{Q}}
+\begin{document}
+\begin{tikzpicture}[x=1bp,y=1bp]
+\path[use as bounding box] (0,0) rectangle (64,64);
+\shade[top color=bgtop, bottom color=bgbottom, shading angle=30, rounded corners=12bp] (0,0) rectangle (64,64);
+\node[text=gold, scale=7.6, inner sep=0] at (26.5,32.5) {\pdfliteral{0.965 0.757 0.282 RG}\thick{0.35}{$\mathcal{C}$}};
+\node[text=white, scale=3.9, inner sep=0] at (37,30) {\pdfliteral{1 1 1 RG}\thick{0.55}{$\mathcal{M}$}};
+\end{tikzpicture}
+\end{document}

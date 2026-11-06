@@ -135,3 +135,15 @@ read canonical text 6.6 us.
   variable (the name in the most terms, with a power of degree 2 or more or a negative power somewhere) is ordered
   by descending degree (`integrate(x^2*sin(x), x)` reads −x² cos(x) + 2x sin(x) + 2cos(x)); linear sums keep the
   engine's order (`3 − x`). The source map follows: reordered parts copy through `output_input_text`.
+
+## Round nb-ui
+
+- `Metrics` gains default methods (the defaults keep every existing layout, the pictures of `mc-graphics` included):
+  `role(c)` (which font draws `c`; default `role_of`), `axis_height()` (the painter's math axis in ems, `None`: the
+  MATH constant), `line_pitch()` (baseline distance of plain lines; lines no taller than the strut are exactly that
+  far apart), `italic_letters()` (traditional form's math italics; false keeps the text font's letters).
+- `Draw::Char` carries its `advance`; `Line` its `right` end; `Layout::align_right(width)` right-justifies every line
+  (items, caret stops, `indent`/`right` follow; a line's items are found by their y within the line's extent),
+  `Layout::translate(dx, dy)`, `Layout::line_at(y)`.
+- `Editor::move_home` / `move_end` stop at line breaks in the row (the line's start or its end before the break).
+- Tests: layout 7 (new: painter metrics choose fonts, axis and line pitch; right-justified lines keep hit-testing).

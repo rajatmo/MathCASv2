@@ -39,7 +39,8 @@ impl App {
         if self.ask_init {
             let mut answer = None;
             center(egui::Window::new("Initialization cells")).show(ctx, |ui| {
-                ui.label("Evaluate the initialization cells first?");
+                let p = &self.doc.view.palette;
+                message(ui, Icon::Info, p.accent, "Evaluate the initialization cells first?");
                 ui.horizontal(|ui| {
                     // the keyboard: Enter is Yes, Esc is No (Tab moves between the buttons)
                     if ui.button("Yes").clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
@@ -61,7 +62,7 @@ impl App {
         if self.interrupt {
             let mut fire = None;
             center(egui::Window::new("Interrupt")).show(ctx, |ui| {
-                ui.label("The evaluation is interrupted.");
+                message(ui, Icon::Warning, self.doc.view.palette.yellow, "The evaluation is interrupted.");
                 ui.horizontal(|ui| {
                     // the keyboard: Enter aborts, Esc continues
                     if ui.button("Abort").clicked() || ui.input(|i| i.key_pressed(Key::Enter)) {
@@ -111,7 +112,7 @@ impl App {
             };
             center(egui::Window::new(title)).show(ctx, |ui| {
                 ui.set_min_width(300.0);
-                ui.label(text);
+                message(ui, Icon::Warning, self.doc.view.palette.yellow, &text);
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     let all = matches!(ask, Ask::SaveAll(ref v) if v.len() > 1);
@@ -134,7 +135,7 @@ impl App {
         }
         if let Some(e) = self.error.clone() {
             center(egui::Window::new("MathCAS")).show(ctx, |ui| {
-                ui.label(e);
+                message(ui, Icon::Error, self.doc.view.palette.red, &e);
                 if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(Key::Enter) || i.key_pressed(Key::Escape)) {
                     self.error = None;
                 }
@@ -208,4 +209,13 @@ impl App {
             self.title = title;
         }
     }
+}
+
+/// A dialog's message with the icon of its kind (information, warning, error) on the left.
+fn message(ui: &mut egui::Ui, icon: Icon, color: egui::Color32, text: &str) {
+    ui.horizontal(|ui| {
+        ui.add(icons::image(ui.ctx(), icon, 22.0, color));
+        ui.add_space(6.0);
+        ui.label(text);
+    });
 }

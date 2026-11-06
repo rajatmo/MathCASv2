@@ -7,7 +7,10 @@ impl App {
     /// The fonts of the setting (system fonts where good ones exist, or only the bundled set).
     pub(super) fn apply_fonts(&mut self, ctx: &egui::Context) {
         let source = if self.settings.bundled_fonts { fonts::Source::Bundled } else { fonts::Source::from_env() };
-        ctx.set_fonts(fonts::definitions(source));
+        let defs = fonts::definitions(source);
+        // typeset cells measure with the same fonts (their layouts are keyed by the font set's generation)
+        self.glyphs.borrow_mut().set_fonts(fonts::FontSet::new(&defs));
+        ctx.set_fonts(defs);
         self.doc.view.clear();
     }
 

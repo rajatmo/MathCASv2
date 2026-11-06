@@ -173,9 +173,15 @@ thickness 1 px, column pitch 7 px, hooks 3 px, the content 8 pt right of the inn
 magnification) *(spec)*.
 
 The content is **left-justified** against that edge: the styles' left margins of the table in 2.1 are taken relative to
-the Input margin (66), so Title, Section, Text, Input and Output start at the edge and items keep their indents. The
-insertion line runs from the content edge to the right, its "+" button at its right end (clear of the group
-brackets).
+the Input margin (66), so Title, Section, Text and Input start at the edge and items keep their indents. **Output cells
+are right-justified** *(user decision, round nb-ui)*: every line of an output ends at the right edge of the content
+area (the text width left of the scroll bar, which follows the window width and the magnification): each line of a
+typeset output, each row of a wrapped linear output, a picture's right edge, a large output's title, sample lines and
+buttons. Print and Message cells stay left-justified: they are program output, read as a log, and keeping them on the
+input's edge separates them from the value. An output showing its source (`Ctrl+Shift+E`) is edited text and is
+left-justified too. Brackets stay on the left. Carets, selections, hit-testing, Find, the coordinates shown over plots
+and picture resizing all use the right-justified geometry. The insertion line runs from the content edge to the right,
+its "+" button at its right end (clear of the group brackets).
 
 Mouse on brackets:
 
@@ -701,8 +707,10 @@ also lets Find highlight the matched part).
 
 ### 4.7 Layout
 
-Box layout follows TeX's math rules (TeXbook Appendix G) driven by the OpenType MATH table of the math font, as v1's
-`texmath` does: fraction rule thickness and shifts, superscript/subscript shifts and the script and script-script
+Box layout follows TeX's math rules (TeXbook Appendix G), as v1's `texmath` does, measured with the **cell's own text
+font** (round nb-ui): the extents and advances of its glyphs, its line height and baseline (so a typeset line of plain
+characters is exactly a line of the cell's plain text), the middle of its minus sign as the math axis; the OpenType MATH
+table of the math font gives what a text font has no data for: fraction rule thickness and shifts, superscript/subscript shifts and the script and script-script
 scale (70 %, 50 %), radical gap and rule, operator limits, stretchy delimiters from glyph variants and assemblies (`(`
 `[` `{` `|` around tall content grow), grid gaps. Inputs use the reference's "inline" style (fractions at text style,
 limits of big operators beside them); outputs and DisplayFormula cells use display style for big operators
@@ -715,8 +723,8 @@ limits of big operators beside them); outputs and DisplayFormula cells use displ
 - Breaks are chosen by a penalty: lowest bracket depth first, then after `,` and `;`, then before binary operators by
   precedence (`+ -` before `*`), never inside a token or inside a box; boxes too wide for a line break inside their
   slots (numerator and denominator wrap separately).
-- Continuation lines of inputs are indented by the bracket depth at the break (3.2); outputs' continuation lines start
-  at the cell's left edge *(guess, 13)*.
+- Continuation lines of inputs are indented by the bracket depth at the break (3.2); outputs' lines are not indented
+  and each ends at the cell's right edge (outputs are right-justified, 2.5).
 - Wrapping is recomputed on window resize for the visible cells first, the rest lazily.
 
 ### 4.9 Large outputs
@@ -737,13 +745,24 @@ The summary is a display state, not saved.
 
 | Role | Font | Source |
 |---|---|---|
-| Code (Input, Code, Output, Print) | Consolas | system (Windows); fallback Cascadia Mono, then egui's bundled Hack |
-| Math (structures, big operators, stretchy delimiters, math symbols, Greek in typeset content) | STIX Two Math | bundled, SIL Open Font License 1.1 (v1's copy) |
+| Code (Input, Code, Output, Print) | Consolas | system (Windows); fallback Cascadia Mono, then the bundled DejaVu Sans Mono |
+| Math (stretchy delimiters, radical signs and their overbars, big operators, placeholders, symbols the cell's font lacks) | STIX Two Math | bundled, SIL Open Font License 1.1 (v1's copy) |
 | Prose (Title ... Text, Items) | Segoe UI (Variable on Windows 11) | system; fallback egui's bundled Ubuntu |
 | UI, labels, messages | Segoe UI | system |
 
 Missing glyphs fall back along the list (egui font families with fallbacks); the math font comes last in every family
 so every math symbol has a glyph. All sizes scale with the window magnification (50 % - 300 %).
+
+**One font in cells** *(user decision, round nb-ui)*: typeset input and typeset output are drawn in the cell's own text
+font (the bold code font of Input cells, the code font of outputs) at the cell's size and baseline; letters, digits,
+operators and every character that font's family has before the math font come from it, drawn exactly as the cell's
+plain text is (scripts and fraction parts in the same font at the script sizes, 70 % and 50 %). The math font draws only
+what the text font lacks: stretchy delimiters, radical signs, big operators (sum, product, integral), placeholders and
+symbols missing from the text font. No letter is drawn in math italics in a cell (traditional form keeps the cell's
+letters). Typeset input keeps every typed character where plain text has it: no thin spaces around operators, `->`
+stays two characters, and a superscript reaches into the cell's top margin rather than moving the first baseline, so
+`Ctrl+6` on a plain input moves and re-fonts nothing else. Pictures and their exports (`mc-graphics`) keep laying
+labels out with the math font (their LaTeX look).
 
 ## 5. Evaluation model
 

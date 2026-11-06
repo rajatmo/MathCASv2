@@ -553,9 +553,13 @@ impl Draw<'_> {
             );
             ui.add(egui::Label::new(job).selectable(true));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let open = egui::Button::image_and_text(
+                    mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::Notebook, 15.0, ui.visuals().text_color()),
+                    "Open as notebook",
+                );
                 if pages.contains_key(name)
                     && ui
-                        .button("Open as notebook")
+                        .add(open)
                         .on_hover_text("A copy of this page in the notebook, to run and change")
                         .clicked()
                 {

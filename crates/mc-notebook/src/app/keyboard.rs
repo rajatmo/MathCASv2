@@ -331,13 +331,18 @@ impl App {
                 action = Some(!ui.input(|i| i.modifiers.shift));
                 edit.request_focus();
             }
-            if ui.button("Next").on_hover_text("F3").clicked() {
+            let color = ui.visuals().text_color();
+            let icon = |ui: &mut egui::Ui, i: Icon, tip: &str| {
+                ui.add(egui::Button::image(icons::image(ui.ctx(), i, 14.0, color)).min_size(vec2(26.0, 22.0)))
+                    .on_hover_text(tip)
+            };
+            if icon(ui, Icon::ArrowDown, "Next (Enter, F3)").clicked() {
                 action = Some(true);
             }
-            if ui.button("Previous").on_hover_text("Shift+F3").clicked() {
+            if icon(ui, Icon::ArrowUp, "Previous (Shift+Enter, Shift+F3)").clicked() {
                 action = Some(false);
             }
-            if ui.button("Close").clicked() || ui.input(|i| i.key_pressed(Key::Escape)) && edit.has_focus() {
+            if icon(ui, Icon::Close, "Close (Esc)").clicked() || ui.input(|i| i.key_pressed(Key::Escape)) && edit.has_focus() {
                 self.find = None;
                 return;
             }

@@ -1,0 +1,10 @@
+\documentclass[tikz,border=0pt]{standalone}
+\input{icon-style}
+\begin{document}
+\begin{tikzpicture}[icon]
+\canvas
+% the light theme: a sun
+\draw (12,12) circle (4);
+\foreach \a in {0,45,...,315} \draw (\a:7) ++(12,12) -- ++(\a:2.5);
+\end{tikzpicture}
+\end{document}

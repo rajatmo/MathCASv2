@@ -82,6 +82,8 @@ pub enum Draw {
         row: u32,
         /// item index in that row
         index: u32,
+        /// its advance in output units (where the next character of the same run starts)
+        advance: f32,
     },
     /// a placeholder `□` (an empty slot), drawn in the math font at `size`
     Placeholder {
@@ -148,8 +150,10 @@ pub struct Line {
     pub start: usize,
     /// one past the last item on this line
     pub end: usize,
-    /// left indentation of the line
+    /// left indentation of the line (where its first item starts)
     pub indent: f32,
+    /// where the line ends: the right edge of its last item
+    pub right: f32,
 }
 
 /// A caret position's geometry.
@@ -224,6 +228,74 @@ impl Layout {
             }
         }
         best.map_or((Vec::new(), 0), |(_, _, p, k)| (p.clone(), k))
+    }
+
+    /// The line holding vertical position `y` (a baseline or an edge of something drawn on that line): lines are
+    /// stacked without overlapping, so it is the first whose bottom is at or below `y`.
+    pub fn line_at(&self, y: f32) -> usize {
+        self.lines.partition_point(|ln| ln.bottom + 0.01 < y).min(self.lines.len().saturating_sub(1))
+    }
+
+    /// Moves every line right so that it ends at `width` (right-justified lines, the notebook's outputs); a line
+    /// wider than `width` stays where it is. Everything follows its line: the painted items, the caret stops of
+    /// every row, the lines' `indent` and `right`. The layout's width becomes at least `width`.
+    pub fn align_right(&mut self, width: f32) {
+        let shift: Vec<f32> = self.lines.iter().map(|l| (width - l.right).max(0.0)).collect();
+        if shift.iter().all(|&s| s == 0.0) {
+            return;
+        }
+        let at = |lines: &[Line], y: f32| lines.partition_point(|ln| ln.bottom + 0.01 < y).min(lines.len().saturating_sub(1));
+        for d in &mut self.items {
+            let (x, y) = match d {
+                Draw::Char { x, y, .. } | Draw::Placeholder { x, y, .. } | Draw::Glyph { x, y, .. } => (x, *y),
+                // rules and frames are positioned by their top-left corner: their middle tells the line
+                Draw::Rule { x, y, h, .. } | Draw::Graphic { x, y, h, .. } => (x, *y + *h / 2.0),
+            };
+            *x += shift[at(&self.lines, y)];
+        }
+        for r in &mut self.rows {
+            for s in &mut r.stops {
+                s.x += shift[at(&self.lines, s.baseline)];
+            }
+        }
+        for (l, s) in self.lines.iter_mut().zip(&shift) {
+            l.indent += s;
+            l.right += s;
+        }
+        self.width = self.width.max(width);
+    }
+
+    /// Moves everything by (dx, dy): the painted items, the caret stops, the lines and the first baseline (the size
+    /// stays; a painter lets a line's superscripts reach into the space above the layout this way).
+    pub fn translate(&mut self, dx: f32, dy: f32) {
+        for d in &mut self.items {
+            match d {
+                Draw::Char { x, y, .. }
+                | Draw::Placeholder { x, y, .. }
+                | Draw::Glyph { x, y, .. }
+                | Draw::Rule { x, y, .. }
+                | Draw::Graphic { x, y, .. } => {
+                    *x += dx;
+                    *y += dy;
+                }
+            }
+        }
+        for r in &mut self.rows {
+            for s in &mut r.stops {
+                s.x += dx;
+                s.baseline += dy;
+                s.top += dy;
+                s.bottom += dy;
+            }
+        }
+        for l in &mut self.lines {
+            l.top += dy;
+            l.baseline += dy;
+            l.bottom += dy;
+            l.indent += dx;
+            l.right += dx;
+        }
+        self.baseline += dy;
     }
 
     /// A text dump with every number rounded to 0.1 output unit, for snapshot tests.

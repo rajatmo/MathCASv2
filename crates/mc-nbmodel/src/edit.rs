@@ -1461,4 +1461,54 @@ mod tests {
         nb.apply(Command::ClickText(id, 8, false), &mut env);
         assert_eq!(nb.box_editor().map(|(_, e)| e.notation()), Some("(cos/▮2)".to_string()));
     }
+
+    /// Selection in typeset input and output by keys and clicks (round nb-ui: the bugs found by driving the window).
+    #[test]
+    fn selections_in_typeset_cells_extend_by_lines_and_keep_their_anchor() {
+        let text = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\nfirst+line\nsecond+((z)^(3))\n#% output n=1\n#= a + x^2 + b\n";
+        let mut nb = Notebook::parse(text).unwrap();
+        let (input, out) = (nb.cells()[0].id, nb.cells()[1].id);
+        let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
+        let boxes = |nb: &Notebook| nb.box_editor().map(|(_, e)| e.notation()).unwrap_or_default();
+        let outs = |nb: &Notebook| nb.output_editor().map(|(_, e)| e.notation()).unwrap_or_default();
+        // End and Home stop at the line break; Shift+End selects to it, not past it
+        nb.apply(Command::ClickBox(input, vec![], 2, false), &mut env);
+        nb.apply(Command::Move(Motion::End, false), &mut env);
+        assert_eq!(boxes(&nb), "first+line▮\nsecond+(z^3)");
+        nb.apply(Command::Move(Motion::Home, true), &mut env);
+        assert_eq!(boxes(&nb), "⟦first+line⟧\nsecond+(z^3)");
+        nb.apply(Command::ClickBox(input, vec![], 14, false), &mut env);
+        nb.apply(Command::Move(Motion::Home, false), &mut env);
+        assert_eq!(boxes(&nb), "first+line\n▮second+(z^3)");
+        // Shift+Up from the second line keeps the anchor (it used to drop the selection); past the first line it
+        // extends to the start
+        nb.apply(Command::ClickBox(input, vec![], 14, false), &mut env);
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert!(nb.box_editor().is_some_and(|(_, e)| e.selection().is_some()), "{}", boxes(&nb));
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert_eq!(boxes(&nb), "⟦first+line\nsec⟧ond+(z^3)");
+        // Shift+Down from inside the exponent: out to the end of the cell, the anchor kept
+        nb.apply(Command::ClickBox(input, vec![mc_boxes::Step { item: 18, slot: 1 }], 0, false), &mut env);
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        assert_eq!(boxes(&nb), "first+line\nsecond+⟦(z^3)⟧");
+        // typing over a selection replaces it; Delete removes it
+        nb.apply(Command::ClickBox(input, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(input, vec![], 5, true), &mut env);
+        nb.apply(Command::Insert("Q".into()), &mut env);
+        assert_eq!(boxes(&nb), "Q▮+line\nsecond+(z^3)");
+        nb.apply(Command::ClickBox(input, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(input, vec![], 2, true), &mut env);
+        nb.apply(Command::Delete, &mut env);
+        assert_eq!(boxes(&nb), "▮line\nsecond+(z^3)");
+        // the output: a Shift+click selection extends with Shift+Down to the end, Shift+Up back to the start
+        nb.apply(Command::ClickBox(out, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(out, vec![], 2, true), &mut env);
+        assert!(outs(&nb).starts_with('⟦'), "{}", outs(&nb));
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        assert!(outs(&nb).starts_with('⟦') && outs(&nb).ends_with('⟧'), "{}", outs(&nb));
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 0, pos: nb.cells()[1].text.len() });
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert!(!outs(&nb).contains('⟦'), "{}", outs(&nb));
+    }
 }

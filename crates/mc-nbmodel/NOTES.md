@@ -107,3 +107,11 @@ commands (M6) are bound to nothing.
 - Tests: 26 unit (new: the caret walks through a typeset output; a completion replaces the name; Find in typeset
   input), key scripts (6 new in `typeset.keys`: undo/redo caret, undo in a denominator, Shift across a box and
   back, Shift after a box, repeated Ctrl+, / Ctrl+Enter), tab scripts, 2 fuzz tests.
+
+## Round nb-ui
+
+- Shift+Up / Shift+Down in typeset input keep the selection's anchor (structural move, else `Env::box_line`, else the
+  cell's start or end); in typeset output they extend inside the output (structural, else its start or end).
+- Home / End in typeset input and output: the visual line (`Env::box_line_edge(cell, offset, end)`, default `None`
+  falls back to the editor, which stops at line breaks).
+- Tests: 27 unit (new: selections in typeset cells extend by lines and keep their anchor).

@@ -1,0 +1,10 @@
+\documentclass[tikz,border=0pt]{standalone}
+\input{icon-style}
+\begin{document}
+\begin{tikzpicture}[icon]
+\canvas
+% an error: a cross in a ring
+\draw[fine] (12,12) circle (9);
+\draw (8.75,8.75) -- (15.25,15.25) (8.75,15.25) -- (15.25,8.75);
+\end{tikzpicture}
+\end{document}

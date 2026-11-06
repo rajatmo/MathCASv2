@@ -201,12 +201,19 @@ impl App {
 
     pub(super) fn mouse(&mut self, ctx: &egui::Context, resp: &egui::Response, origin: egui::Pos2) {
         let (pointer, pressed, released, secondary, mods, time) = ctx.input(|i| {
+            // the modifiers held when the button went down (a Shift released in the same frame still counts)
+            let press = i.events.iter().find_map(|e| match e {
+                egui::Event::PointerButton { button: egui::PointerButton::Primary, pressed: true, modifiers, .. } => {
+                    Some(*modifiers)
+                }
+                _ => None,
+            });
             (
                 i.pointer.interact_pos(),
                 i.pointer.primary_pressed(),
                 i.pointer.primary_released(),
                 i.pointer.secondary_pressed(),
-                i.modifiers,
+                press.unwrap_or(i.modifiers),
                 i.time,
             )
         });
@@ -322,10 +329,16 @@ impl App {
                 }
                 Hit::Boxes(id) => {
                     if let Some((path, k)) = self.doc.view.box_hit(ctx, &self.doc.nb, id, p) {
-                        self.run(ctx, Command::ClickBox(id, path, k, mods.shift));
-                        if count >= 2 {
-                            // a double-click selects the enclosing expression (Ctrl+.)
-                            self.run(ctx, Command::ExtendSelection);
+                        if count <= 2 {
+                            self.run(ctx, Command::ClickBox(id, path, k, mods.shift && count == 1));
+                            if count == 2 {
+                                // a double-click selects the word or the innermost box there (Ctrl+.)
+                                self.run(ctx, Command::ExtendSelection);
+                            }
+                        } else if let Some(line) = self.doc.view.box_line_items(ctx, &self.doc.nb, id, p) {
+                            // a triple-click selects the visual line of the cell
+                            self.run(ctx, Command::ClickBox(id, vec![], line.start, false));
+                            self.run(ctx, Command::ClickBox(id, vec![], line.end, true));
                         }
                     }
                     self.drag = Some(Drag::Text);
@@ -339,7 +352,14 @@ impl App {
                 }
                 Some(Drag::Text) => {
                     let hit = self.doc.view.hit(ctx, &self.doc.nb, p);
-                    if let Hit::Boxes(id) = hit {
+                    // a drag that started in typeset boxes stays in their cell: beyond its edges it selects to the
+                    // start (above) or the end (below)
+                    let editor = self.doc.nb.box_editor().or(self.doc.nb.output_editor()).map(|(b, _)| b);
+                    let target = match (hit, editor) {
+                        (Hit::Boxes(id), _) | (_, Some(id)) => Some(id),
+                        _ => None,
+                    };
+                    if let Some(id) = target {
                         if let Some((path, k)) = self.doc.view.box_hit(ctx, &self.doc.nb, id, p) {
                             let editor = self.doc.nb.box_editor().or(self.doc.nb.output_editor());
                             let at = matches!(editor, Some((b, e)) if b == id && e.caret().path == path && e.caret().offset == k);
@@ -348,7 +368,7 @@ impl App {
                             }
                         }
                     }
-                    if let Hit::Text(id, pos) = hit {
+                    if let (Hit::Text(id, pos), None) = (hit, target) {
                         if !matches!(self.doc.nb.selection(), Selection::Caret { cell, pos: q, .. } if *cell == id && *q == pos)
                         {
                             self.run(ctx, Command::ClickText(id, pos, true));

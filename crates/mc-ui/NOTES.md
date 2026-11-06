@@ -62,3 +62,17 @@ Cells reach other programs only on Windows; a copied picture on Linux/macOS carr
 copy); theme, icon and settings still live in mc-notebook (mc-docs depends on it for them); egui's Ubuntu-Light and
 Hack are still compiled in through eframe's `default_fonts`; DejaVu Sans Mono is wider than Consolas; the Android
 eframe feature set is not wired.
+
+## Round nb-ui
+
+- `fonts::FaceFonts` (a face's fonts up to the math font: `glyph(c)` gives advance and ink extent in ems from the first
+  font that has `c`, `axis()` the middle of its minus sign) and `fonts::FontSet` (all faces of a `FontDefinitions`):
+  what typeset cells measure with. `ttf-parser` (MIT/Apache-2.0, already in the lock) is now a normal dependency.
+- `icons` (user request: every interface icon generated from TikZ): 26 icons drawn in TikZ
+  (`assets/icons/src/<name>.tex`, the common 24 x 24 canvas and 1.8 strokes of `icon-style.tex`, one colour), turned
+  into `assets/icons/<name>.svg` by `tools/icons.ps1` (latex, dvisvgm without fonts; committed, so building never
+  needs TeX) and compiled in. `icons::image(ctx, icon, size, tint)` (an egui image for buttons and labels),
+  `icons::paint` / `paint_turned` (a painter's square, on device pixels; the spinner turned): each icon is rasterised
+  with resvg at its size times the display scale as white coverage, uploaded once per (icon, pixel size), at most
+  256 textures, and tinted at paint time. `resvg` 0.49 (Apache-2.0/MIT, already in the lock) is now a dependency.
+  Tests: every source has its SVG and every icon its source; every SVG parses, is square, has ink and a margin.

@@ -32,6 +32,12 @@ pub trait Env {
         let _ = (cell, path, offset, up);
         None
     }
+    /// In a typeset cell: the start (or, with `end`, the end before its line break) of the visual line holding
+    /// offset `offset` of the root row (Home and End on wrapped content); `None` leaves it to the line breaks.
+    fn box_line_edge(&mut self, cell: &Cell, offset: usize, end: bool) -> Option<usize> {
+        let _ = (cell, offset, end);
+        None
+    }
     /// Whether the cell is shown as one unit with two caret places, before and after it (a typeset output, whose
     /// boxes the caret does not enter): character and word motions jump across it and a double-click selects it.
     fn atomic(&mut self, cell: &Cell) -> bool {

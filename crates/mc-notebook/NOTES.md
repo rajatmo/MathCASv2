@@ -220,3 +220,41 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   so `epaint_default_fonts` (Ubuntu Light, Hack, egui's emoji and icon fonts) is no longer built; menu check marks
   are `✓` (in the bundled symbols) instead of `✔`; an mc-ui test checks that every symbol the windows draw as text has
   a bundled glyph in every face.
+
+## Alignment, one font, selection (round nb-ui)
+
+- **Outputs right-justified** (NBUI.1, user decision): an Output cell's lines end at the content's right edge. Typeset
+  outputs: `Layout::align_right(width)` after the layout (also on the background worker); linear outputs: the galley
+  is laid out with `halign = RIGHT` and anchored at the right edge (`View::text_dx`), which caret rectangles, hits,
+  selections, `x_of`/`pos_at` (Up/Down) and the caret painting add; pictures: `graphic_rect` puts the right edge on the
+  content edge (plot read-outs and resize handles follow); large outputs: title, sample lines and buttons end at the
+  edge, the sample's rule stands left of its widest line. Print and Message cells stay left (program output read as a
+  log); an output showing its source stays left (it is edited text).
+- **One font in cells** (NBUI.2, user decision): `typeset::TextFont` (the cell face's fonts from `mc_ui::fonts::FontSet`,
+  egui's row height and baseline of the face at the cell's size) and `typeset::CellMetrics` (implements
+  `mc_boxes::Metrics`: text-font glyph extents and advances for every character the face's chain has before the math
+  font, the math font's for the rest; `line` = egui's row, `line_pitch` = the row height, `axis_height` = the middle
+  of the font's minus sign, `italic_letters` false). The painter draws text-font characters as egui galleys, one per
+  run of characters that follow each other on a baseline at one size (so they are placed and rasterised exactly as
+  plain text is, colours per character as sections), and only math-font characters, stretched delimiters, radicals,
+  big operators, placeholders and rules through the glyph atlas. The window's `FontSet` lives in `Glyphs` (shared by
+  the tabs) with a generation number that is part of every typeset layout key and height key, so changing fonts in the
+  preferences re-lays out every tab.
+- **Calm Ctrl+6** (NBUI.3): typeset Input cells lay out with `operator_spacing` off (no thin spaces, `->` stays two
+  characters) and `typeset::keep_baseline` lets the first line's scripts reach into the top margin (at most 80 % of
+  it and half an em) and the last line's into the bottom margin, so the first baseline stays where the plain text's
+  is. Measured: the window's pixels of `f(a) = a+b*c-d+x` before and after `Ctrl+6 "2"` are identical left of the new
+  superscript (before this round the whole line re-fonted in STIX and moved 7 px down).
+- **Selection** (NBUI.4): bugs found by self-test scripts and fixed: Shift+Up/Down dropped the selection in typeset
+  input (now: anchor kept, structural move, else visual line, else to the cell's start/end) and left typeset outputs
+  (now extend inside); Home/End jumped over line breaks and wrapped lines (now the visual line: `Env::box_line_edge`,
+  `View::box_line_edge`; the editor's own Home/End stop at line breaks); triple-click acted as a double-click (now the
+  visual line, `View::box_line_items`); a drag leaving a typeset cell stopped or jumped to another cell (now
+  `View::box_hit` clamps: above the boxes the start, below them the end, and the drag stays in its cell); the
+  highlight spanned the whole line height (now `tighten`: the ink of the selected items, text characters at their
+  row height); Shift+click took the frame's final modifiers (now the press's). Word/innermost-box double-click, Ctrl+A,
+  copy/cut text, typing over a selection, Delete/Backspace on a selection were checked and were right.
+- Self-test: `boxes` logs the box caret or selection (input or output) in the box notation; double and triple clicks
+  arrive one click per frame; modifiers are released a frame after a key chord or a Shift+click (before, a later
+  click inherited Shift).
+- Tests: 16 unit tests (new: right-justified geometry of typeset and linear outputs, prints and inputs on the left).

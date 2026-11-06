@@ -165,12 +165,22 @@ impl Notebook {
                 let moved = match m {
                     Motion::Left | Motion::WordLeft => o.ed.move_left(*extend),
                     Motion::Right | Motion::WordRight => o.ed.move_right(*extend),
-                    Motion::Home => {
-                        o.ed.move_home(*extend);
-                        true
-                    }
-                    Motion::End => {
-                        o.ed.move_end(*extend);
+                    Motion::Home | Motion::End => {
+                        let end = *m == Motion::End;
+                        let caret = o.ed.caret().clone();
+                        let edge = if caret.path.is_empty() {
+                            let c = self.cell(id)?.clone();
+                            env.box_line_edge(&c, caret.offset, end)
+                        } else {
+                            None
+                        };
+                        let o = self.outbox.as_mut()?;
+                        match edge {
+                            Some(k) if *extend => o.ed.extend_to(&[], k),
+                            Some(k) => o.ed.set_caret(&[], k),
+                            None if end => o.ed.move_end(*extend),
+                            None => o.ed.move_home(*extend),
+                        }
                         true
                     }
                     // structural Up and Down inside the output; at its top and bottom the generic motion leaves it
@@ -184,6 +194,20 @@ impl Notebook {
                         if !o.ed.move_down() {
                             return None;
                         }
+                        true
+                    }
+                    // Shift+Up and Shift+Down: structurally where they can, else to the output's start or end, the
+                    // anchor kept
+                    Motion::Up | Motion::Down => {
+                        let up = *m == Motion::Up;
+                        let start = o.ed.anchor().cloned().unwrap_or_else(|| o.ed.caret().clone());
+                        let to = if up && o.ed.move_up() || !up && o.ed.move_down() {
+                            o.ed.caret().clone()
+                        } else {
+                            mc_boxes::Caret { path: vec![], offset: if up { 0 } else { o.ed.root().len() } }
+                        };
+                        o.ed.set_caret(&start.path, start.offset);
+                        o.ed.extend_to(&to.path, to.offset);
                         true
                     }
                     _ => return None,

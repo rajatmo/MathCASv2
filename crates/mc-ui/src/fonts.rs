@@ -239,6 +239,93 @@ pub fn definitions(source: Source) -> FontDefinitions {
     defs
 }
 
+/// The extent of one glyph in ems (1 em = the font size), y up from the baseline.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GlyphBox {
+    /// horizontal advance (as egui lays the character out)
+    pub advance: f32,
+    /// top of the ink above the baseline (0 for a glyph without ink)
+    pub ascent: f32,
+    /// bottom of the ink below the baseline (positive downwards)
+    pub descent: f32,
+}
+
+/// The text fonts of one [`Face`] as egui uses them, without the math font and egui's emoji fonts at the end of
+/// its chain: what typeset cells need to draw a character in the cell's own font (design 4.10, round nb-ui). A
+/// character no font of the chain has is left to the math font.
+#[derive(Clone)]
+pub struct FaceFonts {
+    fonts: Vec<Arc<FontData>>,
+}
+
+impl std::fmt::Debug for FaceFonts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FaceFonts({} fonts)", self.fonts.len())
+    }
+}
+
+impl FaceFonts {
+    /// The text fonts of `face` in `defs` (as made by [`definitions`]): its family's chain up to the math font.
+    pub fn new(defs: &FontDefinitions, face: Face) -> FaceFonts {
+        let fonts = defs
+            .families
+            .get(&face.family())
+            .into_iter()
+            .flatten()
+            .take_while(|k| k.as_str() != MATH.key)
+            .filter_map(|k| defs.font_data.get(k).cloned())
+            .collect();
+        FaceFonts { fonts }
+    }
+
+    /// The extent of `c` in the first font of the chain that has it; `None` when none has it.
+    pub fn glyph(&self, c: char) -> Option<GlyphBox> {
+        for data in &self.fonts {
+            let Ok(f) = ttf_parser::Face::parse(data.bytes(), data.index) else { continue };
+            let Some(g) = f.glyph_index(c) else { continue };
+            let em = f32::from(f.units_per_em().max(1));
+            let scale = data.tweak.scale / em;
+            let advance = f32::from(f.glyph_hor_advance(g).unwrap_or(0)) * scale;
+            let (ascent, descent) = f
+                .glyph_bounding_box(g)
+                .map_or((0.0, 0.0), |b| (f32::from(b.y_max) * scale, -f32::from(b.y_min) * scale));
+            return Some(GlyphBox { advance, ascent: ascent.max(0.0), descent: descent.max(0.0) });
+        }
+        None
+    }
+
+    /// The middle of the ink of the first font's minus sign (or `-`) above the baseline, in ems: the math axis of
+    /// this font (fraction bars and centred delimiters line up with its operators).
+    pub fn axis(&self) -> Option<f32> {
+        ['\u{2212}', '-'].into_iter().find_map(|c| {
+            let data = self.fonts.first()?;
+            let f = ttf_parser::Face::parse(data.bytes(), data.index).ok()?;
+            let g = f.glyph_index(c)?;
+            let b = f.glyph_bounding_box(g)?;
+            let em = f32::from(f.units_per_em().max(1));
+            Some((f32::from(b.y_max) + f32::from(b.y_min)) / 2.0 / em * data.tweak.scale)
+        })
+    }
+}
+
+/// The text fonts of every face (see [`FaceFonts`]).
+#[derive(Clone, Debug)]
+pub struct FontSet {
+    faces: Vec<(Face, Arc<FaceFonts>)>,
+}
+
+impl FontSet {
+    /// The faces of `defs` (as made by [`definitions`]).
+    pub fn new(defs: &FontDefinitions) -> FontSet {
+        FontSet { faces: Face::ALL.into_iter().map(|f| (f, Arc::new(FaceFonts::new(defs, f)))).collect() }
+    }
+
+    /// The text fonts of `face`.
+    pub fn face(&self, face: Face) -> Arc<FaceFonts> {
+        self.faces.iter().find(|(f, _)| *f == face).map_or_else(|| Arc::new(FaceFonts { fonts: vec![] }), |(_, v)| v.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +403,23 @@ mod tests {
             let missing: String = "•→∞≈⋮⌂■□▶◀●◐☀☾✓▾▸⏵".chars().filter(|c| covering(&defs, &f.family(), *c).is_none()).collect();
             assert!(missing.is_empty(), "{f:?} has no glyph for {missing}");
         }
+    }
+
+    #[test]
+    fn face_fonts_measure_the_text_font_and_leave_the_rest_to_the_math_font() {
+        let set = FontSet::new(&definitions(Source::Bundled));
+        let code = set.face(Face::Code);
+        let x = code.glyph('x').expect("the code font has x");
+        let m = code.glyph('M').expect("and M");
+        // monospaced, ink of a lower-case letter below the capital's
+        assert!((x.advance - m.advance).abs() < 1e-4 && x.advance > 0.5 && x.advance < 0.7, "{x:?} {m:?}");
+        assert!(x.ascent < m.ascent && x.descent < 0.05, "{x:?} {m:?}");
+        assert!(code.glyph('y').expect("y").descent > 0.1);
+        // the symbols the chain has before the math font are text; a double-struck capital only the math font has
+        assert!(code.glyph('∑').is_some());
+        assert!(code.glyph('𝕏').is_none());
+        let axis = code.axis().expect("a minus sign");
+        assert!(axis > 0.2 && axis < 0.45, "{axis}");
     }
 
     #[test]

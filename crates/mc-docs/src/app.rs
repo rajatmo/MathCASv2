@@ -8,6 +8,7 @@ use crate::selftest::SelfTest;
 use crate::view::{Colours, Draw, Find, Images, Loc, MAX_WIDTH};
 use eframe::egui::{self, Frame, Key, Margin, Modifiers, RichText, ScrollArea, ViewportCommand};
 use mc_notebook::theme::{Palette, ThemeChoice};
+use mc_ui::icons::{self, Icon};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -314,21 +315,22 @@ impl DocsApp {
 
     fn top_bar(&mut self, ui: &mut egui::Ui, p: &Palette) {
         ui.horizontal_centered(|ui| {
-            let nav = |ui: &mut egui::Ui, label: &str, tip: &str, enabled: bool| {
-                ui.add_enabled(enabled, egui::Button::new(RichText::new(label).size(15.0)).frame(false))
-                    .on_hover_text(tip)
-                    .clicked()
+            let nav = |ui: &mut egui::Ui, icon: Icon, tip: &str, enabled: bool| {
+                let tint = if enabled { p.text } else { p.faint };
+                let b = egui::Button::image(icons::image(ui.ctx(), icon, 16.0, tint)).frame(false).min_size(egui::vec2(26.0, 24.0));
+                ui.add_enabled(enabled, b).on_hover_text(tip).on_disabled_hover_text(tip).clicked()
             };
-            if nav(ui, "◀", "Back (Alt+Left)", self.at > 0) {
+            if nav(ui, Icon::ArrowLeft, "Back (Alt+Left)", self.at > 0) {
                 self.back();
             }
-            if nav(ui, "▶", "Forward (Alt+Right)", self.at + 1 < self.history.len()) {
+            if nav(ui, Icon::ArrowRight, "Forward (Alt+Right)", self.at + 1 < self.history.len()) {
                 self.forward();
             }
-            if nav(ui, "⌂", "Home (Alt+Home)", true) {
+            if nav(ui, Icon::Home, "Home (Alt+Home)", true) {
                 self.go(Loc::Home);
             }
             ui.add_space(8.0);
+            ui.add(icons::image(ui.ctx(), Icon::Search, 15.0, p.weak));
             // the result keys act before the box sees them
             let (down, up, enter, escape) = ui.input_mut(|i| {
                 (
@@ -367,12 +369,13 @@ impl DocsApp {
                 self.searched();
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let (label, next) = match self.theme {
-                    ThemeChoice::System => ("Theme: system", ThemeChoice::Light),
-                    ThemeChoice::Light => ("Theme: light", ThemeChoice::Dark),
-                    ThemeChoice::Dark => ("Theme: dark", ThemeChoice::System),
+                let (label, icon, next) = match self.theme {
+                    ThemeChoice::System => ("Theme: system", Icon::ThemeSystem, ThemeChoice::Light),
+                    ThemeChoice::Light => ("Theme: light", Icon::ThemeLight, ThemeChoice::Dark),
+                    ThemeChoice::Dark => ("Theme: dark", Icon::ThemeDark, ThemeChoice::System),
                 };
-                if ui.add(egui::Button::new(RichText::new(label).size(12.5)).frame(false)).clicked() {
+                let img = icons::image(ui.ctx(), icon, 15.0, p.yellow);
+                if ui.add(egui::Button::image_and_text(img, RichText::new(label).size(12.5)).frame(false)).clicked() {
                     self.theme = next;
                 }
                 if let Some(s) = &self.status {
@@ -408,13 +411,18 @@ impl DocsApp {
                 format!("{} of {}", f.current.min(f.count - 1) + 1, f.count)
             };
             ui.label(RichText::new(counted).size(12.5));
-            if ui.button("Next").on_hover_text("Enter, F3").clicked() {
+            let color = ui.visuals().text_color();
+            let icon = |ui: &mut egui::Ui, i: Icon, tip: &str| {
+                ui.add(egui::Button::image(icons::image(ui.ctx(), i, 14.0, color)).min_size(egui::vec2(26.0, 22.0)))
+                    .on_hover_text(tip)
+            };
+            if icon(ui, Icon::ArrowDown, "Next (Enter, F3)").clicked() {
                 step = Some(true);
             }
-            if ui.button("Previous").on_hover_text("Shift+Enter, Shift+F3").clicked() {
+            if icon(ui, Icon::ArrowUp, "Previous (Shift+Enter, Shift+F3)").clicked() {
                 step = Some(false);
             }
-            if ui.button("Close").clicked() || (edit.has_focus() && ui.input(|i| i.key_pressed(Key::Escape))) {
+            if icon(ui, Icon::Close, "Close (Esc)").clicked() || (edit.has_focus() && ui.input(|i| i.key_pressed(Key::Escape))) {
                 close = true;
             }
         });

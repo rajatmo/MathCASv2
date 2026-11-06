@@ -232,18 +232,31 @@ impl Notebook {
                 let moved = match m {
                     Motion::Left | Motion::WordLeft => ed.move_left(*extend),
                     Motion::Right | Motion::WordRight => ed.move_right(*extend),
-                    Motion::Home => {
-                        ed.move_home(*extend);
-                        true
-                    }
-                    Motion::End => {
-                        ed.move_end(*extend);
+                    Motion::Home | Motion::End => {
+                        let end = *m == Motion::End;
+                        let caret = ed.caret().clone();
+                        // on the root row, the visual line (wrapped content); else the line breaks of the row
+                        let edge = if caret.path.is_empty() {
+                            let c = self.cell(id).expect("boxed cell").clone();
+                            env.box_line_edge(&c, caret.offset, end)
+                        } else {
+                            None
+                        };
+                        let ed = &mut self.boxed.as_mut().expect("boxed").ed;
+                        match edge {
+                            Some(k) if *extend => ed.extend_to(&[], k),
+                            Some(k) => ed.set_caret(&[], k),
+                            None if end => ed.move_end(*extend),
+                            None => ed.move_home(*extend),
+                        }
                         true
                     }
                     Motion::Up | Motion::Down => {
                         let up = *m == Motion::Up;
+                        // Shift keeps the selection's anchor where it was
+                        let start = ed.anchor().cloned().unwrap_or_else(|| ed.caret().clone());
                         let inside = if up { ed.move_up() } else { ed.move_down() };
-                        inside || {
+                        let moved = inside || {
                             let caret = ed.caret().clone();
                             let c = self.cell(id).expect("boxed cell").clone();
                             match env.box_line(&c, &caret.path, caret.offset, up) {
@@ -254,7 +267,20 @@ impl Notebook {
                                 }
                                 None => false,
                             }
+                        };
+                        if *extend {
+                            let ed = &mut self.boxed.as_mut().expect("boxed").ed;
+                            // past the first or last line: to the start or the end of the cell
+                            let to = if moved {
+                                ed.caret().clone()
+                            } else {
+                                mc_boxes::Caret { path: vec![], offset: if up { 0 } else { ed.root().len() } }
+                            };
+                            ed.set_caret(&start.path, start.offset);
+                            ed.extend_to(&to.path, to.offset);
+                            return Some(None);
                         }
+                        moved
                     }
                     Motion::DocStart | Motion::DocEnd => return None,
                 };

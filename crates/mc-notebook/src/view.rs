@@ -95,7 +95,7 @@ pub fn look(cell: &Cell, p: &Palette) -> Look {
 /// frames: egui caches them by content and drops them when its glyph atlas is rebuilt, which a kept galley would
 /// not survive.
 struct Laid {
-    key: (u64, u32, u32, bool),
+    key: (u64, u32, u32, bool, u32),
     height: f32,
 }
 
@@ -197,6 +197,8 @@ struct Long {
     rows: Vec<Range<usize>>,
     /// the characters of the whole output
     chars: usize,
+    /// the characters of its longest line
+    widest: usize,
 }
 
 /// The size of the resize handles and how far from them the pointer still takes them (points).
@@ -271,8 +273,6 @@ pub struct View {
     pub matrices: bool,
     /// the colours of the characters of typeset input cells, per layout row and item (design 3.11 in boxes)
     box_colours: HashMap<CellId, (ColourKey, Colours)>,
-    /// the right end of each line of typeset outputs' layouts (selection highlights), by cell
-    rights: HashMap<CellId, (LayoutKey, Arc<Vec<f32>>)>,
     /// the worker typesetting large outputs, and the layouts asked of it
     background: Option<Background>,
     pending: HashMap<CellId, LayoutKey>,
@@ -315,7 +315,6 @@ impl View {
             typeset_outputs: true,
             matrices: true,
             box_colours: HashMap::new(),
-            rights: HashMap::new(),
             background: None,
             pending: HashMap::new(),
             ctx: None,
@@ -341,7 +340,6 @@ impl View {
     /// Forget the box layouts (the matrix setting or the default output form changed).
     pub fn clear_boxes(&mut self) {
         self.boxes.clear();
-        self.rights.clear();
         self.pending.clear();
         self.box_colours.clear();
         self.laid.clear();
@@ -401,7 +399,44 @@ impl View {
     /// The key of cell `c`'s box layout at the current width and zoom.
     fn box_key(&self, c: &Cell) -> LayoutKey {
         let (l, r) = self.content_x(c.style);
-        (c.rev, (r - l).to_bits(), self.zoom.to_bits())
+        (c.rev, (r - l).to_bits(), self.zoom.to_bits(), self.font_gen())
+    }
+
+    /// The generation of the window's fonts (typeset layouts and cell heights depend on them).
+    fn font_gen(&self) -> u32 {
+        self.glyphs.borrow().face(mc_ui::fonts::Face::Code).1
+    }
+
+    /// The text font of cell `c` as its typeset content uses it (NBUI.2).
+    fn text_font(&self, ctx: &egui::Context, c: &Cell) -> typeset::TextFont {
+        let lk = look(c, &self.palette);
+        let (fonts, _) = self.glyphs.borrow().face(lk.face);
+        typeset::TextFont::new(ctx, lk.face, fonts, lk.size * self.zoom)
+    }
+
+    /// How far a typeset cell's scripts may reach into its top and bottom margins (points on the screen): most of
+    /// each margin, at most half an em above and a third below.
+    fn script_reach(&self, c: &Cell) -> (f32, f32) {
+        let m = c.style.info().margins;
+        let size = look(c, &self.palette).size * self.zoom;
+        ((m[2] * self.zoom * 0.8).min(0.5 * size), (m[3] * self.zoom * 0.8).min(size / 3.0))
+    }
+
+    /// Output cells are right-justified (NBUI.1): each line ends at the content's right edge. Print and Message
+    /// cells (program output, read as a log) and an output showing its source stay left-justified.
+    fn right_justified(c: &Cell) -> bool {
+        c.style == Style::Output && !c.expr_view
+    }
+
+    /// Where the galley of a cell shown as text is anchored, from the content's left edge: right-justified text is
+    /// laid out right-aligned at the content's right edge (egui's rows then end at x = 0 of the galley).
+    fn text_dx(&self, c: &Cell) -> f32 {
+        if Self::right_justified(c) {
+            let (l, r) = self.content_x(c.style);
+            r - l
+        } else {
+            0.0
+        }
     }
 
     /// The options of cell `c`'s box layout.
@@ -416,7 +451,9 @@ impl View {
                 ..LayoutOptions::output(lk.size * self.zoom, width)
             }
         } else {
-            LayoutOptions::input(lk.size * self.zoom, width)
+            // no thin spaces around operators and no `->` drawn as one arrow: a plain input that becomes typeset
+            // keeps every character where it was (NBUI.3)
+            LayoutOptions { operator_spacing: false, ..LayoutOptions::input(lk.size * self.zoom, width) }
         }
     }
 
@@ -424,22 +461,23 @@ impl View {
     /// asked of the worker and the output shows as linear text meanwhile.
     fn output_ready(&mut self, c: &Cell) -> bool {
         let key = self.box_key(c);
-        let usable = |k: &LayoutKey| k.0 == key.0 && k.2 == key.2;
+        let usable = |k: &LayoutKey| k.0 == key.0 && k.2 == key.2 && k.3 == key.3;
         let have = self.boxes.get(&c.id).map(|(k, _)| *k);
         if have == Some(key) {
             return true;
         }
         if self.pending.get(&c.id) != Some(&key) {
             if let Some(ctx) = self.ctx.clone() {
-                let lk = look(c, &self.palette);
-                let fallback = typeset::fallback_advances(&ctx, &c.text, &lk.face.font(lk.size * self.zoom));
+                let (l, r) = self.content_x(c.style);
                 let job = typeset::Job {
                     id: c.id,
                     key,
                     text: c.text.clone(),
                     opts: self.box_options(c),
                     output: self.output_options(),
-                    fallback,
+                    font: self.text_font(&ctx, c),
+                    right: Self::right_justified(c).then_some(r - l),
+                    reach: self.script_reach(c),
                 };
                 self.background.get_or_insert_with(|| Background::new(&ctx)).submit(job);
                 self.pending.insert(c.id, key);
@@ -457,7 +495,6 @@ impl View {
             }
             if nb.cell(d.id).is_some_and(|c| c.rev == d.key.0) {
                 self.boxes.insert(d.id, (d.key, d.layout));
-                self.rights.insert(d.id, (d.key, d.rights));
                 // its height changes from the linear text's
                 self.laid.remove(&d.id);
             }
@@ -531,44 +568,79 @@ impl View {
         let large = c.style == Style::Output && c.text.len() > TYPESET_SYNC;
         if let Some((k, lay)) = self.boxes.get(&c.id) {
             // a large output keeps its layout at another width until the worker's arrives
-            if *k == key || large && k.0 == key.0 && k.2 == key.2 {
+            if *k == key || large && k.0 == key.0 && k.2 == key.2 && k.3 == key.3 {
                 return lay.clone();
             }
         }
-        let lk = look(c, &self.palette);
         let opts = self.box_options(c);
         let row = if c.style == Style::Output {
             mc_boxes::typeset_output_with(&c.text, self.output_options()).row
         } else {
             mc_boxes::from_text(&c.text)
         };
-        let lay = Arc::new(typeset::lay_out(ctx, &row, &opts, &lk.face.font(lk.size * self.zoom)));
+        let font = self.text_font(ctx, c);
+        let mut lay = typeset::lay_out(&row, &opts, &font);
+        let (above, below) = self.script_reach(c);
+        typeset::keep_baseline(&mut lay, &font, opts.size, above, below);
+        if Self::right_justified(c) {
+            let (l, r) = self.content_x(c.style);
+            lay.align_right(r - l);
+        }
+        let lay = Arc::new(lay);
         self.boxes.insert(c.id, (key, lay.clone()));
         lay
     }
 
-    /// The right end of each line of a typeset output.
-    fn line_rights(&mut self, ctx: &egui::Context, c: &Cell) -> Arc<Vec<f32>> {
-        let lay = self.box_layout(ctx, c);
-        let key = self.boxes.get(&c.id).map(|(k, _)| *k);
-        if let Some((k, r)) = self.rights.get(&c.id) {
-            if Some(*k) == key {
-                return r.clone();
-            }
-        }
-        let r = Arc::new(typeset::line_rights(&lay));
-        if let Some(k) = key {
-            self.rights.insert(c.id, (k, r.clone()));
-        }
-        r
-    }
-
-    /// The caret position in the boxes of cell `id` nearest to `p` (canvas coordinates).
+    /// The caret position in the boxes of cell `id` nearest to `p` (canvas coordinates); above the boxes the start,
+    /// below them the end of the cell's boxes (a drag past a cell's edge selects to its start or end).
     pub fn box_hit(&mut self, ctx: &egui::Context, nb: &Notebook, id: CellId, p: Pos2) -> Option<(RowPath, usize)> {
         let i = nb.index_of(id)?;
         let lay = self.box_layout(ctx, &nb.cells()[i]);
         let o = self.content_origin(nb, i);
-        Some(lay.hit(p.x - o.x, p.y - o.y))
+        let (x, y) = (p.x - o.x, p.y - o.y);
+        let first = lay.lines.first()?;
+        let last = lay.lines.last()?;
+        if y < first.top.min(0.0) {
+            return Some((vec![], first.start));
+        }
+        if y > last.bottom.max(lay.height) {
+            return Some((vec![], last.end));
+        }
+        Some(lay.hit(x, y))
+    }
+
+    /// The items of the visual line of cell `id`'s boxes at `p` (canvas coordinates), its line break excluded (a
+    /// triple-click selects them).
+    pub fn box_line_items(&mut self, ctx: &egui::Context, nb: &Notebook, id: CellId, p: Pos2) -> Option<Range<usize>> {
+        let i = nb.index_of(id)?;
+        let c = &nb.cells()[i];
+        let lay = self.box_layout(ctx, c);
+        let o = self.content_origin(nb, i);
+        let l = *lay.lines.get(lay.line_at(p.y - o.y))?;
+        Some(l.start..self.line_end(c, l.start, l.end))
+    }
+
+    /// The end of a root line `start..end` without its line break.
+    fn line_end(&self, c: &Cell, start: usize, end: usize) -> usize {
+        let row = if c.style == Style::Output {
+            mc_boxes::typeset_output_with(&c.text, self.output_options()).row
+        } else {
+            mc_boxes::from_text(&c.text)
+        };
+        if end > start && matches!(row.0.get(end - 1), Some(mc_boxes::Item::Char('\n'))) {
+            end - 1
+        } else {
+            end
+        }
+    }
+
+    /// The start or the end (before its line break) of the visual line holding offset `offset` of the root row of
+    /// a typeset cell (Home and End).
+    pub fn box_line_edge(&mut self, ctx: &egui::Context, c: &Cell, offset: usize, end: bool) -> Option<usize> {
+        let lay = self.box_layout(ctx, c);
+        // a line's end offset is the next line's start, except on the last line
+        let l = *lay.lines.iter().find(|l| offset >= l.start && offset < l.end).or(lay.lines.last())?;
+        Some(if end { self.line_end(c, l.start, l.end) } else { l.start })
     }
 
     /// The caret position on the visual line above or below a caret in a typeset cell's boxes.
@@ -593,7 +665,12 @@ impl View {
         let c = &nb.cells()[i];
         let Shown::Graphic(path) = self.shown(c) else { return None };
         let size = self.graphic_size(c, &path, true);
-        Some(Rect::from_min_size(self.content_origin(nb, i), size))
+        let mut o = self.content_origin(nb, i);
+        if Self::right_justified(c) {
+            let (l, r) = self.content_x(c.style);
+            o.x += (r - l - size.x).max(0.0);
+        }
+        Some(Rect::from_min_size(o, size))
     }
 
 
@@ -617,7 +694,8 @@ impl View {
         let text: Arc<str> =
             if budget >= chars { Arc::from(c.text.as_str()) } else { Arc::from(printed::sample(&c.text, budget)) };
         let rows = printed::wrap(&text, cols);
-        let l = Arc::new(Long { key, text, rows, chars });
+        let widest = rows.iter().map(|r| text[r.clone()].trim_end().chars().count()).max().unwrap_or(0);
+        let l = Arc::new(Long { key, text, rows, chars, widest });
         self.long.insert(c.id, l.clone());
         l
     }
@@ -641,14 +719,24 @@ impl View {
         let font = Face::Ui.font(12.0 * self.magnification().max(0.75));
         let y = title + l.rows.len() as f32 * row + 4.0;
         let mut x = 0.0;
-        list.into_iter()
+        let mut out: Vec<(Rect, LargeAction, &'static str)> = list
+            .into_iter()
             .map(|(a, label)| {
                 let w = ctx.fonts_mut(|f| f.layout_no_wrap(label.to_string(), font.clone(), Color32::WHITE)).size().x;
                 let r = Rect::from_min_size(pos2(x, y), vec2(w + 12.0, buttons - 4.0));
                 x += w + 20.0;
                 (r, a, label)
             })
-            .collect()
+            .collect();
+        // an output's buttons end at the right edge, under its right-justified sample
+        if Self::right_justified(c) {
+            let end = out.last().map_or(0.0, |(r, _, _)| r.right());
+            let dx = (self.text_dx(c) - end).max(0.0);
+            for (r, _, _) in &mut out {
+                *r = r.translate(vec2(dx, 0.0));
+            }
+        }
+        out
     }
 
     /// Act on a large output's button.
@@ -681,9 +769,9 @@ impl View {
         height
     }
 
-    fn layout_key(&self, c: &Cell) -> (u64, u32, u32, bool) {
+    fn layout_key(&self, c: &Cell) -> (u64, u32, u32, bool, u32) {
         let (l, r) = self.content_x(c.style);
-        (c.rev, (r - l).to_bits(), self.zoom.to_bits(), self.palette.dark)
+        (c.rev, (r - l).to_bits(), self.zoom.to_bits(), self.palette.dark, self.font_gen())
     }
 
     /// The bracket columns shown: the deepest group's column, at least [`MIN_COLUMNS`].
@@ -714,7 +802,7 @@ impl View {
     pub fn galley(&mut self, ctx: &egui::Context, cell: &Cell) -> Arc<Galley> {
         let (l, r) = self.content_x(cell.style);
         let wrap = r - l;
-        let key = (cell.rev, wrap.to_bits(), self.zoom.to_bits(), self.palette.dark);
+        let key = self.layout_key(cell);
         let lk = look(cell, &self.palette);
         let mut job = LayoutJob::default();
         let format =
@@ -729,6 +817,10 @@ impl View {
         }
         job.wrap.max_width = wrap;
         job.wrap.break_anywhere = false;
+        if Self::right_justified(cell) {
+            // each row ends at the galley's x = 0, drawn at the content's right edge (`text_dx`)
+            job.halign = egui::Align::RIGHT;
+        }
         let galley = ctx.fonts_mut(|f| f.layout_job(job));
         self.laid.insert(cell.id, Laid { key, height: galley.size().y });
         galley
@@ -873,7 +965,6 @@ impl View {
         self.wrapped.retain(|id, _| ids.contains(id));
         self.long.retain(|id, _| ids.contains(id));
         self.boxes.retain(|id, _| ids.contains(id));
-        self.rights.retain(|id, _| ids.contains(id));
         self.pending.retain(|id, _| ids.contains(id));
         self.large.retain(|id, _| ids.contains(id));
         self.budgets.retain(|id, _| ids.contains(id));
@@ -942,7 +1033,7 @@ impl View {
         let g = self.galley(ctx, c);
         let chars = c.text[..pos.min(c.text.len())].chars().count();
         let r = g.pos_from_cursor(CCursor::new(chars));
-        Some(r.translate(self.content_origin(nb, i).to_vec2()))
+        Some(r.translate(self.content_origin(nb, i).to_vec2() + vec2(self.text_dx(c), 0.0)))
     }
 
     /// The bracket columns of the notebook: (column, top, bottom, bracket) for every cell and group that shows.
@@ -1038,7 +1129,7 @@ impl View {
             Shown::Boxes | Shown::Typeset => return Hit::Boxes(c.id),
         }
         let g = self.galley(ctx, c);
-        let cur = g.cursor_from_pos(p - origin);
+        let cur = g.cursor_from_pos(p - origin - vec2(self.text_dx(c), 0.0));
         let byte = c.text.char_indices().nth(cur.index.0).map_or(c.text.len(), |(b, _)| b);
         Hit::Text(c.id, byte)
     }
@@ -1122,21 +1213,15 @@ impl View {
                     painter.hline(content.x..=origin.x + rr, painter.round_to_pixel_center(r.bottom() - 3.0), rule);
                 }
             }
+            // right-justified text is anchored at the content's right edge
+            let at = content + vec2(self.text_dx(c), 0.0);
             // the text selection
             if let Selection::Caret { cell, anchor, pos } = sel {
                 if cell == c.id && anchor != pos {
-                    paint_selection(
-                        painter,
-                        &g,
-                        &c.text,
-                        content,
-                        anchor.min(pos),
-                        anchor.max(pos),
-                        p.text_selection(),
-                    );
+                    paint_selection(painter, &g, &c.text, at, anchor.min(pos), anchor.max(pos), p.text_selection());
                 }
             }
-            painter.galley(content, g.clone(), p.text);
+            painter.galley(at, g.clone(), p.text);
             // bullets and numbers of items
             if info.bullet || c.style.numbering_level().is_some() {
                 let row_h = g.rows.first().map_or(info.size * z, |r| r.rect().height());
@@ -1149,7 +1234,7 @@ impl View {
                 // no caret beside a text selection, as in the reference
                 if cell == c.id && anchor == pos && self.caret_on(time) {
                     let chars = c.text[..pos.min(c.text.len())].chars().count();
-                    let cr = g.pos_from_cursor(CCursor::new(chars)).translate(content.to_vec2());
+                    let cr = g.pos_from_cursor(CCursor::new(chars)).translate(at.to_vec2());
                     paint_caret(painter, cr, &g, chars, p.cursor);
                 }
             }
@@ -1198,9 +1283,8 @@ impl View {
                 if hot {
                     painter.circle_filled(center, 7.0, p.over_bg(p.accent, 0.12));
                 }
-                painter.circle_stroke(center, 7.0, Stroke::new(1.0, color));
-                painter.hline(center.x - 3.5..=center.x + 3.5, center.y, Stroke::new(1.2, color));
-                painter.vline(center.x, center.y - 3.5..=center.y + 3.5, Stroke::new(1.2, color));
+                // the icon set's plus in a ring
+                mc_ui::icons::paint(painter, mc_ui::icons::Icon::Insert, Rect::from_center_size(center, vec2(18.0, 18.0)), color);
                 if nb.gap_style() != Style::Input {
                     let font = Face::Ui.font(10.5);
                     painter.text(
@@ -1417,13 +1501,13 @@ impl View {
         let editor = editor.filter(|(id, _)| *id == c.id).map(|(_, e)| e);
         // the selection behind the boxes, line by line when it wraps
         if let Some((path, range)) = editor.and_then(|e| e.selection()) {
-            for r in selection_rects(&lay, &path, range) {
+            let font = self.text_font(ctx, c);
+            for r in selection_rects(&lay, &path, range, (font.ascent, font.row - font.ascent)) {
                 painter.rect_filled(r.translate(content.to_vec2()), 0.0, p.text_selection());
             }
         }
-        let font = lk.face.font(lk.size * self.zoom);
         let colours = if output || c.failure { None } else { Some(self.box_colours(c, &lay)) };
-        let mut ink = typeset::Ink::new(&p, lk.color, &font);
+        let mut ink = typeset::Ink::new(&p, lk.color, lk.face);
         ink.colours = colours.as_deref().map(|v| v.as_slice());
         typeset::paint(painter, &mut self.glyphs.borrow_mut(), &lay, content, clip, &ink);
         if output && editor.is_none() {
@@ -1504,7 +1588,7 @@ impl View {
     /// The caret of a typeset output (content coordinates): before its first line, or after its last.
     fn output_caret(&mut self, ctx: &egui::Context, c: &Cell, pos: usize) -> Rect {
         let lay = self.box_layout(ctx, c);
-        let rights = self.line_rights(ctx, c);
+        let rights = typeset::line_rights(&lay);
         let (ln, x) = if pos == 0 {
             (lay.lines.first(), lay.lines.first().map_or(0.0, |l| l.indent))
         } else {
@@ -1533,7 +1617,14 @@ impl View {
         } else {
             format!("A very large output was generated ({} characters). Here is a sample of it:", group_digits(l.chars))
         };
-        painter.text(content, Align2::LEFT_TOP, head, ui.clone(), p.weak);
+        // an output's title and lines end at the right edge (NBUI.1), a print's start at the left
+        let right = Self::right_justified(c);
+        let (x0, align) = if right {
+            (content.x + self.text_dx(c), (Align2::RIGHT_TOP, egui::Align::RIGHT))
+        } else {
+            (content.x, (Align2::LEFT_TOP, egui::Align::LEFT))
+        };
+        painter.text(pos2(x0, content.y), align.0, head, ui.clone(), p.weak);
         let font = self.font(c);
         let color = look(c, &p).color;
         let first = content.y + title;
@@ -1542,11 +1633,18 @@ impl View {
         let to = (((clip.bottom() - first) / row).ceil().max(0.0) as usize + 1).min(l.rows.len());
         for k in from..to {
             let line = &l.text[l.rows[k].clone()];
-            painter.text(pos2(content.x, first + k as f32 * row), Align2::LEFT_TOP, line, font.clone(), color);
+            let line = if align.1 == egui::Align::RIGHT { line.trim_end() } else { line };
+            painter.text(pos2(x0, first + k as f32 * row), align.0, line, font.clone(), color);
         }
-        // a thin rule in the margin marks the sample
+        // a thin rule left of the sample marks it
         let bottom = first + l.rows.len() as f32 * row;
-        let x = painter.round_to_pixel_center(content.x - 6.0 * self.zoom);
+        let left = if right {
+            let cw = ctx.fonts_mut(|f| f.glyph_width(&font, '0'));
+            (x0 - l.widest as f32 * cw).max(content.x)
+        } else {
+            content.x
+        };
+        let x = painter.round_to_pixel_center(left - 6.0 * self.zoom);
         painter.vline(x, first..=bottom, Stroke::new(hairline(painter), p.border_strong()));
         for (r, _, label) in self.large_buttons(ctx, c) {
             let r = r.translate(content.to_vec2());
@@ -1622,7 +1720,7 @@ impl View {
         }
         let g = self.galley(ctx, cell);
         let chars = cell.text[..pos.min(cell.text.len())].chars().count();
-        g.pos_from_cursor(CCursor::new(chars)).left()
+        g.pos_from_cursor(CCursor::new(chars)).left() + self.text_dx(cell)
     }
 
     /// The position in `line` nearest to `x`.
@@ -1633,15 +1731,16 @@ impl View {
         let g = self.galley(ctx, cell);
         let chars = cell.text[..line.start].chars().count();
         let y = g.pos_from_cursor(CCursor::new(chars)).center().y;
-        let cur = g.cursor_from_pos(vec2(x, y));
+        let cur = g.cursor_from_pos(vec2(x - self.text_dx(cell), y));
         let byte = cell.text.char_indices().nth(cur.index.0).map_or(cell.text.len(), |(b, _)| b);
         byte.clamp(line.start, line.end)
     }
 }
 
-/// Paint a selection highlight behind characters `a..b` (bytes) of a galley.
-/// The rectangles of a selection of items `range` of the row at `path`, one per visual line it spans.
-fn selection_rects(lay: &Layout, path: &[mc_boxes::Step], range: Range<usize>) -> Vec<Rect> {
+/// The rectangles of a selection of items `range` of the row at `path`, one per visual line it spans, each drawn
+/// tightly around what is selected (the ink extent of its characters, glyphs and rules, a text character counting
+/// its font's row height `text` (ascent, descent in ems) as in plain text), not the whole height of its line.
+fn selection_rects(lay: &Layout, path: &[mc_boxes::Step], range: Range<usize>, text: (f32, f32)) -> Vec<Rect> {
     let stops: Vec<_> = (range.start..=range.end).filter_map(|k| lay.caret(path, k)).collect();
     let mut out: Vec<Rect> = vec![];
     for w in stops.windows(2) {
@@ -1654,7 +1753,49 @@ fn selection_rects(lay: &Layout, path: &[mc_boxes::Step], range: Range<usize>) -
             _ => out.push(r),
         }
     }
-    out
+    out.into_iter().map(|r| tighten(lay, r, text)).collect()
+}
+
+/// A selection rectangle (the band of its row's caret stops) shrunk vertically to the extent of the items in it.
+fn tighten(lay: &Layout, r: Rect, (asc, desc): (f32, f32)) -> Rect {
+    use mc_boxes::layout::{metrics::math_char, Draw, FontRole};
+    let f = mc_mathfont::font();
+    let (mut top, mut bottom) = (f32::INFINITY, f32::NEG_INFINITY);
+    for d in &lay.items {
+        // left, right, top, bottom and the y that places it on a line
+        let (x0, x1, y0, y1, at) = match d {
+            Draw::Char { c, role, x, y, size, advance, .. } => {
+                if c.is_whitespace() {
+                    continue;
+                }
+                let (a, b) = if *role == FontRole::Math {
+                    let m = math_char(*c);
+                    (m.ascent, m.descent)
+                } else {
+                    (asc, desc)
+                };
+                (*x, x + advance, y - a * size, y + b * size, *y)
+            }
+            Draw::Placeholder { x, y, size, .. } => {
+                let m = math_char('□');
+                (*x, x + m.advance * size, y - m.ascent * size, y + m.descent * size, *y)
+            }
+            Draw::Glyph { glyph, size, x, y } => {
+                let m = f.metrics(*glyph);
+                (*x, x + m.advance * size, y - m.height * size, y + m.depth * size, *y)
+            }
+            Draw::Rule { x, y, w, h } | Draw::Graphic { x, y, w, h, .. } => (*x, x + w, *y, y + h, y + h / 2.0),
+        };
+        if x1 > r.left() + 0.5 && x0 < r.right() - 0.5 && at >= r.top() - 0.5 && at <= r.bottom() + 0.5 {
+            top = top.min(y0);
+            bottom = bottom.max(y1);
+        }
+    }
+    if top < bottom {
+        Rect::from_min_max(pos2(r.left(), top), pos2(r.right(), bottom))
+    } else {
+        r
+    }
 }
 
 fn paint_selection(painter: &Painter, g: &Galley, text: &str, origin: Pos2, a: usize, b: usize, color: Color32) {
@@ -1790,5 +1931,49 @@ mod tests {
                 "Status \"Output out(1)\" \"a/b + c^(1/2)\" level None",
             ]
         );
+    }
+
+    /// Outputs are right-justified (NBUI.1): a typeset output's lines and a linear output's rows end at the
+    /// content's right edge, and the caret, hit-testing and clicks in boxes follow; inputs stay on the left edge.
+    #[test]
+    fn outputs_end_at_the_right_edge_and_geometry_follows() {
+        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2 + 1\n\n\
+                    #% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#| a print\n#= sqrt(y)\n";
+        let nb = Notebook::parse(text).unwrap();
+        let ctx = egui::Context::default();
+        ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
+        let images = Rc::new(RefCell::new(Images::new(&ctx)));
+        let glyphs = Rc::new(RefCell::new(Glyphs::new(&ctx)));
+        let defs = mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled);
+        glyphs.borrow_mut().set_fonts(mc_ui::fonts::FontSet::new(&defs));
+        let mut view = View::new(Palette::light(), images, glyphs);
+        view.width = 700.0;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            view.update_positions(&ctx, &nb, 0.0..4000.0);
+            let (l, r) = view.content_x(Style::Output);
+            // the typeset output: its line ends at the right edge, its first stop is well right of the left edge
+            let typeset = &nb.cells()[1];
+            let lay = view.box_layout(&ctx, typeset);
+            assert!((lay.lines[0].right - (r - l)).abs() < 0.5, "{:?} {}", lay.lines, r - l);
+            assert!(lay.rows[0].stops[0].x > (r - l) / 2.0);
+            // a click at its right end puts the box caret at the end of the output
+            let o = view.content_origin(&nb, 1);
+            let (path, k) = view.box_hit(&ctx, &nb, typeset.id, pos2(o.x + r - l - 1.0, o.y + lay.baseline)).unwrap();
+            assert_eq!((path.len(), k), (0, lay.rows[0].stops.len() - 1));
+            // the linear output: the caret after its last character is at the right edge, a click there gives it
+            let linear = &nb.cells()[4];
+            let end = view.caret_rect(&ctx, &nb, linear.id, linear.text.len()).unwrap();
+            assert!((end.left() - r).abs() < 1.0, "{end:?} {r}");
+            let start = view.caret_rect(&ctx, &nb, linear.id, 0).unwrap();
+            assert!(start.left() > l + 100.0);
+            assert_eq!(view.hit(&ctx, &nb, pos2(r - 0.5, end.center().y)), Hit::Text(linear.id, linear.text.len()));
+            // inputs and prints stay on the left edge
+            assert!((view.caret_rect(&ctx, &nb, nb.cells()[0].id, 0).unwrap().left() - l).abs() < 1.0);
+            assert_eq!(nb.cells()[3].style, Style::Print);
+            assert!((view.caret_rect(&ctx, &nb, nb.cells()[3].id, 0).unwrap().left() - l).abs() < 1.0);
+            // x positions of Up and Down are content-relative for both
+            assert!((view.x_of(&ctx, linear, linear.text.len()) - (r - l)).abs() < 1.0);
+        });
     }
 }

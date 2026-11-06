@@ -191,3 +191,84 @@ fn output_snapshots() {
         panic!("output snapshot differs at line {}:\n expected: {:?}\n actual:   {:?}", k + 1, a.get(k), b.get(k));
     }
 }
+
+/// A painter's text font: monospaced, with its own axis and line pitch, every letter its own (no math italics).
+struct TextMetrics;
+
+impl mc_boxes::layout::Metrics for TextMetrics {
+    fn char(&self, c: char, role: mc_boxes::layout::FontRole) -> mc_boxes::layout::CharMetrics {
+        MonoMetrics.char(c, role)
+    }
+    fn role(&self, c: char) -> mc_boxes::layout::FontRole {
+        if c == '∑' {
+            mc_boxes::layout::FontRole::Math
+        } else {
+            mc_boxes::layout::FontRole::Text
+        }
+    }
+    fn axis_height(&self) -> Option<f32> {
+        Some(0.3)
+    }
+    fn line_pitch(&self) -> Option<f32> {
+        Some(1.25)
+    }
+    fn italic_letters(&self) -> bool {
+        false
+    }
+}
+
+#[test]
+fn painter_metrics_choose_fonts_axis_and_line_pitch() {
+    let o = LayoutOptions { size: 10.0, traditional: true, ..Default::default() };
+    // plain lines are exactly one pitch apart, as the painter's text lines
+    let l = layout(&from_text("a\nb\nc"), &TextMetrics, &o);
+    assert_eq!(l.lines.len(), 3);
+    for w in l.lines.windows(2) {
+        assert!((w[1].baseline - w[0].baseline - 12.5).abs() < 1e-3, "{:?}", l.lines);
+    }
+    // traditional form keeps the letters (no math italics) and draws them in the text font
+    let chars: Vec<(char, mc_boxes::layout::FontRole)> =
+        l.items.iter().filter_map(|d| if let Draw::Char { c, role, .. } = d { Some((*c, *role)) } else { None }).collect();
+    assert_eq!(chars.iter().map(|c| c.0).collect::<String>(), "abc");
+    assert!(chars.iter().all(|c| c.1 == mc_boxes::layout::FontRole::Text));
+    // the fraction bar sits on the painter's axis (0.3 em above the baseline)
+    let f = layout(&from_text("((a)/(b))"), &TextMetrics, &LayoutOptions { size: 10.0, ..Default::default() });
+    let rule = f.items.iter().find_map(|d| if let Draw::Rule { y, h, .. } = d { Some(y + h / 2.0) } else { None }).unwrap();
+    assert!((f.baseline - rule - 3.0).abs() < 1e-3, "{} {rule}", f.baseline);
+    // the default metrics keep the old behaviour (pictures use them)
+    let m = layout(&from_text("x"), &MonoMetrics, &o);
+    assert!(m.items.iter().any(|d| matches!(d, Draw::Char { c: '𝑥', .. })));
+}
+
+#[test]
+fn lines_right_justify_and_everything_follows() {
+    let text = "f(alpha, beta, gamma) + g(delta, epsilon) + ((x)/(y))";
+    let mut l = lay(text, true, Some(150.0));
+    assert!(l.lines.len() >= 2);
+    let before = l.clone();
+    l.align_right(200.0);
+    for (a, b) in before.lines.iter().zip(&l.lines) {
+        assert!((b.right - 200.0).abs() < 1e-3, "{:?}", l.lines);
+        assert!((b.indent - a.indent - (200.0 - a.right)).abs() < 1e-3);
+    }
+    assert!(l.width >= 200.0);
+    // every item moved by its line's shift; caret stops too, so hit-testing gives the same positions back
+    for (a, b) in before.items.iter().zip(&l.items) {
+        let (x0, x1) = match (a, b) {
+            (Draw::Char { x: x0, .. }, Draw::Char { x: x1, .. }) | (Draw::Rule { x: x0, .. }, Draw::Rule { x: x1, .. }) => (*x0, *x1),
+            _ => continue,
+        };
+        assert!(x1 >= x0);
+    }
+    for r in &l.rows {
+        for (k, s) in r.stops.iter().enumerate() {
+            assert_eq!(l.hit(s.x, s.baseline), (r.path.clone(), k), "{:?} {k}", r.path);
+        }
+    }
+    // translating keeps hit-testing consistent too
+    let mut t = l.clone();
+    t.translate(3.0, -2.0);
+    let s = t.rows[0].stops[1];
+    assert_eq!(t.hit(s.x, s.baseline), (vec![], 1));
+    assert!((t.baseline - l.baseline + 2.0).abs() < 1e-4);
+}

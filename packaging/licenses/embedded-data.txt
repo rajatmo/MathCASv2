@@ -10,3 +10,8 @@ Colour profiles in the PDF reader (crates hayro-interpret and hayro-jpeg2000, by
 
 Fonts embedded by the PDF reader (hayro-interpret's assets/*.pfb, the standard 14 PDF fonts) were extracted from
 PDFium; their BSD-style licence (assets/LICENSE_FOXIT) is reproduced above.
+
+The application icon (assets/app/icon_*.png, icon.ico) shows the calligraphic letters C and M of the Computer Modern
+math symbol font (cmsy, in the Type 1 version by the American Mathematical Society), drawn by TeX from
+assets/app/src/icon.tex and rasterised; those fonts are available under the SIL Open Font License 1.1, whose text is
+reproduced above with the bundled fonts. The interface icons (assets/icons) are drawn in TikZ without any font.

@@ -629,12 +629,12 @@ impl Editor {
         }
     }
 
-    /// Home: the start of the caret's row.
+    /// Home: the start of the caret's line in its row (after the line break before it, else the row's start).
     pub fn move_home(&mut self, extend: bool) {
         self.jump_to_row_edge(false, extend);
     }
 
-    /// End: the end of the caret's row.
+    /// End: the end of the caret's line in its row (before the next line break, else the row's end).
     pub fn move_end(&mut self, extend: bool) {
         self.jump_to_row_edge(true, extend);
     }
@@ -645,7 +645,14 @@ impl Editor {
         } else {
             self.anchor = None;
         }
-        self.caret.offset = if end { self.row().len() } else { 0 };
+        let row = self.row();
+        let k = self.caret.offset.min(row.len());
+        let is_break = |j: &usize| matches!(row.0[*j], Item::Char('\n'));
+        self.caret.offset = if end {
+            (k..row.len()).find(is_break).unwrap_or(row.len())
+        } else {
+            (0..k).rev().find(is_break).map_or(0, |j| j + 1)
+        };
     }
 
     /// Up arrow inside structures: denominator to numerator, base to exponent, index to base, lower to upper grid
