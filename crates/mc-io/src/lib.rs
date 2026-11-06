@@ -46,6 +46,7 @@
 
 mod dataset;
 mod export;
+mod files;
 mod hook;
 mod images;
 mod import;
@@ -84,6 +85,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "image_data",
         "image_data(img): the pixels of an image as a packed array height x width x channels of reals in [0, 1]",
     ),
+    ("file_exists", "file_exists(path): true when the file or directory exists"),
+    ("file_names", "file_names(pattern), file_names(pattern, dir): the sorted names of the files matching a pattern with * and ?"),
     ("image_dimensions", "image_dimensions(img): the size of an image in pixels, [width, height]"),
     (
         "image_channels",
@@ -106,6 +109,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     );
     k.register(h.sym("image_channels"), Attributes::default(), Box::new(images::ImageQuery(images::Query::Channels)));
     k.register(h.sym("temporary_directory"), Attributes::default(), Box::new(TemporaryDirectory));
+    mc_numeric::formula::install(k, h, files::DEFS);
 }
 
 /// `temporary_directory()`: the system's folder for temporary files, with forward slashes and a final `/`.

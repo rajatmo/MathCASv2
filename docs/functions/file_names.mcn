@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# file_names
+
+#% text
+# `file_names(pattern)` gives the sorted names of the files matching `pattern`.
+
+#% text
+# `file_names(pattern, dir)` looks in the directory `dir`.
+
+#% section
+# Details
+
+#% item
+# `*` matches any run of characters and `?` one character in the file name; a directory part of the pattern is literal.
+
+#% item
+# `file_names()` lists every file of the working directory.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+export_data("squares.csv", table([k, k^2], k, 5)); file_names("squares.*")
+#% output
+#= ["squares.csv"]
+
+#% cell
+file_names("*.nothing")
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `file_exists`, `import_data`
