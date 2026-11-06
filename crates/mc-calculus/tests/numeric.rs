@@ -41,14 +41,28 @@ fn within(out: &str) -> bool {
 const DEPENDENT: &str = "(1/3 + x*(1 + x)/3)";
 const CONSTANTS: [&str; 3] = ["(5/7)", "(3/11)", "(2/9)"];
 
+/// The functions defined by formulas (p6-numeric).
+const FORMULA: &[&str] = &[
+    "sec", "csc", "cot", "sech", "csch", "coth", "asinh", "acosh", "atanh", "acoth", "acot", "asec", "acsc", "asech",
+    "acsch", "gudermannian", "sinc", "product_log", "dawson_f", "fresnel_s", "fresnel_c", "harmonic_number", "surd",
+    "ramp", "real_abs", "fractional_part", "chebyshev_t", "chebyshev_u", "legendre_p", "hermite_h", "laguerre_l",
+    "gegenbauer_c", "spherical_bessel_j", "spherical_bessel_y", "hankel_h1", "hankel_h2", "jacobi_cd", "jacobi_cs",
+    "jacobi_dc", "jacobi_ds", "jacobi_nc", "jacobi_nd", "jacobi_ns", "jacobi_sc", "jacobi_sd", "pochhammer",
+];
+
 #[test]
 fn every_rule_of_the_table() {
     let mut s = Sys::new();
     let mut rng = Lcg(2024);
     let mut checked = 0;
-    let n = RULES.iter().filter(|r| matches!(r.2, Rule::Partials(_))).count();
+    let n = RULES.iter().filter(|r| matches!(r.2, Rule::Partials(_)) && !FORMULA.contains(&r.0)).count();
     for (k, &(name, arity, rule)) in RULES.iter().filter(|r| matches!(r.2, Rule::Partials(_))).enumerate() {
         let Rule::Partials(ps) = rule else { unreachable!() };
+        // functions defined by formulas whose values are not refined to 25 digits (their rules are checked at
+        // machine precision in `formula_functions_at_machine_precision`)
+        if FORMULA.contains(&name) {
+            continue;
+        }
         assert_eq!(ps.len(), arity, "{name}: one partial per argument");
         for i in 0..arity {
             // a partial in an order argument is the operator itself (no value to compare)
@@ -162,5 +176,28 @@ fn mixed_partials_are_symmetric() {
             "ff = {f}; g = d(ff, {o1}) - d(ff, {o2}); n(1 + rewrite(g, [x -> 3/7, y -> 5/9])*10^20, 25)"
         ));
         assert!((number(&out) - 1.0).abs() < 1.0, "{o1} / {o2}: {out}");
+    }
+}
+
+/// The rules of the functions defined by formulas, against central differences of machine values at a few points.
+#[test]
+fn formula_functions_at_machine_precision() {
+    let mut s = Sys::new();
+    let cases = [
+        ("sec(x)", 0.4), ("csc(x)", 0.7), ("cot(x)", 0.7), ("sech(x)", 0.4), ("csch(x)", 0.7), ("coth(x)", 0.7),
+        ("asinh(x)", 0.4), ("acosh(x)", 1.7), ("atanh(x)", 0.4), ("acoth(x)", 1.7), ("acot(x)", 0.4),
+        ("asec(x)", 1.7), ("acsc(x)", 1.7), ("asech(x)", 0.4), ("acsch(x)", 0.7), ("gudermannian(x)", 0.4),
+        ("sinc(x)", 0.7), ("product_log(x)", 0.7), ("dawson_f(x)", 0.7), ("fresnel_s(x)", 0.7), ("fresnel_c(x)", 0.7),
+        ("surd(x, 3)", 0.7), ("chebyshev_t(5/2, x)", 0.4), ("chebyshev_u(3, x)", 0.4), ("legendre_p(4, x)", 0.4),
+        ("hermite_h(3, x)", 0.4), ("laguerre_l(3, x)", 0.4), ("gegenbauer_c(3, 1/2, x)", 0.4),
+        ("spherical_bessel_j(2, x)", 0.7), ("spherical_bessel_y(2, x)", 0.7), ("jacobi_sc(x, 1/3)", 0.4),
+        ("jacobi_nd(x, 1/3)", 0.4), ("jacobi_cs(x, 1/3)", 0.4), ("pochhammer(1/3, x)", 0.7),
+    ];
+    for (f, x) in cases {
+        let h = 1e-5;
+        let at = |s: &mut Sys, e: &str, v: f64| number(&s.run(&format!("n(rewrite({e}, x -> {v:?}))")));
+        let d = at(&mut s, &format!("d({f}, x)"), x);
+        let fd = (at(&mut s, f, x + h) - at(&mut s, f, x - h)) / (2.0 * h);
+        assert!((d - fd).abs() <= 1e-6 * (1.0 + d.abs()), "{f} at {x}: {d} vs {fd}");
     }
 }

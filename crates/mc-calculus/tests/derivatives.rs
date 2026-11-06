@@ -199,3 +199,16 @@ fn functions_defined_by_formulas() {
         ("d(ramp(x), x)", "unit_step(x)"),
     ]);
 }
+
+#[test]
+fn derivatives_of_defined_functions() {
+    check(&[
+        ("rule f(x_) := x*cos(x)", "null"),
+        ("f'(x)", "cos(x) + -1*x*sin(x)"),
+        ("f'(0)", "1"),
+        ("f'", "&(cos(&1) + -1*&1*sin(&1))"),
+        ("fn g(x, y) = x^2*y", "null"),
+        ("derivative(1, 1)(g)(a, b)", "2*a"),
+        ("h'(x)", "h'(x)"),
+    ]);
+}

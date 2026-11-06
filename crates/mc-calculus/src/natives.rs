@@ -153,7 +153,15 @@ impl Native for DerivativeAt {
         let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
-        let Some((orders, f)) = b.as_derivative(head) else { return Ok(Reply::Decline) };
+        let Some((orders, f)) = b.as_derivative(head) else {
+            // the operator alone, `f'` for a function with a definition: a slot function `&(...)`
+            if let Some((orders, f)) = b.as_derivative(t) {
+                if let Some(r) = user_derivative(cx, &b, f, &orders, None)? {
+                    return Ok(Reply::Done(r));
+                }
+            }
+            return Ok(Reply::Decline);
+        };
         if orders.len() != args.len() || orders.iter().any(|&n| n < 0) {
             return Ok(Reply::Decline);
         }
@@ -162,6 +170,10 @@ impl Native for DerivativeAt {
         }
         let known = b.sym_of(f).is_some_and(|s| crate::rules::resolvable(&h.sym_name(s), &orders));
         if !known {
+            // a function with a definition (`rule f(x_) := ...`, `fn f(x) = ...`): differentiate its body
+            if let Some(r) = user_derivative(cx, &b, f, &orders, Some(args))? {
+                return Ok(Reply::Again(r));
+            }
             return Ok(Reply::Decline);
         }
         let mut tick = |n: u64| cx.tick(n);
@@ -330,4 +342,46 @@ fn closed_in<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
         }
     }
     true
+}
+
+/// The derivative of a function with a definition (decision 2A.8): `f` applied to fresh variables evaluates to its
+/// body, which is differentiated `orders` times in them; with `args` the result at the arguments (`rewrite`), else
+/// the slot function `&(...)` of the derivative. `None` when `f` has no definition for such a call or the body is
+/// not differentiable here.
+fn user_derivative<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    f: T<'h>,
+    orders: &[i64],
+    args: Option<&[T<'h>]>,
+) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let Some(fs) = b.sym_of(f) else { return Ok(None) };
+    if crate::rules::lookup(&h.sym_name(fs), orders.len()).is_some() || orders.iter().any(|&n| !(0..=64).contains(&n)) {
+        return Ok(None);
+    }
+    let vars: Vec<T<'h>> = (1..=orders.len())
+        .map(|i| h.sym_term(h.sym(&if args.is_some() { format!("derivative·{i}") } else { format!("&{i}") })))
+        .collect();
+    let call = h.app(f, &vars);
+    let mut g = cx.eval(call)?;
+    if g == call || crate::integrate::definite::is_failure(b, g) {
+        return Ok(None);
+    }
+    for (i, &n) in orders.iter().enumerate() {
+        for _ in 0..n {
+            g = cx.eval(h.call(h.sym("d"), &[g, vars[i]]))?;
+        }
+    }
+    let unresolved = |t: T<'h>| !crate::integrate::is_free(b, t, h.sym_term(h.sym("d")));
+    if unresolved(g) {
+        return Ok(None);
+    }
+    Ok(Some(match args {
+        Some(a) => {
+            let rules: Vec<T<'h>> = vars.iter().zip(a).map(|(&v, &x)| h.call(h.sym(names::RULE), &[v, x])).collect();
+            h.call(h.sym("rewrite"), &[g, h.call(b.hd.list, &rules)])
+        }
+        None => h.call(h.sym("fn"), &[h.call(b.hd.list, &vars), g]),
+    }))
 }
