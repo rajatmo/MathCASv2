@@ -39,7 +39,7 @@ fn run(transcript: &str) {
     let mut out = vec![];
     repl.run(&mut input.as_bytes(), &mut out).unwrap();
     let out = String::from_utf8(out).unwrap();
-    let mut want = String::from("mathcas-v2 0.0.0 (:help for commands)\n");
+    let mut want = format!("mathcas-v2 {} (:help for commands)\n", env!("CARGO_PKG_VERSION"));
     for e in &entries {
         // the prompt, a continuation prompt per further input line, then the output
         want.push_str("mc> ");
