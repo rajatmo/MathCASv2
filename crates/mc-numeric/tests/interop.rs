@@ -65,7 +65,7 @@ fn numeric_slopes_without_a_closed_derivative() {
     let (v, d): (f64, f64) = (v.parse().unwrap(), d.parse().unwrap());
     assert!((v - 2.0).abs() < 1e-12, "{got}");
     // d/dx x! at 2 = 2 (3/2 - euler_gamma)
-    assert!((d - 0.01 * 2.0 * (1.5 - 0.5772156649015329)).abs() < 1e-10, "{got}");
+    assert!((d - 0.01 * 2.0 * (1.5 - std::f64::consts::EULER_GAMMA)).abs() < 1e-10, "{got}");
 }
 
 #[test]
