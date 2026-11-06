@@ -99,3 +99,27 @@ subset lacks `\left...\right`, accents, matrices and `\over`; serif text only.
 - `labeled` and `legended` lay out only pictures (and `labeled` also text). Around anything else they stay inert,
   so plots and charts can read them.
 - Tests: `tests/interop.rs` 4.
+
+## Round 13 (package gfx-int)
+
+- **3D fast path** (`three::Prepared`, `view3d`): the view-independent work of a 3D graphic (box, clipping to the
+  plot range, scaling, face normals, smooth-shading vertex normals, outward normals of closed solids) is done once;
+  `Prepared::graphic(&View3d, page, stop)` projects, lights, depth-sorts and gives the 2D graphic. The static
+  renderer goes through the same code, so a fast-path frame at the picture's own view equals the PNG.
+  `view3d::Scene3d` (`sidecar_of`, `exists_for`, `load`, `cached`, `view`, `page_size`, `render`, `try_render`,
+  `render_png`), `View3d { view_point, view_vertical, zoom }`, `orbit_drag`, `zoom_wheel` (interface agreed with
+  nb-mat in gap G79). The sidecar `plot-N.scene3d` is `mathcas-scene3d 1` and the printed term.
+- `graphics3d` takes `view_vertical`; faces of closed convex solids (sphere, cuboid, capped cylinder and cone)
+  turned away from the eye are not drawn when opaque and unclipped.
+- `compose::shown_layout(h, t)`: the picture of `labeled`/`legended` around a non-picture (gap G80); the kernel's
+  shown value stays the term (the notebook draws it), `export_data` uses the layout.
+- Layout pages use `image_padding: none` (a new `graphics` option: the blank margin in points, default 4); text
+  grids keep a 2-point margin, so framed columns fit their text (G85). Styled labels (`style(x, colour)`) are drawn
+  in their colour in layouts.
+- TeX labels: `~` is a space in math; `\rm`, `\it`, `\bf` switch letters to the end of the group (G84).
+- Frames get unlabelled minor ticks between automatic ticks: a quarter of a step of 2, a fifth of 1 or 5 (G89).
+- `render_read` gives the graphic read with the files (plots keep it for layouts without a second read).
+- Tests: `tests/view3d.rs` 7 (+1 ignored stage timing), `tests/interop.rs` 5, label and ticks unit tests.
+- Timings (release): plot3d 61 x 61 end to end 82-95 ms (render PNG 13, SVG 14, PDF 32 ms after a 7 ms read; print
+  14 ms). Fast path at a 640-point page and scale 1.5: plot3d 61 x 61 load 50 ms once, 28 ms a frame; 100 x 100
+  load 130 ms, 55 ms a frame; 16 spheres (12800 faces) 90 ms a frame (193 ms before back faces were skipped).

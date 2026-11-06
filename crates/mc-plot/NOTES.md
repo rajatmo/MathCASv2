@@ -83,3 +83,27 @@ ranges, jumps, failures).
 - The first plot of a process sweeps `plot-*` files older than 24 hours from the plots folder.
 
 Tests: unit 18; `tests/interop.rs` 11; `tests/plot.rs` 14 (sign changes never break a curve).
+
+## Round 13 (package gfx-int)
+
+- 3D pictures get a scene sidecar `plot-N.scene3d` (swept with the others) for the notebook's rotation fast path.
+- `render_shown_to_files` (graphics, or the layout of a labeled/legended non-picture); `export` (export_data) of
+  `labeled`/`legended` values writes their layout.
+- G83: `line_legend([colours], [labels])` colours the legend's samples (`legend_colors`), `swatch_legend` its
+  swatches; curves keep their own colours.
+- G88: `signed_log(c)` takes any positive real (exact too). The mapping is the reference's: sign(v) log10(a + k|v|),
+  0 at 0, k = 10^n, n = max(0, ceil(-log10 c)), a = max(1, 4n) (found by probing it: c = 10^-8 gives a = 32,
+  k = 10^8; c >= 1 the common log10(1 + |v|)). A sign change is bridged once both sides are within the threshold's
+  level. The data sidecar's signed_log axes carry `a` and `k`.
+- G90: an end without a value is tried a millionth of a step inside (the curve rises from there, no deeper
+  refinement between); steps larger than 5 % of the visible range are halved (up to the usual depth) unless wholly
+  off screen; the y range of sampled curves is the 1-99 % quantile range weighted by the x stretch each sample
+  stands for (refinement near spikes does not stretch it), cut at the quantile; values next to an end without a
+  value always count. Lines break on large steps only when they are seen.
+- G64 verified (exact integers substituted where the compiled value fails) and G58 verified.
+- Manipulate support (measured, nothing cached): a 2D plot re-evaluated with new parameter values takes 3.3-4.5 ms
+  end to end (compile, sampling, three formats, files), so a sampling cache would not pay; a default plot3d takes
+  82-95 ms, most of it the SVG and PDF siblings (14 + 32 ms) and printing the term (14 ms). Writing the siblings
+  lazily would halve it but every reader of them (export_data, import, the notebook) checks that they exist next
+  to the PNG: left for a coordinated change.
+- Tests: `tests/round13.rs` 5 (G83, G85, G88, G90, G64); `tests/plot.rs` sidecar mapping updated.
