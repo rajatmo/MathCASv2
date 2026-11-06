@@ -162,6 +162,14 @@ expand(factor(x^6 - y^6))
 #% output
 #= [360, [[2, 3], [3, 2], [5, 1]]]
 
+#% text
+# Both sides of an equation or inequality are factored:
+
+#% cell
+factor(x^2 - 1 == x^3 - x)
+#% output
+#= (-1 + x)*(1 + x) == x*(-1 + x)*(1 + x)
+
 #% subsection
 # Possible issues
 

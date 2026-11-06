@@ -207,6 +207,12 @@ impl Native for Add {
                 return Ok(Reply::Done(v));
             }
         }
+        // a truncated series: the series of the result (mc-poly, decision IOSYM.1)
+        if mc_poly::any_series(cx.heap(), args) {
+            if let Some(v) = mc_poly::series_arith(cx, &self.0, "add", args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         if let Some(v) = machine_constants(cx, args)? {
             return self.call(cx, _t, &v);
         }
@@ -233,6 +239,12 @@ impl Native for Mul {
         charge(cx, args)?;
         if uncertain(cx.heap(), args) {
             if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Mul, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+        // a truncated series: the series of the result (mc-poly, decision IOSYM.1)
+        if mc_poly::any_series(cx.heap(), args) {
+            if let Some(v) = mc_poly::series_arith(cx, &self.0, "mul", args)? {
                 return Ok(Reply::Done(v));
             }
         }
@@ -263,6 +275,12 @@ impl Native for Pow {
         let [b, e] = args else { return Ok(Reply::Decline) };
         if uncertain(cx.heap(), args) {
             if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Pow, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+        // a truncated series: the series of the result (mc-poly, decision IOSYM.1)
+        if mc_poly::any_series(cx.heap(), args) {
+            if let Some(v) = mc_poly::series_arith(cx, &self.0, "pow", args)? {
                 return Ok(Reply::Done(v));
             }
         }

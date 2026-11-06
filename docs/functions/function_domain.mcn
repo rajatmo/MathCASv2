@@ -115,6 +115,14 @@ function_singularities(sqrt(x), x)
 #% output
 #= x <= 0
 
+#% text
+# Special functions defined on the whole real line:
+
+#% cell
+[function_domain(airy_ai_prime(x), x), function_domain(hermite_h(n, x), x)]
+#% output
+#= [true, true]
+
 #% section
 # See also
 

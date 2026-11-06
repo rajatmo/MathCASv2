@@ -390,6 +390,11 @@ impl Solve {
         };
         let tt = h.sym_term(s.sys.t);
         let out = mc_numfn::replace(h, expr, &mut |u| {
+            // a bare unknown `y` (or `y'`, `derivative(n)(y)`) is its interpolating function (gap G70)
+            if let Some((i, d)) = bare_unknown(h, &ys, derivative, u) {
+                let un = &s.sys.unknowns[i];
+                return Some(if d < un.order { component(un.at + d) } else { function_term(h, &s.sol, s.key, &printed_name(h, un.sym, d)) });
+            }
             let (i, d, x) = system::occurrence(h, &ys, derivative, u)?;
             let un = &s.sys.unknowns[i];
             if d == un.order {
@@ -738,4 +743,49 @@ fn solve_dense(m: usize, a: &mut [f64], b: &[f64]) -> Option<Vec<f64>> {
         x[c] = v / a[c * m + c];
     }
     Some(x)
+}
+
+/// A bare unknown `y` (index i, order 0) or `derivative(n)(y)` (order n) among `ys`.
+fn bare_unknown<'h>(h: &'h Heap, ys: &[Sym], derivative: T<'h>, u: T<'h>) -> Option<(usize, usize)> {
+    match h.view(u) {
+        View::Sym(s) => ys.iter().position(|&y| y == s).map(|i| (i, 0)),
+        View::App { head, args: &[y] } => {
+            let View::App { head: dh, args: &[n] } = h.view(head) else { return None };
+            if dh != derivative {
+                return None;
+            }
+            let (View::Sym(s), View::Int(n @ 0..=1000)) = (h.view(y), h.view(n)) else { return None };
+            ys.iter().position(|&q| q == s).map(|i| (i, n as usize))
+        }
+        _ => None,
+    }
+}
+
+/// `domain(f)`: the interval `[lo, hi]` of an interpolating function (or of `t => f(t)`, the closure
+/// `n_dsolve_value` gives), where it has values (gap G70).
+pub(crate) struct DomainOf;
+
+impl Native for DomainOf {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [f] = args else { return Ok(Reply::Decline) };
+        let interp = h.sym_term(h.sym("interpolating_function"));
+        let mut u = *f;
+        // a closure t => g(t): its function
+        if let View::App { head, args: &[_, body] } = h.view(u) {
+            if head == h.sym_term(h.sym("fn")) {
+                if let View::App { head: g, .. } = h.view(body) {
+                    u = g;
+                }
+            }
+        }
+        match h.view(u) {
+            View::App { head, args } if head == interp && args.len() >= 2 => Ok(Reply::Done(args[1])),
+            _ => Ok(Reply::Decline),
+        }
+    }
+
+    fn reads_term(&self) -> bool {
+        false
+    }
 }

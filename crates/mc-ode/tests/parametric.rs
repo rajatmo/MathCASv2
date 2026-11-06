@@ -63,3 +63,23 @@ fn failures() {
     let r = s.run("parametric_n_dsolve_value([y'(t) == y(t)^2, y(0) == c], y(2), [t, 0, 2], [c])(1.0)");
     assert!(r.contains("parametric_n_dsolve_value") || r.starts_with("failure("), "{r}");
 }
+
+#[test]
+fn a_bare_unknown_and_the_domain() {
+    // gap G70: the name of an unknown as the expression gives its interpolating function, and domain(f) is the
+    // interval it has values on (cut short by a stopping event)
+    let mut s = Sys::new();
+    s.run("bs = parametric_n_dsolve_value([x''(z) == -x(z), x(0) == xc, x'(0) == 0], x, [z, 0, 10], [xc], events: [x(z) == 0])");
+    s.run("f = bs(1.0)");
+    assert!(s.run("f").starts_with("interpolating_function(\"x\", "), "{}", s.run("f"));
+    let d = s.run("domain(f)");
+    let ends: Vec<f64> = d.trim_start_matches('[').trim_end_matches(']').split(", ").map(number).collect();
+    assert!(ends.len() == 2 && ends[0] == 0.0 && close(ends[1], std::f64::consts::FRAC_PI_2, 1e-6), "{d}");
+    assert!(close(number(&s.run("f(1.0)")), 1f64.cos(), 1e-7));
+    // the derivative by name, and the domain of n_dsolve_value's closure
+    let dv = s.run("parametric_n_dsolve_value([x''(z) == -x(z), x(0) == xc, x'(0) == 0], x', [z, 0, 1], [xc])(2.0)(0.5)");
+    assert!(close(number(&dv), -2.0 * 0.5f64.sin(), 1e-7), "{dv}");
+    assert_eq!(s.run("domain(n_dsolve_value([y'(t) == y(t), y(0) == 1], y(t), [t, 0, 1]))"), "[0.0, 1.0]");
+    // anything else stays
+    assert_eq!(s.run("domain(g)"), "domain(g)");
+}

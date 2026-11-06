@@ -99,6 +99,36 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             }
         }
     }
+    // one equation that is not polynomial in one unknown the conditions bound to a finite real interval: the real
+    // roots there, numerically (decision IOSYM.3), with the solutions found
+    let mut sort_real = false;
+    if let ([x], [eq], false) = (vars.as_slice(), equations.as_slice(), strict) {
+        if let View::App { args: &[l, r], .. } = h.view(*eq) {
+            let f = cx.eval(h.call(h.sym(names::ADD), &[l, h.call(h.sym(names::MUL), &[h.int(-1), r])]))?;
+            if transcendental(h, f, *x) {
+                if let (Some(a), Some(b)) = real_bounds(cx, *x, &conds)? {
+                    let found = crate::interval::roots(cx, f, *x, a, b)?;
+                    let mut all = sols.take().unwrap_or_default();
+                    let mut known = vec![];
+                    for &s in &all {
+                        known.push(numeric_value(cx, s)?);
+                    }
+                    for v in found {
+                        let rule = h.call(h.sym(names::RULE), &[*x, v]);
+                        let s = cx.list(&[rule]);
+                        let nv = numeric_value(cx, s)?;
+                        if nv.is_some() && known.iter().any(|k| k.is_some_and(|k| (k - nv.unwrap()).abs() <= 1e-9 * (1.0 + k.abs()))) {
+                            continue;
+                        }
+                        known.push(nv);
+                        all.push(s);
+                    }
+                    sols = Some(all);
+                    sort_real = true;
+                }
+            }
+        }
+    }
     // a parametric solution (fewer rules than unknowns, or values in the unknowns) over the integers: the box
     if strict {
         if let Some(ss) = &sols {
@@ -158,7 +188,108 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         }
         kept.push(s);
     }
+    if sort_real {
+        // inexact numbers in the equation or the bounds: inexact roots
+        if equations.iter().chain(conds.iter()).any(|&t| has_real(h, t)) {
+            for s in kept.iter_mut() {
+                *s = cx.eval(h.call(h.sym("n"), &[*s]))?;
+            }
+        }
+        sort_by_value(cx, &mut kept)?;
+    }
     Ok(Some(cx.list(&kept)))
+}
+
+/// The machine value of the single rule's value of a solution `[x -> v]`.
+fn numeric_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>) -> Res<Option<f64>> {
+    let h = cx.heap();
+    let Some(&[rule]) = cx.as_list(s) else { return Ok(None) };
+    let View::App { args: &[_, v], .. } = h.view(rule) else { return Ok(None) };
+    let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
+    Ok(match h.view(nv) {
+        View::Real(f) => Some(f),
+        View::Int(k) => Some(k as f64),
+        _ => None,
+    })
+}
+
+/// Solutions `[x -> v]` with real values in increasing order (others keep their place at the end).
+fn sort_by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: &mut Vec<T<'h>>) -> Res<()> {
+    let mut keyed = Vec::with_capacity(sols.len());
+    for &s in sols.iter() {
+        keyed.push((numeric_value(cx, s)?.unwrap_or(f64::INFINITY), s));
+    }
+    keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
+    *sols = keyed.into_iter().map(|k| k.1).collect();
+    Ok(())
+}
+
+/// Does `t` have a machine or ball real?
+fn has_real<'h>(h: &'h impl Store, t: T<'h>) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Real(_) | View::Ball { .. } => return true,
+            View::App { args, .. } => stack.extend(args.iter().copied()),
+            _ => {}
+        }
+    }
+    false
+}
+
+/// Does `t` have a function of `x` other than sums, products and powers with constant exponents?
+fn transcendental<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if !mentions(h, u, &[x]) {
+            continue;
+        }
+        let name = match h.view(head) {
+            View::Sym(s) => h.sym_name(s).to_string(),
+            _ => return true,
+        };
+        match name.as_str() {
+            n if n == names::ADD || n == names::MUL => stack.extend(args.iter().copied()),
+            n if n == names::POW => {
+                if args.len() != 2 || mentions(h, args[1], &[x]) {
+                    return true;
+                }
+                stack.push(args[0]);
+            }
+            _ => return true,
+        }
+    }
+    false
+}
+
+/// The real bounds `(lo, hi)` of `x` the conditions `x < v`, `v <= x`, ... give (numeric values).
+fn real_bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, conds: &[T<'h>]) -> Res<(Option<f64>, Option<f64>)> {
+    let h = cx.heap();
+    let (mut lo, mut hi) = (None::<f64>, None::<f64>);
+    for &c in conds {
+        let Some(name) = head_name(h, c) else { continue };
+        let View::App { args: &[l, r], .. } = h.view(c) else { continue };
+        let (upper, v) = match (name.as_str(), l == x, r == x) {
+            ("less" | "less_equal", true, false) => (true, r),
+            ("greater" | "greater_equal", true, false) => (false, r),
+            ("less" | "less_equal", false, true) => (false, l),
+            ("greater" | "greater_equal", false, true) => (true, l),
+            _ => continue,
+        };
+        let nv = cx.eval(h.call(h.sym("n"), &[v]))?;
+        let f = match h.view(nv) {
+            View::Real(f) if f.is_finite() => f,
+            View::Int(k) => k as f64,
+            _ => continue,
+        };
+        if upper {
+            hi = Some(hi.map_or(f, |b: f64| b.min(f)));
+        } else {
+            lo = Some(lo.map_or(f, |b: f64| b.max(f)));
+        }
+    }
+    Ok((lo, hi))
 }
 
 /// The integer bounds of `x` the conditions give: `(lo, hi)` (inclusive).
@@ -366,6 +497,9 @@ fn split_abs<'h>(cx: &mut NativeCx<'_, '_, 'h>, eqs: T<'h>, xs: T<'h>) -> Res<Op
         let Some(r) = r else { return Ok(None) };
         let Some(items) = cx.as_list(r) else { return Ok(None) };
         out.extend_from_slice(items);
+    }
+    if vars.len() == 1 {
+        sort_by_value(cx, &mut out)?;
     }
     Ok(Some(cx.list(&out)))
 }

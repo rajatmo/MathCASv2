@@ -93,7 +93,7 @@ fn unknown_functions_and_the_operator() {
         ("d(f(x, y), x, y)", "derivative(1, 1)(f)(x, y)"),
         ("d(f(x, x), x)", "derivative(0, 1)(f)(x, x) + derivative(1, 0)(f)(x, x)"),
         ("d(derivative(2, 1)(f)(x, y), y)", "derivative(2, 2)(f)(x, y)"),
-        ("d(factorial(x), x)", "factorial'(x)"),
+        ("d(factorial2(x), x)", "factorial2'(x)"),
         ("d(g(1)(x), x)", "derivative(1)(g(1))(x)"),
         // the operator on a known function resolves when differentiated
         ("d(sin'(x), x)", "-sin(x)"),
@@ -157,9 +157,9 @@ fn failures_and_unsupported() {
         ("d(x^2, [x, [y]])", arg("a gradient takes a list of variables").as_str()),
         // failures in the arguments propagate
         ("d(1/0, x)", "failure(division_by_zero)"),
-        // a head depending on the variable, and a series, are not differentiated: d stays unevaluated
+        // a head depending on the variable is not differentiated: d stays unevaluated; a series term by term
         ("d(f(x)(y), x)", "d(f(x)(y), x)"),
-        ("d(series(exp(x), x, 0, 3), x)", "d(1 + x + x^2/2 + x^3/6 + O(x^4), x)"),
+        ("d(series(exp(x), x, 0, 3), x)", "1 + x + x^2/2 + O(x^3)"),
     ]);
 }
 

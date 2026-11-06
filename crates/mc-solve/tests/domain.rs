@@ -17,7 +17,7 @@ fn solve_with_domains_and_conditions() {
         ("solve((x^4 - 1)*(x^4 - 4) == 0, x, reals)", "[[x -> -2^(1/2)], [x -> -1], [x -> 1], [x -> 2^(1/2)]]"),
         ("solve((x^4 - 1)*(x^4 - 4) == 0, x, integers)", "[[x -> -1], [x -> 1]]"),
         ("solve(x^2 == 4 and x > 0, x)", "[[x -> 2]]"),
-        ("solve(abs(x) == 2, x, reals)", "[[x -> 2], [x -> -2]]"),
+        ("solve(abs(x) == 2, x, reals)", "[[x -> -2], [x -> 2]]"),
         ("solve(divisor_sigma(2, n) == n^2 + 1 and (0 < n and n < 10), n, integers)", "[[n -> 2], [n -> 3], [n -> 5], [n -> 7]]"),
         ("solve(x^2 == -1, x, reals)", "[]"),
         // radical equations: the roots squaring adds are checked against the equation and dropped

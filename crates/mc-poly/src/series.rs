@@ -21,7 +21,10 @@ use mc_api::{Store, View, T};
 use mc_arith::num::{gcd, Int, Nat, Rat};
 use mc_arith::{Arith, Num};
 use mc_core::Heap;
+use mc_eval::NativeCx;
 use rustc_hash::FxHashMap;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
 /// Why a series evaluation did not produce a value.
 enum SErr {
@@ -254,6 +257,43 @@ impl<'h> TRing<'_, 'h> {
         self.env.h()
     }
     /// The expanded form (rational coefficients over the kernels), which decides zero.
+    /// sin, cos, exp, sinh, cosh at a multiple of pi/2 (real for sin and cos, imaginary for sinh and cosh, either
+    /// for exp): its exact value, so a zero there is seen as zero (poles of tan, csch, ... at such points;
+    /// decision IOSYM.13).
+    fn special_value(&self, f: &str, a: T<'h>) -> Option<T<'h>> {
+        let ar = &self.env.ar;
+        let h = self.h();
+        let pi = h.sym_term(h.sym("pi"));
+        let q = ar.mul(&[a, ar.pow(pi, h.int(-1))]);
+        // 2q as an integer
+        let half = |q: T<'h>| -> Option<i64> { ar.num(q)?.mul(&Num::int(2)).as_int()?.to_i64() };
+        // i^k
+        let ipow = |k: i64| match k.rem_euclid(4) {
+            0 => h.int(1),
+            1 => ar.number(&Num::i()),
+            2 => h.int(-1),
+            _ => ar.neg(ar.number(&Num::i())),
+        };
+        let sin = |k: i64| [0, 1, 0, -1][k.rem_euclid(4) as usize];
+        let cos = |k: i64| [1, 0, -1, 0][k.rem_euclid(4) as usize];
+        if let Some(k) = half(q) {
+            return match f {
+                "sin" => Some(h.int(sin(k))),
+                "cos" => Some(h.int(cos(k))),
+                "exp" if k == 0 => Some(h.int(1)),
+                _ => None,
+            };
+        }
+        let qi = ar.mul(&[q, ar.neg(ar.number(&Num::i()))]);
+        let k = half(qi)?;
+        match f {
+            "sinh" => Some(ar.mul(&[ar.number(&Num::i()), h.int(sin(k))])),
+            "cosh" => Some(h.int(cos(k))),
+            "exp" => Some(ipow(k)),
+            _ => None,
+        }
+    }
+
     fn expanded(&self, t: T<'h>, m: &mut Meter) -> SRes<T<'h>> {
         let (ring, ps) = self.env.read(&[t], &[], m)?;
         Ok(self.env.conv().to_term(&ps[0], &ring, m)?)
@@ -301,6 +341,9 @@ impl<'h> Ring<'h> for TRing<'_, 'h> {
                 let rest: Vec<T<'h>> = factors.iter().enumerate().filter(|&(j, _)| j != i).map(|(_, &g)| g).collect();
                 return Ok(self.env.ar.pow(u, self.env.ar.mul(&rest)));
             }
+        }
+        if let Some(v) = self.special_value(f, *a) {
+            return Ok(v);
         }
         Ok(h.call(h.sym(f), &[*a]))
     }
@@ -594,8 +637,11 @@ impl<'h, R: Ring<'h>> Arithm<'_, R> {
         let lead = a.c[0].clone();
         let li = self.r.inv(&lead)?;
         // f = a / (a_v t^v), f_0 = 1: g = f^q with k g_k = sum_j ((q + 1) j - k) f_j g_(k-j)
-        let f: Vec<R::C> = a.c.iter().map(|x| self.r.mul(x, &li)).collect();
-        let n = f.len();
+        let mut f: Vec<R::C> = a.c.iter().map(|x| self.r.mul(x, &li)).collect();
+        // as many terms as the input's precision allows (up to the working precision): a base with few nonzero
+        // terms (x = x0 + t) still has a power with many
+        let n = (a.prec - a.val).min(self.cap - shift).max(f.len() as i64) as usize;
+        f.resize(n, self.r.int(0));
         let q1 = self.r.rat(&q.add(&rat_one()));
         let mut g = vec![self.r.int(1)];
         for k in 1..n {
@@ -958,6 +1004,9 @@ pub(crate) fn series_native<'h>(env: &Env<'h>, args: &[T<'h>], taylor: &TaylorTa
     } else {
         0
     };
+    // sec, csc, cot and their hyperbolic forms as quotients of the kernels' functions (their poles are Laurent
+    // series of those quotients; decision IOSYM.13)
+    let e = &reciprocals(env, *e, *x, 0).unwrap_or(*e);
     let mut den = 1i64;
     loop {
         let req = Request { x: *x, x0: *x0, order_x: n + 1, den, inf, taylor };
@@ -1097,14 +1146,38 @@ fn data_term<'h>(env: &Env<'h>, req: &Request<'h, '_>, cs: Vec<T<'h>>, val: i64,
 /// `normal(e)`: a `series_data` term as its sum, a sum with order terms `O(...)` without them (other terms unchanged;
 /// lists element by element).
 pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
-    let [e] = args else {
-        return Ok(env.arg_failure("normal(e) takes one argument"));
-    };
     let h = env.h();
+    // normal(e, heads): only the heads named (a symbol or a list of them) are converted (decision IOSYM.7)
+    let (e, only) = match args {
+        [e] => (e, None),
+        [e, hs] => {
+            let names: Vec<String> = match env.as_list(*hs) {
+                Some(l) => l.to_vec(),
+                None => vec![*hs],
+            }
+            .into_iter()
+            .filter_map(|t| match h.view(t) {
+                View::Sym(s) => Some(h.sym_name(s).to_string()),
+                _ => None,
+            })
+            .collect();
+            (e, Some(names))
+        }
+        _ => return Ok(env.arg_failure("normal(e) takes one argument, or e and the heads to convert")),
+    };
+    let wanted = |name: &str| only.as_ref().is_none_or(|ns| ns.iter().any(|n| n == name));
+    let (series_ok, assoc_ok) = (wanted("series") || wanted("series_data"), wanted("assoc"));
     let one = |t: T<'h>, m: &mut Meter| -> WorkResult<T<'h>> {
         let View::App { head, args } = h.view(t) else {
             return Ok(t);
         };
+        // an association: the list of its rules
+        if assoc_ok && head == env.sym("assoc") {
+            return Ok(env.list(args));
+        }
+        if !series_ok {
+            return Ok(t);
+        }
         // a sum with order terms (a printed series read back): the sum without them
         if head == env.hd.add && args.iter().any(|&a| matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER))) {
             let rest: Vec<T<'h>> = args.iter().copied().filter(|&a| !matches!(h.view(a), View::App { head, .. } if head == env.sym(ORDER))).collect();
@@ -1263,4 +1336,191 @@ pub(crate) fn derivatives_option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a
         }
     }
     (rest, on)
+}
+
+/// The parts `(x, x0, coefficients, valuation, precision)` of a `series_data(x, x0, [c...], v, p)` term.
+pub fn series_data_parts<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, T<'h>, &'h [T<'h>], i64, i64)> {
+    let View::App { head, args: &[x, x0, cs, v, p] } = h.view(t) else { return None };
+    if head != h.sym_term(h.sym("series_data")) {
+        return None;
+    }
+    let View::App { head: lh, args: cs } = h.view(cs) else { return None };
+    if lh != h.sym_term(h.sym(mc_api::names::LIST)) {
+        return None;
+    }
+    match (h.view(v), h.view(p)) {
+        (View::Int(v), View::Int(p)) => Some((x, x0, cs, v, p)),
+        _ => None,
+    }
+}
+
+/// Is one of `args` a `series_data` term? A cheap test for the engine's `add`, `mul` and `pow` before
+/// [`series_arith`].
+pub fn any_series(h: &Heap, args: &[T<'_>]) -> bool {
+    let mut sd = None;
+    for &a in args {
+        if let View::App { head, args: inner } = h.view(a) {
+            if inner.len() == 5 {
+                let s = *sd.get_or_insert_with(|| h.sym_term(h.sym("series_data")));
+                if head == s {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// The most terms a series operation asks for (the inputs' precision caps the result anyway).
+const MAX_ARITH_ORDER: i64 = 4096;
+
+/// `add`, `mul` or `pow` (`op`) with a `series_data` argument (package io-sym, decision IOSYM.1): the series of the
+/// result at the same point, to the precision the inputs determine (`series(sin(x), x, 0, 5)^2` is the series of
+/// sin(x)^2 to x^6); `None` when the series are at different points or variables or the other arguments do not
+/// expand there (the canonical arithmetic then keeps the call).
+pub fn series_arith<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, op: &str, args: &[T<'h>]) -> mc_eval::Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let mut point = None;
+    let mut order = 2i64;
+    for &a in args {
+        if let Some((x, x0, _, v, p)) = series_data_parts(h, a) {
+            match point {
+                None => point = Some((x, x0)),
+                Some(pt) if pt == (x, x0) => {}
+                Some(_) => return Ok(None),
+            }
+            order = order.saturating_add(p.abs()).saturating_add(v.abs());
+        }
+    }
+    let Some((x, x0)) = point else { return Ok(None) };
+    if op == mc_api::names::POW {
+        if let [_, e] = args {
+            if let View::Int(k) = h.view(*e) {
+                order = order.saturating_mul(k.abs().max(1));
+            }
+        }
+    }
+    let n = h.int(order.min(MAX_ARITH_ORDER));
+    let e = h.call(h.sym(op), args);
+    let sargs = [e, x, x0, n];
+    let taylor = taylor_table(cx, &sargs)?;
+    let env = Env { ar: Arith::new(h).with_stop(stop.clone()), hd: crate::convert::Heads::new(h), name: "series" };
+    let _scope = mc_arith::num::StopScope::enter(Some(stop));
+    let mut tick = crate::natives::Tick { cx, stop, abort: None };
+    let r = {
+        let mut m = Meter::new(&mut tick);
+        series_native(&env, &sargs, &taylor, &mut m)
+    };
+    let abort = tick.abort;
+    match r {
+        Ok(Out::Done(t)) => Ok(Some(t)),
+        Ok(Out::Again(t)) => Ok(Some(cx.eval(t)?)),
+        Ok(Out::Decline) => Ok(None),
+        Err(Halt::Stopped) => match abort {
+            Some(a) => Err(a),
+            None => Ok(None),
+        },
+        Err(Halt::Memory) => Ok(None),
+    }
+}
+
+/// `d(s, y)` of a `series_data` term `s` in x: the term by term derivative, a series to one order less when `y` is
+/// x, the coefficients differentiated when `y` is another variable (decision IOSYM.1); `None` when x0 depends on
+/// `y`.
+pub fn series_derivative<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>, y: T<'h>) -> mc_eval::Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some((x, x0, cs, v, p)) = series_data_parts(h, s) else { return Ok(None) };
+    let ar = Arith::new(h);
+    if y != x {
+        if mentions(h, x0, y) {
+            return Ok(None);
+        }
+        let mut out = Vec::with_capacity(cs.len());
+        for &c in cs {
+            out.push(cx.eval(h.call(h.sym("d"), &[c, y]))?);
+        }
+        return Ok(Some(normalized(cx, x, x0, out, v, p)?));
+    }
+    let out: Vec<T<'h>> = cs.iter().enumerate().map(|(i, &c)| ar.mul(&[h.int(v + i as i64), c])).collect();
+    Ok(Some(normalized(cx, x, x0, out, v - 1, p - 1)?))
+}
+
+/// `integrate(s, x)` of a `series_data` term in x: the term by term antiderivative, a series to one order more;
+/// `None` when a term is `1/(x - x0)` (its integral is a logarithm, which a series does not hold).
+pub fn series_integral<'h>(cx: &mut NativeCx<'_, '_, 'h>, s: T<'h>, y: T<'h>) -> mc_eval::Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some((x, x0, cs, v, p)) = series_data_parts(h, s) else { return Ok(None) };
+    if y != x {
+        return Ok(None);
+    }
+    let ar = Arith::new(h);
+    let mut out = Vec::with_capacity(cs.len());
+    for (i, &c) in cs.iter().enumerate() {
+        let k = v + i as i64 + 1;
+        if k == 0 {
+            if c != h.int(0) {
+                return Ok(None);
+            }
+            out.push(c);
+            continue;
+        }
+        out.push(ar.mul(&[ar.rational(h.int(1), h.int(k)), c]));
+    }
+    Ok(Some(normalized(cx, x, x0, out, v + 1, p + 1)?))
+}
+
+/// `series_data(x, x0, cs, v, p)` with the coefficients evaluated and the leading zeros dropped.
+fn normalized<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, x0: T<'h>, cs: Vec<T<'h>>, mut v: i64, p: i64) -> mc_eval::Res<T<'h>> {
+    let h = cx.heap();
+    let zero = h.int(0);
+    let mut out = Vec::with_capacity(cs.len());
+    for c in cs {
+        let c = cx.eval(c)?;
+        if out.is_empty() && c == zero {
+            v += 1;
+            continue;
+        }
+        out.push(c);
+    }
+    let keep = (p - v).max(0) as usize;
+    out.truncate(keep);
+    if out.is_empty() {
+        v = p;
+    }
+    let l = h.call(h.sym(mc_api::names::LIST), &out);
+    Ok(h.call(h.sym("series_data"), &[x, x0, l, h.int(v), h.int(p)]))
+}
+
+/// `t` with `sec(u)`, `csc(u)`, `cot(u)`, `sech(u)`, `csch(u)`, `coth(u)` of terms mentioning `x` written with `sin`,
+/// `cos`, `sinh`, `cosh`; `None` beyond a nesting depth.
+fn reciprocals<'h>(env: &Env<'h>, t: T<'h>, x: T<'h>, depth: u32) -> Option<T<'h>> {
+    let h = env.h();
+    if depth > 200 {
+        return None;
+    }
+    let View::App { head, args } = h.view(t) else { return Some(t) };
+    if !mentions(h, t, x) {
+        return Some(t);
+    }
+    let mut out = Vec::with_capacity(args.len());
+    for &a in args {
+        out.push(reciprocals(env, a, x, depth + 1)?);
+    }
+    if let (View::Sym(s), [u]) = (h.view(head), out.as_slice()) {
+        let call = |f: &str| h.call(h.sym(f), &[*u]);
+        let inv = |t: T<'h>| env.ar.pow(t, h.int(-1));
+        let r = match h.sym_name(s).as_str() {
+            "sec" => Some(inv(call("cos"))),
+            "csc" => Some(inv(call("sin"))),
+            "cot" => Some(env.ar.mul(&[call("cos"), inv(call("sin"))])),
+            "sech" => Some(inv(call("cosh"))),
+            "csch" => Some(inv(call("sinh"))),
+            "coth" => Some(env.ar.mul(&[call("cosh"), inv(call("sinh"))])),
+            _ => None,
+        };
+        if let Some(r) = r {
+            return Some(r);
+        }
+    }
+    Some(if out.as_slice() == args { t } else { h.app(head, &out) })
 }

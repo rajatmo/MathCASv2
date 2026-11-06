@@ -14,6 +14,10 @@
 //!   result are refined.
 //! - **Search**: breadth first to [`DEPTH`] moves, keeping the [`BEAM`] cheapest new forms per level; forms are
 //!   hash-consed, so duplicates are found by handle.
+//! - **Budgets** (gap G73): a polynomial move (`together`, `cancel`, `factor`, `expand`) runs with the internal
+//!   `time_budget:` option of package K ([`MOVE_SECONDS`]) and gives its input back past it; the whole search stops
+//!   after [`SEARCH_SECONDS`] with the cheapest form found so far; a form more than [`GROWTH`] times the input's
+//!   size (and above [`SMALL`] leaves) is not explored further.
 //! - **Inside out**: the arguments of other functions are simplified first (`sin((x^2 - 1)/(x - 1))` becomes
 //!   `sin(1 + x)`), and lists element by element.
 use crate::facts::Facts;
@@ -28,6 +32,14 @@ use rustc_hash::FxHashSet;
 pub const DEPTH: usize = 3;
 /// Forms kept per level of the search.
 pub const BEAM: usize = 6;
+/// Seconds one polynomial move may take (multivariate `factor` can be exponential in the degrees, gap G73).
+pub const MOVE_SECONDS: f64 = 0.25;
+/// Seconds the whole search of one term may take; past them the cheapest form found so far is the answer.
+pub const SEARCH_SECONDS: f64 = 2.0;
+/// A form larger than this many times the input (and than [`SMALL`] leaves) is not explored further.
+pub const GROWTH: u64 = 8;
+/// Below this many leaves a form is always explored.
+pub const SMALL: u64 = 200;
 
 /// A move of the search.
 #[derive(Clone, Copy, Debug)]
@@ -71,10 +83,10 @@ fn step<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut Fa
             Some(f) => refine(cx, b, f, t),
             None => Ok(t),
         },
-        Move::Together => apply(cx, b, "together", t),
-        Move::Cancel => apply(cx, b, "cancel", t),
-        Move::Factor => apply(cx, b, "factor", t),
-        Move::Expand => apply(cx, b, "expand", t),
+        Move::Together => bounded(cx, b, "together", t),
+        Move::Cancel => bounded(cx, b, "cancel", t),
+        Move::Factor => bounded(cx, b, "factor", t),
+        Move::Expand => bounded(cx, b, "expand", t),
         Move::TrigReduce => trig_reduce(cx, b, t),
         Move::SinExpand => {
             let r = pythagoras(cx, b, t, Pythagoras::ToSin)?;
@@ -102,6 +114,14 @@ fn step<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut Fa
     }
 }
 
+/// `name(t, options(time_budget: MOVE_SECONDS))`: the polynomial move, `t` itself past the budget.
+fn bounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, name: &str, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let rule = h.call(h.sym(mc_api::names::RULE), &[h.sym_term(h.sym("time_budget")), h.real(MOVE_SECONDS)]);
+    let opts = h.call(h.sym("options"), &[rule]);
+    cx.eval(b.call_named(name, &[t, opts]))
+}
+
 /// Is `t` worth searching: a compound term that is not a number?
 fn searchable<'h>(b: &B<'h>, t: T<'h>) -> bool {
     b.call_of(t).is_some() && !b.is_number(t)
@@ -114,14 +134,20 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut 
     }
     let h = b.heap();
     let mut best = (leaf_count(h, t), t);
+    let cap = (best.0 * GROWTH).max(SMALL);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs_f64(SEARCH_SECONDS);
     let mut seen: FxHashSet<T<'h>> = FxHashSet::default();
     seen.insert(t);
     let mut level = vec![t];
-    for _ in 0..DEPTH {
+    'search: for _ in 0..DEPTH {
         let mut next: Vec<(u64, T<'h>)> = Vec::new();
         for &u in &level {
             let refine = facts.is_some().then_some(Move::Refine);
             for m in MOVES.into_iter().chain(refine) {
+                // the time budget of the search: the cheapest form so far (gap G73)
+                if std::time::Instant::now() >= deadline {
+                    break 'search;
+                }
                 let r = step(cx, b, facts, m, u)?;
                 // a move that fails (a limit inside a kernel, a failure term) is not a form
                 if !seen.insert(r) || h_is_failure(b, r) {
@@ -131,7 +157,10 @@ fn search<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&mut 
                 if c < best.0 {
                     best = (c, r);
                 }
-                next.push((c, r));
+                // the size budget: a blown-up form is not explored further
+                if c <= cap {
+                    next.push((c, r));
+                }
             }
         }
         if next.is_empty() {

@@ -178,12 +178,12 @@ expand(exp(x + y))
 #= exp(x + y)
 
 #% text
-# An equation is not expanded side by side:
+# Both sides of an equation are expanded:
 
 #% cell
 expand((x + 1)^2 == 0)
 #% output
-#= (1 + x)^2 == 0
+#= 1 + 2*x + x^2 == 0
 
 #% section
 # See also

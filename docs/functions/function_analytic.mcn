@@ -69,6 +69,14 @@ function_singularities(tan(x), x)
 #% output
 #= cos(x) == 0
 
+#% text
+# Special functions that are entire, and the facts of the `assumptions:` option:
+
+#% cell
+[function_analytic(fresnel_c(x), x), function_analytic(log(x), x, assumptions: x > 0)]
+#% output
+#= [true, true]
+
 #% section
 # See also
 

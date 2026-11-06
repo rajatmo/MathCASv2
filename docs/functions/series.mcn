@@ -169,21 +169,29 @@ series(cos(sqrt(x)), x, 0, 3)
 #% output
 #= 1 - x/2 + x^2/24 - x^3/720 + O(x^4)
 
-#% subsection
-# Possible issues
+#% text
+# Truncated series combine in arithmetic, to the precision their terms determine:
+
+#% cell
+series(sin(x), x, 0, 5)^2 + series(cos(x), x, 0, 5)^2
+#% output
+#= 1 + O(x^6)
+
+#% cell
+1/series(cos(x), x, 0, 4)
+#% output
+#= 1 + x^2/2 + 5*x^4/24 + O(x^5)
 
 #% text
-# Arithmetic on series is not carried out; take `normal` first:
+# `d` differentiates a series term by term:
 
 #% cell
-series(exp(x), x, 0, 2)^2
+d(series(tan(x), x, 0, 5), x)
 #% output
-#= (1 + x + x^2/2 + O(x^3))^2
+#= 1 + x^2 + 2*x^4/3 + O(x^5)
 
-#% cell
-series(normal(series(exp(x), x, 0, 2))^2, x, 0, 2)
-#% output
-#= 1 + 2*x + 2*x^2 + O(x^3)
+#% subsection
+# Possible issues
 
 #% text
 # A substitution into a series keeps the order term; use `normal` first:

@@ -171,7 +171,56 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
             let s = if v == b.zero() && f == "asin" { s } else { 0 };
             Ok(Some(fin(cx, b.call(f, &[v]), s)?))
         }
+        (f, [params @ .., u]) if at_infinity_known(f, params.len()) && params.iter().all(|&p| is_free(b, p, t)) => {
+            // special functions as their argument tends to an infinity (decision IOSYM.8)
+            match lim(cx, b, *u, t, d)? {
+                Some(Lim::Inf(sg)) => Ok(at_infinity(b, f, sg)),
+                _ => series(cx, b, g, t),
+            }
+        }
         _ => series(cx, b, g, t),
+    }
+}
+
+/// The functions [`at_infinity`] knows, by their number of fixed parameters before the variable.
+fn at_infinity_known(f: &str, params: usize) -> bool {
+    match params {
+        0 => matches!(
+            f,
+            "erf" | "erfc" | "erfi" | "airy_ai" | "airy_ai_prime" | "airy_bi" | "airy_bi_prime" | "dawson_f" | "fresnel_c"
+                | "fresnel_s" | "sin_integral" | "sinh_integral" | "cos_integral" | "cosh_integral" | "exp_integral_ei"
+                | "gamma" | "log_gamma" | "product_log"
+        ),
+        1 => matches!(
+            f,
+            "bessel_j" | "bessel_y" | "bessel_k" | "bessel_i" | "hankel_h1" | "hankel_h2" | "exp_integral_e" | "spherical_bessel_j"
+                | "spherical_bessel_y"
+        ),
+        _ => false,
+    }
+}
+
+/// The limit of a special function (its last argument the variable, the others fixed) as the argument tends to
+/// `inf` (`sg` 1) or `-inf` (-1); `None` when it oscillates without bound or is not listed.
+fn at_infinity<'h>(b: &Build<'h>, f: &str, sg: i8) -> Option<Lim<'h>> {
+    let zero = || Some(Lim::Fin(b.zero(), 0));
+    let pi = || b.sym(b.heap().sym("pi"));
+    match (f, sg) {
+        ("erf", _) => Some(Lim::Fin(b.int(sg.into()), 0)),
+        ("erfc", 1) => zero(),
+        ("erfc", _) => Some(Lim::Fin(b.int(2), 0)),
+        ("erfi" | "sinh_integral", _) => Some(Lim::Inf(sg)),
+        ("airy_ai" | "dawson_f", _) => zero(),
+        ("airy_ai_prime", 1) => zero(),
+        ("airy_bi" | "airy_bi_prime", 1) => Some(Lim::Inf(1)),
+        ("airy_bi", _) => zero(),
+        ("fresnel_c" | "fresnel_s", _) => Some(Lim::Fin(b.rat(sg.into(), 2), 0)),
+        ("sin_integral", _) => Some(Lim::Fin(b.mul(&[b.rat(sg.into(), 2), pi()]), 0)),
+        ("cos_integral", 1) => zero(),
+        ("cosh_integral" | "exp_integral_ei" | "gamma" | "log_gamma" | "product_log" | "bessel_i", 1) => Some(Lim::Inf(1)),
+        ("exp_integral_ei", _) => zero(),
+        ("bessel_j" | "bessel_y" | "bessel_k" | "hankel_h1" | "hankel_h2" | "exp_integral_e" | "spherical_bessel_j" | "spherical_bessel_y", 1) => zero(),
+        _ => None,
     }
 }
 

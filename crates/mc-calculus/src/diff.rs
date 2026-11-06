@@ -42,6 +42,31 @@ impl From<Abort> for Halt {
 /// A fuel and interrupt budget: charged once per differentiated node.
 pub type Tick<'t> = dyn FnMut(u64) -> Result<(), Abort> + 't;
 
+/// The pieces `(value, condition)` of a piecewise function and its default.
+pub type Pieces<'h> = (Vec<(T<'h>, T<'h>)>, Option<T<'h>>);
+
+/// The pieces `(value, condition)` and the default of `piecewise([[v1, c1], ...], default)`; `None` for another shape.
+pub fn piecewise_parts<'h>(b: &Build<'h>, args: &[T<'h>]) -> Option<Pieces<'h>> {
+    let h = b.heap();
+    let (list, default) = match args {
+        [l] => (*l, None),
+        [l, d] => (*l, Some(*d)),
+        _ => return None,
+    };
+    let View::App { head, args: items } = h.view(list) else { return None };
+    if b.sym_of(head) != Some(b.hd.list) {
+        return None;
+    }
+    let mut pieces = Vec::with_capacity(items.len());
+    for &it in items {
+        match h.view(it) {
+            View::App { head, args: &[v, c] } if b.sym_of(head) == Some(b.hd.list) => pieces.push((v, c)),
+            _ => return None,
+        }
+    }
+    Some((pieces, default))
+}
+
 /// The derivative with respect to one variable, with its memo.
 pub struct Diff<'b, 'h> {
     b: &'b Build<'h>,
@@ -75,8 +100,17 @@ impl<'b, 'h> Diff<'b, 'h> {
             if !ready {
                 stack.push((u, true));
                 // the condition of a conditional is not differentiated
-                let skip = usize::from(self.rule_of(head, args.len()).is_some_and(|r| matches!(r, Rule::Branches)));
-                for &a in args.iter().skip(skip).rev() {
+                let rule = self.rule_of(head, args.len());
+                let skip = usize::from(rule.is_some_and(|r| matches!(r, Rule::Branches)));
+                let children: Vec<T<'h>> = match rule {
+                    // the values and the default of a piecewise function, not its conditions
+                    Some(Rule::Piecewise) => match piecewise_parts(self.b, args) {
+                        Some((pieces, default)) => pieces.iter().map(|p| p.0).chain(default).collect(),
+                        None => return Err(Halt::Unsupported),
+                    },
+                    _ => args.iter().skip(skip).copied().collect(),
+                };
+                for &a in children.iter().rev() {
                     if !self.memo.contains_key(&a) {
                         stack.push((a, false));
                     }
@@ -173,6 +207,14 @@ impl<'b, 'h> Diff<'b, 'h> {
                 Some(Rule::Branches) => {
                     let mut out = vec![args[0]];
                     out.extend(args[1..].iter().map(|&a| self.dv(a)));
+                    Ok(h.app(head, &out))
+                }
+                Some(Rule::Piecewise) => {
+                    let Some((pieces, default)) = piecewise_parts(b, args) else { return Err(Halt::Unsupported) };
+                    let list = b.hd.list;
+                    let ds: Vec<T<'h>> = pieces.iter().map(|&(v, c)| h.call(list, &[self.dv(v), c])).collect();
+                    let mut out = vec![h.call(list, &ds)];
+                    out.extend(default.map(|d| self.dv(d)));
                     Ok(h.app(head, &out))
                 }
                 Some(Rule::Unsupported) => Err(Halt::Unsupported),

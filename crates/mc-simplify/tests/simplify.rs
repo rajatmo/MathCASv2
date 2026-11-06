@@ -135,3 +135,20 @@ fn interrupt_stops_a_long_simplification() {
     // the session is still usable
     assert_eq!(s.run("simplify(sin(x)^2 + cos(x)^2)"), "1");
 }
+
+#[test]
+fn medium_size_expressions_stay_within_the_budget() {
+    // gap G73: multivariate factoring of these numerators is exponential in the degrees; each polynomial move has
+    // a time budget and the search one too, so simplify answers (with the cheapest form found) instead of hanging
+    let mut s = Sys::new();
+    let e = "-4*lam*p^3/(3*sqrt(lam*p^4/(3*mp^2))*(1 + (a*nc)^5*t^3/(2*f^2)/(1 + 2*nf*nc^4*a^5*t/sqrt(lam*p^4/(3*mp^2)))/(3*sqrt(lam*p^4/(3*mp^2)))))";
+    for src in [format!("simplify({e})"), format!("simplify(power_expand({e}))"), format!("simplify({e} /. [t -> 4.0e13, p -> 2.0e19])")] {
+        let t0 = std::time::Instant::now();
+        let r = s.run(&src);
+        let took = t0.elapsed();
+        assert!(took < Duration::from_secs(15), "{src}: took {took:?}");
+        assert!(!r.starts_with("failure") && !r.starts_with("simplify("), "{src}: {r}");
+    }
+    // the budget does not stop the moves that finish in time
+    assert_eq!(s.run("simplify(x^2 + 2*x + 1)"), "(1 + x)^2");
+}

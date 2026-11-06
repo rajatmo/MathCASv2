@@ -48,6 +48,9 @@ const FORMULA: &[&str] = &[
     "ramp", "real_abs", "fractional_part", "chebyshev_t", "chebyshev_u", "legendre_p", "hermite_h", "laguerre_l",
     "gegenbauer_c", "spherical_bessel_j", "spherical_bessel_y", "hankel_h1", "hankel_h2", "jacobi_cd", "jacobi_cs",
     "jacobi_dc", "jacobi_ds", "jacobi_nc", "jacobi_nd", "jacobi_ns", "jacobi_sc", "jacobi_sd", "pochhammer",
+    // numeric at machine precision or for integer orders only (package io-sym)
+    "legendre_q", "elliptic_nome_q", "hypergeometric_0f1_regularized", "hypergeometric_1f1_regularized",
+    "hypergeometric_2f1_regularized", "factorial",
 ];
 
 #[test]
@@ -195,6 +198,9 @@ fn formula_functions_at_machine_precision() {
         ("hermite_h(3, x)", 0.4), ("laguerre_l(3, x)", 0.4), ("gegenbauer_c(3, 1/2, x)", 0.4),
         ("spherical_bessel_j(2, x)", 0.7), ("spherical_bessel_y(2, x)", 0.7), ("jacobi_sc(x, 1/3)", 0.4),
         ("jacobi_nd(x, 1/3)", 0.4), ("jacobi_cs(x, 1/3)", 0.4), ("pochhammer(1/3, x)", 0.7),
+        ("legendre_q(2, x)", 0.4), ("elliptic_nome_q(x)", 0.3), ("hypergeometric_0f1_regularized(1/3, x)", 0.7),
+        ("hypergeometric_1f1_regularized(1/3, 2/3, x)", 0.7), ("hypergeometric_2f1_regularized(1/3, 2/3, 5/7, x)", 0.3),
+        ("laguerre_l(3, 1/2, x)", 0.4),
     ];
     for (f, x) in cases {
         let h = 1e-5;

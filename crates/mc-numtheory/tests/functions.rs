@@ -54,9 +54,10 @@ fn gcd_and_lcm() {
         ("lcm(-4, 6)", "12"),
         ("lcm(1/2, 1/3)", "1"),
         ("lcm(2/3, 4/9)", "4/3"),
-        // polynomials go to mc-poly's gcd (the owner of the name)
-        ("gcd(x, 2)", "1"),
-        ("gcd(2x, 4)", "2"),
+        // polynomials go to mc-poly's gcd (the owner of the name); a symbol with a number may stand for an integer,
+        // so that call stays (decision IOSYM.14 of mc-poly)
+        ("gcd(x, 2)", "gcd(x, 2)"),
+        ("gcd(2x, 4)", "gcd(2*x, 4)"),
         ("extended_gcd(240, 46)", "[2, [-9, 47]]"),
         ("extended_gcd(0, 5)", "[5, [0, 1]]"),
         ("extended_gcd(-6, 4)", "[2, [1, 2]]"),

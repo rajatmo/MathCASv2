@@ -18,7 +18,10 @@
 //! is `None` and the call stays unevaluated: no answer is better than a wrong one.
 //!
 //! Decisions are numbered 2C4.1, 2C4.2, ... and recorded in `notes/2c-definite.md`.
+pub(crate) mod delta;
 mod points;
+mod split;
+pub(crate) use split::resolve_near;
 
 use crate::limit::walk::{self as limit, Lim};
 use super::{antiderivative, apply, args_of, is_free};
@@ -42,6 +45,18 @@ pub(crate) enum Pt<'h> {
 /// The integral of `f` in `x` from `lo` to `hi` (either may be `inf` or `-inf`), else `None`. Uses
 /// [`super::antiderivative`]. A divergent integral gives `failure(divergent, integrate, f)`.
 pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, lo: T<'h>, hi: T<'h>) -> Res<Option<T<'h>>> {
+    if let Some(r) = delta::definite(cx, b, f, x, lo, hi)? {
+        return Ok(Some(r));
+    }
+    // a function defined by cases: piece by piece (decision IOSYM.2), else as a whole
+    match split::by_cases(cx, b, f, x, lo, hi)? {
+        Some(r) => Ok(Some(r)),
+        None => plain(cx, b, f, x, lo, hi),
+    }
+}
+
+/// The integral without splitting at the cases of `abs`, `piecewise`, ... ([`integrate`]).
+fn plain<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, lo: T<'h>, hi: T<'h>) -> Res<Option<T<'h>>> {
     if !is_free(b, lo, x) || !is_free(b, hi, x) {
         return Ok(None);
     }

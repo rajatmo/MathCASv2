@@ -173,6 +173,38 @@ solve(x == x + 1, x)
 #% output
 #= []
 
+#% text
+# An equation that is not polynomial, with conditions bounding the unknown: the real roots in that interval
+
+#% cell
+solve(sin(x) == 0 and 0 < x and x < 7, x)
+#% output
+#= [[x -> pi], [x -> 2*pi]]
+
+#% text
+# Roots without a closed form are numbers:
+
+#% cell
+solve(bessel_j(0, x) == 0 and 0 < x and x < 6, x)
+#% output
+#= [[x -> 2.4048255576957724], [x -> 5.520078110286311]]
+
+#% text
+# Facts about the unknowns with the `assumptions:` option:
+
+#% cell
+solve(x^2 == 4, x, assumptions: x > 0)
+#% output
+#= [[x -> 2]]
+
+#% text
+# The solutions go into other functions through `rewrite`:
+
+#% cell
+sol = solve(x^2 - 3*x + 1 == 0, x); simplify(rewrite(x^2 - 3*x + 1, sol))
+#% output
+#= [0, 0]
+
 #% subsection
 # Possible issues
 

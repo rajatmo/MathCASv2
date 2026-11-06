@@ -134,6 +134,14 @@ simplify(apart((3x + 5)/((x + 1)^2*(x - 2))) - (3x + 5)/((x + 1)^2*(x - 2)))
 #% output
 #= 0
 
+#% text
+# Both sides of an equation or inequality, and each condition of a conjunction:
+
+#% cell
+apart(1 < (x + 1)/(x - 1) and (x + 1)/(x - 1) < 2)
+#% output
+#= 1 < 1 + 2/(-1 + x) and 1 + 2/(-1 + x) < 2
+
 #% subsection
 # Possible issues
 

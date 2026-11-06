@@ -152,6 +152,30 @@ limit((sin(x) - x)/x^3, x -> 0)
 #% output
 #= [1/2, 1/2 - x^2/24 + O(x^3)]
 
+#% text
+# Special functions at an infinite argument:
+
+#% cell
+[limit(airy_ai(x), x -> inf), limit(fresnel_s(x), x -> -inf), limit(bessel_j(n, x), x -> inf)]
+#% output
+#= [0, -1/2, 0]
+
+#% text
+# Facts about the parameters with the `assumptions:` option:
+
+#% cell
+limit(exp(-k*t), t -> inf, assumptions: k > 0)
+#% output
+#= 0
+
+#% text
+# The direction may also be given as -1 (from above) or 1 (from below):
+
+#% cell
+limit(1/x, x -> 0, direction: -1)
+#% output
+#= inf
+
 #% subsection
 # Possible issues
 

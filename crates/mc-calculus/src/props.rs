@@ -58,9 +58,22 @@ pub struct PropNative {
 /// Functions defined (and analytic) for every real argument.
 const ENTIRE: &[&str] = &[
     "sin", "cos", "exp", "sinh", "cosh", "tanh", "atan", "erf", "erfc", "erfi", "airy_ai", "airy_bi", "sech",
+    "airy_ai_prime", "airy_bi_prime", "dawson_f", "fresnel_c", "fresnel_s", "sin_integral", "sinh_integral", "sinc",
+    "gudermannian",
 ];
+/// Functions of several arguments analytic in the last one for every real value of it, when the others are free of
+/// the variables (polynomial families, entire hypergeometric functions; decision IOSYM.5).
+const ENTIRE_LAST: &[&str] = &[
+    "hermite_h", "laguerre_l", "chebyshev_t", "chebyshev_u", "lucas_l", "fibonacci", "hypergeometric_0f1",
+    "hypergeometric_0f1_regularized", "hypergeometric_1f1_regularized",
+];
+/// Functions of an integer order and a variable analytic in the variable for an integer order.
+const ENTIRE_INTEGER_ORDER: &[&str] = &["bessel_j", "bessel_i", "spherical_bessel_j"];
 /// Functions defined for every real argument but not analytic everywhere.
-const CONTINUOUS: &[&str] = &["abs", "max", "min", "unit_step", "sign", "floor", "ceiling", "round", "re", "im_part", "conjugate"];
+const CONTINUOUS: &[&str] = &[
+    "abs", "max", "min", "unit_step", "sign", "floor", "ceiling", "round", "re", "im_part", "conjugate", "integer_part",
+    "fractional_part", "clip", "ramp", "real_abs", "real_sign", "unit_box", "unit_triangle", "heaviside_theta", "arg",
+];
 
 /// The call's pieces.
 struct Call<'h> {
@@ -112,7 +125,16 @@ fn parse<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Option<Call<'h>> 
 impl Native for PropNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let Some(c) = parse(cx, args) else { return Ok(Reply::Decline) };
+        let Some(mut c) = parse(cx, args) else { return Ok(Reply::Decline) };
+        // inside assuming (or with assumptions: facts): the facts about the variables restrict the domain
+        if c.cond.is_none() {
+            let facts: Vec<T<'h>> = cx.assumptions().iter().copied().filter(|&f| c.vars.iter().any(|&x| !is_free(&Build::new(h, &self.stop), f, x))).collect();
+            match facts.as_slice() {
+                [] => {}
+                [f] => c.cond = Some(*f),
+                _ => c.cond = Some(h.call(h.sym("and"), &facts)),
+            }
+        }
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
         let r = match self.p {
@@ -209,6 +231,13 @@ fn conditions_of<'h>(
         let [a] = args else {
             if CONTINUOUS.contains(&name.as_str()) {
                 continue;
+            }
+            if let Some((last, params)) = args.split_last() {
+                let fixed = params.iter().all(|&p| !depends(p));
+                let integer_order = matches!(params, [n] if matches!(h.view(*n), View::Int(_)));
+                if fixed && depends(*last) && (ENTIRE_LAST.contains(&name.as_str()) || ENTIRE_INTEGER_ORDER.contains(&name.as_str()) && integer_order) {
+                    continue;
+                }
             }
             return Ok(None);
         };
@@ -353,6 +382,12 @@ fn singularities<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>)
 
 fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
+    // a non-analytic continuous function of a variable itself (`floor(x)`, `abs(x)`): not analytic
+    if let View::App { head, args: &[a, ..] } = h.view(c.f) {
+        if b.sym_of(head).is_some_and(|s| CONTINUOUS.contains(&h.sym_name(s).as_str())) && c.vars.contains(&a) && c.cond.is_none() {
+            return Ok(Some(cx.bool(false)));
+        }
+    }
     // non-analytic continuous functions of the variables: not decided here
     let mut stack = vec![c.f];
     while let Some(u) = stack.pop() {
@@ -546,8 +581,23 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
     if params.iter().any(|&s| s != x) {
         return Ok(None);
     }
-    // strictly monotonic: the derivative of one sign (zero at isolated points only)
-    if !c.integers {
+    // strictly monotonic: the derivative of one sign (zero at isolated points only); not for functions with jumps or
+    // flat pieces (`floor`, `fractional_part`, `ramp`, ...), whose derivative says nothing about that
+    let jumps = {
+        let mut stack = vec![c.f];
+        let mut found = false;
+        while let Some(u) = stack.pop() {
+            if let View::App { head, args } = h.view(u) {
+                if b.sym_of(head).is_some_and(|s| CONTINUOUS.contains(&h.sym_name(s).as_str()) && h.sym_name(s) != "abs") && !is_free(b, u, x) {
+                    found = true;
+                    break;
+                }
+                stack.extend(args.iter().copied());
+            }
+        }
+        found
+    };
+    if !c.integers && !jumps {
         let m = sign_of(cx, b, c, 1)?;
         if let Some(m) = m {
             match h.view(m) {

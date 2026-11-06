@@ -93,7 +93,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     k.register(h.sym("derivative"), Attributes::default(), Box::new(natives::DerivativeAt { stop: stop.clone() }));
     // integrate reads the assumption context: symbolic bounds and parameters decided by its facts (decision 2C4.5)
     let reads = Attributes { uses_assumptions: true, ..Attributes::default() };
-    k.register(h.sym("integrate"), reads, Box::new(natives::Integrate { stop: stop.clone() }));
+    k.register(h.sym("integrate"), reads, wrap("integrate", natives::Integrate { stop: stop.clone() }));
     k.register(h.sym("apart"), Attributes::default(), Box::new(natives::Apart { stop: stop.clone() }));
     for (name, p) in [
         ("function_domain", props::Prop::Domain),
@@ -104,7 +104,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         ("function_convexity", props::Prop::Convexity),
         ("function_injective", props::Prop::Injective),
     ] {
-        k.register(h.sym(name), Attributes::default(), Box::new(props::PropNative { p, stop: stop.clone() }));
+        k.register(h.sym(name), Attributes::default(), wrap(name, props::PropNative { p, stop: stop.clone() }));
     }
     for (name, kind) in [
         ("minimize", optimize::Kind::Minimize),
@@ -116,7 +116,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         ("find_instance", optimize::Kind::FindInstance),
         ("function_range", optimize::Kind::Range),
     ] {
-        k.register(h.sym(name), Attributes::default(), Box::new(optimize::OptNative { kind, stop: stop.clone() }));
+        k.register(h.sym(name), Attributes::default(), wrap(name, optimize::OptNative { kind, stop: stop.clone() }));
     }
     for (name, kind) in [
         ("d_solve", dsolve::Kind::DSolve),
@@ -124,9 +124,14 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         ("r_solve", dsolve::Kind::RSolve),
         ("r_solve_value", dsolve::Kind::RSolveValue),
     ] {
-        k.register(h.sym(name), Attributes::default(), Box::new(dsolve::DSolveNative { kind, stop: stop.clone() }));
+        k.register(h.sym(name), Attributes::default(), wrap(name, dsolve::DSolveNative { kind, stop: stop.clone() }));
     }
-    k.register(h.sym("fourier_transform"), Attributes::default(), Box::new(transforms::Fourier { inverse: false, stop: stop.clone() }));
-    k.register(h.sym("inverse_fourier_transform"), Attributes::default(), Box::new(transforms::Fourier { inverse: true, stop: stop.clone() }));
-    k.register(h.sym("limit"), Attributes::default(), Box::new(limit::LimitFn { stop: stop.clone() }));
+    k.register(h.sym("fourier_transform"), Attributes::default(), wrap("fourier_transform", transforms::Fourier { inverse: false, stop: stop.clone() }));
+    k.register(h.sym("inverse_fourier_transform"), Attributes::default(), wrap("inverse_fourier_transform", transforms::Fourier { inverse: true, stop: stop.clone() }));
+    k.register(h.sym("limit"), Attributes::default(), wrap("limit", limit::LimitFn { stop: stop.clone() }));
+}
+
+/// A native with the `assumptions:` option (decision IOSYM.4).
+fn wrap<N: mc_eval::Native + 'static>(name: &'static str, inner: N) -> Box<dyn mc_eval::Native> {
+    Box::new(mc_poly::opts::WithAssumptions { name, inner })
 }

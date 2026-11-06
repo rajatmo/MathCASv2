@@ -20,6 +20,7 @@
 #![warn(missing_docs)]
 mod cx;
 mod domain;
+mod interval;
 mod linear;
 mod natives;
 mod numroots;
@@ -76,6 +77,12 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for &(name, f) in TABLE {
         // solve reads the assumption context: facts about the unknowns filter its solutions (decision 3B.20)
         let a = Attributes { uses_assumptions: matches!(f, SolveFn::Solve), ..Attributes::default() };
-        k.register(h.sym(name), a, Box::new(SolveNative { f, name, stop: stop.clone() }));
+        let native = SolveNative { f, name, stop: stop.clone() };
+        if matches!(f, SolveFn::Solve | SolveFn::Reduce) {
+            // the assumptions: option (decision IOSYM.4)
+            k.register(h.sym(name), a, Box::new(mc_poly::opts::WithAssumptions { name, inner: native }));
+        } else {
+            k.register(h.sym(name), a, Box::new(native));
+        }
     }
 }

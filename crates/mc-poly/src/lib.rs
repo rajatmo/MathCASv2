@@ -17,6 +17,7 @@ pub mod groebner;
 pub mod modp;
 pub mod mul;
 mod natives;
+pub mod opts;
 pub mod poly;
 pub mod qpoly;
 pub mod ratfun;
@@ -28,6 +29,8 @@ pub mod z;
 pub use poly::Poly;
 pub use qpoly::QPoly;
 pub use z::Z;
+pub use natives::thread_relation;
+pub use series::{any_series, series_arith, series_data_parts, series_derivative, series_integral};
 
 use mc_core::{Heap, Store};
 use mc_eval::{Attributes, Kernel};
@@ -90,6 +93,11 @@ const TABLE: &[(&str, PolyFn)] = &[
 /// (decision K.1).
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for &(name, f) in TABLE {
-        k.register(h.sym(name), Attributes::default(), Box::new(PolyNative { f, name, stop: stop.clone() }));
+        let native = PolyNative { f, name, stop: stop.clone() };
+        if f == PolyFn::Series {
+            k.register(h.sym(name), Attributes::default(), Box::new(opts::WithAssumptions { name, inner: native }));
+        } else {
+            k.register(h.sym(name), Attributes::default(), Box::new(native));
+        }
     }
 }

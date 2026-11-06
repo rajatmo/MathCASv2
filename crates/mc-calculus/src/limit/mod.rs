@@ -108,7 +108,11 @@ fn exact_limit<'h>(
     direction: Direction,
 ) -> Res<Outcome<'h>> {
     let inf = b.heap().sym_term(b.heap().sym("inf"));
-    let one = |cx: &mut NativeCx<'_, '_, 'h>, pt, side| walk::limit(cx, b, f, x, pt, side);
+    // a function defined by cases: its branch on the side approached (decision IOSYM.16)
+    let one = |cx: &mut NativeCx<'_, '_, 'h>, pt, side| match crate::integrate::definite::resolve_near(cx, b, f, x, pt, side)? {
+        Some(g) => walk::limit(cx, b, g, x, pt, side),
+        None => walk::limit(cx, b, f, x, pt, side),
+    };
     let l = match (a, direction) {
         (a, Direction::TwoSided | Direction::FromBelow) if a == inf => one(cx, Pt::PosInf, 1)?,
         (a, Direction::TwoSided | Direction::FromAbove) if a == b.neg(inf) => one(cx, Pt::NegInf, 1)?,
@@ -192,11 +196,12 @@ fn options<'a, 'h>(b: &Build<'h>, args: &'a [T<'h>]) -> Result<(&'a [T<'h>], Dir
         if h.sym_name(name) != "direction" {
             return Err(failure(b, "unknown_option", &[k]));
         }
-        direction = match b.sym_of(v).map(|s| h.sym_name(s)).as_deref() {
-            Some("from_above") => Direction::FromAbove,
-            Some("from_below") => Direction::FromBelow,
-            Some("two_sided") => Direction::TwoSided,
-            _ => return Err(bad(b, "direction is from_above, from_below or two_sided")),
+        // also the numeric forms -1 (from above) and 1 (from below), and reals for both sides along the real line
+        direction = match (b.sym_of(v).map(|s| h.sym_name(s)).as_deref(), h.view(v)) {
+            (Some("from_above"), _) | (_, View::Int(-1)) => Direction::FromAbove,
+            (Some("from_below"), _) | (_, View::Int(1)) => Direction::FromBelow,
+            (Some("two_sided" | "reals"), _) => Direction::TwoSided,
+            _ => return Err(bad(b, "direction is from_above, from_below, two_sided or reals")),
         };
     }
     Ok((rest, direction))

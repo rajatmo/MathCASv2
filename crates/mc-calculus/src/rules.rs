@@ -31,6 +31,8 @@ pub enum Rule {
     Linear,
     /// a conditional `if(c, a, b)`: the condition is kept, the branches are differentiated
     Branches,
+    /// `piecewise([[v1, c1], ...], default)`: the conditions are kept, the values and the default differentiated
+    Piecewise,
     /// not differentiable by this package: `d` stays unevaluated
     Unsupported,
 }
@@ -225,6 +227,15 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("legendre_p", 2, 0),
     ("hermite_h", 2, 0),
     ("laguerre_l", 2, 0),
+    ("laguerre_l", 3, 0),
+    ("laguerre_l", 3, 1),
+    ("legendre_q", 2, 0),
+    ("hypergeometric_0f1_regularized", 2, 0),
+    ("hypergeometric_1f1_regularized", 3, 0),
+    ("hypergeometric_1f1_regularized", 3, 1),
+    ("hypergeometric_2f1_regularized", 4, 0),
+    ("hypergeometric_2f1_regularized", 4, 1),
+    ("hypergeometric_2f1_regularized", 4, 2),
     ("gegenbauer_c", 3, 0),
     ("gegenbauer_c", 3, 1),
     ("spherical_bessel_j", 2, 0),
@@ -595,6 +606,69 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             |b, a| b.neg(b.call("laguerre_l", &[b.sub(a[0], b.one()), b.one(), a[1]])),
         ]),
     ),
+    // more special functions (package io-sym, decision IOSYM.11): the generalized Laguerre polynomial, Legendre Q,
+    // the regularized hypergeometric functions in z, the factorial and the elliptic nome
+    (
+        "laguerre_l",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "laguerre_l", a, 0),
+            |b, a| opaque_partial(b, "laguerre_l", a, 1),
+            |b, a| b.neg(b.call("laguerre_l", &[b.sub(a[0], b.one()), b.add(&[a[1], b.one()]), a[2]])),
+        ]),
+    ),
+    (
+        "legendre_q",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "legendre_q", a, 0), |b, a| {
+            let q = b.sub(b.mul(&[a[1], b.call("legendre_q", a)]), b.call("legendre_q", &[b.sub(a[0], b.one()), a[1]]));
+            b.div(b.mul(&[a[0], q]), b.sub(pw(b, a[1], 2), b.one()))
+        }]),
+    ),
+    (
+        "hypergeometric_0f1_regularized",
+        2,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hypergeometric_0f1_regularized", a, 0),
+            |b, a| b.call("hypergeometric_0f1_regularized", &[b.add(&[a[0], b.one()]), a[1]]),
+        ]),
+    ),
+    (
+        "hypergeometric_1f1_regularized",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hypergeometric_1f1_regularized", a, 0),
+            |b, a| opaque_partial(b, "hypergeometric_1f1_regularized", a, 1),
+            |b, a| {
+                let up = |t| b.add(&[t, b.one()]);
+                b.mul(&[a[0], b.call("hypergeometric_1f1_regularized", &[up(a[0]), up(a[1]), a[2]])])
+            },
+        ]),
+    ),
+    (
+        "hypergeometric_2f1_regularized",
+        4,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hypergeometric_2f1_regularized", a, 0),
+            |b, a| opaque_partial(b, "hypergeometric_2f1_regularized", a, 1),
+            |b, a| opaque_partial(b, "hypergeometric_2f1_regularized", a, 2),
+            |b, a| {
+                let up = |t| b.add(&[t, b.one()]);
+                b.mul(&[a[0], a[1], b.call("hypergeometric_2f1_regularized", &[up(a[0]), up(a[1]), up(a[2]), a[3]])])
+            },
+        ]),
+    ),
+    ("factorial", 1, Rule::Partials(&[|b, a| b.mul(&[b.call("factorial", a), b.call("polygamma", &[b.zero(), b.add(&[a[0], b.one()])])])])),
+    (
+        "elliptic_nome_q",
+        1,
+        Rule::Partials(&[|b, a| {
+            let m = a[0];
+            let k = b.call("elliptic_k", &[m]);
+            let den = b.mul(&[b.int(4), m, b.sub(b.one(), m), pw(b, k, 2)]);
+            b.div(b.mul(&[pw(b, pi(b), 2), b.call("elliptic_nome_q", &[m])]), den)
+        }]),
+    ),
     (
         "gegenbauer_c",
         3,
@@ -656,6 +730,8 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ("equal", 2, Rule::Linear),
     ("if", 2, Rule::Branches),
     ("if", 3, Rule::Branches),
+    ("piecewise", 1, Rule::Piecewise),
+    ("piecewise", 2, Rule::Piecewise),
     // terms that are not functions of their arguments
     ("series_data", ANY, Rule::Unsupported),
     ("failure", ANY, Rule::Unsupported),

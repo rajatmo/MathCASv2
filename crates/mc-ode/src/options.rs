@@ -30,7 +30,7 @@ pub(crate) enum Method {
 impl Method {
     fn from_name(s: &str) -> Option<Method> {
         Some(match s {
-            "auto" => Method::Auto,
+            "auto" | "automatic" => Method::Auto,
             "rk45" => Method::Rk45,
             "stiff" => Method::Stiff,
             "taylor" => Method::Taylor,
@@ -170,7 +170,7 @@ pub(crate) fn split<'a, 'h>(
             }
             "compile" => {
                 o.policy = match symbol(v).as_deref() {
-                    Some("auto") => Policy::default(),
+                    Some("auto" | "automatic") => Policy::default(),
                     Some(names::TRUE) => Policy::Compiled,
                     Some(names::FALSE) => Policy::Interpreted,
                     _ => return Err(bad()),

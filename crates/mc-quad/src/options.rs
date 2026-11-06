@@ -109,7 +109,7 @@ pub(crate) fn split<'a, 'h>(
             },
             "method" => {
                 o.method = match symbol().as_deref() {
-                    Some("auto") => None,
+                    Some("auto" | "automatic") => None,
                     Some("gauss_kronrod") => Some(Method::GaussKronrod),
                     Some("double_exponential") => Some(Method::DoubleExponential),
                     _ => return Err(bad()),
@@ -124,7 +124,7 @@ pub(crate) fn split<'a, 'h>(
             }
             "compile" => {
                 o.compile = match symbol().as_deref() {
-                    Some("auto") => Some(Policy::Auto { after: mc_numfn::DEFAULT_AFTER }),
+                    Some("auto" | "automatic") => Some(Policy::Auto { after: mc_numfn::DEFAULT_AFTER }),
                     Some(names::TRUE) => Some(Policy::Compiled),
                     Some(names::FALSE) => Some(Policy::Interpreted),
                     _ => return Err(bad()),

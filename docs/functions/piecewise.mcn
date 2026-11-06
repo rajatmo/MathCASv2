@@ -98,12 +98,13 @@ fn g(x) = if x < 0 then x^2 else if x < 1 then x else 1
 # Possible issues
 
 #% text
-# The derivative of a piecewise function is not worked out case by case; the result is not usable:
+# The derivative of a piecewise function is worked out piece by piece; it holds away from the breakpoints, where the
+# function may not be differentiable:
 
 #% cell
 d(tent, t)
 #% output
-#= [[derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0), derivative(1, 0)(less)(t, 0)*derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0)], [-derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0), derivative(1, 0)(less)(t, 1)*derivative(1, 0)(piecewise)([[1 + t, t < 0], [1 - t, t < 1]], 0)]]
+#= piecewise([[1, t < 0], [-1, t < 1]], 0)
 
 #% section
 # See also

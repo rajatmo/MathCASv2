@@ -166,6 +166,51 @@ integrate(x^2, [x, 1, 3])
 #% output
 #= 26/3
 
+#% text
+# Functions defined by cases (`abs`, `max`, `unit_step`, `piecewise`, ...) are integrated piece by piece:
+
+#% cell
+integrate(abs(sin(x)), [x, 0, 2*pi])
+#% output
+#= 4
+
+#% cell
+integrate(piecewise([[x^2, x < 1]], 2 - x), [x, 0, 3])
+#% output
+#= 1/3
+
+#% text
+# A `dirac_delta` factor picks the value at its zero:
+
+#% cell
+integrate(dirac_delta(x - 1)*x^3, [x, 0, 2])
+#% output
+#= 1
+
+#% text
+# Several ranges give an iterated integral, the last range innermost:
+
+#% cell
+integrate(x*y^2, [x, 0, 2], [y, 0, x])
+#% output
+#= 32/15
+
+#% text
+# Facts about the parameters with the `assumptions:` option:
+
+#% cell
+integrate(exp(-k*t), [t, 0, inf], assumptions: k > 0)
+#% output
+#= k^-1
+
+#% text
+# A truncated series is integrated term by term:
+
+#% cell
+integrate(series(cos(x), x, 0, 4), x)
+#% output
+#= x - x^3/6 + x^5/120 + O(x^6)
+
 #% subsection
 # Possible issues
 

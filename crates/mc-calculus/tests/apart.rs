@@ -73,7 +73,8 @@ fn unchanged_and_declined() {
         ("apart(x^(1/2)/(x + 1), x)", "apart(x^(1/2)/(1 + x), x)"),
         ("apart(1.5/(x^2 - 1), x)", "apart(1.5/(-1 + x^2), x)"),
         ("apart(1/(x*y + 1))", "apart((1 + x*y)^-1)"),
-        ("apart(3)", "apart(3)"),
+        // a number is its own decomposition
+        ("apart(3)", "3"),
         // a malformed variable
         ("apart(1/(x^2 - 1), 2)", "failure(argument, apart, \"a number is not a variable\")"),
     ]);

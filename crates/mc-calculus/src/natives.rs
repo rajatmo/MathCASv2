@@ -18,8 +18,8 @@ use std::sync::Arc;
 enum Spec<'h> {
     /// differentiate `n` times in the variable
     Var(T<'h>, i64),
-    /// the gradient in these variables
-    Grad(Vec<T<'h>>),
+    /// the gradient in these variables, `n` times (`[[x, y], n]`)
+    Grad(Vec<T<'h>>, i64),
 }
 
 /// `d(f, specs...)`.
@@ -52,12 +52,32 @@ impl Native for D {
                 Err(message) => return Ok(Reply::Done(arg_failure(h, message))),
             }
         }
+        // a truncated series: term by term (decision IOSYM.1)
+        if mc_poly::series_data_parts(h, *f).is_some() {
+            let mut t = *f;
+            for s in &parsed {
+                let Spec::Var(x, n) = s else { return Ok(Reply::Decline) };
+                for _ in 0..*n {
+                    match mc_poly::series_derivative(cx, t, *x)? {
+                        Some(r) => t = r,
+                        None => return Ok(Reply::Decline),
+                    }
+                }
+            }
+            return Ok(Reply::Done(t));
+        }
         let mut tick = |n: u64| cx.tick(n);
         let mut t = *f;
         for s in &parsed {
             let r = match s {
                 Spec::Var(x, n) => nth(&b, t, *x, *n, &mut tick),
-                Spec::Grad(xs) => gradient(&b, t, xs, &mut tick),
+                Spec::Grad(xs, n) => {
+                    let mut r = Ok(t);
+                    for _ in 0..*n {
+                        r = r.and_then(|u| gradient(&b, u, xs, &mut tick));
+                    }
+                    r
+                }
             };
             t = match r {
                 Ok(t) => t,
@@ -97,6 +117,13 @@ fn spec<'h>(b: &Build<'h>, s: T<'h>) -> Result<Spec<'h>, &'static str> {
     };
     if let [x, n] = items {
         if b.ar.num(*n).is_some() {
+            // [[x, y, ...], n]: the n-th gradient (decision IOSYM.9)
+            if let (View::App { head, args: xs }, View::Int(n @ 0..=64)) = (h.view(*x), h.view(*n)) {
+                if b.sym_of(head) == Some(b.hd.list) {
+                    let xs = xs.iter().map(|&x| variable(b, x)).collect::<Result<Vec<_>, _>>()?;
+                    return Ok(Spec::Grad(xs, n));
+                }
+            }
             return match h.view(*n) {
                 View::Int(n @ 0..) => Ok(Spec::Var(variable(b, *x)?, n)),
                 _ => Err("the order of a derivative must be a non-negative machine integer"),
@@ -104,7 +131,7 @@ fn spec<'h>(b: &Build<'h>, s: T<'h>) -> Result<Spec<'h>, &'static str> {
         }
     }
     let xs = items.iter().map(|&x| variable(b, x)).collect::<Result<Vec<_>, _>>()?;
-    Ok(Spec::Grad(xs))
+    Ok(Spec::Grad(xs, 1))
 }
 
 /// The gradient of every scalar part of `t` in `xs`: lists map, every other term becomes `[d(t, x1), ...]`.
@@ -227,6 +254,23 @@ fn named_failure<'h>(h: &'h Heap, name: &str, message: &str) -> T<'h> {
 impl Native for Integrate {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        // `generate_conditions: v` is accepted (conditions are never generated), and `principal_value: false`
+        let args = match args.split_last() {
+            Some((&last, rest)) if ignorable_options(h, last) => rest,
+            _ => args,
+        };
+        // several specifications: iterated, the last one innermost (decision IOSYM.9)
+        if let [f, specs @ ..] = args {
+            if specs.len() > 1 {
+                let inner = cx.eval(h.call(h.sym("integrate"), &[*f, specs[specs.len() - 1]]))?;
+                if matches!(h.view(inner), View::App { head, .. } if head == h.sym_term(h.sym("integrate"))) {
+                    return Ok(Reply::Decline);
+                }
+                let mut outer = vec![inner];
+                outer.extend_from_slice(&specs[..specs.len() - 1]);
+                return Ok(Reply::Again(h.call(h.sym("integrate"), &outer)));
+            }
+        }
         let [f, spec] = args else { return Ok(Reply::Decline) };
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
@@ -238,6 +282,10 @@ impl Native for Integrate {
             }
             _ => None,
         };
+        // a truncated series in its variable: term by term (decision IOSYM.1)
+        if bounds.is_none() && mc_poly::series_data_parts(h, *f).is_some() {
+            return Ok(mc_poly::series_integral(cx, *f, *spec)?.map_or(Reply::Decline, Reply::Done));
+        }
         let x = bounds.map_or(*spec, |(x, _, _)| x);
         let x = match variable(&b, x) {
             Ok(x) => x,
@@ -245,7 +293,10 @@ impl Native for Integrate {
         };
         let plain = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| match bounds {
             Some((_, lo, hi)) => crate::integrate::definite::integrate(cx, &b, f, x, lo, hi),
-            None => crate::integrate::antiderivative(cx, &b, f, x, 0),
+            None => match crate::integrate::definite::delta::antiderivative(cx, &b, f, x)? {
+                Some(r) => Ok(Some(r)),
+                None => crate::integrate::antiderivative(cx, &b, f, x, 0),
+            },
         };
         // inside assuming, an integrand the facts simplify (powers of products split, `sqrt(x^2)`): refined (with
         // the sign of the variable when both bounds have it) and tried again (decision 2C4.6)
@@ -290,7 +341,9 @@ impl Native for Integrate {
             // integral): the numerical integral (decision 2C4.7)
             if let Some((_, lo, hi)) = bounds {
                 let inexact = |t: T<'h>| matches!(h.view(t), View::Real(_) | View::Ball { .. });
-                if (inexact(lo) || inexact(hi)) && closed_in(&b, *f, x) {
+                // an interpolating function (an n_dsolve solution) has only a numerical integral (decision IOSYM.15)
+                let interp = !is_free_head(&b, *f, "interpolating_function");
+                if (inexact(lo) || inexact(hi) || interp) && closed_in(&b, *f, x) && closed_in(&b, lo, x) && closed_in(&b, hi, x) {
                     let r = cx.eval(h.call(h.sym("n_integrate"), &[*f, *spec]))?;
                     if !matches!(h.view(r), View::App { head, .. } if b.sym_of(head) == Some(h.sym(names::FAILURE)) || b.sym_of(head) == Some(h.sym("n_integrate"))) {
                         return Ok(Reply::Done(r));
@@ -302,6 +355,21 @@ impl Native for Integrate {
     }
 }
 
+/// Is `t` `options(...)` of only `generate_conditions: v` and `principal_value: false`?
+fn ignorable_options<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let View::App { head, args } = h.view(t) else { return false };
+    if head != h.sym_term(h.sym("options")) || args.is_empty() {
+        return false;
+    }
+    args.iter().all(|&r| match h.view(r) {
+        View::App { args: &[k, v], .. } => {
+            k == h.sym_term(h.sym("generate_conditions"))
+                || k == h.sym_term(h.sym("principal_value")) && v == h.sym_term(h.sym(names::FALSE))
+        }
+        _ => false,
+    })
+}
+
 /// `apart(e)`, `apart(e, x)`: partial fractions.
 pub struct Apart {
     /// the flag `mc-arith` polls in long numeric loops
@@ -311,8 +379,17 @@ pub struct Apart {
 impl Native for Apart {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        if let Some(r) = mc_poly::thread_relation(h, "apart", args) {
+            return Ok(Reply::Again(r));
+        }
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
+        // a number is its own partial fraction decomposition
+        if let [e, ..] = args {
+            if b.ar.num(*e).is_some() {
+                return Ok(Reply::Done(*e));
+            }
+        }
         let (e, x) = match args {
             [e] => (*e, None),
             [e, x] => match variable(&b, *x) {
@@ -325,11 +402,32 @@ impl Native for Apart {
     }
 }
 
-/// Does `f` mention no symbol but `x` and the numeric constants?
+/// Does `t` have no call whose head is the call `name(...)` (`interpolating_function(...)(t)`)?
+fn is_free_head<'h>(b: &Build<'h>, t: T<'h>, name: &str) -> bool {
+    let h = b.heap();
+    let s = h.sym(name);
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if matches!(h.view(head), View::App { head: inner, .. } if b.sym_of(inner) == Some(s)) {
+                return false;
+            }
+            stack.push(head);
+            stack.extend(args.iter().copied());
+        }
+    }
+    true
+}
+
+/// Does `f` mention no symbol but `x` and the numeric constants (interpolating functions count as constants)?
 fn closed_in<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
     let h = b.heap();
+    let interp = h.sym("interpolating_function");
     let mut stack = vec![f];
     while let Some(u) = stack.pop() {
+        if matches!(h.view(u), View::App { head, .. } if b.sym_of(head) == Some(interp)) {
+            continue;
+        }
         match h.view(u) {
             View::Sym(s) => {
                 if u != x && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "degree" | "catalan") {
@@ -356,9 +454,30 @@ fn user_derivative<'h>(
     args: Option<&[T<'h>]>,
 ) -> Res<Option<T<'h>>> {
     let h = b.heap();
-    let Some(fs) = b.sym_of(f) else { return Ok(None) };
-    if crate::rules::lookup(&h.sym_name(fs), orders.len()).is_some() || orders.iter().any(|&n| !(0..=64).contains(&n)) {
+    if orders.iter().any(|&n| !(0..=64).contains(&n)) {
         return Ok(None);
+    }
+    match b.sym_of(f) {
+        Some(fs) => {
+            if crate::rules::lookup(&h.sym_name(fs), orders.len()).is_some() {
+                return Ok(None);
+            }
+        }
+        // a pure function `(x, ...) => body` with as many parameters as orders (a d_solve solution, decision
+        // IOSYM.6)
+        None => {
+            let View::App { head, args: &[params, _] } = h.view(f) else { return Ok(None) };
+            if b.sym_of(head) != Some(h.sym("fn")) {
+                return Ok(None);
+            }
+            let n = match h.view(params) {
+                View::App { head, args } if b.sym_of(head) == Some(b.hd.list) => args.len(),
+                _ => 1,
+            };
+            if n != orders.len() {
+                return Ok(None);
+            }
+        }
     }
     let vars: Vec<T<'h>> = (1..=orders.len())
         .map(|i| h.sym_term(h.sym(&if args.is_some() { format!("derivative·{i}") } else { format!("&{i}") })))

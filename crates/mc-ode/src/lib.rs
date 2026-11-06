@@ -65,6 +65,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "interpolating_function",
         "interpolating_function(\"y\", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list; exact times such as pi/2 through n), failure(out_of_range, t, [lo, hi]) outside; \"y'\" names the derivative, which d(f(u), u) gives",
     ),
+    ("domain", "domain(f): the interval [lo, hi] of an interpolating function (or of the closure of n_dsolve_value) where it has values"),
 ];
 
 /// Register the natives of this package with `k`. `stop` is the flag `mc-arith`'s number kernels poll (the
@@ -86,4 +87,5 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         a,
         Box::new(natives::Interpolating { stop: stop.clone(), store: store.clone() }),
     );
+    k.register(h.sym("domain"), a, Box::new(natives::DomainOf));
 }

@@ -70,6 +70,12 @@ fn secant_and_brackets() {
         ("find_root(cos(x) == x, [x, 0.5, 0, 1])", 0.7390851332151607),
         ("find_root(x^2 - 2, [x, 1, 2, 0])", SQRT2),
         ("find_root(x - 1/3, [x, 0, 0, 1], method: brent)", 1.0 / 3.0),
+        // gap G71: a bracketing method with [x, a, b] brackets [a, b]; the common names, as symbols or strings
+        ("find_root(cos(x) - x, [x, 0, 1], method: brent)", 0.7390851332151607),
+        ("find_root(cos(x) - x, [x, 0, 1], method: \"Brent\")", 0.7390851332151607),
+        ("find_root(cos(x) - x, [x, 0, 1], method: bisection)", 0.7390851332151607),
+        ("find_root(cos(x) - x, [x, 0.5], method: \"Newton\")", 0.7390851332151607),
+        ("find_root(cos(x) - x, [x, 0.5], method: automatic)", 0.7390851332151607),
         // a root at an end of the bracket
         ("find_root(x - 1, [x, 0, 0, 1])", 1.0),
         // no sign change: Newton constrained to the bracket finds the root at 0.99, not the one at 1.01 beyond

@@ -32,11 +32,13 @@ pub(crate) enum Method {
 
 impl Method {
     fn from_name(s: &str) -> Option<Method> {
-        Some(match s {
+        // the usual names in any case, as symbols or strings (gap G71): bisection, Ridders' and regula falsi are
+        // bracketing methods too, and run as Brent's
+        Some(match s.to_ascii_lowercase().replace(['_', ' '], "").as_str() {
             "newton" => Method::Newton,
             "secant" => Method::Secant,
-            "brent" => Method::Brent,
-            "broyden" => Method::Broyden,
+            "brent" | "bisection" | "ridders" | "regulafalsi" | "falseposition" | "illinois" => Method::Brent,
+            "broyden" | "quasinewton" => Method::Broyden,
             "bfgs" => Method::Bfgs,
             _ => return None,
         })
@@ -111,7 +113,9 @@ pub(crate) fn split<'a, 'h>(
                 _ => return Err(bad()),
             },
             "method" => match h.view(v) {
+                View::Sym(s) if matches!(h.sym_name(s).as_str(), "auto" | "automatic") => o.method = None,
                 View::Sym(s) => o.method = Some(Method::from_name(&h.sym_name(s)).ok_or_else(bad)?),
+                View::Str(s) => o.method = Some(Method::from_name(s).ok_or_else(bad)?),
                 _ => return Err(bad()),
             },
             "verify" => match h.view(v) {
@@ -122,7 +126,7 @@ pub(crate) fn split<'a, 'h>(
             "compile" => match h.view(v) {
                 View::Sym(s) => {
                     o.compile = match h.sym_name(s).as_str() {
-                        "auto" => Policy::default(),
+                        "auto" | "automatic" => Policy::default(),
                         names::TRUE => Policy::Compiled,
                         names::FALSE => Policy::Interpreted,
                         _ => return Err(bad()),
