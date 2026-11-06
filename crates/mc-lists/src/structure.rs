@@ -437,3 +437,122 @@ fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool
 pub(crate) fn display_wrapper<'h>(_lib: &Lib, _cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, _args: &[T<'h>]) -> Res<Reply<'h>> {
     Ok(Reply::Decline)
 }
+
+/// A run `start..end` of a list and the rule's right side for it.
+type Run<'h> = (usize, usize, Option<T<'h>>);
+
+/// The non-overlapping runs of `xs` that match the list pattern `p` (`[a, b]`, `[x_, x_]`, `[__, 0]`), scanning
+/// from the left and taking at each start the longest run that matches: `(start, end)` pairs with the rule's
+/// right side for each, or `None` when the pattern does not compile. Runs are tried up to 4096 elements long.
+fn sequence_runs<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    xs: &[T<'h>],
+    p: T<'h>,
+) -> Res<Option<Vec<Run<'h>>>> {
+    let h = cx.heap();
+    let (pat, rhs) = match h.view(p) {
+        View::App { head, args: [l, r] } if head == h.sym_term(lib.s.rule) || head == h.sym_term(lib.s.rule_delayed) => {
+            (*l, Some(*r))
+        }
+        _ => (p, None),
+    };
+    let Some(mut m) = Matcher::new(lib, h, pat) else { return Ok(None) };
+    let mut out = vec![];
+    let mut i = 0;
+    while i < xs.len() {
+        let mut found = None;
+        let top = xs.len().min(i + 4096);
+        for j in (i + 1..=top).rev() {
+            cx.tick(1)?;
+            let run = cx.list(&xs[i..j]);
+            if m.matches(cx, run)? {
+                let r = match rhs {
+                    Some(r) => Some(m.substitute(cx, r)?),
+                    None => None,
+                };
+                found = Some((j, r));
+                break;
+            }
+        }
+        match found {
+            Some((j, r)) => {
+                out.push((i, j, r));
+                i = j;
+            }
+            None => i += 1,
+        }
+    }
+    Ok(Some(out))
+}
+
+/// `sequence_cases(xs, p)`: the runs of `xs` matching the list pattern `p` (`p -> r`: each run's `r`).
+pub(crate) fn sequence_cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let Some(runs) = sequence_runs(lib, cx, xs, p)? else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    let out: Vec<T<'h>> = runs.into_iter().map(|(i, j, r)| r.unwrap_or_else(|| cx.list(&xs[i..j]))).collect();
+    Ok(Reply::Again(cx.list(&out)))
+}
+
+/// `sequence_position(xs, p)`: the `[start, end]` positions of the runs of `xs` matching the list pattern `p`.
+pub(crate) fn sequence_position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let Some(runs) = sequence_runs(lib, cx, xs, p)? else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    let out: Vec<T<'h>> = runs.into_iter().map(|(i, j, _)| cx.list(&[h.int(i as i64 + 1), h.int(j as i64)])).collect();
+    Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `sequence_count(xs, p)`: how many runs of `xs` match the list pattern `p`.
+pub(crate) fn sequence_count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let Some(runs) = sequence_runs(lib, cx, xs, p)? else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    Ok(Reply::Done(h.int(runs.len() as i64)))
+}
+
+/// `sequence_replace(xs, p -> r)`: each run of `xs` matching the list pattern `p` replaced by the one element `r`.
+pub(crate) fn sequence_replace<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let Some(runs) = sequence_runs(lib, cx, xs, p)? else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    if runs.iter().any(|r| r.2.is_none()) {
+        return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
+    }
+    let mut out = Vec::with_capacity(xs.len());
+    let mut k = 0;
+    for (i, j, r) in runs {
+        out.extend_from_slice(&xs[k..i]);
+        out.extend(r);
+        k = j;
+    }
+    out.extend_from_slice(&xs[k..]);
+    Ok(Reply::Again(cx.list(&out)))
+}
+
+/// `sequence_split(xs, p)`: the pieces of `xs` between the runs matching the list pattern `p` (empty pieces left
+/// out); with `p -> r`, each run's `r` stays between the pieces.
+pub(crate) fn sequence_split<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [xs, p] = *args else { return Ok(Reply::Decline) };
+    let xs = take!(lib.list_operand(h, t, xs, 1));
+    let Some(runs) = sequence_runs(lib, cx, xs, p)? else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    let mut out = vec![];
+    let mut k = 0;
+    for (i, j, r) in runs {
+        if i > k {
+            out.push(cx.list(&xs[k..i]));
+        }
+        out.extend(r);
+        k = j;
+    }
+    if k < xs.len() {
+        out.push(cx.list(&xs[k..]));
+    }
+    Ok(Reply::Again(cx.list(&out)))
+}

@@ -326,6 +326,12 @@ fn composition_through_and_inactive() {
         ("activate(inactive(add)(1, 2))", "3"),
         ("inactive(add)(1, 2)", "inactive(add)(1, 2)"),
         ("count_by([1, 2, 3], is_even)", "assoc(false -> 2, true -> 1)"),
+        ("rotate_left([a, b, c], [1])", "[b, c, a]"),
+        ("sequence_cases([1, 2, 2, 3, 3, 3], [x_, x_])", "[[2, 2], [3, 3]]"),
+        ("sequence_position([a, b, c, a, b], [a, b])", "[[1, 2], [4, 5]]"),
+        ("sequence_count([1, 1, 1], [1, 1])", "1"),
+        ("sequence_replace([1, 2, 3, 4, 5], [2, 3] -> x)", "[1, x, 4, 5]"),
+        ("sequence_split([1, 2, 0, 3, 4, 0, 5], [0])", "[[1, 2], [3, 4], [5]]"),
         // series as sums with an order term print it last
         ("series(sqrt(x)*(1 + x), x, 0, 2)", "x^(1/2) + x^(3/2) + O(x^(5/2))"),
     ]);

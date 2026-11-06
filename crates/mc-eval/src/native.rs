@@ -169,6 +169,13 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn attributes(&self, s: Sym) -> crate::Attributes {
         self.ev.k.defs.attrs(s)
     }
+    /// Whether a call of `s` on normal forms is its own normal form: `s` has no native, own value, identity,
+    /// rules or attributes (the read is recorded). A native building `s(x)` from a normal form `x` may then skip
+    /// evaluating it.
+    pub fn is_inert(&mut self, s: Sym) -> bool {
+        self.cx.reads |= crate::eval::bit(s);
+        !self.ev.k.defs.has_meaning(s) && self.ev.k.defs.attrs(s) == crate::Attributes::default()
+    }
     /// The own value of `s` (the read is recorded).
     pub fn value(&mut self, s: Sym) -> Option<T<'h>> {
         self.cx.reads |= crate::eval::bit(s);

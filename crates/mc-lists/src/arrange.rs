@@ -217,7 +217,11 @@ fn rotate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]
     let h = cx.heap();
     let (xs, k) = match *args {
         [xs] => (xs, 1),
-        [xs, k] => (xs, take!(lib.int_operand(h, t, k, 2))),
+        // a one-element list `[k]` (a level-1 specification) counts as `k`
+        [xs, k] => match cx.as_list(k) {
+            Some(&[k1]) => (xs, take!(lib.int_operand(h, t, k1, 2))),
+            _ => (xs, take!(lib.int_operand(h, t, k, 2))),
+        },
         _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));

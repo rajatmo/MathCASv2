@@ -349,10 +349,13 @@ fn iterate<'h>(
 ) -> Res<Result<T<'h>, T<'h>>> {
     let h = cx.heap();
     let mut x = x;
+    // an undefined symbol `f`: f(x) of a normal form is one, built without evaluating it again (so a deep nest of
+    // an undefined function costs no evaluation depth)
+    let inert = matches!(h.view(f), View::Sym(s) if cx.is_inert(s));
     each(x);
     for _ in 0..n {
         cx.tick(1)?;
-        x = apply(cx, f, &[x])?;
+        x = if inert { h.app(f, &[x]) } else { apply(cx, f, &[x])? };
         if lib.is_failure(h, x) {
             return Ok(Err(x));
         }

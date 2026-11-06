@@ -237,6 +237,16 @@ functions! {
         "take_largest(xs, n): the n largest elements, largest first";
     "take_smallest" => structure::take_smallest,
         "take_smallest(xs, n): the n smallest elements, smallest first";
+    "sequence_cases" => structure::sequence_cases,
+        "sequence_cases(xs, p): the runs of consecutive elements matching the list pattern p ([a, b], [x_, x_]); p -> r gives each run's r";
+    "sequence_position" => structure::sequence_position,
+        "sequence_position(xs, p): the [start, end] positions of the runs matching the list pattern p";
+    "sequence_count" => structure::sequence_count,
+        "sequence_count(xs, p): the number of non-overlapping runs matching the list pattern p";
+    "sequence_replace" => structure::sequence_replace,
+        "sequence_replace(xs, p -> r): each run matching the list pattern p replaced by one element r";
+    "sequence_split" => structure::sequence_split,
+        "sequence_split(xs, p): the pieces of xs between the runs matching the list pattern p";
     "full_form" => structure::display_wrapper,
         "full_form(x): x shown with every part written as a plain call, add(x, pow(y, 2))";
     "input_form" => structure::display_wrapper,
@@ -336,7 +346,20 @@ const HELD: &[&str] = &["table", "piecewise"];
 
 /// The functions taking a pattern after the data: the pattern may be a failure pattern (`failure(___)`), so a
 /// failure among the arguments is not their result, except as the data (decision p6core.21).
-const PATTERNS: &[&str] = &["cases", "count", "position", "free_of", "member_of", "delete_cases", "first_case"];
+const PATTERNS: &[&str] = &[
+    "cases",
+    "count",
+    "position",
+    "free_of",
+    "member_of",
+    "delete_cases",
+    "first_case",
+    "sequence_cases",
+    "sequence_position",
+    "sequence_count",
+    "sequence_replace",
+    "sequence_split",
+];
 
 /// Register every function of [`FUNCTIONS`] with `k`, all strict (decision I.2) except those of `HELD`. `stop` is
 /// the flag `mc-arith`'s long loops poll, the one the engine raises with the evaluator's interrupt (decision I.1).
