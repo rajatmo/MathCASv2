@@ -149,3 +149,17 @@ fn uncertain_numbers() {
         ("interval([1, 2]) < interval([1.5, 4])", "interval([1, 2]) < interval([1.5, 4])"),
     ]);
 }
+
+#[test]
+fn quantities() {
+    check(&[
+        ("quantity(3, \"Meters\") + quantity(2, \"Feet\")", "quantity(1504/127, \"Feet\")"),
+        ("quantity(1, \"Hours\") + quantity(30, \"Minutes\")", "quantity(90, \"Minutes\")"),
+        ("quantity(6, \"Meters\")/quantity(2, \"Seconds\")", "quantity(3, \"Meters\"/\"Seconds\")"),
+        ("quantity(3, \"Meters\")/quantity(2, \"Meters\")", "3/2"),
+        ("unit_convert(quantity(1, \"Miles\"), \"Kilometers\")", "quantity(25146/15625, \"Kilometers\")"),
+        ("unit_convert(quantity(30, \"DegreesCelsius\"), \"DegreesFahrenheit\")", "quantity(86, \"DegreesFahrenheit\")"),
+        ("quantity_magnitude(quantity(3, \"Feet\"), \"Inches\")", "36"),
+        ("quantity(3, \"Meters\") + quantity(1, \"Seconds\")", "failure(incompatible_units)"),
+    ]);
+}

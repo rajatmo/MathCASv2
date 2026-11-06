@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# quantity_magnitude
+
+#% text
+# `quantity_magnitude(q)` gives the magnitude of a quantity.
+
+#% text
+# `quantity_magnitude(q, unit)` gives its magnitude in `unit`.
+
+#% section
+# Details
+
+#% item
+# See the usage above.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quantity_magnitude(quantity(3, "Feet"))
+#% output
+#= 3
+
+#% cell
+quantity_magnitude(quantity(3, "Feet"), "Inches")
+#% output
+#= 36
+
+#% section
+# See also
+
+#% text
+# `quantity`, `quantity_unit`, `unit_convert`

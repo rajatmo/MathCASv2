@@ -22,7 +22,7 @@ use mc_core::Heap;
 use mc_eval::{NativeCx, Res};
 
 /// The heads carried through arithmetic and functions.
-pub const HEADS: [&str; 3] = ["around", "interval", "centered_interval"];
+pub const HEADS: [&str; 4] = ["around", "interval", "centered_interval", "quantity"];
 
 /// Is one of the arguments an uncertain number?
 pub fn any(h: &Heap, args: &[T<'_>]) -> bool {
@@ -82,7 +82,12 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     match kind {
         0 => around_apply(fx, head, args),
         1 => interval_apply(fx, head, args),
-        _ => centered_apply(fx, head, args),
+        2 => centered_apply(fx, head, args),
+        _ => {
+            let View::Sym(s) = fx.h.view(head) else { return Ok(None) };
+            let name = fx.h.sym_name(s);
+            crate::quantity::arith(fx, &name, args)
+        }
     }
 }
 

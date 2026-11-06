@@ -99,6 +99,7 @@ pub mod library;
 pub mod machine;
 pub mod formula;
 pub mod more;
+pub mod quantity;
 pub mod uncertain;
 mod natives;
 mod numbers;
@@ -184,4 +185,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("around", "around(x, dx): the value x with standard uncertainty dx, propagated to first order through arithmetic and functions; around(list): mean and standard deviation"),
     ("interval", "interval([a, b], ...): the union of closed intervals, carried through arithmetic and functions"),
     ("centered_interval", "centered_interval(c, r): the interval c +- r, carried through arithmetic and functions by a midpoint-radius estimate"),
+    ("quantity", "quantity(m, unit): the magnitude m in a unit (a string such as \"Meters\", or products and powers of them), with conversions in arithmetic"),
+    ("unit_convert", "unit_convert(q, unit): the quantity q in another unit of the same dimension; unit_convert(q): in SI base units"),
+    ("quantity_magnitude", "quantity_magnitude(q): the magnitude of a quantity; quantity_magnitude(q, unit): its magnitude in that unit"),
+    ("quantity_unit", "quantity_unit(q): the unit of a quantity"),
 ];

@@ -365,6 +365,7 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     crate::numbers::install(k, h, &nm, stop);
     crate::formula::install(k, h, crate::more::DEFS);
     crate::formula::install(k, h, crate::uncertain::DEFS);
+    crate::formula::install(k, h, crate::quantity::DEFS);
 }
 
 #[cfg(test)]

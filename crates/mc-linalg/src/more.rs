@@ -349,6 +349,110 @@ fn rotation_matrix_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     Ok(Some(fx.list(&rows)))
 }
 
+/// sparse_array(rules, dims, default) (decision P6N.14): the array is built dense (MathCAS has no sparse storage);
+/// rules are `position -> value` with literal positions or patterns (`[i_, i_] -> 2`), the first matching rule
+/// wins, dimensions default to the largest positions, the default value to 0; at most 10^6 elements.
+fn sparse_array_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let rules_t = a[0];
+    let Some(rules) = fx.as_list(rules_t).map(|r| r.to_vec()) else {
+        // a single rule
+        if fx.call_of(rules_t, "rule").is_some() || fx.call_of(rules_t, "rule_delayed").is_some() {
+            let mut b = a.to_vec();
+            b[0] = fx.list(&[rules_t]);
+            return sparse_array_e(fx, &b);
+        }
+        return Ok(None);
+    };
+    let is_rule = |fx: &Fx<'_, '_, '_, 'h>, r: T<'h>| fx.call_of(r, "rule").or_else(|| fx.call_of(r, "rule_delayed"));
+    if rules.is_empty() || !rules.iter().all(|&r| is_rule(fx, r).is_some()) {
+        // a dense array: itself
+        return Ok((a.len() == 1).then_some(rules_t));
+    }
+    let lhs: Vec<T<'h>> = rules.iter().map(|&r| is_rule(fx, r).expect("a rule")[0]).collect();
+    // literal positions
+    let literal = |fx: &Fx<'_, '_, '_, 'h>, p: T<'h>| -> Option<Vec<i64>> {
+        match fx.as_list(p) {
+            Some(ix) => ix.iter().map(|&i| fx.int_of(i).filter(|v| *v >= 1)).collect(),
+            None => fx.int_of(p).filter(|v| *v >= 1).map(|v| vec![v]),
+        }
+    };
+    let dims: Vec<i64> = match a.get(1) {
+        Some(&d) => match fx.as_list(d) {
+            Some(ds) => match ds.iter().map(|&x| fx.int_of(x)).collect::<Option<Vec<i64>>>() {
+                Some(v) => v,
+                None => return Ok(None),
+            },
+            None => match fx.int_of(d) {
+                Some(v) => vec![v],
+                None => return Ok(None),
+            },
+        },
+        None => {
+            let ps: Option<Vec<Vec<i64>>> = lhs.iter().map(|&p| literal(fx, p)).collect();
+            let Some(ps) = ps else { return Ok(None) };
+            let k = ps[0].len();
+            if ps.iter().any(|p| p.len() != k) {
+                return Ok(None);
+            }
+            (0..k).map(|j| ps.iter().map(|p| p[j]).max().unwrap_or(1)).collect()
+        }
+    };
+    let total: i64 = dims.iter().product();
+    if dims.is_empty() || dims.iter().any(|&d| d < 1) || total > 1_000_000 {
+        return Ok(None);
+    }
+    let default = a.get(2).copied().unwrap_or_else(|| fx.int(0));
+    let lits: Vec<Option<Vec<i64>>> = lhs.iter().map(|&p| literal(fx, p)).collect();
+    let all_literal = lits.iter().all(Option::is_some);
+    let mut flat = vec![default; total as usize];
+    let index = |pos: &[i64]| -> Option<usize> {
+        if pos.len() != dims.len() || pos.iter().zip(&dims).any(|(p, d)| *p > *d) {
+            return None;
+        }
+        Some(pos.iter().zip(&dims).fold(0usize, |acc, (p, d)| acc * *d as usize + (*p - 1) as usize))
+    };
+    if all_literal {
+        // the first rule for a position wins: fill in reverse
+        for (k, l) in lits.iter().enumerate().rev() {
+            if let Some(i) = index(l.as_deref().expect("literal")) {
+                let v = is_rule(fx, rules[k]).expect("a rule")[1];
+                flat[i] = fx.eval(v)?;
+            }
+        }
+    } else {
+        for (i, slot) in flat.iter_mut().enumerate() {
+            fx.tick(rules.len() as u64)?;
+            // the position of flat index i
+            let mut rem = i;
+            let mut pos = vec![0i64; dims.len()];
+            for j in (0..dims.len()).rev() {
+                pos[j] = (rem % dims[j] as usize) as i64 + 1;
+                rem /= dims[j] as usize;
+            }
+            let pt = if dims.len() == 1 { fx.int(pos[0]) } else { fx.list(&pos.iter().map(|&v| fx.int(v)).collect::<Vec<_>>()) };
+            for (k, &r) in rules.iter().enumerate() {
+                let hit = match &lits[k] {
+                    Some(l) => *l == pos,
+                    None => {
+                        let m = fx.eval(fx.call("match_q", &[pt, lhs[k]]))?;
+                        m == fx.bool(true)
+                    }
+                };
+                if hit {
+                    *slot = fx.eval(fx.call("rewrite", &[pt, r]))?;
+                    break;
+                }
+            }
+        }
+    }
+    // nest
+    let mut level: Vec<T<'h>> = flat;
+    for &d in dims.iter().skip(1).rev() {
+        level = level.chunks(d as usize).map(|c| fx.list(c)).collect();
+    }
+    Ok(Some(fx.list(&level)))
+}
+
 macro_rules! def {
     ($name:literal, $ar:expr, $e:expr, $s:literal) => {
         Def { name: $name, arities: $ar, listable: false, exact: Some($e), numeric: None, summary: $s }
@@ -363,5 +467,6 @@ pub static DEFS: &[Def] = &[
     def!("matrix_power", &[2], matrix_power_e, "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
     def!("conjugate_transpose", &[1], conjugate_transpose_e, "conjugate_transpose(m): the conjugate of the transpose of m"),
     def!("hilbert_matrix", &[1, 2], hilbert_matrix_e, "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
+    def!("sparse_array", &[1, 2, 3], sparse_array_e, "sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense"),
     def!("rotation_matrix", &[1, 2], rotation_matrix_e, "rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w"),
 ];
