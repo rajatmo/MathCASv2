@@ -107,11 +107,24 @@ factor_integer(factorial(20))
 #% output
 #= [[2, 18], [3, 8], [5, 4], [7, 2], [11, 1], [13, 1], [17, 1], [19, 1]]
 
+#% text
+# For inexact numbers, factorial(x) is gamma(1 + x):
+
+#% cell
+factorial(2.5)
+#% output
+#= 3.3233509704478426
+
+#% cell
+factorial(around(2.0, 0.01))
+#% output
+#= around(2.0, 0.018455686701918845)
+
 #% subsection
 # Possible issues
 
 #% text
-# Fractions, negative integers and machine reals are not evaluated:
+# Exact fractions and negative integers are not evaluated:
 
 #% cell
 factorial(1/2)
@@ -122,11 +135,6 @@ factorial(1/2)
 factorial(-1)
 #% output
 #= factorial(-1)
-
-#% cell
-factorial(5.0)
-#% output
-#= factorial(5.0)
 
 #% text
 # A ratio of symbolic factorials is not reduced:

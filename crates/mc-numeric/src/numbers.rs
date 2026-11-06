@@ -235,10 +235,17 @@ pub(crate) type Body = for<'a, 'b, 'c, 'h> fn(&Env, &mut NativeCx<'a, 'b, 'h>, T
 struct NumFn {
     env: Arc<Env>,
     body: Body,
+    /// numbers with uncertainty and quantities go through `crate::uncertain` first
+    uncertain: bool,
 }
 
 impl Native for NumFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if self.uncertain && crate::uncertain::any(cx.heap(), args) {
+            if let Some(v) = crate::uncertain::apply(cx, t, args)? {
+                return Ok(Reply::Again(v));
+            }
+        }
         let _scope = mc_arith::num::StopScope::enter(Some(&self.env.stop));
         (self.body)(&self.env, cx, t, args)
     }
@@ -305,6 +312,9 @@ const TABLE: &[(&str, Body, bool, &str)] = &[
     ),
 ];
 
+/// The number functions that carry `around`, intervals and quantities (the others reach every number inside a term).
+const UNCERTAIN: &[&str] = &["re", "im_part", "conjugate", "arg", "clip", "unit_step", "rationalize"];
+
 /// The descriptions of [`TABLE`], for `crate::FUNCTIONS`.
 pub(crate) const fn description(name: &str) -> &'static str {
     let mut i = 0;
@@ -337,7 +347,7 @@ pub(crate) fn install(k: &mut Kernel, h: &Heap, nm: &Arc<Names>, stop: &Arc<Atom
     let env = Arc::new(Env { s: Syms::new(h), nm: nm.clone(), stop: stop.clone() });
     for &(name, body, listable, _) in TABLE {
         let attrs = Attributes { listable, ..Attributes::default() };
-        k.register(h.sym(name), attrs, Box::new(NumFn { env: env.clone(), body }));
+        k.register(h.sym(name), attrs, Box::new(NumFn { env: env.clone(), body, uncertain: UNCERTAIN.contains(&name) }));
     }
     crate::parts::define_abs_sign(k, h, &env);
 }

@@ -96,6 +96,16 @@ impl<'h> B<'h> {
         self.call("less", &[a, b])
     }
 
+    /// `a > b`.
+    pub fn gt(&self, a: T<'h>, b: T<'h>) -> T<'h> {
+        self.call("greater", &[a, b])
+    }
+
+    /// `a >= b`.
+    pub fn ge(&self, a: T<'h>, b: T<'h>) -> T<'h> {
+        self.call("greater_equal", &[a, b])
+    }
+
     /// `a <= b`.
     pub fn le(&self, a: T<'h>, b: T<'h>) -> T<'h> {
         self.call("less_equal", &[a, b])

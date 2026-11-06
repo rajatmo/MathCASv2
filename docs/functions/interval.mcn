@@ -68,6 +68,17 @@ interval([1, 2]) < 3
 #% output
 #= true
 
+#% subsection
+# Properties and relations
+
+#% text
+# Comparisons with intervals, around and quantities are decided where the sets do not overlap:
+
+#% cell
+interval([1, 2]) < around(3.0, 0.5)
+#% output
+#= true
+
 #% section
 # See also
 

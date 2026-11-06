@@ -106,7 +106,7 @@ median(poisson_distribution(3))
 #% cell
 [median(exponential_distribution(l)), quantile(exponential_distribution(l), 1/2)]
 #% output
-#= [-1*log(1/2)/l, -1*log(1/2)/l]
+#= [log(2)/l, log(2)/l]
 
 #% text
 # For a symmetric distribution, the median equals the mean:
@@ -115,6 +115,11 @@ median(poisson_distribution(3))
 median(normal_distribution(3, 2)) == mean(normal_distribution(3, 2))
 #% output
 #= true
+
+#% cell
+median([quantity(1, "Meters"), quantity(3, "Meters"), quantity(150, "Centimeters")])
+#% output
+#= quantity(3/2, "Meters")
 
 #% subsection
 # Possible issues

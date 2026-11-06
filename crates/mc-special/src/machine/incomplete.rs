@@ -395,6 +395,9 @@ fn beta_pq(x: f64, a: f64, b: f64) -> Option<(Scaled, Scaled)> {
 
 /// The regularized incomplete beta function I_x(a, b), 0 <= x <= 1, a, b > 0.
 pub fn beta_reg(x: f64, a: f64, b: f64) -> f64 {
+    if let Some(v) = beta_inc_poly(x, a, b) {
+        return v / super::gamma::beta(a, b);
+    }
     if x.is_nan() || a.is_nan() || b.is_nan() || !(0.0..=1.0).contains(&x) || a <= 0.0 || b <= 0.0 {
         return f64::NAN;
     }
@@ -408,6 +411,23 @@ pub fn beta_reg(x: f64, a: f64, b: f64) -> f64 {
         return 1.0;
     }
     beta_pq(x, a, b).map_or(f64::NAN, |v| v.0.to_f64())
+}
+
+/// B_x(a, b) for x > 1, a > 0 and a positive integer b <= 64, where (1 - t)^(b - 1) is a polynomial: the sum
+/// sum_{j < b} C(b - 1, j) (-1)^j x^(a + j)/(a + j) (the integral continued past 1; `None` otherwise).
+fn beta_inc_poly(x: f64, a: f64, b: f64) -> Option<f64> {
+    if !(x > 1.0 && x.is_finite() && a > 0.0 && a.is_finite() && b >= 1.0 && b <= 64.0 && b.fract() == 0.0) {
+        return None;
+    }
+    let n = b as i32 - 1;
+    let mut c = 1.0f64;
+    let mut s = 0.0f64;
+    for j in 0..=n {
+        let sign = if j % 2 == 0 { 1.0 } else { -1.0 };
+        s += sign * c * x.powf(a + j as f64) / (a + j as f64);
+        c = c * (n - j) as f64 / (j + 1) as f64;
+    }
+    Some(s)
 }
 
 /// B_x(a, b) = x^a sum_k (1-b)_k / k! x^k / (a+k) for b < 1, 0 < x < 1 (positive terms, about ln(eps)/ln(x) of them).
@@ -429,6 +449,9 @@ fn beta_inc_series(x: f64, a: f64, b: f64) -> Option<Scaled> {
 /// The incomplete beta function B_x(a, b) = int_0^x t^(a-1) (1-t)^(b-1) dt, 0 <= x <= 1, a > 0 (b <= 0 for x < 1
 /// by its positive series).
 pub fn beta_inc(x: f64, a: f64, b: f64) -> f64 {
+    if let Some(v) = beta_inc_poly(x, a, b) {
+        return v;
+    }
     if x.is_nan() || a.is_nan() || b.is_nan() || !(0.0..=1.0).contains(&x) || a <= 0.0 || a.is_infinite() {
         return f64::NAN;
     }

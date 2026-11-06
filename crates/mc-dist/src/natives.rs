@@ -365,7 +365,11 @@ impl DistNative {
                 }) else {
                     return Ok(match h.view(k) {
                         View::Int(_) => Reply::Done(b.bad(self.name, "the order must be an integer from 0 to 200")),
-                        _ => Reply::Decline,
+                        // a symbolic order: the closed forms of the families that have one
+                        _ => match symbolic_moment(b, &d, k) {
+                            Some(t) => Reply::Again(t),
+                            None => Reply::Decline,
+                        },
                     });
                 };
                 symbolic::raw_moment(b, &d, k, n, &int_term(&ar))
@@ -635,6 +639,44 @@ fn columns<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Vec<T<'h>>> {
     Some(cols.iter().map(|c| cx.list(c)).collect())
 }
 
+/// E[X^k] for a symbolic order k, where the family has a closed form.
+fn symbolic_moment<'h>(b: B<'h>, d: &Dist<'h>, k: T<'h>) -> Option<T<'h>> {
+    let p = &d.p;
+    let one = b.int(1);
+    Some(match d.fam {
+        Family::ChiSquare => b.mul(&[b.pow(b.int(2), k), b.call("pochhammer", &[b.mul(&[b.rat(1, 2), p[0]]), k])]),
+        Family::Gamma => b.mul(&[b.pow(p[1], k), b.call("pochhammer", &[p[0], k])]),
+        Family::Exponential => b.mul(&[b.call("factorial", &[k]), b.pow(p[0], b.neg(k))]),
+        Family::Beta => b.div(b.call("pochhammer", &[p[0], k]), b.call("pochhammer", &[b.add(&[p[0], p[1]]), k])),
+        Family::LogNormal => b.exp(b.add(&[b.mul(&[k, p[0]]), b.mul(&[b.rat(1, 2), b.powi(k, 2), b.powi(p[1], 2)])])),
+        Family::Uniform => {
+            let k1 = b.add(&[k, one]);
+            b.div(b.sub(b.pow(p[1], k1), b.pow(p[0], k1)), b.mul(&[k1, b.sub(p[1], p[0])]))
+        }
+        _ => return None,
+    })
+}
+
+/// The (key, column) pairs of a dataset term `dataset(assoc(key -> column, ...))` (`None` for anything else).
+fn dataset_columns<'h>(h: &'h Heap, t: T<'h>) -> Option<Vec<(T<'h>, T<'h>)>> {
+    let View::App { head, args: &[a] } = h.view(t) else { return None };
+    if head != h.sym_term(h.sym("dataset")) {
+        return None;
+    }
+    let View::App { head, args: rules } = h.view(a) else { return None };
+    if head != h.sym_term(h.sym("assoc")) {
+        return None;
+    }
+    let rule = h.sym_term(h.sym(names::RULE));
+    rules
+        .iter()
+        .map(|&r| match h.view(r) {
+            View::App { head, args: &[k, v] } if head == rule => Some((k, v)),
+            _ => None,
+        })
+        .collect()
+}
+
 impl Native for DistNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
@@ -660,6 +702,56 @@ impl Native for DistNative {
             // rows of different lengths are not data
             if cx.as_list(xs).is_some_and(|items| items.iter().any(|&x| cx.as_list(x).is_some())) {
                 return Ok(Reply::Decline);
+            }
+        }
+        // a statistic of a dataset (columns): the association of the statistics of its columns
+        if let (true, Some(&ds)) = (column_wise, args.first()) {
+            if let Some(cols) = dataset_columns(h, ds) {
+                cx.tick(cols.len() as u64)?;
+                let b = B::new(h);
+                let rule = h.sym(names::RULE);
+                let parts: Vec<T<'h>> = cols
+                    .iter()
+                    .map(|&(k, col)| {
+                        let mut a = vec![col];
+                        a.extend_from_slice(&args[1..]);
+                        h.call(rule, &[k, b.call(self.name, &a)])
+                    })
+                    .collect();
+                return Ok(Reply::Again(b.call("assoc", &parts)));
+            }
+        }
+        // a statistic of quantities: of their magnitudes in one unit, then in the unit to the statistic's power
+        let power = match self.f {
+            Fun::Mean | Fun::StdDev | Fun::Median | Fun::Quantile => Some(1),
+            Fun::Variance => Some(2),
+            Fun::Skewness | Fun::Kurtosis => Some(0),
+            Fun::Moment | Fun::CentralMoment => match args.get(1).map(|&k| h.view(k)) {
+                Some(View::Int(k)) => Some(k),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let (Some(p), Some(&xs)) = (power, args.first()) {
+            if let Some((mags, u)) = data::quantities(cx, xs)? {
+                let b = B::new(h);
+                let unit = b.pow(b.call("quantity", &[b.int(1), u]), b.int(p));
+                let qs: Vec<T<'h>> = match (self.f, args.get(1).and_then(|&q| cx.as_list(q))) {
+                    (Fun::Quantile, Some(qs)) => qs.to_vec(),
+                    _ => vec![args.get(1).copied().unwrap_or(mags)],
+                };
+                let one = |q: T<'h>| {
+                    let mut a = vec![mags];
+                    if args.len() > 1 {
+                        a.push(q);
+                    }
+                    b.mul(&[b.call(self.name, &a), unit])
+                };
+                let out: Vec<T<'h>> = qs.iter().map(|&q| one(q)).collect();
+                return Ok(Reply::Again(match (self.f, args.get(1).and_then(|&q| cx.as_list(q))) {
+                    (Fun::Quantile, Some(_)) => cx.list(&out),
+                    _ => out[0],
+                }));
             }
         }
         let is_data = |t: T<'h>| cx.as_list(t).is_some() || h.packed(t).is_some();

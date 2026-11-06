@@ -56,6 +56,51 @@ quantity(3, "Meters")/quantity(2, "Meters")
 #= quantity(3.0, "Grams")
 
 #% subsection
+# Properties and relations
+
+#% text
+# Comparisons convert to a common unit:
+
+#% cell
+quantity(3, "Feet") < quantity(1.1, "Meters")
+#% output
+#= true
+
+#% text
+# Functions of the magnitude keep the unit, and roots of units simplify:
+
+#% cell
+sqrt(quantity(16, "Meters"^2))
+#% output
+#= quantity(4, "Meters")
+
+#% cell
+round(quantity(377, "Centimeters"), quantity(1, "Meters"))
+#% output
+#= quantity(400, "Centimeters")
+
+#% text
+# Statistics of quantities are in their unit:
+
+#% cell
+mean([quantity(1, "Meters"), quantity(300, "Centimeters")])
+#% output
+#= quantity(2, "Meters")
+
+#% cell
+norm([quantity(3, "Meters"), quantity(4, "Meters")])
+#% output
+#= quantity(5, "Meters")
+
+#% text
+# A list of magnitudes gives a list of quantities:
+
+#% cell
+quantity([1, 2, 3], "Seconds")
+#% output
+#= [quantity(1, "Seconds"), quantity(2, "Seconds"), quantity(3, "Seconds")]
+
+#% subsection
 # Possible issues
 
 #% cell

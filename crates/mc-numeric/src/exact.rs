@@ -329,6 +329,15 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
         if x == self.st.int(0) {
             return Some(self.ar.neg(self.inf()));
         }
+        // log(1/n) = -log(n) for an integer n > 1
+        if let Some(Num::Real(Real::Exact(r))) = self.ar.num(x) {
+            if !r.num.neg && !r.is_zero() {
+                let inv = self.ar.div(self.st.int(1), x);
+                if matches!(self.st.view(inv), View::Int(v) if v > 1) {
+                    return Some(self.ar.neg(self.call(Fun::Log, inv)));
+                }
+            }
+        }
         // log(r i^k) = log(r) + k i pi/2 for a positive rational r and an exact unit i^k other than 1
         if let Some(n) = self.ar.num(x) {
             let (re, im) = match n {

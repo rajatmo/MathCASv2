@@ -10,6 +10,8 @@
 //! - Unknown unit names are dimensions of their own (factor 1): such quantities add only to the same unit.
 use crate::formula::{Def, Fx};
 use mc_api::{Store, View, T};
+use mc_arith::Arith;
+use mc_core::Heap;
 use mc_eval::Res;
 
 type R<'h> = Res<Option<T<'h>>>;
@@ -87,8 +89,42 @@ const UNITS: &[(&[&str], i128, i128, bool, Dims)] = &[
     (&["Dozens", "dozens"], 12, 1, false, [0, 0, 0, 0, 0, 0, 0]),
 ];
 
+/// The heap and the arithmetic, all the unit analysis needs (so comparisons outside a native can use it).
+struct U<'a, 'h> {
+    h: &'h Heap,
+    ar: &'a Arith<'h, Heap>,
+}
+
+impl<'h> U<'_, 'h> {
+    fn sym(&self, name: &str) -> T<'h> {
+        self.h.sym_term(self.h.sym(name))
+    }
+    fn int(&self, v: i64) -> T<'h> {
+        self.h.int(v)
+    }
+    fn mul(&self, xs: &[T<'h>]) -> T<'h> {
+        self.ar.mul(xs)
+    }
+    fn div(&self, a: T<'h>, b: T<'h>) -> T<'h> {
+        self.ar.div(a, b)
+    }
+    fn pow(&self, a: T<'h>, b: T<'h>) -> T<'h> {
+        self.ar.pow(a, b)
+    }
+    fn int_of(&self, t: T<'h>) -> Option<i64> {
+        match self.h.view(t) {
+            View::Int(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+fn ux<'a, 'h>(fx: &'a Fx<'_, '_, '_, 'h>) -> U<'a, 'h> {
+    U { h: fx.h, ar: &fx.ar }
+}
+
 /// The SI conversion of a unit term: (factor as a term, dimensions); unknown names are their own dimensions.
-fn analyse<'h>(fx: &Fx<'_, '_, '_, 'h>, u: T<'h>, extra: &mut Vec<(String, i64)>) -> Option<(T<'h>, Dims)> {
+fn analyse<'h>(fx: &U<'_, 'h>, u: T<'h>, extra: &mut Vec<(String, i64)>) -> Option<(T<'h>, Dims)> {
     match fx.h.view(u) {
         View::Str(s) => {
             let s = s.to_string();
@@ -141,6 +177,10 @@ struct Unit<'h> {
 }
 
 fn unit<'h>(fx: &Fx<'_, '_, '_, 'h>, u: T<'h>) -> Option<Unit<'h>> {
+    unit_of(&ux(fx), u)
+}
+
+fn unit_of<'h>(fx: &U<'_, 'h>, u: T<'h>) -> Option<Unit<'h>> {
     let mut other = vec![];
     let (factor, dims) = analyse(fx, u, &mut other)?;
     // collect the powers of unknown names
@@ -218,10 +258,74 @@ pub fn arith<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: &str, args: &[T<'h>]) -> R<'
             if parts(fx, args[1]).is_some() {
                 return Ok(None);
             }
-            Ok(Some(make(fx, fx.pow(m, args[1]), fx.pow(u, args[1]))?))
+            let u = unit_pow(fx, u, args[1])?;
+            Ok(Some(make(fx, fx.pow(m, args[1]), u)?))
+        }
+        "sqrt" => {
+            let [q] = args else { return Ok(None) };
+            let half = fx.rat(1, 2);
+            arith(fx, "pow", &[*q, half])
+        }
+        // functions of the magnitude that keep the unit
+        "abs" | "re" | "im_part" | "conjugate" | "rationalize" | "floor" | "ceiling" | "round"
+        | "integer_part" | "fractional_part" => {
+            let Some((m, u)) = parts(fx, args[0]) else { return Ok(None) };
+            let mut rest = vec![m];
+            for &a in &args[1..] {
+                match parts(fx, a) {
+                    // round(q, step) with a step in a compatible unit: the step in the unit of q
+                    Some(_) => match common(fx, args[0], a) {
+                        Some((_, s)) => rest.push(s),
+                        None => return Ok(Some(fx.failure(&["incompatible_units"]))),
+                    },
+                    None => rest.push(a),
+                }
+            }
+            let v = fx.call(head, &rest);
+            Ok(Some(make(fx, v, u)?))
+        }
+        // mod(q1, q2) in the unit of q1; quotient(q1, q2) a number
+        "mod" | "quotient" => {
+            let [a, b] = args else { return Ok(None) };
+            let Some((m, u)) = parts(fx, *a) else { return Ok(None) };
+            if parts(fx, *b).is_none() {
+                return Ok(None);
+            }
+            let Some((_, s)) = common(fx, *a, *b) else { return Ok(Some(fx.failure(&["incompatible_units"]))) };
+            let v = fx.call(head, &[m, s]);
+            if head == "quotient" {
+                return Ok(Some(fx.eval(v)?));
+            }
+            Ok(Some(make(fx, v, u)?))
+        }
+        // functions of the magnitude without a unit
+        "sign" | "is_positive" | "is_negative" | "is_real" | "is_zero" => {
+            let [q] = args else { return Ok(None) };
+            let Some((m, _)) = parts(fx, *q) else { return Ok(None) };
+            Ok(Some(fx.eval(fx.call(head, &[m]))?))
         }
         _ => Ok(None),
     }
+}
+
+/// A unit to a power: the exponents of the unit names multiplied (units are positive, so `("Meters"^2)^(1/2)` is
+/// `"Meters"`).
+fn unit_pow<'h>(fx: &mut Fx<'_, '_, '_, 'h>, u: T<'h>, e: T<'h>) -> Res<T<'h>> {
+    let v = match fx.h.view(u) {
+        View::App { head, args } if head == fx.sym("mul") => {
+            let mut fs = Vec::with_capacity(args.len());
+            for &a in args {
+                fs.push(unit_pow(fx, a, e)?);
+            }
+            fx.mul(&fs)
+        }
+        View::App { head, args: &[b, k] } if head == fx.sym("pow") => {
+            let ke = fx.eval(fx.mul(&[k, e]))?;
+            fx.pow(b, ke)
+        }
+        _ => fx.pow(u, e),
+    };
+    fx.eval(v)
 }
 
 /// The magnitudes of two quantities in a common unit (the first's), for comparisons.
@@ -233,6 +337,32 @@ pub fn common<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>) -> Option<(T<
         return None;
     }
     Some((ma, fx.mul(&[mb, fx.div(y.factor, x.factor)])))
+}
+
+/// The magnitudes of two terms in a common unit, for comparisons outside a native: quantities of compatible units
+/// (the first's unit), or a quantity of a dimensionless unit against a number; `None` when neither is a quantity or
+/// the units do not match.
+pub fn common_magnitudes<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, a: T<'h>, b: T<'h>) -> Option<(T<'h>, T<'h>)> {
+    let u = U { h, ar };
+    let q = u.sym("quantity");
+    let split = |t: T<'h>| match h.view(t) {
+        View::App { head, args: &[m, un] } if head == q => Some((m, un)),
+        _ => None,
+    };
+    let (pa, pb) = (split(a), split(b));
+    let one = h.int(1);
+    let ((ma, ua), (mb, ub)) = match (pa, pb) {
+        (None, None) => return None,
+        (Some(x), Some(y)) => (x, y),
+        (Some(x), None) => (x, (b, one)),
+        (None, Some(y)) => ((a, one), y),
+    };
+    let (x, y) = (unit_of(&u, ua)?, unit_of(&u, ub)?);
+    if !compatible(&x, &y) {
+        return None;
+    }
+    let mb = if ub == ua { mb } else { ar.mul(&[mb, ar.div(y.factor, x.factor)]) };
+    Some((ma, mb))
 }
 
 fn temperature(name: &str) -> Option<u8> {
@@ -297,6 +427,11 @@ fn quantity_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         // quantity("Meters") is one meter
         [u] if matches!(fx.h.view(*u), View::Str(_)) => Ok(Some(fx.call("quantity", &[fx.int(1), *u]))),
         [m, u] if fx.is_int(*u, 1) => Ok(Some(*m)),
+        // a list of magnitudes: the list of quantities
+        [m, u] if fx.as_list(*m).is_some() => {
+            let items: Vec<T<'h>> = fx.as_list(*m).unwrap_or(&[]).iter().map(|&x| fx.call("quantity", &[x, *u])).collect();
+            Ok(Some(fx.list(&items)))
+        }
         // a quantity of a quantity: the inner magnitude in the product unit
         [m, u] => match parts(fx, *m) {
             Some((mm, mu)) => Ok(Some(fx.call("quantity", &[mm, fx.mul(&[mu, *u])]))),

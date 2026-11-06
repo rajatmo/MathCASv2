@@ -7,7 +7,7 @@
 //! complete set of eigenvectors is V f(D) V^-1; otherwise f(m) is p(m) for the polynomial p interpolating f and its
 //! derivatives at the eigenvalues with their multiplicities (Newton's divided differences, confluent for repeated
 //! eigenvalues; derivatives by `d`). Exact results are simplified entry by entry.
-use mc_api::{Store, T};
+use mc_api::{Store, View, T};
 use mc_arith::Kind;
 use mc_eval::Res;
 use mc_numeric::formula::{Def, Fx};
@@ -231,6 +231,17 @@ fn matrix_function<'h>(fx: &mut Fx<'_, '_, '_, 'h>, f: T<'h>, mt: T<'h>) -> R<'h
 }
 
 fn matrix_function_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    // method: ... selects an algorithm; the result is the same function of the matrix, so it is accepted and the
+    // form is chosen as without it
+    if let Some(&o) = a.get(2) {
+        let rule = fx.sym(mc_api::names::RULE);
+        let is_method = fx.call_of(o, "options").is_some_and(|rs| {
+            rs.iter().all(|&r| matches!(fx.h.view(r), View::App { head, args: &[k, _] } if head == rule && k == fx.sym("method")))
+        });
+        if !is_method {
+            return Ok(None);
+        }
+    }
     matrix_function(fx, a[0], a[1])
 }
 
@@ -352,7 +363,63 @@ fn rotation_matrix_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 /// sparse_array(rules, dims, default) (decision P6N.14): the array is built dense (MathCAS has no sparse storage);
 /// rules are `position -> value` with literal positions or patterns (`[i_, i_] -> 2`), the first matching rule
 /// wins, dimensions default to the largest positions, the default value to 0; at most 10^6 elements.
+/// `sparse_array(automatic, dims, default, [1, [offsets, columns], values])`, the compressed row form: row i (or
+/// the one row of a vector) holds the entries offsets[i] + 1 .. offsets[i + 1], each at the remaining indices
+/// `columns[k]` with the value `values[k]`; built dense like the rule form.
+fn sparse_compressed<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let [_, dims_t, default, data] = *a else { return Ok(None) };
+    let Some(dims) = fx.as_list(dims_t).and_then(|d| d.iter().map(|&x| fx.int_of(x).filter(|v| *v >= 1)).collect::<Option<Vec<i64>>>())
+    else {
+        return Ok(None);
+    };
+    let Some(&[_, structure, values]) = fx.as_list(data) else { return Ok(None) };
+    let Some(&[offsets, columns]) = fx.as_list(structure) else { return Ok(None) };
+    let (Some(offsets), Some(columns), Some(values)) = (fx.as_list(offsets), fx.as_list(columns), fx.as_list(values)) else {
+        return Ok(None);
+    };
+    let Some(offsets) = offsets.iter().map(|&x| fx.int_of(x).filter(|v| *v >= 0)).collect::<Option<Vec<i64>>>() else {
+        return Ok(None);
+    };
+    let total: i64 = dims.iter().product();
+    let rows = if dims.len() == 1 { 1 } else { dims[0] as usize };
+    if dims.is_empty() || total > 1_000_000 || offsets.len() != rows + 1 || columns.len() != values.len() {
+        return Ok(None);
+    }
+    let mut rules = Vec::with_capacity(values.len());
+    for r in 0..rows {
+        let (lo, hi) = (offsets[r] as usize, offsets[r + 1] as usize);
+        if lo > hi || hi > values.len() {
+            return Ok(None);
+        }
+        for k in lo..hi {
+            let Some(rest) = fx.as_list(columns[k]) else { return Ok(None) };
+            let mut pos = if dims.len() == 1 { vec![] } else { vec![fx.int(r as i64 + 1)] };
+            pos.extend_from_slice(rest);
+            if pos.len() != dims.len() {
+                return Ok(None);
+            }
+            rules.push(fx.call("rule", &[fx.list(&pos), values[k]]));
+        }
+    }
+    if rules.is_empty() {
+        // no explicit entries: every element is the default
+        let mut level: Vec<T<'h>> = vec![default; total as usize];
+        for &d in dims.iter().skip(1).rev() {
+            level = level.chunks(d as usize).map(|c| fx.list(c)).collect();
+        }
+        return Ok(Some(fx.list(&level)));
+    }
+    let r = fx.list(&rules);
+    sparse_array_e(fx, &[r, dims_t, default])
+}
+
 fn sparse_array_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if a.len() == 4 && a[0] == fx.sym("automatic") {
+        return sparse_compressed(fx, a);
+    }
+    if a.len() == 4 {
+        return Ok(None);
+    }
     let rules_t = a[0];
     let Some(rules) = fx.as_list(rules_t).map(|r| r.to_vec()) else {
         // a single rule
@@ -382,8 +449,17 @@ fn sparse_array_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
                 Some(v) => v,
                 None => return Ok(None),
             },
+            // one size n: an n x ... x n array of the rank of the positions
             None => match fx.int_of(d) {
-                Some(v) => vec![v],
+                Some(v) => {
+                    // a list position, or one under a condition (`[i_, j_] when ...`)
+                    let pos_list = |p: T<'h>| match fx.h.view(p) {
+                        View::App { args, .. } if fx.as_list(p).is_none() => args.first().and_then(|&q| fx.as_list(q)),
+                        _ => fx.as_list(p),
+                    };
+                    let rank = lhs.first().and_then(|&p| pos_list(p)).map_or(1, |l| l.len().max(1));
+                    vec![v; rank]
+                }
                 None => return Ok(None),
             },
         },
@@ -461,12 +537,12 @@ macro_rules! def {
 
 /// The definitions of this module.
 pub static DEFS: &[Def] = &[
-    def!("matrix_function", &[2], matrix_function_e, "matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)"),
+    def!("matrix_function", &[2, 3], matrix_function_e, "matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)"),
     def!("matrix_exp", &[1, 2], matrix_exp_e, "matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v"),
     def!("matrix_log", &[1], matrix_log_e, "matrix_log(m): the principal matrix logarithm"),
     def!("matrix_power", &[2], matrix_power_e, "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
     def!("conjugate_transpose", &[1], conjugate_transpose_e, "conjugate_transpose(m): the conjugate of the transpose of m"),
     def!("hilbert_matrix", &[1, 2], hilbert_matrix_e, "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
-    def!("sparse_array", &[1, 2, 3], sparse_array_e, "sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense"),
+    def!("sparse_array", &[1, 2, 3, 4], sparse_array_e, "sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form"),
     def!("rotation_matrix", &[1, 2], rotation_matrix_e, "rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w"),
 ];

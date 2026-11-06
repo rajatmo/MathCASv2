@@ -48,7 +48,7 @@ pub fn pdf<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Rat>) -
         Family::Normal => normal_pdf(b, p[0], p[1], x),
         Family::LogNormal | Family::Exponential | Family::Gamma | Family::ChiSquare => {
             let (v, _, _) = density(b, d, x).expect("continuous");
-            let cond = if d.fam == Family::Exponential { b.le(zero, x) } else { b.lt(zero, x) };
+            let cond = if d.fam == Family::Exponential { b.ge(x, zero) } else { b.gt(x, zero) };
             b.piecewise(&[(v, cond)], zero)
         }
         Family::Uniform => {
@@ -86,7 +86,7 @@ pub fn pdf<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Rat>) -
             match (xq, d.fam) {
                 (Some(_), _) => v,
                 (None, Family::Binomial) => b.piecewise(&[(v, b.and(b.le(zero, x), b.le(x, p[0])))], zero),
-                (None, _) => b.piecewise(&[(v, b.le(zero, x))], zero),
+                (None, _) => b.piecewise(&[(v, b.ge(x, zero))], zero),
             }
         }
     }
@@ -120,20 +120,20 @@ pub fn cdf<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Rat>, i
     let half = b.rat(1, 2);
     match d.fam {
         Family::Normal => normal_cdf(b, p[0], p[1], x),
-        Family::LogNormal => b.piecewise(&[(normal_cdf(b, p[0], p[1], b.log(x)), b.lt(zero, x))], zero),
+        Family::LogNormal => b.piecewise(&[(normal_cdf(b, p[0], p[1], b.log(x)), b.gt(x, zero))], zero),
         Family::Uniform => {
             let v = b.div(b.sub(x, p[0]), b.sub(p[1], p[0]));
             b.piecewise(&[(v, b.and(b.le(p[0], x), b.le(x, p[1]))), (one, b.lt(p[1], x))], zero)
         }
         Family::Exponential => {
             let v = b.sub(one, b.exp(b.neg(b.mul(&[p[0], x]))));
-            b.piecewise(&[(v, b.le(zero, x))], zero)
+            b.piecewise(&[(v, b.ge(x, zero))], zero)
         }
-        Family::Gamma => b.piecewise(&[(gamma_p(b, p[0], ex[0].as_ref(), b.div(x, p[1])), b.lt(zero, x))], zero),
+        Family::Gamma => b.piecewise(&[(gamma_p(b, p[0], ex[0].as_ref(), b.div(x, p[1])), b.gt(x, zero))], zero),
         Family::ChiSquare => {
             let k = b.mul(&[half, p[0]]);
             let kq = ex[0].as_ref().map(|q| q.mul(&Rat::new(Int::from_i64(1), Int::from_i64(2))));
-            b.piecewise(&[(gamma_p(b, k, kq.as_ref(), b.mul(&[half, x])), b.lt(zero, x))], zero)
+            b.piecewise(&[(gamma_p(b, k, kq.as_ref(), b.mul(&[half, x])), b.gt(x, zero))], zero)
         }
         Family::Beta => {
             let v = beta_cdf(b, p[0], p[1], small_int(ex[0].as_ref()), small_int(ex[1].as_ref()), x);
@@ -170,7 +170,7 @@ pub fn cdf<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Rat>, i
                         b.div(b.call("beta", &[b.sub(one, pp), nk, k1]), b.call("beta", &[nk, k1]))
                     }
                     Family::Poisson => {
-                        b.div(b.call("gamma", &[b.add(&[one, k]), p[0]]), b.call("factorial", &[k]))
+                        b.call("gamma_regularized", &[b.add(&[one, k]), p[0]])
                     }
                     _ => b.sub(one, b.pow(b.sub(one, p[0]), b.add(&[one, k]))),
                 };
@@ -178,7 +178,7 @@ pub fn cdf<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Rat>, i
                     Family::Binomial => {
                         b.piecewise(&[(v, b.and(b.le(zero, x), b.lt(x, p[0]))), (one, b.le(p[0], x))], zero)
                     }
-                    _ => b.piecewise(&[(v, b.le(zero, x))], zero),
+                    _ => b.piecewise(&[(v, b.ge(x, zero))], zero),
                 }
             }
         },
@@ -232,7 +232,7 @@ fn discrete_cdf_at<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, kt: T<'h>, ki: Option
         // beyond the machine integers: the closed forms in k
         return match d.fam {
             Family::Binomial => one,
-            Family::Poisson => b.div(b.call("gamma", &[b.add(&[one, kt]), p[0]]), b.call("factorial", &[kt])),
+            Family::Poisson => b.call("gamma_regularized", &[b.add(&[one, kt]), p[0]]),
             _ => b.sub(one, b.pow(b.sub(one, p[0]), b.add(&[one, kt]))),
         };
     };
@@ -279,10 +279,10 @@ pub fn survival<'h>(b: B<'h>, d: &Dist<'h>, ex: &Exact, x: T<'h>, xq: Option<&Ra
     let (zero, one) = (b.int(0), b.int(1));
     match d.fam {
         Family::Normal => normal_cdf(b, b.neg(p[0]), p[1], b.neg(x)),
-        Family::Exponential => b.piecewise(&[(b.exp(b.neg(b.mul(&[p[0], x]))), b.le(zero, x))], one),
+        Family::Exponential => b.piecewise(&[(b.exp(b.neg(b.mul(&[p[0], x]))), b.ge(x, zero))], one),
         Family::Geometric if xq.is_none() => {
             let k = b.call("floor", &[x]);
-            b.piecewise(&[(b.pow(b.sub(one, p[0]), b.add(&[one, k])), b.le(zero, x))], one)
+            b.piecewise(&[(b.pow(b.sub(one, p[0]), b.add(&[one, k])), b.ge(x, zero))], one)
         }
         _ => b.sub(one, cdf(b, d, ex, x, xq, int)),
     }

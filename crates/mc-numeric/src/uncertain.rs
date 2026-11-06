@@ -127,6 +127,12 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
             }
         }
     }
+    // functions constant between jumps: the value where it is the same over the whole spread, else indeterminate
+    if let View::Sym(s) = fx.h.view(head) {
+        if STEP_FUNCTIONS.contains(&fx.h.sym_name(s).as_str()) {
+            return step(fx, head, &centers, &unc);
+        }
+    }
     let value = fx.eval(fx.h.app(head, &centers))?;
     let Some(v) = machine(fx, value)? else { return Ok(None) };
     let var = fx.sym("around·t");
@@ -143,7 +149,14 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
         let mut slope: f64 = 0.0;
         for &k in points {
             let at = fx.eval(fx.call("rewrite", &[dg, fx.call("rule", &[var, fx.real(c + k * d)])]))?;
-            let Some(s) = machine(fx, at)? else { return Ok(None) };
+            let s = match machine(fx, at)? {
+                Some(s) if s.is_finite() => s,
+                // no derivative in closed form: a five-point difference quotient of the values
+                _ => match numeric_slope(fx, head, &centers, i, c + k * d)? {
+                    Some(s) => s,
+                    None => return Ok(None),
+                },
+            };
             slope = slope.max(s.abs());
         }
         if centered {
@@ -154,6 +167,51 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
     }
     let spread = if centered { var2 } else { var2.sqrt() };
     Ok(Some(fx.call(kind, &[fx.real(v), fx.real(spread)])))
+}
+
+/// The functions that are constant between jumps (their derivative is 0 almost everywhere).
+const STEP_FUNCTIONS: &[&str] =
+    &["floor", "ceiling", "round", "integer_part", "sign", "unit_step", "real_sign", "unit_box", "heaviside_theta", "kronecker_delta", "boole"];
+
+/// A step function of uncertain arguments: its value when the ends of every spread and the centre give the same value,
+/// otherwise `indeterminate`.
+fn step<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<T<'h>>> {
+    let value = fx.eval(fx.h.app(head, centers))?;
+    let Some(v) = machine(fx, value)? else { return Ok(None) };
+    for (i, d) in unc.iter().enumerate() {
+        let Some(d) = d else { continue };
+        let (Some(c), Some(d)) = (machine(fx, centers[i])?, machine(fx, *d)?) else { return Ok(None) };
+        for x in [c - d, c + d] {
+            let mut xs = centers.to_vec();
+            xs[i] = fx.real(x);
+            let w = fx.eval(fx.h.app(head, &xs))?;
+            if machine(fx, w)? != Some(v) {
+                return Ok(Some(fx.sym("indeterminate")));
+            }
+        }
+    }
+    // the exact value (an integer) when it is one
+    Ok(Some(match fx.num(value) {
+        Some(_) if v.fract() == 0.0 && v.abs() < 2f64.powi(53) => fx.int(v as i64),
+        _ => value,
+    }))
+}
+
+/// The derivative of `head(args)` in argument `i` at the machine value `x` by the five-point difference
+/// (f(x - 2h) - 8 f(x - h) + 8 f(x + h) - f(x + 2h)) / 12h, h = 10^-3 max(1, |x|) (error O(h^4)).
+fn numeric_slope<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], i: usize, x: f64) -> Res<Option<f64>> {
+    let h = 1e-3 * x.abs().max(1.0);
+    let mut f = [0.0; 4];
+    for (k, off) in [-2.0, -1.0, 1.0, 2.0].iter().enumerate() {
+        let mut xs = args.to_vec();
+        xs[i] = fx.real(x + off * h);
+        let v = fx.eval(fx.h.app(head, &xs))?;
+        match machine(fx, v)? {
+            Some(y) if y.is_finite() => f[k] = y,
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some((f[0] - 8.0 * f[1] + 8.0 * f[2] - f[3]) / (12.0 * h)))
 }
 
 // ---------------------------------------------------------------- interval
@@ -472,7 +530,29 @@ fn around_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> 
         let s = fx.eval(fx.call("std_dev", &[a[0]]))?;
         return Ok(Some(fx.call("around", &[m, s])));
     }
-    let (x, d) = (a[0], a[1]);
+    let (x, mut d) = (a[0], a[1]);
+    // a relative uncertainty: scaled(s) is s |x|
+    if let Some(&[s]) = fx.call_of(d, "scaled") {
+        let base = match fx.call_of(x, "quantity") {
+            Some(&[m, _]) => m,
+            _ => x,
+        };
+        d = fx.eval(fx.mul(&[s, fx.call("abs", &[base])]))?;
+    }
+    // a quantity with an uncertainty: the uncertain magnitude in its unit (the uncertainty converted to that unit)
+    if let Some(&[m, u]) = fx.call_of(x, "quantity") {
+        let dm = match fx.call_of(d, "quantity") {
+            Some(_) => {
+                let v = fx.eval(fx.call("quantity_magnitude", &[d, u]))?;
+                if fx.num(v).is_none() {
+                    return Ok(None);
+                }
+                v
+            }
+            None => d,
+        };
+        return Ok(Some(fx.call("quantity", &[fx.call("around", &[m, dm]), u])));
+    }
     let (Some(xm), Some(dm)) = (machine(fx, x)?, machine(fx, d)?) else { return Ok(None) };
     let (xr, dr) = (fx.real(xm), fx.real(dm.abs()));
     if xr == x && dr == d {
@@ -557,11 +637,19 @@ pub static DEFS: &[Def] = &[
     },
 ];
 
-/// The overall ends [lo, hi] of an `interval` term (its first piece's lower end, its last piece's upper end).
-fn ends<'h, S: Store + ?Sized>(st: &'h S, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
+/// The overall ends [lo, hi] of an `interval` term (its first piece's lower end, its last piece's upper end), of
+/// `around(x, dx)` (x -+ dx) and of `centered_interval(c, r)` (c -+ r).
+fn ends<'h>(st: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
     let View::App { head, args } = st.view(t) else { return None };
     let View::Sym(s) = st.view(head) else { return None };
-    if st.sym_name(s) != "interval" || args.is_empty() {
+    let name = st.sym_name(s);
+    if (name == "around" || name == "centered_interval") && args.len() == 2 {
+        let (x, d) = (args[0], args[1]);
+        ar.num(x)?;
+        ar.num(d)?;
+        return Some((ar.sub(x, d), ar.add(&[x, d])));
+    }
+    if name != "interval" || args.is_empty() {
         return None;
     }
     let end = |p: T<'h>, i: usize| match st.view(p) {
@@ -571,7 +659,8 @@ fn ends<'h, S: Store + ?Sized>(st: &'h S, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
     Some((end(args[0], 0)?, end(*args.last()?, 1)?))
 }
 
-/// The comparisons of an interval with a number or another interval (decision P6N.12): `(hi(a) vs lo(b),
+/// The comparisons of an interval (or an `around`, a `centered_interval`, as the interval of its spread) with a
+/// number or another interval (decision P6N.12): `(hi(a) vs lo(b),
 /// lo(a) vs hi(b))`, from which every relation is decided where the sets do not overlap (`None` without intervals).
 pub fn compare_intervals<'h>(
     h: &'h Heap,
@@ -580,7 +669,7 @@ pub fn compare_intervals<'h>(
     a: T<'h>,
     b: T<'h>,
 ) -> Option<(mc_arith::Cmp3, mc_arith::Cmp3)> {
-    let (ea, eb) = (ends(h, a), ends(h, b));
+    let (ea, eb) = (ends(h, ar, a), ends(h, ar, b));
     if ea.is_none() && eb.is_none() {
         return None;
     }

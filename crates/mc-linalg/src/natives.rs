@@ -5,7 +5,8 @@ use crate::{decomp, eigen, ops, systems};
 use mc_api::names;
 use mc_arith::num::StopScope;
 use mc_arith::Arith;
-use mc_core::T;
+use mc_api::{Store, View};
+use mc_core::{Heap, T};
 use mc_eval::{Abort, Native, NativeCx, Reply, Res};
 use mc_poly::work::{Halt, Meter, Work, WorkResult};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -85,9 +86,46 @@ impl Work for Tick<'_, '_, '_, '_> {
     }
 }
 
+/// Does an argument (a scalar, vector or matrix, nested lists of them) hold an `around`, an interval or a quantity?
+fn uncertain_entries<'h>(h: &'h Heap, args: &[T<'h>]) -> bool {
+    let list = h.sym_term(h.sym(names::LIST));
+    let mut stack: Vec<T<'h>> = args.to_vec();
+    let mut budget = 100_000usize;
+    while let Some(t) = stack.pop() {
+        if h.packed(t).is_some() {
+            continue;
+        }
+        match h.view(t) {
+            View::App { head, args } if head == list => {
+                if budget < args.len() {
+                    return false;
+                }
+                budget -= args.len();
+                stack.extend_from_slice(args);
+            }
+            View::App { .. } if mc_numeric::uncertain::any(h, &[t]) => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 impl Native for LinalgNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        // eigenvalues(m, k), eigenvectors(m, k), eigensystem(m, k): the first k (k < 0: the last -k), in the order
+        // of decreasing modulus
+        if let (Fun::Eigenvalues | Fun::Eigenvectors | Fun::Eigensystem, [m, k]) = (self.f, args) {
+            if matches!(h.view(*k), View::Int(v) if v != 0) {
+                let call = |name: &str, a: &[T<'h>]| h.call(h.sym(name), a);
+                let all = call(self.name, &[*m]);
+                return Ok(Reply::Again(if self.f == Fun::Eigensystem {
+                    call("transpose", &[call("take", &[call("transpose", &[all]), *k])])
+                } else {
+                    call("take", &[all, *k])
+                }));
+            }
+        }
         let env = Env::new(Arith::new(h).with_stop(self.stop.clone()), self.name);
         let _scope = StopScope::enter(Some(&self.stop));
         let mut tick = Tick { cx, stop: &self.stop, abort: None };
@@ -96,6 +134,9 @@ impl Native for LinalgNative {
             dispatch(self.f, &env, args, &mut m)
         };
         match r {
+            // numbers with uncertainty and quantities among the entries: the result is evaluated again, so that
+            // their arithmetic (left as canonical products and sums here) is carried out
+            Ok(Out::Done(t)) if uncertain_entries(h, args) => Ok(Reply::Again(t)),
             Ok(Out::Done(t)) => Ok(Reply::Done(t)),
             Ok(Out::Again(t)) => Ok(Reply::Again(t)),
             Ok(Out::Decline) => Ok(Reply::Decline),

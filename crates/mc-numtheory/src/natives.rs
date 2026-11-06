@@ -537,6 +537,11 @@ fn extended_gcd<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) ->
 fn factorial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x] = args else { return Ok(Reply::Decline) };
+    // an inexact real or complex number: gamma(1 + x)
+    if inexact(h, *x) {
+        let ar = Arith::new(h);
+        return Ok(Reply::Again(h.call(h.sym("gamma"), &[ar.add(&[h.int(1), *x])])));
+    }
     let Some(n) = int_of(h, *x) else { return Ok(Reply::Decline) };
     if n.neg {
         // the poles of the gamma function: no value (decision J.5)
@@ -571,6 +576,11 @@ fn binomial_int(n: &Int, k: &Int) -> Option<Option<(bool, u64, u64)>> {
     Some(Some((neg, to_u64(&top.mag)?, to_u64(&low.mag)?)))
 }
 
+/// Is `t` an inexact (machine or ball) real or complex number?
+fn inexact(h: &Heap, t: T<'_>) -> bool {
+    Arith::new(h).num(t).is_some_and(|n| n.kind() != mc_arith::Kind::Exact)
+}
+
 fn binomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [a, b] = args else { return Ok(Reply::Decline) };
@@ -585,6 +595,34 @@ fn binomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<
         }
         let c = combin::binomial(n, k, cx)?;
         return done(int_term(h, &Int::new(neg, c)));
+    }
+    // inexact numbers: the falling factorial over k! for a natural k, else by the gamma function
+    if (inexact(h, *a) || inexact(h, *b)) && Arith::new(h).num(*a).is_some() && Arith::new(h).num(*b).is_some() {
+        let ar = Arith::new(h);
+        let k_nat = match ar.num(*b) {
+            Some(Num::Real(r)) => {
+                let v = r.to_f64();
+                (v >= 0.0 && v.fract() == 0.0 && v <= 1000.0).then_some(v as i64)
+            }
+            _ => None,
+        };
+        let one = h.int(1);
+        let v = match k_nat {
+            Some(k) => {
+                let mut fs = vec![];
+                for i in 0..k {
+                    fs.push(ar.sub(*a, h.int(i)));
+                    fs.push(ar.pow(h.int(i + 1), h.int(-1)));
+                }
+                ar.mul(&fs)
+            }
+            None => {
+                let g = |x: T<'h>| h.call(h.sym("gamma"), &[x]);
+                let den = ar.mul(&[g(ar.add(&[*b, one])), g(ar.add(&[ar.sub(*a, *b), one]))]);
+                ar.div(g(ar.add(&[*a, one])), den)
+            }
+        };
+        return Ok(Reply::Again(v));
     }
     // a rational upper index and a small non-negative integer k: the falling factorial over k!
     let (Some(q), Some(k)) = (rat_of(h, *a), word_of(h, *b)) else { return Ok(Reply::Decline) };

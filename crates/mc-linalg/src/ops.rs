@@ -241,6 +241,12 @@ enum Order {
 /// `norm(v)`, `norm(v, p)` (p a positive integer or `inf`); `norm(m)` (the 2-norm, the largest singular value),
 /// `norm(m, 1)`, `norm(m, inf)`, `norm(m, "frobenius")`.
 pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
+    // a scalar (a number, a quantity, an expression): its absolute value
+    if let [x] = args {
+        if env.as_list(*x).is_none() && env.h().packed(*x).is_none() {
+            return Ok(Out::Again(env.call("abs", &[*x])));
+        }
+    }
     let order = match args {
         [_] => Order::P(2),
         [_, p] => match env.h().view(*p) {

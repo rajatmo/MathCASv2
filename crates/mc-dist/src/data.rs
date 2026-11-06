@@ -120,7 +120,10 @@ pub fn stat<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &str, s: DataStat, xs: T<'h>, 
         return Ok(Reply::Done(h.real(r)));
     }
     let len = b.int(n as i64);
-    let mean_of = |t: T<'h>| b.div(b.call("sum", &[t]), len);
+    // numbers with uncertainty (`around`, intervals) are added by `add`, which carries them
+    let uncertain = matches!(data, Data::Terms(items) if mc_numeric::uncertain::any(h, items));
+    let total = |t: T<'h>| if uncertain { b.call("apply", &[b.sym("add"), t]) } else { b.call("sum", &[t]) };
+    let mean_of = |t: T<'h>| b.div(total(t), len);
     if let DataStat::Mean = s {
         return Ok(Reply::Again(mean_of(xs)));
     }
@@ -130,8 +133,8 @@ pub fn stat<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &str, s: DataStat, xs: T<'h>, 
     // the deviations from the mean, the mean evaluated once
     let m = cx.eval(mean_of(xs))?;
     let dev = b.sub(xs, m);
-    let cm = |k: i64| b.div(b.call("sum", &[b.powi(dev, k)]), len);
-    let var = b.div(b.call("sum", &[b.powi(dev, 2)]), b.int(n as i64 - 1));
+    let cm = |k: i64| b.div(total(b.powi(dev, k)), len);
+    let var = b.div(total(b.powi(dev, 2)), b.int(n as i64 - 1));
     Ok(Reply::Again(match s {
         DataStat::Variance => var,
         DataStat::StdDev => b.sqrt(var),
@@ -400,4 +403,34 @@ pub fn histogram<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &str, args: &[T<'h>]) -> 
     }
     let edges: Vec<T<'h>> = bins.edges.iter().map(|r| ar.number(&Num::Real(r.clone()))).collect();
     Ok(Reply::Done(cx.list(&[cx.list(&edges), h.ints(&counts)])))
+}
+
+/// A data list of quantities in compatible units: the magnitudes in the first element's unit, and that unit (`None`
+/// when an element is not a quantity). Statistics of such a list are the statistics of the magnitudes, in the unit
+/// (to the power the statistic has).
+pub fn quantities<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: T<'h>) -> Res<Option<(T<'h>, T<'h>)>> {
+    let h = cx.heap();
+    let Some(items) = cx.as_list(xs) else { return Ok(None) };
+    let q = h.sym_term(h.sym("quantity"));
+    let unit_of = |t: T<'h>| match h.view(t) {
+        View::App { head, args: &[_, u] } if head == q => Some(u),
+        _ => None,
+    };
+    let Some(u0) = items.first().and_then(|&x| unit_of(x)) else { return Ok(None) };
+    if !items.iter().all(|&x| unit_of(x).is_some()) {
+        return Ok(None);
+    }
+    cx.tick(items.len() as u64)?;
+    let b = B::new(h);
+    let mut mags = Vec::with_capacity(items.len());
+    for &x in items {
+        let m = cx.eval(b.call("quantity_magnitude", &[x, u0]))?;
+        // incompatible units: a failure from the conversion, or the call left as it is
+        let bad = |name: &str| matches!(h.view(m), View::App { head, .. } if head == h.sym_term(h.sym(name)));
+        if bad("failure") || bad("quantity_magnitude") {
+            return Ok(None);
+        }
+        mags.push(m);
+    }
+    Ok(Some((cx.list(&mags), u0)))
 }

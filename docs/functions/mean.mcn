@@ -132,6 +132,24 @@ seed(5); [mean(random_real([0, 1], 10^5)), mean(uniform_distribution([0, 1]))]
 #% output
 #= [53/2, 5/2]
 
+#% text
+# The mean of quantities is in their unit; of a dataset, column by column:
+
+#% cell
+mean([quantity(1, "Meters"), quantity(300, "Centimeters")])
+#% output
+#= quantity(2, "Meters")
+
+#% cell
+mean(dataset([assoc("a" -> 1, "b" -> 2.0), assoc("a" -> 3, "b" -> 5.0)]))
+#% output
+#= assoc("a" -> 2, "b" -> 3.5)
+
+#% cell
+mean([around(1.0, 0.1), around(2.0, 0.2)])
+#% output
+#= around(1.5, 0.1118033988749895)
+
 #% subsection
 # Possible issues
 

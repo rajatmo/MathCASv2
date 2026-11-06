@@ -57,6 +57,49 @@ around([1.1, 0.9, 1.0, 1.2])
 #% output
 #= around(1.05, 0.12909944487358055)
 
+#% subsection
+# Properties and relations
+
+#% text
+# The mean of uncertain values carries their uncertainties:
+
+#% cell
+mean([around(1.0, 0.1), around(2.0, 0.2)])
+#% output
+#= around(1.5, 0.1118033988749895)
+
+#% text
+# Comparisons are decided when the spreads do not overlap:
+
+#% cell
+around(1.0, 0.1) < around(3.0, 0.5)
+#% output
+#= true
+
+#% text
+# Step functions give their value when it is the same over the spread:
+
+#% cell
+floor(around(2.5, 0.1))
+#% output
+#= 2
+
+#% text
+# A quantity with an uncertainty, absolute or relative:
+
+#% cell
+around(quantity(-34.78, "Newtons"), scaled(0.04))
+#% output
+#= quantity(around(-34.78, 1.3912), "Newtons")
+
+#% text
+# Functions without a closed-form derivative propagate by a difference quotient:
+
+#% cell
+factorial(around(2.0, 0.01))
+#% output
+#= around(2.0, 0.018455686701918845)
+
 #% section
 # See also
 

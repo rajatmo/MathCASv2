@@ -53,6 +53,7 @@ mod import;
 mod interp;
 mod pdf_read;
 mod pdf_write;
+mod persist;
 mod raster;
 mod tabular;
 
@@ -71,7 +72,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     (
         "interpolation",
-        "interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])",
+        "interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments; interpolation_order: k for the local polynomial through the k + 1 nearest points); call it as f(x), differentiate it as f'(x) or d(f(x), x); outside the data range failure(out_of_range, x, [x_min, x_max])",
     ),
     (
         "export_data",
@@ -85,6 +86,11 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "image_data",
         "image_data(img): the pixels of an image as a packed array height x width x channels of reals in [0, 1]",
     ),
+    (
+        "put",
+        "put(value, file): write the value to a text file in input form (solutions of n_dsolve as interpolation data); gives the file name; read it back with get(file)",
+    ),
+    ("get", "get(file): the value a file written by put holds (evaluated again in this session)"),
     ("file_exists", "file_exists(path): true when the file or directory exists"),
     ("file_names", "file_names(pattern), file_names(pattern, dir): the sorted names of the files matching a pattern with * and ?"),
     ("image_dimensions", "image_dimensions(img): the size of an image in pixels, [width, height]"),
@@ -100,6 +106,8 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("export_data"), Attributes::default(), Box::new(export::Export));
     k.register(h.sym("interpolation"), Attributes::default(), Box::new(interp::Interpolation));
     k.register(h.sym("interpolated"), Attributes::default(), Box::new(interp::Interpolated));
+    k.register(h.sym("put"), Attributes::default(), Box::new(persist::Put));
+    k.register(h.sym("get"), Attributes::default(), Box::new(persist::Get));
     k.register(h.sym(images::IMAGE), Attributes::default(), Box::new(images::ImageOf));
     k.register(h.sym("image_data"), Attributes::default(), Box::new(images::ImageQuery(images::Query::Data)));
     k.register(

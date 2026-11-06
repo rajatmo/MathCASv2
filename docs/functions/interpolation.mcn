@@ -16,6 +16,9 @@
 # The result is a function: call it as `f(x)` with a real number, or with a list of numbers.
 
 #% item
+# Its derivatives are interpolating functions too: `f'(x)`, `f''(x)`, `d(f(x), x)`.
+
+#% item
 # The default spline is cubic with not-a-knot ends; it reproduces a cubic polynomial exactly.
 
 #% item
@@ -29,6 +32,9 @@
 
 #% subitem
 # `method: linear` joins the points by straight segments; `method: cubic` is the default.
+
+#% subitem
+# `interpolation_order: k` uses, near each x, the polynomial of degree k through the k + 1 nearest points (for k = 3 the cubic through two points on each side); it is continuous but its derivative jumps at the points. `interpolation_order: 1` is `method: linear`.
 
 #% item
 # Outside the range of the data, the value is `failure(out_of_range, x, [x_min, x_max])`.
@@ -83,12 +89,25 @@ tab = table([x, sin(x)], x, range(0, 3, 0.25)); s = interpolation(tab); s(1.1) -
 #= -8.541141582885103e-6
 
 #% text
+# The derivatives of the spline:
+
+#% cell
+[f'(1.5), f''(1.5), d(f(x), x) /. x -> 0.5]
+#% output
+#= [3.0, 2.0, 1.0]
+
+#% cell
+s'(1.1) - cos(1.1)
+#% output
+#= -5.3548600041419814e-5
+
+#% text
 # The interpolated function can be plotted, integrated and solved like any other:
 
 #% cell
 plot(s(x), [x, 0, 3])
 #% output
-#= image("interpolation.files/interpolation-6.png")
+#= image("interpolation.files/interpolation-8.png")
 
 #% cell
 n_integrate(s(x), [x, 0, 3])
@@ -110,6 +129,22 @@ find_root(s(x) == 0.5, [x, 0.5])
 h = interpolation([[0, 0], [1, 1], [2, 4], [3, 9]], method: linear); h(1.5)
 #% output
 #= 2.5
+
+#% text
+# The local cubic through the four nearest points of a table:
+
+#% cell
+w = interpolation(table([x, sin(x)*exp(-x/7)], x, range(0.0, 25.0, 0.5)), interpolation_order: 3); [w(1.234), w'(1.234)]
+#% output
+#= [0.7900668714466161, 0.16341801886913399]
+
+#% text
+# The local quadratic through three points:
+
+#% cell
+interpolation([[0, 1], [1, 2], [2, 5], [3, 10]], interpolation_order: 2)(2.5)
+#% output
+#= 7.25
 
 #% subsection
 # Applications
@@ -139,20 +174,12 @@ f(5)
 #! failure(out_of_range, 5, [0.0, 3.0])
 
 #% text
-# The derivative of an interpolated function is not evaluated:
+# The derivative of a local interpolation jumps at the points; at a point it is the derivative of the piece to the right:
 
 #% cell
-d(f(x), x) /. x -> 1.5
+q = interpolation([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]], interpolation_order: 1); [q'(0.5), q'(1), q'(1.5)]
 #% output
-#= derivative(1)(interpolated([0.0, 1.0, 2.0, 3.0], [0.0, 1.0, 4.0, 9.0], [2.0, 2.0, 2.0, 2.0]))(1.5)
-
-#% text
-# A central difference gives it numerically:
-
-#% cell
-(f(1.5 + 1e-6) - f(1.5 - 1e-6))/2e-6
-#% output
-#= 2.9999999995311555
+#= [1.0, -1.0, -1.0]
 
 #% text
 # Two values at the same x:
@@ -166,4 +193,4 @@ interpolation([[0, 0], [0, 1], [1, 2]])
 # See also
 
 #% text
-# `table`, `n_dsolve`, `interpolating_function`, `list_plot`, `n_integrate`
+# `table`, `n_dsolve`, `interpolating_function`, `list_plot`, `n_integrate`, `put`

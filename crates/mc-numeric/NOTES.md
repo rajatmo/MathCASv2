@@ -359,3 +359,54 @@ real sin_cos; log a real log plus a real atan (arg); atan two complex logs.
 - Expressions: `let g = Graph::build_with_vars(st, &ar, &Names::new(st), expr, &[x]); let is =
   g.island(g.node(expr)?);` then `g.eval_complex_at(&is, p, &[z]) -> Option<CBall>` per point (an enclosure of f
   over the region z; `None` where f has no analytic value on the region: a cut, pole or singular point).
+
+## Round 12, package io-num: values that flow between functions (branch `lib/io-num`)
+
+What changed (across the io-num crates; the decisions are numbered io-num.N):
+
+- **Quantities** (`quantity.rs`): functions of the magnitude keep the unit (`abs`, `re`, `im_part`, `conjugate`,
+  `rationalize`, `floor`, `ceiling`, `round`, `integer_part`, `fractional_part`; a quantity step such as
+  `round(q, quantity(1, "Meters"))` is converted to q's unit first); `sqrt` and rational powers multiply the
+  exponents of the unit names (`sqrt(quantity(16, "Meters"^2))` is `quantity(4, "Meters")`); `mod` keeps the unit,
+  `quotient` and `sign` give numbers; `quantity(list, u)` is the list of quantities (io-num.1).
+- **Comparisons** (`natives.rs` `decide`): quantities compare by their magnitudes in a common unit (a dimensionless
+  unit against a number too), so `<`, `>`, `==` of quantities are decided; `around(x, d)` and
+  `centered_interval(c, r)` compare as the interval of their spread, like `interval` (io-num.2). Two plain numbers
+  after the unit conversion use the canonical comparison (`numeval::compare` refuses plain numbers).
+- **Propagation** (`uncertain.rs`): a function whose derivative has no closed form (or no machine value at the
+  centre) propagates `around` / `centered_interval` by the five-point difference quotient with h = 10^-3 max(1, |x|)
+  (io-num.3); step functions (`floor`, `ceiling`, `round`, `integer_part`, `sign`, `unit_step`, `real_sign`,
+  `unit_box`, `heaviside_theta`, `kronecker_delta`, `boole`) give their exact value when it is the same at both ends
+  of every spread, else `indeterminate` (io-num.4); `around(quantity, quantity)` and `around(x, scaled(s))` (s |x|)
+  give `quantity(around(m, dm), unit)` (io-num.5). `re`, `im_part`, `conjugate`, `arg`, `clip`, `unit_step` and
+  `rationalize` now route these values through `uncertain::apply`.
+- `atan(x, y)` for real numbers is `arg(x + i y)` (it was unevaluated); `log(1/n)` is `-log(n)` (io-num.6).
+- mc-numtheory: `factorial(x)` of an inexact number is `gamma(1 + x)`; `binomial` of inexact numbers by the falling
+  factorial (natural k) or by gamma functions (io-num.7).
+- mc-special: the incomplete beta `beta(z, a, b)` and `beta_regularized` for z > 1 with a natural b (the polynomial
+  integral continued past 1).
+- mc-dist: data statistics of quantities are those of the magnitudes in the first element's unit, in that unit to
+  the statistic's power (variance: unit^2, skewness: none) (io-num.8); lists with `around`/interval elements are
+  summed through `add` (`apply(add, xs)`), so their uncertainty is carried (gap G53 asks mc-lists' `sum` for the
+  same); statistics of a dataset are the association of the column statistics (io-num.9); support conditions are
+  written `x > 0` / `k >= 0` and the Poisson distribution function is `gamma_regularized(1 + floor(k), m)`;
+  `moment(d, r)` for a symbolic order: chi-square, gamma, exponential, beta, log-normal and uniform closed forms.
+- mc-linalg: `sparse_array(automatic, dims, default, [1, [offsets, columns], values])` (the compressed row form)
+  is read, built dense like the rule form; `sparse_array(rules, n)` with list positions is n x ... x n (io-num.10);
+  results whose entries hold `around`, intervals or quantities are evaluated again so their arithmetic is carried
+  out (io-num.11); `norm(x)` of a scalar is `abs(x)`; `matrix_function(f, m, method: ...)` accepts the option and
+  ignores it (io-num.12); `eigenvalues(m, k)`, `eigenvectors(m, k)`, `eigensystem(m, k)` take the first k (k < 0
+  the last).
+
+- Interpolation (gap G68): `interpolation(data, interpolation_order: k)` is the local polynomial of degree k
+  through the k + 1 nodes nearest the interval holding x (for k = 3 the cubic through two nodes on each side,
+  moved inside the table at its ends; order 1 is `method: linear`), as `interpolated(xs, ys, k)`; a fourth
+  argument of `interpolated` is a derivative order, and mc-calculus turns `derivative(n)(interpolated(...))` into
+  it, for the spline (exact derivatives of its cubic pieces) and the local scheme (`spline::local`, Newton form)
+  (io-num.13). Compiled code takes only the plain spline; the others stay with the interpreter.
+- Saving values (gap G75): `put(value, file)` writes the value's input form after a line `#! mathcas 2 value`,
+  `get(file)` reads it back with `to_expression`; an `interpolating_function` (data in the solving session) is
+  written as the `interpolation` through 16 values per solution step, at least 2049 (io-num.14). Chosen over a
+  native `export_data` format: a value file is text the user can read, and `put`/`get` say what they do.
+
+Tests: `tests/interop.rs` in mc-numeric, mc-dist, mc-linalg and mc-io.

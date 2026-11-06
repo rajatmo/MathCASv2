@@ -123,16 +123,16 @@ binomial(20, 7) == binomial(20, 13)
 #% output
 #= true
 
+#% cell
+binomial(2.5, 2)
+#% output
+#= 1.875
+
 #% subsection
 # Possible issues
 
 #% text
-# Machine numbers and symbols are not evaluated:
-
-#% cell
-binomial(5.5, 2)
-#% output
-#= binomial(5.5, 2)
+# Symbols are not evaluated:
 
 #% cell
 binomial(n, 2)

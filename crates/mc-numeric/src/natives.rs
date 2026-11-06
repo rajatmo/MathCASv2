@@ -59,6 +59,19 @@ struct Elementary {
 
 impl Native for Elementary {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // atan(x, y): the argument of x + i y, for real numbers not both zero
+        if let (Fun::Atan, &[x, y]) = (self.f, args) {
+            let h = cx.heap();
+            let ar = Arith::new(h);
+            let real = |v: T<'h>| matches!(ar.num(v), Some(Num::Real(_)));
+            let zero = |v: T<'h>| ar.num(v).is_some_and(|n| n.is_zero());
+            if real(x) && real(y) && !(zero(x) && zero(y)) {
+                let i = ar.complex(h.int(0), h.int(1));
+                let z = ar.add(&[x, ar.mul(&[i, y])]);
+                return Ok(Reply::Again(h.call(h.sym("arg"), &[z])));
+            }
+            return Ok(Reply::Decline);
+        }
         let [x] = args else { return Ok(Reply::Decline) };
         let h = cx.heap();
         if crate::uncertain::any(h, args) {
@@ -297,6 +310,9 @@ thread_local! {
 fn decide<'h>(h: &'h Heap, nm: &Names, stop: &Stop, rel: Rel, a: T<'h>, b: T<'h>) -> Option<bool> {
     let _scope = StopScope::enter(Some(stop));
     let ar = Arith::new(h).with_stop(stop.clone());
+    // quantities: their magnitudes in a common unit
+    let cm = crate::quantity::common_magnitudes(h, &ar, a, b);
+    let (a, b) = cm.unwrap_or((a, b));
     if let Some((up, down)) = crate::uncertain::compare_intervals(h, &ar, nm, a, b) {
         // up: max(a) against min(b); down: min(a) against max(b)
         use Cmp3::{Equal as E, Greater as G, Less as L};
@@ -317,6 +333,10 @@ fn decide<'h>(h: &'h Heap, nm: &Names, stop: &Stop, rel: Rel, a: T<'h>, b: T<'h>
             Rel::Unequal if below || above => Some(true),
             _ => None,
         };
+    }
+    // two numbers (the magnitudes of quantities): the canonical comparison
+    if let (Some(_), Some(_)) = (ar.num(a), ar.num(b)) {
+        return rel.holds(ar.compare(a, b)?);
     }
     rel.holds(numeval::compare(h, &ar, nm, a, b)?)
 }

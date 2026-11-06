@@ -1,5 +1,8 @@
 //! `interpolation(data)`: a not-a-knot cubic spline (or a piecewise-linear interpolant) through tabulated data, as a
-//! callable value `interpolated(xs, ys, ms)` (ms: the second derivatives at the nodes; all zero for linear).
+//! callable value `interpolated(xs, ys, ms)` (ms: the second derivatives at the nodes; all zero for linear);
+//! `interpolation(data, interpolation_order: k)`: the local polynomial of degree k through the k + 1 nearest nodes,
+//! `interpolated(xs, ys, k)` (decision io-num.13). A fourth argument is a derivative order: `interpolated(xs, ys, ms,
+//! d)` is the d-th derivative (mc-calculus turns `derivative(d)(interpolated(...))` into it).
 use crate::failure;
 use mc_api::names;
 use mc_core::{Store, View, T};
@@ -48,14 +51,15 @@ fn bad<'h>(h: &'h mc_core::Heap, k: i64) -> Reply<'h> {
 impl Native for Interpolation {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let (data, linear) = match *args {
-            [d] => (d, false),
+        let (data, scheme) = match *args {
+            [d] => (d, Scheme::Spline),
             [d, o] => match method(cx, o) {
                 Some(l) => (d, l),
                 None => return Ok(bad(h, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
+        let linear = scheme == Scheme::Linear;
         let Some(items) = cx.as_list(data) else {
             return Ok(bad(h, 1));
         };
@@ -87,6 +91,9 @@ impl Native for Interpolation {
             not_a_knot_spline(&xs, &ys)
         };
         let list = |v: &[f64]| h.reals(v);
+        if let Scheme::Local(k) = scheme {
+            return Ok(Reply::Done(h.call(h.sym("interpolated"), &[list(&xs), list(&ys), h.int(k as i64)])));
+        }
         Ok(Reply::Done(h.call(
             h.sym("interpolated"),
             &[list(&xs), list(&ys), list(&ms)],
@@ -94,30 +101,56 @@ impl Native for Interpolation {
     }
 }
 
-/// `options(method -> cubic | linear)`: `Some(true)` for linear.
-fn method<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<bool> {
+/// The interpolation scheme.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Scheme {
+    /// the not-a-knot cubic spline (the default)
+    Spline,
+    /// straight segments
+    Linear,
+    /// the local polynomial of this degree
+    Local(usize),
+}
+
+/// `options(method -> cubic | linear, interpolation_order -> k)`; `None` for anything else. The order 1 is the
+/// linear scheme; an order with `method: cubic` is the spline.
+fn method<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>) -> Option<Scheme> {
     let h = cx.heap();
-    let View::App { head, args: &[r] } = h.view(o) else {
+    let View::App { head, args: rules } = h.view(o) else {
         return None;
     };
     if head != h.sym_term(h.sym("options")) {
         return None;
     }
-    let View::App {
-        head,
-        args: &[k, v],
-    } = h.view(r)
-    else {
-        return None;
-    };
-    if head != h.sym_term(h.sym(names::RULE)) || k != h.sym_term(h.sym("method")) {
-        return None;
+    let mut scheme = Scheme::Spline;
+    let mut order = None;
+    for &r in rules {
+        let View::App { head, args: &[k, v] } = h.view(r) else {
+            return None;
+        };
+        if head != h.sym_term(h.sym(names::RULE)) {
+            return None;
+        }
+        if k == h.sym_term(h.sym("method")) {
+            scheme = match h.view(v) {
+                View::Sym(s) if h.sym_name(s) == "linear" => Scheme::Linear,
+                View::Sym(s) if h.sym_name(s) == "cubic" => Scheme::Spline,
+                _ => return None,
+            };
+        } else if k == h.sym_term(h.sym("interpolation_order")) {
+            match h.view(v) {
+                View::Int(k @ 1..=20) => order = Some(k as usize),
+                _ => return None,
+            }
+        } else {
+            return None;
+        }
     }
-    match h.view(v) {
-        View::Sym(s) if h.sym_name(s) == "linear" => Some(true),
-        View::Sym(s) if h.sym_name(s) == "cubic" => Some(false),
-        _ => None,
-    }
+    Some(match (scheme, order) {
+        (Scheme::Spline, Some(1)) => Scheme::Linear,
+        (Scheme::Spline, Some(k)) => Scheme::Local(k),
+        (s, _) => s,
+    })
 }
 
 /// The second derivatives M_i of the not-a-knot cubic spline through (xs, ys), n >= 3 points.
@@ -178,12 +211,21 @@ impl Native for Interpolated {
         let View::App { head, .. } = h.view(t) else {
             return Ok(Reply::Decline);
         };
-        let View::App {
-            args: &[xt, yt, mt],
-            ..
-        } = h.view(head)
-        else {
+        let View::App { args: data, .. } = h.view(head) else {
             return Ok(Reply::Decline);
+        };
+        let (xt, yt, mt, order) = match *data {
+            [xt, yt, mt] => (xt, yt, mt, 0),
+            [xt, yt, mt, d] => match h.view(d) {
+                View::Int(d @ 0..=64) => (xt, yt, mt, d as u32),
+                _ => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        // the local scheme: the degree in place of the second derivatives
+        let degree = match h.view(mt) {
+            View::Int(k @ 1..=20) => Some(k as usize),
+            _ => None,
         };
         let &[x] = args else {
             return Ok(Reply::Decline);
@@ -196,25 +238,30 @@ impl Native for Interpolated {
                 }
                 Ok(reals(cx, t)?.map(std::borrow::Cow::Owned))
             };
-        let (Some(xs), Some(ys), Some(ms)) = (slice(cx, xt)?, slice(cx, yt)?, slice(cx, mt)?)
-        else {
+        let ms = match degree {
+            Some(_) => Some(std::borrow::Cow::Owned(vec![])),
+            None => slice(cx, mt)?,
+        };
+        let (Some(xs), Some(ys), Some(ms)) = (slice(cx, xt)?, slice(cx, yt)?, ms) else {
             return Ok(Reply::Decline);
         };
-        if xs.len() < 2 || xs.len() != ys.len() || xs.len() != ms.len() {
+        let ms: &[f64] = if degree.is_some() { &[] } else { &ms };
+        let how = Eval { ms, degree, order };
+        if xs.len() < 2 || xs.len() != ys.len() || (degree.is_none() && xs.len() != ms.len()) {
             return Ok(Reply::Decline);
         }
         // a list of points maps
         if let Some(pts) = cx.as_list(x) {
             let mut out = Vec::with_capacity(pts.len());
             for &p in pts {
-                match value_at(cx, &xs, &ys, &ms, p)? {
+                match value_at(cx, &xs, &ys, &how, p)? {
                     Some(v) => out.push(v),
                     None => return Ok(Reply::Decline),
                 }
             }
             return Ok(Reply::Done(h.call(h.sym(names::LIST), &out)));
         }
-        Ok(match value_at(cx, &xs, &ys, &ms, x)? {
+        Ok(match value_at(cx, &xs, &ys, &how, x)? {
             Some(v) => Reply::Done(v),
             None => Reply::Decline,
         })
@@ -229,12 +276,19 @@ impl Native for Interpolated {
     }
 }
 
-/// The interpolant at `x` (a failure outside the data's range), or `None` for a symbolic `x`.
+/// How an interpolant is evaluated: the spline's second derivatives or the local degree, and the derivative order.
+struct Eval<'a> {
+    ms: &'a [f64],
+    degree: Option<usize>,
+    order: u32,
+}
+
+/// The interpolant (or its derivative) at `x` (a failure outside the data's range), or `None` for a symbolic `x`.
 fn value_at<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     xs: &[f64],
     ys: &[f64],
-    ms: &[f64],
+    how: &Eval<'_>,
     x: T<'h>,
 ) -> Res<Option<T<'h>>> {
     let h = cx.heap();
@@ -247,7 +301,11 @@ fn value_at<'h>(
         return Ok(Some(failure(h, "out_of_range", &[x, dom])));
     }
     // the evaluation compiled code shares (bit for bit the same value)
-    Ok(mc_numeric::spline::value(xs, ys, ms, xv).map(|v| h.real(v)))
+    Ok(match how.degree {
+        Some(k) => mc_numeric::spline::local(xs, ys, k, xv, how.order),
+        None => mc_numeric::spline::derivative(xs, ys, how.ms, xv, how.order),
+    }
+    .map(|v| h.real(v)))
 }
 
 #[cfg(test)]

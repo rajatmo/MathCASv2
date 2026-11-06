@@ -221,11 +221,23 @@ const MAX_PRIMES: i64 = 1000;
 
 /// `derivative(n)(interpolating_function("y", rest...))` is the interpolating function of the n-th derivative,
 /// `interpolating_function("y" + n primes, rest...)`: the solution store of `n_dsolve` reads the primes as the
-/// derivative order (decision C.6). `None` for anything else.
+/// derivative order (decision C.6). `derivative(n)(interpolated(xs, ys, ms[, d]))` (mc-io's `interpolation`) is
+/// `interpolated(xs, ys, ms, d + n)`. `None` for anything else.
 fn interpolating_derivative<'h>(b: &Build<'h>, f: T<'h>, orders: &[i64]) -> Option<T<'h>> {
     let h = b.heap();
     let &[n @ 0..=MAX_PRIMES] = orders else { return None };
     let View::App { head, args: [name, rest @ ..] } = h.view(f) else { return None };
+    // `interpolation`'s value (mc-io): `interpolated(xs, ys, ms)` with a fourth argument, the derivative order
+    if b.sym_of(head).map(|s| h.sym_name(s)).as_deref() == Some("interpolated") {
+        return match h.view(f) {
+            View::App { args: &[xs, ys, ms], .. } => Some(h.app(head, &[xs, ys, ms, h.int(n)])),
+            View::App { args: &[xs, ys, ms, d], .. } => match h.view(d) {
+                View::Int(d) => Some(h.app(head, &[xs, ys, ms, h.int(d + n)])),
+                _ => None,
+            },
+            _ => None,
+        };
+    }
     if b.sym_of(head).map(|s| h.sym_name(s)).as_deref() != Some("interpolating_function") {
         return None;
     }

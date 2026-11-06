@@ -152,6 +152,19 @@ singular_values([[1.0, 2.0], [3.0, 4.0]])[1]
 #% output
 #= 5.4649857042190435
 
+#% text
+# The norm of a number or a quantity is its absolute value:
+
+#% cell
+norm(-3 + 4im)
+#% output
+#= 5
+
+#% cell
+norm([quantity(3, "Meters"), quantity(4, "Meters")])
+#% output
+#= quantity(5, "Meters")
+
 #% subsection
 # Possible issues
 
@@ -162,14 +175,6 @@ singular_values([[1.0, 2.0], [3.0, 4.0]])[1]
 norm([1, 1], 2.5)
 #% output
 #! failure(argument, norm, 2)
-
-#% text
-# A number is not a vector:
-
-#% cell
-norm(-5)
-#% output
-#= norm(-5)
 
 #% section
 # See also

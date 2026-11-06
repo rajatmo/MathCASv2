@@ -47,6 +47,17 @@ matrix_function(exp, [[1.0, 2.0], [3.0, 4.0]])
 #% output
 #= [[51.968956198705, 74.73656456700323], [112.10484685050479, 164.07380304920983]]
 
+#% subsection
+# Properties and relations
+
+#% text
+# The method option is accepted; the result is the same function of the matrix:
+
+#% cell
+matrix_function(exp, [[0, 1], [0, 0]], method: "Jordan")
+#% output
+#= [[1, 1], [0, 1]]
+
 #% section
 # See also
 

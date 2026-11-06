@@ -1425,6 +1425,9 @@ impl<'h> Fe<'h, '_> {
             return Ok(None);
         }
         let reals = |t: T<'h>| h.packed(t).and_then(|p| p.reals());
+        if data.len() == 4 || data.get(2).is_some_and(|&m| matches!(h.view(m), View::Int(_))) {
+            return Err("a derivative of an interpolation, or a local one (interpolation_order), is not compiled".into());
+        }
         let (&[xt, yt, mt], &[x]) = (data, args) else { return Err("a call of an interpolation with other than one argument".into()) };
         let (Some(xs), Some(ys), Some(ms)) = (reals(xt), reals(yt), reals(mt)) else {
             return Err("an interpolation of fewer than 64 points (its nodes are not a packed array)".into());
