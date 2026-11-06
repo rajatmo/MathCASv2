@@ -161,3 +161,78 @@ impl Store {
         self.map.lock().get(&key).cloned()
     }
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// solutions in compiled code (round 13, decision LC.5)
+
+/// The stores of the live sessions, for the compiler's resolver (a solution is found by its content key).
+static STORES: Mutex<Vec<std::sync::Weak<Store>>> = Mutex::new(Vec::new());
+
+/// Makes the solutions of `store` callable from compiled code: `interpolating_function(...)(t)` (and its derivatives,
+/// whose names carry primes) at machine reals compile to a library call ([`mc_jit::callee`]).
+pub(crate) fn publish(store: &Arc<Store>) {
+    let mut v = STORES.lock();
+    v.retain(|w| w.strong_count() > 0);
+    v.push(Arc::downgrade(store));
+    drop(v);
+    mc_jit::callee::add_resolver(resolve);
+}
+
+/// The kept solution of `key` in any live session.
+fn find(key: u64) -> Option<Arc<Solution>> {
+    STORES.lock().iter().filter_map(std::sync::Weak::upgrade).find_map(|s| s.get(key))
+}
+
+/// The callee of `interpolating_function(name, domain, steps, key)` called with one argument: a machine solution's
+/// component at a machine real, exactly as [`Solution::value`] gives it to the native.
+fn resolve<'h>(h: &'h mc_core::Heap, head: mc_core::T<'h>, nargs: usize) -> Option<u32> {
+    use mc_core::{Store as _, View};
+    if nargs != 1 {
+        return None;
+    }
+    let View::App { head: f, args: &[name, _, _, key] } = h.view(head) else { return None };
+    let View::Sym(s) = h.view(f) else { return None };
+    if h.sym_name(s) != "interpolating_function" {
+        return None;
+    }
+    let (View::Str(name), View::Str(key)) = (h.view(name), h.view(key)) else { return None };
+    let k = u64::from_str_radix(key, 16).ok()?;
+    let sol = find(k)?;
+    let (i, order) = sol.component(name)?;
+    if !matches!(sol.data, Data::Machine(_)) {
+        return None;
+    }
+    let weak = Arc::downgrade(&sol);
+    Some(mc_jit::callee::register(&format!("ode:{key}:{name}"), move || Box::new(SolutionFn { key: k, sol: parking_lot::RwLock::new(weak), i, order })))
+}
+
+/// A component of a solution, for compiled code. It holds the solution weakly (the session's store owns it); a
+/// solution forgotten and solved again is found again by its key.
+struct SolutionFn {
+    key: u64,
+    sol: parking_lot::RwLock<std::sync::Weak<Solution>>,
+    i: usize,
+    order: usize,
+}
+
+impl mc_jit::callee::Callee for SolutionFn {
+    fn value(&self, args: &[f64]) -> Option<f64> {
+        let sol = match self.sol.read().upgrade() {
+            Some(s) => s,
+            None => {
+                let s = find(self.key)?;
+                *self.sol.write() = Arc::downgrade(&s);
+                s
+            }
+        };
+        let x = args[0];
+        // the native's evaluation of a machine solution (`Interpolating::at`, `Solution::value`)
+        if !(sol.lo <= x && x <= sol.hi) {
+            return None;
+        }
+        match &sol.data {
+            Data::Machine(p) => p.value(self.i, self.order, x),
+            Data::Taylor(_) => None,
+        }
+    }
+}

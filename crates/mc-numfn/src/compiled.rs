@@ -267,6 +267,7 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
                     // neither the family nor this body compiles
                     a.tried = true;
                     a.refusal = Some(why.to_string());
+                    trace(&format!("refused (cached): {why}"));
                 }
                 // else this body compiles on its own, per instance (no family)
                 return a;
@@ -317,9 +318,13 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
         match made {
             Ok(c) => {
                 self.stats.compile_micros = t0.elapsed().as_micros() as u64;
+                trace(&format!("compiled in {} us", self.stats.compile_micros));
                 self.adopt(c);
             }
-            Err(e) => self.refusal = Some(e),
+            Err(e) => {
+                trace(&format!("refused: {e}"));
+                self.refusal = Some(e)
+            }
         }
     }
 
@@ -474,5 +479,17 @@ impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Auto<'h, I> {
 
     fn stats(&self) -> Stats {
         self.stats
+    }
+}
+
+/// With the environment variable `MC_NUMFN_TRACE` naming a file, compilations and refusals are appended to it (a
+/// profiling aid: why a solver's function runs interpreted).
+fn trace(msg: &str) {
+    static PATH: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    if let Some(p) = PATH.get_or_init(|| std::env::var_os("MC_NUMFN_TRACE")) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "numfn: {msg}");
+        }
     }
 }

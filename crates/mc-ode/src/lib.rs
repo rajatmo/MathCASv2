@@ -73,6 +73,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     let a = Attributes::default();
     let store = Arc::new(solution::Store::default());
+    solution::publish(&store);
     let solve = |kind| natives::Solve { stop: stop.clone(), store: store.clone(), kind };
     k.register(h.sym("n_dsolve"), a, Box::new(solve(natives::Kind::Rules)));
     k.register(h.sym("n_dsolve_value"), a, Box::new(solve(natives::Kind::Value)));

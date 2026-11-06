@@ -291,6 +291,9 @@ pub enum E {
     Draw(Draw, Box<E>, Box<E>),
     /// the spline registered as `id` (`mc_numeric::spline`) at a machine real; declines outside its data
     Spline(u32, Box<E>),
+    /// the library function registered as `id` ([`crate::callee`]) at machine reals (at most
+    /// [`crate::callee::MAX_ARGS`]); declines where the interpreter gives anything but a finite machine real
+    Call(u32, Vec<E>),
     /// element `i` (from 1; a negative `i` counts from the end, as `part` does) of the vector of `len` leaves of type
     /// `Int` or `Real` at address `base` (package P: a packed payload, a list's leaves copied by the host, or a vector
     /// the code made); declines when `i` is outside the vector
@@ -433,6 +436,15 @@ pub fn type_of(func: &Func, e: &E) -> Result<Ty, String> {
             want(func, a, Real)?;
             Real
         }
+        E::Call(_, args) => {
+            if args.is_empty() || args.len() > crate::callee::MAX_ARGS {
+                return Err("a library call with no or too many arguments".into());
+            }
+            for a in args {
+                want(func, a, Real)?;
+            }
+            Real
+        }
         E::Sel(c, a, b) => {
             want(func, c, Bool)?;
             let t = type_of(func, a)?;
@@ -572,6 +584,7 @@ pub fn size(func: &Func) -> usize {
             E::Num(_, os) => opds(os),
             E::Sel(c, a, b) | E::Elem(_, c, a, b) => e(c) + e(a) + e(b),
             E::Draw(_, a, b) | E::VSum(_, a, b) => e(a) + e(b),
+            E::Call(_, args) => args.iter().map(e).sum(),
         }
     }
     fn opds(os: &[Opd]) -> usize {
@@ -620,6 +633,7 @@ fn speculable(e: &E) -> bool {
         | E::Num(..)
         | E::Draw(..)
         | E::Spline(..)
+        | E::Call(..)
         | E::Elem(..)
         | E::VSum(..) => false,
     }
@@ -782,6 +796,8 @@ pub enum Op {
     Draw(Draw, R, R, R),
     /// `d` = the spline `id` at `a`; declines outside its data
     Spline(u32, R, R),
+    /// `d` = the library function `id` ([`crate::callee`]) at the arguments; declines where it has no value
+    Call(u32, R, Vec<R>),
     /// `(re, im) = op(operands)` through the arithmetic; declines unless the result is a machine complex number
     CNum(NumOp, R, R, Vec<(OpdK, R, R)>),
     /// `(re, im) = f(a + b i)`, `mc-numeric`'s principal complex value
@@ -1001,6 +1017,12 @@ impl Lower<'_> {
                 let ra = self.ex(a);
                 let d = self.reg(K::F);
                 self.emit(Op::Spline(*id, d, ra));
+                d
+            }
+            E::Call(id, args) => {
+                let rs: Vec<R> = args.iter().map(|a| self.ex(a)).collect();
+                let d = self.reg(K::F);
+                self.emit(Op::Call(*id, d, rs));
                 d
             }
             E::Sel(c, a, b) => {

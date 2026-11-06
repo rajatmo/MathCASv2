@@ -89,6 +89,7 @@ struct Imports {
     cmath: FuncId,
     draw_real: FuncId,
     spline: FuncId,
+    call: FuncId,
     draw_normal: FuncId,
     draw_int: FuncId,
     vec_new: FuncId,
@@ -119,7 +120,8 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);
     }
-    let helpers: [(&str, *const u8); 20] = [
+    let helpers: [(&str, *const u8); 21] = [
+        ("mc_jit_call", crate::callee::call as *const u8),
         ("mc_jit_vec_new", rt::vec_new as *const u8),
         ("mc_jit_vec_out", rt::vec_out as *const u8),
         ("mc_jit_vsum_real", rt::vsum_real as *const u8),
@@ -167,6 +169,12 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
         cmath: import(&mut module, "mc_jit_cmath", &[types::I64, types::F64, types::F64, ptr], types::F64)?,
         draw_real: import(&mut module, "mc_jit_draw_real", &[ptr, types::F64, types::F64], types::F64)?,
         spline: import(&mut module, "mc_jit_spline", &[ptr, types::I64, types::F64], types::F64)?,
+        call: import(
+            &mut module,
+            "mc_jit_call",
+            &[ptr, types::I64, types::I64, types::F64, types::F64, types::F64, types::F64],
+            types::F64,
+        )?,
         draw_normal: import(&mut module, "mc_jit_draw_normal", &[ptr, types::F64, types::F64], types::F64)?,
         draw_int: import(&mut module, "mc_jit_draw_int", &[ptr, types::I64, types::I64], types::I64)?,
         vec_new: import(&mut module, "mc_jit_vec_new", &[ptr, types::I64], types::I64)?,
@@ -203,6 +211,7 @@ pub fn compile(lir: &Lir) -> Result<Code, String> {
             cmath: module.declare_func_in_func(imports.cmath, b.func),
             draw_real: module.declare_func_in_func(imports.draw_real, b.func),
             spline: module.declare_func_in_func(imports.spline, b.func),
+            call: module.declare_func_in_func(imports.call, b.func),
             draw_normal: module.declare_func_in_func(imports.draw_normal, b.func),
             draw_int: module.declare_func_in_func(imports.draw_int, b.func),
             vec_new: module.declare_func_in_func(imports.vec_new, b.func),
@@ -266,6 +275,7 @@ struct Refs {
     cmath: FuncRef,
     draw_real: FuncRef,
     spline: FuncRef,
+    call: FuncRef,
     draw_normal: FuncRef,
     draw_int: FuncRef,
     vec_new: FuncRef,
@@ -659,6 +669,18 @@ impl<'a, 'b> Gen<'a, 'b> {
                 let x = self.get(a);
                 let idv = self.b.ins().iconst(types::I64, id as i64);
                 let call = self.b.ins().call(self.refs.spline, &[self.env, idv, x]);
+                let v = self.b.inst_results(call)[0];
+                self.check_exit();
+                self.set(d, v)
+            }
+            Op::Call(id, d, ref args) => {
+                let mut xs: Vec<Value> = args.iter().map(|&a| self.get(a)).collect();
+                while xs.len() < crate::callee::MAX_ARGS {
+                    xs.push(self.b.ins().f64const(0.0));
+                }
+                let idv = self.b.ins().iconst(types::I64, id as i64);
+                let n = self.b.ins().iconst(types::I64, args.len() as i64);
+                let call = self.b.ins().call(self.refs.call, &[self.env, idv, n, xs[0], xs[1], xs[2], xs[3]]);
                 let v = self.b.inst_results(call)[0];
                 self.check_exit();
                 self.set(d, v)

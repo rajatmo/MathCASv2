@@ -40,6 +40,7 @@
 //! comments where they apply.
 #![warn(missing_docs)]
 pub mod batch;
+pub mod callee;
 pub mod expr;
 pub mod front;
 pub mod interp;

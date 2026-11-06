@@ -2470,6 +2470,7 @@ dependencies = [
  "mc-eval",
  "mc-numeric",
  "mc-random",
+ "mc-special",
  "rayon",
 ]
 
@@ -2650,6 +2651,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-jit",
  "mc-numeric",
  "mc-numfn",
  "mc-special",

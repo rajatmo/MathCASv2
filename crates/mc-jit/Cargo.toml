@@ -20,6 +20,8 @@ mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 mc-numeric = { path = "../mc-numeric" }
 mc-random = { path = "../mc-random" }
+# machine values of the special functions for library calls (round 13)
+mc-special = { path = "../mc-special" }
 # parallel batches of compiled expressions (package N4b)
 rayon = "1.12"
 

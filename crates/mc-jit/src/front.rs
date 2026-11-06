@@ -47,7 +47,7 @@
 //! rest (three or more inexact operands, other powers, `sqrt`, the elementary functions) is a statement
 //! [`S::Pair`] that calls the arithmetic or `mc-numeric` themselves. Exact complex numbers are compiled only as
 //! constant operands of a sum or product (`y*im`).
-use crate::ir::{Cc, Draw, Func, IOp, Lib, NumOp, Opd, Pair, Ty, E, FOp, S, V};
+use crate::ir::{BOp, Cc, Draw, Func, IOp, Lib, NumOp, Opd, Pair, Ty, E, FOp, S, V};
 use mc_arith::num::{Int, Rat};
 use mc_arith::{Kind, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
@@ -450,6 +450,14 @@ enum Prim {
     Draw(Draw),
     Sum,
     Table,
+    /// `piecewise(cases)`, `piecewise(cases, default)` (round 13): nested `if`s
+    Piecewise,
+    /// `unit_step(x, ...)`: the exact 1 when every x >= 0, else the exact 0
+    UnitStep,
+    /// `heaviside_theta(x, ...)`: the exact 0 when some x < 0, the exact 1 when every x > 0 (else the call stays)
+    Heaviside,
+    /// `sign(x)`: the exact -1, 0 or 1
+    Sign,
 }
 
 fn prims(h: &Heap) -> HashMap<Sym, Prim> {
@@ -499,6 +507,10 @@ fn prims(h: &Heap) -> HashMap<Sym, Prim> {
         ("sum", Prim::Sum),
         ("total", Prim::Sum),
         ("table", Prim::Table),
+        ("piecewise", Prim::Piecewise),
+        ("unit_step", Prim::UnitStep),
+        ("heaviside_theta", Prim::Heaviside),
+        ("sign", Prim::Sign),
     ];
     for (n, p) in fixed {
         m.insert(h.sym(n), p);
@@ -760,14 +772,42 @@ impl<'h> Fe<'h, '_> {
                 },
             },
             View::App { head, args } => {
+                // `derivative(n)(f)` of an interpolation or a solution of `n_dsolve` (or of a global bound to one):
+                // the term mc-calculus rewrites it to
+                if let Some((target, dep)) = self.derivative_head(head) {
+                    let v = match self.spline_call(target, args)? {
+                        Some(v) => Some(v),
+                        None => match crate::callee::resolve(h, target, args.len()) {
+                            Some(id) => Some(self.library_call(id, h.sym("derivative"), args, false)?),
+                            None => None,
+                        },
+                    };
+                    if let Some(v) = v {
+                        if let Some(g) = dep.filter(|g| !self.deps.contains(g)) {
+                            self.deps.push(g);
+                        }
+                        return Ok(v);
+                    }
+                }
                 if let Some(v) = self.spline_call(head, args)? {
                     return Ok(v);
+                }
+                // a curried head another crate compiles (a solution of `n_dsolve`)
+                if let Some(id) = crate::callee::resolve(h, head, args.len()) {
+                    return self.library_call(id, h.sym("call"), args, false);
                 }
                 // a global bound to an interpolation, called: the interpolation itself
                 if let View::Sym(g) = h.view(head) {
                     if self.lookup(g).is_none() {
                         if let Some(value) = self.src.constant(g) {
-                            if let Some(v) = self.spline_call(value, args)? {
+                            let v = match self.spline_call(value, args)? {
+                                Some(v) => Some(v),
+                                None => match crate::callee::resolve(h, value, args.len()) {
+                                    Some(id) => Some(self.library_call(id, g, args, false)?),
+                                    None => None,
+                                },
+                            };
+                            if let Some(v) = v {
                                 // a read like an inlined function's: redefining g invalidates the code (1b.6)
                                 if !self.deps.contains(&g) {
                                     self.deps.push(g);
@@ -803,6 +843,7 @@ impl<'h> Fe<'h, '_> {
                         }
                     }
                     Some(Prim::Table) => self.table(args),
+                    Some(Prim::Piecewise) => self.piecewise(args),
                     Some(Prim::N) => self.numeric_value(s, args).map(sc),
                     Some(Prim::If) => match args {
                         [c, x, y] => self.if_value(*c, *x, *y),
@@ -858,6 +899,10 @@ impl<'h> Fe<'h, '_> {
                         }
                     }
                     Some(p) => self.prim(p, s, args).map(sc),
+                    None if self.lookup(s).is_none() => match crate::callee::special(&self.name(s), args.len()) {
+                        Some(id) => self.library_call(id, s, args, true),
+                        None => self.inline(s, args),
+                    },
                     None => self.inline(s, args),
                 }
             }
@@ -961,6 +1006,7 @@ impl<'h> Fe<'h, '_> {
             | Prim::Draw(_)
             | Prim::Sum
             | Prim::Table
+            | Prim::Piecewise
             | Prim::Assign => Err(format!("`{}` outside its place", self.name(s))),
             Prim::Let | Prim::Var | Prim::While | Prim::For => {
                 Err(format!("`{}` used as a value (its value is null)", self.name(s)))
@@ -984,6 +1030,8 @@ impl<'h> Fe<'h, '_> {
                 }
             }
             Prim::Min | Prim::Max => self.extreme(p == Prim::Max, args),
+            Prim::UnitStep | Prim::Heaviside => self.step(p == Prim::Heaviside, s, args),
+            Prim::Sign => self.sign(s, args),
             Prim::Range | Prim::Typed => Err(format!("`{}` outside its place", self.name(s))),
             Prim::True | Prim::False => Err("a call of `true` or `false`".into()),
         }
@@ -1425,10 +1473,36 @@ impl<'h> Fe<'h, '_> {
             return Ok(None);
         }
         let reals = |t: T<'h>| h.packed(t).and_then(|p| p.reals());
-        if data.len() == 4 || data.get(2).is_some_and(|&m| matches!(h.view(m), View::Int(_))) {
-            return Err("a derivative of an interpolation, or a local one (interpolation_order), is not compiled".into());
-        }
+        // `interpolated(xs, ys, ms_or_degree, d)`: the d-th derivative (mc-io's `Interpolated`)
+        let (data, order) = match data {
+            [_, _, _, d] => match h.view(*d) {
+                View::Int(d @ 0..=64) => (&data[..3], d as u32),
+                _ => return Err("a derivative of an interpolation of an order that is not an integer from 0 to 64".into()),
+            },
+            _ => (data, 0),
+        };
         let (&[xt, yt, mt], &[x]) = (data, args) else { return Err("a call of an interpolation with other than one argument".into()) };
+        // the local scheme (`interpolation_order: k`): the degree in place of the second derivatives
+        let degree = match h.view(mt) {
+            View::Int(k @ 1..=20) => Some(k as usize),
+            View::Int(_) => return Err("a local interpolation of a degree outside 1 to 20".into()),
+            _ => None,
+        };
+        if degree.is_some() || order > 0 {
+            let packed = "an interpolation of fewer than 64 points (its nodes are not a packed array)";
+            let (Some(xs), Some(ys)) = (reals(xt), reals(yt)) else { return Err(packed.into()) };
+            let (ms, scheme): (&[f64], _) = match degree {
+                Some(k) => (&[], crate::callee::Scheme::Local(k)),
+                None => (reals(mt).ok_or(packed)?, crate::callee::Scheme::Spline),
+            };
+            if xs.len() < 2 || ys.len() != xs.len() || (degree.is_none() && ms.len() != xs.len()) {
+                return Err("a malformed interpolation".into());
+            }
+            let id = crate::callee::interpolation(xs, ys, ms, scheme, order);
+            let xe = self.real_arg(x)?;
+            let v = self.temp(E::Call(id, vec![xe]), Ty::Real);
+            return Ok(Some(Val::S(v, Ty::Real)));
+        }
         let (Some(xs), Some(ys), Some(ms)) = (reals(xt), reals(yt), reals(mt)) else {
             return Err("an interpolation of fewer than 64 points (its nodes are not a packed array)".into());
         };
@@ -1443,6 +1517,177 @@ impl<'h> Fe<'h, '_> {
             _ => return Err("an interpolation at a value that is not a number".into()),
         };
         Ok(Some(Val::S(E::Spline(id, b(xe)), Ty::Real)))
+    }
+
+    /// `derivative(n)(f)` where `f` (or the value of the global `f`, then also returned) is an interpolation or a
+    /// solution of `n_dsolve`: the term mc-calculus' `DerivativeAt` makes of it (decision C.6: the order added as
+    /// the fourth argument of `interpolated(...)`, or as primes on the name of `interpolating_function(...)`).
+    fn derivative_head(&mut self, head: T<'h>) -> Option<(T<'h>, Option<Sym>)> {
+        let h = self.h;
+        let View::App { head: d, args: &[f] } = h.view(head) else { return None };
+        let View::App { head: dsym, args: &[n] } = h.view(d) else { return None };
+        if !matches!(h.view(dsym), View::Sym(s) if self.name(s) == "derivative") {
+            return None;
+        }
+        let View::Int(n @ 0..=1000) = h.view(n) else { return None };
+        let (f, dep) = match h.view(f) {
+            View::Sym(g) if self.lookup(g).is_none() => (self.src.constant(g)?, Some(g)),
+            View::App { .. } => (f, None),
+            _ => return None,
+        };
+        let View::App { head: fh, args: data } = h.view(f) else { return None };
+        let View::Sym(fs) = h.view(fh) else { return None };
+        let target = match (self.name(fs).as_str(), data) {
+            ("interpolated", &[xs, ys, ms]) => h.app(fh, &[xs, ys, ms, h.int(n)]),
+            ("interpolated", &[xs, ys, ms, k]) => match h.view(k) {
+                View::Int(k) => h.app(fh, &[xs, ys, ms, h.int(k.checked_add(n)?)]),
+                _ => return None,
+            },
+            ("interpolating_function", [name, rest @ ..]) => {
+                let View::Str(name) = h.view(*name) else { return None };
+                let mut items = vec![h.string(&format!("{name}{}", "'".repeat(n as usize)))];
+                items.extend_from_slice(rest);
+                h.app(fh, &items)
+            }
+            _ => return None,
+        };
+        Some((target, dep))
+    }
+
+    /// A machine-real argument of a library call, and whether it is inexact: a machine real, an integer
+    /// (converted, declining beyond 2^53 where the conversion would round), or a rational literal (rounded once, as
+    /// the interpreter rounds exact arguments of a machine computation).
+    fn real_arg_kind(&mut self, t: T<'h>) -> Res<(E, bool)> {
+        if let View::Rational { .. } = self.h.view(t) {
+            return match mc_arith::Arith::new(self.h).num(t) {
+                Some(Num::Real(r)) => Ok((E::Real(r.to_f64()), false)),
+                _ => Err("a malformed rational".into()),
+            };
+        }
+        match self.value(t)? {
+            Val::S(x, Ty::Real) => Ok((x, true)),
+            Val::S(x, Ty::Int) => Ok((E::ToReal(b(x)), false)),
+            Val::S(_, Ty::Bool) => Err("a boolean argument of a numeric function".into()),
+            Val::C(..) => Err("a complex argument of a library function".into()),
+            Val::L(_) | Val::V(..) => Err("a list argument of a library function (it would thread)".into()),
+        }
+    }
+
+    fn real_arg(&mut self, t: T<'h>) -> Res<E> {
+        self.real_arg_kind(t).map(|(e, _)| e)
+    }
+
+    /// The library function `id` ([`crate::callee`]) at `args` (round 13, decision LC.1). With `special`, one
+    /// argument at least must be a machine real: with exact arguments only, the interpreter keeps the call exact.
+    fn library_call(&mut self, id: u32, s: Sym, args: &'h [T<'h>], special: bool) -> Res<Val> {
+        if args.is_empty() || args.len() > crate::callee::MAX_ARGS {
+            return Err(format!("`{}` with {} arguments", self.name(s), args.len()));
+        }
+        let mut xs = Vec::with_capacity(args.len());
+        let mut inexact = false;
+        for &a in args {
+            let (x, inx) = self.real_arg_kind(a)?;
+            inexact |= inx;
+            // each argument computed once, in order
+            xs.push(self.held(x, Ty::Real));
+        }
+        if special && !inexact {
+            return Err(format!("`{}` of exact values (the result stays exact)", self.name(s)));
+        }
+        let v = self.temp(E::Call(id, xs), Ty::Real);
+        Ok(Val::S(v, Ty::Real))
+    }
+
+    /// `if c { decline }`: the interpreter evaluates the call instead (an exact `0 quotient 0`, whose zero divisor
+    /// declines).
+    fn decline_if(&mut self, c: E) {
+        let never = E::I(IOp::Quot, b(E::Int(0)), b(E::Int(0)));
+        self.emit(S::If(c, vec![S::Eval(never)], vec![]));
+    }
+
+    /// `sign(x)`: the interpreter's exact -1, 0 or 1 (mc-numeric); a NaN leaves the call.
+    fn sign(&mut self, s: Sym, args: &'h [T<'h>]) -> Res<(E, Ty)> {
+        self.arity(s, args, 1)?;
+        let (x, t) = self.expr(args[0])?;
+        if t == Ty::Bool {
+            return Err("`sign` of a boolean".into());
+        }
+        let x = self.held(x, t);
+        if t == Ty::Real {
+            self.decline_if(E::Cmp(Cc::Ne, b(x.clone()), b(x.clone())));
+        }
+        let zero = if t == Ty::Int { E::Int(0) } else { E::Real(0.0) };
+        let pos = E::Cmp(Cc::Gt, b(x.clone()), b(zero.clone()));
+        let neg = E::Cmp(Cc::Lt, b(x), b(zero));
+        Ok((E::Sel(b(pos), b(E::Int(1)), b(E::Sel(b(neg), b(E::Int(-1)), b(E::Int(0))))), Ty::Int))
+    }
+
+    /// `unit_step(x, ...)` (the exact 1 when every x >= 0, else 0) or `heaviside_theta(x, ...)` (0 when some x < 0,
+    /// 1 when every x > 0, otherwise the call stays): the interpreter's exact integers (mc-numeric), declining
+    /// where it leaves the call (a NaN, or a zero for `heaviside_theta`).
+    fn step(&mut self, heaviside: bool, s: Sym, args: &'h [T<'h>]) -> Res<(E, Ty)> {
+        if args.is_empty() {
+            return Err(format!("`{}` without arguments", self.name(s)));
+        }
+        let mut xs = vec![];
+        for &a in args {
+            let (x, t) = self.expr(a)?;
+            if t == Ty::Bool {
+                return Err(format!("`{}` of a boolean", self.name(s)));
+            }
+            xs.push((self.held(x, t), t));
+        }
+        // a NaN argument is not decided by the interpreter's comparisons: the call stays
+        for (x, t) in &xs {
+            if *t == Ty::Real {
+                self.decline_if(E::Cmp(Cc::Ne, b(x.clone()), b(x.clone())));
+            }
+        }
+        let all = |fe: &mut Self, c: Cc| -> E {
+            let zero = |t: Ty| if t == Ty::Int { E::Int(0) } else { E::Real(0.0) };
+            let mut acc: Option<E> = None;
+            for (x, t) in &xs {
+                let one = E::Cmp(c, b(x.clone()), b(zero(*t)));
+                acc = Some(match acc {
+                    None => one,
+                    Some(a) => E::Logic(BOp::And, b(a), b(one)),
+                });
+            }
+            // invariant: at least one argument (checked above)
+            let e = acc.expect("an argument");
+            fe.held(e, Ty::Bool)
+        };
+        let none_negative = all(self, Cc::Ge);
+        if !heaviside {
+            return Ok((E::Sel(b(none_negative), b(E::Int(1)), b(E::Int(0))), Ty::Int));
+        }
+        // heaviside: no argument negative but not all positive (a zero among them) leaves the call
+        let all_positive = all(self, Cc::Gt);
+        self.decline_if(E::Logic(BOp::And, b(none_negative), b(E::Not(b(all_positive.clone())))));
+        Ok((E::Sel(b(all_positive), b(E::Int(1)), b(E::Int(0))), Ty::Int))
+    }
+
+    /// `piecewise([[v1, c1], [v2, c2], ...], default)` as the nested `if c1 then v1 else if c2 ...` the native
+    /// evaluates (mc-lists: the first true condition's value; the default, or the exact 0 without one).
+    fn piecewise(&mut self, args: &'h [T<'h>]) -> Res<Val> {
+        let h = self.h;
+        let (cases, default) = match args {
+            [c] => (*c, h.int(0)),
+            [c, d] => (*c, *d),
+            _ => return Err("a malformed `piecewise`".into()),
+        };
+        let list = h.sym("list");
+        let is_list = |t: T<'h>| match h.view(t) {
+            View::App { head, args } if matches!(h.view(head), View::Sym(s) if s == list) => Some(args),
+            _ => None,
+        };
+        let items = is_list(cases).ok_or("`piecewise` with cases that are not a list")?;
+        let mut term = default;
+        for &case in items.iter().rev() {
+            let Some(&[v, c]) = is_list(case) else { return Err("a `piecewise` case that is not a pair [value, condition]".into()) };
+            term = h.call(h.sym("if"), &[c, v, term]);
+        }
+        self.value(term)
     }
 
     fn draw_real_arg(&mut self, v: Val) -> Res<E> {

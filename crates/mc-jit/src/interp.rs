@@ -35,6 +35,7 @@ fn operands(op: &Op) -> Vec<u32> {
         Op::Draw(_, d, a, b) | Op::Load(d, a, b) | Op::Store(d, a, b) | Op::VSum(d, a, b) => vec![*d, *a, *b],
         Op::VNew(d, a) | Op::VOut(d, a) | Op::Spline(_, d, a) => vec![*d, *a],
         Op::CMath(_, d, e, a, b) => vec![*d, *e, *a, *b],
+        Op::Call(_, d, args) => std::iter::once(*d).chain(args.iter().copied()).collect(),
         Op::CNum(_, d, e, opds) => [*d, *e].into_iter().chain(opds.iter().flat_map(|&(_, a, b)| [a, b])).collect(),
         Op::IChk(_, d, a, b)
         | Op::FBin(_, d, a, b)
@@ -201,6 +202,13 @@ impl Interp {
                 Op::FNeg(d, a) => r[d as usize] = (-gf(r, a)).to_bits(),
                 Op::Spline(id, d, a) => {
                     r[d as usize] = rt::spline_value(id, gf(r, a)).ok_or(Exit::Decline)?.to_bits();
+                }
+                Op::Call(id, d, ref args) => {
+                    let mut xs = [0.0; crate::callee::MAX_ARGS];
+                    for (x, &a) in xs.iter_mut().zip(args) {
+                        *x = gf(r, a);
+                    }
+                    r[d as usize] = crate::callee::value(id, &xs[..args.len()]).ok_or(Exit::Decline)?.to_bits();
                 }
                 Op::Draw(k, d, a, b) => {
                     // SAFETY: `env` is a live environment whose stream, if any, is this call's (`Env::with_stream`).
