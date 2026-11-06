@@ -295,6 +295,11 @@ impl<'k, 'h> Eval<'k, 'h> {
             View::Sym(s) => {
                 cx.reads |= bit(s);
                 return match self.k.defs.own(h, s) {
+                    // stored as a value and nothing defined since: still a normal form
+                    Some(v) if v != e.t && cx.assume.is_none() && self.k.defs.own_is_current(s, self.k.epoch()) => {
+                        cx.reads |= h.mask(v);
+                        Go::Next(self.finish(cx, e, v))
+                    }
                     Some(v) if v != e.t => {
                         attempt!(self, cx, e, self.tick(cx));
                         self.suspend(cx, e, Stage::Value, v)

@@ -87,6 +87,7 @@ impl Native for TopLocal {
             return Ok(Reply::Done(failure(cx, "type_mismatch", &[h.sym_term(x), *v])));
         }
         cx.set_own(x, *v)?;
+        cx.own_value_is_evaluated(x);
         Ok(Reply::Done(cx.null()))
     }
 }
@@ -110,7 +111,10 @@ impl Native for Assign {
                     return Ok(Reply::Decline);
                 }
             }
-            View::Sym(s) => cx.set_own(s, *v)?,
+            View::Sym(s) => {
+                cx.set_own(s, *v)?;
+                cx.own_value_is_evaluated(s);
+            }
             _ => return Ok(Reply::Decline),
         }
         Ok(Reply::Done(*v))

@@ -31,7 +31,7 @@ fn zip(xs, ys) = range(min(length(xs), length(ys))) |> map(i => [xs[i], ys[i]], 
 fn flat_map(f, xs) = flatten(map(f, xs), 1)
 
 # accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]
-fn accumulate(xs) = rest(fold_list((a, b) => a + b, 0, xs))
+fn accumulate(xs) = if length(xs) == 0 then [] else fold_list(add, xs)
 
 # fix_point(f, x): f applied repeatedly from x until the value no longer changes; numbers that agree (balls that
 # overlap, equal machine reals) count as no change; fix_point(f, x, n): at most n applications

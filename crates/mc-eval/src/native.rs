@@ -169,12 +169,21 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn attributes(&self, s: Sym) -> crate::Attributes {
         self.ev.k.defs.attrs(s)
     }
+    /// Record that the own value of `s` just stored is an evaluated value (a normal form at the current definition
+    /// epoch), so reading it needs no evaluation while nothing else is defined (decision p6core.31).
+    pub fn own_value_is_evaluated(&mut self, s: Sym) {
+        self.ev.k.defs.set_own_epoch(s, self.ev.k.epoch());
+    }
+
     /// Whether a call of `s` on normal forms is its own normal form: `s` has no native, own value, identity,
     /// rules or attributes (the read is recorded). A native building `s(x)` from a normal form `x` may then skip
     /// evaluating it.
     pub fn is_inert(&mut self, s: Sym) -> bool {
         self.cx.reads |= crate::eval::bit(s);
-        !self.ev.k.defs.has_meaning(s) && self.ev.k.defs.attrs(s) == crate::Attributes::default()
+        // never defined at all (the version counts every definition, rules held anywhere included)
+        self.ev.k.defs.version(s) == 0
+            && !self.ev.k.defs.has_meaning(s)
+            && self.ev.k.defs.attrs(s) == crate::Attributes::default()
     }
     /// The own value of `s` (the read is recorded).
     pub fn value(&mut self, s: Sym) -> Option<T<'h>> {
