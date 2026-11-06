@@ -294,6 +294,30 @@ fn selected<'h>(h: &'h Heap, spec: T<'h>, len: usize) -> Result<Option<Vec<usize
 fn take_drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, specs: &[T<'h>], drop: bool) -> Res<Result<T<'h>, Reply<'h>>> {
     let h = cx.heap();
     let Some((&spec, rest)) = specs.split_first() else { return Ok(Ok(x)) };
+    // one specification of a contiguous run of a packed array: a slice of the payload, not unpacked (gap G48)
+    if let (Some(p), true) = (h.packed(x), rest.is_empty()) {
+        if let Ok(Some(picked)) = selected(h, spec, p.len()) {
+            let (lo, hi) = if drop {
+                // dropping a run at either end keeps a run
+                match (picked.first(), picked.last()) {
+                    (None, _) | (_, None) => (0, p.len()),
+                    (Some(&a), Some(&b)) if a == 0 && b + 1 == picked.len() => (picked.len(), p.len()),
+                    (Some(&a), Some(&b)) if b + 1 == p.len() && b + 1 - a == picked.len() => (0, a),
+                    _ => (1, 0),
+                }
+            } else {
+                match (picked.first(), picked.last()) {
+                    (Some(&a), Some(&b)) if b >= a && b + 1 - a == picked.len() => (a, b + 1),
+                    _ => (1, 0),
+                }
+            };
+            let contiguous = picked.windows(2).all(|w| w[1] == w[0] + 1);
+            if lo < hi && contiguous {
+                charge_copy(cx, hi - lo)?;
+                return Ok(Ok(crate::ctx::packed_slice(h, p, lo, hi)));
+            }
+        }
+    }
     let (head, xs) = match lib.operand(h, t, x, 1) {
         Ok(v) => v,
         Err(r) => return Ok(Err(r)),
@@ -333,6 +357,9 @@ fn take_drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, s
 
 /// A list result is final; any other term is evaluated (a call of its head).
 fn settled<'h>(lib: &Lib, h: &'h Heap, v: T<'h>) -> Reply<'h> {
+    if h.packed(v).is_some() {
+        return Reply::Done(v);
+    }
     match h.view(v) {
         View::App { head, .. } if head == h.sym_term(lib.s.list) => Reply::Done(v),
         _ => Reply::Again(v),

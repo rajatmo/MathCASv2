@@ -22,6 +22,7 @@ mod compose;
 mod engine;
 pub mod format;
 mod history;
+mod packed;
 
 pub use engine::{
     CoreEngine, EachOptions, EngineConfig, Event, Image, NameKind, Report, RunError, Script, MAPS_LISTS, OPERATOR_FORMS,

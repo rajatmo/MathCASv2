@@ -469,6 +469,9 @@ impl<'k, 'h> Eval<'k, 'h> {
             if let Some(v) = attempt!(self, cx, e, self.thread_packed(cx, head, vs)) {
                 return Go::Next(self.finish(cx, e, v));
             }
+            if let Some(v) = attempt!(self, cx, e, self.native_packed(cx, head, vs)) {
+                return Go::Next(self.finish(cx, e, v));
+            }
             if let Some(u) = self.thread(head, vs) {
                 attempt!(self, cx, e, self.tick(cx));
                 e.t = u;

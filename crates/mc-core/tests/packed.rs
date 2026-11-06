@@ -169,3 +169,29 @@ fn integers_cover_every_tier_and_mixed_lists_stay_compound() {
         assert_eq!(args(h, t), &mixed[..]);
     });
 }
+
+#[test]
+fn complex_payloads_survive_collections_and_unpack_canonically() {
+    for cfg in [Config::default(), Config::stress()] {
+        let mut s = Session::new(cfg, 4, Roots::new());
+        let parts: Vec<f64> = reals(2 * 3000, 0.5);
+        s.step(|h: &Heap, keep: &mut Roots| {
+            let z = h.complexes(&parts);
+            assert!(matches!(h.packed(z), Some(Packed::Complexes { data, .. }) if data == &parts[..]));
+            keep.push(z);
+        });
+        s.collect_full();
+        s.verify();
+        s.step(|h: &Heap, keep: &mut Roots| {
+            let z = keep.get(h, 0);
+            assert_eq!(h.packed(z).map(|p| p.count()), Some(3000));
+            let complex = h.sym("complex");
+            let xs = args(h, z);
+            assert_eq!(xs[7], h.call(complex, &[h.real(parts[14]), h.real(parts[15])]));
+            // built element by element: the same handle
+            assert_eq!(h.call(h.sym("list"), xs), z);
+            assert_eq!(z, h.complexes(&parts), "still the canonical handle");
+        });
+        s.verify();
+    }
+}

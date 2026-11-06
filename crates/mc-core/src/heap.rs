@@ -85,6 +85,8 @@ pub struct Heap {
     /// the handle bits of the symbol `list`, the head of packed arrays, once it exists ([`HOLE`] before). It is not
     /// interned up front, so that symbol indices (and the read-set bits derived from them) stay as they were.
     list: AtomicU32,
+    /// the handle bits of the symbol `complex`, the head of complex leaves, once it exists ([`HOLE`] before)
+    complex: AtomicU32,
     /// the index of the symbol `local_cell` once it exists (`u32::MAX` before): it alone has mask bit 63
     cell: AtomicU32,
 }
@@ -166,10 +168,27 @@ const TAG_INT: u64 = 1;
 const TAG_BALL: u64 = 2;
 const TAG_STR: u64 = 3;
 
-/// The `head` word of a packed node: bit 0 the leaf kind (set for integers), the rank above it.
+/// The `head` word of a packed node: bits 0 and 1 the leaf kind (0 reals, 1 integers, 2 complex numbers), the rank
+/// above them.
 #[inline]
-fn packed_flags(ints: bool, rank: usize) -> u32 {
-    (rank as u32) << 1 | ints as u32
+fn packed_flags(elem: Elem, rank: usize) -> u32 {
+    let k = match elem {
+        Elem::Real => 0,
+        Elem::Int => 1,
+        Elem::Complex => 2,
+    };
+    (rank as u32) << 2 | k
+}
+
+/// The leaf kind and rank of a packed node from its `head` word ([`packed_flags`]).
+#[inline]
+pub(crate) fn packed_kind(head: u32) -> (Elem, usize) {
+    let elem = match head & 3 {
+        0 => Elem::Real,
+        1 => Elem::Int,
+        _ => Elem::Complex,
+    };
+    (elem, (head >> 2) as usize)
 }
 
 /// Packed arrays of more leaves than this are unpacked on the pool (when viewed on a pool thread).
@@ -191,6 +210,7 @@ impl Heap {
             unpacked: Unpacked::new(),
             slots: Slots::new(),
             list: AtomicU32::new(HOLE),
+            complex: AtomicU32::new(HOLE),
             cell: AtomicU32::new(u32::MAX),
         }
     }
@@ -306,6 +326,22 @@ impl Heap {
         self.list.load(Relaxed)
     }
 
+    /// The handle bits of `complex` ([`HOLE`] while no symbol of that name exists, so no complex leaf either).
+    #[inline]
+    pub(crate) fn complex_sym(&self) -> u32 {
+        self.complex.load(Relaxed)
+    }
+
+    /// The `(hash, mask)` of `complex` for an array of `elem` leaves (read only for complex leaves).
+    #[inline]
+    pub(crate) fn complex_meta(&self, elem: Elem) -> (u64, u64) {
+        if elem == Elem::Complex {
+            self.meta_bits(self.complex_sym())
+        } else {
+            (0, 0)
+        }
+    }
+
     /// The payload words of a stored node, from its region.
     #[inline]
     fn words_of(&self, b: u32, n: &Node) -> &[u64] {
@@ -316,38 +352,49 @@ impl Heap {
         }
     }
 
-    /// A machine number as a leaf: its kind (true for an integer) and payload word.
+    /// A machine number as a leaf: its kind and payload words (the second only for a complex number).
     #[inline]
-    fn leaf(&self, b: u32) -> Option<(bool, u64)> {
+    fn leaf(&self, b: u32) -> Option<(Elem, u64, u64)> {
         if is_imm(b) {
-            return (!is_sym(b)).then(|| (true, small_value(b) as u64));
+            return (!is_sym(b)).then(|| (Elem::Int, small_value(b) as u64, 0));
         }
         let n = self.node(b);
         match n.kind() {
-            Kind::Real => Some((false, n.data)),
+            Kind::Real => Some((Elem::Real, n.data, 0)),
             Kind::Word => {
                 let neg = n.head != 0;
                 if !neg && n.data <= i64::MAX as u64 {
-                    Some((true, n.data))
+                    Some((Elem::Int, n.data, 0))
                 } else if neg && n.data <= 1 << 63 {
-                    Some((true, (n.data as i64).wrapping_neg() as u64))
+                    Some((Elem::Int, (n.data as i64).wrapping_neg() as u64, 0))
                 } else {
                     None
                 }
+            }
+            Kind::App if n.head == self.complex_sym() && n.len() == 2 => {
+                let View::App { args: &[re, im], .. } = self.view(T::from_raw(b)) else { return None };
+                let part = |t: T<'_>| match is_imm(t.raw()) {
+                    false => Some(self.node(t.raw())).filter(|m| m.kind() == Kind::Real).map(|m| m.data),
+                    true => None,
+                };
+                Some((Elem::Complex, part(re)?, part(im)?))
             }
             _ => None,
         }
     }
 
     /// The packed node of `words` (the dimensions, then the leaves).
-    fn packed_node<'h>(&'h self, ints: bool, rank: usize, words: Vec<u64>) -> T<'h> {
+    fn packed_node<'h>(&'h self, elem: Elem, rank: usize, words: Vec<u64>) -> T<'h> {
         let (dims, data) = words.split_at(rank);
         if self.list() == HOLE {
             // a packed array built before anyone named `list` (straight from `reals`, say)
             self.sym(names::LIST);
         }
-        let (hash, mask) = packed_hash(self.meta_bits(self.list()), ints, dims, data);
-        let node = Node::new(Kind::Packed, hash, mask, packed_flags(ints, rank), 0, words.len());
+        if elem == Elem::Complex && self.complex_sym() == HOLE {
+            self.sym(names::COMPLEX);
+        }
+        let (hash, mask) = packed_hash(self.meta_bits(self.list()), self.complex_meta(elem), elem, dims, data);
+        let node = Node::new(Kind::Packed, hash, mask, packed_flags(elem, rank), 0, words.len());
         T::from_raw(self.intern_owned(node, words))
     }
 
@@ -356,19 +403,21 @@ impl Heap {
     fn try_pack<'h>(&'h self, args: &[T<'h>]) -> Option<T<'h>> {
         let n = args.len();
         let first = args[0].raw();
-        if let Some((ints, _)) = self.leaf(first) {
-            if n < PACK_MIN || n + 1 > MAX_LEN {
+        if let Some((elem, _, _)) = self.leaf(first) {
+            let per = elem.words();
+            if n < PACK_MIN || n * per + 1 > MAX_LEN {
                 return None;
             }
-            let mut words = Vec::with_capacity(n + 1);
+            let mut words = Vec::with_capacity(n * per + 1);
             words.push(n as u64);
             for a in args {
                 match self.leaf(a.raw()) {
-                    Some((k, w)) if k == ints => words.push(w),
+                    Some((k, w, _)) if k == elem && per == 1 => words.push(w),
+                    Some((k, re, im)) if k == elem => words.extend_from_slice(&[re, im]),
                     _ => return None,
                 }
             }
-            return Some(self.packed_node(ints, 1, words));
+            return Some(self.packed_node(elem, 1, words));
         }
         if is_imm(first) {
             return None;
@@ -376,7 +425,7 @@ impl Heap {
         let f = self.node(first);
         match f.kind() {
             Kind::Packed => {
-                let rank = (f.head >> 1) as usize;
+                let (elem, rank) = packed_kind(f.head);
                 let fw = self.words_of(first, f);
                 let (dims, row) = (&fw[..rank], fw.len() - rank);
                 if rank + 1 > MAX_RANK || n.checked_mul(row).is_none_or(|w| w + rank + 1 > MAX_LEN) {
@@ -400,7 +449,7 @@ impl Heap {
                     }
                     words.extend_from_slice(&xw[rank..]);
                 }
-                Some(self.packed_node(f.head & 1 != 0, rank + 1, words))
+                Some(self.packed_node(elem, rank + 1, words))
             }
             Kind::App if f.head == self.list() => {
                 let (elem, dims, data) = pack_shape(self, args)?;
@@ -410,39 +459,46 @@ impl Heap {
                 let rank = dims.len();
                 let mut words = dims;
                 words.extend_from_slice(&data);
-                Some(self.packed_node(elem == Elem::Int, rank, words))
+                Some(self.packed_node(elem, rank, words))
             }
             _ => None,
         }
     }
 
-    /// May an array of these dimensions and `len` leaves be built packed directly? Panics unless the dimensions
-    /// hold `len` leaves (as the contract's default does).
-    fn packable(dims: &[usize], len: usize) -> bool {
+    /// May an array of these dimensions and `len` leaves of `per` words each be built packed directly? Panics
+    /// unless the dimensions hold `len` leaves (as the contract's default does).
+    fn packable(dims: &[usize], len: usize, per: usize) -> bool {
         let product = dims.iter().try_fold(1usize, |a, &d| a.checked_mul(d));
         // invariant: callers build packed arrays from dimensions they computed from the leaves (a caller bug otherwise)
         assert_eq!(product, Some(len), "the dimensions {dims:?} do not hold {len} leaves");
-        (1..=MAX_RANK).contains(&dims.len()) && len >= PACK_MIN && len + dims.len() <= MAX_LEN
+        (1..=MAX_RANK).contains(&dims.len()) && len >= PACK_MIN && len * per + dims.len() <= MAX_LEN
     }
 
     /// A packed array straight from its leaves' words.
-    fn array_of<'h>(&'h self, ints: bool, dims: &[usize], data: &[u64]) -> T<'h> {
+    fn array_of<'h>(&'h self, elem: Elem, dims: &[usize], data: &[u64]) -> T<'h> {
         let mut words = Vec::with_capacity(dims.len() + data.len());
         words.extend(dims.iter().map(|&d| d as u64));
         words.extend_from_slice(data);
-        self.packed_node(ints, dims.len(), words)
+        self.packed_node(elem, dims.len(), words)
     }
 
     /// The payload view of packed node `b`.
     #[inline]
     fn packed_view<'h>(&'h self, b: u32, n: &'h Node) -> Packed<'h> {
         let w = self.words_of(b, n);
-        let (dims, data) = w.split_at((n.head >> 1) as usize);
-        if n.head & 1 == 0 {
-            Packed::Reals { dims, data: words_reals(data) }
-        } else {
-            Packed::Ints { dims, data: words_ints(data) }
+        let (elem, rank) = packed_kind(n.head);
+        let (dims, data) = w.split_at(rank);
+        match elem {
+            Elem::Real => Packed::Reals { dims, data: words_reals(data) },
+            Elem::Int => Packed::Ints { dims, data: words_ints(data) },
+            Elem::Complex => Packed::Complexes { dims, data: words_reals(data) },
         }
+    }
+
+    /// The complex number `complex(re, im)` of machine parts (the symbol exists: a complex array was built).
+    #[inline]
+    fn complex_leaf<'h>(&'h self, re: f64, im: f64) -> T<'h> {
+        self.app(T::from_raw(self.complex_sym()), &[self.real(re), self.real(im)])
     }
 
     /// The arguments of packed node `b`: its leaves as terms (rank 1) or its rows as arrays, made on first use in
@@ -466,6 +522,13 @@ impl Heap {
                         .flat_map_iter(|c| detached(|| c.iter().map(|&v| self.int(v).raw()).collect::<Vec<_>>()))
                         .collect(),
                     Packed::Ints { data, .. } => data.iter().map(|&v| self.int(v).raw()).collect(),
+                    Packed::Complexes { data, .. } if par => data
+                        .par_chunks(8192)
+                        .flat_map_iter(|c| {
+                            detached(|| c.chunks(2).map(|z| self.complex_leaf(z[0], z[1]).raw()).collect::<Vec<_>>())
+                        })
+                        .collect(),
+                    Packed::Complexes { data, .. } => data.chunks(2).map(|z| self.complex_leaf(z[0], z[1]).raw()).collect(),
                 };
             }
             let sub: Vec<usize> = dims[1..].iter().map(|&d| d as usize).collect();
@@ -473,6 +536,7 @@ impl Heap {
             let make = |i: usize| match p {
                 Packed::Reals { data, .. } => self.real_array(&sub, &data[i * row..(i + 1) * row]).raw(),
                 Packed::Ints { data, .. } => self.int_array(&sub, &data[i * row..(i + 1) * row]).raw(),
+                Packed::Complexes { data, .. } => self.complex_array(&sub, &data[2 * i * row..2 * (i + 1) * row]).raw(),
             };
             if par {
                 (0..dims[0] as usize).into_par_iter().map(|i| detached(|| make(i))).collect()
@@ -603,6 +667,8 @@ impl Store for Heap {
         let s = self.syms.intern(name);
         if name == names::LIST {
             self.list.store(sym_bits(s.0), Relaxed);
+        } else if name == names::COMPLEX {
+            self.complex.store(sym_bits(s.0), Relaxed);
         } else if name == CELL_SYMBOL {
             self.cell.store(s.0, Relaxed);
         }
@@ -733,18 +799,29 @@ impl Store for Heap {
     }
 
     fn real_array<'h>(&'h self, dims: &[usize], data: &[f64]) -> T<'h> {
-        if Heap::packable(dims, data.len()) {
-            self.array_of(false, dims, real_words(data))
+        if Heap::packable(dims, data.len(), 1) {
+            self.array_of(Elem::Real, dims, real_words(data))
         } else {
             build_nested(self, dims, data.len(), |i| self.real(data[i]))
         }
     }
 
     fn int_array<'h>(&'h self, dims: &[usize], data: &[i64]) -> T<'h> {
-        if Heap::packable(dims, data.len()) {
-            self.array_of(true, dims, int_words(data))
+        if Heap::packable(dims, data.len(), 1) {
+            self.array_of(Elem::Int, dims, int_words(data))
         } else {
             build_nested(self, dims, data.len(), |i| self.int(data[i]))
+        }
+    }
+
+    fn complex_array<'h>(&'h self, dims: &[usize], parts: &[f64]) -> T<'h> {
+        assert!(parts.len().is_multiple_of(2), "complex leaves have two parts");
+        let n = parts.len() / 2;
+        if Heap::packable(dims, n, 2) {
+            self.array_of(Elem::Complex, dims, real_words(parts))
+        } else {
+            let complex = self.sym(names::COMPLEX);
+            build_nested(self, dims, n, |i| self.call(complex, &[self.real(parts[2 * i]), self.real(parts[2 * i + 1])]))
         }
     }
 }

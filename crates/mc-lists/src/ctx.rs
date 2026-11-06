@@ -227,6 +227,7 @@ pub(crate) fn packed_slice<'h>(h: &'h Heap, p: Packed<'h>, lo: usize, hi: usize)
     match p {
         Packed::Reals { data, .. } => h.real_array(&sub, &data[lo * row..hi * row]),
         Packed::Ints { data, .. } => h.int_array(&sub, &data[lo * row..hi * row]),
+        Packed::Complexes { data, .. } => h.complex_array(&sub, &data[2 * lo * row..2 * hi * row]),
     }
 }
 
@@ -237,6 +238,7 @@ pub(crate) fn packed_arg<'h>(h: &'h Heap, p: Packed<'h>, k: usize) -> T<'h> {
         return match p {
             Packed::Reals { data, .. } => h.real(data[k]),
             Packed::Ints { data, .. } => h.int(data[k]),
+            Packed::Complexes { data, .. } => h.call(h.sym(mc_api::names::COMPLEX), &[h.real(data[2 * k]), h.real(data[2 * k + 1])]),
         };
     }
     let row = p.count() / dims[0] as usize;
@@ -244,6 +246,7 @@ pub(crate) fn packed_arg<'h>(h: &'h Heap, p: Packed<'h>, k: usize) -> T<'h> {
     match p {
         Packed::Reals { data, .. } => h.real_array(&sub, &data[k * row..(k + 1) * row]),
         Packed::Ints { data, .. } => h.int_array(&sub, &data[k * row..(k + 1) * row]),
+        Packed::Complexes { data, .. } => h.complex_array(&sub, &data[2 * k * row..2 * (k + 1) * row]),
     }
 }
 

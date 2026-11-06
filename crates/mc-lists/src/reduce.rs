@@ -113,6 +113,8 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
             cx.tick(v.len() as u64 / 4)?;
             Ok(Some(h.real(v.iter().fold(0.0, |acc, &x| acc + x))))
         }
+        // the canonical order of complex numbers is the general path's
+        Packed::Complexes { .. } => Ok(None),
     }
 }
 
@@ -311,6 +313,7 @@ fn packed_columns<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Optio
             }
             Ok(Some(h.real_array(&sub, &sums)))
         }
+        Packed::Complexes { .. } => Ok(None),
     }
 }
 

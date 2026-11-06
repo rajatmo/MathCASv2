@@ -146,11 +146,8 @@ fn assert_payload(p: Option<Packed<'_>>, elem: Elem, dims: &[u64], words: &[u64]
     let Some(p) = p else { return };
     assert_eq!(p.elem(), elem, "{what}: leaf kind");
     assert_eq!(p.dims(), dims, "{what}: dimensions");
-    assert_eq!(p.count(), words.len(), "{what}: leaf count");
-    let got: Vec<u64> = match p {
-        Packed::Reals { data, .. } => data.iter().map(|v| v.to_bits()).collect(),
-        Packed::Ints { data, .. } => data.iter().map(|&v| v as u64).collect(),
-    };
+    assert_eq!(p.count() * elem.words(), words.len(), "{what}: leaf count");
+    let got: Vec<u64> = p.words().to_vec();
     assert_eq!(got, words, "{what}: leaves");
 }
 
@@ -239,8 +236,26 @@ fn packing_rule<S: Store>(st: &S) {
     }
     assert_eq!(st.packed(t).map(|p| p.rank()), Some(MAX_RANK));
     assert!(st.packed(st.call(list, &[t])).is_none(), "rank above the limit");
+    // machine complex leaves pack (decision sp-core.1); a list mixing them with reals does not
+    let complex = st.sym(names::COMPLEX);
+    let z = |i: usize| st.call(complex, &[st.real(i as f64), st.real(-0.5 * i as f64)]);
+    let parts: Vec<f64> = (0..PACK_MIN).flat_map(|i| [i as f64, -0.5 * i as f64]).collect();
+    let zs = st.call(list, &(0..PACK_MIN).map(z).collect::<Vec<_>>());
+    let p = st.packed(zs).expect("a list of machine complex numbers");
+    assert_eq!((p.elem(), p.count(), p.complexes()), (Elem::Complex, PACK_MIN, Some(&parts[..])));
+    assert_eq!(st.complexes(&parts), zs, "the payload route builds the same term");
+    assert!(matches!(st.view(zs), View::App { args, .. } if args[3] == z(3)), "a packed complex array views as its leaves");
+    let zm = st.call(list, &[zs, zs]);
+    assert_eq!(st.packed(zm).map(|p| (p.elem(), p.rank())), Some((Elem::Complex, 2)));
+    assert_eq!(st.complex_array(&[2, PACK_MIN], &[parts.clone(), parts.clone()].concat()), zm);
+    let mut mixed: Vec<T<'_>> = (0..PACK_MIN).map(z).collect();
+    mixed[5] = st.real(5.0);
+    let mixed = st.call(list, &mixed);
+    assert!(st.packed(mixed).is_none(), "complex numbers and reals together");
+    let exact = st.call(list, &(0..PACK_MIN).map(|i| st.call(complex, &[st.int(i as i64), st.int(1)])).collect::<Vec<_>>());
+    assert!(st.packed(exact).is_none(), "exact complex numbers");
     // the reference rule agrees on the lists made above
-    for t in [m, below, short, st.call(list, &[short, short]), t] {
+    for t in [m, below, short, st.call(list, &[short, short]), t, zs, zm, mixed, exact] {
         if let View::App { args, .. } = st.view(t) {
             assert_eq!(pack_shape(st, args).is_some(), st.packed(t).is_some(), "the reference rule");
         }

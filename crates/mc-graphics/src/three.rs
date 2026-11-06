@@ -73,6 +73,7 @@ fn add(a: P3, b: P3, k: f64) -> P3 {
 pub fn is_coords<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
     match h.packed(t) {
         Some(Packed::Reals { dims, .. } | Packed::Ints { dims, .. }) => return dims.last().is_some_and(|&d| d >= 3),
+        Some(Packed::Complexes { .. }) => return false,
         None => {}
     }
     let mut cur = t;

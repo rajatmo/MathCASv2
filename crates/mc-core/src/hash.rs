@@ -4,6 +4,7 @@
 //! - Compound terms use spike 4's polynomial hash (decision 4.3): `start * K^n + sum a_i K^(n-1-i)`, which combines
 //!   across a split, so very wide nodes hash in parallel. The combiner carries the combined length (A.8, I1.8).
 //! - Payloads (big integers, balls, strings) are hashed in full with four independent lanes (I3.4).
+use mc_api::packed::Elem;
 use rayon::prelude::*;
 
 /// Hash in parallel? On a pool thread outside a scratch scope: the jobs read the nodes of the term, and a scratch
@@ -163,16 +164,26 @@ pub(crate) fn machine_int_hash(v: i64) -> u64 {
 
 /// Hash and symbol mask of a packed array: exactly those of the compound `list(...)` it stands for ([`app_hash`] of
 /// the rows, recursively), computed from the leaves without building them. `list` is the `(hash, mask)` of the
-/// symbol `list`, `ints` the leaf kind, `dims` the dimensions (outermost first), `data` the leaves as words.
-pub(crate) fn packed_hash(list: (u64, u64), ints: bool, dims: &[u64], data: &[u64]) -> (u64, u64) {
-    let leaf = |w: u64| if ints { machine_int_hash(w as i64) } else { real_hash(w) };
+/// symbol `list`, `elem` the leaf kind, `complex` the `(hash, mask)` of the symbol `complex` (read only for complex
+/// leaves, which are the compound terms `complex(re, im)`), `dims` the dimensions (outermost first), `data` the
+/// leaves as words.
+pub(crate) fn packed_hash(list: (u64, u64), complex: (u64, u64), elem: Elem, dims: &[u64], data: &[u64]) -> (u64, u64) {
+    let leaf = |j: usize| match elem {
+        Elem::Int => machine_int_hash(data[j] as i64),
+        Elem::Real => real_hash(data[j]),
+        Elem::Complex => {
+            let (re, im) = (real_hash(data[2 * j]), real_hash(data[2 * j + 1]));
+            close(complex.0, 2, re.wrapping_mul(K).wrapping_add(im))
+        }
+    };
+    let mask = if elem == Elem::Complex { list.1 | complex.1 } else { list.1 };
     // invariant: a packed array has rank 1 to 16 (checked when it is built)
     let (&last, outer) = dims.split_last().expect("a packed array has a rank");
     let d = last as usize;
-    let rows = data.len() / d;
-    let row_hash = |r: usize| close(list.0, d, poly(d, &|i| leaf(data[r * d + i])));
+    let rows = data.len() / elem.words() / d;
+    let row_hash = |r: usize| close(list.0, d, poly(d, &|i| leaf(r * d + i)));
     if outer.is_empty() {
-        return (row_hash(0), list.1);
+        return (row_hash(0), mask);
     }
     // the hashes of the innermost rows, then level by level outwards
     let mut level: Vec<u64> = if rows >= 64 && par_here() {
@@ -184,7 +195,7 @@ pub(crate) fn packed_hash(list: (u64, u64), ints: bool, dims: &[u64], data: &[u6
         let k = k as usize;
         level = (0..level.len() / k).map(|r| close(list.0, k, poly(k, &|i| level[r * k + i]))).collect();
     }
-    (level[0], list.1)
+    (level[0], mask)
 }
 
 #[cfg(test)]
@@ -210,9 +221,9 @@ mod tests {
         let data: Vec<u64> = (0..n as u64).map(|i| (i as f64 * 0.5).to_bits()).collect();
         let ids: Vec<u32> = (0..n as u32).collect();
         let want = app_hash(list, &ids, |i| (real_hash(data[i as usize]), 0));
-        assert_eq!(packed_hash(list, false, &[n as u64], &data), want);
+        assert_eq!(packed_hash(list, (0, 0), Elem::Real, &[n as u64], &data), want);
         let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build().unwrap();
-        assert_eq!(pool.install(|| packed_hash(list, false, &[n as u64], &data)), want);
+        assert_eq!(pool.install(|| packed_hash(list, (0, 0), Elem::Real, &[n as u64], &data)), want);
         // a 3 x 100 matrix of integers across the tiers: rows first
         let ints: Vec<i64> = (0..300).map(|i| (i - 150) * (1 << 25)).collect();
         let words: Vec<u64> = ints.iter().map(|&v| v as u64).collect();
@@ -223,7 +234,7 @@ mod tests {
             })
             .collect();
         let want = app_hash(list, &[0, 1, 2], |i| (rows[i as usize], list.1));
-        assert_eq!(packed_hash(list, true, &[3, 100], &words), want);
-        assert_eq!(pool.install(|| packed_hash(list, true, &[3, 100], &words)), want);
+        assert_eq!(packed_hash(list, (0, 0), Elem::Int, &[3, 100], &words), want);
+        assert_eq!(pool.install(|| packed_hash(list, (0, 0), Elem::Int, &[3, 100], &words)), want);
     }
 }

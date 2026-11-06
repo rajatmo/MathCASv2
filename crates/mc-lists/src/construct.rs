@@ -465,6 +465,14 @@ pub(crate) fn differences<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
                     let v: Option<Vec<i64>> = data.windows(2).map(|w| w[1].checked_sub(w[0])).collect();
                     Some(h.ints(&v?))
                 }
+                mc_core::Packed::Complexes { data, .. } => {
+                    // x2 + (-1)*x1 part by part: the product negates exactly, the sum is commutative
+                    if data.iter().any(|x| !x.is_finite()) {
+                        return None;
+                    }
+                    let v: Vec<f64> = data.windows(4).step_by(2).flat_map(|w| [w[2] + -w[0], w[3] + -w[1]]).collect();
+                    Some(h.complexes(&v))
+                }
             }
         };
         if let Some(d) = once(xs) {
@@ -543,6 +551,7 @@ fn packed_fold<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], list: bool) ->
             }
             Ok(Some(if list { h.ints(&out) } else { h.int(acc) }))
         }
+        mc_core::Packed::Complexes { .. } => Ok(None),
         mc_core::Packed::Reals { data, .. } => {
             if data.iter().any(|x| !x.is_finite()) {
                 return Ok(None);

@@ -1237,6 +1237,22 @@ impl<'k, 'h> Eval<'k, 'h> {
         crate::packed::elementwise(self.heap, op, vals, &mut |n| self.spend(cx, n))
     }
 
+    /// A listable call of a native on one packed array, computed by the native on the payload ([`Native::packed`]);
+    /// `None` when the native does not take it (then the call is threaded).
+    pub(crate) fn native_packed(&self, cx: &mut Cx<'h>, head: T<'h>, vals: &[T<'h>]) -> Res<Option<T<'h>>> {
+        let h = self.heap;
+        let &[x] = vals else { return Ok(None) };
+        if h.packed(x).is_none() {
+            return Ok(None);
+        }
+        let Some(s) = sym_of(h, head) else { return Ok(None) };
+        let Some(n) = self.k.defs.get(s).map(|sd| sd.native.load(Acquire)).filter(|&n| n != 0) else { return Ok(None) };
+        match &self.k.natives[n as usize - 1] {
+            Impl::Native { native, .. } => native.packed(&mut NativeCx { ev: self, cx }, x),
+            Impl::Form(_) => Ok(None),
+        }
+    }
+
     /// A listable call with list arguments: the list of calls on corresponding elements, the other arguments
     /// broadcast; `failure(shape_mismatch)` for lists of different lengths. `None` without list arguments.
     pub(crate) fn thread(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
@@ -1312,8 +1328,9 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         let h = self.heap;
         let assoc = self.sym(assoc);
-        vals.iter().any(|&v| matches!(h.view(v), View::App { head, .. } if head == assoc))
-            && sym_of(h, head).is_some_and(|s| self.k.maps_lists.contains(&s))
+        // the head first, and a packed array is never an association (viewing it would unpack it)
+        sym_of(h, head).is_some_and(|s| self.k.maps_lists.contains(&s))
+            && vals.iter().any(|&v| h.packed(v).is_none() && matches!(h.view(v), View::App { head, .. } if head == assoc))
     }
 
     /// A listable call with association arguments and no list arguments: the association of the calls on the

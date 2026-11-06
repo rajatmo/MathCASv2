@@ -758,7 +758,7 @@ fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, 
     let packed = match h.packed(t) {
         Some(Packed::Reals { dims, data }) => Some((dims, data.to_vec())),
         Some(Packed::Ints { dims, data }) => Some((dims, data.iter().map(|&v| v as f64).collect())),
-        None => None,
+        Some(Packed::Complexes { .. }) | None => None,
     };
     if let Some((dims, data)) = packed {
         let (rows, cols) = match *dims {
@@ -830,7 +830,7 @@ fn scaled_cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient, lo: f64, hi
         let vals: Vec<f64> = match h.packed(r) {
             Some(Packed::Reals { data, .. }) => data.to_vec(),
             Some(Packed::Ints { data, .. }) => data.iter().map(|&v| v as f64).collect(),
-            None => list(h, r).ok_or(Bad::Arg(1))?.iter().map(|&e| number(h, e).unwrap_or(f64::NAN)).collect(),
+            Some(Packed::Complexes { .. }) | None => list(h, r).ok_or(Bad::Arg(1))?.iter().map(|&e| number(h, e).unwrap_or(f64::NAN)).collect(),
         };
         rows.push(vals);
     }

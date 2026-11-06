@@ -11,6 +11,7 @@ pub mod conformance;
 pub mod packed;
 mod refstore;
 pub use packed::{Elem, Packed, PACK_MIN};
+pub use packed::complex_head;
 pub use refstore::RefStore;
 
 /// A term handle: 32 bits, `Copy`, branded with the lifetime of the store borrow that produced it. Equal terms are
@@ -110,6 +111,22 @@ pub trait Store: Sync {
     /// The rectangular `list(...)` of machine integers, as [`Store::real_array`].
     fn int_array<'h>(&'h self, dims: &[usize], data: &[i64]) -> T<'h> {
         packed::build_nested(self, dims, data.len(), |i| self.int(data[i]))
+    }
+
+    /// The rectangular `list(...)` of machine complex numbers `complex(re, im)` with dimensions `dims` and the
+    /// leaves' parts `parts` (real and imaginary part of each leaf in turn, row-major): the same term as building
+    /// it element by element, packed when the rule says so. Panics unless `parts` holds two words per leaf.
+    fn complex_array<'h>(&'h self, dims: &[usize], parts: &[f64]) -> T<'h> {
+        assert!(parts.len().is_multiple_of(2), "complex leaves have two parts");
+        let complex = self.sym(names::COMPLEX);
+        packed::build_nested(self, dims, parts.len() / 2, |i| {
+            self.call(complex, &[self.real(parts[2 * i]), self.real(parts[2 * i + 1])])
+        })
+    }
+
+    /// The list of machine complex numbers with parts `parts` (packed when long enough).
+    fn complexes<'h>(&'h self, parts: &[f64]) -> T<'h> {
+        self.complex_array(&[parts.len() / 2], parts)
     }
 
     /// The list of machine reals `[data...]` (packed when long enough).

@@ -81,13 +81,15 @@ impl Heap {
             }
             Kind::Packed => {
                 let w = r.words(n);
-                let rank = (n.head >> 1) as usize;
+                let (elem, rank) = crate::heap::packed_kind(n.head);
                 assert!((1..=MAX_RANK).contains(&rank) && rank <= w.len(), "packed {at:#x}: rank {rank}");
                 let (dims, data) = w.split_at(rank);
                 assert!(dims.iter().all(|&d| d >= 1), "packed {at:#x}: an empty dimension");
-                assert_eq!(dims.iter().product::<u64>(), data.len() as u64, "packed {at:#x}: dimensions and leaves");
-                assert!(data.len() >= PACK_MIN, "packed {at:#x}: fewer leaves than the packing threshold");
-                let want = packed_hash(self.meta_bits(self.list()), n.head & 1 != 0, dims, data);
+                let leaves = data.len() / elem.words();
+                assert_eq!(dims.iter().product::<u64>() as usize * elem.words(), data.len(), "packed {at:#x}: dimensions and leaves");
+                assert!(leaves >= PACK_MIN, "packed {at:#x}: fewer leaves than the packing threshold");
+                assert!(elem != mc_api::Elem::Complex || self.complex_sym() != crate::handle::HOLE, "packed {at:#x}: complex leaves without the symbol");
+                let want = packed_hash(self.meta_bits(self.list()), self.complex_meta(elem), elem, dims, data);
                 assert_eq!((n.hash, n.mask), want, "packed {at:#x}: hash and mask of the compound term");
             }
             Kind::Rat => {

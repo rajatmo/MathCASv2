@@ -264,6 +264,8 @@ impl CoreEngine {
             crate::compose::install(&mut k, h);
             // `exp(x)` is `e^x` (decision p6core.5)
             arith::canonical_exp(&mut k, h);
+            // functions of one argument on packed arrays work on the payload (gap G48, decision sp-core.3)
+            crate::packed::install(&mut k, h);
             // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)` (decision p6core.2)
             for &(name, form) in OPERATOR_FORMS {
                 k.set_operator_form(h.sym(name), form);

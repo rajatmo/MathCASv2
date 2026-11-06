@@ -349,6 +349,8 @@ fn vector_arg<'h>(cx: &NativeCx<'_, '_, 'h>, a: T<'h>) -> Option<(Ty, Leaves<'h>
             _ if p.rank() != 1 => None,
             Packed::Reals { data, .. } => Some((Ty::Real, Leaves::Payload(real_words(data)))),
             Packed::Ints { data, .. } => Some((Ty::Int, Leaves::Payload(int_words(data)))),
+            // complex vectors are not compiled: the call declines (as for a compound list of complex numbers)
+            Packed::Complexes { .. } => None,
         };
     }
     let items = cx.as_list(a)?;

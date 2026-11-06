@@ -5,8 +5,9 @@
 //! arguments. Natives that know about packing read the payload without unpacking through [`Store::packed`].
 //!
 //! **The packing rule** (decision N4a.2), the same for every store that packs: `list(a1, ..., an)` is packed exactly
-//! when it is a rectangular array of rank `r` (1 to [`MAX_RANK`]) whose leaves are all machine reals or all machine
-//! integers (integers that fit `i64`), with at least [`PACK_MIN`] leaves. Ranks above 1 need every argument to be a
+//! when it is a rectangular array of rank `r` (1 to [`MAX_RANK`]) whose leaves are all machine reals, all machine
+//! integers (integers that fit `i64`), or all machine complex numbers (`complex(re, im)` with machine-real parts,
+//! decision sp-core.1), with at least [`PACK_MIN`] leaves. Ranks above 1 need every argument to be a
 //! list of the same shape; an empty level makes an array with no leaves, which is never packed. [`pack_shape`] is
 //! the rule written against views, the reference the real store is tested against.
 use crate::{names, Store, View, T};
@@ -25,6 +26,19 @@ pub enum Elem {
     Real,
     /// machine integers: integers that fit `i64` ([`View::Int`])
     Int,
+    /// machine complex numbers: `complex(re, im)` with machine-real parts, two payload words per leaf (the real part
+    /// first)
+    Complex,
+}
+
+impl Elem {
+    /// Payload words per leaf.
+    pub fn words(self) -> usize {
+        match self {
+            Elem::Real | Elem::Int => 1,
+            Elem::Complex => 2,
+        }
+    }
 }
 
 /// A read-only view of a packed array's payload, borrowed from the store for `'h`: its dimensions (outermost first)
@@ -45,13 +59,20 @@ pub enum Packed<'h> {
         /// the leaves, row-major
         data: &'h [i64],
     },
+    /// an array of machine complex numbers
+    Complexes {
+        /// the dimensions, outermost first (all at least 1)
+        dims: &'h [u64],
+        /// the leaves, row-major, each as its real part followed by its imaginary part (twice as many as leaves)
+        data: &'h [f64],
+    },
 }
 
 impl<'h> Packed<'h> {
     /// The dimensions, outermost first.
     pub fn dims(&self) -> &'h [u64] {
         match *self {
-            Packed::Reals { dims, .. } | Packed::Ints { dims, .. } => dims,
+            Packed::Reals { dims, .. } | Packed::Ints { dims, .. } | Packed::Complexes { dims, .. } => dims,
         }
     }
     /// The rank (number of dimensions, at least 1).
@@ -71,6 +92,7 @@ impl<'h> Packed<'h> {
         match *self {
             Packed::Reals { data, .. } => data.len(),
             Packed::Ints { data, .. } => data.len(),
+            Packed::Complexes { data, .. } => data.len() / 2,
         }
     }
     /// The kind of the leaves.
@@ -78,20 +100,36 @@ impl<'h> Packed<'h> {
         match self {
             Packed::Reals { .. } => Elem::Real,
             Packed::Ints { .. } => Elem::Int,
+            Packed::Complexes { .. } => Elem::Complex,
         }
     }
     /// The leaves of an array of machine reals.
     pub fn reals(&self) -> Option<&'h [f64]> {
         match *self {
             Packed::Reals { data, .. } => Some(data),
-            Packed::Ints { .. } => None,
+            _ => None,
         }
     }
     /// The leaves of an array of machine integers.
     pub fn ints(&self) -> Option<&'h [i64]> {
         match *self {
             Packed::Ints { data, .. } => Some(data),
-            Packed::Reals { .. } => None,
+            _ => None,
+        }
+    }
+    /// The parts of an array of machine complex numbers: the real and imaginary part of each leaf in turn.
+    pub fn complexes(&self) -> Option<&'h [f64]> {
+        match *self {
+            Packed::Complexes { data, .. } => Some(data),
+            _ => None,
+        }
+    }
+    /// The payload words of the leaves: a real by its bit pattern, an integer in two's complement, a complex
+    /// number as its two parts.
+    pub fn words(&self) -> &'h [u64] {
+        match *self {
+            Packed::Reals { data, .. } | Packed::Complexes { data, .. } => real_words(data),
+            Packed::Ints { data, .. } => int_words(data),
         }
     }
     /// The leaves of a vector of machine reals (rank 1).
@@ -134,7 +172,7 @@ pub fn words_ints(w: &[u64]) -> &[i64] {
 pub fn pack_shape<'h, S: Store + ?Sized>(st: &'h S, args: &[T<'h>]) -> Option<(Elem, Vec<u64>, Vec<u64>)> {
     let list = st.sym_term(st.sym(names::LIST));
     let first = *args.first()?;
-    let (elem, inner) = shape_of(st, list, first)?;
+    let (elem, inner, complex) = shape_of(st, list, first)?;
     if inner.len() + 1 > MAX_RANK {
         return None;
     }
@@ -143,9 +181,10 @@ pub fn pack_shape<'h, S: Store + ?Sized>(st: &'h S, args: &[T<'h>]) -> Option<(E
     if total < PACK_MIN as u64 {
         return None;
     }
-    let mut data = Vec::with_capacity(total as usize);
+    let mut data = Vec::with_capacity(total as usize * elem.words());
+    let cx = Leaves { list, complex, elem };
     for &a in args {
-        if !leaves_into(st, list, a, elem, &inner, &mut data) {
+        if !leaves_into(st, &cx, a, &inner, &mut data) {
             return None;
         }
     }
@@ -155,58 +194,93 @@ pub fn pack_shape<'h, S: Store + ?Sized>(st: &'h S, args: &[T<'h>]) -> Option<(E
     Some((elem, dims, data))
 }
 
-/// A leaf as a payload word of kind `elem`.
-fn leaf<'h, S: Store + ?Sized>(st: &'h S, t: T<'h>) -> Option<(Elem, u64)> {
+/// What a walk of an array's leaves looks for: the head `list`, the head `complex` (a complex leaf's, when the
+/// first leaf is one; no symbol is made for it), and the kind of the leaves.
+struct Leaves<'h> {
+    list: T<'h>,
+    complex: Option<T<'h>>,
+    elem: Elem,
+}
+
+/// The head of `t` if `t` is a machine complex number `complex(re, im)`: both parts machine reals, the head the
+/// symbol `complex`.
+pub fn complex_head<'h, S: Store + ?Sized>(st: &'h S, t: T<'h>) -> Option<T<'h>> {
     match st.view(t) {
-        View::Real(v) => Some((Elem::Real, v.to_bits())),
-        View::Int(v) => Some((Elem::Int, v as u64)),
+        View::App { head, args: &[re, im] } if matches!((st.view(re), st.view(im)), (View::Real(_), View::Real(_))) => {
+            matches!(st.view(head), View::Sym(s) if st.sym_name(s) == names::COMPLEX).then_some(head)
+        }
         _ => None,
     }
 }
 
-/// The kind of the leaves and the dimensions of the array `t` (empty for a leaf), following first arguments only.
-fn shape_of<'h, S: Store + ?Sized>(st: &'h S, list: T<'h>, mut t: T<'h>) -> Option<(Elem, Vec<u64>)> {
+/// A leaf's payload words appended to `out` if it is of kind `cx.elem`.
+fn leaf_into<'h, S: Store + ?Sized>(st: &'h S, cx: &Leaves<'h>, t: T<'h>, out: &mut Vec<u64>) -> bool {
+    match (st.view(t), cx.elem) {
+        (View::Real(v), Elem::Real) => out.push(v.to_bits()),
+        (View::Int(v), Elem::Int) => out.push(v as u64),
+        (View::App { head, args: &[re, im] }, Elem::Complex) if Some(head) == cx.complex => match (st.view(re), st.view(im)) {
+            (View::Real(a), View::Real(b)) => out.extend_from_slice(&[a.to_bits(), b.to_bits()]),
+            _ => return false,
+        },
+        _ => return false,
+    }
+    true
+}
+
+/// The kind of the leaves, the dimensions of the array `t` (empty for a leaf) and the head of complex leaves,
+/// following first arguments only.
+fn shape_of<'h, S: Store + ?Sized>(st: &'h S, list: T<'h>, mut t: T<'h>) -> Option<(Elem, Vec<u64>, Option<T<'h>>)> {
     let mut dims = vec![];
     loop {
         if let Some(p) = st.packed(t) {
             dims.extend_from_slice(p.dims());
-            return Some((p.elem(), dims));
+            let complex = if p.elem() == Elem::Complex {
+                // the head of the first leaf, reached through first arguments
+                let mut u = t;
+                loop {
+                    match st.view(u) {
+                        View::App { head, args } if head == list => u = args[0],
+                        _ => break complex_head(st, u),
+                    }
+                }
+            } else {
+                None
+            };
+            return Some((p.elem(), dims, complex));
         }
         match st.view(t) {
             View::App { head, args } if head == list && !args.is_empty() && dims.len() < MAX_RANK => {
                 dims.push(args.len() as u64);
                 t = args[0];
             }
-            View::App { .. } => return None,
-            _ => return leaf(st, t).map(|(e, _)| (e, dims)),
+            View::App { .. } => return complex_head(st, t).map(|c| (Elem::Complex, dims, Some(c))),
+            View::Real(_) => return Some((Elem::Real, dims, None)),
+            View::Int(_) => return Some((Elem::Int, dims, None)),
+            _ => return None,
         }
     }
 }
 
-/// Append the leaves of `t` to `out` if `t` is an array of kind `elem` with dimensions `dims`.
-fn leaves_into<'h, S: Store + ?Sized>(st: &'h S, list: T<'h>, t: T<'h>, elem: Elem, dims: &[u64], out: &mut Vec<u64>) -> bool {
+/// Append the leaves of `t` to `out` if `t` is an array of kind `cx.elem` with dimensions `dims`.
+fn leaves_into<'h, S: Store + ?Sized>(st: &'h S, cx: &Leaves<'h>, t: T<'h>, dims: &[u64], out: &mut Vec<u64>) -> bool {
     // (term, level) pairs still to visit, in reverse order
     let mut stack = vec![(t, 0usize)];
     while let Some((t, level)) = stack.pop() {
         if let Some(p) = st.packed(t) {
-            if p.elem() != elem || p.dims() != &dims[level..] {
+            if p.elem() != cx.elem || p.dims() != &dims[level..] {
                 return false;
             }
-            out.extend_from_slice(match p {
-                Packed::Reals { data, .. } => real_words(data),
-                Packed::Ints { data, .. } => int_words(data),
-            });
+            out.extend_from_slice(p.words());
             continue;
         }
         if level == dims.len() {
-            match leaf(st, t) {
-                Some((e, w)) if e == elem => out.push(w),
-                _ => return false,
+            if !leaf_into(st, cx, t, out) {
+                return false;
             }
             continue;
         }
         match st.view(t) {
-            View::App { head, args } if head == list && args.len() as u64 == dims[level] => {
+            View::App { head, args } if head == cx.list && args.len() as u64 == dims[level] => {
                 stack.extend(args.iter().rev().map(|&a| (a, level + 1)));
             }
             _ => return false,

@@ -163,6 +163,7 @@ pub fn numeric_array<'h>(
             match p {
                 Packed::Reals { data: v, .. } => data.extend_from_slice(v),
                 Packed::Ints { data: v, .. } => data.extend(v.iter().map(|&i| i as f64)),
+                Packed::Complexes { .. } => return Ok(None),
             }
             continue;
         }

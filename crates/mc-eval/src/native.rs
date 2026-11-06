@@ -58,6 +58,15 @@ pub trait Native: Send + Sync {
     fn curried(&self) -> bool {
         false
     }
+
+    /// The value of the call on the one argument `x`, a packed array (semantics 11), computed on its payload; `None`
+    /// to take the ordinary path. A listable function is asked before its call is threaded over the elements, so a
+    /// function that knows packed arrays is not called once per element (decision sp-core.3). The value must be
+    /// what threading gives.
+    fn packed<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>) -> Res<Option<T<'h>>> {
+        let _ = (cx, x);
+        Ok(None)
+    }
 }
 
 /// A compiled pattern a native matches with ([`NativeCx::matches`]); made by

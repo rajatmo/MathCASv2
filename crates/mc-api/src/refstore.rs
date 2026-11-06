@@ -175,6 +175,7 @@ impl Store for RefStore {
         Some(match elem {
             Elem::Real => Packed::Reals { dims, data: words_reals(data) },
             Elem::Int => Packed::Ints { dims, data: words_ints(data) },
+            Elem::Complex => Packed::Complexes { dims, data: words_reals(data) },
         })
     }
 }
