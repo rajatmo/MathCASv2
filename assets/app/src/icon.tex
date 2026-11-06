@@ -1,16 +1,15 @@
 % The application icon: a calligraphic M (Computer Modern's \mathcal, AMS Type 1 fonts, SIL Open Font License 1.1)
-% in the bowl of a large calligraphic C, on a rounded square shaded from violet to magenta. A 64 x 64 canvas in big
-% points; tools/icons.ps1 makes the PNGs (128, 256 and the sizes of icon.ico from 32 up) from it. Sizes 16 and 24
-% come from icon-small.tex.
+% in the bowl of a large calligraphic C, both white, on a rounded square shaded from the accent blue to a deeper blue
+% (user's choice). A 64 x 64 canvas in big points; tools/icons.ps1 makes the PNGs (128, 256 and the sizes of icon.ico
+% from 32 up) from it. Sizes 16 and 24 come from icon-small.tex.
 \documentclass[tikz,border=0pt]{standalone}
-\definecolor{bgtop}{RGB}{78,58,128}
-\definecolor{bgbottom}{RGB}{172,44,122}
-\definecolor{gold}{RGB}{246,193,72}
+\definecolor{bgtop}{RGB}{64,120,242}
+\definecolor{bgbottom}{RGB}{40,70,180}
 \begin{document}
 \begin{tikzpicture}[x=1bp,y=1bp]
 \path[use as bounding box] (0,0) rectangle (64,64);
 \shade[top color=bgtop, bottom color=bgbottom, shading angle=30, rounded corners=13bp] (2,2) rectangle (62,62);
-\node[text=gold, scale=6.8, inner sep=0] at (28.5,32.5) {$\mathcal{C}$};
+\node[text=white, scale=6.8, inner sep=0] at (28.5,32.5) {$\mathcal{C}$};
 \node[text=white, scale=2.75, inner sep=0] at (36.5,30) {$\mathcal{M}$};
 \end{tikzpicture}
 \end{document}
