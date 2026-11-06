@@ -44,7 +44,7 @@ mod svg;
 pub mod three;
 pub mod ticks;
 
-pub use natives::{install, rgb_term};
+pub use natives::{install, numeric_content, rgb_term};
 
 use mc_api::names;
 use mc_core::{Store, View, T};

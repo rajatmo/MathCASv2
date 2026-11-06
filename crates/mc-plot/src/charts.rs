@@ -2,7 +2,7 @@
 //! value, or groups of bars side by side).
 use crate::figure::{Bins, Extra, Look, Rgb};
 use crate::sidecar::{Entry, Kind};
-use crate::{bad, finish, plot_options, real};
+use crate::{bad, bins_option, finish, plot_options, values};
 use mc_core::{Heap, Store, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
 
@@ -19,8 +19,9 @@ const BAR_WIDTH: f64 = 0.8;
 /// The opacity of histograms drawn over each other.
 const OVERLAID: f64 = 0.55;
 
-/// The numbers of a list, read without evaluation where they are numbers already. `None` when something in it is
-/// not a real number.
+/// The numbers of a list, read without evaluation where they are numbers already; quantities, `around` values and
+/// intervals as their magnitudes or middles. Items that are not real numbers (`missing()`, `none`, symbols, complex
+/// numbers) are NaN: no bar, not counted. `None` when `t` is not a list.
 fn numbers<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
     let h = cx.heap();
     match h.packed(t) {
@@ -28,37 +29,93 @@ fn numbers<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>>
         Some(mc_api::Packed::Ints { data, dims }) if dims.len() == 1 => return Ok(Some(data.iter().map(|&k| k as f64).collect())),
         _ => {}
     }
+    // an association: its values
+    let t = match values::assoc_entries(cx, t)? {
+        Some(entries) => {
+            let vals: Vec<T<'h>> = entries.into_iter().map(|e| e.1).collect();
+            cx.list(&vals)
+        }
+        None => t,
+    };
     let Some(items) = cx.as_list(t) else { return Ok(None) };
     let mut out = Vec::with_capacity(items.len());
     for (i, &e) in items.iter().enumerate() {
         if i % 4096 == 4095 {
             cx.tick(1)?;
         }
-        match mc_graphics::num::number(h, e) {
-            Some(v) => out.push(v),
-            None => match real(cx, e)? {
-                Some(v) => out.push(v),
-                None => return Ok(None),
-            },
-        }
+        out.push(match mc_graphics::num::number(h, e) {
+            Some(v) => v,
+            None if cx.as_list(e).is_some() => return Ok(None),
+            None => values::read(cx, legended_value(h, e))?.v.unwrap_or(f64::NAN),
+        });
     }
     Ok(Some(out))
 }
 
-/// One number or several lists of them: `[v1, ...]` is one data set, `[[...], [...]]` several.
-fn sets<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<Vec<f64>>>> {
+/// The value inside `legended(v, label)`, `labeled(v, label)` or `style(v, ...)`; `t` itself otherwise.
+fn legended_value<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
+    let mut t = t;
+    for _ in 0..8 {
+        match values::call_of(h, t) {
+            Some((n, args)) if !args.is_empty() && matches!(n.as_str(), "legended" | "labeled" | "style" | "callout") => t = args[0],
+            _ => break,
+        }
+    }
+    t
+}
+
+/// Chart data: one list of values or several, with names for the data sets (an association's keys, a dataset's
+/// columns) and for the values of one set (an association of numbers).
+struct ChartData {
+    sets: Vec<Vec<f64>>,
+    /// whether the data was a list of lists (several data sets)
+    grouped: bool,
+    names: Vec<String>,
+    keys: Vec<String>,
+    /// the keys of the first set, when the sets are associations (the bars within each group)
+    inner_keys: Vec<String>,
+}
+
+/// One list of values or several: `[v1, ...]` is one data set, `[[...], [...]]` several; an association of lists is
+/// a data set per key, an association of numbers one set labelled by its keys; a dataset a set per column.
+fn sets<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<ChartData>> {
+    let h = cx.heap();
+    let (t, names, keys) = match values::dataset_columns(cx, t)? {
+        Some(cols) => {
+            let names: Vec<String> = cols.iter().map(|c| c.0.clone()).collect();
+            let data: Vec<T<'h>> = cols.iter().map(|c| c.1).collect();
+            (cx.list(&data), names, vec![])
+        }
+        None => match values::assoc_entries(cx, t)? {
+            Some(entries) => {
+                let lists = entries.iter().all(|e| cx.as_list(e.1).is_some() || values::call_of(h, e.1).is_some_and(|(n, _)| n == "assoc"));
+                let data: Vec<T<'h>> = entries.iter().map(|e| e.1).collect();
+                let names: Vec<String> = entries.into_iter().map(|e| e.0).collect();
+                if lists {
+                    (cx.list(&data), names, vec![])
+                } else {
+                    (cx.list(&data), vec![], names)
+                }
+            }
+            None => (t, vec![], vec![]),
+        },
+    };
     let Some(items) = cx.as_list(t) else { return Ok(None) };
-    if !items.is_empty() && items.iter().all(|&e| cx.as_list(e).is_some()) {
+    if !items.is_empty() && items.iter().all(|&e| cx.as_list(e).is_some() || values::call_of(h, e).is_some_and(|(n, _)| n == "assoc")) {
         let mut out = vec![];
+        let inner_keys = match items.first() {
+            Some(&f) => values::assoc_entries(cx, f)?.map(|e| e.into_iter().map(|e| e.0).collect()).unwrap_or_default(),
+            None => vec![],
+        };
         for &e in items {
             match numbers(cx, e)? {
                 Some(v) => out.push(v),
                 None => return Ok(None),
             }
         }
-        return Ok(Some(out));
+        return Ok(Some(ChartData { sets: out, grouped: true, names, keys, inner_keys }));
     }
-    Ok(numbers(cx, t)?.map(|v| vec![v]))
+    Ok(numbers(cx, t)?.map(|v| ChartData { sets: vec![v], grouped: false, names, keys, inner_keys: vec![] }))
 }
 
 /// The smallest round number (1, 2, 2.5 or 5 times a power of ten) at least `w` (> 0).
@@ -104,16 +161,41 @@ impl Native for Histogram {
         let h = cx.heap();
         let name = "histogram";
         let base = Look::default();
-        let (data, look) = match args {
-            [d] => (*d, base),
-            [d, o] => match plot_options(cx, *o, base, &["bins", "normalized"], name) {
-                Some(look) => (*d, look),
-                None => return Ok(bad(h, name, 2)),
+        let (pos, o) = crate::more::split(h, args);
+        let mut look = match o {
+            Some(o) => match plot_options(cx, o, base, &["bins", "normalized"], name) {
+                Some(look) => look,
+                None => return Ok(bad(h, name, pos.len() as i64 + 1)),
             },
+            None => base,
+        };
+        let (data, bspec, hspec) = match pos.as_slice() {
+            [d] => (*d, None, None),
+            [d, b] => (*d, Some(*b), None),
+            [d, b, hs] => (*d, Some(*b), Some(*hs)),
             _ => return Ok(Reply::Decline),
         };
-        let Some(mut sets) = sets(cx, data)? else { return Ok(bad(h, name, 1)) };
+        if let Some(b) = bspec {
+            match bins_option(cx, b) {
+                Some(b) => look.bins = b,
+                None => return Ok(bad(h, name, 2)),
+            }
+        }
+        let height = match hspec {
+            None if look.normalized => Height::Pdf,
+            None => Height::Count,
+            Some(hs) => match height_spec(h, hs) {
+                Some(k) => k,
+                None => return Ok(bad(h, name, 3)),
+            },
+        };
+        let Some(chart) = sets(cx, data)? else { return Ok(bad(h, name, 1)) };
+        if (look.legend.is_empty() || look.legend.first().is_some_and(|l| l == crate::AUTO_LEGEND)) && chart.names.len() > 1 {
+            look.legend = chart.names.clone();
+        }
+        let mut sets = chart.sets;
         for s in &mut sets {
+            s.retain(|v| v.is_finite());
             s.sort_by(f64::total_cmp);
         }
         let all: Vec<f64> = {
@@ -141,8 +223,21 @@ impl Native for Histogram {
                     counts[count - 1] += 1;
                 }
             }
-            let scale = if look.normalized { 1.0 / (s.len().max(1) as f64 * w) } else { 1.0 };
-            let heights: Vec<f64> = counts.iter().map(|&c| c as f64 * scale).collect();
+            let n = s.len().max(1) as f64;
+            let mut acc = 0.0;
+            let heights: Vec<f64> = counts
+                .iter()
+                .map(|&c| {
+                    acc += c as f64;
+                    match height {
+                        Height::Count => c as f64,
+                        Height::Probability => c as f64 / n,
+                        Height::Pdf => c as f64 / (n * w),
+                        Height::CumulativeCount => acc,
+                        Height::Cdf => acc / n,
+                    }
+                })
+                .collect();
             top = top.max(heights.iter().copied().fold(0.0, f64::max));
             let color = look.color(k);
             swatches.push(color);
@@ -157,10 +252,38 @@ impl Native for Histogram {
             });
         }
         extra.bounds = Some([(lo, lo + w * count as f64), (0.0, if top > 0.0 { top } else { 1.0 })]);
-        let mut look = look;
         look.legend_swatches = swatches;
         finish(cx, &[], &look, extra)
     }
+}
+
+/// What the height of a histogram's bar is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Height {
+    Count,
+    Probability,
+    Pdf,
+    CumulativeCount,
+    Cdf,
+}
+
+/// A histogram's height specification: `count`, `probability`, `pdf` (also `probability_density`), `cdf`,
+/// `cumulative_count`, as a symbol or a string (case and underscores ignored).
+fn height_spec<'h>(h: &'h Heap, t: T<'h>) -> Option<Height> {
+    let name = match h.view(t) {
+        mc_core::View::Sym(s) => h.sym_name(s).to_string(),
+        mc_core::View::Str(s) => s.to_string(),
+        _ => return None,
+    };
+    let key: String = name.chars().filter(|c| *c != '_' && *c != ' ').flat_map(char::to_lowercase).collect();
+    Some(match key.as_str() {
+        "count" | "automatic" => Height::Count,
+        "probability" => Height::Probability,
+        "pdf" | "probabilitydensity" => Height::Pdf,
+        "cdf" => Height::Cdf,
+        "cumulativecount" => Height::CumulativeCount,
+        _ => return None,
+    })
 }
 
 /// Bars `(x0, x1, height)` from 0 in `color` (with this opacity), separated by thin white edges.
@@ -193,10 +316,23 @@ impl Native for BarChart {
             },
             _ => return Ok(Reply::Decline),
         };
-        let Some(groups) = sets(cx, data)? else { return Ok(bad(h, name, 1)) };
+        let Some(chart) = sets(cx, data)? else { return Ok(bad(h, name, 1)) };
         // one list of values: one group per value, one bar each; several lists: a group per list
-        let grouped = cx.as_list(data).is_some_and(|items| items.iter().all(|&e| cx.as_list(e).is_some()));
-        let groups: Vec<Vec<f64>> = if grouped { groups } else { groups[0].iter().map(|&v| vec![v]).collect() };
+        let grouped = chart.grouped;
+        let mut look = look;
+        if look.labels.is_empty() {
+            // the keys of an association label the bars (or the groups)
+            look.labels = if grouped { chart.names.clone() } else { chart.keys.clone() };
+        }
+        // `plot_legends: automatic`: the bars of a group by the keys of its association
+        if look.legend.first().is_some_and(|l| l == crate::AUTO_LEGEND) {
+            look.legend = if grouped { chart.inner_keys.clone() } else { chart.keys.clone() };
+        }
+        let look = look;
+        let groups: Vec<Vec<f64>> = if grouped { chart.sets } else { chart.sets[0].iter().map(|&v| vec![v]).collect() };
+        if groups.iter().flatten().all(|v| !v.is_finite()) {
+            return Ok(bad(h, name, 1));
+        }
         if groups.is_empty() || groups.iter().all(|g| g.is_empty()) {
             return Ok(bad(h, name, 1));
         }
@@ -211,6 +347,9 @@ impl Native for BarChart {
                 .enumerate()
                 .filter_map(|(g, vs)| {
                     let v = *vs.get(k)?;
+                    if !v.is_finite() {
+                        return None;
+                    }
                     let x0 = (g + 1) as f64 - BAR_WIDTH / 2.0 + w * k as f64;
                     Some((x0, x0 + w, v))
                 })

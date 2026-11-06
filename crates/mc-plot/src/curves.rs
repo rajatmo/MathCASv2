@@ -1,7 +1,7 @@
 //! Curves in the plane: `parametric_plot([fx, fy], [t, a, b])` and `polar_plot(r, [theta, a, b])`, sampled
 //! adaptively in the parameter, drawn with equal units on both axes (a circle is round).
 use crate::figure::{Extra, Look, Series, H, W};
-use crate::{bad, finish, plot_options, real, short_name};
+use crate::{bad, finish, plot_options, real, short_name, unwrap_all};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
 use mc_numfn::{NumFn, Options, Var};
@@ -65,6 +65,23 @@ impl Native for Planar {
         if a >= b {
             return Ok(bad(h, name, 2));
         }
+        // legended, labeled, callout and style around the whole or around each curve
+        let mut look = look;
+        let wrapped = |t: T<'h>| matches!(crate::values::call_of(h, t), Some((n, _)) if matches!(n.as_str(), "legended" | "labeled" | "callout" | "style"));
+        let f = if wrapped(f) {
+            let (v, w) = unwrap_all(h, &[f]);
+            w.apply(cx, &mut look);
+            v[0]
+        } else {
+            match cx.as_list(f) {
+                Some(items) if items.iter().any(|&e| wrapped(e)) => {
+                    let (v, w) = unwrap_all(h, items);
+                    w.apply(cx, &mut look);
+                    cx.list(&v)
+                }
+                _ => f,
+            }
+        };
         // the curves: [fx, fy] or a list of them; a radius or a list of radii
         let curves: Vec<Curve<'h>> = if self.polar {
             match cx.as_list(f) {
@@ -95,12 +112,11 @@ impl Native for Planar {
             } else {
                 format!("[{}, {}]", short_name(h, c.fx), short_name(h, c.fy))
             };
-            series.push(Series { points: pts, name: label });
+            series.push(Series { points: pts, name: label, bars: vec![] });
         }
         if series.iter().all(|s| s.points.iter().all(|p| p.1.is_none())) {
             return Ok(bad(h, name, 1));
         }
-        let mut look = look;
         look.size = Some(page_size(&series));
         finish(cx, &series, &look, Extra::default())
     }
@@ -230,7 +246,7 @@ mod tests {
 
     #[test]
     fn pages_follow_the_curves_shape() {
-        let s = |pts: &[(f64, f64)]| Series { points: pts.iter().map(|&(x, y)| (x, Some(y))).collect(), name: String::new() };
+        let s = |pts: &[(f64, f64)]| Series { points: pts.iter().map(|&(x, y)| (x, Some(y))).collect(), name: String::new(), bars: vec![] };
         assert_eq!(page_size(&[s(&[(-1.0, -1.0), (1.0, 1.0)])]), (420.0, 400.0));
         let (w, h) = page_size(&[s(&[(0.0, 0.0), (10.0, 1.0)])]);
         assert_eq!(w, 640.0);

@@ -350,6 +350,11 @@ impl Native for Compose {
                     }
                 }
                 let (c, lc) = (cell(cx, x)?, cell(cx, l)?);
+                // only pictures and text are laid out with their labels: anything else (a function or data for a
+                // plot, a value to label in a chart) stays labelled, for the plots that take it
+                if !matches!(c, Cell::Picture(..)) && !matches!(h.view(x), View::Str(_)) {
+                    return Ok(Reply::Decline);
+                }
                 let ((cw, ch), (lw, lh)) = (c.size(), lc.size());
                 let side = pos.and_then(|p| match h.view(p) {
                     View::Sym(s) => Some(h.sym_name(s)),
@@ -379,6 +384,10 @@ impl Native for Compose {
             Kind::Legended => {
                 let [x, l] = args else { return Ok(Reply::Decline) };
                 let c = cell(cx, *x)?;
+                // only a picture gets a legend drawn: anything else (a function or data for a plot) stays as it is
+                if !matches!(c, Cell::Picture(..)) {
+                    return Ok(Reply::Decline);
+                }
                 // entries: a list of labels, or line_legend / swatch_legend / point_legend([colours], [labels])
                 let (colors, labels): (Vec<T<'h>>, Vec<T<'h>>) = match cx.as_list(*l) {
                     Some(ls) => (vec![], ls.to_vec()),

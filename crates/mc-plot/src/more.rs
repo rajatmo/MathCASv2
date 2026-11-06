@@ -32,7 +32,7 @@ fn is_options(h: &Heap, t: T<'_>) -> bool {
 }
 
 /// The arguments and the options term (if the last argument is one).
-fn split<'h>(h: &'h Heap, args: &[T<'h>]) -> (Vec<T<'h>>, Option<T<'h>>) {
+pub(crate) fn split<'h>(h: &'h Heap, args: &[T<'h>]) -> (Vec<T<'h>>, Option<T<'h>>) {
     match args.split_last() {
         Some((&o, rest)) if is_options(h, o) => (rest.to_vec(), Some(o)),
         _ => (args.to_vec(), None),
@@ -123,6 +123,9 @@ impl Native for DiscretePlot {
         };
         let Some((n, vals)) = discrete_values(cx, *spec)? else { return Ok(bad(h, name, 2)) };
         let fs: Vec<T<'h>> = cx.as_list(*f).map(|l| l.to_vec()).unwrap_or_else(|| vec![*f]);
+        let (fs, wraps) = crate::unwrap_all(h, &fs);
+        let mut look = look;
+        wraps.apply(cx, &mut look);
         let mut series = vec![];
         for &f in &fs {
             let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(n)], &Options::default())?;
@@ -133,9 +136,16 @@ impl Native for DiscretePlot {
                     cx.tick(1)?;
                 }
                 let ok = fun.eval(cx, &[x], &mut out)?;
-                pts.push((x, (ok && out[0].is_finite()).then_some(out[0])));
+                let mut y = (ok && out[0].is_finite()).then_some(out[0]);
+                // functions of integers (prime(n), moebius_mu(n), sums to n): the exact integer substituted
+                if y.is_none() && x.fract() == 0.0 && x.abs() < 1e15 {
+                    let r = h.call(h.sym(mc_api::names::RULE), &[h.sym_term(n), h.int(x as i64)]);
+                    let v = cx.eval(h.call(h.sym("n"), &[h.call(h.sym("rewrite"), &[f, r])]))?;
+                    y = crate::real(cx, v)?;
+                }
+                pts.push((x, y));
             }
-            series.push(Series { points: pts, name: short_name(h, f) });
+            series.push(Series { points: pts, name: short_name(h, f), bars: vec![] });
         }
         if series.iter().all(|s| s.points.iter().all(|p| p.1.is_none())) {
             return Ok(bad(h, name, 1));
@@ -175,21 +185,48 @@ impl Native for ListPolarPlot {
             Some(o) => plot_options(cx, o, base, &["joined"], name).unwrap_or_default(),
             None => base,
         };
-        let Some(items) = cx.as_list(*d) else { return Ok(bad(h, name, 1)) };
-        let n = items.len().max(1);
-        let mut pts = Vec::with_capacity(items.len());
-        for (i, &e) in items.iter().enumerate() {
-            let (th, r) = match cx.as_list(e) {
-                Some(&[t, r]) => (real(cx, t)?, real(cx, r)?),
-                Some(_) => return Ok(bad(h, name, 1)),
-                None => (Some(2.0 * std::f64::consts::PI * i as f64 / n as f64), real(cx, e)?),
-            };
-            match (th, r) {
-                (Some(t), Some(r)) => pts.push((r * t.cos(), Some(r * t.sin()))),
-                _ => pts.push((0.0, None)),
+        let mut look = look;
+        // one data set or several (a list of lists none of which is an [theta, r] pair), each maybe wrapped
+        let wrapped = |t: T<'h>| matches!(crate::values::call_of(h, t), Some((n, _)) if matches!(n.as_str(), "legended" | "labeled" | "callout" | "style"));
+        let d = if wrapped(*d) {
+            let (v, w) = crate::unwrap_all(h, &[*d]);
+            w.apply(cx, &mut look);
+            v[0]
+        } else {
+            *d
+        };
+        let d = match cx.as_list(d) {
+            Some(items) if items.iter().any(|&e| wrapped(e)) => {
+                let (v, w) = crate::unwrap_all(h, items);
+                w.apply(cx, &mut look);
+                cx.list(&v)
             }
+            _ => d,
+        };
+        let Some(sets) = crate::data_sets(cx, d) else { return Ok(bad(h, name, 1)) };
+        let many = sets.len() > 1;
+        let mut series = vec![];
+        for (k, set) in sets.into_iter().enumerate() {
+            let Some(items) = cx.as_list(set) else { return Ok(bad(h, name, 1)) };
+            let n = items.len().max(1);
+            let mut pts = Vec::with_capacity(items.len());
+            for (i, &e) in items.iter().enumerate() {
+                let (th, r) = match cx.as_list(e) {
+                    Some(&[t, r]) => (real(cx, t)?, real(cx, r)?),
+                    Some(_) => return Ok(bad(h, name, 1)),
+                    None => (Some(2.0 * std::f64::consts::PI * i as f64 / n as f64), real(cx, e)?),
+                };
+                match (th, r) {
+                    (Some(t), Some(r)) => pts.push((r * t.cos(), Some(r * t.sin()))),
+                    _ => pts.push((0.0, None)),
+                }
+            }
+            let name = if many { format!("data {}", k + 1) } else { "data".into() };
+            series.push(Series { points: pts, name, bars: vec![] });
         }
-        let series = [Series { points: pts, name: "data".into() }];
+        if series.iter().all(|s| s.points.iter().all(|p| p.1.is_none())) {
+            return Ok(bad(h, name, 1));
+        }
         finish(cx, &series, &look, Extra::default())
     }
 }
@@ -494,7 +531,10 @@ fn option<'h>(h: &'h Heap, o: T<'h>, key: &str) -> Option<T<'h>> {
 }
 
 /// `pie_chart([v1, v2, ...])`: a disk cut into sectors in proportion to the values, anticlockwise from the right,
-/// in the plot colours (`chart_labels`, `legend`).
+/// in the plot colours. Values may be quantities (magnitudes), `legended(v, label)` (a legend entry for that sector)
+/// or `labeled(v, label)` (a label beside it); values that are not non-negative reals have no sector. An association
+/// gives each sector its key as a label; several lists (or an association of lists) are concentric rings, the first
+/// innermost.
 struct PieChart;
 
 impl Native for PieChart {
@@ -503,34 +543,101 @@ impl Native for PieChart {
         let name = "pie_chart";
         let (a, o) = split(h, args);
         let [d] = a.as_slice() else { return Ok(Reply::Decline) };
-        let Some(items) = cx.as_list(*d).map(|l| l.to_vec()) else { return Ok(bad(h, name, 1)) };
-        let mut vals = vec![];
-        for e in items {
-            match real(cx, e)? {
-                Some(v) if v >= 0.0 => vals.push(v),
-                _ => return Ok(bad(h, name, 1)),
-            }
-        }
-        let total: f64 = vals.iter().sum();
-        if vals.is_empty() || total <= 0.0 {
-            return Ok(bad(h, name, 1));
-        }
-        let look = match o {
+        let mut look = match o {
             Some(o) => plot_options(cx, o, Look::default(), &["labels"], name).unwrap_or_default(),
             None => Look::default(),
         };
-        let mut content = vec![h.call(h.sym("edge_form"), &[cx.list(&[h.sym_term(h.sym("white")), h.call(h.sym("absolute_thickness"), &[h.real(1.5)])])])];
-        let mut a0 = 0.0;
-        for (k, v) in vals.iter().enumerate() {
-            let a1 = a0 + 2.0 * std::f64::consts::PI * v / total;
-            let (r, g, b) = look.color(k);
-            content.push(mc_graphics::rgb_term(h, Rgba::rgb(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0)));
-            content.push(h.call(h.sym("disk"), &[h.reals(&[0.0, 0.0]), h.real(1.0), h.reals(&[a0, a1])]));
-            if let Some(l) = look.labels.get(k) {
-                let m = (a0 + a1) / 2.0;
-                content.push(cx.list(&[h.sym_term(h.sym("black")), h.call(h.sym("text"), &[h.string(l), h.reals(&[1.18 * m.cos(), 1.18 * m.sin()])])]));
+        // an association: its keys label the sectors (or name the rings)
+        let mut keys = vec![];
+        let d = match crate::values::assoc_entries(cx, *d)? {
+            Some(entries) => {
+                let vals: Vec<T<'h>> = entries.iter().map(|e| e.1).collect();
+                keys = entries.into_iter().map(|e| e.0).collect();
+                cx.list(&vals)
             }
-            a0 = a1;
+            None => *d,
+        };
+        let Some(items) = cx.as_list(d).map(|l| l.to_vec()) else { return Ok(bad(h, name, 1)) };
+        let grouped = !items.is_empty() && items.iter().all(|&e| cx.as_list(e).is_some() || crate::values::assoc_entries(cx, e).ok().flatten().is_some());
+        let groups: Vec<T<'h>> = if grouped { items } else { vec![d] };
+        // per ring, per sector: the value, a legend entry, a label
+        let mut rings: Vec<Vec<Sector>> = vec![];
+        for g in groups {
+            let g = match crate::values::assoc_entries(cx, g)? {
+                Some(entries) => {
+                    // rings given as associations: the first ring's keys label the sectors
+                    if look.labels.is_empty() && rings.is_empty() {
+                        look.labels = entries.iter().map(|e| e.0.clone()).collect();
+                    }
+                    let vals: Vec<T<'h>> = entries.iter().map(|e| e.1).collect();
+                    cx.list(&vals)
+                }
+                None => g,
+            };
+            let Some(vs) = cx.as_list(g).map(|l| l.to_vec()) else { return Ok(bad(h, name, 1)) };
+            let mut ring = vec![];
+            for e in vs {
+                let (v, legend, label) = match crate::values::call_of(h, e) {
+                    Some((n, &[v, l, ..])) if n == "legended" => (v, Some(text_of(h, l)), None),
+                    Some((n, &[v, l, ..])) if n == "labeled" || n == "callout" => (v, None, Some(text_of(h, l))),
+                    Some((n, &[v, ..])) if n == "style" => (v, None, None),
+                    _ => (e, None, None),
+                };
+                let r = crate::values::read(cx, v)?;
+                ring.push((r.v.filter(|v| *v >= 0.0).unwrap_or(0.0), legend, label));
+            }
+            rings.push(ring);
+        }
+        if !keys.is_empty() && look.labels.is_empty() && !grouped {
+            look.labels = keys.clone();
+        }
+        // `plot_legends: automatic`: the sectors by their keys
+        if look.legend.first().is_some_and(|l| l == crate::AUTO_LEGEND) {
+            look.legend = look.labels.clone();
+            look.labels.clear();
+        }
+        let totals: Vec<f64> = rings.iter().map(|r| r.iter().map(|e| e.0).sum()).collect();
+        if rings.is_empty() || totals.iter().all(|t| *t <= 0.0) {
+            return Ok(bad(h, name, 1));
+        }
+        let mut content = vec![h.call(h.sym("edge_form"), &[cx.list(&[h.sym_term(h.sym("white")), h.call(h.sym("absolute_thickness"), &[h.real(1.5)])])])];
+        let n = rings.len();
+        // the outermost ring first: inner rings are drawn over it
+        for (g, ring) in rings.iter().enumerate().rev() {
+            if totals[g] <= 0.0 {
+                continue;
+            }
+            let radius = (g + 1) as f64 / n as f64;
+            let mut a0 = 0.0;
+            for (k, (v, _, label)) in ring.iter().enumerate() {
+                let a1 = a0 + 2.0 * std::f64::consts::PI * v / totals[g];
+                if *v > 0.0 {
+                    let (r, gg, b) = look.color(k);
+                    content.push(mc_graphics::rgb_term(h, Rgba::rgb(r as f64 / 255.0, gg as f64 / 255.0, b as f64 / 255.0)));
+                    content.push(h.call(h.sym("disk"), &[h.reals(&[0.0, 0.0]), h.real(radius), h.reals(&[a0, a1])]));
+                    let l = label.clone().or_else(|| if g + 1 == n { look.labels.get(k).cloned() } else { None });
+                    if let Some(l) = l {
+                        let m = (a0 + a1) / 2.0;
+                        content.push(cx.list(&[h.sym_term(h.sym("black")), h.call(h.sym("text"), &[h.string(&l), h.reals(&[1.18 * m.cos(), 1.18 * m.sin()])])]));
+                    }
+                }
+                a0 = a1;
+            }
+        }
+        // legend entries: the option's, else those of legended values
+        if look.legend.is_empty() {
+            let own: Vec<Option<String>> = rings.iter().flat_map(|r| r.iter().enumerate().map(|(k, e)| (k, e.1.clone()))).fold(vec![], |mut acc, (k, l)| {
+                if acc.len() <= k {
+                    acc.resize(k + 1, None);
+                }
+                if acc[k].is_none() {
+                    acc[k] = l;
+                }
+                acc
+            });
+            if own.iter().any(Option::is_some) {
+                look.legend = own.into_iter().map(Option::unwrap_or_default).collect();
+            }
         }
         let rule = |k: &str, v: T<'h>| h.call(h.sym(names::RULE), &[h.sym_term(h.sym(k)), v]);
         let mut opts = vec![rule("image_size", h.real(360.0)), rule("font_size", h.real(13.0))];
@@ -539,6 +646,7 @@ impl Native for PieChart {
                 .legend
                 .iter()
                 .enumerate()
+                .filter(|(_, l)| !l.is_empty())
                 .map(|(k, l)| {
                     let (r, g, b) = look.color(k);
                     cx.list(&[cx.list(&[mc_graphics::rgb_term(h, Rgba::rgb(r as f64 / 255.0, g as f64 / 255.0, b as f64 / 255.0))]), h.string(l), h.sym_term(h.sym("swatch"))])
@@ -551,6 +659,17 @@ impl Native for PieChart {
         }
         let g = h.call(h.sym("graphics"), &[cx.list(&content), h.call(h.sym("options"), &opts)]);
         finish_graphic(cx, g, name, &look.ignored)
+    }
+}
+
+/// A sector of a pie chart: its value, legend entry and label.
+type Sector = (f64, Option<String>, Option<String>);
+
+/// A label as text: a string as it is, anything else printed.
+fn text_of<'h>(h: &'h Heap, t: T<'h>) -> String {
+    match h.view(t) {
+        View::Str(s) => s.to_string(),
+        _ => mc_syntax::Printer::new(h).expr(t),
     }
 }
 

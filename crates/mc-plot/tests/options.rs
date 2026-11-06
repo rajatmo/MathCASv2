@@ -197,7 +197,8 @@ fn more_plots() {
     assert!(eval(&mut e, "color_data(1, 2)").starts_with("rgb_color("));
     assert_eq!(eval(&mut e, "length(color_data(viridis, \"ColorList\"))"), "10");
     assert_eq!(eval(&mut e, "discrete_plot(n, [n, 5, 1])"), "failure(argument, discrete_plot, 2)");
-    assert_eq!(eval(&mut e, "pie_chart([1, -1])"), "failure(argument, pie_chart, 1)");
+    // negative values have no sector; nothing left to draw fails
+    assert_eq!(eval(&mut e, "pie_chart([-1, -2])"), "failure(argument, pie_chart, 1)");
 }
 
 #[test]

@@ -135,5 +135,7 @@ pub fn export<'h>(h: &'h Heap, t: T<'h>, path: &std::path::Path, format: &str, o
         other => return Err(format!("graphics cannot be written as {other}")),
     };
     let bytes = mc_graphics::render(h, t, f).map_err(|e| e.to_string())?;
+    // PNG and SVG files carry the term, so import_data can read them back as graphics
+    let bytes = crate::roundtrip::embed(bytes, format, &mc_syntax::Printer::new(h).expr(t));
     std::fs::write(path, bytes).map_err(|e| e.to_string())
 }

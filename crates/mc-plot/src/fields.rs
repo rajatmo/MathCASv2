@@ -206,7 +206,7 @@ fn shade(g: &Gradient, (lo, hi): (f64, f64), v: f64) -> Rgba {
 }
 
 /// A density plot of the grid: a raster of interpolated colours over the grid's rectangle.
-fn density<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), mut look: Look) -> Res<Reply<'h>> {
+fn density<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), mut look: Look<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let g = gradient(&look);
     let (nx, ny) = (grid.xs.len(), grid.ys.len());
@@ -252,7 +252,7 @@ fn levels(spec: &Option<Contours>, (lo, hi): (f64, f64)) -> Vec<f64> {
 }
 
 /// A contour plot of the grid: bands of colour between the levels, and the level lines.
-fn contours<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), mut look: Look) -> Res<Reply<'h>> {
+fn contours<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), mut look: Look<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let g = gradient(&look);
     let ls = levels(&look.contours, extent);

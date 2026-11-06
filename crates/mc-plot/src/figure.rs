@@ -11,6 +11,16 @@ pub(crate) struct Series {
     pub(crate) points: Vec<(f64, Option<f64>)>,
     /// what the data sidecar calls it when the legend does not: the plotted expression, or `series k`
     pub(crate) name: String,
+    /// error bars: (x, y) with the ends of a horizontal and of a vertical bar, all on the axes
+    pub(crate) bars: Vec<Bar>,
+}
+
+/// An error bar (or interval) at a point, on the axes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Bar {
+    pub(crate) at: (f64, f64),
+    pub(crate) x: Option<(f64, f64)>,
+    pub(crate) y: Option<(f64, f64)>,
 }
 
 /// The page size in points (pixels of the PNG).
@@ -462,8 +472,15 @@ pub(crate) fn ranges(series: &[Series], look: &Look, bounds: Option<[(f64, f64);
         (Some(a), Some(b)) => Some((a.0.min(b.0), a.1.max(b.1))),
         (a, b) => a.or(b),
     };
-    let x = union((!xs.is_empty()).then(|| range(xs.into_iter())), bounds.map(|b| b[0])).unwrap_or((0.0, 1.0));
-    let y = union((!ys.is_empty()).then(|| if look.full { range(ys.into_iter()) } else { robust(ys) }), bounds.map(|b| b[1])).unwrap_or((0.0, 1.0));
+    // error bars widen the ranges to their ends
+    let bar_ends = |k: usize| -> Option<(f64, f64)> {
+        let v: Vec<f64> = series.iter().flat_map(|s| s.bars.iter()).filter_map(|b| if k == 0 { b.x } else { b.y }).flat_map(|(a, c)| [a, c]).filter(|v| v.is_finite()).collect();
+        (!v.is_empty()).then(|| range(v.into_iter()))
+    };
+    let bx = union(bounds.map(|b| b[0]), bar_ends(0));
+    let by = union(bounds.map(|b| b[1]), bar_ends(1));
+    let x = union((!xs.is_empty()).then(|| range(xs.into_iter())), bx).unwrap_or((0.0, 1.0));
+    let y = union((!ys.is_empty()).then(|| if look.full { range(ys.into_iter()) } else { robust(ys) }), by).unwrap_or((0.0, 1.0));
     let (mut x, mut y) = if look.exact && x.1 > x.0 && y.1 > y.0 { (x, y) } else { (padded(x), padded(y)) };
     for (r, given, ax) in [(&mut x, look.range[0], look.scale.x), (&mut y, look.range[1], look.scale.y)] {
         let lo = given[0].and_then(|v| ax.to(v)).unwrap_or(r.0);
@@ -488,7 +505,7 @@ fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look<'h>, [_, (y0, y1)]: [(
                 Filling::Between(..) => fillings(b, series, &one, [(0.0, 1.0), (y0, y1)]),
                 _ => {
                     let only: Vec<Series> =
-                        series.iter().enumerate().map(|(i, s)| Series { points: if i == k { s.points.clone() } else { vec![] }, name: String::new() }).collect();
+                        series.iter().enumerate().map(|(i, s)| Series { points: if i == k { s.points.clone() } else { vec![] }, name: String::new(), bars: vec![] }).collect();
                     fillings(b, &only, &one, [(0.0, 1.0), (y0, y1)])
                 }
             };
@@ -606,6 +623,9 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
             let pts: Vec<(f64, f64)> = s.points.iter().filter_map(|&(x, y)| y.map(|y| (x, y))).collect();
             part.push(b.call("point", &[b.points(&pts)]));
         }
+        if !s.bars.is_empty() {
+            part.push(error_bars(&b, &s.bars, [(x0, x1), (y0, y1)]));
+        }
         content.push(b.list(&part));
     }
     // ticks and grid lines: automatic on linear axes, powers of ten on logarithmic ones, or the plot's own
@@ -673,6 +693,8 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         .iter()
         .take(series.len().max(look.legend_swatches.len()))
         .enumerate()
+        // an empty entry (a curve the legend leaves out) is not drawn
+        .filter(|(k, l)| !l.is_empty() || look.legend_terms.get(*k).is_some())
         .map(|(k, l)| {
             if let Some(&c) = look.legend_swatches.get(k) {
                 return b.list(&[b.list(&[b.color(c)]), h.string(l), b.sym("swatch")]);
@@ -708,6 +730,26 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
         opts.push(b.rule(name, v));
     }
     b.call("graphics", &[b.list(&content), b.call("options", &opts)])
+}
+
+/// Error bars as one `line` of segments, 1 pt wide, each end with a short cross bar (1 % of the other axis).
+fn error_bars<'h>(b: &B<'h>, bars: &[Bar], [(x0, x1), (y0, y1)]: [(f64, f64); 2]) -> T<'h> {
+    let (cx, cy) = (0.008 * (x1 - x0), 0.012 * (y1 - y0));
+    let mut segs = vec![];
+    for bar in bars {
+        let (x, y) = bar.at;
+        if let Some((lo, hi)) = bar.y {
+            segs.push(b.points(&[(x, lo), (x, hi)]));
+            segs.push(b.points(&[(x - cx, lo), (x + cx, lo)]));
+            segs.push(b.points(&[(x - cx, hi), (x + cx, hi)]));
+        }
+        if let Some((lo, hi)) = bar.x {
+            segs.push(b.points(&[(lo, y), (hi, y)]));
+            segs.push(b.points(&[(lo, y - cy), (lo, y + cy)]));
+            segs.push(b.points(&[(hi, y - cy), (hi, y + cy)]));
+        }
+    }
+    b.list(&[b.call("absolute_thickness", &[b.h.real(1.0)]), b.call("absolute_dashing", &[b.list(&[])]), b.call("line", &[b.list(&segs)])])
 }
 
 /// Grid lines `[xs, ys]` given in data values, placed on the axes (logarithms on log axes); each a position or

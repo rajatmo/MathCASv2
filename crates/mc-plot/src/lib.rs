@@ -19,7 +19,11 @@ mod fields;
 mod figure;
 mod more;
 mod plots3d;
+mod roundtrip;
 mod sidecar;
+mod values;
+
+pub use roundtrip::{embedded_text, import_graphics};
 
 use figure::{Axis, Corner, Dash, Extra, Filling, Look, Rgb, Scale, Series};
 use mc_api::names;
@@ -311,6 +315,9 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
 }
 
+/// The longest printed term embedded in a plot's PNG and SVG files, in bytes.
+const EMBED_MAX: usize = 1 << 20;
+
 /// The formats written for every plot, in the order of [`EXTENSIONS`].
 const FORMATS: [Format; 3] = [Format::Png { scale: 1.0 }, Format::Svg, Format::Pdf];
 /// The file extensions of [`FORMATS`].
@@ -318,7 +325,7 @@ const EXTENSIONS: [&str; 3] = ["png", "svg", "pdf"];
 
 /// Build the plot's graphics term, render it to a fresh PNG file with the SVG and the vector PDF next to it (same
 /// name: `export_data("f.pdf", plot)` copies the PDF), and give the PNG's image term (or a failure).
-pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look, extra: Extra<'h>) -> Res<Reply<'h>> {
+pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look<'h>, extra: Extra<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
@@ -337,6 +344,20 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     } else {
         look
     };
+    // closed numeric expressions in epilog and prolog coordinates as numbers (`point([sqrt(2), f(sqrt(2))])`)
+    let numeric;
+    let look = if look.graphics.iter().any(|(k, _)| k == "epilog" || k == "prolog") {
+        let mut l = look.clone();
+        for (k, v) in l.graphics.iter_mut() {
+            if k == "epilog" || k == "prolog" {
+                *v = mc_graphics::numeric_content(cx, *v)?;
+            }
+        }
+        numeric = l;
+        &numeric
+    } else {
+        look
+    };
     let g = figure::figure(h, series, look, &extra);
     let stop = cx.stop_flag().clone();
     let rendered = mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
@@ -351,10 +372,11 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     let mut entries = entries(series, look, &layout);
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
-    Ok(Reply::Done(match write_files(&files, &json) {
+    let text = mc_syntax::Printer::new(h).expr(g);
+    Ok(Reply::Done(match write_files(&files, &json, Some(&text)) {
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
-            mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            mc_graphics::compose::remember(&path, text);
             if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
                 mc_graphics::compose::remember_graphic(&path, model);
             }
@@ -383,9 +405,10 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         }
     };
     let json = sidecar::json(&layout, Scale::default(), &[]);
-    Ok(Reply::Done(match write_files(&files, &json) {
+    let text = mc_syntax::Printer::new(h).expr(g);
+    Ok(Reply::Done(match write_files(&files, &json, Some(&text)) {
         Ok(path) => {
-            mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            mc_graphics::compose::remember(&path, text);
             if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
                 mc_graphics::compose::remember_graphic(&path, model);
             }
@@ -422,9 +445,10 @@ fn entries(series: &[Series], look: &Look, layout: &mc_graphics::Layout) -> Vec<
     out
 }
 
-/// A short name for an expression: its printed form, cut to 40 characters.
+/// A short name for an expression: its printed form, cut to 40 characters; a solution of a differential equation
+/// (`interpolating_function("y", ...)`) by its name, so `y(t) /. sol` is called `y(t)`.
 pub(crate) fn short_name<'h>(h: &'h Heap, t: T<'h>) -> String {
-    let s = mc_syntax::Printer::new(h).expr(t);
+    let s = mc_syntax::Printer::new(h).expr(named_solutions(h, t, 0));
     if s.chars().count() <= 40 {
         s
     } else {
@@ -432,10 +456,35 @@ pub(crate) fn short_name<'h>(h: &'h Heap, t: T<'h>) -> String {
     }
 }
 
+/// `t` with every `interpolating_function("name", ...)` replaced by the symbol `name`, and `interpolated(...)` by
+/// `interpolation` (nesting at most 32 levels).
+fn named_solutions<'h>(h: &'h Heap, t: T<'h>, depth: usize) -> T<'h> {
+    let View::App { head, args } = h.view(t) else { return t };
+    if depth > 32 || h.packed(t).is_some() {
+        return t;
+    }
+    if let View::Sym(s) = h.view(head) {
+        match (h.sym_name(s).as_str(), args.first().map(|&a| h.view(a))) {
+            ("interpolating_function", Some(View::Str(name))) => return h.sym_term(h.sym(name)),
+            ("interpolated", _) => return h.sym_term(h.sym("interpolation")),
+            _ => {}
+        }
+    }
+    let new_head = named_solutions(h, head, depth + 1);
+    let new: Vec<T<'h>> = args.iter().map(|&a| named_solutions(h, a, depth + 1)).collect();
+    if new_head == head && new.as_slice() == args {
+        t
+    } else {
+        h.app(new_head, &new)
+    }
+}
+
 /// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
 /// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.pdf`, `.json`) in the temporary folder; gives the PNG's path
 /// with forward slashes (it prints without escapes on every system).
-fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
+/// `term`, the printed graphics term, is embedded in the PNG and the SVG (when at most [`EMBED_MAX`] bytes long), so
+/// copies of the files read back as graphics.
+fn write_files(files: &[Vec<u8>], json: &str, term: Option<&str>) -> Result<String, String> {
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join("mathcas-plots");
     let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
@@ -443,7 +492,11 @@ fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
     // the siblings first: once the PNG exists, so do they
     std::fs::write(path.with_extension("json"), json).map_err(|e| e.to_string())?;
     for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
-        std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
+        match term {
+            Some(t) if t.len() <= EMBED_MAX && ext != "pdf" => std::fs::write(path.with_extension(ext), roundtrip::embed(bytes.clone(), ext, t)),
+            _ => std::fs::write(path.with_extension(ext), bytes),
+        }
+        .map_err(|e| e.to_string())?;
     }
     Ok(path.to_string_lossy().replace('\\', "/"))
 }
@@ -456,7 +509,8 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
         return None;
     }
     let (files, layout) = mc_graphics::render_with_layout(h, t, &FORMATS, stop).ok()?;
-    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[])).ok()?;
+    let text = mc_syntax::Printer::new(h).expr(t);
+    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[]), Some(&text)).ok()?;
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
 }
@@ -491,9 +545,14 @@ impl Native for Plot {
         let View::Sym(x) = h.view(xv) else {
             return Ok(bad(h, name, 2));
         };
-        let (Some(a), Some(b)) = (real(cx, a)?, real(cx, b)?) else {
+        // the ends may be quantities: their unit labels the x axis
+        let ra = values::read(cx, a)?;
+        let rb = values::read_in(cx, b, ra.unit_term)?;
+        let (Some(a), Some(b)) = (ra.v, rb.v) else {
             return Ok(bad(h, name, 2));
         };
+        let mut look = look;
+        unit_labels(&mut look, [ra.unit, None]);
         // the sampled interval, on the x axis (logarithms on a log axis)
         let (Some(ua), Some(ub)) = (scale.x.to(a), scale.x.to(b)) else {
             return Ok(bad(h, name, 2));
@@ -506,25 +565,21 @@ impl Native for Plot {
             Some(_) => return Ok(bad(h, name, 1)),
             None => vec![*f],
         };
-        // callout(f, label): the curve f with the label at its end
-        let mut look = look;
-        let mut labels = vec![];
-        let fs: Vec<T<'h>> = fs
-            .into_iter()
-            .map(|f| match callout(h, f) {
-                Some((g, l)) => {
-                    labels.push(l);
-                    g
+        // legended(f, l), labeled(f, l), callout(f, l), style(f, ...): legend entries, labels and styles
+        let (fs, wraps) = unwrap_all(h, &fs);
+        wraps.apply(cx, &mut look);
+        // quantities: their magnitudes, the unit (of the first) on the y axis
+        let mut unit = None;
+        let mut fs = fs;
+        for f in fs.iter_mut() {
+            if let Some((n, &[m, u])) = values::call_of(h, *f) {
+                if n == "quantity" {
+                    *f = m;
+                    unit.get_or_insert_with(|| values::unit_text(cx, u));
                 }
-                None => {
-                    labels.push(h.sym_term(h.sym("none")));
-                    f
-                }
-            })
-            .collect();
-        if labels.iter().any(|&l| !matches!(h.view(l), View::Sym(_))) && look.curve_labels.is_empty() {
-            look.curve_labels = labels;
+            }
         }
+        unit_labels(&mut look, [None, unit]);
         let look = look;
         let mut series = Vec::with_capacity(fs.len());
         for f in fs {
@@ -578,7 +633,7 @@ fn sample<'h>(
     for w in grid.windows(2) {
         s.refine(cx, w[0], w[1], span, DEPTH, &mut pts)?;
     }
-    Ok(Series { points: pts, name: String::new() })
+    Ok(Series { points: pts, name: String::new(), bars: vec![] })
 }
 
 /// Even points before refinement.
@@ -760,30 +815,65 @@ pub(crate) fn unlabelled<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>) -> Res<
 /// Points on the axes; `None` where there is no value.
 type Points = Vec<(f64, Option<f64>)>;
 
-/// The points of one data set: `[y1, y2, ...]` (at x = 1, 2, ...) or `[[x1, y1], ...]`, on the axes of `sc`
-/// (a point whose x has no place on a log axis is left out). `None` for data of another shape.
-pub(crate) fn data_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>, sc: Scale) -> Res<Option<Points>> {
+/// One data set read: its points, error bars (from `around` values and intervals) and the units of its
+/// quantities.
+pub(crate) struct DataSet {
+    pub(crate) points: Points,
+    pub(crate) bars: Vec<figure::Bar>,
+    /// the unit of the x and of the y values, when they are quantities
+    pub(crate) units: [Option<String>; 2],
+}
+
+/// The points of one data set: `[y1, y2, ...]` (at x = 1, 2, ...) or `[[x1, y1], ...]`, on the axes of `sc` (a point
+/// whose x has no place on a log axis is left out; `None` for data of another shape). Values may also be quantities (their magnitudes),
+/// `around(v, e)` (v, with an error bar) or `interval([a, b])` (the middle, with a bar over the interval).
+pub(crate) fn data_set<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>, sc: Scale) -> Res<Option<DataSet>> {
+    let h = cx.heap();
+    let mut units: [Option<String>; 2] = [None, None];
+    let mut unit_terms: [Option<T<'h>>; 2] = [None, None];
     let Some(items) = cx.as_list(data) else { return Ok(None) };
     let mut pts = Vec::with_capacity(items.len());
+    let mut bars = vec![];
+    let to_axis = |ax: Axis, b: Option<(f64, f64)>| b.and_then(|(lo, hi)| Some((ax.to(lo)?, ax.to(hi)?)));
     for (i, &it) in items.iter().enumerate() {
         if i % 4096 == 0 {
             cx.tick(1)?;
         }
-        let p = match cx.as_list(it) {
-            Some(&[px, py]) => (real(cx, px)?, real(cx, py)?),
-            Some(_) => return Ok(None),
-            None => (Some(i as f64 + 1.0), real(cx, it)?),
-        };
-        match p {
-            (Some(px), y) => {
-                if let Some(u) = sc.x.to(px) {
-                    pts.push((u, y.and_then(|y| sc.y.to(y))));
+        let (px, py) = match cx.as_list(it) {
+            Some(&[px, py]) => {
+                if mc_graphics::num::number(h, px).is_some() && mc_graphics::num::number(h, py).is_some() {
+                    (values::Reading { v: real(cx, px)?, ..Default::default() }, values::Reading { v: real(cx, py)?, ..Default::default() })
+                } else {
+                    (values::read_in(cx, px, unit_terms[0])?, values::read_in(cx, py, unit_terms[1])?)
                 }
             }
-            (None, _) => return Ok(None),
+            Some(_) => return Ok(None),
+            None => (values::Reading { v: Some(i as f64 + 1.0), ..Default::default() }, values::read_in(cx, it, unit_terms[1])?),
+        };
+        // the first quantity's unit is the axis's: later ones are converted to it
+        for (k, r) in [&px, &py].into_iter().enumerate() {
+            if units[k].is_none() {
+                units[k].clone_from(&r.unit);
+                unit_terms[k] = r.unit_term;
+            }
+        }
+        match px.v {
+            Some(x) => {
+                if let Some(u) = sc.x.to(x) {
+                    let y = py.v.and_then(|y| sc.y.to(y));
+                    if let Some(yu) = y {
+                        let (bx, by) = (to_axis(sc.x, px.bar), to_axis(sc.y, py.bar));
+                        if bx.is_some() || by.is_some() {
+                            bars.push(figure::Bar { at: (u, yu), x: bx, y: by });
+                        }
+                    }
+                    pts.push((u, y));
+                }
+            }
+            None => return Ok(None),
         }
     }
-    Ok(Some(pts))
+    Ok(Some(DataSet { points: pts, bars, units }))
 }
 
 impl Native for ListPlot {
@@ -805,6 +895,23 @@ impl Native for ListPlot {
             },
             _ => return Ok(Reply::Decline),
         };
+        // legended(set, l), labeled(set, l), callout(set, l), style(set, ...) around whole data sets
+        let mut look = look;
+        let set_wrapper = |e: T<'h>| matches!(values::call_of(h, e), Some((n, a)) if matches!(n.as_str(), "legended" | "labeled" | "callout" | "style") && a.first().is_some_and(|&d| cx.as_list(d).is_some() || values::call_of(h, d).is_some_and(|(n, _)| n == "assoc" || n == "dataset")));
+        let data = if set_wrapper(data) {
+            let (v, w) = unwrap_all(h, &[data]);
+            w.apply(cx, &mut look);
+            v[0]
+        } else {
+            match cx.as_list(data) {
+                Some(items) if items.iter().any(|&e| set_wrapper(e)) => {
+                    let (v, w) = unwrap_all(h, items);
+                    w.apply(cx, &mut look);
+                    cx.list(&v)
+                }
+                _ => data,
+            }
+        };
         // callout(v, label) in one data set: the point with its label beside it
         let mut point_labels: Vec<(usize, T<'h>)> = vec![];
         let data = match cx.as_list(data) {
@@ -824,18 +931,33 @@ impl Native for ListPlot {
             }
             _ => data,
         };
+        // a dataset's columns, an association's values (their keys name the data sets)
+        let data = match values::tabular(cx, data)? {
+            Some(tb) => {
+                tabular_labels(&mut look, &tb);
+                tb.data
+            }
+            None => data,
+        };
         let data = unlabelled(cx, data)?;
+        let data = values::spread_quantities(cx, data, 0);
         let Some(sets) = data_sets(cx, data) else {
             return Ok(bad(h, name, 1));
         };
         let many = sets.len() > 1;
+        let mut units: [Option<String>; 2] = [None, None];
         let mut series = Vec::with_capacity(sets.len());
         for (k, set) in sets.into_iter().enumerate() {
-            let Some(points) = data_points(cx, set, look.scale)? else {
+            let Some(ds) = data_set(cx, set, look.scale)? else {
                 return Ok(bad(h, name, 1));
             };
+            for (slot, u) in units.iter_mut().zip(ds.units) {
+                if slot.is_none() {
+                    *slot = u;
+                }
+            }
             let name = if many { format!("data {}", k + 1) } else { "data".into() };
-            series.push(Series { points, name });
+            series.push(Series { points: ds.points, name, bars: ds.bars });
         }
         if series.iter().all(|s| s.points.iter().all(|p| p.1.is_none())) {
             return Ok(bad(h, name, 1));
@@ -845,6 +967,7 @@ impl Native for ListPlot {
                 return Ok(bad(h, name, 2));
             }
         }
+        unit_labels(&mut look, units);
         let mut extra = Extra::default();
         if let (Some(s), false) = (series.first(), point_labels.is_empty()) {
             for (i, l) in point_labels {
@@ -859,10 +982,114 @@ impl Native for ListPlot {
     }
 }
 
+/// The names a dataset or an association gives: legend entries for its data sets and axis labels from its columns
+/// (unless the plot's options give them).
+pub(crate) fn tabular_labels(look: &mut Look<'_>, tb: &values::Tabular<'_>) {
+    if look.legend.is_empty() && tb.names.len() > 1 {
+        look.legend = tb.names.clone();
+    }
+    if look.x_label.is_none() {
+        look.x_label.clone_from(&tb.x_name);
+    }
+    if look.y_label.is_none() {
+        look.y_label.clone_from(&tb.y_name);
+    }
+}
+
+/// The units of quantities as axis labels, where the options give none.
+pub(crate) fn unit_labels(look: &mut Look<'_>, [ux, uy]: [Option<String>; 2]) {
+    if look.x_label.is_none() {
+        look.x_label = ux;
+    }
+    if look.y_label.is_none() {
+        look.y_label = uy;
+    }
+}
+
+/// What wrappers around the curves or data sets of a plot give, one entry per curve: a legend entry
+/// (`legended(f, l)`), a label at its end (`labeled(f, l)`, `callout(f, l)`, `callout(f)`: the expression itself) and
+/// styles (`style(f, s1, ...)`).
+#[derive(Default)]
+pub(crate) struct Wraps<'h> {
+    legends: Vec<Option<T<'h>>>,
+    labels: Vec<Option<T<'h>>>,
+    styles: Vec<Option<T<'h>>>,
+}
+
+/// The curves without their wrappers, and what the wrappers give.
+pub(crate) fn unwrap_all<'h>(h: &'h Heap, items: &[T<'h>]) -> (Vec<T<'h>>, Wraps<'h>) {
+    let mut w = Wraps::default();
+    let mut out = Vec::with_capacity(items.len());
+    for &t in items {
+        let (mut t, mut legend, mut label, mut styles) = (t, None, None, vec![]);
+        // nested wrappers, outermost first (a few levels)
+        for _ in 0..8 {
+            let Some((n, args)) = values::call_of(h, t) else { break };
+            match (n.as_str(), args) {
+                ("legended", &[f, l, ..]) => {
+                    legend.get_or_insert(l);
+                    t = f;
+                }
+                ("labeled" | "callout", &[f, l, ..]) => {
+                    label.get_or_insert(l);
+                    t = f;
+                }
+                ("callout", &[f]) => {
+                    label.get_or_insert(f);
+                    t = f;
+                }
+                ("style", &[f, ref s @ ..]) if !s.is_empty() => {
+                    styles.extend_from_slice(s);
+                    t = f;
+                }
+                _ => break,
+            }
+        }
+        out.push(t);
+        w.legends.push(legend);
+        w.labels.push(label);
+        w.styles.push((!styles.is_empty()).then(|| h.call(h.sym(names::LIST), &styles)));
+    }
+    (out, w)
+}
+
+impl<'h> Wraps<'h> {
+    /// The wrappers' legend entries, labels and styles in `look`, where its options give none.
+    pub(crate) fn apply(&self, cx: &NativeCx<'_, '_, 'h>, look: &mut Look<'h>) {
+        let h = cx.heap();
+        let none = h.sym_term(h.sym("none"));
+        if self.legends.iter().any(Option::is_some) && look.legend.is_empty() {
+            let entries: Vec<T<'h>> = self.legends.iter().map(|l| l.unwrap_or_else(|| h.string(""))).collect();
+            one_option(cx, "plot_legends", cx.list(&entries), look, &[]);
+        }
+        if self.labels.iter().any(Option::is_some) && look.curve_labels.is_empty() {
+            look.curve_labels = self.labels.iter().map(|l| l.unwrap_or(none)).collect();
+        }
+        if self.styles.iter().any(Option::is_some) && look.styles.is_empty() {
+            let auto = h.sym_term(h.sym("automatic"));
+            let entries: Vec<T<'h>> = self.styles.iter().map(|s| s.unwrap_or(auto)).collect();
+            let joined = look.joined;
+            one_option(cx, "plot_style", cx.list(&entries), look, &[]);
+            look.joined = joined;
+        }
+    }
+}
+
+/// `t` without the wrappers [`unwrap_all`] reads (around it, or around each item of a list).
+pub(crate) fn strip_wrappers<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> T<'h> {
+    let h = cx.heap();
+    let wrapped = |t: T<'h>| matches!(values::call_of(h, t), Some((n, _)) if matches!(n.as_str(), "legended" | "labeled" | "callout" | "style"));
+    let t = if wrapped(t) { unwrap_all(h, &[t]).0[0] } else { t };
+    match cx.as_list(t) {
+        Some(items) if items.iter().any(|&e| wrapped(e)) => cx.list(&unwrap_all(h, items).0),
+        _ => t,
+    }
+}
+
 /// `callout(x, label)` as its parts.
 pub(crate) fn callout<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
     match h.view(t) {
-        View::App { head, args } if args.len() >= 2 && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "callout") => Some((args[0], args[1])),
+        View::App { head, args } if args.len() >= 2 && matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "callout" | "labeled")) => Some((args[0], args[1])),
         _ => None,
     }
 }
@@ -1036,6 +1263,8 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 Some(_) => return Some(true),
                 None => vec![v],
             };
+            // `automatic` (or `none`) in the list: that series keeps its own style
+            let entries: Vec<T<'h>> = entries.into_iter().map(|e| if is(e, "automatic") || is(e, "none") { cx.list(&[]) } else { e }).collect();
             let mut colors = Vec::with_capacity(entries.len());
             for (k, &e) in entries.iter().enumerate() {
                 let mut st = mc_graphics::model::Style::default();
@@ -1273,7 +1502,7 @@ fn range_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<[[Option<f64>
 }
 
 /// `bins:` `automatic`, `n` (a count), `[w]` (a width) or `[lo, hi, w]`.
-fn bins_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<figure::Bins> {
+pub(crate) fn bins_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<figure::Bins> {
     let h = cx.heap();
     let num = |t: T<'h>| mc_graphics::num::number(h, t);
     if matches!(h.view(v), View::Sym(s) if h.sym_name(s) == "automatic") {

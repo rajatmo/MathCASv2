@@ -234,7 +234,22 @@ fn n_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
         }
     }
     let v = cx.eval(h.call(h.sym("n"), &[t]))?;
-    Ok(if matches!(h.view(v), View::Real(x) if x.is_finite()) { v } else { t })
+    Ok(match h.view(v) {
+        View::Real(x) if x.is_finite() => v,
+        // a real number computed through complex arithmetic: a rounding-error imaginary part is dropped
+        View::App { head, args: &[re, im] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "complex") => match (h.view(re), h.view(im)) {
+            (View::Real(a), View::Real(b)) if a.is_finite() && b.abs() <= 1e-10 * a.abs().max(1.0) => h.real(a),
+            _ => t,
+        },
+        _ => t,
+    })
+}
+
+/// The content or options of a graphic with closed numeric expressions in coordinates made machine reals, as
+/// `graphics` does: plots apply it to their `epilog` and `prolog`.
+pub fn numeric_content<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<T<'h>> {
+    let mut seen = 0u64;
+    numeric(cx, t, 0, &mut seen)
 }
 
 /// `show(g1, g2, ..., options)`: one graphic of the content of all, with the options given to `show` first, then
@@ -282,6 +297,7 @@ impl Native for Show {
         let own_range = rules.iter().any(|(k, _)| k == "plot_range");
         let mut graphic_opts = vec![];
         let mut legends: Vec<T<'h>> = vec![];
+        let mut kind: Option<T<'h>> = None;
         for (i, g) in flat {
             cx.tick(1)?;
             if let View::App { args: ga, .. } = h.view(g) {
@@ -291,7 +307,9 @@ impl Native for Show {
                 }
             }
             let View::App { head, args: ga } = h.view(g) else { return Ok(bad(h, "show", i + 1)) };
-            if head != h.sym_term(h.sym("graphics")) || ga.is_empty() || ga.len() > 2 {
+            // all two-dimensional, or all three-dimensional
+            let kind = *kind.get_or_insert(head);
+            if (head != h.sym_term(h.sym("graphics")) && head != h.sym_term(h.sym("graphics3d"))) || head != kind || ga.is_empty() || ga.len() > 2 {
                 return Ok(bad(h, "show", i + 1));
             }
             contents.push(ga[0]);
@@ -301,8 +319,13 @@ impl Native for Show {
                 }
             }
         }
+        let three = kind == Some(h.sym_term(h.sym("graphics3d")));
+        // three-dimensional: the box around all the content, unless show gives a range
+        if three && !own_range {
+            rules.retain(|(k, _)| k != "plot_range");
+        }
         // combined plots: the union of their ranges, all their legends
-        if !own_range && graphic_opts.len() > 1 {
+        if !three && !own_range && graphic_opts.len() > 1 {
             if let Some([x0, x1, y0, y1]) = crate::compose::union_range(h, &graphic_opts) {
                 let range = cx.list(&[h.reals(&[x0, x1]), h.reals(&[y0, y1])]);
                 rules.retain(|(k, _)| k != "plot_range");
@@ -374,7 +397,7 @@ impl Native for Show {
         if !rs.is_empty() {
             a.push(h.call(options, &rs));
         }
-        Ok(Reply::Again(h.call(h.sym("graphics"), &a)))
+        Ok(Reply::Again(h.call(h.sym(if three { "graphics3d" } else { "graphics" }), &a)))
     }
 }
 

@@ -368,6 +368,13 @@ impl Native for Plot3 {
         };
         let o = o.unwrap_or(Opts { pass: vec![], range: [[None; 2]; 3], plot_points: None, mesh: None, gradient: None, styles: vec![], ignored: vec![] });
         let b = B { h };
+        // legended, labeled, callout and style around the functions or data (and around each of a list) are taken
+        // off: a 3D plot draws neither legends nor labels
+        let mut args = args.to_vec();
+        if let Some(first) = args.first_mut() {
+            *first = crate::strip_wrappers(cx, *first);
+        }
+        let args = args.as_slice();
         match self.kind {
             Kind::Plot => {
                 let [f, sx, sy] = args else { return Ok(Reply::Decline) };
@@ -532,6 +539,20 @@ impl Native for Plot3 {
             }
             Kind::List | Kind::Points | Kind::Lines => {
                 let [data] = args else { return Ok(Reply::Decline) };
+                // several data sets of points (lists of triples, or matrices of heights): each in its colour
+                if self.kind != Kind::List {
+                    if let Some(sets) = cx.as_list(*data).filter(|items| items.len() > 1 && items.iter().all(|&e| depth3(cx, e))) {
+                        let sets = sets.to_vec();
+                        let mut content = vec![];
+                        for (k, set) in sets.into_iter().enumerate() {
+                            let Some(pts) = points3(cx, set)? else { return Ok(bad(h, name, 1)) };
+                            let arr = h.real_array(&[pts.len() / 3, 3], &pts);
+                            let prim = if self.kind == Kind::Points { b.call("point", &[arr]) } else { b.call("line", &[arr]) };
+                            content.push(b.list(&[b.rgb(CURVES[k % CURVES.len()]), b.call("absolute_point_size", &[h.real(4.0)]), b.call("absolute_thickness", &[h.real(1.5)]), prim]));
+                        }
+                        return finish_graphic(cx, graphic(&b, content, &o, None, None), name, &o.ignored);
+                    }
+                }
                 let Some(rows) = cx.as_list(*data) else { return Ok(bad(h, name, 1)) };
                 // [[x, y, z], ...] points, or a matrix of heights (rows along y)
                 let mut table: Vec<Vec<f64>> = Vec::with_capacity(rows.len());
@@ -595,6 +616,36 @@ impl Native for Plot3 {
             }
         }
     }
+}
+
+/// Whether `t` is a list of lists of lists or of numbers in rows (a list of triples, or a matrix): one data set of a
+/// 3D point or line plot.
+fn depth3<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
+    cx.as_list(t).is_some_and(|rows| !rows.is_empty() && rows.iter().all(|&r| cx.as_list(r).is_some_and(|items| items.iter().all(|&e| cx.as_list(e).is_none()))))
+}
+
+/// The points of one 3D data set as flat x, y, z reals: `[[x, y, z], ...]`, or a matrix of heights (z at x = column,
+/// y = row); points without three finite coordinates left out. `None` when nothing is left.
+fn points3<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
+    let Some(rows) = cx.as_list(t).map(|r| r.to_vec()) else { return Ok(None) };
+    let mut table: Vec<Vec<f64>> = Vec::with_capacity(rows.len());
+    for (i, r) in rows.into_iter().enumerate() {
+        if i % 4096 == 0 {
+            cx.tick(1)?;
+        }
+        let Some(items) = cx.as_list(r).map(|l| l.to_vec()) else { return Ok(None) };
+        let mut vals = Vec::with_capacity(items.len());
+        for e in items {
+            vals.push(real(cx, e)?.unwrap_or(f64::NAN));
+        }
+        table.push(vals);
+    }
+    let pts: Vec<f64> = if table.iter().all(|r| r.len() == 3) {
+        table.iter().filter(|p| p.iter().all(|v| v.is_finite())).flatten().copied().collect()
+    } else {
+        table.iter().enumerate().flat_map(|(j, r)| r.iter().enumerate().map(move |(i, &z)| [i as f64 + 1.0, j as f64 + 1.0, z])).filter(|p| p[2].is_finite()).flatten().collect()
+    };
+    Ok((!pts.is_empty()).then_some(pts))
 }
 
 impl Plot3 {
