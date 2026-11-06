@@ -465,3 +465,13 @@ Self-test step `export <file>`.
 - Tests: `manip` unit tests (parsing, snapping, sources, constants), `tests/manipulate.rs` (stale positions dropped,
   letting go interrupts), `tests/keys/manipulate.keys` (3 scripts), the self-test `tests/manipulate_selftest.rs`
   (ignored: a window and a kernel).
+
+## Round 13 (nb-mat): checks
+
+- `tools/nb-storm.ps1` on a notebook with two `manipulate` outputs and three 3D pictures, 60 s per mix: type, mouse,
+  window, eval ok; all (seed 15) found a panic: a magnification step in the frame a notebook was replaced, before the
+  canvas had laid it out, indexed the cell positions (`View::cell_rect`); fixed (an unknown cell has an empty
+  rectangle), all (seeds 15, 16) ok since. The storm now writes the window's stderr (with a backtrace) to
+  `stderr.txt` in its output folder. Memory: the mouse, window and eval mixes grew the window's private memory by
+  400-460 MB in 60 s (picture textures of new plot results and 3D renders, within the 256 MB picture cache plus
+  egui's atlas); peaks 0.5-1.2 GB with the kernel.

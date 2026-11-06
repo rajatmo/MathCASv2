@@ -1086,14 +1086,19 @@ impl View {
 
     /// The rectangle (canvas coordinates) of cell `i`.
     pub fn cell_rect(&self, i: usize) -> Rect {
-        Rect::from_min_size(pos2(0.0, self.tops[i]), vec2(self.width, self.heights[i]))
+        // a cell the positions do not know yet (a notebook replaced before the canvas showed it, found by the storm:
+        // a magnification step in that frame) has an empty rectangle
+        match (self.tops.get(i), self.heights.get(i)) {
+            (Some(&t), Some(&h)) => Rect::from_min_size(pos2(0.0, t), vec2(self.width, h)),
+            _ => Rect::from_min_size(pos2(0.0, 0.0), vec2(self.width, 0.0)),
+        }
     }
 
     /// The top-left of cell `i`'s content (canvas coordinates).
     pub fn content_origin(&self, nb: &Notebook, i: usize) -> Pos2 {
         let c = &nb.cells()[i];
         let (l, _) = self.content_x(c.style);
-        pos2(l, self.tops[i] + c.style.info().margins[2] * self.zoom)
+        pos2(l, self.tops.get(i).copied().unwrap_or(0.0) + c.style.info().margins[2] * self.zoom)
     }
 
     /// The rectangle (canvas coordinates) of the caret or of a position in a cell.

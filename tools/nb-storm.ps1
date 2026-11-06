@@ -248,7 +248,10 @@ $env:MCNB_CONFIG_DIR = $cfg
 $env:MATHCAS_DOCS = '-'
 Remove-Item Env:MCNB_SELFTEST -ErrorAction SilentlyContinue
 $job = [Storm]::Job([uint64]$MemMB * 1MB)
-$p = if ($argList) { Start-Process -FilePath $Exe -ArgumentList $argList -PassThru -WorkingDirectory $Out } else { Start-Process -FilePath $Exe -PassThru -WorkingDirectory $Out }
+# the window's stderr (a panic's message and backtrace) goes to stderr.txt in the output folder
+$env:RUST_BACKTRACE = "1"
+$errFile = Join-Path $Out "stderr.txt"
+$p = if ($argList) { Start-Process -FilePath $Exe -ArgumentList $argList -PassThru -WorkingDirectory $Out -RedirectStandardError $errFile } else { Start-Process -FilePath $Exe -PassThru -WorkingDirectory $Out -RedirectStandardError $errFile }
 [void][Storm]::Assign($job, $p.Handle)
 $t0 = Get-Date
 $hwnd = [IntPtr]::Zero
