@@ -22,7 +22,10 @@
 # Like `graphics`, a value is shown as its picture: a PNG with SVG and PDF copies; `export_data` writes it.
 
 #% item
-# `view_point: [x, y, z]` is the eye in units of the box (default `[1.3, -2.4, 2]`); `front`, `back`, `left`, `right`, `above`, `below` name views along the axes.
+# `view_point: [x, y, z]` is the eye in units of the box (default `[1.3, -2.4, 2]`); `front`, `back`, `left`, `right`, `above`, `below` name views along the axes. `view_vertical: [x, y, z]` is the direction drawn upwards (default `[0, 0, 1]`).
+
+#% item
+# In the notebook a 3D picture turns when dragged and zooms with the wheel, without evaluating again; a double click brings back the view the options give.
 
 #% item
 # Options nothing reads are left out.

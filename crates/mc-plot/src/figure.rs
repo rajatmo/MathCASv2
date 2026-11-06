@@ -397,7 +397,7 @@ fn curve_range(series: &[Series]) -> Option<(f64, f64)> {
         }
     }
     let total: f64 = v.iter().map(|e| e.1).sum();
-    if v.len() < 10 || !(total > 0.0) {
+    if v.len() < 10 || total.is_nan() || total <= 0.0 {
         return None;
     }
     v.sort_by(|a, b| a.0.total_cmp(&b.0));

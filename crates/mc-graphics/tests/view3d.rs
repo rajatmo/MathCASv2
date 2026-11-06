@@ -203,3 +203,67 @@ fn turning_a_typical_plot_is_fast() {
         assert!(per.as_millis() < 150, "{per:?} a frame");
     }
 }
+
+/// Where the time of showing a 3D plot goes (run with `--ignored --nocapture`; for the round's report).
+#[test]
+#[ignore]
+fn three_d_stage_timings() {
+    use mc_graphics::Format;
+    let mut e = CoreEngine::new();
+    let p = picture(&mut e, "plot3d(sin(x*y), [x, -2, 2], [y, -2, 2])");
+    let text = std::fs::read_to_string(Scene3d::sidecar_of(&p)).expect("sidecar");
+    let text = text.split_once('\n').map_or(text.as_str(), |(_, r)| r).to_string();
+    let h = Heap::new(Config::default());
+    let t0 = std::time::Instant::now();
+    let t = mc_syntax::read(&h, &text).expect("reads")[0];
+    let parse = t0.elapsed();
+    let time = |f: &dyn Fn()| {
+        let t = std::time::Instant::now();
+        for _ in 0..5 {
+            f();
+        }
+        t.elapsed() / 5
+    };
+    let read = time(&|| {
+        mc_graphics::model::read(&h, t, &|| false).expect("reads");
+    });
+    let png = time(&|| {
+        mc_graphics::render(&h, t, Format::Png { scale: 1.0 }).expect("png");
+    });
+    let svg = time(&|| {
+        mc_graphics::render(&h, t, Format::Svg).expect("svg");
+    });
+    let pdf = time(&|| {
+        mc_graphics::render(&h, t, Format::Pdf).expect("pdf");
+    });
+    let all = time(&|| {
+        mc_graphics::render_read(&h, t, &[Format::Png { scale: 1.0 }, Format::Svg, Format::Pdf], &|| false).expect("all");
+    });
+    let print = time(&|| {
+        mc_syntax::Printer::new(&h).expr(t);
+    });
+    eprintln!("term {} bytes: parse {parse:?}; read (prepare + draw) {read:?}; png {png:?}, svg {svg:?}, pdf {pdf:?} (each with a read); all three {all:?}; print {print:?}", text.len());
+    let total = std::time::Instant::now();
+    for a in 1..=5 {
+        picture(&mut e, &format!("plot3d(sin({a}*x*y), [x, -2, 2], [y, -2, 2])"));
+    }
+    eprintln!("plot3d end to end {:?}", total.elapsed() / 5);
+    // the notebook's case: a 640-point page drawn at 1.5 pixels a point while turning
+    for (src, label) in [
+        ("plot3d(sin(x*y), [x, -2, 2], [y, -2, 2], image_size: 640)", "plot3d 61 x 61"),
+        ("plot3d(sin(x*y), [x, -2, 2], [y, -2, 2], image_size: 640, plot_points: 100)", "plot3d 100 x 100"),
+        ("graphics3d(table(sphere([i, j, 0], 0.4), i, 1, 4, j, 1, 4), image_size: 640)", "16 spheres"),
+    ] {
+        let p = picture(&mut e, src);
+        let t = std::time::Instant::now();
+        let scene = Scene3d::load(&Scene3d::sidecar_of(&p)).expect("loads");
+        let load = t.elapsed();
+        let mut view = scene.view();
+        let t = std::time::Instant::now();
+        for _ in 0..10 {
+            view = orbit_drag(&view, 15.0, 4.0, 640.0, 400.0);
+            scene.try_render(&view, 1.5, &|| false).expect("renders");
+        }
+        eprintln!("{label}: {} primitives, load {load:?}, {:?} a frame at 1.5", scene.len(), t.elapsed() / 10);
+    }
+}

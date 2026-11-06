@@ -357,8 +357,8 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     };
     let g = figure::figure(h, series, look, &extra);
     let stop = cx.stop_flag().clone();
-    let rendered = mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
-    let (files, layout) = match rendered {
+    let rendered = mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
+    let (files, layout, model) = match rendered {
         Ok(r) => r,
         Err(f) => {
             // an interrupt ends the evaluation as interrupts do; other failures are the value
@@ -374,9 +374,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
             mc_graphics::compose::remember(&path, text);
-            if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
-                mc_graphics::compose::remember_graphic(&path, model);
-            }
+            mc_graphics::compose::remember_graphic(&path, model);
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
@@ -394,7 +392,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
     }
     let stop = cx.stop_flag().clone();
-    let (files, layout) = match mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
+    let (files, layout, model) = match mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
         Ok(r) => r,
         Err(f) => {
             cx.tick(1)?;
@@ -408,9 +406,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     Ok(Reply::Done(match write_files(&files, &json, scene) {
         Ok(path) => {
             mc_graphics::compose::remember(&path, text);
-            if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
-                mc_graphics::compose::remember_graphic(&path, model);
-            }
+            mc_graphics::compose::remember_graphic(&path, model);
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),

@@ -111,3 +111,22 @@ fn log_plots_refine_ends_and_cut_spikes() {
     let lo = j["y"]["min"].as_f64().unwrap();
     assert!(lo <= (-25f64).exp() && lo > 1e-12, "y from {lo}");
 }
+
+/// G64: discrete_plot of functions of exact integers (gcd, mod, binomial) and of exact or symbolic values.
+#[test]
+fn discrete_plots_of_exact_values() {
+    let mut e = CoreEngine::new();
+    let j = sidecar(&eval(&mut e, "discrete_plot(gcd(12, n), [n, 100])"));
+    let pts = j["series"][0]["points"].as_array().unwrap().clone();
+    assert_eq!(pts.len(), 100);
+    for q in &pts {
+        let (n, y) = (q[0].as_f64().unwrap() as u64, q[1].as_f64().unwrap());
+        let g = (1..=12u64).filter(|d| 12 % d == 0 && n % d == 0).max().unwrap();
+        assert_eq!(y, g as f64, "gcd(12, {n})");
+    }
+    // exact rationals and roots
+    let j = sidecar(&eval(&mut e, "discrete_plot([binomial(10, k)/2^10, sqrt(k)], [k, 0, 10])"));
+    let s = j["series"].as_array().unwrap();
+    assert!((s[0]["points"][5][1].as_f64().unwrap() - 252.0 / 1024.0).abs() < 1e-15);
+    assert!((s[1]["points"][2][1].as_f64().unwrap() - 2f64.sqrt()).abs() < 1e-15);
+}

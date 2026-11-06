@@ -126,8 +126,9 @@ fn runs3<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Vec<Vec<P3>>> {
 /// What the scene holds.
 #[derive(Clone, Debug)]
 enum Prim {
-    /// a face: its corners; `smooth` faces are pieces of a curved surface (no edges drawn by default)
-    Face { pts: Vec<P3>, smooth: bool, color: Option<Rgba> },
+    /// a face: its corners; `smooth` faces are pieces of a curved surface (no edges drawn by default); `inside` a
+    /// point inside the closed convex solid the face bounds (its faces turned away from the eye are hidden)
+    Face { pts: Vec<P3>, smooth: bool, color: Option<Rgba>, inside: Option<P3> },
     Line(Vec<P3>),
     Arrow(Vec<P3>),
     Points(Vec<P3>),
@@ -164,7 +165,7 @@ fn sphere(c: P3, r: [f64; 3], out: &mut Vec<Prim>) {
             } else if i == nlat - 1 {
                 pts.remove(2);
             }
-            out.push(Prim::Face { pts, smooth: true, color: None });
+            out.push(Prim::Face { pts, smooth: true, color: None, inside: Some(c) });
         }
     }
 }
@@ -189,15 +190,17 @@ fn solid_of_revolution(a: P3, b: P3, r0: f64, r1: f64, caps: bool, out: &mut Vec
             .collect()
     };
     let (ra, rb) = (ring(a, r0), ring(b, r1));
+    // with its caps the solid is closed
+    let inside = caps.then(|| add(a, sub(b, a), 0.5));
     for k in 0..ROUND {
         let k1 = (k + 1) % ROUND;
         let pts = if r1 == 0.0 { vec![ra[k], ra[k1], b] } else { vec![ra[k], ra[k1], rb[k1], rb[k]] };
-        out.push(Prim::Face { pts, smooth: true, color: None });
+        out.push(Prim::Face { pts, smooth: true, color: None, inside });
     }
     if caps {
-        out.push(Prim::Face { pts: ra.into_iter().rev().collect(), smooth: false, color: None });
+        out.push(Prim::Face { pts: ra.into_iter().rev().collect(), smooth: false, color: None, inside });
         if r1 > 0.0 {
-            out.push(Prim::Face { pts: rb, smooth: false, color: None });
+            out.push(Prim::Face { pts: rb, smooth: false, color: None, inside });
         }
     }
 }
@@ -205,7 +208,7 @@ fn solid_of_revolution(a: P3, b: P3, r0: f64, r1: f64, caps: bool, out: &mut Vec
 fn cuboid(lo: P3, hi: P3, out: &mut Vec<Prim>) {
     let c = |i: usize| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
     for f in [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]] {
-        out.push(Prim::Face { pts: f.iter().map(|&i| c(i)).collect(), smooth: false, color: None });
+        out.push(Prim::Face { pts: f.iter().map(|&i| c(i)).collect(), smooth: false, color: None, inside: Some(add(lo, sub(hi, lo), 0.5)) });
     }
 }
 
@@ -362,11 +365,11 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
             for (k, pts) in rings.into_iter().enumerate() {
                 if name == "triangle" && pts.len() > 3 {
                     for t in pts.chunks(3).filter(|c| c.len() == 3) {
-                        out.push(Prim::Face { pts: t.to_vec(), smooth: false, color: None });
+                        out.push(Prim::Face { pts: t.to_vec(), smooth: false, color: None, inside: None });
                     }
                 } else if pts.len() >= 3 {
                     let color = colors.as_ref().and_then(|c| c.get(k).copied());
-                    out.push(Prim::Face { pts, smooth: colors.is_some() || mesh, color });
+                    out.push(Prim::Face { pts, smooth: colors.is_some() || mesh, color, inside: None });
                 }
             }
         }
@@ -763,6 +766,8 @@ struct PFace {
     vns: Option<Vec<Option<P3>>>,
     smooth: bool,
     color: Option<Rgba>,
+    /// the outward normal of a face of a closed convex solid (scaled coordinates): hidden when it faces away
+    outward: Option<P3>,
 }
 
 /// A primitive ready to be drawn from any view point.
@@ -931,6 +936,10 @@ impl Prepared {
             match prim {
                 PPrim::Face(f) => {
                     let view = unit(sub(eye, f.mid));
+                    // the back of an opaque closed solid is hidden by its front: not drawn
+                    if f.outward.is_some_and(|o| dot(o, view) < -1e-9) && !matches!(st.face, Face::None) && st.opacity >= 1.0 && f.color.is_none_or(|c| c.a >= 1.0) {
+                        continue;
+                    }
                     let nrm = if dot(f.nrm, view) < 0.0 { [-f.nrm[0], -f.nrm[1], -f.nrm[2]] } else { f.nrm };
                     let base = match (f.color, st.face) {
                         (Some(c), _) => c.faded(st.opacity),
@@ -1172,7 +1181,7 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
         }
         let arrow = matches!(e.prim, Prim::Arrow(_));
         let prim = match e.prim {
-            Prim::Face { pts: corners, smooth, color } => {
+            Prim::Face { pts: corners, smooth, color, inside } => {
                 let pts = if clip { clip_polygon(corners.clone(), lo, hi) } else { corners.clone() };
                 if pts.len() < 3 {
                     continue;
@@ -1181,8 +1190,10 @@ fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Fa
                 let q: Vec<P3> = pts.iter().map(|&p| scaled(p)).collect();
                 let mid = q.iter().fold([0.0; 3], |s, p| add(s, *p, 1.0 / q.len() as f64));
                 let nrm = unit(newell(&q));
+                // a face of a closed convex solid: its outward normal (the solid stays closed unless clipped)
+                let outward = inside.filter(|_| !clip).map(|c| if dot(nrm, sub(mid, scaled(c))) < 0.0 { [-nrm[0], -nrm[1], -nrm[2]] } else { nrm });
                 let vns = (smooth && !clip).then(|| corners.iter().map(|&p| vnormals.get(&key(p)).map(|&v| unit(v))).collect());
-                PPrim::Face(PFace { pts, nrm, mid, vns, smooth, color })
+                PPrim::Face(PFace { pts, nrm, mid, vns, smooth, color, outward })
             }
             Prim::Line(pts) | Prim::Arrow(pts) => {
                 let segs: Vec<(P3, P3)> =

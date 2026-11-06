@@ -308,6 +308,19 @@ pub fn render_formats<S: Store + ?Sized>(
     render_with_layout(h, t, formats, stop).map(|(files, _)| files)
 }
 
+/// [`render_with_layout`], also giving the graphic as read (heap-free), so that a caller that keeps it (layouts of
+/// plots) does not read the term again.
+pub fn render_read<S: Store + ?Sized>(
+    h: &S,
+    t: T<'_>,
+    formats: &[Format],
+    stop: &dyn Fn() -> bool,
+) -> Result<(Vec<Vec<u8>>, Layout, model::Graphic), Failure> {
+    let g = model::read(h, t, stop)?;
+    let (files, layout) = render_graphic(&g, formats, stop)?;
+    Ok((files, layout, g))
+}
+
 /// [`render_formats`], also giving the page's [`Layout`] (the same one every format was painted with).
 pub fn render_with_layout<S: Store + ?Sized>(
     h: &S,
@@ -316,7 +329,12 @@ pub fn render_with_layout<S: Store + ?Sized>(
     stop: &dyn Fn() -> bool,
 ) -> Result<(Vec<Vec<u8>>, Layout), Failure> {
     let g = model::read(h, t, stop)?;
-    let p = page::plan(&g, stop)?;
+    render_graphic(&g, formats, stop)
+}
+
+/// Render a graphic already read to several formats.
+fn render_graphic(g: &model::Graphic, formats: &[Format], stop: &dyn Fn() -> bool) -> Result<(Vec<Vec<u8>>, Layout), Failure> {
+    let p = page::plan(g, stop)?;
     let layout = Layout { width: p.width, height: p.height, area: p.area, range: p.range };
     let mut out = Vec::with_capacity(formats.len());
     for f in formats {
@@ -327,17 +345,17 @@ pub fn render_with_layout<S: Store + ?Sized>(
                 }
                 let mut r = raster::Raster::new(p.width, p.height, scale)
                     .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?;
-                page::paint(&g, &p, &mut r, stop)?;
+                page::paint(g, &p, &mut r, stop)?;
                 r.png().ok_or_else(|| Failure::new("io", "PNG encoding failed"))?
             }
             Format::Svg => {
                 let mut s = svg::Svg::new(p.width, p.height);
-                page::paint(&g, &p, &mut s, stop)?;
+                page::paint(g, &p, &mut s, stop)?;
                 s.finish()
             }
             Format::Pdf => {
                 let mut s = pdf::Pdf::new(p.width, p.height);
-                page::paint(&g, &p, &mut s, stop)?;
+                page::paint(g, &p, &mut s, stop)?;
                 s.finish()
             }
         });
