@@ -1163,6 +1163,40 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
                 stack.push((&args[..1], g.styles.len() - 1));
                 continue;
             }
+            if name == "placed" && !args.is_empty() {
+                // placed(obj, pos): obj at a position of the plot area: [u, v] as fractions of it, or a name
+                let at = match args.get(1) {
+                    Some(&p) => match list(h, p).map(|l| l.to_vec()) {
+                        Some(uv) if uv.len() == 2 => (number(h, uv[0]).unwrap_or(0.5), number(h, uv[1]).unwrap_or(0.5)),
+                        _ => match h.view(p) {
+                            View::Sym(s) => match h.sym_name(s).as_str() {
+                                "above" | "top" => (0.5, 0.93),
+                                "below" | "bottom" => (0.5, 0.07),
+                                "left" | "before" => (0.07, 0.5),
+                                "right" | "after" => (0.93, 0.5),
+                                _ => (0.5, 0.5),
+                            },
+                            _ => (0.5, 0.5),
+                        },
+                    },
+                    None => (0.5, 0.5),
+                };
+                let pos = Pt { x: at.0, y: at.1, scaled: true };
+                let shape = if crate::is_graphics(h, args[0]) {
+                    match inset(h, &args[..1], stop)? {
+                        Shape::Inset { graphic, natural, offset, width, .. } => Shape::Inset { graphic, natural, at: pos, offset, width },
+                        other => other,
+                    }
+                } else {
+                    let inner = match head_name(h, args[0]) {
+                        Some((n, a)) if n == "style" && !a.is_empty() => a[0],
+                        _ => args[0],
+                    };
+                    Shape::Text { label: Label::of(h, inner), at: pos, offset: (0.0, 0.0) }
+                };
+                g.items.push(Item { shape, style: cur });
+                continue;
+            }
             if name == "inset" && !args.is_empty() {
                 g.items.push(Item { shape: inset(h, args, stop).map_err(|f| if f.tag == "interrupted" { f } else { bad_item(h, e, Bad::Arg(1)) })?, style: cur });
                 continue;

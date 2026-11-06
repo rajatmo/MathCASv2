@@ -160,6 +160,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("labeled", "labeled(x, label), labeled(x, label, top | bottom | left | right): x with a label beside it (below by default)"),
     ("legended", "legended(x, [labels]), legended(x, line_legend([colours], [labels])): x with a legend at its right"),
     ("inset", "inset(obj, [x, y]), inset(obj, pos, offset, width): a graphic, plot or expression placed inside a graphic"),
+    ("placed", "placed(obj, [u, v]) in graphics content or epilog: obj (a graphic or a label) at that fraction of the plot area; placed(obj, above | below | left | right | center); in plot_legends a legend's place"),
     ("line_legend", "line_legend([colours], [labels]): a legend of line samples (in plot_legends and legended)"),
     ("swatch_legend", "swatch_legend([colours], [labels]): a legend of colour swatches (in plot_legends and legended)"),
     ("thick", "directive: lines 2 points wide"),

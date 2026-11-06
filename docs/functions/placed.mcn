@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# placed
+
+#% text
+# `placed(obj, [u, v])` in graphics content or an epilog puts obj (a graphic or a label) at that fraction of the plot area.
+
+#% text
+# `placed(obj, pos)` with `above`, `below`, `left`, `right` or `center`.
+
+#% section
+# Details
+
+#% item
+# In `plot_legends`, `placed(legend, pos)` is accepted and the legend keeps its corner.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A label in a corner of a plot:
+
+#% cell
+plot(x, [x, 0, 1], epilog: [placed("corner", [0.9, 0.1])])
+#% output
+#= image("placed.files/placed-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# Named places:
+
+#% cell
+graphics([circle(), placed("$r = 1$", below)])
+#% output
+#= image("placed.files/placed-2.png")
+
+#% subsection
+# Applications
+
+#% text
+# A small picture in a plot:
+
+#% cell
+plot(sin(x), [x, 0, 6], epilog: [placed(graphics(disk(), image_size: 40), [0.85, 0.85])])
+#% output
+#= image("placed.files/placed-3.png")
+
+#% section
+# See also
+
+#% text
+# `inset`, `text`, `plot`

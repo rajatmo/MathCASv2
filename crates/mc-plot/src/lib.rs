@@ -142,6 +142,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "color_data",
         "color_data(name): a colour scheme as a function of t in [0, 1]; color_data(name, t) its colour at t; color_data(k, i): the i-th plot colour; color_data(name, \"ColorList\"): the scheme's colours",
     ),
+    ("callout", "callout(f, label) in plot: the curve with the label at its end; callout(v, label) in a list plot: the point with the label beside it"),
     ("line_thickness", "option of plot and list plots: line_thickness: [w1, w2, ...], the width of each curve in points (cycled; default 2)"),
     ("mesh", "option of 3D plots: mesh: none | n (n mesh lines each way; default 15)"),
     ("plot_style", "option of every plot: plot_style: directives, or a list of them (one per curve or surface, cycled): colours, thick, dashed, ..."),
@@ -499,6 +500,26 @@ impl Native for Plot {
             Some(_) => return Ok(bad(h, name, 1)),
             None => vec![*f],
         };
+        // callout(f, label): the curve f with the label at its end
+        let mut look = look;
+        let mut labels = vec![];
+        let fs: Vec<T<'h>> = fs
+            .into_iter()
+            .map(|f| match callout(h, f) {
+                Some((g, l)) => {
+                    labels.push(l);
+                    g
+                }
+                None => {
+                    labels.push(h.sym_term(h.sym("none")));
+                    f
+                }
+            })
+            .collect();
+        if labels.iter().any(|&l| !matches!(h.view(l), View::Sym(_))) && look.curve_labels.is_empty() {
+            look.curve_labels = labels;
+        }
+        let look = look;
         let mut series = Vec::with_capacity(fs.len());
         for f in fs {
             let mut s = sample(cx, f, x, ua, ub, scale)?;
@@ -734,6 +755,25 @@ impl Native for ListPlot {
             },
             _ => return Ok(Reply::Decline),
         };
+        // callout(v, label) in one data set: the point with its label beside it
+        let mut point_labels: Vec<(usize, T<'h>)> = vec![];
+        let data = match cx.as_list(data) {
+            Some(items) if items.iter().any(|&e| callout(h, e).is_some()) => {
+                let items = items.to_vec();
+                let mut out = Vec::with_capacity(items.len());
+                for (i, e) in items.into_iter().enumerate() {
+                    match callout(h, e) {
+                        Some((v, l)) => {
+                            point_labels.push((i, l));
+                            out.push(v);
+                        }
+                        None => out.push(e),
+                    }
+                }
+                cx.list(&out)
+            }
+            _ => data,
+        };
         let data = unlabelled(cx, data)?;
         let Some(sets) = data_sets(cx, data) else {
             return Ok(bad(h, name, 1));
@@ -755,7 +795,25 @@ impl Native for ListPlot {
                 return Ok(bad(h, name, 2));
             }
         }
-        finish(cx, &series, &look, Extra::default())
+        let mut extra = Extra::default();
+        if let (Some(s), false) = (series.first(), point_labels.is_empty()) {
+            for (i, l) in point_labels {
+                if let Some(&(x, Some(y))) = s.points.get(i) {
+                    // above right of the point
+                    let t = h.call(h.sym("text"), &[l, h.reals(&[x, y]), h.reals(&[-1.3, -1.6])]);
+                    extra.under.push(t);
+                }
+            }
+        }
+        finish(cx, &series, &look, extra)
+    }
+}
+
+/// `callout(x, label)` as its parts.
+pub(crate) fn callout<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
+    match h.view(t) {
+        View::App { head, args } if args.len() >= 2 && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "callout") => Some((args[0], args[1])),
+        _ => None,
     }
 }
 

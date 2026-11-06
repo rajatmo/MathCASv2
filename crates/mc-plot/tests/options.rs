@@ -262,3 +262,15 @@ fn epilog_in_data_values_and_labels_of_combined_plots() {
     let p = is_image(&mut e, "plot(x, [x, 0, 1], epilog: [text(\"reaching in\", [1.2, 0.5], [1, 0])])");
     assert!(svg(&p).contains(r#"aria-label="reaching in""#));
 }
+
+#[test]
+fn callouts_and_placed_labels() {
+    let mut e = CoreEngine::new();
+    let p = is_image(&mut e, "plot([callout(sin(x), \"sine\"), cos(x)], [x, 0, 6])");
+    assert!(svg(&p).contains(r#"aria-label="sine""#));
+    let p = is_image(&mut e, "list_plot([1, callout(3, \"peak\"), 2])");
+    assert!(svg(&p).contains(r#"aria-label="peak""#));
+    let p = is_image(&mut e, "plot(x, [x, 0, 1], epilog: [placed(\"corner\", [0.9, 0.1]), placed(graphics(disk()), above)])");
+    assert!(svg(&p).contains(r#"aria-label="corner""#));
+    is_image(&mut e, "graphics([circle(), placed(\"$r = 1$\", below)])");
+}

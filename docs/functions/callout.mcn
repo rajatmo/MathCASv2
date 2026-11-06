@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# callout
+
+#% text
+# `callout(f, label)` in `plot` is the curve of f with the label at its end.
+
+#% text
+# `callout(v, label)` in a list plot is the point v with the label beside it.
+
+#% section
+# Details
+
+#% item
+# Labels take `$...$` math; outside plots the term stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A labelled curve:
+
+#% cell
+plot([callout(sin(x), "sine"), cos(x)], [x, 0, 6])
+#% output
+#= image("callout.files/callout-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A labelled point:
+
+#% cell
+list_plot([1, 4, callout(9, "peak"), 3])
+#% output
+#= image("callout.files/callout-2.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Like plot_labels for one curve:
+
+#% cell
+plot(x^2, [x, 0, 1], plot_labels: ["$x^2$"])
+#% output
+#= image("callout.files/callout-3.png")
+
+#% section
+# See also
+
+#% text
+# `plot`, `list_plot`, `text`
