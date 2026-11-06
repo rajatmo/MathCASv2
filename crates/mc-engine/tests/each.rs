@@ -62,8 +62,8 @@ fn statements_are_numbered_and_kept() {
     assert_eq!(run(&mut e, "y = 10\n2*y;\nprint(\"p\")", NUMBERED), ["6>p"]);
     assert_eq!(e.line(), 7);
     assert_eq!(run(&mut e, "out(2)\nout(5)\nout()\nout(-3)", NUMBERED), ["7:2", "8:20", "9:20", "10:2"]);
-    // `out(4)` is null (an assignment): not in the history
-    assert_eq!(run(&mut e, "out(4)\nout(0)", NUMBERED), ["11!failure(history, 4)", "12!failure(argument, out, 1)"]);
+    // `out(4)` is the assignment `y = 10`: its history entry is the value assigned (gap G86)
+    assert_eq!(run(&mut e, "out(4)\nout(0)", NUMBERED), ["11:10", "12!failure(argument, out, 1)"]);
     // a read error takes one number and runs nothing
     assert_eq!(run(&mut e, "1 +", NUMBERED), ["error: read"]);
     assert_eq!(e.line(), 14);
@@ -143,4 +143,14 @@ fn an_interrupt_keeps_the_running_statements_number() {
     assert_eq!(out, [Report::Value { n: Some(1), printed: "1".into(), image: None }]);
     assert_eq!(e.line(), 3, "the interrupted statement took number 2");
     assert_eq!(run(&mut e, "out(1)", NUMBERED), ["3:1"]);
+}
+
+#[test]
+fn assignments_are_in_the_history() {
+    // gap G86: `%` and `%%` after assignments give the values assigned; a definition `fn` stays out
+    let mut e = engine();
+    assert_eq!(run(&mut e, "a = 1 + 1\n%", NUMBERED), ["2:2"]);
+    assert_eq!(run(&mut e, "b = 3\nc = 4\n%%", NUMBERED), ["5:3"]);
+    assert_eq!(run(&mut e, "c = 7;\n%", NUMBERED), ["7:7"]);
+    assert_eq!(run(&mut e, "fn g(x) = x\n%", NUMBERED), ["9!failure(history, 8)"]);
 }

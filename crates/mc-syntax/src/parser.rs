@@ -823,18 +823,15 @@ impl Parser<'_> {
         self.expect(P::LParen, "to open the arguments")?;
         let mut args = Vec::new();
         self.with_no_lambda(false, |p| {
-            let mut named = false;
             while !p.at(P::RParen) {
                 if let (Tok::Ident(n), Tok::Punct(P::Colon)) = (p.peek().clone(), p.nth(1).clone()) {
                     let s = p.bump().span;
                     p.bump();
                     let value = p.expr(prec::PIPE)?;
                     args.push(Arg { name: Some((n, s)), value });
-                    named = true;
                 } else {
-                    if named {
-                        return Err(p.error_here("positional arguments must come before named arguments"));
-                    }
+                    // a positional argument may follow named ones: a stored option list among the options
+                    // (`plot(f, r, plot_style: red, opts, frame: true)`, gap G82); the lowering keeps the order
                     let value = p.expr(prec::ASSIGN)?;
                     args.push(Arg { name: None, value });
                 }

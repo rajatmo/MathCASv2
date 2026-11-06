@@ -255,7 +255,10 @@ n(x, 50, max_precision: 10^6)
 ```
 
 Named arguments may appear in any order after the positional ones; unknown names are a compile error when the
-signature is known statically, and `failure(unknown_option, name)` otherwise.
+signature is known statically, and `failure(unknown_option, name)` otherwise. A positional argument may also stand
+among the named ones, for a stored option list: `plot(f, [x, 0, 1], plot_style: red, opts, frame: true)` reads as
+`plot(f, [x, 0, 1], options(plot_style -> red), opts, options(frame -> true))`, and the evaluator merges trailing
+option lists into one (a later value of a name wins).
 
 ## 8. Calculus notation
 

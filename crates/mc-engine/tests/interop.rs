@@ -198,6 +198,18 @@ fn stored_options_merge_with_the_options_after_them() {
     ]);
 }
 
+/// Gap G82: a stored option list may stand among named options (after some of them); it is merged in place.
+#[test]
+fn stored_options_may_follow_named_options() {
+    check(&[
+        ("opts = options(frame -> true, a -> 5);", "null"),
+        ("g(1, b: 2, opts)", "g(1, b: 2, frame: true, a: 5)"),
+        ("g(1, b: 2, opts, a: 3)", "g(1, b: 2, frame: true, a: 3)"),
+        ("g(1, a: 2, opts, c: 3)", "g(1, frame: true, a: 5, c: 3)"),
+        ("head(plot(x, [x, 0, 1], plot_style: red, opts, plot_range: all))", "image"),
+    ]);
+}
+
 /// Gaps G67 and G76: display wrappers for numbers, and interpolations with many points shown short, in display
 /// mode only (the default prints text that reads back).
 #[test]

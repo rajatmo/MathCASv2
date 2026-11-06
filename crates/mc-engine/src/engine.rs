@@ -564,6 +564,7 @@ impl CoreEngine {
                         k.set_own(h.sym(history::LINE), h.int(nr as i64));
                     }
                     let t = k.roots.get(h, i);
+                    let assigned = assigned_symbol(h, t);
                     let e = k.eval(h, t);
                     // what `compile` queued takes effect from the next statement on
                     jit.flush(k);
@@ -580,9 +581,11 @@ impl CoreEngine {
                     k.clear_output();
                     let failure = is_failure(h, e.value);
                     let is_null = is_sym(h, e.value, names::NULL);
-                    // the history: the value of every numbered statement but `null`, shown or not
-                    if let (Some(nr), Some(_), false) = (term.number, term.ends, is_null) {
-                        k.set_own(h.sym(&history::entry(nr)), e.value);
+                    // the history: the value of every numbered statement but `null`, shown or not; an assignment
+                    // `x = v` (whose value is `null`) records the value assigned (gap G86)
+                    let recorded = if is_null { assigned.and_then(|s| k.value_of(h, s)) } else { Some(e.value) };
+                    if let (Some(nr), Some(_), Some(v)) = (term.number, term.ends, recorded) {
+                        k.set_own(h.sym(&history::entry(nr)), v);
                     }
                     let show = !failure && !is_null && term.ends == Some(true);
                     let mut done = Finished { output, fail: None, value: None, last: None };
@@ -936,3 +939,11 @@ impl Engine for CoreEngine {
     }
 }
 
+/// The symbol an assignment statement `x = v` (`set` or `assign` of a symbol) gives a value.
+fn assigned_symbol(h: &mc_core::Heap, t: mc_core::T<'_>) -> Option<mc_core::Sym> {
+    use mc_core::{Store, View};
+    let View::App { head, args: &[lhs, _] } = h.view(t) else { return None };
+    let View::Sym(f) = h.view(head) else { return None };
+    let View::Sym(x) = h.view(lhs) else { return None };
+    matches!(h.sym_name(f).as_str(), "set" | "assign").then_some(x)
+}

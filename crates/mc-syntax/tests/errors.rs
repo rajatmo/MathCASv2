@@ -38,7 +38,6 @@ fn positions_and_messages() {
         ("1.5~", "1:4", "expected the precision"),
         ("x !", "1:3", "unexpected `!`"),
         ("\"\\q\"", "1:2", "unknown escape"),
-        ("f(a: 1, 2)", "1:9", "positional arguments must come before named arguments"),
         ("xs[]", "1:4", "an index needs at least one argument"),
         ("{ let x = 1; x = 2 }", "1:14", "cannot assign to `x`"),
         ("(x) => { x = 1 }", "1:10", "cannot assign to `x`"),
