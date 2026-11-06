@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# font_size
+
+#% text
+# `font_size(p)` is a graphics directive: `text` labels that follow are set at p points.
+
+#% section
+# Details
+
+#% item
+# The graphic's option `font_size: p` sets the size of tick labels, axis, frame and plot labels, legend entries and of `text` without a `font_size` directive; it is 10 points by default.
+
+#% item
+# Scripts in labels are set smaller by the font's own rules.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Labels at three sizes:
+
+#% cell
+graphics([font_size(8), text("small", [0, 0]), font_size(16), text("medium", [0, 1]), font_size(32), text("large", [0, 2])])
+#% output
+#= image("font_size.files/font_size-1.png")
+
+#% subsection
+# Options
+
+#% text
+# Larger tick labels throughout:
+
+#% cell
+graphics(circle(), frame: true, font_size: 14)
+#% output
+#= image("font_size.files/font_size-2.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# A size must be positive:
+
+#% cell
+font_size(0)
+#% output
+#! failure(argument, font_size, 1)
+
+#% section
+# See also
+
+#% text
+# `text`, `graphics`

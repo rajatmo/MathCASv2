@@ -9,9 +9,19 @@ fn eval(e: &mut CoreEngine, src: &str) -> String {
     }
 }
 
+/// The path in a printed `image("path")`.
+fn image_path(printed: &str) -> &str {
+    printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(printed)
+}
+
+/// The text of the file next to the PNG at `path` with extension `ext`.
+fn sibling(path: &str, ext: &str) -> String {
+    String::from_utf8_lossy(&std::fs::read(std::path::Path::new(path).with_extension(ext)).unwrap()).to_string()
+}
+
 /// The PNG named by `image("path")`: its width and height.
 fn png_size(printed: &str) -> (u32, u32) {
-    let path = printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(printed);
+    let path = image_path(printed);
     let b = std::fs::read(path).expect("the image file exists");
     assert_eq!(&b[..8], b"\x89PNG\r\n\x1a\n");
     (u32::from_be_bytes(b[16..20].try_into().unwrap()), u32::from_be_bytes(b[20..24].try_into().unwrap()))
@@ -79,11 +89,12 @@ fn plots_take_axis_labels_and_legends() {
     ] {
         assert_eq!(png_size(&eval(&mut e, src)), (640, 400), "{src}");
     }
-    // the PDF next to the PNG carries the labels
+    // the SVG and PDF next to the PNG carry the labels
     let printed = eval(&mut e, "plot(x, [x, 0, 1], x_label: \"time (s)\", legend: [\"line\"])");
-    let path = printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(&printed);
-    let pdf = String::from_utf8_lossy(&std::fs::read(std::path::Path::new(path).with_extension("pdf")).unwrap()).to_string();
-    assert!(pdf.contains(r"(time \(s\)) Tj") && pdf.contains("(line) Tj"), "{pdf}");
+    let path = image_path(&printed);
+    let svg = sibling(path, "svg");
+    assert!(svg.contains(r#"aria-label="time (s)""#) && svg.contains(r#"aria-label="line""#), "{svg}");
+    assert!(sibling(path, "pdf").starts_with("%PDF-1.4"));
     for (src, want) in [
         ("plot(x, [x, 0, 1], x_label: 5)", "failure(argument, plot, 3)"),
         ("plot(x, [x, 0, 1], legend: \"a\")", "failure(argument, plot, 3)"),
@@ -108,9 +119,8 @@ fn curves_take_colors_and_dash_patterns() {
         assert_eq!(png_size(&eval(&mut e, src)), (640, 400), "{src}");
     }
     let printed = eval(&mut e, "plot(x, [x, 0, 1], colors: [\"#ff0000\"], line_style: [dashed])");
-    let path = printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).expect(&printed);
-    let pdf = String::from_utf8_lossy(&std::fs::read(std::path::Path::new(path).with_extension("pdf")).unwrap()).to_string();
-    assert!(pdf.contains("1.000 0.000 0.000 RG") && pdf.contains("[8.0 5.0] 0 d"), "{pdf}");
+    let svg = sibling(image_path(&printed), "svg");
+    assert!(svg.contains(r##"stroke="#ff0000" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="8 5""##), "{svg}");
     for src in [
         "plot(x, [x, 0, 1], colors: \"#ff0000\")",
         "plot(x, [x, 0, 1], colors: [\"red\"])",
@@ -119,5 +129,35 @@ fn curves_take_colors_and_dash_patterns() {
         "plot(x, [x, 0, 1], line_style: dashed)",
     ] {
         assert_eq!(eval(&mut e, src), "failure(argument, plot, 3)", "{src}");
+    }
+}
+
+#[test]
+fn plots_have_svg_and_pdf_siblings_and_formatted_labels() {
+    let mut e = CoreEngine::new();
+    let printed = eval(&mut e, "plot(sin(x), [x, 0, 1], x_label: \"$E_\\\\gamma$ (GeV)\", legend: [\"$\\\\alpha^2$\"])");
+    let path = image_path(&printed);
+    let svg = sibling(path, "svg");
+    assert!(svg.starts_with("<svg ") && svg.contains(r#"width="640" height="400""#));
+    // the label's math: E, an index gamma
+    assert!(svg.contains(r#"aria-label="$E_\gamma$ (GeV)""#), "{svg}");
+    let pdf = std::fs::read(std::path::Path::new(path).with_extension("pdf")).unwrap();
+    let pdf = String::from_utf8_lossy(&pdf);
+    assert!(pdf.contains("/MediaBox [0 0 640 400]") && pdf.contains("/Subtype /Type3") && pdf.contains("/FlateDecode"));
+}
+
+#[test]
+fn large_plots_are_quick() {
+    let mut e = CoreEngine::new();
+    for src in [
+        "list_plot(random_real(1.0, 100000))",
+        "list_plot(table([k, sin(k/1000.0)], k, 100000), joined: true)",
+    ] {
+        let start = std::time::Instant::now();
+        let printed = eval(&mut e, src);
+        let secs = start.elapsed().as_secs_f64();
+        println!("{src}: {secs:.3} s");
+        assert_eq!(png_size(&printed), (640, 400), "{src}");
+        assert!(secs < 30.0, "{src}: {secs} s");
     }
 }

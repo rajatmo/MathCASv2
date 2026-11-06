@@ -91,6 +91,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_roots::FUNCTIONS,
         mc_quad::FUNCTIONS,
         mc_ode::FUNCTIONS,
+        mc_graphics::FUNCTIONS,
         mc_plot::FUNCTIONS,
         mc_io::FUNCTIONS,
         mc_simplify::FUNCTIONS,
@@ -183,8 +184,10 @@ impl CoreEngine {
             mc_roots::install(&mut k, h, &arith_stop);
             mc_quad::install(&mut k, h, &arith_stop);
             mc_ode::install(&mut k, h, &arith_stop);
+            mc_graphics::install(&mut k, h);
             mc_plot::install(&mut k, h);
             mc_io::install(&mut k, h);
+            mc_io::register_exporter("graphics", &["png", "svg", "pdf"], export_graphics);
             mc_simplify::install(&mut k, h, &arith_stop);
             mc_special::install(&mut k, h, &arith_stop);
             mc_linalg::install(&mut k, h, &arith_stop);
@@ -481,9 +484,17 @@ impl CoreEngine {
                 done.fail = failure.then(|| printed.clone());
                 // `print(x)` returns x: a statement whose value its last output line already shows does not show it
                 // again (the scripts' rule, decision 9.5 of the library-gaps package)
+                // a graphics value is shown as its picture, like a plot (the value itself stays the graphics term)
+                let picture =
+                    if (show || last) && !failure { mc_plot::render_to_files(h, e.value, &|| stop.is_raised()) } else { None };
+                let printed = match &picture {
+                    Some((path, ..)) => format!("image(\"{path}\")"),
+                    None => printed,
+                };
                 if show && !echoes(done.output.last(), &printed) {
-                    let image =
-                        mc_plot::image_of(h, e.value).map(|(path, width, height)| Image { path, width, height });
+                    let image = picture
+                        .or_else(|| mc_plot::image_of(h, e.value))
+                        .map(|(path, width, height)| Image { path, width, height });
                     done.value = Some((printed.clone(), image));
                 }
                 if last {
@@ -783,4 +794,23 @@ impl Engine for CoreEngine {
         });
         Ok(())
     }
+}
+
+/// `export_data` of a `graphics(...)` term: PNG (at `dpi` / 72 pixels per point, else one), SVG or PDF through
+/// mc-graphics.
+fn export_graphics<'h>(
+    h: &'h mc_core::Heap,
+    t: mc_core::T<'h>,
+    path: &std::path::Path,
+    format: &str,
+    options: &mc_io::ExportOptions,
+) -> Result<(), String> {
+    let f = match format {
+        "png" => mc_graphics::Format::Png { scale: options.dpi.map_or(1.0, |d| (d / 72.0) as f32) },
+        "svg" => mc_graphics::Format::Svg,
+        "pdf" => mc_graphics::Format::Pdf,
+        other => return Err(format!("graphics cannot be written as {other}")),
+    };
+    let bytes = mc_graphics::render(h, t, f).map_err(|e| e.to_string())?;
+    std::fs::write(path, bytes).map_err(|e| e.to_string())
 }

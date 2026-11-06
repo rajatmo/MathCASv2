@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# dashing
+
+#% text
+# `dashing([d1, d2, ...])` is a graphics directive: lines that follow are drawn with dashes and gaps of lengths d1, d2, ..., as fractions of the plot width, repeated.
+
+#% text
+# `dashing(dashed)`, `dashing(dotted)`, `dashing(dot_dashed)` and `dashing(solid)` are named patterns.
+
+#% section
+# Details
+
+#% item
+# The lengths alternate between dash and gap; a list of odd length is read twice.
+
+#% item
+# Dashed lines have round ends, so very short dashes are dots.
+
+#% item
+# `dashing([])` and `dashing(solid)` draw solid lines again.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The named patterns:
+
+#% cell
+graphics([dashing(dashed), line([[0, 0], [4, 0]]), dashing(dotted), line([[0, 1], [4, 1]]), dashing(dot_dashed), line([[0, 2], [4, 2]])])
+#% output
+#= image("dashing.files/dashing-1.png")
+
+#% text
+# Long dashes, short gaps:
+
+#% cell
+graphics([dashing([0.05, 0.01]), circle()])
+#% output
+#= image("dashing.files/dashing-2.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Pattern names are `solid`, `dashed`, `dotted` and `dot_dashed`:
+
+#% cell
+dashing(wavy)
+#% output
+#! failure(argument, dashing, 1)
+
+#% section
+# See also
+
+#% text
+# `absolute_dashing`, `thickness`, `line`

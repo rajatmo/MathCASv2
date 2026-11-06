@@ -21,6 +21,7 @@ mc-load = { path = "../mc-load" }
 mc-numeric = { path = "../mc-numeric" }
 mc-numtheory = { path = "../mc-numtheory" }
 mc-ode = { path = "../mc-ode" }
+mc-graphics = { path = "../mc-graphics" }
 mc-plot = { path = "../mc-plot" }
 mc-io = { path = "../mc-io" }
 mc-poly = { path = "../mc-poly" }

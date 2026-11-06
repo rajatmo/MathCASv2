@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# polygon
+
+#% text
+# `polygon([[x1, y1], [x2, y2], ...])` is a graphics primitive: the filled polygon with these corners.
+
+#% text
+# `polygon([[p1, p2, ...], [q1, q2, ...], ...])` is several polygons.
+
+#% section
+# Details
+
+#% item
+# The polygon is closed from its last corner back to its first.
+
+#% item
+# It is filled in the current colour, or as `face_form` says (`face_form()` leaves it empty); its edges are drawn only after an `edge_form` directive.
+
+#% item
+# Overlapping parts of a self-intersecting polygon are filled by the non-zero winding rule.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A triangle:
+
+#% cell
+graphics(polygon([[0, 0], [2, 0], [1, 1.5]]))
+#% output
+#= image("polygon.files/polygon-1.png")
+
+#% text
+# A yellow square with black edges:
+
+#% cell
+graphics([face_form(yellow), edge_form(black), polygon([[0, 0], [1, 0], [1, 1], [0, 1]])])
+#% output
+#= image("polygon.files/polygon-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# A regular hexagon from computed corners:
+
+#% cell
+graphics([hue(0.55), polygon(table([cos(k*pi/3), sin(k*pi/3)], k, range(0, 5)))])
+#% output
+#= image("polygon.files/polygon-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# A corner must be a pair of coordinates:
+
+#% cell
+polygon([[0, 0], [1, 0], "corner"])
+#% output
+#! failure(argument, polygon, 1)
+
+#% section
+# See also
+
+#% text
+# `rectangle`, `disk`, `line`, `face_form`, `edge_form`, `graphics`

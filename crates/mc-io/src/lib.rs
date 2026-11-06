@@ -119,6 +119,7 @@ pub(crate) enum Format {
     Json,
     Png,
     Pdf,
+    Svg,
 }
 
 impl Format {
@@ -131,6 +132,7 @@ impl Format {
             "json" => Format::Json,
             "png" => Format::Png,
             "pdf" => Format::Pdf,
+            "svg" => Format::Svg,
             _ => return None,
         })
     }
@@ -145,6 +147,7 @@ impl Format {
             Format::Json => "json",
             Format::Png => "png",
             Format::Pdf => "pdf",
+            Format::Svg => "svg",
         }
     }
 }

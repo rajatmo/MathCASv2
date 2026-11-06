@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# scaled
+
+#% text
+# `scaled([u, v])` is a position given as a fraction of the plot range: [0, 0] its lower left corner, [1, 1] its upper right corner.
+
+#% section
+# Details
+
+#% item
+# It can be used wherever a primitive takes a position.
+
+#% item
+# Positions in scaled coordinates do not widen the automatic plot range; it follows from the other primitives.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A title in the upper left corner, whatever the data:
+
+#% cell
+graphics([line([[0, 0], [10, 3]]), text("growth", scaled([0.02, 0.98]), [-1, 1])])
+#% output
+#= image("scaled.files/scaled-1.png")
+
+#% text
+# A band across the middle of the plot area:
+
+#% cell
+graphics([light_gray, rectangle(scaled([0, 0.4]), scaled([1, 0.6])), black, circle()])
+#% output
+#= image("scaled.files/scaled-2.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# A scaled position holds plain coordinates:
+
+#% cell
+point(scaled(scaled([0, 0])))
+#% output
+#! failure(argument, point, 1)
+
+#% section
+# See also
+
+#% text
+# `text`, `rectangle`, `graphics`

@@ -56,6 +56,11 @@ impl Native for Export {
             match format {
                 Format::Png => png(cx, file, data, &path, &opts, dpi)?,
                 Format::Pdf => pdf(cx, file, data, &path, dpi)?,
+                // a plot's SVG sibling (graphics terms reach their exporter above)
+                Format::Svg => match image_path(h, data).map(|p| Path::new(p).with_extension("svg")).filter(|p| p.is_file()) {
+                    Some(svg) => std::fs::copy(&svg, &path).map(|_| ()).map_err(|e| e.to_string()).map_err(io),
+                    None => Err(failure(h, "unsupported", &[file, h.string("svg export takes a plot or a graphics term")])),
+                },
                 Format::Json => {
                     let j = tabular::to_json(cx, data)?;
                     serde_json::to_string_pretty(&j).map_err(|e| e.to_string()).and_then(|s| write(&path, s)).map_err(io)

@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# absolute_point_size
+
+#% text
+# `absolute_point_size(d)` is a graphics directive: points that follow are d points across.
+
+#% section
+# Details
+
+#% item
+# The size does not change with the size of the graphic; `point_size` is relative to the plot width.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Points 2, 6 and 12 points across:
+
+#% cell
+graphics([absolute_point_size(2), point([0, 0]), absolute_point_size(6), point([1, 0]), absolute_point_size(12), point([2, 0])])
+#% output
+#= image("absolute_point_size.files/absolute_point_size-1.png")
+
+#% text
+# A legend entry with a point sample takes the size too:
+
+#% cell
+graphics([red, absolute_point_size(5), point([[0, 0], [1, 1]])], legend: [[[red, absolute_point_size(5)], "data", point]])
+#% output
+#= image("absolute_point_size.files/absolute_point_size-2.png")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `point`, `list_plot`

@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# thickness
+
+#% text
+# `thickness(t)` is a graphics directive: lines that follow are t times the width of the plot area wide.
+
+#% section
+# Details
+
+#% item
+# A relative thickness keeps its proportion when the graphic is drawn larger or smaller; `absolute_thickness` gives a width in points.
+
+#% item
+# It applies to `line`, `arrow`, `bezier_curve` and `circle`; the edges of faces take theirs from `edge_form`.
+
+#% item
+# The default line width is 1 point.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Lines of growing thickness:
+
+#% cell
+graphics(table([thickness(k/100), line([[0, k], [4, k]])], k, range(1, 4)))
+#% output
+#= image("thickness.files/thickness-1.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# A thickness cannot be negative:
+
+#% cell
+thickness(-0.01)
+#% output
+#! failure(argument, thickness, 1)
+
+#% section
+# See also
+
+#% text
+# `absolute_thickness`, `dashing`, `line`, `edge_form`

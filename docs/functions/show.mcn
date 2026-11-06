@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# show
+
+#% text
+# `show(g1, g2, ...)` is one graphic with the content of the graphics g1, g2, ... drawn in order.
+
+#% text
+# `show(g1, g2, ..., options...)` combines the graphics and gives them these options.
+
+#% section
+# Details
+
+#% item
+# Options given to `show` come first, then those of g1, g2, ... in order; when an option is given more than once the first value counts.
+
+#% item
+# A list of graphics counts as its elements: `show([g1, g2])` is `show(g1, g2)`.
+
+#% item
+# Directives inside one graphic do not reach into the next: each graphic's content stays a list of its own.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk and a circle drawn together:
+
+#% cell
+show(graphics([orange, disk()]), graphics([black, circle([0, 0], 1.2)]))
+#% output
+#= image("show.files/show-1.png")
+
+#% text
+# Options of the first graphic carry over:
+
+#% cell
+show(graphics(point([1, 1]), axes: true), graphics(line([[0, 0], [2, 2]])))
+#% output
+#= image("show.files/show-2.png")
+
+#% subsection
+# Options
+
+#% text
+# An option given to `show` wins over the graphics' own:
+
+#% cell
+show(graphics(disk(), frame: true), graphics(circle([2, 0], 1)), frame: false, plot_label: "two shapes")
+#% output
+#= image("show.files/show-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Every argument before the options must be a graphic:
+
+#% cell
+show(graphics(disk()), disk([2, 0], 1))
+#% output
+#! failure(argument, show, 2)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `plot`

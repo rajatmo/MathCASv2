@@ -18,6 +18,7 @@ mc-poly = { path = "../mc-poly" }
 mc-dist = { path = "../mc-dist" }
 mc-random = { path = "../mc-random" }
 mc-ode = { path = "../mc-ode" }
+mc-graphics = { path = "../mc-graphics" }
 mc-plot = { path = "../mc-plot" }
 mc-io = { path = "../mc-io" }
 mc-quad = { path = "../mc-quad" }

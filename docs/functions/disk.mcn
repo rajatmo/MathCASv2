@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# disk
+
+#% text
+# `disk([x, y], r)` is a graphics primitive: a filled disk of radius r centred at [x, y].
+
+#% text
+# `disk([x, y], [rx, ry])` is a filled ellipse with semi-axes rx and ry along the coordinate axes.
+
+#% text
+# `disk([x, y], r, [a0, a1])` is a sector from angle a0 to angle a1, in radians, anticlockwise.
+
+#% text
+# `disk()` is the unit disk at the origin.
+
+#% section
+# Details
+
+#% item
+# The disk is filled in the current colour, or as `face_form` says; its edge is drawn only after an `edge_form` directive.
+
+#% item
+# Radii are in plot coordinates, so a disk looks round only when the two axes have equal units (the default `aspect_ratio: automatic`).
+
+#% item
+# With numbers for the centre and radius the arguments are checked: a negative radius gives a failure naming the argument. With symbols the term stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk in the default colour:
+
+#% cell
+graphics(disk([0, 0], 1))
+#% output
+#= image("disk.files/disk-1.png")
+
+#% text
+# A red ellipse beside a quarter of a blue disk:
+
+#% cell
+graphics([red, disk([0, 0], [2, 1]), blue, disk([3, 0], 1, [0, pi/2])])
+#% output
+#= image("disk.files/disk-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# A translucent disk with a black edge over a gray square:
+
+#% cell
+graphics([gray, rectangle([-1, -1], [1, 1]), opacity(0.6), orange, edge_form(black), disk([0.5, 0.5], 1)], frame: true)
+#% output
+#= image("disk.files/disk-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# A negative radius is an error:
+
+#% cell
+disk([0, 0], -1)
+#% output
+#! failure(argument, disk, 2)
+
+#% text
+# A symbolic radius leaves the primitive as it is; it can be drawn once the radius has a value:
+
+#% cell
+disk([0, 0], r)
+#% output
+#= disk([0, 0], r)
+
+#% section
+# See also
+
+#% text
+# `circle`, `rectangle`, `polygon`, `face_form`, `edge_form`, `graphics`

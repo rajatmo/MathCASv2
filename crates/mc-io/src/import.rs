@@ -55,6 +55,7 @@ impl Native for Import {
         let v = match format {
             Format::Png => png(cx, &q, o)?,
             Format::Pdf => pdf(cx, &q, o)?,
+            Format::Svg => failure(h, "io", &[q.file, h.string("reading svg files is not supported")]),
             _ => text(cx, &q, o, format)?,
         };
         Ok(Reply::Done(v))
@@ -105,7 +106,7 @@ fn text<'h>(cx: &mut NativeCx<'_, '_, 'h>, q: &Query<'_, 'h>, o: Option<T<'h>>, 
             Ok(j) => tabular::from_json(h, &j),
             Err(e) => failure(h, "io", &[q.file, h.string(&e.to_string())]),
         },
-        Format::Png | Format::Pdf => unreachable!("read by png and pdf"),
+        Format::Png | Format::Pdf | Format::Svg => unreachable!("read by png, pdf and the svg refusal"),
     })
 }
 

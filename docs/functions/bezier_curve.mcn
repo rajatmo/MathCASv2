@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# bezier_curve
+
+#% text
+# `bezier_curve([p0, p1, p2, p3, ...])` is a graphics primitive: a composite cubic Bézier curve from p0 through p3, p6, ..., with the points between them as control points.
+
+#% section
+# Details
+
+#% item
+# Each piece is cubic: p0 to p3 with controls p1 and p2, then p3 to p6 with controls p4 and p5, and so on.
+
+#% item
+# Two points left at the end make a quadratic piece, one point a straight segment.
+
+#% item
+# The curve passes through its end points and is tangent there to the lines towards the neighbouring control points.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# One cubic piece:
+
+#% cell
+graphics(bezier_curve([[0, 0], [0, 1], [1, 1], [1, 0]]))
+#% output
+#= image("bezier_curve.files/bezier_curve-1.png")
+
+#% text
+# The curve with its control polygon, dashed:
+
+#% cell
+graphics([bezier_curve([[0, 0], [1, 2], [2, -1], [3, 1]]), gray, dashing(dashed), line([[0, 0], [1, 2], [2, -1], [3, 1]])])
+#% output
+#= image("bezier_curve.files/bezier_curve-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Two pieces joined smoothly at [2, 0]:
+
+#% cell
+graphics([red, bezier_curve([[0, 0], [1, 1], [1.5, 0], [2, 0], [2.5, 0], [3, -1], [4, 0]])])
+#% output
+#= image("bezier_curve.files/bezier_curve-3.png")
+
+#% section
+# See also
+
+#% text
+# `line`, `circle`, `graphics`

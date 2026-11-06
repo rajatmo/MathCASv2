@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# hue
+
+#% text
+# `hue(h)` is the fully saturated, fully bright colour of hue h: 0 red, 1/3 green, 2/3 blue, 1 red again.
+
+#% text
+# `hue(h, s, b)` is the colour with hue h, saturation s and brightness b, each between 0 and 1.
+
+#% text
+# `hue(h, s, b, a)` is that colour with opacity a.
+
+#% section
+# Details
+
+#% item
+# The hue is cyclic: only its fractional part counts, so `hue(1.25)` is `hue(0.25)`.
+
+#% item
+# A saturation of 0 gives a gray of the given brightness; a brightness of 0 is black.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Pure green as red, green and blue components:
+
+#% cell
+color_convert(hue(1/3), rgb_color)
+#% output
+#= rgb_color(0.0, 1.0, 0.0)
+
+#% text
+# A row of disks around the colour wheel:
+
+#% cell
+graphics(table([hue(k/6), disk([k, 0], 0.4)], k, range(0, 5)))
+#% output
+#= image("hue.files/hue-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Paler and darker versions of one hue:
+
+#% cell
+[color_convert(hue(0.6, 0.3, 1), rgb_color), color_convert(hue(0.6, 1, 0.5), rgb_color)]
+#% output
+#= [rgb_color(0.7, 0.8200000000000001, 1.0), rgb_color(0.0, 0.20000000000000018, 0.5)]
+
+#% section
+# See also
+
+#% text
+# `rgb_color`, `gray_level`, `color_convert`, `blend`

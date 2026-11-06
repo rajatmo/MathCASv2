@@ -1,31 +1,35 @@
-//! Plots, first version: `plot` and `list_plot` rendered straight to PNG images.
+//! Plots: `plot` and `list_plot` (and their logarithmic forms) built as `graphics` terms and rendered by
+//! `mc-graphics`.
 //!
 //! A plot evaluates to `image("path")`, where `path` is a PNG file in the system's temporary folder
-//! (`mathcas-plots/`); front ends show it (the Jupyter kernel displays it inline). There is no graphics term model
-//! yet: that comes with the data-structure work for file formats. Functions are sampled adaptively (64 even points, refined where the curve bends or stops)
-//! through `mc_numfn::compile_expr` (compiled when it pays); a value that is not a finite real breaks the curve, and
-//! so does a jump larger than the visible range (a pole). The y range is robust: the 1% and 99% quantiles of the
-//! sampled values, widened to the full range when no value lies far outside them.
+//! (`mathcas-plots/`), with the same plot as SVG and as vector PDF next to it (same name, `.svg` and `.pdf`); front
+//! ends show the PNG (the Jupyter kernel displays it inline) and `export_data` copies the PDF. Functions are sampled
+//! adaptively (64 even points, refined where the curve bends or stops) through `mc_numfn::compile_expr` (compiled
+//! when it pays); a value that is not a finite real breaks the curve, and so does a jump larger than the visible
+//! range (a pole). The y range is robust: the 1% and 99% quantiles of the sampled values, widened to the full range
+//! when no value lies far outside them. Labels and legend entries take the graphics labels' formatting (`$...$`
+//! math with scripts and Greek letters).
 #![warn(missing_docs)]
 
-mod render;
+mod figure;
 
+use figure::{Axis, Corner, Dash, Look, Rgb, Scale, Series};
 use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
+use mc_graphics::Format;
 use mc_numfn::{NumFn, Options, Var};
-use render::{Axis, Corner, Dash, Look, Rgb, Scale, Series};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Every function of this package with a one-line description.
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "plot",
-        "plot(f, [x, a, b]): a PNG image of f for x from a to b (plot([f1, f2, ...], [x, a, b]) for several curves); evaluates to image(path)",
+        "plot(f, [x, a, b]): a PNG image of f for x from a to b (plot([f1, f2, ...], [x, a, b]) for several curves), with SVG and PDF copies next to it; evaluates to image(path)",
     ),
     (
         "list_plot",
-        "list_plot(data): a PNG image of the points [y1, y2, ...] (at x = 1, 2, ...) or [[x1, y1], ...]; joined: true draws a line; evaluates to image(path)",
+        "list_plot(data): a PNG image of the points [y1, y2, ...] (at x = 1, 2, ...) or [[x1, y1], ...]; joined: true draws a line; SVG and PDF copies next to it; evaluates to image(path)",
     ),
     ("log_plot", "log_plot(f, [x, a, b]): plot with a logarithmic y axis (values that are not positive are left out)"),
     ("log_log_plot", "log_log_plot(f, [x, a, b]): plot with logarithmic x and y axes (0 < a < b)"),
@@ -38,16 +42,8 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of every plot: x_scale: linear | log | signed_log | signed_log(c) (sign(v) log10(1 + |v|/c), default c = 1; linear near 0, logarithmic far from it, both signs)",
     ),
     ("y_scale", "option of every plot: y_scale: linear | log | signed_log | signed_log(c), as x_scale"),
-    ("x_label", "option of every plot: x_label: \"text\", the label under the x axis"),
+    ("x_label", "option of every plot: x_label: \"text\", the label under the x axis ($...$ for math: \"$E_\\\\gamma$ (GeV)\")"),
     ("y_label", "option of every plot: y_label: \"text\", the label beside the y axis (read upwards)"),
-    (
-        "legend",
-        "option of every plot: legend: [\"text\", ...], one entry per curve or data set, in order, in a framed box",
-    ),
-    (
-        "legend_position",
-        "option of every plot: legend_position: top_right (default) | top_left | bottom_left | bottom_right",
-    ),
     (
         "colors",
         "option of every plot: colors: [\"#rrggbb\", ...], the colour of each curve or data set in order (the default cycle after the list)",
@@ -202,34 +198,59 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
 }
 
-/// Write the rendered plot to a fresh PNG file, and the same plot as a vector PDF next to it (same name, `.pdf`:
-/// `export_data("f.pdf", plot)` copies it), and give the PNG's image term (or a failure).
+/// The formats written for every plot, in the order of [`EXTENSIONS`].
+const FORMATS: [Format; 3] = [Format::Png { scale: 1.0 }, Format::Svg, Format::Pdf];
+/// The file extensions of [`FORMATS`].
+const EXTENSIONS: [&str; 3] = ["png", "svg", "pdf"];
+
+/// Build the plot's graphics term, render it to a fresh PNG file with the SVG and the vector PDF next to it (same
+/// name: `export_data("f.pdf", plot)` copies the PDF), and give the PNG's image term (or a failure).
 fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look) -> Res<Reply<'h>> {
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
-    static COUNT: AtomicU64 = AtomicU64::new(0);
-    let dir = std::env::temp_dir().join("mathcas-plots");
-    let path = dir.join(format!(
-        "plot-{}-{}.png",
-        std::process::id(),
-        COUNT.fetch_add(1, Ordering::Relaxed)
-    ));
-    let written = std::fs::create_dir_all(&dir)
-        .map_err(|e| e.to_string())
-        .and_then(|_| {
-            render::render(series, look).ok_or_else(|| "rendering failed".to_string())
-        })
-        .and_then(|png| std::fs::write(&path, png).map_err(|e| e.to_string()))
-        .and_then(|()| {
-            let pdf = render::render_pdf(series, look);
-            std::fs::write(path.with_extension("pdf"), pdf).map_err(|e| e.to_string())
-        });
-    Ok(Reply::Done(match written {
-        // forward slashes: the path prints without escapes on every system
-        Ok(()) => image(h, &path.to_string_lossy().replace('\\', "/")),
+    let g = figure::figure(h, series, look);
+    let stop = cx.stop_flag().clone();
+    let rendered = mc_graphics::render_formats(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
+    let files = match rendered {
+        Ok(files) => files,
+        Err(f) => {
+            // an interrupt ends the evaluation as interrupts do; other failures are the value
+            cx.tick(1)?;
+            return Ok(Reply::Done(f.term(h)));
+        }
+    };
+    Ok(Reply::Done(match write_files(&files) {
+        Ok(path) => image(h, &path),
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
+}
+
+/// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) as a fresh `plot-<pid>-<n>.png` with its siblings in
+/// the temporary folder; gives the PNG's path with forward slashes (it prints without escapes on every system).
+fn write_files(files: &[Vec<u8>]) -> Result<String, String> {
+    static COUNT: AtomicU64 = AtomicU64::new(0);
+    let dir = std::env::temp_dir().join("mathcas-plots");
+    let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // the siblings first: once the PNG exists, so do they
+    for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
+        std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
+    }
+    Ok(path.to_string_lossy().replace('\\', "/"))
+}
+
+/// A `graphics(...)` value as files to show: rendered like a plot (PNG with SVG and PDF siblings); gives the PNG's
+/// path and pixel size. `None` when `t` is not a graphics term or cannot be rendered (symbolic coordinates: it is
+/// shown as a term).
+pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Option<(String, u32, u32)> {
+    if !mc_graphics::is_graphics(h, t) {
+        return None;
+    }
+    let files = mc_graphics::render_formats(h, t, &FORMATS, stop).ok()?;
+    let path = write_files(&files).ok()?;
+    let (w, ht) = png_size(std::path::Path::new(&path))?;
+    Some((path, w, ht))
 }
 
 /// `plot(f, [x, a, b])` and its log-scale forms.
@@ -312,7 +333,7 @@ fn sample<'h>(
     }
     // the visible y range of the coarse curve sets the tolerance
     let span = {
-        let (lo, hi) = render::robust(grid.iter().filter_map(|p| p.1).collect());
+        let (lo, hi) = figure::robust(grid.iter().filter_map(|p| p.1).collect());
         if hi > lo {
             hi - lo
         } else {

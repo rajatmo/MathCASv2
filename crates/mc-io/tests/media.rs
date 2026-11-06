@@ -126,7 +126,8 @@ fn plots_to_png_and_pdf() {
     assert_eq!(eval(&mut e, &format!("import_data(\"{f}\", \"page_count\")")), "1");
     assert_eq!(eval(&mut e, &format!("image_dimensions(import_data(\"{f}\", \"page\", 1, dpi: 72))")), "[640, 400]");
     let text = eval(&mut e, &format!("import_data(\"{f}\", \"text\", 1)"));
-    for label in ["0", "2", "4", "6", "0.5", "-0.5"] {
+    // negative labels carry a real minus sign (U+2212)
+    for label in ["0", "2", "4", "6", "0.5", "\u{2212}"] {
         assert!(text.contains(label), "{label} in {text}");
     }
     std::fs::remove_dir_all(&dir).ok();

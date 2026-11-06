@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# circle
+
+#% text
+# `circle([x, y], r)` is a graphics primitive: the circle of radius r centred at [x, y].
+
+#% text
+# `circle([x, y], [rx, ry])` is an ellipse with semi-axes rx and ry along the coordinate axes.
+
+#% text
+# `circle([x, y], r, [a0, a1])` is the arc from angle a0 to angle a1, in radians, anticlockwise.
+
+#% text
+# `circle()` is the unit circle at the origin.
+
+#% section
+# Details
+
+#% item
+# The circle is an outline drawn in the current colour, `thickness` and `dashing`; `disk` is the filled shape.
+
+#% item
+# Radii are in plot coordinates.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A unit circle:
+
+#% cell
+graphics(circle())
+#% output
+#= image("circle.files/circle-1.png")
+
+#% text
+# Concentric circles in two colours:
+
+#% cell
+graphics([blue, circle([0, 0], 1), red, circle([0, 0], 2)])
+#% output
+#= image("circle.files/circle-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# An arc and an ellipse:
+
+#% cell
+graphics([circle([0, 0], 1, [0, pi]), circle([0, -1], [2, 0.5])])
+#% output
+#= image("circle.files/circle-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# The angles of an arc are a list of two:
+
+#% cell
+circle([0, 0], 1, 3)
+#% output
+#! failure(argument, circle, 3)
+
+#% section
+# See also
+
+#% text
+# `disk`, `bezier_curve`, `thickness`, `graphics`

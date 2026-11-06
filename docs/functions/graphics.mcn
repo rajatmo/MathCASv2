@@ -1,0 +1,108 @@
+#! mathcas 2 notebook
+
+#% title
+# graphics
+
+#% text
+# `graphics(content)` is a two-dimensional graphic: the primitives in content drawn with the directives before them.
+
+#% text
+# `graphics(content, options...)` is the graphic with options such as `axes`, `frame`, `plot_range` and `image_size`.
+
+#% section
+# Details
+
+#% item
+# The content is a primitive (`point`, `line`, `polygon`, `rectangle`, `circle`, `disk`, `arrow`, `bezier_curve`, `text`), a directive, or a list of them, nested to any depth.
+
+#% item
+# A directive (a colour, `opacity`, `thickness`, `dashing`, `point_size`, `edge_form`, `face_form`, `font_size`) applies to what follows it in its list and in the lists inside it; a list's directives end with the list.
+
+#% item
+# A graphic is inert: it stays a term, and front ends and `export_data` render it as PNG, SVG or PDF. Numeric constants in coordinates (`pi`, `sqrt(2)`) become machine reals when the graphic is evaluated; the labels of `text` stay as written.
+
+#% item
+# Options: `plot_range`, `plot_range_padding`, `axes`, `frame`, `axes_label`, `frame_label`, `plot_label`, `aspect_ratio`, `image_size`, `background`, `ticks`, `grid_lines`, `legend`, `legend_position`, `font_size`.
+
+#% item
+# Sizes are in points; at the natural scale a point is a pixel. The default width is 360 points, and with `aspect_ratio: automatic` one unit is as long on both axes.
+
+#% item
+# Labels take `$...$` math in strings (`"$\\alpha_1^2$"`), `subscript` and `superscript`, and any expression in its typeset form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A red disk inside a black circle:
+
+#% cell
+graphics([red, disk(), black, circle([0, 0], 1.5)])
+#% output
+#= image("graphics.files/graphics-1.png")
+
+#% text
+# A polyline with axes:
+
+#% cell
+graphics(line([[0, 0], [1, 2], [2, 1], [3, 3]]), axes: true)
+#% output
+#= image("graphics.files/graphics-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Primitives can be computed; here the points of a parabola:
+
+#% cell
+graphics(point(table([k, k^2], k, 4)), frame: true, frame_label: ["k", "$k^2$"])
+#% output
+#= image("graphics.files/graphics-3.png")
+
+#% text
+# Constants in coordinates become numbers:
+
+#% cell
+graphics(circle([0, 0], sqrt(2)))
+#% output
+#= image("graphics.files/graphics-4.png")
+
+#% subsection
+# Options
+
+#% text
+# A fixed plot range, a title and a size:
+
+#% cell
+graphics(disk([0, 0], 2), plot_range: [[-1, 1], [-1, 1]], plot_label: "a clipped disk", image_size: 200)
+#% output
+#= image("graphics.files/graphics-5.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Content that is neither a primitive nor a directive fails:
+
+#% cell
+graphics(spiral(3))
+#% output
+#! failure(not_graphics, "spiral(3)")
+
+#% text
+# So does an unknown option:
+
+#% cell
+graphics(disk(), colour: red)
+#% output
+#! failure(unknown_option, "colour")
+
+#% section
+# See also
+
+#% text
+# `show`, `point`, `line`, `polygon`, `disk`, `text`, `plot`

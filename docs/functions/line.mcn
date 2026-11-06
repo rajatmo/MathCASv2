@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# line
+
+#% text
+# `line([[x1, y1], [x2, y2], ...])` is a graphics primitive: the polyline through the points in order.
+
+#% text
+# `line([[p1, p2, ...], [q1, q2, ...], ...])` is several polylines.
+
+#% section
+# Details
+
+#% item
+# Lines are drawn in the current colour, `thickness` and `dashing`; their ends are cut square, and corners are round.
+
+#% item
+# A line with one point draws nothing.
+
+#% item
+# Positions may be `scaled([u, v])`, fractions of the plot range.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A zigzag:
+
+#% cell
+graphics(line([[0, 0], [1, 1], [2, 0], [3, 1]]))
+#% output
+#= image("line.files/line-1.png")
+
+#% text
+# Two separate lines, thick and blue:
+
+#% cell
+graphics([blue, absolute_thickness(3), line([[[0, 0], [1, 0]], [[0, 1], [1, 1]]])])
+#% output
+#= image("line.files/line-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# A dashed line from a computed list:
+
+#% cell
+graphics([dashing(dashed), line(table([k, k^2], k, range(0, 4)))], axes: true)
+#% output
+#= image("line.files/line-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument is a list of positions:
+
+#% cell
+line(5)
+#% output
+#! failure(argument, line, 1)
+
+#% section
+# See also
+
+#% text
+# `arrow`, `polygon`, `bezier_curve`, `thickness`, `dashing`, `graphics`
