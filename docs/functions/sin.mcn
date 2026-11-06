@@ -101,6 +101,14 @@ sin(-x)
 #% output
 #= -sin(x)
 
+#% text
+# An association threads by its values:
+
+#% cell
+sin(assoc(a -> 0, b -> pi/2))
+#% output
+#= assoc(a -> 0, b -> 1)
+
 #% subsection
 # Properties and relations
 

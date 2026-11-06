@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# key_drop
+
+#% text
+# `key_drop(a, [k, ...])` gives the association `a` without the keys given; `key_drop(a, k)` without one key.
+
+#% section
+# Details
+
+#% item
+# A list of rules is read as an association; a list of associations gives the list of results.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_drop(assoc(a -> 1, b -> 2, c -> 3), [a, c])
+#% output
+#= assoc(b -> 2)
+
+#% subsection
+# Scope
+
+#% text
+# A list of associations:
+
+#% cell
+key_drop([assoc(a -> 1, b -> 2), assoc(a -> 3)], a)
+#% output
+#= [assoc(b -> 2), assoc()]
+
+#% text
+# Operator form:
+
+#% cell
+key_drop([a])(assoc(a -> 1, b -> 2))
+#% output
+#= assoc(b -> 2)
+
+#% section
+# See also
+
+#% text
+# `key_take`, `delete_key`, `keys`

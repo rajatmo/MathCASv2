@@ -468,6 +468,13 @@ impl<'k, 'h> Eval<'k, 'h> {
                 e.t = u;
                 return Go::Again(e);
             }
+        } else if self.maps_associations(head, vs) {
+            // a function that maps over lists itself maps over the values of associations (decision io-core.1)
+            if let Some(u) = self.thread_assoc(head, vs) {
+                attempt!(self, cx, e, self.tick(cx));
+                e.t = u;
+                return Go::Again(e);
+            }
         }
         // canonicalise: flattened and sorted; with an identity element the result may be no call of the head
         let mut canon = [head; ARGS];

@@ -50,6 +50,14 @@ level(f(g(x), y), [-1])
 #% output
 #= [x, y]
 
+#% text
+# The values of an association are its parts:
+
+#% cell
+level(assoc(a -> x, b -> [y]), [-1])
+#% output
+#= [x, y]
+
 #% subsection
 # Properties and relations
 

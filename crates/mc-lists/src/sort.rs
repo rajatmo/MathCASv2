@@ -260,6 +260,20 @@ pub(crate) fn ordered<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 }
 
 /// The positions `0..n` sorted stably by the canonical order of `key[i]`, charging fuel per comparison.
+/// The positions of `key` ordered so that `by(key[i], key[j])` true puts `i` first (stable): `Err` holds a failure
+/// of `by` (decision io-core.13).
+fn order_by_pred<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>], by: T<'h>) -> Res<Result<Vec<usize>, T<'h>>> {
+    let mut ix: Vec<usize> = (0..key.len()).collect();
+    match merge_sort(&mut ix, &mut |b, a| {
+        cx.tick(1)?;
+        decide(lib, cx, by, key[b], key[a])
+    }) {
+        Ok(()) => Ok(Ok(ix)),
+        Err(Halt::Abort(a)) => Err(a),
+        Err(Halt::Fail(f)) => Ok(Err(f)),
+    }
+}
+
 fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<usize>> {
     let mut ix: Vec<usize> = (0..key.len()).collect();
     let mut m = Meter::default();
@@ -278,13 +292,24 @@ fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<us
 /// Each `f(x)` is evaluated once, as a group.
 pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs, f] = *args else { return Ok(Reply::Decline) };
+    let (xs, f, by) = match *args {
+        [xs, f] => (xs, f, None),
+        // `sort_by(xs, f, p)`: the keys ordered by the predicate p (decision io-core.13)
+        [xs, f, p] => (xs, f, Some(p)),
+        _ => return Ok(Reply::Decline),
+    };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
     let key = match keys(lib, cx, f, xs)? {
         Ok(k) => k,
         Err(e) => return Ok(Reply::Done(e)),
     };
-    let ix = order_by_keys(cx, &key)?;
+    let ix = match by {
+        None => order_by_keys(cx, &key)?,
+        Some(p) => match order_by_pred(lib, cx, &key, p)? {
+            Ok(ix) => ix,
+            Err(e) => return Ok(Reply::Done(e)),
+        },
+    };
     let v: Vec<T<'h>> = ix.iter().map(|&i| xs[i]).collect();
     Ok(lib.rebuilt(h, head, &v))
 }
@@ -293,9 +318,14 @@ pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 /// elements by position); `ordering(xs, n)`: the first `n` of them, the last `-n` for negative `n`.
 pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let (xs, n) = match *args {
-        [xs] => (xs, None),
-        [xs, n] => (xs, Some(n)),
+    let all = |n: T<'h>| matches!(h.view(n), View::Sym(s) if h.sym_name(s) == "all");
+    let (xs, n, by) = match *args {
+        [xs] => (xs, None, None),
+        [xs, n] if all(n) => (xs, None, None),
+        [xs, n] => (xs, Some(n), None),
+        // `ordering(xs, n, p)`: ordered by the predicate p (decision io-core.13)
+        [xs, n, p] if all(n) => (xs, None, Some(p)),
+        [xs, n, p] => (xs, Some(n), Some(p)),
         _ => return Ok(Reply::Decline),
     };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
@@ -303,7 +333,13 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         Some(n) => Some(take!(lib.int_operand(h, t, n, 2))),
         None => None,
     };
-    let ix = order_by_keys(cx, xs)?;
+    let ix = match by {
+        None => order_by_keys(cx, xs)?,
+        Some(p) => match order_by_pred(lib, cx, xs, p)? {
+            Ok(ix) => ix,
+            Err(e) => return Ok(Reply::Done(e)),
+        },
+    };
     let len = ix.len() as i64;
     let (lo, hi) = match n {
         None => (0, ix.len()),
@@ -319,6 +355,28 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 /// keys. An empty `xs` is `failure(index, 1, 0)`, as for `first`.
 fn extreme_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], max: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `max_by(xs, f, n)`: the n elements with the largest keys, largest first (equal keys in order; decision io-core.13)
+    if let [xs, f, n] = *args {
+        let View::Int(n @ 0..) = h.view(n) else { return Ok(Reply::Decline) };
+        let (head, xs) = take!(lib.operand(h, t, xs, 1));
+        let key = match keys(lib, cx, f, xs)? {
+            Ok(k) => k,
+            Err(e) => return Ok(Reply::Done(e)),
+        };
+        let mut ix: Vec<usize> = (0..key.len()).collect();
+        let mut m = Meter::default();
+        let want = if max { Ordering::Greater } else { Ordering::Less };
+        match merge_sort(&mut ix, &mut |b, a| {
+            m.step(cx)?;
+            Ok(cx.cmp(key[b], key[a]) == want)
+        }) {
+            Ok(()) => {}
+            Err(Halt::Abort(a)) => return Err(a),
+            Err(Halt::Fail(f)) => return Ok(Reply::Done(f)),
+        }
+        let v: Vec<T<'h>> = ix.iter().take(n as usize).map(|&i| xs[i]).collect();
+        return Ok(lib.rebuilt(h, head, &v));
+    }
     let [xs, f] = *args else { return Ok(Reply::Decline) };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
     if xs.is_empty() {

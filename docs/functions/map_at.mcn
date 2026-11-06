@@ -45,6 +45,14 @@ map_at(x => x^2, [1, 2, 3, 4], [[1], [-1]])
 #% output
 #= [1, 2, 3, 16]
 
+#% text
+# Keys of an association:
+
+#% cell
+map_at(f, assoc(a -> 1, b -> [2, 3]), [b, 1])
+#% output
+#= assoc(a -> 1, b -> [f(2), 3])
+
 #% subsection
 # Properties and relations
 

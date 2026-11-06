@@ -32,6 +32,17 @@ values(assoc())
 #= []
 
 #% subsection
+# Scope
+
+#% text
+# A list of associations:
+
+#% cell
+values([assoc(a -> 1), assoc(b -> 2, c -> 3)])
+#% output
+#= [[1], [2, 3]]
+
+#% subsection
 # Applications
 
 #% text

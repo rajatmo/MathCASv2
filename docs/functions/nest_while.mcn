@@ -45,6 +45,22 @@ nest_while(x => 2x, 1, x => true, 1, 5)
 #% output
 #= 32
 
+#% text
+# The test sees the latest two values:
+
+#% cell
+nest_while(x => floor(x/2), 10, not_same, 2)
+#% output
+#= 0
+
+#% text
+# One value before the end:
+
+#% cell
+nest_while(x => x + 1, 1, x => x < 5, 1, inf, -1)
+#% output
+#= 4
+
 #% subsection
 # Properties and relations
 

@@ -84,7 +84,17 @@ pub(crate) fn member_of<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 /// arguments in order (decision 1A.6).
 pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [x, p] = *args else { return Ok(Reply::Decline) };
+    // `position(t, p, levels)` (levels counted from the top) and `heads: false` (decision io-core.11)
+    let (args, heads) = crate::ctx::option(h, args, "heads");
+    let heads = heads.is_none_or(|v| !cx.is_false(v));
+    let (x, p, levels) = match *args {
+        [x, p] => (x, p, None),
+        [x, p, spec] => match crate::levels::level_spec(h, spec) {
+            Some(l) if l.contains_level(0).is_some() => (x, p, Some(l)),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
     let probe = take!(probe(lib, cx, t, p, 2));
     // the path to the top of `stack`; each entry: a term and its next child (0 the head, i argument i)
     let mut stack: Vec<(T<'h>, usize)> = vec![(x, 0)];
@@ -93,6 +103,10 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     let mut m = Meter::default();
     while let Some(&(u, next)) = stack.last() {
         if let View::App { head, args } = h.view(u) {
+            if next == 0 && !heads {
+                stack.last_mut().expect("nonempty").1 += 1;
+                continue;
+            }
             if next <= args.len() {
                 let child = if next == 0 { head } else { args[next - 1] };
                 // invariant: inside the loop over a nonempty stack
@@ -103,7 +117,8 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
             }
         }
         m.step(cx)?;
-        if probe.test(cx, u)? {
+        let inside = levels.is_none_or(|l| l.contains_level(path.len()) == Some(true));
+        if inside && probe.test(cx, u)? {
             if out.len() == MAX_LEN {
                 return Ok(Reply::Done(lib.too_large(h, t)));
             }

@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# gather
+
+#% text
+# `gather(xs)` gives the lists of identical elements of `xs`, in order of first appearance.
+
+#% text
+# `gather(xs, f)` puts `x` with an earlier element `y` when `f(y, x)` is `true`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity without a test.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gather([a, b, a, c, b])
+#% output
+#= [[a, a], [b, b], [c]]
+
+#% subsection
+# Scope
+
+#% text
+# A test:
+
+#% cell
+gather(range(10), (a, b) => mod(a, 3) == mod(b, 3))
+#% output
+#= [[1, 4, 7, 10], [2, 5, 8], [3, 6, 9]]
+
+#% section
+# See also
+
+#% text
+# `gather_by`, `tally`, `unique`

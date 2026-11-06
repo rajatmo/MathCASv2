@@ -111,6 +111,22 @@ table(if is_even(k) then k else 0, k, 6)
 #% output
 #= [0, 2, 0, 4, 0, 6]
 
+#% text
+# A count alone as an iterator repeats the rest:
+
+#% cell
+table(0, 2, 3)
+#% output
+#= [[0, 0, 0], [0, 0, 0]]
+
+#% text
+# Iterate over the solutions of an equation:
+
+#% cell
+table(rewrite(x^2 + x, s), s, solve(x^2 == 4, x))
+#% output
+#= [2, 6]
+
 #% subsection
 # Applications
 

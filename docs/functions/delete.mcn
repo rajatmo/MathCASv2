@@ -45,6 +45,14 @@ delete([[a, b], [c, d]], [2, 1])
 #% output
 #= [[a, b], [d]]
 
+#% text
+# A key of an association:
+
+#% cell
+delete(assoc(a -> 1, b -> 2), a)
+#% output
+#= assoc(b -> 2)
+
 #% subsection
 # Properties and relations
 

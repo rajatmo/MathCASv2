@@ -58,6 +58,14 @@ count(characters("mississippi"), "s")
 #% output
 #= 4
 
+#% text
+# The values of an association:
+
+#% cell
+count(assoc(a -> 1, b -> 2, c -> 1), 1)
+#% output
+#= 2
+
 #% subsection
 # Applications
 

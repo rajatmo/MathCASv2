@@ -55,8 +55,14 @@ pub(crate) fn string_join<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
 /// `to_string(t)`: a string itself, any other term as the printer writes it.
 pub(crate) fn to_string<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [x] = *args else {
-        return Ok(Reply::Decline);
+    // the text form is the input form: `to_string(x, input_form)` and a page width are accepted (decision io-core.9)
+    let (args, _) = crate::ctx::option(h, args, "page_width");
+    let x = match *args {
+        [x] => x,
+        [x, form] if matches!(h.view(form), View::Sym(s) if ["input_form", "output_form", "standard_form"].contains(&h.sym_name(s).as_str())) => {
+            x
+        }
+        _ => return Ok(Reply::Decline),
     };
     match h.view(x) {
         View::Str(_) => return Ok(Reply::Done(x)),

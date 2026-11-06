@@ -169,6 +169,25 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn attributes(&self, s: Sym) -> crate::Attributes {
         self.ev.k.defs.attrs(s)
     }
+    /// Whether `s` is listable or maps over lists itself (`Kernel::set_maps_lists`, decision io-core.1).
+    pub fn maps_lists(&self, s: Sym) -> bool {
+        self.ev.k.maps_lists(s)
+    }
+    /// Whether `t` is a call of a number-like value head with its own arithmetic (`Kernel::set_value_head`,
+    /// decision io-core.5).
+    pub fn is_value(&self, t: T<'h>) -> bool {
+        let k = &self.ev.k;
+        if k.value_heads.is_empty() {
+            return false;
+        }
+        let h = self.ev.heap;
+        match h.view(t) {
+            mc_core::View::App { head, .. } => {
+                matches!(h.view(head), mc_core::View::Sym(s) if k.value_heads.contains(&s))
+            }
+            _ => false,
+        }
+    }
     /// Whether a call of `s` on normal forms is its own normal form: `s` has no native, own value, identity,
     /// rules or attributes (the read is recorded). A native building `s(x)` from a normal form `x` may then skip
     /// evaluating it.

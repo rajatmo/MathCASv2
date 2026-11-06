@@ -31,6 +31,11 @@ impl Levels {
         Levels { lo: 0, hi: i64::MAX }
     }
 
+    /// Is a part at level `level` inside, when both bounds are levels from the top (`None` for negative bounds)?
+    pub(crate) fn contains_level(self, level: usize) -> Option<bool> {
+        (self.lo >= 0 && self.hi >= 0).then(|| (self.lo..=self.hi).contains(&(level as i64)))
+    }
+
     /// Is a part at level `level` with depth `depth` inside?
     fn contains(self, level: usize, depth: usize) -> bool {
         let (pos, neg) = (level as i64, -(depth as i64));
@@ -81,6 +86,47 @@ fn parts<'h>(h: &'h Heap, t: T<'h>) -> Option<(T<'h>, &'h [T<'h>])> {
     }
 }
 
+/// The entries `(k, v)` of an association in normal form.
+pub(crate) fn assoc_entries<'h>(h: &'h Heap, t: T<'h>) -> Option<Vec<(T<'h>, T<'h>)>> {
+    if h.packed(t).is_some() {
+        return None;
+    }
+    let View::App { head, args } = h.view(t) else { return None };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "assoc") {
+        return None;
+    }
+    args.iter()
+        .map(|&r| match h.view(r) {
+            View::App { head, args: &[k, v] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "rule") => {
+                Some((k, v))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// The entries of `t` when it is an association in normal form (the heads given).
+fn entries_of<'h>(h: &'h Heap, t: T<'h>, heads: AssocHeads<'h>) -> Option<Vec<(T<'h>, T<'h>)>> {
+    match h.view(t) {
+        View::App { head, args } if head == heads.assoc && h.packed(t).is_none() => args
+            .iter()
+            .map(|&r| match h.view(r) {
+                View::App { head, args: &[k, v] } if head == heads.rule => Some((k, v)),
+                _ => None,
+            })
+            .collect(),
+        _ => None,
+    }
+}
+
+/// Entry `i` of the association `t` (in normal form).
+fn es_rule<'h>(h: &'h Heap, t: T<'h>, i: usize) -> T<'h> {
+    match h.view(t) {
+        View::App { args, .. } => args[i],
+        _ => t,
+    }
+}
+
 /// A visit of a part at a level: its (rebuilt) term and position; `Some` replaces it.
 pub(crate) type Visit<'v, 'a, 'b, 'h> = dyn FnMut(&mut NativeCx<'a, 'b, 'h>, T<'h>, &[i64]) -> Res<Option<T<'h>>> + 'v;
 
@@ -93,7 +139,16 @@ pub(crate) fn walk<'a, 'b, 'h>(
     visit: &mut Visit<'_, 'a, 'b, 'h>,
 ) -> Res<Option<T<'h>>> {
     let mut pos = vec![];
-    Ok(walk_at(cx, t, levels, visit, &mut pos)?.map(|(v, _)| v))
+    let h = cx.heap();
+    let heads = AssocHeads { assoc: h.sym_term(h.sym("assoc")), rule: h.sym_term(h.sym("rule")) };
+    Ok(walk_at(cx, t, levels, visit, &mut pos, heads)?.map(|(v, _)| v))
+}
+
+/// The heads of associations and their entries, for a walk.
+#[derive(Clone, Copy)]
+struct AssocHeads<'h> {
+    assoc: T<'h>,
+    rule: T<'h>,
 }
 
 fn walk_at<'a, 'b, 'h>(
@@ -102,12 +157,34 @@ fn walk_at<'a, 'b, 'h>(
     levels: Levels,
     visit: &mut Visit<'_, 'a, 'b, 'h>,
     pos: &mut Vec<i64>,
+    heads: AssocHeads<'h>,
 ) -> Res<Option<(T<'h>, usize)>> {
     let h = cx.heap();
     if pos.len() > MAX_DEPTH {
         return Ok(None);
     }
     cx.tick(1)?;
+    // an association's parts are its values: the keys are not walked (decision io-core.4)
+    if let Some(es) = entries_of(h, t, heads) {
+        let mut out = Vec::with_capacity(es.len());
+        let mut depth = 0;
+        let g = gone(h);
+        for (i, &(k, v)) in es.iter().enumerate() {
+            pos.push(i as i64 + 1);
+            let r = walk_at(cx, v, levels, visit, pos, heads)?;
+            pos.pop();
+            let Some((v2, d)) = r else { return Ok(None) };
+            depth = depth.max(d);
+            if v2 != g {
+                out.push(if v2 == v { es_rule(h, t, i) } else { h.app(heads.rule, &[k, v2]) });
+            }
+        }
+        let u = h.app(heads.assoc, &out);
+        let u = if u == t { t } else { u };
+        let depth = depth + 1;
+        let u = if levels.contains(pos.len(), depth) { visit(cx, u, pos)?.unwrap_or(u) } else { u };
+        return Ok(Some((u, depth)));
+    }
     let (u, depth) = match parts(h, t) {
         None => (t, 1),
         Some((head, args)) => {
@@ -115,7 +192,7 @@ fn walk_at<'a, 'b, 'h>(
             let mut depth = 0;
             for (i, &a) in args.iter().enumerate() {
                 pos.push(i as i64 + 1);
-                let r = walk_at(cx, a, levels, visit, pos)?;
+                let r = walk_at(cx, a, levels, visit, pos, heads)?;
                 pos.pop();
                 let Some((v, d)) = r else { return Ok(None) };
                 depth = depth.max(d);
@@ -144,6 +221,11 @@ fn position<'h>(cx: &NativeCx<'_, '_, 'h>, pos: &[i64]) -> T<'h> {
 pub(crate) fn apply_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>, levels: Levels) -> Res<Reply<'h>> {
     let h = cx.heap();
     let mut visit = |_: &mut NativeCx<'_, '_, 'h>, u: T<'h>, _: &[i64]| -> Res<Option<T<'h>>> {
+        // an association's arguments are its values
+        if let Some(es) = assoc_entries(h, u) {
+            let vs: Vec<T<'h>> = es.iter().map(|&(_, v)| v).collect();
+            return Ok(Some(h.app(f, &vs)));
+        }
         Ok(parts(h, u).map(|(_, args)| h.app(f, args)))
     };
     Ok(match walk(cx, x, levels, &mut visit)? {
@@ -193,6 +275,11 @@ impl Native for MapMore {
                 Some(levels) => map_at_levels(cx, f, x, levels),
                 None => Ok(Reply::Decline),
             },
+            // a dataset maps over its rows (decision io-core.17)
+            [f, x] if self.lib.is_dataset(h, x) => {
+                let rows = h.app(h.sym_term(h.sym("rows")), &[x]);
+                Ok(Reply::Again(h.app(h.sym_term(h.sym("map")), &[f, rows])))
+            }
             [f, x] if cx.as_list(x).is_none() && h.packed(x).is_none() => {
                 let Some((head, xs)) = parts(h, x) else { return self.inner.call(cx, t, args) };
                 let (assoc, rule) = (h.sym_term(h.sym("assoc")), h.sym_term(self.lib.s.rule));

@@ -72,6 +72,14 @@ sort([[2, 1], [1, 5], [1, 2]])
 #% output
 #= [[1, 2], [1, 5], [2, 1]]
 
+#% text
+# The values of an association, keeping their keys:
+
+#% cell
+sort(assoc(a -> 3, b -> 1, c -> 2))
+#% output
+#= assoc(b -> 1, c -> 2, a -> 3)
+
 #% subsection
 # Applications
 

@@ -58,6 +58,14 @@ select([1, x, 2.5, "a", 3/4], is_number)
 #% output
 #= [1, 2.5, 3/4]
 
+#% text
+# At most `n` elements:
+
+#% cell
+select(range(20), is_prime, 3)
+#% output
+#= [2, 3, 5]
+
 #% subsection
 # Applications
 

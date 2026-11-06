@@ -46,6 +46,50 @@ fn positions<'h>(h: &'h Heap, cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<
     one(spec).map(|p| vec![p])
 }
 
+/// The positions of `spec` in an association with entries `es` (decision io-core.4): a key (any atom other than an
+/// integer, or a term) stands for the position of its entry; integers are positions. Also whether `spec` names
+/// several positions.
+fn assoc_positions<'h>(
+    h: &'h Heap,
+    cx: &NativeCx<'_, '_, 'h>,
+    es: &[(T<'h>, T<'h>)],
+    spec: T<'h>,
+) -> Option<(Vec<Vec<i64>>, bool)> {
+    let comp = |x: T<'h>| -> Option<i64> {
+        match h.view(x) {
+            View::Int(i) => Some(i),
+            _ => es.iter().position(|&(k, _)| k == x).map(|i| i as i64 + 1),
+        }
+    };
+    let path = |t: T<'h>| -> Option<Vec<i64>> {
+        match cx.as_list(t) {
+            Some(xs) if !xs.is_empty() => {
+                let mut p = vec![comp(xs[0])?];
+                for &x in &xs[1..] {
+                    let View::Int(i) = h.view(x) else { return None };
+                    p.push(i);
+                }
+                Some(p)
+            }
+            Some(_) => None,
+            None => Some(vec![comp(t)?]),
+        }
+    };
+    if let Some(xs) = cx.as_list(spec) {
+        if !xs.is_empty() && xs.iter().all(|&x| cx.as_list(x).is_some()) {
+            return Some((xs.iter().map(|&x| path(x)).collect::<Option<_>>()?, true));
+        }
+    }
+    Some((vec![path(spec)?], false))
+}
+
+/// The association with the keys of `es` and the values `vs` (as many).
+fn rekeyed<'h>(lib: &Lib, h: &'h Heap, es: &[(T<'h>, T<'h>)], vs: &[T<'h>]) -> T<'h> {
+    let rule = h.sym_term(lib.s.rule);
+    let rules: Vec<T<'h>> = es.iter().zip(vs).map(|(&(k, _), &v)| h.app(rule, &[k, v])).collect();
+    h.app(h.sym_term(lib.s.assoc), &rules)
+}
+
 /// The part of `t` at `pos`, or the first index that is outside.
 fn part_at<'h>(h: &'h Heap, t: T<'h>, pos: &[i64]) -> Result<T<'h>, i64> {
     let mut cur = t;
@@ -182,6 +226,19 @@ pub(crate) fn array_depth<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'
 pub(crate) fn extract<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, spec] = *args else { return Ok(Reply::Decline) };
+    // an association: keys or positions of its values (decision io-core.4)
+    if let Some(es) = crate::assocs::entries(lib, h, x) {
+        let Some((ps, several)) = assoc_positions(h, cx, &es, spec) else { return Ok(Reply::Decline) };
+        let vs = cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>());
+        let mut out = Vec::with_capacity(ps.len());
+        for p in &ps {
+            match part_at(h, vs, p) {
+                Ok(v) => out.push(v),
+                Err(i) => return Ok(Reply::Done(lib.bad_index(h, h.int(i), 0))),
+            }
+        }
+        return Ok(Reply::Done(if several { cx.list(&out) } else { out[0] }));
+    }
     let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
     let several = cx.as_list(spec).is_some_and(|xs| xs.first().is_some_and(|&y| cx.as_list(y).is_some()));
     let mut out = Vec::with_capacity(ps.len());
@@ -264,14 +321,55 @@ fn edit_all<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, mut ps: Vec<
 pub(crate) fn delete<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, spec] = *args else { return Ok(Reply::Decline) };
+    if let Some(es) = crate::assocs::entries(lib, h, x) {
+        let Some((ps, _)) = assoc_positions(h, cx, &es, spec) else { return Ok(Reply::Decline) };
+        let n = es.len() as i64;
+        // whole entries: the association without them
+        if ps.iter().all(|p| p.len() == 1) {
+            let gone: Vec<usize> = ps.iter().filter_map(|p| index(p[0], es.len()).filter(|&k| k > 0).map(|k| k - 1)).collect();
+            if gone.len() != ps.len() {
+                return Ok(Reply::Done(lib.bad_index(h, h.int(ps[0][0]), n as usize)));
+            }
+            let rule = h.sym_term(lib.s.rule);
+            let kept: Vec<T<'h>> =
+                es.iter().enumerate().filter(|(i, _)| !gone.contains(i)).map(|(_, &(k, v))| h.app(rule, &[k, v])).collect();
+            return Ok(Reply::Done(h.app(h.sym_term(lib.s.assoc), &kept)));
+        }
+        return in_values(lib, cx, &es, ps, Edit::Delete);
+    }
     let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
     edit_all(lib, cx, x, ps, Edit::Delete)
+}
+
+/// An edit inside the values of an association (each position starts with an entry's position).
+fn in_values<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    es: &[(T<'h>, T<'h>)],
+    ps: Vec<Vec<i64>>,
+    edit: Edit<'h>,
+) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let vs = cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>());
+    let v = match edit_all(lib, cx, vs, ps, edit)? {
+        Reply::Done(v) => v,
+        Reply::Again(u) => cx.eval(u)?,
+        Reply::Decline => return Ok(Reply::Decline),
+    };
+    Ok(match cx.as_list(v) {
+        Some(ys) if ys.len() == es.len() => Reply::Again(rekeyed(lib, h, es, ys)),
+        _ => Reply::Done(v),
+    })
 }
 
 /// `map_at(f, x, pos)`, `map_at(f, x, [pos1, ...])`: `x` with each part `p` at the positions replaced by `f(p)`.
 pub(crate) fn map_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, x, spec] = *args else { return Ok(Reply::Decline) };
+    if let Some(es) = crate::assocs::entries(lib, h, x) {
+        let Some((ps, _)) = assoc_positions(h, cx, &es, spec) else { return Ok(Reply::Decline) };
+        return in_values(lib, cx, &es, ps, Edit::Apply(f));
+    }
     let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
     edit_all(lib, cx, x, ps, Edit::Apply(f))
 }
@@ -319,6 +417,19 @@ pub(crate) fn replace<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         },
         _ => return Ok(Reply::Decline),
     };
+    // a list of rule lists (`solve`'s solutions): one result per list, as `rewrite` (decision io-core.2)
+    if let Some(sets) = cx.as_list(r).filter(|rs| !rs.is_empty() && rs.iter().all(|&s| cx.as_list(s).is_some())) {
+        let calls: Vec<T<'h>> = sets
+            .iter()
+            .map(|&set| {
+                let mut a = args.to_vec();
+                a[1] = set;
+                h.app(h.sym_term(h.sym("replace")), &a)
+            })
+            .collect();
+        cx.tick(calls.len() as u64)?;
+        return Ok(Reply::Again(cx.list(&calls)));
+    }
     let Some(mut ms) = matchers(lib, cx, r) else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
     let mut visit = |cx: &mut NativeCx<'_, '_, 'h>, u: T<'h>, _: &[i64]| -> Res<Option<T<'h>>> {
         for (m, rhs) in ms.iter_mut() {
@@ -376,6 +487,14 @@ pub(crate) fn first_case<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let (xs, p, default) = match *args {
         [xs, p] => (xs, p, None),
         [xs, p, d] => (xs, p, Some(d)),
+        // `first_case(x, p, d, levels)`: the first match at the levels (decision io-core.11)
+        [x, p, d, spec] => {
+            let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
+            return Ok(match crate::select::cases_at(lib, cx, t, x, p, levels, 1)? {
+                Ok(found) => Reply::Done(found.first().copied().unwrap_or(d)),
+                Err(r) => r,
+            });
+        }
         _ => return Ok(Reply::Decline),
     };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
@@ -403,8 +522,12 @@ pub(crate) fn first_case<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 /// `reverse_sort(xs)`: the elements in reverse canonical order.
 pub(crate) fn reverse_sort<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs] = *args else { return Ok(Reply::Decline) };
-    let sorted = h.app(h.sym_term(h.sym("sort")), &[xs]);
+    // `reverse_sort(xs, p)`: `sort(xs, p)` reversed (decision io-core.13)
+    let sorted = match *args {
+        [xs] => h.app(h.sym_term(h.sym("sort")), &[xs]),
+        [xs, p] => h.app(h.sym_term(h.sym("sort")), &[xs, p]),
+        _ => return Ok(Reply::Decline),
+    };
     Ok(Reply::Again(h.app(h.sym_term(h.sym("reverse")), &[sorted])))
 }
 

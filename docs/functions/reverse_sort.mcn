@@ -29,6 +29,17 @@ reverse_sort(["b", "c", "a"])
 #= ["c", "b", "a"]
 
 #% subsection
+# Scope
+
+#% text
+# Ordered by a predicate, then reversed:
+
+#% cell
+reverse_sort([3, 1, 2], greater)
+#% output
+#= [1, 2, 3]
+
+#% subsection
 # Properties and relations
 
 #% text

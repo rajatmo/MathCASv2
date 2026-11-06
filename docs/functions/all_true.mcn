@@ -1,0 +1,71 @@
+#! mathcas 2 notebook
+
+#% title
+# all_true
+
+#% text
+# `all_true(xs, f)` is `true` when `f(x)` is `true` for every element `x` of `xs`.
+
+#% text
+# `all_true(xs, f, n)` tests the parts down to level `n`.
+
+#% section
+# Details
+
+#% item
+# An empty list, or an atom, gives `true`.
+
+#% item
+# The values of an association are its elements.
+
+#% item
+# An answer that is neither `true` nor `false` leaves a conjunction of the open tests.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+all_true([2, 4, 6], is_even)
+#% output
+#= true
+
+#% cell
+all_true([2, 3], is_even)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Down to level 2:
+
+#% cell
+all_true([[2, 4], [6, 8]], is_even, 2)
+#% output
+#= true
+
+#% text
+# The values of an association:
+
+#% cell
+all_true(assoc(a -> 1, b -> 3), is_odd)
+#% output
+#= true
+
+#% text
+# Operator form:
+
+#% cell
+all_true(is_prime)([2, 3, 5])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `any_true`, `none_true`, `select`

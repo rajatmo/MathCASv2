@@ -23,7 +23,9 @@ mod engine;
 pub mod format;
 mod history;
 
-pub use engine::{CoreEngine, EachOptions, EngineConfig, Event, Image, NameKind, Report, RunError, Script};
+pub use engine::{
+    CoreEngine, EachOptions, EngineConfig, Event, Image, NameKind, Report, RunError, Script, MAPS_LISTS, OPERATOR_FORMS,
+};
 /// The functions the engine itself adds for notebooks (`out`, `message`), with a one-line description.
 pub use history::FUNCTIONS;
 /// The panic guard of evaluations (`failure(internal, ...)`), for hosts that guard their own requests too.

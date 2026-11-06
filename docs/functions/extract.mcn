@@ -50,6 +50,14 @@ extract([a, b, c], -1)
 #% output
 #= c
 
+#% text
+# Keys of an association:
+
+#% cell
+extract(assoc(a -> 1, b -> [2, 3]), [b, 2])
+#% output
+#= 3
+
 #% subsection
 # Properties and relations
 

@@ -50,6 +50,14 @@ position(f(x, g(x, y)), x)
 #% output
 #= [[1], [2, 1]]
 
+#% text
+# Only the parts at level 2:
+
+#% cell
+position([a, [a, b]], a, [2])
+#% output
+#= [[2, 1]]
+
 #% subsection
 # Applications
 

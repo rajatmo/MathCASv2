@@ -78,6 +78,18 @@ fn reduce<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, op: Op, xs: &[T<'h>]) ->
     // the canonicaliser's own pass is linear (collection by hashing) plus a sort
     cx.tick(other.len() as u64 / 4)?;
     other.push(exact[0]);
+    // quantities and uncertain numbers: their arithmetic is the evaluator's (decision io-core.5)
+    if other.iter().any(|&x| cx.is_value(x)) {
+        let f = match op {
+            Op::Add => mc_api::names::ADD,
+            Op::Mul => mc_api::names::MUL,
+        };
+        // without the exact identity, which a quantity does not add to
+        if exact[0] == int128(h, op.unit()) {
+            other.pop();
+        }
+        return cx.eval(h.call(h.sym(f), &other));
+    }
     Ok(op.of(&ar, &other))
 }
 
@@ -131,6 +143,9 @@ pub(crate) fn sum<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: 
 /// `product(xs)`: the canonical product of the elements (`1` for `[]`).
 pub(crate) fn product<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if args.len() == 2 {
+        return crate::sums::iterated_product(lib, cx, t, args);
+    }
     let [xs] = *args else {
         return Ok(Reply::Decline);
     };

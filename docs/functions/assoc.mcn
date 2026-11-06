@@ -73,6 +73,14 @@ assoc()
 #% output
 #= assoc()
 
+#% text
+# Patterns of associations match associations:
+
+#% cell
+rewrite(f(assoc(1 -> 2, 3 -> 4)), f(assoc(k_ -> v_, ___)) :> [k, v])
+#% output
+#= [1, 2]
+
 #% subsection
 # Applications
 

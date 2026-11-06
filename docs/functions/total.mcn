@@ -60,6 +60,22 @@ total([])
 #% output
 #= 0
 
+#% text
+# The values of an association:
+
+#% cell
+total(assoc(a -> 1, b -> 2))
+#% output
+#= 3
+
+#% text
+# Quantities and numbers with uncertainty add with their own arithmetic:
+
+#% cell
+total([around(1.0, 0.3), around(2.0, 0.4)])
+#% output
+#= around(3.0, 0.5)
+
 #% subsection
 # Applications
 

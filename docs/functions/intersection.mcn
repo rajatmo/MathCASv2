@@ -37,6 +37,17 @@ intersection([1, 2], [3])
 #= []
 
 #% subsection
+# Scope
+
+#% text
+# `same_test` decides when two elements are the same:
+
+#% cell
+intersection([1, 2, 3], [-2, -3], same_test: (a, b) => abs(a) == abs(b))
+#% output
+#= [2, 3]
+
+#% subsection
 # Applications
 
 #% text

@@ -46,6 +46,14 @@ pub(crate) fn dataset<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
                 return Ok(Reply::Done(x));
             }
             if let Some(entries) = lib.as_assoc(h, x) {
+                // an association of rows (each an association): the rows, their keys dropped (decision io-core.12)
+                let rows: Option<Vec<T<'h>>> = entries
+                    .iter()
+                    .map(|&e| lib.entry(h, e).map(|(_, v)| v).filter(|&v| lib.as_assoc(h, v).is_some()))
+                    .collect();
+                if let Some(rows) = rows.filter(|r| !r.is_empty()) {
+                    return from_rows(lib, cx, &rows);
+                }
                 return Ok(Reply::Done(columns_failure(lib, h, t, entries)));
             }
             if let View::Sym(_) = h.view(x) {

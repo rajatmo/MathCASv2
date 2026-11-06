@@ -162,6 +162,32 @@ enum Input<'a> {
     File(&'a Path),
 }
 
+/// The functions without the `listable` attribute that map over list arguments themselves, elementwise (the
+/// elementary, special and number-theory functions keep their own list fast paths): they also thread over the values
+/// of associations, `sin(assoc(a -> x))` is `assoc(a -> sin(x))` (decision io-core.1). A test checks each one maps
+/// lists elementwise.
+pub const MAPS_LISTS: &[&str] = &[
+        "abs", "abs_arg", "acos", "acosh", "acot", "acoth", "acsc", "acsch", "airy_ai", "airy_ai_prime", "airy_bi",
+        "airy_bi_prime", "arg", "asec", "asech", "asin", "asinh", "atan", "atanh", "bessel_i", "bessel_i_scaled",
+        "bessel_j", "bessel_k", "bessel_k_scaled", "bessel_y", "beta", "beta_regularized", "binomial", "ceiling",
+        "chebyshev_t", "chebyshev_u", "chop", "clip", "conjugate", "cos", "cos_integral", "cosh", "cosh_integral",
+        "cot", "coth", "csc", "csch", "dawson_f", "denominator", "digamma", "dirac_delta", "divisor_sigma",
+        "elliptic_e", "elliptic_f", "elliptic_k", "elliptic_nome_q", "elliptic_pi", "erf", "erfc", "erfi",
+        "euler_phi", "exp", "exp_integral_e", "exp_integral_ei", "expm1", "factorial", "factorial2",
+        "factorial_power", "fibonacci", "floor", "fractional_part", "fresnel_c", "fresnel_s", "gamma",
+        "gamma_regularized", "gegenbauer_c", "gudermannian", "hankel_h1", "hankel_h2", "harmonic_number",
+        "heaviside_theta", "hermite_h", "hyperfactorial", "hypergeometric_0f1", "hypergeometric_0f1_regularized",
+        "hypergeometric_1f1", "hypergeometric_2f1", "im_part", "integer_exponent", "integer_length", "integer_part",
+        "inverse_erf", "inverse_erfc", "inverse_gudermannian", "inverse_jacobi_sn", "is_prime", "jacobi_cd",
+        "jacobi_cn", "jacobi_cs", "jacobi_dc", "jacobi_dn", "jacobi_ds", "jacobi_nc", "jacobi_nd", "jacobi_ns",
+        "jacobi_sc", "jacobi_sd", "jacobi_sn", "jacobi_symbol", "laguerre_l", "legendre_p", "legendre_q", "log",
+        "log10", "log1p", "log2", "log_gamma", "log_integral", "lucas_l", "mod", "moebius_mu", "multinomial",
+        "multiplicative_order", "next_prime", "numerator", "pochhammer", "polygamma", "polylog", "power_mod", "prime",
+        "prime_pi", "primitive_root", "product_log", "quotient", "ramp", "rationalize", "re", "re_im", "real_abs",
+        "real_sign", "round", "sec", "sech", "sign", "sin", "sin_integral", "sinc", "sinh", "sinh_integral", "sqrt",
+        "subfactorial", "tan", "tanh", "unit_box", "unit_step", "unit_triangle", "zeta",
+];
+
 /// The functions with an operator form `f(a..)(x..)` and where its outer arguments go (decision p6core.2).
 pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
     use OperatorForm::{DataFirst as F, DataLast as L};
@@ -173,7 +199,7 @@ pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
         ("replace", F), ("replace_part", F), ("extract", F), ("insert", F), ("delete", F), ("key_select", F),
         ("match_q", F), ("string_replace", F), ("string_contains", F), ("string_starts", F), ("string_ends", F),
         ("string_split", F), ("string_cases", F), ("string_delete", F), ("gather_by", F), ("unique_by", F),
-        ("take_largest", F), ("take_smallest", F),
+        ("take_largest", F), ("take_smallest", F), ("first_case", F),
         ("contains_any", F), ("contains_all", F), ("contains_none", F), ("key_member", F),
         ("map", L), ("apply", L), ("map_indexed", L), ("fold", L), ("fold_list", L), ("scan", L),
         ("key_map", L), ("key_value_map", L), ("assoc_map", L), ("map_thread", L),
@@ -238,6 +264,14 @@ impl CoreEngine {
             // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)` (decision p6core.2)
             for &(name, form) in OPERATOR_FORMS {
                 k.set_operator_form(h.sym(name), form);
+            }
+            // elementwise functions thread over associations (decision io-core.1)
+            for &name in MAPS_LISTS {
+                k.set_maps_lists(h.sym(name));
+            }
+            // quantities and uncertain numbers keep their arithmetic in list reductions (decision io-core.5)
+            for name in mc_numeric::uncertain::HEADS {
+                k.set_value_head(h.sym(name));
             }
             // the notebook protocol's history (`out`) and library warnings (`message`)
             crate::history::install(&mut k, h);

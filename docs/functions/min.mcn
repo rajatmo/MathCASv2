@@ -60,6 +60,14 @@ min([])
 #% output
 #! failure(argument, min, 1)
 
+#% text
+# The values of an association:
+
+#% cell
+min(assoc(a -> 1, b -> 5))
+#% output
+#= 1
+
 #% subsection
 # Applications
 

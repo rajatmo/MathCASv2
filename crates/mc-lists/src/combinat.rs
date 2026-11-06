@@ -28,6 +28,9 @@ fn binomial(n: usize, k: usize) -> u128 {
 /// `n`, `[a, b]` for `a` to `b`. The range is clamped to `0..=len`; an empty range gives no sizes.
 fn sizes<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: Option<T<'h>>, len: usize) -> Result<(usize, usize), Reply<'h>> {
     let Some(a) = a else { return Ok((0, len)) };
+    if matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "all") {
+        return Ok((0, len));
+    }
     let int = |x: T<'h>| match h.view(x) {
         View::Int(v) if v >= 0 => Ok(v as u64),
         View::Sym(_) | View::App { .. } => Err(Reply::Decline),
@@ -50,18 +53,41 @@ fn sizes<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, a: Option<T<'h>>, len: usize) -> 
 /// by position (repeated elements give repeated subsets).
 pub(crate) fn subsets<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let (xs, spec) = match *args {
-        [xs] => (xs, None),
-        [xs, s] => (xs, Some(s)),
+    // `subsets(xs, spec, m)`: the first m subsets, `[k]` the k-th, `[a, b]` the a-th to the b-th (decision io-core.14)
+    let (xs, spec, pick) = match *args {
+        [xs] => (xs, None, None),
+        [xs, s] => (xs, Some(s), None),
+        [xs, s, m] => {
+            let int = |x: T<'h>| match h.view(x) {
+                View::Int(v @ 1..) => Some(v as usize),
+                _ => None,
+            };
+            let pick = match (h.view(m), cx.as_list(m)) {
+                (View::Int(v @ 0..), _) => (1, v as usize),
+                (_, Some(&[k])) => match int(k) {
+                    Some(k) => (k, k),
+                    None => return Ok(Reply::Decline),
+                },
+                (_, Some(&[a, b])) => match (int(a), int(b)) {
+                    (Some(a), Some(b)) => (a, b),
+                    _ => return Ok(Reply::Decline),
+                },
+                _ => return Ok(Reply::Decline),
+            };
+            (xs, Some(s), Some(pick))
+        }
         _ => return Ok(Reply::Decline),
     };
-    let xs = take!(lib.list_operand(h, t, xs, 1));
+    // the subsets of a product, a sum, ... are products, sums, ... (decision io-core.14)
+    let (head, xs) = take!(lib.operand(h, t, xs, 1));
     let n = xs.len();
     let (lo, hi) = take!(sizes(lib, h, t, spec, n));
+    let limit = pick.map_or(usize::MAX, |(_, b)| b);
     let total = (lo..=hi).fold(0u128, |s, k| s.saturating_add(binomial(n, k).saturating_mul(k as u128 + 1)));
-    if total > MAX_CELLS {
+    if total.min(limit as u128 * (hi as u128 + 1)) > MAX_CELLS {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
+    let list = h.sym_term(lib.s.list);
     let mut out = vec![];
     let mut m = Meter::default();
     let mut part = vec![];
@@ -72,9 +98,12 @@ pub(crate) fn subsets<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
             for _ in 0..=k {
                 m.step(cx)?;
             }
+            if out.len() >= limit {
+                break;
+            }
             part.clear();
             part.extend(ix.iter().map(|&i| xs[i]));
-            out.push(cx.list(&part));
+            out.push(h.app(head, &part));
             let Some(i) = (0..k).rev().find(|&i| ix[i] < n - k + i) else { break };
             ix[i] += 1;
             for j in i + 1..k {
@@ -82,7 +111,10 @@ pub(crate) fn subsets<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
             }
         }
     }
-    Ok(Reply::Done(cx.list(&out)))
+    if let Some((a, _)) = pick {
+        out.drain(..(a - 1).min(out.len()));
+    }
+    Ok(if head == list { Reply::Done(cx.list(&out)) } else { Reply::Again(cx.list(&out)) })
 }
 
 /// Every choice of one element from each of `lists`, lexicographically by position, as lists of the elements.

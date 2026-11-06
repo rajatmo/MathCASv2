@@ -75,15 +75,18 @@ pub(crate) fn assoc<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             continue;
         }
         flat = false;
+        // anything else than entries (a pattern `assoc(k_ -> v_, ___)`, a delayed rule) leaves the call as it is
+        // (decision io-core.12)
         let inner = match h.view(x) {
             View::App { head, args } if head == h.sym_term(lib.s.list) || head == h.sym_term(lib.s.assoc) => args,
-            _ => return Ok(Reply::Done(lib.bad_arg(h, t, i + 1))),
+            View::Str(_) | View::Int(_) | View::Real(_) => return Ok(Reply::Done(lib.bad_arg(h, t, i + 1))),
+            _ => return Ok(Reply::Decline),
         };
         for &e in inner {
             meter.step(cx)?;
             match lib.entry(h, e) {
                 Some((k, _)) => b.push(k, e),
-                None => return Ok(Reply::Done(lib.bad_arg(h, t, i + 1))),
+                None => return Ok(Reply::Decline),
             }
         }
     }
@@ -100,7 +103,9 @@ pub(crate) fn is_assoc<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, 
     let [x] = *args else {
         return Ok(Reply::Decline);
     };
-    Ok(Reply::Done(cx.bool(lib.as_assoc(h, x).is_some())))
+    // every argument an entry (an `assoc` call that stayed unevaluated is no association)
+    let ok = lib.as_assoc(h, x).is_some_and(|es| es.iter().all(|&e| lib.is_rule(h, e)));
+    Ok(Reply::Done(cx.bool(ok)))
 }
 
 /// The list of one part of every entry.
@@ -115,6 +120,10 @@ fn parts<'h>(
     let [a] = *args else {
         return Ok(Reply::Decline);
     };
+    // one rule: its key or value (decision io-core.12)
+    if lib.is_rule(h, a) {
+        return Ok(Reply::Done(part(lib, h, a)));
+    }
     // a list of rules is read like the entries of an association (decision p6core.12)
     let rules = cx.as_list(a).filter(|xs| xs.iter().all(|&x| lib.is_rule(h, x)));
     let es = match rules {
@@ -260,6 +269,33 @@ pub(crate) fn key_sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 /// end otherwise).
 pub(crate) fn insert<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `insert(xs, x, n)`: `x` inserted into a list (any compound term) at position n, a path `[i, j, ...]` or several
+    // paths; `insert(a, k -> v, n)`: the entry at position n (or before the key n) of an association (decision io-core.16)
+    if let [x, e, pos] = *args {
+        if lib.as_assoc(h, x).is_none() && matches!(h.view(x), View::App { .. }) {
+            return insert_into(lib, cx, t, x, e, pos);
+        }
+        if let (Some(es), Some(_)) = (lib.as_assoc(h, x), lib.entry(h, e)) {
+            let at = match h.view(pos) {
+                View::Int(i) => {
+                    let n = es.len() as i64;
+                    let i = if i < 0 { n + 2 + i } else { i };
+                    if !(1..=n + 1).contains(&i) {
+                        return Ok(Reply::Done(lib.bad_arg(h, t, 3)));
+                    }
+                    (i - 1) as usize
+                }
+                _ => match position(lib, cx, x, es, pos, false)? {
+                    Some(p) => p,
+                    None => return Ok(Reply::Done(lib.bad_arg(h, t, 3))),
+                },
+            };
+            charge_copy(cx, es.len() + 1)?;
+            let mut out = es.to_vec();
+            out.insert(at, e);
+            return Ok(Reply::Again(h.call(lib.s.assoc, &out)));
+        }
+    }
     let (a, k, e) = match *args {
         [a, e] => match lib.entry(h, e) {
             Some((k, _)) => (a, k, e),
@@ -277,6 +313,64 @@ pub(crate) fn insert<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         None => out.push(e),
     }
     Ok(Reply::Done(lib.assoc(h, &out)))
+}
+
+/// `x` with `e` inserted at the positions `pos` (an integer, a path, or a list of paths); a position outside is
+/// `failure(argument, insert, 3)`.
+fn insert_into<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, e: T<'h>, pos: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let ints = |p: T<'h>| -> Option<Vec<i64>> {
+        match h.view(p) {
+            View::Int(i) => Some(vec![i]),
+            _ => cx.as_list(p)?.iter().map(|&q| if let View::Int(i) = h.view(q) { Some(i) } else { None }).collect(),
+        }
+    };
+    let paths: Vec<Vec<i64>> = match cx.as_list(pos) {
+        Some(ps) if !ps.is_empty() && ps.iter().all(|&p| cx.as_list(p).is_some()) => {
+            match ps.iter().map(|&p| ints(p)).collect::<Option<Vec<_>>>() {
+                Some(v) => v,
+                None => return Ok(Reply::Decline),
+            }
+        }
+        _ => match ints(pos) {
+            Some(p) if !p.is_empty() => vec![p],
+            _ => return Ok(Reply::Decline),
+        },
+    };
+    // the last positions first, so the earlier ones stay valid
+    let mut paths = paths;
+    paths.sort();
+    let mut cur = x;
+    for p in paths.iter().rev() {
+        cx.tick(1)?;
+        match insert_path(h, cur, p, e) {
+            Some(u) => cur = u,
+            None => return Ok(Reply::Done(lib.bad_arg(h, t, 3))),
+        }
+    }
+    Ok(Reply::Again(cur))
+}
+
+/// `x` with `e` inserted at the path `p` (the last index the insertion point, negative from the end).
+fn insert_path<'h>(h: &'h mc_core::Heap, x: T<'h>, p: &[i64], e: T<'h>) -> Option<T<'h>> {
+    let View::App { head, args } = h.view(x) else { return None };
+    let n = args.len() as i64;
+    let (&i, rest) = p.split_first()?;
+    let mut out = args.to_vec();
+    if rest.is_empty() {
+        let i = if i < 0 { n + 2 + i } else { i };
+        if !(1..=n + 1).contains(&i) {
+            return None;
+        }
+        out.insert((i - 1) as usize, e);
+    } else {
+        let i = if i < 0 { n + 1 + i } else { i };
+        if !(1..=n).contains(&i) {
+            return None;
+        }
+        out[(i - 1) as usize] = insert_path(h, args[(i - 1) as usize], rest, e)?;
+    }
+    Some(h.app(head, &out))
 }
 
 /// `delete_key(a, k)`: `a` without key `k` (unchanged if it has no such key).

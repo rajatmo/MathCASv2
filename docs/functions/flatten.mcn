@@ -61,6 +61,22 @@ flatten([[1, 2, 3], [4, 5, 6]])
 #% output
 #= [1, 2, 3, 4, 5, 6]
 
+#% text
+# Every level:
+
+#% cell
+flatten([1, [2, [3, [4]]]], inf)
+#% output
+#= [1, 2, 3, 4]
+
+#% text
+# Only the parts with a given head:
+
+#% cell
+flatten(f(g(a, b), f(c)), inf, g)
+#% output
+#= f(a, b, f(c))
+
 #% subsection
 # Applications
 

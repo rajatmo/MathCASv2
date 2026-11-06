@@ -45,6 +45,14 @@ replace([x^2, [x^2]], x^2 -> y, [1])
 #% output
 #= [y, [x^2]]
 
+#% text
+# A list of rule lists, as `solve` gives, makes one result per list:
+
+#% cell
+replace(x, solve(x^2 == 4, x))
+#% output
+#= [-2, 2]
+
 #% subsection
 # Properties and relations
 

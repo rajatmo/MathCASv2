@@ -69,6 +69,14 @@ max([])
 #% output
 #! failure(argument, max, 1)
 
+#% text
+# The values of an association:
+
+#% cell
+max(assoc(a -> 1, b -> 5))
+#% output
+#= 5
+
 #% subsection
 # Applications
 

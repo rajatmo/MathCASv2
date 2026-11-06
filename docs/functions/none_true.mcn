@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# none_true
+
+#% text
+# `none_true(xs, f)` is `true` when `f(x)` is `true` for no element `x` of `xs`.
+
+#% text
+# `none_true(xs, f, n)` tests the parts down to level `n`.
+
+#% section
+# Details
+
+#% item
+# An empty list, or an atom, gives `true`.
+
+#% item
+# The values of an association are its elements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+none_true([1, 3, 5], is_even)
+#% output
+#= true
+
+#% cell
+none_true([1, 2], is_even)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Down to level 2:
+
+#% cell
+none_true([[1, 3], [5, 7]], is_even, 2)
+#% output
+#= true
+
+#% text
+# The values of an association:
+
+#% cell
+none_true(assoc(a -> 1, b -> 3), is_even)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `all_true`, `any_true`

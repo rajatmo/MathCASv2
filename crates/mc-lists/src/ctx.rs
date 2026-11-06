@@ -388,3 +388,17 @@ pub(crate) fn group_cost<'h>(cx: &NativeCx<'_, '_, 'h>, f: T<'h>) -> u64 {
         _ => 0,
     }
 }
+
+/// The arguments before a final `options(name -> value, ...)` argument, and the value of option `name` in it.
+pub(crate) fn option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>], name: &str) -> (&'a [T<'h>], Option<T<'h>>) {
+    let Some((&last, before)) = args.split_last() else { return (args, None) };
+    let View::App { head, args: items } = h.view(last) else { return (args, None) };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") {
+        return (args, None);
+    }
+    let v = items.iter().find_map(|&r| match h.view(r) {
+        View::App { args: &[k, v], .. } if matches!(h.view(k), View::Sym(s) if h.sym_name(s) == name) => Some(v),
+        _ => None,
+    });
+    (before, v)
+}

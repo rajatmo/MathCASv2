@@ -393,7 +393,37 @@ impl Native for Equality {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let [a, b] = args else { return Ok(Reply::Decline) };
+        let [a, b] = args else {
+            // `equal(x)`, `unequal(x)` are true; `equal(a, b, c, ...)`: every neighbour equal; `unequal(a, b, c,
+            // ...)`: no two equal (decision io-core.10)
+            if args.len() == 1 {
+                return Ok(Reply::Done(cx.bool(true)));
+            }
+            if args.is_empty() || args.len() > 64 {
+                return Ok(Reply::Decline);
+            }
+            let mut open = false;
+            if self.negate {
+                for i in 0..args.len() {
+                    for j in i + 1..args.len() {
+                        match self.decide(cx, args[i], args[j], 0) {
+                            Some(true) => return Ok(Reply::Done(cx.bool(false))),
+                            Some(false) => {}
+                            None => open = true,
+                        }
+                    }
+                }
+            } else {
+                for w in args.windows(2) {
+                    match self.decide(cx, w[0], w[1], 0) {
+                        Some(false) => return Ok(Reply::Done(cx.bool(false))),
+                        Some(true) => {}
+                        None => open = true,
+                    }
+                }
+            }
+            return Ok(if open { Reply::Decline } else { Reply::Done(cx.bool(true)) });
+        };
         let decided = self.decide(cx, *a, *b, 0);
         Ok(match decided {
             Some(e) => Reply::Done(cx.bool(e != self.negate)),

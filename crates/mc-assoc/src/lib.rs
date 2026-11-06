@@ -56,7 +56,7 @@ pub use table::Col as Column;
 pub use text::{table_text, MAX_CELL, MAX_ROWS, MAX_WIDTH};
 
 use ctx::Lib;
-use mc_core::{Heap, Raw, Store, T};
+use mc_core::{Heap, Raw, Store, View, T};
 use mc_eval::pat::{self, Pat};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res, Rhs};
 use std::sync::Arc;
@@ -68,16 +68,63 @@ type Body = for<'a, 'b, 'c, 'h> fn(&Lib, &mut NativeCx<'a, 'b, 'h>, T<'h>, &'c [
 struct Fun {
     lib: Arc<Lib>,
     body: Body,
+    /// a list of associations (or of lists) as the first argument maps (one of [`LISTWISE`])
+    listwise: bool,
 }
+
+/// The functions that map over a list of associations given as the first argument, and read a list of rules as an
+/// association (decision io-core.12): `key_drop([a1, a2], ks)` is `[key_drop(a1, ks), key_drop(a2, ks)]`.
+const LISTWISE: &[&str] = &["keys", "values", "key_drop", "key_take"];
 
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if self.listwise {
+            if let Some(r) = self.listwise(cx, t, args) {
+                return Ok(r);
+            }
+        }
         (self.body)(&self.lib, cx, t, args)
     }
 
     /// A safe point: the cached indexes name terms by handle, which the collection may move or reuse.
     fn trace(&mut self, _visit: &mut dyn FnMut(&mut Raw)) {
         self.lib.indexes.clear();
+    }
+}
+
+impl Fun {
+    /// The call of a [`LISTWISE`] function on a list: mapped over its elements, or on the association of its rules.
+    fn listwise<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Option<Reply<'h>> {
+        let h = cx.heap();
+        let (&first, rest) = args.split_first()?;
+        let xs = cx.as_list(first)?;
+        let View::App { head, .. } = h.view(t) else { return None };
+        let lib = &self.lib;
+        let rules = xs.iter().all(|&x| lib.is_rule(h, x));
+        let keys_or_values = matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "keys" | "values"));
+        if rules {
+            // `keys` and `values` read a list of rules themselves
+            if keys_or_values {
+                return None;
+            }
+            let a = h.call(lib.s.assoc, xs);
+            let mut v = vec![a];
+            v.extend_from_slice(rest);
+            return Some(Reply::Again(h.app(head, &v)));
+        }
+        let mapped = |x: T<'h>| lib.as_assoc(h, x).is_some() || cx.as_list(x).is_some() || (keys_or_values && lib.is_rule(h, x));
+        if xs.is_empty() || !xs.iter().all(|&x| mapped(x)) {
+            return None;
+        }
+        let calls: Vec<T<'h>> = xs
+            .iter()
+            .map(|&x| {
+                let mut v = vec![x];
+                v.extend_from_slice(rest);
+                h.app(head, &v)
+            })
+            .collect();
+        Some(Reply::Again(cx.list(&calls)))
     }
 }
 
@@ -179,9 +226,12 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     for &(name, body, mode) in BODIES {
         let hold = if matches!(mode, Mode::HoldRest) { mc_eval::Hold::Rest } else { mc_eval::Hold::None };
         let a = Attributes { handles_failures: matches!(mode, Mode::Failures), hold, ..Attributes::default() };
-        k.register(h.sym(name), a, Box::new(Fun { lib: lib.clone(), body }));
+        let listwise = LISTWISE.contains(&name);
+        k.register(h.sym(name), a, Box::new(Fun { lib: lib.clone(), body, listwise }));
     }
     let (part, assoc, lookup) = (h.sym("part"), lib.s.assoc, h.sym("lookup"));
+    // listable functions thread over the values of associations (decision io-core.1)
+    k.set_association_heads(assoc, lib.s.rule);
     let whole = || pat::named(0, pat::call(h, assoc, vec![Pat::Seq { var: None, min: 0 }]));
     let one: Rhs = Arc::new(move |b, h| h.call(lookup, &[b.one(0), b.one(1)]));
     let more: Rhs = Arc::new(move |b, h| {
@@ -197,6 +247,31 @@ pub fn install(k: &mut Kernel, h: &Heap) {
         k.define_attached(h, lhs, rhs, assoc).expect("the part rules of associations are well formed");
     }
     install_rows(k, h, &lib);
+    install_values(k, h, &lib);
+}
+
+/// The statistics of other libraries that see an association's values (decision io-core.4): with an association
+/// as the first argument, `f(a @ assoc(___), args___) := f(values(a), args...)`, a rule attached to `assoc` that
+/// applies when `f`'s own native leaves the call.
+pub const VALUE_FUNCTIONS: &[&str] =
+    &["mean", "median", "variance", "var", "std_dev", "kurtosis", "skewness", "quantile", "moment", "central_moment"];
+
+fn install_values(k: &mut Kernel, h: &Heap, lib: &Arc<Lib>) {
+    let (assoc, values) = (lib.s.assoc, h.sym("values"));
+    for &name in VALUE_FUNCTIONS {
+        let f = h.sym(name);
+        let lhs = pat::call(
+            h,
+            f,
+            vec![pat::named(0, pat::call(h, assoc, vec![Pat::Seq { var: None, min: 0 }])), pat::seq0(1)],
+        );
+        let rhs: Rhs = Arc::new(move |b, h| {
+            let mut args = vec![h.call(values, &[b.one(0)])];
+            args.extend_from_slice(b.seq(1));
+            h.call(f, &args)
+        });
+        k.define_attached(h, lhs, rhs, assoc).expect("the value rules of associations are well formed");
+    }
 }
 
 /// The list functions on a dataset's rows (decision DATA.2): `mc-lists` declines them on a dataset, and the rule
@@ -204,7 +279,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
 /// native `dataset_rows` (not in [`FUNCTIONS`]: it gives back `f(d, args...)` when it cannot evaluate the call).
 fn install_rows(k: &mut Kernel, h: &Heap, lib: &Arc<Lib>) {
     let rows_op = h.sym(dataset::ROWS_OP);
-    k.register(rows_op, Attributes::default(), Box::new(Fun { lib: lib.clone(), body: dataset::rows_op }));
+    k.register(rows_op, Attributes::default(), Box::new(Fun { lib: lib.clone(), body: dataset::rows_op, listwise: false }));
     let data = lib.d.dataset;
     for &name in dataset::ROW_FUNCTIONS {
         let f = h.sym(name);

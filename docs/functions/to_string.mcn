@@ -57,6 +57,14 @@ to_string(n(pi, 25))
 #% output
 #= "3.14159265358979323846264338328"
 
+#% text
+# The text is the input form:
+
+#% cell
+to_string(x^2 + 1, input_form)
+#% output
+#= "1 + x^2"
+
 #% subsection
 # Applications
 

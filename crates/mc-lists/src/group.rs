@@ -49,9 +49,19 @@ fn keyed<'h>(
 /// `tally(xs)`: the list of pairs `[x, n]`, each distinct element with the number of its occurrences.
 pub(crate) fn tally<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs] = *args else { return Ok(Reply::Decline) };
+    let (xs, test) = match *args {
+        [xs] => (xs, None),
+        [xs, f] => (xs, Some(f)),
+        _ => return Ok(Reply::Decline),
+    };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
-    let (ks, gs) = groups(cx, xs, xs)?;
+    let (ks, gs) = match test {
+        None => groups(cx, xs, xs)?,
+        Some(f) => match classes(lib, cx, xs, f)? {
+            Ok(gs) => (gs.iter().map(|g| g[0]).collect(), gs),
+            Err(v) => return Ok(Reply::Done(v)),
+        },
+    };
     let out: Vec<T<'h>> = ks.iter().zip(&gs).map(|(&k, g)| cx.list(&[k, h.int(g.len() as i64)])).collect();
     Ok(Reply::Done(cx.list(&out)))
 }
@@ -59,9 +69,19 @@ pub(crate) fn tally<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// `gather(xs)`: the lists of identical elements.
 pub(crate) fn gather<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs] = *args else { return Ok(Reply::Decline) };
+    let (xs, test) = match *args {
+        [xs] => (xs, None),
+        [xs, f] => (xs, Some(f)),
+        _ => return Ok(Reply::Decline),
+    };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
-    let (_, gs) = groups(cx, xs, xs)?;
+    let gs = match test {
+        None => groups(cx, xs, xs)?.1,
+        Some(f) => match classes(lib, cx, xs, f)? {
+            Ok(gs) => gs,
+            Err(v) => return Ok(Reply::Done(v)),
+        },
+    };
     let out: Vec<T<'h>> = gs.iter().map(|g| cx.list(g)).collect();
     Ok(Reply::Done(cx.list(&out)))
 }
@@ -114,4 +134,32 @@ pub(crate) fn count_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     let (ks, gs) = groups(cx, xs, &ks)?;
     let out: Vec<T<'h>> = ks.iter().zip(&gs).map(|(&k, g)| lib.rule(h, k, h.int(g.len() as i64))).collect();
     Ok(Reply::Again(h.app(h.sym_term(h.sym("assoc")), &out)))
+}
+
+/// The classes of `xs` under the test `f`: each element joins the first class whose first element `r` has
+/// `f(r, x)` true, else starts a class (decision io-core.7). `Err` holds a failure of a test. Quadratic in the
+/// number of classes, as any test that is not an identity must be.
+pub(crate) fn classes<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    xs: &[T<'h>],
+    f: T<'h>,
+) -> Res<Result<Vec<Vec<T<'h>>>, T<'h>>> {
+    let h = cx.heap();
+    let mut out: Vec<Vec<T<'h>>> = vec![];
+    'next: for &x in xs {
+        for g in out.iter_mut() {
+            cx.tick(1)?;
+            let v = apply(cx, f, &[g[0], x])?;
+            if lib.is_failure(h, v) {
+                return Ok(Err(v));
+            }
+            if cx.is_true(v) {
+                g.push(x);
+                continue 'next;
+            }
+        }
+        out.push(vec![x]);
+    }
+    Ok(Ok(out))
 }

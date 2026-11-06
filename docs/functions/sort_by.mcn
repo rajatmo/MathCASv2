@@ -55,6 +55,14 @@ sort_by([3, 1, 2], x => -x)
 #% output
 #= [3, 2, 1]
 
+#% text
+# The keys ordered by a predicate:
+
+#% cell
+sort_by(["bb", "a", "ccc"], string_length, greater)
+#% output
+#= ["ccc", "bb", "a"]
+
 #% subsection
 # Applications
 

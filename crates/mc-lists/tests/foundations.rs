@@ -110,7 +110,7 @@ fn quantifiers() {
             ("any_true([1, 2], test)", "true"),
             ("all_true([1, 2], test)", "test(2)"),
             ("all_true(xs, is_integer)", "all_true(xs, is_integer)"),
-            ("all_true(3, is_integer)", "failure(argument, all_true, 1)"),
+            ("all_true(3, is_integer)", "true"),
         ],
     );
 }
@@ -356,7 +356,8 @@ fn iteration() {
             ("table(k, k, 3)", "[1, 2, 3]"),
             ("k", "10"),
             ("table(k, k, n)", "table(k, k, n)"),
-            ("table(k, 1, 3)", "failure(argument, table, 2)"),
+            ("table(k, 1, 3)", "[[10, 10, 10]]"),
+            ("table(x, 2, 3)", "[[x, x, x], [x, x, x]]"),
             ("table(k, k, \"s\")", "failure(argument, table, 3)"),
             ("table(k, k, 1/0)", "failure(division_by_zero)"),
             ("table(k, k, 10^9)", "failure(limit, memory, table(k, k, 10^9))"),

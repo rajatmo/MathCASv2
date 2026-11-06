@@ -42,10 +42,31 @@ pub(crate) fn catenate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     let xss = take!(lib.list_operand(h, t, xss, 1));
     let mut parts = Vec::with_capacity(xss.len());
     let mut total = 0usize;
+    // an association contributes its values (decision io-core.4)
+    let mut owned: Vec<Vec<T<'h>>> = vec![];
     for &xs in xss {
+        if let Some(es) = crate::assocs::entries(lib, h, xs) {
+            owned.push(es.iter().map(|&(_, v)| v).collect());
+            continue;
+        }
         let Some(xs) = cx.as_list(xs) else { return Ok(Reply::Done(lib.bad_arg(h, t, 1))) };
         total += xs.len();
         parts.push(xs);
+    }
+    if !owned.is_empty() {
+        // keep the order of the arguments
+        let mut out = Vec::new();
+        let mut o = owned.into_iter();
+        let mut p = parts.into_iter();
+        for &xs in xss {
+            if crate::assocs::entries(lib, h, xs).is_some() {
+                out.extend(o.next().unwrap_or_default());
+            } else {
+                out.extend_from_slice(p.next().unwrap_or_default());
+            }
+        }
+        charge_copy(cx, out.len())?;
+        return Ok(Reply::Done(cx.list(&out)));
     }
     if total > MAX_LEN {
         return Ok(Reply::Done(lib.too_large(h, t)));

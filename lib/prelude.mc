@@ -34,27 +34,9 @@ fn flat_map(f, xs) = flatten(map(f, xs), 1)
 fn accumulate(xs) = if length(xs) == 0 then [] else fold_list(add, xs)
 
 # fix_point(f, x): f applied repeatedly from x until the value no longer changes; numbers that agree (balls that
-# overlap, equal machine reals) count as no change; fix_point(f, x, n): at most n applications
-fn fix_point(f, x) = {
-  var a = x
-  var b = f(x)
-  while a !== b and not (is_number(a) and is_number(b) and (a == b) !== false) {
-    a = b
-    b = f(b)
-  }
-  b
-}
-fn fix_point(f, x, n: Int) = {
-  var a = x
-  var b = f(x)
-  var k = 1
-  while k < n and a !== b and not (is_number(a) and is_number(b) and (a == b) !== false) {
-    a = b
-    b = f(b)
-    k = k + 1
-  }
-  b
-}
+# overlap, equal machine reals) count as no change; fix_point(f, x, n): at most n applications; fix_point(f, x,
+# same_test: g): until g(previous, next) is true. The last value of fixed_point_list.
+fn fix_point(f, x, rest...) = last(apply(fixed_point_list, join([f, x], rest)))
 
 # say(x, ...): print the arguments on one line (strings as their text, other values printed); the value is null
 fn say(parts...) = { print(string_join(map(to_string, parts))); null }

@@ -45,6 +45,14 @@ delete_cases([[1, a], [b, 2]], _: Int, [2])
 #% output
 #= [[a], [b]]
 
+#% text
+# The values of an association, keeping their keys:
+
+#% cell
+delete_cases(assoc(a -> 1, b -> x), _: Int)
+#% output
+#= assoc(b -> x)
+
 #% subsection
 # Properties and relations
 

@@ -45,6 +45,14 @@ first_case([a, b], _: Int, none)
 #% output
 #= none
 
+#% text
+# A default and levels:
+
+#% cell
+first_case([[a, 1], [b, 2]], _: Int, none, [2])
+#% output
+#= 1
+
 #% subsection
 # Properties and relations
 

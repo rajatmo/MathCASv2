@@ -9,8 +9,14 @@ use mc_eval::{NativeCx, Reply, Res};
 /// (decision I.11).
 pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs, f] = *args else {
-        return Ok(Reply::Decline);
+    let (xs, f, most) = match *args {
+        [xs, f] => (xs, f, usize::MAX),
+        // `select(xs, f, n)`: the first n (decision io-core.6)
+        [xs, f, n] => match h.view(n) {
+            View::Int(n @ 0..) => (xs, f, n as usize),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
     // an association's entries are tested by their values (decision p6core.22)
@@ -35,6 +41,9 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     })?;
     let mut out = Vec::with_capacity(xs.len());
     for (&x, &v) in xs.iter().zip(&tests) {
+        if out.len() >= most {
+            break;
+        }
         if cx.is_true(v) {
             out.push(x);
         } else if lib.is_failure(h, v) {
@@ -71,6 +80,24 @@ fn pattern<'l, 'h>(
 /// for each match, `r` with the pattern's variables replaced, evaluated.
 pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `cases(x, p, levels)`, `cases(x, p, levels, n)`: the parts at the levels, the first n (decision io-core.11)
+    let (args, _) = crate::ctx::option(h, args, "heads");
+    if let [x, p, spec, ref more @ ..] = *args {
+        let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
+        let most = match more {
+            [] => usize::MAX,
+            [n] => match h.view(*n) {
+                View::Int(n @ 0..) => n as usize,
+                View::Sym(s) if h.sym_name(s) == "inf" => usize::MAX,
+                _ => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        return Ok(match cases_at(lib, cx, t, x, p, levels, most)? {
+            Ok(out) => Reply::Done(cx.list(&out)),
+            Err(r) => r,
+        });
+    }
     let [xs, p] = *args else {
         return Ok(Reply::Decline);
     };
@@ -91,9 +118,44 @@ pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     Ok(Reply::Done(cx.list(&out)))
 }
 
+/// The parts of `x` at `levels` (inner parts first) that match the pattern `p` (or, for a rule `p -> r`, the
+/// values of `r`), at most `most` of them.
+pub(crate) fn cases_at<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    t: T<'h>,
+    x: T<'h>,
+    p: T<'h>,
+    levels: crate::levels::Levels,
+    most: usize,
+) -> Res<Result<Vec<T<'h>>, Reply<'h>>> {
+    let (mut m, rhs) = match pattern(lib, cx, t, p, true) {
+        Ok(v) => v,
+        Err(r) => return Ok(Err(r)),
+    };
+    let mut out = vec![];
+    let mut visit = |cx: &mut NativeCx<'_, '_, 'h>, u: T<'h>, _: &[i64]| -> Res<Option<T<'h>>> {
+        if out.len() < most && m.matches(cx, u)? {
+            out.push(match rhs {
+                None => u,
+                Some(r) => {
+                    let r = m.substitute(cx, r)?;
+                    cx.eval(r)?
+                }
+            });
+        }
+        Ok(None)
+    };
+    Ok(match crate::levels::walk(cx, x, levels, &mut visit)? {
+        Some(_) => Ok(out),
+        None => Err(Reply::Decline),
+    })
+}
+
 /// `count(xs, p)`: how many elements of `xs` match the pattern `p`.
 pub(crate) fn count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    let (args, _) = crate::ctx::option(h, args, "heads");
     if let [x, p, spec] = *args {
         let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
         let (mut m, _) = take!(pattern(lib, cx, t, p, false));

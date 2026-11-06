@@ -221,9 +221,17 @@ fn iterator_values<'h>(
 /// value of the range `r` (a list, or an integer `n` for `1, ..., n`); `table(e, k1, r1, k2, r2, ...)`: nested
 /// lists, the first iterator outermost, each range evaluated with the iterators before it bound. Every argument is
 /// held: `e` is the body of a closure `k => e` (lexical, hygienic: semantics 6.7), called on each value as a group
-/// like `map` (decision 1A.14).
+/// like `map` (decision 1A.14). An iterator is a symbol and its range, or a count alone: `table(e, 4, 7)` is four
+/// lists of seven values of `e`, `table(e, 3, k, r)` three copies of `table(e, k, r)` (decision io-core.3).
 pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // a count iterator before more iterators, `table(e, n, ...)`: n copies of `table(e, ...)` (decision io-core.3)
+    if args.len() >= 3 && !matches!(h.view(args[1]), View::Sym(_)) {
+        let mut inner = vec![args[0]];
+        inner.extend_from_slice(&args[2..]);
+        let inner = h.call(lib.s.table, &inner);
+        return table(lib, cx, t, &[inner, args[1]]);
+    }
     let (e, k, r) = match *args {
         [e, n] => {
             let n = cx.eval(n)?;
@@ -240,7 +248,9 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             })?;
             return Ok(Reply::Done(cx.list(&out)));
         }
-        [e, k, r, ..] if args.len() % 2 == 1 => (e, k, r),
+        // a symbol alone at the end is neither an iterator nor a count
+        [.., last] if args.len() % 2 == 0 && matches!(h.view(last), View::Sym(_)) => return Ok(Reply::Decline),
+        [e, k, r, ..] => (e, k, r),
         _ => return Ok(Reply::Decline),
     };
     if !matches!(h.view(k), View::Sym(_)) {
@@ -293,6 +303,25 @@ pub(crate) fn map_thread<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let h = cx.heap();
     let [f, xss] = *args else { return Ok(Reply::Decline) };
     let xss = take!(lib.list_operand(h, t, xss, 2));
+    // associations with the same keys: the association of `f` of each key's values (decision io-core.4)
+    if !xss.is_empty() && xss.iter().all(|&a| crate::assocs::entries(lib, h, a).is_some()) {
+        let mut vals = Vec::with_capacity(xss.len());
+        for &a in xss {
+            let es = crate::assocs::entries(lib, h, a).unwrap_or_default();
+            vals.push(cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>()));
+        }
+        let keys: Vec<T<'h>> = crate::assocs::entries(lib, h, xss[0]).unwrap_or_default().iter().map(|&(k, _)| k).collect();
+        // the same keys in the same order: the values thread; anything else is left as it is
+        if xss.iter().any(|&a| crate::assocs::entries(lib, h, a).unwrap_or_default().iter().map(|&(k, _)| k).ne(keys.iter().copied())) {
+            return Ok(Reply::Done(lib.shape(h, t)));
+        }
+        let inner = h.app(h.sym_term(h.sym("map_thread")), &[f, cx.list(&vals)]);
+        let mapped = cx.eval(inner)?;
+        let Some(ys) = cx.as_list(mapped) else { return Ok(Reply::Done(mapped)) };
+        let rule = h.sym_term(lib.s.rule);
+        let rules: Vec<T<'h>> = keys.iter().zip(ys).map(|(&k, &y)| h.app(rule, &[k, y])).collect();
+        return Ok(Reply::Done(h.app(h.sym_term(lib.s.assoc), &rules)));
+    }
     let mut lists = Vec::with_capacity(xss.len());
     for &xs in xss {
         let Some(xs) = cx.as_list(xs) else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
@@ -618,8 +647,10 @@ pub(crate) fn subdivide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     Ok(Reply::Again(cx.list(&out)))
 }
 
-/// The steps of `nest_while` (`list` false) and `nest_while_list`: `f` applied from `x` while `test` holds for the
-/// latest value, at most `max` times.
+/// The steps of `nest_while` (`list` false) and `nest_while_list`: `f` applied from `x` while `test` holds, at most
+/// `max` times (decision io-core.8). The arguments after `test`: `m`, how many of the latest values the test sees
+/// (an integer: the test waits until there are that many; `all`: every value so far; `[mmin, m]`: it waits for
+/// `mmin`); `max`; and `n`, applications after the end (`n > 0`) or values dropped from the end (`n < 0`).
 fn nest_while_steps<'h>(
     lib: &Lib,
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -628,50 +659,93 @@ fn nest_while_steps<'h>(
     list: bool,
 ) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let (f, x, test, max) = match *args {
-        [f, x, test] => (f, x, test, u64::MAX),
-        [f, x, test, m] | [f, x, test, _, m] => match h.view(m) {
-            View::Int(n @ 0..) => (f, x, test, n as u64),
-            View::Sym(s) if h.sym_name(s) == "inf" => (f, x, test, u64::MAX),
+    let (&[f, x, test], rest) = args.split_at(args.len().min(3)) else { return Ok(Reply::Decline) };
+    if rest.len() > 3 {
+        return Ok(Reply::Decline);
+    }
+    let count = |v: T<'h>| match h.view(v) {
+        View::Int(n @ 0..) => Some(n as u64),
+        View::Sym(s) if h.sym_name(s) == "inf" => Some(u64::MAX),
+        _ => None,
+    };
+    let (mmin, m) = match rest.first().map(|&v| h.view(v)) {
+        None => (1, 1),
+        Some(View::Int(k @ 1..)) => (k as usize, k as usize),
+        Some(View::Sym(s)) if h.sym_name(s) == "all" => (1, usize::MAX),
+        Some(View::App { .. }) => match cx.as_list(rest[0]) {
+            Some(&[a, b]) => match (h.view(a), count(b)) {
+                (View::Int(a @ 0..), Some(b)) if b >= 1 => ((a as usize).max(1), usize::try_from(b).unwrap_or(usize::MAX)),
+                _ => return Ok(Reply::Decline),
+            },
             _ => return Ok(Reply::Decline),
         },
         _ => return Ok(Reply::Decline),
     };
-    if let [_, _, _, m, _] = *args {
-        // only the latest value is passed to the test
-        if !matches!(h.view(m), View::Int(1)) {
-            return Ok(Reply::Decline);
-        }
-    }
-    let mut cur = x;
+    let max = match rest.get(1) {
+        None => u64::MAX,
+        Some(&v) => match count(v) {
+            Some(n) => n,
+            None => return Ok(Reply::Decline),
+        },
+    };
+    let extra = match rest.get(2).map(|&v| h.view(v)) {
+        None => 0,
+        Some(View::Int(n)) => n,
+        _ => return Ok(Reply::Decline),
+    };
     let mut out = vec![x];
+    let mut cur = x;
     let mut steps = 0u64;
+    // the values kept: all of them for a list, else the window the test and `n` need
+    let window = if list { usize::MAX } else { m.max(extra.unsigned_abs() as usize + 1) };
     while steps < max {
         cx.tick(1)?;
-        let ok = apply(cx, test, &[cur])?;
-        if lib.is_failure(h, ok) {
-            return Ok(Reply::Done(ok));
-        }
-        if !cx.is_true(ok) {
-            break;
+        if out.len() >= mmin {
+            let k = out.len().min(m);
+            let ok = apply(cx, test, &out[out.len() - k..])?;
+            if lib.is_failure(h, ok) {
+                return Ok(Reply::Done(ok));
+            }
+            if !cx.is_true(ok) {
+                break;
+            }
         }
         cur = apply(cx, f, &[cur])?;
         if lib.is_failure(h, cur) {
             return Ok(Reply::Done(cur));
         }
         steps += 1;
-        if list {
-            if out.len() >= MAX_LEN {
-                return Ok(Reply::Done(lib.too_large(h, t)));
-            }
-            out.push(cur);
+        if out.len() >= MAX_LEN {
+            return Ok(Reply::Done(lib.too_large(h, t)));
+        }
+        out.push(cur);
+        if out.len() > window.saturating_mul(2).max(64) {
+            out.drain(..out.len() - window);
         }
     }
-    Ok(Reply::Done(if list { cx.list(&out) } else { cur }))
+    for _ in 0..extra.max(0) {
+        cx.tick(1)?;
+        cur = apply(cx, f, &[cur])?;
+        if lib.is_failure(h, cur) {
+            return Ok(Reply::Done(cur));
+        }
+        out.push(cur);
+    }
+    if extra < 0 {
+        let drop = (extra.unsigned_abs() as usize).min(out.len());
+        out.truncate(out.len() - drop);
+    }
+    if list {
+        return Ok(Reply::Done(cx.list(&out)));
+    }
+    Ok(match out.last() {
+        Some(&v) => Reply::Done(v),
+        None => Reply::Decline,
+    })
 }
 
-/// `nest_while(f, x, test)`, `nest_while(f, x, test, 1, max)`: `f` applied from `x` as long as `test` of the
-/// latest value is true (at most `max` times).
+/// `nest_while(f, x, test)`, `nest_while(f, x, test, m, max, n)`: `f` applied from `x` as long as `test` of the
+/// latest value (the latest `m` values) is true, at most `max` times.
 pub(crate) fn nest_while<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     nest_while_steps(lib, cx, t, args, false)
 }
@@ -685,6 +759,8 @@ pub(crate) fn nest_while_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T
 /// before it (numbers that agree count as repeating), at most `n` applications.
 pub(crate) fn fixed_point_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `same_test: g`: the iteration stops when `g(previous, next)` is true (decision io-core.8)
+    let (args, test) = crate::ctx::option(h, args, "same_test");
     let (f, x, max) = match *args {
         [f, x] => (f, x, u64::MAX),
         [f, x, n] => match h.view(n) {
@@ -709,7 +785,16 @@ pub(crate) fn fixed_point_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: 
         }
         out.push(next);
         // the same term, or numbers that are equal or cannot be told apart (overlapping balls)
-        let same = next == cur || (ar.num(next).is_some() && ar.num(cur).is_some() && ar.equal(next, cur) != Some(Some(false)));
+        let same = match test {
+            Some(g) => {
+                let v = apply(cx, g, &[cur, next])?;
+                if lib.is_failure(h, v) {
+                    return Ok(Reply::Done(v));
+                }
+                cx.is_true(v)
+            }
+            None => next == cur || (ar.num(next).is_some() && ar.num(cur).is_some() && ar.equal(next, cur) != Some(Some(false))),
+        };
         if same {
             break;
         }

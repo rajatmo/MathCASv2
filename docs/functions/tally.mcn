@@ -50,6 +50,14 @@ tally([[1, 2], [2, 1], [1, 2]])
 #% output
 #= [[[1, 2], 2], [[2, 1], 1]]
 
+#% text
+# A test that two elements count as the same:
+
+#% cell
+tally([1, 2, 11, 12, 21], (a, b) => floor(a/10) == floor(b/10))
+#% output
+#= [[1, 2], [11, 2], [21, 1]]
+
 #% subsection
 # Applications
 

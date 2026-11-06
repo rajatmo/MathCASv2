@@ -71,7 +71,9 @@ impl Native for AttributesOf {
         let h = cx.heap();
         let [f] = args else { return Ok(Reply::Decline) };
         let View::Sym(s) = h.view(*f) else { return Ok(Reply::Decline) };
-        let v: Vec<T<'h>> = names_of(cx.attributes(s)).iter().map(|n| h.sym_term(h.sym(n))).collect();
+        // a function that maps over lists itself is listable to the user (decision io-core.1)
+        let a = Attributes { listable: cx.maps_lists(s), ..cx.attributes(s) };
+        let v: Vec<T<'h>> = names_of(a).iter().map(|n| h.sym_term(h.sym(n))).collect();
         Ok(Reply::Done(cx.list(&v)))
     }
 }

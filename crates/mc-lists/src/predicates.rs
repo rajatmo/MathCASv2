@@ -194,8 +194,26 @@ enum Quantifier {
 /// `none_true` of the negations) or disjunction (`any_true`) of them (decision p6core.4).
 fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], q: Quantifier) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs, f] = *args else { return Ok(Reply::Decline) };
-    let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    let (xs, f, depth) = match *args {
+        [xs, f] => (xs, f, None),
+        // `all_true(xs, f, n)`: the parts down to level n, the atoms above it included (decision io-core.6)
+        [xs, f, n] => match h.view(n) {
+            View::Int(n @ 0..) => (xs, f, Some(n as usize)),
+            View::Sym(s) if h.sym_name(s) == "inf" => (xs, f, Some(usize::MAX)),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
+    let parts: Vec<T<'h>>;
+    let xs: &[T<'h>] = match depth {
+        Some(n) => {
+            parts = parts_to_level(cx, xs, n)?;
+            &parts
+        }
+        // an atom other than a symbol has no elements: the test is vacuous (decision io-core.6)
+        None if h.packed(xs).is_none() && !matches!(h.view(xs), View::App { .. } | View::Sym(_)) => &[],
+        None => take!(lib.operand(h, t, xs, 1)).1,
+    };
     let mut open = vec![];
     for &x in xs {
         cx.tick(1)?;
@@ -227,6 +245,29 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
             Reply::Again(h.app(h.sym_term(h.sym(junction)), &open))
         }
     })
+}
+
+/// The parts of `x` at level `n`, and the atoms at the levels above it (level 0: `x` itself).
+fn parts_to_level<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, n: usize) -> Res<Vec<T<'h>>> {
+    let h = cx.heap();
+    let mut out = vec![];
+    let mut stack = vec![(x, 0usize)];
+    while let Some((u, d)) = stack.pop() {
+        cx.tick(1)?;
+        let args = match cx.as_list(u) {
+            Some(a) => Some(a),
+            None => match h.view(u) {
+                View::App { args, .. } => Some(args),
+                _ => None,
+            },
+        };
+        match args {
+            Some(args) if d < n => stack.extend(args.iter().rev().map(|&a| (a, d + 1))),
+            _ if d == 0 && n > 0 => {}
+            _ => out.push(u),
+        }
+    }
+    Ok(out)
 }
 
 /// `all_true(xs, f)`: is `f(x)` `true` for every element (`true` for none)?

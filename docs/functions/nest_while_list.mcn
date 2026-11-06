@@ -27,6 +27,17 @@ nest_while_list(n => n/2, 96, is_even)
 #= [96, 48, 24, 12, 6, 3]
 
 #% subsection
+# Scope
+
+#% text
+# The test sees every value so far:
+
+#% cell
+nest_while_list(x => mod(3*x, 7), 1, unequal, all)
+#% output
+#= [1, 3, 2, 6, 4, 5, 1]
+
+#% subsection
 # Applications
 
 #% text

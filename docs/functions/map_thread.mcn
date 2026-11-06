@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# map_thread
+
+#% text
+# `map_thread(f, [xs, ys, ...])` gives `[f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]`.
+
+#% section
+# Details
+
+#% item
+# The lists must have one length.
+
+#% item
+# Associations with the same keys give the association of `f` of each key's values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map_thread(f, [[1, 2], [a, b]])
+#% output
+#= [f(1, a), f(2, b)]
+
+#% cell
+map_thread((x, y) => x^y, [[2, 3], [3, 2]])
+#% output
+#= [8, 9]
+
+#% subsection
+# Scope
+
+#% text
+# Associations:
+
+#% cell
+map_thread(f, [assoc(a -> 1, b -> 2), assoc(a -> 3, b -> 4)])
+#% output
+#= assoc(a -> f(1, 3), b -> f(2, 4))
+
+#% section
+# See also
+
+#% text
+# `map`, `thread`, `map_indexed`

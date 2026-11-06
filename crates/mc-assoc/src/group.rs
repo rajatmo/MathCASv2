@@ -50,8 +50,14 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     if let Some(tab) = crate::table::Table::of(&lib.d, h, xs) {
         return crate::aggregate::group_dataset(lib, cx, &tab, f, g);
     }
+    // an association groups its entries by `f` of their values, each group an association (decision io-core.12)
+    let entries = lib.as_assoc(h, xs).filter(|es| es.iter().all(|&e| lib.entry(h, e).is_some()));
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
-    let fx = map_calls(cx, f, xs)?;
+    let tested: Vec<T<'h>> = match entries {
+        Some(es) => es.iter().map(|&e| lib.value(h, e)).collect(),
+        None => xs.to_vec(),
+    };
+    let fx = map_calls(cx, f, &tested)?;
     if let Some(&fail) = fx.iter().find(|&&v| lib.is_failure(h, v)) {
         return Ok(Reply::Done(fail));
     }
@@ -60,7 +66,7 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     for m in &members {
         cx.tick(m.len() as u64 / 16)?;
         let items: Vec<T<'h>> = m.iter().map(|&i| xs[i]).collect();
-        groups.push(cx.list(&items));
+        groups.push(if entries.is_some() { lib.assoc(h, &items) } else { cx.list(&items) });
     }
     if let Some(g) = g {
         groups = map_calls(cx, g, &groups)?;

@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# catenate
+
+#% text
+# `catenate([xs, ys, ...])` joins the lists `xs`, `ys`, ... into one list.
+
+#% section
+# Details
+
+#% item
+# An association contributes its values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catenate([[1, 2], [3], []])
+#% output
+#= [1, 2, 3]
+
+#% subsection
+# Scope
+
+#% text
+# Associations and lists together:
+
+#% cell
+catenate([assoc(a -> 1, b -> 2), [3]])
+#% output
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `join`, `flatten`

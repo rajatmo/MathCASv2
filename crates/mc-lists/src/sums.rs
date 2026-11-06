@@ -52,6 +52,13 @@ fn mul<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<T<'h>> {
 pub(crate) fn iterated<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, spec] = *args else { return Ok(Reply::Decline) };
+    // `sum(f, [k, [x1, x2, ...]])`: k takes the values of the list (decision io-core.15)
+    if let Some(&[kv, vals]) = cx.as_list(spec) {
+        if cx.as_list(vals).is_some() && matches!(h.view(kv), View::Sym(_)) {
+            let terms = call(cx, "table", &[f, kv, vals])?;
+            return Ok(Reply::Done(call(cx, "sum", &[terms])?));
+        }
+    }
     let (kv, a, b) = match cx.as_list(spec) {
         Some(&[kv, a, b]) => (kv, a, b),
         Some(&[kv, b]) => (kv, h.int(1), b),
@@ -276,4 +283,31 @@ pub(crate) fn piecewise<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     }
     let u = h.call(h.sym("piecewise"), &out);
     Ok(if u == t { Reply::Decline } else { Reply::Done(u) })
+}
+
+/// `product(f, [k, a, b])`, `product(f, [k, n])`, `product(f, [k, [x1, ...]])`: the product of the terms, for
+/// integer bounds (at most `MAX_TERMS` terms) or a list of values (decision io-core.15); otherwise unevaluated.
+pub(crate) fn iterated_product<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [f, spec] = *args else { return Ok(Reply::Decline) };
+    let range = match cx.as_list(spec) {
+        Some(&[kv, vals]) if cx.as_list(vals).is_some() => (kv, vals),
+        Some(&[kv, a, b]) => match (h.view(a), h.view(b)) {
+            (View::Int(ia), View::Int(ib)) if ib - ia < MAX_TERMS => (kv, h.call(h.sym("range"), &[a, b])),
+            _ => return Ok(Reply::Decline),
+        },
+        Some(&[kv, b]) => match h.view(b) {
+            View::Int(ib) if ib < MAX_TERMS => (kv, h.call(h.sym("range"), &[b])),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
+    if !matches!(h.view(range.0), View::Sym(_)) {
+        return Ok(Reply::Decline);
+    }
+    let terms = call(cx, "table", &[f, range.0, range.1])?;
+    if cx.as_list(terms).is_none() {
+        return Ok(Reply::Done(terms));
+    }
+    Ok(Reply::Done(call(cx, "product", &[terms])?))
 }

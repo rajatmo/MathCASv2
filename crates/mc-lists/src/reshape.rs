@@ -108,10 +108,23 @@ pub(crate) fn reverse<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 /// (`===`: one hash-consed term each); linear time with a hash set (it replaced the prelude's quadratic definition).
 pub(crate) fn unique<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs] = *args else {
-        return Ok(Reply::Decline);
+    let (xs, test) = match *args {
+        [xs] => (xs, None),
+        // a test is a function: a list or a number there leaves the call
+        [_, f] if cx.as_list(f).is_some() || !matches!(h.view(f), View::Sym(_) | View::App { .. }) => {
+            return Ok(Reply::Decline)
+        }
+        [xs, f] => (xs, Some(f)),
+        _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    // `unique(xs, f)`: an element is dropped when `f(y, x)` is true for an element y kept before it (decision io-core.7)
+    if let Some(f) = test {
+        return Ok(match crate::group::classes(lib, cx, xs, f)? {
+            Ok(gs) => lib.rebuilt(h, head, &gs.iter().map(|g| g[0]).collect::<Vec<_>>()),
+            Err(v) => Reply::Done(v),
+        });
+    }
     let mut seen = FxHashSet::default();
     let mut out = Vec::new();
     let mut meter = Meter::default();
@@ -128,15 +141,19 @@ pub(crate) fn unique<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
 /// depth `d` (0 leaves `xs` unchanged). Iterative: nesting depth costs no stack.
 pub(crate) fn flatten<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let (xs, depth) = match *args {
-        [xs] => (xs, u64::MAX),
-        [xs, d] => match take!(lib.int_operand(h, t, d, 2)) {
-            d @ 0.. => (xs, d as u64),
+    // `flatten(xs, inf)`; `flatten(x, d, g)`: the arguments with head g spliced in (decision io-core.14)
+    let inf = |d: T<'h>| matches!(h.view(d), View::Sym(s) if h.sym_name(s) == "inf");
+    let (xs, depth, splice) = match *args {
+        [xs] => (xs, u64::MAX, None),
+        [xs, d] | [xs, d, _] if inf(d) => (xs, u64::MAX, args.get(2).copied()),
+        [xs, d] | [xs, d, _] => match take!(lib.int_operand(h, t, d, 2)) {
+            d @ 0.. => (xs, d as u64, args.get(2).copied()),
             _ => return Ok(Reply::Done(lib.bad_arg(h, t, 2))),
         },
         _ => return Ok(Reply::Decline),
     };
     let (head, top) = take!(lib.operand(h, t, xs, 1));
+    let splice = splice.unwrap_or(head);
     let mut out = Vec::with_capacity(top.len());
     // (arguments, next position, depth of these arguments)
     let mut stack: Vec<(&'h [T<'h>], usize, u64)> = vec![(top, 0, 0)];
@@ -151,7 +168,7 @@ pub(crate) fn flatten<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         m.step(cx)?;
         let x = xs[i];
         match h.view(x) {
-            View::App { head: g, args } if g == head && d < depth => stack.push((args, 0, d + 1)),
+            View::App { head: g, args } if g == splice && d < depth => stack.push((args, 0, d + 1)),
             _ => {
                 if out.len() == MAX_LEN {
                     return Ok(Reply::Done(lib.too_large(h, t)));
@@ -217,6 +234,12 @@ pub(crate) fn apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let [f, xs] = *args else {
         return Ok(Reply::Decline);
     };
+    // an association's arguments are its values (decision io-core.4)
+    if let Some(es) = crate::assocs::entries(lib, h, xs) {
+        let vs: Vec<T<'h>> = es.iter().map(|&(_, v)| v).collect();
+        charge_copy(cx, vs.len())?;
+        return Ok(Reply::Again(h.app(f, &vs)));
+    }
     let (_, xs) = take!(lib.operand(h, t, xs, 2));
     charge_copy(cx, xs.len())?;
     Ok(Reply::Again(h.app(f, xs)))

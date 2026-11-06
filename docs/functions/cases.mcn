@@ -69,6 +69,22 @@ cases([[1, a], [2, b], [1, c]], [1, s_] -> s)
 #% output
 #= [a, c]
 
+#% text
+# The parts at every level, inner parts first:
+
+#% cell
+cases([1, f(2), [3, x]], _: Int, inf)
+#% output
+#= [1, 2, 3]
+
+#% text
+# The values of an association:
+
+#% cell
+cases(assoc(a -> 1, b -> x, c -> 2), _: Int)
+#% output
+#= [1, 2]
+
 #% subsection
 # Applications
 

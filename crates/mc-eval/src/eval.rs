@@ -261,6 +261,15 @@ pub struct Kernel {
     pub(crate) young_cap: usize,
     /// operator forms: `f(a..)(x..)` of these symbols is `f(x, a..)` or `f(a.., x..)` ([`Kernel::set_operator_form`])
     pub(crate) op_forms: rustc_hash::FxHashMap<Sym, OperatorForm>,
+    /// the heads of associations and their entries, once a library declared them ([`Kernel::set_association_heads`]):
+    /// listable functions thread over associations' values (decision io-core.1)
+    pub(crate) assoc_heads: Option<(Sym, Sym)>,
+    /// functions without the `listable` attribute that map over list arguments themselves: they thread over the
+    /// values of associations as listable functions do ([`Kernel::set_maps_lists`])
+    pub(crate) maps_lists: rustc_hash::FxHashSet<Sym>,
+    /// heads of number-like values with their own arithmetic (quantities, uncertain numbers): sums and products of
+    /// them go through the evaluator's `add` and `mul` ([`Kernel::set_value_head`])
+    pub(crate) value_heads: rustc_hash::FxHashSet<Sym>,
 }
 
 /// Where the arguments of the outer call of an operator form `f(a..)(x..)` go (decision p6core.2).
@@ -322,6 +331,9 @@ impl Kernel {
             roots: Roots::new(),
             panics: PanicSlot::default(),
             op_forms: Default::default(),
+            assoc_heads: None,
+            maps_lists: Default::default(),
+            value_heads: Default::default(),
             young_cap: usize::MAX,
         };
         crate::guard::install_hook();
@@ -379,6 +391,32 @@ impl Kernel {
     /// of `s` with the outer arguments placed by `form`. A native of `s` taking curried calls keeps them.
     pub fn set_operator_form(&mut self, s: Sym, form: OperatorForm) {
         self.op_forms.insert(s, form);
+    }
+
+    /// Declare the head of associations (`assoc(k -> v, ...)`) and of their entries (`rule`): a listable function
+    /// then threads over the values of association arguments, as over the elements of lists (decision io-core.1).
+    /// The library that implements associations calls it; the evaluator does not intern these names itself.
+    pub fn set_association_heads(&mut self, assoc: Sym, rule: Sym) {
+        self.assoc_heads = Some((assoc, rule));
+    }
+
+    /// Declare that the native of `s` maps over list arguments itself (elementwise) without the `listable` attribute
+    /// (which would thread lists before the native's own fast paths): association arguments are then threaded by
+    /// the evaluator, the values of each key in turn (decision io-core.1).
+    pub fn set_maps_lists(&mut self, s: Sym) {
+        self.maps_lists.insert(s);
+    }
+
+    /// Declare `s` the head of number-like values whose arithmetic the evaluator's `add`, `mul` and `pow` carry out
+    /// (a library's own hook, such as quantities and uncertain numbers): list reductions that build sums and products
+    /// directly hand terms with these heads to the evaluator (decision io-core.5).
+    pub fn set_value_head(&mut self, s: Sym) {
+        self.value_heads.insert(s);
+    }
+
+    /// Whether `s` is listable or maps over lists itself ([`Kernel::set_maps_lists`]).
+    pub fn maps_lists(&self, s: Sym) -> bool {
+        self.defs.attrs(s).listable || self.maps_lists.contains(&s)
     }
 
     /// The attributes of a symbol.
@@ -1218,7 +1256,7 @@ impl<'k, 'h> Eval<'k, 'h> {
                 }
             }
         }
-        let n = n?;
+        let Some(n) = n else { return self.thread_assoc(head, vals) };
         let mut parts = Vec::with_capacity(vals.len());
         let elems: Vec<T<'h>> = (0..n)
             .map(|i| {
@@ -1228,6 +1266,72 @@ impl<'k, 'h> Eval<'k, 'h> {
             })
             .collect();
         Some(h.app(list, &elems))
+    }
+
+    /// Whether a call of `head` on `vals` threads over associations although `head` is not listable: some argument
+    /// is an association and `head` maps over lists itself ([`Kernel::set_maps_lists`]).
+    pub(crate) fn maps_associations(&self, head: T<'h>, vals: &[T<'h>]) -> bool {
+        let Some((assoc, _)) = self.k.assoc_heads else { return false };
+        if self.k.maps_lists.is_empty() {
+            return false;
+        }
+        let h = self.heap;
+        let assoc = self.sym(assoc);
+        vals.iter().any(|&v| matches!(h.view(v), View::App { head, .. } if head == assoc))
+            && sym_of(h, head).is_some_and(|s| self.k.maps_lists.contains(&s))
+    }
+
+    /// A listable call with association arguments and no list arguments: the association of the calls on the
+    /// values of each key, the other arguments broadcast (decision io-core.1). The associations must have the same
+    /// keys (in any order; the first one's order is kept), else `failure(shape_mismatch)`. `None` without
+    /// association arguments.
+    pub(crate) fn thread_assoc(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
+        let (assoc, rule) = self.k.assoc_heads?;
+        let h = self.heap;
+        let (assoc, rule) = (self.sym(assoc), self.sym(rule));
+        let entries = |t: T<'h>| match h.view(t) {
+            View::App { head, args } if head == assoc => Some(args),
+            _ => None,
+        };
+        let kv = |r: T<'h>| match h.view(r) {
+            View::App { head, args: &[k, v] } if head == rule => Some((k, v)),
+            _ => None,
+        };
+        let first = vals.iter().find_map(|&v| entries(v))?;
+        let keys: Vec<T<'h>> = first.iter().map(|&r| kv(r).map(|(k, _)| k)).collect::<Option<_>>()?;
+        // the value of each key in each association argument, aligned with `keys`
+        let mut cols: Vec<Option<Vec<T<'h>>>> = Vec::with_capacity(vals.len());
+        for &v in vals {
+            let Some(es) = entries(v) else {
+                cols.push(None);
+                continue;
+            };
+            if es.len() != keys.len() {
+                return Some(self.failure(&["shape_mismatch"]));
+            }
+            let pairs: Vec<(T<'h>, T<'h>)> = es.iter().map(|&r| kv(r)).collect::<Option<_>>()?;
+            let mut col = Vec::with_capacity(keys.len());
+            for (i, &k) in keys.iter().enumerate() {
+                // the same order is the common case; otherwise a search (associations of a few keys)
+                let v = if pairs[i].0 == k { Some(pairs[i].1) } else { pairs.iter().find(|p| p.0 == k).map(|p| p.1) };
+                match v {
+                    Some(v) => col.push(v),
+                    None => return Some(self.failure(&["shape_mismatch"])),
+                }
+            }
+            cols.push(Some(col));
+        }
+        let mut parts = Vec::with_capacity(vals.len());
+        let out: Vec<T<'h>> = keys
+            .iter()
+            .enumerate()
+            .map(|(i, &k)| {
+                parts.clear();
+                parts.extend(vals.iter().zip(&cols).map(|(&v, c)| c.as_ref().map_or(v, |c| c[i])));
+                h.app(rule, &[k, h.app(head, &parts)])
+            })
+            .collect();
+        Some(h.app(assoc, &out))
     }
 
     // --- cells (crate::cells) --------------------------------------------------------------------------------

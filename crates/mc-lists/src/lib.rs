@@ -48,6 +48,7 @@
 #![warn(missing_docs)]
 mod access;
 mod arrange;
+mod assocs;
 mod combinat;
 mod construct;
 mod ctx;
@@ -72,7 +73,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 /// The implementation of one function.
-type Body = for<'a, 'b, 'c, 'h> fn(&Lib, &mut NativeCx<'a, 'b, 'h>, T<'h>, &'c [T<'h>]) -> Res<Reply<'h>>;
+pub(crate) type Body = for<'a, 'b, 'c, 'h> fn(&Lib, &mut NativeCx<'a, 'b, 'h>, T<'h>, &'c [T<'h>]) -> Res<Reply<'h>>;
 
 /// A native of the library: its body and the shared state. It keeps only symbols, so it needs no tracing.
 struct Fun {
@@ -83,6 +84,8 @@ struct Fun {
     /// a pattern argument may be a failure pattern (one of [`PATTERNS`]): only a failure as the first argument
     /// (the data) is the result
     patterns: bool,
+    /// how an association as the first argument is seen (decision io-core.4)
+    assoc: assocs::AssocMode,
 }
 
 impl Native for Fun {
@@ -93,6 +96,11 @@ impl Native for Fun {
         if self.patterns {
             if let Some(&x) = args.first().filter(|&&x| self.lib.is_failure(cx.heap(), x)) {
                 return Ok(Reply::Done(x));
+            }
+        }
+        if self.assoc != assocs::AssocMode::Own {
+            if let Some(es) = args.first().and_then(|&x| assocs::entries(&self.lib, cx.heap(), x)) {
+                return assocs::call(&self.lib, self.body, self.assoc, cx, t, args, es);
             }
         }
         (self.body)(&self.lib, cx, t, args)
@@ -132,11 +140,11 @@ functions! {
     "nest" => construct::nest,
         "nest(f, x, n): f applied n times to x";
     "nest_while" => construct::nest_while,
-        "nest_while(f, x, test), nest_while(f, x, test, 1, max): f applied from x while test of the latest value is true (at most max times)";
+        "nest_while(f, x, test), nest_while(f, x, test, m, max, n): f applied from x while test of the latest value (latest m values) is true, at most max times";
     "nest_while_list" => construct::nest_while_list,
-        "nest_while_list(f, x, test): the list of the values nest_while goes through, x first";
+        "nest_while_list(f, x, test), nest_while_list(f, x, test, m, max, n): the list of the values nest_while goes through, x first";
     "fixed_point_list" => construct::fixed_point_list,
-        "fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps)";
+        "fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps; same_test: g decides)";
     "nest_list" => construct::nest_list,
         "nest_list(f, x, n): [x, f(x), ..., f^n(x)]";
     "fold" => construct::fold,
@@ -182,7 +190,7 @@ functions! {
     "piecewise" => sums::piecewise,
         "piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call";
     "product" => reduce::product,
-        "product(xs): the canonical product of the elements";
+        "product(xs): the canonical product of the elements; product(f, [k, a, b]), product(f, [k, [x, ...]]): the product of the terms";
     "total" => reduce::total,
         "total(xs): the sum of the elements (lists added element-wise: column sums of a matrix); total(xs, n): levels 1 to n (inf: all); total(xs, [n]): level n only";
     "max" => reduce::max,
@@ -372,7 +380,8 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         let hold = if HELD.contains(&name) { Hold::All } else { Hold::None };
         let rows_of_datasets = DATASET_ROWS.contains(&name);
         let patterns = PATTERNS.contains(&name) || name == "match_q";
-        let f = Fun { lib: lib.clone(), body, rows_of_datasets, patterns: patterns && name != "match_q" };
+        let assoc = assocs::mode(name);
+        let f = Fun { lib: lib.clone(), body, rows_of_datasets, patterns: patterns && name != "match_q", assoc };
         k.register(h.sym(name), Attributes { hold, handles_failures: patterns, ..Attributes::default() }, Box::new(f));
     }
     // `map` with levels, over associations and other compound terms (the evaluator's `map` keeps lists)

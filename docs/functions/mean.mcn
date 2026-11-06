@@ -86,6 +86,14 @@ mean(beta_distribution(2, 3))
 #% output
 #= 2/5
 
+#% text
+# The values of an association:
+
+#% cell
+mean(assoc(a -> 1, b -> 2))
+#% output
+#= 3/2
+
 #% subsection
 # Applications
 

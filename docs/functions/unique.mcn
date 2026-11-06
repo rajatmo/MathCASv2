@@ -50,6 +50,22 @@ unique([[1, 2], [2, 1], [1, 2], x^2, x^2])
 #% output
 #= [[1, 2], [2, 1], x^2]
 
+#% text
+# A test that two elements count as the same:
+
+#% cell
+unique([1, 2, 11, 12, 21], (a, b) => floor(a/10) == floor(b/10))
+#% output
+#= [1, 11, 21]
+
+#% text
+# The values of an association, keeping the keys of the first ones:
+
+#% cell
+unique(assoc(a -> 1, b -> 2, c -> 1))
+#% output
+#= assoc(a -> 1, b -> 2)
+
 #% subsection
 # Applications
 
