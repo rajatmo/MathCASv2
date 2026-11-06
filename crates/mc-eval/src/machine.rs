@@ -198,7 +198,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             return Next::Err(a);
         }
         // a term that refers to a cell is volatile (its value depends on the cell): not looked up
-        let memo = self.k.cfg.memo && h.mask(t) & bit(self.k.names.local_cell) == 0;
+        let memo = self.k.cfg.memo && h.mask(t) & crate::eval::CELL_BIT == 0;
         if memo {
             // the epoch fast path, then the read-set check (semantics 4.3); a hit passes its read set on (2.7)
             let valid = |hit: &mc_core::MemoHit<'h>| {

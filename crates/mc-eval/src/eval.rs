@@ -209,8 +209,13 @@ impl Names {
 /// The read-set bit of a symbol (spike 2's decision 2.7; the same bit as in [`Heap::mask`]).
 #[inline]
 pub(crate) fn bit(s: Sym) -> u64 {
-    1u64 << (s.0 % 64)
+    // as `mc_core::sym_mask_bit`: bit 63 belongs to `local_cell` alone ([`CELL_BIT`])
+    1u64 << (s.0 % 63)
 }
+
+/// The read-set bit of mutable cells: the mask bit of `local_cell`, which no other symbol shares, so a term is
+/// treated as referring to a cell only when it does (decision p6core.32).
+pub(crate) const CELL_BIT: u64 = 1 << 63;
 
 // The placeholder for an element a speculative task could not complete (a handle `mc-core` never hands out).
 use mc_core::HOLE;
@@ -1040,7 +1045,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// `v` is stored where it outlives the current block: if it may hold a cell, the block's cells escape.
     #[inline]
     pub(crate) fn note_store(&self, cx: &mut Cx<'h>, v: T<'h>) {
-        if self.heap.mask(v) & bit(self.k.names.local_cell) != 0 {
+        if self.heap.mask(v) & CELL_BIT != 0 {
             cx.escapes += 1;
         }
     }
@@ -1240,7 +1245,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// The value of cell `id`, if it is allocated (the read is recorded and makes the evaluation volatile).
     pub(crate) fn read_cell(&self, cx: &mut Cx<'h>, id: i64) -> Option<T<'h>> {
         cx.volatile += 1;
-        cx.reads |= bit(self.k.names.local_cell);
+        cx.reads |= CELL_BIT;
         self.k.cells.slot(id)?.get(self.heap)
     }
 
@@ -1259,7 +1264,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         if cx.front && born <= cx.split_born {
             // a speculative task may have read it: speculative work that did is redone
-            let ((), e) = self.k.defined(cx.epoch, bit(self.k.names.local_cell), || ());
+            let ((), e) = self.k.defined(cx.epoch, CELL_BIT, || ());
             cx.epoch = e;
         }
         cx.volatile += 1;

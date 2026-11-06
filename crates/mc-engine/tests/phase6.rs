@@ -336,3 +336,23 @@ fn composition_through_and_inactive() {
         ("series(sqrt(x)*(1 + x), x, 0, 2)", "x^(1/2) + x^(3/2) + O(x^(5/2))"),
     ]);
 }
+
+#[test]
+fn running_sums_of_packed_reals_run_on_the_payload() {
+    check(&[
+        // the same bits as the scalar loop
+        ("w = range(0.1, 2, 0.01); fold_list((a, b) => a + b, 0, w) === fold_list((a, b) => b + a + 0, 0, w)", "true"),
+        ("accumulate(w) === rest(fold_list((a, b) => a*1 + b, 0, w))", "true"),
+        ("fold(mul, w) === fold((a, b) => 1*a*b, w)", "true"),
+        ("differences(w) === rest(w) - most(w)", "true"),
+        ("accumulate([a, b, c])", "[a, a + b, a + b + c]"),
+        ("accumulate([])", "[]"),
+        ("differences([1, 4, 9, 16], 2)", "[2, 2]"),
+    ]);
+    // 10^6 elements: milliseconds (the scalar loop took 1.7 s)
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    eval(&mut e, "v = range(0, 1, 0.000001);");
+    let t = std::time::Instant::now();
+    assert_eq!(eval(&mut e, "length(accumulate(v)) + length(differences(v))"), "2000001");
+    assert!(t.elapsed().as_secs_f64() < 0.5, "{:?}", t.elapsed());
+}

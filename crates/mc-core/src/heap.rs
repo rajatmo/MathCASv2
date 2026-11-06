@@ -85,6 +85,22 @@ pub struct Heap {
     /// the handle bits of the symbol `list`, the head of packed arrays, once it exists ([`HOLE`] before). It is not
     /// interned up front, so that symbol indices (and the read-set bits derived from them) stay as they were.
     list: AtomicU32,
+    /// the index of the symbol `local_cell` once it exists (`u32::MAX` before): it alone has mask bit 63
+    cell: AtomicU32,
+}
+
+/// The name of the symbol that owns mask bit 63 alone ([`sym_mask_bit`]).
+pub const CELL_SYMBOL: &str = "local_cell";
+
+/// The mask bit of symbol index `i`: bit 63 for the symbol [`CELL_SYMBOL`] (index `cell`) and for no other, bit
+/// `i % 63` otherwise. Terms that refer to mutable cells are told apart by their mask without collisions.
+#[inline]
+pub fn sym_mask_bit(i: u32, cell: u32) -> u64 {
+    if i == cell {
+        1 << 63
+    } else {
+        1 << (i % 63)
+    }
 }
 
 impl Default for Heap {
@@ -175,6 +191,7 @@ impl Heap {
             unpacked: Unpacked::new(),
             slots: Slots::new(),
             list: AtomicU32::new(HOLE),
+            cell: AtomicU32::new(u32::MAX),
         }
     }
 
@@ -204,7 +221,7 @@ impl Heap {
         if is_imm(b) {
             if is_sym(b) {
                 let i = b & LOW;
-                (self.syms.hash(i), 1u64 << (i % 64))
+                (self.syms.hash(i), sym_mask_bit(i, self.cell.load(Relaxed)))
             } else {
                 (small_int_hash(small_value(b)), 0)
             }
@@ -481,7 +498,7 @@ impl Heap {
         self.meta_bits(t.raw())
     }
 
-    /// The symbol mask of a term: bit `i % 64` for every symbol `i` it contains. Numbers and strings have none.
+    /// The symbol mask of a term: bit [`sym_mask_bit`] for every symbol `i` it contains. Numbers and strings have none.
     #[inline]
     pub fn mask(&self, t: T<'_>) -> u64 {
         self.meta_bits(t.raw()).1
@@ -586,6 +603,8 @@ impl Store for Heap {
         let s = self.syms.intern(name);
         if name == names::LIST {
             self.list.store(sym_bits(s.0), Relaxed);
+        } else if name == CELL_SYMBOL {
+            self.cell.store(s.0, Relaxed);
         }
         s
     }

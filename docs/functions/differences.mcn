@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# differences
+
+#% text
+# `differences(xs)` gives the successive differences `[x2 - x1, x3 - x2, ...]` of the list `xs`.
+
+#% text
+# `differences(xs, n)` gives the n-th differences.
+
+#% section
+# Details
+
+#% item
+# The result has one element fewer than `xs` (n fewer for the n-th differences).
+
+#% item
+# On a long list of machine reals the differences are computed directly on the numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differences([1, 4, 9, 16, 25])
+#% output
+#= [3, 5, 7, 9]
+
+#% cell
+differences([1, 4, 9, 16, 25], 2)
+#% output
+#= [2, 2, 2]
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic elements:
+
+#% cell
+differences([a, b, c])
+#% output
+#= [b - a, c - b]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `accumulate` of the differences gives the elements less the first one:
+
+#% cell
+xs = [3, 1, 4, 1, 5]
+accumulate(differences(xs)) == rest(xs) - first(xs)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `accumulate`, `fold_list`, `total`
