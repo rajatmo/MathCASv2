@@ -15,6 +15,10 @@ use std::path::PathBuf;
 /// The most results a search lists.
 const RESULTS: usize = 200;
 
+/// The documentation window's single-instance file in the settings folder (F1 in the notebook reuses an open
+/// documentation window: decision NBDOCS.1).
+pub const INSTANCE: &str = "docs-instance.json";
+
 /// The documentation window's state.
 pub struct DocsApp {
     lib: Library,
@@ -48,6 +52,13 @@ pub struct DocsApp {
     title: String,
     /// the window's own work in the last frame (milliseconds), for the self-test log
     frame_ms: f64,
+    /// places other launches (`mc-docs <name>`, F1 in the notebook) sent to this window
+    instance: Option<mc_notebook::instance::Server>,
+    /// the links of the last frame (screen rectangles, targets) and the one under the pointer
+    pub link_rects: Vec<(egui::Rect, String)>,
+    pub hovered: Option<String>,
+    /// input events the self-test injects into the next frame
+    pub events: Vec<egui::Event>,
 }
 
 impl DocsApp {
@@ -97,6 +108,10 @@ impl DocsApp {
             })
             .collect();
         let theme = mc_notebook::settings::Settings::load().theme;
+        // the self-test's window never takes the place of the user's
+        let instance = if selftest.is_none() { mc_notebook::instance::Server::start_as(&cc.egui_ctx, INSTANCE) } else { None };
+        let mut colours = Colours::default();
+        colours.functions = cat.entries.iter().map(|e| e.name.to_string()).collect();
         let mut app = DocsApp {
             lib,
             cat,
@@ -112,7 +127,7 @@ impl DocsApp {
             theme,
             applied: None,
             images: Images::default(),
-            colours: Colours::default(),
+            colours,
             status: None,
             expand: false,
             scroll_by: 0.0,
@@ -122,6 +137,10 @@ impl DocsApp {
             frames: 0,
             title: String::new(),
             frame_ms: 0.0,
+            instance,
+            link_rects: vec![],
+            hovered: None,
+            events: vec![],
         };
         if let Some(loc) = start {
             app.go(loc);
@@ -147,6 +166,13 @@ impl DocsApp {
         self.history.push(loc);
         self.at = self.history.len() - 1;
         self.left_page();
+    }
+
+    /// Take places sent by other launches (the self-test's windows do not unless asked).
+    pub fn start_instance(&mut self, ctx: &egui::Context) {
+        if self.instance.is_none() {
+            self.instance = mc_notebook::instance::Server::start_as(ctx, INSTANCE);
+        }
     }
 
     /// Back in the history.
@@ -249,7 +275,13 @@ impl DocsApp {
             Loc::Search(_) => format!(", {} results, first {:?}", self.results.len(), self.results.first()),
             _ => String::new(),
         };
-        format!("at {}{results}{find}, last frame {:.1} ms", self.here().key(), self.frame_ms)
+        let hovered = self.hovered.as_ref().map_or(String::new(), |h| format!(", link under the pointer `{h}`"));
+        format!(
+            "at {}{results}{find}, {} links{hovered}, last frame {:.1} ms",
+            self.here().key(),
+            self.link_rects.len(),
+            self.frame_ms
+        )
     }
 
     fn update_theme(&mut self, ctx: &egui::Context) -> Palette {
@@ -328,6 +360,10 @@ impl DocsApp {
             }
             if nav(ui, Icon::Home, "Home (Alt+Home)", true) {
                 self.go(Loc::Home);
+            }
+            let index = ui.add(egui::Button::new(RichText::new("Index").size(13.0).color(p.text)).frame(false));
+            if index.on_hover_text("Every function by area and topic").clicked() {
+                self.go(Loc::Index);
             }
             ui.add_space(8.0);
             ui.add(icons::image(ui.ctx(), Icon::Search, 15.0, p.weak));
@@ -453,6 +489,8 @@ impl DocsApp {
             open_notebook: false,
             selected: self.selected,
             expand: self.expand,
+            link_rects: vec![],
+            hovered: None,
         };
         let out = area.show(ui, |ui| {
             // a column at most MAX_WIDTH wide, centred, with a margin on both sides
@@ -467,6 +505,7 @@ impl DocsApp {
                         Loc::Guide(a) => draw.guide(ui, *a),
                         Loc::Page(n) => draw.page(ui, n),
                         Loc::Search(q) => draw.search(ui, q, &self.results),
+                        Loc::Index => draw.index(ui),
                     }
                 });
             });
@@ -474,6 +513,8 @@ impl DocsApp {
         self.offset = out.state.clamped_offset().y;
         let (count, reveal, go, open) =
             (draw.count, draw.find.as_ref().is_some_and(|f| f.2), draw.go, draw.open_notebook);
+        self.link_rects = draw.link_rects;
+        self.hovered = draw.hovered;
         if let Some(f) = &mut self.find {
             f.count = count;
             if count > 0 && f.current >= count {
@@ -499,6 +540,7 @@ impl DocsApp {
             Loc::Guide(a) => format!("{} - ", a.title()),
             Loc::Page(n) => format!("{n} - "),
             Loc::Search(q) => format!("Search: {q} - "),
+            Loc::Index => "Index - ".into(),
         };
         let title = format!("{place}MathCAS Documentation");
         if title != self.title {
@@ -518,6 +560,15 @@ fn notebook_program() -> PathBuf {
 }
 
 impl eframe::App for DocsApp {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        for e in self.events.drain(..) {
+            if let egui::Event::PointerButton { modifiers, pressed: true, .. } = &e {
+                raw.events.push(egui::Event::ModifiersChanged(*modifiers));
+            }
+            raw.events.push(e);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let start = std::time::Instant::now();
         // the second frame: the first one reached the screen, the graphics interface works
@@ -528,6 +579,18 @@ impl eframe::App for DocsApp {
             }
         }
         let ctx = ui.ctx().clone();
+        // places sent by other launches: shown here, the window brought to the front
+        let sent = self.instance.as_ref().map(|i| i.take()).unwrap_or_default();
+        if !sent.is_empty() {
+            for place in sent {
+                let place = place.to_string_lossy().to_string();
+                if !place.is_empty() {
+                    self.go(Loc::parse(&place));
+                }
+            }
+            ctx.send_viewport_cmd(ViewportCommand::Minimized(false));
+            ctx.send_viewport_cmd(ViewportCommand::Focus);
+        }
         if let Some(mut st) = self.selftest.take() {
             st.step(self, &ctx);
             self.selftest = Some(st);

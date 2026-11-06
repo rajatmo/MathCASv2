@@ -50,12 +50,15 @@
 //! words of the usage and descriptions), function pages drawn from the `.mcn` files (usage block in the code font
 //! with syntax colouring, collapsible Details and example groups (inputs at the group's edge in the code font, outputs indented behind a thin rule) and images, See
 //! also links), back/forward/home, find in page (`Ctrl+F`), One Light and One Dark, selectable text, and "Open as
-//! notebook" (a copy of the page in a temporary folder, opened in `mc-notebook`).
+//! notebook" (a copy of the page in a temporary folder, opened in `mc-notebook`). Every function name in a page,
+//! the guides and the index page is a link ([`links`]); `mc-docs <name>` shows the page in an open window.
 pub mod app;
 pub mod catalogue;
 pub mod compare;
+pub mod index;
 pub mod inline;
 pub mod library;
+pub mod links;
 pub mod page;
 pub mod runner;
 pub mod search;

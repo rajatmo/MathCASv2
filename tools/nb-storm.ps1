@@ -169,6 +169,13 @@ public static class Storm {
         Post(dn, mk, XY(x, y)); Post(up, 0, XY(x, y));
         if (dbl) { Post(WM_LBUTTONDBLCLK, 1, XY(x, y)); Post(WM_LBUTTONUP, 0, XY(x, y)); }
     }
+    // Ctrl+click: a function name under it opens its page (recorded only in the storm)
+    public static void CtrlClick() {
+        WithMods(true, false, false, () => {
+            int w, h; Size(out w, out h); int x = R.Next(w), y = R.Next(h); Move(x, y);
+            Post(WM_LBUTTONDOWN, 1 | 8, XY(x, y)); Post(WM_LBUTTONUP, 8, XY(x, y));
+        });
+    }
     public static void Drag() {
         int w, h; Size(out w, out h); int x = R.Next(w), y = R.Next(h); Move(x, y);
         Post(WM_LBUTTONDOWN, 1, XY(x, y));
@@ -190,12 +197,13 @@ public static class Storm {
 
 $texts = @('x', 'y', '1', '2', '+', '-', '*', '/', '^', '(', ')', '[', ']', '{', '}', ',', ' ', ' ', 'sin', 'n(pi, 30)',
     'table(i^2, i, 1, 50)', 'let a = 3', 'fn f(x) = x^2', 'f(a)', '"text"', '# note', 'sqrt(2)', '1/0', 'integrate(x^2, x)',
-    "`n", "`n", 'alpha', [string][char]0xE4, [string][char]0x3C0, [string][char]0x222B, [string][char]0x2192)
+    "`n", "`n", 'alpha', 'n_int', 'tabl', 'plot(sin(x', 'n_integrate(f, ', [string][char]0xE4, [string][char]0x3C0, [string][char]0x222B, [string][char]0x2192)
 $evals = @('1 + 1', 'n(pi, 40)', 'table(i^2, i, 1, 100)', 'expand((x + 1)^8)', 'sum(1/k^2, k, 1, 1000)',
     'fn g(x) = x + 1', 'g(41)', 'plot(sin(x), [x, 0, 10])', 'factor(x^6 - 1)', 'undefined_thing(3)', '1/0', 'solve(x^2 == 2, x)')
 $rng = [Random]::new($Seed)
-# key codes: Left Up Right Down Home End PageUp PageDown Back Delete Tab Escape Enter F2 F3
-$nav = 0x25, 0x26, 0x27, 0x28, 0x24, 0x23, 0x21, 0x22, 0x08, 0x2E, 0x09, 0x1B, 0x0D, 0x71, 0x72
+# key codes: Left Up Right Down Home End PageUp PageDown Back Delete Tab Escape Enter F2 F3 F1 (F1 looks up the name
+# at the caret: the storm only records it, MATHCAS_DOCS=- below)
+$nav = 0x25, 0x26, 0x27, 0x28, 0x24, 0x23, 0x21, 0x22, 0x08, 0x2E, 0x09, 0x1B, 0x0D, 0x71, 0x72, 0x70
 # Ctrl + letter/digit shortcuts that stay inside the window
 $ctrlKeys = [int][char]'A', [int][char]'Z', [int][char]'Y', [int][char]'F', [int][char]'K', [int][char]'N', [int][char]'W', [int][char]'E', [int][char]'L', 0x31, 0x32, 0x39, 0x09, 0x21, 0x22, 0xBE, 0x30
 function Act([string] $kind) {
@@ -208,6 +216,7 @@ function Act([string] $kind) {
         'click' { [Storm]::Click(0, ($rng.Next(4) -eq 0)) }
         'rclick' { [Storm]::Click(1, $false); [Storm]::Key(0x1B, $false, $false, $false) }
         'mclick' { [Storm]::Click(2, $false) }
+        'ctrlclick' { [Storm]::CtrlClick() }
         'drag' { [Storm]::Drag() }
         'wheel' { [Storm]::Wheel($false) }
         'zoom' { [Storm]::Wheel($true) }
@@ -218,10 +227,10 @@ function Act([string] $kind) {
 }
 $weights = @{
     type   = @{ char = 50; nav = 30; ctrl = 6; move = 5; click = 5; wheel = 4 }
-    mouse  = @{ move = 40; click = 20; rclick = 3; mclick = 2; drag = 15; wheel = 15; zoom = 3; char = 2 }
+    mouse  = @{ move = 40; click = 20; rclick = 3; mclick = 2; ctrlclick = 3; drag = 15; wheel = 15; zoom = 3; char = 2 }
     window = @{ resize = 30; minimize = 4; move = 20; click = 10; wheel = 10; zoom = 6; char = 10; nav = 10 }
     eval   = @{ eval = 15; char = 30; nav = 25; click = 10; wheel = 10; ctrl = 3 }
-    all    = @{ char = 30; nav = 18; ctrl = 6; alt = 1; move = 12; click = 8; rclick = 1; mclick = 1; drag = 5; wheel = 6; zoom = 2; resize = 4; minimize = 1; eval = 2 }
+    all    = @{ char = 30; nav = 18; ctrl = 6; alt = 1; move = 12; click = 8; rclick = 1; mclick = 1; ctrlclick = 1; drag = 5; wheel = 6; zoom = 2; resize = 4; minimize = 1; eval = 2 }
 }[$Mix]
 $bag = foreach ($k in $weights.Keys) { , $k * $weights[$k] }
 $bag = @($bag | ForEach-Object { $_ })
@@ -235,6 +244,8 @@ if ($Notebook) {
     if (Test-Path $side) { Copy-Item $side (Join-Path $Out (Split-Path $side -Leaf)) -Recurse -Force }
 }
 $env:MCNB_CONFIG_DIR = $cfg
+# F1, Help > Look up and Ctrl+click record the page asked for instead of starting documentation windows
+$env:MATHCAS_DOCS = '-'
 Remove-Item Env:MCNB_SELFTEST -ErrorAction SilentlyContinue
 $job = [Storm]::Job([uint64]$MemMB * 1MB)
 $p = if ($argList) { Start-Process -FilePath $Exe -ArgumentList $argList -PassThru -WorkingDirectory $Out } else { Start-Process -FilePath $Exe -PassThru -WorkingDirectory $Out }

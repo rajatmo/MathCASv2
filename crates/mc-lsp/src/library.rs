@@ -1,6 +1,8 @@
 //! The names every MathCAS session knows before it reads a file: the keywords, the libraries' functions (their
 //! `FUNCTIONS` lists), the evaluator's own natives and the prelude's definitions. They feed completion and hover,
-//! and name resolution (a name the kernel knows stays bare inside a module, as in the engine).
+//! and name resolution (a name the kernel knows stays bare inside a module, as in the engine). Every documented
+//! function also has its entry of the help index (`mc_help`: usage lines from its documentation page, the same the
+//! notebook and the documentation window show).
 use crate::outline::{self, Item, ItemKind};
 use mc_load::stdlib;
 use std::collections::BTreeMap;
@@ -41,6 +43,8 @@ pub struct Entry {
     pub detail: String,
     /// the comment above a prelude definition
     pub doc: Option<String>,
+    /// the function's entry in the help index, when the documentation knows it
+    pub help: Option<&'static mc_help::Entry>,
 }
 
 /// The known names, by name.
@@ -60,7 +64,7 @@ impl Library {
         let mut entries = BTreeMap::new();
         let lists = [CORE, mc_lists::FUNCTIONS, mc_assoc::FUNCTIONS, mc_numeric::FUNCTIONS, mc_numtheory::FUNCTIONS, mc_poly::FUNCTIONS, mc_calculus::FUNCTIONS, mc_strings::FUNCTIONS, mc_roots::FUNCTIONS, mc_quad::FUNCTIONS, mc_ode::FUNCTIONS, mc_graphics::FUNCTIONS, mc_plot::FUNCTIONS, mc_io::FUNCTIONS, mc_simplify::FUNCTIONS, mc_random::FUNCTIONS, mc_special::FUNCTIONS, mc_linalg::FUNCTIONS, mc_solve::FUNCTIONS, mc_dist::FUNCTIONS];
         for (name, desc) in lists.iter().flat_map(|l| l.iter()) {
-            let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None };
+            let e = Entry { origin: Origin::Library, detail: desc.to_string(), doc: None, help: None };
             entries.entry(name.to_string()).or_insert(e);
         }
         let text = stdlib::PRELUDE;
@@ -72,7 +76,18 @@ impl Library {
                 continue;
             }
             let (detail, doc) = sigs.of(&it);
-            entries.entry(it.name).or_insert(Entry { origin: Origin::Prelude, detail, doc });
+            entries.entry(it.name).or_insert(Entry { origin: Origin::Prelude, detail, doc, help: None });
+        }
+        // the help index: every documented function (also those of libraries not listed above)
+        let index = mc_help::Index::embedded();
+        for h in index.entries() {
+            let e = entries.entry(h.name.clone()).or_insert(Entry {
+                origin: Origin::Library,
+                detail: h.line(),
+                doc: None,
+                help: None,
+            });
+            e.help = Some(h);
         }
         Library { entries }
     }
@@ -151,6 +166,9 @@ mod tests {
         assert_eq!(clamp.detail, "fn clamp(x, lo, hi) = min(max(x, lo), hi)");
         assert_eq!(clamp.doc.as_deref(), Some("clamp(x, lo, hi): x limited to the interval [lo, hi]"));
         assert!(lib.knows("map") && lib.knows("pi") && !lib.knows("no_such_name"));
+        // documented functions carry their help entry, prelude functions too
+        assert!(lib.get("n_integrate").and_then(|e| e.help).is_some_and(|h| h.page));
+        assert!(lib.get("clamp").and_then(|e| e.help).is_some());
     }
 
     #[test]

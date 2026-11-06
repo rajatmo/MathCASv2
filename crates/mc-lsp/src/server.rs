@@ -1,7 +1,7 @@
 //! The message loop: requests and notifications of the protocol, dispatched to the [`Workspace`].
 //!
 //! Handled: `initialize`, `initialized`, `shutdown`, `exit`; `textDocument/didOpen`, `didChange` (full text),
-//! `didClose`, `didSave`; `textDocument/definition`, `hover`, `completion`, `documentSymbol`. Sent:
+//! `didClose`, `didSave`; `textDocument/definition`, `hover`, `completion`, `signatureHelp`, `documentSymbol`. Sent:
 //! `textDocument/publishDiagnostics` for every open document after each open, change or close (a change to one
 //! file can change the diagnostics of the files importing it). Messages are handled one at a time, in order.
 use crate::analysis::Workspace;
@@ -110,6 +110,7 @@ impl<W: Write> Server<W> {
                         "definitionProvider": true,
                         "hoverProvider": true,
                         "completionProvider": {"triggerCharacters": ["."], "resolveProvider": false},
+                        "signatureHelpProvider": {"triggerCharacters": ["(", ","], "retriggerCharacters": [","]},
                         "documentSymbolProvider": true,
                     },
                     "serverInfo": {"name": "mc-lsp", "version": env!("CARGO_PKG_VERSION")},
@@ -130,6 +131,10 @@ impl<W: Write> Server<W> {
             "textDocument/completion" => {
                 let (l, c) = position(params)?;
                 Ok(ws.completion(uri(params)?, l, c))
+            }
+            "textDocument/signatureHelp" => {
+                let (l, c) = position(params)?;
+                Ok(ws.signature_help(uri(params)?, l, c))
             }
             "textDocument/documentSymbol" => Ok(ws.symbols(uri(params)?)),
             _ => Err(Failure { code: code::METHOD_NOT_FOUND, message: format!("unknown method {method}") }),

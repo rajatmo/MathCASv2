@@ -96,3 +96,28 @@ Window work per frame 0.1-0.6 ms; GUI peak memory about 500 MB.
 - "Open as notebook" tested for the copy only.
 - Plot images use system fonts, so pixels may differ between machines (sizes are what is checked).
 - If `plot` stops returning `image("path")`, `page::image_path` and the display need the new form.
+
+## Round 12 (package nb-docs): links, index, one help source
+
+- **Links** (`links.rs`, decision NBDOCS.3): every function name in a page is a link: the usage calls, the code
+  spans of usage texts, Details and example texts, the identifiers of example inputs and outputs (tokenised with
+  `mc_syntax::colour`), See also, the guides and the index. A token links when it is a global name (not a local,
+  pattern or keyword) the catalogue knows and is called (`name(`) or longer than one letter (single letters are
+  variables far more often: `n` in `table(n^2, [n, 1, 5])`). Unknown names do not link.
+- **Look** (NBDOCS.4): in prose the linked names take the accent colour; in code they keep the syntax colours. Under
+  the pointer a link is underlined, the pointer is a hand and a tooltip gives the usage line (help index); a click,
+  middle-click or Ctrl+click opens the page (the window has no tabs, so all three navigate; back and forward as
+  before). Labels are laid out as galleys and the link rectangles are found from the glyphs.
+- **Index** (`Loc::Index`, `mc-docs index`, the "Index" button and a link on the home page): every function by
+  area and topic as links (accent: with a page).
+- **Single instance**: `mc-docs <place>` hands the place to an open documentation window (loopback socket and token
+  in `docs-instance.json`, the notebook's mechanism generalised: `instance::Server::start_as`, `instance::send_to`)
+  and exits; that window shows it and comes to the front. Self-test windows do not take the role unless the script
+  says `instance`. (Closes the gap "mc-docs name while a docs window is open starts a second window".)
+- **Help index**: `index.rs` writes the catalogue table of `mc-help` (`mc-docs-pages index`); the test
+  `the_help_index_is_current` checks it and that every page's usage lines reached the index.
+- Self-test steps added: `ppp`, `move`, `click`, `ctrlclick`, `mclick`, `hoverlink <name>`, `clicklink <name>`,
+  `links`, `instance`, `waitpage <name>`; the log line of each step counts the links drawn and names the one under
+  the pointer.
+- Tests: 16 unit tests (new: links, the help index), `tests/links.rs` 2 (every link of every page, the guides and the
+  index resolves to a catalogued function: 10,153 links over 385 pages; the link rule), `tests/pages.rs` 3.

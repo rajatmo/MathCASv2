@@ -19,7 +19,10 @@
 //! - `sel`: write the selection to the log; `boxes`: the box caret or selection of the typeset cell or output with
 //!   the caret, in the box notation; `hit <x> <y>`: what is at a window position; `images`: the picture
 //!   cache's size; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
-//!   write the clipboard's text to the log; `focus`: the focused widget and whether a popup is open
+//!   write the clipboard's text to the log; `focus`: the focused widget and whether a popup is open; `help`: the
+//!   completion list, the usage hint, the hovered name's usage line and the pages asked for (F1, Ctrl+click)
+//! - `ctrlclick <x> <y>`: a primary click with Ctrl held; `hovername <name>` / `ctrlclickname <name>`: the pointer
+//!   onto (a Ctrl+click on) the first `name` in the plain cell with the caret
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
 //!   notebook text to `<name>.mcn`
 //! - `init yes|no|always`: answer the initialization question
@@ -152,7 +155,7 @@ impl SelfTest {
                     self.cursor_log = Some(arg.to_string());
                 }
             }
-            "rclick" | "mclick" | "shiftclick" | "tripleclick" => {
+            "rclick" | "mclick" | "shiftclick" | "tripleclick" | "ctrlclick" => {
                 let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
                 if v.len() == 2 {
                     let p = egui::pos2(v[0], v[1]);
@@ -160,10 +163,11 @@ impl SelfTest {
                         "rclick" => (PointerButton::Secondary, Modifiers::NONE, 1),
                         "mclick" => (PointerButton::Middle, Modifiers::NONE, 1),
                         "shiftclick" => (PointerButton::Primary, Modifiers::SHIFT, 1),
+                        "ctrlclick" => (PointerButton::Primary, Modifiers::COMMAND, 1),
                         _ => (PointerButton::Primary, Modifiers::NONE, 3),
                     };
                     self.pending.push(Event::PointerMoved(p));
-                    if modifiers.shift {
+                    if !modifiers.is_none() {
                         self.pending.push(Event::ModifiersChanged(modifiers));
                     }
                     // one click per frame (as a hand clicks), the modifier released a frame after the last
@@ -176,7 +180,7 @@ impl SelfTest {
                             self.later.push(clicks);
                         }
                     }
-                    if modifiers.shift {
+                    if !modifiers.is_none() {
                         self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
                     }
                     self.wait = 2 + n as u32;
@@ -301,6 +305,31 @@ impl SelfTest {
             "about" => app.show_about(arg != "off"),
             "prefs" => app.show_preferences(arg != "off"),
             "clip" => self.log.push(format!("clipboard: {:?}", app.clipboard_text())),
+            "help" => self.log.push(format!("help: {}", app.help_state())),
+            "hovername" | "ctrlclickname" => match app.screen_point_of(arg) {
+                Some(p) => {
+                    self.pending.push(Event::PointerMoved(p));
+                    // a second small move: a tooltip shows once the pointer moved over what it already hovers
+                    self.later.push(vec![]);
+                    self.later.push(vec![Event::PointerMoved(p + egui::vec2(1.0, 0.0))]);
+                    if cmd == "ctrlclickname" {
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::COMMAND)]);
+                        self.later.push(
+                            [true, false]
+                                .map(|pressed| Event::PointerButton {
+                                    pos: p,
+                                    button: PointerButton::Primary,
+                                    pressed,
+                                    modifiers: Modifiers::COMMAND,
+                                })
+                                .into(),
+                        );
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                    }
+                    self.wait = 6;
+                }
+                None => self.log.push(format!("{cmd}: no `{arg}` in the cell with the caret")),
+            },
             "focus" => {
                 let (focused, popup) = (ctx.memory(|m| m.focused()), egui::Popup::is_any_open(ctx));
                 self.log.push(format!("focus: {focused:?}, popup open: {popup}"));

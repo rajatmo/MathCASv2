@@ -237,7 +237,7 @@ impl App {
                     local = Some("docs");
                     ui.close();
                 }
-                self.menu_item(ui, "Find selected function", Command::App(AppAction::Help), &mut fire);
+                self.menu_item(ui, "Look up", Command::App(AppAction::Help), &mut fire);
                 ui.separator();
                 if ui.button("Keyboard shortcuts").clicked() {
                     self.keyboard_help = true;

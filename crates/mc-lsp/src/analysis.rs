@@ -350,6 +350,9 @@ impl Workspace {
             }
             md
         } else if let Some(e) = self.library.get(&resolved).or_else(|| self.library.get(&written)) {
+            if let Some(h) = e.help.filter(|_| e.origin == library::Origin::Library) {
+                return json!({"contents": {"kind": "markdown", "value": help_markdown(h)}, "range": lines.range(span)});
+            }
             match e.origin {
                 library::Origin::Prelude => {
                     let mut md = code_block(&e.detail);
@@ -459,10 +462,18 @@ impl Workspace {
             }
         }
         for (name, e) in self.library.iter() {
-            let function = e.origin == library::Origin::Prelude || e.detail.starts_with(&format!("{name}("));
+            let function = e.help.map_or(
+                e.origin == library::Origin::Prelude || e.detail.starts_with(&format!("{name}(")),
+                |h| h.is_function(),
+            );
             let k = if function { kind::COMPLETION_FUNCTION } else { kind::COMPLETION_CONSTANT };
-            let mut v = json!({"label": name, "kind": k, "detail": e.detail});
-            if let Some(doc) = &e.doc {
+            // the one-line usage of the documentation, with its page's usage lines and a link to the page
+            let mut v = match e.help {
+                Some(h) => json!({"label": name, "kind": k, "detail": h.line(),
+                    "documentation": {"kind": "markdown", "value": help_markdown(h)}}),
+                None => json!({"label": name, "kind": k, "detail": e.detail}),
+            };
+            if let (Some(doc), None) = (&e.doc, e.help) {
                 v["documentation"] = json!({"kind": "markdown", "value": doc});
             }
             push(name, v);
@@ -470,7 +481,47 @@ impl Workspace {
         for kw in mc_syntax::KEYWORDS {
             push(kw, json!({"label": kw, "kind": kind::COMPLETION_KEYWORD}));
         }
+        // only the names matching the name being typed (as the notebook matches them: `mc_help::score`); typing on
+        // narrows the list, so the client may keep filtering it
+        let typed = mc_help::scan::word_before(&an.code, offset).map(|r| an.code[r].to_string()).unwrap_or_default();
+        if !typed.is_empty() {
+            out.retain(|v| v["label"].as_str().is_some_and(|l| mc_help::score(l, &typed).is_some()));
+        }
         json!({"isIncomplete": false, "items": out})
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // signature help
+
+    /// Inside the brackets of a call of a documented function: its usage lines, the one fitting the arguments
+    /// typed so far active, the parameter being typed highlighted (parameter labels as UTF-16 offsets).
+    pub fn signature_help(&self, uri: &str, line: u32, character: u32) -> Value {
+        let Some(an) = self.analyse(uri) else { return Value::Null };
+        let lines = Lines::new(&an.code);
+        let offset = lines.offset(line, character);
+        for call in mc_help::scan::calls_at(&an.code, offset) {
+            let simple = call.name.rsplit('.').next().unwrap_or(&call.name);
+            let Some(h) = self.library.get(simple).and_then(|e| e.help) else { continue };
+            let calls = h.calls();
+            let active = h.best_call(call.arg);
+            let signatures: Vec<Value> = calls
+                .iter()
+                .enumerate()
+                .map(|(k, c)| {
+                    let utf16 = |b: usize| c[..b].encode_utf16().count();
+                    let params: Vec<Value> = mc_help::scan::params(c)
+                        .into_iter()
+                        .map(|r| json!({"label": [utf16(r.start), utf16(r.end)]}))
+                        .collect();
+                    json!({"label": c, "documentation": {"kind": "markdown", "value": h.text_of(k)},
+                        "parameters": params})
+                })
+                .collect();
+            let n = mc_help::scan::params(&calls[active]).len();
+            let param = if call.arg < n { call.arg } else { n.saturating_sub(1) };
+            return json!({"signatures": signatures, "activeSignature": active, "activeParameter": param});
+        }
+        Value::Null
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -484,6 +535,41 @@ impl Workspace {
         let sigs = Signatures::new(&an.code);
         Value::Array(items.iter().map(|i| symbol(&sigs, &lines, i)).collect())
     }
+}
+
+/// The command that opens a function's page in the documentation window (the VS Code extension registers it).
+pub const OPEN_DOCS: &str = "mathcas.openDocs";
+
+/// The hover and completion text of a documented function: its usage calls, what each gives, and a link that opens
+/// its page in the documentation window.
+pub fn help_markdown(h: &mc_help::Entry) -> String {
+    let calls = h.calls();
+    let mut md = code_block(&calls.join("\n"));
+    for (k, c) in calls.iter().enumerate() {
+        let text = h.text_of(k);
+        if text.is_empty() {
+            continue;
+        }
+        if calls.len() > 1 {
+            md.push_str(&format!("\n\n`{c}` {text}"));
+        } else {
+            md.push_str(&format!("\n\n{text}"));
+        }
+    }
+    let args = percent_encode(&json!([h.name]).to_string());
+    let what = if h.page { "Open the documentation page" } else { "Open in the documentation" };
+    md.push_str(&format!("\n\n[{what}](command:{OPEN_DOCS}?{args})"));
+    md
+}
+
+/// `s` with every byte outside the unreserved URI characters percent-encoded.
+fn percent_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 /// A module member for completion, from its definition.

@@ -266,3 +266,41 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   so the printed characters keep their places. Removed: Format > Output form, the preferences "Typeset output by
   default" and "Lists of equal-length lists as matrices" (`typeset_output`/`matrices` settings and view fields),
   `View::clear_boxes`.
+
+## Help while writing code (round 12, package nb-docs)
+
+All help reads the help index (`mc_help`: the catalogue plus the pages' usage lines), shared with the documentation
+window and the language server. The code is in `app/help.rs` (hint, hover, F1's target) and `app/keyboard.rs`
+(completion).
+
+- **F1** (and Help > Look up, renamed from "Find selected function") looks up the selected name, else the
+  documented name at the caret, else the function whose call the caret is in (`sin(x|)` looks up `sin`), else the
+  name at the caret; in a cell with boxes it reads the canonical text at the box caret. It starts `mc-docs <name>`,
+  which hands the name to an open documentation window (single instance, `docs-instance.json`) and brings it to the
+  front, or opens one (decision NBDOCS.1). `MATHCAS_DOCS=-` only records the request (self-tests, storms).
+- **Usage hint**: inside the brackets of a call of a documented function, a popup above the caret's line (below it
+  when the line is near the top of the canvas) shows the usage call that fits the arguments typed so far, the
+  parameter being typed underlined in the accent colour, "k of n" when there are several calls, and what the call
+  gives. Esc hides it for that call (Esc is taken only while the hint shows; the next Esc starts an alias as
+  before). Not shown while the completion list is open. In cells with boxes the calls are read in the canonical
+  text; a square root box (`((sqrt(...)))` underneath) is not taken for a typed call.
+- **Completion**: the candidates are the keywords, the locals in scope, every documented function (always, without
+  a kernel; completion no longer starts a kernel) and, from a running kernel, the session's own names. Each row shows
+  the name and its one-line usage (keywords and locals their kind). Prefix and word-prefix matches first;
+  subsequence matches only when there are none (NBDOCS.6: with 700 names they buried the useful ones). Up/Down
+  choose, Tab or Enter accept, Esc cancels; accepting a function inserts `(` too (with automatic closing on, `()`),
+  unless a bracket follows. Enter, Tab and Esc are taken only while the list is open.
+- **Hover**: a documented global name in an Input or Code cell (plain text or boxes; locals and parameters of the
+  same name excluded by the colouring classes) shows its usage line after a 0.45 s rest, with "Ctrl+click opens its
+  page"; Ctrl over such a name shows the hand pointer; Ctrl+click opens the page (as F1) instead of placing the
+  caret. No tooltip while typing (the pointer is hidden then).
+- Fixed: replacing a tab's notebook (`set_notebook`: opening a file into a blank tab, the self-test's `new`) passed
+  the view's pixel zoom as the magnification, so the text grew by a third each time.
+- Self-test steps added: `help` (completion list, hint, hover, pages asked for), `ctrlclick <x> <y>`,
+  `hovername <name>`, `ctrlclickname <name>`. The script `tests/selftest/help.txt` covers completion (open, accept
+  with the bracket, cancel, Enter not stolen, Enter accepting), the hint (arguments 1 and 2, Esc), F1, hover and
+  Ctrl+click, in plain text and inside a square root box; `tests/help_selftest.rs` runs it and checks the log
+  (ignored by default: it opens a window).
+- `tools/nb-storm.ps1`: F1 among the keys, Ctrl+clicks, names that open completion and calls that show the hint
+  among the texts; `MATHCAS_DOCS=-`.
+- Tests: 18 unit tests (new: F1's target), the kernel integration test, the help self-test (ignored).

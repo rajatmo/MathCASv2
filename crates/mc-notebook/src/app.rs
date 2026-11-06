@@ -29,6 +29,7 @@ mod chrome;
 mod commands;
 mod dialogs;
 mod files;
+mod help;
 mod keyboard;
 mod prefs;
 mod tabs;
@@ -127,27 +128,15 @@ struct Completion {
     selected: usize,
 }
 
-/// The candidates matching `prefix`: case-insensitive prefix matches first, then subsequence matches, each by
-/// length then name.
+/// The candidates matching `prefix` (`mc_help::score`, as the language server ranks them): case-insensitive prefix
+/// matches first, then names with a word starting with it, each by length then name; subsequence matches only when
+/// there are none of those (with 700 library names they would bury the useful ones, decision NBDOCS.6).
 pub fn rank(names: &[(String, String)], prefix: &str) -> Vec<(String, String)> {
-    let p = prefix.to_lowercase();
-    let subsequence = |n: &str| {
-        let mut it = n.chars();
-        p.chars().all(|c| it.any(|d| d == c))
-    };
-    let mut scored: Vec<(u8, &(String, String))> = names
-        .iter()
-        .filter_map(|e| {
-            let n = e.0.to_lowercase();
-            if n.starts_with(&p) {
-                Some((0, e))
-            } else if subsequence(&n) {
-                Some((1, e))
-            } else {
-                None
-            }
-        })
-        .collect();
+    let mut scored: Vec<(u8, &(String, String))> =
+        names.iter().filter_map(|e| mc_help::score(&e.0, prefix).map(|s| (s, e))).collect();
+    if scored.iter().any(|(s, _)| *s < 2) {
+        scored.retain(|(s, _)| *s < 2);
+    }
     scored.sort_by(|a, b| a.0.cmp(&b.0).then(a.1 .0.len().cmp(&b.1 .0.len())).then(a.1 .0.cmp(&b.1 .0)));
     let mut out: Vec<(String, String)> = scored.into_iter().map(|(_, e)| e.clone()).collect();
     out.dedup_by(|a, b| a.0 == b.0);
@@ -276,6 +265,10 @@ pub struct App {
     pub(crate) glyphs: Rc<RefCell<Glyphs>>,
     /// the descriptions of plot pictures, for coordinates under the pointer
     plots: crate::plothover::Plots,
+    /// help while writing code: the usage hint, the hovered name, the pages asked for
+    pub(crate) help: help::HelpState,
+    /// the canvas's visible rectangle in the last frame (screen coordinates)
+    canvas_clip: egui::Rect,
 }
 
 impl App {
@@ -298,6 +291,8 @@ impl App {
             images,
             glyphs,
             plots: crate::plothover::Plots::default(),
+            help: help::HelpState::default(),
+            canvas_clip: egui::Rect::NOTHING,
             tabs: Tabs::new(),
             ctx: ctx.clone(),
             keys: KeyTable::default(),
@@ -550,6 +545,7 @@ impl eframe::App for App {
         }
         egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.canvas(ui));
         self.completion_popup(&ctx);
+        self.usage_hint(&ctx);
         self.plus_popup(&ctx);
         self.dialogs(&ctx);
         // the notebook takes the keyboard itself: egui's focus navigation must not leave a button focused (Tab,

@@ -204,6 +204,11 @@ impl KernelProcess {
         self.write(json!({"type": "names", "id": "names", "prefix": prefix}));
     }
 
+    /// Whether a kernel process is running for this tab.
+    pub fn is_running(&self) -> bool {
+        self.child.is_some()
+    }
+
     /// The last answer to [`KernelProcess::request_names`]: (name, kind) pairs.
     pub fn names(&mut self) -> Option<Vec<(String, String)>> {
         self.names_rx.try_iter().last()

@@ -4,6 +4,7 @@ use crate::catalogue::{Area, Catalogue, Entry};
 use mc_ui::fonts::Face;
 use crate::inline::{spans, Span};
 use crate::library::Library;
+use crate::links::{code_links, Link};
 use crate::page::{image_path, Block, Page};
 use eframe::egui::{self, pos2, vec2, Align, Color32, CornerRadius, Frame, Layout, Margin, RichText, Sense, Stroke};
 use eframe::epaint::text::{ByteIndex, LayoutJob, LayoutSection, TextFormat};
@@ -33,6 +34,8 @@ pub enum Loc {
     Page(String),
     /// search results for a query
     Search(String),
+    /// the index: every function by area and topic
+    Index,
 }
 
 impl Loc {
@@ -43,13 +46,17 @@ impl Loc {
             Loc::Guide(a) => format!("guide:{}", a.key()),
             Loc::Page(n) => format!("page:{n}"),
             Loc::Search(_) => "search".into(),
+            Loc::Index => "index".into(),
         }
     }
 
-    /// The location a self-test or command line names: `home`, `guide:<area>`, `search:<text>`, else a page.
+    /// The location a self-test or command line names: `home`, `index`, `guide:<area>`, `search:<text>`, else a
+    /// page.
     pub fn parse(s: &str) -> Loc {
         if s == "home" {
             Loc::Home
+        } else if s == "index" {
+            Loc::Index
         } else if let Some(a) = s.strip_prefix("guide:").and_then(Area::from_key) {
             Loc::Guide(a)
         } else if let Some(q) = s.strip_prefix("search:") {
@@ -82,25 +89,49 @@ fn class_style(class: TokenClass, p: &Palette) -> (Color32, bool, bool) {
 /// to repeat for every snippet of a page in every frame.
 #[derive(Default)]
 pub struct Colours {
-    known: HashMap<String, Tokens>,
+    known: HashMap<String, (Tokens, Arc<Vec<Link>>)>,
+    /// the names that are links (the catalogue's functions)
+    pub functions: std::collections::HashSet<String>,
 }
 
 /// The classed tokens of a snippet (`mc_syntax::Colouring::tokens`).
 type Tokens = Arc<Vec<(Range<usize>, TokenClass)>>;
 
+/// `links` moved by `by` bytes.
+fn shifted(links: &[Link], by: usize) -> Vec<Link> {
+    links.iter().map(|(r, n)| (r.start + by..r.end + by, n.clone())).collect()
+}
+
 impl Colours {
-    fn tokens(&mut self, src: &str) -> Tokens {
+    fn tokens(&mut self, src: &str) -> (Tokens, Arc<Vec<Link>>) {
         if let Some(t) = self.known.get(src) {
             return t.clone();
         }
         let t = Arc::new(mc_syntax::colour(src, None).tokens);
-        self.known.insert(src.to_string(), t.clone());
-        t
+        let functions = &self.functions;
+        let links = Arc::new(code_links(src, &t, &|n: &str| functions.contains(n)));
+        self.known.insert(src.to_string(), (t.clone(), links.clone()));
+        (t, links)
     }
 
-    /// Append `src` to `job` in the code font, coloured as source.
-    pub fn append_code(&mut self, job: &mut LayoutJob, src: &str, p: &Palette, size: f32, bold: bool) {
-        let tokens = self.tokens(src);
+    /// The links of `src` (byte ranges in `src`).
+    pub fn links(&mut self, src: &str) -> Vec<Link> {
+        self.tokens(src).1.to_vec()
+    }
+
+    /// Append `src` to `job` in the code font, coloured as source; the links of the appended text (in `job`'s
+    /// bytes). With `link_colour` the linked names take that colour.
+    pub fn append_code(
+        &mut self,
+        job: &mut LayoutJob,
+        src: &str,
+        p: &Palette,
+        size: f32,
+        bold: bool,
+        link_colour: Option<Color32>,
+    ) -> Vec<Link> {
+        let (tokens, links) = self.tokens(src);
+        let at = job.text.len();
         let face = if bold { Face::CodeBold } else { Face::Code };
         let base = TextFormat { font_id: face.font(size), color: p.text, ..TextFormat::default() };
         let mut cuts: Vec<usize> = vec![0, src.len()];
@@ -108,6 +139,11 @@ impl Colours {
             cuts.extend([r.start, r.end]);
         }
         cuts.retain(|&c| c <= src.len() && src.is_char_boundary(c));
+        cuts.sort_unstable();
+        cuts.dedup();
+        for (r, _) in links.iter() {
+            cuts.extend([r.start, r.end]);
+        }
         cuts.sort_unstable();
         cuts.dedup();
         for w in cuts.windows(2) {
@@ -123,24 +159,38 @@ impl Colours {
                     f.font_id = Face::CodeBold.font(size);
                 }
             }
+            if let Some(c) = link_colour.filter(|_| links.iter().any(|(r, _)| r.start <= w[0] && w[0] < r.end)) {
+                f.color = c;
+            }
             job.append(&src[w[0]..w[1]], 0.0, f);
         }
+        shifted(&links, at)
     }
 
-    /// Append prose with code spans to `job`.
-    pub fn append_prose(&mut self, job: &mut LayoutJob, text: &str, p: &Palette, size: f32, color: Color32) {
+    /// Append printed output `text` to `job` in the code font and one colour; its links (in `job`'s bytes).
+    pub fn append_output(&mut self, job: &mut LayoutJob, text: &str, size: f32, color: Color32) -> Vec<Link> {
+        let (_, links) = self.tokens(text);
+        let at = job.text.len();
+        job.append(text, 0.0, TextFormat { font_id: Face::Code.font(size), color, ..TextFormat::default() });
+        shifted(&links, at)
+    }
+
+    /// Append prose with code spans to `job`; the links of its code spans (names in the accent colour).
+    pub fn append_prose(&mut self, job: &mut LayoutJob, text: &str, p: &Palette, size: f32, color: Color32) -> Vec<Link> {
         let format = TextFormat { font_id: Face::Prose.font(size), color, ..TextFormat::default() };
+        let mut links = vec![];
         match spans(text) {
             Ok(parts) => {
                 for s in parts {
                     match s {
                         Span::Text(t) => job.append(t, 0.0, format.clone()),
-                        Span::Code(c) => self.append_code(job, c, p, size - 1.0, false),
+                        Span::Code(c) => links.extend(self.append_code(job, c, p, size - 1.0, false, Some(p.accent))),
                     }
                 }
             }
             Err(_) => job.append(text, 0.0, format),
         }
+        links
     }
 }
 
@@ -257,11 +307,17 @@ pub struct Draw<'a> {
     pub selected: usize,
     /// open every collapsible part
     pub expand: bool,
+    /// the links drawn this frame (screen rectangles and targets), for the self-test
+    pub link_rects: Vec<(egui::Rect, String)>,
+    /// the link under the pointer this frame
+    pub hovered: Option<String>,
 }
 
 impl Draw<'_> {
-    /// Show `job` as a selectable, wrapping label, with find matches marked.
-    fn text(&mut self, ui: &mut egui::Ui, mut job: LayoutJob) -> egui::Response {
+    /// Show `job` as a selectable, wrapping label, with find matches marked and `links` live: underlined under the
+    /// pointer with a hand cursor and the function's usage line as a tooltip; a click (also a middle click or
+    /// Ctrl+click: the window has no tabs) opens the page.
+    fn text(&mut self, ui: &mut egui::Ui, mut job: LayoutJob, links: Vec<Link>) -> egui::Response {
         let mut current_here = false;
         if let Some((q, current, _)) = &self.find {
             if !q.is_empty() {
@@ -282,7 +338,12 @@ impl Draw<'_> {
             }
         }
         job.wrap.max_width = ui.available_width();
-        let response = ui.add(egui::Label::new(job).selectable(true));
+        let text = job.text.clone();
+        let galley = ui.fonts_mut(|f| f.layout_job(job));
+        let mut response = ui.add(egui::Label::new(galley.clone()).selectable(true));
+        if !links.is_empty() {
+            response = self.live_links(ui, response, &galley, &text, &links);
+        }
         if current_here {
             if let Some((_, _, reveal)) = &mut self.find {
                 if *reveal {
@@ -294,16 +355,69 @@ impl Draw<'_> {
         response
     }
 
+    /// The links of a label: their rectangles on the screen, the one under the pointer underlined and opened by
+    /// a click.
+    fn live_links(
+        &mut self,
+        ui: &mut egui::Ui,
+        response: egui::Response,
+        galley: &egui::Galley,
+        text: &str,
+        links: &[Link],
+    ) -> egui::Response {
+        let origin = response.rect.min;
+        let pointer = ui.ctx().pointer_hover_pos().filter(|_| response.hovered());
+        let mut under: Option<(egui::Rect, String, Color32)> = None;
+        for (range, name) in links {
+            let (a, b) = (text[..range.start].chars().count(), text[..range.end].chars().count());
+            let mut k = 0;
+            for row in &galley.rows {
+                let mut rect = egui::Rect::NOTHING;
+                let mut colour = self.p.accent;
+                for (j, g) in row.glyphs.iter().enumerate() {
+                    if (a..b).contains(&(k + j)) {
+                        let x = origin.x + row.pos.x + g.pos.x;
+                        rect = rect.union(egui::Rect::from_min_max(
+                            pos2(x, origin.y + row.min_y()),
+                            pos2(x + g.advance_width, origin.y + row.max_y()),
+                        ));
+                        colour = galley.job.sections.iter().find(|s| s.byte_range.contains(&ByteIndex(range.start))).map_or(colour, |s| s.format.color);
+                    }
+                }
+                k += row.glyphs.len() + usize::from(row.ends_with_newline);
+                if rect.is_positive() {
+                    self.link_rects.push((rect, name.clone()));
+                    if pointer.is_some_and(|p| rect.contains(p)) {
+                        under = Some((rect, name.clone(), colour));
+                    }
+                }
+            }
+        }
+        let Some((rect, name, colour)) = under else { return response };
+        let y = rect.bottom() - 1.5;
+        ui.painter().line_segment([pos2(rect.left(), y), pos2(rect.right(), y)], Stroke::new(1.0, colour));
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        self.hovered = Some(name.clone());
+        // a click opens the page; Ctrl+click (a click with Ctrl) and a middle click too: the window has no tabs
+        if response.clicked() || response.middle_clicked() {
+            self.go = Some(Loc::Page(name.clone()));
+        }
+        match mc_help::Index::embedded().get(&name) {
+            Some(e) => response.on_hover_text_at_pointer(e.line()),
+            None => response,
+        }
+    }
+
     fn prose(&mut self, ui: &mut egui::Ui, text: &str, size: f32, color: Color32) {
         let mut job = LayoutJob::default();
-        self.colours.append_prose(&mut job, text, self.p, size, color);
-        self.text(ui, job);
+        let links = self.colours.append_prose(&mut job, text, self.p, size, color);
+        self.text(ui, job, links);
     }
 
     fn heading(&mut self, ui: &mut egui::Ui, text: &str, size: f32, color: Color32) {
         let mut job = LayoutJob::default();
         job.append(text, 0.0, TextFormat { font_id: Face::ProseBold.font(size), color, ..TextFormat::default() });
-        self.text(ui, job);
+        self.text(ui, job, vec![]);
     }
 
     /// A function name as a link (accent when it has a page).
@@ -314,10 +428,11 @@ impl Draw<'_> {
         if r.clicked() {
             self.go = Some(Loc::Page(name.to_string()));
         }
-        let entry = self.cat.get(name);
-        if let Some(e) = entry {
-            r.on_hover_text(e.summary);
+        let rect = r.rect;
+        if let Some(e) = mc_help::Index::embedded().get(name) {
+            r.on_hover_text(e.line());
         }
+        self.link_rects.push((rect, name.to_string()));
     }
 
     fn card<R>(p: &Palette, ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
@@ -344,6 +459,17 @@ impl Draw<'_> {
             self.p.weak,
         );
         ui.add_space(14.0);
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            let r = ui.link(
+                RichText::new(format!("Index of all {} functions", self.cat.entries.len())).size(14.0).color(self.p.blue),
+            );
+            ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 13.0, self.p.blue));
+            if r.clicked() {
+                self.go = Some(Loc::Index);
+            }
+        });
+        ui.add_space(8.0);
         let columns = ((ui.available_width() + 16.0) / 320.0).floor().clamp(1.0, 3.0) as usize;
         for row in Area::ALL.chunks(columns) {
             ui.columns(columns, |cols| {
@@ -404,6 +530,44 @@ impl Draw<'_> {
         if all.inner {
             self.go = Some(Loc::Guide(area));
         }
+    }
+
+    // ----- the index -----
+
+    /// Every function of the system, by area and topic, as links (accent: with a page).
+    pub fn index(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(14.0);
+        self.heading(ui, "Index", 26.0, self.p.text);
+        let documented = self.cat.entries.iter().filter(|e| self.pages.contains_key(e.name)).count();
+        self.prose(
+            ui,
+            &format!(
+                "All {} functions by area and topic; the {documented} in the accent colour have a page with examples. \
+                 Hover a name for its usage line.",
+                self.cat.entries.len()
+            ),
+            BODY,
+            self.p.weak,
+        );
+        let cat = self.cat;
+        for area in Area::ALL {
+            ui.add_space(14.0);
+            let r = ui.add(egui::Link::new(RichText::new(area.title()).font(Face::ProseBold.font(20.0)).color(self.p.blue)));
+            if r.clicked() {
+                self.go = Some(Loc::Guide(area));
+            }
+            for (topic, entries) in cat.topics(area) {
+                ui.add_space(4.0);
+                ui.label(RichText::new(topic).font(Face::ProseBold.font(14.5)).color(self.p.text));
+                ui.horizontal_wrapped(|ui| {
+                    for e in entries {
+                        self.name_link(ui, e.name, 13.5);
+                        ui.add_space(6.0);
+                    }
+                });
+            }
+        }
+        ui.add_space(24.0);
     }
 
     // ----- guides -----
@@ -651,8 +815,8 @@ impl Draw<'_> {
                         ui.separator();
                     }
                     let mut job = LayoutJob::default();
-                    self.colours.append_code(&mut job, &u.call, self.p, 15.0, true);
-                    self.text(ui, job);
+                    let links = self.colours.append_code(&mut job, &u.call, self.p, 15.0, true, None);
+                    self.text(ui, job, links);
                     ui.horizontal_top(|ui| {
                         ui.add_space(24.0);
                         ui.vertical(|ui| self.prose(ui, &u.text, BODY, self.p.text));
@@ -695,8 +859,8 @@ impl Draw<'_> {
                 Block::Input { source, output, .. } => {
                     ui.add_space(4.0);
                     let mut job = LayoutJob::default();
-                    self.colours.append_code(&mut job, source, self.p, CODE, true);
-                    self.text(ui, job);
+                    let links = self.colours.append_code(&mut job, source, self.p, CODE, true, None);
+                    self.text(ui, job, links);
                     if !output.is_empty() {
                         self.outputs(ui, name, output);
                     }
@@ -732,8 +896,8 @@ impl Draw<'_> {
                     OutputKind::Note => self.p.orange,
                 };
                 let mut job = LayoutJob::default();
-                job.append(&text, 0.0, TextFormat { font_id: Face::Code.font(CODE), color, ..TextFormat::default() });
-                self.text(ui, job);
+                let links = self.colours.append_output(&mut job, &text, CODE, color);
+                self.text(ui, job, links);
             }
         });
         let rect = r.response.rect;

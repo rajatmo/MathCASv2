@@ -1,7 +1,9 @@
 //! Single instance: the first window listens on a loopback socket whose port and a random token are written to
 //! `instance.json` in the user's settings folder (readable by this user only). A later launch with files sends them
 //! there and exits; the running window opens them as tabs. When nothing answers (no window, a stale file, a
-//! firewall), the launch opens its own window and becomes the instance.
+//! firewall), the launch opens its own window and becomes the instance. The documentation window uses the same
+//! mechanism under its own file name ([`Server::start_as`], [`send_to`]) so that F1 in the notebook reuses an open
+//! documentation window.
 use eframe::egui;
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -13,8 +15,11 @@ use std::time::Duration;
 /// How long a launch waits for the running window to answer.
 const ANSWER: Duration = Duration::from_millis(1500);
 
-fn instance_file() -> Option<PathBuf> {
-    Some(crate::settings::config_dir()?.join("instance.json"))
+/// The notebook's instance file.
+const NOTEBOOK: &str = "instance.json";
+
+fn instance_file(name: &str) -> Option<PathBuf> {
+    Some(crate::settings::config_dir()?.join(name))
 }
 
 /// A random token (the standard library's per-process random hash keys).
@@ -33,12 +38,18 @@ fn token() -> String {
 pub struct Server {
     received: Arc<Mutex<Vec<PathBuf>>>,
     port: u16,
+    file: &'static str,
 }
 
 impl Server {
     /// Listen, and announce the port (`None` when the socket cannot be opened: the window works alone).
     pub fn start(ctx: &egui::Context) -> Option<Server> {
-        let file = instance_file()?;
+        Server::start_as(ctx, NOTEBOOK)
+    }
+
+    /// Listen, and announce the port in the settings folder's file `name` (another program's instance).
+    pub fn start_as(ctx: &egui::Context, name: &'static str) -> Option<Server> {
+        let file = instance_file(name)?;
         let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).ok()?;
         let port = listener.local_addr().ok()?.port();
         let token = token();
@@ -80,7 +91,7 @@ impl Server {
                 }
             })
             .ok()?;
-        Some(Server { received, port })
+        Some(Server { received, port, file: name })
     }
 
     /// The files received since the last call.
@@ -92,7 +103,7 @@ impl Server {
 impl Drop for Server {
     fn drop(&mut self) {
         // the file goes when it still names this window
-        if let Some(f) = instance_file() {
+        if let Some(f) = instance_file(self.file) {
             let ours = std::fs::read_to_string(&f)
                 .ok()
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok())
@@ -107,7 +118,17 @@ impl Drop for Server {
 
 /// Send `paths` to a running window; `true` when it took them (this launch then exits).
 pub fn send(paths: &[PathBuf]) -> bool {
-    let Some(file) = instance_file() else {
+    let abs: Vec<String> = paths
+        .iter()
+        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(p)))
+        .map(|p| strip_verbatim(&p.display().to_string()))
+        .collect();
+    send_to(NOTEBOOK, &abs)
+}
+
+/// Send `items` to the running instance announced in the settings folder's file `name`; `true` when it took them.
+pub fn send_to(name: &str, items: &[String]) -> bool {
+    let Some(file) = instance_file(name) else {
         return false;
     };
     let Some(v) = std::fs::read_to_string(file).ok().and_then(|t| serde_json::from_str::<Value>(&t).ok()) else {
@@ -125,12 +146,7 @@ pub fn send(paths: &[PathBuf]) -> bool {
         return false;
     };
     let _ = stream.set_read_timeout(Some(ANSWER));
-    let abs: Vec<String> = paths
-        .iter()
-        .map(|p| std::fs::canonicalize(p).unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(p)))
-        .map(|p| strip_verbatim(&p.display().to_string()))
-        .collect();
-    let msg = format!("{}\n", json!({"token": token, "paths": abs}));
+    let msg = format!("{}\n", json!({"token": token, "paths": items}));
     if stream.write_all(msg.as_bytes()).is_err() {
         return false;
     }

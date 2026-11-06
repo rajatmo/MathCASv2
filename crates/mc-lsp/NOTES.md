@@ -105,7 +105,7 @@ Settings: `mathcas.repl.path` (default `mc-repl`), `mathcas.server.path` (defaul
 ## Known gaps
 
 - Not tested in a real VS Code window (stand-in API and scratch install/list checks only).
-- Full sync only; no references, rename, signature help or formatting; completion not filtered by prefix.
+- Full sync only; no references, rename or formatting (signature help and prefix filtering: round 12).
 - Locals (parameters, `let`) have no definition target; a name used both locally and globally in one statement jumps
   to the global definition.
 - The statement being typed is missing from symbols and completion until it parses.
@@ -114,3 +114,23 @@ Settings: `mathcas.repl.path` (default `mc-repl`), `mathcas.server.path` (defaul
   duplication; `mc-kernel`'s completion needs the same names).
 - `tools/dist.ps1` under Windows PowerShell 5.1 with stderr captured (`2>&1`) stops on cargo's progress output
   (`$ErrorActionPreference = "Stop"`); run normally it works.
+
+## Round 12 (package nb-docs): documentation in the editor
+
+- **Help index**: every documented function's entry of `mc_help` (usage lines of its page, else its catalogue
+  description) is attached to the known names (`library::Entry::help`); names the index has and the lists here lack
+  are added.
+- **Completion**: documented functions carry their one-line usage as `detail` and, as `documentation`, their usage
+  calls, what each gives and a link to the page; the list is filtered by the name being typed (`mc_help::score`, as
+  the notebook ranks: prefix, word prefix, subsequence).
+- **Signature help** (`textDocument/signatureHelp`, triggers `(` and `,`, retrigger `,`): inside the brackets of a
+  call of a documented function (innermost first, an unclosed call counts) its usage calls, the one fitting the
+  arguments active, the active parameter (parameter labels as UTF-16 offsets into the call).
+- **Hover** of a documented library function: its usage calls and texts and a link
+  `[Open the documentation page](command:mathcas.openDocs?["name"])` (percent-encoded).
+- **VS Code extension**: signature help provider; command `mathcas.openDocs` (starts `mc-docs <name>`: the setting
+  `mathcas.docs.path`, else next to the server or mc-repl, else on PATH; an open documentation window shows the
+  page); markdown from the server is trusted for that one command only (`isTrusted.enabledCommands`).
+- Tests: 9 unit tests; `tests/lsp.rs` 6 (new `signature_help`; hover with the link, completion filtered with usage
+  lines); `tests/extension.rs` 3 (the stand-in API gained the signature help classes; the smoke script checks
+  signature help, the trusted link and the new command; ran with VS Code's executable as `MC_NODE`).

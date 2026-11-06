@@ -8,6 +8,12 @@
 //!   (`find` alone closes the find bar); `next`: the next match
 //! - `expand`: open every collapsible part of the page; `scroll <points>`: scroll the content
 //! - `back` / `forward`
+//! - `ppp <x>`: emulate a display scale (1.5 = 150 %)
+//! - `move <x> <y>`, `click <x> <y>`, `ctrlclick <x> <y>`, `mclick <x> <y>`: the pointer at window coordinates
+//! - `instance`: take places sent by other launches (`mc-docs <name>`, F1 in the notebook), as a window outside a
+//!   self-test does; `waitpage <name>`: wait (at most 20 s) until the window shows the page of `name`
+//! - `hoverlink <name>` / `clicklink <name>`: the pointer onto (and a click on) the first link to `name` drawn in the
+//!   last frame; `links`: log how many links the page drew and the one under the pointer
 //! - `wait <frames>`: let frames pass; `shot <name>`: a screenshot `<name>.png`; `log <text>`; `quit`
 use crate::app::DocsApp;
 use eframe::egui::{self, ViewportCommand};
@@ -22,6 +28,10 @@ pub struct SelfTest {
     dir: PathBuf,
     log: Vec<String>,
     start: std::time::Instant,
+    /// since when a `waitpage` step waits (seconds since the start)
+    waiting: Option<f64>,
+    /// a pointer move due after some frames
+    nudge: Option<(egui::Pos2, u32)>,
 }
 
 impl SelfTest {
@@ -33,12 +43,20 @@ impl SelfTest {
         let dir = Path::new(path).parent().map(PathBuf::from).unwrap_or_default();
         let steps =
             text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_string).collect();
-        Some(SelfTest { steps, next: 0, wait: 5, dir, log: vec![], start: std::time::Instant::now() })
+        Some(SelfTest { steps, next: 0, wait: 5, dir, log: vec![], start: std::time::Instant::now(), waiting: None, nudge: None })
     }
 
     /// Run the steps due in this frame.
     pub fn step(&mut self, app: &mut DocsApp, ctx: &egui::Context) {
         ctx.request_repaint();
+        match self.nudge {
+            Some((at, 0)) => {
+                app.events.push(egui::Event::PointerMoved(at));
+                self.nudge = None;
+            }
+            Some((at, n)) => self.nudge = Some((at, n - 1)),
+            None => {}
+        }
         if self.wait > 0 {
             self.wait -= 1;
             return;
@@ -71,6 +89,51 @@ impl SelfTest {
                 "scroll" => app.scroll_by(arg.parse().unwrap_or(400.0)),
                 "back" => app.back(),
                 "forward" => app.forward(),
+                "ppp" => {
+                    let want: f32 = arg.parse().unwrap_or(1.0);
+                    let native = ctx.pixels_per_point() / ctx.zoom_factor();
+                    ctx.set_zoom_factor(want / native);
+                    self.wait = 6;
+                }
+                "move" | "click" | "ctrlclick" | "mclick" => {
+                    let v: Vec<f32> = arg.split(' ').filter_map(|s| s.parse().ok()).collect();
+                    if let [x, y] = v[..] {
+                        pointer(app, cmd, egui::pos2(x, y));
+                    }
+                    self.wait = 3;
+                }
+                "hoverlink" | "clicklink" => {
+                    match app.link_rects.iter().find(|(_, n)| n == arg).map(|(r, _)| r.center()) {
+                        Some(at) => {
+                            self.log.push(format!("link `{arg}` at {:.0}, {:.0}", at.x, at.y));
+                            pointer(app, if cmd == "hoverlink" { "move" } else { "click" }, at);
+                            // a second, small move a few frames later: egui shows a tooltip once the pointer moved
+                            // over a widget it already hovers
+                            self.nudge = Some((at + egui::vec2(1.0, 0.0), 4));
+                        }
+                        None => self.log.push(format!("no link to `{arg}` on the screen")),
+                    }
+                    self.wait = 3;
+                }
+                "instance" => app.start_instance(ctx),
+                "waitpage" => {
+                    let want = crate::view::Loc::Page(arg.to_string());
+                    let now = self.start.elapsed().as_secs_f64();
+                    let since = *self.waiting.get_or_insert(now);
+                    if *app.here() != want && now < since + 20.0 {
+                        // try again next frame
+                        self.next -= 1;
+                        self.wait = 1;
+                        continue;
+                    }
+                    self.waiting = None;
+                }
+                "links" => {
+                    let mut names: Vec<&str> = app.link_rects.iter().map(|(_, n)| n.as_str()).collect();
+                    names.sort_unstable();
+                    names.dedup();
+                    self.log.push(format!("links: {} drawn, {} names: {}", app.link_rects.len(), names.len(), names.join(" ")));
+                }
                 "wait" => self.wait = arg.parse().unwrap_or(10),
                 "shot" => {
                     let path = self.dir.join(format!("{arg}.png"));
@@ -101,6 +164,23 @@ impl SelfTest {
                 let _ = writeln!(f, "{l}");
             }
         }
+    }
+}
+
+/// The pointer moves to `at`, and with `click`, `ctrlclick` or `mclick` clicks there.
+fn pointer(app: &mut DocsApp, what: &str, at: egui::Pos2) {
+    app.events.push(egui::Event::PointerMoved(at));
+    let (button, modifiers) = match what {
+        "click" => (egui::PointerButton::Primary, egui::Modifiers::NONE),
+        "ctrlclick" => (egui::PointerButton::Primary, egui::Modifiers::COMMAND),
+        "mclick" => (egui::PointerButton::Middle, egui::Modifiers::NONE),
+        _ => return,
+    };
+    for pressed in [true, false] {
+        app.events.push(egui::Event::PointerButton { pos: at, button, pressed, modifiers });
+    }
+    if !modifiers.is_none() {
+        app.events.push(egui::Event::ModifiersChanged(egui::Modifiers::NONE));
     }
 }
 

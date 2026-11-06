@@ -50,7 +50,23 @@ existence and its pixel size; and in release builds that no input takes more tha
 function of an area by topic with its one-line description, incremental search (name prefixes first, then
 words of the usage and descriptions), function pages drawn from the `.mcn` files (usage block in the code font
 with syntax colouring, collapsible Details and example groups (inputs on the left edge in the code font, each input's outputs indented
-behind a thin rule; no `In`/`Out` labels) and images, See
+behind a thin rule; no `In`/`Out` labels) and images, See also links), back/forward/home, find in page, the two
+themes, "Open as notebook".
+
+**Links and the index (round 12).** Every function name in a page links to that function's page: the usage calls,
+code spans in prose, the identifiers of example inputs and outputs (tokenised with `mc_syntax`), See also, the
+guides and the index page (every function by area and topic). A name links when it is a global name the catalogue
+knows and is called or longer than one letter; unknown names do not link. Links are underlined under the pointer
+with a hand cursor and a tooltip giving the usage line; a click (also a middle-click or Ctrl+click, the window has
+no tabs) opens the page, and back and forward move through the history. A test checks that every link of every page,
+guide and the index resolves. `mc-docs <name>` shows the page in an open documentation window (single instance)
+instead of opening a second one, which is how F1 in the notebook and the language server's hover links reach it.
+
+**One help source (round 12).** The help the editors show comes from the crate `mc-help`: the catalogue table (name,
+area, topic, the library's description; written by `mc-docs-pages index`, checked by a test) and the usage lines of
+the pages (read at build time). The documentation window's tooltips, the notebook's completion, usage hint, hover and
+F1, and the language server's completion, signature help and hover all read it. A usage line is the page's usage
+call and text, or the catalogue description where a function has no page.
 
 ## Writing and checking pages
 

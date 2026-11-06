@@ -5,6 +5,8 @@
 //! - `mc-docs-pages check [name ...]` validates them and compares a fresh run with the stored outputs (what the
 //!   test `tests/pages.rs` does), exit code 1 on any problem;
 //! - `mc-docs-pages missing` lists the catalogued functions without a page, by area and topic;
+//! - `mc-docs-pages index` writes the help index's catalogue table (`crates/mc-help/data/index.txt`), which the
+//!   notebook and the language server build in (the pages' usage lines they read themselves);
 //! - `--dir <folder>` names the pages folder (default: `docs/functions` of the repository this was built from).
 use mc_docs::catalogue::{Area, Catalogue};
 use mc_docs::library::{source_dir, Library};
@@ -15,7 +17,7 @@ use std::process::ExitCode;
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
     let Some(cmd) = args.next() else {
-        eprintln!("usage: mc-docs-pages update|check|missing [--dir <folder>] [name ...]");
+        eprintln!("usage: mc-docs-pages update|check|missing|index [--dir <folder>] [name ...]");
         return ExitCode::from(2);
     };
     let mut dir = source_dir();
@@ -28,6 +30,19 @@ fn main() -> ExitCode {
         }
     }
     let catalogue = Catalogue::new();
+    if cmd == "index" {
+        let path = mc_docs::index::table_path();
+        return match std::fs::write(&path, mc_docs::index::table(&catalogue)) {
+            Ok(()) => {
+                eprintln!("{} functions written to {}", catalogue.entries.len(), path.display());
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("cannot write {}: {e}", path.display());
+                ExitCode::FAILURE
+            }
+        };
+    }
     if cmd == "missing" {
         // the catalogued functions without a page, by area and topic, with their one-line descriptions
         let pages = Library::from_dir(&dir).names();

@@ -81,6 +81,21 @@ const vscode = {
     }
   },
   CompletionItemKind: { Text: 0 },
+  SignatureHelp: class {
+    constructor() {
+      Object.assign(this, { signatures: [], activeSignature: 0, activeParameter: 0 });
+    }
+  },
+  SignatureInformation: class {
+    constructor(label, documentation) {
+      Object.assign(this, { label, documentation, parameters: [] });
+    }
+  },
+  ParameterInformation: class {
+    constructor(label) {
+      this.label = label;
+    }
+  },
   SymbolKind: { Variable: 12 },
   DocumentSymbol: class {
     constructor(name, detail, kind, range, selectionRange) {
@@ -133,6 +148,7 @@ const vscode = {
     registerHoverProvider: (_, p) => ((providers.hover = p), disposable),
     registerCompletionItemProvider: (_, p, ...triggers) => ((providers.completion = p), (providers.triggers = triggers), disposable),
     registerDocumentSymbolProvider: (_, p) => ((providers.symbols = p), disposable),
+    registerSignatureHelpProvider: (_, p, meta) => ((providers.signature = p), (providers.signatureMeta = meta), disposable),
   },
   commands: { registerCommand: (name, f) => ((commands[name] = f), disposable) },
 };
@@ -175,7 +191,8 @@ const never = { onCancellationRequested() {} };
   const context = { subscriptions: [] };
   await ext.activate(context);
   if (providers.triggers[0] !== '.') fail('completion is not triggered by "."');
-  for (const c of ['mathcas.runFile', 'mathcas.runSelection', 'mathcas.restartServer']) {
+  if (!providers.signature || providers.signatureMeta.triggerCharacters[0] !== '(') fail('no signature help provider');
+  for (const c of ['mathcas.runFile', 'mathcas.runSelection', 'mathcas.restartServer', 'mathcas.openDocs']) {
     if (!commands[c]) fail(`command ${c} not registered`);
   }
 
@@ -205,7 +222,20 @@ const never = { onCancellationRequested() {} };
   if (!list || list.items.map((i) => i.label).join() !== 'area' || list.items[0].kind !== 2) {
     fail(`completion ${JSON.stringify(list)}`);
   }
-  doc = documentOf(main, 'fn f(x) = x\nmodule M {\n  pub fn p(x) = x\n}\n', 3);
+  // signature help inside a call of a documented function, the second parameter active
+  doc = documentOf(main, 'y = n_integrate(sin(x), [x, 0, 1])\n', 3);
+  listeners.change.forEach((f) => f({ document: doc, contentChanges: [{}] }));
+  await nextDiagnostics(uri);
+  const sig = await providers.signature.provideSignatureHelp(doc, new Position(0, 24), never);
+  if (!sig || !sig.signatures[sig.activeSignature].label.startsWith('n_integrate(') || sig.activeParameter !== 1) {
+    fail(`signature help ${JSON.stringify(sig)}`);
+  }
+  // a documented function's hover links to its page through the trusted command
+  const fhover = await providers.hover.provideHover(doc, new Position(0, 6), never);
+  if (!fhover || !fhover.contents.value.includes('command:mathcas.openDocs') || !fhover.contents.isTrusted) {
+    fail(`documented hover ${JSON.stringify(fhover)}`);
+  }
+  doc = documentOf(main, 'fn f(x) = x\nmodule M {\n  pub fn p(x) = x\n}\n', 4);
   listeners.change.forEach((f) => f({ document: doc, contentChanges: [{}] }));
   if ((await nextDiagnostics(uri)).length !== 0) fail('diagnostics for a correct text');
   const symbols = await providers.symbols.provideDocumentSymbols(doc, never);

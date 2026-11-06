@@ -1,0 +1,54 @@
+# Help while writing code (round 12): completion, the usage hint, F1, hover and Ctrl+click, in a plain cell and
+# in a cell with a square root box. Run by `tests/help_selftest.rs` (it opens a window: `cargo test -- --ignored`),
+# which checks the `help:` lines of the log. `MATHCAS_DOCS=-` records the pages asked for instead of opening them.
+size 1000 600
+ppp 1
+theme light
+new
+# completion after two characters and a pause, with the matching functions; Tab accepts and adds the brackets
+keys "y = n_int"
+wait 40
+help
+keys Tab
+wait 3
+help
+# the usage hint follows the argument being typed; Esc hides it for this call
+keys "sin(x)^2, "
+wait 3
+help
+keys Esc
+wait 3
+help
+# F1 inside the call looks up the function
+keys F1
+wait 3
+help
+# Esc cancels completion; Enter then makes a new line (not stolen); Enter with the list open accepts
+keys End Enter "ab"
+wait 40
+help
+keys Esc
+wait 3
+help
+keys Enter "tabl"
+wait 40
+keys Enter
+wait 3
+help
+dump typed
+# hover shows the usage line after a pause; Ctrl+click opens the page
+hovername n_integrate
+wait 50
+help
+ctrlclickname n_integrate
+wait 4
+help
+# the same inside a square root box
+new
+keys Ctrl+2 "n_int"
+wait 40
+help
+keys Tab "x, "
+wait 3
+help
+quit

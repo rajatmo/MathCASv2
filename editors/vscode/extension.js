@@ -182,7 +182,12 @@ const toPosition = (p) => new vscode.Position(p.line, p.character);
 const toRange = (r) => new vscode.Range(toPosition(r.start), toPosition(r.end));
 const fromPosition = (p) => ({ line: p.line, character: p.character });
 const documentParams = (doc, pos) => ({ textDocument: { uri: doc.uri.toString() }, position: fromPosition(pos) });
-const markdown = (c) => (typeof c === 'string' ? new vscode.MarkdownString(c) : new vscode.MarkdownString(c.value));
+// the server's markdown may link to the documentation (`command:mathcas.openDocs?...`): only that command is trusted
+const markdown = (c) => {
+  const m = new vscode.MarkdownString(typeof c === 'string' ? c : c.value);
+  m.isTrusted = { enabledCommands: ['mathcas.openDocs'] };
+  return m;
+};
 
 // the protocol's kinds start at 1, the editor's enums at 0
 const toCompletionKind = (k) => (typeof k === 'number' ? k - 1 : vscode.CompletionItemKind.Text);
@@ -204,6 +209,18 @@ function toSymbol(s) {
   const sym = new vscode.DocumentSymbol(s.name, s.detail || '', toSymbolKind(s.kind), toRange(s.range), toRange(s.selectionRange));
   sym.children = (s.children || []).map(toSymbol);
   return sym;
+}
+
+function toSignatureHelp(r) {
+  const help = new vscode.SignatureHelp();
+  help.signatures = (r.signatures || []).map((s) => {
+    const info = new vscode.SignatureInformation(s.label, s.documentation ? markdown(s.documentation) : undefined);
+    info.parameters = (s.parameters || []).map((p) => new vscode.ParameterInformation(p.label));
+    return info;
+  });
+  help.activeSignature = r.activeSignature || 0;
+  help.activeParameter = r.activeParameter || 0;
+  return help;
 }
 
 function toCompletion(item) {
@@ -239,6 +256,31 @@ function replPath() {
   const configured = settings().get('repl.path') || 'mc-repl';
   if (path.isAbsolute(configured) || configured.includes('/') || configured.includes('\\')) return configured;
   return onPath(configured + (configured.endsWith(EXE) ? '' : EXE)) || configured;
+}
+
+/** mc-docs (the documentation window): the setting, else next to the server or mc-repl, else on PATH. */
+function docsPath() {
+  const configured = settings().get('docs.path');
+  if (configured) return configured;
+  for (const p of [serverPath(), replPath()]) {
+    if (path.isAbsolute(p)) {
+      const sibling = path.join(path.dirname(p), 'mc-docs' + EXE);
+      if (fs.existsSync(sibling)) return sibling;
+    }
+  }
+  return onPath('mc-docs' + EXE) || 'mc-docs';
+}
+
+/** Open a function's page in the documentation window (an open window shows it; else one starts). */
+function openDocs(name) {
+  const program = docsPath();
+  try {
+    const child = childProcess.spawn(program, name ? [String(name)] : [], { detached: true, stdio: 'ignore' });
+    child.on('error', (e) => vscode.window.showWarningMessage(`MathCAS: cannot start the documentation "${program}": ${e.message}`));
+    child.unref();
+  } catch (e) {
+    vscode.window.showWarningMessage(`MathCAS: cannot start the documentation "${program}": ${e.message}`);
+  }
 }
 
 /** mc-lsp: the setting, else next to mc-repl, else on PATH. */
@@ -286,6 +328,7 @@ async function startClient() {
           publishDiagnostics: { relatedInformation: true },
           hover: { contentFormat: ['markdown', 'plaintext'] },
           completion: { completionItem: { documentationFormat: ['markdown', 'plaintext'] } },
+          signatureHelp: { signatureInformation: { documentationFormat: ['markdown', 'plaintext'], parameterInformation: { labelOffsetSupport: true } } },
           documentSymbol: { hierarchicalDocumentSymbolSupport: true },
           definition: {},
         },
@@ -378,6 +421,7 @@ async function activate(context) {
     diagnostics,
     vscode.commands.registerCommand('mathcas.runFile', runFile),
     vscode.commands.registerCommand('mathcas.runSelection', runSelection),
+    vscode.commands.registerCommand('mathcas.openDocs', (name) => openDocs(name)),
     vscode.commands.registerCommand('mathcas.restartServer', async () => {
       await stopClient();
       await startClient();
@@ -427,6 +471,16 @@ async function activate(context) {
         },
       },
       '.',
+    ),
+    vscode.languages.registerSignatureHelpProvider(
+      selector,
+      {
+        async provideSignatureHelp(doc, pos, token) {
+          const r = await ask('textDocument/signatureHelp', documentParams(doc, pos), token);
+          return r && r.signatures && r.signatures.length ? toSignatureHelp(r) : null;
+        },
+      },
+      { triggerCharacters: ['(', ','], retriggerCharacters: [','] },
     ),
     vscode.languages.registerDocumentSymbolProvider(selector, {
       async provideDocumentSymbols(doc, token) {

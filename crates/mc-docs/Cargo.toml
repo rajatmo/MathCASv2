@@ -24,6 +24,7 @@ path = "src/bin/pages.rs"
 eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
+mc-help = { path = "../mc-help" }
 mc-kernel = { path = "../mc-kernel" }
 mc-nbfile = { path = "../mc-nbfile" }
 mc-notebook = { path = "../mc-notebook" }

@@ -41,11 +41,12 @@ impl App {
             };
             let resp = match tip {
                 Some(t) => resp.on_hover_text_at_pointer(t),
-                None => resp,
+                None => self.hover_tooltip(&ctx, resp),
             };
             resp.context_menu(|ui| self.context_menu(ui));
             let time = ctx.input(|i| i.time);
             let clip = ui.clip_rect();
+            self.canvas_clip = clip;
             self.doc.view.caret = match self.doc.nb.selection() {
                 Selection::Caret { cell, anchor, pos } if anchor == pos => Some((*cell, *pos)),
                 _ => None,
@@ -226,6 +227,13 @@ impl App {
             _ => None,
         };
         self.doc.view.plus_hover = matches!(hit, Some(Hit::Plus(_))) && resp.hovered();
+        // a documented function name under the pointer: its usage line after a pause, Ctrl+click opens its page
+        let name = match hit {
+            Some(h) if resp.hovered() && self.drag.is_none() => self.name_under(ctx, h, p),
+            _ => None,
+        };
+        self.set_hover(name, time);
+        let ctrl_now = ctx.input(|i| i.modifiers.command || i.modifiers.ctrl);
         if over {
             // the pointer per region (design of the polish package): I-beam over text, the arrow over brackets,
             // margins and the gap between cells, a hand on the "+" button, a closed hand while moving cells; hidden
@@ -238,6 +246,11 @@ impl App {
                 (_, Some(Hit::Text(id, _) | Hit::Boxes(id))) if self.over_content(id, p.x) => egui::CursorIcon::Text,
                 (_, Some(Hit::Plus(_))) => egui::CursorIcon::PointingHand,
                 _ => egui::CursorIcon::Default,
+            };
+            let icon = if ctrl_now && self.drag.is_none() && self.hovered_name().is_some() {
+                egui::CursorIcon::PointingHand
+            } else {
+                icon
             };
             let icon =
                 if self.pointer_hidden && icon == egui::CursorIcon::Text { egui::CursorIcon::None } else { icon };
@@ -267,6 +280,13 @@ impl App {
                     }
                 }
                 _ => {}
+            }
+        }
+        if pressed && resp.hovered() && (mods.ctrl || mods.command) && !mods.shift {
+            if let Some(name) = self.hovered_name() {
+                self.open_docs(Some(name));
+                self.drag = None;
+                return;
             }
         }
         if pressed && resp.hovered() {

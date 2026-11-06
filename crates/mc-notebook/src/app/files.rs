@@ -41,7 +41,9 @@ impl App {
 
     /// Replace the active tab's notebook (the old kernel session ends).
     pub fn set_notebook(&mut self, nb: Notebook, path: Option<PathBuf>) {
-        let zoom = self.doc.view.zoom;
+        // the magnification (the view's `zoom` is it times the points-to-pixels factor: passing that grew the text by a
+        // third with every notebook opened into the tab)
+        let zoom = self.doc.view.magnification();
         self.doc = Doc::new(nb, path.as_deref(), &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), zoom);
         if let Some(t) = self.tabs.current_mut() {
             t.path = path;

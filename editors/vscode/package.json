@@ -1,7 +1,7 @@
 {
   "name": "mathcas",
   "displayName": "MathCAS",
-  "description": "MathCAS v2 language support: syntax colouring, diagnostics, go to definition, hover, completion and outline through the mc-lsp language server, and commands to run files and selections with mc-repl. No dependencies; install by copying this folder (see INSTALL.txt).",
+  "description": "MathCAS v2 language support: syntax colouring, diagnostics, go to definition, hover with links to the documentation, completion with usage lines, signature help and outline through the mc-lsp language server, and commands to run files and selections with mc-repl. No dependencies; install by copying this folder (see INSTALL.txt).",
   "version": "0.2.0",
   "publisher": "mathcas",
   "icon": "icon.png",
@@ -31,7 +31,8 @@
     "commands": [
       { "command": "mathcas.runFile", "title": "Run File", "category": "MathCAS", "icon": "$(play)" },
       { "command": "mathcas.runSelection", "title": "Run Selection", "category": "MathCAS" },
-      { "command": "mathcas.restartServer", "title": "Restart Language Server", "category": "MathCAS" }
+      { "command": "mathcas.restartServer", "title": "Restart Language Server", "category": "MathCAS" },
+      { "command": "mathcas.openDocs", "title": "Open Documentation", "category": "MathCAS" }
     ],
     "menus": {
       "commandPalette": [
@@ -58,6 +59,11 @@
           "type": "string",
           "default": "",
           "description": "Path of the mc-lsp language server. Empty: mc-lsp next to mc-repl (the mathcas.repl.path setting, or mc-repl found on PATH), else mc-lsp on PATH."
+        },
+        "mathcas.docs.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path of mc-docs, the documentation window that hover links open. Empty: mc-docs next to the language server or mc-repl, else on PATH."
         },
         "mathcas.repl.path": {
           "type": "string",

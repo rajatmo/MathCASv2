@@ -14,7 +14,7 @@ impl App {
         let mut swallow_text = false;
         let mut copied = false;
         for e in events {
-            if self.completion_key(ctx, &e) {
+            if self.completion_key(ctx, &e) || self.hint_key(&e) {
                 continue;
             }
             if let Some(id) = self.doc.view.graphic {
@@ -149,7 +149,15 @@ impl App {
             };
             names.extend(mc_syntax::names_in_scope(&c.text, at).into_iter().map(|l| (l.name, "local".to_string())));
         }
-        self.doc.kernel.request_names("");
+        // every documented function with its usage line (the help index), after the locals (a local of the same name
+        // is what the name means here) and before the session's own names
+        names.extend(mc_help::Index::embedded().entries().iter().map(|e| {
+            (e.name.clone(), if e.is_function() { "function" } else { "constant" }.to_string())
+        }));
+        // the session's own definitions come from a running kernel (completion never starts one)
+        if self.doc.kernel.is_running() {
+            self.doc.kernel.request_names("");
+        }
         self.doc.completion = Some(Completion { cell, path, start, names, selected: 0 });
     }
 
@@ -178,9 +186,15 @@ impl App {
                 true
             }
             Key::Enter | Key::Tab if !items.is_empty() => {
-                let name = items[comp.selected.min(items.len() - 1)].0.clone();
+                let (name, kind) = items[comp.selected.min(items.len() - 1)].clone();
                 self.doc.completion = None;
                 self.run(ctx, Command::ReplaceWord(name));
+                // a function gets its opening bracket (and, with automatic closing, the closing one), unless a
+                // bracket follows already
+                let bracket_follows = self.code_caret().is_some_and(|c| c.text[c.pos..].starts_with('('));
+                if kind == "function" && !bracket_follows {
+                    self.run(ctx, Command::Insert("(".into()));
+                }
                 true
             }
             Key::Escape => {
@@ -237,9 +251,29 @@ impl App {
                     if items.is_empty() {
                         ui.label(RichText::new("no completions").color(p.weak));
                     }
+                    let index = mc_help::Index::embedded();
                     for (k, (name, kind)) in items.iter().take(12).enumerate() {
-                        let text = RichText::new(format!("{name:<24} {kind}")).monospace();
-                        if ui.selectable_label(k == selected, text).clicked() {
+                        // a documented name shows its one-line usage, others their kind (keyword, local, session)
+                        let usage = match kind.as_str() {
+                            "keyword" | "local" => None,
+                            _ => index.get(name).map(|e| e.line()),
+                        };
+                        let detail = usage.unwrap_or_else(|| kind.clone());
+                        let mut job = egui::text::LayoutJob::default();
+                        let mono = egui::FontId::monospace(13.0);
+                        job.append(
+                            &format!("{name:<20} "),
+                            0.0,
+                            egui::TextFormat { font_id: mono, color: p.text, ..Default::default() },
+                        );
+                        let short: String = detail.chars().take(72).collect();
+                        let short = if short.len() < detail.len() { format!("{short}...") } else { short };
+                        job.append(
+                            &short,
+                            0.0,
+                            egui::TextFormat { font_id: egui::FontId::proportional(12.0), color: p.weak, ..Default::default() },
+                        );
+                        if ui.selectable_label(k == selected, job).clicked() {
                             clicked = Some(k);
                         }
                     }

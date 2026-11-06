@@ -2339,6 +2339,7 @@ dependencies = [
  "mc-dist",
  "mc-engine",
  "mc-graphics",
+ "mc-help",
  "mc-io",
  "mc-jit",
  "mc-kernel",
@@ -2429,6 +2430,10 @@ dependencies = [
  "resvg",
  "tiny-skia 0.11.4",
 ]
+
+[[package]]
+name = "mc-help"
+version = "0.2.0"
 
 [[package]]
 name = "mc-io"
@@ -2527,6 +2532,7 @@ dependencies = [
  "mc-calculus",
  "mc-dist",
  "mc-graphics",
+ "mc-help",
  "mc-io",
  "mc-linalg",
  "mc-lists",
@@ -2575,6 +2581,7 @@ version = "0.2.0"
 dependencies = [
  "eframe",
  "mc-boxes",
+ "mc-help",
  "mc-mathfont",
  "mc-nbfile",
  "mc-nbmodel",

@@ -525,6 +525,24 @@ symbols or remain syntax errors with a clear message (work package P7).
 - Up/Down move, Enter or Tab accept, Esc closes. Accepting a function name from the library may insert a template
   with `Ctrl+Shift+K` (M6).
 - The popup shows the name's one-line usage (from the library documentation strings) beside the list.
+- *Round 12 (decisions NBDOCS.1-10):* the candidates are every documented function from the help index (`mc-help`,
+  shared with the documentation window and the language server; no kernel needed), the session's names from a
+  running kernel, locals and keywords; subsequence matches show only when nothing matches by prefix or word prefix;
+  accepting a function also inserts its opening bracket (with automatic closing, both). Enter, Tab and Esc are taken
+  only while the list is open.
+
+### 3.10a Help while writing code (round 12)
+
+- **Usage hint**: inside `f(...)` of a documented function, a popup above the caret's line shows the usage call
+  fitting the arguments typed, the current parameter highlighted, and what the call gives; Esc hides it for that
+  call.
+- **Hover**: resting the pointer on a documented function name in an input shows its usage line; Ctrl+click opens
+  its page.
+- **F1** and Help > Look up open the page of the name at or before the caret, or of the call the caret is in, in the
+  documentation window (an open one is reused and brought to the front; NBDOCS.1 chose the window over a pane
+  inside the notebook: the documentation window already has search, history and the index, and the docs crate sits
+  above the notebook crate).
+- All of this works in plain text and inside the root, fraction and power boxes (read through the canonical text).
 
 ### 3.11 Syntax colouring
 

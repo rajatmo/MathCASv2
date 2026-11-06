@@ -44,6 +44,7 @@ impl Client {
         let init = c.request("initialize", json!({"processId": null, "rootUri": null, "capabilities": {}}));
         assert_eq!(init["capabilities"]["textDocumentSync"]["change"], 1);
         assert_eq!(init["capabilities"]["completionProvider"]["triggerCharacters"][0], ".");
+        assert_eq!(init["capabilities"]["signatureHelpProvider"]["triggerCharacters"][0], "(");
         c.notify("initialized", json!({}));
         c
     }
@@ -235,8 +236,9 @@ fn hover_completion_and_symbols() {
     // a prelude function and a library function
     let t = text(&c.at("textDocument/hover", &main, 3, 23));
     assert!(t.contains("fn clamp(x, lo, hi)") && t.contains("prelude"), "{t}");
+    // a documented library function: its usage lines from the help index and a link to its page
     let t = text(&c.at("textDocument/hover", &main, 3, 40));
-    assert!(t.contains("factor(p): the factorisation over the integers"), "{t}");
+    assert!(t.contains("factor(") && t.contains("](command:mathcas.openDocs?%5B%22factor%22%5D)"), "{t}");
     // nothing on a keyword
     assert_eq!(c.at("textDocument/hover", &main, 2, 1), Value::Null);
 
@@ -264,6 +266,15 @@ fn hover_completion_and_symbols() {
         assert!(l.iter().any(|x| x == want), "missing {want}");
     }
     assert!(!l.iter().any(|x| x == "circumference" || x == "helper"));
+    // a name being typed: only the names matching it, documented ones with their one-line usage
+    c.change(&main, 4, "y = n_int\n");
+    let r = c.at("textDocument/completion", &main, 0, 9);
+    let l = labels(&r);
+    assert!(l.iter().any(|x| x == "n_integrate") && !l.iter().any(|x| x == "range"), "{l:?}");
+    let item = r["items"].as_array().unwrap().iter().find(|i| i["label"] == "n_integrate").unwrap();
+    assert!(item["detail"].as_str().unwrap().starts_with("n_integrate(f, [x, a, b]): "), "{item}");
+    assert!(item["documentation"]["value"].as_str().unwrap().contains("command:mathcas.openDocs"), "{item}");
+    c.change(&main, 5, src);
 
     // document symbols: functions, rules, values and modules with their members
     c.change(&main, 4, "fn f(x) = x\nrule g(a_) := a\nc = 1\nmodule M {\n  pub fn p(x) = x\n}\n");
@@ -273,6 +284,32 @@ fn hover_completion_and_symbols() {
     assert_eq!(s[3]["children"][0]["name"], "p");
     assert_eq!(range(&s[3]["children"][0]["selectionRange"]), [4, 9, 4, 10]);
     assert_eq!(range(&s[3]["range"]), [3, 0, 5, 1]);
+    assert_eq!(c.finish(), 0);
+}
+
+#[test]
+fn signature_help() {
+    let mut c = Client::start();
+    let main = "untitled:sig";
+    c.open(main, "y = n_integrate(sin(x), [x, 0, 1])\nz = table(\n");
+    let sig = |c: &mut Client, line: u32, ch: u32| c.at("textDocument/signatureHelp", main, line, ch);
+    // inside `sin(...)`: sin's usage, its only parameter
+    let s = sig(&mut c, 0, 20);
+    assert_eq!(s["signatures"][s["activeSignature"].as_u64().unwrap() as usize]["label"], "sin(x)", "{s}");
+    assert_eq!(s["activeParameter"], 0);
+    // after `sin(x), `: n_integrate's first usage, the second parameter `[x, a, b]` (UTF-16 offsets in the label)
+    let s = sig(&mut c, 0, 24);
+    let active = s["activeSignature"].as_u64().unwrap() as usize;
+    let label = s["signatures"][active]["label"].as_str().unwrap().to_string();
+    assert!(label.starts_with("n_integrate(f, [x, a, b]"), "{s}");
+    assert_eq!(s["activeParameter"], 1);
+    let p = &s["signatures"][active]["parameters"][1]["label"];
+    let (a, b) = (p[0].as_u64().unwrap() as usize, p[1].as_u64().unwrap() as usize);
+    assert_eq!(&label[a..b], "[x, a, b]");
+    assert!(s["signatures"][active]["documentation"]["value"].as_str().unwrap().contains("numerical"), "{s}");
+    // a call being typed (no closing bracket yet), and nothing outside calls
+    assert!(sig(&mut c, 1, 10)["signatures"][0]["label"].as_str().unwrap().starts_with("table("));
+    assert_eq!(sig(&mut c, 0, 2), Value::Null);
     assert_eq!(c.finish(), 0);
 }
 

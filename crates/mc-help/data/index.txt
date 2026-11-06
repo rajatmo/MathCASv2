@@ -1,0 +1,724 @@
+# The MathCAS help index's catalogue, written by `mc-docs-pages index` from the documentation's catalogue.
+# Do not edit: regenerate it. Format: name TAB area TAB topic TAB summary.
+add	core	Language	add(a, b, ...): the sum a + b + ...
+mul	core	Language	mul(a, b, ...): the product a*b*...
+pow	core	Language	pow(a, b): the power a^b
+equal	core	Language	equal(a, b): a == b, true or false when it can be decided, else left as it is
+unequal	core	Language	unequal(a, b): a != b
+less	core	Language	less(a, b): a < b
+less_equal	core	Language	less_equal(a, b): a <= b
+greater	core	Language	greater(a, b): a > b
+greater_equal	core	Language	greater_equal(a, b): a >= b
+same	core	Language	same(a, b): a === b, whether the two terms are identical (1 and 1.0 are not)
+not_same	core	Language	not_same(a, b): a !== b
+and	core	Language	and(a, b, ...): a and b, evaluated left to right, stopping at the first false
+or	core	Language	or(a, b, ...): a or b, evaluated left to right, stopping at the first true
+not	core	Language	not(a): the negation of a truth value
+map	core	Language	map(f, xs): [f(x1), f(x2), ...] for the list xs
+print	core	Language	print(x): write x as a line of output (a string as its text); the value is x
+rewrite	core	Language	rewrite(e, rule) or rewrite(e, [rules]): e with every part a rule matches replaced
+is_ground	core	Language	is_ground(e): whether e holds no unknown symbol
+complex	core	Language	complex(re, im): the complex number re + im*im
+expm1	core	Language	expm1(x): exp(x) - 1, accurate for small x
+log1p	core	Language	log1p(x): log(1 + x), accurate for small x
+say	core	Language	say(x, ...): print the arguments on one line, strings as their text; the value is null
+is_even	core	Language	is_even(n): whether the integer n is even
+is_odd	core	Language	is_odd(n): whether the integer n is odd
+clamp	core	Language	clamp(x, lo, hi): x limited to the interval [lo, hi]
+log_base	core	Language	log_base(b, x): the logarithm of x to base b, exact when x is a power of the integer b
+count_if	core	Language	count_if(xs, p): how many elements x of xs have p(x) true
+every	core	Language	every(xs, p): whether p(x) is true for every element x of xs
+some	core	Language	some(xs, p): whether p(x) is true for at least one element x of xs
+member	core	Language	member(xs, x): whether x is an element of xs, compared by identity
+zip	core	Language	zip(xs, ys): the pairs [xs[i], ys[i]], as long as the shorter list
+flat_map	core	Language	flat_map(f, xs): the lists f(x) for each element x of xs, joined into one list
+accumulate	core	Language	accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]
+fix_point	core	Language	fix_point(f, x): f applied repeatedly from x until the value no longer changes
+range	core	Lists	range(n), range(a, b), range(a, b, step): the list a, a + step, ... up to b (a and step default to 1)
+array	core	Lists	array(f, n): the list [f(1), ..., f(n)]; array(f, [n1, n2, ...]): nested lists of f(i1, i2, ...); array(f, n, r): indices from r
+table	core	Lists	table(e, k, r): e for each k in r (a list, or n for 1..n); more pairs k, r nest; table(e, n): n values of e
+subdivide	core	Lists	subdivide(n), subdivide(b, n), subdivide(a, b, n): the n + 1 equally spaced values from a (default 0) to b (default 1)
+map_indexed	core	Lists	map_indexed(f, xs): [f(x1, 1), f(x2, 2), ...]; map_indexed(f, x, levels): f(part, position) for the parts at levels
+map_thread	core	Lists	map_thread(f, [xs, ys, ...]): [f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]
+scan	core	Lists	scan(f, xs): f(x) for each element in order, for its effects; the value is null
+nest	core	Lists	nest(f, x, n): f applied n times to x
+nest_while	core	Lists	nest_while(f, x, test), nest_while(f, x, test, 1, max): f applied from x while test of the latest value is true (at most max times)
+nest_while_list	core	Lists	nest_while_list(f, x, test): the list of the values nest_while goes through, x first
+fixed_point_list	core	Lists	fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps)
+nest_list	core	Lists	nest_list(f, x, n): [x, f(x), ..., f^n(x)]
+fold	core	Lists	fold(f, x, xs): f(...f(f(x, xs[1]), xs[2])..., xs[n]); fold(f, xs) starts from xs[1]
+differences	core	Lists	differences(xs): [x2 - x1, x3 - x2, ...]; differences(xs, n): the n-th differences
+fold_list	core	Lists	fold_list(f, x, xs): the list of every intermediate value of fold
+length	core	Lists	length(t): the number of arguments of t (0 for an atom)
+part	core	Lists	part(t, i, ...): t[i, ...], 1-based, negative from the end, 0 the head; a span i:j or a list selects several
+first	core	Lists	first(xs): the first element
+last	core	Lists	last(xs): the last element
+rest	core	Lists	rest(xs): all elements but the first
+most	core	Lists	most(xs): all elements but the last
+take	core	Lists	take(xs, n): the first n elements (the last -n for negative n)
+drop	core	Lists	drop(xs, n): all but the first n elements (the last -n for negative n)
+append	core	Lists	append(xs, x): x added at the end
+prepend	core	Lists	prepend(xs, x): x added at the start
+join	core	Lists	join(xs, ys, ...): the elements of terms with one head, in order
+reverse	core	Lists	reverse(xs): the elements in reverse order; reverse(x, n), reverse(x, [n1, ...]): the parts at those levels reversed
+unique	core	Lists	unique(xs): the elements without repetitions (compared by identity), in order of first occurrence
+flatten	core	Lists	flatten(xs), flatten(xs, d): nested terms with the head of xs spliced in (to depth d)
+transpose	core	Lists	transpose(m): rows and columns of a rectangular list of lists exchanged
+apply	core	Lists	apply(f, xs): the head of xs replaced by f; apply(f, x, levels): the heads of the parts at levels (n, [n], [m, n])
+sum	core	Lists	sum(xs): the canonical sum of the elements; sum(f, [k, a, b]), sum(f, [k, n]): the sum of f for k from a to b (exact for integer bounds; closed forms for polynomial and geometric terms, symbolic or infinite bounds; zeta for k^-s)
+piecewise	core	Lists	piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call
+product	core	Lists	product(xs): the canonical product of the elements
+total	core	Lists	total(xs): the sum of the elements (lists added element-wise: column sums of a matrix); total(xs, n): levels 1 to n (inf: all); total(xs, [n]): level n only
+max	core	Lists	max(xs), max(a, b, ...): the largest real number (lists flattened)
+min	core	Lists	min(xs), min(a, b, ...): the smallest real number (lists flattened)
+select	core	Lists	select(xs, f): the elements x with f(x) true
+drop_failures	core	Lists	drop_failures(xs): the elements of xs that neither are nor contain a failure (rows [x, failure(...)] are dropped whole)
+cases	core	Lists	cases(xs, p): the elements matching the pattern p; cases(xs, p -> r): r for each match
+count	core	Lists	count(xs, p): the number of elements matching the pattern p; count(x, p, levels): of the parts at levels
+sort	core	Lists	sort(xs): the elements in canonical order; sort(xs, by): ordered by the predicate by(a, b)
+ordered	core	Lists	ordered(xs), ordered(xs, by): whether the elements are in canonical order (or by holds for neighbours)
+sort_by	core	Lists	sort_by(xs, f): the elements ordered by the canonical order of f(x), stably
+ordering	core	Lists	ordering(xs): the positions of the elements in sorted order; ordering(xs, n): the first n (last -n)
+max_by	core	Lists	max_by(xs, f): the first element with the largest f(x) in the canonical order
+min_by	core	Lists	min_by(xs, f): the first element with the smallest f(x) in the canonical order
+match_q	core	Lists	match_q(x, p): whether x matches the pattern p
+head	core	Lists	head(x): the head of a compound term; for an atom the name of its type (Int, Rat, Float, Complex, Str, Sym)
+dimensions	core	Lists	dimensions(x): the lengths of the levels of x that form a full array ([2, 3] for a 2 by 3 matrix)
+array_depth	core	Lists	array_depth(x): the number of levels of x that form a full array
+extract	core	Lists	extract(x, pos): the part at a position [i, j, ...]; extract(x, [pos1, ...]): the list of parts at several
+replace_part	core	Lists	replace_part(x, pos -> v), replace_part(x, [pos1 -> v1, ...]): x with the parts at the positions replaced
+delete	core	Lists	delete(x, pos), delete(x, [pos1, ...]): x without the parts at the positions
+map_at	core	Lists	map_at(f, x, pos), map_at(f, x, [pos1, ...]): x with each part p at the positions replaced by f(p)
+level	core	Lists	level(x, levels): the list of the parts of x at the levels (n, [n], [m, n]; negative from the leaves)
+replace	core	Lists	replace(x, rules): the first rule matching the whole of x applied; replace(x, rules, levels): applied to the parts at the levels
+delete_cases	core	Lists	delete_cases(xs, p): the elements not matching p; delete_cases(x, p, levels): matching parts at the levels removed
+first_case	core	Lists	first_case(xs, p), first_case(xs, p, default): the first element matching p (p -> r: its r), else default or failure(not_found, p)
+reverse_sort	core	Lists	reverse_sort(xs): the elements in reverse canonical order
+take_largest	core	Lists	take_largest(xs, n): the n largest elements, largest first
+take_smallest	core	Lists	take_smallest(xs, n): the n smallest elements, smallest first
+sequence_cases	core	Lists	sequence_cases(xs, p): the runs of consecutive elements matching the list pattern p ([a, b], [x_, x_]); p -> r gives each run's r
+sequence_position	core	Lists	sequence_position(xs, p): the [start, end] positions of the runs matching the list pattern p
+sequence_count	core	Lists	sequence_count(xs, p): the number of non-overlapping runs matching the list pattern p
+sequence_replace	core	Lists	sequence_replace(xs, p -> r): each run matching the list pattern p replaced by one element r
+sequence_split	core	Lists	sequence_split(xs, p): the pieces of xs between the runs matching the list pattern p
+full_form	core	Lists	full_form(x): x shown with every part written as a plain call, add(x, pow(y, 2))
+input_form	core	Lists	input_form(x): x shown in the input syntax (a wrapper the printer removes)
+is_integer	core	Lists	is_integer(x): whether x is an integer
+is_rational	core	Lists	is_rational(x): whether x is an exact real number (an integer or a fraction)
+is_number	core	Lists	is_number(x): whether x is a number of any kind, complex included
+is_exact	core	Lists	is_exact(x): whether x is an exact number (integer, rational, or complex with exact parts)
+is_inexact	core	Lists	is_inexact(x): whether x is an inexact number (machine real, ball, or complex with an inexact part)
+is_machine_number	core	Lists	is_machine_number(x): whether x is a machine real or a complex number with machine-real parts
+is_list	core	Lists	is_list(x): whether x is a list
+is_vector	core	Lists	is_vector(v), is_vector(v, test): whether v is a list without list elements (each passing test)
+is_matrix	core	Lists	is_matrix(m), is_matrix(m, test): whether m is a nonempty list of equal-length vectors (entries passing test)
+is_string	core	Lists	is_string(x): whether x is a string
+is_symbol	core	Lists	is_symbol(x): whether x is a symbol
+is_atom	core	Lists	is_atom(x): whether x is not a compound term (complex numbers are compound)
+all_true	core	Lists	all_true(xs, f): whether f(x) is true for every element
+any_true	core	Lists	any_true(xs, f): whether f(x) is true for some element
+none_true	core	Lists	none_true(xs, f): whether f(x) is true for no element
+free_of	core	Lists	free_of(t, p): whether no part of t (at any depth, heads included) matches the pattern p
+member_of	core	Lists	member_of(xs, p): whether some element of xs matches the pattern p
+position	core	Lists	position(t, p): the positions (index lists for part) of the parts of t matching the pattern p
+select_first	core	Lists	select_first(xs, f), select_first(xs, f, d): the first x with f(x) true (else d or failure(not_found, ...))
+riffle	core	Lists	riffle(xs, s): s between consecutive elements; riffle(xs, ys): the elements of xs and ys alternating
+catenate	core	Lists	catenate(xss): the lists of xss joined into one list
+partition	core	Lists	partition(xs, n), partition(xs, n, d): the runs of n consecutive elements, starting every d (default n)
+rotate_left	core	Lists	rotate_left(xs), rotate_left(xs, k): the elements cycled k (default 1) places to the left
+rotate_right	core	Lists	rotate_right(xs), rotate_right(xs, k): the elements cycled k (default 1) places to the right
+pad_left	core	Lists	pad_left(xs, n), pad_left(xs, n, x): xs made n long by adding x (default 0; a list repeats cyclically) at the start or cutting it; n may list lengths per level; pad_left(xss) pads rows to a matrix
+pad_right	core	Lists	pad_right(xs, n), pad_right(xs, n, x): xs made n long by adding x (default 0; a list repeats cyclically) at the end, or cut at the end; n may list lengths per level; pad_right(xss) pads rows to a matrix
+constant_array	core	Lists	constant_array(c, n), constant_array(c, [n1, ...]): the list (nested lists) of copies of c
+thread	core	Lists	thread(f(a, b, ...)): [f(a1, b1, ...), f(a2, b2, ...), ...] over the list arguments, others repeated; thread(x, g): over the arguments with head g
+tally	core	Lists	tally(xs): the pairs [x, n] of each distinct element and its number of occurrences
+gather	core	Lists	gather(xs): the lists of identical elements, in order of first occurrence
+gather_by	core	Lists	gather_by(xs, f): the lists of elements with identical f(x); gather_by(xs, f, r): each list reduced by r
+unique_by	core	Lists	unique_by(xs, f): the first element of each distinct f(x), in order
+count_by	core	Lists	count_by(xs, f): the association of each key f(x) with its number of elements
+subsets	core	Lists	subsets(xs), subsets(xs, n | [n] | [a, b]): the sublists of xs (of at most n, exactly n, a to b elements)
+tuples	core	Lists	tuples(xs, n): every list of n elements of xs; tuples([xs1, ...]): every list with its i-th element from xsi
+permutations	core	Lists	permutations(xs), permutations(xs, n | [n] | [a, b]): the distinct arrangements of the elements
+outer	core	Lists	outer(f, xs, ys, ...): the nested lists of f(x, y, ...) for every choice of elements
+inner	core	Lists	inner(f, a, b), inner(f, a, b, g): the generalised product of vectors or matrices, g (default add) of f's
+depth	core	Lists	depth(t): 1 for an atom, one more than the deepest argument otherwise
+leaf_count	core	Lists	leaf_count(t): the number of atoms in t, heads included
+string_join	core	Lists	string_join(s1, s2, ...) or string_join([s1, ...]): the strings concatenated
+to_string	core	Lists	to_string(t): the printed form of t (a string stays itself)
+string_length	core	Lists	string_length(s): the number of characters of s
+split	core	Lists	split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list
+union	core	Associations and sets	union(xs, ys, ...): the elements of any argument, without repetitions, in canonical order
+intersection	core	Associations and sets	intersection(xs, ys, ...): the elements of every argument, without repetitions, in canonical order
+complement	core	Associations and sets	complement(all, xs, ...): the elements of all in no other argument, without repetitions, in canonical order
+is_subset	core	Associations and sets	is_subset(xs, ys): whether every element of xs is an element of ys
+assoc	core	Associations and sets	assoc(k -> v, ...), assoc([k -> v, ...]): the association of the entries; a repeated key keeps its last value
+is_assoc	core	Associations and sets	is_assoc(x): whether x is an association
+keys	core	Associations and sets	keys(a): the list of the keys of an association, in order
+values	core	Associations and sets	values(a): the list of the values of an association, in order
+to_rules	core	Associations and sets	to_rules(a): the list of the entries k -> v of an association, in order
+lookup	core	Associations and sets	lookup(a, k): the value of key k (failure(missing_key, k) if none); lookup(a, k, d): d if none
+key_exists	core	Associations and sets	key_exists(a, k): whether the association a has the key k
+key_take	core	Associations and sets	key_take(a, [k, ...]): the entries of the keys that a has, in the order given
+key_drop	core	Associations and sets	key_drop(a, [k, ...]): the association without the keys given
+key_sort	core	Associations and sets	key_sort(a): the entries ordered by key in the canonical order
+insert	core	Associations and sets	insert(a, k -> v) or insert(a, k, v): the association with key k set to v (in place, or added at the end)
+delete_key	core	Associations and sets	delete_key(a, k): the association without the key k
+merge	core	Associations and sets	merge([a1, a2, ...]): all entries, later values replacing earlier; merge([...], f): f of each key's values
+map_values	core	Associations and sets	map_values(f, a): the association with every value v replaced by f(v)
+select_keys	core	Associations and sets	select_keys(a, f): the entries whose key k has f(k) true
+counts	core	Associations and sets	counts(xs): the association from each distinct element to its number of occurrences
+group_by	core	Associations and sets	group_by(xs, f): the association from each value f(x) to the list of those x; group_by(xs, f, g): g of each
+is_failure	core	Associations and sets	is_failure(x): whether x is a failure(...)
+failure_tag	core	Associations and sets	failure_tag(x): the tag of a failure(tag, ...)
+dataset	core	Associations and sets	dataset(rows), dataset(assoc(c -> column, ...)), dataset(table), dataset(rows, names): a table of rows and named columns
+is_dataset	core	Associations and sets	is_dataset(x): whether x is a dataset
+missing	core	Associations and sets	missing(), missing(reason): an absent value in a dataset; aggregates skip it
+is_missing	core	Associations and sets	is_missing(x): whether x is missing(...)
+column	core	Associations and sets	column(ds, c): the list of the values of column c of a dataset
+columns	core	Associations and sets	columns(ds): the column names of a dataset; columns(ds, [c, ...]): the dataset of those columns
+rows	core	Associations and sets	rows(ds): the rows of a dataset, each an association from column names to values
+add_column	core	Associations and sets	add_column(ds, c, f): the dataset with column c set to f(row) for each row (or to a list of values)
+aggregate	core	Associations and sets	aggregate(ds, [c -> f, ...]), aggregate(ds, by, specs): total, mean, count, min, max or any f of columns, per group of rows
+pivot	core	Associations and sets	pivot(ds, r, c, v), pivot(ds, r, c, v, f): a table with a row per value of column r and a column per value of column c
+join_on	core	Associations and sets	join_on(a, b, key): the rows of datasets a and b whose key columns agree, joined (how: inner, left, right, outer)
+string_split	core	Strings	string_split(s): the words of s; string_split(s, sep[, n]): the pieces between seps (one or a list)
+string_replace	core	Strings	string_replace(s, a -> b), (s, [rules][, n]), (s, a, b): literal replacement left to right, at most n times
+string_take	core	Strings	string_take(s, k): the first k characters (last -k); string_take(s, [i, j]): characters i to j; [i]: one
+string_drop	core	Strings	string_drop(s, k), string_drop(s, [i, j]): s without the characters string_take selects
+string_contains	core	Strings	string_contains(s, sub): whether s contains sub (or one of a list of strings)
+string_starts	core	Strings	string_starts(s, prefix): whether s starts with prefix (or one of a list of strings)
+string_ends	core	Strings	string_ends(s, suffix): whether s ends with suffix (or one of a list of strings)
+to_upper	core	Strings	to_upper(s): s in upper case (Unicode case mapping)
+to_lower	core	Strings	to_lower(s): s in lower case (Unicode case mapping)
+characters	core	Strings	characters(s): the list of the characters of s, as one-character strings
+from_characters	core	Strings	from_characters([c, ...]): the string of a list of one-character strings
+string_reverse	core	Strings	string_reverse(s): the characters of s in reverse order
+string_pad	core	Strings	string_pad(s, n[, pad], side: right|left|center): s padded to n characters with pad (default a space)
+string_trim	core	Strings	string_trim(s): s without surrounding white space; string_trim(s, sub): without repeated sub at both ends
+to_expression	core	Strings	to_expression(s): the string read as MathCAS source and evaluated (names not resolved through modules)
+out	core	Session	out(n): the value of numbered statement n of a notebook session; out() the last value, out(-k) the k-th previous one
+message	core	Session	message(tag, text): a warning from tag (a function's name); front ends show it apart from print output
+eval	core	Session	eval(e): the value of e; inside an argument a function holds, it marks e to be evaluated first
+attributes	core	Session	attributes(f): the list of the attributes of the symbol f (listable, hold_all, orderless, ...)
+set_attributes	core	Session	set_attributes(f, a), set_attributes(f, [a, ...]): give the symbol f the attributes
+clear_attributes	core	Session	clear_attributes(f, a), clear_attributes(f, [a, ...]): remove the attributes from f
+composition	core	Session	composition(f, g, ...): the function x => f(g(...(x))); applied to arguments it calls them in turn
+right_composition	core	Session	right_composition(f, g, ...): the function x => ...(g(f(x))), the functions applied left to right
+through	core	Session	through(p(f, g, ...)(x)): p(f(x), g(x), ...); through(e, p) only when the inner head is p
+activate	core	Session	activate(e): every inert head inactive(f) in e replaced by f, and the result evaluated
+inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call until activate
+timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds
+temporary_directory	data	Files	temporary_directory(): the folder for temporary files, as a string ending in /
+import_data	data	Files	import_data(file), import_data(file, format), import_data(file, element), import_data(file, "page", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given
+interpolation	data	Files	interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])
+export_data	data	Files	export_data(file, data), export_data(file, data, format): write data (lists of rows or values, datasets; json; png from an image, plot or array of reals with options dpi, scale, bit_depth; pdf from an image, plot or array, or a list of them as pages); gives the file name
+image	data	Files	image(array): the image of an array height x width (gray) or height x width x channels (1 gray, 2 gray and alpha, 3 RGB, 4 RGBA) of reals in [0, 1], saved as a PNG file (bit_depth: 16 for 16 bits); gives image(path); image("path") is an image value
+image_data	data	Files	image_data(img): the pixels of an image as a packed array height x width x channels of reals in [0, 1]
+file_exists	data	Files	file_exists(path): true when the file or directory exists
+file_names	data	Files	file_names(pattern), file_names(pattern, dir): the sorted names of the files matching a pattern with * and ?
+image_dimensions	data	Files	image_dimensions(img): the size of an image in pixels, [width, height]
+image_channels	data	Files	image_channels(img): the number of channels of an image: 1 gray, 2 gray and alpha, 3 RGB, 4 RGBA
+seed	data	Random numbers	seed(n): reset the session's random generator to the state of the integer seed n; seed(): a fresh seed from the operating system
+random_seed	data	Random numbers	random_seed(): the seed in use, so that seed(random_seed()) at the start of a run reproduces its draws
+random_real	data	Random numbers	random_real(): a uniform machine real in [0, 1); random_real(b) in [0, b); random_real([a, b]) in [a, b); a second argument n or [n1, n2, ...] gives a list or nested lists
+random_integer	data	Random numbers	random_integer(n): a uniform integer in [0, n]; random_integer([a, b]) in [a, b] (any size); a second argument n or [n1, ...] gives a list or nested lists
+random_normal	data	Random numbers	random_normal(): a standard normal machine real; random_normal(mu, sigma) with mean mu and standard deviation sigma; random_normal(mu, sigma, n or [n1, ...]): a list
+random_choice	data	Random numbers	random_choice(xs): a uniformly chosen element of the list xs; random_choice(xs, n): n of them, with replacement
+random_sample	data	Random numbers	random_sample(xs, n): n elements of xs at distinct positions, without replacement, in random order; random_sample(xs): a random permutation
+normal_distribution	data	Distributions and statistics	normal_distribution(mu, sigma): the normal distribution with mean mu and standard deviation sigma > 0; normal_distribution() is normal_distribution(0, 1)
+log_normal_distribution	data	Distributions and statistics	log_normal_distribution(mu, sigma): the distribution of exp(X) for X normal with mean mu and standard deviation sigma > 0
+uniform_distribution	data	Distributions and statistics	uniform_distribution([a, b]): the continuous uniform distribution on [a, b], a < b; uniform_distribution() is uniform_distribution([0, 1])
+exponential_distribution	data	Distributions and statistics	exponential_distribution(l): the exponential distribution with rate l > 0 (mean 1/l)
+gamma_distribution	data	Distributions and statistics	gamma_distribution(k, theta): the gamma distribution with shape k > 0 and scale theta > 0 (mean k theta)
+beta_distribution	data	Distributions and statistics	beta_distribution(a, b): the beta distribution on [0, 1] with shape parameters a > 0 and b > 0
+chi_square_distribution	data	Distributions and statistics	chi_square_distribution(k): the chi-square distribution with k > 0 degrees of freedom
+student_t_distribution	data	Distributions and statistics	student_t_distribution(n): Student's t distribution with n > 0 degrees of freedom
+binomial_distribution	data	Distributions and statistics	binomial_distribution(n, p): the number of successes in n independent trials of success probability p
+poisson_distribution	data	Distributions and statistics	poisson_distribution(m): the Poisson distribution with mean m > 0
+geometric_distribution	data	Distributions and statistics	geometric_distribution(p): the number of failures before the first success in trials of success probability p, 0 < p <= 1
+pdf	data	Distributions and statistics	pdf(d, x): the probability density of the distribution d at x (the probability of x for a discrete d); a list x maps
+cdf	data	Distributions and statistics	cdf(d, x): the distribution function P(X <= x) of the distribution d; a list x maps
+survival	data	Distributions and statistics	survival(d, x): the survival function P(X > x) = 1 - cdf(d, x), accurate in the upper tail
+quantile	data	Distributions and statistics	quantile(d, q): the least x with cdf(d, x) >= q, 0 <= q <= 1; quantile(xs, q): the element of rank max(1, ceil(n q)) of the sorted data list xs; a list q maps
+mean	data	Distributions and statistics	mean(d): the mean of the distribution d; mean(xs): the mean of a data list
+variance	data	Distributions and statistics	variance(d): the variance of the distribution d; variance(xs): the sample variance of a data list (divisor n - 1)
+std_dev	data	Distributions and statistics	std_dev(d): the standard deviation of the distribution d; std_dev(xs): the sample standard deviation of a data list
+skewness	data	Distributions and statistics	skewness(d): the skewness E[(X - mu)^3]/sigma^3 of a distribution, or m3/m2^(3/2) of a data list
+kurtosis	data	Distributions and statistics	kurtosis(d): the kurtosis E[(X - mu)^4]/sigma^4 of a distribution (3 for a normal one), or m4/m2^2 of a data list
+moment	data	Distributions and statistics	moment(d, k): the k-th raw moment E[X^k] of a distribution; moment(xs, k): sum(xs^k)/n of a data list
+central_moment	data	Distributions and statistics	central_moment(d, k): the k-th central moment E[(X - mu)^k] of a distribution; central_moment(xs, k): sum((xs - mean)^k)/n of a data list
+median	data	Distributions and statistics	median(d): quantile(d, 1/2); median(xs): the middle element of the sorted data list, or the mean of the two middle ones
+random_variate	data	Distributions and statistics	random_variate(d): a random value of the distribution d from the session generator; random_variate(d, n) or random_variate(d, [n1, ...]): a list or nested lists
+expectation	data	Distributions and statistics	expectation(f, d): E[f(X)] for X distributed as d, f a function; expectation(e, x, d): E[e] for an expression e in x
+estimated_distribution	data	Distributions and statistics	estimated_distribution(xs, d): d with its symbolic parameters estimated from the data xs by maximum likelihood; method: moments for the method of moments
+histogram_list	data	Distributions and statistics	histogram_list(xs), histogram_list(xs, n), histogram_list(xs, [w]), histogram_list(xs, [a, b, w]), histogram_list(xs, [[e1, ...]]): [edges, counts] of the data xs in bins [e_i, e_{i+1})
+find_fit	data	Distributions and statistics	find_fit(data, model, params, x): the parameter values minimizing the squared residuals of model (Levenberg-Marquardt)
+graphics	visualisation	Graphics	graphics(content), graphics(content, options...): a two-dimensional graphic of primitives (point, line, polygon, rectangle, circle, disk, arrow, bezier_curve, text) and directives; inert, rendered to PNG, SVG or PDF
+show	visualisation	Graphics	show(g1, g2, ..., options...): one graphic with the content of every graphic gi; options given here come first, then each graphic's
+point	visualisation	Graphics	point([x, y]), point([[x1, y1], ...]): a point or points, drawn as dots of the current point size
+line	visualisation	Graphics	line([[x1, y1], ...]): a polyline; line([[...], [...]]) several
+polygon	visualisation	Graphics	polygon([[x1, y1], ...]): a filled polygon (face_form, edge_form); polygon([[...], ...]) several
+rectangle	visualisation	Graphics	rectangle([x0, y0], [x1, y1]): a filled rectangle with these opposite corners; rectangle([x, y]) the unit square there
+circle	visualisation	Graphics	circle([x, y], r): a circle (circle(c, [rx, ry]) an ellipse, circle(c, r, [a0, a1]) an arc, angles in radians)
+disk	visualisation	Graphics	disk([x, y], r): a filled disk (disk(c, [rx, ry]) an ellipse, disk(c, r, [a0, a1]) a sector)
+arrow	visualisation	Graphics	arrow([[x1, y1], ..., [xn, yn]]): a polyline with an arrowhead at its end (arrowheads sets their size and ends)
+raster	visualisation	Graphics	raster(cells), raster(cells, [[x0, y0], [x1, y1]]), raster(cells, rect, gradient): a grid of coloured cells, rows from the bottom up; a cell is a number in [0, 1] (gray, or a colour of the gradient), a colour or none
+arrowheads	visualisation	Graphics	arrowheads(s): directive: arrows get a head s times the plot width long at their end; arrowheads([s0, s1]) heads at the start and the end (0: none); automatic: the default
+gradient_color	visualisation	Graphics	gradient_color(g, t): the colour at t in [0, 1] of the gradient g: a name (viridis, thermal, cool_warm, ocean, earth, rainbow, gray) or a list of colours
+bezier_curve	visualisation	Graphics	bezier_curve([p0, p1, p2, p3, ...]): a composite cubic Bezier curve through p0, p3, p6, ... with the points between as control points
+text	visualisation	Graphics	text(expr, [x, y]), text(expr, [x, y], [ox, oy]): a label at a position; the offset puts that point of its box there ([-1, 0]: left end, [0, 1]: top); strings take $...$ math
+scaled	visualisation	Graphics	scaled([u, v]): a position as a fraction of the plot range, in any primitive
+rgb_color	visualisation	Graphics	rgb_color(r, g, b), rgb_color(r, g, b, a), rgb_color("#rrggbb"): a colour, components in [0, 1]
+hue	visualisation	Graphics	hue(h), hue(h, s, b), hue(h, s, b, a): a colour by hue (cyclic, 0 red, 1/3 green, 2/3 blue), saturation and brightness
+gray_level	visualisation	Graphics	gray_level(g), gray_level(g, a): a gray from 0 (black) to 1 (white)
+opacity	visualisation	Graphics	opacity(a), opacity(a, color): directive: what follows is drawn with opacity a in [0, 1]
+thickness	visualisation	Graphics	thickness(t): directive: lines t times the plot width wide
+absolute_thickness	visualisation	Graphics	absolute_thickness(p): directive: lines p points wide
+point_size	visualisation	Graphics	point_size(d): directive: points d times the plot width across
+absolute_point_size	visualisation	Graphics	absolute_point_size(d): directive: points d points across
+dashing	visualisation	Graphics	dashing([d1, d2, ...]): directive: dashes and gaps, fractions of the plot width; dashing(dashed | dotted | dot_dashed | solid)
+absolute_dashing	visualisation	Graphics	absolute_dashing([d1, d2, ...]): directive: dashes and gaps in points
+edge_form	visualisation	Graphics	edge_form(directives): directive: edges of polygons, rectangles and disks drawn in this style; edge_form() none (the default)
+face_form	visualisation	Graphics	face_form(directives): directive: faces filled in this colour; face_form() not filled
+font_size	visualisation	Graphics	font_size(p): directive: text p points high; also the option font_size: p of graphics (tick labels, labels, text)
+color_convert	visualisation	Graphics	color_convert(c, rgb_color | hue | gray_level): the colour c in another colour model
+blend	visualisation	Graphics	blend([c1, c2, ...]): the average colour; blend([c1, c2, ...], t): the colour a fraction t along c1 .. cn
+lighter	visualisation	Graphics	lighter(c), lighter(c, f): c a fraction f (default 1/3) of the way to white
+darker	visualisation	Graphics	darker(c), darker(c, f): c a fraction f (default 1/3) of the way to black
+black	visualisation	Graphics	the colour black
+white	visualisation	Graphics	the colour white
+gray	visualisation	Graphics	the colour gray (gray_level(0.5))
+light_gray	visualisation	Graphics	the colour light gray (gray_level(0.85))
+dark_gray	visualisation	Graphics	the colour dark gray (gray_level(0.25))
+red	visualisation	Graphics	the colour red
+green	visualisation	Graphics	the colour green
+blue	visualisation	Graphics	the colour blue
+cyan	visualisation	Graphics	the colour cyan
+magenta	visualisation	Graphics	the colour magenta
+yellow	visualisation	Graphics	the colour yellow
+orange	visualisation	Graphics	the colour orange
+purple	visualisation	Graphics	the colour purple
+brown	visualisation	Graphics	the colour brown
+pink	visualisation	Graphics	the colour pink
+plot_range	visualisation	Graphics	option of graphics: plot_range: [[x0, x1], [y0, y1]], [y0, y1], r (y from -r to r) or automatic; ends may be automatic
+plot_range_padding	visualisation	Graphics	option of graphics: plot_range_padding: f, automatic ranges widened by f times their length on each side (default 0.02); none
+axes	visualisation	Graphics	option of graphics: axes: true | false | [x, y], axes through the origin with ticks
+frame	visualisation	Graphics	option of graphics: frame: true, a frame with ticks and labels on the left and bottom
+axes_label	visualisation	Graphics	option of graphics: axes_label: [x_label, y_label] (a single label is the y axis's)
+frame_label	visualisation	Graphics	option of graphics: frame_label: [bottom, left], labels beside the frame (the left one read upwards)
+plot_label	visualisation	Graphics	option of graphics: plot_label: label, a title above the graphic
+aspect_ratio	visualisation	Graphics	option of graphics: aspect_ratio: r (height over width of the plot area), automatic (equal units), full (fills image_size)
+image_size	visualisation	Graphics	option of graphics: image_size: w or [w, h], in points (pixels at scale 1); default width 360
+background	visualisation	Graphics	option of graphics: background: color, or none for transparent (default white)
+ticks	visualisation	Graphics	option of graphics: ticks: automatic | none | [x_ticks, y_ticks], each automatic, none or a list of positions or [position, label]
+grid_lines	visualisation	Graphics	option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]
+legend	visualisation	Graphics	option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve
+legend_position	visualisation	Graphics	option of graphics and plots: legend_position: top_right (default) | top_left | bottom_left | bottom_right
+epilog	visualisation	Graphics	option of graphics and plots: epilog: content, graphics drawn over everything else
+prolog	visualisation	Graphics	option of graphics and plots: prolog: content, graphics drawn before everything else
+axes_origin	visualisation	Graphics	option of graphics: axes_origin: [x, y], where the axes cross (automatic: at 0)
+frame_ticks	visualisation	Graphics	option of graphics: frame_ticks: automatic | none | [[left, right], [bottom, top]], the frame's ticks (the left and bottom ones are drawn)
+plot_range_clipping	visualisation	Graphics	option of graphics: plot_range_clipping: true | false, whether what lies outside the plot range is cut off
+graphics3d	visualisation	Graphics	graphics3d(content), graphics3d(content, options...): a three-dimensional graphic of primitives (sphere, cuboid, cylinder, cone, tube, polygon, triangle, line, point, arrow, text) seen in perspective, lit, in a box; rendered to PNG, SVG or PDF
+sphere	visualisation	Graphics	sphere(), sphere([x, y, z]), sphere([x, y, z], r), sphere([c1, c2, ...], r): spheres in 3D graphics (radius 1 by default)
+ball	visualisation	Graphics	ball([x, y, z], r): a solid ball in 3D graphics (drawn as its sphere)
+ellipsoid	visualisation	Graphics	ellipsoid([x, y, z], [rx, ry, rz]): an axis-aligned ellipsoid in 3D graphics
+cuboid	visualisation	Graphics	cuboid(), cuboid([x, y, z]), cuboid(pmin, pmax): an axis-aligned box in 3D graphics (the unit cube at a corner by default)
+cylinder	visualisation	Graphics	cylinder(), cylinder([[x1, y1, z1], [x2, y2, z2]], r): a cylinder between two points with radius r (default 1)
+cone	visualisation	Graphics	cone(), cone([[x1, y1, z1], [x2, y2, z2]], r): a cone with its base of radius r at the first point and its apex at the second
+tube	visualisation	Graphics	tube([p1, p2, ...], r): a tube of radius r (default 0.05) along a path in 3D graphics
+triangle	visualisation	Graphics	triangle([p1, p2, p3]): a triangle in 3D graphics; triangle([[...], ...]) several
+view_point	visualisation	Graphics	option of graphics3d and 3D plots: view_point: [x, y, z] (in units of the box, default [1.3, -2.4, 2]) or front, back, left, right, above, below
+box_ratios	visualisation	Graphics	option of graphics3d and 3D plots: box_ratios: [a, b, c], the side lengths of the box (automatic: the data's)
+boxed	visualisation	Graphics	option of graphics3d: boxed: true | false, the edges of the box drawn (default true)
+graphics_row	visualisation	Graphics	graphics_row([g1, g2, ...]): the graphics (or plots) side by side, as one graphic
+graphics_column	visualisation	Graphics	graphics_column([g1, g2, ...]): the graphics (or plots) one above the other, as one graphic
+graphics_grid	visualisation	Graphics	graphics_grid([[g11, g12, ...], ...]): the graphics (or plots) in rows and columns, as one graphic
+grid	visualisation	Graphics	grid([[a, b, ...], ...]): the parts (graphics, plots, expressions typeset) in rows and columns, as one graphic; frame: true | all draws a frame or lines between the cells
+row	visualisation	Graphics	row([a, b, ...]): with graphics or plots among them, the parts side by side as one graphic
+framed	visualisation	Graphics	framed(x): x (a graphic, a plot or an expression) in a frame (options background, frame_style)
+labeled	visualisation	Graphics	labeled(x, label), labeled(x, label, top | bottom | left | right): x with a label beside it (below by default)
+legended	visualisation	Graphics	legended(x, [labels]), legended(x, line_legend([colours], [labels])): x with a legend at its right
+inset	visualisation	Graphics	inset(obj, [x, y]), inset(obj, pos, offset, width): a graphic, plot or expression placed inside a graphic
+placed	visualisation	Graphics	placed(obj, [u, v]) in graphics content or epilog: obj (a graphic or a label) at that fraction of the plot area; placed(obj, above | below | left | right | center); in plot_legends a legend's place
+line_legend	visualisation	Graphics	line_legend([colours], [labels]): a legend of line samples (in plot_legends and legended)
+swatch_legend	visualisation	Graphics	swatch_legend([colours], [labels]): a legend of colour swatches (in plot_legends and legended)
+thick	visualisation	Graphics	directive: lines 2 points wide
+thin	visualisation	Graphics	directive: lines half a point wide
+dashed	visualisation	Graphics	directive: dashed lines (also a value of dashing and of line_style)
+dotted	visualisation	Graphics	directive: dotted lines (also a value of dashing and of line_style)
+dot_dashed	visualisation	Graphics	directive: dot-dashed lines (also a value of dashing and of line_style)
+bold	visualisation	Graphics	a text style of style(...): accepted; labels keep the math font
+italic	visualisation	Graphics	a text style of style(...): accepted; labels keep the math font
+plain	visualisation	Graphics	a text style of style(...): accepted
+underlined	visualisation	Graphics	a text style of style(...): accepted
+tiny	visualisation	Graphics	a size: thickness(tiny), point_size(tiny), arrowheads(tiny), image_size: tiny (100 points), a font size
+small	visualisation	Graphics	a size: thickness(small), point_size(small), arrowheads(small), image_size: small (180 points), a font size
+medium	visualisation	Graphics	a size: thickness(medium), point_size(medium), image_size: medium (360 points), a font size
+large	visualisation	Graphics	a size: thickness(large), point_size(large), arrowheads(large), image_size: large (576 points), a font size
+directive	visualisation	Graphics	directive(d1, d2, ...): several directives as one (colours, thickness, dashing, opacity, a font size)
+style	visualisation	Graphics	style(expr, s1, s2, ...): expr shown with styles: colours, a font size (a number), bold, italic, directives; inside graphics the styles apply to the content
+color_bar	visualisation	Graphics	option of graphics: color_bar: [gradient, [lo, hi]] or [gradient, [lo, hi], label], a bar of the gradient's colours with a scale from lo to hi right of the plot; none; in density and contour plots true | false
+plot	visualisation	Plots	plot(f, [x, a, b]): a PNG image of f for x from a to b (plot([f1, f2, ...], [x, a, b]) for several curves), with SVG and PDF copies next to it; evaluates to image(path)
+list_plot	visualisation	Plots	list_plot(data): a PNG image of the points [y1, y2, ...] (at x = 1, 2, ...) or [[x1, y1], ...]; joined: true draws a line; SVG and PDF copies next to it; evaluates to image(path)
+log_plot	visualisation	Plots	log_plot(f, [x, a, b]): plot with a logarithmic y axis (values that are not positive are left out)
+log_log_plot	visualisation	Plots	log_log_plot(f, [x, a, b]): plot with logarithmic x and y axes (0 < a < b)
+list_log_plot	visualisation	Plots	list_log_plot(data): list_plot with a logarithmic y axis
+list_log_log_plot	visualisation	Plots	list_log_log_plot(data): list_plot with logarithmic x and y axes
+log_linear_plot	visualisation	Plots	log_linear_plot(f, [x, a, b]): plot with a logarithmic x axis (0 < a < b)
+list_log_linear_plot	visualisation	Plots	list_log_linear_plot(data): list_plot with a logarithmic x axis
+x_scale	visualisation	Plots	option of every plot: x_scale: linear | log | signed_log | signed_log(c) (sign(v) log10(1 + |v|/c), default c = 1; linear near 0, logarithmic far from it, both signs)
+y_scale	visualisation	Plots	option of every plot: y_scale: linear | log | signed_log | signed_log(c), as x_scale
+list_line_plot	visualisation	Plots	list_line_plot(data): list_plot with the points joined by lines; list_line_plot([data1, data2, ...]) several lines
+parametric_plot	visualisation	Plots	parametric_plot([fx, fy], [t, a, b]): the curve (fx, fy) for t from a to b, equal units on both axes; parametric_plot([[fx, fy], [gx, gy], ...], [t, a, b]) several
+polar_plot	visualisation	Plots	polar_plot(r, [theta, a, b]): the curve at distance r from the origin at angle theta, for theta from a to b; polar_plot([r1, r2, ...], ...) several
+density_plot	visualisation	Plots	density_plot(f, [x, a, b], [y, c, d]): f as colours over the rectangle, with a colour bar (options color_function, color_bar, plot_points)
+contour_plot	visualisation	Plots	contour_plot(f, [x, a, b], [y, c, d]): the regions between levels of f in colours with the level lines (options contours, color_function, color_bar, plot_points)
+list_density_plot	visualisation	Plots	list_density_plot(matrix): the values of a matrix (rows from the bottom up) as colours, interpolated between the points (options data_range, color_function, color_bar)
+histogram	visualisation	Plots	histogram(data): bars counting the values in bins of equal width, chosen automatically (options bins, normalized); histogram([data1, data2, ...]) several, overlaid
+bar_chart	visualisation	Plots	bar_chart([v1, v2, ...]): a bar of height vk at k; bar_chart([[...], [...], ...]) groups of bars side by side (option labels)
+filling	visualisation	Plots	option of plot, list_line_plot and joined list plots: filling: axis | bottom | top | c (to the line y = c) | [i, j] (between curves i and j), filled in each curve's colour, faint
+color_function	visualisation	Plots	option of density_plot, contour_plot, list_density_plot: color_function: a gradient name (viridis, thermal, cool_warm, ocean, earth, rainbow, gray) or a list of colours
+plot_points	visualisation	Plots	option of density_plot and contour_plot: plot_points: n, the function sampled on an n x n grid (default 100 and 80)
+contours	visualisation	Plots	option of contour_plot: contours: n (n levels evenly between the least and the greatest value, default 10) or a list of levels
+data_range	visualisation	Plots	option of list_density_plot: data_range: [[x0, x1], [y0, y1]], the coordinates of the matrix's first and last columns and rows
+bins	visualisation	Plots	option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (from lo to hi), automatic
+normalized	visualisation	Plots	option of histogram: normalized: true scales the bars so that their area is 1 (a probability density)
+labels	visualisation	Plots	option of bar_chart: labels: ["a", "b", ...], the labels under the bars or groups
+plot3d	visualisation	Plots	plot3d(f, [x, a, b], [y, c, d]): the surface z = f(x, y) in perspective, lit, with mesh lines and axes; plot3d([f1, f2, ...], ...) several (options mesh, plot_points, color_function, plot_style, plot_range, view_point, box_ratios)
+parametric_plot3d	visualisation	Plots	parametric_plot3d([fx, fy, fz], [u, a, b], [v, c, d]): a parametric surface; parametric_plot3d([fx, fy, fz], [u, a, b]): a space curve
+spherical_plot3d	visualisation	Plots	spherical_plot3d(r, [theta, a, b], [phi, c, d]): the surface at distance r from the origin at polar angle theta and azimuth phi
+revolution_plot3d	visualisation	Plots	revolution_plot3d(f, [t, a, b]): the surface swept by the curve z = f(t), at distance t from the z axis, turned once about it
+list_plot3d	visualisation	Plots	list_plot3d(matrix): the surface of a matrix of heights (rows along y); list_plot3d([[x, y, z], ...]): a surface through scattered points
+list_point_plot3d	visualisation	Plots	list_point_plot3d([[x, y, z], ...]): points in space, with axes
+list_line_plot3d	visualisation	Plots	list_line_plot3d([[x, y, z], ...]): a line through points in space, with axes
+list_contour_plot	visualisation	Plots	list_contour_plot(matrix): contours of a matrix of values (rows from the bottom up); list_contour_plot([[x, y, f], ...]): of scattered values, interpolated (options contours, color_function, color_bar, data_range)
+export_animation	visualisation	Plots	export_animation("file.gif", [g1, g2, ...]): the graphics (or plots) as the frames of an animated GIF, looping (option frame_rate: frames per second, default 10); gives the path
+re_im_plot	visualisation	Plots	re_im_plot(f, [x, a, b]): the real and the imaginary part of f plotted together
+abs_arg_plot	visualisation	Plots	abs_arg_plot(f, [x, a, b]): the modulus and the argument of f plotted together
+discrete_plot	visualisation	Plots	discrete_plot(f, [n, a, b]): the values of f at n = a, a + 1, ..., b as points with stems to the axis; [n, a, b, step] or [n, [values]] for other points; discrete_plot([f1, f2], ...) several
+list_polar_plot	visualisation	Plots	list_polar_plot([r1, r2, ...]): the radii at equally spaced angles from 0; list_polar_plot([[theta, r], ...]): at the given angles
+complex_plot	visualisation	Plots	complex_plot(f, [z, z0, z1]): f over the rectangle with corners z0 and z1 by domain colouring: the hue is the argument (red for positive reals), dark near zeros, light near poles
+complex_plot3d	visualisation	Plots	complex_plot3d(f, [z, z0, z1]): the modulus of f over the rectangle as a surface, coloured by the argument
+array_plot	visualisation	Plots	array_plot(m): a matrix as cells, row 1 at the top: numbers from 0 (white) to 1 (black), colours as they are, true black (options color_function, mesh)
+matrix_plot	visualisation	Plots	matrix_plot(m): a matrix as cells coloured from blue (negative) through white to red (positive), with row and column numbers
+pie_chart	visualisation	Plots	pie_chart([v1, v2, ...]): a disk cut into sectors in proportion to the values, in the plot colours (options labels / chart_labels, legend)
+color_data	visualisation	Plots	color_data(name): a colour scheme as a function of t in [0, 1]; color_data(name, t) its colour at t; color_data(k, i): the i-th plot colour; color_data(name, "ColorList"): the scheme's colours
+callout	visualisation	Plots	callout(f, label) in plot: the curve with the label at its end; callout(v, label) in a list plot: the point with the label beside it
+line_thickness	visualisation	Plots	option of plot and list plots: line_thickness: [w1, w2, ...], the width of each curve in points (cycled; default 2)
+mesh	visualisation	Plots	option of 3D plots: mesh: none | n (n mesh lines each way; default 15)
+plot_style	visualisation	Plots	option of every plot: plot_style: directives, or a list of them (one per curve or surface, cycled): colours, thick, dashed, ...
+plot_legends	visualisation	Plots	option of every plot: plot_legends: ["a", "b", ...] (labels or expressions), automatic for the plotted expressions; also line_legend([...]) and placed([...], pos)
+plot_labels	visualisation	Plots	option of plot: plot_labels: [l1, l2, ...], a label at the right end of each curve, in its colour
+x_label	visualisation	Plots	option of every plot: x_label: "text", the label under the x axis ($...$ for math: "$E_\\gamma$ (GeV)")
+y_label	visualisation	Plots	option of every plot: y_label: "text", the label beside the y axis (read upwards)
+colors	visualisation	Plots	option of every plot: colors: ["#rrggbb", ...], the colour of each curve or data set in order (the default cycle after the list)
+line_style	visualisation	Plots	option of plot and joined list plots: line_style: [solid | dashed | dotted | dot_dashed, ...], one per curve in order (solid after the list)
+d	symbolic	Calculus	d(f, x): the derivative in x; d(f, [x, n]) the n-th; d(f, x, y) mixed; d(f, [x, y]) the gradient (a list)
+derivative	symbolic	Calculus	derivative(n)(f): the n-th derivative of the function f, written f', f'', ...; derivative(n1, ..., nk)(f) for k arguments
+integrate	symbolic	Calculus	integrate(f, x): an antiderivative in x (no constant added); integrate(f, [x, a, b]) the definite integral from a to b
+apart	symbolic	Calculus	apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) when e has one variable
+limit	symbolic	Calculus	limit(f, x -> a): the limit of f as x tends to a (a point, inf or -inf) along the reals; direction: from_above | from_below for one side; failure(no_limit, limit, f) when the sides differ; unevaluated when not decided
+function_domain	symbolic	Calculus	function_domain(f, x), function_domain(f, [x, y]), function_domain(f, x, complexes): the condition on the variables under which f is defined; [f, cond] restricts
+function_singularities	symbolic	Calculus	function_singularities(f, x): the condition on x at which f is singular (not defined or not analytic): cos(x) == 0 for tan(x)
+function_analytic	symbolic	Calculus	function_analytic(f, x): true when f is analytic for every x of the domain (or of [f, cond]), false otherwise
+function_sign	symbolic	Calculus	function_sign(f, x): 1 when f >= 0 for every x of its domain, -1 when f <= 0, 0 when f == 0, indeterminate otherwise
+function_monotonicity	symbolic	Calculus	function_monotonicity(f, x): 1 for a nondecreasing f, -1 for a nonincreasing one, 0 for a constant, indeterminate otherwise; integers for a sequence
+function_convexity	symbolic	Calculus	function_convexity(f, x): 1 for a convex f, -1 for a concave one, 0 for a linear one, indeterminate otherwise
+function_injective	symbolic	Calculus	function_injective(f, x): true when f takes no value twice on its domain (or [f, cond]), false when it does
+minimize	symbolic	Calculus	minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: convex quadratics)
+maximize	symbolic	Calculus	maximize(f, x): the global maximum [value, [x -> point]], as minimize
+min_value	symbolic	Calculus	min_value(f, x): the global minimum value
+max_value	symbolic	Calculus	max_value(f, x): the global maximum value
+arg_min	symbolic	Calculus	arg_min(f, x): a point where the global minimum is attained
+arg_max	symbolic	Calculus	arg_max(f, x): a point where the global maximum is attained
+function_range	symbolic	Calculus	function_range(f, x, y): the values of f as a condition on y (a <= y and y <= b, y >= a, ...), from the global minimum and maximum
+find_instance	symbolic	Calculus	find_instance(cond, x), find_instance(cond, [x, y]): one point satisfying cond, [[x -> v]] ([] when there is none)
+d_solve	symbolic	Calculus	d_solve(eqs, y, x): the solutions [[y -> fn([x], sol)]] of an ordinary differential equation for y(x) (constant-coefficient linear, Euler, first-order linear, separable), with conditions y(x0) == v; constants c(1), c(2), ...
+d_solve_value	symbolic	Calculus	d_solve_value(eqs, y(x), x): the solution of d_solve as an expression
+r_solve	symbolic	Calculus	r_solve(eqs, a, n): the solutions [[a -> fn([n], sol)]] of a linear recurrence with constant coefficients, with initial values a(k) == v
+r_solve_value	symbolic	Calculus	r_solve_value(eqs, a(n), n): the solution of r_solve as an expression
+fourier_transform	symbolic	Calculus	fourier_transform(f, t, w): the Fourier transform 1/sqrt(2 pi) integrate(f exp(im w t), [t, -inf, inf]) (unit steps in f as bounds, Gaussians in closed form)
+inverse_fourier_transform	symbolic	Calculus	inverse_fourier_transform(g, w, t): the inverse transform 1/sqrt(2 pi) integrate(g exp(-im w t), [w, -inf, inf])
+expand	symbolic	Polynomials	expand(e): multiply out sums, products and positive integer powers
+coefficient	symbolic	Polynomials	coefficient(p, x, k): the coefficient of x^k in p (k = 1 by default)
+coefficient_list	symbolic	Polynomials	coefficient_list(p, x): the coefficients of x^0 .. x^degree (nested for a list of variables)
+degree	symbolic	Polynomials	degree(p, x): the largest power of x in p (-inf for 0)
+variables	symbolic	Polynomials	variables(p): the variables (kernels) of p
+polynomial_gcd	symbolic	Polynomials	polynomial_gcd(p, q, ...): the greatest common divisor of polynomials
+polynomial_lcm	symbolic	Polynomials	polynomial_lcm(p, q, ...): the least common multiple of polynomials
+gcd	symbolic	Polynomials	gcd(a, b, ...): the gcd of exact numbers (gcd() = 0), or of polynomials
+lcm	symbolic	Polynomials	lcm(a, b, ...): the least common multiple of exact numbers (lcm() = 1), or of polynomials
+polynomial_quotient	symbolic	Polynomials	polynomial_quotient(p, q, x): the quotient of p by q as polynomials in x
+polynomial_remainder	symbolic	Polynomials	polynomial_remainder(p, q, x): the remainder of p by q as polynomials in x
+factor	symbolic	Polynomials	factor(p): the factorisation over the integers
+factor_square_free	symbolic	Polynomials	factor_square_free(p): the square-free factorisation
+resultant	symbolic	Polynomials	resultant(p, q, x): the resultant of p and q with respect to x
+discriminant	symbolic	Polynomials	discriminant(p, x): the discriminant of p with respect to x
+together	symbolic	Polynomials	together(e): e as one fraction in lowest terms
+cancel	symbolic	Polynomials	cancel(e): each term of e in lowest terms
+series	symbolic	Polynomials	series(e, x, x0, n): the power series of e in x at x0 up to the power n
+normal	symbolic	Polynomials	normal(s): a series as its truncated sum (other terms unchanged)
+O	symbolic	Polynomials	O(x^n): the order term of a printed series; series(... + O(x^n), x, 0, k) reads it back
+simplify	symbolic	Simplification	simplify(e): the simplest equivalent form found (fewest leaves) by rational, trigonometric and exponential rewritings; inside assuming, also by refine
+trig_expand	symbolic	Simplification	trig_expand(e): sines and cosines of sums and integer multiples by the addition theorems, expanded
+trig_reduce	symbolic	Simplification	trig_reduce(e): products and powers of sines and cosines as sums of multiple angles
+trig_to_exp	symbolic	Simplification	trig_to_exp(e): trigonometric and hyperbolic functions as exponentials
+exp_to_trig	symbolic	Simplification	exp_to_trig(e): exponentials of imaginary arguments by Euler's formula, exp(i x) = cos(x) + i sin(x)
+power_expand	symbolic	Simplification	power_expand(e): (a b)^c = a^c b^c, (a^b)^c = a^(b c), log(a b) = log(a) + log(b), log(a^b) = b log(a), without side conditions (inside assuming, not for bases proved negative)
+assuming	symbolic	Simplification	assuming(facts, body): body evaluated with the assumption context extended by facts (x > 0, a <= b, element(n, integers), and, lists)
+complex_expand	symbolic	Simplification	complex_expand(e), complex_expand(e, [z1, ...]): e as a + b*im with a, b real, every symbol real except z1, ...
+function_expand	symbolic	Simplification	function_expand(e): special functions written with more elementary ones (factorial, binomial, beta, pochhammer as gamma functions; Bessel functions of order 1/2; erfc; reciprocal trigonometric functions)
+refine	symbolic	Simplification	refine(e), refine(e, facts): e rewritten by the identities that hold under the facts of the assumption context (and facts)
+is_nonnegative	symbolic	Simplification	is_nonnegative(x): true/false for a number, a closed numeric expression or an expression decided by the assumptions
+element	symbolic	Simplification	element(x, domain), element([x, y], domain): the fact that x (and y) are in domain, for assuming and refine
+integers	symbolic	Simplification	the domain of the integers (element(n, integers))
+rationals	symbolic	Simplification	the domain of the rational numbers
+reals	symbolic	Simplification	the domain of the real numbers
+complexes	symbolic	Simplification	the domain of the complex numbers
+positive_integers	symbolic	Simplification	the domain of the integers > 0
+negative_integers	symbolic	Simplification	the domain of the integers < 0
+nonnegative_integers	symbolic	Simplification	the domain of the integers >= 0
+nonpositive_integers	symbolic	Simplification	the domain of the integers <= 0
+positive_rationals	symbolic	Simplification	the domain of the rational numbers > 0
+negative_rationals	symbolic	Simplification	the domain of the rational numbers < 0
+positive_reals	symbolic	Simplification	the domain of the real numbers > 0
+negative_reals	symbolic	Simplification	the domain of the real numbers < 0
+nonnegative_reals	symbolic	Simplification	the domain of the real numbers >= 0
+nonpositive_reals	symbolic	Simplification	the domain of the real numbers <= 0
+solve	symbolic	Equations	solve(eqs, xs): the solutions as a list of rule lists [[x -> a, ...], ...]: polynomial equations by radicals (degree <= 4) or root objects, rational, radical and simple transcendental equations (principal values), linear and polynomial systems (Groebner bases), with parameters (generic solutions)
+roots	symbolic	Equations	roots(p == q, x): the roots of a polynomial equation in x as x == r1 or x == r2 ..., repeated by multiplicity
+n_solve	symbolic	Equations	n_solve(eqs, xs): numeric solutions; all roots of a polynomial in one unknown (with multiplicity) at machine precision, or to d digits with options(digits -> d)
+eliminate	symbolic	Equations	eliminate(eqs, xs): the equations p == 0 implied by eqs that are free of the unknowns xs
+groebner_basis	symbolic	Equations	groebner_basis(polys, xs): the reduced lexicographic Groebner basis in xs (other symbols are parameters)
+reduce	symbolic	Equations	reduce(cond, x, reals): a condition of polynomial or rational equations and inequalities in one real variable as intervals, x < a or b < x and x <= c
+root	symbolic	Equations	root(x => p(x), k): the k-th root of the polynomial p (real roots ascending, then complex by real and imaginary part); numeric under n
+pi	symbolic	Numbers and precision	the constant pi (Chudnovsky series by binary splitting under n); a positive real
+e	symbolic	Numbers and precision	the constant e, the base of the natural logarithm; a positive real
+euler_gamma	symbolic	Numbers and precision	Euler's constant gamma = 0.5772... (Brent-McMillan under n); a positive real
+catalan	symbolic	Numbers and precision	Catalan's constant G = 0.9159...; a positive real
+exp	symbolic	Numbers and precision	exp(x): e^x; exact at 0, 1, log(y) and q pi i; real and complex balls and machine numbers numerically
+log	symbolic	Numbers and precision	log(x): the principal natural logarithm; exact at 1, e, e^q, exp(q) and -1
+sin	symbolic	Numbers and precision	sin(x): the sine; exact at rational multiples of pi with denominator 1, 2, 3, 4 or 6
+cos	symbolic	Numbers and precision	cos(x): the cosine; exact at rational multiples of pi with denominator 1, 2, 3, 4 or 6
+tan	symbolic	Numbers and precision	tan(x): the tangent; exact at rational multiples of pi with denominator 1, 3, 4 or 6
+atan	symbolic	Numbers and precision	atan(x): the inverse tangent; exact at 0, ±1, ±3^(1/2), ±3^(-1/2)
+asin	symbolic	Numbers and precision	asin(x): the principal inverse sine; exact at 0, ±1/2, ±2^(-1/2), ±3^(1/2)/2, ±1
+acos	symbolic	Numbers and precision	acos(x): the principal inverse cosine; exact at 0, ±1/2, ±2^(-1/2), ±3^(1/2)/2, ±1
+sinh	symbolic	Numbers and precision	sinh(x): the hyperbolic sine
+cosh	symbolic	Numbers and precision	cosh(x): the hyperbolic cosine
+tanh	symbolic	Numbers and precision	tanh(x): the hyperbolic tangent
+sqrt	symbolic	Numbers and precision	sqrt(x): the principal square root, the canonical power x^(1/2)
+n	symbolic	Numbers and precision	n(e): machine numbers; n(e, d), n(e, digits: d): balls with d correct digits, or precision_not_reached
+is_positive	symbolic	Numbers and precision	is_positive(x): true/false for a number or closed numeric expression when decided
+is_negative	symbolic	Numbers and precision	is_negative(x): true/false for a number or closed numeric expression when decided
+is_real	symbolic	Numbers and precision	is_real(x): true for real numbers and real closed numeric expressions, false for non-real numbers
+re	symbolic	Numbers and precision	re(z): the real part; exact, ball and machine numbers, closed numeric terms
+im_part	symbolic	Numbers and precision	im_part(z): the imaginary part (an exact 0 for every real number)
+conjugate	symbolic	Numbers and precision	conjugate(z): the complex conjugate
+arg	symbolic	Numbers and precision	arg(z): the principal argument in (-pi, pi]; exact (0, pi, atan forms) for exact and real input
+precision	symbolic	Numbers and precision	precision(x): correct significant decimal digits (inf if exact, 15.95 for machine reals); least over a term
+accuracy	symbolic	Numbers and precision	accuracy(x): correct decimal digits after the point, -log10 of the error bound; the least over a term
+set_precision	symbolic	Numbers and precision	set_precision(x, d): every number as a ball of d digits (machine reals by their binary value); d = inf: exact
+rationalize	symbolic	Numbers and precision	rationalize(x): the simplest rational within an inexact number's error if close; (x, dx): within dx
+chop	symbolic	Numbers and precision	chop(x), chop(x, delta): inexact numbers (and parts) smaller than delta (default 10^-10) replaced by exact 0
+clip	symbolic	Numbers and precision	clip(x), clip(x, [lo, hi]), clip(x, [lo, hi], [vlo, vhi]): x limited to [lo, hi] (default [-1, 1])
+rescale	symbolic	Numbers and precision	rescale(x, [a, b]): (x - a)/(b - a); rescale(x, [a, b], [c, d]): onto [c, d]; rescale(xs): by its range
+unit_step	symbolic	Numbers and precision	unit_step(x, ...): 1 if every x >= 0, else 0 (exact for every kind of real); decided by refinement
+sec	symbolic	Numbers and precision	sec(x): the secant 1/cos(x)
+csc	symbolic	Numbers and precision	csc(x): the cosecant 1/sin(x)
+cot	symbolic	Numbers and precision	cot(x): the cotangent 1/tan(x)
+sech	symbolic	Numbers and precision	sech(x): the hyperbolic secant 1/cosh(x)
+csch	symbolic	Numbers and precision	csch(x): the hyperbolic cosecant 1/sinh(x)
+coth	symbolic	Numbers and precision	coth(x): the hyperbolic cotangent 1/tanh(x)
+asinh	symbolic	Numbers and precision	asinh(z): the inverse hyperbolic sine log(z + sqrt(z^2 + 1))
+acosh	symbolic	Numbers and precision	acosh(z): the inverse hyperbolic cosine, principal branch
+atanh	symbolic	Numbers and precision	atanh(z): the inverse hyperbolic tangent (log(1 + z) - log(1 - z))/2
+acot	symbolic	Numbers and precision	acot(z): the inverse cotangent atan(1/z)
+asec	symbolic	Numbers and precision	asec(z): the inverse secant acos(1/z)
+acsc	symbolic	Numbers and precision	acsc(z): the inverse cosecant asin(1/z)
+acoth	symbolic	Numbers and precision	acoth(z): the inverse hyperbolic cotangent atanh(1/z)
+asech	symbolic	Numbers and precision	asech(z): the inverse hyperbolic secant acosh(1/z)
+acsch	symbolic	Numbers and precision	acsch(z): the inverse hyperbolic cosecant asinh(1/z)
+sinc	symbolic	Numbers and precision	sinc(x): sin(x)/x, with sinc(0) = 1
+log10	symbolic	Numbers and precision	log10(x): the base-10 logarithm log(x)/log(10); exact powers of 10 give integers
+log2	symbolic	Numbers and precision	log2(x): the base-2 logarithm log(x)/log(2); exact powers of 2 give integers
+gudermannian	symbolic	Numbers and precision	gudermannian(x): the Gudermannian function 2 atan(tanh(x/2))
+inverse_gudermannian	symbolic	Numbers and precision	inverse_gudermannian(x): the inverse Gudermannian function 2 atanh(tan(x/2))
+integer_part	symbolic	Numbers and precision	integer_part(x): x truncated toward zero (componentwise for complex x)
+fractional_part	symbolic	Numbers and precision	fractional_part(x): x - integer_part(x), with the sign of x
+unit_box	symbolic	Numbers and precision	unit_box(x, ...): 1 for |x| <= 1/2, else 0 (a product over the arguments)
+unit_triangle	symbolic	Numbers and precision	unit_triangle(x, ...): the triangle 1 - |x| for |x| < 1, else 0 (a product over the arguments)
+ramp	symbolic	Numbers and precision	ramp(x): x for x >= 0, else 0
+heaviside_theta	symbolic	Numbers and precision	heaviside_theta(x, ...): 1 for x > 0, 0 for x < 0, unevaluated at 0 (a product over the arguments)
+dirac_delta	symbolic	Numbers and precision	dirac_delta(x): the Dirac delta, 0 at nonzero reals
+real_abs	symbolic	Numbers and precision	real_abs(x): |x| for real x (its derivative is real_sign)
+real_sign	symbolic	Numbers and precision	real_sign(x): -1, 0 or 1 for real x
+surd	symbolic	Numbers and precision	surd(x, n): the real n-th root of x, negative for x < 0 and odd n
+re_im	symbolic	Numbers and precision	re_im(z): the list [re(z), im_part(z)]
+abs_arg	symbolic	Numbers and precision	abs_arg(z): the list [abs(z), arg(z)]
+around	symbolic	Numbers and precision	around(x, dx): the value x with standard uncertainty dx, propagated to first order through arithmetic and functions; around(list): mean and standard deviation
+interval	symbolic	Numbers and precision	interval([a, b], ...): the union of closed intervals, carried through arithmetic and functions
+centered_interval	symbolic	Numbers and precision	centered_interval(c, r): the interval c +- r, carried through arithmetic and functions by a midpoint-radius estimate
+quantity	symbolic	Numbers and precision	quantity(m, unit): the magnitude m in a unit (a string such as "Meters", or products and powers of them), with conversions in arithmetic
+unit_convert	symbolic	Numbers and precision	unit_convert(q, unit): the quantity q in another unit of the same dimension; unit_convert(q): in SI base units
+quantity_magnitude	symbolic	Numbers and precision	quantity_magnitude(q): the magnitude of a quantity; quantity_magnitude(q, unit): its magnitude in that unit
+quantity_unit	symbolic	Numbers and precision	quantity_unit(q): the unit of a quantity
+find_root	symbolic	Root finding	find_root(f, [x, x0]): a root of f (or of lhs == rhs) near x0 as [x -> root]; [x, x0, x1] secant, [x, x0, a, b] in a bracket, [[x, x0], [y, y0]] systems; digits: d for balls; compile: auto | true | false
+find_minimum	symbolic	Root finding	find_minimum(f, [x, x0]): a local minimum near x0 as [f_min, [x -> x_min]]; [[x, x0], [y, y0]] for several variables (BFGS); digits: d for balls; compile: auto | true | false
+find_maximum	symbolic	Root finding	find_maximum(f, [x, x0]): a local maximum near x0 as [f_max, [x -> x_max]]; [[x, x0], [y, y0]] for several variables
+n_integrate	symbolic	Numerical integration	n_integrate(f, [x, a, b]): the integral of f from a to b (a, b may be -inf, inf); [x, a, s1, ..., b] splits at s1, ...; more ranges [y, c(x), d(x)] for multiple integrals; method: gauss_kronrod | double_exponential; digits: d for a ball whose radius is an error estimate; rigorous: true for a ball guaranteed to contain the integral
+n_dsolve	symbolic	Differential equations	n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, max_step_fraction, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)
+n_dsolve_value	symbolic	Differential equations	n_dsolve_value(eqs, expr, [t, t0, t1]): expr (in y(t), y'(t), ...) along the numerical solution: a closure of t, or a number for expr = y(t1); the options of n_dsolve
+parametric_n_dsolve_value	symbolic	Differential equations	parametric_n_dsolve_value(eqs, expr, [t, t0, t1], [p1, ..., pm]): a parametric_function f of the parameters, the equations reduced once; f(v1, ..., vm) is n_dsolve_value with the parameters set to the values (initial values and options may use them); the options of n_dsolve
+parametric_function	symbolic	Differential equations	parametric_function(params, expr, data): the result of parametric_n_dsolve_value; f(v1, ..., vm) integrates with the parameters set to the numbers v1, ..., vm (a symbolic value leaves the call as it is)
+interpolating_function	symbolic	Differential equations	interpolating_function("y", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list; exact times such as pi/2 through n), failure(out_of_range, t, [lo, hi]) outside; "y'" names the derivative, which d(f(u), u) gives
+compile	symbolic	Compiled functions	compile(f): give the typed function f (Int and Real parameters; untyped parameters are vectors of machine numbers) a compiled specialisation; f, or failure(not_compilable, f, reason)
+compiled_info	symbolic	Compiled functions	compiled_info(f): f's compiled specialisation: parameter and result types, IR sizes, code size, back end, inlined functions, state, compiled runs and declines
+mod	higher	Number theory	mod(a, m) and mod(a, m, d): the remainder a - m floor((a - d)/m), with the sign of m
+quotient	higher	Number theory	quotient(a, b): floor(a / b)
+extended_gcd	higher	Number theory	extended_gcd(a, b): [g, [s, t]] with g = gcd(a, b) = s a + t b
+floor	higher	Number theory	floor(x), floor(x, a): the greatest integer (multiple of a) at most x
+ceiling	higher	Number theory	ceiling(x), ceiling(x, a): the least integer (multiple of a) at least x
+round	higher	Number theory	round(x), round(x, a): the nearest integer (multiple of a), ties to even
+abs	higher	Number theory	abs(x): absolute value of a real or complex number
+sign	higher	Number theory	sign(x): -1, 0 or 1 for reals, z / abs(z) for complex numbers
+numerator	higher	Number theory	numerator(x): of a rational, or the factors of a product with positive exponents
+denominator	higher	Number theory	denominator(x): of a rational, or the factors of a product with negative exponents
+factorial	higher	Number theory	factorial(n): n! for integers n >= 0
+binomial	higher	Number theory	binomial(n, k): the binomial coefficient, for integers and rational n
+integer_digits	higher	Number theory	integer_digits(n), (n, b), (n, b, len): digits of |n| in base b (default 10)
+from_digits	higher	Number theory	from_digits(digits), (digits, b): the integer with these digits in base b
+integer_length	higher	Number theory	integer_length(n), (n, b): the number of digits of |n| in base b
+integer_exponent	higher	Number theory	integer_exponent(n), (n, b): the largest k with b^k dividing n
+is_prime	higher	Number theory	is_prime(n): primality (deterministic below 2^64, Baillie-PSW above)
+next_prime	higher	Number theory	next_prime(x), (x, k): the next (k-th next, k-th previous for k < 0) prime
+prime	higher	Number theory	prime(k): the k-th prime
+prime_pi	higher	Number theory	prime_pi(x): the number of primes up to x
+factor_integer	higher	Number theory	factor_integer(n): [[p, e], ...] for integers and rationals
+power_mod	higher	Number theory	power_mod(a, b, m): a^b mod m, b < 0 by the inverse of a
+primitive_root	higher	Number theory	primitive_root(n): the smallest primitive root modulo n
+euler_phi	higher	Number theory	euler_phi(n): Euler's totient
+divisors	higher	Number theory	divisors(n): the positive divisors of n in increasing order
+divisor_sigma	higher	Number theory	divisor_sigma(k, n): the sum of the k-th powers of the divisors of n
+moebius_mu	higher	Number theory	moebius_mu(n): the Moebius function
+jacobi_symbol	higher	Number theory	jacobi_symbol(a, n): the Jacobi symbol for odd n > 0
+multiplicative_order	higher	Number theory	multiplicative_order(a, n): the order of a modulo n
+gamma	higher	Special functions	gamma(x): the gamma function, (x-1)! at positive integers, poles at 0, -1, ...; gamma(a, x): the upper incomplete gamma function
+log_gamma	higher	Special functions	log_gamma(x): log of the gamma function (complex principal value for x < 0)
+digamma	higher	Special functions	digamma(x): the logarithmic derivative gamma'(x)/gamma(x)
+polygamma	higher	Special functions	polygamma(n, x): the n-th derivative of digamma(x), integers n >= 0
+beta	higher	Special functions	beta(a, b): the beta function gamma(a) gamma(b) / gamma(a + b); beta(z, a, b): the incomplete beta function
+zeta	higher	Special functions	zeta(s): the Riemann zeta function (pole at s = 1)
+bessel_k	higher	Special functions	bessel_k(nu, x): the modified Bessel function of the second kind K_nu(x), x > 0
+bessel_i	higher	Special functions	bessel_i(nu, x): the modified Bessel function of the first kind I_nu(x)
+erf	higher	Special functions	erf(x): the error function 2/sqrt(pi) times the integral of e^(-t^2) from 0 to x (complex x too)
+erfc	higher	Special functions	erfc(x): the complementary error function 1 - erf(x), accurate deep in the tail
+erfi	higher	Special functions	erfi(x): the imaginary error function -i erf(i x)
+inverse_erf	higher	Special functions	inverse_erf(y): the x in (-inf, inf) with erf(x) = y, -1 < y < 1
+inverse_erfc	higher	Special functions	inverse_erfc(q): the x with erfc(x) = q, 0 < q < 2
+gamma_regularized	higher	Special functions	gamma_regularized(a, x): the regularized upper incomplete gamma function gamma(a, x)/gamma(a)
+beta_regularized	higher	Special functions	beta_regularized(z, a, b): the regularized incomplete beta function beta(z, a, b)/beta(a, b)
+exp_integral_ei	higher	Special functions	exp_integral_ei(x): the exponential integral Ei(x), the principal value of the integral of e^t/t up to x
+exp_integral_e	higher	Special functions	exp_integral_e(nu, x): the exponential integral E_nu(x), the integral of e^(-x t)/t^nu from 1 to infinity
+log_integral	higher	Special functions	log_integral(x): the logarithmic integral li(x) = Ei(log x), x >= 0
+sin_integral	higher	Special functions	sin_integral(x): the sine integral Si(x), the integral of sin(t)/t from 0 to x
+cos_integral	higher	Special functions	cos_integral(x): the cosine integral Ci(x) = euler_gamma + log x + the integral of (cos t - 1)/t, x > 0
+sinh_integral	higher	Special functions	sinh_integral(x): the hyperbolic sine integral Shi(x), the integral of sinh(t)/t from 0 to x
+cosh_integral	higher	Special functions	cosh_integral(x): the hyperbolic cosine integral Chi(x), x > 0
+polylog	higher	Special functions	polylog(s, z): the polylogarithm Li_s(z), the sum of z^k/k^s (continued analytically)
+hypergeometric_2f1	higher	Special functions	hypergeometric_2f1(a, b, c, z): the Gauss hypergeometric function 2F1(a, b; c; z)
+hypergeometric_1f1	higher	Special functions	hypergeometric_1f1(a, b, z): Kummer's confluent hypergeometric function 1F1(a; b; z)
+hypergeometric_0f1	higher	Special functions	hypergeometric_0f1(b, z): the confluent hypergeometric limit function 0F1(; b; z)
+bessel_j	higher	Special functions	bessel_j(nu, x): the Bessel function of the first kind J_nu(x)
+bessel_y	higher	Special functions	bessel_y(nu, x): the Bessel function of the second kind Y_nu(x), x > 0
+airy_ai	higher	Special functions	airy_ai(x): the Airy function Ai(x)
+airy_bi	higher	Special functions	airy_bi(x): the Airy function Bi(x)
+airy_ai_prime	higher	Special functions	airy_ai_prime(x): the derivative Ai'(x) of the Airy function
+airy_bi_prime	higher	Special functions	airy_bi_prime(x): the derivative Bi'(x) of the Airy function
+elliptic_k	higher	Special functions	elliptic_k(m): the complete elliptic integral of the first kind K(m), parameter m = k^2 < 1
+elliptic_e	higher	Special functions	elliptic_e(m): the complete elliptic integral of the second kind E(m); elliptic_e(phi, m): the incomplete one
+elliptic_f	higher	Special functions	elliptic_f(phi, m): the incomplete elliptic integral of the first kind F(phi | m)
+elliptic_pi	higher	Special functions	elliptic_pi(n, m): the complete elliptic integral of the third kind; elliptic_pi(n, phi, m): the incomplete one
+jacobi_sn	higher	Special functions	jacobi_sn(u, m): the Jacobi elliptic function sn(u | m) = sin(am(u | m))
+jacobi_cn	higher	Special functions	jacobi_cn(u, m): the Jacobi elliptic function cn(u | m) = cos(am(u | m))
+jacobi_dn	higher	Special functions	jacobi_dn(u, m): the Jacobi elliptic function dn(u | m)
+inverse_jacobi_sn	higher	Special functions	inverse_jacobi_sn(v, m): the inverse of sn, F(asin v | m)
+hypergeometric_pfq	higher	Special functions	hypergeometric_pfq([a1, ..., ap], [b1, ..., bq], z): the generalized hypergeometric function pFq
+fibonacci	higher	Special functions	fibonacci(n): the Fibonacci number F_n (any real n by Binet's formula); fibonacci(n, x): the Fibonacci polynomial
+lucas_l	higher	Special functions	lucas_l(n): the Lucas number L_n; lucas_l(n, x): the Lucas polynomial
+pochhammer	higher	Special functions	pochhammer(a, n): the rising factorial a (a + 1) ... (a + n - 1) = gamma(a + n)/gamma(a)
+factorial_power	higher	Special functions	factorial_power(x, n): the falling factorial x (x - 1) ... (x - n + 1); factorial_power(x, n, h) with step h
+factorial2	higher	Special functions	factorial2(n): the double factorial n (n - 2) (n - 4) ...
+subfactorial	higher	Special functions	subfactorial(n): the number of derangements of n objects
+multinomial	higher	Special functions	multinomial(n1, n2, ...): the multinomial coefficient (n1 + n2 + ...)!/(n1! n2! ...)
+harmonic_number	higher	Special functions	harmonic_number(n): the harmonic number H_n = 1 + 1/2 + ... + 1/n; harmonic_number(n, r): the sum of 1/k^r
+hyperfactorial	higher	Special functions	hyperfactorial(n): the product 1^1 2^2 ... n^n
+chebyshev_t	higher	Special functions	chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))
+chebyshev_u	higher	Special functions	chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)
+legendre_p	higher	Special functions	legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x)
+legendre_q	higher	Special functions	legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n
+hermite_h	higher	Special functions	hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)
+laguerre_l	higher	Special functions	laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial
+gegenbauer_c	higher	Special functions	gegenbauer_c(n, a, x): the Gegenbauer polynomial C_n^(a)(x); gegenbauer_c(n, x) = (2/n) T_n(x)
+jacobi_p	higher	Special functions	jacobi_p(n, a, b, x): the Jacobi polynomial P_n^(a, b)(x)
+zernike_r	higher	Special functions	zernike_r(n, m, r): the radial Zernike polynomial R_n^m(r)
+spherical_harmonic_y	higher	Special functions	spherical_harmonic_y(l, m, theta, phi): the spherical harmonic Y_l^m(theta, phi)
+product_log	higher	Special functions	product_log(z): the principal branch of the Lambert W function (w e^w = z); product_log(k, z): branch k
+dawson_f	higher	Special functions	dawson_f(x): Dawson's integral e^(-x^2) times the integral of e^(t^2) from 0 to x
+fresnel_s	higher	Special functions	fresnel_s(z): the Fresnel integral S(z), the integral of sin(pi t^2/2) from 0 to z
+fresnel_c	higher	Special functions	fresnel_c(z): the Fresnel integral C(z), the integral of cos(pi t^2/2) from 0 to z
+spherical_bessel_j	higher	Special functions	spherical_bessel_j(n, z): the spherical Bessel function j_n(z) = sqrt(pi/(2 z)) J_(n+1/2)(z)
+spherical_bessel_y	higher	Special functions	spherical_bessel_y(n, z): the spherical Bessel function y_n(z) = sqrt(pi/(2 z)) Y_(n+1/2)(z)
+hankel_h1	higher	Special functions	hankel_h1(nu, z): the Hankel function of the first kind J_nu(z) + i Y_nu(z)
+hankel_h2	higher	Special functions	hankel_h2(nu, z): the Hankel function of the second kind J_nu(z) - i Y_nu(z)
+jacobi_cd	higher	Special functions	jacobi_cd(u, m): the Jacobi elliptic function cn/dn
+jacobi_cs	higher	Special functions	jacobi_cs(u, m): the Jacobi elliptic function cn/sn
+jacobi_dc	higher	Special functions	jacobi_dc(u, m): the Jacobi elliptic function dn/cn
+jacobi_ds	higher	Special functions	jacobi_ds(u, m): the Jacobi elliptic function dn/sn
+jacobi_nc	higher	Special functions	jacobi_nc(u, m): the Jacobi elliptic function 1/cn
+jacobi_nd	higher	Special functions	jacobi_nd(u, m): the Jacobi elliptic function 1/dn
+jacobi_ns	higher	Special functions	jacobi_ns(u, m): the Jacobi elliptic function 1/sn
+jacobi_sc	higher	Special functions	jacobi_sc(u, m): the Jacobi elliptic function sn/cn
+jacobi_sd	higher	Special functions	jacobi_sd(u, m): the Jacobi elliptic function sn/dn
+hypergeometric_0f1_regularized	higher	Special functions	hypergeometric_0f1_regularized(b, z): 0F1(; b; z)/gamma(b)
+hypergeometric_1f1_regularized	higher	Special functions	hypergeometric_1f1_regularized(a, b, z): 1F1(a; b; z)/gamma(b)
+hypergeometric_2f1_regularized	higher	Special functions	hypergeometric_2f1_regularized(a, b, c, z): 2F1(a, b; c; z)/gamma(c)
+elliptic_nome_q	higher	Special functions	elliptic_nome_q(m): the nome q = exp(-pi K(1 - m)/K(m))
+bessel_k_scaled	higher	Special functions	bessel_k_scaled(nu, x): e^x K_nu(x), without underflow at large x
+bessel_i_scaled	higher	Special functions	bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x
+det	higher	Linear algebra	det(m): the determinant of a square matrix (exact, symbolic, ball or machine)
+inverse	higher	Linear algebra	inverse(m): the inverse of a square matrix; failure(singular, inverse) when it has none
+pseudo_inverse	higher	Linear algebra	pseudo_inverse(m): the Moore-Penrose pseudo-inverse of a matrix of numbers
+rank	higher	Linear algebra	rank(m): the rank of a matrix (machine matrices by singular values above max(r, c) eps s_max)
+null_space	higher	Linear algebra	null_space(m): a basis of the vectors x with dot(m, x) == 0 (orthonormal for machine matrices)
+row_reduce	higher	Linear algebra	row_reduce(m): the reduced row echelon form
+linear_solve	higher	Linear algebra	linear_solve(m, b): a solution x of dot(m, x) == b for a vector or matrix b; failure(no_solution, linear_solve) when inconsistent
+eigenvalues	higher	Linear algebra	eigenvalues(m): the eigenvalues with multiplicity, by decreasing modulus (exact through the factored characteristic polynomial)
+eigenvectors	higher	Linear algebra	eigenvectors(m): one eigenvector per eigenvalue in the order of eigenvalues(m); zero vectors for a defective eigenvalue
+eigensystem	higher	Linear algebra	eigensystem(m): [eigenvalues(m), eigenvectors(m)]
+characteristic_polynomial	higher	Linear algebra	characteristic_polynomial(m, x): det(x I - m), monic in x
+identity_matrix	higher	Linear algebra	identity_matrix(n): the n x n identity matrix
+diagonal_matrix	higher	Linear algebra	diagonal_matrix(v), diagonal_matrix(v, k): the square matrix with v on the k-th diagonal and zeros elsewhere
+dot	higher	Linear algebra	dot(a, b, ...): the product of vectors and matrices (scalar product, matrix-vector, matrix-matrix), from the left
+cross	higher	Linear algebra	cross(u, v): the cross product of two vectors of length 3
+kronecker_product	higher	Linear algebra	kronecker_product(a, b, ...): the Kronecker product of matrices (or of vectors)
+trace	higher	Linear algebra	trace(m): the sum of the diagonal of a square matrix
+norm	higher	Linear algebra	norm(v), norm(v, p), norm(m), norm(m, 1 | inf | "frobenius"): vector p-norms (p a positive integer or inf) and matrix norms (default the 2-norm)
+lu	higher	Linear algebra	lu(m): [l, u, p] with l unit lower triangular, u upper triangular and m[p] == dot(l, u)
+qr	higher	Linear algebra	qr(m): [q, r] with m == dot(q, r), q with orthonormal columns, r upper triangular
+cholesky	higher	Linear algebra	cholesky(m): the upper triangular u with m == dot(conjugate_transpose(u), u) for a positive definite m
+svd	higher	Linear algebra	svd(m): [u, s, v] with m == dot(u, s, conjugate_transpose(v)), s diagonal with decreasing singular values (machine matrices)
+singular_values	higher	Linear algebra	singular_values(m): the nonzero singular values in decreasing order
+grad	higher	Linear algebra	grad(f, [x1, ..., xn]): the gradient [d(f, x1), ...]; for a list of functions the Jacobian matrix
+div	higher	Linear algebra	div(v, [x1, ..., xn]): the divergence d(v1, x1) + ... + d(vn, xn)
+curl	higher	Linear algebra	curl(v, [x, y, z]): the curl of a vector field; curl([v1, v2], [x, y]) the scalar curl
+laplacian	higher	Linear algebra	laplacian(f, [x1, ..., xn]): the sum of the second derivatives d(d(f, xi), xi)
+matrix_function	higher	Linear algebra	matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)
+matrix_exp	higher	Linear algebra	matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v
+matrix_log	higher	Linear algebra	matrix_log(m): the principal matrix logarithm
+matrix_power	higher	Linear algebra	matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)
+conjugate_transpose	higher	Linear algebra	conjugate_transpose(m): the conjugate of the transpose of m
+hilbert_matrix	higher	Linear algebra	hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular
+rotation_matrix	higher	Linear algebra	rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w
+sparse_array	higher	Linear algebra	sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense

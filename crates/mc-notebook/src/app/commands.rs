@@ -78,8 +78,13 @@ impl App {
         }
     }
 
-    /// The function name at the caret (or the selected one) for F1: an identifier around the caret.
+    /// The function name F1 looks up: the selected name, the name at or before the caret, else the function whose
+    /// call the caret is in; in a cell with boxes, read in its canonical text.
     pub(super) fn help_word(&self) -> Option<String> {
+        if let Some(c) = self.code_caret() {
+            let index = mc_help::Index::embedded();
+            return help::help_target(&c.text, c.anchor, c.pos, &|n: &str| index.get(n).is_some());
+        }
         let Selection::Caret { cell, anchor, pos } = *self.doc.nb.selection() else { return None };
         help_name(&self.doc.nb.cell(cell)?.text, anchor, pos)
     }
@@ -87,6 +92,12 @@ impl App {
     /// Start the documentation app (`mc-docs [name]`): `MATHCAS_DOCS`, else `mc-docs` next to this program; a clear
     /// message when it is not there.
     pub(super) fn open_docs(&mut self, name: Option<String>) {
+        self.help.docs_opened.push(name.clone().unwrap_or_default());
+        // `MATHCAS_DOCS=-`: record the request only (self-tests)
+        if std::env::var_os("MATHCAS_DOCS").is_some_and(|v| v == "-") {
+            self.status = format!("Documentation: {}", name.unwrap_or_default());
+            return;
+        }
         let exe = std::env::var_os("MATHCAS_DOCS").map(PathBuf::from).filter(|p| p.is_file()).or_else(|| {
             let name = if cfg!(windows) { "mc-docs.exe" } else { "mc-docs" };
             std::env::current_exe().ok().map(|e| e.with_file_name(name)).filter(|p| p.is_file())
