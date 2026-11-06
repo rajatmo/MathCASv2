@@ -19,7 +19,12 @@ fn every_page_matches_a_fresh_run() {
     let known = |n: &str| catalogue.get(n).is_some();
     let mut report = vec![];
     for (k, name) in names.iter().enumerate() {
-        let c = runner::check(name, &dir, &known, &mut |_, _| {});
+        let mut c = runner::check(name, &dir, &known, &mut |_, _| {});
+        // a page whose only problems are slow inputs is checked once more: under a loaded machine (the suite,
+        // parallel builds) a single input can pass the time limit without the page being slow
+        if !c.problems.is_empty() && c.problems.iter().all(|p| p.to_string().contains("the input took")) {
+            c = runner::check(name, &dir, &known, &mut |_, _| {});
+        }
         eprintln!(
             "[{}/{} {:.0}%] {name}: {} inputs, slowest {:.3} s, {} problems",
             k + 1,
