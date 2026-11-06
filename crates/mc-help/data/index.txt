@@ -42,9 +42,9 @@ map_indexed	core	Lists	map_indexed(f, xs): [f(x1, 1), f(x2, 2), ...]; map_indexe
 map_thread	core	Lists	map_thread(f, [xs, ys, ...]): [f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]
 scan	core	Lists	scan(f, xs): f(x) for each element in order, for its effects; the value is null
 nest	core	Lists	nest(f, x, n): f applied n times to x
-nest_while	core	Lists	nest_while(f, x, test), nest_while(f, x, test, 1, max): f applied from x while test of the latest value is true (at most max times)
-nest_while_list	core	Lists	nest_while_list(f, x, test): the list of the values nest_while goes through, x first
-fixed_point_list	core	Lists	fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps)
+nest_while	core	Lists	nest_while(f, x, test), nest_while(f, x, test, m, max, n): f applied from x while test of the latest value (latest m values) is true, at most max times
+nest_while_list	core	Lists	nest_while_list(f, x, test), nest_while_list(f, x, test, m, max, n): the list of the values nest_while goes through, x first
+fixed_point_list	core	Lists	fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps; same_test: g decides)
 nest_list	core	Lists	nest_list(f, x, n): [x, f(x), ..., f^n(x)]
 fold	core	Lists	fold(f, x, xs): f(...f(f(x, xs[1]), xs[2])..., xs[n]); fold(f, xs) starts from xs[1]
 differences	core	Lists	differences(xs): [x2 - x1, x3 - x2, ...]; differences(xs, n): the n-th differences
@@ -67,7 +67,7 @@ transpose	core	Lists	transpose(m): rows and columns of a rectangular list of lis
 apply	core	Lists	apply(f, xs): the head of xs replaced by f; apply(f, x, levels): the heads of the parts at levels (n, [n], [m, n])
 sum	core	Lists	sum(xs): the canonical sum of the elements; sum(f, [k, a, b]), sum(f, [k, n]): the sum of f for k from a to b (exact for integer bounds; closed forms for polynomial and geometric terms, symbolic or infinite bounds; zeta for k^-s)
 piecewise	core	Lists	piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call
-product	core	Lists	product(xs): the canonical product of the elements
+product	core	Lists	product(xs): the canonical product of the elements; product(f, [k, a, b]), product(f, [k, [x, ...]]): the product of the terms
 total	core	Lists	total(xs): the sum of the elements (lists added element-wise: column sums of a matrix); total(xs, n): levels 1 to n (inf: all); total(xs, [n]): level n only
 max	core	Lists	max(xs), max(a, b, ...): the largest real number (lists flattened)
 min	core	Lists	min(xs), min(a, b, ...): the smallest real number (lists flattened)
@@ -103,6 +103,8 @@ sequence_replace	core	Lists	sequence_replace(xs, p -> r): each run matching the 
 sequence_split	core	Lists	sequence_split(xs, p): the pieces of xs between the runs matching the list pattern p
 full_form	core	Lists	full_form(x): x shown with every part written as a plain call, add(x, pow(y, 2))
 input_form	core	Lists	input_form(x): x shown in the input syntax (a wrapper the printer removes)
+scientific_form	core	Lists	scientific_form(x), scientific_form(x, n): x with its machine reals shown as m × 10^e to n significant digits (6 by default); a display wrapper
+number_form	core	Lists	number_form(x), number_form(x, n): x with its machine reals shown to n significant digits (6 by default), in m × 10^e form outside 10^-5 to 10^6; a display wrapper
 is_integer	core	Lists	is_integer(x): whether x is an integer
 is_rational	core	Lists	is_rational(x): whether x is an exact real number (an integer or a fraction)
 is_number	core	Lists	is_number(x): whether x is a number of any kind, complex included
@@ -210,10 +212,12 @@ inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call un
 timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds
 temporary_directory	data	Files	temporary_directory(): the folder for temporary files, as a string ending in /
 import_data	data	Files	import_data(file), import_data(file, format), import_data(file, element), import_data(file, "page", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given
-interpolation	data	Files	interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments); call it as f(x); outside the data range failure(out_of_range, x, [x_min, x_max])
+interpolation	data	Files	interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments; interpolation_order: k for the local polynomial through the k + 1 nearest points); call it as f(x), differentiate it as f'(x) or d(f(x), x); outside the data range failure(out_of_range, x, [x_min, x_max])
 export_data	data	Files	export_data(file, data), export_data(file, data, format): write data (lists of rows or values, datasets; json; png from an image, plot or array of reals with options dpi, scale, bit_depth; pdf from an image, plot or array, or a list of them as pages); gives the file name
 image	data	Files	image(array): the image of an array height x width (gray) or height x width x channels (1 gray, 2 gray and alpha, 3 RGB, 4 RGBA) of reals in [0, 1], saved as a PNG file (bit_depth: 16 for 16 bits); gives image(path); image("path") is an image value
 image_data	data	Files	image_data(img): the pixels of an image as a packed array height x width x channels of reals in [0, 1]
+put	data	Files	put(value, file): write the value to a text file in input form (solutions of n_dsolve as interpolation data); gives the file name; read it back with get(file)
+get	data	Files	get(file): the value a file written by put holds (evaluated again in this session)
 file_exists	data	Files	file_exists(path): true when the file or directory exists
 file_names	data	Files	file_names(pattern), file_names(pattern, dir): the sorted names of the files matching a pattern with * and ?
 image_dimensions	data	Files	image_dimensions(img): the size of an image in pixels, [width, height]
@@ -314,6 +318,8 @@ ticks	visualisation	Graphics	option of graphics: ticks: automatic | none | [x_ti
 grid_lines	visualisation	Graphics	option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]
 legend	visualisation	Graphics	option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve
 legend_position	visualisation	Graphics	option of graphics and plots: legend_position: top_right (default) | top_left | bottom_left | bottom_right
+legend_layout	visualisation	Graphics	option of graphics and plots: legend_layout: column (default) | row, the entries one below the other or side by side
+legend_frame	visualisation	Graphics	option of graphics and plots: legend_frame: true (default, square) | r (corners rounded to radius r points) | none
 epilog	visualisation	Graphics	option of graphics and plots: epilog: content, graphics drawn over everything else
 prolog	visualisation	Graphics	option of graphics and plots: prolog: content, graphics drawn before everything else
 axes_origin	visualisation	Graphics	option of graphics: axes_origin: [x, y], where the axes cross (automatic: at 0)
@@ -573,6 +579,7 @@ n_dsolve_value	symbolic	Differential equations	n_dsolve_value(eqs, expr, [t, t0,
 parametric_n_dsolve_value	symbolic	Differential equations	parametric_n_dsolve_value(eqs, expr, [t, t0, t1], [p1, ..., pm]): a parametric_function f of the parameters, the equations reduced once; f(v1, ..., vm) is n_dsolve_value with the parameters set to the values (initial values and options may use them); the options of n_dsolve
 parametric_function	symbolic	Differential equations	parametric_function(params, expr, data): the result of parametric_n_dsolve_value; f(v1, ..., vm) integrates with the parameters set to the numbers v1, ..., vm (a symbolic value leaves the call as it is)
 interpolating_function	symbolic	Differential equations	interpolating_function("y", [lo, hi], steps, key): a solution of n_dsolve; f(t) is its value at t in [lo, hi] (a list of times gives a list; exact times such as pi/2 through n), failure(out_of_range, t, [lo, hi]) outside; "y'" names the derivative, which d(f(u), u) gives
+domain	symbolic	Differential equations	domain(f): the interval [lo, hi] of an interpolating function (or of the closure of n_dsolve_value) where it has values
 compile	symbolic	Compiled functions	compile(f): give the typed function f (Int and Real parameters; untyped parameters are vectors of machine numbers) a compiled specialisation; f, or failure(not_compilable, f, reason)
 compiled_info	symbolic	Compiled functions	compiled_info(f): f's compiled specialisation: parameter and result types, IR sizes, code size, back end, inlined functions, state, compiled runs and declines
 mod	higher	Number theory	mod(a, m) and mod(a, m, d): the remainder a - m floor((a - d)/m), with the sign of m
@@ -721,4 +728,4 @@ matrix_power	higher	Linear algebra	matrix_power(m, k): the k-th matrix power (in
 conjugate_transpose	higher	Linear algebra	conjugate_transpose(m): the conjugate of the transpose of m
 hilbert_matrix	higher	Linear algebra	hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular
 rotation_matrix	higher	Linear algebra	rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w
-sparse_array	higher	Linear algebra	sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense
+sparse_array	higher	Linear algebra	sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form
