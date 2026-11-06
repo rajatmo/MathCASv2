@@ -19,6 +19,8 @@ pub const CAPABILITIES: &[&str] = &[
     "history",
     // `display` responses (`kind: "image"`) for image values, in `values: "each"` mode
     "display",
+    // `display` responses with `kind: "svg"` for image values naming SVG files
+    "display_svg",
     // `message` responses for warnings of library code, in `values: "each"` mode
     "message",
     // the `names` request
@@ -159,6 +161,8 @@ pub struct NameInfo {
 pub enum DisplayKind {
     /// a PNG file
     Image,
+    /// an SVG file (`width`, `height`: its size in CSS pixels, rounded)
+    Svg,
 }
 
 fn none<T>(n: &Option<T>) -> bool {

@@ -182,6 +182,24 @@ impl Notebook {
         self.to_file_mapped().0
     }
 
+    /// Output values the file now writes differently (pictures moved into the sidecar folder on save, design 7.5):
+    /// each Output cell whose text is a `before` gets its `after`. Not an undo unit, and not a change: the saved file
+    /// says so.
+    pub fn rename_values(&mut self, renamed: &[(String, String)]) {
+        for i in 0..self.cells.len() {
+            if self.cells[i].style != Style::Output {
+                continue;
+            }
+            if let Some((_, after)) = renamed.iter().find(|(b, _)| *b == self.cells[i].text) {
+                self.cells[i].text = after.clone();
+                self.retouch(i);
+            }
+        }
+        // a caret in a renamed cell stays inside its text
+        let sel = self.sel.clone();
+        self.select(sel);
+    }
+
     /// The text of the model as a `.mcn` file.
     pub fn to_text(&self) -> String {
         self.to_file().print()

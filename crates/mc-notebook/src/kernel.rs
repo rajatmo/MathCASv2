@@ -265,8 +265,8 @@ pub fn decode(line: &str) -> Option<KernelMsg> {
         "hello" => KernelMsg::Hello { engine: s("engine") },
         "output" => KernelMsg::Output { id, text: s("text"), n },
         "value" => KernelMsg::Value { id, printed: s("printed"), n },
-        // a display response carries the printed form for the file; graphics come with M4
-        "display" => KernelMsg::Value { id, printed: s("printed"), n },
+        // a picture: its printed form `image("path")` is what the Output cell holds and the file keeps
+        "display" => KernelMsg::Display { id, printed: s("printed"), n },
         "failure" => KernelMsg::Failure { id, printed: s("printed"), n },
         "error" => KernelMsg::Error { id, rendered: s("rendered"), n },
         "message" => KernelMsg::Message { id, text: s("text"), n },
@@ -299,6 +299,8 @@ mod tests {
             decode(r#"{"id":3,"type":"done","status":"interrupted","millis":5}"#),
             Some(KernelMsg::Done { id: 3, interrupted: true, first: None, next: None, millis: 5 })
         );
+        let d = r#"{"id":4,"type":"display","kind":"svg","path":"a.svg","width":3,"height":2,"printed":"image(\"a.svg\")","n":1}"#;
+        assert_eq!(decode(d), Some(KernelMsg::Display { id: 4, printed: "image(\"a.svg\")".into(), n: Some(1) }));
         assert_eq!(decode(r#"{"id":1,"type":"completions","names":[]}"#), None);
         assert_eq!(decode("not json"), None);
         let names = decode_names(r#"{"id":"names","type":"names","names":[{"name":"out","kind":"function"}]}"#);

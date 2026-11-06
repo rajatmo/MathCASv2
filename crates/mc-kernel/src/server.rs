@@ -284,17 +284,33 @@ impl From<crate::cell::CellEvent> for Body {
     }
 }
 
+/// The SVG file an image value `image("path")` names and its size in CSS pixels; `None` when the value is not an
+/// image value, the file is not an SVG drawing, or it cannot be read.
+fn svg_of(printed: &str) -> Option<(String, u32, u32)> {
+    use mc_nbfile::images::{image_path, ImageFormat};
+    let path = image_path(printed)?;
+    if ImageFormat::of(Path::new(&path))? != ImageFormat::Svg {
+        return None;
+    }
+    let (w, h) = mc_nbfile::images::picture_size(Path::new(&path))?;
+    Some((path, w, h))
+}
+
 /// The response for an event of a statement-by-statement evaluation: a value naming a readable PNG file becomes
-/// a `display`.
+/// a `display` (`kind: "image"`), one naming an SVG file a `display` with `kind: "svg"`.
 fn each_body(e: EachEvent) -> Body {
     match e {
         EachEvent::Report(Report::Output { n, text }) => Body::Output { text, n },
         EachEvent::Report(Report::Message { n, tag, text }) => Body::Message { text, tag, n },
         EachEvent::Report(Report::Failure { n, printed }) => Body::Failure { printed, n },
-        EachEvent::Report(Report::Value { n, printed, image: None }) => Body::Value { printed, n },
+        EachEvent::Report(Report::Value { n, printed, image: None }) => match svg_of(&printed) {
+            Some((path, width, height)) => Body::Display { kind: DisplayKind::Svg, path, width, height, printed, n },
+            None => Body::Value { printed, n },
+        },
         EachEvent::Report(Report::Value { n, printed, image: Some(i) }) => {
             Body::Display { kind: DisplayKind::Image, path: i.path, width: i.width, height: i.height, printed, n }
         }
         EachEvent::Error(r) => Body::Error(r),
     }
 }
+

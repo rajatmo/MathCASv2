@@ -154,10 +154,24 @@ impl Notebook {
                 }
             }
             C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
+            C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
             C::Nop => {}
             C::App(a) => fx.app = Some(a),
         }
         None
+    }
+
+    /// Set or clear the `size` of a graphic's output (a resize ends, or a double-click restores the natural size).
+    fn resize_graphic(&mut self, id: CellId, size: Option<(u32, u32)>) -> bool {
+        if self.cell(id).and_then(|c| c.graphic()).is_none() {
+            return false;
+        }
+        let value = size.map(|(w, h)| mc_nbfile::images::size_value(w.max(1), h.max(1)));
+        self.update_cell(id, true, |c| match value {
+            Some(v) => c.out_extra.set("size", Some(v)),
+            None => c.out_extra.remove("size"),
+        });
+        true
     }
 
     // ----- typing -----

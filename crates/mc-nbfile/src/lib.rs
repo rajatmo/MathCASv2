@@ -24,6 +24,8 @@
 //!
 //! A notebook that uses only `cell` and `text` cells without attributes and at most one output block per cell
 //! without attributes is exactly the format before the extensions, which older readers understand.
+pub mod images;
+
 use std::fmt;
 use std::io::{self, Write};
 use std::path::Path;

@@ -19,6 +19,7 @@ mod group;
 mod io;
 pub mod keys;
 mod notebook;
+pub mod printed;
 pub mod script;
 mod style;
 pub mod tabs;

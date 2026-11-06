@@ -6,6 +6,7 @@ mod clip;
 mod fonts;
 pub mod gpu;
 mod highlight;
+pub mod images;
 mod input;
 pub mod instance;
 pub mod kernel;

@@ -1,15 +1,21 @@
 //! The notebook canvas (design 9.6): per-cell layout cached by revision, cell positions as prefix sums, painting
 //! of the visible cells only (labels, brackets, the insertion point, the caret and selections), and hit-testing.
+//! Output cells show pictures (design 6), outputs broken into lines at the cell's width (4.8), and large outputs as
+//! a sample with buttons to see more (4.9).
 use crate::fonts::Face;
 use crate::highlight;
+use crate::images::{Images, Picture};
 use crate::theme::Palette;
-use eframe::egui::{self, pos2, vec2, Align2, Color32, Galley, Painter, Pos2, Rect, Stroke};
+use eframe::egui::{self, pos2, vec2, Align2, Color32, Galley, Painter, Pos2, Rect, Stroke, Vec2};
 use eframe::epaint::text::{cursor::CCursor, LayoutJob, TextFormat};
-use mc_nbmodel::{Bracket, Cell, CellId, EvalMark, FontRole, Notebook, Selection, Style};
+use mc_nbmodel::{printed, Bracket, Cell, CellId, EvalMark, FontRole, Notebook, Selection, Style};
 use mc_syntax::Colouring;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Range;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::Arc;
 
 /// Space above the first cell and the column pitch of brackets, in points at 100 %.
@@ -81,7 +87,92 @@ pub enum Hit {
     Gap(usize),
     /// the "+" button of the insertion point before cell `i`
     Plus(usize),
+    /// on the picture of an Output cell
+    Graphic(CellId),
+    /// on a resize handle of the selected picture
+    Handle(CellId, Handle),
+    /// on a button of a large output's summary
+    Large(CellId, LargeAction),
 }
+
+/// A resize handle of a selected picture: its place on the frame, -1 (left, top), 0 (middle) or 1 (right, bottom).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Handle {
+    /// -1 left, 0 middle, 1 right
+    pub x: i8,
+    /// -1 top, 0 middle, 1 bottom
+    pub y: i8,
+}
+
+impl Handle {
+    /// The eight handles: corners and the middles of the sides.
+    pub const ALL: [Handle; 8] = [
+        Handle { x: -1, y: -1 },
+        Handle { x: 0, y: -1 },
+        Handle { x: 1, y: -1 },
+        Handle { x: -1, y: 0 },
+        Handle { x: 1, y: 0 },
+        Handle { x: -1, y: 1 },
+        Handle { x: 0, y: 1 },
+        Handle { x: 1, y: 1 },
+    ];
+
+    /// Where the handle is on a picture's frame.
+    pub fn at(self, r: Rect) -> Pos2 {
+        let f = |v: i8, a: f32, b: f32| match v {
+            -1 => a,
+            0 => (a + b) / 2.0,
+            _ => b,
+        };
+        pos2(f(self.x, r.left(), r.right()), f(self.y, r.top(), r.bottom()))
+    }
+
+    /// The pointer shape over the handle.
+    pub fn cursor(self) -> egui::CursorIcon {
+        match (self.x, self.y) {
+            (0, _) => egui::CursorIcon::ResizeVertical,
+            (_, 0) => egui::CursorIcon::ResizeHorizontal,
+            (x, y) if x == y => egui::CursorIcon::ResizeNwSe,
+            _ => egui::CursorIcon::ResizeNeSw,
+        }
+    }
+}
+
+/// The buttons under a large output's sample (design 4.9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LargeAction {
+    /// halve the sample
+    Less,
+    /// double the sample
+    More,
+    /// show the whole output
+    All,
+    /// back to the first sample
+    Sample,
+}
+
+/// What a cell's content area shows.
+enum Shown {
+    /// its text
+    Text,
+    /// the picture at this path
+    Graphic(PathBuf),
+    /// the sample of a large output
+    Large,
+}
+
+/// A large output as shown: the sample (or the whole text) broken into lines at the cell's width.
+struct Long {
+    key: (u64, usize, usize),
+    text: Arc<str>,
+    rows: Vec<Range<usize>>,
+    /// the characters of the whole output
+    chars: usize,
+}
+
+/// The size of the resize handles and how far from them the pointer still takes them (points).
+const HANDLE: f32 = 6.0;
+const HANDLE_REACH: f32 = 6.0;
 
 /// The caret's blink period (half on, half off), as the platform's default.
 pub const BLINK: f64 = 0.53;
@@ -123,11 +214,29 @@ pub struct View {
     defined: Option<Arc<HashSet<String>>>,
     defined_rev: u64,
     colours: HashMap<CellId, ((u64, u64), Arc<Colouring>)>,
+    /// the window's picture cache (shared by its tabs)
+    images: Rc<RefCell<Images>>,
+    /// the notebook's folder: relative picture paths are in it
+    pub base: Option<PathBuf>,
+    /// the picture selected by a click (drawn with its frame and handles)
+    pub graphic: Option<CellId>,
+    /// a picture being resized and its size on screen (points)
+    pub live_size: Option<(CellId, Vec2)>,
+    /// the sample size of large outputs whose buttons were used (`usize::MAX`: all of it)
+    budgets: HashMap<CellId, usize>,
+    /// whether an output is large, by its revision
+    large: HashMap<CellId, (u64, bool)>,
+    /// large outputs as shown
+    long: HashMap<CellId, Arc<Long>>,
+    /// output texts with line breaks at the cell's width: (revision, columns, text)
+    wrapped: HashMap<CellId, (u64, usize, Arc<str>)>,
+    /// the time of this frame (seconds)
+    now: f64,
 }
 
 impl View {
-    /// An empty view.
-    pub fn new(palette: Palette) -> View {
+    /// An empty view drawing pictures from `images`.
+    pub fn new(palette: Palette, images: Rc<RefCell<Images>>) -> View {
         View {
             laid: HashMap::new(),
             tops: vec![],
@@ -146,6 +255,15 @@ impl View {
             defined: None,
             defined_rev: 0,
             colours: HashMap::new(),
+            images,
+            base: None,
+            graphic: None,
+            live_size: None,
+            budgets: HashMap::new(),
+            large: HashMap::new(),
+            long: HashMap::new(),
+            wrapped: HashMap::new(),
+            now: 0.0,
         }
     }
 
@@ -159,6 +277,182 @@ impl View {
     /// Forget every layout (a theme or font change).
     pub fn clear(&mut self) {
         self.laid.clear();
+        self.long.clear();
+        self.wrapped.clear();
+    }
+
+    /// What cell `c` shows.
+    fn shown(&mut self, c: &Cell) -> Shown {
+        if let Some(p) = c.graphic() {
+            return Shown::Graphic(mc_nbfile::images::resolve(&p, self.base.as_deref()));
+        }
+        if matches!(c.style, Style::Output | Style::Print) && !c.expr_view && c.text.len() > printed::LARGE_OUTPUT {
+            let large = match self.large.get(&c.id) {
+                Some(&(rev, l)) if rev == c.rev => l,
+                _ => {
+                    let l = printed::is_large(&c.text);
+                    self.large.insert(c.id, (c.rev, l));
+                    l
+                }
+            };
+            if large {
+                return Shown::Large;
+            }
+        }
+        Shown::Text
+    }
+
+    /// Whether cell `c` shows its text (rather than a picture or a large output's sample), so a caret and text
+    /// selections can be drawn in it.
+    pub fn shows_text(&mut self, c: &Cell) -> bool {
+        matches!(self.shown(c), Shown::Text)
+    }
+
+    /// The font of a cell's text.
+    fn font(&self, c: &Cell) -> egui::FontId {
+        let lk = look(c, &self.palette);
+        lk.face.font(lk.size * self.zoom)
+    }
+
+    /// The characters of the code font that fit across cell `c`'s content.
+    fn columns(&self, ctx: &egui::Context, c: &Cell) -> usize {
+        let (l, r) = self.content_x(c.style);
+        let font = self.font(c);
+        let w = ctx.fonts_mut(|f| f.glyph_width(&font, '0')).max(1.0);
+        ((r - l) / w).floor().max(8.0) as usize
+    }
+
+    /// The text an Output cell is laid out from: its text with line breaks at the cell's width on the spaces the
+    /// penalties choose (design 4.8), the same length as the text, so positions carry over.
+    fn output_text(&mut self, ctx: &egui::Context, c: &Cell) -> Arc<str> {
+        let cols = self.columns(ctx, c);
+        if let Some((rev, k, t)) = self.wrapped.get(&c.id) {
+            if *rev == c.rev && *k == cols {
+                return t.clone();
+            }
+        }
+        let t: Arc<str> = Arc::from(printed::wrapped(&c.text, cols));
+        self.wrapped.insert(c.id, (c.rev, cols, t.clone()));
+        t
+    }
+
+    /// The size (points on screen) a picture is drawn at: the size being dragged, else its `size=`, else its own
+    /// size, times the magnification; never wider than the cell. `live` takes the size being dragged into account.
+    fn graphic_size(&mut self, c: &Cell, path: &Path, live: bool) -> Vec2 {
+        let m = self.magnification();
+        let (l, r) = self.content_x(c.style);
+        let max_w = (r - l).max(40.0);
+        let want = match (self.live_size.filter(|(id, _)| live && *id == c.id), c.graphic_size()) {
+            (Some((_, s)), _) => s,
+            (None, Some((w, h))) => vec2(w as f32, h as f32) * m,
+            (None, None) => match self.images.borrow_mut().natural(path, self.now) {
+                Some((w, h)) => vec2(w as f32, h as f32) * m,
+                // a frame for the path of a missing picture
+                None => return vec2(max_w.min(360.0 * m), 40.0 * m),
+            },
+        };
+        if want.x > max_w {
+            vec2(max_w, want.y * max_w / want.x)
+        } else {
+            want
+        }
+    }
+
+    /// The rectangle (canvas coordinates) of cell `i`'s picture.
+    pub fn graphic_rect(&mut self, nb: &Notebook, i: usize) -> Option<Rect> {
+        let c = &nb.cells()[i];
+        let Shown::Graphic(path) = self.shown(c) else { return None };
+        let size = self.graphic_size(c, &path, true);
+        Some(Rect::from_min_size(self.content_origin(nb, i), size))
+    }
+
+
+    /// Row height, the summary's title height and the buttons' height of a large output.
+    fn long_metrics(&self, ctx: &egui::Context, c: &Cell) -> (f32, f32, f32) {
+        let font = self.font(c);
+        let row = ctx.fonts_mut(|f| f.row_height(&font));
+        let ui = ctx.fonts_mut(|f| f.row_height(&Face::Ui.font(12.0 * self.magnification().max(0.75))));
+        (row, ui + 6.0, ui + 8.0)
+    }
+
+    /// A large output as shown: its sample at the size the buttons chose (or all of it), broken into lines.
+    fn long(&mut self, ctx: &egui::Context, c: &Cell) -> Arc<Long> {
+        let budget = self.budgets.get(&c.id).copied().unwrap_or(printed::SAMPLE);
+        let cols = self.columns(ctx, c);
+        let key = (c.rev, cols, budget);
+        if let Some(l) = self.long.get(&c.id).filter(|l| l.key == key) {
+            return l.clone();
+        }
+        let chars = c.text.chars().count();
+        let text: Arc<str> =
+            if budget >= chars { Arc::from(c.text.as_str()) } else { Arc::from(printed::sample(&c.text, budget)) };
+        let rows = printed::wrap(&text, cols);
+        let l = Arc::new(Long { key, text, rows, chars });
+        self.long.insert(c.id, l.clone());
+        l
+    }
+
+    /// The buttons under a large output (rectangles relative to the content's top-left).
+    fn large_buttons(&mut self, ctx: &egui::Context, c: &Cell) -> Vec<(Rect, LargeAction, &'static str)> {
+        let l = self.long(ctx, c);
+        let (row, title, buttons) = self.long_metrics(ctx, c);
+        let all = l.text.len() == c.text.len();
+        let budget = self.budgets.get(&c.id).copied().unwrap_or(printed::SAMPLE);
+        let list: Vec<(LargeAction, &'static str)> = if all {
+            vec![(LargeAction::Sample, "Show less")]
+        } else {
+            let mut v = vec![];
+            if budget > printed::SAMPLE / 4 {
+                v.push((LargeAction::Less, "Show less"));
+            }
+            v.extend([(LargeAction::More, "Show more"), (LargeAction::All, "Show all")]);
+            v
+        };
+        let font = Face::Ui.font(12.0 * self.magnification().max(0.75));
+        let y = title + l.rows.len() as f32 * row + 4.0;
+        let mut x = 0.0;
+        list.into_iter()
+            .map(|(a, label)| {
+                let w = ctx.fonts_mut(|f| f.layout_no_wrap(label.to_string(), font.clone(), Color32::WHITE)).size().x;
+                let r = Rect::from_min_size(pos2(x, y), vec2(w + 12.0, buttons - 4.0));
+                x += w + 20.0;
+                (r, a, label)
+            })
+            .collect()
+    }
+
+    /// Act on a large output's button.
+    pub fn large_action(&mut self, id: CellId, a: LargeAction) {
+        let b = self.budgets.get(&id).copied().unwrap_or(printed::SAMPLE);
+        let b = match a {
+            LargeAction::Less => (b / 2).max(printed::SAMPLE / 4),
+            LargeAction::More => b.saturating_mul(2),
+            LargeAction::All => usize::MAX,
+            LargeAction::Sample => printed::SAMPLE,
+        };
+        self.budgets.insert(id, b);
+        self.laid.remove(&id);
+    }
+
+    /// The height of cell `c`'s content, and it is remembered for the cell positions.
+    fn measure(&mut self, ctx: &egui::Context, c: &Cell) -> f32 {
+        let height = match self.shown(c) {
+            Shown::Text => return self.galley(ctx, c).size().y,
+            Shown::Graphic(path) => self.graphic_size(c, &path, true).y,
+            Shown::Large => {
+                let l = self.long(ctx, c);
+                let (row, title, buttons) = self.long_metrics(ctx, c);
+                title + l.rows.len() as f32 * row + buttons
+            }
+        };
+        let key = self.layout_key(c);
+        self.laid.insert(c.id, Laid { key, height });
+        height
+    }
+
+    fn layout_key(&self, c: &Cell) -> (u64, u32, u32, bool) {
+        let (l, r) = self.content_x(c.style);
+        (c.rev, (r - l).to_bits(), self.zoom.to_bits(), self.palette.dark)
     }
 
     /// The x of bracket column 0 (relative to the canvas), for `max_col` group columns.
@@ -186,6 +480,9 @@ impl View {
             TextFormat { font_id: lk.face.font(lk.size * self.zoom), color: lk.color, ..TextFormat::default() };
         if cell.style.is_code() && !cell.expr_view {
             self.append_code(&mut job, cell, &format);
+        } else if cell.style == Style::Output && !cell.expr_view {
+            let text = self.output_text(ctx, cell);
+            job.append(&text, 0.0, format);
         } else {
             job.append(&cell.text, 0.0, format);
         }
@@ -264,8 +561,10 @@ impl View {
     }
 
     fn cached_height(&self, cell: &Cell) -> Option<f32> {
-        let (l, r) = self.content_x(cell.style);
-        let key = (cell.rev, (r - l).to_bits(), self.zoom.to_bits(), self.palette.dark);
+        if self.live_size.is_some_and(|(id, _)| id == cell.id) {
+            return None;
+        }
+        let key = self.layout_key(cell);
         self.laid.get(&cell.id).filter(|l| l.key == key).map(|l| l.height)
     }
 
@@ -285,6 +584,8 @@ impl View {
     /// `visible` (canvas coordinates) and a few more.
     pub fn update_positions(&mut self, ctx: &egui::Context, nb: &Notebook, visible: Range<f32>) {
         let n = nb.cells().len();
+        self.now = ctx.input(|i| i.time);
+        self.forget_removed(nb);
         self.max_col = nb.groups().list.iter().map(|g| g.column).max().unwrap_or(0);
         self.tops.resize(n, 0.0);
         self.heights.resize(n, 0.0);
@@ -298,7 +599,7 @@ impl View {
                 h
             } else if y < visible.end + 200.0 && y + 400.0 > visible.start || refined < REFINE_PER_FRAME {
                 refined += 1;
-                self.galley(ctx, c).size().y
+                self.measure(ctx, c)
             } else {
                 let lines = c.text.split('\n').count() as f32;
                 lines * look(c, &self.palette).size * self.zoom * 1.25
@@ -310,6 +611,23 @@ impl View {
         if refined >= REFINE_PER_FRAME {
             ctx.request_repaint();
         }
+    }
+
+    /// Drop what the caches hold for cells that are gone (re-evaluation replaces output cells, and their texts can
+    /// be large), once the caches hold clearly more entries than the notebook has cells.
+    fn forget_removed(&mut self, nb: &Notebook) {
+        let n = nb.cells().len();
+        let held = self.laid.len() + self.colours.len() + self.wrapped.len() + self.long.len() + self.large.len();
+        if held <= 4 * n + 64 {
+            return;
+        }
+        let ids: HashSet<CellId> = nb.cells().iter().map(|c| c.id).collect();
+        self.laid.retain(|id, _| ids.contains(id));
+        self.colours.retain(|id, _| ids.contains(id));
+        self.wrapped.retain(|id, _| ids.contains(id));
+        self.long.retain(|id, _| ids.contains(id));
+        self.large.retain(|id, _| ids.contains(id));
+        self.budgets.retain(|id, _| ids.contains(id));
     }
 
     /// The total height of the cells.
@@ -342,6 +660,20 @@ impl View {
     pub fn caret_rect(&mut self, ctx: &egui::Context, nb: &Notebook, id: CellId, pos: usize) -> Option<Rect> {
         let i = nb.index_of(id)?;
         let c = &nb.cells()[i];
+        match self.shown(c) {
+            Shown::Text => {}
+            Shown::Graphic(_) => {
+                // beside the picture, its height
+                let r = self.graphic_rect(nb, i)?;
+                let x = if pos == 0 { r.left() - 3.0 } else { r.right() + 3.0 };
+                return Some(Rect::from_min_max(pos2(x, r.top()), pos2(x, r.bottom())));
+            }
+            Shown::Large => {
+                let o = self.content_origin(nb, i);
+                let (row, _, _) = self.long_metrics(ctx, c);
+                return Some(Rect::from_min_size(o, vec2(0.0, row)));
+            }
+        }
         let g = self.galley(ctx, c);
         let chars = c.text[..pos.min(c.text.len())].chars().count();
         let r = g.pos_from_cursor(CCursor::new(chars));
@@ -391,6 +723,12 @@ impl View {
                 return Hit::Bracket(b);
             }
         }
+        // the handles of the selected picture reach a little outside it
+        if let Some((id, r)) = self.graphic.and_then(|id| Some((id, self.graphic_rect(nb, nb.index_of(id)?)?))) {
+            if let Some(h) = Handle::ALL.into_iter().find(|h| (h.at(r) - p).abs().max_elem() <= HANDLE_REACH) {
+                return Hit::Handle(id, h);
+            }
+        }
         // the visible cell under the point
         let i = (0..n).find(|&i| nb.is_visible(i) && p.y >= self.tops[i] && p.y < self.tops[i] + self.heights[i]);
         let Some(i) = i else {
@@ -399,8 +737,7 @@ impl View {
         let c = &nb.cells()[i];
         let m = c.style.info().margins;
         let content_top = self.tops[i] + m[2] * self.zoom;
-        let g = self.galley(ctx, c);
-        let content_bottom = content_top + g.size().y;
+        let content_bottom = content_top + self.measure(ctx, c);
         // the margins above and below the content are insertion points (design 2.7)
         let edge = 4.0 * self.zoom;
         if p.y < content_top - edge.min(m[2] * self.zoom * 0.5) || c.props.hidden {
@@ -414,6 +751,27 @@ impl View {
             return Hit::Gap(j);
         }
         let origin = self.content_origin(nb, i);
+        match self.shown(c) {
+            Shown::Text => {}
+            Shown::Graphic(_) => {
+                let r = self.graphic_rect(nb, i).unwrap_or(Rect::NOTHING);
+                if r.contains(p) {
+                    return Hit::Graphic(c.id);
+                }
+                // beside the picture: a caret before or after it
+                return Hit::Text(c.id, if p.x < r.center().x { 0 } else { c.text.len() });
+            }
+            Shown::Large => {
+                let rel = (p - origin).to_pos2();
+                let buttons = self.large_buttons(ctx, c);
+                return match buttons.into_iter().find(|(r, _, _)| r.contains(rel)) {
+                    Some((_, a, _)) => Hit::Large(c.id, a),
+                    // the sample is not edited in place: a click selects the cell
+                    None => Hit::Bracket(Bracket::Cell(c.id)),
+                };
+            }
+        }
+        let g = self.galley(ctx, c);
         let cur = g.cursor_from_pos(p - origin);
         let byte = c.text.char_indices().nth(cur.index.0).map_or(c.text.len(), |(b, _)| b);
         Hit::Text(c.id, byte)
@@ -458,6 +816,19 @@ impl View {
             }
             let top = r.top() + info.margins[2] * z;
             let content = pos2(origin.x + l, top);
+            let shown = self.shown(c);
+            if !matches!(shown, Shown::Text) {
+                let label_y = match shown {
+                    Shown::Graphic(path) => self.paint_graphic(ctx, painter, nb, i, &path, origin, &sel, time),
+                    _ => self.paint_large(ctx, painter, c, content, clip),
+                };
+                if let Some(n) = c.label.filter(|_| c.style == Style::Output) {
+                    let lg = painter.layout_no_wrap(format!("Out[{n}]="), label_font.clone(), p.gutter);
+                    let y = snap(painter, label_y - lg.size().y / 2.0);
+                    painter.galley(pos2(content.x - LABEL_GAP * z - lg.size().x, y), lg, p.gutter);
+                }
+                continue;
+            }
             let g = self.galley(ctx, c);
             // backgrounds and rules
             if c.style == Style::Code && !c.expr_view {
@@ -651,6 +1022,106 @@ impl View {
         }
     }
 
+    /// Paint cell `i`'s picture (or a frame while it loads, or the path of a missing one), the frame and handles when
+    /// it is selected, the caret beside it; gives the y (screen) its label is centred on.
+    #[allow(clippy::too_many_arguments)]
+    fn paint_graphic(
+        &mut self,
+        ctx: &egui::Context,
+        painter: &Painter,
+        nb: &Notebook,
+        i: usize,
+        path: &Path,
+        origin: Pos2,
+        sel: &Selection,
+        time: f64,
+    ) -> f32 {
+        let p = self.palette.clone();
+        let c = &nb.cells()[i];
+        let Some(r) = self.graphic_rect(nb, i) else { return origin.y };
+        let r = r.translate(origin.to_vec2());
+        // the raster size: SVG drawings are rasterised for the display, at the size they keep (not every size a
+        // resize passes through)
+        let width = (self.graphic_size(c, path, false).x * ctx.pixels_per_point()).round() as u32;
+        let picture = self.images.borrow_mut().picture(path, width, self.now);
+        match picture {
+            Picture::Ready(tex, _) => {
+                let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+                painter.image(tex, r, uv, Color32::WHITE);
+            }
+            Picture::Loading => {
+                painter.rect_stroke(r, 0.0, Stroke::new(hairline(painter), p.border), egui::StrokeKind::Inside);
+            }
+            Picture::Missing(why) => {
+                painter.rect_stroke(r, 2.0, Stroke::new(1.0, p.border_strong()), egui::StrokeKind::Inside);
+                let shown = mc_nbfile::images::image_path(&c.text).unwrap_or_default();
+                let text = format!("{shown}: {why}");
+                let font = Face::Ui.font(11.0 * self.magnification().max(0.75));
+                let g = painter.layout(text, font, p.weak, (r.width() - 16.0).max(20.0));
+                painter.galley(pos2(r.left() + 8.0, r.center().y - g.size().y / 2.0), g, p.weak);
+            }
+        }
+        if self.graphic == Some(c.id) {
+            // a 1 px frame in the accent colour with eight square handles (design 6)
+            let frame = Rect::from_min_max(
+                pos2(painter.round_to_pixel_center(r.left()), painter.round_to_pixel_center(r.top())),
+                pos2(painter.round_to_pixel_center(r.right()), painter.round_to_pixel_center(r.bottom())),
+            );
+            painter.rect_stroke(frame, 0.0, Stroke::new(hairline(painter), p.accent), egui::StrokeKind::Middle);
+            for h in Handle::ALL {
+                let at = h.at(frame);
+                let sq = Rect::from_center_size(pos2(snap(painter, at.x), snap(painter, at.y)), vec2(HANDLE, HANDLE));
+                painter.rect_filled(sq, 0.0, p.bg);
+                painter.rect_stroke(sq, 0.0, Stroke::new(hairline(painter), p.accent), egui::StrokeKind::Inside);
+            }
+        } else if let Selection::Caret { cell, anchor, pos } = *sel {
+            if cell == c.id && anchor == pos && self.caret_on(time) {
+                let x = if pos == 0 { r.left() - 3.0 } else { r.right() + 3.0 };
+                let ppp = painter.pixels_per_point();
+                let w = (2.0 * ppp).round().max(1.0) / ppp;
+                let x = (x * ppp).round() / ppp;
+                painter.rect_filled(Rect::from_min_max(pos2(x - w / 2.0, r.top()), pos2(x + w / 2.0, r.bottom())), 0.0, p.cursor);
+            }
+        }
+        r.center().y
+    }
+
+    /// Paint a large output's summary (design 4.9): a title, the sample (only its visible lines), the buttons; gives
+    /// the y (screen) of its first line's middle.
+    fn paint_large(&mut self, ctx: &egui::Context, painter: &Painter, c: &Cell, content: Pos2, clip: Rect) -> f32 {
+        let p = self.palette.clone();
+        let l = self.long(ctx, c);
+        let (row, title, _) = self.long_metrics(ctx, c);
+        let ui = Face::Ui.font(12.0 * self.magnification().max(0.75));
+        let all = l.text.len() == c.text.len();
+        let head = if all {
+            format!("A very large output ({} characters), shown in full:", group_digits(l.chars))
+        } else {
+            format!("A very large output was generated ({} characters). Here is a sample of it:", group_digits(l.chars))
+        };
+        painter.text(content, Align2::LEFT_TOP, head, ui.clone(), p.weak);
+        let font = self.font(c);
+        let color = look(c, &p).color;
+        let first = content.y + title;
+        // only the lines on the screen are laid out: a whole output can have hundreds of thousands
+        let from = ((clip.top() - first) / row).floor().max(0.0) as usize;
+        let to = (((clip.bottom() - first) / row).ceil().max(0.0) as usize + 1).min(l.rows.len());
+        for k in from..to {
+            let line = &l.text[l.rows[k].clone()];
+            painter.text(pos2(content.x, first + k as f32 * row), Align2::LEFT_TOP, line, font.clone(), color);
+        }
+        // a thin rule in the margin marks the sample
+        let bottom = first + l.rows.len() as f32 * row;
+        let x = painter.round_to_pixel_center(content.x - 6.0 * self.zoom);
+        painter.vline(x, first..=bottom, Stroke::new(hairline(painter), p.border_strong()));
+        for (r, _, label) in self.large_buttons(ctx, c) {
+            let r = r.translate(content.to_vec2());
+            painter.rect_stroke(r, 3.0, Stroke::new(hairline(painter), p.border_strong()), egui::StrokeKind::Inside);
+            painter.text(r.center(), Align2::CENTER_CENTER, label, ui.clone(), p.accent);
+        }
+        first + row / 2.0
+    }
+
     /// The centre of the "+" button of the insertion point before cell `g` (canvas coordinates).
     pub fn plus_center(&self, g: usize) -> Pos2 {
         pos2(14.0, self.gap_line_y(g))
@@ -688,6 +1159,10 @@ impl View {
 
     /// The visual lines of a cell's content as byte ranges.
     pub fn lines(&mut self, ctx: &egui::Context, cell: &Cell) -> Vec<Range<usize>> {
+        if !self.shows_text(cell) {
+            // a picture or a sample is one line for the caret: before it or after it
+            return std::iter::once(0..cell.text.len()).collect();
+        }
         let g = self.galley(ctx, cell);
         let offsets: Vec<usize> =
             cell.text.char_indices().map(|(b, _)| b).chain(std::iter::once(cell.text.len())).collect();
@@ -707,6 +1182,9 @@ impl View {
 
     /// The x of a position in its visual line.
     pub fn x_of(&mut self, ctx: &egui::Context, cell: &Cell, pos: usize) -> f32 {
+        if !self.shows_text(cell) {
+            return if pos == 0 { 0.0 } else { 1.0 };
+        }
         let g = self.galley(ctx, cell);
         let chars = cell.text[..pos.min(cell.text.len())].chars().count();
         g.pos_from_cursor(CCursor::new(chars)).left()
@@ -714,6 +1192,9 @@ impl View {
 
     /// The position in `line` nearest to `x`.
     pub fn pos_at(&mut self, ctx: &egui::Context, cell: &Cell, line: Range<usize>, x: f32) -> usize {
+        if !self.shows_text(cell) {
+            return if x <= 0.5 { line.start } else { line.end };
+        }
         let g = self.galley(ctx, cell);
         let chars = cell.text[..line.start].chars().count();
         let y = g.pos_from_cursor(CCursor::new(chars)).center().y;
@@ -774,6 +1255,19 @@ fn glyph_near(g: &Galley, chars: usize) -> Option<(f32, f32, f32)> {
         idx += n + usize::from(row.ends_with_newline);
     }
     None
+}
+
+/// A count with thin spaces between groups of three digits (`5 000 000`).
+fn group_digits(n: usize) -> String {
+    let s = n.to_string();
+    let mut out = String::new();
+    for (k, ch) in s.chars().enumerate() {
+        if k > 0 && (s.len() - k).is_multiple_of(3) {
+            out.push('\u{2009}');
+        }
+        out.push(ch);
+    }
+    out
 }
 
 /// One device pixel at 100 % - 150 %, two at 200 % (in points): lines stay crisp at every scale.

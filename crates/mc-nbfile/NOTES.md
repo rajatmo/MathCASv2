@@ -18,3 +18,10 @@ unnumbered block per cell writes exactly the old format.
 
 Tests (12): old-format round trip (LF and CR LF), the extended grammar, warnings, attributes, fragments, 500
 generated notebooks, the example notebook, atomic writes.
+
+## Pictures (package nb-m4)
+
+`images`: `image_path` / `image_value` (the value text `image("path")` with the language's escapes), `ImageFormat`
+(PNG, SVG by extension or content), `picture_size` and `svg_size` (PNG header, SVG root element), `size_of` /
+`size_value` (`size=WxH`), `resolve`, `sidecar_dir`, `store_images` (copy into `<name>.files/` under
+`<word>-<12 hex of FNV-1a>.<ext>`, rewrite the output lines) and `remove_unreferenced`.

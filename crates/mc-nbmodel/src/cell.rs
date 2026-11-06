@@ -118,6 +118,20 @@ impl Cell {
         self.props.initialization.unwrap_or(self.style == Style::Code)
     }
 
+    /// The picture an Output cell shows: the path its value `image("path")` names (relative paths are relative to
+    /// the notebook's folder). `None` for anything else, which shows as text.
+    pub fn graphic(&self) -> Option<String> {
+        if self.style != Style::Output || self.failure || self.expr_view || !self.text.starts_with("image(") {
+            return None;
+        }
+        mc_nbfile::images::image_path(&self.text)
+    }
+
+    /// The display size of a graphic set by resizing it (points at 100 %), `None` for its natural size.
+    pub fn graphic_size(&self) -> Option<(u32, u32)> {
+        mc_nbfile::images::size_of(&self.out_extra)
+    }
+
     /// Whether the cell was made by evaluation.
     pub fn generated(&self) -> bool {
         self.style.generated()

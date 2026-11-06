@@ -114,3 +114,30 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   longer saved and implausible saved places are ignored.
 - Not yet portable: fonts are read from the Windows font folder (Linux/Android fall back to egui's fonts), the
   clipboard's cell format is Windows-only, the storm driver is Windows-only.
+
+## Graphics and large outputs (milestone M4, package nb-m4)
+
+- **Pictures** (`images.rs`, design 6): an Output cell whose value is `image("path")` shows the picture (PNG, or SVG
+  rasterised with `resvg` at the display's pixel width in 64 px steps, text in the system fonts loaded once on the
+  worker). Decoding runs on one worker thread; the result is uploaded once as a texture keyed by path, modification
+  time and raster width; 256 MB of pixels at most, least recently drawn evicted; sides above 4096 scaled down while
+  decoding, pictures above 100 Mpixel refused. Size: `size=WxH` (points at 100 %) or the picture's pixels, times the
+  magnification, never wider than the cell. Relative paths are relative to the notebook's folder. A missing picture
+  is a framed `path: why`. An older raster shows while a new one decodes (no flicker on zoom).
+- **Selection and resizing**: a click selects the picture (frame in the accent colour, eight handles); corners keep
+  the ratio, sides too unless Shift is held (one dimension); the release stores `size=` (an undo unit,
+  `Command::ResizeGraphic`); double-click or the context menu's "Natural size" removes it. Esc and arrows deselect;
+  Delete removes the output; typing does not reach the text behind the picture. Copy (Ctrl+C, context menu) puts the
+  PNG (registered format "PNG"), a bitmap (CF_DIB, laid on white) and the `image(...)` text on the clipboard.
+- **Saving** (design 7.5): `mc_nbfile::images::store_images` copies pictures into `<name>.files/` under content-hash
+  names before the text is written, `remove_unreferenced` deletes stray files afterwards, the model takes the new
+  paths (`Notebook::rename_values`). Save As to another folder copies them there.
+- **Outputs**: Output text is broken at the cell width by `mc_nbmodel::printed::wrap` (spaces chosen by bracket
+  depth, then after `,`/`;`, then before `+ -`, comparisons, `* /`, `^`), as a same-length text so positions carry
+  over. Outputs over 100,000 characters show a sample (2,000 characters, `«n»` for elided elements) under a title,
+  with Show less / Show more / Show all; only the lines on the screen are laid out (a 2.3 MB output shown in full
+  paints in 0.2 ms a frame). A click on a sample selects the cell; copying copies the whole output.
+- **Help**: Help > Documentation and F1 (the name at the caret or the selection) start `mc-docs [name]` from
+  `MATHCAS_DOCS` or next to the executable; a dialog says so when it is missing.
+- Self-test steps added: `hit <x> <y>` (what is at a point), `images` (cache size). `tools/nb-storm.ps1` copies a
+  notebook's sidecar folder with it.

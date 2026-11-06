@@ -2,7 +2,7 @@
 //! cell is a statement; `print(x)` prints, `warn(x)` sends a message, `1/0` and `fail...` fail, `loop` runs until
 //! interrupted, a trailing `;` suppresses the value, `x = ...`, `let`, `fn` define (no value), a statement ending in
 //! an operator or with unbalanced brackets is a read error (nothing runs), `a + b` and `a * b` of integers compute,
-//! anything else is its own value.
+//! `image("path")` is shown as a picture (a `display` response, when numbered), anything else is its own value.
 use crate::eval::{KernelLink, KernelMsg, KernelRequest};
 use std::collections::VecDeque;
 
@@ -88,6 +88,11 @@ impl FakeKernel {
                 continue;
             }
             let value = compute(s).unwrap_or_else(|| s.to_string());
+            if self.numbered && mc_nbfile::images::image_path(&value).is_some() {
+                // a picture: a `display` response
+                self.out.push_back(KernelMsg::Display { id, printed: value, n: Some(n) });
+                continue;
+            }
             if self.numbered {
                 self.out.push_back(KernelMsg::Value { id, printed: value, n: Some(n) });
             } else {

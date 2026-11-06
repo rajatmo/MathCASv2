@@ -55,6 +55,16 @@ pub enum KernelMsg {
         /// the statement's number
         n: Option<u32>,
     },
+    /// a statement's value to show as a picture (a `display` response): `printed` is its image value
+    /// `image("path")`, which the Output cell holds and the window draws as the picture
+    Display {
+        /// the request
+        id: u64,
+        /// the printed value
+        printed: String,
+        /// the statement's number
+        n: Option<u32>,
+    },
     /// a statement whose value is a failure
     Failure {
         /// the request
@@ -134,6 +144,9 @@ pub(crate) struct Running {
     pub discard: bool,
     /// the client-side number of this evaluation, for kernels that do not number statements
     pub number: u32,
+    /// the display sizes of the graphics the cell's last evaluation showed, in order: the k-th new graphic keeps the
+    /// k-th size (design 6, guess)
+    pub sizes: VecDeque<Option<String>>,
 }
 
 /// The evaluation state of a notebook.
@@ -352,8 +365,14 @@ impl Notebook {
                 self.cells[i].eval = EvalMark::None;
                 continue;
             }
-            // the old generated cells go (design 2.8); they are not undo units
+            // the old generated cells go (design 2.8); they are not undo units. Their graphics' sizes are kept for
+            // the new graphics
             let end = self.outputs_end(i);
+            let sizes = self.cells[i + 1..end]
+                .iter()
+                .filter(|c| c.graphic().is_some())
+                .map(|c| c.out_extra.get("size").map(str::to_string))
+                .collect();
             self.remove_cells(i + 1..end, false);
             let i = self.index_of(id).expect("the input stays");
             self.cells[i].eval = EvalMark::Running;
@@ -364,7 +383,7 @@ impl Notebook {
             let src = self.cells[i].text.clone();
             self.eval.outbox.push(KernelRequest::Eval { id: req, cell: id.to_string(), src, line });
             self.eval.running =
-                Some(Running { cell: id, req, last_out: None, discard: false, number: self.eval.counter });
+                Some(Running { cell: id, req, last_out: None, discard: false, number: self.eval.counter, sizes });
             self.eval.state = KernelState::Busy;
             return true;
         }
@@ -416,6 +435,18 @@ impl Notebook {
             KernelMsg::Value { id, printed, n } if mine(id) => {
                 let label = self.number(n);
                 self.add_generated(Style::Output, &printed, label, false, false);
+            }
+            KernelMsg::Display { id, printed, n } if mine(id) => {
+                let label = self.number(n);
+                self.add_generated(Style::Output, &printed, label, false, false);
+                let run = self.eval.running.as_mut().filter(|r| !r.discard);
+                let size = run.and_then(|r| r.sizes.pop_front().flatten().zip(r.last_out));
+                if let Some((size, out)) = size {
+                    if let Some(i) = self.index_of(out) {
+                        self.cells[i].out_extra.set("size", Some(size));
+                        self.retouch(i);
+                    }
+                }
             }
             KernelMsg::Failure { id, printed, n } if mine(id) => {
                 let label = self.number(n);

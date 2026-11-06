@@ -202,6 +202,9 @@ pub enum Command {
     DoubleClickBracket(Bracket),
     /// move (or with `true` copy) the selected cells to before cell `index`
     MoveCells(usize, bool),
+    /// set the display size of an Output cell's graphic (points at 100 %), `None` for its natural size (design 6:
+    /// resizing by the handles, double-click restores); an undo unit
+    ResizeGraphic(CellId, Option<(u32, u32)>),
     /// a key that is bound to nothing on purpose (reserved by the reference)
     Nop,
     /// something the window does
@@ -298,6 +301,7 @@ impl Command {
             | ClickBracket(..)
             | DoubleClickBracket(_) => "mouse",
             MoveCells(..) => "move cells",
+            ResizeGraphic(..) => "resize the graphic",
             Nop => "(reserved, does nothing)",
             App(a) => match a {
                 AppAction::New => "new notebook",

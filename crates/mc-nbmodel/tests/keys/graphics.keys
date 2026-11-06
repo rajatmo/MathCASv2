@@ -1,0 +1,119 @@
+Graphics in Output cells (design 6): pictures come as `display` responses; resizing stores `size=WxH` on the
+output block, keeps it across re-evaluation, and restoring the natural size removes it.
+
+=== a picture value becomes an Output cell holding its image value
+--- before
+#% cell
+image("p.png")▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+
+=== resizing stores the size on the output block, undo takes it back
+--- before
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+--- keys
+Resize(1,320,200)
+--- after
+#% cell label=1
+image("p.png")
+#% output n=1 size=320x200
+#= image("p.png")
+‖
+
+=== undoing a resize
+--- before
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+--- keys
+Resize(1,320,200) Ctrl+Z
+--- after
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+
+=== a double-click restores the natural size
+--- before
+#% cell label=1
+image("p.png")
+#% output n=1 size=320x200
+#= image("p.png")
+‖
+--- keys
+Resize(1)
+--- after
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+
+=== the size is kept when the input is evaluated again and shows a picture again
+--- before
+#% cell label=1
+image("p.png")▮
+#% output n=1 size=320x200
+#= image("p.png")
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+image("p.png")
+#% output n=1 size=320x200
+#= image("p.png")
+‖
+
+=== the k-th picture keeps the k-th size; a value that is not a picture takes none
+--- before
+#% cell label=1
+image("a.png")
+7
+image("b.png")▮
+#% output n=1 size=100x50
+#= image("a.png")
+#% output n=2 size=300x150
+#= image("b.png")
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+image("a.png")
+7
+image("b.png")
+#% output n=1 size=100x50
+#= image("a.png")
+#% output n=2
+#= 7
+#% output n=3 size=300x150
+#= image("b.png")
+‖
+
+=== resizing something that is not a graphic does nothing
+--- before
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖
+--- keys
+Resize(1,320,200)
+--- after
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖

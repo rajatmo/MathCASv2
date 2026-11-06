@@ -10,7 +10,8 @@
 //! Keys are separated by spaces: chords as in the key table (`Shift+Enter`, `Ctrl+Shift+D`, `Alt+4`), text in
 //! quotes (`"1+1"`, with `\n` and `\"`), and actions: `Bracket(i)` / `Bracket(s,e)` (click a cell's or a group's
 //! bracket; `Shift+` and `Ctrl+` prefixes allowed), `DoubleBracket(s,e)`, `Gap(i)`, `Click(i,pos)`, `Move(i)` /
-//! `CopyTo(i)` (drop the selected cells before cell i), `InitYes`, `InitNo`, `InitAlways`, `Clip("text")` (put
+//! `CopyTo(i)` (drop the selected cells before cell i), `Resize(i,w,h)` / `Resize(i)` (resize the graphic of cell i,
+//! or restore its natural size), `InitYes`, `InitNo`, `InitAlways`, `Clip("text")` (put
 //! text on the clipboard), `Pause` (two seconds pass), `Crash` (the kernel dies), `Quit`, `DeleteAllOutput`,
 //! `EvalNotebook`.
 use crate::cell::CellId;
@@ -379,6 +380,11 @@ fn step(word: &str) -> Result<Step, String> {
         ("Move", [i]) => Command::MoveCells(*i, false),
         ("CopyTo", [i]) => Command::MoveCells(*i, true),
         ("Click", [i, p]) => return Ok(Step::Command(Command::ClickText(CellId(u64::MAX - *i as u64), *p, shift))),
+        // cells named by index, as `Click`
+        ("Resize", [i]) => Command::ResizeGraphic(CellId(u64::MAX - *i as u64), None),
+        ("Resize", [i, w, h]) => {
+            Command::ResizeGraphic(CellId(u64::MAX - *i as u64), Some((*w as u32, *h as u32)))
+        }
         _ => return Err(format!("unknown action `{word}`")),
     };
     Ok(Step::Command(cmd))
@@ -425,6 +431,10 @@ pub fn run_steps(nb: &mut Notebook, steps: &[Step], env: &mut FakeEnv, kernel: &
                 // `Click(i,pos)` names the cell by index
                 let i = (u64::MAX - id.0) as usize;
                 nb.cells().get(i).map(|c| Command::ClickText(c.id, *p, *shift))
+            }
+            Step::Command(Command::ResizeGraphic(id, size)) => {
+                let i = (u64::MAX - id.0) as usize;
+                nb.cells().get(i).map(|c| Command::ResizeGraphic(c.id, *size))
             }
             Step::Command(c) => Some(c.clone()),
             Step::Clip(t) => {

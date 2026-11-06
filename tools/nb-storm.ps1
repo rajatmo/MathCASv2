@@ -10,7 +10,7 @@
 # sent.
 #
 #   -Exe        the notebook program
-#   -Notebook   a notebook to copy and open (optional)
+#   -Notebook   a notebook to copy and open (optional; its sidecar folder of pictures, `<name>.files`, is copied too)
 #   -Out        a folder for the copy, settings, samples.csv and the log
 #   -Seconds    storm length;  -Rate events per second;  -Seed random seed
 #   -Mix        type | mouse | window | eval | all
@@ -192,7 +192,7 @@ $texts = @('x', 'y', '1', '2', '+', '-', '*', '/', '^', '(', ')', '[', ']', '{',
     'table(i^2, i, 1, 50)', 'let a = 3', 'fn f(x) = x^2', 'f(a)', '"text"', '# note', 'sqrt(2)', '1/0', 'integrate(x^2, x)',
     "`n", "`n", 'alpha', [string][char]0xE4, [string][char]0x3C0, [string][char]0x222B, [string][char]0x2192)
 $evals = @('1 + 1', 'n(pi, 40)', 'table(i^2, i, 1, 100)', 'expand((x + 1)^8)', 'sum(1/k^2, k, 1, 1000)',
-    'fn g(x) = x + 1', 'g(41)', 'plot(sin(x), x, 0, 10)', 'factor(x^6 - 1)', 'undefined_thing(3)', '1/0', 'solve(x^2 == 2, x)')
+    'fn g(x) = x + 1', 'g(41)', 'plot(sin(x), [x, 0, 10])', 'factor(x^6 - 1)', 'undefined_thing(3)', '1/0', 'solve(x^2 == 2, x)')
 $rng = [Random]::new($Seed)
 # key codes: Left Up Right Down Home End PageUp PageDown Back Delete Tab Escape Enter F2 F3
 $nav = 0x25, 0x26, 0x27, 0x28, 0x24, 0x23, 0x21, 0x22, 0x08, 0x2E, 0x09, 0x1B, 0x0D, 0x71, 0x72
@@ -229,7 +229,11 @@ $bag = @($bag | ForEach-Object { $_ })
 # the notebook copy, a settings folder of its own (no single-instance hand-over to a real window)
 $cfg = Join-Path $Out 'cfg'; New-Item -ItemType Directory -Force $cfg | Out-Null
 $argList = @()
-if ($Notebook) { $copy = Join-Path $Out ([IO.Path]::GetFileName($Notebook)); Copy-Item $Notebook $copy -Force; $argList = @("`"$copy`"") }
+if ($Notebook) {
+    $copy = Join-Path $Out ([IO.Path]::GetFileName($Notebook)); Copy-Item $Notebook $copy -Force; $argList = @("`"$copy`"")
+    $side = [IO.Path]::ChangeExtension($Notebook, $null).TrimEnd('.') + '.files'
+    if (Test-Path $side) { Copy-Item $side (Join-Path $Out (Split-Path $side -Leaf)) -Recurse -Force }
+}
 $env:MCNB_CONFIG_DIR = $cfg
 Remove-Item Env:MCNB_SELFTEST -ErrorAction SilentlyContinue
 $job = [Storm]::Job([uint64]$MemMB * 1MB)

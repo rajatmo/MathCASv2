@@ -226,3 +226,10 @@ Known gaps: history never trimmed; `print` output not streamed within a statemen
 statement finishes drops that statement's output (as before); `;` hides a value only when it follows the statement
 on the same line; `names` without a prefix sends about 1,500 entries in one response; display knows PNG only (SVG is
 M7); the kill-on-no-answer timers of 5.6 are client side.
+
+## SVG displays (package nb-m4)
+
+Capability `display_svg`: in `values: "each"` mode a value `image("path")` naming an SVG file (by extension or
+content) is sent as `display` with `kind: "svg"` and its size in CSS pixels (`mc_nbfile::images::picture_size`: the
+root element's `width`/`height` in px, pt, pc, mm, cm or in, else its `viewBox`, else 300 x 150). PNG displays are
+unchanged (`kind: "image"`); clients that know only that kind show `printed`. Tests: `svg_pictures_are_displays_of_kind_svg`.

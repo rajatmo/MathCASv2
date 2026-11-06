@@ -53,3 +53,14 @@ grouping vector and 2.4 open/close vector, manual groups), `cells.keys` (25), `m
 
 Ctrl+click on brackets works in the model and scripts but is not wired to the mouse in the window; typesetting
 commands (M6) are bound to nothing.
+
+## Graphics and large outputs (milestone M4, package nb-m4)
+
+- `KernelMsg::Display` (a picture's `image("path")` text becomes an Output cell); `Cell::graphic()` and
+  `Cell::graphic_size()`; `Command::ResizeGraphic(id, Option<(w, h)>)` sets or removes the output's `size=` (undo
+  unit); the sizes of a cell's old pictures pass to its new ones in order when it is evaluated again (design 6
+  guess); `Notebook::rename_values` after a save moved pictures. Key-script action `Resize(i,w,h)` / `Resize(i)`;
+  `graphics.keys` (7 scripts). The fake kernel answers `image("...")` with a display.
+- `printed`: `wrap(text, cols)` (penalty line breaking of linear output, design 4.8), `wrapped` (same-length text with
+  line ends), `sample(text, budget)` (large-output samples with `«n»`, design 4.9), `is_large`, `LARGE_OUTPUT`
+  (100,000 characters) and `SAMPLE` (2,000).

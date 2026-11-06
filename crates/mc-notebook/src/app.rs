@@ -2,12 +2,13 @@
 //! the canvas, files, settings and the kernel link.
 use crate::clip::Clipboard;
 use crate::fonts;
+use crate::images::Images;
 use crate::input;
 use crate::kernel::{default_kernel, KernelProcess};
 use crate::selftest::SelfTest;
 use crate::settings::Settings;
 use crate::theme::{Palette, ThemeChoice};
-use crate::view::{Hit, View};
+use crate::view::{Handle, Hit, View};
 use eframe::egui::{
     self, vec2, Align, Color32, Frame, Key, Layout, Margin, RichText, ScrollArea, Sense, ViewportCommand,
 };
@@ -16,8 +17,10 @@ use mc_nbmodel::tabs::{Answer, Ask, Closed, Tabs};
 use mc_nbmodel::{
     AppAction, Bracket, Cell, Clip, Command, Effects, Env, InitAnswer, KernelState, Notebook, Selection, Style,
 };
+use std::cell::RefCell;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 /// The application icon (PNG, 256 px): the window's icon and the About dialog's.
 pub const ICON_PNG: &[u8] = include_bytes!("../../../assets/app/icon_256.png");
@@ -84,6 +87,8 @@ enum Drag {
     Brackets,
     /// pressed on a selected bracket: moving the cells once the pointer moves far enough
     Cells(egui::Pos2),
+    /// resizing a picture by a handle: where the drag started (screen) and the picture's size then (screen points)
+    Resize(mc_nbmodel::CellId, Handle, egui::Pos2, egui::Vec2),
 }
 
 /// Completion delay after two typed identifier characters (design 3.10, guess 20).
@@ -145,10 +150,18 @@ pub struct Doc {
 
 impl Doc {
     /// A tab holding `nb`, from the file `path` if any.
-    pub fn new(nb: Notebook, path: Option<&Path>, ctx: &egui::Context, palette: Palette, zoom: f32) -> Doc {
+    pub fn new(
+        nb: Notebook,
+        path: Option<&Path>,
+        ctx: &egui::Context,
+        images: &Rc<RefCell<Images>>,
+        palette: Palette,
+        zoom: f32,
+    ) -> Doc {
         let mut nb = nb;
         nb.mark_saved();
-        let mut view = View::new(palette);
+        let mut view = View::new(palette, images.clone());
+        view.base = path.and_then(|p| p.parent().map(Path::to_path_buf));
         view.set_magnification(zoom);
         let mut kernel = KernelProcess::new(default_kernel(), ctx.clone());
         kernel.dir = path.and_then(|p| p.parent().map(Path::to_path_buf));
@@ -224,6 +237,8 @@ pub struct App {
     frames_shown: u64,
     /// Ctrl+wheel turns not yet taken as a magnification step
     wheel_zoom: f32,
+    /// the pictures of every tab's Output cells, as textures
+    pub(crate) images: Rc<RefCell<Images>>,
 }
 
 impl App {
@@ -236,8 +251,10 @@ impl App {
         let palette = settings.theme.palette(ctx.system_theme().is_some_and(|t| t == egui::Theme::Dark));
         let zoom = settings.magnification;
         let instance = crate::instance::Server::start(&ctx);
+        let images = Rc::new(RefCell::new(Images::new(&ctx)));
         let mut app = App {
-            doc: Doc::new(Notebook::new(), None, &ctx, palette, zoom),
+            doc: Doc::new(Notebook::new(), None, &ctx, &images, palette, zoom),
+            images,
             tabs: Tabs::new(),
             ctx: ctx.clone(),
             keys: KeyTable::default(),
@@ -290,7 +307,7 @@ impl App {
 
     /// Put the active notebook back into its tab (before the tab list changes).
     fn park(&mut self) {
-        let blank = Doc::new(Notebook::new(), None, &self.ctx, self.doc.view.palette.clone(), 1.0);
+        let blank = Doc::new(Notebook::new(), None, &self.ctx, &self.images, self.doc.view.palette.clone(), 1.0);
         let d = std::mem::replace(&mut self.doc, blank);
         if let Some(t) = self.tabs.current_mut() {
             t.doc = Some(d);
@@ -328,7 +345,7 @@ impl App {
     }
 
     fn blank_doc(&self) -> Doc {
-        Doc::new(Notebook::new(), None, &self.ctx, self.doc.view.palette.clone(), self.settings.magnification)
+        Doc::new(Notebook::new(), None, &self.ctx, &self.images, self.doc.view.palette.clone(), self.settings.magnification)
     }
 
     /// Change the tab list with the active notebook parked in it.
@@ -533,7 +550,7 @@ impl App {
             Ok((f, warnings)) => {
                 let zoom =
                     f.header.number::<f32>("magnification").map_or(self.settings.magnification, |m| m.clamp(0.5, 3.0));
-                let doc = Doc::new(Notebook::from_file(&f), Some(path), &self.ctx, self.doc.view.palette.clone(), zoom);
+                let doc = Doc::new(Notebook::from_file(&f), Some(path), &self.ctx, &self.images, self.doc.view.palette.clone(), zoom);
                 let path = path.to_path_buf();
                 if self.doc.is_blank() && self.path().is_none() {
                     self.doc = doc;
@@ -556,7 +573,7 @@ impl App {
     /// Replace the active tab's notebook (the old kernel session ends).
     pub fn set_notebook(&mut self, nb: Notebook, path: Option<PathBuf>) {
         let zoom = self.doc.view.zoom;
-        self.doc = Doc::new(nb, path.as_deref(), &self.ctx, self.doc.view.palette.clone(), zoom);
+        self.doc = Doc::new(nb, path.as_deref(), &self.ctx, &self.images, self.doc.view.palette.clone(), zoom);
         if let Some(t) = self.tabs.current_mut() {
             t.path = path;
             t.modified = false;
@@ -565,18 +582,30 @@ impl App {
     }
 
     fn save_to(&mut self, path: &Path) -> bool {
-        let text = if self.settings.save_without_outputs {
+        let start = std::time::Instant::now();
+        let mut f = if self.settings.save_without_outputs {
             let mut copy = self.doc.nb.clone();
             copy.apply(Command::DeleteAllOutput, &mut mc_nbmodel::FakeEnv::default());
             let mut f = copy.to_file();
             f.cells.iter_mut().for_each(|c| c.attrs.remove("label"));
-            f.print()
+            f
         } else {
-            self.doc.nb.to_text()
+            self.doc.nb.to_file()
         };
-        let start = std::time::Instant::now();
+        // the pictures go into the sidecar folder first, so the file never names one that is not there (design 7.5)
+        let side = match mc_nbfile::images::store_images(&mut f, self.doc.view.base.as_deref(), path) {
+            Ok(s) => s,
+            Err(e) => {
+                self.error = Some(format!("Cannot copy the pictures next to {}: {e}", path.display()));
+                return false;
+            }
+        };
+        let text = f.print();
         match mc_nbfile::write_atomic(path, &text) {
             Ok(()) => {
+                let removed = mc_nbfile::images::remove_unreferenced(&f, path).unwrap_or(0);
+                self.doc.nb.rename_values(&side.renamed);
+                self.doc.view.base = path.parent().map(Path::to_path_buf);
                 self.doc.nb.mark_saved();
                 if self.path().as_deref() != Some(path) {
                     self.doc.kernel.dir = path.parent().map(Path::to_path_buf);
@@ -587,7 +616,19 @@ impl App {
                 }
                 self.sync_modified();
                 self.settings.add_recent(path);
-                self.status = format!("Saved {} ({:.1} ms)", file_name(path), start.elapsed().as_secs_f64() * 1000.0);
+                let mut notes = vec![];
+                if side.copied + removed > 0 {
+                    notes.push(format!("{} picture(s) copied, {removed} removed", side.copied));
+                }
+                if !side.missing.is_empty() {
+                    notes.push(format!("{} picture(s) not found", side.missing.len()));
+                }
+                let notes = if notes.is_empty() { String::new() } else { format!("; {}", notes.join(", ")) };
+                self.status = format!(
+                    "Saved {} ({:.1} ms{notes})",
+                    file_name(path),
+                    start.elapsed().as_secs_f64() * 1000.0
+                );
                 true
             }
             Err(e) => {
@@ -723,7 +764,71 @@ impl App {
             }
             AppAction::FindNext(forward) => self.find_next(ctx, forward),
             AppAction::Help => {
-                self.status = "Not available yet".into();
+                let name = self.help_word();
+                self.open_docs(name);
+            }
+        }
+    }
+
+    /// The function name at the caret (or the selected one) for F1: an identifier around the caret.
+    fn help_word(&self) -> Option<String> {
+        let Selection::Caret { cell, anchor, pos } = *self.doc.nb.selection() else { return None };
+        help_name(&self.doc.nb.cell(cell)?.text, anchor, pos)
+    }
+
+    /// Start the documentation app (`mc-docs [name]`): `MATHCAS_DOCS`, else `mc-docs` next to this program; a clear
+    /// message when it is not there.
+    fn open_docs(&mut self, name: Option<String>) {
+        let exe = std::env::var_os("MATHCAS_DOCS").map(PathBuf::from).filter(|p| p.is_file()).or_else(|| {
+            let name = if cfg!(windows) { "mc-docs.exe" } else { "mc-docs" };
+            std::env::current_exe().ok().map(|e| e.with_file_name(name)).filter(|p| p.is_file())
+        });
+        let Some(exe) = exe else {
+            self.error = Some(
+                "The documentation app (mc-docs) was not found next to the notebook program. Install it there, or \
+                 set the environment variable MATHCAS_DOCS to its path."
+                    .into(),
+            );
+            return;
+        };
+        let mut cmd = std::process::Command::new(&exe);
+        cmd.args(name.iter());
+        match cmd.spawn() {
+            Ok(_) => {
+                self.status = match name {
+                    Some(n) => format!("Opening the documentation of {n}"),
+                    None => "Opening the documentation".into(),
+                }
+            }
+            Err(e) => self.error = Some(format!("Cannot start {}: {e}", exe.display())),
+        }
+    }
+
+    /// Copy the picture of Output cell `id`: the picture (PNG, and a bitmap for programs that take only that) and
+    /// its `image(...)` text (design 6).
+    fn copy_graphic(&mut self, id: mc_nbmodel::CellId) {
+        let Some(c) = self.doc.nb.cell(id) else { return };
+        let Some(p) = c.graphic() else { return };
+        let text = c.text.clone();
+        let path = mc_nbfile::images::resolve(&p, self.doc.view.base.as_deref());
+        let width = self
+            .doc
+            .nb
+            .index_of(id)
+            .and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i))
+            .map_or(640, |r| (r.width() * self.ctx.pixels_per_point()).round() as u32);
+        match crate::images::pixels(&path, width) {
+            Ok((rgba, w, h)) => {
+                let png = match mc_nbfile::images::ImageFormat::of(&path) {
+                    Some(mc_nbfile::images::ImageFormat::Png) => std::fs::read(&path).ok(),
+                    _ => crate::clip::encode_png(&rgba, w, h),
+                };
+                self.clip.set_picture(&text, png.as_deref(), &rgba, w, h);
+                self.status = format!("Copied the graphic ({w} x {h} pixels)");
+            }
+            Err(e) => {
+                self.clip.set(Clip { text: Some(text), cells: None });
+                self.status = format!("Copied the graphic's text only: {e}");
             }
         }
     }
@@ -755,9 +860,43 @@ impl App {
             self.pointer_hidden = true;
         }
         let mut swallow_text = false;
+        let mut copied = false;
         for e in events {
             if self.completion_key(ctx, &e) {
                 continue;
+            }
+            if let Some(id) = self.doc.view.graphic {
+                // a selected picture (design 6): Esc and arrows deselect it, Delete removes its output, Copy copies
+                // it, typing does not reach the text behind it
+                match &e {
+                    egui::Event::Key { key, pressed: true, modifiers, .. } => match key {
+                        Key::Escape | Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown => {
+                            self.doc.view.graphic = None;
+                            continue;
+                        }
+                        Key::Delete | Key::Backspace => {
+                            self.doc.view.graphic = None;
+                            self.run(ctx, Command::ClickBracket(Bracket::Cell(id), false, false));
+                            self.run(ctx, Command::Delete);
+                            continue;
+                        }
+                        Key::C if modifiers.command && !modifiers.shift && !modifiers.alt => {
+                            if !std::mem::replace(&mut copied, true) {
+                                self.copy_graphic(id);
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    },
+                    egui::Event::Copy => {
+                        if !std::mem::replace(&mut copied, true) {
+                            self.copy_graphic(id);
+                        }
+                        continue;
+                    }
+                    egui::Event::Text(_) | egui::Event::Paste(_) | egui::Event::Cut => continue,
+                    _ => {}
+                }
             }
             if self.find.is_some() && matches!(e, egui::Event::Key { key: Key::Escape, pressed: true, .. }) {
                 self.find = None;
@@ -1255,6 +1394,8 @@ impl App {
             // margins and the gap between cells, a hand on the "+" button, a closed hand while moving cells; hidden
             // while typing until the mouse moves
             let icon = match (self.drag, hit) {
+                (Some(Drag::Resize(_, h, _, _)), _) | (_, Some(Hit::Handle(_, h))) => h.cursor(),
+                (_, Some(Hit::Large(..))) => egui::CursorIcon::PointingHand,
                 (Some(Drag::Text), _) => egui::CursorIcon::Text,
                 (Some(Drag::Cells(_)), _) if self.doc.view.drop_gap.is_some() => egui::CursorIcon::Grabbing,
                 (_, Some(Hit::Text(id, _))) if self.over_content(id, p.x) => egui::CursorIcon::Text,
@@ -1269,6 +1410,10 @@ impl App {
             // a right-click selects what it is on, unless that is already selected
             match self.doc.view.hit(ctx, &self.doc.nb, p) {
                 Hit::Bracket(b) if !self.bracket_selected(b) => self.run(ctx, Command::ClickBracket(b, false, false)),
+                Hit::Graphic(id) => {
+                    self.run(ctx, Command::ClickText(id, 0, false));
+                    self.doc.view.graphic = Some(id);
+                }
                 Hit::Text(id, pos) => {
                     let inside = matches!(self.doc.nb.selection(), Selection::Caret { cell, anchor, pos: q } if *cell == id && anchor != q);
                     if !inside {
@@ -1311,9 +1456,38 @@ impl App {
                     self.plus_menu = Some(screen);
                     self.drag = None;
                 }
+                Hit::Graphic(id) => {
+                    // a click selects the picture (the caret goes before it, hidden); a double-click restores its
+                    // own size (design 6)
+                    self.run(ctx, Command::ClickText(id, 0, false));
+                    self.doc.view.graphic = Some(id);
+                    let double = count >= 2 || resp.double_clicked();
+                    if double && self.doc.nb.cell(id).is_some_and(|c| c.graphic_size().is_some()) {
+                        self.run(ctx, Command::ResizeGraphic(id, None));
+                        self.doc.view.graphic = Some(id);
+                    }
+                    self.drag = None;
+                }
+                Hit::Handle(id, h) => {
+                    let size = self
+                        .doc
+                        .nb
+                        .index_of(id)
+                        .and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i))
+                        .map_or(egui::Vec2::ZERO, |r| r.size());
+                    self.drag = Some(Drag::Resize(id, h, screen, size));
+                }
+                Hit::Large(id, a) => {
+                    self.doc.view.large_action(id, a);
+                    self.drag = None;
+                }
             }
         } else if resp.dragged() {
             match self.drag {
+                Some(Drag::Resize(id, h, start, from)) => {
+                    let size = resize(from, screen - start, h, mods.shift);
+                    self.doc.view.live_size = Some((id, size));
+                }
                 Some(Drag::Text) => {
                     if let Hit::Text(id, pos) = self.doc.view.hit(ctx, &self.doc.nb, p) {
                         if !matches!(self.doc.nb.selection(), Selection::Caret { cell, pos: q, .. } if *cell == id && *q == pos)
@@ -1338,7 +1512,15 @@ impl App {
             }
         }
         if released {
-            if let (Some(Drag::Cells(_)), Some(g)) = (self.drag, self.doc.view.drop_gap.take()) {
+            if let Some(Drag::Resize(id, ..)) = self.drag {
+                // the size is kept in points at 100 % (the file's `size=WxH`)
+                if let Some((_, s)) = self.doc.view.live_size.take() {
+                    let m = self.doc.view.magnification();
+                    let (w, h) = ((s.x / m).round().max(1.0) as u32, (s.y / m).round().max(1.0) as u32);
+                    self.run(ctx, Command::ResizeGraphic(id, Some((w, h))));
+                    self.doc.view.graphic = Some(id);
+                }
+            } else if let (Some(Drag::Cells(_)), Some(g)) = (self.drag, self.doc.view.drop_gap.take()) {
                 self.run(ctx, Command::MoveCells(g, mods.ctrl));
             } else if let Some(Drag::Cells(_)) = self.drag {
                 // a plain click on a selected bracket selects just it
@@ -1420,6 +1602,18 @@ impl App {
         }
         self.menu_item(ui, "Open/close group", Command::ToggleGroup, &mut fire);
         self.menu_item(ui, "Show expression", Command::ShowExpression, &mut fire);
+        if let Some(id) = self.doc.view.graphic {
+            ui.separator();
+            if ui.button("Copy graphic").clicked() {
+                self.copy_graphic(id);
+                ui.close();
+            }
+            let sized = self.doc.nb.cell(id).is_some_and(|c| c.graphic_size().is_some());
+            if ui.add_enabled(sized, egui::Button::new("Natural size")).clicked() {
+                fire = Some(Command::ResizeGraphic(id, None));
+                ui.close();
+            }
+        }
         if let Some(c) = fire {
             self.run(&ctx, c);
         }
@@ -1632,6 +1826,12 @@ impl App {
                 }
             });
             ui.menu_button("Help", |ui| {
+                if ui.button("Documentation").clicked() {
+                    local = Some("docs");
+                    ui.close();
+                }
+                self.menu_item(ui, "Find selected function", Command::App(AppAction::Help), &mut fire);
+                ui.separator();
                 if ui.button("Keyboard shortcuts").clicked() {
                     self.keyboard_help = true;
                     ui.close();
@@ -1648,6 +1848,7 @@ impl App {
         match local {
             Some("exit") => ctx.send_viewport_cmd(ViewportCommand::Close),
             Some("export") => self.export_script(),
+            Some("docs") => self.open_docs(None),
             Some("quit") | Some("restart") => self.run(&ctx, Command::QuitKernel),
             Some("find-running") => {
                 if let Some(id) = self.doc.nb.running_cell() {
@@ -2091,6 +2292,13 @@ impl App {
     }
 
     /// Save to `path` (for the self-test).
+    /// What is at a window position (the self-test's `hit` step).
+    pub fn hit_at(&mut self, at: egui::Pos2) -> String {
+        let p = (at - self.doc.view.origin).to_pos2();
+        let ctx = self.ctx.clone();
+        format!("{:?}", self.doc.view.hit(&ctx, &self.doc.nb, p))
+    }
+
     pub fn save_path(&mut self, path: &Path) -> bool {
         self.save_to(path)
     }
@@ -2110,6 +2318,7 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let start = std::time::Instant::now();
+        self.images.borrow_mut().begin_frame();
         // the second frame: the first one reached the screen, the graphics interface works
         self.frames_shown += 1;
         if self.frames_shown == 2 {
@@ -2147,6 +2356,15 @@ impl eframe::App for App {
             self.pointer_hidden = false;
         }
         self.keyboard(&ctx);
+        // a picture stays selected while the caret is in its cell (any other click or key moves it away)
+        if let Some(id) = self.doc.view.graphic {
+            if !matches!(self.doc.nb.selection(), Selection::Caret { cell, .. } if *cell == id) {
+                self.doc.view.graphic = None;
+            }
+        }
+        if !matches!(self.drag, Some(Drag::Resize(..))) {
+            self.doc.view.live_size = None;
+        }
         if ctx.input(|i| i.viewport().close_requested()) && !self.confirmed_close {
             self.sync_modified();
             if self.tabs.iter().any(|t| t.modified) {
@@ -2244,6 +2462,49 @@ fn toolbar_separator(ui: &mut egui::Ui, p: &Palette) {
     ui.painter().vline(x, r.y_range(), egui::Stroke::new(1.0, p.border_strong()));
 }
 
+/// The name F1 looks up in `text` with the selection `anchor..pos`: the selected text, or the identifier around
+/// the caret; `None` when that is not a name.
+fn help_name(text: &str, anchor: usize, pos: usize) -> Option<String> {
+    let ident = |c: char| c.is_alphanumeric() || c == '_';
+    let word = if anchor != pos {
+        text.get(anchor.min(pos)..anchor.max(pos))?.trim().to_string()
+    } else {
+        let pos = pos.min(text.len());
+        let start = text[..pos].char_indices().rev().take_while(|&(_, c)| ident(c)).last().map_or(pos, |(i, _)| i);
+        let end = text[pos..].char_indices().find(|&(_, c)| !ident(c)).map_or(text.len(), |(i, _)| pos + i);
+        text[start..end].to_string()
+    };
+    let ok = word.chars().next().is_some_and(|c| c.is_alphabetic() || c == '_') && word.chars().all(ident);
+    ok.then_some(word)
+}
+
+/// The size a picture of size `from` (screen points) takes when handle `h` has moved by `d`: corner handles keep
+/// the aspect ratio; side handles change one dimension with Shift held, else keep the ratio too (design 6, guess).
+fn resize(from: egui::Vec2, d: egui::Vec2, h: Handle, shift: bool) -> egui::Vec2 {
+    const MIN: f32 = 16.0;
+    const MAX: f32 = 8000.0;
+    let ratio = if from.y > 0.0 && from.x > 0.0 { from.x / from.y } else { 1.0 };
+    // the handle's side grows when it moves outwards
+    let (dx, dy) = (d.x * f32::from(h.x), d.y * f32::from(h.y));
+    if shift && (h.x == 0 || h.y == 0) {
+        return egui::vec2((from.x + dx).clamp(MIN, MAX), (from.y + dy).clamp(MIN, MAX));
+    }
+    let w = match (h.x, h.y) {
+        (0, _) => (from.y + dy) * ratio,
+        (_, 0) => from.x + dx,
+        // a corner: whichever direction moved more (relative to the picture) decides
+        _ => {
+            if dx.abs() >= dy.abs() * ratio {
+                from.x + dx
+            } else {
+                (from.y + dy) * ratio
+            }
+        }
+    };
+    let w = w.clamp(MIN, MAX);
+    egui::vec2(w, (w / ratio).max(1.0))
+}
+
 fn file_name(p: &Path) -> String {
     p.file_name().map_or_else(|| p.display().to_string(), |n| n.to_string_lossy().to_string())
 }
@@ -2271,5 +2532,42 @@ fn beep() {
         unsafe {
             MessageBeep(0x40);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn f1_names() {
+        let t = "y = n_integrate(sin(x), [x, 0, 1])";
+        assert_eq!(help_name(t, 6, 6).as_deref(), Some("n_integrate"));
+        assert_eq!(help_name(t, 4, 4).as_deref(), Some("n_integrate"));
+        assert_eq!(help_name(t, 15, 15).as_deref(), Some("n_integrate"));
+        assert_eq!(help_name(t, 17, 17).as_deref(), Some("sin"));
+        assert_eq!(help_name(t, 16, 19).as_deref(), Some("sin"));
+        assert_eq!(help_name(t, 2, 2), None);
+        assert_eq!(help_name(t, 31, 31), None, "a number is not a name");
+        assert_eq!(help_name(t, 0, 5), None, "a selection that is not one name");
+        assert_eq!(help_name("", 0, 0), None);
+        assert_eq!(help_name("αβ", 2, 2).as_deref(), Some("αβ"));
+    }
+
+    #[test]
+    fn resizing_keeps_the_ratio_unless_a_side_moves_with_shift() {
+        let from = egui::vec2(400.0, 200.0);
+        let corner = Handle { x: 1, y: 1 };
+        assert_eq!(resize(from, egui::vec2(100.0, 0.0), corner, false), egui::vec2(500.0, 250.0));
+        assert_eq!(resize(from, egui::vec2(0.0, 100.0), corner, false), egui::vec2(600.0, 300.0));
+        // the top-left corner grows when moved up and left
+        assert_eq!(resize(from, egui::vec2(-40.0, 0.0), Handle { x: -1, y: -1 }, false), egui::vec2(440.0, 220.0));
+        let right = Handle { x: 1, y: 0 };
+        assert_eq!(resize(from, egui::vec2(-200.0, 9.0), right, false), egui::vec2(200.0, 100.0));
+        assert_eq!(resize(from, egui::vec2(-200.0, 9.0), right, true), egui::vec2(200.0, 200.0));
+        let bottom = Handle { x: 0, y: 1 };
+        assert_eq!(resize(from, egui::vec2(0.0, 50.0), bottom, true), egui::vec2(400.0, 250.0));
+        // never below the minimum
+        assert_eq!(resize(from, egui::vec2(-1000.0, 0.0), right, false), egui::vec2(16.0, 8.0));
     }
 }

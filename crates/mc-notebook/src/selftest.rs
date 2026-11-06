@@ -16,7 +16,8 @@
 //! - `probe <label>`: log the frame time of the next frames
 //! - `scroll <pixels>`: scroll the notebook
 //! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
-//! - `sel`: write the selection to the log; `about` / `about off`: the About dialog
+//! - `sel`: write the selection to the log; `hit <x> <y>`: what is at a window position; `images`: the picture
+//!   cache's size; `about` / `about off`: the About dialog
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
 //!   notebook text to `<name>.mcn`
 //! - `init yes|no|always`: answer the initialization question
@@ -278,6 +279,17 @@ impl SelfTest {
             }
             "about" => app.show_about(arg != "off"),
             "sel" => self.log.push(format!("selection: {:?}", app.notebook().selection())),
+            "hit" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    let what = app.hit_at(egui::pos2(v[0], v[1]));
+                    self.log.push(format!("hit {arg}: {what}"));
+                }
+            }
+            "images" => {
+                let (bytes, entries, uploads) = app.images.borrow().stats();
+                self.log.push(format!("images: {} MB in {entries} entries, {uploads} uploads", bytes >> 20));
+            }
             "init" => app.answer_init(
                 match arg {
                     "no" => mc_nbmodel::InitAnswer::No,

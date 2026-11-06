@@ -107,7 +107,7 @@
 //! uses an addition only when it is listed; a kernel without the field has none):
 //!
 //! ```text
-//! {"id":null,"type":"hello","protocol":1,"version":"0.0.0","engine":"mathcas-v2 0.0.0","capabilities":["values_each","numbered","history","display","message","names","shutdown_interrupt"]}
+//! {"id":null,"type":"hello","protocol":1,"version":"0.0.0","engine":"mathcas-v2 0.0.0","capabilities":["values_each","numbered","history","display","display_svg","message","names","shutdown_interrupt"]}
 //! ```
 //!
 //! | capability | request | effect |
@@ -116,6 +116,7 @@
 //! | `numbered` | `eval` with `numbered: true` | each top-level statement of `src` (an `import` or a `module` is one) takes the next number of the session's line counter (1 in a fresh session, after `reset` too) when it starts; `output`, `message`, `value`, `display`, `failure` carry the statement's number `n`; `done` carries `first` (the first number of the request) and `next` (the counter after it); a read error takes one number, carried by its `error` as `n`, as is a limit's; an interrupted statement keeps its number, so on `done` status `interrupted` the statement `next - 1` was running |
 //! | `history` | (numbered evaluations) | `out(n)` gives the value of statement `n` (hidden values and failures included, `null` not kept), `out()` the previous statement's, `out(-k)` the k-th previous; a number without a value gives `failure(history, n)` |
 //! | `display` | (`values: "each"`) | a value `image("path")` naming a readable PNG file is sent as `display` with `kind: "image"`, `path`, `width`, `height` (pixels) and `printed` (the value as text), instead of `value` |
+//! | `display_svg` | (`values: "each"`) | a value `image("path")` naming an SVG file (by its `.svg`/`.svgz` extension, or its content) is sent as `display` with `kind: "svg"`, `width` and `height` its size in CSS pixels (from the root element's `width`/`height`, else its `viewBox`, else 300 x 150); clients that know only `kind: "image"` show `printed` |
 //! | `message` | (`values: "each"`) | a warning of library code (`message(tag, text)`) is sent as `message` with `text` and `tag` (the function's name); without `values: "each"` it is an `output` line `tag: text`, as before |
 //! | `names` | `names` with `prefix` (default `""`) | `names`: `[{name, kind}]` sorted by name, the names `complete` offers with `kind` `function`, `value`, `module` or `symbol`; then `done` |
 //! | `shutdown_interrupt` | `shutdown` with `interrupt: true` | the running evaluation is interrupted and the queued ones are cancelled (`done` `interrupted`) before the shutdown's `done`: quitting a busy kernel |

@@ -326,7 +326,7 @@ fn hello_announces_the_notebook_additions() {
     assert_eq!(hello["protocol"], 1);
     assert_eq!(
         hello["capabilities"],
-        json!(["values_each", "numbered", "history", "display", "message", "names", "shutdown_interrupt"])
+        json!(["values_each", "numbered", "history", "display", "display_svg", "message", "names", "shutdown_interrupt"])
     );
 }
 
@@ -388,6 +388,31 @@ fn notebook_evaluations_number_and_show_every_statement() {
     let rs = k.ask(cell(9, "out(1)"));
     assert_eq!(numbered(&rs)[0], nb("failure", json!(1), json!("failure(history, 1)")));
     assert_eq!(k.wait(), Some(0));
+}
+
+#[test]
+fn svg_pictures_are_displays_of_kind_svg() {
+    let dir = std::env::temp_dir().join(format!("mc-kernel-svg-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let svg = dir.join("drawing.svg");
+    std::fs::write(&svg, "<?xml version=\"1.0\"?>
+<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240pt\" viewBox=\"0 0 320 160\"><rect width=\"9\" height=\"9\"/></svg>").unwrap();
+    let value = |p: &std::path::Path| mc_nbfile::images::image_value(&p.to_string_lossy());
+    let mut k = Kernel::start();
+    let rs = k.ask(cell(1, &format!("{}
+{}", value(&svg), value(&dir.join("missing.svg")))));
+    let d = &rs[0];
+    assert_eq!((d["type"].as_str(), d["kind"].as_str(), d["n"].as_u64()), (Some("display"), Some("svg"), Some(1)), "{d}");
+    // 240 pt = 320 px wide, the height from the view box's ratio
+    assert_eq!((d["width"].as_u64(), d["height"].as_u64()), (Some(320), Some(160)));
+    assert_eq!(d["path"].as_str().map(std::path::PathBuf::from), Some(svg.clone()));
+    // a file that is not there stays a value
+    assert_eq!(rs[1]["type"], "value", "{}", rs[1]);
+    // old clients (the last value only) never see a display
+    let rs = k.eval(2, &value(&svg));
+    assert_eq!(rs[0]["type"], "value", "{}", rs[0]);
+    assert_eq!(k.wait(), Some(0));
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

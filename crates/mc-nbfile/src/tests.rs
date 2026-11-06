@@ -293,3 +293,72 @@ fn atomic_writes() {
     assert_eq!(left, ["n.mcn"], "no temporary file is left");
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+/// A fresh folder for a file-system test.
+fn scratch(name: &str) -> std::path::PathBuf {
+    let d = std::env::temp_dir().join(format!("mc-nbfile-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+#[test]
+fn sidecar_round_trip_save_as_and_cleanup() {
+    use crate::images::{image_path, image_value, remove_unreferenced, sidecar_dir, store_images};
+    let root = scratch("sidecar");
+    let tmp = root.join("session");
+    std::fs::create_dir_all(&tmp).unwrap();
+    let (a, b) = (tmp.join("plot-11-0.png"), tmp.join("plot-11-1.svg"));
+    std::fs::write(&a, b"\x89PNG\r\n\x1a\nfirst").unwrap();
+    std::fs::write(&b, b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>").unwrap();
+    let text = format!(
+        "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1 size=300x200\n#= {}\n\n#% cell label=2\nq\n#% output n=2\n\
+         #= {}\n#% output n=3\n#= {}\n#% output n=4\n#= image(\"gone.png\")\n",
+        image_value(&a.to_string_lossy()),
+        image_value(&b.to_string_lossy()),
+        image_value(&a.to_string_lossy()),
+    );
+    let mut nb = Notebook::parse(&text).unwrap();
+    let first = root.join("one").join("cooling.mcn");
+    std::fs::create_dir_all(first.parent().unwrap()).unwrap();
+    let r = store_images(&mut nb, None, &first).unwrap();
+    assert_eq!(r.copied, 2);
+    assert_eq!(r.missing, vec!["gone.png".to_string()]);
+    assert_eq!(r.renamed.len(), 2, "{r:?}");
+    let values: Vec<String> = nb.cells.iter().flat_map(|c| c.output_lines()).filter_map(|l| image_path(&l.text)).collect();
+    assert!(values[0].starts_with("cooling.files/plot-") && values[0].ends_with(".png"), "{values:?}");
+    assert!(values[1].starts_with("cooling.files/plot-") && values[1].ends_with(".svg"));
+    assert_eq!(values[0], values[2], "one copy for one file");
+    assert_eq!(values[3], "gone.png");
+    // the size stays on its block
+    assert_eq!(nb.cells[0].outputs[0].attrs.get("size"), Some("300x200"));
+    write_atomic(&first, &nb.print()).unwrap();
+    // a stray file in the sidecar folder goes; the referenced ones stay
+    let dir = sidecar_dir(&first);
+    std::fs::write(dir.join("old-000000000000.png"), b"x").unwrap();
+    assert_eq!(remove_unreferenced(&nb, &first).unwrap(), 1);
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    // reopen: the relative paths resolve in the notebook's folder
+    let mut again = Notebook::parse(&std::fs::read_to_string(&first).unwrap()).unwrap();
+    assert_eq!(again, nb);
+    let p = crate::images::resolve(&values[0], first.parent());
+    assert_eq!(std::fs::read(p).unwrap(), b"\x89PNG\r\n\x1a\nfirst");
+    // save again in place: nothing copied, nothing renamed
+    let r = store_images(&mut again, first.parent(), &first).unwrap();
+    assert_eq!((r.copied, r.renamed.len()), (0, 0));
+    // save as into another folder: copied there, paths relative to the new place
+    let second = root.join("two").join("copy.mcn");
+    std::fs::create_dir_all(second.parent().unwrap()).unwrap();
+    let r = store_images(&mut again, first.parent(), &second).unwrap();
+    assert_eq!(r.copied, 2);
+    let moved: Vec<String> =
+        again.cells.iter().flat_map(|c| c.output_lines()).filter_map(|l| image_path(&l.text)).collect();
+    assert!(moved[0].starts_with("copy.files/plot-"), "{moved:?}");
+    assert!(sidecar_dir(&second).join(&moved[0]["copy.files/".len()..]).is_file());
+    // outputs deleted: the sidecar folder empties and goes
+    let mut bare = Notebook::parse(&format!("{HEADER}\n\n#% cell\n1\n")).unwrap();
+    assert_eq!(store_images(&mut bare, first.parent(), &first).unwrap(), Default::default());
+    assert_eq!(remove_unreferenced(&bare, &first).unwrap(), 2);
+    assert!(!dir.exists());
+    let _ = std::fs::remove_dir_all(&root);
+}
