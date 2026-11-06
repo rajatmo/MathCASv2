@@ -89,7 +89,13 @@ impl<'h> Model<'h> {
     /// The Jacobian `d(F, [s1, ..., sn])` and `d(F, t)`, symbolically by `d` (once, when first needed); either is
     /// left out when `d` cannot differentiate.
     fn derivatives(&mut self, cx: &mut NativeCx<'_, '_, 'h>) -> Res<()> {
-        let Some(p) = self.pending.take() else { return Ok(()) };
+        let Some(mut p) = self.pending.take() else { return Ok(()) };
+        // the Jacobian is evaluated once per step of the stiff method, a few dozen times in all: compiled at once
+        // rather than after the policy's count of interpreted calls (G41: a large Jacobian interpreted for the first
+        // 32 steps cost seconds); a refused or declined call still goes to the interpreter
+        if matches!(p.policy, Policy::Family { .. } | Policy::Auto { .. }) {
+            p.policy = Policy::Compiled;
+        }
         let h: &'h Heap = cx.heap();
         let n = self.n;
         let states: Vec<T<'h>> = p.vars[1..].iter().map(|v| h.sym_term(v.sym)).collect();

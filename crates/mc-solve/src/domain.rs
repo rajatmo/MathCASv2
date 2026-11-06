@@ -64,11 +64,27 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
         conjuncts(h, f, &mut fs);
         conds.extend(fs.into_iter().filter(|&c| mentions(h, c, &vars) && head_name(h, c).as_deref() != Some("equal")));
     }
-    if dom.is_none() && conds.is_empty() {
-        return Ok(None);
-    }
     if vars.iter().any(|v| !matches!(h.view(*v), View::Sym(_))) {
         return Ok(None);
+    }
+    // radicals of the unknowns: the solver's squaring may add roots; each is checked against the equations
+    let radical = !no_facts && equations.iter().any(|&e| has_radical(h, e, &vars));
+    if dom.is_none() && conds.is_empty() {
+        if !radical {
+            return Ok(None);
+        }
+        let eq_list = cx.list(&equations);
+        let var_list = cx.list(&vars);
+        let r = cx.eval(h.call(h.sym("solve"), &[eq_list, var_list, no_facts_option(h)]))?;
+        let Some(items) = cx.as_list(r) else { return Ok(Some(r)) };
+        let items = items.to_vec();
+        let mut kept = vec![];
+        for s in items {
+            if !spurious(cx, &equations, &vars, s)? {
+                kept.push(s);
+            }
+        }
+        return Ok(Some(cx.list(&kept)));
     }
     let dom = dom.unwrap_or_else(|| "complexes".to_string());
     let strict = dom == "integers" || dom == "rationals";
@@ -132,6 +148,9 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             if cx.is_false(v) || strict && !cx.is_true(v) {
                 continue 'sol;
             }
+        }
+        if radical && spurious(cx, &equations, &vars, s)? {
+            continue;
         }
         kept.push(s);
     }
@@ -360,4 +379,71 @@ pub fn strip_no_facts<'a, 'h>(h: &'h impl Store, args: &'a [T<'h>]) -> (&'a [T<'
         Some((&last, rest)) if last == no_facts_option(h) => (rest, true),
         _ => (args, false),
     }
+}
+
+/// Does `t` have a power with a non-integer exponent whose base mentions the unknowns?
+fn has_radical<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if let (View::Sym(s), [b, e]) = (h.view(head), args) {
+                if h.sym_name(s) == names::POW && matches!(h.view(*e), View::Rational { .. }) && mentions(h, *b, vars) {
+                    return true;
+                }
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
+}
+
+/// Sample values of the parameters for [`spurious`].
+const SAMPLES: [[f64; 6]; 2] = [[0.7, 1.3, 2.1, 0.37, 3.3, 1.9], [1.7, 0.45, 2.9, 1.15, 0.8, 2.6]];
+
+/// Is the solution `s` (rules) spurious: an equation's residual clearly nonzero, numerically, at every sample of
+/// the other symbols? (A solution that is right at one sample is kept.)
+fn spurious<'h>(cx: &mut NativeCx<'_, '_, 'h>, equations: &[T<'h>], vars: &[T<'h>], s: T<'h>) -> Res<bool> {
+    let h = cx.heap();
+    let mut params = vec![];
+    let mut stack: Vec<T<'h>> = equations.to_vec();
+    stack.push(s);
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Sym(sy) => {
+                let n = h.sym_name(sy);
+                if !vars.contains(&u) && !params.contains(&u) && !matches!(n.as_str(), "pi" | "e" | "im" | "euler_gamma") {
+                    params.push(u);
+                }
+            }
+            View::App { args, .. } => stack.extend(args.iter().copied()),
+            _ => {}
+        }
+    }
+    'sample: for sample in SAMPLES {
+        let mut rules: Vec<T<'h>> = params.iter().enumerate().map(|(i, &p)| h.call(h.sym(names::RULE), &[p, h.real(sample[i % 6] * (1.0 + (i / 6) as f64))])).collect();
+        let at = cx.eval(h.call(h.sym("rewrite"), &[s, cx.list(&rules)]))?;
+        rules.extend(cx.as_list(at).unwrap_or(&[]).iter().copied());
+        let rl = cx.list(&rules);
+        for &e in equations {
+            let View::App { args: &[l, r], .. } = h.view(e) else { continue 'sample };
+            let lv = cx.eval(h.call(h.sym("n"), &[h.call(h.sym("rewrite"), &[l, rl])]))?;
+            let rv = cx.eval(h.call(h.sym("n"), &[h.call(h.sym("rewrite"), &[r, rl])]))?;
+            let mag = |v: T<'h>, cx: &mut NativeCx<'_, '_, 'h>| -> Res<Option<f64>> {
+                let a = cx.eval(h.call(h.sym("abs"), &[v]))?;
+                Ok(match h.view(a) {
+                    View::Real(x) if x.is_finite() => Some(x),
+                    View::Int(k) => Some(k as f64),
+                    _ => None,
+                })
+            };
+            let d = cx.eval(h.call(h.sym(names::ADD), &[lv, h.call(h.sym(names::MUL), &[h.int(-1), rv])]))?;
+            let (Some(dm), Some(lm), Some(rm)) = (mag(d, cx)?, mag(lv, cx)?, mag(rv, cx)?) else { continue 'sample };
+            if dm > 1e-6 * (1.0 + lm + rm) {
+                continue 'sample;
+            }
+        }
+        // every equation holds at this sample
+        return Ok(false);
+    }
+    Ok(true)
 }
