@@ -237,6 +237,9 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         if let Some(t) = self.small_fold(args, i64::checked_add, 0) {
             return t;
         }
+        if let Some(t) = self.machine_fold(args, false) {
+            return t;
+        }
         self.entry(|| self.add_core(args), || self.st.app(self.n.add, args))
     }
     /// `mul(args...)`.
@@ -244,10 +247,16 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
         if let Some(t) = self.small_fold(args, i64::checked_mul, 1) {
             return t;
         }
+        if let Some(t) = self.machine_fold(args, true) {
+            return t;
+        }
         self.entry(|| self.mul_core(args.iter().map(|&a| (a, self.n.one)).collect()), || self.st.app(self.n.mul, args))
     }
     /// `pow(base, exp)`.
     pub fn pow(&self, base: T<'h>, exp: T<'h>) -> T<'h> {
+        if let Some(t) = self.machine_pow(base, exp) {
+            return t;
+        }
         self.entry(|| self.mul_core(vec![(base, exp)]), || self.st.app(self.n.pow, &[base, exp]))
     }
     /// `a - b` is `add(a, mul(-1, b))`.
@@ -275,6 +284,71 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
             }
         }
         Some(self.st.int(acc))
+    }
+
+    /// The fast path of a sum or product of finite machine reals and machine-word integers, at least one real
+    /// (decision sp-core.6): what the general path computes (`Num::sum`, `Num::product`: the integers exactly, then
+    /// the reals in canonical order, which for finite reals is their total order, folded onto the integers'
+    /// machine value), without its bookkeeping. `None` for anything else, an exact part beyond 2^53 or overflowing,
+    /// and an exact zero factor of a product (the general path's business).
+    fn machine_fold(&self, args: &[T<'h>], product: bool) -> Option<T<'h>> {
+        if args.len() > 8 {
+            return None;
+        }
+        let mut exact: Option<i128> = None;
+        let mut reals = [0.0f64; 8];
+        let mut k = 0;
+        for &t in args {
+            match self.st.view(t) {
+                mc_api::View::Real(x) if x.is_finite() => {
+                    reals[k] = x;
+                    k += 1;
+                }
+                mc_api::View::Int(v) => {
+                    let v = v as i128;
+                    exact = Some(match exact {
+                        None => v,
+                        Some(e) if product => e.checked_mul(v)?,
+                        Some(e) => e.checked_add(v)?,
+                    });
+                }
+                _ => return None,
+            }
+        }
+        if k == 0 || exact.is_some_and(|e| e.unsigned_abs() > 1 << 53 || (product && e == 0)) {
+            return None;
+        }
+        let xs = &mut reals[..k];
+        xs.sort_by(f64::total_cmp);
+        let (mut acc, rest) = match exact {
+            Some(e) => (e as f64, &xs[..]),
+            None => (xs[0], &xs[1..]),
+        };
+        for &x in rest {
+            acc = if product { acc * x } else { acc + x };
+        }
+        Some(self.st.real(acc))
+    }
+
+    /// The fast path of a power of a finite positive machine real (decision sp-core.6): with a finite machine-real
+    /// exponent, or an exact integer (nonzero, at most 2^53 in magnitude) or rational exponent of word-size parts,
+    /// the general path's machine power `base.powf(e)` (`Num::pow_int`, `Num::pow_machine`). `None` otherwise.
+    fn machine_pow(&self, base: T<'h>, exp: T<'h>) -> Option<T<'h>> {
+        use mc_api::View;
+        let View::Real(a) = self.st.view(base) else { return None };
+        if !(a.is_finite() && a > 0.0) {
+            return None;
+        }
+        let e = match self.st.view(exp) {
+            View::Real(c) if c.is_finite() => c,
+            View::Int(n) if n != 0 && n.unsigned_abs() <= 1 << 53 => n as f64,
+            View::Rational { num, den } => match (self.st.view(num), self.st.view(den)) {
+                (View::Int(p), View::Int(q)) if p.unsigned_abs() <= 1 << 53 && q <= 1 << 53 => p as f64 / q as f64,
+                _ => return None,
+            },
+            _ => return None,
+        };
+        Some(self.st.real(a.powf(e)))
     }
 
     /// Runs one canonicaliser call: installs the stop flag at the outermost call, bounds the nesting, and turns a
@@ -732,5 +806,70 @@ mod tests {
         assert_eq!(decimal_value("1e100000", 1000), None);
         assert_eq!(decimal_value("1.2.3", 1 << 20), None);
         assert_eq!(decimal_value("e5", 1 << 20), None);
+    }
+
+    /// The machine fast paths give the general path's terms, bit for bit (decision sp-core.6).
+    #[test]
+    fn machine_fast_paths_agree_with_the_general_path() {
+        use super::Arith;
+        use mc_api::{RefStore, Store, T};
+        let st = RefStore::new();
+        let ar = Arith::new(&st);
+        // a small deterministic generator
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let reals = [0.0, -0.0, 1.0, -1.0, 0.5, 3.0, -2.5, 1e-300, 1e300, 0.1, -0.7, 7.25e10, 2.0f64.powi(53)];
+        let ints = [0i64, 1, -1, 2, -3, 7, 1 << 40, -(1 << 52)];
+        let mut checked = 0;
+        for _ in 0..4000 {
+            let n = 1 + (next() % 4) as usize;
+            let args: Vec<T<'_>> = (0..n)
+                .map(|_| {
+                    let r = next();
+                    if r % 3 == 0 {
+                        st.int(ints[(r / 3) as usize % ints.len()])
+                    } else if r % 5 == 0 {
+                        st.real((r >> 11) as f64 * 2f64.powi(-40) - 4096.0)
+                    } else {
+                        st.real(reals[(r / 7) as usize % reals.len()])
+                    }
+                })
+                .collect();
+            for product in [false, true] {
+                let Some(fast) = ar.machine_fold(&args, product) else { continue };
+                let slow = if product {
+                    ar.entry(|| ar.mul_core(args.iter().map(|&a| (a, ar.n.one)).collect()), || st.app(ar.n.mul, &args))
+                } else {
+                    ar.entry(|| ar.add_core(&args), || st.app(ar.n.add, &args))
+                };
+                assert_eq!(fast, slow, "{} of {:?}", if product { "product" } else { "sum" }, args.iter().map(|&a| st.view(a)).collect::<Vec<_>>());
+                checked += 1;
+            }
+        }
+        assert!(checked > 1000);
+        let exps: Vec<T<'_>> = vec![
+            st.real(2.5),
+            st.real(-0.5),
+            st.real(3.0),
+            st.int(2),
+            st.int(-3),
+            st.int(7),
+            ar.rational(st.int(1), st.int(2)),
+            ar.rational(st.int(-2), st.int(3)),
+            ar.rational(st.int(5), st.int(7)),
+        ];
+        for &b in &[0.3, 1.0, 2.0, 1e-200, 1e200, 7.5] {
+            for &e in &exps {
+                let base = st.real(b);
+                let fast = ar.machine_pow(base, e).expect("a machine power");
+                let slow = ar.entry(|| ar.mul_core(vec![(base, e)]), || st.app(ar.n.pow, &[base, e]));
+                assert_eq!(fast, slow, "{b}^{:?}", st.view(e));
+            }
+        }
     }
 }

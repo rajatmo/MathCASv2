@@ -67,19 +67,40 @@ fn small_ratio(h: &Heap, t: T<'_>) -> Option<(i64, i64)> {
     }
 }
 
-/// The sum or product of finite machine reals and machine integers with at least one machine real, folded as
-/// `mc-arith` folds numbers (decision B.5): the integers exactly first, then the machine reals in canonical order
-/// (for finite reals the IEEE total order), so the result is bit for bit what [`Arith`] gives, without setting it
-/// up. `None` for any other arguments (or an exact part that overflows).
+/// The sum or product of finite machine reals, machine integers and rationals of machine-integer parts with at
+/// least one machine real, folded as `mc-arith` folds numbers (decision B.5): the exact numbers exactly first, then
+/// the machine reals in canonical order (for finite reals the IEEE total order), so the result is bit for bit what
+/// [`Arith`] gives, without setting it up. An exact rational part is converted as the arithmetic converts it, to
+/// the nearest machine real (one correctly rounded division of parts that are machine reals exactly; decision
+/// sp-core.6: `x/3` in loops). `None` for any other arguments (or an exact part that overflows).
 fn machine_fold(h: &Heap, args: &[T<'_>], product: bool) -> Option<f64> {
     let mut exact: i128 = i128::from(product);
+    // the denominator of the exact part (positive; 1 for an integer)
+    let mut den: i128 = 1;
     let mut has_exact = false;
     let mut reals: [f64; 8] = [0.0; 8];
     let mut n = 0;
     for &a in args {
         match h.view(a) {
             View::Int(v) => {
-                exact = if product { exact.checked_mul(v as i128)? } else { exact.checked_add(v as i128)? };
+                exact = if product { exact.checked_mul(v as i128)? } else { exact.checked_add(den.checked_mul(v as i128)?)? };
+                has_exact = true;
+            }
+            View::Rational { .. } => {
+                let (p, q) = small_ratio(h, a)?;
+                let (p, q) = (p as i128, q as i128);
+                if product {
+                    exact = exact.checked_mul(p)?;
+                    den = den.checked_mul(q)?;
+                } else {
+                    exact = exact.checked_mul(q)?.checked_add(p.checked_mul(den)?)?;
+                    den = den.checked_mul(q)?;
+                }
+                let g = gcd128(exact.unsigned_abs(), den.unsigned_abs()) as i128;
+                if g > 1 {
+                    exact /= g;
+                    den /= g;
+                }
                 has_exact = true;
             }
             View::Real(x) if x.is_finite() && n < reals.len() => {
@@ -95,11 +116,26 @@ fn machine_fold(h: &Heap, args: &[T<'_>], product: bool) -> Option<f64> {
     let reals = &mut reals[..n];
     reals.sort_by(f64::total_cmp);
     let op = |a: f64, b: f64| if product { a * b } else { a + b };
-    let (mut acc, rest) = if has_exact { (exact as f64, &reals[..]) } else { (reals[0], &reals[1..]) };
+    let start = if den == 1 {
+        exact as f64
+    } else if exact.unsigned_abs() <= 1 << 53 && den <= 1 << 53 {
+        exact as f64 / den as f64
+    } else {
+        return None;
+    };
+    let (mut acc, rest) = if has_exact { (start, &reals[..]) } else { (reals[0], &reals[1..]) };
     for &x in rest {
         acc = op(acc, x);
     }
     Some(acc)
+}
+
+/// The greatest common divisor (Euclid's).
+fn gcd128(mut a: u128, mut b: u128) -> u128 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
 }
 
 /// The product of machine integers and small rationals when it is a machine integer (`c/2` for even `c`): the
@@ -762,6 +798,10 @@ mod tests {
         let ints = [0i64, 1, -1, 3, i64::MAX, i64::MIN + 1];
         let mut terms: Vec<T<'_>> = reals.iter().map(|&x| h.real(x)).collect();
         terms.extend(ints.iter().map(|&v| h.int(v)));
+        // rationals (sp-core.6), small and with parts beyond 2^53
+        for (p, q) in [(1i64, 3i64), (-2, 7), (5, 2), (1, 10), ((1 << 60) + 1, 3), (7, (1 << 55) + 1)] {
+            terms.push(a.mul(&[h.int(p), a.pow(h.int(q), h.int(-1))]));
+        }
         // every sequence of 2 to 4 operands from a fixed pseudo-random walk over the terms
         let mut state = 12345u64;
         let mut next = || {

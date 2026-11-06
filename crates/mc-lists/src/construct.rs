@@ -664,8 +664,54 @@ pub(crate) fn subdivide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     let width = h.app(add, &[b, h.app(mul, &[h.int(-1), a])]);
     let step = h.app(mul, &[width, h.app(pow, &[h.int(n), h.int(-1)])]);
     crate::ctx::charge_copy(cx, n as usize + 1)?;
-    let out: Vec<T<'h>> = (0..=n).map(|k| h.app(add, &[a, h.app(mul, &[h.int(k), step])])).collect();
+    let point = |k: i64| h.app(add, &[a, h.app(mul, &[h.int(k), step])]);
+    if let Some(v) = machine_subdivide(cx, a, b, n, &point)? {
+        return Ok(Reply::Done(v));
+    }
+    let out: Vec<T<'h>> = (0..=n).map(point).collect();
     Ok(Reply::Again(cx.list(&out)))
+}
+
+/// `subdivide(a, b, n)` with machine-real end points (or one an integer of magnitude at most 2^53), computed
+/// directly (a hot spot of the profiles, decision sp-core.6): the general path's value of point k,
+/// `a + k*((b - a)*n^(-1))`, is `a + k*(n^(-1)*(b + (-a)))` in machine arithmetic (the exact factors converted
+/// first, the inexact ones in either order: one operation each). Point 0 is the general path's (it may be exact),
+/// and points 1, 2 and n are checked against it: any difference leaves the general path in charge.
+fn machine_subdivide<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    a: T<'h>,
+    b: T<'h>,
+    n: i64,
+    point: &dyn Fn(i64) -> T<'h>,
+) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let num = |t: T<'h>| match h.view(t) {
+        View::Real(x) if x.is_finite() => Some((x, true)),
+        View::Int(k) if k.unsigned_abs() <= 1 << 53 => Some((k as f64, false)),
+        _ => None,
+    };
+    let (Some((fa, ra)), Some((fb, rb))) = (num(a), num(b)) else { return Ok(None) };
+    if !(ra || rb) || n < 3 || n as u64 > 1 << 53 {
+        return Ok(None);
+    }
+    let step = (1.0 / n as f64) * (fb + -fa);
+    let value = |k: i64| fa + k as f64 * step;
+    for k in [1, 2, n] {
+        if !matches!(h.view(cx.eval(point(k))?), View::Real(x) if x.to_bits() == value(k).to_bits()) {
+            return Ok(None);
+        }
+    }
+    let first = cx.eval(point(0))?;
+    Ok(Some(match h.view(first) {
+        View::Real(x0) => {
+            let vals: Vec<f64> = std::iter::once(x0).chain((1..=n).map(value)).collect();
+            h.reals(&vals)
+        }
+        _ => {
+            let items: Vec<T<'h>> = std::iter::once(first).chain((1..=n).map(|k| h.real(value(k)))).collect();
+            cx.list(&items)
+        }
+    }))
 }
 
 /// The steps of `nest_while` (`list` false) and `nest_while_list`: `f` applied from `x` while `test` holds, at most

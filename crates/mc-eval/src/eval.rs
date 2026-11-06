@@ -270,6 +270,8 @@ pub struct Kernel {
     /// heads of number-like values with their own arithmetic (quantities, uncertain numbers): sums and products of
     /// them go through the evaluator's `add` and `mul` ([`Kernel::set_value_head`])
     pub(crate) value_heads: rustc_hash::FxHashSet<Sym>,
+    /// the measurements of `profile` and `timing(e, breakdown: true)` ([`crate::profile`])
+    pub(crate) profiler: crate::profile::Profiler,
 }
 
 /// Where the arguments of the outer call of an operator form `f(a..)(x..)` go (decision p6core.2).
@@ -334,6 +336,7 @@ impl Kernel {
             assoc_heads: None,
             maps_lists: Default::default(),
             value_heads: Default::default(),
+            profiler: Default::default(),
             young_cap: usize::MAX,
         };
         crate::guard::install_hook();
@@ -883,6 +886,12 @@ pub(crate) struct Cx<'h> {
     /// The assumption context (`list(facts...)`, see [`crate::assume`]); `None` when empty. Copied into speculative
     /// tasks.
     pub(crate) assume: Option<T<'h>>,
+    /// Calls are measured ([`crate::profile`]); inherited by speculative tasks.
+    pub(crate) prof: bool,
+    /// The inclusive nanoseconds of the profiled calls finished inside the current one.
+    pub(crate) prof_child: u64,
+    /// The rule calls in progress on this task.
+    pub(crate) prof_stack: Vec<crate::profile::ProfFrame>,
 }
 
 impl<'h> Cx<'h> {
@@ -915,6 +924,9 @@ impl<'h> Cx<'h> {
             vals: vec![],
             blocks: vec![],
             assume: None,
+            prof: false,
+            prof_child: 0,
+            prof_stack: vec![],
         }
     }
 }
@@ -1029,6 +1041,8 @@ impl<'k, 'h> Eval<'k, 'h> {
             vals: vec![],
             blocks: vec![],
             scratch_cells: None,
+            prof_child: 0,
+            prof_stack: vec![],
             ..*cx
         }
     }
@@ -1118,7 +1132,28 @@ impl<'k, 'h> Eval<'k, 'h> {
         let c = compiled_of(&self.k.defs, &self.k.compiled, s)?;
         cx.reads |= bit(s);
         let _scope = crate::guard::NativeScope { sym: s, slot: &self.k.panics, ctl: &self.k.ctl };
-        c.call(&mut NativeCx { ev: self, cx }, args)
+        if !cx.prof {
+            return c.call(&mut NativeCx { ev: self, cx }, args);
+        }
+        let (saved, start) = (std::mem::take(&mut cx.prof_child), std::time::Instant::now());
+        let r = c.call(&mut NativeCx { ev: self, cx }, args);
+        let total = crate::profile::nanos(start);
+        if r.is_some() {
+            self.k.profiler.record(s, crate::profile::CallKind::Compiled, total, total.saturating_sub(cx.prof_child));
+        }
+        cx.prof_child = saved + total;
+        r
+    }
+
+    /// Close the profiled rule calls whose evaluation level (at depth `depth` or deeper) has finished.
+    #[cold]
+    pub(crate) fn prof_close(&self, cx: &mut Cx<'h>, depth: usize) {
+        while let Some(f) = cx.prof_stack.last().copied().filter(|f| f.depth >= depth) {
+            cx.prof_stack.pop();
+            let total = crate::profile::nanos(f.start);
+            self.k.profiler.record(f.sym, crate::profile::CallKind::Rules, total, total.saturating_sub(cx.prof_child));
+            cx.prof_child = f.saved + total;
+        }
     }
 
     /// The parameters and body of a closure `fn(list(params), body)`.

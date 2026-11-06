@@ -316,6 +316,29 @@ impl<'h> NativeCx<'_, '_, 'h> {
         self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
     }
 
+    /// Evaluate `t` with every call measured ([`crate::profile`]): the value and the measurements, one line per
+    /// head symbol and kind of call. A profile inside a profiled evaluation measures nothing of its own (`None`):
+    /// the outer one goes on recording.
+    pub fn profiled(&mut self, t: T<'h>) -> Res<(T<'h>, Option<Vec<crate::profile::ProfileLine>>)> {
+        let p = &self.ev.k.profiler;
+        if p.active.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return Ok((self.eval(t)?, None));
+        }
+        p.reset();
+        let (prof0, child0, depth) = (self.cx.prof, std::mem::take(&mut self.cx.prof_child), self.cx.prof_stack.len());
+        self.cx.prof = true;
+        let r = self.eval(t);
+        // calls left open by an abort
+        while self.cx.prof_stack.len() > depth {
+            self.ev.prof_close(self.cx, 0);
+        }
+        self.cx.prof = prof0;
+        self.cx.prof_child = child0;
+        let lines = p.lines();
+        p.active.store(false, std::sync::atomic::Ordering::Release);
+        Ok((r?, Some(lines)))
+    }
+
     /// The number of worker threads evaluations may split over.
     pub fn threads(&self) -> usize {
         self.cx.threads as usize

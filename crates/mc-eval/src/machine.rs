@@ -550,7 +550,17 @@ impl<'k, 'h> Eval<'k, 'h> {
                 let r = {
                     // names the native in the failure a panic gives (crate::guard)
                     let _scope = NativeScope { sym: *sym, slot: &self.k.panics, ctl: &self.k.ctl };
-                    native.call(&mut NativeCx { ev: self, cx }, t, vals)
+                    if cx.prof {
+                        let (saved, start) = (std::mem::take(&mut cx.prof_child), std::time::Instant::now());
+                        let r = native.call(&mut NativeCx { ev: self, cx }, t, vals);
+                        let total = crate::profile::nanos(start);
+                        let own = total.saturating_sub(cx.prof_child);
+                        self.k.profiler.record(*sym, crate::profile::CallKind::Native, total, own);
+                        cx.prof_child = saved + total;
+                        r
+                    } else {
+                        native.call(&mut NativeCx { ev: self, cx }, t, vals)
+                    }
                 };
                 if early && matches!(r, Ok(Reply::Decline)) {
                     e.t = h.app(head, vals);
@@ -643,6 +653,15 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         match self.dispatch(cx, e.t) {
             Ok(Some(u)) => {
+                if cx.prof {
+                    if let View::App { head, .. } = self.heap.view(e.t) {
+                        if let Some(s) = sym_of(self.heap, head) {
+                            let saved = std::mem::take(&mut cx.prof_child);
+                            let depth = cx.depth as usize;
+                            cx.prof_stack.push(crate::profile::ProfFrame { depth, sym: s, start: std::time::Instant::now(), saved });
+                        }
+                    }
+                }
                 attempt!(self, cx, e, self.tick(cx));
                 e.call = Some(e.t);
                 e.t = u;
@@ -717,6 +736,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// memo entry (not for results of effects or cells, semantics 9 and 6.7; stamped with the start epoch).
     fn finish(&self, cx: &mut Cx<'h>, e: EvalFrame<'h>, v: T<'h>) -> Next<'h> {
         let h = self.heap;
+        if !cx.prof_stack.is_empty() {
+            self.prof_close(cx, cx.depth as usize);
+        }
         let v = match e.call.and_then(|c| self.conditional(v).map(|bc| (c, bc))) {
             None => v,
             Some((call, (body, cond))) => match self.decide_conditional(cx, call, body, cond) {
@@ -788,6 +810,9 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// Level `e` stops with abort `a`: its reads stay recorded, the argument values it pushed are dropped.
     fn fail(&self, cx: &mut Cx<'h>, e: EvalFrame<'h>, a: Abort) -> Next<'h> {
+        if !cx.prof_stack.is_empty() {
+            self.prof_close(cx, cx.depth as usize);
+        }
         cx.depth -= 1;
         cx.reads |= e.reads0;
         if let Stage::Args { base, .. } = e.stage {

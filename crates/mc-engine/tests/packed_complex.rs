@@ -50,7 +50,7 @@ fn element_wise_functions_agree_with_the_scalar_values() {
     let mut bad = vec![];
     for f in [
         "re", "im_part", "conjugate", "arg", "abs", "exp", "log", "sin", "cos", "tan", "sinh", "cosh", "tanh", "atan",
-        "asin", "acos", "log1p", "expm1",
+        "asin", "acos", "log1p", "expm1", "sqrt",
     ] {
         for u in ["zs", "xs"] {
             let src = format!("agree1(x => {f}(x), {u})");
@@ -92,4 +92,17 @@ fn element_wise_arithmetic_agrees_with_the_scalar_values() {
 fn differences_of_complex_lists() {
     let mut e = engine();
     assert_eq!(eval(&mut e, "same(differences(zs), map(k => zs[k + 1] - zs[k], range(1, 639)))"), "true");
+}
+
+#[test]
+fn square_roots_of_machine_reals_are_powers() {
+    let mut e = engine();
+    for src in [
+        "same(map(x => sqrt(x), take(abs(xs), 50)), map(x => x^(1/2), take(abs(xs), 50)))",
+        "same(sqrt(abs(xs)), map(x => x^(1/2), abs(xs)))",
+        "sqrt(-4.0) == complex(0.0, 2.0)",
+        "sqrt(4) == 2",
+    ] {
+        assert_eq!(eval(&mut e, src), "true", "{src}");
+    }
 }

@@ -31,6 +31,9 @@ enum Op {
     Conj,
     Arg,
     Abs,
+    /// the square root of positive machine reals: the arithmetic's power `x^(1/2)`, `x.powf(0.5)`; also for one
+    /// machine real (a hot spot of the profiles: the general native takes four times as long, decision sp-core.6)
+    Sqrt,
     Elem(Fun),
 }
 
@@ -54,7 +57,7 @@ const ELEMENTARY: &[Fun] = &[
 /// Wrap the natives of the functions above. Call after the libraries defining them are installed (and after
 /// `canonical_exp`, so the packed case is decided first); a function without a native is left alone.
 pub(crate) fn install(k: &mut Kernel, h: &Heap) {
-    let mut ops = vec![("re", Op::Re), ("im_part", Op::Im), ("conjugate", Op::Conj), ("arg", Op::Arg), ("abs", Op::Abs)];
+    let mut ops = vec![("re", Op::Re), ("im_part", Op::Im), ("conjugate", Op::Conj), ("arg", Op::Arg), ("abs", Op::Abs), ("sqrt", Op::Sqrt)];
     ops.extend(ELEMENTARY.iter().map(|&f| (f.name(), Op::Elem(f))));
     for (name, op) in ops {
         k.wrap_native(h.sym(name), |inner| Box::new(OnPacked { inner, op }));
@@ -82,6 +85,13 @@ impl Native for OnPacked {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         if let [x] = args {
+            if self.op == Op::Sqrt {
+                if let mc_core::View::Real(v) = cx.heap().view(*x) {
+                    if v.is_finite() && v > 0.0 {
+                        return Ok(Reply::Done(cx.heap().real(v.powf(0.5))));
+                    }
+                }
+            }
             if let Some(v) = self.packed(cx, *x)? {
                 return Ok(Reply::Done(v));
             }
@@ -117,6 +127,9 @@ fn apply<'h>(h: &'h Heap, op: Op, p: Packed<'h>) -> Option<T<'h>> {
         (Op::Abs, Packed::Complexes { data, .. }) => {
             // the native's sqrt(re^2 + im^2): the sum of two machine reals, then the machine power 1/2
             Some(h.real_array(&shape, &data.chunks(2).map(|z| (z[0] * z[0] + z[1] * z[1]).powf(0.5)).collect::<Vec<_>>()))
+        }
+        (Op::Sqrt, Packed::Reals { data, .. }) if data.iter().all(|&x| x.is_finite() && x > 0.0) => {
+            Some(h.real_array(&shape, &data.iter().map(|x| x.powf(0.5)).collect::<Vec<_>>()))
         }
         (Op::Elem(f), Packed::Reals { data, .. }) => Some(machine_values(h, &shape, data.iter().map(|&x| f.machine(Mach::Real(x))))),
         (Op::Elem(f), Packed::Complexes { data, .. }) => {
