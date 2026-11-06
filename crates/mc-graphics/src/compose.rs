@@ -233,7 +233,8 @@ impl<'h> B<'h> {
             self.rule("plot_range", self.list(&[self.h.reals(&[0.0, w]), self.h.reals(&[0.0, ht])])),
             self.rule("plot_range_padding", self.sym("none")),
             self.rule("aspect_ratio", self.sym("automatic")),
-            self.rule("image_size", self.h.real(w + 8.0)),
+            self.rule("image_size", self.h.real(w)),
+            self.rule("image_padding", self.sym("none")),
             self.rule("plot_range_clipping", self.sym("false")),
         ];
         if let Some(b) = background {
@@ -296,16 +297,20 @@ impl Native for Compose {
                     }
                 }
                 let pad = if pictures { GAP } else { 6.0 };
-                let total_w: f64 = widths.iter().sum::<f64>() + pad * (ncol as f64 + 1.0);
+                // frame: true (around), all (every cell)
+                let frame = option(h, opts, "frame").or_else(|| option(h, opts, "dividers"));
+                // the margin around the parts: text without a frame is fitted closely (a framed column inset)
+                let edge = if pictures || frame.is_some() { pad } else { 2.0 };
+                let total_w: f64 = widths.iter().sum::<f64>() + pad * (ncol as f64 - 1.0) + 2.0 * edge;
                 let scale = if pictures && total_w > MAX_W { MAX_W / total_w } else { 1.0 };
                 let (widths, heights): (Vec<f64>, Vec<f64>) =
                     (widths.iter().map(|w| w * scale).collect(), heights.iter().map(|x| x * scale).collect());
-                let w = widths.iter().sum::<f64>() + pad * (ncol as f64 + 1.0);
-                let ht = heights.iter().sum::<f64>() + pad * (heights.len() as f64 + 1.0);
+                let w = widths.iter().sum::<f64>() + pad * (ncol as f64 - 1.0) + 2.0 * edge;
+                let ht = heights.iter().sum::<f64>() + pad * (heights.len() as f64 - 1.0) + 2.0 * edge;
                 let mut content = vec![];
-                let mut y = ht - pad;
+                let mut y = ht - edge;
                 for (i, r) in cells.iter().enumerate() {
-                    let mut x = pad;
+                    let mut x = edge;
                     for (j, c) in r.iter().enumerate() {
                         let (cw, ch) = (c.size().0 * scale, c.size().1 * scale);
                         // centred in its slot
@@ -315,8 +320,6 @@ impl Native for Compose {
                     }
                     y -= heights[i] + pad;
                 }
-                // frame: true (around), all (every cell)
-                let frame = option(h, opts, "frame").or_else(|| option(h, opts, "dividers"));
                 if let Some(f) = frame {
                     if sym_is(h, f, "all") {
                         let mut x = pad / 2.0;

@@ -6,7 +6,7 @@
 //! ```text
 //! {"version":1, "width":640, "height":400,
 //!  "plot_area":[x0, y0, x1, y1],              PNG pixels at scale 1, y down: the frame's inner rectangle
-//!  "x":{"min":a, "max":b, "scale":"linear"},   linear | log | signed_log (then also "c": the constant)
+//!  "x":{"min":a, "max":b, "scale":"linear"},   linear | log | signed_log (then also "c", "a", "k": below)
 //!  "y":{"min":c, "max":d, "scale":"linear"},
 //!  "series":[{"name":"sin", "color":"#rrggbb", "kind":"line" | "points",
 //!             "points":[[x, y], ...]}]}        data coordinates, at most 20000 per entry (thinned evenly beyond)
@@ -14,7 +14,8 @@
 //!
 //! `min` and `max` are data values at the left and right (bottom and top) edges of the plot area; a value `v` is
 //! at pixel `x0 + (s(v) - s(min)) / (s(max) - s(min)) * (x1 - x0)` with `s` the axis's transform (`log10` for
-//! `log`, `sign(v) log10(1 + |v|/c)` for `signed_log`), and `y` likewise from the bottom edge `y1` upwards. Points
+//! `log`, `sign(v) log10(a + k |v|)` for `signed_log`, 0 at 0, with the threshold `c` and the constants `a`, `k`
+//! given: `k = 10^n`, `n = max(0, ceil(-log10 c))`, `a = max(1, 4 n)`), and `y` likewise from the bottom edge `y1` upwards. Points
 //! that are not finite are left out; a line broken at a pole or a gap is several entries with the same name and
 //! colour.
 use crate::figure::{Axis, Scale};
@@ -78,6 +79,11 @@ fn axis(ax: Axis, (lo, hi): (f64, f64), out: &mut String) {
         Axis::SignedLog(c) => {
             out.push_str(",\"scale\":\"signed_log\",\"c\":");
             number(c, out);
+            let (a, k) = Axis::signed_log_constants(c);
+            out.push_str(",\"a\":");
+            number(a, out);
+            out.push_str(",\"k\":");
+            number(k, out);
             out.push('}');
         }
     }

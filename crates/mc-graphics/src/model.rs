@@ -270,6 +270,9 @@ pub struct Opts {
     pub plot_range: [[Option<f64>; 2]; 2],
     /// padding of automatic ranges, a fraction of their length (`None`: 2%)
     pub padding: Option<f64>,
+    /// the blank margin around the page's content in points where no decoration needs more (`image_padding`;
+    /// `None`: 4)
+    pub edge: Option<f64>,
     /// x and y axes
     pub axes: [bool; 2],
     /// a frame with ticks
@@ -330,6 +333,7 @@ impl Default for Opts {
         Opts {
             plot_range: [[None; 2]; 2],
             padding: None,
+            edge: None,
             axes: [false; 2],
             frame: false,
             axes_label: [None, None],
@@ -398,7 +402,8 @@ pub const DIRECTIVES: [&str; 12] = [
 ];
 
 /// The option names of `graphics` that change the picture.
-pub const OPTIONS: [&str; 26] = [
+pub const OPTIONS: [&str; 27] = [
+    "image_padding",
     "legend_title",
     "legend_layout",
     "legend_frame",
@@ -434,7 +439,6 @@ pub const HARMLESS: &[&str] = &[
     "frame_style",
     "axes_style",
     "grid_lines_style",
-    "image_padding",
     "image_margins",
     "plot_region",
     "content_selectable",
@@ -1463,6 +1467,15 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
                 [range(h, x)?, range(h, y)?]
             } else {
                 [[None, None], range(h, v)?]
+            }
+        }
+        "image_padding" => {
+            o.edge = if sym_is(h, v, "none") {
+                Some(0.0)
+            } else if sym_is(h, v, "automatic") || sym_is(h, v, "all") {
+                None
+            } else {
+                Some(number(h, v).filter(|p| (0.0..=1000.0).contains(p))?)
             }
         }
         "plot_range_padding" => {

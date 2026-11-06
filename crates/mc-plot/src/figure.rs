@@ -56,7 +56,10 @@ pub(crate) enum Axis {
     Linear,
     /// log10 of the value; values that are not positive have no place.
     Log,
-    /// sign(v) log10(1 + |v|/c): logarithmic for |v| much larger than c, linear near 0, both signs (c > 0).
+    /// The signed logarithm with threshold c > 0: sign(v) log10(a + k |v|) with k = 10^n, n = max(0, ceil(-log10 c))
+    /// and a = max(1, 4 n) ([`Axis::signed_log_constants`]); 0 at 0. Logarithmic for |v| much larger than c, and
+    /// values far below c stay just inside ±log10(a), next to ±c, rather than falling to the axis (as the common
+    /// plotting convention for this scale does).
     SignedLog(f64),
 }
 
@@ -66,8 +69,10 @@ impl Axis {
         match self {
             Axis::Linear => Some(v),
             Axis::Log => (v > 0.0).then(|| v.log10()),
-            // linear inside the threshold (|v| <= c maps to [-1, 1]), one unit per decade outside it
-            Axis::SignedLog(c) => Some(if v.abs() <= c { v / c } else { v.signum() * (1.0 + (v.abs() / c).log10()) }),
+            Axis::SignedLog(c) => {
+                let (a, k) = Axis::signed_log_constants(c);
+                Some(if v == 0.0 { 0.0 } else { v.signum() * (a + k * v.abs()).log10() })
+            }
         }
     }
 
@@ -77,13 +82,18 @@ impl Axis {
             Axis::Linear => u,
             Axis::Log => 10f64.powf(u),
             Axis::SignedLog(c) => {
-                if u.abs() <= 1.0 {
-                    u * c
-                } else {
-                    u.signum() * c * 10f64.powf(u.abs() - 1.0)
-                }
+                // between -log10(a) and log10(a) only 0 has a place
+                let (a, k) = Axis::signed_log_constants(c);
+                u.signum() * ((10f64.powf(u.abs()) - a) / k).max(0.0)
             }
         }
+    }
+
+    /// The constants `a` and `k` of a signed-log axis with threshold `c` (see [`Axis::SignedLog`]).
+    pub(crate) fn signed_log_constants(c: f64) -> (f64, f64) {
+        // exact powers of ten are not pushed to the next one by rounding (-log10(1e-8) is 8.000000000000002)
+        let n = (-c.log10() - 1e-9).ceil().clamp(0.0, 300.0);
+        ((4.0 * n).max(1.0), 10f64.powf(n))
     }
 }
 
@@ -163,6 +173,9 @@ pub(crate) struct Look<'h> {
     pub(crate) bar_range: Option<(f64, f64)>,
     /// legend entries drawn as filled squares of these colours (bar charts, histograms) rather than curve samples
     pub(crate) legend_swatches: Vec<Rgb>,
+    /// the colours of the legend's samples when the legend gives its own (`line_legend([colours], [labels])`), by
+    /// entry; the curves keep theirs
+    pub(crate) legend_colors: Vec<Rgb>,
     /// the ranges as computed, without padding (rasters fill the plot area)
     pub(crate) exact: bool,
     /// equal units on both axes
@@ -357,6 +370,58 @@ fn range(v: impl Iterator<Item = f64>) -> (f64, f64) {
     }
 }
 
+/// The y range of curves sampled in x order (every series' x values non-decreasing): the 1%..99% quantile range
+/// of the y values weighted by the stretch of x each point stands for, so that the samples a refinement crowds
+/// near a spike do not widen it, or the full range when no value lies more than half that range outside it; and
+/// where a curve has no value at an end (log(0) at a start at 0), its value next to that end is in the range.
+/// `None` for data not in x order.
+fn curve_range(series: &[Series]) -> Option<(f64, f64)> {
+    let mut v: Vec<(f64, f64)> = vec![];
+    let mut keep: Vec<f64> = vec![];
+    for s in series {
+        let p = &s.points;
+        if p.windows(2).any(|w| w[1].0 < w[0].0) {
+            return None;
+        }
+        for (i, q) in p.iter().enumerate() {
+            let Some(y) = q.1 else { continue };
+            let left = if i > 0 { p[i - 1].0 } else { q.0 };
+            let right = if i + 1 < p.len() { p[i + 1].0 } else { q.0 };
+            v.push((y, (right - left).max(0.0) / 2.0));
+        }
+        if p.first().is_some_and(|q| q.1.is_none()) {
+            keep.extend(p.iter().find_map(|q| q.1));
+        }
+        if p.last().is_some_and(|q| q.1.is_none()) {
+            keep.extend(p.iter().rev().find_map(|q| q.1));
+        }
+    }
+    let total: f64 = v.iter().map(|e| e.1).sum();
+    if v.len() < 10 || !(total > 0.0) {
+        return None;
+    }
+    v.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let quantile = |f: f64| {
+        let mut acc = 0.0;
+        for &(y, w) in &v {
+            acc += w;
+            if acc >= f * total {
+                return y;
+            }
+        }
+        v[v.len() - 1].0
+    };
+    let (lo, hi) = (quantile(0.01), quantile(0.99));
+    let w = (hi - lo).max(f64::MIN_POSITIVE);
+    let (min, max) = (v[0].0, v[v.len() - 1].0);
+    // a spike or dip is cut where the quantile is
+    let mut r = (if min >= lo - w / 2.0 { min } else { lo }, if max <= hi + w / 2.0 { max } else { hi });
+    for y in keep {
+        r = (r.0.min(y), r.1.max(y));
+    }
+    Some(r)
+}
+
 /// The 1%..99% quantile range, or the full range when no value lies more than half that range outside it.
 pub(crate) fn robust(mut v: Vec<f64>) -> (f64, f64) {
     if v.len() < 10 {
@@ -450,14 +515,17 @@ impl<'h> B<'h> {
     }
 }
 
-/// The runs of finite values of a line: a jump larger than `span` (the visible y range) is a pole, and the line
-/// breaks there as it does where there is no value.
-pub(crate) fn runs(points: &[(f64, Option<f64>)], span: f64) -> Vec<Vec<(f64, f64)>> {
+/// The runs of a sampled line between the points without a value and the steps larger than the visible range
+/// `window` (y0, y1) (taken for jumps), except steps wholly above or wholly below it, which are not seen. An
+/// infinite window never breaks on steps (data).
+pub(crate) fn runs(points: &[(f64, Option<f64>)], window: (f64, f64)) -> Vec<Vec<(f64, f64)>> {
+    let span = window.1 - window.0;
+    let unseen = |a: f64, b: f64| (a > window.1 && b > window.1) || (a < window.0 && b < window.0);
     let mut runs: Vec<Vec<(f64, f64)>> = vec![];
     let mut prev: Option<f64> = None;
     for &(x, y) in points {
         match (y, prev) {
-            (Some(y), Some(p)) if (y - p).abs() <= span => {
+            (Some(y), Some(p)) if (y - p).abs() <= span || unseen(y, p) => {
                 if let Some(r) = runs.last_mut() {
                     r.push((x, y));
                 }
@@ -496,7 +564,8 @@ pub(crate) fn ranges(series: &[Series], look: &Look, bounds: Option<[(f64, f64);
     let bx = union(bounds.map(|b| b[0]), bar_ends(0));
     let by = union(bounds.map(|b| b[1]), bar_ends(1));
     let x = union((!xs.is_empty()).then(|| range(xs.into_iter())), bx).unwrap_or((0.0, 1.0));
-    let y = union((!ys.is_empty()).then(|| if look.full { range(ys.into_iter()) } else { robust(ys) }), by).unwrap_or((0.0, 1.0));
+    let y = union((!ys.is_empty()).then(|| if look.full { range(ys.into_iter()) } else { curve_range(series).unwrap_or_else(|| robust(ys)) }), by)
+        .unwrap_or((0.0, 1.0));
     let (mut x, mut y) = if look.exact && x.1 > x.0 && y.1 > y.0 { (x, y) } else { (padded(x), padded(y)) };
     for (r, given, ax) in [(&mut x, look.range[0], look.scale.x), (&mut y, look.range[1], look.scale.y)] {
         let lo = given[0].and_then(|v| ax.to(v)).unwrap_or(r.0);
@@ -530,13 +599,13 @@ fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look<'h>, [_, (y0, y1)]: [(
         return out;
     }
     let Some(fill) = look.filling else { return vec![] };
-    let span = if look.data { f64::INFINITY } else { y1 - y0 };
+    let window = if look.data { (f64::NEG_INFINITY, f64::INFINITY) } else { (y0, y1) };
     let mut out = vec![];
     let style = |k: usize| vec![b.color(look.color(k)), b.call("opacity", &[b.h.real(FILL_OPACITY)])];
     match fill {
         Filling::Between(i, j) => {
             let (Some(a), Some(c)) = (series.get(i), series.get(j)) else { return vec![] };
-            let polys: Vec<T<'h>> = between(&a.points, &c.points, span).iter().map(|p| b.points(p)).collect();
+            let polys: Vec<T<'h>> = between(&a.points, &c.points, window).iter().map(|p| b.points(p)).collect();
             if !polys.is_empty() {
                 let mut part = style(i);
                 part.push(b.call("polygon", &[b.list(&polys)]));
@@ -553,7 +622,7 @@ fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look<'h>, [_, (y0, y1)]: [(
             }
             .clamp(y0, y1);
             for (k, s) in series.iter().enumerate() {
-                let polys: Vec<T<'h>> = runs(&s.points, span)
+                let polys: Vec<T<'h>> = runs(&s.points, window)
                     .into_iter()
                     .filter(|r| r.len() > 1)
                     .map(|mut r| {
@@ -576,9 +645,9 @@ fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look<'h>, [_, (y0, y1)]: [(
 
 /// The regions between two sampled curves: both read at every x either has (linear between samples), cut where
 /// either has no value or breaks; each region the first curve forwards, then the second backwards.
-pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], span: f64) -> Vec<Vec<(f64, f64)>> {
-    let ra = runs(a, span);
-    let rc = runs(c, span);
+pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], window: (f64, f64)) -> Vec<Vec<(f64, f64)>> {
+    let ra = runs(a, window);
+    let rc = runs(c, window);
     // the value of a curve's runs at x, linear between its samples (runs are sorted in x for plots)
     let at = |rs: &[Vec<(f64, f64)>], x: f64| -> Option<f64> {
         rs.iter().find(|r| r.len() > 1 && r[0].0 <= x && x <= r[r.len() - 1].0).map(|r| {
@@ -608,7 +677,7 @@ pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], span: 
         match (at(&ra, x), at(&rc, x)) {
             (Some(y), Some(z)) => {
                 // a jump between runs of one curve starts a new region
-                if cur.last().is_some_and(|l| (l.1 - y).abs() > span || (l.2 - z).abs() > span) {
+                if cur.last().is_some_and(|l| (l.1 - y).abs() > window.1 - window.0 || (l.2 - z).abs() > window.1 - window.0) {
                     flush(&mut cur);
                 }
                 cur.push((x, y, z));
@@ -643,7 +712,7 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
     for (k, s) in series.iter().enumerate() {
         let mut part = b.style(look, k, point_d);
         if look.is_joined(k) {
-            let mut runs = runs(&s.points, if look.data { f64::INFINITY } else { y1 - y0 });
+            let mut runs = runs(&s.points, if look.data { (f64::NEG_INFINITY, f64::INFINITY) } else { (y0, y1) });
             runs.retain(|r| r.len() > 1);
             let runs: Vec<T<'h>> = runs.iter().map(|r| b.points(r)).collect();
             part.push(b.call("line", &[b.list(&runs)]));
@@ -733,7 +802,10 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
                 return b.list(&[b.list(&[b.color(c)]), h.string(l), b.sym("swatch")]);
             }
             let marker = b.sym(if markers(k) { "line" } else { "point" });
-            let style = b.style(look, k, 6.0);
+            let mut style = b.style(look, k, 6.0);
+            if let Some(&c) = look.legend_colors.get(k) {
+                style.push(b.color(c));
+            }
             let label = look.legend_terms.get(k).copied().unwrap_or_else(|| h.string(l));
             b.list(&[b.list(&style), label, marker])
         })
@@ -971,11 +1043,12 @@ mod tests {
     #[test]
     fn signed_log_round_trips_and_is_odd() {
         let ax = Axis::SignedLog(1e-8);
-        for v in [-1e10, -3.5, -1e-9, 0.0, 2e-8, 7.0, 1e10] {
+        for v in [-1e10, -3.5, -1e-9, 2e-8, 7.0, 1e10] {
             let u = ax.to(v).unwrap();
-            assert!((ax.from(u) - v).abs() <= 1e-12 * v.abs().max(1e-8), "{v} -> {u} -> {}", ax.from(u));
+            assert!((ax.from(u) - v).abs() <= 1e-9 * v.abs().max(1e-8), "{v} -> {u} -> {}", ax.from(u));
             assert_eq!(ax.to(-v).unwrap(), -u);
         }
+        assert_eq!((ax.to(0.0), ax.from(0.0), ax.from(0.5)), (Some(0.0), 0.0, 0.0));
         assert_eq!(Axis::Log.to(-1.0), None);
     }
 
@@ -991,14 +1064,22 @@ mod tests {
         assert!(major.windows(2).all(|w| w[0].0 < w[1].0));
     }
 
+    /// Gap queue G88: the mapping of the reference's signed-log scale: sign(v) log10(a + k |v|), with values far
+    /// below the threshold just inside the threshold's level.
     #[test]
-    fn signed_log_is_linear_inside_the_threshold() {
-        let ax = Axis::SignedLog(1e-8);
-        let close = |a: f64, b: f64| (a - b).abs() < 1e-12;
-        assert!(close(ax.to(1e-9).unwrap(), 0.1) && close(ax.to(1e-8).unwrap(), 1.0) && close(ax.to(1e-6).unwrap(), 3.0));
-        assert!(close(ax.to(-5e-9).unwrap(), -0.5));
-        // a value at the threshold sits on the threshold's tick level
-        assert!(close(ax.from(1.0), 1e-8));
+    fn signed_log_maps_as_the_reference_does() {
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
+        let u = |c: f64, v: f64| Axis::SignedLog(c).to(v).unwrap();
+        // threshold 10^-8: a = 32, k = 10^8
+        assert!(close(u(1e-8, 1e-12), 32.0001f64.log10()) && close(u(1e-8, 1e-8), 33f64.log10()));
+        assert!(close(u(1e-8, 1e-7), 42f64.log10()) && close(u(1e-8, 1.0), (32.0 + 1e8f64).log10()));
+        assert!(close(u(1e-8, -1e-8), -(33f64.log10())));
+        // other thresholds: 10^-3 (a = 12), 1/2 and 1/10 (a = 4, k = 10), 1 and above (a = k = 1)
+        assert!(close(u(1e-3, 1e-3), 13f64.log10()) && close(u(1e-3, 1.0), 1012f64.log10()));
+        assert!(close(u(0.5, 0.5), 9f64.log10()) && close(u(0.1, 10.0), 104f64.log10()));
+        assert!(close(u(1.0, 1.0), 2f64.log10()) && close(u(2.0, 200.0), 201f64.log10()) && close(u(1000.0, 1000.0), 1001f64.log10()));
+        assert!(close(u(1e-20, 1e-20), 81f64.log10()));
+        assert_eq!(u(1e-8, 0.0), 0.0);
     }
 
     #[test]

@@ -429,7 +429,7 @@ pub fn render_shown_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool)
 fn entries(series: &[Series], look: &Look, layout: &mc_graphics::Layout) -> Vec<sidecar::Entry> {
     let sc = look.scale;
     let data = |(x, y): (f64, f64)| (sc.x.from(x), sc.y.from(y));
-    let span = if look.data { f64::INFINITY } else { layout.range[1].1 - layout.range[1].0 };
+    let window = if look.data { (f64::NEG_INFINITY, f64::INFINITY) } else { layout.range[1] };
     let mut out = vec![];
     for (k, s) in series.iter().enumerate() {
         // the legend's text as a tooltip shows it (`$...$` math as plain characters)
@@ -437,7 +437,7 @@ fn entries(series: &[Series], look: &Look, layout: &mc_graphics::Layout) -> Vec<
         let color = look.color(k);
         let pieces = if look.is_joined(k) {
             // as drawn: a lone point between breaks is not part of the line
-            figure::runs(&s.points, span).into_iter().filter(|r| r.len() > 1).collect()
+            figure::runs(&s.points, window).into_iter().filter(|r| r.len() > 1).collect()
         } else {
             vec![s.points.iter().filter_map(|&(x, y)| y.map(|y| (x, y))).collect()]
         };
@@ -661,10 +661,25 @@ fn sample<'h>(
         scale,
         window: (f64::NEG_INFINITY, f64::INFINITY),
     };
-    let mut grid = Vec::with_capacity(INITIAL);
+    let mut grid = Vec::with_capacity(INITIAL + 2);
     for k in 0..INITIAL {
         let xk = a + (b - a) * k as f64 / (INITIAL - 1) as f64;
         grid.push((xk, s.at(cx, xk)?));
+    }
+    // an end without a value (log(0) at a curve that starts at 0): the curve is tried just inside it, a millionth of
+    // a step in, so a steep rise or fall at the end is drawn as far as it goes
+    let nudge = (b - a) / (INITIAL - 1) as f64 * 1e-6;
+    if grid[0].1.is_none() {
+        let p = (a + nudge, s.at(cx, a + nudge)?);
+        if p.1.is_some() && p.0 > a {
+            grid.insert(1, p);
+        }
+    }
+    if grid[grid.len() - 1].1.is_none() {
+        let p = (b - nudge, s.at(cx, b - nudge)?);
+        if p.1.is_some() && p.0 < b {
+            grid.insert(grid.len() - 1, p);
+        }
     }
     // the visible y range of the coarse curve sets the tolerance
     let (lo, hi) = figure::robust(grid.iter().filter_map(|p| p.1).collect());
@@ -675,6 +690,13 @@ fn sample<'h>(
     }
     let mut pts = vec![grid[0]];
     for w in grid.windows(2) {
+        // the point just inside an end without a value is as close as the curve gets to that end
+        let nudged = (w[0].1.is_none() && w[0].0 == a && w[1].0 - w[0].0 <= nudge * 1.5)
+            || (w[1].1.is_none() && w[1].0 == b && w[1].0 - w[0].0 <= nudge * 1.5);
+        if nudged {
+            pts.push(w[1]);
+            continue;
+        }
         s.refine(cx, w[0], w[1], span, DEPTH, &mut pts)?;
     }
     Ok(Series { points: pts, name: String::new(), bars: vec![] })
@@ -691,6 +713,9 @@ const BUDGET: u64 = 20_000;
 const BRIDGE: u32 = 60;
 /// Deviation from the chord, as a fraction of the visible y range, that asks for a halving.
 const TOLERANCE: f64 = 0.0015;
+/// A step between neighbouring samples, as a fraction of the visible y range, that asks for a halving (up to
+/// `DEPTH` halvings).
+const STEP: f64 = 0.05;
 /// A step between neighbouring samples after every halving, as a fraction of the visible y range, that is taken for
 /// a jump (the curve is not drawn across it).
 const JUMP: f64 = 0.05;
@@ -734,7 +759,11 @@ impl<'h> Sampler<'h> {
             let xm = 0.5 * (p.0 + q.0);
             let m = (xm, self.at(cx, xm)?);
             let split = match (p.1, m.1, q.1) {
-                (Some(a), Some(c), Some(b)) => (c - 0.5 * (a + b)).abs() > TOLERANCE * span,
+                // off the chord, or a step still large on the axis as drawn (steep ends and spikes on log axes)
+                (Some(a), Some(c), Some(b)) => {
+                    (c - 0.5 * (a + b)).abs() > TOLERANCE * span
+                        || ((c - a).abs().max((b - c).abs()) > STEP * span && !(self.out_of_sight(a, c) && self.out_of_sight(c, b)))
+                }
                 (None, None, None) => false,
                 _ => true,
             };
@@ -780,6 +809,14 @@ impl<'h> Sampler<'h> {
         let (Some(a), Some(b)) = (p.1, q.1) else { return Ok(false) };
         if (b - a).abs() <= JUMP * span || self.out_of_sight(a, b) {
             return Ok(true);
+        }
+        // a sign change on a signed-log axis: once both ends are within the threshold's level, the step across 0
+        // is the axis's own gap (values far below the threshold stay near it), not a jump of the curve
+        if let figure::Axis::SignedLog(c) = self.scale.y {
+            let level = self.scale.y.to(c).unwrap_or(1.0) * (1.0 + 1e-9);
+            if a * b <= 0.0 && a.abs().max(b.abs()) <= level {
+                return Ok(true);
+            }
         }
         let xm = 0.5 * (p.0 + q.0);
         if depth == 0 || self.evals >= 2 * BUDGET || xm <= p.0 || xm >= q.0 {
@@ -1219,6 +1256,39 @@ fn legend_items<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<&'h [T<'h>]> 
     }
 }
 
+/// The colours of `line_legend([colours], [labels])`, `swatch_legend(...)` or `point_legend(...)` (also inside
+/// `placed(...)`): the colours, and whether they are swatches. `None` without a list of colours.
+fn legend_colors<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<(Vec<figure::Rgb>, bool)> {
+    let h = cx.heap();
+    let View::App { head, args } = h.view(v) else { return None };
+    let View::Sym(s) = h.view(head) else { return None };
+    let name = h.sym_name(s);
+    match name.as_str() {
+        "placed" => legend_colors(cx, *args.first()?),
+        "line_legend" | "swatch_legend" | "point_legend" => {
+            let lists: Vec<&[T<'h>]> = args.iter().filter_map(|&a| cx.as_list(a)).collect();
+            let [cs, _] = lists.as_slice() else { return None };
+            let byte = |x: f64| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+            let colors = cs
+                .iter()
+                .map(|&e| {
+                    let mut st = mc_graphics::model::Style::default();
+                    let specs = cx.as_list(e).map(|l| l.to_vec()).unwrap_or_else(|| vec![e]);
+                    match mc_graphics::color::colour(h, e) {
+                        mc_graphics::color::Colour::Value(c) => Some((byte(c.r), byte(c.g), byte(c.b))),
+                        _ => {
+                            mc_graphics::model::styled(h, &specs, &mut st).ok()?;
+                            Some((byte(st.color.r), byte(st.color.g), byte(st.color.b)))
+                        }
+                    }
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some((colors, name == "swatch_legend"))
+        }
+        _ => None,
+    }
+}
+
 /// The `legend_label` option inside `line_legend(..., legend_label: t)` (also inside `placed(...)`).
 fn legend_label<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<T<'h>> {
     legend_option(cx, v, "legend_label")
@@ -1346,6 +1416,14 @@ fn one_option<'h>(cx: &NativeCx<'_, '_, 'h>, key: &str, v: T<'h>, look: &mut Loo
                 };
                 if let Some(fr) = frame {
                     look.graphics.push(("legend_frame".to_string(), fr));
+                }
+            }
+            // the legend's own colours: line_legend([colours], [labels]) (swatch_legend: filled squares)
+            if let Some((colors, swatches)) = legend_colors(cx, v) {
+                if swatches {
+                    look.legend_swatches = colors;
+                } else {
+                    look.legend_colors = colors;
                 }
             }
             let items = legend_items(cx, v)?;
@@ -1674,13 +1752,9 @@ fn corner_option(h: &Heap, v: T<'_>) -> Option<Corner> {
     }
 }
 
-/// An axis scale: `linear`, `log`, `signed_log` (c = 1) or `signed_log(c)` with a number c > 0.
+/// An axis scale: `linear`, `log`, `signed_log` (c = 1) or `signed_log(c)` with a real number c > 0 (exact or
+/// not: `signed_log(10^-8)`).
 fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
-    let num = |t: T<'_>| match h.view(t) {
-        View::Int(i) => Some(i as f64),
-        View::Real(x) => Some(x),
-        _ => None,
-    };
     match h.view(v) {
         View::Sym(s) => match h.sym_name(s).as_str() {
             "linear" => Some(Axis::Linear),
@@ -1688,7 +1762,7 @@ fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
             "signed_log" => Some(Axis::SignedLog(1.0)),
             _ => None,
         },
-        View::App { head, args: &[c] } if head == h.sym_term(h.sym("signed_log")) => num(c)
+        View::App { head, args: &[c] } if head == h.sym_term(h.sym("signed_log")) => mc_graphics::num::number(h, c)
             .filter(|c| *c > 0.0 && c.is_finite())
             .map(Axis::SignedLog),
         _ => None,

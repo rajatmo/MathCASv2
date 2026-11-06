@@ -120,7 +120,7 @@ impl Label {
 
     /// A string label: text with `$...$` math.
     pub fn text(s: &str) -> Label {
-        let mut p = TexParser { chars: s.chars().collect(), pos: 0, math: false };
+        let mut p = TexParser { chars: s.chars().collect(), pos: 0, math: false, upright: false };
         let row = p.text_row();
         Label { row, traditional: false, math: s.contains('$'), text: s.to_string(), size: None }
     }
@@ -186,6 +186,8 @@ struct TexParser {
     pos: usize,
     /// inside `$...$`
     math: bool,
+    /// letters upright to the end of the group (`\rm`)
+    upright: bool,
 }
 
 impl TexParser {
@@ -223,12 +225,15 @@ impl TexParser {
 
     /// Math up to the closing `$` (or `}` in a group, when `group`).
     fn math_row(&mut self, depth: usize, group: bool) -> Row {
+        // a font switch (`\rm`) lasts to the end of its group
+        let upright = self.upright;
         let mut out: Vec<Item> = Vec::new();
         while let Some(c) = self.peek() {
             match c {
                 '$' => break,
                 '}' if group => {
                     self.pos += 1;
+                    self.upright = upright;
                     return Row(out);
                 }
                 '^' | '_' => {
@@ -248,6 +253,7 @@ impl TexParser {
                 _ => out.extend(self.atom(depth).0),
             }
         }
+        self.upright = upright;
         Row(out)
     }
 
@@ -265,6 +271,9 @@ impl TexParser {
             '{' => self.math_row(depth + 1, true),
             '\\' => self.command(depth),
             ' ' if self.math => Row::new(),
+            // a tie: a space that does not break
+            '~' if self.math => Row::text(" "),
+            c if self.math && self.upright && c.is_ascii_alphabetic() => Row(vec![Item::Char(c)]),
             c => Row(vec![Item::Char(if self.math { math_letter(c) } else { c })]),
         }
     }
@@ -300,6 +309,15 @@ impl TexParser {
                 r
             }
             "mathit" => self.atom(depth + 1),
+            // font switches to the end of the group: upright (`\rm`, `\rmfamily`, `\upshape`), italic
+            // (`\it`), bold (drawn upright)
+            "rm" | "rmfamily" | "upshape" | "bf" | "bfseries" | "it" | "itshape" | "mit" => {
+                self.upright = !matches!(name.as_str(), "it" | "itshape" | "mit");
+                while self.peek() == Some(' ') {
+                    self.pos += 1;
+                }
+                Row::new()
+            }
             // letter styles: the letters of the argument in the math alphabets
             "mathcal" | "mathscr" | "mathbb" | "mathbf" | "boldsymbol" | "mathfrak" | "mathsf" | "mathtt" => {
                 let was = self.math;
@@ -509,6 +527,20 @@ mod tests {
 
     fn tex(s: &str) -> String {
         notation(&Label::text(s).row)
+    }
+
+    /// Gap queue G84: a tie is a space, `\rm` sets the letters upright to the end of the group.
+    #[test]
+    fn ties_and_font_switches() {
+        let t = tex(r"$\tau~T_n$");
+        assert!(t.starts_with("\u{3c4} ") && !t.contains('~'), "{t}");
+        let t = tex(r"$\rho~\rm(GeV^4)$");
+        assert!(t.starts_with("\u{3c1} (Ge(V^4))") && !t.contains("rm"), "{t}");
+        // to the end of the group only
+        assert_eq!(tex(r"${\rm d}x$"), "d\u{1d465}");
+        assert_eq!(tex(r"$\rm a \it b$"), "a\u{1d44f}");
+        // outside math a tilde is a tilde
+        assert_eq!(tex("~5 s"), "~5 s");
     }
 
     /// Gap queue G43: letter styles.

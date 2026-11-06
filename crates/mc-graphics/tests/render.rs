@@ -321,7 +321,7 @@ fn png_snapshots() {
         ("graphics([red, disk([0, 0], 1)], image_size: 40)", 11038683754863902879u64),
         ("graphics([blue, absolute_thickness(2), line([[0, 0], [1, 1], [2, 0]])], image_size: 40)", 4573380468599864753),
         ("graphics(text(\"$x^2$\", [0, 0]), image_size: 40)", 8994584432840233460),
-        ("graphics(circle(), frame: true, image_size: 120)", 2122115227894112385),
+        ("graphics(circle(), frame: true, image_size: 120)", 3830055126281441207),
     ];
     let mut got = vec![];
     for (src, _) in &cases {

@@ -39,6 +39,33 @@ pub fn positions(lo: f64, hi: f64, n: usize) -> Vec<f64> {
     v
 }
 
+/// Unlabelled minor tick positions between the ticks of [`positions`]: a quarter of a step of 2 (times a power of
+/// ten), a fifth of a step of 1 or 5, as frames show them by default (at most 400).
+pub fn minor(lo: f64, hi: f64, n: usize) -> Vec<f64> {
+    if !(lo.is_finite() && hi.is_finite() && hi > lo) {
+        return vec![];
+    }
+    let s = step(lo, hi, n);
+    let mantissa = s / 10f64.powf(s.log10().floor());
+    let sub = s / if (mantissa - 2.0).abs() < 1e-6 { 4.0 } else { 5.0 };
+    let first = (lo / sub).ceil();
+    let mut v = vec![];
+    let mut k = 0.0;
+    while v.len() < 400 {
+        let t = (first + k) * sub;
+        if t > hi + sub * 1e-9 {
+            break;
+        }
+        // not on a major tick
+        let r = t / s;
+        if (r - r.round()).abs() > 1e-6 {
+            v.push(t);
+        }
+        k += 1.0;
+    }
+    v
+}
+
 /// The label of tick `t` on an axis [lo, hi] with about `n` ticks: decimals as the step needs (no float noise, no
 /// `-0`), a minus sign (U+2212); values of 10^6 and more, or all under 10^-4, as `m × 10^k`.
 pub fn label(t: f64, lo: f64, hi: f64, n: usize) -> Label {
@@ -77,6 +104,21 @@ pub fn auto(lo: f64, hi: f64, n: usize) -> Vec<(f64, Option<Label>)> {
 mod tests {
     use super::*;
     use mc_boxes::tree::notation;
+
+    /// Gap queue G89: minor ticks as frames show them by default.
+    #[test]
+    fn minor_ticks_divide_the_steps() {
+        let close = |a: &[f64], b: &[f64]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-12);
+        // steps of 0.2: quarters; steps of 0.1 or 0.5: fifths
+        let m = minor(0.0, 1.0, 5);
+        assert!(close(&m[..4], &[0.05, 0.1, 0.15, 0.25]), "{m:?}");
+        assert_eq!(m.len(), 15);
+        let m = minor(0.0, 0.4, 4);
+        assert!(close(&m[..4], &[0.02, 0.04, 0.06, 0.08]), "{m:?}");
+        let m = minor(0.0, 10.0, 2);
+        assert!(close(&m[..4], &[1.0, 2.0, 3.0, 4.0]), "{m:?}");
+        assert!(minor(1.0, 1.0, 5).is_empty() && minor(f64::NAN, 1.0, 5).is_empty());
+    }
 
     #[test]
     fn nice_positions_and_labels() {

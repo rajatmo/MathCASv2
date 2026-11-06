@@ -184,9 +184,9 @@ fn pixel(j: &serde_json::Value, x: f64, y: f64) -> (f64, f64) {
         "linear" => v,
         "log" => v.log10(),
         "signed_log" => {
-            let c = axis["c"].as_f64().unwrap();
-            // linear inside the threshold, one unit per decade outside (as the renderer maps it)
-            if v.abs() <= c { v / c } else { v.signum() * (1.0 + (v.abs() / c).log10()) }
+            // sign(v) log10(a + k |v|), 0 at 0 (as the renderer maps it)
+            let (a, k) = (axis["a"].as_f64().unwrap(), axis["k"].as_f64().unwrap());
+            if v == 0.0 { 0.0 } else { v.signum() * (a + k * v.abs()).log10() }
         }
         other => panic!("scale {other}"),
     };
@@ -248,7 +248,9 @@ fn every_plot_has_a_data_sidecar_that_maps_to_its_pixels() {
     assert_eq!((j["y"]["scale"].as_str(), j["y"]["c"].as_f64()), (Some("signed_log"), Some(1.0)));
     let s = &j["series"][0];
     assert_eq!((s["kind"].as_str(), s["name"].as_str()), (Some("points"), Some("data")));
-    assert_eq!(s["points"][2][1].as_f64(), Some(1000.0));
+    assert!((s["points"][2][1].as_f64().unwrap() - 1000.0).abs() < 1e-9);
+    // the constants of the signed-log mapping sign(v) log10(a + k |v|)
+    assert_eq!((j["y"]["a"].as_f64(), j["y"]["k"].as_f64()), (Some(1.0), Some(1.0)));
     let color = s["color"].as_str().unwrap();
     assert!(has_colour_near(&printed, pixel(&j, 3.0, 1000.0), color));
     // a pole splits the line into entries of one name

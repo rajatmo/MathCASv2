@@ -208,7 +208,14 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         }
         let (lo, hi) = range[k];
         tk[k] = match &o.ticks[k] {
-            Ticks::Auto => ticks::auto(lo, hi, tick_count(if k == 0 { guess_w } else { guess_h })),
+            Ticks::Auto => {
+                let n = tick_count(if k == 0 { guess_w } else { guess_h });
+                // a frame has unlabelled minor ticks between the labelled ones
+                if o.frame {
+                    minor[k] = ticks::minor(lo, hi, n);
+                }
+                ticks::auto(lo, hi, n)
+            }
             Ticks::None => vec![],
             Ticks::List(v, mn) => {
                 minor[k] = mn.iter().copied().filter(|u| *u >= lo && *u <= hi).collect();
@@ -227,7 +234,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
     let max_w = |v: &[(f64, Option<Typeset>)]| v.iter().filter_map(|t| t.1.as_ref()).map(|t| t.width).fold(0.0, f32::max);
     let max_h = |v: &[(f64, Option<Typeset>)]| v.iter().filter_map(|t| t.1.as_ref()).map(|t| t.height).fold(0.0, f32::max);
     // margins: left, top, right, bottom
-    let mut m = [EDGE; 4];
+    let mut m = [o.edge.map_or(EDGE, |e| e as f32); 4];
     let (xl, yl) = (max_h(&ticks[0]), max_w(&ticks[1]));
     // x tick labels below the frame (or an x axis at the bottom edge), y labels left of it
     let x_at_edge = o.frame || (o.axes[0] && origin.0 == range[1].0);
