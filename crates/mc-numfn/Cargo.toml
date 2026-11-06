@@ -1,6 +1,8 @@
 [package]
 name = "mc-numfn"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 numeric functions: the NumFn trait over machine reals, complex numbers and balls, with interpreted, compiled (mc-jit) and batch backends and automatic fallback"

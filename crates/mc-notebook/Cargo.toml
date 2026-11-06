@@ -1,6 +1,8 @@
 [package]
 name = "mc-notebook"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 notebook window: cells, evaluation in a separate mc-kernel process, One Light and One Dark themes"

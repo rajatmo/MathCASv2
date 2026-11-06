@@ -1,6 +1,8 @@
 [package]
 name = "mc-jit"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 numeric compiler: typed functions to machine code through Cranelift, as compiled specialisations of the evaluator"

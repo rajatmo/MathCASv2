@@ -1,6 +1,8 @@
 [package]
 name = "mc-strings"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 string functions: splitting, replacing, slicing, searching, case, characters, padding, trimming and reading text as source, by Unicode characters"

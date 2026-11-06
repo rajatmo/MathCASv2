@@ -1,6 +1,8 @@
 [package]
 name = "mc-assoc"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 sets and associations: set operations on lists, insertion-ordered maps from terms to terms, and failure predicates, as natives of the evaluator"

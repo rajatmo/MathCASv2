@@ -159,7 +159,7 @@ fn about(ui: &mut egui::Ui, icon: Option<&TextureHandle>, weak: Color32) {
         ui.add_space(8.0);
         ui.label(RichText::new("Each notebook tab has its own kernel process; evaluation never blocks the window.").color(weak));
         ui.add_space(8.0);
-        ui.label(RichText::new("MathCAS licence: not chosen yet. Components: see Credits.").color(weak).small());
+        ui.label(RichText::new("Free software under the GNU GPL, version 3 or later. Components: see Credits.").color(weak).small());
         ui.add_space(6.0);
     });
 }

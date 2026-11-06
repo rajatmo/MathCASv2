@@ -1,6 +1,8 @@
 [package]
 name = "mc-lsp"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 language server: diagnostics, definitions, hover, completion and document symbols over stdio"

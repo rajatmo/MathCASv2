@@ -1,6 +1,8 @@
 [package]
 name = "mc-graphics"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 graphics: the graphics term (primitives, directives, options), colours, and its PNG, SVG and vector PDF renderers"

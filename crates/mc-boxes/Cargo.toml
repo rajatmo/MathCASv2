@@ -1,6 +1,8 @@
 [package]
 name = "mc-boxes"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 two-dimensional typesetting without UI: box tree, caret and structure editing, canonical box text, printed output to boxes, aliases, layout and line breaking over a metrics trait"

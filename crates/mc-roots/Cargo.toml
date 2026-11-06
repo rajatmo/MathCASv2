@@ -1,6 +1,8 @@
 [package]
 name = "mc-roots"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 numerical root finding and minimisation: find_root (Newton, secant, Brent, Broyden, verified balls), find_minimum and find_maximum as natives of the evaluator"

@@ -1,6 +1,8 @@
 [package]
 name = "mc-simplify"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 simplification: simplify by cost-guided search over rational, trigonometric and exponential rewritings; trig_expand, trig_reduce, trig_to_exp, exp_to_trig, power_expand"

@@ -1,6 +1,8 @@
 [package]
 name = "mc-io"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 import and export of data files: lists as CSV, TSV, text and JSON; PNG images"

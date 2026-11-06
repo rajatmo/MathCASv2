@@ -1,6 +1,8 @@
 [package]
 name = "mc-solve"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 equation solving: polynomial equations by radicals and root objects, linear and polynomial systems (Groebner bases), elimination, numeric roots, real inequalities in one variable"

@@ -40,7 +40,11 @@ Copy-Item (Join-Path $root "docs\guide\quickstart.pdf") (Join-Path $dist "quicks
 # the application icon (also embedded in the executables): the installer and its shortcuts use it
 Copy-Item (Join-Path $root "assets\app\icon.ico") (Join-Path $dist "icon.ico") -Force
 $rev = (git -C $root rev-parse --short HEAD)
-Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 development build, commit $rev, built $(Get-Date -Format s)" -Encoding utf8
+# the release number from the workspace manifest ([workspace.package] version)
+$ver = ((Select-String -Path (Join-Path $root "Cargo.toml") -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value)
+Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 $ver, commit $rev, built $(Get-Date -Format s)" -Encoding utf8
+Copy-Item (Join-Path $root "LICENSE") (Join-Path $dist "LICENSE.txt") -Force
+Copy-Item (Join-Path $root "CHANGELOG.md") (Join-Path $dist "CHANGELOG.md") -Force
 Get-ChildItem $dist | Select-Object Name, Length
 
 $mirror = if ($env:MATHCAS_V2_MIRROR) { $env:MATHCAS_V2_MIRROR } else { Join-Path $env:USERPROFILE "Dropbox\Projects\MathCAS-v2-dist" }

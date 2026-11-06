@@ -1,6 +1,8 @@
 [package]
 name = "mc-ui"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 window support shared by the notebook and the documentation window: bundled fonts, the clipboard, the graphics interface and GPU choice, the settings folder"

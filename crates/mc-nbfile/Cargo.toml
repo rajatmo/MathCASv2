@@ -1,6 +1,8 @@
 [package]
 name = "mc-nbfile"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 .mcn notebook files: reading, writing and atomic saving"

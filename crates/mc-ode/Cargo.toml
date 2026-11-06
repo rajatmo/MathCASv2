@@ -1,6 +1,8 @@
 [package]
 name = "mc-ode"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 numerical ordinary differential equations: n_dsolve and n_dsolve_value (Dormand-Prince 5(4), Rodas4 for stiff systems, Taylor series under digits) with interpolating-function results"

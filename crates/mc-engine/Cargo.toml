@@ -1,6 +1,8 @@
 [package]
 name = "mc-engine"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 engine: the core assembled (syntax, evaluator, arithmetic on the real store) behind the harness's Engine trait"

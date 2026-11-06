@@ -1,6 +1,8 @@
 [package]
 name = "mc-bench"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 benchmark harness: case files, guarded child-process runs, progress, results and summary"

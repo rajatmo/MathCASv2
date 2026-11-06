@@ -1,5 +1,5 @@
 ; MathCAS v2 installer (Inno Setup 6). Built by tools\package.ps1, which passes:
-;   /DAppVersion=<commit> /DSourceDir=<dist folder> /DOutputDir=<packages folder> /DOutputName=<file name>
+;   /DAppVersion=<version> /DAppCommit=<commit> /DSourceDir=<dist folder> /DOutputDir=<packages folder> /DOutputName=<file name>
 ; Per-user by default (no administrator rights), all users on request; Start Menu entries; optional PATH entry
 ; (removed again on uninstall); optional VS Code extension on the last page; the notebook app with a Start Menu
 ; entry and, optionally, the .mcn file association.
@@ -7,12 +7,16 @@
 #ifndef AppVersion
   #define AppVersion "dev"
 #endif
+#ifndef AppCommit
+  #define AppCommit "local"
+#endif
 
 [Setup]
 AppId={{C366AAA7-AA93-4378-9EAC-0D9B8E37C835}
 AppName=MathCAS v2
 AppVersion={#AppVersion}
-AppVerName=MathCAS v2 ({#AppVersion})
+AppVerName=MathCAS v2 {#AppVersion} ({#AppCommit})
+LicenseFile={#SourceDir}\LICENSE.txt
 AppPublisher=MathCAS project
 DefaultDirName={autopf}\MathCAS v2
 DefaultGroupName=MathCAS v2

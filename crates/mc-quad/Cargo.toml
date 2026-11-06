@@ -1,6 +1,8 @@
 [package]
 name = "mc-quad"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 numerical integration: n_integrate (adaptive Gauss-Kronrod, tanh-sinh, rigorous Clenshaw-Curtis with ball error bounds) as a native of the evaluator"

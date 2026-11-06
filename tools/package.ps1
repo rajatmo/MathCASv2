@@ -9,8 +9,10 @@ $parent = Split-Path -Parent $root
 $dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path $parent "dist" }
 $out = if ($env:MATHCAS_V2_PACKAGES) { $env:MATHCAS_V2_PACKAGES } else { Join-Path $parent "dist-packages" }
 if (-not (Test-Path (Join-Path $dist "mc-repl.exe"))) { throw "no dist at ${dist}: run tools\dist.ps1 first" }
-$rev = ((Get-Content (Join-Path $dist "VERSION.txt") -Raw) -replace '(?s)^.*commit ([0-9a-f]+).*$', '$1').Trim()
-$name = "MathCAS-v2-$rev-win-x64"
+$stamp = Get-Content (Join-Path $dist "VERSION.txt") -Raw
+$rev = ($stamp -replace '(?s)^.*commit ([0-9a-f]+).*$', '$1').Trim()
+$ver = if ($stamp -match 'MathCAS v2 (\d+\.\d+\.\d+)') { $Matches[1] } else { "dev" }
+$name = "MathCAS-v2-$ver-$rev-win-x64"
 New-Item -ItemType Directory -Force $out | Out-Null
 
 # the standalone zip: the dist folder's contents at the top level of the archive, under one folder
@@ -32,7 +34,7 @@ $iscc = if ($env:ISCC) { $env:ISCC } else {
 if (-not $iscc) { throw "Inno Setup 6 (ISCC.exe) not found: install it or set ISCC" }
 $exe = Join-Path $out "$name.exe"
 if (Test-Path $exe) { Remove-Item $exe -Force }
-& $iscc /Q "/DAppVersion=$rev" "/DSourceDir=$top" "/DOutputDir=$out" "/DOutputName=$name" (Join-Path $PSScriptRoot "installer\mathcas-v2.iss")
+& $iscc /Q "/DAppVersion=$ver" "/DAppCommit=$rev" "/DSourceDir=$top" "/DOutputDir=$out" "/DOutputName=$name" (Join-Path $PSScriptRoot "installer\mathcas-v2.iss")
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path $exe)) { throw "Inno Setup failed (exit $LASTEXITCODE)" }
 Remove-Item $stage -Recurse -Force
 Get-ChildItem $out -Filter "$name.*" | Select-Object Name, @{ n = "MB"; e = { [math]::Round($_.Length / 1MB, 1) } }

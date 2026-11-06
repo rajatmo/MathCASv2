@@ -1,6 +1,8 @@
 [package]
 name = "mc-repl"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 read-eval-print loop with a pluggable engine"

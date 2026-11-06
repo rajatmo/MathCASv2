@@ -1,6 +1,8 @@
 [package]
 name = "mc-special"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 special functions: gamma family, zeta, Bessel, error functions, incomplete gamma and beta, exponential integrals, polylog, hypergeometric, elliptic and Jacobi functions (exact values, machine reals, rigorous balls)"

@@ -1,6 +1,8 @@
 [package]
 name = "mc-plot"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 plots: plot and list_plot (linear and logarithmic axes) built as graphics terms and rendered to PNG, SVG and PDF files"

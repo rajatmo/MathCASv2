@@ -1,6 +1,8 @@
 [package]
 name = "mc-random"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 random numbers: the session generator (counter-based Philox4x32-10), seed, random_real, random_integer, random_normal, random_choice, random_sample"

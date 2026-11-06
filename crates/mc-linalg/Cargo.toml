@@ -1,6 +1,8 @@
 [package]
 name = "mc-linalg"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 linear algebra: determinants, inverses, elimination, eigensystems, decompositions and vector calculus on exact, symbolic, ball and machine matrices"

@@ -1,6 +1,8 @@
 [package]
 name = "mc-dist"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 probability distributions and data statistics: distribution terms, pdf, cdf, quantile, moments, random variates, estimation"

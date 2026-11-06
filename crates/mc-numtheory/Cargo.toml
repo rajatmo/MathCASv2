@@ -1,6 +1,8 @@
 [package]
 name = "mc-numtheory"
-version = "0.0.0"
+version.workspace = true
+license.workspace = true
+repository.workspace = true
 edition = "2021"
 publish = false
 description = "MathCAS v2 number theory: integer functions, rounding, primes, prime counting, factorisation and modular arithmetic"
