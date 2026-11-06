@@ -213,7 +213,7 @@ const MIRROR: &[&str] = &[
 fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let h = b.heap();
     let degree = h.sym("degree");
-    let mentions_degree = h.mask(t) & 1u64 << (degree.0 % 64) != 0;
+    let mentions_degree = h.mask(t) & h.mask(h.sym_term(degree)) != 0;
     let t = if mentions_degree {
         let to = b.div(h.sym_term(h.sym("pi")), b.int(180));
         let rule = b.call(h.sym(mc_api::names::RULE), &[h.sym_term(degree), to]);

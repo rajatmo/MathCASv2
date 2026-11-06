@@ -319,8 +319,8 @@ fn trig<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, s: 
     let hd = &b.hd;
     let h = b.heap();
     let pi = f.syms().pi;
-    // the symbol mask is a quick test that `u` mentions `pi` (bit `i % 64` for symbol `i`)
-    if h.mask(u) & 1u64 << (pi.0 % 64) == 0 {
+    // the symbol mask is a quick test that `u` mentions `pi` (the mask bit of the symbol `pi`)
+    if h.mask(u) & h.mask(h.sym_term(pi)) == 0 {
         return Ok(None);
     }
     // the multiple of pi, expanded so that `(1/2)*(1 + 2*n)` reads as `1/2 + n`
