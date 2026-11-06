@@ -41,6 +41,9 @@ pub(crate) struct Grid {
     xs: Vec<f64>,
     ys: Vec<f64>,
     v: Vec<f64>,
+    /// where the function stops having values on grid edges between a point with a value and one without: the
+    /// point (found by bisection) and the value there, by the edge's two point indices (lower first)
+    pub(crate) cut: HashMap<(usize, usize), ((f64, f64), f64)>,
 }
 
 impl Grid {
@@ -133,7 +136,43 @@ impl Native for Field {
                     v.push(if ok && out[0].is_finite() { out[0] } else { f64::NAN });
                 }
             }
-            Ok(Grid { xs: xs.clone(), ys: ys.clone(), v })
+            let mut g = Grid { xs: xs.clone(), ys: ys.clone(), v, cut: HashMap::new() };
+            // where the values stop between two neighbouring points: located by bisection on the edge
+            let (nx, ny) = (xs.len(), ys.len());
+            for jj in 0..ny {
+                cx.tick(1)?;
+                for ii in 0..nx {
+                    for (di, dj) in [(1usize, 0usize), (0, 1)] {
+                        let (i2, j2) = (ii + di, jj + dj);
+                        if i2 >= nx || j2 >= ny {
+                            continue;
+                        }
+                        let (va, vb) = (g.at(ii, jj), g.at(i2, j2));
+                        if va.is_finite() == vb.is_finite() {
+                            continue;
+                        }
+                        // from the point with a value (a) towards the one without (b)
+                        let (pa, pb, mut val) =
+                            if va.is_finite() { ((xs[ii], ys[jj]), (xs[i2], ys[j2]), va) } else { ((xs[i2], ys[j2]), (xs[ii], ys[jj]), vb) };
+                        let (mut lo, mut hi) = (0.0f64, 1.0f64);
+                        for _ in 0..20 {
+                            let t = 0.5 * (lo + hi);
+                            let q = (pa.0 + (pb.0 - pa.0) * t, pa.1 + (pb.1 - pa.1) * t);
+                            let ok = fun.eval(cx, &[q.0, q.1], &mut out)?;
+                            if ok && out[0].is_finite() {
+                                lo = t;
+                                val = out[0];
+                            } else {
+                                hi = t;
+                            }
+                        }
+                        let q = (pa.0 + (pb.0 - pa.0) * lo, pa.1 + (pb.1 - pa.1) * lo);
+                        let (a, b) = (jj * nx + ii, j2 * nx + i2);
+                        g.cut.insert((a.min(b), a.max(b)), (q, val));
+                    }
+                }
+            }
+            Ok(g)
         };
         if let Some(eqs) = equations {
             let mut grids = Vec::with_capacity(eqs.len());
@@ -336,6 +375,9 @@ pub(crate) fn region(grid: &Grid, c: f64) -> Vec<Vec<(f64, f64)>> {
             let vs = cs.map(|(a, b)| grid.at(a, b));
             if vs.iter().any(|v| !v.is_finite()) {
                 close(&mut run, i, &mut rings);
+                if let Some(r) = partial(grid, cs, c) {
+                    rings.push(r);
+                }
                 continue;
             }
             let inside = vs.map(|v| v >= c);
@@ -372,6 +414,44 @@ pub(crate) fn region(grid: &Grid, c: f64) -> Vec<Vec<(f64, f64)>> {
         close(&mut run, nx - 1, &mut rings);
     }
     rings
+}
+
+/// The part of a cell with corners without values where the surface is at least `c`: the cell cut at the edge
+/// of the function's domain (the points [`Grid::cut`] holds), then at the level c (linear between the points).
+/// `None` when nothing is left or an edge point is not known.
+fn partial(grid: &Grid, cs: [(usize, usize); 4], c: f64) -> Option<Vec<(f64, f64)>> {
+    let nx = grid.xs.len();
+    let mut poly: Vec<((f64, f64), f64)> = vec![];
+    for k in 0..4 {
+        let (p, q) = (cs[k], cs[(k + 1) % 4]);
+        let vp = grid.at(p.0, p.1);
+        if vp.is_finite() {
+            poly.push(((grid.xs[p.0], grid.ys[p.1]), vp));
+        }
+        if vp.is_finite() != grid.at(q.0, q.1).is_finite() {
+            let (a, b) = (p.1 * nx + p.0, q.1 * nx + q.0);
+            poly.push(*grid.cut.get(&(a.min(b), a.max(b)))?);
+        }
+    }
+    if poly.len() < 3 {
+        return None;
+    }
+    if c == f64::NEG_INFINITY {
+        return Some(poly.into_iter().map(|p| p.0).collect());
+    }
+    // keep where the value is at least c
+    let mut out = vec![];
+    for k in 0..poly.len() {
+        let (a, b) = (poly[k], poly[(k + 1) % poly.len()]);
+        if a.1 >= c {
+            out.push(a.0);
+        }
+        if (a.1 >= c) != (b.1 >= c) {
+            let t = (c - a.1) / (b.1 - a.1);
+            out.push((a.0 .0 + (b.0 .0 - a.0 .0) * t, a.0 .1 + (b.0 .1 - a.0 .1) * t));
+        }
+    }
+    (out.len() >= 3).then_some(out)
 }
 
 /// The lines where the surface equals `c`, joined from the segments of the cells (marching squares).
@@ -526,7 +606,7 @@ impl Native for ListDensity {
         let ny = rows.len();
         let xs = (0..cols).map(|i| x0 + (x1 - x0) * i as f64 / (cols - 1) as f64).collect();
         let ys = (0..ny).map(|j| y0 + (y1 - y0) * j as f64 / (ny - 1) as f64).collect();
-        let grid = Grid { xs, ys, v };
+        let grid = Grid { xs, ys, v, cut: HashMap::new() };
         let Some(extent) = grid.extent() else { return Ok(bad(h, name, 1)) };
         if self.contour {
             contours(cx, &grid, extent, look)
@@ -578,7 +658,7 @@ fn scattered_grid(cx: &mut NativeCx<'_, '_, '_>, pts: &[[f64; 3]]) -> Res<Option
             });
         }
     }
-    Ok(Some(Grid { xs, ys, v }))
+    Ok(Some(Grid { xs, ys, v, cut: HashMap::new() }))
 }
 
 #[cfg(test)]
@@ -586,10 +666,26 @@ mod tests {
     use super::*;
 
     /// The grid of x^2 + y^2 on [-1, 1]^2 with n points per side.
+    /// Gap queue G40: a cell with a corner outside the domain is cut at the domain's edge, not dropped whole.
+    #[test]
+    fn cells_are_cut_at_the_edge_of_the_domain() {
+        // corners (0,0) (1,0) (1,1) (0,1); the point (1,1) has no value; the domain ends at x = 0.5 on the top
+        // edge and at y = 0.25 on the right edge
+        let mut cut = HashMap::new();
+        cut.insert((1, 3), ((1.0, 0.25), 1.0));
+        cut.insert((2, 3), ((0.5, 1.0), 1.0));
+        let g = Grid { xs: vec![0.0, 1.0], ys: vec![0.0, 1.0], v: vec![1.0, 1.0, 1.0, f64::NAN], cut };
+        let rings = region(&g, f64::NEG_INFINITY);
+        assert_eq!(rings, vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 0.25), (0.5, 1.0), (0.0, 1.0)]]);
+        // without the edge points nothing is drawn rather than a whole cell
+        let g = Grid { cut: HashMap::new(), ..g };
+        assert!(region(&g, f64::NEG_INFINITY).is_empty());
+    }
+
     fn bowl(n: usize) -> Grid {
         let xs: Vec<f64> = (0..n).map(|i| -1.0 + 2.0 * i as f64 / (n - 1) as f64).collect();
         let v = xs.iter().flat_map(|&y| xs.iter().map(move |&x| x * x + y * y)).collect();
-        Grid { xs: xs.clone(), ys: xs, v }
+        Grid { xs: xs.clone(), ys: xs, v, cut: HashMap::new() }
     }
 
     /// The signed area of a ring.
@@ -631,7 +727,7 @@ mod tests {
     #[test]
     fn saddles_are_decided_by_the_mean() {
         // x*y on [-1, 1]^2 with 2 points per side: one saddle cell, mean 0
-        let g = Grid { xs: vec![-1.0, 1.0], ys: vec![-1.0, 1.0], v: vec![1.0, -1.0, -1.0, 1.0] };
+        let g = Grid { xs: vec![-1.0, 1.0], ys: vec![-1.0, 1.0], v: vec![1.0, -1.0, -1.0, 1.0], cut: HashMap::new() };
         // at c = 0.5 the mean is below: two separate corners (two triangles, two lines)
         assert_eq!(region(&g, 0.5).len(), 2);
         assert_eq!(level_lines(&g, 0.5).len(), 2);
