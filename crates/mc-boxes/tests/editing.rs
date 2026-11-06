@@ -356,3 +356,12 @@ fn implicit_times_between_boxes_and_operands() {
     // the text reads as a product
     assert_eq!(ed.text(), "k2*((sqrt(a)))");
 }
+
+#[test]
+fn an_alias_after_a_box_keeps_its_name_after_the_implicit_times() {
+    let mut e = Editor::from_text("((sqrt(x)))");
+    assert_eq!(e.escape(), AliasOutcome::Started);
+    e.insert_text("alpha");
+    assert_eq!(e.escape(), AliasOutcome::Replaced);
+    assert_eq!(e.notation(), "√(x)*α▮");
+}

@@ -46,6 +46,10 @@ pub struct Settings {
     pub session: Session,
     /// the caret blinks (off: a steady caret)
     pub caret_blink: bool,
+    /// typing an opening bracket or quote inserts its closer
+    pub auto_close: bool,
+    /// outputs are shown typeset (each output's own form wins)
+    pub typeset_output: bool,
     /// the window's last position and inner size: x, y, width, height (points)
     pub window: Option<[f32; 4]>,
     /// where the settings are read from and written to (`None`: not saved, as in the self-test)
@@ -63,6 +67,8 @@ impl Default for Settings {
             restore_session: true,
             session: Session::default(),
             caret_blink: true,
+            auto_close: true,
+            typeset_output: true,
             window: None,
             file: None,
         }
@@ -113,6 +119,8 @@ impl Settings {
         s.show_toolbar = v.get("show_toolbar").and_then(Value::as_bool).unwrap_or(true);
         s.restore_session = v.get("restore_session").and_then(Value::as_bool).unwrap_or(true);
         s.caret_blink = v.get("caret_blink").and_then(Value::as_bool).unwrap_or(true);
+        s.auto_close = v.get("auto_close").and_then(Value::as_bool).unwrap_or(true);
+        s.typeset_output = v.get("typeset_output").and_then(Value::as_bool).unwrap_or(true);
         if let Some(w) = v.get("window").and_then(Value::as_array) {
             let w: Vec<f32> = w.iter().filter_map(Value::as_f64).map(|x| x as f32).collect();
             // a place off every screen (a minimized window's -32000) or absurdly large is not restored
@@ -152,6 +160,8 @@ impl Settings {
             "show_toolbar": self.show_toolbar,
             "restore_session": self.restore_session,
             "caret_blink": self.caret_blink,
+            "auto_close": self.auto_close,
+            "typeset_output": self.typeset_output,
             "window": self.window,
             "session": {
                 "active": self.session.active,

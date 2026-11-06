@@ -19,7 +19,7 @@ use ttf_parser::{math, Face, GlyphId};
 mod raster;
 mod stretch;
 
-pub use raster::{rasterize, GlyphBitmap};
+pub use raster::{rasterize, rasterize_shifted, GlyphBitmap};
 pub use stretch::{Stretch, StretchPiece};
 
 /// The font file, embedded.

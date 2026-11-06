@@ -3,6 +3,7 @@
 use crate::clip::Clipboard;
 use crate::fonts;
 use crate::images::Images;
+use crate::typeset::Glyphs;
 use crate::input;
 use crate::kernel::{default_kernel, KernelProcess};
 use crate::selftest::SelfTest;
@@ -75,6 +76,12 @@ impl Env for AppEnv<'_> {
     }
     fn clipboard(&mut self) -> Clip {
         self.clip.get()
+    }
+    fn box_line(&mut self, cell: &Cell, path: &[mc_boxes::Step], offset: usize, up: bool) -> Option<(mc_boxes::RowPath, usize)> {
+        self.view.box_line(self.ctx, cell, path, offset, up)
+    }
+    fn atomic(&mut self, cell: &Cell) -> bool {
+        self.view.shows_typeset_output(cell)
     }
 }
 
@@ -155,12 +162,13 @@ impl Doc {
         path: Option<&Path>,
         ctx: &egui::Context,
         images: &Rc<RefCell<Images>>,
+        glyphs: &Rc<RefCell<Glyphs>>,
         palette: Palette,
         zoom: f32,
     ) -> Doc {
         let mut nb = nb;
         nb.mark_saved();
-        let mut view = View::new(palette, images.clone());
+        let mut view = View::new(palette, images.clone(), glyphs.clone());
         view.base = path.and_then(|p| p.parent().map(Path::to_path_buf));
         view.set_magnification(zoom);
         let mut kernel = KernelProcess::new(default_kernel(), ctx.clone());
@@ -239,6 +247,10 @@ pub struct App {
     wheel_zoom: f32,
     /// the pictures of every tab's Output cells, as textures
     pub(crate) images: Rc<RefCell<Images>>,
+    /// the math-font glyphs of typeset content, as one texture atlas (shared by the tabs)
+    pub(crate) glyphs: Rc<RefCell<Glyphs>>,
+    /// the descriptions of plot pictures, for coordinates under the pointer
+    plots: crate::plothover::Plots,
 }
 
 impl App {
@@ -252,9 +264,12 @@ impl App {
         let zoom = settings.magnification;
         let instance = crate::instance::Server::start(&ctx);
         let images = Rc::new(RefCell::new(Images::new(&ctx)));
+        let glyphs = Rc::new(RefCell::new(Glyphs::new(&ctx)));
         let mut app = App {
-            doc: Doc::new(Notebook::new(), None, &ctx, &images, palette, zoom),
+            doc: Doc::new(Notebook::new(), None, &ctx, &images, &glyphs, palette, zoom),
             images,
+            glyphs,
+            plots: crate::plothover::Plots::default(),
             tabs: Tabs::new(),
             ctx: ctx.clone(),
             keys: KeyTable::default(),
@@ -307,7 +322,7 @@ impl App {
 
     /// Put the active notebook back into its tab (before the tab list changes).
     fn park(&mut self) {
-        let blank = Doc::new(Notebook::new(), None, &self.ctx, &self.images, self.doc.view.palette.clone(), 1.0);
+        let blank = Doc::new(Notebook::new(), None, &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), 1.0);
         let d = std::mem::replace(&mut self.doc, blank);
         if let Some(t) = self.tabs.current_mut() {
             t.doc = Some(d);
@@ -345,7 +360,7 @@ impl App {
     }
 
     fn blank_doc(&self) -> Doc {
-        Doc::new(Notebook::new(), None, &self.ctx, &self.images, self.doc.view.palette.clone(), self.settings.magnification)
+        Doc::new(Notebook::new(), None, &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), self.settings.magnification)
     }
 
     /// Change the tab list with the active notebook parked in it.
@@ -550,7 +565,7 @@ impl App {
             Ok((f, warnings)) => {
                 let zoom =
                     f.header.number::<f32>("magnification").map_or(self.settings.magnification, |m| m.clamp(0.5, 3.0));
-                let doc = Doc::new(Notebook::from_file(&f), Some(path), &self.ctx, &self.images, self.doc.view.palette.clone(), zoom);
+                let doc = Doc::new(Notebook::from_file(&f), Some(path), &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), zoom);
                 let path = path.to_path_buf();
                 if self.doc.is_blank() && self.path().is_none() {
                     self.doc = doc;
@@ -573,7 +588,7 @@ impl App {
     /// Replace the active tab's notebook (the old kernel session ends).
     pub fn set_notebook(&mut self, nb: Notebook, path: Option<PathBuf>) {
         let zoom = self.doc.view.zoom;
-        self.doc = Doc::new(nb, path.as_deref(), &self.ctx, &self.images, self.doc.view.palette.clone(), zoom);
+        self.doc = Doc::new(nb, path.as_deref(), &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), zoom);
         if let Some(t) = self.tabs.current_mut() {
             t.path = path;
             t.modified = false;
@@ -699,6 +714,8 @@ impl App {
 
     /// Apply a command to the notebook and act on its effects.
     pub fn run(&mut self, ctx: &egui::Context, cmd: Command) {
+        self.doc.nb.set_auto_close(self.settings.auto_close);
+        self.doc.view.typeset_outputs = self.settings.typeset_output;
         let mut env = AppEnv { view: &mut self.doc.view, ctx, clip: &mut self.clip };
         let fx = self.doc.nb.apply(cmd, &mut env);
         // the caret shows at once after every key and click, then blinks
@@ -952,7 +969,8 @@ impl App {
             return None;
         };
         let c = self.doc.nb.cell(cell)?;
-        if anchor != pos || !c.style.is_code() || c.expr_view {
+        // no completion in typeset input (the caret is in boxes, not in the text)
+        if anchor != pos || !c.style.is_code() || c.expr_view || mc_nbmodel::is_boxed(c) {
             return None;
         }
         let before = &c.text[..pos];
@@ -1241,6 +1259,9 @@ impl App {
                 _ => None,
             };
             self.doc.view.paint(&ctx, ui.painter(), &self.doc.nb, origin, clip, time);
+            if resp.hovered() && self.drag.is_none() {
+                self.plot_hover(&ctx, ui.painter(), origin);
+            }
             self.ime(&ctx, ui.painter(), rect);
             if std::mem::take(&mut self.doc.scroll_pending) {
                 if let Some(r) = self.selection_rect(&ctx) {
@@ -1249,6 +1270,22 @@ impl App {
             }
         });
         self.doc.offset = out.state.clamped_offset().y;
+    }
+
+    /// Coordinates under the pointer on a plot picture that has a description (NB5.2).
+    fn plot_hover(&mut self, ctx: &egui::Context, painter: &egui::Painter, origin: egui::Pos2) {
+        let Some(screen) = ctx.input(|i| i.pointer.hover_pos()) else { return };
+        let p = (screen - origin).to_pos2();
+        let id = match self.doc.view.hit(ctx, &self.doc.nb, p) {
+            Hit::Graphic(id) => id,
+            _ => return,
+        };
+        let Some(i) = self.doc.nb.index_of(id) else { return };
+        let Some(path) = self.doc.view.graphic_path(&self.doc.nb, i) else { return };
+        let Some(rect) = self.doc.view.graphic_rect(&self.doc.nb, i) else { return };
+        let Some(info) = self.plots.get(&path, ctx.input(|i| i.time)) else { return };
+        let rect = rect.translate(origin.to_vec2());
+        crate::plothover::paint(ctx, painter, &info, rect, screen, &self.doc.view.palette);
     }
 
     /// `x` (canvas coordinates) is over the content of cell `id`, not in its margins or label.
@@ -1398,7 +1435,7 @@ impl App {
                 (_, Some(Hit::Large(..))) => egui::CursorIcon::PointingHand,
                 (Some(Drag::Text), _) => egui::CursorIcon::Text,
                 (Some(Drag::Cells(_)), _) if self.doc.view.drop_gap.is_some() => egui::CursorIcon::Grabbing,
-                (_, Some(Hit::Text(id, _))) if self.over_content(id, p.x) => egui::CursorIcon::Text,
+                (_, Some(Hit::Text(id, _) | Hit::Boxes(id))) if self.over_content(id, p.x) => egui::CursorIcon::Text,
                 (_, Some(Hit::Plus(_))) => egui::CursorIcon::PointingHand,
                 _ => egui::CursorIcon::Default,
             };
@@ -1413,6 +1450,14 @@ impl App {
                 Hit::Graphic(id) => {
                     self.run(ctx, Command::ClickText(id, 0, false));
                     self.doc.view.graphic = Some(id);
+                }
+                Hit::Boxes(id) => {
+                    let selected = matches!(self.doc.nb.box_editor(), Some((b, e)) if b == id && e.selection().is_some());
+                    if !selected {
+                        if let Some((path, k)) = self.doc.view.box_hit(ctx, &self.doc.nb, id, p) {
+                            self.run(ctx, Command::ClickBox(id, path, k, false));
+                        }
+                    }
                 }
                 Hit::Text(id, pos) => {
                     let inside = matches!(self.doc.nb.selection(), Selection::Caret { cell, anchor, pos: q } if *cell == id && anchor != q);
@@ -1481,6 +1526,16 @@ impl App {
                     self.doc.view.large_action(id, a);
                     self.drag = None;
                 }
+                Hit::Boxes(id) => {
+                    if let Some((path, k)) = self.doc.view.box_hit(ctx, &self.doc.nb, id, p) {
+                        self.run(ctx, Command::ClickBox(id, path, k, mods.shift));
+                        if count >= 2 {
+                            // a double-click selects the enclosing expression (Ctrl+.)
+                            self.run(ctx, Command::ExtendSelection);
+                        }
+                    }
+                    self.drag = Some(Drag::Text);
+                }
             }
         } else if resp.dragged() {
             match self.drag {
@@ -1489,7 +1544,16 @@ impl App {
                     self.doc.view.live_size = Some((id, size));
                 }
                 Some(Drag::Text) => {
-                    if let Hit::Text(id, pos) = self.doc.view.hit(ctx, &self.doc.nb, p) {
+                    let hit = self.doc.view.hit(ctx, &self.doc.nb, p);
+                    if let Hit::Boxes(id) = hit {
+                        if let Some((path, k)) = self.doc.view.box_hit(ctx, &self.doc.nb, id, p) {
+                            let at = matches!(self.doc.nb.box_editor(), Some((b, e)) if b == id && e.caret().path == path && e.caret().offset == k);
+                            if !at {
+                                self.run(ctx, Command::ClickBox(id, path, k, true));
+                            }
+                        }
+                    }
+                    if let Hit::Text(id, pos) = hit {
                         if !matches!(self.doc.nb.selection(), Selection::Caret { cell, pos: q, .. } if *cell == id && *q == pos)
                         {
                             self.run(ctx, Command::ClickText(id, pos, true));
@@ -1691,6 +1755,10 @@ impl App {
                 self.menu_item(ui, "Clear", Command::Delete, &mut fire);
                 ui.separator();
                 self.menu_item(ui, "Select all", Command::SelectAll, &mut fire);
+                ui.separator();
+                if check_item(ui, &mut self.settings.auto_close, "Close brackets automatically") {
+                    self.settings.save();
+                }
             });
             ui.menu_button("Insert", |ui| {
                 self.menu_item(ui, "Input from above", Command::InputFromAbove, &mut fire);
@@ -1702,6 +1770,17 @@ impl App {
             });
             ui.menu_button("Format", |ui| {
                 self.style_menu(ui, &mut fire);
+                ui.menu_button("Output form", |ui| {
+                    if check_item(ui, &mut self.settings.typeset_output, "Typeset output by default") {
+                        self.settings.save();
+                        self.doc.view.typeset_outputs = self.settings.typeset_output;
+                        self.doc.view.clear();
+                    }
+                    ui.separator();
+                    self.menu_item(ui, "Typeset", Command::ToTypeset, &mut fire);
+                    self.menu_item(ui, "Linear text", Command::ToLinear, &mut fire);
+                    self.menu_item(ui, "Traditional", Command::OutputForm(mc_nbmodel::OutputForm::Traditional), &mut fire);
+                });
                 ui.menu_button("Theme", |ui| {
                     for (c, name) in [
                         (ThemeChoice::System, "System"),
@@ -2319,6 +2398,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let start = std::time::Instant::now();
         self.images.borrow_mut().begin_frame();
+        self.glyphs.borrow_mut().begin_frame();
         // the second frame: the first one reached the screen, the graphics interface works
         self.frames_shown += 1;
         if self.frames_shown == 2 {
@@ -2403,6 +2483,16 @@ impl eframe::App for App {
         self.completion_popup(&ctx);
         self.plus_popup(&ctx);
         self.dialogs(&ctx);
+        // the notebook takes the keyboard itself: egui's focus navigation must not leave a button focused (Tab,
+        // the next-placeholder and indent key, moves egui's focus; a focused "+" tab button then took Enter and
+        // opened tabs), so focus is kept only by the dialogs and the find bar
+        if !self.modal_open() && self.find.is_none() {
+            ctx.memory_mut(|m| {
+                if let Some(f) = m.focused() {
+                    m.surrender_focus(f);
+                }
+            });
+        }
         self.update_title(&ctx);
         if (0..self.tabs.len()).any(|i| self.tab_busy(i)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(250));

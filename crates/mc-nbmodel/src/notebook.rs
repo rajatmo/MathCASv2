@@ -83,6 +83,14 @@ pub struct Notebook {
     pub(crate) gap_style: Option<Style>,
     /// the horizontal position Up and Down keep
     pub(crate) goal_x: Option<f32>,
+    /// typing an opening bracket or quote inserts its closer too (the window's setting; off for key scripts unless
+    /// they ask)
+    pub(crate) auto_close: bool,
+    /// closers inserted automatically and not yet typed over, as (cell, position): typing the closer there steps
+    /// over it, Backspace after its opener deletes both. Kept while typing and deleting, cleared by anything else.
+    pub(crate) closers: Vec<(CellId, usize)>,
+    /// the editor of the typeset input cell with the caret (design 4, NB5.3)
+    pub(crate) boxed: Option<crate::boxed::BoxEdit>,
     pub(crate) undo: Undo,
     pub(crate) eval: EvalState,
     next_id: u64,
@@ -98,6 +106,14 @@ impl Default for Notebook {
 }
 
 impl Notebook {
+    /// Turn automatic closing of brackets and quotes on or off (a setting of the window).
+    pub fn set_auto_close(&mut self, on: bool) {
+        self.auto_close = on;
+        if !on {
+            self.closers.clear();
+        }
+    }
+
     /// An empty notebook.
     pub fn new() -> Notebook {
         Notebook {
@@ -108,6 +124,9 @@ impl Notebook {
             sel: Selection::Gap(0),
             gap_style: None,
             goal_x: None,
+            auto_close: false,
+            closers: vec![],
+            boxed: None,
             undo: Undo::default(),
             eval: EvalState::default(),
             next_id: 1,

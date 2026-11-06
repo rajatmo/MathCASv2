@@ -244,6 +244,7 @@ pub fn store_images(nb: &mut Notebook, from: Option<&Path>, to: &Path) -> io::Re
                             std::fs::write(&target, &bytes)?;
                             report.copied += 1;
                         }
+                        copy_siblings(&source, &target, &mut report)?;
                         let rel = format!("{folder}/{name}");
                         done.insert(path.clone(), rel.clone());
                         rel
@@ -262,6 +263,25 @@ pub fn store_images(nb: &mut Notebook, from: Option<&Path>, to: &Path) -> io::Re
     Ok(report)
 }
 
+/// The extensions of files that travel with a picture of the same stem: a plot's description for hovering
+/// (`plot-3.json`) and its vector drawing (`plot-3.svg`).
+pub const SIBLINGS: [&str; 2] = ["json", "svg"];
+
+/// Copy the siblings of picture `source` (same stem, an extension of [`SIBLINGS`] other than its own) next to
+/// `target` under `target`'s stem, unchanged.
+fn copy_siblings(source: &Path, target: &Path, report: &mut Sidecar) -> io::Result<()> {
+    let own = source.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    for ext in SIBLINGS.iter().filter(|e| **e != own) {
+        let Ok(bytes) = std::fs::read(source.with_extension(ext)) else { continue };
+        let to = target.with_extension(ext);
+        if std::fs::read(&to).map_or(true, |old| old != bytes) {
+            std::fs::write(&to, &bytes)?;
+            report.copied += 1;
+        }
+    }
+    Ok(())
+}
+
 /// After the notebook text is written: delete the files in `to`'s sidecar folder that no image value of `nb` names
 /// (and the folder when it is left empty). Gives the number of files deleted.
 pub fn remove_unreferenced(nb: &Notebook, to: &Path) -> io::Result<usize> {
@@ -274,7 +294,13 @@ pub fn remove_unreferenced(nb: &Notebook, to: &Path) -> io::Result<usize> {
         .flat_map(|c| c.output_lines())
         .filter(|l| l.kind == OutputKind::Value)
         .filter_map(|l| image_path(&l.text))
-        .map(|p| normal(&resolve(&p, base)))
+        .map(|p| resolve(&p, base))
+        .flat_map(|p| {
+            // a picture keeps its siblings
+            let siblings: Vec<PathBuf> = SIBLINGS.iter().map(|e| p.with_extension(e)).collect();
+            std::iter::once(p).chain(siblings)
+        })
+        .map(|p| normal(&p))
         .collect();
     let mut removed = 0;
     let mut left = 0;

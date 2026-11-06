@@ -269,6 +269,17 @@ impl Editor {
         } else if self.caret.path == *path && (self.caret.offset > i || (shift_at && self.caret.offset == i)) {
             self.caret.offset += 1;
         }
+        // a pending alias that starts at or after the `*` keeps its name after it (`Esc` after a box, then
+        // letters: the name must not take the `*` in)
+        if let Some((ap, start)) = &mut self.alias {
+            if ap.len() > d && ap[..d] == path[..] {
+                if ap[d].item >= i {
+                    ap[d].item += 1;
+                }
+            } else if *ap == *path && *start >= i {
+                *start += 1;
+            }
+        }
     }
 
     /// Types a character (`□` inserts a placeholder).

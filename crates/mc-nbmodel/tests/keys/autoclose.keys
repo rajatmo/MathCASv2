@@ -1,0 +1,201 @@
+Automatic closing of brackets and quotes (decision NB5.1). Scripts start with `AutoClose`: the window turns it on
+by its setting, the other scripts type without it.
+
+=== an opener inserts its closer with the caret between
+--- before
+#% cell
+▮
+--- keys
+AutoClose "f("
+--- after
+#% cell
+f(▮)
+
+=== every bracket kind pairs
+--- before
+#% cell
+▮
+--- keys
+AutoClose "[{("
+--- after
+#% cell
+[{(▮)}]
+
+=== typing the closer steps over the automatic one
+--- before
+#% cell
+▮
+--- keys
+AutoClose "f(x)"
+--- after
+#% cell
+f(x)▮
+
+=== nested pairs are stepped over in turn
+--- before
+#% cell
+▮
+--- keys
+AutoClose "g([1, 2])+1"
+--- after
+#% cell
+g([1, 2])+1▮
+
+=== a closer that was not inserted automatically is typed
+--- before
+#% cell
+a▮)
+--- keys
+AutoClose ")"
+--- after
+#% cell
+a)▮)
+
+=== Backspace after an opener deletes its untouched closer too
+--- before
+#% cell
+x▮
+--- keys
+AutoClose "(" Backspace
+--- after
+#% cell
+x▮
+
+=== after typing over the closer Backspace deletes one character
+--- before
+#% cell
+x▮
+--- keys
+AutoClose "(a)" Backspace
+--- after
+#% cell
+x(a▮
+
+=== an opener before a name does not pair
+--- before
+#% cell
+▮x
+--- keys
+AutoClose "("
+--- after
+#% cell
+(▮x
+
+=== an opener with a selection wraps it and keeps it selected
+--- before
+#% cell
+⟦a+b⟧*c
+--- keys
+AutoClose "("
+--- after
+#% cell
+(⟦a+b⟧)*c
+
+=== a quote pairs before the end, a space or a closer
+--- before
+#% cell
+f(▮)
+--- keys
+AutoClose "\"" "ab" "\""
+--- after
+#% cell
+f("ab"▮)
+
+=== a quote before a name does not pair
+--- before
+#% cell
+▮x
+--- keys
+AutoClose "\""
+--- after
+#% cell
+"▮x
+
+=== a quote with a selection wraps it
+--- before
+#% cell
+⟦hi⟧
+--- keys
+AutoClose "\""
+--- after
+#% cell
+"⟦hi⟧"
+
+=== no brackets are paired inside a string
+--- before
+#% cell
+"a ▮"
+--- keys
+AutoClose "("
+--- after
+#% cell
+"a (▮"
+
+=== no brackets are paired inside a comment
+--- before
+#% cell
+x # see ▮
+--- keys
+AutoClose "["
+--- after
+#% cell
+x # see [▮
+
+=== a prime is not paired
+--- before
+#% cell
+▮
+--- keys
+AutoClose "f'"
+--- after
+#% cell
+f'▮
+
+=== undo removes the pair in one step
+--- before
+#% cell
+x▮
+--- keys
+AutoClose "(" Ctrl+Z
+--- after
+#% cell
+x▮
+
+=== moving the caret forgets the automatic closers
+--- before
+#% cell
+▮
+--- keys
+AutoClose "(" Left Right ")"
+--- after
+#% cell
+()▮)
+
+=== an opener at the insertion point makes a cell with the pair
+--- before
+‖
+--- keys
+AutoClose "("
+--- after
+#% cell
+(▮)
+
+=== prose cells pair brackets but keep their smart quotes
+--- before
+#% text
+# ▮
+--- keys
+AutoClose "(\"a"
+--- after
+#% text
+# (“a▮)
+
+=== without the setting nothing is paired
+--- before
+#% cell
+▮
+--- keys
+"f("
+--- after
+#% cell
+f(▮

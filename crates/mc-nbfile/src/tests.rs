@@ -362,3 +362,31 @@ fn sidecar_round_trip_save_as_and_cleanup() {
     assert!(!dir.exists());
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_plot_picture_takes_its_json_and_svg_siblings_along() {
+    use crate::images::{image_path, image_value, remove_unreferenced, sidecar_dir, store_images};
+    let root = scratch("siblings");
+    let tmp = root.join("session");
+    std::fs::create_dir_all(&tmp).unwrap();
+    let png = tmp.join("plot-7.png");
+    std::fs::write(&png, b"\x89PNG\r\n\x1a\nplot").unwrap();
+    let json = "{\"version\":1, \"note\":\"kept byte for byte\"}";
+    std::fs::write(tmp.join("plot-7.json"), json).unwrap();
+    std::fs::write(tmp.join("plot-7.svg"), b"<svg/>").unwrap();
+    let text = format!("{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= {}\n", image_value(&png.to_string_lossy()));
+    let mut nb = Notebook::parse(&text).unwrap();
+    let to = root.join("nb").join("a.mcn");
+    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+    let r = store_images(&mut nb, None, &to).unwrap();
+    assert_eq!(r.copied, 3);
+    let value = nb.cells.iter().flat_map(|c| c.output_lines()).find_map(|l| image_path(&l.text)).unwrap();
+    let stored = crate::images::resolve(&value, to.parent());
+    assert_eq!(std::fs::read_to_string(stored.with_extension("json")).unwrap(), json);
+    assert_eq!(std::fs::read(stored.with_extension("svg")).unwrap(), b"<svg/>");
+    // the siblings are referenced through their picture: nothing is removed
+    write_atomic(&to, &nb.print()).unwrap();
+    assert_eq!(remove_unreferenced(&nb, &to).unwrap(), 0);
+    assert_eq!(std::fs::read_dir(sidecar_dir(&to)).unwrap().count(), 3);
+    let _ = std::fs::remove_dir_all(&root);
+}

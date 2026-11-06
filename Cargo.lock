@@ -2549,6 +2549,8 @@ version = "0.0.0"
 dependencies = [
  "clipboard-win",
  "eframe",
+ "mc-boxes",
+ "mc-mathfont",
  "mc-nbfile",
  "mc-nbmodel",
  "mc-syntax",

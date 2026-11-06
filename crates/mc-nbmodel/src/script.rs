@@ -3,7 +3,8 @@
 //!
 //! A script file holds tests; each starts with `=== title` and has sections `--- before`, `--- keys`, `--- after`
 //! (expected `.mcn`), and optionally `--- groups` (expected group notation, cells named by their first word) and
-//! `--- kernel old` (a kernel without the protocol additions). Notebook texts mark the selection: `▮` the caret,
+//! `--- kernel old` (a kernel without the protocol additions) and `--- boxes` (the tree of the typeset cell with the
+//! caret in `mc_boxes`' notation, `none` for no such cell). Notebook texts mark the selection: `▮` the caret,
 //! `⟦` `⟧` a text selection (anchor at `⟦`), a line `‖` the insertion point before the next cell, ` ◆` at the end of
 //! a marker line (or of a generated cell's first output line) a selected cell. The header line may be left out.
 //!
@@ -13,7 +14,7 @@
 //! `CopyTo(i)` (drop the selected cells before cell i), `Resize(i,w,h)` / `Resize(i)` (resize the graphic of cell i,
 //! or restore its natural size), `InitYes`, `InitNo`, `InitAlways`, `Clip("text")` (put
 //! text on the clipboard), `Pause` (two seconds pass), `Crash` (the kernel dies), `Quit`, `DeleteAllOutput`,
-//! `EvalNotebook`.
+//! `EvalNotebook`, `AutoClose` (automatic closing of brackets and quotes is on from there).
 use crate::cell::CellId;
 use crate::command::{Bracket, Command, InitAnswer};
 use crate::env::{Clip, FakeEnv};
@@ -44,6 +45,8 @@ pub enum Step {
     Pause,
     /// the kernel dies
     Crash,
+    /// automatic closing of brackets and quotes is on from here (the window's default; off in scripts)
+    AutoClose,
 }
 
 /// Where each file cell's lines are in a printed notebook: (marker line, first body line), 0-based.
@@ -355,6 +358,7 @@ fn step(word: &str) -> Result<Step, String> {
             "InitNo" => Step::Command(Command::InitAnswer(InitAnswer::No)),
             "InitAlways" => Step::Command(Command::InitAnswer(InitAnswer::Always)),
             "Pause" => Step::Pause,
+            "AutoClose" => Step::AutoClose,
             "Crash" => Step::Crash,
             "Quit" => Step::Command(Command::QuitKernel),
             "DeleteAllOutput" => Step::Command(Command::DeleteAllOutput),
@@ -445,6 +449,10 @@ pub fn run_steps(nb: &mut Notebook, steps: &[Step], env: &mut FakeEnv, kernel: &
                 env.time += 2.0;
                 None
             }
+            Step::AutoClose => {
+                nb.set_auto_close(true);
+                None
+            }
             Step::Crash => {
                 kernel.crash();
                 None
@@ -473,6 +481,9 @@ pub struct Script {
     pub groups: Option<String>,
     /// use a kernel without the protocol additions
     pub old_kernel: bool,
+    /// the expected tree of the typeset cell with the caret, in the box notation of `mc_boxes` (`none`: no
+    /// typeset cell has the caret)
+    pub boxes: Option<String>,
 }
 
 /// The tests of a script file.
@@ -490,6 +501,7 @@ pub fn parse_scripts(text: &str) -> Result<Vec<Script>, String> {
             "after" => s.after = Some(content),
             "groups" => s.groups = Some(content.trim().to_string()),
             "kernel old" => s.old_kernel = true,
+            "boxes" => s.boxes = Some(content.trim().to_string()),
             other => return Err(format!("unknown section `{other}`")),
         }
         Ok(())
@@ -523,6 +535,12 @@ pub fn run_script(s: &Script) -> Result<(), String> {
         let got = print_marked(&nb);
         if got != expected {
             return Err(format!("expected:\n{expected}\ngot:\n{got}"));
+        }
+    }
+    if let Some(b) = &s.boxes {
+        let got = nb.box_editor().map_or("none".to_string(), |(_, e)| e.notation());
+        if &got != b {
+            return Err(format!("boxes: expected `{b}`, got `{got}`"));
         }
     }
     if let Some(g) = &s.groups {

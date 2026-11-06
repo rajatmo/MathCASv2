@@ -96,9 +96,10 @@ struct Conv<'a> {
     output: bool,
 }
 
-/// Output spellings of operators (design 08, section 4.5), longest first; `===` and `=!=` stay as they are.
+/// Output spellings of operators (design 08, section 4.5), longest first; `===` and `=!=` stay as they are; a
+/// minus is the minus sign `−`, not the hyphen.
 const OUTPUT_OPS: &[(&str, &str)] =
-    &[("===", "==="), ("=!=", "=!="), ("<->", "↔"), ("->", "→"), (":>", "⧴"), ("<=", "≤"), (">=", "≥"), ("!=", "≠"), ("==", "⩵"), ("=>", "⇒")];
+    &[("===", "==="), ("=!=", "=!="), ("<->", "↔"), ("->", "→"), (":>", "⧴"), ("<=", "≤"), (">=", "≥"), ("!=", "≠"), ("==", "⩵"), ("=>", "⇒"), ("-", "−")];
 
 /// Names drawn as symbols in output.
 fn output_name(n: &str) -> Option<char> {
@@ -505,7 +506,8 @@ mod tests {
         assert_eq!(out("sqrt(x + 1)"), "√(x + 1)");
         assert_eq!(out("x^(1/n)"), "√[n](x)");
         assert_eq!(out("root(x, 3)"), "√[3](x)");
-        assert_eq!(out("x^-1"), "(x^-1)");
+        assert_eq!(out("x^-1"), "(x^−1)");
+        assert_eq!(out("a - b"), "a − b");
         // products: thin space, × between numbers
         assert_eq!(out("2*x"), "2\u{2009}x");
         assert_eq!(out("a*b"), "a\u{2009}b");

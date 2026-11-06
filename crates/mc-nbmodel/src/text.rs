@@ -10,6 +10,37 @@ pub fn next_char(s: &str, pos: usize) -> usize {
     s[pos..].chars().next().map_or(pos, |c| pos + c.len_utf8())
 }
 
+/// Where a position of source text is, for automatic closing of brackets and quotes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Lexical {
+    /// in code
+    Code,
+    /// inside a string literal
+    Str,
+    /// inside a `#` comment
+    Comment,
+}
+
+/// What `pos` of source text `s` is inside: a string (`"..."` with `\` escapes, possibly over lines), a comment
+/// (`#` to the line end) or code. Mirrors the lexer of mc-syntax for these two tokens.
+pub fn lexical_at(s: &str, pos: usize) -> Lexical {
+    let mut state = Lexical::Code;
+    let mut chars = s[..pos.min(s.len())].chars();
+    while let Some(c) = chars.next() {
+        state = match (state, c) {
+            (Lexical::Code, '"') => Lexical::Str,
+            (Lexical::Code, '#') => Lexical::Comment,
+            (Lexical::Str, '\\') => {
+                chars.next();
+                Lexical::Str
+            }
+            (Lexical::Str, '"') | (Lexical::Comment, '\n') => Lexical::Code,
+            (st, _) => st,
+        };
+    }
+    state
+}
+
 /// The class of a character for "natural word" motion: identifiers and numbers are words, runs of operator
 /// characters are words, white space separates.
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -14,6 +14,8 @@ path = "src/main.rs"
 
 [dependencies]
 eframe = "0.37.0"
+mc-boxes = { path = "../mc-boxes" }
+mc-mathfont = { path = "../mc-mathfont" }
 mc-nbfile = { path = "../mc-nbfile" }
 mc-nbmodel = { path = "../mc-nbmodel" }
 mc-syntax = { path = "../mc-syntax" }

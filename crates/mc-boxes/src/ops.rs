@@ -49,7 +49,7 @@ pub fn is_close(c: char) -> bool {
 
 /// Binary operators drawn with thin spaces around them (unless unary).
 pub fn is_binary(c: char) -> bool {
-    matches!(c, '+' | '-' | '±' | '∓' | '×' | '·' | '∧' | '∨' | '∪' | '∩')
+    matches!(c, '+' | '-' | '−' | '±' | '∓' | '×' | '·' | '∧' | '∨' | '∪' | '∩')
 }
 
 /// Relations drawn with thin spaces around them.

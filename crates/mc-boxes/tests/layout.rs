@@ -148,3 +148,45 @@ fn outputs_typeset_and_lay_out() {
     let display = layout(&row, &MonoMetrics, &LayoutOptions::output(10.0, None));
     assert!(display.height > inline.height);
 }
+
+/// Typeset outputs (design 4.5, M5): one printed value per row of the table, laid out in display style at a width
+/// that makes the long sum wrap. Re-bless with `MC_BOXES_BLESS=1`.
+const OUTPUTS: &[&str] = &[
+    "11/15",
+    "(x + 1)^5/(x - 1)^2",
+    "sqrt(2)*sqrt(x) + root(x, 3)",
+    "2*x*y^2 - 3*x",
+    "subscript(a, n)^2 + overscript(x, \"^\")",
+    "sum(1/k^2, [k, 1, n])",
+    "product(f(k), [k, 1, n])",
+    "integrate(e^(-x^2), [x, 0, inf])",
+    "integrate(f(x), x)",
+    "limit(sin(x)/x, x -> 0)",
+    "d(f(x), x)",
+    "[derivative(1)(f)(x), derivative(2)(f)(x), derivative(5)(f)(x)]",
+    "[x -> pi/2, y != im, z <= inf]",
+    "\"text\"",
+    "[[1, 2], [3, 4]]",
+    "x^12 + 12*x^11*y + 66*x^10*y^2 + 220*x^9*y^3 + 495*x^8*y^4 + 792*x^7*y^5 + 924*x^6*y^6",
+];
+
+#[test]
+fn output_snapshots() {
+    let mut all = String::new();
+    for printed in OUTPUTS {
+        let t = typeset_output(printed);
+        all.push_str(&format!("== {printed:?}\n"));
+        all.push_str(&layout(&t.row, &MonoMetrics, &LayoutOptions::output(10.0, Some(240.0))).snapshot());
+    }
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/snapshots/output.txt");
+    if std::env::var("MC_BOXES_BLESS").is_ok_and(|v| v == "1") {
+        std::fs::write(&path, &all).unwrap();
+        return;
+    }
+    let expected = std::fs::read_to_string(&path).unwrap_or_default().replace("\r\n", "\n");
+    if expected != all {
+        let (a, b): (Vec<&str>, Vec<&str>) = (expected.lines().collect(), all.lines().collect());
+        let k = a.iter().zip(&b).position(|(x, y)| x != y).unwrap_or(a.len().min(b.len()));
+        panic!("output snapshot differs at line {}:\n expected: {:?}\n actual:   {:?}", k + 1, a.get(k), b.get(k));
+    }
+}

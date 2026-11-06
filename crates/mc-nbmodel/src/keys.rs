@@ -1,6 +1,8 @@
 //! The key table (design 3.1): one list of (chord, context, command) used by the window, the key scripts and the
 //! generated keyboard help. `Alt` is the command modifier for styles and evaluation control.
+use crate::cell::OutputForm;
 use crate::command::{AppAction, Command, Motion};
+use mc_boxes::Structure;
 use crate::style::Style;
 use std::fmt;
 
@@ -254,6 +256,7 @@ pub fn table() -> Vec<Binding> {
         ("Shift+Tab", Text, C::Outdent),
         ("Alt+/", Text, C::ToggleComment),
         ("Esc", Text, C::Alias),
+        ("Esc", Gap, C::Alias),
         ("Ctrl+.", Any, C::ExtendSelection),
         ("Ctrl+Keypad .", Any, C::ExtendSelection),
         ("Ctrl+Shift+B", Text, C::CheckBalance),
@@ -293,6 +296,26 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+}", Any, C::CloseAll),
         ("Ctrl+8", Any, C::ToggleInitialization),
         ("Ctrl+Shift+E", Any, C::ShowExpression),
+        // two-dimensional input (design 4.2, NB5.3); with a caret in a cell Ctrl+2, Ctrl+5, Ctrl+6 and Ctrl+7 are
+        // the reference's typesetting keys, elsewhere they switch tabs
+        ("Ctrl+/", Text, C::Structure(Structure::Fraction)),
+        ("Ctrl+6", Text, C::Structure(Structure::Superscript)),
+        ("Ctrl+^", Text, C::Structure(Structure::Superscript)),
+        ("Ctrl+-", Text, C::Structure(Structure::Subscript)),
+        ("Ctrl+_", Text, C::Structure(Structure::Subscript)),
+        ("Ctrl+2", Text, C::Structure(Structure::Radical)),
+        ("Ctrl+@", Text, C::Structure(Structure::Radical)),
+        ("Ctrl+7", Text, C::Structure(Structure::Overscript)),
+        ("Ctrl+&", Text, C::Structure(Structure::Overscript)),
+        ("Ctrl+Shift+,", Text, C::Structure(Structure::Underscript)),
+        ("Ctrl+Enter", Text, C::Structure(Structure::GridRow)),
+        ("Ctrl+,", Text, C::Structure(Structure::GridColumn)),
+        ("Ctrl+5", Text, C::SwitchScript),
+        ("Ctrl+%", Text, C::SwitchScript),
+        ("Ctrl+Space", Text, C::ExitStructure),
+        ("Ctrl+Shift+N", Any, C::ToTypeset),
+        ("Ctrl+Shift+I", Any, C::ToLinear),
+        ("Ctrl+Shift+Alt+N", Any, C::OutputForm(OutputForm::Traditional)),
         // the window
         ("Ctrl+N", Any, C::App(AppAction::New)),
         ("Ctrl+O", Any, C::App(AppAction::Open)),
@@ -332,18 +355,6 @@ pub fn table() -> Vec<Binding> {
         "Alt+Left",
         "Alt+Right",
         "F7",
-        // the typesetting keys of two-dimensional input (design 4.2), until the box editor exists
-        "Ctrl+/",
-        "Ctrl+^",
-        "Ctrl+-",
-        "Ctrl+_",
-        "Ctrl+@",
-        "Ctrl+&",
-        "Ctrl+Shift+,",
-        "Ctrl+%",
-        "Ctrl+Space",
-        "Ctrl+Enter",
-        "Ctrl+,",
     ] {
         t.push((k, Any, C::Nop));
     }

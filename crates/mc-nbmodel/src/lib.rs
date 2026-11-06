@@ -9,6 +9,7 @@
 //! - [`script`]: the key-script runner with [`FakeEnv`] and [`FakeKernel`].
 //!
 //! Decisions of this package are numbered NB-core.1, NB-core.2, ... where they are applied.
+mod boxed;
 mod cell;
 mod command;
 mod edit;
@@ -25,7 +26,8 @@ mod style;
 pub mod tabs;
 pub mod text;
 
-pub use cell::{Cell, CellId, EvalMark, Props};
+pub use boxed::is_boxed;
+pub use cell::{Cell, CellId, EvalMark, OutputForm, Props};
 pub use command::{AppAction, Bracket, Command, Effects, InitAnswer, Motion};
 pub use edit::{ALIAS_MARK, INDENT};
 pub use env::{Clip, Env, FakeEnv};

@@ -64,3 +64,18 @@ commands (M6) are bound to nothing.
 - `printed`: `wrap(text, cols)` (penalty line breaking of linear output, design 4.8), `wrapped` (same-length text with
   line ends), `sample(text, budget)` (large-output samples with `«n»`, design 4.9), `is_large`, `LARGE_OUTPUT`
   (100,000 characters) and `SAMPLE` (2,000).
+
+## Round 10 (package nb-m5)
+
+- **Automatic closing** (NB5.1, `auto_close`, off unless the window turns it on; key-script step `AutoClose`):
+  `( [ {` pair (not in strings or comments, not before a letter, digit or `_`), `"` pairs in code cells before white
+  space, a closer, `,`, `;` or the end; typed closers step over automatic ones; Backspace between an untouched pair
+  deletes both; an opener with a selection wraps it. 20 scripts in `tests/keys/autoclose.keys`.
+- **Two-dimensional input** (`boxed.rs`, NB5.3): a typeset Input cell is edited through `mc_boxes::Editor` while it
+  has the caret; each edit writes the canonical text back (undo, save, evaluation see text). Structure keys and
+  template aliases make a plain Input cell typeset; `Ctrl+Shift+N`/`Ctrl+Shift+I` convert. Commands `Structure`,
+  `ExitStructure`, `SwitchScript`, `ToTypeset`, `ToLinear`, `ClickBox`; `Env::box_line`; script section `--- boxes`.
+  24 scripts in `tests/keys/typeset.keys`.
+- **Output forms** (NB5.5): `OutputForm`, `Cell::output_form()` (output block attribute `form=`), command
+  `OutputForm(f)`; `Env::atomic` makes character motions jump across a typeset output and double/triple clicks
+  select it whole.

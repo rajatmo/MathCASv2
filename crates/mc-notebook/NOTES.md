@@ -141,3 +141,26 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   `MATHCAS_DOCS` or next to the executable; a dialog says so when it is missing.
 - Self-test steps added: `hit <x> <y>` (what is at a point), `images` (cache size). `tools/nb-storm.ps1` copies a
   notebook's sidecar folder with it.
+
+## Typeset output and input, plot coordinates, closing brackets (round 10, package nb-m5)
+
+- **Painter** (`typeset.rs`, NB5.4): box layouts from `mc_boxes` are measured and drawn entirely with the bundled
+  math font (letters and digits too; characters it lacks fall back to the cell's text font through egui). Glyphs are
+  rasterised at device pixels with four sub-pixel phases into one atlas texture of our own (1024², grows once to
+  2048², cleared and refilled when full), uploaded once per glyph; each frame the visible glyphs and rules of a layout
+  become one mesh.
+- **Typeset output** (M5, NB5.5/NB5.6): Output cells show `mc_boxes::typeset_output(printed)` in display style at
+  the cell width with the layout's own line breaking; the setting "Typeset output by default" (Format > Output form)
+  and per output `form=linear|typeset|traditional` (`Ctrl+Shift+N`, `Ctrl+Shift+I`, `Ctrl+Shift+Alt+N`). A typeset
+  output is one unit for the caret (before or after it; a double-click or a drag selects all of it; copying copies
+  the printed text). Failures, pictures, outputs over 100,000 characters (`TYPESET_LIMIT`) and large-output samples
+  stay linear. Outputs over 3,000 characters are typeset on a worker thread (linear text, or the layout at the old
+  width, shows meanwhile); off-screen height refinement stops after 4 ms a frame.
+- **Typeset input** (NB5.3): see mc-nbmodel; the view lays out typeset Input cells with `LayoutOptions::input`,
+  hit-tests clicks into box caret positions (`Hit::Boxes`, `View::box_hit`), answers `Env::box_line` (Up/Down across
+  wrapped lines) and draws the editor's caret, selection and alias marker. No completion in typeset cells.
+- **Plot coordinates** (`plothover.rs`, NB5.2): a picture with a `plot-N.json` description shows the nearest point
+  (12 pt snap, 4 pt vertex snap on lines) with a marker, guide lines and a tooltip, else the pointer's data
+  coordinates (linear, log, signed_log axes).
+- egui's focus navigation is cleared every frame unless a dialog or the find bar is open (Tab had left the new-tab
+  button focused, which then took Enter).

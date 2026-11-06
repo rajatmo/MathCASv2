@@ -1,0 +1,251 @@
+Two-dimensional input (design 4.2 to 4.6, decision NB5.3): the typesetting keys in Input cells. A plain Input cell
+becomes typeset at its first structure key; its text is canonical box text (4.4) and `--- boxes` gives the tree with
+the caret (`▮`) or selection in the box notation.
+
+=== Ctrl+/ makes a fraction of the operand before the caret (a `*` joins a box and a name, NBB.14)
+--- before
+#% cell
+1+x▮
+--- keys
+Ctrl+/ "Q" Ctrl+Space "Z"
+--- after
+#% cell typeset
+1+((x)/(Q))*Z▮
+--- boxes
+1+(x/Q)*Z▮
+
+=== Ctrl+/ on a selection makes it the numerator
+--- before
+#% cell
+⟦1+x⟧
+--- keys
+Ctrl+/ "2"
+--- boxes
+(1+x/2▮)
+
+=== Ctrl+6 and Ctrl+^ make a superscript
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+6 "2" Ctrl+Space "+y" Ctrl+^ "n"
+--- after
+#% cell typeset
+((x)^(2))+((y)^(n))▮
+--- boxes
+(x^2)+(y^n▮)
+
+=== Ctrl+- and Ctrl+_ make a subscript
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+- "i" Ctrl+Space "+b" Ctrl+_ "j"
+--- boxes
+(a_i)+(b_j▮)
+
+=== Ctrl+2 and Ctrl+@ insert a square root
+--- before
+#% cell
+1+▮
+--- keys
+Ctrl+2 "x" Ctrl+Space "+" Ctrl+@ "y"
+--- after
+#% cell typeset
+1+((sqrt(x)))+((sqrt(y)))▮
+--- boxes
+1+√(x)+√(y▮)
+
+=== Ctrl+5 switches between the scripts
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+^ "2" Ctrl+5 "i"
+--- boxes
+((x_i▮)^2)
+
+=== Ctrl+% switches too
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+_ "k" Ctrl+% "3"
+--- boxes
+((x_k)^3▮)
+
+=== Tab goes to the next placeholder, Shift+Tab to the previous
+--- before
+#% cell
+▮
+--- keys
+Ctrl+/ Tab "B" Shift+Tab
+--- boxes
+(⟦□⟧/B)
+
+=== Ctrl+, makes a grid column, Ctrl+Enter in a grid a row (the caret stays in its column)
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+, "b" Ctrl+Enter "c"
+--- after
+#% cell typeset
+(([[a, b], [□, c]]))▮
+
+=== Esc name Esc inserts a Greek letter
+--- before
+#% cell
+((x)^(2))▮
+--- keys
+Ctrl+/ Esc "alpha" Esc
+--- boxes
+((x^2)/α▮)
+
+=== Esc int Esc is the integral sign, Esc intt Esc in a plain cell makes it typeset with an integral template
+--- before
+#% cell
+▮
+--- keys
+Esc "int" Esc "+" Esc "intt" Esc "f"
+--- after
+#% cell typeset
+∫+((integrate(f, □)))▮
+--- boxes
+∫+∫[□](f▮)
+
+=== Esc sumt Esc after a box inserts a sum template
+--- before
+#% cell
+1+▮
+--- keys
+Ctrl+2 "x" Ctrl+Space Esc "sumt" Esc
+--- boxes
+1+√(x)*∑[⟦□⟧=□..□](□)
+
+=== Up moves from the denominator to the numerator
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Up "z"
+--- boxes
+(xz▮/a)
+
+=== Left past the start goes to the insertion point before the cell
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Left Left Left Left Left
+--- after
+‖
+#% cell typeset
+((x)/(a))
+--- boxes
+none
+
+=== Right past the end goes to the insertion point after the cell
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+^ "2" Right Right
+--- after
+#% cell typeset
+((x)^(2))
+‖
+--- boxes
+none
+
+=== Backspace in boxes
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Backspace
+--- boxes
+(x/a▮)
+
+=== undo goes back to the text before the structure
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+Z Ctrl+Z
+--- after
+#% cell
+x▮
+
+=== implicit multiplication stays visible
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+2 "b"
+--- boxes
+a*√(b▮)
+
+=== Ctrl+Shift+N converts linear input to typeset input
+--- before
+#% cell
+x^2 + sqrt(y)/3▮
+--- keys
+Ctrl+Shift+N
+--- after
+#% cell typeset
+((x)^(2)) + ((((sqrt(y))))/(3))▮
+
+=== Ctrl+Shift+I converts typeset input back to linear text
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a+b" Ctrl+Shift+I
+--- after
+#% cell
+x/(a+b)▮
+
+=== Ctrl+Shift+N on input that does not parse beeps and changes nothing
+--- before
+#% cell
+f(▮
+--- keys
+Ctrl+Shift+N
+--- after
+#% cell
+f(▮
+
+=== evaluating a typeset cell sends its canonical text
+--- before
+#% cell
+6▮
+--- keys
+Ctrl+/ "3" Shift+Enter
+--- after
+#% cell label=1 typeset
+((6)/(3))
+#% output n=1
+#= ((6)/(3))
+‖
+
+=== structure keys in a Text cell do nothing
+--- before
+#% text
+# a▮
+--- keys
+Ctrl+/
+--- after
+#% text
+# a▮
+--- boxes
+none
+
+=== copy in boxes copies canonical text, which pastes back as boxes
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+A Ctrl+C Right Ctrl+V
+--- boxes
+(x/y)*(x/y)▮

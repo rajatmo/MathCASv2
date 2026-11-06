@@ -1,7 +1,7 @@
 //! Applying commands (design 3): typing, motion, selection, clipboard, cell operations, styles, grouping and
 //! evaluation requests. Every change goes through the primitives of [`crate::notebook`], so undo, the selection
 //! and the groups stay consistent.
-use crate::cell::{Cell, CellId};
+use crate::cell::{Cell, CellId, OutputForm};
 use crate::command::{Bracket, Command, Effects, Motion};
 use crate::env::{Clip, Env};
 use crate::notebook::{Notebook, Run, Selection};
@@ -23,6 +23,10 @@ impl Notebook {
             self.goal_x = None;
         }
         let modified = self.is_modified();
+        if !matches!(cmd, Command::Insert(_) | Command::Backspace) {
+            self.closers.clear();
+        }
+        self.sync_boxed();
         match cmd {
             Command::Undo => fx.beep = !self.undo(),
             Command::Redo => fx.beep = !self.redo(),
@@ -32,6 +36,7 @@ impl Notebook {
                 self.end_unit(run);
             }
         }
+        self.sync_boxed();
         fx.modified = self.is_modified() && (!modified || self.structure_rev() != before.1 || fx.modified);
         fx.scroll = self.sel != before.0;
         fx
@@ -39,6 +44,9 @@ impl Notebook {
 
     fn dispatch(&mut self, cmd: Command, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
         use Command as C;
+        if let Some(run) = self.box_dispatch(&cmd, env, fx) {
+            return run;
+        }
         match cmd {
             C::Insert(t) => return self.type_text(&t, env, fx),
             C::Enter => return self.enter(env, fx),
@@ -130,14 +138,20 @@ impl Notebook {
             C::ClickText(id, pos, extend) => self.click_text(id, pos, extend),
             C::SelectWord(id, pos) => {
                 if let Some(c) = self.cell(id) {
-                    let (a, b) = text::word_at(&c.text, pos.min(c.text.len()));
+                    // in an output shown as one unit a double-click selects all of it
+                    let (a, b) =
+                        if env.atomic(c) { (0, c.text.len()) } else { text::word_at(&c.text, pos.min(c.text.len())) };
                     self.select(Selection::Caret { cell: id, anchor: a, pos: b });
                 }
             }
             C::SelectLine(id, pos) => {
                 if let Some(c) = self.cell(id) {
                     let pos = pos.min(c.text.len());
-                    let (a, b) = (text::line_start(&c.text, pos), text::line_end(&c.text, pos));
+                    let (a, b) = if env.atomic(c) {
+                        (0, c.text.len())
+                    } else {
+                        (text::line_start(&c.text, pos), text::line_end(&c.text, pos))
+                    };
                     self.select(Selection::Caret { cell: id, anchor: a, pos: b });
                 }
             }
@@ -155,6 +169,18 @@ impl Notebook {
             }
             C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
             C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
+            // without a typeset cell at the caret (handled before): nothing to act on
+            C::Structure(_) | C::ExitStructure | C::SwitchScript => fx.beep = true,
+            C::ToTypeset => {
+                let outputs = self.set_output_form(OutputForm::Typeset);
+                fx.beep = !(self.inputs_to_typeset() | outputs);
+            }
+            C::ToLinear => {
+                let outputs = self.set_output_form(OutputForm::Linear);
+                fx.beep = !(self.inputs_to_linear() | outputs);
+            }
+            C::OutputForm(f) => fx.beep = !self.set_output_form(f),
+            C::ClickBox(id, path, offset, extend) => self.click_box(id, &path, offset, extend),
             C::Nop => {}
             C::App(a) => fx.app = Some(a),
         }
@@ -172,6 +198,22 @@ impl Notebook {
             None => c.out_extra.remove("size"),
         });
         true
+    }
+
+    /// Show the selected Output cells (with a caret: its cell) in `form` (NB5.5). `false` when no output is
+    /// selected.
+    fn set_output_form(&mut self, form: OutputForm) -> bool {
+        let selected = self.selected_cells();
+        let targets: Vec<CellId> = self
+            .cells
+            .iter()
+            .filter(|c| c.style == Style::Output && c.graphic().is_none() && selected.contains(&c.id))
+            .map(|c| c.id)
+            .collect();
+        for &id in &targets {
+            self.update_cell(id, true, |c| c.out_extra.set("form", Some(form.name().to_string())));
+        }
+        !targets.is_empty()
     }
 
     // ----- typing -----
@@ -236,6 +278,20 @@ impl Notebook {
             Selection::Gap(g) => {
                 let style = self.gap_style();
                 let t = if style.info().font == FontRole::Prose { smart_quotes("", t) } else { t.to_string() };
+                // an opener typed at an insertion point makes a cell holding the pair (NB5.1)
+                let pair = match t.as_str() {
+                    "(" => Some("()"),
+                    "[" => Some("[]"),
+                    "{" => Some("{}"),
+                    "\"" if style.is_code() => Some("\"\""),
+                    _ => None,
+                };
+                if let Some(pair) = pair.filter(|_| self.auto_close) {
+                    let id = self.create_cell(g, style, pair);
+                    self.closers.push((id, 1));
+                    self.select(Selection::Caret { cell: id, anchor: 1, pos: 1 });
+                    return Some(Run::Typing(id, false, env.now()));
+                }
                 let id = self.create_cell(g, style, &t);
                 Some(Run::Typing(id, t.ends_with(char::is_whitespace), env.now()))
             }
@@ -245,14 +301,90 @@ impl Notebook {
                     fx.beep = true;
                     return None;
                 };
+                if self.auto_close {
+                    if let Some(space) = self.auto_close_typed(id, a, b, t) {
+                        return Some(Run::Typing(id, space, env.now()));
+                    }
+                }
                 let c = self.cell(id).expect("target exists");
                 let t = if c.style.info().font == FontRole::Prose && !c.expr_view {
                     smart_quotes(&c.text[..a], t)
                 } else {
                     t.to_string()
                 };
+                self.shift_closers(id, a, b, t.len());
                 self.replace_range(id, a, b, &t);
                 Some(Run::Typing(id, t.ends_with(char::is_whitespace), env.now()))
+            }
+        }
+    }
+
+    /// Automatic closing (decision NB5.1): typing `t` over `a..b` of cell `id` when it is an opening bracket, a
+    /// quote, or a closer that was inserted automatically. `Some(ends with space)` when it was handled here.
+    ///
+    /// - `(`, `[`, `{` insert their closer, the caret between, except inside strings and comments of code and
+    ///   right before a letter, digit or `_` (typing a bracket before existing text is usually meant to wrap it);
+    /// - `"` (code cells only; prose has smart quotes) pairs outside strings and comments when the next character
+    ///   is white space, a closer, `,`, `;` or the end;
+    /// - with a selection an opener (or `"` in code) wraps it and the selection stays on the wrapped text;
+    /// - a typed closer right before a closer inserted automatically steps over it.
+    fn auto_close_typed(&mut self, id: CellId, a: usize, b: usize, t: &str) -> Option<bool> {
+        let mut it = t.chars();
+        let (Some(ch), None) = (it.next(), it.next()) else { return None };
+        let c = self.cell(id)?;
+        let code = c.style.is_code() && !c.expr_view;
+        let s = c.text.clone();
+        let closer = match ch {
+            '(' => Some(')'),
+            '[' => Some(']'),
+            '{' => Some('}'),
+            '"' if code => Some('"'),
+            _ => None,
+        };
+        // step over an automatic closer
+        if a == b && s[a..].starts_with(ch) && self.closers.contains(&(id, a)) {
+            self.closers.retain(|&k| k != (id, a));
+            self.select(Selection::Caret { cell: id, anchor: a + 1, pos: a + 1 });
+            return Some(false);
+        }
+        let close = closer?;
+        if a != b {
+            let mut w = String::with_capacity(b - a + 2);
+            w.push(ch);
+            w.push_str(&s[a..b]);
+            w.push(close);
+            self.shift_closers(id, a, b, w.len());
+            self.replace_range(id, a, b, &w);
+            self.select(Selection::Caret { cell: id, anchor: a + 1, pos: b + 1 });
+            return Some(false);
+        }
+        let place = if code { text::lexical_at(&s, a) } else { text::Lexical::Code };
+        let next = s[a..].chars().next();
+        let pairs = place == text::Lexical::Code
+            && match ch {
+                '"' => next.is_none_or(|n| n.is_whitespace() || ")]},;".contains(n)),
+                _ => next.is_none_or(|n| !(n.is_alphanumeric() || n == '_')),
+            };
+        if !pairs {
+            return None;
+        }
+        self.shift_closers(id, a, b, 2);
+        let mut pair = String::new();
+        pair.push(ch);
+        pair.push(close);
+        self.replace_range(id, a, b, &pair);
+        self.closers.push((id, a + 1));
+        self.select(Selection::Caret { cell: id, anchor: a + 1, pos: a + 1 });
+        Some(false)
+    }
+
+    /// Keep the automatic closers of cell `id` in place when `a..b` is replaced by `len` bytes; closers inside the
+    /// replaced range are forgotten.
+    fn shift_closers(&mut self, id: CellId, a: usize, b: usize, len: usize) {
+        self.closers.retain(|&(c, p)| c != id || p < a || p >= b);
+        for (c, p) in &mut self.closers {
+            if *c == id && *p >= b {
+                *p = *p + len - (b - a);
             }
         }
     }
@@ -335,6 +467,10 @@ impl Notebook {
     /// after it by the alias's characters. An unknown name stays marked (guess 11); templates need typeset input
     /// and stay marked too.
     fn alias(&mut self, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        if let Selection::Gap(_) = self.sel {
+            // Esc at an insertion point starts a cell with the alias mark
+            return self.type_text(&ALIAS_MARK.to_string(), env, fx);
+        }
         let Selection::Caret { cell, anchor, pos } = self.sel else { return None };
         let c = self.cell(cell)?;
         let line_start = text::line_start(&c.text, pos);
@@ -343,6 +479,14 @@ impl Notebook {
             Some(m) if anchor == pos => {
                 let name = c.text[m + ALIAS_MARK.len_utf8()..pos].to_string();
                 match mc_boxes::aliases::lookup(&name) {
+                    Some(mc_boxes::aliases::Alias::Template(t)) => {
+                        if self.template_in_plain(m, pos, t) {
+                            Some(Run::Typing(cell, false, env.now()))
+                        } else {
+                            fx.beep = true;
+                            None
+                        }
+                    }
                     Some(mc_boxes::aliases::Alias::Text(r)) => {
                         self.sel = Selection::Caret { cell, anchor: m, pos };
                         let Some((id, a, b)) = self.edit_target() else {
@@ -460,7 +604,21 @@ impl Notebook {
             Selection::Caret { cell, anchor, pos } => {
                 let c = self.cell(cell)?;
                 let s = &c.text;
-                let (a, b) = if anchor != pos {
+                let pair = |o: char| match o {
+                    '(' => Some(')'),
+                    '[' => Some(']'),
+                    '{' => Some('}'),
+                    '"' => Some('"'),
+                    _ => None,
+                };
+                // Backspace right after an opener whose automatic closer follows deletes both (NB5.1)
+                let both = anchor == pos
+                    && *cmd == Command::Backspace
+                    && self.closers.contains(&(cell, pos))
+                    && s[..pos].chars().next_back().and_then(pair).is_some_and(|cl| s[pos..].starts_with(cl));
+                let (a, b) = if both {
+                    (text::prev_char(s, pos), pos + 1)
+                } else if anchor != pos {
                     (anchor.min(pos), anchor.max(pos))
                 } else {
                     match cmd {
@@ -480,6 +638,11 @@ impl Notebook {
                     fx.beep = true;
                     return None;
                 };
+                if id == cell {
+                    self.shift_closers(id, a, b, 0);
+                } else {
+                    self.closers.clear();
+                }
                 self.replace_range(id, a, b, "");
                 Some(Run::Deleting(id, env.now()))
             }
@@ -600,20 +763,26 @@ impl Notebook {
             let anchor = if extend { anchor } else { p };
             nb.select(Selection::Caret { cell, anchor, pos: p });
         };
+        // an output shown as one unit (typeset) has two caret places: before it and after it
+        let atomic = env.atomic(&c);
         match m {
             Motion::Left | Motion::Right if anchor != pos && !extend => {
                 let p = if m == Motion::Left { anchor.min(pos) } else { anchor.max(pos) };
                 set(self, p);
             }
             Motion::Left | Motion::WordLeft => {
-                if pos > 0 {
+                if pos > 0 && atomic {
+                    set(self, 0);
+                } else if pos > 0 {
                     set(self, if m == Motion::Left { text::prev_char(s, pos) } else { text::word_left(s, pos) });
                 } else if !extend {
                     self.select(Selection::Gap(i));
                 }
             }
             Motion::Right | Motion::WordRight => {
-                if pos < s.len() {
+                if pos < s.len() && atomic {
+                    set(self, s.len());
+                } else if pos < s.len() {
                     set(self, if m == Motion::Right { text::next_char(s, pos) } else { text::word_right(s, pos) });
                 } else if !extend {
                     self.select(Selection::Gap(self.gap_after(i)));
@@ -1095,11 +1264,62 @@ fn smart_quotes(before: &str, typed: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::smart_quotes;
+    use crate::{Command, FakeEnv, Motion, Notebook, OutputForm, Selection};
+
+    const TWO_OUTPUTS: &str = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2\n\n#% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#= sqrt(y)\n";
 
     #[test]
     fn quotes() {
         assert_eq!(smart_quotes("", "\"a\""), "“a”");
         assert_eq!(smart_quotes("it", "'s"), "’s");
         assert_eq!(smart_quotes("(", "'x'"), "‘x’");
+    }
+
+    #[test]
+    fn output_forms_are_set_saved_and_undone() {
+        let mut nb = Notebook::parse(TWO_OUTPUTS).unwrap();
+        let mut env = FakeEnv::default();
+        assert_eq!(nb.cells()[1].output_form(), None);
+        assert_eq!(nb.cells()[3].output_form(), Some(OutputForm::Linear));
+        // the caret in the first output
+        let out = nb.cells()[1].id;
+        nb.apply(Command::ClickText(out, 0, false), &mut env);
+        let fx = nb.apply(Command::ToTypeset, &mut env);
+        assert!(!fx.beep && fx.modified);
+        assert_eq!(nb.cells()[1].output_form(), Some(OutputForm::Typeset));
+        assert!(nb.to_text().contains("#% output n=1 form=typeset\n"), "{}", nb.to_text());
+        nb.apply(Command::Undo, &mut env);
+        assert_eq!(nb.cells()[1].output_form(), None);
+        // a selection of cells changes every output in it
+        nb.apply(Command::SelectAll, &mut env);
+        nb.apply(Command::SelectAll, &mut env);
+        nb.apply(Command::OutputForm(OutputForm::Traditional), &mut env);
+        assert_eq!(nb.cells()[1].output_form(), Some(OutputForm::Traditional));
+        assert_eq!(nb.cells()[3].output_form(), Some(OutputForm::Traditional));
+        // nothing to change: a beep
+        nb.apply(Command::ClickGap(0), &mut env);
+        assert!(nb.apply(Command::OutputForm(OutputForm::Linear), &mut env).beep);
+    }
+
+    #[test]
+    fn an_atomic_output_has_two_caret_places() {
+        let mut nb = Notebook::parse(TWO_OUTPUTS).unwrap();
+        let out = nb.cells()[1].id;
+        let len = nb.cells()[1].text.len();
+        let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
+        nb.apply(Command::ClickText(out, 0, false), &mut env);
+        nb.apply(Command::Move(Motion::Right, false), &mut env);
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: len, pos: len });
+        nb.apply(Command::Move(Motion::Left, true), &mut env);
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: len, pos: 0 });
+        nb.apply(Command::SelectWord(out, 1), &mut env);
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 0, pos: len });
+        nb.apply(Command::Copy, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("x/2"));
+        // other cells move by characters
+        let input = nb.cells()[0].id;
+        nb.apply(Command::ClickText(input, 0, false), &mut env);
+        nb.apply(Command::Move(Motion::Right, false), &mut env);
+        assert_eq!(nb.selection(), &Selection::Caret { cell: input, anchor: 1, pos: 1 });
     }
 }

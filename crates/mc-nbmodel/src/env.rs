@@ -26,6 +26,18 @@ pub trait Env {
     fn set_clipboard(&mut self, clip: Clip);
     /// What the clipboard holds.
     fn clipboard(&mut self) -> Clip;
+    /// In a typeset cell: the caret position on the visual line above (`up`) or below the caret at `offset` of the
+    /// row at `path` (wrapped content), `None` on the first / last line.
+    fn box_line(&mut self, cell: &Cell, path: &[mc_boxes::Step], offset: usize, up: bool) -> Option<(mc_boxes::RowPath, usize)> {
+        let _ = (cell, path, offset, up);
+        None
+    }
+    /// Whether the cell is shown as one unit with two caret places, before and after it (a typeset output, whose
+    /// boxes the caret does not enter): character and word motions jump across it and a double-click selects it.
+    fn atomic(&mut self, cell: &Cell) -> bool {
+        let _ = cell;
+        false
+    }
 }
 
 /// Fixed-width layout (one unit per character, lines only at line ends), an in-memory clipboard and a manual clock.
@@ -35,6 +47,8 @@ pub struct FakeEnv {
     pub clip: Clip,
     /// the time [`Env::now`] answers
     pub time: f64,
+    /// the cells [`Env::atomic`] answers `true` for (typeset outputs)
+    pub atomic: Vec<crate::cell::CellId>,
 }
 
 impl Env for FakeEnv {
@@ -70,5 +84,9 @@ impl Env for FakeEnv {
 
     fn clipboard(&mut self) -> Clip {
         self.clip.clone()
+    }
+
+    fn atomic(&mut self, cell: &Cell) -> bool {
+        self.atomic.contains(&cell.id)
     }
 }
