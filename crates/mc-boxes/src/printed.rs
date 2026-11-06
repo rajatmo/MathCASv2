@@ -7,7 +7,6 @@
 //!
 //! Both walk the syntax tree and copy the source text between the children they convert, so text without a box
 //! form passes through unchanged (spacing, comments, operators as written).
-use crate::canonical::from_text;
 use crate::tree::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -1039,16 +1038,6 @@ fn children(e: &Expr) -> Vec<Child<'_>> {
     v
 }
 
-/// Canonical text or linear text: canonical shapes are read as boxes, everything else converted as linear text.
-/// Used when a typeset cell is converted again (`Ctrl+Shift+N` on a cell that already has boxes).
-pub fn typeset_any(text: &str) -> Result<Row, Vec<Diagnostic>> {
-    let canonical = from_text(text);
-    if canonical.0.iter().any(|i| matches!(i, Item::Box(_))) {
-        return Ok(canonical);
-    }
-    typeset_input(text)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1239,7 +1228,5 @@ mod tests {
         assert_eq!(inp("sum(1/k^2, [k, 1, inf])"), "∑[k=1..inf]((1/(k^2)))");
         assert_eq!(inp("x^(1/2) + sqrt(y)"), "(x^(1/2)) + √(y)");
         assert!(typeset_input("f(").is_err());
-        assert_eq!(notation(&typeset_any("((a)/(b)) + c/d").unwrap()), "(a/b) + c/d");
-        assert_eq!(notation(&typeset_any("c/d").unwrap()), "(c/d)");
     }
 }

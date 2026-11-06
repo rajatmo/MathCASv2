@@ -32,8 +32,17 @@ fn cell_from_file(nb: &mut Notebook, fc: &file::Cell) -> Cell {
     let mut c = nb.new_cell(style, &fc.content());
     let a = &fc.attrs;
     c.label = a.number("label");
-    c.props.typeset = a.has("typeset");
-    c.props.traditional = a.has("traditional");
+    // typeset cells of older notebooks keep their square roots, fractions and powers as boxes and write every other
+    // box as its linear text (NBUI.5); a cell is marked typeset exactly when boxes remain
+    if a.has("typeset") && style.is_code() {
+        let row = mc_boxes::restrict(&mc_boxes::from_text(&c.text));
+        if mc_boxes::has_boxes(&row) {
+            c.text = mc_boxes::to_text(&row);
+            c.props.typeset = true;
+        } else {
+            c.text = mc_boxes::linear_text(&row);
+        }
+    }
     c.closed = if a.has("closed") { Some(0) } else { a.number::<usize>("shown").map(|k| k.saturating_sub(1)) };
     if a.has("noeval") {
         c.props.evaluatable = Some(false);
@@ -83,6 +92,8 @@ fn generated_from_block(nb: &mut Notebook, input: CellId, block: &OutputBlock, o
         c.input_of = Some(input);
         if style == Style::Output {
             c.out_extra = extra.clone();
+            // outputs have one look (NBUI.5): an older notebook's output form is dropped
+            c.out_extra.remove("form");
         }
         out.push(c);
         k = j;

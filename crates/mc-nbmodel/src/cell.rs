@@ -26,35 +26,6 @@ pub enum EvalMark {
     Error,
 }
 
-/// How an Output cell shows its value (design 4.6), set per output by `Ctrl+Shift+N` / `Ctrl+Shift+I` and the
-/// Format menu and kept in the file as the output block's `form=` attribute; without one the window's setting
-/// decides.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum OutputForm {
-    /// the printed text, broken into lines at the cell's width
-    Linear,
-    /// two-dimensional typesetting (fractions, scripts, radicals, big operators)
-    Typeset,
-    /// typeset in traditional style (single-letter names in italics)
-    Traditional,
-}
-
-impl OutputForm {
-    /// The attribute value in the file.
-    pub fn name(self) -> &'static str {
-        match self {
-            OutputForm::Linear => "linear",
-            OutputForm::Typeset => "typeset",
-            OutputForm::Traditional => "traditional",
-        }
-    }
-
-    /// The form an attribute value names.
-    pub fn from_name(name: &str) -> Option<OutputForm> {
-        [OutputForm::Linear, OutputForm::Typeset, OutputForm::Traditional].into_iter().find(|f| f.name() == name)
-    }
-}
-
 /// One cell.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Cell {
@@ -159,14 +130,6 @@ impl Cell {
     /// The display size of a graphic set by resizing it (points at 100 %), `None` for its natural size.
     pub fn graphic_size(&self) -> Option<(u32, u32)> {
         mc_nbfile::images::size_of(&self.out_extra)
-    }
-
-    /// The form an Output cell asks to be shown in (its `form=` attribute), `None` for the window's setting.
-    pub fn output_form(&self) -> Option<OutputForm> {
-        if self.style != Style::Output {
-            return None;
-        }
-        self.out_extra.get("form").and_then(OutputForm::from_name)
     }
 
     /// Whether the cell was made by evaluation.

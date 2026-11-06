@@ -49,12 +49,7 @@ fn command(r: &mut Rng, nb: &Notebook) -> Command {
     let structures = [
         mc_boxes::Structure::Fraction,
         mc_boxes::Structure::Superscript,
-        mc_boxes::Structure::Subscript,
         mc_boxes::Structure::Radical,
-        mc_boxes::Structure::Overscript,
-        mc_boxes::Structure::Underscript,
-        mc_boxes::Structure::GridRow,
-        mc_boxes::Structure::GridColumn,
     ];
     match r.below(34) {
         0..=5 => Command::Insert(TEXTS[r.below(TEXTS.len())].to_string()),
@@ -66,8 +61,8 @@ fn command(r: &mut Rng, nb: &Notebook) -> Command {
         16 => Command::Redo,
         17 => [Command::Copy, Command::Cut, Command::Paste, Command::CopyPlain, Command::CopyLatex][r.below(5)].clone(),
         18 => Command::Structure(structures[r.below(structures.len())]),
-        19 => [Command::ExitStructure, Command::SwitchScript, Command::Tab, Command::Outdent, Command::Alias][r.below(5)].clone(),
-        20 => [Command::ToTypeset, Command::ToLinear, Command::ExtendSelection, Command::CheckBalance, Command::SelectAll][r.below(5)]
+        19 => [Command::ExitStructure, Command::Backspace, Command::Tab, Command::Outdent, Command::Alias][r.below(5)].clone(),
+        20 => [Command::Delete, Command::Backspace, Command::ExtendSelection, Command::CheckBalance, Command::SelectAll][r.below(5)]
             .clone(),
         21 | 22 => match cell(r) {
             Some((id, len)) => Command::ClickText(id, r.below(len + 2), r.below(4) == 0),
@@ -140,7 +135,6 @@ fn random_commands_never_panic() {
         let text = NOTEBOOKS[r.below(NOTEBOOKS.len())];
         let mut nb = Notebook::parse(text).unwrap_or_default();
         nb.set_auto_close(r.below(2) == 0);
-        nb.set_matrices(r.below(2) == 0);
         // outputs shown typeset take the box caret
         let atomic = nb.cells().iter().filter(|c| c.style == Style::Output).map(|c| c.id).collect();
         let mut env = FakeEnv { atomic, ..FakeEnv::default() };

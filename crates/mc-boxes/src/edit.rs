@@ -11,7 +11,7 @@ use crate::aliases::{self, Alias};
 use crate::canonical::{from_text, to_text};
 use crate::linear::linear_text;
 use crate::ops::{is_close, is_open, is_word, pair_around};
-use crate::tree::{write_notation, BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
+use crate::tree::{write_notation, Item, Node, Row, RowPath, Step, MAX_NESTING};
 use std::ops::Range;
 
 /// A caret position: the row and the offset in it (`0..=len`).
@@ -23,25 +23,15 @@ pub struct Caret {
     pub offset: usize,
 }
 
-/// The structure commands (design 08, section 4.2).
+/// The box keys (decision NBUI.5: a cell has exactly these three boxes).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Structure {
-    /// `Ctrl+/`
+    /// `Ctrl+/`: a fraction of the term before the caret (or the selection) over a new denominator
     Fraction,
-    /// `Ctrl+^` (`Ctrl+6`)
+    /// `Ctrl+6` (`Ctrl+^`): a power of the term before the caret
     Superscript,
-    /// `Ctrl+_` (`Ctrl+-`)
-    Subscript,
-    /// `Ctrl+2`
+    /// `Ctrl+2`: a square root of the selection (or an empty one)
     Radical,
-    /// `Ctrl+7`
-    Overscript,
-    /// `Ctrl+Shift+,` (`Ctrl+=`)
-    Underscript,
-    /// `Ctrl+Enter`: a grid with a new row (in a grid: add a row)
-    GridRow,
-    /// `Ctrl+,`: a grid with a new column (in a grid: add a column)
-    GridColumn,
 }
 
 /// What `Esc` did (design 08, section 3.9).
@@ -485,30 +475,11 @@ impl Editor {
             self.set_caret(&parent, last.item);
             return true;
         }
-        let edge = if forward { last.slot + 1 == n } else { last.slot == 0 };
-        if edge {
-            self.set_caret(&parent, last.item + usize::from(forward));
-            return true;
-        }
-        if matches!(**b, Node::Grid { .. } | Node::BigOp { .. }) {
-            // these are not dissolved: step to the neighbouring slot
-            let k = if forward { last.slot + 1 } else { last.slot - 1 };
-            let len = b.slot(k).map_or(0, |r| r.len());
-            let mut p = parent;
-            p.push(Step { item: last.item, slot: k });
-            self.set_caret(&p, if forward { 0 } else { len });
-            return true;
-        }
-        // remove the structure, keeping the slots' contents; the caret at the junction
-        let junction_slot = if forward { last.slot + 1 } else { last.slot };
-        let mut items = Vec::new();
-        let mut caret_at = 0;
-        for (k, s) in b.slots().into_iter().enumerate() {
-            if k == junction_slot {
-                caret_at = items.len();
-            }
-            items.extend(s.0.iter().filter(|i| !matches!(i, Item::Placeholder)).cloned());
-        }
+        // the box goes and its contents stay as linear text (decision NBUI.6): a square root leaves its radicand,
+        // a fraction `num/den`, a power `base^exp` (parentheses where the text needs them); the caret where it was
+        let _ = n;
+        let (items, caret_at) = unwrap_box(b, last.slot, forward);
+        let caret_at = caret_at.min(items.len());
         if let Some(r) = self.root.at_mut(&parent) {
             r.0.splice(last.item..last.item + 1, items);
         }
@@ -778,16 +749,9 @@ impl Editor {
         }
         self.unknown = None;
         self.settle();
-        // in a grid cell the grid commands add a row or a column: with the caret, or with the cell's lone
-        // placeholder selected (as it is right after the previous row or column was added)
-        let grid = matches!(s, Structure::GridRow | Structure::GridColumn);
-        let lone = matches!(self.selection(), Some((p, r)) if p == self.caret.path && r.len() == 1 && self.row().is_placeholder());
-        if grid && (self.selection().is_none() || lone) && self.grow_grid(s) {
-            return true;
-        }
-        let (range, from_selection) = match self.selection() {
-            Some((_, r)) => (Some(r), true),
-            None => (self.operand(s), false),
+        let range = match self.selection() {
+            Some((_, r)) => Some(r),
+            None => self.operand(s),
         };
         self.anchor = None;
         let k = self.caret.offset;
@@ -803,24 +767,7 @@ impl Editor {
         let (node, slot) = match s {
             Structure::Fraction => (Node::Fraction { num: operand, den: ph() }, usize::from(has)),
             Structure::Superscript => (Node::Superscript { base: operand, exp: ph() }, usize::from(has)),
-            Structure::Subscript => {
-                // a subscript on a superscript box wraps the base in parentheses first
-                let base = match operand.0.as_slice() {
-                    [Item::Box(b)] if matches!(**b, Node::Superscript { .. }) && !from_selection => {
-                        let mut v = vec![Item::Char('(')];
-                        v.extend(operand.0);
-                        v.push(Item::Char(')'));
-                        Row(v)
-                    }
-                    _ => operand,
-                };
-                (Node::Subscript { base, index: ph() }, usize::from(has))
-            }
-            Structure::Overscript => (Node::Overscript { base: operand, over: ph() }, usize::from(has)),
-            Structure::Underscript => (Node::Underscript { base: operand, under: ph() }, usize::from(has)),
             Structure::Radical => (Node::Radical { radicand: operand, index: None }, 0),
-            Structure::GridRow => (Node::Grid { rows: vec![vec![operand], vec![ph()]] }, 1),
-            Structure::GridColumn => (Node::Grid { rows: vec![vec![operand, ph()]] }, 1),
         };
         let end = range.map_or(k, |r| r.end);
         let replacing_placeholder = self.row().is_placeholder() && !has;
@@ -844,32 +791,8 @@ impl Editor {
         true
     }
 
-    /// In a grid cell: add a row below or a column to the right, caret in the new cell of the same column/row.
-    fn grow_grid(&mut self, s: Structure) -> bool {
-        let Some(last) = self.caret.path.last().copied() else { return false };
-        let parent: RowPath = self.caret.path[..self.caret.path.len() - 1].to_vec();
-        let Some(Item::Box(b)) = self.root.at_mut(&parent).and_then(|r| r.0.get_mut(last.item)) else { return false };
-        let Node::Grid { rows } = &mut **b else { return false };
-        let w = rows.first().map_or(1, |r| r.len().max(1));
-        let (r, c) = (last.slot / w, last.slot % w);
-        let slot = if s == Structure::GridRow {
-            rows.insert(r + 1, vec![Row::placeholder(); w]);
-            (r + 1) * w + c
-        } else {
-            for row in rows.iter_mut() {
-                row.insert(c + 1, Row::placeholder());
-            }
-            r * (w + 1) + c + 1
-        };
-        let mut p = parent;
-        p.push(Step { item: last.item, slot });
-        self.select(&p, 0..1);
-        true
-    }
-
-    /// The operand before the caret for a structure command: the last primary ending at the caret (a name or
-    /// number token, a bracketed group with the name it calls, a string, a box); for scripts after an operator,
-    /// that operator; for grids with no primary, the row segment back to an open bracket or separator.
+    /// The operand before the caret for a box key: the last primary ending at the caret (a name or number token, a
+    /// bracketed group with the name it calls, a string, a box); for a power after an operator, that operator.
     fn operand(&self, s: Structure) -> Option<Range<usize>> {
         if s == Structure::Radical {
             return None;
@@ -886,119 +809,11 @@ impl Editor {
         if k == 0 {
             return None;
         }
-        match s {
-            Structure::Superscript | Structure::Subscript | Structure::Overscript | Structure::Underscript => match row.0[k - 1] {
-                Item::Char(c) if !(c.is_whitespace() || is_open(c) || matches!(c, ',' | ';')) => Some(k - 1..k),
-                _ => None,
-            },
-            Structure::GridRow | Structure::GridColumn => {
-                let mut depth = 0usize;
-                let mut start = 0;
-                for j in (0..k).rev() {
-                    match row.0[j] {
-                        Item::Char(c) if is_close(c) => depth += 1,
-                        Item::Char(c) if is_open(c) => {
-                            if depth == 0 {
-                                start = j + 1;
-                                break;
-                            }
-                            depth -= 1;
-                        }
-                        Item::Char(',' | ';' | '\n') if depth == 0 => {
-                            start = j + 1;
-                            break;
-                        }
-                        _ => {}
-                    }
-                }
-                (start < k).then_some(start..k)
+        match (s, &row.0[k - 1]) {
+            (Structure::Superscript, Item::Char(c)) if !(c.is_whitespace() || is_open(*c) || matches!(c, ',' | ';')) => {
+                Some(k - 1..k)
             }
             _ => None,
-        }
-    }
-
-    /// `Ctrl+5`: to the other script position: subscript to superscript and back (creating the missing one),
-    /// under to over, a radical's radicand to its index, a big operator's lower limit to its upper. False (does
-    /// nothing) when the innermost structure has no such slot.
-    pub fn switch_script(&mut self) -> bool {
-        self.settle();
-        let Some(last) = self.caret.path.last().copied() else { return false };
-        let parent: RowPath = self.caret.path[..self.caret.path.len() - 1].to_vec();
-        let Some(b) = self.root.box_of(&self.caret.path).cloned() else { return false };
-        let goto = |ed: &mut Editor, path: RowPath| {
-            let len = ed.root.at(&path).map_or(0, |r| r.len());
-            ed.caret = Caret { path, offset: len };
-            ed.anchor = None;
-            true
-        };
-        let with = |p: &[Step], item: usize, slot: usize| {
-            let mut v = p.to_vec();
-            v.push(Step { item, slot });
-            v
-        };
-        let replace = |ed: &mut Editor, n: Node| {
-            if let Some(r) = ed.root.at_mut(&parent) {
-                r.0[last.item] = Item::Box(Box::new(n));
-            }
-        };
-        match (b, last.slot) {
-            (Node::Subscript { .. }, 1) => {
-                // the base of a superscript already: go to its exponent
-                if let (Some(gp), Some(Node::Superscript { base, .. })) = (parent.last(), self.root.box_of(&parent)) {
-                    if base.len() == 1 && gp.slot == 0 {
-                        return goto(self, with(&parent[..parent.len() - 1], gp.item, 1));
-                    }
-                }
-                let sub = self.root.at(&parent).and_then(|r| r.0.get(last.item)).cloned();
-                let Some(sub) = sub else { return false };
-                replace(self, Node::Superscript { base: Row(vec![sub]), exp: Row::placeholder() });
-                goto(self, with(&parent, last.item, 1))
-            }
-            (Node::Superscript { base, exp }, 1) => {
-                if let [Item::Box(inner)] = base.0.as_slice() {
-                    if matches!(**inner, Node::Subscript { .. }) {
-                        let mut p = with(&parent, last.item, 0);
-                        p.push(Step { item: 0, slot: 1 });
-                        return goto(self, p);
-                    }
-                }
-                let sub = Node::Subscript { base, index: Row::placeholder() };
-                replace(self, Node::Superscript { base: Row::boxed(sub), exp });
-                let mut p = with(&parent, last.item, 0);
-                p.push(Step { item: 0, slot: 1 });
-                self.select(&p, 0..1);
-                true
-            }
-            (Node::Underscript { base, under }, 1) => {
-                replace(self, Node::Underoverscript { base, under, over: Row::placeholder() });
-                let p = with(&parent, last.item, 2);
-                self.select(&p, 0..1);
-                true
-            }
-            (Node::Overscript { base, over }, 1) => {
-                replace(self, Node::Underoverscript { base, under: Row::placeholder(), over });
-                let p = with(&parent, last.item, 1);
-                self.select(&p, 0..1);
-                true
-            }
-            (Node::Underoverscript { .. }, k @ (1 | 2)) => goto(self, with(&parent, last.item, 3 - k)),
-            (Node::Radical { radicand, index: None }, 0) => {
-                replace(self, Node::Radical { radicand, index: Some(Row::placeholder()) });
-                let p = with(&parent, last.item, 0);
-                self.select(&p, 0..1);
-                true
-            }
-            (Node::Radical { index: Some(_), .. }, k) => goto(self, with(&parent, last.item, 1 - k.min(1))),
-            (Node::BigOp { op, lower: Some(_), upper: Some(_), .. }, k) => {
-                // slots: integral lower 0, upper 1; others lower 1, upper 2
-                let (lo, hi) = if op == BigOp::Integral { (0, 1) } else { (1, 2) };
-                match k {
-                    _ if k == lo => goto(self, with(&parent, last.item, hi)),
-                    _ if k == hi => goto(self, with(&parent, last.item, lo)),
-                    _ => false,
-                }
-            }
-            _ => false,
         }
     }
 
@@ -1068,7 +883,7 @@ impl Editor {
                 if name.is_empty() {
                     return AliasOutcome::Cancelled;
                 }
-                match aliases::lookup(&name) {
+                match aliases::lookup_cell(&name) {
                     Some(Alias::Text(t)) => {
                         self.select(&m.path, m.start..m.end);
                         self.insert_text(t);
@@ -1283,4 +1098,76 @@ fn find_char(r: &Row, c: char) -> Option<(RowPath, usize)> {
         None
     }
     walk(r, c, &mut Vec::new())
+}
+
+/// The linear items a box leaves when Backspace at the start of slot `slot` (or Delete at its end, `forward`) removes
+/// it, and where the caret goes among them: a radicand alone; `num/den` and `base^exp` with parentheses around a slot
+/// that would not read back as one operand.
+fn unwrap_box(b: &Node, slot: usize, forward: bool) -> (Vec<Item>, usize) {
+    let clean = |r: &Row| -> Vec<Item> { r.0.iter().filter(|i| !matches!(i, Item::Placeholder)).cloned().collect() };
+    let (a, op, z, paren_a, paren_z) = match b {
+        Node::Radical { radicand, index: None } => {
+            let items = clean(radicand);
+            let at = if forward { items.len() } else { 0 };
+            return (items, at);
+        }
+        Node::Fraction { num, den } => (num, '/', den, needs_parens(num, false), needs_parens(den, true)),
+        Node::Superscript { base, exp } => {
+            let exp_power = matches!(exp.0.as_slice(), [Item::Box(x)] if matches!(**x, Node::Superscript { .. }));
+            (base, '^', exp, needs_parens(base, true), needs_parens(exp, !exp_power))
+        }
+        other => {
+            // any other box: its slots' contents one after the other
+            let mut items = Vec::new();
+            let mut at = 0;
+            for (k, s) in other.slots().into_iter().enumerate() {
+                if k == slot + usize::from(forward) {
+                    at = items.len();
+                }
+                items.extend(clean(s));
+            }
+            return (items, at);
+        }
+    };
+    let mut items = Vec::new();
+    let wrap = |items: &mut Vec<Item>, r: &Row, p: bool| {
+        if p {
+            items.push(Item::Char('('));
+        }
+        items.extend(clean(r));
+        if p {
+            items.push(Item::Char(')'));
+        }
+    };
+    wrap(&mut items, a, paren_a);
+    let op_at = items.len();
+    items.push(Item::Char(op));
+    wrap(&mut items, z, paren_z);
+    let at = match (slot, forward) {
+        (0, false) => 0,
+        (_, false) => op_at + 1,
+        (0, true) => op_at,
+        (_, true) => items.len(),
+    };
+    (items, at)
+}
+
+/// Whether a slot's contents need parentheses to stay one operand next to `/` or `^`: more than one item with an
+/// operator, a space or a comma at its top level, or (`strict`, the side where a box would regroup) any box.
+fn needs_parens(r: &Row, strict: bool) -> bool {
+    let items: Vec<&Item> = r.0.iter().filter(|i| !matches!(i, Item::Placeholder)).collect();
+    if items.len() <= 1 {
+        return strict && matches!(items.first(), Some(Item::Box(_)));
+    }
+    let mut depth = 0i32;
+    for i in &items {
+        match i {
+            Item::Char('(' | '[' | '{') => depth += 1,
+            Item::Char(')' | ']' | '}') => depth -= 1,
+            Item::Char(c) if depth == 0 && "+-*/^ ,=<>;:".contains(*c) => return true,
+            Item::Box(_) if strict => return true,
+            _ => {}
+        }
+    }
+    false
 }

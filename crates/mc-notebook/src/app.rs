@@ -342,7 +342,6 @@ impl App {
         if app.settings.bundled_fonts {
             app.apply_fonts(&ctx);
         }
-        app.doc.view.matrices = app.settings.matrices;
         app.tabs.add(None, None);
         // the self-test restores a session only from a folder of its own (MCNB_CONFIG_DIR)
         let own_config = std::env::var_os("MCNB_CONFIG_DIR").is_some();

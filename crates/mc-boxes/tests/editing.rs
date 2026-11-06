@@ -25,17 +25,17 @@ fn run(text: &str, s: Structure) -> String {
 #[test]
 fn structure_table() {
     use Structure::*;
-    let cols = [Fraction, Superscript, Subscript, Radical, GridRow, GridColumn];
-    let table: &[(&str, [&str; 6])] = &[
-        ("1+x", ["1+(x/Q)Z", "1+(x^Q)Z", "1+(x_Q)Z", "1+x*√(Q)Z", "1+grid[[x],[Q]]Z", "1+grid[[x,Q]]Z"]),
-        ("f(x)", ["(f(x)/Q)Z", "(f(x)^Q)Z", "(f(x)_Q)Z", "f(x)*√(Q)Z", "grid[[f(x)],[Q]]Z", "grid[[f(x),Q]]Z"]),
-        ("a*b", ["a*(b/Q)Z", "a*(b^Q)Z", "a*(b_Q)Z", "a*b*√(Q)Z", "a*grid[[b],[Q]]Z", "a*grid[[b,Q]]Z"]),
-        ("(a+b)", ["((a+b)/Q)Z", "((a+b)^Q)Z", "((a+b)_Q)Z", "(a+b)*√(Q)Z", "grid[[(a+b)],[Q]]Z", "grid[[(a+b),Q]]Z"]),
-        ("[a, b]", ["([a, b]/Q)Z", "([a, b]^Q)Z", "([a, b]_Q)Z", "[a, b]*√(Q)Z", "grid[[[a, b]],[Q]]Z", "grid[[[a, b],Q]]Z"]),
-        // a subscript on a superscript box wraps the base in parentheses; a superscript nests
-        ("x^2 (box)", ["((x^2)/Q)Z", "((x^2)^Q)Z", "(((x^2))_Q)Z", "(x^2)*√(Q)Z", "grid[[(x^2)],[Q]]Z", "grid[[(x^2),Q]]Z"]),
-        ("", ["(Q/□)Z", "(Q^□)Z", "(Q_□)Z", "√(Q)Z", "grid[[□],[Q]]Z", "grid[[□,Q]]Z"]),
-        ("x+", ["x+(Q/□)Z", "x*(+^Q)Z", "x*(+_Q)Z", "x+√(Q)Z", "grid[[x+],[Q]]Z", "grid[[x+,Q]]Z"]),
+    let cols = [Fraction, Superscript, Radical];
+    let table: &[(&str, [&str; 3])] = &[
+        ("1+x", ["1+(x/Q)Z", "1+(x^Q)Z", "1+x*√(Q)Z"]),
+        ("f(x)", ["(f(x)/Q)Z", "(f(x)^Q)Z", "f(x)*√(Q)Z"]),
+        ("a*b", ["a*(b/Q)Z", "a*(b^Q)Z", "a*b*√(Q)Z"]),
+        ("(a+b)", ["((a+b)/Q)Z", "((a+b)^Q)Z", "(a+b)*√(Q)Z"]),
+        ("[a, b]", ["([a, b]/Q)Z", "([a, b]^Q)Z", "[a, b]*√(Q)Z"]),
+        // a power nests
+        ("x^2 (box)", ["((x^2)/Q)Z", "((x^2)^Q)Z", "(x^2)*√(Q)Z"]),
+        ("", ["(Q/□)Z", "(Q^□)Z", "√(Q)Z"]),
+        ("x+", ["x+(Q/□)Z", "x*(+^Q)Z", "x+√(Q)Z"]),
     ];
     let mut n = 0;
     for (text, expected) in table {
@@ -44,17 +44,7 @@ fn structure_table() {
             n += 1;
         }
     }
-    assert_eq!(n, 48);
-}
-
-#[test]
-fn over_and_under_take_what_superscript_takes() {
-    for (s, word) in [(Structure::Overscript, "over"), (Structure::Underscript, "under")] {
-        assert_eq!(run("1+x", s), format!("1+(x {word} Q)Z"));
-        assert_eq!(run("f(x)", s), format!("(f(x) {word} Q)Z"));
-        assert_eq!(run("", s), format!("(Q {word} □)Z"));
-        assert_eq!(run("x+", s), format!("x*(+ {word} Q)Z"));
-    }
+    assert_eq!(n, 24);
 }
 
 #[test]
@@ -121,66 +111,6 @@ fn tab_moves_through_placeholders() {
 }
 
 #[test]
-fn ctrl_space_and_ctrl_5() {
-    let mut ed = Editor::from_text("x");
-    assert!(!ed.exit_structure());
-    ed.structure(Structure::Subscript);
-    ed.insert_char('i');
-    // Ctrl+5 from a subscript makes the superscript position
-    assert!(ed.switch_script());
-    ed.insert_char('2');
-    assert_eq!(ed.notation(), "((x_i)^2▮)");
-    // and back to the subscript
-    assert!(ed.switch_script());
-    assert_eq!(ed.notation(), "((x_i▮)^2)");
-    assert_eq!(ed.text(), "((((subscript(x, i))))^(2))");
-    // from a plain superscript, Ctrl+5 creates the subscript
-    let mut ed = Editor::from_text("y");
-    ed.structure(Structure::Superscript);
-    ed.insert_char('n');
-    assert!(ed.switch_script());
-    assert_eq!(ed.notation(), "((y_⟦□⟧)^n)");
-    // with no script slot to switch to, nothing happens
-    let mut ed = Editor::from_text("a");
-    ed.structure(Structure::Fraction);
-    let before = ed.notation();
-    assert!(!ed.switch_script());
-    assert_eq!(ed.notation(), before);
-    // under to over, radical index
-    let mut ed = Editor::from_text("S");
-    ed.structure(Structure::Underscript);
-    ed.insert_char('a');
-    assert!(ed.switch_script());
-    ed.insert_char('b');
-    assert_eq!(ed.notation(), "(S under a over b▮)");
-    let mut ed = Editor::new(Row::new());
-    ed.structure(Structure::Radical);
-    ed.insert_char('x');
-    assert!(ed.switch_script());
-    ed.insert_char('3');
-    assert_eq!(ed.notation(), "√[3▮](x)");
-}
-
-#[test]
-fn grids_grow_inside() {
-    let mut ed = Editor::new(Row::new());
-    ed.structure(Structure::GridRow);
-    ed.insert_char('a');
-    ed.structure(Structure::GridRow);
-    assert_eq!(ed.notation(), "grid[[□],[a],[⟦□⟧]]");
-    ed.insert_char('b');
-    ed.structure(Structure::GridColumn);
-    ed.insert_char('c');
-    assert_eq!(ed.notation(), "grid[[□,□],[a,□],[b,c▮]]");
-    assert_eq!(ed.text(), "(([[□, □], [a, □], [b, c]]))");
-    // up and down move between grid rows
-    assert!(ed.move_up());
-    assert_eq!(ed.notation(), "grid[[□,□],[a,□▮],[b,c]]");
-    assert!(ed.move_down());
-    assert!(!ed.move_down());
-}
-
-#[test]
 fn typing_replaces_placeholders_and_backspace_unwinds() {
     let mut ed = Editor::from_text("x");
     ed.structure(Structure::Superscript);
@@ -193,9 +123,9 @@ fn typing_replaces_placeholders_and_backspace_unwinds() {
     assert!(ed.backspace());
     assert!(ed.backspace());
     assert_eq!(ed.notation(), "(x^▮□)");
-    // at the start of the exponent the structure goes, its contents stay
+    // at the start of the exponent the box goes, its contents stay as linear text
     assert!(ed.backspace());
-    assert_eq!(ed.notation(), "x▮");
+    assert_eq!(ed.notation(), "x^▮");
     // a box whose slots are all empty goes as a whole
     let mut ed = Editor::new(Row::new());
     ed.structure(Structure::Fraction);
@@ -203,16 +133,35 @@ fn typing_replaces_placeholders_and_backspace_unwinds() {
     assert!(ed.backspace());
     assert_eq!(ed.notation(), "▮");
     assert!(!ed.backspace());
-    // dissolving a fraction from its denominator keeps both parts
-    let mut ed = Editor::from_text("((a)/(b))");
+    // Backspace at the start of a denominator unwraps the fraction into `num/den`, the caret after the `/`
+    let mut ed = Editor::from_text("((a+1)/(b))");
     ed.set_caret(&[mc_boxes::Step { item: 0, slot: 1 }], 0);
     assert!(ed.backspace());
-    assert_eq!(ed.notation(), "a▮b");
-    // Delete at the end of a numerator does the same
+    assert_eq!(ed.notation(), "(a+1)/▮b");
+    // at the start of a numerator: the caret where the box began
+    let mut ed = Editor::from_text("2*((a)/(b+c))");
+    ed.set_caret(&[mc_boxes::Step { item: 2, slot: 0 }], 0);
+    assert!(ed.backspace());
+    assert_eq!(ed.notation(), "2*▮a/(b+c)");
+    // Delete at the end of a numerator: the caret before the `/`
     let mut ed = Editor::from_text("((a)/(b))");
     ed.set_caret(&[mc_boxes::Step { item: 0, slot: 0 }], 1);
     assert!(ed.delete());
-    assert_eq!(ed.notation(), "a▮b");
+    assert_eq!(ed.notation(), "a▮/b");
+    // a square root leaves its radicand; a power with a compound base keeps it in parentheses
+    let mut ed = Editor::from_text("((sqrt(x+1)))");
+    ed.set_caret(&[mc_boxes::Step { item: 0, slot: 0 }], 0);
+    assert!(ed.backspace());
+    assert_eq!(ed.notation(), "▮x+1");
+    let mut ed = Editor::from_text("((x+1)^(2))");
+    ed.set_caret(&[mc_boxes::Step { item: 0, slot: 1 }], 0);
+    assert!(ed.backspace());
+    assert_eq!(ed.notation(), "(x+1)^▮2");
+    // a fraction in a denominator is parenthesised when unwrapped
+    let mut ed = Editor::from_text("((a)/(((b)/(c))))");
+    ed.set_caret(&[mc_boxes::Step { item: 0, slot: 1 }], 0);
+    assert!(ed.backspace());
+    assert_eq!(ed.notation(), "a/▮((b/c))");
 }
 
 #[test]
@@ -266,15 +215,20 @@ fn aliases_and_templates() {
     assert_eq!(ed.escape(), AliasOutcome::Replaced);
     assert_eq!(ed.notation(), "x = α▮");
     assert!(ed.alias_mark().is_none());
-    // a template puts the caret in its marked placeholder
+    // a template of one of the three boxes puts the caret in its marked placeholder
     assert_eq!(ed.escape(), AliasOutcome::Started);
-    ed.insert_text("intt");
+    ed.insert_text("fract");
     assert_eq!(ed.escape(), AliasOutcome::Replaced);
-    assert_eq!(ed.notation(), "x = α*∫[□](⟦□⟧)");
+    assert_eq!(ed.notation(), "x = α*(⟦□⟧/□)");
     ed.insert_char('f');
     ed.next_placeholder();
     ed.insert_char('t');
-    assert_eq!(ed.text(), "x = α*((integrate(f, t)))");
+    assert_eq!(ed.text(), "x = α*((f)/(t))");
+    // other templates (integrals, sums, matrices) are unknown in a cell
+    let mut ed = Editor::new(Row::new());
+    ed.escape();
+    ed.insert_text("intt");
+    assert_eq!(ed.escape(), AliasOutcome::Unknown);
     // an unknown alias stays, marked, until edited
     let mut ed = Editor::new(Row::new());
     ed.escape();
@@ -364,25 +318,6 @@ fn an_alias_after_a_box_keeps_its_name_after_the_implicit_times() {
     e.insert_text("alpha");
     assert_eq!(e.escape(), AliasOutcome::Replaced);
     assert_eq!(e.notation(), "√(x)*α▮");
-}
-
-#[test]
-fn grid_commands_keep_adding_to_the_grid() {
-    // right after a column (or row) is added its placeholder is selected: the next Ctrl+, adds another column
-    // instead of nesting a grid in the new cell
-    let mut ed = Editor::from_text("a");
-    for _ in 0..3 {
-        assert!(ed.structure(Structure::GridColumn));
-    }
-    assert_eq!(ed.notation(), "grid[[a,□,□,⟦□⟧]]");
-    assert!(ed.structure(Structure::GridRow));
-    assert!(ed.structure(Structure::GridRow));
-    assert_eq!(ed.notation(), "grid[[a,□,□,□],[□,□,□,□],[□,□,□,⟦□⟧]]");
-    // with a real selection inside a cell, the selection becomes a grid of its own
-    ed.insert_text("pq");
-    assert!(ed.move_left(true));
-    assert!(ed.structure(Structure::GridColumn));
-    assert!(ed.text().contains("[p(([[q, □]]))]") || ed.text().contains("(([[q, □]]))"), "{}", ed.text());
 }
 
 #[test]

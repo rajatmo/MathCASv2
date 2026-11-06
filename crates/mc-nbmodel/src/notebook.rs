@@ -95,8 +95,6 @@ pub struct Notebook {
     pub(crate) box_carets: Vec<(CellId, String, mc_boxes::Caret)>,
     /// the read-only box caret of the typeset output with the caret (NB6.4)
     pub(crate) outbox: Option<crate::outbox::OutBox>,
-    /// outputs draw lists of equal-length lists as matrices (the window's setting, NB6.3)
-    pub(crate) matrices: bool,
     pub(crate) undo: Undo,
     pub(crate) eval: EvalState,
     next_id: u64,
@@ -135,7 +133,6 @@ impl Notebook {
             boxed: None,
             box_carets: vec![],
             outbox: None,
-            matrices: true,
             undo: Undo::default(),
             eval: EvalState::default(),
             next_id: 1,

@@ -1,6 +1,10 @@
-//! Two-dimensional typesetting for the notebook, without UI (design 08, section 4): the box tree, editing in it,
-//! its canonical text, typesetting printed output, the alias table, and layout with line breaking over a metrics
-//! trait. Painting is the caller's: [`layout::layout`] gives positioned characters, math-font glyphs and rules.
+//! Two-dimensional typesetting without UI (design 08, section 4): the box tree, editing in it, its canonical text,
+//! the alias table, and layout with line breaking over a metrics trait. Painting is the caller's: [`layout::layout`]
+//! gives positioned characters, math-font glyphs and rules.
+//!
+//! The notebook's cells use three boxes only, the square root, the fraction and the power (decision NBUI.5): the
+//! [`Editor`] makes them ([`Structure`]), [`math_text`] reads printed output into them, [`restrict`] reduces older
+//! box trees to them. Plot labels (`mc-graphics`) use the full set through [`typeset_output`].
 //!
 //! ```
 //! use mc_boxes::{Editor, Structure};
@@ -18,6 +22,7 @@ pub mod edit;
 pub mod latex;
 pub mod layout;
 pub mod linear;
+pub mod math;
 pub mod ops;
 pub mod printed;
 mod scan;
@@ -27,5 +32,6 @@ pub use canonical::{from_text, to_text, to_text_mapped, TextMap};
 pub use edit::{AliasMark, AliasOutcome, Caret, Editor, Structure};
 pub use latex::to_latex;
 pub use linear::linear_text;
-pub use printed::{output_input_text, typeset_any, typeset_input, typeset_output, typeset_output_with, OutputOptions, SourceMap, Typeset, MATRIX_MAX};
+pub use math::{has_boxes, math_text, restrict};
+pub use printed::{output_input_text, typeset_input, typeset_output, typeset_output_with, OutputOptions, SourceMap, Typeset, MATRIX_MAX};
 pub use tree::{notation, BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};

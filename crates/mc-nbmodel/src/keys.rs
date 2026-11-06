@@ -1,6 +1,5 @@
 //! The key table (design 3.1): one list of (chord, context, command) used by the window, the key scripts and the
 //! generated keyboard help. `Alt` is the command modifier for styles and evaluation control.
-use crate::cell::OutputForm;
 use crate::command::{AppAction, Command, Motion};
 use mc_boxes::Structure;
 use crate::style::Style;
@@ -301,21 +300,15 @@ pub fn table() -> Vec<Binding> {
         ("Ctrl+/", Text, C::Structure(Structure::Fraction)),
         ("Ctrl+6", Text, C::Structure(Structure::Superscript)),
         ("Ctrl+^", Text, C::Structure(Structure::Superscript)),
-        ("Ctrl+-", Text, C::Structure(Structure::Subscript)),
-        ("Ctrl+_", Text, C::Structure(Structure::Subscript)),
         ("Ctrl+2", Text, C::Structure(Structure::Radical)),
         ("Ctrl+@", Text, C::Structure(Structure::Radical)),
-        ("Ctrl+7", Text, C::Structure(Structure::Overscript)),
-        ("Ctrl+&", Text, C::Structure(Structure::Overscript)),
-        ("Ctrl+Shift+,", Text, C::Structure(Structure::Underscript)),
-        ("Ctrl+Enter", Text, C::Structure(Structure::GridRow)),
-        ("Ctrl+,", Text, C::Structure(Structure::GridColumn)),
-        ("Ctrl+5", Text, C::SwitchScript),
-        ("Ctrl+%", Text, C::SwitchScript),
+        // at an insertion point the box keys make an Input cell holding the box (before the tab keys Ctrl+2/6)
+        ("Ctrl+/", Gap, C::Structure(Structure::Fraction)),
+        ("Ctrl+6", Gap, C::Structure(Structure::Superscript)),
+        ("Ctrl+^", Gap, C::Structure(Structure::Superscript)),
+        ("Ctrl+2", Gap, C::Structure(Structure::Radical)),
+        ("Ctrl+@", Gap, C::Structure(Structure::Radical)),
         ("Ctrl+Space", Text, C::ExitStructure),
-        ("Ctrl+Shift+N", Any, C::ToTypeset),
-        ("Ctrl+Shift+I", Any, C::ToLinear),
-        ("Ctrl+Shift+Alt+N", Any, C::OutputForm(OutputForm::Traditional)),
         // the window
         ("Ctrl+N", Any, C::App(AppAction::New)),
         ("Ctrl+O", Any, C::App(AppAction::Open)),

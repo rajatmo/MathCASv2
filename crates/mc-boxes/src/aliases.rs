@@ -56,6 +56,18 @@ pub fn lookup(name: &str) -> Option<Alias> {
     m.get(name).map(|e| if e.kind == "template" { Alias::Template(e.result) } else { Alias::Text(e.result) })
 }
 
+/// [`lookup`] for the notebook's cells: a template is offered only when its boxes are the three a cell has (square
+/// root, fraction, power: `sqrtt`, `fract`, `pw`); the others (integrals, sums, matrices, subscripts) are unknown.
+pub fn lookup_cell(name: &str) -> Option<Alias> {
+    match lookup(name)? {
+        Alias::Template(t) => {
+            let row = crate::from_text(t);
+            (crate::math::restrict(&row) == row).then_some(Alias::Template(t))
+        }
+        text => Some(text),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

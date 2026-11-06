@@ -1,6 +1,7 @@
-Two-dimensional input (design 4.2 to 4.6, decision NB5.3): the typesetting keys in Input cells. A plain Input cell
-becomes typeset at its first structure key; its text is canonical box text (4.4) and `--- boxes` gives the tree with
-the caret (`▮`) or selection in the box notation.
+One kind of cell (decision NBUI.5): plain text plus three boxes, made only by the box keys (Ctrl+2 square root,
+Ctrl+/ fraction, Ctrl+6 power). A plain code cell takes boxes at its first box key; its text is then canonical box
+text (4.4) and `--- boxes` gives the tree with the caret (`▮`) or selection in the box notation. When the last box
+goes the cell is plain text again.
 
 === Ctrl+/ makes a fraction of the operand before the caret (a `*` joins a box and a name, NBB.14)
 --- before
@@ -35,15 +36,6 @@ Ctrl+6 "2" Ctrl+Space "+y" Ctrl+^ "n"
 --- boxes
 (x^2)+(y^n▮)
 
-=== Ctrl+- and Ctrl+_ make a subscript
---- before
-#% cell
-a▮
---- keys
-Ctrl+- "i" Ctrl+Space "+b" Ctrl+_ "j"
---- boxes
-(a_i)+(b_j▮)
-
 === Ctrl+2 and Ctrl+@ insert a square root
 --- before
 #% cell
@@ -56,24 +48,6 @@ Ctrl+2 "x" Ctrl+Space "+" Ctrl+@ "y"
 --- boxes
 1+√(x)+√(y▮)
 
-=== Ctrl+5 switches between the scripts
---- before
-#% cell
-x▮
---- keys
-Ctrl+^ "2" Ctrl+5 "i"
---- boxes
-((x_i▮)^2)
-
-=== Ctrl+% switches too
---- before
-#% cell
-x▮
---- keys
-Ctrl+_ "k" Ctrl+% "3"
---- boxes
-((x_k)^3▮)
-
 === Tab goes to the next placeholder, Shift+Tab to the previous
 --- before
 #% cell
@@ -83,16 +57,6 @@ Ctrl+/ Tab "B" Shift+Tab
 --- boxes
 (⟦□⟧/B)
 
-=== Ctrl+, makes a grid column, Ctrl+Enter in a grid a row (the caret stays in its column)
---- before
-#% cell
-a▮
---- keys
-Ctrl+, "b" Ctrl+Enter "c"
---- after
-#% cell typeset
-(([[a, b], [□, c]]))▮
-
 === Esc name Esc inserts a Greek letter
 --- before
 #% cell
@@ -101,27 +65,6 @@ Ctrl+, "b" Ctrl+Enter "c"
 Ctrl+/ Esc "alpha" Esc
 --- boxes
 ((x^2)/α▮)
-
-=== Esc int Esc is the integral sign, Esc intt Esc in a plain cell makes it typeset with an integral template
---- before
-#% cell
-▮
---- keys
-Esc "int" Esc "+" Esc "intt" Esc "f"
---- after
-#% cell typeset
-∫+((integrate(f, □)))▮
---- boxes
-∫+∫[□](f▮)
-
-=== Esc sumt Esc after a box inserts a sum template
---- before
-#% cell
-1+▮
---- keys
-Ctrl+2 "x" Ctrl+Space Esc "sumt" Esc
---- boxes
-1+√(x)*∑[⟦□⟧=□..□](□)
 
 === Up moves from the denominator to the numerator
 --- before
@@ -186,26 +129,6 @@ Ctrl+2 "b"
 --- boxes
 a*√(b▮)
 
-=== Ctrl+Shift+N converts linear input to typeset input
---- before
-#% cell
-x^2 + sqrt(y)/3▮
---- keys
-Ctrl+Shift+N
---- after
-#% cell typeset
-((x)^(2)) + ((((sqrt(y))))/(3))▮
-
-=== Ctrl+Shift+I converts typeset input back to linear text
---- before
-#% cell
-x▮
---- keys
-Ctrl+/ "a+b" Ctrl+Shift+I
---- after
-#% cell
-x/(a+b)▮
-
 === Ctrl+Shift+N on input that does not parse beeps and changes nothing
 --- before
 #% cell
@@ -241,14 +164,14 @@ Ctrl+/
 --- boxes
 none
 
-=== copy in boxes copies canonical text, which pastes back as boxes
+=== copy in boxes copies the plain text, which pastes back as linear text
 --- before
 #% cell
 x▮
 --- keys
 Ctrl+/ "y" Ctrl+A Ctrl+C Right Ctrl+V
 --- boxes
-(x/y)*(x/y)▮
+(x/y)*x/y▮
 
 === undo puts the caret back where it was in the boxes (NB6.5)
 --- before
@@ -295,12 +218,75 @@ Ctrl+/ "a" Ctrl+Space "+y" Left Left Shift+Right Shift+Right Shift+Left
 --- boxes
 (x/a)⟦+⟧y
 
-=== Ctrl+, again adds columns, Ctrl+Enter again adds rows
+=== typed linear text stays linear: a/b, x^2 and sqrt(x) are just characters
+--- before
+#% cell
+▮
+--- keys
+"a/b + x^2 + sqrt(x)"
+--- after
+#% cell
+a/b + x^2 + sqrt(x)▮
+--- boxes
+none
+
+=== Ctrl+2 on a selection makes it the radicand, the caret at its end
+--- before
+#% cell
+1+⟦x+y⟧
+--- keys
+Ctrl+2
+--- boxes
+1+√(x+y▮)
+
+=== Up goes from the denominator to the numerator, Right leaves the box
 --- before
 #% cell
 a▮
 --- keys
-Ctrl+, Ctrl+, Ctrl+Enter Ctrl+Enter "z"
+Ctrl+/ "b" Up "c" Right Right Right "+1"
+--- boxes
+(ac/b)+1▮
+
+=== Backspace at the start of a denominator unwraps the fraction into linear text
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Left Backspace
 --- after
-#% cell typeset
-(([[a, □, □], [□, □, □], [□, □, z]]))▮
+#% cell
+x/▮y
+--- boxes
+none
+
+=== Backspace at the start of a radicand leaves the radicand; the cell is plain again
+--- before
+#% cell
+▮
+--- keys
+Ctrl+2 "x+1" Home Backspace "!"
+--- after
+#% cell
+!▮x+1
+--- boxes
+none
+
+=== Shift+arrows select across a box; copying gives its plain text; typing replaces the selection
+--- before
+#% cell
+a+b▮
+--- keys
+Ctrl+6 "2" Ctrl+Space "+c" Home Right Right Shift+Right Ctrl+C End "*" Ctrl+V Home Shift+Right "z"
+--- boxes
+z▮+(b^2)+c*b^2
+
+=== a box key at an insertion point makes an Input cell with the box
+--- before
+‖
+#% cell
+x
+--- keys
+Ctrl+2 "8"
+--- boxes
+√(8▮)

@@ -6,9 +6,6 @@ impl App {
     /// Apply a command to the notebook and act on its effects.
     pub fn run(&mut self, ctx: &egui::Context, cmd: Command) {
         self.doc.nb.set_auto_close(self.settings.auto_close);
-        self.doc.view.typeset_outputs = self.settings.typeset_output;
-        self.doc.view.matrices = self.settings.matrices;
-        self.doc.nb.set_matrices(self.settings.matrices);
         let mut env = AppEnv { view: &mut self.doc.view, ctx, clip: &mut self.clip };
         let fx = self.doc.nb.apply(cmd, &mut env);
         // the caret shows at once after every key and click, then blinks

@@ -115,3 +115,18 @@ commands (M6) are bound to nothing.
 - Home / End in typeset input and output: the visual line (`Env::box_line_edge(cell, offset, end)`, default `None`
   falls back to the editor, which stops at line breaks).
 - Tests: 27 unit (new: selections in typeset cells extend by lines and keep their anchor).
+
+## One kind of cell (round nb-ui, NBUI.5)
+
+- No conversion commands (`ToTypeset`, `ToLinear`, `OutputForm`, `SwitchScript` and their keys removed; `OutputForm`
+  and `Cell::output_form` gone; `set_matrices` gone). The `typeset` mark is derived: a box key sets it (the cell's
+  text is read as canonical text with only the three boxes, `restrict`), and when the last box goes (`commit_box` ->
+  `unbox`) the cell is plain again with the caret on the same character. Box keys at an insertion point make an Input
+  cell first (key table: `Ctrl+/`, `Ctrl+6`, `Ctrl+^`, `Ctrl+2`, `Ctrl+@` in the Gap context). Copy in a cell with
+  boxes gives linear text. Automatic closing in cells with boxes (`auto_pair`: a bracket pair, stepping over a typed
+  closer).
+- Reading: a typeset cell of an older notebook keeps the three boxes, the rest linear (plain when none remain); an
+  output's `form=` is dropped. Outputs take the read-only box caret over `mc_boxes::math_text`.
+- Tests: key scripts (typeset.keys: 9 removed with their features; new: linear text stays linear, Ctrl+2 on a
+  selection, slots by arrows, Backspace unwraps a fraction and a root, selection across a box with copy and typing
+  over it, a box key at an insertion point), unit (older notebooks round-trip, output forms dropped).

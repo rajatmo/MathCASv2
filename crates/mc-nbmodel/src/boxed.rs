@@ -3,9 +3,11 @@
 //! the editor's canonical text back to the cell (so undo, saving and evaluation see ordinary text: the canonical
 //! form evaluates as displayed), and the editor is rebuilt from the text whenever they differ (after undo).
 //!
-//! A plain Input cell becomes typeset when a structure command or a template alias is used in it (its text is
-//! read as canonical text, which keeps every character), or on `Ctrl+Shift+N` (its text is parsed and every
-//! construct with a box form becomes the box); `Ctrl+Shift+I` turns a typeset cell back into linear text.
+//! One kind of cell (decision NBUI.5): there is no typeset mode to switch to. A code cell holds boxes exactly when one
+//! of the three box keys made one (Ctrl+2 a square root, Ctrl+/ a fraction, Ctrl+6 a power); its text is then
+//! canonical box text and the `typeset` mark says so (it is derived, never chosen). When the last box goes (Backspace
+//! at the start of a slot unwraps it) the cell is plain text again. Either way it looks the same: the boxes and the
+//! characters are drawn in the cell's own font.
 use crate::cell::{Cell, CellId};
 use crate::command::{Command, Effects, Motion};
 use crate::env::{Clip, Env};
@@ -112,7 +114,30 @@ impl Notebook {
             self.set_text(id, text.clone(), true);
         }
         self.sel = Selection::Caret { cell: id, anchor: text.len(), pos: text.len() };
+        // the last box went: the cell is plain text again, the caret on the same character
+        if self.boxed.as_ref().is_some_and(|b| !mc_boxes::has_boxes(b.ed.root())) {
+            self.unbox(id);
+        }
         changed
+    }
+
+    /// The cell's boxes are gone: its text is plain, the `typeset` mark goes and the caret moves into the text.
+    fn unbox(&mut self, id: CellId) {
+        let Some(b) = self.boxed.take().filter(|b| b.cell == id) else { return };
+        let row = b.ed.root();
+        let byte = |k: usize| row.0[..k.min(row.0.len())].iter().map(|i| match i {
+            Item::Char(c) => c.len_utf8(),
+            _ => '□'.len_utf8(),
+        }).sum::<usize>();
+        let (pos, anchor) = match (b.ed.caret(), b.ed.selection()) {
+            (_, Some((p, r))) if p.is_empty() => (byte(r.end), byte(r.start)),
+            (c, _) => {
+                let k = byte(c.offset);
+                (k, k)
+            }
+        };
+        self.update_cell(id, true, |c| c.props.typeset = false);
+        self.sel = Selection::Caret { cell: id, anchor, pos };
     }
 
     /// Make the caret's plain Input cell typeset, keeping its text (canonical reading), with the editor's caret at
@@ -128,54 +153,19 @@ impl Notebook {
         }
         let chars = |p: usize| c.text[..p.min(c.text.len())].chars().count();
         let (a, p) = (chars(anchor), chars(pos));
-        let mut ed = Editor::from_text(&c.text);
+        // the text read as canonical text keeps every character; only the three boxes are made from it
+        let mut ed = Editor::new(mc_boxes::restrict(&mc_boxes::from_text(&c.text)));
         if a == p {
             ed.set_caret(&[], p);
         } else {
             ed.select(&[], a.min(p)..a.max(p));
         }
+        let n = c.text.len();
         self.update_cell(cell, true, |c| c.props.typeset = true);
         self.boxed = Some(BoxEdit { cell, ed, before: None });
-        self.commit_box();
+        // the box key that follows writes the text (a cell left without boxes goes back to plain text then)
+        self.sel = Selection::Caret { cell, anchor: n, pos: n };
         true
-    }
-
-    /// `Ctrl+Shift+N` on input cells: parse the linear text of the selected plain Input cells and make every
-    /// construct with a box form a box (4.6). `false` when there was nothing to convert or the text does not
-    /// parse (nothing changes then).
-    pub(crate) fn inputs_to_typeset(&mut self) -> bool {
-        let ids: Vec<CellId> =
-            self.selected_cells().into_iter().filter(|id| self.cell(*id).is_some_and(|c| can_box(c) && !c.props.typeset)).collect();
-        let mut done = false;
-        for id in ids {
-            let Some(c) = self.cell(id) else { continue };
-            let Ok(row) = mc_boxes::typeset_input(&c.text) else { continue };
-            let text = mc_boxes::to_text(&row);
-            self.set_text(id, text.clone(), true);
-            self.update_cell(id, true, |c| c.props.typeset = true);
-            if matches!(self.sel, Selection::Caret { cell, .. } if cell == id) {
-                self.sel = Selection::Caret { cell: id, anchor: text.len(), pos: text.len() };
-            }
-            done = true;
-        }
-        self.sync_boxed();
-        done
-    }
-
-    /// `Ctrl+Shift+I` on input cells: the selected typeset cells become linear text with minimal parentheses.
-    pub(crate) fn inputs_to_linear(&mut self) -> bool {
-        let ids: Vec<CellId> = self.selected_cells().into_iter().filter(|id| self.cell(*id).is_some_and(|c| c.props.typeset && c.style.is_code())).collect();
-        for &id in &ids {
-            let Some(c) = self.cell(id) else { continue };
-            let text = mc_boxes::linear_text(&mc_boxes::from_text(&c.text));
-            self.set_text(id, text.clone(), true);
-            self.update_cell(id, true, |c| c.props.typeset = false);
-            if matches!(self.sel, Selection::Caret { cell, .. } if cell == id) {
-                self.sel = Selection::Caret { cell: id, anchor: text.len(), pos: text.len() };
-            }
-        }
-        self.boxed = None;
-        !ids.is_empty()
     }
 
     /// A template alias typed in a plain Input cell: the cell becomes typeset and the template goes in.
@@ -199,11 +189,20 @@ impl Notebook {
     /// `None`: not handled here (the generic code runs); `Some(run)`: handled.
     pub(crate) fn box_dispatch(&mut self, cmd: &Command, env: &mut dyn Env, fx: &mut Effects) -> Option<Option<Run>> {
         use Command as C;
-        // structure commands make a plain Input cell typeset first
+        // a box key at an insertion point makes a code cell there first
+        if let (C::Structure(_), Selection::Gap(g)) = (cmd, self.sel.clone()) {
+            let style = self.gap_style();
+            if style.is_code() {
+                let id = self.create_cell(g, style, "");
+                self.select(Selection::Caret { cell: id, anchor: 0, pos: 0 });
+            }
+        }
+        // a box key in a plain code cell: its text becomes the editor's (every character kept) and the box goes in
         if matches!(cmd, C::Structure(_)) && self.boxed.is_none() && !self.box_current() {
             fx.beep = true;
             return Some(None);
         }
+        let auto_close = self.auto_close;
         let b = self.boxed.as_mut()?;
         b.before = Some((b.ed.text(), b.ed.caret().clone()));
         let id = b.cell;
@@ -212,7 +211,9 @@ impl Notebook {
         let mut run = None;
         match cmd {
             C::Insert(t) => {
-                ed.insert_text(t);
+                if !(auto_close && auto_pair(ed, t)) {
+                    ed.insert_text(t);
+                }
                 run = Some(Run::Typing(id, t.ends_with(char::is_whitespace), now));
             }
             C::Enter => ed.insert_char('\n'),
@@ -337,9 +338,8 @@ impl Notebook {
                     fx.beep = true;
                     return Some(None);
                 }
-                // the text flavour is canonical text (pasting it back gives the boxes; it evaluates the same);
-                // "copy as plain text" gives linear text
-                let text = if *cmd == C::CopyPlain { mc_boxes::linear_text(&mc_boxes::from_text(&t)) } else { t };
+                // the clipboard gets the plain text the boxes stand for (`x^2`, `(a+b)/c`, `sqrt(y)`)
+                let text = mc_boxes::linear_text(&mc_boxes::from_text(&t));
                 env.set_clipboard(Clip { text: Some(text), cells: None });
                 if *cmd != C::Cut {
                     return Some(None);
@@ -367,11 +367,6 @@ impl Notebook {
                     fx.beep = true;
                 }
                 return Some(None);
-            }
-            C::SwitchScript => {
-                if !ed.switch_script() {
-                    fx.beep = true;
-                }
             }
             C::ReplaceWord(name) => {
                 // the completion replaces the name before the caret in its row
@@ -445,4 +440,40 @@ fn word_start(ed: &Editor, caret: &Caret) -> usize {
         k -= 1;
     }
     k
+}
+
+/// Automatic closing in a cell with boxes (as in plain cells, decision NB5.1): an opening bracket typed with no
+/// selection and nothing word-like after the caret brings its closer, the caret between; a closer typed right before
+/// the same closer steps over it. `true` when it was handled.
+fn auto_pair(ed: &mut Editor, t: &str) -> bool {
+    let mut it = t.chars();
+    let (Some(ch), None) = (it.next(), it.next()) else { return false };
+    if ed.selection().is_some() {
+        return false;
+    }
+    let caret = ed.caret().clone();
+    let next = ed.root().at(&caret.path).and_then(|r| r.0.get(caret.offset)).cloned();
+    let next_char = match next {
+        Some(Item::Char(c)) => Some(c),
+        _ => None,
+    };
+    if matches!(ch, ')' | ']' | '}') && next_char == Some(ch) {
+        ed.move_right(false);
+        return true;
+    }
+    let close = match ch {
+        '(' => ')',
+        '[' => ']',
+        '{' => '}',
+        _ => return false,
+    };
+    if next_char.is_some_and(|n| n.is_alphanumeric() || n == '_') || matches!(next, Some(Item::Box(_))) {
+        return false;
+    }
+    let mut pair = String::new();
+    pair.push(ch);
+    pair.push(close);
+    ed.insert_text(&pair);
+    ed.move_left(false);
+    true
 }

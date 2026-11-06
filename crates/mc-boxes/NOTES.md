@@ -147,3 +147,17 @@ read canonical text 6.6 us.
   `Layout::translate(dx, dy)`, `Layout::line_at(y)`.
 - `Editor::move_home` / `move_end` stop at line breaks in the row (the line's start or its end before the break).
 - Tests: layout 7 (new: painter metrics choose fonts, axis and line pitch; right-justified lines keep hit-testing).
+
+## One kind of cell (round nb-ui, NBUI.5 and NBUI.6)
+
+- `math::math_text(printed) -> Typeset`: printed text with only square roots, fractions and powers as boxes, every
+  other character as printed, grouped by the parse (`a/b*c`, `a/b/c`, `2^3^4`, `-x^2`, `e^(i*pi)`, `x^-1`, rational
+  literals), slot parentheses hidden except a power's base; a `SourceMap` from every item to its bytes.
+  `math::restrict(row)` keeps the three boxes and writes every other as its linear text; `has_boxes`.
+- `Structure` has three variants (Fraction, Superscript, Radical); subscripts, over/underscripts, grids and
+  `switch_script` are gone from the editor. Backspace at the start of a slot (Delete at the end) unwraps the box into
+  linear text (`unwrap_box`: radicand alone, `num/den`, `base^exp` with parentheses where needed) instead of stepping
+  out of it. `aliases::lookup_cell` offers only the templates of the three boxes. `typeset_any` removed.
+- The full output typesetting (`typeset_output`) stays for plot labels (`mc-graphics`) and Copy as LaTeX.
+- Tests: unit 26 (new: grouping, verbatim text, source map, restriction), editing (the structure table for the three
+  keys, unwrapping), fuzz with the three keys.

@@ -11,7 +11,7 @@ use crate::command::{Command, Motion};
 use crate::env::{Clip, Env};
 use crate::notebook::{Notebook, Selection};
 use crate::style::Style;
-use mc_boxes::{Editor, OutputOptions, Row, RowPath, Typeset};
+use mc_boxes::{Editor, Row, RowPath, Typeset};
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -20,9 +20,8 @@ use std::sync::Arc;
 pub(crate) struct OutBox {
     /// the Output cell
     pub cell: CellId,
-    /// its revision and the matrix setting the typeset form was made for
+    /// its revision the boxes were made for
     rev: u64,
-    matrices: bool,
     /// the output typeset, with its source map
     pub typeset: Arc<Typeset>,
     /// the caret and selection in its boxes (never edited)
@@ -32,16 +31,6 @@ pub(crate) struct OutBox {
 }
 
 impl Notebook {
-    /// Draw lists of equal-length lists in outputs as matrices (the window's setting, NB6.3).
-    pub fn set_matrices(&mut self, on: bool) {
-        self.matrices = on;
-    }
-
-    /// The options typeset output is made with.
-    pub fn output_options(&self) -> OutputOptions {
-        OutputOptions { matrices: self.matrices }
-    }
-
     /// The typeset output with the caret and its box caret (for drawing the caret and the selection).
     pub fn output_editor(&self) -> Option<(CellId, &Editor)> {
         self.outbox.as_ref().map(|o| (o.cell, &o.ed))
@@ -62,11 +51,11 @@ impl Notebook {
             self.outbox = None;
             return;
         }
-        let current = self.outbox.as_ref().is_some_and(|o| o.cell == cell && o.rev == c.rev && o.matrices == self.matrices);
+        let current = self.outbox.as_ref().is_some_and(|o| o.cell == cell && o.rev == c.rev);
         if !current {
-            let typeset = Arc::new(mc_boxes::typeset_output_with(&c.text, self.output_options()));
+            let typeset = Arc::new(mc_boxes::math_text(&c.text));
             let ed = Editor::new(typeset.row.clone());
-            self.outbox = Some(OutBox { cell, rev: c.rev, matrices: self.matrices, typeset, ed, bytes: (usize::MAX, usize::MAX) });
+            self.outbox = Some(OutBox { cell, rev: c.rev, typeset, ed, bytes: (usize::MAX, usize::MAX) });
         }
         let Some(o) = self.outbox.as_mut() else { return };
         if o.bytes != (anchor, pos) {

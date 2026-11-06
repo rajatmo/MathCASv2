@@ -14,14 +14,6 @@ impl App {
         self.doc.view.clear();
     }
 
-    /// Typeset outputs are laid out again (the default form or the matrix setting changed).
-    fn retypeset(&mut self) {
-        self.doc.view.typeset_outputs = self.settings.typeset_output;
-        self.doc.view.matrices = self.settings.matrices;
-        self.doc.nb.set_matrices(self.settings.matrices);
-        self.doc.view.clear_boxes();
-    }
-
     pub(super) fn preferences(&mut self, ctx: &egui::Context) {
         if !self.prefs {
             return;
@@ -29,7 +21,6 @@ impl App {
         let mut open = true;
         let mut changed = false;
         let mut fonts_changed = false;
-        let mut outputs_changed = false;
         let mut zoom = None;
         let s = &mut self.settings;
         egui::Window::new("Preferences")
@@ -73,13 +64,6 @@ impl App {
                     });
                     ui.end_row();
 
-                    ui.label("Output");
-                    ui.vertical(|ui| {
-                        outputs_changed |= ui.checkbox(&mut s.typeset_output, "Typeset output by default").changed();
-                        outputs_changed |= ui.checkbox(&mut s.matrices, "Lists of equal-length lists as matrices").changed();
-                    });
-                    ui.end_row();
-
                     ui.label("Files");
                     ui.vertical(|ui| {
                         changed |= ui.checkbox(&mut s.save_without_outputs, "Save without outputs").changed();
@@ -104,10 +88,7 @@ impl App {
         if fonts_changed {
             self.apply_fonts(ctx);
         }
-        if outputs_changed {
-            self.retypeset();
-        }
-        if changed || fonts_changed || outputs_changed {
+        if changed || fonts_changed {
             self.settings.save();
         }
         if !open || std::mem::take(&mut self.prefs_close) {

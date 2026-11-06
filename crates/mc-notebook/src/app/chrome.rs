@@ -114,17 +114,6 @@ impl App {
             menu_ids.push(('i', r.response.id));
             let r = ui.menu_button("Format", |ui| {
                 self.style_menu(ui, &mut fire);
-                submenu(ui, "Output form", |ui| {
-                    if check_item(ui, &mut self.settings.typeset_output, "Typeset output by default") {
-                        self.settings.save();
-                        self.doc.view.typeset_outputs = self.settings.typeset_output;
-                        self.doc.view.clear();
-                    }
-                    ui.separator();
-                    self.menu_item(ui, "Typeset", Command::ToTypeset, &mut fire);
-                    self.menu_item(ui, "Linear text", Command::ToLinear, &mut fire);
-                    self.menu_item(ui, "Traditional", Command::OutputForm(mc_nbmodel::OutputForm::Traditional), &mut fire);
-                });
                 submenu(ui, "Theme", |ui| {
                     for (c, name) in [
                         (ThemeChoice::System, "System"),

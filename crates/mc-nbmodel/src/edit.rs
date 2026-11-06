@@ -1,7 +1,7 @@
 //! Applying commands (design 3): typing, motion, selection, clipboard, cell operations, styles, grouping and
 //! evaluation requests. Every change goes through the primitives of [`crate::notebook`], so undo, the selection
 //! and the groups stay consistent.
-use crate::cell::{Cell, CellId, OutputForm};
+use crate::cell::{Cell, CellId};
 use crate::command::{Bracket, Command, Effects, Motion};
 use crate::env::{Clip, Env};
 use crate::notebook::{Notebook, Run, Selection};
@@ -178,16 +178,7 @@ impl Notebook {
             C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
             C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
             // without a typeset cell at the caret (handled before): nothing to act on
-            C::Structure(_) | C::ExitStructure | C::SwitchScript => fx.beep = true,
-            C::ToTypeset => {
-                let outputs = self.set_output_form(OutputForm::Typeset);
-                fx.beep = !(self.inputs_to_typeset() | outputs);
-            }
-            C::ToLinear => {
-                let outputs = self.set_output_form(OutputForm::Linear);
-                fx.beep = !(self.inputs_to_linear() | outputs);
-            }
-            C::OutputForm(f) => fx.beep = !self.set_output_form(f),
+            C::Structure(_) | C::ExitStructure => fx.beep = true,
             C::ClickBox(id, path, offset, extend) => self.click_box(id, &path, offset, extend),
             C::Nop => {}
             C::App(a) => fx.app = Some(a),
@@ -208,26 +199,10 @@ impl Notebook {
         true
     }
 
-    /// Show the selected Output cells (with a caret: its cell) in `form` (NB5.5). `false` when no output is
-    /// selected.
-    fn set_output_form(&mut self, form: OutputForm) -> bool {
-        let selected = self.selected_cells();
-        let targets: Vec<CellId> = self
-            .cells
-            .iter()
-            .filter(|c| c.style == Style::Output && c.graphic().is_none() && selected.contains(&c.id))
-            .map(|c| c.id)
-            .collect();
-        for &id in &targets {
-            self.update_cell(id, true, |c| c.out_extra.set("form", Some(form.name().to_string())));
-        }
-        !targets.is_empty()
-    }
-
     // ----- typing -----
 
     /// A new cell of `style` holding `text` at `at`, the caret at its end; groups closed around it open.
-    fn create_cell(&mut self, at: usize, style: Style, content: &str) -> CellId {
+    pub(crate) fn create_cell(&mut self, at: usize, style: Style, content: &str) -> CellId {
         let c = self.new_cell(style, content);
         let id = c.id;
         self.insert_cells(at, vec![c], true);
@@ -486,7 +461,7 @@ impl Notebook {
         match open {
             Some(m) if anchor == pos => {
                 let name = c.text[m + ALIAS_MARK.len_utf8()..pos].to_string();
-                match mc_boxes::aliases::lookup(&name) {
+                match mc_boxes::aliases::lookup_cell(&name) {
                     Some(mc_boxes::aliases::Alias::Template(t)) => {
                         if self.template_in_plain(m, pos, t) {
                             Some(Run::Typing(cell, false, env.now()))
@@ -922,12 +897,12 @@ impl Notebook {
     /// Copy as LaTeX: the selected part of a typeset cell, or the selected text or whole content of the caret's cell
     /// typeset, or the selected Input and Output cells one per line. `false` when there is nothing to copy.
     fn copy_latex(&mut self, env: &mut dyn Env) -> bool {
-        let of_cell = |nb: &Notebook, c: &crate::cell::Cell, text: &str| -> Option<String> {
+        let of_cell = |_nb: &Notebook, c: &crate::cell::Cell, text: &str| -> Option<String> {
             let row = if c.style == Style::Output {
                 if c.failure || c.graphic().is_some() {
                     return None;
                 }
-                mc_boxes::typeset_output_with(text, nb.output_options()).row
+                mc_boxes::typeset_output(text).row
             } else if c.style.is_code() {
                 if c.props.typeset {
                     mc_boxes::from_text(text)
@@ -1343,7 +1318,7 @@ fn smart_quotes(before: &str, typed: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::smart_quotes;
-    use crate::{Command, FakeEnv, Motion, Notebook, OutputForm, Selection};
+    use crate::{Command, FakeEnv, Motion, Notebook, Selection};
 
     const TWO_OUTPUTS: &str = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2\n\n#% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#= sqrt(y)\n";
 
@@ -1354,30 +1329,12 @@ mod tests {
         assert_eq!(smart_quotes("(", "'x'"), "‘x’");
     }
 
+    /// An older notebook's output form is dropped on reading: outputs have one look (NBUI.5).
     #[test]
-    fn output_forms_are_set_saved_and_undone() {
-        let mut nb = Notebook::parse(TWO_OUTPUTS).unwrap();
-        let mut env = FakeEnv::default();
-        assert_eq!(nb.cells()[1].output_form(), None);
-        assert_eq!(nb.cells()[3].output_form(), Some(OutputForm::Linear));
-        // the caret in the first output
-        let out = nb.cells()[1].id;
-        nb.apply(Command::ClickText(out, 0, false), &mut env);
-        let fx = nb.apply(Command::ToTypeset, &mut env);
-        assert!(!fx.beep && fx.modified);
-        assert_eq!(nb.cells()[1].output_form(), Some(OutputForm::Typeset));
-        assert!(nb.to_text().contains("#% output n=1 form=typeset\n"), "{}", nb.to_text());
-        nb.apply(Command::Undo, &mut env);
-        assert_eq!(nb.cells()[1].output_form(), None);
-        // a selection of cells changes every output in it
-        nb.apply(Command::SelectAll, &mut env);
-        nb.apply(Command::SelectAll, &mut env);
-        nb.apply(Command::OutputForm(OutputForm::Traditional), &mut env);
-        assert_eq!(nb.cells()[1].output_form(), Some(OutputForm::Traditional));
-        assert_eq!(nb.cells()[3].output_form(), Some(OutputForm::Traditional));
-        // nothing to change: a beep
-        nb.apply(Command::ClickGap(0), &mut env);
-        assert!(nb.apply(Command::OutputForm(OutputForm::Linear), &mut env).beep);
+    fn output_forms_of_older_notebooks_are_dropped() {
+        let nb = Notebook::parse(TWO_OUTPUTS).unwrap();
+        assert!(nb.cells()[3].out_extra.get("form").is_none());
+        assert!(!nb.to_text().contains("form="));
     }
 
     #[test]
@@ -1510,5 +1467,26 @@ mod tests {
         assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 0, pos: nb.cells()[1].text.len() });
         nb.apply(Command::Move(Motion::Up, true), &mut env);
         assert!(!outs(&nb).contains('⟦'), "{}", outs(&nb));
+    }
+
+    /// Older typeset notebooks: square roots, fractions and powers stay boxes, every other box becomes its linear
+    /// text; a cell left without boxes is plain. Loading and saving give the same text again (NBUI.5).
+    #[test]
+    fn older_typeset_cells_keep_the_three_boxes_and_round_trip() {
+        let old = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\n((subscript(x, i)))+((sqrt(((a)/(b)))))\n\n\
+                   #% cell typeset\n((sum(k, [k, 1, n])))\n\n#% cell\nx^2 + a/b\n";
+        let nb = Notebook::parse(old).unwrap();
+        let c = nb.cells();
+        assert_eq!(c[0].text, "subscript(x, i)+((sqrt(((a)/(b)))))");
+        assert!(c[0].props.typeset);
+        assert_eq!(c[1].text, "sum(k, [k, 1, n])");
+        assert!(!c[1].props.typeset);
+        assert_eq!(c[2].text, "x^2 + a/b");
+        assert!(!c[2].props.typeset);
+        let saved = nb.to_text();
+        let again = Notebook::parse(&saved).unwrap();
+        assert_eq!(again.to_text(), saved);
+        let texts: Vec<&str> = again.cells().iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(texts, [c[0].text.as_str(), c[1].text.as_str(), c[2].text.as_str()]);
     }
 }

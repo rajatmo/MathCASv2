@@ -258,3 +258,11 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   arrive one click per frame; modifiers are released a frame after a key chord or a Shift+click (before, a later
   click inherited Shift).
 - Tests: 16 unit tests (new: right-justified geometry of typeset and linear outputs, prints and inputs on the left).
+
+## One kind of cell (round nb-ui, NBUI.5)
+
+- Outputs are always drawn by the cell renderer over `mc_boxes::math_text` (failures, pictures, outputs over the
+  typeset limit and multi-line tables stay text); layout options without operator spacing or small inline rationals,
+  so the printed characters keep their places. Removed: Format > Output form, the preferences "Typeset output by
+  default" and "Lists of equal-length lists as matrices" (`typeset_output`/`matrices` settings and view fields),
+  `View::clear_boxes`.

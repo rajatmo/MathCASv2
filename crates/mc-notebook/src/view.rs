@@ -11,7 +11,7 @@ use mc_boxes::layout::{Layout, LayoutOptions};
 use mc_boxes::RowPath;
 use eframe::egui::{self, pos2, vec2, Align2, Color32, Galley, Painter, Pos2, Rect, Stroke, Vec2};
 use eframe::epaint::text::{cursor::CCursor, LayoutJob, TextFormat};
-use mc_nbmodel::{printed, Bracket, Cell, CellId, EvalMark, FontRole, Notebook, OutputForm, Selection, Style};
+use mc_nbmodel::{printed, Bracket, Cell, CellId, EvalMark, FontRole, Notebook, Selection, Style};
 use mc_syntax::Colouring;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -270,10 +270,6 @@ pub struct View {
     glyphs: Rc<RefCell<Glyphs>>,
     /// box layouts of typeset cells: (revision, width, zoom) and the layout
     boxes: HashMap<CellId, (LayoutKey, Arc<Layout>)>,
-    /// outputs are typeset unless their own form says otherwise (the window's setting)
-    pub typeset_outputs: bool,
-    /// typeset outputs draw lists of equal-length lists as matrices (the window's setting, NB6.3)
-    pub matrices: bool,
     /// the colours of the characters of typeset input cells, per layout row and item (design 3.11 in boxes)
     box_colours: HashMap<CellId, (ColourKey, Colours)>,
     /// the worker typesetting large outputs, and the layouts asked of it
@@ -316,8 +312,6 @@ impl View {
             now: 0.0,
             glyphs,
             boxes: HashMap::new(),
-            typeset_outputs: true,
-            matrices: true,
             box_colours: HashMap::new(),
             background: None,
             pending: HashMap::new(),
@@ -339,19 +333,6 @@ impl View {
         self.wrapped.clear();
         // box layouts depend on neither the theme nor egui's fonts (they are keyed by revision, width and zoom):
         // kept, so large outputs do not fall back to linear text while the worker typesets them again
-    }
-
-    /// Forget the box layouts (the matrix setting or the default output form changed).
-    pub fn clear_boxes(&mut self) {
-        self.boxes.clear();
-        self.pending.clear();
-        self.box_colours.clear();
-        self.laid.clear();
-    }
-
-    /// The options of typeset output.
-    fn output_options(&self) -> mc_boxes::OutputOptions {
-        mc_boxes::OutputOptions { matrices: self.matrices }
     }
 
     /// What cell `c` shows.
@@ -381,23 +362,15 @@ impl View {
         Shown::Text
     }
 
-    /// Whether an Output cell is shown typeset: its form, else the setting; never a failure, a picture, an output
-    /// longer than [`TYPESET_LIMIT`], one showing its source, or a printed form of several lines (a dataset's table:
-    /// laid out by its own columns, it needs the monospaced linear text).
+    /// Whether an Output cell is drawn with the cell renderer (its printed text with its square roots, fractions and
+    /// powers as boxes, NBUI.5): every output except a failure, a picture, one longer than [`TYPESET_LIMIT`], one
+    /// showing its source, or a printed form of several lines (a dataset's table, laid out by its own columns).
     fn typesets(&self, c: &Cell) -> bool {
-        if c.style != Style::Output
-            || c.failure
-            || c.expr_view
-            || c.text.len() > TYPESET_LIMIT
-            || c.text.trim_end().contains('\n')
-        {
-            return false;
-        }
-        match c.output_form() {
-            Some(OutputForm::Linear) => false,
-            Some(_) => true,
-            None => self.typeset_outputs,
-        }
+        c.style == Style::Output
+            && !c.failure
+            && !c.expr_view
+            && c.text.len() <= TYPESET_LIMIT
+            && !c.text.trim_end().contains('\n')
     }
 
     /// The key of cell `c`'s box layout at the current width and zoom.
@@ -449,15 +422,12 @@ impl View {
         let lk = look(c, &self.palette);
         let width = Some((r - l).max(40.0));
         if c.style == Style::Output {
-            // printed output to boxes (4.5), display style, continuation lines at the left edge
-            LayoutOptions {
-                traditional: c.output_form() == Some(OutputForm::Traditional),
-                ..LayoutOptions::output(lk.size * self.zoom, width)
-            }
+            // the printed text as it is (no spacing added around operators), lines not indented
+            LayoutOptions { operator_spacing: false, small_inline_rationals: false, ..LayoutOptions::output(lk.size * self.zoom, width) }
         } else {
-            // no thin spaces around operators and no `->` drawn as one arrow: a plain input that becomes typeset
-            // keeps every character where it was (NBUI.3)
-            LayoutOptions { operator_spacing: false, ..LayoutOptions::input(lk.size * self.zoom, width) }
+            // no thin spaces around operators and no `->` drawn as one arrow: the characters where plain text has
+            // them (NBUI.3)
+            LayoutOptions { operator_spacing: false, small_inline_rationals: false, ..LayoutOptions::input(lk.size * self.zoom, width) }
         }
     }
 
@@ -478,7 +448,6 @@ impl View {
                     key,
                     text: c.text.clone(),
                     opts: self.box_options(c),
-                    output: self.output_options(),
                     font: self.text_font(&ctx, c),
                     right: Self::right_justified(c).then_some(r - l),
                     reach: self.script_reach(c),
@@ -578,7 +547,7 @@ impl View {
         }
         let opts = self.box_options(c);
         let row = if c.style == Style::Output {
-            mc_boxes::typeset_output_with(&c.text, self.output_options()).row
+            mc_boxes::math_text(&c.text).row
         } else {
             mc_boxes::from_text(&c.text)
         };
@@ -627,7 +596,7 @@ impl View {
     /// The end of a root line `start..end` without its line break.
     fn line_end(&self, c: &Cell, start: usize, end: usize) -> usize {
         let row = if c.style == Style::Output {
-            mc_boxes::typeset_output_with(&c.text, self.output_options()).row
+            mc_boxes::math_text(&c.text).row
         } else {
             mc_boxes::from_text(&c.text)
         };
@@ -1949,7 +1918,7 @@ mod tests {
     #[test]
     fn outputs_end_at_the_right_edge_and_geometry_follows() {
         let text = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2 + 1\n\n\
-                    #% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#| a print\n#= sqrt(y)\n";
+                    #% cell label=2\nsqrt(y)\n#% output n=2\n#| a print\n#! failure(division_by_zero)\n";
         let nb = Notebook::parse(text).unwrap();
         let ctx = egui::Context::default();
         ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
@@ -1972,7 +1941,8 @@ mod tests {
             let o = view.content_origin(&nb, 1);
             let (path, k) = view.box_hit(&ctx, &nb, typeset.id, pos2(o.x + r - l - 1.0, o.y + lay.baseline)).unwrap();
             assert_eq!((path.len(), k), (0, lay.rows[0].stops.len() - 1));
-            // the linear output: the caret after its last character is at the right edge, a click there gives it
+            // an output drawn as text (a failure): the caret after its last character is at the right edge, a click
+            // there gives it
             let linear = &nb.cells()[4];
             let end = view.caret_rect(&ctx, &nb, linear.id, linear.text.len()).unwrap();
             assert!((end.left() - r).abs() < 1.0, "{end:?} {r}");

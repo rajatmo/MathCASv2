@@ -561,6 +561,42 @@ running every global name is plain *(the reference has a "no kernel" style; Math
 
 ## 4. Two-dimensional typesetting
 
+### 4.0 One kind of cell (decisions NBUI.5, NBUI.6; user decision, round nb-ui)
+
+*This section overrides the rest of section 4 where they differ; 4.1 to 4.9 describe the box machinery underneath.*
+
+- **No modes.** Every code cell is the same editor: linear text in the cell's own font, size and colouring, plus
+  exactly three two-dimensional boxes: the **square root**, the **fraction** and the **power** (superscript). There is
+  no typeset or plain mode, no conversion command (`Ctrl+Shift+N` and `Ctrl+Shift+I` are gone), no output form
+  (`form=` of older files is dropped on reading), no traditional form, no matrices, subscripts, over- or underscripts,
+  big operators or italics. Nothing changes its look when the caret enters or leaves it.
+- **Making boxes.** Only the box keys make boxes: `Ctrl+2` a square root (of the selection, else empty), `Ctrl+/` a
+  fraction (the term before the caret or the selection becomes the numerator), `Ctrl+6` (`Ctrl+^`) a power (the term
+  before the caret becomes the base). At an insertion point they make an Input cell holding the box. Typed linear text
+  stays linear: `a/b`, `x^2` and `sqrt(x)` typed are those characters. The aliases keep inserting characters; of the
+  templates only `sqrtt`, `fract` and `pw` remain.
+- **Editing boxes.** The arrows (Up and Down between numerator and denominator, base and exponent), Tab (next empty
+  slot) and `Ctrl+Space` (out of the box) move through the slots; Shift extends a selection, a box counting as one unit
+  when the selection leaves it. **Backspace at the start of a slot** (Delete at the end of one) removes the box and
+  keeps its contents as linear text (NBUI.6): a square root leaves its radicand, a fraction `num/den`, a power
+  `base^exp`, with parentheses where a slot would not read back as one operand; the caret stays where it was in the
+  text. A cell whose last box goes is plain text again. Automatic bracket closing works in cells with boxes too.
+- **Underneath.** A cell with boxes keeps canonical box text (4.4: `((x)^(2))`, `((a)/(b))`, `((sqrt(x)))`) and is
+  marked `typeset` in the file; the mark is derived (the cell holds a box), never chosen. Evaluation reads the canonical
+  text (it evaluates as drawn); Copy gives the plain linear text (`x^2`, `a/b`, `sqrt(x)`), Copy as LaTeX the LaTeX.
+  Find searches the cell's stored text.
+- **Outputs** are drawn by the same renderer: the printed result with its roots (`sqrt(...)`), fractions (`/`, grouped
+  as the text parses: `a/b*c` is (a/b)·c, `a/b/c` is (a/b)/c, rational literals `1/2`) and powers (`^`, right
+  associative, `-x^2` is −(x²)) as the three boxes, and every other character exactly as printed. Parentheses that only
+  group a slot are not drawn (numerators, denominators, exponents, radicands); a power's base keeps its parentheses.
+  Selection, carets, copying and Find in outputs go through the map from each drawn item to the printed bytes.
+- **Older notebooks.** A typeset cell of an older notebook keeps its roots, fractions and powers as boxes; every other
+  box (a subscript, an n-th root, a grid, a big operator) becomes its linear text. Loading and saving then give the same
+  text again.
+- **Rejected: live preview.** An earlier proposal of this round showed the construct under the caret as its linear
+  text. The user chose one structured editor instead ("there should be only one"), which also keeps every character
+  still while the caret moves.
+
 ### 4.1 Box model
 
 Typeset content is a tree of **rows**; a row is a sequence of **items**: characters and boxes. Box kinds:
@@ -695,6 +731,8 @@ select a part, which copies as the printed text it stands for (each item keeps a
 also lets Find highlight the matched part).
 
 ### 4.6 Linear, typeset and traditional forms
+
+*Superseded by 4.0: there are no forms to switch between. The bullets below record the earlier design.*
 
 - **Linear input text** (`Ctrl+Shift+I`, "Copy as plain text"): the cell's canonical text with box markers reduced to
   minimal parentheses (`((a + b)/(2c))` -> `(a + b)/(2c)`, `((x)^(2))` -> `x^2`). The cell's `typeset` mark is removed.

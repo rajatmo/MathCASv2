@@ -41,7 +41,7 @@ fn step(ed: &mut Editor, r: &mut Rng) {
     match r.below(22) {
         0..=5 => ed.insert_char(['x', '1', '+', '(', ')', ',', '-', '>', ' ', '[', ']', '□'][r.below(12)]),
         6 => {
-            ed.structure([Fraction, Superscript, Subscript, Radical, Overscript, Underscript, GridRow, GridColumn][r.below(8)]);
+            ed.structure([Fraction, Superscript, Radical][r.below(3)]);
         }
         7 => {
             ed.backspace();
@@ -65,7 +65,7 @@ fn step(ed: &mut Editor, r: &mut Rng) {
             ed.exit_structure();
         }
         14 => {
-            ed.switch_script();
+            ed.backspace();
         }
         15 => {
             ed.next_placeholder();

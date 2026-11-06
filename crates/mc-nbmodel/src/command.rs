@@ -1,6 +1,6 @@
 //! Commands: every key, menu item and mouse action becomes a [`Command`] applied to the model
 //! ([`crate::Notebook::apply`]), which answers with [`Effects`] for the window.
-use crate::cell::{CellId, OutputForm};
+use crate::cell::CellId;
 use mc_boxes::{RowPath, Structure};
 use crate::style::Style;
 
@@ -215,20 +215,11 @@ pub enum Command {
     /// set the display size of an Output cell's graphic (points at 100 %), `None` for its natural size (design 6:
     /// resizing by the handles, double-click restores); an undo unit
     ResizeGraphic(CellId, Option<(u32, u32)>),
-    /// a structure command (design 4.2: `Ctrl+/` fraction, `Ctrl+6` superscript, ...); a plain Input cell becomes
-    /// typeset input first
+    /// a box key (NBUI.5: `Ctrl+2` square root, `Ctrl+/` fraction, `Ctrl+6` power); a plain code cell takes boxes
+    /// from then on
     Structure(Structure),
-    /// move the caret just after the innermost structure (`Ctrl+Space`)
+    /// move the caret just after the innermost box (`Ctrl+Space`)
     ExitStructure,
-    /// to the other script or position of the structure (`Ctrl+5`)
-    SwitchScript,
-    /// `Ctrl+Shift+N`: convert the selected inputs to typeset input and show the selected outputs typeset (4.6)
-    ToTypeset,
-    /// `Ctrl+Shift+I`: convert the selected typeset inputs to linear text and show the selected outputs as linear
-    /// text (4.6)
-    ToLinear,
-    /// show the selected outputs in a form (the Format menu; an undo unit)
-    OutputForm(OutputForm),
     /// a click in a typeset cell at a caret position of its boxes; `true` extends the selection
     ClickBox(CellId, RowPath, usize, bool),
     /// a key that is bound to nothing on purpose (reserved by the reference)
@@ -333,23 +324,10 @@ impl Command {
             ResizeGraphic(..) => "resize the graphic",
             Structure(s) => match s {
                 mc_boxes::Structure::Fraction => "fraction",
-                mc_boxes::Structure::Superscript => "superscript",
-                mc_boxes::Structure::Subscript => "subscript",
+                mc_boxes::Structure::Superscript => "power",
                 mc_boxes::Structure::Radical => "square root",
-                mc_boxes::Structure::Overscript => "overscript",
-                mc_boxes::Structure::Underscript => "underscript",
-                mc_boxes::Structure::GridRow => "new row (matrix)",
-                mc_boxes::Structure::GridColumn => "new column (matrix)",
             },
-            ExitStructure => "move out of the structure",
-            SwitchScript => "switch to the other script or position",
-            ToTypeset => "convert to typeset form",
-            ToLinear => "convert to linear text",
-            OutputForm(f) => match f {
-                crate::cell::OutputForm::Linear => "show the output as linear text",
-                crate::cell::OutputForm::Typeset => "show the output typeset",
-                crate::cell::OutputForm::Traditional => "show the output in traditional form",
-            },
+            ExitStructure => "move out of the box",
             ClickBox(..) => "mouse",
             Nop => "(reserved, does nothing)",
             App(a) => match a {

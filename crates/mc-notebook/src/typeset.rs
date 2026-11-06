@@ -335,8 +335,6 @@ pub struct Job {
     pub text: String,
     /// layout options
     pub opts: LayoutOptions,
-    /// the options of typeset output
-    pub output: mc_boxes::OutputOptions,
     /// the output's text font
     pub font: TextFont,
     /// right-justify the lines at this width (outputs)
@@ -378,7 +376,7 @@ impl Background {
                     batch.push(j);
                 }
                 for j in batch {
-                    let row = mc_boxes::typeset_output_with(&j.text, j.output).row;
+                    let row = mc_boxes::math_text(&j.text).row;
                     let mut layout = lay_out(&row, &j.opts, &j.font);
                     keep_baseline(&mut layout, &j.font, j.opts.size, j.reach.0, j.reach.1);
                     if let Some(w) = j.right {
