@@ -37,6 +37,9 @@ fix_point	core	Language	fix_point(f, x): f applied repeatedly from x until the v
 range	core	Lists	range(n), range(a, b), range(a, b, step): the list a, a + step, ... up to b (a and step default to 1)
 array	core	Lists	array(f, n): the list [f(1), ..., f(n)]; array(f, [n1, n2, ...]): nested lists of f(i1, i2, ...); array(f, n, r): indices from r
 table	core	Lists	table(e, k, r): e for each k in r (a list, or n for 1..n); more pairs k, r nest; table(e, n): n values of e
+parallel_table	core	Lists	parallel_table(e, k, r, ...): table(e, k, r, ...) with the values evaluated on the worker threads; the result is the serial one
+parallel_map	core	Lists	parallel_map(f, xs): map(f, xs) with the calls evaluated on the worker threads; the result is the serial one
+parallel_sum	core	Lists	parallel_sum(e, k, r, ...): the sum of the values of parallel_table(e, k, r, ...)
 subdivide	core	Lists	subdivide(n), subdivide(b, n), subdivide(a, b, n): the n + 1 equally spaced values from a (default 0) to b (default 1)
 map_indexed	core	Lists	map_indexed(f, xs): [f(x1, 1), f(x2, 2), ...]; map_indexed(f, x, levels): f(part, position) for the parts at levels
 map_thread	core	Lists	map_thread(f, [xs, ys, ...]): [f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]
@@ -209,7 +212,8 @@ right_composition	core	Session	right_composition(f, g, ...): the function x => .
 through	core	Session	through(p(f, g, ...)(x)): p(f(x), g(x), ...); through(e, p) only when the inner head is p
 activate	core	Session	activate(e): every inert head inactive(f) in e replaced by f, and the result evaluated
 inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call until activate
-timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds
+timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds; timing(e, breakdown: true) adds where the time went
+profile	core	Session	profile(e): [seconds, value, rows]: e evaluated with every call measured; rows [f, kind, calls, own seconds, total seconds] by own time
 temporary_directory	data	Files	temporary_directory(): the folder for temporary files, as a string ending in /
 import_data	data	Files	import_data(file), import_data(file, format), import_data(file, element), import_data(file, "page", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given
 interpolation	data	Files	interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments; interpolation_order: k for the local polynomial through the k + 1 nearest points); call it as f(x), differentiate it as f'(x) or d(f(x), x); outside the data range failure(out_of_range, x, [x_min, x_max])

@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# parallel_map
+
+#% text
+# `parallel_map(f, xs)` gives the list `[f(x1), f(x2), ...]`, as `map(f, xs)` does, with the calls evaluated on the session's worker threads.
+
+#% section
+# Details
+
+#% item
+# The result is exactly that of `map(f, xs)`: the same values in the same order.
+
+#% item
+# The calls are split at once into runs of about n/(4 threads) elements, whatever each call costs.
+
+#% item
+# Printed output and assignments inside the calls happen in the serial order: such calls are evaluated again in order after the parallel part.
+
+#% item
+# The worker threads are the session's (`--threads` for `mc-repl`). With one thread the calls run one after another.
+
+#% item
+# `map(f, xs, parallel: true)` is the same as `parallel_map(f, xs)`. For anything but a list, `parallel_map` maps as `map` does.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A function applied to every element:
+
+#% cell
+parallel_map(f, [a, b, c])
+#% output
+#= [f(a), f(b), f(c)]
+
+#% cell
+parallel_map(k => factorial(k), range(6))
+#% output
+#= [1, 2, 6, 24, 120, 720]
+
+#% subsection
+# Scope
+
+#% text
+# Over the arguments of another head:
+
+#% cell
+parallel_map(f, g(1, 2))
+#% output
+#= g(f(1), f(2))
+
+#% subsection
+# Options
+
+#% text
+# The option form of `map`:
+
+#% cell
+map(k => k^2 + 1, range(5), parallel: true)
+#% output
+#= [2, 5, 10, 17, 26]
+
+#% subsection
+# Applications
+
+#% text
+# Expensive values, one per element: here a numerical integral for each decay rate.
+
+#% cell
+parallel_map(g => n_integrate(exp(-g*t)*cos(t)^2, [t, 0, 20]), [0.5, 1.0, 2.0])
+#% output
+#= [1.0587878701456346, 0.5999999994140479, 0.37499999999999983]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same result as `map`:
+
+#% cell
+parallel_map(k => next_prime(10^k), range(8)) == map(k => next_prime(10^k), range(8))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `map`, `parallel_table`, `parallel_sum`, `map_thread`

@@ -24,6 +24,9 @@
 #% item
 # In a pipe, `xs |> map(f, _)` puts the list in the second argument.
 
+#% item
+# With the option `parallel: true` the calls are evaluated on the session's worker threads, as `parallel_map` evaluates them; the result is the same.
+
 #% section
 # Examples
 
@@ -79,6 +82,17 @@ map(derivative(1)(sin), [0, pi/2, pi])
 range(5) |> map(k => factorial(k), _)
 #% output
 #= [1, 2, 6, 24, 120]
+
+#% subsection
+# Options
+
+#% text
+# The calls evaluated on the worker threads:
+
+#% cell
+map(k => next_prime(10^k), range(6), parallel: true)
+#% output
+#= [11, 101, 1009, 10007, 100003, 1000003]
 
 #% subsection
 # Applications
@@ -146,4 +160,4 @@ map(row => map(x => x^2, row), [[1, 2], [3]])
 # See also
 
 #% text
-# `map_indexed`, `map_thread`, `select`, `table`, `fold`, `apply`
+# `map_indexed`, `map_thread`, `select`, `table`, `fold`, `apply`, `parallel_map`

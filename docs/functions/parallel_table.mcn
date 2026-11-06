@@ -1,0 +1,136 @@
+#! mathcas 2 notebook
+
+#% title
+# parallel_table
+
+#% text
+# `parallel_table(e, k, r)` gives the list of the values of `e` for each `k` in `r`, as `table(e, k, r)` does, with the values computed on the session's worker threads.
+
+#% text
+# `parallel_table(e, k1, r1, k2, r2, ...)` gives nested lists, the outermost iterator split over the threads.
+
+#% text
+# `parallel_table(e, n)` gives `n` values of `e`.
+
+#% section
+# Details
+
+#% item
+# The result is exactly the result of `table` with the same arguments: the same values in the same order, failures kept as elements.
+
+#% item
+# The values are split at once into runs of about n/(4 threads) elements, one run per task, whatever each value costs; `table` splits only when its values are found to be expensive.
+
+#% item
+# Printed output and assignments inside the values happen in the order of the serial evaluation: a value that prints or assigns is evaluated again in order after the parallel part, so such values gain nothing.
+
+#% item
+# The worker threads are the session's (`--threads` for `mc-repl`, up to 4 by default). With one thread the values are computed one after another.
+
+#% item
+# An interrupt, or the fuel, time or memory limit, stops every worker.
+
+#% item
+# `table(e, k, r, parallel: true)` is the same as `parallel_table(e, k, r)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Squares, computed in parallel:
+
+#% cell
+parallel_table(k^2, k, 8)
+#% output
+#= [1, 4, 9, 16, 25, 36, 49, 64]
+
+#% text
+# Over the elements of a list:
+
+#% cell
+parallel_table(gcd(k, 12), k, [3, 8, 9, 10])
+#% output
+#= [3, 4, 3, 2]
+
+#% subsection
+# Scope
+
+#% text
+# Two iterators give a matrix:
+
+#% cell
+parallel_table(i + j, i, 2, j, 3)
+#% output
+#= [[2, 3, 4], [3, 4, 5]]
+
+#% text
+# A count alone repeats the expression:
+
+#% cell
+parallel_table(x, 3)
+#% output
+#= [x, x, x]
+
+#% subsection
+# Options
+
+#% text
+# The option form of `table`:
+
+#% cell
+table(k^3, k, 5, parallel: true)
+#% output
+#= [1, 8, 27, 64, 125]
+
+#% subsection
+# Applications
+
+#% text
+# A parameter scan: each value solves an equation numerically.
+
+#% cell
+parallel_table(x /. find_root(cos(x) == a*x, [x, 1]), a, [0.5, 1.0, 2.0])
+#% output
+#= [1.0298665293222589, 0.7390851332151607, 0.45018361129487355]
+
+#% text
+# Integrals for a range of frequencies:
+
+#% cell
+parallel_table(n_integrate(sin(w*t)^2*exp(-t), [t, 0, 10]), w, [1, 2, 3])
+#% output
+#= [0.39997086319476105, 0.47056066499741983, 0.48646432423514996]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The values are those of `table`:
+
+#% cell
+parallel_table(prime(k), k, 20) == table(prime(k), k, 20)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Values that print run in order after the parallel part, so they are not faster than with `table`:
+
+#% cell
+parallel_table({ print(k); k }, k, 3)
+#% output
+#| 1
+#| 2
+#| 3
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `table`, `parallel_map`, `parallel_sum`, `map`, `profile`
