@@ -487,8 +487,17 @@ fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
     // once per process: plot files left by sessions long gone are removed, so the folder does not grow forever
     static SWEEP: std::sync::Once = std::sync::Once::new();
     SWEEP.call_once(|| {
-        let dir = dir.clone();
-        std::thread::spawn(move || sweep(&dir, std::time::Duration::from_secs(STALE_HOURS * 3600)));
+        // at most once an hour for all processes: a marker file's age says when the folder was last swept
+        let marker = dir.join(".swept");
+        let recent = std::fs::metadata(&marker)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| std::time::SystemTime::now().duration_since(t).ok())
+            .is_some_and(|d| d < std::time::Duration::from_secs(3600));
+        if !recent && std::fs::write(&marker, b"").is_ok() {
+            let dir = dir.clone();
+            std::thread::spawn(move || sweep(&dir, std::time::Duration::from_secs(STALE_HOURS * 3600)));
+        }
     });
     // the siblings first: once the PNG exists, so do they
     std::fs::write(path.with_extension("json"), json).map_err(|e| e.to_string())?;
