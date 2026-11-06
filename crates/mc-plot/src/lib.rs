@@ -355,6 +355,9 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
             mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
+                mc_graphics::compose::remember_graphic(&path, model);
+            }
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
@@ -383,6 +386,9 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     Ok(Reply::Done(match write_files(&files, &json) {
         Ok(path) => {
             mc_graphics::compose::remember(&path, mc_syntax::Printer::new(h).expr(g));
+            if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
+                mc_graphics::compose::remember_graphic(&path, model);
+            }
             image(h, &path)
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),

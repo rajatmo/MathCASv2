@@ -288,6 +288,19 @@ impl TexParser {
                 r
             }
             "mathit" => self.atom(depth + 1),
+            // letter styles: the letters of the argument in the math alphabets
+            "mathcal" | "mathscr" | "mathbb" | "mathbf" | "boldsymbol" | "mathfrak" | "mathsf" | "mathtt" => {
+                let was = self.math;
+                self.math = false;
+                let mut r = self.atom(depth + 1);
+                self.math = was;
+                for it in r.0.iter_mut() {
+                    if let Item::Char(c) = it {
+                        *c = styled_letter(&name, *c);
+                    }
+                }
+                r
+            }
             // accents: a combining mark after the (last character of the) argument
             "bar" | "overline" | "hat" | "widehat" | "tilde" | "widetilde" | "vec" | "dot" | "ddot" | "check" | "breve"
             | "acute" | "grave" => {
@@ -336,6 +349,64 @@ fn math_letter(c: char) -> char {
         _ => return c,
     };
     char::from_u32(shifted).unwrap_or(c)
+}
+
+/// A letter or digit in a math alphabet (`\mathcal`, `\mathscr`: script; `\mathbb`: double-struck; `\mathbf`,
+/// `\boldsymbol`: bold; `\mathfrak`: fraktur; `\mathsf`: sans-serif; `\mathtt`: monospace), with the letters that
+/// Unicode keeps in the Letterlike Symbols block; other characters as they are.
+fn styled_letter(style: &str, c: char) -> char {
+    let (upper, lower, digits): (u32, Option<u32>, Option<u32>) = match style {
+        "mathcal" | "mathscr" => (0x1d49c, Some(0x1d4b6), None),
+        "mathbb" => (0x1d538, Some(0x1d552), Some(0x1d7d8)),
+        "mathbf" | "boldsymbol" => (0x1d400, Some(0x1d41a), Some(0x1d7ce)),
+        "mathfrak" => (0x1d504, Some(0x1d51e), None),
+        "mathsf" => (0x1d5a0, Some(0x1d5ba), Some(0x1d7e2)),
+        "mathtt" => (0x1d670, Some(0x1d68a), Some(0x1d7f6)),
+        _ => return c,
+    };
+    // holes of the math alphabets, filled by older characters
+    let hole = match (style, c) {
+        ("mathcal" | "mathscr", 'B') => Some('\u{212c}'),
+        ("mathcal" | "mathscr", 'E') => Some('\u{2130}'),
+        ("mathcal" | "mathscr", 'F') => Some('\u{2131}'),
+        ("mathcal" | "mathscr", 'H') => Some('\u{210b}'),
+        ("mathcal" | "mathscr", 'I') => Some('\u{2110}'),
+        ("mathcal" | "mathscr", 'L') => Some('\u{2112}'),
+        ("mathcal" | "mathscr", 'M') => Some('\u{2133}'),
+        ("mathcal" | "mathscr", 'R') => Some('\u{211b}'),
+        ("mathcal" | "mathscr", 'e') => Some('\u{212f}'),
+        ("mathcal" | "mathscr", 'g') => Some('\u{210a}'),
+        ("mathcal" | "mathscr", 'o') => Some('\u{2134}'),
+        ("mathbb", 'C') => Some('\u{2102}'),
+        ("mathbb", 'H') => Some('\u{210d}'),
+        ("mathbb", 'N') => Some('\u{2115}'),
+        ("mathbb", 'P') => Some('\u{2119}'),
+        ("mathbb", 'Q') => Some('\u{211a}'),
+        ("mathbb", 'R') => Some('\u{211d}'),
+        ("mathbb", 'Z') => Some('\u{2124}'),
+        ("mathfrak", 'C') => Some('\u{212d}'),
+        ("mathfrak", 'H') => Some('\u{210c}'),
+        ("mathfrak", 'I') => Some('\u{2111}'),
+        ("mathfrak", 'R') => Some('\u{211c}'),
+        ("mathfrak", 'Z') => Some('\u{2128}'),
+        _ => None,
+    };
+    if let Some(h) = hole {
+        return h;
+    }
+    let code = match c {
+        'A'..='Z' => upper + (c as u32 - 'A' as u32),
+        'a'..='z' => match lower {
+            Some(l) => l + (c as u32 - 'a' as u32),
+            None => return c,
+        },
+        '0'..='9' => match digits {
+            Some(d) => d + (c as u32 - '0' as u32),
+            None => return c,
+        },
+        _ => return c,
+    };
+    char::from_u32(code).unwrap_or(c)
 }
 
 /// A glyph of a typeset label: its id in the math font, the character it shows (when it is one), its baseline
@@ -425,6 +496,15 @@ mod tests {
 
     fn tex(s: &str) -> String {
         notation(&Label::text(s).row)
+    }
+
+    /// Gap queue G43: letter styles.
+    #[test]
+    fn letter_styles() {
+        assert_eq!(tex(r"$\mathcal{A}\mathcal{B}$"), "\u{1d49c}\u{212c}");
+        assert_eq!(tex(r"$\mathbb{R}\mathbb{x}$"), "\u{211d}\u{1d569}");
+        assert_eq!(tex(r"$\mathbf{v}2$"), "\u{1d42f}2");
+        assert!(!tex(r"$\ln \mathcal{A}$").contains("mathcal"));
     }
 
     #[test]

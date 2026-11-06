@@ -274,3 +274,25 @@ fn callouts_and_placed_labels() {
     assert!(svg(&p).contains(r#"aria-label="corner""#));
     is_image(&mut e, "graphics([circle(), placed(\"$r = 1$\", below)])");
 }
+
+/// Gap queue G43, G44, G49: letter styles in labels, hex colours in grid lines and directives, epilog positions in
+/// data values on log axes, and layouts of dense plots drawn from the remembered graphics.
+#[test]
+fn letter_styles_hex_grid_lines_and_dense_layouts() {
+    let mut e = CoreEngine::new();
+    let p = is_image(&mut e, r#"plot(x, [x, 0, 1], x_label: "$\\ln \\mathcal{A}$, $\\mathbb{R}$, $\\mathbf{v}$")"#);
+    // the label's text keeps the TeX as written; the letters themselves are checked in mc-graphics' label tests
+    assert!(svg(&p).contains("mathcal"));
+    let p = is_image(&mut e, "plot(exp(x), [x, 0, 10], y_scale: log, epilog: [point([5, 5.0])], grid_lines: [[[3, \"#ff0000\"]], none])");
+    assert!(svg(&p).contains("#ff0000"), "a red grid line");
+    let p = is_image(&mut e, "graphics([\"#00ff00\", disk()])");
+    assert!(svg(&p).contains("#00ff00"));
+    let t = std::time::Instant::now();
+    eval(&mut e, "p = list_line_plot(table(sin(k/1000.0), k, 100000));");
+    let single = t.elapsed();
+    let t = std::time::Instant::now();
+    let p = is_image(&mut e, "graphics_row([p, p])");
+    let row = t.elapsed();
+    assert!(png_size(&p).0 > 900);
+    assert!(row < single * 4 + std::time::Duration::from_secs(2), "row {row:?} vs one plot {single:?}");
+}

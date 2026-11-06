@@ -40,6 +40,37 @@ pub fn recall(path: &str) -> Option<String> {
     m.iter().rev().find(|(p, _)| p == path).map(|e| e.1.clone())
 }
 
+/// The graphics of recent plots read (heap-free), by the path of their PNG file: layouts and insets of plots draw
+/// them without reading their terms again.
+static GRAPHICS: Mutex<VecDeque<(String, std::sync::Arc<crate::model::Graphic>)>> = Mutex::new(VecDeque::new());
+/// The most plots whose graphics are remembered.
+const GRAPHICS_ENTRIES: usize = 32;
+
+/// Remember the graphic a plot's PNG file at `path` was drawn from.
+pub fn remember_graphic(path: &str, g: crate::model::Graphic) {
+    let Ok(mut m) = GRAPHICS.lock() else { return };
+    m.retain(|(p, _)| p != path);
+    m.push_back((path.to_string(), std::sync::Arc::new(g)));
+    while m.len() > GRAPHICS_ENTRIES {
+        m.pop_front();
+    }
+}
+
+/// The graphic of the plot drawn to `path`, if it is remembered.
+pub fn recall_graphic(path: &str) -> Option<std::sync::Arc<crate::model::Graphic>> {
+    let m = GRAPHICS.lock().ok()?;
+    m.iter().rev().find(|(p, _)| p == path).map(|e| e.1.clone())
+}
+
+/// The path of an `image("path")` term.
+pub fn image_path<'h, S: Store + ?Sized>(h: &'h S, t: T<'h>) -> Option<&'h str> {
+    let View::App { head, args: &[p] } = h.view(t) else { return None };
+    match (h.view(head), h.view(p)) {
+        (View::Sym(s), View::Str(path)) if h.sym_name(s) == "image" => Some(path),
+        _ => None,
+    }
+}
+
 /// Register the natives.
 pub fn install(k: &mut Kernel, h: &Heap) {
     for (name, kind) in [
@@ -110,6 +141,12 @@ impl<'h> Cell<'h> {
 
 fn cell<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Cell<'h>> {
     let h = cx.heap();
+    // a plot whose graphic is remembered: drawn from it (its term is not read again)
+    if let Some(g) = image_path(h, t).and_then(recall_graphic) {
+        if let Ok(p) = crate::page::plan(&g, &|| false) {
+            return Ok(Cell::Picture(t, (p.width as f64, p.height as f64)));
+        }
+    }
     let t = resolve(cx, t)?;
     if crate::is_graphics(h, t) {
         if let Ok(s) = crate::page_size(h, t) {

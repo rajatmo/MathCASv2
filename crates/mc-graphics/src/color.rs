@@ -148,6 +148,11 @@ pub fn colour<S: Store + ?Sized>(h: &S, t: T<'_>) -> Colour {
             Some(c) => Colour::Value(c),
             None => Colour::Symbolic,
         },
+        // "#rrggbb", as plot options write colours
+        View::Str(s) => match hex_color(s) {
+            Some(c) => Colour::Value(c),
+            None => Colour::Bad,
+        },
         View::App { head, args } => {
             let View::Sym(f) = h.view(head) else { return Colour::Bad };
             let name = h.sym_name(f);

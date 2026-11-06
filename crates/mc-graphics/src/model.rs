@@ -915,6 +915,16 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
             _ => Ok(symbol_directive(&h.sym_name(s), style)),
         };
     }
+    if let View::Str(_) = h.view(t) {
+        // a colour written "#rrggbb"
+        return Ok(match colour(h, t) {
+            Colour::Value(c) => {
+                style.color = c;
+                true
+            }
+            _ => false,
+        });
+    }
     let Some((name, args)) = head_name(h, t) else { return Ok(false) };
     if name == "directive" {
         // several directives as one; what is not a directive (a font option, a number) styles text or nothing
@@ -1281,6 +1291,11 @@ fn inset<S: Store + ?Sized>(h: &S, args: &[T<'_>], stop: &dyn Fn() -> bool) -> R
         _ => number(h, w),
     });
     let obj = args[0];
+    // a plot whose graphic is remembered
+    if let Some(g) = crate::compose::image_path(h, obj).and_then(crate::compose::recall_graphic) {
+        let p = crate::page::plan(&g, stop)?;
+        return Ok(Shape::Inset { graphic: Box::new((*g).clone()), natural: (p.width as f64, p.height as f64), at, offset, width });
+    }
     if !crate::is_graphics(h, obj) {
         let inner = match head_name(h, obj) {
             Some((n, a)) if n == "style" && !a.is_empty() => a[0],
