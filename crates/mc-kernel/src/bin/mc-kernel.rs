@@ -13,7 +13,7 @@ on standard output.
   --help         print this text";
 
 fn main() -> ExitCode {
-    let mut config = EngineConfig::default();
+    let mut config = EngineConfig { display: true, ..EngineConfig::default() };
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {

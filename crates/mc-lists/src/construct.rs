@@ -8,6 +8,23 @@ use mc_eval::{NativeCx, Reply, Res};
 /// `range(n)`, `range(a, b)`, `range(a, b, step)`: `a, a + step, ...` up to `b` (`a` defaults to 1, `step` to 1).
 /// Machine integers are built directly; other exact bounds exactly; with an inexact bound or step the elements are
 /// `a + k*step` in the inexact kind, and the count tolerates rounding (decision I.7). A symbolic bound declines.
+/// `range(a, b, s)` with symbolic bounds whose number of steps `floor((b - a)/s)` evaluates to an integer:
+/// `range(0, pi, pi/4)` is `[0, pi/4, pi/2, 3*pi/4, pi]` (docs bug 1). Otherwise the call stays unevaluated.
+fn symbolic_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>, s: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let sym = |n: &str| h.sym_term(h.sym(n));
+    let (add, mul, pow) = (sym("add"), sym("mul"), sym("pow"));
+    let width = h.app(add, &[b, h.app(mul, &[h.int(-1), a])]);
+    let steps = h.app(sym("floor"), &[h.app(mul, &[width, h.app(pow, &[s, h.int(-1)])])]);
+    let View::Int(n) = h.view(cx.eval(steps)?) else { return Ok(Reply::Decline) };
+    if !(-1..=MAX_LEN as i64).contains(&n) {
+        return Ok(Reply::Decline);
+    }
+    cx.tick(n.max(0) as u64)?;
+    let out: Vec<T<'h>> = (0..=n).map(|k| h.app(add, &[a, h.app(mul, &[h.int(k), s])])).collect();
+    Ok(Reply::Again(cx.list(&out)))
+}
+
 pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let one = h.int(1);
@@ -30,10 +47,10 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             Some(Num::Real(r)) => reals.push(r),
             Some(Num::Complex(..)) => return Ok(Reply::Done(lib.bad_arg(h, t, pos(k)))),
             None => {
-                return Ok(match h.view(x) {
-                    View::Sym(_) | View::App { .. } => Reply::Decline,
-                    _ => Reply::Done(lib.bad_arg(h, t, pos(k))),
-                })
+                return match h.view(x) {
+                    View::Sym(_) | View::App { .. } => symbolic_range(cx, a, b, s),
+                    _ => Ok(Reply::Done(lib.bad_arg(h, t, pos(k)))),
+                }
             }
         }
     }
@@ -133,10 +150,29 @@ fn int_range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: i64, b: 
 /// are evaluated as a group (like `map`).
 pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [f, n] = *args else {
-        return Ok(Reply::Decline);
+    let (f, n, origin) = match *args {
+        [f, n] => (f, n, None),
+        [f, n, r] => (f, n, Some(r)),
+        _ => return Ok(Reply::Decline),
     };
     let ds = take!(dims_operand(lib, h, t, n, 2));
+    // the first index of each dimension: 1, or the origin given (`array(f, 3, 0)` is [f(0), f(1), f(2)])
+    let starts: Vec<i64> = match origin.map(|r| h.view(r)) {
+        None => vec![1; ds.len()],
+        Some(View::Int(r)) => vec![r; ds.len()],
+        Some(_) => match origin.and_then(|r| cx.as_list(r)) {
+            Some(rs) if rs.len() == ds.len() => {
+                let mut v = vec![];
+                for &r in rs {
+                    let View::Int(r) = h.view(r) else { return Ok(Reply::Decline) };
+                    v.push(r);
+                }
+                v
+            }
+            _ => return Ok(Reply::Decline),
+        },
+    };
+    let starts_ = &starts;
     let total: usize = ds.iter().product();
     let cost = group_cost(cx, f);
     let ds_ = &ds;
@@ -147,7 +183,7 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         let mut ix = vec![h.int(0); ds_.len()];
         let mut r = i;
         for (k, &d) in ds_.iter().enumerate().rev() {
-            ix[k] = h.int((r % d) as i64 + 1);
+            ix[k] = h.int((r % d) as i64 + starts_[k]);
             r /= d;
         }
         apply(cx, f, &ix)
@@ -233,6 +269,13 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// 1A.15), evaluated as a group.
 pub(crate) fn map_indexed<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // with levels, the positions are index lists (decision p6core.9)
+    if let [f, x, spec] = *args {
+        return match crate::levels::level_spec(h, spec) {
+            Some(levels) => crate::levels::map_indexed_at(cx, f, x, levels),
+            None => Ok(Reply::Decline),
+        };
+    }
     let [f, xs] = *args else { return Ok(Reply::Decline) };
     let xs = take!(lib.list_operand(h, t, xs, 2));
     let cost = group_cost(cx, f);
@@ -390,6 +433,132 @@ fn fold_with<'h>(
         each(acc);
     }
     Ok(Ok(acc))
+}
+
+/// `subdivide(n)`, `subdivide(b, n)`, `subdivide(a, b, n)`: the `n + 1` equally spaced values from `a` (default 0)
+/// to `b` (default 1), `a + (b - a)*k/n` for `k = 0..n`, exact for exact ends.
+pub(crate) fn subdivide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let (a, b, n) = match *args {
+        [n] => (h.int(0), h.int(1), n),
+        [b, n] => (h.int(0), b, n),
+        [a, b, n] => (a, b, n),
+        _ => return Ok(Reply::Decline),
+    };
+    let n = match h.view(n) {
+        View::Int(n @ 1..) => n,
+        View::Int(_) => return Ok(Reply::Done(lib.bad_arg(h, t, args.len()))),
+        _ => return Ok(Reply::Decline),
+    };
+    if n as u64 > crate::ctx::MAX_LEN as u64 {
+        return Ok(Reply::Done(lib.too_large(h, t)));
+    }
+    let (add, mul, pow) = (h.sym_term(h.sym("add")), h.sym_term(h.sym("mul")), h.sym_term(h.sym("pow")));
+    let width = h.app(add, &[b, h.app(mul, &[h.int(-1), a])]);
+    let step = h.app(mul, &[width, h.app(pow, &[h.int(n), h.int(-1)])]);
+    crate::ctx::charge_copy(cx, n as usize + 1)?;
+    let out: Vec<T<'h>> = (0..=n).map(|k| h.app(add, &[a, h.app(mul, &[h.int(k), step])])).collect();
+    Ok(Reply::Again(cx.list(&out)))
+}
+
+/// The steps of `nest_while` (`list` false) and `nest_while_list`: `f` applied from `x` while `test` holds for the
+/// latest value, at most `max` times.
+fn nest_while_steps<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    t: T<'h>,
+    args: &[T<'h>],
+    list: bool,
+) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let (f, x, test, max) = match *args {
+        [f, x, test] => (f, x, test, u64::MAX),
+        [f, x, test, m] | [f, x, test, _, m] => match h.view(m) {
+            View::Int(n @ 0..) => (f, x, test, n as u64),
+            View::Sym(s) if h.sym_name(s) == "inf" => (f, x, test, u64::MAX),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
+    if let [_, _, _, m, _] = *args {
+        // only the latest value is passed to the test
+        if !matches!(h.view(m), View::Int(1)) {
+            return Ok(Reply::Decline);
+        }
+    }
+    let mut cur = x;
+    let mut out = vec![x];
+    let mut steps = 0u64;
+    while steps < max {
+        cx.tick(1)?;
+        let ok = apply(cx, test, &[cur])?;
+        if lib.is_failure(h, ok) {
+            return Ok(Reply::Done(ok));
+        }
+        if !cx.is_true(ok) {
+            break;
+        }
+        cur = apply(cx, f, &[cur])?;
+        if lib.is_failure(h, cur) {
+            return Ok(Reply::Done(cur));
+        }
+        steps += 1;
+        if list {
+            if out.len() >= MAX_LEN {
+                return Ok(Reply::Done(lib.too_large(h, t)));
+            }
+            out.push(cur);
+        }
+    }
+    Ok(Reply::Done(if list { cx.list(&out) } else { cur }))
+}
+
+/// `nest_while(f, x, test)`, `nest_while(f, x, test, 1, max)`: `f` applied from `x` as long as `test` of the
+/// latest value is true (at most `max` times).
+pub(crate) fn nest_while<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    nest_while_steps(lib, cx, t, args, false)
+}
+
+/// `nest_while_list(f, x, test)`: the list of the values `nest_while` goes through, `x` first.
+pub(crate) fn nest_while_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    nest_while_steps(lib, cx, t, args, true)
+}
+
+/// `fixed_point_list(f, x)`, `fixed_point_list(f, x, n)`: `x, f(x), f(f(x)), ...` until a value repeats the one
+/// before it (numbers that agree count as repeating), at most `n` applications.
+pub(crate) fn fixed_point_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let (f, x, max) = match *args {
+        [f, x] => (f, x, u64::MAX),
+        [f, x, n] => match h.view(n) {
+            View::Int(n @ 0..) => (f, x, n as u64),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
+    let ar = lib.arith(h);
+    let mut out = vec![x];
+    let mut cur = x;
+    let mut steps = 0u64;
+    while steps < max {
+        cx.tick(1)?;
+        let next = apply(cx, f, &[cur])?;
+        if lib.is_failure(h, next) {
+            return Ok(Reply::Done(next));
+        }
+        steps += 1;
+        if out.len() >= MAX_LEN {
+            return Ok(Reply::Done(lib.too_large(h, t)));
+        }
+        out.push(next);
+        // the same term, or numbers that are equal or cannot be told apart (overlapping balls)
+        let same = next == cur || (ar.num(next).is_some() && ar.num(cur).is_some() && ar.equal(next, cur) != Some(Some(false)));
+        if same {
+            break;
+        }
+        cur = next;
+    }
+    Ok(Reply::Done(cx.list(&out)))
 }
 
 #[cfg(test)]

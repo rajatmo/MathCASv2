@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# take_smallest
+
+#% text
+# `take_smallest(xs, n)` gives the `n` smallest elements of `xs`, smallest first.
+
+#% section
+# Details
+
+#% item
+# Elements are compared in the canonical order, so numbers by value.
+
+#% item
+# `take_largest` gives the largest ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take_smallest([3, 1, 4, 1, 5], 2)
+#% output
+#= [1, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The first elements of `sort`:
+
+#% cell
+xs = [3, 1, 4, 1, 5]
+take_smallest(xs, 3) == take(sort(xs), 3)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `take_largest`, `sort`, `min`, `min_by`

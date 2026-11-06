@@ -10,7 +10,8 @@ use rustc_hash::FxHashMap;
 /// from `combine` or `finish` (overflow) ends the walk.
 struct Fold {
     with_head: bool,
-    atom: u128,
+    /// the value of an atom (complex numbers are atoms, decision p6core.3)
+    atom: fn(&Heap, T<'_>) -> u128,
     start: u128,
     combine: fn(u128, u128) -> Option<u128>,
     finish: fn(u128) -> Option<u128>,
@@ -18,14 +19,30 @@ struct Fold {
 
 fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -> Res<Option<u128>> {
     let Fold { with_head, atom, start, combine, finish } = *f;
+    let (assoc, rule) = (h.sym_term(h.sym("assoc")), h.sym_term(h.sym("rule")));
     let children = |u: T<'h>| -> Option<(Option<T<'h>>, &'h [T<'h>])> {
         match h.view(u) {
+            View::App { .. } if is_complex_number(h, u) => None,
+            // an association counts as its head and its values (keys are not parts of its tree)
+            View::App { head, args } if head == assoc && args.iter().all(|&r| is_call_of(h, r, rule, 2)) => {
+                let values: Vec<T<'h>> = args
+                    .iter()
+                    .map(|&r| match h.view(r) {
+                        View::App { args: kv, .. } => kv[1],
+                        _ => r,
+                    })
+                    .collect();
+                match h.view(h.app(head, &values)) {
+                    View::App { args, .. } => Some((with_head.then_some(head), args)),
+                    _ => None,
+                }
+            }
             View::App { head, args } => Some((with_head.then_some(head), args)),
             _ => None,
         }
     };
     if children(t).is_none() {
-        return Ok(Some(atom));
+        return Ok(Some(atom(h, t)));
     }
     let mut done: FxHashMap<T<'h>, u128> = FxHashMap::default();
     // (term, children visited so far (the head counts as child 0 when included), accumulated value)
@@ -60,7 +77,7 @@ fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -
         };
         // invariant: inside the loop over a nonempty stack
         stack.last_mut().expect("nonempty").1 += 1;
-        let known = if children(child).is_none() { Some(atom) } else { done.get(&child).copied() };
+        let known = if children(child).is_none() { Some(atom(h, child)) } else { done.get(&child).copied() };
         match known {
             Some(v) => {
                 // invariant: inside the loop over a nonempty stack
@@ -77,6 +94,29 @@ fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -
     unreachable!("the root returns when it is finished")
 }
 
+/// Is `t` a complex number `complex(re, im)` with real number parts?
+pub(crate) fn is_complex_number(h: &Heap, t: T<'_>) -> bool {
+    let View::App { head, args } = h.view(t) else { return false };
+    let number = |a: T<'_>| {
+        matches!(h.view(a), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. })
+    };
+    args.len() == 2 && args.iter().all(|&a| number(a)) && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "complex")
+}
+
+fn is_call_of(h: &Heap, t: T<'_>, head: T<'_>, n: usize) -> bool {
+    matches!(h.view(t), View::App { head: g, args } if g.raw() == head.raw() && args.len() == n)
+}
+
+/// The leaves of an atom in its tree: a fraction is `rational(p, q)` (3), a complex number `complex(re, im)` with
+/// its parts' leaves, any other atom 1.
+fn leaves(h: &Heap, t: T<'_>) -> u128 {
+    match h.view(t) {
+        View::Rational { .. } => 3,
+        View::App { args, .. } => 1 + args.iter().map(|&a| leaves(h, a)).sum::<u128>(),
+        _ => 1,
+    }
+}
+
 /// `depth(t)`: 1 for an atom, one more than the deepest argument for a compound term (heads not counted).
 pub(crate) fn depth<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
@@ -86,7 +126,7 @@ pub(crate) fn depth<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, ar
     // a compound term without arguments is one level, like an atom
     let f = Fold {
         with_head: false,
-        atom: 1,
+        atom: |_, _| 1,
         start: 0,
         combine: |a, b| Some(a.max(b)),
         finish: |a| Some(if a == 0 { 1 } else { a + 1 }),
@@ -105,7 +145,7 @@ pub(crate) fn leaf_count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     };
     let f = Fold {
         with_head: true,
-        atom: 1,
+        atom: leaves,
         start: 0,
         combine: |a, b| a.checked_add(b).filter(|v| *v <= i128::MAX as u128),
         finish: Some,

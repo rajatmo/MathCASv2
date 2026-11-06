@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# delete_cases
+
+#% text
+# `delete_cases(xs, p)` gives the elements of `xs` that do not match the pattern `p`.
+
+#% text
+# `delete_cases(x, p, levels)` removes the matching parts at the levels of `x`.
+
+#% section
+# Details
+
+#% item
+# The head of `xs` is kept; `cases` keeps the matching elements instead.
+
+#% item
+# Levels are as for `level`: `n`, `[n]`, `[m, n]`, `inf`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delete_cases([1, a, 2, b], _: Int)
+#% output
+#= [a, b]
+
+#% cell
+delete_cases([f(1), g(2), f(3)], f(_))
+#% output
+#= [g(2)]
+
+#% subsection
+# Scope
+
+#% text
+# Inside the elements, at level 2:
+
+#% cell
+delete_cases([[1, a], [b, 2]], _: Int, [2])
+#% output
+#= [[a], [b]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `cases` and `delete_cases` split a list:
+
+#% cell
+xs = [1, a, 2, b]
+length(cases(xs, _: Int)) + length(delete_cases(xs, _: Int)) == length(xs)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `cases`, `select`, `delete`, `count`

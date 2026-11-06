@@ -112,7 +112,6 @@ lookup(assoc(1 -> "one"), 1.0, "not found")
 #% cell
 lookup(assoc(1 -> 2), 1, print("default evaluated"))
 #% output
-#| default evaluated
 #= 2
 
 #% section

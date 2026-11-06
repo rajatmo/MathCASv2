@@ -147,8 +147,11 @@ pub(crate) fn type_of(h: &Heap, t: T<'_>) -> Result<Ty, DefError> {
         "ball" | "Ball" => Ty::Ball,
         "real" | "Real" => Ty::Real,
         "number" | "Number" => Ty::Number,
-        "string" | "String" => Ty::String,
-        "symbol" | "Symbol" => Ty::Symbol,
+        "string" | "String" | "Str" => Ty::String,
+        "symbol" | "Symbol" | "Sym" => Ty::Symbol,
+        "Rat" => Ty::Rational,
+        "Float" => Ty::Float,
+        "Complex" => Ty::Complex,
         _ => return Err(DefError::UnknownType),
     })
 }
@@ -698,7 +701,9 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
     k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
-    k.register(h.sym("set"), fx(Hold::First), Box::new(SetDef(Heads::new(h))));
+    // an assignment keeps a failure as the value it assigns (decision p6core.25: `r = find_root(...)` that fails
+    // leaves `r` the failure, not unassigned)
+    k.register(h.sym("set"), Attributes { handles_failures: true, ..fx(Hold::First) }, Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("define_rule"), fx(Hold::All), Box::new(DefineRule(Heads::new(h))));
     k.register(h.sym("define_fn"), fx(Hold::All), Box::new(DefineFn(Heads::new(h))));
     k.register(h.sym("define_sym"), fx(Hold::All), Box::new(DefineSym));

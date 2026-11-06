@@ -185,7 +185,7 @@ simplify(log(exp(x)))
 #% cell
 simplify((exp(x) - exp(-x))/2)
 #% output
-#= (1/2)*(exp(x) - exp(-x))
+#= (1/2)*(-exp(-x) + exp(x))
 
 #% section
 # See also

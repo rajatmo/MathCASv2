@@ -53,6 +53,11 @@ pub(crate) struct EvalFrame<'h> {
     volatile0: u32,
     /// whether the result is memoised (the term refers to no cell)
     memo: bool,
+    /// rewrites of this level so far ([`crate::EvalConfig::max_iterations`])
+    iters: u32,
+    /// the call a rule rewrote last on this level: a value `e when c` reached by the rule's right side is decided
+    /// against it (decision p6core.16)
+    call: Option<T<'h>>,
     stage: Stage,
 }
 
@@ -225,6 +230,8 @@ impl<'k, 'h> Eval<'k, 'h> {
             epoch0: cx.epoch,
             volatile0: cx.volatile,
             memo,
+            iters: 0,
+            call: None,
             stage: Stage::Head,
         };
         cx.reads = 0;
@@ -237,16 +244,38 @@ impl<'k, 'h> Eval<'k, 'h> {
         loop {
             match self.start(cx, e) {
                 Go::Next(n) => return n,
-                Go::Again(e2) => e = e2,
+                Go::Again(e2) => match self.counted(cx, e2) {
+                    Ok(e2) => e = e2,
+                    Err(n) => return n,
+                },
             }
         }
+    }
+
+    /// Count a rewrite of level `e`: past the iteration limit it fails (decision p6core.11).
+    #[inline]
+    fn counted(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>) -> Result<EvalFrame<'h>, Next<'h>> {
+        e.iters += 1;
+        if e.iters <= self.k.cfg.max_iterations {
+            return Ok(e);
+        }
+        let a = if cx.front {
+            self.k.ctl.fail(Status::Iterations);
+            Abort::Limit
+        } else {
+            Abort::Hole
+        };
+        Err(self.fail(cx, e, a))
     }
 
     #[inline]
     fn drive(&self, cx: &mut Cx<'h>, go: Go<'h>) -> Next<'h> {
         match go {
             Go::Next(n) => n,
-            Go::Again(e) => self.reduce(cx, e),
+            Go::Again(e) => match self.counted(cx, e) {
+                Ok(e) => self.reduce(cx, e),
+                Err(n) => n,
+            },
         }
     }
 
@@ -468,6 +497,13 @@ impl<'k, 'h> Eval<'k, 'h> {
         let native_of = |s: Sym| {
             self.k.defs.get(s).map(|sd| sd.native.load(Acquire)).filter(|&n| n != 0).map(|n| &self.k.natives[n as usize - 1])
         };
+        if sym_of(h, head).is_none() {
+            if let Some(u) = self.operator_form(head, vals, native_of) {
+                attempt!(self, cx, e, self.tick(cx));
+                e.t = u;
+                return Go::Again(e);
+            }
+        }
         let native = match sym_of(h, head) {
             Some(s) => native_of(s),
             // a curried call `f(a..)(b..)`: the native of the innermost head symbol, if it takes such calls
@@ -592,6 +628,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         match self.dispatch(cx, e.t) {
             Ok(Some(u)) => {
                 attempt!(self, cx, e, self.tick(cx));
+                e.call = Some(e.t);
                 e.t = u;
                 Go::Again(e)
             }
@@ -664,6 +701,13 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// memo entry (not for results of effects or cells, semantics 9 and 6.7; stamped with the start epoch).
     fn finish(&self, cx: &mut Cx<'h>, e: EvalFrame<'h>, v: T<'h>) -> Next<'h> {
         let h = self.heap;
+        let v = match e.call.and_then(|c| self.conditional(v).map(|bc| (c, bc))) {
+            None => v,
+            Some((call, (body, cond))) => match self.decide_conditional(cx, call, body, cond) {
+                Ok(v) => v,
+                Err(a) => return self.fail(cx, e, a),
+            },
+        };
         cx.depth -= 1;
         // a normal form stays normal while none of its symbols (or the term's) gains a definition
         let deps = cx.reads | h.mask(e.t0) | h.mask(v);
@@ -683,6 +727,26 @@ impl<'k, 'h> Eval<'k, 'h> {
             }
         }
         Next::Ret(v)
+    }
+
+    /// The parts of a conditional value `body when cond` (`condition(body, cond)`).
+    fn conditional(&self, v: T<'h>) -> Option<(T<'h>, T<'h>)> {
+        let h = self.heap;
+        match h.view(v) {
+            View::App { head, args: [b, c] } if sym_of(h, head).is_some_and(|s| h.sym_name(s) == "condition") => Some((*b, *c)),
+            _ => None,
+        }
+    }
+
+    /// A rule's right side ended in `body when cond` (inside a block, after the rule matched): the condition is
+    /// evaluated now; true gives the body's value, anything else leaves the call as it was (the rule does not
+    /// apply), as a condition on the rule's left side would (decision p6core.16).
+    fn decide_conditional(&self, cx: &mut Cx<'h>, call: T<'h>, body: T<'h>, cond: T<'h>) -> Res<T<'h>> {
+        let c = self.eval(cx, cond)?;
+        Ok(match sym_of(self.heap, c) {
+            Some(s) if s == self.k.names.true_ => self.eval(cx, body)?,
+            _ => call,
+        })
     }
 
     /// Is `v` a failure tagged `interrupted` or `limit` (semantics 10: they depend on the run, not on the term)?
@@ -711,6 +775,36 @@ impl<'k, 'h> Eval<'k, 'h> {
             cx.vals.truncate(base as usize);
         }
         Next::Err(a)
+    }
+}
+
+impl<'k, 'h> Eval<'k, 'h> {
+    /// The call an operator form `f(a..)(x..)` stands for (decision p6core.2), unless `f`'s native takes curried
+    /// calls itself.
+    fn operator_form<'n>(&self, head: T<'h>, vals: &[T<'h>], native_of: impl Fn(Sym) -> Option<&'n Impl>) -> Option<T<'h>>
+    where
+        'k: 'n,
+    {
+        let h = self.heap;
+        let View::App { head: f, args: ops } = h.view(head) else { return None };
+        let s = sym_of(h, f)?;
+        let form = *self.k.op_forms.get(&s)?;
+        if matches!(native_of(s), Some(Impl::Native { curried: true, .. })) || vals.is_empty() {
+            return None;
+        }
+        let mut all = Vec::with_capacity(ops.len() + vals.len());
+        match form {
+            crate::eval::OperatorForm::DataFirst => {
+                let [x] = vals else { return None };
+                all.push(*x);
+                all.extend_from_slice(ops);
+            }
+            crate::eval::OperatorForm::DataLast => {
+                all.extend_from_slice(ops);
+                all.extend_from_slice(vals);
+            }
+        }
+        Some(h.app(f, &all))
     }
 }
 

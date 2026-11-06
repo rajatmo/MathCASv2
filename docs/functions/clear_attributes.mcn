@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# clear_attributes
+
+#% text
+# `clear_attributes(f, a)` removes the attribute `a` from the symbol `f`; `clear_attributes(f, [a, ...])` several.
+
+#% section
+# Details
+
+#% item
+# Removing an attribute the symbol does not have changes nothing.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+set_attributes(h1, [listable, hold_all])
+clear_attributes(h1, hold_all)
+attributes(h1)
+#% output
+#= [listable]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without `listable` a call with a list stays a call:
+
+#% cell
+set_attributes(h2, listable)
+clear_attributes(h2, listable)
+h2([1, 2])
+#% output
+#= h2([1, 2])
+
+#% section
+# See also
+
+#% text
+# `set_attributes`, `attributes`

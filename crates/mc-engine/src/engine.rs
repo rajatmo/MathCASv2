@@ -21,7 +21,7 @@ use mc_api::names;
 use mc_arith::num::StopScope;
 use mc_bench::{Engine, EngineError, Evaluated, RaiseHook, StopFlag};
 use mc_core::{Session, Store};
-use mc_eval::{guard, Control, EvalConfig, Kernel, Status};
+use mc_eval::{guard, Control, EvalConfig, Kernel, OperatorForm, Status};
 use mc_load::{stdlib, LoadError, Loader, Module, Origin, SourceProvider};
 use mc_syntax::Printer;
 use mc_api::Sym;
@@ -42,6 +42,9 @@ pub struct EngineConfig {
     pub eval: EvalConfig,
     /// evaluate the prelude when the engine starts (decision F.7)
     pub prelude: bool,
+    /// print values for reading: differences and divisions instead of `+ -c*x` and negative powers (the front
+    /// ends' setting; the default prints text that reads back as the same unevaluated term, decision p6core.19)
+    pub display: bool,
 }
 
 impl Default for EngineConfig {
@@ -49,7 +52,7 @@ impl Default for EngineConfig {
     /// sized by memory and its native-callback limit by the pool's stacks (package 1a, replacing decision G.7).
     fn default() -> EngineConfig {
         let threads = std::thread::available_parallelism().map_or(1, |n| n.get()).min(4);
-        EngineConfig { threads, heap: mc_core::Config::default(), eval: EvalConfig::default(), prelude: true }
+        EngineConfig { threads, heap: mc_core::Config::default(), eval: EvalConfig::default(), prelude: true, display: false }
     }
 }
 
@@ -75,6 +78,8 @@ pub struct CoreEngine {
     jit: mc_jit::Jit,
     /// the line counter of numbered evaluations: the number the next statement gets (08-notebook 2.6)
     line: u64,
+    /// [`EngineConfig::display`]
+    display: bool,
 }
 
 /// The names of every installed library's functions and constants, and `inf`.
@@ -157,6 +162,24 @@ enum Input<'a> {
     File(&'a Path),
 }
 
+/// The functions with an operator form `f(a..)(x..)` and where its outer arguments go (decision p6core.2).
+pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
+    use OperatorForm::{DataFirst as F, DataLast as L};
+    &[
+        ("select", F), ("append", F), ("prepend", F), ("cases", F), ("delete_cases", F), ("count", F),
+        ("position", F), ("select_first", F), ("key_drop", F), ("key_take", F), ("key_exists", F), ("lookup", F),
+        ("group_by", F), ("count_by", F), ("sort_by", F), ("max_by", F), ("min_by", F), ("all_true", F),
+        ("any_true", F), ("none_true", F), ("member", F), ("member_of", F), ("free_of", F), ("rewrite", F),
+        ("replace", F), ("replace_part", F), ("extract", F), ("insert", F), ("delete", F), ("key_select", F),
+        ("match_q", F), ("string_replace", F), ("string_contains", F), ("string_starts", F), ("string_ends", F),
+        ("string_split", F), ("string_cases", F), ("string_delete", F), ("gather_by", F), ("unique_by", F),
+        ("take_largest", F), ("take_smallest", F),
+        ("contains_any", F), ("contains_all", F), ("contains_none", F), ("key_member", F),
+        ("map", L), ("apply", L), ("map_indexed", L), ("fold", L), ("fold_list", L), ("scan", L),
+        ("key_map", L), ("key_value_map", L), ("assoc_map", L), ("map_thread", L),
+    ]
+};
+
 impl CoreEngine {
     /// An engine with the default settings.
     pub fn new() -> CoreEngine {
@@ -204,6 +227,14 @@ impl CoreEngine {
             let list = h.sym(names::LIST);
             let a = k.attributes(list);
             k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
+            // attributes as values (decision p6core.26)
+            crate::attrs::install(&mut k, h);
+            // `exp(x)` is `e^x` (decision p6core.5)
+            arith::canonical_exp(&mut k, h);
+            // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)` (decision p6core.2)
+            for &(name, form) in OPERATOR_FORMS {
+                k.set_operator_form(h.sym(name), form);
+            }
             // the notebook protocol's history (`out`) and library warnings (`message`)
             crate::history::install(&mut k, h);
             k.roots.push(h.sym_term(h.sym(names::NULL)));
@@ -223,6 +254,7 @@ impl CoreEngine {
             library_names,
             jit,
             line: 1,
+            display: cfg.display,
         };
         if cfg.prelude {
             let origin = Origin::embedded(stdlib::PRELUDE_ORIGIN);
@@ -454,7 +486,7 @@ impl CoreEngine {
                 self.line = nr + 1;
                 current = Some(nr);
             }
-            let (arith_stop, jit) = (&self.arith_stop, &self.jit);
+            let (arith_stop, jit, display) = (&self.arith_stop, &self.jit, self.display);
             let r = self.session.step(|h, k| {
                 // the evaluation is guarded by the evaluator itself; this guard covers printing, rendering and the
                 // compiler's registration
@@ -470,10 +502,12 @@ impl CoreEngine {
                         Status::Interrupted => return Err(EngineError::Stopped),
                         Status::Fuel => return Err(EngineError::Limit("fuel".into())),
                         Status::Depth => return Err(EngineError::Limit("evaluation depth".into())),
+                        Status::Memory => return Err(EngineError::Limit("memory".into())),
+                        Status::Iterations => return Err(EngineError::Limit("iterations".into())),
                         // the statuses of compiled code are ordinary failures, already in the value
                         Status::Running | Status::Index | Status::DivZero => {}
                     }
-                    let output = output(h, k, &|| stop.is_raised());
+                    let output = output(h, k, &|| stop.is_raised(), display);
                     k.clear_output();
                     let failure = is_failure(h, e.value);
                     let is_null = is_sym(h, e.value, names::NULL);
@@ -488,7 +522,7 @@ impl CoreEngine {
                     }
                     // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
                     let _scope = StopScope::enter(Some(arith_stop));
-                    let printed = shown(h, e.value, &|| stop.is_raised());
+                    let printed = shown(h, e.value, &|| stop.is_raised(), display);
                     done.fail = failure.then(|| printed.clone());
                     // `print(x)` returns x: a statement whose value its last output line already shows does not show it
                     // again (the scripts' rule, decision 9.5 of the library-gaps package)
@@ -512,7 +546,7 @@ impl CoreEngine {
                     }
                     Ok(done)
                 })
-                .unwrap_or_else(|note| Ok(internal(h, k, &note, last)))
+                .unwrap_or_else(|note| Ok(internal(h, k, &note, last, display)))
             });
             // an interrupt can also end inside arithmetic, as `failure(interrupted, ...)` in a finished value
             if stop.is_raised() {
@@ -560,12 +594,12 @@ impl CoreEngine {
 
 /// What a statement whose evaluation, printing or rendering panicked hands back: `failure(internal, text)` as its
 /// failure (and as the last value), with the output it made before the panic.
-fn internal(h: &mc_core::Heap, k: &mut Kernel, note: &guard::PanicNote, last: bool) -> Finished {
+fn internal(h: &mc_core::Heap, k: &mut Kernel, note: &guard::PanicNote, last: bool, display: bool) -> Finished {
     let v = h.app(h.sym_term(h.sym(names::FAILURE)), &[h.sym_term(h.sym(guard::INTERNAL)), h.string(&note.text())]);
     // the output itself may be what failed to print
-    let output = guard::catch(|| output(h, k, &|| false)).unwrap_or_default();
+    let output = guard::catch(|| output(h, k, &|| false, display)).unwrap_or_default();
     k.clear_output();
-    let printed = shown(h, v, &|| false);
+    let printed = shown(h, v, &|| false, display);
     let last = last.then(|| {
         k.roots.set(LAST, v);
         (printed.clone(), Some(mc_core::shapes::fingerprint(h, v)), false)
@@ -730,20 +764,24 @@ impl Default for CoreEngine {
 
 /// The printed form of a value: a dataset as a table (`mc_assoc::table_text`), anything else as its term. Printing
 /// polls `stop` (a huge value's text ends in `…` once it is raised).
-fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>, stop: &dyn Fn() -> bool) -> String {
-    let p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_stop(stop);
+fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>, stop: &dyn Fn() -> bool, display: bool) -> String {
+    let mut p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_exp_calls();
+    if display {
+        p = p.with_display();
+    }
+    let p = p.with_stop(stop);
     mc_assoc::table_text(h, t, &mut |x| p.expr(x)).unwrap_or_else(|| p.expr(t))
 }
 
 /// The session output since it was last cleared: strings as their text, warnings, other terms printed.
-fn output(h: &mc_core::Heap, k: &Kernel, stop: &dyn Fn() -> bool) -> Vec<Emitted> {
+fn output(h: &mc_core::Heap, k: &Kernel, stop: &dyn Fn() -> bool, display: bool) -> Vec<Emitted> {
     k.output(h)
         .into_iter()
         .map(|t| match h.view(t) {
             mc_core::View::Str(s) => Emitted::Text(s.to_string()),
             _ => match history::as_message(h, t) {
                 Some((tag, text)) => Emitted::Message(tag, text),
-                None => Emitted::Text(shown(h, t, stop)),
+                None => Emitted::Text(shown(h, t, stop, display)),
             },
         })
         .collect()

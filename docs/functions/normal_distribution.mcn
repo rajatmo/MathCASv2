@@ -36,7 +36,7 @@
 #% cell
 pdf(normal_distribution(), x)
 #% output
-#= (1/2)*exp((-1/2)*x^2)*2^(1/2)*pi^(-1/2)
+#= (1/2)*2^(1/2)*exp((-1/2)*x^2)*pi^(-1/2)
 
 #% text
 # The probability of a value below 1.96:
@@ -71,7 +71,7 @@ plot(pdf(normal_distribution(), x), [x, -4, 4])
 #% cell
 pdf(normal_distribution(mu, sigma), x)
 #% output
-#= (1/2)*exp((-1/2)*sigma^-2*(x - mu)^2)*2^(1/2)*pi^(-1/2)/sigma
+#= (1/2)*2^(1/2)*exp((-1/2)*sigma^-2*(x - mu)^2)*pi^(-1/2)/sigma
 
 #% cell
 cdf(normal_distribution(), x)

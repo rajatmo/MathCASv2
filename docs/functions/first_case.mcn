@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# first_case
+
+#% text
+# `first_case(xs, p)` gives the first element of `xs` that matches the pattern `p`.
+
+#% text
+# `first_case(xs, p -> r)` gives `r` for that element; `first_case(xs, p, default)` gives `default` when nothing matches.
+
+#% section
+# Details
+
+#% item
+# Without a default, no match gives `failure(not_found, p)`.
+
+#% item
+# Only the elements are tested, in order; the search stops at the first match.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+first_case([a, 2, b, 3], _: Int)
+#% output
+#= 2
+
+#% cell
+first_case([a, 2, b, 3], (x_: Int) -> x^2)
+#% output
+#= 4
+
+#% subsection
+# Scope
+
+#% text
+# A default when nothing matches:
+
+#% cell
+first_case([a, b], _: Int, none)
+#% output
+#= none
+
+#% subsection
+# Properties and relations
+
+#% text
+# The first element of `cases`:
+
+#% cell
+xs = [a, 2, b, 3]
+first_case(xs, _: Int) == first(cases(xs, _: Int))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `cases`, `select_first`, `position`

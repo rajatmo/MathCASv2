@@ -88,6 +88,8 @@ enum Mode {
     Strict,
     /// failures arrive as values
     Failures,
+    /// arguments after the first held: the native evaluates them when it needs them (`lookup`'s default)
+    HoldRest,
 }
 
 macro_rules! functions {
@@ -117,7 +119,7 @@ functions! {
         "values(a): the list of the values of an association, in order";
     "to_rules" => assoc::to_rules, Strict,
         "to_rules(a): the list of the entries k -> v of an association, in order";
-    "lookup" => assoc::lookup, Strict,
+    "lookup" => assoc::lookup, HoldRest,
         "lookup(a, k): the value of key k (failure(missing_key, k) if none); lookup(a, k, d): d if none";
     "key_exists" => assoc::key_exists, Strict,
         "key_exists(a, k): whether the association a has the key k";
@@ -175,7 +177,8 @@ functions! {
 pub fn install(k: &mut Kernel, h: &Heap) {
     let lib = Arc::new(Lib::new(h));
     for &(name, body, mode) in BODIES {
-        let a = Attributes { handles_failures: matches!(mode, Mode::Failures), ..Attributes::default() };
+        let hold = if matches!(mode, Mode::HoldRest) { mc_eval::Hold::Rest } else { mc_eval::Hold::None };
+        let a = Attributes { handles_failures: matches!(mode, Mode::Failures), hold, ..Attributes::default() };
         k.register(h.sym(name), a, Box::new(Fun { lib: lib.clone(), body }));
     }
     let (part, assoc, lookup) = (h.sym("part"), lib.s.assoc, h.sym("lookup"));

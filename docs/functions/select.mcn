@@ -110,18 +110,10 @@ select([1, a, -2], x => x < 0)
 #= [-2]
 
 #% text
-# On an association, the test is given each entry as a rule `k -> v`, not the value, so a test written for values keeps nothing:
+# On an association, the test is given each value, and the entries whose values pass are kept; `select_keys` tests the keys:
 
 #% cell
 select(assoc("a" -> 3, "b" -> 8, "c" -> 1), v => v > 2)
-#% output
-#= assoc()
-
-#% text
-# Testing the value part of each rule works; `select_keys` tests the keys:
-
-#% cell
-select(assoc("a" -> 3, "b" -> 8, "c" -> 1), r => r[2] > 2)
 #% output
 #= assoc("a" -> 3, "b" -> 8)
 

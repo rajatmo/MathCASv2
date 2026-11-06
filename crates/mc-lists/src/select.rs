@@ -13,10 +13,25 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         return Ok(Reply::Decline);
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    // an association's entries are tested by their values (decision p6core.22)
+    let rule = h.sym_term(lib.s.rule);
+    let by_value = head == h.sym_term(h.sym("assoc"))
+        && xs.iter().all(|&x| matches!(h.view(x), View::App { head: r, args: [_, _] } if r == rule));
+    let tested: Vec<T<'h>> = if by_value {
+        xs.iter()
+            .map(|&x| match h.view(x) {
+                View::App { args: [_, v], .. } => *v,
+                _ => x,
+            })
+            .collect()
+    } else {
+        xs.to_vec()
+    };
+    let tested = &tested;
     let cost = group_cost(cx, f);
     let tests = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
-        apply(cx, f, &[xs[i]])
+        apply(cx, f, &[tested[i]])
     })?;
     let mut out = Vec::with_capacity(xs.len());
     for (&x, &v) in xs.iter().zip(&tests) {
@@ -79,6 +94,21 @@ pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// `count(xs, p)`: how many elements of `xs` match the pattern `p`.
 pub(crate) fn count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let [x, p, spec] = *args {
+        let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
+        let (mut m, _) = take!(pattern(lib, cx, t, p, false));
+        let mut n = 0i64;
+        let mut visit = |cx: &mut NativeCx<'_, '_, 'h>, u: T<'h>, _: &[i64]| -> Res<Option<T<'h>>> {
+            if m.matches(cx, u)? {
+                n += 1;
+            }
+            Ok(None)
+        };
+        return Ok(match crate::levels::walk(cx, x, levels, &mut visit)? {
+            Some(_) => Reply::Done(h.int(n)),
+            None => Reply::Decline,
+        });
+    }
     let [xs, p] = *args else {
         return Ok(Reply::Decline);
     };

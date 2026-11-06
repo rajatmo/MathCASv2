@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# extract
+
+#% text
+# `extract(x, pos)` gives the part of `x` at the position `pos`, a list of indices `[i, j, ...]` as `position` gives them.
+
+#% text
+# `extract(x, [pos1, pos2, ...])` gives the list of the parts at several positions.
+
+#% section
+# Details
+
+#% item
+# Indices count from 1, negative from the end; 0 is the head.
+
+#% item
+# `extract(x, [i, j])` is `x[i, j]`; with a list of positions it pairs naturally with `position`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+extract([[a, b], [c, d]], [2, 1])
+#% output
+#= c
+
+#% cell
+extract([[a, b], [c, d]], [[1, 2], [2, 2]])
+#% output
+#= [b, d]
+
+#% subsection
+# Scope
+
+#% text
+# The head and negative indices:
+
+#% cell
+extract(f(x, y), 0)
+#% output
+#= f
+
+#% cell
+extract([a, b, c], -1)
+#% output
+#= c
+
+#% subsection
+# Properties and relations
+
+#% text
+# The parts `position` finds:
+
+#% cell
+t = [1, x, [2, y]]
+extract(t, position(t, _: Sym))
+#% output
+#= [list, x, list, y]
+
+#% section
+# See also
+
+#% text
+# `part`, `position`, `replace_part`, `delete`

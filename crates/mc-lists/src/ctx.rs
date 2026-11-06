@@ -148,6 +148,12 @@ impl Lib {
     /// The term `head(args)` as a reply: a list is a normal form already (its elements are), any other head is
     /// evaluated again so that its canonicalisation and rules apply (decision I.3).
     pub fn rebuilt<'h>(&self, h: &'h Heap, head: T<'h>, args: &[T<'h>]) -> Reply<'h> {
+        // a power with one operand left (`rest(1/b)`, `most(1/b)`) is that operand, as a one-term sum or product is
+        if let [x] = args {
+            if head == h.sym_term(h.sym("pow")) {
+                return Reply::Again(*x);
+            }
+        }
         let t = h.app(head, args);
         if head == h.sym_term(self.s.list) {
             Reply::Done(t)

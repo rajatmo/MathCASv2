@@ -60,7 +60,7 @@ gamma(2.5)
 #% cell
 gamma(2, 1)
 #% output
-#= 2*exp(-1)
+#= 2/e
 
 #% subsection
 # Scope

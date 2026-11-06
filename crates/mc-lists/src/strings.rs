@@ -68,7 +68,7 @@ pub(crate) fn to_string<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
     cx.tick(1)?;
     let text = {
         let _scope = StopScope::enter(Some(&lib.stop));
-        Printer::with_numbers(h, Box::new(Numbers)).expr(x)
+        Printer::with_numbers(h, Box::new(Numbers)).with_display().expr(x)
     };
     charge_copy(cx, text.len())?;
     Ok(Reply::Done(h.string(&text)))
@@ -98,6 +98,14 @@ fn string<'h>(lib: &Lib, h: &'h mc_core::Heap, t: T<'h>, a: T<'h>, k: usize) -> 
 /// nonempty string `sep`, empty pieces included.
 pub(crate) fn split<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // a list: its runs of identical elements, or of neighbours for which the test holds (decision p6core.7)
+    if let Some(&xs) = args.first() {
+        if let View::App { head, args: elems } = h.view(xs) {
+            if head == h.sym_term(lib.s.list) {
+                return split_runs(lib, cx, elems, args.get(1).copied());
+            }
+        }
+    }
     let (s, sep) = match *args {
         [s] => (take!(string(lib, h, t, s, 1)), None),
         [s, sep] => {
@@ -119,6 +127,34 @@ pub(crate) fn split<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     for p in pieces {
         m.step(cx)?;
         out.push(h.string(p));
+    }
+    Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `split(xs)`, `split(xs, test)`: the runs of consecutive identical elements (or neighbours `a, b` with
+/// `test(a, b)` true).
+fn split_runs<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], test: Option<T<'h>>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let mut m = Meter::default();
+    let mut out = vec![];
+    let mut start = 0;
+    for i in 1..=xs.len() {
+        m.step(cx)?;
+        let cut = i == xs.len()
+            || match test {
+                None => xs[i] != xs[i - 1],
+                Some(f) => {
+                    let v = crate::ctx::apply(cx, f, &[xs[i - 1], xs[i]])?;
+                    if lib.is_failure(h, v) {
+                        return Ok(Reply::Done(v));
+                    }
+                    !cx.is_true(v)
+                }
+            };
+        if cut && i > start {
+            out.push(cx.list(&xs[start..i]));
+            start = i;
+        }
     }
     Ok(Reply::Done(cx.list(&out)))
 }

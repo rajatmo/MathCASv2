@@ -198,7 +198,7 @@ solve(sin(x) == 1/2, x)
 #% cell
 x /. solve(x^2 == 4, x)
 #% output
-#= rewrite(x, [[x -> -2], [x -> 2]])
+#= [-2, 2]
 
 #% section
 # See also

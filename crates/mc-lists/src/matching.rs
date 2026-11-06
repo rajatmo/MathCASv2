@@ -87,8 +87,11 @@ fn type_of(h: &Heap, t: T<'_>) -> Option<Ty> {
         "ball" | "Ball" => Ty::Ball,
         "real" | "Real" => Ty::Real,
         "number" | "Number" => Ty::Number,
-        "string" | "String" => Ty::String,
-        "symbol" | "Symbol" => Ty::Symbol,
+        "string" | "String" | "Str" => Ty::String,
+        "symbol" | "Symbol" | "Sym" => Ty::Symbol,
+        "Rat" => Ty::Rational,
+        "Float" => Ty::Float,
+        "Complex" => Ty::Complex,
         _ => return None,
     })
 }
@@ -106,6 +109,8 @@ fn has_type(h: &Heap, t: T<'_>, ty: Ty) -> bool {
         }
         Ty::String => matches!(v, View::Str(_)),
         Ty::Symbol => matches!(v, View::Sym(_)),
+        Ty::Float => matches!(v, View::Real(_) | View::Ball { .. }),
+        Ty::Complex => crate::measure::is_complex_number(h, t),
         Ty::Head(s) => matches!(v, View::App { head, .. } if head == h.sym_term(s)),
     }
 }

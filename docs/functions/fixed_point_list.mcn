@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# fixed_point_list
+
+#% text
+# `fixed_point_list(f, x)` gives `[x, f(x), f(f(x)), ...]`, stopping when a value repeats the one before it.
+
+#% text
+# `fixed_point_list(f, x, n)` stops after at most `n` applications.
+
+#% section
+# Details
+
+#% item
+# Numbers that are equal, or balls that overlap, count as a repeat, so iterations on inexact numbers stop when they settle.
+
+#% item
+# The last element is the fixed point `fix_point(f, x)` reaches.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fixed_point_list(x => (x + 2/x)/2, 1.0)
+#% output
+#= [1.0, 1.5, 1.4166666666666665, 1.4142156862745097, 1.4142135623746899, 1.414213562373095, 1.414213562373095]
+
+#% subsection
+# Scope
+
+#% text
+# At most four steps:
+
+#% cell
+fixed_point_list(x => (x + 2/x)/2, 1, 4)
+#% output
+#= [1, 3/2, 17/12, 577/408, 665857/470832]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The last element is `fix_point`'s value:
+
+#% cell
+last(fixed_point_list(cos, 1.0)) == fix_point(cos, 1.0)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `fix_point`, `nest_while_list`, `nest_list`

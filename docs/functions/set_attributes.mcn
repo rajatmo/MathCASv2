@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# set_attributes
+
+#% text
+# `set_attributes(f, a)` gives the symbol `f` the attribute `a`; `set_attributes(f, [a, b, ...])` several.
+
+#% section
+# Details
+
+#% item
+# `listable`: calls with list arguments map over them; `hold_all`, `hold_first`, `hold_rest`: arguments are passed unevaluated; `orderless` (or `flat`): an associative and commutative head; `effect`: calls perform effects; `handles_failures`: failures arrive as arguments.
+
+#% item
+# `protected`, `locked`, `read_protected`, `numeric_function`, `one_identity` and `constant` are accepted and change nothing.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+set_attributes(f1, listable)
+f1([1, 2, 3])
+#% output
+#= [f1(1), f1(2), f1(3)]
+
+#% subsection
+# Scope
+
+#% text
+# Held arguments:
+
+#% cell
+set_attributes(q1, hold_all)
+q1(1 + 1)
+#% output
+#= q1(1 + 1)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `clear_attributes` undoes it:
+
+#% cell
+set_attributes(f2, listable)
+clear_attributes(f2, listable)
+f2([1, 2])
+#% output
+#= f2([1, 2])
+
+#% section
+# See also
+
+#% text
+# `attributes`, `clear_attributes`, `map`, `quote`

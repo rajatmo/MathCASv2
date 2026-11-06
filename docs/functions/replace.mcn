@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# replace
+
+#% text
+# `replace(x, rules)` applies the first rule whose left side matches the whole of `x`, and gives `x` itself when none does.
+
+#% text
+# `replace(x, rules, levels)` applies the rules to each part of `x` at the levels, inner parts first.
+
+#% section
+# Details
+
+#% item
+# `rules` is one rule `p -> r` or a list of rules; the result of a rule is evaluated.
+
+#% item
+# `rewrite` (`/.`) tries every part from the outside in; `replace` only the whole term or the levels given.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+replace(x^2, x^2 -> y)
+#% output
+#= y
+
+#% cell
+replace([x^2], x^2 -> y)
+#% output
+#= [x^2]
+
+#% subsection
+# Scope
+
+#% text
+# At level 1 only:
+
+#% cell
+replace([x^2, [x^2]], x^2 -> y, [1])
+#% output
+#= [y, [x^2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `rewrite` reaches every part:
+
+#% cell
+rewrite([x^2, [x^2]], x^2 -> y)
+#% output
+#= [y, [y]]
+
+#% section
+# See also
+
+#% text
+# `rewrite`, `replace_part`, `cases`

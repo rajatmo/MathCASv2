@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# reverse_sort
+
+#% text
+# `reverse_sort(xs)` gives the elements of `xs` in reverse canonical order: numbers from the largest down.
+
+#% section
+# Details
+
+#% item
+# It is `reverse(sort(xs))`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reverse_sort([3, 1, 2])
+#% output
+#= [3, 2, 1]
+
+#% cell
+reverse_sort(["b", "c", "a"])
+#% output
+#= ["c", "b", "a"]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The reverse of `sort`:
+
+#% cell
+reverse_sort([2, 5, 1]) == reverse(sort([2, 5, 1]))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `sort`, `reverse`, `take_largest`

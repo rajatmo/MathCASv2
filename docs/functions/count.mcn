@@ -98,7 +98,7 @@ count_if([5, -2, 7, -1, 0], x => x > 0)
 results = [1.2, failure(not_converged, find_root), 0.7]
 count(results, failure(___))
 #% output
-#! failure(___)
+#= 1
 
 #% cell
 count_if(results, is_failure)

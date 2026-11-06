@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# eval
+
+#% text
+# `eval(e)` gives the value of `e`.
+
+#% section
+# Details
+
+#% item
+# Outside a held argument `eval` changes nothing: its argument is evaluated like any other, and `eval(e)` is that value.
+
+#% item
+# Inside an argument a function holds (the integrand of `plot`, the body of `table`), `eval(e)` marks `e` to be evaluated when the function evaluates that part.
+
+#% item
+# On the right of a definition, `eval` is the identity too: `rule g(x_) := eval(x^2 + 1)` behaves as `rule g(x_) := x^2 + 1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+eval(1 + 1)
+#% output
+#= 2
+
+#% cell
+rule g(x_) := eval(x^2 + 1)
+g(3)
+#% output
+#= 10
+
+#% subsection
+# Scope
+
+#% text
+# Inside a held argument: `quote` keeps `1 + 1`, `eval` inside it is reached when the quoted term is released:
+
+#% cell
+unquote(quote(eval(1 + 1)))
+#% output
+#= unquote(quote(2))
+
+#% subsection
+# Properties and relations
+
+#% text
+# `eval` of a value is that value:
+
+#% cell
+eval([1, x, "s"]) === [1, x, "s"]
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `quote`, `unquote`

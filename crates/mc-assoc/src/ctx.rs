@@ -89,6 +89,16 @@ impl Lib {
         }
     }
 
+    /// Is `x` a rule `k -> v` or `k :> v`?
+    pub fn is_rule(&self, h: &Heap, x: T<'_>) -> bool {
+        match h.view(x) {
+            View::App { head, args: [_, _] } => {
+                matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "rule" | "rule_delayed"))
+            }
+            _ => false,
+        }
+    }
+
     /// The value of an entry of an association in normal form.
     pub fn value<'h>(&self, h: &'h Heap, e: T<'h>) -> T<'h> {
         match h.view(e) {

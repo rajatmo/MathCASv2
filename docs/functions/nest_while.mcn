@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# nest_while
+
+#% text
+# `nest_while(f, x, test)` applies `f` to `x`, then to the result, and so on, as long as `test` of the latest value is `true`; it gives the first value for which the test fails.
+
+#% text
+# `nest_while(f, x, test, 1, max)` applies `f` at most `max` times.
+
+#% section
+# Details
+
+#% item
+# The test is applied to `x` first: if it fails, the result is `x` itself.
+
+#% item
+# Each step polls the interrupt, so an endless loop can be stopped; `max` bounds it in advance.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+nest_while(n => n/2, 1024, n => is_even(n))
+#% output
+#= 1
+
+#% cell
+nest_while(n => n + 1, 1, n => not is_prime(n + 1))
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# At most five steps:
+
+#% cell
+nest_while(x => 2x, 1, x => true, 1, 5)
+#% output
+#= 32
+
+#% subsection
+# Properties and relations
+
+#% text
+# The last element of `nest_while_list`:
+
+#% cell
+nest_while(n => n/2, 96, is_even) == last(nest_while_list(n => n/2, 96, is_even))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `nest_while_list`, `nest`, `fix_point`, `fixed_point_list`

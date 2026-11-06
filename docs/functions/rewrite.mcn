@@ -156,7 +156,7 @@ rewrite(1 + x, x + 1 -> y)
 #% cell
 x^3 /. solve(x^2 == 2, x)
 #% output
-#= rewrite(x^3, [[x -> -2^(1/2)], [x -> 2^(1/2)]])
+#= [-2*2^(1/2), 2*2^(1/2)]
 
 #% section
 # See also

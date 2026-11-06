@@ -106,13 +106,11 @@ drop_failures(results)
 
 #% cell
 r = find_root(x^2 + 1, [x, 1])
-#% output
-#! failure(not_converged, find_root, [x -> 0.0], 1.0)
 
 #% cell
 is_failure(r)
 #% output
-#= false
+#= true
 
 #% section
 # See also

@@ -375,22 +375,48 @@ impl Native for Equality {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let h = cx.heap();
         let [a, b] = args else { return Ok(Reply::Decline) };
-        let decided = if let Some((x, y)) = two_ints(h, *a, *b) {
-            Some(x == y)
-        } else {
-            match arith(h, &self.stop).equal(*a, *b) {
-                Some(d) => d,
-                // numbers first: a NaN is not equal to itself
-                None if a == b => Some(true),
-                None => matches!((h.view(*a), h.view(*b)), (View::Str(_), View::Str(_))).then_some(false),
-            }
-        };
+        let decided = self.decide(cx, *a, *b, 0);
         Ok(match decided {
             Some(e) => Reply::Done(cx.bool(e != self.negate)),
             None => Reply::Decline,
         })
+    }
+}
+
+impl Equality {
+    /// `a == b` decided: numbers by value, identical terms, strings; lists element by element (lists of different
+    /// lengths are unequal, decision p6core.17). `None` when it is not decided.
+    fn decide<'h>(&self, cx: &NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>, depth: u32) -> Option<bool> {
+        let h = cx.heap();
+        if let Some((x, y)) = two_ints(h, a, b) {
+            return Some(x == y);
+        }
+        match arith(h, &self.stop).equal(a, b) {
+            Some(d) => return d,
+            // numbers first: a NaN is not equal to itself
+            None if a == b => return Some(true),
+            None => {}
+        }
+        if matches!((h.view(a), h.view(b)), (View::Str(_), View::Str(_))) {
+            return Some(false);
+        }
+        let (xs, ys) = (cx.as_list(a)?, cx.as_list(b)?);
+        if xs.len() != ys.len() {
+            return Some(false);
+        }
+        if depth > 64 {
+            return None;
+        }
+        let mut all = true;
+        for (&x, &y) in xs.iter().zip(ys) {
+            match self.decide(cx, x, y, depth + 1) {
+                Some(false) => return Some(false),
+                Some(true) => {}
+                None => all = false,
+            }
+        }
+        all.then_some(true)
     }
 }
 
@@ -403,8 +429,9 @@ impl Native for NotSame {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let [a, b] = args else { return Ok(Reply::Decline) };
-        Ok(Reply::Done(cx.bool(a != b)))
+        // `not_same(a, b, c, ...)`: no two identical
+        let mut seen = std::collections::HashSet::with_capacity(args.len());
+        Ok(Reply::Done(cx.bool(args.iter().all(|a| seen.insert(*a)))))
     }
 }
 
@@ -455,9 +482,39 @@ impl Native for Not {
             Reply::Done(cx.bool(false))
         } else if cx.is_false(*x) {
             Reply::Done(cx.bool(true))
+        } else if let Some(u) = negated(cx.heap(), *x) {
+            // `not not a` is `a`; a negated two-sided comparison is the opposite comparison (p6core.1)
+            Reply::Again(u)
         } else {
             Reply::Decline
         })
+    }
+}
+
+/// The negation of `x` without `not`: `a` for `not(a)`, the opposite relation for a comparison of two terms
+/// (`not x > y` is `x <= y`, `not a == b` is `a != b`).
+fn negated<'h>(h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
+    let View::App { head, args } = h.view(x) else { return None };
+    let View::Sym(s) = h.view(head) else { return None };
+    let name = h.sym_name(s);
+    if name == "not" {
+        return match args {
+            [a] => Some(*a),
+            _ => None,
+        };
+    }
+    let opposite = match name.as_str() {
+        "less" => "greater_equal",
+        "less_equal" => "greater",
+        "greater" => "less_equal",
+        "greater_equal" => "less",
+        "equal" => "unequal",
+        "unequal" => "equal",
+        _ => return None,
+    };
+    match args {
+        [a, b] => Some(h.app(h.sym_term(h.sym(opposite)), &[*a, *b])),
+        _ => None,
     }
 }
 
@@ -522,6 +579,94 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     // the imaginary unit `im` (04-syntax section 4), so that `3 - im` is a number like `3 - 1im`
     let i = arith(h, stop).complex(h.int(0), h.int(1));
     k.set_own(h.sym("im"), i);
+}
+
+/// One canonical form for the exponential function (decision p6core.5): `exp(x)` is `e^x` whenever `exp`'s own
+/// native leaves it unevaluated, so `exp(a)*e^b` is `e^(a + b)`; and `e^x` gets `exp`'s exact values
+/// (`e^log(2)` is 2, `e^(im*pi)` is -1). Call after the library defining `exp` is installed; does nothing when
+/// `exp` or `pow` has no native. The wrapped natives keep no terms (`exp`'s and `pow`'s keep only symbols).
+pub fn canonical_exp(k: &mut Kernel, h: &Heap) {
+    let (exp, pow, e) = (h.sym("exp"), h.sym(names::POW), h.sym("e"));
+    let mut inner: Option<Arc<dyn Native>> = None;
+    k.wrap_native(exp, |old| {
+        let old: Arc<dyn Native> = Arc::from(old);
+        inner = Some(old.clone());
+        Box::new(ExpToPower { inner: old, exp, pow, e })
+    });
+    if let Some(exp_native) = inner {
+        k.wrap_native(pow, |old| Box::new(PowerOfE { inner: old, exp_native, exp, e }));
+    }
+}
+
+/// `exp(x)`: `exp`'s native, then `e^x` for what it leaves.
+struct ExpToPower {
+    inner: Arc<dyn Native>,
+    exp: Sym,
+    pow: Sym,
+    e: Sym,
+}
+
+impl Native for ExpToPower {
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [x] = args else { return self.inner.call(cx, t, args) };
+        let unevaluated = |v: T<'h>| matches!(h.view(v), View::App { head, args: [y] } if head == h.sym_term(self.exp) && *y == *x);
+        let power = || Reply::Again(h.app(h.sym_term(self.pow), &[h.sym_term(self.e), *x]));
+        Ok(match self.inner.call(cx, t, args)? {
+            Reply::Decline => power(),
+            Reply::Done(v) | Reply::Again(v) if unevaluated(v) => power(),
+            r => r,
+        })
+    }
+}
+
+/// `pow(b, x)`: the arithmetic's power, then for `e^x` with a symbolic `x` the exact values of `exp`.
+struct PowerOfE {
+    inner: Box<dyn Native>,
+    exp_native: Arc<dyn Native>,
+    exp: Sym,
+    e: Sym,
+}
+
+impl Native for PowerOfE {
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        // `e^x` for an inexact x is `exp(x)`'s value, not a power of the rounded `e` (one rounding, not two)
+        if let [b, x] = args {
+            if *b == h.sym_term(self.e) && matches!(h.view(*x), View::Real(_) | View::Ball { .. }) {
+                let call = h.app(h.sym_term(self.exp), &[*x]);
+                if let Reply::Done(u) = self.exp_native.call(cx, call, &[*x])? {
+                    if u != call {
+                        return Ok(Reply::Done(u));
+                    }
+                }
+            }
+        }
+        let r = self.inner.call(cx, t, args)?;
+        let Reply::Done(v) = r else { return Ok(r) };
+        let e = h.sym_term(self.e);
+        let View::App { args: [b, x], .. } = h.view(v) else { return Ok(r) };
+        if *b != e || !matches!(h.view(*x), View::App { .. } | View::Sym(_)) {
+            return Ok(r);
+        }
+        let call = h.app(h.sym_term(self.exp), &[*x]);
+        let same = |u: T<'h>| u == call || u == v;
+        Ok(match self.exp_native.call(cx, call, &[*x])? {
+            Reply::Done(u) if !same(u) => Reply::Done(u),
+            Reply::Again(u) if !same(u) && !matches!(h.view(u), View::App { head, .. } if head == h.sym_term(self.exp)) => {
+                Reply::Again(u)
+            }
+            _ => r,
+        })
+    }
 }
 
 #[cfg(test)]

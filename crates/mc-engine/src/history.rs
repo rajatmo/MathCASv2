@@ -20,6 +20,16 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "message(tag, text): a warning from tag (a function's name); front ends show it apart from print output",
     ),
     (
+        "eval",
+        "eval(e): the value of e; inside an argument a function holds, it marks e to be evaluated first",
+    ),
+    (
+        "attributes",
+        "attributes(f): the list of the attributes of the symbol f (listable, hold_all, orderless, ...)",
+    ),
+    ("set_attributes", "set_attributes(f, a), set_attributes(f, [a, ...]): give the symbol f the attributes"),
+    ("clear_attributes", "clear_attributes(f, a), clear_attributes(f, [a, ...]): remove the attributes from f"),
+    (
         "timing",
         "timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds",
     ),

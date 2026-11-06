@@ -21,3 +21,10 @@ rustc-hash = "2"
 # the speed example drives the assembled engine (a development-only cycle: the engine depends on this crate)
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
+
+# the memory budget of an evaluation reads the process's memory limits (decision p6core.11)
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_System_SystemInformation"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

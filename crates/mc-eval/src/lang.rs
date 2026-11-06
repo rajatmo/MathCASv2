@@ -616,6 +616,19 @@ impl Native for Rewrite {
             [e, r, o] => (e, r, Some(o)),
             _ => return Ok(Reply::Decline),
         };
+        // a list of rule lists (`solve`'s solutions): one result per list (decision p6core.13)
+        if let Some(sets) = cx.as_list(rules).filter(|rs| !rs.is_empty() && rs.iter().all(|&r| cx.as_list(r).is_some())) {
+            let head = h.sym_term(h.sym("rewrite"));
+            let calls: Vec<T<'h>> = sets
+                .iter()
+                .map(|&set| match opts {
+                    Some(o) => h.app(head, &[e, set, o]),
+                    None => h.app(head, &[e, set]),
+                })
+                .collect();
+            cx.tick(calls.len() as u64)?;
+            return Ok(Reply::Again(cx.list(&calls)));
+        }
         let mut strategy = "once".to_string();
         if let Some(o) = opts {
             let Some(items) = options(h, o) else { return Ok(Reply::Decline) };
@@ -717,9 +730,11 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("fn"), a(Hold::All), Box::new(Closure));
     k.register_form(h.sym("block"), a(Hold::All), Form::Block);
-    k.register(h.sym("let"), fx(Hold::First), Box::new(TopLocal));
-    k.register(h.sym("var"), fx(Hold::First), Box::new(TopLocal));
-    k.register(h.sym("assign"), a(Hold::First), Box::new(Assign));
+    // assignments keep failures (decision p6core.25)
+    let keep = |at: Attributes| Attributes { handles_failures: true, ..at };
+    k.register(h.sym("let"), keep(fx(Hold::First)), Box::new(TopLocal));
+    k.register(h.sym("var"), keep(fx(Hold::First)), Box::new(TopLocal));
+    k.register(h.sym("assign"), keep(a(Hold::First)), Box::new(Assign));
     k.register(h.sym("local_cell"), a(Hold::None), Box::new(LocalCell));
     k.register_form(h.sym("while"), a(Hold::All), Form::While);
     k.register_form(h.sym("for"), a(Hold::All), Form::For);

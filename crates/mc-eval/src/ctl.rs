@@ -55,6 +55,11 @@ pub enum Status {
     DivZero = 4,
     /// The evaluation nested deeper than the configured depth: `failure(limit, depth)` (decision F.11).
     Depth = 5,
+    /// The young region outgrew the evaluation's memory budget: `failure(limit, memory)` (decision p6core.11).
+    Memory = 6,
+    /// One evaluation level was rewritten more times than the iteration limit: `failure(limit, iterations)`
+    /// (decision p6core.11).
+    Iterations = 7,
 }
 
 impl Status {
@@ -66,6 +71,8 @@ impl Status {
             3 => Status::Index,
             4 => Status::DivZero,
             5 => Status::Depth,
+            6 => Status::Memory,
+            7 => Status::Iterations,
             _ => Status::Interrupted,
         }
     }
@@ -79,6 +86,8 @@ impl Status {
             Status::Index => &["index"],
             Status::DivZero => &[tag::DIVISION_BY_ZERO],
             Status::Depth => &[tag::LIMIT, tag::DEPTH],
+            Status::Memory => &[tag::LIMIT, tag::MEMORY],
+            Status::Iterations => &[tag::LIMIT, "iterations"],
         }
     }
 }

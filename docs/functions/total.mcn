@@ -32,7 +32,7 @@ total([1, 2, 3, 4])
 #% cell
 total([[1, 2], [3, 4]])
 #% output
-#= 10
+#= [4, 6]
 
 #% cell
 total([a, b, 2a])
@@ -69,7 +69,7 @@ total([])
 #% cell
 total(table(i*j, i, 4, j, 4))
 #% output
-#= 100
+#= [10, 20, 30, 40]
 
 #% text
 # A probability distribution normalised to 1:
@@ -90,7 +90,7 @@ w/total(w)
 m = [[1, 2], [3, 4]]
 [sum(m), total(m)]
 #% output
-#= [[1, 2] + [3, 4], 10]
+#= [[4, 6], [4, 6]]
 
 #% text
 # `accumulate` gives the running totals:

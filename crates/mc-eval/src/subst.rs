@@ -44,6 +44,10 @@ pub(crate) struct Scopes {
     pub(crate) optional: Sym,
     pub(crate) held: Sym,
     pub(crate) rest: Sym,
+    /// `options(name -> value, ...)`: the names are not substituted (decision p6core.18)
+    pub(crate) options: Sym,
+    /// the wrapper an option name hides in while a substitution runs
+    pub(crate) option_name: Sym,
     /// mask of the binding-form heads: a term without these bits contains no binding form
     pub(crate) mask: u64,
 }
@@ -70,6 +74,8 @@ impl Scopes {
             optional: s("optional"),
             held: s("held"),
             rest: s("rest"),
+            options: s("options"),
+            option_name: s("options·name"),
             mask: 0,
         };
         sc.mask = [sc.fn_, sc.block, sc.for_, sc.rule, sc.rule_delayed, sc.set, sc.set_delayed, sc.define_fn]
@@ -172,11 +178,61 @@ pub(crate) fn substitute<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, pairs: &[(Sym, 
     if pairs.is_empty() || h.mask(t) & keys == 0 {
         return t;
     }
+    // option names (`colors` in `plot(..., colors: colors)`) are names, not references to the parameter
+    if h.mask(t) & h.mask(h.sym_term(sc.options)) != 0 {
+        if let Some(hidden) = option_names(h, sc, t, true) {
+            if hidden != t {
+                let r = substitute(h, sc, hidden, pairs);
+                return option_names(h, sc, r, false).unwrap_or(r);
+            }
+        }
+    }
     if h.mask(t) & sc.mask == 0 {
         return plain(h, t, pairs, keys);
     }
     let mut s = Sub { h, sc, envs: vec![Env::new(h, pairs.to_vec())], done: FxHashMap::default() };
     s.run(t)
+}
+
+/// `t` with the names of every `options(name -> value, ...)` hidden in `options·name("name")` (`hide`), or shown
+/// again; `None` when the term is too deep to walk.
+fn option_names<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, hide: bool) -> Option<T<'h>> {
+    fn go<'h>(h: &'h Heap, sc: &Scopes, t: T<'h>, hide: bool, depth: u32, done: &mut FxHashMap<T<'h>, T<'h>>) -> Option<T<'h>> {
+        if depth > 2000 {
+            return None;
+        }
+        let View::App { head, args } = h.view(t) else { return Some(t) };
+        if let Some(&r) = done.get(&t) {
+            return Some(r);
+        }
+        let opts = h.sym_term(sc.options);
+        let mut out = Vec::with_capacity(args.len());
+        for &a in args {
+            let mut v = go(h, sc, a, hide, depth + 1, done)?;
+            if head == opts {
+                if let View::App { head: r, args: [k, val] } = h.view(v) {
+                    if r == h.sym_term(sc.rule) || r == h.sym_term(sc.rule_delayed) {
+                        let k2 = match (hide, h.view(*k)) {
+                            (true, View::Sym(s)) => Some(h.app(h.sym_term(sc.option_name), &[h.string(&h.sym_name(s))])),
+                            (false, View::App { head: w, args: [name] }) if w == h.sym_term(sc.option_name) => match h.view(*name) {
+                                View::Str(n) => Some(h.sym_term(h.sym(n))),
+                                _ => None,
+                            },
+                            _ => None,
+                        };
+                        if let Some(k2) = k2 {
+                            v = h.app(r, &[k2, *val]);
+                        }
+                    }
+                }
+            }
+            out.push(v);
+        }
+        let r = if out.as_slice() == args { t } else { h.app(head, &out) };
+        done.insert(t, r);
+        Some(r)
+    }
+    go(h, sc, t, hide, 0, &mut FxHashMap::default())
 }
 
 /// Work and value slots of [`plain_small`].

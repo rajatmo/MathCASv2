@@ -90,6 +90,24 @@ pub struct EvalConfig {
     /// deepest nesting of native callbacks (natives, conditions and speculative groups evaluating terms through
     /// the evaluator) before `failure(limit, depth)`: the one nesting that still uses the Rust stack (decision 1a.2)
     pub max_nest: u32,
+    /// most rewrites of one evaluation level (a rule whose result is rewritten again, `f(x_) := f(x + 1)`) before
+    /// `failure(limit, iterations)` (decision p6core.11)
+    pub max_iterations: u32,
+    /// most bytes the young region may hold during one evaluation before `failure(limit, memory)`: nothing is
+    /// collected until the evaluation ends, so a runaway loop would otherwise exhaust memory; 0 (the default):
+    /// [`default_max_young`], read again at the start of every top-level evaluation (decision p6core.11)
+    pub max_young: usize,
+}
+
+/// The default [`EvalConfig::max_iterations`].
+pub const DEFAULT_MAX_ITERATIONS: u32 = 1 << 20;
+
+/// The automatic [`EvalConfig::max_young`]: two fifths of the memory the process may use now (the smaller of the
+/// physical memory and a limit set on the process; `MC_MEMORY_LIMIT_MB` overrides both), at most 8 GB; 2 GB when
+/// neither is known.
+pub fn default_max_young() -> usize {
+    let cap = crate::membudget::process_cap().unwrap_or(5 << 30);
+    (cap / 5 * 2).min(8 << 30)
 }
 
 /// Memory the default frame limit allows the evaluation stack of one task (decision 1a.1).
@@ -118,6 +136,8 @@ impl Default for EvalConfig {
             fuel: i64::MAX,
             max_depth: DEFAULT_MAX_DEPTH,
             max_nest: DEFAULT_MAX_NEST,
+            max_iterations: DEFAULT_MAX_ITERATIONS,
+            max_young: 0,
         }
     }
 }
@@ -232,6 +252,19 @@ pub struct Kernel {
     pub roots: Roots,
     /// the native a panic unwound through, for the guard ([`crate::guard`])
     pub(crate) panics: PanicSlot,
+    /// the memory budget of the running evaluation ([`EvalConfig::max_young`])
+    pub(crate) young_cap: usize,
+    /// operator forms: `f(a..)(x..)` of these symbols is `f(x, a..)` or `f(a.., x..)` ([`Kernel::set_operator_form`])
+    pub(crate) op_forms: rustc_hash::FxHashMap<Sym, OperatorForm>,
+}
+
+/// Where the arguments of the outer call of an operator form `f(a..)(x..)` go (decision p6core.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperatorForm {
+    /// `f(a..)(x)` is `f(x, a..)`: one argument, the data, first (`select(is_even)(xs)`, `append(x)(xs)`)
+    DataFirst,
+    /// `f(a..)(x..)` is `f(a.., x..)`: the arguments after the operator's (`map(f)(xs)`, `fold(f)(x, xs)`)
+    DataLast,
 }
 
 /// The implementation in a symbol's native slot.
@@ -283,6 +316,8 @@ impl Kernel {
             cfg,
             roots: Roots::new(),
             panics: PanicSlot::default(),
+            op_forms: Default::default(),
+            young_cap: usize::MAX,
         };
         crate::guard::install_hook();
         crate::builtins::register(&mut k, h);
@@ -335,6 +370,12 @@ impl Kernel {
         self.defs.set_attrs(s, a);
     }
 
+    /// Give symbol `s` an operator form: a call `s(a..)(x..)` (whose head is a call of `s`) is rewritten to a call
+    /// of `s` with the outer arguments placed by `form`. A native of `s` taking curried calls keeps them.
+    pub fn set_operator_form(&mut self, s: Sym, form: OperatorForm) {
+        self.op_forms.insert(s, form);
+    }
+
     /// The attributes of a symbol.
     pub fn attributes(&self, s: Sym) -> Attributes {
         self.defs.attrs(s)
@@ -350,6 +391,19 @@ impl Kernel {
     /// Make `s` a language form run as frames of the evaluation stack.
     pub(crate) fn register_form(&mut self, s: Sym, a: Attributes, form: Form) {
         self.register_impl(s, a, Impl::Form(form));
+    }
+
+    /// Replace the native of `s` by `wrap` of it (keeping its attributes); `false` when `s` has no native function.
+    /// A wrapper that keeps terms must trace them and the wrapped native's.
+    pub fn wrap_native(&mut self, s: Sym, wrap: impl FnOnce(Box<dyn Native>) -> Box<dyn Native>) -> bool {
+        let Some(n) = self.defs.get(s).map(|sd| sd.native.load(Acquire)).filter(|&n| n != 0) else { return false };
+        let slot = &mut self.natives[n as usize - 1];
+        let Impl::Native { native, .. } = slot else { return false };
+        let old = std::mem::replace(native, Box::new(crate::builtins::Declines));
+        let new = wrap(old);
+        let (reads_term, curried) = (new.reads_term(), new.curried());
+        *slot = Impl::Native { native: new, reads_term, curried, sym: s };
+        true
     }
 
     fn register_impl(&mut self, s: Sym, a: Attributes, imp: Impl) {
@@ -562,6 +616,10 @@ impl Kernel {
     /// out when there is none) and the status [`Status::Running`] (see [`crate::guard`]).
     pub fn eval_with<'h>(&mut self, h: &'h Heap, t: T<'h>, fuel: i64) -> Evaluation<'h> {
         self.cells.begin();
+        self.young_cap = match self.cfg.max_young {
+            0 => default_max_young(),
+            n => n,
+        };
         let k: &Kernel = self;
         k.ctl.begin(fuel);
         // a record left by a panic some native caught itself
@@ -855,6 +913,11 @@ impl<'k, 'h> Eval<'k, 'h> {
     fn refill(&self, cx: &mut Cx<'h>) -> Res<()> {
         let ctl = &*self.k.ctl;
         if ctl.halted() {
+            return Err(Abort::Limit);
+        }
+        // the memory budget, polled with the fuel (decision p6core.11)
+        if self.heap.young_bytes() > self.k.young_cap {
+            ctl.fail(Status::Memory);
             return Err(Abort::Limit);
         }
         if cx.front {

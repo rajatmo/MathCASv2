@@ -26,7 +26,7 @@ fn main() -> ExitCode {
         Ok(false) => {}
         Err(e) => eprintln!("note: no interrupt handler ({e})"),
     }
-    let mut config = EngineConfig { prelude: options.prelude, ..EngineConfig::default() };
+    let mut config = EngineConfig { prelude: options.prelude, display: true, ..EngineConfig::default() };
     if let Some(n) = options.threads {
         config.threads = n;
     }

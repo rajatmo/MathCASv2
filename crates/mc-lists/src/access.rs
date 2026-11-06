@@ -16,6 +16,10 @@ pub(crate) fn length<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
     if let Some(p) = h.packed(x) {
         return Ok(Reply::Done(h.int(p.len() as i64)));
     }
+    // a complex number is an atom (decision p6core.3)
+    if crate::measure::is_complex_number(h, x) {
+        return Ok(Reply::Done(h.int(0)));
+    }
     Ok(Reply::Done(h.int(compound(h, x).map_or(0, |(_, a)| a.len()) as i64)))
 }
 
@@ -245,35 +249,119 @@ fn taken(n: i64, len: usize) -> Option<(usize, usize)> {
     Some(if n >= 0 { (0, k) } else { (len - k, len) })
 }
 
-/// `take(xs, n)`: the first `n` arguments (the last `-n` for negative `n`).
-pub(crate) fn take_<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    let h = cx.heap();
-    let [x, n] = *args else {
-        return Ok(Reply::Decline);
-    };
-    let (head, xs) = take!(lib.operand(h, t, x, 1));
-    let n = take!(lib.int_operand(h, t, n, 2));
-    let Some((lo, hi)) = taken(n, xs.len()) else {
-        return Ok(Reply::Done(lib.bad_index(h, h.int(n), xs.len())));
-    };
-    charge_copy(cx, hi - lo)?;
-    Ok(lib.rebuilt(h, head, &xs[lo..hi]))
+/// The 0-based positions a sequence specification selects among `len` arguments: `n` (the first `n`, the last
+/// `-n`), `[i]` (argument `i`), `[i, j]` and `[i, j, step]` (from `i` to `j`), `all`, `none`. `Ok(None)`: not a
+/// specification (the call stays unevaluated); `Err(i)`: an index outside the arguments.
+fn selected<'h>(h: &'h Heap, spec: T<'h>, len: usize) -> Result<Option<Vec<usize>>, i64> {
+    let at = |i: i64| position(i, len).filter(|&p| p >= 1).map(|p| p - 1).ok_or(i);
+    match h.view(spec) {
+        View::Int(n) => {
+            let (lo, hi) = taken(n, len).ok_or(n)?;
+            Ok(Some((lo..hi).collect()))
+        }
+        View::Sym(s) => Ok(match h.sym_name(s).as_str() {
+            "all" => Some((0..len).collect()),
+            "none" => Some(vec![]),
+            _ => None,
+        }),
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "list") => {
+            let mut v = vec![];
+            for &a in args {
+                match h.view(a) {
+                    View::Int(i) => v.push(i),
+                    _ => return Ok(None),
+                }
+            }
+            match *v.as_slice() {
+                [i] => Ok(Some(vec![at(i)?])),
+                [i, j] | [i, j, _] => {
+                    let step = v.get(2).copied().unwrap_or(1);
+                    if step < 1 {
+                        return Ok(None);
+                    }
+                    let (a, b) = (at(i)?, at(j)?);
+                    Ok(Some(if a > b { vec![] } else { (a..=b).step_by(step as usize).collect() }))
+                }
+                _ => Ok(None),
+            }
+        }
+        _ => Ok(None),
+    }
 }
 
-/// `drop(xs, n)`: all but the first `n` arguments (the last `-n` for negative `n`).
-pub(crate) fn drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// `take` (`drop` false) or `drop` of `x` by the specifications `specs`, the first for the arguments of `x`, the
+/// next for the arguments of each kept argument, and so on. `Err` with the reply when it does not apply.
+fn take_drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, x: T<'h>, specs: &[T<'h>], drop: bool) -> Res<Result<T<'h>, Reply<'h>>> {
     let h = cx.heap();
-    let [x, n] = *args else {
-        return Ok(Reply::Decline);
+    let Some((&spec, rest)) = specs.split_first() else { return Ok(Ok(x)) };
+    let (head, xs) = match lib.operand(h, t, x, 1) {
+        Ok(v) => v,
+        Err(r) => return Ok(Err(r)),
     };
-    let (head, xs) = take!(lib.operand(h, t, x, 1));
-    let n = take!(lib.int_operand(h, t, n, 2));
-    let Some((lo, hi)) = taken(n, xs.len()) else {
-        return Ok(Reply::Done(lib.bad_index(h, h.int(n), xs.len())));
+    let picked = match selected(h, spec, xs.len()) {
+        Ok(Some(p)) => p,
+        // a number that is not an integer (or a string) is no specification: a failure, as for any wrong kind
+        Ok(None) if !matches!(h.view(spec), View::Sym(_) | View::App { .. }) => {
+            return Ok(Err(Reply::Done(lib.bad_arg(h, t, 2))));
+        }
+        Ok(None) => return Ok(Err(Reply::Decline)),
+        Err(i) => return Ok(Err(Reply::Done(lib.bad_index(h, h.int(i), xs.len())))),
     };
     charge_copy(cx, xs.len())?;
-    let kept: Vec<T<'h>> = xs[..lo].iter().chain(&xs[hi..]).copied().collect();
-    Ok(lib.rebuilt(h, head, &kept))
+    let kept: Vec<T<'h>> = if drop {
+        let mut keep = vec![true; xs.len()];
+        for p in picked {
+            keep[p] = false;
+        }
+        xs.iter().zip(&keep).filter(|(_, &k)| k).map(|(&x, _)| x).collect()
+    } else {
+        picked.into_iter().map(|p| xs[p]).collect()
+    };
+    let mut out = Vec::with_capacity(kept.len());
+    for k in kept {
+        match take_drop(lib, cx, t, k, rest, drop)? {
+            Ok(v) => out.push(v),
+            Err(r) => return Ok(Err(r)),
+        }
+    }
+    // a power with one operand left is that operand (as in `rest`)
+    Ok(Ok(match lib.rebuilt(h, head, &out) {
+        Reply::Done(v) | Reply::Again(v) => v,
+        Reply::Decline => h.app(head, &out),
+    }))
+}
+
+/// A list result is final; any other term is evaluated (a call of its head).
+fn settled<'h>(lib: &Lib, h: &'h Heap, v: T<'h>) -> Reply<'h> {
+    match h.view(v) {
+        View::App { head, .. } if head == h.sym_term(lib.s.list) => Reply::Done(v),
+        _ => Reply::Again(v),
+    }
+}
+
+/// `take(xs, spec, ...)`: the arguments the specification selects (`n`: the first `n`, the last `-n`; `[i]`,
+/// `[i, j]`, `[i, j, step]`, `all`, `none`); further specifications apply to the arguments of each kept one.
+pub(crate) fn take_<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let Some((&x, specs)) = args.split_first() else { return Ok(Reply::Decline) };
+    if specs.is_empty() {
+        return Ok(Reply::Decline);
+    }
+    Ok(match take_drop(lib, cx, t, x, specs, false)? {
+        Ok(v) => settled(lib, cx.heap(), v),
+        Err(r) => r,
+    })
+}
+
+/// `drop(xs, spec, ...)`: all but the arguments the specification selects (as `take`'s).
+pub(crate) fn drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let Some((&x, specs)) = args.split_first() else { return Ok(Reply::Decline) };
+    if specs.is_empty() {
+        return Ok(Reply::Decline);
+    }
+    Ok(match take_drop(lib, cx, t, x, specs, true)? {
+        Ok(v) => settled(lib, cx.heap(), v),
+        Err(r) => r,
+    })
 }
 
 #[cfg(test)]

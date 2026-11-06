@@ -115,7 +115,7 @@ fn sums_and_totals_on_payloads_are_the_canonical_sums() {
             let want = eval(h, k, h.call(add, &with_zero));
             assert_eq!(eval(h, k, h.call(sum, &[packed])), want, "sum of {n} reals");
             let m = h.real_array(&[n, 1], &v);
-            assert_eq!(eval(h, k, h.call(total, &[m])), want, "total of a {n} x 1 matrix");
+            assert_eq!(eval(h, k, h.call(total, &[m, h.sym_term(h.sym("inf"))])), want, "total of a {n} x 1 matrix");
             let is: Vec<i64> = (0..n).map(|_| rng.int()).collect();
             let ts: Vec<T<'_>> = is.iter().map(|&x| h.int(x)).collect();
             let want = eval(h, k, h.call(add, &ts));
@@ -147,7 +147,7 @@ fn producers_and_access_read_the_payload() {
             ("length(m[2])", "100"),
             ("m[2][100]", "200"),
             ("sum(range(10^5))", "5000050000"),
-            ("total(m)", "20100"),
+            ("total(m, inf)", "20100"),
             ("sum(range(0.0, 1.0, 0.25))", "2.5"),
             ("take(range(10) + range(10, 1, -1), 3)", "[11, 11, 11]"),
             ("sum(2.0*v - v) == sum(v)", "true"),

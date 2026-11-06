@@ -33,13 +33,25 @@ fn flat_map(f, xs) = flatten(map(f, xs), 1)
 # accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]
 fn accumulate(xs) = rest(fold_list((a, b) => a + b, 0, xs))
 
-# fix_point(f, x): f applied repeatedly from x until the value no longer changes
+# fix_point(f, x): f applied repeatedly from x until the value no longer changes; numbers that agree (balls that
+# overlap, equal machine reals) count as no change; fix_point(f, x, n): at most n applications
 fn fix_point(f, x) = {
   var a = x
   var b = f(x)
-  while a !== b {
+  while a !== b and not (is_number(a) and is_number(b) and (a == b) !== false) {
     a = b
     b = f(b)
+  }
+  b
+}
+fn fix_point(f, x, n: Int) = {
+  var a = x
+  var b = f(x)
+  var k = 1
+  while k < n and a !== b and not (is_number(a) and is_number(b) and (a == b) !== false) {
+    a = b
+    b = f(b)
+    k = k + 1
   }
   b
 }

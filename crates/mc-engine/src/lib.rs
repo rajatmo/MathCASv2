@@ -17,6 +17,7 @@
 //! Decisions of this package are numbered G.1, G.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
 pub mod arith;
+mod attrs;
 mod engine;
 pub mod format;
 mod history;

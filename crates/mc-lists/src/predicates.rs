@@ -4,7 +4,7 @@
 //!
 //! The kind predicates always answer `true` or `false`: an argument is evaluated before the test, so a symbol is a
 //! symbol, not an unknown number (`is_integer(n)` is `false` for an undefined `n`, decision 1A.1).
-use crate::ctx::{take, truth, Lib};
+use crate::ctx::{apply, take, truth, Lib};
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
@@ -102,7 +102,7 @@ pub(crate) fn is_symbol<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
 /// `is_atom(x)`: is `x` not a compound term? A complex number is the compound `complex(re, im)`, so it is not an
 /// atom, consistent with `length` and `part` (decision 1A.3).
 pub(crate) fn is_atom<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    Ok(one(cx, args, |h, x| !matches!(h.view(x), View::App { .. })))
+    Ok(one(cx, args, |h, x| !matches!(h.view(x), View::App { .. }) || crate::measure::is_complex_number(h, x)))
 }
 
 /// `is_list(x)`
@@ -189,16 +189,30 @@ enum Quantifier {
     None,
 }
 
-/// The test of every element in order, stopping as soon as the answer is known; a value other than `true` counts
-/// as not true, a failure is the result (decision I.11).
+/// The test of every element in order, stopping as soon as the answer is known; a failure is the result (decision
+/// I.11). Values neither `true` nor `false` are kept: when nothing decides, the result is the conjunction (`all_true`,
+/// `none_true` of the negations) or disjunction (`any_true`) of them (decision p6core.4).
 fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], q: Quantifier) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs, f] = *args else { return Ok(Reply::Decline) };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    let mut open = vec![];
     for &x in xs {
-        let b = match truth(lib, cx, f, x)? {
-            Ok(b) => b,
-            Err(e) => return Ok(Reply::Done(e)),
+        cx.tick(1)?;
+        let v = apply(cx, f, &[x])?;
+        if lib.is_failure(h, v) {
+            return Ok(Reply::Done(v));
+        }
+        let b = if cx.is_true(v) {
+            true
+        } else if cx.is_false(v) {
+            false
+        } else {
+            open.push(match q {
+                Quantifier::None => h.app(h.sym_term(h.sym("not")), &[v]),
+                _ => v,
+            });
+            continue;
         };
         match (q, b) {
             (Quantifier::All, false) | (Quantifier::None, true) => return Ok(Reply::Done(cx.bool(false))),
@@ -206,7 +220,13 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
             _ => {}
         }
     }
-    Ok(Reply::Done(cx.bool(!matches!(q, Quantifier::Any))))
+    Ok(match open.len() {
+        0 => Reply::Done(cx.bool(!matches!(q, Quantifier::Any))),
+        _ => {
+            let junction = if matches!(q, Quantifier::Any) { "or" } else { "and" };
+            Reply::Again(h.app(h.sym_term(h.sym(junction)), &open))
+        }
+    })
 }
 
 /// `all_true(xs, f)`: is `f(x)` `true` for every element (`true` for none)?

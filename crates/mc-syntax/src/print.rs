@@ -68,6 +68,10 @@ pub struct Printer<'h, S: Store + ?Sized> {
     series_data: Sym,
     /// polled while printing: once it is true the text printed so far is returned, ending in `…`
     stop: Option<Box<dyn Fn() -> bool + 'h>>,
+    /// powers of the constant `e` written as `exp(x)` ([`Printer::with_exp_calls`])
+    exp_calls: Option<(Sym, Sym, Sym)>,
+    /// sums with negative terms as differences and negative powers as divisions ([`Printer::with_display`])
+    display: bool,
 }
 
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
@@ -76,13 +80,31 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
-        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None }
+        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None, exp_calls: None, display: false }
     }
 
     /// This printer, polling `stop` as it prints: a huge term (a million copies of a deep term) takes long and
     /// its text is huge, so an interrupt ends the printing with the text so far and `…`.
     pub fn with_stop(mut self, stop: impl Fn() -> bool + 'h) -> Self {
         self.stop = Some(Box::new(stop));
+        self
+    }
+
+    /// This printer, writing a power of the constant `e` as a call of `exp`: `e^x` is `exp(x)`, which evaluates to
+    /// the same term (the engine's canonical exponential is the power; the call is how it is shown).
+    pub fn with_exp_calls(mut self) -> Self {
+        self.exp_calls = Some((self.store.sym("e"), self.store.sym("exp"), self.store.sym(crate::heads::Head::Pow.name())));
+        self
+    }
+
+    /// This printer, writing for reading rather than for reading back (decision p6core.19): `a + -2*b` as
+    /// `a - 2*b`, `y*x^-2` as `y/x^2`, and powers of `e` as `exp(x)`. The text evaluates to the same value but may
+    /// read back as a different unevaluated term.
+    pub fn with_display(mut self) -> Self {
+        self.display = true;
+        if self.exp_calls.is_none() {
+            self = self.with_exp_calls();
+        }
         self
     }
 
@@ -116,6 +138,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
             scopes: Scopes::default(),
             slot_depth: 0,
             slot_memo: HashMap::new(),
+            plain: 0,
         };
         r.scopes.push();
         r.go();
@@ -172,6 +195,9 @@ enum Task<'h> {
     Bind(Sym, Bind),
     SlotEnter,
     SlotExit,
+    /// Inside `full_form(x)`: every call written as a plain call.
+    PlainEnter,
+    PlainExit,
 }
 
 struct Run<'p, 'h, S: Store + ?Sized> {
@@ -182,6 +208,8 @@ struct Run<'p, 'h, S: Store + ?Sized> {
     slot_depth: u32,
     /// The largest free slot `&k` of each term visited (see [`Run::slots`]).
     slot_memo: HashMap<T<'h>, u32>,
+    /// Nesting of `full_form` wrappers being printed: calls print as plain calls.
+    plain: u32,
 }
 
 /// Validity of a ball literal's text: what the lexer produces for a mantissa (`-`, digits, optional `.` and
@@ -257,6 +285,8 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 Task::Bind(s, b) => self.scopes.bind(s, b),
                 Task::SlotEnter => self.slot_depth += 1,
                 Task::SlotExit => self.slot_depth -= 1,
+                Task::PlainEnter => self.plain += 1,
+                Task::PlainExit => self.plain -= 1,
                 Task::Expr(t, ctx) => {
                     let mut v = Vec::new();
                     let (level, prefix) = self.expr_form(t, ctx, &mut v);
@@ -386,6 +416,31 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 (ATOM, false)
             }
             View::App { head, args } => {
+                if self.plain > 0 {
+                    self.call_items(head, args, v);
+                    return (POSTFIX, false);
+                }
+                // the display wrappers: `full_form(x)` shows x with plain calls, `input_form(x)` shows x
+                if let ([x], Some(w)) = (args, self.sym_of(head)) {
+                    match self.name(w).as_str() {
+                        "full_form" => {
+                            v.push(Task::PlainEnter);
+                            self.plain += 1;
+                            let r = self.expr_form(*x, ctx, v);
+                            self.plain -= 1;
+                            v.push(Task::PlainExit);
+                            return r;
+                        }
+                        "input_form" => return self.expr_form(*x, ctx, v),
+                        _ => {}
+                    }
+                }
+                if let (Some((e, exp, pow)), [b, x]) = (self.p.exp_calls, args) {
+                    if self.sym_of(*b) == Some(e) && self.sym_of(head) == Some(pow) {
+                        self.call_items(self.store().sym_term(exp), std::slice::from_ref(x), v);
+                        return (POSTFIX, false);
+                    }
+                }
                 if let Some(r) = self.derivative(head, args, v) {
                     return r;
                 }
@@ -844,6 +899,13 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 return;
             }
         }
+        if self.p.display {
+            if let Some(u) = self.negated_product(a) {
+                v.push(Task::Text(" - "));
+                v.push(Task::Expr(u, Ctx::at(MUL)));
+                return;
+            }
+        }
         if let Some([m, b]) = self.is(a, Head::Mul, 2) {
             // `a - 7` and `a - 3/4` read back as negative literals, so `mul(-1, 7)` keeps its explicit form.
             if matches!(st.view(*m), View::Int(-1)) && !self.is_num_token(*b) && !self.is_rational(*b) {
@@ -856,8 +918,85 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
         v.push(Task::Expr(a, Ctx::at(ADD + 1)));
     }
 
+    /// `-c*x*...` as `c*x*...` for a product whose first factor is a negative number (display mode).
+    fn negated_product(&self, a: T<'h>) -> Option<T<'h>> {
+        let st = self.store();
+        let View::App { head, args } = st.view(a) else { return None };
+        if self.sym_of(head).map(|s| self.name(s)).as_deref() != Some(Head::Mul.name()) || args.len() < 2 {
+            return None;
+        }
+        let c = self.negated_number(args[0])?;
+        let rest = &args[1..];
+        if matches!(st.view(c), View::Int(1)) {
+            return Some(if rest.len() == 1 { rest[0] } else { st.app(head, rest) });
+        }
+        let mut v = vec![c];
+        v.extend_from_slice(rest);
+        Some(st.app(head, &v))
+    }
+
+    /// `-x` for a negative number `x`.
+    fn negated_number(&self, x: T<'h>) -> Option<T<'h>> {
+        let st = self.store();
+        match st.view(x) {
+            View::Int(n) if n < 0 && n != i64::MIN => Some(st.int(-n)),
+            View::BigInt { neg: true, mag } => Some(st.big_int(false, mag)),
+            View::Real(r) if r < 0.0 => Some(st.real(-r)),
+            View::Rational { num, den } => match st.view(num) {
+                View::Int(n) if n < 0 && n != i64::MIN => Some(st.rational(st.int(-n), den)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// A product with negative powers as a division `n/d` (display mode).
+    fn division_form(&self, args: &'h [T<'h>], v: &mut Vec<Task<'h>>) -> Option<(u8, bool)> {
+        let st = self.store();
+        let mut num = vec![];
+        let mut den = vec![];
+        for &a in args {
+            let inverse = self.is(a, Head::Pow, 2).and_then(|be| {
+                let [b, e] = be else { return None };
+                let ne = self.negated_number(*e)?;
+                Some(if matches!(st.view(ne), View::Int(1)) { *b } else { st.app(st.sym_term(st.sym(Head::Pow.name())), &[*b, ne]) })
+            });
+            match inverse {
+                Some(d) => den.push(d),
+                None => num.push(a),
+            }
+        }
+        if den.is_empty() {
+            return None;
+        }
+        let mul = st.sym_term(st.sym(Head::Mul.name()));
+        let negative = num.first().is_some_and(|&n| self.negated_number(n).is_some());
+        match num.as_slice() {
+            [] => v.push(Task::Text("1")),
+            [n] => v.push(Task::Expr(*n, Ctx::at(MUL))),
+            ns => v.push(Task::Expr(st.app(mul, ns), Ctx::at(MUL))),
+        }
+        match den.as_slice() {
+            [d] => {
+                v.push(Task::Text("/"));
+                v.push(Task::Expr(*d, Ctx::at(POW)));
+            }
+            ds => {
+                v.push(Task::Text("/("));
+                v.push(Task::Expr(st.app(mul, ds), Ctx::at(ASSIGN)));
+                v.push(Task::Text(")"));
+            }
+        }
+        Some(if negative { (NEG, true) } else { (MUL, false) })
+    }
+
     fn mul_form(&self, args: &'h [T<'h>], v: &mut Vec<Task<'h>>) -> Option<(u8, bool)> {
         let st = self.store();
+        if self.p.display {
+            if let Some(r) = self.division_form(args, v) {
+                return Some(r);
+            }
+        }
         let is_int = |t: T<'h>| matches!(st.view(t), View::Int(_) | View::BigInt { .. });
         let recip = |t: T<'h>| -> Option<T<'h>> {
             let [b, e] = self.is(t, Head::Pow, 2)? else { return None };

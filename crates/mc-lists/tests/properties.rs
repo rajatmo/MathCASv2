@@ -217,7 +217,7 @@ fn flatten_agrees_with_a_recursive_oracle() {
         let src = nested(&mut r, 0, &mut leaves);
         let all: Vec<i64> = leaves.iter().map(|l| l.0).collect();
         assert_eq!(env.eval(&format!("flatten({src})")), list(&all), "{src}");
-        assert_eq!(env.eval(&format!("total({src})")), all.iter().sum::<i64>().to_string(), "{src}");
+        assert_eq!(env.eval(&format!("total({src}, inf)")), all.iter().sum::<i64>().to_string(), "{src}");
         assert_eq!(env.eval(&format!("flatten({src}) == flatten(flatten({src}, 1))")), "true", "{src}");
     }
 }

@@ -117,7 +117,7 @@ cases([x -> 1, y -> 2], x -> v_ -> v)
 #% cell
 cases(["id", 4, "name", 2.5], _: Str)
 #% output
-#! failure(argument, cases, 2)
+#= ["id", "name"]
 
 #% cell
 select(["id", 4, "name", 2.5], is_string)

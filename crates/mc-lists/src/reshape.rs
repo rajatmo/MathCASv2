@@ -59,6 +59,42 @@ pub(crate) fn join<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
 /// `reverse(xs)`: the arguments in reverse order.
 pub(crate) fn reverse<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // reverse(x, n), reverse(x, [n1, n2, ...]): the parts at those levels reversed (decision p6core.9)
+    if let [x, spec] = *args {
+        let ns: Vec<i64> = match h.view(spec) {
+            View::Int(n) => vec![n],
+            _ => match cx.as_list(spec) {
+                Some(xs) => {
+                    let mut v = vec![];
+                    for &e in xs {
+                        let View::Int(n) = h.view(e) else { return Ok(Reply::Decline) };
+                        v.push(n);
+                    }
+                    v
+                }
+                None => return Ok(Reply::Decline),
+            },
+        };
+        if ns.iter().any(|&n| n < 1) {
+            return Ok(Reply::Decline);
+        }
+        let mut visit = |_: &mut NativeCx<'_, '_, 'h>, u: T<'h>, pos: &[i64]| -> Res<Option<T<'h>>> {
+            if !ns.contains(&(pos.len() as i64 + 1)) || crate::measure::is_complex_number(h, u) {
+                return Ok(None);
+            }
+            Ok(match h.view(u) {
+                View::App { head, args } => {
+                    let v: Vec<T<'h>> = args.iter().rev().copied().collect();
+                    Some(h.app(head, &v))
+                }
+                _ => None,
+            })
+        };
+        return Ok(match crate::levels::walk(cx, x, crate::levels::Levels::every(), &mut visit)? {
+            Some(v) => Reply::Again(v),
+            None => Reply::Decline,
+        });
+    }
     let [xs] = *args else {
         return Ok(Reply::Decline);
     };
@@ -134,13 +170,17 @@ pub(crate) fn transpose<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     let [m] = *args else {
         return Ok(Reply::Decline);
     };
+    // a symbolic argument (a call of another head, `transpose(r(z))`) stays unevaluated
+    if matches!(h.view(m), View::App { head, .. } if head != h.sym_term(lib.s.list)) {
+        return Ok(Reply::Decline);
+    }
     let rows = take!(lib.list_operand(h, t, m, 1));
     let mut cols = None;
     let mut rs = Vec::with_capacity(rows.len());
     for &r in rows {
         let r = match h.view(r) {
             View::App { head, args } if head == h.sym_term(lib.s.list) => args,
-            View::Sym(_) => return Ok(Reply::Decline),
+            View::Sym(_) | View::App { .. } => return Ok(Reply::Decline),
             _ => return Ok(Reply::Done(lib.bad_arg(h, t, 1))),
         };
         if *cols.get_or_insert(r.len()) != r.len() {
@@ -168,6 +208,12 @@ pub(crate) fn transpose<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 /// `apply(f, xs)`: the head of `xs` replaced by `f` (semantics 1: the explicit form of variadic calls).
 pub(crate) fn apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let [f, x, spec] = *args {
+        return match crate::levels::level_spec(h, spec) {
+            Some(levels) => crate::levels::apply_at(cx, f, x, levels),
+            None => Ok(Reply::Decline),
+        };
+    }
     let [f, xs] = *args else {
         return Ok(Reply::Decline);
     };

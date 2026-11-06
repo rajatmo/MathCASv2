@@ -570,6 +570,11 @@ impl Heap {
             + self.slots.reserved()
     }
 
+    /// Bytes the young region has taken in this cycle (cheap: two atomic loads; a memory budget's measure).
+    pub fn young_bytes(&self) -> usize {
+        self.young.young_bytes()
+    }
+
     /// Bytes of boxed payloads (old and young).
     pub fn boxed_bytes(&self) -> usize {
         self.old.boxed + self.young.boxed_bytes()

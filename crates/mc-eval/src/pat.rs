@@ -49,6 +49,10 @@ pub enum Ty {
     String,
     /// a symbol
     Symbol,
+    /// an inexact real: a machine real or a ball (decision p6core.20)
+    Float,
+    /// a complex number `complex(re, im)` (decision p6core.20)
+    Complex,
     /// a compound term with this head
     Head(Sym),
 }
@@ -462,14 +466,28 @@ pub(crate) fn has_type<'h>(h: &'h Heap, t: T<'h>, ty: Ty) -> bool {
         }
         Ty::String => matches!(v, View::Str(_)),
         Ty::Symbol => matches!(v, View::Sym(_)),
+        Ty::Float => matches!(v, View::Real(_) | View::Ball { .. }),
+        Ty::Complex => is_complex(h, t),
         Ty::Head(s) => matches!(v, View::App { head, .. } if head == h.sym_term(s)),
     }
 }
 
+/// Is `t` a complex number `complex(re, im)` with real number parts?
+pub fn is_complex<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let View::App { head, args: [re, im] } = h.view(t) else { return false };
+    let number = |a: T<'h>| {
+        matches!(h.view(a), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. })
+    };
+    number(*re) && number(*im) && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "complex")
+}
+
 /// Is every term of type `a` of type `b`?
 fn subtype(a: Ty, b: Ty) -> bool {
-    let real = |t: Ty| matches!(t, Ty::Integer | Ty::Rational | Ty::MachineReal | Ty::Ball | Ty::Real);
-    a == b || (b == Ty::Real && real(a)) || (b == Ty::Number && (real(a) || a == Ty::Number))
+    let real = |t: Ty| matches!(t, Ty::Integer | Ty::Rational | Ty::MachineReal | Ty::Ball | Ty::Real | Ty::Float);
+    a == b
+        || (b == Ty::Real && real(a))
+        || (b == Ty::Number && (real(a) || a == Ty::Number))
+        || (b == Ty::Float && matches!(a, Ty::MachineReal | Ty::Ball))
 }
 
 /// Identical up to a renaming of pattern variables (semantics 6.3: such a definition replaces the old rule).

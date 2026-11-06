@@ -115,7 +115,12 @@ fn parts<'h>(
     let [a] = *args else {
         return Ok(Reply::Decline);
     };
-    let es = take!(lib.assoc_operand(h, t, a, 1));
+    // a list of rules is read like the entries of an association (decision p6core.12)
+    let rules = cx.as_list(a).filter(|xs| xs.iter().all(|&x| lib.is_rule(h, x)));
+    let es = match rules {
+        Some(xs) => xs,
+        None => take!(lib.assoc_operand(h, t, a, 1)),
+    };
     charge_copy(cx, es.len())?;
     let out: Vec<T<'h>> = es.iter().map(|&e| part(lib, h, e)).collect();
     Ok(Reply::Done(cx.list(&out)))
@@ -137,7 +142,8 @@ pub(crate) fn to_rules<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 }
 
 /// `lookup(a, k)`: the value of key `k`, `failure(missing_key, k)` if there is none; `lookup(a, k, d)`: `d` if there
-/// is none (`d` is evaluated before the call, like every argument).
+/// is none. The key and the default are held: the key is evaluated first, the default only when the key is missing
+/// (decision p6core.23).
 pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (a, k, default) = match *args {
@@ -145,11 +151,31 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         [a, k, d] => (a, k, Some(d)),
         _ => return Ok(Reply::Decline),
     };
-    let es = take!(lib.assoc_operand(h, t, a, 1));
-    Ok(Reply::Done(match position(lib, cx, a, es, k, true)? {
-        Some(p) => lib.value(h, es[p]),
-        None => default.unwrap_or_else(|| lib.fail(h, lib.s.missing_key, &[k])),
-    }))
+    let k = cx.eval(k)?;
+    if lib.is_failure(h, k) {
+        return Ok(Reply::Done(k));
+    }
+    let es = match lib.assoc_operand(h, t, a, 1) {
+        Ok(es) => es,
+        // left unevaluated: the call with its key evaluated
+        Err(Reply::Decline) => {
+            let mut v = vec![a, k];
+            v.extend(default);
+            let head = match h.view(t) {
+                View::App { head, .. } => head,
+                _ => return Ok(Reply::Decline),
+            };
+            return Ok(Reply::Done(h.app(head, &v)));
+        }
+        Err(r) => return Ok(r),
+    };
+    Ok(match position(lib, cx, a, es, k, true)? {
+        Some(p) => Reply::Done(lib.value(h, es[p])),
+        None => match default {
+            Some(d) => Reply::Again(d),
+            None => Reply::Done(lib.fail(h, lib.s.missing_key, &[k])),
+        },
+    })
 }
 
 /// `key_exists(a, k)`: whether `a` has the key `k`.

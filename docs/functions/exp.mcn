@@ -147,7 +147,7 @@ exp(1000.0)
 #% cell
 n(exp(1000), 20)
 #% output
-#= 1.970071114017046993888879e434
+#= 1.970071114017046993889e434
 
 #% text
 # Limits are not taken at infinity:
@@ -171,7 +171,7 @@ exp(2*log(3))
 #% cell
 n(exp(2)) - n(e^2)
 #% output
-#= 8.881784197001252e-16
+#= 0.0
 
 #% section
 # See also

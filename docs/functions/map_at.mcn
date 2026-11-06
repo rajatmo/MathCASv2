@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# map_at
+
+#% text
+# `map_at(f, x, pos)` gives `x` with the part `p` at the position `pos` replaced by `f(p)`.
+
+#% text
+# `map_at(f, x, [pos1, pos2, ...])` applies `f` at several positions.
+
+#% section
+# Details
+
+#% item
+# A position is an index or a list of indices, negative from the end; the result is evaluated.
+
+#% item
+# `map` applies `f` to every element; `map_at` only at the positions given.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map_at(f, [a, b, c], 2)
+#% output
+#= [a, f(b), c]
+
+#% cell
+map_at(f, [[a, b], [c, d]], [[1, 2], [2, 1]])
+#% output
+#= [[a, f(b)], [f(c), d]]
+
+#% subsection
+# Scope
+
+#% text
+# A function that evaluates:
+
+#% cell
+map_at(x => x^2, [1, 2, 3, 4], [[1], [-1]])
+#% output
+#= [1, 2, 3, 16]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Applying at every index is `map`:
+
+#% cell
+map_at(f, [a, b], [[1], [2]]) == map(f, [a, b])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `map`, `replace_part`, `extract`, `map_indexed`

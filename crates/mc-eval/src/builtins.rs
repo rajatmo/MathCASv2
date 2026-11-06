@@ -6,6 +6,7 @@
 //! | `isub`, `iquo`, `imod` | two machine integers | difference, Euclidean quotient and remainder (declines on a zero or, for `imod`, negative divisor) |
 //! | `less`, `less_equal`, `greater`, `greater_equal` | two machine integers | `true` / `false` |
 //! | `same` | two terms | `true` when identical |
+//! | `eval` | one, strict | the argument (evaluated, as strict arguments are) |
 //! | `if` | condition, then, else (the last two held; the else branch may be missing) | the chosen branch, evaluated (`null` for a false condition without else) |
 //! | `map` | function, `list(...)` | `list(f(x)...)`, elements as a speculative group |
 //! | `print` | a term | the term; appends it to the output (effect) |
@@ -91,8 +92,8 @@ impl Native for Same {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let [a, b] = args else { return Ok(Reply::Decline) };
-        Ok(Reply::Done(cx.bool(a == b)))
+        // `same(a, b, c, ...)`: all identical; one argument or none is trivially true
+        Ok(Reply::Done(cx.bool(args.windows(2).all(|w| w[0] == w[1]))))
     }
 }
 
@@ -156,7 +157,17 @@ impl Native for Print {
     }
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        let [x] = args else { return Ok(Reply::Decline) };
+        let [x] = args else {
+            // `print(a, b, ...)`: one line, the texts of the arguments joined (decision p6core.24)
+            if args.len() < 2 {
+                return Ok(Reply::Decline);
+            }
+            let h = cx.heap();
+            let text = h.sym_term(h.sym("to_string"));
+            let parts: Vec<T<'h>> = args.iter().map(|&a| h.app(text, &[a])).collect();
+            let joined = h.app(h.sym_term(h.sym("string_join")), &parts);
+            return Ok(Reply::Again(h.app(h.sym_term(h.sym("print")), &[joined])));
+        };
         cx.emit(*x)?;
         Ok(Reply::Done(*x))
     }
@@ -195,7 +206,32 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     reg("if", Attributes { hold: Hold::Rest, ..strict }, Box::new(If));
     reg("map", strict, Box::new(Map));
     reg("print", Attributes { effect: true, ..strict }, Box::new(Print));
+    reg("eval", strict, Box::new(EvalNow));
     reg("define", Attributes { hold: Hold::First, effect: true, ..strict }, Box::new(Define));
     crate::syntax::register(k, h);
     crate::lang::register(k, h);
+}
+
+/// `eval(x)`: `x`, evaluated (as every strict argument is). Inside a held argument it marks the part to evaluate
+/// first; elsewhere it is the identity (decision p6core.14).
+struct EvalNow;
+
+impl Native for EvalNow {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, _cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [x] = args else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(*x))
+    }
+}
+
+/// A native that always declines (a placeholder while a native is being wrapped, [`crate::Kernel::wrap_native`]).
+pub struct Declines;
+
+impl Native for Declines {
+    fn call<'h>(&self, _cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, _args: &[T<'h>]) -> Res<Reply<'h>> {
+        Ok(Reply::Decline)
+    }
 }

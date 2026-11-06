@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# dimensions
+
+#% text
+# `dimensions(x)` gives the list of the lengths of the levels of `x` that form a full array: `[2, 3]` for a 2 by 3 matrix.
+
+#% section
+# Details
+
+#% item
+# Each level counts while all its parts have one head and one length; a ragged level ends the list.
+
+#% item
+# An atom gives `[]`; any head works, not only `list`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dimensions([[1, 2, 3], [4, 5, 6]])
+#% output
+#= [2, 3]
+
+#% cell
+dimensions(range(5))
+#% output
+#= [5]
+
+#% subsection
+# Scope
+
+#% text
+# Ragged lists stop at the first uneven level:
+
+#% cell
+dimensions([[1, 2], [3]])
+#% output
+#= [2]
+
+#% text
+# Other heads:
+
+#% cell
+dimensions(f(g(a, b), g(c, d)))
+#% output
+#= [2, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The length of `dimensions` is `array_depth`:
+
+#% cell
+m = constant_array(0, [2, 3, 4])
+[dimensions(m), array_depth(m)]
+#% output
+#= [[2, 3, 4], 3]
+
+#% section
+# See also
+
+#% text
+# `array_depth`, `length`, `depth`, `constant_array`

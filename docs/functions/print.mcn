@@ -137,7 +137,8 @@ say("k = ", 3, ", k^2 = ", 9)
 #% cell
 print("x =", 2)
 #% output
-#= print("x =", 2)
+#| x =2
+#= "x =2"
 
 #% section
 # See also

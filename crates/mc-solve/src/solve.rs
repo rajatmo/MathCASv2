@@ -376,6 +376,11 @@ fn exponential_family<'h>(env: &Env<'h>, bad: &[T<'h>]) -> Option<Vec<(T<'h>, T<
     let parts: Vec<(Option<T<'h>>, T<'h>)> = bad
         .iter()
         .map(|&k| match h.view(k) {
+            // `e^u` is the exponential (the engine's one form of `exp(u)`): its kernel is the opaque call `exp(g u)`,
+            // whose powers stay powers
+            View::App { head, args: &[b, e] } if head == env.hd.pow && matches!(h.view(b), View::Sym(s) if h.sym_name(s) == "e") => {
+                Some((None, e))
+            }
             View::App { head, args: &[b, e] } if head == env.hd.pow => Some((Some(b), e)),
             _ => match env.head_name(k) {
                 Some((name, &[a])) if name == "exp" => Some((None, a)),
