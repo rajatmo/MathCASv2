@@ -8,7 +8,11 @@ publish = false
 description = "MathCAS v2 window support shared by the notebook and the documentation window: bundled fonts, the clipboard, the graphics interface and GPU choice, the settings folder"
 
 [dependencies]
-eframe = "0.37.0"
+# eframe's default features without `default_fonts`: the windows bring their own fonts, so egui's built-in ones
+# (Ubuntu Light, Hack, its emoji and icon fonts) are not compiled in
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
+# eframe's default feature `winit/default`, which a dependent cannot name through eframe
+winit = "0.30.13"
 # STIX Two Math, the last fallback for mathematical symbols
 mc-mathfont = { path = "../mc-mathfont" }
 png = "0.18"

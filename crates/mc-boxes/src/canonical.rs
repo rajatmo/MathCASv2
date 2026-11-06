@@ -23,7 +23,7 @@
 use crate::scan::Scan;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use crate::tree::{BigOp, Item, Node, Row, MAX_NESTING};
+use crate::tree::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
 
 /// The canonical text of a row.
 pub fn to_text(row: &Row) -> String {
@@ -123,6 +123,235 @@ fn write_node(n: &Node, out: &mut String) {
     out.push('(');
     out.push_str(&body);
     out.push(')');
+}
+
+/// Where each item of a tree is in its canonical text: the byte offset of every item of every row (and of each
+/// row's end), by row path. The editor colours typeset input with the classes the syntax colouring gives the
+/// canonical text (design 3.11 in typeset cells).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct TextMap {
+    rows: HashMap<RowPath, Vec<usize>>,
+}
+
+impl TextMap {
+    /// The byte offset in the canonical text of item `index` of the row at `path` (`index == len`: the row's end).
+    pub fn offset(&self, path: &[Step], index: usize) -> Option<usize> {
+        self.rows.get(path)?.get(index).copied()
+    }
+
+    /// The slots of box item `item` of the row at `path`: their steps and item offsets.
+    fn slots(&self, path: &[Step], item: usize) -> Vec<(Step, &Vec<usize>)> {
+        let mut out = vec![];
+        let mut p = path.to_vec();
+        for slot in 0.. {
+            p.push(Step { item, slot });
+            let Some(o) = self.rows.get(&p) else { break };
+            out.push((Step { item, slot }, o));
+            p.pop();
+        }
+        out
+    }
+
+    /// The caret position for byte `b` of the canonical text: inside the innermost slot holding it, before the
+    /// first item starting at or after it.
+    pub fn caret_at(&self, b: usize) -> (RowPath, usize) {
+        let mut path: RowPath = vec![];
+        'down: loop {
+            let Some(offs) = self.rows.get(&path) else { return (path, 0) };
+            let n = offs.len().saturating_sub(1);
+            for i in 0..n {
+                if offs[i] < b && b < offs[i + 1] {
+                    for (step, so) in self.slots(&path, i) {
+                        if so.first().is_some_and(|&s| s <= b) && so.last().is_some_and(|&e| b <= e) {
+                            path.push(step);
+                            continue 'down;
+                        }
+                    }
+                }
+            }
+            let offset = offs[..n].iter().take_while(|&&o| o < b).count();
+            return (path, offset);
+        }
+    }
+
+    /// The smallest selection of items covering bytes `range` of the canonical text (Find in typeset input).
+    pub fn find(&self, range: std::ops::Range<usize>) -> Option<(RowPath, std::ops::Range<usize>)> {
+        if range.start >= range.end {
+            return None;
+        }
+        let mut path: RowPath = vec![];
+        'down: loop {
+            let offs = self.rows.get(&path)?;
+            let n = offs.len().saturating_sub(1);
+            let hit: Vec<usize> = (0..n).filter(|&i| offs[i] < range.end && offs[i + 1] > range.start).collect();
+            let (first, last) = (*hit.first()?, *hit.last()?);
+            if first == last {
+                for (step, so) in self.slots(&path, first) {
+                    if so.first().is_some_and(|&s| s <= range.start) && so.last().is_some_and(|&e| range.end <= e) {
+                        path.push(step);
+                        continue 'down;
+                    }
+                }
+            }
+            return Some((path, first..last + 1));
+        }
+    }
+}
+
+/// The canonical text of a row with the place of each item in it ([`to_text`] gives the same text).
+pub fn to_text_mapped(row: &Row) -> (String, TextMap) {
+    let mut out = String::new();
+    let mut map = TextMap::default();
+    write_row_mapped(row, &mut Vec::new(), &mut out, &mut map);
+    (out, map)
+}
+
+fn write_row_mapped(row: &Row, path: &mut RowPath, out: &mut String, map: &mut TextMap) {
+    let mut offsets = Vec::with_capacity(row.len() + 1);
+    for (i, it) in row.0.iter().enumerate() {
+        offsets.push(out.len());
+        match it {
+            Item::Char(c) => out.push(*c),
+            Item::Placeholder => out.push('□'),
+            Item::Box(b) => write_node_mapped(b, i, path, out, map),
+        }
+    }
+    offsets.push(out.len());
+    map.rows.insert(path.clone(), offsets);
+}
+
+/// [`write_node`] with the places of the slots' items recorded: the same text, written piece by piece.
+fn write_node_mapped(n: &Node, item: usize, path: &mut RowPath, out: &mut String, map: &mut TextMap) {
+    let slots = n.slots();
+    // a slot's text at the end of `out`, in one more pair of parentheses when `wrap` says so
+    let mut slot = |r: &Row, wrap: Option<Wrap>, out: &mut String, map: &mut TextMap| {
+        let k = slots.iter().position(|s| std::ptr::eq(*s, r)).unwrap_or(0);
+        let mut buf = String::new();
+        let mut local = TextMap::default();
+        path.push(Step { item, slot: k });
+        write_row_mapped(r, path, &mut buf, &mut local);
+        path.pop();
+        let wrapped = wrap.is_some_and(|w| {
+            let s = Scan::new(&buf);
+            w.needs(&s, 0, s.chars.len())
+        });
+        if wrapped {
+            out.push('(');
+        }
+        let shift = out.len();
+        out.push_str(&buf);
+        if wrapped {
+            out.push(')');
+        }
+        for (p, offs) in local.rows {
+            map.rows.insert(p, offs.into_iter().map(|o| o + shift).collect());
+        }
+    };
+    let c = Some(Wrap::Comma);
+    out.push_str("((");
+    match n {
+        Node::Fraction { num, den } => {
+            slot(num, None, out, map);
+            out.push_str(")/(");
+            slot(den, None, out, map);
+        }
+        Node::Superscript { base, exp } => {
+            slot(base, None, out, map);
+            out.push_str(")^(");
+            slot(exp, None, out, map);
+        }
+        Node::Subscript { base, index: i } => {
+            out.push_str("subscript(");
+            slot(base, c, out, map);
+            out.push_str(", ");
+            slot(i, c, out, map);
+            out.push(')');
+        }
+        Node::Radical { radicand, index: None } => {
+            out.push_str("sqrt(");
+            slot(radicand, c, out, map);
+            out.push(')');
+        }
+        Node::Radical { radicand, index: Some(i) } => {
+            out.push_str("root(");
+            slot(radicand, c, out, map);
+            out.push_str(", ");
+            slot(i, c, out, map);
+            out.push(')');
+        }
+        Node::Overscript { base, over } => {
+            out.push_str("overscript(");
+            slot(base, c, out, map);
+            out.push_str(", ");
+            slot(over, c, out, map);
+            out.push(')');
+        }
+        Node::Underscript { base, under } => {
+            out.push_str("underscript(");
+            slot(base, c, out, map);
+            out.push_str(", ");
+            slot(under, c, out, map);
+            out.push(')');
+        }
+        Node::Underoverscript { base, under, over } => {
+            out.push_str("underoverscript(");
+            slot(base, c, out, map);
+            out.push_str(", ");
+            slot(under, c, out, map);
+            out.push_str(", ");
+            slot(over, c, out, map);
+            out.push(')');
+        }
+        Node::Grid { rows } => {
+            out.push('[');
+            for (k, r) in rows.iter().enumerate() {
+                if k > 0 {
+                    out.push_str(", ");
+                }
+                out.push('[');
+                for (j, x) in r.iter().enumerate() {
+                    if j > 0 {
+                        out.push_str(", ");
+                    }
+                    slot(x, c, out, map);
+                }
+                out.push(']');
+            }
+            out.push(']');
+        }
+        Node::BigOp { op, body, var, lower, upper } => {
+            out.push_str(op.function());
+            out.push('(');
+            slot(body, c, out, map);
+            out.push_str(", ");
+            match (op, lower, upper) {
+                (BigOp::Limit, Some(p), _) => {
+                    slot(var, Some(Wrap::CommaArrow), out, map);
+                    out.push_str(" -> ");
+                    slot(p, c, out, map);
+                }
+                (_, Some(lo), Some(hi)) => {
+                    out.push('[');
+                    slot(var, c, out, map);
+                    out.push_str(", ");
+                    slot(lo, c, out, map);
+                    out.push_str(", ");
+                    slot(hi, c, out, map);
+                    out.push(']');
+                }
+                _ => slot(var, Some(Wrap::CommaList), out, map),
+            }
+            out.push(')');
+        }
+        Node::Graphic { path: p } => {
+            let mut lit = String::new();
+            mc_syntax::string_literal(p, &mut lit);
+            out.push_str("image(");
+            out.push_str(&lit);
+            out.push(')');
+        }
+    }
+    out.push_str("))");
 }
 
 struct Reader<'a> {

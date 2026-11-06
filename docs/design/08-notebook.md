@@ -164,11 +164,18 @@ hidden *(observed)*:
 
 ### 2.5 Cell brackets
 
-Brackets are drawn in a column at the right edge of the cell area. Every cell has its own bracket spanning the cell's
-height (with its top and bottom margins). Every group has a bracket spanning all its visible cells, drawn one column
-further right; nesting depth *d* is drawn at column *d*, so the outermost group is rightmost. Bracket geometry: line
-thickness 1 px, column pitch 7 px, 2 px gap from the content, 2 px hooks at top and bottom (all at 100 %
+Brackets are drawn in a column at the **left** edge of the cell area *(user decision, round 11; the reference draws them
+on the right)*. Every cell has its own bracket spanning the cell's height (with its top and bottom margins), drawn
+nearest the content; every group has a bracket spanning all its visible cells, one column further left: nesting depth
+*d* is drawn at column *d*, so the outermost group is leftmost. Hooks point right, towards the content. At least two
+group columns are reserved so the content does not move sideways when the first group appears. Bracket geometry: line
+thickness 1 px, column pitch 7 px, hooks 3 px, the content 8 pt right of the innermost bracket (scaled with the
 magnification) *(spec)*.
+
+The content is **left-justified** against that edge: the styles' left margins of the table in 2.1 are taken relative to
+the Input margin (66), so Title, Section, Text, Input and Output start at the edge and items keep their indents. The
+insertion line runs from the content edge to the right, its "+" button at its right end (clear of the group
+brackets).
 
 Mouse on brackets:
 
@@ -191,8 +198,9 @@ input's bracket after a read error), closed group. Section 8 gives the colours.
 - An evaluated input cell is labelled `In[n]:=` with the number of its **first** statement. Each value shown gets an
   Output cell labelled `Out[k]=` with its statement's number. Print and Message cells carry a hidden label naming the
   input they came from (shown in their tooltip as "during evaluation of In[n]").
-- Labels sit in the left margin, right-aligned against the cell's content edge, baseline-aligned with the cell's first
-  line, in the label font (UI font, 10 pt) and the label colour.
+- Labels are **not drawn** *(user decision, round 11)*: the numbers stay in the model and the file (`label=`), so
+  `out(n)` and the history work; an Output cell's bracket tooltip and the status bar name it as `out(n)`. (Before
+  round 11 they sat in the left margin, right-aligned against the content, on the first baseline.)
 - Editing an input after evaluation keeps its label until the next evaluation *(observed for programmatic edits;
   section 13 for typing)*. Re-evaluating replaces the label with the new number.
 - Labels are saved (7.2) and shown again when the notebook is reopened; the counter of the new kernel starts at 1
@@ -670,7 +678,15 @@ printed text, re-typeset identically when a notebook is reopened):
 | `failure(...)` | linear text in the message colour |
 | anything unparsable (elisions, opaque objects) | linear text |
 
-Lists stay linear (`[[1, 2], [3, 4]]`), as the reference keeps nested lists linear in its default output form.
+Lists stay linear, except that a list of 2 to 64 lists of equal length (up to 64 elements, none of them a list) is
+drawn as a matrix: a grid between the list's own stretched brackets *(MathCAS decision NB6.3, round 11: the reference
+keeps nested lists linear in its default output form; in a typeset notebook such a list is nearly always a matrix; a
+preference turns it off)*. A product with a rational coefficient, printed `(2/3)*sqrt(2)`, is one fraction with the
+coefficient's numerator in front (2√2 over 3), a negative coefficient a minus before it *(NB6.2)*.
+
+A typeset output takes a read-only caret between its items (round 11): arrows, Shift, `Ctrl+.`, clicks and drags
+select a part, which copies as the printed text it stands for (each item keeps a map back to the printed text, which
+also lets Find highlight the matched part).
 
 ### 4.6 Linear, typeset and traditional forms
 
@@ -1131,9 +1147,10 @@ Every key, menu item and mouse action becomes a `Command`; the UI never mutates 
 ### 9.7 Accessibility
 
 - Every visible cell is an AccessKit node: role `heading` with level for Title ... Subsubsection, `paragraph` for Text,
-  `text input` (multi-line) for Input/Code with its label (`In[3]`) as name, `status`-like read-only text for outputs
-  (name `Out[3]`, value = printed linear text). Brackets and the insertion point are focusable through the keyboard
-  only via commands (no mouse needed for any action).
+  `text input` (multi-line) for Input/Code named by its style, `status`-like read-only text for outputs (name
+  `Output out(3)`, value = printed linear text), `log` for Print and Message, `image` for pictures (built in round 11;
+  the labels are no longer drawn, see 2.6). Brackets and the insertion point are reached from the keyboard through
+  commands (no mouse needed for any action); the menus open with F10 and Alt+letter.
 - Typeset content exposes its linear input text (4.6) as value, so screen readers read `(a + b)/(2c)`.
 - Live region: "Evaluation finished" / "Kernel stopped" announcements.
 - Themes: text and plain-code contrast are WCAG AA in both themes; comments (faint) are below AA, so a preference raises

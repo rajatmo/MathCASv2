@@ -95,3 +95,43 @@ read canonical text 6.6 us.
   typed-space collapsing at soft breaks; layout caching is the app's per-cell cache.
 - Not checked against the reference front end (guesses, each one constant or match arm): Backspace/Delete structure
   removal, Ctrl+. growth, grid-cell caret placement, the 40% break fill.
+
+## Round 11 (package nb-m6)
+
+- **Selections keep their anchor** (NB6.6): the `Editor` anchor is a caret position (path and offset) of its own;
+  the selection is the item range of the deepest row holding both ends, a box counting whole when an end is inside
+  it. Extending out of a slot selects the box; extending back into the box that holds the anchor re-enters it at the
+  anchor's slot. Commands acting on a selection first bring it into one row (`settle`). `extend_to(path, offset)`
+  (Shift+click, drags), `anchor()`.
+- **Grid keys** (NB6.7): `Ctrl+,` / `Ctrl+Enter` in a grid cell whose lone placeholder is selected (as right after the
+  previous column or row was added) add another column / row instead of nesting a grid.
+- **Canonical text map**: `to_text_mapped(row) -> (String, TextMap)`, the byte offset of every item of every row
+  (`offset`, `caret_at`, `find`); property-tested against `to_text` and the items' characters.
+- **Typeset output** (`typeset_output_with(text, OutputOptions)`, `Typeset::map: SourceMap`): every item maps to the
+  printed text it stands for (a substituted symbol to the text it replaces, a box to its expression, the thin space
+  of a product to the `*` between the factors); `SourceMap::{row, span, contiguous, caret_at, byte_at, find}`;
+  `output_input_text(row)` for parts whose text is not one stretch.
+- **Rational coefficients** (NB6.2): in output, a product with a rational literal factor (the kernel prints
+  `(2/3)*2^(1/2)`) is one fraction, the other factors of the numerator next to it (2√2 over 3); a coefficient
+  numerator of 1 is dropped (`(1/2)*x` is x/2); a negative coefficient draws a minus before the fraction. Input
+  conversion is unchanged.
+- **Matrices** (NB6.3, `OutputOptions::matrices`, default on): a list of 2 to `MATRIX_MAX` (64) lists of equal length
+  (1 to 64), none of whose elements is a list, is a grid between the list's own (stretched) brackets; a three-level
+  array is a list of matrices. Rationale for on: in typeset output a list of equal-length lists is nearly always a
+  matrix and reads as one; larger lists stay linear (data, not matrices); the per-output linear form and the
+  preference turn it off.
+- **LaTeX** (`latex::to_latex`, M7): math-mode LaTeX of a box tree: `\frac`, `{b}^{e}`, `{b}_{i}`, `\sqrt[n]{}`,
+  `\overset`/`\underset`, `matrix`/`bmatrix`/`pmatrix`, `\sum_{k=a}^{b}`, `\int_{a}^{b} f \, dx`, `\lim_{x \to a}`,
+  `\frac{\partial}{\partial x}`; Greek letters, arrows, relations, `\times`, `\infty`; known function names as
+  commands (`\sin`), other called names `\operatorname{}`, other words `\text{}`, a letter with digits as a
+  subscript (`x1` is `x_{1}`); strings `\text{}`; `*` and the thin space become a space.
+- Tests: 21 unit (new: rational coefficients, matrices and their limits, source maps, LaTeX of boxes, characters
+  and outputs), editing 15 (new: grid keys keep growing, extension keeps the anchor), canonical properties 4 (new:
+  the text map places every item), layout snapshots (the matrix and a coefficient output re-blessed).
+- **Sums and products read as written mathematics** (NB6.12, coordinator request): in output a term with a negative
+  coefficient is a subtraction (`a + -2*b` is a − 2b; `-1*cos(x)*x^2` is −x² cos(x), never a visible coefficient 1
+  or `+ −`); the factors of a product are ordered numbers, then names and their powers, then the rest (x² cos(x));
+  negative integer powers are fractions (`x^-2` is 1/x², `a*x^-1` is a/x); a sum that is a polynomial in its main
+  variable (the name in the most terms, with a power of degree 2 or more or a negative power somewhere) is ordered
+  by descending degree (`integrate(x^2*sin(x), x)` reads −x² cos(x) + 2x sin(x) + 2cos(x)); linear sums keep the
+  engine's order (`3 − x`). The source map follows: reordered parts copy through `output_input_text`.

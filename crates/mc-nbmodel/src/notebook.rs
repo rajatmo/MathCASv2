@@ -91,6 +91,12 @@ pub struct Notebook {
     pub(crate) closers: Vec<(CellId, usize)>,
     /// the editor of the typeset input cell with the caret (design 4, NB5.3)
     pub(crate) boxed: Option<crate::boxed::BoxEdit>,
+    /// the caret of typeset input cells around each edit, by cell and text: undo and redo put it back (NB6.5)
+    pub(crate) box_carets: Vec<(CellId, String, mc_boxes::Caret)>,
+    /// the read-only box caret of the typeset output with the caret (NB6.4)
+    pub(crate) outbox: Option<crate::outbox::OutBox>,
+    /// outputs draw lists of equal-length lists as matrices (the window's setting, NB6.3)
+    pub(crate) matrices: bool,
     pub(crate) undo: Undo,
     pub(crate) eval: EvalState,
     next_id: u64,
@@ -127,6 +133,9 @@ impl Notebook {
             auto_close: false,
             closers: vec![],
             boxed: None,
+            box_carets: vec![],
+            outbox: None,
+            matrices: true,
             undo: Undo::default(),
             eval: EvalState::default(),
             next_id: 1,

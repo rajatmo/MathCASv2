@@ -234,6 +234,8 @@ pub struct Job {
     pub text: String,
     /// layout options
     pub opts: LayoutOptions,
+    /// the options of typeset output
+    pub output: mc_boxes::OutputOptions,
     /// advances (1 em) of the output's characters the math font lacks, measured with the text font
     pub fallback: HashMap<char, f32>,
 }
@@ -273,7 +275,7 @@ impl Background {
                     batch.push(j);
                 }
                 for j in batch {
-                    let row = mc_boxes::typeset_output(&j.text).row;
+                    let row = mc_boxes::typeset_output_with(&j.text, j.output).row;
                     let m = BoxMetrics::for_row(&row, &mut |c| j.fallback.get(&c).copied().unwrap_or(0.6));
                     let layout = mc_boxes::layout::layout(&row, &m, &j.opts);
                     let rights = Arc::new(line_rights(&layout));
@@ -321,12 +323,14 @@ pub struct Ink<'a> {
     pub border: Color32,
     /// the cell's text font
     pub text_font: &'a egui::FontId,
+    /// colours of the characters by layout row and item (syntax colouring of typeset input); others in `color`
+    pub colours: Option<&'a [Vec<Color32>]>,
 }
 
 impl<'a> Ink<'a> {
     /// The ink of a palette for text of `color` in `text_font`.
     pub fn new(p: &Palette, color: Color32, text_font: &'a egui::FontId) -> Ink<'a> {
-        Ink { color, dark: p.dark, border: p.border_strong(), text_font }
+        Ink { color, dark: p.dark, border: p.border_strong(), text_font, colours: None }
     }
 }
 
@@ -341,7 +345,7 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
     let white = Rect::from_min_max(pos2(1.0 / side, 1.0 / side), pos2(3.0 / side, 3.0 / side));
     let snap = |v: f32| (v * ppp).round() / ppp;
     let visible = |y: f32, size: f32| origin.y + y + size * 1.5 >= clip.top() && origin.y + y - size * 1.5 <= clip.bottom();
-    let glyph_at = |mesh: &mut Mesh, glyphs: &mut Glyphs, g: Glyph, size: f32, x: f32, y: f32| {
+    let glyph_at = |mesh: &mut Mesh, glyphs: &mut Glyphs, g: Glyph, size: f32, x: f32, y: f32, color: Color32| {
         let px = size * ppp;
         let dx = (origin.x + x) * ppp;
         let ix = dx.floor();
@@ -359,12 +363,13 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
     };
     for d in &l.items {
         match d {
-            Draw::Char { c, size, x, y, .. } => {
+            Draw::Char { c, size, x, y, row, index, .. } => {
                 if c.is_whitespace() || !visible(*y, *size) {
                     continue;
                 }
+                let color = ink.colours.and_then(|t| t.get(*row as usize)?.get(*index as usize)).copied().unwrap_or(color);
                 match f.glyph(*c) {
-                    Some(g) => glyph_at(&mut mesh, glyphs, g, *size, *x, *y),
+                    Some(g) => glyph_at(&mut mesh, glyphs, g, *size, *x, *y, color),
                     None => {
                         // a character the math font lacks: the text font, on the baseline
                         let font = egui::FontId::new(*size, text_font.family.clone());
@@ -377,13 +382,13 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
             Draw::Placeholder { x, y, size, .. } => {
                 if visible(*y, *size) {
                     if let Some(g) = f.glyph('□') {
-                        glyph_at(&mut mesh, glyphs, g, *size, *x, *y);
+                        glyph_at(&mut mesh, glyphs, g, *size, *x, *y, color);
                     }
                 }
             }
             Draw::Glyph { glyph, size, x, y } => {
                 if visible(*y, *size * 4.0) {
-                    glyph_at(&mut mesh, glyphs, *glyph, *size, *x, *y);
+                    glyph_at(&mut mesh, glyphs, *glyph, *size, *x, *y, color);
                 }
             }
             Draw::Rule { x, y, w, h } => {

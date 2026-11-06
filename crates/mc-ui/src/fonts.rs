@@ -306,6 +306,18 @@ mod tests {
         assert_eq!(covering(&defs, &Face::Prose.family(), '𝕏').as_deref(), Some(MATH.key));
     }
 
+    /// egui's own fonts (Ubuntu Light, Hack, its emoji and icon fonts) are not built in: the symbols the windows
+    /// draw as text (toolbar, menus, tabs, status bar, the documentation window) come from the bundled fonts.
+    #[test]
+    fn the_windows_symbols_need_no_egui_fonts() {
+        let defs = definitions(Source::Bundled);
+        assert!(defs.font_data.keys().all(|k| !matches!(k.as_str(), "Ubuntu-Light" | "Hack" | "NotoEmoji-Regular" | "emoji-icon-font")));
+        for f in Face::ALL {
+            let missing: String = "•→∞≈⋮⌂■□▶◀●◐☀☾✓▾▸⏵".chars().filter(|c| covering(&defs, &f.family(), *c).is_none()).collect();
+            assert!(missing.is_empty(), "{f:?} has no glyph for {missing}");
+        }
+    }
+
     #[test]
     fn the_code_font_is_monospaced_in_egui() {
         let ctx = egui::Context::default();

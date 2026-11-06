@@ -79,3 +79,31 @@ commands (M6) are bound to nothing.
 - **Output forms** (NB5.5): `OutputForm`, `Cell::output_form()` (output block attribute `form=`), command
   `OutputForm(f)`; `Env::atomic` makes character motions jump across a typeset output and double/triple clicks
   select it whole.
+
+## Round 11 (package nb-m6)
+
+- **Caret in typeset output** (`outbox.rs`, NB6.4): an Output cell shown typeset (`Env::atomic`) gets a read-only
+  `mc_boxes::Editor` over `typeset_output_with(text, output_options())` while it has the caret. The model's
+  selection stays bytes of the printed text: the box caret or selection is written as the bytes its items stand for
+  (`SourceMap::span`, `byte_at`), and a byte selection made elsewhere (Find, a click before the output) moves the
+  box caret onto the items it covers (`caret_at`, `find`). Handled: arrows (structural Up/Down inside, leaving at
+  the ends), Shift (anchor kept), Home/End, `Ctrl+.`, Select all, Copy (the printed text of the part when it is one
+  stretch, else its linear text with the output spellings turned back), `ClickBox` on outputs.
+  `Notebook::output_editor`, `set_matrices`, `output_options`.
+- **Typeset input**: undo and redo put the box caret back (NB6.5: each edit records the text and caret before and
+  after, 256 entries; a rebuilt editor whose text matches takes that caret); Shift+click and drags keep the anchor
+  (`Editor::extend_to`); a byte selection set in the text (`SelectText`, `ClickText`, a restored session) selects the
+  items it covers through `TextMap::find`/`caret_at`; `box_word` (the name before the caret, for completion).
+- **Commands**: `SelectText(id, anchor, pos)`, `CopyLatex` (the selected part of a typeset cell or output, the
+  selected text or whole content of the caret's cell typeset, or the selected Input/Output cells one per line),
+  `ReplaceWord(name)` (completion in plain and typeset cells), `AppAction::Preferences`.
+- **Robustness**: the text helpers (`text.rs`) move any position back onto a character boundary first (a fuzz case
+  reached `line_start` with a position inside `□`); `ShowExpression` on a source that parses to no cell returns
+  `false` instead of panicking. `tests/fuzz.rs`: random command sequences (typing, all motions with and without
+  Shift, clicks and box clicks at random places, byte selections, clipboard, undo/redo, structure keys, conversions,
+  cell operations, styles, completions, outputs typeset) on five notebooks, checking after every command that the
+  selection is valid and that the result writes and reads (400 sequences of 80 commands by default,
+  `MC_FUZZ_CASES`; 20,000 ran clean once); damaged notebook texts read without panics.
+- Tests: 26 unit (new: the caret walks through a typeset output; a completion replaces the name; Find in typeset
+  input), key scripts (6 new in `typeset.keys`: undo/redo caret, undo in a denominator, Shift across a box and
+  back, Shift after a box, repeated Ctrl+, / Ctrl+Enter), tab scripts, 2 fuzz tests.

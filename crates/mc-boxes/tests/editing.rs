@@ -2,7 +2,7 @@
 //! other commands. The notation is [`mc_boxes::notation`]'s: `(N/D)`, `(B^E)`, `(B_S)`, `√(X)`, `(B over O)`,
 //! `grid[[a,b],[c,d]]`, `□`; a superscript box is `(x^2)` (the design's tables write it `x^2`). The editor's own
 //! notation adds `▮` for the caret and `⟦ ⟧` around a selection.
-use mc_boxes::{AliasOutcome, Editor, Item, Node, Row, Structure};
+use mc_boxes::{AliasOutcome, Editor, Item, Node, Row, Step, Structure};
 
 /// The start of each table row: its text, or a superscript box `x^2`.
 fn start(text: &str) -> Editor {
@@ -364,4 +364,73 @@ fn an_alias_after_a_box_keeps_its_name_after_the_implicit_times() {
     e.insert_text("alpha");
     assert_eq!(e.escape(), AliasOutcome::Replaced);
     assert_eq!(e.notation(), "√(x)*α▮");
+}
+
+#[test]
+fn grid_commands_keep_adding_to_the_grid() {
+    // right after a column (or row) is added its placeholder is selected: the next Ctrl+, adds another column
+    // instead of nesting a grid in the new cell
+    let mut ed = Editor::from_text("a");
+    for _ in 0..3 {
+        assert!(ed.structure(Structure::GridColumn));
+    }
+    assert_eq!(ed.notation(), "grid[[a,□,□,⟦□⟧]]");
+    assert!(ed.structure(Structure::GridRow));
+    assert!(ed.structure(Structure::GridRow));
+    assert_eq!(ed.notation(), "grid[[a,□,□,□],[□,□,□,□],[□,□,□,⟦□⟧]]");
+    // with a real selection inside a cell, the selection becomes a grid of its own
+    ed.insert_text("pq");
+    assert!(ed.move_left(true));
+    assert!(ed.structure(Structure::GridColumn));
+    assert!(ed.text().contains("[p(([[q, □]]))]") || ed.text().contains("(([[q, □]]))"), "{}", ed.text());
+}
+
+#[test]
+fn extending_keeps_the_anchor() {
+    let start = || {
+        let mut ed = Editor::from_text("a+((xy)/(z))+b");
+        ed.set_caret(&[Step { item: 2, slot: 0 }], 1);
+        ed
+    };
+    let mut ed = start();
+    assert_eq!(ed.notation(), "a+(x▮y/z)+b");
+    let steps = [
+        (true, "a+(x⟦y⟧/z)+b"),
+        (true, "a+⟦(xy/z)⟧+b"),
+        (true, "a+⟦(xy/z)+⟧b"),
+        (false, "a+⟦(xy/z)⟧+b"),
+        // back into the box that holds the anchor: the selection starts from the anchor again
+        (false, "a+(x⟦y⟧/z)+b"),
+        (false, "a+(x▮y/z)+b"),
+        (false, "a+(⟦x⟧y/z)+b"),
+        (false, "a+⟦(xy/z)⟧+b"),
+        (false, "a⟦+(xy/z)⟧+b"),
+    ];
+    for (forward, want) in steps {
+        assert!(if forward { ed.move_right(true) } else { ed.move_left(true) });
+        assert_eq!(ed.notation(), want);
+    }
+    // Home and End keep the anchor too
+    ed.move_end(true);
+    assert_eq!(ed.notation(), "a+⟦(xy/z)+b⟧");
+    // a plain arrow collapses the selection at its end
+    assert!(ed.move_right(false));
+    assert_eq!(ed.notation(), "a+(xy/z)+b▮");
+
+    // Shift+click from outside into a slot selects up to the whole box; editing acts on what is shown
+    let mut ed = Editor::from_text("a+((xy)/(z))+b");
+    ed.set_caret(&[], 0);
+    ed.extend_to(&[Step { item: 2, slot: 0 }], 1);
+    assert_eq!(ed.notation(), "⟦a+(xy/z)⟧+b");
+    assert_eq!(ed.selected_text(), "a+((xy)/(z))");
+    assert!(ed.backspace());
+    assert_eq!(ed.notation(), "▮+b");
+
+    // a selection across two slots of one box selects the box
+    let mut ed = start();
+    ed.extend_to(&[Step { item: 2, slot: 1 }], 1);
+    assert_eq!(ed.notation(), "a+⟦(xy/z)⟧+b");
+    // typing replaces it
+    ed.insert_char('w');
+    assert_eq!(ed.notation(), "a+w▮+b");
 }

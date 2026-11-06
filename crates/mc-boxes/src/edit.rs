@@ -2,8 +2,10 @@
 //! deleting, moving, the structure commands with their operand rules, placeholders and `Tab`, `Ctrl+Space`,
 //! `Ctrl+5`, grids, aliases and templates.
 //!
-//! The caret is a row path and an offset; a selection is a range of items in the caret's row (selections never
-//! cross a box boundary: extending out of a slot selects the whole box). Commands return whether they did
+//! The caret is a row path and an offset. A selection has an anchor, a caret position of its own that stays where
+//! the selection started while the caret moves; what is selected is the range of items of the deepest row holding
+//! both ends, a box counting whole when an end is inside it (extending out of a slot selects the whole box, and
+//! extending back into it selects from the anchor again). Commands return whether they did
 //! something, so the caller can move across cells, beep or fall back (Tab without placeholders indents).
 use crate::aliases::{self, Alias};
 use crate::canonical::{from_text, to_text};
@@ -74,8 +76,8 @@ pub struct AliasMark {
 pub struct Editor {
     root: Row,
     caret: Caret,
-    /// the other end of the selection, an offset in the caret's row
-    anchor: Option<usize>,
+    /// the other end of the selection (it stays where the selection started)
+    anchor: Option<Caret>,
     /// a pending alias: its row and start offset
     alias: Option<(RowPath, usize)>,
     /// the last alias looked up without success
@@ -132,18 +134,66 @@ impl Editor {
         self.anchor = None;
     }
 
-    /// The selection: the caret's row and the selected item range (`None` when nothing is selected).
+    /// The selection: the row holding both of its ends and the selected item range (`None` when nothing is
+    /// selected). An end inside a box of that row selects the whole box.
     pub fn selection(&self) -> Option<(RowPath, Range<usize>)> {
-        let a = self.anchor?;
-        let b = self.caret.offset;
-        (a != b).then(|| (self.caret.path.clone(), a.min(b)..a.max(b)))
+        let a = self.anchor.as_ref()?;
+        let c = &self.caret;
+        let d = a.path.iter().zip(&c.path).take_while(|(x, y)| x == y).count();
+        let common = &c.path[..d];
+        let len = self.root.at(common)?.len();
+        let span = |k: &Caret| match k.path.get(d) {
+            Some(s) => (s.item.min(len), (s.item + 1).min(len)),
+            None => (k.offset.min(len), k.offset.min(len)),
+        };
+        let (a0, a1) = span(a);
+        let (c0, c1) = span(c);
+        let (lo, hi) = (a0.min(c0), a1.max(c1));
+        (lo < hi).then(|| (common.to_vec(), lo..hi))
+    }
+
+    /// The anchor of the selection, if one was started (it may select nothing yet).
+    pub fn anchor(&self) -> Option<&Caret> {
+        self.anchor.as_ref()
     }
 
     /// Selects items `range` of the row at `path` (the caret goes to the range's end).
     pub fn select(&mut self, path: &[Step], range: Range<usize>) {
         self.set_caret(path, range.end);
         let len = self.row().len();
-        self.anchor = Some(range.start.min(len));
+        self.anchor_at(range.start.min(len));
+    }
+
+    /// Moves the caret to a position, keeping the selection's anchor (or starting one where the caret was): a
+    /// Shift+click or a drag.
+    pub fn extend_to(&mut self, path: &[Step], offset: usize) {
+        let anchor = self.anchor.clone().unwrap_or_else(|| self.caret.clone());
+        self.set_caret(path, offset);
+        self.anchor = Some(anchor);
+    }
+
+    /// The anchor at `offset` of the caret's row.
+    fn anchor_at(&mut self, offset: usize) {
+        self.anchor = Some(Caret { path: self.caret.path.clone(), offset });
+    }
+
+    /// Brings a selection whose ends are in different rows into one row (the caret at the end it was on), before
+    /// a command acts on it.
+    fn settle(&mut self) {
+        let Some(a) = self.anchor.clone() else { return };
+        if a.path == self.caret.path {
+            return;
+        }
+        let Some((p, r)) = self.selection() else {
+            self.anchor = None;
+            return;
+        };
+        let d = p.len();
+        let at = |k: &Caret| k.path.get(d).map_or(k.offset, |s| s.item);
+        let (cpos, apos) = (at(&self.caret), at(&a));
+        let forward = cpos > apos || (cpos == apos && self.caret.path.len() > d);
+        self.caret = Caret { path: p.clone(), offset: if forward { r.end } else { r.start } };
+        self.anchor = Some(Caret { path: p, offset: if forward { r.start } else { r.end } });
     }
 
     /// Selects the whole tree.
@@ -158,7 +208,8 @@ impl Editor {
         let caret = &self.caret;
         let mut s = String::new();
         write_notation(&self.root, &mut s, &mut |out, pos| {
-            if pos.path != caret.path.as_slice() {
+            let row = sel.as_ref().map_or(caret.path.as_slice(), |(p, _)| p.as_slice());
+            if pos.path != row {
                 return;
             }
             match &sel {
@@ -199,6 +250,7 @@ impl Editor {
 
     /// Deletes the selection; true if there was one.
     fn delete_selection(&mut self) -> bool {
+        self.settle();
         let Some((_, r)) = self.selection() else {
             self.anchor = None;
             return false;
@@ -497,6 +549,7 @@ impl Editor {
     fn horizontal(&mut self, forward: bool, extend: bool) -> bool {
         self.unknown = None;
         if !extend {
+            self.settle();
             if let Some((_, r)) = self.selection() {
                 self.anchor = None;
                 self.caret.offset = if forward { r.end } else { r.start };
@@ -509,17 +562,31 @@ impl Editor {
         let k = self.caret.offset;
         let inside = if forward { k < len } else { k > 0 };
         if extend {
-            let anchor = self.anchor.unwrap_or(k);
+            // the anchor stays; boxes are stepped over as units, except the one holding the anchor, which is
+            // entered (extending back towards where the selection started)
+            let anchor = self.anchor.clone().unwrap_or_else(|| self.caret.clone());
             if inside {
-                let step = self.step_len(forward);
-                self.caret.offset = if forward { k + step } else { k - step };
+                let at = if forward { k } else { k - 1 };
+                let d = self.caret.path.len();
+                let holds_anchor =
+                    anchor.path.len() > d && anchor.path[..d] == self.caret.path[..] && anchor.path[d].item == at;
+                let enter = holds_anchor && matches!(&row.0[at], Item::Box(b) if b.slot_count() > 0);
+                if enter {
+                    let mut p = self.caret.path.clone();
+                    p.push(Step { item: at, slot: anchor.path[d].slot });
+                    let len = self.root.at(&p).map_or(0, |r| r.len());
+                    self.caret = Caret { path: p, offset: if forward { 0 } else { len } };
+                } else {
+                    let step = self.step_len(forward);
+                    self.caret.offset = if forward { k + step } else { k - step };
+                }
                 self.anchor = Some(anchor);
                 return true;
             }
-            // leaving the row: select the whole box in the parent row
+            // leaving the row: the caret goes past the box in the parent row (the box is then selected whole)
             let Some(last) = self.caret.path.pop() else { return false };
             self.caret.offset = if forward { last.item + 1 } else { last.item };
-            self.anchor = Some(if forward { last.item } else { last.item + 1 });
+            self.anchor = Some(anchor);
             return true;
         }
         if inside {
@@ -573,9 +640,8 @@ impl Editor {
     }
 
     fn jump_to_row_edge(&mut self, end: bool, extend: bool) {
-        let k = self.caret.offset;
         if extend {
-            self.anchor = Some(self.anchor.unwrap_or(k));
+            self.anchor = Some(self.anchor.clone().unwrap_or_else(|| self.caret.clone()));
         } else {
             self.anchor = None;
         }
@@ -658,6 +724,7 @@ impl Editor {
 
     /// `Tab`: selects the next placeholder in reading order. False when there is none after the caret.
     pub fn next_placeholder(&mut self) -> bool {
+        self.settle();
         let order = positions(&self.root);
         let here = self.ordinal(&order, true);
         let found = order.iter().filter(|(_, _, ph)| *ph).find(|(o, _, _)| *o > here).cloned();
@@ -666,6 +733,7 @@ impl Editor {
 
     /// `Shift+Tab`: selects the previous placeholder in reading order. False when there is none before the caret.
     pub fn prev_placeholder(&mut self) -> bool {
+        self.settle();
         let order = positions(&self.root);
         let here = self.ordinal(&order, false);
         let found = order.iter().filter(|(_, _, ph)| *ph).rev().find(|(o, _, _)| *o < here).cloned();
@@ -702,7 +770,12 @@ impl Editor {
             return false;
         }
         self.unknown = None;
-        if matches!(s, Structure::GridRow | Structure::GridColumn) && self.selection().is_none() && self.grow_grid(s) {
+        self.settle();
+        // in a grid cell the grid commands add a row or a column: with the caret, or with the cell's lone
+        // placeholder selected (as it is right after the previous row or column was added)
+        let grid = matches!(s, Structure::GridRow | Structure::GridColumn);
+        let lone = matches!(self.selection(), Some((p, r)) if p == self.caret.path && r.len() == 1 && self.row().is_placeholder());
+        if grid && (self.selection().is_none() || lone) && self.grow_grid(s) {
             return true;
         }
         let (range, from_selection) = match self.selection() {
@@ -841,6 +914,7 @@ impl Editor {
     /// under to over, a radical's radicand to its index, a big operator's lower limit to its upper. False (does
     /// nothing) when the innermost structure has no such slot.
     pub fn switch_script(&mut self) -> bool {
+        self.settle();
         let Some(last) = self.caret.path.last().copied() else { return false };
         let parent: RowPath = self.caret.path[..self.caret.path.len() - 1].to_vec();
         let Some(b) = self.root.box_of(&self.caret.path).cloned() else { return false };
@@ -926,6 +1000,7 @@ impl Editor {
     /// `Ctrl+.`: grows the selection: the word at the caret, then the whole row, then the enclosing box, and so
     /// on outwards. False when the whole tree is already selected.
     pub fn expand_selection(&mut self) -> bool {
+        self.settle();
         let row = self.row();
         let len = row.len();
         match self.selection() {
@@ -965,7 +1040,7 @@ impl Editor {
         match self.caret.path.pop() {
             Some(last) => {
                 self.caret.offset = last.item + 1;
-                self.anchor = Some(last.item);
+                self.anchor_at(last.item);
                 true
             }
             None => false,
@@ -977,6 +1052,7 @@ impl Editor {
     /// `Esc` (design 08, section 3.9): starts an alias at the caret, or ends one: the name typed since the start
     /// is looked up and replaced by its character or template.
     pub fn escape(&mut self) -> AliasOutcome {
+        self.settle();
         match self.alias_mark() {
             Some(m) if !m.unknown => {
                 self.alias = None;

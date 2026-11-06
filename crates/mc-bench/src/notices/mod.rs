@@ -34,14 +34,9 @@ pub struct Exception {
 }
 
 /// The accepted exceptions. Each is scoped to one crate, so a new crate under the same licence still fails the check.
-pub const EXCEPTIONS: &[Exception] = &[Exception {
-    krate: "epaint_default_fonts",
-    licence: "Ubuntu-font-1.0",
-    reason: "the user-interface library's built-in Ubuntu-Light font, compiled in through eframe's default \
-             `default_fonts` feature; a free font licence (redistribution and embedding allowed). The windows use \
-             their own bundled fonts, so the feature can be turned off in the crates that depend on eframe, which \
-             removes this crate",
-}];
+pub const EXCEPTIONS: &[Exception] = &[];
+// (egui's built-in Ubuntu-Light font, the one exception so far, left the graph when the windows dropped eframe's
+// `default_fonts` feature in round 11.)
 
 /// One package of the dependency graph.
 #[derive(Clone, Debug)]
@@ -465,7 +460,6 @@ mod tests {
             package("gpl", Some("GPL-3.0-only"), &dir),
             package("none", None, &dir),
             package("broken", Some("MIT OR"), &dir),
-            package("epaint_default_fonts", Some("(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0"), &dir),
             package("other_fonts", Some("Ubuntu-font-1.0"), &dir),
         ];
         let v = violations(&deps);
@@ -473,7 +467,7 @@ mod tests {
         assert!(v[0].starts_with("gpl 1.0.0: licence 'GPL-3.0-only'"));
         assert!(v[1].starts_with("none 1.0.0: no licence expression"));
         assert!(v[2].starts_with("broken 1.0.0:"));
-        assert!(v[3].starts_with("other_fonts 1.0.0:"), "the exception is scoped to one crate: {v:?}");
+        assert!(v[3].starts_with("other_fonts 1.0.0:"), "an unknown licence is a violation: {v:?}");
     }
 
     #[test]

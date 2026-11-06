@@ -79,6 +79,8 @@ pub enum AppAction {
     Help,
     /// complete the name before the caret (Ctrl+K, F2)
     Complete,
+    /// the preferences dialog (Edit > Preferences)
+    Preferences,
 }
 
 /// The answer to the initialization-cells question (design 5.7).
@@ -133,6 +135,11 @@ pub enum Command {
     Copy,
     /// copy the plain text only
     CopyPlain,
+    /// copy the selection (or the cell's content, or the selected cells) as LaTeX (Edit > Copy as > LaTeX, M7)
+    CopyLatex,
+    /// replace the name being typed before the caret by this one (a completion is accepted), in plain and typeset
+    /// cells
+    ReplaceWord(String),
     /// paste
     Paste,
     /// evaluate the selected cells (Shift+Enter)
@@ -191,6 +198,8 @@ pub enum Command {
     NewCell(Style),
     /// put the caret at `pos` in a cell (a click); `true` extends the selection
     ClickText(CellId, usize, bool),
+    /// select bytes `anchor..pos` of a cell's text (Find; in typeset cells the boxes they cover)
+    SelectText(CellId, usize, usize),
     /// select the word at `pos` (double-click)
     SelectWord(CellId, usize),
     /// select the line at `pos` (triple-click)
@@ -283,6 +292,8 @@ impl Command {
             Cut => "cut",
             Copy => "copy",
             CopyPlain => "copy as plain text",
+            CopyLatex => "copy as LaTeX",
+            ReplaceWord(_) => "complete the name",
             Paste => "paste",
             Evaluate => "evaluate the selected cells",
             EvaluateNext => "evaluate, then go to the next input",
@@ -311,6 +322,7 @@ impl Command {
             SameStyleBelow => "a new cell of the same style",
             DeleteAllOutput => "delete all output",
             NewCell(s) => return format!("new {} cell", s.info().name),
+            SelectText(..) => "select text",
             ClickText(..)
             | SelectWord(..)
             | SelectLine(..)
@@ -362,6 +374,7 @@ impl Command {
                 AppAction::FullScreen => "full screen",
                 AppAction::Help => "help for the selected name",
                 AppAction::Complete => "complete the name",
+                AppAction::Preferences => "preferences",
             },
         };
         s.to_string()

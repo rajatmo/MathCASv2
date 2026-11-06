@@ -51,6 +51,10 @@ pub struct Settings {
     pub auto_close: bool,
     /// outputs are shown typeset (each output's own form wins)
     pub typeset_output: bool,
+    /// typeset outputs draw a list of equal-length lists as a matrix (NB6.3)
+    pub matrices: bool,
+    /// only the bundled fonts, never the system's (the same look on every system)
+    pub bundled_fonts: bool,
     /// the window's last position and inner size: x, y, width, height (points)
     pub window: Option<[f32; 4]>,
     /// where the settings are read from and written to (`None`: not saved, as in the self-test)
@@ -70,6 +74,8 @@ impl Default for Settings {
             caret_blink: true,
             auto_close: true,
             typeset_output: true,
+            matrices: true,
+            bundled_fonts: false,
             window: None,
             file: None,
         }
@@ -109,6 +115,8 @@ impl Settings {
         s.caret_blink = v.get("caret_blink").and_then(Value::as_bool).unwrap_or(true);
         s.auto_close = v.get("auto_close").and_then(Value::as_bool).unwrap_or(true);
         s.typeset_output = v.get("typeset_output").and_then(Value::as_bool).unwrap_or(true);
+        s.matrices = v.get("matrices").and_then(Value::as_bool).unwrap_or(true);
+        s.bundled_fonts = v.get("bundled_fonts").and_then(Value::as_bool).unwrap_or(false);
         if let Some(w) = v.get("window").and_then(Value::as_array) {
             let w: Vec<f32> = w.iter().filter_map(Value::as_f64).map(|x| x as f32).collect();
             // a place off every screen (a minimized window's -32000) or absurdly large is not restored
@@ -150,6 +158,8 @@ impl Settings {
             "caret_blink": self.caret_blink,
             "auto_close": self.auto_close,
             "typeset_output": self.typeset_output,
+            "matrices": self.matrices,
+            "bundled_fonts": self.bundled_fonts,
             "window": self.window,
             "session": {
                 "active": self.session.active,

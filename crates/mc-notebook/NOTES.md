@@ -166,3 +166,57 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   coordinates (linear, log, signed_log axes).
 - egui's focus navigation is cleared every frame unless a dialog or the find bar is open (Tab had left the new-tab
   button focused, which then took Enter).
+
+## Round 11 (package nb-m6)
+
+- **Brackets on the left, no labels** (user decision, NB6.1): the bracket column moved to the left margin, cell
+  brackets nearest the content, enclosing groups further left (at least two group columns reserved so the content does
+  not jump when the first group appears), hooks pointing right. The content is left-justified 8 pt (scaled with the
+  magnification) right of the innermost bracket; the styles' left margins count from the Input margin (66), so Title,
+  Section, Text, Input and Output share one edge and items keep their indents. `In[n]:=` / `Out[n]=` are no longer
+  drawn (the numbers stay in the model and file; an output's bracket tooltip and the status bar say `out(n)`). The
+  insertion line runs from the content edge to the right, its "+" at its right end, clear of the group brackets.
+- **Modules** (NB6.11): `app.rs` (2,664 lines) is split by concern without behaviour change: `app.rs` (state, `new`,
+  the frame, self-test accessors), `app/tabs.rs` (tabs, session), `app/files.rs`, `app/commands.rs` (model commands,
+  window actions, F1, picture copy, magnification), `app/keyboard.rs` (keys, completion, find), `app/canvas.rs`
+  (scrolling, painting, pointer, mouse, IME, context menu), `app/chrome.rs` (menus, toolbar, status bar),
+  `app/dialogs.rs`, `app/prefs.rs` (preferences).
+- **Typeset input** (M6 rest): characters coloured with the syntax classes of the cell's canonical text, placed
+  through `mc_boxes::to_text_mapped` (cached per revision, names, theme, width; `typeset::Ink::colours`); completion
+  in typeset cells (the name before the caret in its row, `Notebook::box_word`; accepting runs
+  `Command::ReplaceWord`, which also replaces the old two-click selection in plain cells); selections are drawn line
+  by line when they wrap.
+- **Typeset output** (NB6.4): a click puts a caret between the items of an output (`Hit::Boxes` for outputs too);
+  arrows, Shift, `Ctrl+.`, double-click and drags select parts; copying gives the part's printed text. Find (now
+  `Command::SelectText`) highlights the matched part in typeset outputs and typeset inputs. Rational coefficients as
+  one fraction and matrices as grids come from mc-boxes; the setting "Lists of equal-length lists as matrices" (on)
+  is in the preferences.
+- **Copy as LaTeX** (M7): Edit > Copy as > Plain text (`Ctrl+Shift+C`) / LaTeX, and in the context menu.
+- **Preferences** (Edit > Preferences...): theme, magnification, fonts (system where available / bundled only),
+  automatic closing, caret blink, typeset output by default, matrices, save without outputs, session restore,
+  toolbar; applied at once and saved (`notebook.json` gains `matrices`, `bundled_fonts`).
+- **Keyboard and accessibility** (NB6.9, NB6.10): F10 opens the File menu, Alt+F/E/I/O/C/V/W/H the menu of that
+  letter, its first item focused (a focus ring is drawn; arrows, Enter, Esc work as egui's focus navigation does);
+  Enter/Esc answer the initialization, interrupt and error dialogs; Esc closes the kernel log and the keyboard help.
+  AccessKit nodes: every cell on the screen (headings with level for title and section styles, paragraphs, multi-line
+  text inputs for Input/Code with the linear text as value, status for outputs named `out(n)` with the printed text,
+  log for Print/Message, image for pictures; selected state; bounds), the tabs (role tab, selected) and the tab-bar
+  buttons; a polite live region announces "Evaluation finished" and "Kernel stopped". Toolbar, menus and dialogs are
+  egui widgets with their own nodes.
+- Self-test steps added: `prefs` / `prefs off`, `clip` (clipboard text to the log), `focus` (focused widget, popup
+  open). Run self-tests with `MCUI_CLIPBOARD=local` so they never touch the real clipboard.
+- Tests: 15 unit tests (new: the accessibility tree of a five-cell notebook, M7's snapshot); the kernel integration
+  test.
+- Gaps: no Narrator walk-through recorded (the tree is tested, not read aloud); cells hang flat under the window's
+  root node (egui offers no public parent registration for nodes made with `accesskit_node_builder`); focus visuals
+  in menus show only while the window has the system focus (so self-test shots do not show them); the keyboard
+  menus are egui's own (no type-ahead); completion in typeset cells offers the same names as in text cells.
+- **Kernel requests never block the window** (found by the `all` storm mix: once in six runs the window stopped
+  answering for 5 s): requests to the kernel go through a channel to a writer thread of their own; before, a busy
+  kernel that did not read its input could fill the pipe and block the window's thread in `write`.
+- Status bar: the file path takes at most half the bar (a long path covered the items on the left).
+- **No egui fonts** (coordinator request): `mc-ui`, `mc-notebook` and `mc-docs` declare eframe without
+  `default_fonts` (every other default feature kept; `winit/default` through a direct `winit` dependency of mc-ui),
+  so `epaint_default_fonts` (Ubuntu Light, Hack, egui's emoji and icon fonts) is no longer built; menu check marks
+  are `✓` (in the bundled symbols) instead of `✔`; an mc-ui test checks that every symbol the windows draw as text has
+  a bundled glyph in every face.

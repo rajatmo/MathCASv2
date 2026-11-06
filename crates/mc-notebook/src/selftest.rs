@@ -17,7 +17,8 @@
 //! - `scroll <pixels>`: scroll the notebook
 //! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
 //! - `sel`: write the selection to the log; `hit <x> <y>`: what is at a window position; `images`: the picture
-//!   cache's size; `about` / `about off`: the About dialog
+//!   cache's size; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
+//!   write the clipboard's text to the log; `focus`: the focused widget and whether a popup is open
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
 //!   notebook text to `<name>.mcn`
 //! - `init yes|no|always`: answer the initialization question
@@ -278,6 +279,12 @@ impl SelfTest {
                 self.log.push(format!("tabs: {}", list.join(" ")));
             }
             "about" => app.show_about(arg != "off"),
+            "prefs" => app.show_preferences(arg != "off"),
+            "clip" => self.log.push(format!("clipboard: {:?}", app.clipboard_text())),
+            "focus" => {
+                let (focused, popup) = (ctx.memory(|m| m.focused()), egui::Popup::is_any_open(ctx));
+                self.log.push(format!("focus: {focused:?}, popup open: {popup}"));
+            }
             "sel" => self.log.push(format!("selection: {:?}", app.notebook().selection())),
             "hit" => {
                 let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();

@@ -11,7 +11,7 @@ use crate::command::{Command, Effects, Motion};
 use crate::env::{Clip, Env};
 use crate::notebook::{Notebook, Run, Selection};
 use crate::style::Style;
-use mc_boxes::{AliasOutcome, Editor, RowPath};
+use mc_boxes::{AliasOutcome, Caret, Editor, Item, RowPath};
 
 /// The editor of the typeset cell with the caret.
 #[derive(Clone, Debug)]
@@ -20,7 +20,12 @@ pub(crate) struct BoxEdit {
     pub cell: CellId,
     /// its tree, caret and selection
     pub ed: Editor,
+    /// the text and caret before the command being run (kept for undo, NB6.5)
+    before: Option<(String, Caret)>,
 }
+
+/// How many carets of typeset cells are remembered for undo and redo.
+const CARETS_KEPT: usize = 256;
 
 /// Whether a cell is edited as boxes: an editable code cell marked `typeset`, not showing its source.
 pub fn is_boxed(c: &Cell) -> bool {
@@ -53,22 +58,57 @@ impl Notebook {
             Some(b) => b.cell != cell || b.ed.text() != c.text,
             None => true,
         };
+        let n = c.text.len();
         if fresh {
+            let same_cell = self.boxed.as_ref().is_some_and(|b| b.cell == cell);
             let mut ed = Editor::from_text(&c.text);
-            // entered from before it (Right, Down, a click at its start): the caret at the start
-            if matches!(self.sel, Selection::Caret { pos: 0, .. }) {
-                ed.set_caret(&[], 0);
+            // the text changed under the editor (undo, redo): the caret it had with that text (NB6.5)
+            let remembered = same_cell
+                .then(|| self.box_carets.iter().rev().find(|(id, t, _)| *id == cell && *t == c.text).map(|(_, _, k)| k.clone()))
+                .flatten();
+            let restored = remembered.is_some();
+            if let Some(k) = remembered {
+                ed.set_caret(&k.path, k.offset);
             }
-            self.boxed = Some(BoxEdit { cell, ed });
+            self.boxed = Some(BoxEdit { cell, ed, before: None });
+            if restored {
+                self.sel = Selection::Caret { cell, anchor: n, pos: n };
+                return;
+            }
+        }
+        // a caret or selection set in the text (entering from before the cell, Find, a restored session): the
+        // editor takes the items it covers; the model's caret stays at the text's end
+        if let Selection::Caret { anchor, pos, .. } = self.sel {
+            if (anchor, pos) != (n, n) {
+                let Some(b) = self.boxed.as_mut() else { return };
+                let (_, map) = mc_boxes::to_text_mapped(b.ed.root());
+                if anchor == pos {
+                    let (p, k) = map.caret_at(pos);
+                    b.ed.set_caret(&p, k);
+                } else if let Some((p, r)) = map.find(anchor.min(pos)..anchor.max(pos)) {
+                    b.ed.select(&p, r);
+                }
+                self.sel = Selection::Caret { cell, anchor: n, pos: n };
+            }
         }
     }
 
     /// Write the editor's text to its cell (an undoable change); the model's caret stays at the text's end.
     fn commit_box(&mut self) -> bool {
-        let Some(b) = &self.boxed else { return false };
+        let Some(b) = self.boxed.as_mut() else { return false };
         let (id, text) = (b.cell, b.ed.text());
+        let before = b.before.take();
+        let after = b.ed.caret().clone();
         let changed = self.cell(id).is_some_and(|c| c.text != text);
         if changed {
+            // the carets on either side of the edit, for undo and redo
+            if let Some((t, k)) = before {
+                self.box_carets.push((id, t, k));
+            }
+            self.box_carets.push((id, text.clone(), after));
+            if self.box_carets.len() > CARETS_KEPT {
+                self.box_carets.drain(..self.box_carets.len() - CARETS_KEPT);
+            }
             self.set_text(id, text.clone(), true);
         }
         self.sel = Selection::Caret { cell: id, anchor: text.len(), pos: text.len() };
@@ -95,7 +135,7 @@ impl Notebook {
             ed.select(&[], a.min(p)..a.max(p));
         }
         self.update_cell(cell, true, |c| c.props.typeset = true);
-        self.boxed = Some(BoxEdit { cell, ed });
+        self.boxed = Some(BoxEdit { cell, ed, before: None });
         self.commit_box();
         true
     }
@@ -165,6 +205,7 @@ impl Notebook {
             return Some(None);
         }
         let b = self.boxed.as_mut()?;
+        b.before = Some((b.ed.text(), b.ed.caret().clone()));
         let id = b.cell;
         let ed = &mut b.ed;
         let now = env.now();
@@ -306,6 +347,17 @@ impl Notebook {
                     fx.beep = true;
                 }
             }
+            C::ReplaceWord(name) => {
+                // the completion replaces the name before the caret in its row
+                if ed.selection().is_none() {
+                    let caret = ed.caret().clone();
+                    let start = word_start(ed, &caret);
+                    if start < caret.offset {
+                        ed.select(&caret.path, start..caret.offset);
+                    }
+                }
+                ed.insert_text(name);
+            }
             C::ToggleComment | C::CheckBalance | C::Divide => {
                 fx.beep = true;
                 return Some(None);
@@ -336,14 +388,35 @@ impl Notebook {
         }
         if let Some(b) = self.boxed.as_mut() {
             if extend && same {
-                let caret = b.ed.caret().clone();
-                if caret.path == *path {
-                    let a = b.ed.selection().map_or(caret.offset, |(_, r)| if r.end == caret.offset { r.start } else { r.end });
-                    b.ed.select(path, a.min(offset)..a.max(offset));
-                    return;
-                }
+                // Shift+click and drags keep the selection's anchor
+                b.ed.extend_to(path, offset);
+                return;
             }
             b.ed.set_caret(path, offset);
         }
     }
+
+    /// The name being typed before the caret of the typeset cell with the caret (for completion): its row, where
+    /// it starts in the row, and its text. `None` with a selection.
+    pub fn box_word(&self) -> Option<(RowPath, usize, String)> {
+        let b = self.boxed.as_ref()?;
+        if b.ed.selection().is_some() {
+            return None;
+        }
+        let caret = b.ed.caret();
+        let start = word_start(&b.ed, caret);
+        let row = b.ed.root().at(&caret.path)?;
+        let word = row.0[start..caret.offset].iter().filter_map(|i| if let Item::Char(c) = i { Some(*c) } else { None }).collect();
+        Some((caret.path.clone(), start, word))
+    }
+}
+
+/// Where the name before `caret` starts in its row (letters, digits, `_` and `.`, as in plain cells).
+fn word_start(ed: &Editor, caret: &Caret) -> usize {
+    let Some(row) = ed.root().at(&caret.path) else { return caret.offset };
+    let mut k = caret.offset.min(row.len());
+    while k > 0 && matches!(row.0[k - 1], Item::Char(c) if c.is_alphanumeric() || c == '_' || c == '.') {
+        k -= 1;
+    }
+    k
 }

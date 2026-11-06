@@ -27,6 +27,7 @@ impl Notebook {
             self.closers.clear();
         }
         self.sync_boxed();
+        self.sync_out(env);
         match cmd {
             Command::Undo => fx.beep = !self.undo(),
             Command::Redo => fx.beep = !self.redo(),
@@ -37,6 +38,7 @@ impl Notebook {
             }
         }
         self.sync_boxed();
+        self.sync_out(env);
         fx.modified = self.is_modified() && (!modified || self.structure_rev() != before.1 || fx.modified);
         fx.scroll = self.sel != before.0;
         fx
@@ -46,6 +48,9 @@ impl Notebook {
         use Command as C;
         if let Some(run) = self.box_dispatch(&cmd, env, fx) {
             return run;
+        }
+        if self.out_dispatch(&cmd, env).is_some() {
+            return None;
         }
         match cmd {
             C::Insert(t) => return self.type_text(&t, env, fx),
@@ -67,6 +72,8 @@ impl Notebook {
             }
             C::Copy => fx.beep = !self.copy(env, false),
             C::CopyPlain => fx.beep = !self.copy(env, true),
+            C::CopyLatex => fx.beep = !self.copy_latex(env),
+            C::ReplaceWord(name) => fx.beep = !self.replace_word(&name),
             C::Paste => self.paste(env, fx),
             C::Evaluate => self.evaluate(false, fx),
             C::EvaluateNext => self.evaluate(true, fx),
@@ -136,6 +143,7 @@ impl Notebook {
                 self.create_cell(at, style, "");
             }
             C::ClickText(id, pos, extend) => self.click_text(id, pos, extend),
+            C::SelectText(id, anchor, pos) => self.select(Selection::Caret { cell: id, anchor, pos }),
             C::SelectWord(id, pos) => {
                 if let Some(c) = self.cell(id) {
                     // in an output shown as one unit a double-click selects all of it
@@ -911,6 +919,77 @@ impl Notebook {
         }
     }
 
+    /// Copy as LaTeX: the selected part of a typeset cell, or the selected text or whole content of the caret's cell
+    /// typeset, or the selected Input and Output cells one per line. `false` when there is nothing to copy.
+    fn copy_latex(&mut self, env: &mut dyn Env) -> bool {
+        let of_cell = |nb: &Notebook, c: &crate::cell::Cell, text: &str| -> Option<String> {
+            let row = if c.style == Style::Output {
+                if c.failure || c.graphic().is_some() {
+                    return None;
+                }
+                mc_boxes::typeset_output_with(text, nb.output_options()).row
+            } else if c.style.is_code() {
+                if c.props.typeset {
+                    mc_boxes::from_text(text)
+                } else {
+                    mc_boxes::typeset_input(text).unwrap_or_else(|_| mc_boxes::Row::text(text))
+                }
+            } else {
+                return None;
+            };
+            Some(mc_boxes::to_latex(&row))
+        };
+        let latex = match self.sel.clone() {
+            Selection::Caret { cell, anchor, pos } => {
+                if let Some((id, ed)) = self.box_editor().filter(|(id, _)| *id == cell) {
+                    let _ = id;
+                    let row = match ed.selection() {
+                        Some((p, r)) => ed.root().at(&p).map(|row| mc_boxes::Row(row.0[r].to_vec())),
+                        None => Some(ed.root().clone()),
+                    };
+                    row.map(|r| mc_boxes::to_latex(&r))
+                } else if let Some(row) = self.out_boxes(cell) {
+                    Some(mc_boxes::to_latex(&row))
+                } else {
+                    let Some(c) = self.cell(cell) else { return false };
+                    let text = if anchor != pos { &c.text[anchor.min(pos)..anchor.max(pos)] } else { c.text.as_str() };
+                    of_cell(self, c, text)
+                }
+            }
+            Selection::Cells { ids, .. } => {
+                let parts: Vec<String> =
+                    ids.iter().filter_map(|id| self.cell(*id)).filter_map(|c| of_cell(self, c, &c.text)).collect();
+                (!parts.is_empty()).then(|| parts.join("\n"))
+            }
+            Selection::Gap(_) => None,
+        };
+        match latex.filter(|l| !l.is_empty()) {
+            Some(l) => {
+                env.set_clipboard(Clip { text: Some(l), cells: None });
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Replace the name before the caret of a plain cell (a completion accepted).
+    fn replace_word(&mut self, name: &str) -> bool {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return false };
+        let Some(c) = self.cell(cell) else { return false };
+        if anchor != pos || !c.editable() {
+            return false;
+        }
+        let before = &c.text[..pos];
+        let len: usize = before
+            .chars()
+            .rev()
+            .take_while(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '.')
+            .map(char::len_utf8)
+            .sum();
+        self.replace_range(cell, pos - len, pos, name);
+        true
+    }
+
     fn paste(&mut self, env: &mut dyn Env, fx: &mut Effects) {
         let clip = env.clipboard();
         let fragment = clip.cells.clone().or_else(|| clip.text.clone().filter(|t| mc_nbfile::parse_cells(t).is_some()));
@@ -1162,7 +1241,7 @@ impl Notebook {
             let text = format!("{}\n{}\n", mc_nbfile::FRAGMENT, c.text);
             let parsed = self
                 .cells_of_fragment(&text)
-                .filter(|cells| cells.len() == 1 || cells.iter().skip(1).all(|c| c.generated()));
+                .filter(|cells| !cells.is_empty() && cells.iter().skip(1).all(|c| c.generated()));
             let Some(mut cells) = parsed else { return false };
             let back = cells.remove(0);
             self.set_text(id, back.text.clone(), true);
@@ -1302,24 +1381,84 @@ mod tests {
     }
 
     #[test]
-    fn an_atomic_output_has_two_caret_places() {
+    fn the_caret_walks_through_a_typeset_output() {
         let mut nb = Notebook::parse(TWO_OUTPUTS).unwrap();
         let out = nb.cells()[1].id;
         let len = nb.cells()[1].text.len();
         let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
+        let caret = |nb: &Notebook| nb.output_editor().map(|(_, e)| e.notation()).unwrap_or_default();
         nb.apply(Command::ClickText(out, 0, false), &mut env);
-        nb.apply(Command::Move(Motion::Right, false), &mut env);
-        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: len, pos: len });
+        assert_eq!(caret(&nb), "▮(x/2)");
+        // Right enters the fraction, walks its slots and leaves it; the model's selection is printed-text bytes
+        let walk = [("(▮x/2)", 0), ("(x▮/2)", 1), ("(x/▮2)", 2), ("(x/2▮)", 3), ("(x/2)▮", 3)];
+        for (want, byte) in walk {
+            nb.apply(Command::Move(Motion::Right, false), &mut env);
+            assert_eq!(caret(&nb), want);
+            assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: byte, pos: byte });
+        }
+        // Shift+Left selects the fraction as a whole
         nb.apply(Command::Move(Motion::Left, true), &mut env);
+        assert_eq!(caret(&nb), "⟦(x/2)⟧");
         assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: len, pos: 0 });
-        nb.apply(Command::SelectWord(out, 1), &mut env);
-        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 0, pos: len });
         nb.apply(Command::Copy, &mut env);
         assert_eq!(env.clip.text.as_deref(), Some("x/2"));
+        // a click in the denominator and Ctrl+. select a part: it copies as its printed text
+        nb.apply(Command::ClickBox(out, vec![mc_boxes::Step { item: 0, slot: 1 }], 0, false), &mut env);
+        nb.apply(Command::ExtendSelection, &mut env);
+        assert_eq!(caret(&nb), "(x/⟦2⟧)");
+        nb.apply(Command::Copy, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("2"));
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 2, pos: 3 });
+        // a selection made in bytes (Find) shows on the boxes it covers
+        nb.apply(Command::SelectText(out, 0, 1), &mut env);
+        assert_eq!(caret(&nb), "(⟦x⟧/2)");
+        // LaTeX of the selected part, then of the whole output
+        nb.apply(Command::CopyLatex, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("x"));
+        nb.apply(Command::ClickText(out, 0, false), &mut env);
+        nb.apply(Command::CopyLatex, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("\\frac{x}{2}"));
+        // past the end: the insertion point after the output
+        nb.apply(Command::Move(Motion::End, false), &mut env);
+        nb.apply(Command::Move(Motion::Right, false), &mut env);
+        assert_eq!(nb.selection(), &Selection::Gap(2));
         // other cells move by characters
         let input = nb.cells()[0].id;
         nb.apply(Command::ClickText(input, 0, false), &mut env);
         nb.apply(Command::Move(Motion::Right, false), &mut env);
         assert_eq!(nb.selection(), &Selection::Caret { cell: input, anchor: 1, pos: 1 });
+    }
+
+    #[test]
+    fn a_completion_replaces_the_name_before_the_caret() {
+        let mut env = FakeEnv::default();
+        // a plain cell
+        let mut nb = Notebook::parse("#! mathcas 2 notebook
+
+#% cell
+1 + si
+").unwrap();
+        let id = nb.cells()[0].id;
+        nb.apply(Command::ClickText(id, 6, false), &mut env);
+        nb.apply(Command::ReplaceWord("sin".into()), &mut env);
+        assert_eq!(nb.cells()[0].text, "1 + sin");
+        assert_eq!(nb.selection(), &Selection::Caret { cell: id, anchor: 7, pos: 7 });
+        // a typeset cell: the name in the caret's row, inside a fraction
+        let mut nb = Notebook::parse("#! mathcas 2 notebook
+
+#% cell typeset
+((co)/(2))
+").unwrap();
+        let id = nb.cells()[0].id;
+        nb.apply(Command::ClickBox(id, vec![mc_boxes::Step { item: 0, slot: 0 }], 2, false), &mut env);
+        assert_eq!(nb.box_word().map(|w| w.2), Some("co".to_string()));
+        nb.apply(Command::ReplaceWord("cos".into()), &mut env);
+        assert_eq!(nb.cells()[0].text, "((cos)/(2))");
+        assert_eq!(nb.box_editor().map(|(_, e)| e.notation()), Some("(cos▮/2)".to_string()));
+        // a selection made in the text (Find) selects the items it covers
+        nb.apply(Command::SelectText(id, 2, 5), &mut env);
+        assert_eq!(nb.box_editor().map(|(_, e)| e.notation()), Some("(⟦cos⟧/2)".to_string()));
+        nb.apply(Command::ClickText(id, 8, false), &mut env);
+        assert_eq!(nb.box_editor().map(|(_, e)| e.notation()), Some("(cos/▮2)".to_string()));
     }
 }

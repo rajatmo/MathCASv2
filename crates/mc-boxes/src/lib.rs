@@ -15,6 +15,7 @@
 pub mod aliases;
 pub mod canonical;
 pub mod edit;
+pub mod latex;
 pub mod layout;
 pub mod linear;
 pub mod ops;
@@ -22,8 +23,9 @@ pub mod printed;
 mod scan;
 pub mod tree;
 
-pub use canonical::{from_text, to_text};
+pub use canonical::{from_text, to_text, to_text_mapped, TextMap};
 pub use edit::{AliasMark, AliasOutcome, Caret, Editor, Structure};
+pub use latex::to_latex;
 pub use linear::linear_text;
-pub use printed::{typeset_any, typeset_input, typeset_output, Typeset};
+pub use printed::{output_input_text, typeset_any, typeset_input, typeset_output, typeset_output_with, OutputOptions, SourceMap, Typeset, MATRIX_MAX};
 pub use tree::{notation, BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};

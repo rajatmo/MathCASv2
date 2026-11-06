@@ -249,3 +249,58 @@ x▮
 Ctrl+/ "y" Ctrl+A Ctrl+C Right Ctrl+V
 --- boxes
 (x/y)*(x/y)▮
+
+=== undo puts the caret back where it was in the boxes (NB6.5)
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Up "c" Ctrl+Z
+--- boxes
+(x▮/ab)
+
+=== redo puts the caret back after the edit
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Up "c" Ctrl+Z Ctrl+Y
+--- boxes
+(xc▮/ab)
+
+=== undo of typing in a denominator keeps the caret in it
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Ctrl+Z
+--- boxes
+(x/▮□)
+
+=== Shift+Right out of a slot selects the box, Shift+Left back into it selects from the anchor again
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Left Shift+Right Shift+Right Shift+Left
+--- boxes
+(x/a⟦b⟧)
+
+=== Shift+Right and Shift+Left after a box keep their anchor
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Ctrl+Space "+y" Left Left Shift+Right Shift+Right Shift+Left
+--- boxes
+(x/a)⟦+⟧y
+
+=== Ctrl+, again adds columns, Ctrl+Enter again adds rows
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+, Ctrl+, Ctrl+Enter Ctrl+Enter "z"
+--- after
+#% cell typeset
+(([[a, □, □], [□, □, □], [□, □, z]]))▮

@@ -1,12 +1,25 @@
-//! Positions in a cell's text (byte offsets on character boundaries): character and word steps, lines.
+//! Positions in a cell's text (byte offsets on character boundaries): character and word steps, lines. Every
+//! function takes any position: one past the text or inside a character is first moved back to a boundary, so a
+//! stale position never panics (round 11 robustness).
+
+/// `pos` moved back onto a character boundary of `s` (and to at most its length).
+pub fn floor(s: &str, pos: usize) -> usize {
+    let mut p = pos.min(s.len());
+    while !s.is_char_boundary(p) {
+        p -= 1;
+    }
+    p
+}
 
 /// The position of the character before `pos`.
 pub fn prev_char(s: &str, pos: usize) -> usize {
+    let pos = floor(s, pos);
     s[..pos].char_indices().next_back().map_or(0, |(i, _)| i)
 }
 
 /// The position after the character at `pos`.
 pub fn next_char(s: &str, pos: usize) -> usize {
+    let pos = floor(s, pos);
     s[pos..].chars().next().map_or(pos, |c| pos + c.len_utf8())
 }
 
@@ -25,7 +38,7 @@ pub enum Lexical {
 /// (`#` to the line end) or code. Mirrors the lexer of mc-syntax for these two tokens.
 pub fn lexical_at(s: &str, pos: usize) -> Lexical {
     let mut state = Lexical::Code;
-    let mut chars = s[..pos.min(s.len())].chars();
+    let mut chars = s[..floor(s, pos)].chars();
     while let Some(c) = chars.next() {
         state = match (state, c) {
             (Lexical::Code, '"') => Lexical::Str,
@@ -62,7 +75,7 @@ fn class(c: char) -> Class {
 
 /// The start of the word before `pos` (white space before the caret is skipped first).
 pub fn word_left(s: &str, pos: usize) -> usize {
-    let mut i = pos;
+    let mut i = floor(s, pos);
     while i > 0 && class(s[..i].chars().next_back().expect("non-empty")) == Class::Space {
         i = prev_char(s, i);
     }
@@ -78,6 +91,7 @@ pub fn word_left(s: &str, pos: usize) -> usize {
 
 /// The end of the word after `pos`, then the white space after it (as the reference moves to the next word start).
 pub fn word_right(s: &str, pos: usize) -> usize {
+    let pos = floor(s, pos);
     let mut i = pos;
     if let Some(c) = s[i..].chars().next() {
         let k = class(c);
@@ -98,6 +112,7 @@ pub fn word_right(s: &str, pos: usize) -> usize {
 
 /// The word around `pos` (for double-click): the run of same-class characters touching it.
 pub fn word_at(s: &str, pos: usize) -> (usize, usize) {
+    let pos = floor(s, pos);
     let after = s[pos..].chars().next();
     let before = s[..pos].chars().next_back();
     let k = match (before, after) {
@@ -134,11 +149,13 @@ pub fn lines(s: &str) -> Vec<std::ops::Range<usize>> {
 
 /// The start of the line containing `pos`.
 pub fn line_start(s: &str, pos: usize) -> usize {
+    let pos = floor(s, pos);
     s[..pos].rfind('\n').map_or(0, |i| i + 1)
 }
 
 /// The end of the line containing `pos`.
 pub fn line_end(s: &str, pos: usize) -> usize {
+    let pos = floor(s, pos);
     s[pos..].find('\n').map_or(s.len(), |i| pos + i)
 }
 

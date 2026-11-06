@@ -7,7 +7,7 @@ use mc_nbmodel::{KernelLink, KernelMsg, KernelRequest};
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -31,7 +31,9 @@ pub struct KernelProcess {
     /// what the kernel wrote to stderr
     pub log: Log,
     child: Option<Arc<Mutex<Child>>>,
-    stdin: Option<ChildStdin>,
+    /// requests for the kernel, written by a thread of their own: a busy kernel that does not read its input must
+    /// never block the window
+    stdin: Option<Sender<String>>,
     rx: Receiver<KernelMsg>,
     tx: Sender<KernelMsg>,
     names_rx: Receiver<Vec<(String, String)>>,
@@ -98,7 +100,20 @@ impl KernelProcess {
         self.note(&format!("[started {} (pid {})]", self.exe.display(), child.id()));
         let stdout = child.stdout.take().expect("piped");
         let stderr = child.stderr.take().expect("piped");
-        self.stdin = child.stdin.take();
+        let mut pipe = child.stdin.take().expect("piped");
+        let (lines, queue) = channel::<String>();
+        let log_w = self.log.clone();
+        std::thread::spawn(move || {
+            for line in queue {
+                if pipe.write_all(line.as_bytes()).and_then(|()| pipe.flush()).is_err() {
+                    if let Ok(mut l) = log_w.lock() {
+                        l.push_str("[could not write to the kernel]\n");
+                    }
+                    return;
+                }
+            }
+        });
+        self.stdin = Some(lines);
         let generation = {
             let mut g = self.generation.lock().expect("not poisoned");
             *g += 1;
@@ -142,9 +157,8 @@ impl KernelProcess {
     }
 
     fn write(&mut self, v: Value) {
-        let Some(stdin) = self.stdin.as_mut() else { return };
-        let line = format!("{v}\n");
-        if stdin.write_all(line.as_bytes()).and_then(|()| stdin.flush()).is_err() {
+        let Some(stdin) = self.stdin.as_ref() else { return };
+        if stdin.send(format!("{v}\n")).is_err() {
             self.note("[could not write to the kernel]");
         }
     }

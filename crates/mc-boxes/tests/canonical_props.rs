@@ -190,3 +190,35 @@ fn linear_text_reads_to_the_same_terms() {
     }
     assert!(checked > n / 2, "{checked} of {n} rows were valid");
 }
+
+#[test]
+fn mapped_text_places_every_item() {
+    let mut r = Rng(seed() ^ 0x5151);
+    let n = cases(1500);
+    for k in 0..n {
+        progress("to_text_mapped", k, n);
+        let row = hostile_row(&mut r, 4);
+        let (t, map) = mc_boxes::to_text_mapped(&row);
+        assert_eq!(t, to_text(&row), "case {k}");
+        // every character item of every row sits at its offset
+        let mut stack: Vec<(Vec<mc_boxes::Step>, &mc_boxes::Row)> = vec![(vec![], &row)];
+        while let Some((path, rw)) = stack.pop() {
+            for (i, it) in rw.0.iter().enumerate() {
+                let o = map.offset(&path, i).unwrap_or_else(|| panic!("case {k}: no offset for {path:?} {i}"));
+                match it {
+                    Item::Char(c) => assert!(t[o..].starts_with(*c), "case {k}: {c:?} at {o} in {t:?}"),
+                    Item::Placeholder => assert!(t[o..].starts_with('□')),
+                    Item::Box(b) => {
+                        assert!(t[o..].starts_with("(("), "case {k}");
+                        for (s, slot) in b.slots().into_iter().enumerate() {
+                            let mut p = path.clone();
+                            p.push(mc_boxes::Step { item: i, slot: s });
+                            stack.push((p, slot));
+                        }
+                    }
+                }
+            }
+            assert!(map.offset(&path, rw.len()).is_some());
+        }
+    }
+}

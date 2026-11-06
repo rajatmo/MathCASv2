@@ -15,7 +15,7 @@ name = "mc-notebook"
 path = "src/main.rs"
 
 [dependencies]
-eframe = "0.37.0"
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
 mc-boxes = { path = "../mc-boxes" }
 mc-mathfont = { path = "../mc-mathfont" }
 mc-nbfile = { path = "../mc-nbfile" }

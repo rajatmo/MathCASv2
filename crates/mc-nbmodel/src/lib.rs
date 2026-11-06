@@ -20,6 +20,7 @@ mod group;
 mod io;
 pub mod keys;
 mod notebook;
+mod outbox;
 pub mod printed;
 pub mod script;
 mod style;

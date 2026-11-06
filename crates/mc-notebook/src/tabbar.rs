@@ -97,8 +97,12 @@ impl App {
                 egui::Id::unique("mc-tabbar").with(("tab-close", id)),
                 Sense::click(),
             );
-            let hovered = resp.hovered() || close_resp.hovered();
             let is_active = i == active;
+            // screen readers: the tab as a selectable item named by its title, its close button
+            let title = tab.title();
+            resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Tab, true, is_active, format!("Notebook {title}{}", if modified { ", modified" } else { "" })));
+            close_resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Close {title}")));
+            let hovered = resp.hovered() || close_resp.hovered();
             // the tab
             let fill = if is_active {
                 p.bg
@@ -307,6 +311,13 @@ impl App {
         let p = &self.doc.view.palette;
         let sense = if enabled { Sense::click() } else { Sense::hover() };
         let resp = ui.interact(rect, egui::Id::unique("mc-tabbar").with(id), sense);
+        let name = match glyph {
+            Glyph::Plus => "New notebook",
+            Glyph::Left => "Scroll the tabs left",
+            Glyph::Right => "Scroll the tabs right",
+            Glyph::Down => "All notebooks",
+        };
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, enabled, name));
         let painter = ui.painter();
         if enabled && resp.is_pointer_button_down_on() {
             painter.rect_filled(rect.shrink(1.0), 4.0, p.tab_close_hover());
