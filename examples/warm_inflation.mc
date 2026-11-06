@@ -94,15 +94,13 @@ olive = "#808000"
 fn save(name, p) = { export_data(string_join([name, ".pdf"]), p); export_data(string_join([name, ".png"]), p) }
 
 stage_plots = timing([
-  # the notebook marks phi_end and phi* on the curve with points and labels; here phi_end and phi* are the
-  # ends of the vertical lines   # GAP G21 (epilog points and text), G20 (grid lines at given positions)
+  # phi_end and phi* marked on the curve, labelled as in the notebook
   save("warm_inflation_potential",
-       list_line_plot([table([p, V(lam0, p)/mp^4], p, range(0.5*phie, 1.2*phis, (1.2*phis - 0.5*phie)/400)),
-                       [[phie, 0], [phie, V(lam0, phie)/mp^4]], [[phis, 0], [phis, V(lam0, phis)/mp^4]]],
-                      colors: [indigo, ruby, olive], line_style: [solid, dashed, dashed], x_label: r"$\phi$ (GeV)",
-                      y_label: r"$V(\phi)/M_{pl}^4$",
-                      legend: [r"$\lambda = 10^{-19}$, $f = 0.518 \times 10^{12}$ GeV", r"$\phi_{end}$", r"$\phi_*$"],
-                      legend_position: top_left)),
+       plot(V(lam0, p)/mp^4, [p, 0.5*phie, 1.2*phis], colors: [indigo], x_label: r"$\phi$ (GeV)",
+            y_label: r"$V(\phi)/M_{pl}^4$", legend: [r"$\lambda = 10^{-19}$, $f = 0.518 \times 10^{12}$ GeV"],
+            legend_position: top_left,
+            epilog: [point_size(0.012), point([[phie, V(lam0, phie)/mp^4], [phis, V(lam0, phis)/mp^4]]),
+                     text(r"$\phi_{end}$", scaled([0.1, 0.1])), text(r"$\phi_*$", scaled([0.81, 0.55]))])),
   save("warm_inflation_q",
        plot(q_of(lam0, f0, p), [p, phie, phis], colors: [indigo], x_label: r"$\phi$ (GeV)",
             y_label: r"$Q = \Upsilon/(3H)$")),

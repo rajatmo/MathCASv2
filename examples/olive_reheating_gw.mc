@@ -19,12 +19,11 @@ fn save(name, p) = { export_data(string_join([name, ".pdf"]), p); export_data(st
 # --- 1. the inflaton
 
 stage_inflaton = timing({
-  # Starobinsky and T-attractor potentials near the origin (the T-attractor for k = 2: series of tanh^k needs
-  # symbolic powers of a series)   # GAP G10
+  # Starobinsky and T-attractor potentials near the origin
   let v_star = 3/4*mphi^2*mp^2*(1 - exp(-sqrt(2/3)*phi/mp))^2
-  let v_t = lam*mp^4*(sqrt(6)*tanh(phi/(sqrt(6)*mp)))^2
+  let v_t = lam*mp^4*(sqrt(6)*tanh(phi/(sqrt(6)*mp)))^k
   say("Starobinsky V near 0: ", series(v_star, phi, 0, 3))
-  say("T-attractor (k = 2) V near 0: ", series(v_t, phi, 0, 3))
+  say("T-attractor V near 0: ", series(v_t, phi, 0, 3))
   # the CMB normalisation: m_phi^2 = 24 pi^2 A_s Mp^2/N*^2, lam = 18 pi^2 A_s/(6^(k/2) N*^2)
   let cmb = [as -> 2.1e-9, ne -> 55, mp -> 2.4e18]
   say("m_phi = ", sqrt(24*pi^2*as/ne^2*mp^2) /. cmb, " GeV, lam(k = 4) = ", 18*pi^2*as/(6^(4/2)*ne^2) /. cmb)
@@ -98,19 +97,16 @@ stage_symbolic = timing(assuming(a0 > 0 and arh > 0 and aend > 0 and arh > aend 
   let rho_gw = sqrt(3)*aend^4*m*rend^(3/2)/(16*arh^4*mpl^3*pi)
   # x = (a_RH/a0)(T_RH/T0) (entropy conservation), T_RH^4 = (rho_end/alpha)(a_end/a_RH)^3
   let elim = e => rewrite(rewrite(e, x -> arh/a0*trh/t0), trh -> (rend/al*(aend/arh)^3)^(1/4))
-  # the definite integral of a power with symbolic limits stays unevaluated, so the antiderivative is taken at
-  # both ends   # GAP G31
-  let anti = integrate(power_expand(drho_df), f)
-  let band = rewrite(anti, f -> m/(2*pi)*arh/a0) - rewrite(anti, f -> m/(2*pi)*aend/a0)
+  let band = integrate(drho_df, [f, m/(2*pi)*aend/a0, m/(2*pi)*arh/a0])
   say("integral over the band: ", expand(simplify(elim(band))))
   say("rho_GW(a_RH):           ", rho_gw)
   say("(d rho/d ln f)/rho_GW:  ", simplify(elim(f*drho_df)/rho_gw))
   say("d rho/df:               ", simplify(elim(drho_df)))
-  # the density x(f) that reproduces rho_GW(a_RH) as a band integral: d/d a_end of int_{c a_end}^{c a_RH} x(f) df
-  # is -c x(c a_end) with c = m/(2 pi a0) (Leibniz' rule by hand), and a0 = a_end m/(2 pi f) puts f at the lower
-  # edge   # GAP G9 (d of an integral with variable limits)
-  let c = m/(2*pi*a0)
-  say("x(f) = ", simplify(rewrite(-d(rho_gw, aend)/c, a0 -> aend*m/(2*pi*f))))
+  # the density x(f) whose band integral reproduces rho_GW(a_RH) when differentiated in a_end; a0 = a_end m/(2 pi f)
+  # puts f at the lower edge
+  let band_x = integrate(xx(ff), [ff, m/(2*pi)*aend/a0, m/(2*pi)*arh/a0])
+  let eq = rewrite(d(band_x, aend) == d(rho_gw, aend), a0 -> aend*m/(2*pi*f))
+  say("x(f) = ", simplify(xx(f) /. first(solve(eq, xx(f)))))
 }))
 
 # the numerical spectrum: factor (1/2) sqrt(f_e/f) times rho_GW(a_RH), cut below f_e and above f_RH, redshifted
@@ -122,7 +118,7 @@ frh = gev_to_hz*xi*m_phi/(2*pi)*t0_k/t_rh
 say("f_e = ", fe, " Hz, f_RH = ", frh, " Hz")
 redshift = xi^4*(t0_k/t_rh)^4
 density_factor = 1/8.1e-47                             # h^2/rho_c
-fn omega(f) = density_factor*unit_step(f - fe)*exp(-5*sqrt(alpha)/4*f^2/frh^2)*redshift*1/2*sqrt(fe/f)*rho_gw_rh   # GAP G1
+fn omega(f) = density_factor*heaviside_theta(f - fe)*exp(-5*sqrt(alpha)/4*f^2/frh^2)*redshift*1/2*sqrt(fe/f)*rho_gw_rh
 say("numerical prefactor: ", redshift*density_factor*rho_gw_rh/2, "; published estimate: ",
     redshift*density_factor*sqrt(3)*alpha^(4/3)*3.0e13*rho_end^(1/6)*t_rh^(16/3)/(32*pi*mp^3))
 
@@ -130,7 +126,7 @@ say("numerical prefactor: ", redshift*density_factor*rho_gw_rh/2, "; published e
 fn omega25(f, trh) = {
   let fe25 = gev_to_hz*3.0e13/(2*pi)*alpha^(1/3)*trh^(1/3)*xi*t0_k/rho_end^(1/3)
   let frh25 = gev_to_hz*xi*3.0e13/(2*pi)*t0_k/trh
-  unit_step(f - fe25)*density_factor*sqrt(3)*alpha^(4/3)*trh^(16/3)*3.0e13*rho_end^(1/6)/(32*pi*mp^3)*sqrt(fe25/f)*
+  heaviside_theta(f - fe25)*density_factor*sqrt(3)*alpha^(4/3)*trh^(16/3)*3.0e13*rho_end^(1/6)/(32*pi*mp^3)*sqrt(fe25/f)*
     (xi*t0_k/trh)^4*exp(-5*sqrt(alpha)/4*(f/frh25)^2)
 }
 stage_plots2 = timing([
