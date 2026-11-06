@@ -18,6 +18,8 @@ mc-graphics = { path = "../mc-graphics" }
 mc-syntax = { path = "../mc-syntax" }
 # compiled evaluation of the plotted function
 mc-numfn = { path = "../mc-numfn" }
+# the exporter of graphics for export_data
+mc-io = { path = "../mc-io" }
 # animated GIF files of graphics (MIT OR Apache-2.0; colour quantisation by color_quant, MIT)
 gif = "0.14"
 

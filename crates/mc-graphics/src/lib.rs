@@ -268,6 +268,17 @@ pub fn render_rgba<S: Store + ?Sized>(h: &S, t: T<'_>, scale: f32, stop: &dyn Fn
     Ok(r.rgba())
 }
 
+/// The pixels of a PNG file: width, height and straight RGBA bytes, the top row first.
+pub fn decode_png(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let pm = tiny_skia::Pixmap::decode_png(bytes).ok()?;
+    let mut out = Vec::with_capacity(pm.data().len());
+    for p in pm.pixels() {
+        let c = p.demultiply();
+        out.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    Some((pm.width(), pm.height(), out))
+}
+
 /// Where a rendered graphic's plot area lies and what it shows: what a front end needs to map a pixel of the PNG
 /// (at scale 1) to plot coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]

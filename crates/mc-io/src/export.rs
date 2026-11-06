@@ -61,6 +61,7 @@ impl Native for Export {
                     Some(svg) => std::fs::copy(&svg, &path).map(|_| ()).map_err(|e| e.to_string()).map_err(io),
                     None => Err(failure(h, "unsupported", &[file, h.string("svg export takes a plot or a graphics term")])),
                 },
+                Format::Gif => Err(failure(h, "unsupported", &[file, h.string("gif export takes a graphic or a list of graphics")])),
                 Format::Json if dataset::is_dataset(h, data) => match dataset::json(cx, data)? {
                     Some(t) => write(&path, t).map_err(io),
                     None => Err(failure(h, "argument", &[h.sym_term(h.sym("dataset")), h.int(1)])),

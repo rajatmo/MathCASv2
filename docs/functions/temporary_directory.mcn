@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# temporary_directory
+
+#% text
+# `temporary_directory()` gives the system's folder for temporary files, as a string with forward slashes ending in `/`.
+
+#% section
+# Details
+
+#% item
+# Files written there are not kept by the system for long: use it for intermediate results and tests.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The folder ends in a slash:
+
+#% cell
+string_ends(temporary_directory(), "/")
+#% output
+#= true
+
+#% subsection
+# Applications
+
+#% text
+# Data written there and read back:
+
+#% cell
+f = string_join(temporary_directory(), "squares.csv"); export_data(f, table([k, k^2], k, 3)); import_data(f)
+#% output
+#= [[1, 1], [2, 4], [3, 9]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same folder every time:
+
+#% cell
+temporary_directory() == temporary_directory()
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `export_data`, `import_data`, `export_animation`

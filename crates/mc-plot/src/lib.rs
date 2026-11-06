@@ -12,6 +12,7 @@
 #![warn(missing_docs)]
 
 mod anim;
+pub use anim::export;
 mod charts;
 mod curves;
 mod fields;

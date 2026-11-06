@@ -2660,6 +2660,7 @@ dependencies = [
  "mc-engine",
  "mc-eval",
  "mc-graphics",
+ "mc-io",
  "mc-numfn",
  "mc-syntax",
  "serde_json",

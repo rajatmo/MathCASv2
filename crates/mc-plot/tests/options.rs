@@ -224,3 +224,20 @@ fn three_dimensional_plots() {
     assert_eq!(eval(&mut e, "polygon([[1, 0, 0], [0, 1, 0], [0, 0, 1]])"), "polygon([[1, 0, 0], [0, 1, 0], [0, 0, 1]])");
     assert_eq!(eval(&mut e, "plot3d(x, [x, 1, 0], [y, 0, 1])"), "failure(argument, plot3d, 2)");
 }
+
+/// Gap queue G26: export_data of a list of graphics (or plots) writes an animated GIF.
+#[test]
+fn export_data_writes_animations() {
+    let mut e = CoreEngine::new();
+    let dir = eval(&mut e, "temporary_directory()");
+    assert!(dir.ends_with("/\""), "{dir}");
+    let p = format!("{}mathcas-export-{}.gif", dir.trim_matches('"'), std::process::id());
+    eval(&mut e, &format!("export_data(\"{p}\", [graphics(disk()), plot(x, [x, 0, 1]), graphics3d(sphere())])"));
+    let b = std::fs::read(&p).expect("the GIF is written");
+    assert_eq!(&b[..6], b"GIF89a");
+    let _ = std::fs::remove_file(&p);
+    let q = format!("{}mathcas-export-{}.svg", dir.trim_matches('"'), std::process::id());
+    eval(&mut e, &format!("export_data(\"{q}\", graphics3d(sphere()))"));
+    assert!(std::fs::read_to_string(&q).expect("the SVG is written").starts_with("<svg"));
+    let _ = std::fs::remove_file(&q);
+}

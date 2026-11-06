@@ -210,7 +210,10 @@ impl CoreEngine {
             mc_graphics::install(&mut k, h);
             mc_plot::install(&mut k, h);
             mc_io::install(&mut k, h);
-            mc_io::register_exporter("graphics", &["png", "svg", "pdf"], export_graphics);
+            mc_io::register_exporter("graphics", &["png", "svg", "pdf", "gif"], mc_plot::export);
+            mc_io::register_exporter("graphics3d", &["png", "svg", "pdf", "gif"], mc_plot::export);
+            // a list of graphics or plots as an animated GIF
+            mc_io::register_exporter("list", &["gif"], mc_plot::export);
             mc_simplify::install(&mut k, h, &arith_stop);
             mc_special::install(&mut k, h, &arith_stop);
             mc_linalg::install(&mut k, h, &arith_stop);
@@ -867,21 +870,3 @@ impl Engine for CoreEngine {
     }
 }
 
-/// `export_data` of a `graphics(...)` term: PNG (at `dpi` / 72 pixels per point, else one), SVG or PDF through
-/// mc-graphics.
-fn export_graphics<'h>(
-    h: &'h mc_core::Heap,
-    t: mc_core::T<'h>,
-    path: &std::path::Path,
-    format: &str,
-    options: &mc_io::ExportOptions,
-) -> Result<(), String> {
-    let f = match format {
-        "png" => mc_graphics::Format::Png { scale: options.dpi.map_or(1.0, |d| (d / 72.0) as f32) },
-        "svg" => mc_graphics::Format::Svg,
-        "pdf" => mc_graphics::Format::Pdf,
-        other => return Err(format!("graphics cannot be written as {other}")),
-    };
-    let bytes = mc_graphics::render(h, t, f).map_err(|e| e.to_string())?;
-    std::fs::write(path, bytes).map_err(|e| e.to_string())
-}

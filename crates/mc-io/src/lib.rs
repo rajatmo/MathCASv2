@@ -63,6 +63,7 @@ use mc_eval::{Attributes, Kernel};
 
 /// Every function of this package with a one-line description.
 pub const FUNCTIONS: &[(&str, &str)] = &[
+    ("temporary_directory", "temporary_directory(): the folder for temporary files, as a string ending in /"),
     (
         "import_data",
         "import_data(file), import_data(file, format), import_data(file, element), import_data(file, \"page\", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given",
@@ -104,6 +105,23 @@ pub fn install(k: &mut Kernel, h: &Heap) {
         Box::new(images::ImageQuery(images::Query::Dimensions)),
     );
     k.register(h.sym("image_channels"), Attributes::default(), Box::new(images::ImageQuery(images::Query::Channels)));
+    k.register(h.sym("temporary_directory"), Attributes::default(), Box::new(TemporaryDirectory));
+}
+
+/// `temporary_directory()`: the system's folder for temporary files, with forward slashes and a final `/`.
+struct TemporaryDirectory;
+
+impl mc_eval::Native for TemporaryDirectory {
+    fn call<'h>(&self, cx: &mut mc_eval::NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> mc_eval::Res<mc_eval::Reply<'h>> {
+        if !args.is_empty() {
+            return Ok(mc_eval::Reply::Decline);
+        }
+        let mut d = std::env::temp_dir().to_string_lossy().replace('\\', "/");
+        if !d.ends_with('/') {
+            d.push('/');
+        }
+        Ok(mc_eval::Reply::Done(cx.heap().string(&d)))
+    }
 }
 
 pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
@@ -127,6 +145,8 @@ pub(crate) enum Format {
     Png,
     Pdf,
     Svg,
+    /// animated pictures: written by a registered exporter (a list of graphics)
+    Gif,
 }
 
 impl Format {
@@ -140,6 +160,7 @@ impl Format {
             "png" => Format::Png,
             "pdf" => Format::Pdf,
             "svg" => Format::Svg,
+            "gif" => Format::Gif,
             _ => return None,
         })
     }
@@ -155,6 +176,7 @@ impl Format {
             Format::Png => "png",
             Format::Pdf => "pdf",
             Format::Svg => "svg",
+            Format::Gif => "gif",
         }
     }
 }
