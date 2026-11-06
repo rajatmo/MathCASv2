@@ -339,10 +339,14 @@ pub fn table() -> Vec<Binding> {
         ("F12", Any, C::App(AppAction::FullScreen)),
         ("Ctrl+Alt+=", Any, C::App(AppAction::Zoom(1))),
         ("Ctrl+Alt+-", Any, C::App(AppAction::Zoom(-1))),
+        // the browser keys too (user request, round 13): one step of the magnification ladder; Ctrl+0 resets
+        ("Ctrl+=", Any, C::App(AppAction::Zoom(1))),
+        ("Ctrl+Shift+=", Any, C::App(AppAction::Zoom(1))),
+        ("Ctrl+-", Any, C::App(AppAction::Zoom(-1))),
+        ("Ctrl+0", Any, C::App(AppAction::Zoom(0))),
     ]);
     // reserved by the reference: they do nothing rather than something else
     for k in [
-        "Ctrl+0",
         "Ctrl+$",
         "Ctrl+J",
         "Alt+Left",

@@ -54,8 +54,8 @@ pub fn icon_data() -> Option<egui::IconData> {
     Some(egui::IconData { rgba, width: info.width, height: info.height })
 }
 
-/// Magnifications offered (design 4.10: 50 % - 300 %).
-const ZOOMS: [f32; 9] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+/// Magnifications offered in the menus (design 4.10: 50 % - 300 %), rungs of the wheel's ladder (`zoom::LADDER`).
+const ZOOMS: [f32; 10] = [0.5, 0.8, 0.9, 1.0, 1.1, 1.2, 1.5, 2.0, 2.5, 3.0];
 
 /// The largest texture egui makes (its glyph atlas): see `raw_input_hook`.
 const MAX_TEXTURE_SIDE: usize = 4096;
@@ -158,6 +158,8 @@ pub struct Doc {
     auto_complete_at: Option<f64>,
     /// a scroll offset to restore (session) once the canvas shows
     pub(crate) restore_offset: Option<f32>,
+    /// the point the canvas keeps in place while the magnification changes
+    pub(crate) zoom_anchor: Option<crate::zoom::Anchor>,
 }
 
 impl Doc {
@@ -190,6 +192,7 @@ impl Doc {
             completion: None,
             auto_complete_at: None,
             restore_offset: None,
+            zoom_anchor: None,
         }
     }
 
@@ -257,8 +260,9 @@ pub struct App {
     /// the GPU the window draws with, and the frames shown so far (the second clears the start's crash mark)
     gpu: Option<eframe::wgpu::AdapterInfo>,
     frames_shown: u64,
-    /// Ctrl+wheel turns not yet taken as a magnification step
-    wheel_zoom: f32,
+    /// Ctrl+wheel and pinch input summed into magnification steps, and the steps of this frame not yet applied
+    wheel: crate::zoom::WheelZoom,
+    zoom_steps: i32,
     /// the pictures of every tab's Output cells, as textures
     pub(crate) images: Rc<RefCell<Images>>,
     /// the math-font glyphs of typeset content, as one texture atlas (shared by the tabs)
@@ -332,7 +336,8 @@ impl App {
             frame_ms: 0.0,
             gpu: None,
             frames_shown: 0,
-            wheel_zoom: 1.0,
+            wheel: crate::zoom::WheelZoom::default(),
+            zoom_steps: 0,
         };
         if app.settings.bundled_fonts {
             app.apply_fonts(&ctx);
@@ -431,6 +436,18 @@ impl App {
         self.doc.scroll_by += dy;
     }
 
+    /// The magnification, the scroll offset and what lies at window height `y`: the cell's index and the fraction
+    /// of its height above `y` (the self-test's `anchor` step).
+    pub fn zoom_probe(&self, y: f32) -> String {
+        let canvas_y = self.doc.offset + (y - self.canvas_clip.top());
+        let at = self.cell_at_y(canvas_y).map(|i| {
+            let r = self.doc.view.cell_rect(i);
+            (i, (canvas_y - r.top()) / r.height().max(1.0))
+        });
+        let at = at.map_or("nothing".to_string(), |(i, f)| format!("cell {i} at {f:.3}"));
+        format!("zoom {:.2} offset {:.1} {at}", self.doc.view.magnification(), self.doc.offset)
+    }
+
     /// What is at a window position (the self-test's `hit` step).
     pub fn hit_at(&mut self, at: egui::Pos2) -> String {
         let p = (at - self.doc.view.origin).to_pos2();
@@ -454,6 +471,10 @@ impl eframe::App for App {
             st.inject(self, ctx, raw);
             self.selftest = Some(st);
         }
+        // Ctrl+wheel and pinches are the notebook's magnification, in whole steps; egui never sees them (it would
+        // smooth them over frames and scroll with what arrives after Ctrl is released)
+        let time = raw.time.unwrap_or(0.0);
+        self.zoom_steps += self.wheel.take(&mut raw.events, time);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -489,16 +510,13 @@ impl eframe::App for App {
             }
             _ => {}
         }
-        // Ctrl+wheel magnifies the notebook (not the chrome)
-        let zoom_delta = ctx.input(|i| if i.modifiers.ctrl { i.zoom_delta() } else { 1.0 });
-        // in the menu's steps, one per notch: a continuous magnification makes every frame a new text size, and
-        // each size fills the glyph atlas anew (a wheel storm grew the window by 600 MB)
-        if zoom_delta != 1.0 && zoom_delta.is_finite() && zoom_delta > 0.0 {
-            self.wheel_zoom *= zoom_delta;
-            if self.wheel_zoom >= 1.08 || self.wheel_zoom <= 1.0 / 1.08 {
-                self.step_zoom(if self.wheel_zoom > 1.0 { 1 } else { -1 });
-                self.wheel_zoom = 1.0;
-            }
+        // Ctrl+wheel magnifies the notebook (not the chrome): the frame's steps at once, one relayout, on the ladder
+        // (a continuous magnification makes every frame a new text size, and each size fills the glyph atlas anew:
+        // a wheel storm grew the window by 600 MB), the point under the pointer kept in place
+        let steps = std::mem::take(&mut self.zoom_steps);
+        if steps != 0 {
+            let at = ctx.input(|i| i.pointer.hover_pos()).map(|p| p.y);
+            self.zoom_at(crate::zoom::step(self.doc.view.magnification(), steps), at);
         }
         if ctx.input(|i| i.pointer.delta() != egui::Vec2::ZERO || i.pointer.any_pressed()) {
             self.pointer_hidden = false;

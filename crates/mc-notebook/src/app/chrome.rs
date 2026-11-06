@@ -364,7 +364,7 @@ impl App {
                         }
                     })
                     .response
-                    .on_hover_text("Magnification of the notebook (Ctrl+wheel, Ctrl+Alt+= / Ctrl+Alt+-)");
+                    .on_hover_text("Magnification of the notebook (Ctrl+wheel, Ctrl+= / Ctrl+-, Ctrl+0: 100 %)");
                 ui.add(icons::image(ui.ctx(), Icon::Zoom, TOOL_ICON, p.weak));
                 let (icon, name) = match self.settings.theme {
                     ThemeChoice::System => (Icon::ThemeSystem, "System"),

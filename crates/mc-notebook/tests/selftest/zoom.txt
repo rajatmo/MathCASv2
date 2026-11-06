@@ -1,0 +1,41 @@
+# Calm magnification (round 13, user request): Ctrl+wheel moves one 10 % rung per notch, a burst of notches in one
+# frame is applied once, touchpad deltas add up to whole steps, keys step and Ctrl+0 resets, and the cell under the
+# pointer stays under it throughout. Run by `tests/zoom_selftest.rs` (it opens a window: `-- --ignored`), which reads
+# the `anchor:` lines of the log.
+size 1000 700
+ppp 1
+theme light
+generate 300
+wait 10
+scroll 3000
+wait 10
+move 500 350
+wait 4
+anchor 350
+# one notch
+wheel 1
+wait 8
+anchor 350
+# a burst of five notches in one frame
+wheel 1 5
+wait 12
+anchor 350
+# a precision touchpad: 40 frames of 2.5 points (100 points: two steps)
+pad 2.5 40
+wait 12
+anchor 350
+# three notches back, one per frame
+wheel -1 1 3
+wait 12
+anchor 350
+keys Ctrl+0
+wait 12
+anchor 350
+keys Ctrl+=
+wait 12
+anchor 350
+keys Ctrl+-
+wait 12
+anchor 350
+shot zoom
+quit

@@ -67,7 +67,8 @@ pub enum AppAction {
     ScrollLines(i32),
     /// scroll by pages (PageUp/PageDown)
     ScrollPages(i32),
-    /// larger / smaller magnification (Ctrl+Alt+= / Ctrl+Alt+-)
+    /// larger / smaller magnification by `k` steps of the ladder (Ctrl+= / Ctrl+-, Ctrl+Alt+= / Ctrl+Alt+-, the
+    /// wheel with Ctrl); 0 resets to 100 % (Ctrl+0)
     Zoom(i32),
     /// the find bar (Ctrl+F)
     Find,

@@ -26,6 +26,10 @@
 //! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
 //!   notebook text to `<name>.mcn`
 //! - `init yes|no|always`: answer the initialization question
+//! - `wheel <lines> [count] [frames]`: `count` Ctrl+wheel events of `lines` lines (positive: away from the user) in
+//!   one frame, repeated over `frames` frames; `pad <points> [frames]`: one Ctrl+wheel event of `points` points (a
+//!   precision touchpad) per frame; `anchor <y>`: write the magnification, the scroll offset and the cell (and the
+//!   fraction of it) at window height `y` to the log
 //! - `quit`
 use crate::app::App;
 use crate::theme::ThemeChoice;
@@ -294,6 +298,36 @@ impl SelfTest {
                 self.log.push(format!("save {arg}: {ok}, {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
             }
             "log" => self.log.push(arg.to_string()),
+            "wheel" | "pad" => {
+                let mut it = arg.split_whitespace();
+                let d: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+                let (count, frames) = if cmd == "wheel" {
+                    let count: usize = it.next().and_then(|v| v.parse().ok()).unwrap_or(1);
+                    (count, it.next().and_then(|v| v.parse().ok()).unwrap_or(1usize))
+                } else {
+                    (1, it.next().and_then(|v| v.parse().ok()).unwrap_or(1usize))
+                };
+                let unit = if cmd == "wheel" { egui::MouseWheelUnit::Line } else { egui::MouseWheelUnit::Point };
+                let event = Event::MouseWheel {
+                    unit,
+                    delta: egui::vec2(0.0, d),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
+                    modifiers: Modifiers::CTRL,
+                };
+                let batch = vec![event; count];
+                self.pending.push(Event::ModifiersChanged(Modifiers::CTRL));
+                self.pending.extend(batch.clone());
+                for _ in 1..frames {
+                    self.later.push(batch.clone());
+                }
+                self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                self.wait = frames as u32 + 2;
+            }
+            "anchor" => {
+                let y: f32 = arg.parse().unwrap_or(300.0);
+                self.log.push(format!("anchor: {}", app.zoom_probe(y)));
+            }
             "ime" => self
                 .pending
                 .push(Event::Ime(egui::ImeEvent::Preedit { text: arg.to_string(), active_range_chars: None })),

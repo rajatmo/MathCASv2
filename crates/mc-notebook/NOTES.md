@@ -369,3 +369,25 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
 - Tests: `view::tests::labeled_outputs_draw_their_labels_at_the_right_edge` (right edge, label under the value's
   baseline, label and swatch colours, a click on the value lands in the value slot). Screenshots by the self-test
   (One Light and One Dark at 100 % and 150 %) of a notebook with these outputs, outside the repository.
+
+## Round 13 (nb-mat): calm Ctrl+wheel magnification (user request)
+
+- Reproduced first (self-test `tests/selftest/zoom.txt` on the old code, 300 generated cells, pointer at y 350): one
+  notch did nothing (egui smooths wheel deltas over frames and the step waited for a 1.08 threshold), a burst of
+  five notches gave one step, 40 touchpad deltas ran the magnification up to 300 %, every step scrolled to the caret
+  (the view jumped from cell 58 to cell 284), and Ctrl+0 did nothing. A smoothed remainder arriving after Ctrl was
+  released also scrolled the page.
+- Now (`zoom.rs`): Ctrl+wheel and pinch events are taken out of egui's input in `raw_input_hook` (egui neither
+  smooths nor scrolls with them) and summed into whole steps of one ladder, 50 % to 300 % in steps of 10 %: a notch is
+  one step, a burst is its notch count applied once in its frame (one relayout), touchpad point deltas make a step per
+  50 points, fractional lines add up, a pinch steps by its logarithm in 10 % units; a partial step is forgotten after
+  0.6 s or on a reversal. `Ctrl+=` (and `Ctrl+Shift+=`), `Ctrl+-` step, `Ctrl+0` resets to 100 % (it was a reserved
+  no-op); `Ctrl+Alt+=`/`-` stay. The menus offer rungs of the ladder.
+- **Anchor**: a change keeps the content under the pointer (the canvas middle for keys and menus when the pointer is
+  elsewhere) in place: the cell under it and the fraction of its height are held for one second (or until a scroll,
+  click or key); each frame the cells around the anchor are measured before the scroll area is shown and the offset
+  is solved for (at most four passes), and the canvas's own pass refines no off-screen cell (`View::hold`), so cells
+  measured at the new size above the anchor cannot move it.
+- Tests: 4 unit tests in `zoom.rs` (ladder, notch and burst, touchpad accumulation, forgetting); the self-test
+  `tests/zoom_selftest.rs` (ignored: opens a window) checks 100, 110, 160, 180, 150, 100, 110, 100 % and the same cell
+  at the same fraction (58 at 0.672) under the pointer after every step.

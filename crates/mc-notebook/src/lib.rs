@@ -16,3 +16,4 @@ mod tabbar;
 mod typeset;
 pub mod theme;
 mod view;
+pub mod zoom;

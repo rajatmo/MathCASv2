@@ -216,6 +216,8 @@ pub const PX_PER_PT: f32 = 96.0 / 72.0;
 pub struct View {
     laid: HashMap<CellId, Laid>,
     /// cell tops relative to the canvas top, and the total height
+    /// measure only the cells that show (the canvas holds a magnification anchor this frame)
+    pub hold: bool,
     tops: Vec<f32>,
     heights: Vec<f32>,
     /// the scale from the styles' sizes (typographic points) to egui points: the magnification (1.0 = 100 %) times
@@ -284,6 +286,7 @@ impl View {
     pub fn new(palette: Palette, images: Rc<RefCell<Images>>, glyphs: Rc<RefCell<Glyphs>>) -> View {
         View {
             laid: HashMap::new(),
+            hold: false,
             tops: vec![],
             heights: vec![],
             zoom: PX_PER_PT,
@@ -914,7 +917,7 @@ impl View {
             } else if let Some(h) = self.cached_height(c) {
                 h
             } else if y < visible.end + 200.0 && y + 400.0 > visible.start
-                || refined < REFINE_PER_FRAME && start.elapsed().as_secs_f64() < REFINE_BUDGET
+                || !self.hold && refined < REFINE_PER_FRAME && start.elapsed().as_secs_f64() < REFINE_BUDGET
             {
                 refined += 1;
                 self.measure(ctx, c)

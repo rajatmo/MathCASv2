@@ -5,7 +5,34 @@ impl App {
     pub(super) fn canvas(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let mut area = ScrollArea::vertical().auto_shrink([false, false]).id_salt("notebook");
-        if let Some(off) = self.doc.restore_offset.take() {
+        // while the magnification changes, the point under the pointer stays: the cells near it are measured first
+        // and the offset is the one that puts the anchor where it was (a scroll, click or key lets go of it)
+        let time = ctx.input(|i| i.time);
+        let user = ctx.input(|i| {
+            i.smooth_scroll_delta != egui::Vec2::ZERO || i.pointer.any_pressed() || !i.keys_down.is_empty()
+        });
+        if self.doc.zoom_anchor.is_some_and(|a| time > a.until || user || a.cell >= self.doc.nb.cells().len()) {
+            self.doc.zoom_anchor = None;
+        }
+        self.doc.view.hold = false;
+        if let Some(a) = self.doc.zoom_anchor {
+            let h = self.canvas_clip.height().max(1.0);
+            let mut off = self.doc.offset;
+            for _ in 0..4 {
+                self.doc.view.update_positions(&ctx, &self.doc.nb, off..off + h);
+                let r = self.doc.view.cell_rect(a.cell);
+                let want = (r.top() + a.frac * r.height() - a.screen).max(0.0);
+                let done = (want - off).abs() < 0.5;
+                off = want;
+                if done {
+                    break;
+                }
+            }
+            area = area.vertical_scroll_offset(off);
+            // the canvas's own pass measures what shows but refines nothing else, so the anchor does not move
+            self.doc.view.hold = true;
+            ctx.request_repaint();
+        } else if let Some(off) = self.doc.restore_offset.take() {
             area = area.vertical_scroll_offset(off.max(0.0));
         } else if self.doc.scroll_by != 0.0 {
             area = area.vertical_scroll_offset((self.doc.offset + self.doc.scroll_by).max(0.0));

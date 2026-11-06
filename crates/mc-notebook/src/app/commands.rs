@@ -152,17 +152,39 @@ impl App {
         }
     }
 
+    /// `d` steps of the magnification ladder (0: back to 100 %), keeping the point under the pointer in place (the
+    /// middle of the canvas when the pointer is elsewhere).
     pub(super) fn step_zoom(&mut self, d: i32) {
-        let i = ZOOMS.iter().position(|&z| z >= self.doc.view.magnification() - 0.01).unwrap_or(2) as i32;
-        let j = (i + d).clamp(0, ZOOMS.len() as i32 - 1) as usize;
-        self.set_zoom(ZOOMS[j]);
+        let at = self.ctx.input(|i| i.pointer.hover_pos()).map(|p| p.y);
+        self.zoom_at(crate::zoom::step(self.doc.view.magnification(), d), at);
     }
 
+    /// Set the magnification (from the menus), keeping the middle of the canvas in place.
     pub(super) fn set_zoom(&mut self, z: f32) {
-        self.doc.view.set_magnification(z.clamp(0.5, 3.0));
+        self.zoom_at(z, None);
+    }
+
+    /// Set the magnification to `z`, keeping the content at screen height `at` (the canvas's middle when `None` or
+    /// outside the canvas) where it is: the canvas holds that point for a short while, as cells measured at the
+    /// new size move what lies above it.
+    pub(super) fn zoom_at(&mut self, z: f32, at: Option<f32>) {
+        let z = z.clamp(0.5, 3.0);
+        let clip = self.canvas_clip;
+        if (z - self.doc.view.magnification()).abs() < 1e-4 {
+            return;
+        }
+        let y = at.filter(|y| clip.y_range().contains(*y)).unwrap_or(clip.center().y);
+        let screen = y - clip.top();
+        let canvas_y = self.doc.offset + screen;
+        let time = self.ctx.input(|i| i.time);
+        self.doc.zoom_anchor = self.cell_at_y(canvas_y).map(|cell| {
+            let r = self.doc.view.cell_rect(cell);
+            let frac = if r.height() > 0.0 { ((canvas_y - r.top()) / r.height()).clamp(0.0, 1.0) } else { 0.0 };
+            crate::zoom::Anchor { cell, frac, screen, until: time + 1.0 }
+        });
+        self.doc.view.set_magnification(z);
         self.settings.magnification = self.doc.view.magnification();
         self.settings.save();
-        self.doc.scroll_pending = true;
     }
 
     pub(super) fn context(&self) -> Context {
