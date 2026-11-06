@@ -20,12 +20,15 @@ $guard = Join-Path $PSScriptRoot "guard.ps1"
 if (-not $Log) { $Log = Join-Path ([IO.Path]::GetTempPath()) "mc-test-$Job.log" }
 "" | Set-Content $Log -Encoding utf8
 
-$sel = if ($Package.Count) { $Package | ForEach-Object { "-p", $_ } } else { @("--workspace") }
+# @( ... ): an if-expression unwraps a one-element array into a string, and splatting a string passes its characters
+$sel = @(if ($Package.Count) { $Package | ForEach-Object { "-p", $_ } } else { "--workspace" })
 Set-JobStatus -Job $Job -Title "tests: $(if ($Package.Count) { $Package -join ', ' } else { 'workspace' })" -Owner $Owner `
     -Done 0 -Total 0 -Unit "test binaries" -Current "building the test binaries" -State running -Message ""
 Write-Host "building the test binaries ..."
-$json = & cargo test --release --offline @sel --no-run --message-format=json 2>$null
+$buildLog = Join-Path ([IO.Path]::GetTempPath()) "mc-test-$Job-build.txt"
+$json = & cargo test --release --offline @sel --no-run --message-format=json 2> $buildLog
 if ($LASTEXITCODE -ne 0 -or -not $json) {
+    Get-Content $buildLog -Tail 30 | ForEach-Object { Write-Host $_ }
     Set-JobStatus -Job $Job -State failed -Current "" -Message "the build failed (run cargo test --no-run to see why)"
     Write-Host "cargo test --no-run failed"
     exit 1
