@@ -12,6 +12,12 @@ mc-eval = { path = "../mc-eval" }
 # the spline evaluation compiled code shares
 mc-numeric = { path = "../mc-numeric" }
 serde_json = "1"
+# PNG decoding and encoding (8- and 16-bit, gray, alpha, palette)
+png = "0.18"
+# compressed streams in written PDF files
+flate2 = "1"
+# PDF parsing, page rendering and text extraction (pure Rust)
+hayro = "0.8"
 
 [dev-dependencies]
 mc-bench = { path = "../mc-bench" }
