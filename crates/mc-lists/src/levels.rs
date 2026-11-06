@@ -270,6 +270,13 @@ impl Native for MapMore {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
+        // `map(f, xs, parallel: true)` (decision sp-core.4)
+        if let Some((rest, parallel)) = crate::parallel::option(cx, args)? {
+            return match (rest, parallel) {
+                (&[f, x], true) => crate::parallel::map_parallel(cx, f, x),
+                _ => Ok(Reply::Again(h.app(h.sym_term(h.sym("map")), rest))),
+            };
+        }
         match *args {
             [f, x, spec] => match level_spec(h, spec) {
                 Some(levels) => map_at_levels(cx, f, x, levels),

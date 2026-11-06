@@ -865,7 +865,7 @@ pub(crate) struct Cx<'h> {
     pub(crate) serial: u32,
     /// Cells written while a scratch scope is open: their values are copied out of it when it ends.
     pub(crate) scratch_cells: Option<Vec<i64>>,
-    threads: u32,
+    pub(crate) threads: u32,
     splits: u64,
     redos: u64,
     holes: u64,
@@ -1640,7 +1640,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let k = args.len().min(8);
         let hint = (0..k).map(est).sum::<u64>() * args.len() as u64 / k as u64;
         let f = |ev: &Self, cx: &mut Cx<'h>, i: usize| if hold.holds(i) { Ok(args[i]) } else { ev.eval(cx, args[i]) };
-        if self.range(cx, 0, args.len(), hint, &mut out, &mut vec![0; args.len()], &est, &f)? {
+        if self.range(cx, 0, args.len(), hint, 0, &mut out, &mut vec![0; args.len()], &est, &f)? {
             return Err(Abort::Hole);
         }
         Ok(out)
@@ -1656,7 +1656,30 @@ impl<'k, 'h> Eval<'k, 'h> {
             for (i, o) in out.iter_mut().enumerate() {
                 *o = f(self, cx, i)?;
             }
-        } else if self.range(cx, 0, n, c.saturating_mul(n as u64), &mut out, &mut vec![0; n], &|_| c, f)? {
+        } else if self.range(cx, 0, n, c.saturating_mul(n as u64), 0, &mut out, &mut vec![0; n], &|_| c, f)? {
+            return Err(Abort::Hole);
+        }
+        Ok(out)
+    }
+
+    /// `n` elements `f(0..n)` split at once into runs of about `n / (4 threads)` elements, whatever their
+    /// estimated cost (`parallel_table`, `parallel_map`, `parallel: true`; decision sp-core.4). The runs are
+    /// speculative tasks of the evaluator's ordinary splitting, so the result is the serial one: the frontier keeps
+    /// a run's values in order, and evaluates again what a definition since the split may have changed or what
+    /// could not run speculatively (an effect, a cell). Serial on one thread and inside a scratch scope.
+    pub(crate) fn group_parallel<F>(&self, cx: &mut Cx<'h>, n: usize, f: &F) -> Res<Vec<T<'h>>>
+    where
+        F: Fn(&Self, &mut Cx<'h>, usize) -> Res<T<'h>> + Sync,
+    {
+        let mut out = vec![hole(); n];
+        if cx.threads < 2 || cx.serial > 0 || cx.nest >= SPLIT_NEST {
+            for (i, o) in out.iter_mut().enumerate() {
+                *o = f(self, cx, i)?;
+            }
+            return Ok(out);
+        }
+        let run = n.div_ceil(4 * cx.threads as usize).max(1);
+        if self.range(cx, 0, n, u64::MAX, run, &mut out, &mut vec![0; n], &|_| u64::MAX, f)? {
             return Err(Abort::Hole);
         }
         Ok(out)
@@ -1666,7 +1689,18 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// holes are left (only a speculative task leaves them). `fuels` receives each element's fuel, so the frontier
     /// can charge exactly the speculative work it keeps (decision F.3).
     #[allow(clippy::too_many_arguments)]
-    fn range<E, F>(&self, cx: &mut Cx<'h>, lo: usize, hi: usize, hint: u64, out: &mut [T<'h>], fuels: &mut [u64], est: &E, f: &F) -> Res<bool>
+    fn range<E, F>(
+        &self,
+        cx: &mut Cx<'h>,
+        lo: usize,
+        hi: usize,
+        hint: u64,
+        force: usize,
+        out: &mut [T<'h>],
+        fuels: &mut [u64],
+        est: &E,
+        f: &F,
+    ) -> Res<bool>
     where
         E: Fn(usize) -> u64 + Sync,
         F: Fn(&Self, &mut Cx<'h>, usize) -> Res<T<'h>> + Sync,
@@ -1681,7 +1715,13 @@ impl<'k, 'h> Eval<'k, 'h> {
             _ => cx.fuel,
         };
         for i in lo..hi {
-            if cx.fuel >= next && hi - i >= 2 && self.should_split(cx, lo, i, hi, fuel0, &mut next, est) {
+            let split = if force > 0 {
+                // a forced group splits off everything beyond the first run at once
+                hi - i > force && i == lo
+            } else {
+                cx.fuel >= next && hi - i >= 2 && self.should_split(cx, lo, i, hi, fuel0, &mut next, est)
+            };
+            if split {
                 let mid = i + (hi - i) / 2;
                 let (left, right) = out[i - lo..].split_at_mut(mid - i);
                 let (lf, rf) = fuels[i - lo..].split_at_mut(mid - i);
@@ -1699,8 +1739,8 @@ impl<'k, 'h> Eval<'k, 'h> {
                 // the speculative part may run on a thread waiting inside a scratch scope: detached, its terms are
                 // shared (decision G.2)
                 let (rl, rr) = rayon::join(
-                    || self.range(cx, i, mid, 0, left, lf, est, f),
-                    || mc_core::detached(|| self.range(&mut rc, mid, hi, 0, right, rf, est, f)),
+                    || self.range(cx, i, mid, 0, force, left, lf, est, f),
+                    || mc_core::detached(|| self.range(&mut rc, mid, hi, 0, force, right, rf, est, f)),
                 );
                 cx.task = task;
                 cx.volatile += rc.volatile;

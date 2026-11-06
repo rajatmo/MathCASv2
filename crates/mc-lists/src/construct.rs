@@ -224,13 +224,23 @@ fn iterator_values<'h>(
 /// like `map` (decision 1A.14). An iterator is a symbol and its range, or a count alone: `table(e, 4, 7)` is four
 /// lists of seven values of `e`, `table(e, 3, k, r)` three copies of `table(e, k, r)` (decision io-core.3).
 pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    // `parallel: true` as the last argument splits the values over the worker threads (decision sp-core.4)
+    match crate::parallel::option(cx, args)? {
+        Some((rest, parallel)) => table_with(lib, cx, t, rest, parallel),
+        None => table_with(lib, cx, t, args, false),
+    }
+}
+
+/// `table` with the values evaluated as a group split by the granularity rule, or (`parallel`) over the worker
+/// threads at once.
+pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], parallel: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
     // a count iterator before more iterators, `table(e, n, ...)`: n copies of `table(e, ...)` (decision io-core.3)
     if args.len() >= 3 && !matches!(h.view(args[1]), View::Sym(_)) {
         let mut inner = vec![args[0]];
         inner.extend_from_slice(&args[2..]);
         let inner = h.call(lib.s.table, &inner);
-        return table(lib, cx, t, &[inner, args[1]]);
+        return table_with(lib, cx, t, &[inner, args[1]], parallel);
     }
     let (e, k, r) = match *args {
         [e, n] => {
@@ -242,10 +252,11 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             if n as u128 > MAX_CELLS {
                 return Ok(Reply::Done(lib.too_large(h, t)));
             }
-            let out = cx.group(n, 0, &|cx: &mut NativeCx<'_, '_, 'h>, _| {
+            let elem = |cx: &mut NativeCx<'_, '_, 'h>, _| {
                 cx.tick(1)?;
                 cx.eval(e)
-            })?;
+            };
+            let out = if parallel { cx.group_parallel(n, &elem)? } else { cx.group(n, 0, &elem)? };
             return Ok(Reply::Done(cx.list(&out)));
         }
         // a symbol alone at the end is neither an iterator nor a count
@@ -268,10 +279,11 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let f = cx.eval(h.call(lib.s.fn_, &[cx.list(&[k]), body]))?;
     let cost = group_cost(cx, f);
     let vs_ = &vs;
-    let out = cx.group(vs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let elem = |cx: &mut NativeCx<'_, '_, 'h>, i: usize| {
         cx.tick(1)?;
         apply(cx, f, &[vs_[i]])
-    })?;
+    };
+    let out = if parallel { cx.group_parallel(vs.len(), &elem)? } else { cx.group(vs.len(), cost, &elem)? };
     Ok(Reply::Done(cx.list(&out)))
 }
 

@@ -56,6 +56,7 @@ mod group;
 mod levels;
 mod matching;
 mod measure;
+mod parallel;
 mod predicates;
 mod reduce;
 mod reshape;
@@ -129,6 +130,12 @@ functions! {
         "array(f, n): the list [f(1), ..., f(n)]; array(f, [n1, n2, ...]): nested lists of f(i1, i2, ...); array(f, n, r): indices from r";
     "table" => construct::table,
         "table(e, k, r): e for each k in r (a list, or n for 1..n); more pairs k, r nest; table(e, n): n values of e";
+    "parallel_table" => parallel::parallel_table,
+        "parallel_table(e, k, r, ...): table(e, k, r, ...) with the values evaluated on the worker threads; the result is the serial one";
+    "parallel_map" => parallel::parallel_map,
+        "parallel_map(f, xs): map(f, xs) with the calls evaluated on the worker threads; the result is the serial one";
+    "parallel_sum" => parallel::parallel_sum,
+        "parallel_sum(e, k, r, ...): the sum of the values of parallel_table(e, k, r, ...)";
     "subdivide" => construct::subdivide,
         "subdivide(n), subdivide(b, n), subdivide(a, b, n): the n + 1 equally spaced values from a (default 0) to b (default 1)";
     "map_indexed" => construct::map_indexed,
@@ -356,7 +363,7 @@ functions! {
 }
 
 /// The functions whose arguments are all held; every other one is strict.
-const HELD: &[&str] = &["table", "piecewise"];
+const HELD: &[&str] = &["table", "piecewise", "parallel_table", "parallel_sum"];
 
 /// The functions taking a pattern after the data: the pattern may be a failure pattern (`failure(___)`), so a
 /// failure among the arguments is not their result, except as the data (decision p6core.21).

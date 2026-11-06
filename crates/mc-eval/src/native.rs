@@ -309,4 +309,15 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn group(&mut self, n: usize, cost: u64, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
         self.ev.group(self.cx, cost, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
     }
+
+    /// The elements `f(0) ... f(n-1)`, split over the session's worker threads at once (`parallel_table` and its
+    /// kin, decision sp-core.4): the values, effects and failures are those of evaluating them in order.
+    pub fn group_parallel(&mut self, n: usize, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
+        self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
+    }
+
+    /// The number of worker threads evaluations may split over.
+    pub fn threads(&self) -> usize {
+        self.cx.threads as usize
+    }
 }
