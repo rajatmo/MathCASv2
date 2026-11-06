@@ -261,6 +261,7 @@ impl K {
     }
     /// Quotient and remainder of `a` by a nonzero `b` in K[x] (pseudo-division of the numerators).
     fn divrem(&self, a: &Kp, b: &Kp, m: &mut Meter) -> WorkResult<(Kp, Kp)> {
+        // invariant: every caller divides by a modulus or a factor, which are nonzero
         let db = self.deg(b).expect("division by a nonzero polynomial");
         let lb = self.lc(&b.num);
         let mut r = a.num.clone();

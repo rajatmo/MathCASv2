@@ -554,7 +554,10 @@ fn base_arg(h: &Heap, args: &[T<'_>], i: usize) -> Option<u64> {
     }
 }
 
-fn integer_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+/// The longest digit list `integer_digits` pads to (the library's limit on built lists, 2^26 cells).
+const MAX_PADDED: u64 = 1 << 26;
+
+fn integer_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     if args.is_empty() || args.len() > 3 {
         return Ok(Reply::Decline);
@@ -564,6 +567,11 @@ fn integer_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) 
     let mut ds = digits::digits(&n.mag, base, cx)?;
     if let Some(&l) = args.get(2) {
         let Some(len) = word_of(h, l) else { return Ok(Reply::Decline) };
+        // a padded length is allocated before anything else: a huge one is a limit, not an allocation failure
+        if len > MAX_PADDED {
+            return done(too_large(cx, t));
+        }
+        cx.charge(len / 16 + 1)?;
         let len = len as usize;
         if ds.len() > len {
             ds.drain(..ds.len() - len);

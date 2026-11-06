@@ -84,6 +84,7 @@ pub fn exact<X>(q: Option<X>, what: &str) -> WorkResult<X> {
     match q {
         Some(q) => Ok(q),
         None if mc_arith::num::stopped() => Err(Halt::Stopped),
+        // invariant: a division that must be exact failed without a stop: a bug, reported by the guard as an internal failure
         None => panic!("{what}"),
     }
 }

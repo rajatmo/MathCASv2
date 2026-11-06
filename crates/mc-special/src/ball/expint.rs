@@ -264,6 +264,9 @@ fn en_asymptotic(nu: &Ball, x: &Ball, wp: u64) -> Option<Ball> {
         return None;
     }
     let kmin = asym_kmin(nu);
+    if kmin.is_nan() || kmin >= MAX_TERMS as f64 {
+        return None;
+    }
     let limit = 4.0 * xlo + kmin + up_f(nu) + 64.0;
     let r = int(1).div(x, wp)?;
     let (mut t, mut s) = (int(1), int(0));
@@ -291,7 +294,9 @@ fn en_asymptotic(nu: &Ball, x: &Ball, wp: u64) -> Option<Ball> {
 
 /// Would the E_nu expansion apply at (nu, x)? (An estimate: the sum itself decides.)
 fn en_asym_likely(nu: f64, x: f64, wp: u64) -> bool {
-    if x.is_nan() || x <= 2.0 {
+    // beyond MAX_TERMS terms the expansion is not summed; and at |nu| ~ 2^53 the counter `k += 1.0` below stopped
+    // advancing, which hung the session (it does not poll the stop flag)
+    if x.is_nan() || x <= 2.0 || nu.is_nan() || nu.abs() >= MAX_TERMS as f64 {
         return false;
     }
     // log2 |(nu)_k / x^k| along k, from k = 0 to the first k >= -nu where it falls below -wp

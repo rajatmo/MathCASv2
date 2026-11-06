@@ -34,6 +34,7 @@ pub(crate) struct Node {
 }
 
 pub(crate) const NODE: usize = std::mem::size_of::<Node>();
+// invariant: checked at compile time
 const _: () = assert!(NODE == 32, "nodes are 32 bytes (I3)");
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -56,6 +57,7 @@ pub(crate) const ARENA_MAX: usize = 64;
 
 impl Node {
     pub(crate) fn new(kind: Kind, hash: u64, mask: u64, head: u32, data: u64, len: usize) -> Node {
+        // invariant: 2^29 arguments take 2 GB of slots alone; the library's list limits are far below (an evaluation that gets here fails through the panic guard)
         assert!(len <= MAX_LEN, "term too wide ({len} arguments or payload words)");
         Node { hash, mask, data, head, meta: (kind as u32) << KIND_SHIFT | len as u32 }
     }

@@ -236,6 +236,7 @@ fn pgcd(f: Fp, a: &Sp, b: &Sp, m: &mut Meter) -> WorkResult<Sp> {
     loop {
         alpha += 1;
         // the large primes in use have far more points than any degree bound needs
+        // invariant: the large primes in use have far more evaluation points than any degree bound needs
         assert!(alpha < f.p, "evaluation points exhausted");
         let ga = modp::eval(f, &g, alpha);
         if ga == 0 {
@@ -269,6 +270,7 @@ fn pgcd(f: Fp, a: &Sp, b: &Sp, m: &mut Meter) -> WorkResult<Sp> {
         q = modp::mul(f, &q, &[f.neg(alpha), 1]);
         points += 1;
         if unchanged || points > bound {
+            // invariant: `h` was set two lines above
             let cand = h.as_ref().expect("an interpolant");
             let cc = cand.content_last(f, m)?;
             let pp = cand.map_runs(f, &cc, true);
@@ -376,6 +378,9 @@ pub fn gcd(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
 /// The gcd of two primitive polynomials with positive leading coefficients (positive leading coefficient).
 fn gcd_primitive(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
     let nv = a.nv;
+    // Brown's algorithm is dense in every variable
+    a.check_dense()?;
+    b.check_dense()?;
     let lg = a.lc().gcd(&b.lc());
     // the Chinese remainder image so far: terms (exponents, symmetric residue) and the modulus
     let mut h: Option<(Image, Nat)> = None;
@@ -412,6 +417,7 @@ fn gcd_primitive(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
             }
         };
         if !changed {
+            // invariant: `h` was set just above
             let (terms, _) = h.as_ref().expect("an image");
             let cand = Poly::from_terms(nv, terms.iter().map(|(e, c)| (e.clone(), Z::from_int(c.clone()))).collect());
             let pp = cand.primitive().1;
@@ -420,6 +426,7 @@ fn gcd_primitive(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
             }
         }
     }
+    // invariant: the loop over the primes below 2^62 returns long before they run out
     unreachable!("the primes below 2^62 do not run out")
 }
 
@@ -463,6 +470,7 @@ fn crt_step(terms: Image, modulus: &Nat, g: &Sp, p: u64) -> (Image, Nat, bool) {
         };
         let (e, v) = match ord {
             std::cmp::Ordering::Greater => {
+                // invariant: `peek` returned a term
                 let (e, c) = it.next().expect("peeked");
                 (e, combine(c, 0))
             }
@@ -471,6 +479,7 @@ fn crt_step(terms: Image, modulus: &Nat, g: &Sp, p: u64) -> (Image, Nat, bool) {
                 (g.e(j - 1).to_vec(), combine(Int::default(), g.coefs[j - 1]))
             }
             std::cmp::Ordering::Equal => {
+                // invariant: `peek` returned a term
                 let (e, c) = it.next().expect("peeked");
                 j += 1;
                 (e, combine(c, g.coefs[j - 1]))

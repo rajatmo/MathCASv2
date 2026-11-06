@@ -33,6 +33,7 @@ pub fn on_big_stack<R: Send, F: FnOnce() -> R + Send>(f: F) -> R {
         // The thread could not be created, so the job was never taken.
         None => match take() {
             Some(f) => f(),
+            // invariant: the job is taken once: either by the spawned thread or here
             None => unreachable!("the job runs exactly once"),
         },
     }

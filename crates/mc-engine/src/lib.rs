@@ -24,4 +24,6 @@ mod history;
 pub use engine::{CoreEngine, EachOptions, EngineConfig, Event, Image, NameKind, Report, RunError, Script};
 /// The functions the engine itself adds for notebooks (`out`, `message`), with a one-line description.
 pub use history::FUNCTIONS;
+/// The panic guard of evaluations (`failure(internal, ...)`), for hosts that guard their own requests too.
+pub use mc_eval::guard;
 pub use mc_load::{InMemory, LoadError, Module, Origin, SourceProvider};

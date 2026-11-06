@@ -253,6 +253,7 @@ pub(crate) fn resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>, v: T<'
             }
             for_next(cx, st)
         }
+        // invariant: evaluation levels resume in the machine; only form frames reach here
         Frame::Eval(_) => unreachable!("an evaluation level is not a form"),
     }
 }
@@ -584,6 +585,7 @@ fn pass<'h>(cx: &mut NativeCx<'_, '_, 'h>, rules: &[Compiled<'h>], t: T<'h>, ord
             }
             continue;
         }
+        // invariant: only compounds are pushed for expansion
         let View::App { head, args } = h.view(u) else { unreachable!("only compounds are expanded") };
         parts.clear();
         parts.extend(args.iter().map(|a| done[a]));

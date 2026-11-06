@@ -362,6 +362,9 @@ impl Float {
         if self.is_zero() {
             return ("0".repeat(d), 0);
         }
+        if self.exp.unsigned_abs() > EXACT_SCI_EXP {
+            return self.to_sci_scaled(d);
+        }
         let mut e10 = ((self.top() - 1) as f64 * std::f64::consts::LOG10_2).floor() as i64;
         for _ in 0..4 {
             let k = d as i64 - 1 - e10;
@@ -388,7 +391,51 @@ impl Float {
         super::after_stop("to_sci: exponent estimate did not settle");
         ("0".repeat(d), 0)
     }
+
+    /// [`Float::to_sci`] for a huge binary exponent: the exact conversion builds integers of about |exp| bits (a
+    /// value near e^(-2^31) needs 2^31 bits and ran the process out of memory), so the scaling by 10^k is done in
+    /// floating point with 128 guard bits. The digits are the correctly rounded ones unless the value lies within
+    /// 2^-128 (relative) of a rounding boundary.
+    fn to_sci_scaled(&self, d: usize) -> (String, i64) {
+        let w = d as u64 * 4 + 128;
+        let x = self.abs();
+        let mut e10 = ((self.top() - 1) as f64 * std::f64::consts::LOG10_2).floor() as i64;
+        for _ in 0..4 {
+            let k = d as i64 - 1 - e10;
+            // 10^|k| by binary powering at w bits
+            let (mut p, mut b) = (Float::from_nat(Nat::from_u64(1)), Float::from_nat(Nat::from_u64(10)));
+            let mut n = k.unsigned_abs();
+            while n > 0 {
+                if n & 1 == 1 {
+                    p = p.mul(&b, w).0;
+                }
+                n >>= 1;
+                if n > 0 {
+                    b = b.mul(&b, w).0;
+                }
+            }
+            let y = if k >= 0 { x.mul(&p, w).0 } else { x.div(&p, w).0 };
+            // y rounded to an integer
+            let n = if y.exp >= 0 {
+                y.man.shl(y.exp as u64)
+            } else {
+                let s = y.exp.unsigned_abs();
+                y.man.add(&Nat::pow2(s - 1)).shr(s)
+            };
+            let s = n.to_decimal();
+            match s.len().cmp(&d) {
+                Ordering::Greater => e10 += 1,
+                Ordering::Less => e10 -= 1,
+                Ordering::Equal => return (s, e10),
+            }
+        }
+        super::after_stop("to_sci: exponent estimate did not settle");
+        ("0".repeat(d), 0)
+    }
 }
+
+/// The largest |binary exponent| [`Float::to_sci`] converts exactly (integers of up to about 2^16 bits).
+const EXACT_SCI_EXP: u64 = 1 << 16;
 
 // ---------------------------------------------------------------- balls
 
@@ -671,6 +718,21 @@ pub fn enclosure_trials(seed: u64, n: u64) -> Trials {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn scaled_decimal_conversion_agrees_with_the_exact_one() {
+        // just inside the exact range, both conversions run; beyond it only the scaled one (no 2^31-bit integers)
+        for &e in &[-(1i64 << 16), (1 << 16) - 70, -(1 << 16) + 3] {
+            for m in [1u64, 3, 0xDEAD_BEEF, u64::MAX] {
+                let f = Float::new(false, Nat::from_u64(m), e);
+                for d in [1, 5, 17, 30] {
+                    assert_eq!(f.to_sci(d), f.to_sci_scaled(d), "{m} 2^{e} to {d} digits");
+                }
+            }
+        }
+        let (s, e) = Float::new(false, Nat::from_u64(1), -(1 << 31)).to_sci(10);
+        assert_eq!((s.as_str(), e), ("5676615526", -646456994));
+    }
 
     #[test]
     fn enclosure_holds() {

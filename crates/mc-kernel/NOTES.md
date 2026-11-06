@@ -233,3 +233,10 @@ Capability `display_svg`: in `values: "each"` mode a value `image("path")` namin
 content) is sent as `display` with `kind: "svg"` and its size in CSS pixels (`mc_nbfile::images::picture_size`: the
 root element's `width`/`height` in px, pt, pc, mm, cm or in, else its `viewBox`, else 300 x 150). PNG displays are
 unchanged (`kind: "image"`); clients that know only that kind show `printed`. Tests: `svg_pictures_are_displays_of_kind_svg`.
+
+## Round 11 package robust
+
+Each request is answered under `mc_engine::guard::catch`: a panic outside an evaluation's own guard (in the
+collector, completion, building a response) answers that request with an `error` ("internal error: ...; the session
+was reset"), `done` with status `error`, and a fresh engine; the kernel process goes on. Panics inside an evaluation
+are ordinary `failure(internal, ...)` values of their statement and do not reset anything.

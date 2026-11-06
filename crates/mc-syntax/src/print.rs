@@ -66,6 +66,8 @@ pub struct Printer<'h, S: Store + ?Sized> {
     numbers: Box<dyn NumberFormat + 'h>,
     /// the head of truncated power series, printed as sums with an order term (see [`Run::series`])
     series_data: Sym,
+    /// polled while printing: once it is true the text printed so far is returned, ending in `…`
+    stop: Option<Box<dyn Fn() -> bool + 'h>>,
 }
 
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
@@ -74,7 +76,14 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
-        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA) }
+        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None }
+    }
+
+    /// This printer, polling `stop` as it prints: a huge term (a million copies of a deep term) takes long and
+    /// its text is huge, so an interrupt ends the printing with the text so far and `…`.
+    pub fn with_stop(mut self, stop: impl Fn() -> bool + 'h) -> Self {
+        self.stop = Some(Box::new(stop));
+        self
     }
 
     /// A term as an expression.
@@ -232,7 +241,13 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
     }
 
     fn go(&mut self) {
+        let mut polled = 0u32;
         while let Some(task) = self.stack.pop() {
+            polled += 1;
+            if polled.is_multiple_of(4096) && self.p.stop.as_ref().is_some_and(|stop| stop()) {
+                self.out.push('…');
+                return;
+            }
             match task {
                 Task::Text(s) => self.out.push_str(s),
                 Task::Owned(s) => self.out.push_str(&s),

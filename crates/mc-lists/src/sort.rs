@@ -269,6 +269,7 @@ fn order_by_keys<'h>(cx: &mut NativeCx<'_, '_, 'h>, key: &[T<'h>]) -> Res<Vec<us
     }) {
         Ok(()) => Ok(ix),
         Err(Halt::Abort(a)) => Err(a),
+        // invariant: the comparison closure fails only by aborting (fuel, interrupt), never with Fail
         Err(Halt::Fail(_)) => unreachable!("the canonical order does not fail"),
     }
 }

@@ -36,6 +36,11 @@ pub(crate) enum BallOutcome {
     NotNumeric(Num),
 }
 
+/// The most steps of h = 1 on each side of the first level: at t = 16 a half-infinite range reaches x = e^(7 10^6),
+/// past where any convergent integrand's terms vanish at the precisions in use (a term of 1/x^1.01 at 2000 bits
+/// vanishes by t = 13).
+const MAX_STEPS: i64 = 16;
+
 /// The finest level for `d` digits: digits double per level, so log2(d) plus a margin.
 pub(crate) fn max_level(d: u64) -> u32 {
     (64 - d.leading_zeros()) + 5
@@ -218,7 +223,9 @@ pub(crate) fn integrate<'h>(
         let mut r = [0i64; 2];
         let mut largest = f64::NEG_INFINITY;
         for (k, side) in [1i64, -1].into_iter().enumerate() {
-            for j in 0.. {
+            // at most MAX_STEPS steps per side: the nodes there are far beyond any precision's range, and an
+            // integrand whose terms never decay (a divergent integral) otherwise walked on until memory ran out
+            for j in 0..=MAX_STEPS {
                 cx.tick(1)?;
                 if j == 0 && side < 0 {
                     continue;

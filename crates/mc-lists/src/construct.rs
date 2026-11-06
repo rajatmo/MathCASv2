@@ -37,6 +37,7 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             }
         }
     }
+    // invariant: one real was pushed for each of the three bounds (anything else returned above)
     let [a, b, s] = <[Real; 3]>::try_from(reals).expect("three reals");
     if s.is_zero() {
         return Ok(Reply::Done(lib.bad_arg(h, t, args.len())));
@@ -48,6 +49,7 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
     // the elements in the most inexact kind of the three (a ball at the largest precision)
+    // invariant: an array of three
     let kind = [&a, &b, &s].iter().map(|r| r.kind()).max().expect("three");
     let prec = [&a, &b, &s].iter().filter_map(|r| r.prec()).max().unwrap_or(mc_arith::number::MIN_PREC);
     let (a, s) = (a.to_kind(kind, prec), s.to_kind(kind, prec));
@@ -83,6 +85,7 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// The number of elements of `range(a, b, s)`, `s` nonzero; `None` beyond `usize`.
 fn count(a: &Real, b: &Real, s: &Real) -> Option<usize> {
     if let (Real::Exact(a), Real::Exact(b), Real::Exact(s)) = (a, b, s) {
+        // invariant: the caller checked that the step is nonzero
         let q = b.sub(a).mul(&s.recip().expect("nonzero step"));
         let (fl, _) = q.floor_fract();
         if fl.neg {

@@ -59,6 +59,7 @@ impl Operand<'_> {
         match *self {
             Operand::Ints(v) => v[i],
             Operand::Int(k) => k,
+            // invariant: integer operands are read only when both operands are integer kinds
             _ => unreachable!("an integer operand"),
         }
     }

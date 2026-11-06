@@ -303,6 +303,7 @@ impl<'h> Arr<'h> {
         match &self.data {
             Data::Reals(r) => r.iter().map(|&v| Num::Real(Real::Machine(v))).collect(),
             Data::Ints(i) => i.iter().map(|&v| Num::int(v)).collect(),
+            // invariant: called only for numeric domains, whose entries are numbers
             Data::Terms(ts) => ts.iter().map(|&x| env.ar.num(x).expect("a numeric domain")).collect(),
         }
     }

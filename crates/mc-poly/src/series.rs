@@ -402,6 +402,7 @@ impl<'h, R: Ring<'h>> Arithm<'_, R> {
             }
             b = self.mul(&b, &b, m)?;
         }
+        // invariant: n != 0 (returned above), so the loop multiplied once
         Ok(result.expect("n != 0"))
     }
     /// The series split as c0 + u with u of positive valuation (a must have valuation >= 0).
@@ -779,20 +780,25 @@ fn evaluate<'h, R: Ring<'h>>(
                 vals.push(acc);
             }
             Task::PowInt(n) => {
+                // invariant: every power task follows the visit of its base, which pushed one value
                 let b = vals.pop().expect("a base");
                 vals.push(sa.pow_int(&b, n, m)?);
             }
             Task::PowRat(q) => {
+                // invariant: every power task follows the visit of its base, which pushed one value
                 let b = vals.pop().expect("a base");
                 vals.push(sa.pow_rat(&b, &q, m)?);
             }
             Task::PowGeneral => {
+                // invariant: the exponent's visit pushed one value
                 let x = vals.pop().expect("an exponent");
+                // invariant: the base's visit pushed one value
                 let b = vals.pop().expect("a base");
                 let l = sa.log(&b, m)?;
                 vals.push(sa.exp(&sa.mul(&x, &l, m)?, m)?);
             }
             Task::Func(f) => {
+                // invariant: every function task follows the visit of its argument
                 let a = vals.pop().expect("an argument");
                 let v = match f {
                     "exp" => sa.exp(&a, m)?,
@@ -807,12 +813,14 @@ fn evaluate<'h, R: Ring<'h>>(
                     }
                     "atan" => sa.atan(&a, m)?,
                     "sqrt" => sa.pow_rat(&a, &Rat::new(Int::from_i64(1), Int::from_i64(2)), m)?,
+                    // invariant: FUNCS lists exactly the functions matched here
                     _ => unreachable!("FUNCS lists the functions"),
                 };
                 vals.push(v);
             }
         }
     }
+    // invariant: the tasks of one term leave exactly one value
     let s = vals.pop().expect("one value");
     Ok(s)
 }

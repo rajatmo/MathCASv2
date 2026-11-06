@@ -234,6 +234,7 @@ fn rewrite_product<'h>(
     }
     let Some(at) = args.iter().position(|&a| args_of(b, a, b.hd.add).is_some()) else { return Ok(None) };
     let others: Vec<T<'h>> = args.iter().enumerate().filter(|&(i, _)| i != at).map(|(_, &a)| a).collect();
+    // invariant: `at` is the position of an argument that `args_of` accepted (found just above)
     let terms = args_of(b, args[at], b.hd.add).expect("a sum");
     let mut distributed = Vec::with_capacity(terms.len());
     for &s in terms {

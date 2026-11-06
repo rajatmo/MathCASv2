@@ -26,6 +26,7 @@ impl<E: Zeroable> ZeroSegs<E> {
     }
 
     fn layout(&self) -> Layout {
+        // invariant: a power-of-two array of at most 2^20 elements has a layout
         Layout::array::<E>(1 << self.seg_bits).expect("segment layout")
     }
 
@@ -50,6 +51,7 @@ impl<E: Zeroable> ZeroSegs<E> {
             let layout = self.layout();
             // SAFETY: a nonzero-size layout; all-zero bytes are a valid `E` (the `Zeroable` contract).
             let q = unsafe { alloc_zeroed(layout) } as *mut E;
+            // invariant: an allocation failure here panics (the panic guard reports it) rather than aborting
             assert!(!q.is_null(), "segment allocation failed");
             match d.compare_exchange(null_mut(), q, AcqRel, Acquire) {
                 Ok(_) => p = q,

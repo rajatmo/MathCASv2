@@ -186,6 +186,7 @@ impl Trie {
 
     #[inline]
     fn node(&self, n: u32) -> &TNode {
+        // invariant: a node is written before any edge links to it (one writer, release order)
         self.nodes.get(n as usize).expect("tree node published before it is linked")
     }
 
@@ -195,6 +196,7 @@ impl Trie {
         let mut e = node.edges.get(key.code(h))?;
         let want = Raw::new(key.term);
         while e != 0 {
+            // invariant: an edge is written before the node's list links to it
             let edge = self.edges.get(e as usize - 1).expect("edge published");
             if edge.kind == key.kind && edge.arity == key.arity && edge.term == want {
                 return Some(edge.child);
@@ -240,6 +242,7 @@ impl Trie {
     fn leaves_of(&self, node: &TNode, out: &mut Vec<u32>) {
         let mut l = node.leaves.load(Acquire);
         while l != 0 {
+            // invariant: a leaf is written before the node's list links to it
             let lf = self.leaves.get(l as usize - 1).expect("leaf published");
             out.push(lf.rule);
             l = lf.next;
@@ -438,6 +441,7 @@ fn ac_req(h: &Heap, p: &Pat) -> AcReq {
             let n = a.len() as u16;
             (a, AppInfo { ac: true, has_seq: false, n_single: n, min: n })
         }
+        // invariant: AC keys are made only for rules whose left side is a call of an AC head
         _ => unreachable!("AC rule without a compound left side"),
     };
     let mut keys = vec![];
@@ -524,7 +528,9 @@ impl AcIndex {
 
     fn walk(&self, mut l: u32, rs: &RuleSet, have: &[PKey<'_>], n: Option<usize>, out: &mut Vec<u32>) {
         while l != 0 {
+            // invariant: an entry is written before the list links to it
             let lf = self.lists.get(l as usize - 1).expect("list entry published");
+            // invariant: lists of the AC filter hold only AC rules, which carry their requirements
             let r = rs.rule(lf.rule).req.as_ref().expect("AC rule");
             if n.is_none_or(|n| n >= r.min && n <= r.max) && sub_multiset(&r.keys, have) {
                 out.push(lf.rule);
@@ -620,6 +626,7 @@ impl RuleSet {
     /// until [`RuleSet::reclaim`] (`&mut self`).
     #[inline]
     pub(crate) fn rule(&self, id: u32) -> &Rule {
+        // invariant: rule ids come from this rule set's index, which publishes a slot before the id
         let p = self.slots.get(id as usize).expect("rule published").load(Acquire);
         // SAFETY: `p` came from `Box::into_raw`; it is freed only at a safe point (`&mut self`) or drop.
         unsafe { &*p }
@@ -647,6 +654,7 @@ impl RuleSet {
         let first = cands.into_iter().find(|&id| instance_of(h, &rule.lhs, &self.rule(id).lhs));
         if let Some(id) = first {
             if same_up_to_renaming(&self.rule(id).lhs, &rule.lhs) {
+                // invariant: `id` is a candidate from this rule set's index
                 let old = self.slots.get(id as usize).expect("rule").swap(Box::into_raw(Box::new(rule)), AcqRel);
                 // SAFETY: `old` came from `Box::into_raw` and is no longer reachable from the slot.
                 w.retired_rules.push(unsafe { Box::from_raw(old) });
@@ -661,6 +669,7 @@ impl RuleSet {
                 (w.order.len(), lo, lo.saturating_add(2 * GAP))
             }
             Some(before) => {
+                // invariant: `before` is a rule of this set, so its rank is in the order
                 let pos = w.order.binary_search_by_key(&rank_of(before), |&i| rank_of(i)).expect("ranked rule");
                 let lo = if pos == 0 { 0 } else { rank_of(w.order[pos - 1]) };
                 (pos, lo, rank_of(before))

@@ -37,6 +37,7 @@ impl Symbols {
             return Sym(i);
         }
         let i = g.names.len() as u32;
+        // invariant: 2^30 symbols need tens of GB of names: memory runs out first
         assert!(i < (1 << SYM_BITS) - 1, "too many symbols");
         // published before the symbol is: a thread can only use the symbol after `intern` returned it
         self.hashes.get_or_alloc(i as usize).store(sym_hash(name), Release);
@@ -58,6 +59,7 @@ impl Symbols {
     /// The structural hash of symbol index `i`.
     #[inline]
     pub(crate) fn hash(&self, i: u32) -> u64 {
+        // invariant: symbol indices come from this table (`Sym` values are made by `sym`)
         self.hashes.get(i as usize).expect("unknown symbol").load(Acquire)
     }
 }

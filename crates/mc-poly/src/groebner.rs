@@ -199,6 +199,7 @@ impl GPoly {
                 }
                 Ordering::Less => {
                     let c = cmul(b, &g.terms[j].1, m)?.neg();
+                    // invariant: Less is chosen only while g has terms left, and `next_g` holds the current one
                     out.push((next_g.take().expect("a term of g"), c));
                     j += 1;
                     next_g = if j < g.terms.len() { Some(shifted(j)) } else { None };
@@ -321,6 +322,7 @@ pub fn groebner(input: &[GPoly], order: MonomialOrder, m: &mut Meter) -> WorkRes
             .min_by(|&a, &b| {
                 pairs[a].sugar.cmp(&pairs[b].sugar).then_with(|| order.cmp(&pairs[a].lcm, &pairs[b].lcm))
             })
+            // invariant: the loop runs while `pairs` is nonempty
             .expect("a pair");
         let p = pairs.swap_remove(k);
         let s = spoly(&basis[p.i], &basis[p.j], order, m)?;

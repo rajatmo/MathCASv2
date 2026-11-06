@@ -154,3 +154,18 @@ Two language features block most cases and are evaluator work, not library: lamb
 
 `timing(e)` holds its argument, evaluates it once and gives `[seconds, value]` (wall clock). It is an effect native
 (Hold::All), so a repeated timing of the same term is not answered from the memo. Registered in `history.rs`.
+
+## Round 11 package robust
+
+- **Guard:** the evaluation of each statement is guarded by the evaluator (`mc-eval/NOTES.md`, "Round 11"); the engine
+  also guards reading (`internal error while reading: ...`, nothing runs), the `;` scan, and printing, rendering and
+  the compiler's registration of each statement (`failure(internal, ...)` as the statement's failure, with the
+  output made before the panic). `mc_engine::guard` re-exports the guard for hosts.
+- **Fuzz campaign** (`tests/fuzz.rs`): inputs from the documentation cells, the REPL sessions, the example scripts and
+  the `("input", "expected")` pairs of every crate's tests, used as they are, mutated (numbers replaced, functions
+  swapped, arguments dropped or doubled, atoms and reader noise inserted, calls wrapped) or as random calls of library
+  functions on odd arguments; fuel 2·10^7 per statement, a 3 s stop and a 20 s grace (then `HANG` and exit 3), a
+  fresh engine every 400 inputs, plots in the test's temporary folder. Properties: no panic escapes, no internal
+  failure, no hang. 300 inputs in the suite; `MC_FUZZ_CASES` / `MC_FUZZ_SEED` for long runs, which print `[k/N pct%]`
+  and log each input before it runs (`fuzz-log.txt`: the last entry names the input of a crash).
+- **Regressions** (`tests/robust.rs`): the inputs the campaigns found, with their values now.

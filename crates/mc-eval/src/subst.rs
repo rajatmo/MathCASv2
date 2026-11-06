@@ -193,6 +193,7 @@ fn plain_small<'h>(h: &'h Heap, t: T<'h>, pairs: &[(Sym, T<'h>)], keys: u64) -> 
         nw -= 1;
         let (u, expanded) = work[nw];
         if expanded {
+            // invariant: only compounds are pushed for expansion
             let View::App { head, args } = h.view(u) else { unreachable!("only compounds are expanded") };
             let parts = &vals[nv - args.len() - 1..nv];
             let r = if parts[0] == head && parts[1..] == *args { u } else { h.app(parts[0], &parts[1..]) };
@@ -341,15 +342,18 @@ impl<'h> Sub<'_, 'h> {
                 }
                 Frame::Args(u, n) => {
                     let parts = vals.split_off(vals.len() - n);
+                    // invariant: Args frames are pushed only for compounds
                     let View::App { head, args } = h.view(u) else { unreachable!("Args frames hold compounds") };
                     vals.push(if *args == *parts { u } else { h.app(head, &parts) });
                 }
                 Frame::Done(u, e) => {
+                    // invariant: every visit pushes exactly one value
                     let r = *vals.last().expect("a visit leaves its result");
                     self.done.insert((u, e), r);
                 }
             }
         }
+        // invariant: the walk of one term leaves exactly one value
         vals.pop().expect("the walk leaves one result")
     }
 
@@ -458,6 +462,7 @@ impl<'h> Sub<'_, 'h> {
                         && !pairs.iter().any(|&(_, v)| contains_sym(h, v, c))
                         && !renames.iter().any(|&(_, v)| v == h.sym_term(c))
                 })
+                // invariant: the suffixes are unbounded and a term holds finitely many symbols
                 .expect("some suffix is free");
             renames.push((y, h.sym_term(fresh)));
         }

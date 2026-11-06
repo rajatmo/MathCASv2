@@ -33,6 +33,7 @@ fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -
     let mut m = Meter::default();
     while let Some(&mut (u, i, acc)) = stack.last_mut() {
         m.step(cx)?;
+        // invariant: only compound terms are pushed
         let (head, args) = children(u).expect("only compound terms are pushed");
         let n = args.len() + usize::from(head.is_some());
         if i == n {
@@ -57,10 +58,12 @@ fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -
             Some(_) => args[i - 1],
             None => args[i],
         };
+        // invariant: inside the loop over a nonempty stack
         stack.last_mut().expect("nonempty").1 += 1;
         let known = if children(child).is_none() { Some(atom) } else { done.get(&child).copied() };
         match known {
             Some(v) => {
+                // invariant: inside the loop over a nonempty stack
                 let top = stack.last_mut().expect("nonempty");
                 let Some(c) = combine(top.2, v) else {
                     return Ok(None);
@@ -70,6 +73,7 @@ fn fold_up<'h>(cx: &mut NativeCx<'_, '_, 'h>, h: &'h Heap, t: T<'h>, f: &Fold) -
             None => stack.push((child, 0, start)),
         }
     }
+    // invariant: the loop returns when the root is finished, before the stack empties
     unreachable!("the root returns when it is finished")
 }
 
@@ -88,6 +92,7 @@ pub(crate) fn depth<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, ar
         finish: |a| Some(if a == 0 { 1 } else { a + 1 }),
     };
     let d = fold_up(cx, h, x, &f)?;
+    // invariant: a depth is at most the number of nodes, far below the integer limit
     Ok(Reply::Done(int128(h, d.expect("depth cannot overflow") as i128)))
 }
 

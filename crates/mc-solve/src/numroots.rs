@@ -198,9 +198,11 @@ fn refine_real(p: &[Z], iv: &Interval, prec: Precision, m: &mut Meter) -> WorkRe
         Precision::Machine => 60,
         Precision::Bits(b) => b + 8,
     };
+    // log2 of the larger endpoint magnitude from the bit lengths: through f64 an endpoint beyond the double range
+    // gave log2(inf) = i64::MAX, and a shift by 2^63 bits
     let scale = {
-        let a = rat_f64(&iv.lo).abs().max(rat_f64(&iv.hi).abs()).max(1e-300);
-        a.log2().floor() as i64
+        let lg = |q: &Rat| if q.is_zero() { -1000 } else { q.num.mag.bits() as i64 - q.den.bits() as i64 - 1 };
+        lg(&iv.lo).max(lg(&iv.hi)).max(-1000)
     };
     let e = scale - bits as i64;
     let width = if e >= 0 {

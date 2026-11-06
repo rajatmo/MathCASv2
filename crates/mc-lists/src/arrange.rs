@@ -153,6 +153,10 @@ pub(crate) fn constant_array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<
     let h = cx.heap();
     let [c, ds] = *args else { return Ok(Reply::Decline) };
     let ds = take!(dims_operand(lib, h, t, ds, 2));
+    // the rows are shared, but rows of machine numbers are packed into one array of all the cells
+    if cells(&ds) > MAX_CELLS {
+        return Ok(Reply::Done(lib.too_large(h, t)));
+    }
     let mut v = c;
     for &d in ds.iter().rev() {
         charge_copy(cx, d)?;

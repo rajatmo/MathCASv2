@@ -326,6 +326,7 @@ impl Slot {
     fn push(&self, n: Node) -> u32 {
         let p = self.len.get();
         if p / PAGE_LEN >= self.pages.get() as usize {
+            // invariant: a scratch scope serves one evaluation inside a native; 33 million terms in one is a runaway evaluation, which fails through the panic guard
             assert!(self.pages.get() < PAGES, "a scratch scope made more than {} terms", PAGES as usize * PAGE_LEN);
             self.pages.set(self.pages.get() + 1);
         }
@@ -410,11 +411,13 @@ impl Slot {
         let segs = self.segs.get_mut();
         while segs.len() > KEEP_SEGS {
             // SAFETY: no scope is open (`&mut`); the segment came from `alloc_seg`.
+            // invariant: the loop runs while `segs` is longer than KEEP_SEGS
             unsafe { free_seg(segs.pop().expect("nonempty")) };
         }
         let slabs = self.slabs.get_mut();
         while slabs.len() > KEEP_SLABS {
             // SAFETY: as above; slabs came from `alloc_words(SLAB)`.
+            // invariant: the loop runs while `slabs` is longer than KEEP_SLABS
             unsafe { free_words(slabs.pop().expect("nonempty"), SLAB) };
         }
     }
@@ -554,6 +557,7 @@ impl Heap {
     #[cold]
     #[inline(never)]
     fn stale(&self, b: u32) -> ! {
+        // invariant: a scratch handle used outside its scope is a bug; the check stops it reading reused memory
         panic!(
             "use of the scratch term {b:#x} outside its scope (a handle made in a scratch scope was kept after the \
              scope ended, or passed to another thread)"

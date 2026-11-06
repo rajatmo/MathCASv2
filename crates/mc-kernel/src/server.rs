@@ -11,7 +11,7 @@ use crate::protocol::{
     parse_request, Body, DisplayKind, ModuleInfo, NameInfo, Request, Response, Values, CAPABILITIES, PROTOCOL,
 };
 use mc_bench::{Engine, StopFlag};
-use mc_engine::{CoreEngine, EachOptions, EngineConfig, Origin, Report};
+use mc_engine::{guard, CoreEngine, EachOptions, EngineConfig, Origin, Report};
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
@@ -170,106 +170,143 @@ pub fn serve(input: impl BufRead + Send + 'static, output: &mut dyn Write, confi
             }
         };
         let id = request.id();
-        match request {
-            Request::Eval { cell, src, origin: file, line, values, numbered, .. } => {
-                let cancelled = {
-                    let mut ev = lock(&shared);
-                    if let Some(i) = ev.queued.iter().position(|q| *q == id) {
-                        ev.queued.remove(i);
-                    }
-                    match ev.cancelled.iter().position(|q| *q == id) {
-                        Some(i) => {
-                            ev.cancelled.remove(i);
-                            true
-                        }
-                        None => {
-                            // under the lock: an interrupt for this id from now on reaches this evaluation
-                            stop.clear();
-                            ev.running = Some(id.clone());
-                            false
-                        }
-                    }
-                };
-                let first = engine.line();
-                let status = if cancelled {
-                    Status::Interrupted
-                } else {
-                    let origin = origin(file.as_deref(), cell.as_deref());
-                    let line = line.unwrap_or(1).max(1);
-                    let each = values == Some(Values::Each);
-                    let mut written = Ok(());
-                    let mut send = |body: Body| {
-                        if written.is_ok() {
-                            written = w.send(&id, &cell, body);
-                        }
-                    };
-                    let status = if each || numbered {
-                        let options = EachOptions { numbered };
-                        // numbered with `values: "last"`: only the value of the last statement, if it is shown
-                        let mut last = None;
-                        let status = run_each(&mut engine, &src, &origin, line, &stop, options, &mut |e| match e {
-                            EachEvent::Report(r @ Report::Value { .. }) if !each => last = Some(r),
-                            e => send(each_body(e)),
-                        });
-                        let next = engine.line();
-                        if let Some(r @ Report::Value { n, .. }) = last {
-                            if n == Some(next - 1) {
-                                send(each_body(EachEvent::Report(r)));
-                            }
-                        }
-                        status
-                    } else {
-                        run_cell(&mut engine, &src, &origin, line, &stop, &mut |e| send(e.into()))
-                    };
-                    lock(&shared).running = None;
-                    written?;
-                    status
-                };
-                let numbers = numbered.then(|| (first, engine.line()));
-                w.done_numbered(&id, &cell, status, start, numbers)?;
-            }
-            Request::Complete { prefix, .. } => {
-                let names = engine.names().into_iter().filter(|n| n.starts_with(&prefix)).collect();
-                w.send(&id, &None, Body::Completions { names })?;
-                w.done(&id, &None, Status::Ok, start)?;
-            }
-            Request::Names { prefix, .. } => {
-                let names = engine
-                    .name_kinds()
-                    .into_iter()
-                    .filter(|(n, _)| n.starts_with(&prefix))
-                    .map(|(name, kind)| NameInfo { name, kind: kind.as_str().to_string() })
-                    .collect();
-                w.send(&id, &None, Body::Names { names })?;
-                w.done(&id, &None, Status::Ok, start)?;
-            }
-            Request::Modules { .. } => {
-                let modules = engine
-                    .modules()
-                    .map(|m| ModuleInfo {
-                        name: m.name.clone(),
-                        origin: m.origin.clone(),
-                        public: m.public.iter().cloned().collect(),
-                    })
-                    .collect();
-                w.send(&id, &None, Body::Modules { modules })?;
-                w.done(&id, &None, Status::Ok, start)?;
-            }
-            Request::Reset { .. } => {
+        // the last line of defence: a panic outside an evaluation's own guard (in the collector, completion,
+        // printing a report) resets the session instead of ending the kernel (package robust)
+        let handled = guard::catch(|| handle(&mut engine, &mut w, &shared, &stop, config, request, &id, start));
+        match handled {
+            Ok(Ok(Flow::Next)) => {}
+            Ok(Ok(Flow::Shutdown)) => break,
+            Ok(Err(e)) => return Err(e),
+            Err(note) => {
+                lock(&shared).running = None;
                 engine = CoreEngine::with_config(config);
-                w.done(&id, &None, Status::Ok, start)?;
+                let why = format!("internal error: {}; the session was reset", note.text());
+                w.send(&id, &None, Body::Error(ErrorReport::plain(why)))?;
+                w.done(&id, &None, Status::Error, start)?;
             }
-            Request::Shutdown { .. } => {
-                w.done(&id, &None, Status::Ok, start)?;
-                break;
-            }
-            // handled by the reader
-            Request::Interrupt { .. } => {}
         }
     }
     // after a shutdown the reader has stopped; at the end of the input it has too
     let _ = reader.join();
     Ok(())
+}
+
+/// What the loop does after a request.
+enum Flow {
+    Next,
+    Shutdown,
+}
+
+/// Answer one request (not `interrupt`, which the reader handles).
+#[allow(clippy::too_many_arguments)]
+fn handle(
+    engine: &mut CoreEngine,
+    w: &mut Writer<'_>,
+    shared: &Shared,
+    stop: &StopFlag,
+    config: EngineConfig,
+    request: Request,
+    id: &Value,
+    start: Instant,
+) -> io::Result<Flow> {
+    let id = id.clone();
+    match request {
+        Request::Eval { cell, src, origin: file, line, values, numbered, .. } => {
+            let cancelled = {
+                let mut ev = lock(shared);
+                if let Some(i) = ev.queued.iter().position(|q| *q == id) {
+                    ev.queued.remove(i);
+                }
+                match ev.cancelled.iter().position(|q| *q == id) {
+                    Some(i) => {
+                        ev.cancelled.remove(i);
+                        true
+                    }
+                    None => {
+                        // under the lock: an interrupt for this id from now on reaches this evaluation
+                        stop.clear();
+                        ev.running = Some(id.clone());
+                        false
+                    }
+                }
+            };
+            let first = engine.line();
+            let status = if cancelled {
+                Status::Interrupted
+            } else {
+                let origin = origin(file.as_deref(), cell.as_deref());
+                let line = line.unwrap_or(1).max(1);
+                let each = values == Some(Values::Each);
+                let mut written = Ok(());
+                let mut send = |body: Body| {
+                    if written.is_ok() {
+                        written = w.send(&id, &cell, body);
+                    }
+                };
+                let status = if each || numbered {
+                    let options = EachOptions { numbered };
+                    // numbered with `values: "last"`: only the value of the last statement, if it is shown
+                    let mut last = None;
+                    let status = run_each(engine, &src, &origin, line, stop, options, &mut |e| match e {
+                        EachEvent::Report(r @ Report::Value { .. }) if !each => last = Some(r),
+                        e => send(each_body(e)),
+                    });
+                    let next = engine.line();
+                    if let Some(r @ Report::Value { n, .. }) = last {
+                        if n == Some(next - 1) {
+                            send(each_body(EachEvent::Report(r)));
+                        }
+                    }
+                    status
+                } else {
+                    run_cell(engine, &src, &origin, line, stop, &mut |e| send(e.into()))
+                };
+                lock(shared).running = None;
+                written?;
+                status
+            };
+            let numbers = numbered.then(|| (first, engine.line()));
+            w.done_numbered(&id, &cell, status, start, numbers)?;
+        }
+        Request::Complete { prefix, .. } => {
+            let names = engine.names().into_iter().filter(|n| n.starts_with(&prefix)).collect();
+            w.send(&id, &None, Body::Completions { names })?;
+            w.done(&id, &None, Status::Ok, start)?;
+        }
+        Request::Names { prefix, .. } => {
+            let names = engine
+                .name_kinds()
+                .into_iter()
+                .filter(|(n, _)| n.starts_with(&prefix))
+                .map(|(name, kind)| NameInfo { name, kind: kind.as_str().to_string() })
+                .collect();
+            w.send(&id, &None, Body::Names { names })?;
+            w.done(&id, &None, Status::Ok, start)?;
+        }
+        Request::Modules { .. } => {
+            let modules = engine
+                .modules()
+                .map(|m| ModuleInfo {
+                    name: m.name.clone(),
+                    origin: m.origin.clone(),
+                    public: m.public.iter().cloned().collect(),
+                })
+                .collect();
+            w.send(&id, &None, Body::Modules { modules })?;
+            w.done(&id, &None, Status::Ok, start)?;
+        }
+        Request::Reset { .. } => {
+            *engine = CoreEngine::with_config(config);
+            w.done(&id, &None, Status::Ok, start)?;
+        }
+        Request::Shutdown { .. } => {
+            w.done(&id, &None, Status::Ok, start)?;
+            return Ok(Flow::Shutdown);
+        }
+        // handled by the reader
+        Request::Interrupt { .. } => {}
+    }
+    Ok(Flow::Next)
 }
 
 impl From<crate::cell::CellEvent> for Body {

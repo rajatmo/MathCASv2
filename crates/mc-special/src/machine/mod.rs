@@ -24,6 +24,7 @@ pub fn rgamma_coefficients() -> &'static [DD] {
     static TABLE: OnceLock<Vec<DD>> = OnceLock::new();
     TABLE.get_or_init(|| {
         let _scope = mc_arith::num::StopScope::enter(None);
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         let balls = crate::ball::gamma::rgamma_taylor(48, 256).expect("the coefficients of 1/gamma");
         balls.iter().map(|b| float_dd(&b.mid)).collect()
     })

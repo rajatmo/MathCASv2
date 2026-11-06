@@ -41,14 +41,18 @@ pub fn mul(a: &Poly, b: &Poly, m: &mut Meter) -> WorkResult<Poly> {
     if a.is_zero() || b.is_zero() {
         return Ok(Poly::zero(nv));
     }
+    let (da, db) = (a.degrees(), b.degrees());
+    let d: Vec<u64> = da.iter().zip(&db).map(|(&x, &y)| x as u64 + y as u64).collect();
+    // exponents are 32-bit: a product beyond them is a limit (adding them wrapped, so (1 + x^(2^31))^2 lost x^(2^32))
+    if d.iter().any(|&x| x > u32::MAX as u64) {
+        return Err(crate::work::Halt::Memory);
+    }
     if a.len() == 1 {
         return Ok(b.mul_term(a.exps(0), a.coef(0)));
     }
     if b.len() == 1 {
         return Ok(a.mul_term(b.exps(0), b.coef(0)));
     }
-    let (da, db) = (a.degrees(), b.degrees());
-    let d: Vec<u64> = da.iter().zip(&db).map(|(&x, &y)| x as u64 + y as u64).collect();
     // the memory of the result is checked as its terms are produced (the Kronecker integers are capped)
     let term_bytes = nv as u64 * 4 + (a.max_bits() + b.max_bits()).div_ceil(8) + 24;
     let max_terms = MAX_BYTES / term_bytes;

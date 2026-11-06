@@ -106,6 +106,7 @@ pub fn read<'h, S: Store + ?Sized>(
                 }
                 Node::Kernel(k, e) => {
                     let mut ex = vec![0; nv];
+                    // invariant: the ring was built from every kernel the reader found
                     ex[ring.var(k).expect("the ring holds every kernel")] = e;
                     vals.push(RatFun { num: Poly::monomial(&ex, Z::ONE), den: Poly::constant(nv, Z::ONE) });
                 }
@@ -143,10 +144,12 @@ pub fn read<'h, S: Store + ?Sized>(
                 vals.push(acc);
             }
             Task::Pow(e) => {
+                // invariant: every Pow task follows the visit of its base, which pushed one value
                 let b = vals.pop().expect("a base");
                 vals.push(b.pow(e, m)?);
             }
             Task::Inv(e) => {
+                // invariant: every Pow task follows the visit of its base, which pushed one value
                 let b = vals.pop().expect("a base");
                 match b.inv(e, m)? {
                     Ok(v) => vals.push(v),
@@ -155,6 +158,7 @@ pub fn read<'h, S: Store + ?Sized>(
             }
         }
     }
+    // invariant: the tasks of one term leave exactly one value
     Ok(Ok(vals.pop().expect("one value")))
 }
 

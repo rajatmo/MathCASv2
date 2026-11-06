@@ -166,6 +166,7 @@ pub(crate) fn machine_int_hash(v: i64) -> u64 {
 /// symbol `list`, `ints` the leaf kind, `dims` the dimensions (outermost first), `data` the leaves as words.
 pub(crate) fn packed_hash(list: (u64, u64), ints: bool, dims: &[u64], data: &[u64]) -> (u64, u64) {
     let leaf = |w: u64| if ints { machine_int_hash(w as i64) } else { real_hash(w) };
+    // invariant: a packed array has rank 1 to 16 (checked when it is built)
     let (&last, outer) = dims.split_last().expect("a packed array has a rank");
     let d = last as usize;
     let rows = data.len() / d;

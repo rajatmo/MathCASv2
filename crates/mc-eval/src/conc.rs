@@ -63,6 +63,7 @@ impl<T> AppendVec<T> {
         let _g = self.w.lock();
         let i = self.len.load(Relaxed);
         let (k, off) = locate(i);
+        // invariant: room for 16 * (2^28 - 1) elements, more than memory can hold
         assert!(k < SEGS, "append-only vector full");
         let mut seg = self.segs[k].load(Relaxed);
         if seg.is_null() {

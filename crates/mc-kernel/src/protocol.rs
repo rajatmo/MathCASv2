@@ -284,6 +284,7 @@ pub struct Response {
 impl Response {
     /// The response as one line of JSON (without the line end).
     pub fn to_line(&self) -> String {
+        // invariant: a response holds strings, numbers and lists only, which always serialise
         serde_json::to_string(self).expect("responses serialise")
     }
 }

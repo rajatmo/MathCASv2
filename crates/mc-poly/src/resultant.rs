@@ -16,6 +16,9 @@ pub fn resultant(a: &Poly, b: &Poly, v: usize, m: &mut Meter) -> WorkResult<Poly
     if a.is_zero() || b.is_zero() {
         return Ok(Poly::zero(nv));
     }
+    // both algorithms below hold one coefficient per degree in v
+    a.check_dense()?;
+    b.check_dense()?;
     let only_v = |p: &Poly| p.used_vars().iter().all(|&u| u == v);
     if only_v(a) && only_v(b) {
         let r = modular(&a.to_dense(v), &b.to_dense(v), m)?;
@@ -193,8 +196,10 @@ pub fn discriminant(a: &Poly, v: usize, m: &mut Meter) -> WorkResult<Poly> {
         return Ok(Poly::constant(nv, Z::ONE));
     }
     let r = resultant(a, &a.derivative(v), v, m)?;
+    // invariant: the degree is at least 2 here (smaller returned above), so there are coefficients
     let lc = coeffs(a, v).pop().expect("positive degree");
-    let q = r.div_exact(&lc, m)?.expect("the leading coefficient divides the resultant");
+    // after a stop the resultant may be anything: `exact` reports the stop instead of panicking
+    let q = crate::work::exact(r.div_exact(&lc, m)?, "the leading coefficient divides the resultant")?;
     Ok(if (n * (n - 1) / 2) % 2 == 1 { q.neg() } else { q })
 }
 

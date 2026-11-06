@@ -158,6 +158,7 @@ impl Native for Fun {
             .iter()
             .map(|r| match r {
                 Real::Exact(q) => q,
+                // invariant: inexact arguments returned above, so only exact reals remain
                 _ => unreachable!("only exact reals remain"),
             })
             .collect();

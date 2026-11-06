@@ -63,6 +63,7 @@ impl<'h> Binds<'h> {
     pub fn one(&self, v: u16) -> T<'h> {
         match self.get(v) {
             Val::One(t) => t,
+            // invariant: right-hand sides read a variable by the kind its pattern binds (documented panic)
             other => panic!("variable {v} is not bound to one term: {other:?}"),
         }
     }
@@ -70,6 +71,7 @@ impl<'h> Binds<'h> {
     pub fn seq(&self, v: u16) -> &[T<'h>] {
         match self.get(v) {
             Val::Seq(o, n) => &self.seq[o as usize..(o + n) as usize],
+            // invariant: right-hand sides read a variable by the kind its pattern binds (documented panic)
             other => panic!("variable {v} is not bound to a sequence: {other:?}"),
         }
     }

@@ -72,6 +72,7 @@ pub fn factor(p: &Poly, square_free_only: bool, m: &mut Meter) -> WorkResult<Fac
     let mut unit = unit;
     for q in parts {
         if q.is_constant() {
+            // invariant: `is_constant` was checked just above
             unit = unit.mul(&q.as_constant().expect("a constant"));
             continue;
         }
@@ -256,6 +257,7 @@ fn kronecker(q: &Poly, m: &mut Meter) -> WorkResult<Vec<Poly>> {
 /// positive leading coefficients.
 pub fn factor_univariate(q: &Poly, v: usize, m: &mut Meter) -> WorkResult<Vec<Poly>> {
     let nv = q.nv;
+    q.check_dense()?;
     let f = q.to_dense(v);
     let found = zassenhaus(&f, m)?;
     Ok(found.iter().map(|g| Poly::from_dense(nv, v, g).primitive().1).collect())
@@ -309,6 +311,7 @@ fn zassenhaus(f: &[Z], m: &mut Meter) -> WorkResult<Vec<Vec<Z>>> {
             break;
         }
     }
+    // invariant: there are infinitely many primes and only finitely many divide the leading coefficient or the discriminant; the meter bounds the search
     let (fp, parts, _) = best.expect("some prime keeps a square-free polynomial square-free");
     let facs = edf(fp, parts, m)?;
     if facs.len() == 1 {

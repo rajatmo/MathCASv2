@@ -107,6 +107,7 @@ pub fn qr<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h
                 m.step((r * (ws.len() + 1)) as u64 + 1)?;
                 let mut w = aj.clone();
                 for (wi, ni) in &ws {
+                    // invariant: only vectors of nonzero norm are kept in `ws` (checked below when they are pushed)
                     let f = inner(wi, aj).div(ni).expect("a nonzero norm");
                     for (x, y) in w.iter_mut().zip(wi) {
                         *x = x.sub(&f.mul(y));
@@ -190,6 +191,7 @@ pub fn cholesky<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<
                     for k in 0..j {
                         s = s.sub(&l[i * n + k].mul(&conj(&l[j * n + k])).mul(&d[k]));
                     }
+                    // invariant: `dj` is a positive rational (checked above)
                     l[i * n + j] = s.div(&dj).expect("a positive pivot");
                 }
                 d.push(dj);

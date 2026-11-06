@@ -135,6 +135,7 @@ fn gradient<'h>(b: &Build<'h>, t: T<'h>, xs: &[T<'h>], tick: &mut crate::diff::T
             stack.extend(items.iter().rev().map(|&i| (i, false)));
         }
     }
+    // invariant: the walk of one term leaves exactly one result
     Ok(out.pop().expect("one result"))
 }
 

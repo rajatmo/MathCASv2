@@ -41,6 +41,10 @@ pub(crate) fn numeric_coefficients<'h>(
     let p = c.to_poly(body, &ring, &shared, m)?;
     let v = ring.var(x).expect("x is in the ring");
     let kv: Vec<Option<Num>> = ring.kernels.iter().map(|&k| env.ar.num(k)).collect();
+    // one coefficient per degree: a huge degree is a memory limit, not an allocation failure
+    if p.num.degree(v).unwrap_or(0) > mc_poly::poly::MAX_DENSE_DEGREE {
+        return Err(mc_poly::work::Halt::Memory);
+    }
     let d = p.num.degree(v).unwrap_or(0) as usize;
     let mut out = vec![Num::int(0); d + 1];
     for i in 0..p.num.len() {

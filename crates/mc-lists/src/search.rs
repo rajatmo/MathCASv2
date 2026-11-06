@@ -95,6 +95,7 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         if let View::App { head, args } = h.view(u) {
             if next <= args.len() {
                 let child = if next == 0 { head } else { args[next - 1] };
+                // invariant: inside the loop over a nonempty stack
                 stack.last_mut().expect("nonempty").1 += 1;
                 stack.push((child, 0));
                 path.push(next as i64);

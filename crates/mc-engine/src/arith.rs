@@ -450,6 +450,7 @@ impl TermOrder for ArithOrder {
             return;
         }
         if v.iter().all(|&t| small_ratio(h, t).is_some()) {
+            // invariant: every element was checked by the `all` above
             let key = |t: T<'h>| small_ratio(h, t).expect("checked");
             v.sort_unstable_by(|&a, &b| {
                 let ((p, q), (r, s)) = (key(a), key(b));

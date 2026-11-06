@@ -234,6 +234,7 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
                             tasks.push(Task::Mul(xs.len()));
                             tasks.extend(xs.iter().rev().map(|&x| Task::Visit(x)));
                         }
+                        // invariant: the polynomial reader is only given nodes without denominators (the caller checked)
                         Node::Inv(..) => unreachable!("polynomial reading has no denominators"),
                         Node::Pow(b, e) => {
                             if keep {
@@ -261,19 +262,23 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
                     vals.push(acc);
                 }
                 Task::Pow(e) => {
+                    // invariant: every Pow task follows the visit of its base, which pushed one value
                     let b = vals.pop().expect("a base");
                     vals.push(b.pow(e as u64, m)?);
                 }
                 Task::Keep(t) => {
+                    // invariant: Keep follows the visit of its term, which pushed one value
                     memo.insert(t, vals.last().expect("a value").clone());
                 }
             }
         }
+        // invariant: the tasks of one term leave exactly one value
         Ok(vals.pop().expect("one value"))
     }
 
     fn kernel_power(&self, ring: &Ring<'h>, k: T<'h>, e: u32) -> QPoly {
         let mut ex = vec![0; ring.nvars()];
+        // invariant: the ring was built from every kernel the reader found
         ex[ring.var(k).expect("the ring holds every kernel")] = e;
         QPoly::from_poly(Poly::monomial(&ex, Z::ONE))
     }
@@ -529,6 +534,7 @@ impl<'c, 'a, 'h, S: Store + ?Sized> Writer<'c, 'a, 'h, S> {
         if o != Ordering::Equal || a.class != 3 {
             return o.then_with(|| self.c.ar.cmp(a.t, b.t));
         }
+        // invariant: class 3 keys are made only for compounds, with their head
         let (ha, hb) = (a.head.expect("a compound"), b.head.expect("a compound"));
         if ha != hb {
             return self.c.ar.cmp(ha, hb);
@@ -611,5 +617,6 @@ pub fn sum(mut xs: Vec<QPoly>) -> QPoly {
         }
         xs = next;
     }
+    // invariant: `sum` is called with at least one polynomial and the pairing keeps one
     xs.pop().expect("a sum has arguments")
 }

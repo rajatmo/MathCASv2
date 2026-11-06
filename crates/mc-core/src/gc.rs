@@ -288,6 +288,7 @@ impl Heap {
         // destinations: new ids are old0 + rank; argument and limb offsets are prefix sums in survivor order
         let order: Vec<u32> = (0..n as u32).filter(|&j| bit(&bits, j as usize)).collect();
         let k = order.len();
+        // invariant: 2^30 old nodes take 32 GB of nodes alone: memory runs out first
         assert!(old0 + k < YOUNG as usize, "old region full (2^30 terms)");
         let (a0, l0) = (self.old.args.len(), self.old.limbs.len());
         let (mut acc_a, mut acc_l) = (a0, l0);
@@ -405,6 +406,7 @@ impl Heap {
         let n = self.old.nodes.len();
         let mut bits = vec![0u64; n.div_ceil(64)];
         trace_all(roots, &mut |x: &mut Raw| {
+            // invariant: a major collection runs right after a minor one, which promoted every young root
             assert!(!is_young(x.0), "a young root at a major collection");
             if is_old(x.0) {
                 set(&mut bits, x.0 as usize);

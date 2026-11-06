@@ -341,6 +341,7 @@ fn run<'h>(
             E::Int(0)
         }
     };
+    // invariant: `stmts` pushed the function's block and is the only popper
     let body = fe.out.pop().expect("the function's block");
     let func = Func { name, vars: fe.vars, params: words, body, ret };
     Ok(Front { func, deps: fe.deps, result, inputs })
@@ -390,14 +391,19 @@ impl Val {
     /// The value of shape `s` whose leaves are taken from `leaves` in row-major order.
     fn rebuild(s: &Shape, leaves: &mut impl Iterator<Item = E>) -> Val {
         match s {
+            // invariant: `rebuild` gets exactly one leaf per scalar of the shape it was flattened from
             Shape::Scalar(t) => Val::S(leaves.next().expect("a leaf per scalar"), *t),
             Shape::List(items) => Val::L(items.iter().map(|i| Val::rebuild(i, leaves)).collect()),
             Shape::Complex => {
+                // invariant: `rebuild` gets two leaves per complex scalar
                 let re = leaves.next().expect("a real part");
+                // invariant: `rebuild` gets two leaves per complex scalar
                 Val::C(re, leaves.next().expect("an imaginary part"))
             }
             Shape::Vector(t) => {
+                // invariant: `rebuild` gets two leaves per vector
                 let base = leaves.next().expect("an address");
+                // invariant: `rebuild` gets two leaves per vector
                 Val::V(base, leaves.next().expect("a length"), *t)
             }
         }
@@ -602,22 +608,26 @@ impl<'h> Fe<'h, '_> {
 
     fn bind(&mut self, s: Sym, var: V, ty: Ty, mutable: bool) {
         let b = Bind { var, ty, mutable, list: None, cplx: None, vector: None };
+        // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_list(&mut self, s: Sym, items: Vec<Val>) {
         let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: Some(items), cplx: None, vector: None };
+        // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     fn bind_complex(&mut self, s: Sym, re: V, im: V, mutable: bool) {
         let b = Bind { var: re, ty: Ty::Real, mutable, list: None, cplx: Some((re, im)), vector: None };
+        // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
     /// Bind `s` to a vector, whose address and length must be variables or constants (computed once).
     fn bind_vector(&mut self, s: Sym, base: E, len: E, t: Ty) {
         let b = Bind { var: 0, ty: Ty::Int, mutable: false, list: None, cplx: None, vector: Some((base, len, t)) };
+        // invariant: the function's scope is pushed before any binding and popped last
         self.scopes.last_mut().expect("a scope").push((s, b));
     }
 
@@ -640,6 +650,7 @@ impl<'h> Fe<'h, '_> {
     }
 
     fn emit(&mut self, s: S) {
+        // invariant: the function's block is open while statements are emitted
         self.out.last_mut().expect("a statement list").push(s);
     }
 
@@ -647,6 +658,7 @@ impl<'h> Fe<'h, '_> {
     fn stmts<R>(&mut self, f: impl FnOnce(&mut Self) -> Res<R>) -> Res<(Vec<S>, R)> {
         self.out.push(vec![]);
         let r = f(self);
+        // invariant: pushed two lines above; `f` pushes and pops in pairs
         let ss = self.out.pop().expect("the statement list");
         r.map(|r| (ss, r))
     }
@@ -837,7 +849,9 @@ impl<'h> Fe<'h, '_> {
                     Some(Prim::Draw(d)) => self.draw(d, args),
                     Some(Prim::Assign) => {
                         self.assign(args)?;
+                        // invariant: `assign` returned Ok only for a symbol target
                         let View::Sym(x) = self.h.view(args[0]) else { unreachable!("checked by assign") };
+                        // invariant: `assign` returned Ok only for a bound symbol
                         match self.lookup(x).expect("checked by assign") {
                             Bind { cplx: Some((re, im)), .. } => Ok(Val::C(E::Var(re), E::Var(im))),
                             bd => Ok(Val::S(E::Var(bd.var), bd.ty)),
@@ -893,6 +907,7 @@ impl<'h> Fe<'h, '_> {
                 ..=-1 if -k <= n => n + k,
                 _ => return Err(format!("the index {k} of a list of length {n}")),
             };
+            // invariant: `at` was checked against the length just above
             v = items.into_iter().nth(at as usize).expect("checked index");
         }
         Ok(v)
@@ -1147,6 +1162,7 @@ impl<'h> Fe<'h, '_> {
             let x = match o {
                 Operand::Real(x) => Val::S(x, Ty::Real),
                 Operand::Complex(a, b) => Val::C(a, b),
+                // invariant: `inexact` holds only real and complex operands (partitioned above)
                 _ => unreachable!("inexact operands"),
             };
             acc = Some(match acc {
@@ -1154,6 +1170,7 @@ impl<'h> Fe<'h, '_> {
                 Some(a) => self.op2(op, a, x),
             });
         }
+        // invariant: called only with at least one inexact operand
         Ok(acc.expect("an inexact operand"))
     }
 
@@ -1199,6 +1216,7 @@ impl<'h> Fe<'h, '_> {
                     self.cmul((a, bb), (c, d))
                 }
             }
+            // invariant: both operands are numbers (the caller's match)
             _ => unreachable!("numbers"),
         }
     }
@@ -1237,9 +1255,11 @@ impl<'h> Fe<'h, '_> {
         let mut i = 63 - e.leading_zeros();
         while i > 0 {
             i -= 1;
+            // invariant: `r` starts complex and every step keeps it complex
             let Val::C(p, q) = r else { unreachable!("complex") };
             r = self.cmul((p.clone(), q.clone()), (p, q));
             if (e >> i) & 1 == 1 {
+                // invariant: `r` starts complex and every step keeps it complex
                 let Val::C(p, q) = r else { unreachable!("complex") };
                 r = self.cmul((p, q), base.clone());
             }
@@ -1265,6 +1285,7 @@ impl<'h> Fe<'h, '_> {
                         num = join(num, n);
                         den = join(den, d);
                     }
+                    // invariant: the exact branch is taken only when no operand is inexact
                     Operand::Real(_) | Operand::Complex(..) | Operand::CExact(..) => unreachable!("integers and ratios"),
                 }
             }
@@ -1283,8 +1304,10 @@ impl<'h> Fe<'h, '_> {
             let mut it = ops.into_iter().map(|o| match o {
                 Operand::Int(x) => E::ToReal(b(x)),
                 Operand::Real(x) => x,
+                // invariant: this branch is taken only without ratios and complex operands
                 Operand::Ratio(..) | Operand::Complex(..) | Operand::CExact(..) => unreachable!("integers and reals"),
             });
+            // invariant: `ops.len() == 2` (checked just above)
             let (x, y) = (it.next().expect("two"), it.next().expect("two"));
             return Ok((E::F(fop, b(x), b(y)), Ty::Real));
         }
@@ -1292,6 +1315,7 @@ impl<'h> Fe<'h, '_> {
             if let Some(Operand::Real(x)) = ops.into_iter().next() {
                 return Ok((x, Ty::Real));
             }
+            // invariant: one operand, real (the exact cases returned earlier)
             unreachable!("one real operand");
         }
         let opds = ops.into_iter().map(Operand::opd).collect();
@@ -1432,26 +1456,26 @@ impl<'h> Fe<'h, '_> {
         if !self.src.draws() {
             return Err(format!("`{}`: a random draw (only compiled functions of a session draw)", d.name()));
         }
-        let pair = |fe: &mut Self, t: T<'h>| -> Res<Option<(Val, Val)>> {
+        let pair = |fe: &mut Self, t: T<'h>| -> Res<(Val, Val)> {
             Ok(match fe.value(t)? {
                 Val::L(items) => match <[Val; 2]>::try_from(items) {
-                    Ok([x, y]) => Some((x, y)),
+                    Ok([x, y]) => (x, y),
                     Err(_) => return Err("a random draw with a range of other than two numbers".into()),
                 },
                 v => {
                     // `b` alone: [0, b]
                     let zero = if d == Draw::Integer { Val::S(E::Int(0), Ty::Int) } else { Val::S(E::Real(0.0), Ty::Real) };
-                    Some((zero, v))
+                    (zero, v)
                 }
             })
         };
         let (a, c) = match (d, args) {
             (Draw::Real | Draw::Normal, []) => (E::Real(0.0), E::Real(1.0)),
             (Draw::Real, [r]) => {
-                let (x, y) = pair(self, *r)?.expect("a range");
+                let (x, y) = pair(self, *r)?;
                 (self.draw_real_arg(x)?, self.draw_real_arg(y)?)
             }
-            (Draw::Integer, [r]) => match pair(self, *r)?.expect("a range") {
+            (Draw::Integer, [r]) => match pair(self, *r)? {
                 (Val::S(x, Ty::Int), Val::S(y, Ty::Int)) => (x, y),
                 _ => return Err("`random_integer` with a range that is not of integers".into()),
             },
@@ -1672,6 +1696,7 @@ impl<'h> Fe<'h, '_> {
             match v {
                 Val::S(E::Var(v), t) => self.bind(s, v, t, false),
                 Val::V(base, len, t) => self.bind_vector(s, base, len, t),
+                // invariant: the parameters are bound from `vals`, built as variables or vectors by the caller
                 _ => unreachable!("arguments are variables or vectors"),
             }
         }
@@ -1709,6 +1734,7 @@ impl<'h> Fe<'h, '_> {
                         if declared.is_some() || p == Prim::Var {
                             return Err(format!("`{}` holds a vector and is declared with a type or as a `var`", self.name(x)));
                         }
+                        // invariant: `hold` keeps a vector a vector
                         let Val::V(base, len, t) = self.hold(vector) else { unreachable!("a vector") };
                         self.bind_vector(x, base, len, t);
                         return Ok(());
@@ -1719,6 +1745,7 @@ impl<'h> Fe<'h, '_> {
                             return Err(format!("`{}` holds a list and is declared with a type or as a `var`", self.name(x)));
                         }
                         let list = self.hold(list);
+                        // invariant: `hold` keeps a list a list
                         let Val::L(items) = list else { unreachable!("a list") };
                         self.bind_list(x, items);
                         return Ok(());
@@ -1855,18 +1882,11 @@ impl<'h> Fe<'h, '_> {
             let (e, t) = self.expr(a)?;
             v.push(int(e, t).map_err(|_| "a `range` with a bound that is not an integer".to_string())?);
         }
-        let (lo, hi, step) = match v.len() {
-            1 => (E::Int(1), v.pop().expect("one"), E::Int(1)),
-            2 => {
-                let hi = v.pop().expect("two");
-                (v.pop().expect("two"), hi, E::Int(1))
-            }
-            3 => {
-                let step = v.pop().expect("three");
-                let hi = v.pop().expect("three");
-                (v.pop().expect("three"), hi, step)
-            }
-            _ => return Err("a `range` with more than three arguments".into()),
+        let (lo, hi, step) = match v.as_slice() {
+            [hi] => (E::Int(1), hi.clone(), E::Int(1)),
+            [lo, hi] => (lo.clone(), hi.clone(), E::Int(1)),
+            [lo, hi, step] => (lo.clone(), hi.clone(), step.clone()),
+            _ => return Err("a `range` with other than one to three arguments".into()),
         };
         // the bounds are evaluated once, in order, before the loop
         let (lo, hi, step) = (self.temp(lo, Ty::Int), self.temp(hi, Ty::Int), self.temp(step, Ty::Int));

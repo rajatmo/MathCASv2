@@ -68,6 +68,7 @@ pub const ENV_EXIT: i32 = std::mem::offset_of!(Env, exit) as i32;
 pub const ENV_OUT: i32 = std::mem::offset_of!(Env, out) as i32;
 /// Byte offset of the stop flag and status pair in [`Control`], read as one 64-bit word (both zero: running).
 pub const CTL_STOP_STATUS: i32 = mc_eval::ctl::CTL_STOP as i32;
+// invariant: checked at compile time
 const _: () = assert!(mc_eval::ctl::CTL_STATUS == mc_eval::ctl::CTL_STOP + 4);
 
 /// Loop iterations between polls, and the fuel one poll charges (decision E.5; the evaluator's fuel block).
@@ -470,6 +471,7 @@ pub unsafe extern "C" fn cnum(env: *mut Env, op: u64, ops: *const u64, n: u64, i
 pub fn cmath_value(f: Lib, re: f64, im: f64) -> (f64, f64) {
     use mc_numeric::fun::Mach;
     use mc_numeric::machine::C64;
+    // invariant: every compiled function is an elementary function of the library (unit test `every_compiled_function_is_elementary`)
     let fun = mc_numeric::Fun::from_name(f.name()).expect("every compiled function is an elementary function");
     let z = fun.machine(Mach::Complex(C64::new(re, im))).c64();
     (z.re, z.im)
@@ -636,4 +638,16 @@ pub fn floor_divmod(a: i64, b: i64) -> Option<(i64, i64)> {
     }
     let (q, r) = (a.checked_div(b)?, a.checked_rem(b)?);
     Some(if r != 0 && (r < 0) != (b < 0) { (q - 1, r + b) } else { (q, r) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_compiled_function_is_elementary() {
+        for f in Lib::ALL {
+            assert!(mc_numeric::Fun::from_name(f.name()).is_some(), "{}", f.name());
+        }
+    }
 }

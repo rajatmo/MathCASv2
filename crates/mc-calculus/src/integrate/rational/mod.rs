@@ -28,6 +28,9 @@ use mc_poly::work::{Halt, Meter, Work, WorkResult};
 use mc_poly::{Poly, Z};
 use upoly::{deg, divrem, monic, q, Fld, Stop, Ticker, P, Q, R};
 
+/// The highest degree of a numerator or denominator the rational integrator takes on.
+const MAX_DEGREE: u32 = 2000;
+
 /// The evaluator's fuel as a [`Ticker`]: one unit of fuel per [`BLOCK`] coefficient operations; also polls
 /// `mc-arith`'s stop flag.
 struct Tick<'c, 'a, 'k, 'h> {
@@ -110,6 +113,12 @@ fn run<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>, tk: &mut dyn Ticker) -> R<Option<T
         Err(_) => return Err(budget.stop()),
     };
     let xi = ring.var(x).ok_or(Stop::GiveUp)?;
+    // the algorithms below are dense and quadratic or worse in the degree, and do not all poll the stop flag: a
+    // degree beyond MAX_DEGREE is left unevaluated (degree 10^4 ran for minutes, 10^5 exhausted memory)
+    let too_high = |p: &Poly| p.degrees().iter().any(|&d| d > MAX_DEGREE);
+    if too_high(&rf.num) || too_high(&rf.den) {
+        return Ok(None);
+    }
     if ring.nvars() == 1 {
         let dense = |p: &Poly| -> P<Rat> {
             upoly::norm(&Q, p.to_dense(0).iter().map(|z| Rat::from_int(z.to_int())).collect())

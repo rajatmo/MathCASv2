@@ -51,12 +51,15 @@ pub fn fglm(grevlex: &[GPoly], m: &mut Meter) -> WorkResult<Option<Vec<GPoly>>> 
     let basis: Vec<Monic> = grevlex
         .iter()
         .map(|g| {
+            // invariant: a zero-dimensional basis without parameters (np == 0 checked above)
             let lc = rat(&g.lc().as_constant().expect("no parameters"));
+            // invariant: a leading coefficient is nonzero
             let inv = lc.recip().expect("nonzero");
             Monic {
                 lm: g.lm().to_vec(),
                 tail: g.terms[1..]
                     .iter()
+                    // invariant: no parameters (np == 0 checked above)
                     .map(|(e, c)| (e.clone(), rat(&c.as_constant().expect("no parameters")).mul(&inv)))
                     .collect(),
             }
@@ -93,12 +96,14 @@ pub fn fglm(grevlex: &[GPoly], m: &mut Meter) -> WorkResult<Option<Vec<GPoly>>> 
         while !work.is_empty() {
             m.step(1)?;
             // the largest term
+            // invariant: the loop runs while `work` is nonempty
             let k = (0..work.len()).max_by(|&a, &b| order.cmp(&work[a].0, &work[b].0)).expect("nonempty");
             let (e, c) = work.swap_remove(k);
             if let Some(&i) = index.get(&e) {
                 out[i] = out[i].add(&c);
                 continue;
             }
+            // invariant: a monomial that is not standard is divisible by a leading monomial of the basis (definition of standard)
             let g = basis.iter().find(|g| divides(&g.lm, &e)).expect("a nonstandard monomial is reducible");
             let q: Vec<u32> = e.iter().zip(&g.lm).map(|(a, b)| a - b).collect();
             for (f, d) in &g.tail {
@@ -179,6 +184,7 @@ pub fn fglm(grevlex: &[GPoly], m: &mut Meter) -> WorkResult<Option<Vec<GPoly>>> 
                 lex_basis.push((e, terms));
             }
             Some(p) => {
+                // invariant: `p` is the position of a nonzero entry
                 let inv = v[p].recip().expect("nonzero");
                 let row: Vec<Rat> = v.iter().map(|c| c.mul(&inv)).collect();
                 let rc: Vec<Rat> = comb.iter().map(|c| c.mul(&inv)).collect();

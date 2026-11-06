@@ -65,6 +65,7 @@ impl Interp {
         let nregs = lir.regs.len();
         let mut code = Vec::with_capacity(pc as usize);
         for op in &lir.code {
+            // invariant: the lowering allocates every register it names (a compiler bug otherwise, caught when compiling)
             assert!(operands(op).iter().all(|&r| (r as usize) < nregs), "register out of range");
             match op {
                 Op::Label(_) => {}
@@ -83,6 +84,7 @@ impl Interp {
 
     /// Call with the parameters as words (reals by their bits). Returns the result word, or 0 with the exit set.
     pub fn call(&self, args: &[u64], env: &mut Env) -> u64 {
+        // invariant: the specialisation passes one word per parameter (checked against its inputs)
         assert_eq!(args.len(), self.params.len(), "argument count");
         let mut regs = vec![0u64; self.nregs];
         for (&p, &a) in self.params.iter().zip(args) {

@@ -428,6 +428,7 @@ fn prepare(h: &Heap, p: Pat, cn: &dyn Canon) -> Pat {
                 }
             }
             if out.iter().all(|a| matches!(a, Pat::Lit(_))) {
+                // invariant: every element is a literal (checked just above)
                 let ts: Vec<T> = out.iter().map(|a| if let Pat::Lit(t) = a { t.get(h) } else { unreachable!() }).collect();
                 return Pat::Lit(Raw::new(cn.make(h, hd, &ts)));
             }

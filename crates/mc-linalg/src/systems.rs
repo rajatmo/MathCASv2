@@ -243,6 +243,7 @@ pub fn null_space<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
 /// The reduced row echelon form of a machine matrix at the machine tolerance.
 fn machine_rref<S: Scalar>(a: &Mat<S>, cols_pivot: usize, m: &mut Meter) -> WorkResult<Rref<S>> {
     let tol = machine_tol(a);
+    // invariant: machine elimination decides every pivot by the tolerance (only exact elimination can be undecided)
     Ok(elim::rref(a.a.clone(), a.rows, a.cols, cols_pivot, tol, m)?.expect("machine elimination always decides"))
 }
 
@@ -374,6 +375,7 @@ fn machine_solve<S: Scalar>(a: &Mat<S>, b: &Mat<S>, m: &mut Meter) -> WorkResult
     }
     let aug = Mat { rows: r, cols: n + k, a: augment(&a.a, &b.a, r, n, k) };
     let tol = machine_tol(&aug);
+    // invariant: machine elimination decides every pivot by the tolerance (only exact elimination can be undecided)
     let x = elim::rref(aug.a, r, n + k, n, tol, m)?.expect("machine elimination always decides");
     Ok(particular(&x, n, k))
 }

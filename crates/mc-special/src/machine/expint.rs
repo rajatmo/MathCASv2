@@ -90,6 +90,7 @@ fn triple(f: &Float) -> [f64; 3] {
 fn newton(f: impl Fn(&Ball) -> Option<Ball>, df: impl Fn(&Ball) -> Option<Ball>, guess: f64) -> Ball {
     let mut z = Ball::exact(float_of(guess));
     for _ in 0..7 {
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         let step = f(&z).and_then(|v| v.div(&df(&z)?, W)).expect("a Newton step at a simple zero");
         z = Ball::exact(z.sub(&step, W).mid);
     }
@@ -100,6 +101,7 @@ fn newton(f: impl Fn(&Ball) -> Option<Ball>, df: impl Fn(&Ball) -> Option<Ball>,
 fn expansion_g_over_x(z: &Ball, g: &[Ball]) -> ZeroExpansion {
     let n = ZERO_TERMS;
     // 1/(z + d) = sum (-1)^i d^i / z^(i+1)
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let rz = Ball::from_i64(1).div(z, W).expect("z != 0");
     let mut inv = vec![rz.clone()];
     for i in 1..n {
@@ -112,6 +114,7 @@ fn expansion_g_over_x(z: &Ball, g: &[Ball]) -> ZeroExpansion {
         for j in 0..k {
             h = h.add(&g[j].mul(&inv[k - 1 - j], W), W);
         }
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         c.push(float_dd(&h.div(&Ball::from_i64(k as i64), W).expect("k > 0").mid));
     }
     ZeroExpansion { z: triple(&z.mid), c }
@@ -125,6 +128,7 @@ fn taylor_cycle(cycle: &[Ball]) -> Vec<Ball> {
         if j > 0 {
             fact = fact.mul(&Ball::from_i64(j as i64), W);
         }
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         out.push(cycle[j % cycle.len()].div(&fact, W).expect("nonzero factorial"));
     }
     out
@@ -133,23 +137,29 @@ fn taylor_cycle(cycle: &[Ball]) -> Vec<Ball> {
 fn build_consts() -> Consts {
     let _scope = mc_arith::num::StopScope::enter(None);
     let one = Ball::from_i64(1);
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let euler = float_dd(&crate::ball::euler_gamma(W).expect("Euler's constant").mid);
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let pi3 = triple(&crate::ball::pi(W).expect("pi").mid);
     let ez = |x: &Ball| el::exp(x, W);
     // Ei: f' = e^x/x
     let x0 = newton(|x| bx::ei_point(x, W), |x| ez(x)?.div(x, W), 0.372_507_410_781_366_6);
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let e0 = ez(&x0).expect("exp");
     let ei_zero = expansion_g_over_x(&x0, &taylor_cycle(std::slice::from_ref(&e0)));
     // li: zero mu = e^x0, f' = 1/ln x; ln(mu + d) = x0 + sum_{i>=1} (-1)^(i+1) (d/mu)^i / i, then 1/ln by division
     let mu = e0.clone();
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let rmu = one.div(&mu, W).expect("mu > 0");
     let mut l = vec![x0.clone()];
     let mut pw = one.clone();
     for i in 1..ZERO_TERMS {
         pw = pw.mul(&rmu, W);
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         let t = pw.div(&Ball::from_i64(i as i64), W).expect("i > 0");
         l.push(if i % 2 == 1 { t } else { t.neg() });
     }
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let mut r: Vec<Ball> = vec![one.div(&l[0], W).expect("x0 != 0")];
     for j in 1..ZERO_TERMS {
         let mut s = Ball::from_i64(0);
@@ -159,17 +169,20 @@ fn build_consts() -> Consts {
         r.push(s.mul(&r[0], W).neg());
     }
     let li_c =
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         (1..=ZERO_TERMS).map(|k| float_dd(&r[k - 1].div(&Ball::from_i64(k as i64), W).expect("k > 0").mid)).collect();
     let li_zero = ZeroExpansion { z: triple(&mu.mid), c: li_c };
     // Ci: f' = cos x / x; derivatives of cos: cos, -sin, -cos, sin
     let ci_at = |guess: f64| {
         let z = newton(|x| bx::ci_point(x, W), |x| el::cos(x, W)?.div(x, W), guess);
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         let (s, c) = el::sin_cos(&z, W).expect("sin, cos");
         expansion_g_over_x(&z, &taylor_cycle(&[c.clone(), s.neg(), c.neg(), s]))
     };
     let ci_zeros = [ci_at(0.616_505_485_620_716_2), ci_at(3.384_180_422_551_186)];
     // Chi: f' = cosh x / x
     let z = newton(|x| bx::chi_point(x, W), |x| el::cosh(x, W)?.div(x, W), 0.523_822_571_389_864_4);
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let (sh, ch) = (el::sinh(&z, W).expect("sinh"), el::cosh(&z, W).expect("cosh"));
     let chi_zero = expansion_g_over_x(&z, &taylor_cycle(&[ch, sh]));
     Consts { euler, pi3, ei_zero, li_zero, ci_zeros, chi_zero }
@@ -553,8 +566,10 @@ fn sin_cos_shift(x: f64, theta: DD) -> (DD, DD) {
 fn reduce_big(x: f64) -> (DD, bool) {
     let _scope = mc_arith::num::StopScope::enter(None);
     let w = 1200;
+    // invariant: pi at a fixed precision with the stop flag off (scope above)
     let pi = crate::ball::pi(w).expect("pi");
     let xb = Ball::exact(float_of(x));
+    // invariant: pi is positive
     let q = xb.div(&pi, w).expect("pi > 0").mid;
     // k = floor(q + 1/2): q > 2^40 here, its fraction bits are below the binary point
     let qh = q.add_exact(&Float::new(false, Nat::from_u64(1), -1));

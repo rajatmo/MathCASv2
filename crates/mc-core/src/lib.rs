@@ -85,4 +85,4 @@ pub use heap::{Config, Heap, MemoHit};
 pub use mc_api::{Packed, Store, Sym, View, PACK_MIN, T};
 pub use roots::{Raw, Roots, Trace};
 pub use scratch::{detached, is_scratch_term, scratch_active, Scratch, ScratchStats, SLOTS};
-pub use session::Session;
+pub use session::{on_session_thread, Session};

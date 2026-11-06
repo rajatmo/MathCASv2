@@ -65,6 +65,7 @@ impl E {
                 E::Z(a.mul(b))
             }
             (E::P(a), E::P(b)) => E::P(a.mul(b, m)?),
+            // invariant: a matrix's entries are all integers or all polynomials (`E` is chosen once per matrix)
             _ => unreachable!("one kind of entry per matrix"),
         })
     }
@@ -72,6 +73,7 @@ impl E {
         match (self, o) {
             (E::Z(a), E::Z(b)) => E::Z(a.sub(b)),
             (E::P(a), E::P(b)) => E::P(a.sub(b)),
+            // invariant: a matrix's entries are all integers or all polynomials (`E` is chosen once per matrix)
             _ => unreachable!("one kind of entry per matrix"),
         }
     }
@@ -90,6 +92,7 @@ impl E {
                 }
                 E::P(work::exact(a.div_exact(b, m)?, "fraction-free elimination divides exactly")?)
             }
+            // invariant: a matrix's entries are all integers or all polynomials (`E` is chosen once per matrix)
             _ => unreachable!("one kind of entry per matrix"),
         })
     }
@@ -97,6 +100,7 @@ impl E {
         Ok(match (self, o) {
             (E::Z(a), E::Z(b)) => E::Z(a.gcd(b)),
             (E::P(a), E::P(b)) => E::P(gcd(a, b, m)?),
+            // invariant: a matrix's entries are all integers or all polynomials (`E` is chosen once per matrix)
             _ => unreachable!("one kind of entry per matrix"),
         })
     }
@@ -183,6 +187,7 @@ impl<'a, 'h> Exact<'a, 'h> {
     fn quotient_of(&self, t: T<'h>, m: &mut Meter) -> WorkResult<Option<(E, E)>> {
         match &self.ring {
             None => {
+                // invariant: without a ring the entries are rationals (how the matrix was read)
                 let q = self.ar.num(t).and_then(|x| x.as_rat().cloned()).expect("rational entries");
                 Ok(Some((E::Z(Z::from_int(q.num.clone())), E::Z(Z::from_nat(q.den.clone())))))
             }
@@ -244,6 +249,7 @@ impl<'a, 'h> Exact<'a, 'h> {
         match (n, d) {
             (E::Z(n), E::Z(d)) => Ok(self.ar.number(&Num::rat(Rat::new(n.to_int(), d.to_int())))),
             (E::P(n), E::P(d)) => {
+                // invariant: polynomial entries are made only with a ring
                 let ring = self.ring.as_ref().expect("polynomial entries have a ring");
                 let conv = self.conv();
                 match d.as_constant() {
@@ -251,6 +257,7 @@ impl<'a, 'h> Exact<'a, 'h> {
                     None => ratfun::to_term(&conv, &RatFun { num: n, den: d }, ring, m),
                 }
             }
+            // invariant: a matrix's entries are all integers or all polynomials (`E` is chosen once per matrix)
             _ => unreachable!("one kind of entry per matrix"),
         }
     }
@@ -268,6 +275,7 @@ impl<'a, 'h> Exact<'a, 'h> {
 
     /// The integer polynomial of a polynomial entry with its variables as terms (for factoring).
     pub fn poly_term(&self, p: &Poly, m: &mut Meter) -> WorkResult<T<'h>> {
+        // invariant: polynomial entries are made only with a ring
         let ring = self.ring.as_ref().expect("polynomial entries have a ring");
         self.conv().int_poly_term(p, ring, m)
     }

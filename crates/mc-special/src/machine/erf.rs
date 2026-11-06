@@ -92,11 +92,14 @@ fn build_tables() -> Tables {
         erfi0.push(c);
     }
     let w = TABLE_BITS;
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let k2 = Ball::from_i64(2).div(&el::sqrt(&crate::ball::pi(w).unwrap(), w).unwrap(), w).unwrap();
     let erfc_c = (ERFC_FIRST..=ERFC_LAST)
         .map(|i| {
             let x0 = Ball::from_ratio(i as i64, 8, w);
+            // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
             let e0 = erfc_ball(&x0, w).expect("erfc at a table centre");
+            // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
             let g0 = el::exp(&x0.mul(&x0, w).neg(), w).unwrap();
             // g_n: the Taylor coefficients of e^(-x^2); erfc's are d_n = -2/sqrt(pi) g_(n-1)/n
             let mut g = vec![g0.clone(), g0.mul(&x0, w).mul(&Ball::from_i64(-2), w)];
@@ -104,8 +107,10 @@ fn build_tables() -> Tables {
             for n in 1..80usize {
                 if n >= 2 {
                     let next = x0.mul(&g[n - 1], w).add(&g[n - 2], w).mul(&Ball::from_i64(-2), w);
+                    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
                     g.push(next.div(&Ball::from_i64(n as i64), w).unwrap());
                 }
+                // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
                 let d = k2.mul(&g[n - 1], w).div(&Ball::from_i64(-(n as i64)), w).unwrap();
                 c.push(d);
                 if done(&c) {
@@ -115,17 +120,22 @@ fn build_tables() -> Tables {
             c.iter().map(|b| super::float_dd(&b.mid)).collect()
         })
         .collect();
+    // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
     let sqrt_pi_b = el::sqrt(&crate::ball::pi(w).unwrap(), w).unwrap();
     let dawson_c = (DAWSON_FIRST..=DAWSON_LAST)
         .map(|i| {
             let x0 = Ball::from_ratio(i as i64, 8, w);
+            // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
             let e = el::exp(&x0.mul(&x0, w).neg(), w).unwrap();
+            // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
             let f0 = erfi_ball(&x0, w).expect("erfi at a table centre").mul(&e, w).mul(&sqrt_pi_b, w);
+            // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
             let f0 = f0.div(&Ball::from_i64(2), w).unwrap();
             let f1 = Ball::from_i64(1).sub(&x0.mul(&f0, w).mul(&Ball::from_i64(2), w), w);
             let mut c = vec![f0, f1];
             for n in 1..80usize {
                 let next = x0.mul(&c[n], w).add(&c[n - 1], w).mul(&Ball::from_i64(-2), w);
+                // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
                 c.push(next.div(&Ball::from_i64(n as i64 + 1), w).unwrap());
                 if done(&c) {
                     break;

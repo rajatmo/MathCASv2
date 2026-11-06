@@ -69,6 +69,7 @@ fn consts() -> &'static Consts {
     static C: OnceLock<Consts> = OnceLock::new();
     C.get_or_init(|| {
         let _scope = mc_arith::num::StopScope::enter(None);
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         let (c1, c2) = crate::ball::bessel_j::airy_constants(256).expect("the Airy constants");
         Consts {
             inv_pi: DD::ONE.div(PI),

@@ -386,3 +386,30 @@ The assumption context (`src/assume.rs`): `Cx::assume`, the held form `assuming`
 ## Round 7 package G
 
 Scratch scopes: `NativeCx::scratch(f)` runs one evaluation in a private region dropped when it ends; the interpreted `NumFn` backends use it, so long interpreted solver runs stay in bounded memory. Also: calls with packed arguments no longer unpack them (`head_of`, rule index keys). Details, the safety argument G.2 and measurements: `crates/mc-core/NOTES.md`, section "Round 7 package G".
+
+## Round 11 package robust: the panic guard
+
+A panic inside an evaluation no longer ends the session (`src/guard.rs`). `Kernel::eval_with` runs the evaluation
+under `catch_unwind`; the value is then `failure(internal, "message (file:line:column)", f)` with `f` the innermost
+native the panic unwound through (left out when the panic was in the evaluator itself), and the status `Running`.
+Panics of speculative tasks reach the guard through `rayon::join`, which resumes them on the waiting thread.
+
+- **Native scope:** every native call and compiled specialisation holds a `NativeScope` (a symbol and two
+  references); its `Drop` checks `thread::panicking()` (one relaxed load on the normal path) and, during unwinding,
+  records the native and sets the control block's status to 6 (read as an interrupt), so the other tasks stop at
+  their next poll.
+- **Hook:** `guard::install_hook` (called by `Kernel::new`, once per process) keeps each panic's message and
+  location (per thread, and the last one of any thread); while a guarded evaluation runs, panics on session threads
+  (`mc_core::on_session_thread`) are not printed. `MC_PANIC_TRACE` prints them anyway. Other panics go to the
+  previous hook.
+- **What is reset:** nothing in the heap (no heap structure is half-updated where code can panic; scratch scopes
+  close in `Drop`; `parking_lot` locks do not poison; the safe point after the statement collects the unwound
+  evaluation's terms). The control block and the cells are reset by the next evaluation's start, the frame stack
+  lived in the unwound call. Definitions made before the panic stay, as after any failure; memo entries are only
+  those of completed sub-evaluations. The interrupt request is the caller's and is left alone.
+- **API:** `mc_eval::guard::{catch, install_hook, payload_text, PanicNote, INTERNAL}` (also re-exported as
+  `mc_engine::guard`). `catch(f)` is for hosts that guard their own work (the engine's reading and printing, the
+  kernel's requests).
+
+Panic sites: every `unwrap`/`expect`/`panic!`/`unreachable!`/`assert!` left in the library code carries an
+`// invariant:` comment saying why no input reaches it, or that the guard reports it.

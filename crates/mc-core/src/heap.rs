@@ -135,6 +135,7 @@ fn node_view<'h, R: Region>(r: &'h R, n: &'h Node) -> View<'h> {
             // SAFETY: the words hold `head` bytes of UTF-8 (copied from a `&str`), followed by zero padding.
             View::Str(unsafe { std::str::from_utf8_unchecked(&words_as_bytes(w)[..n.head as usize]) })
         }
+        // invariant: `view` hands packed nodes to the unpacking cache before reaching here
         Kind::Packed => unreachable!("packed arrays are viewed through the heap"),
     }
 }
@@ -402,6 +403,7 @@ impl Heap {
     /// hold `len` leaves (as the contract's default does).
     fn packable(dims: &[usize], len: usize) -> bool {
         let product = dims.iter().try_fold(1usize, |a, &d| a.checked_mul(d));
+        // invariant: callers build packed arrays from dimensions they computed from the leaves (a caller bug otherwise)
         assert_eq!(product, Some(len), "the dimensions {dims:?} do not hold {len} leaves");
         (1..=MAX_RANK).contains(&dims.len()) && len >= PACK_MIN && len + dims.len() <= MAX_LEN
     }
@@ -533,8 +535,10 @@ impl Heap {
         } else if is_old(k) {
             if is_young(v) {
                 self.side.put(it);
+                // invariant: an old key indexes the old memo, which is parallel to the old region
                 self.omemo.entry(k).expect("memo key outside the old region").invalidate();
             } else {
+                // invariant: an old key indexes the old memo, which is parallel to the old region
                 self.omemo.entry(k).expect("memo key outside the old region").put(it);
             }
         }
@@ -643,6 +647,7 @@ impl Store for Heap {
     }
 
     fn string<'h>(&'h self, s: &str) -> T<'h> {
+        // invariant: a 4 GB string cannot be built under any memory cap
         assert!(s.len() < u32::MAX as usize, "string too long");
         let mut w = vec![0u64; s.len().div_ceil(8)];
         for (i, c) in s.as_bytes().chunks(8).enumerate() {

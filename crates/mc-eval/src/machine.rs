@@ -20,6 +20,7 @@ use crate::eval::{bit, sym_of, Abort, Cx, Eval, Impl, Res, Step};
 use crate::lang::{self, BlockState, ForState, WhileState};
 use crate::native::{NativeCx, Reply};
 use crate::ctl::Status;
+use crate::guard::NativeScope;
 use mc_core::{Heap, Store, Sym, View, T};
 use std::sync::atomic::Ordering::*;
 
@@ -296,6 +297,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// are evaluated by the head's argument modes (step 3.2).
     fn with_head(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>, hv: T<'h>) -> Go<'h> {
         let h = self.heap;
+        // invariant: the head stage is entered only for calls
         let View::App { head, args } = h.view(e.t) else { unreachable!("only calls wait for their head") };
         if hv != head {
             attempt!(self, cx, e, self.tick(cx));
@@ -379,6 +381,7 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// the native, the compiled specialisation and the rules.
     fn after_args(&self, cx: &mut Cx<'h>, mut e: EvalFrame<'h>, vals: Vals<'h>, attrs: Attributes, closure: bool) -> Go<'h> {
         let h = self.heap;
+        // invariant: the argument stages are entered only for calls
         let View::App { head, args } = h.view(e.t) else { unreachable!("only calls have arguments") };
         // the argument values are consumed here: a later failure of the level has none to drop
         e.stage = Stage::Head;
@@ -388,6 +391,7 @@ impl<'k, 'h> Eval<'k, 'h> {
                 Vals::Stack(base) => cx.vals.drain(base..).collect(),
                 Vals::Owned(v) => v,
             };
+            // invariant: `closure` is true only when `self.closure(head)` matched
             let (params, body) = self.closure(head).expect("a closure head");
             return match attempt!(self, cx, e, self.bind_closure(cx, head, params, body, &vals)) {
                 Step::Again(u) => {
@@ -476,13 +480,14 @@ impl<'k, 'h> Eval<'k, 'h> {
                 if changed {
                     e.t = h.app(head, vals);
                 }
+                // invariant: a form is called only for calls
                 let View::App { args, .. } = h.view(e.t) else { unreachable!("a call") };
                 e.stage = Stage::Form;
                 cx.stack.push(Frame::Eval(e));
                 let r = lang::start(&mut NativeCx { ev: self, cx }, *form, args);
                 Go::Next(self.form_out(cx, r))
             }
-            Some(Impl::Native { native, reads_term, curried }) => {
+            Some(Impl::Native { native, reads_term, curried, sym }) => {
                 // a curried call is always built: its native reads the head from the term
                 let reads_term = *reads_term || *curried;
                 let early = changed && !reads_term;
@@ -490,7 +495,11 @@ impl<'k, 'h> Eval<'k, 'h> {
                     e.t = h.app(head, vals);
                 }
                 let t = e.t;
-                let r = native.call(&mut NativeCx { ev: self, cx }, t, vals);
+                let r = {
+                    // names the native in the failure a panic gives (crate::guard)
+                    let _scope = NativeScope { sym: *sym, slot: &self.k.panics, ctl: &self.k.ctl };
+                    native.call(&mut NativeCx { ev: self, cx }, t, vals)
+                };
                 if early && matches!(r, Ok(Reply::Decline)) {
                     e.t = h.app(head, vals);
                 }
@@ -608,6 +617,7 @@ impl<'k, 'h> Eval<'k, 'h> {
             Ok(FormOut::Reply(reply)) => Ok(reply),
             Err(a) => Err(a),
         };
+        // invariant: a form's frame sits above the evaluation level that started it
         let Some(Frame::Eval(e)) = cx.stack.pop() else { unreachable!("a form runs above its evaluation level") };
         let go = self.native_result(cx, e, r);
         self.drive(cx, go)
@@ -615,6 +625,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// Deliver value `v` to the frame on top.
     fn resume(&self, cx: &mut Cx<'h>, v: T<'h>) -> Next<'h> {
+        // invariant: the driver's base frame stays below every frame it resumes
         let frame = cx.stack.pop().expect("a frame above the driver's base");
         let r = match frame {
             Frame::Eval(e) => {
@@ -622,10 +633,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                     Stage::Head => self.with_head(cx, e, v),
                     Stage::Args { next, base, attrs, closure } => {
                         cx.vals.push(v);
+                        // invariant: a native result is delivered only to calls
                         let View::App { args, .. } = self.heap.view(e.t) else { unreachable!("a call") };
                         self.args_from(cx, e, args, next as usize + 1, base as usize, attrs, closure)
                     }
                     Stage::Value => return self.finish(cx, e, v),
+                    // invariant: form levels are resumed by `form_out`, never by `resume`
                     Stage::Form => unreachable!("a form level resumes through its form"),
                 };
                 return self.drive(cx, go);
@@ -637,6 +650,7 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// Unwind abort `a` through the frame on top.
     fn unwind(&self, cx: &mut Cx<'h>, a: Abort) -> Next<'h> {
+        // invariant: the driver's base frame stays below every frame it unwinds
         match cx.stack.pop().expect("a frame above the driver's base") {
             Frame::Eval(e) => self.fail(cx, e, a),
             frame => {

@@ -59,6 +59,7 @@ impl Poly {
         let mut it = terms.into_iter().peekable();
         while let Some((e, mut c)) = it.next() {
             while it.peek().is_some_and(|(f, _)| *f == e) {
+                // invariant: `peek` returned a term
                 c = c.add(&it.next().expect("peeked").1);
             }
             if !c.is_zero() {
@@ -302,6 +303,7 @@ impl Poly {
             }
             base = base.mul(&base, m)?;
         }
+        // invariant: the exponent is at least 1 (smaller ones returned above), so the loop multiplied once
         Ok(result.expect("e >= 1"))
     }
 
@@ -351,6 +353,7 @@ impl Poly {
         let mut powers: Vec<Z> = vec![Z::ONE];
         for (e, c) in self.terms() {
             while powers.len() <= e[v] as usize {
+                // invariant: `powers` starts with one element and only grows
                 let next = powers.last().expect("nonempty").mul(a);
                 powers.push(next);
             }
@@ -409,6 +412,7 @@ impl Poly {
             if mc_arith::num::stopped() {
                 return Err(crate::work::Halt::Stopped);
             }
+            // invariant: a zero divisor is a bug unless the stop flag made it (checked above); `work::exact` explains
             panic!("division by the zero polynomial");
         }
         if self.is_zero() {
@@ -467,8 +471,21 @@ impl Poly {
     }
 }
 
+/// The highest degree in one variable the dense algorithms accept (univariate gcd and factoring, resultants,
+/// coefficient lists, numeric roots): they hold one coefficient per degree, so `x^(2^31) - x + 1` would need tens of
+/// gigabytes. Beyond it they give `Halt::Memory`, the `failure(limit, memory)` of the natives.
+pub const MAX_DENSE_DEGREE: u32 = 1 << 22;
+
 /// Univariate helpers: a polynomial in one variable of the ring, as a dense coefficient vector (index = degree).
 impl Poly {
+    /// `Err(Halt::Memory)` when the degree in some variable is beyond [`MAX_DENSE_DEGREE`] (checked before a dense
+    /// algorithm allocates one coefficient per degree).
+    pub fn check_dense(&self) -> WorkResult<()> {
+        if self.degrees().iter().any(|&d| d > MAX_DENSE_DEGREE) {
+            return Err(crate::work::Halt::Memory);
+        }
+        Ok(())
+    }
     /// The dense coefficients in variable `v` (the polynomial must not involve other variables).
     pub fn to_dense(&self, v: usize) -> Vec<Z> {
         let n = self.degree(v).map_or(0, |d| d as usize + 1);

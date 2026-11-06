@@ -279,4 +279,14 @@ mod tests {
         assert_eq!(bessel_i(0.0, 0.0), 1.0);
         assert!(ulps(bessel_i(-0.5, 1.0), (2.0 / std::f64::consts::PI).sqrt() * 1f64.cosh()) <= 4.0);
     }
+
+    #[test]
+    fn subnormal_orders_are_order_zero() {
+        // a subnormal order once scaled a double-double to infinity, and splitting it recursed without end
+        for nu in [5e-324, 1e-320, -1e-320, 1e-310] {
+            assert!(ulps(bessel_i(nu, 5.0), 27.239_871_823_604_446) <= 2.0);
+            assert!(ulps(bessel_k(nu, 5.0), 0.003_691_098_334_042_594) <= 2.0);
+            assert!(ulps(bessel_i(nu, 0.5), 1.063_483_370_741_323_6) <= 2.0);
+        }
+    }
 }

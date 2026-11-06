@@ -916,6 +916,7 @@ impl Lower<'_> {
                 d
             }
             E::Cmp(c, a, b) => {
+                // invariant: the front end type-checked every comparison operand
                 let ta = type_of(self.func, a).expect("checked");
                 let (ra, rb) = (self.ex(a), self.ex(b));
                 let d = self.reg(K::B);
@@ -1003,6 +1004,7 @@ impl Lower<'_> {
                 d
             }
             E::Sel(c, a, b) => {
+                // invariant: the front end type-checked every selection operand
                 let t = type_of(self.func, a).expect("checked");
                 let (rc, ra, rb) = (self.ex(c), self.ex(a), self.ex(b));
                 let d = self.reg(kind(t));
@@ -1248,6 +1250,7 @@ impl Lower<'_> {
         let mut it = sorted.into_iter();
         let mut acc = match exact {
             Some(x) => x,
+            // invariant: a sum or product has an exact part or at least one real
             None => it.next().expect("a machine real"),
         };
         for x in it {

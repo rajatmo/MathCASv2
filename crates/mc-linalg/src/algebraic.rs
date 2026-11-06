@@ -45,6 +45,7 @@ impl Alg {
     fn reduce(mut p: Vec<Rat>, f: &Arc<Vec<Rat>>) -> Alg {
         let d = f.len() - 1;
         while p.len() > d {
+            // invariant: the loop runs while `p` is longer than the modulus's degree, so it is nonempty
             let top = p.pop().expect("a coefficient");
             if top.is_zero() {
                 continue;
@@ -109,6 +110,7 @@ fn sub(a: &[Rat], b: &[Rat]) -> Vec<Rat> {
 /// Quotient and remainder of `a` by the nonzero `b`.
 fn divrem(a: &[Rat], b: &[Rat]) -> (Vec<Rat>, Vec<Rat>) {
     let mut r = trim(a.to_vec());
+    // invariant: callers divide by a nonzero, trimmed polynomial: its last coefficient is nonzero
     let lead = b.last().expect("a nonzero divisor").recip().expect("a nonzero leading coefficient");
     if r.len() < b.len() {
         return (vec![], r);
@@ -116,6 +118,7 @@ fn divrem(a: &[Rat], b: &[Rat]) -> (Vec<Rat>, Vec<Rat>) {
     let mut q = vec![zero(); r.len() + 1 - b.len()];
     while r.len() >= b.len() && !r.is_empty() {
         let k = r.len() - b.len();
+        // invariant: the loop runs while the remainder is at least as long as the divisor
         let c = r.last().expect("nonempty").mul(&lead);
         for (i, bi) in b.iter().enumerate() {
             r[k + i] = r[k + i].sub(&c.mul(bi));

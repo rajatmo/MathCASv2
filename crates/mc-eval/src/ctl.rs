@@ -35,6 +35,7 @@ pub const CTL_FUEL: usize = offset_of!(Control, fuel);
 pub const CTL_STOP: usize = offset_of!(Control, stop);
 /// Byte offset of [`Control::status`] (ABI).
 pub const CTL_STATUS: usize = offset_of!(Control, status);
+// invariant: checked at compile time
 const _: () = assert!(CTL_FUEL == 0 && CTL_STOP == 8 && CTL_STATUS == 12 && size_of::<Control>() == 16);
 
 /// Why an evaluation stopped. The numbering is shared with compiled code (spike E's `Status`), which also uses

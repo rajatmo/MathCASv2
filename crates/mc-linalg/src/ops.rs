@@ -9,9 +9,13 @@ use crate::systems::{num_mul, num_terms, square_arg, take, tensor_arg};
 use crate::tensor::{Arr, Domain, Env, Shape};
 use mc_api::{names, Store, View};
 use mc_core::T;
-use mc_poly::work::{Meter, WorkResult};
+use mc_poly::work::{Halt, Meter, WorkResult};
 
 /// `identity_matrix(n)`: the n x n identity of exact integers.
+/// The most entries of a matrix the constructors build (the lists library's limit on built lists): beyond it they
+/// give `failure(limit, memory)` instead of allocating gigabytes.
+const MAX_ENTRIES: usize = 1 << 26;
+
 pub fn identity_matrix<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>> {
     let [n] = args else { return Ok(Out::Decline) };
     let Some(n) = env.int(*n) else { return Ok(Out::Done(env.bad_argument(1))) };
@@ -21,6 +25,9 @@ pub fn identity_matrix<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>>
     let n = n as usize;
     if n == 0 {
         return Ok(Out::Done(env.list(&[])));
+    }
+    if n * n > MAX_ENTRIES {
+        return Err(Halt::Memory);
     }
     let mut a = vec![0i64; n * n];
     for i in 0..n {
@@ -46,6 +53,9 @@ pub fn diagonal_matrix<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>>
     }
     let xs = a.terms(env);
     let n = xs.len() + k.unsigned_abs() as usize;
+    if n.checked_mul(n).is_none_or(|c| c > MAX_ENTRIES) {
+        return Err(Halt::Memory);
+    }
     let zero = env.h().int(0);
     let mut out = vec![zero; n * n];
     for (i, &x) in xs.iter().enumerate() {
@@ -179,6 +189,9 @@ pub fn kronecker_product<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wo
         }
         let (ra, ca, rb, cb) = (acc.rows(), acc.cols(), b.rows(), b.cols());
         let (r, c) = (ra * rb, ca * cb);
+        if r.checked_mul(c).is_none_or(|e| e > MAX_ENTRIES) {
+            return Err(Halt::Memory);
+        }
         m.step((r * c) as u64 + 1)?;
         let index = |i: usize, j: usize| ((i / rb) * ca + j / cb, (i % rb) * cb + j % cb);
         val = if acc.domain.join(b.domain) == Domain::Real {
@@ -197,6 +210,7 @@ pub fn kronecker_product<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wo
             if acc.is_matrix() { env.matrix(r, c, &out) } else { env.list(&out) }
         };
         if k + 1 < args.len() {
+            // invariant: the product of two tensors read above, built as a matrix or a list of the right shape
             acc = env.read(val).expect("a product of tensors is a tensor");
         }
     }
@@ -249,6 +263,7 @@ pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<
                 Order::Inf => v.iter().fold(0.0f64, |s, z| s.max(z.abs())),
                 Order::P(2) => Mat { rows: 1, cols: v.len(), a: v }.frobenius(),
                 Order::P(p) => v.iter().map(|z| z.abs().powi(p as i32)).sum::<f64>().powf(1.0 / p as f64),
+                // invariant: Frobenius was mapped to P(2) above
                 Order::Frobenius => unreachable!("mapped to 2"),
             };
             return Ok(Out::Done(h.real(r)));
@@ -261,6 +276,7 @@ pub fn norm<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<
                 let sum = env.call(names::ADD, &xs.iter().map(|&x| env.call(names::POW, &[abs(x), pt])).collect::<Vec<_>>());
                 env.call(names::POW, &[sum, env.ar.rational(h.int(1), pt)])
             }
+            // invariant: Frobenius was mapped to P(2) above
             Order::Frobenius => unreachable!("mapped to 2"),
         };
         return Ok(Out::Again(t));

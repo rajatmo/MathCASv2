@@ -26,6 +26,7 @@ use crate::cells::Cells;
 use crate::compiled::{compiled_of, set_compiled, Compiled};
 use crate::conc::{AppendVec, SymTable};
 use crate::ctl::{Control, Status, FUEL_BLOCK};
+use crate::guard::{Guarded, PanicSlot};
 use crate::defs::{Attributes, Defs, Hold, SymDefs};
 use crate::index::{Rhs, Rule, RuleRhs, Scratch};
 use crate::lang::{BlockState, Form};
@@ -229,13 +230,15 @@ pub struct Kernel {
     pub(crate) cfg: EvalConfig,
     /// Terms the session keeps across evaluations (history, inputs); traced with the kernel.
     pub roots: Roots,
+    /// the native a panic unwound through, for the guard ([`crate::guard`])
+    pub(crate) panics: PanicSlot,
 }
 
 /// The implementation in a symbol's native slot.
 pub(crate) enum Impl {
     /// a native function, whether it reads its call term ([`Native::reads_term`]) and whether it takes curried
     /// calls ([`Native::curried`])
-    Native { native: Box<dyn Native>, reads_term: bool, curried: bool },
+    Native { native: Box<dyn Native>, reads_term: bool, curried: bool, sym: Sym },
     /// a language form the evaluator runs as frames of its stack ([`crate::lang`])
     Form(Form),
 }
@@ -279,7 +282,9 @@ impl Kernel {
             assume: None,
             cfg,
             roots: Roots::new(),
+            panics: PanicSlot::default(),
         };
+        crate::guard::install_hook();
         crate::builtins::register(&mut k, h);
         k
     }
@@ -339,7 +344,7 @@ impl Kernel {
     pub fn register(&mut self, s: Sym, a: Attributes, native: Box<dyn Native>) {
         let reads_term = native.reads_term();
         let curried = native.curried();
-        self.register_impl(s, a, Impl::Native { native, reads_term, curried });
+        self.register_impl(s, a, Impl::Native { native, reads_term, curried, sym: s });
     }
 
     /// Make `s` a language form run as frames of the evaluation stack.
@@ -551,13 +556,29 @@ impl Kernel {
     }
 
     /// Evaluate `t` with a fuel budget.
+    ///
+    /// A panic inside the evaluation (a native's, or the evaluator's own) does not unwind out of it: the value is
+    /// then `failure(internal, "message (location)", f)` with `f` the innermost native the panic went through (left
+    /// out when there is none) and the status [`Status::Running`] (see [`crate::guard`]).
     pub fn eval_with<'h>(&mut self, h: &'h Heap, t: T<'h>, fuel: i64) -> Evaluation<'h> {
         self.cells.begin();
         let k: &Kernel = self;
         k.ctl.begin(fuel);
+        // a record left by a panic some native caught itself
+        k.panics.take();
         let ev = Eval { heap: h, k };
         let mut cx = Cx::frontier(k.epoch.load(Acquire), rayon::current_num_threads() as u32);
-        let r = ev.eval(&mut cx, t);
+        let r = {
+            let _guarded = Guarded::enter();
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| ev.eval(&mut cx, t)))
+        };
+        let r = match r {
+            Ok(r) => r,
+            Err(payload) => {
+                let value = k.panic_failure(h, &*payload);
+                return Evaluation { value, status: Status::Running, stats: EvalStats::default() };
+            }
+        };
         let status = k.ctl.status();
         let value = match r {
             Ok(v) => v,
@@ -575,6 +596,19 @@ impl Kernel {
             }
         };
         Evaluation { value, status, stats: EvalStats { splits: cx.splits, redos: cx.redos, fuel: cx.fuel, holes: cx.holes } }
+    }
+
+    /// The value of an evaluation that panicked with `payload`: `failure(internal, text, f)`.
+    fn panic_failure<'h>(&self, h: &'h Heap, payload: &(dyn std::any::Any + Send)) -> T<'h> {
+        let (native, note) = match self.panics.take() {
+            // the scope's note is the hook's for this panic when the messages agree
+            Some((s, note)) if note.message == crate::guard::payload_text(payload) => (Some(s), note),
+            Some((s, _)) => (Some(s), crate::guard::note_for(payload)),
+            None => (None, crate::guard::note_for(payload)),
+        };
+        let mut args = vec![h.sym_term(h.sym(crate::guard::INTERNAL)), h.string(&note.text())];
+        args.extend(native.map(|s| h.sym_term(s)));
+        h.app(h.sym_term(self.names.failure), &args)
     }
 
     /// Did a definition after epoch `from` (up to `to`) touch read set `deps`? Conservative: a definition after `to`
@@ -977,6 +1011,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         let s = sym_of(h, head)?;
         let c = compiled_of(&self.k.defs, &self.k.compiled, s)?;
         cx.reads |= bit(s);
+        let _scope = crate::guard::NativeScope { sym: s, slot: &self.k.panics, ctl: &self.k.ctl };
         c.call(&mut NativeCx { ev: self, cx }, args)
     }
 

@@ -456,6 +456,7 @@ fn clauses<'h>(h: &'h Heap, hd: &Heads, lhs: T<'h>, body: T<'h>, opts: &[T<'h>])
         for (i, &a) in plain.iter().enumerate() {
             match optional.iter().position(|&k| k == i) {
                 Some(j) => {
+                    // invariant: `optional` holds only positions of `optional(p, d)` calls
                     let Some((_, &[p, d])) = call_of(h, a) else { unreachable!("an optional argument") };
                     if absent >> j & 1 != 0 {
                         lets.push(h.call(hd.let_, &[default_binding(h, hd, p)?.0, d]));
@@ -547,6 +548,7 @@ fn define_now<'h>(
         let args = h.sym("args$");
         let call = h.call(f, &[h.call(hd.seq0, &[h.sym_term(args)])]);
         let guarded = h.call(hd.condition, &[call, h.call(h.sym("is_ground"), &[h.sym_term(args)])]);
+        // invariant: a fixed, well-formed pattern
         let all = pattern(h, guarded).expect("a catch-all pattern");
         let nm = &cx.ev.k.names;
         let fail = h.call(nm.failure, &[h.sym_term(nm.no_match), h.sym_term(f), h.sym_term(args)]);

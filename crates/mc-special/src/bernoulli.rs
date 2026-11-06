@@ -106,6 +106,7 @@ pub fn dd_table(cell: &'static OnceLock<Vec<DD>>, len: u64, f: fn(u64, &Rat) -> 
     cell.get_or_init(|| {
         // computed with the stop flag off: a table is never half-built
         let _scope = mc_arith::num::StopScope::enter(None);
+        // invariant: a constant table built once with the stop flag off, from fixed exact inputs at a fixed precision
         (1..=len).map(|k| rat_to_dd(&f(k, &b2n(k).expect("small Bernoulli numbers")))).collect()
     })
 }

@@ -140,6 +140,11 @@ pub(crate) fn coefficient_list<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter)
     }
     // the dense shape: the degree in each variable over the whole polynomial (so the nested lists are rectangular)
     let shape: Vec<i64> = dgs.iter().map(|d| ts.items.iter().map(|(e, _, _)| d.of(e)).max().unwrap_or(0)).collect();
+    // the nested lists hold the product of (degree + 1) entries: beyond the library's 2^26 cells, a limit
+    let cells = shape.iter().try_fold(1u64, |acc, &d| acc.checked_mul(d as u64 + 1).filter(|&c| c <= 1 << 26));
+    if cells.is_none() {
+        return Err(crate::work::Halt::Memory);
+    }
     // nested lists by an explicit stack over the variables (depth at most 32)
     fn build<'h>(
         env: &Env<'h>,
@@ -231,6 +236,7 @@ pub(crate) fn polynomial_gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, l
             let prod = acc.mul(p, m)?;
             let (gc, gp) = g.primitive();
             let q = crate::work::exact(prod.num.div_exact(&gp, m)?, "the gcd divides the product")?;
+            // invariant: the gcd of two polynomials one of which is nonzero is nonzero
             QPoly::new(q, prod.den).scale(&gc.recip().expect("a nonzero gcd"))
         };
     }
@@ -271,6 +277,7 @@ pub(crate) fn polynomial_division<'h>(
         return Ok(env.arg_failure("the variable must be a kernel"));
     }
     let (ring, ps) = env.read(&[*p, *q], &[*x], m)?;
+    // invariant: `read` puts the given variables in the ring
     let v = ring.var(*x).expect("x is in the ring");
     let (a, b) = (&ps[0], &ps[1]);
     if b.is_zero() {
@@ -281,6 +288,7 @@ pub(crate) fn polynomial_division<'h>(
     if lead.len() != 1 || lead[0].0.iter().enumerate().any(|(i, &e)| i != v && e != 0) {
         return Ok(Out::Decline);
     }
+    // invariant: `b` is nonzero (division by zero returned above), so its leading coefficient is
     let lci = rat_of(lead[0].1, &b.den).recip().expect("a nonzero leading coefficient");
     let mut r = a.clone();
     let mut qt = QPoly::zero(ring.nvars());
@@ -347,6 +355,7 @@ pub(crate) fn resultant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Wor
         return Ok(env.arg_failure("the variable must be a kernel"));
     }
     let (ring, ps) = env.read(&[*p, *q], &[*x], m)?;
+    // invariant: `read` puts the given variables in the ring
     let v = ring.var(*x).expect("x is in the ring");
     let (a, b) = (&ps[0], &ps[1]);
     let r = resultant::resultant(&a.num, &b.num, v, m)?;
@@ -365,6 +374,7 @@ pub(crate) fn discriminant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
         return Ok(env.arg_failure("the variable must be a kernel"));
     }
     let (ring, ps) = env.read(&[*p], &[*x], m)?;
+    // invariant: `read` puts the given variables in the ring
     let v = ring.var(*x).expect("x is in the ring");
     let a = &ps[0];
     let d = resultant::discriminant(&a.num, v, m)?;

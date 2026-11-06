@@ -20,6 +20,7 @@
 //!   compiler, package 1b).
 //! - [`assume`]: assumption contexts (semantics 13), the held form `assuming` and the memo key of evaluations that
 //!   depend on a context.
+//! - [`guard`]: a panic inside an evaluation becomes `failure(internal, ...)` instead of ending the session.
 //! - [`workloads`]: I2's cases R4, R5, R13, R14, S7, R14e and MR as sessions, for tests and measurements.
 //!
 //! A session is [`session`]: its state is the [`Kernel`], a root container, and each top-level evaluation is one
@@ -33,6 +34,7 @@ mod conc;
 pub mod ctl;
 mod defs;
 pub mod eval;
+pub mod guard;
 mod index;
 mod inspect;
 mod lang;

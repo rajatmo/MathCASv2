@@ -240,7 +240,9 @@ fn exact_groups<'h>(env: &Env<'h>, terms: &[T<'h>], n: usize, m: &mut Meter) -> 
                 let (c0, c1, c2) = (&c[0], &c[1], &c[2]);
                 let disc = c1.mul(c1).sub(&c0.mul(c2).mul_i64(4));
                 let two_a = Rat::from_int(c2.mul_i64(2).to_int());
+                // invariant: `c2` leads a quadratic factor, so it is nonzero
                 let p = z_rat(&c1.neg()).mul(&two_a.recip().expect("a nonzero leading coefficient"));
+                // invariant: `c2` leads a quadratic factor, so it is nonzero
                 let q = two_a.recip().expect("a nonzero leading coefficient");
                 let s = ar.pow(ex.ar.integer(&disc.to_int()), half);
                 let (df, pf, qf) = (rat_f64(&z_rat(&disc)), rat_f64(&p), rat_f64(&q));
@@ -298,6 +300,7 @@ fn ordered_slots(groups: &[Group<'_>]) -> Vec<(usize, usize)> {
     }
     if slots.iter().all(|&(g, r)| groups[g].approx[r].is_some()) {
         slots.sort_by(|&(g1, r1), &(g2, r2)| {
+            // invariant: every slot has an approximation (checked by the `all` above)
             eigen_order(groups[g1].approx[r1].expect("numeric"), groups[g2].approx[r2].expect("numeric"))
         });
     }
@@ -326,6 +329,7 @@ fn group_vectors<'h>(
     }
     // the number field of the factor, with the monic modulus
     let d = group.coefs.len() - 1;
+    // invariant: a group without parameters (checked above) has constant coefficients, and its leading one is nonzero
     let lead = z_rat(&group.coefs[d].as_constant().expect("numeric")).recip().expect("nonzero");
     let modulus: Vec<Rat> = group.coefs.iter().map(|c| z_rat(&c.as_constant().unwrap_or(Z::ZERO)).mul(&lead)).collect();
     let modulus = Arc::new(modulus);
@@ -407,6 +411,7 @@ fn eigen<'h>(env: &Env<'h>, a: &Arr<'h>, vectors: bool, m: &mut Meter) -> WorkRe
                         None => return Ok(Err(Out::Decline)),
                     }
                 }
+                // invariant: filled just above (or returned)
                 let vs = cache[k].as_ref().expect("filled");
                 vecs.push(vs.get(used[k]).map_or(zero, |v| env.list(v)));
                 used[k] += 1;

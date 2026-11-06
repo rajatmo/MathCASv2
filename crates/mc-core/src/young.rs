@@ -149,6 +149,7 @@ impl YoungArena {
                 let start = c
                     .checked_mul(ID_CHUNK)
                     .filter(|&s| (s as usize) < (MAX_SEGS - 1) * SEG_LEN)
+                    // invariant: 2^29 young terms in one evaluation take 16 GB of nodes: memory runs out first
                     .expect("young id space full (one evaluation made more than 2^29 terms)");
                 self.ensure_seg((start >> SEG_BITS) as usize);
                 l.next = start;
@@ -260,6 +261,7 @@ impl YoungArena {
     #[inline]
     pub(crate) fn node(&self, id: u32) -> &Node {
         let seg = self.segs.get((id >> SEG_BITS) as usize).map_or(null_mut(), |s| s.load(Acquire));
+        // invariant: a collected young handle is a bug (a handle not rooted across a safe point); the check stops it reading freed memory
         assert!(!seg.is_null(), "use of a collected young term {id} (a handle was not rooted across a safe point)");
         // SAFETY: published ids point at written nodes of an installed segment.
         unsafe { &*seg.add(id as usize & (SEG_LEN - 1)) }

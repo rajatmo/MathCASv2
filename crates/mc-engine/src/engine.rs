@@ -21,7 +21,7 @@ use mc_api::names;
 use mc_arith::num::StopScope;
 use mc_bench::{Engine, EngineError, Evaluated, RaiseHook, StopFlag};
 use mc_core::{Session, Store};
-use mc_eval::{Control, EvalConfig, Kernel, Status};
+use mc_eval::{guard, Control, EvalConfig, Kernel, Status};
 use mc_load::{stdlib, LoadError, Loader, Module, Origin, SourceProvider};
 use mc_syntax::Printer;
 use mc_api::Sym;
@@ -195,6 +195,7 @@ impl CoreEngine {
             // the session generator: fresh per engine, seeded from the operating system (decision RNG.2)
             let rng = mc_random::install(&mut k, h);
             // compiled functions draw from the same generator (package N4b)
+            // invariant: `jit` was set two statements above, in the same closure
             jit.as_ref().expect("the compiler is installed").set_rng(rng.clone());
             // distributions draw their variates from the same generator (package 3D)
             mc_dist::install(&mut k, h, rng);
@@ -210,6 +211,7 @@ impl CoreEngine {
         });
         let ctl = session.state.control();
         let library_names = library_names(&session.heap);
+        // invariant: the session's state closure always sets `jit`
         let jit = jit.expect("the compiler is installed");
         let mut e = CoreEngine {
             session,
@@ -225,7 +227,7 @@ impl CoreEngine {
         if cfg.prelude {
             let origin = Origin::embedded(stdlib::PRELUDE_ORIGIN);
             if let Err(err) = e.eval_in(stdlib::PRELUDE, &origin, &StopFlag::new()) {
-                // the prelude is part of the binary and tested; failing here is a build defect
+                // invariant: the prelude is part of the binary and tested; failing here is a build defect, not an input's
                 panic!("the prelude does not load: {err}");
             }
             // the prelude's value is not a result of the session
@@ -274,7 +276,8 @@ impl CoreEngine {
         options: EachOptions,
         sink: &mut dyn FnMut(Report),
     ) -> Result<bool, RunError> {
-        let suppressed = suppressed(src);
+        // a panic in the parser is reported by the guarded read that follows
+        let suppressed = guard::catch(|| suppressed(src)).unwrap_or_default();
         let mut each = |s: Step<'_>| match s {
             Step::Report(r) => sink(r),
             Step::Event(_) => {}
@@ -375,13 +378,15 @@ impl CoreEngine {
         let (loader, names) = (&mut self.loader, &self.library_names);
         let (n, ends) = self.session.step(|h, k| {
             k.clear_output();
-            let read = {
+            // the reader is guarded like an evaluation: a panic in it reports an internal error, nothing runs
+            let read = guard::catch(|| {
                 let known = |s| k.is_defined(s) || names.contains(&s);
                 match input {
                     Input::Text(src, origin) => loader.read(h, src, origin, &known),
                     Input::File(path) => loader.read_file(h, path, &known),
                 }
-            }
+            })
+            .map_err(|note| RunError::Engine(EngineError::Other(format!("internal error while reading: {}", note.text()))))?
             .map_err(RunError::Read)?;
             // a module defined again: its old clauses go first (decision F.8)
             for name in &read.reloaded {
@@ -451,58 +456,63 @@ impl CoreEngine {
             }
             let (arith_stop, jit) = (&self.arith_stop, &self.jit);
             let r = self.session.step(|h, k| {
-                if let Some(nr) = new_line {
-                    k.set_own(h.sym(history::LINE), h.int(nr as i64));
-                }
-                let t = k.roots.get(h, i);
-                let e = k.eval(h, t);
-                // what `compile` queued takes effect from the next statement on
-                jit.flush(k);
-                match e.status {
-                    Status::Interrupted => return Err(EngineError::Stopped),
-                    Status::Fuel => return Err(EngineError::Limit("fuel".into())),
-                    Status::Depth => return Err(EngineError::Limit("evaluation depth".into())),
-                    // the statuses of compiled code are ordinary failures, already in the value
-                    Status::Running | Status::Index | Status::DivZero => {}
-                }
-                let output = output(h, k);
-                k.clear_output();
-                let failure = is_failure(h, e.value);
-                let is_null = is_sym(h, e.value, names::NULL);
-                // the history: the value of every numbered statement but `null`, shown or not
-                if let (Some(nr), Some(_), false) = (term.number, term.ends, is_null) {
-                    k.set_own(h.sym(&history::entry(nr)), e.value);
-                }
-                let show = !failure && !is_null && term.ends == Some(true);
-                let mut done = Finished { output, fail: None, value: None, last: None };
-                if !last && !failure && !show {
-                    return Ok(done);
-                }
-                // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
-                let _scope = StopScope::enter(Some(arith_stop));
-                let printed = shown(h, e.value);
-                done.fail = failure.then(|| printed.clone());
-                // `print(x)` returns x: a statement whose value its last output line already shows does not show it
-                // again (the scripts' rule, decision 9.5 of the library-gaps package)
-                // a graphics value is shown as its picture, like a plot (the value itself stays the graphics term)
-                let picture =
-                    if (show || last) && !failure { mc_plot::render_to_files(h, e.value, &|| stop.is_raised()) } else { None };
-                let printed = match &picture {
-                    Some((path, ..)) => format!("image(\"{path}\")"),
-                    None => printed,
-                };
-                if show && !echoes(done.output.last(), &printed) {
-                    let image = picture
-                        .or_else(|| mc_plot::image_of(h, e.value))
-                        .map(|(path, width, height)| Image { path, width, height });
-                    done.value = Some((printed.clone(), image));
-                }
-                if last {
-                    k.roots.set(LAST, e.value);
-                    let fingerprint = Some(mc_core::shapes::fingerprint(h, e.value));
-                    done.last = Some((printed, fingerprint, is_null));
-                }
-                Ok(done)
+                // the evaluation is guarded by the evaluator itself; this guard covers printing, rendering and the
+                // compiler's registration
+                guard::catch(|| -> Result<Finished, EngineError> {
+                    if let Some(nr) = new_line {
+                        k.set_own(h.sym(history::LINE), h.int(nr as i64));
+                    }
+                    let t = k.roots.get(h, i);
+                    let e = k.eval(h, t);
+                    // what `compile` queued takes effect from the next statement on
+                    jit.flush(k);
+                    match e.status {
+                        Status::Interrupted => return Err(EngineError::Stopped),
+                        Status::Fuel => return Err(EngineError::Limit("fuel".into())),
+                        Status::Depth => return Err(EngineError::Limit("evaluation depth".into())),
+                        // the statuses of compiled code are ordinary failures, already in the value
+                        Status::Running | Status::Index | Status::DivZero => {}
+                    }
+                    let output = output(h, k, &|| stop.is_raised());
+                    k.clear_output();
+                    let failure = is_failure(h, e.value);
+                    let is_null = is_sym(h, e.value, names::NULL);
+                    // the history: the value of every numbered statement but `null`, shown or not
+                    if let (Some(nr), Some(_), false) = (term.number, term.ends, is_null) {
+                        k.set_own(h.sym(&history::entry(nr)), e.value);
+                    }
+                    let show = !failure && !is_null && term.ends == Some(true);
+                    let mut done = Finished { output, fail: None, value: None, last: None };
+                    if !last && !failure && !show {
+                        return Ok(done);
+                    }
+                    // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
+                    let _scope = StopScope::enter(Some(arith_stop));
+                    let printed = shown(h, e.value, &|| stop.is_raised());
+                    done.fail = failure.then(|| printed.clone());
+                    // `print(x)` returns x: a statement whose value its last output line already shows does not show it
+                    // again (the scripts' rule, decision 9.5 of the library-gaps package)
+                    // a graphics value is shown as its picture, like a plot (the value itself stays the graphics term)
+                    let picture =
+                        if (show || last) && !failure { mc_plot::render_to_files(h, e.value, &|| stop.is_raised()) } else { None };
+                    let printed = match &picture {
+                        Some((path, ..)) => format!("image(\"{path}\")"),
+                        None => printed,
+                    };
+                    if show && !echoes(done.output.last(), &printed) {
+                        let image = picture
+                            .or_else(|| mc_plot::image_of(h, e.value))
+                            .map(|(path, width, height)| Image { path, width, height });
+                        done.value = Some((printed.clone(), image));
+                    }
+                    if last {
+                        k.roots.set(LAST, e.value);
+                        let fingerprint = Some(mc_core::shapes::fingerprint(h, e.value));
+                        done.last = Some((printed, fingerprint, is_null));
+                    }
+                    Ok(done)
+                })
+                .unwrap_or_else(|note| Ok(internal(h, k, &note, last)))
             });
             // an interrupt can also end inside arithmetic, as `failure(interrupted, ...)` in a finished value
             if stop.is_raised() {
@@ -543,8 +553,24 @@ impl CoreEngine {
                 return Ok(Script { events, last, last_is_null });
             }
         }
+        // invariant: `run` is called with at least one statement and returns at the last
         unreachable!("run is called with at least one statement")
     }
+}
+
+/// What a statement whose evaluation, printing or rendering panicked hands back: `failure(internal, text)` as its
+/// failure (and as the last value), with the output it made before the panic.
+fn internal(h: &mc_core::Heap, k: &mut Kernel, note: &guard::PanicNote, last: bool) -> Finished {
+    let v = h.app(h.sym_term(h.sym(names::FAILURE)), &[h.sym_term(h.sym(guard::INTERNAL)), h.string(&note.text())]);
+    // the output itself may be what failed to print
+    let output = guard::catch(|| output(h, k, &|| false)).unwrap_or_default();
+    k.clear_output();
+    let printed = shown(h, v, &|| false);
+    let last = last.then(|| {
+        k.roots.set(LAST, v);
+        (printed.clone(), Some(mc_core::shapes::fingerprint(h, v)), false)
+    });
+    Finished { output, fail: Some(printed), value: None, last }
 }
 
 /// What one statement's step hands back: its output, its failure printed, its shown value (printed, and the image
@@ -702,21 +728,22 @@ impl Default for CoreEngine {
     }
 }
 
-/// The printed form of a value: a dataset as a table (`mc_assoc::table_text`), anything else as its term.
-fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>) -> String {
-    let p = Printer::with_numbers(h, Box::new(ArithNumbers));
+/// The printed form of a value: a dataset as a table (`mc_assoc::table_text`), anything else as its term. Printing
+/// polls `stop` (a huge value's text ends in `…` once it is raised).
+fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>, stop: &dyn Fn() -> bool) -> String {
+    let p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_stop(stop);
     mc_assoc::table_text(h, t, &mut |x| p.expr(x)).unwrap_or_else(|| p.expr(t))
 }
 
 /// The session output since it was last cleared: strings as their text, warnings, other terms printed.
-fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<Emitted> {
+fn output(h: &mc_core::Heap, k: &Kernel, stop: &dyn Fn() -> bool) -> Vec<Emitted> {
     k.output(h)
         .into_iter()
         .map(|t| match h.view(t) {
             mc_core::View::Str(s) => Emitted::Text(s.to_string()),
             _ => match history::as_message(h, t) {
                 Some((tag, text)) => Emitted::Message(tag, text),
-                None => Emitted::Text(shown(h, t)),
+                None => Emitted::Text(shown(h, t, stop)),
             },
         })
         .collect()

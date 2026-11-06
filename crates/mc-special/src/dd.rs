@@ -44,6 +44,10 @@ fn quick_two_sum(a: f64, b: f64) -> (f64, f64) {
 
 #[inline]
 fn split(a: f64) -> (f64, f64) {
+    if !a.is_finite() {
+        // an infinity scaled down is still infinite: without this the scaling below recursed until the stack ran out
+        return (a, 0.0);
+    }
     if a.abs() > 6.7e299 {
         // 134217729 a would overflow: split a scaled copy (exact powers of two)
         let (h, l) = split(a * 3.725_290_298_461_914e-9);
@@ -110,8 +114,13 @@ impl DD {
     /// x 2^k, exact in the normal range.
     #[inline]
     pub fn ldexp(self, k: i32) -> DD {
-        let s = pow2(k);
-        DD { hi: self.hi * s, lo: self.lo * s }
+        if (-1000..=1000).contains(&k) {
+            let s = pow2(k);
+            return DD { hi: self.hi * s, lo: self.lo * s };
+        }
+        // 2^k itself is out of range (a subnormal scaled up to normal needs 2^1074): scale in two steps
+        let (s1, s2) = (pow2(k / 2), pow2(k - k / 2));
+        DD { hi: self.hi * s1 * s2, lo: self.lo * s1 * s2 }
     }
     /// x / y for a double y.
     pub fn div_f(self, o: f64) -> DD {
@@ -404,7 +413,8 @@ pub fn sin_cos_pi(r: DD) -> (DD, DD) {
     let (mut s, mut ts) = (x, x);
     let (mut c, mut tc) = (DD::ONE, DD::ONE);
     let mut k = 1.0;
-    loop {
+    // |r| <= 1/2 needs about 20 terms; the bound keeps a NaN (which never converges) from looping forever
+    while k < 100.0 {
         ts = ts.mul(x2).div_f(-(2.0 * k) * (2.0 * k + 1.0));
         tc = tc.mul(x2).div_f(-(2.0 * k - 1.0) * (2.0 * k));
         s = s.add(ts);
@@ -420,8 +430,16 @@ pub fn sin_cos_pi(r: DD) -> (DD, DD) {
 /// sin(pi x) and cos(pi x) for any double-double x, with the exact reduction x = n + r, |r| <= 1/2 (so the zeros
 /// at integers and half-integers are exact).
 pub fn sin_cos_pi_any(x: DD) -> (DD, DD) {
-    let n = x.hi.round();
-    let r = DD::sum(x.hi - n, x.lo);
+    if !x.hi.is_finite() {
+        return (DD::new(f64::NAN), DD::new(f64::NAN));
+    }
+    // both parts are reduced: beyond 2^53 the low part alone can be far larger than one (it was left unreduced, and
+    // the series at an argument of thousands overflowed to NaN and never converged)
+    let n1 = x.hi.round();
+    let n2 = (x.hi - n1 + x.lo).round();
+    let r = DD::sum(x.hi - n1, x.lo).add_f(-n2);
+    // the parity of n1 + n2 (their sum may not be representable)
+    let n = n1.rem_euclid(2.0) + n2.rem_euclid(2.0);
     let (n, r) = if r.hi > 0.5 {
         (n + 1.0, r.add_f(-1.0))
     } else if r.hi < -0.5 {
@@ -440,6 +458,27 @@ pub fn sin_cos_pi_any(x: DD) -> (DD, DD) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn infinities_and_subnormals() {
+        assert_eq!(split(f64::INFINITY).0, f64::INFINITY);
+        // the smallest subnormal scaled to one and back
+        let tiny = DD::new(5e-324);
+        assert_eq!(tiny.ldexp(1074).hi, 1.0);
+        assert_eq!(DD::ONE.ldexp(-1074).hi, 5e-324);
+        assert_eq!(Scaled::new(tiny).to_f64(), 5e-324);
+    }
+
+    #[test]
+    fn sin_cos_pi_reduces_both_parts() {
+        // beyond 2^53 the low part is reduced too: 2^60 + 1000.25 is 0.25 past an even integer
+        let (s, c) = sin_cos_pi_any(DD { hi: 2f64.powi(60), lo: 1000.25 });
+        assert!((s.hi - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-15 && (c.hi - s.hi).abs() < 1e-15);
+        let (s, c) = sin_cos_pi_any(DD { hi: 2f64.powi(60), lo: 1001.5 });
+        assert!((s.hi + 1.0).abs() < 1e-15 && c.hi.abs() < 1e-15);
+        assert!(sin_cos_pi_any(DD::new(f64::NAN)).0.hi.is_nan());
+        assert!(sin_cos_pi(DD::new(f64::NAN)).0.hi.is_nan());
+    }
 
     #[test]
     fn constants_and_functions() {

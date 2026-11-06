@@ -25,7 +25,9 @@ use mc_eval::{Attributes, Control, Hold, Kernel, Native, NativeCx, Reply, Res};
 use mc_random::{Rng, Stream};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering::Relaxed};
-use std::sync::{Arc, Mutex, OnceLock};
+// a lock poisoned by a panic the guard caught still holds consistent data: its critical sections are single map or
+// vector operations
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::Instant;
 
 /// Which back end runs a specialisation.
@@ -256,6 +258,7 @@ impl Compiled for Specialisation {
                 (Input::Scalar(Ty::Int), View::Int(v)) => words.push(v as u64),
                 (Input::Scalar(Ty::Real), View::Real(x)) => words.push(x.to_bits()),
                 (Input::Vector(_), _) => {
+                    // invariant: the front end made one vector input per vector argument, and `vs` holds those arguments
                     let w = vs.next().expect("a vector per vector parameter").1.words();
                     words.extend([w.as_ptr() as u64, w.len() as u64]);
                 }
@@ -388,6 +391,7 @@ fn list_term<'h>(cx: &NativeCx<'_, '_, 'h>, s: &Shape, words: &mut impl Iterator
             let (re, im) = (part(), part());
             Arith::new(cx.heap()).number(&Num::Complex(re, im))
         }
+        // invariant: the front end refuses vectors inside lists
         Shape::Vector(_) => unreachable!("the front end refuses vectors inside lists"),
     }
 }
@@ -405,7 +409,7 @@ pub(crate) struct Shared {
 impl Shared {
     /// Whether `s`'s native implementation is a specialisation of ours.
     fn owns(&self, s: Sym) -> bool {
-        self.active.lock().expect("compiler state").contains_key(&s)
+        self.active.lock().unwrap_or_else(PoisonError::into_inner).contains_key(&s)
     }
 }
 
@@ -418,8 +422,8 @@ impl Jit {
     /// Register the specialisations `compile` queued since the last flush; returns how many. A queued
     /// specialisation whose definitions changed since it was compiled is dropped.
     pub fn flush(&self, k: &mut Kernel) -> usize {
-        let pending = std::mem::take(&mut *self.0.pending.lock().expect("compiler state"));
-        let mut active = self.0.active.lock().expect("compiler state");
+        let pending = std::mem::take(&mut *self.0.pending.lock().unwrap_or_else(PoisonError::into_inner));
+        let mut active = self.0.active.lock().unwrap_or_else(PoisonError::into_inner);
         let mut n = 0;
         for spec in pending {
             if !spec.current(&mut |s| k.version(s)) {
@@ -441,7 +445,7 @@ impl Jit {
 
     /// The registered specialisation of `f`.
     pub fn info(&self, f: Sym) -> Option<Info> {
-        self.0.active.lock().expect("compiler state").get(&f).map(|s| s.info().clone())
+        self.0.active.lock().unwrap_or_else(PoisonError::into_inner).get(&f).map(|s| s.info().clone())
     }
 
     /// Attach the session's random generator (the one `mc_random::install` returned), so that compiled functions
@@ -622,6 +626,7 @@ impl Native for CompileFn {
         };
         variants.extend(second.filter(|(b, _)| b.info.inputs.iter().any(|i| matches!(i, Input::Vector(_)))));
         if variants.is_empty() {
+            // invariant: with no variant the first compilation failed and gave its reason
             return Ok(Reply::Done(not(&reason.expect("a failed variant"))));
         }
         let variants: Vec<Built> = variants
@@ -646,7 +651,7 @@ impl Native for CompileFn {
             declines: AtomicU64::new(0),
             rng: self.0.rng.get().cloned(),
         };
-        self.0.pending.lock().expect("compiler state").push(Arc::new(spec));
+        self.0.pending.lock().unwrap_or_else(PoisonError::into_inner).push(Arc::new(spec));
         Ok(Reply::Done(fterm))
     }
 }
@@ -662,8 +667,8 @@ impl Native for InfoFn {
         cx.volatile();
         let View::Sym(f) = h.view(*fterm) else { return Ok(Reply::Done(failure(h, "not_compiled", &[*fterm]))) };
         let (spec, state) = {
-            let active = self.0.active.lock().expect("compiler state").get(&f).cloned();
-            let pending = self.0.pending.lock().expect("compiler state").iter().rev().find(|s| s.head == f).cloned();
+            let active = self.0.active.lock().unwrap_or_else(PoisonError::into_inner).get(&f).cloned();
+            let pending = self.0.pending.lock().unwrap_or_else(PoisonError::into_inner).iter().rev().find(|s| s.head == f).cloned();
             match (pending, active) {
                 (Some(p), _) => (p, "pending"),
                 (None, Some(a)) => (a, "active"),

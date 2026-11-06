@@ -9,7 +9,19 @@
 use crate::roots::Trace;
 use crate::{Config, Heap};
 use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::cell::Cell;
 use std::time::{Duration, Instant};
+
+thread_local! {
+    /// Set on the worker threads of every session's pool.
+    static SESSION_THREAD: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether the calling thread is a worker of some session's pool: every evaluation runs on one. A panic hook uses
+/// it to tell a panic inside an evaluation (which the evaluator turns into a failure) from any other.
+pub fn on_session_thread() -> bool {
+    SESSION_THREAD.with(Cell::get)
+}
 
 /// A heap, the session state that roots its terms, and the pool evaluations run on.
 pub struct Session<St: Trace + Send> {
@@ -37,7 +49,10 @@ impl<St: Trace + Send> Session<St> {
         let pool = ThreadPoolBuilder::new()
             .num_threads(threads.max(1))
             .stack_size(64 << 20)
+            .thread_name(|i| format!("mc-session-{i}"))
+            .start_handler(|_| SESSION_THREAD.with(|c| c.set(true)))
             .build()
+            // invariant: a pool of at most a few threads can be built unless the system is out of threads at start-up
             .expect("thread pool");
         let heap = Heap::new(cfg);
         let state = state(&heap);

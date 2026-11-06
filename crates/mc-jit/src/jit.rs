@@ -313,6 +313,7 @@ impl<'a, 'b> Gen<'a, 'b> {
         for (k, &p) in lir.params.iter().enumerate() {
             b.def_var(vars[p as usize], params[k]);
         }
+        // invariant: the signature built above ends with the environment pointer
         let env = *params.last().expect("the environment parameter");
         let mf = MemFlagsData::trusted();
         let ctl = b.ins().load(ptr, mf, env, ENV_CTL);
@@ -606,6 +607,7 @@ impl<'a, 'b> Gen<'a, 'b> {
             }
             Op::Math(f, d, a) => {
                 let x = self.get(a);
+                // invariant: `Lib::ALL` lists every library function
                 let i = Lib::ALL.iter().position(|&l| l == f).expect("a library function");
                 let call = self.b.ins().call(self.refs.math[i], &[x]);
                 let v = self.b.inst_results(call)[0];
@@ -639,6 +641,7 @@ impl<'a, 'b> Gen<'a, 'b> {
                 let (x, y) = (self.get(a), self.get(b));
                 let im = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 8, 3));
                 let im_addr = self.b.ins().stack_addr(self.ptr, im, 0);
+                // invariant: `Lib::ALL` lists every library function
                 let i = Lib::ALL.iter().position(|&l| l == f).expect("a library function");
                 let code = self.b.ins().iconst(i64t, i as i64);
                 let call = self.b.ins().call(self.refs.cmath, &[code, x, y, im_addr]);

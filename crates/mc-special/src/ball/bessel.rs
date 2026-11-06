@@ -56,6 +56,12 @@ fn i_sum(t0: Ball, q: &Ball, nu: &Ball, nu_lo: f64, wp: u64) -> Option<Ball> {
 
 /// I_nu(x): `n` the exact integer value of nu if it has one.
 pub fn i_ball(nu: &Ball, n: Option<i64>, x: &Ball, wp: u64) -> Option<Ball> {
+    // the series needs about |x| terms at about |x| extra bits: beyond MAX_SERIES_X it would run for hours or
+    // exhaust memory, so the value is not given
+    let xa = super::f64_of(&upper(x)).abs().max(super::f64_of(&lower(x)).abs());
+    if xa.is_nan() || xa > MAX_SERIES_X {
+        return None;
+    }
     let q = x.mul(x, wp).mul(&Ball::from_ratio(1, 4, wp), wp);
     let half = x.mul(&Ball::from_ratio(1, 2, wp), wp);
     if let Some(n) = n {
@@ -170,6 +176,9 @@ fn k_asymptotic(nu: &Ball, x: &Ball, wp: u64) -> Option<Ball> {
     None
 }
 
+/// The largest |x| the power series of I and K are summed at (about 3·10^5 extra bits and 10^5 terms).
+const MAX_SERIES_X: f64 = 1e5;
+
 /// K_nu(x) at a narrow point: nu >= 0 (with its integer value if exact), x > 0.
 fn k_point(nu: &Ball, n: Option<i64>, x: &Ball, wp: u64) -> Option<Ball> {
     if !is_pos(x) {
@@ -182,6 +191,10 @@ fn k_point(nu: &Ball, n: Option<i64>, x: &Ball, wp: u64) -> Option<Ball> {
         }
     }
     // the series cancel by about e^2x
+    if xf > MAX_SERIES_X {
+        // the asymptotic expansion did not apply: the series would need about 3x extra bits (gigabytes for x = 2^31)
+        return None;
+    }
     let extra = (2.9 * xf).ceil() as u64 + 16;
     let w = wp + extra;
     match n {

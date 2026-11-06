@@ -144,7 +144,11 @@ impl Num for CD {
         let (s, c) = sin_cos_pi_any(DD::new(t) / PI);
         let corr = (self.im * c - self.re * s) / (self.re * c + self.im * s);
         let arg = if corr.hi.is_finite() { DD::new(t) + corr } else { DD::new(t) };
-        CD { re: log(self.re.sqr() + self.im.sqr()).mul_f(0.5), im: arg }
+        // ln |z| from z 2^-k (exact scaling), so that |z|^2 does not overflow or underflow
+        let k = crate::dd::frexp(self.re.hi.abs().max(self.im.hi.abs())).1;
+        let sc = DD::new(crate::dd::pow2(-k));
+        let (x, y) = (self.re * sc, self.im * sc);
+        CD { re: log(x.sqr() + y.sqr()).mul_f(0.5) + LN2.mul_f(k as f64), im: arg }
     }
 }
 
@@ -657,6 +661,10 @@ pub fn polylog(s: f64, z: f64) -> f64 {
 /// Li_n(z) for an integer n and complex z, |z| <= 1 or by inversion.
 fn int_complex(n: i64, z: CD, on_cut: bool) -> CD {
     let za = z.abs_f();
+    if za.is_nan() {
+        // the inversion below would call itself again and again on NaN
+        return CD::re(DD::new(f64::NAN));
+    }
     if n <= 0 {
         return eulerian(n.unsigned_abs(), z);
     }
@@ -675,7 +683,10 @@ fn int_complex(n: i64, z: CD, on_cut: bool) -> CD {
     }
     let w = -z;
     let l = if on_cut { CD { re: log(-w.re), im: PI } } else { w.ln() };
-    let zi = CD::re(DD::ONE) / z;
+    // 1/z through z 2^-k (exact scaling): |z|^2 itself overflows for |z| beyond 1e154 and made 1/z NaN
+    let k = crate::dd::frexp(z.re.hi.abs().max(z.im.hi.abs())).1;
+    let s = DD::new(crate::dd::pow2(-k));
+    let zi = (CD::re(DD::ONE) / z.scale(s)).scale(s);
     let r = int_complex(n as i64, zi, false);
     let r = if n.is_multiple_of(2) { -r } else { r };
     r + inversion_term(n, l)
@@ -721,6 +732,13 @@ mod tests {
         assert!(ulps(c.re, 2.467_401_100_272_339_7) <= 2.0 && ulps(c.im, -2.177_586_090_303_602) <= 2.0);
         let c = polylog_complex(1.0, C64::new(2.0, 0.0));
         assert!(c.re.abs() < 1e-15 && ulps(c.im, -std::f64::consts::PI) <= 1.0);
+        // |z|^2 overflows: the inversion once divided by infinity and recursed on NaN until the stack ran out;
+        // by the inversion formula, for large x > 1: Li_3(x) = -ln(x)^3/6 + pi^2 ln(x)/3 - i pi ln(x)^2/2 + O(1/x)
+        let c = polylog_complex(3.0, C64::new(1e300, 0.0));
+        let l = 1e300f64.ln();
+        assert!(ulps(c.re, -l.powi(3) / 6.0 + pi2 * l / 3.0) <= 64.0, "{c:?}");
+        assert!(ulps(c.im, -std::f64::consts::PI * l * l / 2.0) <= 64.0, "{c:?}");
+        assert!(polylog_complex(3.0, C64::new(1e200, 1e200)).re.is_finite());
     }
 
     /// (s, z, Li_s(z)) with complex z and value as (re, im) pairs.

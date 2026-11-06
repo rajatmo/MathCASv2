@@ -222,6 +222,7 @@ pub fn mul(f: Fp, a: &[u64], b: &[u64]) -> UPoly {
 
 /// (quotient, remainder) of a by a nonzero b.
 pub fn divrem(f: Fp, a: &[u64], b: &[u64]) -> (UPoly, UPoly) {
+    // invariant: callers divide by nonzero polynomials (a gcd step or a factor)
     assert!(!b.is_empty(), "division by zero polynomial");
     if a.len() < b.len() {
         return (vec![], a.to_vec());
