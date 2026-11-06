@@ -12,8 +12,11 @@
 //! attrs        = { " " attr }            attr = name | name "=" value      value: [0-9A-Za-z_.:x-]+
 //! body         = source lines (code kinds) | "# " text lines and "#" empty lines (prose kinds)
 //! output-block = "#% output" [ attrs ] NL { out-line }
-//! out-line     = "#| " print | "#= " value | "#! " failure or error | "#? " message
+//! out-line     = "#| " print | "#= " value | "#! " failure or error | "#? " message | "#~ " embedded data
 //! ```
+//!
+//! Pictures travel inside the file (round 13, user decision: one file per notebook, no sidecar folder): an output
+//! block's `#~` lines carry the files its `image("name")` values name, see [`embed`].
 //!
 //! Every marker, prose and output line is a comment, so a notebook is also a script whose statements are its code
 //! cells. A `#%` line whose first word is not a kind (or `output`) is an ordinary comment line of the cell it is in;
@@ -24,6 +27,7 @@
 //!
 //! A notebook that uses only `cell` and `text` cells without attributes and at most one output block per cell
 //! without attributes is exactly the format before the extensions, which older readers understand.
+pub mod embed;
 pub mod images;
 
 use std::fmt;
@@ -279,6 +283,8 @@ pub enum OutputKind {
     Message,
     /// `#?`: a line of a message (a warning from library code)
     Note,
+    /// `#~`: a line of a file embedded in the output block (a picture and its descriptions, [`embed`])
+    Data,
 }
 
 impl OutputKind {
@@ -289,11 +295,13 @@ impl OutputKind {
             OutputKind::Value => "#=",
             OutputKind::Message => "#!",
             OutputKind::Note => "#?",
+            OutputKind::Data => "#~",
         }
     }
 
     fn of(line: &str) -> Option<(OutputKind, &str)> {
-        [OutputKind::Print, OutputKind::Value, OutputKind::Message, OutputKind::Note].into_iter().find_map(|k| {
+        let kinds = [OutputKind::Print, OutputKind::Value, OutputKind::Message, OutputKind::Note, OutputKind::Data];
+        kinds.into_iter().find_map(|k| {
             let rest = line.strip_prefix(k.prefix())?;
             Some((k, rest.strip_prefix(' ').unwrap_or(rest)))
         })
@@ -581,7 +589,7 @@ fn read_cells(lines: &[&str], first: usize) -> Result<CellsRead, ParseError> {
                                 None => Err(ParseError {
                                     line: out_at + 1 + k,
                                     message: "an output block holds only lines starting with `#|`, `#=`, `#!` or \
-                                              `#?` (start a new cell with `#% cell`)"
+                                              `#?` (or `#~` data; start a new cell with `#% cell`)"
                                         .into(),
                                 }),
                             })

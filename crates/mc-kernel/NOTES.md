@@ -251,3 +251,10 @@ several values gets one block per value, numbered `n=N`, holding the print outpu
 value, and a last unnumbered block for what follows the last value. Library warnings are written as `#?` lines
 (`tag: text`), as the window writes them. Reading accepts both layouts. Tests:
 `every_shown_statement_gets_its_own_output_block` (tests/notebook.rs), two G91 key scripts in mc-nbmodel's `eval.keys`.
+
+## Round 13 (nb-mat): pictures inside the `.mcn` file
+
+Output blocks may hold `#~` lines: files embedded in the notebook (`#~ @name [deflate]` then base64 lines), the
+pictures their `image("name")` values name with the plot description and the 3D scene (`mc_nbfile::embed`; design
+7.5). `mc-repl --update` embeds the pictures of the cells it runs and keeps those of the others, so a notebook is one
+file with no `<name>.files/` folder and no path into the plots cache. Older files read as before.

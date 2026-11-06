@@ -303,90 +303,93 @@ fn scratch(name: &str) -> std::path::PathBuf {
 }
 
 #[test]
-fn sidecar_round_trip_save_as_and_cleanup() {
-    use crate::images::{image_path, image_value, remove_unreferenced, sidecar_dir, store_images};
-    let root = scratch("sidecar");
+fn pictures_are_embedded_in_the_file_and_read_back() {
+    use crate::embed::{attachments, embed, extract};
+    use crate::images::{image_path, image_value};
+    let root = scratch("embed");
     let tmp = root.join("session");
     std::fs::create_dir_all(&tmp).unwrap();
-    let (a, b) = (tmp.join("plot-11-0.png"), tmp.join("plot-11-1.svg"));
-    std::fs::write(&a, b"\x89PNG\r\n\x1a\nfirst").unwrap();
-    std::fs::write(&b, b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>").unwrap();
+    // a plot of the session: the picture, its description and a 3D scene (an SVG sibling stays behind)
+    let png = tmp.join("plot-11-0.png");
+    let picture: Vec<u8> =
+        b"\x89PNG\r\n\x1a\n".iter().copied().chain((0..3000u32).map(|k| (k * 7 % 251) as u8)).collect();
+    std::fs::write(&png, &picture).unwrap();
+    let series: Vec<String> = (0..2000).map(|k| k.to_string()).collect();
+    let json = format!("{{\"version\":1,\"series\":[{}]}}", series.join(","));
+    std::fs::write(tmp.join("plot-11-0.json"), &json).unwrap();
+    std::fs::write(tmp.join("plot-11-0.scene3d"), "mathcas-scene3d 1\ngraphics3d(sphere())\n").unwrap();
+    std::fs::write(tmp.join("plot-11-0.svg"), "<svg/>").unwrap();
     let text = format!(
         "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1 size=300x200\n#= {}\n\n#% cell label=2\nq\n#% output n=2\n\
-         #= {}\n#% output n=3\n#= {}\n#% output n=4\n#= image(\"gone.png\")\n",
-        image_value(&a.to_string_lossy()),
-        image_value(&b.to_string_lossy()),
-        image_value(&a.to_string_lossy()),
+         #= {}\n#% output n=3\n#= image(\"gone.png\")\n",
+        image_value(&png.to_string_lossy()),
+        image_value(&png.to_string_lossy()),
     );
     let mut nb = Notebook::parse(&text).unwrap();
-    let first = root.join("one").join("cooling.mcn");
-    std::fs::create_dir_all(first.parent().unwrap()).unwrap();
-    let r = store_images(&mut nb, None, &first).unwrap();
-    assert_eq!(r.copied, 2);
+    let r = embed(&mut nb, None);
+    assert_eq!(r.pictures, 2);
     assert_eq!(r.missing, vec!["gone.png".to_string()]);
-    assert_eq!(r.renamed.len(), 2, "{r:?}");
-    let values: Vec<String> = nb.cells.iter().flat_map(|c| c.output_lines()).filter_map(|l| image_path(&l.text)).collect();
-    assert!(values[0].starts_with("cooling.files/plot-") && values[0].ends_with(".png"), "{values:?}");
-    assert!(values[1].starts_with("cooling.files/plot-") && values[1].ends_with(".svg"));
-    assert_eq!(values[0], values[2], "one copy for one file");
-    assert_eq!(values[3], "gone.png");
-    // the size stays on its block
+    let saved = nb.print();
+    // one file: the value names the embedded picture, not the session's plots folder
+    assert!(!saved.contains(&tmp.display().to_string()), "{saved}");
+    let value = image_path(&nb.cells[0].outputs[0].lines[0].text).unwrap();
+    assert!(value.starts_with("plot-") && value.ends_with(".png") && !value.contains('/'), "{value}");
+    let files = attachments(&nb.cells[0].outputs[0]);
+    let names: Vec<&str> = files.iter().map(|a| a.name.as_str()).collect();
+    let stem = value.trim_end_matches(".png");
+    assert_eq!(names, [value.clone(), format!("{stem}.json"), format!("{stem}.scene3d")]);
+    assert_eq!(files[0].bytes, picture);
+    assert_eq!(files[1].bytes, json.as_bytes(), "the description is kept byte for byte (deflated in the file)");
+    assert!(saved.contains(&format!("#~ @{stem}.json deflate\n")));
+    assert!(saved.lines().all(|l| l.len() <= 110), "data lines are short");
+    // the deflated description is far smaller than its text
+    let block = &nb.cells[0].outputs[0].lines;
+    let data: usize = block.iter().filter(|l| l.kind == OutputKind::Data).map(|l| l.text.len()).sum();
+    assert!(data < picture.len() * 4 / 3 + json.len(), "{data}");
+    // the size stays on its block; the file reads back unchanged
     assert_eq!(nb.cells[0].outputs[0].attrs.get("size"), Some("300x200"));
-    write_atomic(&first, &nb.print()).unwrap();
-    // a stray file in the sidecar folder goes; the referenced ones stay
-    let dir = sidecar_dir(&first);
-    std::fs::write(dir.join("old-000000000000.png"), b"x").unwrap();
-    assert_eq!(remove_unreferenced(&nb, &first).unwrap(), 1);
-    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
-    // reopen: the relative paths resolve in the notebook's folder
-    let mut again = Notebook::parse(&std::fs::read_to_string(&first).unwrap()).unwrap();
-    assert_eq!(again, nb);
-    let p = crate::images::resolve(&values[0], first.parent());
-    assert_eq!(std::fs::read(p).unwrap(), b"\x89PNG\r\n\x1a\nfirst");
-    // save again in place: nothing copied, nothing renamed
-    let r = store_images(&mut again, first.parent(), &first).unwrap();
-    assert_eq!((r.copied, r.renamed.len()), (0, 0));
-    // save as into another folder: copied there, paths relative to the new place
-    let second = root.join("two").join("copy.mcn");
-    std::fs::create_dir_all(second.parent().unwrap()).unwrap();
-    let r = store_images(&mut again, first.parent(), &second).unwrap();
-    assert_eq!(r.copied, 2);
-    let moved: Vec<String> =
-        again.cells.iter().flat_map(|c| c.output_lines()).filter_map(|l| image_path(&l.text)).collect();
-    assert!(moved[0].starts_with("copy.files/plot-"), "{moved:?}");
-    assert!(sidecar_dir(&second).join(&moved[0]["copy.files/".len()..]).is_file());
-    // outputs deleted: the sidecar folder empties and goes
-    let mut bare = Notebook::parse(&format!("{HEADER}\n\n#% cell\n1\n")).unwrap();
-    assert_eq!(store_images(&mut bare, first.parent(), &first).unwrap(), Default::default());
-    assert_eq!(remove_unreferenced(&bare, &first).unwrap(), 2);
-    assert!(!dir.exists());
+    let again = Notebook::parse(&saved).unwrap();
+    assert_eq!(again.print(), saved);
+    // opening: the files go to the cache and the values name them there; saving again gives the same text
+    let cache = root.join("cache");
+    let mut opened = again.clone();
+    assert_eq!(extract(&mut opened, &cache).unwrap(), 3);
+    assert!(opened.cells.iter().flat_map(|c| c.output_lines()).all(|l| l.kind != OutputKind::Data));
+    let shown = image_path(&opened.cells[0].outputs[0].lines[0].text).unwrap();
+    assert_eq!(std::fs::read(&shown).unwrap(), picture);
+    assert_eq!(std::fs::read_to_string(std::path::Path::new(&shown).with_extension("json")).unwrap(), json);
+    assert_eq!(extract(&mut again.clone(), &cache).unwrap(), 0, "cached once");
+    let mut resaved = opened.clone();
+    embed(&mut resaved, None);
+    assert_eq!(resaved.print(), saved, "saving an opened notebook gives the same text");
+    // saving the file as read (no cache, e.g. the runner rewriting other cells) keeps the carried pictures
+    let mut carried = again.clone();
+    let r = embed(&mut carried, Some(&root.join("elsewhere")));
+    assert!(r.missing.iter().all(|m| m == "gone.png"), "{r:?}");
+    assert_eq!(carried.print(), saved);
     let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
-fn a_plot_picture_takes_its_json_and_svg_siblings_along() {
-    use crate::images::{image_path, image_value, remove_unreferenced, sidecar_dir, store_images};
-    let root = scratch("siblings");
-    let tmp = root.join("session");
-    std::fs::create_dir_all(&tmp).unwrap();
-    let png = tmp.join("plot-7.png");
-    std::fs::write(&png, b"\x89PNG\r\n\x1a\nplot").unwrap();
-    let json = "{\"version\":1, \"note\":\"kept byte for byte\"}";
-    std::fs::write(tmp.join("plot-7.json"), json).unwrap();
-    std::fs::write(tmp.join("plot-7.svg"), b"<svg/>").unwrap();
-    let text = format!("{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= {}\n", image_value(&png.to_string_lossy()));
+fn an_older_notebook_with_a_sidecar_folder_is_embedded_on_save_and_the_folder_stays() {
+    use crate::embed::{attachments, embed};
+    use crate::images::image_path;
+    let root = scratch("older");
+    let side = root.join("cooling.files");
+    std::fs::create_dir_all(&side).unwrap();
+    std::fs::write(side.join("plot-3f2a91c04b7e.png"), b"\x89PNG\r\n\x1a\nold").unwrap();
+    std::fs::write(side.join("plot-3f2a91c04b7e.json"), "{}").unwrap();
+    let text = format!(
+        "{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= image(\"cooling.files/plot-3f2a91c04b7e.png\")\n"
+    );
+    // reading the old layout is unchanged
     let mut nb = Notebook::parse(&text).unwrap();
-    let to = root.join("nb").join("a.mcn");
-    std::fs::create_dir_all(to.parent().unwrap()).unwrap();
-    let r = store_images(&mut nb, None, &to).unwrap();
-    assert_eq!(r.copied, 3);
-    let value = nb.cells.iter().flat_map(|c| c.output_lines()).find_map(|l| image_path(&l.text)).unwrap();
-    let stored = crate::images::resolve(&value, to.parent());
-    assert_eq!(std::fs::read_to_string(stored.with_extension("json")).unwrap(), json);
-    assert_eq!(std::fs::read(stored.with_extension("svg")).unwrap(), b"<svg/>");
-    // the siblings are referenced through their picture: nothing is removed
-    write_atomic(&to, &nb.print()).unwrap();
-    assert_eq!(remove_unreferenced(&nb, &to).unwrap(), 0);
-    assert_eq!(std::fs::read_dir(sidecar_dir(&to)).unwrap().count(), 3);
+    assert_eq!(nb.print(), text);
+    let r = embed(&mut nb, Some(&root));
+    assert_eq!((r.pictures, r.missing.len()), (1, 0));
+    let value = image_path(&nb.cells[0].outputs[0].lines[0].text).unwrap();
+    assert!(!value.contains("cooling.files"), "{value}");
+    assert_eq!(attachments(&nb.cells[0].outputs[0])[0].bytes, b"\x89PNG\r\n\x1a\nold");
+    assert!(side.join("plot-3f2a91c04b7e.png").is_file(), "the old folder is left for the user");
     let _ = std::fs::remove_dir_all(&root);
 }

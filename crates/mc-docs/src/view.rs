@@ -894,6 +894,8 @@ impl Draw<'_> {
                     OutputKind::Value | OutputKind::Print => self.p.text,
                     OutputKind::Message => self.p.dark_red,
                     OutputKind::Note => self.p.orange,
+                    // embedded files are not shown
+                    OutputKind::Data => continue,
                 };
                 let mut job = LayoutJob::default();
                 let links = self.colours.append_output(&mut job, &text, CODE, color);

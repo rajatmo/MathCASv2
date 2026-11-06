@@ -404,3 +404,17 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
 - A View menu (no Alt letter: V is Evaluation's) holds Output alignment and Magnification.
 - Test: `outputs_start_at_the_left_edge_by_default_and_switch` (typeset and linear outputs start at the left edge,
   clicks at it hit the start; Right and back re-lays out); the right-edge tests set Right explicitly.
+
+## Round 13 (nb-mat): one file per notebook (user request)
+
+- Saving embeds every picture in its output block (`mc_nbfile::embed::embed`: PNG, plus the deflated `.json`
+  description and `.scene3d` scene) instead of copying it into `<name>.files/`; nothing is deleted any more
+  (`store_images`/`remove_unreferenced` are gone; an older notebook's folder is left for the user). Opening extracts
+  the embedded files into `%TEMP%/mathcas-plots/embedded/` (content-hash names, written once; swept after 30 days
+  unused at start) and the document shows them from there, so hover read-outs and 3D rotation work from the file
+  alone. Pictures named relative to the old folder are kept by full path after a Save As. The status bar says how
+  many pictures were embedded and their size.
+- Tests: mc-nbfile `pictures_are_embedded_in_the_file_and_read_back` (round trip, siblings, cache, saving again gives
+  the same text, carried pictures kept), `an_older_notebook_with_a_sidecar_folder_is_embedded_on_save_and_the_folder_stays`;
+  mc-repl `tests/embedded.rs` (a 2D and a 3D plot through `--update`: one file in the folder, no cache path, five
+  embedded files, 312 KB, export finds both pictures, a second run writes the same text).

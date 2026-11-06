@@ -2579,6 +2579,9 @@ dependencies = [
 [[package]]
 name = "mc-nbfile"
 version = "0.2.0"
+dependencies = [
+ "miniz_oxide 0.8.9",
+]
 
 [[package]]
 name = "mc-nbmodel"
@@ -2741,6 +2744,7 @@ dependencies = [
  "mc-engine",
  "mc-kernel",
  "mc-nbexport",
+ "mc-nbfile",
  "mc-syntax",
  "winresource",
 ]

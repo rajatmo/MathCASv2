@@ -7,9 +7,7 @@
 //! (`plot-3f2a91c0d4e5.png`), and rewrites the output to the relative path; files in that folder that no output
 //! names any more are deleted. A relative path is relative to the notebook's folder, so a notebook and its sidecar
 //! folder can be moved together. Embedding pictures in the text was rejected: it destroys diffability.
-use crate::{Attrs, Notebook, OutputKind};
-use std::collections::{HashMap, HashSet};
-use std::io;
+use crate::Attrs;
 use std::path::{Path, PathBuf};
 
 /// A picture format the notebook shows.
@@ -195,156 +193,9 @@ pub fn resolve(path: &str, dir: Option<&Path>) -> PathBuf {
     }
 }
 
-/// The sidecar folder of the notebook at `notebook`: `<name>.files` next to it (`name` without `.mcn`).
-pub fn sidecar_dir(notebook: &Path) -> PathBuf {
-    let stem = notebook.file_stem().map_or_else(|| "notebook".into(), |s| s.to_string_lossy().to_string());
-    notebook.with_file_name(format!("{stem}.files"))
-}
-
-/// What saving did with the pictures.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Sidecar {
-    /// the value texts that changed: (before, after); the document should show the new paths
-    pub renamed: Vec<(String, String)>,
-    /// files copied into the sidecar folder
-    pub copied: usize,
-    /// pictures whose file was not found (their outputs are left as they are)
-    pub missing: Vec<String>,
-}
-
-/// The sidecar pass of a save, before the notebook text is written: every image value of `nb` whose file exists
-/// (relative paths are looked up in `from`, the folder the notebook was in) is copied into the sidecar folder of
-/// `to` under a content-hash name and its output line rewritten to the path relative to `to`'s folder (with `/`).
-/// Files already there with the same content are not copied again.
-pub fn store_images(nb: &mut Notebook, from: Option<&Path>, to: &Path) -> io::Result<Sidecar> {
-    let dir = sidecar_dir(to);
-    let folder = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-    let mut report = Sidecar::default();
-    // one copy per source file, however many outputs name it
-    let mut done: HashMap<String, String> = HashMap::new();
-    for cell in &mut nb.cells {
-        for block in &mut cell.outputs {
-            for line in &mut block.lines {
-                if line.kind != OutputKind::Value {
-                    continue;
-                }
-                let Some(path) = image_path(&line.text) else { continue };
-                let new = match done.get(&path) {
-                    Some(n) => n.clone(),
-                    None => {
-                        let source = resolve(&path, from);
-                        let Ok(bytes) = std::fs::read(&source) else {
-                            report.missing.push(path.clone());
-                            continue;
-                        };
-                        let name = content_name(&source, &bytes);
-                        let target = dir.join(&name);
-                        if std::fs::read(&target).map_or(true, |old| old != bytes) {
-                            std::fs::create_dir_all(&dir)?;
-                            std::fs::write(&target, &bytes)?;
-                            report.copied += 1;
-                        }
-                        copy_siblings(&source, &target, &mut report)?;
-                        let rel = format!("{folder}/{name}");
-                        done.insert(path.clone(), rel.clone());
-                        rel
-                    }
-                };
-                if new != path {
-                    let after = image_value(&new);
-                    if !report.renamed.iter().any(|(b, _)| b == &line.text) {
-                        report.renamed.push((line.text.clone(), after.clone()));
-                    }
-                    line.text = after;
-                }
-            }
-        }
-    }
-    Ok(report)
-}
-
-/// The extensions of files that travel with a picture of the same stem: a plot's description for hovering
-/// (`plot-3.json`) and its vector drawing (`plot-3.svg`).
-pub const SIBLINGS: [&str; 2] = ["json", "svg"];
-
-/// Copy the siblings of picture `source` (same stem, an extension of [`SIBLINGS`] other than its own) next to
-/// `target` under `target`'s stem, unchanged.
-fn copy_siblings(source: &Path, target: &Path, report: &mut Sidecar) -> io::Result<()> {
-    let own = source.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
-    for ext in SIBLINGS.iter().filter(|e| **e != own) {
-        let Ok(bytes) = std::fs::read(source.with_extension(ext)) else { continue };
-        let to = target.with_extension(ext);
-        if std::fs::read(&to).map_or(true, |old| old != bytes) {
-            std::fs::write(&to, &bytes)?;
-            report.copied += 1;
-        }
-    }
-    Ok(())
-}
-
-/// After the notebook text is written: delete the files in `to`'s sidecar folder that no image value of `nb` names
-/// (and the folder when it is left empty). Gives the number of files deleted.
-pub fn remove_unreferenced(nb: &Notebook, to: &Path) -> io::Result<usize> {
-    let dir = sidecar_dir(to);
-    let Ok(entries) = std::fs::read_dir(&dir) else { return Ok(0) };
-    let base = to.parent();
-    let referenced: HashSet<PathBuf> = nb
-        .cells
-        .iter()
-        .flat_map(|c| c.output_lines())
-        .filter(|l| l.kind == OutputKind::Value)
-        .filter_map(|l| image_path(&l.text))
-        .map(|p| resolve(&p, base))
-        .flat_map(|p| {
-            // a picture keeps its siblings
-            let siblings: Vec<PathBuf> = SIBLINGS.iter().map(|e| p.with_extension(e)).collect();
-            std::iter::once(p).chain(siblings)
-        })
-        .map(|p| normal(&p))
-        .collect();
-    let mut removed = 0;
-    let mut left = 0;
-    for e in entries.flatten() {
-        let p = e.path();
-        if !e.file_type().is_ok_and(|t| t.is_file()) {
-            left += 1;
-            continue;
-        }
-        if referenced.contains(&normal(&p)) {
-            left += 1;
-        } else {
-            std::fs::remove_file(&p)?;
-            removed += 1;
-        }
-    }
-    if left == 0 {
-        let _ = std::fs::remove_dir(&dir);
-    }
-    Ok(removed)
-}
-
-/// A path with `.` and `..` components folded and, on Windows, `/` and case unified, for comparing.
-fn normal(p: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
-    for c in p.components() {
-        match c {
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                out.pop();
-            }
-            c => out.push(c.as_os_str()),
-        }
-    }
-    if cfg!(windows) {
-        PathBuf::from(out.to_string_lossy().replace('/', "\\").to_lowercase())
-    } else {
-        out
-    }
-}
-
-/// The sidecar name of a picture: the first word of its file name (`plot` of `plot-1234-0.png`, else `image`), a
+/// The embedded name of a picture ([`crate::embed`]): the first word of its file name (`plot` of `plot-1234-0.png`, else `image`), a
 /// hash of its content and its extension, so equal pictures share a file and a name never changes on later saves.
-fn content_name(source: &Path, bytes: &[u8]) -> String {
+pub(crate) fn content_name(source: &Path, bytes: &[u8]) -> String {
     let stem = source.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
     let word: String = stem.chars().take_while(|c| c.is_ascii_alphabetic()).take(24).collect();
     let word = if word.is_empty() { "image".to_string() } else { word };

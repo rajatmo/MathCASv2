@@ -964,7 +964,7 @@ attrs       = { " " attr }
 attr        = name | name "=" value          (value: no spaces; `[0-9A-Za-z_.:x-]+`)
 body        = source lines (code kinds) | "# " text lines and "#" empty lines (prose kinds)
 output-block= "#% output" [ attrs ] NL { out-line }
-out-line    = "#| " print | "#= " value | "#! " failure/error | "#? " message
+out-line    = "#| " print | "#= " value | "#! " failure/error | "#? " message | "#~ " embedded data
 ```
 
 - `cell` and `input` are the same kind (`cell` stays the canonical spelling, so existing files are unchanged).
@@ -1030,13 +1030,40 @@ fn helper(x) = x^2
 - **Hand editing:** an unknown kind or a malformed attribute is reported with its line and kept as a Text cell, so a
   typo never loses content.
 
-### 7.5 Images and sidecar files
+### 7.5 Images: one file per notebook (round 13, user decision)
 
-Plot images live in the system temporary folder while a session runs. On save, every image referenced by an output is
-copied to a sidecar folder `<notebook name>.files/` next to the notebook under a content-hash name, and the output
-line is rewritten to the relative path (`#= image("cooling.files/plot-3f2a91.png")`). Unreferenced files in the sidecar
-folder are deleted on save. Opening resolves relative image paths against the notebook's folder. A missing image shows
-a placeholder frame with the path. (Embedding images as base64 lines was rejected: it destroys diffability.)
+*Replaces the sidecar folder of earlier rounds ("I don't want this contamination ... keep everything in one file").*
+
+Plot pictures live in the system temporary folder (`mathcas-plots/`) while a session runs; that folder is a cache
+only, and no saved notebook names a file in it. On save every picture an output names is **embedded in its output
+block** under a content-hash name, with the files that make it interactive:
+
+```
+#% output n=3 size=360x225
+#= image("plot-3f2a91c04b7e.png")
+#~ @plot-3f2a91c04b7e.png
+#~ iVBORw0KGgoAAAANSUhEUgAAAoAAAAGQCAYAAAA...          (base64, 100 characters a line)
+#~ @plot-3f2a91c04b7e.json deflate
+#~ eJzNWE1v2zgQvedXCDqvC1Jf...
+#~ @plot-3f2a91c04b7e.scene3d deflate
+#~ ...
+```
+
+- `#~ @name [deflate]` starts a file, the `#~` lines after it are its bytes in base64 (deflated first when marked).
+  Names are plain file names (letters, digits, `.`, `_`, `-`); anything else is ignored when reading.
+- Embedded: the PNG (already compressed), and deflated, the plot description `.json` (hover read-outs, 6) and the 3D
+  scene `.scene3d` (rotation, 6). SVG and PDF are not stored; they are made again from the scene or from the term the
+  PNG carries when the user exports.
+- Opening extracts the files into the cache (`mathcas-plots/embedded/`, written once per content hash, swept after 30
+  days unused) and shows them from there; saving embeds them again (same names, same text: diffs show only changed
+  pictures). A block carries its own files (a picture shown twice is stored twice).
+- `mc-repl --update` embeds the same way; `mc-repl --export` and File > Export read the embedded pictures.
+- Older notebooks with a `<name>.files/` folder read as before; saving embeds their pictures and leaves the folder for
+  the user to delete.
+- Every `#~` line is a comment, so the notebook still reads as a script; readers older than round 13 reject `#~`
+  lines in output blocks.
+- Size: a 2D plot adds about 90 KB (PNG in base64 plus a 2-3 KB description), a default `plot3d` about 210 KB (its
+  scene deflates from 0.9 MB to 68 KB).
 
 ## 8. Themes
 

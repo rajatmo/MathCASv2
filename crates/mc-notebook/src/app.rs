@@ -284,6 +284,8 @@ impl App {
         ctx.set_fonts(defs);
         ctx.options_mut(|o| o.zoom_with_keyboard = false);
         let settings = Settings::load();
+        // the cache of pictures read out of opened notebooks: files unused for 30 days go (on a thread of its own)
+        std::thread::spawn(|| mc_nbfile::embed::sweep_cache(&mc_nbfile::embed::cache_dir(), 30));
         let palette = settings.theme.palette(ctx.system_theme().is_some_and(|t| t == egui::Theme::Dark));
         let zoom = settings.magnification;
         let instance = crate::instance::Server::start(&ctx);

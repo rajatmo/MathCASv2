@@ -59,7 +59,10 @@ pub fn export(input_mcn: &Path, output: &Path) -> Result<(), String> {
         return Err(format!("{}: unknown export format (use .html, .htm or .pdf)", output.display()));
     }
     let text = std::fs::read_to_string(input_mcn).map_err(|e| format!("{}: {e}", input_mcn.display()))?;
-    let nb = Notebook::parse(&text).map_err(|e| format!("{}: {e}", input_mcn.display()))?;
+    let mut nb = Notebook::parse(&text).map_err(|e| format!("{}: {e}", input_mcn.display()))?;
+    // pictures embedded in the notebook are read from the cache they are written to
+    let cache = mc_nbfile::embed::cache_dir();
+    mc_nbfile::embed::extract(&mut nb, &cache).map_err(|e| format!("{}: {e}", cache.display()))?;
     let base = input_mcn.parent().unwrap_or(Path::new(""));
     let bytes = if ext == "pdf" {
         to_pdf(&nb, base).map_err(|e| format!("{}: {e}", output.display()))?

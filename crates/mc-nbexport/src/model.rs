@@ -106,6 +106,10 @@ pub(crate) fn parts(nb: &Notebook) -> Vec<Part> {
                     text.push('\n');
                     text.push_str(&l.text);
                 }
+                if first.kind == OutputKind::Data {
+                    // the bytes of an embedded picture: the value names it
+                    continue;
+                }
                 out.push(Part::Out(match first.kind {
                     OutputKind::Value => match image_path(&text) {
                         Some(path) => Out::Picture { path, size },
@@ -113,7 +117,7 @@ pub(crate) fn parts(nb: &Notebook) -> Vec<Part> {
                     },
                     OutputKind::Print => Out::Print(text),
                     OutputKind::Message => Out::Failure(text),
-                    OutputKind::Note => Out::Note(text),
+                    OutputKind::Note | OutputKind::Data => Out::Note(text),
                 }));
             }
         }

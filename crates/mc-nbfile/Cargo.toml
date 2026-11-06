@@ -9,3 +9,5 @@ publish = false
 description = "MathCAS v2 .mcn notebook files: reading, writing and atomic saving"
 
 [dependencies]
+# deflate for the descriptions embedded with pictures (MIT OR Zlib OR Apache-2.0)
+miniz_oxide = "0.8"

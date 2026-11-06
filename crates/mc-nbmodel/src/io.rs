@@ -85,6 +85,12 @@ fn generated_from_block(nb: &mut Notebook, input: CellId, block: &OutputBlock, o
             }
             OutputKind::Message => (Style::Message, None, true),
             OutputKind::Note => (Style::Message, None, false),
+            // embedded files belong to the value that names them (`mc_nbfile::embed`): extracted when the file is
+            // opened, never cells
+            OutputKind::Data => {
+                k = j;
+                continue;
+            }
         };
         let mut c = nb.new_cell(style, &text);
         c.label = label;

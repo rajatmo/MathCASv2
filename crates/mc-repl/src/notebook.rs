@@ -51,6 +51,11 @@ pub fn run(
     }
     let _ = out.flush();
     if update {
+        // the pictures go into the file itself: one file per notebook, nothing in the plots cache named
+        let missing = mc_nbfile::embed::embed(&mut nb, path.parent()).missing;
+        for m in missing {
+            let _ = writeln!(err, "{name}: picture not found: {m}");
+        }
         if let Err(e) = notebook::write_atomic(path, &nb.print()) {
             let _ = writeln!(err, "{name}: cannot write the file: {e}");
             return (READ_ERROR, false);

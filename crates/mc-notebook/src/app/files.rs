@@ -1,4 +1,4 @@
-//! Files: opening, saving (with the pictures' sidecar folder), the file dialogs, exporting a script.
+//! Files: opening and saving (pictures embedded in the file, `mc_nbfile::embed`), the file dialogs, exporting.
 use super::*;
 
 impl App {
@@ -16,7 +16,12 @@ impl App {
             }
         };
         match mc_nbfile::Notebook::read(&text) {
-            Ok((f, warnings)) => {
+            Ok((mut f, warnings)) => {
+                // pictures embedded in the file are shown from the cache they are written to
+                let cache = mc_nbfile::embed::cache_dir();
+                if let Err(e) = mc_nbfile::embed::extract(&mut f, &cache) {
+                    self.error = Some(format!("Cannot write the pictures of {} to {}: {e}", path.display(), cache.display()));
+                }
                 let zoom =
                     f.header.number::<f32>("magnification").map_or(self.settings.magnification, |m| m.clamp(0.5, 3.0));
                 let doc = Doc::new(Notebook::from_file(&f), Some(path), &self.ctx, &self.images, &self.glyphs, self.doc.view.palette.clone(), zoom);
@@ -63,19 +68,28 @@ impl App {
         } else {
             self.doc.nb.to_file()
         };
-        // the pictures go into the sidecar folder first, so the file never names one that is not there (design 7.5)
-        let side = match mc_nbfile::images::store_images(&mut f, self.doc.view.base.as_deref(), path) {
-            Ok(s) => s,
-            Err(e) => {
-                self.error = Some(format!("Cannot copy the pictures next to {}: {e}", path.display()));
-                return false;
-            }
-        };
+        // the pictures go into the file itself (design 7.5, round 13: one file per notebook); the document keeps
+        // showing them from where they are, and an older notebook's sidecar folder is left alone
+        let base = self.doc.view.base.clone();
+        // pictures named relative to the old folder (an older notebook's sidecar folder) are shown by their full
+        // path from now on, so a Save As into another folder still finds them
+        let absolute: Vec<(String, String)> = f
+            .cells
+            .iter()
+            .flat_map(|c| c.output_lines())
+            .filter(|l| l.kind == mc_nbfile::OutputKind::Value)
+            .filter_map(|l| mc_nbfile::images::image_path(&l.text))
+            .filter(|p| Path::new(p).is_relative())
+            .map(|p| {
+                let abs = mc_nbfile::images::resolve(&p, base.as_deref()).display().to_string();
+                (mc_nbfile::images::image_value(&p), mc_nbfile::images::image_value(&abs))
+            })
+            .collect();
+        let side = mc_nbfile::embed::embed(&mut f, base.as_deref());
         let text = f.print();
         match mc_nbfile::write_atomic(path, &text) {
             Ok(()) => {
-                let removed = mc_nbfile::images::remove_unreferenced(&f, path).unwrap_or(0);
-                self.doc.nb.rename_values(&side.renamed);
+                self.doc.nb.rename_values(&absolute);
                 self.doc.view.base = path.parent().map(Path::to_path_buf);
                 self.doc.nb.mark_saved();
                 if self.path().as_deref() != Some(path) {
@@ -88,8 +102,8 @@ impl App {
                 self.sync_modified();
                 self.settings.add_recent(path);
                 let mut notes = vec![];
-                if side.copied + removed > 0 {
-                    notes.push(format!("{} picture(s) copied, {removed} removed", side.copied));
+                if side.pictures > 0 {
+                    notes.push(format!("{} picture(s) embedded, {} KB", side.pictures, side.bytes.div_ceil(1024)));
                 }
                 if !side.missing.is_empty() {
                     notes.push(format!("{} picture(s) not found", side.missing.len()));
