@@ -112,3 +112,20 @@ canonical fingerprint.
 
 Commands: `mc-bench list`; `mc-bench run [--cases DIR] [--only R1,S] [--results DIR] [--grace 5s] [--mem-ceiling 4GB]
 [--reference FILE]`; `mc-bench summary FILE [--reference FILE]`.
+
+## Round 11 (release): Unix guard and third-party notices
+
+- **`guard::RlimitGuard`** (Unix, the platform guard there): the child gets a memory resource limit between `fork` and
+  `exec` (`RLIMIT_DATA` on Linux and Android: private writable mappings, heap and `mmap` included, address space
+  reserved without access excluded; `RLIMIT_AS` elsewhere), never above the hard limit the parent already has; the
+  guard reaps with `wait4` and reports `ru_maxrss` as the peak. `Container` gained `wait` (default `Child::wait`).
+  The `memcap` sample now stops at its 64 MB cap on Linux as on Windows. Dependency: `libc` 0.2 on Unix only.
+- **`notices`** (binary `mc-notices`, wrapped by `tools/notices.ps1`): `cargo metadata --filter-platform <target>`,
+  the normal-dependency graph from the packages that build the shipped binaries (`SHIPPED_BINARIES`), the licence
+  check (`spdx::ALLOWED`, per-crate `EXCEPTIONS`), and `THIRD-PARTY-NOTICES.txt`: crate table, each distinct licence
+  text once with the crates carrying it, the bundled fonts' licences (each workspace member's `fonts/` folder), and
+  `packaging/licenses/embedded-data.txt`. Crates published without licence files get the standard text of the chosen
+  licence from `packaging/licenses/`. A small JSON reader (`notices::json`) keeps the crate free of other dependencies.
+- Tests: `tests/notices.rs` runs the check and the rendering on the real workspace for the host target (CI fails on a
+  disallowed licence or a stale exception) and checks that hayro-interpret's `LAB.icc` is the CC0 profile shipped by
+  hayro-jpeg2000.

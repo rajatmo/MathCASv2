@@ -6,10 +6,10 @@
 //! for both output pipes to close, with the timeout as deadline, so it needs no polling.
 //!
 //! [`JobGuard`] (Windows) puts the child in a job object with a per-process memory limit, as `agents/guard.ps1`
-//! does, through the Windows API directly. [`PortableGuard`] works everywhere with `std` alone and enforces only the
-//! timeout; other platforms can add a container (cgroups, `setrlimit`) behind the same trait.
+//! does, through the Windows API directly. `RlimitGuard` (Unix) sets a memory resource limit in the child before
+//! `exec`. [`PortableGuard`] works everywhere with `std` alone and enforces only the timeout.
 use std::io::{self, Read, Write};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -18,6 +18,10 @@ use std::time::{Duration, Instant};
 mod windows;
 #[cfg(windows)]
 pub use windows::JobGuard;
+#[cfg(unix)]
+mod unix;
+#[cfg(unix)]
+pub use unix::RlimitGuard;
 
 /// The limits of one guarded run.
 #[derive(Clone, Copy, Debug)]
@@ -65,7 +69,9 @@ pub trait Guard {
 pub fn platform_guard() -> Box<dyn Guard> {
     #[cfg(windows)]
     return Box::new(JobGuard);
-    #[cfg(not(windows))]
+    #[cfg(unix)]
+    return Box::new(RlimitGuard);
+    #[cfg(not(any(windows, unix)))]
     return Box::new(PortableGuard);
 }
 
@@ -88,6 +94,10 @@ pub fn wait_for_release() -> io::Result<()> {
 trait Container {
     fn attach(&mut self, child: &Child) -> io::Result<()>;
     fn kill(&mut self, child: &mut Child);
+    /// Reap the process; a container may override this to collect resource usage on the way.
+    fn wait(&mut self, child: &mut Child) -> io::Result<ExitStatus> {
+        child.wait()
+    }
     fn peak_bytes(&self) -> Option<u64>;
 }
 
@@ -135,7 +145,7 @@ fn supervise(
     let mut child = cmd.spawn()?;
     if let Err(e) = container.attach(&child) {
         let _ = child.kill();
-        let _ = child.wait();
+        let _ = container.wait(&mut child);
         return Err(e);
     }
     if let Some(mut stdin) = child.stdin.take() {
@@ -159,7 +169,7 @@ fn supervise(
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
-    let status = child.wait()?;
+    let status = container.wait(&mut child)?;
     let wall = start.elapsed();
     let stdout = out.join().unwrap_or_default();
     let stderr = err.join().unwrap_or_default();

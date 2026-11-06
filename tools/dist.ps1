@@ -6,6 +6,8 @@ $root = Split-Path -Parent $PSScriptRoot
 $dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path (Split-Path -Parent $root) "dist" }
 $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path (Split-Path -Parent $root) "build\target" }
 
+# build where the binaries are copied from (the variable reaches cargo and tools\notices.ps1)
+$env:CARGO_TARGET_DIR = $targetDir
 Push-Location $root
 try {
     cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp -p mc-kernel -p mc-bench -p mc-notebook -p mc-docs
@@ -44,6 +46,8 @@ $rev = (git -C $root rev-parse --short HEAD)
 $ver = ((Select-String -Path (Join-Path $root "Cargo.toml") -Pattern '^version = "([^"]+)"' | Select-Object -First 1).Matches[0].Groups[1].Value)
 Set-Content -Path (Join-Path $dist "VERSION.txt") -Value "MathCAS v2 $ver, commit $rev, built $(Get-Date -Format s)" -Encoding utf8
 Copy-Item (Join-Path $root "LICENSE") (Join-Path $dist "LICENSE.txt") -Force
+# the third-party notices: every crate in the shipped programs with its licence text, the bundled fonts' licences
+& (Join-Path $PSScriptRoot "notices.ps1") -Out (Join-Path $dist "THIRD-PARTY-NOTICES.txt")
 Copy-Item (Join-Path $root "CHANGELOG.md") (Join-Path $dist "CHANGELOG.md") -Force
 Get-ChildItem $dist | Select-Object Name, Length
 

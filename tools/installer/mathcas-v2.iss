@@ -49,6 +49,8 @@ Name: "{group}\MathCAS v2 Documentation"; Filename: "{app}\mc-docs.exe"; Working
 Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 quick start guide"; Filename: "{app}\quickstart.pdf"
 Name: "{group}\MathCAS v2 examples"; Filename: "{app}\examples"
+Name: "{group}\MathCAS v2 licence"; Filename: "{app}\LICENSE.txt"
+Name: "{group}\MathCAS v2 third-party notices"; Filename: "{app}\THIRD-PARTY-NOTICES.txt"
 Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"
 
 [Registry]

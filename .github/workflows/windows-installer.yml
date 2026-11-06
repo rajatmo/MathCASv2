@@ -21,6 +21,8 @@ jobs:
       # the scripts' own overrides: keep their output inside the workspace
       MATHCAS_V2_DIST: ${{ github.workspace }}\dist-v2
       MATHCAS_V2_PACKAGES: ${{ github.workspace }}\dist-v2-packages
+      # the build folder inside the workspace (the scripts' default is outside the repository)
+      CARGO_TARGET_DIR: ${{ github.workspace }}\target
     steps:
       - uses: actions/checkout@v4
 

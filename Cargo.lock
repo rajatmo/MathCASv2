@@ -2282,6 +2282,9 @@ dependencies = [
 [[package]]
 name = "mc-bench"
 version = "0.1.0"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "mc-boxes"

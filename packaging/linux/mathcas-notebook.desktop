@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=MathCAS v2 Notebook
+GenericName=Computer algebra notebook
+Comment=Symbolic and numeric computation in notebooks
+Exec=mc-notebook %f
+TryExec=mc-notebook
+Icon=mathcas
+Terminal=false
+Categories=Education;Science;Math;
+MimeType=application/x-mathcas-notebook;
+Keywords=algebra;calculus;math;notebook;CAS;
+StartupWMClass=mc-notebook

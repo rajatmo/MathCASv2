@@ -1,0 +1,12 @@
+Colour profiles in the PDF reader (crates hayro-interpret and hayro-jpeg2000, by the same author):
+
+- CGATS001Compat-v2-micro.icc and ProPhoto-v2-micro.icc come from the Compact-ICC-Profiles project and are
+  available under CC0 1.0 Universal (the crates' assets/CGATS_LICENSE.txt and assets/LICENSE.txt, reproduced above).
+- LAB.icc (484 bytes, embedded by hayro-interpret) is a Lab identity profile generated with the LittleCMS library;
+  its own copyright tag reads "No copyright, use freely". hayro-jpeg2000 ships the byte-identical file and states
+  in its assets README that all of its profiles can be used under CC0 1.0 Universal, whose text is reproduced
+  above. The test the_embedded_lab_profile_is_the_cc0_one (crates/mc-bench/tests/notices.rs) checks that the two
+  files stay identical.
+
+Fonts embedded by the PDF reader (hayro-interpret's assets/*.pfb, the standard 14 PDF fonts) were extracted from
+PDFium; their BSD-style licence (assets/LICENSE_FOXIT) is reproduced above.
