@@ -118,6 +118,8 @@ pub enum Hit {
     Large(CellId, LargeAction),
     /// in the boxes of a typeset input cell ([`View::box_hit`] gives the caret position)
     Boxes(CellId),
+    /// on the slider of control `k` of a `manipulate` output
+    Control(CellId, usize),
 }
 
 /// A resize handle of a selected picture: its place on the frame, -1 (left, top), 0 (middle) or 1 (right, bottom).
@@ -188,6 +190,8 @@ enum Shown {
     Boxes,
     /// a typeset output (design 4.5, M5): one unit for the caret
     Typeset,
+    /// the sliders of a `manipulate` output (round 13)
+    Controls,
 }
 
 /// A large output as shown: the sample (or the whole text) broken into lines at the cell's width.
@@ -268,6 +272,8 @@ pub struct View {
     budgets: HashMap<CellId, usize>,
     /// whether an output is large, by its revision
     large: HashMap<CellId, (u64, bool)>,
+    /// the controls of `manipulate` outputs, by revision
+    manip: HashMap<CellId, (u64, Vec<mc_nbmodel::Control>)>,
     /// large outputs as shown
     long: HashMap<CellId, Arc<Long>>,
     /// output texts with line breaks at the cell's width: (revision, columns, text)
@@ -319,6 +325,7 @@ impl View {
             live_anchor: None,
             budgets: HashMap::new(),
             large: HashMap::new(),
+            manip: HashMap::new(),
             long: HashMap::new(),
             wrapped: HashMap::new(),
             now: 0.0,
@@ -354,6 +361,12 @@ impl View {
         }
         if mc_nbmodel::is_boxed(c) {
             return Shown::Boxes;
+        }
+        if c.style == Style::Output && !c.failure && !c.expr_view && c.text.starts_with("manipulate(") {
+            let n = self.controls_of(c).len();
+            if n > 0 {
+                return Shown::Controls;
+            }
         }
         if self.typesets(c) && (c.text.len() <= TYPESET_SYNC || self.output_ready(c)) {
             return Shown::Typeset;
@@ -681,6 +694,85 @@ impl View {
     }
 
 
+    /// The controls of a `manipulate` output (parsed once per revision).
+    fn controls_of(&mut self, c: &Cell) -> Vec<mc_nbmodel::Control> {
+        if let Some((rev, m)) = self.manip.get(&c.id) {
+            if *rev == c.rev {
+                return m.clone();
+            }
+        }
+        let m = mc_nbmodel::Manipulate::parse(&c.text).map(|m| m.controls).unwrap_or_default();
+        self.manip.insert(c.id, (c.rev, m.clone()));
+        m
+    }
+
+    /// The height of one control's row.
+    pub fn control_row(&self) -> f32 {
+        26.0 * self.magnification().max(0.5)
+    }
+
+    /// The slider track of control `k` of the `manipulate` output in cell `i`: its left and right ends (canvas x)
+    /// and its middle (canvas y).
+    pub fn control_track(&mut self, nb: &Notebook, i: usize, k: usize) -> Option<(f32, f32, f32)> {
+        let c = &nb.cells()[i];
+        let controls = self.controls_of(c);
+        let ctl = controls.get(k)?;
+        let o = self.content_origin(nb, i);
+        let (l, r) = self.content_x(c.style);
+        let m = self.magnification().max(0.5);
+        let name_w = controls.iter().map(|c| c.name.chars().count()).max().unwrap_or(1) as f32 * 8.0 * m;
+        let x0 = o.x + name_w + 14.0 * m;
+        let x1 = (x0 + 300.0 * m).min(o.x + (r - l) - 90.0 * m).max(x0 + 40.0);
+        let _ = ctl;
+        Some((x0, x1, o.y + (k as f32 + 0.5) * self.control_row()))
+    }
+
+    /// The value at canvas x `x` on the slider of control `k` (snapped to its steps).
+    pub fn control_value_at(&mut self, nb: &Notebook, i: usize, k: usize, x: f32) -> Option<f64> {
+        let (x0, x1, _) = self.control_track(nb, i, k)?;
+        let ctl = self.controls_of(&nb.cells()[i]).get(k)?.clone();
+        let t = f64::from(((x - x0) / (x1 - x0)).clamp(0.0, 1.0));
+        Some(ctl.snap(ctl.lo + t * (ctl.hi - ctl.lo)))
+    }
+
+    fn paint_controls(&mut self, ctx: &egui::Context, painter: &Painter, nb: &Notebook, i: usize, content: Pos2) {
+        let p = self.palette.clone();
+        let c = &nb.cells()[i];
+        let Some((_, values)) = nb.manipulate_of(c.id) else { return };
+        let controls = self.controls_of(c);
+        let shift = content - self.content_origin(nb, i);
+        let m = self.magnification().max(0.5);
+        let font = self.font(c);
+        let ui_font = Face::Ui.font(12.0 * m);
+        for (k, ctl) in controls.iter().enumerate() {
+            let Some((x0, x1, y)) = self.control_track(nb, i, k) else { continue };
+            let (x0, x1, y) = (x0 + shift.x, x1 + shift.x, y + shift.y);
+            let v = values.get(k).copied().unwrap_or(ctl.init);
+            let t = ((v - ctl.lo) / (ctl.hi - ctl.lo)).clamp(0.0, 1.0) as f32;
+            let name = painter.layout_no_wrap(ctl.name.clone(), font.clone(), p.text);
+            painter.galley(pos2(content.x, y - name.size().y / 2.0), name, p.text);
+            // the track, the part up to the knob in the accent colour, ticks at the steps when there are few
+            let w = (3.0 * m).round().max(2.0);
+            let track = Rect::from_min_max(pos2(x0, y - w / 2.0), pos2(x1, y + w / 2.0));
+            painter.rect_filled(track, w / 2.0, p.border);
+            let kx = x0 + t * (x1 - x0);
+            painter.rect_filled(Rect::from_min_max(track.min, pos2(kx, track.max.y)), w / 2.0, p.accent);
+            if let Some(s) = ctl.step {
+                let n = ((ctl.hi - ctl.lo) / s).round();
+                if (1.0..=40.0).contains(&n) {
+                    for j in 0..=(n as usize) {
+                        let tx = x0 + (j as f32 / n as f32) * (x1 - x0);
+                        painter.vline(tx, (y + 4.0 * m)..=(y + 7.0 * m), Stroke::new(1.0, p.border));
+                    }
+                }
+            }
+            painter.circle(pos2(kx, y), 6.5 * m, p.bg, Stroke::new(1.5 * m, p.accent));
+            let value = painter.layout_no_wrap(ctl.text(v), ui_font.clone(), p.weak);
+            painter.galley(pos2(x1 + 10.0 * m, y - value.size().y / 2.0), value, p.weak);
+        }
+        let _ = ctx;
+    }
+
     /// Row height, the summary's title height and the buttons' height of a large output.
     fn long_metrics(&self, ctx: &egui::Context, c: &Cell) -> (f32, f32, f32) {
         let font = self.font(c);
@@ -770,6 +862,7 @@ impl View {
                 title + l.rows.len() as f32 * row + buttons
             }
             Shown::Boxes | Shown::Typeset => self.box_layout(ctx, c).height,
+            Shown::Controls => self.controls_of(c).len() as f32 * self.control_row(),
         };
         let key = self.layout_key(c);
         self.laid.insert(c.id, Laid { key, height });
@@ -1020,6 +1113,10 @@ impl View {
                 let (row, _, _) = self.long_metrics(ctx, c);
                 return Some(Rect::from_min_size(o, vec2(0.0, row)));
             }
+            Shown::Controls => {
+                let o = self.content_origin(nb, i);
+                return Some(Rect::from_min_size(o, vec2(0.0, self.control_row())));
+            }
             Shown::Boxes | Shown::Typeset => {
                 let o = self.content_origin(nb, i);
                 let lay = self.box_layout(ctx, c);
@@ -1134,6 +1231,11 @@ impl View {
             }
             // typeset input and output: the caret goes between their items (NB6.4)
             Shown::Boxes | Shown::Typeset => return Hit::Boxes(c.id),
+            Shown::Controls => {
+                let k = ((p.y - origin.y) / self.control_row()).floor().max(0.0) as usize;
+                let n = self.controls_of(c).len();
+                return Hit::Control(c.id, k.min(n.saturating_sub(1)));
+            }
         }
         let g = self.galley(ctx, c);
         let cur = g.cursor_from_pos(p - origin - vec2(self.text_dx(c), 0.0));
@@ -1187,6 +1289,7 @@ impl View {
             if !matches!(shown, Shown::Text) {
                 match shown {
                     Shown::Graphic(path) => self.paint_graphic(ctx, painter, nb, i, &path, origin, &sel, time),
+                    Shown::Controls => self.paint_controls(ctx, painter, nb, i, content),
                     _ => {
                         self.paint_large(ctx, painter, c, content, clip);
                     }

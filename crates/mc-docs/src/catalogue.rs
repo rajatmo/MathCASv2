@@ -167,6 +167,7 @@ fn sources() -> Vec<(&'static str, Area, Functions)> {
         ("Distributions and statistics", Area::Data, mc_dist::FUNCTIONS),
         ("Graphics", Area::Visualisation, mc_graphics::FUNCTIONS),
         ("Plots", Area::Visualisation, mc_plot::FUNCTIONS),
+        ("Plots", Area::Visualisation, mc_kernel::front_end::FUNCTIONS),
         ("Calculus", Area::SymbolicNumeric, mc_calculus::FUNCTIONS),
         ("Polynomials", Area::SymbolicNumeric, mc_poly::FUNCTIONS),
         ("Simplification", Area::SymbolicNumeric, mc_simplify::FUNCTIONS),

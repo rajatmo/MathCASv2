@@ -937,6 +937,12 @@ demand.
   Shift held (otherwise also keep the ratio) *(guess)*. The size is stored on the output (`size=WxH`, 7.2) and kept
   across re-evaluation of the same input when the new value is also an image *(guess)*. Double-click on a resized
   image restores its natural size *(MathCAS)*.
+- **Interactive controls** *(round 13)*: an output `manipulate(expr, [a, lo, hi], [b, lo, hi, step], [[c, init], lo,
+  hi], ...)` (the kernel keeps it unevaluated, its arguments held) shows a slider per parameter with its value; the
+  result shows in an Output cell below it (marked `manipulated`). A press or drag on a slider evaluates
+  `{ let a = v; ...; expr }` in the kernel (not numbered: no labels, no `out`): one evaluation at a time, positions
+  reached meanwhile replace each other, letting go interrupts a stale evaluation. Positions are kept on the output
+  (`controls=v1:v2`), the last result in the file, so a reopened notebook shows both without a kernel.
 - **3D pictures turn** *(round 13)*: a picture whose scene travels with it (`plot-N.scene3d`, written by every 3D
   plot and shown `graphics3d` value) is drawn again from another view point on a worker thread, without evaluating:
   dragging it turns it (half a turn across its width), the wheel zooms it while it is selected (10 % a notch; the

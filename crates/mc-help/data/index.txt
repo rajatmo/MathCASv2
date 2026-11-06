@@ -424,6 +424,7 @@ x_label	visualisation	Plots	option of every plot: x_label: "text", the label und
 y_label	visualisation	Plots	option of every plot: y_label: "text", the label beside the y axis (read upwards)
 colors	visualisation	Plots	option of every plot: colors: ["#rrggbb", ...], the colour of each curve or data set in order (the default cycle after the list)
 line_style	visualisation	Plots	option of plot and joined list plots: line_style: [solid | dashed | dotted | dot_dashed, ...], one per curve in order (solid after the list)
+manipulate	visualisation	Plots	manipulate(expr, [a, lo, hi], [b, lo, hi, step], ...): expr with a slider per parameter in the notebook; held      elsewhere
 d	symbolic	Calculus	d(f, x): the derivative in x; d(f, [x, n]) the n-th; d(f, x, y) mixed; d(f, [x, y]) the gradient (a list)
 derivative	symbolic	Calculus	derivative(n)(f): the n-th derivative of the function f, written f', f'', ...; derivative(n1, ..., nk)(f) for k arguments
 integrate	symbolic	Calculus	integrate(f, x): an antiderivative in x (no constant added); integrate(f, [x, a, b]) the definite integral from a to b

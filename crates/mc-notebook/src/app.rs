@@ -111,6 +111,8 @@ enum Drag {
     Cells(egui::Pos2),
     /// resizing a picture by a handle: where the drag started (screen) and the picture's size then (screen points)
     Resize(mc_nbmodel::CellId, Handle, egui::Pos2, egui::Vec2),
+    /// moving the slider of control `k` of a `manipulate` output
+    Control(mc_nbmodel::CellId, usize),
     /// turning a 3D picture: where the drag started (screen), the view then and the picture's size (screen points)
     Rotate(mc_nbmodel::CellId, egui::Pos2, mc_graphics::view3d::View3d, egui::Vec2),
 }

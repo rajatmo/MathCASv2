@@ -8,6 +8,12 @@ use mc_engine::CoreEngine;
 /// The heads front ends handle themselves.
 pub const HELD: [&str; 1] = ["manipulate"];
 
+/// The functions of front ends, with their usage lines (for the documentation's catalogue and the help index).
+pub const FUNCTIONS: &[(&str, &str)] = &[(
+    "manipulate",
+    "manipulate(expr, [a, lo, hi], [b, lo, hi, step], ...): expr with a slider per parameter in the notebook; held      elsewhere",
+)];
+
 /// A new engine set up for front ends.
 pub fn session(config: mc_engine::EngineConfig) -> CoreEngine {
     let mut e = CoreEngine::with_config(config);

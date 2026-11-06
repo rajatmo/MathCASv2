@@ -383,6 +383,15 @@ impl App {
                         _ => None,
                     };
                 }
+                Hit::Control(id, k) => {
+                    // a press on a slider moves it there; dragging moves it on; the release lets go (round 13)
+                    if let Some(i) = self.doc.nb.index_of(id) {
+                        if let Some(v) = self.doc.view.control_value_at(&self.doc.nb, i, k, p.x) {
+                            self.run(ctx, Command::SetControl(id, k, v, false));
+                        }
+                    }
+                    self.drag = Some(Drag::Control(id, k));
+                }
                 Hit::Handle(id, h) => {
                     let rect = self.doc.nb.index_of(id).and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i));
                     let size = rect.map_or(egui::Vec2::ZERO, |r| r.size());
@@ -416,6 +425,16 @@ impl App {
                 Some(Drag::Resize(id, h, start, from)) => {
                     let size = resize(from, screen - start, h, mods.shift);
                     self.doc.view.live_size = Some((id, size));
+                }
+                Some(Drag::Control(id, k)) => {
+                    if let Some(i) = self.doc.nb.index_of(id) {
+                        if let Some(v) = self.doc.view.control_value_at(&self.doc.nb, i, k, p.x) {
+                            let now = self.doc.nb.manipulate_of(id).and_then(|(_, vs)| vs.get(k).copied());
+                            if now != Some(v) {
+                                self.run(ctx, Command::SetControl(id, k, v, false));
+                            }
+                        }
+                    }
                 }
                 Some(Drag::Rotate(id, start, from, size)) => {
                     let d = screen - start;
@@ -474,6 +493,12 @@ impl App {
                     let (w, h) = ((s.x / m).round().max(1.0) as u32, (s.y / m).round().max(1.0) as u32);
                     self.run(ctx, Command::ResizeGraphic(id, Some((w, h))));
                     self.doc.view.graphic = Some(id);
+                }
+            } else if let Some(Drag::Control(id, k)) = self.drag {
+                if let Some(i) = self.doc.nb.index_of(id) {
+                    if let Some(v) = self.doc.view.control_value_at(&self.doc.nb, i, k, p.x) {
+                        self.run(ctx, Command::SetControl(id, k, v, true));
+                    }
                 }
             } else if let Some(Drag::Rotate(id, ..)) = self.drag {
                 // the view is kept on the output (an undo unit)

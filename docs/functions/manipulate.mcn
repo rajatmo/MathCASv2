@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# manipulate
+
+#% text
+# `manipulate(expr, [a, lo, hi], ...)` shows `expr` in the notebook with a slider for each parameter; moving a slider evaluates `expr` again with the parameter at the slider's value.
+
+#% section
+# Details
+
+#% item
+# A control is `[a, lo, hi]` (continuous), `[a, lo, hi, step]` (in steps from `lo`) or `[[a, start], lo, hi]` / `[[a, start], lo, hi, step]` (starting at `start` instead of `lo`). The bounds, steps and starting values are numbers or constant expressions such as `2*pi`, `-1/2`, `sqrt(2)` or `10^-3`.
+
+#% item
+# With integer bounds and an integer step the parameter takes integer values; otherwise it takes machine reals.
+
+#% item
+# The notebook evaluates `{ let a = v; ...; expr }` for the sliders' values, so `expr` sees each parameter as a local name: a global value of the same name is not changed.
+
+#% item
+# Moving a slider evaluates while it moves: one evaluation runs at a time, positions reached meanwhile replace each other, and letting the slider go stops an evaluation of an older position.
+
+#% item
+# The positions are saved with the notebook, together with the last result, so a reopened notebook shows both without evaluating.
+
+#% item
+# The arguments are held: outside the notebook (in scripts and `mc-repl`) `manipulate(...)` stays as it is written.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A plot with a slider for the frequency (the notebook shows the slider and the plot):
+
+#% cell
+manipulate(plot(sin(a*x), [x, 0, 2*pi]), [a, 1, 5])
+#% output
+#= manipulate(plot(sin(a*x), [x, 0, 2*pi]), [a, 1, 5])
+
+#% text
+# Two parameters, one in steps of 1 starting at 3:
+
+#% cell
+manipulate(expand((x + b)^n), [[n, 3], 1, 8, 1], [b, -2, 2])
+#% output
+#= manipulate(expand((x + b)^n), [[n, 3], 1, 8, 1], [b, -2, 2])
+
+#% subsection
+# Scope
+
+#% text
+# The expression is evaluated as `{ let ...; expr }`: a global value of the parameter's name is left alone:
+
+#% cell
+a = 10;
+{ let a = 2.5; a^2 }
+#% output
+#= 6.25
+
+#% cell
+a
+#% output
+#= 10
+
+#% section
+# See also
+
+#% text
+# `plot`, `plot3d`, `table`

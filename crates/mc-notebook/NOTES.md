@@ -444,3 +444,24 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
 File > Export > HTML page / PDF document / Script: HTML and PDF through `mc_nbexport` (`to_html`, `to_pdf`) on the
 document as shown; 3D pictures that keep a view of their own are drawn from that view (scale 2) for the export.
 Self-test step `export <file>`.
+
+## Round 13 (nb-mat): interactive controls (`manipulate`)
+
+- Kernel side (`mc_kernel::front_end`, protocol only, decision nb-mat.MAN1): every front-end session (the kernel,
+  `mc-repl`, the documentation runner) holds `manipulate`'s arguments; no new protocol message: the notebook reads
+  the controls from the printed value and evaluates `{ let a = v; ...; expr }` itself (`KernelRequest::Side`: an
+  `eval` with `values: each` and no numbering). Catalogued under Plots (`front_end::FUNCTIONS`), page
+  `docs/functions/manipulate.mcn`.
+- Model (`mc_nbmodel::manip`): parsing (controls `[a, lo, hi]`, `[a, lo, hi, step]`, `[[a, init], lo, hi(, step)]`,
+  bounds as constant expressions), snapping (the step, else a thousandth of the range), positions on the output
+  (`controls=`), one evaluation at a time with only the newest waiting position kept, an interrupt for a stale one when
+  the slider is let go (`Command::SetControl(cell, k, v, done)`, not an undo unit), the result in the Output cell after
+  it (`manipulated`), asked for at the initial positions as soon as the value arrives.
+- Window: `Shown::Controls` draws a row per control (name, track filled to the knob in the accent colour, step ticks
+  when there are at most 40, the value); `Hit::Control` and `Drag::Control` move it. The cell's bracket shows the
+  running mark while its evaluation runs.
+- Measured: frames while dragging both sliders with a plot re-evaluating: median 0.33 ms, max 0.51 ms (the window's
+  own work).
+- Tests: `manip` unit tests (parsing, snapping, sources, constants), `tests/manipulate.rs` (stale positions dropped,
+  letting go interrupts), `tests/keys/manipulate.keys` (3 scripts), the self-test `tests/manipulate_selftest.rs`
+  (ignored: a window and a kernel).
