@@ -169,7 +169,7 @@ limit(abs(x)/x, x -> 0)
 #! failure(no_limit, limit, abs(x)/x)
 
 #% text
-# An oscillation without a limit, or a jump of `floor`, is not decided, and the call stays as it is:
+# An oscillation without a limit is not decided, and the call stays as it is; a jump of `floor` has one-sided limits that differ:
 
 #% cell
 limit(sin(1/x), x -> 0)
@@ -179,7 +179,7 @@ limit(sin(1/x), x -> 0)
 #% cell
 limit(floor(x), x -> 1)
 #% output
-#= limit(floor(x), x -> 1)
+#! failure(no_limit, limit, floor(x))
 
 #% section
 # See also
