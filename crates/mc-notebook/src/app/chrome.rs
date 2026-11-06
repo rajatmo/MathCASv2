@@ -127,14 +127,6 @@ impl App {
                         }
                     }
                 });
-                submenu(ui, "Magnification", |ui| {
-                    for z in ZOOMS {
-                        if ui.radio((self.doc.view.magnification() - z).abs() < 0.01, format!("{:.0} %", z * 100.0)).clicked() {
-                            self.set_zoom(z);
-                            ui.close();
-                        }
-                    }
-                });
             });
             menu_ids.push(('o', r.response.id));
             ui.menu_button("View", |ui| {

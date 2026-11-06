@@ -401,7 +401,7 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
   through `View::right_justified(&self, c)` (text anchoring `text_dx`, box layouts `align_right`, background typesetting
   jobs, picture rects and their resizing, large outputs, carets, hits, Find, plot read-outs), so both alignments share
   one code path. The switch keeps the content at the canvas's middle in place (the magnification's anchor).
-- A View menu (no Alt letter: V is Evaluation's) holds Output alignment and Magnification.
+- A View menu (no Alt letter: V is Evaluation's) holds Output alignment and Magnification (moved from Format).
 - Test: `outputs_start_at_the_left_edge_by_default_and_switch` (typeset and linear outputs start at the left edge,
   clicks at it hit the start; Right and back re-lays out); the right-edge tests set Right explicitly.
 
