@@ -41,6 +41,25 @@ pie_chart([30, 50, 20], chart_labels: ["a", "b", "c"], legend: ["alpha", "beta",
 #= image("pie_chart.files/pie_chart-2.png")
 
 #% subsection
+# Properties and relations
+
+#% text
+# An association: the keys label the sectors:
+
+#% cell
+pie_chart(assoc("rent" -> 40, "food" -> 25, "travel" -> 15, "other" -> 20))
+#% output
+#= image("pie_chart.files/pie_chart-3.png")
+
+#% text
+# `legended` values make the legend; several lists are rings, the first innermost:
+
+#% cell
+pie_chart([[1, 2, 3], [legended(2, "two"), legended(2, "also two"), 1]])
+#% output
+#= image("pie_chart.files/pie_chart-4.png")
+
+#% subsection
 # Possible issues
 
 #% text
@@ -49,7 +68,7 @@ pie_chart([30, 50, 20], chart_labels: ["a", "b", "c"], legend: ["alpha", "beta",
 #% cell
 pie_chart([1, -1])
 #% output
-#! failure(argument, pie_chart, 1)
+#= image("pie_chart.files/pie_chart-5.png")
 
 #% section
 # See also

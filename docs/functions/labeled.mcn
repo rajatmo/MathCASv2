@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# x and the label may be graphics, plots or expressions; labels take `$...$` math.
+# x may be a graphic, a plot or a string; the label may be any expression and takes `$...$` math. Around anything else (a function, data) `labeled` stays as it is: plots read it as the label of that curve or data set.
 
 #% item
 # `labeled([x1, x2, ...], [l1, l2, ...])` labels each part, in a row.
@@ -53,6 +53,17 @@ labeled([graphics(disk()), graphics(circle())], ["disk", "circle"])
 labeled(graphics(disk()), "a disk", left)
 #% output
 #= image("labeled.files/labeled-3.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Around a function or data that is not a picture, `labeled` stays as it is, so plots read it: the label goes at the end of the curve:
+
+#% cell
+plot([labeled(sin(x), "sin"), labeled(cos(x), "cos")], [x, 0, 6])
+#% output
+#= image("labeled.files/labeled-4.png")
 
 #% section
 # See also

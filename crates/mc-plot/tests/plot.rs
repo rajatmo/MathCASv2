@@ -458,7 +458,7 @@ fn histograms_and_bar_charts() {
     picture(&mut e, "bar_chart([[1, 2, 3], [2, 3, 1], [3, 1, 2], [-1, 2, 0.5]], legend: [\"x\", \"y\", \"z\"])", "bar_groups");
     for (src, want) in [
         ("histogram([])", "failure(argument, histogram, 1)"),
-        ("histogram([1, a])", "failure(argument, histogram, 1)"),
+        ("histogram([a, missing()])", "failure(argument, histogram, 1)"),
         ("histogram([1, 2], bins: 0)", "image"),
         ("histogram([1, 2], bins: [1.0e-9])", "failure(argument, histogram, 2)"),
         ("bar_chart(5)", "failure(argument, bar_chart, 1)"),

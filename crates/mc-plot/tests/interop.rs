@@ -210,10 +210,10 @@ fn graphics_written_and_read_back() {
         let g = mc_plot::import_graphics(&h, std::path::Path::new(&path)).expect("the term is embedded");
         assert_eq!(mc_syntax::Printer::new(&h).expr(g), "graphics([red, disk([0, 0], 1)], frame: true)", "{ext}");
     }
-    // a plot's own files carry its graphic too
-    let printed = eval(&mut e, "plot(x, [x, 0, 1])");
-    let path = printed.strip_prefix("image(\"").and_then(|s| s.strip_suffix("\")")).unwrap();
+    // a plot (an image of a remembered graphic) written as SVG carries its graphic too
+    let path = dir.join("p.svg").to_string_lossy().replace('\\', "/");
+    eval(&mut e, &format!("export_data(\"{path}\", show(plot(x, [x, 0, 1])))"));
     let h = mc_core::Heap::default();
-    assert!(mc_plot::import_graphics(&h, std::path::Path::new(path)).is_some());
+    assert!(mc_plot::import_graphics(&h, std::path::Path::new(&path)).is_some());
     let _ = std::fs::remove_dir_all(&dir);
 }

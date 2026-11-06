@@ -148,6 +148,49 @@ plot([x*exp(-x), d(x*exp(-x), x)], [x, 0, 6], legend: ["f", "f'"])
 #% output
 #= image("plot.files/plot-11.png")
 
+#% subsection
+# Properties and relations
+
+#% text
+# The solutions of an equation, as rules, give one curve each:
+
+#% cell
+plot(t*x /. solve(x^2 == 4, x), [t, 0, 1])
+#% output
+#= image("plot.files/plot-12.png")
+
+#% text
+# A solution of a differential equation, named in the legend:
+
+#% cell
+plot(y(t) /. n_dsolve([y'(t) == -y(t)/2, y(0) == 1], y, [t, 0, 6]), [t, 0, 6], plot_legends: automatic)
+#% output
+#= image("plot.files/plot-13.png")
+
+#% text
+# A quantity: its unit labels the axis:
+
+#% cell
+plot(quantity(9.81*t^2/2, "m"), [t, quantity(0, "s"), quantity(3, "s")])
+#% output
+#= image("plot.files/plot-14.png")
+
+#% text
+# `legended`, `labeled` and `style` around a curve give its legend entry, its label and its style:
+
+#% cell
+plot([legended(sin(x), "sine"), style(cos(x), red, dashed)], [x, 0, 2*pi])
+#% output
+#= image("plot.files/plot-15.png")
+
+#% text
+# A density of a distribution:
+
+#% cell
+plot(pdf(normal_distribution(0, 1), x), [x, -3, 3])
+#% output
+#= image("plot.files/plot-16.png")
+
 #% section
 # See also
 

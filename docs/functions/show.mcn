@@ -55,6 +55,25 @@ show(graphics(disk(), frame: true), graphics(circle([2, 0], 1)), frame: false, p
 #= image("show.files/show-3.png")
 
 #% subsection
+# Properties and relations
+
+#% text
+# Three-dimensional graphics combine with 3D plots:
+
+#% cell
+show(plot3d(x*y, [x, -1, 1], [y, -1, 1]), graphics3d([red, point_size(0.03), point([0, 0, 1])]))
+#% output
+#= image("show.files/show-4.png")
+
+#% text
+# Points placed at exact values (here a root found by `solve`) are made numbers:
+
+#% cell
+show(plot(x^3 - 2, [x, 0, 2]), graphics([red, point_size(0.02), point([x /. first(solve(x^3 == 2, x, reals)), 0])]))
+#% output
+#= image("show.files/show-5.png")
+
+#% subsection
 # Possible issues
 
 #% text

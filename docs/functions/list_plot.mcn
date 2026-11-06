@@ -146,6 +146,41 @@ export_data("squares.png", list_plot(table(k^2, k, 10)))
 #= "squares.png"
 
 #% subsection
+# Properties and relations
+
+#% text
+# `around` values are drawn with error bars, intervals as bars over the interval:
+
+#% cell
+list_plot([around(1, 0.2), around(2.2, 0.3), interval([2.5, 3.5]), around(3.8, 0.1)])
+#% output
+#= image("list_plot.files/list_plot-12.png")
+
+#% text
+# Quantities in different units are converted to the first one's, which labels the axis:
+
+#% cell
+list_plot([quantity(1, "m"), quantity(150, "cm"), quantity(2.2, "m")])
+#% output
+#= image("list_plot.files/list_plot-13.png")
+
+#% text
+# An association of data sets: the keys make the legend:
+
+#% cell
+list_plot(assoc("squares" -> range(6)^2, "cubes" -> range(6)^3/6))
+#% output
+#= image("list_plot.files/list_plot-14.png")
+
+#% text
+# A dataset with two columns: points, the columns naming the axes:
+
+#% cell
+list_plot(dataset(assoc("time" -> [0, 1, 2, 3], "height" -> [0, 4.1, 7.9, 9.6])))
+#% output
+#= image("list_plot.files/list_plot-15.png")
+
+#% subsection
 # Possible issues
 
 #% text
@@ -154,7 +189,7 @@ export_data("squares.png", list_plot(table(k^2, k, 10)))
 #% cell
 list_plot([[1, 2], [3, 4]])
 #% output
-#= image("list_plot.files/list_plot-12.png")
+#= image("list_plot.files/list_plot-16.png")
 
 #% text
 # An empty list has nothing to draw:

@@ -13,7 +13,7 @@
 # Details
 
 #% item
-# x may be a graphic, a plot or an expression.
+# x is a graphic or a plot. Around anything else (a function, data, a chart value) `legended` stays as it is: plots and charts read it as a legend entry.
 
 #% section
 # Examples
@@ -50,6 +50,17 @@ legended(graphics(circle()), ["a circle"])
 legended(show(plot(sin(x), [x, 0, 6]), plot(cos(x), [x, 0, 6])), line_legend([gray], ["waves"]))
 #% output
 #= image("legended.files/legended-3.png")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Around a function or data that is not a picture, `legended` stays as it is, so plots read it as a legend entry:
+
+#% cell
+plot([legended(x^2, "square"), legended(x^3, "cube")], [x, 0, 1])
+#% output
+#= image("legended.files/legended-4.png")
 
 #% section
 # See also

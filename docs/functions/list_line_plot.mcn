@@ -71,6 +71,17 @@ list_line_plot(table(sin(k/3), k, 40), filling: axis)
 #% output
 #= image("list_line_plot.files/list_line_plot-4.png")
 
+#% subsection
+# Properties and relations
+
+#% text
+# Data sets wrapped in `legended` or `labeled`:
+
+#% cell
+list_line_plot([legended(range(10)^0.5, "root"), labeled(log(range(10)), "log")])
+#% output
+#= image("list_line_plot.files/list_line_plot-5.png")
+
 #% section
 # See also
 

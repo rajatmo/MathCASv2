@@ -315,9 +315,6 @@ fn image<'h>(h: &'h Heap, path: &str) -> T<'h> {
     h.call(h.sym("image"), &[h.string(path)])
 }
 
-/// The longest printed term embedded in a plot's PNG and SVG files, in bytes.
-const EMBED_MAX: usize = 1 << 20;
-
 /// The formats written for every plot, in the order of [`EXTENSIONS`].
 const FORMATS: [Format; 3] = [Format::Png { scale: 1.0 }, Format::Svg, Format::Pdf];
 /// The file extensions of [`FORMATS`].
@@ -373,7 +370,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
     let text = mc_syntax::Printer::new(h).expr(g);
-    Ok(Reply::Done(match write_files(&files, &json, Some(&text)) {
+    Ok(Reply::Done(match write_files(&files, &json) {
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
             mc_graphics::compose::remember(&path, text);
@@ -406,7 +403,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     };
     let json = sidecar::json(&layout, Scale::default(), &[]);
     let text = mc_syntax::Printer::new(h).expr(g);
-    Ok(Reply::Done(match write_files(&files, &json, Some(&text)) {
+    Ok(Reply::Done(match write_files(&files, &json) {
         Ok(path) => {
             mc_graphics::compose::remember(&path, text);
             if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
@@ -482,23 +479,45 @@ fn named_solutions<'h>(h: &'h Heap, t: T<'h>, depth: usize) -> T<'h> {
 /// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
 /// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.pdf`, `.json`) in the temporary folder; gives the PNG's path
 /// with forward slashes (it prints without escapes on every system).
-/// `term`, the printed graphics term, is embedded in the PNG and the SVG (when at most [`EMBED_MAX`] bytes long), so
-/// copies of the files read back as graphics.
-fn write_files(files: &[Vec<u8>], json: &str, term: Option<&str>) -> Result<String, String> {
+fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join("mathcas-plots");
     let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // once per process: plot files left by sessions long gone are removed, so the folder does not grow forever
+    static SWEEP: std::sync::Once = std::sync::Once::new();
+    SWEEP.call_once(|| {
+        let dir = dir.clone();
+        std::thread::spawn(move || sweep(&dir, std::time::Duration::from_secs(STALE_HOURS * 3600)));
+    });
     // the siblings first: once the PNG exists, so do they
     std::fs::write(path.with_extension("json"), json).map_err(|e| e.to_string())?;
     for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
-        match term {
-            Some(t) if t.len() <= EMBED_MAX && ext != "pdf" => std::fs::write(path.with_extension(ext), roundtrip::embed(bytes.clone(), ext, t)),
-            _ => std::fs::write(path.with_extension(ext), bytes),
-        }
-        .map_err(|e| e.to_string())?;
+        std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
     }
     Ok(path.to_string_lossy().replace('\\', "/"))
+}
+
+/// Plot files older than this are removed by [`sweep`].
+const STALE_HOURS: u64 = 24;
+
+/// Remove the plot files (`plot-*.png` and their `.svg`, `.pdf`, `.json` siblings) in `dir` last written longer
+/// than `age` ago.
+pub(crate) fn sweep(dir: &std::path::Path, age: std::time::Duration) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let now = std::time::SystemTime::now();
+    for e in entries.flatten() {
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        let ours = name.starts_with("plot-") && [".png", ".svg", ".pdf", ".json"].iter().any(|x| name.ends_with(x));
+        if !ours {
+            continue;
+        }
+        let old = e.metadata().and_then(|m| m.modified()).ok().and_then(|t| now.duration_since(t).ok()).is_some_and(|d| d > age);
+        if old {
+            let _ = std::fs::remove_file(e.path());
+        }
+    }
 }
 
 /// A `graphics(...)` value as files to show: rendered like a plot (PNG with SVG and PDF siblings); gives the PNG's
@@ -509,8 +528,7 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
         return None;
     }
     let (files, layout) = mc_graphics::render_with_layout(h, t, &FORMATS, stop).ok()?;
-    let text = mc_syntax::Printer::new(h).expr(t);
-    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[]), Some(&text)).ok()?;
+    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[])).ok()?;
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
 }
@@ -1575,6 +1593,26 @@ fn axis_option(h: &Heap, v: T<'_>) -> Option<Axis> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn stale_plot_files_are_swept() {
+        let dir = std::env::temp_dir().join(format!("mc-plot-sweep-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let old = dir.join("plot-1-1.png");
+        let fresh = dir.join("plot-1-2.svg");
+        let other = dir.join("notes.txt");
+        for p in [&old, &fresh, &other] {
+            std::fs::write(p, b"x").unwrap();
+        }
+        let two_days = std::time::Duration::from_secs(48 * 3600);
+        std::fs::File::options().write(true).open(&old).unwrap().set_modified(std::time::SystemTime::now() - two_days).unwrap();
+        std::fs::File::options().write(true).open(&other).unwrap().set_modified(std::time::SystemTime::now() - two_days).unwrap();
+        super::sweep(&dir, std::time::Duration::from_secs(24 * 3600));
+        assert!(!old.exists(), "an old plot file is removed");
+        assert!(fresh.exists(), "a recent plot file stays");
+        assert!(other.exists(), "files that are not plot files stay");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]

@@ -428,7 +428,12 @@ impl<'h> B<'h> {
             s.push(self.call("absolute_point_size", &[self.h.real(point_d)]));
         }
         if !look.styles.is_empty() {
-            s.push(look.styles[k % look.styles.len()]);
+            // a list of directives is spliced in: nested in a list of its own it would end before the curve
+            let st = look.styles[k % look.styles.len()];
+            match self.h.view(st) {
+                mc_core::View::App { head, args } if head == self.sym(mc_api::names::LIST) => s.extend_from_slice(args),
+                _ => s.push(st),
+            }
         }
         s
     }
@@ -608,6 +613,18 @@ pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], span: 
 pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra: &Extra<'h>) -> T<'h> {
     let b = B { h };
     let [(x0, x1), (y0, y1)] = ranges(series, look, extra.bounds);
+    // labels at the ends of curves: room for them right of the data (unless the range is given)
+    let longest = look
+        .curve_labels
+        .iter()
+        .filter(|&&l| !matches!(h.view(l), mc_core::View::Sym(s) if h.sym_name(s) == "none"))
+        .map(|&l| match h.view(l) {
+            mc_core::View::Str(t) => t.chars().count(),
+            _ => mc_syntax::Printer::new(h).expr(l).chars().count(),
+        })
+        .max()
+        .unwrap_or(0);
+    let x1 = if longest > 0 && look.range[0][1].is_none() && !look.exact { x1 + (x1 - x0) * (0.013 * longest as f64 + 0.01).min(0.5) } else { x1 };
     let n: usize = series.iter().map(|s| s.points.len()).sum();
     let point_d = 2.0 * dot_radius(n);
     let mut content = extra.under.clone();

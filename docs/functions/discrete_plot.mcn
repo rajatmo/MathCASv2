@@ -62,6 +62,25 @@ discrete_plot(2^-k, [k, 0, 10], plot_legends: ["$2^{-k}$"])
 #% output
 #= image("discrete_plot.files/discrete_plot-4.png")
 
+#% subsection
+# Properties and relations
+
+#% text
+# Functions of integers are evaluated at exact integers:
+
+#% cell
+discrete_plot(moebius_mu(n), [n, 1, 30])
+#% output
+#= image("discrete_plot.files/discrete_plot-5.png")
+
+#% text
+# A probability mass function, with labels:
+
+#% cell
+discrete_plot([labeled(pdf(binomial_distribution(10, 0.3), k), "p = 0.3"), labeled(pdf(binomial_distribution(10, 0.6), k), "p = 0.6")], [k, 0, 10])
+#% output
+#= image("discrete_plot.files/discrete_plot-6.png")
+
 #% section
 # See also
 

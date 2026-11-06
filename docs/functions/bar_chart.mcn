@@ -57,6 +57,33 @@ bar_chart([12, 7, 9, 4], labels: ["north", "east", "south", "west"], y_label: "s
 #% output
 #= image("bar_chart.files/bar_chart-3.png")
 
+#% subsection
+# Properties and relations
+
+#% text
+# An association: the keys label the bars:
+
+#% cell
+bar_chart(assoc("north" -> 12, "south" -> 7, "east" -> 9, "west" -> 4))
+#% output
+#= image("bar_chart.files/bar_chart-4.png")
+
+#% text
+# Groups from an association of associations, with the inner keys in the legend:
+
+#% cell
+bar_chart(assoc("2024" -> assoc("a" -> 3, "b" -> 5), "2025" -> assoc("a" -> 4, "b" -> 6)), plot_legends: automatic)
+#% output
+#= image("bar_chart.files/bar_chart-5.png")
+
+#% text
+# Quantities as their magnitudes; missing values have no bar:
+
+#% cell
+bar_chart([quantity(2, "kg"), missing(), quantity(3.5, "kg")])
+#% output
+#= image("bar_chart.files/bar_chart-6.png")
+
 #% section
 # See also
 

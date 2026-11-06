@@ -54,6 +54,17 @@ list_polar_plot(table([t, t/6], t, range(0, 12, 0.1)), joined: true)
 #% output
 #= image("list_polar_plot.files/list_polar_plot-3.png")
 
+#% subsection
+# Properties and relations
+
+#% text
+# Several data sets, each in its colour:
+
+#% cell
+list_polar_plot([range(40)/10, sqrt(range(40))])
+#% output
+#= image("list_polar_plot.files/list_polar_plot-4.png")
+
 #% section
 # See also
 

@@ -9,6 +9,9 @@
 #% text
 # `histogram([data1, data2, ...])` draws the histograms of several data sets over each other, half transparent.
 
+#% text
+# `histogram(data, bins, height)` takes the bins as the option `bins` does and the height of each bar: `count`, `probability`, `pdf`, `cdf` or `cumulative_count`.
+
 #% section
 # Details
 
@@ -29,6 +32,9 @@
 
 #% subitem
 # `normalized: true` scales the bars so that their total area is 1, for comparing with a probability density.
+
+#% item
+# The data may be an association (a histogram per key, the keys in the legend) or a dataset (a histogram per column); quantities count by their magnitudes, and values that are not real numbers are left out.
 
 #% subitem
 # `colors`, `legend` and the labels work as for `plot`.
@@ -76,6 +82,30 @@ random_seed(8); histogram([random_variate(normal_distribution(0, 1), 800), rando
 random_seed(4); histogram(random_variate(exponential_distribution(1), 5000), bins: [0.25], normalized: true)
 #% output
 #= image("histogram.files/histogram-4.png")
+
+#% text
+# A density histogram and the density it estimates, in one picture:
+
+#% cell
+random_seed(2); show(histogram(random_variate(normal_distribution(0, 1), 3000), automatic, pdf), plot(pdf(normal_distribution(0, 1), x), [x, -4, 4]))
+#% output
+#= image("histogram.files/histogram-5.png")
+
+#% text
+# The heights may also be `probability`, `cdf` or `cumulative_count`:
+
+#% cell
+random_seed(2); histogram(random_variate(exponential_distribution(1), 2000), [0, 5, 0.25], cdf)
+#% output
+#= image("histogram.files/histogram-6.png")
+
+#% text
+# An association of data sets: one histogram per key, named in the legend; values that are not numbers are left out:
+
+#% cell
+histogram(assoc("before" -> [3, 4, 4, 5, 5, 5, 6, missing()], "after" -> [5, 6, 6, 7, 7, 7, 8, none]), [2, 9, 1])
+#% output
+#= image("histogram.files/histogram-7.png")
 
 #% section
 # See also
