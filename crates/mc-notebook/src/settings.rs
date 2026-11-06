@@ -49,6 +49,9 @@ pub struct Settings {
     pub caret_blink: bool,
     /// typing an opening bracket or quote inserts its closer
     pub auto_close: bool,
+    /// outputs end at the content's right edge (View > Output alignment > Right); off (the default, user
+    /// decision of round 13): they start at the left edge like inputs
+    pub outputs_right: bool,
     /// only the bundled fonts, never the system's (the same look on every system)
     pub bundled_fonts: bool,
     /// the window's last position and inner size: x, y, width, height (points)
@@ -69,6 +72,7 @@ impl Default for Settings {
             session: Session::default(),
             caret_blink: true,
             auto_close: true,
+            outputs_right: false,
             bundled_fonts: false,
             window: None,
             file: None,
@@ -108,6 +112,7 @@ impl Settings {
         s.restore_session = v.get("restore_session").and_then(Value::as_bool).unwrap_or(true);
         s.caret_blink = v.get("caret_blink").and_then(Value::as_bool).unwrap_or(true);
         s.auto_close = v.get("auto_close").and_then(Value::as_bool).unwrap_or(true);
+        s.outputs_right = v.get("output_alignment").and_then(Value::as_str) == Some("right");
         s.bundled_fonts = v.get("bundled_fonts").and_then(Value::as_bool).unwrap_or(false);
         if let Some(w) = v.get("window").and_then(Value::as_array) {
             let w: Vec<f32> = w.iter().filter_map(Value::as_f64).map(|x| x as f32).collect();
@@ -149,6 +154,7 @@ impl Settings {
             "restore_session": self.restore_session,
             "caret_blink": self.caret_blink,
             "auto_close": self.auto_close,
+            "output_alignment": if self.outputs_right { "right" } else { "left" },
             "bundled_fonts": self.bundled_fonts,
             "window": self.window,
             "session": {

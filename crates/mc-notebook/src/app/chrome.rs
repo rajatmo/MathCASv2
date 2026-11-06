@@ -137,6 +137,29 @@ impl App {
                 });
             });
             menu_ids.push(('o', r.response.id));
+            ui.menu_button("View", |ui| {
+                submenu(ui, "Output alignment", |ui| {
+                    let toggle = self.keys.chord_of(&Command::App(AppAction::ToggleOutputAlignment));
+                    for (right, name) in [(false, "Left"), (true, "Right")] {
+                        let mut b = egui::Button::image_and_text(check_mark(ui, self.settings.outputs_right == right), name);
+                        if let Some(k) = toggle.as_ref().filter(|_| self.settings.outputs_right != right) {
+                            b = b.shortcut_text(*k);
+                        }
+                        if ui.add(b).clicked() {
+                            self.set_output_alignment(right);
+                            ui.close();
+                        }
+                    }
+                });
+                submenu(ui, "Magnification", |ui| {
+                    for z in ZOOMS {
+                        if ui.radio((self.doc.view.magnification() - z).abs() < 0.01, format!("{:.0} %", z * 100.0)).clicked() {
+                            self.set_zoom(z);
+                            ui.close();
+                        }
+                    }
+                });
+            });
             let r = ui.menu_button("Cell", |ui| {
                 submenu(ui, "Cell properties", |ui| {
                     let c = self.doc.nb.current_cell().and_then(|id| self.doc.nb.cell(id)).cloned();

@@ -591,6 +591,7 @@ impl eframe::App for App {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(next + 0.005));
         }
         self.doc.view.blink = self.settings.caret_blink;
+        self.doc.view.set_outputs_right(self.settings.outputs_right);
         // the window's place, remembered for the next start
         if let Some(r) = ctx.input(|i| i.viewport().inner_rect) {
             let outer = ctx.input(|i| i.viewport().outer_rect).unwrap_or(r);

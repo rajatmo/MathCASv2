@@ -337,6 +337,7 @@ pub fn table() -> Vec<Binding> {
         ("Shift+F3", Any, C::App(AppAction::FindNext(false))),
         ("F1", Any, C::App(AppAction::Help)),
         ("F12", Any, C::App(AppAction::FullScreen)),
+        ("Ctrl+Shift+J", Any, C::App(AppAction::ToggleOutputAlignment)),
         ("Ctrl+Alt+=", Any, C::App(AppAction::Zoom(1))),
         ("Ctrl+Alt+-", Any, C::App(AppAction::Zoom(-1))),
         // the browser keys too (user request, round 13): one step of the magnification ladder; Ctrl+0 resets

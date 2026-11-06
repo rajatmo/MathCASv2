@@ -53,6 +53,7 @@ impl App {
             AppAction::ScrollLines(n) => self.doc.scroll_by += n as f32 * 20.0 * self.doc.view.zoom,
             AppAction::ScrollPages(n) => self.doc.scroll_by += n as f32 * ctx.content_rect().height() * 0.85,
             AppAction::Zoom(d) => self.step_zoom(d),
+            AppAction::ToggleOutputAlignment => self.set_output_alignment(!self.settings.outputs_right),
             AppAction::FullScreen => {
                 let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
                 ctx.send_viewport_cmd(ViewportCommand::Fullscreen(!full));
@@ -160,6 +161,28 @@ impl App {
     }
 
     /// Set the magnification (from the menus), keeping the middle of the canvas in place.
+    /// Keep the content at screen height `y` where it is while the layout changes (magnification, alignment).
+    fn hold_view(&mut self, y: f32) {
+        let screen = y - self.canvas_clip.top();
+        let canvas_y = self.doc.offset + screen;
+        let time = self.ctx.input(|i| i.time);
+        self.doc.zoom_anchor = self.cell_at_y(canvas_y).map(|cell| {
+            let r = self.doc.view.cell_rect(cell);
+            let frac = if r.height() > 0.0 { ((canvas_y - r.top()) / r.height()).clamp(0.0, 1.0) } else { 0.0 };
+            crate::zoom::Anchor { cell, frac, screen, until: time + 1.0 }
+        });
+    }
+
+    /// Outputs on the right edge (`true`) or the left (View > Output alignment, Ctrl+Shift+J): applied at once,
+    /// saved in the preferences.
+    pub(crate) fn set_output_alignment(&mut self, right: bool) {
+        self.hold_view(self.canvas_clip.center().y);
+        self.settings.outputs_right = right;
+        self.doc.view.set_outputs_right(right);
+        self.settings.save();
+        self.status = format!("Outputs on the {}", if right { "right" } else { "left" });
+    }
+
     pub(super) fn set_zoom(&mut self, z: f32) {
         self.zoom_at(z, None);
     }
@@ -173,15 +196,7 @@ impl App {
         if (z - self.doc.view.magnification()).abs() < 1e-4 {
             return;
         }
-        let y = at.filter(|y| clip.y_range().contains(*y)).unwrap_or(clip.center().y);
-        let screen = y - clip.top();
-        let canvas_y = self.doc.offset + screen;
-        let time = self.ctx.input(|i| i.time);
-        self.doc.zoom_anchor = self.cell_at_y(canvas_y).map(|cell| {
-            let r = self.doc.view.cell_rect(cell);
-            let frac = if r.height() > 0.0 { ((canvas_y - r.top()) / r.height()).clamp(0.0, 1.0) } else { 0.0 };
-            crate::zoom::Anchor { cell, frac, screen, until: time + 1.0 }
-        });
+        self.hold_view(at.filter(|y| clip.y_range().contains(*y)).unwrap_or(clip.center().y));
         self.doc.view.set_magnification(z);
         self.settings.magnification = self.doc.view.magnification();
         self.settings.save();

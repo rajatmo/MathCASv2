@@ -173,14 +173,16 @@ thickness 1 px, column pitch 7 px, hooks 3 px, the content 8 pt right of the inn
 magnification) *(spec)*.
 
 The content is **left-justified** against that edge: the styles' left margins of the table in 2.1 are taken relative to
-the Input margin (66), so Title, Section, Text and Input start at the edge and items keep their indents. **Output cells
-are right-justified** *(user decision, round nb-ui)*: every line of an output ends at the right edge of the content
+the Input margin (66), so Title, Section, Text and Input start at the edge and items keep their indents. **Output
+alignment is a setting** *(user decision, round 13)*: View > Output alignment > Left / Right (`Ctrl+Shift+J` switches,
+applied at once, saved in the preferences as `output_alignment`); the default is **Left**, where outputs start at the
+content edge like every other cell. With **Right** *(user decision, round nb-ui)* every line of an output ends at the right edge of the content
 area (the text width left of the scroll bar, which follows the window width and the magnification): each line of a
 typeset output, each row of a wrapped linear output, a picture's right edge, a large output's title, sample lines and
 buttons. Print and Message cells stay left-justified: they are program output, read as a log, and keeping them on the
 input's edge separates them from the value. An output showing its source (`Ctrl+Shift+E`) is edited text and is
 left-justified too. Brackets stay on the left. Carets, selections, hit-testing, Find, the coordinates shown over plots
-and picture resizing all use the right-justified geometry. The insertion line runs from the content edge to the right,
+and picture resizing follow the alignment in force. The insertion line runs from the content edge to the right,
 its "+" button at its right end (clear of the group brackets).
 
 Mouse on brackets:
@@ -790,7 +792,7 @@ limits of big operators beside them); outputs and DisplayFormula cells use displ
   precedence (`+ -` before `*`), never inside a token or inside a box; boxes too wide for a line break inside their
   slots (numerator and denominator wrap separately).
 - Continuation lines of inputs are indented by the bracket depth at the break (3.2); outputs' lines are not indented
-  and each ends at the cell's right edge (outputs are right-justified, 2.5).
+  and each ends at the cell's right edge when outputs are right-justified (2.5).
 - Wrapping is recomputed on window resize for the visible cells first, the rest lazily.
 
 ### 4.9 Large outputs

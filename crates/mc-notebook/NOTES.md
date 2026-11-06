@@ -391,3 +391,16 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
 - Tests: 4 unit tests in `zoom.rs` (ladder, notch and burst, touchpad accumulation, forgetting); the self-test
   `tests/zoom_selftest.rs` (ignored: opens a window) checks 100, 110, 160, 180, 150, 100, 110, 100 % and the same cell
   at the same fraction (58 at 0.672) under the pointer after every step.
+
+## Round 13 (nb-mat): output alignment, a setting (user request)
+
+- View > Output alignment > Left / Right (check marks; the other choice shows `Ctrl+Shift+J`, which switches), also in
+  the preferences ("Outputs: on the left / on the right"); saved as `output_alignment` in `notebook.json`. **The default
+  is Left** (user: "the left justification of outputs was probably better"). `View::set_outputs_right` makes every
+  layout again (galleys, wrapped outputs, large-output samples, box layouts); everything that follows the geometry goes
+  through `View::right_justified(&self, c)` (text anchoring `text_dx`, box layouts `align_right`, background typesetting
+  jobs, picture rects and their resizing, large outputs, carets, hits, Find, plot read-outs), so both alignments share
+  one code path. The switch keeps the content at the canvas's middle in place (the magnification's anchor).
+- A View menu (no Alt letter: V is Evaluation's) holds Output alignment and Magnification.
+- Test: `outputs_start_at_the_left_edge_by_default_and_switch` (typeset and linear outputs start at the left edge,
+  clicks at it hit the start; Right and back re-lays out); the right-edge tests set Right explicitly.

@@ -76,6 +76,8 @@ pub enum AppAction {
     FindNext(bool),
     /// full screen (F12)
     FullScreen,
+    /// outputs on the left or on the right edge, switched (Ctrl+Shift+J; View > Output alignment)
+    ToggleOutputAlignment,
     /// Help ▸ Find selected function (F1)
     Help,
     /// complete the name before the caret (Ctrl+K, F2)
@@ -351,6 +353,7 @@ impl Command {
                 AppAction::FindNext(true) => "find next",
                 AppAction::FindNext(false) => "find previous",
                 AppAction::FullScreen => "full screen",
+                AppAction::ToggleOutputAlignment => "output alignment: left / right",
                 AppAction::Help => "help for the selected name",
                 AppAction::Complete => "complete the name",
                 AppAction::Preferences => "preferences",

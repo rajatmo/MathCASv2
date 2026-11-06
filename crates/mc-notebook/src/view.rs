@@ -218,6 +218,8 @@ pub struct View {
     /// cell tops relative to the canvas top, and the total height
     /// measure only the cells that show (the canvas holds a magnification anchor this frame)
     pub hold: bool,
+    /// outputs end at the content's right edge (View > Output alignment)
+    outputs_right: bool,
     tops: Vec<f32>,
     heights: Vec<f32>,
     /// the scale from the styles' sizes (typographic points) to egui points: the magnification (1.0 = 100 %) times
@@ -287,6 +289,7 @@ impl View {
         View {
             laid: HashMap::new(),
             hold: false,
+            outputs_right: false,
             tops: vec![],
             heights: vec![],
             zoom: PX_PER_PT,
@@ -402,16 +405,31 @@ impl View {
         ((m[2] * self.zoom * 0.8).min(0.5 * size), (m[3] * self.zoom * 0.8).min(size / 3.0))
     }
 
-    /// Output cells are right-justified (NBUI.1): each line ends at the content's right edge. Print and Message
-    /// cells (program output, read as a log) and an output showing its source stay left-justified.
-    fn right_justified(c: &Cell) -> bool {
-        c.style == Style::Output && !c.expr_view
+    /// Output cells are right-justified when the alignment is Right (NBUI.1; View > Output alignment): each line
+    /// ends at the content's right edge. Print and Message cells (program output, read as a log) and an output
+    /// showing its source stay left-justified. With Left (the default since round 13, user decision) every cell
+    /// starts at the content's left edge.
+    fn right_justified(&self, c: &Cell) -> bool {
+        self.outputs_right && c.style == Style::Output && !c.expr_view
+    }
+
+    /// Put outputs on the right edge (`true`) or the left: every layout is made again.
+    pub fn set_outputs_right(&mut self, on: bool) {
+        if self.outputs_right == on {
+            return;
+        }
+        self.outputs_right = on;
+        self.laid.clear();
+        self.long.clear();
+        self.wrapped.clear();
+        self.boxes.clear();
+        self.pending.clear();
     }
 
     /// Where the galley of a cell shown as text is anchored, from the content's left edge: right-justified text is
     /// laid out right-aligned at the content's right edge (egui's rows then end at x = 0 of the galley).
     fn text_dx(&self, c: &Cell) -> f32 {
-        if Self::right_justified(c) {
+        if self.right_justified(c) {
             let (l, r) = self.content_x(c.style);
             r - l
         } else {
@@ -452,7 +470,7 @@ impl View {
                     text: c.text.clone(),
                     opts: self.box_options(c),
                     font: self.text_font(&ctx, c),
-                    right: Self::right_justified(c).then_some(r - l),
+                    right: self.right_justified(c).then_some(r - l),
                     reach: self.script_reach(c),
                 };
                 self.background.get_or_insert_with(|| Background::new(&ctx)).submit(job);
@@ -558,7 +576,7 @@ impl View {
         let mut lay = typeset::lay_out(&row, &opts, &font);
         let (above, below) = self.script_reach(c);
         typeset::keep_baseline(&mut lay, &font, opts.size, above, below);
-        if Self::right_justified(c) {
+        if self.right_justified(c) {
             let (l, r) = self.content_x(c.style);
             lay.align_right(r - l);
         }
@@ -642,7 +660,7 @@ impl View {
         let Shown::Graphic(path) = self.shown(c) else { return None };
         let size = self.graphic_size(c, &path, true);
         let mut o = self.content_origin(nb, i);
-        if Self::right_justified(c) {
+        if self.right_justified(c) {
             let (l, r) = self.content_x(c.style);
             o.x += (r - l - size.x).max(0.0);
             // during a resize the edge opposite the dragged handle stays where it was (within the content)
@@ -712,7 +730,7 @@ impl View {
             })
             .collect();
         // an output's buttons end at the right edge, under its right-justified sample
-        if Self::right_justified(c) {
+        if self.right_justified(c) {
             let end = out.last().map_or(0.0, |(r, _, _)| r.right());
             let dx = (self.text_dx(c) - end).max(0.0);
             for (r, _, _) in &mut out {
@@ -800,7 +818,7 @@ impl View {
         }
         job.wrap.max_width = wrap;
         job.wrap.break_anywhere = false;
-        if Self::right_justified(cell) {
+        if self.right_justified(cell) {
             // each row ends at the galley's x = 0, drawn at the content's right edge (`text_dx`)
             job.halign = egui::Align::RIGHT;
         }
@@ -1643,7 +1661,7 @@ impl View {
             format!("A very large output was generated ({} characters). Here is a sample of it:", group_digits(l.chars))
         };
         // an output's title and lines end at the right edge (NBUI.1), a print's start at the left
-        let right = Self::right_justified(c);
+        let right = self.right_justified(c);
         let (x0, align) = if right {
             (content.x + self.text_dx(c), (Align2::RIGHT_TOP, egui::Align::RIGHT))
         } else {
@@ -1958,6 +1976,47 @@ mod tests {
         );
     }
 
+    /// Outputs start at the content's left edge by default (round 13, user decision; View > Output alignment), and
+    /// the caret, hits and clicks in boxes follow; switching to Right and back lays them out again.
+    #[test]
+    fn outputs_start_at_the_left_edge_by_default_and_switch() {
+        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2 + 1\n\n\
+                    #% cell label=2\nsqrt(y)\n#% output n=2\n#| a print\n#! failure(division_by_zero)\n";
+        let nb = Notebook::parse(text).unwrap();
+        let ctx = egui::Context::default();
+        ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
+        let images = Rc::new(RefCell::new(Images::new(&ctx)));
+        let glyphs = Rc::new(RefCell::new(Glyphs::new(&ctx)));
+        let defs = mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled);
+        glyphs.borrow_mut().set_fonts(mc_ui::fonts::FontSet::new(&defs));
+        let mut view = View::new(Palette::light(), images, glyphs);
+        view.width = 700.0;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            view.update_positions(&ctx, &nb, 0.0..4000.0);
+            let (l, r) = view.content_x(Style::Output);
+            let typeset = &nb.cells()[1];
+            let lay = view.box_layout(&ctx, typeset);
+            assert!(lay.rows[0].stops[0].x < 1.0, "the first stop at the left edge: {:?}", lay.rows[0].stops[0]);
+            let o = view.content_origin(&nb, 1);
+            let (path, k) = view.box_hit(&ctx, &nb, typeset.id, pos2(o.x + 0.5, o.y + lay.baseline)).unwrap();
+            assert_eq!((path.len(), k), (0, 0));
+            let linear = &nb.cells()[4];
+            let start = view.caret_rect(&ctx, &nb, linear.id, 0).unwrap();
+            assert!((start.left() - l).abs() < 1.0, "{start:?} {l}");
+            assert_eq!(view.hit(&ctx, &nb, pos2(l + 0.5, start.center().y)), Hit::Text(linear.id, 0));
+            // Right, then Left again
+            view.set_outputs_right(true);
+            view.update_positions(&ctx, &nb, 0.0..4000.0);
+            let lay = view.box_layout(&ctx, typeset);
+            assert!((lay.lines[0].right - (r - l)).abs() < 0.5);
+            view.set_outputs_right(false);
+            view.update_positions(&ctx, &nb, 0.0..4000.0);
+            let lay = view.box_layout(&ctx, typeset);
+            assert!(lay.rows[0].stops[0].x < 1.0);
+        });
+    }
+
     /// Outputs are right-justified (NBUI.1): a typeset output's lines and a linear output's rows end at the
     /// content's right edge, and the caret, hit-testing and clicks in boxes follow; inputs stay on the left edge.
     #[test]
@@ -1973,6 +2032,7 @@ mod tests {
         glyphs.borrow_mut().set_fonts(mc_ui::fonts::FontSet::new(&defs));
         let mut view = View::new(Palette::light(), images, glyphs);
         view.width = 700.0;
+        view.set_outputs_right(true);
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
             let ctx = ui.ctx().clone();
             view.update_positions(&ctx, &nb, 0.0..4000.0);
@@ -2018,6 +2078,7 @@ mod tests {
         glyphs.borrow_mut().set_fonts(mc_ui::fonts::FontSet::new(&defs));
         let mut view = View::new(Palette::light(), images, glyphs);
         view.width = 700.0;
+        view.set_outputs_right(true);
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
             let ctx = ui.ctx().clone();
             view.update_positions(&ctx, &nb, 0.0..4000.0);

@@ -64,6 +64,13 @@ impl App {
                     });
                     ui.end_row();
 
+                    ui.label("Outputs");
+                    ui.horizontal(|ui| {
+                        changed |= ui.radio_value(&mut s.outputs_right, false, "On the left").changed();
+                        changed |= ui.radio_value(&mut s.outputs_right, true, "On the right").changed();
+                    });
+                    ui.end_row();
+
                     ui.label("Files");
                     ui.vertical(|ui| {
                         changed |= ui.checkbox(&mut s.save_without_outputs, "Save without outputs").changed();
