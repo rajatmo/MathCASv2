@@ -7,6 +7,13 @@ v2 is a new design, not a port. It has its own syntax, its own evaluation contro
 compatibility layer for other languages may come later, as a front end that translates into the core, never as the
 core's semantics.
 
+![A notebook session: exact integration, typeset input with the typesetting keys, a plot with coordinate read-outs,
+and solving an equation](docs/media/workflow.gif)
+
+*A session in the MathCAS notebook: exact integration, typeset input written with `Ctrl+6` (power) and `Ctrl+/`
+(fraction), a plot whose curve snaps to the pointer with its coordinates, and solving a cubic. Every frame is the real
+program ([MP4 version](docs/media/workflow.mp4); recorded with [tools/demo/workflow.py](tools/demo/workflow.py)).*
+
 ```text
 2^100 + 1/3                               # 3802951800684688204490109616129/3
 factor(x^4 - 1)                           # (-1 + x)*(1 + x)*(1 + x^2)
