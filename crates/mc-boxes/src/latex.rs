@@ -7,7 +7,7 @@
 //! `*` and the thin space of output products become a space, `×` `\times`. A grid between square brackets is a
 //! `bmatrix` (parentheses: `pmatrix`). The conventions are the common ones of mathematical writing in LaTeX (the
 //! amsmath user's guide for the matrix environments and `\operatorname`).
-use crate::tree::{BigOp, Item, Node, Row};
+use crate::tree::{BigOp, Item, Node, Row, Side};
 
 /// The LaTeX (math mode, without delimiters) of a row.
 pub fn to_latex(row: &Row) -> String {
@@ -400,6 +400,37 @@ fn write_node(n: &Node, out: &mut String, depth: usize) {
             out.push_str("\\text{[");
             out.push_str(&text_escape(path));
             out.push_str("]}");
+        }
+        Node::Labeled { value, label, side, .. } => {
+            // the label as upright text (a legend's entries one after the other), its swatches left out
+            let mut text = String::new();
+            for it in &label.0 {
+                match it {
+                    Item::Char(c) if crate::math::is_swatch(*c) => {}
+                    Item::Char('\n') => text.push_str("; "),
+                    Item::Char(c) => text.push(*c),
+                    _ => {}
+                }
+            }
+            let lbl = format!("\\text{{{}}}", text_escape(text.trim()));
+            match side {
+                Side::Below | Side::Above => {
+                    out.push_str(if *side == Side::Below { "\\underset{" } else { "\\overset{" });
+                    out.push_str(&lbl);
+                    out.push('}');
+                    group(value, out, depth);
+                }
+                Side::Left => {
+                    out.push_str(&lbl);
+                    out.push_str("\\quad ");
+                    write_row(value, out, depth + 1);
+                }
+                Side::Right => {
+                    write_row(value, out, depth + 1);
+                    out.push_str("\\quad ");
+                    out.push_str(&lbl);
+                }
+            }
         }
     }
 }

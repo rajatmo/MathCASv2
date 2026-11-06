@@ -138,6 +138,35 @@ pub enum Node {
         /// the path as written in the notebook (relative to it)
         path: String,
     },
+    /// a value shown with a label (typeset output of `labeled(x, l)` and `legended(x, l)`, round 13): the value as
+    /// typeset, the label as plain text at `side` (a legend's entries one per line, each after its swatch); made by
+    /// [`crate::math_text`] only, never by editing. Its linear and canonical text is the printed `text` (no box
+    /// marks: it reads back as the call).
+    Labeled {
+        /// the value
+        value: Row,
+        /// the label's characters (strings without quotes); a legend's entries separated by new lines
+        label: Row,
+        /// where the label is drawn
+        side: Side,
+        /// the swatch characters of a legend in the label row: (item index, sRGB colour)
+        swatches: Vec<(usize, [u8; 3])>,
+        /// the printed text of the whole call
+        text: String,
+    },
+}
+
+/// Where a label goes around its value ([`Node::Labeled`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Side {
+    /// under the value, centred (the default of `labeled`)
+    Below,
+    /// over the value, centred
+    Above,
+    /// before the value, on its baseline
+    Left,
+    /// after the value (legends): on its baseline, or a legend of several entries centred on the value
+    Right,
 }
 
 /// One step of a path from a root row to a nested row: the item index in the current row and the slot index (in
@@ -275,6 +304,7 @@ impl Node {
                 _ => std::iter::once(var).chain(lower.iter()).chain(upper.iter()).chain(std::iter::once(body)).collect(),
             },
             Node::Graphic { .. } => vec![],
+            Node::Labeled { value, label, .. } => vec![value, label],
         }
     }
 
@@ -298,6 +328,7 @@ impl Node {
                     .collect(),
             },
             Node::Graphic { .. } => vec![],
+            Node::Labeled { value, label, .. } => vec![value, label],
         }
     }
 
@@ -348,7 +379,8 @@ impl Node {
 
 /// The compact notation used by tests and debugging (design 08, section 4.2's tables): `(N/D)`, `(B^E)`,
 /// `(B_S)`, `√(X)` or `√[n](X)`, `(B over O)`, `(B under U)`, `(B under U over O)`, `grid[[a,b],[c,d]]`,
-/// `∑[k=a..b](f)` (big operators with their slots), `image(path)`; placeholders print `□`.
+/// `∑[k=a..b](f)` (big operators with their slots), `image(path)`, `(V label below L)` (also `above`, `left`,
+/// `right`); placeholders print `□`.
 pub fn notation(row: &Row) -> String {
     let mut s = String::new();
     write_notation(row, &mut s, &mut |_, _| {});
@@ -464,6 +496,18 @@ fn notation_row(row: &Row, out: &mut String, mark: &mut dyn FnMut(&mut String, P
                     }
                     Node::Graphic { path: p } => {
                         let _ = write!(out, "image({p})");
+                    }
+                    Node::Labeled { side, .. } => {
+                        out.push('(');
+                        slot(0, out, mark);
+                        out.push_str(match side {
+                            Side::Below => " label below ",
+                            Side::Above => " label above ",
+                            Side::Left => " label left ",
+                            Side::Right => " label right ",
+                        });
+                        slot(1, out, mark);
+                        out.push(')');
                     }
                 }
             }

@@ -32,9 +32,9 @@ pub use canonical::{from_text, to_text, to_text_mapped, TextMap};
 pub use edit::{AliasMark, AliasOutcome, Caret, Editor, Structure};
 pub use latex::to_latex;
 pub use linear::linear_text;
-pub use math::{has_boxes, linear_segments, math_text, restrict};
+pub use math::{has_boxes, label_rows, linear_segments, math_text, restrict, LabelRow};
 pub use printed::{
     output_input_boxes, output_input_text, typeset_input, typeset_output, typeset_output_with, OutputOptions, SourceMap,
     Typeset, MATRIX_MAX,
 };
-pub use tree::{notation, BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
+pub use tree::{notation, BigOp, Item, Node, Row, RowPath, Side, Step, MAX_NESTING};

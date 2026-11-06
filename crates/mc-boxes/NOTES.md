@@ -166,3 +166,35 @@ read canonical text 6.6 us.
   factor's `*` stands for its own byte), and turns `*` into a thin space before a name or a box (`thin_products`).
   Slots are built from pieces (text ranges, added characters with the span they stand for, nested boxes).
   `linear_segments(canonical)` gives a cell's linear text with the canonical range of each top-level item (Find).
+
+## Round 13 (nb-mat): labeled and legended values
+
+- New box `Node::Labeled { value, label, side: Side::{Below, Above, Left, Right}, swatches: Vec<(usize, [u8; 3])>,
+  text }` (slots: value 0, label 1), made only by `math_text`: an output that is `labeled(x, l)`,
+  `labeled(x, l, side)` (`top`/`above`, `bottom`/`below`, `left`/`before`, `right`/`after`, alone or in a list of
+  one) or `legended(x, l)` (a label, a list of labels, `line_legend` / `swatch_legend` / `point_legend([colours],
+  [labels])`), or a list with such calls among its elements (gap G80). The label row holds the label's characters (a
+  string without quotes, escapes `\"`, `\`, `\n`, `\t` read; a raw string or TeX between `$` as written; a short
+  term without calls or lists as printed); a legend's entries one per line, each after its swatch characters
+  (`━━`, `■`, `●`) when its colour reads (named colours as the graphics package has them, `rgb_color`, `hue`,
+  `gray_level`, `"#rrggbb"` with number components). Every other form, a picture value, a value over 20,000 bytes
+  or a call that is not the output or a top-level list element stays text.
+- The source map: the box stands for the whole call, the value slot's items for the value's bytes, each label
+  character for its bytes inside the quotes (an escape for its two), a swatch for its colour's text, a line break of
+  a legend for the separator between entries.
+- Linear text, canonical text (no box marks: it reads back as the call), `restrict` and `output_input_boxes` give
+  the printed call; LaTeX `\underset{\text{l}}{x}` / `\overset`, `\text{l}\quad x`, `x\quad\text{l}`.
+- Layout (`Engine::labeled`): the label at text size (not script size) without wrapping, below or above the value
+  centred (gap 0.3 em), before or after it on the value's baseline (gap 1 em); a label of several lines beside the
+  value (a legend) is centred on the value's middle; the value keeps its baseline and wraps in the width the label
+  leaves (at least 40 %).
+- `label_rows(&Row) -> Vec<LabelRow { path, swatches }>`: the label rows of a tree, for a painter's colours.
+- nb-mat: labels are drawn at the size of the text, as the graphics package's layout of the same terms does
+  (`mc_graphics::compose::shown_layout`): a label is read as text, and a script-size caption in the code font is
+  hard to read; the colour (the painter's) sets it apart.
+- nb-mat: swatches are characters of the label row (`━`, `■`, `●` are in the bundled mono font), not rules: they
+  take part in the source map, selection and copying like any character, and the painter colours them through the
+  per-row colour table it already has for typeset input; `Draw` is unchanged (other crates match on it).
+- Tests: unit `labeled_values_draw_their_labels`, `unknown_label_forms_stay_as_printed`,
+  `legend_swatches_have_their_colours`, `a_labeled_value_maps_to_its_bytes`, `a_labeled_value_reads_back_as_printed`,
+  `labels_are_placed_around_the_value`.

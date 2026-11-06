@@ -1486,7 +1486,11 @@ impl View {
                 painter.rect_filled(r.translate(content.to_vec2()), 0.0, p.text_selection());
             }
         }
-        let colours = if output || c.failure { None } else { Some(self.box_colours(c, &lay)) };
+        let colours = match (output, c.failure) {
+            (_, true) => None,
+            (true, false) => self.label_colours(c, &lay),
+            (false, false) => Some(self.box_colours(c, &lay)),
+        };
         let mut ink = typeset::Ink::new(&p, lk.color, lk.face);
         ink.colours = colours.as_deref().map(|v| v.as_slice());
         typeset::paint(painter, &mut self.glyphs.borrow_mut(), &lay, content, clip, &ink);
@@ -1563,6 +1567,44 @@ impl View {
         let v = Arc::new(table);
         self.box_colours.insert(c.id, (key, v.clone()));
         v
+    }
+
+    /// The colours of a typeset output's labels and legends (round 13), per layout row and item: label rows in the
+    /// theme's label colour, swatches in their own; `None` for an output without labels (all in its text colour).
+    fn label_colours(&mut self, c: &Cell, lay: &Layout) -> Option<Arc<Vec<Vec<Color32>>>> {
+        if !(c.text.contains("labeled(") || c.text.contains("legended(")) {
+            return None;
+        }
+        let key = (c.rev, 0, self.palette.dark, self.box_key(c).1);
+        if let Some((k, v)) = self.box_colours.get(&c.id) {
+            if *k == key {
+                return (!v.is_empty()).then(|| v.clone());
+            }
+        }
+        let labels = mc_boxes::label_rows(&mc_boxes::math_text(&c.text).row);
+        let muted = self.palette.label();
+        let table: Vec<Vec<Color32>> = if labels.is_empty() {
+            vec![]
+        } else {
+            lay.rows
+                .iter()
+                .map(|r| match labels.iter().find(|l| l.path == r.path) {
+                    Some(l) => {
+                        let mut v = vec![muted; r.stops.len().saturating_sub(1)];
+                        for &(k, [red, green, blue]) in &l.swatches {
+                            if let Some(slot) = v.get_mut(k) {
+                                *slot = Color32::from_rgb(red, green, blue);
+                            }
+                        }
+                        v
+                    }
+                    None => vec![],
+                })
+                .collect()
+        };
+        let v = Arc::new(table);
+        self.box_colours.insert(c.id, (key, v.clone()));
+        (!v.is_empty()).then_some(v)
     }
 
     /// The caret of a typeset output (content coordinates): before its first line, or after its last.
@@ -1955,6 +1997,68 @@ mod tests {
             assert!((view.caret_rect(&ctx, &nb, nb.cells()[3].id, 0).unwrap().left() - l).abs() < 1.0);
             // x positions of Up and Down are content-relative for both
             assert!((view.x_of(&ctx, linear, linear.text.len()) - (r - l)).abs() < 1.0);
+        });
+    }
+
+    /// Round 13 (G80): a labeled output is right-justified as a whole with its label under the value, the label row
+    /// drawn in the label colour and a legend's swatches in theirs; a click on the value lands in the value.
+    #[test]
+    fn labeled_outputs_draw_their_labels_at_the_right_edge() {
+        let text = "#! mathcas 2 notebook\n\n#% cell label=1\nl\n#% output n=1\n#= labeled(x^2 + 1, \"energy\")\n\n\
+                    #% cell label=2\nm\n#% output n=2\n#= legended(sin(x), line_legend([red, blue], [\"a\", \"b\"]))\n";
+        let nb = Notebook::parse(text).unwrap();
+        let ctx = egui::Context::default();
+        ctx.set_fonts(mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled));
+        let images = Rc::new(RefCell::new(Images::new(&ctx)));
+        let glyphs = Rc::new(RefCell::new(Glyphs::new(&ctx)));
+        let defs = mc_ui::fonts::definitions(mc_ui::fonts::Source::Bundled);
+        glyphs.borrow_mut().set_fonts(mc_ui::fonts::FontSet::new(&defs));
+        let mut view = View::new(Palette::light(), images, glyphs);
+        view.width = 700.0;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let ctx = ui.ctx().clone();
+            view.update_positions(&ctx, &nb, 0.0..4000.0);
+            let (l, r) = view.content_x(Style::Output);
+            let out = &nb.cells()[1];
+            let lay = view.box_layout(&ctx, out);
+            // one line holding the labeled box, ending at the right edge; the label below the value's baseline
+            assert_eq!(lay.lines.len(), 1);
+            assert!((lay.lines[0].right - (r - l)).abs() < 0.5, "{:?} {}", lay.lines, r - l);
+            let char_at = |ch: char| {
+                lay.items
+                    .iter()
+                    .find_map(|d| match d {
+                        mc_boxes::layout::Draw::Char { c, x, y, .. } if *c == ch => Some((*x, *y)),
+                        _ => None,
+                    })
+                    .unwrap()
+            };
+            let (_, vy) = char_at('x');
+            let (ex, ey) = char_at('e');
+            assert!(ey > vy + 10.0 && ex > (r - l) / 2.0, "{vy} {ex},{ey}");
+            assert!((lay.baseline - vy).abs() < 0.5, "the value's baseline is the output's");
+            // the label row in the label colour; the value's rows in the output's colour
+            let colours = view.label_colours(out, &lay).expect("label colours");
+            let label = lay.rows.iter().position(|g| g.path == [mc_boxes::Step { item: 0, slot: 1 }]).unwrap();
+            assert_eq!(colours[label].len(), "energy".len());
+            assert!(colours[label].iter().all(|&c| c == Palette::light().label()));
+            assert!(colours[0].is_empty());
+            // a click on the value's `x` puts the box caret into the value
+            let o = view.content_origin(&nb, 1);
+            let (vx, _) = char_at('x');
+            let (path, _) = view.box_hit(&ctx, &nb, out.id, pos2(o.x + vx + 1.0, o.y + vy - 3.0)).unwrap();
+            assert_eq!(path.first(), Some(&mc_boxes::Step { item: 0, slot: 0 }));
+            // the legend: swatches in their colours, entries in the label colour
+            let leg = &nb.cells()[3];
+            let lay = view.box_layout(&ctx, leg);
+            let colours = view.label_colours(leg, &lay).expect("legend colours");
+            let label = lay.rows.iter().position(|g| g.path == [mc_boxes::Step { item: 0, slot: 1 }]).unwrap();
+            let row = &colours[label];
+            assert_eq!(row[0], Color32::from_rgb(255, 0, 0));
+            assert_eq!(row[6], Color32::from_rgb(0, 0, 255));
+            assert_eq!(row[3], Palette::light().label());
+            // an output without labels keeps its one colour
+            assert!(view.label_colours(&nb.cells()[0], &lay).is_none());
         });
     }
 }

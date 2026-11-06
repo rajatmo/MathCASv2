@@ -119,6 +119,11 @@ fn write_node(n: &Node, out: &mut String) {
             mc_syntax::string_literal(path, &mut lit);
             format!("(image({lit}))")
         }
+        Node::Labeled { text, .. } => {
+            // no box marks: the printed call reads back as itself
+            out.push_str(text);
+            return;
+        }
     };
     out.push('(');
     out.push_str(&body);
@@ -222,6 +227,10 @@ fn write_row_mapped(row: &Row, path: &mut RowPath, out: &mut String, map: &mut T
 
 /// [`write_node`] with the places of the slots' items recorded: the same text, written piece by piece.
 fn write_node_mapped(n: &Node, item: usize, path: &mut RowPath, out: &mut String, map: &mut TextMap) {
+    if let Node::Labeled { text, .. } = n {
+        out.push_str(text);
+        return;
+    }
     let slots = n.slots();
     // a slot's text at the end of `out`, in one more pair of parentheses when `wrap` says so
     let mut slot = |r: &Row, wrap: Option<Wrap>, out: &mut String, map: &mut TextMap| {
@@ -350,6 +359,8 @@ fn write_node_mapped(n: &Node, item: usize, path: &mut RowPath, out: &mut String
             out.push_str(&lit);
             out.push(')');
         }
+        // written before the match
+        Node::Labeled { .. } => {}
     }
     out.push_str("))");
 }

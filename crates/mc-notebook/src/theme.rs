@@ -173,6 +173,12 @@ impl Palette {
         }
     }
 
+    /// The labels and legends drawn around typeset values (`labeled`, `legended`; round 13): weak text, so that
+    /// the value reads first and the label as its caption.
+    pub fn label(&self) -> Color32 {
+        self.weak
+    }
+
     /// The Code cell background: panel at 50 % over the background.
     pub fn code_bg(&self) -> Color32 {
         lerp(self.bg, self.panel, 0.5)

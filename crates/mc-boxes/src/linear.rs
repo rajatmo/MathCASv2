@@ -132,6 +132,8 @@ fn node(n: &Node) -> (String, Form) {
             mc_syntax::string_literal(path, &mut lit);
             call("image", vec![lit])
         }
+        // the printed call it was read from
+        Node::Labeled { text, .. } => (text.clone(), Form::Atom),
     }
 }
 

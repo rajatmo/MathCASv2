@@ -11,11 +11,18 @@
 //! or a box: `3*x^2` is 3x²), kept between numbers (`2*3`) and before a parenthesis. Every item still maps back to
 //! the bytes it stands for ([`SourceMap`]), so carets, selections, copying and Find work on the printed text.
 //!
+//! A value shown with a label (round 13, gap G80): an output that is a `labeled(x, l)` or `legended(x, l)` call, or
+//! a list of such calls among other elements, draws each call as a [`Node::Labeled`]: `x` typeset as above, the
+//! label as its characters (a string without its quotes) below it or at the side the call names, a legend at the
+//! right with a coloured swatch before each entry of `line_legend` / `swatch_legend` / `point_legend`. The box
+//! stands for the whole call's bytes, its value slot for the value's, the label's characters for their own (a swatch
+//! for its colour's), so selecting and copying work as for any output. Forms it does not know stay text.
+//!
 //! [`restrict`] turns any box tree into one with only those three boxes (older typeset notebooks): every other box
 //! becomes its linear text.
 use crate::linear::linear_text;
 use crate::printed::{SourceMap, Typeset};
-use crate::tree::{Item, Node, Row};
+use crate::tree::{Item, Node, Row, RowPath, Side, Step};
 use mc_syntax::ast::{Expr, ExprKind, MulOp, Stmt, StmtKind};
 use std::collections::HashMap;
 use std::ops::Range;
@@ -26,6 +33,17 @@ struct Construct {
     kind: Kind,
     whole: Range<usize>,
     slots: Vec<Vec<Piece>>,
+    /// the label of a [`Kind::Labeled`] (its value is the one slot)
+    label: Option<Box<LabelSpec>>,
+}
+
+/// The label of a `labeled` / `legended` call as drawn: its characters with the bytes each stands for, its side,
+/// and which characters are swatches of which colour.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct LabelSpec {
+    side: Side,
+    chars: Vec<(char, Range<usize>)>,
+    swatches: Vec<(usize, [u8; 3])>,
 }
 
 /// A part of a slot: a stretch of the text (built with the constructs inside it), a character the drawing adds (a
@@ -42,11 +60,17 @@ enum Kind {
     Sqrt,
     Fraction,
     Power,
+    Labeled,
 }
 
 impl Construct {
     fn plain(kind: Kind, whole: Range<usize>, slots: Vec<Range<usize>>) -> Construct {
-        Construct { kind, whole, slots: slots.into_iter().map(|s| vec![Piece::Text(s)]).collect() }
+        Construct { kind, whole, slots: slots.into_iter().map(|s| vec![Piece::Text(s)]).collect(), label: None }
+    }
+
+    /// A construct of `kind` with these slots.
+    fn of(kind: Kind, whole: Range<usize>, slots: Vec<Vec<Piece>>) -> Construct {
+        Construct { kind, whole, slots, label: None }
     }
 
     /// Slots that would draw nothing (a construct is kept only when every slot has something).
@@ -69,6 +93,7 @@ pub fn math_text(text: &str) -> Typeset {
             constructs(text, e, &mut found);
             children(e, &mut stack);
         }
+        found.extend(labeled_calls(text, &parsed.program.stmts));
     }
     // the constructs by their start, longest first (an enclosing fraction before the one in its numerator)
     let mut by_start: HashMap<usize, Vec<Construct>> = HashMap::new();
@@ -110,12 +135,26 @@ fn build(text: &str, range: Range<usize>, at: &HashMap<usize, Vec<Construct>>, d
 
 /// Append construct `c` as a box item.
 fn push_box(text: &str, c: &Construct, at: &HashMap<usize, Vec<Construct>>, depth: usize, items: &mut Vec<Item>, map: &mut SourceMap) {
-    let slots: Vec<(Row, SourceMap)> = c.slots.iter().map(|s| build_pieces(text, s, at, depth + 1)).collect();
+    let mut slots: Vec<(Row, SourceMap)> = c.slots.iter().map(|s| build_pieces(text, s, at, depth + 1)).collect();
+    if let Some(l) = &c.label {
+        // the label's characters as they are (no products made thin, no boxes)
+        let row = Row(l.chars.iter().map(|(ch, _)| Item::Char(*ch)).collect());
+        let spans = l.chars.iter().map(|(_, r)| r.clone()).collect();
+        slots.push((row, SourceMap { spans, boxes: HashMap::new() }));
+    }
     let mut rows = slots.iter().map(|(r, _)| r.clone());
-    let node = match c.kind {
-        Kind::Sqrt => Node::Radical { radicand: rows.next().unwrap_or_default(), index: None },
-        Kind::Fraction => Node::Fraction { num: rows.next().unwrap_or_default(), den: rows.next().unwrap_or_default() },
-        Kind::Power => Node::Superscript { base: rows.next().unwrap_or_default(), exp: rows.next().unwrap_or_default() },
+    let mut next = || rows.next().unwrap_or_default();
+    let node = match (c.kind, &c.label) {
+        (Kind::Sqrt, _) => Node::Radical { radicand: next(), index: None },
+        (Kind::Fraction, _) => Node::Fraction { num: next(), den: next() },
+        (Kind::Labeled, Some(l)) => Node::Labeled {
+            value: next(),
+            label: next(),
+            side: l.side,
+            swatches: l.swatches.clone(),
+            text: text.get(c.whole.clone()).unwrap_or("").to_string(),
+        },
+        (Kind::Power | Kind::Labeled, _) => Node::Superscript { base: next(), exp: next() },
     };
     map.boxes.insert(items.len(), slots.into_iter().map(|(_, m)| m).collect());
     map.spans.push(c.whole.clone());
@@ -237,17 +276,17 @@ fn power(text: &str, p: &PowParts) -> Construct {
     let root = || Construct::plain(Kind::Sqrt, whole.clone(), vec![p.inner.clone()]);
     match e {
         "1/2" => root(),
-        "-1/2" => Construct {
-            kind: Kind::Fraction,
-            whole: whole.clone(),
-            slots: vec![vec![Piece::Sym('1', whole.clone())], vec![Piece::Box(root())]],
-        },
+        "-1/2" => Construct::of(
+            Kind::Fraction,
+            whole.clone(),
+            vec![vec![Piece::Sym('1', whole.clone())], vec![Piece::Box(root())]],
+        ),
         _ => match negative_integer(text, &p.exp) {
-            Some(mag) => Construct {
-                kind: Kind::Fraction,
-                whole: whole.clone(),
-                slots: vec![vec![Piece::Sym('1', whole.clone())], vec![positive_power(text, p, &mag)]],
-            },
+            Some(mag) => Construct::of(
+                Kind::Fraction,
+                whole.clone(),
+                vec![vec![Piece::Sym('1', whole.clone())], vec![positive_power(text, p, &mag)]],
+            ),
             None => Construct::plain(Kind::Power, whole, vec![p.base.clone(), p.exp.clone()]),
         },
     }
@@ -373,7 +412,7 @@ fn ratio(text: &str, factors: &[(MulOp, Expr)]) -> Option<Construct> {
     if num.is_empty() {
         num.push(Piece::Sym('1', whole.clone()));
     }
-    Some(Construct { kind: Kind::Fraction, whole, slots: vec![num, den] })
+    Some(Construct::of(Kind::Fraction, whole, vec![num, den]))
 }
 
 /// A factor `base^-n`: its parts and the range of `n`.
@@ -503,6 +542,322 @@ fn matching_back(text: &str, close: usize) -> Option<usize> {
         }
     }
     None
+}
+
+// ---- labeled and legended values ----
+
+/// The longest value text drawn with its label (a longer value is shown as printed: a box cannot break across the
+/// lines of its row, and a value this long reads better wrapped in the output's flow).
+const LABELED_VALUE_MAX: usize = 20_000;
+/// The longest label that is not a string (a name, a number, a short formula) drawn as a label.
+const LABEL_TERM_MAX: usize = 100;
+
+/// The swatch characters of legends: a short line (`line_legend`), a square (`swatch_legend`), a dot
+/// (`point_legend`).
+const LINE_SWATCH: &str = "━━";
+const SQUARE_SWATCH: &str = "■";
+const POINT_SWATCH: &str = "●";
+
+/// Whether `c` is drawn as a legend's swatch.
+pub(crate) fn is_swatch(c: char) -> bool {
+    matches!(c, '━' | '■' | '●')
+}
+
+/// The `labeled` / `legended` calls of an output drawn with their labels: the output itself, or the elements of an
+/// output that is a list.
+fn labeled_calls(text: &str, stmts: &[Stmt]) -> Vec<Construct> {
+    let [s] = stmts else { return vec![] };
+    let StmtKind::Expr(e) = &s.kind else { return vec![] };
+    match &e.kind {
+        ExprKind::List(v) => v.iter().filter_map(|x| labeled_call(text, x)).collect(),
+        _ => labeled_call(text, e).into_iter().collect(),
+    }
+}
+
+/// `e` as a labeled value: `labeled(x, l)`, `labeled(x, l, side)` (a side name or a list of one),
+/// `legended(x, l)` with a label, a list of labels or `line_legend([colours], [labels])` (also `swatch_legend`,
+/// `point_legend`). Named arguments (options) are not drawn. `None` for any other form.
+fn labeled_call(text: &str, e: &Expr) -> Option<Construct> {
+    let ExprKind::Call(f, args) = &e.kind else { return None };
+    let ExprKind::Name(name) = &f.kind else { return None };
+    let pos: Vec<&Expr> = args.iter().filter(|a| a.name.is_none()).map(|a| &a.value).collect();
+    let value = *pos.first()?;
+    let v = trim(text, value.span.start as usize..value.span.end as usize);
+    if v.is_empty() || v.len() > LABELED_VALUE_MAX || is_picture(value) {
+        return None;
+    }
+    let (side, chars, swatches) = match (name.as_str(), pos.as_slice()) {
+        ("labeled", [_, l]) => (Side::Below, label_chars(text, l)?, vec![]),
+        ("labeled", [_, l, at]) => (side_of(at)?, label_chars(text, l)?, vec![]),
+        ("legended", [_, l]) => {
+            let (chars, swatches) = legend(text, l)?;
+            (Side::Right, chars, swatches)
+        }
+        _ => return None,
+    };
+    if chars.is_empty() {
+        return None;
+    }
+    let whole = trim(text, e.span.start as usize..e.span.end as usize);
+    let mut c = Construct::of(Kind::Labeled, whole, vec![vec![Piece::Text(v)]]);
+    c.label = Some(Box::new(LabelSpec { side, chars, swatches }));
+    Some(c)
+}
+
+/// Whether a value is a picture (drawn by the graphics package, not here).
+fn is_picture(e: &Expr) -> bool {
+    let ExprKind::Call(f, _) = &e.kind else { return false };
+    matches!(&f.kind, ExprKind::Name(n) if matches!(n.as_str(), "graphics" | "graphics3d" | "image"))
+}
+
+/// The side a `labeled` call names: `top`/`above`, `bottom`/`below`, `left`/`before`, `right`/`after`, alone or in
+/// a list of one.
+fn side_of(e: &Expr) -> Option<Side> {
+    match &e.kind {
+        ExprKind::Name(n) => match n.as_str() {
+            "top" | "above" => Some(Side::Above),
+            "bottom" | "below" => Some(Side::Below),
+            "left" | "before" => Some(Side::Left),
+            "right" | "after" => Some(Side::Right),
+            _ => None,
+        },
+        ExprKind::List(v) if v.len() == 1 => side_of(&v[0]),
+        _ => None,
+    }
+}
+
+/// A label's characters with the bytes each stands for: a string's contents without its quotes (escapes read), or
+/// the printed text of a short term without calls or lists (a name, a number, `x^2`).
+fn label_chars(text: &str, e: &Expr) -> Option<Vec<(char, Range<usize>)>> {
+    let r = trim(text, e.span.start as usize..e.span.end as usize);
+    let src = text.get(r.clone())?;
+    if let ExprKind::Str(_) = &e.kind {
+        return string_chars(src, r.start);
+    }
+    if src.len() > LABEL_TERM_MAX || src.contains('\n') || has_call_or_list(e) {
+        return None;
+    }
+    Some(src.char_indices().map(|(i, c)| (c, r.start + i..r.start + i + c.len_utf8())).collect())
+}
+
+/// Whether a term holds a call, a list, an index or a block anywhere (such labels are not drawn as text).
+fn has_call_or_list(e: &Expr) -> bool {
+    let mut stack = vec![e];
+    while let Some(x) = stack.pop() {
+        if matches!(x.kind, ExprKind::Call(..) | ExprKind::List(_) | ExprKind::Block(_) | ExprKind::Index(..)) {
+            return true;
+        }
+        children(x, &mut stack);
+    }
+    false
+}
+
+/// The characters of a string literal `src` starting at byte `at`: `"..."` with `\"`, `\\`, `\n` and `\t` read
+/// (a tab as a space; any other escape kept as written), or a raw `r"..."` as it is.
+fn string_chars(src: &str, at: usize) -> Option<Vec<(char, Range<usize>)>> {
+    let (raw, open) = if src.starts_with("r\"") {
+        (true, 2)
+    } else if src.starts_with('"') {
+        (false, 1)
+    } else {
+        return None;
+    };
+    if src.len() < open + 1 || !src.ends_with('"') {
+        return None;
+    }
+    let body = &src[open..src.len() - 1];
+    let base = at + open;
+    let mut out = Vec::with_capacity(body.len());
+    let mut it = body.char_indices().peekable();
+    while let Some((i, c)) = it.next() {
+        if c == '\\' && !raw {
+            let shown = match it.peek().map(|&(_, n)| n) {
+                Some('"') => Some('"'),
+                Some('\\') => Some('\\'),
+                Some('n') => Some('\n'),
+                Some('t') => Some(' '),
+                _ => None,
+            };
+            if let Some(s) = shown {
+                it.next();
+                out.push((s, base + i..base + i + 2));
+                continue;
+            }
+        }
+        out.push((c, base + i..base + i + c.len_utf8()));
+    }
+    Some(out)
+}
+
+/// The characters and swatches of a legend's label row.
+type LegendRow = (Vec<(char, Range<usize>)>, Vec<(usize, [u8; 3])>);
+
+/// A legend's characters (its entries one per line, each after its swatch when it has a colour) and its swatches.
+fn legend(text: &str, e: &Expr) -> Option<LegendRow> {
+    let (colours, labels, swatch): (&[Expr], &[Expr], &str) = match &e.kind {
+        ExprKind::List(v) => (&[], v.as_slice(), ""),
+        ExprKind::Call(f, args) => {
+            let ExprKind::Name(n) = &f.kind else { return None };
+            let swatch = match n.as_str() {
+                "line_legend" => LINE_SWATCH,
+                "swatch_legend" => SQUARE_SWATCH,
+                "point_legend" => POINT_SWATCH,
+                _ => return None,
+            };
+            let lists: Vec<&[Expr]> = args
+                .iter()
+                .filter(|a| a.name.is_none())
+                .map(|a| match &a.value.kind {
+                    ExprKind::List(v) => Some(v.as_slice()),
+                    _ => None,
+                })
+                .collect::<Option<_>>()?;
+            match lists.as_slice() {
+                [c, l] => (*c, *l, swatch),
+                [l] => (&[], *l, ""),
+                _ => return None,
+            }
+        }
+        _ => return Some((label_chars(text, e)?, vec![])),
+    };
+    if labels.is_empty() {
+        return None;
+    }
+    let mut chars = Vec::new();
+    let mut swatches = Vec::new();
+    for (k, l) in labels.iter().enumerate() {
+        let entry = label_chars(text, l)?;
+        if k > 0 {
+            // the line break stands for the separator between the entries
+            let from = labels[k - 1].span.end as usize;
+            let to = (l.span.start as usize).max(from);
+            chars.push(('\n', from..to));
+        }
+        if let Some((rgb, c)) = colours.get(k).and_then(|c| Some((colour(text, c)?, c))) {
+            let cspan = trim(text, c.span.start as usize..c.span.end as usize);
+            for ch in swatch.chars() {
+                swatches.push((chars.len(), rgb));
+                chars.push((ch, cspan.clone()));
+            }
+            chars.push((' ', cspan));
+        }
+        chars.extend(entry);
+    }
+    Some((chars, swatches))
+}
+
+/// The named colours (as the graphics package reads them).
+const NAMED: &[(&str, [u8; 3])] = &[
+    ("black", [0, 0, 0]),
+    ("white", [255, 255, 255]),
+    ("gray", [128, 128, 128]),
+    ("light_gray", [217, 217, 217]),
+    ("dark_gray", [64, 64, 64]),
+    ("red", [255, 0, 0]),
+    ("green", [0, 255, 0]),
+    ("blue", [0, 0, 255]),
+    ("cyan", [0, 255, 255]),
+    ("magenta", [255, 0, 255]),
+    ("yellow", [255, 255, 0]),
+    ("orange", [255, 128, 0]),
+    ("purple", [128, 0, 128]),
+    ("brown", [153, 102, 51]),
+    ("pink", [255, 128, 128]),
+];
+
+/// A colour term's sRGB: a named colour, `rgb_color(r, g, b)`, `hue(h)` or `hue(h, s, b)`, `gray_level(g)` (each
+/// with an optional opacity, which is not drawn), `"#rrggbb"`; components are number literals.
+fn colour(text: &str, e: &Expr) -> Option<[u8; 3]> {
+    let byte = |v: f64| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    match &e.kind {
+        ExprKind::Name(n) => NAMED.iter().find(|(k, _)| k == n).map(|(_, c)| *c),
+        ExprKind::Str(s) => {
+            let h = s.strip_prefix('#').filter(|h| h.len() == 6)?;
+            let v = u32::from_str_radix(h, 16).ok()?;
+            Some([(v >> 16) as u8, (v >> 8) as u8, v as u8])
+        }
+        ExprKind::Call(f, args) => {
+            let ExprKind::Name(n) = &f.kind else { return None };
+            let v: Vec<f64> = args.iter().map(|a| number(text, &a.value)).collect::<Option<_>>()?;
+            let rgb = match (n.as_str(), v.len()) {
+                ("rgb_color", 3 | 4) => [v[0], v[1], v[2]],
+                ("gray_level", 1 | 2) => [v[0]; 3],
+                ("hue", 1) => hsb(v[0], 1.0, 1.0),
+                ("hue", 3 | 4) => hsb(v[0], v[1], v[2]),
+                _ => return None,
+            };
+            Some(rgb.map(byte))
+        }
+        _ => None,
+    }
+}
+
+/// A colour from hue, saturation and brightness in [0, 1].
+fn hsb(h: f64, s: f64, b: f64) -> [f64; 3] {
+    let h = (h - h.floor()) * 6.0;
+    let i = h.floor();
+    let f = h - i;
+    let (p, q, t) = (b * (1.0 - s), b * (1.0 - s * f), b * (1.0 - s * (1.0 - f)));
+    match i as u8 {
+        0 => [b, t, p],
+        1 => [q, b, p],
+        2 => [p, b, t],
+        3 => [p, q, b],
+        4 => [t, p, b],
+        _ => [b, p, q],
+    }
+}
+
+/// A number literal (a decimal, an integer, a rational `a/b`; negated or not) as a float.
+fn number(text: &str, e: &Expr) -> Option<f64> {
+    match &e.kind {
+        ExprKind::Neg(x) => number(text, x).map(|v| -v),
+        ExprKind::Mul(f) => match f.as_slice() {
+            [(MulOp::Times, a), (MulOp::Div, b)] => Some(number(text, a)? / number(text, b)?),
+            _ => None,
+        },
+        ExprKind::Num(_) => {
+            let t = bare(text_of(text, &(e.span.start as usize..e.span.end as usize)));
+            match t.split_once('/') {
+                Some((a, b)) => Some(a.trim().parse::<f64>().ok()? / b.trim().parse::<f64>().ok()?),
+                None => t.parse().ok(),
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A label row of typeset output (the label slot of a [`Node::Labeled`]): its path, and its swatch characters by
+/// item index with their sRGB colours. The painter draws the row in the label colour, the swatches in theirs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LabelRow {
+    /// the path of the label row
+    pub path: RowPath,
+    /// (item index in the row, colour) of each swatch character
+    pub swatches: Vec<(usize, [u8; 3])>,
+}
+
+/// The label rows of a box tree (at any depth), by path.
+pub fn label_rows(row: &Row) -> Vec<LabelRow> {
+    let mut out = Vec::new();
+    let mut stack: Vec<(&Row, RowPath)> = vec![(row, Vec::new())];
+    while let Some((r, path)) = stack.pop() {
+        for (i, it) in r.0.iter().enumerate() {
+            let Item::Box(b) = it else { continue };
+            if let Node::Labeled { swatches, .. } = &**b {
+                let mut p = path.clone();
+                p.push(Step { item: i, slot: 1 });
+                out.push(LabelRow { path: p, swatches: swatches.clone() });
+            }
+            for (k, s) in b.slots().into_iter().enumerate() {
+                let mut p = path.clone();
+                p.push(Step { item: i, slot: k });
+                stack.push((s, p));
+            }
+        }
+    }
+    out.sort_by(|a, b| a.path.cmp(&b.path));
+    out
 }
 
 fn stmt_exprs<'a>(s: &'a Stmt, out: &mut Vec<&'a Expr>) {
@@ -729,5 +1084,175 @@ mod tests {
         let r = restrict(&row);
         assert_eq!(notation(&r), "subscript(x, i)+√((a/b))+root(y, 3)");
         assert!(has_boxes(&r) && !has_boxes(&Row::text("x")));
+    }
+
+    /// Round 13 (G80): labeled and legended values draw their labels.
+    #[test]
+    fn labeled_values_draw_their_labels() {
+        assert_eq!(boxes(r#"labeled(x^2 + 1, "energy")"#), "((x^2) + 1 label below energy)");
+        assert_eq!(boxes(r#"labeled(3/4, "a", top)"#), "((3/4) label above a)");
+        assert_eq!(boxes(r#"labeled(1 + x, "lbl", [left])"#), "(1 + x label left lbl)");
+        assert_eq!(boxes(r#"labeled(y, "b", after)"#), "(y label right b)");
+        assert_eq!(boxes(r#"labeled(y, "b", bottom)"#), "(y label below b)");
+        assert_eq!(boxes(r#"labeled(y, "b", before)"#), "(y label left b)");
+        // a label that is a short term, an escaped quote, a raw string with TeX kept as written
+        assert_eq!(boxes("labeled(x, a1)"), "(x label below a1)");
+        assert_eq!(boxes(r#"labeled(x, "say \"hi\"")"#), "(x label below say \"hi\")");
+        assert_eq!(boxes(r#"labeled(x, r"$\alpha$")"#), r"(x label below $\alpha$)");
+        // legends at the right
+        assert_eq!(boxes(r#"legended(sin(x), "curve")"#), "(sin(x) label right curve)");
+        assert_eq!(boxes(r#"legended(x, ["a", "b"])"#), "(x label right a\nb)");
+        assert_eq!(boxes(r#"legended(x, line_legend([red, blue], ["a", "b"]))"#), "(x label right ━━ a\n━━ b)");
+        assert_eq!(boxes(r#"legended(x, swatch_legend([red], ["a"]))"#), "(x label right ■ a)");
+        // in a list
+        assert_eq!(boxes(r#"[labeled(1, "a"), labeled(2, "b"), 3]"#), "[(1 label below a), (2 label below b), 3]");
+    }
+
+    #[test]
+    fn unknown_label_forms_stay_as_printed() {
+        for t in [
+            "labeled(x)",
+            r#"labeled(x, "a", center)"#,
+            r#"labeled(x, "a", top, 3)"#,
+            "labeled(x, f(y))",
+            "labeled(x, [a, b])",
+            "legended(x, foo([red], [a]))",
+            "legended(x, [])",
+            r#"legended(x, "a", "b")"#,
+            r#"f(labeled(x, "a"))"#,
+            r#"labeled(x, "a") + 1"#,
+            r#"[[labeled(x, "a")]]"#,
+            r#"labeled(graphics([point([0, 0])]), "a")"#,
+            r#"labeled(x, "")"#,
+        ] {
+            assert!(!has_boxes(&math_text(t).row), "{t}");
+        }
+        // a value too long to be drawn with its label
+        let long = format!("labeled({}, \"a\")", vec!["x"; 12_000].join("+"));
+        assert!(!has_boxes(&math_text(&long).row));
+    }
+
+    #[test]
+    fn legend_swatches_have_their_colours() {
+        let t = r#"legended(x, line_legend([red, rgb_color(0, 0.5, 1)], ["a", "b"]))"#;
+        let m = math_text(t);
+        let Item::Box(b) = &m.row.0[0] else { panic!("a box") };
+        let Node::Labeled { swatches, side, .. } = &**b else { panic!("labeled") };
+        assert_eq!(*side, Side::Right);
+        assert_eq!(swatches, &[(0, [255, 0, 0]), (1, [255, 0, 0]), (5, [0, 128, 255]), (6, [0, 128, 255])]);
+        // each swatch stands for its colour's text, each line break for the separator between the entries
+        let label = &m.map.boxes[&0][1];
+        assert_eq!(&t[label.spans[0].clone()], "red");
+        assert_eq!(&t[label.spans[5].clone()], "rgb_color(0, 0.5, 1)");
+        assert_eq!(&t[label.spans[4].clone()], ", ");
+        assert_eq!(&t[label.spans[3].clone()], "a");
+        let rows = label_rows(&m.row);
+        assert_eq!(rows, vec![LabelRow { path: vec![Step { item: 0, slot: 1 }], swatches: swatches.clone() }]);
+        // colours the legend cannot read draw no swatch; the entry stays
+        assert_eq!(boxes(r#"legended(x, line_legend([c, hue(0.5)], ["a", "b"]))"#), "(x label right a\n━━ b)");
+        assert_eq!(colour_of(r##"legended(x, line_legend(["#ff8000"], ["a"]))"##), [255, 128, 0]);
+        assert_eq!(colour_of(r#"legended(x, line_legend([hue(1/3)], ["a"]))"#), [0, 255, 0]);
+        assert_eq!(colour_of(r#"legended(x, line_legend([gray_level(0.5, 0.2)], ["a"]))"#), [128, 128, 128]);
+    }
+
+    /// The first swatch colour of a legend.
+    fn colour_of(t: &str) -> [u8; 3] {
+        let rows = label_rows(&math_text(t).row);
+        rows.first().and_then(|r| r.swatches.first()).map_or_else(|| panic!("no swatch: {t}"), |s| s.1)
+    }
+
+    #[test]
+    fn a_labeled_value_maps_to_its_bytes() {
+        let t = r#"labeled(x^2 + 1/y, "e\"n")"#;
+        let m = math_text(t);
+        assert_eq!(m.row.len(), 1);
+        // the box stands for the whole call: selecting all and copying gives the printed text
+        assert_eq!(&t[m.map.spans[0].clone()], t);
+        assert!(m.map.contiguous(&[], 0..1, t));
+        // the value's items map to the value's bytes
+        let value = &m.map.boxes[&0][0];
+        assert_eq!(&t[value.span(&[], 0..value.spans.len()).unwrap()], "x^2 + 1/y");
+        let v = Step { item: 0, slot: 0 };
+        let pow = m.row.at(&[v]).unwrap().0.iter().position(|i| matches!(i, Item::Box(_))).unwrap();
+        assert_eq!(&t[value.spans[pow].clone()], "x^2");
+        // the label's characters map inside the quotes; an escape stands for its two bytes
+        let label = &m.map.boxes[&0][1];
+        let spans: Vec<&str> = label.spans.iter().map(|r| &t[r.clone()]).collect();
+        assert_eq!(spans, ["e", "\\\"", "n"]);
+        // a caret and Find inside the value go into its slot
+        let k = t.find("1/y").unwrap();
+        let (path, _) = m.map.caret_at(k + 1);
+        assert_eq!(path.first(), Some(&v));
+        let (path, r) = m.map.find(k..k + 3).unwrap();
+        assert_eq!(path, vec![v]);
+        assert_eq!(&t[m.map.span(&path, r).unwrap()], "1/y");
+        // in a list, each call is one box standing for its bytes
+        let t = r#"[labeled(1, "a"), 2]"#;
+        let m = math_text(t);
+        assert_eq!(&t[m.map.spans[1].clone()], r#"labeled(1, "a")"#);
+        assert_eq!(&t[m.map.boxes[&1][0].spans[0].clone()], "1");
+    }
+
+    #[test]
+    fn a_labeled_value_reads_back_as_printed() {
+        let t = r#"labeled(x^2 + 1, "energy", top)"#;
+        let row = math_text(t).row;
+        assert_eq!(linear_text(&row), t);
+        assert_eq!(crate::to_text(&row), t);
+        assert_eq!(crate::to_text_mapped(&row).0, t);
+        assert_eq!(notation(&restrict(&row)), t);
+        assert_eq!(crate::to_text(&crate::output_input_boxes(&row)), t);
+        assert!(crate::to_latex(&row).contains("\\overset{\\text{energy}}"));
+        // a part of the value copies as the value's part
+        let value = row.at(&[Step { item: 0, slot: 0 }]).unwrap();
+        assert_eq!(crate::output_input_text(value), "x^2 + 1");
+    }
+
+    /// The layout: the label at the size of the text, below, above or beside the value, the value's baseline kept.
+    #[test]
+    fn labels_are_placed_around_the_value() {
+        use crate::layout::{layout, Draw, LayoutOptions, MonoMetrics};
+        let lay = |t: &str| layout(&math_text(t).row, &MonoMetrics, &LayoutOptions::output(10.0, None));
+        // (x, baseline, size) of the first character drawn in a row: the value's `v`, the label's `L`
+        let at = |l: &crate::layout::Layout, ch: char| {
+            l.items
+                .iter()
+                .find_map(|d| match d {
+                    Draw::Char { c, x, y, size, .. } if *c == ch => Some((*x, *y, *size)),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        let plain = lay("v");
+        let below = lay(r#"labeled(v, "L")"#);
+        let (vx, vy, vs) = at(&below, 'v');
+        let (lx, ly, ls) = at(&below, 'L');
+        assert_eq!(vs, ls, "the label is as large as the value");
+        assert!(ly > vy + 5.0 && (lx - vx).abs() < 0.01, "below and centred: {vx},{vy} {lx},{ly}");
+        assert_eq!(below.baseline, plain.baseline, "the value keeps its baseline");
+        let above = lay(r#"labeled(v, "L", top)"#);
+        let (_, vy, _) = at(&above, 'v');
+        let (_, ly, _) = at(&above, 'L');
+        assert!(ly < vy - 5.0);
+        let left = lay(r#"labeled(v, "L", left)"#);
+        let (vx, vy, _) = at(&left, 'v');
+        let (lx, ly, _) = at(&left, 'L');
+        assert!(lx + 10.0 < vx && (ly - vy).abs() < 0.01, "before, on the baseline");
+        let right = lay(r#"labeled(v, "L", right)"#);
+        let (vx, _, _) = at(&right, 'v');
+        let (lx, _, _) = at(&right, 'L');
+        assert!(vx + 10.0 < lx);
+        // a legend of two entries at the right, centred on the value; its swatches drawn as characters
+        let leg = lay(r#"legended(v, line_legend([red, blue], ["A", "B"]))"#);
+        let (vx, vy, _) = at(&leg, 'v');
+        let (ax, ay, _) = at(&leg, 'A');
+        let (bx, by, _) = at(&leg, 'B');
+        assert!(ax > vx + 10.0 && (ax - bx).abs() < 0.01 && by > ay + 5.0);
+        assert!(ay < vy && by > vy, "the entries around the value's line: {ay} {vy} {by}");
+        assert_eq!(leg.items.iter().filter(|d| matches!(d, Draw::Char { c: '━', .. })).count(), 4);
+        // the label row has its caret stops, so a click on it lands in it
+        let path = vec![Step { item: 0, slot: 1 }];
+        let s = below.caret(&path, 0).unwrap();
+        assert_eq!(below.hit(s.x + 1.0, s.baseline - 2.0), (path, 0));
     }
 }

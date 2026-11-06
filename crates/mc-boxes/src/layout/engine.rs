@@ -7,7 +7,7 @@ use super::lines::{break_lines, LineSpan, PieceInfo, CLASS_ANY};
 use super::metrics::{FontRole, Metrics};
 use super::{Draw, Layout, Line, LayoutOptions, RowGeom, Stop};
 use crate::ops::{is_binary, is_close, is_open, is_relation, is_word, pair_at};
-use crate::tree::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
+use crate::tree::{BigOp, Item, Node, Row, RowPath, Side, Step, MAX_NESTING};
 use mc_mathfont::{font, MathFont, Stretch};
 use std::cell::RefCell;
 
@@ -26,6 +26,9 @@ const FRACTION_PAD: f32 = 0.12;
 /// Space between grid columns and between grid rows, in ems.
 const GRID_COLUMN_GAP: f32 = 0.8;
 const GRID_ROW_GAP: f32 = 0.25;
+/// Space between a value and a label beside it (a quad, as between a formula and text), and below or above it.
+const LABEL_GAP_X: f32 = 1.0;
+const LABEL_GAP_Y: f32 = 0.3;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Style {
@@ -674,6 +677,20 @@ impl<'m> Engine<'m> {
                 let mut slot = |k: usize, c: Ctx| self.slot(&row_of(k), path, item, k, c, depth);
                 self.big_op(*op, limits, var_k, lim_k, body_k, &mut slot, ctx)
             }
+            Node::Labeled { label, side, .. } => {
+                // the label at the size of text (not of a script: it is read as text); the value wraps in the width
+                // the label leaves
+                let lctx = ctx.with(ctx.style.max(Style::Text), false);
+                let l = slot!(1, lctx);
+                let s = self.scale(ctx);
+                let width = ctx.max_width.map(|w| match side {
+                    Side::Left | Side::Right => (w - l.w - LABEL_GAP_X * s).max(w * 0.4),
+                    Side::Below | Side::Above => w,
+                });
+                let v = slot!(0, Ctx { max_width: width, ..ctx });
+                let lines = 1 + label.0.iter().filter(|i| matches!(i, Item::Char('\n'))).count();
+                self.labeled(v, l, *side, lines, ctx)
+            }
             Node::Graphic { path: p } => {
                 let s = self.scale(ctx);
                 let (w, h) = self.m.graphic(p);
@@ -867,6 +884,34 @@ impl<'m> Engine<'m> {
         }
         if let Some(u) = &under {
             out.overlay(u, (w - u.w) / 2.0, -(base.d + c.lower_limit_gap_min * s * 0.6 + u.h));
+        }
+        out
+    }
+
+    /// A value with its label (`lines` lines of text) at `side`: below or above it centred, before or after it on
+    /// its baseline; a label of several lines beside the value is centred on the value's middle. The value keeps
+    /// its baseline (the row's line stays where the value alone would put it).
+    fn labeled(&self, v: Frag, l: Frag, side: Side, lines: usize, ctx: Ctx) -> Frag {
+        let s = self.scale(ctx);
+        let (gx, gy) = (LABEL_GAP_X * s, LABEL_GAP_Y * s);
+        let beside = if lines > 1 { (v.h - v.d) / 2.0 - (l.h - l.d) / 2.0 } else { 0.0 };
+        let mut out = Frag::default();
+        match side {
+            Side::Below | Side::Above => {
+                let w = v.w.max(l.w);
+                out.w = w;
+                out.overlay(&v, (w - v.w) / 2.0, 0.0);
+                let dy = if side == Side::Below { -(v.d + gy + l.h) } else { v.h + gy + l.d };
+                out.overlay(&l, (w - l.w) / 2.0, dy);
+            }
+            Side::Left => {
+                out.overlay(&l, 0.0, beside);
+                out.overlay(&v, l.w + gx, 0.0);
+            }
+            Side::Right => {
+                out.overlay(&v, 0.0, 0.0);
+                out.overlay(&l, v.w + gx, beside);
+            }
         }
         out
     }

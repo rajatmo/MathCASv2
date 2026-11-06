@@ -347,3 +347,25 @@ Copy and paste of square root, fraction and power boxes within and between cells
   the box format. Self-test `tests/selftest/clipboard.txt` run by `tests/clipboard_selftest.rs` (ignored: it opens
   a window): copy a fraction, Copy as plain text, paste into a plain cell of another tab, again into the same cell,
   at an insertion point, cut and paste a power; the self-test step `clip` also logs the box flavour.
+
+## Round 13 (nb-mat): labeled and legended values
+
+`labeled(x, l)` and `legended(x, l)` around a value that is not a picture (the kernel shows the printed call, gap
+G80) are drawn by the notebook: `mc_boxes::math_text` reads the call into a `Node::Labeled` box (see mc-boxes NOTES),
+the cell renderer lays it out like any output (right-justified as a whole) and paints it.
+
+- The label row is painted in the theme's label colour (`Palette::label`, weak text: mono-2), a legend's swatch
+  characters (`━━` for `line_legend`, `■` for `swatch_legend`, `●` for `point_legend`) in their own colours, the
+  value in the output's text colour (`View::label_colours`: a per-layout-row colour table as typeset input has,
+  cached in `box_colours` by revision, theme and width; outputs without `labeled(`/`legended(` skip it).
+- Selection, the box caret, Find and copying go through the source map as for any output: copying the whole output
+  gives the printed call, a part of the value the value's part, the label its characters.
+- nb-mat: positions follow the reference conventions and the graphics package's layout of the same terms: the label
+  below by default, `top`/`above`, `bottom`/`below`, `left`/`before`, `right`/`after` (a symbol or a list of one);
+  legends at the right, entries one per line, centred on the value. Label and legend at the size of the output text.
+- nb-mat: forms not recognised (other sides such as `center`, labels that are calls or lists, unknown legend heads,
+  wrong arity, a call that is not the output itself or a top-level list element, values over 20,000 bytes) stay the
+  printed text, typeset as before. Options (named arguments: `frame`, `label_style`, ...) are not drawn.
+- Tests: `view::tests::labeled_outputs_draw_their_labels_at_the_right_edge` (right edge, label under the value's
+  baseline, label and swatch colours, a click on the value lands in the value slot). Screenshots by the self-test
+  (One Light and One Dark at 100 % and 150 %) of a notebook with these outputs, outside the repository.
