@@ -30,6 +30,7 @@ pub mod dense;
 mod eigen;
 pub mod elim;
 pub mod exact;
+pub mod more;
 mod natives;
 mod ops;
 pub mod scalar;
@@ -71,6 +72,13 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("div", "div(v, [x1, ..., xn]): the divergence d(v1, x1) + ... + d(vn, xn)"),
     ("curl", "curl(v, [x, y, z]): the curl of a vector field; curl([v1, v2], [x, y]) the scalar curl"),
     ("laplacian", "laplacian(f, [x1, ..., xn]): the sum of the second derivatives d(d(f, xi), xi)"),
+    ("matrix_function", "matrix_function(f, m): the matrix function f(m) (diagonal, triangular, eigenvector or interpolation forms)"),
+    ("matrix_exp", "matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v"),
+    ("matrix_log", "matrix_log(m): the principal matrix logarithm"),
+    ("matrix_power", "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
+    ("conjugate_transpose", "conjugate_transpose(m): the conjugate of the transpose of m"),
+    ("hilbert_matrix", "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
+    ("rotation_matrix", "rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w"),
 ];
 
 /// The natives in the order of [`FUNCTIONS`].
@@ -110,13 +118,14 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for &(name, f) in NATIVES {
         k.register(h.sym(name), Attributes::default(), Box::new(LinalgNative { f, name, stop: stop.clone() }));
     }
+    mc_numeric::formula::install(k, h, more::DEFS);
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn every_function_has_a_native() {
-        assert_eq!(super::FUNCTIONS.len(), super::NATIVES.len());
+        assert_eq!(super::FUNCTIONS.len(), super::NATIVES.len() + super::more::DEFS.len());
         for (a, b) in super::FUNCTIONS.iter().zip(super::NATIVES) {
             assert_eq!(a.0, b.0);
         }

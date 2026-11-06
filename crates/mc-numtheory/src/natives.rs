@@ -34,6 +34,11 @@ struct Fun {
 
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if mc_numeric::uncertain::any(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::apply(cx, t, args)? {
+                return Ok(Reply::Again(v));
+            }
+        }
         if self.listable {
             if let Some(r) = thread(cx, t, args) {
                 return Ok(r);
@@ -187,10 +192,54 @@ fn round_real(x: &Real, mode: Rounding) -> Option<Int> {
     }
 }
 
+/// The rounded value of a closed numeric term that is not a number (`floor(pi)`, `round(e^100)`): `n` at
+/// increasing precision until the rounding of the ball is decided (decision P6N.3); `None` for terms without a
+/// real value, or undecided by 2^13 digits (an integer-valued term such as `floor(sqrt(2)^2 - 2 + 3)` is exact
+/// and never gets here).
+fn round_closed<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, mode: Rounding) -> Res<Option<Int>> {
+    let h = cx.heap();
+    let ar = Arith::new(h);
+    let n = h.sym("n");
+    match ar.num(cx.eval(h.call(n, &[x]))?) {
+        Some(Num::Real(Real::Machine(v))) if v.is_finite() => {}
+        _ => return Ok(None),
+    }
+    let mut d = 30i64;
+    while d <= 8192 {
+        cx.tick(1)?;
+        let v = cx.eval(h.call(n, &[x, h.int(d)]))?;
+        match ar.num(v) {
+            Some(Num::Real(r @ Real::Ball(..))) => {
+                if let Some(i) = round_real(&r, mode) {
+                    return Ok(Some(i));
+                }
+            }
+            Some(Num::Real(Real::Exact(q))) => return Ok(Some(round_rat(&q, mode))),
+            _ if d > 30 => return Ok(None),
+            _ => {}
+        }
+        d *= 2;
+    }
+    Ok(None)
+}
+
 fn rounding<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], mode: Rounding) -> Res<Reply<'h>> {
     let h = cx.heap();
     let ar = Arith::new(h);
+    let closed = |x: T<'h>| ar.num(x).is_none() && !matches!(h.view(x), View::Sym(_)) || is_constant(h, x);
     match args {
+        [x] if ar.inf_sign(*x).is_some() => done(*x),
+        [x] if closed(*x) => Ok(match round_closed(cx, *x, mode)? {
+            Some(i) => Reply::Done(int_term(h, &i)),
+            None => Reply::Decline,
+        }),
+        [x, a] if (closed(*x) || closed(*a)) && ar.num(*a).is_none_or(|v| !v.is_exact_zero()) => {
+            let q = ar.div(*x, *a);
+            Ok(match round_closed(cx, q, mode)? {
+                Some(i) => Reply::Again(ar.mul(&[*a, int_term(h, &i)])),
+                None => Reply::Decline,
+            })
+        }
         [x] => {
             let Some(v) = ar.num(*x) else { return Ok(Reply::Decline) };
             match v {
@@ -220,6 +269,14 @@ fn rounding<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], mode: Rounding) -
             }
         }
         _ => Ok(Reply::Decline),
+    }
+}
+
+/// A numeric constant symbol (`pi`, `e`, ...).
+fn is_constant(h: &Heap, x: T<'_>) -> bool {
+    match h.view(x) {
+        View::Sym(s) => matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "degree" | "golden_ratio"),
+        _ => false,
     }
 }
 
@@ -641,7 +698,25 @@ fn is_prime_<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Re
     let [x] = args else { return Ok(Reply::Decline) };
     let r = match int_of(h, *x) {
         Some(n) => is_prime(&n.mag, cx)?,
-        None => false,
+        None => match h.view(*x) {
+            // a Gaussian integer a + b i: prime when a^2 + b^2 is a rational prime (a, b nonzero), or when one part
+            // is zero and the other is a rational prime congruent to 3 mod 4
+            View::App { .. } => match Arith::new(h).num(*x) {
+                Some(Num::Complex(Real::Exact(a), Real::Exact(b))) if a.is_int() && b.is_int() => {
+                    let (a, b) = (a.num, b.num);
+                    if a.is_zero() || b.is_zero() {
+                        let m = if a.is_zero() { b.mag } else { a.mag };
+                        let three_mod_4 = m.bit(0) && m.bit(1);
+                        three_mod_4 && is_prime(&m, cx)?
+                    } else {
+                        let n = a.mag.mul(&a.mag).add(&b.mag.mul(&b.mag));
+                        is_prime(&n, cx)?
+                    }
+                }
+                _ => false,
+            },
+            _ => false,
+        },
     };
     done(cx.bool(r))
 }
@@ -773,9 +848,20 @@ fn power_mod<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Re
 
 fn primitive_root<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [x] = args else { return Ok(Reply::Decline) };
+    let (x, start) = match args {
+        [x] => (x, None),
+        [x, k] => match word_of(h, *k) {
+            Some(k) => (x, Some(k)),
+            None => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
     let Some(n) = nat_of(h, *x).filter(|n| !n.is_zero()) else { return Ok(Reply::Decline) };
-    match modular::primitive_root(&n, cx)? {
+    let r = match start {
+        None => modular::primitive_root(&n, cx)?,
+        Some(k) => modular::primitive_root_from(&n, k, cx)?,
+    };
+    match r {
         Some(g) => done(nat_term(h, &g)),
         // no primitive root: the call stays unevaluated
         None => Ok(Reply::Decline),

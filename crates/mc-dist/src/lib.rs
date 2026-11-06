@@ -52,6 +52,7 @@ pub mod build;
 pub mod data;
 mod expect;
 pub mod family;
+mod findfit;
 mod fit;
 pub mod machine;
 mod natives;
@@ -94,6 +95,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     (natives::TABLE[13].0, natives::TABLE[13].2),
     (natives::TABLE[14].0, natives::TABLE[14].2),
     (natives::TABLE[15].0, natives::TABLE[15].2),
+    ("find_fit", "find_fit(data, model, params, x): the parameter values minimizing the squared residuals of model (Levenberg-Marquardt)"),
 ];
 
 /// Register the natives of [`FUNCTIONS`] with `k`. `rng` is the session generator (`mc_random::install`'s
@@ -107,6 +109,7 @@ pub fn install(k: &mut Kernel, h: &Heap, rng: Rng) {
         let a = Attributes { effect: f == natives::Fun::RandomVariate, ..Attributes::default() };
         k.register(h.sym(name), a, Box::new(natives::DistNative { f, name, rng: rng.clone() }));
     }
+    mc_numeric::formula::install(k, h, findfit::DEFS);
 }
 
 #[cfg(test)]
@@ -116,6 +119,7 @@ mod tests {
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         let mut want: Vec<&str> = super::Family::ALL.iter().map(|f| f.name()).collect();
         want.extend(super::natives::TABLE.iter().map(|e| e.0));
+        want.extend(super::findfit::DEFS.iter().map(|d| d.name));
         assert_eq!(listed, want);
     }
 }

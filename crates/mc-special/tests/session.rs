@@ -65,7 +65,7 @@ fn symbolic_and_failures() {
         ("beta(a, b)", "beta(a, b)"),
         ("gamma(0)", "failure(pole, gamma(0))"),
         ("gamma(-3)", "failure(pole, gamma(-3))"),
-        ("log_gamma(-2)", "failure(pole, log_gamma(-2))"),
+        ("log_gamma(-2)", "inf"),
         ("digamma(0)", "failure(pole, digamma(0))"),
         ("polygamma(1, -1)", "failure(pole, polygamma(1, -1))"),
         ("zeta(1)", "failure(pole, zeta(1))"),
@@ -79,7 +79,7 @@ fn symbolic_and_failures() {
         ("polygamma(1/2, 2.0)", "polygamma(1/2, 2.0)"),
         ("gamma(1 + 2im)", "gamma(complex(1, 2))"),
         ("gamma(1, 2)", "exp(-2)"),
-        ("gamma(1, 2, 3)", "gamma(1, 2, 3)"),
+        ("gamma(1, 2, 3)", "exp(-2) - exp(-3)"),
         ("bessel_k([1, 2], [3])", "failure(shape_mismatch)"),
         // machine poles follow IEEE / the C library
         ("gamma(-2.0)", "machine_real(\"nan\")"),

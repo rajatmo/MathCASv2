@@ -13,6 +13,8 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+# functions defined by formulas (conjugate_transpose, matrix functions)
+mc-numeric = { path = "../mc-numeric" }
 # exact and symbolic elimination over integer polynomials in the entries' kernels; factoring characteristic polynomials
 mc-poly = { path = "../mc-poly" }
 

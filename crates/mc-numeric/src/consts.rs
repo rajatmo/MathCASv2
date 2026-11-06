@@ -25,11 +25,13 @@ pub enum Const {
     EulerGamma,
     /// Catalan's constant G = 0.91596...
     Catalan,
+    /// One degree of angle, pi/180 = 0.0174532...
+    Degree,
 }
 
 impl Const {
     /// Every constant.
-    pub const ALL: [Const; 4] = [Const::Pi, Const::E, Const::EulerGamma, Const::Catalan];
+    pub const ALL: [Const; 5] = [Const::Pi, Const::E, Const::EulerGamma, Const::Catalan, Const::Degree];
 
     /// The symbol name.
     pub fn name(self) -> &'static str {
@@ -38,6 +40,7 @@ impl Const {
             Const::E => "e",
             Const::EulerGamma => "euler_gamma",
             Const::Catalan => "catalan",
+            Const::Degree => "degree",
         }
     }
 
@@ -53,6 +56,7 @@ impl Const {
             Const::E => std::f64::consts::E,
             Const::EulerGamma => std::f64::consts::EULER_GAMMA,
             Const::Catalan => 0.915_965_594_177_219,
+            Const::Degree => std::f64::consts::PI / 180.0,
         }
     }
 
@@ -71,6 +75,7 @@ impl Const {
             Const::E => e(w),
             Const::EulerGamma => euler_gamma(w)?,
             Const::Catalan => catalan(w)?,
+            Const::Degree => Const::Pi.ball(w)?.div(&Ball::from_i64(180), w)?,
         };
         if stopped() {
             return None;
@@ -91,7 +96,7 @@ impl Const {
 }
 
 /// The most precise ball of each constant so far, with its precision.
-static CACHE: Mutex<[Option<(u64, Ball)>; 4]> = Mutex::new([None, None, None, None]);
+static CACHE: Mutex<[Option<(u64, Ball)>; 5]> = Mutex::new([None, None, None, None, None]);
 
 fn nat_mul_u64(x: &Int, v: u64) -> Int {
     Int::new(x.neg, x.mag.mul_u64(v))

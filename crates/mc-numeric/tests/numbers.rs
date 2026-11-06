@@ -75,7 +75,7 @@ fn complex_parts_of_terms() {
         ("im_part(conjugate(x))", "-im_part(x)"),
         ("re(2im*abs(x))", "0"),
         ("im_part(2im*abs(x))", "2*abs(x)"),
-        ("re(log(-2))", "re(log(-2))"),
+        ("re(log(-2))", "log(2)"),
     ]);
 }
 

@@ -2488,6 +2488,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-numeric",
  "mc-poly",
 ]
 
@@ -2622,6 +2623,7 @@ dependencies = [
  "mc-core",
  "mc-engine",
  "mc-eval",
+ "mc-numeric",
  "mc-poly",
  "mc-syntax",
  "num-bigint",

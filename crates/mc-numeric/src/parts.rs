@@ -183,6 +183,17 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
             Part::Conj => ar.number(&conj(&z)),
         }));
     }
+    if let Some(d) = infinity_direction(env, h, &ar, x) {
+        let inf = h.sym_term(h.sym("inf"));
+        let neg = |t: T<'h>| ar.neg(t);
+        return Ok(Reply::Done(match (which, d) {
+            (Part::Re, 0) | (Part::Im, 1) => inf,
+            (Part::Re, 2) | (Part::Im, -1) => neg(inf),
+            (Part::Re, _) | (Part::Im, _) => h.int(0),
+            (Part::Conj, 0 | 2) => x,
+            (Part::Conj, _) => neg(x),
+        }));
+    }
     if real_valued_call(env, h, x).is_some() {
         return Ok(Reply::Done(if which == Part::Im { h.int(0) } else { x }));
     }
@@ -288,6 +299,13 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
         Some(Num::Complex(..)) => return Ok(Reply::Decline),
         None => {}
     }
+    if let Some(d) = infinity_direction(env, h, &ar, x) {
+        return Ok(match d {
+            0 => Reply::Done(h.int(0)),
+            2 => Reply::Done(pi),
+            d => Reply::Again(pi_times(env, h, &ar, d as i64, 2)),
+        });
+    }
     if let Some(s) = real_valued_call(env, h, x) {
         return Ok(if s == env.s.abs { Reply::Done(h.int(0)) } else { Reply::Decline });
     }
@@ -345,6 +363,9 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     if ar.num(x).is_some() {
         return None;
     }
+    if infinity_direction(env, h, &ar, x).is_some() {
+        return Some(h.sym_term(h.sym("inf")));
+    }
     if let Some((s, &[y])) = env.call_of(h, x) {
         if s == env.s.conjugate {
             return Some(h.call(env.s.abs, &[y]));
@@ -381,6 +402,13 @@ fn sign_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     if ar.num(x).is_some() {
         return None;
     }
+    if let Some(d) = infinity_direction(env, h, &ar, x) {
+        return Some(match d {
+            0 => h.int(1),
+            2 => h.int(-1),
+            d => ar.complex(h.int(0), h.int(d as i64)),
+        });
+    }
     if let Some(o) = numeval::sign(h, &ar, &env.nm, x) {
         return Some(h.int(o as i64));
     }
@@ -403,6 +431,11 @@ fn sign_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
         factors.push(h.call(env.s.pow, &[h.int(-1), real_term(&ar, Real::Exact(q.clone()))]));
     }
     Some(h.call(env.s.mul, &factors))
+}
+
+/// The direction of a directed infinity (`inf` 0, `im*inf` 1, `-inf` 2, `-im*inf` -1).
+fn infinity_direction<'h>(env: &Env, h: &'h Heap, ar: &Arith<'h, Heap>, x: T<'h>) -> Option<i8> {
+    crate::exact::Exact::new(h, ar, &env.nm).infinity_direction(x)
 }
 
 /// `f(x) /; computed(x) is some := computed(x)` on the head `head`.

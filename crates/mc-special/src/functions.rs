@@ -388,9 +388,44 @@ impl Special {
                 C64::new(w.im, -w.re)
             }
             S::Polylog if a[0].im == 0.0 => machine::polylog::polylog_complex(a[0].re, a[1]),
-            _ => return None,
+            _ => return self.machine_complex_more(a),
         };
         (!r.re.is_nan() && !r.im.is_nan()).then_some(r)
+    }
+
+    /// The complex machine values of `machine::complex` (package p6-numeric).
+    fn machine_complex_more(self, a: &[C64]) -> Option<C64> {
+        use machine::complex as cx;
+        match self {
+            S::Gamma => cx::gamma(a[0]),
+            S::LogGamma => cx::log_gamma(a[0]),
+            S::Digamma => cx::digamma(a[0]),
+            S::Polygamma if a[0].im == 0.0 => cx::polygamma(a[0].re, a[1]),
+            S::Beta => cx::beta(a[0], a[1]),
+            S::Zeta => cx::zeta(a[0]),
+            S::Hyp0F1 => cx::hyp0f1(a[0], a[1]),
+            S::Hyp1F1 => cx::hyp1f1(a[0], a[1], a[2]),
+            S::Hyp2F1 => cx::hyp2f1(a[0], a[1], a[2], a[3]),
+            S::ExpIntegralEi => cx::exp_integral_ei(a[0]),
+            S::LogIntegral => cx::log_integral(a[0]),
+            S::SinIntegral => cx::trig_integral(a[0], 0),
+            S::CosIntegral => cx::trig_integral(a[0], 1),
+            S::SinhIntegral => cx::trig_integral(a[0], 2),
+            S::CoshIntegral => cx::trig_integral(a[0], 3),
+            S::BesselJ => cx::bessel_j(a[0], a[1]),
+            S::BesselI => cx::bessel_i(a[0], a[1]),
+            S::BesselY => cx::bessel_y(a[0], a[1]),
+            S::BesselK => cx::bessel_k(a[0], a[1]),
+            S::AiryAi => cx::airy(a[0], 0),
+            S::AiryBi => cx::airy(a[0], 1),
+            S::AiryAiPrime => cx::airy(a[0], 2),
+            S::AiryBiPrime => cx::airy(a[0], 3),
+            S::EllipticK => cx::elliptic_k(a[0]),
+            S::EllipticE => cx::elliptic_e(a[0]),
+            S::EllipticEInc => cx::elliptic_e_inc(a[0], a[1]),
+            S::EllipticF => cx::elliptic_f(a[0], a[1]),
+            _ => None,
+        }
     }
 
     /// An enclosure at precision p.
@@ -463,6 +498,12 @@ impl LibraryFn for Special {
             return Mach::Real(f64::NAN);
         }
         self.machine_value(args)
+    }
+    fn machine_complex(&self, args: &[C64]) -> Option<C64> {
+        if args.len() != self.arity() {
+            return None;
+        }
+        Special::machine_complex(*self, args)
     }
 }
 

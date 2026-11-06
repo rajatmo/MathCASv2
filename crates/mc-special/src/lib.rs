@@ -60,6 +60,8 @@ pub mod dd;
 pub mod exact;
 mod exact_more;
 pub mod functions;
+mod limits;
+pub mod more;
 pub mod machine;
 mod natives;
 
@@ -113,6 +115,48 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     (Special::JacobiDn.name(), Special::JacobiDn.description()),
     (Special::InverseJacobiSn.name(), Special::InverseJacobiSn.description()),
     functions::PFQ,
+    ("fibonacci", "fibonacci(n): the Fibonacci number F_n (any real n by Binet's formula); fibonacci(n, x): the Fibonacci polynomial"),
+    ("lucas_l", "lucas_l(n): the Lucas number L_n; lucas_l(n, x): the Lucas polynomial"),
+    ("pochhammer", "pochhammer(a, n): the rising factorial a (a + 1) ... (a + n - 1) = gamma(a + n)/gamma(a)"),
+    ("factorial_power", "factorial_power(x, n): the falling factorial x (x - 1) ... (x - n + 1); factorial_power(x, n, h) with step h"),
+    ("factorial2", "factorial2(n): the double factorial n (n - 2) (n - 4) ..."),
+    ("subfactorial", "subfactorial(n): the number of derangements of n objects"),
+    ("multinomial", "multinomial(n1, n2, ...): the multinomial coefficient (n1 + n2 + ...)!/(n1! n2! ...)"),
+    ("harmonic_number", "harmonic_number(n): the harmonic number H_n = 1 + 1/2 + ... + 1/n; harmonic_number(n, r): the sum of 1/k^r"),
+    ("hyperfactorial", "hyperfactorial(n): the product 1^1 2^2 ... n^n"),
+    ("chebyshev_t", "chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))"),
+    ("chebyshev_u", "chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)"),
+    ("legendre_p", "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x)"),
+    ("legendre_q", "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
+    ("hermite_h", "hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)"),
+    ("laguerre_l", "laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial"),
+    ("gegenbauer_c", "gegenbauer_c(n, a, x): the Gegenbauer polynomial C_n^(a)(x); gegenbauer_c(n, x) = (2/n) T_n(x)"),
+    ("jacobi_p", "jacobi_p(n, a, b, x): the Jacobi polynomial P_n^(a, b)(x)"),
+    ("zernike_r", "zernike_r(n, m, r): the radial Zernike polynomial R_n^m(r)"),
+    ("spherical_harmonic_y", "spherical_harmonic_y(l, m, theta, phi): the spherical harmonic Y_l^m(theta, phi)"),
+    ("product_log", "product_log(z): the principal branch of the Lambert W function (w e^w = z); product_log(k, z): branch k"),
+    ("dawson_f", "dawson_f(x): Dawson's integral e^(-x^2) times the integral of e^(t^2) from 0 to x"),
+    ("fresnel_s", "fresnel_s(z): the Fresnel integral S(z), the integral of sin(pi t^2/2) from 0 to z"),
+    ("fresnel_c", "fresnel_c(z): the Fresnel integral C(z), the integral of cos(pi t^2/2) from 0 to z"),
+    ("spherical_bessel_j", "spherical_bessel_j(n, z): the spherical Bessel function j_n(z) = sqrt(pi/(2 z)) J_(n+1/2)(z)"),
+    ("spherical_bessel_y", "spherical_bessel_y(n, z): the spherical Bessel function y_n(z) = sqrt(pi/(2 z)) Y_(n+1/2)(z)"),
+    ("hankel_h1", "hankel_h1(nu, z): the Hankel function of the first kind J_nu(z) + i Y_nu(z)"),
+    ("hankel_h2", "hankel_h2(nu, z): the Hankel function of the second kind J_nu(z) - i Y_nu(z)"),
+    ("jacobi_cd", "jacobi_cd(u, m): the Jacobi elliptic function cn/dn"),
+    ("jacobi_cs", "jacobi_cs(u, m): the Jacobi elliptic function cn/sn"),
+    ("jacobi_dc", "jacobi_dc(u, m): the Jacobi elliptic function dn/cn"),
+    ("jacobi_ds", "jacobi_ds(u, m): the Jacobi elliptic function dn/sn"),
+    ("jacobi_nc", "jacobi_nc(u, m): the Jacobi elliptic function 1/cn"),
+    ("jacobi_nd", "jacobi_nd(u, m): the Jacobi elliptic function 1/dn"),
+    ("jacobi_ns", "jacobi_ns(u, m): the Jacobi elliptic function 1/sn"),
+    ("jacobi_sc", "jacobi_sc(u, m): the Jacobi elliptic function sn/cn"),
+    ("jacobi_sd", "jacobi_sd(u, m): the Jacobi elliptic function sn/dn"),
+    ("hypergeometric_0f1_regularized", "hypergeometric_0f1_regularized(b, z): 0F1(; b; z)/gamma(b)"),
+    ("hypergeometric_1f1_regularized", "hypergeometric_1f1_regularized(a, b, z): 1F1(a; b; z)/gamma(b)"),
+    ("hypergeometric_2f1_regularized", "hypergeometric_2f1_regularized(a, b, c, z): 2F1(a, b; c; z)/gamma(c)"),
+    ("elliptic_nome_q", "elliptic_nome_q(m): the nome q = exp(-pi K(1 - m)/K(m))"),
+    ("bessel_k_scaled", "bessel_k_scaled(nu, x): e^x K_nu(x), without underflow at large x"),
+    ("bessel_i_scaled", "bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x"),
 ];
 
 /// Register the natives of [`FUNCTIONS`] with `k` and the functions with `mc-numeric`'s numerical evaluation;
@@ -128,6 +172,7 @@ mod tests {
         let mut names: Vec<&str> =
             super::functions::ALL.iter().filter(|f| f.primary()).map(|f| f.name()).collect();
         names.push(super::functions::PFQ.0);
+        names.extend(super::more::DEFS.iter().map(|d| d.name));
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         assert_eq!(names, listed);
     }

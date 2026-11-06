@@ -148,10 +148,23 @@ fn is_primitive(g: &Nat, p: &Nat, k: u64, qs: &[Nat], b: &mut dyn Budget) -> Res
 
 /// The smallest primitive root modulo n >= 1, or `None` when there is none (n not 1, 2, 4, p^k or 2 p^k).
 pub fn primitive_root(n: &Nat, b: &mut dyn Budget) -> Res<Option<Nat>> {
+    // modulo 2 p^k: the root g of p^k when it is odd, else g + p^k (the usual construction; decision P6N.4)
+    if !n.bit(0) && n.bit(1) && to_u64(n).is_none_or(|v| v > 4) {
+        let odd = n.shr(1);
+        let Some(g) = primitive_root_from(&odd, 2, b)? else { return Ok(None) };
+        return Ok(Some(if g.bit(0) { g } else { g.add(&odd) }));
+    }
+    primitive_root_from(n, 2, b)
+}
+
+/// The smallest primitive root modulo n that is at least `start` (word-sized candidates), or `None` when n has
+/// none.
+pub fn primitive_root_from(n: &Nat, start: u64, b: &mut dyn Budget) -> Res<Option<Nat>> {
     match to_u64(n) {
-        Some(1) => return Ok(Some(Nat::zero())),
-        Some(2) => return Ok(Some(Nat::from_u64(1))),
-        Some(4) => return Ok(Some(Nat::from_u64(3))),
+        Some(1) if start <= 2 => return Ok(Some(Nat::zero())),
+        Some(2) if start <= 2 => return Ok(Some(Nat::from_u64(1))),
+        Some(4) if start <= 3 => return Ok(Some(Nat::from_u64(3))),
+        Some(1 | 2 | 4) => return Ok(None),
         _ => {}
     }
     let (odd, twice) = if n.bit(0) {
@@ -164,7 +177,10 @@ pub fn primitive_root(n: &Nat, b: &mut dyn Budget) -> Res<Option<Nat>> {
     let Some((p, k)) = prime_power(&odd, b)? else { return Ok(None) };
     let qs = factor_minus_one(&p, b)?;
     // modulo 2 p^k the root must also be odd
-    let mut g = if twice { 3u64 } else { 2 };
+    let mut g = start.max(2);
+    if twice && g.is_multiple_of(2) {
+        g += 1;
+    }
     loop {
         b.charge(1)?;
         if is_primitive(&Nat::from_u64(g), &p, k, &qs, b)? {
@@ -325,12 +341,14 @@ mod tests {
         assert_eq!(pr(7), Some(3));
         assert_eq!(pr(8), None);
         assert_eq!(pr(15), None);
-        assert_eq!(pr(18), Some(5));
+        // modulo 2 p^k: the root g of p^k, plus p^k when g is even (decision P6N.4)
+        assert_eq!(pr(18), Some(11));
+        assert_eq!(pr(10), Some(7));
         assert_eq!(pr(25), Some(2));
         assert_eq!(pr(40487), Some(5));
         // 40487: 5 is a primitive root modulo p but not modulo p^2, so 10 is the smallest modulo p^2
         assert_eq!(pr(40487 * 40487), Some(10));
-        assert_eq!(pr(2 * 3u64.pow(5)), Some(5));
+        assert_eq!(pr(2 * 3u64.pow(5)), Some(2 + 3u64.pow(5)));
         assert_eq!(multiplicative_order(&n(2), &n(7), u).unwrap(), Some(n(3)));
         let brute = (1..10007u64).find(|&k| crate::word::pow_mod(10, k, 10007) == 1).unwrap();
         assert_eq!(multiplicative_order(&n(10), &n(10007), u).unwrap(), Some(n(brute)));
@@ -355,7 +373,17 @@ mod tests {
             let units: Vec<u64> = (1..=m).filter(|&a| crate::word::gcd_u64(a % m, m) == 1).collect();
             let phi = units.len() as u64;
             let order = |a: u64| (1..=phi).find(|&k| crate::word::pow_mod(a, k, m) == 1 % m).unwrap_or(0);
-            let want = if m == 1 { Some(0) } else { units.iter().copied().find(|&a| order(a) == phi) };
+            let smallest = if m == 1 { Some(0) } else { units.iter().copied().find(|&a| order(a) == phi) };
+            // modulo 2 p^k (m > 4): the root g of p^k when odd, else g + p^k
+            let want = match smallest {
+                Some(_) if m % 4 == 2 && m > 4 => {
+                    let odd = m / 2;
+                    let g = primitive_root(&n(odd), u).unwrap().map(|g| to_u64(&g).unwrap()).unwrap();
+                    assert_eq!(order(if g % 2 == 1 { g } else { g + odd }), phi);
+                    Some(if g % 2 == 1 { g } else { g + odd })
+                }
+                w => w,
+            };
             let got = primitive_root(&n(m), u).unwrap().map(|g| to_u64(&g).unwrap());
             assert_eq!(got, want, "primitive root of {m}");
             assert_eq!(to_u64(&euler_phi(&n(m), u).unwrap()), Some(phi), "phi({m})");

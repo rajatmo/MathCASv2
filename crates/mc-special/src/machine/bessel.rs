@@ -169,6 +169,32 @@ pub fn bessel_k(nu: f64, x: f64) -> f64 {
     k_up(mu, n, x, k_pair(mu, x)).0.to_f64()
 }
 
+/// e^x K_nu(x) for machine reals x > 0 (no underflow at large x: the scaled K times e^x through logarithms in
+/// double-double).
+pub fn bessel_k_scaled(nu: f64, x: f64) -> f64 {
+    if nu.is_nan() || x.is_nan() || x <= 0.0 || nu.is_infinite() {
+        return if x == 0.0 { f64::INFINITY } else { f64::NAN };
+    }
+    let nu = nu.abs();
+    if nu > MAX_ORDER || x == f64::INFINITY {
+        return if x == f64::INFINITY { 0.0 } else { f64::NAN };
+    }
+    let (n, mu) = split(nu);
+    let xd = DD::new(x);
+    let k = k_up(mu, n, xd, k_pair(mu, xd)).0;
+    exp(k.ln_abs().add_f(x)).to_f64()
+}
+
+/// e^-x I_nu(x) for machine reals x > 0 and nu >= 0.
+pub fn bessel_i_scaled(nu: f64, x: f64) -> f64 {
+    if nu.is_nan() || x.is_nan() || x <= 0.0 || nu < 0.0 || nu > MAX_ORDER {
+        return if x == 0.0 && nu >= 0.0 { if nu == 0.0 { 1.0 } else { 0.0 } } else { f64::NAN };
+    }
+    let xd = DD::new(x);
+    let i = i_and_k(nu, xd).0;
+    exp(i.ln_abs().add_f(-x)).to_f64()
+}
+
 /// I_nu(x) and K_nu(x) for nu >= 0 and x > 0, scaled.
 fn i_and_k(nu: f64, x: DD) -> (Scaled, Scaled) {
     let (n, mu) = split(nu);

@@ -6,6 +6,7 @@
 //! (K_nu or non-integer I_nu at x < 0) give NaN here and stay unevaluated in the natives.
 pub mod bessel;
 pub mod bessel_j;
+pub mod complex;
 pub mod elliptic;
 pub mod erf;
 pub mod expint;

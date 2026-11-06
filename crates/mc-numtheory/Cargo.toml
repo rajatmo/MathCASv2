@@ -13,6 +13,8 @@ mc-api = { path = "../mc-api" }
 mc-arith = { path = "../mc-arith" }
 mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
+# uncertain numbers (around, interval, centered_interval) through the number functions
+mc-numeric = { path = "../mc-numeric" }
 # scoped parallelism on the session pool (sieving, prime counting)
 rayon = "1.12"
 

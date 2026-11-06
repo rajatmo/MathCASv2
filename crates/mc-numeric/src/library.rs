@@ -24,6 +24,11 @@ pub trait LibraryFn: Send + Sync {
     fn ball(&self, args: &[Real], p: u64) -> Option<CBall>;
     /// The machine value (NaN where there is none).
     fn machine(&self, args: &[f64]) -> Mach;
+    /// The machine value at complex arguments, where the function has one (`None`: no value).
+    fn machine_complex(&self, args: &[crate::machine::C64]) -> Option<crate::machine::C64> {
+        let _ = args;
+        None
+    }
 }
 
 /// A registered function (a `'static` reference, compared by name).

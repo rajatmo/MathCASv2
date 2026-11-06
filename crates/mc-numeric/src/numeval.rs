@@ -40,7 +40,7 @@ pub struct Names {
     mul: Sym,
     pow: Sym,
     abs: Sym,
-    consts: [(Sym, Const); 4],
+    consts: [(Sym, Const); 5],
     funs: [(Sym, Fun); 14],
 }
 
@@ -431,7 +431,14 @@ impl<'h> Graph<'h> {
                             Mach::Complex(_) => None,
                         })
                         .collect();
-                    xs.map_or(Mach::Real(f64::NAN), |xs| f.0.machine(&xs))
+                    match xs {
+                        Some(xs) => f.0.machine(&xs),
+                        // complex arguments: the function's complex machine value, if it has one
+                        None => {
+                            let zs: Vec<crate::machine::C64> = k.iter().map(|j| vals[j].c64()).collect();
+                            f.0.machine_complex(&zs).map_or(Mach::Real(f64::NAN), Mach::Complex)
+                        }
+                    }
                 }
             };
             vals.insert(i, v);

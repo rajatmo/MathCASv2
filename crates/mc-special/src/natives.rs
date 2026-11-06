@@ -70,21 +70,95 @@ fn pole<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
 fn exact_reply<'h>(h: &'h Heap, t: T<'h>, e: Option<Exact<'h>>) -> Reply<'h> {
     match e {
         Some(Exact::Value(v)) => Reply::Again(v),
-        Some(Exact::Pole) => Reply::Done(pole(h, t)),
+        Some(Exact::Pole) => {
+            // a pole with a signed limit from the real side is that infinity (P6N.2)
+            if let View::App { head, args } = h.view(t) {
+                if let View::Sym(s) = h.view(head) {
+                    let ar = Arith::new(h);
+                    let n = h.sym_name(s);
+                    if let Some(f) = Special::find(&n, args.len()) {
+                        if let Some(v) = crate::limits::at_pole(h, &ar, f, args) {
+                            return Reply::Done(v);
+                        }
+                    }
+                }
+            }
+            Reply::Done(pole(h, t))
+        }
         None => Reply::Decline,
     }
 }
 
+/// Calls with an arity the package has no variant for but a closed form in terms of one: erf(a, b) = erf(b) -
+/// erf(a), gamma(s, a, b) = gamma(s, a) - gamma(s, b), gamma_regularized(s, a, b) likewise.
+fn generalized<'h>(h: &'h Heap, name: &str, args: &[T<'h>]) -> Option<T<'h>> {
+    let ar = Arith::new(h);
+    let call = |args: &[T<'h>]| h.call(h.sym(name), args);
+    match (name, args) {
+        ("erf", [a, b]) => Some(ar.sub(call(&[*b]), call(&[*a]))),
+        ("gamma" | "gamma_regularized", [s, a, b]) => Some(ar.sub(call(&[*s, *a]), call(&[*s, *b]))),
+        ("polygamma", [z]) => Some(h.call(h.sym("digamma"), &[*z])),
+        ("zeta", [s, a]) => hurwitz(h, &ar, *s, *a),
+        _ => None,
+    }
+}
+
+/// The Hurwitz zeta function zeta(s, a): zeta(s) minus the first terms at positive integers a, (2^s - 1) zeta(s)
+/// at a = 1/2, the complex machine algorithm for machine numbers.
+fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<T<'h>> {
+    let zeta = |x: T<'h>| h.call(h.sym("zeta"), &[x]);
+    let (ns, na) = (ar.num(s), ar.num(a));
+    if let (Some(x), Some(y)) = (&ns, &na) {
+        if x.kind() == mc_arith::Kind::Machine || y.kind() == mc_arith::Kind::Machine {
+            let (zs, za) = (machine_c64(x)?, machine_c64(y)?);
+            let v = crate::machine::complex::hurwitz_zeta(zs, za)?;
+            let real = matches!(x, Num::Real(_)) && matches!(y, Num::Real(_)) && za.re > 0.0;
+            return Some(mach_term(ar, if real { Mach::Real(v.re) } else { Mach::Complex(v) }));
+        }
+    }
+    let q = na.as_ref().and_then(Num::as_rat)?;
+    if q.is_int() {
+        let n = q.num.to_i64().filter(|n| (1..=10_000).contains(n))?;
+        let terms: Vec<T<'h>> = (1..n).map(|k| ar.neg(ar.pow(h.int(k), ar.neg(s)))).collect();
+        let mut all = vec![zeta(s)];
+        all.extend(terms);
+        return Some(ar.add(&all));
+    }
+    if *q == Rat::new(mc_arith::num::Int::from_i64(1), mc_arith::num::Int::from_i64(2)) {
+        return Some(ar.mul(&[ar.sub(ar.pow(h.int(2), s), h.int(1)), zeta(s)]));
+    }
+    None
+}
+
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if mc_numeric::uncertain::any(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::apply(cx, t, args)? {
+                return Ok(Reply::Again(v));
+            }
+        }
         let Some(f) = self.fs.iter().copied().find(|f| f.arity() == args.len()) else {
-            return Ok(Reply::Decline);
+            if let Some(r) = thread(cx, t, args) {
+                return r;
+            }
+            return Ok(match generalized(cx.heap(), self.fs[0].name(), args) {
+                Some(v) => Reply::Again(v),
+                None => Reply::Decline,
+            });
         };
         if let Some(r) = thread(cx, t, args) {
             return r;
         }
+        if let Some(xs) = mc_numeric::formula::numeric_arguments(cx, args)? {
+            let h = cx.heap();
+            let View::App { head, .. } = h.view(t) else { return Ok(Reply::Decline) };
+            return Ok(Reply::Again(h.app(head, &xs)));
+        }
         let h = cx.heap();
         let ar = Arith::new(h).with_stop(self.stop.clone());
+        if let Some(v) = crate::limits::at_infinity(h, &ar, f, args) {
+            return Ok(Reply::Again(v));
+        }
         let nums: Vec<Option<Num>> = args.iter().map(|&a| ar.num(a)).collect();
         let reals: Option<Vec<Real>> = nums
             .iter()
@@ -277,4 +351,5 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         k.register(h.sym(name), Attributes::default(), Box::new(Fun { fs, stop: stop.clone() }));
     }
     k.register(h.sym(crate::functions::PFQ.0), Attributes::default(), Box::new(Pfq { stop: stop.clone() }));
+    mc_numeric::formula::install(k, h, crate::more::DEFS);
 }

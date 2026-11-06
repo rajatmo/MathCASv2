@@ -424,6 +424,25 @@ impl<'h, S: Store + ?Sized> Arith<'h, S> {
                 return Ok(true);
             }
         }
+        if let (Num::Complex(Real::Exact(a), Real::Exact(b)), Some(e)) = (x, k.as_rat()) {
+            if !e.is_int() && !b.is_zero() {
+                if e.den.limbs == [2] {
+                    // an exact square root of a Gaussian rational, then the integer power
+                    if let Some(w) = gaussian_sqrt(a, b) {
+                        p.coef.push(w.pow_int(&e.num, self.max_bits)?);
+                        return Ok(true);
+                    }
+                }
+                if a.is_zero() {
+                    // (b i)^e = |b|^e (-1)^(±e/2): the principal argument of b i is ±pi/2
+                    let half = e.mul(&Rat::new(Int::from_i64(1), Int::from_i64(2)));
+                    let unit = if b.num.neg { half.neg() } else { half };
+                    radical::split_base(&(if b.num.neg { b.neg() } else { b.clone() }), e, &mut p.rad_pos, &mut p.rad_units);
+                    p.rad_units.push(unit);
+                    return Ok(true);
+                }
+            }
+        }
         match x.pow(k, self.max_bits) {
             Ok(v) => {
                 p.coef.push(v);
@@ -675,6 +694,26 @@ fn decimal_value(text: &str, max_bits: u64) -> Option<Rat> {
     let scale = crate::num::Nat::from_u64(10).pow_u64(e10.unsigned_abs());
     let num = Int::new(neg, num);
     Some(if e10 >= 0 { Rat::from_int(num.mul(&Int::from_nat(scale))) } else { Rat::new(num, Int::from_nat(scale)) })
+}
+
+/// The exact rational square root of a non-negative rational, if it has one.
+fn rat_sqrt(q: &Rat) -> Option<Rat> {
+    if q.num.neg {
+        return None;
+    }
+    let (n, d) = (q.num.mag.isqrt(), q.den.isqrt());
+    (n.mul(&n) == q.num.mag && d.mul(&d) == q.den).then(|| Rat::new(Int::from_nat(n), Int::from_nat(d)))
+}
+
+/// The principal square root x + y i of a + b i (b nonzero) when x and y are rational: x = sqrt((|z| + a)/2),
+/// y = sign(b) sqrt((|z| - a)/2).
+fn gaussian_sqrt(a: &Rat, b: &Rat) -> Option<Num> {
+    let m = rat_sqrt(&a.mul(a).add(&b.mul(b)))?;
+    let half = Rat::new(Int::from_i64(1), Int::from_i64(2));
+    let x = rat_sqrt(&m.add(a).mul(&half))?;
+    let y = rat_sqrt(&m.sub(a).mul(&half))?;
+    let y = if b.num.neg { y.neg() } else { y };
+    Some(Num::complex(Real::Exact(x), Real::Exact(y)))
 }
 
 #[cfg(test)]

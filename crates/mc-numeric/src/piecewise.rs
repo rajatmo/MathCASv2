@@ -145,6 +145,7 @@ fn step<'h>(env: &Env, h: &'h mc_core::Heap, ar: &mc_arith::Arith<'h, mc_core::H
             }
         }
         Some(Num::Complex(..)) => None,
+        None if ar.inf_sign(x).is_some() => ar.inf_sign(x).map(|s| s > 0),
         None => crate::numeval::sign(h, ar, &env.nm, x).map(|o| o.is_ge()),
     }
 }

@@ -61,6 +61,11 @@ impl Native for Elementary {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [x] = args else { return Ok(Reply::Decline) };
         let h = cx.heap();
+        if crate::uncertain::any(h, args) {
+            if let Some(v) = crate::uncertain::apply(cx, t, args)? {
+                return Ok(Reply::Again(v));
+            }
+        }
         // a list argument maps (decision L.10)
         if let Some(items) = cx.as_list(*x) {
             cx.tick(items.len() as u64)?;
@@ -337,6 +342,8 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         define_comparison(k, h, rel, &nm, stop);
     }
     crate::numbers::install(k, h, &nm, stop);
+    crate::formula::install(k, h, crate::more::DEFS);
+    crate::formula::install(k, h, crate::uncertain::DEFS);
 }
 
 #[cfg(test)]

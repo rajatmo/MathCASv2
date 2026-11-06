@@ -146,7 +146,14 @@ fn closed_numeric(h: &Heap, t: T<'_>) -> bool {
 /// (`1.5~30 * pi` is a 30-digit ball). `None` when nothing changes (the common case costs one scan).
 fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
     let h = cx.heap();
-    let machine = args.iter().any(|&a| matches!(h.view(a), View::Real(_)));
+    // a machine real, or a complex number with machine parts (queue G8: `complex(3.0, 1.5)*sqrt(2)`)
+    let machine_complex = |a: T<'h>| match h.view(a) {
+        View::App { head, args: [re, _] } => {
+            head == h.sym_term(h.sym(names::COMPLEX)) && matches!(h.view(*re), View::Real(_))
+        }
+        _ => false,
+    };
+    let machine = args.iter().any(|&a| matches!(h.view(a), View::Real(_)) || machine_complex(a));
     let ball = if machine { None } else { args.iter().copied().find(|&a| matches!(h.view(a), View::Ball { .. })) };
     if !(machine || ball.is_some()) || !args.iter().any(|&a| closed_numeric(h, a)) {
         return Ok(None);
@@ -179,6 +186,12 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
     Ok(changed.then_some(out))
 }
 
+/// Is an argument an uncertain number of `mc_numeric::uncertain` (`around`, `interval`, `centered_interval`)? A
+/// cheap test on the heads before the arithmetic (decision P6N.10).
+fn uncertain(h: &Heap, args: &[T<'_>]) -> bool {
+    args.iter().any(|&a| matches!(h.view(a), View::App { .. })) && mc_numeric::uncertain::any(h, args)
+}
+
 /// `add(args...)`.
 struct Add(Stop);
 
@@ -189,6 +202,11 @@ impl Native for Add {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
+        if uncertain(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Add, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         if let Some(v) = machine_constants(cx, args)? {
             return self.call(cx, _t, &v);
         }
@@ -213,6 +231,11 @@ impl Native for Mul {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         charge(cx, args)?;
+        if uncertain(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Mul, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         if let Some(v) = machine_constants(cx, args)? {
             return self.call(cx, _t, &v);
         }
@@ -238,6 +261,11 @@ impl Native for Pow {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let [b, e] = args else { return Ok(Reply::Decline) };
+        if uncertain(cx.heap(), args) {
+            if let Some(v) = mc_numeric::uncertain::arith(cx, mc_numeric::uncertain::Op::Pow, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         if let Some(v) = machine_constants(cx, args)? {
             return self.call(cx, _t, &v);
         }

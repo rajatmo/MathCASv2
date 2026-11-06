@@ -97,6 +97,9 @@ pub mod exact;
 pub mod fun;
 pub mod library;
 pub mod machine;
+pub mod formula;
+pub mod more;
+pub mod uncertain;
 mod natives;
 mod numbers;
 pub mod numeval;
@@ -146,4 +149,36 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("clip", numbers::description("clip")),
     ("rescale", numbers::description("rescale")),
     ("unit_step", numbers::description("unit_step")),
+    ("sec", "sec(x): the secant 1/cos(x)"),
+    ("csc", "csc(x): the cosecant 1/sin(x)"),
+    ("cot", "cot(x): the cotangent 1/tan(x)"),
+    ("sech", "sech(x): the hyperbolic secant 1/cosh(x)"),
+    ("csch", "csch(x): the hyperbolic cosecant 1/sinh(x)"),
+    ("coth", "coth(x): the hyperbolic cotangent 1/tanh(x)"),
+    ("asinh", "asinh(z): the inverse hyperbolic sine log(z + sqrt(z^2 + 1))"),
+    ("acosh", "acosh(z): the inverse hyperbolic cosine, principal branch"),
+    ("atanh", "atanh(z): the inverse hyperbolic tangent (log(1 + z) - log(1 - z))/2"),
+    ("acot", "acot(z): the inverse cotangent atan(1/z)"),
+    ("asec", "asec(z): the inverse secant acos(1/z)"),
+    ("acsc", "acsc(z): the inverse cosecant asin(1/z)"),
+    ("acoth", "acoth(z): the inverse hyperbolic cotangent atanh(1/z)"),
+    ("asech", "asech(z): the inverse hyperbolic secant acosh(1/z)"),
+    ("acsch", "acsch(z): the inverse hyperbolic cosecant asinh(1/z)"),
+    ("sinc", "sinc(x): sin(x)/x, with sinc(0) = 1"),
+    ("log10", "log10(x): the base-10 logarithm log(x)/log(10); exact powers of 10 give integers"),
+    ("log2", "log2(x): the base-2 logarithm log(x)/log(2); exact powers of 2 give integers"),
+    ("gudermannian", "gudermannian(x): the Gudermannian function 2 atan(tanh(x/2))"),
+    ("inverse_gudermannian", "inverse_gudermannian(x): the inverse Gudermannian function 2 atanh(tan(x/2))"),
+    ("integer_part", "integer_part(x): x truncated toward zero (componentwise for complex x)"),
+    ("fractional_part", "fractional_part(x): x - integer_part(x), with the sign of x"),
+    ("unit_box", "unit_box(x, ...): 1 for |x| <= 1/2, else 0 (a product over the arguments)"),
+    ("unit_triangle", "unit_triangle(x, ...): the triangle 1 - |x| for |x| < 1, else 0 (a product over the arguments)"),
+    ("ramp", "ramp(x): x for x >= 0, else 0"),
+    ("heaviside_theta", "heaviside_theta(x, ...): 1 for x > 0, 0 for x < 0, unevaluated at 0 (a product over the arguments)"),
+    ("dirac_delta", "dirac_delta(x): the Dirac delta, 0 at nonzero reals"),
+    ("real_abs", "real_abs(x): |x| for real x (its derivative is real_sign)"),
+    ("real_sign", "real_sign(x): -1, 0 or 1 for real x"),
+    ("surd", "surd(x, n): the real n-th root of x, negative for x < 0 and odd n"),
+    ("re_im", "re_im(z): the list [re(z), im_part(z)]"),
+    ("abs_arg", "abs_arg(z): the list [abs(z), arg(z)]"),
 ];

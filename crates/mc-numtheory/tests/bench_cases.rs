@@ -107,7 +107,11 @@ fn primitive_root_of_a_large_prime_power() {
     let mut nt = Nt::new();
     let small = nt.eval("primitive_root(prime(10^6)^2)");
     assert_eq!(nt.eval("primitive_root(prime(10^6)^(10^4))"), small);
-    assert_eq!(nt.eval("primitive_root(2*prime(10^6)^(10^4))"), nt.eval("primitive_root(2*prime(10^6)^2)"));
+    // modulo 2 p^k the root is g or g + p^k for the root g modulo p^k
+    assert_eq!(
+        nt.eval("mod(primitive_root(2*prime(10^6)^(10^4)), prime(10^6)^(10^4))"),
+        nt.eval("mod(primitive_root(2*prime(10^6)^2), prime(10^6)^2)")
+    );
 }
 
 /// R12's loop body: `mod` on machine integers.

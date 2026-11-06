@@ -129,6 +129,8 @@ impl Env {
         match (ar.num(a), ar.num(b)) {
             (Some(Num::Real(_)), Some(Num::Real(_))) => ar.compare(a, b),
             (Some(Num::Complex(..)), _) | (_, Some(Num::Complex(..))) => None,
+            // signed infinities against real numbers (mc-arith decides those)
+            _ if ar.inf_sign(a).is_some() || ar.inf_sign(b).is_some() => ar.compare(a, b),
             _ => crate::numeval::compare(h, ar, &self.nm, a, b),
         }
     }

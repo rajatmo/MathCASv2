@@ -550,6 +550,15 @@ impl Num {
             return Num::Real(Real::Machine(a.powf(c)));
         }
         let m = |x: f64| Real::Machine(x);
+        if real_args && a < 0.0 && c.is_finite() {
+            // (-r)^c = r^c (cos(c pi) + i sin(c pi)), with the angle reduced exactly so that half-integer and
+            // integer-multiple-of-a-quarter exponents give exact zero and unit parts (sqrt(-9.0) is 3.0 i)
+            let r = (-a).powf(c);
+            let t = c.rem_euclid(2.0);
+            if t == 0.5 || t == 1.5 {
+                return Num::Complex(m(0.0), m(if t == 0.5 { r } else { -r }));
+            }
+        }
         if a == 0.0 && b == 0.0 {
             // 0^w: zero when Re(w) > 0; the logarithm formula would give NaN
             if c > 0.0 {
