@@ -150,6 +150,12 @@ cargo run --release -p mc-bench -- run --cases bench/cases --only R1 --mem-ceili
 
 Every benchmark case runs in its own child process with a memory cap and a timeout.
 
+Long runs report their progress: `powershell -File tools/test.ps1` runs the workspace tests binary by binary under a
+memory cap and a time limit, printing `[k/N pct%]` per binary, and `powershell -File tools/status.ps1 -Watch` shows
+every running job (test suites, fuzz campaigns, benchmarks) with its progress, current step, elapsed time and
+estimated time left, flagging a job that has stopped reporting. The status files are small JSON documents (format in
+`tools/status.ps1`), so any tool in any language can report.
+
 ## Author
 
 MathCAS v2 is written by Rajat Mandal, with Claude (Anthropic) as co-author.
