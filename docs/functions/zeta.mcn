@@ -133,19 +133,6 @@ zeta(1.0)
 #% output
 #= machine_real("nan")
 
-#% text
-# Complex arguments are not supported: they stay unevaluated or give a wrong value:
-
-#% cell
-zeta(2.0 + 1.0*im)
-#% output
-#= zeta(complex(2.0, 1.0))
-
-#% cell
-n(zeta(1/2 + 14*im))
-#% output
-#= machine_real("nan")
-
 #% section
 # See also
 

@@ -56,4 +56,4 @@ f2([1, 2])
 # See also
 
 #% text
-# `attributes`, `clear_attributes`, `map`, `quote`
+# `attributes`, `clear_attributes`, `map`

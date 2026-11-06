@@ -153,22 +153,6 @@ sqrt(x^2)
 #% output
 #= (x^2)^(1/2)
 
-#% text
-# The root of an exact complex number is not computed:
-
-#% cell
-sqrt(3 + 4im)
-#% output
-#= complex(3, 4)^(1/2)
-
-#% text
-# The root of a negative machine real has a small spurious real part and an error in the last digit:
-
-#% cell
-sqrt(-9.0)
-#% output
-#= complex(1.8369701987210302e-16, 3.0000000000000004)
-
 #% section
 # See also
 

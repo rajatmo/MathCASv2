@@ -323,7 +323,7 @@ fn n_through_abs_and_powers() {
         ("n(1/(1 + abs(v)), 25)", "(1.0000000000000000000000000000 + abs(v))^-1"),
         ("n(abs(x)^2 + 1/3, 10)", "0.33333333333333 + abs(x)^2"),
         ("n(sqrt(2)^-1 + x, 20)", "0.707106781186547524400844 + x"),
-        ("n(abs(exp(-50) - exp(-50)*(1 + 10^-40)), 10)", "1.92874984796392e-62"),
+        ("n(abs(exp(-50) - exp(-50)*(1 + 10^-40)), 10)", "1.928749847964e-62"),
         ("n(1/(1 + abs(1.26~4)), 25)", "failure(precision_not_reached, 0.4425)"),
     ]);
 }
@@ -406,7 +406,7 @@ fn deep_and_wide_terms_are_walked_iteratively() {
     assert_eq!(eval(&mut e, "precision(map(k => k/2.0, range(10000)))"), "15.954589770191003");
     eval(&mut e, "fn wrap(t, 0) = t\nfn wrap(t, k: Int) = wrap(f(t), k - 1)");
     assert_eq!(eval(&mut e, "rationalize(wrap(0.5, 3))"), "f(f(f(1/2)))");
-    assert_eq!(eval(&mut e, "leaf_count(rationalize(wrap(0.5, 10000)))"), "10001");
+    assert_eq!(eval(&mut e, "leaf_count(rationalize(wrap(0.5, 10000)))"), "10003");
     assert_eq!(eval(&mut e, "nest(first, rationalize(wrap(0.5, 10000)), 10000)"), "1/2");
     assert_eq!(eval(&mut e, "precision(wrap(0.5, 10000))"), "15.954589770191003");
 }

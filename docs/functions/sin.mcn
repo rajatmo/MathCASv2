@@ -132,14 +132,14 @@ integrate(sin(x)^2, x)
 # Multiples of `pi` with other denominators stay unevaluated:
 
 #% cell
-sin(pi/5)
+sin(pi/7)
 #% output
-#= sin((1/5)*pi)
+#= sin((1/7)*pi)
 
 #% cell
-n(sin(pi/5))
+n(sin(pi/7))
 #% output
-#= 0.5877852522924731
+#= 0.4338837391175581
 
 #% text
 # A shift by a full period is not removed from a symbolic argument:

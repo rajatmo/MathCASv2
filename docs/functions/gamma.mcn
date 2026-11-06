@@ -161,19 +161,6 @@ log_gamma(172.0)
 #% output
 #= 711.71472580229
 
-#% text
-# Complex arguments are not supported: they stay unevaluated or give a wrong value:
-
-#% cell
-gamma(1.0 + 1.0*im)
-#% output
-#= gamma(complex(1.0, 1.0))
-
-#% cell
-n(gamma(1 + im))
-#% output
-#= machine_real("nan")
-
 #% section
 # See also
 

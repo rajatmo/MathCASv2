@@ -61,4 +61,4 @@ eval([1, x, "s"]) === [1, x, "s"]
 # See also
 
 #% text
-# `quote`, `unquote`
+# `attributes`, `set_attributes`

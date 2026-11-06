@@ -161,11 +161,11 @@ fn r12c_finds_the_longest_collatz_chain() {
     assert!(compiled < Duration::from_secs(5), "{compiled:?}");
 }
 
-/// The Mandelbrot escape-count grid (also `examples/mandelbrot.rs`): powers, three-operand sums and products of
+/// The Mandelbrot escape-count mgrid (also `examples/mandelbrot.rs`): powers, three-operand sums and products of
 /// machine reals, and products with exact rational parts, all inline.
 const MANDELBROT: &str = "\
 @compiled fn escape(cr: Real, ci: Real) = { var x = 0.0; var y = 0.0; var k = 0; while k < 100 and x*x + y*y <= 4.0 { let t = x*x - y*y + cr; y = 2.0*x*y + ci; x = t; k = k + 1 }; k }
-@compiled fn grid(n: Int) = { var total = 0; for i in range(n) { for j in range(n) { total = total + escape(-2.0 + 3.0*i/n, -1.5 + 3.0*j/n) } }; total }";
+@compiled fn mgrid(n: Int) = { var total = 0; for i in range(n) { for j in range(n) { total = total + escape(-2.0 + 3.0*i/n, -1.5 + 3.0*j/n) } }; total }";
 
 #[test]
 fn the_mandelbrot_grid_runs_inline() {
@@ -175,14 +175,14 @@ fn the_mandelbrot_grid_runs_inline() {
         assert_eq!(eval(&mut e, def), "null", "{def}");
         assert_eq!(eval(&mut plain, def.trim_start_matches("@compiled ")), "null");
     }
-    assert_eq!(info(&mut e, "grid", "inlined"), "[escape]");
+    assert_eq!(info(&mut e, "mgrid", "inlined"), "[escape]");
     for n in ["1", "7", "40"] {
-        assert_eq!(eval(&mut e, &format!("grid({n})")), eval(&mut plain, &format!("grid({n})")), "grid({n})");
+        assert_eq!(eval(&mut e, &format!("mgrid({n})")), eval(&mut plain, &format!("mgrid({n})")), "mgrid({n})");
     }
-    assert_eq!(info(&mut e, "grid", "declines"), "0");
+    assert_eq!(info(&mut e, "mgrid", "declines"), "0");
     // about 1.9 million iterations of the loop: tens of milliseconds inline, seconds through the arithmetic's code
     let t0 = Instant::now();
-    assert_eq!(eval(&mut e, "grid(300)"), "1893529");
+    assert_eq!(eval(&mut e, "mgrid(300)"), "1893529");
     let compiled = t0.elapsed();
     assert!(compiled < Duration::from_secs(1), "{compiled:?}");
 }

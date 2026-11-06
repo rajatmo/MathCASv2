@@ -129,22 +129,6 @@ erfc(6.0)
 #% output
 #= 2.1519736712498913e-17
 
-#% text
-# The limit at infinity is not taken:
-
-#% cell
-erf(inf)
-#% output
-#= erf(inf)
-
-#% text
-# A numerical value of `erf` at an exact complex number is wrong:
-
-#% cell
-n(erf(1 + im))
-#% output
-#= machine_real("nan")
-
 #% section
 # See also
 

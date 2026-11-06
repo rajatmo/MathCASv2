@@ -5,8 +5,6 @@
 
 #% text
 # `head(x)` gives the head of a compound term `x`: `f` for `f(a, b)`, `list` for a list.
-
-#% text
 # For an atom it gives the name of its type: `Int`, `Rat`, `Float`, `Complex`, `Str` or `Sym`.
 
 #% section

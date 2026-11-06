@@ -127,14 +127,6 @@ bessel_j(0, 2.0)^2 + 2*sum(bessel_j(k, 2.0)^2, [k, 1, 20])
 # Possible issues
 
 #% text
-# Complex arguments are not evaluated:
-
-#% cell
-bessel_j(0, 1.0 + 1.0*im)
-#% output
-#= bessel_j(0, complex(1.0, 1.0))
-
-#% text
 # A fractional order at a negative argument has a complex value, which is not computed:
 
 #% cell

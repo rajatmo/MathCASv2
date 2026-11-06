@@ -113,22 +113,6 @@ round(n(e^(pi*sqrt(163)), 40))
 #% output
 #= [2, 3, 3]
 
-#% subsection
-# Possible issues
-
-#% text
-# Exact real constants are not rounded; give a numerical value first:
-
-#% cell
-round(pi)
-#% output
-#= round(pi)
-
-#% cell
-round(n(pi))
-#% output
-#= 3
-
 #% section
 # See also
 

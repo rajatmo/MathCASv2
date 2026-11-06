@@ -47,7 +47,7 @@ fn signs_monotonicity_convexity_injectivity() {
 #[test]
 fn fourier_transforms() {
     check(&[
-        ("fourier_transform(exp(-t^2), t, w)", "(1/2)*exp((-1/4)*w^2)*2^(1/2)"),
+        ("fourier_transform(exp(-t^2), t, w)", "(1/2)*2^(1/2)*exp((-1/4)*w^2)"),
         ("inverse_fourier_transform(exp(-w^2/4)/sqrt(2), w, t)", "exp(-t^2)"),
         ("fourier_transform(unit_step(t)*unit_step(1 - t), t, w)", "(1/2)*(1im/w + -1im*exp(1im*w)/w)*2^(1/2)*pi^(-1/2)"),
         ("fourier_transform(g(t), t, w)", "fourier_transform(g(t), t, w)"),

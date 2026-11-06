@@ -145,19 +145,6 @@ log(x*y)
 #% output
 #= log(x*y)
 
-#% text
-# The logarithm of 0 stays unevaluated; a machine 0 gives negative infinity:
-
-#% cell
-log(0)
-#% output
-#= log(0)
-
-#% cell
-log(0.0)
-#% output
-#= machine_real("-inf")
-
 #% section
 # See also
 

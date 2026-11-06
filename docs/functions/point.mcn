@@ -54,17 +54,6 @@ graphics(point(table([k, sin(k)], k, 3)), frame: true)
 #% output
 #= image("point.files/point-3.png")
 
-#% subsection
-# Possible issues
-
-#% text
-# Positions are two-dimensional:
-
-#% cell
-point([1, 2, 3])
-#% output
-#! failure(argument, point, 1)
-
 #% section
 # See also
 

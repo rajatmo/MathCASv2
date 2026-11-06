@@ -93,14 +93,6 @@ graphics(spiral(3))
 #% output
 #! failure(not_graphics, "spiral(3)")
 
-#% text
-# So does an unknown option:
-
-#% cell
-graphics(disk(), colour: red)
-#% output
-#! failure(unknown_option, "colour")
-
 #% section
 # See also
 

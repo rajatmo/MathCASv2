@@ -134,22 +134,6 @@ floor(1 - 10^-60)
 #% output
 #= true
 
-#% subsection
-# Possible issues
-
-#% text
-# Exact real constants are not floored; give a numerical value first:
-
-#% cell
-floor(pi)
-#% output
-#= floor(pi)
-
-#% cell
-floor(n(pi))
-#% output
-#= 3
-
 #% section
 # See also
 

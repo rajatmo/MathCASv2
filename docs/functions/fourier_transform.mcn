@@ -41,7 +41,7 @@ fourier_transform(unit_step(t)*unit_step(1 - t), t, w)
 #% cell
 fourier_transform(exp(-t^2), t, w)
 #% output
-#= (1/2)*exp((-1/4)*w^2)*2^(1/2)
+#= (1/2)*2^(1/2)*exp((-1/4)*w^2)
 
 #% subsection
 # Scope
@@ -68,7 +68,7 @@ fourier_transform(exp(-(t - 1)^2/2), t, w)
 #% cell
 fourier_transform([exp(-t^2), exp(-2*t^2)], t, w)
 #% output
-#= [(1/2)*exp((-1/4)*w^2)*2^(1/2), (1/2)*exp((-1/8)*w^2)]
+#= [(1/2)*2^(1/2)*exp((-1/4)*w^2), (1/2)*exp((-1/8)*w^2)]
 
 #% subsection
 # Properties and relations

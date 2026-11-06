@@ -149,30 +149,6 @@ n(exp(1000), 20)
 #% output
 #= 1.970071114017046993889e434
 
-#% text
-# Limits are not taken at infinity:
-
-#% cell
-exp(-inf)
-#% output
-#= exp(-inf)
-
-#% text
-# Only a bare logarithm is cancelled; a multiple of a logarithm stays:
-
-#% cell
-exp(2*log(3))
-#% output
-#= exp(2*log(3))
-
-#% text
-# Machine values of `exp(2)` and `e^2` are computed in different ways and may differ in the last bit:
-
-#% cell
-n(exp(2)) - n(e^2)
-#% output
-#= 0.0
-
 #% section
 # See also
 

@@ -83,7 +83,7 @@ cos(-x)
 #% cell
 n(cos(im))
 #% output
-#= complex(1.5430806348152437, -0.0)
+#= 1.5430806348152437
 
 #% cell
 n(cosh(1))

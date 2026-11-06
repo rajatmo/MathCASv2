@@ -123,14 +123,6 @@ abs(x^2)
 #% output
 #= abs(x^2)
 
-#% text
-# The absolute value of an infinity is not taken:
-
-#% cell
-abs(-inf)
-#% output
-#= abs(-inf)
-
 #% section
 # See also
 
