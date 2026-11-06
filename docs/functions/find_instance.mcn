@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# find_instance
+
+#% text
+# `find_instance(cond, x)` gives one point satisfying `cond` as `[[x -> v]]`; `find_instance(cond, [x, y])` for several variables; `[]` when there is none.
+
+#% section
+# Details
+
+#% item
+# With one variable the condition is reduced by `reduce` and a root or a simple number inside an interval is taken.
+
+#% item
+# With several variables the equations are solved by `solve` and the unknowns left free are set to 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A root:
+
+#% cell
+find_instance(x^2 == 4 and x > 0, x)
+#% output
+#= [[x -> 2]]
+
+#% text
+# A point of an interval:
+
+#% cell
+find_instance(x^2 < 4 and x > 1, x)
+#% output
+#= [[x -> 3/2]]
+
+#% subsection
+# Scope
+
+#% text
+# Two equations:
+
+#% cell
+find_instance(x + y == 3 and x - y == 1, [x, y])
+#% output
+#= [[x -> 2, y -> 1]]
+
+#% text
+# An underdetermined system:
+
+#% cell
+find_instance(x + y == 3, [x, y])
+#% output
+#= [[x -> 3, y -> 0]]
+
+#% text
+# No solution:
+
+#% cell
+find_instance(x^2 < 0, x)
+#% output
+#= []
+
+#% subsection
+# Properties and relations
+
+#% text
+# `reduce` gives all the solutions:
+
+#% cell
+reduce(x^2 < 4 and x > 1, x)
+#% output
+#= 1 < x and x < 2
+
+#% section
+# See also
+
+#% text
+# `reduce`, `solve`

@@ -1,0 +1,74 @@
+#! mathcas 2 notebook
+
+#% title
+# r_solve
+
+#% text
+# `r_solve(eqs, a, n)` solves a linear recurrence with constant coefficients for the sequence `a(n)`, giving `[[a -> (n => sol)]]`; `r_solve(eqs, a(n), n)` gives `[[a(n) -> sol]]`.
+
+#% section
+# Details
+
+#% item
+# The recurrence is `sum c_k a(n + k) == 0` with constant `c_k` (shifts may be negative); the solution is a combination of `r^n` (and `n^j r^n` for a multiple root) over the roots of the characteristic polynomial.
+
+#% item
+# The constants are `c(1)`, `c(2)`, ...; initial values `a(k) == v` in `eqs` fix them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Doubling:
+
+#% cell
+r_solve(a(n + 1) == 2*a(n), a(n), n)
+#% output
+#= [[a(n) -> c(1)*2^n]]
+
+#% text
+# The Fibonacci numbers:
+
+#% cell
+r_solve([a(n + 2) == a(n + 1) + a(n), a(0) == 0, a(1) == 1], a(n), n)
+#% output
+#= [[a(n) -> (-1/5)*(-(1 + 5^(1/2))^n + (1 - 5^(1/2))^n)*(1/2)^n*5^(1/2)]]
+
+#% subsection
+# Scope
+
+#% text
+# A double root:
+
+#% cell
+r_solve(a(n + 2) - 4*a(n + 1) + 4*a(n) == 0, a(n), n)
+#% output
+#= [[a(n) -> c(1)*2^n + n*c(2)*2^n]]
+
+#% text
+# Shifts backwards:
+
+#% cell
+r_solve([a(n) == 3*a(n - 1), a(0) == 2], a, n)
+#% output
+#= [[a -> (n => 2*3^n)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The tenth Fibonacci number from the closed form:
+
+#% cell
+expand(r_solve_value([a(n + 2) == a(n + 1) + a(n), a(0) == 0, a(1) == 1], a(n), n) /. n -> 10)
+#% output
+#= 55
+
+#% section
+# See also
+
+#% text
+# `r_solve_value`, `d_solve`, `fibonacci`

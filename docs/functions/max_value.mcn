@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# max_value
+
+#% text
+# `max_value(f, x)` gives the global maximum value of `f`.
+
+#% section
+# Details
+
+#% item
+# It is the first part of `maximize(f, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A downward parabola:
+
+#% cell
+max_value(1 - x^2, x)
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# On an interval:
+
+#% cell
+max_value([x*(1 - x), 0 <= x and x <= 1], x)
+#% output
+#= 1/4
+
+#% subsection
+# Properties and relations
+
+#% text
+# `maximize` gives the point too:
+
+#% cell
+maximize(1 - x^2, x)
+#% output
+#= [1, [x -> 0]]
+
+#% section
+# See also
+
+#% text
+# `maximize`, `min_value`, `arg_max`

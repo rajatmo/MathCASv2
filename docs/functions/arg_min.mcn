@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# arg_min
+
+#% text
+# `arg_min(f, x)` gives a point where `f` attains its global minimum; `arg_min(f, [x, y])` gives the list of coordinates.
+
+#% section
+# Details
+
+#% item
+# It is the point of `minimize(f, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+arg_min(x^2 + 2*x, x)
+#% output
+#= -1
+
+#% subsection
+# Scope
+
+#% text
+# Two variables:
+
+#% cell
+arg_min(x^2 + y^2 - 2*x + 4*y, [x, y])
+#% output
+#= [1, -2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The minimum value at that point:
+
+#% cell
+min_value(x^2 + 2*x, x)
+#% output
+#= -1
+
+#% section
+# See also
+
+#% text
+# `minimize`, `arg_max`, `min_value`

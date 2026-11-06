@@ -1,0 +1,123 @@
+#! mathcas 2 notebook
+
+#% title
+# d_solve
+
+#% text
+# `d_solve(eqs, y, x)` solves an ordinary differential equation for the function `y` of `x`, giving `[[y -> (x => sol)]]`; `d_solve(eqs, y(x), x)` gives `[[y(x) -> sol]]`.
+
+#% section
+# Details
+
+#% item
+# Linear equations with constant coefficients of any order are solved through the roots of the characteristic polynomial; a right-hand side of a first- or second-order equation by variation of parameters.
+
+#% item
+# Euler equations `a x^2 y'' + b x y' + c y == 0`, first-order linear equations with variable coefficients and separable equations `y' == g(x) h(y)` are solved too.
+
+#% item
+# The free constants are `c(1)`, `c(2)`, ...; conditions `y(x0) == v`, `y'(x0) == v` in `eqs` fix them.
+
+#% item
+# An equation of another kind leaves the call unevaluated; `n_dsolve` solves it numerically.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Exponential growth:
+
+#% cell
+d_solve(y'(x) == y(x), y, x)
+#% output
+#= [[y -> (x => c(1)*exp(x))]]
+
+#% text
+# The harmonic oscillator with initial conditions:
+
+#% cell
+d_solve([y''(x) + y(x) == 0, y(0) == 1, y'(0) == 0], y(x), x)
+#% output
+#= [[y(x) -> cos(x)]]
+
+#% subsection
+# Scope
+
+#% text
+# A repeated root of the characteristic polynomial:
+
+#% cell
+d_solve(y''(x) + 2*y'(x) + y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> c(1)*exp(-x) + x*c(2)*exp(-x)]]
+
+#% text
+# A right-hand side:
+
+#% cell
+d_solve(y''(x) + y(x) == x, y(x), x)
+#% output
+#= [[y(x) -> x + c(1)*cos(x) + c(2)*sin(x)]]
+
+#% cell
+d_solve(y'(x) + 2*y(x) == exp(x), y(x), x)
+#% output
+#= [[y(x) -> (1/3)*exp(x) + c(1)*exp(-2*x)]]
+
+#% text
+# Variable coefficients:
+
+#% cell
+d_solve(y'(x) + y(x)/x == x^2, y(x), x)
+#% output
+#= [[y(x) -> (1/4)*x^3 + c(1)/x]]
+
+#% text
+# A separable nonlinear equation:
+
+#% cell
+d_solve(y'(x) == y(x)^2, y(x), x)
+#% output
+#= [[y(x) -> -(x + c(1))^-1]]
+
+#% text
+# An Euler equation:
+
+#% cell
+d_solve(x^2*y''(x) + x*y'(x) - y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> x*c(2) + c(1)/x]]
+
+#% subsection
+# Applications
+
+#% text
+# Damped oscillations:
+
+#% cell
+d_solve([y''(t) + y'(t)/2 + 4*y(t) == 0, y(0) == 1, y'(0) == 0], y(t), t)
+#% output
+#= [[y(t) -> (1/21)*(21*cos((3/4)*t*7^(1/2)) + 7^(1/2)*sin((3/4)*t*7^(1/2)))*exp((-1/4)*t)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The solution satisfies the equation:
+
+#% cell
+sol = d_solve_value(y''(x) - 3*y'(x) + 2*y(x) == 0, y(x), x)
+
+#% cell
+simplify(d(sol, [x, 2]) - 3*d(sol, x) + 2*sol)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `d_solve_value`, `n_dsolve`, `r_solve`, `integrate`

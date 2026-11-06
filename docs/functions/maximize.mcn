@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# maximize
+
+#% text
+# `maximize(f, x)` gives the global maximum of `f` over the reals as `[value, [x -> point]]`; `maximize([f, cond], x)` under a condition.
+
+#% section
+# Details
+
+#% item
+# It is computed as `minimize` of `-f`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A quartic with two maxima:
+
+#% cell
+maximize(-x^4 + 2*x^2, x)
+#% output
+#= [1, [x -> -1]]
+
+#% subsection
+# Scope
+
+#% text
+# On an interval:
+
+#% cell
+maximize([x*(1 - x), 0 <= x and x <= 1], x)
+#% output
+#= [1/4, [x -> 1/2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The value alone:
+
+#% cell
+max_value([x*(1 - x), 0 <= x and x <= 1], x)
+#% output
+#= 1/4
+
+#% section
+# See also
+
+#% text
+# `minimize`, `max_value`, `arg_max`

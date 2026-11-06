@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# r_solve_value
+
+#% text
+# `r_solve_value(eqs, a(n), n)` gives the solution of a linear recurrence as an expression in `n`.
+
+#% section
+# Details
+
+#% item
+# It solves as `r_solve` does.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Tripling from 2:
+
+#% cell
+r_solve_value([a(n) == 3*a(n - 1), a(0) == 2], a(n), n)
+#% output
+#= 2*3^n
+
+#% subsection
+# Scope
+
+#% text
+# The general solution:
+
+#% cell
+r_solve_value(a(n + 2) == a(n), a(n), n)
+#% output
+#= c(2) + c(1)*(-1)^n
+
+#% subsection
+# Properties and relations
+
+#% text
+# `r_solve` gives rules:
+
+#% cell
+r_solve([a(n) == 3*a(n - 1), a(0) == 2], a(n), n)
+#% output
+#= [[a(n) -> 2*3^n]]
+
+#% section
+# See also
+
+#% text
+# `r_solve`, `d_solve_value`

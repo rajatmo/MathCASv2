@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# d_solve_value
+
+#% text
+# `d_solve_value(eqs, y(x), x)` gives the solution of a differential equation as an expression in `x`.
+
+#% section
+# Details
+
+#% item
+# It solves as `d_solve` does; with several solutions the result is their list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Exponential decay from 3:
+
+#% cell
+d_solve_value([y'(x) == -2*y(x), y(0) == 3], y(x), x)
+#% output
+#= 3*exp(-2*x)
+
+#% subsection
+# Scope
+
+#% text
+# The general solution with its constants:
+
+#% cell
+d_solve_value(y''(x) + 4*y(x) == 0, y(x), x)
+#% output
+#= c(1)*cos(2*x) + c(2)*sin(2*x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `d_solve` gives rules:
+
+#% cell
+d_solve([y'(x) == -2*y(x), y(0) == 3], y(x), x)
+#% output
+#= [[y(x) -> 3*exp(-2*x)]]
+
+#% section
+# See also
+
+#% text
+# `d_solve`, `n_dsolve_value`

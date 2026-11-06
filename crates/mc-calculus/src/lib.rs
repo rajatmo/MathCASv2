@@ -23,8 +23,10 @@
 #![warn(missing_docs)]
 pub mod apart;
 pub mod diff;
+pub mod dsolve;
 pub mod integrate;
 pub mod limit;
+pub mod optimize;
 pub mod props;
 mod natives;
 pub mod rules;
@@ -62,6 +64,17 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("function_monotonicity", "function_monotonicity(f, x): 1 for a nondecreasing f, -1 for a nonincreasing one, 0 for a constant, indeterminate otherwise; integers for a sequence"),
     ("function_convexity", "function_convexity(f, x): 1 for a convex f, -1 for a concave one, 0 for a linear one, indeterminate otherwise"),
     ("function_injective", "function_injective(f, x): true when f takes no value twice on its domain (or [f, cond]), false when it does"),
+    ("minimize", "minimize(f, x), minimize([f, cond], x), minimize(f, [x, y]): the global minimum [value, [x -> point]] (one variable: critical points, ends of the domain, limits; several: convex quadratics)"),
+    ("maximize", "maximize(f, x): the global maximum [value, [x -> point]], as minimize"),
+    ("min_value", "min_value(f, x): the global minimum value"),
+    ("max_value", "max_value(f, x): the global maximum value"),
+    ("arg_min", "arg_min(f, x): a point where the global minimum is attained"),
+    ("arg_max", "arg_max(f, x): a point where the global maximum is attained"),
+    ("find_instance", "find_instance(cond, x), find_instance(cond, [x, y]): one point satisfying cond, [[x -> v]] ([] when there is none)"),
+    ("d_solve", "d_solve(eqs, y, x): the solutions [[y -> fn([x], sol)]] of an ordinary differential equation for y(x) (constant-coefficient linear, Euler, first-order linear, separable), with conditions y(x0) == v; constants c(1), c(2), ..."),
+    ("d_solve_value", "d_solve_value(eqs, y(x), x): the solution of d_solve as an expression"),
+    ("r_solve", "r_solve(eqs, a, n): the solutions [[a -> fn([n], sol)]] of a linear recurrence with constant coefficients, with initial values a(k) == v"),
+    ("r_solve_value", "r_solve_value(eqs, a(n), n): the solution of r_solve as an expression"),
     (
         "fourier_transform",
         "fourier_transform(f, t, w): the Fourier transform 1/sqrt(2 pi) integrate(f exp(im w t), [t, -inf, inf]) (unit steps in f as bounds, Gaussians in closed form)",
@@ -91,6 +104,25 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         ("function_injective", props::Prop::Injective),
     ] {
         k.register(h.sym(name), Attributes::default(), Box::new(props::PropNative { p, stop: stop.clone() }));
+    }
+    for (name, kind) in [
+        ("minimize", optimize::Kind::Minimize),
+        ("maximize", optimize::Kind::Maximize),
+        ("min_value", optimize::Kind::MinValue),
+        ("max_value", optimize::Kind::MaxValue),
+        ("arg_min", optimize::Kind::ArgMin),
+        ("arg_max", optimize::Kind::ArgMax),
+        ("find_instance", optimize::Kind::FindInstance),
+    ] {
+        k.register(h.sym(name), Attributes::default(), Box::new(optimize::OptNative { kind, stop: stop.clone() }));
+    }
+    for (name, kind) in [
+        ("d_solve", dsolve::Kind::DSolve),
+        ("d_solve_value", dsolve::Kind::DSolveValue),
+        ("r_solve", dsolve::Kind::RSolve),
+        ("r_solve_value", dsolve::Kind::RSolveValue),
+    ] {
+        k.register(h.sym(name), Attributes::default(), Box::new(dsolve::DSolveNative { kind, stop: stop.clone() }));
     }
     k.register(h.sym("fourier_transform"), Attributes::default(), Box::new(transforms::Fourier { inverse: false, stop: stop.clone() }));
     k.register(h.sym("inverse_fourier_transform"), Attributes::default(), Box::new(transforms::Fourier { inverse: true, stop: stop.clone() }));

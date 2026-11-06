@@ -1,0 +1,99 @@
+#! mathcas 2 notebook
+
+#% title
+# minimize
+
+#% text
+# `minimize(f, x)` gives the global minimum of `f` over the reals as `[value, [x -> point]]`; `minimize([f, cond], x)` under the condition `cond`; `minimize(f, [x, y])` in several variables.
+
+#% section
+# Details
+
+#% item
+# With one variable the candidates are the real critical points, the closed ends of the domain that `reduce` gives for `cond`, and its isolated points; the limits at open ends and at infinities show whether the minimum is attained.
+
+#% item
+# A function unbounded below gives `[-inf, [x -> -inf]]` (or `inf`, the side where it falls without bound).
+
+#% item
+# When the infimum is a limit that is not attained, the call stays unevaluated.
+
+#% item
+# With several variables, polynomials with a constant positive definite Hessian (convex quadratics) are minimized at their critical point.
+
+#% item
+# Values are compared numerically; results are exact.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+minimize(x^2 - 4*x + 1, x)
+#% output
+#= [-3, [x -> 2]]
+
+#% text
+# A cubic is unbounded below:
+
+#% cell
+minimize(x^3 - 3*x, x)
+#% output
+#= [-inf, [x -> -inf]]
+
+#% subsection
+# Scope
+
+#% text
+# On an interval the ends count:
+
+#% cell
+minimize([x^3 - 3*x, x >= -3 and x <= 3], x)
+#% output
+#= [-18, [x -> -3]]
+
+#% text
+# Two variables:
+
+#% cell
+minimize(x^2 + y^2 - 2*x + 4*y, [x, y])
+#% output
+#= [-5, [x -> 1, y -> -2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `maximize` is the minimum of the negative:
+
+#% cell
+maximize(-x^4 + 2*x^2, x)
+#% output
+#= [1, [x -> -1]]
+
+#% cell
+minimize(x^4 - 2*x^2, x)
+#% output
+#= [-1, [x -> -1]]
+
+#% subsection
+# Possible issues
+
+#% text
+# An infimum that is not attained leaves the call unevaluated:
+
+#% cell
+minimize(exp(x), x)
+#% output
+#= minimize(exp(x), x)
+
+#% section
+# See also
+
+#% text
+# `maximize`, `min_value`, `arg_min`, `find_minimum`, `function_range`
