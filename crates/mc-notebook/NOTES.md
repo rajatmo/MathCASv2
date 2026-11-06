@@ -438,3 +438,9 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
 - Tests: `rotate3d::tests::views_are_kept_as_attributes_and_read_back`; `plothover` signed-log test extended; the
   self-test `tests/rotate3d_selftest.rs` (ignored: opens a window): drag turns, two notches zoom 1.21, the saved file
   keeps the view and embeds the scene, reopening renders the kept view, a double-click drops it.
+
+## Round 13 (nb-mat): File > Export
+
+File > Export > HTML page / PDF document / Script: HTML and PDF through `mc_nbexport` (`to_html`, `to_pdf`) on the
+document as shown; 3D pictures that keep a view of their own are drawn from that view (scale 2) for the export.
+Self-test step `export <file>`.

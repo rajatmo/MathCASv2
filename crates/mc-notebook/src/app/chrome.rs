@@ -63,6 +63,14 @@ impl App {
                     self.settings.save();
                 }
                 submenu(ui, "Export", |ui| {
+                    if ui.button("HTML page (.html)...").clicked() {
+                        local = Some("export-html");
+                        ui.close();
+                    }
+                    if ui.button("PDF document (.pdf)...").clicked() {
+                        local = Some("export-pdf");
+                        ui.close();
+                    }
                     if ui.button("Script (.mc)...").clicked() {
                         local = Some("export");
                         ui.close();
@@ -272,6 +280,8 @@ impl App {
         match local {
             Some("exit") => ctx.send_viewport_cmd(ViewportCommand::Close),
             Some("export") => self.export_script(),
+            Some("export-html") => self.export_document("html"),
+            Some("export-pdf") => self.export_document("pdf"),
             Some("docs") => self.open_docs(None),
             Some("quit") | Some("restart") => self.run(&ctx, Command::QuitKernel),
             Some("find-running") => {

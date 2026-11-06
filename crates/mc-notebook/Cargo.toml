@@ -23,6 +23,8 @@ mc-graphics = { path = "../mc-graphics" }
 mc-help = { path = "../mc-help" }
 mc-mathfont = { path = "../mc-mathfont" }
 mc-nbfile = { path = "../mc-nbfile" }
+# File > Export: HTML and PDF
+mc-nbexport = { path = "../mc-nbexport" }
 mc-nbmodel = { path = "../mc-nbmodel" }
 mc-syntax = { path = "../mc-syntax" }
 mc-ui = { path = "../mc-ui" }

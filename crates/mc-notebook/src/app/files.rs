@@ -160,6 +160,67 @@ impl App {
             }
         }
     }
+    /// File > Export > HTML page / PDF document: the notebook as shown (outputs included, 3D pictures and
+    /// controls as their pictures), written by `mc_nbexport`.
+    pub(super) fn export_document(&mut self, ext: &str) {
+        let (name, filter) = if ext == "pdf" { ("PDF document", "pdf") } else { ("HTML page", "html") };
+        let stem = self.path().and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_string()));
+        let mut dialog = rfd::FileDialog::new().add_filter(name, &[filter]);
+        if let Some(s) = &stem {
+            dialog = dialog.set_file_name(format!("{s}.{ext}"));
+        }
+        let Some(p) = dialog.save_file() else { return };
+        self.export_to(&p);
+    }
+
+    /// Export the notebook to `path` (`.html`/`.htm` or `.pdf`; also the self-test's `export` step).
+    pub fn export_to(&mut self, path: &Path) -> bool {
+        let start = std::time::Instant::now();
+        let mut f = self.doc.nb.to_file();
+        let base = self.doc.view.base.clone().unwrap_or_default();
+        // 3D pictures turned in the window are exported as they show
+        let turned = self.turned_pictures(&base);
+        for line in f.cells.iter_mut().flat_map(|c| c.outputs.iter_mut()).flat_map(|b| b.lines.iter_mut()) {
+            if let Some((_, new)) = turned.iter().find(|(old, _)| *old == line.text) {
+                line.text = new.clone();
+            }
+        }
+        let ext = path.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+        let bytes = if ext == "pdf" {
+            mc_nbexport::to_pdf(&f, &base)
+        } else {
+            mc_nbexport::to_html(&f, &base, path, &mc_nbexport::Options::default()).map(String::into_bytes)
+        };
+        match bytes.and_then(|b| std::fs::write(path, b)) {
+            Ok(()) => {
+                self.status = format!("Exported {} ({:.0} ms)", file_name(path), start.elapsed().as_secs_f64() * 1000.0);
+                true
+            }
+            Err(e) => {
+                self.error = Some(format!("Cannot export {}: {e}", path.display()));
+                false
+            }
+        }
+    }
+
+    /// The 3D pictures that keep a view of their own, drawn from it into the pictures cache: (value, new value).
+    fn turned_pictures(&mut self, base: &Path) -> Vec<(String, String)> {
+        let mut out = vec![];
+        for c in self.doc.nb.cells() {
+            let Some(p) = c.graphic() else { continue };
+            let path = mc_nbfile::images::resolve(&p, Some(base));
+            let Some(scene) = self.rot.borrow_mut().scene(&path) else { continue };
+            let Some(view) = crate::rotate3d::view_of(&c.out_extra, scene.view()) else { continue };
+            let Ok(png) = scene.render_png(&view, 2.0, &|| false) else { continue };
+            let dir = mc_nbfile::embed::cache_dir();
+            let name = format!("view-{}-{}.png", std::process::id(), c.id);
+            if std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(dir.join(&name), &png)).is_ok() {
+                out.push((c.text.clone(), mc_nbfile::images::image_value(&dir.join(&name).display().to_string())));
+            }
+        }
+        out
+    }
+
     pub(super) fn export_script(&mut self) {
         let dialog = rfd::FileDialog::new().add_filter("MathCAS script", &["mc"]);
         let Some(p) = dialog.save_file() else { return };

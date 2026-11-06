@@ -32,6 +32,7 @@
 //!   fraction of it) at window height `y` to the log
 //! - `plainwheel <lines>`: one wheel event without Ctrl; `view3d`: the 3D views kept on outputs and the render
 //!   times so far (milliseconds: median and largest)
+//! - `export <file>`: File > Export to an `.html` or `.pdf` file
 //! - `quit`
 use crate::app::App;
 use crate::theme::ThemeChoice;
@@ -300,6 +301,10 @@ impl SelfTest {
                 self.log.push(format!("save {arg}: {ok}, {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
             }
             "log" => self.log.push(arg.to_string()),
+            "export" => {
+                let ok = app.export_to(std::path::Path::new(arg));
+                self.log.push(format!("export {arg}: {ok}"));
+            }
             "wheel" | "pad" => {
                 let mut it = arg.split_whitespace();
                 let d: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(1.0);
