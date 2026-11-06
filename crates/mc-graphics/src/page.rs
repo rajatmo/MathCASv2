@@ -84,7 +84,7 @@ impl Plan {
 }
 
 /// The smallest and largest coordinates of the primitives (positions given as `scaled` left out).
-fn bounds(items: &[Item], stop: &dyn Fn() -> bool) -> Result<[(f64, f64); 2], Failure> {
+pub(crate) fn bounds(items: &[Item], stop: &dyn Fn() -> bool) -> Result<[(f64, f64); 2], Failure> {
     let mut b = [(f64::INFINITY, f64::NEG_INFINITY); 2];
     let mut add = |p: &Pt| {
         if !p.scaled {

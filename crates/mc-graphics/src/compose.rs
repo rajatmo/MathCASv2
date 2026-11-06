@@ -214,7 +214,17 @@ impl<'h> B<'h> {
         let mid = self.pt(x + w / 2.0, y + ht / 2.0);
         match c {
             Cell::Picture(t, _) => self.call("inset", &[*t, mid, self.pt(0.0, 0.0), self.h.real(w)]),
-            Cell::Label(t, _) => self.list(&[self.call("font_size", &[self.h.real(TEXT)]), self.call("text", &[*t, mid])]),
+            Cell::Label(t, _) => {
+                let mut v = vec![self.call("font_size", &[self.h.real(TEXT)])];
+                // `style(x, ..., colour, ...)`: drawn in that colour (the label reads the size itself)
+                if let View::App { head, args } = self.h.view(*t) {
+                    if sym_is(self.h, head, "style") && args.len() > 1 {
+                        v.extend(args[1..].iter().find_map(|&a| colour_in(self.h, a)));
+                    }
+                }
+                v.push(self.call("text", &[*t, mid]));
+                self.list(&v)
+            }
         }
     }
     /// The graphic of `content` on a page `w` x `ht` points, one plot unit a point.
@@ -365,31 +375,11 @@ impl Native for Compose {
                 if !matches!(c, Cell::Picture(..)) && !matches!(h.view(x), View::Str(_)) {
                     return Ok(Reply::Decline);
                 }
-                let ((cw, ch), (lw, lh)) = (c.size(), lc.size());
                 let side = pos.and_then(|p| match h.view(p) {
                     View::Sym(s) => Some(h.sym_name(s)),
                     _ => None,
                 });
-                let (w, ht);
-                let content = match side.as_deref() {
-                    Some("top" | "above") => {
-                        (w, ht) = (cw.max(lw), ch + lh + GAP / 2.0);
-                        vec![b.place(&c, (w - cw) / 2.0, 0.0, cw, ch), b.place(&lc, (w - lw) / 2.0, ch + GAP / 2.0, lw, lh)]
-                    }
-                    Some("left" | "before") => {
-                        (w, ht) = (cw + lw + GAP / 2.0, ch.max(lh));
-                        vec![b.place(&lc, 0.0, (ht - lh) / 2.0, lw, lh), b.place(&c, lw + GAP / 2.0, (ht - ch) / 2.0, cw, ch)]
-                    }
-                    Some("right" | "after") => {
-                        (w, ht) = (cw + lw + GAP / 2.0, ch.max(lh));
-                        vec![b.place(&c, 0.0, (ht - ch) / 2.0, cw, ch), b.place(&lc, cw + GAP / 2.0, (ht - lh) / 2.0, lw, lh)]
-                    }
-                    _ => {
-                        (w, ht) = (cw.max(lw), ch + lh + GAP / 2.0);
-                        vec![b.place(&c, (w - cw) / 2.0, lh + GAP / 2.0, cw, ch), b.place(&lc, (w - lw) / 2.0, 0.0, lw, lh)]
-                    }
-                };
-                Ok(Reply::Again(b.page(content, w, ht, None)))
+                Ok(Reply::Again(labeled_layout(&b, &c, &lc, side.as_deref())))
             }
             Kind::Legended => {
                 let [x, l] = args else { return Ok(Reply::Decline) };
@@ -398,41 +388,198 @@ impl Native for Compose {
                 if !matches!(c, Cell::Picture(..)) {
                     return Ok(Reply::Decline);
                 }
-                // entries: a list of labels, or line_legend / swatch_legend / point_legend([colours], [labels])
-                let (colors, labels): (Vec<T<'h>>, Vec<T<'h>>) = match cx.as_list(*l) {
-                    Some(ls) => (vec![], ls.to_vec()),
-                    None => match h.view(*l) {
-                        View::App { args: la, .. } => {
-                            let lists: Vec<&[T<'h>]> = la.iter().filter_map(|&a| cx.as_list(a)).collect();
-                            match lists.as_slice() {
-                                [cs, ls] => (cs.to_vec(), ls.to_vec()),
-                                [ls] => (vec![], ls.to_vec()),
-                                _ => (vec![], vec![*l]),
-                            }
-                        }
-                        _ => (vec![], vec![*l]),
-                    },
-                };
+                let (colors, labels) = legend_entries(h, *l, &|t| cx.as_list(t));
                 let entries: Vec<Cell<'h>> = labels.iter().map(|&e| cell(cx, e)).collect::<Res<_>>()?;
-                let (cw, ch) = c.size();
-                let row_h = entries.iter().map(|e| e.size().1).fold(TEXT * 1.4, f64::max);
-                let lw = entries.iter().map(|e| e.size().0).fold(0.0, f64::max) + 30.0;
-                let lh = row_h * entries.len() as f64;
-                let (w, ht) = (cw + GAP + lw, ch.max(lh));
-                let mut content = vec![b.place(&c, 0.0, (ht - ch) / 2.0, cw, ch)];
-                let top = (ht + lh) / 2.0;
-                for (k, e) in entries.iter().enumerate() {
-                    let y = top - row_h * (k as f64 + 0.5);
-                    let x = cw + GAP;
-                    if let Some(&col) = colors.get(k) {
-                        content.push(b.list(&[col, b.call("rectangle", &[b.pt(x, y - 5.0), b.pt(x + 20.0, y + 5.0)])]));
-                    }
-                    let (ew, eh) = e.size();
-                    content.push(b.place(e, x + 26.0, y - eh / 2.0, ew, eh));
-                }
-                Ok(Reply::Again(b.page(content, w, ht, None)))
+                Ok(Reply::Again(legended_layout(&b, &c, &colors, &entries)))
             }
         }
+    }
+}
+
+/// The entries of a legend: a list of labels, or line_legend / swatch_legend / point_legend([colours], [labels]);
+/// colours and labels.
+fn legend_entries<'h>(h: &'h Heap, l: T<'h>, as_list: &dyn Fn(T<'h>) -> Option<&'h [T<'h>]>) -> (Vec<T<'h>>, Vec<T<'h>>) {
+    match as_list(l) {
+        Some(ls) => (vec![], ls.to_vec()),
+        None => match h.view(l) {
+            View::App { args: la, .. } => {
+                let lists: Vec<&[T<'h>]> = la.iter().filter_map(|&a| as_list(a)).collect();
+                match lists.as_slice() {
+                    [cs, ls] => (cs.to_vec(), ls.to_vec()),
+                    [ls] => (vec![], ls.to_vec()),
+                    _ => (vec![], vec![l]),
+                }
+            }
+            _ => (vec![], vec![l]),
+        },
+    }
+}
+
+/// `c` with its label `lc` beside it (`side`: top/above, left/before, right/after, else below).
+fn labeled_layout<'h>(b: &B<'h>, c: &Cell<'h>, lc: &Cell<'h>, side: Option<&str>) -> T<'h> {
+    let ((cw, ch), (lw, lh)) = (c.size(), lc.size());
+    let (w, ht);
+    let content = match side {
+        Some("top" | "above") => {
+            (w, ht) = (cw.max(lw), ch + lh + GAP / 2.0);
+            vec![b.place(c, (w - cw) / 2.0, 0.0, cw, ch), b.place(lc, (w - lw) / 2.0, ch + GAP / 2.0, lw, lh)]
+        }
+        Some("left" | "before") => {
+            (w, ht) = (cw + lw + GAP / 2.0, ch.max(lh));
+            vec![b.place(lc, 0.0, (ht - lh) / 2.0, lw, lh), b.place(c, lw + GAP / 2.0, (ht - ch) / 2.0, cw, ch)]
+        }
+        Some("right" | "after") => {
+            (w, ht) = (cw + lw + GAP / 2.0, ch.max(lh));
+            vec![b.place(c, 0.0, (ht - ch) / 2.0, cw, ch), b.place(lc, cw + GAP / 2.0, (ht - lh) / 2.0, lw, lh)]
+        }
+        _ => {
+            (w, ht) = (cw.max(lw), ch + lh + GAP / 2.0);
+            vec![b.place(c, (w - cw) / 2.0, lh + GAP / 2.0, cw, ch), b.place(lc, (w - lw) / 2.0, 0.0, lw, lh)]
+        }
+    };
+    b.page(content, w, ht, None)
+}
+
+/// `c` with a legend at its right: an entry per label, with a swatch of its colour when there are colours.
+fn legended_layout<'h>(b: &B<'h>, c: &Cell<'h>, colors: &[T<'h>], entries: &[Cell<'h>]) -> T<'h> {
+    let (cw, ch) = c.size();
+    let row_h = entries.iter().map(|e| e.size().1).fold(TEXT * 1.4, f64::max);
+    let lw = entries.iter().map(|e| e.size().0).fold(0.0, f64::max) + 30.0;
+    let lh = row_h * entries.len() as f64;
+    let (w, ht) = (cw + GAP + lw, ch.max(lh));
+    let mut content = vec![b.place(c, 0.0, (ht - ch) / 2.0, cw, ch)];
+    let top = (ht + lh) / 2.0;
+    for (k, e) in entries.iter().enumerate() {
+        let y = top - row_h * (k as f64 + 0.5);
+        let x = cw + GAP;
+        if let Some(&col) = colors.get(k) {
+            content.push(b.list(&[col, b.call("rectangle", &[b.pt(x, y - 5.0), b.pt(x + 20.0, y + 5.0)])]));
+        }
+        let (ew, eh) = e.size();
+        content.push(b.place(e, x + 26.0, y - eh / 2.0, ew, eh));
+    }
+    b.page(content, w, ht, None)
+}
+
+/// The most nodes an expression shown inside a labelled layout may have (larger ones are shown as terms).
+const SHOWN_NODES: usize = 4000;
+
+/// Whether `t` has at most `limit` nodes.
+fn small(h: &Heap, t: T<'_>, limit: usize) -> bool {
+    let mut stack = vec![t];
+    let mut seen = 0usize;
+    while let Some(e) = stack.pop() {
+        seen += 1;
+        if seen > limit {
+            return false;
+        }
+        // a packed array counts its elements (it is not unpacked to count them)
+        if let Some(mc_core::Packed::Reals { dims, .. } | mc_core::Packed::Ints { dims, .. }) = h.packed(e) {
+            seen = seen.saturating_add(dims.iter().product::<u64>() as usize);
+            continue;
+        }
+        if let View::App { head, args } = h.view(e) {
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    seen <= limit
+}
+
+/// An expression laid out as a label: its typeset size.
+fn text_cell<'h>(h: &'h Heap, t: T<'h>) -> Cell<'h> {
+    let ts = typeset(&Label::of(h, t), TEXT as f32);
+    Cell::Label(t, (ts.width as f64, ts.height as f64))
+}
+
+/// How a `labeled` or `legended` value around something that is not a picture is shown: the expression typeset
+/// with its label (or legend) beside it, as a `graphics` term to render. The value itself stays as it is (plots
+/// and charts read it); this is only its picture. `None` for anything else, or an expression too large to
+/// typeset.
+///
+/// `labeled(x, label)`, `labeled(x, label, top | bottom | left | right | above | below | before | after)` and the
+/// options `frame: true`, `frame_style: colour`, `label_style: colour` (or a directive or list holding one),
+/// `background: colour`; `legended(x, labels)` and `legended(x, line_legend([colours], [labels]))`.
+pub fn shown_layout<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    let View::App { head, args } = h.view(t) else { return None };
+    let View::Sym(f) = h.view(head) else { return None };
+    let name = h.sym_name(f);
+    if name != "labeled" && name != "legended" {
+        return None;
+    }
+    let (args, opts) = match args.split_last() {
+        Some((&o, rest)) if is_options(h, o) => (rest, Some(o)),
+        _ => (args, None),
+    };
+    let x = *args.first()?;
+    if crate::is_graphics(h, x) || image_path(h, x).is_some() || !args.iter().all(|&a| small(h, a, SHOWN_NODES)) {
+        return None;
+    }
+    let as_list = |t: T<'h>| match h.view(t) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::LIST) => Some(args),
+        _ => None,
+    };
+    let b = B { h };
+    let c = text_cell(h, x);
+    let g = if name == "labeled" {
+        let (l, pos) = match args {
+            [_, l] => (*l, None),
+            [_, l, p] => (*l, Some(*p)),
+            _ => return None,
+        };
+        // the label in its colour
+        let mut lc = text_cell(h, l);
+        if let (Some(col), Cell::Label(_, size)) = (option(h, opts, "label_style").and_then(|s| colour_in(h, s)), &lc) {
+            lc = Cell::Label(b.call("style", &[l, col]), *size);
+        }
+        let side = pos.and_then(|p| match h.view(p) {
+            View::Sym(s) => Some(h.sym_name(s)),
+            _ => None,
+        });
+        labeled_layout(&b, &c, &lc, side.as_deref())
+    } else {
+        let [_, l] = args else { return None };
+        let (colors, labels) = legend_entries(h, *l, &as_list);
+        if !labels.iter().all(|&e| small(h, e, SHOWN_NODES)) {
+            return None;
+        }
+        let entries: Vec<Cell<'h>> = labels.iter().map(|&e| text_cell(h, e)).collect();
+        legended_layout(&b, &c, &colors, &entries)
+    };
+    let framed = option(h, opts, "frame").is_some_and(|f| sym_is(h, f, names::TRUE) || sym_is(h, f, "all"));
+    let background = option(h, opts, "background").and_then(|v| colour_in(h, v));
+    if !framed && background.is_none() {
+        return Some(g);
+    }
+    // a frame (and a background) around the whole: the layout drawn as an inset of a page a little larger
+    let (w, ht) = crate::page_size(h, g).ok()?;
+    let (w, ht) = (w as f64, ht as f64);
+    let pad = 4.0;
+    let (fw, fh) = (w + 2.0 * pad, ht + 2.0 * pad);
+    let mut content = vec![];
+    if let Some(bg) = background {
+        content.push(b.list(&[bg, b.call("rectangle", &[b.pt(0.0, 0.0), b.pt(fw, fh)])]));
+    }
+    content.push(b.place(&Cell::Picture(g, (w, ht)), pad, pad, w, ht));
+    if framed {
+        let gray = crate::natives::rgb_term(h, crate::color::Rgba::rgb(0.45, 0.45, 0.45));
+        let color = option(h, opts, "frame_style").and_then(|s| colour_in(h, s)).unwrap_or(gray);
+        content.push(b.rect_line(0.5, 0.5, fw - 0.5, fh - 0.5, color));
+    }
+    Some(b.page(content, fw, fh, None))
+}
+
+/// A colour term in `t`: `t` itself when it is a colour, else the first colour among the parts of a list or a
+/// `directive(...)`.
+fn colour_in<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    if matches!(crate::color::colour(h, t), crate::color::Colour::Value(_)) {
+        return Some(t);
+    }
+    match h.view(t) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::LIST || h.sym_name(s) == "directive") => {
+            args.iter().find_map(|&a| colour_in(h, a))
+        }
+        _ => None,
     }
 }
 

@@ -370,7 +370,7 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     entries.extend(extra.entries);
     let json = sidecar::json(&layout, look.scale, &entries);
     let text = mc_syntax::Printer::new(h).expr(g);
-    Ok(Reply::Done(match write_files(&files, &json) {
+    Ok(Reply::Done(match write_files(&files, &json, None) {
         Ok(path) => {
             // remembered, so that show(...) and layouts can use the plot as a graphic
             mc_graphics::compose::remember(&path, text);
@@ -403,7 +403,9 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     };
     let json = sidecar::json(&layout, Scale::default(), &[]);
     let text = mc_syntax::Printer::new(h).expr(g);
-    Ok(Reply::Done(match write_files(&files, &json) {
+    // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d)
+    let scene = mc_graphics::three::is_graphics3d(h, g).then_some(text.as_str());
+    Ok(Reply::Done(match write_files(&files, &json, scene) {
         Ok(path) => {
             mc_graphics::compose::remember(&path, text);
             if let Ok(model) = mc_graphics::model::read(h, g, &|| false) {
@@ -413,6 +415,14 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
+}
+
+/// [`render_to_files`] for a value that is shown as a picture by a front end without its own layout of labels:
+/// graphics, and `labeled(x, l)` / `legended(x, l)` around values that are not pictures (the value with its label
+/// typeset beside it; the value itself stays as it is, for the plots that read it).
+pub fn render_shown_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Option<(String, u32, u32)> {
+    let t = if mc_graphics::is_graphics(h, t) { t } else { mc_graphics::compose::shown_layout(h, t)? };
+    render_to_files(h, t, stop)
 }
 
 /// The data sidecar's entries of a plot: each series in data coordinates, a line split where it breaks.
@@ -479,7 +489,9 @@ fn named_solutions<'h>(h: &'h Heap, t: T<'h>, depth: usize) -> T<'h> {
 /// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
 /// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.pdf`, `.json`) in the temporary folder; gives the PNG's path
 /// with forward slashes (it prints without escapes on every system).
-fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
+/// Write a plot's files: the formats, the data sidecar and, for a 3D graphic, the scene sidecar (the printed
+/// `graphics3d` term, `.scene3d`); gives the PNG's path.
+fn write_files(files: &[Vec<u8>], json: &str, scene: Option<&str>) -> Result<String, String> {
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join("mathcas-plots");
     let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
@@ -501,6 +513,10 @@ fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
     });
     // the siblings first: once the PNG exists, so do they
     std::fs::write(path.with_extension("json"), json).map_err(|e| e.to_string())?;
+    if let Some(scene) = scene {
+        let text = mc_graphics::view3d::sidecar_text(scene);
+        std::fs::write(mc_graphics::view3d::Scene3d::sidecar_of(&path), text).map_err(|e| e.to_string())?;
+    }
     for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
         std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
     }
@@ -510,7 +526,7 @@ fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
 /// Plot files older than this are removed by [`sweep`].
 const STALE_HOURS: u64 = 24;
 
-/// Remove the plot files (`plot-*.png` and their `.svg`, `.pdf`, `.json` siblings) in `dir` last written longer
+/// Remove the plot files (`plot-*.png` and their `.svg`, `.pdf`, `.json`, `.scene3d` siblings) in `dir` last written longer
 /// than `age` ago.
 pub(crate) fn sweep(dir: &std::path::Path, age: std::time::Duration) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -518,7 +534,7 @@ pub(crate) fn sweep(dir: &std::path::Path, age: std::time::Duration) {
     for e in entries.flatten() {
         let name = e.file_name();
         let name = name.to_string_lossy();
-        let ours = name.starts_with("plot-") && [".png", ".svg", ".pdf", ".json"].iter().any(|x| name.ends_with(x));
+        let ours = name.starts_with("plot-") && [".png", ".svg", ".pdf", ".json", ".scene3d"].iter().any(|x| name.ends_with(x));
         if !ours {
             continue;
         }
@@ -537,7 +553,8 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
         return None;
     }
     let (files, layout) = mc_graphics::render_with_layout(h, t, &FORMATS, stop).ok()?;
-    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[])).ok()?;
+    let scene = mc_graphics::three::is_graphics3d(h, t).then(|| mc_syntax::Printer::new(h).expr(t));
+    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[]), scene.as_deref()).ok()?;
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
 }

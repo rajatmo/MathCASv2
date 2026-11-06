@@ -238,6 +238,9 @@ impl CoreEngine {
             mc_io::install(&mut k, h);
             mc_io::register_exporter("graphics", &["png", "svg", "pdf", "gif"], mc_plot::export);
             mc_io::register_exporter("graphics3d", &["png", "svg", "pdf", "gif"], mc_plot::export);
+            // labeled and legended values around non-pictures: the value with its label
+            mc_io::register_exporter("labeled", &["png", "svg", "pdf"], mc_plot::export);
+            mc_io::register_exporter("legended", &["png", "svg", "pdf"], mc_plot::export);
             // a list of graphics or plots as an animated GIF
             mc_io::register_exporter("list", &["gif"], mc_plot::export);
             mc_simplify::install(&mut k, h, &arith_stop);

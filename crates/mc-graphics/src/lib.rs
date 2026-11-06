@@ -43,6 +43,7 @@ pub mod surface;
 mod svg;
 pub mod three;
 pub mod ticks;
+pub mod view3d;
 
 pub use natives::{install, numeric_content, rgb_term};
 

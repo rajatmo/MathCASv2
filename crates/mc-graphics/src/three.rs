@@ -30,10 +30,11 @@ const IGNORED_DIRECTIVES: [&str; 9] =
     ["specularity", "glow", "lighting", "material_shading", "cap_form", "join_form", "toon_shading", "point_light", "directional_light"];
 
 /// The option names of `graphics3d` that change the picture.
-pub const OPTIONS: [&str; 13] = [
+pub const OPTIONS: [&str; 14] = [
     "plot_range",
     "box_ratios",
     "view_point",
+    "view_vertical",
     "boxed",
     "axes",
     "axes_label",
@@ -450,6 +451,7 @@ struct Opts3 {
     range: [[Option<f64>; 2]; 3],
     ratios: Option<P3>,
     view: P3,
+    vertical: P3,
     boxed: bool,
     axes: bool,
     axes_label: [Option<Label>; 3],
@@ -467,6 +469,7 @@ impl Default for Opts3 {
             range: [[None; 2]; 3],
             ratios: None,
             view: [1.3, -2.4, 2.0],
+            vertical: [0.0, 0.0, 1.0],
             boxed: true,
             axes: false,
             axes_label: [None, None, None],
@@ -539,6 +542,7 @@ fn options3<S: Store + ?Sized>(h: &S, o: Option<T<'_>>) -> Result<Opts3, Failure
                     .filter(|p| dot(*p, *p) > 1e-12)
                     .map(|p| opts.view = p),
             },
+            "view_vertical" => p3(h, v).filter(|p| p.iter().all(|x| x.is_finite()) && dot(*p, *p) > 1e-12).map(|p| opts.vertical = p),
             "boxed" => boolean(h, v).map(|b| opts.boxed = b),
             "axes" => match boolean(h, v) {
                 Some(b) => {
@@ -742,6 +746,360 @@ pub fn is_graphics3d<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
 }
 
 fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Failure> {
+    let p = prepare(sc, o3, stop)?;
+    p.draw(p.o3.view, p.o3.vertical, stop)
+}
+
+/// A face ready to be drawn from any view point.
+#[derive(Clone, Debug)]
+struct PFace {
+    /// the corners, cut to the box when the plot range clips (data coordinates)
+    pts: Vec<P3>,
+    /// the unit normal in scaled coordinates (either way round: it is turned to the eye when drawn)
+    nrm: P3,
+    /// the centre in scaled coordinates
+    mid: P3,
+    /// smooth shading: the unit vertex normal at each corner (`None` where there is none)
+    vns: Option<Vec<Option<P3>>>,
+    smooth: bool,
+    color: Option<Rgba>,
+}
+
+/// A primitive ready to be drawn from any view point.
+#[derive(Clone, Debug)]
+enum PPrim {
+    Face(PFace),
+    /// line segments cut to the box; the last one ends in an arrowhead for an arrow
+    Segs { segs: Vec<(P3, P3)>, arrow: bool },
+    Points(Vec<P3>),
+    Text { label: Label, at: P3 },
+}
+
+/// A three-dimensional graphic read and prepared once: the box, the clipping to it, the scaling and the normals
+/// (what does not depend on the view point) are worked out, so drawing it from another view point only projects,
+/// lights and sorts. [`Prepared::graphic`] gives the two-dimensional picture for a [`View3d`].
+#[derive(Clone, Debug)]
+pub struct Prepared {
+    elems: Vec<(PPrim, usize)>,
+    styles: Vec<Style>,
+    o3: Opts3,
+    lo: P3,
+    hi: P3,
+    centre: P3,
+    scale: P3,
+}
+
+/// Where a three-dimensional graphic is seen from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct View3d {
+    /// the eye in scaled coordinates: the box centred at the origin, its longest side 1 (as the `view_point`
+    /// option)
+    pub view_point: P3,
+    /// the direction that is drawn upwards (as the `view_vertical` option; `[0, 0, 1]` by default)
+    pub view_vertical: P3,
+    /// magnification: 1 fits the picture to the page, 2 shows the middle half of it twice as large
+    pub zoom: f64,
+}
+
+/// The view point after a drag: `turn` radians about the vertical (positive: the scene turns to the right, so the
+/// eye moves left) and `tilt` radians towards the vertical (positive: the eye rises), at the same distance. The eye
+/// stays off the vertical by a little, so "up" stays defined.
+pub fn orbit(view_point: P3, vertical: P3, turn: f64, tilt: f64) -> P3 {
+    let r = dot(view_point, view_point).sqrt();
+    if !(r > 0.0 && r.is_finite()) {
+        return Opts3::default().view;
+    }
+    let up = if dot(vertical, vertical) > 1e-24 && vertical.iter().all(|v| v.is_finite()) { unit(vertical) } else { [0.0, 0.0, 1.0] };
+    let along = dot(view_point, up);
+    let mut flat = add(view_point, up, -along);
+    if dot(flat, flat) < 1e-24 * r * r {
+        // on the vertical: any direction across it
+        flat = cross(up, [1.0, 0.0, 0.0]);
+        if dot(flat, flat) < 1e-12 {
+            flat = cross(up, [0.0, 1.0, 0.0]);
+        }
+    }
+    let f = unit(flat);
+    let limit = std::f64::consts::FRAC_PI_2 - 0.01;
+    let el = (along.atan2(dot(flat, flat).sqrt()) + tilt).clamp(-limit, limit);
+    // the flat part turned about the vertical by -turn (Rodrigues; f is across the vertical)
+    let side = cross(up, f);
+    let f2 = add(add([0.0; 3], f, (-turn).cos()), side, (-turn).sin());
+    add(add([0.0; 3], unit(f2), r * el.cos()), up, r * el.sin())
+}
+
+impl Prepared {
+    /// Read a `graphics3d` term and prepare it.
+    pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Result<Prepared, Failure> {
+        let (content, o) = match head_name(h, t) {
+            Some((n, args)) if n == "graphics3d" => match args {
+                [c] => (*c, None),
+                [c, o] => (*c, Some(*o)),
+                _ => return Err(Failure::new("not_graphics", "graphics3d takes content and options")),
+            },
+            _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
+        };
+        let sc = scene(h, content, stop)?;
+        let o3 = options3(h, o)?;
+        prepare(sc, o3, stop)
+    }
+
+    /// The view the graphic's options give (`view_point`, zoom 1).
+    pub fn default_view(&self) -> View3d {
+        View3d { view_point: self.o3.view, view_vertical: self.o3.vertical, zoom: 1.0 }
+    }
+
+    /// The number of primitives (faces, line runs, point sets, texts).
+    pub fn len(&self) -> usize {
+        self.elems.len()
+    }
+
+    /// Whether the scene is empty.
+    pub fn is_empty(&self) -> bool {
+        self.elems.is_empty()
+    }
+
+    /// The two-dimensional picture seen from `view`. With `page` (width, height in points) the page has that size
+    /// whatever the view, the picture fitted into it with equal units (a front end redraws into the same
+    /// rectangle while the view turns); without it the page is shaped like the picture, as a plain render.
+    pub fn graphic(&self, view: &View3d, page: Option<(f64, f64)>, stop: &dyn Fn() -> bool) -> Result<Graphic, Failure> {
+        let eye = view.view_point;
+        if !(eye.iter().all(|v| v.is_finite()) && dot(eye, eye) > 1e-12) {
+            return Err(Failure::new("argument", format!("view point {eye:?}")));
+        }
+        if !(view.zoom.is_finite() && view.zoom > 0.0) {
+            return Err(Failure::new("argument", format!("zoom {}", view.zoom)));
+        }
+        let up = view.view_vertical;
+        if !(up.iter().all(|v| v.is_finite()) && dot(up, up) > 1e-12) {
+            return Err(Failure::new("argument", format!("view vertical {up:?}")));
+        }
+        let mut g = self.draw(eye, up, stop)?;
+        if let Some((w, ht)) = page {
+            g.opts.image_size = (Some(w), Some(ht));
+        }
+        if view.zoom != 1.0 {
+            let b = crate::page::bounds(&g.items, stop)?;
+            let pad = g.opts.padding.unwrap_or(0.02);
+            for (k, (lo, hi)) in b.into_iter().enumerate() {
+                if !(lo.is_finite() && hi > lo) {
+                    continue;
+                }
+                let (mid, half) = ((lo + hi) / 2.0, (hi - lo) * (0.5 + pad) / view.zoom);
+                g.opts.plot_range[k] = [Some(mid - half), Some(mid + half)];
+            }
+            g.opts.clip = Some(view.zoom > 1.0);
+        }
+        Ok(g)
+    }
+
+    /// The camera for the eye at `eye` with `vertical` drawn upwards.
+    fn camera(&self, eye: P3, vertical: P3) -> Camera {
+        let fwd = unit([-eye[0], -eye[1], -eye[2]]);
+        let mut right = cross(fwd, vertical);
+        if dot(right, right) < 1e-12 {
+            // looking along the vertical: any direction across it
+            right = cross(fwd, [1.0, 0.0, 0.0]);
+            if dot(right, right) < 1e-12 {
+                right = [0.0, 1.0, 0.0];
+            }
+        }
+        let right = unit(right);
+        let up = unit(cross(right, fwd));
+        Camera { centre: self.centre, scale: self.scale, eye, right, up, fwd }
+    }
+
+    /// The picture from the eye at `eye`, the page shaped like it.
+    fn draw(&self, eye: P3, vertical: P3, stop: &dyn Fn() -> bool) -> Result<Graphic, Failure> {
+        let (o3, lo, hi, centre, scale) = (&self.o3, self.lo, self.hi, self.centre, self.scale);
+        let cam = self.camera(eye, vertical);
+        let mut drawn: Vec<Drawn> = Vec::with_capacity(self.elems.len() + 16);
+        let pt = |x: f64, y: f64| model::Pt { x, y, scaled: false };
+        let proj = |p: P3| {
+            let (x, y, z) = cam.project(p);
+            (pt(x, y), z)
+        };
+        // depth bias of lines over the faces they lie on
+        let bias = 0.004 * dot(eye, eye).sqrt();
+        let mut n = 0usize;
+        for (prim, style) in &self.elems {
+            n += 1;
+            if n.is_multiple_of(POLL) && stop() {
+                return Err(Failure::new("interrupted", ""));
+            }
+            let st = &self.styles[*style];
+            match prim {
+                PPrim::Face(f) => {
+                    let view = unit(sub(eye, f.mid));
+                    let nrm = if dot(f.nrm, view) < 0.0 { [-f.nrm[0], -f.nrm[1], -f.nrm[2]] } else { f.nrm };
+                    let base = match (f.color, st.face) {
+                        (Some(c), _) => c.faded(st.opacity),
+                        (None, Face::None) => {
+                            // edges only
+                            let mut s = st.clone();
+                            s.face = Face::None;
+                            s.edge = Some(st.edge.clone().unwrap_or(Edge { color: BOX, thickness: Size::Abs(0.6), dashing: vec![] }));
+                            let ps: Vec<(model::Pt, f64)> = f.pts.iter().map(|&p| proj(p)).collect();
+                            let depth = ps.iter().map(|p| p.1).sum::<f64>() / ps.len() as f64;
+                            drawn.push(Drawn { depth, shape: Shape::Polygon(vec![ps.iter().map(|p| p.0).collect()]), style: s });
+                            continue;
+                        }
+                        (None, Face::Color(c)) => c,
+                        (None, Face::Current) => {
+                            if st.color == Rgba::BLACK && sc_default(st) {
+                                FACE.faded(st.opacity)
+                            } else {
+                                st.ink()
+                            }
+                        }
+                    };
+                    let lit = match &f.vns {
+                        Some(vns) => {
+                            // the mean of the light at the corners, each with its vertex normal turned to the eye
+                            let mut acc = Rgba { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
+                            for vn in vns {
+                                let mut vn = vn.unwrap_or(nrm);
+                                if dot(vn, view) < 0.0 {
+                                    vn = [-vn[0], -vn[1], -vn[2]];
+                                }
+                                let c = shade(base, vn, &cam, view);
+                                acc = Rgba { r: acc.r + c.r, g: acc.g + c.g, b: acc.b + c.b, a: acc.a + c.a };
+                            }
+                            let k = vns.len() as f64;
+                            Rgba { r: acc.r / k, g: acc.g / k, b: acc.b / k, a: acc.a / k }
+                        }
+                        None => shade(base, nrm, &cam, view),
+                    };
+                    let ps: Vec<(model::Pt, f64)> = f.pts.iter().map(|&p| proj(p)).collect();
+                    let depth = ps.iter().map(|p| p.1).sum::<f64>() / ps.len() as f64;
+                    let mut s = Style { face: Face::Color(lit), ..Style::default() };
+                    s.edge = match (&st.edge, f.smooth) {
+                        (Some(e), _) => Some(e.clone()),
+                        // a hairline in the face's own colour hides the seams between the pieces of a surface
+                        (None, true) if lit.a >= 0.99 => Some(Edge { color: lit, thickness: Size::Abs(0.5), dashing: vec![] }),
+                        (None, true) => None,
+                        (None, false) => Some(Edge { color: Rgba { a: 0.5 * lit.a, ..BOX }, thickness: Size::Abs(0.5), dashing: vec![] }),
+                    };
+                    drawn.push(Drawn { depth, shape: Shape::Polygon(vec![ps.iter().map(|p| p.0).collect()]), style: s });
+                }
+                PPrim::Segs { segs, arrow } => {
+                    let last = segs.len().saturating_sub(1);
+                    for (i, &(a, b)) in segs.iter().enumerate() {
+                        let ((pa, za), (pb, zb)) = (proj(a), proj(b));
+                        let shape = if *arrow && i == last { Shape::Arrow(vec![vec![pa, pb]]) } else { Shape::Line(vec![vec![pa, pb]]) };
+                        drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape, style: st.clone() });
+                    }
+                }
+                PPrim::Points(pts) => {
+                    for &p in pts {
+                        let (q, z) = proj(p);
+                        let mut s = st.clone();
+                        if s.point_size == Style::default().point_size {
+                            s.point_size = Size::Abs(5.0);
+                        }
+                        drawn.push(Drawn { depth: z - bias, shape: Shape::Points(vec![q]), style: s });
+                    }
+                }
+                PPrim::Text { label, at } => {
+                    let (q, z) = proj(*at);
+                    drawn.push(Drawn { depth: z - 2.0 * bias, shape: Shape::Text { label: label.clone(), at: q, offset: (0.0, 0.0) }, style: st.clone() });
+                }
+            }
+        }
+        // the box's edges and the axes
+        let corner = |i: usize| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
+        let edges: [(usize, usize); 12] = [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)];
+        let thin = Style { thickness: Size::Abs(0.75), color: Rgba { a: 0.8, ..BOX }, ..Style::default() };
+        if o3.boxed {
+            for &(i, j) in &edges {
+                let ((pa, za), (pb, zb)) = (proj(corner(i)), proj(corner(j)));
+                drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape: Shape::Line(vec![vec![pa, pb]]), style: thin.clone() });
+            }
+        }
+        let mut labels: Vec<Drawn> = vec![];
+        if o3.axes {
+            let mid = |i: usize, j: usize| {
+                let (a, b) = (corner(i), corner(j));
+                cam.project([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0]).2
+            };
+            // x and y along the bottom edges nearest the eye; z along the leftmost vertical edge
+            let pick = |cands: &[(usize, usize)]| *cands.iter().min_by(|a, b| mid(a.0, a.1).total_cmp(&mid(b.0, b.1))).unwrap_or(&cands[0]);
+            let xe = pick(&[(0, 1), (2, 3)]);
+            let ye = pick(&[(0, 2), (1, 3)]);
+            let ze = *[(0, 4), (1, 5), (2, 6), (3, 7)]
+                .iter()
+                .min_by(|a, b| cam.project(corner(a.0)).0.total_cmp(&cam.project(corner(b.0)).0))
+                .unwrap_or(&(0, 4));
+            let box_mid = cam.scaled(centre);
+            let tick_style = Style { thickness: Size::Abs(0.75), color: BOX, ..Style::default() };
+            let text_style = Style { color: Rgba::rgb(0.15, 0.15, 0.15), font_size: Some(o3.font_size), ..Style::default() };
+            for (k, (i, j)) in [(0, xe), (1, ye), (2, ze)] {
+                let (a, b) = (corner(i), corner(j));
+                if !o3.boxed {
+                    let ((pa, za), (pb, zb)) = (proj(a), proj(b));
+                    drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape: Shape::Line(vec![vec![pa, pb]]), style: thin.clone() });
+                }
+                // outward: from the box's centre towards the edge, across the axis
+                let m = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0];
+                let mut out = sub(cam.scaled(m), box_mid);
+                out[k] = 0.0;
+                let out = unit(out);
+                // the outward direction back in data units, 3% of the box
+                let step = |p: P3, f: f64| -> P3 {
+                    let mut q = p;
+                    for c in 0..3 {
+                        if c != k && scale[c] > 0.0 {
+                            q[c] += out[c] * f / scale[c];
+                        }
+                    }
+                    q
+                };
+                if o3.ticks {
+                    for (u, l) in ticks::auto(lo[k], hi[k], 5) {
+                        let mut p = a;
+                        p[k] = u;
+                        let ((pa, _), (pb, _)) = (proj(p), proj(step(p, 0.025)));
+                        labels.push(Drawn { depth: 0.0, shape: Shape::Line(vec![vec![pa, pb]]), style: tick_style.clone() });
+                        if let Some(l) = l {
+                            let (q, _) = proj(step(p, 0.08));
+                            labels.push(Drawn { depth: 0.0, shape: Shape::Text { label: l, at: q, offset: (0.0, 0.0) }, style: text_style.clone() });
+                        }
+                    }
+                }
+                if let Some(l) = &o3.axes_label[k] {
+                    let mut p = a;
+                    p[k] = (lo[k] + hi[k]) / 2.0;
+                    let (q, _) = proj(step(p, 0.17));
+                    labels.push(Drawn { depth: 0.0, shape: Shape::Text { label: l.clone(), at: q, offset: (0.0, 0.0) }, style: text_style.clone() });
+                }
+            }
+        }
+        drawn.sort_by(|a, b| b.depth.total_cmp(&a.depth));
+        drawn.extend(labels);
+        let mut g = Graphic { items: Vec::with_capacity(drawn.len()), styles: vec![Style::default()], opts: Opts::default() };
+        g.styles.reserve(drawn.len());
+        for d in drawn {
+            g.styles.push(d.style);
+            g.items.push(Item { shape: d.shape, style: g.styles.len() - 1 });
+        }
+        g.opts.aspect = Aspect::Auto;
+        g.opts.padding = Some(0.03);
+        g.opts.image_size = match o3.image_size {
+            (None, None) => (Some(360.0), None),
+            s => s,
+        };
+        g.opts.background = o3.background;
+        g.opts.plot_label = o3.plot_label.clone();
+        g.opts.font_size = o3.font_size;
+        g.opts.ignored = o3.ignored.clone();
+        g.opts.clip = Some(false);
+        Ok(g)
+    }
+}
+
+/// Work out what of the scene does not depend on the view point: the box, the clipping to it, the scaling, the
+/// face and vertex normals.
+fn prepare(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Prepared, Failure> {
     // the box: the data's extent, or the plot range's ends
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
@@ -786,32 +1144,19 @@ fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Fai
     let m = ratios.iter().cloned().fold(0.0, f64::max).max(1e-300);
     let scale = [ratios[0] / m / len[0], ratios[1] / m / len[1], ratios[2] / m / len[2]];
     let centre = [(lo[0] + hi[0]) / 2.0, (lo[1] + hi[1]) / 2.0, (lo[2] + hi[2]) / 2.0];
-    let eye = o3.view;
-    let fwd = unit([-eye[0], -eye[1], -eye[2]]);
-    let mut right = cross(fwd, [0.0, 0.0, 1.0]);
-    if dot(right, right) < 1e-12 {
-        right = [1.0, 0.0, 0.0];
-    }
-    let right = unit(right);
-    let up = unit(cross(right, fwd));
-    let cam = Camera { centre, scale, eye, right, up, fwd };
-
-    let mut drawn: Vec<Drawn> = vec![];
-    let pt = |x: f64, y: f64| model::Pt { x, y, scaled: false };
-    let proj = |p: P3| {
-        let (x, y, z) = cam.project(p);
-        (pt(x, y), z)
-    };
-    // depth bias of lines over the faces they lie on
-    let bias = 0.004 * dot(eye, eye).sqrt();
-    let mut n = 0usize;
+    let scaled = |p: P3| [(p[0] - centre[0]) * scale[0], (p[1] - centre[1]) * scale[1], (p[2] - centre[2]) * scale[2]];
     // smooth shading: at each vertex of a smooth face the mean of the normals of the faces around it (each
     // turned to agree with the first seen), each face lit as the mean of its vertices' light
     let key = |p: P3| p.map(|v| (v * 1e9).round() as i64);
     let mut vnormals: std::collections::HashMap<[i64; 3], P3> = std::collections::HashMap::new();
+    let mut n = 0usize;
     for e in &sc.elems {
         if let Prim::Face { pts, smooth: true, .. } = &e.prim {
-            let fnrm = unit(newell(&pts.iter().map(|&p| cam.scaled(p)).collect::<Vec<_>>()));
+            n += 1;
+            if n.is_multiple_of(POLL) && stop() {
+                return Err(Failure::new("interrupted", ""));
+            }
+            let fnrm = unit(newell(&pts.iter().map(|&p| scaled(p)).collect::<Vec<_>>()));
             for &p in pts {
                 let acc = vnormals.entry(key(p)).or_insert([0.0; 3]);
                 let f = if dot(*acc, fnrm) < 0.0 { [-fnrm[0], -fnrm[1], -fnrm[2]] } else { fnrm };
@@ -819,205 +1164,39 @@ fn picture(sc: Scene, o3: Opts3, stop: &dyn Fn() -> bool) -> Result<Graphic, Fai
             }
         }
     }
-    for e in &sc.elems {
+    let mut elems = Vec::with_capacity(sc.elems.len());
+    for e in sc.elems {
         n += 1;
         if n.is_multiple_of(POLL) && stop() {
             return Err(Failure::new("interrupted", ""));
         }
-        let st = &sc.styles[e.style];
-        match &e.prim {
-            Prim::Face { pts, smooth, color } => {
-                let corners = pts;
-                let pts = if clip { clip_polygon(pts.clone(), lo, hi) } else { pts.clone() };
+        let arrow = matches!(e.prim, Prim::Arrow(_));
+        let prim = match e.prim {
+            Prim::Face { pts: corners, smooth, color } => {
+                let pts = if clip { clip_polygon(corners.clone(), lo, hi) } else { corners.clone() };
                 if pts.len() < 3 {
                     continue;
                 }
                 // Newell's normal in scaled coordinates
-                let q: Vec<P3> = pts.iter().map(|&p| cam.scaled(p)).collect();
-                let mut nrm = [0.0; 3];
-                for i in 0..q.len() {
-                    let (a, b) = (q[i], q[(i + 1) % q.len()]);
-                    nrm[0] += (a[1] - b[1]) * (a[2] + b[2]);
-                    nrm[1] += (a[2] - b[2]) * (a[0] + b[0]);
-                    nrm[2] += (a[0] - b[0]) * (a[1] + b[1]);
-                }
+                let q: Vec<P3> = pts.iter().map(|&p| scaled(p)).collect();
                 let mid = q.iter().fold([0.0; 3], |s, p| add(s, *p, 1.0 / q.len() as f64));
-                let view = unit(sub(eye, mid));
-                let mut nrm = unit(nrm);
-                if dot(nrm, view) < 0.0 {
-                    nrm = [-nrm[0], -nrm[1], -nrm[2]];
-                }
-                let base = match (color, st.face) {
-                    (Some(c), _) => c.faded(st.opacity),
-                    (None, Face::None) => {
-                        // edges only
-                        let mut s = st.clone();
-                        s.face = Face::None;
-                        s.edge = Some(st.edge.clone().unwrap_or(Edge { color: BOX, thickness: Size::Abs(0.6), dashing: vec![] }));
-                        let ps: Vec<(model::Pt, f64)> = pts.iter().map(|&p| proj(p)).collect();
-                        let depth = ps.iter().map(|p| p.1).sum::<f64>() / ps.len() as f64;
-                        drawn.push(Drawn { depth, shape: Shape::Polygon(vec![ps.iter().map(|p| p.0).collect()]), style: s });
-                        continue;
-                    }
-                    (None, Face::Color(c)) => c,
-                    (None, Face::Current) => {
-                        if st.color == Rgba::BLACK && sc_default(st) {
-                            FACE.faded(st.opacity)
-                        } else {
-                            st.ink()
-                        }
-                    }
-                };
-                let lit = if *smooth && !clip {
-                    // the mean of the light at the corners, each with its vertex normal turned to the eye
-                    let mut acc = Rgba { r: 0.0, g: 0.0, b: 0.0, a: 0.0 };
-                    for &p in corners.iter() {
-                        let mut vn = vnormals.get(&key(p)).map_or(nrm, |&v| unit(v));
-                        if dot(vn, view) < 0.0 {
-                            vn = [-vn[0], -vn[1], -vn[2]];
-                        }
-                        let c = shade(base, vn, &cam, view);
-                        acc = Rgba { r: acc.r + c.r, g: acc.g + c.g, b: acc.b + c.b, a: acc.a + c.a };
-                    }
-                    let k = corners.len() as f64;
-                    Rgba { r: acc.r / k, g: acc.g / k, b: acc.b / k, a: acc.a / k }
-                } else {
-                    shade(base, nrm, &cam, view)
-                };
-                let ps: Vec<(model::Pt, f64)> = pts.iter().map(|&p| proj(p)).collect();
-                let depth = ps.iter().map(|p| p.1).sum::<f64>() / ps.len() as f64;
-                let mut s = Style { face: Face::Color(lit), ..Style::default() };
-                s.edge = match (&st.edge, smooth) {
-                    (Some(e), _) => Some(e.clone()),
-                    // a hairline in the face's own colour hides the seams between the pieces of a surface
-                    (None, true) if lit.a >= 0.99 => Some(Edge { color: lit, thickness: Size::Abs(0.5), dashing: vec![] }),
-                    (None, true) => None,
-                    (None, false) => Some(Edge { color: Rgba { a: 0.5 * lit.a, ..BOX }, thickness: Size::Abs(0.5), dashing: vec![] }),
-                };
-                drawn.push(Drawn { depth, shape: Shape::Polygon(vec![ps.iter().map(|p| p.0).collect()]), style: s });
+                let nrm = unit(newell(&q));
+                let vns = (smooth && !clip).then(|| corners.iter().map(|&p| vnormals.get(&key(p)).map(|&v| unit(v))).collect());
+                PPrim::Face(PFace { pts, nrm, mid, vns, smooth, color })
             }
             Prim::Line(pts) | Prim::Arrow(pts) => {
-                let is_arrow = matches!(e.prim, Prim::Arrow(_));
-                let segs: Vec<(P3, P3)> = pts
-                    .windows(2)
-                    .filter_map(|w| if clip { clip_segment(w[0], w[1], lo, hi) } else { Some((w[0], w[1])) })
-                    .collect();
-                let last = segs.len().saturating_sub(1);
-                for (i, (a, b)) in segs.into_iter().enumerate() {
-                    let ((pa, za), (pb, zb)) = (proj(a), proj(b));
-                    let shape = if is_arrow && i == last { Shape::Arrow(vec![vec![pa, pb]]) } else { Shape::Line(vec![vec![pa, pb]]) };
-                    drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape, style: st.clone() });
-                }
+                let segs: Vec<(P3, P3)> =
+                    pts.windows(2).filter_map(|w| if clip { clip_segment(w[0], w[1], lo, hi) } else { Some((w[0], w[1])) }).collect();
+                PPrim::Segs { segs, arrow }
             }
             Prim::Points(pts) => {
-                for &p in pts {
-                    if clip && (0..3).any(|k| p[k] < lo[k] || p[k] > hi[k]) {
-                        continue;
-                    }
-                    let (q, z) = proj(p);
-                    let mut s = st.clone();
-                    if s.point_size == Style::default().point_size {
-                        s.point_size = Size::Abs(5.0);
-                    }
-                    drawn.push(Drawn { depth: z - bias, shape: Shape::Points(vec![q]), style: s });
-                }
+                PPrim::Points(pts.into_iter().filter(|p| !(clip && (0..3).any(|k| p[k] < lo[k] || p[k] > hi[k]))).collect())
             }
-            Prim::Text { label, at } => {
-                let (q, z) = proj(*at);
-                drawn.push(Drawn { depth: z - 2.0 * bias, shape: Shape::Text { label: label.clone(), at: q, offset: (0.0, 0.0) }, style: st.clone() });
-            }
-        }
-    }
-    // the box's edges and the axes
-    let corner = |i: usize| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
-    let edges: [(usize, usize); 12] = [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)];
-    let thin = Style { thickness: Size::Abs(0.75), color: Rgba { a: 0.8, ..BOX }, ..Style::default() };
-    if o3.boxed {
-        for &(i, j) in &edges {
-            let ((pa, za), (pb, zb)) = (proj(corner(i)), proj(corner(j)));
-            drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape: Shape::Line(vec![vec![pa, pb]]), style: thin.clone() });
-        }
-    }
-    let mut labels: Vec<Drawn> = vec![];
-    if o3.axes {
-        let mid = |i: usize, j: usize| {
-            let (a, b) = (corner(i), corner(j));
-            cam.project([(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0]).2
+            Prim::Text { label, at } => PPrim::Text { label, at },
         };
-        // x and y along the bottom edges nearest the eye; z along the leftmost vertical edge
-        let pick = |cands: &[(usize, usize)]| *cands.iter().min_by(|a, b| mid(a.0, a.1).total_cmp(&mid(b.0, b.1))).unwrap_or(&cands[0]);
-        let xe = pick(&[(0, 1), (2, 3)]);
-        let ye = pick(&[(0, 2), (1, 3)]);
-        let ze = *[(0, 4), (1, 5), (2, 6), (3, 7)]
-            .iter()
-            .min_by(|a, b| cam.project(corner(a.0)).0.total_cmp(&cam.project(corner(b.0)).0))
-            .unwrap_or(&(0, 4));
-        let box_mid = cam.scaled(centre);
-        let tick_style = Style { thickness: Size::Abs(0.75), color: BOX, ..Style::default() };
-        let text_style = Style { color: Rgba::rgb(0.15, 0.15, 0.15), font_size: Some(o3.font_size), ..Style::default() };
-        for (k, (i, j)) in [(0, xe), (1, ye), (2, ze)] {
-            let (a, b) = (corner(i), corner(j));
-            if !o3.boxed {
-                let ((pa, za), (pb, zb)) = (proj(a), proj(b));
-                drawn.push(Drawn { depth: (za + zb) / 2.0 - bias, shape: Shape::Line(vec![vec![pa, pb]]), style: thin.clone() });
-            }
-            // outward: from the box's centre towards the edge, across the axis
-            let m = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0, (a[2] + b[2]) / 2.0];
-            let mut out = sub(cam.scaled(m), box_mid);
-            out[k] = 0.0;
-            if k == 2 {
-                out[2] = 0.0;
-            }
-            let out = unit(out);
-            // the outward direction back in data units, 3% of the box
-            let step = |p: P3, f: f64| -> P3 {
-                let mut q = p;
-                for c in 0..3 {
-                    if c != k && scale[c] > 0.0 {
-                        q[c] += out[c] * f / scale[c];
-                    }
-                }
-                q
-            };
-            if o3.ticks {
-                for (u, l) in ticks::auto(lo[k], hi[k], 5) {
-                    let mut p = a;
-                    p[k] = u;
-                    let ((pa, _), (pb, _)) = (proj(p), proj(step(p, 0.025)));
-                    labels.push(Drawn { depth: 0.0, shape: Shape::Line(vec![vec![pa, pb]]), style: tick_style.clone() });
-                    if let Some(l) = l {
-                        let (q, _) = proj(step(p, 0.08));
-                        labels.push(Drawn { depth: 0.0, shape: Shape::Text { label: l, at: q, offset: (0.0, 0.0) }, style: text_style.clone() });
-                    }
-                }
-            }
-            if let Some(l) = &o3.axes_label[k] {
-                let mut p = a;
-                p[k] = (lo[k] + hi[k]) / 2.0;
-                let (q, _) = proj(step(p, 0.17));
-                labels.push(Drawn { depth: 0.0, shape: Shape::Text { label: l.clone(), at: q, offset: (0.0, 0.0) }, style: text_style.clone() });
-            }
-        }
+        elems.push((prim, e.style));
     }
-    drawn.sort_by(|a, b| b.depth.total_cmp(&a.depth));
-    drawn.extend(labels);
-    let mut g = Graphic { items: Vec::with_capacity(drawn.len()), styles: vec![Style::default()], opts: Opts::default() };
-    for d in drawn {
-        g.styles.push(d.style);
-        g.items.push(Item { shape: d.shape, style: g.styles.len() - 1 });
-    }
-    g.opts.aspect = Aspect::Auto;
-    g.opts.padding = Some(0.03);
-    g.opts.image_size = match o3.image_size {
-        (None, None) => (Some(360.0), None),
-        s => s,
-    };
-    g.opts.background = o3.background;
-    g.opts.plot_label = o3.plot_label;
-    g.opts.font_size = o3.font_size;
-    g.opts.ignored = o3.ignored;
-    g.opts.clip = Some(false);
-    Ok(g)
+    Ok(Prepared { elems, styles: sc.styles, o3, lo, hi, centre, scale })
 }
 
 /// Whether a style has the default colour still (faces then take the 3D default).

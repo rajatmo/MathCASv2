@@ -70,3 +70,49 @@ fn plots_and_graphics_lay_out_together() {
         assert!(p.starts_with("image(\""), "{src} -> {p}");
     }
 }
+
+#[test]
+fn labels_of_non_graphics_have_a_picture_for_export() {
+    use mc_core::{Config, Heap};
+    let h = Heap::new(Config::default());
+    let read = |s: &str| mc_syntax::read(&h, s).expect("reads")[0];
+    for src in [
+        "labeled(123456, \"number\")",
+        "labeled([a, b, c, d], lbl)",
+        "labeled(123456, \"number\", editable: false)",
+        "labeled([1, 2, 3, 4], lbl, frame: true)",
+        "labeled([1, 2, 3, 4], lbl, frame: true, frame_style: red)",
+        "labeled([1, 2, 3, 4], \"label\", label_style: red)",
+        "labeled([1, 2, 3, 4], \"label\", label_style: directive(bold, font_family: \"Helvetica\"))",
+        "labeled(x^2/y, \"frac\", left)",
+        "legended(x^2 + 1, [\"a\", \"b\"])",
+        "legended(5, line_legend([red, blue], [\"a\", \"b\"]))",
+    ] {
+        let g = mc_graphics::compose::shown_layout(&h, read(src)).unwrap_or_else(|| panic!("{src}"));
+        let (w, ht) = mc_graphics::page_size(&h, g).expect(src);
+        assert!(w > 10.0 && ht > 10.0 && w < 400.0 && ht < 200.0, "{src}: {w} x {ht}");
+    }
+    // a frame makes it larger; the label's colour is drawn
+    let plain = mc_graphics::page_size(&h, mc_graphics::compose::shown_layout(&h, read("labeled([1, 2], lbl)")).expect("layout")).expect("size");
+    let framed = mc_graphics::page_size(&h, mc_graphics::compose::shown_layout(&h, read("labeled([1, 2], lbl, frame: true)")).expect("layout")).expect("size");
+    assert!(framed.0 > plain.0 && framed.1 > plain.1);
+    let red = mc_graphics::compose::shown_layout(&h, read("labeled(1, \"label\", label_style: red)")).expect("layout");
+    let (_, _, px) = mc_graphics::render_rgba(&h, red, 1.0, &|| false).expect("renders");
+    assert!(px.chunks(4).any(|p| p[0] > 180 && p[1] < 80 && p[2] < 80), "a red label");
+    // not for pictures, other heads, or values too large to typeset
+    let big = format!("labeled([{}], \"big\")", (0..5000).map(|i| i.to_string()).collect::<Vec<_>>().join(", "));
+    for src in ["labeled(graphics(disk()), \"d\")", "sin(x)", big.as_str(), "labeled(1)"] {
+        assert!(mc_graphics::compose::shown_layout(&h, read(src)).is_none(), "{src}");
+    }
+    // export_data writes the picture; the value stays as it is
+    let mut e = CoreEngine::new();
+    let dir = std::env::temp_dir().join(format!("mc-gfx-labeled-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let file = dir.join("l.png").to_string_lossy().replace('\\', "/");
+    let r = printed(&mut e, &format!("export_data(\"{file}\", labeled(123456, \"number\"))"));
+    assert!(!r.starts_with("failure"), "{r}");
+    let bytes = std::fs::read(&file).expect("written");
+    assert!(mc_graphics::decode_png(&bytes).is_some());
+    assert_eq!(printed(&mut e, "labeled(123456, \"number\")"), "labeled(123456, \"number\")");
+    let _ = std::fs::remove_dir_all(&dir);
+}
