@@ -303,6 +303,7 @@ impl App {
                 _ => self.doc.nb.current_cell().and_then(|id| self.doc.nb.cell(id)).map_or(Style::Input, |c| c.style),
             };
             egui::ComboBox::from_id_salt("style")
+                .icon(icons::combo_marker)
                 .selected_text(current.info().name)
                 .width(150.0)
                 .show_ui(ui, |ui| {
@@ -360,6 +361,7 @@ impl App {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 egui::ComboBox::from_id_salt("zoom")
+                    .icon(icons::combo_marker)
                     .selected_text(format!("{:.0} %", self.doc.view.magnification() * 100.0))
                     .width(72.0)
                     .show_ui(ui, |ui| {

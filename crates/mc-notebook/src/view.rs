@@ -253,6 +253,9 @@ pub struct View {
     pub graphic: Option<CellId>,
     /// a picture being resized and its size on screen (points)
     pub live_size: Option<(CellId, Vec2)>,
+    /// while a right-justified picture is resized: the canvas x of the edge that stays put (the one opposite the
+    /// dragged handle), so the dragged edge follows the pointer; the picture is right-justified again on release
+    pub live_anchor: Option<(f32, i8)>,
     /// the sample size of large outputs whose buttons were used (`usize::MAX`: all of it)
     budgets: HashMap<CellId, usize>,
     /// whether an output is large, by its revision
@@ -305,6 +308,7 @@ impl View {
             base: None,
             graphic: None,
             live_size: None,
+            live_anchor: None,
             budgets: HashMap::new(),
             large: HashMap::new(),
             long: HashMap::new(),
@@ -669,6 +673,13 @@ impl View {
         if Self::right_justified(c) {
             let (l, r) = self.content_x(c.style);
             o.x += (r - l - size.x).max(0.0);
+            // during a resize the edge opposite the dragged handle stays where it was (within the content)
+            if let (Some((id, _)), Some((x, side))) = (self.live_size, self.live_anchor) {
+                if id == c.id {
+                    let left = if side < 0 { x - size.x } else { x };
+                    o.x = left.clamp(l, (r - size.x).max(l));
+                }
+            }
         }
         Some(Rect::from_min_size(o, size))
     }

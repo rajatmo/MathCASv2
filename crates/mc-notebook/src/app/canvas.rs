@@ -315,12 +315,10 @@ impl App {
                     self.drag = None;
                 }
                 Hit::Handle(id, h) => {
-                    let size = self
-                        .doc
-                        .nb
-                        .index_of(id)
-                        .and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i))
-                        .map_or(egui::Vec2::ZERO, |r| r.size());
+                    let rect = self.doc.nb.index_of(id).and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i));
+                    let size = rect.map_or(egui::Vec2::ZERO, |r| r.size());
+                    // the edge opposite the handle stays put while dragging (a middle handle keeps the right edge)
+                    self.doc.view.live_anchor = rect.map(|r| if h.x > 0 { (r.left(), 1) } else { (r.right(), -1) });
                     self.drag = Some(Drag::Resize(id, h, screen, size));
                 }
                 Hit::Large(id, a) => {
@@ -393,6 +391,7 @@ impl App {
         if released {
             if let Some(Drag::Resize(id, ..)) = self.drag {
                 // the size is kept in points at 100 % (the file's `size=WxH`)
+                self.doc.view.live_anchor = None;
                 if let Some((_, s)) = self.doc.view.live_size.take() {
                     let m = self.doc.view.magnification();
                     let (w, h) = ((s.x / m).round().max(1.0) as u32, (s.y / m).round().max(1.0) as u32);

@@ -139,6 +139,22 @@ pub fn paint_turned(painter: &egui::Painter, icon: Icon, rect: Rect, tint: Color
     }
 }
 
+/// The open/closed marker of a collapsing header (egui's `CollapsingHeader::icon`): the chevron turning from right
+/// (closed) to down (open) with `openness`.
+pub fn collapsing_marker(ui: &mut egui::Ui, openness: f32, response: &egui::Response) {
+    let visuals = ui.style().interact(response);
+    let rect = Rect::from_center_size(response.rect.left_center() + egui::vec2(ui.spacing().icon_width / 2.0, 0.0), Vec2::splat(13.0));
+    let angle = openness * std::f32::consts::FRAC_PI_2;
+    paint_turned(ui.painter(), Icon::ChevronRight, rect, visuals.fg_stroke.color, angle);
+}
+
+/// The drop-down marker of a combo box (egui's `ComboBox::icon`): the chevron, pointing up while open.
+pub fn combo_marker(ui: &egui::Ui, rect: Rect, visuals: &egui::style::WidgetVisuals, open: bool) {
+    let r = Rect::from_center_size(rect.center(), Vec2::splat(rect.height().clamp(10.0, 14.0)));
+    let angle = if open { std::f32::consts::PI } else { 0.0 };
+    paint_turned(ui.painter(), Icon::ChevronDown, r, visuals.fg_stroke.color, angle);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -396,7 +396,12 @@ impl Draw<'_> {
         let names: Vec<&str> = topics.iter().map(|(t, _)| *t).collect();
         self.prose(ui, &names.join(" · "), 12.5, self.p.faint);
         ui.add_space(4.0);
-        if ui.link(RichText::new(format!("All {total} functions  →")).size(13.0)).clicked() {
+        let all = ui.horizontal(|ui| {
+            let r = ui.link(RichText::new(format!("All {total} functions")).size(13.0));
+            ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 13.0, self.p.blue));
+            r.clicked()
+        });
+        if all.inner {
             self.go = Some(Loc::Guide(area));
         }
     }
@@ -473,7 +478,8 @@ impl Draw<'_> {
         ui.separator();
         ui.horizontal(|ui| {
             if let Some(p) = prev {
-                if ui.link(RichText::new(format!("←  {p}")).font(Face::Code.font(CODE))).clicked() {
+                ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowLeft, 14.0, self.p.blue));
+                if ui.link(RichText::new(p).font(Face::Code.font(CODE))).clicked() {
                     self.go = Some(Loc::Page(p.to_string()));
                 }
             }
@@ -483,7 +489,9 @@ impl Draw<'_> {
             }
             if let Some(n) = next {
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.link(RichText::new(format!("{n}  →")).font(Face::Code.font(CODE))).clicked() {
+                    // right to left: the arrow first, then the name before it
+                    ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 14.0, self.p.blue));
+                    if ui.link(RichText::new(n).font(Face::Code.font(CODE))).clicked() {
                         self.go = Some(Loc::Page(n.to_string()));
                     }
                 });
@@ -579,6 +587,7 @@ impl Draw<'_> {
         let open = (self.expand || self.find.as_ref().is_some_and(|f| !f.0.is_empty())).then_some(true);
         ui.add_space(10.0);
         egui::CollapsingHeader::new(RichText::new("Details").font(Face::ProseBold.font(18.0)).color(self.p.blue))
+            .icon(mc_ui::icons::collapsing_marker)
             .id_salt(("details", name))
             .default_open(false)
             .open(open)
@@ -586,7 +595,10 @@ impl Draw<'_> {
                 for item in &page.details {
                     ui.horizontal_top(|ui| {
                         ui.add_space(f32::from(item.level) * 22.0);
-                        ui.label(RichText::new("•").color(self.p.blue).size(BODY));
+                        // the bullet: the icon set's dot, on the first line's middle
+                        let (r, _) = ui.allocate_exact_size(egui::vec2(10.0, BODY * 1.35), egui::Sense::hover());
+                        let dot = egui::Rect::from_center_size(r.center(), egui::vec2(8.0, 8.0));
+                        mc_ui::icons::paint(ui.painter(), mc_ui::icons::Icon::Dot, dot, self.p.blue);
                         ui.vertical(|ui| self.prose(ui, &item.text, BODY, self.p.text));
                     });
                     ui.add_space(3.0);
@@ -594,6 +606,7 @@ impl Draw<'_> {
             });
         ui.add_space(6.0);
         egui::CollapsingHeader::new(RichText::new("Examples").font(Face::ProseBold.font(18.0)).color(self.p.blue))
+            .icon(mc_ui::icons::collapsing_marker)
             .id_salt(("examples", name))
             .default_open(true)
             .open(open)
@@ -603,6 +616,7 @@ impl Draw<'_> {
                     egui::CollapsingHeader::new(
                         RichText::new(title).font(Face::ProseBold.font(15.5)).color(self.p.text),
                     )
+                    .icon(mc_ui::icons::collapsing_marker)
                     .id_salt(("group", name, k))
                     .default_open(k == 0)
                     .open(open)

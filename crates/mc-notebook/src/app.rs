@@ -513,6 +513,7 @@ impl eframe::App for App {
         }
         if !matches!(self.drag, Some(Drag::Resize(..))) {
             self.doc.view.live_size = None;
+            self.doc.view.live_anchor = None;
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.confirmed_close {
             self.sync_modified();
