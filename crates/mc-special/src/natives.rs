@@ -388,4 +388,11 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     }
     k.register(h.sym(crate::functions::PFQ.0), Attributes::default(), Box::new(Pfq { stop: stop.clone() }));
     mc_numeric::formula::install(k, h, crate::more::DEFS);
+    for f in &crate::more::SCALED {
+        mc_numeric::library::register(f);
+    }
+    mc_numeric::library::register(&crate::more::ProductLog);
+    for f in &crate::more::ERF_FAMILY {
+        mc_numeric::library::register(f);
+    }
 }

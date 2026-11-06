@@ -187,6 +187,10 @@ pub fn bessel_k_scaled(nu: f64, x: f64) -> f64 {
 
 /// e^-x I_nu(x) for machine reals x > 0 and nu >= 0.
 pub fn bessel_i_scaled(nu: f64, x: f64) -> f64 {
+    if nu < 0.0 && x > 0.0 && x < 700.0 {
+        // negative orders through I_nu itself (no overflow below x = 700)
+        return bessel_i(nu, x) * (-x).exp();
+    }
     if nu.is_nan() || x.is_nan() || x <= 0.0 || nu < 0.0 || nu > MAX_ORDER {
         return if x == 0.0 && nu >= 0.0 { if nu == 0.0 { 1.0 } else { 0.0 } } else { f64::NAN };
     }

@@ -928,6 +928,10 @@ fn scaled<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], k: bool) -> R<'h> {
             return Ok(Some(fx.real(r)));
         }
     }
+    if fx.num(x).is_none() || fx.num(nu).is_none() {
+        // symbolic: stays (the product form would lose the scaling)
+        return Ok(None);
+    }
     let (f, s) = if k { ("bessel_k", x) } else { ("bessel_i", fx.neg(x)) };
     let v = fx.mul(&[fx.call(f, &[nu, x]), fx.call("exp", &[s])]);
     if !any_inexact(fx, a) {
@@ -994,3 +998,169 @@ pub static DEFS: &[Def] = &[
     def!("bessel_k_scaled", &[2], Some(bessel_k_scaled), None, "bessel_k_scaled(nu, x): e^x K_nu(x), without underflow at large x"),
     def!("bessel_i_scaled", &[2], Some(bessel_i_scaled), None, "bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x"),
 ];
+
+/// The scaled Bessel functions as library functions of numerical evaluation (gap queue G42: `n_dsolve` and `n`
+/// evaluate them inside numeric islands without forming K or I).
+pub struct Scaled {
+    k: bool,
+}
+
+/// e^x K_nu(x) and e^-x I_nu(x).
+pub static SCALED: [Scaled; 2] = [Scaled { k: true }, Scaled { k: false }];
+
+impl mc_numeric::library::LibraryFn for Scaled {
+    fn name(&self) -> &'static str {
+        if self.k {
+            "bessel_k_scaled"
+        } else {
+            "bessel_i_scaled"
+        }
+    }
+    fn arity(&self) -> usize {
+        2
+    }
+    fn ball(&self, args: &[Real], p: u64) -> Option<mc_numeric::cball::CBall> {
+        let f = if self.k { crate::functions::Special::BesselK } else { crate::functions::Special::BesselI };
+        let v = f.ball_value(args, p + 16)?;
+        let x = match args[1].to_kind(mc_arith::Kind::Ball, p + 16) {
+            Real::Ball(b, _) => b,
+            _ => return None,
+        };
+        let e = mc_numeric::elementary::exp(&if self.k { x } else { x.neg() }, p + 16)?;
+        Some(v.mul_real(&e, p))
+    }
+    fn machine(&self, args: &[f64]) -> mc_numeric::fun::Mach {
+        let v = if self.k {
+            machine::bessel::bessel_k_scaled(args[0], args[1])
+        } else {
+            machine::bessel::bessel_i_scaled(args[0], args[1])
+        };
+        mc_numeric::fun::Mach::Real(v)
+    }
+}
+
+/// The principal Lambert W as a library function: machine values by Halley's iteration, balls by Newton's
+/// iteration at the working precision from the machine value, the radius the last correction (doubled) plus the
+/// argument's radius times |W'(x)| = |W/(x (1 + W))| (real x > -1/e).
+pub struct ProductLog;
+
+impl mc_numeric::library::LibraryFn for ProductLog {
+    fn name(&self) -> &'static str {
+        "product_log"
+    }
+    fn arity(&self) -> usize {
+        1
+    }
+    fn ball(&self, args: &[Real], p: u64) -> Option<mc_numeric::cball::CBall> {
+        use mc_arith::num::{Ball, Float, Mag};
+        use mc_numeric::elementary as el;
+        let w = p + 32;
+        let x = match args[0].to_kind(mc_arith::Kind::Ball, w) {
+            Real::Ball(b, _) => b,
+            _ => return None,
+        };
+        let xf = Real::Ball(x.clone(), w).to_f64();
+        if xf.is_nan() || xf <= -1.0 / std::f64::consts::E + 1e-12 {
+            return None;
+        }
+        let w0 = lambert_w(0, C64::real(xf))?.re;
+        let mut y = match Real::Exact(mc_numeric::value::machine_rat(w0)?).to_kind(mc_arith::Kind::Ball, w) {
+            Real::Ball(b, _) => Ball::exact(b.mid),
+            _ => return None,
+        };
+        let xm = Ball::exact(x.mid.clone());
+        let mut last = 1.0f64;
+        for _ in 0..(w as f64).log2().ceil() as usize + 4 {
+            let e = el::exp(&y, w)?;
+            let f = y.mul(&e, w).sub(&xm, w);
+            let fp = e.mul(&y.add(&Ball::from_i64(1), w), w);
+            let step = f.div(&fp, w)?;
+            last = Real::Ball(step.clone(), w).to_f64().abs();
+            y = Ball::exact(y.sub(&step, w).mid);
+            if last < 2f64.powi(-(w as i32)) {
+                break;
+            }
+        }
+        // radius: the last correction and the argument's radius times the slope
+        let wf = Real::Ball(y.clone(), w).to_f64();
+        let slope = (wf / (xf * (1.0 + wf))).abs();
+        let slope = if slope.is_finite() { slope } else { 1.0 };
+        let xr = (x.rad.m as f64) * 2f64.powi(x.rad.e as i32);
+        let r = 2.0 * last + slope * xr * 1.001 + 2f64.powi(-(p as i32) - 8);
+        let k = r.log2().ceil() as i64 + 1;
+        let b = Ball { mid: y.mid, rad: Mag::pow2(k) };
+        let _ = Float::zero();
+        Some(mc_numeric::cball::CBall::real(b))
+    }
+    fn machine(&self, args: &[f64]) -> mc_numeric::fun::Mach {
+        mc_numeric::fun::Mach::Real(lambert_w(0, C64::real(args[0])).map_or(f64::NAN, |z| if z.im == 0.0 { z.re } else { f64::NAN }))
+    }
+}
+
+/// Dawson's integral and the Fresnel integrals as library functions (balls from the error-function balls, so
+/// `n` refines them): 0 dawson_f, 1 fresnel_s, 2 fresnel_c.
+pub struct ErfFamily(pub u8);
+
+/// The three functions.
+pub static ERF_FAMILY: [ErfFamily; 3] = [ErfFamily(0), ErfFamily(1), ErfFamily(2)];
+
+impl mc_numeric::library::LibraryFn for ErfFamily {
+    fn name(&self) -> &'static str {
+        ["dawson_f", "fresnel_s", "fresnel_c"][self.0 as usize]
+    }
+    fn arity(&self) -> usize {
+        1
+    }
+    fn ball(&self, args: &[Real], p: u64) -> Option<mc_numeric::cball::CBall> {
+        use mc_arith::num::Ball;
+        use mc_numeric::cball::{self, CBall};
+        use mc_numeric::consts::Const;
+        use mc_numeric::elementary as el;
+        let w = p + 32;
+        let x = match args[0].to_kind(mc_arith::Kind::Ball, w) {
+            Real::Ball(b, _) => b,
+            _ => return None,
+        };
+        let sp = Const::Pi.ball(w)?.sqrt(w)?;
+        if self.0 == 0 {
+            // sqrt(pi)/2 e^(-x^2) erfi(x)
+            let e = el::exp(&x.mul(&x, w).neg(), w)?;
+            let f = crate::ball::erf::erfi(&Real::Ball(x, w), w)?;
+            let half = Ball::from_ratio(1, 2, w);
+            return Some(f.mul_real(&e.mul(&sp, w).mul(&half, w), w).round(p));
+        }
+        // (1 +- i)/4 (erf((1 + i) sqrt(pi) x/2) -+ i erf((1 - i) sqrt(pi) x/2)), real part
+        let a = x.mul(&sp, w).mul(&Ball::from_ratio(1, 2, w), w);
+        let up = crate::ball::complex::erf(&CBall::new(a.clone(), a.clone()), w)?;
+        let dn = crate::ball::complex::erf(&CBall::new(a.clone(), a.neg()), w)?;
+        let q = Ball::from_ratio(1, 4, w);
+        let v = if self.0 == 1 {
+            CBall::new(Ball::from_i64(1), Ball::from_i64(1)).mul(&up.sub(&dn.mul_i(), w), w)
+        } else {
+            CBall::new(Ball::from_i64(1), Ball::from_i64(-1)).mul(&up.add(&dn.mul_i(), w), w)
+        };
+        let v = v.mul_real(&q, w);
+        let _ = cball::abs;
+        Some(CBall::real(v.re).round(p))
+    }
+    fn machine(&self, args: &[f64]) -> mc_numeric::fun::Mach {
+        let x = args[0];
+        let sp = std::f64::consts::PI.sqrt();
+        let v = if self.0 == 0 {
+            0.5 * sp * (-x * x).exp() * machine::erf::erfi(x)
+        } else {
+            let a = 0.5 * sp * x;
+            let up = machine::erf::erf_complex(C64::new(a, a));
+            let dn = machine::erf::erf_complex(C64::new(a, -a));
+            let i = C64::new(0.0, 1.0);
+            let q = C64::real(0.25);
+            let v = if self.0 == 1 {
+                C64::new(1.0, 1.0) * (up - i * dn) * q
+            } else {
+                C64::new(1.0, -1.0) * (up + i * dn) * q
+            };
+            v.re
+        };
+        mc_numeric::fun::Mach::Real(v)
+    }
+}

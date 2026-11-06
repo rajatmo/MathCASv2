@@ -66,6 +66,17 @@ impl Native for Elementary {
                 return Ok(Reply::Again(v));
             }
         }
+        // a list of machine numbers: elementwise without the evaluator (gap queue G48)
+        if self.f != Fun::Sqrt {
+            if let Some(zs) = crate::machine::machine_list(h, *x) {
+                cx.tick(zs.len() as u64 / 16)?;
+                let out: Vec<crate::machine::C64> = zs
+                    .iter()
+                    .map(|&z| if z.im == 0.0 { self.f.machine(Mach::Real(z.re)) } else { self.f.machine(Mach::Complex(z)) }.c64())
+                    .collect();
+                return Ok(Reply::Done(crate::machine::machine_list_term(h, &out)));
+            }
+        }
         // a list argument maps (decision L.10)
         if let Some(items) = cx.as_list(*x) {
             cx.tick(items.len() as u64)?;
@@ -364,6 +375,7 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     }
     crate::numbers::install(k, h, &nm, stop);
     crate::formula::install(k, h, crate::more::DEFS);
+    crate::formula_lib::register();
     crate::formula::install(k, h, crate::uncertain::DEFS);
     crate::formula::install(k, h, crate::quantity::DEFS);
 }

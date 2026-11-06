@@ -71,7 +71,10 @@ fn every_rule_of_the_table() {
             }
             // polygamma's order is an integer
             let constant = |j: usize| if name == "polygamma" && j == 0 { "2" } else { CONSTANTS[j % 3] };
-            let args: Vec<&str> = (0..arity).map(|j| if j == i { DEPENDENT } else { constant(j) }).collect();
+            // functions real only above 1 get their argument shifted there
+            let above_one = format!("(1 + {DEPENDENT})");
+            let dep = if matches!(name, "acosh" | "acoth" | "asec" | "acsc") { above_one.as_str() } else { DEPENDENT };
+            let args: Vec<&str> = (0..arity).map(|j| if j == i { dep } else { constant(j) }).collect();
             // abs is also checked on the negative side
             let shifted = format!("({DEPENDENT} - 3/5)");
             let variants = if name == "abs" { vec![args.join(", "), shifted] } else { vec![args.join(", ")] };

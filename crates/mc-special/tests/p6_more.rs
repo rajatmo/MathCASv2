@@ -100,3 +100,15 @@ fn complex_machine_values() {
         assert!((common::number(b) - im).abs() <= 1e-10 * im.abs().max(1.0), "{src}: {got}");
     }
 }
+
+#[test]
+fn formula_functions_in_numeric_islands() {
+    // queue G42: scaled Bessel K (and the formula-defined elementary functions) in ODE right-hand sides
+    let mut s = common::Sys::new();
+    let y1 = s.run("rewrite(y(1.0), n_dsolve([y'(t) == bessel_k_scaled(1, 1.0e3 + y(t)), y(0) == 0], y, [t, 0, 1]))");
+    assert!((common::number(&y1) - 0.0396477375).abs() < 1e-6, "{y1}");
+    let y2 = s.run("rewrite(y(1.0), n_dsolve([y'(t) == sech(y(t)), y(0) == 0], y, [t, 0, 1]))");
+    assert!((common::number(&y2) - 0.881373587019543).abs() < 1e-6, "{y2}");
+    assert_eq!(s.run("n(sech(1), 30)"), "0.64805427366388539957497735322615032");
+    assert_eq!(s.run("d(bessel_k_scaled(1, x), x)"), "bessel_k_scaled(1, x) + (-1/2)*(bessel_k_scaled(0, x) + bessel_k_scaled(2, x))");
+}

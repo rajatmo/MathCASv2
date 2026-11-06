@@ -268,6 +268,8 @@ pub const OPAQUE: &[(&str, usize, usize)] = &[
     ("jacobi_cn", 2, 1),
     ("jacobi_dn", 2, 1),
     ("inverse_jacobi_sn", 2, 1),
+    ("bessel_k_scaled", 2, 0),
+    ("bessel_i_scaled", 2, 0),
 ];
 
 /// Can `derivative(orders)(name)` be resolved into a term (a known function, no order in an [`OPAQUE`] argument)?
@@ -542,6 +544,10 @@ pub const RULES: &[(&str, usize, Rule)] = &[
     ),
     ("ramp", 1, Rule::Partials(&[|b, a| b.call("unit_step", a)])),
     ("real_abs", 1, Rule::Partials(&[|b, a| b.call("real_sign", a)])),
+    ("log10", 1, Rule::Partials(&[|b, a| pw(b, b.mul(&[a[0], b.call("log", &[b.int(10)])]), -1)])),
+    ("log2", 1, Rule::Partials(&[|b, a| pw(b, b.mul(&[a[0], b.call("log", &[b.int(2)])]), -1)])),
+    ("inverse_gudermannian", 1, Rule::Partials(&[|b, a| b.call("sec", &[a[0]])])),
+    ("heaviside_theta", 1, Rule::Partials(&[|b, a| b.call("dirac_delta", &[a[0]])])),
     ("real_sign", 1, Rule::Constant),
     ("unit_box", ANY, Rule::Constant),
     ("integer_part", 1, Rule::Constant),
@@ -632,6 +638,15 @@ pub const RULES: &[(&str, usize, Rule)] = &[
             |b, a| b.mul(&[b.call("pochhammer", a), b.call("digamma", &[b.add(&[a[0], a[1]])])]),
         ]),
     ),
+    // d/dx e^x K_nu(x) = e^x K_nu - (e^x K_(nu-1) + e^x K_(nu+1))/2, and for e^-x I_nu likewise
+    ("bessel_k_scaled", 2, Rule::Partials(&[|b, a| opaque_partial(b, "bessel_k_scaled", a, 0), |b, a| {
+        let s = bessel_sum(b, "bessel_k_scaled", a);
+        b.sub(b.call("bessel_k_scaled", a), b.mul(&[b.rat(1, 2), s]))
+    }])),
+    ("bessel_i_scaled", 2, Rule::Partials(&[|b, a| opaque_partial(b, "bessel_i_scaled", a, 0), |b, a| {
+        let s = bessel_sum(b, "bessel_i_scaled", a);
+        b.sub(b.mul(&[b.rat(1, 2), s]), b.call("bessel_i_scaled", a))
+    }])),
     // complex parts, linear over the reals
     ("re", 1, Rule::Linear),
     ("im_part", 1, Rule::Linear),

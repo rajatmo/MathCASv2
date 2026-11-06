@@ -98,6 +98,7 @@ pub mod fun;
 pub mod library;
 pub mod machine;
 pub mod formula;
+pub mod formula_lib;
 pub mod more;
 pub mod quantity;
 pub mod uncertain;

@@ -163,3 +163,13 @@ fn quantities() {
         ("quantity(3, \"Meters\") + quantity(1, \"Seconds\")", "failure(incompatible_units)"),
     ]);
 }
+
+#[test]
+fn machine_lists() {
+    // queue G48: the elementary functions of a list of machine numbers elementwise
+    check(&[
+        ("exp(im*range(0.0, 1.0, 0.01))[3]", "complex(0.9998000066665778, 0.01999866669333308)"),
+        ("length(sin(range(0.0, 100.0, 0.01)))", "10001"),
+        ("log(range(-1.0, 1.0, 0.01))[1]", "complex(0.0, 3.141592653589793)"),
+    ]);
+}
