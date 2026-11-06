@@ -1,13 +1,13 @@
 # Usage: tools\package.ps1 -> from the dist folder (tools\dist.ps1's output), builds
 #   MathCAS-v2-<commit>-win-x64.zip   standalone: unzip anywhere and run, nothing is installed
 #   MathCAS-v2-<commit>-win-x64.exe   installer (Inno Setup 6, tools\installer\mathcas-v2.iss): per user by default
-# into ..\dist-v2-packages (outside the repository), mirrored like the dist. Overrides: MATHCAS_V2_DIST,
+# into ..\dist-packages (outside the repository), mirrored like the dist. Overrides: MATHCAS_V2_DIST,
 # MATHCAS_V2_PACKAGES, MATHCAS_V2_MIRROR, ISCC (the Inno Setup compiler).
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $parent = Split-Path -Parent $root
-$dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path $parent "dist-v2" }
-$out = if ($env:MATHCAS_V2_PACKAGES) { $env:MATHCAS_V2_PACKAGES } else { Join-Path $parent "dist-v2-packages" }
+$dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path $parent "dist" }
+$out = if ($env:MATHCAS_V2_PACKAGES) { $env:MATHCAS_V2_PACKAGES } else { Join-Path $parent "dist-packages" }
 if (-not (Test-Path (Join-Path $dist "mc-repl.exe"))) { throw "no dist at ${dist}: run tools\dist.ps1 first" }
 $rev = ((Get-Content (Join-Path $dist "VERSION.txt") -Raw) -replace '(?s)^.*commit ([0-9a-f]+).*$', '$1').Trim()
 $name = "MathCAS-v2-$rev-win-x64"

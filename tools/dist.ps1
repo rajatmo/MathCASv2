@@ -1,10 +1,10 @@
 # Usage: tools\dist.ps1   -> builds the release binaries and copies them, with the benchmark cases, the example
-# scripts, the VS Code extension (folder and .vsix) and a short guide, to ..\dist-v2 (outside the repository). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
+# scripts, the VS Code extension (folder and .vsix) and a short guide, to ..\dist (outside the repository; builds from ..\build\target unless CARGO_TARGET_DIR is set). Overrides: MATHCAS_V2_DIST (target folder), MATHCAS_V2_MIRROR
 # (mirror folder; default Dropbox\Projects\MathCAS-v2-dist when Dropbox exists), CARGO_TARGET_DIR.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path (Split-Path -Parent $root) "dist-v2" }
-$targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $root "target" }
+$dist = if ($env:MATHCAS_V2_DIST) { $env:MATHCAS_V2_DIST } else { Join-Path (Split-Path -Parent $root) "dist" }
+$targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path (Split-Path -Parent $root) "build\target" }
 
 Push-Location $root
 try {
