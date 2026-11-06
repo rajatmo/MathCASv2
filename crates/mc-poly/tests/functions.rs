@@ -205,10 +205,16 @@ fn series_and_normal() {
         ("series_data(x, 0, [-3, 1/2, -2/3], -1, 2)", "-3*x^-1 + 1/2 - 2*x/3 + O(x^2)"),
         ("series_data(x, 0, [1/2, 1], -2, 0)", "1/(2*x^2) + x^-1 + O(1)"),
         ("series_data(x, -2, [1, -1], 0, 2)", "1 - (x + 2) + O((x + 2)^2)"),
-        // not power series: unevaluated
-        ("series(log(x), x, 0, 3)", "series(log(x), x, 0, 3)"),
-        ("series(sqrt(x), x, 0, 3)", "series(sqrt(x), x, 0, 3)"),
-        ("series(f(x), x, 0, 3)", "series(f(x), x, 0, 3)"),
+        // logarithmic and Puiseux series (other functions through their derivatives: tests/taylor.rs)
+        ("series(log(x), x, 0, 3)", "log(x) + O(x^4)"),
+        ("series(x*log(x) + sin(x), x, 0, 3)", "(1 + log(x))*x - x^3/6 + O(x^4)"),
+        ("series(sqrt(x), x, 0, 3)", "O(x^(7/2)) + x^(1/2)"),
+        ("series(cos(sqrt(x)), x, 0, 3)", "1 - x/2 + x^2/24 - x^3/720 + O(x^4)"),
+        // at infinity: powers of 1/x
+        ("normal(series(1/(1 + x), x, inf, 3))", "-x^-2 + x^-3 + x^-1"),
+        ("normal(series(sqrt(x^2 + 1), x, inf, 3))", "x + (-1/8)*x^-3 + (1/2)/x"),
+        // not expandable here: unevaluated
+        ("series(exp(x), x, inf, 2)", "series(exp(x), x, inf, 2)"),
         ("series(x, 1, 0, 3)", "failure(argument, series, \"the variable must be a symbol\")"),
         ("series(x, x, 0, 1.5)", "failure(argument, series, \"the order must be a machine integer\")"),
         ("normal(series_data(x, 0, [1, 2, 3], -1, 2))", "2 + 3*x + x^-1"),

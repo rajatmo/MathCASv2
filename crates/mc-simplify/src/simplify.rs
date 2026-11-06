@@ -155,6 +155,7 @@ fn h_is_failure<'h>(b: &B<'h>, t: T<'h>) -> bool {
 /// result are refined; without, the moves are only the equivalences valid for every value.
 pub fn simplify<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, mut facts: Option<&mut Facts<'_, 'h>>, t: T<'h>) -> Res<T<'h>> {
     let facts = &mut facts;
+    let t = prepare(cx, b, t)?;
     let t = match facts {
         Some(f) => refine(cx, b, f, t)?,
         None => t,
@@ -196,4 +197,106 @@ fn inside_out<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, facts: &mut Option<&
         }
     }
     search(cx, b, facts, inner)
+}
+
+/// The functions with mirror symmetry, `f(conjugate(z)) = conjugate(f(z))` (decision 2B.5: the identity is used
+/// as the reference uses it, also for the functions with a branch cut on the negative reals).
+const MIRROR: &[&str] = &[
+    "sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "sech", "csch", "exp", "gamma",
+    "factorial", "erf", "erfc", "erfi", "exp_integral_e", "exp_integral_ei", "binomial", "beta",
+];
+
+/// Rewritings applied once before the search (decision 2B.6): `conjugate(f(z))` as `f(conjugate(z))` for the
+/// functions of [`MIRROR`]; `degree` as `pi/180`; `and`/`or` with repeated arguments removed and the rest sorted;
+/// `floor(n + x)`, `ceiling(n + x)` as `n + floor(x)`, `n + ceiling(x)` for integers n; `sqrt(a + b sqrt(c))`
+/// denested (rationals a > 0, b, c when a^2 - b^2 c is the square of a rational).
+fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    let degree = h.sym("degree");
+    let mentions_degree = h.mask(t) & 1u64 << (degree.0 % 64) != 0;
+    let t = if mentions_degree {
+        let to = b.div(h.sym_term(h.sym("pi")), b.int(180));
+        let rule = b.call(h.sym(mc_api::names::RULE), &[h.sym_term(degree), to]);
+        cx.eval(b.call_named("rewrite", &[t, rule]))?
+    } else {
+        t
+    };
+    let r = rewrite(cx, b, t, &mut |cx, b, node| {
+        let h = b.heap();
+        let Some((s, args)) = b.call_of(node) else { return Ok(None) };
+        let name = h.sym_name(s);
+        match (name.as_str(), args) {
+            ("conjugate", [u]) => {
+                if let Some((g, inner)) = b.call_of(*u) {
+                    if MIRROR.contains(&h.sym_name(g).as_str()) {
+                        let conj: Vec<T<'h>> = inner.iter().map(|&a| b.call(s, &[a])).collect();
+                        return Ok(Some(b.call(g, &conj)));
+                    }
+                }
+                Ok(None)
+            }
+            ("and" | "or", _) if args.len() > 1 => {
+                let mut v = args.to_vec();
+                cx.sort(&mut v);
+                v.dedup();
+                Ok((v.as_slice() != args).then(|| b.call(s, &v)))
+            }
+            ("floor" | "ceiling", [u]) => {
+                let (ints, rest): (Vec<T<'h>>, Vec<T<'h>>) =
+                    b.terms(*u).into_iter().partition(|&x| matches!(h.view(x), mc_api::View::Int(_) | mc_api::View::BigInt { .. }));
+                if ints.is_empty() || rest.is_empty() {
+                    return Ok(None);
+                }
+                Ok(Some(b.add(&[b.add(&ints), b.call(s, &[b.add(&rest)])])))
+            }
+            _ if s == b.hd.pow => denest(cx, b, args),
+            _ => Ok(None),
+        }
+    })?;
+    if r == t {
+        Ok(t)
+    } else {
+        cx.eval(r)
+    }
+}
+
+/// `sqrt(a + b sqrt(c))` as `sqrt((a + d)/2) + sign(b) sqrt((a - d)/2)`, d = sqrt(a^2 - b^2 c) rational.
+fn denest<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let [base, ex] = args else { return Ok(None) };
+    let half = b.rat(1, 2);
+    if *ex != half {
+        return Ok(None);
+    }
+    let rational = |u: T<'h>| matches!(h.view(u), mc_api::View::Int(_) | mc_api::View::BigInt { .. } | mc_api::View::Rational { .. });
+    let terms = b.terms(*base);
+    let [a, rest] = terms.as_slice() else { return Ok(None) };
+    if !rational(*a) {
+        return Ok(None);
+    }
+    // rest = coef * c^(1/2)
+    let (coef, rad) = match b.call_of(*rest) {
+        Some((m, [k, r])) if m == b.hd.mul && rational(*k) => (*k, *r),
+        _ => (b.int(1), *rest),
+    };
+    let c = match b.call_of(rad) {
+        Some((p, [c, e])) if p == b.hd.pow && *e == half && rational(*c) => *c,
+        _ => return Ok(None),
+    };
+    let pos = |u: T<'h>| b.ar.compare(u, b.int(0)).is_some_and(|o| o == mc_arith::number::Cmp3::Greater);
+    if !pos(*a) {
+        return Ok(None);
+    }
+    let disc = b.sub(b.mul(&[*a, *a]), b.mul(&[coef, coef, c]));
+    if !rational(disc) || b.ar.compare(disc, b.int(0)).is_some_and(|o| o == mc_arith::number::Cmp3::Less) {
+        return Ok(None);
+    }
+    let d = cx.eval(b.pow(disc, half))?;
+    if !rational(d) {
+        return Ok(None);
+    }
+    let p = b.pow(b.mul(&[half, b.add(&[*a, d])]), half);
+    let q = b.pow(b.mul(&[half, b.sub(*a, d)]), half);
+    let q = if pos(coef) { q } else { b.neg(q) };
+    Ok(Some(b.add(&[p, q])))
 }

@@ -1,0 +1,88 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_transform
+
+#% text
+# `fourier_transform(f, t, w)` gives the Fourier transform `1/sqrt(2 pi) integrate(f*exp(im*w*t), [t, -inf, inf])` of `f`.
+
+#% section
+# Details
+
+#% item
+# Factors `unit_step(t - a)` and `unit_step(b - t)` become the bounds of the integral.
+
+#% item
+# Gaussians `exp(-a t^2 + b t + c)` (with `re(a) > 0`) have a closed form.
+
+#% item
+# Otherwise the integral is left to `integrate`; when it gives no value the call stays unevaluated.
+
+#% item
+# `inverse_fourier_transform` uses the kernel `exp(-im*w*t)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rectangular pulse:
+
+#% cell
+fourier_transform(unit_step(t)*unit_step(1 - t), t, w)
+#% output
+#= (1/2)*(1im/w + -1im*exp(1im*w)/w)*2^(1/2)*pi^(-1/2)
+
+#% text
+# A Gaussian:
+
+#% cell
+fourier_transform(exp(-t^2), t, w)
+#% output
+#= (1/2)*exp((-1/4)*w^2)*2^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A symmetric pulse:
+
+#% cell
+fourier_transform(unit_step(t + 1)*unit_step(1 - t), t, w)
+#% output
+#= (1/2)*(-1im*exp(1im*w)/w + 1im*exp(-1im*w)/w)*2^(1/2)*pi^(-1/2)
+
+#% text
+# A shifted Gaussian:
+
+#% cell
+fourier_transform(exp(-(t - 1)^2/2), t, w)
+#% output
+#= exp(-1/2 + (1/2)*(1 + 1im*w)^2)
+
+#% text
+# A list:
+
+#% cell
+fourier_transform([exp(-t^2), exp(-2*t^2)], t, w)
+#% output
+#= [(1/2)*exp((-1/4)*w^2)*2^(1/2), (1/2)*exp((-1/8)*w^2)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The inverse transform gives the function back:
+
+#% cell
+inverse_fourier_transform(fourier_transform(exp(-t^2), t, w), w, t)
+#% output
+#= exp(-t^2)
+
+#% section
+# See also
+
+#% text
+# `inverse_fourier_transform`, `integrate`, `unit_step`

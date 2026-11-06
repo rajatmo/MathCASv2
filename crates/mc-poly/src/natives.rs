@@ -174,10 +174,14 @@ impl Native for PolyNative {
         let h = cx.heap();
         let env = Env { ar: Arith::new(h).with_stop(self.stop.clone()), hd: Heads::new(h), name: self.name };
         let _scope = StopScope::enter(Some(&self.stop));
+        // series: the Taylor coefficients of the functions its kernels do not know, through the evaluator
+        // (`derivatives: false`, a trailing option, turns that off; the limit walk uses it)
+        let (args, derivatives) = if self.f == PolyFn::Series { crate::series::derivatives_option(h, args) } else { (args, false) };
+        let taylor = if derivatives { crate::series::taylor_table(cx, args)? } else { Default::default() };
         let mut tick = Tick { cx, stop: &self.stop, abort: None };
         let r = {
             let mut m = Meter::new(&mut tick);
-            dispatch(self.f, &env, args, &mut m)
+            dispatch(self.f, &env, args, &taylor, &mut m)
         };
         match r {
             Ok(Out::Done(t)) => Ok(Reply::Done(t)),
@@ -199,7 +203,7 @@ impl Native for PolyNative {
     }
 }
 
-fn dispatch<'h>(f: PolyFn, env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
+fn dispatch<'h>(f: PolyFn, env: &Env<'h>, args: &[T<'h>], taylor: &crate::series::TaylorTable<'h>, m: &mut Meter) -> WorkResult<Out<'h>> {
     use crate::functions as fns;
     match f {
         PolyFn::Expand => fns::expand(env, args, m),
@@ -219,7 +223,7 @@ fn dispatch<'h>(f: PolyFn, env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Work
         PolyFn::Discriminant => fns::discriminant(env, args, m),
         PolyFn::Together => fns::together(env, args, m, false),
         PolyFn::Cancel => fns::together(env, args, m, true),
-        PolyFn::Series => crate::series::series_native(env, args, m),
+        PolyFn::Series => crate::series::series_native(env, args, taylor, m),
         PolyFn::Normal => crate::series::normal_native(env, args, m),
     }
 }

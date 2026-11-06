@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# function_convexity
+
+#% text
+# `function_convexity(f, x)` gives `1` when `f` is convex on its domain, `-1` when concave, `0` when linear, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# It is the sign of the second derivative on the domain of `f` (see `function_sign`).
+
+#% item
+# `function_convexity([f, cond], x)` restricts the domain.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola and a cubic:
+
+#% cell
+function_convexity(x^2, x)
+#% output
+#= 1
+
+#% cell
+function_convexity(x^3, x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# The logarithm is concave:
+
+#% cell
+function_convexity(log(x), x)
+#% output
+#= -1
+
+#% text
+# A linear function:
+
+#% cell
+function_convexity(3*x + 1, x)
+#% output
+#= 0
+
+#% text
+# A cubic on half the line:
+
+#% cell
+function_convexity([x^3, x > 0], x)
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sign of the second derivative:
+
+#% cell
+function_sign(d(exp(x), [x, 2]), x)
+#% output
+#= 1
+
+#% cell
+function_convexity(exp(x), x)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `function_sign`, `function_monotonicity`, `d`

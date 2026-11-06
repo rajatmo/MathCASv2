@@ -221,9 +221,19 @@ impl Syms {
     pub fn compare<'h>(&self, f: &mut Facts<'_, 'h>, cx: &mut NativeCx<'_, '_, 'h>, s: Sym, l: T<'h>, r: T<'h>) -> Res<Option<bool>> {
         let Some(op) = self.op(s) else { return Ok(None) };
         let d = f.b.sub(l, r);
-        let i = f.info(cx, d)?;
+        let mut i = f.info(cx, d)?;
         if !i.is_real() {
             return Ok(None);
+        }
+        if !f.decided(&i) && f.b.call_of(d).is_some_and(|(s, _)| s == f.b.hd.add) {
+            // the factored difference may have factors of known sign (`n^3 - n` for an integer n >= 1)
+            let fd = cx.eval(f.b.call_named("factor", &[d]))?;
+            if fd != d {
+                let j = f.info(cx, fd)?;
+                if f.decided(&j) || f.nonneg(&j) || f.nonpos(&j) {
+                    i = j;
+                }
+            }
         }
         let (pos, neg, zero) = (f.positive(&i), f.negative(&i), f.is_zero(&i));
         let (nonneg, nonpos, nonzero) = (f.nonneg(&i), f.nonpos(&i), i.range.nonzero || pos || neg);
@@ -256,12 +266,14 @@ pub struct Facts<'a, 'h> {
     kinds: FxHashMap<T<'h>, Kind>,
     cache: FxHashMap<T<'h>, Info<'h>>,
     closed: FxHashMap<T<'h>, bool>,
+    /// closed real constants of the facts (`pi/2`), used as bounds like numbers
+    closed_real: FxHashMap<T<'h>, bool>,
 }
 
 impl<'a, 'h> Facts<'a, 'h> {
     /// The facts `facts` (terms, as the context holds them).
     pub fn new(cx: &mut NativeCx<'_, '_, 'h>, b: &'a B<'h>, s: &'a Syms, facts: &[T<'h>]) -> Res<Facts<'a, 'h>> {
-        let mut f = Facts { b, s, rels: vec![], kinds: FxHashMap::default(), cache: FxHashMap::default(), closed: FxHashMap::default() };
+        let mut f = Facts { b, s, rels: vec![], kinds: FxHashMap::default(), cache: FxHashMap::default(), closed: FxHashMap::default(), closed_real: FxHashMap::default() };
         for &t in facts {
             cx.tick(1)?;
             f.add(t);
@@ -287,10 +299,7 @@ impl<'a, 'h> Facts<'a, 'h> {
             let Some(&(_, kind, sgn)) = self.b.sym_of(*dom).and_then(|d| self.s.domains.iter().find(|e| e.0 == d)) else {
                 return;
             };
-            let xs = match self.b.call_of(*x) {
-                Some((l, items)) if l == self.b.hd.list => items.to_vec(),
-                _ => vec![*x],
-            };
+            let (xs, _) = crate::element::items(self.b, *x);
             for x in xs {
                 self.kind_fact(x, kind);
                 let zero = self.b.int(0);
@@ -311,8 +320,33 @@ impl<'a, 'h> Facts<'a, 'h> {
     }
 
     /// The fact `l op r`, with a number on the right when there is one.
+    /// Is `t` a number or a closed real constant (remembered for [`Facts::meet_facts`])?
+    fn constant(&mut self, t: T<'h>) -> bool {
+        if self.b.is_number(t) {
+            return true;
+        }
+        if let Some(&c) = self.closed_real.get(&t) {
+            return c;
+        }
+        let h = self.b.heap();
+        let c = crate::element::closed(h, &self.s.num, t) && numeval::is_real(h, &self.b.ar, &self.s.num, t) == Some(true);
+        self.closed_real.insert(t, c);
+        c
+    }
+
     fn relation(&mut self, l: T<'h>, op: Op, r: T<'h>) {
-        let (l, op, r) = if self.b.is_number(l) && !self.b.is_number(r) { (r, op.flip(), l) } else { (l, op, r) };
+        let (lc, rc) = (self.constant(l), self.constant(r));
+        let (l, op, r) = if lc && !rc { (r, op.flip(), l) } else { (l, op, r) };
+        // mod(m, k) == 0 for an integer k: m/k is an integer (so `mod(m, 2) == 0` makes m even)
+        if op == Op::Eq && r == self.b.int(0) {
+            if let Some((s, [m, k])) = self.b.call_of(l) {
+                if self.b.heap().sym_name(s) == "mod" && matches!(self.b.heap().view(*k), View::Int(_)) {
+                    self.kind_fact(*m, Kind::Integer);
+                    let q = self.b.div(*m, *k);
+                    self.kind_fact(q, Kind::Integer);
+                }
+            }
+        }
         if op.is_order() {
             self.kind_fact(l, Kind::Real);
             self.kind_fact(r, Kind::Real);
@@ -350,13 +384,23 @@ impl<'a, 'h> Facts<'a, 'h> {
         self.cmp(c, self.b.int(0))
     }
 
+    /// The order of two closed real terms (numbers, or constants like `pi/2` by refinement).
+    fn num_cmp(&self, a: T<'h>, c: T<'h>) -> Option<Ordering> {
+        if let Some(o) = self.cmp(a, c) {
+            return Some(o);
+        }
+        numeval::sign(self.b.heap(), &self.b.ar, &self.s.num, self.b.sub(a, c))
+    }
+
     /// The order of two real number terms.
     fn cmp(&self, a: T<'h>, c: T<'h>) -> Option<Ordering> {
-        match self.b.ar.compare(a, c)? {
-            Cmp3::Less => Some(Ordering::Less),
-            Cmp3::Equal => Some(Ordering::Equal),
-            Cmp3::Greater => Some(Ordering::Greater),
-            _ => None,
+        match self.b.ar.compare(a, c) {
+            Some(Cmp3::Less) => Some(Ordering::Less),
+            Some(Cmp3::Equal) => Some(Ordering::Equal),
+            Some(Cmp3::Greater) => Some(Ordering::Greater),
+            Some(_) => None,
+            // closed real constants (`pi/2`) as bounds: by refinement
+            None => numeval::sign(self.b.heap(), &self.b.ar, &self.s.num, self.b.sub(a, c)),
         }
     }
 
@@ -383,7 +427,7 @@ impl<'a, 'h> Facts<'a, 'h> {
     }
 
     /// Is the sign of the value known?
-    fn decided(&self, i: &Info<'h>) -> bool {
+    pub fn decided(&self, i: &Info<'h>) -> bool {
         self.positive(i) || self.negative(i) || self.is_zero(i)
     }
 
@@ -449,7 +493,7 @@ impl<'a, 'h> Facts<'a, 'h> {
         }
         let zero = self.b.int(0);
         for rel in &self.rels {
-            let (op, c) = if rel.l == t && self.b.is_number(rel.r) {
+            let (op, c) = if rel.l == t && (self.b.is_number(rel.r) || self.closed_real.get(&rel.r) == Some(&true)) {
                 (rel.op, rel.r)
             } else if rel.d == t {
                 (rel.op, zero)
@@ -458,7 +502,8 @@ impl<'a, 'h> Facts<'a, 'h> {
             } else {
                 continue;
             };
-            if !self.b.ar.num(c).is_some_and(|n| matches!(n, mc_arith::number::Num::Real(_))) {
+            let real_number = self.b.ar.num(c).is_some_and(|n| matches!(n, mc_arith::number::Num::Real(_)));
+            if !real_number && self.closed_real.get(&c) != Some(&true) {
                 continue;
             }
             let r = &mut i.range;
@@ -487,6 +532,17 @@ impl<'a, 'h> Facts<'a, 'h> {
             i.range.hi = None;
         } else if self.positive(i) || self.negative(i) {
             i.range.nonzero = true;
+        }
+        if i.kind == Kind::Integer {
+            // an integer above (below) an integer bound is at least one more (less)
+            let h = self.b.heap();
+            let is_int = |c: T<'h>| matches!(h.view(c), View::Int(_) | View::BigInt { .. });
+            if let Some(lo) = i.range.lo.filter(|lo| lo.strict && is_int(lo.c)) {
+                i.range.lo = Some(Bound { c: self.b.add(&[lo.c, self.b.int(1)]), strict: false });
+            }
+            if let Some(hi) = i.range.hi.filter(|hi| hi.strict && is_int(hi.c)) {
+                i.range.hi = Some(Bound { c: self.b.add(&[hi.c, self.b.int(-1)]), strict: false });
+            }
         }
     }
 
@@ -563,6 +619,14 @@ impl<'a, 'h> Facts<'a, 'h> {
             let iu = self.info_at(cx, u, d)?;
             if !iu.is_real() {
                 return Ok(Info::unknown());
+            }
+            // positive on (0, pi) (sin) and on (-pi/2, pi/2) (cos), by the bounds of the argument
+            let pi = h.sym_term(self.s.pi);
+            let (a, c) = if s == hd.sin { (b.int(0), pi) } else { (b.mul(&[b.rat(-1, 2), pi]), b.mul(&[b.rat(1, 2), pi])) };
+            let inside = iu.range.lo.is_some_and(|lo| self.num_cmp(lo.c, a).is_some_and(|o| o == Ordering::Greater || o == Ordering::Equal && lo.strict))
+                && iu.range.hi.is_some_and(|hi| self.num_cmp(hi.c, c).is_some_and(|o| o == Ordering::Less || o == Ordering::Equal && hi.strict));
+            if inside {
+                return Ok(Info::real(Range { lo: Some(Bound { c: b.int(0), strict: true }), hi: Some(Bound { c: one, strict: false }), nonzero: true }));
             }
             Info::real(Range { lo: Some(Bound { c: b.int(-1), strict: false }), hi: Some(Bound { c: one, strict: false }), nonzero: false })
         } else if s == self.s.cosh {
@@ -735,6 +799,32 @@ impl<'a, 'h> Facts<'a, 'h> {
         let ie = self.info_at(cx, ex, d)?;
         let z = self.b.int(0);
         let at = |strict| Some(Bound { c: z, strict });
+        if let (View::Int(n), true) = (self.b.heap().view(ex), self.nonneg(&ib)) {
+            // a nonnegative base to a positive integer power: the bounds to that power
+            if n > 0 && n < 64 {
+                let pw = |x: Bound<'h>| Bound { c: self.b.powi(x.c, n), strict: x.strict };
+                let kind = if ib.kind <= Kind::Rational { ib.kind } else { Kind::Real };
+                let mut r = Range { lo: ib.range.lo.map(pw), hi: ib.range.hi.map(pw), nonzero: ib.range.nonzero };
+                if self.positive(&Info { kind, range: r }) {
+                    r.nonzero = true;
+                }
+                return Ok(Info { kind, range: r });
+            }
+        }
+        if let (View::Int(n), Some(lo), Some(hi)) = (self.b.heap().view(ex), ib.range.lo, ib.range.hi) {
+            // an even power of a real between two bounds: below the larger magnitude to that power
+            if n > 0 && n < 64 && n % 2 == 0 && ib.is_real() {
+                let (a, c) = (self.b.neg(lo.c), hi.c);
+                let top = match self.cmp(a, c) {
+                    Some(Ordering::Greater) => Bound { c: self.b.powi(a, n), strict: lo.strict },
+                    Some(_) => Bound { c: self.b.powi(c, n), strict: hi.strict },
+                    None => return Ok(Info::unknown()),
+                };
+                let kind = if ib.kind <= Kind::Rational { ib.kind } else { Kind::Real };
+                let r = Range { lo: Some(Bound { c: self.b.int(0), strict: false }), hi: Some(top), nonzero: ib.range.nonzero };
+                return Ok(Info { kind, range: r });
+            }
+        }
         if ie.kind == Kind::Integer && ib.is_real() {
             let kind = if ib.kind == Kind::Integer && self.nonneg(&ie) {
                 Kind::Integer
@@ -782,6 +872,19 @@ impl<'a, 'h> Facts<'a, 'h> {
     /// Whether the integer `n` is even (`Some(true)`), odd (`Some(false)`), or not known.
     pub fn parity(&mut self, cx: &mut NativeCx<'_, '_, 'h>, n: T<'h>, d: u32) -> Res<Option<bool>> {
         let b = self.b;
+        // a product of integers is even when one factor is
+        if let Some((s, fs)) = b.call_of(n) {
+            if s == b.hd.mul && self.info_at(cx, n, d + 1)?.kind == Kind::Integer {
+                for &g in fs {
+                    if !b.is_number(g) && self.info_at(cx, g, d + 1)?.kind == Kind::Integer {
+                        let half = b.mul(&[b.rat(1, 2), g]);
+                        if self.info_at(cx, half, d + 1)?.kind == Kind::Integer {
+                            return Ok(Some(true));
+                        }
+                    }
+                }
+            }
+        }
         let half = b.mul(&[b.rat(1, 2), n]);
         if self.info_at(cx, half, d + 1)?.kind == Kind::Integer {
             return Ok(Some(true));

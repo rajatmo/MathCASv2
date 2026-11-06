@@ -1,0 +1,98 @@
+#! mathcas 2 notebook
+
+#% title
+# function_sign
+
+#% text
+# `function_sign(f, x)` gives `1` when `f >= 0` for every `x` of its domain, `-1` when `f <= 0`, `0` when `f == 0`, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# The sign is proved from the facts of the domain where it can be (`refine`); otherwise, for one variable without parameters, it is found by sampling the domain: a change of sign among the samples gives `indeterminate`.
+
+#% item
+# `function_sign([f, cond], x)` restricts the domain.
+
+#% item
+# `function_sign(f, n, integers)` for a sequence.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An absolute value and a sine:
+
+#% cell
+function_sign(abs(x), x)
+#% output
+#= 1
+
+#% cell
+function_sign(sin(x), x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# A shifted sine:
+
+#% cell
+function_sign(sin(x) + 3/2, x)
+#% output
+#= 1
+
+#% text
+# On a restricted domain:
+
+#% cell
+function_sign([sin(x), 0 <= x and x <= pi], x)
+#% output
+#= 1
+
+#% text
+# A difference that is never positive:
+
+#% cell
+function_sign(x - sqrt(x^2), x)
+#% output
+#= -1
+
+#% subsection
+# Properties and relations
+
+#% text
+# `function_monotonicity` is the sign of the derivative:
+
+#% cell
+function_monotonicity(x^3, x)
+#% output
+#= 1
+
+#% cell
+function_sign(d(x^3, x), x)
+#% output
+#= 1
+
+#% subsection
+# Possible issues
+
+#% text
+# Without a proof the answer comes from samples of the domain; a sign change between samples very close together can be missed:
+
+#% cell
+function_sign(x^2 - 10^-8, x)
+#% output
+#= indeterminate
+
+#% section
+# See also
+
+#% text
+# `function_monotonicity`, `function_convexity`, `refine`, `sign`

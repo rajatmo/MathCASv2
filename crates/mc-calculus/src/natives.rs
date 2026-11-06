@@ -231,9 +231,34 @@ impl Native for Integrate {
             Ok(x) => x,
             Err(message) => return Ok(Reply::Done(named_failure(h, "integrate", message))),
         };
-        let one = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| match bounds {
+        let plain = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| match bounds {
             Some((_, lo, hi)) => crate::integrate::definite::integrate(cx, &b, f, x, lo, hi),
             None => crate::integrate::antiderivative(cx, &b, f, x, 0),
+        };
+        // inside assuming, an integrand the facts simplify (powers of products split, `sqrt(x^2)`): refined (with
+        // the sign of the variable when both bounds have it) and tried again (decision 2C4.6)
+        let one = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| -> Res<Option<T<'h>>> {
+            if let Some(r) = plain(cx, f)? {
+                return Ok(Some(r));
+            }
+            if cx.assumptions().is_empty() {
+                return Ok(None);
+            }
+            let mut facts = vec![];
+            if let Some((_, lo, hi)) = bounds {
+                use crate::integrate::definite::sign;
+                match (sign(cx, &b, lo)?, sign(cx, &b, hi)?) {
+                    (Some(1), Some(1)) => facts.push(h.call(h.sym("greater"), &[x, b.zero()])),
+                    (Some(-1), Some(-1)) => facts.push(h.call(h.sym("less"), &[x, b.zero()])),
+                    _ => {}
+                }
+            }
+            let refined = h.call(h.sym("refine"), &[f]);
+            let g = if facts.is_empty() { cx.eval(refined)? } else { cx.eval_assuming(&facts, refined)? };
+            if g == f {
+                return Ok(None);
+            }
+            plain(cx, g)
         };
         let r = match h.view(*f) {
             View::App { head, args: items } if b.sym_of(head) == Some(b.hd.list) => {
@@ -248,6 +273,19 @@ impl Native for Integrate {
             }
             _ => one(cx, *f)?,
         };
+        if r.is_none() {
+            // no closed form, inexact bounds and an integrand with no other symbols (what `n` leaves of an unevaluated
+            // integral): the numerical integral (decision 2C4.7)
+            if let Some((_, lo, hi)) = bounds {
+                let inexact = |t: T<'h>| matches!(h.view(t), View::Real(_) | View::Ball { .. });
+                if (inexact(lo) || inexact(hi)) && closed_in(&b, *f, x) {
+                    let r = cx.eval(h.call(h.sym("n_integrate"), &[*f, *spec]))?;
+                    if !matches!(h.view(r), View::App { head, .. } if b.sym_of(head) == Some(h.sym(names::FAILURE)) || b.sym_of(head) == Some(h.sym("n_integrate"))) {
+                        return Ok(Reply::Done(r));
+                    }
+                }
+            }
+        }
         Ok(r.map_or(Reply::Decline, Reply::Again))
     }
 }
@@ -273,4 +311,23 @@ impl Native for Apart {
         };
         Ok(crate::apart::apart(cx, &b, e, x)?.map_or(Reply::Decline, Reply::Again))
     }
+}
+
+/// Does `f` mention no symbol but `x` and the numeric constants?
+fn closed_in<'h>(b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    let mut stack = vec![f];
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Sym(s) => {
+                if u != x && !matches!(h.sym_name(s).as_str(), "pi" | "e" | "euler_gamma" | "degree" | "catalan") {
+                    return false;
+                }
+            }
+            View::App { args, .. } => stack.extend(args.iter().copied()),
+            View::Str(_) => return false,
+            _ => {}
+        }
+    }
+    true
 }

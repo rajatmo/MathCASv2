@@ -19,6 +19,7 @@
 //! Decisions of this package are numbered 3B.1, 3B.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
 mod cx;
+mod domain;
 mod linear;
 mod natives;
 mod numroots;
@@ -73,6 +74,8 @@ const TABLE: &[(&str, SolveFn)] = &[
 /// engine's arithmetic stop flag), so that long computations stop promptly (decision 3B.1).
 pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for &(name, f) in TABLE {
-        k.register(h.sym(name), Attributes::default(), Box::new(SolveNative { f, name, stop: stop.clone() }));
+        // solve reads the assumption context: facts about the unknowns filter its solutions (decision 3B.20)
+        let a = Attributes { uses_assumptions: matches!(f, SolveFn::Solve), ..Attributes::default() };
+        k.register(h.sym(name), a, Box::new(SolveNative { f, name, stop: stop.clone() }));
     }
 }

@@ -108,3 +108,28 @@ fn stays_unevaluated() {
         ("integrate(x^2, [x, 0, 1, 2])", "failure(argument, integrate, \"the range is [x, a, b]\")"),
     ]);
 }
+
+#[test]
+fn under_assumptions() {
+    check(&[
+        ("assuming(a > 0 and b > 0, integrate(f^(-3/2), [f, a, b]))", "-2*b^(-1/2) + 2*a^(-1/2)"),
+        ("integrate(f^(-3/2), [f, a, b])", "integrate(f^(-3/2), [f, a, b])"),
+        ("assuming(a > 0, integrate(exp(-a*x), [x, 0, inf]))", "a^-1"),
+        ("integrate(exp(-a*x), [x, 0, inf])", "integrate(exp(-1*a*x), [x, 0, inf])"),
+        // a singular point between the bounds: divergent
+        ("assuming(a < 0 and b > 0, integrate(f^(-3/2), [f, a, b]))", "failure(divergent, integrate, f^(-3/2))"),
+    ]);
+}
+
+#[test]
+fn integrands_refined_under_assumptions() {
+    check(&[
+        ("assuming(a > 0 and b > 0, integrate(c*f^(-3/2), [f, a, b]))", "-2*c*b^(-1/2) + 2*c*a^(-1/2)"),
+        (
+            "assuming(a > 0 and b > 0 and m > 0, integrate((m/(2*pi*f))^(3/2), [f, a, b]))",
+            "(-1/2)*2^(1/2)*b^(-1/2)*m^(3/2)*pi^(-3/2) + (1/2)*2^(1/2)*a^(-1/2)*m^(3/2)*pi^(-3/2)",
+        ),
+        ("assuming(m > 0 and f > 0, integrate((m/(2*pi*f))^(3/2), f))", "(-1/2)*2^(1/2)*f^(-1/2)*m^(3/2)*pi^(-3/2)"),
+        ("integrate((m/(2*pi*f))^(3/2), f)", "integrate((1/4)*2^(1/2)*(m/f/pi)^(3/2), f)"),
+    ]);
+}

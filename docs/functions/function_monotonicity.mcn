@@ -1,0 +1,79 @@
+#! mathcas 2 notebook
+
+#% title
+# function_monotonicity
+
+#% text
+# `function_monotonicity(f, x)` gives `1` when `f` is nondecreasing on its domain, `-1` when nonincreasing, `0` when constant, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# It is the sign of the derivative `d(f, x)` on the domain of `f` (see `function_sign`).
+
+#% item
+# `function_monotonicity([f, cond], x)` restricts the domain; `function_monotonicity(f, n, integers)` uses differences for a sequence.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential and the sine:
+
+#% cell
+function_monotonicity(e^x, x)
+#% output
+#= 1
+
+#% cell
+function_monotonicity(sin(x), x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# The logarithm on its domain:
+
+#% cell
+function_monotonicity([log(x), x > 0], x)
+#% output
+#= 1
+
+#% text
+# A function constant on half the line:
+
+#% cell
+function_monotonicity(sqrt(x^2) - x, x)
+#% output
+#= -1
+
+#% text
+# A sequence:
+
+#% cell
+function_monotonicity(n^2, n, integers)
+#% output
+#= indeterminate
+
+#% subsection
+# Properties and relations
+
+#% text
+# A strictly monotonic function is injective:
+
+#% cell
+function_injective(x^3 + x, x)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `function_sign`, `function_convexity`, `function_injective`, `d`

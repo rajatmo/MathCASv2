@@ -1,0 +1,122 @@
+#! mathcas 2 notebook
+
+#% title
+# function_domain
+
+#% text
+# `function_domain(f, x)` gives the condition on `x` under which `f` is defined over the reals; `function_domain(f, [x, y])` for several variables and `function_domain(f, x, complexes)` over the complexes.
+
+#% section
+# Details
+
+#% item
+# Bases of negative powers must be nonzero, bases of square roots (and other even roots) nonnegative, arguments of `log` positive (nonzero over the complexes), arguments of `asin` and `acos` between -1 and 1.
+
+#% item
+# `tan` and `sec` need `cos(u) != 0`, `cot` and `csc` need `sin(u) != 0`.
+
+#% item
+# With one variable over the reals the conditions are solved by `reduce`; otherwise the result is their conjunction.
+
+#% item
+# `function_domain([f, cond], x)` restricts the domain by `cond`.
+
+#% item
+# A function whose domain is not known here leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Where a rational function is defined:
+
+#% cell
+function_domain(x/(x^2 - 1), x)
+#% output
+#= x < -1 or -1 < x and x < 1 or 1 < x
+
+#% text
+# Square roots:
+
+#% cell
+function_domain(sqrt(1 - x) + sqrt(1 + x), x)
+#% output
+#= -1 <= x and x <= 1
+
+#% subsection
+# Scope
+
+#% text
+# Inverse trigonometric functions and logarithms:
+
+#% cell
+function_domain(acos(x), x)
+#% output
+#= -1 <= x and x <= 1
+
+#% cell
+function_domain(x*log(x) + sqrt(1 - x) - e^x + 2, x)
+#% output
+#= 0 < x and x <= 1
+
+#% text
+# Over the complexes:
+
+#% cell
+function_domain(x/(x^2 + 1), x, complexes)
+#% output
+#= 1 + x^2 != 0
+
+#% cell
+function_domain(exp(1/x), x, complexes)
+#% output
+#= x != 0
+
+#% text
+# Several variables:
+
+#% cell
+function_domain((x + y)/(x^2 - y^2), [x, y])
+#% output
+#= -y^2 + x^2 != 0
+
+#% cell
+function_domain(sqrt(x^2 + y^2 - 9), [x, y])
+#% output
+#= x^2 + y^2 >= 9
+
+#% text
+# A restriction:
+
+#% cell
+function_domain([1/x, x < 2], x)
+#% output
+#= x < 0 or 0 < x and x < 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# A polynomial is defined everywhere:
+
+#% cell
+function_domain(x^3 - x, x)
+#% output
+#= true
+
+#% text
+# `function_singularities` gives where a function is singular:
+
+#% cell
+function_singularities(sqrt(x), x)
+#% output
+#= x <= 0
+
+#% section
+# See also
+
+#% text
+# `function_singularities`, `function_analytic`, `reduce`, `function_sign`

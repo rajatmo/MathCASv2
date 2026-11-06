@@ -198,7 +198,7 @@ fn failures() {
         ("n_dsolve([y''(t) == y(t), y(0) == 1], y, [t, 0, 1])", "failure(argument, n_dsolve, \"missing initial condition for y'\")"),
         (
             "n_dsolve([y'(t) == y(t), y(0) == 1, y(1) == 2], y, [t, 0, 1])",
-            "failure(argument, n_dsolve, \"the initial conditions are at different points\")",
+            "failure(argument, n_dsolve, \"1 boundary conditions for 0 unknown initial values\")",
         ),
         (
             "n_dsolve([y'(t) == y(t - 1), y(0) == 1], y, [t, 0, 1])",
@@ -286,4 +286,27 @@ fn numeric_values_do_not_keep_named_solutions_from_working() {
     assert!(close(number(&s.run("g(0.5)")), (-0.5f64).exp(), 1e-7));
     // and the solution of a value is gone only when nothing names it: a closure keeps it
     assert!(close(number(&s.run("h = parametric_n_dsolve_value([y'(t) == -k*y(t), y(0) == 1], y(t), [t, 0, 1], [k])(2.0); h(1)")), (-2f64).exp(), 1e-7));
+}
+
+#[test]
+fn max_step_fraction_bounds_the_step() {
+    let mut s = Sys::new();
+    let r = s.run("n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 1], max_step_fraction: 1/1000)");
+    assert!(steps(&r) >= 1000, "{r}");
+    let r = s.run("n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 2], max_step_fraction: 1/100, max_step_size: 0.001)");
+    assert!(steps(&r) >= 2000, "{r}");
+    let r = s.run("n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 1], max_step_fraction: 2)");
+    assert!(r.starts_with("failure(argument"), "{r}");
+}
+
+#[test]
+fn boundary_value_problems_by_shooting() {
+    let mut s = Sys::new();
+    let v = number(&s.run("n_dsolve_value([y''(x) == y(x), y(0) == 0, y(1) == 1], y(0.5), [x, 0, 1])"));
+    assert!(close(v, 0.5f64.sinh() / 1f64.sinh(), 1e-7), "{v}");
+    let v = number(&s.run("n_dsolve_value([y''(x) == -y(x), y'(0) == 1, y(2) == 0], y(1), [x, 0, 2])"));
+    let want = -(2f64.tan()).recip() * 0.0 + (1f64.sin() - 2f64.tan() * 1f64.cos());
+    assert!(close(v, want, 1e-7), "{v} {want}");
+    let r = s.run("n_dsolve([y''(x) == y(x), y(0) == 0, y(1) == 1, y(2) == 3], y, [x, 0, 2])");
+    assert!(r.starts_with("failure(argument"), "{r}");
 }

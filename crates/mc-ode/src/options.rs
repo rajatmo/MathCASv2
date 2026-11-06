@@ -61,6 +61,8 @@ pub(crate) struct Options<'h> {
     pub max_steps: Option<usize>,
     /// `max_step_size: h`
     pub max_step_size: Option<f64>,
+    /// `max_step_fraction: f`: the largest step as a fraction of the range of the integration
+    pub max_step_fraction: Option<f64>,
     /// `method: m`
     pub method: Method,
     /// `events: [g == 0, ...]` (the term as given)
@@ -69,6 +71,17 @@ pub(crate) struct Options<'h> {
     pub event_action: EventAction,
     /// `compile: auto | true | false`: when the right-hand side is compiled
     pub policy: Policy,
+}
+
+impl Options<'_> {
+    /// The largest step: `max_step_size` and `max_step_fraction` of the range `width`, the smaller.
+    pub fn hmax(&self, width: f64) -> Option<f64> {
+        let f = self.max_step_fraction.map(|f| f * width.abs()).filter(|h| *h > 0.0);
+        match (self.max_step_size, f) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+    }
 }
 
 /// Why the options were refused.
@@ -92,6 +105,7 @@ pub(crate) fn split<'a, 'h>(
         precision_goal: None,
         max_steps: None,
         max_step_size: None,
+        max_step_fraction: None,
         method: Method::Auto,
         events: None,
         event_action: EventAction::Stop,
@@ -127,6 +141,10 @@ pub(crate) fn split<'a, 'h>(
             },
             "max_step_size" => match ar.num(v).and_then(|n| n.as_real().map(|r| r.to_f64())) {
                 Some(x) if x > 0.0 && x.is_finite() => o.max_step_size = Some(x),
+                _ => return Err(bad()),
+            },
+            "max_step_fraction" => match ar.num(v).and_then(|n| n.as_real().map(|r| r.to_f64())) {
+                Some(x) if x > 0.0 && x <= 1.0 => o.max_step_fraction = Some(x),
                 _ => return Err(bad()),
             },
             "method" => o.method = symbol(v).and_then(|s| Method::from_name(&s)).ok_or_else(bad)?,

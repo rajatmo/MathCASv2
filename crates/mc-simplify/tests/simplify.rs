@@ -67,7 +67,9 @@ fn transforms() {
         ("power_expand((a*b)^n)", "a^n*b^n"),
         ("power_expand(log(exp(x)))", "x"),
         // one argument only: other calls stay as they are
-        ("simplify(x, y)", "simplify(x, y)"),
+        ("trig_expand(x, y)", "trig_expand(x, y)"),
+        // simplify(e, facts) is simplify under the facts
+        ("simplify(x, y)", "x"),
     ]);
 }
 

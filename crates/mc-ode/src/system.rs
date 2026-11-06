@@ -44,6 +44,12 @@ pub(crate) struct System<'h> {
     /// initial values that depend on the parameters of `parametric_n_dsolve_value`: (component, expression); the
     /// component's entry of `initial` is a placeholder until the parameters have values
     pub initial_terms: Vec<(usize, T<'h>)>,
+    /// a boundary value problem (decision N3.20): the components of the initial state not given at the start
+    /// (placeholders in `initial`), found by shooting so that the conditions `(component, point, value)` at the
+    /// other point hold; both empty for an initial value problem
+    pub free: Vec<usize>,
+    /// see [`System::free`]
+    pub targets: Vec<(usize, Num, Num)>,
 }
 
 impl<'h> System<'h> {
@@ -325,18 +331,38 @@ pub(crate) fn reduce<'h>(
         }
     }
     let rhs = cx.eval(cx.list(&rhs))?;
-    // the initial conditions: one per component, all at one point
+    // the initial conditions: one per component at the start, the point with the most conditions; conditions at
+    // one other point make a boundary value problem
     let mut initial: Vec<Option<Result<Num, T<'h>>>> = vec![None; n];
+    let mut points: Vec<(Num, usize)> = vec![];
+    for (_, _, x, _) in &conditions {
+        match points.iter_mut().find(|(p, _)| mc_arith::number::equal(p, x) == Some(true)) {
+            Some(e) => e.1 += 1,
+            None => points.push((x.clone(), 1)),
+        }
+    }
+    if points.len() > 2 {
+        return Ok(Err("the conditions are at more than two points".into()));
+    }
+    // the first point with the most conditions
     let mut start: Option<Num> = None;
+    let mut best = 0;
+    for (p, c) in &points {
+        if *c > best {
+            best = *c;
+            start = Some(p.clone());
+        }
+    }
+    let mut targets = vec![];
     for (i, d, x, v) in conditions {
         let u = &unknowns[i];
         if d >= u.order {
             return Ok(Err(format!("the initial condition {} is of the highest order", printed_name(h, u.sym, d))));
         }
-        match &start {
-            None => start = Some(x),
-            Some(s) if mc_arith::number::equal(s, &x) == Some(true) => {}
-            Some(_) => return Ok(Err("the initial conditions are at different points".into())),
+        if start.as_ref().is_some_and(|s| mc_arith::number::equal(s, &x) != Some(true)) {
+            let Ok(v) = v else { return Ok(Err("a boundary condition depends on a parameter".into())) };
+            targets.push((u.at + d, x, v));
+            continue;
         }
         let slot = &mut initial[u.at + d];
         if let Some(old) = slot {
@@ -354,6 +380,7 @@ pub(crate) fn reduce<'h>(
     let Some(start) = start else { return Ok(Err("no initial conditions".into())) };
     let mut init = Vec::with_capacity(n);
     let mut initial_terms = vec![];
+    let mut free = vec![];
     for (k, v) in initial.into_iter().enumerate() {
         match v {
             Some(Ok(v)) => init.push(v),
@@ -361,13 +388,20 @@ pub(crate) fn reduce<'h>(
                 init.push(Num::int(0));
                 initial_terms.push((k, e));
             }
+            None if free.len() < targets.len() => {
+                init.push(Num::int(0));
+                free.push(k);
+            }
             None => {
                 let u = unknowns.iter().rev().find(|u| u.at <= k).expect("a component's unknown");
                 return Ok(Err(format!("missing initial condition for {}", printed_name(h, u.sym, k - u.at))));
             }
         }
     }
-    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init, initial_terms }))
+    if free.len() != targets.len() {
+        return Ok(Err(format!("{} boundary conditions for {} unknown initial values", targets.len(), free.len())));
+    }
+    Ok(Ok(System { t, unknowns, state, rhs, start: ar.number(&start), initial: init, initial_terms, free, targets }))
 }
 
 /// `y`, `y'`, `y''`, ... for messages.

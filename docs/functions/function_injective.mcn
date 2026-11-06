@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# function_injective
+
+#% text
+# `function_injective(f, x)` gives `true` when `f` takes no value twice on its domain and `false` when it does.
+
+#% section
+# Details
+
+#% item
+# A function whose derivative has one sign on its domain is injective; two equal values found among samples of the domain prove that it is not.
+
+#% item
+# `function_injective([f, cond], x)` restricts the domain.
+
+#% item
+# When neither is shown the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential:
+
+#% cell
+function_injective(e^x, x)
+#% output
+#= true
+
+#% text
+# A cubic with a local maximum and minimum:
+
+#% cell
+function_injective(x^3 - x, x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# The same cubic beyond its minimum:
+
+#% cell
+function_injective([x^3 - x, x > 1], x)
+#% output
+#= true
+
+#% text
+# A parabola:
+
+#% cell
+function_injective(x^2, x)
+#% output
+#= false
+
+#% cell
+function_injective([x^2, x >= 0], x)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A function with a derivative of one sign is monotonic:
+
+#% cell
+function_monotonicity(e^x, x)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `function_monotonicity`, `function_sign`

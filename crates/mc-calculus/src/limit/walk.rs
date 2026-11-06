@@ -20,7 +20,7 @@ use crate::diff::{Diff, Halt};
 use crate::integrate::definite::{call_of, is_failure, sign, subst, Pt};
 use crate::integrate::{apply, args_of, is_free};
 use crate::term::Build;
-use mc_api::{Store, View, T};
+use mc_api::{names, Store, View, T};
 use mc_eval::{NativeCx, Res};
 use std::cmp::Ordering;
 
@@ -645,12 +645,17 @@ fn series<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>) 
     let data = h.sym("series_data");
     for n in [4, 8, 16] {
         cx.tick(1)?;
-        let s = apply(cx, b, "series", &[g, t, b.zero(), b.int(n)])?;
+        // no Taylor expansion of functions through their derivatives here: an unknown function need not be
+        // continuous at the point
+        let opt = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("derivatives")), h.sym_term(h.sym(names::FALSE))]);
+        let opts = h.call(h.sym("options"), &[opt]);
+        let s = apply(cx, b, "series", &[g, t, b.zero(), b.int(n), opts])?;
         // the packed form series_data(t, 0, [c_v, c_(v+1), ...], v, p): the first coefficient that is not 0
         let Some([_, _, cs, v, _]) = args_of(b, s, data) else { return Ok(None) };
         let (Some(cs), View::Int(v)) = (args_of(b, *cs, b.hd.list), h.view(*v)) else { return Ok(None) };
         for (i, &c) in cs.iter().enumerate() {
-            if is_failure(b, c) {
+            // a failure, or a logarithmic coefficient (log(t)): not a leading power term
+            if is_failure(b, c) || !is_free(b, c, t) {
                 return Ok(None);
             }
             let sc = sign(cx, b, c)?;

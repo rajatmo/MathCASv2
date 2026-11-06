@@ -90,6 +90,42 @@ impl<'b, 'h> Diff<'b, 'h> {
         Ok(self.memo[&t])
     }
 
+    /// The derivative of `integrate(g, t)` (`integrate(d(g), t)`, or `g` when `t` is the variable) and of
+    /// `integrate(g, [t, a, b])` by the Leibniz rule: `g(b) b' - g(a) a' + integrate(d(g), [t, a, b])` (decision
+    /// 2A.7); `None` for other shapes.
+    fn integral(&self, args: &[T<'h>]) -> Option<T<'h>> {
+        let b = self.b;
+        let h = b.heap();
+        let [g, spec] = args else { return None };
+        let at = |v: T<'h>, t: T<'h>| {
+            let rule = h.call(h.sym(mc_api::names::RULE), &[t, v]);
+            h.call(h.sym("rewrite"), &[*g, rule])
+        };
+        match h.view(*spec) {
+            View::Sym(_) if *spec == self.x => Some(*g),
+            View::Sym(_) => {
+                let dg = self.dv(*g);
+                Some(if b.is_zero(dg) { b.zero() } else { h.call(h.sym("integrate"), &[dg, *spec]) })
+            }
+            View::App { head, args: &[t, lo, hi] } if b.sym_of(head) == Some(b.hd.list) && t != self.x => {
+                let mut parts = vec![];
+                let (dlo, dhi) = (self.dv(lo), self.dv(hi));
+                if !b.is_zero(dhi) {
+                    parts.push(b.mul(&[at(hi, t), dhi]));
+                }
+                if !b.is_zero(dlo) {
+                    parts.push(b.mul(&[b.int(-1), at(lo, t), dlo]));
+                }
+                let dg = self.dv(*g);
+                if !b.is_zero(dg) {
+                    parts.push(h.call(h.sym("integrate"), &[dg, *spec]));
+                }
+                Some(b.add(&parts))
+            }
+            _ => None,
+        }
+    }
+
     /// The derivative of an already visited argument.
     fn dv(&self, a: T<'h>) -> T<'h> {
         self.memo[&a]
@@ -119,6 +155,11 @@ impl<'b, 'h> Diff<'b, 'h> {
             if s == b.hd.pow {
                 if let [base, ex] = args {
                     return Ok(self.power(head, *base, *ex));
+                }
+            }
+            if h.sym_name(s) == "integrate" {
+                if let Some(v) = self.integral(args) {
+                    return Ok(v);
                 }
             }
             return match rules::lookup(&h.sym_name(s), args.len()) {

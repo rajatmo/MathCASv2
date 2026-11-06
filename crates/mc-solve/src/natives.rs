@@ -41,6 +41,19 @@ pub(crate) struct SolveNative {
 impl Native for SolveNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h: &'h Heap = cx.heap();
+        // a domain or conditions: solve the equations, then keep the solutions in the domain that meet them
+        if self.f == SolveFn::Solve {
+            if let Some(r) = crate::domain::solve(cx, args)? {
+                return Ok(Reply::Done(r));
+            }
+        }
+        // several unknowns, or the integers: through the solutions
+        if self.f == SolveFn::Reduce {
+            if let Some(r) = crate::domain::reduce(cx, args)? {
+                return Ok(Reply::Again(r));
+            }
+        }
+        let (args, _) = crate::domain::strip_no_facts(h, args);
         let env = Env::new(h, self.stop.clone(), self.name);
         let _scope = StopScope::enter(Some(&self.stop));
         let mut tick = Tick { cx, stop: &self.stop, abort: None };

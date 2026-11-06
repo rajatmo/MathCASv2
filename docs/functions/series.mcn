@@ -156,21 +156,21 @@ series(x^2 + 3x + 1, x, 0, 5)
 #% output
 #= 1 + 3*x + x^2 + O(x^6)
 
-#% subsection
-# Possible issues
-
 #% text
-# Powers with fractional exponents and logarithms at the point are not expanded:
+# Logarithms at the point and fractional powers give logarithmic and Puiseux series:
 
 #% cell
 series(log(x), x, 0, 2)
 #% output
-#= series(log(x), x, 0, 2)
+#= log(x) + O(x^3)
 
 #% cell
 series(cos(sqrt(x)), x, 0, 3)
 #% output
-#= series(cos(x^(1/2)), x, 0, 3)
+#= 1 - x/2 + x^2/24 - x^3/720 + O(x^4)
+
+#% subsection
+# Possible issues
 
 #% text
 # Arithmetic on series is not carried out; take `normal` first:

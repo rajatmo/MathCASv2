@@ -70,7 +70,7 @@ const AT_INFINITY: &[(&str, &str)] = &[
     ("limit(1/x, x -> inf, direction: from_below)", "0"),
     ("limit(cosh(x)/exp(x), x -> inf)", "1/2"),
     ("limit(log(x + 1) - log(x), x -> inf)", "0"),
-    ("limit(log(x) - log(2*x), x -> inf)", "log(1/2)"),
+    ("limit(log(x) - log(2*x), x -> inf)", "-log(2)"),
     ("limit(2*log(x) - log(x^2 + 1), x -> inf)", "0"),
     ("limit(x^2/cosh(x), x -> inf)", "0"),
 ];

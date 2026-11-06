@@ -173,3 +173,14 @@ fn interrupt() {
     assert!(took < Duration::from_secs(5), "stopped after {took:?}");
     assert_eq!(s.run("d(x^2, x)"), "2*x");
 }
+
+#[test]
+fn integrals_by_the_leibniz_rule() {
+    check(&[
+        ("d(integrate(x(f), [f, a/b, c*a]), a)", "c*x(a*c) + -1/b*x(a/b)"),
+        ("d(integrate(g(t), [t, 0, x^2]), x)", "2*x*g(x^2)"),
+        ("d(integrate(g(t, x), [t, 0, 1]), x)", "integrate(derivative(0, 1)(g)(t, x), [t, 0, 1])"),
+        ("d(integrate(g(t, x), t), x)", "integrate(derivative(0, 1)(g)(t, x), t)"),
+        ("d(integrate(g(t), t), t)", "g(t)"),
+    ]);
+}

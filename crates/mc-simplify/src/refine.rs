@@ -53,6 +53,16 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
     if let (Some(_), [l, r]) = (sy.relation(s), args) {
         return Ok(sy.compare(f, cx, s, *l, *r)?.map(|v| cx.bool(v)));
     }
+    if let (true, [x, d]) = (b.heap().sym_name(s) == "element", args) {
+        return element(cx, b, f, *x, *d);
+    }
+    let name = b.heap().sym_name(s);
+    if (name == "max" || name == "min") && args.len() > 1 {
+        return extremum(cx, b, f, name == "max", args);
+    }
+    if let (true, [u]) = (name == "floor" || name == "ceiling", args) {
+        return rounded(cx, b, f, name == "floor", *u);
+    }
     let [u] = args else { return Ok(None) };
     let u = *u;
     if s == sy.abs {
@@ -68,6 +78,78 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
         return trig(cx, b, f, s, u);
     }
     Ok(None)
+}
+
+/// `element(x, d)` decided by the facts: `true` when every element has the domain's kind and sign, `false` when
+/// one has the contrary sign.
+fn element<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, x: T<'h>, d: T<'h>) -> Res<Option<T<'h>>> {
+    use crate::facts::Sgn;
+    let Some(dom) = crate::element::domain(b, d) else { return Ok(None) };
+    let (xs, _) = crate::element::items(b, x);
+    let mut all = true;
+    for u in xs {
+        let i = f.info(cx, u)?;
+        let kind_ok = dom.kind == Kind::Unknown && i.is_real() || i.kind <= dom.kind && i.kind != Kind::Unknown;
+        let (sign_ok, sign_bad) = match dom.sgn {
+            None => (true, false),
+            Some(Sgn::Pos) => (f.positive(&i), f.nonpos(&i)),
+            Some(Sgn::Neg) => (f.negative(&i), f.nonneg(&i)),
+            Some(Sgn::NonNeg) => (f.nonneg(&i), f.negative(&i)),
+            Some(Sgn::NonPos) => (f.nonpos(&i), f.positive(&i)),
+        };
+        if sign_bad {
+            return Ok(Some(cx.bool(false)));
+        }
+        all &= kind_ok && sign_ok;
+    }
+    Ok(all.then(|| cx.bool(true)))
+}
+
+/// `max(a, b, ...)`, `min(...)`: the arguments the facts show to be dominated by another dropped (bug 28 of the docs
+/// round: `max(a, b)` is `a` for `a > b`).
+fn extremum<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, is_max: bool, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let ge = b.heap().sym("greater_equal");
+    let mut keep: Vec<T<'h>> = vec![];
+    for (i, &a) in args.iter().enumerate() {
+        let mut dominated = false;
+        for (j, &c) in args.iter().enumerate() {
+            if i == j || keep.contains(&c) && j > i {
+                continue;
+            }
+            // c >= a (max) or c <= a (min) drops a; of two equal ones the first stays
+            let (l, r) = if is_max { (c, a) } else { (a, c) };
+            if f.syms().compare(f, cx, ge, l, r)? == Some(true) && (j < i || f.syms().compare(f, cx, ge, r, l)? != Some(true)) {
+                dominated = true;
+                break;
+            }
+        }
+        if !dominated {
+            keep.push(a);
+        }
+    }
+    if keep.len() == args.len() {
+        return Ok(None);
+    }
+    Ok(Some(if keep.len() == 1 { keep[0] } else { b.call_named(if is_max { "max" } else { "min" }, &keep) }))
+}
+
+/// `floor(u)`, `ceiling(u)` when the facts put `u` between two numbers with the same floor (ceiling).
+fn rounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, floor: bool, u: T<'h>) -> Res<Option<T<'h>>> {
+    let i = f.info(cx, u)?;
+    let (Some(lo), Some(hi)) = (i.range.lo, i.range.hi) else { return Ok(None) };
+    let name = if floor { "floor" } else { "ceiling" };
+    let fl = cx.eval(b.call_named(name, &[lo.c]))?;
+    let fh = cx.eval(b.call_named(name, &[hi.c]))?;
+    if b.ar.num(fl).is_none() || b.ar.num(fh).is_none() {
+        return Ok(None);
+    }
+    // floor: [lo, hi) inside [k, k + 1) (hi excluded or not an integer); ceiling: (lo, hi] inside (k - 1, k]
+    let ok = if floor {
+        fl == fh && hi.c != fh || fh == b.add(&[fl, b.int(1)]) && hi.c == fh && hi.strict
+    } else {
+        fl == fh && lo.c != fl || fl == b.add(&[fh, b.int(-1)]) && lo.c == fl && lo.strict
+    };
+    Ok(ok.then_some(if floor { fl } else { fh }))
 }
 
 /// The rules for `base^c`.
@@ -87,7 +169,7 @@ fn power<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, ba
             let (x, a) = (*x, *a);
             let ix = f.info(cx, x)?;
             let ia = f.info(cx, a)?;
-            if f.nonneg(&ix) && ia.is_real() && ic.is_real() || principal_exponent(b, a) {
+            if f.nonneg(&ix) && ia.is_real() && ic.is_real() || principal_exponent(b, a) || ic.kind == Kind::Integer {
                 return Ok(Some(b.pow(x, b.mul(&[a, c]))));
             }
             if ix.is_real() && ia.kind == Kind::Integer && ic.is_real() && f.parity(cx, a, 0)? == Some(true) {

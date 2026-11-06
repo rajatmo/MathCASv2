@@ -31,6 +31,8 @@ enum SErr {
     Unsupported,
     /// a division by a series that is zero to the working precision
     Zero,
+    /// a fractional power needs the variable ramified: retry with x - x0 = t^(den * d) (Puiseux series)
+    Ramify(i64),
     /// stopped or out of memory
     Halt(Halt),
 }
@@ -66,6 +68,10 @@ trait Ring<'h> {
     fn func(&self, f: &str, a: &Self::C) -> SRes<Self::C>;
     /// a^q for a rational q.
     fn pow_rat(&self, a: &Self::C, q: &Rat) -> SRes<Self::C>;
+    /// log(t) for the series variable t, as a coefficient (logarithmic series need terms).
+    fn log_t(&self) -> SRes<Self::C> {
+        Err(SErr::NeedTerms)
+    }
     /// The coefficients of exp(f) (f_0 = 0) by a faster method of the ring, if it has one.
     fn fast_exp0(&self, _f: &[Self::C], _m: &mut Meter) -> SRes<Option<Vec<Self::C>>> {
         Ok(None)
@@ -239,6 +245,8 @@ impl<'h> Ring<'h> for QRing<'_, 'h> {
 /// Coefficients as canonical terms.
 struct TRing<'a, 'h> {
     env: &'a Env<'h>,
+    /// log(t) in terms of x (set per evaluation)
+    logt: std::cell::Cell<Option<T<'h>>>,
 }
 
 impl<'h> TRing<'_, 'h> {
@@ -280,10 +288,27 @@ impl<'h> Ring<'h> for TRing<'_, 'h> {
     }
     fn func(&self, f: &str, a: &T<'h>) -> SRes<T<'h>> {
         let h = self.h();
+        // exp(c log(u)) is u^c (the principal power): the logarithmic coefficients of x^k read as powers
+        if f == "exp" {
+            let log = h.sym_term(h.sym("log"));
+            let factors: Vec<T<'h>> = match h.view(*a) {
+                View::App { head, args } if head == self.env.hd.mul => args.to_vec(),
+                _ => vec![*a],
+            };
+            let at = factors.iter().position(|&g| matches!(h.view(g), View::App { head, args: &[_] } if head == log));
+            if let Some(i) = at {
+                let View::App { args: &[u], .. } = h.view(factors[i]) else { return Ok(h.call(h.sym(f), &[*a])) };
+                let rest: Vec<T<'h>> = factors.iter().enumerate().filter(|&(j, _)| j != i).map(|(_, &g)| g).collect();
+                return Ok(self.env.ar.pow(u, self.env.ar.mul(&rest)));
+            }
+        }
         Ok(h.call(h.sym(f), &[*a]))
     }
     fn pow_rat(&self, a: &T<'h>, q: &Rat) -> SRes<T<'h>> {
         Ok(self.env.ar.pow(*a, self.rat(q)))
+    }
+    fn log_t(&self) -> SRes<T<'h>> {
+        self.logt.get().ok_or(SErr::Unsupported)
     }
 }
 
@@ -503,9 +528,16 @@ impl<'h, R: Ring<'h>> Arithm<'_, R> {
         Ok(self.scale(&e, &self.r.func("exp", &c0)?))
     }
     fn log(&self, a: &Ser<R::C>, m: &mut Meter) -> SRes<Ser<R::C>> {
-        if a.val != 0 || a.c.is_empty() {
-            // log of t^v: not a power series
+        if a.c.is_empty() {
             return Err(SErr::Unsupported);
+        }
+        if a.val != 0 {
+            // log(t^v b) = v log(t) + log(b): log(t) is a coefficient (a logarithmic series)
+            let lt = self.r.log_t()?;
+            let b = Ser { val: 0, c: a.c.clone(), prec: a.prec - a.val };
+            let lb = self.log(&b, m)?;
+            let k = self.r.mul(&self.r.int(a.val), &lt);
+            return self.add(&lb, &self.constant(k, m)?, m);
         }
         // log(a) = log(a0) + integral(a' / a)
         let d = self.mul(&self.derivative(a, m)?, &self.inv(a, m)?, m)?;
@@ -556,7 +588,7 @@ impl<'h, R: Ring<'h>> Arithm<'_, R> {
         }
         let vq = Rat::from_i64(a.val).mul(q);
         if !vq.is_int() {
-            return Err(SErr::Unsupported);
+            return Err(SErr::Ramify(Int::from_nat(vq.den.clone()).to_i64().unwrap_or(0)));
         }
         let shift = vq.num.to_i64().ok_or(SErr::Unsupported)?;
         let lead = a.c[0].clone();
@@ -582,7 +614,7 @@ impl<'h, R: Ring<'h>> Arithm<'_, R> {
 }
 
 /// How a subterm of the expression is expanded.
-enum Kind<'h> {
+enum Kind<'h, 't> {
     /// free of x: a constant coefficient
     Const(T<'h>),
     /// x itself
@@ -597,7 +629,20 @@ enum Kind<'h> {
     Data(T<'h>),
     /// `O((x - x0)^p)`: an unknown remainder of order p (the printed form of a series reads back with one)
     Order(i64),
+    /// another function with Taylor coefficients at its argument's value (computed by the native)
+    Taylor(&'t Taylor<'h>),
 }
+
+/// The Taylor coefficients c_k = f^(k)(u0)/k! of a function f of the argument `arg`, at u0, the value of `arg` at the
+/// expansion point (decision K.13: the native differentiates through the evaluator; the series multiplies out).
+pub(crate) struct Taylor<'h> {
+    pub arg: T<'h>,
+    pub u0: T<'h>,
+    pub c: Vec<T<'h>>,
+}
+
+/// The Taylor table of one series call: the function terms the series kernels do not know, with coefficients.
+pub(crate) type TaylorTable<'h> = FxHashMap<T<'h>, Taylor<'h>>;
 
 /// The head of an order term `O((x - x0)^p)` (decision 9.3 of the library-gaps package).
 pub(crate) const ORDER: &str = "O";
@@ -605,18 +650,33 @@ pub(crate) const ORDER: &str = "O";
 const FUNCS: [&str; 10] = ["exp", "log", "sin", "cos", "tan", "sinh", "cosh", "tanh", "atan", "sqrt"];
 
 /// The pieces of the request.
-struct Request<'h> {
+#[derive(Clone, Copy)]
+struct Request<'h, 't> {
     x: T<'h>,
     x0: T<'h>,
-    /// the absolute order wanted: terms below t^order
-    order: i64,
+    /// the absolute order wanted in x - x0 (or 1/x): terms below (x - x0)^order_x
+    order_x: i64,
+    /// ramification: x - x0 = t^den (at infinity, x = t^-den)
+    den: i64,
+    /// the expansion point is inf (+1) or -inf (-1); 0 for a finite point
+    inf: i64,
+    /// the Taylor table of the native
+    taylor: &'t TaylorTable<'h>,
+}
+
+impl Request<'_, '_> {
+    /// The absolute order wanted in t.
+    fn order(&self) -> i64 {
+        // the terms up to (x - x0)^n, then the order term at the next exponent n + 1/den
+        (self.order_x - 1) * self.den + 1
+    }
 }
 
 /// Evaluate e as a series over ring R with working precision cap.
 fn evaluate<'h, R: Ring<'h>>(
     env: &Env<'h>,
     r: &R,
-    req: &Request<'h>,
+    req: &Request<'h, '_>,
     e: T<'h>,
     cap: i64,
     m: &mut Meter,
@@ -663,9 +723,10 @@ fn evaluate<'h, R: Ring<'h>>(
             _ => None,
         }
     };
-    let kind = |t: T<'h>| -> Kind<'h> {
+    let plain = req.den == 1 && req.inf == 0;
+    let kind = |t: T<'h>| -> Kind<'h, '_> {
         if let View::App { head, args: &[a] } = h.view(t) {
-            if head == order_head {
+            if head == order_head && plain {
                 if let Some(p) = if a == h.int(1) { Some(0) } else { order(a) } {
                     return Kind::Order(p);
                 }
@@ -692,7 +753,7 @@ fn evaluate<'h, R: Ring<'h>>(
             }
             return Kind::Pow(args[0], args[1]);
         }
-        if head == env.sym("series_data") && args.len() == 5 && args[0] == req.x && args[1] == req.x0 {
+        if plain && head == env.sym("series_data") && args.len() == 5 && args[0] == req.x && args[1] == req.x0 {
             return Kind::Data(t);
         }
         if args.len() == 1 {
@@ -702,6 +763,9 @@ fn evaluate<'h, R: Ring<'h>>(
                     return Kind::Func(f, args[0]);
                 }
             }
+        }
+        if let Some(tay) = req.taylor.get(&t) {
+            return Kind::Taylor(tay);
         }
         Kind::Func("", t)
     };
@@ -713,7 +777,9 @@ fn evaluate<'h, R: Ring<'h>>(
         PowRat(Rat),
         PowGeneral,
         Func(&'static str),
+        Taylor(usize),
     }
+    let mut taylors: Vec<&Taylor<'h>> = vec![];
     let mut tasks = vec![Task::Visit(e)];
     let mut vals: Vec<Ser<R::C>> = vec![];
     while let Some(task) = tasks.pop() {
@@ -722,8 +788,16 @@ fn evaluate<'h, R: Ring<'h>>(
             Task::Visit(t) => match kind(t) {
                 Kind::Const(c) => vals.push(sa.constant(r.constant(c)?, m)?),
                 Kind::Var => {
-                    let x0 = r.constant(req.x0)?;
-                    vals.push(sa.make(0, vec![x0, r.int(1)], cap, m)?);
+                    if req.inf != 0 {
+                        // x = ±t^-den
+                        vals.push(Ser { val: -req.den, c: vec![r.int(req.inf)], prec: cap });
+                    } else {
+                        let x0 = r.constant(req.x0)?;
+                        let mut c = vec![r.int(0); req.den as usize + 1];
+                        c[0] = x0;
+                        c[req.den as usize] = r.int(1);
+                        vals.push(sa.make(0, c, cap, m)?);
+                    }
                 }
                 Kind::Add(xs) => {
                     tasks.push(Task::Add(xs.len()));
@@ -756,6 +830,11 @@ fn evaluate<'h, R: Ring<'h>>(
                     tasks.push(Task::Visit(b));
                 }
                 Kind::Func("", _) => return Err(SErr::Unsupported),
+                Kind::Taylor(tay) => {
+                    tasks.push(Task::Taylor(taylors.len()));
+                    taylors.push(tay);
+                    tasks.push(Task::Visit(tay.arg));
+                }
                 Kind::Func(f, a) => {
                     tasks.push(Task::Func(f));
                     tasks.push(Task::Visit(a));
@@ -797,6 +876,23 @@ fn evaluate<'h, R: Ring<'h>>(
                 let l = sa.log(&b, m)?;
                 vals.push(sa.exp(&sa.mul(&x, &l, m)?, m)?);
             }
+            Task::Taylor(i) => {
+                // invariant: the argument's visit pushed one value
+                let a = vals.pop().expect("an argument");
+                let tay = taylors[i];
+                let d = sa.add(&a, &sa.neg(&sa.constant(r.constant(tay.u0)?, m)?), m)?;
+                if d.val < 1 || tay.c.is_empty() {
+                    return Err(SErr::Unsupported);
+                }
+                let n = tay.c.len();
+                // Horner: c_0 + d (c_1 + d (c_2 + ...)), known modulo d^n
+                let mut acc = sa.constant(r.constant(tay.c[n - 1])?, m)?;
+                for k in (0..n - 1).rev() {
+                    acc = sa.add(&sa.mul(&acc, &d, m)?, &sa.constant(r.constant(tay.c[k])?, m)?, m)?;
+                }
+                let prec = acc.prec.min(n as i64 * d.val);
+                vals.push(sa.make(acc.val, acc.c, prec, m)?);
+            }
             Task::Func(f) => {
                 // invariant: every function task follows the visit of its argument
                 let a = vals.pop().expect("an argument");
@@ -837,8 +933,14 @@ fn read_data<'h, R: Ring<'h>>(env: &Env<'h>, r: &R, sa: &Arithm<'_, R>, t: T<'h>
     sa.make(v, c, p, m)
 }
 
-/// `series(e, x, x0, n)`: the expansion of e in powers of (x - x0) up to and including the power n.
-pub(crate) fn series_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
+/// The most ramification a Puiseux series may need (x - x0 = t^den).
+const MAX_DEN: i64 = 48;
+
+/// `series(e, x, x0, n)`: the expansion of e in powers of (x - x0) up to and including the power n. `x0` may be
+/// `inf` or `-inf` (powers of 1/x); fractional powers (Puiseux series) and powers of `log(x - x0)` in the
+/// coefficients (logarithmic series) are found when needed (decision K.14). Such results, which `series_data` cannot
+/// hold, are the sum with an order term `O(...)`.
+pub(crate) fn series_native<'h>(env: &Env<'h>, args: &[T<'h>], taylor: &TaylorTable<'h>, m: &mut Meter) -> WorkResult<Out<'h>> {
     let [e, x, x0, n] = args else {
         return Ok(env.arg_failure("series(e, x, x0, n) takes four arguments"));
     };
@@ -848,53 +950,126 @@ pub(crate) fn series_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) ->
     let Some(n) = env.int(*n).filter(|n| n.unsigned_abs() < 1 << 24) else {
         return Ok(env.arg_failure("the order must be a machine integer"));
     };
-    let req = Request { x: *x, x0: *x0, order: n + 1 };
+    let inf_t = env.sym("inf");
+    let inf = if *x0 == inf_t {
+        1
+    } else if *x0 == env.ar.neg(inf_t) {
+        -1
+    } else {
+        0
+    };
+    let mut den = 1i64;
+    loop {
+        let req = Request { x: *x, x0: *x0, order_x: n + 1, den, inf, taylor };
+        match attempt(env, &req, *e, m) {
+            Err(SErr::Ramify(d)) if d > 1 && den * d <= MAX_DEN => den *= d,
+            Ok(out) => return Ok(out),
+            Err(err) => return finish_error(env, err),
+        }
+    }
+}
+
+/// One expansion with the ramification of `req`: rational coefficients first, terms when needed.
+fn attempt<'h>(env: &Env<'h>, req: &Request<'h, '_>, e: T<'h>, m: &mut Meter) -> SRes<Out<'h>> {
     let q = QRing { ar: &env.ar };
-    match run(env, &q, &req, *e, m) {
+    match run(env, &q, req, e, m) {
         Ok(s) => {
             let cs: Vec<T<'h>> = s.c.iter().map(|c| env.ar.number(&Num::rat(c.clone()))).collect();
-            Ok(Out::Done(data_term(env, &req, cs, s.val, s.prec)))
+            Ok(result_term(env, req, cs, s.val, s.prec, false))
         }
         Err(SErr::NeedTerms) => {
-            let tr = TRing { env };
-            match run(env, &tr, &req, *e, m) {
-                Ok(s) => {
-                    let mut cs = Vec::with_capacity(s.c.len());
-                    for c in &s.c {
-                        cs.push(match tr.expanded(*c, m) {
-                            Ok(t) => t,
-                            Err(SErr::Halt(h)) => return Err(h),
-                            Err(_) => *c,
-                        });
-                    }
-                    Ok(Out::Again(data_term(env, &req, cs, s.val, s.prec)))
-                }
-                Err(err) => finish_error(env, err),
+            let tr = TRing { env, logt: std::cell::Cell::new(Some(log_t(env, req))) };
+            let s = run(env, &tr, req, e, m)?;
+            let mut cs = Vec::with_capacity(s.c.len());
+            for c in &s.c {
+                cs.push(match tr.expanded(*c, m) {
+                    Ok(t) => t,
+                    Err(SErr::Halt(h)) => return Err(SErr::Halt(h)),
+                    Err(_) => *c,
+                });
+            }
+            Ok(result_term(env, req, cs, s.val, s.prec, true))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// The greatest common divisor of two machine integers (nonnegative).
+fn gcd_i64(a: i64, b: i64) -> i64 {
+    let (mut a, mut b) = (a.abs(), b.abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
+/// log(t) in terms of x: log(x - x0)/den, or log(±1/x)/den at an infinity.
+fn log_t<'h>(env: &Env<'h>, req: &Request<'h, '_>) -> T<'h> {
+    let h = env.h();
+    let inner = if req.inf != 0 { env.ar.pow(env.ar.mul(&[h.int(req.inf), req.x]), h.int(-1)) } else { env.ar.sub(req.x, req.x0) };
+    let l = h.call(h.sym("log"), &[inner]);
+    env.ar.mul(&[env.ar.rational(h.int(1), h.int(req.den)), l])
+}
+
+/// The value of a series call: the packed `series_data` term, or (ramified, at an infinity) the sum with an order
+/// term.
+fn result_term<'h>(env: &Env<'h>, req: &Request<'h, '_>, cs: Vec<T<'h>>, val: i64, prec: i64, again: bool) -> Out<'h> {
+    // a ramified series whose exponents are all multiples of g/den is one in t^g (cos(sqrt(x)) is a power series)
+    let zero = env.h().int(0);
+    let mut g = req.den;
+    for (i, c) in cs.iter().enumerate() {
+        if *c != zero {
+            g = gcd_i64(g, val + i as i64);
+        }
+    }
+    if g > 1 {
+        let den = req.den / g;
+        let r2 = Request { den, ..*req };
+        let mut cs2 = vec![];
+        let mut v2 = None;
+        for (i, &c) in cs.iter().enumerate() {
+            let k = val + i as i64;
+            if k % g == 0 {
+                v2.get_or_insert(k / g);
+                cs2.push(c);
             }
         }
-        Err(err) => finish_error(env, err),
+        let v2 = v2.unwrap_or(r2.order());
+        return result_term(env, &r2, cs2, v2, r2.order(), again);
     }
+    if req.den == 1 && req.inf == 0 {
+        let t = data_term(env, req, cs, val, prec);
+        return if again { Out::Again(t) } else { Out::Done(t) };
+    }
+    let h = env.h();
+    let base = if req.inf != 0 { env.ar.mul(&[h.int(req.inf), req.x]) } else { env.ar.sub(req.x, req.x0) };
+    let sign = if req.inf != 0 { -1 } else { 1 };
+    let power = |k: i64| env.ar.pow(base, env.ar.rational(h.int(sign * k), h.int(req.den)));
+    let mut terms: Vec<T<'h>> = cs.iter().enumerate().map(|(i, &c)| env.ar.mul(&[c, power(val + i as i64)])).collect();
+    terms.push(h.call(h.sym(ORDER), &[power(prec)]));
+    Out::Again(env.ar.add(&terms))
 }
 
 fn finish_error<'h>(env: &Env<'h>, err: SErr) -> WorkResult<Out<'h>> {
     match err {
         SErr::Halt(h) => Err(h),
-        SErr::Unsupported | SErr::NeedTerms => Ok(Out::Decline),
+        SErr::Unsupported | SErr::NeedTerms | SErr::Ramify(_) => Ok(Out::Decline),
         SErr::Zero => Ok(env.arg_failure("division by a series that vanishes to the working precision")),
     }
 }
 
 /// Evaluate with growing working precision until the result reaches the requested order.
-fn run<'h, R: Ring<'h>>(env: &Env<'h>, r: &R, req: &Request<'h>, e: T<'h>, m: &mut Meter) -> SRes<Ser<R::C>> {
-    let mut extra = 2i64;
+fn run<'h, R: Ring<'h>>(env: &Env<'h>, r: &R, req: &Request<'h, '_>, e: T<'h>, m: &mut Meter) -> SRes<Ser<R::C>> {
+    let mut extra = 2i64 * req.den;
     let mut last: Option<i64> = None;
+    let want = req.order();
     for _ in 0..6 {
-        let cap = req.order + extra;
+        let cap = want + extra;
         match evaluate(env, r, req, e, cap, m) {
             Ok(mut s) => {
                 // enough, or no better than the last attempt (the input itself is truncated: a series_data term)
-                if s.prec >= req.order || last.is_some_and(|p| s.prec <= p) {
-                    let order = s.prec.min(req.order);
+                if s.prec >= want || last.is_some_and(|p| s.prec <= p) {
+                    let order = s.prec.min(want);
                     let keep = (order - s.val).max(0) as usize;
                     s.c.truncate(keep);
                     s.prec = order;
@@ -904,7 +1079,7 @@ fn run<'h, R: Ring<'h>>(env: &Env<'h>, r: &R, req: &Request<'h>, e: T<'h>, m: &m
                     return Ok(s);
                 }
                 last = Some(s.prec);
-                extra += req.order - s.prec + 2;
+                extra += want - s.prec + 2;
             }
             Err(SErr::Zero) => extra = extra * 2 + 4,
             Err(err) => return Err(err),
@@ -913,7 +1088,7 @@ fn run<'h, R: Ring<'h>>(env: &Env<'h>, r: &R, req: &Request<'h>, e: T<'h>, m: &m
     Err(SErr::Zero)
 }
 
-fn data_term<'h>(env: &Env<'h>, req: &Request<'h>, cs: Vec<T<'h>>, val: i64, prec: i64) -> T<'h> {
+fn data_term<'h>(env: &Env<'h>, req: &Request<'h, '_>, cs: Vec<T<'h>>, val: i64, prec: i64) -> T<'h> {
     let h = env.h();
     let l = env.list(&cs);
     h.call(h.sym("series_data"), &[req.x, req.x0, l, h.int(val), h.int(prec)])
@@ -968,4 +1143,124 @@ pub(crate) fn normal_native<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) ->
         }
         None => Ok(Out::Done(one(*e, m)?)),
     }
+}
+
+/// Heads the series kernels expand themselves (no Taylor table entry).
+fn kernel_head(name: &str) -> bool {
+    FUNCS.contains(&name) || matches!(name, "add" | "mul" | "pow" | "list" | "series_data" | "O" | "complex")
+}
+
+/// Does `t` mention `x`?
+fn mentions<'h>(h: &'h Heap, t: T<'h>, x: T<'h>) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if u == x {
+            return true;
+        }
+        if let View::App { head, args } = h.view(u) {
+            stack.push(head);
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
+}
+
+/// Is `v` a usable coefficient: no infinity, failure, indeterminate, unresolved derivative or `d` call?
+fn finite_value<'h>(h: &'h Heap, v: T<'h>) -> bool {
+    let bad = ["inf", "complex_infinity", "indeterminate", "failure", "d", "nan", "limit", "series"];
+    let mut stack = vec![v];
+    while let Some(u) = stack.pop() {
+        match h.view(u) {
+            View::Sym(s) if bad.contains(&h.sym_name(s).as_str()) => return false,
+            View::Real(r) if !r.is_finite() => return false,
+            View::App { head, args } => {
+                stack.push(head);
+                stack.extend(args.iter().copied());
+            }
+            _ => {}
+        }
+    }
+    true
+}
+
+/// The Taylor table of `series(e, x, x0, n)`: for every call `f(..., u, ...)` in `e` whose head the series kernels do
+/// not know and in which exactly one argument `u` mentions `x`, the coefficients f^(k)(u0)/k!, k = 0..n+3, with u0
+/// the value of `u` at `x0` (finite points only), by differentiating with the evaluator. Coefficients stop at the
+/// first that is not a finite closed value (a pole, an unknown derivative); no entry when the value itself is not.
+pub(crate) fn taylor_table<'h>(
+    cx: &mut mc_eval::NativeCx<'_, '_, 'h>,
+    args: &[T<'h>],
+) -> mc_eval::Res<TaylorTable<'h>> {
+    let mut table = TaylorTable::default();
+    let h = cx.heap();
+    let [e, x, x0, n] = args else { return Ok(table) };
+    let (View::Sym(_), View::Int(n)) = (h.view(*x), h.view(*n)) else { return Ok(table) };
+    if !(0..=64).contains(&n) || mentions(h, *x0, h.sym_term(h.sym("inf"))) {
+        return Ok(table);
+    }
+    let y = h.sym_term(h.sym("series·u"));
+    let rule = |a: T<'h>, b: T<'h>| h.call(h.sym(mc_api::names::RULE), &[a, b]);
+    let mut stack = vec![*e];
+    let mut seen = rustc_hash::FxHashSet::default();
+    while let Some(t) = stack.pop() {
+        if !seen.insert(t) {
+            continue;
+        }
+        let View::App { head, args: fargs } = h.view(t) else { continue };
+        stack.extend(fargs.iter().copied());
+        let View::Sym(fs) = h.view(head) else { continue };
+        if kernel_head(&h.sym_name(fs)) {
+            continue;
+        }
+        let dep: Vec<usize> = (0..fargs.len()).filter(|&i| mentions(h, fargs[i], *x)).collect();
+        let [i] = dep.as_slice() else { continue };
+        let arg = fargs[*i];
+        let u0 = cx.eval(h.call(h.sym("rewrite"), &[arg, rule(*x, *x0)]))?;
+        if !finite_value(h, u0) {
+            continue;
+        }
+        let mut g_args = fargs.to_vec();
+        g_args[*i] = y;
+        let mut g = h.app(head, &g_args);
+        let mut c = Vec::new();
+        let mut fact = Int::from_i64(1);
+        for k in 0..=(n + 3) {
+            cx.tick(1)?;
+            if k > 0 {
+                fact = fact.mul(&Int::from_i64(k));
+                g = cx.eval(h.call(h.sym("d"), &[g, y]))?;
+            }
+            let v = cx.eval(h.call(h.sym("rewrite"), &[g, rule(y, u0)]))?;
+            if !finite_value(h, v) {
+                break;
+            }
+            let ar = Arith::new(h);
+            let f = ar.number(&Num::rat(Rat::new(Int::from_i64(1), fact.clone())));
+            c.push(cx.eval(ar.mul(&[f, v]))?);
+        }
+        // only a complete table: a truncated one would cut the series short
+        if c.len() as i64 == n + 4 {
+            table.insert(t, Taylor { arg, u0, c });
+        }
+    }
+    Ok(table)
+}
+
+/// The arguments of `series` without a trailing `options(derivatives -> v)`, and whether functions may be expanded
+/// through their derivatives (`v` not `false`; the default).
+pub(crate) fn derivatives_option<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], bool) {
+    let Some((&last, rest)) = args.split_last() else { return (args, true) };
+    let View::App { head, args: rules } = h.view(last) else { return (args, true) };
+    if head != h.sym_term(h.sym("options")) {
+        return (args, true);
+    }
+    let mut on = true;
+    for &r in rules {
+        if let View::App { args: &[k, v], .. } = h.view(r) {
+            if k == h.sym_term(h.sym("derivatives")) {
+                on = v != h.sym_term(h.sym(mc_api::names::FALSE));
+            }
+        }
+    }
+    (rest, on)
 }

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_fourier_transform
+
+#% text
+# `inverse_fourier_transform(g, w, t)` gives the inverse Fourier transform `1/sqrt(2 pi) integrate(g*exp(-im*w*t), [w, -inf, inf])` of `g`.
+
+#% section
+# Details
+
+#% item
+# It is computed as `fourier_transform` is, with the opposite sign in the exponent.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A Gaussian:
+
+#% cell
+inverse_fourier_transform(exp(-w^2/4)/sqrt(2), w, t)
+#% output
+#= exp(-t^2)
+
+#% subsection
+# Scope
+
+#% text
+# A band-limited spectrum:
+
+#% cell
+inverse_fourier_transform(unit_step(w + 1)*unit_step(1 - w), w, t)
+#% output
+#= (1/2)*(-1im*exp(1im*t)/t + 1im*exp(-1im*t)/t)*2^(1/2)*pi^(-1/2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The transform of the result is the spectrum:
+
+#% cell
+fourier_transform(inverse_fourier_transform(exp(-w^2), w, t), t, w)
+#% output
+#= exp(-w^2)
+
+#% section
+# See also
+
+#% text
+# `fourier_transform`, `integrate`

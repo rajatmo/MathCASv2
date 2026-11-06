@@ -78,6 +78,42 @@ pub fn integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: 
     }
 }
 
+/// Two finite real bounds whose order is not decided (symbols under assumptions): `F(q) - F(p)` when every
+/// critical point of `f` and `F` on the real line is decided to lie on the same side of both bounds (decision 2C4.5).
+fn unordered_bounds<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    b: &Build<'h>,
+    f: T<'h>,
+    x: T<'h>,
+    p: Pt<'h>,
+    q: Pt<'h>,
+) -> Res<Option<T<'h>>> {
+    let (Pt::Fin(lo), Pt::Fin(hi)) = (p, q) else { return Ok(None) };
+    let Some(big) = antiderivative(cx, b, f, x, 0)? else { return Ok(None) };
+    let big = cx.eval(big)?;
+    if is_failure(b, big) {
+        return Ok(None);
+    }
+    let mut zs = Vec::new();
+    if !points::collect(b, f, x, &mut zs) || !points::collect(b, big, x, &mut zs) {
+        return Ok(None);
+    }
+    let Some(crit) = points::critical(cx, b, x, &zs, Pt::NegInf, Pt::PosInf)? else { return Ok(None) };
+    for c in crit {
+        let Pt::Fin(c) = c else { continue };
+        let (s1, s2) = (sign(cx, b, b.sub(c, lo))?, sign(cx, b, b.sub(c, hi))?);
+        if !matches!((s1, s2), (Some(1), Some(1)) | (Some(-1), Some(-1))) {
+            return Ok(None);
+        }
+    }
+    let a = subst(cx, b, big, x, lo)?;
+    let z = subst(cx, b, big, x, hi)?;
+    if is_failure(b, a) || is_failure(b, z) {
+        return Ok(None);
+    }
+    Ok(Some(b.sub(z, a)))
+}
+
 /// The integral over real bounds (section comment of the module).
 fn real_bounds<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -88,7 +124,7 @@ fn real_bounds<'h>(
     q: Pt<'h>,
 ) -> Res<Option<T<'h>>> {
     let (lo, hi, flip) = match cmp(cx, b, p, q)? {
-        None => return Ok(None),
+        None => return unordered_bounds(cx, b, f, x, p, q),
         Some(Ordering::Equal) => return Ok(Some(b.zero())),
         Some(Ordering::Less) => (p, q, false),
         Some(Ordering::Greater) => (q, p, true),
@@ -270,7 +306,17 @@ pub(crate) fn real_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t:
         return Ok(true);
     }
     let v = apply(cx, b, "n", &[t])?;
-    Ok(matches!(b.heap().view(v), View::Real(r) if r.is_finite()))
+    if matches!(b.heap().view(v), View::Real(r) if r.is_finite()) {
+        return Ok(true);
+    }
+    // inside assuming: a symbolic constant the facts make real (decision 2C4.5)
+    if cx.assumptions().is_empty() || !is_free(b, t, inf(b)) {
+        return Ok(false);
+    }
+    let h = b.heap();
+    let e = h.call(h.sym("element"), &[t, h.sym_term(h.sym("reals"))]);
+    let r = apply(cx, b, "refine", &[e])?;
+    Ok(cx.is_true(r))
 }
 
 /// The sign of a constant as -1, 0 or 1, or `None` when `sign` does not decide it.
@@ -278,7 +324,11 @@ pub(crate) fn sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, v: T<'h>) -
     if v == b.zero() {
         return Ok(Some(0));
     }
-    let s = apply(cx, b, "sign", &[v])?;
+    let mut s = apply(cx, b, "sign", &[v])?;
+    if !matches!(b.heap().view(s), View::Int(_)) && !cx.assumptions().is_empty() {
+        // inside assuming: the sign the facts decide (decision 2C4.5)
+        s = apply(cx, b, "refine", &[s])?;
+    }
     Ok(match b.heap().view(s) {
         View::Int(k @ -1..=1) => Some(k as i8),
         _ => None,

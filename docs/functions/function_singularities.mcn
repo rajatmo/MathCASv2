@@ -1,0 +1,85 @@
+#! mathcas 2 notebook
+
+#% title
+# function_singularities
+
+#% text
+# `function_singularities(f, x)` gives the condition on `x` at which `f` is singular: not defined, or not analytic.
+
+#% section
+# Details
+
+#% item
+# The conditions are the negations of those of `function_domain`; at the boundary of a root's domain the function is singular too, so `sqrt(x)` is singular for `x <= 0`.
+
+#% item
+# `false` means no singularities.
+
+#% item
+# `function_singularities(f, x, complexes)` works over the complexes.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The poles of the tangent:
+
+#% cell
+function_singularities(tan(x), x)
+#% output
+#= cos(x) == 0
+
+#% text
+# A square root:
+
+#% cell
+function_singularities(sqrt(x), x)
+#% output
+#= x <= 0
+
+#% subsection
+# Scope
+
+#% text
+# A rational function:
+
+#% cell
+function_singularities(1/(x^2 - 1), x)
+#% output
+#= -1 + x^2 == 0
+
+#% text
+# Several variables:
+
+#% cell
+function_singularities((x^2 + y^2)*csc(x*y), [x, y])
+#% output
+#= sin(x*y) == 0
+
+#% text
+# An entire function:
+
+#% cell
+function_singularities(exp(x) + sin(x), x)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# `function_domain` gives where the function is defined:
+
+#% cell
+function_domain(tan(x), x)
+#% output
+#= cos(x) != 0
+
+#% section
+# See also
+
+#% text
+# `function_domain`, `function_analytic`

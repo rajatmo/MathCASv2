@@ -124,6 +124,15 @@ impl Piecewise {
         p
     }
 
+    /// The value at `t` clamped into the covered range (for a point at the end that rounding put just outside).
+    pub fn value_clamped(&self, i: usize, order: usize, t: f64) -> Option<f64> {
+        let m = self.lo.len();
+        if m == 0 {
+            return None;
+        }
+        self.value(i, order, t.clamp(self.lo[0], self.hi[m - 1]))
+    }
+
     /// Component `i` (or its derivative of order `order`) at `t`; `None` outside the steps.
     pub fn value(&self, i: usize, order: usize, t: f64) -> Option<f64> {
         let m = self.lo.len();

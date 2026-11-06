@@ -139,32 +139,29 @@ assuming(x > 0, refine(abs(x))) + refine(abs(x))
 #% output
 #= x + abs(x)
 
-#% subsection
-# Possible issues
-
 #% text
-# `solve` ignores the assumptions:
-
-#% cell
-assuming(x > 0, solve(x^2 == 4, x))
-#% output
-#= [[x -> -2], [x -> 2]]
-
-#% text
-# `integrate` does not use them either, so this integral, 1/a for a > 0, stays unevaluated:
+# `integrate` uses them: this integral is 1/a for a > 0:
 
 #% cell
 assuming(a > 0, integrate(exp(-a*x), [x, 0, inf]))
 #% output
-#= integrate(exp(-1*a*x), [x, 0, inf])
+#= a^-1
 
 #% text
-# Some consequences are not drawn: floor(x) is 0 for 0 < x < 1, and max(a, b) is a for a > b.
+# `solve` keeps the solutions that meet the assumptions:
+
+#% cell
+assuming(x > 0, solve(x^2 == 4, x))
+#% output
+#= [[x -> 2]]
+
+#% text
+# Consequences for `floor` and `max`: floor(x) is 0 for 0 < x < 1, and max(a, b) is a for a > b:
 
 #% cell
 [assuming(x > 0 and x < 1, refine(floor(x))), assuming(a > b, refine(max(a, b)))]
 #% output
-#= [floor(x), max(a, b)]
+#= [0, a]
 
 #% section
 # See also

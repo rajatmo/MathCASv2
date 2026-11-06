@@ -175,16 +175,27 @@ impl Solve {
         };
         let (af, bf) = (real(&a).expect("checked"), real(&b).expect("checked"));
         let (lo, hi) = (af.min(bf).min(s), af.max(bf).max(s));
+        if opts.high_precision() && !sys.targets.is_empty() {
+            return Ok(Err(bad_argument(h, name, h.string("boundary value problems are solved at machine precision only"))));
+        }
         if opts.high_precision() {
             // the ends as given (3/2 stays exact)
             let start = ar.num(sys.start).expect("a number");
             let pick = |v: f64| if v == s { start.clone() } else if v == af { a.clone() } else { b.clone() };
             return self.taylor(cx, ar, sys, opts, (pick(lo), lo), (pick(hi), hi), start);
         }
-        let Some(y0) = sys.initial.iter().map(real).collect::<Option<Vec<f64>>>() else {
+        let Some(mut y0) = sys.initial.iter().map(real).collect::<Option<Vec<f64>>>() else {
             return Ok(Err(bad_argument(h, name, h.string("the initial values are not real"))));
         };
         let mut model = Model::new(cx, &sys, opts.policy)?;
+        if !sys.targets.is_empty() {
+            let method = if opts.method == Method::Taylor { Method::Auto } else { opts.method };
+            let settings = Settings { method, tol: opts.tolerance(), hmax: opts.hmax(hi - lo), max_steps: opts.step_limit() };
+            match shoot(cx, &mut model, &sys, s, &mut y0, &settings)? {
+                Ok(()) => {}
+                Err(m) => return Ok(Err(failure(h, "no_convergence", &[h.sym_term(h.sym(name)), h.string(&m)]))),
+            }
+        }
         let mut events = match opts.events {
             None => None,
             Some(e) => match self.events(cx, ar, &sys, e, opts)? {
@@ -197,7 +208,7 @@ impl Solve {
             m => m,
         };
         let settings =
-            Settings { method, tol: opts.tolerance(), hmax: opts.max_step_size, max_steps: opts.step_limit() };
+            Settings { method, tol: opts.tolerance(), hmax: opts.hmax(hi - lo), max_steps: opts.step_limit() };
         let fwd = driver::integrate(cx, &mut model, events.as_mut(), s, &y0, hi, &settings)?;
         let bwd = driver::integrate(cx, &mut model, events.as_mut(), s, &y0, lo, &settings)?;
         for run in [&fwd, &bwd] {
@@ -526,7 +537,17 @@ impl Native for ParametricCall {
                 None => return Ok(Reply::Done(bad_argument(h, name, h.string("the initial values are not numeric")))),
             }
         }
-        let sys = System { t: p.t, unknowns: p.unknowns, state: p.state, rhs, start: p.start, initial, initial_terms: vec![] };
+        let sys = System {
+            t: p.t,
+            unknowns: p.unknowns,
+            state: p.state,
+            rhs,
+            start: p.start,
+            initial,
+            initial_terms: vec![],
+            free: vec![],
+            targets: vec![],
+        };
         let solved = match solve.integrate(cx, &ar, sys, &opts, p.a, p.b)? {
             Ok(s) => s,
             Err(f) => return Ok(Reply::Done(f)),
@@ -597,4 +618,124 @@ impl Native for Interpolating {
     fn curried(&self) -> bool {
         true
     }
+}
+
+/// Shooting for a boundary value problem (decision N3.20): the free initial components `sys.free` adjusted by
+/// Newton's method (finite-difference Jacobian, step halving) until the state at the other point meets
+/// `sys.targets`; `y0` holds the result.
+fn shoot<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    model: &mut Model<'h>,
+    sys: &System<'h>,
+    start: f64,
+    y0: &mut [f64],
+    settings: &Settings,
+) -> Res<Result<(), String>> {
+    let m = sys.free.len();
+    let targets: Vec<(usize, f64, f64)> = sys
+        .targets
+        .iter()
+        .filter_map(|(k, x, v)| Some((*k, real(x)?, real(v)?)))
+        .collect();
+    if targets.len() != m {
+        return Ok(Err("the boundary conditions are not real".into()));
+    }
+    let n = sys.n();
+    let end = targets.iter().map(|t| t.1).fold(start, |a, b| if (b - start).abs() > (a - start).abs() { b } else { a });
+    // the residuals at the free values s
+    let residual = |cx: &mut NativeCx<'_, '_, 'h>, model: &mut Model<'h>, s: &[f64]| -> Res<Option<Vec<f64>>> {
+        let mut y = y0.to_vec();
+        for (j, &k) in sys.free.iter().enumerate() {
+            y[k] = s[j];
+        }
+        let run = driver::integrate(cx, model, None, start, &y, end, settings)?;
+        if run.end != End::Done {
+            return Ok(None);
+        }
+        let none = Default::default();
+        let pw = if end < start {
+            crate::dense::Piecewise::new(n, &run.steps, &none)
+        } else {
+            crate::dense::Piecewise::new(n, &none, &run.steps)
+        };
+        let mut r = Vec::with_capacity(m);
+        for &(k, x, v) in &targets {
+            let Some(val) = (if x == start { Some(y[k]) } else { pw.value_clamped(k, 0, x) }) else { return Ok(None) };
+            r.push(val - v);
+        }
+        Ok(Some(r))
+    };
+    let mut s: Vec<f64> = sys.free.iter().map(|&k| y0[k]).collect();
+    let Some(mut r) = residual(cx, model, &s)? else { return Ok(Err("the first trajectory does not reach the end".into())) };
+    let norm = |r: &[f64]| r.iter().map(|x| x * x).sum::<f64>().sqrt();
+    for _ in 0..60 {
+        cx.tick(1)?;
+        if norm(&r) <= 1e-10 * (1.0 + norm(&s)) {
+            for (j, &k) in sys.free.iter().enumerate() {
+                y0[k] = s[j];
+            }
+            return Ok(Ok(()));
+        }
+        // the Jacobian by forward differences
+        let mut jac = vec![0.0; m * m];
+        for j in 0..m {
+            let dh = 1e-7 * (1.0 + s[j].abs());
+            let mut sp = s.clone();
+            sp[j] += dh;
+            let Some(rp) = residual(cx, model, &sp)? else { return Ok(Err("a trajectory does not reach the end".into())) };
+            for i in 0..m {
+                jac[i * m + j] = (rp[i] - r[i]) / dh;
+            }
+        }
+        let Some(delta) = solve_dense(m, &mut jac, &r) else { return Ok(Err("the shooting Jacobian is singular".into())) };
+        // damped Newton step
+        let mut lambda = 1.0;
+        loop {
+            let trial: Vec<f64> = s.iter().zip(&delta).map(|(a, d)| a - lambda * d).collect();
+            if let Some(rt) = residual(cx, model, &trial)? {
+                if norm(&rt) < norm(&r) || lambda < 1e-3 {
+                    s = trial;
+                    r = rt;
+                    break;
+                }
+            }
+            lambda *= 0.5;
+            if lambda < 1e-6 {
+                return Ok(Err("the shooting iteration does not converge".into()));
+            }
+        }
+    }
+    Ok(Err("the shooting iteration does not converge".into()))
+}
+
+/// The solution x of the dense system `a x = b` (m by m, row-major) by Gaussian elimination with partial pivoting.
+fn solve_dense(m: usize, a: &mut [f64], b: &[f64]) -> Option<Vec<f64>> {
+    let mut x = b.to_vec();
+    for c in 0..m {
+        let p = (c..m).max_by(|&i, &j| a[i * m + c].abs().total_cmp(&a[j * m + c].abs()))?;
+        if a[p * m + c].abs() < 1e-300 {
+            return None;
+        }
+        if p != c {
+            for k in 0..m {
+                a.swap(c * m + k, p * m + k);
+            }
+            x.swap(c, p);
+        }
+        for i in c + 1..m {
+            let f = a[i * m + c] / a[c * m + c];
+            for k in c..m {
+                a[i * m + k] -= f * a[c * m + k];
+            }
+            x[i] -= f * x[c];
+        }
+    }
+    for c in (0..m).rev() {
+        let mut v = x[c];
+        for k in c + 1..m {
+            v -= a[c * m + k] * x[k];
+        }
+        x[c] = v / a[c * m + c];
+    }
+    Some(x)
 }

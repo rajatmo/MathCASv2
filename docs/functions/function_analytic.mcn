@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# function_analytic
+
+#% text
+# `function_analytic(f, x)` gives `true` when `f` is analytic at every real `x`, `false` otherwise; `function_analytic([f, cond], x)` on the part where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# Functions with singularities (poles, branch points of roots and logarithms) are not analytic.
+
+#% item
+# Absolute values, floors and other functions that are only piecewise analytic leave the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Sine and tangent:
+
+#% cell
+function_analytic(sin(x), x)
+#% output
+#= true
+
+#% cell
+function_analytic(tan(x), x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# On an interval without the poles:
+
+#% cell
+function_analytic([tan(x), -pi/2 < x and x < pi/2], x)
+#% output
+#= true
+
+#% text
+# Over the complexes:
+
+#% cell
+function_analytic(exp(x) + x, x, complexes)
+#% output
+#= true
+
+#% cell
+function_analytic(sqrt(x), x, complexes)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# `function_singularities` gives the singular points:
+
+#% cell
+function_singularities(tan(x), x)
+#% output
+#= cos(x) == 0
+
+#% section
+# See also
+
+#% text
+# `function_singularities`, `function_domain`

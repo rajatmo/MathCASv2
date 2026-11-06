@@ -29,6 +29,8 @@
 //!
 //! Decisions of this package are numbered 2B.1, 2B.2, ... and A.1, A.2, ... in the comments where they are applied.
 #![warn(missing_docs)]
+pub mod complex;
+pub mod element;
 pub mod facts;
 pub mod power;
 pub mod refine;
@@ -67,6 +69,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "assuming",
         "assuming(facts, body): body evaluated with the assumption context extended by facts (x > 0, a <= b, element(n, integers), and, lists)",
     ),
+    (
+        "complex_expand",
+        "complex_expand(e), complex_expand(e, [z1, ...]): e as a + b*im with a, b real, every symbol real except z1, ...",
+    ),
     ("refine", "refine(e), refine(e, facts): e rewritten by the identities that hold under the facts of the assumption context (and facts)"),
     ("is_nonnegative", "is_nonnegative(x): true/false for a number, a closed numeric expression or an expression decided by the assumptions"),
     ("element", "element(x, domain), element([x, y], domain): the fact that x (and y) are in domain, for assuming and refine"),
@@ -87,7 +93,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 ];
 
 /// The functions of this package.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Fun {
     Simplify,
     TrigExpand,
@@ -108,7 +114,31 @@ const TABLE: &[(&str, Fun)] = &[
     ("refine", Fun::Refine),
 ];
 
+/// The arguments before a trailing `options(...)`, and the value of its `assumptions` option (if any).
+fn split_options<'a, 'h>(h: &'h Heap, args: &'a [T<'h>]) -> (&'a [T<'h>], Option<T<'h>>) {
+    let Some((&last, rest)) = args.split_last() else { return (args, None) };
+    let View::App { head, args: rules } = h.view(last) else { return (args, None) };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") {
+        return (args, None);
+    }
+    let mut assumed = None;
+    for &r in rules {
+        if let View::App { head, args: &[k, v] } = h.view(r) {
+            let is = |t: T<'h>, n: &str| matches!(h.view(t), View::Sym(s) if h.sym_name(s) == n);
+            if is(head, mc_api::names::RULE) && is(k, "assumptions") && !is(v, "true") {
+                assumed = Some(v);
+            }
+        }
+    }
+    (rest, assumed)
+}
+
 impl Fun {
+    /// The name of the function.
+    fn name(self) -> &'static str {
+        TABLE.iter().find(|e| e.1 == self).map_or("simplify", |e| e.0)
+    }
+
     /// Does the function read the assumption context?
     fn uses_assumptions(self) -> bool {
         matches!(self, Fun::Simplify | Fun::PowerExpand | Fun::Refine)
@@ -125,10 +155,18 @@ struct SimplifyNative {
 impl Native for SimplifyNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h: &'h Heap = cx.heap();
-        // refine(e, facts) is refine(e) with the context extended by the facts (decision A.5)
-        if let (Fun::Refine, [e, facts]) = (self.f, args) {
-            let inner = h.call(h.sym("refine"), &[*e]);
-            return Ok(Reply::Done(cx.eval_assuming(&[*facts], inner)?));
+        // options: `assumptions: a` adds the facts a; the others (`complexity_function`, `trig`, ...) are accepted
+        // and ignored (decision A.8)
+        let (args, assumed) = split_options(h, args);
+        // refine(e, facts), simplify(e, facts): the function with the context extended by the facts (decision A.5)
+        let extra: Vec<T<'h>> = match (self.f, args) {
+            (Fun::Refine | Fun::Simplify, [_, facts]) => assumed.into_iter().chain([*facts]).collect(),
+            (_, [_]) => assumed.into_iter().collect(),
+            _ => return Ok(Reply::Decline),
+        };
+        if !extra.is_empty() && self.f.uses_assumptions() {
+            let inner = h.call(h.sym(self.f.name()), &[args[0]]);
+            return Ok(Reply::Done(cx.eval_assuming(&extra, inner)?));
         }
         let [e] = args else { return Ok(Reply::Decline) };
         let _scope = StopScope::enter(Some(&self.stop));
@@ -152,6 +190,33 @@ impl Native for SimplifyNative {
             },
         };
         Ok(Reply::Done(r))
+    }
+
+    fn reads_term(&self) -> bool {
+        false
+    }
+}
+
+/// `complex_expand(e)`, `complex_expand(e, z)`, `complex_expand(e, [z1, ...])` (decision A.9).
+struct ComplexExpandNative {
+    stop: Arc<AtomicBool>,
+}
+
+impl Native for ComplexExpandNative {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h: &'h Heap = cx.heap();
+        let b = B::new(h, &self.stop);
+        let (e, vars) = match args {
+            [e] => (*e, vec![]),
+            [e, v] => match b.call_of(*v) {
+                Some((s, xs)) if s == b.hd.list => (*e, xs.to_vec()),
+                _ => (*e, vec![*v]),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        let _scope = StopScope::enter(Some(&self.stop));
+        let mut ex = complex::Expander::new(&b, vars);
+        Ok(Reply::Done(ex.expand(cx, e)?))
     }
 
     fn reads_term(&self) -> bool {
@@ -265,6 +330,8 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         let a = Attributes { uses_assumptions: f.uses_assumptions(), ..Attributes::default() };
         k.register(h.sym(name), a, Box::new(SimplifyNative { f, syms: syms.clone(), stop: stop.clone() }));
     }
+    k.register(h.sym("complex_expand"), Attributes::default(), Box::new(ComplexExpandNative { stop: stop.clone() }));
+    k.register(h.sym("element"), Attributes::default(), Box::new(element::ElementNative { syms: syms.clone(), stop: stop.clone() }));
     for &(name, d) in DECISIONS {
         let s = h.sym(name);
         let a = Attributes { uses_assumptions: true, ..k.attributes(s) };

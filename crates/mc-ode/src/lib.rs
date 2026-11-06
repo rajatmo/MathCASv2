@@ -47,7 +47,7 @@ use std::sync::Arc;
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "n_dsolve",
-        "n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)",
+        "n_dsolve(eqs, y, [t, t0, t1]): the numerical solution of ordinary differential equations with initial conditions as [y -> interpolating_function(...)]; [y, z] for systems; method: auto | rk45 | stiff | taylor, accuracy_goal, precision_goal, max_steps, max_step_size, max_step_fraction, events: [g == 0], event_action: stop | record, compile: auto | true | false; digits: d for balls (Taylor series; error estimated, not guaranteed)",
     ),
     (
         "n_dsolve_value",
