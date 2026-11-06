@@ -184,3 +184,18 @@ fn integrals_by_the_leibniz_rule() {
         ("d(integrate(g(t), t), t)", "g(t)"),
     ]);
 }
+
+#[test]
+fn functions_defined_by_formulas() {
+    check(&[
+        ("d(sec(x), x)", "sec(x)*tan(x)"),
+        ("d(cot(x), x)", "-csc(x)^2"),
+        ("d(product_log(x), x)", "x^-1/(1 + product_log(x))*product_log(x)"),
+        ("d(chebyshev_t(n, x), x)", "n*chebyshev_u(-1 + n, x)"),
+        ("d(acosh(x), x)", "(-1 + x)^(-1/2)*(1 + x)^(-1/2)"),
+        ("d(fresnel_s(x), x)", "sin((1/2)*pi*x^2)"),
+        ("d(hankel_h1(n, x), x)", "(1/2)*(hankel_h1(-1 + n, x) - hankel_h1(1 + n, x))"),
+        ("d(surd(x, 3), x)", "(1/3)*surd(x, 3)^-2"),
+        ("d(ramp(x), x)", "unit_step(x)"),
+    ]);
+}

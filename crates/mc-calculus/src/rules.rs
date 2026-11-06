@@ -175,9 +175,72 @@ fn ell_pi_phi<'h>(b: &Build<'h>, a: &[T<'h>]) -> T<'h> {
     b.div(delta(b, a[1], a[2], -1), den)
 }
 
+/// The Jacobi functions as calls: `s`, `c`, `d` (sn, cn, dn) and `n` (1).
+fn jac<'h>(b: &Build<'h>, f: char, a: &[T<'h>]) -> T<'h> {
+    match f {
+        's' => b.call("jacobi_sn", a),
+        'c' => b.call("jacobi_cn", a),
+        'd' => b.call("jacobi_dn", a),
+        _ => b.one(),
+    }
+}
+
+/// The u-derivative of sn, cn, dn or 1.
+fn jac_d<'h>(b: &Build<'h>, f: char, a: &[T<'h>]) -> T<'h> {
+    match f {
+        's' => b.mul(&[jac(b, 'c', a), jac(b, 'd', a)]),
+        'c' => b.neg(b.mul(&[jac(b, 's', a), jac(b, 'd', a)])),
+        'd' => b.neg(b.mul(&[a[1], jac(b, 's', a), jac(b, 'c', a)])),
+        _ => b.zero(),
+    }
+}
+
+/// The u-derivative of the Jacobi function `pq` = p/q (name `jacobi_pq`) by the quotient rule.
+fn jac_ratio<'h>(b: &Build<'h>, name: &str, a: &[T<'h>]) -> T<'h> {
+    let mut cs = name.trim_start_matches("jacobi_").chars();
+    let (p, q) = (cs.next().unwrap_or('n'), cs.next().unwrap_or('n'));
+    let (np, nq) = (jac(b, p, a), jac(b, q, a));
+    let num = b.sub(b.mul(&[jac_d(b, p, a), nq]), b.mul(&[np, jac_d(b, q, a)]));
+    b.div(num, pw(b, nq, 2))
+}
+
+/// `f(n - 1, x) - (n + 1)/x f(n, x)` (the spherical Bessel recurrence).
+fn spherical_d<'h>(b: &Build<'h>, f: &str, a: &[T<'h>]) -> T<'h> {
+    let lo = b.call(f, &[b.sub(a[0], b.one()), a[1]]);
+    let k = b.div(b.add(&[a[0], b.one()]), a[1]);
+    b.sub(lo, b.mul(&[k, b.call(f, a)]))
+}
+
+/// `sin(pi x^2/2)` or `cos(pi x^2/2)` (the Fresnel integrands).
+fn fresnel<'h>(b: &Build<'h>, f: &str, x: T<'h>) -> T<'h> {
+    let pi = b.sym(b.heap().sym("pi"));
+    b.call(f, &[b.mul(&[b.rat(1, 2), pi, pw(b, x, 2)])])
+}
+
 /// Partial derivatives that are the operator itself (name, arity, argument): differentiating
 /// `derivative(n...)(f)` in such an argument keeps the operator instead of resolving it again, which would not end.
 pub const OPAQUE: &[(&str, usize, usize)] = &[
+    ("chebyshev_t", 2, 0),
+    ("chebyshev_u", 2, 0),
+    ("legendre_p", 2, 0),
+    ("hermite_h", 2, 0),
+    ("laguerre_l", 2, 0),
+    ("gegenbauer_c", 3, 0),
+    ("gegenbauer_c", 3, 1),
+    ("spherical_bessel_j", 2, 0),
+    ("spherical_bessel_y", 2, 0),
+    ("hankel_h1", 2, 0),
+    ("hankel_h2", 2, 0),
+    ("surd", 2, 1),
+    ("jacobi_cd", 2, 1),
+    ("jacobi_cs", 2, 1),
+    ("jacobi_dc", 2, 1),
+    ("jacobi_ds", 2, 1),
+    ("jacobi_nc", 2, 1),
+    ("jacobi_nd", 2, 1),
+    ("jacobi_ns", 2, 1),
+    ("jacobi_sc", 2, 1),
+    ("jacobi_sd", 2, 1),
     ("polygamma", 2, 0),
     ("bessel_k", 2, 0),
     ("bessel_i", 2, 0),
@@ -428,6 +491,147 @@ pub const RULES: &[(&str, usize, Rule)] = &[
         ]),
     ),
     ("inverse_jacobi_sn", 2, Rule::Partials(&[ijsn_v, |b, a| opaque_partial(b, "inverse_jacobi_sn", a, 1)])),
+    // functions defined by formulas (p6-numeric): reciprocal and inverse trigonometric and hyperbolic functions
+    ("sec", 1, Rule::Partials(&[|b, a| b.mul(&[b.call("sec", a), b.call("tan", a)])])),
+    ("csc", 1, Rule::Partials(&[|b, a| b.neg(b.mul(&[b.call("csc", a), b.call("cot", a)]))])),
+    ("cot", 1, Rule::Partials(&[|b, a| b.neg(pw(b, b.call("csc", a), 2))])),
+    ("sech", 1, Rule::Partials(&[|b, a| b.neg(b.mul(&[b.call("sech", a), b.call("tanh", a)]))])),
+    ("csch", 1, Rule::Partials(&[|b, a| b.neg(b.mul(&[b.call("csch", a), b.call("coth", a)]))])),
+    ("coth", 1, Rule::Partials(&[|b, a| b.neg(pw(b, b.call("csch", a), 2))])),
+    ("asinh", 1, Rule::Partials(&[|b, a| b.pow(one_plus_sq(b, a[0], 1), b.rat(-1, 2))])),
+    (
+        "acosh",
+        1,
+        Rule::Partials(&[|b, a| {
+            let h = b.rat(-1, 2);
+            b.mul(&[b.pow(b.add(&[a[0], b.int(-1)]), h), b.pow(b.add(&[a[0], b.one()]), h)])
+        }]),
+    ),
+    ("atanh", 1, Rule::Partials(&[|b, a| pw(b, one_plus_sq(b, a[0], -1), -1)])),
+    ("acoth", 1, Rule::Partials(&[|b, a| pw(b, one_plus_sq(b, a[0], -1), -1)])),
+    ("acot", 1, Rule::Partials(&[|b, a| b.neg(pw(b, one_plus_sq(b, a[0], 1), -1))])),
+    ("asec", 1, Rule::Partials(&[|b, a| b.div(b.pow(b.sub(b.one(), pw(b, a[0], -2)), b.rat(-1, 2)), pw(b, a[0], 2))])),
+    ("acsc", 1, Rule::Partials(&[|b, a| b.neg(b.div(b.pow(b.sub(b.one(), pw(b, a[0], -2)), b.rat(-1, 2)), pw(b, a[0], 2)))])),
+    (
+        "asech",
+        1,
+        Rule::Partials(&[|b, a| {
+            let r = b.div(b.sub(b.one(), a[0]), b.add(&[b.one(), a[0]]));
+            b.neg(b.div(b.pow(r, b.rat(-1, 2)), b.mul(&[a[0], b.add(&[b.one(), a[0]])])))
+        }]),
+    ),
+    ("acsch", 1, Rule::Partials(&[|b, a| b.neg(b.div(b.pow(b.add(&[b.one(), pw(b, a[0], -2)]), b.rat(-1, 2)), pw(b, a[0], 2)))])),
+    ("gudermannian", 1, Rule::Partials(&[|b, a| b.call("sech", a)])),
+    ("sinc", 1, Rule::Partials(&[|b, a| b.sub(b.div(b.call("cos", a), a[0]), b.div(b.call("sin", a), pw(b, a[0], 2)))])),
+    (
+        "product_log",
+        1,
+        Rule::Partials(&[|b, a| {
+            let w = b.call("product_log", a);
+            b.div(w, b.mul(&[a[0], b.add(&[b.one(), w])]))
+        }]),
+    ),
+    ("dawson_f", 1, Rule::Partials(&[|b, a| b.sub(b.one(), b.mul(&[b.int(2), a[0], b.call("dawson_f", a)]))])),
+    ("fresnel_s", 1, Rule::Partials(&[|b, a| fresnel(b, "sin", a[0])])),
+    ("fresnel_c", 1, Rule::Partials(&[|b, a| fresnel(b, "cos", a[0])])),
+    ("harmonic_number", 1, Rule::Partials(&[|b, a| b.call("polygamma", &[b.one(), b.add(&[a[0], b.one()])])])),
+    (
+        "surd",
+        2,
+        Rule::Partials(&[|b, a| b.div(b.pow(b.call("surd", a), b.sub(b.one(), a[1])), a[1]), |b, a| opaque_partial(b, "surd", a, 1)]),
+    ),
+    ("ramp", 1, Rule::Partials(&[|b, a| b.call("unit_step", a)])),
+    ("real_abs", 1, Rule::Partials(&[|b, a| b.call("real_sign", a)])),
+    ("real_sign", 1, Rule::Constant),
+    ("unit_box", ANY, Rule::Constant),
+    ("integer_part", 1, Rule::Constant),
+    ("fractional_part", 1, Rule::Partials(&[|b, _| b.one()])),
+    // the classical orthogonal polynomials in their argument (the degree derivatives stay operators)
+    (
+        "chebyshev_t",
+        2,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "chebyshev_t", a, 0),
+            |b, a| b.mul(&[a[0], b.call("chebyshev_u", &[b.sub(a[0], b.one()), a[1]])]),
+        ]),
+    ),
+    (
+        "chebyshev_u",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "chebyshev_u", a, 0), |b, a| {
+            let n1 = b.add(&[a[0], b.one()]);
+            let t = b.mul(&[n1, b.call("chebyshev_t", &[n1, a[1]])]);
+            let u = b.mul(&[a[1], b.call("chebyshev_u", a)]);
+            b.div(b.sub(t, u), b.sub(pw(b, a[1], 2), b.one()))
+        }]),
+    ),
+    (
+        "legendre_p",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "legendre_p", a, 0), |b, a| {
+            let p = b.sub(b.mul(&[a[1], b.call("legendre_p", a)]), b.call("legendre_p", &[b.sub(a[0], b.one()), a[1]]));
+            b.div(b.mul(&[a[0], p]), b.sub(pw(b, a[1], 2), b.one()))
+        }]),
+    ),
+    (
+        "hermite_h",
+        2,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "hermite_h", a, 0),
+            |b, a| b.mul(&[b.int(2), a[0], b.call("hermite_h", &[b.sub(a[0], b.one()), a[1]])]),
+        ]),
+    ),
+    (
+        "laguerre_l",
+        2,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "laguerre_l", a, 0),
+            |b, a| b.neg(b.call("laguerre_l", &[b.sub(a[0], b.one()), b.one(), a[1]])),
+        ]),
+    ),
+    (
+        "gegenbauer_c",
+        3,
+        Rule::Partials(&[
+            |b, a| opaque_partial(b, "gegenbauer_c", a, 0),
+            |b, a| opaque_partial(b, "gegenbauer_c", a, 1),
+            |b, a| b.mul(&[b.int(2), a[1], b.call("gegenbauer_c", &[b.sub(a[0], b.one()), b.add(&[a[1], b.one()]), a[2]])]),
+        ]),
+    ),
+    // spherical Bessel and Hankel functions in their argument
+    (
+        "spherical_bessel_j",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "spherical_bessel_j", a, 0), |b, a| spherical_d(b, "spherical_bessel_j", a)]),
+    ),
+    (
+        "spherical_bessel_y",
+        2,
+        Rule::Partials(&[|b, a| opaque_partial(b, "spherical_bessel_y", a, 0), |b, a| spherical_d(b, "spherical_bessel_y", a)]),
+    ),
+    ("hankel_h1", 2, Rule::Partials(&[|b, a| opaque_partial(b, "hankel_h1", a, 0), |b, a| bessel_diff(b, "hankel_h1", a)])),
+    ("hankel_h2", 2, Rule::Partials(&[|b, a| opaque_partial(b, "hankel_h2", a, 0), |b, a| bessel_diff(b, "hankel_h2", a)])),
+    // the other Jacobi elliptic functions, by the quotient rule over sn, cn, dn
+    ("jacobi_cd", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_cd", a), |b, a| opaque_partial(b, "jacobi_cd", a, 1)])),
+    ("jacobi_cs", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_cs", a), |b, a| opaque_partial(b, "jacobi_cs", a, 1)])),
+    ("jacobi_dc", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_dc", a), |b, a| opaque_partial(b, "jacobi_dc", a, 1)])),
+    ("jacobi_ds", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_ds", a), |b, a| opaque_partial(b, "jacobi_ds", a, 1)])),
+    ("jacobi_nc", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_nc", a), |b, a| opaque_partial(b, "jacobi_nc", a, 1)])),
+    ("jacobi_nd", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_nd", a), |b, a| opaque_partial(b, "jacobi_nd", a, 1)])),
+    ("jacobi_ns", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_ns", a), |b, a| opaque_partial(b, "jacobi_ns", a, 1)])),
+    ("jacobi_sc", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_sc", a), |b, a| opaque_partial(b, "jacobi_sc", a, 1)])),
+    ("jacobi_sd", 2, Rule::Partials(&[|b, a| jac_ratio(b, "jacobi_sd", a), |b, a| opaque_partial(b, "jacobi_sd", a, 1)])),
+    (
+        "pochhammer",
+        2,
+        Rule::Partials(&[
+            |b, a| {
+                let s = b.add(&[a[0], a[1]]);
+                b.mul(&[b.call("pochhammer", a), b.sub(b.call("digamma", &[s]), b.call("digamma", &[a[0]]))])
+            },
+            |b, a| b.mul(&[b.call("pochhammer", a), b.call("digamma", &[b.add(&[a[0], a[1]])])]),
+        ]),
+    ),
     // complex parts, linear over the reals
     ("re", 1, Rule::Linear),
     ("im_part", 1, Rule::Linear),
