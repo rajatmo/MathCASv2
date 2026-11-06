@@ -281,10 +281,41 @@ impl App {
                 (if forward { (*g).min(n - 1) } else { g.saturating_sub(1) }, if forward { 0 } else { usize::MAX })
             }
         };
+        // in a cell with boxes, where the box selection ends (the model's own caret sits at the text's end then)
+        let start_pos = match (self.doc.nb.box_editor(), self.doc.nb.selection()) {
+            (Some((id, ed)), Selection::Caret { cell, .. }) if id == *cell => {
+                let (_, map) = mc_boxes::to_text_mapped(ed.root());
+                let (path, k) = match ed.selection() {
+                    Some((p, r)) => (p, if forward { r.end } else { r.start }),
+                    None => (ed.caret().path.clone(), ed.caret().offset),
+                };
+                // the top row's item the position is in (after it, going forward)
+                let top = match path.first() {
+                    Some(s) => s.item + usize::from(forward),
+                    None => k,
+                };
+                map.offset(&[], top).unwrap_or(start_pos)
+            }
+            _ => start_pos,
+        };
         let mut found = None;
         for k in 0..=n {
             let i = if forward { (start_cell + k) % n } else { (start_cell + n - k % n) % n };
-            let t = &cells[i].text;
+            // a cell with boxes is searched in its linear text (`x^2` finds a power box, NBUI.7)
+            let boxed = cells[i].props.typeset && cells[i].style.is_code();
+            let (lin, segs) = if boxed { mc_boxes::linear_segments(&cells[i].text) } else { (String::new(), vec![]) };
+            let t: &str = if boxed { &lin } else { &cells[i].text };
+            let to_lin = |pos: usize| -> usize {
+                if !boxed {
+                    return pos;
+                }
+                if forward {
+                    segs.iter().find(|(_, c)| c.start >= pos).map_or(t.len(), |(l, _)| l.start)
+                } else {
+                    segs.iter().rev().find(|(_, c)| c.end <= pos).map_or(0, |(l, _)| l.end)
+                }
+            };
+            let start_pos = if k == 0 { to_lin(start_pos) } else { start_pos };
             let hit = if k == 0 {
                 if forward {
                     t.get(start_pos.min(t.len())..).and_then(|s| s.find(&needle)).map(|p| p + start_pos.min(t.len()))
@@ -298,14 +329,23 @@ impl App {
             };
             if let Some(p) = hit {
                 if self.doc.nb.is_visible(i) {
-                    found = Some((cells[i].id, p));
+                    // in a cell with boxes: the canonical text of the items the linear match covers
+                    let range = if boxed {
+                        let last = p + needle.len().max(1) - 1;
+                        let a = segs.iter().find(|(l, _)| l.contains(&p)).map_or(0, |(_, c)| c.start);
+                        let b = segs.iter().find(|(l, _)| l.contains(&last)).map_or(cells[i].text.len(), |(_, c)| c.end);
+                        (a, b)
+                    } else {
+                        (p, p + needle.len())
+                    };
+                    found = Some((cells[i].id, range));
                     break;
                 }
             }
         }
         match found {
-            Some((id, p)) => {
-                self.run(ctx, Command::SelectText(id, p, p + needle.len()));
+            Some((id, (a, b))) => {
+                self.run(ctx, Command::SelectText(id, a, b));
                 self.status.clear();
             }
             None => {

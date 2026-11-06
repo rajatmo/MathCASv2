@@ -161,3 +161,8 @@ read canonical text 6.6 us.
 - The full output typesetting (`typeset_output`) stays for plot labels (`mc-graphics`) and Copy as LaTeX.
 - Tests: unit 26 (new: grouping, verbatim text, source map, restriction), editing (the structure table for the three
   keys, unwrapping), fuzz with the three keys.
+- NBUI.7 (renderer of outputs): `math_text` draws `^(1/2)` as a root and `^(-1/2)` as one over it, puts a product's
+  negative integer powers below a fraction bar (`ratio`: the other factors above in order, `1` when none; a moved
+  factor's `*` stands for its own byte), and turns `*` into a thin space before a name or a box (`thin_products`).
+  Slots are built from pieces (text ranges, added characters with the span they stand for, nested boxes).
+  `linear_segments(canonical)` gives a cell's linear text with the canonical range of each top-level item (Find).

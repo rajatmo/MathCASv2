@@ -584,12 +584,20 @@ running every global name is plain *(the reference has a "no kernel" style; Math
 - **Underneath.** A cell with boxes keeps canonical box text (4.4: `((x)^(2))`, `((a)/(b))`, `((sqrt(x)))`) and is
   marked `typeset` in the file; the mark is derived (the cell holds a box), never chosen. Evaluation reads the canonical
   text (it evaluates as drawn); Copy gives the plain linear text (`x^2`, `a/b`, `sqrt(x)`), Copy as LaTeX the LaTeX.
-  Find searches the cell's stored text.
+  A plain cell's characters stay characters when it takes its first box (a typed `((` is never read as a box mark).
 - **Outputs** are drawn by the same renderer: the printed result with its roots (`sqrt(...)`), fractions (`/`, grouped
   as the text parses: `a/b*c` is (a/b)·c, `a/b/c` is (a/b)/c, rational literals `1/2`) and powers (`^`, right
   associative, `-x^2` is −(x²)) as the three boxes, and every other character exactly as printed. Parentheses that only
   group a slot are not drawn (numerators, denominators, exponents, radicands); a power's base keeps its parentheses.
   Selection, carets, copying and Find in outputs go through the map from each drawn item to the printed bytes.
+- **Outputs read as written mathematics** (NBUI.7, renderer only: the printed text, copying and the source map are
+  unchanged): a power `^(1/2)` draws as a square root (`2*2^(1/2)` is 2√2, `(x^2 + y^-1)^(1/2)` is √(x² + 1/y)),
+  `^(-1/2)` as one over the root; in a product without divisions the factors with negative integer powers go below a
+  fraction bar with positive exponents (`y^-1` is 1/y, `a*b^-2` is a over b², `3*x^-1*y` is 3y over x); `*` between
+  factors draws as a thin space before a name or a box (`3x²`, `2√2`) and stays before a number (`2*3`, `x*2`) or a
+  parenthesis (`2*(a + b)`).
+- **Find** in a cell with boxes searches its linear text (`x^2` finds a power box) and selects the top-level items the
+  match covers.
 - **Older notebooks.** A typeset cell of an older notebook keeps its roots, fractions and powers as boxes; every other
   box (a subscript, an n-th root, a grid, a big operator) becomes its linear text. Loading and saving then give the same
   text again.

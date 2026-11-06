@@ -59,7 +59,7 @@ Ctrl+/ Tab "B" Shift+Tab
 
 === Esc name Esc inserts a Greek letter
 --- before
-#% cell
+#% cell typeset
 ((x)^(2))▮
 --- keys
 Ctrl+/ Esc "alpha" Esc
@@ -290,3 +290,12 @@ x
 Ctrl+2 "8"
 --- boxes
 √(8▮)
+
+=== a plain cell's `((` are characters when it takes its first box (not box marks)
+--- before
+#% cell
+((a)/(b)) + x▮
+--- keys
+Ctrl+6 "2"
+--- boxes
+((a)/(b)) + (x^2▮)

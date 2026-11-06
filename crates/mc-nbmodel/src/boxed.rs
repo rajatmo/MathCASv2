@@ -153,8 +153,8 @@ impl Notebook {
         }
         let chars = |p: usize| c.text[..p.min(c.text.len())].chars().count();
         let (a, p) = (chars(anchor), chars(pos));
-        // the text read as canonical text keeps every character; only the three boxes are made from it
-        let mut ed = Editor::new(mc_boxes::restrict(&mc_boxes::from_text(&c.text)));
+        // the plain text's characters as they are (a `((` typed in plain text is two parentheses, not a box mark)
+        let mut ed = Editor::new(mc_boxes::Row::text(&c.text));
         if a == p {
             ed.set_caret(&[], p);
         } else {
