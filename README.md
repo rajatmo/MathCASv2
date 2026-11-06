@@ -48,9 +48,8 @@ range(5) |> map(k => k^2, _)              # [1, 4, 9, 16, 25]
 
 ## Status
 
-Early but usable for real numeric and symbolic work: a research notebook (a first-order phase transition: thermal
-integrals, a bounce solution by shooting, its action and the wall profile) runs as
-[examples/wall_profile.mc](examples/wall_profile.mc) in about 20 seconds. What exists today:
+Early but usable for real numeric and symbolic work: thermal integrals, bounce solutions by shooting, actions and
+wall profiles of a first-order phase transition run in seconds. What exists today:
 
 - **Language:** functions as ordered rule clauses with typed parameters and `when` guards, rules with sequence
   patterns, lambdas, pipes, `match`, blocks with `var`/`let`, `for`/`while`, modules with `pub` exports and

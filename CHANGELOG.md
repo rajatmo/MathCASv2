@@ -24,8 +24,7 @@ math letter styles in labels; animated GIF export.
 - **Language:** recursion and memory limits, level and operator forms, structural and sequence functions,
   `composition`, and packed running sums.
 
-**Examples:** 25 scripts in `examples/`, among them ports of the author's research notebooks on phase transitions,
-gravitational waves, reheating and leptogenesis, which run faster than the originals.
+**Examples:** scripts and notebooks in `examples/`.
 
 **Documentation:** 385 function pages, each with examples checked against the engine.
 
