@@ -185,7 +185,8 @@ fn pixel(j: &serde_json::Value, x: f64, y: f64) -> (f64, f64) {
         "log" => v.log10(),
         "signed_log" => {
             let c = axis["c"].as_f64().unwrap();
-            v.signum() * (v.abs() / c).ln_1p() / std::f64::consts::LN_10
+            // linear inside the threshold, one unit per decade outside (as the renderer maps it)
+            if v.abs() <= c { v / c } else { v.signum() * (1.0 + (v.abs() / c).log10()) }
         }
         other => panic!("scale {other}"),
     };

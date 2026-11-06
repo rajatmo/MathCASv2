@@ -72,6 +72,8 @@ pub struct Printer<'h, S: Store + ?Sized> {
     exp_calls: Option<(Sym, Sym, Sym)>,
     /// sums with negative terms as differences and negative powers as divisions ([`Printer::with_display`])
     display: bool,
+    /// shortened forms that do not read back (a long interpolation as `<n points>`): shown output only
+    short: bool,
 }
 
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
@@ -80,7 +82,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
-        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None, exp_calls: None, display: false }
+        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None, exp_calls: None, display: false, short: false }
     }
 
     /// This printer, polling `stop` as it prints: a huge term (a million copies of a deep term) takes long and
@@ -100,6 +102,14 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     /// This printer, writing for reading rather than for reading back (decision p6core.19): `a + -2*b` as
     /// `a - 2*b`, `y*x^-2` as `y/x^2`, and powers of `e` as `exp(x)`. The text evaluates to the same value but may
     /// read back as a different unevaluated term.
+    /// This printer, also shortening values whose full text is only noise in shown output (a long interpolation
+    /// as `interpolated([lo, hi], <n points>)`, gap G76). The text no longer reads back, so `to_string` and saved
+    /// values never use it.
+    pub fn with_short_forms(mut self) -> Self {
+        self.short = true;
+        self
+    }
+
     pub fn with_display(mut self) -> Self {
         self.display = true;
         if self.exp_calls.is_none() {
@@ -542,7 +552,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
             }
             ("interpolated", [xs, _, _]) => {
                 let (Head::List, xs) = self.classify(*xs)? else { return None };
-                if xs.len() <= 8 {
+                if !self.p.short || xs.len() <= 8 {
                     return None;
                 }
                 let (View::Real(lo), View::Real(hi)) = (st.view(xs[0]), st.view(xs[xs.len() - 1])) else { return None };

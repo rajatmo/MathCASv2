@@ -416,7 +416,7 @@ pub fn beta_reg(x: f64, a: f64, b: f64) -> f64 {
 /// B_x(a, b) for x > 1, a > 0 and a positive integer b <= 64, where (1 - t)^(b - 1) is a polynomial: the sum
 /// sum_{j < b} C(b - 1, j) (-1)^j x^(a + j)/(a + j) (the integral continued past 1; `None` otherwise).
 fn beta_inc_poly(x: f64, a: f64, b: f64) -> Option<f64> {
-    if !(x > 1.0 && x.is_finite() && a > 0.0 && a.is_finite() && b >= 1.0 && b <= 64.0 && b.fract() == 0.0) {
+    if !(x > 1.0 && x.is_finite() && a > 0.0 && a.is_finite() && (1.0..=64.0).contains(&b) && b.fract() == 0.0) {
         return None;
     }
     let n = b as i32 - 1;

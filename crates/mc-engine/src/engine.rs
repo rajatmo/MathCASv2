@@ -831,7 +831,7 @@ impl Default for CoreEngine {
 fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>, stop: &dyn Fn() -> bool, display: bool) -> String {
     let mut p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_exp_calls();
     if display {
-        p = p.with_display();
+        p = p.with_display().with_short_forms();
     }
     let p = p.with_stop(stop);
     mc_assoc::table_text(h, t, &mut |x| p.expr(x)).unwrap_or_else(|| p.expr(t))
