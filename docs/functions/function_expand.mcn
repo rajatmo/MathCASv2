@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# function_expand
+
+#% text
+# `function_expand(e)` writes the special functions in `e` with more elementary ones where an identity allows it.
+
+#% section
+# Details
+
+#% item
+# `factorial`, `binomial`, `beta` and `pochhammer` become gamma functions; `harmonic_number(x)` becomes `euler_gamma + digamma(x + 1)`; `erfc(x)` becomes `1 - erf(x)`.
+
+#% item
+# Bessel functions of order 1/2 and -1/2 become sines, cosines, hyperbolic functions and exponentials; `spherical_bessel_j(0, x)` is `sin(x)/x`.
+
+#% item
+# `sec`, `csc`, `cot`, `sech`, `csch`, `coth` and `sinc` are written with `sin`, `cos`, `sinh` and `cosh`.
+
+#% item
+# Other functions are left as they are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A Bessel function of half-integer order:
+
+#% cell
+function_expand(bessel_j(1/2, x))
+#% output
+#= 2^(1/2)*(pi*x)^(-1/2)*sin(x)
+
+#% text
+# The complementary error function:
+
+#% cell
+function_expand(erfc(x) + erf(x))
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# Combinatorial functions as gamma functions:
+
+#% cell
+function_expand(beta(a, b))
+#% output
+#= gamma(a)*gamma(b)/gamma(a + b)
+
+#% cell
+function_expand(binomial(n, k))
+#% output
+#= gamma(1 + n)/gamma(1 + k)/gamma(1 + n - k)
+
+#% text
+# Reciprocal trigonometric functions:
+
+#% cell
+function_expand(sec(x)*cos(x))
+#% output
+#= 1
+
+#% text
+# The modified Bessel function of the second kind:
+
+#% cell
+function_expand(bessel_k(1/2, x))
+#% output
+#= (1/2)*2^(1/2)*exp(-x)*pi^(1/2)*x^(-1/2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `simplify` of the expanded form:
+
+#% cell
+simplify(function_expand(pochhammer(a, 3)))
+#% output
+#= a*(1 + a)*(2 + a)
+
+#% section
+# See also
+
+#% text
+# `simplify`, `gamma`, `bessel_j`, `trig_to_exp`

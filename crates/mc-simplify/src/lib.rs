@@ -32,6 +32,7 @@
 pub mod complex;
 pub mod element;
 pub mod facts;
+pub mod fexpand;
 pub mod power;
 pub mod refine;
 pub mod simplify;
@@ -73,6 +74,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "complex_expand",
         "complex_expand(e), complex_expand(e, [z1, ...]): e as a + b*im with a, b real, every symbol real except z1, ...",
     ),
+    (
+        "function_expand",
+        "function_expand(e): special functions written with more elementary ones (factorial, binomial, beta, pochhammer as gamma functions; Bessel functions of order 1/2; erfc; reciprocal trigonometric functions)",
+    ),
     ("refine", "refine(e), refine(e, facts): e rewritten by the identities that hold under the facts of the assumption context (and facts)"),
     ("is_nonnegative", "is_nonnegative(x): true/false for a number, a closed numeric expression or an expression decided by the assumptions"),
     ("element", "element(x, domain), element([x, y], domain): the fact that x (and y) are in domain, for assuming and refine"),
@@ -102,6 +107,7 @@ enum Fun {
     ExpToTrig,
     PowerExpand,
     Refine,
+    FunctionExpand,
 }
 
 const TABLE: &[(&str, Fun)] = &[
@@ -112,6 +118,7 @@ const TABLE: &[(&str, Fun)] = &[
     ("exp_to_trig", Fun::ExpToTrig),
     ("power_expand", Fun::PowerExpand),
     ("refine", Fun::Refine),
+    ("function_expand", Fun::FunctionExpand),
 ];
 
 /// The arguments before a trailing `options(...)`, and the value of its `assumptions` option (if any).
@@ -184,6 +191,7 @@ impl Native for SimplifyNative {
                 let r = power::power_expand(cx, &b, f.as_mut(), *e)?;
                 cx.eval(r)?
             }
+            Fun::FunctionExpand => fexpand::function_expand(cx, &b, *e)?,
             Fun::Refine => match f.as_mut() {
                 Some(f) => refine::refine(cx, &b, f, *e)?,
                 None => *e,

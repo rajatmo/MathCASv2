@@ -23,3 +23,15 @@ fn parts_of_functions_and_arithmetic() {
         ("complex_expand(sin(re(z)), z)", "sin(re(z))"),
     ]);
 }
+
+#[test]
+fn function_expand_identities() {
+    check(&[
+        ("function_expand(bessel_j(1/2, x))", "2^(1/2)*(pi*x)^(-1/2)*sin(x)"),
+        ("function_expand(erfc(x) + erf(x))", "1"),
+        ("function_expand(beta(a, b))", "gamma(a)*gamma(b)/gamma(a + b)"),
+        ("function_expand(sec(x)*cos(x))", "1"),
+        ("function_expand(factorial(x))", "gamma(1 + x)"),
+        ("function_expand(f(x))", "f(x)"),
+    ]);
+}

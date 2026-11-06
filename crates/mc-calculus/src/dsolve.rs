@@ -230,9 +230,9 @@ fn d_solve<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, eqs: T<'h>, y: T<'h>, x: T<'h>) -
         return Ok(None);
     }
     let ys: Vec<T<'h>> = (0..=n).map(|k| c.sym(&format!("d_solve·{k}"))).collect();
-    let rules: Vec<T<'h>> = occ.iter().map(|&(k, _, term)| c.rule(term, ys[k])).collect();
+    let pairs: Vec<(T<'h>, T<'h>)> = occ.iter().map(|&(k, _, term)| (term, ys[k])).collect();
     let View::App { args: &[l, r], .. } = b.heap().view(p.eq) else { return Ok(None) };
-    let diff = c.subst(b.sub(l, r), &rules)?;
+    let diff = c.eval(replace_terms(b, b.sub(l, r), &pairs))?;
     let diff = c.ev("expand", &[diff])?;
     let general = match general(c, diff, &ys, x, n)? {
         Some(g) => g,
@@ -589,9 +589,9 @@ fn r_solve<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, eqs: T<'h>, a: T<'h>, n: T<'h>) -
         return Ok(None);
     }
     let vs: Vec<T<'h>> = (0..=order).map(|k| c.sym(&format!("r_solve·{k}"))).collect();
-    let rules: Vec<T<'h>> = shifts.iter().map(|&(s, term)| c.rule(term, vs[(s - lo) as usize])).collect();
+    let pairs: Vec<(T<'h>, T<'h>)> = shifts.iter().map(|&(s, term)| (term, vs[(s - lo) as usize])).collect();
     let View::App { args: &[l, r], .. } = h.view(e) else { return Ok(None) };
-    let diff = c.subst(b.sub(l, r), &rules)?;
+    let diff = c.eval(replace_terms(b, b.sub(l, r), &pairs))?;
     let mut coefs = vec![];
     for &v in &vs {
         let ck = c.ev("d", &[diff, v])?;
@@ -637,4 +637,24 @@ fn r_solve<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, eqs: T<'h>, a: T<'h>, n: T<'h>) -
         out.push(c.ev("simplify", &[v])?);
     }
     Ok(Some(out))
+}
+
+/// `t` with each subterm equal to a `from` of `pairs` replaced by its `to` (exact terms, not patterns: the
+/// occurrences `y'(x)` are calls with compound heads, which rules cannot match).
+fn replace_terms<'h>(b: &Build<'h>, t: T<'h>, pairs: &[(T<'h>, T<'h>)]) -> T<'h> {
+    if let Some(&(_, to)) = pairs.iter().find(|p| p.0 == t) {
+        return to;
+    }
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args } => {
+            let new: Vec<T<'h>> = args.iter().map(|&a| replace_terms(b, a, pairs)).collect();
+            if new.as_slice() == args {
+                t
+            } else {
+                h.app(head, &new)
+            }
+        }
+        _ => t,
+    }
 }
