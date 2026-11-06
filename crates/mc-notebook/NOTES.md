@@ -304,3 +304,46 @@ window and the language server. The code is in `app/help.rs` (hint, hover, F1's 
 - `tools/nb-storm.ps1`: F1 among the keys, Ctrl+clicks, names that open completion and calls that show the hint
   among the texts; `MATHCAS_DOCS=-`.
 - Tests: 18 unit tests (new: F1's target), the kernel integration test, the help self-test (ignored).
+
+## Round 13 (nb-mat): clipboard with boxes
+
+Copy and paste of square root, fraction and power boxes within and between cells, tabs and windows (design 3.6).
+
+- **Flavours.** A copied range holding a box writes the text flavour (its linear text, `a/b`, `x^2`, `sqrt(x)`, for
+  other programs) and a second private flavour, the box flavour: the canonical box text of the range (4.4,
+  `((a)/(b))`), UTF-8, only the three boxes. On Windows it is the registered clipboard format `MathCAS.Boxes`
+  beside the text (and `MathCAS.Cells` for cells), so it travels between windows; elsewhere it is kept in-process
+  and comes back while the system clipboard still holds the text of that copy, as the cells flavour does
+  (`mc_ui::clipboard::Contents::boxes`, `mc_nbmodel::Clip::boxes`, `Clip::of_boxes`).
+- **Copy.** From a cell with boxes: the box caret's selection (a range without boxes, say inside a slot, writes text
+  only). From a typeset output: the selected items turned back to input boxes (`mc_boxes::output_input_boxes`: the
+  thin space of a product to `*`, a `^(1/2)` drawn as a root copies as a root, `y^-1` drawn as 1/y as that
+  fraction); the text flavour stays the printed text of the part as before. Copy as plain text (`Ctrl+Shift+C`) and
+  Copy as LaTeX write text only. Cut writes the same as Copy. Copied cells now give the linear text of their boxes
+  as the text flavour (it was the canonical text), with the cells flavour as before.
+- **Paste.** The box flavour into a code cell inserts the boxes at the caret, replacing the selection (one undo
+  unit); a plain cell takes its first boxes as with a box key, its own characters staying characters
+  (`Notebook::paste_boxes`). Into a Text cell or another non-code cell, and into the find bar (egui's text field),
+  the text flavour. At an insertion point (or over selected cells) without the cells flavour: one cell of the
+  insertion point's style holding the boxes. The cells flavour keeps precedence at insertion points. Text from other
+  programs stays text everywhere, in cells with boxes too (`((a)/(b))` pasted is those characters; before, a cell
+  with boxes read pasted text as canonical box text).
+- nb-mat: the box flavour is restricted to the three boxes when written and again when read (another program's box
+  text with a subscript or a grid pastes those as their linear text).
+- nb-mat: at an insertion point whose style was set to a non-code style (Text), pasted boxes become their linear
+  text in that style: the cell style chosen wins over the boxes.
+- nb-mat: pasted boxes get the box editor's implicit `*` where they touch a name (`z` + pasted `x^2` is
+  `z*((x)^(2))`), as boxes made by the box keys do.
+- nb-mat: a cell with boxes holding pasted text such as `((a)/(b))` keeps it as characters while edited; on reload or
+  after undo the canonical reading shows it as a fraction (the known ambiguity of 4.4, same meaning).
+- Tests: `mc-nbmodel/tests/keys/clipboard.keys` (17 scripts: fraction into a plain cell, plain characters kept,
+  root into the middle of a numerator, nested and box-free ranges, Copy as plain text, cut/paste of a power, paste
+  over selections in plain and box cells, at an insertion point, one undo unit, other programs' text with `((` in
+  plain and box cells, into a Text cell, copied cells, a root from typeset output, an output part without boxes);
+  two scripts of `typeset.keys` updated (Ctrl+C in boxes now pastes boxes; a plain-text variant added). Key scripts
+  gained `TypesetOutputs` (Output cells shown typeset, `FakeEnv::typeset_outputs`) and a `--- clip` section.
+  `mc-boxes`: `output_parts_copy_as_input_boxes`. `mc-ui`: `boxes_travel_with_their_linear_text` (in-process, as
+  with `MCUI_CLIPBOARD=local`, and over a text-only system clipboard); the ignored `system_round_trip` also checks
+  the box format. Self-test `tests/selftest/clipboard.txt` run by `tests/clipboard_selftest.rs` (ignored: it opens
+  a window): copy a fraction, Copy as plain text, paste into a plain cell of another tab, again into the same cell,
+  at an insertion point, cut and paste a power; the self-test step `clip` also logs the box flavour.

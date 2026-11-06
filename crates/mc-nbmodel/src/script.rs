@@ -14,7 +14,9 @@
 //! `CopyTo(i)` (drop the selected cells before cell i), `Resize(i,w,h)` / `Resize(i)` (resize the graphic of cell i,
 //! or restore its natural size), `InitYes`, `InitNo`, `InitAlways`, `Clip("text")` (put
 //! text on the clipboard), `Pause` (two seconds pass), `Crash` (the kernel dies), `Quit`, `DeleteAllOutput`,
-//! `EvalNotebook`, `AutoClose` (automatic closing of brackets and quotes is on from there).
+//! `EvalNotebook`, `AutoClose` (automatic closing of brackets and quotes is on from there), `TypesetOutputs` (Output
+//! cells are shown typeset from there: the caret walks their boxes). A `--- clip` section gives the clipboard at the
+//! end, one line per flavour held: `text "..."`, `boxes "..."` (the box flavour), `cells`.
 use crate::cell::CellId;
 use crate::command::{Bracket, Command, InitAnswer};
 use crate::env::{Clip, FakeEnv};
@@ -47,6 +49,8 @@ pub enum Step {
     Crash,
     /// automatic closing of brackets and quotes is on from here (the window's default; off in scripts)
     AutoClose,
+    /// Output cells are shown typeset from here (the window's default; plain in scripts)
+    TypesetOutputs,
 }
 
 /// Where each file cell's lines are in a printed notebook: (marker line, first body line), 0-based.
@@ -359,6 +363,7 @@ fn step(word: &str) -> Result<Step, String> {
             "InitAlways" => Step::Command(Command::InitAnswer(InitAnswer::Always)),
             "Pause" => Step::Pause,
             "AutoClose" => Step::AutoClose,
+            "TypesetOutputs" => Step::TypesetOutputs,
             "Crash" => Step::Crash,
             "Quit" => Step::Command(Command::QuitKernel),
             "DeleteAllOutput" => Step::Command(Command::DeleteAllOutput),
@@ -442,7 +447,7 @@ pub fn run_steps(nb: &mut Notebook, steps: &[Step], env: &mut FakeEnv, kernel: &
             }
             Step::Command(c) => Some(c.clone()),
             Step::Clip(t) => {
-                env.clip = Clip { text: Some(t.clone()), cells: None };
+                env.clip = Clip::text(t.clone());
                 None
             }
             Step::Pause => {
@@ -451,6 +456,10 @@ pub fn run_steps(nb: &mut Notebook, steps: &[Step], env: &mut FakeEnv, kernel: &
             }
             Step::AutoClose => {
                 nb.set_auto_close(true);
+                None
+            }
+            Step::TypesetOutputs => {
+                env.typeset_outputs = true;
                 None
             }
             Step::Crash => {
@@ -484,6 +493,23 @@ pub struct Script {
     /// the expected tree of the typeset cell with the caret, in the box notation of `mc_boxes` (`none`: no
     /// typeset cell has the caret)
     pub boxes: Option<String>,
+    /// the expected clipboard ([`clip_notation`])
+    pub clip: Option<String>,
+}
+
+/// The clipboard as a key script's `--- clip` section writes it: one line per flavour held.
+pub fn clip_notation(clip: &Clip) -> String {
+    let mut lines = vec![];
+    if let Some(t) = &clip.text {
+        lines.push(format!("text {t:?}"));
+    }
+    if let Some(b) = &clip.boxes {
+        lines.push(format!("boxes {b:?}"));
+    }
+    if clip.cells.is_some() {
+        lines.push("cells".to_string());
+    }
+    lines.join("\n")
 }
 
 /// The tests of a script file.
@@ -502,6 +528,7 @@ pub fn parse_scripts(text: &str) -> Result<Vec<Script>, String> {
             "groups" => s.groups = Some(content.trim().to_string()),
             "kernel old" => s.old_kernel = true,
             "boxes" => s.boxes = Some(content.trim().to_string()),
+            "clip" => s.clip = Some(content.trim().to_string()),
             other => return Err(format!("unknown section `{other}`")),
         }
         Ok(())
@@ -541,6 +568,12 @@ pub fn run_script(s: &Script) -> Result<(), String> {
         let got = nb.box_editor().map_or("none".to_string(), |(_, e)| e.notation());
         if &got != b {
             return Err(format!("boxes: expected `{b}`, got `{got}`"));
+        }
+    }
+    if let Some(c) = &s.clip {
+        let got = clip_notation(&env.clip);
+        if &got != c {
+            return Err(format!("clip: expected\n{c}\ngot\n{got}"));
         }
     }
     if let Some(g) = &s.groups {

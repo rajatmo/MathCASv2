@@ -3,13 +3,31 @@
 use crate::cell::Cell;
 use std::ops::Range;
 
-/// The clipboard's content: plain text and the private flavour (a `.mcn` cell fragment).
+/// The clipboard's content: plain text and the private flavours (a `.mcn` cell fragment, or boxes).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Clip {
     /// the text flavour
     pub text: Option<String>,
-    /// the private flavour: cells as written by `mc_nbfile::print_cells`
+    /// the private flavour of cells: cells as written by `mc_nbfile::print_cells`
     pub cells: Option<String>,
+    /// the private flavour of boxes (round 13): the canonical box text (4.4) of a copied range holding a square
+    /// root, fraction or power box; `text` then holds its linear text
+    pub boxes: Option<String>,
+}
+
+impl Clip {
+    /// Text only (plain text, LaTeX, a range without boxes).
+    pub fn text(t: String) -> Clip {
+        Clip { text: Some(t), ..Clip::default() }
+    }
+
+    /// The clipboard of a copied box range: its linear text, and its canonical text as the box flavour unless
+    /// `plain` (Copy as plain text) or the range holds no box.
+    pub fn of_boxes(row: &mc_boxes::Row, plain: bool) -> Clip {
+        let row = mc_boxes::restrict(row);
+        let boxes = (!plain && mc_boxes::has_boxes(&row)).then(|| mc_boxes::to_text(&row));
+        Clip { text: Some(mc_boxes::linear_text(&row)), cells: None, boxes }
+    }
 }
 
 /// Layout queries, clipboard and time for commands.
@@ -55,6 +73,8 @@ pub struct FakeEnv {
     pub time: f64,
     /// the cells [`Env::atomic`] answers `true` for (typeset outputs)
     pub atomic: Vec<crate::cell::CellId>,
+    /// every Output cell counts as a typeset output (key scripts: `TypesetOutputs`)
+    pub typeset_outputs: bool,
 }
 
 impl Env for FakeEnv {
@@ -93,6 +113,7 @@ impl Env for FakeEnv {
     }
 
     fn atomic(&mut self, cell: &Cell) -> bool {
-        self.atomic.contains(&cell.id)
+        let output = cell.style == crate::style::Style::Output && !cell.failure && cell.graphic().is_none();
+        self.atomic.contains(&cell.id) || self.typeset_outputs && output
     }
 }

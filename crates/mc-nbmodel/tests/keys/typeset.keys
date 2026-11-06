@@ -164,12 +164,21 @@ Ctrl+/
 --- boxes
 none
 
-=== copy in boxes copies the plain text, which pastes back as linear text
+=== copy in boxes copies the plain text and the boxes, which paste back as boxes (round 13)
 --- before
 #% cell
 x▮
 --- keys
 Ctrl+/ "y" Ctrl+A Ctrl+C Right Ctrl+V
+--- boxes
+(x/y)*(x/y)▮
+
+=== copy as plain text in boxes copies the plain text only, which pastes back as linear text
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+A Ctrl+Shift+C Right Ctrl+V
 --- boxes
 (x/y)*x/y▮
 
@@ -272,14 +281,14 @@ Ctrl+2 "x+1" Home Backspace "!"
 --- boxes
 none
 
-=== Shift+arrows select across a box; copying gives its plain text; typing replaces the selection
+=== Shift+arrows select across a box; copying gives it (round 13: as a box); typing replaces the selection
 --- before
 #% cell
 a+b▮
 --- keys
 Ctrl+6 "2" Ctrl+Space "+c" Home Right Right Shift+Right Ctrl+C End "*" Ctrl+V Home Shift+Right "z"
 --- boxes
-z▮+(b^2)+c*b^2
+z▮+(b^2)+c*(b^2)
 
 === a box key at an insertion point makes an Input cell with the box
 --- before

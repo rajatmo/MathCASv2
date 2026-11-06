@@ -83,11 +83,11 @@ impl Env for AppEnv<'_> {
         self.ctx.input(|i| i.time)
     }
     fn set_clipboard(&mut self, clip: Clip) {
-        self.clip.set(Contents { text: clip.text, cells: clip.cells });
+        self.clip.set(Contents { text: clip.text, cells: clip.cells, boxes: clip.boxes });
     }
     fn clipboard(&mut self) -> Clip {
         let c = self.clip.get();
-        Clip { text: c.text, cells: c.cells }
+        Clip { text: c.text, cells: c.cells, boxes: c.boxes }
     }
     fn box_line(&mut self, cell: &Cell, path: &[mc_boxes::Step], offset: usize, up: bool) -> Option<(mc_boxes::RowPath, usize)> {
         self.view.box_line(self.ctx, cell, path, offset, up)
@@ -408,6 +408,11 @@ impl App {
     /// The clipboard's text (for the self-test).
     pub fn clipboard_text(&mut self) -> Option<String> {
         self.clip.get().text
+    }
+
+    /// What the clipboard holds, every flavour (for the self-test).
+    pub fn clipboard_contents(&mut self) -> Contents {
+        self.clip.get()
     }
 
     /// Close without asking to save (for the self-test).

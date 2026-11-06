@@ -951,6 +951,31 @@ pub fn output_input_text(row: &Row) -> String {
     out
 }
 
+/// Input boxes for a part of typeset output (copying it with its boxes, round 13): the items with the output
+/// spellings turned back character by character as [`output_input_text`] does (the thin space of a product to `*`),
+/// inside the boxes too, and only the notebook's three boxes kept ([`crate::restrict`]). Its canonical text
+/// ([`crate::to_text`]) evaluates as the selected part reads.
+pub fn output_input_boxes(row: &Row) -> Row {
+    fn back(row: &Row) -> Row {
+        let mut out = Vec::with_capacity(row.0.len());
+        for it in &row.0 {
+            match it {
+                Item::Char(c) => out.extend(Row::text(&output_input_text(&Row(vec![Item::Char(*c)]))).0),
+                Item::Box(b) => {
+                    let mut n = (**b).clone();
+                    for s in n.slots_mut() {
+                        *s = back(s);
+                    }
+                    out.push(Item::Box(Box::new(n)));
+                }
+                Item::Placeholder => out.push(Item::Placeholder),
+            }
+        }
+        Row(out)
+    }
+    crate::restrict(&back(row))
+}
+
 /// The order class of a factor in an output product: numbers, then names and their powers, then the rest.
 fn factor_class(f: &Expr) -> u8 {
     match &f.kind {
@@ -1228,5 +1253,16 @@ mod tests {
         assert_eq!(inp("sum(1/k^2, [k, 1, inf])"), "∑[k=1..inf]((1/(k^2)))");
         assert_eq!(inp("x^(1/2) + sqrt(y)"), "(x^(1/2)) + √(y)");
         assert!(typeset_input("f(").is_err());
+    }
+
+    #[test]
+    fn output_parts_copy_as_input_boxes() {
+        let canon = |t: &str| crate::to_text(&output_input_boxes(&crate::math_text(t).row));
+        // a thin space of a product goes back to `*`; a power `^(1/2)` is drawn and copied as a root
+        assert_eq!(canon("3*x^2"), "3*((x)^(2))");
+        assert_eq!(canon("2*2^(1/2)"), "2*((sqrt(2)))");
+        assert_eq!(canon("(a + b)/c"), "((a + b)/(c))");
+        assert_eq!(canon("y^-1"), "((1)/(y))");
+        assert_eq!(canon("[1, 2]"), "[1, 2]");
     }
 }

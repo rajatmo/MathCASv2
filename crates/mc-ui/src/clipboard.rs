@@ -3,16 +3,16 @@
 //!
 //! What each platform carries:
 //!
-//! | | text | the private cell format | a picture |
+//! | | text | the private formats (cells, boxes) | a picture |
 //! |---|---|---|---|
-//! | Windows (`clipboard-win`) | yes | the registered format `MathCAS.Cells` | the registered `PNG`, a bitmap (`CF_DIB`) and its text |
+//! | Windows (`clipboard-win`) | yes | the registered formats `MathCAS.Cells` and `MathCAS.Boxes` | the registered `PNG`, a bitmap (`CF_DIB`) and its text |
 //! | Linux, BSD: X11 and Wayland (`arboard`), macOS | yes | in-process only (see below) | PNG (`image/png`) |
 //! | Android, no display | in-process only | in-process only | in-process text only |
 //!
-//! Where the system clipboard has no private format, the cells of a copy are kept in-process and come back with a
-//! paste as long as the system clipboard still holds the text of that copy (so copying and pasting cells inside the
-//! program keeps their styles; between programs the text goes). The text of copied cells is their fragment, so
-//! another MathCAS window recognises it by its first line.
+//! Where the system clipboard has no private format, the cells or boxes of a copy are kept in-process and come back
+//! with a paste as long as the system clipboard still holds the text of that copy (so copying and pasting cells
+//! inside the program keeps their styles, and boxes stay boxes; between programs the text goes). The text of copied
+//! cells is their fragment, so another MathCAS window recognises it by its first line.
 //!
 //! On Wayland, `arboard` uses the data-control protocol (KDE, wlroots compositors); where the compositor lacks it
 //! (GNOME, WSLg), it uses X11 through Xwayland. With neither, a clipboard made [`Clipboard::for_window`] hands the
@@ -25,8 +25,11 @@ use eframe::egui;
 pub struct Contents {
     /// the text flavour
     pub text: Option<String>,
-    /// the private flavour: cells as written by `mc_nbfile::print_cells`
+    /// the private flavour of cells: cells as written by `mc_nbfile::print_cells`
     pub cells: Option<String>,
+    /// the private flavour of boxes: the canonical box text of a copied range holding a square root, fraction or
+    /// power box (UTF-8; `text` then holds its linear text)
+    pub boxes: Option<String>,
 }
 
 /// A picture to put on the clipboard.
@@ -121,6 +124,8 @@ mod windows {
 
     /// The registered name of the private cell format.
     const PRIVATE: &str = "MathCAS.Cells";
+    /// The registered name of the private box format.
+    const BOXES: &str = "MathCAS.Boxes";
 
     /// The Windows clipboard (opened for each request, retried while another program holds it).
     pub struct WindowsClipboard;
@@ -128,6 +133,7 @@ mod windows {
     impl SystemClipboard for WindowsClipboard {
         fn set(&mut self, clip: &Contents) -> bool {
             let format = raw::register_format(PRIVATE);
+            let boxes = raw::register_format(BOXES);
             with_clipboard_attempts(10, || {
                 let _ = raw::empty();
                 if let Some(t) = &clip.text {
@@ -135,6 +141,9 @@ mod windows {
                 }
                 if let (Some(c), Some(f)) = (&clip.cells, format) {
                     let _ = raw::set_without_clear(f.get(), c.as_bytes());
+                }
+                if let (Some(b), Some(f)) = (&clip.boxes, boxes) {
+                    let _ = raw::set_without_clear(f.get(), b.as_bytes());
                 }
             })
             .is_ok()
@@ -159,22 +168,27 @@ mod windows {
 
         fn get(&mut self) -> Option<Contents> {
             let format = raw::register_format(PRIVATE);
+            let boxes = raw::register_format(BOXES);
             let mut clip = Contents::default();
+            // a private format's UTF-8 text (a terminating zero may follow it)
+            let private = |f: Option<std::num::NonZeroU32>| -> Option<String> {
+                let f = f?;
+                let mut buf = vec![];
+                if !raw::is_format_avail(f.get()) || raw::get_vec(f.get(), &mut buf).is_err() {
+                    return None;
+                }
+                while buf.last() == Some(&0) {
+                    buf.pop();
+                }
+                String::from_utf8(buf).ok()
+            };
             with_clipboard_attempts(10, || {
                 let mut buf = vec![];
                 if raw::get_string(&mut buf).is_ok() {
                     clip.text = String::from_utf8(buf).ok().map(|t| t.replace("\r\n", "\n"));
                 }
-                if let Some(f) = format {
-                    let mut buf = vec![];
-                    if raw::is_format_avail(f.get()) && raw::get_vec(f.get(), &mut buf).is_ok() {
-                        // a terminating zero may follow the text
-                        while buf.last() == Some(&0) {
-                            buf.pop();
-                        }
-                        clip.cells = String::from_utf8(buf).ok();
-                    }
-                }
+                clip.cells = private(format);
+                clip.boxes = private(boxes);
             })
             .ok()?;
             Some(clip)
@@ -216,7 +230,7 @@ mod other {
 
         fn get(&mut self) -> Option<Contents> {
             match self.0.get_text() {
-                Ok(t) => Some(Contents { text: Some(t.replace("\r\n", "\n")), cells: None }),
+                Ok(t) => Some(Contents { text: Some(t.replace("\r\n", "\n")), ..Contents::default() }),
                 // empty, or holding something other than text (a picture)
                 Err(arboard::Error::ContentNotAvailable) => Some(Contents::default()),
                 Err(_) => None,
@@ -273,22 +287,23 @@ impl Clipboard {
     pub fn set_picture(&mut self, picture: &Picture<'_>) {
         let took = self.system().is_some_and(|s| s.set_picture(picture));
         self.fall_back(took, Some(picture.text));
-        self.local = Contents { text: Some(picture.text.to_string()), cells: None };
+        self.local = Contents { text: Some(picture.text.to_string()), ..Contents::default() };
     }
 
     /// What the clipboard holds.
     pub fn get(&mut self) -> Contents {
         let local = &self.local;
         if let Some(mut c) = self.system.get_or_insert_with(system).as_mut().and_then(|s| s.get()) {
-            // the system has no cell format: the cells of our last copy, while its text is still there
-            if c.cells.is_none() && c.text.is_some() && c.text == local.text {
+            // the system has no private formats: the cells or boxes of our last copy, while its text is still there
+            if c.cells.is_none() && c.boxes.is_none() && c.text.is_some() && c.text == local.text {
                 c.cells = local.cells.clone();
+                c.boxes = local.boxes.clone();
             }
             self.pasted = None;
             return c;
         }
         match self.pasted.take() {
-            Some(t) if self.local.text.as_deref() != Some(&t) => Contents { text: Some(t), cells: None },
+            Some(t) if self.local.text.as_deref() != Some(&t) => Contents { text: Some(t), ..Contents::default() },
             _ => self.local.clone(),
         }
     }
@@ -314,12 +329,43 @@ mod tests {
             true
         }
         fn get(&mut self) -> Option<Contents> {
-            Some(Contents { text: self.0.borrow().clone(), cells: None })
+            Some(Contents { text: self.0.borrow().clone(), ..Contents::default() })
         }
     }
 
     fn cells(text: &str, cells: &str) -> Contents {
-        Contents { text: Some(text.into()), cells: Some(cells.into()) }
+        Contents { text: Some(text.into()), cells: Some(cells.into()), boxes: None }
+    }
+
+    fn boxes(text: &str, boxes: &str) -> Contents {
+        Contents { text: Some(text.into()), cells: None, boxes: Some(boxes.into()) }
+    }
+
+    #[test]
+    fn boxes_travel_with_their_linear_text() {
+        // in-process only (what `MCUI_CLIPBOARD=local` selects, as the notebook's tests run): both flavours come
+        // back as they went
+        if std::env::var("MCUI_CLIPBOARD").is_ok_and(|v| v == "local") {
+            assert!(system().is_none());
+        }
+        let mut c = Clipboard::with_system(None);
+        c.set(boxes("a/b + sqrt(x)", "((a)/(b)) + ((sqrt(x)))"));
+        assert_eq!(c.get(), boxes("a/b + sqrt(x)", "((a)/(b)) + ((sqrt(x)))"));
+        assert_eq!(c.get().boxes.as_deref(), Some("((a)/(b)) + ((sqrt(x)))"));
+        // a paste event with another program's text: text only, even when it looks like box text
+        c.pasted = Some("((a)/(b))".into());
+        assert_eq!(c.get(), Contents { text: Some("((a)/(b))".into()), ..Contents::default() });
+        // a copy without boxes clears them
+        c.set(Contents { text: Some("y".into()), ..Contents::default() });
+        assert_eq!(c.get().boxes, None);
+        // a text-only system clipboard: the boxes travel in-process while the text is ours
+        let shared = TextOnly::default();
+        let mut c = Clipboard::with_system(Some(Box::new(shared.clone())));
+        c.set(boxes("x^2", "((x)^(2))"));
+        assert_eq!(shared.0.borrow().as_deref(), Some("x^2"));
+        assert_eq!(c.get(), boxes("x^2", "((x)^(2))"));
+        *shared.0.borrow_mut() = Some("x^3".into());
+        assert_eq!(c.get(), Contents { text: Some("x^3".into()), ..Contents::default() });
     }
 
     #[test]
@@ -361,7 +407,7 @@ mod tests {
         assert_eq!(c.get(), cells("a + b", "<two cells>"));
         // another program copied something: its text, without our cells
         *shared.0.borrow_mut() = Some("other".into());
-        assert_eq!(c.get(), Contents { text: Some("other".into()), cells: None });
+        assert_eq!(c.get(), Contents { text: Some("other".into()), ..Contents::default() });
         // an empty clipboard is empty, not our old copy
         *shared.0.borrow_mut() = None;
         assert_eq!(c.get(), Contents::default());
@@ -377,7 +423,7 @@ mod tests {
         assert_eq!(c.get().text.as_deref(), Some("image(\"a.png\")"));
         let mut local = Clipboard::with_system(None);
         local.set_picture(&p);
-        assert_eq!(local.get(), Contents { text: Some("image(\"a.png\")".into()), cells: None });
+        assert_eq!(local.get(), Contents { text: Some("image(\"a.png\")".into()), ..Contents::default() });
     }
 
     /// The real clipboard of this system (it replaces what the clipboard holds, so it runs only when asked:
@@ -387,17 +433,22 @@ mod tests {
     fn system_round_trip() {
         let mut c = Clipboard::default();
         let text = format!("mc-ui clipboard test {}", std::process::id());
-        c.set(Contents { text: Some(text.clone()), cells: Some("<cells>".into()) });
+        c.set(Contents { text: Some(text.clone()), cells: Some("<cells>".into()), boxes: None });
         let back = c.get();
         assert_eq!(back.text.as_deref(), Some(text.as_str()));
         assert_eq!(back.cells.as_deref(), Some("<cells>"));
+        // the box flavour, read back through another clipboard object (as another window would)
+        c.set(Contents { text: Some(text.clone()), cells: None, boxes: Some("((x)^(2))".into()) });
+        let back = system().expect("a system clipboard").get().expect("readable");
+        assert_eq!(back.boxes.as_deref(), Some("((x)^(2))"));
+        assert_eq!(back.cells, None);
         // another clipboard object (as another window would) sees the text
         let other = system().expect("a system clipboard").get().expect("readable");
         assert_eq!(other.text.as_deref(), Some(text.as_str()));
         let rgba = [255u8, 0, 0, 255, 0, 0, 255, 255];
         let png = encode_png(&rgba, 2, 1);
         c.set_picture(&Picture { text: "image(\"t.png\")", png: png.as_deref(), rgba: &rgba, width: 2, height: 1 });
-        c.set(Contents { text: Some(String::new()), cells: None });
+        c.set(Contents { text: Some(String::new()), ..Contents::default() });
     }
 
     #[test]

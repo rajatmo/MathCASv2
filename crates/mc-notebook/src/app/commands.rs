@@ -146,7 +146,7 @@ impl App {
                 self.status = format!("Copied the graphic ({w} x {h} pixels)");
             }
             Err(e) => {
-                self.clip.set(Contents { text: Some(text), cells: None });
+                self.clip.set(Contents { text: Some(text), ..Contents::default() });
                 self.status = format!("Copied the graphic's text only: {e}");
             }
         }

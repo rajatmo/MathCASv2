@@ -168,6 +168,22 @@ impl Notebook {
         true
     }
 
+    /// Paste the box flavour (canonical box text) at the caret of a code cell, replacing its selection: a plain cell
+    /// takes its first boxes (its own characters stay characters, as with a box key). `false` when the cell cannot
+    /// hold boxes or the boxes would nest too deep. One undo unit with the command that runs it.
+    pub(crate) fn paste_boxes(&mut self, canonical: &str) -> bool {
+        // a typeset cell the editor is not open on yet (an Output's Input copy made for the paste)
+        self.sync_boxed();
+        if self.boxed.is_none() && !self.box_current() {
+            return false;
+        }
+        let Some(b) = self.boxed.as_mut() else { return false };
+        b.before = Some((b.ed.text(), b.ed.caret().clone()));
+        let ok = b.ed.paste(&clip_boxes(canonical));
+        self.commit_box();
+        ok
+    }
+
     /// A template alias typed in a plain Input cell: the cell becomes typeset and the template goes in.
     pub(crate) fn template_in_plain(&mut self, mark: usize, pos: usize, template: &str) -> bool {
         let Selection::Caret { cell, .. } = self.sel else { return false };
@@ -333,28 +349,32 @@ impl Notebook {
                 return Some(None);
             }
             C::Copy | C::CopyPlain | C::Cut => {
-                let t = ed.selected_text();
-                if t.is_empty() {
+                let items = ed.selection().and_then(|(p, r)| Some(mc_boxes::Row(ed.root().at(&p)?.0.get(r)?.to_vec())));
+                let Some(items) = items.filter(|r| !r.is_empty()) else {
                     fx.beep = true;
                     return Some(None);
-                }
-                // the clipboard gets the plain text the boxes stand for (`x^2`, `(a+b)/c`, `sqrt(y)`)
-                let text = mc_boxes::linear_text(&mc_boxes::from_text(&t));
-                env.set_clipboard(Clip { text: Some(text), cells: None });
+                };
+                // the plain text the boxes stand for (`x^2`, `(a+b)/c`, `sqrt(y)`) for other programs, and the
+                // boxes themselves (their canonical text) for pasting here (nb-mat: round 13)
+                env.set_clipboard(Clip::of_boxes(&items, *cmd == C::CopyPlain));
                 if *cmd != C::Cut {
                     return Some(None);
                 }
                 ed.cut();
             }
             C::Paste => {
+                // boxes from the box flavour; any text (from another program, a cells fragment's text) stays text,
+                // a `((` in it included
                 let clip = env.clipboard();
-                if clip.cells.is_some() {
-                    return None;
-                }
-                let Some(t) = clip.text else { return Some(None) };
                 let b = self.boxed.as_mut().expect("boxed");
-                if !b.ed.paste(&t) {
-                    fx.beep = true;
+                match (clip.boxes, clip.text) {
+                    (Some(bx), _) => {
+                        if !b.ed.paste(&clip_boxes(&bx)) {
+                            fx.beep = true;
+                        }
+                    }
+                    (None, Some(t)) if !t.is_empty() => b.ed.insert_text(&t),
+                    _ => return Some(None),
                 }
             }
             C::Structure(s) => {
@@ -430,6 +450,12 @@ impl Notebook {
         let word = row.0[start..caret.offset].iter().filter_map(|i| if let Item::Char(c) = i { Some(*c) } else { None }).collect();
         Some((caret.path.clone(), start, word))
     }
+}
+
+/// The box flavour of the clipboard as the notebook's boxes: any other box another program wrote becomes its linear
+/// text.
+fn clip_boxes(canonical: &str) -> String {
+    mc_boxes::to_text(&mc_boxes::restrict(&mc_boxes::from_text(canonical)))
 }
 
 /// Where the name before `caret` starts in its row (letters, digits, `_` and `.`, as in plain cells).

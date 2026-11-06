@@ -237,7 +237,14 @@ impl Notebook {
             }
             C::Copy | C::CopyPlain => {
                 let text = self.out_selected_text()?;
-                env.set_clipboard(Clip { text: Some(text), cells: None });
+                // a part with roots, fractions or powers also goes as boxes (nb-mat: round 13): the input boxes it
+                // stands for, pasted as boxes into cells
+                let part = if *cmd == C::Copy { self.out_selection() } else { None };
+                let boxes = part
+                    .map(|(_, _, items)| mc_boxes::output_input_boxes(&items))
+                    .filter(mc_boxes::has_boxes)
+                    .map(|r| mc_boxes::to_text(&r));
+                env.set_clipboard(Clip { text: Some(text), cells: None, boxes });
                 Some(())
             }
             _ => None,

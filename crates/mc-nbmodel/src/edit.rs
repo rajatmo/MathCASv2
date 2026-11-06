@@ -876,18 +876,21 @@ impl Notebook {
             Selection::Caret { cell, anchor, pos } if anchor != pos => {
                 let c = self.cell(cell).expect("selected");
                 let t = c.text[anchor.min(pos)..anchor.max(pos)].to_string();
-                env.set_clipboard(Clip { text: Some(t), cells: None });
+                env.set_clipboard(Clip::text(t));
                 true
             }
             Selection::Cells { ids, .. } => {
-                let text = ids
-                    .iter()
-                    .filter_map(|id| self.cell(*id))
-                    .map(|c| c.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join("\n\n");
+                // a cell with boxes gives its linear text (`x^2`, not its canonical box text)
+                let linear = |c: &crate::cell::Cell| {
+                    if c.props.typeset && c.style.is_code() {
+                        mc_boxes::linear_text(&mc_boxes::from_text(&c.text))
+                    } else {
+                        c.text.clone()
+                    }
+                };
+                let text = ids.iter().filter_map(|id| self.cell(*id)).map(linear).collect::<Vec<_>>().join("\n\n");
                 let cells = (!plain).then(|| self.fragment(&ids));
-                env.set_clipboard(Clip { text: Some(text), cells });
+                env.set_clipboard(Clip { text: Some(text), cells, boxes: None });
                 true
             }
             _ => false,
@@ -940,7 +943,7 @@ impl Notebook {
         };
         match latex.filter(|l| !l.is_empty()) {
             Some(l) => {
-                env.set_clipboard(Clip { text: Some(l), cells: None });
+                env.set_clipboard(Clip::text(l));
                 true
             }
             None => false,
@@ -971,15 +974,23 @@ impl Notebook {
         match self.sel.clone() {
             Selection::Caret { .. } => {
                 let t = clip.text.unwrap_or_default();
-                if !t.is_empty() {
+                if !t.is_empty() || clip.boxes.is_some() {
                     let Some((id, a, b)) = self.edit_target() else {
                         fx.beep = true;
                         return;
                     };
-                    self.replace_range(id, a, b, &t);
+                    // boxes into a code cell (it takes its first boxes); elsewhere their linear text
+                    let code = self.cell(id).is_some_and(|c| c.style.is_code());
+                    if let Some(bx) = clip.boxes.as_deref().filter(|_| code) {
+                        if !self.paste_boxes(bx) {
+                            fx.beep = true;
+                        }
+                    } else if !t.is_empty() {
+                        self.replace_range(id, a, b, &t);
+                    }
                 }
             }
-            Selection::Gap(g) => self.paste_at(g, fragment, clip.text),
+            Selection::Gap(g) => self.paste_at(g, fragment, clip.text, clip.boxes),
             Selection::Cells { ids, .. } => {
                 // pasting over selected cells replaces them (guess 5)
                 let first = ids.iter().filter_map(|id| self.index_of(*id)).min().unwrap_or(0);
@@ -988,16 +999,21 @@ impl Notebook {
                         self.remove_cells(i..i + 1, true);
                     }
                 }
-                self.paste_at(first, fragment, clip.text);
+                self.paste_at(first, fragment, clip.text, clip.boxes);
             }
         }
     }
 
-    fn paste_at(&mut self, g: usize, fragment: Option<String>, text: Option<String>) {
+    fn paste_at(&mut self, g: usize, fragment: Option<String>, text: Option<String>, boxes: Option<String>) {
+        let style = self.gap_style();
         if let Some(cells) = fragment.and_then(|f| self.cells_of_fragment(&f)) {
             let n = cells.len();
             self.insert_cells(g, cells, true);
             self.select(Selection::Gap(g + n));
+        } else if let Some(bx) = boxes.filter(|_| style.is_code()) {
+            // boxes at an insertion point: one Input cell holding them (nb-mat: round 13)
+            self.create_cell(g, style, "");
+            self.paste_boxes(&bx);
         } else if let Some(t) = text.filter(|t| !t.is_empty()) {
             // plain text at an insertion point: one Input cell holding it
             let t = t.strip_suffix('\n').unwrap_or(&t).to_string();

@@ -437,21 +437,23 @@ What is copied:
 | Selection | Clipboard flavours written |
 |---|---|
 | text in a plain cell | text |
-| a range in typeset content | text (linear input text, 4.6) and the private flavour (box tree) |
+| a range in typeset content (a cell with boxes, a typeset output) holding a box | text (linear input text, 4.6; for an output the printed text of the part) and the box flavour (canonical box text, 4.4, of the range: square roots, fractions and powers only) |
 | cells | text (the cells' contents: input source, text, outputs as printed, separated by blank lines) and the private flavour (the `.mcn` fragment of the cells, exactly as saved) |
 | a graphic | image (PNG) and text (`image("...")` with an absolute path) |
 
-The private flavour is a registered Windows clipboard format "MathCAS.Cells" carrying UTF-8 `.mcn` text (with
-`clipboard-win`); on other platforms the text flavour is used with a recognisable first line (`#% cells`), and paste
-recognises it.
+The private flavours are registered Windows clipboard formats, "MathCAS.Cells" carrying UTF-8 `.mcn` text and
+"MathCAS.Boxes" carrying UTF-8 canonical box text (with `clipboard-win`); on other platforms the text flavour is used
+with a recognisable first line (`#% cells`), and paste recognises it; the box flavour is kept in-process there and
+pasted while the system clipboard still holds the text of that copy (round 13).
 
 Paste:
 
-- Into a caret or text selection: replaces the selection. From the private flavour into typeset content: the boxes; a
-  cells fragment pasted into text pastes the cells' text. Plain text into typeset content is inserted as text (it is
-  not re-typeset; `Ctrl+Shift+N` does that).
-- At an insertion point: the private flavour inserts its cells; plain text creates **one** Input cell holding it *(guess
-  for multi-paragraph text)*; an image creates an Output-less Print-style picture cell *(later; M4 ignores images)*.
+- Into a caret or text selection: replaces the selection. The box flavour into a code cell: the boxes (a plain cell
+  takes its first boxes and keeps its characters as characters, 4.0); into other cells and plain text fields (the
+  find bar) its text. A cells fragment pasted into text pastes the cells' text. Plain text is inserted as text, also
+  in a cell with boxes (it is not re-typeset; a `((` in it is two parentheses).
+- At an insertion point: the private flavour inserts its cells; the box flavour creates one Input cell holding the
+  boxes; plain text creates **one** Input cell holding it *(guess for multi-paragraph text)*; an image creates an Output-less Print-style picture cell *(later; M4 ignores images)*.
 - With a cell selection: replaces the selected cells *(guess, 13)*.
 - Copy as plain text (`Ctrl+Shift+C`) writes only the text flavour (linear input text, no box markers).
 

@@ -1,0 +1,49 @@
+# Clipboard with boxes (round 13): a fraction copied from a cell goes on the clipboard as its linear text and as
+# boxes, pastes as a fraction into a plain cell of another tab, into the same cell again, and at an insertion point;
+# a power cut from a cell pastes back as a power. Run by `tests/clipboard_selftest.rs` (it opens a window: `cargo
+# test -- --ignored`) with `MCUI_CLIPBOARD=local`, which checks the `clipboard:` and `boxes:` lines of the log.
+size 1000 600
+ppp 1
+theme light
+new
+keys "a" Ctrl+/ "b"
+wait 3
+keys Ctrl+A Ctrl+C
+wait 3
+clip
+# Copy as plain text: the linear text only
+keys Ctrl+Shift+C
+wait 3
+clip
+keys Ctrl+C
+wait 3
+# another tab: a plain cell takes the fraction as a box, then a second one beside it
+newtab
+wait 3
+keys "x+"
+wait 3
+keys Ctrl+V
+wait 3
+boxes
+keys Ctrl+V
+wait 3
+boxes
+# at the insertion point below: one Input cell holding the fraction
+keys Down
+wait 3
+keys Ctrl+V
+wait 3
+boxes
+dump pasted
+# cut a power and paste it back after a plus
+new
+keys "y" Ctrl+6 "2"
+wait 3
+keys Ctrl+A Ctrl+X
+wait 3
+clip
+keys "z+" Ctrl+V
+wait 3
+boxes
+dump cut
+quit

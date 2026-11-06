@@ -304,7 +304,12 @@ impl SelfTest {
             }
             "about" => app.show_about(arg != "off"),
             "prefs" => app.show_preferences(arg != "off"),
-            "clip" => self.log.push(format!("clipboard: {:?}", app.clipboard_text())),
+            "clip" => {
+                // the text flavour, and the box flavour when the clipboard holds one
+                let c = app.clipboard_contents();
+                let boxes = c.boxes.map(|b| format!(" boxes {b:?}")).unwrap_or_default();
+                self.log.push(format!("clipboard: {:?}{boxes}", c.text));
+            }
             "help" => self.log.push(format!("help: {}", app.help_state())),
             "hovername" | "ctrlclickname" => match app.screen_point_of(arg) {
                 Some(p) => {
