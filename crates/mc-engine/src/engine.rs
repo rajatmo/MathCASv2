@@ -480,7 +480,7 @@ impl CoreEngine {
                 }
                 // printing a huge number takes long: its decimal conversion polls the stop flag (decision G.6)
                 let _scope = StopScope::enter(Some(arith_stop));
-                let printed = Printer::with_numbers(h, Box::new(ArithNumbers)).expr(e.value);
+                let printed = shown(h, e.value);
                 done.fail = failure.then(|| printed.clone());
                 // `print(x)` returns x: a statement whose value its last output line already shows does not show it
                 // again (the scripts' rule, decision 9.5 of the library-gaps package)
@@ -702,6 +702,12 @@ impl Default for CoreEngine {
     }
 }
 
+/// The printed form of a value: a dataset as a table (`mc_assoc::table_text`), anything else as its term.
+fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>) -> String {
+    let p = Printer::with_numbers(h, Box::new(ArithNumbers));
+    mc_assoc::table_text(h, t, &mut |x| p.expr(x)).unwrap_or_else(|| p.expr(t))
+}
+
 /// The session output since it was last cleared: strings as their text, warnings, other terms printed.
 fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<Emitted> {
     k.output(h)
@@ -710,7 +716,7 @@ fn output(h: &mc_core::Heap, k: &Kernel) -> Vec<Emitted> {
             mc_core::View::Str(s) => Emitted::Text(s.to_string()),
             _ => match history::as_message(h, t) {
                 Some((tag, text)) => Emitted::Message(tag, text),
-                None => Emitted::Text(Printer::with_numbers(h, Box::new(ArithNumbers)).expr(t)),
+                None => Emitted::Text(shown(h, t)),
             },
         })
         .collect()

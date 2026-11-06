@@ -2412,12 +2412,14 @@ dependencies = [
  "flate2",
  "hayro",
  "mc-api",
+ "mc-assoc",
  "mc-bench",
  "mc-core",
  "mc-engine",
  "mc-eval",
  "mc-numeric",
  "png 0.18.1",
+ "serde",
  "serde_json",
 ]
 

@@ -1,6 +1,7 @@
 //! What every native of the library shares: the symbols it builds and recognises, the cache of association
 //! indexes, and small helpers for arguments, failures, fuel and calls of function-valued arguments.
 use crate::index::Indexes;
+use crate::table::DataSyms;
 use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{NativeCx, Reply, Res};
@@ -35,12 +36,19 @@ impl Syms {
 /// points (the cache is emptied at each one, decision 1B.6), so the natives trace nothing.
 pub(crate) struct Lib {
     pub s: Syms,
+    /// the symbols of datasets
+    pub d: DataSyms,
     pub indexes: Indexes,
 }
 
 impl Lib {
     pub fn new(h: &Heap) -> Lib {
-        Lib { s: Syms::new(h), indexes: Indexes::default() }
+        Lib { s: Syms::new(h), d: DataSyms::new(h), indexes: Indexes::default() }
+    }
+
+    /// `failure(tag, details...)` with the tag named.
+    pub fn fail_named<'h>(&self, h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
+        self.fail(h, h.sym(tag), details)
     }
 
     /// `failure(tag, details...)`

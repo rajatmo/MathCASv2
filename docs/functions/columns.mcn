@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# columns
+
+#% text
+# `columns(ds)` gives the list of the column names of the dataset `ds`, in order.
+
+#% text
+# `columns(ds, [c1, c2, ...])` gives the dataset of the columns `c1`, `c2`, ... of `ds`, in that order.
+
+#% section
+# Details
+
+#% item
+# A single name may be given without the list.
+
+#% item
+# Each name may be given once; a name `ds` lacks gives `failure(missing_key, c)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+shop = dataset([["item", "kind", "price", "stock"], ["pen", "office", 1.5, 40], ["lamp", "home", 24.0, 3], ["ink", "office", 6.0, missing()], ["mug", "home", 8.5, 12]])
+columns(shop)
+#% output
+#= ["item", "kind", "price", "stock"]
+
+#% text
+# Two columns, in a new order:
+
+#% cell
+columns(shop, ["price", "item"])
+#% output
+#= price | item
+#= ------+-----
+#=   1.5 | pen
+#=  24.0 | lamp
+#=   6.0 | ink
+#=   8.5 | mug
+#= dataset: 4 rows, 2 columns
+
+#% subsection
+# Applications
+
+#% text
+# Dropping a column:
+
+#% cell
+columns(shop, select(columns(shop), c => c != "stock"))
+#% output
+#= item | kind   | price
+#= -----+--------+------
+#= pen  | office |   1.5
+#= lamp | home   |  24.0
+#= ink  | office |   6.0
+#= mug  | home   |   8.5
+#= dataset: 4 rows, 3 columns
+
+#% subsection
+# Possible issues
+
+#% cell
+columns(shop, ["item", "item"])
+#% output
+#! failure(duplicate_column, "item")
+
+#% section
+# See also
+
+#% text
+# `column`, `rows`, `dataset`

@@ -96,3 +96,24 @@ check before a release).
   layouts can interleave). Rendering one page is not interruptible (the stop flag is polled between pages).
 - `image_data` re-reads the file each call; `temp/mathcas-images/` is never cleaned (as plots).
 - Plot tests assume `plot` gives `image(path)` with a PDF twin.
+
+## Package data (round 10): datasets in files
+
+Module `dataset`: `import_data(file, "dataset")` for csv, tsv, txt/dat and json (a format may precede the element),
+`export_data` of a dataset to csv, tsv, table and json. Depends on `mc-assoc` (representation) and now on `serde`
+(MIT/Apache-2.0, already in the tree) for an order-preserving JSON reader.
+
+- **DATA.11** Tables: the first record is the header (empty names `column_k`, repeats `_2`, ...); per column: all
+  integers (packed when none missing), else all numbers (reals), else all `true`/`false`, else strings; fields
+  trimmed; empty fields missing; short records padded, long ones (beyond empty fields) `failure(damaged, file,
+  "record r has k fields, the header m")`. CSV quoting with `""` and line breaks inside quotes; TSV has no quoting.
+  Fields are parsed into one flat vector (no allocation per record).
+- **DATA.12** JSON: array of objects (rows, keys in file order), object of arrays (columns), array of arrays under a
+  header; `null` cells missing; the term goes through `dataset` (its failures). Not a table:
+  `failure(damaged, file, ...)`.
+- **DATA.13** Export: header line, missing values as empty fields (CSV quotes fields with separators, quotes or line
+  breaks); JSON one object per row and line, missing as `null`; reals keep a point or exponent.
+
+Measurement (`examples/dataset_measure.rs`, release, guard 3 GB, 10^6 rows x 5 columns, 29 MB CSV, peak 345 MB):
+import as a dataset 312 ms (as lists of rows: 935 ms), aggregate by a 20-value key 17 ms, `sort_by` a real column
+162 ms, total of a column 0.7 ms, export CSV 306 ms, JSON 593 ms, `select` of 10^4 rows by a function 29 ms.

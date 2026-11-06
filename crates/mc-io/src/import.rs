@@ -3,7 +3,7 @@
 use crate::images::{self, fnv, image_dir, image_term};
 use crate::pdf_read::{self, OpenError};
 use crate::pdf_write::PdfOut;
-use crate::{bad_argument, failure, format_named, split_options, tabular, target, word, Format, Opts};
+use crate::{bad_argument, dataset, failure, format_named, split_options, tabular, target, word, Format, Opts};
 use hayro::hayro_syntax::Pdf;
 use mc_api::names;
 use mc_core::{Heap, Store, View, T};
@@ -15,6 +15,7 @@ pub const DEFAULT_DPI: f64 = 150.0;
 
 const PNG_ELEMENTS: &[&str] = &["image", "data", "dimensions", "channels", "bit_depth"];
 const PDF_ELEMENTS: &[&str] = &["pages", "page", "page_count", "text"];
+const TEXT_ELEMENTS: &[&str] = &["dataset"];
 
 /// `import_data(file)`, `import_data(file, format)`, `import_data(file, [format,] element [, k])`, options last.
 pub struct Import;
@@ -79,12 +80,15 @@ fn unknown_element<'h>(h: &'h Heap, e: T<'h>, known: &[&str]) -> T<'h> {
     failure(h, "unknown_element", &[e, h.call(h.sym(names::LIST), &names)])
 }
 
-/// The text formats take no element and no options.
+/// The text formats take no options; their one element is `"dataset"` (not for `lines`).
 fn text<'h>(cx: &mut NativeCx<'_, '_, 'h>, q: &Query<'_, 'h>, o: Option<T<'h>>, format: Format) -> Res<T<'h>> {
     let h = cx.heap();
-    if let Some((_, e)) = q.elem {
-        return Ok(unknown_element(h, e, &[]));
-    }
+    let as_dataset = match q.elem {
+        Some(("dataset", _)) if format != Format::Lines && q.page.is_none() => true,
+        Some((_, e)) if format == Format::Lines => return Ok(unknown_element(h, e, &[])),
+        Some((_, e)) => return Ok(unknown_element(h, e, TEXT_ELEMENTS)),
+        None => false,
+    };
     if let Err(f) = Opts::parse(h, o, &[]) {
         return Ok(f);
     }
@@ -93,6 +97,12 @@ fn text<'h>(cx: &mut NativeCx<'_, '_, 'h>, q: &Query<'_, 'h>, o: Option<T<'h>>, 
         Err(e) => return Ok(failure(h, "io", &[q.file, h.string(&e.to_string())])),
     };
     cx.tick(1 + text.len() as u64 / 4096)?;
+    if as_dataset {
+        return match format {
+            Format::Json => dataset::import_json(cx, q.file, &text),
+            _ => dataset::import_table(cx, q.file, &text, format),
+        };
+    }
     Ok(match format {
         Format::Csv => tabular::rows(h, &text, |l| tabular::split_csv(l, ',')),
         // TSV has no quoting: fields are the text between tabs

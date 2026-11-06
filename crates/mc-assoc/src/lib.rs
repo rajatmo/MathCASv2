@@ -9,12 +9,21 @@
 //! - `assoc`: `assoc`, `is_assoc`, `keys`, `values`, `to_rules`, `lookup`, `key_exists`, `key_take`, `key_drop`,
 //!   `key_sort`, `insert`, `delete_key`, `merge`, `map_values`, `select_keys`;
 //! - `group`: `counts`, `group_by`, `is_failure`, `failure_tag`;
-//! - `index`: the per-term key indexes that keep lookups from being linear.
+//! - `index`: the per-term key indexes that keep lookups from being linear;
+//! - `dataset`, `aggregate`, `table`, `text`: datasets (below).
 //!
 //! **Associations** are the terms `assoc(k1 -> v1, ..., kn -> vn)` (that is, `assoc(rule(k1, v1), ...)`), keys
 //! distinct and compared by identity, in insertion order; they print as that call and read back to the same term.
 //! `length(a)` (from `mc-lists`) is the number of keys. Decisions of this package are numbered 1B.1, 1B.2, ... in
 //! the comments where they are applied.
+//!
+//! **Datasets** (package data, decisions DATA.n) are tables: `dataset(assoc(c1 -> col1, ...))`, an association from
+//! column names to columns of one length, numeric columns packed. `dataset` makes one from rows (associations or
+//! lists under a header) or columns; `column`, `columns`, `rows`, `add_column`, `group_by`, `aggregate`, `pivot`
+//! and `join_on` query and reshape it, and the list functions `length`, `part`, `first`, `last`, `rest`, `most`,
+//! `take`, `drop`, `reverse`, `join`, `select` and `sort_by` act on its rows (they decline in `mc-lists`, and the
+//! dataset's argument-head rules answer). `missing()` marks an absent value; aggregates skip it. [`table_text`] is
+//! the printed form for text front ends.
 //!
 //! ```
 //! use mc_core::{Session, Store};
@@ -33,11 +42,18 @@
 //! assert!(found);
 //! ```
 #![warn(missing_docs)]
+mod aggregate;
 mod assoc;
 mod ctx;
+mod dataset;
 mod group;
 mod index;
 mod sets;
+mod table;
+mod text;
+
+pub use table::Col as Column;
+pub use text::{table_text, MAX_CELL, MAX_ROWS, MAX_WIDTH};
 
 use ctx::Lib;
 use mc_core::{Heap, Raw, Store, T};
@@ -129,6 +145,28 @@ functions! {
         "is_failure(x): whether x is a failure(...)";
     "failure_tag" => group::failure_tag, Failures,
         "failure_tag(x): the tag of a failure(tag, ...)";
+    "dataset" => dataset::dataset, Strict,
+        "dataset(rows), dataset(assoc(c -> column, ...)), dataset(table), dataset(rows, names): a table of rows and named columns";
+    "is_dataset" => dataset::is_dataset, Strict,
+        "is_dataset(x): whether x is a dataset";
+    "missing" => dataset::missing, Strict,
+        "missing(), missing(reason): an absent value in a dataset; aggregates skip it";
+    "is_missing" => dataset::is_missing, Strict,
+        "is_missing(x): whether x is missing(...)";
+    "column" => dataset::column, Strict,
+        "column(ds, c): the list of the values of column c of a dataset";
+    "columns" => dataset::columns, Strict,
+        "columns(ds): the column names of a dataset; columns(ds, [c, ...]): the dataset of those columns";
+    "rows" => dataset::rows, Strict,
+        "rows(ds): the rows of a dataset, each an association from column names to values";
+    "add_column" => dataset::add_column, Strict,
+        "add_column(ds, c, f): the dataset with column c set to f(row) for each row (or to a list of values)";
+    "aggregate" => aggregate::aggregate, Strict,
+        "aggregate(ds, [c -> f, ...]), aggregate(ds, by, specs): total, mean, count, min, max or any f of columns, per group of rows";
+    "pivot" => aggregate::pivot, Strict,
+        "pivot(ds, r, c, v), pivot(ds, r, c, v, f): a table with a row per value of column r and a column per value of column c";
+    "join_on" => dataset::join_on, Strict,
+        "join_on(a, b, key): the rows of datasets a and b whose key columns agree, joined (how: inner, left, right, outer)";
 }
 
 /// Register every function of [`FUNCTIONS`] with `k` (all strict; `is_failure` and `failure_tag` receive failures),
@@ -155,4 +193,50 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     for (lhs, rhs) in rules {
         k.define_attached(h, lhs, rhs, assoc).expect("the part rules of associations are well formed");
     }
+    install_rows(k, h, &lib);
+}
+
+/// The list functions on a dataset's rows (decision DATA.2): `mc-lists` declines them on a dataset, and the rule
+/// `f(d @ dataset(___), args___) := dataset_rows(f, d, args...)` attached to `dataset` hands them to the internal
+/// native `dataset_rows` (not in [`FUNCTIONS`]: it gives back `f(d, args...)` when it cannot evaluate the call).
+fn install_rows(k: &mut Kernel, h: &Heap, lib: &Arc<Lib>) {
+    let rows_op = h.sym(dataset::ROWS_OP);
+    k.register(rows_op, Attributes::default(), Box::new(Fun { lib: lib.clone(), body: dataset::rows_op }));
+    let data = lib.d.dataset;
+    for &name in dataset::ROW_FUNCTIONS {
+        let f = h.sym(name);
+        let lhs = pat::call(
+            h,
+            f,
+            vec![pat::named(0, pat::call(h, data, vec![Pat::Seq { var: None, min: 0 }])), pat::seq0(1)],
+        );
+        let rhs: Rhs = Arc::new(move |b, h| {
+            let mut args = vec![h.sym_term(f), b.one(0)];
+            args.extend_from_slice(b.seq(1));
+            h.call(rows_op, &args)
+        });
+        k.define_attached(h, lhs, rhs, data).expect("the row rules of datasets are well formed");
+    }
+}
+
+/// The dataset with columns `cols` (lists of one length) named `names` (distinct): `dataset(assoc(name -> col,
+/// ...))`. Neither condition is checked; `mc-io` builds imported tables with it.
+pub fn dataset_of_columns<'h>(h: &'h Heap, names: &[T<'h>], cols: &[T<'h>]) -> T<'h> {
+    table::DataSyms::new(h).dataset(h, names, cols)
+}
+
+/// The column names and columns of `t` when it is a dataset in normal form.
+pub fn dataset_columns<'h>(h: &'h Heap, t: T<'h>) -> Option<(Vec<T<'h>>, Vec<Column<'h>>)> {
+    let tab = table::Table::of(&table::DataSyms::new(h), h, t)?;
+    Some((tab.names, tab.cols))
+}
+
+/// The absent value `missing()`.
+pub fn missing_value<'h>(h: &'h Heap) -> T<'h> {
+    table::DataSyms::new(h).missing(h)
+}
+
+/// Is `t` an absent value `missing(...)`?
+pub fn is_missing_value(h: &Heap, t: T<'_>) -> bool {
+    table::DataSyms::new(h).is_missing(h, t)
 }

@@ -6,7 +6,7 @@ use mc_eval::{NativeCx, Reply, Res};
 use rustc_hash::FxHashMap;
 
 /// Distinct keys in order of first occurrence, with the positions of the elements of each.
-fn classes<'h>(cx: &mut NativeCx<'_, '_, 'h>, keys: &[T<'h>]) -> Res<(Vec<T<'h>>, Vec<Vec<usize>>)> {
+pub(crate) fn classes<'h>(cx: &mut NativeCx<'_, '_, 'h>, keys: &[T<'h>]) -> Res<(Vec<T<'h>>, Vec<Vec<usize>>)> {
     let mut order = Vec::new();
     let mut members: Vec<Vec<usize>> = Vec::new();
     let mut at: FxHashMap<T<'h>, usize> = FxHashMap::default();
@@ -38,7 +38,7 @@ pub(crate) fn counts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
 
 /// `group_by(xs, f)`: the association from each distinct value `f(x)` to the list of the elements `x` with that
 /// value, keys in order of first occurrence, elements in order; `group_by(xs, f, g)`: each list replaced by `g`
-/// applied to it. A failure from `f` or `g` is the result.
+/// applied to it. A failure from `f` or `g` is the result. On a dataset the rows are grouped (`group_dataset`).
 pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (xs, f, g) = match *args {
@@ -46,6 +46,10 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         [xs, f, g] => (xs, f, Some(g)),
         _ => return Ok(Reply::Decline),
     };
+    // a dataset groups its rows (package data)
+    if let Some(tab) = crate::table::Table::of(&lib.d, h, xs) {
+        return crate::aggregate::group_dataset(lib, cx, &tab, f, g);
+    }
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
     let fx = map_calls(cx, f, xs)?;
     if let Some(&fail) = fx.iter().find(|&&v| lib.is_failure(h, v)) {

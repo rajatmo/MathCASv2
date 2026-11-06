@@ -9,10 +9,10 @@
 //!
 //! | format | `import_data` gives | elements | `export_data` takes |
 //! |---|---|---|---|
-//! | `csv`, `tsv` | a list of rows, each a list of fields | | a list of rows (lists), or of values (one per line) |
-//! | `txt`, `dat` (`table`) | a list of lines, each a list of whitespace-separated fields | | as csv, fields separated by spaces |
+//! | `csv`, `tsv` | a list of rows, each a list of fields | `"dataset"` | a list of rows (lists), or of values (one per line); a dataset (header line, then rows) |
+//! | `txt`, `dat` (`table`) | a list of lines, each a list of whitespace-separated fields | `"dataset"` | as csv, fields separated by spaces |
 //! | `lines` | a list of strings, one per line | | a list of values, one per line |
-//! | `json` | lists, numbers, strings, `true`/`false`, `null`; objects as lists of rules `key -> value` | | the same |
+//! | `json` | lists, numbers, strings, `true`/`false`, `null`; objects as lists of rules `key -> value` | `"dataset"` | the same; a dataset as an array of objects |
 //! | `png` | `image(path)` (the file checked) | `"image"`, `"data"` (as `image_data`), `"dimensions"` (`[width, height]`), `"channels"`, `"bit_depth"` | an image value (plots too), or an array height x width (x channels) of reals in [0, 1]; options `dpi`, `scale`, `bit_depth` |
 //! | `pdf` | the pages as images (`"pages"`) | `"pages"`, `"page", k`, `"page_count"`, `"text"` (a string per page), `"text", k`; option `dpi` (default 150) | an image, plot or array (one page), or a list of images and plots (a page each, or every page of a plot or imported page); option `dpi` for raster pages |
 //!
@@ -32,12 +32,19 @@
 //! to PNG, SVG, PDF): a registered exporter is tried before this crate's cases, and its PDF pages join multi-page
 //! documents.
 //!
+//! **Datasets** (`mc-assoc`): `import_data(file, "dataset")` reads CSV, TSV, a whitespace table or JSON as a
+//! dataset: the first record names the columns, each column's type (integers, reals, `true`/`false` or strings) is
+//! inferred from all its fields, and empty fields (JSON `null`) are `missing()`; numeric columns without missing
+//! values are packed arrays. `export_data` writes a dataset to CSV, TSV or a table (a header line, missing values
+//! empty) or to JSON (an array of objects, missing values `null`).
+//!
 //! Fields that read as integers become integers, then machine reals, else strings (quotes in CSV removed).
 //! Exported values: integers and machine reals as numbers (reals keep a decimal point or exponent, so they read
 //! back as reals), strings as text, anything else as its printed form. Both functions are effects (they run in
 //! program order), and imported values are never memoised.
 #![warn(missing_docs)]
 
+mod dataset;
 mod export;
 mod hook;
 mod images;
@@ -58,7 +65,7 @@ use mc_eval::{Attributes, Kernel};
 pub const FUNCTIONS: &[(&str, &str)] = &[
     (
         "import_data",
-        "import_data(file), import_data(file, format), import_data(file, element), import_data(file, \"page\", k): the data of a file: csv, tsv, txt/dat (lists of rows), lines, json, png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given",
+        "import_data(file), import_data(file, format), import_data(file, element), import_data(file, \"page\", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given",
     ),
     (
         "interpolation",
@@ -66,7 +73,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     (
         "export_data",
-        "export_data(file, data), export_data(file, data, format): write data (lists of rows or values; json; png from an image, plot or array of reals with options dpi, scale, bit_depth; pdf from an image, plot or array, or a list of them as pages); gives the file name",
+        "export_data(file, data), export_data(file, data, format): write data (lists of rows or values, datasets; json; png from an image, plot or array of reals with options dpi, scale, bit_depth; pdf from an image, plot or array, or a list of them as pages); gives the file name",
     ),
     (
         "image",

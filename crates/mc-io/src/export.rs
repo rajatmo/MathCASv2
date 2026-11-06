@@ -6,7 +6,7 @@ use crate::import::open_pdf;
 use crate::pdf_read;
 use crate::pdf_write::PdfOut;
 use crate::raster::{Raster, MAX_SAMPLES};
-use crate::{bad_argument, failure, format_named, split_options, tabular, target, Format, Opts};
+use crate::{bad_argument, dataset, failure, format_named, split_options, tabular, target, Format, Opts};
 use hayro::hayro_syntax::Pdf;
 use mc_core::{Heap, Store, T};
 use mc_eval::{Native, NativeCx, Reply, Res};
@@ -61,6 +61,10 @@ impl Native for Export {
                     Some(svg) => std::fs::copy(&svg, &path).map(|_| ()).map_err(|e| e.to_string()).map_err(io),
                     None => Err(failure(h, "unsupported", &[file, h.string("svg export takes a plot or a graphics term")])),
                 },
+                Format::Json if dataset::is_dataset(h, data) => match dataset::json(cx, data)? {
+                    Some(t) => write(&path, t).map_err(io),
+                    None => Err(failure(h, "argument", &[h.sym_term(h.sym("dataset")), h.int(1)])),
+                },
                 Format::Json => {
                     let j = tabular::to_json(cx, data)?;
                     serde_json::to_string_pretty(&j).map_err(|e| e.to_string()).and_then(|s| write(&path, s)).map_err(io)
@@ -71,7 +75,12 @@ impl Native for Export {
                         Format::Tsv => "\t",
                         _ => " ",
                     };
-                    match tabular::delimited(cx, data, sep, format == Format::Csv)? {
+                    let table = if dataset::is_dataset(h, data) {
+                        dataset::delimited(cx, data, sep, format == Format::Csv)?
+                    } else {
+                        tabular::delimited(cx, data, sep, format == Format::Csv)?
+                    };
+                    match table {
                         Some(t) => write(&path, t).map_err(io),
                         None => Err(bad_argument(h, "export_data", 2)),
                     }

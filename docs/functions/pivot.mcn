@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# pivot
+
+#% text
+# `pivot(ds, r, c, v)` gives a dataset with a row for each value of column `r` and a column for each value of column `c`, holding the value of column `v` where they meet.
+
+#% text
+# `pivot(ds, r, c, v, f)` gives the aggregate function `f` of the values of column `v` where they meet.
+
+#% section
+# Details
+
+#% item
+# Rows and columns come in the order of their first occurrence; the first column is `r`.
+
+#% item
+# Without `f` each pair of values may occur once; a pair that does not occur gives `missing()`.
+
+#% item
+# `f` is an aggregate function as in `aggregate`: `total`, `mean`, `count`, `min`, `max` or any function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+trips = dataset([["day", "mode", "km"], ["mon", "bike", 12], ["mon", "bus", 8], ["tue", "bike", 15], ["wed", "bus", 9]])
+pivot(trips, "day", "mode", "km")
+#% output
+#= day |    bike |     bus
+#= ----+---------+--------
+#= mon |      12 |       8
+#= tue |      15 | missing
+#= wed | missing |       9
+#= dataset: 3 rows, 3 columns
+
+#% subsection
+# Scope
+
+#% text
+# Several values per cell, added up:
+
+#% cell
+more = join(trips, dataset([["day", "mode", "km"], ["mon", "bike", 3]]))
+pivot(more, "mode", "day", "km", total)
+#% output
+#= mode | mon | tue | wed
+#= -----+-----+-----+----
+#= bike |  15 |  15 |   0
+#= bus  |   8 |   0 |   9
+#= dataset: 2 rows, 4 columns
+
+#% cell
+pivot(more, "mode", "day", "km", count)
+#% output
+#= mode | mon | tue | wed
+#= -----+-----+-----+----
+#= bike |   2 |   1 |   0
+#= bus  |   1 |   0 |   1
+#= dataset: 2 rows, 4 columns
+
+#% subsection
+# Possible issues
+
+#% text
+# Without a function, a pair may not repeat:
+
+#% cell
+pivot(more, "mode", "day", "km")
+#% output
+#! failure(duplicate_entry, ["bike", "mon"])
+
+#% section
+# See also
+
+#% text
+# `aggregate`, `group_by`, `dataset`

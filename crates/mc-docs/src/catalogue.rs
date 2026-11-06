@@ -108,6 +108,7 @@ pub const INTERNAL: &[&str] = &[
     "ball_literal",
     "block",
     "check_options",
+    "dataset_rows",
     "define",
     "define_fn",
     "define_rule",

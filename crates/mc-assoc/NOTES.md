@@ -96,3 +96,46 @@ all-literal AC left side depended on symbol numbering. Fixed on main (b33430f) b
 - Identity comparison only (no custom equality, no custom `key_sort` order); `is_subset` takes two arguments;
   `lookup` does not take lists of rules or of associations; the canonical sort is not interruptible (bounded, charged
   up front).
+
+## Package data (round 10): datasets
+
+Modules `table` (representation: `DataSyms`, `Col`, `Table`, `Columns`), `dataset` (construction, columns, rows,
+the list functions on rows, `join_on`), `aggregate` (`group_by` on datasets, `aggregate`, `pivot`), `text` (the
+printed table). New functions: `dataset`, `is_dataset`, `missing`, `is_missing`, `column`, `columns`, `rows`,
+`add_column`, `aggregate`, `pivot`, `join_on`; `group_by` extended to datasets; internal native `dataset_rows`.
+Public Rust API: `dataset_of_columns`, `dataset_columns`, `Column`, `missing_value`, `is_missing_value`,
+`table_text` (with `MAX_ROWS`, `MAX_CELL`, `MAX_WIDTH`).
+
+- **DATA.1** A dataset is `dataset(assoc(c1 -> col1, ...))`: columns of one length, numeric ones packed; rows are
+  built on demand as associations. The `dataset` native keeps a normal form as it is and builds one from rows
+  (associations), a table with a header row, rows under given names, or a dataset.
+- **DATA.2** The list functions `length`, `part`, `first`, `last`, `rest`, `most`, `take`, `drop`, `reverse`, `join`,
+  `select`, `sort_by` act on rows: `mc-lists` declines them when the first argument is a dataset
+  (`mc_lists::DATASET_ROWS`), and argument-head rules on `dataset` rewrite them to the internal `dataset_rows(f, ds,
+  ...)`, which gives `f(ds, ...)` back unevaluated when it cannot answer. Same meanings as on lists (bounds failures
+  `failure(index, k, n)` as there); no `head`/`tail` names (the head of a term is a different notion).
+- **DATA.3** `ds[i]` is a row, `ds[i, c]` a value, `ds[c]` a column (any non-integer index names a column; a symbol
+  naming none leaves the call unevaluated), `ds[i:j]` and `ds[[i, ...]]` datasets of rows.
+- **DATA.4** `missing()` / `missing(reason)` marks absent values (an inert call, so a user value of a symbol cannot
+  clash).
+- **DATA.5** Construction failures: `failure(argument, dataset, k)`, `failure(shape_mismatch, dataset)`,
+  `failure(duplicate_column, c)`.
+- **DATA.6** In `sort_by`, `group_by`, `aggregate` a string or a list of strings names key columns; anything else is a
+  function of the row (fast path for columns: no interpreted calls).
+- **DATA.7** Aggregates skip missing values; empty `total`/`count` are 0, empty `mean`/`min`/`max` are `missing()`;
+  `total`, `mean`, `min`, `max`, `count` read packed payloads (integers summed exactly in 128 bits, reals with Neumaier
+  compensation, mean exact for integers); other columns and custom functions go through the evaluator; custom
+  functions get the list of present values.
+- **DATA.8** `aggregate(ds, specs)`, `aggregate(ds, by, specs)`, `aggregate(groups, specs)`; specs `c -> f`,
+  `name -> [c, f]`, `count`; a function key or groups give a key column named `"key"`; duplicate output names fail.
+- **DATA.9** `join_on(a, b, key[, how: inner|left|right|outer])`: keys first, then `a`'s, then `b`'s columns (a clash
+  gets `_right`); order of `a` then `b`; missing keys match nothing. `join(ds, ...)` stacks rows (column union).
+- **DATA.10** Printed form: the engine shows a dataset value (and `print` output) as a table of at most 20 rows
+  (15 first, `...`, 5 last), cells cut at 32 characters, 120 characters a line, numeric columns right-aligned, last
+  line `dataset: n rows, m columns`; inside other values a dataset prints as its term; `to_string` gives the term.
+- `pivot(ds, r, c, v[, f])`: rows and columns in first-occurrence order; without `f` a repeated pair is
+  `failure(duplicate_entry, [rv, cv])`.
+
+Tests: `tests/datasets.rs` (7 tests, about 200 cases), `tests/dataset_properties.rs` (4, against Rust oracles),
+`tests/limits.rs` (+2: 16 dataset loops stop at a 1000-unit budget; a dataset session identical at 1, 2, 4 threads
+and under stress).

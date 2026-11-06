@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# join_on
+
+#% text
+# `join_on(a, b, key)` gives the dataset of the rows of `a` and `b` whose column `key` agrees, one row for each matching pair.
+
+#% text
+# `join_on(a, b, [k1, k2, ...])` matches on several columns.
+
+#% section
+# Details
+
+#% item
+# The key columns come first, then the other columns of `a`, then those of `b`; a name of `b` that `a` also has gets the suffix _right.
+
+#% item
+# Rows come in the order of `a`, partners in the order of `b`.
+
+#% item
+# A missing key matches nothing.
+
+#% item
+# The option `how` keeps rows without a partner: `inner` (the default) none, `left` those of `a`, `right` those of `b`, `outer` both; their other cells are missing.
+
+#% item
+# `join(a, b)` stacks the rows of `a` and `b` instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pets = dataset([["owner", "pet"], ["Ana", "cat"], ["Bo", "dog"], ["Ana", "fish"]])
+homes = dataset([["owner", "town"], ["Ana", "Lyon"], ["Cy", "Nice"]])
+join_on(pets, homes, "owner")
+#% output
+#= owner | pet  | town
+#= ------+------+-----
+#= Ana   | cat  | Lyon
+#= Ana   | fish | Lyon
+#= dataset: 2 rows, 3 columns
+
+#% subsection
+# Options
+
+#% text
+# Keeping every pet:
+
+#% cell
+join_on(pets, homes, "owner", how: left)
+#% output
+#= owner | pet  | town
+#= ------+------+--------
+#= Ana   | cat  | Lyon
+#= Bo    | dog  | missing
+#= Ana   | fish | Lyon
+#= dataset: 3 rows, 3 columns
+
+#% text
+# Keeping every row of both:
+
+#% cell
+join_on(pets, homes, "owner", how: outer)
+#% output
+#= owner | pet     | town
+#= ------+---------+--------
+#= Ana   | cat     | Lyon
+#= Bo    | dog     | missing
+#= Ana   | fish    | Lyon
+#= Cy    | missing | Nice
+#= dataset: 4 rows, 3 columns
+
+#% subsection
+# Possible issues
+
+#% text
+# Both datasets need the key column:
+
+#% cell
+join_on(pets, homes, "pet")
+#% output
+#! failure(missing_key, "pet")
+
+#% section
+# See also
+
+#% text
+# `join`, `dataset`, `aggregate`

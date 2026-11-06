@@ -76,13 +76,25 @@ type Body = for<'a, 'b, 'c, 'h> fn(&Lib, &mut NativeCx<'a, 'b, 'h>, T<'h>, &'c [
 struct Fun {
     lib: Arc<Lib>,
     body: Body,
+    /// whether a dataset as the first argument declines the call (one of [`DATASET_ROWS`])
+    rows_of_datasets: bool,
 }
 
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if self.rows_of_datasets && args.first().is_some_and(|&x| self.lib.is_dataset(cx.heap(), x)) {
+            return Ok(Reply::Decline);
+        }
         (self.body)(&self.lib, cx, t, args)
     }
 }
+
+/// The functions a dataset (`dataset(assoc(...))`, package data in `mc-assoc`) gives its own meaning on its rows:
+/// with a dataset as the first argument they decline, and the dataset's argument-head rules answer (as `part` does
+/// for associations, decision 1A.16). A dataset is one term `dataset(columns)`, so the structural meaning would
+/// see a single argument.
+pub const DATASET_ROWS: &[&str] =
+    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "sort_by"];
 
 macro_rules! functions {
     ($($name:literal => $body:path, $desc:literal;)*) => {
@@ -277,6 +289,8 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     for &(name, body) in BODIES {
         // `table` holds its body and iterators (decision 1A.14)
         let hold = if HELD.contains(&name) { Hold::All } else { Hold::None };
-        k.register(h.sym(name), Attributes { hold, ..Attributes::default() }, Box::new(Fun { lib: lib.clone(), body }));
+        let rows_of_datasets = DATASET_ROWS.contains(&name);
+        let f = Fun { lib: lib.clone(), body, rows_of_datasets };
+        k.register(h.sym(name), Attributes { hold, ..Attributes::default() }, Box::new(f));
     }
 }

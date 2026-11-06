@@ -38,6 +38,8 @@ pub(crate) struct Syms {
     pub complex: Sym,
     /// the head of an association (package 1B): `part` leaves its indexing to the association's rules
     pub assoc: Sym,
+    /// the head of a dataset (package data): the functions of `DATASET_ROWS` leave it to its rules
+    pub dataset: Sym,
 }
 
 impl Syms {
@@ -66,6 +68,7 @@ impl Syms {
             add: h.sym(names::ADD),
             complex: h.sym(names::COMPLEX),
             assoc: h.sym("assoc"),
+            dataset: h.sym("dataset"),
         }
     }
 }
@@ -84,6 +87,11 @@ pub(crate) const MAX_LEN: usize = 1 << 28;
 impl Lib {
     pub fn new(h: &Heap, stop: &Arc<AtomicBool>) -> Lib {
         Lib { s: Syms::new(h), stop: stop.clone() }
+    }
+
+    /// Is `x` a dataset, `dataset(...)`? (A packed array is a list: its payload is not viewed.)
+    pub fn is_dataset(&self, h: &Heap, x: T<'_>) -> bool {
+        h.packed(x).is_none() && matches!(h.view(x), View::App { head, .. } if head == h.sym_term(self.s.dataset))
     }
 
     /// `mc-arith`'s canonicaliser with the stop flag.

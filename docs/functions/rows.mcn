@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# rows
+
+#% text
+# `rows(ds)` gives the list of the rows of the dataset `ds`, each an association from column names to values.
+
+#% section
+# Details
+
+#% item
+# `dataset(rows(ds))` is `ds` again.
+
+#% item
+# A row is the value functions such as `select`, `sort_by` and `add_column` pass to their function argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rows(dataset(assoc("x" -> [1, 2], "y" -> ["a", "b"])))
+#% output
+#= [assoc("x" -> 1, "y" -> "a"), assoc("x" -> 2, "y" -> "b")]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Part notation gives one row:
+
+#% cell
+ds = dataset(assoc("x" -> [1, 2], "y" -> ["a", "b"]))
+ds[2] === rows(ds)[2]
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `dataset`, `column`, `columns`

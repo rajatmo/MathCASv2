@@ -90,6 +90,61 @@ fn long_native_loops_charge_fuel() {
 }
 
 /// Statements over associations large enough to be indexed, sets, and failures.
+#[test]
+fn dataset_loops_charge_fuel() {
+    let mut env = Env::new();
+    env.eval("ys = range(100000)", i64::MAX);
+    env.eval("ds = dataset(assoc(\"k\" -> map(i => imod(i, 97), ys), \"v\" -> ys))", i64::MAX);
+    env.eval("fn g(r) = r", i64::MAX);
+    env.eval("fn yes(r) = true", i64::MAX);
+    for src in [
+        "length(dataset(map(i => assoc(a -> i), ys)))",
+        "length(dataset(map(i => [i], ys), [a]))",
+        "length(rows(ds))",
+        "length(reverse(ds))",
+        "length(drop(ds, 1))",
+        "length(select(ds, yes))",
+        "length(sort_by(ds, \"k\"))",
+        "length(sort_by(ds, g))",
+        "length(group_by(ds, \"k\"))",
+        "length(aggregate(ds, \"k\", [\"v\" -> total]))",
+        "length(aggregate(ds, [\"v\" -> mean]))",
+        "length(pivot(ds, \"v\", \"k\", \"v\", total))",
+        "length(join_on(ds, ds, \"v\"))",
+        "length(join(ds, ds))",
+        "length(add_column(ds, \"w\", g))",
+        "length(ds[1:100000])",
+    ] {
+        assert_eq!(env.eval(src, 1000).0, "status Fuel", "{src}");
+        assert!(!env.eval(src, i64::MAX).0.starts_with("status"), "{src}");
+    }
+}
+
+/// Dataset statements for the thread and stress comparison.
+const DATASETS: &[&str] = &[
+    "ds = dataset(map(i => assoc(\"k\" -> imod(i * 7, 13), \"v\" -> i, \"w\" -> 1/(i + 1)), range(3000)))",
+    "aggregate(ds, \"k\", [\"v\" -> total, \"w\" -> max, count])[\"v\"]",
+    "column(sort_by(ds, r => imod(r[\"v\"] * 31, 1009)), \"v\")[1:5]",
+    "length(select(ds, r => r[\"k\"] > 6))",
+    "map_values(length, group_by(ds, \"k\"))",
+    "column(pivot(take(ds, 50), \"k\", \"k\", \"v\", total), 3)",
+    "length(join_on(ds, take(ds, 100), \"k\"))",
+    "total(column(add_column(ds, \"z\", r => r[\"v\"] + r[\"k\"]), \"z\"))",
+];
+
+#[test]
+fn datasets_same_at_any_thread_count_and_under_stress() {
+    let run = |threads: usize, stress: bool| {
+        let mut e = common::engine(threads, stress);
+        DATASETS.iter().map(|s| common::eval(&mut e, s)).collect::<Vec<String>>()
+    };
+    let reference = run(1, false);
+    assert_eq!(reference[3], "1385");
+    for (threads, stress) in [(1, true), (2, false), (4, true)] {
+        assert_eq!(run(threads, stress), reference, "{threads} threads, stress {stress}");
+    }
+}
+
 const SESSION: &[&str] = &[
     "a = assoc(map(i => i -> i^2, range(300)))",
     "lookup(a, 17)",

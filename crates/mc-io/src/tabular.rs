@@ -75,7 +75,7 @@ pub(crate) fn from_json<'h>(h: &'h Heap, j: &serde_json::Value) -> T<'h> {
 
 /// A value as text: numbers directly (reals keep a point or an exponent), strings as they are, anything else
 /// through `to_string` (its printed form).
-fn text<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<String> {
+pub(crate) fn text<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<String> {
     let h = cx.heap();
     Ok(match h.view(t) {
         View::Int(i) => i.to_string(),
