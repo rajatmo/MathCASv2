@@ -357,8 +357,7 @@ impl Kernel {
     /// `s = v` (semantics 6.4).
     pub fn set_own(&mut self, s: Sym, v: T<'_>) {
         let e = *self.epoch.get_mut();
-        let ((), e2) = self.defined(e, bit(s), || self.defs.set_own(s, v));
-        self.defs.set_own_epoch(s, e2);
+        self.defined(e, bit(s), || self.defs.set_own(s, v));
     }
 
     /// Set a symbol's attributes (argument modes, AC, effect, failure handling).

@@ -586,16 +586,12 @@ fn reply<'h>(cx: &NativeCx<'_, '_, 'h>, r: Result<(), DefError>) -> Reply<'h> {
 }
 
 /// `set_delayed(lhs, e)` and `set(lhs, v)` (the attributes decide whether the value was evaluated).
-/// `set` (`evaluated`: the value was evaluated) and `set_delayed`.
-struct SetDef(Heads, bool);
+struct SetDef(Heads);
 
 impl Native for SetDef {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [lhs, v] = a else { return Ok(Reply::Decline) };
         let r = define_now(cx, &self.0, *lhs, *v, &[], &[], false)?;
-        if let (true, Ok(()), View::Sym(s)) = (self.1, &r, cx.heap().view(*lhs)) {
-            cx.own_value_is_evaluated(s);
-        }
         Ok(reply(cx, r))
     }
 }
@@ -704,10 +700,10 @@ impl Native for IsGround {
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
-    k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h), false)));
+    k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
     // an assignment keeps a failure as the value it assigns (decision p6core.25: `r = find_root(...)` that fails
     // leaves `r` the failure, not unassigned)
-    k.register(h.sym("set"), Attributes { handles_failures: true, ..fx(Hold::First) }, Box::new(SetDef(Heads::new(h), true)));
+    k.register(h.sym("set"), Attributes { handles_failures: true, ..fx(Hold::First) }, Box::new(SetDef(Heads::new(h))));
     k.register(h.sym("define_rule"), fx(Hold::All), Box::new(DefineRule(Heads::new(h))));
     k.register(h.sym("define_fn"), fx(Hold::All), Box::new(DefineFn(Heads::new(h))));
     k.register(h.sym("define_sym"), fx(Hold::All), Box::new(DefineSym));

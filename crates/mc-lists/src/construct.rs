@@ -2,7 +2,7 @@
 //! `map_indexed`, `map_thread`, `scan`.
 use crate::ctx::{apply, count_operand, dims_operand, group_cost, nest_flat, take, Lib, Meter, MAX_CELLS, MAX_LEN};
 use mc_arith::{Kind, Num, Real};
-use mc_core::{Heap, Store, View, T};
+use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 
 /// `range(n)`, `range(a, b)`, `range(a, b, step)`: `a, a + step, ...` up to `b` (`a` defaults to 1, `step` to 1).
@@ -392,169 +392,15 @@ pub(crate) fn nest_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
 
 /// `fold(f, x, xs)`: `f(...f(f(x, xs[1]), xs[2])..., xs[n])`; `fold(f, xs)` starts from the first element.
 pub(crate) fn fold<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    if let Some(v) = packed_fold(cx, args, false)? {
-        return Ok(Reply::Done(v));
-    }
     let r = take!(fold_with(lib, cx, t, args, |_| {})?);
     Ok(Reply::Done(r))
 }
 
 /// `fold_list(f, x, xs)`: `[x, f(x, xs[1]), ...]`, every intermediate value.
 pub(crate) fn fold_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    if let Some(v) = packed_fold(cx, args, true)? {
-        return Ok(Reply::Done(v));
-    }
     let mut out = vec![];
     take!(fold_with(lib, cx, t, args, |v| out.push(v))?);
     Ok(Reply::Done(cx.list(&out)))
-}
-
-/// `differences(xs)`: `[x2 - x1, x3 - x2, ...]`; `differences(xs, n)`: the n-th differences. On a packed array of
-/// machine reals or integers the payload is subtracted directly (the same values as `x2 + (-1)*x1`).
-pub(crate) fn differences<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-    let h = cx.heap();
-    let (xs, n) = match *args {
-        [xs] => (xs, 1),
-        [xs, n] => match h.view(n) {
-            View::Int(n @ 0..) => (xs, n),
-            _ => return Ok(Reply::Decline),
-        },
-        _ => return Ok(Reply::Decline),
-    };
-    if n == 0 {
-        return Ok(Reply::Done(xs));
-    }
-    if let Some(p) = h.packed(xs).filter(|p| p.rank() == 1) {
-        crate::ctx::charge_copy(cx, p.count())?;
-        let once = |x: T<'h>| -> Option<T<'h>> {
-            match h.packed(x)? {
-                mc_core::Packed::Reals { data, .. } => {
-                    let v: Vec<f64> = data.windows(2).map(|w| w[1] - w[0]).collect();
-                    Some(h.reals(&v))
-                }
-                mc_core::Packed::Ints { data, .. } => {
-                    let v: Option<Vec<i64>> = data.windows(2).map(|w| w[1].checked_sub(w[0])).collect();
-                    Some(h.ints(&v?))
-                }
-            }
-        };
-        if let Some(d) = once(xs) {
-            return Ok(Reply::Again(if n == 1 { d } else { h.app(h.sym_term(h.sym("differences")), &[d, h.int(n - 1)]) }));
-        }
-    }
-    let ys = take!(lib.list_operand(h, t, xs, 1));
-    let (add, mul) = (h.sym_term(h.sym("add")), h.sym_term(h.sym("mul")));
-    cx.tick(ys.len() as u64)?;
-    let d: Vec<T<'h>> = ys.windows(2).map(|w| h.app(add, &[w[1], h.app(mul, &[h.int(-1), w[0]])])).collect();
-    let d = cx.list(&d);
-    Ok(Reply::Again(if n == 1 { d } else { h.app(h.sym_term(h.sym("differences")), &[d, h.int(n - 1)]) }))
-}
-
-/// Whether `f` is addition or multiplication: `add`, `mul`, or `(a, b) => a + b` (`a*b`, either order). `Some(true)`
-/// for a product.
-fn arithmetic_op(h: &Heap, f: T<'_>) -> Option<bool> {
-    let op = |t: T<'_>| match h.view(t) {
-        View::Sym(s) => match h.sym_name(s).as_str() {
-            "add" => Some(false),
-            "mul" => Some(true),
-            _ => None,
-        },
-        _ => None,
-    };
-    if let Some(p) = op(f) {
-        return Some(p);
-    }
-    let View::App { head, args: [params, body] } = h.view(f) else { return None };
-    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "fn") {
-        return None;
-    }
-    let View::App { args: [a, b], .. } = h.view(*params) else { return None };
-    let View::App { head: g, args: [x, y] } = h.view(*body) else { return None };
-    let (View::Sym(sa), View::Sym(sb)) = (h.view(*a), h.view(*b)) else { return None };
-    let same = (*x == *a && *y == *b) || (*x == *b && *y == *a);
-    (sa != sb && same).then(|| op(g)).flatten()
-}
-
-/// `fold`/`fold_list` (`list`) of addition or multiplication over a packed array of machine reals or integers,
-/// on its payload (decision p6core.30): the values the scalar loop gives, bit for bit (each step adds or
-/// multiplies two machine numbers, an exact start converted first, as the arithmetic folds them); a packed result.
-/// `None` when the shortcut does not apply (other functions or elements, non-finite reals, integer overflow).
-fn packed_fold<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], list: bool) -> Res<Option<T<'h>>> {
-    let h = cx.heap();
-    let (f, start, xs) = match *args {
-        [f, x, xs] => (f, Some(x), xs),
-        [f, xs] => (f, None, xs),
-        _ => return Ok(None),
-    };
-    let Some(p) = h.packed(xs) else { return Ok(None) };
-    if p.rank() != 1 {
-        return Ok(None);
-    }
-    let Some(product) = arithmetic_op(h, f) else { return Ok(None) };
-    crate::ctx::charge_copy(cx, p.count())?;
-    match p {
-        mc_core::Packed::Ints { data, .. } => {
-            let mut acc: i64 = match start.map(|x| h.view(x)) {
-                None if data.is_empty() => return Ok(None),
-                None => data[0],
-                Some(View::Int(k)) => k,
-                Some(_) => return Ok(None),
-            };
-            let rest = if start.is_none() { &data[1..] } else { data };
-            let mut out = Vec::with_capacity(if list { rest.len() + 1 } else { 0 });
-            if list {
-                out.push(acc);
-            }
-            for &x in rest {
-                let Some(v) = (if product { acc.checked_mul(x) } else { acc.checked_add(x) }) else { return Ok(None) };
-                acc = v;
-                if list {
-                    out.push(acc);
-                }
-            }
-            Ok(Some(if list { h.ints(&out) } else { h.int(acc) }))
-        }
-        mc_core::Packed::Reals { data, .. } => {
-            if data.iter().any(|x| !x.is_finite()) {
-                return Ok(None);
-            }
-            // the start: a machine real, or an exact integer (kept as it is in the list, converted in the first step)
-            let (mut acc, first) = match start.map(|x| h.view(x)) {
-                None if data.is_empty() => return Ok(None),
-                None => (data[0], None),
-                Some(View::Real(x)) if x.is_finite() => (x, None),
-                Some(View::Int(k)) if k.unsigned_abs() <= 1 << 53 => (k as f64, start),
-                Some(_) => return Ok(None),
-            };
-            let rest = if start.is_none() { &data[1..] } else { data };
-            let mut out = Vec::with_capacity(if list { rest.len() + 1 } else { 0 });
-            if list && first.is_none() {
-                out.push(acc);
-            }
-            for &x in rest {
-                acc = if product { acc * x } else { acc + x };
-                if list {
-                    out.push(acc);
-                }
-            }
-            if !list {
-                // an exact start with no elements stays exact
-                return Ok(Some(match (first, rest.is_empty()) {
-                    (Some(x), true) => x,
-                    _ => h.real(acc),
-                }));
-            }
-            Ok(Some(match first {
-                None => h.reals(&out),
-                Some(x) => {
-                    let mut terms = Vec::with_capacity(out.len() + 1);
-                    terms.push(x);
-                    terms.extend(out.iter().map(|&v| h.real(v)));
-                    cx.list(&terms)
-                }
-            }))
-        }
-    }
 }
 
 /// The fold of `fold` and `fold_list`; `each` sees every value. An argument error, or a failure value (which ends

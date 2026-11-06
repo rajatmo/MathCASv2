@@ -137,8 +137,6 @@ struct ArgNode {
 pub(crate) struct SymDefs {
     /// the own value's handle bits, or [`HOLE`]
     own: AtomicU32,
-    /// the definition epoch at which the own value was stored (0: unknown), see [`Defs::own_is_current`]
-    own_epoch: AtomicU32,
     version: AtomicU32,
     attrs: AtomicU64,
     /// the identity element's handle bits (semantics 7.3), or [`HOLE`]
@@ -160,7 +158,6 @@ impl Default for SymDefs {
     fn default() -> Self {
         SymDefs {
             own: AtomicU32::new(HOLE),
-            own_epoch: AtomicU32::new(0),
             version: AtomicU32::new(0),
             attrs: AtomicU64::new(0),
             identity: AtomicU32::new(HOLE),
@@ -275,22 +272,6 @@ impl Defs {
         let sd = self.syms.get_or_init(s.0);
         sd.own.store(Raw::new(v).to_bits(), Release);
         sd.version.fetch_add(1, Relaxed);
-    }
-
-    /// Record that the own value of `s` was stored, as an evaluated value, at definition epoch `e`.
-    pub(crate) fn set_own_epoch(&self, s: Sym, e: u32) {
-        if let Some(sd) = self.get(s) {
-            sd.own_epoch.store(e, Release);
-        }
-    }
-
-    /// Whether the own value of `s` is still a normal form: it was stored at definition epoch `now` and nothing has
-    /// been defined since (decision p6core.31: reading a large association need not evaluate it again).
-    pub(crate) fn own_is_current(&self, s: Sym, now: u32) -> bool {
-        self.get(s).is_some_and(|sd| {
-            let e = sd.own_epoch.load(Acquire);
-            e != 0 && e == now
-        })
     }
 
     pub(crate) fn set_attrs(&self, s: Sym, a: Attributes) {

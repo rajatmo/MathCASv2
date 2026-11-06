@@ -141,8 +141,6 @@ functions! {
         "nest_list(f, x, n): [x, f(x), ..., f^n(x)]";
     "fold" => construct::fold,
         "fold(f, x, xs): f(...f(f(x, xs[1]), xs[2])..., xs[n]); fold(f, xs) starts from xs[1]";
-    "differences" => construct::differences,
-        "differences(xs): [x2 - x1, x3 - x2, ...]; differences(xs, n): the n-th differences";
     "fold_list" => construct::fold_list,
         "fold_list(f, x, xs): the list of every intermediate value of fold";
     "length" => access::length,
