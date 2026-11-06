@@ -18,6 +18,15 @@ fn main() -> ExitCode {
         println!("{}", cli::USAGE);
         return ExitCode::SUCCESS;
     }
+    if let Some((notebook, out)) = &options.export {
+        return match mc_nbexport::export(notebook, out) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("mc-repl: {e}");
+                ExitCode::from(cli::READ_ERROR)
+            }
+        };
+    }
     let stop = StopFlag::new();
     let interactive = options.interactive;
     match interrupt::install(stop.clone()) {

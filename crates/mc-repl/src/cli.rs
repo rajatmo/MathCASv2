@@ -2,7 +2,8 @@
 //! order in one session and exits; `-e "src"` evaluates source (repeatable, in order with the files); `-i` enters
 //! the REPL afterwards; `--no-prelude` starts without the prelude; `--help` prints the usage. A `.mcn` file is a
 //! notebook: its code cells run in order in the same session ([`crate::notebook`]); with `--update` their output
-//! blocks are written back into the file. `--threads N` sets the session's worker threads.
+//! blocks are written back into the file. `--threads N` sets the session's worker threads. `--export nb.mcn
+//! out.html` (or `out.pdf`) converts a saved notebook to a document without evaluating anything.
 //!
 //! A script prints its `print` output and the value of its last statement unless it is `null`. Exit codes: 0 ok;
 //! 1 a read, resolve or load error (nothing more runs) or a bad command line; 2 a top-level statement's value was
@@ -26,6 +27,8 @@ usage: mc-repl [options] [file.mc ...]
   -i             enter the REPL after the files and sources
   --no-prelude   start without the prelude
   --threads N    worker threads of the session (default: up to 4)
+  --export NB.mcn OUT.html|OUT.pdf
+                 convert the notebook as saved (no evaluation) to HTML or PDF
   --help         print this text
 With no files and no -e, mc-repl starts the REPL.
 Exit codes: 0 ok, 1 read error, 2 a statement failed, 130 interrupted.";
@@ -65,6 +68,8 @@ pub struct Options {
     pub update: bool,
     /// `--threads N`
     pub threads: Option<usize>,
+    /// `--export NB OUT`: the notebook and the document to write
+    pub export: Option<(PathBuf, PathBuf)>,
 }
 
 /// Parse the arguments (without the program name).
@@ -82,6 +87,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
                 Some(n) => o.threads = Some(n),
                 None => return Err("--threads needs a positive number".into()),
             },
+            "--export" => match (args.next(), args.next()) {
+                (Some(nb), Some(out)) => o.export = Some((nb.into(), out.into())),
+                _ => return Err("--export needs a notebook and an output file (.html, .htm or .pdf)".into()),
+            },
             "--help" | "-h" => o.help = true,
             s if s.starts_with('-') && s.len() > 1 => return Err(format!("unknown option {s}")),
             _ if Path::new(&a).extension().is_some_and(|x| x == "mcn") => o.items.push(Item::Notebook(a.into())),
@@ -91,7 +100,10 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Options, String> 
     if o.update && !o.items.iter().any(|i| matches!(i, Item::Notebook(_))) {
         return Err("--update needs a notebook (.mcn) to update".into());
     }
-    o.interactive = interactive || o.items.is_empty();
+    if o.export.is_some() && (!o.items.is_empty() || interactive || o.update) {
+        return Err("--export takes no other files, sources or -i/--update".into());
+    }
+    o.interactive = o.export.is_none() && (interactive || o.items.is_empty());
     Ok(o)
 }
 
@@ -181,5 +193,10 @@ mod tests {
         assert_eq!(o.threads, Some(2));
         assert_eq!(args(&["--update", "a.mc"]), Err("--update needs a notebook (.mcn) to update".into()));
         assert_eq!(args(&["--threads", "0"]), Err("--threads needs a positive number".into()));
+        let o = args(&["--export", "a.mcn", "a.pdf"]).unwrap();
+        assert_eq!(o.export, Some(("a.mcn".into(), "a.pdf".into())));
+        assert!(!o.interactive && o.items.is_empty());
+        assert!(args(&["--export", "a.mcn"]).is_err());
+        assert!(args(&["--export", "a.mcn", "a.pdf", "b.mc"]).is_err());
     }
 }

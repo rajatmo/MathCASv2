@@ -2564,6 +2564,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-nbexport"
+version = "0.2.0"
+dependencies = [
+ "mc-boxes",
+ "mc-mathfont",
+ "mc-nbfile",
+ "mc-syntax",
+ "miniz_oxide 0.8.9",
+ "png 0.18.1",
+ "ttf-parser",
+]
+
+[[package]]
 name = "mc-nbfile"
 version = "0.2.0"
 
@@ -2727,6 +2740,7 @@ dependencies = [
  "mc-bench",
  "mc-engine",
  "mc-kernel",
+ "mc-nbexport",
  "mc-syntax",
  "winresource",
 ]
