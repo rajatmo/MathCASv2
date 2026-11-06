@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/functions");
-    println!("cargo:rerun-if-changed=../../docs/functions");
+    // the absolute path: the generated file names pages by absolute path, so a moved repository must rerun this
+    // (a relative path would look unchanged and keep the old paths)
+    println!("cargo:rerun-if-changed={}", root.display());
     let mut files = vec![];
     collect(&root, &root, &mut files);
     files.sort();
