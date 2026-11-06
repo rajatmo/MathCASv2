@@ -17,3 +17,4 @@ mod typeset;
 pub mod theme;
 mod view;
 pub mod zoom;
+pub mod rotate3d;

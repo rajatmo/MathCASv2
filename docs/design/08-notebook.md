@@ -937,6 +937,12 @@ demand.
   Shift held (otherwise also keep the ratio) *(guess)*. The size is stored on the output (`size=WxH`, 7.2) and kept
   across re-evaluation of the same input when the new value is also an image *(guess)*. Double-click on a resized
   image restores its natural size *(MathCAS)*.
+- **3D pictures turn** *(round 13)*: a picture whose scene travels with it (`plot-N.scene3d`, written by every 3D
+  plot and shown `graphics3d` value) is drawn again from another view point on a worker thread, without evaluating:
+  dragging it turns it (half a turn across its width), the wheel zooms it while it is selected (10 % a notch; the
+  wheel scrolls the notebook otherwise), a double-click goes back to its own view. The view is kept on the output
+  (`view=x:y:z`, `zoom=z`, `vertical=x:y:z`, only what differs from the picture's own view; an undo unit) and comes
+  back when the notebook is opened. Plot coordinates are not shown over a 3D picture.
 - **Later (vector):** values `svg("path")` or a graphics term rendered by a future `mc-graphics`: rasterised with
   `resvg`/`tiny-skia` (in the local caches) at the current display scale on a worker thread, re-rasterised on zoom;
   hit-testing per element is out of scope.

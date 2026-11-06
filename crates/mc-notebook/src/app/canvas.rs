@@ -84,6 +84,13 @@ impl App {
                 self.plot_hover(&ctx, ui.painter(), origin);
             }
             self.ime(&ctx, ui.painter(), rect);
+            // the selected picture, when it turns: the wheel over it zooms it (taken from the input next frame)
+            self.wheel3d = self.doc.view.graphic.and_then(|id| {
+                let i = self.doc.nb.index_of(id)?;
+                let path = self.doc.view.graphic_path(&self.doc.nb, i)?;
+                let r = self.doc.view.graphic_rect(&self.doc.nb, i)?;
+                self.rot.borrow_mut().turns(&path).then(|| (id, r.translate(origin.to_vec2()).intersect(clip)))
+            });
             if std::mem::take(&mut self.doc.scroll_pending) {
                 if let Some(r) = self.selection_rect(&ctx) {
                     ui.scroll_to_rect(r.translate(origin.to_vec2()).expand(8.0), None);
@@ -103,6 +110,10 @@ impl App {
         };
         let Some(i) = self.doc.nb.index_of(id) else { return };
         let Some(path) = self.doc.view.graphic_path(&self.doc.nb, i) else { return };
+        // a 3D picture turns under the pointer: its plane coordinates mean nothing
+        if self.rot.borrow_mut().turns(&path) {
+            return;
+        }
         let Some(rect) = self.doc.view.graphic_rect(&self.doc.nb, i) else { return };
         let Some(info) = self.plots.get(&path, ctx.input(|i| i.time)) else { return };
         let rect = rect.translate(origin.to_vec2());
@@ -351,15 +362,26 @@ impl App {
                 }
                 Hit::Graphic(id) => {
                     // a click selects the picture (the caret goes before it, hidden); a double-click restores its
-                    // own size (design 6)
+                    // own size (design 6), or a 3D picture's own view; dragging a 3D picture turns it
                     self.run(ctx, Command::ClickText(id, 0, false));
                     self.doc.view.graphic = Some(id);
                     let double = count >= 2 || resp.double_clicked();
-                    if double && self.doc.nb.cell(id).is_some_and(|c| c.graphic_size().is_some()) {
+                    let turning = self.view3d_of(id);
+                    let turned = self.doc.nb.cell(id).is_some_and(|c| crate::rotate3d::VIEW_ATTRS.iter().any(|a| c.out_extra.has(a)));
+                    if double && turned {
+                        let reset = crate::rotate3d::VIEW_ATTRS.iter().map(|a| (a.to_string(), None)).collect();
+                        self.run(ctx, Command::SetOutputAttrs(id, reset));
+                        self.rot.borrow_mut().forget(id);
+                        self.doc.view.graphic = Some(id);
+                    } else if double && self.doc.nb.cell(id).is_some_and(|c| c.graphic_size().is_some()) {
                         self.run(ctx, Command::ResizeGraphic(id, None));
                         self.doc.view.graphic = Some(id);
                     }
-                    self.drag = None;
+                    let rect = self.doc.nb.index_of(id).and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i));
+                    self.drag = match (turning, rect) {
+                        (Some((v, _)), Some(r)) if !double => Some(Drag::Rotate(id, screen, v, r.size())),
+                        _ => None,
+                    };
                 }
                 Hit::Handle(id, h) => {
                     let rect = self.doc.nb.index_of(id).and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i));
@@ -394,6 +416,14 @@ impl App {
                 Some(Drag::Resize(id, h, start, from)) => {
                     let size = resize(from, screen - start, h, mods.shift);
                     self.doc.view.live_size = Some((id, size));
+                }
+                Some(Drag::Rotate(id, start, from, size)) => {
+                    let d = screen - start;
+                    if d.length() > 2.0 {
+                        let (w, h) = (f64::from(size.x.max(1.0)), f64::from(size.y.max(1.0)));
+                        let v = mc_graphics::view3d::orbit_drag(&from, f64::from(d.x), f64::from(d.y), w, h);
+                        self.doc.view.live_view = Some((id, v));
+                    }
                 }
                 Some(Drag::Text) => {
                     let hit = self.doc.view.hit(ctx, &self.doc.nb, p);
@@ -444,6 +474,11 @@ impl App {
                     let (w, h) = ((s.x / m).round().max(1.0) as u32, (s.y / m).round().max(1.0) as u32);
                     self.run(ctx, Command::ResizeGraphic(id, Some((w, h))));
                     self.doc.view.graphic = Some(id);
+                }
+            } else if let Some(Drag::Rotate(id, ..)) = self.drag {
+                // the view is kept on the output (an undo unit)
+                if let Some((_, v)) = self.doc.view.live_view {
+                    self.keep_view(ctx, id, v);
                 }
             } else if let (Some(Drag::Cells(_)), Some(g)) = (self.drag, self.doc.view.drop_gap.take()) {
                 self.run(ctx, Command::MoveCells(g, mods.ctrl));

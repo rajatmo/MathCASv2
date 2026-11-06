@@ -177,6 +177,7 @@ impl Notebook {
             }
             C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
             C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
+            C::SetOutputAttrs(id, attrs) => fx.beep = !self.set_output_attrs(id, attrs),
             // without a typeset cell at the caret (handled before): nothing to act on
             C::Structure(_) | C::ExitStructure => fx.beep = true,
             C::ClickBox(id, path, offset, extend) => self.click_box(id, &path, offset, extend),
@@ -195,6 +196,26 @@ impl Notebook {
         self.update_cell(id, true, |c| match value {
             Some(v) => c.out_extra.set("size", Some(v)),
             None => c.out_extra.remove("size"),
+        });
+        true
+    }
+
+    fn set_output_attrs(&mut self, id: CellId, attrs: Vec<(String, Option<String>)>) -> bool {
+        let Some(c) = self.cell(id) else { return false };
+        if c.style != crate::Style::Output {
+            return false;
+        }
+        let changed = attrs.iter().any(|(n, v)| c.out_extra.get(n) != v.as_deref() || (v.is_none() && c.out_extra.has(n)));
+        if !changed {
+            return true;
+        }
+        self.update_cell(id, true, |c| {
+            for (n, v) in &attrs {
+                match v {
+                    Some(v) => c.out_extra.set(n, Some(v.clone())),
+                    None => c.out_extra.remove(n),
+                }
+            }
         });
         true
     }

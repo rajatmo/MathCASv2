@@ -257,6 +257,10 @@ pub struct View {
     pub graphic: Option<CellId>,
     /// a picture being resized and its size on screen (points)
     pub live_size: Option<(CellId, Vec2)>,
+    /// a 3D picture being turned or zoomed: its view until the change is kept on the output
+    pub live_view: Option<(CellId, mc_graphics::view3d::View3d)>,
+    /// the window's 3D pictures (turning them, `rotate3d`)
+    pub rot: Option<Rc<RefCell<crate::rotate3d::Rotations>>>,
     /// while a right-justified picture is resized: the canvas x of the edge that stays put (the one opposite the
     /// dragged handle), so the dragged edge follows the pointer; the picture is right-justified again on release
     pub live_anchor: Option<(f32, i8)>,
@@ -310,6 +314,8 @@ impl View {
             base: None,
             graphic: None,
             live_size: None,
+            live_view: None,
+            rot: None,
             live_anchor: None,
             budgets: HashMap::new(),
             large: HashMap::new(),
@@ -1439,7 +1445,25 @@ impl View {
         // the raster size: SVG drawings are rasterised for the display, at the size they keep (not every size a
         // resize passes through)
         let width = (self.graphic_size(c, path, false).x * ctx.pixels_per_point()).round() as u32;
-        let picture = self.images.borrow_mut().picture(path, width, self.now);
+        // a 3D picture turned away from its own view: the scene drawn from that view (the picture shows until the
+        // first render is there)
+        let turned = self.rot.clone().and_then(|rot| {
+            let mut rot = rot.borrow_mut();
+            let scene = rot.scene(path)?;
+            let view = match self.live_view {
+                Some((id, v)) if id == c.id => v,
+                _ => crate::rotate3d::view_of(&c.out_extra, scene.view())?,
+            };
+            let page = scene.page_size().0.max(1.0) as f32;
+            let scale = (r.width() * ctx.pixels_per_point() / page).clamp(0.25, 4.0);
+            // scales in steps of 1/8, so a resize does not ask for a render per pixel
+            let scale = (scale * 8.0).round() / 8.0;
+            rot.texture(c.id, path, view, scale)
+        });
+        let picture = match turned {
+            Some(tex) => Picture::Ready(tex.id(), tex.size()),
+            None => self.images.borrow_mut().picture(path, width, self.now),
+        };
         match picture {
             Picture::Ready(tex, _) => {
                 let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));

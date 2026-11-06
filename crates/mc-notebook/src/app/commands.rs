@@ -1,6 +1,7 @@
 //! Commands: applying a model command and acting on its effects, window actions, F1 documentation, copying
 //! pictures, magnification.
 use super::*;
+use mc_graphics::view3d::View3d;
 
 impl App {
     /// Apply a command to the notebook and act on its effects.
@@ -200,6 +201,58 @@ impl App {
         self.doc.view.set_magnification(z);
         self.settings.magnification = self.doc.view.magnification();
         self.settings.save();
+    }
+
+    /// A 3D picture's view now (the one being turned, else the one kept on the output, else its own) and its own
+    /// view; `None` for other cells.
+    pub(super) fn view3d_of(&mut self, id: mc_nbmodel::CellId) -> Option<(View3d, View3d)> {
+        let i = self.doc.nb.index_of(id)?;
+        let path = self.doc.view.graphic_path(&self.doc.nb, i)?;
+        let scene = self.rot.borrow_mut().scene(&path)?;
+        let base = scene.view();
+        if let Some((cell, v)) = self.doc.view.live_view {
+            if cell == id {
+                return Some((v, base));
+            }
+        }
+        let c = &self.doc.nb.cells()[i];
+        Some((crate::rotate3d::view_of(&c.out_extra, base).unwrap_or(base), base))
+    }
+
+    /// Keep view `v` on the 3D picture of cell `id` (an undo unit) and end the live view.
+    pub(super) fn keep_view(&mut self, ctx: &egui::Context, id: mc_nbmodel::CellId, v: View3d) {
+        if let Some((_, base)) = self.view3d_of(id) {
+            self.run(ctx, Command::SetOutputAttrs(id, crate::rotate3d::attrs_of(&v, &base)));
+            self.doc.view.graphic = Some(id);
+        }
+        self.doc.view.live_view = None;
+    }
+
+    /// Wheel notches over the selected 3D picture zoom it (`zoom_wheel`: 10 % a notch); the zoom is kept on the
+    /// output once the wheel rests for 0.4 s.
+    pub(super) fn zoom_picture(&mut self, ctx: &egui::Context) {
+        let time = ctx.input(|i| i.time);
+        let notches = std::mem::take(&mut self.zoom3d);
+        if notches != 0.0 {
+            if let Some((id, _)) = self.wheel3d {
+                if let Some((v, _)) = self.view3d_of(id) {
+                    let zoom = mc_graphics::view3d::zoom_wheel(v.zoom, notches);
+                    self.doc.view.live_view = Some((id, View3d { zoom, ..v }));
+                    self.zoom3d_commit = Some((id, time + 0.4));
+                    ctx.request_repaint_after(std::time::Duration::from_millis(450));
+                }
+            }
+        }
+        if let Some((id, at)) = self.zoom3d_commit {
+            if time >= at && !matches!(self.drag, Some(Drag::Rotate(..))) {
+                self.zoom3d_commit = None;
+                if let Some((cell, v)) = self.doc.view.live_view {
+                    if cell == id {
+                        self.keep_view(ctx, id, v);
+                    }
+                }
+            }
+        }
     }
 
     pub(super) fn context(&self) -> Context {

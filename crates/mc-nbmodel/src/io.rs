@@ -174,8 +174,12 @@ impl Notebook {
                     };
                     block.lines.extend(g.text.split('\n').map(|t| OutputLine { kind: prefix, text: t.to_string() }));
                     map.push(Some(f.cells.len()));
-                    if g.style == Style::Output && g.label.is_some() {
-                        block.attrs.set("n", g.label.map(|n| n.to_string()));
+                    // a numbered output, or one with attributes of its own (a picture's size, a 3D view, control values),
+                    // closes its block, so the attributes stay with it
+                    if g.style == Style::Output && (g.label.is_some() || !g.out_extra.is_empty()) {
+                        if g.label.is_some() {
+                            block.attrs.set("n", g.label.map(|n| n.to_string()));
+                        }
                         block.attrs.0.extend(g.out_extra.0.iter().cloned());
                         fc.outputs.push(std::mem::take(&mut block));
                     }

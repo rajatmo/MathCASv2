@@ -32,8 +32,11 @@ pub enum Scale {
     Linear,
     /// base-10 logarithm (positive values only)
     Log,
-    /// `v/c` for `|v| <= c`, else `sign(v) (1 + log10(|v|/c))`: linear near 0, logarithmic far from it
+    /// `v/c` for `|v| <= c`, else `sign(v) (1 + log10(|v|/c))`: linear near 0, logarithmic far from it (plot
+    /// descriptions before round 13, which give only `c`)
     SignedLog(f64),
+    /// `sign(v) log10(a + k |v|)`, 0 at 0 (round 13: the description gives `a` and `k` as the renderer maps it)
+    SignedLogAk(f64, f64),
 }
 
 impl Scale {
@@ -45,6 +48,13 @@ impl Scale {
                     v.log10()
                 } else {
                     f64::NAN
+                }
+            }
+            Scale::SignedLogAk(a, k) => {
+                if v == 0.0 {
+                    0.0
+                } else {
+                    v.signum() * (a + k * v.abs()).log10()
                 }
             }
             Scale::SignedLog(c) => {
@@ -61,6 +71,8 @@ impl Scale {
         match self {
             Scale::Linear => t,
             Scale::Log => 10f64.powf(t),
+            // between -log10(a) and log10(a) only 0 has a place
+            Scale::SignedLogAk(a, k) => t.signum() * ((10f64.powf(t.abs()) - a) / k).max(0.0),
             Scale::SignedLog(c) => {
                 if t.abs() <= 1.0 {
                     t * c
@@ -151,7 +163,13 @@ fn axis(v: &Value) -> Option<Axis> {
     let scale = match v.get("scale").and_then(Value::as_str).unwrap_or("linear") {
         "linear" => Scale::Linear,
         "log" => Scale::Log,
-        "signed_log" => Scale::SignedLog(v.get("c").and_then(number).filter(|c| *c > 0.0).unwrap_or(1.0)),
+        "signed_log" => {
+            let ak = (v.get("a").and_then(number), v.get("k").and_then(number));
+            match ak {
+                (Some(a), Some(k)) if a > 0.0 && k > 0.0 => Scale::SignedLogAk(a, k),
+                _ => Scale::SignedLog(v.get("c").and_then(number).filter(|c| *c > 0.0).unwrap_or(1.0)),
+            }
+        }
         _ => return None,
     };
     let a = Axis { min, max, scale };
@@ -465,6 +483,17 @@ mod tests {
         for v in [-50.0, -0.3, 0.0, 2.0, 99.0] {
             assert!((sl.value(sl.unit(v)) - v).abs() < 1e-9, "{v}");
         }
+        // round 13: sign(v) log10(a + k |v|) with the description's constants (threshold 1e-8: k = 1e8, a = 32)
+        let ak = axis(&serde_json::json!({"min": -1000.0, "max": 1000.0, "scale": "signed_log", "c": 1e-8, "a": 32.0, "k": 1e8}))
+            .unwrap();
+        assert!(matches!(ak.scale, Scale::SignedLogAk(..)));
+        assert!((ak.unit(0.0) - 0.5).abs() < 1e-12);
+        for v in [-1000.0, -3e-5, 1e-8, 0.5, 700.0] {
+            assert!((ak.value(ak.unit(v)) - v).abs() < 1e-9 * v.abs().max(1.0), "{v}");
+        }
+        let expect = |v: f64| (32.0 + 1e8 * v).log10();
+        let span = 2.0 * expect(1000.0);
+        assert!((ak.unit(1.0) - (0.5 + expect(1.0) / span)).abs() < 1e-12);
     }
 
     #[test]

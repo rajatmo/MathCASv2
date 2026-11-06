@@ -111,6 +111,8 @@ enum Drag {
     Cells(egui::Pos2),
     /// resizing a picture by a handle: where the drag started (screen) and the picture's size then (screen points)
     Resize(mc_nbmodel::CellId, Handle, egui::Pos2, egui::Vec2),
+    /// turning a 3D picture: where the drag started (screen), the view then and the picture's size (screen points)
+    Rotate(mc_nbmodel::CellId, egui::Pos2, mc_graphics::view3d::View3d, egui::Vec2),
 }
 
 /// Completion delay after two typed identifier characters (design 3.10, guess 20).
@@ -265,6 +267,14 @@ pub struct App {
     zoom_steps: i32,
     /// the pictures of every tab's Output cells, as textures
     pub(crate) images: Rc<RefCell<Images>>,
+    /// the 3D pictures being turned, and their renders
+    pub(crate) rot: Rc<RefCell<crate::rotate3d::Rotations>>,
+    /// the selected 3D picture's screen rectangle (the wheel over it zooms it) and the pointer's last position
+    wheel3d: Option<(mc_nbmodel::CellId, egui::Rect)>,
+    pointer_at: Option<egui::Pos2>,
+    /// wheel notches over the selected 3D picture not yet applied, and when its zoom is kept on the output
+    zoom3d: f64,
+    zoom3d_commit: Option<(mc_nbmodel::CellId, f64)>,
     /// the math-font glyphs of typeset content, as one texture atlas (shared by the tabs)
     pub(crate) glyphs: Rc<RefCell<Glyphs>>,
     /// the descriptions of plot pictures, for coordinates under the pointer
@@ -295,6 +305,11 @@ impl App {
         let mut app = App {
             doc: Doc::new(Notebook::new(), None, &ctx, &images, &glyphs, palette, zoom),
             images,
+            rot: Rc::new(RefCell::new(crate::rotate3d::Rotations::new(&ctx))),
+            wheel3d: None,
+            pointer_at: None,
+            zoom3d: 0.0,
+            zoom3d_commit: None,
             glyphs,
             plots: crate::plothover::Plots::default(),
             help: help::HelpState::default(),
@@ -438,6 +453,23 @@ impl App {
         self.doc.scroll_by += dy;
     }
 
+    /// The views kept on 3D outputs and the render times so far (the self-test's `view3d` step).
+    pub fn view3d_probe(&self) -> String {
+        let views: Vec<String> = self
+            .doc
+            .nb
+            .cells()
+            .iter()
+            .filter(|c| crate::rotate3d::VIEW_ATTRS.iter().any(|a| c.out_extra.has(a)))
+            .map(|c| format!("[{}]", c.out_extra.to_string().trim()))
+            .collect();
+        let mut t = self.rot.borrow().times.clone();
+        t.sort_by(f64::total_cmp);
+        let med = t.get(t.len() / 2).copied().unwrap_or(0.0);
+        let max = t.last().copied().unwrap_or(0.0);
+        format!("{} renders: {} median {med:.1} ms max {max:.1} ms", views.join(" "), t.len())
+    }
+
     /// The magnification, the scroll offset and what lies at window height `y`: the cell's index and the fraction
     /// of its height above `y` (the self-test's `anchor` step).
     pub fn zoom_probe(&self, y: f32) -> String {
@@ -477,11 +509,36 @@ impl eframe::App for App {
         // smooth them over frames and scroll with what arrives after Ctrl is released)
         let time = raw.time.unwrap_or(0.0);
         self.zoom_steps += self.wheel.take(&mut raw.events, time);
+        // the wheel over the selected 3D picture zooms the picture instead of scrolling the notebook
+        for e in &raw.events {
+            if let egui::Event::PointerMoved(p) = e {
+                self.pointer_at = Some(*p);
+            }
+        }
+        if let (Some((_, rect)), Some(p)) = (self.wheel3d, self.pointer_at) {
+            if rect.contains(p) {
+                let mut notches = 0.0;
+                raw.events.retain(|e| match e {
+                    egui::Event::MouseWheel { unit, delta, .. } => {
+                        notches += f64::from(match unit {
+                            egui::MouseWheelUnit::Point => delta.y / 50.0,
+                            _ => delta.y,
+                        });
+                        false
+                    }
+                    _ => true,
+                });
+                self.zoom3d += notches;
+            }
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let start = std::time::Instant::now();
         self.images.borrow_mut().begin_frame();
+        self.rot.borrow_mut().poll();
+        self.doc.view.rot = Some(self.rot.clone());
+        self.zoom_picture(&ui.ctx().clone());
         self.glyphs.borrow_mut().begin_frame();
         // the second frame: the first one reached the screen, the graphics interface works
         self.frames_shown += 1;

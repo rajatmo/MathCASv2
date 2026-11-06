@@ -418,3 +418,23 @@ the cell renderer lays it out like any output (right-justified as a whole) and p
   the same text, carried pictures kept), `an_older_notebook_with_a_sidecar_folder_is_embedded_on_save_and_the_folder_stays`;
   mc-repl `tests/embedded.rs` (a 2D and a 3D plot through `--update`: one file in the folder, no cache path, five
   embedded files, 312 KB, export finds both pictures, a second run writes the same text).
+
+## Round 13 (nb-mat): turning 3D pictures, signed-log read-outs
+
+- `rotate3d.rs`: the scenes of 3D pictures (`mc_graphics::view3d::Scene3d::cached`, read once per picture path), a
+  worker thread that renders only the newest request per cell (overtaken ones are dropped), and the textures. A
+  picture whose output keeps a view (`view`, `zoom`, `vertical`; `Command::SetOutputAttrs`, an undo unit) or is being
+  turned shows the render (the PNG until the first one arrives); scales snap to 1/8 so a resize does not ask for a
+  render per pixel. Mouse: a press on a 3D picture starts `Drag::Rotate` (`orbit_drag` from the view at the press),
+  the release keeps the view; the wheel over the selected 3D picture is taken out of egui's input (it does not scroll)
+  and zooms (`zoom_wheel`), kept 0.4 s after the last notch; a double-click drops the view. No plot read-out over 3D.
+- mc-notebook now depends on mc-graphics (its `view3d` needs no evaluator; still never mc-engine).
+- Outputs with attributes but no number (written by the headless runner) now keep their attributes when saved (they
+  close their block): a size or a view set on such an output was lost before.
+- Plot read-outs follow the round-13 signed-log mapping `sign(v) log10(a + k |v|)` when the description gives `a`
+  and `k` (older descriptions keep the old mapping).
+- Measured (release, 1000 x 700 window): a default `plot3d` re-renders in 16 ms median (19 ms max) at scale 1.5, a
+  small `graphics3d` in 2 ms.
+- Tests: `rotate3d::tests::views_are_kept_as_attributes_and_read_back`; `plothover` signed-log test extended; the
+  self-test `tests/rotate3d_selftest.rs` (ignored: opens a window): drag turns, two notches zoom 1.21, the saved file
+  keeps the view and embeds the scene, reopening renders the kept view, a double-click drops it.
