@@ -62,7 +62,7 @@ Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook\shell\open\command"; Value
 
 [Run]
 Filename: "{app}\mc-notebook.exe"; Description: "Open the MathCAS notebook";   Flags: postinstall nowait skipifsilent unchecked
-Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-0.1.0.vsix"""; \
+Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-0.2.0.vsix"""; \
   Description: "Install the MathCAS extension into VS Code"; Check: VsCodeFound; \
   Flags: postinstall unchecked skipifsilent runhidden
 Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --kernel ""{app}\mc-kernel.exe"" --default"; \

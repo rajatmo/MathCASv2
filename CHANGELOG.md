@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.2.0 (2026-11-06)
+
+**Notebook:** one kind of cell. Input and output are the same plain text in the cell's own font, with exactly three
+two-dimensional forms: square roots (`Ctrl+2`), fractions (`Ctrl+/`) and powers (`Ctrl+6`), edited in place. Outputs
+read as written mathematics (`2√2`, `3x²`, `1/√z`). Outputs are right-justified; selection, Find and copying work across
+the boxes. All icons, and the new application icon (a calligraphic M inside a calligraphic C), are drawn in TikZ.
+
+**Graphics:** 3D graphics and plots (`graphics3d`, `plot3d`, `parametric_plot3d`, `list_plot3d`, `complex_plot3d`, ...)
+with MathCAS's own renderer and smooth shading; `complex_plot`, `re_im_plot`, `abs_arg_plot`, `array_plot`,
+`matrix_plot`, `discrete_plot`, `pie_chart`, `list_contour_plot`; layouts (`show`, `graphics_row`, `graphics_grid`,
+`inset`, `callout`, `placed`); the common plot options (epilog, filling, grid lines, legend titles, plot styles, ...);
+math letter styles in labels; animated GIF export.
+
+**Mathematics:**
+- **Symbolic:** assumptions throughout `simplify`, `refine`, `integrate` and `solve`; series through derivatives
+  (Puiseux, logarithmic, at infinity); `d_solve`, `r_solve`, `minimize`/`maximize`, `find_instance`; the
+  `function_*` properties; Fourier transforms; `complex_expand`; `function_expand`.
+- **Numeric and special functions:** 74 functions defined by formulas (reciprocal and inverse trigonometric
+  functions, orthogonal polynomials, `product_log`, Fresnel, spherical Bessel, ...); special functions at complex
+  arguments with rigorous enclosures; uncertain numbers (`around`, `interval`); units (`quantity`, `unit_convert`);
+  `sparse_array`; matrix functions; `find_fit`; boundary-value problems in `n_dsolve`.
+- **Language:** recursion and memory limits, level and operator forms, structural and sequence functions,
+  `composition`, and packed running sums.
+
+**Examples:** 25 scripts in `examples/`, among them ports of the author's research notebooks on phase transitions,
+gravitational waves, reheating and leptogenesis, which run faster than the originals.
+
+**Documentation:** 385 function pages, each with examples checked against the engine.
+
 ## 0.1.0 (2026-11-06)
 
 The first numbered release of MathCAS v2, under the GNU GPL version 3 or later.

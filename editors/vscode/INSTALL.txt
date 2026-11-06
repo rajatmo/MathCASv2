@@ -14,18 +14,18 @@ Install
 1. Put mc-repl and mc-lsp (mc-repl.exe and mc-lsp.exe on Windows) in one folder, and that folder on PATH; or set
    their paths in the settings below.
 2. Copy this folder (the one holding package.json) into the VS Code extensions folder, under the name
-   mathcas.mathcas-0.1.0:
-     Windows:        %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.1.0
-     macOS, Linux:   ~/.vscode/extensions/mathcas.mathcas-0.1.0
+   mathcas.mathcas-0.2.0:
+     Windows:        %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.2.0
+     macOS, Linux:   ~/.vscode/extensions/mathcas.mathcas-0.2.0
    For example, in PowerShell from the folder holding this file:
-     Copy-Item -Recurse . "$env:USERPROFILE\.vscode\extensions\mathcas.mathcas-0.1.0"
+     Copy-Item -Recurse . "$env:USERPROFILE\.vscode\extensions\mathcas.mathcas-0.2.0"
 3. Restart VS Code (or run "Developer: Reload Window") and open a .mc file. "MathCAS" shows as its language in the
    status bar; messages of the language server go to the "MathCAS" output panel.
 
 To try the extension without installing it, start VS Code with it loaded for one window:
      code --extensionDevelopmentPath=<this folder>
 
-To remove it, delete the mathcas.mathcas-0.1.0 folder from the extensions folder and restart VS Code.
+To remove it, delete the mathcas.mathcas-0.2.0 folder from the extensions folder and restart VS Code.
 
 Settings
 --------
