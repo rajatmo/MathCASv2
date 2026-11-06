@@ -108,3 +108,14 @@ fn taylor_agrees_with_the_machine_methods() {
     let m = s.run("n_dsolve_value([y'(t) == y(t), y(0) == 1], y(1), [t, 0, 1], method: taylor)");
     assert!(correct_digits(&m, &s.run("n(e, 40)")), "{m}");
 }
+
+#[test]
+fn bessel_k_in_the_right_hand_side() {
+    let mut s = Sys::new();
+    let hp = s.run("n_dsolve_value([y'(t) == -bessel_k(1, y(t))/bessel_k(2, y(t)), y(0) == 1], y(1), [t, 0, 1], digits: 20)");
+    let m = s.run("n_dsolve_value([y'(t) == -bessel_k(1, y(t))/bessel_k(2, y(t)), y(0) == 1], y(1), [t, 0, 1], accuracy_goal: 13, precision_goal: 13)");
+    assert!(hp.starts_with("0.675488814685648"), "{hp}");
+    assert!(m.starts_with("0.67548881468"), "{m}");
+    let q = s.run("n_dsolve_value([y'(t) == bessel_k(0, 1 + t), y(0) == 0], y(1), [t, 0, 1], digits: 25)");
+    assert!(q.starts_with("0.2311658856930504"), "{q}");
+}

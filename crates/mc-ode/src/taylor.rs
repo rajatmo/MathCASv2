@@ -47,6 +47,11 @@ enum Op {
     Pow(usize, Ball),
     /// atan(a), with the node of 1 + a^2
     Atan(usize, usize),
+    /// `bessel_k(n, a)` for an integer n >= 0; the next node is `bessel_k(n + 1, a)` ([`Op::BesselKNext`]), from
+    /// y' = (n y/a - z) a', z' = (-y - (n + 1) z/a) a' (G13)
+    BesselK(i64, usize),
+    /// `bessel_k(n + 1, a)`: its coefficients are computed with the preceding [`Op::BesselK`]
+    BesselKNext,
 }
 
 /// The right-hand side as a tape: the nodes and the node of each component.
@@ -240,6 +245,18 @@ pub(crate) fn tape<'h>(
             } else {
                 let View::Sym(f) = h.view(head) else { return Ok(Err("an unsupported function".into())) };
                 let fname = h.sym_name(f);
+                if let (true, [nu, a]) = (fname == "bessel_k", args) {
+                    // an integer order (K_-n = K_n), a variable argument
+                    let order = match h.view(*nu) {
+                        View::Int(n) if n.abs() < 1000 => n.abs(),
+                        _ => return Ok(Err("bessel_k of a non-integer or variable order".into())),
+                    };
+                    let a = node(&memo, *a);
+                    let k = b.push(Op::BesselK(order, a));
+                    b.push(Op::BesselKNext);
+                    memo.insert(u, k);
+                    continue;
+                }
                 let &[a] = args else { return Ok(Err(format!("{fname} with {} arguments", args.len()))) };
                 let a = node(&memo, a);
                 match fname.as_str() {
@@ -441,6 +458,15 @@ impl Tape {
                         sum.div(&kb.mul(&s.c[*a][0], p), p)?
                     }
                 }
+                Op::BesselKNext => {
+                    // pushed by the preceding BesselK
+                    s.c[i].pop()?
+                }
+                Op::BesselK(n, a) => {
+                    let (y, z) = bessel_k_order(s, i, *n, *a, k, p)?;
+                    s.c[i + 1].push(z);
+                    y
+                }
                 Op::Atan(a, w) => {
                     if k == 0 {
                         el::atan(&s.c[*a][0], p)?
@@ -639,4 +665,43 @@ pub(crate) fn num_of(x: Ball, p: u64) -> Num {
 /// A number as a ball at `p` bits, if real.
 pub(crate) fn ball(n: &Num, p: u64) -> Option<Ball> {
     ball_of(n, p)
+}
+
+/// The coefficients of order `k` of y = K_n(a) and z = K_(n+1)(a) (nodes `i`, `i + 1`): at k = 0 the ball values;
+/// then y_k = (1/k) sum_{j=1..k} j a_j u_(k-j) with u = n y/a - z, and z_k likewise with v = -y - (n + 1) z/a
+/// (the quotients by a from the coefficients below k).
+fn bessel_k_order(s: &Series, i: usize, n: i64, a: usize, k: usize, p: u64) -> Option<(Ball, Ball)> {
+    let ac = &s.c[a];
+    if k == 0 {
+        let x = Real::Ball(ac[0].clone(), p);
+        let y = mc_special::ball::bessel::bessel_k(&Real::int(n), &x, p)?;
+        let z = mc_special::ball::bessel::bessel_k(&Real::int(n + 1), &x, p)?;
+        return Some((y.re, z.re));
+    }
+    let (y, z) = (&s.c[i], &s.c[i + 1]);
+    // q = y/a, r = z/a up to order k - 1
+    let quotient = |num: &[Ball]| -> Option<Vec<Ball>> {
+        let mut q: Vec<Ball> = Vec::with_capacity(k);
+        for j in 0..k {
+            let mut acc = num[j].clone();
+            for l in 1..=j {
+                acc = acc.sub(&ac[l].mul(&q[j - l], p), p);
+            }
+            q.push(acc.div(&ac[0], p)?);
+        }
+        Some(q)
+    };
+    let (q, r) = (quotient(y)?, quotient(z)?);
+    let nb = Ball::from_i64(n);
+    let n1 = Ball::from_i64(n + 1);
+    let (mut sy, mut sz) = (zero(), zero());
+    for j in 1..=k {
+        let w = ac[j].mul(&Ball::from_i64(j as i64), p);
+        let u = nb.mul(&q[k - j], p).sub(&z[k - j], p);
+        let v = y[k - j].add(&n1.mul(&r[k - j], p), p).neg();
+        sy = sy.add(&w.mul(&u, p), p);
+        sz = sz.add(&w.mul(&v, p), p);
+    }
+    let kb = Ball::from_i64(k as i64);
+    Some((sy.div(&kb, p)?, sz.div(&kb, p)?))
 }

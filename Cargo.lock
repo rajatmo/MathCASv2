@@ -2645,6 +2645,7 @@ dependencies = [
  "mc-eval",
  "mc-numeric",
  "mc-numfn",
+ "mc-special",
  "parking_lot",
  "rustc-hash 2.1.3",
 ]

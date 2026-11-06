@@ -17,6 +17,8 @@ mc-eval = { path = "../mc-eval" }
 mc-numfn = { path = "../mc-numfn" }
 # elementary functions on balls (the Taylor method)
 mc-numeric = { path = "../mc-numeric" }
+# the ball Bessel K of the Taylor method (G13)
+mc-special = { path = "../mc-special" }
 parking_lot = "0.12"
 rustc-hash = "2"
 
