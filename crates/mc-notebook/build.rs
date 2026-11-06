@@ -15,8 +15,6 @@ fn main() {
 
 /// The commit (with "+changes" when the tree differs from it) and the build date, for the About page.
 fn build_info() {
-    println!("cargo:rerun-if-changed=../../.git/HEAD");
-    println!("cargo:rerun-if-changed=../../.git/index");
     let git = |args: &[&str]| {
         std::process::Command::new("git")
             .args(args)
@@ -25,6 +23,16 @@ fn build_info() {
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
     };
+    // the repository's own HEAD and index wherever they are (a worktree's `.git` is a file): a path that does not
+    // exist would make every build rerun this script and rebuild the crates above it
+    if let Some(dir) = git(&["rev-parse", "--absolute-git-dir"]) {
+        for f in ["HEAD", "index"] {
+            let p = std::path::Path::new(&dir).join(f);
+            if p.exists() {
+                println!("cargo:rerun-if-changed={}", p.display());
+            }
+        }
+    }
     if let Some(c) = git(&["rev-parse", "--short", "HEAD"]) {
         let dirty = git(&["status", "--porcelain", "--untracked-files=no"]).is_some_and(|s| !s.is_empty());
         println!("cargo:rustc-env=MC_COMMIT={c}{}", if dirty { "+changes" } else { "" });

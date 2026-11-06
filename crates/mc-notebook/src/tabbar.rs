@@ -2,7 +2,7 @@
 //! on the active tab), middle-click closes, drag to reorder, a context menu, the full path as tooltip, scroll arrows
 //! and a list of all tabs when they do not fit, and a "+" for a new notebook.
 use crate::app::App;
-use crate::fonts::Face;
+use mc_ui::fonts::Face;
 use eframe::egui::{self, pos2, vec2, Color32, CursorIcon, Rect, Sense, Stroke};
 
 /// The height of the tab strip (points).

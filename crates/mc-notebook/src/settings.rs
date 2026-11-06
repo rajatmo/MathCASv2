@@ -1,5 +1,6 @@
-//! Settings kept between sessions (design 8.3): `%APPDATA%/MathCAS/notebook.json` (on other systems the config
-//! folder named by `XDG_CONFIG_HOME` or `~/.config`).
+//! Settings kept between sessions (design 8.3): `notebook.json` in the settings folder of `mc_ui::dirs`
+//! (`%APPDATA%/MathCAS` on Windows, `$XDG_CONFIG_HOME/MathCAS` or `~/.config/MathCAS` on Linux, the app folder on
+//! Android).
 use crate::theme::ThemeChoice;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -75,22 +76,9 @@ impl Default for Settings {
     }
 }
 
-/// The folder of the settings and of the single-instance file: `MCNB_CONFIG_DIR` when set, else none in the
-/// self-test (which keeps nothing), else the user's settings folder.
-pub fn config_dir() -> Option<PathBuf> {
-    // a folder of its own (tests of the single instance and the session)
-    if let Some(d) = std::env::var_os("MCNB_CONFIG_DIR") {
-        return Some(PathBuf::from(d));
-    }
-    if std::env::var_os("MCNB_SELFTEST").is_some() {
-        return None;
-    }
-    let base = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))
-        .or_else(|| std::env::var_os("HOME").map(|h| Path::new(&h).join(".config")))?;
-    Some(base.join("MathCAS"))
-}
+/// The folder of the settings and of the single-instance file (`mc_ui::dirs`): `MCNB_CONFIG_DIR` when set, else none
+/// in the self-test (which keeps nothing), else the user's settings folder.
+pub use mc_ui::dirs::config_dir;
 
 fn settings_file() -> Option<PathBuf> {
     Some(config_dir()?.join("notebook.json"))

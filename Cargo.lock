@@ -2337,6 +2337,7 @@ dependencies = [
  "mc-special",
  "mc-strings",
  "mc-syntax",
+ "mc-ui",
  "png 0.18.1",
  "winresource",
 ]
@@ -2547,13 +2548,13 @@ dependencies = [
 name = "mc-notebook"
 version = "0.0.0"
 dependencies = [
- "clipboard-win",
  "eframe",
  "mc-boxes",
  "mc-mathfont",
  "mc-nbfile",
  "mc-nbmodel",
  "mc-syntax",
+ "mc-ui",
  "png 0.18.1",
  "resvg",
  "rfd",
@@ -2763,6 +2764,19 @@ version = "0.0.0"
 dependencies = [
  "mc-api",
  "num-bigint",
+]
+
+[[package]]
+name = "mc-ui"
+version = "0.0.0"
+dependencies = [
+ "arboard",
+ "clipboard-win",
+ "eframe",
+ "mc-mathfont",
+ "png 0.18.1",
+ "serde_json",
+ "ttf-parser",
 ]
 
 [[package]]

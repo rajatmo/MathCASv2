@@ -25,6 +25,7 @@ mc-kernel = { path = "../mc-kernel" }
 mc-nbfile = { path = "../mc-nbfile" }
 mc-notebook = { path = "../mc-notebook" }
 mc-syntax = { path = "../mc-syntax" }
+mc-ui = { path = "../mc-ui" }
 png = "0.18"
 # the libraries whose `FUNCTIONS` lists make the catalogue (the same list as the engine's)
 mc-assoc = { path = "../mc-assoc" }

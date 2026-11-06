@@ -41,6 +41,7 @@
 //! documents a known function, See also names known functions), runs every input through the engine in a fresh
 //! session per page and compares the outputs with the stored ones: text lines exactly, images by the file's
 //! existence and its pixel size; and in release builds that no input takes more than [`runner::SLOW_SECS`].
+//! Machine reals may differ in their last digits between systems ([`compare`]).
 //!
 //! # The window
 //!
@@ -52,7 +53,7 @@
 //! notebook" (a copy of the page in a temporary folder, opened in `mc-notebook`).
 pub mod app;
 pub mod catalogue;
-mod fonts;
+pub mod compare;
 pub mod inline;
 pub mod library;
 pub mod page;

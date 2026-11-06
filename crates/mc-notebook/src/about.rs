@@ -82,12 +82,15 @@ const CREDITS: &[(&str, &str, &str)] = &[
     ("wgpu", "drawing on the GPU (Direct3D 12, Vulkan, Metal, OpenGL)", "MIT or Apache-2.0"),
     ("winit", "windows and input", "Apache-2.0"),
     ("STIX Two Math", "the mathematics font", "SIL Open Font License 1.1"),
+    ("DejaVu Sans Mono, DejaVu Sans", "the code font and symbols", "Bitstream Vera licence, public domain"),
+    ("Noto Sans", "the text font", "Apache-2.0"),
     ("Atom One Light and One Dark", "the colour themes", "MIT"),
     ("Cranelift", "machine code for compiled functions (kernel)", "Apache-2.0 with LLVM exception"),
     ("tiny-skia", "plot rendering", "BSD-3-Clause"),
     ("ab_glyph, ttf-parser", "font reading and rasterising", "Apache-2.0 / MIT or Apache-2.0"),
     ("png", "image files", "MIT or Apache-2.0"),
     ("rfd", "file dialogs", "MIT"),
+    ("arboard, clipboard-win", "the clipboard", "MIT or Apache-2.0 / MIT"),
     ("serde_json", "settings and the kernel protocol", "MIT or Apache-2.0"),
 ];
 

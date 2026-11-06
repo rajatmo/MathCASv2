@@ -2,7 +2,7 @@
 //! of the visible cells only (labels, brackets, the insertion point, the caret and selections), and hit-testing.
 //! Output cells show pictures (design 6), outputs broken into lines at the cell's width (4.8), and large outputs as
 //! a sample with buttons to see more (4.9).
-use crate::fonts::Face;
+use mc_ui::fonts::Face;
 use crate::highlight;
 use crate::images::{Images, Picture};
 use crate::theme::Palette;

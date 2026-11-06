@@ -1,7 +1,7 @@
 //! The notebook window: chrome (menus, toolbar, status bar, dialogs, design 10), input routing into model commands,
 //! the canvas, files, settings and the kernel link.
-use crate::clip::Clipboard;
-use crate::fonts;
+use mc_ui::clipboard::{Clipboard, Contents, Picture};
+use mc_ui::fonts;
 use crate::images::Images;
 use crate::typeset::Glyphs;
 use crate::input;
@@ -72,10 +72,11 @@ impl Env for AppEnv<'_> {
         self.ctx.input(|i| i.time)
     }
     fn set_clipboard(&mut self, clip: Clip) {
-        self.clip.set(clip);
+        self.clip.set(Contents { text: clip.text, cells: clip.cells });
     }
     fn clipboard(&mut self) -> Clip {
-        self.clip.get()
+        let c = self.clip.get();
+        Clip { text: c.text, cells: c.cells }
     }
     fn box_line(&mut self, cell: &Cell, path: &[mc_boxes::Step], offset: usize, up: bool) -> Option<(mc_boxes::RowPath, usize)> {
         self.view.box_line(self.ctx, cell, path, offset, up)
@@ -273,7 +274,7 @@ impl App {
             tabs: Tabs::new(),
             ctx: ctx.clone(),
             keys: KeyTable::default(),
-            clip: Clipboard::default(),
+            clip: Clipboard::for_window(&ctx),
             settings,
             applied: None,
             status: String::new(),
@@ -838,13 +839,13 @@ impl App {
             Ok((rgba, w, h)) => {
                 let png = match mc_nbfile::images::ImageFormat::of(&path) {
                     Some(mc_nbfile::images::ImageFormat::Png) => std::fs::read(&path).ok(),
-                    _ => crate::clip::encode_png(&rgba, w, h),
+                    _ => mc_ui::clipboard::encode_png(&rgba, w, h),
                 };
-                self.clip.set_picture(&text, png.as_deref(), &rgba, w, h);
+                self.clip.set_picture(&Picture { text: &text, png: png.as_deref(), rgba: &rgba, width: w, height: h });
                 self.status = format!("Copied the graphic ({w} x {h} pixels)");
             }
             Err(e) => {
-                self.clip.set(Clip { text: Some(text), cells: None });
+                self.clip.set(Contents { text: Some(text), cells: None });
                 self.status = format!("Copied the graphic's text only: {e}");
             }
         }
@@ -1321,7 +1322,7 @@ impl App {
         if self.preedit.is_empty() {
             return;
         }
-        let font = self.doc.nb.cell(cell).map_or(crate::fonts::Face::Code.font(13.0), |c| {
+        let font = self.doc.nb.cell(cell).map_or(fonts::Face::Code.font(13.0), |c| {
             let lk = crate::view::look(c, &self.doc.view.palette);
             lk.face.font(lk.size * self.doc.view.zoom)
         });
@@ -2403,7 +2404,7 @@ impl eframe::App for App {
         self.frames_shown += 1;
         if self.frames_shown == 2 {
             if let Some(info) = &self.gpu {
-                crate::gpu::started(info);
+                mc_ui::gpu::started(info);
             }
         }
         let ctx = ui.ctx().clone();

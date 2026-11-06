@@ -16,7 +16,6 @@ Specification: `docs/design/09-docs.md` (also the crate's module documentation).
 | `runner` | `run`, `update`, `check` |
 | `view`, `app` | the window |
 | `selftest` | `MCDOCS_SELFTEST=<script>`: `out, size, theme, go, search, find, next, expand, scroll, back, forward, wait, shot, log, quit` |
-| `fonts` | a copy of the notebook's font chain (that module is private there) |
 
 The window: home page with five area tiles (documented functions as links, topics, "All N functions" to the guide);
 guide pages by topic with descriptions; incremental search (arrows, Enter, Esc); function pages (usage panel in the
@@ -45,9 +44,11 @@ notebook's saved theme; selectable text; "Open as notebook" copies the page and 
 6. Plot images are copied to `<name>.files/<name>-<k>.png` (k = the input's number, stable names); images no output
    names are removed; the output line is `image("<name>.files/...")`, relative to the page (the notebook's sidecar
    folder idea).
-7. The checker compares text lines exactly and images by existence and pixel size; in release builds an input over
-   1 s is a problem.
-8. GPU set-up reuses `mc_notebook::gpu` (integrated GPU first, Direct3D 12 then GL on Windows; shares `gpu.json`);
+7. The checker compares text lines exactly (round 10: machine reals within a relative 1e-9 and data fingerprints
+   loosely, since each system's mathematics library rounds last bits its own way; `compare`) and images by existence
+   and pixel size; in release builds an input over 1 s is a problem.
+8. GPU set-up and fonts come from `mc-ui` (round 10: `mc_ui::gpu::run_native`, integrated GPU first, Direct3D 12
+   then GL on Windows, `gpu.json` shared with the notebook; `mc_ui::fonts`, the bundled fonts on every system);
    theme uses `mc_notebook::theme::Palette` read-only.
 9. Usage lines are templates (`f(a, ...)`): syntax-error colouring is off in the docs; colourings are cached across
    frames (each `mc_syntax::colour` call starts a thread).

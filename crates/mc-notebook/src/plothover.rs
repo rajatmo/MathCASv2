@@ -5,7 +5,7 @@
 //! lines and a tooltip with its coordinates; elsewhere on the picture the tooltip gives the pointer's own data
 //! coordinates. Points are indexed in a grid of PNG-pixel cells, so a query looks at a few cells whatever the number
 //! of points. Pictures without a description (photographs, PDF pages) show nothing.
-use crate::fonts::Face;
+use mc_ui::fonts::Face;
 use crate::theme::Palette;
 use eframe::egui::{self, pos2, vec2, Color32, Painter, Pos2, Rect, Stroke};
 use serde_json::Value;

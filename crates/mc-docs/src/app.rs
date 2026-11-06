@@ -57,7 +57,7 @@ impl DocsApp {
         start: Option<Loc>,
         selftest: Option<SelfTest>,
     ) -> DocsApp {
-        crate::fonts::install(&cc.egui_ctx);
+        mc_ui::fonts::install(&cc.egui_ctx);
         let cat = Catalogue::new();
         let pages: HashMap<String, Page> = lib
             .names()
@@ -497,7 +497,7 @@ impl eframe::App for DocsApp {
         self.frames += 1;
         if self.frames == 2 {
             if let Some(info) = &self.gpu {
-                mc_notebook::gpu::started(info);
+                mc_ui::gpu::started(info);
             }
         }
         let ctx = ui.ctx().clone();

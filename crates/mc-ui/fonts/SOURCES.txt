@@ -1,0 +1,38 @@
+Bundled fonts of mc-ui: where they come from, their licences, and how they were made
+====================================================================================
+
+Every file here is a subset of a published font, made with fonttools' pyftsubset (hinting removed, which egui does
+not use; outlines, metrics, kerning and the listed layout features kept). The subsets are modified versions of the
+original fonts; the changes are only the removal of characters, of hinting instructions and of name-table entries
+other than the basic names. The original copyright notices are in each font's name table and in the licence files.
+
+File                      Original                         Source (crates.io package)         Licence
+DejaVuSansMono.ttf        DejaVu Sans Mono 2.37            dejavu 2.37.0                      LICENSE-DejaVu.txt
+DejaVuSansMono-Bold.ttf   DejaVu Sans Mono Bold 2.37       dejavu 2.37.0                      LICENSE-DejaVu.txt
+DejaVuSans-Symbols.ttf    DejaVu Sans 2.37 (symbols only)  dejavu 2.37.0                      LICENSE-DejaVu.txt
+NotoSans-Regular.ttf      Noto Sans 1.04                   ttf-noto-sans 0.1.2                LICENSE-Apache-2.0.txt
+NotoSans-Bold.ttf         Noto Sans Bold 1.04              ttf-noto-sans 0.1.2                LICENSE-Apache-2.0.txt
+NotoSans-Italic.ttf       Noto Sans Italic 1.04            ttf-noto-sans 0.1.2                LICENSE-Apache-2.0.txt
+
+DejaVu: Bitstream Vera licence for the Vera glyphs, public domain for the DejaVu changes, Arev licence for the
+glyphs from Arev (all permissive; a modified font must not be named "Bitstream" or "Vera", which these are not).
+Noto Sans 1.04: Apache License 2.0 (as stated in the font's own licence entry).
+
+The math font (STIX Two Math, SIL Open Font License 1.1) is bundled by mc-mathfont and used here as the last
+fallback for mathematical symbols. egui's own emoji fonts (Noto Emoji, OFL; emoji-icon-font, MIT and OFL) stay at
+the end of every chain.
+
+Characters kept (Unicode ranges):
+
+text (Noto Sans):    U+0020-007E, U+00A0-017F, U+0192, U+0218-021B, U+02B0-036F, U+0370-03FF, U+0400-045F,
+                     U+2000-206F, U+2070-209F, U+20A0-20C0, U+2100-218F, U+2190-21FF, U+2200-22FF, U+FB00-FB06,
+                     U+FFFD (where the font has them)
+code (DejaVu Sans    the text ranges, and U+2300-23FF, U+2500-25FF, U+27E6-27EF
+Mono):
+symbols (DejaVu      U+0370-03FF, U+2100-214F, U+2190-21FF, U+2200-22FF, U+2300-23FF, U+2460-24FF, U+25A0-25FF,
+Sans):               U+27C0-27FF, U+2900-297F, U+2980-29FF, U+2A00-2AFF
+
+Command (one per file, with the file's ranges):
+
+    pyftsubset <original> --unicodes=<ranges> --output-file=<file> --no-hinting --desubroutinize
+        --layout-features=kern,liga,mark,mkmk,ccmp,locl

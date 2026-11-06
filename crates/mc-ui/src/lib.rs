@@ -1,0 +1,16 @@
+//! Window support shared by the MathCAS notebook (`mc-notebook`) and the documentation window (`mc-docs`), so both
+//! behave the same on Windows, Linux and (later) Android:
+//!
+//! - [`fonts`]: the font faces both windows use and their set-up. A code font, a text and interface font and symbol
+//!   fallbacks are bundled (permissive licences, files in `fonts/` with their licences), so text looks right on every
+//!   system; on Windows the system's Consolas and Segoe UI are preferred when present.
+//! - [`clipboard`]: the system clipboard behind a small trait: text everywhere, pictures (PNG and a bitmap) and the
+//!   notebook's private cell format on Windows, text and pictures on Linux (X11, Wayland) and macOS, an in-process
+//!   copy as the fallback.
+//! - [`gpu`]: which graphics interface and GPU the window draws with, with a memory of interfaces that crashed an
+//!   earlier start, and [`gpu::run_native`], the start-up both programs share.
+//! - [`dirs`]: the settings folder (`%APPDATA%`, `$XDG_CONFIG_HOME`, the Android app folder) and atomic writes.
+pub mod clipboard;
+pub mod dirs;
+pub mod fonts;
+pub mod gpu;

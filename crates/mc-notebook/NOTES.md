@@ -112,8 +112,10 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   80 % full; `raw_input_hook` caps egui's textures at 4096 (64 MB), the window surface is unaffected. (3) A minimized
   window's place (-32000 on Windows) was saved as the window's place; minimized, maximized and tiny rects are no
   longer saved and implausible saved places are ignored.
-- Not yet portable: fonts are read from the Windows font folder (Linux/Android fall back to egui's fonts), the
-  clipboard's cell format is Windows-only, the storm driver is Windows-only.
+- Portability (round 10, `mc-ui`): fonts are bundled (DejaVu Sans Mono, Noto Sans, symbols, STIX Two Math; Consolas
+  and Segoe UI first on Windows when present); the clipboard is `mc_ui::clipboard` (the cell format on the system
+  clipboard on Windows only, in-process elsewhere); `gpu.rs` and the settings folder moved to `mc_ui::gpu` and
+  `mc_ui::dirs`. The storm driver is still Windows-only.
 
 ## Graphics and large outputs (milestone M4, package nb-m4)
 

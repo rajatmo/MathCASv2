@@ -9,10 +9,15 @@
 //!   least reliable); Apple Metal. `WGPU_BACKEND` (`dx12`, `vulkan`, `gl`, `metal`) names one.
 //! - **Crash memory**: a driver crash ends the process before it can try the next interface. So the start writes
 //!   `gpu.json` naming the interface it tries and clears the mark after the first frame is shown; a mark left by an
-//!   earlier start means that interface crashed, and it is skipped from then on (deleting `gpu.json` forgets).
-use eframe::wgpu;
+//!   earlier start means that interface crashed, and it is skipped from then on (deleting `gpu.json` forgets). The
+//!   notebook and the documentation window share the file (in [`crate::dirs::config_dir`]).
+//!
+//! [`run_native`] starts a window this way; the app then calls [`started`] once its first frame is shown.
+use eframe::{egui, wgpu};
 use serde_json::{json, Value};
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 /// The interfaces to try, best first, on this platform.
 pub fn backend_order() -> Vec<wgpu::Backends> {
@@ -96,7 +101,7 @@ pub fn name(b: wgpu::Backends) -> String {
 }
 
 fn file() -> Option<PathBuf> {
-    Some(crate::settings::config_dir()?.join("gpu.json"))
+    Some(crate::dirs::config_dir()?.join("gpu.json"))
 }
 
 fn read() -> Value {
@@ -108,7 +113,7 @@ fn write(v: &Value) {
         if let Some(d) = f.parent() {
             let _ = std::fs::create_dir_all(d);
         }
-        let _ = mc_nbfile::write_atomic(&f, &v.to_string());
+        let _ = crate::dirs::write_atomic(&f, &v.to_string());
     }
 }
 
@@ -167,6 +172,47 @@ pub fn to_try() -> Vec<wgpu::Backends> {
     } else {
         left
     }
+}
+
+/// Open a window titled `app_name` with `viewport`, drawing with the interfaces of [`to_try`] in order: each start
+/// is marked in `gpu.json`, and a start that finds no device tries the next interface. `create` makes the app from
+/// the creation context and `state` (both are used once, by the start that succeeds); the app calls [`started`] after
+/// its first frame. Frames are paced by vsync.
+pub fn run_native<S: 'static>(
+    app_name: &str,
+    viewport: egui::ViewportBuilder,
+    state: S,
+    create: impl FnOnce(&eframe::CreationContext<'_>, S) -> Box<dyn eframe::App> + 'static,
+) -> eframe::Result {
+    // taken by whichever start reaches the app's creation
+    let slot = Rc::new(RefCell::new(Some((state, create))));
+    let mut result = Ok(());
+    for backends in to_try() {
+        let mut wgpu_options = eframe::WgpuConfiguration::default();
+        // vsync: at most one frame per display refresh
+        wgpu_options.surface.present_mode = wgpu::PresentMode::AutoVsync;
+        if let eframe::egui_wgpu::WgpuSetup::CreateNew(c) = &mut wgpu_options.wgpu_setup {
+            c.instance_descriptor.backends = backends;
+            c.native_adapter_selector = Some(std::sync::Arc::new(choose_adapter));
+        }
+        let options = eframe::NativeOptions { viewport: viewport.clone(), wgpu_options, ..Default::default() };
+        starting(backends);
+        let taken = slot.clone();
+        result = eframe::run_native(
+            app_name,
+            options,
+            Box::new(move |cc| match taken.borrow_mut().take() {
+                Some((state, create)) => Ok(create(cc, state)),
+                None => Err("the window's app was already made".into()),
+            }),
+        );
+        if result.is_ok() || slot.borrow().is_none() {
+            break;
+        }
+        // no device with this interface: the next one
+        failed();
+    }
+    result
 }
 
 #[cfg(test)]

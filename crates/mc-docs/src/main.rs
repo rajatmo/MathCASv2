@@ -4,7 +4,6 @@
 // Release builds are GUI programs on Windows: no console window opens with them.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-use eframe::wgpu;
 use mc_docs::app::DocsApp;
 use mc_docs::library::Library;
 use mc_docs::selftest::SelfTest;
@@ -18,37 +17,9 @@ fn main() -> eframe::Result {
         .with_min_inner_size([420.0, 300.0])
         .with_title("MathCAS Documentation")
         .with_icon(mc_notebook::app::icon_data().unwrap_or_default());
-    // the window's state, taken by whichever start succeeds
-    let state = std::rc::Rc::new(std::cell::RefCell::new(Some((start, selftest))));
-    // the graphics set-up of the notebook: the integrated GPU first, the platform's trusted interfaces in order,
-    // an interface that crashed an earlier start skipped
-    let run = |backends: wgpu::Backends| {
-        let state = state.clone();
-        let mut wgpu_options = eframe::WgpuConfiguration::default();
-        wgpu_options.surface.present_mode = wgpu::PresentMode::AutoVsync;
-        if let eframe::egui_wgpu::WgpuSetup::CreateNew(c) = &mut wgpu_options.wgpu_setup {
-            c.instance_descriptor.backends = backends;
-            c.native_adapter_selector = Some(std::sync::Arc::new(mc_notebook::gpu::choose_adapter));
-        }
-        let options = eframe::NativeOptions { viewport: viewport.clone(), wgpu_options, ..Default::default() };
-        mc_notebook::gpu::starting(backends);
-        eframe::run_native(
-            "MathCAS Documentation",
-            options,
-            Box::new(move |cc| {
-                let (start, selftest) = state.borrow_mut().take().unwrap_or_default();
-                Ok(Box::new(DocsApp::new(cc, Library::load(), start, selftest)))
-            }),
-        )
-    };
-    let mut result = Ok(());
-    for b in mc_notebook::gpu::to_try() {
-        result = run(b);
-        if result.is_ok() || state.borrow().is_none() {
-            break;
-        }
-        // no device with this interface: the next one
-        mc_notebook::gpu::failed();
-    }
-    result
+    // the notebook's graphics set-up: the integrated GPU first, the platform's trusted interfaces in order, an
+    // interface that crashed an earlier start skipped
+    mc_ui::gpu::run_native("MathCAS Documentation", viewport, (start, selftest), |cc, (start, selftest)| {
+        Box::new(DocsApp::new(cc, Library::load(), start, selftest))
+    })
 }

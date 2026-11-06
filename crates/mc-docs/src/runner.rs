@@ -201,7 +201,7 @@ pub fn check(name: &str, dir: &Path, known: &dyn Fn(&str) -> bool, progress: &mu
     for r in &ran {
         checked.slowest = checked.slowest.max(r.secs);
         let old: Vec<OutputLine> = stored.cells[r.cell].output_lines().cloned().collect();
-        if old != r.lines {
+        if !crate::compare::same_output(&old, &r.lines) {
             let show = |ls: &[OutputLine]| {
                 ls.iter().map(|l| format!("{} {}", l.kind.prefix(), l.text)).collect::<Vec<_>>().join(" / ")
             };

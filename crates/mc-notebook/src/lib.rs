@@ -2,9 +2,8 @@
 //! document model of `mc-nbmodel`, a client for the `mc-kernel` process, the Atom One themes and the self-test.
 pub mod about;
 pub mod app;
-mod clip;
-mod fonts;
-pub mod gpu;
+/// The graphics set-up, shared with the documentation window.
+pub use mc_ui::gpu;
 mod highlight;
 pub mod images;
 mod input;

@@ -1,7 +1,7 @@
 //! Drawing: text runs (prose with code spans, coloured source), find-in-page marks, images, and the four kinds of
 //! location (home, guide, function page, search results).
 use crate::catalogue::{Area, Catalogue, Entry};
-use crate::fonts::Face;
+use mc_ui::fonts::Face;
 use crate::inline::{spans, Span};
 use crate::library::Library;
 use crate::page::{image_path, Block, Page};

@@ -19,43 +19,12 @@ fn main() -> eframe::Result {
     if let (Some([x, y, w, h]), None) = (settings.window, &selftest) {
         viewport = viewport.with_inner_size([w, h]).with_position([x, y]);
     }
-    // the window's state, taken by whichever start succeeds
-    let state = std::rc::Rc::new(std::cell::RefCell::new(Some((paths, selftest))));
-    let start = |backends: wgpu::Backends| {
-        let state = state.clone();
-        let mut wgpu_options = eframe::WgpuConfiguration::default();
-        // vsync: at most one frame per display refresh
-        wgpu_options.surface.present_mode = wgpu::PresentMode::AutoVsync;
-        if let eframe::egui_wgpu::WgpuSetup::CreateNew(c) = &mut wgpu_options.wgpu_setup {
-            c.instance_descriptor.backends = backends;
-            c.native_adapter_selector = Some(std::sync::Arc::new(mc_notebook::gpu::choose_adapter));
-        }
-        let options = eframe::NativeOptions { viewport: viewport.clone(), wgpu_options, ..Default::default() };
-        mc_notebook::gpu::starting(backends);
-        eframe::run_native(
-            "MathCAS Notebook",
-            options,
-            Box::new(move |cc| {
-                let (paths, selftest) = state.borrow_mut().take().unwrap_or_default();
-                let mut app = mc_notebook::app::App::new(cc, paths, selftest);
-                app.set_gpu(cc.wgpu_render_state.as_ref().map(|r| r.adapter.get_info()));
-                Ok(Box::new(app))
-            }),
-        )
-    };
-    let mut result = Ok(());
-    for b in mc_notebook::gpu::to_try() {
-        result = start(b);
-        if result.is_ok() || state.borrow().is_none() {
-            break;
-        }
-        // no device with this interface: the next one
-        mc_notebook::gpu::failed();
-    }
-    result
+    mc_ui::gpu::run_native("MathCAS Notebook", viewport, (paths, selftest), |cc, (paths, selftest)| {
+        let mut app = mc_notebook::app::App::new(cc, paths, selftest);
+        app.set_gpu(cc.wgpu_render_state.as_ref().map(|r| r.adapter.get_info()));
+        Box::new(app)
+    })
 }
-
-use eframe::wgpu;
 
 /// The application icon for the window's title bar and taskbar button (the executable's own icon, for Explorer and
 /// shortcuts, is embedded by `build.rs`).
