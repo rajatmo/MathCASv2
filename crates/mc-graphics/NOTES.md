@@ -89,3 +89,13 @@ subset lacks `\left...\right`, accents, matrices and `\over`; serif text only.
 - `render_with_layout` gives the `Layout` (page size, plot area, ranges) used by the plot sidecar.
 - Polygons with holes were not needed: contour regions are unions of non-overlapping anticlockwise rings in one path.
 - Test dependency: `resvg` now with its `raster-images` feature (pure Rust: `zune-jpeg`, `gif`, `image-webp`).
+
+## Round 12 (package io-gfx)
+
+- `show` combines 3D graphics (and 3D plots) into one `graphics3d`, with the box around all of them unless `show`
+  gives a range. Mixing 2D and 3D is `failure(argument, show, k)`.
+- `numeric_content(cx, t)` (public): closed numeric expressions in coordinates become reals, as `graphics` does. A
+  complex value whose imaginary part is a rounding error (at most 1e-10 relative) becomes its real part.
+- `labeled` and `legended` lay out only pictures (and `labeled` also text). Around anything else they stay inert,
+  so plots and charts can read them.
+- Tests: `tests/interop.rs` 4.

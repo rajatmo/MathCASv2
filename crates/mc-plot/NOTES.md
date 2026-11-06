@@ -52,3 +52,34 @@ the origin), `density_plot`, `contour_plot`, `list_density_plot` (`src/fields.rs
 
 Tests: unit 14; `tests/plot.rs` 13 (sidecar mapped back to PNG pixels of the curve's colour, every new plot, fillings,
 ranges, jumps, failures).
+
+## Round 12 (package io-gfx): plots take what other functions give
+
+- `src/values.rs`: data values read as numbers. Quantities give their magnitudes, converted to the first one's unit
+  on that axis, and the unit becomes the axis label. `around(v, e)` and `around(v, [e-, e+])` give v with an error
+  bar. `interval([a, b])` gives its middle with a bar over the interval. `quantity(list, unit)` is spread into a
+  list of quantities. A dataset gives its columns (one column: values; two: x and y, named on the axes; more: data
+  sets against the first). An association gives its values, with the keys as legend entries or labels.
+- Wrappers around curves and data sets (`unwrap_all`, `Wraps::apply`):
+  - `legended(f, l)` gives a legend entry;
+  - `labeled(f, l)`, `callout(f, l)` and `callout(f)` give a label at the end of the curve;
+  - `style(f, ...)` gives that curve's directives.
+  They work in plot, list plots, discrete_plot, parametric_plot, polar_plot and list_polar_plot. 3D plots take
+  them off. Lists of directives are spliced into a curve's style. Curve labels get room right of the data.
+- Plot functions that are quantities, and iterator ends with units, are read as numbers, with the units as axis
+  labels. n_dsolve solutions are named after their function (`y(t)`) in legends.
+- discrete_plot evaluates at the exact integer where the compiled function has no value (prime, moebius_mu, sums
+  to n).
+- histogram(data, bins, height): height is `count`, `probability`, `pdf`, `cdf` or `cumulative_count`.
+- Charts skip values that are not real numbers.
+- pie_chart reads associations, `legended` and `labeled` values and quantities, and draws several lists as rings.
+- The epilog and prolog are made numeric as `graphics` does (`mc_graphics::numeric_content`).
+- Sampling: a step still large after the usual halvings is bisected on (at most 60 more) until it is small. Only a
+  step that stays large is a jump, so a sign change through a signed-log axis's linear band no longer breaks the
+  curve. Steps wholly outside the coarse range widened by its size are not resolved.
+- `src/roundtrip.rs`: export_data's PNG (an `iTXt` chunk) and SVG (`<metadata>`) carry the printed graphics term,
+  up to 16 MB. `mc_plot::import_graphics(h, path)` and `embedded_text(bytes)` read it back; wiring import_data to
+  them is gap G61. Plot display files carry no term, so documentation images stay unchanged.
+- The first plot of a process sweeps `plot-*` files older than 24 hours from the plots folder.
+
+Tests: unit 18; `tests/interop.rs` 11; `tests/plot.rs` 14 (sign changes never break a curve).
