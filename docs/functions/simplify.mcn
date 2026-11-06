@@ -1,0 +1,194 @@
+#! mathcas 2 notebook
+
+#% title
+# simplify
+
+#% text
+# `simplify(e)` gives the simplest form of `e` it finds, by algebraic, trigonometric and exponential rewritings.
+
+#% section
+# Details
+
+#% item
+# "Simplest" means the form with the fewest parts (leaves); among equally small forms the first found is kept.
+
+#% item
+# Rational expressions are cancelled and combined over a common denominator.
+
+#% item
+# Trigonometric and hyperbolic identities, and the rules for powers and exponentials, are tried.
+
+#% item
+# Rewritings that hold only for some values of the symbols are not done: `simplify(sqrt(x^2))` stays as it is, since it is `x` only when x is not negative.
+
+#% item
+# Inside `assuming`, the assumptions are used as well, so such rewritings become possible.
+
+#% item
+# Lists and equations are simplified element by element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Cancel a common factor:
+
+#% cell
+simplify((x^2 - 1)/(x - 1))
+#% output
+#= 1 + x
+
+#% text
+# The Pythagorean identity:
+
+#% cell
+simplify(sin(x)^2 + cos(x)^2)
+#% output
+#= 1
+
+#% text
+# Combine exponentials:
+
+#% cell
+simplify(exp(x)*exp(y))
+#% output
+#= exp(x + y)
+
+#% text
+# A perfect square is written as one:
+
+#% cell
+simplify(x^2 + 2x + 1)
+#% output
+#= (1 + x)^2
+
+#% subsection
+# Scope
+
+#% text
+# Sums of fractions:
+
+#% cell
+simplify(1/(x + 1) + 1/(x - 1))
+#% output
+#= 2*x/(-1 + x^2)
+
+#% text
+# Trigonometric identities:
+
+#% cell
+simplify(2*sin(x)*cos(x))
+#% output
+#= sin(2*x)
+
+#% cell
+simplify(tan(x)*cos(x))
+#% output
+#= sin(x)
+
+#% cell
+simplify(sin(x + y) - sin(x)*cos(y) - cos(x)*sin(y))
+#% output
+#= 0
+
+#% text
+# A hyperbolic identity:
+
+#% cell
+simplify(cosh(x)^2 - sinh(x)^2)
+#% output
+#= 1
+
+#% text
+# Powers with symbolic exponents:
+
+#% cell
+simplify(x^a*x^b)
+#% output
+#= x^(a + b)
+
+#% text
+# Lists are simplified element by element:
+
+#% cell
+simplify([sin(x)^2 + cos(x)^2, (x^2 - 4)/(x + 2)])
+#% output
+#= [1, -2 + x]
+
+#% subsection
+# Applications
+
+#% text
+# Facts about the symbols, given with `assuming`, allow rewritings that hold only under them:
+
+#% cell
+assuming(x > 0, simplify(sqrt(x^2)))
+#% output
+#= x
+
+#% cell
+assuming(x < 0, simplify(sqrt(x^2)))
+#% output
+#= -x
+
+#% cell
+assuming(n > 0, simplify(abs(n)))
+#% output
+#= n
+
+#% text
+# Checking an identity: the difference of the two sides simplifies to zero.
+
+#% cell
+simplify((x^3 - y^3)/(x - y) - (x^2 + x*y + y^2))
+#% output
+#= 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# `simplify` may factor, where `expand` multiplies out:
+
+#% cell
+simplify(x^3 + 3x^2 + 3x + 1)
+#% output
+#= (1 + x)^3
+
+#% cell
+expand((x + 1)^3)
+#% output
+#= 1 + 3*x + 3*x^2 + x^3
+
+#% subsection
+# Possible issues
+
+#% text
+# Without assumptions, rewritings that fail for some values are not done:
+
+#% cell
+simplify(sqrt(x^2))
+#% output
+#= (x^2)^(1/2)
+
+#% cell
+simplify(log(exp(x)))
+#% output
+#= log(exp(x))
+
+#% text
+# A form with fewer parts is not always the one a reader prefers; here the exponential form is kept:
+
+#% cell
+simplify((exp(x) - exp(-x))/2)
+#% output
+#= (1/2)*(exp(x) - exp(-x))
+
+#% section
+# See also
+
+#% text
+# `expand`, `factor`, `assuming`, `rewrite`

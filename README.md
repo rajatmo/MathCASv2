@@ -128,6 +128,8 @@ for the risky parts, then the build.
 | [05-assembly](docs/design/05-assembly.md) | crate layout and the interface contract |
 | [06-roadmap](docs/design/06-roadmap.md) | implementation phases after the first milestone |
 | [07-numerics](docs/design/07-numerics.md) | root finding, integration and differential equations |
+| [08-notebook](docs/design/08-notebook.md) | the notebook window: document model, editing, typesetting, evaluation, themes |
+| [09-docs](docs/design/09-docs.md) | function documentation pages and the documentation window |
 
 ## Testing and benchmarks
 

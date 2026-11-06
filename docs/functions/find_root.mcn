@@ -1,0 +1,173 @@
+#! mathcas 2 notebook
+
+#% title
+# find_root
+
+#% text
+# `find_root(f, [x, x0])` searches for a root of `f` near the starting point `x0` and gives it as `[x -> root]`.
+
+#% text
+# `find_root(lhs == rhs, [x, x0])` searches for a solution of the equation.
+
+#% text
+# `find_root(f, [x, x0, a, b])` searches inside the bracket from `a` to `b`, where `f` changes sign.
+
+#% text
+# `find_root([eq1, eq2, ...], [[x, x0], [y, y0], ...])` solves a system of equations from a starting point.
+
+#% section
+# Details
+
+#% item
+# From a single starting point, Newton's method is used with derivatives found symbolically; `[x, x0, x1]` uses the secant method from two points instead.
+
+#% item
+# A bracket `[x, x0, a, b]` keeps the search between `a` and `b`; `f(a)` and `f(b)` must have opposite signs.
+
+#% item
+# The result is a rule list, ready to be put into an expression with `/.`.
+
+#% item
+# Options:
+
+#% subitem
+# `digits: d` works at `d` decimal digits and gives the root as a ball.
+
+#% subitem
+# `compile: auto | true | false` controls whether the function is compiled for the search.
+
+#% item
+# A search that does not converge gives a failure tagged `not_converged` holding the last point and the size of the function there.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A root of a cubic near 2:
+
+#% cell
+find_root(x^3 - 2x - 5, [x, 2])
+#% output
+#= [x -> 2.0945514815423265]
+
+#% text
+# The point where cos(x) equals x:
+
+#% cell
+find_root(cos(x) == x, [x, 1])
+#% output
+#= [x -> 0.7390851332151607]
+
+#% text
+# A root in a bracket:
+
+#% cell
+find_root(sin(x), [x, 3, 4])
+#% output
+#= [x -> 3.141592653589793]
+
+#% text
+# A system of two equations:
+
+#% cell
+find_root([x^2 + y^2 == 4, x*y == 1], [[x, 1], [y, 0.5]])
+#% output
+#= [x -> 1.9318516525781364, y -> 0.5176380902050416]
+
+#% subsection
+# Scope
+
+#% text
+# The equation e^x = 3x has two solutions; the starting point picks one:
+
+#% cell
+find_root(exp(x) == 3x, [x, 0])
+#% output
+#= [x -> 0.6190612867359451]
+
+#% cell
+find_root(exp(x) == 3x, [x, 2])
+#% output
+#= [x -> 1.5121345516578426]
+
+#% text
+# Special functions: the first zero of the Bessel function J0.
+
+#% cell
+find_root(bessel_j(0, x), [x, 2])
+#% output
+#= [x -> 2.404825557695773]
+
+#% text
+# The first positive solution of tan(x) = x after zero:
+
+#% cell
+find_root(tan(x) == x, [x, 4.5])
+#% output
+#= [x -> 4.493409457909064]
+
+#% subsection
+# Options
+
+#% text
+# A root to 40 digits:
+
+#% cell
+find_root(x^2 - 2, [x, 1], digits: 40)
+#% output
+#= [x -> 1.414213562373095048801688724209698078570]
+
+#% text
+# Compilation can be turned off:
+
+#% cell
+find_root(x^2 - 2, [x, 1], compile: false)
+#% output
+#= [x -> 1.4142135623730951]
+
+#% subsection
+# Applications
+
+#% text
+# The real root of x^3 = x + 1 (the plastic number), as a value:
+
+#% cell
+x /. find_root(x^3 - x - 1, [x, 1])
+#% output
+#= 1.324717957244746
+
+#% text
+# Where the logistic growth curve 1/(1 + 9 exp(-t)) passes one half:
+
+#% cell
+find_root(1/(1 + 9*exp(-t)) == 1/2, [t, 1])
+#% output
+#= [t -> 2.1972245773362196]
+
+#% subsection
+# Possible issues
+
+#% text
+# A function without real roots: the search fails and says where it stopped.
+
+#% cell
+find_root(x^2 + 1, [x, 1])
+#% output
+#! failure(not_converged, find_root, [x -> 0.0], 1.0)
+
+#% text
+# A function that tends to zero without reaching it sends the search to infinity:
+
+#% cell
+find_root(1/x, [x, 1])
+#% output
+#! failure(not_converged, find_root, [x -> 1.2676506002282294e30], 6.338253001141147e29)
+
+#% section
+# See also
+
+#% text
+# `solve`, `n_integrate`, `n_dsolve`, `d`

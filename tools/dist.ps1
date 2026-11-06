@@ -8,12 +8,12 @@ $targetDir = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Pa
 
 Push-Location $root
 try {
-    cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp -p mc-kernel -p mc-bench -p mc-notebook
+    cargo build --release --offline -p mc-repl -p mc-engine -p mc-lsp -p mc-kernel -p mc-bench -p mc-notebook -p mc-docs
     if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 } finally { Pop-Location }
 
 New-Item -ItemType Directory -Force $dist | Out-Null
-foreach ($exe in @("mc-repl.exe", "mc-bench.exe", "mc-lsp.exe", "mc-kernel.exe", "mc-notebook.exe")) {
+foreach ($exe in @("mc-repl.exe", "mc-bench.exe", "mc-lsp.exe", "mc-kernel.exe", "mc-notebook.exe", "mc-docs.exe", "mc-docs-pages.exe")) {
     Copy-Item (Join-Path $targetDir "release\$exe") (Join-Path $dist $exe) -Force
 }
 $cases = Join-Path $dist "bench\cases"

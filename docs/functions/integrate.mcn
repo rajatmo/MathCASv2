@@ -1,0 +1,208 @@
+#! mathcas 2 notebook
+
+#% title
+# integrate
+
+#% text
+# `integrate(f, x)` gives an antiderivative of `f` with respect to `x`, without an added constant.
+
+#% text
+# `integrate(f, [x, a, b])` gives the definite integral of `f` for `x` from `a` to `b`.
+
+#% section
+# Details
+
+#% item
+# The result of `integrate(f, x)` is one antiderivative: any constant may be added to it.
+
+#% item
+# The limits of a definite integral may be `-inf` or `inf`.
+
+#% item
+# An integral that cannot be done in closed form is returned unevaluated; `n_integrate` gives its numerical value when the integrand and limits are numbers.
+
+#% item
+# A definite integral that diverges gives a failure tagged `divergent`.
+
+#% item
+# Antiderivatives with parameters are generic: they hold for all values of the parameters except a few special ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An antiderivative of a power:
+
+#% cell
+integrate(x^3, x)
+#% output
+#= (1/4)*x^4
+
+#% text
+# A definite integral:
+
+#% cell
+integrate(x^2, [x, 0, 1])
+#% output
+#= 1/3
+
+#% text
+# A trigonometric integral over a half period:
+
+#% cell
+integrate(sin(x), [x, 0, pi])
+#% output
+#= 2
+
+#% text
+# An improper integral with an infinite limit:
+
+#% cell
+integrate(exp(-x), [x, 0, inf])
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# Rational functions:
+
+#% cell
+integrate(1/(1 + x^2), x)
+#% output
+#= atan(x)
+
+#% cell
+integrate(1/(x^2 - 1), x)
+#% output
+#= (-1/2)*log(1 + x) + (1/2)*log(-1 + x)
+
+#% cell
+integrate((x + 1)/(x^2 + 2x + 2), x)
+#% output
+#= (1/2)*log(2 + 2*x + x^2)
+
+#% text
+# Integration by parts:
+
+#% cell
+integrate(x*exp(x), x)
+#% output
+#= -exp(x) + x*exp(x)
+
+#% cell
+integrate(log(x), x)
+#% output
+#= -x + x*log(x)
+
+#% text
+# Products of trigonometric functions:
+
+#% cell
+integrate(sin(2x)*cos(3x), x)
+#% output
+#= (-1/10)*cos(5*x) + (1/2)*cos(x)
+
+#% text
+# Symbolic parameters:
+
+#% cell
+integrate(a*x + b, x)
+#% output
+#= b*x + (1/2)*a*x^2
+
+#% subsection
+# Applications
+
+#% text
+# The area between the curves y = x and y = x^2 on [0, 1]:
+
+#% cell
+integrate(x - x^2, [x, 0, 1])
+#% output
+#= 1/6
+
+#% text
+# The mean value of sin(x)^2 over a full period:
+
+#% cell
+integrate(sin(x)^2, [x, 0, 2pi]) / (2pi)
+#% output
+#= 1/2
+
+#% text
+# A moment of the exponential distribution:
+
+#% cell
+integrate(x^2*exp(-x), [x, 0, inf])
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative of an antiderivative gives back the integrand:
+
+#% cell
+d(integrate(x*sin(x), x), x)
+#% output
+#= x*sin(x)
+
+#% text
+# A definite integral is the difference of an antiderivative at the limits:
+
+#% cell
+let F = integrate(x^2, x); (F /. x -> 3) - (F /. x -> 1)
+#% output
+#= 26/3
+
+#% cell
+integrate(x^2, [x, 1, 3])
+#% output
+#= 26/3
+
+#% subsection
+# Possible issues
+
+#% text
+# Some integrals have no closed form in terms of the functions the system knows; they stay unevaluated:
+
+#% cell
+integrate(exp(-x^2), x)
+#% output
+#= integrate(exp(-x^2), x)
+
+#% text
+# The numerical value of such a definite integral comes from `n_integrate`:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1])
+#% output
+#= 0.7468241328124272
+
+#% text
+# An integral across a singularity that does not converge:
+
+#% cell
+integrate(1/x, [x, -1, 1])
+#% output
+#! failure(divergent, integrate, x^-1)
+
+#% text
+# The antiderivative of a symbolic power is the generic one, which does not hold for y = -1:
+
+#% cell
+integrate(x^y, x)
+#% output
+#= x^(1 + y)/(1 + y)
+
+#% section
+# See also
+
+#% text
+# `d`, `n_integrate`, `sum`, `simplify`

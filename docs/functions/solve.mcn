@@ -1,0 +1,207 @@
+#! mathcas 2 notebook
+
+#% title
+# solve
+
+#% text
+# `solve(eq, x)` gives the solutions of the equation `eq` for `x` as a list of rule lists `[[x -> a], [x -> b], ...]`.
+
+#% text
+# `solve([eq1, eq2, ...], [x, y, ...])` solves a system of equations for several unknowns.
+
+#% section
+# Details
+
+#% item
+# An equation is written with `==`. An expression without `==` is taken as equal to zero.
+
+#% item
+# Each solution is a list of rules, one per unknown, ready to be used with `/.` or `rewrite`.
+
+#% item
+# Polynomial equations of degree at most 4 are solved by radicals; higher degrees give `root` objects, exact descriptions of the roots that `n` evaluates to numbers.
+
+#% item
+# Roots are listed with their multiplicity: a double root appears twice.
+
+#% item
+# Rational, radical and simple transcendental equations are solved too; for periodic functions the principal solution is given.
+
+#% item
+# Systems of polynomial equations are solved by elimination (Groebner bases). Equations with parameters give the generic solutions, valid when no denominator vanishes.
+
+#% item
+# An equation with no solution gives the empty list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The two roots of a quadratic:
+
+#% cell
+solve(x^2 - 5x + 6 == 0, x)
+#% output
+#= [[x -> 2], [x -> 3]]
+
+#% text
+# Complex roots:
+
+#% cell
+solve(x^2 + 1 == 0, x)
+#% output
+#= [[x -> -1im], [x -> 1im]]
+
+#% text
+# A linear system:
+
+#% cell
+solve([x + y == 3, x - y == 1], [x, y])
+#% output
+#= [[x -> 2, y -> 1]]
+
+#% text
+# A transcendental equation:
+
+#% cell
+solve(exp(x) == 2, x)
+#% output
+#= [[x -> log(2)]]
+
+#% subsection
+# Scope
+
+#% text
+# The general quadratic, in terms of its coefficients:
+
+#% cell
+solve(x^2 + p*x + q == 0, x)
+#% output
+#= [[x -> (1/2)*(-p - (-4*q + p^2)^(1/2))], [x -> (1/2)*(-p + (-4*q + p^2)^(1/2))]]
+
+#% text
+# A cubic with integer roots, and one with radicals:
+
+#% cell
+solve(x^3 - 6x^2 + 11x - 6 == 0, x)
+#% output
+#= [[x -> 1], [x -> 2], [x -> 3]]
+
+#% cell
+solve(x^3 - 2 == 0, x)
+#% output
+#= [[x -> -1*(-1)^(1/3)*2^(1/3)], [x -> 1im*(-1)^(1/6)*2^(1/3)], [x -> 2^(1/3)]]
+
+#% text
+# A quintic, whose roots are described exactly by `root` objects:
+
+#% cell
+solve(x^5 - x + 1 == 0, x)
+#% output
+#= [[x -> root(x => 1 - x + x^5, 1)], [x -> root(x => 1 - x + x^5, 2)], [x -> root(x => 1 - x + x^5, 3)], [x -> root(x => 1 - x + x^5, 4)], [x -> root(x => 1 - x + x^5, 5)]]
+
+#% text
+# A radical equation:
+
+#% cell
+solve(sqrt(x + 1) == 3, x)
+#% output
+#= [[x -> 8]]
+
+#% text
+# A nonlinear system:
+
+#% cell
+solve([x^2 + y^2 == 1, x == y], [x, y])
+#% output
+#= [[x -> (-1/2)*2^(1/2), y -> (-1/2)*2^(1/2)], [x -> (1/2)*2^(1/2), y -> (1/2)*2^(1/2)]]
+
+#% text
+# An expression without `==` is set equal to zero:
+
+#% cell
+solve(x^4 - 1, x)
+#% output
+#= [[x -> -1], [x -> -1im], [x -> 1im], [x -> 1]]
+
+#% subsection
+# Applications
+
+#% text
+# The values of the solutions, by putting each solution into `x`:
+
+#% cell
+solve(x^2 == 4, x) |> map(s => x /. s, _)
+#% output
+#= [-2, 2]
+
+#% text
+# The golden ratio is the positive root of x^2 = x + 1:
+
+#% cell
+solve(x^2 - x - 1 == 0, x)
+#% output
+#= [[x -> (1/2)*(1 - 5^(1/2))], [x -> (1/2)*(1 + 5^(1/2))]]
+
+#% text
+# Numerical values of the roots of a quintic:
+
+#% cell
+n(solve(x^5 - x + 1 == 0, x))
+#% output
+#= [[x -> -1.1673039782614187], [x -> complex(-0.18123244446987535, -1.0839541013177107)], [x -> complex(-0.18123244446987535, 1.0839541013177107)], [x -> complex(0.7648844336005847, -0.3524715460317262)], [x -> complex(0.7648844336005847, 0.3524715460317262)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A double root is listed twice:
+
+#% cell
+solve(x^2 - 2x + 1 == 0, x)
+#% output
+#= [[x -> 1], [x -> 1]]
+
+#% text
+# An equation with no solution:
+
+#% cell
+solve(x == x + 1, x)
+#% output
+#= []
+
+#% subsection
+# Possible issues
+
+#% text
+# Solutions with parameters are generic: this one assumes a is not zero.
+
+#% cell
+solve(a*x + b == 0, x)
+#% output
+#= [[x -> -1*b/a]]
+
+#% text
+# Only the principal solution of a periodic equation is given:
+
+#% cell
+solve(sin(x) == 1/2, x)
+#% output
+#= [[x -> (1/6)*pi]]
+
+#% text
+# A list of solutions is not itself a rule list; map over it to use each solution:
+
+#% cell
+x /. solve(x^2 == 4, x)
+#% output
+#= rewrite(x, [[x -> -2], [x -> 2]])
+
+#% section
+# See also
+
+#% text
+# `find_root`, `factor`, `n`, `rewrite`

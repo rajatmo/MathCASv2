@@ -41,6 +41,7 @@ Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubd
 
 [Icons]
 Name: "{group}\MathCAS v2 Notebook"; Filename: "{app}\mc-notebook.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
+Name: "{group}\MathCAS v2 Documentation"; Filename: "{app}\mc-docs.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
 Name: "{group}\MathCAS v2 quick start guide"; Filename: "{app}\quickstart.pdf"
 Name: "{group}\MathCAS v2 examples"; Filename: "{app}\examples"

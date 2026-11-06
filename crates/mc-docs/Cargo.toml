@@ -1,0 +1,51 @@
+[package]
+name = "mc-docs"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "MathCAS v2 documentation: the function page format and its checker, and the documentation window"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mc-docs"
+path = "src/main.rs"
+
+# the headless page tool: `mc-docs-pages check` and `mc-docs-pages update` (regenerates the outputs of the pages)
+[[bin]]
+name = "mc-docs-pages"
+path = "src/bin/pages.rs"
+
+[dependencies]
+eframe = "0.37.0"
+mc-bench = { path = "../mc-bench" }
+mc-engine = { path = "../mc-engine" }
+mc-kernel = { path = "../mc-kernel" }
+mc-nbfile = { path = "../mc-nbfile" }
+mc-notebook = { path = "../mc-notebook" }
+mc-syntax = { path = "../mc-syntax" }
+png = "0.18"
+# the libraries whose `FUNCTIONS` lists make the catalogue (the same list as the engine's)
+mc-assoc = { path = "../mc-assoc" }
+mc-calculus = { path = "../mc-calculus" }
+mc-dist = { path = "../mc-dist" }
+mc-io = { path = "../mc-io" }
+mc-jit = { path = "../mc-jit" }
+mc-linalg = { path = "../mc-linalg" }
+mc-lists = { path = "../mc-lists" }
+mc-numeric = { path = "../mc-numeric" }
+mc-numtheory = { path = "../mc-numtheory" }
+mc-ode = { path = "../mc-ode" }
+mc-plot = { path = "../mc-plot" }
+mc-poly = { path = "../mc-poly" }
+mc-quad = { path = "../mc-quad" }
+mc-random = { path = "../mc-random" }
+mc-roots = { path = "../mc-roots" }
+mc-simplify = { path = "../mc-simplify" }
+mc-solve = { path = "../mc-solve" }
+mc-special = { path = "../mc-special" }
+mc-strings = { path = "../mc-strings" }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

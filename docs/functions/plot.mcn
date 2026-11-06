@@ -1,0 +1,133 @@
+#! mathcas 2 notebook
+
+#% title
+# plot
+
+#% text
+# `plot(f, [x, a, b])` draws the curve of `f` for `x` from `a` to `b` as an image.
+
+#% text
+# `plot([f1, f2, ...], [x, a, b])` draws several curves in one picture, each in its own colour.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file; the notebook and this documentation show it in place.
+
+#% item
+# The function is sampled adaptively: evenly at first, then more densely where the curve bends.
+
+#% item
+# Where `f` is not a finite real number, or jumps by more than the visible range (at a pole), the curve is broken.
+
+#% item
+# The vertical range is chosen so that a few extreme values do not flatten the rest of the curve.
+
+#% item
+# Options:
+
+#% subitem
+# `x_label: "text"` and `y_label: "text"` label the axes.
+
+#% subitem
+# `legend: ["text", ...]` names the curves; `legend_position: top_right | top_left | bottom_left | bottom_right` places the box.
+
+#% subitem
+# `colors: ["#rrggbb", ...]` and `line_style: [solid | dashed | dotted | dot_dashed, ...]` set the look of each curve.
+
+#% subitem
+# `x_scale` and `y_scale`: `linear`, `log`, or `signed_log`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# One period of the sine:
+
+#% cell
+plot(sin(x), [x, 0, 2pi])
+#% output
+#= image("plot.files/plot-1.png")
+
+#% text
+# Two curves together:
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi])
+#% output
+#= image("plot.files/plot-2.png")
+
+#% text
+# A polynomial with its three real roots:
+
+#% cell
+plot(x^3 - 3x, [x, -2.5, 2.5])
+#% output
+#= image("plot.files/plot-3.png")
+
+#% subsection
+# Scope
+
+#% text
+# Poles break the curve instead of joining its branches:
+
+#% cell
+plot(tan(x), [x, -3, 3])
+#% output
+#= image("plot.files/plot-4.png")
+
+#% text
+# A function with a rapid oscillation near zero; sampling refines there:
+
+#% cell
+plot(x*sin(1/x), [x, -0.5, 0.5])
+#% output
+#= image("plot.files/plot-5.png")
+
+#% subsection
+# Options
+
+#% text
+# Labels and a legend:
+
+#% cell
+plot([exp(-x), exp(-2x)], [x, 0, 3], x_label: "t", y_label: "amount", legend: ["rate 1", "rate 2"])
+#% output
+#= image("plot.files/plot-6.png")
+
+#% text
+# A logarithmic vertical axis turns exponentials into straight lines:
+
+#% cell
+plot([exp(x), exp(2x)], [x, 0, 5], y_scale: log)
+#% output
+#= image("plot.files/plot-7.png")
+
+#% text
+# Colours and line styles:
+
+#% cell
+plot([sin(x), sin(2x)], [x, 0, pi], colors: ["#e45649", "#4078f2"], line_style: [solid, dashed])
+#% output
+#= image("plot.files/plot-8.png")
+
+#% subsection
+# Applications
+
+#% text
+# A function and its derivative:
+
+#% cell
+plot([x*exp(-x), d(x*exp(-x), x)], [x, 0, 6], legend: ["f", "f'"])
+#% output
+#= image("plot.files/plot-9.png")
+
+#% section
+# See also
+
+#% text
+# `list_plot`, `table`, `n_dsolve`

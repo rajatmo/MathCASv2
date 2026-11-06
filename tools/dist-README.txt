@@ -5,6 +5,8 @@ This is an early build of the v2 core: the language reads, evaluates and prints;
 works" below). VERSION.txt names the commit.
 
 mc-notebook.exe the notebook window: .mcn notebooks with cells, In/Out labels, grouping, themes (mc-notebook file.mcn)
+mc-docs.exe     the documentation window: every function by area, search, function pages (mc-docs name)
+mc-docs-pages.exe  checks or regenerates documentation pages (mc-docs-pages check | update [name ...])
 mc-repl.exe     the interactive REPL
 mc-bench.exe    the benchmark harness (runs the cases under bench\cases)
 mc-lsp.exe      the language server for editors (see "Editor support" below)

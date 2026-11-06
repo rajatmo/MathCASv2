@@ -2171,6 +2171,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-docs"
+version = "0.0.0"
+dependencies = [
+ "eframe",
+ "mc-assoc",
+ "mc-bench",
+ "mc-calculus",
+ "mc-dist",
+ "mc-engine",
+ "mc-io",
+ "mc-jit",
+ "mc-kernel",
+ "mc-linalg",
+ "mc-lists",
+ "mc-nbfile",
+ "mc-notebook",
+ "mc-numeric",
+ "mc-numtheory",
+ "mc-ode",
+ "mc-plot",
+ "mc-poly",
+ "mc-quad",
+ "mc-random",
+ "mc-roots",
+ "mc-simplify",
+ "mc-solve",
+ "mc-special",
+ "mc-strings",
+ "mc-syntax",
+ "png 0.18.1",
+ "winresource",
+]
+
+[[package]]
 name = "mc-engine"
 version = "0.0.0"
 dependencies = [
