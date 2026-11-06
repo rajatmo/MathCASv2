@@ -458,6 +458,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                 return Go::Next(self.finish(cx, e, f));
             }
         }
+        // a stored option list next to other options: `f(x, opts, k: v)` is `f(x, options(...opts, k -> v))` (gap G65)
+        if let Some(u) = self.merge_options(head, vs) {
+            attempt!(self, cx, e, self.tick(cx));
+            e.t = u;
+            return Go::Again(e);
+        }
         // listable functions map over list arguments (semantics 7.2)
         if attrs.listable {
             if let Some(v) = attempt!(self, cx, e, self.thread_packed(cx, head, vs)) {

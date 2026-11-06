@@ -261,6 +261,10 @@ functions! {
         "full_form(x): x shown with every part written as a plain call, add(x, pow(y, 2))";
     "input_form" => structure::display_wrapper,
         "input_form(x): x shown in the input syntax (a wrapper the printer removes)";
+    "scientific_form" => structure::display_wrapper,
+        "scientific_form(x), scientific_form(x, n): x with its machine reals shown as m × 10^e to n significant digits (6 by default); a display wrapper";
+    "number_form" => structure::display_wrapper,
+        "number_form(x), number_form(x, n): x with its machine reals shown to n significant digits (6 by default), in m × 10^e form outside 10^-5 to 10^6; a display wrapper";
     "is_integer" => predicates::is_integer,
         "is_integer(x): whether x is an integer";
     "is_rational" => predicates::is_rational,

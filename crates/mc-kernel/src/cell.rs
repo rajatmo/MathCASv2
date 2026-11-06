@@ -100,6 +100,31 @@ pub fn run_cell(
     stop: &StopFlag,
     sink: &mut dyn FnMut(CellEvent),
 ) -> Status {
+    run_cell_in(engine, src, origin, line, stop, false, sink)
+}
+
+/// [`run_cell`] with the statements numbered by the session's line counter, so that `out(n)`, `%` and `%%` see
+/// the values of earlier statements and cells (the notebook runner; gap G77).
+pub fn run_cell_numbered(
+    engine: &mut CoreEngine,
+    src: &str,
+    origin: &Origin,
+    line: u32,
+    stop: &StopFlag,
+    sink: &mut dyn FnMut(CellEvent),
+) -> Status {
+    run_cell_in(engine, src, origin, line, stop, true, sink)
+}
+
+fn run_cell_in(
+    engine: &mut CoreEngine,
+    src: &str,
+    origin: &Origin,
+    line: u32,
+    stop: &StopFlag,
+    numbered: bool,
+    sink: &mut dyn FnMut(CellEvent),
+) -> Status {
     let text = padded(src, line);
     let mut on_event = |e: &Event| {
         sink(match e {
@@ -107,7 +132,7 @@ pub fn run_cell(
             Event::Failure(s) => CellEvent::Failure(s.clone()),
         })
     };
-    let r = engine.eval_streaming(&text, origin, stop, &mut on_event);
+    let r = engine.eval_streaming_with(&text, origin, stop, EachOptions { numbered }, &mut on_event);
     let failed = r.map(|script| {
         if let Some(v) = shown_value(&script) {
             sink(CellEvent::Value(v.to_string()));

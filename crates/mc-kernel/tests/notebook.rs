@@ -85,7 +85,7 @@ fn rewriting_is_idempotent_and_positions_are_notebook_lines() {
     let mut nb = Notebook::parse(src).unwrap();
     let (status, events) = run(&mut nb, &dir, &StopFlag::new());
     assert_eq!(status, Status::Error);
-    let CellEvent::Error(err) = events.last().unwrap() else { panic!("{events:?}") };
+    let Some(CellEvent::Error(err)) = events.iter().find(|e| matches!(e, CellEvent::Error(_))) else { panic!("{events:?}") };
     let written = nb.print();
     // the error points at the end of `x +` in the file as written
     let lines: Vec<&str> = written.lines().collect();
@@ -93,8 +93,8 @@ fn rewriting_is_idempotent_and_positions_are_notebook_lines() {
     assert_eq!(lines[line - 1], "x +", "{written}");
     assert_eq!(err.column, Some(4));
     assert!(err.rendered.contains("t.mcn:"), "{}", err.rendered);
-    // the cell after the error lost its stale output; the cells before got theirs
-    assert_eq!(output(&nb.cells[3]), None);
+    // the cell after the error still ran (gap G77) and replaced its stale output; the cells before got theirs
+    assert_eq!(output(&nb.cells[3]).unwrap().last().unwrap().text, "5");
     assert_eq!(output(&nb.cells[0]).unwrap().len(), 2);
     assert!(written.contains("#% cell\nx + 1\n#% output\n#= 3\n\n"), "{written}");
     // a second run changes nothing
@@ -136,4 +136,34 @@ fn without_rewriting_the_notebook_is_left_alone() {
     assert_eq!(status, Status::Ok);
     assert_eq!(shown[0], CellEvent::Output("7".into()));
     assert_eq!(nb.print(), src);
+}
+
+/// Gap G77: `%`, `%%` and `%n` are earlier results across cells, and a cell that does not read does not stop the
+/// cells after it.
+#[test]
+fn history_shorthands_and_running_on_after_a_syntax_error() {
+    let dir = std::env::temp_dir();
+    let src = "#! mathcas 2 notebook
+
+#% cell
+1 + 1
+% * 10
+
+#% cell
+3 *
+
+#% cell
+%% + 1
+
+#% cell
+%1 + %
+";
+    let mut nb = Notebook::parse(src).unwrap();
+    let (status, _) = run(&mut nb, &dir, &StopFlag::new());
+    assert_eq!(status, Status::Error);
+    let last = |c: &Cell| output(c).unwrap().last().unwrap().text.clone();
+    assert_eq!(last(&nb.cells[0]), "20");
+    // statement 3 is the read error, so `%%` is statement 2's value
+    assert_eq!(last(&nb.cells[2]), "21");
+    assert_eq!(last(&nb.cells[3]), "23");
 }

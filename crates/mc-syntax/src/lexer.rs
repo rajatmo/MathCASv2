@@ -310,6 +310,7 @@ impl<'s> Lexer<'s> {
                 '`' => self.backquoted(),
                 '0'..='9' => self.number(),
                 '&' if matches!(self.peek2(), Some('0'..='9')) => self.slot(),
+                '%' => self.history(),
                 c if is_ident_start(c) => self.ident(),
                 c if symbol_alias(c).is_some() => {
                     self.bump();
@@ -614,6 +615,37 @@ impl<'s> Lexer<'s> {
                 None
             }
         }
+    }
+
+    /// `%` (the previous result), `%%` (the one before; one more `%` per step back), `%n` (result n): the tokens
+    /// of `out(-1)`, `out(-2)`, `out(n)` (gap G77).
+    fn history(&mut self) {
+        let start = self.pos;
+        let mut back = 0u32;
+        while self.peek() == Some('%') {
+            self.bump();
+            back += 1;
+        }
+        let ds = self.pos;
+        if back == 1 {
+            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                self.bump();
+            }
+        }
+        let digits = self.src[ds..self.pos].to_string();
+        let span = Span::new(start, self.pos);
+        let tok = |t: Tok| Token { tok: t, span };
+        self.push(Tok::Ident("out".into()), start);
+        self.tokens.push(tok(Tok::Punct(P::LParen)));
+        let num = |d: String| Tok::Num(NumLit { kind: NumKind::Int { digits: d, radix: 10 }, imag: false });
+        if digits.is_empty() {
+            self.tokens.push(tok(Tok::Punct(P::Minus)));
+            self.tokens.push(tok(num(back.to_string())));
+        } else {
+            self.tokens.push(tok(num(digits)));
+        }
+        self.tokens.push(tok(Tok::Punct(P::RParen)));
+        self.space = false;
     }
 
     fn slot(&mut self) {

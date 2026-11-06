@@ -7,7 +7,7 @@
 use crate::page::{image_path, Page, Problem};
 use mc_bench::StopFlag;
 use mc_engine::{CoreEngine, Origin};
-use mc_kernel::{run_cell, CellEvent, Status};
+use mc_kernel::{run_cell_numbered, CellEvent, Status};
 use mc_nbfile::{Notebook, OutputKind, OutputLine};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
@@ -105,7 +105,7 @@ fn run_in(
         });
         let start = Instant::now();
         let mut events = vec![];
-        let status = run_cell(&mut engine, &src, &origin, line, &stop, &mut |e| events.push(e));
+        let status = run_cell_numbered(&mut engine, &src, &origin, line, &stop, &mut |e| events.push(e));
         let secs = start.elapsed().as_secs_f64();
         let _ = done.send(());
         let _ = watchdog.join();

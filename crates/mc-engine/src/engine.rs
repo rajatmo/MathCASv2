@@ -328,6 +328,32 @@ impl CoreEngine {
         self.evaluate(Input::Text(src, origin), stop, None, &mut legacy)
     }
 
+    /// [`CoreEngine::eval_streaming`] with the statements numbered as in [`CoreEngine::eval_each`] (with
+    /// `options.numbered`): `out(n)`, `%` and `%%` see the values of earlier statements and cells (gap G77).
+    pub fn eval_streaming_with(
+        &mut self,
+        src: &str,
+        origin: &Origin,
+        stop: &StopFlag,
+        options: EachOptions,
+        sink: &mut dyn FnMut(&Event),
+    ) -> Result<Script, RunError> {
+        if !options.numbered {
+            return self.eval_streaming(src, origin, stop, sink);
+        }
+        let suppressed = guard::catch(|| suppressed(src)).unwrap_or_default();
+        let mut legacy = |s: Step<'_>| match s {
+            Step::Event(e) => sink(e),
+            Step::Report(_) => {}
+        };
+        let plan = Plan { numbered: true, suppressed, terms: vec![] };
+        let r = self.evaluate(Input::Text(src, origin), stop, Some(plan), &mut legacy);
+        if matches!(r, Err(RunError::Read(_))) {
+            self.line += 1;
+        }
+        r
+    }
+
     /// Evaluate `src` from `origin` as [`CoreEngine::eval_streaming`] does, reporting every top-level statement of
     /// `src` (08-notebook 5.2): a [`Report::Value`] for each statement whose value is shown (not `null`, which
     /// definitions give, and not followed by `;`), a [`Report::Failure`] for each failure, `print` output one

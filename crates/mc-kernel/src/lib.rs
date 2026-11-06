@@ -179,9 +179,10 @@
 //! prints like a script: `print` output and each cell's value (unless `null`) to standard output, failures and
 //! errors to standard error. `mc-repl --update notebook.mcn` also writes each cell's output block back into the
 //! file (atomically, and only if it changed): a cell that shows nothing gets no block. As for scripts, a failure
-//! does not stop the run (exit code 2); a read error (1), an interrupt (130) or a limit (2) stops it, the cell
-//! where it stopped records why, and the cells after it lose their output blocks, so the file records one run
-//! (decision 2.7). Positions in the written output blocks are lines of the written file, so a second `--update`
+//! does not stop the run (exit code 2), nor does a cell that does not read: it records the read error and the
+//! cells after it run (exit code 1; gap G77). An interrupt (130) or a limit (2) stops the run, the cell where it
+//! stopped records why, and the cells after it lose their output blocks, so the file records one run (decision
+//! 2.7). The statements are numbered across the cells, so `out(n)`, `%`, `%%` and `%n` reach earlier results. Positions in the written output blocks are lines of the written file, so a second `--update`
 //! leaves the file unchanged.
 #![warn(missing_docs)]
 pub mod cell;
@@ -189,6 +190,6 @@ pub mod notebook;
 pub mod protocol;
 pub mod server;
 
-pub use cell::{run_cell, run_each, CellEvent, EachEvent, ErrorReport, Status};
+pub use cell::{run_cell, run_cell_numbered, run_each, CellEvent, EachEvent, ErrorReport, Status};
 pub use notebook::Notebook;
 pub use protocol::{Body, Request, Response, Values, CAPABILITIES, PROTOCOL};

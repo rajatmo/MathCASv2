@@ -76,18 +76,19 @@ fn update_writes_outputs_back_once() {
 }
 
 #[test]
-fn errors_stop_the_run_and_are_recorded() {
+fn errors_are_recorded_and_the_run_goes_on() {
     let dir = scratch("errors");
     let path = dir.join("e.mcn");
     std::fs::write(&path, "#! mathcas 2 notebook\n#% cell\n1/0\n#% cell\ny = (\n#% cell\n7\n#% output\n#= 7\n")
         .unwrap();
     let (code, out, err) = run_in(&dir, &["--update", "e.mcn"]);
-    assert_eq!((code, out.as_str()), (1, ""));
+    // a cell that does not read is an error, but the cells after it still run (gap G77)
+    assert_eq!((code, out.as_str()), (1, "7\n"));
     assert!(err.starts_with("e.mcn: failure(division_by_zero)\ne.mcn:7:6: "), "{err}");
     let written = std::fs::read_to_string(&path).unwrap();
     assert!(written.starts_with("#! mathcas 2 notebook\n#% cell\n1/0\n#% output\n#! failure(division_by_zero)\n"));
     assert!(written.contains("#% cell\ny = (\n#% output\n#! e.mcn:7:6: "), "{written}");
-    assert!(written.ends_with("#% cell\n7\n"), "the cell after the error lost its output: {written}");
+    assert!(written.ends_with("#% cell\n7\n#% output\n#= 7\n"), "the cell after the error ran: {written}");
     // the position is that of the file as written
     assert_eq!(written.lines().nth(6), Some("y = ("));
     // not a notebook, a missing file: nothing runs

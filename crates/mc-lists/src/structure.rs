@@ -228,16 +228,14 @@ pub(crate) fn extract<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
     let [x, spec] = *args else { return Ok(Reply::Decline) };
     // an association: keys or positions of its values (decision io-core.4)
     if let Some(es) = crate::assocs::entries(lib, h, x) {
-        let Some((ps, several)) = assoc_positions(h, cx, &es, spec) else { return Ok(Reply::Decline) };
-        let vs = cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>());
-        let mut out = Vec::with_capacity(ps.len());
-        for p in &ps {
-            match part_at(h, vs, p) {
-                Ok(v) => out.push(v),
-                Err(i) => return Ok(Reply::Done(lib.bad_index(h, h.int(i), 0))),
+        if let Some((ps, several)) = assoc_positions(h, cx, &es, spec) {
+            let vs = cx.list(&es.iter().map(|&(_, v)| v).collect::<Vec<_>>());
+            let out: Result<Vec<T<'h>>, i64> = ps.iter().map(|p| part_at(h, vs, p)).collect();
+            if let Ok(out) = out {
+                return Ok(Reply::Done(if several { cx.list(&out) } else { out[0] }));
             }
         }
-        return Ok(Reply::Done(if several { cx.list(&out) } else { out[0] }));
+        // positions in the term itself (as `position` gives them): the structural parts below
     }
     let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
     let several = cx.as_list(spec).is_some_and(|xs| xs.first().is_some_and(|&y| cx.as_list(y).is_some()));

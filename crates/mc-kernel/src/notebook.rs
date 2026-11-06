@@ -1,7 +1,7 @@
 //! The `.mcn` notebook format and its runner. The format itself (reading, writing, cells, output blocks,
 //! [`write_atomic`]) lives in `mc-nbfile` and is re-exported here; this module adds [`run`], which evaluates the code
 //! cells in one session and can rewrite their output blocks.
-use crate::cell::{run_cell, CellEvent, Status};
+use crate::cell::{run_cell_numbered, CellEvent, Status};
 use mc_bench::StopFlag;
 use mc_engine::{CoreEngine, Origin};
 
@@ -30,8 +30,9 @@ fn output_block(events: &[CellEvent], status: Status) -> Option<Vec<OutputLine>>
 
 /// Evaluate the code cells of `nb` in order in `engine`, every cell from `origin` (the notebook file: imports are
 /// looked up next to it) with its errors at their lines in the notebook, handing each cell's events to `show` as
-/// they happen. Returns how the run ended: the status of the cell where it stopped (`error`, `interrupted`,
-/// `limit`), else `failure` if some cell had a failure, else `ok`.
+/// they happen. Returns how the run ended: the status of the cell where it stopped (`interrupted`, `limit`), else
+/// `error` if some cell did not read (the cells after it still run), else `failure` if some cell had a failure,
+/// else `ok`.
 ///
 /// With `rewrite`, every cell that ran gets the output block of this run (none if it showed nothing), and the
 /// cells after a stop lose theirs, so the notebook records one run. Error positions are those of the notebook as
@@ -51,7 +52,7 @@ pub fn run(
         // earlier cells' output blocks are final by now, so this is the cell's line in the file to be written
         let line = nb.first_lines()[i];
         let mut events = vec![];
-        let status = run_cell(engine, &src, origin, line, stop, &mut |e| {
+        let status = run_cell_numbered(engine, &src, origin, line, stop, &mut |e| {
             show(&e);
             events.push(e);
         });
@@ -60,8 +61,12 @@ pub fn run(
         }
         match status {
             Status::Ok => {}
-            Status::Failure => overall = Status::Failure,
-            Status::Error | Status::Interrupted | Status::Limit => {
+            Status::Failure if overall == Status::Ok => overall = Status::Failure,
+            Status::Failure => {}
+            // a cell that does not read (a syntax error) is reported in its output; the following cells still run
+            // (gap G77)
+            Status::Error => overall = Status::Error,
+            Status::Interrupted | Status::Limit => {
                 if rewrite {
                     for c in nb.cells[i + 1..].iter_mut().filter(|c| c.is_code()) {
                         c.set_output(None);

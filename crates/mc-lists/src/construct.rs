@@ -249,7 +249,7 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             return Ok(Reply::Done(cx.list(&out)));
         }
         // a symbol alone at the end is neither an iterator nor a count
-        [.., last] if args.len() % 2 == 0 && matches!(h.view(last), View::Sym(_)) => return Ok(Reply::Decline),
+        [.., last] if args.len().is_multiple_of(2) && matches!(h.view(last), View::Sym(_)) => return Ok(Reply::Decline),
         [e, k, r, ..] => (e, k, r),
         _ => return Ok(Reply::Decline),
     };

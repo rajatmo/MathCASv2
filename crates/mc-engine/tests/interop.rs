@@ -185,3 +185,38 @@ fn maps_lists_functions_are_elementwise() {
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// Gap G65: a stored option list spliced in next to other options; later options win.
+#[test]
+fn stored_options_merge_with_the_options_after_them() {
+    check(&[
+        ("opts = options(frame -> true, grid_lines -> none);", "null"),
+        ("g(1, opts, a: 2)", "g(1, frame: true, grid_lines: none, a: 2)"),
+        ("g(1, options(a -> 1), options(b -> 2, a -> 3))", "g(1, b: 2, a: 3)"),
+        ("g(1, opts)", "g(1, frame: true, grid_lines: none)"),
+        ("head(plot(x, [x, 0, 1], opts, plot_range: all))", "image"),
+    ]);
+}
+
+/// Gaps G67 and G76: display wrappers for numbers, and interpolations with many points shown short, in display
+/// mode only (the default prints text that reads back).
+#[test]
+fn number_forms_and_interpolations_display_short() {
+    let mut e = CoreEngine::with_config(EngineConfig { threads: 1, display: true, ..EngineConfig::default() });
+    for (src, want) in [
+        ("scientific_form(330808.9917147705)", "3.30809 × 10^5"),
+        ("number_form(5.18e11)", "5.18 × 10^11"),
+        ("number_form(330808.99)", "330809."),
+        ("number_form(0.000123456789, 3)", "0.000123"),
+        ("scientific_form([1.5, -0.002, 12])", "[1.5, -2 × 10^-3, 12]"),
+        ("scientific_form(123456.789, 3)", "1.23 × 10^5"),
+        ("f = interpolation(table([x, sin(x)], x, range(0, 25, 0.02)))", "null"),
+        ("f", "interpolated([0.0, 25.0], <1251 points>)"),
+        ("abs(f(1.0) - sin(1.0)) < 10^-6", "true"),
+        ("interpolation([[0.0, 1.0], [1.0, 2.0]], method: linear)", "interpolated([0.0, 1.0], [1.0, 2.0], [0.0, 0.0])"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+    let mut plain = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+    assert_eq!(eval(&mut plain, "scientific_form(1.5)"), "scientific_form(1.5)");
+}

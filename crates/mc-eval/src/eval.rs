@@ -1270,6 +1270,41 @@ impl<'k, 'h> Eval<'k, 'h> {
 
     /// Whether a call of `head` on `vals` threads over associations although `head` is not listable: some argument
     /// is an association and `head` maps over lists itself ([`Kernel::set_maps_lists`]).
+    /// A call whose last arguments are two or more `options(...)` terms: the call with them merged into one, in
+    /// order (a later value of the same name wins where options are read; gap G65). `None` otherwise.
+    pub(crate) fn merge_options(&self, head: T<'h>, vals: &[T<'h>]) -> Option<T<'h>> {
+        let h = self.heap;
+        let opts = self.sym(self.k.names.scopes.options);
+        // a packed array is never an option list: its head is not read (viewing it would unpack it)
+        let is_opts = |t: &T<'h>| h.packed(*t).is_none() && matches!(h.view(*t), View::App { head, .. } if head == opts);
+        let n = vals.iter().rev().take_while(|t| is_opts(t)).count();
+        if n < 2 || head == opts {
+            return None;
+        }
+        let first = vals.len() - n;
+        // the rules of all of them, the later ones replacing earlier rules of the same name in place
+        let mut rules: Vec<T<'h>> = vec![];
+        for t in &vals[first..] {
+            let View::App { args, .. } = h.view(*t) else { continue };
+            for &r in args {
+                let name = |r: T<'h>| match h.view(r) {
+                    View::App { args: &[k, _], .. } => Some(k),
+                    _ => None,
+                };
+                match name(r).and_then(|k| rules.iter().position(|&q| name(q) == Some(k))) {
+                    Some(i) => {
+                        rules.remove(i);
+                        rules.push(r);
+                    }
+                    None => rules.push(r),
+                }
+            }
+        }
+        let mut args = vals[..first].to_vec();
+        args.push(h.app(opts, &rules));
+        Some(h.app(head, &args))
+    }
+
     pub(crate) fn maps_associations(&self, head: T<'h>, vals: &[T<'h>]) -> bool {
         let Some((assoc, _)) = self.k.assoc_heads else { return false };
         if self.k.maps_lists.is_empty() {

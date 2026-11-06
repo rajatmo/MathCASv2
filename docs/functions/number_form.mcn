@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# number_form
+
+#% text
+# `number_form(x)` shows the machine reals in `x` to six significant digits; `number_form(x, n)` to `n`.
+
+#% section
+# Details
+
+#% item
+# Numbers from 10^-5 to 10^6 are written out; larger and smaller ones as `m × 10^e`.
+
+#% item
+# The argument is evaluated first; `number_form` stays around the value as a wrapper that changes only how it is shown.
+
+#% item
+# Only machine reals change: integers, fractions and symbols are shown as they are.
+
+#% item
+# The pages keep values as text that reads back, so they show the wrapper; `mc-repl` and the notebook show `330809.`, `5.18 × 10^11`, `3.14159265359` and `[0.000123, 2/3, 1 × 10^-9]` for the examples below.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+number_form(330808.99)
+#% output
+#= number_form(330808.99)
+
+#% cell
+number_form(5.18e11)
+#% output
+#= number_form(518000000000.0)
+
+#% cell
+number_form(pi + 0.0, 12)
+#% output
+#= number_form(3.141592653589793, 12)
+
+#% subsection
+# Scope
+
+#% cell
+number_form([0.000123456789, 2/3, 1.0e-9], 3)
+#% output
+#= number_form([0.000123456789, 2/3, 1e-9], 3)
+
+#% section
+# See also
+
+#% text
+# `scientific_form`, `input_form`, `n`

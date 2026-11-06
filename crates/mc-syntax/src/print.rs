@@ -139,6 +139,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
             slot_depth: 0,
             slot_memo: HashMap::new(),
             plain: 0,
+            num_form: None,
         };
         r.scopes.push();
         r.go();
@@ -198,6 +199,8 @@ enum Task<'h> {
     /// Inside `full_form(x)`: every call written as a plain call.
     PlainEnter,
     PlainExit,
+    /// Sets the display of machine reals (inside `scientific_form` / `number_form`).
+    NumForm(Option<NumForm>),
 }
 
 struct Run<'p, 'h, S: Store + ?Sized> {
@@ -210,6 +213,40 @@ struct Run<'p, 'h, S: Store + ?Sized> {
     slot_memo: HashMap<T<'h>, u32>,
     /// Nesting of `full_form` wrappers being printed: calls print as plain calls.
     plain: u32,
+    /// Inside `scientific_form(x, n)` / `number_form(x, n)` (display mode): how machine reals print.
+    num_form: Option<NumForm>,
+}
+
+/// The display of machine reals inside `scientific_form` (always `m × 10^e`) or `number_form` (plain between
+/// 10^-5 and 10^6, else as `scientific_form`), with `digits` significant digits (gap G67).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct NumForm {
+    scientific: bool,
+    digits: usize,
+}
+
+impl NumForm {
+    /// The unsigned text of `x` (finite) and whether it is a product `m × 10^e`.
+    fn text(self, x: f64) -> (String, bool) {
+        let x = x.abs();
+        if x == 0.0 {
+            return ("0.".into(), false);
+        }
+        let e = format!("{:.*e}", self.digits.max(1) - 1, x);
+        let (m, exp) = e.split_once('e').unwrap_or((&e, "0"));
+        let exp: i32 = exp.parse().unwrap_or(0);
+        let m = if m.contains('.') { m.trim_end_matches('0').trim_end_matches('.') } else { m };
+        if !self.scientific && (-5..6).contains(&exp) {
+            // the rounded value written out: 330809., 0.00123
+            let r: f64 = e.parse().unwrap_or(x);
+            let t = format!("{r:?}");
+            return (t.strip_suffix(".0").map(|t| format!("{t}.")).unwrap_or(t), false);
+        }
+        if exp == 0 {
+            return (m.to_string(), false);
+        }
+        (format!("{m} × 10^{exp}"), true)
+    }
 }
 
 /// Validity of a ball literal's text: what the lexer produces for a mantissa (`-`, digits, optional `.` and
@@ -287,6 +324,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 Task::SlotExit => self.slot_depth -= 1,
                 Task::PlainEnter => self.plain += 1,
                 Task::PlainExit => self.plain -= 1,
+                Task::NumForm(f) => self.num_form = f,
                 Task::Expr(t, ctx) => {
                     let mut v = Vec::new();
                     let (level, prefix) = self.expr_form(t, ctx, &mut v);
@@ -382,6 +420,18 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
     /// Fills `v` with the tasks printing `t` and returns its level and whether it starts with a prefix `-`.
     fn expr_form(&mut self, t: T<'h>, ctx: Ctx, v: &mut Vec<Task<'h>>) -> (u8, bool) {
         let st = self.store();
+        if let (Some(f), View::Real(x)) = (self.num_form, st.view(t)) {
+            if x.is_finite() {
+                let (txt, product) = f.text(x);
+                let neg = x.is_sign_negative() && x != 0.0;
+                v.push(Task::Owned(if neg { format!("-{txt}") } else { txt }));
+                return match (neg, product) {
+                    (true, _) => (NEG, true),
+                    (false, true) => (MUL, false),
+                    (false, false) => (ATOM, false),
+                };
+            }
+        }
         if let Some((txt, neg)) = self.literal(t) {
             v.push(Task::Owned(if neg { format!("-{txt}") } else { txt }));
             return if neg { (NEG, true) } else { (ATOM, false) };
@@ -435,6 +485,11 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                         _ => {}
                     }
                 }
+                if self.p.display {
+                    if let Some(r) = self.display_form(head, args, ctx, v) {
+                        return r;
+                    }
+                }
                 if let (Some((e, exp, pow)), [b, x]) = (self.p.exp_calls, args) {
                     if self.sym_of(*b) == Some(e) && self.sym_of(head) == Some(pow) {
                         self.call_items(self.store().sym_term(exp), std::slice::from_ref(x), v);
@@ -457,6 +512,44 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 (POSTFIX, false)
             }
             View::Int(_) | View::BigInt { .. } => (ATOM, false),
+        }
+    }
+
+    /// The wrappers and values that print only for reading (display mode): `scientific_form(x)`,
+    /// `number_form(x)` (with an optional number of digits, gap G67) and the short form of `interpolated(xs, ys,
+    /// ms)` with many points (gap G76).
+    fn display_form(&mut self, head: T<'h>, args: &[T<'h>], ctx: Ctx, v: &mut Vec<Task<'h>>) -> Option<(u8, bool)> {
+        let st = self.store();
+        let name = self.name(self.sym_of(head)?);
+        match (name.as_str(), args) {
+            ("scientific_form" | "number_form", [x, rest @ ..]) => {
+                let digits = match rest {
+                    [] => 6,
+                    [n] => match st.view(*n) {
+                        View::Int(n @ 1..=17) => n as usize,
+                        _ => return None,
+                    },
+                    _ => return None,
+                };
+                let f = NumForm { scientific: name == "scientific_form", digits };
+                let prev = self.num_form;
+                v.push(Task::NumForm(Some(f)));
+                self.num_form = Some(f);
+                let r = self.expr_form(*x, ctx, v);
+                self.num_form = prev;
+                v.push(Task::NumForm(prev));
+                Some(r)
+            }
+            ("interpolated", [xs, _, _]) => {
+                let (Head::List, xs) = self.classify(*xs)? else { return None };
+                if xs.len() <= 8 {
+                    return None;
+                }
+                let (View::Real(lo), View::Real(hi)) = (st.view(xs[0]), st.view(xs[xs.len() - 1])) else { return None };
+                v.push(Task::Owned(format!("interpolated([{lo:?}, {hi:?}], <{} points>)", xs.len())));
+                Some((POSTFIX, false))
+            }
+            _ => None,
         }
     }
 
