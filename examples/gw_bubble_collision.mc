@@ -67,16 +67,21 @@ spectrum = map(k => {
   [f, omega_total(f, 0.8, 1.0e10, 1.0, 1.0e-12)]
 }, range(-100, 280))
 
+# the notebook's label positions, in natural logs of f and Omega h^2 (the epilog of a log plot takes log10 values)
+marks = [[-0.1, -36.5], [-9, -20.5], [-1.7, -29.5], [-12.5, -26], [3.25, -28.7], [3.2, -24.7], [-18.0, -26]]
+window = [[1.0e-5, 1.0e14], [1.0e-30, 1.0e-2]]
+
 stage_plot = timing({
-  # the notebook overlays the detector plot (dashed, filled to the top: GAP G33) on the spectrum (GAP G18) and names the
-  # detectors in place (GAP G21); here they are data sets of one plot, named in the legend
-  let p = list_log_log_plot(if have then append(detectors, spectrum) else [spectrum], joined: true,
-                            line_style: if have then append(map(nm => dashed, names), solid) else [solid],
-                            plot_range: [[1.0e-5, 1.0e14], [1.0e-30, 1.0e-2]],
-                            x_label: r"$f$ (Hz)", y_label: r"$\Omega_{\mathrm{GW}}h^2$",
-                            legend: if have then append(labels, r"$v_w = 0.8$, $T_n = 10^{10}$ GeV, $\alpha = 1$, $\beta/H = 0.01$")
-                                    else [r"$v_w = 0.8$, $T_n = 10^{10}$ GeV, $\alpha = 1$, $\beta/H = 0.01$"],
-                            legend_position: bottom_right)
+  let spec = list_log_log_plot([spectrum], joined: true, plot_range: window, x_label: r"$f$ (Hz)",
+                               y_label: r"$\Omega_{\mathrm{GW}}h^2$", legend: [r"$\Omega_{\mathrm{GW}}h^2$"],
+                               legend_title: r"$v_w = 0.8$, $T_n = 10^{10}$ GeV, $\alpha = 1$, $\beta/H = 0.01$",
+                               legend_position: bottom_right)
+  # the detector curves dashed and filled up to the top, named in place, under the spectrum
+  let p = if have then show(list_log_log_plot(detectors, joined: true, line_style: map(nm => dashed, names),
+                                              filling: map(k => k -> top, range(7)), plot_range: window,
+                                              x_label: r"$f$ (Hz)", y_label: r"$\Omega_{\mathrm{GW}}h^2$",
+                                              epilog: map(k => text(labels[k], marks[k]/log(10.0)), range(7))), spec)
+          else spec
   export_data("gw_bubble_collision.pdf", p)
   export_data("gw_bubble_collision.png", p)
 })

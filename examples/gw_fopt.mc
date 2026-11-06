@@ -87,7 +87,7 @@ fn omega_brems(f0, mphi, mpsi, tp, b; q = 1.0e-3) = {
 # the approximate (constant-rate) spectrum of the notebook, cut at f0 = m_phi/(4 pi) (xi T_0/T_p)
 fn omega_approx(f0, mphi, tp) =
   zeta(3)/pi^2*2*pi*f0*hz_to_gev*xi^3*t_today^3/rho_c_over_h2*(mphi/mp)^2/(8*pi^2)*
-    (1.0e-100 + unit_step(mphi*gev_to_hz/(4*pi)*xi*t_today/tp - f0))   # GAP G1: heaviside_theta
+    (1.0e-100 + heaviside_theta(mphi*gev_to_hz/(4*pi)*xi*t_today/tp - f0))
 
 # --- 1. three numbers of the notebook: Omega h^2 at f0 = 1e8 Hz for m_phi = 1e13 GeV, the frequency scale, and the
 # rounded estimate
@@ -108,13 +108,13 @@ stage_progress = timing({
   let ks = range(0.0001, 100, 0.001)
   let data = transpose([1.0e7*(log(0.71)/(-log(10.0)*ks))^(1/50), 10.0^-ks])
   say("progress: ", length(data), " points, first ", data[1], ", last ", data[-1])
-  # the dashed lines at T_p and T_n (GAP G20: grid lines; drawn as two-point data sets)
-  let p = list_line_plot([data, [[1.0e7, 0], [1.0e7, 1]], [[1.6e7, 0], [1.6e7, 1]]],
-                         colors: ["#800020", "#808080", "#808080"], line_style: [solid, dashed, dashed],
-                         plot_range: [[8.7e6, 1.65e7], [0, 1]],   # GAP G34: plot_range: all cuts the y axis
-                         x_label: r"$T$ (GeV)", y_label: r"$P_s(T)$",
-                         legend: [r"$P_s(T)$, $\beta/H = 50$", r"$T_p = 10^7$ GeV", r"$T_n = 1.6\times 10^7$ GeV"],
-                         legend_position: bottom_right)
+  # dashed grid lines at T_p and T_n, labelled beside them; beta/H as the legend's title
+  # (the notebook's range ends at the data; it is widened here to show T_n)
+  let p = list_line_plot([data], colors: ["#800020"], plot_range: [[8.7e6, 1.65e7], [0, 1]],
+                         grid_lines: [[[1.0e7, dashed], [1.6e7, dashed]], [0, 1]],
+                         epilog: [text(r"$T_p = 10^7$ GeV", [1.04e7, 0.5]), text(r"$T_n = 1.6\times 10^7$ GeV", [1.5e7, 0.5])],
+                         x_label: r"$T$ (GeV)", y_label: r"$P_s(T)$", legend: [r"$P_s(T)$"],
+                         legend_title: r"$\beta/H|_{T_p} = 50$", legend_position: bottom_right)
   export_data("progress_of_transition.pdf", p)
   export_data("progress_of_transition.png", p)
 })
@@ -152,26 +152,28 @@ ruby = "#e0115f"
 olive = "#808000"
 indigo = "#560591"
 burgundy = "#800020"
-# the detector curves dashed (Res. Cav. dotted, BBN in ruby); the notebook fills each region up to the top of the
-# plot and labels it in place (GAP G21: epilog text; GAP G33: filling per curve), here the names are in the legend;
-# the notebook overlays separate plots (GAP G18), here every curve is a data set of one list plot
+# the detector curves dashed (Res. Cav. dotted, BBN in ruby), each region filled up to the top of the plot (but Res.
+# Cav. and BBN) and named in place, at the notebook's positions (the epilog of a log plot is in log10 coordinates)
 bound_colors = ["#3d99cc", "#f2a024", "#74b336", "#eb6235", "#9382d9", "#000000", ruby]
 bound_styles = [dashed, dashed, dashed, dashed, dashed, dotted, dashed]
+bound_marks = [["LISA", [1.0e-3, 1.0e-8]], ["BBO", [10, 1.0e-18]], ["DECIGO", [0.1, 1.0e-11]], ["ET", [100, 1.0e-8]],
+               ["CE", [100, 1.0e-14]], ["Res. Cav.", [1.0e11, 1.0e-13]], ["BBN", [1.0e14, 1.0e-4]]]
+plot_window = [[1.0e-5, 1.0e19], [1.0e-45, 1.0]]
+bound_plot = if have_bounds then
+  list_log_log_plot(bounds, joined: true, colors: bound_colors, line_style: bound_styles, plot_range: plot_window,
+                    x_label: r"$f_0$ (Hz)", y_label: r"$h^2\Omega_{\mathrm{GW}}$", filling: map(k => k -> top, range(5)),
+                    epilog: flat_map(k => [rgb_color(bound_colors[k]), text(bound_marks[k][1], log10(bound_marks[k][2]))], range(7)))
+  else null
 
-# (a parameter named like an option would replace the option's name: GAP G32)
-fn figure(name, cvs, cols, labels) = {
-  let data = if have_bounds then join(bounds, cvs) else cvs
-  let p = list_log_log_plot(data, joined: true,
-                            colors: if have_bounds then join(bound_colors, cols) else cols,
-                            line_style: if have_bounds then join(bound_styles, map(c => solid, cvs)) else map(c => solid, cvs),
-                            plot_range: [[1.0e-5, 1.0e19], [1.0e-45, 1.0]],
-                            x_label: r"$f_0$ (Hz)", y_label: r"$h^2\Omega_{\mathrm{GW}}$",
-                            legend: if have_bounds then join(bound_labels, labels) else labels,
-                            legend_position: bottom_left)
+fn figure(name, cvs, colors, labels) = {
+  let spectra = list_log_log_plot(cvs, joined: true, colors: colors, plot_range: plot_window,
+                                  x_label: r"$f_0$ (Hz)", y_label: r"$h^2\Omega_{\mathrm{GW}}$", legend: labels,
+                                  legend_position: bottom_left)
+  # the detector plot under the spectra, as the notebook overlays them
+  let p = if have_bounds then show(bound_plot, spectra) else spectra
   export_data(string_join([name, ".pdf"]), p)
   export_data(string_join([name, ".png"]), p)
 }
-
 stage_plots = timing({
   # the three benchmark points of the paper (the notebook's GW-2) and the fourth (GW-1)
   figure("gw_spectra_bp123", curves[1:3], [ruby, olive, indigo], ["BP1", "BP2", "BP3"])

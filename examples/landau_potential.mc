@@ -42,14 +42,13 @@ barrier = v(phi_max(t_c), t_c) - v(0, t_c)
 fn vplot(x, ep) = v(x*phi_c, (1 - ep)*t_c)/barrier
 
 stage_plot = timing({
-  let xs = range(0, 1.3, 0.005)
-  let curve = ep => map(x => [x, vplot(x, ep)], xs)
   let tn = 0.99*t_c
   let xmin = phi_plus(tn)/phi_c
   let xbar = phi_max(tn)/phi_c
-  # the curves and their annotations as one graphics value (GAP G21: a plot cannot take an epilog)
-  let g = graphics([
-      rgb_color("#e0115f"), line(curve(-0.01)), rgb_color("#808000"), line(curve(0)), rgb_color("#560591"), line(curve(0.01)),
+  # the three curves, with the minima, the tunnelling arrow, the barrier and the labels drawn over them
+  let g = plot([vplot(x, -0.01), vplot(x, 0), vplot(x, 0.01)], [x, 0, 1.3], colors: ["#e0115f", "#808000", "#560591"],
+    x_label: r"$\phi/\phi_c$", y_label: r"$V_{\mathrm{eff}}(\phi, T)$",
+    epilog: [
       black, point_size(0.012), point([[0, 0], [xmin, vplot(xmin, 0.01)]]),
       arrow([[0, 0], [xmin, vplot(xmin, 0.01)]]),
       arrowheads([0.02, 0.02]), arrow([[xbar, 0], [xbar, vplot(xbar, 0.01)]]),
@@ -57,12 +56,10 @@ stage_plot = timing({
       rgb_color("#e0115f"), text(r"$T > T_c$", [0.9, 1.7]),
       rgb_color("#808000"), text(r"$T = T_c$", [1.0, 0.5]),
       rgb_color("#560591"), text(r"$T = T_n < T_c$", [1.05, -0.8]),
-      black, text("Barrier tunneling from", [0.4, -1.0]), text("false vacuum to true vacuum", [0.4, -1.3])],
-    frame: true, frame_label: [r"$\phi/\phi_c$", r"$V_{\mathrm{eff}}(\phi, T)$"], aspect_ratio: 0.618, image_size: 640)
+      black, text("Barrier tunneling from", [0.4, -1.0]), text("false vacuum to true vacuum", [0.4, -1.3])])
   export_data("landau_potential_scaled.pdf", g)
   export_data("landau_potential_scaled.png", g)
 })
-
 # --- the bounce equation at T = T_c/1.01: phi = m^2/(3 B T) y, r = rho/m with m^2 = 2 A (T^2 - T0^2), so that
 # y'' + (2/rho) y' = y - y^2 + kappa y^3 with kappa = lambda m^2/(9 B^2 T^2) (the notebook's kappa has m for m^2)
 tb = t_c/1.01

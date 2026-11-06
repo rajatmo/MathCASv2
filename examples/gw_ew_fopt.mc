@@ -64,9 +64,10 @@ fn v_depth(t) = (-c4(t) + root_disc(t))*(-c4(t)^2 + 6*c2(t)*c6 + c4(t)*root_disc
 
 stage_tc = timing(tc /. find_root(v_depth(tc), [tc, 10]))
 t_c = stage_tc[2]
-# H_0(T) = 0 above T_c (the notebook multiplies by a step function of T_c - T; GAP G1), the broken minimum below
-fn h0(t) = if t <= t_c then sqrt((-c4(t) + root_disc(t))/(3*c6)) else 0.0
-say("T_c = ", t_c, " GeV, H_0(T_c) = ", h0(t_c), " GeV")
+# H_0(T): the broken minimum below T_c, zero above (at T_c itself the step is undecided, as in the notebook)
+fn h0_broken(t) = sqrt((-c4(t) + root_disc(t))/(3*c6))
+fn h0(t) = h0_broken(t)*heaviside_theta(t_c - t)
+say("T_c = ", t_c, " GeV, H_0(T_c) = ", h0_broken(t_c), " GeV")
 
 # --- 3. thermal masses, decay widths and the graviton bremsstrahlung rate
 
@@ -113,8 +114,7 @@ stage_values = timing({
   say("Omega_GW h^2 at f = 1e10 Hz, T = 30 GeV: ", omega_gw(1.0e10, 30))
 })
 
-# --- 4. the figures (the notebook's legend titles are folded into the legends: GAP G30; the bar of the antiquark,
-# \bar{b}, is left out: GAP G36)
+# --- 4. the figures
 
 ruby = "#e0115f"
 olive = "#808000"
@@ -125,24 +125,27 @@ stage_plots = timing({
   save("higgs_potential",
        plot([v_higgs(h, 1.1*t_c)/1.0e6, v_higgs(h, t_c)/1.0e6, v_higgs(h, 0.9*t_c)/1.0e6], [h, 0, 250],
             colors: [ruby, olive, indigo], x_label: r"$H$ (GeV)", y_label: r"$V_T(H)\times 10^6$ GeV$^4$",
-            legend: [r"$T = 1.1\,T_c$ ($T_c = 68.35$ GeV)", r"$T = T_c$", r"$T = 0.9\,T_c$"], legend_position: top_left))
-  # the thermal masses; the notebook marks T_c with a grid line (GAP G20)
+            legend: [r"$T = 1.1\,T_c$", r"$T = T_c$", r"$T = 0.9\,T_c$"], legend_title: r"$T_c = 68.35$ GeV",
+            legend_position: top_left))
+  # the thermal masses, with T_c marked by a grid line
   save("debye_masses",
        log_plot([m_higgs(t), m_lepton(t), m_quark(t)], [t, 0.01, 150], colors: [ruby, olive, indigo],
                 x_label: r"$T$ (GeV)", y_label: r"$m$ (GeV)",
-                legend: [r"$m_H(T)$ ($T_c = 68.35$ GeV)", r"$m_\tau(T)$", r"$m_b(T)$"], legend_position: bottom_right))
+                legend: [r"$m_H(T)$", r"$m_\tau(T)$", r"$m_b(T)$"], legend_title: r"$T_c = 68.35$ GeV",
+                legend_position: bottom_right, grid_lines: [[[t_c, rgb_color("#db7093")]], none],
+                epilog: [rgb_color("#db7093"), text(r"$T_c$", [t_c + 6, log10(3.0)])]))
   save("total_decay_rates",
        plot([width_ntau(40, 1.0e-3, 40/t)/width_total(t), width_bb(t)/width_total(t)], [t, 0.01, 0.95*t_c],
             colors: [indigo, olive], x_label: r"$T$ (GeV)", y_label: "Branching fractions",
-            legend: [r"$\mathrm{Br}_{H\to N\tau}$ ($m_N = 40$ GeV)", r"$\mathrm{Br}_{H\to b\,b}$"],
+            legend: [r"$\mathrm{Br}_{H\to N\tau}$", r"$\mathrm{Br}_{H\to \bar{b}b}$"], legend_title: r"$m_N = 40$ GeV",
             legend_position: bottom_right))
   save("partial_decay_rates",
        log_plot(rate_bbh(energy_of(1.0e10, t), t)/width_total(t), [t, 0.01, t_c], colors: [indigo],
                 x_label: r"$T$ (GeV)", y_label: r"$\frac{1}{\Gamma_{\mathrm{tot}}}\frac{d\Gamma^{1\to 3}}{d\ln E}$",
-                legend: [r"$H\to b\,bh$, $f = 10^{10}$ Hz"], legend_position: bottom_left))
+                legend: [r"$H\to \bar{b}bh$"], legend_title: r"$f = 10^{10}$ Hz", legend_position: bottom_left))
   save("omega_gw",
        log_log_plot(omega_gw(f, 30), [f, 1.0e4, 1.0e14], colors: [indigo], x_label: r"$f$ (Hz)",
-                    y_label: r"$\Omega_{\mathrm{GW}}h^2$", legend: [r"$H\to b\,bh$, $T_{\mathrm{decay}} = 30$ GeV"],
+                    y_label: r"$\Omega_{\mathrm{GW}}h^2$", legend: [r"$H\to \bar{b}bh$"], legend_title: r"$T_{\mathrm{decay}} = 30$ GeV",
                     legend_position: top_left))
 })
 

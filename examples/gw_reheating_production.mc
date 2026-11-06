@@ -14,9 +14,9 @@
 
 # --- 1. the inflaton potential, its mass and the energy density at the end of inflation
 
-# Starobinsky, and the T-attractor of index k (here k = 2: GAP G10, the series for a symbolic power k)
+# Starobinsky, and the T-attractor of index k
 say("Starobinsky V = ", series(3/4*m^2*mp^2*(1 - exp(-sqrt(2/3)*phi/mp))^2, phi, 0, 3))
-say("T-attractor (k = 2) V = ", series(lam*mp^4*(sqrt(6)*tanh(phi/(sqrt(6)*mp)))^2, phi, 0, 3))
+say("T-attractor V = ", series(lam*mp^4*(sqrt(6)*tanh(phi/(sqrt(6)*mp)))^k, phi, 0, 3))
 
 a_s = 2.1e-9         # amplitude of the scalar spectrum
 n_e = 55             # e-folds
@@ -72,20 +72,19 @@ stage_symbolic = timing({
   let rho_gw_rh = sqrt(3)*aend^4*m*rhoe^(3/2)/(16*arh^4*mpl^3*pi)
   # x = (a_RH/a0)(T_RH/T0) and T_RH from rho_end (aend/a_RH)^3 = alpha T_RH^4
   let eliminate = [x -> arh/a0*trh/t0, trh -> (rhoe/al*(aend/arh)^3)^(1/4)]
-  # the integral over f from m aend/(2 pi a0) to m a_RH/(2 pi a0): the antiderivative at both ends (GAP G29: the
-  # definite integral with symbolic limits; GAP G31: the power of a quotient in f is split by power_expand first)
-  let prim = integrate(power_expand(drho_df), f)
-  let total = assuming(aend > 0 and arh > 0 and a0 > 0 and m > 0 and rhoe > 0 and al > 0 and mpl > 0,
-                       simplify(power_expand(rewrite(rewrite((prim /. f -> m*arh/(2*pi*a0)) - (prim /. f -> m*aend/(2*pi*a0)),
-                                                                 eliminate[1]), eliminate[2]))))
+  # the integral over f from m aend/(2 pi a0) to m a_RH/(2 pi a0), all symbols positive
+  let positive = aend > 0 and arh > 0 and a0 > 0 and m > 0 and rhoe > 0 and al > 0 and mpl > 0 and trh > 0 and t0 > 0 and x > 0
+  let band = assuming(positive, integrate(drho_df, [f, m*aend/(2*pi*a0), m*arh/(2*pi*a0)]))
+  let total = assuming(positive, simplify(power_expand(rewrite(rewrite(band, eliminate[1]), eliminate[2]))))
   say("integral of drho/df over the band = ", expand(total))
   say("rho_GW(a_RH)                      = ", rho_gw_rh)
   # the spectrum per ln f relative to rho_GW(a_RH): sqrt(aend m/(a0 f))/(2 sqrt(2 pi))
   say("(f drho/df)/rho_GW(a_RH) = ", assuming(aend > 0 and arh > 0 and a0 > 0 and m > 0 and rhoe > 0 and al > 0 and f > 0,
       simplify(power_expand(rewrite(rewrite(f*drho_df/rho_gw_rh, eliminate[1]), eliminate[2])))))
-  # the integrand x(f) whose band integral is rho_GW(a_RH): differentiating in aend at fixed f = m aend/(2 pi a0)
-  # (the Leibniz rule, written out: GAP G9) gives -x(f) f/aend = d rho_GW/d aend
-  say("x(f) = ", simplify(-d(rho_gw_rh, aend)*aend/f))
+  # the integrand xf(f) whose band integral is rho_GW(a_RH): the band integral differentiated in aend, with
+  # f = m aend/(2 pi a0) at the lower end, equated to d rho_GW/d aend and solved for xf(f)
+  let lhs = d(integrate(xf(f), [f, m*aend/(2*pi*a0), m*arh/(2*pi*a0)]), aend)
+  say("x(f) = ", solve((lhs == d(rho_gw_rh, aend)) /. a0 -> aend*m/(2*pi*f), xf(f)))
 })
 
 # --- 4. the spectrum today
@@ -103,7 +102,7 @@ rho_gw_rh = rho_gw(a_rh)
 say("f_e = ", f_e, " Hz, f_RH = ", f_rh, " Hz, redshift x h^2/rho_c = ", redshift/rho_c_over_h2)
 say("rho_GW(a_RH) = ", rho_gw_rh, "; redshift x h^2/rho_c x rho_GW(a_RH)/2 = ", redshift/rho_c_over_h2*rho_gw_rh/2)
 # Omega h^2 per ln f: rho_GW(a_RH) times (1/2) sqrt(f_e/f), cut below f_e and damped above f_RH
-fn omega_numeric(f) = 1/rho_c_over_h2*unit_step(f - f_e)*exp(-5*sqrt(alpha)/4*(f/f_rh)^2)*redshift*sqrt(f_e/f)/2*rho_gw_rh  # GAP G1
+fn omega_numeric(f) = 1/rho_c_over_h2*heaviside_theta(f - f_e)*exp(-5*sqrt(alpha)/4*(f/f_rh)^2)*redshift*sqrt(f_e/f)/2*rho_gw_rh
 for f in [1.0e7, 1.0e9, 1.0e11, 1.0e13] { say("Omega h^2 (f = ", f, " Hz) = ", omega_numeric(f)) }
 
 # the paper's closed form (its equation 25) for T_RH = 1e10 ... 1e13 GeV, m_phi = 3e13 GeV, rho_end = (5.5e15)^4
@@ -112,7 +111,7 @@ fn omega_paper(f, trh) = {
   let re = (5.5e15)^4
   let fe = gev_to_hz*me/(2*pi)*alpha^(1/3)*trh^(1/3)*xi*t_today/re^(1/3)
   let frh = gev_to_hz*xi*me/(2*pi)*t_today/trh
-  unit_step(f - fe)/rho_c_over_h2*sqrt(3)*alpha^(4/3)*trh^(16/3)*me*re^(1/6)/(32*pi*mp^3)*(fe/f)^(1/2)*
+  heaviside_theta(f - fe)/rho_c_over_h2*sqrt(3)*alpha^(4/3)*trh^(16/3)*me*re^(1/6)/(32*pi*mp^3)*(fe/f)^(1/2)*
     (xi*t_today/trh)^4*exp(-5*sqrt(alpha)/4*(f/frh)^2)
 }
 say("the paper's prefactor at T_RH = 1e10 GeV: ", n(redshift/rho_c_over_h2*sqrt(3)*alpha^(4/3)*3.0e13*(5.5e15)^(4/6)*
