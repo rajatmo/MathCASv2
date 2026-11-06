@@ -157,3 +157,28 @@ fn stable_forms() {
     assert_eq!(s.run("log1p(1.0e-20)"), "1e-20");
     assert_eq!(s.run("expm1(1.0e-20)"), "1e-20");
 }
+
+/// G50: the reciprocal and inverse hyperbolic functions in an integrand are compiled, not interpreted at every point
+/// (an oscillatory integrand with `atanh` took seconds).
+#[test]
+fn inverse_hyperbolic_integrands_compile() {
+    let mut s = Sys::new();
+    s.run("m = 1.05; kappa = 0.1; nr = 100");
+    s.run("fn hh(r) = (1 + 4*r - 2*r^2)*atanh(sqrt(1 - r)) - (1 + 2*r)*sqrt(1 - r)");
+    s.run("fn ww(q) = kappa^4/(q^2 - kappa^2)^2*cos(q/2*(2*nr + 1)*pi/kappa)^2");
+    let start = std::time::Instant::now();
+    let v = s.run("n_integrate(ww(2*m^2/(100.0*r))*hh(r), [r, 0, 1])");
+    let w = s.run("n_integrate(ww(2*m^2/(10.0*r))*hh(r), [r, 0, 1])");
+    let took = start.elapsed();
+    assert!(v.starts_with("66.175558929"), "{v}");
+    assert!(w.starts_with("0.00112177459"), "{w}");
+    assert!(took < std::time::Duration::from_secs(3), "took {took:?}");
+    for (src, want) in [
+        ("n_integrate(atanh(x), [x, 0, 1/2])", 0.5 * 0.5f64.atanh() + 0.5 * (0.75f64).ln()),
+        ("n_integrate(sec(x)^2, [x, 0, 1])", 1f64.tan()),
+        ("n_integrate(asinh(x), [x, 0, 1])", 1f64.asinh() - 2f64.sqrt() + 1.0),
+    ] {
+        let got: f64 = s.run(src).parse().unwrap_or(f64::NAN);
+        close(src, got, want, 1e-12);
+    }
+}

@@ -107,6 +107,44 @@ pub fn stable_forms<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
     memo[&t]
 }
 
+/// `t` with the reciprocal and inverse trigonometric and hyperbolic functions (defined by formulas, which the
+/// compiler does not know) written with `sin`, `cos`, `sinh`, `cosh`, `atan`, `log`, `log1p` and `sqrt`, which it
+/// compiles (G50: `atanh` in an integrand was interpreted at every point). Exact identities on the reals where the
+/// functions are real; elsewhere the compiled backend declines and the interpreter evaluates the original.
+pub fn elementary_forms<'h>(h: &'h Heap, t: T<'h>) -> T<'h> {
+    let sym = |n: &str| h.sym_term(h.sym(n));
+    let call = |n: &str, a: &[T<'h>]| h.call(h.sym(n), a);
+    let mul = |a: &[T<'h>]| h.call(h.sym(names::MUL), a);
+    let add = |a: &[T<'h>]| h.call(h.sym(names::ADD), a);
+    let pow = |a: T<'h>, e: T<'h>| h.call(h.sym(names::POW), &[a, e]);
+    let inv = |a: T<'h>| pow(a, h.int(-1));
+    let neg = |a: T<'h>| mul(&[h.int(-1), a]);
+    let half = pow(h.int(2), h.int(-1));
+    let names_of = ["sec", "csc", "cot", "sech", "csch", "coth", "asinh", "acosh", "atanh", "acot", "acoth", "log10", "log2"];
+    let heads: Vec<T<'h>> = names_of.iter().map(|n| sym(n)).collect();
+    let mut f = |u: T<'h>| -> Option<T<'h>> {
+        let View::App { head, args: &[a] } = h.view(u) else { return None };
+        let k = heads.iter().position(|&x| x == head)?;
+        let a = elementary_forms(h, a);
+        Some(match names_of[k] {
+            "sec" => inv(call("cos", &[a])),
+            "csc" => inv(call("sin", &[a])),
+            "cot" => mul(&[call("cos", &[a]), inv(call("sin", &[a]))]),
+            "sech" => inv(call("cosh", &[a])),
+            "csch" => inv(call("sinh", &[a])),
+            "coth" => mul(&[call("cosh", &[a]), inv(call("sinh", &[a]))]),
+            "asinh" => call("log", &[add(&[a, pow(add(&[mul(&[a, a]), h.int(1)]), half)])]),
+            "acosh" => call("log", &[add(&[a, mul(&[pow(add(&[a, h.int(-1)]), half), pow(add(&[a, h.int(1)]), half)])])]),
+            "atanh" => mul(&[half, add(&[call("log1p", &[a]), neg(call("log1p", &[neg(a)]))])]),
+            "acot" => call("atan", &[inv(a)]),
+            "acoth" => mul(&[half, add(&[call("log1p", &[inv(a)]), neg(call("log1p", &[neg(inv(a))]))])]),
+            "log10" => mul(&[call("log", &[a]), inv(call("log", &[h.int(10)]))]),
+            _ => mul(&[call("log", &[a]), inv(call("log", &[h.int(2)]))]),
+        })
+    };
+    replace(h, t, &mut f)
+}
+
 fn is_failure<'h>(h: &'h Heap, t: T<'h>) -> bool {
     matches!(h.view(t), View::App { head, .. } if head == h.sym_term(h.sym(names::FAILURE)))
 }
@@ -167,7 +205,7 @@ pub(crate) fn prepared<'h>(cx: &mut NativeCx<'_, '_, 'h>, expr: T<'h>, vars: &[V
             Some(s)
         })
     };
-    let hidden = stable_forms(h, hidden);
+    let hidden = stable_forms(h, elementary_forms(h, hidden));
     let n = h.call(h.sym("n"), &match call {
         None => vec![hidden],
         Some(d) => vec![hidden, d],
