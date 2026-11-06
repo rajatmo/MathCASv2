@@ -268,3 +268,9 @@ closures; the Newton steps are negligible.
 ## Round 7 package G
 
 Scratch scopes: `NativeCx::scratch(f)` runs one evaluation in a private region dropped when it ends; the interpreted `NumFn` backends use it, so long interpreted solver runs stay in bounded memory. Also: calls with packed arguments no longer unpack them (`head_of`, rule index keys). Details, the safety argument G.2 and measurements: `crates/mc-core/NOTES.md`, section "Round 7 package G".
+
+## Round 13 (sp-jit)
+
+`MC_NUMFN_TRACE=<file>` appends one line per compilation or refusal of a numeric function (a profiling aid: why a
+solver's function runs interpreted). It writes to a file, not standard error (writing to the console from inside a
+native blocked the REPL).

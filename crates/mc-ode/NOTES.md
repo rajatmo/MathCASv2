@@ -134,3 +134,12 @@ L3 t = 10 max error 1e-8 against the reference; L4 relative errors 7e-11 / 1e-10
 ## Round 7 package C
 
 `d` of interpolating functions (primes added to the name, in mc-calculus' `DerivativeAt`) and exact times (`g(pi/2)` evaluated with `n` at the solution's precision, in `Interpolating::at`): see `crates/mc-calculus/NOTES.md`, section "Round 7 package C".
+
+## Round 13 (sp-jit)
+
+- Solutions are callable from compiled code (decision LC.5 in mc-jit's NOTES): `solution::publish` registers the
+  session's store with a process-wide list of live stores and adds a resolver to `mc_jit::callee`; a compiled
+  function, integrand or right-hand side calling `interpolating_function(...)(t)` or a derivative of it calls the
+  machine dense output directly. Dependency added: `mc-jit`.
+- Stiff solves of the reheating ports now compile their Jacobians (mc-jit's common subexpressions brought them under
+  the node limit, LC.6): see the measurements in mc-jit's NOTES.

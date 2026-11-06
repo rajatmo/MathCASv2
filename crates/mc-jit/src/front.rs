@@ -47,6 +47,15 @@
 //! rest (three or more inexact operands, other powers, `sqrt`, the elementary functions) is a statement
 //! [`S::Pair`] that calls the arithmetic or `mc-numeric` themselves. Exact complex numbers are compiled only as
 //! constant operands of a sum or product (`y*im`).
+//!
+//! **Library calls and more** (round 13, decisions LC.1 to LC.9): special functions of machine reals (`bessel_k`,
+//! `gamma`, `erf`, ...), local interpolations and derivatives of interpolations, and solutions of `n_dsolve` are
+//! [`E::Call`]s of [`crate::callee`]; `piecewise`, `unit_step`, `heaviside_theta` and `sign` are branches and
+//! selections giving the interpreter's exact values; pure subterms are computed once per binding environment (common
+//! subexpressions); an inlined function's untyped parameter takes a number, or data (an association, an
+//! interpolation) put in its body and folded (`r["f"](x)`); global numeric constants are read (the read recorded);
+//! closed numeric operands (`pi^-3`) beside a machine real in a sum or product are their machine values, as the
+//! evaluator's contagion for constants makes them.
 use crate::ir::{BOp, Cc, Draw, Func, IOp, Lib, NumOp, Opd, Pair, Ty, E, FOp, S, V};
 use mc_arith::num::{Int, Rat};
 use mc_arith::{Kind, Num, Real};

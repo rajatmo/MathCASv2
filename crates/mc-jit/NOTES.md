@@ -438,3 +438,68 @@ kernel with seeded draws equals the interpreter; fuel stops vector loops, `table
    mc-core an owned packed constructor (`real_array_owned(dims, Vec<f64>)`, as `intern_owned`), since `array_of`
    copies the leaves (producer and result peaks about 2x the payload); a safe point must not run inside `cx.tick`
    while compiled code holds payload borrows.
+
+## Round 13 (sp-jit): library calls, data and constants, common subexpressions
+
+Branch `lib/sp-jit`. Compiled code now covers what the user's research ports put in solver functions: special
+functions, step functions and `piecewise`, interpolations of every scheme and their derivatives, solutions of
+`n_dsolve`, functions given associations, global constants and `pi` beside machine reals. Results stay the
+interpreter's bit for bit (declines otherwise).
+
+### What was built
+
+- `callee.rs` (new): a process-wide registry of **library functions** compiled code calls by number (HIR `E::Call`,
+  LIR `Op::Call`, helper `mc_jit_call`, both back ends): `special(name, arity)` (every function of mc-special
+  through its native's own machine path, and the formula functions of `FORMULA_FUNCTIONS`), `interpolation(xs, ys,
+  ms, scheme, order)` (local scheme and derivatives through `mc_numeric::spline`), and `add_resolver` for other
+  crates' curried heads (mc-ode registers `interpolating_function(...)` solutions).
+- Front end: `piecewise`, `unit_step`, `heaviside_theta`, `sign` (exact integer values, declining where the
+  interpreter leaves the call); `derivative(n)(f)` of interpolations and solutions; data arguments of inlined
+  functions (`r["f"](x)`, `r["v"][2]` folded at compile time); global numeric constants; closed numeric operands
+  beside machine reals; untyped parameters of inlined functions taking numbers, complex numbers and lists; common
+  subexpressions.
+
+### Decisions
+
+- **LC.1** One library-call instruction for every function of machine reals outside the elementary ones: up to four
+  arguments, integers converted (declining beyond 2^53), rational literals rounded once (`Real::to_f64`, as the
+  native converts exact arguments of a machine computation). A special function with exact arguments only is
+  refused (the interpreter keeps it exact).
+- **LC.2** Callees are registered once per key (name and arity; table content hash; solution key and component) and
+  never removed, like `mc_numeric::spline`'s registry.
+- **LC.3** A call with a non-finite argument, or whose value is not a finite machine real (complex, NaN, an
+  infinity, outside the real domain, outside a table), declines; the interpreter gives its own answer.
+- **LC.4** Formula functions of mc-numeric's library are called only when their interpreted value is the library's
+  machine value bit for bit, checked by `tests/library.rs` over argument grids: `bessel_k_scaled`, `bessel_i_scaled`,
+  `product_log`, `fresnel_s`, `fresnel_c`, `asinh`, `acosh`, `atanh`. Left out (last-bit differences): `dawson_f`,
+  `log10`, `log2`, the reciprocal functions.
+- **LC.5** Solutions of `n_dsolve` (mc-ode): the resolver finds the solution by its key in any live session's store,
+  holds it weakly (the store owns it), and evaluates the component exactly as `Interpolating::at` does for machine
+  data; Taylor (ball) solutions are not compiled.
+- **LC.6** Common subexpressions: the value of a pure call (arithmetic, comparisons, elementary, special and inlined
+  functions; not `if`, blocks, bindings, loops, draws, `table`, `piecewise`, `and`, `or`) is held in a temporary and
+  reused for the same term in the same binding environment while its statement list is open; assignments and loops
+  forget all of them. Large right-hand sides and Jacobians, whose terms share most subterms, no longer exceed the
+  100,000-node limit, compile 5-10 times faster and run faster.
+- **LC.7** Data arguments: an untyped parameter of an inlined function given data (a string, an association, an
+  interpolation, a solution, a list holding such data, a global holding one) has the data put in the body; `part` by
+  constant keys or indices and calls of the data are folded at compile time; the caller's locals the data names are
+  carried in under fresh names.
+- **LC.8** A global holding a number (machine real, integer, exact rational) is read as a constant, the read
+  recorded so that redefining it invalidates the code (1b.6).
+- **LC.9** Contagion for constants: a closed numeric operand (`pi`, `pi^-3`, `sqrt(2)`) of a sum or product with a
+  machine real among the other operands is `n` of the operand (computed once at compile time by `numericize`), as the
+  evaluator's `add`/`mul` natives replace it; without a machine real it stays exact and is refused.
+- **LC.10** `piecewise` is the nested `if` the native evaluates; branches of an integer and a machine real are
+  still refused (the exact default 0 of `piecewise([[x, c]])` is not a machine real).
+
+### Tests
+
+`tests/library.rs` (8): every special function of mc-special (30 of one, 20 of two, 4 of three arguments and
+`hypergeometric_2f1`) over grids with poles, negative arguments, NaN and infinities, compiled on both back ends
+equal to the interpreter; exact orders and rational arguments; steps, signs and `piecewise` with signed zeros and
+NaN; local interpolations of degrees 1-4 and derivatives of splines and local interpolations (invalidation by
+redefining the global); solutions and their derivatives in compiled functions and integrals; right-hand sides with
+special functions and steps giving the same solution (same content key) compiled and interpreted; common
+subexpressions with loops, assignments and branches; constants, globals (invalidation), data arguments, untyped
+parameters. `tests/engine.rs`: the `x*pi` refusal became `n*pi` (exact).
