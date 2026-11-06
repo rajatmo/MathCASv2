@@ -341,6 +341,46 @@ fn plot_ranges_clip_and_jumps_break_the_line() {
     assert_eq!(sidecar(&p)["series"].as_array().unwrap().len(), 1);
 }
 
+/// The pieces of the first curve in a plot's sidecar, each a list of (x, y) data points.
+fn pieces(printed: &str) -> Vec<Vec<(f64, f64)>> {
+    let j = sidecar(printed);
+    j["series"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["points"].as_array().unwrap().iter().map(|p| (p[0].as_f64().unwrap(), p[1].as_f64().unwrap())).collect())
+        .collect()
+}
+
+#[test]
+fn sign_changes_never_break_a_curve() {
+    let mut e = CoreEngine::new();
+    // two zero crossings (at 1.5 and 100) through the linear band of a signed-log axis: one piece, through 0
+    let p = picture(&mut e, "plot((x - 1.5)*(x - 100)*x, [x, 0.001, 1000], x_scale: log, y_scale: signed_log(1.0e-8))", "signed_log_crossings");
+    let ps = pieces(&p);
+    assert_eq!(ps.len(), 1, "one connected piece");
+    let near: Vec<f64> = ps[0].iter().filter(|q| q.1.abs() < 1e-6).map(|q| q.0).collect();
+    assert!(near.iter().any(|x| (x - 1.5).abs() < 1e-3) && near.iter().any(|x| (x - 100.0).abs() < 1e-1), "points with |y| < 1e-6 at both crossings: {near:?}");
+    // the line goes through 0: consecutive points never jump from one sign's decades to the other's
+    for w in ps[0].windows(2) {
+        if w[0].1.signum() != w[1].1.signum() {
+            assert!(w[0].1.abs().min(w[1].1.abs()) < 1e-6, "crossing between {:?} and {:?}", w[0], w[1]);
+        }
+    }
+    // a signed-log x axis through 0 and a linear y
+    let p = picture(&mut e, "plot(x^3 - x, [x, -2, 2], x_scale: signed_log(0.01))", "signed_log_x");
+    assert_eq!(pieces(&p).len(), 1);
+    // a log axis: the curve runs on to where the values stop being positive, unbroken
+    let p = picture(&mut e, "plot(x - 1, [x, 1.001, 10], y_scale: log)", "log_near_zero");
+    let ps = pieces(&p);
+    assert_eq!(ps.len(), 1);
+    assert!(ps[0][0].1 < 1.1e-3, "{:?}", ps[0][0]);
+    // poles and jumps still break the line
+    assert_eq!(pieces(&picture(&mut e, "plot(1/x, [x, -1, 1])", "pole")).len(), 2);
+    assert_eq!(pieces(&picture(&mut e, "plot(tan(x), [x, 0, 10])", "tan")).len(), 4);
+    assert_eq!(pieces(&picture(&mut e, "plot(sign(x - 0.3), [x, -1, 1], y_scale: signed_log(0.001))", "sign_jump")).len(), 2);
+}
+
 #[test]
 fn density_and_contour_plots() {
     let mut e = CoreEngine::new();

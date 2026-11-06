@@ -560,6 +560,7 @@ fn sample<'h>(
         fun,
         evals: 0,
         scale,
+        window: (f64::NEG_INFINITY, f64::INFINITY),
     };
     let mut grid = Vec::with_capacity(INITIAL);
     for k in 0..INITIAL {
@@ -567,14 +568,12 @@ fn sample<'h>(
         grid.push((xk, s.at(cx, xk)?));
     }
     // the visible y range of the coarse curve sets the tolerance
-    let span = {
-        let (lo, hi) = figure::robust(grid.iter().filter_map(|p| p.1).collect());
-        if hi > lo {
-            hi - lo
-        } else {
-            1.0
-        }
-    };
+    let (lo, hi) = figure::robust(grid.iter().filter_map(|p| p.1).collect());
+    let span = if hi > lo { hi - lo } else { 1.0 };
+    // steep stretches are resolved only where they can be seen: within the coarse range widened by its size
+    if hi >= lo {
+        s.window = (lo - span, hi + span);
+    }
     let mut pts = vec![grid[0]];
     for w in grid.windows(2) {
         s.refine(cx, w[0], w[1], span, DEPTH, &mut pts)?;
@@ -588,6 +587,9 @@ const INITIAL: usize = 64;
 const DEPTH: u32 = 10;
 /// Evaluations per curve at most.
 const BUDGET: u64 = 20_000;
+/// Further halvings of a step that is still large after `DEPTH` (a continuous curve crossing a signed-log axis's
+/// linear band is that steep; a jump stays a step down to the last bit of x).
+const BRIDGE: u32 = 60;
 /// Deviation from the chord, as a fraction of the visible y range, that asks for a halving.
 const TOLERANCE: f64 = 0.0015;
 /// A step between neighbouring samples after every halving, as a fraction of the visible y range, that is taken for
@@ -598,6 +600,8 @@ struct Sampler<'h> {
     fun: Box<dyn NumFn<'h, f64> + 'h>,
     evals: u64,
     scale: Scale,
+    /// the y values (on the axis) where steps are resolved; a step wholly above or below is drawn as it is
+    window: (f64, f64),
 }
 
 impl<'h> Sampler<'h> {
@@ -641,13 +645,53 @@ impl<'h> Sampler<'h> {
             }
             out.push(m);
         } else if let (0, Some(a), Some(b)) = (depth, p.1, q.1) {
-            // halved as far as allowed and still a step: a jump, where the line breaks
-            if (b - a).abs() > JUMP * span {
-                out.push((0.5 * (p.0 + q.0), None));
+            // halved as far as allowed and still a step: a steep but continuous stretch (a zero crossing on a
+            // signed-log axis) is bisected on until its steps are small; what stays a step is a jump, where the line
+            // breaks
+            if (b - a).abs() > JUMP * span && !self.out_of_sight(a, b) {
+                let mut inner = vec![];
+                if self.bridge(cx, p, q, span, BRIDGE, &mut inner)? {
+                    out.extend(inner);
+                } else {
+                    out.push((0.5 * (p.0 + q.0), None));
+                }
             }
         }
         out.push(q);
         Ok(())
+    }
+
+    /// Whether a step from `a` to `b` lies wholly above or wholly below the window.
+    fn out_of_sight(&self, a: f64, b: f64) -> bool {
+        (a > self.window.1 && b > self.window.1) || (a < self.window.0 && b < self.window.0)
+    }
+
+    /// Bisect the step from `p` to `q` (both with values) until every step is at most `JUMP` of `span`, pushing the
+    /// points between them; `false` (and the points pushed are to be dropped) when a step stays large after `depth`
+    /// more halvings, at a point without a value, or past the evaluation budget: a real discontinuity.
+    fn bridge(
+        &mut self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        p: (f64, Option<f64>),
+        q: (f64, Option<f64>),
+        span: f64,
+        depth: u32,
+        out: &mut Vec<(f64, Option<f64>)>,
+    ) -> Res<bool> {
+        let (Some(a), Some(b)) = (p.1, q.1) else { return Ok(false) };
+        if (b - a).abs() <= JUMP * span || self.out_of_sight(a, b) {
+            return Ok(true);
+        }
+        let xm = 0.5 * (p.0 + q.0);
+        if depth == 0 || self.evals >= 2 * BUDGET || xm <= p.0 || xm >= q.0 {
+            return Ok(false);
+        }
+        let m = (xm, self.at(cx, xm)?);
+        if m.1.is_none() || !self.bridge(cx, p, m, span, depth - 1, out)? {
+            return Ok(false);
+        }
+        out.push(m);
+        self.bridge(cx, m, q, span, depth - 1, out)
     }
 }
 
