@@ -49,7 +49,7 @@ fn operator_forms() {
         ("fold(f)([a, b, c])", "f(f(a, b), c)"),
         ("fold(f)(x, [a, b])", "f(f(x, a), b)"),
         ("apply(f)([a, b])", "f(a, b)"),
-        ("count_by(is_even)([1, 2, 3])", "[false -> 2, true -> 1]"),
+        ("count_by(is_even)([1, 2, 3])", "assoc(false -> 2, true -> 1)"),
         ("key_drop([\"a\"])(assoc(\"a\" -> 1, \"b\" -> 2))", "assoc(\"b\" -> 2)"),
         ("lookup(a)(assoc(a -> 1))", "1"),
         ("select_first(is_even)([1, 3, 4, 6])", "4"),
@@ -299,4 +299,34 @@ fn display_mode_prints_differences_and_divisions() {
     // the default prints text that reads back as the same term
     let mut plain = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
     assert_eq!(eval(&mut plain, "x^-2*y"), "y*x^-2");
+}
+
+#[test]
+fn packed_arithmetic_keeps_arrays_packed() {
+    check(&[
+        // three operands and powers on the payloads, bit for bit the element-wise results
+        ("v = range(0, 1, 0.01); 3.7*v*(1 - v) === map(u => 3.7*u*(1 - u), v)", "true"),
+        ("w = range(0, 1, 0.000001) + 0.0001; (w^2)[3] === w[3]^2", "true"),
+        ("[-1.0, 2.0]^0.5", "[complex(0.0, 1.0), 1.4142135623730951]"),
+        // the logistic map table of the reference examples: once out of memory, now packed
+        ("length(table(thread([r, nest(&(r * &1 * (1 - &1)), range(0, 1, 0.01), 1000)]), r, range(0, 4, 0.01)))", "401"),
+    ]);
+}
+
+#[test]
+fn composition_through_and_inactive() {
+    check(&[
+        ("composition(f, g)(x)", "f(g(x))"),
+        ("composition(f, g, h)(x, y)", "f(g(h(x, y)))"),
+        ("right_composition(f, g)(x)", "g(f(x))"),
+        ("composition()(x)", "x"),
+        ("composition(f, g)", "composition(f, g)"),
+        ("through(p(f, g)(x))", "p(f(x), g(x))"),
+        ("through(p(f, g)(x), q)", "p(f, g)(x)"),
+        ("activate(inactive(add)(1, 2))", "3"),
+        ("inactive(add)(1, 2)", "inactive(add)(1, 2)"),
+        ("count_by([1, 2, 3], is_even)", "assoc(false -> 2, true -> 1)"),
+        // series as sums with an order term print it last
+        ("series(sqrt(x)*(1 + x), x, 0, 2)", "x^(1/2) + x^(3/2) + O(x^(5/2))"),
+    ]);
 }

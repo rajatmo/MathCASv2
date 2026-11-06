@@ -1163,7 +1163,13 @@ impl<'k, 'h> Eval<'k, 'h> {
         }
         let list = self.k.names.list;
         cx.reads |= bit(list);
-        !self.k.defs.is_defined(list)
+        !self.k.defs.has_meaning(list) && !self.list_holds()
+    }
+
+    /// Whether `list` holds its arguments or is listable (attributes that would change a packed array's evaluation).
+    fn list_holds(&self) -> bool {
+        let a = self.k.defs.attrs(self.k.names.list);
+        a.hold != crate::defs::Hold::None || a.listable || a.ac
     }
 
     /// A listable `add` or `mul` over packed arrays computed on their payloads (`crate::packed`): the normal form, or
@@ -1178,9 +1184,10 @@ impl<'k, 'h> Eval<'k, 'h> {
         let op = match sym_of(h, head).map(|s| h.sym_name(s)).as_deref() {
             Some(mc_api::names::ADD) => crate::packed::Op::Add,
             Some(mc_api::names::MUL) => crate::packed::Op::Mul,
+            Some(mc_api::names::POW) => crate::packed::Op::Pow,
             _ => return Ok(None),
         };
-        if self.k.defs.is_defined(nm.list) {
+        if self.k.defs.has_meaning(nm.list) || self.list_holds() {
             return Ok(None);
         }
         cx.reads |= bit(nm.list);

@@ -29,6 +29,9 @@ const EXACT_INT: i64 = 1 << 53;
 pub(crate) enum Op {
     Add,
     Mul,
+    /// `base^exponent` with a machine-real result (decision p6core.27): computed as the general path computes a
+    /// machine power, `a.powf(c)`; declined when an element would be complex or an exact integer power
+    Pow,
 }
 
 /// One operand: the leaves of a packed array, or a machine number broadcast to every element.
@@ -75,6 +78,103 @@ impl Operand<'_> {
     }
 }
 
+/// `add` or `mul` of three to eight operands, packed arrays of one shape and machine numbers, element by element as
+/// the arithmetic folds machine numbers (decision p6core.27): the integers exactly first, then the reals in their
+/// total order. Declined for anything else (an overflow, a non-finite element, other operands).
+fn fold_many<'h>(h: &'h Heap, op: Op, vals: &[T<'h>], tick: &mut dyn FnMut(u64) -> Res<()>) -> Res<Option<T<'h>>> {
+    if vals.len() > 8 {
+        return Ok(None);
+    }
+    let mut dims: Option<&'h [u64]> = None;
+    let mut ops = Vec::with_capacity(vals.len());
+    for &t in vals {
+        let o = if let Some(p) = h.packed(t) {
+            if dims.is_some_and(|d| d != p.dims()) {
+                return Ok(None);
+            }
+            dims = Some(p.dims());
+            match p {
+                Packed::Reals { data, .. } => Operand::Reals(data),
+                Packed::Ints { data, .. } => Operand::Ints(data),
+            }
+        } else {
+            match h.view(t) {
+                View::Real(x) => Operand::Real(x),
+                View::Int(k) => Operand::Int(k),
+                _ => return Ok(None),
+            }
+        };
+        ops.push(o);
+    }
+    let Some(dims) = dims else { return Ok(None) };
+    let shape: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
+    let n: usize = shape.iter().product();
+    let product = op == Op::Mul;
+    if ops.iter().all(Operand::is_int) {
+        let mut out = Vec::with_capacity(n);
+        for start in (0..n).step_by(CHUNK) {
+            let end = (start + CHUNK).min(n);
+            tick(((end - start) * ops.len() / PER_UNIT) as u64)?;
+            for i in start..end {
+                let mut acc: i64 = i64::from(product);
+                for o in &ops {
+                    let v = o.int_at(i);
+                    let Some(r) = (if product { acc.checked_mul(v) } else { acc.checked_add(v) }) else { return Ok(None) };
+                    acc = r;
+                }
+                out.push(acc);
+            }
+        }
+        return Ok(Some(h.int_array(&shape, &out)));
+    }
+    let mut out = Vec::with_capacity(n);
+    let mut reals = [0.0f64; 8];
+    for start in (0..n).step_by(CHUNK) {
+        let end = (start + CHUNK).min(n);
+        tick(((end - start) * ops.len() / PER_UNIT) as u64)?;
+        for i in start..end {
+            let mut exact: i128 = i128::from(product);
+            let mut has_exact = false;
+            let mut k = 0;
+            for o in &ops {
+                match *o {
+                    Operand::Ints(v) => {
+                        let v = v[i] as i128;
+                        let Some(r) = (if product { exact.checked_mul(v) } else { exact.checked_add(v) }) else { return Ok(None) };
+                        exact = r;
+                        has_exact = true;
+                    }
+                    Operand::Int(v) => {
+                        let v = v as i128;
+                        let Some(r) = (if product { exact.checked_mul(v) } else { exact.checked_add(v) }) else { return Ok(None) };
+                        exact = r;
+                        has_exact = true;
+                    }
+                    Operand::Reals(v) => {
+                        reals[k] = v[i];
+                        k += 1;
+                    }
+                    Operand::Real(x) => {
+                        reals[k] = x;
+                        k += 1;
+                    }
+                }
+            }
+            let rs = &mut reals[..k];
+            if rs.iter().any(|x| !x.is_finite()) {
+                return Ok(None);
+            }
+            rs.sort_by(f64::total_cmp);
+            let (mut acc, rest) = if has_exact { (exact as f64, &rs[..]) } else { (rs[0], &rs[1..]) };
+            for &x in rest {
+                acc = if product { acc * x } else { acc + x };
+            }
+            out.push(acc);
+        }
+    }
+    Ok(Some(h.real_array(&shape, &out)))
+}
+
 /// `op(a, b)` threaded over packed arrays, computed on their payloads; `Ok(None)` when the shortcut does not apply
 /// (see the module docs). `tick(n)` charges fuel and polls the interrupt, once per chunk of leaves.
 pub(crate) fn elementwise<'h>(
@@ -83,6 +183,9 @@ pub(crate) fn elementwise<'h>(
     vals: &[T<'h>],
     tick: &mut dyn FnMut(u64) -> Res<()>,
 ) -> Res<Option<T<'h>>> {
+    if vals.len() > 2 {
+        return Ok(if op == Op::Pow { None } else { fold_many(h, op, vals, tick)? });
+    }
     let [a, b] = *vals else { return Ok(None) };
     let mut dims: Option<&'h [u64]> = None;
     let mut operand = |t: T<'h>| -> Option<Operand<'h>> {
@@ -106,6 +209,26 @@ pub(crate) fn elementwise<'h>(
     let Some(dims) = dims else { return Ok(None) };
     let shape: Vec<usize> = dims.iter().map(|&d| d as usize).collect();
     let n: usize = shape.iter().product();
+    if op == Op::Pow {
+        if x.is_int() && y.is_int() || !x.clean_as_reals() || !y.clean_as_reals() {
+            return Ok(None);
+        }
+        let mut out = Vec::with_capacity(n);
+        for start in (0..n).step_by(CHUNK) {
+            let end = (start + CHUNK).min(n);
+            tick(((end - start) / PER_UNIT) as u64)?;
+            for i in start..end {
+                let (a, c) = (x.real_at(i), y.real_at(i));
+                // a negative base with a fractional exponent is complex, a zero base with a negative exponent may
+                // be a division by zero: the general path decides those
+                if !(a > 0.0 || (a.is_infinite() && a > 0.0) || (c.fract() == 0.0 && a != 0.0) || (a == 0.0 && c > 0.0)) {
+                    return Ok(None);
+                }
+                out.push(a.powf(c));
+            }
+        }
+        return Ok(Some(h.real_array(&shape, &out)));
+    }
     if x.is_int() && y.is_int() {
         let mut out = Vec::with_capacity(n);
         for start in (0..n).step_by(CHUNK) {
@@ -116,6 +239,7 @@ pub(crate) fn elementwise<'h>(
                 let Some(v) = (match op {
                     Op::Add => p.checked_add(q),
                     Op::Mul => p.checked_mul(q),
+                    Op::Pow => None,
                 }) else {
                     return Ok(None);
                 };
@@ -134,6 +258,7 @@ pub(crate) fn elementwise<'h>(
         match op {
             Op::Add => out.extend((start..end).map(|i| x.real_at(i) + y.real_at(i))),
             Op::Mul => out.extend((start..end).map(|i| x.real_at(i) * y.real_at(i))),
+            Op::Pow => return Ok(None),
         }
     }
     Ok(Some(h.real_array(&shape, &out)))

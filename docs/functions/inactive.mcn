@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# inactive
+
+#% text
+# `inactive(f)` is an inert head: a call `inactive(f)(x, ...)` stays unevaluated until `activate` turns it into `f(x, ...)`.
+
+#% section
+# Details
+
+#% item
+# The arguments of an inactive call are evaluated; only the call itself is kept.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inactive(add)(1, 2)
+#% output
+#= inactive(add)(1, 2)
+
+#% cell
+activate(inactive(add)(1, 2))
+#% output
+#= 3
+
+#% subsection
+# Properties and relations
+
+#% text
+# A term without inactive heads is just evaluated by `activate`:
+
+#% cell
+activate(1 + 2)
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `activate`, `composition`

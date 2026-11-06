@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# right_composition
+
+#% text
+# `right_composition(f, g, ...)` is the function that applies the functions left to right: `right_composition(f, g)(x)` is `g(f(x))`.
+
+#% section
+# Details
+
+#% item
+# It is `composition` with the functions in the opposite order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+right_composition(f, g)(x)
+#% output
+#= g(f(x))
+
+#% cell
+right_composition(abs, sqrt)(-16)
+#% output
+#= 4
+
+#% subsection
+# Properties and relations
+
+#% text
+# The reverse order of `composition`:
+
+#% cell
+right_composition(f, g, h)(x) === composition(h, g, f)(x)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `composition`, `fold`

@@ -208,7 +208,7 @@ fn series_and_normal() {
         // logarithmic and Puiseux series (other functions through their derivatives: tests/taylor.rs)
         ("series(log(x), x, 0, 3)", "log(x) + O(x^4)"),
         ("series(x*log(x) + sin(x), x, 0, 3)", "(1 + log(x))*x - x^3/6 + O(x^4)"),
-        ("series(sqrt(x), x, 0, 3)", "O(x^(7/2)) + x^(1/2)"),
+        ("series(sqrt(x), x, 0, 3)", "x^(1/2) + O(x^(7/2))"),
         ("series(cos(sqrt(x)), x, 0, 3)", "1 - x/2 + x^2/24 - x^3/720 + O(x^4)"),
         // at infinity: powers of 1/x
         ("normal(series(1/(1 + x), x, inf, 3))", "-x^-2 + x^-3 + x^-1"),

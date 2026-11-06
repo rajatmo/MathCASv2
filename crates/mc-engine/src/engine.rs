@@ -232,6 +232,7 @@ impl CoreEngine {
             k.set_attributes(list, mc_eval::Attributes { handles_failures: true, ..a });
             // attributes as values (decision p6core.26)
             crate::attrs::install(&mut k, h);
+            crate::compose::install(&mut k, h);
             // `exp(x)` is `e^x` (decision p6core.5)
             arith::canonical_exp(&mut k, h);
             // operator forms: `select(f)(xs)` is `select(xs, f)`, `map(f)(xs)` is `map(f, xs)` (decision p6core.2)

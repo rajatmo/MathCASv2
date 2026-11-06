@@ -105,12 +105,13 @@ pub(crate) fn unique_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     Ok(lib.rebuilt(h, head, &out))
 }
 
-/// `count_by(xs, f)`: the list of rules `k -> n`, each distinct key `k = f(x)` with its number of elements.
+/// `count_by(xs, f)`: the association of each distinct key `k = f(x)` with its number of elements, in order of first
+/// occurrence (decision p6core.29, like `counts`).
 pub(crate) fn count_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs, f] = *args else { return Ok(Reply::Decline) };
     let (xs, ks) = take!(keyed(lib, cx, t, xs, f)?);
     let (ks, gs) = groups(cx, xs, &ks)?;
     let out: Vec<T<'h>> = ks.iter().zip(&gs).map(|(&k, g)| lib.rule(h, k, h.int(g.len() as i64))).collect();
-    Ok(Reply::Done(cx.list(&out)))
+    Ok(Reply::Again(h.app(h.sym_term(h.sym("assoc")), &out)))
 }

@@ -142,7 +142,8 @@ impl Lib {
 
     /// Is `t` a failure?
     pub fn is_failure(&self, h: &Heap, t: T<'_>) -> bool {
-        matches!(h.view(t), View::App { head, .. } if head == h.sym_term(self.s.failure))
+        // a packed array is a list (viewing it would unpack it)
+        h.packed(t).is_none() && matches!(h.view(t), View::App { head, .. } if head == h.sym_term(self.s.failure))
     }
 
     /// The term `head(args)` as a reply: a list is a normal form already (its elements are), any other head is

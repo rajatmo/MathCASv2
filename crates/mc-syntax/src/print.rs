@@ -689,6 +689,8 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
                 Some((ATOM, false))
             }
             Head::Add if args.len() >= 2 => {
+                let ordered = self.series_order(args);
+                let args: &[T<'h>] = ordered.as_deref().unwrap_or(args);
                 v.push(Task::Expr(args[0], Ctx::at(ADD + 1)));
                 for &a in &args[1..] {
                     self.add_term(a, v);
@@ -884,6 +886,71 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
         }
     }
 
+    /// A sum with an order term `O(x^p)` (a series at infinity or with fractional powers, kept as a sum): its terms
+    /// by their power of `x`, ascending for `p > 0` and descending for `p < 0`, and the order term last. `None` when
+    /// the sum has no single order term or a term's power is not a number.
+    fn series_order(&self, args: &[T<'h>]) -> Option<Vec<T<'h>>> {
+        let st = self.store();
+        let is_o = |t: T<'h>| matches!(st.view(t), View::App { head, args: [_] } if self.sym_of(head).is_some_and(|s| self.name(s) == "O"));
+        let os: Vec<T<'h>> = args.iter().copied().filter(|&a| is_o(a)).collect();
+        let [o] = os.as_slice() else { return None };
+        let View::App { args: [inner], .. } = st.view(*o) else { return None };
+        let number = |t: T<'h>| -> Option<f64> {
+            match st.view(t) {
+                View::Int(k) => Some(k as f64),
+                View::Rational { num, den } => match (st.view(num), st.view(den)) {
+                    (View::Int(p), View::Int(q)) => Some(p as f64 / q as f64),
+                    _ => None,
+                },
+                _ => None,
+            }
+        };
+        // the variable and the order's power
+        let (x, p) = match self.is(*inner, Head::Pow, 2) {
+            Some([b, e]) => (*b, number(*e)?),
+            _ => (*inner, 1.0),
+        };
+        let power = |t: T<'h>| -> Option<f64> {
+            if t == x {
+                return Some(1.0);
+            }
+            if let Some([b, e]) = self.is(t, Head::Pow, 2) {
+                return (*b == x).then(|| number(*e)).flatten();
+            }
+            let factors = match st.view(t) {
+                View::App { head, args } if self.sym_of(head).is_some_and(|s| self.name(s) == Head::Mul.name()) => Some(args),
+                _ => None,
+            };
+            if let Some(fs) = factors {
+                let mut k = 0.0;
+                let mut seen = false;
+                for &f in fs {
+                    if f == x {
+                        k += 1.0;
+                        seen = true;
+                    } else if let Some([b, e]) = self.is(f, Head::Pow, 2) {
+                        if *b == x {
+                            k += number(*e)?;
+                            seen = true;
+                        }
+                    }
+                }
+                return Some(if seen { k } else { 0.0 });
+            }
+            Some(0.0)
+        };
+        let mut terms: Vec<(f64, T<'h>)> = vec![];
+        for &a in args {
+            if a != *o {
+                terms.push((power(a)?, a));
+            }
+        }
+        terms.sort_by(|a, b| if p < 0.0 { b.0.total_cmp(&a.0) } else { a.0.total_cmp(&b.0) });
+        let mut out: Vec<T<'h>> = terms.into_iter().map(|(_, t)| t).collect();
+        out.push(*o);
+        Some(out)
+    }
+
     /// A non-first operand of a sum: ` - b` for `mul(-1, b)` and for negative literals, ` + a` otherwise.
     fn add_term(&self, a: T<'h>, v: &mut Vec<Task<'h>>) {
         let st = self.store();
@@ -968,6 +1035,17 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
         }
         if den.is_empty() {
             return None;
+        }
+        // a fraction coefficient p/q: p in the numerator, q in the denominator (`1/(2*x^2)`, not `1/2/x^2`)
+        if let Some(i) = num.iter().position(|&n| matches!(st.view(n), View::Rational { .. })) {
+            if let View::Rational { num: p, den: q } = st.view(num[i]) {
+                if matches!(st.view(p), View::Int(1)) && num.len() > 1 {
+                    num.remove(i);
+                } else {
+                    num[i] = p;
+                }
+                den.insert(0, q);
+            }
         }
         let mul = st.sym_term(st.sym(Head::Mul.name()));
         let negative = num.first().is_some_and(|&n| self.negated_number(n).is_some());

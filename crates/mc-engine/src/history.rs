@@ -29,6 +29,11 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ),
     ("set_attributes", "set_attributes(f, a), set_attributes(f, [a, ...]): give the symbol f the attributes"),
     ("clear_attributes", "clear_attributes(f, a), clear_attributes(f, [a, ...]): remove the attributes from f"),
+    ("composition", "composition(f, g, ...): the function x => f(g(...(x))); applied to arguments it calls them in turn"),
+    ("right_composition", "right_composition(f, g, ...): the function x => ...(g(f(x))), the functions applied left to right"),
+    ("through", "through(p(f, g, ...)(x)): p(f(x), g(x), ...); through(e, p) only when the inner head is p"),
+    ("activate", "activate(e): every inert head inactive(f) in e replaced by f, and the result evaluated"),
+    ("inactive", "inactive(f): an inert head: inactive(f)(x) stays a call until activate"),
     (
         "timing",
         "timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds",

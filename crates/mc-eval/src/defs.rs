@@ -313,6 +313,19 @@ impl Defs {
         })
     }
 
+    /// Whether `s` has a meaning of its own that evaluating its calls would apply: a native, an own value, an
+    /// identity element or rules. Attributes alone (the engine gives `list` `handles_failures`) do not count: a
+    /// packed array stays its own normal form under them.
+    pub(crate) fn has_meaning(&self, s: Sym) -> bool {
+        self.get(s).is_some_and(|d| {
+            d.native.load(Relaxed) != 0
+                || d.own.load(Relaxed) != HOLE
+                || d.identity.load(Relaxed) != HOLE
+                || d.rules().is_some_and(|r| r.len() > 0)
+                || d.has_arg_rules()
+        })
+    }
+
     /// Remove everything defined for `s` except its native: own value, attributes, identity element, its own rules
     /// and the argument-head rules it holds, and its compiled specialisation (compiled from the rules). The version
     /// counter keeps counting (it never goes back).

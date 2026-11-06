@@ -18,6 +18,7 @@
 #![warn(missing_docs)]
 pub mod arith;
 mod attrs;
+mod compose;
 mod engine;
 pub mod format;
 mod history;

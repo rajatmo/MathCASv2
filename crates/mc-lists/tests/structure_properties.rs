@@ -130,7 +130,7 @@ fn groups_agree_with_hash_maps() {
         let gathered: Vec<Vec<i64>> = keys.iter().map(|k| groups[k].clone()).collect();
         assert_eq!(env.eval(&format!("gather_by({}, k => imod(k, 4))", list(&xs))), lists(&gathered));
         let counted: Vec<String> = keys.iter().map(|k| format!("{k} -> {}", groups[k].len())).collect();
-        assert_eq!(env.eval(&format!("count_by({}, k => imod(k, 4))", list(&xs))), list(&counted));
+        assert_eq!(env.eval(&format!("count_by({}, k => imod(k, 4))", list(&xs))), format!("assoc({})", counted.join(", ")));
         let firsts: Vec<i64> = keys.iter().map(|k| groups[k][0]).collect();
         assert_eq!(env.eval(&format!("unique_by({}, k => imod(k, 4))", list(&xs))), list(&firsts));
         let mut order = vec![];

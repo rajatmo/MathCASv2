@@ -306,7 +306,7 @@ functions! {
     "unique_by" => group::unique_by,
         "unique_by(xs, f): the first element of each distinct f(x), in order";
     "count_by" => group::count_by,
-        "count_by(xs, f): the rules k -> n of each key f(x) and its number of elements";
+        "count_by(xs, f): the association of each key f(x) with its number of elements";
     "subsets" => combinat::subsets,
         "subsets(xs), subsets(xs, n | [n] | [a, b]): the sublists of xs (of at most n, exactly n, a to b elements)";
     "tuples" => combinat::tuples,

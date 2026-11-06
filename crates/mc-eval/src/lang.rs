@@ -39,7 +39,7 @@ fn sym_of(h: &Heap, t: T<'_>) -> Option<Sym> {
 /// Is `t` a failure term?
 fn is_failure<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
     let h = cx.heap();
-    matches!(h.view(t), View::App { head, .. } if head == h.sym_term(cx.ev.k.names.failure))
+    h.packed(t).is_none() && matches!(h.view(t), View::App { head, .. } if head == h.sym_term(cx.ev.k.names.failure))
 }
 
 /// `failure(tag, details...)`

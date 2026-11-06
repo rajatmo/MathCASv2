@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# composition
+
+#% text
+# `composition(f, g, ...)` is the function that applies the functions right to left: `composition(f, g)(x)` is `f(g(x))`.
+
+#% section
+# Details
+
+#% item
+# Applied to several arguments, the last function receives them all: `composition(f, g)(x, y)` is `f(g(x, y))`.
+
+#% item
+# On its own a composition stays as it is; `composition()` is the identity.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+composition(f, g)(x)
+#% output
+#= f(g(x))
+
+#% cell
+composition(sqrt, abs)(-16)
+#% output
+#= 4
+
+#% subsection
+# Scope
+
+#% text
+# Several arguments for the innermost function:
+
+#% cell
+composition(f, g)(x, y)
+#% output
+#= f(g(x, y))
+
+#% subsection
+# Properties and relations
+
+#% text
+# `right_composition` applies the functions left to right:
+
+#% cell
+right_composition(f, g)(x)
+#% output
+#= g(f(x))
+
+#% section
+# See also
+
+#% text
+# `right_composition`, `map`, `nest`, `through`

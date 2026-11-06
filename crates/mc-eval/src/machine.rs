@@ -732,6 +732,9 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// The parts of a conditional value `body when cond` (`condition(body, cond)`).
     fn conditional(&self, v: T<'h>) -> Option<(T<'h>, T<'h>)> {
         let h = self.heap;
+        if h.packed(v).is_some() {
+            return None;
+        }
         match h.view(v) {
             View::App { head, args: [b, c] } if sym_of(h, head).is_some_and(|s| h.sym_name(s) == "condition") => Some((*b, *c)),
             _ => None,

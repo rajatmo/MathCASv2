@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# activate
+
+#% text
+# `activate(e)` replaces every inert head `inactive(f)` in `e` by `f` and evaluates the result.
+
+#% section
+# Details
+
+#% item
+# `inactive(f)(x, ...)` keeps a call unevaluated; `activate` lets it evaluate.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+activate(inactive(add)(1, 2))
+#% output
+#= 3
+
+#% cell
+e = inactive(mul)(3, inactive(add)(1, 1))
+activate(e)
+#% output
+#= 6
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without `activate` the call stays:
+
+#% cell
+inactive(add)(1, 2)
+#% output
+#= inactive(add)(1, 2)
+
+#% section
+# See also
+
+#% text
+# `inactive`, `composition`, `through`
