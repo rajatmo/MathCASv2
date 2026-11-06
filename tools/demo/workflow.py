@@ -104,7 +104,11 @@ def finale(b: Board):
     b.step("move 980 660", wait=2)
     b.type("solve(x^3 - 6x^2 + 11x - 6 == 0, x)", per_frame=3, ms=60)
     b.hold(300)
-    b.evaluate(wait_frames=40, hold_ms=2600)
+    b.evaluate(wait_frames=40, hold_ms=2000)
+    # 5. a surface
+    b.type("plot3d(sin(x)*cos(y), [x, -3, 3], [y, -3, 3], color_function: viridis, mesh: none)", per_frame=4, ms=60)
+    b.hold(300)
+    b.evaluate(wait_frames=80, hold_ms=3000)
     b.step("quit", wait=0)
 
 

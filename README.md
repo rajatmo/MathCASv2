@@ -7,12 +7,22 @@ v2 is a new design, not a port. It has its own syntax, its own evaluation contro
 compatibility layer for other languages may come later, as a front end that translates into the core, never as the
 core's semantics.
 
-![A notebook session: exact integration, typeset input with the typesetting keys, a plot with coordinate read-outs,
-and solving an equation](docs/media/workflow.gif)
+![A notebook session: exact integration, input with a power and a fraction, a plot with coordinate read-outs,
+solving a cubic and a 3D surface](docs/media/workflow.gif)
 
-*A session in the MathCAS notebook: exact integration, typeset input written with `Ctrl+6` (power) and `Ctrl+/`
-(fraction), a plot whose curve snaps to the pointer with its coordinates, and solving a cubic. Every frame is the real
-program ([MP4 version](docs/media/workflow.mp4); recorded with [tools/demo/workflow.py](tools/demo/workflow.py)).*
+*A session in the MathCAS notebook: exact integration, input with a power (`Ctrl+6`) and a fraction (`Ctrl+/`), a plot
+whose curve snaps to the pointer with its coordinates, solving a cubic, and a surface. Inputs and outputs are one kind of
+text, with roots, fractions and powers drawn as written mathematics. Every frame is the real program
+([MP4 version](docs/media/workflow.mp4); recorded with [tools/demo/workflow.py](tools/demo/workflow.py)).*
+
+| | |
+|---|---|
+| ![Bessel functions J0, J1 and J2 with LaTeX labels and a legend](docs/media/gallery/bessel.png) | ![A 3D surface sin(x) cos(y) exp(-(x^2+y^2)/8) in the viridis colours](docs/media/gallery/surface.png) |
+| `plot` with LaTeX labels and a legend | `plot3d`, rendered by MathCAS's own 3D renderer |
+| ![Domain colouring of (z^3 - 1)/(z^2 + 1)](docs/media/gallery/complex.png) | ![Filled contours of sin(x) + cos(y) with a colour bar](docs/media/gallery/contour.png) |
+| `complex_plot`: zeros and poles by domain colouring | `contour_plot` with a colour bar |
+
+*Exported to PNG with `export_data` (also SVG and PDF); made by [tools/demo/gallery.mc](tools/demo/gallery.mc).*
 
 ```text
 2^100 + 1/3                               # 3802951800684688204490109616129/3
