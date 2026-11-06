@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# hyperfactorial
+
+#% text
+# `hyperfactorial(n)` gives the product 1^1 2^2 ... n^n.
+
+#% section
+# Details
+
+#% item
+# Exact for non-negative integers up to 2000.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hyperfactorial(3)
+#% output
+#= 108
+
+#% cell
+map(hyperfactorial, range(0, 5))
+#% output
+#= [1, 1, 4, 108, 27648, 86400000]
+
+#% section
+# See also
+
+#% text
+# `factorial`

@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# rotation_matrix
+
+#% text
+# `rotation_matrix(theta)` gives the matrix of the 2D rotation by `theta`.
+
+#% text
+# `rotation_matrix(theta, w)` gives the 3D rotation by `theta` about the axis `w`.
+
+#% section
+# Details
+
+#% item
+# See the usage above.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rotation_matrix(pi/3)
+#% output
+#= [[1/2, (-1/2)*3^(1/2)], [(1/2)*3^(1/2), 1/2]]
+
+#% cell
+rotation_matrix(pi/2, [0, 0, 1])
+#% output
+#= [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+
+#% section
+# See also
+
+#% text
+# `dot`, `cross`

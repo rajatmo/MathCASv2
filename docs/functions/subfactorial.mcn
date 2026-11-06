@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# subfactorial
+
+#% text
+# `subfactorial(n)` gives the number of derangements of n objects.
+
+#% section
+# Details
+
+#% item
+# !n = n !(n - 1) + (-1)^n with !0 = 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subfactorial(5)
+#% output
+#= 44
+
+#% cell
+map(subfactorial, range(0, 8))
+#% output
+#= [1, 0, 1, 2, 9, 44, 265, 1854, 14833]
+
+#% section
+# See also
+
+#% text
+# `factorial`, `factorial2`

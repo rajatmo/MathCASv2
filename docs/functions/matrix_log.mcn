@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_log
+
+#% text
+# `matrix_log(m)` gives the principal matrix logarithm.
+
+#% section
+# Details
+
+#% item
+# The same methods as `matrix_function(log, m)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matrix_log([[e, 0], [0, 1]])
+#% output
+#= [[1, 0], [0, 0]]
+
+#% cell
+matrix_log([[1, 1], [0, 1]])
+#% output
+#= [[0, 1], [0, 0]]
+
+#% section
+# See also
+
+#% text
+# `matrix_exp`, `matrix_function`, `log`

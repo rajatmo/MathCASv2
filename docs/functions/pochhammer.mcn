@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# pochhammer
+
+#% text
+# `pochhammer(a, n)` gives the rising factorial a (a + 1) ... (a + n - 1).
+
+#% section
+# Details
+
+#% item
+# For integer n it is the product; negative n give 1/((a - 1) ... (a + n)).
+
+#% item
+# Otherwise gamma(a + n)/gamma(a), evaluated for numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pochhammer(a, 3)
+#% output
+#= a*(1 + a)*(2 + a)
+
+#% cell
+pochhammer(2, 3)
+#% output
+#= 24
+
+#% cell
+pochhammer(1/2, 2)
+#% output
+#= 3/4
+
+#% subsection
+# Scope
+
+#% cell
+pochhammer(2.5, 1.5)
+#% output
+#= 4.51351666838205
+
+#% cell
+pochhammer(a, -2)
+#% output
+#= (-2 + a)^-1/(-1 + a)
+
+#% section
+# See also
+
+#% text
+# `factorial_power`, `gamma`, `binomial`

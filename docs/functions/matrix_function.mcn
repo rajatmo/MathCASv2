@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_function
+
+#% text
+# `matrix_function(f, m)` gives the matrix function f(m) of a square matrix.
+
+#% section
+# Details
+
+#% item
+# Diagonal matrices map their diagonal; triangular matrices with distinct diagonal entries use Parlett's recurrence.
+
+#% item
+# Machine matrices with a full set of eigenvectors use V f(D) V^-1; otherwise f is interpolated with its derivatives at the eigenvalues.
+
+#% item
+# Exact results are simplified entry by entry.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matrix_function(sin, [[0, 1], [0, 0]])
+#% output
+#= [[0, 1], [0, 0]]
+
+#% cell
+matrix_function(&(&1^2), [[1, 2], [3, 4]])
+#% output
+#= [[7, 10], [15, 22]]
+
+#% subsection
+# Scope
+
+#% cell
+matrix_function(sqrt, [[4, 1], [0, 9]])
+#% output
+#= [[2, 1/5], [0, 3]]
+
+#% cell
+matrix_function(exp, [[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [[51.968956198705, 74.73656456700323], [112.10484685050479, 164.07380304920983]]
+
+#% section
+# See also
+
+#% text
+# `matrix_exp`, `matrix_power`, `matrix_log`

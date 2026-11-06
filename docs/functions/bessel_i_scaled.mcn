@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_i_scaled
+
+#% text
+# `bessel_i_scaled(nu, x)` gives e^-x I_nu(x).
+
+#% section
+# Details
+
+#% item
+# Machine values are computed without forming I_nu(x), so they do not overflow at large x.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_i_scaled(0, 2.0)
+#% output
+#= 0.30850832255367105
+
+#% cell
+bessel_i_scaled(1, 1000.0)
+#% output
+#= 0.012610930256928629
+
+#% section
+# See also
+
+#% text
+# `bessel_i`, `bessel_k_scaled`

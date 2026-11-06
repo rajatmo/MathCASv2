@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_sd
+
+#% text
+# `jacobi_sd(u, m)` gives the Jacobi elliptic function sd(u | m).
+
+#% section
+# Details
+
+#% item
+# The ratios of `jacobi_sn`, `jacobi_cn`, `jacobi_dn` (n stands for 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_sd(0.5, 0.3)
+#% output
+#= 0.4910696411789152
+
+#% cell
+jacobi_sd(u, 0)
+#% output
+#= sin(u)
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

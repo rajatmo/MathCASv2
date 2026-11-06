@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# hilbert_matrix
+
+#% text
+# `hilbert_matrix(n)` gives the n x n Hilbert matrix with entries 1/(i + j - 1).
+
+#% text
+# `hilbert_matrix([m, n])` gives the m x n one.
+
+#% section
+# Details
+
+#% item
+# See the usage above.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hilbert_matrix(3)
+#% output
+#= [[1, 1/2, 1/3], [1/2, 1/3, 1/4], [1/3, 1/4, 1/5]]
+
+#% cell
+hilbert_matrix([2, 3])
+#% output
+#= [[1, 1/2, 1/3], [1/2, 1/3, 1/4]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Badly conditioned:
+
+#% cell
+det(hilbert_matrix(4))
+#% output
+#= 1/6048000
+
+#% section
+# See also
+
+#% text
+# `identity_matrix`, `det`

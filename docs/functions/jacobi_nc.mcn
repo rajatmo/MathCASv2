@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_nc
+
+#% text
+# `jacobi_nc(u, m)` gives the Jacobi elliptic function nc(u | m).
+
+#% section
+# Details
+
+#% item
+# The ratios of `jacobi_sn`, `jacobi_cn`, `jacobi_dn` (n stands for 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_nc(0.5, 0.3)
+#% output
+#= 1.1358360709355895
+
+#% cell
+jacobi_nc(u, 0)
+#% output
+#= cos(u)^-1
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

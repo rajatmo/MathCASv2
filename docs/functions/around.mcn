@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# around
+
+#% text
+# `around(x, dx)` represents the value `x` with the standard uncertainty `dx`.
+
+#% text
+# `around(list)` gives the mean of the list with its standard deviation as the uncertainty.
+
+#% section
+# Details
+
+#% item
+# Arithmetic and functions propagate the uncertainty to first order, assuming independent arguments: f(x +- d) is f(x) +- |f'(x)| d.
+
+#% item
+# The centre and the uncertainty are machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+around(1/2, 0.01)
+#% output
+#= around(0.5, 0.01)
+
+#% cell
+around(1.0, 0.1) + around(2.0, 0.2)
+#% output
+#= around(3.0, 0.223606797749979)
+
+#% cell
+sin(around(1.0, 0.1))
+#% output
+#= around(0.8414709848078965, 0.05403023058681398)
+
+#% subsection
+# Scope
+
+#% cell
+gamma(around(2.5, 0.01))
+#% output
+#= around(1.329340388179137, 0.009347345216260855)
+
+#% cell
+around(2.0, 0.1)^2
+#% output
+#= around(4.0, 0.4)
+
+#% cell
+around([1.1, 0.9, 1.0, 1.2])
+#% output
+#= around(1.05, 0.12909944487358055)
+
+#% section
+# See also
+
+#% text
+# `interval`, `centered_interval`, `mean`, `std_dev`

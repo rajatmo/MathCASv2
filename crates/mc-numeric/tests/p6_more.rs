@@ -133,3 +133,19 @@ fn other_formula_functions() {
         ("sech([0, 1.])", "[1, 0.6480542736638855]"),
     ]);
 }
+
+#[test]
+fn uncertain_numbers() {
+    check(&[
+        ("around(1.0, 0.1) + around(2.0, 0.2)", "around(3.0, 0.223606797749979)"),
+        ("around(2.0, 0.1)^2", "around(4.0, 0.4)"),
+        ("interval([1, 2])*interval([-1, 3])", "interval([-2, 6])"),
+        ("1/interval([-1, 2])", "interval([-inf, -1], [1/2, inf])"),
+        ("abs(interval([-3, 5]))", "interval([0, 5])"),
+        ("acos(interval([1/3, 1/2]))", "interval([(1/3)*pi, acos(1/3)])"),
+        ("interval([1, 2]) < 3", "true"),
+        ("interval([1, 2]) <= 2", "true"),
+        ("interval([1, 2]) == 5", "false"),
+        ("interval([1, 2]) < interval([1.5, 4])", "interval([1, 2]) < interval([1.5, 4])"),
+    ]);
+}

@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# fresnel_c
+
+#% text
+# `fresnel_c(z)` gives the Fresnel integral, the integral of cos(pi t^2/2) from 0 to z.
+
+#% section
+# Details
+
+#% item
+# Numerical values through the error function of complex argument; odd; the limits at infinity are 1/2 and -1/2.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fresnel_c(1.0)
+#% output
+#= 0.7798934003768229
+
+#% cell
+fresnel_c(inf)
+#% output
+#= 1/2
+
+#% cell
+fresnel_c(-x)
+#% output
+#= -fresnel_c(x)
+
+#% section
+# See also
+
+#% text
+# `erf`, `fresnel_s`, `fresnel_c`

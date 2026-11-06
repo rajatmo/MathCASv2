@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# ramp
+
+#% text
+# `ramp(x)` gives `x` for x >= 0 and 0 otherwise.
+
+#% section
+# Details
+
+#% item
+# Symbolic arguments stay unevaluated; closed numeric terms are decided by refinement.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+ramp(-1)
+#% output
+#= 0
+
+#% cell
+ramp(2.5)
+#% output
+#= 2.5
+
+#% cell
+ramp(pi - 3)
+#% output
+#= -3 + pi
+
+#% section
+# See also
+
+#% text
+# `unit_step`, `max`, `unit_triangle`

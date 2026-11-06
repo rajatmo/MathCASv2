@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# harmonic_number
+
+#% text
+# `harmonic_number(n)` gives the harmonic number H_n = 1 + 1/2 + ... + 1/n.
+
+#% text
+# `harmonic_number(n, r)` gives the sum of 1/k^r for k from 1 to n.
+
+#% section
+# Details
+
+#% item
+# Integers give exact rationals; other numbers use H(x) = digamma(x + 1) + euler_gamma.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+harmonic_number(10)
+#% output
+#= 7381/2520
+
+#% cell
+harmonic_number(3, 2)
+#% output
+#= 49/36
+
+#% subsection
+# Scope
+
+#% cell
+harmonic_number(2.5)
+#% output
+#= 1.680372305546776
+
+#% section
+# See also
+
+#% text
+# `digamma`, `zeta`

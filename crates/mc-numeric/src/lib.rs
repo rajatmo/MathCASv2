@@ -183,5 +183,5 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("abs_arg", "abs_arg(z): the list [abs(z), arg(z)]"),
     ("around", "around(x, dx): the value x with standard uncertainty dx, propagated to first order through arithmetic and functions; around(list): mean and standard deviation"),
     ("interval", "interval([a, b], ...): the union of closed intervals, carried through arithmetic and functions"),
-    ("centered_interval", "centered_interval(c, r): the interval c +- r, a rigorous ball enclosure carried through arithmetic and functions"),
+    ("centered_interval", "centered_interval(c, r): the interval c +- r, carried through arithmetic and functions by a midpoint-radius estimate"),
 ];

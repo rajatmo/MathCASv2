@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# hypergeometric_1f1_regularized
+
+#% text
+# `hypergeometric_1f1_regularized(a, b, z)` gives `hypergeometric_1f1(a, b, z)` divided by gamma of its last lower parameter.
+
+#% section
+# Details
+
+#% item
+# Finite also where the lower parameter is a pole of gamma.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hypergeometric_1f1_regularized(1, 2, 0.5)
+#% output
+#= 1.2974425414002564
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_1f1`

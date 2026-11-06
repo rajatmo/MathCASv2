@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# product_log
+
+#% text
+# `product_log(z)` gives the principal branch of the Lambert W function, the solution w of w e^w = z.
+
+#% text
+# `product_log(k, z)` gives branch k.
+
+#% section
+# Details
+
+#% item
+# Exact values at 0, e and -1/e; machine numbers (real and complex) by Halley's iteration.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+product_log(1.0)
+#% output
+#= 0.5671432904097838
+
+#% cell
+product_log(e)
+#% output
+#= 1
+
+#% cell
+product_log(-1, -0.2)
+#% output
+#= -2.5426413577735265
+
+#% subsection
+# Scope
+
+#% cell
+product_log(2.0*im)
+#% output
+#= complex(0.683408016326576, 0.743386004741352)
+
+#% section
+# See also
+
+#% text
+# `exp`, `log`

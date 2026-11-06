@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_p
+
+#% text
+# `jacobi_p(n, a, b, x)` gives the Jacobi polynomial P_n^(a, b)(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_p(1, a, b, x)
+#% output
+#= x + (-1/2)*b + (1/2)*a + (1/2)*a*x + (1/2)*b*x
+
+#% cell
+jacobi_p(2, 1, 2, x)
+#% output
+#= -3/4 + (-3/2)*x + (21/4)*x^2
+
+#% subsection
+# Scope
+
+#% cell
+jacobi_p(1.5, 0.5, 0.5, 0.3)
+#% output
+#= -0.016845432426635706
+
+#% section
+# See also
+
+#% text
+# `gegenbauer_c`, `legendre_p`

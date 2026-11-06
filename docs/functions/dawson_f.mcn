@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# dawson_f
+
+#% text
+# `dawson_f(x)` gives Dawson's integral e^(-x^2) times the integral of e^(t^2) from 0 to x.
+
+#% section
+# Details
+
+#% item
+# Numerical values as sqrt(pi)/2 e^(-x^2) erfi(x); `dawson_f` is odd.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dawson_f(1.0)
+#% output
+#= 0.5380795069127684
+
+#% cell
+dawson_f(0)
+#% output
+#= 0
+
+#% cell
+dawson_f(-x)
+#% output
+#= -dawson_f(x)
+
+#% section
+# See also
+
+#% text
+# `erfi`, `erf`

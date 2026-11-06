@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# spherical_bessel_j
+
+#% text
+# `spherical_bessel_j(n, z)` gives the spherical Bessel function j_n(z).
+
+#% section
+# Details
+
+#% item
+# Integer orders give elementary functions of sin(z) and cos(z); other numeric orders sqrt(pi/(2 z)) times the Bessel function of order n + 1/2.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spherical_bessel_j(0, x)
+#% output
+#= x^-1*sin(x)
+
+#% cell
+spherical_bessel_j(1, x)
+#% output
+#= x^-2*sin(x) + -1*cos(x)/x
+
+#% cell
+spherical_bessel_j(2, 1.5)
+#% output
+#= 0.12734928368840825
+
+#% section
+# See also
+
+#% text
+# `bessel_j`, `bessel_y`

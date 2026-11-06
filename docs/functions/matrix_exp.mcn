@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_exp
+
+#% text
+# `matrix_exp(m)` gives the matrix exponential of a square matrix.
+
+#% text
+# `matrix_exp(m, v)` gives `matrix_exp(m)` applied to the vector `v`.
+
+#% section
+# Details
+
+#% item
+# The same methods as `matrix_function(exp, m)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matrix_exp([[0, 1], [-1, 0]])
+#% output
+#= [[cos(1), sin(1)], [-sin(1), cos(1)]]
+
+#% cell
+matrix_exp([[1, 1], [0, 1]])
+#% output
+#= [[e, e], [0, e]]
+
+#% subsection
+# Scope
+
+#% cell
+matrix_exp([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [[51.968956198705, 74.73656456700323], [112.10484685050479, 164.07380304920983]]
+
+#% cell
+matrix_exp([[0, 1], [0, 0]], [1, 1])
+#% output
+#= [2, 1]
+
+#% section
+# See also
+
+#% text
+# `matrix_function`, `matrix_log`, `exp`

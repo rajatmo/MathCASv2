@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# chebyshev_u
+
+#% text
+# `chebyshev_u(n, x)` gives the Chebyshev polynomial of the second kind U_n(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+chebyshev_u(3, x)
+#% output
+#= -4*x + 8*x^3
+
+#% cell
+chebyshev_u(3, 0.3)
+#% output
+#= -0.984
+
+#% subsection
+# Scope
+
+#% cell
+chebyshev_u(0.5, 0.3)
+#% output
+#= 0.9922778767136674
+
+#% section
+# See also
+
+#% text
+# `chebyshev_t`

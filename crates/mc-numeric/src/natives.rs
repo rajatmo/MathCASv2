@@ -286,6 +286,27 @@ thread_local! {
 fn decide<'h>(h: &'h Heap, nm: &Names, stop: &Stop, rel: Rel, a: T<'h>, b: T<'h>) -> Option<bool> {
     let _scope = StopScope::enter(Some(stop));
     let ar = Arith::new(h).with_stop(stop.clone());
+    if let Some((up, down)) = crate::uncertain::compare_intervals(h, &ar, nm, a, b) {
+        // up: max(a) against min(b); down: min(a) against max(b)
+        use Cmp3::{Equal as E, Greater as G, Less as L};
+        let below = up == L;
+        let at_most = matches!(up, L | E);
+        let above = down == G;
+        let at_least = matches!(down, G | E);
+        return match rel {
+            Rel::Less if below => Some(true),
+            Rel::Less if at_least => Some(false),
+            Rel::LessEqual if at_most => Some(true),
+            Rel::LessEqual if above => Some(false),
+            Rel::Greater if above => Some(true),
+            Rel::Greater if at_most => Some(false),
+            Rel::GreaterEqual if at_least => Some(true),
+            Rel::GreaterEqual if below => Some(false),
+            Rel::Equal if below || above => Some(false),
+            Rel::Unequal if below || above => Some(true),
+            _ => None,
+        };
+    }
     rel.holds(numeval::compare(h, &ar, nm, a, b)?)
 }
 

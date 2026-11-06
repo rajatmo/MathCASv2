@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_gudermannian
+
+#% text
+# `inverse_gudermannian(x)` gives the inverse Gudermannian function 2 atanh(tan(x/2)).
+
+#% section
+# Details
+
+#% item
+# `inverse_gudermannian(gudermannian(x)) = x` for real x.
+
+#% item
+# `inverse_gudermannian` is odd.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_gudermannian(0)
+#% output
+#= 0
+
+#% cell
+inverse_gudermannian(1.0)
+#% output
+#= 1.226191170883517
+
+#% subsection
+# Properties and relations
+
+#% cell
+gudermannian(inverse_gudermannian(0.7))
+#% output
+#= 0.7
+
+#% section
+# See also
+
+#% text
+# `gudermannian`, `atanh`, `tan`

@@ -347,6 +347,26 @@ fn image<'h>(
     if critical.is_empty() && exact_ends {
         return span(fx, &[ga, gb]);
     }
+    if exact_ends {
+        // exact ends: critical points that are simple rationals (0, 1/2, ...) are taken exactly, the rest as
+        // machine values; the span is compared by refinement
+        let mut terms = vec![ga, gb];
+        let width = (fb - fa).abs().max(1e-300);
+        for &x in &critical {
+            let snapped = (1..=12i64).find_map(|d| {
+                let n = (x * d as f64).round();
+                ((x - n / d as f64).abs() <= 1e-9 * width).then(|| fx.rat(n as i64, d))
+            });
+            let at_x = match snapped {
+                Some(q) => at(fx, q)?,
+                None => at(fx, fx.real(x))?,
+            };
+            terms.push(at_x);
+        }
+        if let Some(s) = span(fx, &terms)? {
+            return Ok(Some(s));
+        }
+    }
     let mut vals = vec![];
     for v in [ga, gb] {
         let Some(m) = machine(fx, v)? else { return Ok(None) };
@@ -531,3 +551,40 @@ pub static DEFS: &[Def] = &[
         summary: "centered_interval(c, r): the interval c +- r, carried through arithmetic and functions as a rigorous ball enclosure",
     },
 ];
+
+/// The overall ends [lo, hi] of an `interval` term (its first piece's lower end, its last piece's upper end).
+fn ends<'h, S: Store + ?Sized>(st: &'h S, t: T<'h>) -> Option<(T<'h>, T<'h>)> {
+    let View::App { head, args } = st.view(t) else { return None };
+    let View::Sym(s) = st.view(head) else { return None };
+    if st.sym_name(s) != "interval" || args.is_empty() {
+        return None;
+    }
+    let end = |p: T<'h>, i: usize| match st.view(p) {
+        View::App { args: &[a, b], .. } => Some(if i == 0 { a } else { b }),
+        _ => None,
+    };
+    Some((end(args[0], 0)?, end(*args.last()?, 1)?))
+}
+
+/// The comparisons of an interval with a number or another interval (decision P6N.12): `(hi(a) vs lo(b),
+/// lo(a) vs hi(b))`, from which every relation is decided where the sets do not overlap (`None` without intervals).
+pub fn compare_intervals<'h>(
+    h: &'h Heap,
+    ar: &Arith<'h, Heap>,
+    nm: &crate::numeval::Names,
+    a: T<'h>,
+    b: T<'h>,
+) -> Option<(mc_arith::Cmp3, mc_arith::Cmp3)> {
+    let (ea, eb) = (ends(h, a), ends(h, b));
+    if ea.is_none() && eb.is_none() {
+        return None;
+    }
+    let (alo, ahi) = ea.unwrap_or((a, a));
+    let (blo, bhi) = eb.unwrap_or((b, b));
+    let cmp = |x: T<'h>, y: T<'h>| match (ar.num(x), ar.num(y)) {
+        (Some(_), Some(_)) => ar.compare(x, y),
+        _ if ar.inf_sign(x).is_some() || ar.inf_sign(y).is_some() => ar.compare(x, y),
+        _ => crate::numeval::compare(h, ar, nm, x, y),
+    };
+    Some((cmp(ahi, blo)?, cmp(alo, bhi)?))
+}

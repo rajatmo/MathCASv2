@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# gudermannian
+
+#% text
+# `gudermannian(x)` gives the Gudermannian function 2 atan(tanh(x/2)).
+
+#% section
+# Details
+
+#% item
+# It relates the circular and hyperbolic functions: `tan(gudermannian(x)/2) = tanh(x/2)`.
+
+#% item
+# `gudermannian` is odd.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gudermannian(0)
+#% output
+#= 0
+
+#% cell
+gudermannian(1.0)
+#% output
+#= 0.8657694832396586
+
+#% subsection
+# Scope
+
+#% cell
+gudermannian(-x)
+#% output
+#= -gudermannian(x)
+
+#% cell
+n(gudermannian(2), 20)
+#% output
+#= 1.30176033604601509987616
+
+#% section
+# See also
+
+#% text
+# `inverse_gudermannian`, `atan`, `tanh`

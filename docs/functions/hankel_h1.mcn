@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# hankel_h1
+
+#% text
+# `hankel_h1(nu, z)` gives the Hankel function J_nu(z) + i Y_nu(z).
+
+#% section
+# Details
+
+#% item
+# Numerical values for numeric arguments.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hankel_h1(0, 1.5)
+#% output
+#= complex(0.5118276717359181, 0.38244892379775886)
+
+#% cell
+hankel_h1(1, 2.0)
+#% output
+#= complex(0.5767248077568734, -0.10703243154093754)
+
+#% section
+# See also
+
+#% text
+# `bessel_j`, `bessel_y`

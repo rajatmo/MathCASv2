@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# sech
+
+#% text
+# `sech(x)` gives the hyperbolic secant 1/cosh(x).
+
+#% section
+# Details
+
+#% item
+# `sech(x)` stays unevaluated for symbolic `x`; where `cosh(x)` has an exact value, `sech(x)` is its reciprocal.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `sech` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sech(0)
+#% output
+#= 1
+
+#% cell
+sech(1.0)
+#% output
+#= 0.6480542736638855
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic arguments and symmetry:
+
+#% cell
+sech(-x)
+#% output
+#= sech(x)
+
+#% text
+# 30 digits:
+
+#% cell
+n(sech(1), 30)
+#% output
+#= 0.6480542736638853995749773532261503
+
+#% section
+# See also
+
+#% text
+# `cosh`, `sin`, `cos`, `tan`

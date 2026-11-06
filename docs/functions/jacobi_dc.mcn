@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_dc
+
+#% text
+# `jacobi_dc(u, m)` gives the Jacobi elliptic function dc(u | m).
+
+#% section
+# Details
+
+#% item
+# The ratios of `jacobi_sn`, `jacobi_cn`, `jacobi_dn` (n stands for 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_dc(0.5, 0.3)
+#% output
+#= 1.0968530011021889
+
+#% cell
+jacobi_dc(u, 0)
+#% output
+#= cos(u)^-1
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

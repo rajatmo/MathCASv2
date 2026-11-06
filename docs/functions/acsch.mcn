@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# acsch
+
+#% text
+# `acsch(z)` gives the inverse hyperbolic cosecant.
+
+#% section
+# Details
+
+#% item
+# For complex `z` the principal value is `asinh(1/z)`.
+
+#% item
+# Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+acsch(-x)
+#% output
+#= -acsch(x)
+
+#% cell
+acsch(2.0)
+#% output
+#= 0.48121182505960347
+
+#% subsection
+# Scope
+
+#% cell
+acsch(0.5*im)
+#% output
+#= complex(1.3169578969248168, -1.5707963267948966)
+
+#% text
+# 30 digits:
+
+#% cell
+n(acsch(1/3), 30)
+#% output
+#= 1.8184464592320668234836989635607090
+
+#% section
+# See also
+
+#% text
+# `log`, `atan`, `asin`, `acos`

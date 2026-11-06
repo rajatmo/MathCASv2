@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# re_im
+
+#% text
+# `re_im(z)` gives the list `[re(z), im_part(z)]`.
+
+#% section
+# Details
+
+#% item
+# `re_im` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+re_im(3 + 4*im)
+#% output
+#= [3, 4]
+
+#% cell
+re_im([1.5, im])
+#% output
+#= [[1.5, 0], [0, 1]]
+
+#% section
+# See also
+
+#% text
+# `re`, `im_part`, `abs_arg`

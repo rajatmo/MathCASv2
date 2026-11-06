@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# asech
+
+#% text
+# `asech(z)` gives the inverse hyperbolic secant.
+
+#% section
+# Details
+
+#% item
+# For complex `z` the principal value is `acosh(1/z)`.
+
+#% item
+# Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asech(1)
+#% output
+#= 0
+
+#% cell
+asech(0.5)
+#% output
+#= 1.3169578969248166
+
+#% subsection
+# Scope
+
+#% cell
+asech(2.0)
+#% output
+#= complex(-1.1102230246251565e-16, 1.0471975511965976)
+
+#% text
+# 30 digits:
+
+#% cell
+n(asech(1/3), 30)
+#% output
+#= 1.762747174039086050465218649959585
+
+#% section
+# See also
+
+#% text
+# `log`, `atan`, `asin`, `acos`

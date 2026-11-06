@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# real_sign
+
+#% text
+# `real_sign(x)` gives -1, 0 or 1 for a real number `x`.
+
+#% section
+# Details
+
+#% item
+# Symbolic and complex arguments stay unevaluated; machine numbers give machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+real_sign(-2)
+#% output
+#= -1
+
+#% cell
+real_sign(-2.0)
+#% output
+#= -1.0
+
+#% cell
+real_sign(pi - 3)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `sign`, `real_abs`

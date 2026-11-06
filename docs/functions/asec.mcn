@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# asec
+
+#% text
+# `asec(z)` gives the inverse secant.
+
+#% section
+# Details
+
+#% item
+# For complex `z` the principal value is `acos(1/z)`.
+
+#% item
+# Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asec(2)
+#% output
+#= (1/3)*pi
+
+#% cell
+asec(3.0)
+#% output
+#= 1.2309594173407747
+
+#% subsection
+# Scope
+
+#% cell
+asec(0.5)
+#% output
+#= complex(0.0, 1.3169578969248166)
+
+#% text
+# 30 digits:
+
+#% cell
+n(asec(1/3), 30)
+#% output
+#= complex(ball(0, 3.68e-40), 1.762747174039086050465218649959585)
+
+#% section
+# See also
+
+#% text
+# `log`, `atan`, `asin`, `acos`

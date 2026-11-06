@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# hermite_h
+
+#% text
+# `hermite_h(n, x)` gives the Hermite polynomial H_n(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% item
+# The physicists' normalization: H_1(x) = 2x.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hermite_h(3, x)
+#% output
+#= -12*x + 8*x^3
+
+#% cell
+hermite_h(4, 0.5)
+#% output
+#= 1.0
+
+#% subsection
+# Scope
+
+#% cell
+hermite_h(2.5, 0.7)
+#% output
+#= -2.3223265248560367
+
+#% section
+# See also
+
+#% text
+# `laguerre_l`, `legendre_p`

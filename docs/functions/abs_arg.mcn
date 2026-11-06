@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# abs_arg
+
+#% text
+# `abs_arg(z)` gives the list `[abs(z), arg(z)]`.
+
+#% section
+# Details
+
+#% item
+# `abs_arg` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+abs_arg(1 + im)
+#% output
+#= [2^(1/2), (1/4)*pi]
+
+#% cell
+abs_arg(-2.0)
+#% output
+#= [2.0, pi]
+
+#% section
+# See also
+
+#% text
+# `abs`, `arg`, `re_im`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_cd
+
+#% text
+# `jacobi_cd(u, m)` gives the Jacobi elliptic function cd(u | m).
+
+#% section
+# Details
+
+#% item
+# The ratios of `jacobi_sn`, `jacobi_cn`, `jacobi_dn` (n stands for 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_cd(0.5, 0.3)
+#% output
+#= 0.911699196697402
+
+#% cell
+jacobi_cd(u, 0)
+#% output
+#= cos(u)
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

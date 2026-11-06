@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_nome_q
+
+#% text
+# `elliptic_nome_q(m)` gives the nome q = exp(-pi K(1 - m)/K(m)).
+
+#% section
+# Details
+
+#% item
+# q(0) = 0 and q(1) = 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_nome_q(0.5)
+#% output
+#= exp(-pi)
+
+#% cell
+elliptic_nome_q(0.3)
+#% output
+#= 0.02227743615715351
+
+#% section
+# See also
+
+#% text
+# `elliptic_k`

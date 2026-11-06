@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# atanh
+
+#% text
+# `atanh(z)` gives the inverse hyperbolic tangent.
+
+#% section
+# Details
+
+#% item
+# For complex `z` the principal value is `(log(1 + z) - log(1 - z))/2`.
+
+#% item
+# Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+atanh(im)
+#% output
+#= complex(0, 1/4)*pi
+
+#% cell
+atanh(0.5)
+#% output
+#= 0.5493061443340549
+
+#% subsection
+# Scope
+
+#% cell
+atanh(2.0)
+#% output
+#= complex(0.5493061443340549, -1.5707963267948966)
+
+#% text
+# 30 digits:
+
+#% cell
+n(atanh(1/3), 30)
+#% output
+#= 0.3465735902799726547086160607290883
+
+#% section
+# See also
+
+#% text
+# `log`, `atan`, `asin`, `acos`

@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_k_scaled
+
+#% text
+# `bessel_k_scaled(nu, x)` gives e^x K_nu(x).
+
+#% section
+# Details
+
+#% item
+# Machine values are computed without forming K_nu(x), so they do not underflow at large x: ratios such as K_1/K_2 at x = 800 stay finite.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_k_scaled(1, 2.0)
+#% output
+#= 1.0334768470686886
+
+#% text
+# A ratio at large x:
+
+#% cell
+bessel_k_scaled(1, 800.0)/bessel_k_scaled(2, 800.0)
+#% output
+#= 0.9981279260279697
+
+#% section
+# See also
+
+#% text
+# `bessel_k`, `bessel_i_scaled`
