@@ -138,6 +138,22 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
             }
         }
         ("sign", [u]) => Ok(side_of(cx, b, *u, t, d)?.map(|s| Lim::Fin(b.int(s.into()), 0))),
+        (f @ ("floor" | "ceiling"), [u]) => {
+            // constant near a non-integer limit; at an integer, the side from which u approaches it decides
+            let Some(Lim::Fin(v, _)) = lim(cx, b, *u, t, d)? else { return Ok(None) };
+            let r = cx.eval(b.call("round", &[v]))?;
+            if sign(cx, b, b.sub(v, r))?.is_some_and(|s| s != 0) {
+                return Ok(Some(fin(cx, b.call(f, &[v]), 0)?));
+            }
+            let Some(side) = side_of(cx, b, b.sub(*u, r), t, d)? else { return Ok(None) };
+            let k = match (f, side) {
+                ("floor", 1) | ("ceiling", -1) => r,
+                ("floor", -1) => b.sub(r, b.one()),
+                ("ceiling", 1) => b.add(&[r, b.one()]),
+                _ => return Ok(None),
+            };
+            Ok(Some(fin(cx, k, 0)?))
+        }
         ("abs", [u]) => {
             let Some(l) = lim(cx, b, *u, t, d)? else { return Ok(None) };
             Ok(Some(match l {

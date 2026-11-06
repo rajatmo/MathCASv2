@@ -184,3 +184,14 @@ fn definite_integrals_still_use_the_walk() {
         ("integrate(x*log(x), [x, 0, 1])", "-1/4"),
     ]);
 }
+
+#[test]
+fn floor_and_ceiling() {
+    check(&[
+        ("limit(floor(x), x -> 1)", "failure(no_limit, limit, floor(x))"),
+        ("limit(floor(x), x -> 1, direction: from_above)", "1"),
+        ("limit(floor(x), x -> 1, direction: from_below)", "0"),
+        ("limit(floor(x), x -> 1/2)", "0"),
+        ("limit(ceiling(x^2), x -> 0)", "1"),
+    ]);
+}
