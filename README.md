@@ -148,7 +148,13 @@ cargo run --release -p mc-bench -- run --cases bench/cases --only R1 --mem-ceili
 
 Every benchmark case runs in its own child process with a memory cap and a timeout.
 
+## Author
+
+MathCAS v2 is written by Rajat Mandal, with Claude (Anthropic) as co-author.
+
 ## License
+
+Copyright (C) 2026 Rajat Mandal.
 
 MathCAS v2 is free software: you can redistribute it and/or modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later
