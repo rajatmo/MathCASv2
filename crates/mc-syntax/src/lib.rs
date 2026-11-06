@@ -42,8 +42,8 @@ pub use heads::{as_sym, Head, Heads};
 pub use ident::{unicode_operator, PLACEHOLDER, UNICODE_OPERATORS};
 /// The reserved words of the language (04 section 2), for editor support (completion, grammars).
 pub use ident::KEYWORDS;
-/// A string's literal with escapes (what the printer writes for a string term).
-pub use ident::string_literal;
+/// A string's literal with escapes; the literal the printer writes for a string term (raw for TeX).
+pub use ident::{string_literal, string_token};
 pub use lower::lower_program;
 pub use parser::{parse, Parsed, MAX_DEPTH};
 pub use select::extend_selection;

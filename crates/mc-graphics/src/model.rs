@@ -5,6 +5,7 @@
 //! its list and in the lists nested there; a nested list starts with the style its parent has at that point, and
 //! its directives end with it. The reader walks the content with an explicit stack (no recursion on terms).
 use crate::color::{colour, is_symbolic, Colour, Rgba};
+use crate::gradient::{self, Gradient};
 use crate::label::Label;
 use crate::num::{number, short};
 use crate::Failure;
@@ -71,6 +72,9 @@ pub struct Style {
     pub face: Face,
     /// text size in points (`None`: the graphic's `font_size`)
     pub font_size: Option<f64>,
+    /// arrowheads at the start and the end of arrows, lengths as fractions of the plot area's width (0: none;
+    /// `None`: one at the end, sized by the line width)
+    pub arrowheads: Option<[f64; 2]>,
 }
 
 impl Default for Style {
@@ -84,6 +88,7 @@ impl Default for Style {
             edge: None,
             face: Face::Current,
             font_size: None,
+            arrowheads: None,
         }
     }
 }
@@ -141,6 +146,19 @@ pub enum Shape {
     Arrow(Vec<Vec<Pt>>),
     /// `bezier_curve`: control points of a composite cubic curve
     Bezier(Vec<Pt>),
+    /// `raster(cells, [p, q])`: a grid of coloured cells filling the rectangle with corners `from` and `to`
+    Raster {
+        /// cells per row
+        cols: usize,
+        /// rows
+        rows: usize,
+        /// straight (not premultiplied) RGBA bytes, the top row first
+        rgba: Vec<u8>,
+        /// the lower-left corner
+        from: Pt,
+        /// the upper-right corner
+        to: Pt,
+    },
     /// `text(expr, position, offset)`
     Text {
         /// the label
@@ -265,6 +283,19 @@ pub struct Opts {
     pub legend_position: Corner,
     /// the size of tick labels, other labels and text without a `font_size` directive
     pub font_size: f64,
+    /// a colour bar right of the plot area
+    pub color_bar: Option<ColorBar>,
+}
+
+/// A colour bar: the gradient from the bottom to the top of the bar, the values at its ends, and a label.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ColorBar {
+    /// the colours
+    pub gradient: Gradient,
+    /// the value at the bottom and at the top
+    pub range: (f64, f64),
+    /// a label beside the bar (read upwards)
+    pub label: Option<Label>,
 }
 
 impl Default for Opts {
@@ -285,6 +316,7 @@ impl Default for Opts {
             legend: Vec::new(),
             legend_position: Corner::TopRight,
             font_size: 10.0,
+            color_bar: None,
         }
     }
 }
@@ -312,11 +344,12 @@ pub enum Bad {
 }
 
 /// The primitive heads.
-pub const PRIMITIVES: [&str; 9] =
-    ["point", "line", "polygon", "rectangle", "circle", "disk", "arrow", "bezier_curve", "text"];
+pub const PRIMITIVES: [&str; 10] =
+    ["point", "line", "polygon", "rectangle", "circle", "disk", "arrow", "bezier_curve", "text", "raster"];
 
 /// The directive heads (besides the colours).
-pub const DIRECTIVES: [&str; 11] = [
+pub const DIRECTIVES: [&str; 12] = [
+    "arrowheads",
     "opacity",
     "thickness",
     "absolute_thickness",
@@ -331,7 +364,8 @@ pub const DIRECTIVES: [&str; 11] = [
 ];
 
 /// The option names of `graphics`.
-pub const OPTIONS: [&str; 15] = [
+pub const OPTIONS: [&str; 16] = [
+    "color_bar",
     "plot_range",
     "plot_range_padding",
     "axes",
@@ -514,10 +548,110 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
             };
             Shape::Text { label: Label::of(h, *e), at, offset }
         }
+        ("raster", [c, rest @ ..]) if rest.len() <= 2 => {
+            let grad = match rest.get(1) {
+                Some(&g) => gradient::read(h, g).ok_or(Bad::Arg(3))?,
+                None => Gradient::named("gray").ok_or(Bad::Arg(3))?,
+            };
+            let (cols, rows, rgba) = cells(h, *c, &grad)?;
+            let (from, to) = match rest.first() {
+                Some(&r) => match list(h, r) {
+                    Some(&[p, q]) => {
+                        let (a, b) = (point(h, p, 2)?, point(h, q, 2)?);
+                        if a.scaled != b.scaled || a.x == b.x || a.y == b.y {
+                            return Err(Bad::Arg(2));
+                        }
+                        let lo = Pt { x: a.x.min(b.x), y: a.y.min(b.y), scaled: a.scaled };
+                        (lo, Pt { x: a.x.max(b.x), y: a.y.max(b.y), scaled: a.scaled })
+                    }
+                    _ if is_symbolic(h, r) => return Err(Bad::Symbolic),
+                    _ => return Err(Bad::Arg(2)),
+                },
+                None => (origin, Pt { x: cols as f64, y: rows as f64, scaled: false }),
+            };
+            Shape::Raster { cols, rows, rgba, from, to }
+        }
         _ if PRIMITIVES.contains(&name) => return Err(Bad::Arity),
         _ => return Ok(None),
     };
     Ok(Some(s))
+}
+
+/// The most cells of a `raster`.
+pub const MAX_CELLS: usize = 4_000_000;
+
+/// The cells of a raster: a matrix (rows from the bottom up) of numbers in [0, 1] (coloured by `grad`), colours
+/// (`[r, g, b]`, `[r, g, b, a]` or colour terms) or `none` (transparent); as columns, rows and RGBA bytes with the
+/// top row first.
+fn cells<S: Store + ?Sized>(h: &S, t: T<'_>, grad: &Gradient) -> Result<(usize, usize, Vec<u8>), Bad> {
+    let value = |v: f64| grad.at(v).bytes();
+    let quad = |c: &[f64]| Rgba { r: c[0], g: c[1], b: c[2], a: c.get(3).copied().unwrap_or(1.0) }.bytes();
+    // packed arrays: numbers (rank 2) or colours (rank 3, last dimension 3 or 4)
+    let packed = match h.packed(t) {
+        Some(Packed::Reals { dims, data }) => Some((dims, data.to_vec())),
+        Some(Packed::Ints { dims, data }) => Some((dims, data.iter().map(|&v| v as f64).collect())),
+        None => None,
+    };
+    if let Some((dims, data)) = packed {
+        let (rows, cols) = match *dims {
+            [r, c] | [r, c, 3] | [r, c, 4] => (r as usize, c as usize),
+            _ => return Err(Bad::Arg(1)),
+        };
+        if rows.saturating_mul(cols) > MAX_CELLS {
+            return Err(Bad::Arg(1));
+        }
+        let per = data.len() / (rows * cols);
+        let mut rgba = Vec::with_capacity(rows * cols * 4);
+        for r in (0..rows).rev() {
+            for c in 0..cols {
+                let at = (r * cols + c) * per;
+                let cell = &data[at..at + per];
+                rgba.extend_from_slice(&if per == 1 { value(cell[0]) } else { quad(cell) });
+            }
+        }
+        return Ok((cols, rows, rgba));
+    }
+    let rows_t = match list(h, t) {
+        Some(r) if !r.is_empty() => r,
+        None if is_symbolic(h, t) => return Err(Bad::Symbolic),
+        _ => return Err(Bad::Arg(1)),
+    };
+    let mut rows: Vec<&[T<'_>]> = Vec::with_capacity(rows_t.len());
+    for &r in rows_t {
+        match list(h, r) {
+            Some(cs) if !cs.is_empty() && rows.first().is_none_or(|f| f.len() == cs.len()) => rows.push(cs),
+            _ => return Err(Bad::Arg(1)),
+        }
+    }
+    let cols = rows[0].len();
+    if rows.len().saturating_mul(cols) > MAX_CELLS {
+        return Err(Bad::Arg(1));
+    }
+    let mut rgba = Vec::with_capacity(rows.len() * cols * 4);
+    for r in rows.iter().rev() {
+        for &c in r.iter() {
+            let px = if let Some(v) = number(h, c) {
+                value(v)
+            } else if sym_is(h, c, "none") {
+                [0, 0, 0, 0]
+            } else if let Some(parts) = list(h, c) {
+                let v: Vec<f64> = parts.iter().map(|&p| number(h, p)).collect::<Option<_>>().ok_or(Bad::Arg(1))?;
+                if !matches!(v.len(), 3 | 4) {
+                    return Err(Bad::Arg(1));
+                }
+                quad(&v)
+            } else {
+                match colour(h, c) {
+                    Colour::Value(c) => c.bytes(),
+                    Colour::Symbolic => return Err(Bad::Symbolic),
+                    Colour::Bad if is_symbolic(h, c) => return Err(Bad::Symbolic),
+                    Colour::Bad => return Err(Bad::Arg(1)),
+                }
+            };
+            rgba.extend_from_slice(&px);
+        }
+    }
+    Ok((cols, rows.len(), rgba))
 }
 
 /// Dash patterns by name, in points for a line 2 points wide.
@@ -583,6 +717,15 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
             _ => return Err(Bad::Arity),
         },
         "thickness" => style.thickness = one(true)?,
+        "arrowheads" => {
+            let [v] = args else { return Err(Bad::Arity) };
+            style.arrowheads = match list(h, *v) {
+                Some(&[a, b]) => Some([length(h, a, 1)?, length(h, b, 1)?]),
+                Some(_) => return Err(Bad::Arg(1)),
+                None if sym_is(h, *v, "automatic") => None,
+                None => Some([0.0, length(h, *v, 1)?]),
+            };
+        }
         "absolute_thickness" => style.thickness = one(false)?,
         "point_size" => style.point_size = one(true)?,
         "absolute_point_size" => style.point_size = one(false)?,
@@ -915,6 +1058,21 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             }
         }
         "font_size" => o.font_size = number(h, v).filter(|s| *s > 0.0 && *s <= 1000.0)?,
+        "color_bar" => {
+            o.color_bar = if sym_is(h, v, "none") {
+                None
+            } else {
+                let (g, r, l) = match *list(h, v)? {
+                    [g, r] => (g, r, None),
+                    [g, r, l] => (g, r, label_opt(h, l)),
+                    _ => return None,
+                };
+                let &[a, b] = list(h, r)? else { return None };
+                let (a, b) = (number(h, a)?, number(h, b)?);
+                (a < b).then_some(())?;
+                Some(ColorBar { gradient: gradient::read(h, g)?, range: (a, b), label: l })
+            }
+        }
         _ => return None,
     }
     Some(())

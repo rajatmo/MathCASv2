@@ -19,7 +19,7 @@
 # The function is sampled adaptively: evenly at first, then more densely where the curve bends.
 
 #% item
-# Where `f` is not a finite real number, or jumps by more than the visible range (at a pole), the curve is broken.
+# Where `f` is not a finite real number, jumps by more than the visible range (at a pole), or still jumps after the sampling has been refined as far as it goes (a step such as `floor(x)`), the curve is broken.
 
 #% item
 # The vertical range is chosen so that a few extreme values do not flatten the rest of the curve.
@@ -38,6 +38,12 @@
 
 #% subitem
 # `x_scale` and `y_scale`: `linear`, `log`, or `signed_log`.
+
+#% subitem
+# `plot_range: [y0, y1]` or `[[x0, x1], [y0, y1]]` fixes the range shown (an end may be `automatic`); the curves are cut off at its edges.
+
+#% subitem
+# `filling: axis | bottom | top | c | [i, j]` fills, faintly in each curve's colour, from the curve to the x axis, the bottom or top of the plot or the line y = c, or between curves i and j.
 
 #% section
 # Examples
@@ -115,6 +121,22 @@ plot([sin(x), sin(2x)], [x, 0, pi], colors: ["#e45649", "#4078f2"], line_style: 
 #% output
 #= image("plot.files/plot-8.png")
 
+#% text
+# The region between the curve and the axis filled, and the vertical range chosen:
+
+#% cell
+plot(sin(x)/x, [x, -15, 15], filling: axis, plot_range: [-0.4, 1.1])
+#% output
+#= image("plot.files/plot-9.png")
+
+#% text
+# The region between two curves filled:
+
+#% cell
+plot([1 + x/2, exp(x/2)], [x, 0, 3], filling: [1, 2])
+#% output
+#= image("plot.files/plot-10.png")
+
 #% subsection
 # Applications
 
@@ -124,7 +146,7 @@ plot([sin(x), sin(2x)], [x, 0, pi], colors: ["#e45649", "#4078f2"], line_style: 
 #% cell
 plot([x*exp(-x), d(x*exp(-x), x)], [x, 0, 6], legend: ["f", "f'"])
 #% output
-#= image("plot.files/plot-9.png")
+#= image("plot.files/plot-11.png")
 
 #% section
 # See also

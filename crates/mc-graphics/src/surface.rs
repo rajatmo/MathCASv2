@@ -189,6 +189,9 @@ pub trait Surface {
     fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba);
     /// Typeset text.
     fn text(&mut self, text: &Text<'_>);
+    /// An image of `cols` x `rows` cells (straight RGBA bytes, the top row first) stretched over the rectangle
+    /// (x, y, w, h), each cell a flat colour (no smoothing between cells).
+    fn image(&mut self, rect: [f32; 4], cols: usize, rows: usize, rgba: &[u8]);
     /// Clip what follows to a rectangle (x, y, w, h) until [`Surface::unclip`].
     fn clip(&mut self, rect: [f32; 4]);
     /// End the last [`Surface::clip`].

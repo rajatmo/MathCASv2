@@ -11,9 +11,13 @@
 //! math with scripts and Greek letters).
 #![warn(missing_docs)]
 
+mod charts;
+mod curves;
+mod fields;
 mod figure;
+mod sidecar;
 
-use figure::{Axis, Corner, Dash, Look, Rgb, Scale, Series};
+use figure::{Axis, Corner, Dash, Extra, Filling, Look, Rgb, Scale, Series};
 use mc_api::names;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
@@ -42,6 +46,55 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of every plot: x_scale: linear | log | signed_log | signed_log(c) (sign(v) log10(1 + |v|/c), default c = 1; linear near 0, logarithmic far from it, both signs)",
     ),
     ("y_scale", "option of every plot: y_scale: linear | log | signed_log | signed_log(c), as x_scale"),
+    (
+        "list_line_plot",
+        "list_line_plot(data): list_plot with the points joined by lines; list_line_plot([data1, data2, ...]) several lines",
+    ),
+    (
+        "parametric_plot",
+        "parametric_plot([fx, fy], [t, a, b]): the curve (fx, fy) for t from a to b, equal units on both axes; parametric_plot([[fx, fy], [gx, gy], ...], [t, a, b]) several",
+    ),
+    (
+        "polar_plot",
+        "polar_plot(r, [theta, a, b]): the curve at distance r from the origin at angle theta, for theta from a to b; polar_plot([r1, r2, ...], ...) several",
+    ),
+    (
+        "density_plot",
+        "density_plot(f, [x, a, b], [y, c, d]): f as colours over the rectangle, with a colour bar (options color_function, color_bar, plot_points)",
+    ),
+    (
+        "contour_plot",
+        "contour_plot(f, [x, a, b], [y, c, d]): the regions between levels of f in colours with the level lines (options contours, color_function, color_bar, plot_points)",
+    ),
+    (
+        "list_density_plot",
+        "list_density_plot(matrix): the values of a matrix (rows from the bottom up) as colours, interpolated between the points (options data_range, color_function, color_bar)",
+    ),
+    (
+        "histogram",
+        "histogram(data): bars counting the values in bins of equal width, chosen automatically (options bins, normalized); histogram([data1, data2, ...]) several, overlaid",
+    ),
+    (
+        "bar_chart",
+        "bar_chart([v1, v2, ...]): a bar of height vk at k; bar_chart([[...], [...], ...]) groups of bars side by side (option labels)",
+    ),
+    (
+        "filling",
+        "option of plot, list_line_plot and joined list plots: filling: axis | bottom | top | c (to the line y = c) | [i, j] (between curves i and j), filled in each curve's colour, faint",
+    ),
+    (
+        "color_function",
+        "option of density_plot, contour_plot, list_density_plot: color_function: a gradient name (viridis, thermal, cool_warm, ocean, earth, rainbow, gray) or a list of colours",
+    ),
+    ("plot_points", "option of density_plot and contour_plot: plot_points: n, the function sampled on an n x n grid (default 100 and 80)"),
+    ("contours", "option of contour_plot: contours: n (n levels evenly between the least and the greatest value, default 10) or a list of levels"),
+    ("data_range", "option of list_density_plot: data_range: [[x0, x1], [y0, y1]], the coordinates of the matrix's first and last columns and rows"),
+    (
+        "bins",
+        "option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (from lo to hi), automatic",
+    ),
+    ("normalized", "option of histogram: normalized: true scales the bars so that their area is 1 (a probability density)"),
+    ("labels", "option of bar_chart: labels: [\"a\", \"b\", ...], the labels under the bars or groups"),
     ("x_label", "option of every plot: x_label: \"text\", the label under the x axis ($...$ for math: \"$E_\\\\gamma$ (GeV)\")"),
     ("y_label", "option of every plot: y_label: \"text\", the label beside the y axis (read upwards)"),
     (
@@ -133,20 +186,24 @@ pub fn install(k: &mut Kernel, h: &Heap) {
             scale: xlog,
         }),
     );
+    k.register(h.sym("list_line_plot"), Attributes::default(), Box::new(ListPlot { name: "list_line_plot", scale: lin }));
+    curves::install(k, h);
+    fields::install(k, h);
+    charts::install(k, h);
 }
 
-fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
+pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
     let mut a = vec![h.sym_term(h.sym(tag))];
     a.extend_from_slice(details);
     h.call(h.sym(names::FAILURE), &a)
 }
 
-fn bad<'h>(h: &'h Heap, f: &str, k: i64) -> Reply<'h> {
+pub(crate) fn bad<'h>(h: &'h Heap, f: &str, k: i64) -> Reply<'h> {
     Reply::Done(failure(h, "argument", &[h.sym_term(h.sym(f)), h.int(k)]))
 }
 
 /// A machine real for a number or a closed numeric expression (through `n`).
-fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
+pub(crate) fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
     let h = cx.heap();
     let direct = |t: T<'h>| match h.view(t) {
         View::Int(i) => Some(i as f64),
@@ -205,35 +262,77 @@ const EXTENSIONS: [&str; 3] = ["png", "svg", "pdf"];
 
 /// Build the plot's graphics term, render it to a fresh PNG file with the SVG and the vector PDF next to it (same
 /// name: `export_data("f.pdf", plot)` copies the PDF), and give the PNG's image term (or a failure).
-fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look) -> Res<Reply<'h>> {
+pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look, extra: Extra<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
     // writing a file is an effect: in program order, never speculatively
     cx.effect()?;
-    let g = figure::figure(h, series, look);
+    let g = figure::figure(h, series, look, &extra);
     let stop = cx.stop_flag().clone();
-    let rendered = mc_graphics::render_formats(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
-    let files = match rendered {
-        Ok(files) => files,
+    let rendered = mc_graphics::render_with_layout(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed));
+    let (files, layout) = match rendered {
+        Ok(r) => r,
         Err(f) => {
             // an interrupt ends the evaluation as interrupts do; other failures are the value
             cx.tick(1)?;
             return Ok(Reply::Done(f.term(h)));
         }
     };
-    Ok(Reply::Done(match write_files(&files) {
+    let mut entries = entries(series, look, &layout);
+    entries.extend(extra.entries);
+    let json = sidecar::json(&layout, look.scale, &entries);
+    Ok(Reply::Done(match write_files(&files, &json) {
         Ok(path) => image(h, &path),
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
 }
 
-/// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) as a fresh `plot-<pid>-<n>.png` with its siblings in
-/// the temporary folder; gives the PNG's path with forward slashes (it prints without escapes on every system).
-fn write_files(files: &[Vec<u8>]) -> Result<String, String> {
+/// The data sidecar's entries of a plot: each series in data coordinates, a line split where it breaks.
+fn entries(series: &[Series], look: &Look, layout: &mc_graphics::Layout) -> Vec<sidecar::Entry> {
+    let sc = look.scale;
+    let data = |(x, y): (f64, f64)| (sc.x.from(x), sc.y.from(y));
+    let span = layout.range[1].1 - layout.range[1].0;
+    let mut out = vec![];
+    for (k, s) in series.iter().enumerate() {
+        // the legend's text as a tooltip shows it (`$...$` math as plain characters)
+        let name = look.legend.get(k).map(|l| mc_graphics::label::plain_text(l)).unwrap_or_else(|| s.name.clone());
+        let color = look.color(k);
+        let pieces = if look.joined {
+            // as drawn: a lone point between breaks is not part of the line
+            figure::runs(&s.points, span).into_iter().filter(|r| r.len() > 1).collect()
+        } else {
+            vec![s.points.iter().filter_map(|&(x, y)| y.map(|y| (x, y))).collect()]
+        };
+        let kind = if look.joined { sidecar::Kind::Line } else { sidecar::Kind::Points };
+        for p in pieces {
+            let points: Vec<(f64, f64)> = p.into_iter().map(data).filter(|p| p.0.is_finite() && p.1.is_finite()).collect();
+            if !points.is_empty() {
+                out.push(sidecar::Entry { name: name.clone(), color, kind, points });
+            }
+        }
+    }
+    out
+}
+
+/// A short name for an expression: its printed form, cut to 40 characters.
+pub(crate) fn short_name<'h>(h: &'h Heap, t: T<'h>) -> String {
+    let s = mc_syntax::Printer::new(h).expr(t);
+    if s.chars().count() <= 40 {
+        s
+    } else {
+        s.chars().take(39).chain(std::iter::once('…')).collect()
+    }
+}
+
+/// Write rendered PNG, SVG and PDF bytes (in `FORMATS` order) and the data sidecar `json` as a fresh
+/// `plot-<pid>-<n>.png` with its siblings (`.svg`, `.pdf`, `.json`) in the temporary folder; gives the PNG's path
+/// with forward slashes (it prints without escapes on every system).
+fn write_files(files: &[Vec<u8>], json: &str) -> Result<String, String> {
     static COUNT: AtomicU64 = AtomicU64::new(0);
     let dir = std::env::temp_dir().join("mathcas-plots");
     let path = dir.join(format!("plot-{}-{}.png", std::process::id(), COUNT.fetch_add(1, Ordering::Relaxed)));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     // the siblings first: once the PNG exists, so do they
+    std::fs::write(path.with_extension("json"), json).map_err(|e| e.to_string())?;
     for (bytes, ext) in files.iter().zip(EXTENSIONS).rev() {
         std::fs::write(path.with_extension(ext), bytes).map_err(|e| e.to_string())?;
     }
@@ -247,8 +346,8 @@ pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Op
     if !mc_graphics::is_graphics(h, t) {
         return None;
     }
-    let files = mc_graphics::render_formats(h, t, &FORMATS, stop).ok()?;
-    let path = write_files(&files).ok()?;
+    let (files, layout) = mc_graphics::render_with_layout(h, t, &FORMATS, stop).ok()?;
+    let path = write_files(&files, &sidecar::json(&layout, Scale::default(), &[])).ok()?;
     let (w, ht) = png_size(std::path::Path::new(&path))?;
     Some((path, w, ht))
 }
@@ -270,7 +369,7 @@ impl Native for Plot {
         };
         let (f, spec, look) = match args {
             [f, spec] => (f, spec, base),
-            [f, spec, o] => match plot_options(cx, *o, base, false) {
+            [f, spec, o] => match plot_options(cx, *o, base, CURVE_OPTIONS) {
                 Some(look) => (f, spec, look),
                 None => return Ok(bad(h, name, 3)),
             },
@@ -300,9 +399,16 @@ impl Native for Plot {
         };
         let mut series = Vec::with_capacity(fs.len());
         for f in fs {
-            series.push(sample(cx, f, x, ua, ub, scale)?);
+            let mut s = sample(cx, f, x, ua, ub, scale)?;
+            s.name = short_name(h, f);
+            series.push(s);
         }
-        finish(cx, &series, &look)
+        if let Some(Filling::Between(i, j)) = look.filling {
+            if i.max(j) >= series.len() || i == j {
+                return Ok(bad(h, name, 3));
+            }
+        }
+        finish(cx, &series, &look, Extra::default())
     }
 }
 
@@ -344,7 +450,7 @@ fn sample<'h>(
     for w in grid.windows(2) {
         s.refine(cx, w[0], w[1], span, DEPTH, &mut pts)?;
     }
-    Ok(Series { points: pts })
+    Ok(Series { points: pts, name: String::new() })
 }
 
 /// Even points before refinement.
@@ -355,6 +461,9 @@ const DEPTH: u32 = 10;
 const BUDGET: u64 = 20_000;
 /// Deviation from the chord, as a fraction of the visible y range, that asks for a halving.
 const TOLERANCE: f64 = 0.0015;
+/// A step between neighbouring samples after every halving, as a fraction of the visible y range, that is taken for
+/// a jump (the curve is not drawn across it).
+const JUMP: f64 = 0.05;
 
 struct Sampler<'h> {
     fun: Box<dyn NumFn<'h, f64> + 'h>,
@@ -402,16 +511,71 @@ impl<'h> Sampler<'h> {
                 return self.refine(cx, m, q, span, depth - 1, out);
             }
             out.push(m);
+        } else if let (0, Some(a), Some(b)) = (depth, p.1, q.1) {
+            // halved as far as allowed and still a step: a jump, where the line breaks
+            if (b - a).abs() > JUMP * span {
+                out.push((0.5 * (p.0 + q.0), None));
+            }
         }
         out.push(q);
         Ok(())
     }
 }
 
-/// `list_plot(data)`, `list_plot(data, joined: true)` and the log-scale forms.
+/// `list_plot(data)`, `list_plot(data, joined: true)`, `list_line_plot(data)` and the log-scale forms; `data` may be
+/// several data sets.
 struct ListPlot {
     name: &'static str,
     scale: Scale,
+}
+
+/// The options of curves: scales, dash patterns, filling.
+const CURVE_OPTIONS: &[&str] = &["x_scale", "y_scale", "line_style", "filling"];
+/// The options of list plots: those of curves and `joined`.
+const LIST_OPTIONS: &[&str] = &["x_scale", "y_scale", "line_style", "filling", "joined"];
+
+/// The data sets of list plot data: several when it is a list of lists none of which is a pair of numbers'
+/// shape (`[[1, 2, 3], [4, 5, 6]]`, `[[[0, 1], [1, 2]], [[0, 2], [1, 3]]]`), else one.
+pub(crate) fn data_sets<'h>(cx: &NativeCx<'_, '_, 'h>, data: T<'h>) -> Option<Vec<T<'h>>> {
+    let h = cx.heap();
+    let items = cx.as_list(data)?;
+    let several = !items.is_empty()
+        && items.iter().all(|&it| cx.as_list(it).is_some())
+        && items.iter().any(|&it| {
+            let inner = cx.as_list(it).unwrap_or(&[]);
+            inner.len() != 2 || inner.iter().any(|&e| cx.as_list(e).is_some())
+        });
+    let _ = h;
+    Some(if several { items.to_vec() } else { vec![data] })
+}
+
+/// Points on the axes; `None` where there is no value.
+type Points = Vec<(f64, Option<f64>)>;
+
+/// The points of one data set: `[y1, y2, ...]` (at x = 1, 2, ...) or `[[x1, y1], ...]`, on the axes of `sc`
+/// (a point whose x has no place on a log axis is left out). `None` for data of another shape.
+pub(crate) fn data_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, data: T<'h>, sc: Scale) -> Res<Option<Points>> {
+    let Some(items) = cx.as_list(data) else { return Ok(None) };
+    let mut pts = Vec::with_capacity(items.len());
+    for (i, &it) in items.iter().enumerate() {
+        if i % 4096 == 0 {
+            cx.tick(1)?;
+        }
+        let p = match cx.as_list(it) {
+            Some(&[px, py]) => (real(cx, px)?, real(cx, py)?),
+            Some(_) => return Ok(None),
+            None => (Some(i as f64 + 1.0), real(cx, it)?),
+        };
+        match p {
+            (Some(px), y) => {
+                if let Some(u) = sc.x.to(px) {
+                    pts.push((u, y.and_then(|y| sc.y.to(y))));
+                }
+            }
+            (None, _) => return Ok(None),
+        }
+    }
+    Ok(Some(pts))
 }
 
 impl Native for ListPlot {
@@ -420,57 +584,49 @@ impl Native for ListPlot {
         let name = self.name;
         let base = Look {
             scale: self.scale,
+            joined: name == "list_line_plot",
             ..Look::default()
         };
+        let allowed = if name == "list_line_plot" { CURVE_OPTIONS } else { LIST_OPTIONS };
         let (data, look) = match args {
             [d] => (*d, base),
-            [d, o] => match plot_options(cx, *o, base, true) {
+            [d, o] => match plot_options(cx, *o, base, allowed) {
                 Some(look) => (*d, look),
                 None => return Ok(bad(h, name, 2)),
             },
             _ => return Ok(Reply::Decline),
         };
-        let sc = look.scale;
-        let Some(items) = cx.as_list(data) else {
+        let Some(sets) = data_sets(cx, data) else {
             return Ok(bad(h, name, 1));
         };
-        let mut pts = Vec::with_capacity(items.len());
-        for (i, &it) in items.iter().enumerate() {
-            if i % 4096 == 0 {
-                cx.tick(1)?;
-            }
-            let p = match cx.as_list(it) {
-                Some(&[px, py]) => (real(cx, px)?, real(cx, py)?),
-                Some(_) => return Ok(bad(h, name, 1)),
-                None => (Some(i as f64 + 1.0), real(cx, it)?),
+        let many = sets.len() > 1;
+        let mut series = Vec::with_capacity(sets.len());
+        for (k, set) in sets.into_iter().enumerate() {
+            let Some(points) = data_points(cx, set, look.scale)? else {
+                return Ok(bad(h, name, 1));
             };
-            match p {
-                // a point whose x is not on a log axis (not positive) is left out
-                (Some(px), y) => {
-                    if let Some(u) = sc.x.to(px) {
-                        pts.push((u, y.and_then(|y| sc.y.to(y))));
-                    }
-                }
-                (None, _) => return Ok(bad(h, name, 1)),
-            }
+            let name = if many { format!("data {}", k + 1) } else { "data".into() };
+            series.push(Series { points, name });
         }
-        if pts.iter().all(|p| p.1.is_none()) {
+        if series.iter().all(|s| s.points.iter().all(|p| p.1.is_none())) {
             return Ok(bad(h, name, 1));
         }
-        finish(cx, &[Series { points: pts }], &look)
+        if let Some(Filling::Between(i, j)) = look.filling {
+            if i.max(j) >= series.len() || i == j {
+                return Ok(bad(h, name, 2));
+            }
+        }
+        finish(cx, &series, &look, Extra::default())
     }
 }
 
-/// The plot options `options(k -> v, ...)`: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`),
-/// `x_label`, `y_label` (strings), `legend` (a list of strings), `legend_position` (a corner), `colors` (a list
-/// of `"#rrggbb"` strings), `line_style` (a list of `solid`, `dashed`, `dotted`, `dot_dashed`) and, when
-/// `joined_ok`, `joined` (`true` / `false`), applied to `base`. `None` for anything else.
-fn plot_options<'h>(
-    cx: &NativeCx<'_, '_, 'h>,
-    o: T<'h>,
-    base: Look,
-    joined_ok: bool,
-) -> Option<Look> {
+/// The plot options `options(k -> v, ...)` applied to `base`; `None` for an option the plot does not take or a value
+/// the option does not take. Every plot takes `x_label`, `y_label` (strings), `legend` (a list of strings),
+/// `legend_position` (a corner), `colors` (a list of `"#rrggbb"` strings) and `plot_range`; `extra` names the
+/// others it takes: `x_scale`, `y_scale` (`linear`, `log`, `signed_log`, `signed_log(c)`), `line_style` (a list
+/// of `solid`, `dashed`, `dotted`, `dot_dashed`), `joined` (`true` / `false`), `filling`, `color_function`,
+/// `color_bar`, `plot_points`, `contours`, `data_range`, `bins`, `normalized`, `labels`.
+pub(crate) fn plot_options<'h>(cx: &NativeCx<'_, '_, 'h>, o: T<'h>, base: Look, extra: &[&str]) -> Option<Look> {
     let h = cx.heap();
     let View::App { head, args } = h.view(o) else {
         return None;
@@ -483,6 +639,8 @@ fn plot_options<'h>(
         View::Str(s) => Some(s.to_string()),
         _ => None,
     };
+    let num = |t: T<'h>| mc_graphics::num::number(h, t);
+    let is = |t: T<'h>, name: &str| matches!(h.view(t), View::Sym(s) if h.sym_name(s) == name);
     for &r in args {
         let View::App {
             head,
@@ -495,8 +653,13 @@ fn plot_options<'h>(
             return None;
         }
         let View::Sym(k) = h.view(k) else { return None };
-        match h.sym_name(k).as_str() {
-            "joined" if joined_ok => look.joined = v == h.sym_term(h.sym("true")),
+        let key = h.sym_name(k);
+        let common = matches!(key.as_str(), "x_label" | "y_label" | "legend" | "legend_position" | "colors" | "plot_range");
+        if !common && !extra.contains(&key.as_str()) {
+            return None;
+        }
+        match key.as_str() {
+            "joined" => look.joined = is(v, "true"),
             "x_scale" => look.scale.x = axis_option(h, v)?,
             "y_scale" => look.scale.y = axis_option(h, v)?,
             "x_label" => look.x_label = Some(text(v)?),
@@ -523,14 +686,129 @@ fn plot_options<'h>(
                     .map(|&e| dash_option(h, e))
                     .collect::<Option<_>>()?
             }
+            "plot_range" => look.range = range_option(cx, v)?,
+            "filling" => {
+                look.filling = Some(if is(v, "axis") {
+                    Filling::Axis
+                } else if is(v, "bottom") {
+                    Filling::Bottom
+                } else if is(v, "top") {
+                    Filling::Top
+                } else if let Some(c) = num(v) {
+                    Filling::Value(c)
+                } else {
+                    let &[i, j] = cx.as_list(v)? else { return None };
+                    let index = |t: T<'h>| match h.view(t) {
+                        View::Int(k) if k >= 1 => Some(k as usize - 1),
+                        _ => None,
+                    };
+                    Filling::Between(index(i)?, index(j)?)
+                });
+                if is(v, "none") {
+                    look.filling = None;
+                }
+            }
+            "color_function" => look.gradient = Some(mc_graphics::gradient::read(h, v)?),
+            "color_bar" => {
+                look.hide_color_bar = if is(v, "true") {
+                    false
+                } else if is(v, "false") || is(v, "none") {
+                    true
+                } else {
+                    return None;
+                }
+            }
+            "plot_points" => match h.view(v) {
+                View::Int(n) if (2..=400).contains(&n) => look.plot_points = Some(n as usize),
+                _ => return None,
+            },
+            "contours" => {
+                look.contours = Some(match h.view(v) {
+                    View::Int(n) if (1..=100).contains(&n) => figure::Contours::Count(n as usize),
+                    _ => {
+                        let vs = cx.as_list(v)?.iter().map(|&e| num(e)).collect::<Option<Vec<f64>>>()?;
+                        if vs.is_empty() || vs.len() > 100 {
+                            return None;
+                        }
+                        figure::Contours::Values(vs)
+                    }
+                })
+            }
+            "data_range" => {
+                let &[x, y] = cx.as_list(v)? else { return None };
+                let pair = |t: T<'h>| -> Option<[f64; 2]> {
+                    let &[a, b] = cx.as_list(t)? else { return None };
+                    let (a, b) = (num(a)?, num(b)?);
+                    (a < b).then_some([a, b])
+                };
+                look.data_range = Some([pair(x)?, pair(y)?]);
+            }
+            "bins" => look.bins = bins_option(cx, v)?,
+            "normalized" => {
+                look.normalized = if is(v, "true") {
+                    true
+                } else if is(v, "false") {
+                    false
+                } else {
+                    return None;
+                }
+            }
+            "labels" => look.labels = cx.as_list(v)?.iter().map(|&e| text(e)).collect::<Option<_>>()?,
             _ => return None,
         }
     }
     Some(look)
 }
 
+/// `plot_range:` `automatic` / `all`, `[y0, y1]`, or `[[x0, x1], [y0, y1]]`; an end may be `automatic`.
+fn range_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<[[Option<f64>; 2]; 2]> {
+    let h = cx.heap();
+    let auto = |t: T<'h>| matches!(h.view(t), View::Sym(s) if matches!(h.sym_name(s).as_str(), "automatic" | "all"));
+    if auto(v) {
+        return Some([[None; 2]; 2]);
+    }
+    let pair = |t: T<'h>| -> Option<[Option<f64>; 2]> {
+        if auto(t) {
+            return Some([None; 2]);
+        }
+        let &[a, b] = cx.as_list(t)? else { return None };
+        let end = |e: T<'h>| if auto(e) { Some(None) } else { mc_graphics::num::number(h, e).map(Some) };
+        let r = [end(a)?, end(b)?];
+        match r {
+            [Some(a), Some(b)] if a >= b => None,
+            r => Some(r),
+        }
+    };
+    let &[a, b] = cx.as_list(v)? else { return None };
+    if cx.as_list(a).is_some() || cx.as_list(b).is_some() {
+        Some([pair(a)?, pair(b)?])
+    } else {
+        Some([[None; 2], pair(v)?])
+    }
+}
+
+/// `bins:` `automatic`, `n` (a count), `[w]` (a width) or `[lo, hi, w]`.
+fn bins_option<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<figure::Bins> {
+    let h = cx.heap();
+    let num = |t: T<'h>| mc_graphics::num::number(h, t);
+    if matches!(h.view(v), View::Sym(s) if h.sym_name(s) == "automatic") {
+        return Some(figure::Bins::Auto);
+    }
+    if let View::Int(n) = h.view(v) {
+        return (1..=10_000).contains(&n).then_some(figure::Bins::Count(n as usize));
+    }
+    match *cx.as_list(v)? {
+        [w] => num(w).filter(|w| *w > 0.0).map(figure::Bins::Width),
+        [lo, hi, w] => {
+            let (lo, hi, w) = (num(lo)?, num(hi)?, num(w)?);
+            (lo < hi && w > 0.0).then_some(figure::Bins::Range(lo, hi, w))
+        }
+        _ => None,
+    }
+}
+
 /// A colour written `#rrggbb` (hexadecimal red, green, blue).
-fn hex_color(s: &str) -> Option<Rgb> {
+pub(crate) fn hex_color(s: &str) -> Option<Rgb> {
     let d = s.strip_prefix('#').filter(|d| d.len() == 6 && d.is_ascii())?;
     let c = |i: usize| u8::from_str_radix(&d[i..i + 2], 16).ok();
     Some((c(0)?, c(2)?, c(4)?))

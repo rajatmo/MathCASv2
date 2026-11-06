@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_plot
+
+#% text
+# `parametric_plot([fx, fy], [t, a, b])` draws the curve of points (fx, fy) as the parameter t runs from a to b.
+
+#% text
+# `parametric_plot([[fx, fy], [gx, gy], ...], [t, a, b])` draws several curves in one picture, each in its own colour.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# Both axes use the same unit, so a circle is drawn round; the picture takes the shape of the curves.
+
+#% item
+# The parameter is sampled adaptively: more densely where the curve bends sharply.
+
+#% item
+# Where a coordinate is not a finite real number, or the curve jumps, the line is broken.
+
+#% item
+# The options `x_label`, `y_label`, `legend`, `legend_position`, `colors`, `line_style` and `plot_range` work as for `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The unit circle:
+
+#% cell
+parametric_plot([cos(t), sin(t)], [t, 0, 2pi])
+#% output
+#= image("parametric_plot.files/parametric_plot-1.png")
+
+#% text
+# A figure whose coordinates oscillate at different rates:
+
+#% cell
+parametric_plot([sin(2t), sin(3t)], [t, 0, 2pi])
+#% output
+#= image("parametric_plot.files/parametric_plot-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Two curves, named in a legend:
+
+#% cell
+parametric_plot([[2cos(t), sin(t)], [cos(t)/2, 2sin(t)]], [t, 0, 2pi], legend: ["wide", "tall"])
+#% output
+#= image("parametric_plot.files/parametric_plot-3.png")
+
+#% text
+# A spiral that winds outwards:
+
+#% cell
+parametric_plot([t*cos(t), t*sin(t)], [t, 0, 6pi])
+#% output
+#= image("parametric_plot.files/parametric_plot-4.png")
+
+#% subsection
+# Applications
+
+#% text
+# The path of a thrown stone with time as the parameter:
+
+#% cell
+parametric_plot([12t, 15t - 4.9t^2], [t, 0, 3], x_label: "distance (m)", y_label: "height (m)")
+#% output
+#= image("parametric_plot.files/parametric_plot-5.png")
+
+#% section
+# See also
+
+#% text
+# `polar_plot`, `plot`, `list_line_plot`

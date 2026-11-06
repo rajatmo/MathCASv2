@@ -29,6 +29,8 @@ pub struct Pdf {
     codes: HashMap<u16, (usize, u8)>,
     /// per font, its glyphs by code with the character each shows
     fonts: Vec<Vec<(u16, Option<char>)>>,
+    /// images, each an `XObject` named `/Im<index>`: columns, rows, straight RGBA bytes (top row first)
+    images: Vec<(usize, usize, Vec<u8>)>,
 }
 
 impl Pdf {
@@ -36,7 +38,7 @@ impl Pdf {
     pub fn new(width: f32, height: f32) -> Pdf {
         let mut content = String::new();
         let _ = writeln!(content, "1 0 0 -1 0 {} cm 1 j", num(height));
-        Pdf { width, height, content, alphas: vec![], alpha: 1000, saved: vec![], codes: HashMap::new(), fonts: vec![] }
+        Pdf { width, height, content, alphas: vec![], alpha: 1000, saved: vec![], codes: HashMap::new(), fonts: vec![], images: vec![] }
     }
 
     /// Use opacity `a` from here on.
@@ -110,7 +112,15 @@ impl Pdf {
             let a = num(*a as f32 / 1000.0);
             let _ = write!(gs, " /A{i} << /ca {a} /CA {a} >>");
         }
-        let mut res = String::from("<< /ProcSet [/PDF /Text]");
+        let mut xobjects = String::new();
+        for (k, (cols, rows, rgba)) in self.images.iter().enumerate() {
+            let im = image(&mut doc, *cols, *rows, rgba);
+            let _ = write!(xobjects, " /Im{k} {im} 0 R");
+        }
+        let mut res = String::from("<< /ProcSet [/PDF /Text /ImageC]");
+        if !xobjects.is_empty() {
+            let _ = write!(res, " /XObject <<{xobjects} >>");
+        }
         if !font_refs.is_empty() {
             let _ = write!(res, " /Font <<{font_refs} >>");
         }
@@ -138,6 +148,21 @@ fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
     out.extend_from_slice(&z);
     out.extend_from_slice(b"\nendstream");
     out
+}
+
+/// An image `XObject` of RGB cells, with a soft mask of their opacity when some cell is not opaque; gives its
+/// object number. Cells are not smoothed (`/Interpolate false`).
+fn image(doc: &mut Doc, cols: usize, rows: usize, rgba: &[u8]) -> usize {
+    let rgb: Vec<u8> = rgba.as_chunks::<4>().0.iter().flat_map(|c| [c[0], c[1], c[2]]).collect();
+    let dict = |space: &str| format!(" /Type /XObject /Subtype /Image /Width {cols} /Height {rows} /ColorSpace /{space} /BitsPerComponent 8 /Interpolate false");
+    let mask = if rgba.as_chunks::<4>().0.iter().any(|c| c[3] < 255) {
+        let alpha: Vec<u8> = rgba.as_chunks::<4>().0.iter().map(|c| c[3]).collect();
+        let m = doc.add(stream(&dict("DeviceGray"), &alpha));
+        format!(" /SMask {m} 0 R")
+    } else {
+        String::new()
+    };
+    doc.add(stream(&format!("{}{mask}", dict("DeviceRGB")), &rgb))
 }
 
 /// A Type 3 font of `glyphs` (by code), with its glyph procedures and `ToUnicode` map; gives its object number.
@@ -329,6 +354,18 @@ impl Surface for Pdf {
             self.path(&Path::polyline(&corners, true));
             self.content.push_str("f\n");
         }
+    }
+
+    fn image(&mut self, r: [f32; 4], cols: usize, rows: usize, rgba: &[u8]) {
+        if rgba.len() != cols * rows * 4 || cols == 0 || rows == 0 {
+            return;
+        }
+        // the image's own opacity is its soft mask
+        self.opacity(1.0);
+        let k = self.images.len();
+        self.images.push((cols, rows, rgba.to_vec()));
+        // the unit square onto the rectangle, its top edge (the image's first row) at the top on this y-down page
+        let _ = writeln!(self.content, "q {} 0 0 {} {} {} cm /Im{k} Do Q", num(r[2]), num(-r[3]), num(r[0]), num(r[1] + r[3]));
     }
 
     fn clip(&mut self, r: [f32; 4]) {

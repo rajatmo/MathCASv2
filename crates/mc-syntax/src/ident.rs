@@ -128,6 +128,27 @@ pub fn string_literal(s: &str, out: &mut String) {
     out.push('"');
 }
 
+/// Appends `s` as the literal the printer writes: raw (`r"..."`, with as many `#` as its quotes need) when it is TeX
+/// (it holds a `$` and a backslash) and has no control character, so `$\alpha$` prints as `r"$\alpha$"` rather than
+/// with a doubled backslash; otherwise [`string_literal`] with escapes. Other strings with backslashes (file paths)
+/// keep their escaped form, which programs reading printed values (`image("...")`) expect.
+pub fn string_token(s: &str, out: &mut String) {
+    if !s.contains('\\') || !s.contains('$') || s.chars().any(char::is_control) {
+        return string_literal(s, out);
+    }
+    // the fewest `#` whose closing `"#..#` does not occur in the text
+    let mut close = String::from("\"");
+    while s.contains(&close) {
+        close.push('#');
+    }
+    let hashes = &close[1..];
+    out.push('r');
+    out.push_str(hashes);
+    out.push('"');
+    out.push_str(s);
+    out.push_str(&close);
+}
+
 /// Control characters are written as escapes; everything else as itself.
 fn push_escaped_char(c: char, out: &mut String) {
     match c {
@@ -167,5 +188,21 @@ mod tests {
         ident_token("a`b", &mut s);
         string_literal("a\"\n\u{1}", &mut s);
         assert_eq!(s, "`if``a\\`b`\"a\\\"\\n\\u{1}\"");
+    }
+
+    #[test]
+    fn tex_strings_print_raw() {
+        let token = |s: &str| {
+            let mut o = String::new();
+            string_token(s, &mut o);
+            o
+        };
+        assert_eq!(token("plain \"q\""), r#""plain \"q\"""#);
+        assert_eq!(token(r"$\alpha_1$"), r#"r"$\alpha_1$""#);
+        assert_eq!(token(r#"$\a "b""#), r##"r#"$\a "b""#"##);
+        assert_eq!(token(r##"$\ "#"##), r###"r##"$\ "#"##"###);
+        // a control character, or no `$` (a path), keeps the escaped form
+        assert_eq!(token("$\\\n"), r#""$\\\n""#);
+        assert_eq!(token(r"C:\temp\a.png"), r#""C:\\temp\\a.png""#);
     }
 }

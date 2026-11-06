@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# density_plot
+
+#% text
+# `density_plot(f, [x, a, b], [y, c, d])` shows the values of f over the rectangle from (a, c) to (b, d) as colours, with a colour bar giving their scale.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# f is sampled on a grid (100 by 100 points unless `plot_points` says otherwise) and drawn smoothly between the grid points.
+
+#% item
+# The colours run from the least value of f to the greatest; where f is not a real number nothing is drawn.
+
+#% item
+# Options:
+
+#% subitem
+# `color_function: name` picks a gradient: `viridis` (the default), `thermal`, `cool_warm`, `ocean`, `earth`, `rainbow` or `gray`; a list of colours makes a gradient through them.
+
+#% subitem
+# `color_bar: false` leaves out the colour bar.
+
+#% subitem
+# `plot_points: n` samples an n by n grid.
+
+#% subitem
+# `x_label`, `y_label` and `plot_range` work as for `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A product of waves:
+
+#% cell
+density_plot(sin(x)*cos(y), [x, 0, 2pi], [y, 0, 2pi])
+#% output
+#= image("density_plot.files/density_plot-1.png")
+
+#% subsection
+# Options
+
+#% text
+# A gradient for values on both sides of zero:
+
+#% cell
+density_plot(x^2 - y^2, [x, -1, 1], [y, -1, 1], color_function: cool_warm)
+#% output
+#= image("density_plot.files/density_plot-2.png")
+
+#% text
+# A gradient through chosen colours, without a colour bar:
+
+#% cell
+density_plot(exp(-(x^2 + y^2)), [x, -2, 2], [y, -2, 2], color_function: [white, "#1b5e63"], color_bar: false)
+#% output
+#= image("density_plot.files/density_plot-3.png")
+
+#% subsection
+# Possible issues
+
+#% text
+# Outside the unit disc the square root is not real, and that region stays empty:
+
+#% cell
+density_plot(sqrt(1 - x^2 - y^2), [x, -1, 1], [y, -1, 1], color_function: thermal)
+#% output
+#= image("density_plot.files/density_plot-4.png")
+
+#% section
+# See also
+
+#% text
+# `contour_plot`, `list_density_plot`, `gradient_color`, `raster`

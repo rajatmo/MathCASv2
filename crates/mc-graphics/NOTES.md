@@ -74,3 +74,18 @@ CharProcs and ToUnicode; decorations, legends, scientific ticks, sizes, scale 2,
 
 No `graphics3d`, `arrowheads`, separate frame ticks, polar coordinates, raster/image primitive or `inset`; the TeX
 subset lacks `\left...\right`, accents, matrices and `\over`; serif text only.
+
+## Round 10 (package plots)
+
+- `raster(cells, [[x0, y0], [x1, y1]], gradient)`: cells are numbers in [0, 1] (gray or a gradient), colours or
+  `none`; rows from the bottom; packed `rows x cols` or `rows x cols x 3|4` arrays read directly; at most 4 M cells.
+  Surfaces gained `image(rect, cols, rows, rgba)`: tiny-skia nearest-neighbour pixmap; SVG `<image>` with a base64 PNG
+  and `image-rendering` pixelated; PDF image XObject (`/Interpolate false`, `/SMask` when some cell is transparent).
+- `gradient` module: named gradients `viridis` (default), `thermal`, `cool_warm`, `ocean`, `earth`, `rainbow`, `gray`,
+  or a list of colours (colour terms or `"#rrggbb"`); `gradient_color(g, t)`.
+- `color_bar: [gradient, [lo, hi]]` or `[gradient, [lo, hi], label]`: a bar right of the plot area with ticks and a
+  label read upwards; the margin is reserved by the planner.
+- `arrowheads(s)` / `arrowheads([s0, s1])` / `arrowheads(automatic)`: head lengths as fractions of the plot width.
+- `render_with_layout` gives the `Layout` (page size, plot area, ranges) used by the plot sidecar.
+- Polygons with holes were not needed: contour regions are unions of non-overlapping anticlockwise rings in one path.
+- Test dependency: `resvg` now with its `raster-images` feature (pure Rust: `zune-jpeg`, `gif`, `image-webp`).

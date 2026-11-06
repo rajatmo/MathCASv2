@@ -16,7 +16,7 @@
 //!
 //! Terms can be arbitrarily deep, so printing runs on an explicit task stack (decision 1.6), not on recursion.
 use crate::heads::{as_sym, Head, Heads};
-use crate::ident::{ident_token, is_pattern_name, string_literal};
+use crate::ident::{ident_token, is_pattern_name, string_token};
 use crate::lower::slot_index;
 use crate::nat;
 use crate::prec::*;
@@ -352,7 +352,7 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
             View::Ball { neg, words } => text_form(self.p.numbers.ball(neg, words), v),
             View::Str(s) => {
                 let mut o = String::new();
-                string_literal(s, &mut o);
+                string_token(s, &mut o);
                 v.push(Task::Owned(o));
                 (ATOM, false)
             }

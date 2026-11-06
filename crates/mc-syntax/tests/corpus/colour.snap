@@ -41,6 +41,10 @@ x/global //op 4/number
 "tab\tnewline\nquote\"backslash\\"/string
 "unicode \u{3b8} and θ"/string
 ""/string
+r"$\alpha_1 \le \beta$"/string
+r#"say "hi" \o/"#/string
+r##"a "# b\"##/string
+text/global (/op r"$\theta$"/string ,/op [/op 0/number ,/op 1/number ]/op )/op
 x/global
 α/global
 θ1/global

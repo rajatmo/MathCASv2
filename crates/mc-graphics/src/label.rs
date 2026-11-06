@@ -32,6 +32,84 @@ pub struct Label {
     pub text: String,
 }
 
+/// A label string (with `$...$` math) as plain text for places that cannot draw it, such as a tooltip: TeX commands
+/// become their characters (`$\sin\theta$` gives `sinθ`), scripts `^` / `_` (in parentheses when longer than one
+/// character), fractions `a/b`, roots with `√`.
+pub fn plain_text(s: &str) -> String {
+    if !s.contains('$') {
+        return s.to_string();
+    }
+    let mut out = String::new();
+    row_text(&Label::text(s).row, &mut out);
+    out
+}
+
+/// A mathematical italic letter (how math letters are set) as its plain letter.
+fn plain_char(c: char) -> char {
+    let u = c as u32;
+    let from = |base: u32, to: u32| char::from_u32(to + (u - base)).unwrap_or(c);
+    match u {
+        0x1D434..=0x1D44D => from(0x1D434, 'A' as u32),
+        0x1D44E..=0x1D467 => from(0x1D44E, 'a' as u32),
+        0x210E => 'h',
+        0x1D6E2..=0x1D6FA => from(0x1D6E2, 0x391),
+        0x1D6FC..=0x1D714 => from(0x1D6FC, 0x3B1),
+        _ => c,
+    }
+}
+
+fn row_text(r: &Row, out: &mut String) {
+    for item in &r.0 {
+        match item {
+            Item::Char(c) => out.push(plain_char(*c)),
+            Item::Placeholder => {}
+            Item::Box(node) => node_text(node, out),
+        }
+    }
+}
+
+/// A script, numerator or radicand: in parentheses when it is longer than one character.
+fn part(r: &Row, out: &mut String) {
+    let mut t = String::new();
+    row_text(r, &mut t);
+    if t.chars().count() > 1 {
+        out.push('(');
+        out.push_str(&t);
+        out.push(')');
+    } else {
+        out.push_str(&t);
+    }
+}
+
+fn node_text(n: &Node, out: &mut String) {
+    match n {
+        Node::Fraction { num, den } => {
+            part(num, out);
+            out.push('/');
+            part(den, out);
+        }
+        Node::Superscript { base, exp } => {
+            row_text(base, out);
+            out.push('^');
+            part(exp, out);
+        }
+        Node::Subscript { base, index } => {
+            row_text(base, out);
+            out.push('_');
+            part(index, out);
+        }
+        Node::Radical { radicand, .. } => {
+            out.push('√');
+            part(radicand, out);
+        }
+        other => {
+            for r in other.slots() {
+                row_text(r, out);
+            }
+        }
+    }
+}
+
 impl Label {
     /// Plain text, nothing interpreted (tick labels).
     pub fn plain(s: &str) -> Label {
@@ -314,6 +392,14 @@ pub fn typeset(label: &Label, size: f32) -> Typeset {
 mod tests {
     use super::*;
     use mc_boxes::tree::notation;
+
+    #[test]
+    fn plain_text_of_math_labels() {
+        assert_eq!(plain_text("time (s)"), "time (s)");
+        assert_eq!(plain_text(r"$\sin\theta$"), "sin\u{3b8}");
+        assert_eq!(plain_text("$x_1^2$ data"), "x_1^2 data");
+        assert_eq!(plain_text(r"$\frac{a}{bc}$"), "a/(bc)");
+    }
 
     fn tex(s: &str) -> String {
         notation(&Label::text(s).row)

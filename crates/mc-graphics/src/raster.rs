@@ -4,7 +4,9 @@ use crate::color::Rgba;
 use crate::surface::{Cap, Path, Pen, Seg, Surface, Text};
 use mc_mathfont::PathCmd;
 use std::collections::HashMap;
-use tiny_skia::{FillRule, LineCap, LineJoin, Mask, Paint, PathBuilder, Pixmap, Stroke, StrokeDash, Transform};
+use tiny_skia::{
+    FillRule, FilterQuality, LineCap, LineJoin, Mask, Paint, PathBuilder, Pixmap, PixmapPaint, Stroke, StrokeDash, Transform,
+};
 
 /// The largest pixmap, in pixels (4 bytes each).
 pub const MAX_PIXELS: u64 = 40_000_000;
@@ -161,6 +163,21 @@ impl Surface for Raster {
         }
     }
 
+    fn image(&mut self, rect: [f32; 4], cols: usize, rows: usize, rgba: &[u8]) {
+        let Some(cells) = pixmap(cols, rows, rgba) else { return };
+        let s = self.scale;
+        let ts = Transform::from_row(
+            s * rect[2] / cols as f32,
+            0.0,
+            0.0,
+            s * rect[3] / rows as f32,
+            s * rect[0],
+            s * rect[1],
+        );
+        let paint = PixmapPaint { quality: FilterQuality::Nearest, ..PixmapPaint::default() };
+        self.pm.draw_pixmap(0, 0, cells.as_ref(), &paint, ts, self.mask.as_ref());
+    }
+
     fn clip(&mut self, rect: [f32; 4]) {
         self.clips.push(rect);
         self.rebuild_mask();
@@ -170,6 +187,20 @@ impl Surface for Raster {
         self.clips.pop();
         self.rebuild_mask();
     }
+}
+
+/// A pixmap of cells given as straight RGBA bytes (premultiplied as tiny-skia stores them).
+pub fn pixmap(cols: usize, rows: usize, rgba: &[u8]) -> Option<Pixmap> {
+    if rgba.len() != cols * rows * 4 {
+        return None;
+    }
+    let mut pm = Pixmap::new(u32::try_from(cols).ok()?, u32::try_from(rows).ok()?)?;
+    for (out, c) in pm.data_mut().as_chunks_mut::<4>().0.iter_mut().zip(rgba.as_chunks::<4>().0) {
+        let a = c[3] as u32;
+        let pre = |v: u8| ((v as u32 * a + 127) / 255) as u8;
+        out.copy_from_slice(&[pre(c[0]), pre(c[1]), pre(c[2]), c[3]]);
+    }
+    Some(pm)
 }
 
 /// A dash pattern with an even number of entries (an odd one is repeated, as PDF and SVG read it), none of them

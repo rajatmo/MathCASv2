@@ -3,11 +3,14 @@
 //! `mc-graphics` renders it.
 use mc_core::{Heap, Store, T};
 use mc_graphics::color::Rgba;
+use mc_graphics::gradient::Gradient;
 use mc_graphics::rgb_term;
 
 /// Points of one curve or data set, already on the axes ([`Axis::to`]); `None` breaks the line.
 pub(crate) struct Series {
     pub(crate) points: Vec<(f64, Option<f64>)>,
+    /// what the data sidecar calls it when the legend does not: the plotted expression, or `series k`
+    pub(crate) name: String,
 }
 
 /// The page size in points (pixels of the PNG).
@@ -30,6 +33,8 @@ const COLORS: [Rgb; 7] = [
 ];
 /// Grid lines at major ticks, and the fainter ones between powers of ten.
 const GRID: f64 = 230.0 / 255.0;
+/// The opacity of filled regions under curves.
+const FILL_OPACITY: f64 = 0.22;
 const FAINT: f64 = 242.0 / 255.0;
 
 pub(crate) type Rgb = (u8, u8, u8);
@@ -129,11 +134,72 @@ pub(crate) struct Look {
     pub(crate) legend_at: Corner,
     pub(crate) colors: Vec<Rgb>,
     pub(crate) dashes: Vec<Dash>,
+    /// the plot range's ends given by `plot_range:`, in data coordinates (`None`: automatic)
+    pub(crate) range: [[Option<f64>; 2]; 2],
+    /// what is filled under (or between) curves
+    pub(crate) filling: Option<Filling>,
+    /// `color_function:` of density and contour plots (`None`: the default gradient)
+    pub(crate) gradient: Option<Gradient>,
+    /// `color_bar: false`
+    pub(crate) hide_color_bar: bool,
+    /// the values at the ends of the colour bar, for plots coloured by value
+    pub(crate) bar_range: Option<(f64, f64)>,
+    /// legend entries drawn as filled squares of these colours (bar charts, histograms) rather than curve samples
+    pub(crate) legend_swatches: Vec<Rgb>,
+    /// the ranges as computed, without padding (rasters fill the plot area)
+    pub(crate) exact: bool,
+    /// equal units on both axes
+    pub(crate) equal: bool,
+    /// axes through the origin instead of a frame
+    pub(crate) origin_axes: bool,
+    /// the page size in points (`None`: 640 x 400)
+    pub(crate) size: Option<(f64, f64)>,
+    /// labelled x ticks (bar charts), with no x grid lines
+    pub(crate) x_ticks: Option<Vec<(f64, String)>>,
+    /// `plot_points:` of density and contour plots
+    pub(crate) plot_points: Option<usize>,
+    /// `contours:` of contour plots
+    pub(crate) contours: Option<Contours>,
+    /// `data_range:` of list density plots
+    pub(crate) data_range: Option<[[f64; 2]; 2]>,
+    /// `bins:` and `normalized:` of histograms
+    pub(crate) bins: Bins,
+    pub(crate) normalized: bool,
+    /// `labels:` of bar charts
+    pub(crate) labels: Vec<String>,
+}
+
+/// The levels of a contour plot: so many evenly between the least and greatest value, or these.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum Contours {
+    Count(usize),
+    Values(Vec<f64>),
+}
+
+/// The bins of a histogram: automatic, about so many, of this width, or from lo to hi of width w.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) enum Bins {
+    #[default]
+    Auto,
+    Count(usize),
+    Width(f64),
+    Range(f64, f64, f64),
+}
+
+/// What `filling:` fills: from each curve to the x axis (y = 0), the bottom or top of the plot, a value, or
+/// between two curves (0-based).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Filling {
+    Axis,
+    Bottom,
+    Top,
+    Value(f64),
+    Between(usize, usize),
 }
 
 impl Look {
     /// The colour of series `k`.
-    fn color(&self, k: usize) -> Rgb {
+    pub(crate) fn color(&self, k: usize) -> Rgb {
         self.colors.get(k).copied().unwrap_or(COLORS[k % COLORS.len()])
     }
 
@@ -325,33 +391,162 @@ impl<'h> B<'h> {
     }
 }
 
-/// The `graphics` term of the plot of `series` as `look` says.
-pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look) -> T<'h> {
+/// The runs of finite values of a line: a jump larger than `span` (the visible y range) is a pole, and the line
+/// breaks there as it does where there is no value.
+pub(crate) fn runs(points: &[(f64, Option<f64>)], span: f64) -> Vec<Vec<(f64, f64)>> {
+    let mut runs: Vec<Vec<(f64, f64)>> = vec![];
+    let mut prev: Option<f64> = None;
+    for &(x, y) in points {
+        match (y, prev) {
+            (Some(y), Some(p)) if (y - p).abs() <= span => {
+                if let Some(r) = runs.last_mut() {
+                    r.push((x, y));
+                }
+            }
+            (Some(y), _) => runs.push(vec![(x, y)]),
+            (None, _) => {}
+        }
+        prev = y;
+    }
+    runs
+}
+
+/// What a plot draws besides its series: content under them (bars, rasters, filled regions, contour lines), the
+/// extent of that content in axis coordinates, and the data sidecar's entries for it.
+#[derive(Default)]
+pub(crate) struct Extra<'h> {
+    pub(crate) under: Vec<T<'h>>,
+    pub(crate) bounds: Option<[(f64, f64); 2]>,
+    pub(crate) entries: Vec<crate::sidecar::Entry>,
+}
+
+/// The x and y range of the plot (axis coordinates): the data's (the y range robust), widened to `extra`'s
+/// bounds, padded unless `look.exact`, then the ends `look.range` gives.
+pub(crate) fn ranges(series: &[Series], look: &Look, bounds: Option<[(f64, f64); 2]>) -> [(f64, f64); 2] {
+    let xs: Vec<f64> = series.iter().flat_map(|s| s.points.iter().filter(|p| p.1.is_some()).map(|p| p.0)).collect();
+    let ys: Vec<f64> = series.iter().flat_map(|s| s.points.iter().filter_map(|p| p.1)).collect();
+    let union = |a: Option<(f64, f64)>, b: Option<(f64, f64)>| match (a, b) {
+        (Some(a), Some(b)) => Some((a.0.min(b.0), a.1.max(b.1))),
+        (a, b) => a.or(b),
+    };
+    let x = union((!xs.is_empty()).then(|| range(xs.into_iter())), bounds.map(|b| b[0])).unwrap_or((0.0, 1.0));
+    let y = union((!ys.is_empty()).then(|| robust(ys)), bounds.map(|b| b[1])).unwrap_or((0.0, 1.0));
+    let (mut x, mut y) = if look.exact && x.1 > x.0 && y.1 > y.0 { (x, y) } else { (padded(x), padded(y)) };
+    for (r, given, ax) in [(&mut x, look.range[0], look.scale.x), (&mut y, look.range[1], look.scale.y)] {
+        let lo = given[0].and_then(|v| ax.to(v)).unwrap_or(r.0);
+        let hi = given[1].and_then(|v| ax.to(v)).unwrap_or(r.1);
+        if hi > lo {
+            *r = (lo, hi);
+        }
+    }
+    [x, y]
+}
+
+/// The filled regions of `look.filling`, each in its series' colour, faint.
+fn fillings<'h>(b: &B<'h>, series: &[Series], look: &Look, [_, (y0, y1)]: [(f64, f64); 2]) -> Vec<T<'h>> {
+    let Some(fill) = look.filling else { return vec![] };
+    let span = y1 - y0;
+    let mut out = vec![];
+    let style = |k: usize| vec![b.color(look.color(k)), b.call("opacity", &[b.h.real(FILL_OPACITY)])];
+    match fill {
+        Filling::Between(i, j) => {
+            let (Some(a), Some(c)) = (series.get(i), series.get(j)) else { return vec![] };
+            let polys: Vec<T<'h>> = between(&a.points, &c.points, span).iter().map(|p| b.points(p)).collect();
+            if !polys.is_empty() {
+                let mut part = style(i);
+                part.push(b.call("polygon", &[b.list(&polys)]));
+                out.push(b.list(&part));
+            }
+        }
+        _ => {
+            let base = match fill {
+                Filling::Bottom => y0,
+                Filling::Top => y1,
+                Filling::Axis => look.scale.y.to(0.0).unwrap_or(y0),
+                Filling::Value(v) => look.scale.y.to(v).unwrap_or(y0),
+                Filling::Between(..) => y0,
+            }
+            .clamp(y0, y1);
+            for (k, s) in series.iter().enumerate() {
+                let polys: Vec<T<'h>> = runs(&s.points, span)
+                    .into_iter()
+                    .filter(|r| r.len() > 1)
+                    .map(|mut r| {
+                        let (first, last) = (r[0].0, r[r.len() - 1].0);
+                        r.push((last, base));
+                        r.push((first, base));
+                        b.points(&r)
+                    })
+                    .collect();
+                if !polys.is_empty() {
+                    let mut part = style(k);
+                    part.push(b.call("polygon", &[b.list(&polys)]));
+                    out.push(b.list(&part));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The regions between two sampled curves: both read at every x either has (linear between samples), cut where
+/// either has no value or breaks; each region the first curve forwards, then the second backwards.
+pub(crate) fn between(a: &[(f64, Option<f64>)], c: &[(f64, Option<f64>)], span: f64) -> Vec<Vec<(f64, f64)>> {
+    let ra = runs(a, span);
+    let rc = runs(c, span);
+    // the value of a curve's runs at x, linear between its samples (runs are sorted in x for plots)
+    let at = |rs: &[Vec<(f64, f64)>], x: f64| -> Option<f64> {
+        rs.iter().find(|r| r.len() > 1 && r[0].0 <= x && x <= r[r.len() - 1].0).map(|r| {
+            let k = r.partition_point(|p| p.0 < x).clamp(1, r.len() - 1);
+            let (p, q) = (r[k - 1], r[k]);
+            if q.0 == p.0 {
+                p.1
+            } else {
+                p.1 + (q.1 - p.1) * (x - p.0) / (q.0 - p.0)
+            }
+        })
+    };
+    let mut xs: Vec<f64> = ra.iter().chain(&rc).flatten().map(|p| p.0).collect();
+    xs.sort_by(f64::total_cmp);
+    xs.dedup();
+    let mut out = vec![];
+    let mut cur: Vec<(f64, f64, f64)> = vec![];
+    let mut flush = |cur: &mut Vec<(f64, f64, f64)>| {
+        if cur.len() > 1 {
+            let mut poly: Vec<(f64, f64)> = cur.iter().map(|&(x, y, _)| (x, y)).collect();
+            poly.extend(cur.iter().rev().map(|&(x, _, z)| (x, z)));
+            out.push(poly);
+        }
+        cur.clear();
+    };
+    for x in xs {
+        match (at(&ra, x), at(&rc, x)) {
+            (Some(y), Some(z)) => {
+                // a jump between runs of one curve starts a new region
+                if cur.last().is_some_and(|l| (l.1 - y).abs() > span || (l.2 - z).abs() > span) {
+                    flush(&mut cur);
+                }
+                cur.push((x, y, z));
+            }
+            _ => flush(&mut cur),
+        }
+    }
+    flush(&mut cur);
+    out
+}
+
+/// The `graphics` term of the plot of `series` (and `extra`) as `look` says.
+pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look, extra: &Extra<'h>) -> T<'h> {
     let b = B { h };
-    let (x0, x1) = padded(range(series.iter().flat_map(|s| s.points.iter().filter(|p| p.1.is_some()).map(|p| p.0))));
-    let (y0, y1) = padded(robust(series.iter().flat_map(|s| s.points.iter().filter_map(|p| p.1)).collect()));
+    let [(x0, x1), (y0, y1)] = ranges(series, look, extra.bounds);
     let n: usize = series.iter().map(|s| s.points.len()).sum();
     let point_d = 2.0 * dot_radius(n);
-    let mut content = Vec::with_capacity(series.len());
+    let mut content = extra.under.clone();
+    content.extend(fillings(&b, series, look, [(x0, x1), (y0, y1)]));
     for (k, s) in series.iter().enumerate() {
         let mut part = b.style(look, k, point_d);
         if look.joined {
-            // runs of finite values; a jump larger than the visible range is a pole: the line breaks there
-            let span = y1 - y0;
-            let mut runs: Vec<Vec<(f64, f64)>> = vec![];
-            let mut prev: Option<f64> = None;
-            for &(x, y) in &s.points {
-                match (y, prev) {
-                    (Some(y), Some(p)) if (y - p).abs() <= span => {
-                        if let Some(r) = runs.last_mut() {
-                            r.push((x, y));
-                        }
-                    }
-                    (Some(y), _) => runs.push(vec![(x, y)]),
-                    (None, _) => {}
-                }
-                prev = y;
-            }
+            let mut runs = runs(&s.points, y1 - y0);
             runs.retain(|r| r.len() > 1);
             let runs: Vec<T<'h>> = runs.iter().map(|r| b.points(r)).collect();
             part.push(b.call("line", &[b.list(&runs)]));
@@ -361,14 +556,19 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look) -> T<'h> {
         }
         content.push(b.list(&part));
     }
-    // ticks and grid lines: automatic on linear axes, powers of ten on logarithmic ones
+    // ticks and grid lines: automatic on linear axes, powers of ten on logarithmic ones, or the plot's own
     let mut ticks = vec![];
     let mut grid = vec![];
-    for (lo, hi, ax) in [(x0, x1, look.scale.x), (y0, y1, look.scale.y)] {
+    for (k, (lo, hi, ax)) in [(x0, x1, look.scale.x), (y0, y1, look.scale.y)].into_iter().enumerate() {
+        if let (0, Some(t)) = (k, &look.x_ticks) {
+            ticks.push(b.list(&t.iter().map(|(u, l)| b.list(&[h.real(*u), h.string(l)])).collect::<Vec<_>>()));
+            grid.push(b.sym("none"));
+            continue;
+        }
         match axis(lo, hi, ax) {
             None => {
                 ticks.push(b.sym("automatic"));
-                grid.push(b.sym("automatic"));
+                grid.push(b.sym(if look.origin_axes { "none" } else { "automatic" }));
             }
             Some((major, minor)) => {
                 ticks.push(b.list(&major.iter().map(|(u, l)| b.list(&[h.real(*u), b.label(l)])).collect::<Vec<_>>()));
@@ -384,23 +584,39 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look) -> T<'h> {
     }
     let none = b.sym("none");
     let text = |s: &Option<String>| s.as_deref().map_or(none, |s| h.string(s));
+    let (w, ht) = look.size.unwrap_or((W, H));
     let mut opts = vec![
-        b.rule("frame", b.sym("true")),
-        b.rule("image_size", b.reals(&[W, H])),
-        b.rule("aspect_ratio", b.sym("full")),
+        b.rule("image_size", b.reals(&[w, ht])),
+        b.rule("aspect_ratio", b.sym(if look.equal { "automatic" } else { "full" })),
         b.rule("plot_range", b.list(&[b.reals(&[x0, x1]), b.reals(&[y0, y1])])),
+        b.rule("plot_range_padding", b.sym("none")),
         b.rule("font_size", h.real(LABEL_SIZE)),
         b.rule("ticks", b.list(&ticks)),
         b.rule("grid_lines", b.list(&grid)),
-        b.rule("frame_label", b.list(&[text(&look.x_label), text(&look.y_label)])),
     ];
+    if look.origin_axes {
+        opts.push(b.rule("axes", b.sym("true")));
+        opts.push(b.rule("axes_label", b.list(&[text(&look.x_label), text(&look.y_label)])));
+    } else {
+        opts.push(b.rule("frame", b.sym("true")));
+        opts.push(b.rule("frame_label", b.list(&[text(&look.x_label), text(&look.y_label)])));
+    }
+    if let (Some((lo, hi)), false) = (look.bar_range, look.hide_color_bar) {
+        let g = look.gradient.clone().unwrap_or_else(Gradient::default_gradient);
+        let stops: Vec<T<'h>> = g.stops().iter().map(|&c| rgb_term(h, c)).collect();
+        opts.push(b.rule("color_bar", b.list(&[b.list(&stops), b.reals(&[lo, hi])])));
+    }
+    let markers = look.joined || series.is_empty();
     let entries: Vec<T<'h>> = look
         .legend
         .iter()
-        .take(series.len())
+        .take(series.len().max(look.legend_swatches.len()))
         .enumerate()
         .map(|(k, l)| {
-            let marker = b.sym(if look.joined { "line" } else { "point" });
+            if let Some(&c) = look.legend_swatches.get(k) {
+                return b.list(&[b.list(&[b.color(c)]), h.string(l), b.sym("swatch")]);
+            }
+            let marker = b.sym(if markers { "line" } else { "point" });
             let style = b.style(look, k, 6.0);
             b.list(&[b.list(&style), h.string(l), marker])
         })

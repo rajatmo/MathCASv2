@@ -26,6 +26,28 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("blend"), a(), Box::new(Blend));
     k.register(h.sym("lighter"), a(), Box::new(Shade { name: "lighter", towards: Rgba::WHITE }));
     k.register(h.sym("darker"), a(), Box::new(Shade { name: "darker", towards: Rgba::BLACK }));
+    k.register(h.sym("gradient_color"), a(), Box::new(GradientColor));
+}
+
+/// `gradient_color(g, t)`: the colour of gradient `g` at `t` (clamped to [0, 1]); a symbolic `t` leaves it.
+struct GradientColor;
+
+impl Native for GradientColor {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [g, t] = args else { return Ok(Reply::Decline) };
+        let Some(grad) = crate::gradient::read(h, *g) else { return Ok(bad(h, "gradient_color", 1)) };
+        // a closed numeric expression (`pi/4`) is its value
+        let v = match number(h, *t) {
+            Some(v) => Some(v),
+            None => number(h, n_value(cx, *t)?),
+        };
+        Ok(match v {
+            Some(v) => Reply::Done(rgb_term(h, grad.at(v))),
+            None if is_symbolic(h, *t) => Reply::Decline,
+            None => bad(h, "gradient_color", 2),
+        })
+    }
 }
 
 fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {

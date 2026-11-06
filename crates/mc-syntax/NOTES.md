@@ -154,3 +154,11 @@ in a parenthesised group followed by `->` read back as a function type.
   (M7) not done; rare scope heuristics (a `for` iterable containing a brace block; `f(x_) when x > 0` without a rule
   operator leaves `x` global; bare-name `match` arm patterns coloured as lambda binders); the VS Code grammar does
   not know the Unicode operators.
+
+## Round 10 (package plots): raw strings
+
+`r"..."` (no escapes) and `r#"..."#` with any number of `#` (ends at the first `"` followed by as many `#`); one
+`Str` token, coloured `String`; ends on its line ("unterminated raw string", incomplete at the end of a cell). `r`
+followed by anything else is still the name `r`. The printer writes a TeX string (a `$` and a backslash, no
+control character) raw, with the fewest `#` (`string_token`); paths keep their escapes because front ends read
+printed `image("...")` values; `string_literal` (escaped) is unchanged for other crates.

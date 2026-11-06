@@ -306,6 +306,7 @@ impl<'s> Lexer<'s> {
                     self.space = true;
                 }
                 '"' => self.string(),
+                'r' if self.raw_hashes().is_some() => self.raw_string(),
                 '`' => self.backquoted(),
                 '0'..='9' => self.number(),
                 '&' if matches!(self.peek2(), Some('0'..='9')) => self.slot(),
@@ -523,6 +524,35 @@ impl<'s> Lexer<'s> {
             }
         }
         self.push(Tok::Str(s), start);
+    }
+
+    /// The number of `#` signs of a raw string starting here: `r`, that many `#`, then `"`.
+    fn raw_hashes(&self) -> Option<usize> {
+        let rest = self.src[self.pos..].strip_prefix('r')?;
+        let hashes = rest.len() - rest.trim_start_matches('#').len();
+        rest[hashes..].starts_with('"').then_some(hashes)
+    }
+
+    /// A raw string `r"..."` or `r#"..."#` (any number of `#`, the same at both ends): the characters between the
+    /// quotes as they are, with no escapes. It ends at the first `"` followed by as many `#` as it began with, so
+    /// `r#"say "hi""#` holds quotes. Like a plain string it ends on its line.
+    fn raw_string(&mut self) {
+        let start = self.pos;
+        let hashes = self.raw_hashes().unwrap_or(0);
+        let body = self.pos + 1 + hashes + 1;
+        let close: String = std::iter::once('"').chain(std::iter::repeat_n('#', hashes)).collect();
+        let line = self.src[body..].find('\n').map_or(self.src.len(), |k| body + k);
+        match self.src[body..line].find(&close) {
+            Some(k) => {
+                self.pos = body + k + close.len();
+                self.push(Tok::Str(self.src[body..body + k].to_string()), start);
+            }
+            None => {
+                self.pos = line;
+                self.error(start, format!("unterminated raw string (it ends with `{close}`)"));
+                self.push(Tok::Str(self.src[body..line].to_string()), start);
+            }
+        }
     }
 
     /// An escape after `\`: `\n \t \" \\ \u{...}`, and `` \` `` in backquoted names.
@@ -757,6 +787,24 @@ mod tests {
         let t = toks("f(a,\n b)\n{ x\n y }\n");
         let n = t.iter().filter(|t| **t == Tok::Newline).count();
         assert_eq!(n, 3);
+    }
+
+    #[test]
+    fn raw_strings() {
+        assert_eq!(toks(r#"r"$\alpha_1$""#), vec![Tok::Str(r"$\alpha_1$".into()), Tok::Eof]);
+        assert_eq!(toks(r##"r#"say "hi" \n"#"##), vec![Tok::Str(r#"say "hi" \n"#.into()), Tok::Eof]);
+        assert_eq!(toks(r###"r##"a"#b"##"###), vec![Tok::Str(r##"a"#b"##.into()), Tok::Eof]);
+        assert_eq!(toks(r##"r"" r#""#"##), vec![Tok::Str(String::new()), Tok::Str(String::new()), Tok::Eof]);
+        // `r` alone, or followed by `#` without a quote, is a name (then a comment)
+        assert_eq!(toks("r + r1 # c"), vec![Tok::Ident("r".into()), Tok::Punct(P::Plus), Tok::Ident("r1".into()), Tok::Eof]);
+        assert_eq!(toks("r#c"), vec![Tok::Ident("r".into()), Tok::Eof]);
+        assert_eq!(toks(r#"br"x""#)[..2], [Tok::Ident("br".into()), Tok::Str("x".into())]);
+        // unterminated: an error up to the line end, the text kept
+        let l = lex("r#\"a\" b\nc");
+        assert_eq!(l.errors.len(), 1, "{:?}", l.errors);
+        assert!(l.errors[0].message.starts_with("unterminated raw string"));
+        assert_eq!(l.tokens[0].tok, Tok::Str("a\" b".into()));
+        assert_eq!(l.tokens[0].span, Span::new(0, 7));
     }
 
     #[test]

@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# list_density_plot
+
+#% text
+# `list_density_plot(m)` shows the numbers of the matrix m as colours: row k at height k, column j at x = j, with a colour bar giving their scale.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# The first row is at the bottom. The colours are drawn smoothly between the points of the matrix.
+
+#% item
+# The matrix needs at least two rows and two columns of equal length; an entry that is not a real number leaves its part of the picture empty.
+
+#% item
+# Options: `data_range: [[x0, x1], [y0, y1]]` places the first and last columns at x0 and x1 and the first and last rows at y0 and y1; `color_function` and `color_bar` work as for `density_plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A small matrix with its largest value in the middle:
+
+#% cell
+list_density_plot([[1, 2, 1], [2, 4, 2], [1, 2, 1]])
+#% output
+#= image("list_density_plot.files/list_density_plot-1.png")
+
+#% subsection
+# Options
+
+#% text
+# A table of values placed on the square from 0 to 1:
+
+#% cell
+list_density_plot(table(sin(i/4)*cos(k/6), i, 30, k, 40), data_range: [[0, 1], [0, 1]], color_function: earth)
+#% output
+#= image("list_density_plot.files/list_density_plot-2.png")
+
+#% section
+# See also
+
+#% text
+# `density_plot`, `raster`, `table`

@@ -44,6 +44,17 @@ fn lexical_classes() {
     );
     assert_eq!(snap("f'(x) |> g"), "f/global '/op (/op x/global )/op |>/op g/global");
     assert_eq!(snap("a ≤ b ∧ ¬c"), "a/global ≤/op b/global ∧/keyword ¬/keyword c/global");
+    // raw strings are one string token, brackets inside do not count
+    assert_eq!(
+        snap(r##"f(r"$\alpha($", r#"("x")"#) + r"##),
+        r##"f/global (/op r"$\alpha($"/string ,/op r#"("x")"#/string )/op +/op r/global"##
+    );
+}
+
+#[test]
+fn an_open_raw_string_at_the_end_is_incomplete() {
+    let c = colour(r#"plot(x, x_label: r"$\alpha"#, None);
+    assert!(c.incomplete);
 }
 
 #[test]

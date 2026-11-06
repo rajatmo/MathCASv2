@@ -174,6 +174,19 @@ impl Surface for Svg {
         self.body.push_str("</g>\n");
     }
 
+    fn image(&mut self, r: [f32; 4], cols: usize, rows: usize, rgba: &[u8]) {
+        let Some(png) = crate::raster::pixmap(cols, rows, rgba).and_then(|pm| pm.encode_png().ok()) else { return };
+        let _ = writeln!(
+            self.body,
+            r#"<image x="{}" y="{}" width="{}" height="{}" preserveAspectRatio="none" image-rendering="optimizeSpeed" style="image-rendering:pixelated" xlink:href="data:image/png;base64,{}"/>"#,
+            num(r[0]),
+            num(r[1]),
+            num(r[2]),
+            num(r[3]),
+            base64(&png)
+        );
+    }
+
     fn clip(&mut self, r: [f32; 4]) {
         self.clips += 1;
         let _ = writeln!(
@@ -192,9 +205,35 @@ impl Surface for Svg {
     }
 }
 
+/// Bytes in base64 (RFC 4648, with padding).
+fn base64(bytes: &[u8]) -> String {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for c in bytes.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for k in 0..4 {
+            if k <= c.len() {
+                out.push(ABC[(n >> (18 - 6 * k) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn base64_pads() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
 
     #[test]
     fn numbers_are_short() {

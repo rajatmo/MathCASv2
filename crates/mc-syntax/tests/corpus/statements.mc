@@ -48,6 +48,10 @@ x/4
 "tab\tnewline\nquote\"backslash\\"
 "unicode \u{3b8} and θ"
 ""
+r"$\alpha_1 \le \beta$"
+r#"say "hi" \o/"#
+r##"a "# b\"##
+text(r"$\theta$", [0, 1])
 x
 α
 θ1

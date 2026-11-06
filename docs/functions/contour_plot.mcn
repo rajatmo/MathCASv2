@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# contour_plot
+
+#% text
+# `contour_plot(f, [x, a, b], [y, c, d])` draws the level lines of f over the rectangle from (a, c) to (b, d) and fills the regions between them with colours, with a colour bar giving their scale.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# f is sampled on a grid (80 by 80 points unless `plot_points` says otherwise); lines and regions follow f linearly between the grid points.
+
+#% item
+# Each region between two neighbouring levels has the colour of the value halfway between them.
+
+#% item
+# Options:
+
+#% subitem
+# `contours: n` draws n levels spaced evenly between the least and the greatest value (10 by default); `contours: [c1, c2, ...]` draws these levels.
+
+#% subitem
+# `color_function`, `color_bar` and `plot_points` work as for `density_plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Circles around a minimum:
+
+#% cell
+contour_plot(x^2 + y^2, [x, -2, 2], [y, -2, 2])
+#% output
+#= image("contour_plot.files/contour_plot-1.png")
+
+#% text
+# A saddle:
+
+#% cell
+contour_plot(x*y, [x, -1, 1], [y, -1, 1])
+#% output
+#= image("contour_plot.files/contour_plot-2.png")
+
+#% subsection
+# Options
+
+#% text
+# Three chosen levels:
+
+#% cell
+contour_plot(sin(x)*sin(y), [x, 0, 2pi], [y, 0, 2pi], contours: [-0.5, 0, 0.5], color_function: ocean)
+#% output
+#= image("contour_plot.files/contour_plot-3.png")
+
+#% text
+# Fewer levels in a two-colour gradient:
+
+#% cell
+contour_plot(exp(-x^2 - 2y^2) + exp(-(x - 1.5)^2 - y^2), [x, -2, 3], [y, -2, 2], contours: 5, color_function: [white, "#c1502e"])
+#% output
+#= image("contour_plot.files/contour_plot-4.png")
+
+#% section
+# See also
+
+#% text
+# `density_plot`, `plot`, `gradient_color`

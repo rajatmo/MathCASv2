@@ -11,9 +11,14 @@ mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 # the graphics term, its renderers and colours
 mc-graphics = { path = "../mc-graphics" }
+# names of plotted expressions in the data sidecar
+mc-syntax = { path = "../mc-syntax" }
 # compiled evaluation of the plotted function
 mc-numfn = { path = "../mc-numfn" }
 
 [dev-dependencies]
 mc-bench = { path = "../mc-bench" }
 mc-engine = { path = "../mc-engine" }
+# reading the PNG and the data sidecar back in tests
+tiny-skia = "0.11"
+serde_json = "1"

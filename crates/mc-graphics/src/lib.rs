@@ -16,7 +16,10 @@
 //!   are fractions of the plot area's width, absolute ones points.
 //! - **Options**: `plot_range`, `plot_range_padding`, `axes`, `frame`, `axes_label`, `frame_label`, `plot_label`,
 //!   `aspect_ratio`, `image_size`, `background`, `ticks`, `grid_lines`, `legend`, `legend_position`, `font_size`.
-//! - `show(g1, g2, ...)` combines graphics; `color_convert`, `blend`, `lighter`, `darker` compute colours.
+//! - `raster(cells, rect)` draws a grid of coloured cells (images, density plots); colour gradients ([`gradient`])
+//!   colour numbers, and the `color_bar` option shows a gradient's scale beside the plot.
+//! - `show(g1, g2, ...)` combines graphics; `color_convert`, `blend`, `lighter`, `darker`, `gradient_color`
+//!   compute colours.
 //!
 //! Labels (tick labels, axis and frame labels, legends, `text`) are typeset with the bundled math font: strings
 //! with a small TeX subset between `$` signs, `subscript`, `superscript`, and any expression in its typeset form
@@ -27,6 +30,7 @@
 #![warn(missing_docs)]
 
 pub mod color;
+pub mod gradient;
 pub mod label;
 pub mod model;
 mod natives;
@@ -57,7 +61,19 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("rectangle", "rectangle([x0, y0], [x1, y1]): a filled rectangle with these opposite corners; rectangle([x, y]) the unit square there"),
     ("circle", "circle([x, y], r): a circle (circle(c, [rx, ry]) an ellipse, circle(c, r, [a0, a1]) an arc, angles in radians)"),
     ("disk", "disk([x, y], r): a filled disk (disk(c, [rx, ry]) an ellipse, disk(c, r, [a0, a1]) a sector)"),
-    ("arrow", "arrow([[x1, y1], ..., [xn, yn]]): a polyline with an arrowhead at its end"),
+    ("arrow", "arrow([[x1, y1], ..., [xn, yn]]): a polyline with an arrowhead at its end (arrowheads sets their size and ends)"),
+    (
+        "raster",
+        "raster(cells), raster(cells, [[x0, y0], [x1, y1]]), raster(cells, rect, gradient): a grid of coloured cells, rows from the bottom up; a cell is a number in [0, 1] (gray, or a colour of the gradient), a colour or none",
+    ),
+    (
+        "arrowheads",
+        "arrowheads(s): directive: arrows get a head s times the plot width long at their end; arrowheads([s0, s1]) heads at the start and the end (0: none); automatic: the default",
+    ),
+    (
+        "gradient_color",
+        "gradient_color(g, t): the colour at t in [0, 1] of the gradient g: a name (viridis, thermal, cool_warm, ocean, earth, rainbow, gray) or a list of colours",
+    ),
     ("bezier_curve", "bezier_curve([p0, p1, p2, p3, ...]): a composite cubic Bezier curve through p0, p3, p6, ... with the points between as control points"),
     ("text", "text(expr, [x, y]), text(expr, [x, y], [ox, oy]): a label at a position; the offset puts that point of its box there ([-1, 0]: left end, [0, 1]: top); strings take $...$ math"),
     ("scaled", "scaled([u, v]): a position as a fraction of the plot range, in any primitive"),
@@ -110,6 +126,10 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve",
     ),
     ("legend_position", "option of graphics and plots: legend_position: top_right (default) | top_left | bottom_left | bottom_right"),
+    (
+        "color_bar",
+        "option of graphics: color_bar: [gradient, [lo, hi]] or [gradient, [lo, hi], label], a bar of the gradient's colours with a scale from lo to hi right of the plot; none; in density and contour plots true | false",
+    ),
 ];
 
 /// A graphic that could not be read or rendered: a failure tag and a description.
@@ -180,6 +200,20 @@ pub fn render<S: Store + ?Sized>(h: &S, t: T<'_>, format: Format) -> Result<Vec<
     Ok(v.pop().unwrap_or_default())
 }
 
+/// Where a rendered graphic's plot area lies and what it shows: what a front end needs to map a pixel of the PNG
+/// (at scale 1) to plot coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Layout {
+    /// the page width in points (PNG pixels at scale 1)
+    pub width: f32,
+    /// the page height in points
+    pub height: f32,
+    /// the plot area (x, y, w, h) in points, y down from the top-left corner of the page
+    pub area: [f32; 4],
+    /// the x and y plot range: plot coordinate `range[0].0` is at the area's left edge, `range[1].0` at its bottom
+    pub range: [(f64, f64); 2],
+}
+
 /// Render a graphics term to several formats, reading it once; `stop` is polled in loops over the content (a
 /// raised flag gives `Failure` `interrupted`).
 pub fn render_formats<S: Store + ?Sized>(
@@ -188,8 +222,19 @@ pub fn render_formats<S: Store + ?Sized>(
     formats: &[Format],
     stop: &dyn Fn() -> bool,
 ) -> Result<Vec<Vec<u8>>, Failure> {
+    render_with_layout(h, t, formats, stop).map(|(files, _)| files)
+}
+
+/// [`render_formats`], also giving the page's [`Layout`] (the same one every format was painted with).
+pub fn render_with_layout<S: Store + ?Sized>(
+    h: &S,
+    t: T<'_>,
+    formats: &[Format],
+    stop: &dyn Fn() -> bool,
+) -> Result<(Vec<Vec<u8>>, Layout), Failure> {
     let g = model::read(h, t, stop)?;
     let p = page::plan(&g, stop)?;
+    let layout = Layout { width: p.width, height: p.height, area: p.area, range: p.range };
     let mut out = Vec::with_capacity(formats.len());
     for f in formats {
         out.push(match *f {
@@ -214,5 +259,5 @@ pub fn render_formats<S: Store + ?Sized>(
             }
         });
     }
-    Ok(out)
+    Ok((out, layout))
 }

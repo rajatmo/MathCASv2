@@ -64,6 +64,14 @@ area(1)                                      # pi
   The `~` form is the only way to write an arbitrary-precision number directly; it is exact to the digits written and
   carries the given working precision. `ball(m, r)` builds a ball with an explicit radius.
 - **Strings:** `"..."` with escapes `\n \t \" \\ \u{...}`. No interpolation in the core syntax.
+- **Raw strings:** `r"..."` holds the characters between the quotes as they are, with no escapes, so TeX labels read
+  as written: `r"$\alpha_1 \le \beta$"` is the string `"$\\alpha_1 \\le \\beta$"`. To hold a `"`, put the same
+  number of `#` (one or more) after the `r` and after the closing quote: `r#"say "hi""#`; the string ends at the
+  first `"` followed by that many `#` (`r##"a "# b"##`). A raw string is one token of class `String`; like a plain
+  string it ends on its line (a raw string still open at the line end is an error, "unterminated raw string").
+  `r` followed by anything else is the name `r` (`r#c` is `r` and a comment). The printer writes a TeX string (one
+  that holds a `$` and a backslash, and no control character) in raw form, with the fewest `#` that work; other
+  strings, file paths among them, with escapes.
 - **Prime marks:** `f'`, `f''`, ... written directly after a name (no space) are derivatives (section 8).
 - **Unicode operators:** each of these characters is one token, the same token as its ASCII spelling, so text typed
   with the notebook's aliases (08-notebook.md section 3.9) reads as written. The printer always writes ASCII.

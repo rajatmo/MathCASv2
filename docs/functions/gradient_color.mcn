@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# gradient_color
+
+#% text
+# `gradient_color(g, t)` gives the colour at t, between 0 and 1, of the colour gradient g.
+
+#% section
+# Details
+
+#% item
+# g is the name of a gradient or a list of colours; the colours of a list are spread evenly from 0 to 1 and mixed in between.
+
+#% item
+# The named gradients: `viridis` (violet through blue and green to yellow, the default of density and contour plots), `thermal` (black through red and orange to pale yellow), `cool_warm` (blue through gray to red), `ocean`, `earth`, `rainbow` and `gray`.
+
+#% item
+# t below 0 counts as 0 and above 1 as 1. A t that is not a number yet leaves the call as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The middle of the gray gradient:
+
+#% cell
+gradient_color(gray, 0.5)
+#% output
+#= rgb_color(0.5, 0.5, 0.5)
+
+#% text
+# A gradient through two colours:
+
+#% cell
+gradient_color([red, blue], 1/4)
+#% output
+#= rgb_color(0.75, 0.0, 0.25)
+
+#% subsection
+# Applications
+
+#% text
+# Disks coloured along the default gradient:
+
+#% cell
+graphics(table([gradient_color(viridis, k/8), disk([k, 0], 0.45)], k, range(0, 8)))
+#% output
+#= image("gradient_color.files/gradient_color-3.png")
+
+#% text
+# The named gradients side by side:
+
+#% cell
+gs = [viridis, thermal, cool_warm, ocean, earth, rainbow, gray]; graphics(table(raster([table(k/40, k, range(0, 40))], [[0, -2j], [8, 1 - 2j]], gs[j]), j, 7))
+#% output
+#= image("gradient_color.files/gradient_color-4.png")
+
+#% section
+# See also
+
+#% text
+# `density_plot`, `contour_plot`, `raster`, `blend`

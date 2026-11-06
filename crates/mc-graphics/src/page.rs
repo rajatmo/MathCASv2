@@ -22,6 +22,11 @@ const TICK: f32 = 4.0;
 const GAP: f32 = 4.0;
 /// The margin when nothing else needs room.
 const EDGE: f32 = 4.0;
+/// The colour bar: its distance from the plot area, and its width.
+const BAR_GAP: f32 = 14.0;
+const BAR_W: f32 = 14.0;
+/// Cells of the gradient image in a colour bar.
+const BAR_CELLS: usize = 256;
 
 /// Everything about the page that follows from the graphic before painting.
 #[derive(Clone, Debug)]
@@ -40,7 +45,12 @@ pub struct Plan {
     origin: (f64, f64),
     /// clip the primitives to the plot area (an explicit plot range)
     clip: bool,
+    /// the colour bar's ticks (values with typeset labels) and its typeset label
+    bar: Option<ColorBarPlan>,
 }
+
+/// A colour bar's ticks (values with typeset labels) and its typeset label.
+type ColorBarPlan = (Vec<(f64, Typeset)>, Option<Typeset>);
 
 impl Plan {
     /// Page x of plot coordinate `x`.
@@ -114,6 +124,10 @@ fn bounds(items: &[Item], stop: &dyn Fn() -> bool) -> Result<[(f64, f64); 2], Fa
                 }
             }
             Shape::Text { at, .. } => add(at),
+            Shape::Raster { from, to, .. } => {
+                add(from);
+                add(to);
+            }
         }
         poll(1)?;
     }
@@ -235,6 +249,23 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
     if let Some(l) = &o.plot_label {
         m[1] += GAP + typeset(l, fs * 1.15).height;
     }
+    // the colour bar right of the plot area: the bar, its ticks and labels, its own label
+    let bar = o.color_bar.as_ref().map(|cb| {
+        let (lo, hi) = cb.range;
+        let t: Vec<(f64, Typeset)> = ticks::auto(lo, hi, tick_count(guess_h))
+            .into_iter()
+            .filter_map(|(u, l)| Some((u, typeset(&l?, fs))))
+            .collect();
+        (t, cb.label.as_ref().map(|l| typeset(l, fs)))
+    });
+    if let Some((t, l)) = &bar {
+        let tw = t.iter().map(|t| t.1.width).fold(0.0, f32::max);
+        m[2] += BAR_GAP + BAR_W + TICK + 2.0 + tw + l.as_ref().map_or(0.0, |l| GAP + l.height);
+        if let Some(top) = t.iter().map(|t| t.1.height).reduce(f32::max) {
+            m[1] = m[1].max(top / 2.0 + 1.0);
+            m[3] = m[3].max(top / 2.0 + 1.0);
+        }
+    }
     // the page and the plot area
     let (mh, mv) = ((m[0] + m[2]) as f64, (m[1] + m[3]) as f64);
     let (width, height, area) = match o.image_size {
@@ -270,6 +301,7 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
         ticks,
         origin,
         clip,
+        bar,
     })
 }
 
@@ -321,7 +353,37 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
     }
     decorations(g, p, s);
     legend(g, p, s);
+    color_bar(g, p, s);
     Ok(())
+}
+
+/// The colour bar: the gradient from the bottom (the low end) to the top, framed, with ticks and labels on its
+/// right and its label beyond them, read upwards.
+fn color_bar(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
+    let (Some(cb), Some((ticks, label))) = (&g.opts.color_bar, &p.bar) else { return };
+    let [ax, ay, aw, ah] = p.area;
+    let x = ax + aw + BAR_GAP;
+    let mut cells = Vec::with_capacity(BAR_CELLS * 4);
+    for k in (0..BAR_CELLS).rev() {
+        cells.extend_from_slice(&cb.gradient.at((k as f64 + 0.5) / BAR_CELLS as f64).bytes());
+    }
+    s.image([x, ay, BAR_W, ah], 1, BAR_CELLS, &cells);
+    let thin = Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt };
+    s.stroke(&Path::rect(x, ay, BAR_W, ah), &thin);
+    let (lo, hi) = cb.range;
+    let mut marks = Path::default();
+    let mut widest = 0.0f32;
+    for (u, t) in ticks {
+        let y = ay + ((hi - u) / (hi - lo)) as f32 * ah;
+        marks.add_polyline(&[(x + BAR_W, y), (x + BAR_W + TICK, y)], false);
+        draw_label(s, t, (x + BAR_W + TICK + 2.0, y - t.height / 2.0), false, TEXT);
+        widest = widest.max(t.width);
+    }
+    s.stroke(&marks, &thin);
+    if let Some(t) = label {
+        let left = x + BAR_W + TICK + 2.0 + widest + GAP;
+        draw_label(s, t, (left, ay + ah / 2.0 + t.width / 2.0), true, TEXT);
+    }
 }
 
 /// The pen of a style for lines.
@@ -404,9 +466,17 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
         }
         Shape::Arrow(rs) => {
             let pen = pen_of(st, aw);
+            let heads = match st.arrowheads {
+                None => [0.0, 4.0 * pen.width + 4.0],
+                Some([a, b]) => [a as f32 * aw, b as f32 * aw],
+            };
             for r in rs {
-                arrow(s, &run(r), &pen);
+                arrow(s, &run(r), &pen, heads);
             }
+        }
+        Shape::Raster { cols, rows, rgba, from, to } => {
+            let ((x0, y0), (x1, y1)) = (p.at(*from), p.at(*to));
+            s.image([x0.min(x1), y0.min(y1), (x1 - x0).abs(), (y1 - y0).abs()], *cols, *rows, rgba);
         }
         Shape::Bezier(ps) => {
             let q = run(ps);
@@ -446,29 +516,34 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
     }
 }
 
-/// A polyline with an arrowhead at its end.
-fn arrow(s: &mut dyn Surface, pts: &[(f32, f32)], pen: &Pen) {
+/// A polyline with arrowheads `heads` long (points) at its start and its end (0: none there).
+fn arrow(s: &mut dyn Surface, pts: &[(f32, f32)], pen: &Pen, heads: [f32; 2]) {
     let n = pts.len();
     if n < 2 {
         return;
     }
-    let (a, b) = (pts[n - 2], pts[n - 1]);
-    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
-    let d = (dx * dx + dy * dy).sqrt();
-    if d == 0.0 {
-        s.stroke(&Path::polyline(pts, false), pen);
-        return;
-    }
-    let (ux, uy) = (dx / d, dy / d);
-    let len = (4.0 * pen.width + 4.0).min(d);
-    let half = 0.4 * len;
-    // the shaft stops under the head
     let mut shaft = pts.to_vec();
-    shaft[n - 1] = (b.0 - ux * len * 0.8, b.1 - uy * len * 0.8);
+    let mut tips = vec![];
+    for (end, len) in [(false, heads[0]), (true, heads[1])] {
+        let (a, b) = if end { (pts[n - 2], pts[n - 1]) } else { (pts[1], pts[0]) };
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let d = (dx * dx + dy * dy).sqrt();
+        if d == 0.0 || len <= 0.0 {
+            continue;
+        }
+        let (ux, uy) = (dx / d, dy / d);
+        let len = len.min(d);
+        let half = 0.4 * len;
+        // the shaft stops under the head
+        let at = if end { n - 1 } else { 0 };
+        shaft[at] = (b.0 - ux * len * 0.8, b.1 - uy * len * 0.8);
+        let base = (b.0 - ux * len, b.1 - uy * len);
+        tips.push([b, (base.0 - uy * half, base.1 + ux * half), (base.0 + uy * half, base.1 - ux * half)]);
+    }
     s.stroke(&Path::polyline(&shaft, false), pen);
-    let base = (b.0 - ux * len, b.1 - uy * len);
-    let head = [b, (base.0 - uy * half, base.1 + ux * half), (base.0 + uy * half, base.1 - ux * half)];
-    s.fill(&Path::polyline(&head, true), pen.color);
+    for head in tips {
+        s.fill(&Path::polyline(&head, true), pen.color);
+    }
 }
 
 /// Draw a typeset label with its top-left corner at `origin` (turned upwards: see [`Text::place`]).

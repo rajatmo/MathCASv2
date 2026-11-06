@@ -91,7 +91,7 @@ fn pdf_streams(pdf: &[u8], w: &str, h: &str) -> Vec<String> {
         let body = find(pdf, b">>\nstream\n", p).unwrap() + 10;
         assert!(pdf[body + len..].starts_with(b"\nendstream"), "the length is exact");
         let data = miniz_oxide::inflate::decompress_to_vec_zlib(&pdf[body..body + len]).expect("it inflates");
-        streams.push(String::from_utf8(data).unwrap());
+        streams.push(String::from_utf8_lossy(&data).into_owned());
         at = body + len;
     }
     assert!(!streams.is_empty());
@@ -393,4 +393,60 @@ fn a_hundred_thousand_points_render_in_time() {
     let secs = start.elapsed().as_secs_f64();
     println!("10^5 points and a 10^5-point line, PNG + SVG + PDF: {secs:.3} s; sizes {} {} {} bytes", out[0].len(), out[1].len(), out[2].len());
     assert!(secs < 20.0, "{secs} s");
+}
+
+#[test]
+fn arrowheads_at_either_end_or_none() {
+    // heads at both ends, 0.1 of the plot width (9.2 points) long
+    let (pm, _) = probe("arrowheads_both", "[black, absolute_thickness(1), arrowheads([0.1, 0.1]), arrow([[1, 5], [9, 5]])]");
+    assert!(pixel(&pm, px(8.2), py(5.0) - 2)[0] < 100, "end head");
+    assert!(pixel(&pm, px(1.8), py(5.0) - 2)[0] < 100, "start head");
+    assert_eq!(pixel(&pm, px(5.0), py(5.0) - 2), WHITE);
+    // no head: the line runs to its end, nothing wider
+    let (pm, _) = probe("arrowheads_none", "[black, absolute_thickness(1), arrowheads(0), arrow([[1, 5], [9, 5]])]");
+    assert_eq!(pixel(&pm, px(8.5), py(5.0) - 2), WHITE);
+    assert!(pixel(&pm, px(8.9), py(5.0))[0] < 200);
+}
+
+#[test]
+fn rasters_fill_their_rectangle_with_cells() {
+    // two rows of two cells over [2, 8] x [2, 8]; the first row is the bottom one
+    let (pm, o) = probe("raster", "[raster([[0, 1], [red, [0, 0, 1]]], [[2, 2], [8, 8]])]");
+    assert_eq!(pixel(&pm, px(3.5), py(3.5)), BLACK);
+    assert_eq!(pixel(&pm, px(6.5), py(3.5)), WHITE);
+    assert_eq!(pixel(&pm, px(3.5), py(6.5)), RED);
+    assert_eq!(pixel(&pm, px(6.5), py(6.5)), BLUE);
+    // outside the rectangle: the background
+    assert_eq!(pixel(&pm, px(1.0), py(1.0)), WHITE);
+    assert!(o.svg.contains("<image ") && o.svg.contains("data:image/png;base64,"));
+    let pdf = String::from_utf8_lossy(&o.pdf);
+    assert!(pdf.contains("/Subtype /Image /Width 2 /Height 2") && pdf.contains("/XObject << /Im0"), "{pdf}");
+    // numbers through a gradient, transparent cells, and a soft mask in the PDF
+    let (pm, o) = probe("raster_gradient", "[blue, rectangle([0, 0], [10, 10]), raster([[0, none], [1, 0.5]], [[0, 0], [10, 10]], viridis)]");
+    assert!(near(pixel(&pm, px(2.5), py(2.5)), [0x44, 0x01, 0x54, 255], 1));
+    assert_eq!(pixel(&pm, px(7.5), py(2.5)), BLUE);
+    assert!(near(pixel(&pm, px(2.5), py(7.5)), [0xfd, 0xe7, 0x25, 255], 1));
+    assert!(String::from_utf8_lossy(&o.pdf).contains("/SMask"));
+    // a packed array of colours
+    let cells: Vec<String> = (0..20).map(|r| format!("[{}]", (0..30).map(|c| format!("[{}, 0.0, {}]", c as f64 / 29.0, r as f64 / 19.0)).collect::<Vec<_>>().join(", "))).collect();
+    let (pm, _) = probe("raster_packed", &format!("[raster([{}], [[0, 0], [10, 10]])]", cells.join(", ")));
+    assert!(near(pixel(&pm, px(9.9), py(0.1)), [255, 0, 0, 255], 2), "{:?}", pixel(&pm, px(9.9), py(0.1)));
+    assert!(near(pixel(&pm, px(0.1), py(9.9)), [0, 0, 255, 255], 2));
+}
+
+#[test]
+fn colour_bars_show_the_gradient_and_its_scale() {
+    let o = all("graphics([point([0, 0]), point([1, 1])], frame: true, image_size: [300, 200], color_bar: [gray, [0, 10], \"level\"])");
+    keep("color_bar", &o);
+    let pm = decode(&o.png);
+    assert_eq!((pm.width(), pm.height()), (300, 200));
+    // the bar is right of the plot area: dark at its bottom, light at its top
+    let column: Vec<u32> = (0..300).filter(|&x| {
+        let (top, bottom) = (pixel(&pm, x, 30), pixel(&pm, x, 170));
+        top[0] > 200 && top[0] < 255 && bottom[0] < 60
+    }).collect();
+    assert!(!column.is_empty() && column[0] > 200, "{column:?}");
+    assert!(svg_difference(&o) < 3.0);
+    assert!(o.svg.contains(r#"aria-label="level""#) && o.svg.contains(r#"aria-label="10""#));
+    pdf_streams(&o.pdf, "300", "200");
 }

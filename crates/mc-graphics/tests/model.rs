@@ -49,6 +49,13 @@ fn primitives_stay_and_are_checked() {
         ("line(5)", "failure(argument, line, 1)"),
         ("text(\"a\", [0, 0], [1, 2, 3])", "failure(argument, text, 3)"),
         ("point([scaled([1, 1]), [0, 0]])", "point([scaled([1, 1]), [0, 0]])"),
+        ("raster([[0, 1], [0.5, red]])", "raster([[0, 1], [0.5, red]])"),
+        ("raster([[a, 1]], [[0, 0], [1, 1]])", "raster([[a, 1]], [[0, 0], [1, 1]])"),
+        ("raster([[0, 1], [0.5]])", "failure(argument, raster, 1)"),
+        ("raster([[\"x\"]])", "failure(argument, raster, 1)"),
+        ("raster([[0]], [[0, 0], [0, 1]])", "failure(argument, raster, 2)"),
+        ("raster([[0]], [[0, 0], [1, 1]], no_such_gradient)", "failure(argument, raster, 3)"),
+        ("raster([[[1, 0]]])", "failure(argument, raster, 1)"),
         // the wrong number of arguments leaves the call as it is
         ("point(1, 2)", "point(1, 2)"),
         ("circle(1, 2, 3, 4)", "circle(1, 2, 3, 4)"),
@@ -139,5 +146,27 @@ fn colour_functions() {
         ("darker(white, 0.5)", "rgb_color(0.5, 0.5, 0.5)"),
         ("lighter(rgb_color(0, 0, 0, 0.5), 1)", "rgb_color(1.0, 1.0, 1.0, 0.5)"),
         ("lighter(red, 2)", "failure(argument, lighter, 2)"),
+    ]);
+}
+
+#[test]
+fn arrowheads_gradients_and_colour_bars() {
+    check(&[
+        ("arrowheads(0.05)", "arrowheads(0.05)"),
+        ("arrowheads([0.05, 0])", "arrowheads([0.05, 0])"),
+        ("arrowheads(-1)", "failure(argument, arrowheads, 1)"),
+        ("arrowheads([1, 2, 3])", "failure(argument, arrowheads, 1)"),
+        ("gradient_color(gray, 0.25)", "rgb_color(0.25, 0.25, 0.25)"),
+        ("gradient_color(\"gray\", 2)", "rgb_color(1.0, 1.0, 1.0)"),
+        ("gradient_color([red, blue], 1/2)", "rgb_color(0.5, 0.0, 0.5)"),
+        ("gradient_color(viridis, 0)", "rgb_color(0.26666666666666666, 0.00392156862745098, 0.32941176470588235)"),
+        ("gradient_color(gray, pi/4) === gradient_color(gray, n(pi/4))", "true"),
+        ("gradient_color(gray, t)", "gradient_color(gray, t)"),
+        ("gradient_color(nope, 0.5)", "failure(argument, gradient_color, 1)"),
+        ("gradient_color(gray, \"a\")", "failure(argument, gradient_color, 2)"),
+        ("graphics([point([0, 0])], color_bar: [viridis, [0, 1]])", "graphics([point([0, 0])], color_bar: [viridis, [0, 1]])"),
+        ("graphics([point([0, 0])], color_bar: none)", "graphics([point([0, 0])], color_bar: none)"),
+        ("graphics([point([0, 0])], color_bar: [viridis, [1, 0]])", "failure(option, \"color_bar: [viridis, [1, 0]]\")"),
+        ("graphics([point([0, 0])], color_bar: [nope, [0, 1]])", "failure(option, \"color_bar: [nope, [0, 1]]\")"),
     ]);
 }
