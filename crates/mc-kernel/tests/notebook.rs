@@ -167,3 +167,23 @@ fn history_shorthands_and_running_on_after_a_syntax_error() {
     assert_eq!(last(&nb.cells[2]), "21");
     assert_eq!(last(&nb.cells[3]), "23");
 }
+
+#[test]
+fn every_shown_statement_gets_its_own_output_block() {
+    // gap G91: a cell shows one output per top-level statement whose value is shown, as the window does
+    let text = "#! mathcas 2 notebook\n\n#% cell\n1 + 2\nx = 4;\nprint(\"p\")\n2 + 3\nx\n\n#% cell\n6 * 7\n";
+    let mut nb = Notebook::parse(text).unwrap();
+    let (status, events) = run(&mut nb, &std::env::temp_dir(), &StopFlag::new());
+    assert_eq!(status, Status::Ok);
+    let values: Vec<&CellEvent> = events.iter().filter(|e| matches!(e, CellEvent::Value(_))).collect();
+    let expected: Vec<CellEvent> = ["3", "5", "4", "42"].map(|v| CellEvent::Value(v.into())).into();
+    assert_eq!(values, expected.iter().collect::<Vec<_>>());
+    let written = "#! mathcas 2 notebook\n\n#% cell\n1 + 2\nx = 4;\nprint(\"p\")\n2 + 3\nx\n#% output n=1\n#= 3\n\
+                   #% output n=4\n#| p\n#= 5\n#% output n=5\n#= 4\n\n#% cell\n6 * 7\n#% output\n#= 42\n";
+    assert_eq!(nb.print(), written, "one numbered block per value; a single value keeps the old block");
+    // the file reads back with the same blocks, and a second run writes the same text
+    let mut again = Notebook::parse(written).unwrap();
+    assert_eq!(again.cells[0].outputs.len(), 3);
+    run(&mut again, &std::env::temp_dir(), &StopFlag::new());
+    assert_eq!(again.print(), written);
+}

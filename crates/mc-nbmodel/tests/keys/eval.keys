@@ -420,3 +420,59 @@ xy▮
 ▮
 #% output n=1
 #= 4
+
+=== G91: every shown statement of a cell gets its own output, in order; ; and definitions show nothing
+--- before
+#% cell
+1+2
+x = 4;
+print("p")
+2+3
+x▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+1+2
+x = 4;
+print("p")
+2+3
+x
+#% output n=1
+#= 3
+#% output n=4
+#| p
+#= 5
+#% output n=5
+#= x
+‖
+
+=== G91: a file written by the headless runner (one block per value) reads back unchanged, and so does an old one
+--- before
+#% cell
+1+2
+2+3
+#% output n=1
+#= 3
+#% output n=2
+#= 5
+
+#% cell
+7▮
+#% output
+#= 7
+--- keys
+"7"
+--- after
+#% cell
+1+2
+2+3
+#% output n=1
+#= 3
+#% output n=2
+#= 5
+
+#% cell
+77▮
+#% output
+#= 7

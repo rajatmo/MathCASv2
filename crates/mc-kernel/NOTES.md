@@ -240,3 +240,14 @@ Each request is answered under `mc_engine::guard::catch`: a panic outside an eva
 collector, completion, building a response) answers that request with an `error` ("internal error: ...; the session
 was reset"), `done` with status `error`, and a fresh engine; the kernel process goes on. Panics inside an evaluation
 are ordinary `failure(internal, ...)` values of their statement and do not reset anything.
+
+## Round 13 (package nb-mat): one output per shown statement in the runner (gap G91)
+
+The headless runner (`notebook::run`, used by `mc-repl notebook.mcn` and `--update`) evaluates each cell statement
+by statement (`run_each`, numbered), as the notebook window always did: every top-level statement whose value is
+shown (not `null`, not ended by `;`) is reported and printed. Written output blocks: a cell that shows at most one
+value keeps the single unnumbered block of before (so existing notebooks are rewritten byte for byte); a cell with
+several values gets one block per value, numbered `n=N`, holding the print output and warnings since the previous
+value, and a last unnumbered block for what follows the last value. Library warnings are written as `#?` lines
+(`tag: text`), as the window writes them. Reading accepts both layouts. Tests:
+`every_shown_statement_gets_its_own_output_block` (tests/notebook.rs), two G91 key scripts in mc-nbmodel's `eval.keys`.
