@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity, clippy::needless_range_loop)]
 //! More charts and pictures: `bubble_chart`, `box_whisker_chart`, `sector_chart`, `rectangle_chart`,
 //! `paired_bar_chart`, `density_histogram`, `smooth_histogram`, `number_line_plot`, the fractals
 //! `mandelbrot_set_plot` and `julia_set_plot`, `relief_plot`, `complex_array_plot`, `complex_list_plot`,
@@ -630,7 +631,7 @@ fn julia_set_plot<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], o: Option<T<'h
     };
     let Some(c) = complex_parts(cx, c)? else { return Ok(bad(h, "julia_set_plot", 1)) };
     // the filled set lies in |z| <= R with R = max(2, |c|)
-    let r = 2.0f64.max(c.0.hypot(c.1)).min(2.0) * 0.8 + 0.4;
+    let r = 2.0f64.max(c.0.hypot(c.1)) * 0.8 + 0.4;
     escape_picture(cx, o, (-r, r, -r * 0.8, r * 0.8), "julia_set_plot", Some(c))
 }
 

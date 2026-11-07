@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::redundant_guards)]
 //! Parts by position and by pattern (decision p6core.15): `match_q`, `head`, `dimensions`, `array_depth`,
 //! `extract`, `replace_part`, `delete`, `map_at`, `level`, `replace`, `delete_cases`, `first_case`,
 //! `reverse_sort`, `take_largest`, `take_smallest`, and the display wrappers `full_form` and `input_form`.

@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity, clippy::needless_range_loop)]
 //! Graphs (networks): the term `graph(edges)` or `graph(vertices, edges)` (edges `a -> b` directed,
 //! `undirected_edge(a, b)` or `two_way_rule(a, b)` undirected, `directed_edge(a, b)`), shown as its picture;
 //! `graph_plot`, `layered_graph_plot` and `tree_plot` draw one; constructors (`complete_graph`, `cycle_graph`,

@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity, clippy::needless_range_loop)]
 //! Plots in space: `contour_plot3d` (level surfaces of f(x, y, z)), `region_plot3d` (the boundary of where a
 //! condition holds), `list_contour_plot3d` (level surfaces of a 3D array), `density_plot3d` (values as coloured,
 //! translucent points), `discrete_plot3d` (values at integer points with stems), `bar_chart3d` (bars as

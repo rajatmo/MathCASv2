@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::redundant_guards)]
 //! Searching terms: `free_of`, `member_of`, `position` (by a pattern) and `select_first` (by a predicate).
 //!
 //! Patterns are compiled by the evaluator ([`NativeCx::compile_pattern`]), so they match as in a definition:

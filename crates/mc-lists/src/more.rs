@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow, clippy::redundant_guards)]
 //! Further list and functional operations (round 14, package cov-core): `map_apply`, `comap`, `comap_apply`,
 //! `map_all`, `is_array`, `fold_pair_list`, `fold_pair`, `subsequences`, the `contains_*` tests, `nearest`, `pick`,
 //! `min_max`, `take_drop`, `power_range`, `first_position`, `count_distinct`, `delete_elements`,
@@ -366,7 +367,7 @@ fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>) -> Res<Option<f64>> {
 fn distance<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<f64>> {
     let h = cx.heap();
     if let (View::Str(s), View::Str(t)) = (h.view(a), h.view(b)) {
-        return Ok(Some(edit_distance(&s, &t) as f64));
+        return Ok(Some(edit_distance(s, t) as f64));
     }
     if let (Some(us), Some(vs)) = (cx.as_list(a), cx.as_list(b)) {
         if us.len() != vs.len() {
