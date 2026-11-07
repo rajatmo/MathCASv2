@@ -360,6 +360,7 @@ plot_label	visualisation	Graphics	option of graphics: plot_label: label, a title
 aspect_ratio	visualisation	Graphics	option of graphics: aspect_ratio: r (height over width of the plot area), automatic (equal units), full (fills image_size)
 image_size	visualisation	Graphics	option of graphics: image_size: w or [w, h], in points (pixels at scale 1); default width 360
 background	visualisation	Graphics	option of graphics: background: color, or none for transparent (default white)
+plot_theme	visualisation	Graphics	option of graphics and plots: plot_theme: "dark" | "light", the chrome written in that theme's colours into every file (data keeps its colours)
 ticks	visualisation	Graphics	option of graphics: ticks: automatic | none | [x_ticks, y_ticks], each automatic, none or a list of positions or [position, label]
 grid_lines	visualisation	Graphics	option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]
 legend	visualisation	Graphics	option of graphics and plots: legend: [entry, ...]; in graphics an entry is a label, [directives, label] (a line sample) or [directives, label, line | point | swatch | none]; in plots a list of strings, one per curve

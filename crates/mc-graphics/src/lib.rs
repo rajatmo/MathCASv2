@@ -124,6 +124,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("aspect_ratio", "option of graphics: aspect_ratio: r (height over width of the plot area), automatic (equal units), full (fills image_size)"),
     ("image_size", "option of graphics: image_size: w or [w, h], in points (pixels at scale 1); default width 360"),
     ("background", "option of graphics: background: color, or none for transparent (default white)"),
+    ("plot_theme", "option of graphics and plots: plot_theme: \"dark\" | \"light\", the chrome written in that theme's colours into every file (data keeps its colours)"),
     ("ticks", "option of graphics: ticks: automatic | none | [x_ticks, y_ticks], each automatic, none or a list of positions or [position, label]"),
     ("grid_lines", "option of graphics: grid_lines: none | automatic | [x_lines, y_lines], each automatic, none or a list of positions or [position, directives]"),
     (
@@ -327,7 +328,7 @@ pub fn render_rgba_themed<S: Store + ?Sized>(
     let p = page::plan(&g, stop)?;
     let mut r = raster::Raster::new(p.width, p.height, scale)
         .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?
-        .with_theme(theme.copied());
+        .with_theme(g.opts.theme.or(theme.copied()));
     page::paint(&g, &p, &mut r, stop)?;
     Ok(r.rgba())
 }
@@ -392,6 +393,14 @@ pub fn render_with_layout<S: Store + ?Sized>(
     render_graphic(&g, formats, stop)
 }
 
+/// Paint a planned page on a file's surface, in the graphic's own theme when it asks for one.
+fn paint(g: &model::Graphic, p: &page::Plan, s: &mut dyn surface::Surface, stop: &dyn Fn() -> bool) -> Result<(), Failure> {
+    match g.opts.theme {
+        Some(t) => page::paint(g, p, &mut theme::Themed::new(s, t), stop),
+        None => page::paint(g, p, s, stop),
+    }
+}
+
 /// Render a graphic already read to several formats.
 fn render_graphic(g: &model::Graphic, formats: &[Format], stop: &dyn Fn() -> bool) -> Result<(Vec<Vec<u8>>, Layout), Failure> {
     let p = page::plan(g, stop)?;
@@ -405,17 +414,17 @@ fn render_graphic(g: &model::Graphic, formats: &[Format], stop: &dyn Fn() -> boo
                 }
                 let mut r = raster::Raster::new(p.width, p.height, scale)
                     .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?;
-                page::paint(g, &p, &mut r, stop)?;
+                paint(g, &p, &mut r, stop)?;
                 r.png().ok_or_else(|| Failure::new("io", "PNG encoding failed"))?
             }
             Format::Svg => {
                 let mut s = svg::Svg::new(p.width, p.height);
-                page::paint(g, &p, &mut s, stop)?;
+                paint(g, &p, &mut s, stop)?;
                 s.finish()
             }
             Format::Pdf => {
                 let mut s = pdf::Pdf::new(p.width, p.height);
-                page::paint(g, &p, &mut s, stop)?;
+                paint(g, &p, &mut s, stop)?;
                 s.finish()
             }
         });

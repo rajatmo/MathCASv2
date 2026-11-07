@@ -94,22 +94,55 @@ pub(crate) struct Writer {
     forms: Vec<Form>,
     /// the opacities the forms' graphics states need (thousandths)
     alphas: Vec<u16>,
+    /// the forms' shading dictionaries (`/Sh<n>`)
+    shadings: Vec<String>,
+    /// the forms' soft masks (`/GM<n>`): content, drawing size, and luminance (alpha otherwise)
+    masks: Vec<(String, (f32, f32), bool)>,
     pages: Vec<String>,
 }
 
 impl Writer {
     /// An empty document of pages `width` x `height` points.
     pub(crate) fn new(width: f32, height: f32) -> Writer {
-        Writer { width, height, codes: HashMap::new(), type3: vec![], pictures: vec![], forms: vec![], alphas: vec![], pages: vec![] }
+        Writer {
+            width,
+            height,
+            codes: HashMap::new(),
+            type3: vec![],
+            pictures: vec![],
+            forms: vec![],
+            alphas: vec![],
+            shadings: vec![],
+            masks: vec![],
+            pages: vec![],
+        }
     }
 
     /// Add a vector drawing (its images become pictures of the document); gives its index for [`Op::Form`].
     pub(crate) fn form(&mut self, d: super::vector::Drawing) -> usize {
-        let mut content = d.content;
-        for (k, p) in d.images.into_iter().enumerate().rev() {
-            let n = self.image(p);
-            content = content.replace(&format!("/Img{k} Do"), &format!("/Im{n} Do"));
+        // the drawing's names (counted from its own first image, shading and mask) become the document's
+        let mut names: Vec<(String, String)> = vec![];
+        for (k, p) in d.images.into_iter().enumerate() {
+            names.push((format!("/Img{k} Do"), format!("/Im{} Do", self.image(p))));
         }
+        for (k, sh) in d.shadings.into_iter().enumerate() {
+            self.shadings.push(sh);
+            names.push((format!("/Shd{k} sh"), format!("/Sh{} sh", self.shadings.len() - 1)));
+        }
+        let first_mask = self.masks.len();
+        for k in 0..d.masks.len() {
+            names.push((format!("/Msk{k} gs"), format!("/GM{} gs", first_mask + k)));
+        }
+        let rename = |mut c: String| {
+            for (from, to) in &names {
+                c = c.replace(from.as_str(), to);
+            }
+            c
+        };
+        for (c, luminance) in d.masks {
+            self.masks.push((rename(c), d.size, luminance));
+        }
+        let content = rename(d.content);
         for a in d.alphas {
             if !self.alphas.contains(&a) {
                 self.alphas.push(a);
@@ -260,6 +293,17 @@ impl Writer {
             let fm = doc.add(stream(&dict, f.content.as_bytes()));
             let _ = write!(xobjects, " /Fm{k} {fm} 0 R");
         }
+        let mut gm = String::new();
+        for (k, (content, (w, h), luminance)) in self.masks.iter().enumerate() {
+            let dict = format!(
+                " /Type /XObject /Subtype /Form /BBox [0 0 {} {}] /Group << /S /Transparency /CS /DeviceRGB >> /Resources {resources} 0 R",
+                num(*w),
+                num(*h)
+            );
+            let g = doc.add(stream(&dict, content.as_bytes()));
+            let kind = if *luminance { "Luminosity" } else { "Alpha" };
+            let _ = write!(gm, " /GM{k} << /SMask << /Type /Mask /S /{kind} /G {g} 0 R >> >>");
+        }
         let mut res = String::from("<< /ProcSet [/PDF /Text /ImageC]");
         if !font_refs.is_empty() {
             let _ = write!(res, " /Font <<{font_refs} >>");
@@ -267,11 +311,19 @@ impl Writer {
         if !xobjects.is_empty() {
             let _ = write!(res, " /XObject <<{xobjects} >>");
         }
-        if !self.alphas.is_empty() {
+        if !self.alphas.is_empty() || !gm.is_empty() {
             res.push_str(" /ExtGState <<");
             for a in &self.alphas {
                 let v = num(f32::from(*a) / 1000.0);
                 let _ = write!(res, " /GS{a} << /ca {v} /CA {v} >>");
+            }
+            res.push_str(&gm);
+            res.push_str(" >>");
+        }
+        if !self.shadings.is_empty() {
+            res.push_str(" /Shading <<");
+            for (k, sh) in self.shadings.iter().enumerate() {
+                let _ = write!(res, " /Sh{k} {sh}");
             }
             res.push_str(" >>");
         }

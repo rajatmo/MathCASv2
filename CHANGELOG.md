@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Plots in the notebook:** pictures are drawn from their SVG at the screen's pixel density, so they stay sharp at
+any zoom, and their background, frame, ticks, labels and legend box follow the light or dark theme. Notebooks store
+plots as compressed SVG (a typical plot shrinks from about 90 KB to 7 KB). HTML exports inline the SVG and PDF
+exports draw plots as vectors.
+
+**Dark exports:** the new option `plot_theme: "dark"` (or `"light"`) writes a picture's chrome in that theme's
+colours into every file it is exported to.
+
+**PDF export:** SVG drawings keep their linear and radial gradients (with varying opacity) and their luminance and
+alpha masks.
+
 ## 0.4.0 (2026-11-07)
 
 **Numerical integration:** `n_integrate` chooses a method by dimension: adaptive cubature (Genz-Malik rules) for 2 to 7

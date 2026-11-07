@@ -112,3 +112,26 @@ fn the_light_theme_is_what_the_files_show() {
     let diff = plain.iter().zip(&light).filter(|(a, b)| a.abs_diff(**b) > 1).count();
     assert!(diff * 1000 < plain.len(), "{diff} channels differ");
 }
+
+/// `plot_theme: "dark"` writes the chrome of every file in the dark theme's colours, fixed (no classes for front
+/// ends to re-theme), and leaves the data alone; the PNG and the SVG show the same picture.
+#[test]
+fn a_dark_plot_theme_is_written_into_the_files() {
+    let src = SRC.replace("image_size: 300)", "image_size: 300, plot_theme: \"dark\")");
+    let svg = svg_of(&src);
+    assert!(svg.contains("#22262d") && svg.contains("#d0d5dd"), "{svg}");
+    assert!(svg.contains("#ff0000"), "{svg}");
+    assert!(!svg.contains("mcf-") && !svg.contains("mcs-"), "{svg}");
+    assert!(!svg.contains("#ffffff"), "light chrome left:\n{svg}");
+    let h = Heap::new(Config::default());
+    let t = mc_syntax::read(&h, &src).unwrap()[0];
+    let png = render(&h, t, Format::Png { scale: 1.0 }).unwrap();
+    let (w, _, px) = mc_graphics::decode_png(&png).unwrap();
+    // the top-left corner is the dark page
+    assert_eq!(&px[..3], &[0x22, 0x26, 0x2d], "width {w}");
+    // an unknown named theme is accepted and changes nothing
+    let plain = svg_of(&SRC.replace("image_size: 300)", "image_size: 300, plot_theme: \"plain\")"));
+    assert_eq!(plain, svg_of(SRC));
+    let pdf = render(&h, t, Format::Pdf).unwrap();
+    assert!(pdf.starts_with(b"%PDF"));
+}

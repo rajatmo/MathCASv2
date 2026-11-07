@@ -4,9 +4,10 @@
 //! (`mcf-<role>` when its fill is chrome, `mcs-<role>` when its stroke is), keeping the light colours as its
 //! attributes, so every other reader sees the light look; a front end rasterising the SVG injects [`Theme::css`]
 //! (CSS overrides presentation attributes). The raster surface recolours chrome itself when it is given a theme
-//! (3D pictures turned in the notebook). Files written for export (PNG, SVG, PDF) keep [`Theme::LIGHT`].
+//! (3D pictures turned in the notebook). Files written for export (PNG, SVG, PDF) keep [`Theme::LIGHT`], unless
+//! the graphic asks for a theme (`plot_theme: "dark"`): then [`Themed`] writes its chrome in that theme's colours.
 use crate::color::Rgba;
-use crate::surface::Role;
+use crate::surface::{Path, Pen, Role, Surface, Text};
 use std::fmt::Write as _;
 
 /// The colours chrome is drawn in. Colours should be opaque: a chrome element keeps its own opacity (a faint
@@ -33,6 +34,15 @@ impl Theme {
         frame: crate::page::FRAME,
         grid: crate::page::GRID,
         panel: Rgba::WHITE,
+    };
+
+    /// The dark look of the notebook's dark theme: a slate page, light gray text, a gray frame, faint grid lines.
+    pub const DARK: Theme = Theme {
+        background: Some(hex(0x22262d)),
+        text: hex(0xd0d5dd),
+        frame: hex(0xa0a8b5),
+        grid: hex(0x373b42),
+        panel: hex(0x22262d),
     };
 
     /// The colour an element of `role` drawn as `c` is shown in (`None`: not drawn, a transparent background).
@@ -89,6 +99,67 @@ impl Theme {
         };
         let (x, y) = (lum(a), lum(b));
         (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+}
+
+/// An opaque colour from `0xrrggbb`.
+const fn hex(v: u32) -> Rgba {
+    Rgba::rgb(((v >> 16) & 0xff) as f64 / 255.0, ((v >> 8) & 0xff) as f64 / 255.0, (v & 0xff) as f64 / 255.0)
+}
+
+/// A surface drawing on another with its chrome recoloured in a theme: the colours are fixed in what the inner
+/// surface writes (it is told every element is data, so an SVG carries no chrome classes for front ends).
+pub struct Themed<'a> {
+    /// the surface drawn on
+    pub inner: &'a mut dyn Surface,
+    /// the theme
+    pub theme: Theme,
+    role: Role,
+}
+
+impl<'a> Themed<'a> {
+    /// `inner` with chrome drawn in `theme`.
+    pub fn new(inner: &'a mut dyn Surface, theme: Theme) -> Themed<'a> {
+        Themed { inner, theme, role: Role::Data }
+    }
+
+    fn ink(&self, c: Rgba) -> Option<Rgba> {
+        self.theme.color(self.role, c)
+    }
+}
+
+impl Surface for Themed<'_> {
+    fn role(&mut self, role: Role) {
+        self.role = role;
+    }
+    fn fill(&mut self, path: &Path, color: Rgba) {
+        if let Some(c) = self.ink(color) {
+            self.inner.fill(path, c);
+        }
+    }
+    fn stroke(&mut self, path: &Path, pen: &Pen) {
+        if let Some(c) = self.ink(pen.color) {
+            self.inner.stroke(path, &Pen { color: c, ..pen.clone() });
+        }
+    }
+    fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba) {
+        if let Some(c) = self.ink(color) {
+            self.inner.dots(centres, d, c);
+        }
+    }
+    fn text(&mut self, text: &Text<'_>) {
+        if let Some(c) = self.ink(text.color) {
+            self.inner.text(&Text { color: c, ..*text });
+        }
+    }
+    fn image(&mut self, rect: [f32; 4], cols: usize, rows: usize, rgba: &[u8]) {
+        self.inner.image(rect, cols, rows, rgba);
+    }
+    fn clip(&mut self, rect: [f32; 4]) {
+        self.inner.clip(rect);
+    }
+    fn unclip(&mut self) {
+        self.inner.unclip();
     }
 }
 

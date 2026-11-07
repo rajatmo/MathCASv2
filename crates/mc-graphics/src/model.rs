@@ -304,6 +304,9 @@ pub struct Opts {
     pub background: Option<Rgba>,
     /// the background is the default one (no `background` option): chrome a front end may theme
     pub themed_background: bool,
+    /// `plot_theme: "dark"` or `"light"`: the chrome written in that theme's colours, fixed (no front end
+    /// re-themes it); `None`: the light look, chrome marked for front ends
+    pub theme: Option<crate::theme::Theme>,
     /// x and y ticks
     pub ticks: [Ticks; 2],
     /// grid lines at x and y positions
@@ -359,6 +362,7 @@ impl Default for Opts {
             image_size: (None, None),
             background: Some(Rgba::WHITE),
             themed_background: true,
+            theme: None,
             ticks: [Ticks::Auto, Ticks::Auto],
             grid: [Grid::None, Grid::None],
             legend: Vec::new(),
@@ -419,7 +423,8 @@ pub const DIRECTIVES: [&str; 12] = [
 ];
 
 /// The option names of `graphics` that change the picture.
-pub const OPTIONS: [&str; 28] = [
+pub const OPTIONS: [&str; 29] = [
+    "plot_theme",
     "image_padding",
     "legend_font_size",
     "legend_title",
@@ -465,7 +470,6 @@ pub const HARMLESS: &[&str] = &[
     "baseline_position",
     "format_type",
     "method",
-    "plot_theme",
     "coordinates_tool_options",
     "axes_edge",
     "frame_margins",
@@ -1644,6 +1648,19 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             o.image_size = match pair(v) {
                 Some([w, ht]) => (size(w)?, size(ht)?),
                 None => (size(v)?, None),
+            }
+        }
+        "plot_theme" => {
+            // a named theme other than dark or light (a style of the reference system) is accepted and ignored
+            let name = match h.view(v) {
+                View::Str(s) => s.to_string(),
+                View::Sym(s) => h.sym_name(s).to_string(),
+                _ => return None,
+            };
+            match name.as_str() {
+                "dark" => o.theme = Some(crate::theme::Theme::DARK),
+                "light" => o.theme = Some(crate::theme::Theme::LIGHT),
+                _ => {}
             }
         }
         "background" => {
