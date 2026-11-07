@@ -400,6 +400,51 @@ pub fn install_with_stop(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     crate::formula_lib::register();
     crate::formula::install(k, h, crate::uncertain::DEFS);
     crate::formula::install(k, h, crate::quantity::DEFS);
+    // max and min of intervals, centered intervals, around values and quantities (installed by the list package)
+    for (name, max) in [("max", true), ("min", false)] {
+        k.wrap_native(h.sym(name), |inner| Box::new(Extreme { inner, max }));
+    }
+}
+
+/// `max`/`min` with uncertain arguments in front of the list package's native ([`crate::uncertain::extreme`]).
+struct Extreme {
+    inner: Box<dyn Native>,
+    max: bool,
+}
+
+impl Native for Extreme {
+    fn reads_term(&self) -> bool {
+        self.inner.reads_term()
+    }
+
+    fn curried(&self) -> bool {
+        self.inner.curried()
+    }
+
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut mc_core::Raw)) {
+        self.inner.trace(visit);
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // the arguments with lists flattened (as max and min read them), when one is an uncertain number
+        let mut flat = vec![];
+        let mut stack: Vec<T<'h>> = args.iter().rev().copied().collect();
+        while let Some(a) = stack.pop() {
+            match cx.as_list(a) {
+                Some(items) => stack.extend(items.iter().rev().copied()),
+                None => flat.push(a),
+            }
+            if flat.len() > 100_000 {
+                break;
+            }
+        }
+        if crate::uncertain::any(cx.heap(), &flat) {
+            if let Some(v) = crate::uncertain::extreme(cx, self.max, &flat)? {
+                return Ok(Reply::Done(v));
+            }
+        }
+        self.inner.call(cx, t, args)
+    }
 }
 
 #[cfg(test)]

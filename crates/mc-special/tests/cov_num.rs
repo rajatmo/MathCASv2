@@ -62,3 +62,17 @@ fn complex_values_at_machine_arguments() {
     close("[beta_regularized(0.5 + im, 5, 3), gamma(2, 1.0 + im), gamma_regularized(2.5, 1.0 + im)]", &[(-33.6796875, -16.421875), (0.70709209634594, -0.42035364095981), (0.90546717518752, -0.33654245335777)], 1e-10);
     close("matrix_function(z => bessel_j(0.5, z), [[1, 2], [3, 4]])[1]", &[(-0.06496896887316, 0.36203314552940), (-0.09468753639872, -0.16560377467144)], 1e-10);
 }
+
+/// max and min of intervals, centered intervals, around values and quantities (the io-num items of the gap queue).
+#[test]
+fn extremes_of_uncertain_values() {
+    check(&[
+        ("max(interval([1, 3]), interval([-3, 5]))", "interval([1, 5])"),
+        ("min(centered_interval(2, 1), centered_interval(1, 4))", "centered_interval(0, 3)"),
+        ("min([1, around(-1.10001, 0.01)])", "around(-1.10001, 0.01)"),
+        ("max([1, around(-1.10001, 0.01)])", "1"),
+        ("max([quantity(3, \"Meters\"), quantity(200, \"Centimeters\")])", "quantity(3, \"Meters\")"),
+        ("min(interval([1, 3]), 2)", "interval([1, 2])"),
+        ("max(1, 5, [2, 9])", "9"),
+    ]);
+}

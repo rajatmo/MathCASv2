@@ -659,6 +659,73 @@ fn ends<'h>(st: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>) -> Option<(T<'h>, T<'h
     Some((end(args[0], 0)?, end(*args.last()?, 1)?))
 }
 
+/// `max` (`max` true) or `min` of arguments (lists already flattened) when one is an uncertain number, for the list
+/// functions (gap queue, item asked by io-core): intervals and centered intervals give the interval of the extremes
+/// of the ends (a number counts as a point), `max(interval([1, 3]), interval([-3, 5]))` is `interval([1, 5])`;
+/// `around` values and quantities give the extreme argument itself when every comparison with it is decided
+/// (`min([1, around(-1.1, 0.01)])` is the around, quantities compare in a common unit). `None` for mixed kinds,
+/// undecided comparisons, or no uncertain argument.
+pub fn extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, max: bool, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let kinds: Vec<Option<usize>> = args.iter().map(|&a| head_of(h, a)).collect();
+    let Some(kind) = kinds.iter().flatten().copied().next() else { return Ok(None) };
+    if kinds.iter().flatten().any(|&k| k != kind) {
+        return Ok(None);
+    }
+    let ar = Arith::new(h);
+    let better = |c: mc_arith::Cmp3| matches!((max, c), (true, mc_arith::Cmp3::Greater) | (false, mc_arith::Cmp3::Less));
+    if kind == 1 || kind == 2 {
+        // the ends of each argument, then the extreme lower end and the extreme upper end
+        let mut lo: Option<T<'h>> = None;
+        let mut hi: Option<T<'h>> = None;
+        for (&a, k) in args.iter().zip(&kinds) {
+            let (l, u) = match k {
+                Some(_) => match ends(h, &ar, a) {
+                    Some(e) => e,
+                    None => return Ok(None),
+                },
+                None if ar.num(a).is_some() => (a, a),
+                None => return Ok(None),
+            };
+            for (slot, v) in [(&mut lo, l), (&mut hi, u)] {
+                *slot = Some(match *slot {
+                    None => v,
+                    Some(w) => match ar.compare(v, w) {
+                        Some(c) if better(c) => v,
+                        Some(_) => w,
+                        None => return Ok(None),
+                    },
+                });
+            }
+        }
+        let (Some(lo), Some(hi)) = (lo, hi) else { return Ok(None) };
+        let v = if kind == 1 {
+            h.call(h.sym("interval"), &[cx.list(&[lo, hi])])
+        } else {
+            let half = ar.rational(h.int(1), h.int(2));
+            h.call(h.sym("centered_interval"), &[ar.mul(&[half, ar.add(&[lo, hi])]), ar.mul(&[half, ar.sub(hi, lo)])])
+        };
+        return Ok(Some(cx.eval(v)?));
+    }
+    // around and quantities: the argument every other one compares below (above)
+    let rel = h.sym(if max { "greater" } else { "less" });
+    let truth = h.sym_term(h.sym(names::TRUE));
+    let falsity = h.sym_term(h.sym(names::FALSE));
+    let mut best = args[0];
+    for &a in &args[1..] {
+        let c = cx.eval(h.call(rel, &[a, best]))?;
+        if c == truth {
+            best = a;
+        } else if c != falsity {
+            // undecided, unless the two are the same
+            if a != best {
+                return Ok(None);
+            }
+        }
+    }
+    Ok(Some(best))
+}
+
 /// The comparisons of an interval (or an `around`, a `centered_interval`, as the interval of its spread) with a
 /// number or another interval (decision P6N.12): `(hi(a) vs lo(b),
 /// lo(a) vs hi(b))`, from which every relation is decided where the sets do not overlap (`None` without intervals).
