@@ -81,11 +81,16 @@ pub fn look(cell: &Cell, p: &Palette) -> Look {
         size = 13.0;
     }
     let color = match cell.style {
-        Style::Section | Style::Subsection if !cell.expr_view => p.blue,
+        _ if cell.expr_view => p.text,
+        Style::Title | Style::Chapter | Style::Subchapter | Style::Section | Style::Subsection | Style::Subsubsection => {
+            p.heading
+        }
         Style::Message if cell.failure => p.dark_red,
         Style::Message => p.orange,
         Style::Output if cell.failure => p.dark_red,
         Style::Subtitle | Style::Subsubtitle => p.weak,
+        // prose in its own, softer ink; code and results keep the full text colour
+        _ if info.font == FontRole::Prose => p.prose,
         _ => p.text,
     };
     Look { face, size, color }
@@ -1287,6 +1292,14 @@ impl View {
             let top = r.top() + info.margins[2] * z;
             let content = pos2(origin.x + l, top);
             let shown = self.shown(c);
+            // code to evaluate sits on a tinted panel, so it stands apart from prose and from results
+            if c.style == Style::Input && !c.expr_view {
+                let panel = Rect::from_min_max(
+                    pos2(content.x - 8.0 * z, r.top() + 2.0 * z),
+                    pos2(origin.x + rr + 6.0 * z, r.bottom() - 2.0 * z),
+                );
+                painter.rect_filled(panel, 5.0 * z, p.input_bg);
+            }
             if matches!(shown, Shown::Boxes | Shown::Typeset) {
                 self.paint_boxes(ctx, painter, nb, i, content, clip, time);
                 continue;

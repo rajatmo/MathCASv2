@@ -53,6 +53,12 @@ pub struct Palette {
     pub gutter: Color32,
     /// the insertion line
     pub guide: Color32,
+    /// prose text (text cells, items): softer than code
+    pub prose: Color32,
+    /// titles and section headings: an accent no syntax colour uses
+    pub heading: Color32,
+    /// the panel behind input cells
+    pub input_bg: Color32,
 }
 
 impl Palette {
@@ -81,6 +87,9 @@ impl Palette {
             current_line: hex(0xf1f3f6),
             gutter: hex(0x8c959f),
             guide: hex(0xcfd4da),
+            prose: hex(0x3b4351),
+            heading: hex(0x3d3a8c),
+            input_bg: hex(0xf0f2f7),
         }
     }
 
@@ -109,6 +118,9 @@ impl Palette {
             current_line: hex(0x2a2f39),
             gutter: hex(0x6f788b),
             guide: hex(0x3a404b),
+            prose: hex(0xbcc3ce),
+            heading: hex(0xb4b9ff),
+            input_bg: hex(0x2a303a),
         }
     }
 
@@ -325,10 +337,10 @@ mod contrast {
     #[test]
     fn text_colours_contrast_with_their_backgrounds() {
         for p in [Palette::light(), Palette::dark()] {
-            for (name, c) in [("text", p.text), ("weak", p.weak), ("cyan", p.cyan), ("blue", p.blue),
+            for (name, c) in [("text", p.text), ("weak", p.weak), ("prose", p.prose), ("heading", p.heading), ("cyan", p.cyan), ("blue", p.blue),
                 ("purple", p.purple), ("green", p.green), ("red", p.red), ("dark_red", p.dark_red),
                 ("orange", p.orange), ("yellow", p.yellow), ("accent", p.accent)] {
-                for (bname, b) in [("bg", p.bg), ("card", p.card), ("current_line", p.current_line)] {
+                for (bname, b) in [("bg", p.bg), ("card", p.card), ("current_line", p.current_line), ("input_bg", p.input_bg)] {
                     let r = ratio(c, b);
                     assert!(r >= 4.5, "{} {name} on {bname}: {r:.2}", if p.dark { "dark" } else { "light" });
                 }
