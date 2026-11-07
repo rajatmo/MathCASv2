@@ -25,6 +25,7 @@ mod regions;
 mod vectors;
 mod roundtrip;
 mod sidecar;
+mod space;
 mod values;
 
 pub use roundtrip::{embedded_text, import_graphics};
@@ -214,6 +215,13 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("horizontal_gauge", "horizontal_gauge(v, [a, b]): a horizontal scale filled up to v"),
     ("vertical_gauge", "vertical_gauge(v, [a, b]): a vertical scale filled up to v"),
     ("rasterize", "rasterize(x): x as a picture (graphics rendered; other values as their text)"),
+    ("contour_plot3d", "contour_plot3d(f, [x, a, b], [y, c, d], [z, e, f]): level surfaces of f in the box (three by default; option contours: n or a list); f == g the surface where they are equal"),
+    ("region_plot3d", "region_plot3d(cond, [x, a, b], [y, c, d], [z, e, f]): the boundary surface of the region of the box where the condition holds"),
+    ("density_plot3d", "density_plot3d(f, [x, a, b], [y, c, d], [z, e, f]): the values of f in the box as coloured, translucent points (more opaque for larger values)"),
+    ("list_contour_plot3d", "list_contour_plot3d(array): level surfaces of a 3D array of values (layers along z, rows along y)"),
+    ("discrete_plot3d", "discrete_plot3d(f, [i, a, b], [j, c, d]): the values of f at integer points as points in space with stems to the plane z = 0"),
+    ("bar_chart3d", "bar_chart3d(values) or bar_chart3d(matrix): bars as boxes in space, one row of bars per row of the matrix"),
+    ("pie_chart3d", "pie_chart3d(values): a pie chart (drawn flat, as pie_chart)"),
 ];
 
 /// Register the natives with `k`.
@@ -306,6 +314,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     vectors::install(k, h);
     graphs::install(k, h);
     charts2::install(k, h);
+    space::install(k, h);
 }
 
 pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
