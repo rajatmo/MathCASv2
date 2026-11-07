@@ -126,6 +126,10 @@ impl App {
             return None;
         }
         let before = &c.text[..pos];
+        // no completion inside a comment or a string: the caret's line up to it decides
+        if in_comment_or_string(&before[before.rfind('\n').map_or(0, |i| i + 1)..]) {
+            return None;
+        }
         let len: usize = before
             .chars()
             .rev()
@@ -450,5 +454,46 @@ impl App {
             || self.error.is_some()
             || self.about
             || self.prefs
+    }
+}
+
+/// Whether the end of `line` (the text of a line up to the caret) is inside a comment (`#` to the end of the line)
+/// or a string (`"..."`, with `\"` escapes; raw strings `r"..."` have none).
+fn in_comment_or_string(line: &str) -> bool {
+    let mut chars = line.chars().peekable();
+    let mut in_str = false;
+    let mut raw = false;
+    let mut prev = ' ';
+    while let Some(ch) = chars.next() {
+        if in_str {
+            if ch == '\\' && !raw {
+                chars.next();
+            } else if ch == '"' {
+                in_str = false;
+            }
+        } else if ch == '#' {
+            return true;
+        } else if ch == '"' {
+            in_str = true;
+            raw = prev == 'r';
+        }
+        prev = ch;
+    }
+    in_str
+}
+
+#[cfg(test)]
+mod comment_tests {
+    use super::in_comment_or_string;
+
+    #[test]
+    fn comments_and_strings_stop_completion() {
+        assert!(in_comment_or_string("# a comm"));
+        assert!(in_comment_or_string("f(x) # note"));
+        assert!(in_comment_or_string("say(\"plo"));
+        assert!(in_comment_or_string("label(r\"$\\alp"));
+        assert!(!in_comment_or_string("say(\"a\") + plo"));
+        assert!(!in_comment_or_string("plo"));
+        assert!(!in_comment_or_string("s = \"a#b\"; sq"));
     }
 }
