@@ -299,7 +299,15 @@ impl<'m> Engine<'m> {
         let role = self.m.role(c);
         let m = self.m.char(c, role);
         if c.is_whitespace() {
-            return Frag::kern(m.advance * s);
+            // kept as a character (no height): a painter can keep the text around it in one run, placed exactly as
+            // the same text in a plain line
+            return Frag {
+                w: m.advance * s,
+                h: 0.0,
+                d: 0.0,
+                items: vec![D::Char { c, role, size: s, x: 0.0, y: 0.0, row, index, w: m.advance * s, sy: 1.0 }],
+                stops: vec![],
+            };
         }
         Frag {
             w: m.advance * s,

@@ -469,12 +469,16 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
         let galley = painter.layout_job(r.job);
         // the galley's first baseline on the run's baseline, on a device pixel as plain text's is
         let base = galley.rows.first().and_then(|row| row.row.glyphs.first()).map_or(r.size * 0.8, |g| g.pos.y);
-        painter.galley(pos2(origin.x + r.x, snap(origin.y + r.y) - base), galley, color);
+        painter.galley(pos2(snap(origin.x + r.x), snap(origin.y + r.y) - base), galley, color);
     };
     for d in &l.items {
         match d {
             Draw::Char { c, role, size, x, y, row, index, advance, stretch } => {
-                if c.is_whitespace() || !visible(*y, *size * stretch.max(1.0)) {
+                if !visible(*y, *size * stretch.max(1.0)) {
+                    continue;
+                }
+                // a space joins the run it continues (the text keeps its plain-line positions) and draws nothing
+                if c.is_whitespace() && !run.as_ref().is_some_and(|r| r.y == *y && r.size == *size && (r.next - x).abs() <= 0.01 * size) {
                     continue;
                 }
                 let color = ink.colours.and_then(|t| t.get(*row as usize)?.get(*index as usize)).copied().unwrap_or(color);
