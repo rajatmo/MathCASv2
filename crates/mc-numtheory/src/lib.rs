@@ -18,6 +18,7 @@
 pub mod budget;
 pub mod combin;
 pub mod count;
+pub mod cover;
 pub mod digits;
 pub mod factor;
 pub mod gcd;
@@ -63,6 +64,35 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("moebius_mu", "moebius_mu(n): the Moebius function"),
     ("jacobi_symbol", "jacobi_symbol(a, n): the Jacobi symbol for odd n > 0"),
     ("multiplicative_order", "multiplicative_order(a, n): the order of a modulo n"),
+    ("divisible", "divisible(n, m): true when n/m is an integer (Gaussian integers included)"),
+    ("is_coprime", "is_coprime(a, b, ...): true when the integers are pairwise coprime"),
+    ("is_square_free", "is_square_free(n): true when no square of a prime divides n"),
+    ("is_prime_power", "is_prime_power(n): true when |n| is a power p^k of a prime, k >= 1"),
+    ("is_composite", "is_composite(n): true for integers n > 1 that are not prime"),
+    ("prime_nu", "prime_nu(n): the number of distinct primes dividing n"),
+    ("prime_omega", "prime_omega(n): the number of prime factors of n counted with multiplicity"),
+    ("liouville_lambda", "liouville_lambda(n): (-1)^prime_omega(n)"),
+    ("mangoldt_lambda", "mangoldt_lambda(n): log p when n is a power of the prime p, else 0"),
+    ("carmichael_lambda", "carmichael_lambda(n): the exponent of the multiplicative group modulo n"),
+    ("divisor_sum", "divisor_sum(n, f): the sum of f(d) over the divisors d of n; divisor_sum(n, f, cond) over those with cond(d) true"),
+    ("kronecker_symbol", "kronecker_symbol(a, n): the Kronecker symbol, the Jacobi symbol extended to all integers n"),
+    ("modular_inverse", "modular_inverse(k, n): the r with k r = 1 mod n"),
+    ("quotient_remainder", "quotient_remainder(m, n): [quotient(m, n), mod(m, n)]"),
+    ("catalan_number", "catalan_number(n): the Catalan number binomial(2 n, n)/(n + 1)"),
+    ("stirling_s1", "stirling_s1(n, k): the signed Stirling number of the first kind"),
+    ("stirling_s2", "stirling_s2(n, k): the Stirling number of the second kind"),
+    ("partitions_p", "partitions_p(n): the number of partitions of n"),
+    ("partitions_q", "partitions_q(n): the number of partitions of n into distinct parts"),
+    ("ramanujan_tau", "ramanujan_tau(n): the Ramanujan tau function, the coefficients of q prod (1 - q^k)^24"),
+    ("bit_and", "bit_and(n1, n2, ...): the bitwise and of integers (two's complement)"),
+    ("bit_or", "bit_or(n1, n2, ...): the bitwise or of integers"),
+    ("bit_xor", "bit_xor(n1, n2, ...): the bitwise exclusive or of integers"),
+    ("bit_not", "bit_not(n): the bitwise complement -1 - n"),
+    ("integer_reverse", "integer_reverse(n, b): the integer with the base-b digits of n reversed (b = 10 by default)"),
+    ("mixed_radix", "mixed_radix([b1, ..., bk]): a mixed-radix base for integer_digits and from_digits"),
+    ("real_digits", "real_digits(x), real_digits(x, b), real_digits(x, b, len): [digits, e] with |x| = 0.d1 d2 ... b^e; a rational's repeating digits form a final sublist"),
+    ("continued_fraction", "continued_fraction(x), continued_fraction(x, n): the continued fraction terms of x (a quadratic irrational's period as a final sublist)"),
+    ("from_continued_fraction", "from_continued_fraction(terms): the number with these continued fraction terms (a final sublist repeats)"),
 ];
 
 /// Register the natives of [`FUNCTIONS`] with `k` (strict arguments; the arithmetic ones thread over lists).
@@ -71,6 +101,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
 /// `mc-engine`'s `arith::install`).
 pub fn install(k: &mut Kernel, h: &Heap) {
     natives::install(k, h);
+    mc_numeric::formula::install(k, h, cover::DEFS);
 }
 
 /// `gcd(a, ...)` (or `lcm(a, ...)` when `lcm`) of exact numbers by the half-gcd: gcd(p/q, r/s) = gcd(p, r) / lcm(q, s),
@@ -97,7 +128,8 @@ pub(crate) fn test_pool() -> &'static rayon::ThreadPool {
 mod tests {
     #[test]
     fn the_table_lists_every_native() {
-        let names: Vec<&str> = super::natives::TABLE.iter().map(|e| e.0).collect();
+        let mut names: Vec<&str> = super::natives::TABLE.iter().map(|e| e.0).collect();
+        names.extend(super::cover::DEFS.iter().map(|d| d.name));
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         assert_eq!(names, listed);
     }

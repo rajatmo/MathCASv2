@@ -246,6 +246,10 @@ impl Native for Fun {
             let xs: Vec<f64> = reals.iter().map(Real::to_f64).collect();
             // outside the real domain: the principal complex value (as the elementary functions, decision L.9)
             let complex_value = |xs: &[f64]| {
+                // the elliptic integrals beyond m = 1 lie on their cuts: the side is not settled, they stay
+                if matches!(f, Special::EllipticK | Special::EllipticE | Special::EllipticEInc | Special::EllipticF) {
+                    return None;
+                }
                 let zs: Vec<C64> = xs.iter().map(|&x| C64::real(x)).collect();
                 f.machine_complex(&zs)
             };
@@ -435,6 +439,7 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     }
     k.register(h.sym(crate::functions::PFQ.0), Attributes::default(), Box::new(Pfq { stop: stop.clone() }));
     mc_numeric::formula::install(k, h, crate::more::DEFS);
+    mc_numeric::formula::install(k, h, crate::cover::DEFS);
     for f in &crate::more::SCALED {
         mc_numeric::library::register(f);
     }

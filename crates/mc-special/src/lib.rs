@@ -56,6 +56,7 @@
 #![warn(missing_docs)]
 pub mod ball;
 pub mod bernoulli;
+pub mod cover;
 pub mod dd;
 pub mod exact;
 mod exact_more;
@@ -157,6 +158,62 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("elliptic_nome_q", "elliptic_nome_q(m): the nome q = exp(-pi K(1 - m)/K(m))"),
     ("bessel_k_scaled", "bessel_k_scaled(nu, x): e^x K_nu(x), without underflow at large x"),
     ("bessel_i_scaled", "bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x"),
+    ("elliptic_theta", "elliptic_theta(a, u, q): the Jacobi theta function theta_a(u, q), a = 1, 2, 3, 4, nome |q| < 1"),
+    ("elliptic_theta_prime", "elliptic_theta_prime(a, u, q): the derivative of theta_a(u, q) in u"),
+    ("neville_theta_s", "neville_theta_s(z, m): the Neville theta function theta_s(z | m)"),
+    ("neville_theta_c", "neville_theta_c(z, m): the Neville theta function theta_c(z | m)"),
+    ("neville_theta_d", "neville_theta_d(z, m): the Neville theta function theta_d(z | m)"),
+    ("neville_theta_n", "neville_theta_n(z, m): the Neville theta function theta_n(z | m)"),
+    ("modular_lambda", "modular_lambda(tau): the modular lambda function theta_2^4/theta_3^4 at q = e^(i pi tau), Im tau > 0"),
+    ("klein_invariant_j", "klein_invariant_j(tau): Klein's absolute invariant J(tau), Im tau > 0"),
+    ("inverse_elliptic_nome_q", "inverse_elliptic_nome_q(q): the parameter m whose nome is q"),
+    ("dedekind_eta", "dedekind_eta(tau): the Dedekind eta function, Im tau > 0"),
+    ("q_pochhammer", "q_pochhammer(a, q, n): the q-Pochhammer symbol (a; q)_n; q_pochhammer(a, q) for n = infinity; q_pochhammer(q) = (q; q)_inf"),
+    ("q_factorial", "q_factorial(q, n): the q-factorial (q; q)_n/(1 - q)^n"),
+    ("q_binomial", "q_binomial(n, k, q): the q-binomial coefficient"),
+    ("q_gamma", "q_gamma(z, q): the q-gamma function (q; q)_inf/(q^z; q)_inf (1 - q)^(1 - z)"),
+    ("inverse_jacobi_cn", "inverse_jacobi_cn(v, m): the inverse of the Jacobi elliptic function cn"),
+    ("inverse_jacobi_dn", "inverse_jacobi_dn(v, m): the inverse of the Jacobi elliptic function dn"),
+    ("inverse_jacobi_cd", "inverse_jacobi_cd(v, m): the inverse of the Jacobi elliptic function cd"),
+    ("inverse_jacobi_sd", "inverse_jacobi_sd(v, m): the inverse of the Jacobi elliptic function sd"),
+    ("inverse_jacobi_nd", "inverse_jacobi_nd(v, m): the inverse of the Jacobi elliptic function nd"),
+    ("inverse_jacobi_dc", "inverse_jacobi_dc(v, m): the inverse of the Jacobi elliptic function dc"),
+    ("inverse_jacobi_nc", "inverse_jacobi_nc(v, m): the inverse of the Jacobi elliptic function nc"),
+    ("inverse_jacobi_sc", "inverse_jacobi_sc(v, m): the inverse of the Jacobi elliptic function sc"),
+    ("inverse_jacobi_ns", "inverse_jacobi_ns(v, m): the inverse of the Jacobi elliptic function ns"),
+    ("inverse_jacobi_ds", "inverse_jacobi_ds(v, m): the inverse of the Jacobi elliptic function ds"),
+    ("inverse_jacobi_cs", "inverse_jacobi_cs(v, m): the inverse of the Jacobi elliptic function cs"),
+    ("jacobi_amplitude", "jacobi_amplitude(u, m): the amplitude am(u | m), the angle whose sine is sn(u | m)"),
+    ("jacobi_zn", "jacobi_zn(u, m): the Jacobi zeta function Z(u | m) = E(am(u) | m) - E(m) u/K(m)"),
+    ("jacobi_epsilon", "jacobi_epsilon(u, m): the Jacobi epsilon function E(am(u | m) | m)"),
+    ("spherical_hankel_h1", "spherical_hankel_h1(n, z): the spherical Hankel function of the first kind j_n(z) + i y_n(z)"),
+    ("spherical_hankel_h2", "spherical_hankel_h2(n, z): the spherical Hankel function of the second kind j_n(z) - i y_n(z)"),
+    ("kelvin_ber", "kelvin_ber(nu, x): the Kelvin function ber_nu(x), the real part of J_nu(x e^(3 pi i/4)); kelvin_ber(x) for nu = 0"),
+    ("kelvin_bei", "kelvin_bei(nu, x): the Kelvin function bei_nu(x), the imaginary part of J_nu(x e^(3 pi i/4)); kelvin_bei(x) for nu = 0"),
+    ("kelvin_ker", "kelvin_ker(nu, x): the Kelvin function ker_nu(x), the real part of e^(-nu pi i/2) K_nu(x e^(pi i/4)); kelvin_ker(x) for nu = 0"),
+    ("kelvin_kei", "kelvin_kei(nu, x): the Kelvin function kei_nu(x), the imaginary part of e^(-nu pi i/2) K_nu(x e^(pi i/4)); kelvin_kei(x) for nu = 0"),
+    ("struve_h", "struve_h(nu, z): the Struve function H_nu(z)"),
+    ("struve_l", "struve_l(nu, z): the modified Struve function L_nu(z)"),
+    ("anger_j", "anger_j(nu, z): the Anger function J_nu(z), the integral of cos(nu t - z sin t) over [0, pi], over pi"),
+    ("weber_e", "weber_e(nu, z): the Weber function E_nu(z), the integral of sin(nu t - z sin t) over [0, pi], over pi"),
+    ("lommel_s1", "lommel_s1(mu, nu, z): the Lommel function s_(mu, nu)(z)"),
+    ("lommel_s2", "lommel_s2(mu, nu, z): the Lommel function S_(mu, nu)(z)"),
+    ("hypergeometric_u", "hypergeometric_u(a, b, z): Tricomi's confluent hypergeometric function U(a, b, z)"),
+    ("whittaker_m", "whittaker_m(k, m, z): the Whittaker function M_(k, m)(z) = e^(-z/2) z^(m + 1/2) 1F1(m - k + 1/2; 1 + 2 m; z)"),
+    ("whittaker_w", "whittaker_w(k, m, z): the Whittaker function W_(k, m)(z) = e^(-z/2) z^(m + 1/2) U(m - k + 1/2, 1 + 2 m, z)"),
+    ("parabolic_cylinder_d", "parabolic_cylinder_d(nu, z): the parabolic cylinder function D_nu(z)"),
+    ("hypergeometric_pfq_regularized", "hypergeometric_pfq_regularized(as, bs, z): pFq(as; bs; z) divided by the gamma functions of the bs"),
+    ("fresnel_f", "fresnel_f(z): the Fresnel auxiliary function f(z)"),
+    ("fresnel_g", "fresnel_g(z): the Fresnel auxiliary function g(z)"),
+    ("logistic_sigmoid", "logistic_sigmoid(z): the logistic function 1/(1 + e^-z)"),
+    ("riemann_siegel_theta", "riemann_siegel_theta(t): the Riemann-Siegel theta function, the phase of zeta on the critical line"),
+    ("riemann_siegel_z", "riemann_siegel_z(t): the Riemann-Siegel Z function e^(i theta(t)) zeta(1/2 + i t), real for real t"),
+    ("lerch_phi", "lerch_phi(z, s, a): the Lerch transcendent, the sum of z^k/(k + a)^s over k >= 0"),
+    ("mittag_leffler_e", "mittag_leffler_e(a, z): the Mittag-Leffler function, the sum of z^k/gamma(a k + 1); mittag_leffler_e(a, b, z) with gamma(a k + b)"),
+    ("barnes_g", "barnes_g(z): the Barnes G-function, G(z + 1) = gamma(z) G(z), G(1) = 1"),
+    ("log_barnes_g", "log_barnes_g(z): the logarithm of the Barnes G-function, analytic off the negative axis"),
+    ("inverse_gamma_regularized", "inverse_gamma_regularized(a, s): the x with gamma_regularized(a, x) = s"),
+    ("inverse_beta_regularized", "inverse_beta_regularized(s, a, b): the x with beta_regularized(x, a, b) = s"),
 ];
 
 /// Register the natives of [`FUNCTIONS`] with `k` and the functions with `mc-numeric`'s numerical evaluation;
@@ -173,6 +230,7 @@ mod tests {
             super::functions::ALL.iter().filter(|f| f.primary()).map(|f| f.name()).collect();
         names.push(super::functions::PFQ.0);
         names.extend(super::more::DEFS.iter().map(|d| d.name));
+        names.extend(super::cover::DEFS.iter().map(|d| d.name));
         let listed: Vec<&str> = super::FUNCTIONS.iter().map(|e| e.0).collect();
         assert_eq!(names, listed);
     }

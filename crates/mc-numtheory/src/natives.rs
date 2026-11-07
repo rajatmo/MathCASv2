@@ -658,6 +658,31 @@ fn integer_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -
         return Ok(Reply::Decline);
     }
     let Some(n) = int_of(h, args[0]) else { return Ok(Reply::Decline) };
+    if let Some(bases) = args.get(1).and_then(|&b| mixed_radix(cx, b)) {
+        // mixed radix: the last digit modulo the last base, ..., what remains first
+        let mut ds = vec![];
+        let mut v = n.mag.clone();
+        for b in bases.iter().rev() {
+            let (q, r) = v.divrem(b);
+            ds.push(r);
+            v = q;
+        }
+        if !v.is_zero() {
+            ds.push(v);
+        }
+        if let Some(&l) = args.get(2) {
+            let Some(len) = word_of(h, l).filter(|&l| l <= MAX_PADDED) else { return Ok(Reply::Decline) };
+            ds.resize((len as usize).max(ds.len()), Nat::from_u64(0));
+            ds.truncate(len as usize);
+        } else {
+            while ds.len() > 1 && ds.last().is_some_and(|d| d.is_zero()) {
+                ds.pop();
+            }
+        }
+        ds.reverse();
+        let items: Vec<T<'h>> = ds.iter().map(|d| nat_term(h, d)).collect();
+        return done(cx.list(&items));
+    }
     let Some(base) = base_arg(h, args, 1) else { return Ok(Reply::Decline) };
     let mut ds = digits::digits(&n.mag, base, cx)?;
     if let Some(&l) = args.get(2) {
@@ -686,6 +711,20 @@ fn from_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> 
         return Ok(Reply::Decline);
     }
     let Some(list) = cx.as_list(args[0]) else { return Ok(Reply::Decline) };
+    if let Some(bases) = args.get(1).and_then(|&b| mixed_radix(cx, b)) {
+        // the place values are the products of the bases after each position
+        let ds: Option<Vec<Int>> = list.iter().map(|&d| int_of(h, d)).collect();
+        let Some(ds) = ds else { return Ok(Reply::Decline) };
+        let mut place = Int::from_i64(1);
+        let mut total = Int::from_i64(0);
+        for (i, d) in ds.iter().rev().enumerate() {
+            total = total.add(&d.mul(&place));
+            if let Some(b) = bases.get(bases.len().wrapping_sub(1 + i)).filter(|_| i < bases.len()) {
+                place = place.mul(&Int::from_nat(b.clone()));
+            }
+        }
+        return done(int_term(h, &total));
+    }
     let base = match args.get(1) {
         None => Nat::from_u64(10),
         Some(&b) => match nat_of(h, b) {
@@ -696,6 +735,17 @@ fn from_digits<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> 
     let ds: Option<Vec<Nat>> = list.iter().map(|&d| nat_of(h, d)).collect();
     let Some(ds) = ds else { return Ok(Reply::Decline) };
     done(nat_term(h, &digits::from_digits(&ds, &base, cx)?))
+}
+
+/// The bases of `mixed_radix([b1, ..., bk])` (integers >= 2).
+fn mixed_radix<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Vec<Nat>> {
+    let h = cx.heap();
+    let View::App { head, args: &[l] } = h.view(t) else { return None };
+    if head != h.sym_term(h.sym("mixed_radix")) {
+        return None;
+    }
+    let items = cx.as_list(l)?;
+    items.iter().map(|&b| nat_of(h, b).filter(|b| b.bits() >= 2)).collect()
 }
 
 fn integer_length<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
