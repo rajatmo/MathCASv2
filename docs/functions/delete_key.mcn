@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# delete_key
+
+#% text
+# `delete_key(a, k)` gives the association `a` without the key `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delete_key(assoc("x" -> 1, "y" -> 2), "x")
+#% output
+#= assoc("y" -> 2)
+
+#% cell
+delete_key(assoc("x" -> 1), "z")
+#% output
+#= assoc("x" -> 1)
+
+#% section
+# See also
+
+#% text
+# `insert`, `key_drop`, `select_keys`

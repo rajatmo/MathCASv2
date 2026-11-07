@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# key_sort
+
+#% text
+# `key_sort(a)` gives the association `a` with its entries ordered by key.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_sort(assoc("b" -> 2, "c" -> 3, "a" -> 1))
+#% output
+#= assoc("a" -> 1, "b" -> 2, "c" -> 3)
+
+#% cell
+key_sort(assoc(3 -> x, 1 -> y))
+#% output
+#= assoc(1 -> y, 3 -> x)
+
+#% section
+# See also
+
+#% text
+# `sort`, `keys`, `sort_by`

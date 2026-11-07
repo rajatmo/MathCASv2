@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# key_exists
+
+#% text
+# `key_exists(a, k)` gives `true` when the association `a` has the key `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_exists(assoc("x" -> 1), "x")
+#% output
+#= true
+
+#% cell
+key_exists(assoc("x" -> 1), "y")
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Looking up a missing key gives a `missing_key` failure; test with `key_exists` first:
+
+#% cell
+assoc("x" -> 1)["y"]
+#% output
+#! failure(missing_key, "y")
+
+#% section
+# See also
+
+#% text
+# `lookup`, `keys`, `insert`
