@@ -877,7 +877,7 @@ fn given_ticks<'h>(b: &B<'h>, v: T<'h>, frame: bool, scale: Scale, own: Option<T
     let sym = |t: T<'h>, names: &[&str]| matches!(h.view(t), View::Sym(s) if names.contains(&h.sym_name(s).as_str()));
     let auto = |t: T<'h>| sym(t, &["automatic", "all", "true"]);
     let off = |t: T<'h>| sym(t, &["none", "false"]);
-    let num = |t: T<'h>| mc_graphics::num::number(h, t).is_some();
+    let num = |t: T<'h>| mc_graphics::num::constant(h, t).is_some();
     // one tick: a position, or [position, label] or [position, label, length] (a label is not a number or list)
     let tick = |t: T<'h>| num(t) || as_list(t).is_some_and(|l| (2..=3).contains(&l.len()) && num(l[0]) && !num(l[1]) && as_list(l[1]).is_none());
     let tick_list = |t: T<'h>| as_list(t).is_some_and(|l| l.iter().all(|&e| tick(e)));
@@ -905,14 +905,14 @@ fn given_ticks<'h>(b: &B<'h>, v: T<'h>, frame: bool, scale: Scale, own: Option<T
             .iter()
             .filter_map(|&e| match as_list(e) {
                 Some(&[p, ref rest @ ..]) if !rest.is_empty() => {
-                    let u = ax.to(mc_graphics::num::number(h, p)?)?;
+                    let u = ax.to(mc_graphics::num::constant(h, p)?)?;
                     let mut a = vec![h.real(u)];
                     a.extend_from_slice(rest);
                     Some(b.list(&a))
                 }
                 Some(_) => None,
                 // a bare position is labelled with its value
-                None => mc_graphics::num::number(h, e).and_then(|p| ax.to(p)).map(|u| b.list(&[h.real(u), e])),
+                None => mc_graphics::num::constant(h, e).and_then(|p| ax.to(p)).map(|u| b.list(&[h.real(u), e])),
             })
             .collect();
         b.list(&moved)

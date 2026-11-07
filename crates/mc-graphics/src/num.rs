@@ -14,6 +14,34 @@ pub fn number<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<f64> {
     v.is_finite().then_some(v)
 }
 
+/// The value of an exact constant expression as a machine real: a number, `pi`, `e`, or sums, products and powers
+/// of these (tick positions such as `pi/2` or `2pi`). `None` for anything else.
+pub fn constant<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<f64> {
+    if let Some(v) = number(h, t) {
+        return Some(v);
+    }
+    let v = match h.view(t) {
+        View::Sym(s) => match h.sym_name(s).as_str() {
+            "pi" => std::f64::consts::PI,
+            "e" => std::f64::consts::E,
+            _ => return None,
+        },
+        View::App { head, args } => {
+            let View::Sym(f) = h.view(head) else { return None };
+            let vals: Option<Vec<f64>> = args.iter().map(|&a| constant(h, a)).collect();
+            let vals = vals?;
+            match (h.sym_name(f).as_str(), vals.as_slice()) {
+                ("add", _) => vals.iter().sum(),
+                ("mul", _) => vals.iter().product(),
+                ("pow", &[a, b]) => a.powf(b),
+                _ => return None,
+            }
+        }
+        _ => return None,
+    };
+    v.is_finite().then_some(v)
+}
+
 fn integer<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<f64> {
     match h.view(t) {
         View::Int(i) => Some(i as f64),
@@ -44,6 +72,7 @@ pub fn short(v: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mc_core::Store;
 
     #[test]
     fn big_integers_round() {
@@ -52,5 +81,16 @@ mod tests {
         assert_eq!(short(-0.0), "0");
         assert_eq!(short(-2.5), "\u{2212}2.5");
         assert_eq!(short(3.0), "3");
+    }
+
+    #[test]
+    fn exact_constants_have_values() {
+        let h = mc_core::Heap::new(mc_core::Config::default());
+        let pi = h.sym_term(h.sym("pi"));
+        let half_pi = h.call(h.sym("mul"), &[h.rational(h.int(1), h.int(2)), pi]);
+        let two_pi_sq = h.call(h.sym("pow"), &[h.call(h.sym("mul"), &[h.int(2), pi]), h.int(2)]);
+        assert_eq!(constant(&h, half_pi), Some(std::f64::consts::FRAC_PI_2));
+        assert!((constant(&h, two_pi_sq).unwrap() - 4.0 * std::f64::consts::PI * std::f64::consts::PI).abs() < 1e-12);
+        assert_eq!(constant(&h, h.sym_term(h.sym("x"))), None);
     }
 }
