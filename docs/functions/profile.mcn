@@ -50,9 +50,9 @@ p[2]
 # The functions called, with their kinds and call counts:
 
 #% cell
-map(r => r[[1, 2, 3]], select(p[3], r => member([f, map, n_integrate], r[1])))
+sort(map(r => r[[1, 2, 3]], select(p[3], r => member([f, map, n_integrate], r[1]))))
 #% output
-#= [[n_integrate, "library", 3], [map, "library", 1], [f, "definitions", 3]]
+#= [[f, "definitions", 3], [map, "library", 1], [n_integrate, "library", 3]]
 
 #% subsection
 # Options
