@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# some
+
+#% text
+# `some(xs, p)` gives `true` when `p(x)` is `true` for at least one element `x` of `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+some([1, 3, 4], is_even)
+#% output
+#= true
+
+#% cell
+some([1, 3, 5], is_even)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# An empty list has no element that passes:
+
+#% cell
+some([], is_even)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `every`, `any_true`, `select`

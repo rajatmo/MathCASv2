@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# scan
+
+#% text
+# `scan(f, xs)` applies `f` to each element of `xs` in order, for its effects; its value is `null`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+{ var t = 0; scan(k => { t = t + k }, range(10)); t }
+#% output
+#= 55
+
+#% subsection
+# Scope
+
+#% text
+# Its own value is `null`:
+
+#% cell
+scan(k => k, [1, 2]) === null
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `map`, `fold`, `map_indexed`

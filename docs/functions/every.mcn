@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# every
+
+#% text
+# `every(xs, p)` gives `true` when `p(x)` is `true` for every element `x` of `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+every([2, 4, 6], is_even)
+#% output
+#= true
+
+#% cell
+every([2, 3, 6], is_even)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# An empty list satisfies every test:
+
+#% cell
+every([], is_even)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `some`, `all_true`, `select`

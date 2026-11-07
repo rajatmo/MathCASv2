@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# log1p
+
+#% text
+# `log1p(x)` gives `log(1 + x)`, computed so that it stays accurate when `x` is small.
+
+#% section
+# Details
+
+#% item
+# For machine reals near 0, `log(1 + x)` loses the digits of `x` when `1 + x` is rounded; `log1p` keeps them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log1p(1.0e-12)
+#% output
+#= 9.999999999995e-13
+
+#% cell
+log(1 + 1.0e-12)
+#% output
+#= 1.000088900581841e-12
+
+#% cell
+log1p(0)
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# It inverts `expm1`:
+
+#% cell
+log1p(expm1(0.3))
+#% output
+#= 0.3
+
+#% section
+# See also
+
+#% text
+# `log`, `expm1`

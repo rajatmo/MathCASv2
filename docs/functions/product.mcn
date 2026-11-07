@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# product
+
+#% text
+# `product(xs)` gives the product of the elements of `xs`.
+# `product(f, [k, a, b])` gives the product of `f` for `k` from `a` to `b`; `product(f, [k, [x1, x2, ...]])` over the values given.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+product([1, 2, 3, 4])
+#% output
+#= 24
+
+#% cell
+product(k, [k, 1, 10])
+#% output
+#= 3628800
+
+#% cell
+product(2, [k, 1, n])
+#% output
+#= 2^n
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic factors:
+
+#% cell
+product([a, b, c])
+#% output
+#= a*b*c
+
+#% text
+# Over a list of values:
+
+#% cell
+product(x - r, [r, [1, 2, 3]])
+#% output
+#= (-3 + x)*(-2 + x)*(-1 + x)
+
+#% subsection
+# Possible issues
+
+#% text
+# Products that telescope are not yet found in closed form:
+
+#% cell
+product(1 + 1/k, [k, 1, n])
+#% output
+#= product(1 + k^-1, [k, 1, n])
+
+#% section
+# See also
+
+#% text
+# `sum`, `total`, `factorial`

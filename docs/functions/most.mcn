@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# most
+
+#% text
+# `most(xs)` gives all the elements of `xs` but the last.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+most([a, b, c, d])
+#% output
+#= [a, b, c]
+
+#% cell
+most([1])
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# With `rest`, the differences of a list:
+
+#% cell
+{ let xs = [1, 4, 9, 16]; rest(xs) - most(xs) }
+#% output
+#= [3, 5, 7]
+
+#% section
+# See also
+
+#% text
+# `rest`, `last`, `first`, `drop`
