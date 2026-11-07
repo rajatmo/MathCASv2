@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# pink
+
+#% text
+# `pink` is the colour pink, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([pink, disk()])
+#% output
+#= image("pink.files/pink-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [pink])
+#% output
+#= image("pink.files/pink-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(pink), disk([0, 0])], [pink, disk([2, 0])], [darker(pink), disk([4, 0])]])
+#% output
+#= image("pink.files/pink-3.png")
+
+#% section
+# See also
+
+#% text
+# `red`, `magenta`, `light_red`

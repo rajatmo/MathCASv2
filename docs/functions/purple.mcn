@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# purple
+
+#% text
+# `purple` is the colour purple, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([purple, disk()])
+#% output
+#= image("purple.files/purple-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [purple])
+#% output
+#= image("purple.files/purple-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(purple), disk([0, 0])], [purple, disk([2, 0])], [darker(purple), disk([4, 0])]])
+#% output
+#= image("purple.files/purple-3.png")
+
+#% section
+# See also
+
+#% text
+# `magenta`, `blue`, `rgb_color`

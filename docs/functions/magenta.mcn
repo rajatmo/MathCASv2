@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# magenta
+
+#% text
+# `magenta` is the colour magenta, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([magenta, disk()])
+#% output
+#= image("magenta.files/magenta-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [magenta])
+#% output
+#= image("magenta.files/magenta-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(magenta), disk([0, 0])], [magenta, disk([2, 0])], [darker(magenta), disk([4, 0])]])
+#% output
+#= image("magenta.files/magenta-3.png")
+
+#% section
+# See also
+
+#% text
+# `red`, `blue`, `cyan`

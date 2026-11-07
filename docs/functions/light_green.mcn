@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# light_green
+
+#% text
+# `light_green` is the colour light green, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_green, disk()])
+#% output
+#= image("light_green.files/light_green-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [light_green])
+#% output
+#= image("light_green.files/light_green-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(light_green), disk([0, 0])], [light_green, disk([2, 0])], [darker(light_green), disk([4, 0])]])
+#% output
+#= image("light_green.files/light_green-3.png")
+
+#% section
+# See also
+
+#% text
+# `green`, `light_blue`, `lighter`

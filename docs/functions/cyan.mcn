@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# cyan
+
+#% text
+# `cyan` is the colour cyan, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([cyan, disk()])
+#% output
+#= image("cyan.files/cyan-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [cyan])
+#% output
+#= image("cyan.files/cyan-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(cyan), disk([0, 0])], [cyan, disk([2, 0])], [darker(cyan), disk([4, 0])]])
+#% output
+#= image("cyan.files/cyan-3.png")
+
+#% section
+# See also
+
+#% text
+# `blue`, `green`, `magenta`

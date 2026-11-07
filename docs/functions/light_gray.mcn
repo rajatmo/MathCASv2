@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# light_gray
+
+#% text
+# `light_gray` is the colour light gray, `gray_level(0.85)`, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_gray, disk()])
+#% output
+#= image("light_gray.files/light_gray-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [light_gray])
+#% output
+#= image("light_gray.files/light_gray-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(light_gray), disk([0, 0])], [light_gray, disk([2, 0])], [darker(light_gray), disk([4, 0])]])
+#% output
+#= image("light_gray.files/light_gray-3.png")
+
+#% section
+# See also
+
+#% text
+# `gray`, `dark_gray`, `gray_level`

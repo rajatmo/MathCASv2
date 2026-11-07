@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# light_red
+
+#% text
+# `light_red` is the colour light red, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_red, disk()])
+#% output
+#= image("light_red.files/light_red-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [light_red])
+#% output
+#= image("light_red.files/light_red-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(light_red), disk([0, 0])], [light_red, disk([2, 0])], [darker(light_red), disk([4, 0])]])
+#% output
+#= image("light_red.files/light_red-3.png")
+
+#% section
+# See also
+
+#% text
+# `red`, `pink`, `lighter`
