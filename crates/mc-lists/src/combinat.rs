@@ -2,7 +2,7 @@
 //!
 //! Every function computes the size of its result first and refuses one over [`MAX_CELLS`] argument slots with
 //! `failure(limit, memory, call)` before allocating (decision 1A.4); building then charges fuel per slot.
-use crate::ctx::{cells, nest_flat, take, Lib, Meter, MAX_CELLS};
+use crate::ctx::{cells, take, Lib, Meter, MAX_CELLS};
 use mc_core::{Heap, Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
 use rustc_hash::FxHashMap;
@@ -312,25 +312,104 @@ pub(crate) fn permutations<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
     Ok(Reply::Done(cx.list(&out)))
 }
 
-/// `outer(f, xs1, ..., xsk)`: the nested lists of `f(x1, ..., xk)` for every choice of `xi` from `xsi` (the
-/// elements of each list at its first level, decision 1A.13), evaluated.
+/// `outer(f, xs1, ..., xsk)`: `f(x1, ..., xk)` for every choice of a leaf `xi` of `xsi`, nested like the
+/// arguments (the structure of `xs1` outermost); `outer(f, xs1, ..., xsk, n)`: the parts at level `n` are the
+/// leaves. The arguments may have any one head, which the result keeps (decision cov-core.12, replacing 1A.13's
+/// first level only). Evaluated.
 pub(crate) fn outer<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [f, ref xss @ ..] = *args else { return Ok(Reply::Decline) };
-    if xss.is_empty() {
-        return Ok(Reply::Decline);
+    let [f, ref rest @ ..] = *args else { return Ok(Reply::Decline) };
+    if rest.is_empty() {
+        return Ok(Reply::Again(h.app(f, &[])));
     }
-    let mut lists = Vec::with_capacity(xss.len());
+    // a final integer: the depth of the leaves
+    let (xss, depth) = match h.view(rest[rest.len() - 1]) {
+        View::Int(n) if rest.len() >= 2 => {
+            if n < 1 {
+                return Ok(Reply::Done(lib.bad_arg(h, t, rest.len() + 1)));
+            }
+            (&rest[..rest.len() - 1], n as usize)
+        }
+        _ => (rest, usize::MAX),
+    };
+    let head = match h.view(xss[0]) {
+        View::App { head, .. } if !crate::measure::is_complex_number(h, xss[0]) => head,
+        View::Sym(_) => return Ok(Reply::Decline),
+        _ => return Ok(Reply::Done(lib.bad_arg(h, t, 2))),
+    };
     for (k, &xs) in xss.iter().enumerate() {
-        lists.push(take!(lib.list_operand(h, t, xs, k + 2)));
+        match h.view(xs) {
+            View::App { head: g, .. } if g == head => {}
+            View::Sym(_) => return Ok(Reply::Decline),
+            _ => return Ok(Reply::Done(lib.bad_arg(h, t, k + 2))),
+        }
     }
-    let dims: Vec<usize> = lists.iter().map(|l| l.len()).collect();
-    if cells(&dims).saturating_add(product_len(&lists).saturating_mul(lists.len() as u128)) > MAX_CELLS {
+    // the number of leaves of each argument bounds the size
+    let mut total: u128 = 1;
+    for &xs in xss {
+        total = total.saturating_mul(leaves(h, head, xs, depth) as u128);
+    }
+    if total.saturating_mul(xss.len() as u128 + 1) > MAX_CELLS {
         return Ok(Reply::Done(lib.too_large(h, t)));
     }
-    let mut flat = Vec::with_capacity(product_len(&lists) as usize);
-    product(cx, &lists, &mut |p| flat.push(h.app(f, p)))?;
-    Ok(Reply::Again(nest_flat(cx, flat, &dims)))
+    let mut chosen = Vec::with_capacity(xss.len());
+    let v = outer_at(cx, f, head, xss, depth, 0, &mut chosen)?;
+    Ok(Reply::Again(v))
+}
+
+/// The leaves of `x` for `outer` (parts with head `head` are opened down to `depth` levels).
+fn leaves<'h>(h: &'h Heap, head: T<'h>, x: T<'h>, depth: usize) -> usize {
+    match h.view(x) {
+        View::App { head: g, args } if g == head && depth > 0 => args.iter().map(|&a| leaves(h, head, a, depth - 1)).sum(),
+        _ => 1,
+    }
+}
+
+/// The outer product from argument `k` on, with the leaves chosen so far.
+fn outer_at<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    head: T<'h>,
+    xss: &[T<'h>],
+    depth: usize,
+    k: usize,
+    chosen: &mut Vec<T<'h>>,
+) -> Res<T<'h>> {
+    if k == xss.len() {
+        cx.tick(1)?;
+        return Ok(cx.heap().app(f, chosen));
+    }
+    open(cx, f, head, xss, depth, k, xss[k], depth, chosen)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn open<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    head: T<'h>,
+    xss: &[T<'h>],
+    depth: usize,
+    k: usize,
+    x: T<'h>,
+    left: usize,
+    chosen: &mut Vec<T<'h>>,
+) -> Res<T<'h>> {
+    let h = cx.heap();
+    match h.view(x) {
+        View::App { head: g, args } if g == head && left > 0 => {
+            let mut out = Vec::with_capacity(args.len());
+            for &a in args {
+                out.push(open(cx, f, head, xss, depth, k, a, left - 1, chosen)?);
+            }
+            Ok(h.app(head, &out))
+        }
+        _ => {
+            chosen.push(x);
+            let v = outer_at(cx, f, head, xss, depth, k + 1, chosen)?;
+            chosen.pop();
+            Ok(v)
+        }
+    }
 }
 
 /// A vector (its elements) or a matrix (its rows, of one length) for `inner`.

@@ -156,21 +156,33 @@ fn small_product(h: &Heap, args: &[T<'_>]) -> Option<i64> {
 /// Numeric constants (semantics 15): symbols that stand for a real number.
 const CONSTANTS: [&str; 5] = ["pi", "e", "euler_gamma", "catalan", "golden_ratio"];
 
+/// The symbols of [`CONSTANTS`] in the heap a native was registered with, looked up once (comparing symbols
+/// instead of their names keeps the contagion scan free of allocations).
+#[derive(Default)]
+struct Consts(std::sync::OnceLock<[Sym; 5]>);
+
+impl Consts {
+    /// The index of `s` in [`CONSTANTS`], if it is one.
+    fn index(&self, h: &Heap, s: Sym) -> Option<usize> {
+        self.0.get_or_init(|| CONSTANTS.map(|c| h.sym(c))).iter().position(|&c| c == s)
+    }
+}
+
 /// Is `t` a closed numeric expression that is not itself a number: built only from numbers and numeric constants
 /// (`pi`, `2^(1/2)`, `cos(1)/pi`)? Heads are not inspected; `n` decides whether it really has a value.
-fn closed_numeric(h: &Heap, t: T<'_>) -> bool {
-    fn leaves_numeric(h: &Heap, t: T<'_>) -> bool {
+fn closed_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
+    fn leaves_numeric(h: &Heap, c: &Consts, t: T<'_>) -> bool {
         match h.view(t) {
-            View::Sym(s) => CONSTANTS.contains(&h.sym_name(s).as_str()),
-            View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves_numeric(h, a)),
+            View::Sym(s) => c.index(h, s).is_some(),
+            View::App { args, .. } => !args.is_empty() && args.iter().all(|&a| leaves_numeric(h, c, a)),
             View::Str(_) => false,
             _ => true,
         }
     }
     match h.view(t) {
-        View::Sym(_) => leaves_numeric(h, t),
+        View::Sym(_) => leaves_numeric(h, c, t),
         View::App { head, args } => {
-            head != h.sym_term(h.sym(names::LIST)) && h.packed(t).is_none() && !args.is_empty() && leaves_numeric(h, t)
+            head != h.sym_term(h.sym(names::LIST)) && h.packed(t).is_none() && !args.is_empty() && leaves_numeric(h, c, t)
         }
         _ => false,
     }
@@ -180,7 +192,7 @@ fn closed_numeric(h: &Heap, t: T<'_>) -> bool {
 /// every closed numeric argument (`pi`, `2^(1/2)`) is replaced by its machine value, so `0.5*pi` is
 /// `1.5707963267948966` and not `0.5*pi`; with a ball and no machine real, by a ball at the ball's precision
 /// (`1.5~30 * pi` is a 30-digit ball). `None` when nothing changes (the common case costs one scan).
-fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
+fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h>]) -> Res<Option<Vec<T<'h>>>> {
     let h = cx.heap();
     // a machine real, or a complex number with machine parts (queue G8: `complex(3.0, 1.5)*sqrt(2)`)
     let machine_complex = |a: T<'h>| match h.view(a) {
@@ -191,7 +203,7 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
     };
     let machine = args.iter().any(|&a| matches!(h.view(a), View::Real(_)) || machine_complex(a));
     let ball = if machine { None } else { args.iter().copied().find(|&a| matches!(h.view(a), View::Ball { .. })) };
-    if !(machine || ball.is_some()) || !args.iter().any(|&a| closed_numeric(h, a)) {
+    if !(machine || ball.is_some()) || !args.iter().any(|&a| closed_numeric(h, c, a)) {
         return Ok(None);
     }
     // the digits of the ball (its precision, rounded up)
@@ -207,13 +219,13 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
     let mut changed = false;
     for &a in args {
         if digits.is_none() {
-            if let Some(v) = cached_constant(cx, a)? {
+            if let Some(v) = cached_constant(cx, c, a)? {
                 out.push(v);
                 changed = true;
                 continue;
             }
         }
-        if closed_numeric(h, a) {
+        if closed_numeric(h, c, a) {
             let v = match digits {
                 Some(d) => cx.eval(h.call(h.sym("n"), &[a, d]))?,
                 None => cx.eval(h.call(h.sym("n"), &[a]))?,
@@ -235,12 +247,11 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
 static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 5];
 
 /// The machine value of `t` when it is a bare numeric constant, from [`CONSTANT_VALUES`].
-fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, t: T<'h>) -> Res<Option<T<'h>>> {
     use std::sync::atomic::Ordering::Relaxed;
     let h = cx.heap();
     let View::Sym(s) = h.view(t) else { return Ok(None) };
-    let name = h.sym_name(s);
-    let Some(i) = CONSTANTS.iter().position(|c| *c == name.as_str()) else { return Ok(None) };
+    let Some(i) = c.index(h, s) else { return Ok(None) };
     let bits = CONSTANT_VALUES[i].load(Relaxed);
     if bits != u64::MAX {
         return Ok(Some(h.real(f64::from_bits(bits))));
@@ -262,7 +273,7 @@ fn uncertain(h: &Heap, args: &[T<'_>]) -> bool {
 }
 
 /// `add(args...)`.
-struct Add(Stop);
+struct Add(Stop, Consts);
 
 impl Native for Add {
     fn reads_term(&self) -> bool {
@@ -282,7 +293,7 @@ impl Native for Add {
                 return Ok(Reply::Done(v));
             }
         }
-        if let Some(v) = machine_constants(cx, args)? {
+        if let Some(v) = machine_constants(cx, &self.1, args)? {
             return self.call(cx, _t, &v);
         }
         let h = cx.heap();
@@ -297,7 +308,7 @@ impl Native for Add {
 }
 
 /// `mul(args...)`.
-struct Mul(Stop);
+struct Mul(Stop, Consts);
 
 impl Native for Mul {
     fn reads_term(&self) -> bool {
@@ -317,7 +328,7 @@ impl Native for Mul {
                 return Ok(Reply::Done(v));
             }
         }
-        if let Some(v) = machine_constants(cx, args)? {
+        if let Some(v) = machine_constants(cx, &self.1, args)? {
             return self.call(cx, _t, &v);
         }
         let h = cx.heap();
@@ -333,7 +344,7 @@ impl Native for Mul {
 }
 
 /// `pow(base, exp)`.
-struct Pow(Stop);
+struct Pow(Stop, Consts);
 
 impl Native for Pow {
     fn reads_term(&self) -> bool {
@@ -353,7 +364,7 @@ impl Native for Pow {
                 return Ok(Reply::Done(v));
             }
         }
-        if let Some(v) = machine_constants(cx, args)? {
+        if let Some(v) = machine_constants(cx, &self.1, args)? {
             return self.call(cx, _t, &v);
         }
         let ar = arith(cx.heap(), &self.0);
@@ -676,9 +687,9 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Stop) {
     let listable = Attributes { listable: true, ..strict };
     let held = Attributes { hold: Hold::All, ..strict };
     let mut reg = |name: &str, a: Attributes, n: Box<dyn Native>| k.register(h.sym(name), a, n);
-    reg(names::ADD, ac, Box::new(Add(stop.clone())));
-    reg(names::MUL, ac, Box::new(Mul(stop.clone())));
-    reg(names::POW, listable, Box::new(Pow(stop.clone())));
+    reg(names::ADD, ac, Box::new(Add(stop.clone(), Consts::default())));
+    reg(names::MUL, ac, Box::new(Mul(stop.clone(), Consts::default())));
+    reg(names::POW, listable, Box::new(Pow(stop.clone(), Consts::default())));
     reg(names::COMPLEX, strict, Box::new(Complex(stop.clone())));
     reg("ball_literal", strict, Box::new(BallLiteral(stop.clone())));
     reg("equal", strict, Box::new(Equality { negate: false, stop: stop.clone() }));
