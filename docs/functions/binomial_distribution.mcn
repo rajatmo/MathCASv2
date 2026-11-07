@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# binomial_distribution
+
+#% text
+# `binomial_distribution(n, p)` is the distribution of the number of successes in `n` independent trials with success probability `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pdf(binomial_distribution(10, 1/2), 5)
+#% output
+#= 63/256
+
+#% cell
+mean(binomial_distribution(n, p))
+#% output
+#= n*p
+
+#% cell
+variance(binomial_distribution(n, p))
+#% output
+#= n*p*(1 - p)
+
+#% subsection
+# Scope
+
+#% text
+# All the probabilities of a small case:
+
+#% cell
+pdf(binomial_distribution(4, 1/2), range(0, 4))
+#% output
+#= [1/16, 1/4, 3/8, 1/4, 1/16]
+
+#% text
+# At most 3 heads in 10 fair tosses:
+
+#% cell
+cdf(binomial_distribution(10, 1/2), 3)
+#% output
+#= 11/64
+
+#% section
+# See also
+
+#% text
+# `poisson_distribution`, `binomial`, `random_variate`

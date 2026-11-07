@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# beta_distribution
+
+#% text
+# `beta_distribution(a, b)` is the beta distribution on `[0, 1]` with shape parameters `a > 0` and `b > 0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pdf(beta_distribution(2, 3), x)
+#% output
+#= piecewise([[12*x*(1 - x)^2, 0 < x and x < 1]], 0)
+
+#% cell
+mean(beta_distribution(a, b))
+#% output
+#= a/(a + b)
+
+#% subsection
+# Scope
+
+#% text
+# The probability below one half:
+
+#% cell
+cdf(beta_distribution(2, 3), 1/2)
+#% output
+#= 11/16
+
+#% section
+# See also
+
+#% text
+# `uniform_distribution`, `beta`, `pdf`

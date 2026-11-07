@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# cdf
+
+#% text
+# `cdf(d, x)` gives the distribution function of `d`: the probability `P(X <= x)`. A list `x` gives a list of values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cdf(normal_distribution(0, 1), 1.96)
+#% output
+#= 0.9750021048517795
+
+#% cell
+cdf(exponential_distribution(l), x)
+#% output
+#= piecewise([[1 - exp(-1*l*x), x >= 0]], 0)
+
+#% cell
+cdf(binomial_distribution(5, 1/2), 2)
+#% output
+#= 1/2
+
+#% subsection
+# Scope
+
+#% text
+# The probability of an interval:
+
+#% cell
+n(cdf(normal_distribution(0, 1), 1) - cdf(normal_distribution(0, 1), -1))
+#% output
+#= 0.6826894921370859
+
+#% section
+# See also
+
+#% text
+# `pdf`, `quantile`, `survival`

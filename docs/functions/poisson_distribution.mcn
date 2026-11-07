@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# poisson_distribution
+
+#% text
+# `poisson_distribution(m)` is the Poisson distribution with mean `m > 0`: the number of events in an interval with `m` expected.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pdf(poisson_distribution(m), k)
+#% output
+#= piecewise([[exp(-m)*m^k/factorial(k), k >= 0]], 0)
+
+#% cell
+pdf(poisson_distribution(3), 2)
+#% output
+#= (9/2)*exp(-3)
+
+#% cell
+variance(poisson_distribution(m))
+#% output
+#= m
+
+#% subsection
+# Scope
+
+#% text
+# Numerical probabilities:
+
+#% cell
+n(pdf(poisson_distribution(3), range(0, 5)))
+#% output
+#= [0.04978706836786395, 0.14936120510359185, 0.22404180765538778, 0.22404180765538778, 0.16803135574154082, 0.1008188134449245]
+
+#% section
+# See also
+
+#% text
+# `binomial_distribution`, `exponential_distribution`, `pdf`

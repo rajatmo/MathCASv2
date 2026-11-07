@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# skewness
+
+#% text
+# `skewness(d)` gives the skewness `E[(X - mu)^3]/sigma^3` of a distribution; `skewness(xs)` gives `m3/m2^(3/2)` of a data list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+skewness(exponential_distribution(l))
+#% output
+#= 2
+
+#% cell
+skewness(poisson_distribution(m))
+#% output
+#= m^(-1/2)
+
+#% cell
+skewness([1, 2, 2, 3, 10])
+#% output
+#= (1476/17689)*266^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A symmetric distribution has no skewness:
+
+#% cell
+skewness(normal_distribution(mu, s))
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `kurtosis`, `variance`, `moment`, `mean`
