@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# constant_array
+
+#% text
+# `constant_array(c, n)` gives a list of `n` copies of `c`; `constant_array(c, [n1, n2, ...])` gives nested lists of those dimensions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+constant_array(0, 4)
+#% output
+#= [0, 0, 0, 0]
+
+#% cell
+constant_array(x, [2, 3])
+#% output
+#= [[x, x, x], [x, x, x]]
+
+#% subsection
+# Scope
+
+#% text
+# A zero matrix to fill in:
+
+#% cell
+dimensions(constant_array(0.0, [3, 3]))
+#% output
+#= [3, 3]
+
+#% section
+# See also
+
+#% text
+# `table`, `pad_right`, `identity_matrix`

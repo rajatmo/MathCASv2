@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# random_choice
+
+#% text
+# `random_choice(xs)` gives a uniformly chosen element of the list `xs`; `random_choice(xs, n)` gives `n` of them, with replacement.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(3); random_choice([a, b, c])
+#% output
+#= c
+
+#% cell
+seed(3); random_choice(["H", "T"], 10)
+#% output
+#= ["T", "T", "T", "T", "H", "T", "H", "H", "H", "H"]
+
+#% subsection
+# Scope
+
+#% text
+# Each element comes up about equally often:
+
+#% cell
+seed(4); counts(random_choice([1, 2, 3], 30000))
+#% output
+#= assoc(3 -> 9979, 2 -> 10091, 1 -> 9930)
+
+#% section
+# See also
+
+#% text
+# `random_sample`, `random_integer`, `seed`

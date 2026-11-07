@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# thread
+
+#% text
+# `thread(f(a, b, ...))` gives `[f(a1, b1, ...), f(a2, b2, ...), ...]`, taking the arguments that are lists element by element and repeating the others.
+# `thread(x, g)` threads over the arguments with head `g` instead of lists.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+thread(f([1, 2, 3], [a, b, c]))
+#% output
+#= [f(1, a), f(2, b), f(3, c)]
+
+#% cell
+thread(f([1, 2], y))
+#% output
+#= [f(1, y), f(2, y)]
+
+#% subsection
+# Scope
+
+#% text
+# Equations from two lists:
+
+#% cell
+thread(equal([x, y], [1, 2]))
+#% output
+#= [x == 1, y == 2]
+
+#% section
+# See also
+
+#% text
+# `map_thread`, `map`, `transpose`

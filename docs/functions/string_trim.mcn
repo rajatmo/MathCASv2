@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# string_trim
+
+#% text
+# `string_trim(s)` removes white space from both ends of `s`; `string_trim(s, sub)` removes repeated `sub` from both ends.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_trim("   hello  ")
+#% output
+#= "hello"
+
+#% cell
+string_trim("--title--", "-")
+#% output
+#= "title"
+
+#% subsection
+# Scope
+
+#% text
+# Clean every line of some text:
+
+#% cell
+map(string_trim, split("  a \n b  ", "\n"))
+#% output
+#= ["a", "b"]
+
+#% section
+# See also
+
+#% text
+# `string_pad`, `split`, `string_replace`
