@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# background
+
+#% text
+# `background` is an option of graphics and plots that sets the colour behind a graphic or plot; `none` makes it transparent. The default is white.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([yellow, disk()], background: dark_gray)
+#% output
+#= image("background.files/background-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], background: light_yellow)
+#% output
+#= image("background.files/background-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# A transparent background for overlays in other documents:
+
+#% cell
+export_data(string_join([temporary_directory(), "plot.png"]), plot(x, [x, 0, 1], background: none))
+#% output
+#= "C:/Users/rajat/AppData/Local/Temp/plot.png"
+
+#% section
+# See also
+
+#% text
+# `graphics`, `export_data`, `white`

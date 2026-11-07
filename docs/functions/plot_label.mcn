@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_label
+
+#% text
+# `plot_label` is an option of graphics and plots: `plot_label: label` puts a title above a graphic or plot.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x)^2, [x, 0, pi], plot_label: "Intensity")
+#% output
+#= image("plot_label.files/plot_label-1.png")
+
+#% cell
+plot(bessel_j(0, x), [x, 0, 20], plot_label: r"$J_0(x)$")
+#% output
+#= image("plot_label.files/plot_label-2.png")
+
+#% section
+# See also
+
+#% text
+# `frame_label`, `legend`, `text`

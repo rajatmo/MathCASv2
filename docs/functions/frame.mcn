@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# frame
+
+#% text
+# `frame` is an option of graphics and plots: `frame: true` draws a frame around the plot area, with ticks and labels on the left and bottom edges.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle()], frame: true)
+#% output
+#= image("frame.files/frame-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], frame: true, frame_label: ["x", "sin x"])
+#% output
+#= image("frame.files/frame-2.png")
+
+#% section
+# See also
+
+#% text
+# `frame_label`, `frame_ticks`, `axes`

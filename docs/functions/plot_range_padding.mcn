@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_range_padding
+
+#% text
+# `plot_range_padding` is an option of graphics and plots: `plot_range_padding: f` widens automatically chosen ranges by `f` times their length on each side; the default is 0.02, and `none` gives no padding.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], plot_range_padding: 0.2)
+#% output
+#= image("plot_range_padding.files/plot_range_padding-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], plot_range_padding: none)
+#% output
+#= image("plot_range_padding.files/plot_range_padding-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot_range`, `image_size`

@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# aspect_ratio
+
+#% text
+# `aspect_ratio` is an option of graphics and plots: `aspect_ratio: r` sets the height of the plot area over its width.
+# `automatic` gives equal units on both axes, and `full` fills the whole `image_size`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], aspect_ratio: 1)
+#% output
+#= image("aspect_ratio.files/aspect_ratio-1.png")
+
+#% cell
+graphics([circle([0, 0], 1)], aspect_ratio: automatic)
+#% output
+#= image("aspect_ratio.files/aspect_ratio-2.png")
+
+#% section
+# See also
+
+#% text
+# `image_size`, `plot_range`
