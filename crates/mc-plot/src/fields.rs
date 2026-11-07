@@ -25,7 +25,7 @@ pub(crate) fn install(k: &mut Kernel, h: &Heap) {
 }
 
 /// The page of these plots: the plot area about square, the colour bar right of it.
-const SIZE: (f64, f64) = (540.0, 440.0);
+pub(crate) const SIZE: (f64, f64) = (540.0, 440.0);
 /// The finest raster a density plot draws, in cells per side.
 const MAX_CELLS: usize = 320;
 /// Contour lines: gray, thin, half transparent.
@@ -47,12 +47,17 @@ pub(crate) struct Grid {
 }
 
 impl Grid {
+    /// The values, row by row (NaN where there is none).
+    pub(crate) fn values(&self) -> &[f64] {
+        &self.v
+    }
+
     fn at(&self, i: usize, j: usize) -> f64 {
         self.v[j * self.xs.len() + i]
     }
 
     /// The least and greatest finite value.
-    fn extent(&self) -> Option<(f64, f64)> {
+    pub(crate) fn extent(&self) -> Option<(f64, f64)> {
         let (lo, hi) = self.v.iter().filter(|v| v.is_finite()).fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), &v| (a.min(v), b.max(v)));
         lo.is_finite().then_some((lo, hi))
     }
@@ -80,7 +85,7 @@ impl Grid {
 }
 
 /// The ends of a range spec `[x, a, b]`: the variable and a < b.
-fn spec<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Sym, f64, f64)>> {
+pub(crate) fn spec<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Sym, f64, f64)>> {
     let h = cx.heap();
     let Some(&[v, a, b]) = cx.as_list(t) else { return Ok(None) };
     let View::Sym(v) = h.view(v) else { return Ok(None) };
@@ -125,55 +130,7 @@ impl Native for Field {
         };
         let xs: Vec<f64> = (0..n).map(|i| a + (b - a) * i as f64 / (n - 1) as f64).collect();
         let ys: Vec<f64> = (0..n).map(|j| c + (d - c) * j as f64 / (n - 1) as f64).collect();
-        let sample = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| -> Res<Grid> {
-            let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
-            let mut v = Vec::with_capacity(n * n);
-            let mut out = [0.0];
-            for &yj in &ys {
-                cx.tick(1)?;
-                for &xi in &xs {
-                    let ok = fun.eval(cx, &[xi, yj], &mut out)?;
-                    v.push(if ok && out[0].is_finite() { out[0] } else { f64::NAN });
-                }
-            }
-            let mut g = Grid { xs: xs.clone(), ys: ys.clone(), v, cut: HashMap::new() };
-            // where the values stop between two neighbouring points: located by bisection on the edge
-            let (nx, ny) = (xs.len(), ys.len());
-            for jj in 0..ny {
-                cx.tick(1)?;
-                for ii in 0..nx {
-                    for (di, dj) in [(1usize, 0usize), (0, 1)] {
-                        let (i2, j2) = (ii + di, jj + dj);
-                        if i2 >= nx || j2 >= ny {
-                            continue;
-                        }
-                        let (va, vb) = (g.at(ii, jj), g.at(i2, j2));
-                        if va.is_finite() == vb.is_finite() {
-                            continue;
-                        }
-                        // from the point with a value (a) towards the one without (b)
-                        let (pa, pb, mut val) =
-                            if va.is_finite() { ((xs[ii], ys[jj]), (xs[i2], ys[j2]), va) } else { ((xs[i2], ys[j2]), (xs[ii], ys[jj]), vb) };
-                        let (mut lo, mut hi) = (0.0f64, 1.0f64);
-                        for _ in 0..20 {
-                            let t = 0.5 * (lo + hi);
-                            let q = (pa.0 + (pb.0 - pa.0) * t, pa.1 + (pb.1 - pa.1) * t);
-                            let ok = fun.eval(cx, &[q.0, q.1], &mut out)?;
-                            if ok && out[0].is_finite() {
-                                lo = t;
-                                val = out[0];
-                            } else {
-                                hi = t;
-                            }
-                        }
-                        let q = (pa.0 + (pb.0 - pa.0) * lo, pa.1 + (pb.1 - pa.1) * lo);
-                        let (a, b) = (jj * nx + ii, j2 * nx + i2);
-                        g.cut.insert((a.min(b), a.max(b)), (q, val));
-                    }
-                }
-            }
-            Ok(g)
-        };
+        let sample = |cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>| sample_grid(cx, f, x, y, &xs, &ys);
         if let Some(eqs) = equations {
             let mut grids = Vec::with_capacity(eqs.len());
             for e in eqs {
@@ -191,13 +148,65 @@ impl Native for Field {
     }
 }
 
+/// The values of `f` (in `x` and `y`) on the grid `xs` x `ys`, where the function stops having values located on
+/// the grid's edges (compiled when it pays).
+pub(crate) fn sample_grid<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: Sym, y: Sym, xs: &[f64], ys: &[f64]) -> Res<Grid> {
+    let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
+    let mut v = Vec::with_capacity(xs.len() * ys.len());
+    let mut out = [0.0];
+    for &yj in ys {
+        cx.tick(1)?;
+        for &xi in xs {
+            let ok = fun.eval(cx, &[xi, yj], &mut out)?;
+            v.push(if ok && out[0].is_finite() { out[0] } else { f64::NAN });
+        }
+    }
+    let mut g = Grid { xs: xs.to_vec(), ys: ys.to_vec(), v, cut: HashMap::new() };
+    // where the values stop between two neighbouring points: located by bisection on the edge
+    let (nx, ny) = (xs.len(), ys.len());
+    for jj in 0..ny {
+        cx.tick(1)?;
+        for ii in 0..nx {
+            for (di, dj) in [(1usize, 0usize), (0, 1)] {
+                let (i2, j2) = (ii + di, jj + dj);
+                if i2 >= nx || j2 >= ny {
+                    continue;
+                }
+                let (va, vb) = (g.at(ii, jj), g.at(i2, j2));
+                if va.is_finite() == vb.is_finite() {
+                    continue;
+                }
+                // from the point with a value (a) towards the one without (b)
+                let (pa, pb, mut val) =
+                    if va.is_finite() { ((xs[ii], ys[jj]), (xs[i2], ys[j2]), va) } else { ((xs[i2], ys[j2]), (xs[ii], ys[jj]), vb) };
+                let (mut lo, mut hi) = (0.0f64, 1.0f64);
+                for _ in 0..20 {
+                    let t = 0.5 * (lo + hi);
+                    let q = (pa.0 + (pb.0 - pa.0) * t, pa.1 + (pb.1 - pa.1) * t);
+                    let ok = fun.eval(cx, &[q.0, q.1], &mut out)?;
+                    if ok && out[0].is_finite() {
+                        lo = t;
+                        val = out[0];
+                    } else {
+                        hi = t;
+                    }
+                }
+                let q = (pa.0 + (pb.0 - pa.0) * lo, pa.1 + (pb.1 - pa.1) * lo);
+                let (a, b) = (jj * nx + ii, j2 * nx + i2);
+                g.cut.insert((a.min(b), a.max(b)), (q, val));
+            }
+        }
+    }
+    Ok(g)
+    }
+
 /// The gradient of a plot.
-fn gradient(look: &Look) -> Gradient {
+pub(crate) fn gradient(look: &Look) -> Gradient {
     look.gradient.clone().unwrap_or_else(Gradient::default_gradient)
 }
 
 /// The colour of value `v` on a scale from `lo` to `hi`.
-fn shade(g: &Gradient, (lo, hi): (f64, f64), v: f64) -> Rgba {
+pub(crate) fn shade(g: &Gradient, (lo, hi): (f64, f64), v: f64) -> Rgba {
     if hi > lo {
         g.at((v - lo) / (hi - lo))
     } else {
@@ -239,7 +248,7 @@ fn density<'h>(cx: &mut NativeCx<'_, '_, 'h>, grid: &Grid, extent: (f64, f64), m
 }
 
 /// The levels of a contour plot strictly inside the values' extent, increasing.
-fn levels(spec: &Option<Contours>, (lo, hi): (f64, f64)) -> Vec<f64> {
+pub(crate) fn levels(spec: &Option<Contours>, (lo, hi): (f64, f64)) -> Vec<f64> {
     let mut v = match spec {
         None => (1..=10).map(|k| lo + (hi - lo) * k as f64 / 11.0).collect(),
         Some(Contours::Count(n)) => (1..=*n).map(|k| lo + (hi - lo) * k as f64 / (*n + 1) as f64).collect(),

@@ -19,6 +19,9 @@ mod fields;
 mod figure;
 mod more;
 mod plots3d;
+mod graphs;
+mod regions;
+mod vectors;
 mod roundtrip;
 mod sidecar;
 mod values;
@@ -162,6 +165,36 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "line_style",
         "option of plot and joined list plots: line_style: [solid | dashed | dotted | dot_dashed, ...], one per curve in order (solid after the list)",
     ),
+    ("region_plot", "region_plot(cond, [x, a, b], [y, c, d]): the region where the condition holds, filled, with its boundary; region_plot([c1, c2, ...], ...) several; region_plot(reg) a region (implicit regions over their bounds)"),
+    ("complex_region_plot", "complex_region_plot(cond, [z, z0, z1]): the region of the complex plane where a condition on z holds, over the rectangle with corners z0 and z1"),
+    ("complex_contour_plot", "complex_contour_plot(f, [z, z0, z1]): contours of a real function of z (filled), or the level lines of the real and imaginary parts of a complex one; f == g gives the curves where Re(f - g) and Im(f - g) vanish"),
+    ("vector_plot", "vector_plot([vx, vy], [x, a, b], [y, c, d]): arrows of the vector field on a grid, scaled and coloured by its magnitude (options plot_points, color_function)"),
+    ("stream_plot", "stream_plot([vx, vy], [x, a, b], [y, c, d]): streamlines of the vector field spread over the rectangle, with arrowheads, coloured by magnitude"),
+    ("list_vector_plot", "list_vector_plot(m): arrows of a matrix of vectors (rows along y, at 1, 2, ...; option data_range), or of pairs [[x, y], [vx, vy]]"),
+    ("list_stream_plot", "list_stream_plot(m): streamlines of a field given as a matrix of vectors or as pairs [[x, y], [vx, vy]] (interpolated)"),
+    ("complex_vector_plot", "complex_vector_plot(f, [z, z0, z1]): arrows of the field (Re f, Im f) over the rectangle with corners z0 and z1"),
+    ("complex_stream_plot", "complex_stream_plot(f, [z, z0, z1]): streamlines of the field (Re f, Im f)"),
+    ("vector_plot3d", "vector_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f]): arrows of a field in space, coloured by magnitude"),
+    ("stream_plot3d", "stream_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f]): streamlines of a field in space"),
+    ("list_vector_plot3d", "list_vector_plot3d(a): arrows of a 3D array of vectors or of pairs [[x, y, z], [vx, vy, vz]]"),
+    ("list_stream_plot3d", "list_stream_plot3d(a): streamlines of a field in space given as data"),
+    ("graph", "graph(edges) or graph(vertices, edges): a graph (network); edges a -> b (directed), undirected_edge(a, b), two_way_rule(a, b); shown as its picture (options graph_layout, vertex_labels)"),
+    ("graph_plot", "graph_plot(g): a picture of a graph (a graph term, a list of edges, or an adjacency matrix), laid out by springs (option graph_layout: spring, circular, layered)"),
+    ("layered_graph_plot", "layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top)"),
+    ("tree_plot", "tree_plot(edges): a tree drawn in layers from its root"),
+    ("complete_graph", "complete_graph(n): the graph of n vertices with every pair joined"),
+    ("cycle_graph", "cycle_graph(n): the cycle of n vertices"),
+    ("path_graph", "path_graph([v1, v2, ...]): the path through the vertices in order"),
+    ("star_graph", "star_graph(n): vertex 1 joined to vertices 2, ..., n"),
+    ("grid_graph", "grid_graph([m, n]): the m x n grid of vertices joined to their neighbours"),
+    ("vertex_list", "vertex_list(g): the vertices of a graph"),
+    ("edge_list", "edge_list(g): the edges of a graph, as directed_edge(a, b) or undirected_edge(a, b)"),
+    ("vertex_count", "vertex_count(g): the number of vertices of a graph"),
+    ("edge_count", "edge_count(g): the number of edges of a graph"),
+    ("vertex_degree", "vertex_degree(g): the degree of each vertex (vertex_degree(g, v) of one)"),
+    ("adjacency_matrix", "adjacency_matrix(g): the matrix whose (i, j) entry counts the edges from vertex i to vertex j"),
+    ("directed_edge", "directed_edge(a, b): the directed edge from a to b of a graph"),
+    ("undirected_edge", "undirected_edge(a, b): the undirected edge between a and b of a graph"),
 ];
 
 /// Register the natives with `k`.
@@ -250,6 +283,9 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     plots3d::install(k, h);
     anim::install(k, h);
     more::install(k, h);
+    regions::install(k, h);
+    vectors::install(k, h);
+    graphs::install(k, h);
 }
 
 pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {
@@ -545,6 +581,8 @@ pub(crate) fn sweep(dir: &std::path::Path, age: std::time::Duration) {
 /// path and pixel size. `None` when `t` is not a graphics term or cannot be rendered (symbolic coordinates: it is
 /// shown as a term).
 pub fn render_to_files<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool) -> Option<(String, u32, u32)> {
+    // a graph is shown as its picture
+    let t = if graphs::is_graph(h, t) { graphs::graph_picture(h, t)? } else { t };
     if !mc_graphics::is_graphics(h, t) {
         return None;
     }

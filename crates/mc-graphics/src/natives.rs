@@ -78,12 +78,31 @@ impl Native for Primitive {
             {
                 Reply::Decline
             }
+            // coordinates in one dimension: a region on the line (`line([[0], [1]])`)
+            Err(Bad::Arg(1)) if matches!(self.0, "point" | "line" | "polygon") && args.first().is_some_and(|&a| one_dimensional(h, a)) => Reply::Decline,
             // several centres: each is checked when the graphic is read
             Err(Bad::Arg(1)) if matches!(self.0, "disk" | "circle") && model::several_centres(h, args) => Reply::Decline,
             Err(Bad::Arg(k)) => bad(h, self.0, k),
             _ => Reply::Decline,
         })
     }
+}
+
+/// Whether `t` is a point of one coordinate, or a list (of lists) of such points.
+fn one_dimensional(h: &Heap, t: T<'_>) -> bool {
+    let mut cur = t;
+    for _ in 0..3 {
+        let View::App { head, args } = h.view(cur) else { return false };
+        if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == names::LIST) {
+            return false;
+        }
+        match args {
+            [x] if crate::num::number(h, *x).is_some() || matches!(h.view(*x), View::Sym(_)) => return true,
+            [first, ..] => cur = *first,
+            [] => return false,
+        }
+    }
+    false
 }
 
 /// A directive: checked like a primitive.

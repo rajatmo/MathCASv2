@@ -184,6 +184,7 @@ fn sources() -> Vec<(&'static str, Area, Functions)> {
         ("Number theory", Area::Higher, mc_numtheory::FUNCTIONS),
         ("Special functions", Area::Higher, mc_special::FUNCTIONS),
         ("Linear algebra", Area::Higher, mc_linalg::FUNCTIONS),
+        ("Regions", Area::Higher, mc_geom::FUNCTIONS),
     ]
 }
 

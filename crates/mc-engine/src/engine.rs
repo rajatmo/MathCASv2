@@ -97,6 +97,7 @@ fn library_names(h: &mc_core::Heap) -> HashSet<Sym> {
         mc_quad::FUNCTIONS,
         mc_ode::FUNCTIONS,
         mc_graphics::FUNCTIONS,
+        mc_geom::FUNCTIONS,
         mc_plot::FUNCTIONS,
         mc_io::FUNCTIONS,
         mc_simplify::FUNCTIONS,
@@ -237,6 +238,7 @@ impl CoreEngine {
             mc_quad::install(&mut k, h, &arith_stop);
             mc_ode::install(&mut k, h, &arith_stop);
             mc_graphics::install(&mut k, h);
+            mc_geom::install(&mut k, h);
             mc_plot::install(&mut k, h);
             mc_io::install(&mut k, h);
             mc_io::register_exporter("graphics", &["png", "svg", "pdf", "gif"], mc_plot::export);

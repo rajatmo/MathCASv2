@@ -14,6 +14,8 @@ mc-core = { path = "../mc-core" }
 mc-eval = { path = "../mc-eval" }
 # the graphics term, its renderers and colours
 mc-graphics = { path = "../mc-graphics" }
+# regions: conditions as margins, region bounds for region_plot
+mc-geom = { path = "../mc-geom" }
 # names of plotted expressions in the data sidecar
 mc-syntax = { path = "../mc-syntax" }
 # compiled evaluation of the plotted function
