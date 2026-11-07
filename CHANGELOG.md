@@ -32,7 +32,7 @@
 
 **Graphics:**
 - Ticks in data units on log and signed-log axes, minor ticks, and a signed-log scale matching the common definition.
-- Row and rounded legends, legend placement, label sizes, TeX `m`, `\it`, `f` and `~`, fitted framed insets.
+- Row and rounded legends, legend placement, label sizes, TeX `\rm`, `\it`, `\bf` and `~`, fitted framed insets.
 - Deeper sampling at steep ends; a fast 3D re-render path.
 
 **Documentation:** 412 function pages (736 functions in the help index).
