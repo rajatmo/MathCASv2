@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**Coverage (Phase 9):**
+- Regions (`mc-geom`: membership, measure, centroid, distance, polygon boolean operations).
+- About 50 new plot types (vector, stream, region, graph and chart plots, Julia and Mandelbrot sets, 3D contour,
+  region and density plots).
+- About 85 new special and number-theory functions, and about 40 new list and structure functions.
+- Multivariate `factor` by lifting (much faster), and `minimize`/`maximize` in several variables with constraints.
+- Functions of series, and sums and products with several iterators.
+- `max`/`min` of intervals, uncertain values and quantities.
+- A faster machine `bessel_k`.
+- The REPL no longer hangs when a function writes to standard error.
+
 ## 0.3.0 (2026-11-07)
 
 **Notebook:**

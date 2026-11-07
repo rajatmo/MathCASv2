@@ -52,21 +52,29 @@ Early but usable for real numeric and symbolic work: thermal integrals, bounce s
 wall profiles of a first-order phase transition run in seconds. What exists today:
 
 - **Language:** functions as ordered rule clauses with typed parameters and `when` guards, rules with sequence
-  patterns, lambdas, pipes, `match`, blocks with `var`/`let`, `for`/`while`, modules with `pub` exports and
-  `import`, a prelude written in the language itself ([lib/prelude.mc](lib/prelude.mc)).
+  patterns, lambdas, pipes, `match`, operator forms, blocks with `var`/`let`, `for`/`while`, modules with `pub`
+  exports and `import`, `%` history, a prelude written in the language itself ([lib/prelude.mc](lib/prelude.mc)).
 - **Numbers:** exact integers and rationals, machine reals, arbitrary-precision balls (only correct digits are
-  shown), complex numbers.
-- **Symbolic:** polynomials (expand, factor, gcd, resultant), `simplify` with assumptions, `d`, `integrate`, `apart`,
-  `limit`, `series`, symbolic `sum`, number theory, special functions (gamma family, zeta, beta, Bessel I and K).
-- **Numeric:** `find_root`, `find_minimum`, `n_integrate`, `n_dsolve` (with events), `interpolation`, random numbers;
-  numeric functions compile to machine code (Cranelift JIT) when they can, and packed real arrays avoid boxing.
-- **Data and plots:** lists, associations and sets, strings; `import_data`/`export_data` (CSV, TSV, whitespace
-  tables, lines, JSON, PNG); `plot`, `list_plot` and log variants rendered to PNG.
-- **Tools:** a REPL and script runner, `.mcn` text notebooks, a kernel protocol (JSON lines), a Jupyter kernel, a
-  language server with a VS Code extension, and a Windows installer.
+  shown), complex numbers, intervals and uncertain values (`around`), quantities with units.
+- **Symbolic:** polynomials (expand, multivariate factor, gcd, resultant), `simplify` with assumptions, `d`,
+  `integrate`, `limit`, `series` (Puiseux, logarithmic, at infinity), `solve`, `reduce`, `d_solve`, `r_solve`,
+  `minimize`/`maximize` with constraints, Fourier transforms, number theory, about 300 special functions.
+- **Numeric:** `find_root`, `find_minimum`, `find_fit`, `n_integrate`, `n_dsolve` (stiff, events, boundary values),
+  `interpolation` (splines and local polynomials, with derivatives), linear algebra, 11 probability distributions;
+  numeric functions, special functions and ODE right-hand sides compile to machine code (Cranelift JIT), packed real
+  and complex arrays, `parallel_table`/`parallel_map`, `profile`.
+- **Data and graphics:** lists, associations, datasets, strings; import and export of CSV, TSV, JSON, PNG, PDF, SVG and
+  animated GIF; 2D and 3D graphics and about 100 plot types (log and signed-log axes, legends, LaTeX labels, vector,
+  stream and region plots, graphs, charts), geometric regions (`mc-geom`).
+- **Notebook:** one kind of cell (plain text with root, fraction and power boxes), outputs left or right, hyperlinked
+  documentation with F1, completion and usage hints, `manipulate` sliders, 3D pictures turned by dragging, export to
+  HTML and PDF, one file per notebook.
+- **Tools:** a REPL and script runner, a kernel protocol (JSON lines), a Jupyter kernel, a language server with a VS
+  Code extension, a Windows installer, and Linux tarball and AppImage builds.
 
-Not there yet: linear algebra, `solve`, probability distributions, a graphics model (SVG, graphics primitives),
-PDF export and a notebook window of its own. The plan is in [docs/design/06-roadmap.md](docs/design/06-roadmap.md).
+About a third of the reference system's documented examples run with the same results, and more than 60 % on pages
+for functions MathCAS has (measured privately with a translation harness). The plan is in
+[docs/design/06-roadmap.md](docs/design/06-roadmap.md).
 
 ## Getting started
 

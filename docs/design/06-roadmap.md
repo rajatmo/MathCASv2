@@ -120,6 +120,16 @@ Exit: the L-class benchmark cases (`02-benchmarks.md`) pass and are compiled whe
 
 Exit: every plot of the visualisation foundations list renders; notebooks show graphics.
 
+### Status (November 2026)
+
+Phases 1-5 are done. Later rounds added:
+- **Phase 6:** a private harness that runs the reference documentation's examples.
+- **Phase 7:** speed: compiled special functions and ODE right-hand sides, packed complex arrays, parallel evaluation.
+- **Phase 8:** notebook maturity: documentation in the editor, `manipulate`, 3D rotation, HTML and PDF export.
+- **Phase 9 (in progress):** coverage against the harness, plus regions, new plots, multivariate `factor` and
+  `minimize`.
+- **Phase 10:** platforms. Linux packages are built (tarball and AppImage); an Android port is not planned.
+
 ### Scope check
 
 All five phases fall within the five scope areas (core, data, visualisation, symbolic/numeric, higher mathematics).
