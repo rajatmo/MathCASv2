@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# survival
+
+#% text
+# `survival(d, x)` gives the survival function `P(X > x) = 1 - cdf(d, x)`, computed so that it stays accurate far in the upper tail.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+survival(exponential_distribution(l), x)
+#% output
+#= piecewise([[exp(-1*l*x), x >= 0]], 1)
+
+#% cell
+survival(normal_distribution(0, 1), 1.96)
+#% output
+#= 0.024997895148220435
+
+#% subsection
+# Scope
+
+#% text
+# Deep in the tail, `1 - cdf` loses everything to cancellation:
+
+#% cell
+[survival(normal_distribution(0, 1), 10.0), 1 - cdf(normal_distribution(0, 1), 10.0)]
+#% output
+#= [7.619853024160523e-24, 0.0]
+
+#% section
+# See also
+
+#% text
+# `cdf`, `quantile`, `erfc`

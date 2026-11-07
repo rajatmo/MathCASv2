@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# histogram_list
+
+#% text
+# `histogram_list(xs)` gives `[edges, counts]` for the data `xs` in automatically chosen bins `[e_i, e_{i+1})`.
+# `histogram_list(xs, n)` uses about `n` bins; `[w]` bins of width `w`; `[a, b, w]` bins of width `w` from `a` to `b`; `[[e1, e2, ...]]` the given edges.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+histogram_list([1, 2, 2, 3, 3, 3, 4])
+#% output
+#= [[1, 2, 3, 4, 5], [1, 2, 3, 1]]
+
+#% cell
+histogram_list([1, 2, 2, 3, 3, 3, 4], [0, 5, 1])
+#% output
+#= [[0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 1]]
+
+#% subsection
+# Scope
+
+#% text
+# Given edges:
+
+#% cell
+histogram_list([0.5, 1.5, 2.5, 7], [[0, 1, 2, 10]])
+#% output
+#= [[0, 1, 2, 10], [1, 1, 2]]
+
+#% text
+# Draw the counts:
+
+#% cell
+seed(3); histogram(random_normal(0, 1, 1000))
+#% output
+#= image("histogram_list.files/histogram_list-4.png")
+
+#% section
+# See also
+
+#% text
+# `histogram`, `counts`, `mean`
