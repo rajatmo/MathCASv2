@@ -1265,6 +1265,8 @@ impl View {
     ) {
         self.origin = origin;
         let p = self.palette.clone();
+        // pictures' chrome in the window's theme (round nb-svg)
+        self.images.borrow_mut().set_theme(Some(p.plot_theme()));
         let z = self.zoom;
         let n = nb.cells().len();
         let sel = nb.selection().clone();
@@ -1563,9 +1565,13 @@ impl View {
         let c = &nb.cells()[i];
         let Some(r) = self.graphic_rect(nb, i) else { return };
         let r = r.translate(origin.to_vec2());
-        // the raster size: SVG drawings are rasterised for the display, at the size they keep (not every size a
-        // resize passes through)
-        let width = (self.graphic_size(c, path, false).x * ctx.pixels_per_point()).round() as u32;
+        // the raster size: drawings are rasterised at the device pixels they cover (size x magnification x display
+        // scale), at the size they keep: while a resize drags, the last raster shows stretched, and the release
+        // makes a new one
+        let ppp = ctx.pixels_per_point();
+        let kept = self.graphic_size(c, path, false);
+        let width = (kept.x * ppp).round().max(1.0) as u32;
+        let theme = p.plot_theme();
         // a 3D picture turned away from its own view: the scene drawn from that view (the picture shows until the
         // first render is there)
         let turned = self.rot.clone().and_then(|rot| {
@@ -1575,20 +1581,19 @@ impl View {
                 Some((id, v)) if id == c.id => v,
                 _ => crate::rotate3d::view_of(&c.out_extra, scene.view())?,
             };
+            // at the device pixels of the size it keeps (a resize stretches the last render until it ends)
             let page = scene.page_size().0.max(1.0) as f32;
-            let scale = (r.width() * ctx.pixels_per_point() / page).clamp(0.25, 4.0);
-            // scales in steps of 1/8, so a resize does not ask for a render per pixel
-            let scale = (scale * 8.0).round() / 8.0;
-            rot.texture(c.id, path, view, scale)
+            let scale = (width as f32 / page).clamp(0.1, 8.0);
+            rot.texture(c.id, path, view, scale, Some(theme))
         });
         let picture = match turned {
             Some(tex) => Picture::Ready(tex.id(), tex.size()),
             None => self.images.borrow_mut().picture(path, width, self.now),
         };
         match picture {
-            Picture::Ready(tex, _) => {
+            Picture::Ready(tex, size) => {
                 let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-                painter.image(tex, r, uv, Color32::WHITE);
+                painter.image(tex, pixel_rect(r, size, width, kept, ppp), uv, Color32::WHITE);
             }
             Picture::Loading => {
                 painter.rect_stroke(r, 0.0, Stroke::new(hairline(painter), p.border), egui::StrokeKind::Inside);
@@ -2063,10 +2068,46 @@ fn snap(painter: &Painter, v: f32) -> f32 {
     (v * ppp).round() / ppp
 }
 
+/// Where a picture's texture of `size` pixels is drawn in the picture's rectangle `r`: a raster made for exactly
+/// the pixels the picture covers at the size it keeps (`width` device pixels wide; `kept` in points) is drawn one
+/// texel per device pixel with its corner on a pixel, so it is sharp; anything else (a PNG, an older raster while
+/// a new one is made, a resize being dragged) fills `r`.
+pub(crate) fn pixel_rect(r: Rect, size: [usize; 2], width: u32, kept: Vec2, ppp: f32) -> Rect {
+    let exact = size[0] == width as usize && (r.width() - kept.x).abs() < 0.01 && (r.height() - kept.y).abs() < 0.01;
+    if !exact || ppp <= 0.0 {
+        return r;
+    }
+    let min = pos2((r.min.x * ppp).round() / ppp, (r.min.y * ppp).round() / ppp);
+    Rect::from_min_size(min, vec2(size[0] as f32 / ppp, size[1] as f32 / ppp))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::images::Images;
+
+    /// A raster of exactly the picture's device pixels is drawn texel for pixel, on the pixel grid; other textures
+    /// fill the picture.
+    #[test]
+    fn rasters_are_drawn_on_device_pixels() {
+        for ppp in [1.0f32, 1.25, 1.5, 2.0] {
+            // a 360 x 225 point picture at 110 % magnification
+            let kept = vec2(396.0, 247.5);
+            let r = Rect::from_min_size(pos2(100.3, 50.7), kept);
+            let width = (kept.x * ppp).round() as u32;
+            let h = (kept.y * ppp).round() as usize;
+            let d = pixel_rect(r, [width as usize, h], width, kept, ppp);
+            assert_eq!(d.width() * ppp, width as f32, "one texel a pixel at {ppp}");
+            assert!(((d.height() * ppp) - h as f32).abs() < 1e-3);
+            let (x, y) = (d.min.x * ppp, d.min.y * ppp);
+            assert!((x - x.round()).abs() < 1e-3 && (y - y.round()).abs() < 1e-3, "on the grid at {ppp}");
+            assert!((d.min.x - r.min.x).abs() <= 0.5 / ppp + 1e-4);
+            // a PNG of other pixels, and a resize being dragged, fill the rectangle
+            assert_eq!(pixel_rect(r, [640, 400], width, kept, ppp), r);
+            let live = Rect::from_min_size(r.min, kept * 1.3);
+            assert_eq!(pixel_rect(live, [width as usize, h], width, kept, ppp), live);
+        }
+    }
 
     /// The accessibility tree of a small notebook (milestone M7's snapshot): every cell on the screen is a node with
     /// its role, name and value.

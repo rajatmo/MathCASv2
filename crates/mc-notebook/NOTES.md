@@ -475,3 +475,40 @@ Self-test step `export <file>`.
   `stderr.txt` in its output folder. Memory: the mouse, window and eval mixes grew the window's private memory by
   400-460 MB in 60 s (picture textures of new plot results and 3D renders, within the 256 MB picture cache plus
   egui's atlas); peaks 0.5-1.2 GB with the kernel.
+
+## Round nb-svg: plots as vector drawings in the window's theme (user request)
+
+"Can you make it SVG instead? Plots should look consistent in both themes and sharp at any scale."
+
+- **Vector display** (`images.rs`): a picture whose PNG has an SVG sibling (every plot and graphic), or an SVG, is
+  rasterised with resvg at exactly the device pixels it covers (the size it keeps x magnification x display scale;
+  no 64 px steps any more) and drawn one texel per device pixel on the pixel grid (`view::pixel_rect`); any other
+  texture fills the picture's rectangle. Keys: `images::Key` (file, version, pixel width, theme). The worker keeps the
+  last 6 parsed trees (a zoom step or theme switch renders without parsing), does only the newest of the waiting
+  requests of one drawing (the others answer `Skipped` and are asked again if still wanted), and the newest older
+  raster of the file shows stretched meanwhile (same theme first). `prune` drops textures of a file last drawn more
+  than two frames before its newest (a picture shown twice at two sizes keeps both). Resizing stretches the kept
+  raster while dragging; the release makes the new one.
+- **Theme**: `Palette::plot_theme()` (no background, text = text, frame = weak, grid = 12 % text over the page, legend
+  box = page); `View::paint` hands it to the cache each frame; its CSS is injected when a drawing is parsed. 3D
+  pictures turned from their scene (`rotate3d.rs`) render with the same theme at the exact device scale of the kept
+  size (no 1/8 steps), keyed by theme. The clipboard copy and File > Export keep the light look; a turned 3D picture
+  exported is marked 2 pixels per point (`with_density`).
+- Status bar after saving: the embedded size as stored (deflated drawings), before base64.
+- Self-test `images` also logs the drawings' rasterisation times with their widths.
+- Measured (release, Ryzen 7700X, worker thread, parse included on first use): the two-curve plot 13.5 ms at 640 px,
+  2.5-5.7 ms at 640-960 px once parsed, 8.7-9.1 ms at 1248-1280 px; the 1 MB SVG of a default `plot3d` 34 ms at
+  540 px; a 200 000-point `list_plot` (3.1 MB SVG) 501 ms the first time, 412-442 ms per zoom step after (frames meanwhile:
+  median 0.17 ms, max 0.42 ms; the older raster shows). Turned 3D: 19.5 ms median at 1.5 x.
+- Screenshots (outside the repository) of a six-picture notebook in One Light and One Dark at 100 % and 150 % display
+  scale and at 130 % and 200 % magnification, the hover read-out and a resize at 150 %, a turned 3D picture, the
+  dense plot in the session and saved.
+- Storms (60 s, notebook with six plots incl. 3D): eval ok (seed 3, 20 673 events, private 438 -> 846 MB, max ping
+  32 ms), window ok (seed 4, private 456 -> 761 MB, max ping 47 ms).
+- Tests: `images` (exact widths, the theme recolours chrome and keeps data, one tree per theme, cache keys),
+  `theme::contrast::plot_chrome_contrasts_in_both_themes`, `view::tests::rasters_are_drawn_on_device_pixels`.
+- Gaps: a dense plot embedded as a PNG (over 256 KiB deflated) keeps the light look in One Dark until it is
+  evaluated again; the default curve colours of plots were chosen for white and stay as drawn, as asked: on the
+  One Dark page deep teal #1B5E63 is 2.0:1, slate indigo 1.8:1, aubergine 1.4:1, espresso 1.1:1 (terracotta and olive
+  3.2:1, ochre 5.9:1); chrome text is 10.3:1 (frame 6.3:1) in One Dark, 14.1:1 (6.2:1) in One Light; `export_data` files and HTML/PDF exports stay light
+  (no option for a dark export yet).

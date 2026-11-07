@@ -927,10 +927,30 @@ demand.
 
 ## 6. Graphics in cells
 
-- **Now (PNG):** a value `image("path")` (from `mc-plot`) is displayed as the image in its Output cell, at the image's
-  pixel size scaled by the magnification and the display scale factor, at most the cell width (scaled down keeping the
-  aspect ratio). Images are decoded with `png` (already used by mc-plot) on a worker thread and cached as GPU textures
-  keyed by path and modification time; the cache is limited (256 MB of pixels, least recently drawn evicted).
+- **Pictures:** a value `image("path")` (from `mc-plot`) is displayed as the picture in its Output cell, at its own
+  size in points (a PNG's pixels, divided by the pixel density its `pHYs` chunk marks, 7.5) times the magnification,
+  at most the cell width (scaled down keeping the aspect ratio). Pictures are decoded on a worker thread and cached
+  as GPU textures; the cache is limited (256 MB of pixels, least recently drawn evicted).
+- **Vector display** *(round nb-svg, user request: "plots should look consistent in both themes and sharp at any
+  scale")*: plots and graphics are drawn from their SVG (the sibling `plot-N.svg` of the PNG a value names, or the
+  embedded `.svg` of a saved notebook), rasterised with `resvg` at exactly the device pixels they cover (picture size
+  x magnification x display scale) and drawn one texel per pixel on the pixel grid, so they are sharp at 100 %,
+  150 %, 200 % and at every magnification step. Textures are keyed by (file, version, pixel width, theme); the worker
+  keeps the last six parsed drawings (a zoom step or a theme switch renders without parsing again) and does only the
+  newest of several waiting requests for one drawing; the newest older raster shows, stretched, until the new one is
+  there (never a blank frame, never a frame blocked). Resizing a picture shows the raster stretched while dragging and
+  makes a new one on release. 3D pictures turned from their scene render at the same device pixels.
+- **Theme:** a picture's *chrome* (background, frame, axes, ticks, tick labels, frame/axes/plot labels, legend box
+  and text, grid lines without a colour of their own, and primitives drawn without a colour directive) follows the
+  notebook theme: no background of its own (the page shows through), text and uncoloured primitives in the text
+  colour, frame and ticks in weak text, grid lines at 12 % of the text over the page, the legend box in the page
+  colour. Data (curves, fills, points, colour bars, images, anything given a colour) keeps its colours. `mc-graphics`
+  marks chrome in the SVG by class (`mcf-<role>` on a chrome fill, `mcs-<role>` on a chrome stroke; roles `bg`,
+  `frame`, `text`, `grid`, `panel`, `ink`) and writes the light colours as attributes; the notebook injects a style
+  sheet made from its palette when rasterising (CSS overrides presentation attributes). Nothing is guessed from
+  colour values. A `background` option given by the user is the user's colour (not chrome). Exported files
+  (`export_data`), HTML/PDF exports, the clipboard and the documentation pages keep the light look. Contrast in both
+  themes: labels 4.5:1 or more on the page, the frame 3:1 or more (tested).
 - **Selection:** a single click on an image selects the graphic: a 1 px frame in the accent colour with eight square
   handles. Click outside, Esc or any arrow key deselects. Copy copies the image (PNG) and its `image(...)` text.
 - **Resizing:** dragging a corner handle resizes keeping the aspect ratio; side handles change one dimension only with
@@ -949,9 +969,8 @@ demand.
   wheel scrolls the notebook otherwise), a double-click goes back to its own view. The view is kept on the output
   (`view=x:y:z`, `zoom=z`, `vertical=x:y:z`, only what differs from the picture's own view; an undo unit) and comes
   back when the notebook is opened. Plot coordinates are not shown over a 3D picture.
-- **Later (vector):** values `svg("path")` or a graphics term rendered by a future `mc-graphics`: rasterised with
-  `resvg`/`tiny-skia` (in the local caches) at the current display scale on a worker thread, re-rasterised on zoom;
-  hit-testing per element is out of scope.
+- Hit-testing per element of a drawing is out of scope; plot read-outs come from the `.json` description (in points,
+  so they hold at every scale).
 - Images in saved notebooks: 7.5.
 
 ## 7. File format
@@ -1052,9 +1071,9 @@ block** under a content-hash name, with the files that make it interactive:
 
 ```
 #% output n=3 size=360x225
-#= image("plot-3f2a91c04b7e.png")
-#~ @plot-3f2a91c04b7e.png
-#~ iVBORw0KGgoAAAANSUhEUgAAAoAAAAGQCAYAAAA...          (base64, 100 characters a line)
+#= image("plot-3f2a91c04b7e.svg")
+#~ @plot-3f2a91c04b7e.svg deflate
+#~ eJzVvWuTHMeRJPj3+5...          (base64, 100 characters a line)
 #~ @plot-3f2a91c04b7e.json deflate
 #~ eJzNWE1v2zgQvedXCDqvC1Jf...
 #~ @plot-3f2a91c04b7e.scene3d deflate
@@ -1063,19 +1082,34 @@ block** under a content-hash name, with the files that make it interactive:
 
 - `#~ @name [deflate]` starts a file, the `#~` lines after it are its bytes in base64 (deflated first when marked).
   Names are plain file names (letters, digits, `.`, `_`, `-`); anything else is ignored when reading.
-- Embedded: the PNG (already compressed), and deflated, the plot description `.json` (hover read-outs, 6) and the 3D
-  scene `.scene3d` (rotation, 6). SVG and PDF are not stored; they are made again from the scene or from the term the
-  PNG carries when the user exports.
+- Embedded *(round nb-svg)*: a plot's or graphic's **SVG, deflated** (the drawing `mc-graphics` wrote, recognised by
+  the class `mc-graphic` on its root element; the value names the `.svg`), so a reopened notebook draws it sharp and
+  in its theme (6); deflated too, the plot description `.json` (hover read-outs, 6) and the 3D scene `.scene3d`
+  (rotation, 6). PDF siblings are never stored. Pictures of other programs (PNG, SVG) are embedded as they are.
+- **Dense plots** *(round nb-svg, decision nb-svg.4)*: an SVG that deflates to more than **256 KiB** is embedded as a
+  PNG rendered from it at **twice** its size (light colours) with a `pHYs` chunk of 144 dots per inch; readers show a
+  PNG whose `pHYs` says 72 k dpi (k = 2, 3, 4) at its pixels divided by k (`mc_nbfile::images::png_density`). Such a
+  picture does not follow the theme (a light box in One Dark). Measured: `plot(sin(x), [x, 0, 6])` embeds in 6.9 KB
+  (90 KB as PNG before); a 200 000-point `list_plot` would need 1.43 MB as SVG (3.1 MB raw, 853 KB deflated) and
+  embeds as a 1280 x 800 PNG of 76 KB (the PNG of before: 157 KB); a default `plot3d` 134 KB (122 KB before); a
+  `density_plot` 113 KB (287 KB before).
+- **One copy** *(round nb-svg)*: a picture several outputs show is stored once, in the first block that shows it; the
+  later blocks only name it. Opening reads every block's files before pointing values at them.
 - Opening extracts the files into the cache (`mathcas-plots/embedded/`, written once per content hash, swept after 30
   days unused) and shows them from there; saving embeds them again (same names, same text: diffs show only changed
-  pictures). A block carries its own files (a picture shown twice is stored twice).
-- `mc-repl --update` embeds the same way; `mc-repl --export` and File > Export read the embedded pictures.
+  pictures).
+- `mc-repl --update` embeds the same way; `mc-repl --export` and File > Export read the embedded pictures: HTML
+  inlines a drawing as an `<svg>` element (ids prefixed per drawing, no namespace URLs), PDF draws it as vector
+  graphics (a form XObject made from the drawing's paths, clips, opacities and images through `usvg`); both keep the
+  light look.
 - Older notebooks with a `<name>.files/` folder read as before; saving embeds their pictures and leaves the folder for
   the user to delete.
 - Every `#~` line is a comment, so the notebook still reads as a script; readers older than round 13 reject `#~`
   lines in output blocks.
-- Size: a 2D plot adds about 90 KB (PNG in base64 plus a 2-3 KB description), a default `plot3d` about 210 KB (its
-  scene deflates from 0.9 MB to 68 KB).
+- Size: a 2D plot adds about 7-13 KB (deflated SVG in base64 plus a 2-3 KB description; it was about 90 KB with the
+  PNG), a default `plot3d` about 210 KB (its scene deflates from 0.9 MB to 68 KB).
+- Older notebooks that carry PNGs read and show as before; saving them again keeps the PNG unless the session's SVG
+  sibling is still there.
 
 ## 8. Themes
 

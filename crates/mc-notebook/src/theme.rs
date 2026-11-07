@@ -191,6 +191,20 @@ impl Palette {
         self.weak
     }
 
+    /// The colours of a picture's chrome (round nb-svg): no background of its own (the page shows through), text
+    /// and primitives without a colour in the text colour, frame, axes and ticks in weak text, grid lines faint
+    /// (12 % of the text over the page), the legend's box in the page colour. Data keeps its colours.
+    pub fn plot_theme(&self) -> mc_graphics::theme::Theme {
+        let c = |c: Color32| mc_graphics::color::Rgba::rgb(f64::from(c.r()) / 255.0, f64::from(c.g()) / 255.0, f64::from(c.b()) / 255.0);
+        mc_graphics::theme::Theme {
+            background: None,
+            text: c(self.text),
+            frame: c(self.weak),
+            grid: c(lerp(self.bg, self.text, 0.12)),
+            panel: c(self.bg),
+        }
+    }
+
     /// The Code cell background: panel at 50 % over the background.
     pub fn code_bg(&self) -> Color32 {
         lerp(self.bg, self.panel, 0.5)
@@ -346,6 +360,31 @@ mod contrast {
                 }
             }
             assert!(ratio(p.text, p.selection) >= 4.5);
+        }
+    }
+
+    /// A picture's chrome in both themes (round nb-svg): tick and axis labels at 4.5:1 or more on the page (and on
+    /// the cell's current-line tint), the frame at 3:1 or more (non-text contrast), grid lines visible but faint,
+    /// the legend's box the page itself.
+    #[test]
+    fn plot_chrome_contrasts_in_both_themes() {
+        use mc_graphics::theme::Theme;
+        let c = |v: mc_graphics::color::Rgba| {
+            let [r, g, b, _] = v.bytes();
+            Color32::from_rgb(r, g, b)
+        };
+        for p in [Palette::light(), Palette::dark()] {
+            let t = p.plot_theme();
+            assert_eq!(t.background, None);
+            for b in [p.bg, p.current_line] {
+                assert!(ratio(c(t.text), b) >= 4.5, "text {:.2}", ratio(c(t.text), b));
+                assert!(ratio(c(t.frame), b) >= 3.0, "frame {:.2}", ratio(c(t.frame), b));
+            }
+            let g = ratio(c(t.grid), p.bg);
+            assert!((1.1..2.0).contains(&g), "grid lines faint but there: {g:.2}");
+            assert_eq!(c(t.panel), p.bg);
+            // the same measure as the graphics package's
+            assert!((Theme::contrast(t.text, t.panel) - ratio(c(t.text), p.bg)).abs() < 0.01);
         }
     }
 }

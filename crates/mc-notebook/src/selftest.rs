@@ -18,7 +18,7 @@
 //! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
 //! - `sel`: write the selection to the log; `boxes`: the box caret or selection of the typeset cell or output with
 //!   the caret, in the box notation; `hit <x> <y>`: what is at a window position; `images`: the picture
-//!   cache's size; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
+//!   cache's size and the drawings' rasterisation times; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
 //!   write the clipboard's text to the log; `focus`: the focused widget and whether a popup is open; `help`: the
 //!   completion list, the usage hint, the hovered name's usage line and the pages asked for (F1, Ctrl+click)
 //! - `ctrlclick <x> <y>`: a primary click with Ctrl held; `hovername <name>` / `ctrlclickname <name>`: the pointer
@@ -409,8 +409,12 @@ impl SelfTest {
                 }
             }
             "images" => {
-                let (bytes, entries, uploads) = app.images.borrow().stats();
+                let images = app.images.borrow();
+                let (bytes, entries, uploads) = images.stats();
                 self.log.push(format!("images: {} MB in {entries} entries, {uploads} uploads", bytes >> 20));
+                // the drawings rasterised so far (round nb-svg): each time with its width in pixels
+                let times: Vec<String> = images.svg_times.iter().map(|(ms, w)| format!("{ms:.1} ms at {w} px")).collect();
+                self.log.push(format!("svg rasters: {}", times.join(", ")));
             }
             "init" => app.answer_init(
                 match arg {

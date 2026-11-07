@@ -7,6 +7,7 @@
 //! renders only the newest request of each cell (the ones overtaken while it was busy are dropped), so a fast drag
 //! never queues frames. The scene is read once (`Scene3d::cached`).
 use eframe::egui::{self, ColorImage, TextureHandle, TextureOptions};
+use mc_graphics::theme::Theme;
 use mc_graphics::view3d::{Scene3d, View3d};
 use mc_nbfile::Attrs;
 use mc_nbmodel::CellId;
@@ -26,6 +27,8 @@ struct Job {
     scale: f32,
     /// a cheap render while the picture is being dragged (large scenes only)
     draft: bool,
+    /// the chrome's colours (round nb-svg: the window's theme)
+    theme: Option<Theme>,
 }
 
 /// A finished render.
@@ -34,6 +37,7 @@ struct Done {
     view: View3d,
     scale: f32,
     draft: bool,
+    theme: u64,
     image: (u32, u32, Vec<u8>),
 }
 
@@ -43,6 +47,7 @@ struct Shown {
     view: View3d,
     scale: f32,
     draft: bool,
+    theme: u64,
 }
 
 /// Requests for one cell closer together than this are a drag: large scenes are drawn as drafts meanwhile.
@@ -56,8 +61,8 @@ pub struct Rotations {
     /// scenes by picture path (`None`: the picture has no scene)
     scenes: HashMap<PathBuf, Option<Arc<Scene3d>>>,
     shown: HashMap<CellId, Shown>,
-    /// the newest view asked for per cell (with its scale), not yet rendered
-    asked: HashMap<CellId, (View3d, f32)>,
+    /// the newest view asked for per cell (with its scale and theme), not yet rendered
+    asked: HashMap<CellId, (View3d, f32, u64)>,
     /// when each cell last asked for a new view
     last_ask: HashMap<CellId, std::time::Instant>,
     /// render times of the last frames (milliseconds), for the self-test
@@ -84,9 +89,15 @@ impl Rotations {
                     }
                     for j in newest {
                         let start = std::time::Instant::now();
-                        let image = if j.draft { j.scene.render_draft(&j.view, j.scale) } else { j.scene.render(&j.view, j.scale) };
+                        let theme = j.theme.as_ref();
+                        let image = if j.draft {
+                            j.scene.render_draft_themed(&j.view, j.scale, theme)
+                        } else {
+                            j.scene.render_themed(&j.view, j.scale, theme)
+                        };
                         let _ = times_tx.send(start.elapsed().as_secs_f64() * 1000.0);
-                        if done_tx.send(Done { id: j.id, view: j.view, scale: j.scale, draft: j.draft, image }).is_err() {
+                        let key = theme.map_or(0, Theme::key);
+                        if done_tx.send(Done { id: j.id, view: j.view, scale: j.scale, draft: j.draft, theme: key, image }).is_err() {
                             return;
                         }
                         repaint.request_repaint();
@@ -143,40 +154,43 @@ impl Rotations {
                     s.view = d.view;
                     s.scale = d.scale;
                     s.draft = d.draft;
+                    s.theme = d.theme;
                 }
                 None => {
                     let tex = self.ctx.load_texture(format!("view3d-{}", d.id), img, opts);
-                    self.shown.insert(d.id, Shown { tex, view: d.view, scale: d.scale, draft: d.draft });
+                    self.shown.insert(d.id, Shown { tex, view: d.view, scale: d.scale, draft: d.draft, theme: d.theme });
                 }
             }
-            if self.asked.get(&d.id).is_some_and(|(v, s)| same(v, &d.view) && *s == d.scale) {
+            if self.asked.get(&d.id).is_some_and(|(v, s, t)| same(v, &d.view) && *s == d.scale && *t == d.theme) {
                 self.asked.remove(&d.id);
             }
         }
     }
 
-    /// The texture of cell `id` showing `view` at `scale`: the newest render, asking for the view when it differs
-    /// (the older render shows meanwhile). `None` until a first render of the cell is there.
-    pub fn texture(&mut self, id: CellId, png: &Path, view: View3d, scale: f32) -> Option<TextureHandle> {
-        let current = self.shown.get(&id).is_some_and(|s| same(&s.view, &view) && (s.scale - scale).abs() < 0.01);
-        let asked = self.asked.get(&id).is_some_and(|(v, s)| same(v, &view) && (*s - scale).abs() < 0.01);
+    /// The texture of cell `id` showing `view` at `scale` (device pixels per point of the picture's page) with
+    /// its chrome in `theme`: the newest render, asking for the view when it differs (the older render shows
+    /// meanwhile). `None` until a first render of the cell is there.
+    pub fn texture(&mut self, id: CellId, png: &Path, view: View3d, scale: f32, theme: Option<Theme>) -> Option<TextureHandle> {
+        let key = theme.as_ref().map_or(0, Theme::key);
+        let current = self.shown.get(&id).is_some_and(|s| same(&s.view, &view) && (s.scale - scale).abs() < 1e-4 && s.theme == key);
+        let asked = self.asked.get(&id).is_some_and(|(v, s, t)| same(v, &view) && (*s - scale).abs() < 1e-4 && *t == key);
         let now = std::time::Instant::now();
         let dragging = self.last_ask.get(&id).is_some_and(|t| now.duration_since(*t) < DRAG_GAP);
         if !current && !asked {
             if let Some(scene) = self.scene(png) {
-                self.asked.insert(id, (view, scale));
+                self.asked.insert(id, (view, scale, key));
                 self.last_ask.insert(id, now);
                 // a large scene while it is dragged: drafts, then the full picture once the drag stops
                 let draft = scene.is_large() && dragging;
                 if draft {
                     self.ctx.request_repaint_after(DRAG_GAP);
                 }
-                let _ = self.jobs.send(Job { id, scene, view, scale, draft });
+                let _ = self.jobs.send(Job { id, scene, view, scale, draft, theme });
             }
         } else if current && !asked && !dragging && self.shown.get(&id).is_some_and(|s| s.draft) {
             if let Some(scene) = self.scene(png) {
-                self.asked.insert(id, (view, scale));
-                let _ = self.jobs.send(Job { id, scene, view, scale, draft: false });
+                self.asked.insert(id, (view, scale, key));
+                let _ = self.jobs.send(Job { id, scene, view, scale, draft: false, theme });
             }
         } else if current && self.shown.get(&id).is_some_and(|s| s.draft) {
             self.ctx.request_repaint_after(DRAG_GAP);

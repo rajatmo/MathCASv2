@@ -103,7 +103,8 @@ impl App {
                 self.settings.add_recent(path);
                 let mut notes = vec![];
                 if side.pictures > 0 {
-                    notes.push(format!("{} picture(s) embedded, {} KB", side.pictures, side.bytes.div_ceil(1024)));
+                    // as stored (drawings and descriptions deflated), before base64
+                    notes.push(format!("{} picture(s) embedded, {} KB", side.pictures, side.stored.div_ceil(1024)));
                 }
                 if !side.missing.is_empty() {
                     notes.push(format!("{} picture(s) not found", side.missing.len()));
@@ -212,6 +213,8 @@ impl App {
             let Some(scene) = self.rot.borrow_mut().scene(&path) else { continue };
             let Some(view) = crate::rotate3d::view_of(&c.out_extra, scene.view()) else { continue };
             let Ok(png) = scene.render_png(&view, 2.0, &|| false) else { continue };
+            // two pixels a point: marked, so the export shows it at the picture's size
+            let png = mc_nbfile::images::with_density(&png, 2);
             let dir = mc_nbfile::embed::cache_dir();
             let name = format!("view-{}-{}.png", std::process::id(), c.id);
             if std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(dir.join(&name), &png)).is_ok() {
