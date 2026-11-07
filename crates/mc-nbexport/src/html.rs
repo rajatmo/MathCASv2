@@ -39,7 +39,7 @@ pre.program { border-top: 1px solid var(--border); border-bottom: 1px solid var(
 .failure { color: #ca1243; font-family: var(--prose); font-size: 13px; }
 .note { color: #986801; font-family: var(--prose); font-size: 13px; }
 .formula { text-align: center; margin: 0.6em 0; font-family: var(--code); }
-.picture { text-align: right; } .picture img { max-width: 100%; height: auto; }
+.picture { text-align: right; } .picture img, .picture svg { max-width: 100%; height: auto; }
 .missing { display: inline-block; border: 1px solid var(--faint); color: var(--weak); padding: 1em; font-family: var(--prose); font-size: 13px; }
 math { font-size: 1em; math-style: normal; font-family: 'STIX Two Math', 'Cambria Math', math; }
 math mi, math mn, math mo, math mtext { font-family: var(--code); }
@@ -258,13 +258,32 @@ struct Pictures<'a> {
     folder_name: String,
     /// source file to the name it was copied to
     copied: HashMap<PathBuf, String>,
+    /// drawings inlined so far (their ids get a prefix of their own)
+    inlined: usize,
 }
 
 impl Pictures<'_> {
-    /// The `<img>` (or a placeholder frame) for the picture `path` at `size` points.
+    /// The `<img>`, the inline drawing (or a placeholder frame) for the picture `path` at `size` points. A plot
+    /// is its SVG (the sibling `mc-graphics` wrote next to its PNG): inline when pictures are embedded, so it is
+    /// sharp at any zoom and costs no base64; its light colours are kept.
     fn html(&mut self, path: &str, size: Option<(u32, u32)>) -> io::Result<String> {
-        let file = resolve(path, Some(self.base));
+        let mut file = resolve(path, Some(self.base));
+        if ImageFormat::of(&file) == Some(ImageFormat::Png) {
+            let svg = file.with_extension("svg");
+            if std::fs::read(&svg).is_ok_and(|b| mc_nbfile::embed::is_ours(&b)) {
+                file = svg;
+            }
+        }
         let format = ImageFormat::of(&file);
+        if let (Images::Embed, Some(ImageFormat::Svg), Ok(bytes)) = (self.mode, format, std::fs::read(&file)) {
+            if mc_nbfile::embed::is_ours(&bytes) {
+                let (w, h) = size.or_else(|| picture_size(&file)).unwrap_or((360, 225));
+                self.inlined += 1;
+                if let Some(svg) = inline_svg(&String::from_utf8_lossy(&bytes), self.inlined, w, h, path) {
+                    return Ok(svg);
+                }
+            }
+        }
         let bytes = match (format, std::fs::read(&file)) {
             (Some(f), Ok(b)) => (f, b),
             _ => return Ok(format!("<div class=\"missing\">picture not found: {}</div>", escape(path))),
@@ -306,6 +325,29 @@ impl Pictures<'_> {
     }
 }
 
+/// A drawing of `mc-graphics` as an inline `<svg>` element `w` x `h` CSS pixels: its ids (glyphs, clip paths)
+/// prefixed with `p<n>-` so several drawings in one page do not share them, the namespace declarations (which HTML
+/// does not need) left out, labelled with `path`. `None` when it does not have the shape this crate writes.
+fn inline_svg(svg: &str, n: usize, w: u32, h: u32, path: &str) -> Option<String> {
+    let start = svg.find("<svg")?;
+    let end = start + svg[start..].find('>')?;
+    let mut tag = svg[start..end].to_string();
+    for ns in [r#" xmlns="http://www.w3.org/2000/svg""#, r#" xmlns:xlink="http://www.w3.org/1999/xlink""#] {
+        tag = tag.replace(ns, "");
+    }
+    let set = |tag: &str, name: &str, v: u32| -> Option<String> {
+        let at = tag.find(&format!(" {name}=\""))? + name.len() + 3;
+        let close = at + tag[at..].find('"')?;
+        Some(format!("{}{v}{}", &tag[..at], &tag[close..]))
+    };
+    let tag = set(&set(&tag, "width", w)?, "height", h)?;
+    let body = svg[end..]
+        .replace(" id=\"", &format!(" id=\"p{n}-"))
+        .replace("href=\"#", &format!("href=\"#p{n}-"))
+        .replace("url(#", &format!("url(#p{n}-"));
+    Some(format!("{tag} role=\"img\" aria-label=\"{}\"{}", escape(path), body.trim_end()))
+}
+
 /// The HTML document (see [`crate::to_html`]).
 pub(crate) fn document(nb: &Notebook, base: &Path, out: &Path, opts: &Options) -> io::Result<String> {
     let title = opts
@@ -317,7 +359,7 @@ pub(crate) fn document(nb: &Notebook, base: &Path, out: &Path, opts: &Options) -
     let stem = out.file_stem().map_or_else(|| "notebook".into(), |s| s.to_string_lossy().to_string());
     let folder_name = format!("{stem}.files");
     let folder = out.parent().unwrap_or(Path::new("")).join(&folder_name);
-    let mut pics = Pictures { base, mode: opts.images, folder, folder_name, copied: HashMap::new() };
+    let mut pics = Pictures { base, mode: opts.images, folder, folder_name, copied: HashMap::new(), inlined: 0 };
     let mut h = String::new();
     h.push_str("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n");
     h.push_str("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n");

@@ -33,12 +33,14 @@ fn plots_are_embedded_in_the_notebook_file() {
     let text = std::fs::read_to_string(&nb).unwrap();
     let temp = std::env::temp_dir().display().to_string();
     assert!(!text.contains(&temp) && !text.contains("mathcas-plots"), "no cache path is named");
-    // each plot carries its picture and its description, the 3D plot also its scene
+    // each plot carries its drawing (round nb-svg: the SVG, deflated) and its description, the 3D plot also its
+    // scene
     let heads: Vec<&str> = text.lines().filter(|l| l.starts_with("#~ @")).collect();
     assert_eq!(heads.len(), 5, "{heads:?}");
-    assert!(heads[0].ends_with(".png") && heads[1].ends_with(".json deflate"), "{heads:?}");
-    assert!(heads[2].ends_with(".png") && heads[4].ends_with(".scene3d deflate"), "{heads:?}");
-    // a plain plot stays small: the PNG in base64 plus its deflated description
+    assert!(heads[0].ends_with(".svg deflate") && heads[1].ends_with(".json deflate"), "{heads:?}");
+    assert!(heads[2].ends_with(".svg deflate") && heads[4].ends_with(".scene3d deflate"), "{heads:?}");
+    assert!(text.contains("#= image(\"plot-") && text.contains(".svg\")"), "the values name the drawings");
+    // a plain plot stays small: the deflated drawing in base64 plus its deflated description
     let size = text.len();
     println!("embedded notebook: {size} bytes");
     assert!(size < 400_000, "{size}");
@@ -47,7 +49,7 @@ fn plots_are_embedded_in_the_notebook_file() {
     let o = Command::new(env!("CARGO_BIN_EXE_mc-repl")).arg("--export").arg(&nb).arg(&html).output().unwrap();
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
     let page = std::fs::read_to_string(&html).unwrap();
-    assert_eq!(page.matches("data:image/png;base64,").count(), 2, "both pictures found");
+    assert_eq!(page.matches("<svg ").count(), 2, "both pictures found, inline vector drawings");
     std::fs::remove_file(&html).unwrap();
     update(&nb);
     assert_eq!(std::fs::read_to_string(&nb).unwrap(), text, "plots are drawn the same way again");

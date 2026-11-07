@@ -32,6 +32,8 @@ pub(crate) enum Op {
     Frame { x: f32, y: f32, w: f32, h: f32, color: Rgb },
     /// picture `image` (an index from [`Writer::image`]) in the rectangle
     Image { x: f32, y: f32, w: f32, h: f32, image: usize },
+    /// vector drawing `form` (an index from [`Writer::form`]) in the rectangle
+    Form { x: f32, y: f32, w: f32, h: f32, form: usize },
 }
 
 impl Op {
@@ -42,7 +44,8 @@ impl Op {
             | Op::Glyph { x, y, .. }
             | Op::Rect { x, y, .. }
             | Op::Frame { x, y, .. }
-            | Op::Image { x, y, .. } => {
+            | Op::Image { x, y, .. }
+            | Op::Form { x, y, .. } => {
                 *x += dx;
                 *y += dy;
             }
@@ -57,6 +60,14 @@ pub(crate) struct Picture {
     pub(crate) rows: usize,
     pub(crate) rgb: Vec<u8>,
     pub(crate) alpha: Option<Vec<u8>>,
+    /// smoothed when scaled (`/Interpolate`); cell images of colour bars and density plots are not
+    pub(crate) smooth: bool,
+}
+
+/// A vector drawing as a form `XObject`: its content in its own units (y down), its size.
+struct Form {
+    content: String,
+    size: (f32, f32),
 }
 
 /// A number for a content stream: at most two decimals, no trailing zeros.
@@ -80,13 +91,32 @@ pub(crate) struct Writer {
     /// each Type 3 font: its source font and its glyphs by code, with the character each shows
     type3: Vec<(Font, Vec<Coded>)>,
     pictures: Vec<Picture>,
+    forms: Vec<Form>,
+    /// the opacities the forms' graphics states need (thousandths)
+    alphas: Vec<u16>,
     pages: Vec<String>,
 }
 
 impl Writer {
     /// An empty document of pages `width` x `height` points.
     pub(crate) fn new(width: f32, height: f32) -> Writer {
-        Writer { width, height, codes: HashMap::new(), type3: vec![], pictures: vec![], pages: vec![] }
+        Writer { width, height, codes: HashMap::new(), type3: vec![], pictures: vec![], forms: vec![], alphas: vec![], pages: vec![] }
+    }
+
+    /// Add a vector drawing (its images become pictures of the document); gives its index for [`Op::Form`].
+    pub(crate) fn form(&mut self, d: super::vector::Drawing) -> usize {
+        let mut content = d.content;
+        for (k, p) in d.images.into_iter().enumerate().rev() {
+            let n = self.image(p);
+            content = content.replace(&format!("/Img{k} Do"), &format!("/Im{n} Do"));
+        }
+        for a in d.alphas {
+            if !self.alphas.contains(&a) {
+                self.alphas.push(a);
+            }
+        }
+        self.forms.push(Form { content, size: d.size });
+        self.forms.len() - 1
     }
 
     /// Add a picture; gives its index for [`Op::Image`].
@@ -166,6 +196,11 @@ impl Writer {
                 Op::Image { x, y, w, h: ih, image } => {
                     let _ = writeln!(c, "q {} 0 0 {} {} {} cm /Im{image} Do Q", num(*w), num(*ih), num(*x), num(h - y - ih));
                 }
+                Op::Form { x, y, w, h: fh, form } => {
+                    let (sw, sh) = self.forms[*form].size;
+                    let (kx, ky) = (w / sw.max(1e-3), fh / sh.max(1e-3));
+                    let _ = writeln!(c, "q {} 0 0 {} {} {} cm /Fm{form} Do Q", kx, ky, num(*x), num(h - y - fh));
+                }
             }
         }
         self.pages.push(c);
@@ -213,12 +248,32 @@ impl Writer {
             let im = image(&mut doc, p);
             let _ = write!(xobjects, " /Im{k} {im} 0 R");
         }
+        // vector drawings: forms whose content is y down (the matrix flips it), sharing the resources
+        for (k, f) in self.forms.iter().enumerate() {
+            let (w, h) = f.size;
+            let dict = format!(
+                " /Type /XObject /Subtype /Form /BBox [0 0 {} {}] /Matrix [1 0 0 -1 0 {}] /Resources {resources} 0 R",
+                num(w),
+                num(h),
+                num(h)
+            );
+            let fm = doc.add(stream(&dict, f.content.as_bytes()));
+            let _ = write!(xobjects, " /Fm{k} {fm} 0 R");
+        }
         let mut res = String::from("<< /ProcSet [/PDF /Text /ImageC]");
         if !font_refs.is_empty() {
             let _ = write!(res, " /Font <<{font_refs} >>");
         }
         if !xobjects.is_empty() {
             let _ = write!(res, " /XObject <<{xobjects} >>");
+        }
+        if !self.alphas.is_empty() {
+            res.push_str(" /ExtGState <<");
+            for a in &self.alphas {
+                let v = num(f32::from(*a) / 1000.0);
+                let _ = write!(res, " /GS{a} << /ca {v} /CA {v} >>");
+            }
+            res.push_str(" >>");
         }
         res.push_str(" >>");
         doc.set(resources, res.into_bytes());
@@ -261,8 +316,8 @@ fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
 fn image(doc: &mut Doc, p: &Picture) -> usize {
     let dict = |space: &str| {
         format!(
-            " /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace /{space} /BitsPerComponent 8 /Interpolate true",
-            p.cols, p.rows
+            " /Type /XObject /Subtype /Image /Width {} /Height {} /ColorSpace /{space} /BitsPerComponent 8 /Interpolate {}",
+            p.cols, p.rows, p.smooth
         )
     };
     let mask = match &p.alpha {

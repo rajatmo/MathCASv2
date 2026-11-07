@@ -34,3 +34,16 @@ loop excludes). `tests/fuzz.rs` runs texts built from the format's pieces, damag
 `Notebook::read`, `print` (what was read prints and reads again), `parse`, `parse_cells`, `Attrs::parse` and the
 picture helpers (`svg_size`, `image_path`, `ImageFormat::sniff`): 3,000 cases of each kind by default
 (`MC_FUZZ_CASES`), 60,000 of each ran clean once. No panic was found.
+
+## Round nb-svg: drawings embedded
+
+- `embed`: a plot's SVG (the sibling of its PNG, or an SVG `is_ours`: `class="mc-graphic"` on the root) is embedded
+  deflated (`@plot-<hash>.svg deflate`) and the value names it; an SVG deflating to more than `SVG_LIMIT` (256 KiB)
+  becomes a PNG at `HIRES` (2) pixels per point made with resvg (no text features; light colours) and marked with a
+  `pHYs` chunk (`images::with_density`); other pictures as before. A file is stored once per notebook, in the first
+  block that shows it (`extract` reads all blocks first). `Embedded::stored` gives the bytes as stored.
+- `images::png_density` (72 k dpi in `pHYs` for k = 2, 3, 4 within 1 %), `picture_size` divides by it.
+- Dependency: `resvg` 0.49 (Apache-2.0 OR MIT, `raster-images` only; already in the lock).
+- Tests (3 new): drawings embedded deflated and shared by two outputs, round trip through the cache and again without
+  it; a dense drawing becomes a 1280 x 800 PNG of density 2 shown at 640 x 400; density chunks written and read (CRC
+  checked against an independent implementation).

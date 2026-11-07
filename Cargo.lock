@@ -2590,6 +2590,7 @@ dependencies = [
  "miniz_oxide 0.8.9",
  "png 0.18.1",
  "ttf-parser",
+ "usvg",
 ]
 
 [[package]]
@@ -2597,6 +2598,7 @@ name = "mc-nbfile"
 version = "0.4.0"
 dependencies = [
  "miniz_oxide 0.8.9",
+ "resvg",
 ]
 
 [[package]]

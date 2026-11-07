@@ -393,3 +393,123 @@ fn an_older_notebook_with_a_sidecar_folder_is_embedded_on_save_and_the_folder_st
     assert!(side.join("plot-3f2a91c04b7e.png").is_file(), "the old folder is left for the user");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// An SVG drawing as `mc-graphics` writes it (the class on the root element), `w` x `h` points, with `body`.
+fn our_svg(w: u32, h: u32, body: &str) -> String {
+    format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" class=\"mc-graphic\" width=\"{w}\" height=\"{h}\" viewBox=\"0 0 {w} {h}\">\n\
+         <path class=\"mcf-bg\" d=\"M0 0L{w} 0L{w} {h}L0 {h}Z\" fill=\"#ffffff\"/>\n{body}</svg>\n"
+    )
+}
+
+#[test]
+fn plots_are_embedded_as_their_svg_deflated_and_shared_between_outputs() {
+    use crate::embed::{attachments, embed, extract, is_ours};
+    use crate::images::{image_path, image_value, picture_size};
+    let root = scratch("svg-embed");
+    let tmp = root.join("session");
+    std::fs::create_dir_all(&tmp).unwrap();
+    // a session plot: the PNG the kernel names, its SVG and PDF siblings, its description
+    let png = tmp.join("plot-7-0.png");
+    std::fs::write(&png, b"\x89PNG\r\n\x1a\nnot shown").unwrap();
+    let curve: String = (0..400).map(|k| format!("L{} {}", k, (k * k) % 300)).collect();
+    let svg = our_svg(640, 400, &format!("<path d=\"M0 0{curve}\" fill=\"none\" stroke=\"#1f77b4\"/>\n"));
+    assert!(is_ours(svg.as_bytes()) && !is_ours(b"<svg width=\"3\"/>"));
+    std::fs::write(tmp.join("plot-7-0.svg"), &svg).unwrap();
+    std::fs::write(tmp.join("plot-7-0.pdf"), b"%PDF-1.4").unwrap();
+    std::fs::write(tmp.join("plot-7-0.json"), "{\"version\":1}").unwrap();
+    let v = image_value(&png.to_string_lossy());
+    let text = format!("{HEADER}\n\n#% cell label=1\nplot(x)\n#% output n=1\n#= {v}\n\n#% cell label=2\nagain\n#% output n=2\n#= {v}\n");
+    let mut nb = Notebook::parse(&text).unwrap();
+    let r = embed(&mut nb, None);
+    assert_eq!((r.pictures, r.missing.len()), (2, 0));
+    let saved = nb.print();
+    let name = image_path(&nb.cells[0].outputs[0].lines[0].text).unwrap();
+    assert!(name.starts_with("plot-") && name.ends_with(".svg"), "{name}");
+    assert!(saved.contains(&format!("#~ @{name} deflate\n")), "{saved}");
+    assert!(!saved.contains(".pdf") && !saved.contains("not shown"), "neither the PDF nor the PNG is stored");
+    // the second output names the same file and carries nothing (one copy per notebook)
+    assert_eq!(image_path(&nb.cells[1].outputs[0].lines[0].text).unwrap(), name);
+    assert!(attachments(&nb.cells[1].outputs[0]).is_empty());
+    assert_eq!(saved.matches("#~ @").count(), 2, "the drawing and its description, once");
+    let files = attachments(&nb.cells[0].outputs[0]);
+    assert_eq!(files[0].bytes, svg.as_bytes(), "the drawing byte for byte");
+    // deflated: far smaller than the drawing's text
+    assert!(r.stored * 2 < r.bytes, "{} stored of {}", r.stored, r.bytes);
+    // opening: both outputs show the cached drawing; it has its natural size; saving again gives the same text
+    let cache = root.join("cache");
+    let mut opened = Notebook::parse(&saved).unwrap();
+    assert_eq!(extract(&mut opened, &cache).unwrap(), 2);
+    let shown: Vec<String> = opened.cells.iter().map(|c| image_path(&c.outputs[0].lines[0].text).unwrap()).collect();
+    assert_eq!(shown[0], shown[1]);
+    assert_eq!(std::fs::read_to_string(&shown[0]).unwrap(), svg);
+    assert_eq!(picture_size(std::path::Path::new(&shown[0])), Some((640, 400)));
+    let mut resaved = opened.clone();
+    embed(&mut resaved, None);
+    assert_eq!(resaved.print(), saved, "saving an opened notebook gives the same text");
+    // saved without the cache (the runner rewriting other cells): the carried drawing stays, still once
+    let mut carried = Notebook::parse(&saved).unwrap();
+    let r = embed(&mut carried, Some(&root.join("elsewhere")));
+    assert!(r.missing.is_empty(), "{r:?}");
+    assert_eq!(carried.print(), saved);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_dense_plot_is_embedded_as_a_high_resolution_png_shown_at_its_size() {
+    use crate::embed::{attachments, embed, SVG_LIMIT};
+    use crate::images::{image_path, image_value, picture_size, png_density};
+    let root = scratch("svg-dense");
+    std::fs::create_dir_all(&root).unwrap();
+    // 120 000 dots at scattered places: the drawing deflates to more than the limit
+    let mut x: u64 = 12345;
+    let mut d = String::with_capacity(2_000_000);
+    for _ in 0..120_000 {
+        x = x.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        let (a, b) = ((x >> 33) % 64000, (x >> 13) % 40000);
+        d.push_str(&format!("M{}.{:02} {}.{:02}h0", a / 100, a % 100, b / 100, b % 100));
+    }
+    let svg = our_svg(640, 400, &format!("<path d=\"{d}\" fill=\"none\" stroke=\"#ff0000\" stroke-width=\"1\" stroke-linecap=\"round\"/>\n"));
+    assert!(miniz_oxide::deflate::compress_to_vec_zlib(svg.as_bytes(), 9).len() > SVG_LIMIT);
+    let png = root.join("plot-9-0.png");
+    std::fs::write(&png, b"\x89PNG\r\n\x1a\nsmall").unwrap();
+    std::fs::write(root.join("plot-9-0.svg"), &svg).unwrap();
+    let text = format!("{HEADER}\n\n#% cell label=1\nlist_plot(p)\n#% output n=1\n#= {}\n", image_value(&png.to_string_lossy()));
+    let mut nb = Notebook::parse(&text).unwrap();
+    embed(&mut nb, None);
+    let name = image_path(&nb.cells[0].outputs[0].lines[0].text).unwrap();
+    assert!(name.ends_with(".png"), "{name}");
+    let files = attachments(&nb.cells[0].outputs[0]);
+    let hi = &files[0].bytes;
+    assert_eq!(png_density(hi), 2);
+    // twice the pixels, shown at the drawing's size
+    let ihdr = |i: usize| u32::from_be_bytes([hi[16 + i], hi[17 + i], hi[18 + i], hi[19 + i]]);
+    assert_eq!((ihdr(0), ihdr(4)), (1280, 800));
+    let out = root.join(&name);
+    std::fs::write(&out, hi).unwrap();
+    assert_eq!(picture_size(&out), Some((640, 400)));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn density_chunks_are_written_and_read() {
+    use crate::images::{png_density, with_density};
+    // a 1 x 1 PNG (signature, IHDR, IDAT, IEND)
+    let png: Vec<u8> = [
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, b'I', b'H', b'D', b'R', 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0,
+        0x1F, 0x15, 0xC4, 0x89, 0, 0, 0, 10, b'I', b'D', b'A', b'T', 0x78, 0x9C, 0x63, 0, 1, 0, 0, 5, 0, 1, 0x0D, 0x0A, 0x2D,
+        0xB4, 0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ]
+    .to_vec();
+    assert_eq!(png_density(&png), 1);
+    let two = with_density(&png, 2);
+    assert_eq!(two.len(), png.len() + 21);
+    assert_eq!(png_density(&two), 2);
+    // the chunk as PNG readers check it (CRC from an independent implementation): pHYs, 5669 pixels a metre both
+    // ways, unit metre
+    assert_eq!(&two[33..54], &[0, 0, 0, 9, b'p', b'H', b'Y', b's', 0, 0, 0x16, 0x25, 0, 0, 0x16, 0x25, 1, 0x49, 0x52, 0x24, 0xF0][..]);
+    // written again: one chunk, the new density
+    assert_eq!(png_density(&with_density(&two, 3)), 3);
+    assert_eq!(with_density(&two, 3).len(), two.len());
+    assert_eq!(with_density(b"not a png", 2), b"not a png");
+}

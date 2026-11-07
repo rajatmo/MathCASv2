@@ -325,3 +325,63 @@ fn pdf_text_with_more_than_256_glyphs_of_one_font_reads_back() {
 fn pdf_has_prose_glyph(c: char) -> bool {
     crate::pdf::has_prose_glyph(c)
 }
+
+/// A notebook with two plots as `mc-graphics` writes them (the PNG with its SVG sibling) and a PNG of another
+/// program.
+fn plots(dir: &Path) -> Notebook {
+    for k in 1..=2 {
+        std::fs::write(dir.join(format!("plot-{k}.png")), png_bytes()).unwrap();
+        let svg = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" class=\"mc-graphic\" width=\"200\" height=\"100\" viewBox=\"0 0 200 100\">\n\
+             <defs>\n<path id=\"g7\" d=\"M0 0L500 0L500 -700Z\"/>\n</defs>\n\
+             <path class=\"mcf-bg\" d=\"M0 0L200 0L200 100L0 100Z\" fill=\"#ffffff\"/>\n\
+             <clipPath id=\"c1\"><rect x=\"10\" y=\"10\" width=\"180\" height=\"80\"/></clipPath><g clip-path=\"url(#c1)\">\n\
+             <path d=\"M0 90L200 {}\" fill=\"none\" stroke=\"#1b5e63\" stroke-width=\"2\"/>\n</g>\n\
+             <g class=\"mcf-text\" fill=\"#262626\" aria-label=\"x\">\n<use xlink:href=\"#g7\" transform=\"translate(100 98) scale(0.01)\"/>\n</g>\n</svg>\n",
+            10 * k
+        );
+        std::fs::write(dir.join(format!("plot-{k}.svg")), svg).unwrap();
+    }
+    std::fs::write(dir.join("photo.png"), png_bytes()).unwrap();
+    let text = "#! mathcas 2 notebook\n\n\
+        #% cell\nplot(x)\n#% output\n#= image(\"plot-1.png\")\n\n\
+        #% cell\nplot(y)\n#% output size=100x50\n#= image(\"plot-2.png\")\n\n\
+        #% cell\nimport(p)\n#% output\n#= image(\"photo.png\")\n";
+    Notebook::parse(text).unwrap()
+}
+
+/// Round nb-svg: plots are exported as vector graphics in their light colours: inline SVG in HTML (ids made
+/// unique per drawing), form XObjects in PDF; other pictures as before.
+#[test]
+fn plots_are_exported_as_vector_drawings() {
+    let dir = folder("vector");
+    let nb = plots(&dir);
+    let h = to_html(&nb, &dir, &dir.join("p.html"), &Options::default()).unwrap();
+    assert_balanced(&h);
+    assert_eq!(h.matches("<svg ").count(), 2, "{h}");
+    assert!(h.contains("<svg version=\"1.1\" class=\"mc-graphic\" width=\"200\" height=\"100\""), "{h}");
+    assert!(h.contains("width=\"100\" height=\"50\" viewBox=\"0 0 200 100\""), "the size of the output");
+    for n in 1..=2 {
+        assert!(h.contains(&format!("id=\"p{n}-g7\"")) && h.contains(&format!("href=\"#p{n}-g7\"")) && h.contains(&format!("url(#p{n}-c1)")));
+    }
+    assert!(h.contains("fill=\"#ffffff\""), "light colours kept");
+    assert!(!h.contains("http:") && !h.contains("https:"), "no namespace URLs");
+    // the other program's PNG stays an image
+    assert_eq!(h.matches("<img src=\"data:image/png;base64,").count(), 1);
+    let pdf = to_pdf(&nb, &dir).unwrap();
+    let objs = objects(&pdf);
+    let forms: Vec<&(String, Option<Vec<u8>>)> = objs.values().filter(|o| o.0.contains("/Subtype /Form")).collect();
+    assert_eq!(forms.len(), 2);
+    let content = String::from_utf8(forms.iter().find(|f| f.0.contains("/BBox [0 0 200 100]")).unwrap().1.clone().unwrap()).unwrap();
+    // the curve in its colour and width, clipped; the glyph filled
+    assert!(content.contains("0.11 0.37 0.39 RG 2 w"), "{content}");
+    assert!(content.contains("W n"), "{content}");
+    assert!(content.contains("0.15 0.15 0.15 rg"), "{content}");
+    assert!(forms.iter().all(|f| f.0.contains("/Matrix [1 0 0 -1 0 100]")));
+    // the photo: one image (and its mask); pages draw the forms
+    let images = objs.values().filter(|o| o.0.contains("/Subtype /Image")).count();
+    assert_eq!(images, 2);
+    let pages: String = objs.values().filter_map(|o| o.1.as_ref()).map(|d| String::from_utf8_lossy(d).to_string()).collect();
+    assert!(pages.contains("/Fm0 Do") && pages.contains("/Fm1 Do"));
+    let _ = std::fs::remove_dir_all(&dir);
+}

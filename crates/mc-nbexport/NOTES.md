@@ -112,7 +112,24 @@ The PDFs open and render in poppler (`pdftoppm`, `pdfinfo`: A4, page count, titl
   whole document).
 - Typeset inputs are not syntax-coloured (plain inputs are); matrices and other boxes than root, fraction, power
   (older notebooks) show as their linear text, as in the notebook.
-- SVG pictures in PDF need a `.png` sibling (no SVG rasteriser in the allowed dependencies). A compressed `.svgz`
-  is embedded in HTML as it is, which browsers do not show from a `data:` URI.
+- SVG pictures of other programs in PDF are drawn as vectors only as far as flat colours go (gradients, patterns,
+  masks, filters and text left out; text needs usvg's text feature and fonts). A compressed `.svgz` is embedded in
+  HTML as it is, which browsers do not show from a `data:` URI.
 - PNG pictures are decoded and recompressed (not passed through with predictors), so very large plots cost time.
 - Right-to-left and complex scripts are drawn glyph by glyph without shaping or kerning.
+
+## Round nb-svg: drawings as vectors
+
+- HTML: a plot (the SVG sibling of its PNG, or an embedded `.svg` written by `mc-graphics`) is an inline `<svg>` when
+  pictures are embedded: ids prefixed `p<n>-` per drawing, namespace declarations dropped (no URLs), `width`/`height`
+  from `size=` or the drawing, `role="img"` with the path as label. With `Images::Folder` the SVG file is copied and
+  linked. Light colours kept.
+- PDF: `pdf/vector.rs` parses the drawing with `usvg` (no text features) and writes it as a form XObject: paths with
+  flat fills and strokes (width, caps, joins, miter limit, dashes, even-odd), opacity through `ExtGState`
+  (`/GS<thousandths>`), clip paths, transforms, embedded PNG images (`/Interpolate false` for pixelated cells);
+  gradients, patterns, masks and filters (never written by `mc-graphics`) are left out. Forms share the document's
+  resource dictionary; `/Matrix [1 0 0 -1 0 h]` flips the y-down content. A drawing that cannot be read falls back to
+  its PNG sibling as before.
+- Dependency: `usvg` 0.49 (Apache-2.0 OR MIT, default features off; already in the lock).
+- Tests (2 new): operators of paths, clips and opacity; plots exported as inline SVG (ids unique per drawing, no URLs)
+  and as forms (colour, width, clip, glyph fill; the other program's PNG still an image).

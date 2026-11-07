@@ -2,11 +2,10 @@
 //! picture formats a notebook shows, the `size=WxH` attribute of an output block, and the sidecar folder that holds
 //! a saved notebook's pictures.
 //!
-//! While a session runs, plot files live in the system's temporary folder. Saving copies every picture an output
-//! names into `<notebook name>.files/` next to the notebook, under a name made from its content
-//! (`plot-3f2a91c0d4e5.png`), and rewrites the output to the relative path; files in that folder that no output
-//! names any more are deleted. A relative path is relative to the notebook's folder, so a notebook and its sidecar
-//! folder can be moved together. Embedding pictures in the text was rejected: it destroys diffability.
+//! While a session runs, plot files live in the system's temporary folder. Since round 13 saving embeds every
+//! picture in the notebook's text ([`crate::embed`]); older notebooks name files in a `<notebook name>.files/`
+//! folder next to them (a relative path is relative to the notebook's folder). A PNG may mark a pixel density
+//! ([`png_density`]): it is shown at its pixel size divided by it.
 use crate::Attrs;
 use std::path::{Path, PathBuf};
 
@@ -119,10 +118,87 @@ pub fn picture_size(path: &Path) -> Option<(u32, u32)> {
         ImageFormat::Png => {
             let ihdr = head.get(12..24).filter(|h| h.starts_with(b"IHDR"))?;
             let be = |i: usize| u32::from_be_bytes([ihdr[i], ihdr[i + 1], ihdr[i + 2], ihdr[i + 3]]);
-            Some((be(4), be(8))).filter(|&(w, h)| w > 0 && h > 0)
+            // a picture of k pixels per point (the high-resolution PNG of a dense plot) is shown at its points
+            let k = png_density(head);
+            Some((be(4).div_ceil(k), be(8).div_ceil(k))).filter(|&(w, h)| w > 0 && h > 0)
         }
         ImageFormat::Svg => svg_size(&String::from_utf8_lossy(head)),
     }
+}
+
+/// Pixels per inch of the pixel density a PNG marks with `pHYs` as k pixels per point: 72 k (k = 2, 3, 4).
+const POINT_PPM: f64 = 72.0 / 0.0254;
+
+/// The pixel density of a PNG file from its first bytes: k when its `pHYs` chunk (before the image data) says 72 k
+/// dots per inch for k = 2, 3 or 4 (within 1 %), else 1. Such a picture is drawn at its size divided by k: the PNG
+/// [`crate::embed`] makes of a dense plot says 144 dpi, as high-resolution screenshots do.
+pub fn png_density(head: &[u8]) -> u32 {
+    let mut at = 8;
+    while let Some(chunk) = head.get(at..at + 8) {
+        let len = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as usize;
+        let kind = &chunk[4..8];
+        if kind == b"IDAT" || kind == b"IEND" {
+            break;
+        }
+        if kind == b"pHYs" && len == 9 {
+            let Some(d) = head.get(at + 8..at + 17) else { break };
+            let (x, y, unit) = (u32::from_be_bytes([d[0], d[1], d[2], d[3]]), u32::from_be_bytes([d[4], d[5], d[6], d[7]]), d[8]);
+            if unit == 1 && x == y {
+                for k in 2..=4u32 {
+                    if (x as f64 / (POINT_PPM * k as f64) - 1.0).abs() < 0.01 {
+                        return k;
+                    }
+                }
+            }
+            break;
+        }
+        at += 12 + len;
+    }
+    1
+}
+
+/// A PNG file with a `pHYs` chunk saying `k` pixels per point (72 k dots per inch) right after its header chunk
+/// (an existing `pHYs` is left out). Bytes that are not a PNG come back unchanged.
+pub fn with_density(png: &[u8], k: u32) -> Vec<u8> {
+    const SIG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    if !png.starts_with(&SIG) || png.get(12..16) != Some(b"IHDR") {
+        return png.to_vec();
+    }
+    let ppm = (POINT_PPM * k as f64).round() as u32;
+    let mut data = Vec::with_capacity(9);
+    data.extend_from_slice(&ppm.to_be_bytes());
+    data.extend_from_slice(&ppm.to_be_bytes());
+    data.push(1);
+    let mut chunk = Vec::with_capacity(21);
+    chunk.extend_from_slice(&9u32.to_be_bytes());
+    chunk.extend_from_slice(b"pHYs");
+    chunk.extend_from_slice(&data);
+    chunk.extend_from_slice(&crc32(&chunk[4..]).to_be_bytes());
+    let mut out = Vec::with_capacity(png.len() + chunk.len());
+    out.extend_from_slice(&png[..33]);
+    out.extend_from_slice(&chunk);
+    let mut at = 33;
+    while let Some(head) = png.get(at..at + 8) {
+        let len = u32::from_be_bytes([head[0], head[1], head[2], head[3]]) as usize;
+        let end = (at + 12 + len).min(png.len());
+        if &head[4..8] != b"pHYs" {
+            out.extend_from_slice(&png[at..end]);
+        }
+        at = end;
+    }
+    out
+}
+
+/// CRC-32 (ISO-HDLC, as PNG chunks use).
+fn crc32(bytes: &[u8]) -> u32 {
+    let mut c = 0xffff_ffffu32;
+    for &b in bytes {
+        c ^= u32::from(b);
+        for _ in 0..8 {
+            c = if c & 1 != 0 { 0xedb8_8320 ^ (c >> 1) } else { c >> 1 };
+        }
+    }
+    !c
 }
 
 /// The path an image value names: `value` is `image("path")` (white space around it allowed), the string in the

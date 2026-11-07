@@ -23,3 +23,6 @@ ttf-parser = { version = "0.25", default-features = false, features = ["std", "o
 png = "0.18"
 # Flate compression of PDF streams (MIT / Zlib / Apache-2.0)
 miniz_oxide = "0.8"
+# SVG drawings parsed into paths for the PDF's vector pictures (Apache-2.0 OR MIT; already in the lock); no text:
+# the drawings of mc-graphics have their glyphs as paths
+usvg = { version = "0.49", default-features = false }

@@ -6,6 +6,7 @@
 //! character in DejaVu Sans Mono, and typeset content (outputs, typeset inputs, display formulas) is laid out by
 //! `mc_boxes::layout` with the code font's metrics, then drawn glyph by glyph.
 mod fonts;
+mod vector;
 mod writer;
 
 use crate::model::{code_spans, first_title, parts, Out, Part};
@@ -351,33 +352,49 @@ fn decode_png(bytes: &[u8]) -> Option<Picture> {
         return None;
     }
     let alpha = (alpha.len() == cols * rows && alpha.iter().any(|&a| a < 255)).then_some(alpha);
-    Some(Picture { cols, rows, rgb, alpha })
+    Some(Picture { cols, rows, rgb, alpha, smooth: true })
 }
 
-/// A picture in the writer: its index and its size in pixels.
-type Placed = (usize, (usize, usize));
+/// A picture in the writer and its natural size (pixels of a raster, units of a drawing).
+#[derive(Clone, Copy, Debug)]
+enum Placed {
+    /// an image `XObject` by index
+    Raster(usize, (f32, f32)),
+    /// a vector drawing by index
+    Vector(usize, (f32, f32)),
+}
 
 /// Builds the blocks of a document, placing pictures in the writer.
 struct Builder<'a> {
     base: &'a Path,
     writer: Writer,
-    /// picture file to its index and natural size in pixels (`None`: not readable)
+    /// picture file to where it is in the writer (`None`: not readable)
     pictures: HashMap<PathBuf, Option<Placed>>,
 }
 
 impl Builder<'_> {
-    /// The picture at `path` (an SVG drawing through its PNG sibling): its index and size in pixels.
+    /// The picture at `path`, placed in the writer once: a drawing (an SVG, or the SVG sibling `mc-graphics` wrote
+    /// next to a plot's PNG) as vector graphics, else the PNG (a drawing that cannot be read: its PNG sibling).
     fn picture(&mut self, path: &str) -> Option<Placed> {
-        let mut file = resolve(path, Some(self.base));
-        if ImageFormat::of(&file) == Some(ImageFormat::Svg) {
-            file = file.with_extension("png");
-        }
+        let file = resolve(path, Some(self.base));
         if let Some(p) = self.pictures.get(&file) {
             return *p;
         }
-        let found = std::fs::read(&file).ok().and_then(|b| decode_png(&b)).map(|p| {
-            let size = (p.cols, p.rows);
-            (self.writer.image(p), size)
+        let svg_file = match ImageFormat::of(&file) {
+            Some(ImageFormat::Svg) => Some(file.clone()),
+            _ => Some(file.with_extension("svg")).filter(|s| std::fs::read(s).is_ok_and(|b| mc_nbfile::embed::is_ours(&b))),
+        };
+        let vector = svg_file.and_then(|s| std::fs::read(s).ok()).and_then(|b| vector::drawing(&b, &decode_png)).map(|d| {
+            let size = d.size;
+            Placed::Vector(self.writer.form(d), size)
+        });
+        let found = vector.or_else(|| {
+            let png = if ImageFormat::of(&file) == Some(ImageFormat::Svg) { file.with_extension("png") } else { file.clone() };
+            let natural = picture_size(&png);
+            std::fs::read(&png).ok().and_then(|b| decode_png(&b)).map(|p| {
+                let size = natural.map_or((p.cols as f32, p.rows as f32), |(w, h)| (w as f32, h as f32));
+                Placed::Raster(self.writer.image(p), size)
+            })
         });
         self.pictures.insert(file, found);
         found
@@ -387,17 +404,21 @@ impl Builder<'_> {
         let width = WIDTH - BODY;
         let max_h = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM - 8.0;
         let line = match self.picture(path) {
-            Some((k, (cols, rows))) => {
-                let file = resolve(path, Some(self.base));
-                let (w, h) = size
-                    .or_else(|| picture_size(&file))
-                    .map(|(w, h)| (w as f32, h as f32))
-                    .unwrap_or((cols as f32, rows as f32));
+            Some(placed) => {
+                let natural = match placed {
+                    Placed::Raster(_, s) | Placed::Vector(_, s) => s,
+                };
+                let (w, h) = size.map(|(w, h)| (w as f32, h as f32)).unwrap_or(natural);
                 let (mut w, mut h) = (w * PICTURE_SCALE, h * PICTURE_SCALE);
                 let fit = (width / w).min(max_h / h).min(1.0);
                 w *= fit;
                 h *= fit;
-                Line { h: h + 4.0, ops: vec![Op::Image { x: BODY + width - w, y: 2.0, w, h, image: k }] }
+                let x = BODY + width - w;
+                let op = match placed {
+                    Placed::Raster(image, _) => Op::Image { x, y: 2.0, w, h, image },
+                    Placed::Vector(form, _) => Op::Form { x, y: 2.0, w, h, form },
+                };
+                Line { h: h + 4.0, ops: vec![op] }
             }
             None => {
                 let label = format!("picture not found: {path}");
