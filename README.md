@@ -1,28 +1,14 @@
 # MathCAS v2
 
-An independent computer algebra system built around one idea: **a small, fully specified core that combines fast
-term rewriting with first-class arbitrary-precision and exact algebra.**
-
-v2 is a new design, not a port. It has its own syntax, its own evaluation control and its own number model. A
-compatibility layer for other languages may come later, as a front end that translates into the core, never as the
-core's semantics.
+A free computer algebra system for exact, symbolic and high-precision numeric mathematics, with a native notebook,
+publication-quality plots and a small, readable language. It runs on Windows and Linux.
 
 ![A notebook session: exact integration, input with a power and a fraction, a plot with coordinate read-outs,
 solving a cubic and a 3D surface](docs/media/workflow.gif)
 
-*A session in the MathCAS notebook: exact integration, input with a power (`Ctrl+6`) and a fraction (`Ctrl+/`), a plot
-whose curve snaps to the pointer with its coordinates, solving a cubic, and a surface. Inputs and outputs are one kind of
-text, with roots, fractions and powers drawn as written mathematics. Every frame is the real program
-([MP4 version](docs/media/workflow.mp4); recorded with [tools/demo/workflow.py](tools/demo/workflow.py)).*
+*A session in the MathCAS notebook ([MP4 version](docs/media/workflow.mp4)). Every frame is the real program.*
 
-| | |
-|---|---|
-| ![Bessel functions J0, J1 and J2 with LaTeX labels and a legend](docs/media/gallery/bessel.png) | ![A 3D surface sin(x) cos(y) exp(-(x^2+y^2)/8) in the viridis colours](docs/media/gallery/surface.png) |
-| `plot` with LaTeX labels and a legend | `plot3d`, rendered by MathCAS's own 3D renderer |
-| ![Domain colouring of (z^3 - 1)/(z^2 + 1)](docs/media/gallery/complex.png) | ![Filled contours of sin(x) + cos(y) with a colour bar](docs/media/gallery/contour.png) |
-| `complex_plot`: zeros and poles by domain colouring | `contour_plot` with a colour bar |
-
-*Exported to PNG with `export_data` (also SVG and PDF); made by [tools/demo/gallery.mc](tools/demo/gallery.mc).*
+## What you can do with it
 
 ```text
 2^100 + 1/3                               # 3802951800684688204490109616129/3
@@ -31,147 +17,200 @@ d(sin(x)^2, x)                            # 2*cos(x)*sin(x)
 integrate(1/(x^2 - 1), x)                 # (-1/2)*log(1 + x) + (1/2)*log(-1 + x)
 series(exp(x), x, 0, 4)                   # 1 + x + x^2/2 + x^3/6 + x^4/24 + O(x^5)
 sum(1/k^2, [k, 1, inf])                   # (1/6)*pi^2
+solve(x^2 - 5*x + 6 == 0, x)              # [[x -> 2], [x -> 3]]
 n(sqrt(2), 50)                            # 1.4142135623730950488016887242096980785696718753769...
 find_root(cos(x) == x, [x, 1])            # [x -> 0.7390851332151607]
 n_integrate(exp(-x^2), [x, -inf, inf])    # 1.7724538509055163
+region_measure(disk([0, 0], 2))           # 4*pi
+quantity(3, "Meters") + quantity(2, "Feet")   # quantity(1504/127, "Feet")
 range(5) |> map(k => k^2, _)              # [1, 4, 9, 16, 25]
 ```
 
-## Goals
+- **Exact and symbolic:**
+  - integers, rationals and exact constants of any size;
+  - polynomials: expand, multivariate factor, gcd;
+  - `simplify` and `refine` with assumptions;
+  - derivatives, integrals, limits, series, sums and products;
+  - `solve`, `reduce`, `d_solve`, `r_solve`;
+  - `minimize`/`maximize` with constraints, Fourier transforms;
+  - number theory.
+- **Numeric:**
+  - arbitrary precision that shows only correct digits;
+  - machine numbers compiled to native code;
+  - roots, minima, fits, integrals;
+  - ODEs: stiff, with events, and boundary-value problems;
+  - interpolation, linear algebra, probability distributions and statistics;
+  - about 300 special functions, real and complex;
+  - parallel `table` and `map`.
+- **Values with meaning:** quantities with units, uncertain values (`around`), intervals, datasets, geometric regions.
+- **Plots and graphics:**
+  - about 100 plot types in 2D and 3D: log and signed-log axes, contour, density, vector, stream, region, complex,
+    graph and chart plots;
+  - LaTeX labels and legends;
+  - export to PNG, SVG, PDF and animated GIF.
+- **Data:** import and export of CSV, TSV, JSON, PNG, PDF and plain text tables.
 
-- **Simplicity:** few core primitives, every one of them specified; no behaviour that a reader of the spec could not
-  predict.
-- **Speed:** measured, not claimed, on a fixed benchmark suite (rewriting, polynomial algebra, big numbers, numeric
-  loops, structural operations).
-- **Predictability:** evaluation that terminates or reports; resource limits (time, memory, fuel) built in from the
-  first line of code.
-
-## Status
-
-Early but usable for real numeric and symbolic work: thermal integrals, bounce solutions by shooting, actions and
-wall profiles of a first-order phase transition run in seconds. What exists today:
-
-- **Language:** functions as ordered rule clauses with typed parameters and `when` guards, rules with sequence
-  patterns, lambdas, pipes, `match`, operator forms, blocks with `var`/`let`, `for`/`while`, modules with `pub`
-  exports and `import`, `%` history, a prelude written in the language itself ([lib/prelude.mc](lib/prelude.mc)).
-- **Numbers:** exact integers and rationals, machine reals, arbitrary-precision balls (only correct digits are
-  shown), complex numbers, intervals and uncertain values (`around`), quantities with units.
-- **Symbolic:** polynomials (expand, multivariate factor, gcd, resultant), `simplify` with assumptions, `d`,
-  `integrate`, `limit`, `series` (Puiseux, logarithmic, at infinity), `solve`, `reduce`, `d_solve`, `r_solve`,
-  `minimize`/`maximize` with constraints, Fourier transforms, number theory, about 300 special functions.
-- **Numeric:** `find_root`, `find_minimum`, `find_fit`, `n_integrate`, `n_dsolve` (stiff, events, boundary values),
-  `interpolation` (splines and local polynomials, with derivatives), linear algebra, 11 probability distributions;
-  numeric functions, special functions and ODE right-hand sides compile to machine code (Cranelift JIT), packed real
-  and complex arrays, `parallel_table`/`parallel_map`, `profile`.
-- **Data and graphics:** lists, associations, datasets, strings; import and export of CSV, TSV, JSON, PNG, PDF, SVG and
-  animated GIF; 2D and 3D graphics and about 100 plot types (log and signed-log axes, legends, LaTeX labels, vector,
-  stream and region plots, graphs, charts), geometric regions (`mc-geom`).
-- **Notebook:** one kind of cell (plain text with root, fraction and power boxes), outputs left or right, hyperlinked
-  documentation with F1, completion and usage hints, `manipulate` sliders, 3D pictures turned by dragging, export to
-  HTML and PDF, one file per notebook.
-- **Tools:** a REPL and script runner, a kernel protocol (JSON lines), a Jupyter kernel, a language server with a VS
-  Code extension, a Windows installer, and Linux tarball and AppImage builds.
-
-About a third of the reference system's documented examples run with the same results, and more than 60 % on pages
-for functions MathCAS has (measured privately with a translation harness). The plan is in
-[docs/design/06-roadmap.md](docs/design/06-roadmap.md).
-
-## Getting started
-
-Build with a recent stable Rust toolchain:
-
-```bash
-cargo build --release
-```
-
-Run the REPL, a script or a notebook:
-
-```bash
-cargo run --release -p mc-repl
-cargo run --release -p mc-repl -- examples/hello.mc
-cargo run --release -p mc-repl -- -e "factor(x^4 - 1)"
-cargo run --release -p mc-repl -- --update examples/notebook.mcn
-```
-
-`mc-repl --help` lists the options. At the REPL, `:help` lists the commands and Ctrl+C stops a running evaluation.
-The guide [docs/guide/quickstart.tex](docs/guide/quickstart.tex) walks through numeric work (roots, integrals,
-differential equations, compiled functions).
-
-A file may start with `#! mathcas 2`. Scripts are `.mc`; notebooks are `.mcn` (plain text: `#% cell`, `#% text` and
-`#% output` sections). See [examples/](examples) for scripts, a module, a notebook and Jupyter notebooks.
-
-### Editors and notebooks
-
-- **Jupyter** (Notebook, JupyterLab, VS Code): [editors/jupyter](editors/jupyter) wraps `mc-kernel`; register it with
-  `python editors/jupyter/install.py` (details in its `INSTALL.txt`). Plots show inline.
-- **VS Code:** [editors/vscode](editors/vscode) is a dependency-free extension over `mc-lsp`: diagnostics while
-  typing, go to definition, hover, completion, outline, and Run File / Run Selection.
-- **Other editors** can start `mc-lsp` as a language server over stdio.
-
-### Distribution
-
-`powershell -File tools/dist.ps1` builds a release folder (programs, examples, guide, editor support) and
-`tools/package.ps1` the Windows installer and zip. Every push to `main` publishes the Windows installer, the zip and
-the Linux tarball as the rolling **nightly** pre-release ([nightly.yml](.github/workflows/nightly.yml)); pushing a
-tag `v<version>` that matches the workspace version publishes a numbered release with that version's changelog
-([release.yml](.github/workflows/release.yml)). Both build through [packages.yml](.github/workflows/packages.yml).
-
-## Repository layout
-
-| Path | Contents |
+| | |
 |---|---|
-| `crates/mc-api`, `mc-core` | the term-store contract; hash-consed arena terms, immediates, generational collector |
-| `crates/mc-arith` | integers, rationals, balls (own NTT big-number layer), complex numbers |
-| `crates/mc-syntax`, `mc-eval`, `mc-load` | parser and printer; explicit-stack evaluator with indexed rule dispatch; files, modules and prelude |
-| `crates/mc-engine` | the assembled engine: registers every library crate into one session |
-| `crates/mc-lists`, `mc-assoc`, `mc-strings` | lists, associations and sets, strings |
-| `crates/mc-numeric`, `mc-numtheory`, `mc-poly` | numeric evaluation and precision, number theory, polynomials |
-| `crates/mc-calculus`, `mc-simplify`, `mc-special` | derivatives, integrals, limits, series; simplification; special functions |
-| `crates/mc-jit`, `mc-numfn` | the Cranelift compiler; compiled numeric functions and vectors |
-| `crates/mc-roots`, `mc-quad`, `mc-ode`, `mc-random` | root finding and minimisation, numeric integration, differential equations, random numbers |
-| `crates/mc-io`, `mc-plot` | data import and export, interpolation; plots |
-| `crates/mc-repl`, `mc-kernel`, `mc-lsp`, `mc-bench` | REPL and script runner, kernel protocol, language server, benchmark harness |
-| `lib/` | the prelude and standard modules, in MathCAS itself |
-| `docs/design/` | design documents (below) |
-| `bench/` | benchmark cases and results |
-| `spikes/` | the measured prototypes the design was decided on (outside the workspace; build one in its own folder) |
-| `editors/`, `examples/`, `tools/`, `assets/` | editor support, examples, build and packaging scripts, icons |
+| ![Bessel functions J0, J1 and J2 with LaTeX labels and a legend](docs/media/gallery/bessel.png) | ![A 3D surface in the viridis colours](docs/media/gallery/surface.png) |
+| `plot` with LaTeX labels and a legend | `plot3d`, rendered by MathCAS's own 3D renderer |
+| ![Domain colouring of (z^3 - 1)/(z^2 + 1)](docs/media/gallery/complex.png) | ![Filled contours of sin(x) + cos(y) with a colour bar](docs/media/gallery/contour.png) |
+| `complex_plot`: zeros and poles by domain colouring | `contour_plot` with a colour bar |
 
-Most crates have a `NOTES.md` with their design decisions and known gaps.
+*Made by [tools/demo/gallery.mc](tools/demo/gallery.mc).*
 
-## Design
+## Install
 
-The architecture was decided by measurement, top down: goals, a benchmark suite, a semantics specification, spikes
-for the risky parts, then the build.
+Download the latest release from the repository's **Releases** page:
 
-| Document | Subject |
+| System | File | How |
+|---|---|---|
+| Windows (x64) | `MathCAS-v2-<version>-win-x64.exe` | run the installer; it adds the notebook, the documentation window and `.mcn` file association |
+| Windows (x64) | `MathCAS-v2-<version>-win-x64.zip` | unpack anywhere and run `mc-notebook.exe` |
+| Linux (x64) | `MathCAS-v2-<version>-linux-x64.AppImage` | `chmod +x` it and run it; `<AppImage> repl` starts the REPL |
+| Linux (x64) | `MathCAS-v2-<version>-linux-x64.tar.gz` | unpack and run `./install.sh` (per user, no root needed) |
+
+The `nightly` pre-release is rebuilt from every push to `main`.
+
+## Using the notebook
+
+Start **MathCAS Notebook**. Type an input and press **Shift+Enter** to evaluate it. A notebook is one `.mcn` file
+(plain text, with its pictures embedded), so it is easy to keep, share and put under version control.
+
+| Key | What it does |
 |---|---|
-| [00-plan](docs/design/00-plan.md) | method and starting architecture |
-| [01-semantics](docs/design/01-semantics.md) | terms, numbers, evaluation order, holding, rules, strategies |
-| [02-benchmarks](docs/design/02-benchmarks.md) | the benchmark suite, by workload class |
-| [03-spikes](docs/design/03-spikes.md) | spike results and the decisions they settled |
-| [04-syntax](docs/design/04-syntax.md) | the surface syntax |
-| [05-assembly](docs/design/05-assembly.md) | crate layout and the interface contract |
-| [06-roadmap](docs/design/06-roadmap.md) | implementation phases after the first milestone |
-| [07-numerics](docs/design/07-numerics.md) | root finding, integration and differential equations |
-| [08-notebook](docs/design/08-notebook.md) | the notebook window: document model, editing, typesetting, evaluation, themes |
-| [09-docs](docs/design/09-docs.md) | function documentation pages and the documentation window |
+| Shift+Enter | evaluate the cell (Evaluation menu: evaluate all, abort) |
+| Ctrl+2, Ctrl+/, Ctrl+6 | square root, fraction, power: written mathematics in the input, edited in place |
+| F1 | the documentation page of the function at the cursor |
+| typing a name | completion with a one-line description of each function (Tab or Enter accepts); a hint shows the current argument |
+| Ctrl+click | open a function's page; hovering a name shows its usage |
+| Ctrl+wheel, Ctrl+0 | magnify, reset |
+| Ctrl+Shift+J | outputs left or right (View menu) |
 
-## Testing and benchmarks
+- **Plots:** hover a plot for coordinate read-outs that snap to the curves.
+- **3D pictures:** drag to turn them; the wheel zooms while one is selected, and a double-click resets the view.
+- **Sliders:** `manipulate(plot(sin(a*x), [x, 0, 2pi]), [a, 1, 5])` shows a slider for `a`, and the plot follows it.
+- **Export:** File > Export writes the notebook as HTML or PDF.
+- **Themes:** light and dark.
 
-```bash
-cargo test --release --workspace
-cargo run --release -p mc-bench -- list
-cargo run --release -p mc-bench -- run --cases bench/cases --only R1 --mem-ceiling 4GB
+The **documentation window** (`mc-docs`, also opened by F1) has a page for every function, with examples that are
+checked against the engine, and every name links to its page. The guide
+[docs/guide/quickstart.tex](docs/guide/quickstart.tex) (PDF in the release) walks through numeric work.
+
+## The language in brief
+
+```text
+fn f(x) = x^2 + 1                     # a function
+fn fact(0) = 1                        # rule clauses, tried in order
+fn fact(n: Int) when n > 0 = n*fact(n - 1)
+g = x => sin(x)/x                     # a lambda
+xs = table(k^2, k, 10)                # [1, 4, ..., 100]
+total(select(xs, is_even))            # 220
+x^2 + y /. [x -> 3]                   # 9 + y        (rules and replacement)
+assuming(a > 0, integrate(exp(-a*x), [x, 0, inf]))   # a^-1
+plot([sin(x), cos(x)], [x, 0, 2pi], legend: ["sin", "cos"])
 ```
 
-Every benchmark case runs in its own child process with a memory cap and a timeout.
+Scripts are `.mc` files. Run one with `mc-repl script.mc`, start the REPL with `mc-repl`, or evaluate an expression
+with `mc-repl -e "factor(x^6 - 1)"`. `mc-repl notebook.mcn --update` evaluates a notebook from the command line and
+writes its outputs back. [examples/](examples) has scripts, a module, a notebook and Jupyter notebooks.
 
-Long runs report their progress: `powershell -File tools/test.ps1` runs the workspace tests binary by binary under a
-memory cap and a time limit, printing `[k/N pct%]` per binary, and `powershell -File tools/status.ps1 -Watch` shows
-every running job (test suites, fuzz campaigns, benchmarks) with its progress, current step, elapsed time and
-estimated time left, flagging a job that has stopped reporting. The status files are small JSON documents (format in
-`tools/status.ps1`), so any tool in any language can report.
+**Other front ends:**
+- **Jupyter:** register the kernel with `python editors/jupyter/install.py`; plots show inline.
+- **VS Code:** [editors/vscode](editors/vscode) adds diagnostics while typing, completion with usage lines, signature
+  help, hover with links to the documentation, and Run File.
+- **Other editors:** any editor can start `mc-lsp` as a language server over standard input and output.
+
+## Building from source
+
+MathCAS is a Rust workspace (about 260,000 lines in 41 crates). You need a recent stable Rust toolchain; nothing else
+is required to build or test it. The notebook uses the system's graphics drivers (Direct3D 12 or OpenGL on Windows;
+Vulkan or OpenGL with Wayland or X11 on Linux).
+
+```bash
+cargo build --release                             # everything
+cargo run --release -p mc-notebook                # the notebook
+cargo run --release -p mc-repl -- -e "1 + 1"      # the REPL
+cargo test --release --workspace                  # the test suite
+cargo run --release -p mc-docs --bin mc-docs-pages -- check   # the documentation's examples
+```
+
+`tools/test.ps1` runs the suite one test binary at a time, with progress and memory and time limits. CI builds and
+tests Windows and Linux on every push ([ci.yml](.github/workflows/ci.yml)).
+
+### Distribution packages
+
+- **Windows:** `powershell -File tools/dist.ps1` builds a release folder (the programs, examples, guide and editor
+  support). `tools/package.ps1` then builds the installer, which needs Inno Setup 6, and the zip.
+- **Linux:** `packaging/linux/build-tarball.sh` builds the tarball. `packaging/linux/build-appimage.sh` turns it into
+  an AppImage, which needs `appimagetool`, and `packaging/linux/smoke.sh` checks a package.
+- **On GitHub:** every push to `main` publishes the Windows installer and zip and the Linux tarball as the `nightly`
+  pre-release ([nightly.yml](.github/workflows/nightly.yml)). Pushing a tag `v<version>` matching the workspace
+  version publishes a numbered release with that version's changelog ([release.yml](.github/workflows/release.yml)).
+
+## Internals
+
+The crates form layers. Each crate depends only on crates in the layers above it, and the engine assembles the
+libraries for the front ends.
+
+```mermaid
+flowchart TD
+  subgraph foundation["Foundation"]
+    api["mc-api: the term interface"] --> core["mc-core: terms, heap, hashing"]
+    api --> arith["mc-arith: exact, ball and machine numbers"]
+    api --> syntax["mc-syntax: parser and printer"]
+    core --> eval["mc-eval: the evaluator, patterns, rules"]
+    syntax --> load["mc-load: modules and the prelude"]
+  end
+  subgraph libraries["Mathematics and data libraries"]
+    lists["mc-lists, mc-assoc, mc-strings"]
+    numeric["mc-numeric, mc-special, mc-numtheory, mc-random, mc-dist"]
+    symbolic["mc-poly, mc-simplify, mc-calculus, mc-solve, mc-linalg"]
+    numerics["mc-jit, mc-numfn, mc-roots, mc-quad, mc-ode"]
+    data["mc-io, mc-geom"]
+  end
+  subgraph graphics["Graphics"]
+    gfx["mc-graphics: graphics model, 2D/3D rendering"] --> plot["mc-plot: plots and charts"]
+    boxes["mc-boxes, mc-mathfont: math layout and font"] --> gfx
+  end
+  subgraph frontends["Front ends"]
+    engine["mc-engine: assembles the libraries"] --> kernel["mc-kernel: notebook and Jupyter kernel"]
+    engine --> repl["mc-repl: REPL and script runner"]
+    kernel --> repl
+    lsp["mc-lsp: language server"]
+    nb["mc-notebook, mc-nbmodel, mc-nbfile, mc-nbexport, mc-ui: the notebook window"]
+    docs["mc-docs, mc-help: documentation window and help index"]
+  end
+  eval --> lists & numeric & symbolic & numerics & data & gfx
+  arith --> numeric & symbolic
+  numeric --> symbolic & numerics & data
+  numerics --> data
+  data --> plot
+  lists & numeric & symbolic & numerics & data & plot & load --> engine
+  libraries --> lsp
+  boxes --> nb
+  gfx --> nb
+  nb --> docs
+  engine --> docs
+```
+
+| Layer | Crates |
+|---|---|
+| 0 | `mc-api`, `mc-help`, `mc-mathfont`, `mc-nbfile`, `mc-bench` |
+| 1 | `mc-core`, `mc-arith`, `mc-syntax`, `mc-ui` |
+| 2 | `mc-eval`, `mc-boxes`, `mc-load` |
+| 3 | `mc-lists`, `mc-assoc`, `mc-strings`, `mc-numeric`, `mc-random`, `mc-graphics`, `mc-nbmodel`, `mc-nbexport` |
+| 4 | `mc-special`, `mc-numtheory`, `mc-simplify`, `mc-io`, `mc-notebook` |
+| 5 | `mc-poly`, `mc-jit`, `mc-dist` |
+| 6 | `mc-calculus`, `mc-solve`, `mc-linalg`, `mc-numfn` |
+| 7 | `mc-roots`, `mc-quad`, `mc-ode`, `mc-geom` |
+| 8 | `mc-plot` |
+| 9 | `mc-engine`, `mc-lsp` |
+| 10 | `mc-kernel` |
+| 11 | `mc-repl`, `mc-docs` |
+
+The design documents in [docs/design](docs/design) describe each part: semantics, syntax, numbers, the evaluator, the
+notebook and the roadmap. Each crate's `NOTES.md` records its decisions.
 
 ## Author
 
