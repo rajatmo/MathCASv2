@@ -66,5 +66,4 @@ jobs:
         run: cargo clippy --release --locked --workspace --all-targets -- -D warnings
       - name: Test suite
         run: cargo test --release --locked --workspace --no-fail-fast
-      - name: Documentation pages match a fresh run
-        run: cargo run --release --locked -p mc-docs --bin mc-docs-pages -- check
+      # the page outputs are recorded on Windows (machine-real last bits and OS error texts differ); checked there

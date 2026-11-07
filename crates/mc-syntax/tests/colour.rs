@@ -294,7 +294,9 @@ fn corpus_snapshot() {
         std::fs::write(path, &out).expect("write the snapshot");
         return;
     }
-    let want = std::fs::read_to_string(path).unwrap_or_default().replace("\r\n", "\n");
+    // compared without carriage returns: the corpus and the snapshot may be checked out with either line ending
+    let want = std::fs::read_to_string(path).unwrap_or_default().replace('\r', "");
+    let out = out.replace('\r', "");
     if want != out {
         let diff: Vec<String> = want
             .lines()

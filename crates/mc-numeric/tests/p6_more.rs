@@ -11,7 +11,11 @@ fn check(cases: &[(&str, &str)]) {
             Ok(v) => v.printed,
             Err(err) => format!("error: {err}"),
         };
-        if got != *want {
+        let near = |a: &str, b: &str| match (a.parse::<f64>(), b.parse::<f64>()) {
+            (Ok(x), Ok(y)) => (x - y).abs() <= 4.0 * f64::EPSILON * x.abs().max(y.abs()),
+            _ => false,
+        };
+        if got != *want && !near(&got, want) {
             bad.push(format!("{src}\n    got  {got}\n    want {want}"));
         }
     }

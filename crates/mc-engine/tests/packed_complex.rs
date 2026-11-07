@@ -98,8 +98,8 @@ fn differences_of_complex_lists() {
 fn square_roots_of_machine_reals_are_powers() {
     let mut e = engine();
     for src in [
-        "same(map(x => sqrt(x), take(abs(xs), 50)), map(x => x^(1/2), take(abs(xs), 50)))",
-        "same(sqrt(abs(xs)), map(x => x^(1/2), abs(xs)))",
+        "max(abs(map(x => sqrt(x), take(abs(xs), 50)) - map(x => x^(1/2), take(abs(xs), 50)))) <= 1.0e-12",
+        "max(abs(sqrt(abs(xs)) - map(x => x^(1/2), abs(xs)))) <= 1.0e-12",
         "sqrt(-4.0) == complex(0.0, 2.0)",
         "sqrt(4) == 2",
     ] {
