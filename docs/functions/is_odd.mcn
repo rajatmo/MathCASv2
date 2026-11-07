@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# is_odd
+
+#% text
+# `is_odd(n)` gives `true` when the integer `n` is odd, else `false`.
+
+#% section
+# Details
+
+#% item
+# It is defined for integers; a symbol stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_odd(7)
+#% output
+#= true
+
+#% cell
+is_odd(4)
+#% output
+#= false
+
+#% cell
+is_odd(-3)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Count the odd numbers in a list:
+
+#% cell
+count_if(range(20), is_odd)
+#% output
+#= 10
+
+#% section
+# See also
+
+#% text
+# `is_even`, `mod`, `is_integer`

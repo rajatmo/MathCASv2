@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# is_even
+
+#% text
+# `is_even(n)` gives `true` when the integer `n` is even, else `false`.
+
+#% section
+# Details
+
+#% item
+# It is defined for integers; a symbol stays unevaluated (its parity is not known).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_even(4)
+#% output
+#= true
+
+#% cell
+is_even(7)
+#% output
+#= false
+
+#% cell
+is_even(-10)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Big integers:
+
+#% cell
+is_even(2^200)
+#% output
+#= true
+
+#% text
+# Select the even elements of a list:
+
+#% cell
+select(range(10), is_even)
+#% output
+#= [2, 4, 6, 8, 10]
+
+#% subsection
+# Possible issues
+
+#% text
+# A machine real is not an integer, even when it has no fractional part:
+
+#% cell
+is_even(2.0)
+#% output
+#! failure(no_match, is_even, [2.0])
+
+#% text
+# Use `is_integer` first, or `round`, when the argument may be a real:
+
+#% cell
+is_even(round(2.0))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_odd`, `mod`, `is_integer`, `select`

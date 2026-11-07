@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# clamp
+
+#% text
+# `clamp(x, lo, hi)` gives `x` limited to the interval from `lo` to `hi`: `lo` when `x < lo`, `hi` when `x > hi`, else `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+clamp(5, 0, 3)
+#% output
+#= 3
+
+#% cell
+clamp(-2, 0, 3)
+#% output
+#= 0
+
+#% cell
+clamp(1.5, 0, 3)
+#% output
+#= 1.5
+
+#% subsection
+# Scope
+
+#% text
+# Exact numbers stay exact:
+
+#% cell
+clamp(7/2, 0, 3)
+#% output
+#= 3
+
+#% text
+# Apply it to each element of a list:
+
+#% cell
+map(x => clamp(x, 0, 1), [-1, 0.5, 2])
+#% output
+#= [0, 0.5, 1]
+
+#% section
+# See also
+
+#% text
+# `min`, `max`, `rescale`

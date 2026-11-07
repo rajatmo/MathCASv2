@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# riffle
+
+#% text
+# `riffle(xs, s)` puts `s` between consecutive elements of `xs`.
+# `riffle(xs, ys)` gives the elements of `xs` and `ys` alternating.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+riffle([a, b, c], x)
+#% output
+#= [a, x, b, x, c]
+
+#% cell
+riffle([1, 2, 3], [10, 20, 30])
+#% output
+#= [1, 10, 2, 20, 3, 30]
+
+#% subsection
+# Scope
+
+#% text
+# Join words with a separator:
+
+#% cell
+string_join(riffle(["a", "b", "c"], ", "))
+#% output
+#= "a, b, c"
+
+#% section
+# See also
+
+#% text
+# `string_join`, `flatten`, `transpose`

@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# rotate_right
+
+#% text
+# `rotate_right(xs)` cycles the elements of `xs` one place to the right; `rotate_right(xs, k)` cycles them `k` places.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rotate_right([1, 2, 3, 4])
+#% output
+#= [4, 1, 2, 3]
+
+#% cell
+rotate_right([1, 2, 3, 4], 3)
+#% output
+#= [2, 3, 4, 1]
+
+#% subsection
+# Scope
+
+#% text
+# Rotating by the length gives the list back:
+
+#% cell
+rotate_right([a, b, c], 3)
+#% output
+#= [a, b, c]
+
+#% section
+# See also
+
+#% text
+# `rotate_left`, `reverse`
