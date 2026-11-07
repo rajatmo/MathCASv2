@@ -108,6 +108,28 @@ Remaining:
 Exit: core language and data at 90% or more of their evaluable cells, visualisation at 80% or more, every function
 v2 has with a documentation page.
 
+### Phase F: algebraic foundations (before 11 and 14)
+
+The polynomial core is solid (sparse multivariate polynomials over the integers, modular gcd, univariate and
+multivariate factorisation, Groebner bases with FGLM, resultants, real root isolation, rational integration), but
+phases 11 and 14 need one algebraic layer that today exists only in pieces: `Q[t]/(f)` in `mc-linalg`, quadratic
+fields in the rational integrator, radicals in `mc-arith`. Without this phase, CAD and Risch would each build their
+own algebraic numbers. It runs alongside phase 9.
+
+| Package | Targets |
+|---|---|
+| F1 number fields (new `mc-algebra`) | one number-field type for the whole system: algebraic numbers as elements of `Q[t]/(f)` with arithmetic, inverses, minimal polynomials, primitive elements of towers, embeddings (which real or complex root is meant); gcd and factorisation of polynomials over a number field (Trager's norm method); a `root_sum` result (a sum over the roots of a polynomial), so rational integration no longer gives up on residues of degree 3 or more, and `sum` and `r_solve` can use it; `mc-linalg` and the rational integrator moved onto this layer |
+| F2 polynomial rings (`mc-poly`) | polynomials over generic coefficient rings (integers, rationals, rational functions in parameters, number fields, integers modulo a prime, and rings of functions for 14A); principal subresultant coefficients exposed, not only the resultant; real root isolation of polynomials with algebraic-number coefficients and exact sign decision of algebraic numbers |
+| F3 decisions and conditions (`mc-eval`, `mc-solve`) | one service answering sign, zero, interval and integrality questions about an expression under the assumption context, used by `refine`, `simplify`, `limit`, `integrate` and `solve` (today these live in three places); it decides with exact arithmetic and root isolation now, and calls `reduce` when 11B is there; conditional results (a value with the condition under which it holds) as a term with printing, simplification and `normal` |
+
+Exit: the existing suite unchanged on the new layer; rational integrals with residues of any degree answered (as
+`root_sum` when no radicals exist); factorisation over number fields checked by expansion; the sign service used by
+every caller listed in F3.
+
+Literature: Trager, "Algebraic factoring and rational function integration" (1976); Cohen, *A Course in
+Computational Algebraic Number Theory*; von zur Gathen and Gerhard, *Modern Computer Algebra*; Ducos (2000) on
+subresultant chains; Rouillier and Zimmermann (2004) on real root isolation.
+
 ### Phase 11: solving (a critical path)
 
 `reduce`, `solve` and the exact optimisers rest on one algorithm: cylindrical algebraic decomposition (CAD). It is
@@ -116,7 +138,7 @@ depends on it.
 
 | Package | Targets |
 |---|---|
-| 11A CAD (`mc-poly`) | projection (McCallum's, with Brown's improvement), real root isolation of polynomials with algebraic-number coefficients, lifting with sample points, cell adjacency where needed; quantifier elimination over the reals; virtual substitution as a fast path for low-degree cases |
+| 11A CAD (`mc-poly`) | projection (McCallum's, with Brown's improvement) on F2's subresultant coefficients, lifting with sample points (F2's root isolation over number fields), cell adjacency where needed; quantifier elimination over the reals; virtual substitution as a fast path for low-degree cases |
 | 11B `reduce` and friends | `reduce` for several real variables, quantifiers (`for_all`, `exists`), integers and complexes where decidable; `find_instance`; `resolve`; `eliminate` over the reals; region membership and emptiness through `reduce` |
 | 11C general `solve` | transcendental equations through inverse functions with branch conditions and generated parameters; equations with parameters (cases as conditional results); `solve` over the reals and integers through 11B; verification of solutions by substitution |
 | 11D exact optimisation | `minimize` and `maximize` with polynomial constraints through CAD; `region_bounds` and `region_measure` of semialgebraic sets |
@@ -159,9 +181,9 @@ methods; Gosper (1978); Zeilberger (1991); Petkovšek, Wilf and Zeilberger, *A =
 ### Phase 14: symbolic integration
 
 The rational case is the base of the Risch algorithm and is done. This phase adds the decision procedure for
-elementary integrands, the special functions that non-elementary answers need, and definite integration. 14A and 14D
-can start at once; 14C needs 14A; the conditions of 14D use `reduce` (11B) when it is there and simple sign tests
-before.
+elementary integrands, the special functions that non-elementary answers need, and definite integration. 14A needs
+F1 and F2 (residues in number fields, polynomials over rings of functions); 14D can start after F3; 14C needs 14A;
+the conditions of 14D use the sign service (F3), and `reduce` (11B) when it is there.
 
 | Package | Targets |
 |---|---|
@@ -206,16 +228,18 @@ At the pace of the first week (several packages in parallel, one coordinator mer
 | Phase | Time | Can start |
 |---|---|---|
 | 9 coverage | 2-4 weeks | now |
-| 11 solving | 3-5 months | now; 11A first, then 11B-11D |
+| F algebraic foundations | 3-5 weeks | now, alongside 9 |
+| 11 solving | 3-5 months | 11A after F1 and F2, then 11B-11D |
 | 12 simplification | 1-2 months | after 11B |
 | 13 equations, sums, limits | 2-3 months | 13B, 13C now; 13A after 11C |
-| 14 symbolic integration | 3-5 months | 14A, 14D now; 14C after 14A |
+| 14 symbolic integration | 3-5 months | 14A after F1 and F2; 14D after F3; 14C after 14A |
 | 15 breadth | 2-4 months, in parallel | now |
 
-Expected harness rate over all pages in scope: about 80% in 3-4 months and about 95% in 9-12 months. Two chains set
-that pace and run side by side: 11A → 11B → 11C → 12 → 13A (solving, simplification, equations) and 14A → 14C → 14D
-(integration, whose definite part also waits for `reduce`). Each is sequential, so more parallel packages do not
-shorten it. The last few percent, and robustness beyond the documented examples, have no date.
+Expected harness rate over all pages in scope: about 80% in 3-4 months and about 95% in 9-12 months. Phase F comes
+first on both critical paths; it adds a few weeks at the start but saves building algebraic numbers twice. Two chains
+then set the pace and run side by side: F → 11A → 11B → 11C → 12 → 13A (solving, simplification, equations) and F →
+14A → 14C → 14D (integration, whose definite part also uses `reduce`). Each is sequential, so more parallel packages
+do not shorten it. The last few percent, and robustness beyond the documented examples, have no date.
 
 ## 4. Testing against the reference system
 
@@ -233,10 +257,13 @@ shorten it. The last few percent, and robustness beyond the documented examples,
 
 ## 5. Order and parallelism
 
-- Critical paths: 11A (CAD) → 11B (`reduce`) → 11C (`solve`) → 12 (simplification) and 13A (`d_solve`); and 14A
-  (transcendental Risch) → 14C (special-function answers) → 14D (definite integration, with conditions from 11B).
-- In parallel with them from the start: phase 9, 13B, 13C and all of phase 15.
-- Crates: phase 11 owns `mc-poly`, phase 12 `mc-simplify`, phase 14 the integration modules of `mc-calculus` (a new
+- Critical paths: F (foundations) → 11A (CAD) → 11B (`reduce`) → 11C (`solve`) → 12 (simplification) and 13A
+  (`d_solve`); and F → 14A (transcendental Risch) → 14C (special-function answers) → 14D (definite integration, with
+  conditions from F3 and 11B).
+- In parallel with them from the start: phase 9, 13B, 13C and all of phase 15. F1, F2 and F3 run in parallel with
+  each other (different crates); F2's root isolation over number fields uses F1's arithmetic as soon as it lands.
+- Crates: phase F owns the new `mc-algebra` (F1), `mc-poly` (F2) and the decision code in `mc-eval` and `mc-solve`
+  (F3); after it, phase 11 owns `mc-poly`, phase 12 `mc-simplify`, phase 14 the integration modules of `mc-calculus` (a new
   `mc-integrate` crate if 13 and 14 run at the same time, so no two packages own one crate), 15A `mc-numeric` and
   `mc-special`, new crates for 15B-15D where needed.
 - Each package follows the established rules (`agents` briefs, kept outside the repository): its own worktree and
