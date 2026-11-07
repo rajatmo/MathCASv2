@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# circle_points
+
+#% text
+# `circle_points(n)` gives n points equally spaced on the unit circle, exactly, the first at angle -pi/2 + pi/n; `circle_points(r, n)` and `circle_points(c, r, n)` on other circles.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+circle_points(3)
+#% output
+#= [[(1/2)*3^(1/2), -1/2], [0, 1], [(-1/2)*3^(1/2), -1/2]]
+
+#% cell
+circle_points([1, 1], 2, 4)
+#% output
+#= [[1 + 2^(1/2), 1 - 2^(1/2)], [1 + 2^(1/2), 1 + 2^(1/2)], [1 - 2^(1/2), 1 + 2^(1/2)], [1 - 2^(1/2), 1 - 2^(1/2)]]

@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# mandelbrot_set_plot
+
+#% text
+# `mandelbrot_set_plot()` draws the Mandelbrot set in black, the points outside coloured by how fast they escape; `mandelbrot_set_plot([z0, z1])` a part of it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mandelbrot_set_plot()
+#% output
+#= image("mandelbrot_set_plot.files/mandelbrot_set_plot-1.png")
+
+#% cell
+mandelbrot_set_plot([-0.8 + 0.05*im, -0.7 + 0.15*im])
+#% output
+#= image("mandelbrot_set_plot.files/mandelbrot_set_plot-2.png")

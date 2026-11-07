@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# angular_gauge
+
+#% text
+# `angular_gauge(v, [a, b])` draws a dial with a needle at `v` on a scale from `a` to `b`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+angular_gauge(40, [0, 100])
+#% output
+#= image("angular_gauge.files/angular_gauge-1.png")
+
+#% cell
+angular_gauge([20, 75], [0, 100])
+#% output
+#= image("angular_gauge.files/angular_gauge-2.png")

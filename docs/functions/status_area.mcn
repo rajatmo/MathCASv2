@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# status_area
+
+#% text
+# `status_area(x, text)` is `x` as shown.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+status_area(x, "note")
+#% output
+#= x

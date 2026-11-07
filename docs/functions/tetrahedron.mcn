@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# tetrahedron
+
+#% text
+# `tetrahedron([p1, p2, p3, p4])` is the solid tetrahedron with these corners; `tetrahedron()` is the standard one.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Volume and centroid:
+
+#% cell
+region_measure(tetrahedron([[0, 0, 0], [2, 0, 0], [0, 2, 0], [0, 0, 2]]))
+#% output
+#= 4/3
+
+#% cell
+region_centroid(tetrahedron())
+#% output
+#= [1/4, 1/4, 1/4]
+
+#% section
+# See also
+
+#% text
+# `simplex`

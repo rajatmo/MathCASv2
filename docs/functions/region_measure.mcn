@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# region_measure
+
+#% text
+# `region_measure(reg)` is the measure of the region in its own dimension: the length of a curve, the area of a surface, the volume of a solid; 0 for points.
+
+#% section
+# Details
+
+#% item
+# Exact coordinates give exact results; symbolic ones give formulas.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk and a ball of radius r:
+
+#% cell
+[region_measure(disk([0, 0], r)), region_measure(ball([0, 0, 0], r))]
+#% output
+#= [pi*r^2, (4/3)*pi*r^3]
+
+#% text
+# A polyline:
+
+#% cell
+region_measure(line([[0, 0], [1, 1], [1, 0]]))
+#% output
+#= 1 + 2^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# An ellipse's area:
+
+#% cell
+region_measure(disk([0, 0], [2, 3]))
+#% output
+#= 6*pi
+
+#% text
+# A rectangle with symbolic corners:
+
+#% cell
+region_measure(rectangle([a, b], [c, d]))
+#% output
+#= (c - a)*(d - b)
+
+#% text
+# A circle's length and a sphere's area:
+
+#% cell
+[region_measure(circle()), region_measure(sphere())]
+#% output
+#= [2*pi, 4*pi]
+
+#% section
+# See also
+
+#% text
+# `area`, `volume`, `arc_length`, `region_centroid`

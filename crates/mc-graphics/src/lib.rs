@@ -228,6 +228,12 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("after", "the side after"),
     ("top", "the side top"),
     ("bottom", "the side bottom"),
+    ("graphics_complex", "graphics_complex(points, content): primitives whose coordinates are indices into the list of points (1-based), drawn as ordinary primitives"),
+    ("circle_points", "circle_points(n), circle_points(r, n), circle_points(c, r, n): n points equally spaced on a circle, exact, the first at angle -pi/2 + pi/n"),
+    ("regular_polygon", "regular_polygon(n), regular_polygon(r, n), regular_polygon(c, r, n): the regular polygon through circle_points (exact coordinates)"),
+    ("annulus", "annulus(c, [r0, r1]): the ring between the circles of radii r0 and r1 about c; a primitive of graphics and a region"),
+    ("image_scaled", "image_scaled([u, v]): a position as fractions of the picture (read as fractions of the plot area, like scaled)"),
+    ("legend_font_size", "option of graphics and plots: legend_font_size: p, the legend's labels p points high (default: font_size)"),
 ];
 
 /// A graphic that could not be read or rendered: a failure tag and a description.

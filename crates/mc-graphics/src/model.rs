@@ -303,6 +303,8 @@ pub struct Opts {
     pub legend_row: bool,
     /// the legend's frame: `Some(r)` a frame with corners rounded to radius r (0: square), `None` no frame
     pub legend_frame: Option<f64>,
+    /// the size of the legend's labels (`legend_font_size`; `None`: the graphic's `font_size`)
+    pub legend_font_size: Option<f64>,
     /// the size of tick labels, other labels and text without a `font_size` directive
     pub font_size: f64,
     /// a colour bar right of the plot area
@@ -349,6 +351,7 @@ impl Default for Opts {
             legend_position: Corner::TopRight,
             legend_row: false,
             legend_frame: Some(0.0),
+            legend_font_size: None,
             font_size: 10.0,
             color_bar: None,
             legend_title: None,
@@ -382,8 +385,8 @@ pub enum Bad {
 }
 
 /// The primitive heads.
-pub const PRIMITIVES: [&str; 11] =
-    ["point", "line", "polygon", "rectangle", "circle", "disk", "arrow", "bezier_curve", "b_spline_curve", "text", "raster"];
+pub const PRIMITIVES: [&str; 12] =
+    ["point", "line", "polygon", "rectangle", "circle", "disk", "annulus", "arrow", "bezier_curve", "b_spline_curve", "text", "raster"];
 
 /// The directive heads (besides the colours).
 pub const DIRECTIVES: [&str; 12] = [
@@ -402,8 +405,9 @@ pub const DIRECTIVES: [&str; 12] = [
 ];
 
 /// The option names of `graphics` that change the picture.
-pub const OPTIONS: [&str; 27] = [
+pub const OPTIONS: [&str; 28] = [
     "image_padding",
+    "legend_font_size",
     "legend_title",
     "legend_layout",
     "legend_frame",
@@ -498,7 +502,8 @@ fn scalar<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<f64, Bad> {
 /// A position `[x, y]` or `scaled([u, v])`.
 pub fn point<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<Pt, Bad> {
     if let Some((n, args)) = head_name(h, t) {
-        if n == "scaled" {
+        // image_scaled: fractions of the picture, read as fractions of the plot area
+        if n == "scaled" || n == "image_scaled" {
             let [p] = args else { return Err(Bad::Arg(arg)) };
             let p = point(h, *p, arg)?;
             return if p.scaled { Err(Bad::Arg(arg)) } else { Ok(Pt { scaled: true, ..p }) };
@@ -515,7 +520,7 @@ pub fn point<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<Pt, Bad> 
 /// Whether `t` has the shape of one position (rather than a list of them).
 fn is_position<S: Store + ?Sized>(h: &S, t: T<'_>) -> bool {
     match head_name(h, t) {
-        Some((n, _)) if n == "scaled" => true,
+        Some((n, _)) if n == "scaled" || n == "image_scaled" => true,
         _ => match list(h, t) {
             Some(&[x, y]) => list(h, x).is_none() && list(h, y).is_none(),
             _ => false,
@@ -635,6 +640,29 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         ("triangle", [p]) => Shape::Polygon(runs(h, *p, 1)?),
         ("ball", _) if args.len() <= 2 => return shape(h, "disk", args),
         ("ellipsoid", [c, r]) => return shape(h, "disk", &[*c, *r]),
+        ("annulus", _) if args.len() <= 2 => {
+            // the ring between two circles: two rings, filled even-odd
+            let c = match args.first() {
+                Some(&c) => point(h, c, 1)?,
+                None => origin,
+            };
+            let (r0, r1) = match args.get(1) {
+                Some(&r) => match list(h, r) {
+                    Some(&[a, b]) => (scalar(h, a, 2)?, scalar(h, b, 2)?),
+                    _ => return Err(Bad::Arg(2)),
+                },
+                None => (0.5, 1.0),
+            };
+            let ring = |r: f64| -> Vec<Pt> {
+                (0..128)
+                    .map(|k| {
+                        let a = std::f64::consts::TAU * k as f64 / 128.0;
+                        Pt { x: c.x + r * a.cos(), y: c.y + r * a.sin(), scaled: c.scaled }
+                    })
+                    .collect()
+            };
+            Shape::Polygon(vec![ring(r1), ring(r0)])
+        }
         ("text", [e]) => Shape::Text { label: Label::of(h, *e), at: origin, offset: (0.0, 0.0) },
         ("circle" | "disk", _) if args.len() <= 3 => {
             let c = match args.first() {
@@ -1659,6 +1687,7 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             }
         }
         "font_size" => o.font_size = number(h, v).filter(|s| *s > 0.0 && *s <= 1000.0)?,
+        "legend_font_size" => o.legend_font_size = Some(number(h, v).filter(|s| *s > 0.0 && *s <= 1000.0)?),
         "label_style" => {
             // a font size (a number, font_size(n), font_size -> n), alone, in a list or in directive(...); other
             // styles are not used

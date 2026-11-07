@@ -29,6 +29,9 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("darker"), a(), Box::new(Shade { name: "darker", towards: Rgba::BLACK }));
     k.register(h.sym("gradient_color"), a(), Box::new(GradientColor));
     crate::compose::install(k, h);
+    k.register(h.sym("graphics_complex"), a(), Box::new(GraphicsComplex));
+    k.register(h.sym("circle_points"), a(), Box::new(CirclePoints(false)));
+    k.register(h.sym("regular_polygon"), a(), Box::new(CirclePoints(true)));
     for name in ["tooltip", "mouseover", "status_area", "popup_window", "light_mode_pane", "dark_mode_pane", "highlighted"] {
         k.register(h.sym(name), a(), Box::new(Shown(name)));
     }
@@ -603,5 +606,97 @@ impl Native for Shade {
             },
         };
         Ok(Reply::Done(rgb_term(h, c.mix(Rgba { a: c.a, ..self.towards }, f))))
+    }
+}
+
+/// `graphics_complex(points, content)`: the content with each coordinate given as an index into the points
+/// replaced by that point (so it draws as ordinary primitives).
+struct GraphicsComplex;
+
+impl Native for GraphicsComplex {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let [pts, content, ..] = args else { return Ok(Reply::Decline) };
+        let Some(pts) = cx.as_list(*pts).map(|l| l.to_vec()) else { return Ok(Reply::Decline) };
+        fn indices<'h>(cx: &NativeCx<'_, '_, 'h>, pts: &[T<'h>], t: T<'h>) -> Option<T<'h>> {
+            let h = cx.heap();
+            match h.view(t) {
+                View::Int(k) if k >= 1 && (k as usize) <= pts.len() => Some(pts[k as usize - 1]),
+                _ => {
+                    let items = cx.as_list(t)?;
+                    let out: Vec<T<'h>> = items.iter().map(|&x| indices(cx, pts, x)).collect::<Option<_>>()?;
+                    Some(cx.list(&out))
+                }
+            }
+        }
+        fn walk<'h>(cx: &NativeCx<'_, '_, 'h>, pts: &[T<'h>], t: T<'h>) -> T<'h> {
+            let h = cx.heap();
+            if let Some(items) = cx.as_list(t) {
+                let out: Vec<T<'h>> = items.iter().map(|&x| walk(cx, pts, x)).collect();
+                return cx.list(&out);
+            }
+            let View::App { head, args } = h.view(t) else { return t };
+            let View::Sym(s) = h.view(head) else { return t };
+            let name = h.sym_name(s);
+            if name == "style" && !args.is_empty() {
+                let mut a = args.to_vec();
+                a[0] = walk(cx, pts, a[0]);
+                return h.app(head, &a);
+            }
+            let positional = PRIMITIVES.contains(&name.as_str()) || crate::three::PRIMITIVES.contains(&name.as_str()) || name == "arrow";
+            if positional && !args.is_empty() && name != "text" {
+                if let Some(p) = indices(cx, pts, args[0]) {
+                    let mut a = args.to_vec();
+                    a[0] = p;
+                    return h.app(head, &a);
+                }
+            }
+            if name == "text" && args.len() >= 2 {
+                if let Some(p) = indices(cx, pts, args[1]) {
+                    let mut a = args.to_vec();
+                    a[1] = p;
+                    return h.app(head, &a);
+                }
+            }
+            t
+        }
+        Ok(Reply::Done(walk(cx, &pts, *content)))
+    }
+}
+
+/// `circle_points(n)`, `circle_points(r, n)`, `circle_points(c, r, n)`: n points equally spaced on a circle,
+/// the first at angle -pi/2 + pi/n (exact); `regular_polygon(...)` the polygon through them.
+struct CirclePoints(bool);
+
+impl Native for CirclePoints {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let (c, r, n) = match args {
+            [n] => (None, h.int(1), *n),
+            [r, n] => (None, *r, *n),
+            [c, r, n] => (Some(*c), *r, *n),
+            _ => return Ok(Reply::Decline),
+        };
+        let View::Int(k) = h.view(n) else { return Ok(Reply::Decline) };
+        if !(1..=10_000).contains(&k) {
+            return Ok(Reply::Decline);
+        }
+        let call = |f: &str, a: &[T<'h>]| h.call(h.sym(f), a);
+        let pi = h.sym_term(h.sym("pi"));
+        let center = c.and_then(|c| cx.as_list(c).map(|l| l.to_vec())).filter(|l| l.len() == 2);
+        let mut pts = Vec::with_capacity(k as usize);
+        for j in 0..k {
+            // -pi/2 + pi/n + 2 pi j/n
+            let frac = |p: i64, q: i64| call(names::MUL, &[h.int(p), call(names::POW, &[h.int(q), h.int(-1)])]);
+            let ang = call(names::ADD, &[call(names::MUL, &[frac(-1, 2), pi]), call(names::MUL, &[frac(1 + 2 * j, k), pi])]);
+            let mut x = call(names::MUL, &[r, call("cos", &[ang])]);
+            let mut y = call(names::MUL, &[r, call("sin", &[ang])]);
+            if let Some(cc) = &center {
+                x = call(names::ADD, &[cc[0], x]);
+                y = call(names::ADD, &[cc[1], y]);
+            }
+            pts.push(cx.list(&[x, y]));
+        }
+        let l = cx.list(&pts);
+        Ok(Reply::Again(if self.0 { call("polygon", &[l]) } else { l }))
     }
 }

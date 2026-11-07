@@ -411,6 +411,52 @@ large	visualisation	Graphics	a size: thickness(large), point_size(large), arrowh
 directive	visualisation	Graphics	directive(d1, d2, ...): several directives as one (colours, thickness, dashing, opacity, a font size)
 style	visualisation	Graphics	style(expr, s1, s2, ...): expr shown with styles: colours, a font size (a number), bold, italic, directives; inside graphics the styles apply to the content
 color_bar	visualisation	Graphics	option of graphics: color_bar: [gradient, [lo, hi]] or [gradient, [lo, hi], label], a bar of the gradient's colours with a scale from lo to hi right of the plot; none; in density and contour plots true | false
+light_red	visualisation	Graphics	the colour light red (a pale tint)
+light_green	visualisation	Graphics	the colour light green (a pale tint)
+light_blue	visualisation	Graphics	the colour light blue (a pale tint)
+light_yellow	visualisation	Graphics	the colour light yellow (a pale tint)
+light_orange	visualisation	Graphics	the colour light orange (a pale tint)
+light_purple	visualisation	Graphics	the colour light purple (a pale tint)
+light_brown	visualisation	Graphics	the colour light brown (a pale tint)
+light_pink	visualisation	Graphics	the colour light pink (a pale tint)
+light_cyan	visualisation	Graphics	the colour light cyan (a pale tint)
+light_magenta	visualisation	Graphics	the colour light magenta (a pale tint)
+b_spline_curve	visualisation	Graphics	b_spline_curve([p1, p2, ...]): a smooth curve (clamped uniform cubic B-spline) with the points as its control points, from the first to the last
+specularity	visualisation	Graphics	specularity(c, n): directive of 3D graphics (shine); accepted and not drawn
+glow	visualisation	Graphics	glow(c): directive of 3D graphics (light given off); accepted and not drawn
+point_light	visualisation	Graphics	point_light(c, p): a light of 3D graphics; accepted and not drawn
+spot_light	visualisation	Graphics	spot_light(c, p): a light of 3D graphics; accepted and not drawn
+directional_light	visualisation	Graphics	directional_light(c, p): a light of 3D graphics; accepted and not drawn
+ambient_light	visualisation	Graphics	ambient_light(c): a light of 3D graphics; accepted and not drawn
+material_shading	visualisation	Graphics	material_shading(name): directive of 3D graphics; accepted and not drawn
+toon_shading	visualisation	Graphics	toon_shading(): directive of 3D graphics; accepted and not drawn
+cap_form	visualisation	Graphics	cap_form(f): directive: the form of line ends; accepted and not drawn
+join_form	visualisation	Graphics	join_form(f): directive: the form of line joins; accepted and not drawn
+lighting	visualisation	Graphics	option and directive of 3D graphics: the lights; accepted and not used
+tooltip	visualisation	Graphics	tooltip(x, tip): x (the tip is shown on hovering in interactive front ends; a static picture shows x)
+mouseover	visualisation	Graphics	mouseover(x, over): x as shown (over replaces it on hovering in interactive front ends)
+status_area	visualisation	Graphics	status_area(x, text): x as shown
+popup_window	visualisation	Graphics	popup_window(x, content): x as shown
+light_mode_pane	visualisation	Graphics	light_mode_pane(x): x shown in light mode
+dark_mode_pane	visualisation	Graphics	dark_mode_pane(x): x shown in dark mode
+highlighted	visualisation	Graphics	highlighted(x): x on a light yellow background
+point_legend	visualisation	Graphics	point_legend([colours], [labels]): a legend of point markers, the value of the option plot_legends
+bar_legend	visualisation	Graphics	bar_legend(scheme): a colour bar legend, the value of the option plot_legends
+left	visualisation	Graphics	the side left (positions of labels and legends)
+right	visualisation	Graphics	the side right
+above	visualisation	Graphics	the side above
+below	visualisation	Graphics	the side below
+center	visualisation	Graphics	the centre (positions)
+before	visualisation	Graphics	the side before
+after	visualisation	Graphics	the side after
+top	visualisation	Graphics	the side top
+bottom	visualisation	Graphics	the side bottom
+graphics_complex	visualisation	Graphics	graphics_complex(points, content): primitives whose coordinates are indices into the list of points (1-based), drawn as ordinary primitives
+circle_points	visualisation	Graphics	circle_points(n), circle_points(r, n), circle_points(c, r, n): n points equally spaced on a circle, exact, the first at angle -pi/2 + pi/n
+regular_polygon	visualisation	Graphics	regular_polygon(n), regular_polygon(r, n), regular_polygon(c, r, n): the regular polygon through circle_points (exact coordinates)
+annulus	visualisation	Graphics	annulus(c, [r0, r1]): the ring between the circles of radii r0 and r1 about c; a primitive of graphics and a region
+image_scaled	visualisation	Graphics	image_scaled([u, v]): a position as fractions of the picture (read as fractions of the plot area, like scaled)
+legend_font_size	visualisation	Graphics	option of graphics and plots: legend_font_size: p, the legend's labels p points high (default: font_size)
 plot	visualisation	Plots	plot(f, [x, a, b]): a PNG image of f for x from a to b (plot([f1, f2, ...], [x, a, b]) for several curves), with SVG and PDF copies next to it; evaluates to image(path)
 list_plot	visualisation	Plots	list_plot(data): a PNG image of the points [y1, y2, ...] (at x = 1, 2, ...) or [[x1, y1], ...]; joined: true draws a line; SVG and PDF copies next to it; evaluates to image(path)
 log_plot	visualisation	Plots	log_plot(f, [x, a, b]): plot with a logarithmic y axis (values that are not positive are left out)
@@ -466,6 +512,61 @@ x_label	visualisation	Plots	option of every plot: x_label: "text", the label und
 y_label	visualisation	Plots	option of every plot: y_label: "text", the label beside the y axis (read upwards)
 colors	visualisation	Plots	option of every plot: colors: ["#rrggbb", ...], the colour of each curve or data set in order (the default cycle after the list)
 line_style	visualisation	Plots	option of plot and joined list plots: line_style: [solid | dashed | dotted | dot_dashed, ...], one per curve in order (solid after the list)
+region_plot	visualisation	Plots	region_plot(cond, [x, a, b], [y, c, d]): the region where the condition holds, filled, with its boundary; region_plot([c1, c2, ...], ...) several; region_plot(reg) a region (implicit regions over their bounds)
+complex_region_plot	visualisation	Plots	complex_region_plot(cond, [z, z0, z1]): the region of the complex plane where a condition on z holds, over the rectangle with corners z0 and z1
+complex_contour_plot	visualisation	Plots	complex_contour_plot(f, [z, z0, z1]): contours of a real function of z (filled), or the level lines of the real and imaginary parts of a complex one; f == g gives the curves where Re(f - g) and Im(f - g) vanish
+vector_plot	visualisation	Plots	vector_plot([vx, vy], [x, a, b], [y, c, d]): arrows of the vector field on a grid, scaled and coloured by its magnitude (options plot_points, color_function)
+stream_plot	visualisation	Plots	stream_plot([vx, vy], [x, a, b], [y, c, d]): streamlines of the vector field spread over the rectangle, with arrowheads, coloured by magnitude
+list_vector_plot	visualisation	Plots	list_vector_plot(m): arrows of a matrix of vectors (rows along y, at 1, 2, ...; option data_range), or of pairs [[x, y], [vx, vy]]
+list_stream_plot	visualisation	Plots	list_stream_plot(m): streamlines of a field given as a matrix of vectors or as pairs [[x, y], [vx, vy]] (interpolated)
+complex_vector_plot	visualisation	Plots	complex_vector_plot(f, [z, z0, z1]): arrows of the field (Re f, Im f) over the rectangle with corners z0 and z1
+complex_stream_plot	visualisation	Plots	complex_stream_plot(f, [z, z0, z1]): streamlines of the field (Re f, Im f)
+vector_plot3d	visualisation	Plots	vector_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f]): arrows of a field in space, coloured by magnitude
+stream_plot3d	visualisation	Plots	stream_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f]): streamlines of a field in space
+list_vector_plot3d	visualisation	Plots	list_vector_plot3d(a): arrows of a 3D array of vectors or of pairs [[x, y, z], [vx, vy, vz]]
+list_stream_plot3d	visualisation	Plots	list_stream_plot3d(a): streamlines of a field in space given as data
+graph	visualisation	Plots	graph(edges) or graph(vertices, edges): a graph (network); edges a -> b (directed), undirected_edge(a, b), two_way_rule(a, b); shown as its picture (options graph_layout, vertex_labels)
+graph_plot	visualisation	Plots	graph_plot(g): a picture of a graph (a graph term, a list of edges, or an adjacency matrix), laid out by springs (option graph_layout: spring, circular, layered)
+layered_graph_plot	visualisation	Plots	layered_graph_plot(g): a graph drawn in layers following its edges' direction (sources at the top)
+tree_plot	visualisation	Plots	tree_plot(edges): a tree drawn in layers from its root
+complete_graph	visualisation	Plots	complete_graph(n): the graph of n vertices with every pair joined
+cycle_graph	visualisation	Plots	cycle_graph(n): the cycle of n vertices
+path_graph	visualisation	Plots	path_graph([v1, v2, ...]): the path through the vertices in order
+star_graph	visualisation	Plots	star_graph(n): vertex 1 joined to vertices 2, ..., n
+grid_graph	visualisation	Plots	grid_graph([m, n]): the m x n grid of vertices joined to their neighbours
+vertex_list	visualisation	Plots	vertex_list(g): the vertices of a graph
+edge_list	visualisation	Plots	edge_list(g): the edges of a graph, as directed_edge(a, b) or undirected_edge(a, b)
+vertex_count	visualisation	Plots	vertex_count(g): the number of vertices of a graph
+edge_count	visualisation	Plots	edge_count(g): the number of edges of a graph
+vertex_degree	visualisation	Plots	vertex_degree(g): the degree of each vertex (vertex_degree(g, v) of one)
+adjacency_matrix	visualisation	Plots	adjacency_matrix(g): the matrix whose (i, j) entry counts the edges from vertex i to vertex j
+directed_edge	visualisation	Plots	directed_edge(a, b): the directed edge from a to b of a graph
+undirected_edge	visualisation	Plots	undirected_edge(a, b): the undirected edge between a and b of a graph
+bubble_chart	visualisation	Plots	bubble_chart([[x, y, z], ...]): a disk at each (x, y) with area in proportion to z; bubble_chart([set1, set2, ...]) several, in the plot colours
+box_whisker_chart	visualisation	Plots	box_whisker_chart(data) or box_whisker_chart([d1, d2, ...]): boxes from the first to the third quartile with the median, whiskers to the furthest values within 1.5 interquartile ranges, the values beyond as points
+sector_chart	visualisation	Plots	sector_chart([[a1, r1], ...]): sectors with angles in proportion to the a's and radii in proportion to the r's
+rectangle_chart	visualisation	Plots	rectangle_chart([[w1, h1], ...]): rectangles of width w and height h side by side
+paired_bar_chart	visualisation	Plots	paired_bar_chart(d1, d2): bars of d1 to the left and d2 to the right of a common axis, row by row
+density_histogram	visualisation	Plots	density_histogram([[x, y], ...]): counts of points in the cells of a grid as colours
+smooth_histogram	visualisation	Plots	smooth_histogram(data): a smooth estimate of the data's density (Gaussian kernels, Silverman's bandwidth); several sets as several curves
+number_line_plot	visualisation	Plots	number_line_plot(items, [x, a, b]): numbers as points, interval(...) and conditions on x as segments on a number line; a list of lists gives a row each
+mandelbrot_set_plot	visualisation	Plots	mandelbrot_set_plot() or mandelbrot_set_plot([z0, z1]): the Mandelbrot set (black) with points outside coloured by how fast they escape
+julia_set_plot	visualisation	Plots	julia_set_plot(c): the filled Julia set of z^2 + c, the outside coloured by escape time
+relief_plot	visualisation	Plots	relief_plot(matrix): heights as colours shaded as if lit from the upper left (the first row at the top)
+complex_array_plot	visualisation	Plots	complex_array_plot(matrix): complex values as cells coloured by argument (hue) and modulus (lightness)
+complex_list_plot	visualisation	Plots	complex_list_plot([z1, z2, ...]): the complex numbers as points of the plane (several lists in several colours)
+list_step_plot	visualisation	Plots	list_step_plot(data): a step function holding each value until the next point (list_step_plot(data, right | center) other alignments)
+angular_gauge	visualisation	Plots	angular_gauge(v, [a, b]): a dial with a needle at v on a scale from a to b
+horizontal_gauge	visualisation	Plots	horizontal_gauge(v, [a, b]): a horizontal scale filled up to v
+vertical_gauge	visualisation	Plots	vertical_gauge(v, [a, b]): a vertical scale filled up to v
+rasterize	visualisation	Plots	rasterize(x): x as a picture (graphics rendered; other values as their text)
+contour_plot3d	visualisation	Plots	contour_plot3d(f, [x, a, b], [y, c, d], [z, e, f]): level surfaces of f in the box (three by default; option contours: n or a list); f == g the surface where they are equal
+region_plot3d	visualisation	Plots	region_plot3d(cond, [x, a, b], [y, c, d], [z, e, f]): the boundary surface of the region of the box where the condition holds
+density_plot3d	visualisation	Plots	density_plot3d(f, [x, a, b], [y, c, d], [z, e, f]): the values of f in the box as coloured, translucent points (more opaque for larger values)
+list_contour_plot3d	visualisation	Plots	list_contour_plot3d(array): level surfaces of a 3D array of values (layers along z, rows along y)
+discrete_plot3d	visualisation	Plots	discrete_plot3d(f, [i, a, b], [j, c, d]): the values of f at integer points as points in space with stems to the plane z = 0
+bar_chart3d	visualisation	Plots	bar_chart3d(values) or bar_chart3d(matrix): bars as boxes in space, one row of bars per row of the matrix
+pie_chart3d	visualisation	Plots	pie_chart3d(values): a pie chart (drawn flat, as pie_chart)
 manipulate	visualisation	Plots	manipulate(expr, [a, lo, hi], [b, lo, hi, step], ...): expr with a slider per parameter in the notebook; held      elsewhere
 d	symbolic	Calculus	d(f, x): the derivative in x; d(f, [x, n]) the n-th; d(f, x, y) mixed; d(f, [x, y]) the gradient (a list)
 derivative	symbolic	Calculus	derivative(n)(f): the n-th derivative of the function f, written f', f'', ...; derivative(n1, ..., nk)(f) for k arguments
@@ -776,3 +877,26 @@ conjugate_transpose	higher	Linear algebra	conjugate_transpose(m): the conjugate 
 hilbert_matrix	higher	Linear algebra	hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular
 rotation_matrix	higher	Linear algebra	rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w
 sparse_array	higher	Linear algebra	sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form
+region	higher	Regions	region(r): the region r shown as a region (it stays as it is; the region functions read through it)
+implicit_region	higher	Regions	implicit_region(cond, [x, y, ...]): the points whose coordinates satisfy cond, e.g. implicit_region(x^2 + y^2 <= 1, [x, y])
+parametric_region	higher	Regions	parametric_region([f1, f2, ...], [[u, a, b], ...]): the points (f1, f2, ...) for the parameters in their ranges
+simplex	higher	Regions	simplex([p1, ..., pk]): the convex hull of k affinely independent points; simplex(n): the standard simplex of n dimensions
+tetrahedron	higher	Regions	tetrahedron([p1, p2, p3, p4]): the solid tetrahedron with these corners; tetrahedron(): the standard one
+empty_region	higher	Regions	empty_region(n): the empty region of n dimensions (the result of an empty intersection)
+region_member	higher	Regions	region_member(reg, p): whether the point p lies in the region (true or false; a condition for a symbolic point); region_member(reg, [p1, p2, ...]) for several
+region_measure	higher	Regions	region_measure(reg): the measure of the region in its own dimension: length of a curve, area of a surface, volume of a solid (0 for points)
+area	higher	Regions	area(reg): the area of a two-dimensional region
+volume	higher	Regions	volume(reg): the volume of a three-dimensional region
+arc_length	higher	Regions	arc_length(reg): the length of a one-dimensional region
+region_centroid	higher	Regions	region_centroid(reg): the centroid (centre of mass of uniform density) of the region
+region_bounds	higher	Regions	region_bounds(reg): the ranges [[xmin, xmax], [ymin, ymax], ...] of the region's coordinates (numerical for implicit and parametric regions)
+region_dimension	higher	Regions	region_dimension(reg): the region's own dimension (0 points, 1 curves, 2 surfaces, 3 solids)
+region_embedding_dimension	higher	Regions	region_embedding_dimension(reg): the number of coordinates of the region's points
+is_bounded_region	higher	Regions	is_bounded_region(reg): whether the region lies inside a ball of finite radius
+region_distance	higher	Regions	region_distance(reg, p): the distance from the point p to the region (0 inside)
+signed_region_distance	higher	Regions	signed_region_distance(reg, p): the distance from p to the region's boundary, negative inside a solid region
+region_nearest	higher	Regions	region_nearest(reg, p): the point of the region nearest to p
+region_union	higher	Regions	region_union(r1, r2, ...): the union of plane polygons (rectangles, triangles, disks as fine polygons) as a polygon
+region_intersection	higher	Regions	region_intersection(r1, r2, ...): the intersection of plane polygons as a polygon (empty_region(2) when empty)
+region_difference	higher	Regions	region_difference(r1, r2): the part of the plane polygon r1 outside r2, as a polygon (with holes where r2 lies inside r1)
+region_integrate	higher	Regions	region_integrate(f, [x, y, ...], reg): the integral of f over the region, as iterated integrals of its parametrisation (also region_integrate(f, element([x, y], reg)))

@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# relief_plot
+
+#% text
+# `relief_plot(m)` draws a matrix of heights as colours shaded as if lit from the upper left (the first row at the top).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+relief_plot(table(sin(i/4)*cos(j/5), i, 40, j, 40))
+#% output
+#= image("relief_plot.files/relief_plot-1.png")

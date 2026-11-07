@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# path_graph
+
+#% text
+# `path_graph([v1, v2, ...])` is the path through the vertices in order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+path_graph([a, b, c, d])
+#% output
+#= image("path_graph.files/path_graph-1.png")
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

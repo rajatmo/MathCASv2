@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# horizontal_gauge
+
+#% text
+# `horizontal_gauge(v, [a, b])` draws a horizontal scale filled up to `v`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+horizontal_gauge(0.3)
+#% output
+#= image("horizontal_gauge.files/horizontal_gauge-1.png")
+
+#% cell
+horizontal_gauge(65, [0, 100])
+#% output
+#= image("horizontal_gauge.files/horizontal_gauge-2.png")

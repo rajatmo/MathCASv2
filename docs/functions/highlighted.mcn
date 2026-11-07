@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# highlighted
+
+#% text
+# `highlighted(x)` shows `x` on a light yellow background.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+highlighted(x^2 + 1)
+#% output
+#= style(1 + x^2, background -> rgb_color(1.0, 0.96, 0.7))

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# box_whisker_chart
+
+#% text
+# `box_whisker_chart(data)` draws a box from the first to the third quartile with a line at the median and whiskers to the furthest values within 1.5 interquartile ranges; values beyond are points.
+
+#% section
+# Details
+
+#% item
+# `box_whisker_chart([d1, d2, ...])` draws a box per data set.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+box_whisker_chart([1, 2, 3, 4, 5, 20])
+#% output
+#= image("box_whisker_chart.files/box_whisker_chart-1.png")
+
+#% cell
+box_whisker_chart([[1, 2, 3, 4, 5, 20], [2, 3, 3, 4, 6], [5, 6, 7, 7, 8]])
+#% output
+#= image("box_whisker_chart.files/box_whisker_chart-2.png")

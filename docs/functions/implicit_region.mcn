@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# implicit_region
+
+#% text
+# `implicit_region(cond, [x, y, ...])` is the region of the points whose coordinates satisfy the condition `cond`.
+
+#% section
+# Details
+
+#% item
+# Conditions are inequalities, equations and their combinations with `and`, `or` and `not`.
+
+#% item
+# Membership substitutes the point into the condition; bounds and measures of implicit regions are computed numerically.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The unit disk as a condition:
+
+#% cell
+r = implicit_region(x^2 + y^2 <= 1, [x, y])
+
+#% text
+# Membership:
+
+#% cell
+region_member(r, [1/2, 1/2])
+#% output
+#= true
+
+#% text
+# Its area, numerically:
+
+#% cell
+region_measure(r)
+#% output
+#= 3.1415939138804427
+
+#% subsection
+# Scope
+
+#% text
+# Bounds of a rotated quartic region:
+
+#% cell
+region_bounds(implicit_region(x^4 - x*y + y^4 <= 1, [x, y]))
+#% output
+#= [[-1.1150447368259129, 1.1150447368259129], [-1.1150447368259129, 1.1150447368259129]]
+
+#% text
+# Drawn over its bounds:
+
+#% cell
+region_plot(implicit_region(x^2 + y^2 <= 1 and x > 0, [x, y]))
+#% output
+#= image("implicit_region.files/implicit_region-5.png")
+
+#% section
+# See also
+
+#% text
+# `region_member`, `region_plot`, `parametric_region`

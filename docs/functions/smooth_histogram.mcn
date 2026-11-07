@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# smooth_histogram
+
+#% text
+# `smooth_histogram(data)` draws a smooth estimate of the data's density: a sum of Gaussian kernels with Silverman's bandwidth.
+
+#% section
+# Details
+
+#% item
+# Several data sets give several curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+smooth_histogram([1, 2, 2, 3, 3, 3, 4, 5, 7])
+#% output
+#= image("smooth_histogram.files/smooth_histogram-1.png")

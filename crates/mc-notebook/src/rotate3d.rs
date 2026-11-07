@@ -24,6 +24,8 @@ struct Job {
     scene: Arc<Scene3d>,
     view: View3d,
     scale: f32,
+    /// a cheap render while the picture is being dragged (large scenes only)
+    draft: bool,
 }
 
 /// A finished render.
@@ -31,6 +33,7 @@ struct Done {
     id: CellId,
     view: View3d,
     scale: f32,
+    draft: bool,
     image: (u32, u32, Vec<u8>),
 }
 
@@ -39,7 +42,11 @@ struct Shown {
     tex: TextureHandle,
     view: View3d,
     scale: f32,
+    draft: bool,
 }
+
+/// Requests for one cell closer together than this are a drag: large scenes are drawn as drafts meanwhile.
+const DRAG_GAP: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// The 3D pictures of a window: their scenes, the views asked for and the textures rendered.
 pub struct Rotations {
@@ -51,6 +58,8 @@ pub struct Rotations {
     shown: HashMap<CellId, Shown>,
     /// the newest view asked for per cell (with its scale), not yet rendered
     asked: HashMap<CellId, (View3d, f32)>,
+    /// when each cell last asked for a new view
+    last_ask: HashMap<CellId, std::time::Instant>,
     /// render times of the last frames (milliseconds), for the self-test
     pub times: Vec<f64>,
     times_rx: Receiver<f64>,
@@ -75,9 +84,9 @@ impl Rotations {
                     }
                     for j in newest {
                         let start = std::time::Instant::now();
-                        let image = j.scene.render(&j.view, j.scale);
+                        let image = if j.draft { j.scene.render_draft(&j.view, j.scale) } else { j.scene.render(&j.view, j.scale) };
                         let _ = times_tx.send(start.elapsed().as_secs_f64() * 1000.0);
-                        if done_tx.send(Done { id: j.id, view: j.view, scale: j.scale, image }).is_err() {
+                        if done_tx.send(Done { id: j.id, view: j.view, scale: j.scale, draft: j.draft, image }).is_err() {
                             return;
                         }
                         repaint.request_repaint();
@@ -92,6 +101,7 @@ impl Rotations {
             scenes: HashMap::new(),
             shown: HashMap::new(),
             asked: HashMap::new(),
+            last_ask: HashMap::new(),
             times: vec![],
             times_rx,
         }
@@ -132,10 +142,11 @@ impl Rotations {
                     s.tex.set(img, opts);
                     s.view = d.view;
                     s.scale = d.scale;
+                    s.draft = d.draft;
                 }
                 None => {
                     let tex = self.ctx.load_texture(format!("view3d-{}", d.id), img, opts);
-                    self.shown.insert(d.id, Shown { tex, view: d.view, scale: d.scale });
+                    self.shown.insert(d.id, Shown { tex, view: d.view, scale: d.scale, draft: d.draft });
                 }
             }
             if self.asked.get(&d.id).is_some_and(|(v, s)| same(v, &d.view) && *s == d.scale) {
@@ -149,11 +160,26 @@ impl Rotations {
     pub fn texture(&mut self, id: CellId, png: &Path, view: View3d, scale: f32) -> Option<TextureHandle> {
         let current = self.shown.get(&id).is_some_and(|s| same(&s.view, &view) && (s.scale - scale).abs() < 0.01);
         let asked = self.asked.get(&id).is_some_and(|(v, s)| same(v, &view) && (*s - scale).abs() < 0.01);
+        let now = std::time::Instant::now();
+        let dragging = self.last_ask.get(&id).is_some_and(|t| now.duration_since(*t) < DRAG_GAP);
         if !current && !asked {
             if let Some(scene) = self.scene(png) {
                 self.asked.insert(id, (view, scale));
-                let _ = self.jobs.send(Job { id, scene, view, scale });
+                self.last_ask.insert(id, now);
+                // a large scene while it is dragged: drafts, then the full picture once the drag stops
+                let draft = scene.is_large() && dragging;
+                if draft {
+                    self.ctx.request_repaint_after(DRAG_GAP);
+                }
+                let _ = self.jobs.send(Job { id, scene, view, scale, draft });
             }
+        } else if current && !asked && !dragging && self.shown.get(&id).is_some_and(|s| s.draft) {
+            if let Some(scene) = self.scene(png) {
+                self.asked.insert(id, (view, scale));
+                let _ = self.jobs.send(Job { id, scene, view, scale, draft: false });
+            }
+        } else if current && self.shown.get(&id).is_some_and(|s| s.draft) {
+            self.ctx.request_repaint_after(DRAG_GAP);
         }
         self.shown.get(&id).map(|s| s.tex.clone())
     }
@@ -162,6 +188,7 @@ impl Rotations {
     pub fn forget(&mut self, id: CellId) {
         self.shown.remove(&id);
         self.asked.remove(&id);
+        self.last_ask.remove(&id);
     }
 }
 

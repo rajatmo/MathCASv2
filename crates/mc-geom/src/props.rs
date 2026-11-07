@@ -11,7 +11,7 @@ pub fn dimension<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Optio
     Ok(Some(match r {
         Region::Points(_) => 0,
         Region::Lines(_) => 1,
-        Region::Polygon(_) => 2,
+        Region::Polygon(_) | Region::Annulus { .. } => 2,
         Region::Ball { c, solid, .. } => c.len() - usize::from(!solid),
         Region::Boxed { lo, hi } => {
             let mut d = 0;
@@ -185,6 +185,7 @@ pub fn measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<
         }
         Region::Simplex(v) => simplex_measure(e, v),
         Region::Intervals(iv) => e.add(&iv.iter().map(|&(a, b)| e.sub(b, a)).collect::<Vec<_>>()),
+        Region::Annulus { r0, r1, .. } => e.mul(&[e.pi(), e.sub(e.sq(*r1), e.sq(*r0))]),
         Region::Parametric { fs, specs } => {
             // the integral of sqrt(det(J^T J)) over the parameters
             let us: Vec<T<'h>> = specs.iter().map(|s| s.0).collect();
@@ -279,7 +280,7 @@ pub fn centroid<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option
             }
             weighted(e, &items)
         }
-        Region::Ball { c, .. } => c.clone(),
+        Region::Ball { c, .. } | Region::Annulus { c, .. } => c.clone(),
         Region::Boxed { lo, hi } => mean(e, &[lo.clone(), hi.clone()]),
         Region::Simplex(v) => mean(e, v),
         Region::Intervals(iv) => {
@@ -342,6 +343,7 @@ pub fn bounds<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<V
             }
             out
         }
+        Region::Annulus { c, r1, .. } => c.iter().map(|&x| (e.sub(x, *r1), e.add(&[x, *r1]))).collect(),
         Region::Intervals(iv) => {
             let mut ends = vec![];
             for &(a, b) in iv {

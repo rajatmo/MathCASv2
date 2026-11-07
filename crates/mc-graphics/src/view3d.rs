@@ -147,6 +147,23 @@ impl Scene3d {
         }
     }
 
+    /// Whether the scene is large enough that turning it should draw drafts while the mouse moves
+    /// ([`Scene3d::render_draft`]).
+    pub fn is_large(&self) -> bool {
+        self.len() > DRAFT_PRIMITIVES
+    }
+
+    /// A cheap render for dragging: a large scene ([`Scene3d::is_large`]) drawn at a lower resolution (a quarter
+    /// of the pixels or fewer, by its size), a small one as [`Scene3d::render`]. The image is smaller than the full
+    /// render; front ends stretch it over the picture and ask for the full render when the drag ends.
+    pub fn render_draft(&self, view: &View3d, scale: f32) -> (u32, u32, Vec<u8>) {
+        if !self.is_large() {
+            return self.render(view, scale);
+        }
+        let k = ((DRAFT_PRIMITIVES as f64 / self.len() as f64).sqrt() as f32).clamp(0.25, 0.5);
+        self.render(view, scale * k)
+    }
+
     /// [`Scene3d::render`] with its failures (`argument` for a bad view or scale, `too_large`, `interrupted`
     /// when `stop` says so).
     pub fn try_render(&self, view: &View3d, scale: f32, stop: &dyn Fn() -> bool) -> Result<(u32, u32, Vec<u8>), Failure> {
@@ -170,6 +187,9 @@ impl Scene3d {
         Ok(r)
     }
 }
+
+/// Scenes with more primitives than this are drawn as drafts while they are turned.
+pub const DRAFT_PRIMITIVES: usize = 6000;
 
 /// The view after dragging the mouse by `(dx, dy)` pixels over a picture `width` x `height` pixels: a drag across
 /// the whole width turns the scene half a turn about the vertical (right: it turns right), a drag over the whole

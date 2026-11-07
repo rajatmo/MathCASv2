@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# region_member
+
+#% text
+# `region_member(reg, p)` tells whether the point `p` lies in the region `reg`: `true` or `false` for a numeric point, a condition for a symbolic one.
+
+#% section
+# Details
+
+#% item
+# Boundaries belong to closed regions.
+
+#% item
+# `region_member(reg, [p1, p2, ...])` answers for several points.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A point of the unit disk:
+
+#% cell
+region_member(disk(), [1/2, 1/2])
+#% output
+#= true
+
+#% text
+# A symbolic point gives the condition:
+
+#% cell
+region_member(disk(), [x, y])
+#% output
+#= x^2 + y^2 <= 1
+
+#% subsection
+# Scope
+
+#% text
+# Several points of a polygon:
+
+#% cell
+region_member(polygon([[0, 0], [2, 0], [2, 2], [0, 2]]), [[1, 1], [3, 3], [2, 1]])
+#% output
+#= [true, false, true]
+
+#% text
+# A box:
+
+#% cell
+region_member(cuboid([0, 0, 0], [1, 2, 3]), [1/2, 1, 4])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `region_distance`, `implicit_region`

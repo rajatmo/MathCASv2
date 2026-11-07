@@ -705,12 +705,13 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     if o.legend.is_empty() {
         return;
     }
-    let fs = o.font_size as f32;
+    let fs = o.legend_font_size.unwrap_or(o.font_size) as f32;
     const PAD: f32 = 8.0;
-    const SAMPLE: f32 = 24.0;
+    // the sample grows with the text, so that big labels keep a sample to match
+    let sample = 24.0f32.max(fs * 2.4);
     let labels: Vec<Typeset> = o.legend.iter().map(|e| typeset(&e.label, fs)).collect();
     let has_sample = o.legend.iter().any(|e| e.marker != Marker::None);
-    let sample_w = if has_sample { SAMPLE + 6.0 } else { 0.0 };
+    let sample_w = if has_sample { sample + 6.0 } else { 0.0 };
     let title = o.legend_title.as_ref().map(|l| typeset(l, fs));
     let title_h = title.as_ref().map_or(0.0, |t| t.height.max(fs * 1.4) + 2.0);
     let text_w = labels.iter().map(|t| t.width).fold(0.0, f32::max);
@@ -757,15 +758,15 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             Marker::Line => {
                 let mut pen = pen_of(st, aw);
                 pen.width = pen.width.min(row / 2.0);
-                s.stroke(&Path::polyline(&[(x0, mid), (x0 + SAMPLE, mid)], false), &pen);
+                s.stroke(&Path::polyline(&[(x0, mid), (x0 + sample, mid)], false), &pen);
             }
             Marker::Point => {
                 let d = (st.point_size.at(aw as f64) as f32).clamp(2.0, row * 0.8);
-                s.dots(&[(x0 + SAMPLE / 2.0, mid)], d, st.ink());
+                s.dots(&[(x0 + sample / 2.0, mid)], d, st.ink());
             }
             Marker::Swatch => {
                 let q = row * 0.7;
-                let path = Path::rect(x0 + SAMPLE / 2.0 - q / 2.0, mid - q / 2.0, q, q);
+                let path = Path::rect(x0 + sample / 2.0 - q / 2.0, mid - q / 2.0, q, q);
                 face(s, &path, st, aw);
             }
             Marker::None => {}

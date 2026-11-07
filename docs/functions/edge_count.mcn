@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# edge_count
+
+#% text
+# `edge_count(g)` is the number of edges of a graph.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+edge_count(grid_graph([3, 4]))
+#% output
+#= 17
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

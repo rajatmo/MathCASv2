@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_plot3d
+
+#% text
+# `discrete_plot3d(f, [i, a, b], [j, c, d])` draws the values of f at integer points as points in space with stems to the plane z = 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_plot3d(i*j, [i, 1, 4], [j, 1, 4])
+#% output
+#= image("discrete_plot3d.files/discrete_plot3d-1.png")

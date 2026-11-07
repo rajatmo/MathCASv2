@@ -267,3 +267,20 @@ fn three_d_stage_timings() {
         eprintln!("{label}: {} primitives, load {load:?}, {:?} a frame at 1.5", scene.len(), t.elapsed() / 10);
     }
 }
+
+#[test]
+fn large_scenes_draw_cheap_drafts_while_dragged() {
+    let mut e = CoreEngine::new();
+    // a small scene: the draft is the full render
+    let small = Scene3d::cached(&Scene3d::sidecar_of(&picture(&mut e, "plot3d(x*y, [x, 0, 1], [y, 0, 1], plot_points: 9)"))).expect("scene");
+    assert!(!small.is_large());
+    let v = small.view();
+    assert_eq!(small.render_draft(&v, 1.0).0, small.render(&v, 1.0).0);
+    // a large one: fewer pixels
+    let big = Scene3d::cached(&Scene3d::sidecar_of(&picture(&mut e, "plot3d(sin(x*y), [x, 0, 3], [y, 0, 3], plot_points: 120, mesh: none)"))).expect("scene");
+    assert!(big.is_large(), "{} primitives", big.len());
+    let v = big.view();
+    let (w, h, _) = big.render_draft(&v, 1.0);
+    let (fw, fh, _) = big.render(&v, 1.0);
+    assert!(w * 2 <= fw + 1 && h * 2 <= fh + 1, "draft {w}x{h}, full {fw}x{fh}");
+}

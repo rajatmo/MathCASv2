@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# vertical_gauge
+
+#% text
+# `vertical_gauge(v, [a, b])` draws a vertical scale filled up to `v`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vertical_gauge(7, [0, 10])
+#% output
+#= image("vertical_gauge.files/vertical_gauge-1.png")

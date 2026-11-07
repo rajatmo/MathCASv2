@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# rasterize
+
+#% text
+# `rasterize(x)` makes `x` a picture: graphics are rendered, other values drawn as their text.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rasterize(graphics([red, disk()]))
+#% output
+#= image("rasterize.files/rasterize-1.png")
+
+#% cell
+rasterize(x^2 + 1)
+#% output
+#= image("rasterize.files/rasterize-2.png")

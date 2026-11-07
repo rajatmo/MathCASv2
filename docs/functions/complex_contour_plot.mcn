@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_contour_plot
+
+#% text
+# `complex_contour_plot(f, [z, z0, z1])` draws contours of a function of the complex variable `z`.
+
+#% section
+# Details
+
+#% item
+# A real-valued `f` (such as `abs(...)`) gives filled contours; a complex one gives the level lines of its real part and its imaginary part in two colours.
+
+#% item
+# `f == g` gives the curves where the real and the imaginary parts of `f - g` vanish.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex_contour_plot(abs(z^2 - 1), [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_contour_plot.files/complex_contour_plot-1.png")
+
+#% text
+# Real and imaginary parts:
+
+#% cell
+complex_contour_plot(z^2, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_contour_plot.files/complex_contour_plot-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# An equation:
+
+#% cell
+complex_contour_plot(z^3 == 1, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_contour_plot.files/complex_contour_plot-3.png")
+
+#% section
+# See also
+
+#% text
+# `complex_plot`, `contour_plot`

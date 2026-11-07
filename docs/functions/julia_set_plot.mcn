@@ -1,0 +1,23 @@
+#! mathcas 2 notebook
+
+#% title
+# julia_set_plot
+
+#% text
+# `julia_set_plot(c)` draws the filled Julia set of `z^2 + c`, the points outside coloured by escape time.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+julia_set_plot(-0.4 + 0.6*im)
+#% output
+#= image("julia_set_plot.files/julia_set_plot-1.png")
+
+#% cell
+julia_set_plot(-0.8 + 0.156*im)
+#% output
+#= image("julia_set_plot.files/julia_set_plot-2.png")

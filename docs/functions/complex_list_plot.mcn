@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_list_plot
+
+#% text
+# `complex_list_plot([z1, z2, ...])` draws complex numbers as points of the plane.
+
+#% section
+# Details
+
+#% item
+# Several lists are drawn in several colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex_list_plot([1 + im, 2 - im, 3, -im])
+#% output
+#= image("complex_list_plot.files/complex_list_plot-1.png")
+
+#% cell
+complex_list_plot(table(exp(2*pi*im*k/7), k, 7))
+#% output
+#= image("complex_list_plot.files/complex_list_plot-2.png")

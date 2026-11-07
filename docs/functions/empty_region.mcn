@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# empty_region
+
+#% text
+# `empty_region(n)` is the empty region of n dimensions, the result of an intersection that is empty.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Disjoint squares do not meet:
+
+#% cell
+region_intersection(rectangle([0, 0], [1, 1]), rectangle([2, 2], [3, 3]))
+#% output
+#= empty_region(2)
+
+#% section
+# See also
+
+#% text
+# `region_intersection`

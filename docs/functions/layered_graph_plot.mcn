@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# layered_graph_plot
+
+#% text
+# `layered_graph_plot(g)` draws a graph in layers following its edges' direction, sources at the top.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+layered_graph_plot([1 -> 2, 1 -> 3, 2 -> 4, 3 -> 4, 4 -> 5])
+#% output
+#= image("layered_graph_plot.files/layered_graph_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

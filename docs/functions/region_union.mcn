@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# region_union
+
+#% text
+# `region_union(r1, r2, ...)` is the union of plane polygons (rectangles, triangles, and disks as fine polygons) as a polygon.
+
+#% section
+# Details
+
+#% item
+# Several pieces give a polygon of several rings; holes give `polygon(outer -> holes)`.
+
+#% item
+# Coordinates are computed with machine numbers; exact input gives exact rationals back where they are small.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two overlapping squares:
+
+#% cell
+region_union(rectangle([0, 0], [2, 2]), rectangle([1, 1], [3, 3]))
+#% output
+#= polygon([[0, 0], [2, 0], [2, 1], [3, 1], [3, 3], [1, 3], [1, 2], [0, 2]])
+
+#% text
+# Its area:
+
+#% cell
+area(region_union(rectangle([0, 0], [2, 2]), rectangle([1, 1], [3, 3])))
+#% output
+#= 7
+
+#% section
+# See also
+
+#% text
+# `region_intersection`, `region_difference`

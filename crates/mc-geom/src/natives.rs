@@ -806,6 +806,10 @@ fn region_integrate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Reply
             }
             e.f("integrate", &args)
         }
+        Region::Annulus { c, r0, r1 } => {
+            let x = vec![e.add(&[c[0], e.mul(&[p, e.f("cos", &[t])])]), e.add(&[c[1], e.mul(&[p, e.f("sin", &[t])])])];
+            e.f("integrate", &[e.mul(&[subst(e, f, &vars, &x), p]), e.list(&[t, e.int(0), e.mul(&[e.int(2), e.pi()])]), e.list(&[p, *r0, *r1])])
+        }
         Region::Implicit { .. } => return Ok(Reply::Decline),
     };
     Ok(Reply::Again(term))

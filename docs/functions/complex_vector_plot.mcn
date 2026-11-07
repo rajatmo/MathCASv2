@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_vector_plot
+
+#% text
+# `complex_vector_plot(f, [z, z0, z1])` draws arrows of the field `(Re f, Im f)` over the rectangle with corners `z0` and `z1`.
+
+#% section
+# Details
+
+#% item
+# Option `plot_points` sets the number of grid points (arrows) or seeds (streamlines) per side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex_vector_plot(z^2, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_vector_plot.files/complex_vector_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

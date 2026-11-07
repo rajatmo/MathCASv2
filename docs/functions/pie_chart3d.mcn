@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# pie_chart3d
+
+#% text
+# `pie_chart3d(values)` draws a pie chart (flat, as `pie_chart`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pie_chart3d([1, 2, 3])
+#% output
+#= image("pie_chart3d.files/pie_chart3d-1.png")

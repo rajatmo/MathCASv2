@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# list_vector_plot3d
+
+#% text
+# `list_vector_plot3d(a)` draws arrows of a field in space given as a 3D array of vectors or as pairs `[[x, y, z], [vx, vy, vz]]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_vector_plot3d([[[0, 0, 0], [1, 0, 0]], [[1, 0, 0], [0, 1, 0]], [[0, 1, 0], [0, 0, 1]], [[0, 0, 1], [1, 1, 0]]])
+#% output
+#= image("list_vector_plot3d.files/list_vector_plot3d-1.png")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# cycle_graph
+
+#% text
+# `cycle_graph(n)` is the cycle of n vertices.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cycle_graph(6)
+#% output
+#= image("cycle_graph.files/cycle_graph-1.png")
+
+#% cell
+adjacency_matrix(cycle_graph(4))
+#% output
+#= [[0, 1, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1], [1, 0, 1, 0]]
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

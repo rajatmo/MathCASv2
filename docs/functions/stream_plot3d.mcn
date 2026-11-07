@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# stream_plot3d
+
+#% text
+# `stream_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f])` draws streamlines of a vector field in space.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+stream_plot3d([y, -x, 0.2], [x, -1, 1], [y, -1, 1], [z, -1, 1])
+#% output
+#= image("stream_plot3d.files/stream_plot3d-1.png")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

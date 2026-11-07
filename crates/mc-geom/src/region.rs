@@ -52,6 +52,15 @@ pub enum Region<'h> {
     },
     /// the convex hull of k + 1 points (a segment, triangle, tetrahedron, ...)
     Simplex(Vec<Pt<'h>>),
+    /// the ring between two concentric circles of the plane
+    Annulus {
+        /// the centre
+        c: Pt<'h>,
+        /// the inner radius
+        r0: T<'h>,
+        /// the outer radius
+        r1: T<'h>,
+    },
     /// a union of closed intervals of the line
     Intervals(Vec<(T<'h>, T<'h>)>),
     /// the points whose coordinates `vars` satisfy `cond`
@@ -197,6 +206,12 @@ pub fn read<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Region<'h>> {
             let r = radius(cx, *r, c.len())?;
             Region::Ball { c, r, solid: name != "circle" && name != "sphere" }
         }
+        ("annulus", []) => Region::Annulus { c: zeros(h, 2), r0: h.rational(h.int(1), h.int(2)), r1: one() },
+        ("annulus", [c]) => Region::Annulus { c: vector(cx, *c).filter(|v| v.len() == 2)?, r0: h.rational(h.int(1), h.int(2)), r1: one() },
+        ("annulus", [c, r]) => {
+            let Some(&[r0, r1]) = cx.as_list(*r) else { return None };
+            Region::Annulus { c: vector(cx, *c).filter(|v| v.len() == 2)?, r0, r1 }
+        }
         ("rectangle", []) => Region::Boxed { lo: zeros(h, 2), hi: vec![one(), one()] },
         ("cuboid", []) => Region::Boxed { lo: zeros(h, 3), hi: vec![one(), one(), one()] },
         ("rectangle" | "cuboid", [a]) => {
@@ -250,7 +265,7 @@ impl Region<'_> {
             Region::Points(p) => p[0].len(),
             Region::Lines(l) => l[0][0].len(),
             Region::Polygon(r) => r[0].outer[0].len(),
-            Region::Ball { c, .. } => c.len(),
+            Region::Ball { c, .. } | Region::Annulus { c, .. } => c.len(),
             Region::Boxed { lo, .. } => lo.len(),
             Region::Simplex(v) => v[0].len(),
             Region::Intervals(_) => 1,

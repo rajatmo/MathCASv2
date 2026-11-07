@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# region
+
+#% text
+# `region(r)` marks the region `r` as a region; it stays as it is, and every region function reads through it.
+
+#% section
+# Details
+
+#% item
+# The regions are the primitives `point`, `line`, `polygon`, `triangle`, `tetrahedron`, `simplex`, `disk`, `circle`, `ball`, `sphere`, `ellipsoid`, `rectangle`, `cuboid`, and `interval`, `implicit_region` and `parametric_region`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk as a region:
+
+#% cell
+region(disk([0, 0], 2))
+#% output
+#= region(disk([0, 0], 2))
+
+#% text
+# Region functions read through it:
+
+#% cell
+region_measure(region(disk([0, 0], 2)))
+#% output
+#= 4*pi
+
+#% section
+# See also
+
+#% text
+# `implicit_region`, `region_measure`, `region_plot`

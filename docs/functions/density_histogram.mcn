@@ -1,0 +1,18 @@
+#! mathcas 2 notebook
+
+#% title
+# density_histogram
+
+#% text
+# `density_histogram([[x, y], ...])` counts the points in the cells of a grid and shows the counts as colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+density_histogram(table([sin(k)*k/30, cos(1.7*k)*k/40], k, 400))
+#% output
+#= image("density_histogram.files/density_histogram-1.png")

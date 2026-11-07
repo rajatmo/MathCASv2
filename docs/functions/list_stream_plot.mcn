@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# list_stream_plot
+
+#% text
+# `list_stream_plot(m)` draws streamlines of a field given as data (interpolated between the points).
+
+#% section
+# Details
+
+#% item
+# Option `plot_points` sets the number of grid points (arrows) or seeds (streamlines) per side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_stream_plot([[[1, 0], [1, 1], [0, 1]], [[1, -1], [0, 1], [-1, 1]], [[0, -1], [-1, -1], [-1, 0]]])
+#% output
+#= image("list_stream_plot.files/list_stream_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

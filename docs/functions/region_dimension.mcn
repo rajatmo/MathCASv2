@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# region_dimension
+
+#% text
+# `region_dimension(reg)` is the region's own dimension: 0 for points, 1 for curves, 2 for surfaces, 3 for solids.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[region_dimension(circle()), region_dimension(disk()), region_dimension(ball()), region_dimension(point([1, 2]))]
+#% output
+#= [1, 2, 3, 0]
+
+#% text
+# An equation takes one dimension away:
+
+#% cell
+region_dimension(implicit_region(x^2 + y^2 + z^2 == 1, [x, y, z]))
+#% output
+#= 2
+
+#% section
+# See also
+
+#% text
+# `region_embedding_dimension`

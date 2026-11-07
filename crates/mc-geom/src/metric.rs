@@ -431,6 +431,10 @@ pub fn member<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>]) ->
             }
             and(parts)
         }
+        Region::Annulus { c, r0, r1 } => {
+            let d2 = e.norm2(&e.vsub(p, c));
+            and(vec![e.f("less_equal", &[e.sq(*r0), d2]), e.f("less_equal", &[d2, e.sq(*r1)])])
+        }
         Region::Intervals(iv) => or(iv.iter().map(|&(a, b)| e.f("and", &[e.f("less_equal", &[a, p[0]]), e.f("less_equal", &[p[0], b])])).collect()),
         Region::Points(ps) => or(ps.iter().map(|q| and((0..p.len()).map(|k| e.f("equal", &[p[k], q[k]])).collect())).collect()),
         Region::Implicit { cond, vars } => {
