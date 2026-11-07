@@ -435,16 +435,6 @@ impl Draw<'_> {
         self.link_rects.push((rect, name.to_string()));
     }
 
-    fn card<R>(p: &Palette, ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-        Frame::new()
-            .fill(p.card)
-            .stroke(Stroke::new(1.0, if p.dark { p.rule() } else { p.border }))
-            .corner_radius(CornerRadius::same(6))
-            .inner_margin(Margin::same(14))
-            .show(ui, add)
-            .inner
-    }
-
     // ----- home -----
 
     /// The home page: a title and one tile per area.
@@ -470,66 +460,98 @@ impl Draw<'_> {
             }
         });
         ui.add_space(8.0);
-        let columns = ((ui.available_width() + 16.0) / 320.0).floor().clamp(1.0, 3.0) as usize;
-        for row in Area::ALL.chunks(columns) {
-            ui.columns(columns, |cols| {
-                for (ui, &area) in cols.iter_mut().zip(row) {
-                    self.tile(ui, area);
-                }
-            });
-            ui.add_space(12.0);
+        // every area as a heading over a uniform grid of topic cards: the same width and height in every row
+        let gap = 12.0;
+        let width = ui.available_width();
+        let columns = ((width + gap) / (260.0 + gap)).floor().clamp(1.0, 4.0) as usize;
+        let card_w = ((width - gap * (columns as f32 - 1.0)) / columns as f32).floor();
+        let card_h = 150.0;
+        for area in Area::ALL {
+            ui.add_space(14.0);
+            let title =
+                ui.add(egui::Link::new(RichText::new(area.title()).font(Face::ProseBold.font(20.0)).color(self.p.text)));
+            if title.clicked() {
+                self.go = Some(Loc::Guide(area));
+            }
+            self.prose(ui, area.blurb(), 13.5, self.p.weak);
+            ui.add_space(8.0);
+            let topics = self.cat.topics(area);
+            for row in topics.chunks(columns) {
+                ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+                    ui.spacing_mut().item_spacing.x = gap;
+                    for (topic, entries) in row {
+                        let size = egui::vec2(card_w, card_h);
+                        ui.allocate_ui_with_layout(size, Layout::top_down(Align::Min), |ui| {
+                            ui.set_min_size(size);
+                            ui.set_max_size(size);
+                            self.topic_card(ui, area, topic, entries, size);
+                        });
+                    }
+                });
+                ui.add_space(gap);
+            }
         }
     }
 
-    fn tile(&mut self, ui: &mut egui::Ui, area: Area) {
-        let cat = self.cat;
-        let topics = cat.topics(area);
-        let total: usize = topics.iter().map(|(_, v)| v.len()).sum();
-        let mut documented: Vec<&str> =
-            topics.iter().flat_map(|(_, v)| v.iter()).map(|e| e.name).filter(|n| self.pages.contains_key(*n)).collect();
-        documented.sort_unstable();
+    /// One card of the home grid: the topic, a few of its functions (those with pages first) and a link to all of
+    /// them; always `size`, whatever the topic holds.
+    fn topic_card(&mut self, ui: &mut egui::Ui, area: Area, topic: &str, entries: &[&Entry], size: egui::Vec2) {
         let p = self.p;
-        Self::card(p, ui, |ui| {
-            ui.set_min_height(170.0);
-            ui.set_width(ui.available_width());
-            // the columns justify their children, which would spread wrapped text to both edges
-            ui.with_layout(Layout::top_down(Align::Min), |ui| self.tile_body(ui, area, &topics, &documented, total));
-        });
-    }
-
-    fn tile_body(
-        &mut self,
-        ui: &mut egui::Ui,
-        area: Area,
-        topics: &[(&str, Vec<&Entry>)],
-        documented: &[&str],
-        total: usize,
-    ) {
-        let title =
-            ui.add(egui::Link::new(RichText::new(area.title()).font(Face::ProseBold.font(18.0)).color(self.p.blue)));
-        if title.clicked() {
-            self.go = Some(Loc::Guide(area));
+        let margin = 14.0;
+        let inner = size - egui::vec2(2.0 * margin, 2.0 * margin);
+        let mut names: Vec<&str> = entries.iter().map(|e| e.name).collect();
+        names.sort_by_key(|n| (!self.pages.contains_key(*n), *n));
+        // as many names as fit in three lines of the card (monospaced links, about 0.6 em per character)
+        let per_line = (inner.x / (13.5 * 0.6)).floor().max(8.0) as usize;
+        let (mut line, mut lines, mut shown) = (0usize, 1usize, Vec::new());
+        for n in &names {
+            let w = n.chars().count() + 1;
+            if line + w > per_line {
+                lines += 1;
+                line = 0;
+            }
+            if lines > 3 {
+                break;
+            }
+            line += w;
+            shown.push(*n);
         }
-        self.prose(ui, area.blurb(), 13.5, self.p.weak);
-        ui.add_space(6.0);
-        if !documented.is_empty() {
-            ui.horizontal_wrapped(|ui| {
-                for n in documented {
-                    self.name_link(ui, n, 13.5);
-                }
+        Frame::new()
+            .fill(p.card)
+            .stroke(Stroke::new(1.0, if p.dark { p.rule() } else { p.border }))
+            .corner_radius(CornerRadius::same(6))
+            .inner_margin(Margin::same(margin as i8))
+            .show(ui, |ui| {
+                ui.set_min_size(inner);
+                ui.set_max_size(inner);
+                ui.with_layout(Layout::top_down(Align::Min), |ui| {
+                    let t = ui.add(egui::Link::new(RichText::new(topic).font(Face::ProseBold.font(16.0)).color(p.blue)));
+                    if t.clicked() {
+                        self.go = Some(Loc::Guide(area));
+                    }
+                    ui.add_space(6.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for n in &shown {
+                            self.name_link(ui, n, 13.5);
+                        }
+                    });
+                    // the count sits on the card's last line
+                    let rest = ui.available_height() - 18.0;
+                    if rest > 0.0 {
+                        ui.add_space(rest);
+                    }
+                    let all = ui.horizontal(|ui| {
+                        let more = names.len() - shown.len();
+                        let label = if more > 0 { format!("{} functions ({more} more)", names.len()) } else { format!("{} functions", names.len()) };
+                        let r = ui.link(RichText::new(label).size(12.5).color(p.weak));
+                        ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 12.0, p.weak));
+                        r.clicked()
+                    });
+                    if all.inner {
+                        self.go = Some(Loc::Guide(area));
+                    }
+                });
             });
-        }
-        let names: Vec<&str> = topics.iter().map(|(t, _)| *t).collect();
-        self.prose(ui, &names.join(" · "), 12.5, self.p.faint);
-        ui.add_space(4.0);
-        let all = ui.horizontal(|ui| {
-            let r = ui.link(RichText::new(format!("All {total} functions")).size(13.0));
-            ui.add(mc_ui::icons::image(ui.ctx(), mc_ui::icons::Icon::ArrowRight, 13.0, self.p.blue));
-            r.clicked()
-        });
-        if all.inner {
-            self.go = Some(Loc::Guide(area));
-        }
     }
 
     // ----- the index -----
