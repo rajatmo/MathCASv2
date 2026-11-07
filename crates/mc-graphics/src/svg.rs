@@ -1,12 +1,19 @@
 //! The SVG surface: a standalone SVG 1.1 document, one user unit per point. Glyphs are paths defined once (in
 //! thousandths of an em) and placed with `<use>`, so the file shows the same letters everywhere without fonts;
 //! each label carries its text in `aria-label`. Dots are zero-length subpaths with round caps.
+//!
+//! Chrome (see [`crate::theme`]) is marked by a class: `mcf-<role>` on an element whose fill is chrome,
+//! `mcs-<role>` on one whose stroke is; the colours written are the light ones. The root element has the class
+//! [`ROOT_CLASS`], which tells readers the file follows these conventions.
 use crate::color::Rgba;
 use crate::raster::even;
-use crate::surface::{Cap, Path, Pen, Seg, Surface, Text};
+use crate::surface::{Cap, Path, Pen, Role, Seg, Surface, Text};
 use mc_mathfont::PathCmd;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
+
+/// The class of the root element of every SVG written here.
+pub const ROOT_CLASS: &str = "mc-graphic";
 
 /// A page being written as SVG.
 pub struct Svg {
@@ -15,6 +22,17 @@ pub struct Svg {
     body: String,
     glyphs: BTreeSet<u16>,
     clips: usize,
+    role: Role,
+}
+
+/// The class attribute (with a leading space) of an element whose fill (`'f'`) or stroke (`'s'`) is drawn as
+/// `role`; empty for data.
+fn class(role: Role, prop: char) -> String {
+    if role == Role::Data {
+        String::new()
+    } else {
+        format!(r#" class="mc{prop}-{}""#, role.word())
+    }
 }
 
 /// A coordinate or length with at most two decimals, without trailing zeros.
@@ -69,7 +87,7 @@ fn colour(attr: &str, c: Rgba) -> String {
 impl Svg {
     /// An empty page of `width` x `height` points.
     pub fn new(width: f32, height: f32) -> Svg {
-        Svg { width, height, body: String::new(), glyphs: BTreeSet::new(), clips: 0 }
+        Svg { width, height, body: String::new(), glyphs: BTreeSet::new(), clips: 0, role: Role::Data }
     }
 
     /// The document.
@@ -78,7 +96,7 @@ impl Svg {
         let mut out = String::with_capacity(self.body.len() + 4096);
         let _ = writeln!(
             out,
-            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" class="{ROOT_CLASS}" width="{w}" height="{h}" viewBox="0 0 {w} {h}">"#,
             w = num(self.width),
             h = num(self.height)
         );
@@ -114,9 +132,13 @@ fn glyph_data(cmds: &[PathCmd]) -> String {
 }
 
 impl Surface for Svg {
+    fn role(&mut self, role: Role) {
+        self.role = role;
+    }
+
     fn fill(&mut self, path: &Path, color: Rgba) {
         if !path.is_empty() {
-            let _ = writeln!(self.body, r#"<path d="{}" {}/>"#, data(path), colour("fill", color));
+            let _ = writeln!(self.body, r#"<path{} d="{}" {}/>"#, class(self.role, 'f'), data(path), colour("fill", color));
         }
     }
 
@@ -133,7 +155,7 @@ impl Surface for Svg {
             let d: Vec<String> = dash.iter().map(|v| num(*v)).collect();
             let _ = write!(a, r#" stroke-dasharray="{}""#, d.join(" "));
         }
-        let _ = writeln!(self.body, r#"<path d="{}" {a}/>"#, data(path));
+        let _ = writeln!(self.body, r#"<path{} d="{}" {a}/>"#, class(self.role, 's'), data(path));
     }
 
     fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba) {
@@ -146,14 +168,15 @@ impl Surface for Svg {
         }
         let _ = writeln!(
             self.body,
-            r#"<path d="{p}" fill="none" {} stroke-width="{}" stroke-linecap="round"/>"#,
+            r#"<path{} d="{p}" fill="none" {} stroke-width="{}" stroke-linecap="round"/>"#,
+            class(self.role, 's'),
             colour("stroke", color),
             num(d.max(0.5))
         );
     }
 
     fn text(&mut self, t: &Text<'_>) {
-        let _ = writeln!(self.body, r#"<g {} aria-label="{}">"#, colour("fill", t.color), escape(t.text));
+        let _ = writeln!(self.body, r#"<g{} {} aria-label="{}">"#, class(self.role, 'f'), colour("fill", t.color), escape(t.text));
         for g in t.glyphs {
             self.glyphs.insert(g.id);
             let (x, y) = t.place(g.x, g.y);

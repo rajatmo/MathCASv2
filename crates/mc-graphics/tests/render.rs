@@ -145,7 +145,9 @@ fn lines() {
     assert_eq!(pixel(&pm, px(5.0), py(1.0)), BLUE);
     assert_eq!(pixel(&pm, px(2.0), py(5.0) - 4), WHITE);
     assert_eq!(pixel(&pm, px(5.0), py(3.0)), WHITE);
-    assert_eq!(o.svg.matches("<path d=\"M").count(), 2, "{}", o.svg);
+    // one data path for both runs; the background is chrome (round nb-svg)
+    assert_eq!(o.svg.matches("<path d=\"M").count(), 1, "{}", o.svg);
+    assert_eq!(o.svg.matches("<path class=\"mcf-bg\" d=\"M").count(), 1, "{}", o.svg);
     // dashes in each renderer
     let (pm, o) = probe("dashed", "[black, absolute_thickness(2), absolute_dashing([10, 10]), line([[0, 5], [10, 5]])]");
     assert!(o.svg.contains(r#"stroke-dasharray="10 10""#));
@@ -336,8 +338,8 @@ fn svg_snapshot() {
     let o = all("graphics([red, disk([0, 0], 1), black, line([[0, 0], [1, 1]])], image_size: 40, plot_range_padding: none)");
     assert_eq!(
         o.svg,
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\">\n\
-         <path d=\"M0 0L40 0L40 40L0 40Z\" fill=\"#ffffff\"/>\n\
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" version=\"1.1\" class=\"mc-graphic\" width=\"40\" height=\"40\" viewBox=\"0 0 40 40\">\n\
+         <path class=\"mcf-bg\" d=\"M0 0L40 0L40 40L0 40Z\" fill=\"#ffffff\"/>\n\
          <path d=\"M36 20C36 28.84 28.84 36 20 36C11.16 36 4 28.84 4 20C4 11.16 11.16 4 20 4C28.84 4 36 11.16 36 20Z\" fill=\"#ff0000\"/>\n\
          <path d=\"M20 20L36 4\" fill=\"none\" stroke=\"#000000\" stroke-width=\"1\" stroke-linejoin=\"round\"/>\n\
          </svg>\n"

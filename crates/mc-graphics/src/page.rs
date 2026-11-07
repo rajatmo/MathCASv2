@@ -4,18 +4,18 @@
 //! Page units are points; y grows downwards on the page and upwards in plot coordinates.
 use crate::color::Rgba;
 use crate::label::{typeset, Label, Typeset};
-use crate::model::{Aspect, Corner, Graphic, Grid, Item, Marker, Pt, Shape, Style, Ticks, POLL};
-use crate::surface::{Cap, Path, Pen, Surface, Text};
+use crate::model::{Aspect, Corner, Face, Graphic, Grid, Item, Marker, Pt, Shape, Style, Ticks, POLL};
+use crate::surface::{Cap, Path, Pen, Role, Surface, Text};
 use crate::{ticks, Failure};
 
 /// The default width of a graphic, in points.
 pub const DEFAULT_WIDTH: f64 = 360.0;
 /// Frame, axes and tick marks.
-const FRAME: Rgba = Rgba::rgb(60.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0);
+pub(crate) const FRAME: Rgba = Rgba::rgb(60.0 / 255.0, 60.0 / 255.0, 60.0 / 255.0);
 /// Label text: 85% black.
-const TEXT: Rgba = Rgba::rgb(0.15, 0.15, 0.15);
+pub(crate) const TEXT: Rgba = Rgba::rgb(0.15, 0.15, 0.15);
 /// Grid lines without a style of their own.
-const GRID: Rgba = Rgba::rgb(0.9, 0.9, 0.9);
+pub(crate) const GRID: Rgba = Rgba::rgb(0.9, 0.9, 0.9);
 /// Tick marks' length.
 const TICK: f32 = 4.0;
 /// Space between a tick mark and its label, and between labels.
@@ -336,7 +336,9 @@ pub fn plan(g: &Graphic, stop: &dyn Fn() -> bool) -> Result<Plan, Failure> {
 pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool) -> Result<(), Failure> {
     let o = &g.opts;
     if let Some(bg) = o.background {
+        s.role(if o.themed_background { Role::Background } else { Role::Data });
         s.fill(&Path::rect(0.0, 0.0, p.width, p.height), bg);
+        s.role(Role::Data);
     }
     let [ax, ay, aw, ah] = p.area;
     // grid lines, behind everything
@@ -354,8 +356,14 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
         let (lo, hi) = p.range[k];
         for (u, style) in lines.into_iter().filter(|(u, _)| *u >= lo && *u <= hi) {
             let pen = match style {
-                Some(i) => pen_of(&g.styles[i], aw),
-                None => Pen { color: GRID, width: 1.0, dash: vec![], cap: Cap::Butt },
+                Some(i) => {
+                    s.role(g.styles[i].role);
+                    pen_of(&g.styles[i], aw)
+                }
+                None => {
+                    s.role(Role::Grid);
+                    Pen { color: GRID, width: 1.0, dash: vec![], cap: Cap::Butt }
+                }
             };
             let path = if k == 0 {
                 Path::polyline(&[(p.px(u), ay), (p.px(u), ay + ah)], false)
@@ -365,6 +373,7 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
             s.stroke(&path, &pen);
         }
     }
+    s.role(Role::Data);
     // the primitives
     if p.clip {
         s.clip(p.area);
@@ -375,12 +384,14 @@ pub fn paint(g: &Graphic, p: &Plan, s: &mut dyn Surface, stop: &dyn Fn() -> bool
         }
         item(g, p, it, s);
     }
+    s.role(Role::Data);
     if p.clip {
         s.unclip();
     }
     decorations(g, p, s);
     legend(g, p, s);
     color_bar(g, p, s);
+    s.role(Role::Data);
     Ok(())
 }
 
@@ -394,8 +405,10 @@ fn color_bar(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     for k in (0..BAR_CELLS).rev() {
         cells.extend_from_slice(&cb.gradient.at((k as f64 + 0.5) / BAR_CELLS as f64).bytes());
     }
+    s.role(Role::Data);
     s.image([x, ay, BAR_W, ah], 1, BAR_CELLS, &cells);
     let thin = Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt };
+    s.role(Role::Frame);
     s.stroke(&Path::rect(x, ay, BAR_W, ah), &thin);
     let (lo, hi) = cb.range;
     let mut marks = Path::default();
@@ -403,13 +416,14 @@ fn color_bar(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     for (u, t) in ticks {
         let y = ay + ((hi - u) / (hi - lo)) as f32 * ah;
         marks.add_polyline(&[(x + BAR_W, y), (x + BAR_W + TICK, y)], false);
-        draw_label(s, t, (x + BAR_W + TICK + 2.0, y - t.height / 2.0), false, TEXT);
+        chrome_label(s, t, (x + BAR_W + TICK + 2.0, y - t.height / 2.0), false);
         widest = widest.max(t.width);
     }
+    s.role(Role::Frame);
     s.stroke(&marks, &thin);
     if let Some(t) = label {
         let left = x + BAR_W + TICK + 2.0 + widest + GAP;
-        draw_label(s, t, (left, ay + ah / 2.0 + t.width / 2.0), true, TEXT);
+        chrome_label(s, t, (left, ay + ah / 2.0 + t.width / 2.0), true);
     }
 }
 
@@ -425,9 +439,11 @@ fn pen_of(st: &Style, width: f32) -> Pen {
 /// Fill a face and draw its edges, as the style says.
 fn face(s: &mut dyn Surface, path: &Path, st: &Style, width: f32) {
     if let Some(c) = st.fill() {
+        s.role(if matches!(st.face, Face::Current) { st.role } else { Role::Data });
         s.fill(path, c);
     }
     if let Some(e) = &st.edge {
+        s.role(Role::Data);
         let w = width as f64;
         let dash: Vec<f32> = e.dashing.iter().map(|d| d.at(w) as f32).collect();
         let cap = if dash.is_empty() { Cap::Butt } else { Cap::Round };
@@ -438,6 +454,8 @@ fn face(s: &mut dyn Surface, path: &Path, st: &Style, width: f32) {
 /// Paint one primitive.
 fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
     let st = &g.styles[it.style];
+    // lines, points and text in the style's colour; faces and images set their own role
+    s.role(st.role);
     let aw = p.area[2];
     let run = |r: &[Pt]| r.iter().map(|&q| p.at(q)).collect::<Vec<_>>();
     match &it.shape {
@@ -502,6 +520,7 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
             }
         }
         Shape::Raster { cols, rows, rgba, from, to } => {
+            s.role(Role::Data);
             let ((x0, y0), (x1, y1)) = (p.at(*from), p.at(*to));
             s.image([x0.min(x1), y0.min(y1), (x1 - x0).abs(), (y1 - y0).abs()], *cols, *rows, rgba);
         }
@@ -544,6 +563,7 @@ fn item(g: &Graphic, p: &Plan, it: &Item, s: &mut dyn Surface) {
             let left = x - (1.0 + offset.0 as f32) / 2.0 * w;
             let top = y - (1.0 - offset.1 as f32) / 2.0 * ht;
             if let Ok(sub) = plan(graphic, &|| false) {
+                s.role(Role::Data);
                 let mut placed = crate::surface::Placed { inner: s, dx: left, dy: top, s: k };
                 let _ = paint(graphic, &sub, &mut placed, &|| false);
             }
@@ -594,6 +614,12 @@ fn draw_label(s: &mut dyn Surface, t: &Typeset, origin: (f32, f32), up: bool, co
     s.text(&Text { glyphs: &t.glyphs, rules: &t.rules, text: &t.text, origin, up, color });
 }
 
+/// A chrome label: [`draw_label`] in [`TEXT`] as [`Role::Text`].
+fn chrome_label(s: &mut dyn Surface, t: &Typeset, origin: (f32, f32), up: bool) {
+    s.role(Role::Text);
+    draw_label(s, t, origin, up, TEXT);
+}
+
 /// The frame or axes, their ticks and labels, the frame and axes labels and the plot label.
 fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     let o = &g.opts;
@@ -602,6 +628,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
     let lfs = o.label_size.map_or(fs, |v| v as f32);
     let thin = Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt };
     if o.frame {
+        s.role(Role::Frame);
         s.stroke(&Path::rect(ax, ay, aw, ah), &thin);
         let mut marks = Path::default();
         for (u, l) in &p.ticks[0] {
@@ -609,7 +636,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             marks.add_polyline(&[(x, ay + ah), (x, ay + ah - TICK)], false);
             marks.add_polyline(&[(x, ay), (x, ay + TICK)], false);
             if let Some(t) = l {
-                draw_label(s, t, (x - t.width / 2.0, ay + ah + 2.0), false, TEXT);
+                chrome_label(s, t, (x - t.width / 2.0, ay + ah + 2.0), false);
             }
         }
         for (u, l) in &p.ticks[1] {
@@ -617,7 +644,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             marks.add_polyline(&[(ax, y), (ax + TICK, y)], false);
             marks.add_polyline(&[(ax + aw, y), (ax + aw - TICK, y)], false);
             if let Some(t) = l {
-                draw_label(s, t, (ax - GAP - t.width, y - t.height / 2.0), false, TEXT);
+                chrome_label(s, t, (ax - GAP - t.width, y - t.height / 2.0), false);
             }
         }
         for &u in &p.minor[0] {
@@ -630,17 +657,18 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             marks.add_polyline(&[(ax, y), (ax + TICK / 2.0, y)], false);
             marks.add_polyline(&[(ax + aw, y), (ax + aw - TICK / 2.0, y)], false);
         }
+        s.role(Role::Frame);
         s.stroke(&marks, &thin);
         let tick_h = p.ticks[0].iter().filter_map(|t| t.1.as_ref()).map(|t| t.height).fold(0.0, f32::max);
         let tick_w = p.ticks[1].iter().filter_map(|t| t.1.as_ref()).map(|t| t.width).fold(0.0, f32::max);
         if let Some(l) = &o.frame_label[0] {
             let t = typeset(l, lfs);
-            draw_label(s, &t, (ax + aw / 2.0 - t.width / 2.0, ay + ah + 2.0 + tick_h + GAP), false, TEXT);
+            chrome_label(s, &t, (ax + aw / 2.0 - t.width / 2.0, ay + ah + 2.0 + tick_h + GAP), false);
         }
         if let Some(l) = &o.frame_label[1] {
             let t = typeset(l, lfs);
             let left = ax - GAP - tick_w - GAP - t.height;
-            draw_label(s, &t, (left, ay + ah / 2.0 + t.width / 2.0), true, TEXT);
+            chrome_label(s, &t, (left, ay + ah / 2.0 + t.width / 2.0), true);
         }
     } else {
         // axes through the origin (or along the lower edge)
@@ -653,7 +681,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
                 lines.add_polyline(&[(x, oy), (x, oy + TICK)], false);
                 let crossing = o.axes[1] && *u == p.origin.1 && p.origin.1 != p.range[0].0;
                 if let (Some(t), false) = (l, crossing) {
-                    draw_label(s, t, (x - t.width / 2.0, oy + TICK + 1.0), false, TEXT);
+                    chrome_label(s, t, (x - t.width / 2.0, oy + TICK + 1.0), false);
                 }
             }
             for &u in &p.minor[0] {
@@ -662,7 +690,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             }
             if let Some(l) = &o.axes_label[0] {
                 let t = typeset(l, lfs);
-                draw_label(s, &t, (ax + aw + GAP, oy - t.height / 2.0), false, TEXT);
+                chrome_label(s, &t, (ax + aw + GAP, oy - t.height / 2.0), false);
             }
         }
         if o.axes[1] {
@@ -672,7 +700,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
                 lines.add_polyline(&[(ox, y), (ox - TICK, y)], false);
                 let crossing = o.axes[0] && *u == p.origin.0 && p.origin.0 != p.range[1].0;
                 if let (Some(t), false) = (l, crossing) {
-                    draw_label(s, t, (ox - TICK - 1.0 - t.width, y - t.height / 2.0), false, TEXT);
+                    chrome_label(s, t, (ox - TICK - 1.0 - t.width, y - t.height / 2.0), false);
                 }
             }
             for &u in &p.minor[1] {
@@ -681,10 +709,11 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             }
             if let Some(l) = &o.axes_label[1] {
                 let t = typeset(l, lfs);
-                draw_label(s, &t, (ox - t.width / 2.0, ay - GAP - t.height), false, TEXT);
+                chrome_label(s, &t, (ox - t.width / 2.0, ay - GAP - t.height), false);
             }
         }
         if !lines.is_empty() {
+            s.role(Role::Frame);
             s.stroke(&lines, &thin);
         }
     }
@@ -695,7 +724,7 @@ fn decorations(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
         } else {
             ay - GAP - t.height - if p.ticks[1].is_empty() { 0.0 } else { 2.0 }
         };
-        draw_label(s, &t, (ax + aw / 2.0 - t.width / 2.0, top.max(0.0)), false, TEXT);
+        chrome_label(s, &t, (ax + aw / 2.0 - t.width / 2.0, top.max(0.0)), false);
     }
 }
 
@@ -736,16 +765,19 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
         Corner::BottomLeft | Corner::BottomRight => ay + ah - 10.0 - h,
     };
     let bx = Path::rounded_rect(x, y, w, h, o.legend_frame.unwrap_or(0.0) as f32);
+    s.role(Role::Panel);
     s.fill(&bx, Rgba::WHITE);
     if o.legend_frame.is_some() {
+        s.role(Role::Frame);
         s.stroke(&bx, &Pen { color: FRAME, width: 1.0, dash: vec![], cap: Cap::Butt });
     }
     s.clip([x, y, w, h]);
     let mut top = y + PAD - 2.0;
     if let Some(t) = &title {
-        draw_label(s, t, (x + (w - t.width) / 2.0, top + (title_h - 2.0 - t.height) / 2.0), false, TEXT);
+        chrome_label(s, t, (x + (w - t.width) / 2.0, top + (title_h - 2.0 - t.height) / 2.0), false);
         top += title_h;
         let rule = Pen { color: Rgba { a: 0.35, ..FRAME }, width: 0.5, dash: vec![], cap: Cap::Butt };
+        s.role(Role::Frame);
         s.stroke(&Path::polyline(&[(x + PAD / 2.0, top - 2.0), (x + w - PAD / 2.0, top - 2.0)], false), &rule);
     }
     let mut left = x + PAD;
@@ -754,6 +786,7 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
         let mid = top + row / 2.0;
         let st = &g.styles[e.style];
         let x0 = left;
+        s.role(st.role);
         match e.marker {
             Marker::Line => {
                 let mut pen = pen_of(st, aw);
@@ -771,7 +804,7 @@ fn legend(g: &Graphic, p: &Plan, s: &mut dyn Surface) {
             }
             Marker::None => {}
         }
-        draw_label(s, t, (x0 + sample_w, mid - t.height / 2.0), false, TEXT);
+        chrome_label(s, t, (x0 + sample_w, mid - t.height / 2.0), false);
         if o.legend_row {
             left += sample_w + t.width + SPACE;
         } else {

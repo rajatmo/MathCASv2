@@ -201,8 +201,52 @@ impl Text<'_> {
     }
 }
 
+/// What a drawing call paints: the graphic's data, or a part of its "chrome" (background, frame, axes, ticks,
+/// labels, legend box, grid lines) that a front end may draw in its theme's colours (see [`crate::theme`]).
+/// Renderers mark chrome (SVG: a class per element) or recolour it (the raster surface with a theme); data keeps
+/// its colours.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Role {
+    /// curves, points, fills, images, colour bars, everything drawn in a colour of its own
+    #[default]
+    Data,
+    /// the page's background
+    Background,
+    /// frame, axes, tick marks, the legend's frame, the colour bar's frame
+    Frame,
+    /// tick labels, frame and axes labels, the plot label, legend text
+    Text,
+    /// grid lines without a style of their own
+    Grid,
+    /// the legend's box (filled under its entries)
+    Panel,
+    /// primitives drawn without a colour directive (the default black): the theme's text colour
+    Ink,
+}
+
+impl Role {
+    /// Every role that is chrome (all but [`Role::Data`]).
+    pub const CHROME: [Role; 6] = [Role::Background, Role::Frame, Role::Text, Role::Grid, Role::Panel, Role::Ink];
+
+    /// The role's word in SVG class names (`mcf-<word>` on a themed fill, `mcs-<word>` on a themed stroke).
+    pub fn word(self) -> &'static str {
+        match self {
+            Role::Data => "data",
+            Role::Background => "bg",
+            Role::Frame => "frame",
+            Role::Text => "text",
+            Role::Grid => "grid",
+            Role::Panel => "panel",
+            Role::Ink => "ink",
+        }
+    }
+}
+
 /// Where a graphic is painted.
 pub trait Surface {
+    /// What the following calls paint (until the next call; [`Role::Data`] at the start). Surfaces that draw
+    /// every role alike ignore it.
+    fn role(&mut self, _role: Role) {}
     /// Fill a path (non-zero winding).
     fn fill(&mut self, path: &Path, color: Rgba);
     /// Stroke a path.
@@ -265,6 +309,9 @@ impl Placed<'_> {
 }
 
 impl Surface for Placed<'_> {
+    fn role(&mut self, role: Role) {
+        self.inner.role(role);
+    }
     fn fill(&mut self, path: &Path, color: Rgba) {
         let p = self.path(path);
         self.inner.fill(&p, color);

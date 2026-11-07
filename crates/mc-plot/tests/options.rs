@@ -374,7 +374,8 @@ fn legend_layouts_frames_and_places() {
     let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: line_legend(["a", "b"], legend_layout: "Row", legend_function: frame))"#));
     let ((xa, ya, _), (xb, yb, _)) = (label_at(&s, "a").unwrap(), label_at(&s, "b").unwrap());
     assert!(ya == yb && xb > xa + 10.0, "side by side: {xa} {ya}, {xb} {yb}");
-    assert!(s.split("<path d=").skip(1).any(|p| p[..p.find('>').unwrap()].contains('C') && p.contains("stroke=")), "a rounded frame");
+    // the frame is chrome: a class before its data (round nb-svg)
+    assert!(s.split("<path ").skip(1).any(|p| p[..p.find('>').unwrap()].contains('C') && p.contains("stroke=")), "a rounded frame");
     // placed(legend, [left, bottom]): the bottom left corner
     let s = svg(&is_image(&mut e, r#"plot([x, x^2], [x, 0, 1], plot_legends: placed(line_legend(["a", "b"]), [left, bottom]))"#));
     let (ax, ay, aw, ah) = area(&s);

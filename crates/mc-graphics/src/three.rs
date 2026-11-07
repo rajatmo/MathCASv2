@@ -15,6 +15,7 @@ use crate::model::{
     Style, POLL,
 };
 use crate::num::number;
+use crate::surface::Role;
 use crate::{ticks, Failure};
 use mc_api::names;
 use mc_core::{Packed, Store, View, T};
@@ -411,7 +412,7 @@ fn primitive<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Vec
 /// Read the content of a `graphics3d` term into a scene. Things that are neither primitives nor directives are
 /// left out.
 fn scene<S: Store + ?Sized>(h: &S, content: T<'_>, stop: &dyn Fn() -> bool) -> Result<Scene, Failure> {
-    let mut sc = Scene { elems: vec![], styles: vec![Style::default()] };
+    let mut sc = Scene { elems: vec![], styles: vec![Style::uncoloured()] };
     let single = [content];
     let mut stack: Vec<(&[T<'_>], usize)> = vec![(&single[..], 0)];
     let mut seen = 0usize;
@@ -474,6 +475,7 @@ struct Opts3 {
     plot_label: Option<Label>,
     image_size: (Option<f64>, Option<f64>),
     background: Option<Rgba>,
+    themed_background: bool,
     ticks: bool,
     font_size: f64,
     ignored: Vec<String>,
@@ -492,6 +494,7 @@ impl Default for Opts3 {
             plot_label: None,
             image_size: (None, None),
             background: Some(Rgba::WHITE),
+            themed_background: true,
             ticks: true,
             font_size: 10.0,
             ignored: vec![],
@@ -600,6 +603,7 @@ fn options3<S: Store + ?Sized>(h: &S, o: Option<T<'_>>) -> Result<Opts3, Failure
                 }
             }
             "background" => {
+                opts.themed_background = false;
                 if sym_is(h, v, "none") {
                     opts.background = None;
                     Some(())
@@ -1031,7 +1035,7 @@ impl Prepared {
         // the box's edges and the axes
         let corner = |i: usize| [if i & 1 == 0 { lo[0] } else { hi[0] }, if i & 2 == 0 { lo[1] } else { hi[1] }, if i & 4 == 0 { lo[2] } else { hi[2] }];
         let edges: [(usize, usize); 12] = [(0, 1), (2, 3), (4, 5), (6, 7), (0, 2), (1, 3), (4, 6), (5, 7), (0, 4), (1, 5), (2, 6), (3, 7)];
-        let thin = Style { thickness: Size::Abs(0.75), color: Rgba { a: 0.8, ..BOX }, ..Style::default() };
+        let thin = Style { thickness: Size::Abs(0.75), color: Rgba { a: 0.8, ..BOX }, role: Role::Frame, ..Style::default() };
         if o3.boxed {
             for &(i, j) in &edges {
                 let ((pa, za), (pb, zb)) = (proj(corner(i)), proj(corner(j)));
@@ -1053,8 +1057,8 @@ impl Prepared {
                 .min_by(|a, b| cam.project(corner(a.0)).0.total_cmp(&cam.project(corner(b.0)).0))
                 .unwrap_or(&(0, 4));
             let box_mid = cam.scaled(centre);
-            let tick_style = Style { thickness: Size::Abs(0.75), color: BOX, ..Style::default() };
-            let text_style = Style { color: Rgba::rgb(0.15, 0.15, 0.15), font_size: Some(o3.font_size), ..Style::default() };
+            let tick_style = Style { thickness: Size::Abs(0.75), color: BOX, role: Role::Frame, ..Style::default() };
+            let text_style = Style { color: Rgba::rgb(0.15, 0.15, 0.15), font_size: Some(o3.font_size), role: Role::Text, ..Style::default() };
             for (k, (i, j)) in [(0, xe), (1, ye), (2, ze)] {
                 let (a, b) = (corner(i), corner(j));
                 if !o3.boxed {
@@ -1111,6 +1115,7 @@ impl Prepared {
             s => s,
         };
         g.opts.background = o3.background;
+        g.opts.themed_background = o3.themed_background;
         g.opts.plot_label = o3.plot_label.clone();
         g.opts.font_size = o3.font_size;
         g.opts.ignored = o3.ignored.clone();

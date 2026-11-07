@@ -107,3 +107,10 @@ Tests: unit 18; `tests/interop.rs` 11; `tests/plot.rs` 14 (sign changes never br
   lazily would halve it but every reader of them (export_data, import, the notebook) checks that they exist next
   to the PNG: left for a coordinated change.
 - Tests: `tests/round13.rs` 5 (G83, G85, G88, G90, G64); `tests/plot.rs` sidecar mapping updated.
+
+## Round nb-svg
+
+- Grid lines of logarithmic axes are written without a colour (major: the graphic's grid colour; minor:
+  `opacity(0.5)`, 0.95 gray on white as before), so they are chrome a front end themes; linear axes used
+  `automatic` grid lines already. Plot files are otherwise unchanged (PNG at scale 1, SVG with chrome classes, PDF).
+- `tests/options.rs`: the legend-frame check reads paths with a class.

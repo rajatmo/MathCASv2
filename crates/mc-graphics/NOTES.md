@@ -123,3 +123,29 @@ subset lacks `\left...\right`, accents, matrices and `\over`; serif text only.
 - Timings (release): plot3d 61 x 61 end to end 82-95 ms (render PNG 13, SVG 14, PDF 32 ms after a 7 ms read; print
   14 ms). Fast path at a 640-point page and scale 1.5: plot3d 61 x 61 load 50 ms once, 28 ms a frame; 100 x 100
   load 130 ms, 55 ms a frame; 16 spheres (12800 faces) 90 ms a frame (193 ms before back faces were skipped).
+
+## Round nb-svg: chrome marked for themes
+
+- `surface::Role` (`Data`, `Background`, `Frame`, `Text`, `Grid`, `Panel`, `Ink`) and `Surface::role` (default: ignored).
+  The painter sets it before each call: the background (only when no `background` option was given:
+  `Opts::themed_background`), grid lines without a colour (a styled grid line keeps `Role::Grid` until a colour
+  directive), the frame, axes, ticks and colour-bar frame, every label it typesets, the legend box (`Panel`), frame
+  and title rule; primitives take their style's role: `Style::uncoloured()` (the content's first style) is
+  `Role::Ink` until a colour directive makes it `Data`, so `graphics([circle()])` draws in the theme's text colour.
+  Faces drawn in the current colour follow the style's role; `face_form` colours, edges, rasters and insets are data.
+  3D: the box, ticks and labels are chrome; lit faces are data.
+- SVG: chrome elements get `class="mcf-<role>"` (fill) or `class="mcs-<role>"` (stroke) and keep the light colours as
+  attributes (other readers see the light look); the root element has `class="mc-graphic"` (`SVG_ROOT_CLASS`).
+- `theme::Theme { background, text, frame, grid, panel }`, `Theme::LIGHT` (what files are written with),
+  `Theme::color(role, c)` (the theme colour with `c`'s opacity; `None` for a transparent background), `Theme::css()`
+  (one rule per role and property: injected by a front end as `usvg::Options::style_sheet`; CSS overrides
+  presentation attributes), `Theme::key()` (cache keys), `Theme::contrast` (WCAG ratio).
+- The raster surface recolours chrome itself with `Raster::with_theme`; `render_rgba_themed`,
+  `Scene3d::render_themed` / `render_draft_themed` (the notebook's turned 3D pictures).
+- Decision nb-svg.1: chrome is marked by role where it is drawn, never recognised by colour. Decision nb-svg.2:
+  primitives without a colour directive are chrome (`Ink`), like `currentColor`, so default-black drawings stay
+  visible on a dark page; a colour given by the user (also white or black) is data.
+- Tests: `theme` unit test; `tests/theme.rs` 3 (classes on chrome and none on data, an uncoloured line is ink, a given
+  background is not themed; resvg with the dark style sheet: transparent corner, curves unchanged, the theme's frame
+  colour present, the light one absent, and the themed raster surface within a mean of 3 per channel of it; the light
+  style sheet changes nothing); `tests/render.rs` SVG snapshot and path count updated. PNG snapshots unchanged.

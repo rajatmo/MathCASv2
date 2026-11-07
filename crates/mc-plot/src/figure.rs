@@ -41,11 +41,8 @@ const COLORS: [Rgb; 7] = [
     (0x34, 0x50, 0x6E),
     (0x3B, 0x2A, 0x22),
 ];
-/// Grid lines at major ticks, and the fainter ones between powers of ten.
-const GRID: f64 = 230.0 / 255.0;
 /// The opacity of filled regions under curves.
 const FILL_OPACITY: f64 = 0.22;
-const FAINT: f64 = 242.0 / 255.0;
 
 pub(crate) type Rgb = (u8, u8, u8);
 
@@ -477,9 +474,6 @@ impl<'h> B<'h> {
         let f = |v: u8| v as f64 / 255.0;
         rgb_term(self.h, Rgba::rgb(f(c.0), f(c.1), f(c.2)))
     }
-    fn gray(&self, g: f64) -> T<'h> {
-        self.call("gray_level", &[self.h.real(g)])
-    }
     fn label(&self, l: &Label) -> T<'h> {
         match l {
             Label::Text(s) => self.h.string(&s.replace('-', "\u{2212}")),
@@ -746,11 +740,13 @@ pub(crate) fn figure<'h>(h: &'h Heap, series: &[Series], look: &Look<'h>, extra:
                     .map(|(u, l)| b.list(&[h.real(*u), b.label(l)]))
                     .chain(minor.iter().map(|&u| b.list(&[h.real(u), none, h.real(0.5)])));
                 ticks.push(b.list(&marks.collect::<Vec<_>>()));
+                // grid lines without a colour of their own (the graphic's grid colour, 0.9 gray; the minor ones at
+                // half opacity, 0.95 on white), so a front end draws them in its theme (round nb-svg)
+                let half = b.call("opacity", &[h.real(0.5)]);
                 let lines: Vec<T<'h>> = minor
                     .iter()
-                    .map(|&u| (u, FAINT))
-                    .chain(major.iter().map(|(u, _)| (*u, GRID)))
-                    .map(|(u, g)| b.list(&[h.real(u), b.gray(g)]))
+                    .map(|&u| b.list(&[h.real(u), half]))
+                    .chain(major.iter().map(|(u, _)| h.real(*u)))
                     .collect();
                 grid.push(b.list(&lines));
             }

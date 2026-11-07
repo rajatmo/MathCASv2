@@ -18,6 +18,7 @@
 //!
 //! Everything here works without a term store or an evaluator once loaded, and is `Send + Sync`: render on a
 //! worker thread and drop stale frames.
+use crate::theme::Theme;
 use crate::three::{orbit, Prepared, P3};
 use crate::{page, raster, Failure};
 use std::path::{Path, PathBuf};
@@ -137,8 +138,15 @@ impl Scene3d {
     /// RGBA bytes, the top row first. A view that cannot be drawn (a zero view point, a zero zoom) gives the page
     /// blank; the scale is kept within 0.05 .. 16. See [`Scene3d::try_render`] for the failures.
     pub fn render(&self, view: &View3d, scale: f32) -> (u32, u32, Vec<u8>) {
+        self.render_themed(view, scale, None)
+    }
+
+    /// [`Scene3d::render`] with the chrome (background, box, ticks, labels, primitives without a colour) in
+    /// `theme`'s colours (`None`: as the picture file has them). A transparent theme background leaves the page's
+    /// pixels transparent.
+    pub fn render_themed(&self, view: &View3d, scale: f32, theme: Option<&Theme>) -> (u32, u32, Vec<u8>) {
         let scale = if scale.is_finite() { scale.clamp(0.05, 16.0) } else { 1.0 };
-        match self.try_render(view, scale, &|| false) {
+        match self.raster(view, scale, theme, &|| false).map(|r| r.rgba()) {
             Ok(r) => r,
             Err(_) => {
                 let (w, h) = ((self.page.0 * scale as f64).ceil().max(1.0) as u32, (self.page.1 * scale as f64).ceil().max(1.0) as u32);
@@ -157,32 +165,38 @@ impl Scene3d {
     /// of the pixels or fewer, by its size), a small one as [`Scene3d::render`]. The image is smaller than the full
     /// render; front ends stretch it over the picture and ask for the full render when the drag ends.
     pub fn render_draft(&self, view: &View3d, scale: f32) -> (u32, u32, Vec<u8>) {
+        self.render_draft_themed(view, scale, None)
+    }
+
+    /// [`Scene3d::render_draft`] in a theme (see [`Scene3d::render_themed`]).
+    pub fn render_draft_themed(&self, view: &View3d, scale: f32, theme: Option<&Theme>) -> (u32, u32, Vec<u8>) {
         if !self.is_large() {
-            return self.render(view, scale);
+            return self.render_themed(view, scale, theme);
         }
         let k = ((DRAFT_PRIMITIVES as f64 / self.len() as f64).sqrt() as f32).clamp(0.25, 0.5);
-        self.render(view, scale * k)
+        self.render_themed(view, scale * k, theme)
     }
 
     /// [`Scene3d::render`] with its failures (`argument` for a bad view or scale, `too_large`, `interrupted`
     /// when `stop` says so).
     pub fn try_render(&self, view: &View3d, scale: f32, stop: &dyn Fn() -> bool) -> Result<(u32, u32, Vec<u8>), Failure> {
-        Ok(self.raster(view, scale, stop)?.rgba())
+        Ok(self.raster(view, scale, None, stop)?.rgba())
     }
 
     /// Draw the scene from `view` at `scale` pixels per point as a PNG file's bytes.
     pub fn render_png(&self, view: &View3d, scale: f32, stop: &dyn Fn() -> bool) -> Result<Vec<u8>, Failure> {
-        self.raster(view, scale, stop)?.png().ok_or_else(|| Failure::new("io", "PNG encoding failed"))
+        self.raster(view, scale, None, stop)?.png().ok_or_else(|| Failure::new("io", "PNG encoding failed"))
     }
 
-    fn raster(&self, view: &View3d, scale: f32, stop: &dyn Fn() -> bool) -> Result<raster::Raster, Failure> {
+    fn raster(&self, view: &View3d, scale: f32, theme: Option<&Theme>, stop: &dyn Fn() -> bool) -> Result<raster::Raster, Failure> {
         if !(scale > 0.0 && scale <= 16.0) {
             return Err(Failure::new("argument", format!("scale {scale}")));
         }
         let g = self.graphic(view, stop)?;
         let p = page::plan(&g, stop)?;
         let mut r = raster::Raster::new(p.width, p.height, scale)
-            .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?;
+            .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?
+            .with_theme(theme.copied());
         page::paint(&g, &p, &mut r, stop)?;
         Ok(r)
     }

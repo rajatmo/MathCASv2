@@ -8,6 +8,7 @@ use crate::color::{colour, is_symbolic, Colour, Rgba};
 use crate::gradient::{self, Gradient};
 use crate::label::Label;
 use crate::num::{number, short};
+use crate::surface::Role;
 use crate::Failure;
 use mc_api::names;
 use mc_core::{Packed, Store, View, T};
@@ -75,6 +76,9 @@ pub struct Style {
     /// arrowheads at the start and the end of arrows, lengths as fractions of the plot area's width (0: none;
     /// `None`: one at the end, sized by the line width)
     pub arrowheads: Option<[f64; 2]>,
+    /// what lines, points, text and current-colour faces drawn in this style are: [`Role::Ink`] until a colour
+    /// directive gives a colour ([`Role::Data`]); the 3D box and axes are chrome
+    pub role: Role,
 }
 
 impl Default for Style {
@@ -89,11 +93,18 @@ impl Default for Style {
             face: Face::Current,
             font_size: None,
             arrowheads: None,
+            role: Role::Data,
         }
     }
 }
 
 impl Style {
+    /// The style content starts with: the default colour, drawn as the theme's ink by front ends that theme
+    /// chrome.
+    pub fn uncoloured() -> Style {
+        Style { role: Role::Ink, ..Style::default() }
+    }
+
     /// The colour of lines, points and text.
     pub fn ink(&self) -> Rgba {
         self.color.faded(self.opacity)
@@ -291,6 +302,8 @@ pub struct Opts {
     pub image_size: (Option<f64>, Option<f64>),
     /// `None`: transparent
     pub background: Option<Rgba>,
+    /// the background is the default one (no `background` option): chrome a front end may theme
+    pub themed_background: bool,
     /// x and y ticks
     pub ticks: [Ticks; 2],
     /// grid lines at x and y positions
@@ -345,6 +358,7 @@ impl Default for Opts {
             aspect: Aspect::Auto,
             image_size: (None, None),
             background: Some(Rgba::WHITE),
+            themed_background: true,
             ticks: [Ticks::Auto, Ticks::Auto],
             grid: [Grid::None, Grid::None],
             legend: Vec::new(),
@@ -934,6 +948,7 @@ fn text_rule<S: Store + ?Sized>(h: &S, k: T<'_>, v: T<'_>, style: &mut Style) {
     } else if sym_is(h, k, "font_color") {
         if let Colour::Value(c) = colour(h, v) {
             style.color = c;
+            style.role = Role::Data;
         }
     }
 }
@@ -954,6 +969,7 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         return match colour(h, t) {
             Colour::Value(c) => {
                 style.color = c;
+            style.role = Role::Data;
                 Ok(true)
             }
             _ => Ok(symbol_directive(&h.sym_name(s), style)),
@@ -964,6 +980,7 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         return Ok(match colour(h, t) {
             Colour::Value(c) => {
                 style.color = c;
+            style.role = Role::Data;
                 true
             }
             _ => false,
@@ -1007,6 +1024,7 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
     match colour(h, t) {
         Colour::Value(c) => {
             style.color = c;
+            style.role = Role::Data;
             return Ok(true);
         }
         Colour::Symbolic => return Err(Bad::Symbolic),
@@ -1029,7 +1047,10 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
             [a, c] => {
                 style.opacity = scalar(h, *a, 1)?.clamp(0.0, 1.0);
                 match colour(h, *c) {
-                    Colour::Value(c) => style.color = c,
+                    Colour::Value(c) => {
+                        style.color = c;
+                        style.role = Role::Data;
+                    }
                     Colour::Symbolic => return Err(Bad::Symbolic),
                     Colour::Bad => return Err(Bad::Arg(2)),
                 }
@@ -1177,7 +1198,7 @@ pub fn read<S: Store + ?Sized>(h: &S, t: T<'_>, stop: &dyn Fn() -> bool) -> Resu
         },
         _ => return Err(Failure::new("not_graphics", mc_syntax::Printer::new(h).expr(t))),
     };
-    let mut g = Graphic { items: Vec::new(), styles: vec![Style::default()], opts: Opts::default() };
+    let mut g = Graphic { items: Vec::new(), styles: vec![Style::uncoloured()], opts: Opts::default() };
     // the content, with the options `prolog` (drawn first) and `epilog` (drawn last)
     let extra = |key: &str| -> Option<T<'_>> {
         let o = opts?;
@@ -1626,6 +1647,7 @@ fn option<'h, S: Store + ?Sized>(h: &'h S, name: &str, v: T<'h>, o: &mut Opts, s
             }
         }
         "background" => {
+            o.themed_background = false;
             o.background = if sym_is(h, v, "none") {
                 None
             } else {
@@ -1787,7 +1809,9 @@ fn grid<S: Store + ?Sized>(h: &S, t: T<'_>, styles: &mut Vec<Style>) -> Option<G
             out.push((u, None));
         } else {
             let &[u, d] = list(h, e)? else { return None };
-            let mut s = Style::default();
+            // a line styled without a colour (thickness, dashing, opacity) is still a grid line: chrome, in the
+            // grid colour
+            let mut s = Style { role: Role::Grid, color: crate::page::GRID, ..Style::default() };
             directives(h, d, &mut s).ok().filter(|ok| *ok)?;
             styles.push(s);
             out.push((number(h, u)?, Some(styles.len() - 1)));

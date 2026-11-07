@@ -41,11 +41,13 @@ mod pdf;
 mod raster;
 pub mod surface;
 mod svg;
+pub mod theme;
 pub mod three;
 pub mod ticks;
 pub mod view3d;
 
 pub use natives::{install, numeric_content, rgb_term};
+pub use svg::ROOT_CLASS as SVG_ROOT_CLASS;
 
 use mc_api::names;
 use mc_core::{Store, View, T};
@@ -307,13 +309,25 @@ pub fn render<S: Store + ?Sized>(h: &S, t: T<'_>, format: Format) -> Result<Vec<
 /// Render a graphics term to pixels at `scale` pixels per point: width, height and straight RGBA bytes, the top
 /// row first (frames of animations).
 pub fn render_rgba<S: Store + ?Sized>(h: &S, t: T<'_>, scale: f32, stop: &dyn Fn() -> bool) -> Result<(u32, u32, Vec<u8>), Failure> {
+    render_rgba_themed(h, t, scale, None, stop)
+}
+
+/// [`render_rgba`] with the chrome in `theme`'s colours (see [`theme`]; `None`: the light look of the files).
+pub fn render_rgba_themed<S: Store + ?Sized>(
+    h: &S,
+    t: T<'_>,
+    scale: f32,
+    theme: Option<&theme::Theme>,
+    stop: &dyn Fn() -> bool,
+) -> Result<(u32, u32, Vec<u8>), Failure> {
     if !(scale > 0.0 && scale <= 16.0) {
         return Err(Failure::new("argument", format!("scale {scale}")));
     }
     let g = model::read(h, t, stop)?;
     let p = page::plan(&g, stop)?;
     let mut r = raster::Raster::new(p.width, p.height, scale)
-        .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?;
+        .ok_or_else(|| Failure::new("too_large", format!("{} x {} points at scale {scale}", p.width, p.height)))?
+        .with_theme(theme.copied());
     page::paint(&g, &p, &mut r, stop)?;
     Ok(r.rgba())
 }

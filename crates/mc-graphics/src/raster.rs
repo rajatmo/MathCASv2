@@ -1,7 +1,8 @@
 //! The raster surface: tiny-skia paints the page at a scale factor (pixels per point) into a pixmap, encoded as
 //! PNG. Glyphs are filled from the math font's outlines.
 use crate::color::Rgba;
-use crate::surface::{Cap, Path, Pen, Seg, Surface, Text};
+use crate::surface::{Cap, Path, Pen, Role, Seg, Surface, Text};
+use crate::theme::Theme;
 use mc_mathfont::PathCmd;
 use std::collections::HashMap;
 use tiny_skia::{
@@ -20,6 +21,9 @@ pub struct Raster {
     mask: Option<Mask>,
     /// glyph outlines in ems (y up) by glyph id
     outlines: HashMap<u16, Vec<PathCmd>>,
+    /// chrome drawn in a theme's colours (`None`: as the graphic gives them)
+    theme: Option<Theme>,
+    role: Role,
 }
 
 impl Raster {
@@ -30,7 +34,21 @@ impl Raster {
         if !(w.is_finite() && h.is_finite()) || (w as u64) * (h as u64) > MAX_PIXELS {
             return None;
         }
-        Some(Raster { pm: Pixmap::new(w as u32, h as u32)?, scale, clips: vec![], mask: None, outlines: HashMap::new() })
+        Some(Raster { pm: Pixmap::new(w as u32, h as u32)?, scale, clips: vec![], mask: None, outlines: HashMap::new(), theme: None, role: Role::Data })
+    }
+
+    /// Draw chrome in `theme`'s colours from now on.
+    pub fn with_theme(mut self, theme: Option<Theme>) -> Raster {
+        self.theme = theme;
+        self
+    }
+
+    /// The colour to draw `c` in for the current role (`None`: not drawn).
+    fn ink(&self, c: Rgba) -> Option<Rgba> {
+        match &self.theme {
+            Some(t) => t.color(self.role, c),
+            None => Some(c),
+        }
     }
 
     /// The PNG bytes of the page.
@@ -94,7 +112,12 @@ fn paint(c: Rgba) -> Paint<'static> {
 }
 
 impl Surface for Raster {
+    fn role(&mut self, role: Role) {
+        self.role = role;
+    }
+
     fn fill(&mut self, path: &Path, color: Rgba) {
+        let Some(color) = self.ink(color) else { return };
         if let Some(p) = skia(path) {
             let ts = self.transform();
             self.pm.fill_path(&p, &paint(color), FillRule::Winding, ts, self.mask.as_ref());
@@ -102,6 +125,7 @@ impl Surface for Raster {
     }
 
     fn stroke(&mut self, path: &Path, pen: &Pen) {
+        let Some(color) = self.ink(pen.color) else { return };
         let Some(p) = skia(path) else { return };
         let stroke = Stroke {
             width: pen.width,
@@ -114,10 +138,11 @@ impl Surface for Raster {
             ..Stroke::default()
         };
         let ts = self.transform();
-        self.pm.stroke_path(&p, &paint(pen.color), &stroke, ts, self.mask.as_ref());
+        self.pm.stroke_path(&p, &paint(color), &stroke, ts, self.mask.as_ref());
     }
 
     fn dots(&mut self, centres: &[(f32, f32)], d: f32, color: Rgba) {
+        let Some(color) = self.ink(color) else { return };
         // one path of every disc, filled once
         let mut pb = PathBuilder::new();
         let r = (d / 2.0).max(0.25);
@@ -131,6 +156,7 @@ impl Surface for Raster {
     }
 
     fn text(&mut self, t: &Text<'_>) {
+        let Some(color) = self.ink(t.color) else { return };
         let font = mc_mathfont::font();
         let mut pb = PathBuilder::new();
         for g in t.glyphs {
@@ -169,7 +195,7 @@ impl Surface for Raster {
         }
         if let Some(p) = pb.finish() {
             let ts = self.transform();
-            self.pm.fill_path(&p, &paint(t.color), FillRule::Winding, ts, self.mask.as_ref());
+            self.pm.fill_path(&p, &paint(color), FillRule::Winding, ts, self.mask.as_ref());
         }
     }
 
