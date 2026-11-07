@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# string_reverse
+
+#% text
+# `string_reverse(s)` gives the characters of `s` in reverse order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_reverse("stressed")
+#% output
+#= "desserts"
+
+#% cell
+string_reverse("añb")
+#% output
+#= "bña"
+
+#% subsection
+# Scope
+
+#% text
+# Palindromes read the same both ways:
+
+#% cell
+{ let w = "racecar"; string_reverse(w) == w }
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `reverse`, `characters`

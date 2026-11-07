@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# string_take
+
+#% text
+# `string_take(s, k)` gives the first `k` characters of `s`, or the last `-k` when `k` is negative.
+# `string_take(s, [i, j])` gives characters `i` to `j`; `string_take(s, [i])` the `i`-th character.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_take("mathematics", 4)
+#% output
+#= "math"
+
+#% cell
+string_take("mathematics", -3)
+#% output
+#= "ics"
+
+#% cell
+string_take("mathematics", [5, 8])
+#% output
+#= "emat"
+
+#% subsection
+# Scope
+
+#% text
+# A single character:
+
+#% cell
+string_take("abc", [2])
+#% output
+#= "b"
+
+#% section
+# See also
+
+#% text
+# `string_drop`, `take`, `characters`

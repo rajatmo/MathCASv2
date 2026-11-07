@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# select_keys
+
+#% text
+# `select_keys(a, f)` gives the entries of the association `a` whose key `k` has `f(k)` true.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+select_keys(assoc("ax" -> 1, "by" -> 2, "az" -> 3), k => string_starts(k, "a"))
+#% output
+#= assoc("ax" -> 1, "az" -> 3)
+
+#% cell
+select_keys(assoc(1 -> a, 2 -> b, 3 -> c), is_odd)
+#% output
+#= assoc(1 -> a, 3 -> c)
+
+#% section
+# See also
+
+#% text
+# `select`, `delete_key`, `keys`

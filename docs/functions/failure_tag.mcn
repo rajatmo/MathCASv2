@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# failure_tag
+
+#% text
+# `failure_tag(x)` gives the tag of a failure, the first argument of `failure(tag, ...)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+failure_tag(1/0)
+#% output
+#= division_by_zero
+
+#% cell
+failure_tag(import_data("no_such_file.csv"))
+#% output
+#= io
+
+#% subsection
+# Scope
+
+#% text
+# A failure made by hand:
+
+#% cell
+failure_tag(failure(bad_input, "x must be positive"))
+#% output
+#= bad_input
+
+#% section
+# See also
+
+#% text
+# `is_failure`, `drop_failures`, `check`

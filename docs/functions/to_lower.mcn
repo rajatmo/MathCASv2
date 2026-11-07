@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# to_lower
+
+#% text
+# `to_lower(s)` gives `s` in lower case, by the Unicode case mapping.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+to_lower("MathCAS v2")
+#% output
+#= "mathcas v2"
+
+#% cell
+to_lower("ΑΒΓ")
+#% output
+#= "αβγ"
+
+#% subsection
+# Scope
+
+#% text
+# Compare without case:
+
+#% cell
+to_lower("Plot") == to_lower("PLOT")
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `to_upper`, `string_contains`

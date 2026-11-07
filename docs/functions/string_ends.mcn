@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# string_ends
+
+#% text
+# `string_ends(s, suffix)` gives `true` when `s` ends with `suffix`; with a list of strings, with one of them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_ends("data.csv", ".csv")
+#% output
+#= true
+
+#% cell
+string_ends("data.csv", ".json")
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Pick the files of some types:
+
+#% cell
+select(["a.csv", "b.png", "c.json"], f => string_ends(f, [".csv", ".json"]))
+#% output
+#= ["a.csv", "c.json"]
+
+#% section
+# See also
+
+#% text
+# `string_starts`, `file_names`
