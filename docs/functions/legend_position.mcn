@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# legend_position
+
+#% text
+# `legend_position` is an option of graphics and plots: `top_right` (default), `top_left`, `bottom_left` or `bottom_right`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([exp(-x), exp(-2x)], [x, 0, 3], legend: ["a", "b"], legend_position: bottom_left)
+#% output
+#= image("legend_position.files/legend_position-1.png")
+
+#% section
+# See also
+
+#% text
+# `legend`, `legend_layout`

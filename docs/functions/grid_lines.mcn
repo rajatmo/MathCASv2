@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# grid_lines
+
+#% text
+# `grid_lines` is an option of graphics and plots: `none`, `automatic` (at the ticks), or `[x_lines, y_lines]`, each `automatic`, `none` or a list of positions or `[position, directives]` pairs.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], grid_lines: automatic)
+#% output
+#= image("grid_lines.files/grid_lines-1.png")
+
+#% cell
+plot(x^2, [x, 0, 3], grid_lines: [[1, 2], [[4, dashed]]])
+#% output
+#= image("grid_lines.files/grid_lines-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# A colour given as `"#rrggbb"`:
+
+#% cell
+plot(x, [x, 0, 1], grid_lines: [[[0.5, "#e0115f"]], none])
+#% output
+#= image("grid_lines.files/grid_lines-3.png")
+
+#% section
+# See also
+
+#% text
+# `ticks`, `frame`, `epilog`

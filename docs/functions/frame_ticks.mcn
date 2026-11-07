@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# frame_ticks
+
+#% text
+# `frame_ticks` is an option of graphics and plots: `automatic`, `none`, or `[[left, right], [bottom, top]]` giving the ticks of each side of the frame.
+
+#% section
+# Details
+
+#% item
+# Each side takes the same values as `ticks`. A tick `[position, label, length]` with length below 1 is a minor mark.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], frame_ticks: [[automatic, none], [[0, pi, 2pi], none]])
+#% output
+#= image("frame_ticks.files/frame_ticks-1.png")
+
+#% section
+# See also
+
+#% text
+# `ticks`, `frame`, `frame_label`

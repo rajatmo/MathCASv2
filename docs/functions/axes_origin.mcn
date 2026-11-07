@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# axes_origin
+
+#% text
+# `axes_origin` is an option of graphics and plots: `axes_origin: [x, y]` is where the axes cross; `automatic` puts them at 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(x^2, [x, 1, 3], axes: true, frame: false, axes_origin: [1, 0])
+#% output
+#= image("axes_origin.files/axes_origin-1.png")
+
+#% section
+# See also
+
+#% text
+# `axes`, `axes_label`

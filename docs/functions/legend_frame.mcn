@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# legend_frame
+
+#% text
+# `legend_frame` is an option of graphics and plots: `true` (default) draws a square frame around the legend, a number `r` rounds its corners to radius `r` points, and `none` draws no frame.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi], legend: ["sin", "cos"], legend_frame: 6)
+#% output
+#= image("legend_frame.files/legend_frame-1.png")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi], legend: ["sin", "cos"], legend_frame: none)
+#% output
+#= image("legend_frame.files/legend_frame-2.png")
+
+#% section
+# See also
+
+#% text
+# `legend`, `legend_layout`
