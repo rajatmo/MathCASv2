@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# is_machine_number
+
+#% text
+# `is_machine_number(x)` gives `true` when `x` is a machine real or a machine complex number (double precision).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_machine_number(2.5)
+#% output
+#= true
+
+#% cell
+is_machine_number(n(pi, 30))
+#% output
+#= false
+
+#% cell
+is_machine_number(3)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Machine numbers have about 16 digits:
+
+#% cell
+precision(2.5)
+#% output
+#= 15.954589770191003
+
+#% section
+# See also
+
+#% text
+# `is_inexact`, `n`, `precision`

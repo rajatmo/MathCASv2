@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_inexact
+
+#% text
+# `is_inexact(x)` gives `true` when `x` is an inexact number: a machine real or an arbitrary-precision ball, or a complex number with such parts.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_inexact(0.5)
+#% output
+#= true
+
+#% cell
+is_inexact(n(pi, 30))
+#% output
+#= true
+
+#% cell
+is_inexact(1/2)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `is_exact`, `is_machine_number`, `precision`

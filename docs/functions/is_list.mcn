@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_list
+
+#% text
+# `is_list(x)` gives `true` when `x` is a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_list([1, 2, 3])
+#% output
+#= true
+
+#% cell
+is_list("abc")
+#% output
+#= false
+
+#% cell
+is_list([])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_vector`, `is_matrix`, `length`, `head`

@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# is_matrix
+
+#% text
+# `is_matrix(x)` gives `true` when `x` is a list of lists of equal length (a rectangular array of depth 2).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_matrix([[1, 2], [3, 4]])
+#% output
+#= true
+
+#% cell
+is_matrix([[1, 2], [3]])
+#% output
+#= false
+
+#% cell
+is_matrix([1, 2])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Its dimensions:
+
+#% cell
+dimensions([[1, 2, 3], [4, 5, 6]])
+#% output
+#= [2, 3]
+
+#% section
+# See also
+
+#% text
+# `is_vector`, `dimensions`, `array_depth`

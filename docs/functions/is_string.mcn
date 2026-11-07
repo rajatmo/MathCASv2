@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_string
+
+#% text
+# `is_string(x)` gives `true` when `x` is a string.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_string("hello")
+#% output
+#= true
+
+#% cell
+is_string(hello)
+#% output
+#= false
+
+#% cell
+is_string(to_string(42))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `to_string`, `string_length`, `is_symbol`
