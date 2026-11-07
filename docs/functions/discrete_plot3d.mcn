@@ -16,3 +16,9 @@
 discrete_plot3d(i*j, [i, 1, 4], [j, 1, 4])
 #% output
 #= image("discrete_plot3d.files/discrete_plot3d-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

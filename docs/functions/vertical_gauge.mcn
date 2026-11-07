@@ -16,3 +16,9 @@
 vertical_gauge(7, [0, 10])
 #% output
 #= image("vertical_gauge.files/vertical_gauge-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

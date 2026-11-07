@@ -21,3 +21,9 @@ bar_chart3d([1, 2, 3])
 bar_chart3d([[1, 2, 3], [2, 1, 2]])
 #% output
 #= image("bar_chart3d.files/bar_chart3d-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

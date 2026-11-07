@@ -58,7 +58,7 @@ const CASES: &[(&str, &str)] = &[
     ("tot", "fn tot(v) = total(v) + sum(v)"),
     ("vlen", "fn vlen(v) = length(v)"),
     ("uses", "fn uses(v) = vlen(v) + sum(table(x*x, x, v))"),
-    ("pick", "fn pick(v, w, c: Int) = { let y = if c > 0 then v else w; [y[1], length(y)] }"),
+    ("pick_at", "fn pick_at(v, w, c: Int) = { let y = if c > 0 then v else w; [y[1], length(y)] }"),
     ("cums", "fn cums(v) = { var acc = 0.0; table({ acc = acc + x; acc }, x, v) }"),
 ];
 
@@ -76,7 +76,7 @@ const CALLS: &[&str] = &[
     "ident(r)", "ident(short)", "ident(i)", "ident(mixed)",
     "tot(r)", "tot(i)", "tot(negz)", "tot(nan)", "tot(big)",
     "vlen(r)", "vlen(shorti)", "uses(r)", "uses(i)", "uses(shorti)",
-    "pick(r, s, 1)", "pick(r, s, 0)", "pick(r, i, 0)", "pick(short, r, -1)",
+    "pick_at(r, s, 1)", "pick_at(r, s, 0)", "pick_at(r, i, 0)", "pick_at(short, r, -1)",
     "cums(s)", "cums(short)", "cums(i)",
 ];
 

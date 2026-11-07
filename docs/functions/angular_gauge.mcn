@@ -21,3 +21,9 @@ angular_gauge(40, [0, 100])
 angular_gauge([20, 75], [0, 100])
 #% output
 #= image("angular_gauge.files/angular_gauge-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

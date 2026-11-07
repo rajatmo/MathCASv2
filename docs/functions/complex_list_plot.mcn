@@ -27,3 +27,9 @@ complex_list_plot([1 + im, 2 - im, 3, -im])
 complex_list_plot(table(exp(2*pi*im*k/7), k, 7))
 #% output
 #= image("complex_list_plot.files/complex_list_plot-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

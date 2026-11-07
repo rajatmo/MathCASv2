@@ -26,3 +26,9 @@ region_measure(annulus([0, 0], [1, 2]))
 region_member(annulus(), [3/4, 0])
 #% output
 #= true
+
+#% section
+# See also
+
+#% text
+# `region_measure`

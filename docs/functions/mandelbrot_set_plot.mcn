@@ -21,3 +21,9 @@ mandelbrot_set_plot()
 mandelbrot_set_plot([-0.8 + 0.05*im, -0.7 + 0.15*im])
 #% output
 #= image("mandelbrot_set_plot.files/mandelbrot_set_plot-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

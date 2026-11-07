@@ -295,13 +295,13 @@ fn constants_globals_and_data_arguments_are_read_as_the_interpreter_reads_them()
     let setup = "c0 = 2.5\nc1 = 7/4\nc2 = 3\n".to_string()
         + TABLE
         + "\nr = assoc(\"a\" -> 2.5, \"f\" -> interpolation(tab), \"v\" -> [1.0, 3.0], \"s\" -> assoc(\"b\" -> 0.25))\n\
-           fn pick(r, x: Real) = r[\"a\"]*x + r[\"f\"](x) + r[\"v\"][2] + r[\"s\"][\"b\"]*derivative(1)(r[\"f\"])(x)\n\
+           fn pick_at(r, x: Real) = r[\"a\"]*x + r[\"f\"](x) + r[\"v\"][2] + r[\"s\"][\"b\"]*derivative(1)(r[\"f\"])(x)\n\
            fn hh(a, b) = a*b + 1";
     let mut t = Three::new(&setup);
     let defs = [
         ("kc", "fn kc(x: Real) = x/(64*pi^3) + sqrt(2)*x + x*euler_gamma - e*x^2 + catalan + x*pi"),
         ("gc", "fn gc(x: Real) = c0*x + c1*x - c2 + x^c2"),
-        ("dg", "fn dg(x: Real) = pick(r, x) + hh(x, 2) + hh(3, x) + hh(x, x)"),
+        ("dg", "fn dg(x: Real) = pick_at(r, x) + hh(x, 2) + hh(3, x) + hh(x, x)"),
     ];
     for (n, d) in defs {
         t.define(n, d);
@@ -322,6 +322,6 @@ fn constants_globals_and_data_arguments_are_read_as_the_interpreter_reads_them()
     // an integral of a function given an association: compiled and interpreted agree
     let mut e = engine();
     eval(&mut e, &setup);
-    let compiled = eval(&mut e, "n_integrate(pick(r, u)*exp(-u), [u, 0, 4])");
-    assert_eq!(compiled, eval(&mut e, "n_integrate(pick(r, u)*exp(-u), [u, 0, 4], compile: false)"));
+    let compiled = eval(&mut e, "n_integrate(pick_at(r, u)*exp(-u), [u, 0, 4])");
+    assert_eq!(compiled, eval(&mut e, "n_integrate(pick_at(r, u)*exp(-u), [u, 0, 4], compile: false)"));
 }

@@ -21,3 +21,9 @@ circle_points(3)
 circle_points([1, 1], 2, 4)
 #% output
 #= [[1 + 2^(1/2), 1 - 2^(1/2)], [1 + 2^(1/2), 1 + 2^(1/2)], [1 - 2^(1/2), 1 + 2^(1/2)], [1 - 2^(1/2), 1 - 2^(1/2)]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`

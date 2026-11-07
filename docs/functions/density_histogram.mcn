@@ -16,3 +16,9 @@
 density_histogram(table([sin(k)*k/30, cos(1.7*k)*k/40], k, 400))
 #% output
 #= image("density_histogram.files/density_histogram-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

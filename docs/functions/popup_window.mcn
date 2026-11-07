@@ -16,3 +16,9 @@
 popup_window("click", 42)
 #% output
 #= "click"
+
+#% section
+# See also
+
+#% text
+# `plot`

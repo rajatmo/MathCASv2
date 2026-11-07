@@ -16,3 +16,9 @@
 status_area(x, "note")
 #% output
 #= x
+
+#% section
+# See also
+
+#% text
+# `plot`

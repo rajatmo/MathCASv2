@@ -16,3 +16,9 @@
 paired_bar_chart([1, 2, 3, 4], [4, 3, 2, 2])
 #% output
 #= image("paired_bar_chart.files/paired_bar_chart-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

@@ -21,3 +21,9 @@ julia_set_plot(-0.4 + 0.6*im)
 julia_set_plot(-0.8 + 0.156*im)
 #% output
 #= image("julia_set_plot.files/julia_set_plot-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

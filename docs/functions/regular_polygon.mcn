@@ -21,3 +21,9 @@ graphics([light_blue, edge_form(blue), regular_polygon(5)])
 area(regular_polygon(6))
 #% output
 #= (3/2)*3^(1/2)
+
+#% section
+# See also
+
+#% text
+# `plot`

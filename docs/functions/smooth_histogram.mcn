@@ -22,3 +22,9 @@
 smooth_histogram([1, 2, 2, 3, 3, 3, 4, 5, 7])
 #% output
 #= image("smooth_histogram.files/smooth_histogram-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

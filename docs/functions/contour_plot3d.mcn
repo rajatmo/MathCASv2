@@ -21,3 +21,9 @@ contour_plot3d(x^2 + y^2 + z^2 == 1, [x, -1, 1], [y, -1, 1], [z, -1, 1])
 contour_plot3d(x^2 + y^2 - z^2, [x, -2, 2], [y, -2, 2], [z, -2, 2])
 #% output
 #= image("contour_plot3d.files/contour_plot3d-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

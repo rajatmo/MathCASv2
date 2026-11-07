@@ -16,3 +16,9 @@
 complex_array_plot(table(exp(im*i*j/10.), i, 20, j, 20))
 #% output
 #= image("complex_array_plot.files/complex_array_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

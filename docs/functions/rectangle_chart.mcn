@@ -16,3 +16,9 @@
 rectangle_chart([[1, 2], [2, 3], [0.5, 1]])
 #% output
 #= image("rectangle_chart.files/rectangle_chart-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

@@ -16,3 +16,9 @@
 tooltip(3, "three")
 #% output
 #= 3
+
+#% section
+# See also
+
+#% text
+# `graphics`

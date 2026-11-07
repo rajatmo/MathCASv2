@@ -16,3 +16,9 @@
 pie_chart3d([1, 2, 3])
 #% output
 #= image("pie_chart3d.files/pie_chart3d-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

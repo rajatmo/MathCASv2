@@ -21,3 +21,9 @@ rasterize(graphics([red, disk()]))
 rasterize(x^2 + 1)
 #% output
 #= image("rasterize.files/rasterize-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

@@ -27,3 +27,9 @@ box_whisker_chart([1, 2, 3, 4, 5, 20])
 box_whisker_chart([[1, 2, 3, 4, 5, 20], [2, 3, 3, 4, 6], [5, 6, 7, 7, 8]])
 #% output
 #= image("box_whisker_chart.files/box_whisker_chart-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

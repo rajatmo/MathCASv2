@@ -22,14 +22,14 @@ impl Rng {
     fn below(&mut self, n: u64) -> u64 {
         self.next() % n
     }
-    fn pick<T: Copy>(&mut self, xs: &[T]) -> T {
+    fn pick_at<T: Copy>(&mut self, xs: &[T]) -> T {
         xs[self.below(xs.len() as u64) as usize]
     }
     fn int(&mut self) -> i64 {
         if self.below(8) == 0 {
-            self.pick(EDGE_INTS)
+            self.pick_at(EDGE_INTS)
         } else {
-            self.pick(INTS)
+            self.pick_at(INTS)
         }
     }
 }
@@ -49,25 +49,25 @@ fn b(e: E) -> Box<E> {
 
 fn int_e(r: &mut Rng, d: u32) -> E {
     if d == 0 || r.below(4) == 0 {
-        return if r.below(2) == 0 { E::Var(r.pick(INT_VARS)) } else { E::Int(r.int()) };
+        return if r.below(2) == 0 { E::Var(r.pick_at(INT_VARS)) } else { E::Int(r.int()) };
     }
     match r.below(5) {
         0 | 1 => {
-            let op = r.pick(&[IOp::Add, IOp::Sub, IOp::Mul, IOp::Add, IOp::Sub, IOp::Mul, IOp::DivExact, IOp::Quot, IOp::Mod, IOp::Pow]);
+            let op = r.pick_at(&[IOp::Add, IOp::Sub, IOp::Mul, IOp::Add, IOp::Sub, IOp::Mul, IOp::DivExact, IOp::Quot, IOp::Mod, IOp::Pow]);
             E::I(op, b(int_e(r, d - 1)), b(int_e(r, d - 1)))
         }
         2 => E::Floor(b(real_e(r, d - 1))),
         3 => E::Sel(b(bool_e(r, d - 1)), b(int_e(r, d - 1)), b(int_e(r, d - 1))),
-        _ => E::I(IOp::Add, b(E::Var(r.pick(INT_VARS))), b(E::Int(r.int()))),
+        _ => E::I(IOp::Add, b(E::Var(r.pick_at(INT_VARS))), b(E::Int(r.int()))),
     }
 }
 
 fn real_e(r: &mut Rng, d: u32) -> E {
     if d == 0 || r.below(4) == 0 {
-        return if r.below(2) == 0 { E::Var(r.pick(REAL_VARS)) } else { E::Real(r.pick(REALS)) };
+        return if r.below(2) == 0 { E::Var(r.pick_at(REAL_VARS)) } else { E::Real(r.pick_at(REALS)) };
     }
     match r.below(8) {
-        0 | 1 => E::F(r.pick(&[FOp::Add, FOp::Sub, FOp::Mul, FOp::Div]), b(real_e(r, d - 1)), b(real_e(r, d - 1))),
+        0 | 1 => E::F(r.pick_at(&[FOp::Add, FOp::Sub, FOp::Mul, FOp::Div]), b(real_e(r, d - 1)), b(real_e(r, d - 1))),
         2 => E::ToReal(b(int_e(r, d - 1))),
         3 => {
             if r.below(2) == 0 {
@@ -76,13 +76,13 @@ fn real_e(r: &mut Rng, d: u32) -> E {
                 E::MinMaxF(r.below(2) == 0, b(real_e(r, d - 1)), b(real_e(r, d - 1)))
             }
         }
-        4 => E::Math(r.pick(&Lib::ALL), b(real_e(r, d - 1))),
+        4 => E::Math(r.pick_at(&Lib::ALL), b(real_e(r, d - 1))),
         5 => {
             // as the front end makes them: at least one machine real
             let n = 1 + r.below(3);
             let mut opds: Vec<Opd> = vec![Opd::Real(real_e(r, d - 1))];
             opds.extend((0..n).map(|_| opd(r, d - 1)));
-            E::Num(r.pick(&[NumOp::Sum, NumOp::Product]), opds)
+            E::Num(r.pick_at(&[NumOp::Sum, NumOp::Product]), opds)
         }
         6 => E::Num(NumOp::Pow, vec![Opd::Real(real_e(r, d - 1)), opd(r, d - 1)]),
         _ => E::Sel(b(bool_e(r, d - 1)), b(real_e(r, d - 1)), b(real_e(r, d - 1))),
@@ -98,11 +98,11 @@ fn opd(r: &mut Rng, d: u32) -> Opd {
 }
 
 fn bool_e(r: &mut Rng, d: u32) -> E {
-    let c = r.pick(&[Cc::Lt, Cc::Le, Cc::Gt, Cc::Ge, Cc::Eq, Cc::Ne]);
+    let c = r.pick_at(&[Cc::Lt, Cc::Le, Cc::Gt, Cc::Ge, Cc::Eq, Cc::Ne]);
     match r.below(4) {
         0 => E::Cmp(c, b(int_e(r, d.saturating_sub(1))), b(int_e(r, d.saturating_sub(1)))),
         1 => E::Cmp(c, b(real_e(r, d.saturating_sub(1))), b(real_e(r, d.saturating_sub(1)))),
-        2 if d > 0 => E::Logic(r.pick(&[BOp::And, BOp::Or]), b(bool_e(r, d - 1)), b(bool_e(r, d - 1))),
+        2 if d > 0 => E::Logic(r.pick_at(&[BOp::And, BOp::Or]), b(bool_e(r, d - 1)), b(bool_e(r, d - 1))),
         _ if d > 0 => E::Not(b(bool_e(r, d - 1))),
         _ => E::Bool(r.below(2) == 0),
     }
@@ -116,7 +116,7 @@ fn stmts(r: &mut Rng, d: u32, n: u64) -> Vec<S> {
             2 => S::If(bool_e(r, 2), stmts(r, d - 1, 2), stmts(r, d - 1, 1)),
             _ => {
                 let lo = r.below(7) as i64 - 3;
-                let (hi, step) = (lo + r.below(30) as i64 - 10, r.pick(&[1, -1, 2, -3]));
+                let (hi, step) = (lo + r.below(30) as i64 - 10, r.pick_at(&[1, -1, 2, -3]));
                 S::For { var: 6, lo: E::Int(lo), hi: E::Int(hi), step: E::Int(step), body: stmts(r, d - 1, 2) }
             }
         })
@@ -175,7 +175,7 @@ fn random_programs_agree_on_both_back_ends() {
         let jit = build(&f, vec![], Backend::Cranelift).unwrap();
         assert_eq!(jit.info.back_end, Backend::Cranelift, "{:?}", jit.info.fallback);
         for _ in 0..12 {
-            let args = [r.int() as u64, r.int() as u64, r.pick(REALS).to_bits(), r.pick(REALS).to_bits()];
+            let args = [r.int() as u64, r.int() as u64, r.pick_at(REALS).to_bits(), r.pick_at(REALS).to_bits()];
             let (a, c) = (run(&interp, &args), run(&jit, &args));
             assert!(same(t, a, c), "program {k} on {args:?}: interpreter {a:?}, cranelift {c:?}\n{f:#?}");
             if a.1 == Exit::Done {
@@ -217,7 +217,7 @@ fn random_vector_programs_agree_on_both_back_ends() {
         let jit = build(&f, vec![], Backend::Cranelift).unwrap();
         assert_eq!((interp.outputs(), jit.outputs()), (n as usize, n as usize));
         for _ in 0..12 {
-            let args = [r.int() as u64, r.int() as u64, r.pick(REALS).to_bits(), r.pick(REALS).to_bits()];
+            let args = [r.int() as u64, r.int() as u64, r.pick_at(REALS).to_bits(), r.pick_at(REALS).to_bits()];
             let call = |b: &Built| {
                 let ctl = Control::default();
                 ctl.fuel.store(i64::MAX / 2, std::sync::atomic::Ordering::Relaxed);
@@ -371,12 +371,12 @@ impl Rng {
             0 => f64::from_bits(self.next()),
             // a moderate value, so that the operands of one sum are comparable and rounding decides
             1 => (self.next() >> 11) as f64 / (1u64 << 53) as f64 * if self.below(2) == 0 { 8.0 } else { -8.0 },
-            _ => self.pick(SPECIAL),
+            _ => self.pick_at(SPECIAL),
         }
     }
     fn opd_int(&mut self) -> i64 {
         if self.below(3) == 0 {
-            self.pick(OPD_INTS)
+            self.pick_at(OPD_INTS)
         } else {
             self.below(41) as i64 - 20
         }
@@ -743,8 +743,8 @@ fn draws_are_the_streams() {
     let ints = [0, 1, 6, -3, i64::MIN, i64::MAX, 100];
     let (mut done, mut declined) = (0, 0);
     for case in 0..600u64 {
-        let (a, bb) = (r.pick(&reals), r.pick(&reals));
-        let (lo, hi) = (r.pick(&ints), r.pick(&ints));
+        let (a, bb) = (r.pick_at(&reals), r.pick_at(&reals));
+        let (lo, hi) = (r.pick_at(&ints), r.pick_at(&ints));
         let n = r.below(20) as i64;
         // the expected values from the stream itself; `None` where a draw is refused or the integer sum overflows
         let mut s = Stream::from_key(case);

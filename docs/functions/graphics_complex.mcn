@@ -16,3 +16,9 @@
 graphics(graphics_complex([[0, 0], [1, 0], [1, 1], [0, 1]], [light_blue, polygon([1, 2, 3, 4]), red, point([1, 2, 3, 4])]))
 #% output
 #= image("graphics_complex.files/graphics_complex-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

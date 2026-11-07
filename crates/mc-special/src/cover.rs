@@ -1,3 +1,4 @@
+#![allow(clippy::neg_cmp_op_on_partial_ord, clippy::manual_is_multiple_of)]
 //! Special functions added for coverage (package cov-num), defined by formulas (`mc_numeric::formula`) or by
 //! series evaluated in the canonical arithmetic:
 //!

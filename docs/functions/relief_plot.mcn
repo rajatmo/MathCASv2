@@ -16,3 +16,9 @@
 relief_plot(table(sin(i/4)*cos(j/5), i, 40, j, 40))
 #% output
 #= image("relief_plot.files/relief_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `plot`

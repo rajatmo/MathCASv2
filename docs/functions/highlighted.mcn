@@ -16,3 +16,9 @@
 highlighted(x^2 + 1)
 #% output
 #= style(1 + x^2, background -> rgb_color(1.0, 0.96, 0.7))
+
+#% section
+# See also
+
+#% text
+# `graphics`

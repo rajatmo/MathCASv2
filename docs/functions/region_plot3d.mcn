@@ -16,3 +16,9 @@
 region_plot3d(x^2 + y^2 + z^4 < 1, [x, -1, 1], [y, -1, 1], [z, -1, 1])
 #% output
 #= image("region_plot3d.files/region_plot3d-1.png")
+
+#% section
+# See also
+
+#% text
+# `region_measure`

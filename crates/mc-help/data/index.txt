@@ -257,7 +257,7 @@ inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call un
 timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds; timing(e, breakdown: true) adds where the time went
 profile	core	Session	profile(e): [seconds, value, rows]: e evaluated with every call measured; rows [f, kind, calls, own seconds, total seconds] by own time
 temporary_directory	data	Files	temporary_directory(): the folder for temporary files, as a string ending in /
-import_data	data	Files	import_data(file), import_data(file, format), import_data(file, element), import_data(file, "page", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given
+import_data	data	Files	import_data(file), import_data(file, format), import_data(file, element), import_data(file, "page", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi), svg (a picture written by export_data as its graphics; element graphics for png too); the format from the extension unless given
 interpolation	data	Files	interpolation(data): a function through data [y1, ...] (at x = 1, 2, ...) or [[x1, y1], ...], a not-a-knot cubic spline (method: linear for straight segments; interpolation_order: k for the local polynomial through the k + 1 nearest points); call it as f(x), differentiate it as f'(x) or d(f(x), x); outside the data range failure(out_of_range, x, [x_min, x_max])
 export_data	data	Files	export_data(file, data), export_data(file, data, format): write data (lists of rows or values, datasets; json; png from an image, plot or array of reals with options dpi, scale, bit_depth; pdf from an image, plot or array, or a list of them as pages); gives the file name
 image	data	Files	image(array): the image of an array height x width (gray) or height x width x channels (1 gray, 2 gray and alpha, 3 RGB, 4 RGBA) of reals in [0, 1], saved as a PNG file (bit_depth: 16 for 16 bits); gives image(path); image("path") is an image value
@@ -759,6 +759,35 @@ divisor_sigma	higher	Number theory	divisor_sigma(k, n): the sum of the k-th powe
 moebius_mu	higher	Number theory	moebius_mu(n): the Moebius function
 jacobi_symbol	higher	Number theory	jacobi_symbol(a, n): the Jacobi symbol for odd n > 0
 multiplicative_order	higher	Number theory	multiplicative_order(a, n): the order of a modulo n
+divisible	higher	Number theory	divisible(n, m): true when n/m is an integer (Gaussian integers included)
+is_coprime	higher	Number theory	is_coprime(a, b, ...): true when the integers are pairwise coprime
+is_square_free	higher	Number theory	is_square_free(n): true when no square of a prime divides n
+is_prime_power	higher	Number theory	is_prime_power(n): true when |n| is a power p^k of a prime, k >= 1
+is_composite	higher	Number theory	is_composite(n): true for integers n > 1 that are not prime
+prime_nu	higher	Number theory	prime_nu(n): the number of distinct primes dividing n
+prime_omega	higher	Number theory	prime_omega(n): the number of prime factors of n counted with multiplicity
+liouville_lambda	higher	Number theory	liouville_lambda(n): (-1)^prime_omega(n)
+mangoldt_lambda	higher	Number theory	mangoldt_lambda(n): log p when n is a power of the prime p, else 0
+carmichael_lambda	higher	Number theory	carmichael_lambda(n): the exponent of the multiplicative group modulo n
+divisor_sum	higher	Number theory	divisor_sum(n, f): the sum of f(d) over the divisors d of n; divisor_sum(n, f, cond) over those with cond(d) true
+kronecker_symbol	higher	Number theory	kronecker_symbol(a, n): the Kronecker symbol, the Jacobi symbol extended to all integers n
+modular_inverse	higher	Number theory	modular_inverse(k, n): the r with k r = 1 mod n
+quotient_remainder	higher	Number theory	quotient_remainder(m, n): [quotient(m, n), mod(m, n)]
+catalan_number	higher	Number theory	catalan_number(n): the Catalan number binomial(2 n, n)/(n + 1)
+stirling_s1	higher	Number theory	stirling_s1(n, k): the signed Stirling number of the first kind
+stirling_s2	higher	Number theory	stirling_s2(n, k): the Stirling number of the second kind
+partitions_p	higher	Number theory	partitions_p(n): the number of partitions of n
+partitions_q	higher	Number theory	partitions_q(n): the number of partitions of n into distinct parts
+ramanujan_tau	higher	Number theory	ramanujan_tau(n): the Ramanujan tau function, the coefficients of q prod (1 - q^k)^24
+bit_and	higher	Number theory	bit_and(n1, n2, ...): the bitwise and of integers (two's complement)
+bit_or	higher	Number theory	bit_or(n1, n2, ...): the bitwise or of integers
+bit_xor	higher	Number theory	bit_xor(n1, n2, ...): the bitwise exclusive or of integers
+bit_not	higher	Number theory	bit_not(n): the bitwise complement -1 - n
+integer_reverse	higher	Number theory	integer_reverse(n, b): the integer with the base-b digits of n reversed (b = 10 by default)
+mixed_radix	higher	Number theory	mixed_radix([b1, ..., bk]): a mixed-radix base for integer_digits and from_digits
+real_digits	higher	Number theory	real_digits(x), real_digits(x, b), real_digits(x, b, len): [digits, e] with |x| = 0.d1 d2 ... b^e; a rational's repeating digits form a final sublist
+continued_fraction	higher	Number theory	continued_fraction(x), continued_fraction(x, n): the continued fraction terms of x (a quadratic irrational's period as a final sublist)
+from_continued_fraction	higher	Number theory	from_continued_fraction(terms): the number with these continued fraction terms (a final sublist repeats)
 gamma	higher	Special functions	gamma(x): the gamma function, (x-1)! at positive integers, poles at 0, -1, ...; gamma(a, x): the upper incomplete gamma function
 log_gamma	higher	Special functions	log_gamma(x): log of the gamma function (complex principal value for x < 0)
 digamma	higher	Special functions	digamma(x): the logarithmic derivative gamma'(x)/gamma(x)
@@ -842,6 +871,62 @@ hypergeometric_2f1_regularized	higher	Special functions	hypergeometric_2f1_regul
 elliptic_nome_q	higher	Special functions	elliptic_nome_q(m): the nome q = exp(-pi K(1 - m)/K(m))
 bessel_k_scaled	higher	Special functions	bessel_k_scaled(nu, x): e^x K_nu(x), without underflow at large x
 bessel_i_scaled	higher	Special functions	bessel_i_scaled(nu, x): e^-x I_nu(x), without overflow at large x
+elliptic_theta	higher	Special functions	elliptic_theta(a, u, q): the Jacobi theta function theta_a(u, q), a = 1, 2, 3, 4, nome |q| < 1
+elliptic_theta_prime	higher	Special functions	elliptic_theta_prime(a, u, q): the derivative of theta_a(u, q) in u
+neville_theta_s	higher	Special functions	neville_theta_s(z, m): the Neville theta function theta_s(z | m)
+neville_theta_c	higher	Special functions	neville_theta_c(z, m): the Neville theta function theta_c(z | m)
+neville_theta_d	higher	Special functions	neville_theta_d(z, m): the Neville theta function theta_d(z | m)
+neville_theta_n	higher	Special functions	neville_theta_n(z, m): the Neville theta function theta_n(z | m)
+modular_lambda	higher	Special functions	modular_lambda(tau): the modular lambda function theta_2^4/theta_3^4 at q = e^(i pi tau), Im tau > 0
+klein_invariant_j	higher	Special functions	klein_invariant_j(tau): Klein's absolute invariant J(tau), Im tau > 0
+inverse_elliptic_nome_q	higher	Special functions	inverse_elliptic_nome_q(q): the parameter m whose nome is q
+dedekind_eta	higher	Special functions	dedekind_eta(tau): the Dedekind eta function, Im tau > 0
+q_pochhammer	higher	Special functions	q_pochhammer(a, q, n): the q-Pochhammer symbol (a; q)_n; q_pochhammer(a, q) for n = infinity; q_pochhammer(q) = (q; q)_inf
+q_factorial	higher	Special functions	q_factorial(q, n): the q-factorial (q; q)_n/(1 - q)^n
+q_binomial	higher	Special functions	q_binomial(n, k, q): the q-binomial coefficient
+q_gamma	higher	Special functions	q_gamma(z, q): the q-gamma function (q; q)_inf/(q^z; q)_inf (1 - q)^(1 - z)
+inverse_jacobi_cn	higher	Special functions	inverse_jacobi_cn(v, m): the inverse of the Jacobi elliptic function cn
+inverse_jacobi_dn	higher	Special functions	inverse_jacobi_dn(v, m): the inverse of the Jacobi elliptic function dn
+inverse_jacobi_cd	higher	Special functions	inverse_jacobi_cd(v, m): the inverse of the Jacobi elliptic function cd
+inverse_jacobi_sd	higher	Special functions	inverse_jacobi_sd(v, m): the inverse of the Jacobi elliptic function sd
+inverse_jacobi_nd	higher	Special functions	inverse_jacobi_nd(v, m): the inverse of the Jacobi elliptic function nd
+inverse_jacobi_dc	higher	Special functions	inverse_jacobi_dc(v, m): the inverse of the Jacobi elliptic function dc
+inverse_jacobi_nc	higher	Special functions	inverse_jacobi_nc(v, m): the inverse of the Jacobi elliptic function nc
+inverse_jacobi_sc	higher	Special functions	inverse_jacobi_sc(v, m): the inverse of the Jacobi elliptic function sc
+inverse_jacobi_ns	higher	Special functions	inverse_jacobi_ns(v, m): the inverse of the Jacobi elliptic function ns
+inverse_jacobi_ds	higher	Special functions	inverse_jacobi_ds(v, m): the inverse of the Jacobi elliptic function ds
+inverse_jacobi_cs	higher	Special functions	inverse_jacobi_cs(v, m): the inverse of the Jacobi elliptic function cs
+jacobi_amplitude	higher	Special functions	jacobi_amplitude(u, m): the amplitude am(u | m), the angle whose sine is sn(u | m)
+jacobi_zn	higher	Special functions	jacobi_zn(u, m): the Jacobi zeta function Z(u | m) = E(am(u) | m) - E(m) u/K(m)
+jacobi_epsilon	higher	Special functions	jacobi_epsilon(u, m): the Jacobi epsilon function E(am(u | m) | m)
+spherical_hankel_h1	higher	Special functions	spherical_hankel_h1(n, z): the spherical Hankel function of the first kind j_n(z) + i y_n(z)
+spherical_hankel_h2	higher	Special functions	spherical_hankel_h2(n, z): the spherical Hankel function of the second kind j_n(z) - i y_n(z)
+kelvin_ber	higher	Special functions	kelvin_ber(nu, x): the Kelvin function ber_nu(x), the real part of J_nu(x e^(3 pi i/4)); kelvin_ber(x) for nu = 0
+kelvin_bei	higher	Special functions	kelvin_bei(nu, x): the Kelvin function bei_nu(x), the imaginary part of J_nu(x e^(3 pi i/4)); kelvin_bei(x) for nu = 0
+kelvin_ker	higher	Special functions	kelvin_ker(nu, x): the Kelvin function ker_nu(x), the real part of e^(-nu pi i/2) K_nu(x e^(pi i/4)); kelvin_ker(x) for nu = 0
+kelvin_kei	higher	Special functions	kelvin_kei(nu, x): the Kelvin function kei_nu(x), the imaginary part of e^(-nu pi i/2) K_nu(x e^(pi i/4)); kelvin_kei(x) for nu = 0
+struve_h	higher	Special functions	struve_h(nu, z): the Struve function H_nu(z)
+struve_l	higher	Special functions	struve_l(nu, z): the modified Struve function L_nu(z)
+anger_j	higher	Special functions	anger_j(nu, z): the Anger function J_nu(z), the integral of cos(nu t - z sin t) over [0, pi], over pi
+weber_e	higher	Special functions	weber_e(nu, z): the Weber function E_nu(z), the integral of sin(nu t - z sin t) over [0, pi], over pi
+lommel_s1	higher	Special functions	lommel_s1(mu, nu, z): the Lommel function s_(mu, nu)(z)
+lommel_s2	higher	Special functions	lommel_s2(mu, nu, z): the Lommel function S_(mu, nu)(z)
+hypergeometric_u	higher	Special functions	hypergeometric_u(a, b, z): Tricomi's confluent hypergeometric function U(a, b, z)
+whittaker_m	higher	Special functions	whittaker_m(k, m, z): the Whittaker function M_(k, m)(z) = e^(-z/2) z^(m + 1/2) 1F1(m - k + 1/2; 1 + 2 m; z)
+whittaker_w	higher	Special functions	whittaker_w(k, m, z): the Whittaker function W_(k, m)(z) = e^(-z/2) z^(m + 1/2) U(m - k + 1/2, 1 + 2 m, z)
+parabolic_cylinder_d	higher	Special functions	parabolic_cylinder_d(nu, z): the parabolic cylinder function D_nu(z)
+hypergeometric_pfq_regularized	higher	Special functions	hypergeometric_pfq_regularized(as, bs, z): pFq(as; bs; z) divided by the gamma functions of the bs
+fresnel_f	higher	Special functions	fresnel_f(z): the Fresnel auxiliary function f(z)
+fresnel_g	higher	Special functions	fresnel_g(z): the Fresnel auxiliary function g(z)
+logistic_sigmoid	higher	Special functions	logistic_sigmoid(z): the logistic function 1/(1 + e^-z)
+riemann_siegel_theta	higher	Special functions	riemann_siegel_theta(t): the Riemann-Siegel theta function, the phase of zeta on the critical line
+riemann_siegel_z	higher	Special functions	riemann_siegel_z(t): the Riemann-Siegel Z function e^(i theta(t)) zeta(1/2 + i t), real for real t
+lerch_phi	higher	Special functions	lerch_phi(z, s, a): the Lerch transcendent, the sum of z^k/(k + a)^s over k >= 0
+mittag_leffler_e	higher	Special functions	mittag_leffler_e(a, z): the Mittag-Leffler function, the sum of z^k/gamma(a k + 1); mittag_leffler_e(a, b, z) with gamma(a k + b)
+barnes_g	higher	Special functions	barnes_g(z): the Barnes G-function, G(z + 1) = gamma(z) G(z), G(1) = 1
+log_barnes_g	higher	Special functions	log_barnes_g(z): the logarithm of the Barnes G-function, analytic off the negative axis
+inverse_gamma_regularized	higher	Special functions	inverse_gamma_regularized(a, s): the x with gamma_regularized(a, x) = s
+inverse_beta_regularized	higher	Special functions	inverse_beta_regularized(s, a, b): the x with beta_regularized(x, a, b) = s
 det	higher	Linear algebra	det(m): the determinant of a square matrix (exact, symbolic, ball or machine)
 inverse	higher	Linear algebra	inverse(m): the inverse of a square matrix; failure(singular, inverse) when it has none
 pseudo_inverse	higher	Linear algebra	pseudo_inverse(m): the Moore-Penrose pseudo-inverse of a matrix of numbers

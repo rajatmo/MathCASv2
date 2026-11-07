@@ -700,7 +700,8 @@ pub fn extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, max: bool, args: &[T<'h>]) -> 
         }
         let (Some(lo), Some(hi)) = (lo, hi) else { return Ok(None) };
         let v = if kind == 1 {
-            h.call(h.sym("interval"), &[cx.list(&[lo, hi])])
+            // max/min over the members of the intervals (and numbers): a number, the extreme end
+            return Ok(Some(if max { hi } else { lo }));
         } else {
             let half = ar.rational(h.int(1), h.int(2));
             h.call(h.sym("centered_interval"), &[ar.mul(&[half, ar.add(&[lo, hi])]), ar.mul(&[half, ar.sub(hi, lo)])])

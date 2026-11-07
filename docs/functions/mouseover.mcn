@@ -16,3 +16,9 @@
 mouseover(1, 2)
 #% output
 #= 1
+
+#% section
+# See also
+
+#% text
+# `plot`
