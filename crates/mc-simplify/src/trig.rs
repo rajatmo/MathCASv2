@@ -26,11 +26,20 @@ fn which<'h>(b: &B<'h>, t: T<'h>, of: &[Sym]) -> Option<(Sym, T<'h>)> {
     }
 }
 
-/// `trig_to_exp(e)`: trigonometric and hyperbolic functions as exponentials.
+/// `trig_to_exp(e)`: trigonometric and hyperbolic functions as exponentials, their inverses as logarithms; the
+/// result is expanded (sums distributed, a fraction split over its numerator's terms).
 pub fn trig_to_exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
     let hd = &b.hd;
+    let h = b.heap();
+    let inv: Vec<Sym> = ["asin", "acos", "atan", "acot", "asec", "acsc", "asinh", "acosh", "atanh", "acoth", "asech", "acsch"]
+        .iter()
+        .map(|n| h.sym(n))
+        .collect();
     let of = [hd.sin, hd.cos, hd.tan, hd.cot, hd.sec, hd.csc, hd.sinh, hd.cosh, hd.tanh];
     let r = rewrite(cx, b, t, &mut |_, b, node| {
+        if let Some((s, u)) = which(b, node, &inv) {
+            return Ok(Some(inverse_as_log(b, h.sym_name(s).as_str(), u)));
+        }
         let Some((s, u)) = which(b, node, &of) else { return Ok(None) };
         let hd = &b.hd;
         let iu = b.mul(&[b.i(), u]);
@@ -61,7 +70,45 @@ pub fn trig_to_exp<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Re
         };
         Ok(Some(r))
     })?;
-    cx.eval(r)
+    let r = cx.eval(r)?;
+    if r == t {
+        return Ok(r);
+    }
+    apply(cx, b, "expand", r)
+}
+
+/// The logarithmic form of an inverse trigonometric or hyperbolic function of `u`.
+fn inverse_as_log<'h>(b: &B<'h>, name: &str, u: T<'h>) -> T<'h> {
+    let log = |x: T<'h>| b.call(b.hd.log, &[x]);
+    let sqrt = |x: T<'h>| b.pow(x, b.rat(1, 2));
+    let i = b.i();
+    let half_i = b.complex(b.int(0), b.rat(1, 2));
+    let half = b.rat(1, 2);
+    let inv_u = b.powi(u, -1);
+    // asin(v) = -i log(i v + sqrt(1 - v^2)), atan(v) = i/2 (log(1 - i v) - log(1 + i v))
+    let asin = |v: T<'h>| b.mul(&[b.neg(i), log(b.add(&[b.mul(&[i, v]), sqrt(b.sub(b.int(1), b.powi(v, 2)))]))]);
+    let atan = |v: T<'h>| {
+        let iv = b.mul(&[i, v]);
+        b.sub(b.mul(&[half_i, log(b.sub(b.int(1), iv))]), b.mul(&[half_i, log(b.add(&[b.int(1), iv]))]))
+    };
+    let pi_half = b.mul(&[half, b.heap().sym_term(b.heap().sym("pi"))]);
+    let asinh = |v: T<'h>| log(b.add(&[v, sqrt(b.add(&[b.int(1), b.powi(v, 2)]))]));
+    let acosh = |v: T<'h>| log(b.add(&[v, b.mul(&[sqrt(b.add(&[v, b.int(-1)])), sqrt(b.add(&[v, b.int(1)]))])]));
+    let atanh = |v: T<'h>| b.sub(b.mul(&[half, log(b.add(&[b.int(1), v]))]), b.mul(&[half, log(b.sub(b.int(1), v))]));
+    match name {
+        "asin" => asin(u),
+        "acos" => b.sub(pi_half, asin(u)),
+        "atan" => atan(u),
+        "acot" => atan(inv_u),
+        "asec" => b.sub(pi_half, asin(inv_u)),
+        "acsc" => asin(inv_u),
+        "asinh" => asinh(u),
+        "acosh" => acosh(u),
+        "atanh" => atanh(u),
+        "acoth" => atanh(inv_u),
+        "asech" => acosh(inv_u),
+        _ => asinh(inv_u),
+    }
 }
 
 /// The real and imaginary parts of `u` read off its terms' complex coefficients: `(re, im)`, `im` zero when no term

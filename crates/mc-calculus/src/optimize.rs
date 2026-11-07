@@ -104,9 +104,18 @@ impl Native for OptNative {
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
         let mut c = C { cx, b: &b };
-        let vars: Vec<T<'h>> = match c.cx.as_list(*xs) {
+        // `minimize(f, element([x, y], region))`: the variables and a condition from the region
+        let mut region = None;
+        let mut xs = *xs;
+        if let View::App { head, args: &[pts, _] } = h.view(xs) {
+            if b.sym_of(head) == Some(h.sym("element")) && c.cx.as_list(pts).is_some() {
+                region = Some(xs);
+                xs = pts;
+            }
+        }
+        let vars: Vec<T<'h>> = match c.cx.as_list(xs) {
             Some(v) => v.to_vec(),
-            None => vec![*xs],
+            None => vec![xs],
         };
         if vars.iter().any(|v| !matches!(h.view(*v), View::Sym(_))) {
             return Ok(Reply::Decline);
@@ -119,6 +128,11 @@ impl Native for OptNative {
             Some(_) => return Ok(Reply::Decline),
             None => (*fc, None),
         };
+        let cond = match (cond, region) {
+            (Some(k), Some(r)) => Some(b.call("and", &[k, r])),
+            (None, r) => r,
+            (k, None) => k,
+        };
         let max = matches!(self.kind, Kind::Maximize | Kind::MaxValue | Kind::ArgMax);
         let g = if max { b.neg(f) } else { f };
         let r = match vars.as_slice() {
@@ -127,6 +141,13 @@ impl Native for OptNative {
         };
         let Some((v, point)) = r else { return Ok(Reply::Decline) };
         let v = if max { c.cx.eval(b.neg(v))? } else { v };
+        if point.len() != vars.len() {
+            // unbounded: only the value is known
+            return Ok(match self.kind {
+                Kind::MinValue | Kind::MaxValue => Reply::Done(v),
+                _ => Reply::Decline,
+            });
+        }
         let rules: Vec<T<'h>> = vars.iter().zip(&point).map(|(&x, &p)| c.rule(x, p)).collect();
         Ok(Reply::Done(match self.kind {
             Kind::Minimize | Kind::Maximize => c.list(&[v, c.list(&rules)]),
@@ -284,58 +305,398 @@ fn minimize1<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, x
         let Some(nl) = c.num(l)? else { return Ok(None) };
         match &best {
             Some(bst) if nl > bst.0 + 1e-12 * (1.0 + nl.abs()) => {}
-            // the infimum is a limit that is not attained
+            // the infimum is a finite limit at an infinity: the value with the point at that infinity
+            _ if sign != 0 => {
+                if best.as_ref().is_none_or(|bst| nl < bst.0) {
+                    best = Some((nl, l, pt));
+                }
+            }
+            // the infimum is a limit at an open end that is not attained
             _ => return Ok(None),
         }
     }
     Ok(best.map(|(_, v, p)| (v, vec![p])))
 }
 
-/// The minimum of a polynomial in several variables with a positive definite leading form (decided by the
-/// critical point being unique and the polynomial a sum with an even-degree part of positive coefficients only).
+/// A constraint `g <= 0`, `g < 0` or `g == 0`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Rel {
+    Le,
+    Lt,
+    Eq,
+}
+
+/// A conjunction of constraints.
+type Conj<'h> = Vec<(T<'h>, Rel)>;
+
+/// The constraints of `cond` as a disjunction of conjunctions; `None` when a part is not read.
+fn constraints<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cond: T<'h>) -> Res<Option<Vec<Conj<'h>>>> {
+    let b = c.b;
+    let h = b.heap();
+    if c.cx.is_true(cond) {
+        return Ok(Some(vec![vec![]]));
+    }
+    let View::App { head, args } = h.view(cond) else { return Ok(None) };
+    let Some(s) = b.sym_of(head) else { return Ok(None) };
+    let name = h.sym_name(s);
+    let out = match (name.as_str(), args) {
+        ("and", _) => {
+            let mut acc: Vec<Conj<'h>> = vec![vec![]];
+            for &a in args {
+                let Some(alts) = constraints(c, a)? else { return Ok(None) };
+                let mut next = vec![];
+                for x in &acc {
+                    for y in &alts {
+                        next.push(x.iter().chain(y).copied().collect());
+                    }
+                }
+                acc = next;
+                if acc.len() > 16 {
+                    return Ok(None);
+                }
+            }
+            acc
+        }
+        ("or", _) => {
+            let mut acc = vec![];
+            for &a in args {
+                let Some(alts) = constraints(c, a)? else { return Ok(None) };
+                acc.extend(alts);
+            }
+            acc
+        }
+        (op @ ("less" | "less_equal" | "greater" | "greater_equal" | "equal"), _) if args.len() >= 2 => {
+            // chains a op b op c
+            let mut conj = vec![];
+            for w in args.windows(2) {
+                let (g, rel) = match op {
+                    "less" => (b.sub(w[0], w[1]), Rel::Lt),
+                    "less_equal" => (b.sub(w[0], w[1]), Rel::Le),
+                    "greater" => (b.sub(w[1], w[0]), Rel::Lt),
+                    "greater_equal" => (b.sub(w[1], w[0]), Rel::Le),
+                    _ => (b.sub(w[0], w[1]), Rel::Eq),
+                };
+                conj.push((c.cx.eval(g)?, rel));
+            }
+            vec![conj]
+        }
+        ("element", &[pt, region]) => {
+            let Some(coords) = c.cx.as_list(pt).map(|v| v.to_vec()) else { return Ok(None) };
+            let Some(g) = region_constraint(c, &coords, region)? else { return Ok(None) };
+            vec![vec![(g, Rel::Le)]]
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(out))
+}
+
+/// `|p - center|^2 - r^2` for `disk(center, r)` and `ball(center, r)` (unit and origin by default).
+fn region_constraint<'h>(c: &mut C<'_, '_, '_, '_, 'h>, coords: &[T<'h>], region: T<'h>) -> Res<Option<T<'h>>> {
+    let b = c.b;
+    let h = b.heap();
+    let View::App { head, args } = h.view(region) else { return Ok(None) };
+    let Some(s) = b.sym_of(head) else { return Ok(None) };
+    if !matches!(h.sym_name(s).as_str(), "disk" | "ball") {
+        return Ok(None);
+    }
+    let center: Vec<T<'h>> = match args.first() {
+        Some(&ct) => match c.cx.as_list(ct) {
+            Some(v) if v.len() == coords.len() => v.to_vec(),
+            _ => return Ok(None),
+        },
+        None => vec![b.zero(); coords.len()],
+    };
+    let r = args.get(1).copied().unwrap_or_else(|| b.one());
+    let mut terms: Vec<T<'h>> = coords.iter().zip(&center).map(|(&x, &a)| b.powi(b.sub(x, a), 2)).collect();
+    terms.push(b.neg(b.powi(r, 2)));
+    Ok(Some(c.cx.eval(b.add(&terms))?))
+}
+
+/// The real machine value of a closed term (a complex value with a negligible imaginary part counts as real).
+fn real_value<'h>(c: &mut C<'_, '_, '_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
+    let v = c.ev("n", &[t])?;
+    let h = c.b.heap();
+    Ok(match h.view(v) {
+        View::Real(x) if x.is_finite() => Some(x),
+        View::Int(k) => Some(k as f64),
+        _ => {
+            let re = c.ev("re", &[v])?;
+            let im = c.ev("im_part", &[v])?;
+            match (h.view(re), h.view(im)) {
+                (View::Real(a), View::Real(bb)) if a.is_finite() && bb.abs() <= 1e-9 * (1.0 + a.abs()) => Some(a),
+                (View::Real(a), View::Int(0)) if a.is_finite() => Some(a),
+                _ => None,
+            }
+        }
+    })
+}
+
+/// Does the point satisfy the constraints (with a small tolerance on the non-strict ones)?
+fn feasible<'h>(c: &mut C<'_, '_, '_, '_, 'h>, cons: &[(T<'h>, Rel)], rules: T<'h>) -> Res<bool> {
+    for &(g, rel) in cons {
+        let v = c.ev("rewrite", &[g, rules])?;
+        let Some(x) = real_value(c, v)? else { return Ok(false) };
+        let tol = 1e-9 * (1.0 + x.abs());
+        let ok = match rel {
+            Rel::Le => x <= tol,
+            Rel::Lt => x < -tol,
+            Rel::Eq => x.abs() <= tol,
+        };
+        if !ok {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// A minimum found: (machine value, exact value, point, machine point).
+type Best<'h> = Option<(f64, T<'h>, Vec<T<'h>>, Vec<f64>)>;
+
+/// The minimum of `g` in several variables subject to `cond`: the candidates are the solutions of the Lagrange
+/// (KKT) systems of every set of active constraints (equations always active; with as many active constraints as
+/// variables the constraints alone); a solution leaving variables free has them set to 0. The smallest value at a
+/// feasible candidate is the minimum when no far feasible point (sampled along fixed directions) is smaller;
+/// `(-inf, [])` when the values keep falling far out.
 #[allow(clippy::type_complexity)]
 fn minimize_n<'h>(c: &mut C<'_, '_, '_, '_, 'h>, g: T<'h>, cond: Option<T<'h>>, vars: &[T<'h>]) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
     let b = c.b;
     let h = b.heap();
-    if cond.is_some() {
-        return Ok(None);
-    }
-    // a convex quadratic: the Hessian constant and positive definite (leading minors)
-    let hess = c.ev("d", &[g, c.list(vars), c.list(vars)])?;
-    let Some(rows) = c.cx.as_list(hess).map(|v| v.to_vec()) else { return Ok(None) };
     let n = vars.len();
-    for k in 1..=n {
-        let minor: Vec<T<'h>> = rows[..k]
-            .iter()
-            .map(|&r| {
-                let items = c.cx.as_list(r).unwrap_or(&[]).to_vec();
-                c.list(&items[..k.min(items.len())])
-            })
-            .collect();
-        let det = c.ev("det", &[c.list(&minor)])?;
-        let Some(d) = c.num(det)? else { return Ok(None) };
-        if vars.iter().any(|&v| !is_free(b, det, v)) || d <= 0.0 {
+    let branches = match cond {
+        None => vec![vec![]],
+        Some(k) => match constraints(c, k)? {
+            Some(bs) => bs,
+            None => return Ok(None),
+        },
+    };
+    let reals = h.sym_term(h.sym("reals"));
+    let grad_g = c.ev("d", &[g, c.list(vars)])?;
+    let Some(grad_g) = c.cx.as_list(grad_g).map(|v| v.to_vec()) else { return Ok(None) };
+    let mut best: Best<'h> = None;
+    for cons in &branches {
+        let eqs: Vec<usize> = (0..cons.len()).filter(|&i| cons[i].1 == Rel::Eq).collect();
+        let ineqs: Vec<usize> = (0..cons.len()).filter(|&i| cons[i].1 != Rel::Eq).collect();
+        if ineqs.len() > 10 {
+            return Ok(None);
+        }
+        for mask in 0u32..(1 << ineqs.len()) {
+            c.cx.tick(1)?;
+            let chosen = ineqs.iter().enumerate().filter(|(j, _)| mask >> j & 1 == 1).map(|(_, &i)| i);
+            let active: Vec<usize> = eqs.iter().copied().chain(chosen).collect();
+            // a strict inequality is never active at an attained minimum
+            if active.iter().any(|&i| cons[i].1 == Rel::Lt) || active.len() > n {
+                continue;
+            }
+            let mut system: Vec<T<'h>> = vec![];
+            let mut unknowns: Vec<T<'h>> = vars.to_vec();
+            if active.len() < n {
+                let lams: Vec<T<'h>> = (0..active.len()).map(|j| h.sym_term(h.sym(&format!("optimize`l{j}")))).collect();
+                let mut grads = vec![];
+                for &i in &active {
+                    let gr = c.ev("d", &[cons[i].0, c.list(vars)])?;
+                    let Some(gr) = c.cx.as_list(gr).map(|v| v.to_vec()) else { return Ok(None) };
+                    grads.push(gr);
+                }
+                for k in 0..n {
+                    let mut terms = vec![grad_g[k]];
+                    for (j, gr) in grads.iter().enumerate() {
+                        terms.push(b.neg(b.mul(&[lams[j], gr[k]])));
+                    }
+                    let e = c.cx.eval(b.add(&terms))?;
+                    system.push(b.call("equal", &[e, b.zero()]));
+                }
+                unknowns.extend(lams);
+            }
+            for &i in &active {
+                system.push(b.call("equal", &[cons[i].0, b.zero()]));
+            }
+            let Some(sols) = solve_staged(c, &system, &unknowns, reals)? else { continue };
+            for rules in sols {
+                consider(c, g, vars, cons, &rules, &mut best)?;
+            }
+        }
+    }
+    // far feasible points: below the best candidate means unbounded (or a minimum not attained)
+    let mut far: Option<(f64, f64)> = None;
+    let dirs = directions(n);
+    for cons in &branches {
+        for d in &dirs {
+            let mut vals = [f64::NAN; 2];
+            for (k, r) in [1.0e3f64, 1.0e6].iter().enumerate() {
+                c.cx.tick(1)?;
+                let pr: Vec<T<'h>> = vars.iter().zip(d).map(|(&x, &di)| c.rule(x, h.real(di * r))).collect();
+                let pr = c.list(&pr);
+                if !feasible(c, cons, pr)? {
+                    continue;
+                }
+                let v = c.ev("rewrite", &[g, pr])?;
+                if let Some(x) = real_value(c, v)? {
+                    vals[k] = x;
+                }
+            }
+            if vals[0].is_finite() && vals[1].is_finite() && far.is_none_or(|f| vals[1] < f.1) {
+                far = Some((vals[0], vals[1]));
+            }
+        }
+    }
+    if let Some((f3, f6)) = far {
+        let below = best.as_ref().is_none_or(|bst| f6 < bst.0 - 1e-9 * (1.0 + bst.0.abs()));
+        if below {
+            if f6 < f3 - 1.0 && f6 < -1.0e3 {
+                return Ok(Some((b.neg(c.inf()), vec![])));
+            }
             return Ok(None);
         }
     }
-    let grad = c.ev("d", &[g, c.list(vars)])?;
-    let Some(gs) = c.cx.as_list(grad).map(|v| v.to_vec()) else { return Ok(None) };
-    let eqs: Vec<T<'h>> = gs.iter().map(|&e| b.call("equal", &[e, b.zero()])).collect();
-    let s = c.ev("solve", &[c.list(&eqs), c.list(vars)])?;
-    let Some(&[sol]) = c.cx.as_list(s) else { return Ok(None) };
-    let Some(rules) = c.cx.as_list(sol).map(|v| v.to_vec()) else { return Ok(None) };
-    let v = c.ev("rewrite", &[g, c.list(&rules)])?;
-    let v = c.ev("simplify", &[v])?;
+    Ok(best.map(|(_, v, p, _)| (v, p)))
+}
+
+/// Take the solution `rules` as a candidate when it is a real feasible point smaller than the best so far.
+fn consider<'h>(
+    c: &mut C<'_, '_, '_, '_, 'h>,
+    g: T<'h>,
+    vars: &[T<'h>],
+    cons: &[(T<'h>, Rel)],
+    rules: &[T<'h>],
+    best: &mut Best<'h>,
+) -> Res<()> {
+    let b = c.b;
+    // the variables' values, free ones set to 0
+    let zero_rules: Vec<T<'h>> = vars.iter().map(|&x| c.rule(x, b.zero())).collect();
+    let (rl, zl) = (c.list(rules), c.list(&zero_rules));
     let mut point = vec![];
     for &x in vars {
-        let p = c.ev("rewrite", &[x, c.list(&rules)])?;
-        if vars.iter().any(|&y| !is_free(b, p, y)) {
-            return Ok(None);
+        let v = c.ev("rewrite", &[x, rl])?;
+        let v = c.ev("rewrite", &[v, zl])?;
+        if vars.iter().any(|&y| !is_free(b, v, y)) {
+            return Ok(());
         }
-        point.push(p);
+        point.push(v);
     }
-    let _ = h;
-    Ok(Some((v, point)))
+    let pr: Vec<T<'h>> = vars.iter().zip(&point).map(|(&x, &p)| c.rule(x, p)).collect();
+    let pr = c.list(&pr);
+    if !feasible(c, cons, pr)? {
+        return Ok(());
+    }
+    let v = c.ev("rewrite", &[g, pr])?;
+    let Some(nv) = real_value(c, v)? else { return Ok(()) };
+    let mut key = vec![];
+    for &p in &point {
+        key.push(real_value(c, p)?.unwrap_or(f64::INFINITY));
+    }
+    // ties go to the smaller point (coordinate by coordinate)
+    let better = match best.as_ref() {
+        None => true,
+        Some(bst) => {
+            let tol = 1e-12 * (1.0 + nv.abs());
+            nv < bst.0 - tol || (nv <= bst.0 + tol && key.iter().zip(&bst.3).map(|(a, b)| a.total_cmp(b)).find(|o| o.is_ne()) == Some(std::cmp::Ordering::Less))
+        }
+    };
+    if better {
+        let mut pts = vec![];
+        for p in point {
+            pts.push(c.ev("simplify", &[p])?);
+        }
+        *best = Some((nv, c.ev("simplify", &[v])?, pts, key));
+    }
+    Ok(())
+}
+
+/// Fixed sample directions: the axes both ways, the diagonals and a few others.
+fn directions(n: usize) -> Vec<Vec<f64>> {
+    let mut out = vec![];
+    for i in 0..n {
+        for s in [1.0, -1.0] {
+            let mut d = vec![0.0; n];
+            d[i] = s;
+            out.push(d);
+        }
+    }
+    for mask in 0..(1u32 << n.min(6)) {
+        out.push((0..n).map(|i| if i < 6 && mask >> i & 1 == 1 { -1.0 } else { 1.0 }).collect());
+    }
+    let mut s = 0x2545_F491_4F6C_DD1Du64;
+    for _ in 0..16 {
+        out.push(
+            (0..n)
+                .map(|_| {
+                    s ^= s << 13;
+                    s ^= s >> 7;
+                    s ^= s << 17;
+                    (s % 2001) as f64 / 1000.0 - 1.0
+                })
+                .collect(),
+        );
+    }
+    out
+}
+
+/// `solve(system, unknowns, reals)` as lists of rules, after substituting the equations linear in an unknown with
+/// coefficient and rest free of the unknowns (so that the rest may become solvable); `None` when solve gives no
+/// list.
+#[allow(clippy::type_complexity)]
+fn solve_staged<'h>(c: &mut C<'_, '_, '_, '_, 'h>, system: &[T<'h>], unknowns: &[T<'h>], reals: T<'h>) -> Res<Option<Vec<Vec<T<'h>>>>> {
+    let b = c.b;
+    let h = b.heap();
+    let mut fixed: Vec<T<'h>> = vec![];
+    let mut rest: Vec<T<'h>> = vec![];
+    let mut left: Vec<T<'h>> = unknowns.to_vec();
+    for &e in system {
+        let mut done = false;
+        if let View::App { args: &[l, r], .. } = h.view(e) {
+            let d = c.cx.eval(b.sub(l, r))?;
+            for (i, &x) in left.iter().enumerate() {
+                let dd = c.ev("d", &[d, x])?;
+                if b.is_zero(dd) || unknowns.iter().any(|&u| !is_free(b, dd, u)) {
+                    continue;
+                }
+                let r0 = c.ev("rewrite", &[d, c.rule(x, b.zero())])?;
+                if unknowns.iter().all(|&u| is_free(b, r0, u)) {
+                    let v = c.cx.eval(b.neg(b.div(r0, dd)))?;
+                    fixed.push(c.rule(x, v));
+                    left.remove(i);
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if !done {
+            rest.push(e);
+        }
+    }
+    let rest: Vec<T<'h>> = if fixed.is_empty() {
+        rest
+    } else {
+        let fl = c.list(&fixed);
+        let mut out = vec![];
+        for e in rest {
+            out.push(c.ev("rewrite", &[e, fl])?);
+        }
+        out
+    };
+    let rest: Vec<T<'h>> = rest.into_iter().filter(|&e| !c.cx.is_true(e)).collect();
+    if rest.is_empty() {
+        return Ok(Some(vec![fixed]));
+    }
+    if left.is_empty() || rest.iter().any(|&e| c.cx.is_false(e)) {
+        return Ok(Some(vec![]));
+    }
+    // the last variables first: a solution with free variables then expresses the last ones in the first ones,
+    // which are set to 0
+    let order: Vec<T<'h>> = left.iter().rev().copied().collect();
+    let s = c.ev("solve", &[c.list(&rest), c.list(&order), reals])?;
+    let Some(items) = c.cx.as_list(s).map(|v| v.to_vec()) else { return Ok(None) };
+    let mut out = vec![];
+    for it in items {
+        let Some(rs) = c.cx.as_list(it).map(|v| v.to_vec()) else { return Ok(None) };
+        let mut all = rs.clone();
+        let rl = c.list(&rs);
+        for &f in &fixed {
+            all.push(c.ev("rewrite", &[f, rl])?);
+        }
+        out.push(all);
+    }
+    Ok(Some(out))
 }
 
 /// One point satisfying `cond`.
