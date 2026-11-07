@@ -17,7 +17,7 @@ pub fn style(class: TokenClass, p: &Palette) -> (Color32, bool, bool, Option<Col
         Keyword => (p.purple, false, false, None),
         Constant | Number => (p.orange, false, false, None),
         String => (p.green, false, false, None),
-        Comment => (p.faint, true, false, None),
+        Comment => (p.weak, true, false, None),
         Placeholder => (p.faint, false, false, None),
         SyntaxError => (p.red, false, false, Some(p.over_bg(p.red, 0.12))),
         UnmatchedBracket => (p.dark_red, false, true, None),

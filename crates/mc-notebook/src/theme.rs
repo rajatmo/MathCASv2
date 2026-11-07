@@ -56,59 +56,59 @@ pub struct Palette {
 }
 
 impl Palette {
-    /// One Light.
+    /// The light scheme (after One Light, with every text colour at 4.5:1 or more against the page and the cells).
     pub fn light() -> Palette {
         Palette {
             dark: false,
-            bg: hex(0xfafafa),
-            panel: hex(0xeaeaeb),
+            bg: hex(0xfafbfc),
+            panel: hex(0xeceef1),
             card: hex(0xffffff),
-            border: hex(0xdbdbdc),
-            text: hex(0x383a42),
-            weak: hex(0x696c77),
-            faint: hex(0xa0a1a7),
-            cyan: hex(0x0184bc),
-            blue: hex(0x4078f2),
-            purple: hex(0xa626a4),
-            green: hex(0x50a14f),
-            red: hex(0xe45649),
-            dark_red: hex(0xca1243),
-            orange: hex(0x986801),
-            yellow: hex(0xc18401),
-            accent: hex(0x526fff),
-            cursor: hex(0x526fff),
-            selection: hex(0xe5e5e6),
-            current_line: hex(0xf2f2f2),
-            gutter: hex(0x9d9d9f),
-            guide: hex(0xc8c8ca),
+            border: hex(0xd6dae0),
+            text: hex(0x24292f),
+            weak: hex(0x57606a),
+            faint: hex(0x8c959f),
+            cyan: hex(0x0b7285),
+            blue: hex(0x1f5fd6),
+            purple: hex(0x8b2fc9),
+            green: hex(0x2b7a2e),
+            red: hex(0xc62828),
+            dark_red: hex(0xa3123a),
+            orange: hex(0x9a5600),
+            yellow: hex(0x806200),
+            accent: hex(0x3b5bdb),
+            cursor: hex(0x3b5bdb),
+            selection: hex(0xd3e1fb),
+            current_line: hex(0xf1f3f6),
+            gutter: hex(0x8c959f),
+            guide: hex(0xcfd4da),
         }
     }
 
-    /// One Dark.
+    /// The dark scheme (after One Dark, with a deeper page and brighter text colours, each at 4.5:1 or more).
     pub fn dark() -> Palette {
         Palette {
             dark: true,
-            bg: hex(0x282c34),
-            panel: hex(0x21252b),
-            card: hex(0x2f343f),
-            border: hex(0x181a1f),
-            text: hex(0xabb2bf),
-            weak: hex(0x828997),
-            faint: hex(0x5c6370),
-            cyan: hex(0x56b6c2),
-            blue: hex(0x61afef),
-            purple: hex(0xc678dd),
-            green: hex(0x98c379),
-            red: hex(0xe06c75),
-            dark_red: hex(0xbe5046),
-            orange: hex(0xd19a66),
-            yellow: hex(0xe5c07b),
-            accent: hex(0x528bff),
-            cursor: hex(0x528bff),
-            selection: hex(0x3e4451),
-            current_line: hex(0x2c313c),
-            gutter: hex(0x636d83),
-            guide: hex(0x3b4048),
+            bg: hex(0x22262d),
+            panel: hex(0x1c1f25),
+            card: hex(0x292e37),
+            border: hex(0x14161a),
+            text: hex(0xd0d5dd),
+            weak: hex(0xa0a8b5),
+            faint: hex(0x7d8594),
+            cyan: hex(0x5fc6d3),
+            blue: hex(0x74b9ff),
+            purple: hex(0xd49afc),
+            green: hex(0xa8d98c),
+            red: hex(0xff8089),
+            dark_red: hex(0xf47a6f),
+            orange: hex(0xe8a96f),
+            yellow: hex(0xf0c674),
+            accent: hex(0x5c9dff),
+            cursor: hex(0x7aafff),
+            selection: hex(0x3b4660),
+            current_line: hex(0x2a2f39),
+            gutter: hex(0x6f788b),
+            guide: hex(0x3a404b),
         }
     }
 
@@ -299,6 +299,41 @@ impl ThemeChoice {
             Palette::dark()
         } else {
             Palette::light()
+        }
+    }
+}
+
+#[cfg(test)]
+mod contrast {
+    use super::*;
+
+    fn lum(c: Color32) -> f64 {
+        let f = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.03928 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * f(c.r()) + 0.7152 * f(c.g()) + 0.0722 * f(c.b())
+    }
+
+    fn ratio(a: Color32, b: Color32) -> f64 {
+        let (x, y) = (lum(a), lum(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// Every colour text is drawn in reads at 4.5:1 or more on the page, the cells and the current line; the
+    /// selection still shows the text at 4.5:1.
+    #[test]
+    fn text_colours_contrast_with_their_backgrounds() {
+        for p in [Palette::light(), Palette::dark()] {
+            for (name, c) in [("text", p.text), ("weak", p.weak), ("cyan", p.cyan), ("blue", p.blue),
+                ("purple", p.purple), ("green", p.green), ("red", p.red), ("dark_red", p.dark_red),
+                ("orange", p.orange), ("yellow", p.yellow), ("accent", p.accent)] {
+                for (bname, b) in [("bg", p.bg), ("card", p.card), ("current_line", p.current_line)] {
+                    let r = ratio(c, b);
+                    assert!(r >= 4.5, "{} {name} on {bname}: {r:.2}", if p.dark { "dark" } else { "light" });
+                }
+            }
+            assert!(ratio(p.text, p.selection) >= 4.5);
         }
     }
 }
