@@ -7,6 +7,9 @@ any zoom, and their background, frame, ticks, labels and legend box follow the l
 plots as compressed SVG (a typical plot shrinks from about 90 KB to 7 KB). HTML exports inline the SVG and PDF
 exports draw plots as vectors.
 
+**Cell brackets** are left-justified: the outermost bracket sits at the left margin and each nested group steps one
+column in, while the content stays aligned.
+
 **Dark exports:** the new option `plot_theme: "dark"` (or `"light"`) writes a picture's chrome in that theme's
 colours into every file it is exported to.
 

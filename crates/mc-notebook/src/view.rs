@@ -884,15 +884,16 @@ impl View {
         self.max_col.max(MIN_COLUMNS)
     }
 
-    /// The x (relative to the canvas) of bracket column `col`: the brackets are on the left, cell brackets (column
-    /// 0) nearest the content, enclosing groups further out.
-    fn bracket_x(&self, col: usize) -> f32 {
-        BRACKET_LEFT + BRACKET_PITCH * self.columns_shown().saturating_sub(col) as f32
+    /// The x (relative to the canvas) of bracket slot `slot`: the brackets are left-justified, the outermost
+    /// (slot 0) at the left margin and each nested bracket one pitch further in.
+    fn bracket_x(&self, slot: usize) -> f32 {
+        BRACKET_LEFT + BRACKET_PITCH * slot as f32
     }
 
-    /// The left edge of the content of a style at margin 0: right of the innermost bracket and its hooks.
+    /// The left edge of the content of a style at margin 0: right of the last reserved bracket slot and its hooks
+    /// (the same for every cell, however deeply it is nested).
     fn content_edge(&self) -> f32 {
-        self.bracket_x(0) + HOOK + BRACKET_GAP * self.zoom / PX_PER_PT
+        self.bracket_x(self.columns_shown()) + HOOK + BRACKET_GAP * self.zoom / PX_PER_PT
     }
 
     /// The left and right edges of a cell's content (relative to the canvas).
@@ -1150,19 +1151,32 @@ impl View {
         Some(r.translate(self.content_origin(nb, i).to_vec2() + vec2(self.text_dx(c), 0.0)))
     }
 
-    /// The bracket columns of the notebook: (column, top, bottom, bracket) for every cell and group that shows.
+    /// The brackets of the notebook: (slot, top, bottom, bracket) for every cell and group that shows, the slot
+    /// being the number of groups around it (0: the left margin).
     fn brackets(&self, nb: &Notebook) -> Vec<(usize, f32, f32, Bracket)> {
+        let list = &nb.groups().list;
+        // each group's depth: the length of its chain of enclosing groups
+        let depth: Vec<usize> = (0..list.len())
+            .map(|k| std::iter::successors(list[k].parent, |&p| list[p].parent).take(list.len()).count())
+            .collect();
+        // each cell's slot: one more than the deepest group holding it
+        let mut cell_slot = vec![0usize; nb.cells().len()];
+        for (k, g) in list.iter().enumerate() {
+            for s in cell_slot.iter_mut().take(g.end).skip(g.start) {
+                *s = (*s).max(depth[k] + 1);
+            }
+        }
         let mut out = vec![];
         for (i, c) in nb.cells().iter().enumerate() {
             if nb.is_visible(i) {
-                out.push((0, self.tops[i], self.tops[i] + self.heights[i], Bracket::Cell(c.id)));
+                out.push((cell_slot[i], self.tops[i], self.tops[i] + self.heights[i], Bracket::Cell(c.id)));
             }
         }
-        for g in &nb.groups().list {
+        for (k, g) in list.iter().enumerate() {
             let first = (g.start..g.end).find(|&i| nb.is_visible(i));
             let last = (g.start..g.end).rev().find(|&i| nb.is_visible(i));
             if let (Some(a), Some(b)) = (first, last) {
-                out.push((g.column, self.tops[a], self.tops[b] + self.heights[b], Bracket::Group(g.start, g.end)));
+                out.push((depth[k], self.tops[a], self.tops[b] + self.heights[b], Bracket::Group(g.start, g.end)));
             }
         }
         out
@@ -1176,9 +1190,8 @@ impl View {
                 return Hit::Plus(*g);
             }
         }
-        let inner = self.bracket_x(0);
-        if p.x <= inner + HOOK + 3.0 {
-            let col = ((inner - p.x) / BRACKET_PITCH).round().max(0.0) as usize;
+        if p.x <= self.bracket_x(self.columns_shown()) + HOOK + 3.0 {
+            let col = ((p.x - BRACKET_LEFT) / BRACKET_PITCH).round().max(0.0) as usize;
             let mut best: Option<(usize, Bracket)> = None;
             for (c, top, bottom, b) in self.brackets(nb) {
                 if p.y >= top && p.y < bottom {
