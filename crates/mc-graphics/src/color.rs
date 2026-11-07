@@ -118,6 +118,16 @@ pub const NAMED: &[(&str, Rgba)] = &[
     ("purple", Rgba::rgb(0.5, 0.0, 0.5)),
     ("brown", Rgba::rgb(0.6, 0.4, 0.2)),
     ("pink", Rgba::rgb(1.0, 0.5, 0.5)),
+    ("light_red", Rgba::rgb(1.0, 0.85, 0.85)),
+    ("light_green", Rgba::rgb(0.88, 1.0, 0.88)),
+    ("light_blue", Rgba::rgb(0.87, 0.94, 1.0)),
+    ("light_yellow", Rgba::rgb(1.0, 1.0, 0.85)),
+    ("light_orange", Rgba::rgb(1.0, 0.9, 0.8)),
+    ("light_purple", Rgba::rgb(0.94, 0.88, 0.94)),
+    ("light_brown", Rgba::rgb(0.94, 0.91, 0.88)),
+    ("light_pink", Rgba::rgb(1.0, 0.925, 0.94)),
+    ("light_cyan", Rgba::rgb(0.9, 1.0, 1.0)),
+    ("light_magenta", Rgba::rgb(1.0, 0.9, 1.0)),
 ];
 
 /// The colour named `name`.

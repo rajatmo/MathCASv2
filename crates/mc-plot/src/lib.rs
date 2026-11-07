@@ -14,6 +14,7 @@
 mod anim;
 pub use anim::export;
 mod charts;
+mod charts2;
 mod curves;
 mod fields;
 mod figure;
@@ -195,6 +196,24 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("adjacency_matrix", "adjacency_matrix(g): the matrix whose (i, j) entry counts the edges from vertex i to vertex j"),
     ("directed_edge", "directed_edge(a, b): the directed edge from a to b of a graph"),
     ("undirected_edge", "undirected_edge(a, b): the undirected edge between a and b of a graph"),
+    ("bubble_chart", "bubble_chart([[x, y, z], ...]): a disk at each (x, y) with area in proportion to z; bubble_chart([set1, set2, ...]) several, in the plot colours"),
+    ("box_whisker_chart", "box_whisker_chart(data) or box_whisker_chart([d1, d2, ...]): boxes from the first to the third quartile with the median, whiskers to the furthest values within 1.5 interquartile ranges, the values beyond as points"),
+    ("sector_chart", "sector_chart([[a1, r1], ...]): sectors with angles in proportion to the a's and radii in proportion to the r's"),
+    ("rectangle_chart", "rectangle_chart([[w1, h1], ...]): rectangles of width w and height h side by side"),
+    ("paired_bar_chart", "paired_bar_chart(d1, d2): bars of d1 to the left and d2 to the right of a common axis, row by row"),
+    ("density_histogram", "density_histogram([[x, y], ...]): counts of points in the cells of a grid as colours"),
+    ("smooth_histogram", "smooth_histogram(data): a smooth estimate of the data's density (Gaussian kernels, Silverman's bandwidth); several sets as several curves"),
+    ("number_line_plot", "number_line_plot(items, [x, a, b]): numbers as points, interval(...) and conditions on x as segments on a number line; a list of lists gives a row each"),
+    ("mandelbrot_set_plot", "mandelbrot_set_plot() or mandelbrot_set_plot([z0, z1]): the Mandelbrot set (black) with points outside coloured by how fast they escape"),
+    ("julia_set_plot", "julia_set_plot(c): the filled Julia set of z^2 + c, the outside coloured by escape time"),
+    ("relief_plot", "relief_plot(matrix): heights as colours shaded as if lit from the upper left (the first row at the top)"),
+    ("complex_array_plot", "complex_array_plot(matrix): complex values as cells coloured by argument (hue) and modulus (lightness)"),
+    ("complex_list_plot", "complex_list_plot([z1, z2, ...]): the complex numbers as points of the plane (several lists in several colours)"),
+    ("list_step_plot", "list_step_plot(data): a step function holding each value until the next point (list_step_plot(data, right | center) other alignments)"),
+    ("angular_gauge", "angular_gauge(v, [a, b]): a dial with a needle at v on a scale from a to b"),
+    ("horizontal_gauge", "horizontal_gauge(v, [a, b]): a horizontal scale filled up to v"),
+    ("vertical_gauge", "vertical_gauge(v, [a, b]): a vertical scale filled up to v"),
+    ("rasterize", "rasterize(x): x as a picture (graphics rendered; other values as their text)"),
 ];
 
 /// Register the natives with `k`.
@@ -286,6 +305,7 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     regions::install(k, h);
     vectors::install(k, h);
     graphs::install(k, h);
+    charts2::install(k, h);
 }
 
 pub(crate) fn failure<'h>(h: &'h Heap, tag: &str, details: &[T<'h>]) -> T<'h> {

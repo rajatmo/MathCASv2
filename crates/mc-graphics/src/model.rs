@@ -382,8 +382,8 @@ pub enum Bad {
 }
 
 /// The primitive heads.
-pub const PRIMITIVES: [&str; 10] =
-    ["point", "line", "polygon", "rectangle", "circle", "disk", "arrow", "bezier_curve", "text", "raster"];
+pub const PRIMITIVES: [&str; 11] =
+    ["point", "line", "polygon", "rectangle", "circle", "disk", "arrow", "bezier_curve", "b_spline_curve", "text", "raster"];
 
 /// The directive heads (besides the colours).
 pub const DIRECTIVES: [&str; 12] = [
@@ -617,6 +617,7 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         ("polygon", [p]) => Shape::Polygon(runs(h, *p, 1)?),
         ("arrow", [p]) => Shape::Arrow(runs(h, *p, 1)?),
         ("bezier_curve", [p]) => Shape::Bezier(points(h, *p, 1)?),
+        ("b_spline_curve", [p]) => Shape::Line(vec![b_spline(&points(h, *p, 1)?)]),
         ("rectangle", []) => Shape::Rect(origin, Pt { x: 1.0, y: 1.0, scaled: false }),
         ("rectangle", [p]) => {
             let a = point(h, *p, 1)?;
@@ -941,6 +942,10 @@ pub fn directive<S: Store + ?Sized>(h: &S, t: T<'_>, style: &mut Style) -> Resul
         });
     }
     let Some((name, args)) = head_name(h, t) else { return Ok(false) };
+    // lighting and material directives: accepted, not drawn
+    if crate::three::IGNORED_DIRECTIVES.contains(&name.as_str()) {
+        return Ok(true);
+    }
     if name == "directive" {
         // several directives as one; what is not a directive (a font option, a number) styles text or nothing
         for &d in args {
@@ -1793,4 +1798,37 @@ fn legend<S: Store + ?Sized>(h: &S, t: T<'_>, styles: &mut Vec<Style>) -> Option
         out.push(LegendEntry { label: Label::of(h, l), style: styles.len() - 1, marker: m });
     }
     Some(out)
+}
+
+/// The points of a clamped uniform B-spline curve of degree min(3, n - 1) with control points `ps` (de Boor's
+/// algorithm), finely sampled: the curve starts at the first control point and ends at the last.
+pub fn b_spline(ps: &[Pt]) -> Vec<Pt> {
+    let n = ps.len();
+    if n < 3 {
+        return ps.to_vec();
+    }
+    let d = 3.min(n - 1);
+    // knots: d + 1 zeros, the inner ones evenly, d + 1 ones
+    let inner = n - d - 1;
+    let mut knots = vec![0.0; d + 1];
+    knots.extend((1..=inner).map(|k| k as f64 / (inner + 1) as f64));
+    knots.extend(std::iter::repeat_n(1.0, d + 1));
+    let samples = 40 * (n - d);
+    let mut out = Vec::with_capacity(samples + 1);
+    for s in 0..=samples {
+        let u = (s as f64 / samples as f64).min(1.0 - 1e-12);
+        // the knot span
+        let k = (d..n).rev().find(|&k| knots[k] <= u).unwrap_or(d);
+        let mut dp: Vec<(f64, f64)> = (0..=d).map(|j| (ps[j + k - d].x, ps[j + k - d].y)).collect();
+        for r in 1..=d {
+            for j in (r..=d).rev() {
+                let i = j + k - d;
+                let den = knots[i + d + 1 - r] - knots[i];
+                let a = if den > 0.0 { (u - knots[i]) / den } else { 0.0 };
+                dp[j] = ((1.0 - a) * dp[j - 1].0 + a * dp[j].0, (1.0 - a) * dp[j - 1].1 + a * dp[j].1);
+            }
+        }
+        out.push(Pt { x: dp[d].0, y: dp[d].1, scaled: ps[0].scaled });
+    }
+    out
 }

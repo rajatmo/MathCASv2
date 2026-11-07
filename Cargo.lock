@@ -2338,6 +2338,7 @@ dependencies = [
  "mc-calculus",
  "mc-dist",
  "mc-engine",
+ "mc-geom",
  "mc-graphics",
  "mc-help",
  "mc-io",

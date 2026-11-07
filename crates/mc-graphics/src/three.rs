@@ -26,8 +26,20 @@ pub type P3 = [f64; 3];
 pub const PRIMITIVES: [&str; 7] = ["sphere", "ball", "cuboid", "cylinder", "cone", "tube", "triangle"];
 
 /// Directives of lighting and materials: accepted, not used.
-const IGNORED_DIRECTIVES: [&str; 9] =
-    ["specularity", "glow", "lighting", "material_shading", "cap_form", "join_form", "toon_shading", "point_light", "directional_light"];
+pub const IGNORED_DIRECTIVES: [&str; 12] = [
+    "specularity",
+    "glow",
+    "lighting",
+    "material_shading",
+    "cap_form",
+    "join_form",
+    "toon_shading",
+    "point_light",
+    "directional_light",
+    "spot_light",
+    "ambient_light",
+    "edge_rendering",
+];
 
 /// The option names of `graphics3d` that change the picture.
 pub const OPTIONS: [&str; 14] = [

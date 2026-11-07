@@ -233,7 +233,7 @@ impl Native for ListPolarPlot {
 
 /// The colour of a complex value by domain colouring: hue the argument (red at positive reals), lightness rising
 /// with the modulus from black (zeros) through full colour (modulus 1) towards white (poles).
-fn domain_colour(re: f64, im: f64) -> Rgba {
+pub(crate) fn domain_colour(re: f64, im: f64) -> Rgba {
     let m = re.hypot(im);
     let hue = (im.atan2(re) / (2.0 * std::f64::consts::PI)).rem_euclid(1.0);
     let l = (2.0 / std::f64::consts::PI) * m.sqrt().atan();

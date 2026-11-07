@@ -29,6 +29,26 @@ pub fn install(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("darker"), a(), Box::new(Shade { name: "darker", towards: Rgba::BLACK }));
     k.register(h.sym("gradient_color"), a(), Box::new(GradientColor));
     crate::compose::install(k, h);
+    for name in ["tooltip", "mouseover", "status_area", "popup_window", "light_mode_pane", "dark_mode_pane", "highlighted"] {
+        k.register(h.sym(name), a(), Box::new(Shown(name)));
+    }
+}
+
+/// Wrappers of interactive front ends in a static picture: `tooltip(x, tip)`, `mouseover(x, over)`,
+/// `status_area(x, text)`, `popup_window(x, content)` and the panes are x itself; `highlighted(x)` is x on a light
+/// yellow background (a graphic stays as it is).
+struct Shown(&'static str);
+
+impl Native for Shown {
+    fn call<'h>(&self, _cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let Some(&x) = args.first() else { return Ok(Reply::Decline) };
+        let h = _cx.heap();
+        if self.0 == "highlighted" && !crate::is_graphics(h, x) {
+            let bg = h.call(h.sym(names::RULE), &[h.sym_term(h.sym("background")), rgb_term(h, Rgba::rgb(1.0, 0.96, 0.7))]);
+            return Ok(Reply::Done(h.call(h.sym("style"), &[x, bg])));
+        }
+        Ok(Reply::Done(x))
+    }
 }
 
 /// `gradient_color(g, t)`: the colour of gradient `g` at `t` (clamped to [0, 1]); a symbolic `t` leaves it.
