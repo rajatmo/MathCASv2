@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# complex
+
+#% text
+# `complex(re, im)` is the complex number `re + im*im`. Arithmetic on `im` builds it, and it prints in this form when its parts are machine reals.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex(1, 2)
+#% output
+#= complex(1, 2)
+
+#% cell
+(1 + 2*im)*(3 - im)
+#% output
+#= complex(5, 5)
+
+#% cell
+complex(0.5, 1.5)
+#% output
+#= complex(0.5, 1.5)
+
+#% subsection
+# Scope
+
+#% text
+# Its parts:
+
+#% cell
+[re(complex(3, 4)), im_part(complex(3, 4)), abs(complex(3, 4))]
+#% output
+#= [3, 4, 5]
+
+#% section
+# See also
+
+#% text
+# `re`, `im_part`, `abs`, `arg`, `conjugate`

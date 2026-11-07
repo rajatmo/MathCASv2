@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_ground
+
+#% text
+# `is_ground(e)` gives `true` when `e` holds no unknown symbol, so that it can be evaluated to a number or a value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_ground(2 + sqrt(3))
+#% output
+#= true
+
+#% cell
+is_ground(x + 1)
+#% output
+#= false
+
+#% cell
+is_ground(pi^2)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `free_of`, `variables`, `is_number`

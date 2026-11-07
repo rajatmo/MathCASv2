@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# list_log_linear_plot
+
+#% text
+# `list_log_linear_plot(data)` is `list_plot` with a logarithmic x axis.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_log_linear_plot(map(k => [10^k, k], range(0, 6)))
+#% output
+#= image("list_log_linear_plot.files/list_log_linear_plot-1.png")
+
+#% section
+# See also
+
+#% text
+# `list_plot`, `list_log_plot`, `log_linear_plot`

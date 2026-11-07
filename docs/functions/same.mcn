@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# same
+
+#% text
+# `same(a, b)`, written `a === b`, gives `true` when the two terms are identical, else `false`; it never stays unevaluated.
+
+#% section
+# Details
+
+#% item
+# It compares structure, not value: `1` and `1.0` are different terms.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+same(x + 1, 1 + x)
+#% output
+#= true
+
+#% cell
+1 === 1.0
+#% output
+#= false
+
+#% cell
+same(x, y)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Compare with `==`, which compares values and can stay symbolic:
+
+#% cell
+[1 == 1.0, x == y]
+#% output
+#= [true, x == y]
+
+#% section
+# See also
+
+#% text
+# `not_same`, `equal`, `match_q`

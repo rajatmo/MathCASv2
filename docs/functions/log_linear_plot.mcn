@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# log_linear_plot
+
+#% text
+# `log_linear_plot(f, [x, a, b])` plots `f` with a logarithmic x axis, for `0 < a < b`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log_linear_plot(log(x), [x, 1, 1000])
+#% output
+#= image("log_linear_plot.files/log_linear_plot-1.png")
+
+#% subsection
+# Scope
+
+#% text
+# A response against frequency:
+
+#% cell
+log_linear_plot(1/sqrt(1 + (f/100)^2), [f, 1, 10000], x_label: "f")
+#% output
+#= image("log_linear_plot.files/log_linear_plot-2.png")
+
+#% section
+# See also
+
+#% text
+# `plot`, `log_log_plot`, `list_log_linear_plot`
