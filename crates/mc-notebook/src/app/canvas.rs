@@ -331,6 +331,8 @@ impl App {
             let (t0, p0, n0) = self.last_click;
             let count = if time - t0 < DOUBLE_CLICK && (screen - p0).length() < 5.0 { n0 + 1 } else { 1 };
             self.last_click = (time, screen, count);
+            // any press lets go of the keyboard slider (a press on a slider takes it again below)
+            self.slider = None;
             match self.doc.view.hit(ctx, &self.doc.nb, p) {
                 Hit::Text(id, pos) => {
                     let cmd = match count {
@@ -391,6 +393,7 @@ impl App {
                         }
                     }
                     self.drag = Some(Drag::Control(id, k));
+                    self.slider = Some((id, k));
                 }
                 Hit::Handle(id, h) => {
                     let rect = self.doc.nb.index_of(id).and_then(|i| self.doc.view.graphic_rect(&self.doc.nb, i));

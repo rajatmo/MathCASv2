@@ -222,6 +222,9 @@ pub struct App {
     announce: String,
     last_click: (f64, egui::Pos2, u32),
     drag: Option<Drag>,
+    /// the slider last pressed: arrow keys move it (Left/Right a step, Shift ten, Home/End the ends) until another
+    /// click
+    slider: Option<(mc_nbmodel::CellId, usize)>,
     title: String,
     // dialogs
     other_style: Option<String>,
@@ -326,6 +329,7 @@ impl App {
             announce: String::new(),
             last_click: (-1.0, egui::Pos2::ZERO, 0),
             drag: None,
+            slider: None,
             title: String::new(),
             other_style: None,
             ask_init: false,

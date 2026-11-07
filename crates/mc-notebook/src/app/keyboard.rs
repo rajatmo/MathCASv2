@@ -14,7 +14,7 @@ impl App {
         let mut swallow_text = false;
         let mut copied = false;
         for e in events {
-            if self.completion_key(ctx, &e) || self.hint_key(&e) {
+            if self.completion_key(ctx, &e) || self.hint_key(&e) || self.slider_key(ctx, &e) {
                 continue;
             }
             if let Some(id) = self.doc.view.graphic {
@@ -137,6 +137,39 @@ impl App {
             .map(char::len_utf8)
             .sum();
         Some((cell, None, pos - len, before[pos - len..].to_string()))
+    }
+
+    /// Keys for the slider last pressed: Left/Right (Down/Up) a step (a hundredth of the range when continuous),
+    /// Shift ten steps, Home/End the ends, Esc lets go; `true` when used.
+    fn slider_key(&mut self, ctx: &egui::Context, e: &egui::Event) -> bool {
+        let Some((id, k)) = self.slider else { return false };
+        let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { return false };
+        let Some((m, values)) = self.doc.nb.manipulate_of(id) else {
+            self.slider = None;
+            return false;
+        };
+        let (Some(c), Some(&now)) = (m.controls.get(k), values.get(k)) else { return false };
+        let step = c.step.unwrap_or((c.hi - c.lo) / 100.0) * if modifiers.shift { 10.0 } else { 1.0 };
+        let v = match key {
+            egui::Key::ArrowRight | egui::Key::ArrowUp => now + step,
+            egui::Key::ArrowLeft | egui::Key::ArrowDown => now - step,
+            egui::Key::Home => c.lo,
+            egui::Key::End => c.hi,
+            egui::Key::Escape => {
+                self.slider = None;
+                return true;
+            }
+            _ => return false,
+        };
+        let v = match c.step {
+            Some(s) if s > 0.0 => c.lo + ((v - c.lo) / s).round() * s,
+            _ => v,
+        }
+        .clamp(c.lo.min(c.hi), c.hi.max(c.lo));
+        if v != now {
+            self.run(ctx, Command::SetControl(id, k, v, true));
+        }
+        true
     }
 
     pub(super) fn start_completion(&mut self) {
