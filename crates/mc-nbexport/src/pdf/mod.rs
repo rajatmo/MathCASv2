@@ -276,9 +276,11 @@ fn typeset_lines(row: &Row, font: Font, color: Rgb, x0: f32, width: f32, output:
     let mut last: Option<(usize, f32)> = None;
     for d in &lay.items {
         let (key, op, advance) = match d {
-            Draw::Char { c, role, size, x, y, advance, .. } => {
+            Draw::Char { c, role, size, x, y, advance, stretch, .. } => {
                 let f = if *role == FontRole::Math { Font::Math } else { font };
-                (*y, Op::Text { x: *x, y: *y, size: *size, font: f, color, text: c.to_string() }, *advance)
+                // a bracket grown around tall content: PDF text has one size, so it is drawn at the grown height
+                let size = size * stretch.max(1.0);
+                (*y, Op::Text { x: *x, y: *y, size, font: f, color, text: c.to_string() }, *advance)
             }
             Draw::Placeholder { x, y, size, .. } => {
                 (*y, Op::Text { x: *x, y: *y, size: *size, font: Font::Math, color: FAINT, text: "\u{25a1}".into() }, 0.0)

@@ -473,11 +473,33 @@ pub fn paint(painter: &Painter, glyphs: &mut Glyphs, l: &Layout, origin: Pos2, c
     };
     for d in &l.items {
         match d {
-            Draw::Char { c, role, size, x, y, row, index, advance } => {
-                if c.is_whitespace() || !visible(*y, *size) {
+            Draw::Char { c, role, size, x, y, row, index, advance, stretch } => {
+                if c.is_whitespace() || !visible(*y, *size * stretch.max(1.0)) {
                     continue;
                 }
                 let color = ink.colours.and_then(|t| t.get(*row as usize)?.get(*index as usize)).copied().unwrap_or(color);
+                if *stretch > 1.0001 && *role == FontRole::Text {
+                    // a tall bracket: the glyph's mesh, scaled vertically about its baseline
+                    flush(&mut run);
+                    let mut buf = [0u8; 4];
+                    let format = TextFormat { font_id: ink.face.font(*size), color, ..TextFormat::default() };
+                    let galley = painter.layout_job(LayoutJob::single_section(c.encode_utf8(&mut buf).to_string(), format));
+                    let base = galley.rows.first().and_then(|row| row.row.glyphs.first()).map_or(size * 0.8, |g| g.pos.y);
+                    let (bx, by) = (origin.x + x, snap(origin.y + y));
+                    // the galley's texture coordinates are in texels of the font atlas
+                    let [tw, th] = painter.ctx().fonts(|f| f.font_image_size());
+                    let (tw, th) = (tw.max(1) as f32, th.max(1) as f32);
+                    for placed in &galley.rows {
+                        let mut m = placed.row.visuals.mesh.clone();
+                        for v in &mut m.vertices {
+                            let (px, py) = (v.pos.x + placed.pos.x, v.pos.y + placed.pos.y);
+                            v.pos = pos2(bx + px, by + (py - base) * stretch);
+                            v.uv = pos2(v.uv.x / tw, v.uv.y / th);
+                        }
+                        painter.add(egui::Shape::mesh(m));
+                    }
+                    continue;
+                }
                 if *role == FontRole::Math {
                     if let Some(g) = f.glyph(*c) {
                         glyph_at(&mut mesh, glyphs, g, *size, *x, *y, color);

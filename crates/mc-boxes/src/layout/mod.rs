@@ -84,6 +84,9 @@ pub enum Draw {
         index: u32,
         /// its advance in output units (where the next character of the same run starts)
         advance: f32,
+        /// vertical stretch about the baseline (1 for ordinary text; more for a bracket grown around tall content,
+        /// drawn as the same glyph made taller)
+        stretch: f32,
     },
     /// a placeholder `□` (an empty slot), drawn in the math font at `size`
     Placeholder {

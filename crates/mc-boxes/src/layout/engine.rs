@@ -84,7 +84,7 @@ impl Ctx {
 /// A painted element, internal coordinates.
 #[derive(Clone, Debug)]
 enum D {
-    Char { c: char, role: FontRole, size: f32, x: f32, y: f32, row: u32, index: u32, w: f32 },
+    Char { c: char, role: FontRole, size: f32, x: f32, y: f32, row: u32, index: u32, w: f32, sy: f32 },
     Ph { x: f32, y: f32, size: f32, row: u32, index: u32 },
     Glyph { glyph: u16, size: f32, x: f32, y: f32 },
     /// lower-left corner
@@ -122,7 +122,7 @@ impl Frag {
     fn place(&mut self, other: &Frag, dx: f32, dy: f32) {
         for it in &other.items {
             self.items.push(match it.clone() {
-                D::Char { c, role, size, x, y, row, index, w } => D::Char { c, role, size, x: x + dx, y: y + dy, row, index, w },
+                D::Char { c, role, size, x, y, row, index, w, sy } => D::Char { c, role, size, x: x + dx, y: y + dy, row, index, w, sy },
                 D::Ph { x, y, size, row, index } => D::Ph { x: x + dx, y: y + dy, size, row, index },
                 D::Glyph { glyph, size, x, y } => D::Glyph { glyph, size, x: x + dx, y: y + dy },
                 D::Rule { x, y, w, h } => D::Rule { x: x + dx, y: y + dy, w, h },
@@ -229,8 +229,8 @@ impl<'m> Engine<'m> {
             .items
             .iter()
             .map(|d| match d.clone() {
-                D::Char { c, role, size: s, x, y, row, index, w } => {
-                    Draw::Char { c, role, size: s * size, x: x * size, y: ty(y), row, index, advance: w * size }
+                D::Char { c, role, size: s, x, y, row, index, w, sy } => {
+                    Draw::Char { c, role, size: s * size, x: x * size, y: ty(y), row, index, advance: w * size, stretch: sy }
                 }
                 D::Ph { x, y, size: s, row, index } => Draw::Placeholder { x: x * size, y: ty(y), size: s * size, row, index },
                 D::Glyph { glyph, size: s, x, y } => Draw::Glyph { glyph, size: s * size, x: x * size, y: ty(y) },
@@ -305,7 +305,7 @@ impl<'m> Engine<'m> {
             w: m.advance * s,
             h: m.ascent * s,
             d: m.descent * s,
-            items: vec![D::Char { c, role, size: s, x: 0.0, y: 0.0, row, index, w: m.advance * s }],
+            items: vec![D::Char { c, role, size: s, x: 0.0, y: 0.0, row, index, w: m.advance * s, sy: 1.0 }],
             stops: vec![],
         }
     }
@@ -493,7 +493,10 @@ impl<'m> Engine<'m> {
             let h = pieces[o + 1..c].iter().map(|p| p.frag.h).fold(0.0, f32::max);
             let d = pieces[o + 1..c].iter().map(|p| p.frag.d).fold(0.0, f32::max);
             let (oh, od) = (pieces[o].frag.h, pieces[o].frag.d);
-            if h <= oh * 1.05 && d <= od * 1.05 {
+            // a bracket keeps its own glyph (the cell's font, nothing moves) unless the content clearly overhangs it:
+            // a superscript or subscript reaching a little past the bracket does not grow it, a fraction does
+            let slack = 0.3 * s;
+            if h <= oh + slack && d <= od + slack {
                 continue;
             }
             let a = self.axis(ctx);
@@ -501,7 +504,16 @@ impl<'m> Engine<'m> {
             let target = (2.0 * delta * 0.901).max(2.0 * delta - 0.5 * s);
             for k in [o, c] {
                 if let Some(ch) = pieces[k].ch {
-                    pieces[k].frag = self.delim(ch, target, ctx);
+                    // a bracket of the text font grows as that same glyph, scaled (normal and tall brackets look
+                    // alike); otherwise the math font's stretchy delimiter
+                    let source = pieces[k].frag.items.iter().find_map(|it| match *it {
+                        D::Char { role: FontRole::Text, row, index, .. } => Some((row, index)),
+                        _ => None,
+                    });
+                    pieces[k].frag = match source {
+                        Some((row, index)) => self.text_delim(ch, target, ctx, row, index),
+                        None => self.delim(ch, target, ctx),
+                    };
                 }
             }
         }
@@ -1014,6 +1026,25 @@ impl<'m> Engine<'m> {
     /// A delimiter of at least `target` total height, centred on the axis.
     fn delim(&self, ch: char, target: f32, ctx: Ctx) -> Frag {
         let mut f = self.vstretch(ch, target, ctx);
+        let shift = self.axis(ctx) - (f.h - f.d) / 2.0;
+        f.raise(shift);
+        f
+    }
+
+    /// The text font's glyph of `ch` stretched vertically so its height reaches `target`, centred on the axis; it keeps its place
+    /// in the text (`row`, `index`) for carets and selection.
+    fn text_delim(&self, ch: char, target: f32, ctx: Ctx, row: u32, index: u32) -> Frag {
+        let s = self.scale(ctx);
+        let m = self.m.char(ch, FontRole::Text);
+        // grown vertically only: the same width and strokes as the bracket at its normal size
+        let k = (target / ((m.ascent + m.descent) * s)).max(1.0);
+        let mut f = Frag {
+            w: m.advance * s,
+            h: m.ascent * s * k,
+            d: m.descent * s * k,
+            items: vec![D::Char { c: ch, role: FontRole::Text, size: s, x: 0.0, y: 0.0, row, index, w: m.advance * s, sy: k }],
+            stops: vec![],
+        };
         let shift = self.axis(ctx) - (f.h - f.d) / 2.0;
         f.raise(shift);
         f

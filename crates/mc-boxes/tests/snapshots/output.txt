@@ -190,53 +190,53 @@ row [] stops 0.0 31.2
 row [0.1] stops 6.0 12.0 18.0 24.0 30.0
 row [0.0] stops 15.0 21.0
 == "[derivative(1)(f)(x), derivative(2)(f)(x), derivative(5)(f)(x)]"
-box 123.7 x 12.2 baseline 8.9
-line 0..20 top 0.0 baseline 8.9 bottom 12.2 indent 0.0
-glyph 1325 10.0 at 0.0 9.0
-char 'f' text 10.0 at 3.7 8.9
-char '′' math 10.0 at 9.7 8.9
-char '(' text 10.0 at 12.7 8.9
-char 'x' text 10.0 at 18.7 8.9
-char ')' text 10.0 at 24.7 8.9
-char ',' text 10.0 at 30.7 8.9
-char 'f' text 10.0 at 42.7 8.9
-char '″' math 10.0 at 48.7 8.9
-char '(' text 10.0 at 53.0 8.9
-char 'x' text 10.0 at 59.0 8.9
-char ')' text 10.0 at 65.0 8.9
-char ',' text 10.0 at 71.0 8.9
-char 'f' text 10.0 at 83.0 8.9
-char '(' text 7.0 at 89.0 5.3
-char '5' text 7.0 at 93.2 5.3
-char ')' text 7.0 at 97.4 5.3
-char '(' text 10.0 at 102.0 8.9
-char 'x' text 10.0 at 108.0 8.9
-char ')' text 10.0 at 114.0 8.9
-glyph 1337 10.0 at 120.0 9.0
-row [] stops 0.0 3.7 9.7 12.7 18.7 24.7 30.7 36.7 42.7 48.7 53.0 59.0 65.0 71.0 77.0 83.0 102.0 108.0 114.0 120.0 123.7
-row [15.0] stops 83.0 89.0
-row [15.1] stops 89.0 93.2 97.4 101.6
+box 128.3 x 11.4 baseline 8.9
+line 0..20 top 0.0 baseline 8.9 bottom 11.4 indent 0.0
+char '[' text 10.0 at 0.0 8.9
+char 'f' text 10.0 at 6.0 8.9
+char '′' math 10.0 at 12.0 8.9
+char '(' text 10.0 at 15.0 8.9
+char 'x' text 10.0 at 21.0 8.9
+char ')' text 10.0 at 27.0 8.9
+char ',' text 10.0 at 33.0 8.9
+char 'f' text 10.0 at 45.0 8.9
+char '″' math 10.0 at 51.0 8.9
+char '(' text 10.0 at 55.3 8.9
+char 'x' text 10.0 at 61.3 8.9
+char ')' text 10.0 at 67.3 8.9
+char ',' text 10.0 at 73.3 8.9
+char 'f' text 10.0 at 85.3 8.9
+char '(' text 7.0 at 91.3 5.3
+char '5' text 7.0 at 95.5 5.3
+char ')' text 7.0 at 99.7 5.3
+char '(' text 10.0 at 104.3 8.9
+char 'x' text 10.0 at 110.3 8.9
+char ')' text 10.0 at 116.3 8.9
+char ']' text 10.0 at 122.3 8.9
+row [] stops 0.0 6.0 12.0 15.0 21.0 27.0 33.0 39.0 45.0 51.0 55.3 61.3 67.3 73.3 79.3 85.3 104.3 110.3 116.3 122.3 128.3
+row [15.0] stops 85.3 91.3
+row [15.1] stops 91.3 95.5 99.7 103.9
 == "[x -> pi/2, y != im, z <= inf]"
-box 131.6 x 23.7 baseline 14.4
+box 134.7 x 23.7 baseline 14.4
 line 0..21 top 0.0 baseline 14.4 bottom 23.7 indent 0.0
-glyph 1329 10.0 at 0.0 14.5
-char 'x' text 10.0 at 4.5 14.4
-char '→' math 10.0 at 16.5 14.4
-char 'π' math 10.0 at 33.2 7.5
-char '2' text 10.0 at 33.2 21.2
-rule 33.2 11.5 6.0 x 0.7
-char ',' text 10.0 at 40.4 14.4
-char 'y' text 10.0 at 52.4 14.4
-char '≠' math 10.0 at 64.4 14.4
-char 'ⅈ' math 10.0 at 77.6 14.4
-char ',' text 10.0 at 80.4 14.4
-char 'z' text 10.0 at 92.4 14.4
-char '≤' math 10.0 at 104.4 14.4
-char '∞' math 10.0 at 117.6 14.4
-glyph 1341 10.0 at 127.2 14.5
-row [] stops 0.0 4.5 10.5 16.5 26.0 32.0 40.4 46.4 52.4 58.4 64.4 71.6 77.6 80.4 86.4 92.4 98.4 104.4 111.6 117.6 127.2 131.6
-row [5.0] stops 33.2 39.1
-row [5.1] stops 33.2 39.2
+char '[' text 10.0 at 0.0 17.2
+char 'x' text 10.0 at 6.0 14.4
+char '→' math 10.0 at 18.0 14.4
+char 'π' math 10.0 at 34.7 7.5
+char '2' text 10.0 at 34.7 21.2
+rule 34.7 11.5 6.0 x 0.7
+char ',' text 10.0 at 41.9 14.4
+char 'y' text 10.0 at 53.9 14.4
+char '≠' math 10.0 at 65.9 14.4
+char 'ⅈ' math 10.0 at 79.1 14.4
+char ',' text 10.0 at 81.9 14.4
+char 'z' text 10.0 at 93.9 14.4
+char '≤' math 10.0 at 105.9 14.4
+char '∞' math 10.0 at 119.1 14.4
+char ']' text 10.0 at 128.7 17.2
+row [] stops 0.0 6.0 12.0 18.0 27.5 33.5 41.9 47.9 53.9 59.9 65.9 73.1 79.1 81.9 87.9 93.9 99.9 105.9 113.1 119.1 128.7 134.7
+row [5.0] stops 34.7 40.6
+row [5.1] stops 34.7 40.7
 == "\"text\""
 box 24.0 x 10.0 baseline 7.5
 line 0..4 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
@@ -246,19 +246,19 @@ char 'x' text 10.0 at 12.0 7.5
 char 't' text 10.0 at 18.0 7.5
 row [] stops 0.0 6.0 12.0 18.0 24.0
 == "[[1, 2], [3, 4]]"
-box 29.8 x 26.5 baseline 15.8
+box 32.0 x 26.5 baseline 15.8
 line 0..3 top 0.0 baseline 15.8 bottom 26.5 indent 0.0
-glyph 1331 10.0 at 0.0 15.9
-char '1' text 10.0 at 4.9 8.4
-char '2' text 10.0 at 18.9 8.4
-char '3' text 10.0 at 4.9 22.9
-char '4' text 10.0 at 18.9 22.9
-glyph 1343 10.0 at 24.9 15.9
-row [] stops 0.0 4.9 24.9 29.8
-row [1.0] stops 4.9 10.9
-row [1.1] stops 18.9 24.9
-row [1.2] stops 4.9 10.9
-row [1.3] stops 18.9 24.9
+char '[' text 10.0 at 0.0 19.2
+char '1' text 10.0 at 6.0 8.4
+char '2' text 10.0 at 20.0 8.4
+char '3' text 10.0 at 6.0 22.9
+char '4' text 10.0 at 20.0 22.9
+char ']' text 10.0 at 26.0 19.2
+row [] stops 0.0 6.0 26.0 32.0
+row [1.0] stops 6.0 12.0
+row [1.1] stops 20.0 26.0
+row [1.2] stops 6.0 12.0
+row [1.3] stops 20.0 26.0
 == "(2/3)*2^(1/2) - (1/2)*x"
 box 51.6 x 26.3 baseline 17.1
 line 0..5 top 0.0 baseline 17.1 bottom 26.3 indent 0.0
