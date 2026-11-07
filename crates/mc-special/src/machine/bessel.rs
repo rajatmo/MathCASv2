@@ -150,6 +150,9 @@ fn split(nu: f64) -> (u64, f64) {
 }
 
 /// K_nu(x) for machine reals (NaN for x < 0, +inf at x = 0).
+///
+/// Moderate orders and arguments take the plain double-precision path [`fast`] (a few ulps, several times faster;
+/// decision cov-num.1); the rest, and any fast result near the edges of the double range, the double-double one.
 pub fn bessel_k(nu: f64, x: f64) -> f64 {
     if nu.is_nan() || x.is_nan() || x < 0.0 {
         return f64::NAN;
@@ -164,9 +167,73 @@ pub fn bessel_k(nu: f64, x: f64) -> f64 {
     if nu > MAX_ORDER {
         return f64::NAN;
     }
+    if let Some(v) = fast::bessel_k(nu, x) {
+        return v;
+    }
     let (n, mu) = split(nu);
     let x = DD::new(x);
     k_up(mu, n, x, k_pair(mu, x)).0.to_f64()
+}
+
+/// K_nu(x) in plain double precision (gap G94, decision cov-num.1): Steed's continued fraction CF2 and the forward
+/// recurrence of the double-double path, for orders 0 <= nu <= 3 and 2 <= x <= 600: within about 8 ulps of the
+/// correctly rounded value (the double-double path is within 2), and many times faster. `None` outside
+/// that box or when the result lies within a factor 2^40 of the edges of the double range.
+pub mod fast {
+    use std::f64::consts::PI;
+
+    const EPS: f64 = 1e-17;
+
+    fn steed(mu: f64, x: f64) -> (f64, f64) {
+        let mut b = 2.0 * (1.0 + x);
+        let mut d = 1.0 / b;
+        let mut delh = d;
+        let mut h = d;
+        let (mut q1, mut q2) = (0.0, 1.0);
+        let a1 = 0.25 - mu * mu;
+        let mut q = a1;
+        let mut c = a1;
+        let mut a = -a1;
+        let mut s = 1.0 + q * delh;
+        for i in 2..100_000 {
+            let fi = i as f64;
+            a -= 2.0 * (fi - 1.0);
+            c = -a * c / fi;
+            let qnew = (q1 - b * q2) / a;
+            q1 = q2;
+            q2 = qnew;
+            q += c * qnew;
+            b += 2.0;
+            d = 1.0 / (b + a * d);
+            delh *= b * d - 1.0;
+            h += delh;
+            let dels = q * delh;
+            s += dels;
+            if dels.abs() < s.abs() * EPS {
+                break;
+            }
+        }
+        let h = a1 * h;
+        let k0 = (PI / (2.0 * x)).sqrt() * (-x).exp() / s;
+        let k1 = k0 * (mu + x + 0.5 - h) / x;
+        (k0, k1)
+    }
+
+    /// K_nu(x) for nu >= 0 and x > 0 in double precision, or `None` (see the module).
+    pub fn bessel_k(nu: f64, x: f64) -> Option<f64> {
+        if !(0.0..=3.0).contains(&nu) || !(2.0..=600.0).contains(&x) {
+            return None;
+        }
+        let (n, mu) = super::split(nu);
+        let (mut k0, mut k1) = steed(mu, x);
+        for i in 1..=n {
+            let t = (2.0 * (mu + i as f64) / x) * k1 + k0;
+            k0 = k1;
+            k1 = t;
+        }
+        let a = k0.abs();
+        (k0.is_finite() && k1.is_finite() && a > 1e-280 && a < 1e280).then_some(k0)
+    }
 }
 
 /// e^x K_nu(x) for machine reals x > 0 (no underflow at large x: the scaled K times e^x through logarithms in
@@ -297,7 +364,8 @@ mod tests {
     #[test]
     fn known_values() {
         assert!(ulps(bessel_k(0.0, 1.0), 0.421_024_438_240_708_3) <= 2.0);
-        assert!(ulps(bessel_k(1.0, 2.0), 0.139_865_881_816_522_43) <= 2.0);
+        assert!(ulps(k_dd(1.0, 2.0), 0.139_865_881_816_522_43) <= 2.0);
+        assert!(ulps(bessel_k(1.0, 2.0), 0.139_865_881_816_522_43) <= 8.0);
         assert!(ulps(bessel_i(0.0, 1.0), 1.266_065_877_752_008_4) <= 2.0);
         assert!(ulps(bessel_i(1.0, 1.0), 0.565_159_103_992_485_1) <= 2.0);
         let k = |x: f64| (std::f64::consts::PI / (2.0 * x)).sqrt() * (-x).exp();
@@ -308,6 +376,34 @@ mod tests {
         assert!(bessel_k(2.0, -1.0).is_nan());
         assert_eq!(bessel_i(0.0, 0.0), 1.0);
         assert!(ulps(bessel_i(-0.5, 1.0), (2.0 / std::f64::consts::PI).sqrt() * 1f64.cosh()) <= 4.0);
+    }
+
+    /// The double-double value, bypassing the fast path.
+    fn k_dd(nu: f64, x: f64) -> f64 {
+        let (n, mu) = split(nu);
+        let x = DD::new(x);
+        k_up(mu, n, x, k_pair(mu, x)).0.to_f64()
+    }
+
+    #[test]
+    fn the_fast_path_agrees_with_double_double() {
+        let mut worst = (0.0, 0.0, 0.0);
+        let mut taken = 0;
+        for i in 0..=6 {
+            let nu = i as f64 * 0.5 - if i % 3 == 0 || i == 6 { 0.0 } else { 0.0123 * (i % 7) as f64 };
+            for j in 0..=200 {
+                let x = 2.0 * 300f64.powf(j as f64 / 200.0);
+                if let Some(v) = fast::bessel_k(nu, x) {
+                    taken += 1;
+                    let e = ulps(v, k_dd(nu, x));
+                    if e > worst.0 {
+                        worst = (e, nu, x);
+                    }
+                }
+            }
+        }
+        assert!(taken > 1_000, "the fast path covers the box ({taken})");
+        assert!(worst.0 <= 10.0, "worst {} ulps at nu = {}, x = {}", worst.0, worst.1, worst.2);
     }
 
     #[test]

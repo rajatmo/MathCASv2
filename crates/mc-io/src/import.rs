@@ -53,6 +53,16 @@ impl Native for Import {
         cx.effect()?;
         cx.volatile();
         let q = Query { file, path: &path, elem: elem.as_ref().map(|(w, e)| (w.as_str(), *e)), page, at };
+        // a registered importer (a graphics package's pictures): for SVG files, and for the element "graphics"
+        let wants_graphics = matches!(q.elem, Some(("graphics", _))) && page.is_none();
+        if (wants_graphics || (format == Format::Svg && q.elem.is_none() && page.is_none())) && o.is_none() {
+            if let Some(v) = crate::hook::importer_for(format.name()).and_then(|imp| imp(h, Path::new(&path))) {
+                return Ok(Reply::Again(v));
+            }
+            if wants_graphics {
+                return Ok(Reply::Done(failure(h, "io", &[q.file, h.string("the file holds no graphics written by export_data")])));
+            }
+        }
         let v = match format {
             Format::Png => png(cx, &q, o)?,
             Format::Pdf => pdf(cx, &q, o)?,

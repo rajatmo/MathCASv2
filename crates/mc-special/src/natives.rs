@@ -133,6 +133,10 @@ fn hurwitz<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, s: T<'h>, a: T<'h>) -> Option<
 
 impl Native for Fun {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        // a truncated power series: the series of the composition (gap G59)
+        if let Some(v) = mc_numeric::series_hook::apply(cx, &self.stop, self.fs[0].name(), args)? {
+            return Ok(Reply::Done(v));
+        }
         if mc_numeric::uncertain::any(cx.heap(), args) {
             if let Some(v) = mc_numeric::uncertain::apply(cx, t, args)? {
                 return Ok(Reply::Again(v));
@@ -180,7 +184,10 @@ impl Native for Fun {
                     cx.tick(1)?;
                     return Ok(Reply::Done(mach_term(&ar, Mach::Complex(z))));
                 }
-                return Ok(Reply::Decline);
+                return Ok(match complex_formula(h, &ar, f, args) {
+                    Some(v) => Reply::Again(v),
+                    None => Reply::Decline,
+                });
             }
             // complex balls: the complex-ball enclosures
             if nums.iter().all(Option::is_some) && nums.iter().flatten().any(|n| n.kind() == mc_arith::Kind::Ball) {
@@ -237,11 +244,25 @@ impl Native for Fun {
         };
         if reals.iter().any(|r| matches!(r, Real::Machine(_))) {
             let xs: Vec<f64> = reals.iter().map(Real::to_f64).collect();
+            // outside the real domain: the principal complex value (as the elementary functions, decision L.9)
+            let complex_value = |xs: &[f64]| {
+                let zs: Vec<C64> = xs.iter().map(|&x| C64::real(x)).collect();
+                f.machine_complex(&zs)
+            };
             if !f.real_domain(&xs) {
-                return Ok(Reply::Decline);
+                cx.tick(1)?;
+                return Ok(match complex_value(&xs) {
+                    Some(z) => Reply::Done(mach_term(&ar, Mach::Complex(z))),
+                    None => Reply::Decline,
+                });
             }
             cx.tick(1)?;
             let v = f.machine_value(&xs);
+            if matches!(v, Mach::Real(r) if r.is_nan()) && xs.iter().all(|x| x.is_finite()) {
+                if let Some(z) = complex_value(&xs) {
+                    return Ok(Reply::Done(mach_term(&ar, Mach::Complex(z))));
+                }
+            }
             if !f.is_original() && matches!(v, Mach::Real(r) if r.is_nan()) && !xs.iter().any(|x| x.is_nan()) {
                 // no real value (a complex-valued or undefined point): the call stays
                 return Ok(Reply::Decline);
@@ -289,6 +310,32 @@ impl Native for Fun {
         };
         Ok(exact_reply(h, t, e))
     }
+}
+
+/// Complex machine arguments without a complex algorithm of their own: the value as a formula in functions that
+/// have one (gap G62): the incomplete gamma and beta functions through the confluent and Gauss hypergeometric
+/// functions, E_n(z) through the incomplete gamma function.
+fn complex_formula<'h>(h: &'h Heap, ar: &Arith<'h, Heap>, f: Special, a: &[T<'h>]) -> Option<T<'h>> {
+    let call = |name: &str, xs: &[T<'h>]| h.call(h.sym(name), xs);
+    let one = h.int(1);
+    Some(match (f, a) {
+        // B_z(a, b) = z^a/a 2F1(a, 1 - b; a + 1; z)
+        (Special::BetaInc, &[z, p, q]) => ar.mul(&[
+            ar.pow(z, p),
+            ar.pow(p, h.int(-1)),
+            call("hypergeometric_2f1", &[p, ar.sub(one, q), ar.add(&[p, one]), z]),
+        ]),
+        (Special::BetaRegularized, &[z, p, q]) => ar.div(call("beta", &[z, p, q]), call("beta", &[p, q])),
+        // Gamma(a, z) = Gamma(a) - z^a/a 1F1(a; a + 1; -z)
+        (Special::GammaInc, &[p, z]) if !ar.num(p).is_some_and(|n| n.as_rat().is_some_and(|q| q.is_int() && (q.num.neg || q.is_zero()))) => {
+            let lower = ar.mul(&[ar.pow(z, p), ar.pow(p, h.int(-1)), call("hypergeometric_1f1", &[p, ar.add(&[p, one]), ar.neg(z)])]);
+            ar.sub(call("gamma", &[p]), lower)
+        }
+        (Special::GammaRegularized, &[p, z]) => ar.div(call("gamma", &[p, z]), call("gamma", &[p])),
+        // E_n(z) = z^(n - 1) Gamma(1 - n, z)
+        (Special::ExpIntegralE, &[n, z]) => ar.mul(&[ar.pow(z, ar.sub(n, one)), call("gamma", &[ar.sub(one, n), z])]),
+        _ => return None,
+    })
 }
 
 /// A machine-precision complex value of a number (exact parts are rounded).

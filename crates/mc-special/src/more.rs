@@ -191,8 +191,36 @@ fn legendre_p<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return family(fx, Family::Legendre, a);
     }
     // the associated function P_l^m(x) = (-1)^m (1 - x^2)^(m/2) d^m/dx^m P_l(x) (type 2, |x| < 1)
+    if a.len() == 4 {
+        // legendre_p(n, m, type, z): type 2 is the three-argument function, type 3 the function on the cut plane
+        if fx.is_int(a[2], 2) {
+            return Ok(Some(fx.call("legendre_p", &[a[0], a[1], a[3]])));
+        }
+        if !fx.is_int(a[2], 3) || !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
+            return Ok(None);
+        }
+        // ((z + 1)/(z - 1))^(m/2) 2F1~(-n, n + 1; 1 - m; (1 - z)/2)
+        let (n, m, z) = (a[0], a[1], a[3]);
+        let w = fx.pow(fx.div(fx.add(&[z, fx.int(1)]), fx.sub(z, fx.int(1))), fx.mul(&[m, fx.rat(1, 2)]));
+        let f = fx.call(
+            "hypergeometric_2f1_regularized",
+            &[fx.neg(n), fx.add(&[n, fx.int(1)]), fx.sub(fx.int(1), m), fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), z)])],
+        );
+        return Ok(Some(fx.mul(&[w, f])));
+    }
     let (l, m, x) = (a[0], a[1], a[2]);
-    let (Some(l), Some(m)) = (small_nat(fx, l), small_int(fx, m)) else { return Ok(None) };
+    let (Some(l), Some(m)) = (small_nat(fx, l), small_int(fx, m)) else {
+        if !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
+            return Ok(None);
+        }
+        // any degree and order: ((1 + x)/(1 - x))^(m/2) 2F1~(-l, l + 1; 1 - m; (1 - x)/2) (type 2)
+        let w = fx.pow(fx.div(fx.add(&[fx.int(1), x]), fx.sub(fx.int(1), x)), fx.mul(&[m, fx.rat(1, 2)]));
+        let f = fx.call(
+            "hypergeometric_2f1_regularized",
+            &[fx.neg(l), fx.add(&[l, fx.int(1)]), fx.sub(fx.int(1), m), fx.mul(&[fx.rat(1, 2), fx.sub(fx.int(1), x)])],
+        );
+        return Ok(Some(fx.mul(&[w, f])));
+    };
     let am = m.unsigned_abs();
     if am > l {
         return Ok(Some(fx.int(0)));
@@ -456,7 +484,18 @@ fn fib_poly(n: u64, lucas: bool) -> Vec<Rat> {
 fn fibonacci<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let n = a[0];
     if a.len() == 2 {
-        let Some(k) = small_nat(fx, n) else { return Ok(None) };
+        let Some(k) = small_nat(fx, n) else {
+            if !any_inexact(fx, a) || a.iter().any(|&t| fx.num(t).is_none()) {
+                return Ok(None);
+            }
+            // any order: (phi^n - cos(pi n) phi^-n)/sqrt(x^2 + 4), phi = (x + sqrt(x^2 + 4))/2
+            let x = a[1];
+            let r = fx.sqrt(fx.add(&[fx.pow(x, fx.int(2)), fx.int(4)]));
+            let phi = fx.mul(&[fx.rat(1, 2), fx.add(&[x, r])]);
+            let c = fx.call("cos", &[fx.mul(&[fx.sym("pi"), n])]);
+            let v = fx.sub(fx.pow(phi, n), fx.mul(&[c, fx.pow(phi, fx.neg(n))]));
+            return Ok(Some(fx.div(v, r)));
+        };
         return Ok(Some(poly_at(fx, &fib_poly(k, false), a[1])));
     }
     if let Some(k) = fx.int_of(n).filter(|k| k.abs() <= 10_000_000) {
@@ -885,6 +924,21 @@ jac!(jacobi_sc, 's', 'c');
 jac!(jacobi_sd, 's', 'd');
 
 fn hyp_reg<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], name: &str, b: usize) -> R<'h> {
+    // a lower parameter -n at a non-positive integer: the limit
+    // F~(as; -n; z) = (a1)_(n+1) ... z^(n+1) F~(as + n + 1; n + 2; z)
+    if let Some(n) = small_int(fx, a[b]).filter(|n| *n <= 0).map(|n| -n) {
+        let k = fx.int(n + 1);
+        let mut factors = vec![fx.pow(a[b + 1], k)];
+        let mut shifted = vec![];
+        for &p in &a[..b] {
+            factors.push(fx.call("pochhammer", &[p, k]));
+            shifted.push(fx.add(&[p, k]));
+        }
+        shifted.push(fx.int(n + 2));
+        shifted.push(a[b + 1]);
+        factors.push(fx.call(&format!("{name}_regularized"), &shifted));
+        return Ok(Some(fx.mul(&factors)));
+    }
     let f = fx.eval(fx.call(name, a))?;
     if fx.contains(f, name) && !any_inexact(fx, a) {
         return Ok(None);
@@ -966,7 +1020,7 @@ pub static DEFS: &[Def] = &[
     def!("hyperfactorial", &[1], Some(hyperfactorial), None, "hyperfactorial(n): the product 1^1 2^2 ... n^n"),
     def!("chebyshev_t", &[2], Some(chebyshev_t), None, "chebyshev_t(n, x): the Chebyshev polynomial of the first kind T_n(x) = cos(n acos(x))"),
     def!("chebyshev_u", &[2], Some(chebyshev_u), None, "chebyshev_u(n, x): the Chebyshev polynomial of the second kind U_n(x)"),
-    def!("legendre_p", &[2, 3], Some(legendre_p), None, "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x)"),
+    def!("legendre_p", &[2, 3, 4], Some(legendre_p), None, "legendre_p(n, x): the Legendre polynomial P_n(x); legendre_p(n, m, x): the associated Legendre function P_n^m(x) (any degree and order for numbers); legendre_p(n, m, a, z): of type a (2 as legendre_p(n, m, z), 3 on the plane cut along (-inf, 1])"),
     def!("legendre_q", &[2], Some(legendre_q), None, "legendre_q(n, x): the Legendre function of the second kind Q_n(x) at integer n"),
     def!("hermite_h", &[2], Some(hermite_h), None, "hermite_h(n, x): the Hermite polynomial H_n(x) (physicists' normalization)"),
     def!("laguerre_l", &[2, 3], Some(laguerre_l), None, "laguerre_l(n, x): the Laguerre polynomial L_n(x); laguerre_l(n, a, x): the generalized Laguerre polynomial"),

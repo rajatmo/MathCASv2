@@ -109,6 +109,7 @@ pub mod spline;
 mod parts;
 mod piecewise;
 mod series;
+pub mod series_hook;
 pub mod value;
 
 pub use fun::Fun;

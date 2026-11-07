@@ -73,6 +73,10 @@ impl Native for Elementary {
             return Ok(Reply::Decline);
         }
         let [x] = args else { return Ok(Reply::Decline) };
+        // a truncated power series: the series of the composition (gap G59)
+        if let Some(v) = crate::series_hook::apply(cx, &self.stop, self.f.name(), args)? {
+            return Ok(Reply::Done(v));
+        }
         let h = cx.heap();
         if crate::uncertain::any(h, args) {
             if let Some(v) = crate::uncertain::apply(cx, t, args)? {
@@ -83,10 +87,8 @@ impl Native for Elementary {
         if self.f != Fun::Sqrt {
             if let Some(zs) = crate::machine::machine_list(h, *x) {
                 cx.tick(zs.len() as u64 / 16)?;
-                let out: Vec<crate::machine::C64> = zs
-                    .iter()
-                    .map(|&z| if z.im == 0.0 { self.f.machine(Mach::Real(z.re)) } else { self.f.machine(Mach::Complex(z)) }.c64())
-                    .collect();
+                // each element by its kind: a complex leaf stays complex (as one number alone and packed arrays)
+                let out: Vec<Mach> = zs.iter().map(|&z| self.f.machine(z)).collect();
                 return Ok(Reply::Done(crate::machine::machine_list_term(h, &out)));
             }
         }

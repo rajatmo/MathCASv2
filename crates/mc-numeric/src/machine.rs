@@ -5,6 +5,7 @@
 //! [`REAL`] lists the real functions by name for back ends. [`C64`] extends them to principal complex values,
 //! used by the term evaluator when a real argument is outside a function's real domain (`log(-2.0)`,
 //! `asin(2.0)`) or the argument is complex.
+use crate::fun::Mach;
 use std::f64::consts::FRAC_PI_2;
 use std::ops::{Add, Div, Mul, Sub};
 
@@ -211,10 +212,18 @@ impl C64 {
 }
 
 /// The elements of a list of machine numbers (machine reals, or complex numbers with machine parts), read without
-/// the evaluator (a packed array through its payload); `None` for any other list or term (gap queue G48).
-pub fn machine_list<H: mc_api::Store + ?Sized>(h: &H, t: mc_api::T<'_>) -> Option<Vec<C64>> {
-    if let Some(mc_api::Packed::Reals { dims, data }) = h.packed(t) {
-        return (dims.len() == 1).then(|| data.iter().map(|&x| C64::real(x)).collect());
+/// the evaluator (a packed array through its payload); `None` for any other list or term (gap queue G48). Each
+/// element keeps its kind: a complex leaf with a zero imaginary part is a complex number, as in packed complex
+/// arrays and for one number alone.
+pub fn machine_list<H: mc_api::Store + ?Sized>(h: &H, t: mc_api::T<'_>) -> Option<Vec<Mach>> {
+    match h.packed(t) {
+        Some(mc_api::Packed::Reals { dims, data }) => {
+            return (dims.len() == 1).then(|| data.iter().map(|&x| Mach::Real(x)).collect());
+        }
+        Some(mc_api::Packed::Complexes { dims, data }) => {
+            return (dims.len() == 1).then(|| data.chunks(2).map(|z| Mach::Complex(C64::new(z[0], z[1]))).collect());
+        }
+        _ => {}
     }
     let mc_api::View::App { head, args } = h.view(t) else { return None };
     if head != h.sym_term(h.sym(mc_api::names::LIST)) || args.len() < 64 {
@@ -223,9 +232,9 @@ pub fn machine_list<H: mc_api::Store + ?Sized>(h: &H, t: mc_api::T<'_>) -> Optio
     let complex = h.sym_term(h.sym(mc_api::names::COMPLEX));
     args.iter()
         .map(|&a| match h.view(a) {
-            mc_api::View::Real(x) => Some(C64::real(x)),
+            mc_api::View::Real(x) => Some(Mach::Real(x)),
             mc_api::View::App { head, args: &[re, im] } if head == complex => match (h.view(re), h.view(im)) {
-                (mc_api::View::Real(x), mc_api::View::Real(y)) => Some(C64::new(x, y)),
+                (mc_api::View::Real(x), mc_api::View::Real(y)) => Some(Mach::Complex(C64::new(x, y))),
                 _ => None,
             },
             _ => None,
@@ -233,42 +242,45 @@ pub fn machine_list<H: mc_api::Store + ?Sized>(h: &H, t: mc_api::T<'_>) -> Optio
         .collect()
 }
 
-/// The list term of machine numbers (packed when every element is real).
-pub fn machine_list_term<'h, H: mc_api::Store + ?Sized>(h: &'h H, vals: &[C64]) -> mc_api::T<'h> {
-    if vals.iter().all(|z| z.im == 0.0) {
-        let re: Vec<f64> = vals.iter().map(|z| z.re).collect();
+/// The list term of machine numbers: packed reals when every element is real, otherwise each element a real or
+/// a complex number by its kind.
+pub fn machine_list_term<'h, H: mc_api::Store + ?Sized>(h: &'h H, vals: &[Mach]) -> mc_api::T<'h> {
+    if vals.iter().all(|m| matches!(m, Mach::Real(_))) {
+        let re: Vec<f64> = vals.iter().map(|m| m.c64().re).collect();
         return h.reals(&re);
     }
     let complex = h.sym(mc_api::names::COMPLEX);
-    let items: Vec<mc_api::T<'h>> = vals.iter().map(|z| h.call(complex, &[h.real(z.re), h.real(z.im)])).collect();
+    let items: Vec<mc_api::T<'h>> = vals
+        .iter()
+        .map(|m| match *m {
+            Mach::Real(x) => h.real(x),
+            Mach::Complex(z) => h.call(complex, &[h.real(z.re), h.real(z.im)]),
+        })
+        .collect();
     h.call(h.sym(mc_api::names::LIST), &items)
 }
 
-/// A sum or product of machine number lists (equal lengths) and machine numbers, elementwise without the evaluator
-/// (gap queue G48: `im*(0.06*ts)` over 10^6 samples). `None` unless some argument is such a list and every other
-/// argument a machine number, a machine integer, or such a list.
+/// A sum or product of machine real lists (equal lengths) and machine numbers, elementwise without the evaluator
+/// (gap queue G48). `None` unless some argument is such a list and every other argument a machine real, a machine
+/// integer, or such a list; complex operands are left to the evaluator's element-wise arithmetic, which folds them
+/// as the arithmetic does.
 pub fn list_arith<'h, H: mc_api::Store + ?Sized>(h: &'h H, product: bool, args: &[mc_api::T<'h>]) -> Option<mc_api::T<'h>> {
     if args.len() < 2 {
         return None;
     }
-    let complex = h.sym_term(h.sym(mc_api::names::COMPLEX));
-    let mut scalar = if product { C64::real(1.0) } else { C64::real(0.0) };
-    let mut lists: Vec<Vec<C64>> = vec![];
+    let mut scalar = if product { 1.0 } else { 0.0 };
+    let mut lists: Vec<Vec<f64>> = vec![];
     for &a in args {
         match h.view(a) {
-            mc_api::View::Real(x) => scalar = if product { scalar * C64::real(x) } else { scalar + C64::real(x) },
+            mc_api::View::Real(x) => scalar = if product { scalar * x } else { scalar + x },
             mc_api::View::Int(n) => {
                 let x = n as f64;
-                scalar = if product { scalar * C64::real(x) } else { scalar + C64::real(x) }
+                scalar = if product { scalar * x } else { scalar + x }
             }
-            mc_api::View::App { head, args: &[re, im] } if head == complex => match (h.view(re), h.view(im)) {
-                (mc_api::View::Real(x), mc_api::View::Real(y)) => {
-                    let z = C64::new(x, y);
-                    scalar = if product { scalar * z } else { scalar + z };
-                }
-                _ => return None,
-            },
-            _ => lists.push(machine_list(h, a)?),
+            _ => {
+                let l = machine_list(h, a)?;
+                lists.push(l.into_iter().map(|m| if let Mach::Real(x) = m { Some(x) } else { None }).collect::<Option<Vec<f64>>>()?);
+            }
         }
     }
     let first = lists.first()?;
@@ -276,15 +288,10 @@ pub fn list_arith<'h, H: mc_api::Store + ?Sized>(h: &'h H, product: bool, args: 
     if lists.iter().any(|l| l.len() != n) {
         return None;
     }
-    let out: Vec<C64> = (0..n)
-        .map(|i| {
-            lists.iter().fold(scalar, |acc, l| if product { acc * l[i] } else { acc + l[i] })
-        })
-        .collect();
-    // a real scalar and real lists stay real (the complex product of reals has an exact zero imaginary part)
-    Some(machine_list_term(h, &out))
+    let out: Vec<f64> =
+        (0..n).map(|i| lists.iter().fold(scalar, |acc, l| if product { acc * l[i] } else { acc + l[i] })).collect();
+    Some(h.reals(&out))
 }
-
 
 #[cfg(test)]
 mod tests {

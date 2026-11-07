@@ -388,7 +388,7 @@ impl Special {
                 C64::new(w.im, -w.re)
             }
             S::Polylog if a[0].im == 0.0 => machine::polylog::polylog_complex(a[0].re, a[1]),
-            _ => return self.machine_complex_more(a),
+            _ => return self.machine_complex_more(a).filter(|r| !r.re.is_nan() && !r.im.is_nan()),
         };
         (!r.re.is_nan() && !r.im.is_nan()).then_some(r)
     }

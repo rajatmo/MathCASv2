@@ -248,6 +248,10 @@ impl CoreEngine {
             mc_io::register_exporter("legended", &["png", "svg", "pdf"], mc_plot::export);
             // a list of graphics or plots as an animated GIF
             mc_io::register_exporter("list", &["gif"], mc_plot::export);
+            // pictures written by export_data read back as their terms (gap G61)
+            mc_io::register_importer(&["svg", "png"], mc_plot::import_graphics);
+            // functions of truncated power series compose through the series algebra (gap G59)
+            mc_numeric::series_hook::register(mc_poly::series_arith);
             mc_simplify::install(&mut k, h, &arith_stop);
             mc_special::install(&mut k, h, &arith_stop);
             mc_linalg::install(&mut k, h, &arith_stop);

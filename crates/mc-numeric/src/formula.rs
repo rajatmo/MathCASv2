@@ -258,6 +258,13 @@ impl Native for FormulaNative {
                 return Ok(Reply::Again(cx.list(&items)));
             }
         }
+        if crate::series_hook::any(h, args) {
+            // a truncated power series (gap G59); the evaluator's own interrupt is polled by the series algebra
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            if let Some(v) = crate::series_hook::apply(cx, &stop, d.name, args)? {
+                return Ok(Reply::Done(v));
+            }
+        }
         if !crate::uncertain::HEADS.contains(&d.name) && crate::uncertain::any(h, args) {
             if let Some(v) = crate::uncertain::apply(cx, t, args)? {
                 return Ok(Reply::Again(v));

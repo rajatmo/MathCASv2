@@ -252,10 +252,34 @@ pub fn hyp1f1(a: C64, b: C64, z: C64) -> Option<C64> {
 
 /// `hyp2f1` at complex machine arguments (`None` outside the method's range).
 pub fn hyp2f1(a: C64, b: C64, cc: C64, z: C64) -> Option<C64> {
-    if abs(z) >= 0.9 || is_pole(cc) {
+    let term = |a: C64, b: C64, z: C64| move |k: usize| (a + r(k as f64)) * (b + r(k as f64)) * z / ((cc + r(k as f64)) * r((k + 1) as f64));
+    // a terminating series (a or b a non-positive integer before c reaches a pole): the polynomial, any z
+    let ends = |p: C64| (is_pole(p) && p.re >= -10_000.0).then(|| -p.re as usize);
+    if let Some(n) = [ends(a), ends(b)].into_iter().flatten().min() {
+        if !(is_pole(cc) && -cc.re < n as f64) {
+            let f = term(a, b, z);
+            let (mut t, mut s) = (r(1.0), r(1.0));
+            for k in 0..n {
+                t = t * f(k);
+                s = s + t;
+            }
+            return finite(s);
+        }
+    }
+    if is_pole(cc) {
         return None;
     }
-    series(r(1.0), |k| (a + r(k as f64)) * (b + r(k as f64)) * z / ((cc + r(k as f64)) * r((k + 1) as f64)), 2000)
+    if abs(z) < 0.9 {
+        return series(r(1.0), term(a, b, z), 2000);
+    }
+    // Pfaff: (1 - z)^-a 2F1(a, c - b; c; z/(z - 1))
+    let one = r(1.0);
+    let w = z / (z - one);
+    if abs(w) < 0.9 {
+        let f = series(one, term(a, cc - b, w), 2000)?;
+        return finite(powc(one - z, neg(a)) * f);
+    }
+    None
 }
 
 /// `exp_integral_ei` at complex machine arguments (`None` outside the method's range).

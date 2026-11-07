@@ -49,3 +49,27 @@ pub fn exporter_for<'h>(h: &'h Heap, t: T<'h>, format: &str) -> Option<Exporter>
         .find(|e| e.head == name.as_str() && e.formats.iter().any(|f| f.eq_ignore_ascii_case(format)))
         .map(|e| e.exporter)
 }
+
+/// An importer: the value a file in a format holds, read on `h` (it is evaluated like any reply), or `None` when
+/// the file is not one this importer reads (the built-in reader of the format then decides).
+pub type Importer = for<'h> fn(h: &'h Heap, path: &Path) -> Option<T<'h>>;
+
+static IMPORTERS: RwLock<Vec<(String, Importer)>> = RwLock::new(Vec::new());
+
+/// Register `importer` for files of `formats` (lowercase names). `import_data(file)` of an SVG file and
+/// `import_data(file, "graphics")` ask the importers of the file's format before the built-in readers (a graphics
+/// package reads back the pictures it wrote). A later registration for a format replaces the earlier one.
+pub fn register_importer(formats: &[&str], importer: Importer) {
+    let mut v = IMPORTERS.write().unwrap_or_else(|e| e.into_inner());
+    for f in formats {
+        let f = f.to_ascii_lowercase();
+        v.retain(|(g, _)| *g != f);
+        v.push((f, importer));
+    }
+}
+
+/// The importer registered for `format`, if any.
+pub(crate) fn importer_for(format: &str) -> Option<Importer> {
+    let v = IMPORTERS.read().unwrap_or_else(|e| e.into_inner());
+    v.iter().find(|(f, _)| f.eq_ignore_ascii_case(format)).map(|(_, i)| *i)
+}

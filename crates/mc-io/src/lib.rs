@@ -30,7 +30,8 @@
 //!
 //! **Other packages' values.** [`register_exporter`] lets a crate supply `export_data` for its own terms (graphics
 //! to PNG, SVG, PDF): a registered exporter is tried before this crate's cases, and its PDF pages join multi-page
-//! documents.
+//! documents. [`register_importer`] is the reverse: `import_data` of an SVG file (or with the element `"graphics"`)
+//! asks the registered importer first, so a picture written by `export_data` reads back as its term.
 //!
 //! **Datasets** (`mc-assoc`): `import_data(file, "dataset")` reads CSV, TSV, a whitespace table or JSON as a
 //! dataset: the first record names the columns, each column's type (integers, reals, `true`/`false` or strings) is
@@ -57,7 +58,7 @@ mod persist;
 mod raster;
 mod tabular;
 
-pub use hook::{register_exporter, ExportOptions, Exporter};
+pub use hook::{register_exporter, register_importer, ExportOptions, Exporter, Importer};
 
 use mc_api::names;
 use mc_core::{Heap, Store, View, T};
@@ -68,7 +69,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("temporary_directory", "temporary_directory(): the folder for temporary files, as a string ending in /"),
     (
         "import_data",
-        "import_data(file), import_data(file, format), import_data(file, element), import_data(file, \"page\", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi); the format from the extension unless given",
+        "import_data(file), import_data(file, format), import_data(file, element), import_data(file, \"page\", k): the data of a file: csv, tsv, txt/dat (lists of rows; element dataset), lines, json (element dataset), png (image(path); elements data, dimensions, channels, bit_depth), pdf (the pages as images; elements pages, page k, page_count, text; option dpi), svg (a picture written by export_data as its graphics; element graphics for png too); the format from the extension unless given",
     ),
     (
         "interpolation",

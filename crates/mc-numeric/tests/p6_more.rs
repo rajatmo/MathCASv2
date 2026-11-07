@@ -171,5 +171,11 @@ fn machine_lists() {
         ("exp(im*range(0.0, 1.0, 0.01))[3]", "complex(0.9998000066665778, 0.01999866669333308)"),
         ("length(sin(range(0.0, 100.0, 0.01)))", "10001"),
         ("log(range(-1.0, 1.0, 0.01))[1]", "complex(0.0, 3.141592653589793)"),
+        // complex leaves with a zero imaginary part stay complex, in compound lists as in packed arrays and alone
+        ("exp(join([complex(-1.0, 0.0)], range(1.0, 70.0)))[1]", "complex(0.36787944117144233, 0.0)"),
+        ("exp(join([complex(-1.0, 0.0)], range(1.0, 70.0)))[2]", "2.718281828459045"),
+        ("exp(table(complex(-1.0*k, 0.0), k, 70))[1]", "complex(0.36787944117144233, 0.0)"),
+        ("log(join([complex(-1.0, -0.0)], range(1.0, 70.0)))[1]", "complex(0.0, -3.141592653589793)"),
+        ("log(complex(-1.0, -0.0))", "complex(0.0, -3.141592653589793)"),
     ]);
 }

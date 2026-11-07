@@ -100,3 +100,21 @@ fn values_saved_and_read_back() {
     assert_eq!(eval(&mut e2, r#"failure_tag(get("no such file here.mx"))"#), "io");
     assert_eq!(eval(&mut e2, "put(1, 2)"), "failure(argument, put, 2)");
 }
+
+/// G61: a picture written by `export_data` reads back as its term (SVG files, and PNG files with the element
+/// `"graphics"`); a PNG without the element stays an image, a file without a term gives a failure.
+#[test]
+fn exported_graphics_read_back() {
+    let svg = File::new("g.svg", "");
+    let png = File::new("g.png", "");
+    let txt = File::new("plain.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>");
+    let mut e = CoreEngine::new();
+    let (s, p) = (svg.path(), png.path());
+    eval(&mut e, &format!(r#"export_data("{s}", graphics([disk([0, 0], 1)]))"#));
+    assert_eq!(eval(&mut e, &format!(r#"g = import_data("{s}"); head(g)"#)), "graphics");
+    assert_eq!(eval(&mut e, "g == graphics([disk([0, 0], 1)])"), "true");
+    eval(&mut e, &format!(r#"export_data("{p}", graphics([circle([0, 0], 2)]))"#));
+    assert_eq!(eval(&mut e, &format!(r#"head(import_data("{p}"))"#)), "image");
+    assert_eq!(eval(&mut e, &format!(r#"import_data("{p}", "graphics") == graphics([circle([0, 0], 2)])"#)), "true");
+    assert_eq!(eval(&mut e, &format!(r#"failure_tag(import_data("{}"))"#, txt.path())), "io");
+}
