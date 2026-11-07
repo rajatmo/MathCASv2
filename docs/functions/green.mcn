@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# green
+
+#% text
+# `green` is the colour green, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([green, disk()])
+#% output
+#= image("green.files/green-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [green])
+#% output
+#= image("green.files/green-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(green), disk([0, 0])], [green, disk([2, 0])], [darker(green), disk([4, 0])]])
+#% output
+#= image("green.files/green-3.png")
+
+#% section
+# See also
+
+#% text
+# `red`, `blue`, `rgb_color`

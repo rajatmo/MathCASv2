@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# from_characters
+
+#% text
+# `from_characters([c1, c2, ...])` gives the string made of a list of one-character strings.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+from_characters(["a", "b", "c"])
+#% output
+#= "abc"
+
+#% cell
+from_characters(reverse(characters("stressed")))
+#% output
+#= "desserts"
+
+#% section
+# See also
+
+#% text
+# `characters`, `string_join`, `string_reverse`

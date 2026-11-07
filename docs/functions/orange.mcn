@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# orange
+
+#% text
+# `orange` is the colour orange, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([orange, disk()])
+#% output
+#= image("orange.files/orange-1.png")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [orange])
+#% output
+#= image("orange.files/orange-2.png")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(orange), disk([0, 0])], [orange, disk([2, 0])], [darker(orange), disk([4, 0])]])
+#% output
+#= image("orange.files/orange-3.png")
+
+#% section
+# See also
+
+#% text
+# `red`, `yellow`, `rgb_color`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# not
+
+#% text
+# `not(a)`, written `not a`, is the logical negation of a truth value.
+
+#% section
+# Details
+
+#% item
+# The negation of a comparison is the opposite comparison: `not x > y` is `x <= y`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+not true
+#% output
+#= false
+
+#% cell
+not (1 > 2)
+#% output
+#= true
+
+#% cell
+not x > y
+#% output
+#= x <= y
+
+#% subsection
+# Scope
+
+#% text
+# Double negation cancels:
+
+#% cell
+not not a
+#% output
+#= a
+
+#% section
+# See also
+
+#% text
+# `and`, `or`, `unequal`
