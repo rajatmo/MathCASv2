@@ -8,8 +8,9 @@
 //! constant-term divisibility filter before the trial division.
 //!
 //! Multivariate: integer and monomial content, the content with respect to each variable (by multivariate gcd),
-//! the square-free decomposition with respect to a variable, then Kronecker's substitution for square-free parts
-//! in several variables (complete within size limits; beyond them the part is left as it is).
+//! the square-free decomposition with respect to a variable, then evaluation and Hensel lifting for square-free
+//! parts in several variables ([`crate::mfactor`], decision K.14), with Kronecker's substitution as the fallback
+//! past its size limits (complete within its own limits; beyond them the part is left as it is).
 use crate::gcd::gcd;
 use crate::modp::{self, Fp, UPoly};
 use crate::poly::Poly;
@@ -81,7 +82,11 @@ pub fn factor(p: &Poly, square_free_only: bool, m: &mut Meter) -> WorkResult<Fac
             if square_free_only {
                 factors.push((s, e));
             } else if s.used_vars().len() > 1 {
-                for g in kronecker(&s, m)? {
+                let gs = match crate::mfactor::factor_multivariate(&s, m)? {
+                    Some(gs) => gs,
+                    None => kronecker(&s, m)?,
+                };
+                for g in gs {
                     factors.push((g, e));
                 }
             } else {

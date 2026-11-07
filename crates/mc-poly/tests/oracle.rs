@@ -281,3 +281,44 @@ fn multivariate_factorisations_multiply_back() {
         assert!(count >= parts, "round {round}: {count} factors of {parts}");
     }
 }
+
+#[test]
+fn larger_multivariate_factorisations_are_found_and_fast() {
+    let mut rng = Rng(0x2718_2818);
+    let mut w = meter();
+    let mut m = Meter::new(&mut w);
+    let start = std::time::Instant::now();
+    for round in 0..40 {
+        let nv = 3 + round % 3;
+        let mut p = Poly::constant(nv, Z::ONE);
+        let mut parts = 0;
+        for _ in 0..2 + rng.below(2) {
+            let t = 2 + rng.below(4) as usize;
+            let f = rng.poly(nv, t, 3, round % 4 == 0);
+            if f.is_constant() {
+                continue;
+            }
+            parts += 1;
+            p = p.mul(&f, &mut m).unwrap();
+        }
+        let f = mc_poly::factor::factor(&p, false, &mut m).unwrap();
+        let mut back: Dense = [(vec![0; nv], big(&f.unit))].into_iter().collect();
+        let mut count = 0;
+        for (g, e) in &f.factors {
+            for _ in 0..*e {
+                back = omul(&back, &oracle(g));
+                count += 1;
+            }
+        }
+        assert_eq!(back, oracle(&p), "round {round}");
+        assert!(count >= parts, "round {round}: {count} factors of {parts}");
+    }
+    // a product with a factor of degree 1 in no variable, in six variables
+    let x = |i: usize| Poly::var(6, i);
+    let a = x(0).mul(&x(0), &mut m).unwrap().add(&x(1).mul(&x(1), &mut m).unwrap().mul(&x(2), &mut m).unwrap().mul(&x(2), &mut m).unwrap());
+    let b = x(3).pow(2, &mut m).unwrap().mul(&x(0), &mut m).unwrap().mul(&x(0), &mut m).unwrap().sub(&x(4).pow(2, &mut m).unwrap().mul(&x(5).pow(2, &mut m).unwrap(), &mut m).unwrap()).add(&x(2).pow(2, &mut m).unwrap());
+    let p = a.mul(&b, &mut m).unwrap().mul(&b, &mut m).unwrap();
+    let f = mc_poly::factor::factor(&p, false, &mut m).unwrap();
+    assert_eq!(f.factors.len(), 2);
+    assert!(start.elapsed().as_secs_f64() < 90.0, "took {:?}", start.elapsed());
+}

@@ -165,6 +165,19 @@ fn linear_fifty() {
     assert!(t.elapsed() < Duration::from_secs(20), "{:?}", t.elapsed());
 }
 
+/// A pure power of the unknown with many parameters (an energy balance) is solved at once: the polynomial is
+/// linear in a parameter, so the multivariate factorisation is immediate, and the coefficients come out factored.
+#[test]
+fn pure_power_with_parameters() {
+    let mut s = Sys::new();
+    let t = std::time::Instant::now();
+    let out = s.run("solve((2/15)*g*u^4*pi^2 == 4*q*lam*m^2*w^2/(1 + q)^2, u)[1]");
+    assert_eq!(out, "[u -> 30^(1/4)*(lam*q/g*m^2*pi^-2*w^2*(1 + q)^-2)^(1/4)]");
+    let out = s.run("length(solve(4*c*t^4 == 3*q*p^2, t))");
+    assert_eq!(out, "4");
+    assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
+}
+
 #[test]
 fn failures() {
     check(&[

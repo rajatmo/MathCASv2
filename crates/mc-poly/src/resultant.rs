@@ -68,7 +68,7 @@ fn modular(a: &[Z], b: &[Z], m: &mut Meter) -> WorkResult<Z> {
 }
 
 /// The symmetric value of (x mod modulus, r mod p) mod modulus * p.
-fn crt(x: &Int, modulus: &Nat, r: u64, p: u64) -> Int {
+pub(crate) fn crt(x: &Int, modulus: &Nat, r: u64, p: u64) -> Int {
     let f = Fp::new(p);
     let xz = Z::from_int(x.clone());
     let xr = xz.rem_u64(p);

@@ -73,6 +73,12 @@ pub(crate) fn irreducible_roots<'h>(
         coefs[*k as usize / g] = c.int_poly_term(p, ring, m)?;
     }
     let a = Alg { env };
+    if g > 1 && d / g == 1 {
+        // a pure power c1 x^g + c0: the coefficients factored (cheap, and the root reads as a ratio of products)
+        for (k, p) in &cs {
+            coefs[*k as usize / g] = factored_term(env, p, ring, m)?;
+        }
+    }
     if g > 1 && d / g <= 4 {
         let ys = formula_roots(env, &coefs, m)?;
         let mut out = Vec::with_capacity(d);
@@ -88,6 +94,18 @@ pub(crate) fn irreducible_roots<'h>(
         return formula_roots(env, &coefs, m);
     }
     root_objects(env, f, ring, v, m)
+}
+
+/// p as a product of its factors over the integers.
+fn factored_term<'h>(env: &Env<'h>, p: &Poly, ring: &Ring<'h>, m: &mut Meter) -> WorkResult<T<'h>> {
+    let c = env.conv();
+    let fs = factor(p, false, m)?;
+    let mut parts = vec![env.ar.integer(&fs.unit.to_int())];
+    for (f, e) in &fs.factors {
+        let t = c.int_poly_term(f, ring, m)?;
+        parts.push(if *e == 1 { t } else { env.ar.pow(t, env.int(*e as i64)) });
+    }
+    Ok(env.ar.mul(&parts))
 }
 
 /// The root objects `root(x => f(x), k)`, k = 1 .. degree.

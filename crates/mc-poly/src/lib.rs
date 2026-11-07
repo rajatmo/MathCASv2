@@ -13,6 +13,7 @@ pub mod factor;
 pub mod fglm;
 mod functions;
 pub mod gcd;
+mod mfactor;
 pub mod groebner;
 pub mod modp;
 pub mod mul;
