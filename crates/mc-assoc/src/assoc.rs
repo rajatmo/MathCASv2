@@ -164,6 +164,10 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     if lib.is_failure(h, k) {
         return Ok(Reply::Done(k));
     }
+    let a = match rules_operand(lib, cx, t, a, &[k], default)? {
+        Ok(a) => a,
+        Err(r) => return Ok(r),
+    };
     let es = match lib.assoc_operand(h, t, a, 1) {
         Ok(es) => es,
         // left unevaluated: the call with its key evaluated
@@ -178,7 +182,24 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         }
         Err(r) => return Ok(r),
     };
-    Ok(match position(lib, cx, a, es, k, true)? {
+    let found = position(lib, cx, a, es, k, true)?;
+    // a list of keys that is not itself a key: the value of each (decision cov-core.4)
+    if found.is_none() {
+        if let Some(ks) = cx.as_list(k) {
+            cx.tick(ks.len() as u64)?;
+            let f = h.sym_term(h.sym("lookup"));
+            let each: Vec<T<'h>> = ks
+                .iter()
+                .map(|&k1| {
+                    let mut v = vec![a, k1];
+                    v.extend(default);
+                    h.app(f, &v)
+                })
+                .collect();
+            return Ok(Reply::Again(cx.list(&each)));
+        }
+    }
+    Ok(match found {
         Some(p) => Reply::Done(lib.value(h, es[p])),
         None => match default {
             Some(d) => Reply::Again(d),
@@ -187,11 +208,66 @@ pub(crate) fn lookup<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     })
 }
 
+/// The association argument of `lookup` and `key_exists` (decision cov-core.4): a rule or a list of rules is read
+/// as the association of those rules; a list of associations (or of lists of rules) gives the call on each element,
+/// as `Err` with the reply; anything else is passed on unchanged.
+fn rules_operand<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    t: T<'h>,
+    a: T<'h>,
+    rest: &[T<'h>],
+    default: Option<T<'h>>,
+) -> Res<Result<T<'h>, Reply<'h>>> {
+    let h = cx.heap();
+    let rule = h.sym_term(lib.s.rule);
+    let rule_delayed = h.sym_term(h.sym("rule_delayed"));
+    let is_rule = |x: T<'h>| matches!(h.view(x), View::App { head, args: [_, _] } if head == rule || head == rule_delayed);
+    let assoc = h.sym_term(lib.s.assoc);
+    if is_rule(a) {
+        return Ok(Ok(cx.eval(h.app(assoc, &[a]))?));
+    }
+    let Some(xs) = cx.as_list(a) else { return Ok(Ok(a)) };
+    if xs.is_empty() {
+        return Ok(Ok(a));
+    }
+    if xs.iter().all(|&x| is_rule(x)) {
+        return Ok(Ok(cx.eval(h.app(assoc, xs))?));
+    }
+    let rules_or_assoc = |x: T<'h>| {
+        lib.as_assoc(h, x).is_some() || cx.as_list(x).is_some_and(|ys| !ys.is_empty() && ys.iter().all(|&y| is_rule(y)))
+    };
+    if xs.iter().all(|&x| rules_or_assoc(x)) {
+        let View::App { head, .. } = h.view(t) else { return Ok(Ok(a)) };
+        cx.tick(xs.len() as u64)?;
+        let each: Vec<T<'h>> = xs
+            .iter()
+            .map(|&x| {
+                let mut v = vec![x];
+                v.extend_from_slice(rest);
+                v.extend(default);
+                h.app(head, &v)
+            })
+            .collect();
+        return Ok(Err(Reply::Again(cx.list(&each))));
+    }
+    Ok(Ok(a))
+}
+
 /// `key_exists(a, k)`: whether `a` has the key `k`.
 pub(crate) fn key_exists<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [a, k] = *args else {
         return Ok(Reply::Decline);
+    };
+    let a = match rules_operand(lib, cx, t, a, &[k], None)? {
+        Ok(a) => a,
+        Err(r) => return Ok(r),
+    };
+    // a dataset has its columns as keys (G57)
+    let a = match h.view(a) {
+        View::App { head, args: [cols] } if head == h.sym_term(lib.d.dataset) && lib.as_assoc(h, *cols).is_some() => *cols,
+        _ => a,
     };
     let es = take!(lib.assoc_operand(h, t, a, 1));
     let found = position(lib, cx, a, es, k, true)?.is_some();

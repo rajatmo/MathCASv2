@@ -183,6 +183,42 @@ fn merge_sort<'h, E: Copy>(
     Ok(())
 }
 
+/// The positions of `xs` ordered by value when some element is a number-like value with its own comparisons
+/// (`quantity`, `around`, `interval`: `cx.is_value`) and the others are values or numbers (G55): `less(a, b)` as
+/// the evaluator decides it (quantities in a common unit). `None` when no element is a value, an element is
+/// neither, or a comparison is not decided (the canonical order then applies).
+pub(crate) fn value_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>]) -> Res<Option<Vec<usize>>> {
+    let h = cx.heap();
+    if xs.len() > 100_000 || !xs.iter().any(|&x| cx.is_value(x)) {
+        return Ok(None);
+    }
+    let number = |x: T<'h>| matches!(h.view(x), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_));
+    if !xs.iter().all(|&x| cx.is_value(x) || number(x)) {
+        return Ok(None);
+    }
+    let less = h.sym_term(h.sym("less"));
+    let mut undecided = false;
+    let mut ix: Vec<usize> = (0..xs.len()).collect();
+    let r = merge_sort(&mut ix, &mut |b, a| {
+        if undecided {
+            return Ok(false);
+        }
+        cx.tick(1)?;
+        let v = cx.eval(h.app(less, &[xs[b], xs[a]]))?;
+        if cx.is_true(v) {
+            Ok(true)
+        } else {
+            undecided |= v != cx.bool(false);
+            Ok(false)
+        }
+    });
+    match r {
+        Ok(()) => Ok((!undecided).then_some(ix)),
+        Err(Halt::Abort(a)) => Err(a),
+        Err(Halt::Fail(_)) => Ok(None),
+    }
+}
+
 /// `pred(a, b)` as a decision: `true` is true, a failure halts, anything else is false.
 fn decide<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, pred: T<'h>, a: T<'h>, b: T<'h>) -> Result<bool, Halt<'h>> {
     let h = cx.heap();
@@ -203,6 +239,12 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
         _ => return Ok(Reply::Decline),
     };
     let (head, xs) = take!(lib.operand(h, t, xs, 1));
+    if by.is_none() {
+        if let Some(ix) = value_order(cx, xs)? {
+            let v: Vec<T<'h>> = ix.iter().map(|&i| xs[i]).collect();
+            return Ok(lib.rebuilt(h, head, &v));
+        }
+    }
     let mut v = xs.to_vec();
     let r = match by {
         None => {
@@ -213,9 +255,11 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
                 Ok(order.cmp(b, a) == Ordering::Less)
             })
         }
+        // `b` (later) goes before `a` unless `by(a, b)` holds: elements for which neither holds trade places,
+        // as in the reference sort (decision cov-core.7)
         Some(by) => merge_sort(&mut v, &mut |b, a| {
             cx.tick(1)?;
-            decide(lib, cx, by, b, a)
+            Ok(!decide(lib, cx, by, a, b)?)
         }),
     };
     match r {
@@ -304,7 +348,12 @@ pub(crate) fn sort_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
         Err(e) => return Ok(Reply::Done(e)),
     };
     let ix = match by {
-        None => order_by_keys(cx, &key)?,
+        // equal keys: the elements in canonical order (decision cov-core.7)
+        None => {
+            let ix = order_by_keys(cx, xs)?;
+            let k2: Vec<T<'h>> = ix.iter().map(|&i| key[i]).collect();
+            order_by_keys(cx, &k2)?.into_iter().map(|j| ix[j]).collect()
+        }
         Some(p) => match order_by_pred(lib, cx, &key, p)? {
             Ok(ix) => ix,
             Err(e) => return Ok(Reply::Done(e)),
@@ -334,7 +383,10 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         None => None,
     };
     let ix = match by {
-        None => order_by_keys(cx, xs)?,
+        None => match value_order(cx, xs)? {
+            Some(ix) => ix,
+            None => order_by_keys(cx, xs)?,
+        },
         Some(p) => match order_by_pred(lib, cx, xs, p)? {
             Ok(ix) => ix,
             Err(e) => return Ok(Reply::Done(e)),

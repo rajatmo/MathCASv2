@@ -89,7 +89,7 @@ fn subsets_and_tuples_agree_with_enumeration() {
 }
 
 #[test]
-fn orderings_and_key_sorts_are_stable_sorts() {
+fn orderings_are_stable_and_key_sorts_break_ties_by_the_elements() {
     let mut env = Env::new();
     let mut r = Rng(13);
     for _ in 0..30 {
@@ -99,8 +99,9 @@ fn orderings_and_key_sorts_are_stable_sorts() {
         ix.sort_by_key(|&i| xs[i]);
         let pos: Vec<usize> = ix.iter().map(|i| i + 1).collect();
         assert_eq!(env.eval(&format!("ordering({})", list(&xs))), list(&pos));
+        // equal keys: the elements in increasing order (decision cov-core.7)
         let mut by = xs.clone();
-        by.sort_by_key(|x| x.rem_euclid(7));
+        by.sort_by_key(|&x| (x.rem_euclid(7), x));
         assert_eq!(env.eval(&format!("sort_by({}, k => imod(k, 7))", list(&xs))), list(&by));
         if n > 0 {
             let best = xs.iter().enumerate().fold(0, |b, (i, x)| if x.abs() > xs[b].abs() { i } else { b });

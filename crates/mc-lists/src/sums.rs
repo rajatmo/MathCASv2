@@ -59,6 +59,12 @@ pub(crate) fn iterated<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
             return Ok(Reply::Done(call(cx, "sum", &[terms])?));
         }
     }
+    if let Some(r) = indefinite(cx, "sum", f, spec)? {
+        return Ok(r);
+    }
+    if let Some(r) = stepped(cx, "sum", f, spec)? {
+        return Ok(r);
+    }
     let (kv, a, b) = match cx.as_list(spec) {
         Some(&[kv, a, b]) => (kv, a, b),
         Some(&[kv, b]) => (kv, h.int(1), b),
@@ -290,15 +296,21 @@ pub(crate) fn piecewise<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
 pub(crate) fn iterated_product<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, spec] = *args else { return Ok(Reply::Decline) };
+    if let Some(r) = indefinite(cx, "product", f, spec)? {
+        return Ok(r);
+    }
+    if let Some(r) = stepped(cx, "product", f, spec)? {
+        return Ok(r);
+    }
     let range = match cx.as_list(spec) {
         Some(&[kv, vals]) if cx.as_list(vals).is_some() => (kv, vals),
         Some(&[kv, a, b]) => match (h.view(a), h.view(b)) {
             (View::Int(ia), View::Int(ib)) if ib - ia < MAX_TERMS => (kv, h.call(h.sym("range"), &[a, b])),
-            _ => return Ok(Reply::Decline),
+            _ => return symbolic_product(cx, f, kv, a, b),
         },
         Some(&[kv, b]) => match h.view(b) {
             View::Int(ib) if ib < MAX_TERMS => (kv, h.call(h.sym("range"), &[b])),
-            _ => return Ok(Reply::Decline),
+            _ => return symbolic_product(cx, f, kv, h.int(1), b),
         },
         _ => return Ok(Reply::Decline),
     };
@@ -310,4 +322,121 @@ pub(crate) fn iterated_product<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t
         return Ok(Reply::Done(terms));
     }
     Ok(Reply::Done(call(cx, "product", &[terms])?))
+}
+
+/// `sum`/`product` over `[k, a, b, step]`: the terms at `range(a, b, step)` when that is a list (`None` for other
+/// iterators, or when the range stays symbolic).
+fn stepped<'h>(cx: &mut NativeCx<'_, '_, 'h>, op: &str, f: T<'h>, spec: T<'h>) -> Res<Option<Reply<'h>>> {
+    let h = cx.heap();
+    let Some(&[kv, a, b, step]) = cx.as_list(spec) else { return Ok(None) };
+    if !matches!(h.view(kv), View::Sym(_)) {
+        return Ok(None);
+    }
+    let vals = call(cx, "range", &[a, b, step])?;
+    if cx.as_list(vals).is_none_or(|v| v.len() as i64 > MAX_TERMS) {
+        return Ok(None);
+    }
+    let terms = call(cx, "table", &[f, kv, vals])?;
+    if cx.as_list(terms).is_none() {
+        return Ok(Some(Reply::Done(terms)));
+    }
+    Ok(Some(Reply::Done(call(cx, op, &[terms])?)))
+}
+
+/// Closed forms of `product(f, [k, a, b])` for symbolic bounds: a factor free of `k` gives its power
+/// `f^(b - a + 1)`; `c^g` with `c` free of `k` gives `c^sum(g, [k, a, b])`; `k` gives `factorial(b)` from 1 and
+/// `pochhammer(a, b - a + 1)` otherwise; `g^p` with `p` free of `k` the product of `g` to the `p`; a product the
+/// product of its factors. Anything else stays unevaluated.
+fn symbolic_product<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, kv: T<'h>, a: T<'h>, b: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    if !matches!(h.view(kv), View::Sym(_)) || b == h.sym_term(h.sym("inf")) {
+        return Ok(Reply::Decline);
+    }
+    Ok(match closed_product(cx, f, kv, a, b, 0)? {
+        Some(v) => Reply::Done(v),
+        None => Reply::Decline,
+    })
+}
+
+/// The closed form of one factor for [`symbolic_product`], or `None`.
+fn closed_product<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    kv: T<'h>,
+    a: T<'h>,
+    b: T<'h>,
+    depth: u32,
+) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if depth > 8 {
+        return Ok(None);
+    }
+    cx.tick(1)?;
+    // b - a + 1
+    let count = |cx: &mut NativeCx<'_, '_, 'h>| -> Res<T<'h>> {
+        let na = mul(cx, &[h.int(-1), a])?;
+        add(cx, &[b, na, h.int(1)])
+    };
+    if free_of(cx, f, kv)? {
+        let n = count(cx)?;
+        return Ok(Some(call(cx, names::POW, &[f, n])?));
+    }
+    if f == kv {
+        if a == h.int(1) {
+            return Ok(Some(call(cx, "factorial", &[b])?));
+        }
+        let n = count(cx)?;
+        return Ok(Some(call(cx, "pochhammer", &[a, n])?));
+    }
+    match h.view(f) {
+        View::App { head, args } if head == h.sym_term(h.sym(names::MUL)) => {
+            let mut out = Vec::with_capacity(args.len());
+            for &g in args {
+                match closed_product(cx, g, kv, a, b, depth + 1)? {
+                    Some(v) => out.push(v),
+                    None => return Ok(None),
+                }
+            }
+            Ok(Some(mul(cx, &out)?))
+        }
+        View::App { head, args: &[base, e] } if head == h.sym_term(h.sym(names::POW)) => {
+            if free_of(cx, base, kv)? {
+                let spec = h.call(h.sym(names::LIST), &[kv, a, b]);
+                let s = call(cx, "sum", &[e, spec])?;
+                if matches!(h.view(s), View::App { head, .. } if head == h.sym_term(h.sym("sum"))) {
+                    return Ok(None);
+                }
+                return Ok(Some(call(cx, names::POW, &[base, s])?));
+            }
+            if free_of(cx, e, kv)? {
+                return Ok(match closed_product(cx, base, kv, a, b, depth + 1)? {
+                    Some(v) => Some(call(cx, names::POW, &[v, e])?),
+                    None => None,
+                });
+            }
+            Ok(None)
+        }
+        _ => Ok(None),
+    }
+}
+
+/// The indefinite `sum(f, k)` (`k` a symbol): `S(k)` with `S(k + 1) - S(k) = f(k)`, as the definite sum over
+/// `[j, 0, k - 1]`; the indefinite `product(f, k)` as the product over `[j, 1, k - 1]` (`product(k, k)` is
+/// `factorial(k - 1)`). The answer is kept only when the definite form has a closed form.
+fn indefinite<'h>(cx: &mut NativeCx<'_, '_, 'h>, op: &str, f: T<'h>, spec: T<'h>) -> Res<Option<Reply<'h>>> {
+    let h = cx.heap();
+    let View::Sym(_) = h.view(spec) else { return Ok(None) };
+    if spec == h.sym_term(h.sym("inf")) {
+        return Ok(None);
+    }
+    let j = h.sym_term(h.sym("indefinite_index$"));
+    let g = at(cx, f, spec, j)?;
+    let km1 = add(cx, &[spec, h.int(-1)])?;
+    let lo = h.int(if op == "sum" { 0 } else { 1 });
+    let it = h.call(h.sym(names::LIST), &[j, lo, km1]);
+    let v = call(cx, op, &[g, it])?;
+    if !free_of(cx, v, j)? {
+        return Ok(Some(Reply::Decline));
+    }
+    Ok(Some(Reply::Done(v)))
 }

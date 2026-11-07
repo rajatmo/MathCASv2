@@ -69,7 +69,8 @@ fn construction() {
         ("dataset(\"s\")".into(), "failure(argument, dataset, 1)"),
         ("dataset([assoc(a -> 1), 3])".into(), "failure(argument, dataset, 1)"),
         ("dataset([1, 2])".into(), "failure(argument, dataset, 1)"),
-        ("dataset(assoc(a -> 1))".into(), "failure(argument, dataset, 1)"),
+        // an association of single values is one row (G57)
+        (t("dataset(assoc(a -> 1))"), "dataset(assoc(a -> [1]))"),
         ("dataset(assoc(a -> [1], b -> [1, 2]))".into(), "failure(shape_mismatch, dataset)"),
         ("dataset([[a, b], [1, 2, 3]])".into(), "failure(shape_mismatch, dataset)"),
         ("dataset([[a, a], [1, 2]])".into(), "failure(duplicate_column, a)"),

@@ -42,13 +42,14 @@ fn main() -> ExitCode {
     let mut engine = CoreEngine::with_config(config);
     mc_kernel::front_end::install(&mut engine);
     let (items, update) = (&options.items, options.update);
-    let code = cli::run_with(&mut engine, items, update, &stop, &mut io::stdout().lock(), &mut io::stderr().lock());
+    let code = cli::run_std(&mut engine, items, update, &stop);
     // with -i the REPL starts even after an error, so the session can be inspected
     if !interactive {
         return ExitCode::from(code);
     }
     let mut repl = Repl::with_host(Box::new(engine), stop);
-    match repl.run(&mut io::stdin().lock(), &mut io::stdout().lock()) {
+    // stdout unlocked, as in cli::run_std (G93)
+    match repl.run(&mut io::stdin().lock(), &mut io::stdout()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("error: {e}");

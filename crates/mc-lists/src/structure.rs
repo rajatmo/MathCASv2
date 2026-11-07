@@ -269,7 +269,12 @@ fn rules_of<'h>(lib: &Lib, h: &'h Heap, cx: &NativeCx<'_, '_, 'h>, r: T<'h>) -> 
 pub(crate) fn replace_part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, r] = *args else { return Ok(Reply::Decline) };
-    let Some(rules) = rules_of(lib, h, cx, r) else { return Ok(Reply::Done(lib.bad_arg(h, t, 2))) };
+    let Some(rules) = rules_of(lib, h, cx, r) else {
+        if let Some(v) = replace_matching_parts(lib, cx, x, r)? {
+            return Ok(settle(lib, h, v));
+        }
+        return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
+    };
     let mut cur = x;
     for (ps, v) in rules {
         for p in ps {
@@ -283,6 +288,74 @@ pub(crate) fn replace_part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         }
     }
     Ok(settle(lib, h, cur))
+}
+
+/// `replace_part(x, p -> v)` where the position `p` is a pattern (decision cov-core.5): a list pattern is matched
+/// against the position of every part at every level (`[i_, i_]` is the diagonal of a matrix; a negative index in
+/// the pattern counts from the end at the last level), any other pattern against the index of each element
+/// (`1 | 3 | 5`, `_`). A part whose position matches is replaced by the rule's right side with the pattern's
+/// variables substituted, and its own parts are not visited. `None` when a rule's left side does not compile.
+fn replace_matching_parts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, r: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let rules: Vec<T<'h>> = match cx.as_list(r) {
+        Some(xs) => xs.to_vec(),
+        None => vec![r],
+    };
+    let mut compiled = Vec::with_capacity(rules.len());
+    for &rule in &rules {
+        let (p, v) = match h.view(rule) {
+            View::App { head, args: [p, v] } if head == h.sym_term(lib.s.rule) || head == h.sym_term(lib.s.rule_delayed) => {
+                (*p, *v)
+            }
+            _ => return Ok(None),
+        };
+        // a pattern for one index is matched as the one-element position `[p]` (so `i__` matches too)
+        let list = cx.as_list(p).is_some();
+        let Some(m) = Matcher::new(lib, h, if list { p } else { cx.list(&[p]) }) else { return Ok(None) };
+        compiled.push((m, list, v));
+    }
+    let mut pos = Vec::new();
+    Ok(Some(replace_walk(cx, x, &mut pos, &mut compiled)?))
+}
+
+fn replace_walk<'l, 'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    x: T<'h>,
+    pos: &mut Vec<i64>,
+    rules: &mut [(Matcher<'l, 'h>, bool, T<'h>)],
+) -> Res<T<'h>> {
+    let h = cx.heap();
+    let Some((head, args)) = args_of(h, x) else { return Ok(x) };
+    let n = args.len() as i64;
+    let mut out = Vec::with_capacity(args.len());
+    let mut changed = false;
+    for (k, &a) in args.iter().enumerate() {
+        cx.tick(1)?;
+        pos.push(k as i64 + 1);
+        let mut done = None;
+        for (m, list, v) in rules.iter_mut() {
+            let hit = if *list {
+                let here: Vec<T<'h>> = pos.iter().map(|&i| h.int(i)).collect();
+                let mut neg = here.clone();
+                *neg.last_mut().expect("a position has an index") = h.int(k as i64 - n);
+                m.matches(cx, cx.list(&here))? || m.matches(cx, cx.list(&neg))?
+            } else {
+                pos.len() == 1 && m.matches(cx, cx.list(&[h.int(k as i64 + 1)]))?
+            };
+            if hit {
+                done = Some(m.substitute(cx, *v)?);
+                break;
+            }
+        }
+        let y = match done {
+            Some(y) => y,
+            None => replace_walk(cx, a, pos, rules)?,
+        };
+        changed |= y != a;
+        out.push(y);
+        pos.pop();
+    }
+    Ok(if changed { h.app(head, &out) } else { x })
 }
 
 /// The edit at each of several positions, the deepest and last first so earlier positions stay valid.
@@ -542,15 +615,103 @@ pub(crate) fn take_smallest<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T
 fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs, n] = *args else { return Ok(Reply::Decline) };
-    if !matches!(h.view(n), View::Int(0..)) {
+    let View::Int(count @ 0..) = h.view(n) else { return Ok(Reply::Decline) };
+    // `take_largest(xs -> prop, n)`: "Element", "Index", a list of them, or `all` (an association of both)
+    let (xs, prop) = match h.view(xs) {
+        View::App { head, args: [l, p] } if head == h.sym_term(h.sym("rule")) => (*l, Some(*p)),
+        _ => (xs, None),
+    };
+    let sym = |s: &str| h.sym_term(h.sym(s));
+    if let Some(elems) = cx.as_list(xs) {
+        if let Some(mut ix) = by_value(cx, elems)? {
+            // largest first (equal values: the later first)
+            if largest {
+                ix.reverse();
+            }
+            if count as usize > ix.len() {
+                return Ok(Reply::Decline);
+            }
+            ix.truncate(count as usize);
+            let shown = |cx: &mut NativeCx<'_, '_, 'h>, i: usize, p: T<'h>| -> Option<T<'h>> {
+                match h.view(p) {
+                    View::Str(s) if s == "Element" => Some(elems[i]),
+                    View::Str(s) if s == "Index" => Some(h.int(i as i64 + 1)),
+                    View::Sym(s) if h.sym_name(s) == "all" => {
+                        let rule = h.sym_term(h.sym("rule"));
+                        let e = h.app(rule, &[h.string("Element"), elems[i]]);
+                        let k = h.app(rule, &[h.string("Index"), h.int(i as i64 + 1)]);
+                        Some(h.app(sym("assoc"), &[e, k]))
+                    }
+                    _ => {
+                        let ps = cx.as_list(p)?;
+                        let mut out = Vec::with_capacity(ps.len());
+                        for &q in ps {
+                            match h.view(q) {
+                                View::Str(s) if s == "Element" => out.push(elems[i]),
+                                View::Str(s) if s == "Index" => out.push(h.int(i as i64 + 1)),
+                                _ => return None,
+                            }
+                        }
+                        Some(cx.list(&out))
+                    }
+                }
+            };
+            let mut out = Vec::with_capacity(ix.len());
+            for &i in &ix {
+                match prop {
+                    None => out.push(elems[i]),
+                    Some(p) => match shown(cx, i, p) {
+                        Some(v) => out.push(v),
+                        None => return Ok(Reply::Decline),
+                    },
+                }
+            }
+            return Ok(Reply::Again(cx.list(&out)));
+        }
+    }
+    if prop.is_some() {
         return Ok(Reply::Decline);
     }
-    let sym = |s: &str| h.sym_term(h.sym(s));
     let mut sorted = h.app(sym("sort"), &[xs]);
     if largest {
         sorted = h.app(sym("reverse"), &[sorted]);
     }
     Ok(Reply::Again(h.app(sym("take"), &[sorted, n])))
+}
+
+/// The positions of `xs` in increasing order of value (stable), when every element is a real number or a closed
+/// numeric expression with a machine value (`exp(pi)`, `7*pi`: numerical order, decision cov-core.6) or a
+/// number-like value such as a quantity (`crate::sort::value_order`). `None` otherwise.
+fn by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>]) -> Res<Option<Vec<usize>>> {
+    let h = cx.heap();
+    if xs.is_empty() || xs.len() > 100_000 {
+        return Ok(None);
+    }
+    if let Some(ix) = crate::sort::value_order(cx, xs)? {
+        return Ok(Some(ix));
+    }
+    let n = h.sym_term(h.sym("n"));
+    let mut vals = Vec::with_capacity(xs.len());
+    for &x in xs {
+        cx.tick(1)?;
+        let v = match h.view(x) {
+            View::Int(v) => v as f64,
+            View::Real(v) => v,
+            View::Str(_) => return Ok(None),
+            _ => match h.view(cx.eval(h.app(n, &[x]))?) {
+                View::Real(v) => v,
+                View::Int(v) => v as f64,
+                _ => return Ok(None),
+            },
+        };
+        if v.is_nan() {
+            return Ok(None);
+        }
+        vals.push(v);
+    }
+    let mut ix: Vec<usize> = (0..xs.len()).collect();
+    ix.sort_by(|&a, &b| vals[a].total_cmp(&vals[b]));
+    Ok(Some(ix))
 }
 
 /// `full_form(x)`: `x`, shown with every part as a plain call (`add(x, pow(y, 2))`); `input_form(x)`: `x` shown in

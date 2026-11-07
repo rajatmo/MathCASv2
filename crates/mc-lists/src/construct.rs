@@ -25,6 +25,33 @@ fn symbolic_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>, s: T<'h
     Ok(Reply::Again(cx.list(&out)))
 }
 
+/// `range` of quantities (G56): `range(quantity(10, "Feet"))` lists `quantity(k, "Feet")` for `k` in `range(10)`;
+/// with two or three bounds every bound is read in the unit of the first quantity among them
+/// (`quantity_magnitude(q, unit)`), so `range(quantity(3, "Ounces"), quantity(1, "Pounds"))` counts ounces.
+/// `None` when no bound is a quantity.
+fn quantity_range<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<Reply<'h>>> {
+    let h = cx.heap();
+    let quantity = h.sym_term(h.sym("quantity"));
+    let unit = args.iter().find_map(|&x| match h.view(x) {
+        View::App { head, args: [_, u] } if head == quantity => Some(*u),
+        _ => None,
+    });
+    let Some(unit) = unit else { return Ok(None) };
+    let magnitude = h.sym_term(h.sym("quantity_magnitude"));
+    let mut bounds = Vec::with_capacity(args.len());
+    for &x in args {
+        bounds.push(match h.view(x) {
+            View::App { head, .. } if head == quantity => cx.eval(h.app(magnitude, &[x, unit]))?,
+            _ => x,
+        });
+    }
+    let ks = cx.eval(h.app(h.sym_term(h.sym("range")), &bounds))?;
+    let Some(ks) = cx.as_list(ks) else { return Ok(None) };
+    cx.tick(ks.len() as u64)?;
+    let qs: Vec<T<'h>> = ks.iter().map(|&k| h.app(quantity, &[k, unit])).collect();
+    Ok(Some(Reply::Again(cx.list(&qs))))
+}
+
 pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let one = h.int(1);
@@ -36,6 +63,9 @@ pub(crate) fn range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     };
     if let (View::Int(a), View::Int(b), View::Int(s)) = (h.view(a), h.view(b), h.view(s)) {
         return int_range(lib, cx, t, a, b, s);
+    }
+    if let Some(r) = quantity_range(cx, args)? {
+        return Ok(r);
     }
     // general bounds: real numbers only
     let ar = lib.arith(h);

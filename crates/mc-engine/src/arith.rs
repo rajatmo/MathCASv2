@@ -206,6 +206,13 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
     let mut out = Vec::with_capacity(args.len());
     let mut changed = false;
     for &a in args {
+        if digits.is_none() {
+            if let Some(v) = cached_constant(cx, a)? {
+                out.push(v);
+                changed = true;
+                continue;
+            }
+        }
         if closed_numeric(h, a) {
             let v = match digits {
                 Some(d) => cx.eval(h.call(h.sym("n"), &[a, d]))?,
@@ -220,6 +227,32 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<O
         out.push(a);
     }
     Ok(changed.then_some(out))
+}
+
+/// The machine values of the [`CONSTANTS`], filled on first use by `n` itself (so they are `n`'s values bit for bit);
+/// a NaN bit pattern marks an empty slot. Symbols are immediates and never memoised, so without this every
+/// `0.5*pi` in a loop evaluated `n(pi)` again (about 7 us a call).
+static CONSTANT_VALUES: [std::sync::atomic::AtomicU64; 5] = [const { std::sync::atomic::AtomicU64::new(u64::MAX) }; 5];
+
+/// The machine value of `t` when it is a bare numeric constant, from [`CONSTANT_VALUES`].
+fn cached_constant<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<T<'h>>> {
+    use std::sync::atomic::Ordering::Relaxed;
+    let h = cx.heap();
+    let View::Sym(s) = h.view(t) else { return Ok(None) };
+    let name = h.sym_name(s);
+    let Some(i) = CONSTANTS.iter().position(|c| *c == name.as_str()) else { return Ok(None) };
+    let bits = CONSTANT_VALUES[i].load(Relaxed);
+    if bits != u64::MAX {
+        return Ok(Some(h.real(f64::from_bits(bits))));
+    }
+    let v = cx.eval(h.call(h.sym("n"), &[t]))?;
+    match h.view(v) {
+        View::Real(x) => {
+            CONSTANT_VALUES[i].store(x.to_bits(), Relaxed);
+            Ok(Some(v))
+        }
+        _ => Ok(None),
+    }
 }
 
 /// Is an argument an uncertain number of `mc_numeric::uncertain` (`around`, `interval`, `centered_interval`)? A

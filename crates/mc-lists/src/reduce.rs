@@ -121,6 +121,9 @@ fn packed_sum<'h>(cx: &mut NativeCx<'_, '_, 'h>, p: Packed<'h>) -> Res<Option<T<
 /// `sum(xs)`: the canonical sum of the elements of the list `xs` (`0` for `[]`).
 pub(crate) fn sum<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let Some(r) = nested(cx, "sum", args) {
+        return Ok(r);
+    }
     if args.len() == 2 {
         return crate::sums::iterated(lib, cx, t, args);
     }
@@ -142,9 +145,26 @@ pub(crate) fn sum<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: 
     Ok(Reply::Done(reduce(lib, cx, Op::Add, xs)?))
 }
 
+/// `sum(f, it1, it2, ...)` (and `product`) with several iterators: the first iterator outermost,
+/// `sum(sum(f, it2, ...), it1)`, so an inner bound may depend on an outer variable. `None` unless every iterator is
+/// a list (or a symbol: an indefinite sum).
+fn nested<'h>(cx: &mut NativeCx<'_, '_, 'h>, op: &str, args: &[T<'h>]) -> Option<Reply<'h>> {
+    let h = cx.heap();
+    if args.len() < 3 || !args[1..].iter().all(|&a| cx.as_list(a).is_some() || matches!(h.view(a), View::Sym(_))) {
+        return None;
+    }
+    let f = h.sym_term(h.sym(op));
+    let mut inner = vec![args[0]];
+    inner.extend_from_slice(&args[2..]);
+    Some(Reply::Again(h.app(f, &[h.app(f, &inner), args[1]])))
+}
+
 /// `product(xs)`: the canonical product of the elements (`1` for `[]`).
 pub(crate) fn product<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let Some(r) = nested(cx, "product", args) {
+        return Ok(r);
+    }
     if args.len() == 2 {
         return crate::sums::iterated_product(lib, cx, t, args);
     }
@@ -352,6 +372,9 @@ fn extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>
             return Ok(Reply::Done(h.int(best)));
         }
     }
+    if xs.iter().any(|&x| cx.is_value(x)) {
+        return value_extreme(cx, &xs, max);
+    }
     let ar = lib.arith(h);
     let mut best = first;
     if ar.compare(first, first).is_none() {
@@ -365,6 +388,45 @@ fn extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>
             Some(Cmp3::Less | Cmp3::Equal | Cmp3::Greater) => {}
             // a symbolic element, a NaN or overlapping balls: decided by numeric values if they all have one
             _ => return numeric_extreme(cx, &xs, max),
+        }
+    }
+    Ok(Reply::Done(best))
+}
+
+/// `max`/`min` when an element is a number-like value (G54): an interval stands for its largest (smallest) end, the
+/// other elements are compared by the evaluator's `greater`/`less` (quantities in a common unit, `around` by its
+/// spread). The call stays unevaluated when a comparison is not decided.
+fn value_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], max: bool) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    if xs.len() > 10_000 {
+        return Ok(Reply::Decline);
+    }
+    let interval = h.sym_term(h.sym("interval"));
+    let list = h.sym_term(h.sym(mc_api::names::LIST));
+    let mut items = Vec::with_capacity(xs.len());
+    for &x in xs {
+        match h.view(x) {
+            // interval([a, b], [c, d], ...): every end is a candidate
+            View::App { head, args } if head == interval && !args.is_empty() => {
+                for &r in args {
+                    match h.view(r) {
+                        View::App { head, args: [a, b] } if head == list => items.push(if max { *b } else { *a }),
+                        _ => return Ok(Reply::Decline),
+                    }
+                }
+            }
+            _ => items.push(x),
+        }
+    }
+    let cmp = h.sym_term(h.sym(if max { "greater" } else { "less" }));
+    let mut best = items[0];
+    for &x in &items[1..] {
+        cx.tick(1)?;
+        let v = cx.eval(h.app(cmp, &[x, best]))?;
+        if cx.is_true(v) {
+            best = x;
+        } else if v != cx.bool(false) {
+            return Ok(Reply::Decline);
         }
     }
     Ok(Reply::Done(best))

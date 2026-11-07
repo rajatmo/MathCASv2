@@ -54,6 +54,10 @@ pub(crate) fn dataset<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
                 if let Some(rows) = rows.filter(|r| !r.is_empty()) {
                     return from_rows(lib, cx, &rows);
                 }
+                // an association of single values: a dataset of one row (G57)
+                if !entries.is_empty() && entries.iter().all(|&e| Col::of(s, h, lib.value(h, e)).is_none()) {
+                    return from_rows(lib, cx, &[x]);
+                }
                 return Ok(Reply::Done(columns_failure(lib, h, t, entries)));
             }
             if let View::Sym(_) = h.view(x) {
@@ -190,6 +194,10 @@ pub(crate) fn is_missing<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
 /// `column(ds, c)`: the list of the values of column `c` (`failure(missing_key, c)` if there is none).
 pub(crate) fn column<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `column([x, ...], options...)` is the display form (a column of items), not a dataset column
+    if args.first().is_some_and(|&x| cx.as_list(x).is_some()) {
+        return Ok(Reply::Decline);
+    }
     let [d, c] = *args else { return Ok(Reply::Decline) };
     let tab = take!(table_operand(lib, h, t, d, 1));
     Ok(Reply::Done(match tab.column(c) {
@@ -432,6 +440,8 @@ fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, tab: &Table<'h>, i: T<'h>,
                 _ => return Ok(Reply::Done(index(h.int(b)))),
             }
         }
+        // `all`: every row, so `ds[all, "y"]` is the column `y` as a list (G63)
+        View::Sym(a) if h.sym_name(a) == "all" && tab.column(i).is_none() => (0..n).collect(),
         _ => match (cx.as_list(i), tab.column(i)) {
             (_, Some(j)) => return Ok(then(tab.terms[j])),
             (Some(ks), None) => {
