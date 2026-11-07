@@ -18,7 +18,7 @@ pub fn dimension<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Optio
             for (&a, &b) in lo.iter().zip(hi) {
                 let e = E { h };
                 match num(cx, e.sub(b, a))? {
-                    Some(v) if v == 0.0 => {}
+                    Some(0.0) => {}
                     _ => d += 1,
                 }
             }
@@ -59,11 +59,12 @@ pub fn rank(rows: &[Vec<f64>]) -> usize {
             continue;
         }
         m.swap(r, p);
-        for i in 0..m.len() {
+        let pivot = m[r].clone();
+        for (i, row) in m.iter_mut().enumerate() {
             if i != r {
-                let f = m[i][c] / m[r][c];
-                for k in 0..cols {
-                    m[i][k] -= f * m[r][k];
+                let f = row[c] / pivot[c];
+                for (x, &y) in row.iter_mut().zip(&pivot) {
+                    *x -= f * y;
                 }
             }
         }
@@ -88,7 +89,7 @@ fn shoelace<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
 /// The area of a ring in space, through the vector area of its fan of triangles.
 fn area3<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
     let n = ring.len();
-    let mut s = vec![vec![], vec![], vec![]];
+    let mut s: [Vec<T<'h>>; 3] = [vec![], vec![], vec![]];
     for i in 0..n {
         let c = e.cross(&ring[i], &ring[(i + 1) % n]);
         for k in 0..3 {
@@ -176,7 +177,7 @@ pub fn measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<
             for (&a, &b) in lo.iter().zip(hi) {
                 let d = e.sub(b, a);
                 match num(cx, d)? {
-                    Some(v) if v == 0.0 => {}
+                    Some(0.0) => {}
                     Some(_) => f.push(e.f("abs", &[d])),
                     None => f.push(d),
                 }
@@ -374,10 +375,9 @@ pub fn bounded<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<
             let Some(b) = bounds(cx, r)? else { return Ok(None) };
             let mut fin = true;
             for (lo, hi) in b {
-                match (num(cx, lo)?, num(cx, hi)?) {
-                    (Some(a), Some(b)) => fin &= a.is_finite() && b.is_finite(),
-                    // symbolic coordinates are finite
-                    _ => {}
+                // symbolic coordinates are finite
+                if let (Some(a), Some(b)) = (num(cx, lo)?, num(cx, hi)?) {
+                    fin &= a.is_finite() && b.is_finite();
                 }
             }
             Some(fin)

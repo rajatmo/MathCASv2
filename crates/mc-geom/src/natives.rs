@@ -665,7 +665,7 @@ fn simplex_integral<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vars: &[T<'h>],
     };
     let mut args = vec![subst(e, f, vars, &x)];
     for i in 0..k {
-        let upper = e.sub(e.int(1), e.add(&s[..i].to_vec()));
+        let upper = e.sub(e.int(1), e.add(&s[..i]));
         args.push(e.list(&[s[i], e.int(0), upper]));
     }
     e.mul(&[jac, e.f("integrate", &args)])

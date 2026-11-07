@@ -26,12 +26,14 @@ fn solve(mut g: Vec<Vec<f64>>, mut r: Vec<f64>) -> Option<Vec<f64>> {
         }
         g.swap(c, p);
         r.swap(c, p);
-        for i in c + 1..n {
-            let f = g[i][c] / g[c][c];
-            for k in c..n {
-                g[i][k] -= f * g[c][k];
+        let (top, rest) = g.split_at_mut(c + 1);
+        let pivot = &top[c];
+        for (i, row) in rest.iter_mut().enumerate() {
+            let f = row[c] / pivot[c];
+            for (x, &y) in row[c..].iter_mut().zip(&pivot[c..]) {
+                *x -= f * y;
             }
-            r[i] -= f * r[c];
+            r[c + 1 + i] -= f * r[c];
         }
     }
     let mut x = vec![0.0; n];
@@ -274,8 +276,7 @@ pub fn query<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>], q: 
     }
     let pn = nums(cx, p)?;
     let numeric = is_numeric(&pn);
-    match r {
-        Region::Ball { c, r: Radius::One(rad), solid } => {
+    if let Region::Ball { c, r: Radius::One(rad), solid } = r {
             let d = e.dist(p, c);
             let edge = e.sub(d, *rad);
             if q == Query::Nearest {
@@ -299,8 +300,6 @@ pub fn query<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>, p: &[T<'h>], q: 
                     _ => e.f("max", &[e.int(0), edge]),
                 },
             }));
-        }
-        _ => {}
     }
     if let Region::Boxed { lo, hi } = r {
         return boxed(cx, lo, hi, p, pn.as_deref().filter(|_| numeric), q);
