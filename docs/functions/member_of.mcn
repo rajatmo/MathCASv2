@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# member_of
+
+#% text
+# `member_of(xs, p)` gives `true` when some element of `xs` matches the pattern `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+member_of([1, 2.5, 3], _: Float)
+#% output
+#= true
+
+#% cell
+member_of([a, b], f(_))
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Compared with `member`, which tests identity:
+
+#% cell
+[member_of([1, 2], _: Int), member([1, 2], _: Int)]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `member`, `free_of`, `cases`, `match_q`

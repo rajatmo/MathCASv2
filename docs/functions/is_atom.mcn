@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# is_atom
+
+#% text
+# `is_atom(x)` gives `true` when `x` is not a compound term: a number, a string or a symbol.
+
+#% section
+# Details
+
+#% item
+# A complex number is stored as `complex(re, im)`, a compound term, but counts as an atom.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_atom(3)
+#% output
+#= true
+
+#% cell
+is_atom("abc")
+#% output
+#= true
+
+#% cell
+is_atom(f(x))
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Complex numbers and fractions are atoms:
+
+#% cell
+[is_atom(1 + im), is_atom(2/3)]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `is_symbol`, `head`, `leaf_count`, `depth`
