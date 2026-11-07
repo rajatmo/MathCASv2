@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# or
+
+#% text
+# `or(a, b, ...)`, written `a or b`, is the logical disjunction, evaluated left to right and stopping at the first `true`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+true or false
+#% output
+#= true
+
+#% cell
+1 > 2 or 3 > 4
+#% output
+#= false
+
+#% cell
+x > 0 or false
+#% output
+#= x > 0
+
+#% subsection
+# Scope
+
+#% text
+# A union of intervals:
+
+#% cell
+reduce(x < -1 or x > 1, x, reals)
+#% output
+#= x < -1 or 1 < x
+
+#% section
+# See also
+
+#% text
+# `and`, `not`, `some`

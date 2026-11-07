@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# pow
+
+#% text
+# `pow(a, b)` is the power `a^b`; the operator `^` writes it.
+
+#% section
+# Details
+
+#% item
+# Integer powers of exact numbers are exact; fractional powers of exact numbers stay exact roots.
+
+#% item
+# `^` groups to the right: `2^3^2` is `2^9`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pow(2, 10)
+#% output
+#= 1024
+
+#% cell
+2^3^2
+#% output
+#= 512
+
+#% cell
+8^(1/3)
+#% output
+#= 2
+
+#% subsection
+# Scope
+
+#% text
+# Roots of numbers that are not perfect powers stay exact:
+
+#% cell
+[2^(1/2), 12^(1/2)]
+#% output
+#= [2^(1/2), 2*3^(1/2)]
+
+#% text
+# A machine real gives a machine real:
+
+#% cell
+2.0^0.5
+#% output
+#= 1.4142135623730951
+
+#% text
+# Element by element on lists:
+
+#% cell
+[1, 2, 3]^2
+#% output
+#= [1, 4, 9]
+
+#% section
+# See also
+
+#% text
+# `sqrt`, `exp`, `power_expand`, `mul`

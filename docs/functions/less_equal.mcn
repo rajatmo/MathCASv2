@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# less_equal
+
+#% text
+# `less_equal(a, b)`, written `a <= b`, compares two real values; it stays symbolic when the order cannot be decided.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+3 <= 3
+#% output
+#= true
+
+#% cell
+sqrt(2) <= 1.414
+#% output
+#= false
+
+#% cell
+x <= y
+#% output
+#= x <= y
+
+#% section
+# See also
+
+#% text
+# `less`, `greater_equal`, `reduce`

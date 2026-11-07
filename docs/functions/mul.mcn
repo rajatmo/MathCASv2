@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# mul
+
+#% text
+# `mul(a, b, ...)` is the product `a*b*...`; the operator `*` writes it, and a number before a name may omit it (`2x`).
+
+#% section
+# Details
+
+#% item
+# Products are kept in a canonical order and equal factors are collected into powers: `x*x` is `x^2`.
+
+#% item
+# A list argument multiplies element by element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mul(2, 3, 4)
+#% output
+#= 24
+
+#% cell
+x*y*x
+#% output
+#= y*x^2
+
+#% cell
+[1, 2, 3]*[4, 5, 6]
+#% output
+#= [4, 10, 18]
+
+#% subsection
+# Scope
+
+#% text
+# A number times a list scales it:
+
+#% cell
+3*[1, 2, 3]
+#% output
+#= [3, 6, 9]
+
+#% text
+# Its head with `apply`:
+
+#% cell
+apply(mul, range(5))
+#% output
+#= 120
+
+#% section
+# See also
+
+#% text
+# `add`, `pow`, `product`, `dot`

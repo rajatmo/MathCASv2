@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# equal
+
+#% text
+# `equal(a, b)`, written `a == b`, gives `true` or `false` when the comparison can be decided, and stays as an equation otherwise.
+
+#% section
+# Details
+
+#% item
+# Numbers compare by value: `1 == 1.0` is `true`.
+
+#% item
+# An equation that stays symbolic is what `solve` and the other equation functions take.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+2 + 2 == 4
+#% output
+#= true
+
+#% cell
+1 == 1.0
+#% output
+#= true
+
+#% cell
+x^2 == 4
+#% output
+#= x^2 == 4
+
+#% subsection
+# Scope
+
+#% text
+# Equations as values:
+
+#% cell
+solve(x^2 == 4, x)
+#% output
+#= [[x -> -2], [x -> 2]]
+
+#% text
+# Use `same` for an always decided structural test:
+
+#% cell
+[x == y, same(x, y)]
+#% output
+#= [x == y, false]
+
+#% section
+# See also
+
+#% text
+# `same`, `unequal`, `solve`, `less`

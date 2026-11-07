@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# and
+
+#% text
+# `and(a, b, ...)`, written `a and b`, is the logical conjunction, evaluated left to right and stopping at the first `false`.
+
+#% section
+# Details
+
+#% item
+# Terms that cannot be decided stay; the result is simplified as far as the known values allow.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+true and false
+#% output
+#= false
+
+#% cell
+1 < 2 and 3 < 4
+#% output
+#= true
+
+#% cell
+x > 0 and true
+#% output
+#= x > 0
+
+#% subsection
+# Scope
+
+#% text
+# Conditions for `reduce` and `assuming`:
+
+#% cell
+reduce(x > 0 and x < 3 and x != 1, x, reals)
+#% output
+#= 0 < x and x < 1 or 1 < x and x < 3
+
+#% section
+# See also
+
+#% text
+# `or`, `not`, `every`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# unequal
+
+#% text
+# `unequal(a, b)`, written `a != b`, gives `true` or `false` when it can be decided, and stays symbolic otherwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+1 != 2
+#% output
+#= true
+
+#% cell
+1 != 1.0
+#% output
+#= false
+
+#% cell
+x != y
+#% output
+#= x != y
+
+#% section
+# See also
+
+#% text
+# `equal`, `not_same`
