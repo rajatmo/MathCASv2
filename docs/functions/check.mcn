@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# check
+
+#% text
+# `check(x, y)` evaluates `x` and gives its value, or the value of `y` when `x` gives a failure.
+
+#% section
+# Details
+
+#% item
+# `y` is evaluated only when needed.
+
+#% item
+# Both arguments are held.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+check(1 + 1, "failed")
+#% output
+#= 2
+
+#% cell
+check(1/0, "failed")
+#% output
+#= "failed"
+
+#% cell
+check(part([1, 2], 5), 0)
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% cell
+check(sqrt(4), print("not printed"))
+#% output
+#= 2
+
+#% cell
+map(s => check(string_take(s, 4), s), ["abcdef", "ab"])
+#% output
+#= ["abcd", "ab"]
+
+#% section
+# See also
+
+#% text
+# `is_failure`, `drop_failures`

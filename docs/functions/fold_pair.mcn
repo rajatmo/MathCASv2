@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# fold_pair
+
+#% text
+# `fold_pair(f, y, xs)` gives the last output of `fold_pair_list(f, y, xs)`; `fold_pair(f, y, xs, g)` gives `g` of the last pair.
+
+#% section
+# Details
+
+#% item
+# An empty `xs` leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold_pair((y, x) => [p(y, x), q(y, x)], u, [1, 2, 3])
+#% output
+#= p(q(q(u, 1), 2), 3)
+
+#% cell
+fold_pair(take_drop, [a, b, c, d, e, f], [2, 3])
+#% output
+#= [c, d, e]
+
+#% cell
+fold_pair((y, x) => [quotient(y, x), mod(y, x)], 498, [100, 50, 20, 5, 1])
+#% output
+#= 3
+
+#% subsection
+# Scope
+
+#% cell
+fold_pair(take_drop, [a, b, c, d, e, f], [2, 3], last)
+#% output
+#= [f]
+
+#% cell
+fold_pair(f, y0, [])
+#% output
+#= fold_pair(f, y0, [])
+
+#% section
+# See also
+
+#% text
+# `fold_pair_list`, `fold`

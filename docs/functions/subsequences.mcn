@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# subsequences
+
+#% text
+# `subsequences(xs)` lists every run of consecutive elements of `xs`, shortest first, the empty run included.
+
+#% text
+# `subsequences(xs, n)` gives runs of at most `n` elements, `subsequences(xs, [n])` of exactly `n`, `subsequences(xs, [a, b])` of `a` to `b`.
+
+#% section
+# Details
+
+#% item
+# Runs of one length are listed by their starting position.
+
+#% item
+# The runs keep the head of `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subsequences([a, b, c])
+#% output
+#= [[], [a], [b], [c], [a, b], [b, c], [a, b, c]]
+
+#% cell
+subsequences([a, b, c, d], [2])
+#% output
+#= [[a, b], [b, c], [c, d]]
+
+#% cell
+subsequences([a, b, c, d], 2)
+#% output
+#= [[], [a], [b], [c], [d], [a, b], [b, c], [c, d]]
+
+#% subsection
+# Scope
+
+#% cell
+subsequences([a, b, c, d, e], [0, 5, 2])
+#% output
+#= [[], [a, b], [b, c], [c, d], [d, e], [a, b, c, d], [b, c, d, e]]
+
+#% cell
+subsequences(f(a, b, c))
+#% output
+#= [f(), f(a), f(b), f(c), f(a, b), f(b, c), f(a, b, c)]
+
+#% cell
+length(subsequences(range(10)))
+#% output
+#= 56
+
+#% section
+# See also
+
+#% text
+# `subsets`, `partition`, `sequence_cases`

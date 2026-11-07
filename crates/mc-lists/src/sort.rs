@@ -255,11 +255,15 @@ pub(crate) fn sort<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
                 Ok(order.cmp(b, a) == Ordering::Less)
             })
         }
-        // `b` (later) goes before `a` unless `by(a, b)` holds: elements for which neither holds trade places,
-        // as in the reference sort (decision cov-core.7)
+        // `b` (later) goes before `a` when `by(a, b)` is `false`: elements for which neither holds trade places,
+        // as in the reference sort; an undecided `by(a, b)` keeps them (decision cov-core.7)
         Some(by) => merge_sort(&mut v, &mut |b, a| {
             cx.tick(1)?;
-            Ok(!decide(lib, cx, by, a, b)?)
+            let v = apply(cx, by, &[a, b])?;
+            if lib.is_failure(cx.heap(), v) {
+                return Err(Halt::Fail(v));
+            }
+            Ok(v == cx.bool(false))
         }),
     };
     match r {

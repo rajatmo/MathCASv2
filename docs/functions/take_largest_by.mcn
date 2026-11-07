@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# take_largest_by
+
+#% text
+# `take_largest_by(xs, f, n)` gives the `n` elements of `xs` with the largest values of `f(x)`, largest first.
+
+#% section
+# Details
+
+#% item
+# Values are compared numerically; equal values keep their order.
+
+#% item
+# `n` may be `up_to(n)`; an association keeps the chosen entries.
+
+#% item
+# `take_largest_by(f, n)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take_largest_by([-5, -2, 4, 3, 1, 9, 2, -4], abs, 4)
+#% output
+#= [9, -5, 4, -4]
+
+#% cell
+take_largest_by(["", "xxx", "xx"], string_length, 2)
+#% output
+#= ["xxx", "xx"]
+
+#% cell
+take_largest_by([-5, 7, 4], abs, up_to(4))
+#% output
+#= [7, -5, 4]
+
+#% subsection
+# Scope
+
+#% cell
+take_largest_by(assoc(a -> "", b -> "xxx", c -> "xx"), string_length, 2)
+#% output
+#= assoc(b -> "xxx", c -> "xx")
+
+#% cell
+take_largest_by(string_length, 1)(["ab", "abc"])
+#% output
+#= ["abc"]
+
+#% section
+# See also
+
+#% text
+# `take_smallest_by`, `take_largest`, `max_by`, `sort_by`

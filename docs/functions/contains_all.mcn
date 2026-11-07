@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# contains_all
+
+#% text
+# `contains_all(xs, ys)` tests whether the list `xs` has every element of `ys`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# An association stands for its values.
+
+#% item
+# `contains_all(ys)` is the operator form, applied to `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+contains_all([b, a, b, c], [a, b])
+#% output
+#= true
+
+#% cell
+contains_all([d, f, e], [a, b, c])
+#% output
+#= false
+
+#% cell
+contains_all([1, 2], [])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+contains_all(assoc(a -> x, b -> y), [x, y, z])
+#% output
+#= false
+
+#% cell
+contains_all([1, 2, 3])([2, 3])
+#% output
+#= false
+
+#% cell
+contains_all(characters("facetious"), ["a", "e", "i"])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `contains_any`, `contains_none`, `contains_only`, `contains_exactly`, `intersection`, `is_subset`

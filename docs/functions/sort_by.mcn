@@ -45,7 +45,7 @@ sort_by([[1, "b"], [2, "a"]], last)
 #% cell
 sort_by(["bc", "a", "ab", "c"], string_length)
 #% output
-#= ["a", "c", "bc", "ab"]
+#= ["a", "c", "ab", "bc"]
 
 #% text
 # Decreasing order through a negated key:

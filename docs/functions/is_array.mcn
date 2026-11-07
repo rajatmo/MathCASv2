@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# is_array
+
+#% text
+# `is_array(x)` tests whether `x` is a full array: nested lists of equal lengths to some depth, with no list among the elements at that depth.
+
+#% text
+# `is_array(x, d)` also requires depth `d`; `is_array(x, d, test)` requires `test(e)` to be true for every element.
+
+#% section
+# Details
+
+#% item
+# `d` may be an integer or a pattern the depth must match, such as `1 | 2` or `_`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_array([1, 2, 3, 4])
+#% output
+#= true
+
+#% cell
+is_array([1, 2, [3], 4])
+#% output
+#= false
+
+#% cell
+is_array([[1, 2], [3, 4]], 2)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+is_array([[1, 2], [3]])
+#% output
+#= false
+
+#% cell
+is_array([[1, 2], [3, 4]], 1 | 2)
+#% output
+#= true
+
+#% cell
+is_array([[pi, e], [1, 2]], _, is_number)
+#% output
+#= false
+
+#% cell
+is_array([], 1)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `dimensions`, `array_depth`, `is_matrix`, `is_vector`

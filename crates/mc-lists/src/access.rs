@@ -142,6 +142,8 @@ fn part_at<'h>(
                 }
                 out
             }
+            // `all`: every argument, the remaining indices applied to each (decision cov-core.10)
+            View::Sym(a) if h.sym_name(a) == "all" => args.to_vec(),
             View::Sym(_) | View::App { .. } => return Ok(Err(Stop::Symbolic)),
             _ => return Ok(Err(Stop::Fail(lib.bad_index(h, i, args.len())))),
         };
@@ -373,10 +375,26 @@ pub(crate) fn take_<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     if specs.is_empty() {
         return Ok(Reply::Decline);
     }
+    let capped = up_to_specs(cx, x, specs);
+    let specs = capped.as_deref().unwrap_or(specs);
     Ok(match take_drop(lib, cx, t, x, specs, false)? {
         Ok(v) => settled(lib, cx.heap(), v),
         Err(r) => r,
     })
+}
+
+/// The specifications with `up_to(n)` as the first replaced by `n` capped at the length of `x` (decision
+/// cov-core.8), or `None` when there is none.
+fn up_to_specs<'h>(cx: &NativeCx<'_, '_, 'h>, x: T<'h>, specs: &[T<'h>]) -> Option<Vec<T<'h>>> {
+    let h = cx.heap();
+    let len = match h.packed(x) {
+        Some(p) => p.dims().first().map_or(0, |&d| d as usize),
+        None => crate::ctx::compound(h, x)?.1.len(),
+    };
+    let n = crate::more::up_to_count(h, specs[0], len)?;
+    let mut v = specs.to_vec();
+    v[0] = h.int(n);
+    Some(v)
 }
 
 /// `drop(xs, spec, ...)`: all but the arguments the specification selects (as `take`'s).
@@ -385,6 +403,8 @@ pub(crate) fn drop<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     if specs.is_empty() {
         return Ok(Reply::Decline);
     }
+    let capped = up_to_specs(cx, x, specs);
+    let specs = capped.as_deref().unwrap_or(specs);
     Ok(match take_drop(lib, cx, t, x, specs, true)? {
         Ok(v) => settled(lib, cx.heap(), v),
         Err(r) => r,

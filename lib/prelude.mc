@@ -40,3 +40,16 @@ fn fix_point(f, x, rest...) = last(apply(fixed_point_list, join([f, x], rest)))
 
 # say(x, ...): print the arguments on one line (strings as their text, other values printed); the value is null
 fn say(parts...) = { print(string_join(map(to_string, parts))); null }
+
+# is_ordered(xs), is_ordered(xs, p): whether the elements of xs are in order (canonical, or by the predicate p)
+fn is_ordered(xs, rest...) = apply(ordered, join([xs], rest))
+
+# replace_repeated(e, rules): the rules applied over and over until e no longer changes
+fn replace_repeated(e, rules) = rewrite(e, rules, strategy: fixed_point)
+
+# reverse_sort_by(xs, f): the elements of xs in decreasing order of f(x)
+fn reverse_sort_by(xs, f) = reverse(sort_by(xs, f))
+
+# block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks partition(xs, n) (offset d)
+fn block_map(f, xs, n) = map(f, partition(xs, n))
+fn block_map(f, xs, n, d) = map(f, partition(xs, n, d))

@@ -441,7 +441,9 @@ fn part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, tab: &Table<'h>, i: T<'h>,
             }
         }
         // `all`: every row, so `ds[all, "y"]` is the column `y` as a list (G63)
-        View::Sym(a) if h.sym_name(a) == "all" && tab.column(i).is_none() => (0..n).collect(),
+        View::Sym(a) if h.sym_name(a) == "all" && tab.column(i).is_none() && more.first().is_some_and(|&c| tab.column(c).is_some()) => {
+            (0..n).collect()
+        }
         _ => match (cx.as_list(i), tab.column(i)) {
             (_, Some(j)) => return Ok(then(tab.terms[j])),
             (Some(ks), None) => {

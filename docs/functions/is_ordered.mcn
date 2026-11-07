@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# is_ordered
+
+#% text
+# `is_ordered(xs)` tests whether the elements of `xs` are in canonical order; `is_ordered(xs, p)` whether `p(a, b)` holds for every pair of neighbours.
+
+#% section
+# Details
+
+#% item
+# Equal neighbours count as ordered.
+
+#% item
+# Defined in the prelude through `ordered`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_ordered([1, 4, 2])
+#% output
+#= false
+
+#% cell
+is_ordered(["cat", "catfish", "fish"])
+#% output
+#= true
+
+#% cell
+is_ordered([1, 2, 2, 4])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+is_ordered([4, 3, 2, 1], greater)
+#% output
+#= true
+
+#% cell
+is_ordered([4, 3, 3, 1], greater)
+#% output
+#= false
+
+#% cell
+is_ordered([4, 3, 3, 1], greater_equal)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `ordered`, `sort`, `ordering`

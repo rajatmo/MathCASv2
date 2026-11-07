@@ -79,6 +79,29 @@ pub(crate) fn catenate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
 /// `partition(xs, n, d)`: runs starting every `d` elements (overlapping for `d < n`). `n` and `d` are positive.
 pub(crate) fn partition<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `partition(xs, up_to(n))`, `partition(xs, up_to(n), d)`: pieces of n, the last ones shorter (decision
+    // cov-core.8)
+    if let (Some(&xs), Some(&n)) = (args.first(), args.get(1)) {
+        if let (Some(xs), Some(k)) = (cx.as_list(xs), crate::more::up_to_count(h, n, usize::MAX)) {
+            let d = match args.get(2).map(|&d| h.view(d)) {
+                None => k,
+                Some(View::Int(d)) if d > 0 => d,
+                Some(_) => return Ok(Reply::Decline),
+            };
+            if k <= 0 || args.len() > 3 {
+                return Ok(Reply::Decline);
+            }
+            let (k, d) = (k as usize, d as usize);
+            let mut out = vec![];
+            let mut i = 0;
+            while i < xs.len() {
+                cx.tick(1)?;
+                out.push(cx.list(&xs[i..(i + k).min(xs.len())]));
+                i += d;
+            }
+            return Ok(Reply::Done(cx.list(&out)));
+        }
+    }
     if args.len() >= 2 && (args.len() > 3 || cx.as_list(args[1]).is_some()) {
         return partition_general(lib, cx, t, args);
     }

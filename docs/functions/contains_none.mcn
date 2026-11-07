@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# contains_none
+
+#% text
+# `contains_none(xs, ys)` tests whether the list `xs` has no element of `ys`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# An association stands for its values.
+
+#% item
+# `contains_none(ys)` is the operator form, applied to `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+contains_none([c, d, c], [a, b])
+#% output
+#= true
+
+#% cell
+contains_none([d, f, e], [a, b, c])
+#% output
+#= true
+
+#% cell
+contains_none([1, 2], [])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+contains_none(assoc(a -> x, b -> y), [x, y, z])
+#% output
+#= false
+
+#% cell
+contains_none([1, 2, 3])([2, 3])
+#% output
+#= false
+
+#% cell
+contains_none(characters("facetious"), ["a", "e", "i"])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `contains_any`, `contains_all`, `contains_only`, `contains_exactly`, `intersection`, `is_subset`

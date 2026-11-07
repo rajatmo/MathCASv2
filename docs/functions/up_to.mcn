@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# up_to
+
+#% text
+# `up_to(n)` stands for "at most `n`": `take`, `drop`, `take_drop`, `partition`, `take_largest`, `take_smallest` and the `_by` forms use as many elements as there are, up to `n`.
+
+#% section
+# Details
+
+#% item
+# `up_to(n)` on its own stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take([a, b, c, d], up_to(6))
+#% output
+#= [a, b, c, d]
+
+#% cell
+take([a, b, c, d], up_to(2))
+#% output
+#= [a, b]
+
+#% cell
+drop([a, b, c, d], up_to(6))
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% cell
+partition(range(10), up_to(3))
+#% output
+#= [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10]]
+
+#% cell
+partition([a, b, c, d, e], up_to(3), 1)
+#% output
+#= [[a, b, c], [b, c, d], [c, d, e], [d, e], [e]]
+
+#% cell
+take_largest([1, 5, 3], up_to(5))
+#% output
+#= [5, 3, 1]
+
+#% section
+# See also
+
+#% text
+# `take`, `drop`, `partition`, `take_largest`

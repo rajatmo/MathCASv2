@@ -203,6 +203,9 @@ pub const OPERATOR_FORMS: &[(&str, OperatorForm)] = {
         ("contains_any", F), ("contains_all", F), ("contains_none", F), ("key_member", F),
         ("map", L), ("apply", L), ("map_indexed", L), ("fold", L), ("fold_list", L), ("scan", L),
         ("key_map", L), ("key_value_map", L), ("assoc_map", L), ("map_thread", L),
+        ("map_apply", L), ("comap", L), ("comap_apply", L), ("map_all", L), ("replace_at", F), ("contains_only", F),
+        ("contains_exactly", F), ("take_largest_by", F),
+        ("take_smallest_by", F), ("reverse_sort_by", F),
     ]
 };
 

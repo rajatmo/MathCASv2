@@ -119,3 +119,72 @@ fn ordering_rules() {
         ("sort_by([[1, 2, 3], [2, 3, 1], [3, 1, 2], [2, 2]], last)", "[[2, 3, 1], [2, 2], [3, 1, 2], [1, 2, 3]]"),
     ]);
 }
+
+#[test]
+fn functional_forms() {
+    check(&[
+        ("map_apply(f, [[a, b], [c, d]])", "[f(a, b), f(c, d)]"),
+        ("map_apply(f, [a, 1, [b, 2]])", "[a, 1, f(b, 2)]"),
+        ("map_apply(f)([[1], [2, 3]])", "[f(1), f(2, 3)]"),
+        ("comap([f, g], x)", "[f(x), g(x)]"),
+        ("comap(f + g, x)", "f(x) + g(x)"),
+        ("comap(assoc(\"a\" -> f), x)", "assoc(\"a\" -> f(x))"),
+        ("comap_apply([add, mul], [2, 3, 4])", "[9, 24]"),
+        ("map_all(f, [a, [b]])", "f([f(a), f([f(b)])])"),
+        ("fold_pair_list((y, x) => [p(y, x), q(y, x)], u, [1, 2])", "[p(u, 1), p(q(u, 1), 2)]"),
+        ("fold_pair_list(take_drop, [a, b, c, d, e, f], [1, 3, 2])", "[[a], [b, c, d], [e, f]]"),
+        ("fold_pair(list, u, [1, 2, 3], last)", "3"),
+        ("fold_pair(f, y0, [])", "fold_pair(f, y0, [])"),
+        ("construct(f, a, b)", "f(a, b)"),
+        ("identity([1])", "[1]"),
+        ("hold_complete(1 + 1)", "hold_complete(1 + 1)"),
+        ("[check(1 + 1, err), check(1/0, err)]", "[2, err]"),
+        ("vv = 3; [value_q(vv), value_q(ww)]", "[true, false]"),
+        ("[xor(true, false), xor(true, true), implies(false, x), implies(true, x), true_q(1)]", "[true, false, true, x, false]"),
+    ]);
+}
+
+#[test]
+fn list_tests_and_constructions() {
+    check(&[
+        ("[is_array([1, 2]), is_array([1, [2]]), is_array([[1, 2], [3]]), is_array([[1, 2], [3, 4]], 2)]", "[true, false, false, true]"),
+        ("is_array([[1, 2], [3, 4]], 1 | 2, is_number)", "true"),
+        ("subsequences([a, b, c])", "[[], [a], [b], [c], [a, b], [b, c], [a, b, c]]"),
+        ("subsequences([a, b, c, d], [2])", "[[a, b], [b, c], [c, d]]"),
+        ("[contains_any([b, a], [a, c]), contains_all([b, a], [a, c]), contains_none([b], [a]), contains_only([a, a], [a, b]), contains_exactly([a, b, a], [b, a])]", "[true, false, true, true, true]"),
+        ("nearest([1, 2, 4, 8, 16, 32], 20, 3)", "[16, 8, 32]"),
+        ("nearest([\"aaaa\", \"abaa\", \"bbbb\"], \"aaba\")", "[\"aaaa\"]"),
+        ("pick([[a, b, c], [d, e, f]], [[1, 0, 0], [0, 1, 1]], 1)", "[[a], [e, f]]"),
+        ("min_max([3, 1, 4], [1, 2])", "[0, 6]"),
+        ("take_drop([a, b, c], up_to(5))", "[[a, b, c], []]"),
+        ("power_range(1/2, 1/100, 1/3)", "[1/2, 1/6, 1/18, 1/54]"),
+        ("first_position([[a, b], [c, a]], a)", "[1, 1]"),
+        ("[count_distinct([1, 2, 1]), delete_elements([1, 2, 3, 1], [1]), position_largest([1, 3, 3])]", "[2, [2, 3], [[2], [3]]]"),
+        ("symmetric_difference([1, 2, 3], [2, 4])", "[1, 3, 4]"),
+        ("to_character_code(\"AB\")", "[65, 66]"),
+        ("character_range(\"a\", \"c\")", "[\"a\", \"b\", \"c\"]"),
+        ("partition([a, b, c, d, e], up_to(2))", "[[a, b], [c, d], [e]]"),
+        ("replace_at([a, a, a], a -> x, -1)", "[a, a, x]"),
+        ("replace_at([[a, a], [a, a]], a -> x, [2, 1])", "[[a, a], [x, a]]"),
+        ("take_largest_by([-5, -2, 4, 3, 1, 9, 2, -4], abs, 4)", "[9, -5, 4, -4]"),
+        ("take_smallest_by(assoc(a -> 5, b -> -1, c -> 2), abs, 2)", "assoc(b -> -1, c -> 2)"),
+        ("[is_ordered([1, 4, 2]), is_ordered([4, 3, 1], greater)]", "[false, true]"),
+        ("reverse_sort_by(range(-2, 2), abs)", "[2, -2, 1, -1, 0]"),
+        ("block_map(total, range(6), 2)", "[3, 7, 11]"),
+        ("replace_repeated(x^2 + y^2, [x -> y, y -> z])", "2*z^2"),
+    ]);
+}
+
+#[test]
+fn parts_groups_and_first_selections() {
+    check(&[
+        ("m = [[1, 2, 3], [4, 5, 6]]; part(m, all, 2)", "[2, 5]"),
+        ("extract(m, [[all, 1], [all, 3]])", "[[1, 4], [3, 6]]"),
+        ("group_by([[a, 10], [b, 20], [a, 30]], first -> last)", "assoc(a -> [10, 30], b -> [20])"),
+        ("group_by([[a, 10], [b, 20], [a, 30]], first -> last, total)", "assoc(a -> 40, b -> 20)"),
+        ("group_by(range(6), [is_prime, is_odd])", "assoc(false -> assoc(true -> [1], false -> [4, 6]), true -> assoc(false -> [2], true -> [3, 5]))"),
+        ("select_first([2, 3, 4, 5], is_odd -> \"Index\")", "2"),
+        ("select_first([2, 3, 4, 5], is_odd -> [\"Element\", \"Index\"])", "[3, 2]"),
+        ("sort([b, a, inf, 0], less)", "[b, a, 0, inf]"),
+    ]);
+}

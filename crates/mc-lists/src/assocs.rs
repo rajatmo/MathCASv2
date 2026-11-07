@@ -29,7 +29,8 @@ pub(crate) enum AssocMode {
 /// The functions that see an association's values ([`AssocMode::Values`]).
 const VALUES: &[&str] = &[
     "total", "max", "min", "count", "cases", "all_true", "any_true", "none_true", "select_first", "first_case",
-    "member_of", "tally", "count_by", "gather_by", "first", "last", "free_of",
+    "member_of", "tally", "count_by", "gather_by", "first", "last", "free_of", "min_max", "count_distinct",
+    "position_largest", "position_smallest",
 ];
 
 /// The functions whose results keep the association's keys ([`AssocMode::Keyed`]).

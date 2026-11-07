@@ -56,6 +56,7 @@ mod group;
 mod levels;
 mod matching;
 mod measure;
+mod more;
 mod parallel;
 mod predicates;
 mod reduce;
@@ -358,12 +359,88 @@ functions! {
         "to_string(t): the printed form of t (a string stays itself)";
     "string_length" => strings::string_length,
         "string_length(s): the number of characters of s";
+    "map_apply" => more::map_apply,
+        "map_apply(f, xs): each element g(a, b, ...) of xs as f(a, b, ...)";
+    "comap" => more::comap,
+        "comap(fs, x): each function g of fs applied to x, keeping the head of fs ([f, g] gives [f(x), g(x)])";
+    "comap_apply" => more::comap_apply,
+        "comap_apply(fs, xs): each function g of fs applied to the elements of xs as arguments";
+    "map_all" => more::map_all,
+        "map_all(f, x): f applied to every part of x, innermost first";
+    "is_array" => more::is_array,
+        "is_array(x), is_array(x, d), is_array(x, d, test): whether x is a full array (of depth d, with test true for each element)";
+    "fold_pair_list" => more::fold_pair_list,
+        "fold_pair_list(f, y, xs), fold_pair_list(f, y, xs, g): the outputs of f(y, x) = [out, y'] for each element in turn";
+    "fold_pair" => more::fold_pair,
+        "fold_pair(f, y, xs), fold_pair(f, y, xs, g): the last output of fold_pair_list";
+    "subsequences" => more::subsequences,
+        "subsequences(xs), subsequences(xs, n | [n] | [a, b]): the runs of consecutive elements, by length";
+    "contains_any" => more::contains_any,
+        "contains_any(xs, ys): whether xs has some element of ys";
+    "contains_all" => more::contains_all,
+        "contains_all(xs, ys): whether xs has every element of ys";
+    "contains_none" => more::contains_none,
+        "contains_none(xs, ys): whether xs has no element of ys";
+    "contains_only" => more::contains_only,
+        "contains_only(xs, ys): whether every element of xs is in ys";
+    "contains_exactly" => more::contains_exactly,
+        "contains_exactly(xs, ys): whether xs and ys have the same distinct elements";
+    "nearest" => more::nearest,
+        "nearest(xs, x), nearest(xs, x, n): the elements of xs nearest to x (numbers, vectors, strings)";
+    "pick" => more::pick,
+        "pick(xs, sel), pick(xs, sel, p): the elements of xs where sel is true (or matches p)";
+    "min_max" => more::min_max,
+        "min_max(xs), min_max(xs, d): [min(xs), max(xs)], widened by d";
+    "take_drop" => more::take_drop,
+        "take_drop(xs, n): [take(xs, n), drop(xs, n)]";
+    "power_range" => more::power_range,
+        "power_range(a, b), power_range(a, b, r): a, a r, a r^2, ... up to b (r = 10 by default)";
+    "first_position" => more::first_position,
+        "first_position(x, p), first_position(x, p, d): the position of the first part of x matching p";
+    "count_distinct" => more::count_distinct,
+        "count_distinct(xs): the number of distinct elements of xs";
+    "delete_elements" => more::delete_elements,
+        "delete_elements(xs, es): xs without the elements of es";
+    "position_largest" => more::position_largest,
+        "position_largest(xs): the positions of the largest elements of xs";
+    "position_smallest" => more::position_smallest,
+        "position_smallest(xs): the positions of the smallest elements of xs";
+    "symmetric_difference" => more::symmetric_difference,
+        "symmetric_difference(xs, ys, ...): the sorted elements in an odd number of the lists";
+    "xor" => more::xor,
+        "xor(a, b, ...): true when an odd number of the arguments are true";
+    "implies" => more::implies,
+        "implies(p, q): the logical implication p => q";
+    "true_q" => more::true_q,
+        "true_q(x): whether x is true (anything else gives false)";
+    "construct" => more::construct,
+        "construct(f, a, b, ...): f(a, b, ...)";
+    "identity" => more::identity,
+        "identity(x): x itself";
+    "hold_complete" => more::hold_complete,
+        "hold_complete(x, ...): x kept unevaluated";
+    "check" => more::check,
+        "check(x, y): the value of x, or of y when x gives a failure";
+    "value_q" => more::value_q,
+        "value_q(x): whether x has a value";
+    "to_character_code" => more::to_character_code,
+        "to_character_code(s): the code points of the characters of s";
+    "character_range" => more::character_range,
+        "character_range(a, b): the characters from a to b";
+    "up_to" => more::up_to,
+        "up_to(n): at most n (in take, drop, partition, take_largest, ...)";
+    "take_largest_by" => structure::take_largest_by,
+        "take_largest_by(xs, f, n): the n elements with the largest f(x)";
+    "take_smallest_by" => structure::take_smallest_by,
+        "take_smallest_by(xs, f, n): the n elements with the smallest f(x)";
+    "replace_at" => structure::replace_at,
+        "replace_at(x, rules, pos): x with the part at pos replaced by replace(part, rules)";
     "split" => strings::split,
         "split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list";
 }
 
 /// The functions whose arguments are all held; every other one is strict.
-const HELD: &[&str] = &["table", "piecewise", "parallel_table", "parallel_sum"];
+const HELD: &[&str] = &["table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "value_q"];
 
 /// The functions taking a pattern after the data: the pattern may be a failure pattern (`failure(___)`), so a
 /// failure among the arguments is not their result, except as the data (decision p6core.21).

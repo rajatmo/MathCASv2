@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# contains_any
+
+#% text
+# `contains_any(xs, ys)` tests whether the list `xs` has at least one element of `ys`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# An association stands for its values.
+
+#% item
+# `contains_any(ys)` is the operator form, applied to `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+contains_any([b, a, b], [a, b, c])
+#% output
+#= true
+
+#% cell
+contains_any([d, f, e], [a, b, c])
+#% output
+#= false
+
+#% cell
+contains_any([1, 2], [])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+contains_any(assoc(a -> x, b -> y), [x, y, z])
+#% output
+#= true
+
+#% cell
+contains_any([1, 2, 3])([2, 3])
+#% output
+#= true
+
+#% cell
+contains_any(characters("facetious"), ["a", "e", "i"])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `contains_all`, `contains_none`, `contains_only`, `contains_exactly`, `intersection`, `is_subset`

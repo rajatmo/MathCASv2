@@ -34,6 +34,10 @@ zip	core	Language	zip(xs, ys): the pairs [xs[i], ys[i]], as long as the shorter 
 flat_map	core	Language	flat_map(f, xs): the lists f(x) for each element x of xs, joined into one list
 accumulate	core	Language	accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]
 fix_point	core	Language	fix_point(f, x): f applied repeatedly from x until the value no longer changes
+is_ordered	core	Language	is_ordered(xs), is_ordered(xs, p): whether the elements of xs are in order
+replace_repeated	core	Language	replace_repeated(e, rules): the rules applied until e no longer changes
+reverse_sort_by	core	Language	reverse_sort_by(xs, f): the elements in decreasing order of f(x)
+block_map	core	Language	block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks of n elements
 range	core	Lists	range(n), range(a, b), range(a, b, step): the list a, a + step, ... up to b (a and step default to 1)
 array	core	Lists	array(f, n): the list [f(1), ..., f(n)]; array(f, [n1, n2, ...]): nested lists of f(i1, i2, ...); array(f, n, r): indices from r
 table	core	Lists	table(e, k, r): e for each k in r (a list, or n for 1..n); more pairs k, r nest; table(e, n): n values of e
@@ -151,6 +155,44 @@ leaf_count	core	Lists	leaf_count(t): the number of atoms in t, heads included
 string_join	core	Lists	string_join(s1, s2, ...) or string_join([s1, ...]): the strings concatenated
 to_string	core	Lists	to_string(t): the printed form of t (a string stays itself)
 string_length	core	Lists	string_length(s): the number of characters of s
+map_apply	core	Lists	map_apply(f, xs): each element g(a, b, ...) of xs as f(a, b, ...)
+comap	core	Lists	comap(fs, x): each function g of fs applied to x, keeping the head of fs ([f, g] gives [f(x), g(x)])
+comap_apply	core	Lists	comap_apply(fs, xs): each function g of fs applied to the elements of xs as arguments
+map_all	core	Lists	map_all(f, x): f applied to every part of x, innermost first
+is_array	core	Lists	is_array(x), is_array(x, d), is_array(x, d, test): whether x is a full array (of depth d, with test true for each element)
+fold_pair_list	core	Lists	fold_pair_list(f, y, xs), fold_pair_list(f, y, xs, g): the outputs of f(y, x) = [out, y'] for each element in turn
+fold_pair	core	Lists	fold_pair(f, y, xs), fold_pair(f, y, xs, g): the last output of fold_pair_list
+subsequences	core	Lists	subsequences(xs), subsequences(xs, n | [n] | [a, b]): the runs of consecutive elements, by length
+contains_any	core	Lists	contains_any(xs, ys): whether xs has some element of ys
+contains_all	core	Lists	contains_all(xs, ys): whether xs has every element of ys
+contains_none	core	Lists	contains_none(xs, ys): whether xs has no element of ys
+contains_only	core	Lists	contains_only(xs, ys): whether every element of xs is in ys
+contains_exactly	core	Lists	contains_exactly(xs, ys): whether xs and ys have the same distinct elements
+nearest	core	Lists	nearest(xs, x), nearest(xs, x, n): the elements of xs nearest to x (numbers, vectors, strings)
+pick	core	Lists	pick(xs, sel), pick(xs, sel, p): the elements of xs where sel is true (or matches p)
+min_max	core	Lists	min_max(xs), min_max(xs, d): [min(xs), max(xs)], widened by d
+take_drop	core	Lists	take_drop(xs, n): [take(xs, n), drop(xs, n)]
+power_range	core	Lists	power_range(a, b), power_range(a, b, r): a, a r, a r^2, ... up to b (r = 10 by default)
+first_position	core	Lists	first_position(x, p), first_position(x, p, d): the position of the first part of x matching p
+count_distinct	core	Lists	count_distinct(xs): the number of distinct elements of xs
+delete_elements	core	Lists	delete_elements(xs, es): xs without the elements of es
+position_largest	core	Lists	position_largest(xs): the positions of the largest elements of xs
+position_smallest	core	Lists	position_smallest(xs): the positions of the smallest elements of xs
+symmetric_difference	core	Lists	symmetric_difference(xs, ys, ...): the sorted elements in an odd number of the lists
+xor	core	Lists	xor(a, b, ...): true when an odd number of the arguments are true
+implies	core	Lists	implies(p, q): the logical implication p => q
+true_q	core	Lists	true_q(x): whether x is true (anything else gives false)
+construct	core	Lists	construct(f, a, b, ...): f(a, b, ...)
+identity	core	Lists	identity(x): x itself
+hold_complete	core	Lists	hold_complete(x, ...): x kept unevaluated
+check	core	Lists	check(x, y): the value of x, or of y when x gives a failure
+value_q	core	Lists	value_q(x): whether x has a value
+to_character_code	core	Lists	to_character_code(s): the code points of the characters of s
+character_range	core	Lists	character_range(a, b): the characters from a to b
+up_to	core	Lists	up_to(n): at most n (in take, drop, partition, take_largest, ...)
+take_largest_by	core	Lists	take_largest_by(xs, f, n): the n elements with the largest f(x)
+take_smallest_by	core	Lists	take_smallest_by(xs, f, n): the n elements with the smallest f(x)
+replace_at	core	Lists	replace_at(x, rules, pos): x with the part at pos replaced by replace(part, rules)
 split	core	Lists	split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list
 union	core	Associations and sets	union(xs, ys, ...): the elements of any argument, without repetitions, in canonical order
 intersection	core	Associations and sets	intersection(xs, ys, ...): the elements of every argument, without repetitions, in canonical order

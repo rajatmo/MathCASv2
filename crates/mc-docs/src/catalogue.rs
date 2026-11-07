@@ -117,6 +117,10 @@ const PRELUDE: &[(&str, &str)] = &[
     ("flat_map", "flat_map(f, xs): the lists f(x) for each element x of xs, joined into one list"),
     ("accumulate", "accumulate(xs): the running sums [xs[1], xs[1] + xs[2], ...]"),
     ("fix_point", "fix_point(f, x): f applied repeatedly from x until the value no longer changes"),
+    ("is_ordered", "is_ordered(xs), is_ordered(xs, p): whether the elements of xs are in order"),
+    ("replace_repeated", "replace_repeated(e, rules): the rules applied until e no longer changes"),
+    ("reverse_sort_by", "reverse_sort_by(xs, f): the elements in decreasing order of f(x)"),
+    ("block_map", "block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks of n elements"),
 ];
 
 /// Natives that the syntax lowers to (definitions, blocks, control, bindings) or that serve other natives: not

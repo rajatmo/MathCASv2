@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# hold_complete
+
+#% text
+# `hold_complete(x, ...)` keeps its arguments unevaluated.
+
+#% section
+# Details
+
+#% item
+# The result stays as the call `hold_complete(...)`.
+
+#% item
+# Take the parts out with `part`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hold_complete(1 + 1)
+#% output
+#= hold_complete(1 + 1)
+
+#% cell
+hold_complete(1 + 2, 2*3)
+#% output
+#= hold_complete(1 + 2, 2*3)
+
+#% cell
+hold_complete(x = 5)
+#% output
+#= hold_complete(x = 5)
+
+#% subsection
+# Scope
+
+#% cell
+length(hold_complete(a, b, c))
+#% output
+#= 3
+
+#% cell
+hold_complete(1 + 1)[1]
+#% output
+#= 1 + 1
+
+#% section
+# See also
+
+#% text
+# `construct`, `identity`

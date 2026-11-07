@@ -140,9 +140,37 @@ pub(crate) fn select_first<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         [xs, f, d] => (xs, f, Some(d)),
         _ => return Ok(Reply::Decline),
     };
+    // `select_first(xs, f -> "Index")`, `-> "Element"`, `-> ["Element", "Index"]` (a final rule may arrive as
+    // options; decision cov-core.11)
+    let f = match h.view(f) {
+        View::App { head, args: &[r] } if head == h.sym_term(h.sym("options")) => r,
+        _ => f,
+    };
+    let (f, prop) = match h.view(f) {
+        View::App { head, args: &[p, q] } if head == h.sym_term(lib.s.rule) => (p, Some(q)),
+        _ => (f, None),
+    };
+    let shown = |x: T<'h>, i: usize, q: T<'h>| -> Option<T<'h>> {
+        match h.view(q) {
+            View::Str(s) if s == "Element" => Some(x),
+            View::Str(s) if s == "Index" => Some(h.int(i as i64 + 1)),
+            _ => None,
+        }
+    };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
-    for &x in xs {
+    for (i, &x) in xs.iter().enumerate() {
         match truth(lib, cx, f, x)? {
+            Ok(true) if prop.is_some() => {
+                let q = prop.unwrap_or(x);
+                let v = match cx.as_list(q) {
+                    Some(qs) => qs.iter().map(|&q| shown(x, i, q)).collect::<Option<Vec<_>>>().map(|v| cx.list(&v)),
+                    None => shown(x, i, q),
+                };
+                return Ok(match v {
+                    Some(v) => Reply::Done(v),
+                    None => Reply::Decline,
+                });
+            }
             Ok(true) => return Ok(Reply::Done(x)),
             Ok(false) => {}
             Err(e) => return Ok(Reply::Done(e)),

@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# reverse_sort_by
+
+#% text
+# `reverse_sort_by(xs, f)` sorts the elements of `xs` in decreasing order of `f(x)`.
+
+#% section
+# Details
+
+#% item
+# It is `reverse(sort_by(xs, f))`; elements with equal keys come in reverse canonical order.
+
+#% item
+# `reverse_sort_by(f)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reverse_sort_by([[1, 3], [2, 1], [2, 2], [3, 2]], last)
+#% output
+#= [[1, 3], [3, 2], [2, 2], [2, 1]]
+
+#% cell
+reverse_sort_by(range(10), x => mod(x, 3))
+#% output
+#= [8, 5, 2, 10, 7, 4, 1, 9, 6, 3]
+
+#% cell
+reverse_sort_by(["dog", "zebra", "donkey"], string_length)
+#% output
+#= ["donkey", "zebra", "dog"]
+
+#% subsection
+# Scope
+
+#% cell
+reverse_sort_by(range(-3, 3), abs)
+#% output
+#= [3, -3, 2, -2, 1, -1, 0]
+
+#% cell
+reverse_sort_by(last)([[1, 3], [2, 1]])
+#% output
+#= [[1, 3], [2, 1]]
+
+#% section
+# See also
+
+#% text
+# `sort_by`, `reverse_sort`, `sort`

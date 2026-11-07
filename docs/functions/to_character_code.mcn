@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# to_character_code
+
+#% text
+# `to_character_code(s)` gives the Unicode code points of the characters of `s`; a list of strings gives one list each.
+
+#% section
+# Details
+
+#% item
+# `from_characters` turns code points back into a string.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+to_character_code("ABC")
+#% output
+#= [65, 66, 67]
+
+#% cell
+to_character_code("éα")
+#% output
+#= [233, 945]
+
+#% cell
+to_character_code(["ab", "c"])
+#% output
+#= [[97, 98], [99]]
+
+#% subsection
+# Scope
+
+#% cell
+to_character_code("a") + 1
+#% output
+#= [98]
+#% cell
+to_character_code("")
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `from_characters`, `characters`, `character_range`

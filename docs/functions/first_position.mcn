@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# first_position
+
+#% text
+# `first_position(x, p)` gives the position of the first part of `x` that matches `p`, in the order `position` uses; `first_position(x, p, d)` gives `d` when nothing matches.
+
+#% section
+# Details
+
+#% item
+# Without a default, no match gives `missing("NotFound")`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+first_position([[a, b], [c, a]], a)
+#% output
+#= [1, 1]
+
+#% cell
+first_position([1, 2, 3, 2], 2)
+#% output
+#= [2]
+#% cell
+first_position([1, 2], x)
+#% output
+#= missing("NotFound")
+
+#% subsection
+# Scope
+
+#% cell
+first_position([1, 2], x, 0)
+#% output
+#= 0
+
+#% cell
+first_position(f(g(1), h(2)), 2)
+#% output
+#= [2, 1]
+
+#% section
+# See also
+
+#% text
+# `position`, `first_case`, `select_first`

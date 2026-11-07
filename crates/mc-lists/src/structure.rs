@@ -187,7 +187,7 @@ pub(crate) fn dimensions<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h
     Ok(Reply::Done(cx.list(&v)))
 }
 
-fn dims_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>) -> Res<Vec<usize>> {
+pub(crate) fn dims_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>) -> Res<Vec<usize>> {
     let h = cx.heap();
     if let Some(p) = h.packed(x) {
         return Ok(p.dims().iter().map(|&d| d as usize).collect());
@@ -237,7 +237,26 @@ pub(crate) fn extract<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
         }
         // positions in the term itself (as `position` gives them): the structural parts below
     }
-    let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
+    let Some(ps) = positions(h, cx, spec) else {
+        // positions with `all` or lists of indices: `part` of each (decision cov-core.10)
+        let part = h.sym_term(h.sym("part"));
+        let one = |p: T<'h>| -> Option<T<'h>> {
+            let mut a = vec![x];
+            match cx.as_list(p) {
+                Some(is) => a.extend_from_slice(is),
+                None => a.push(p),
+            }
+            Some(h.app(part, &a))
+        };
+        return Ok(match cx.as_list(spec) {
+            Some(xs) if !xs.is_empty() && xs.iter().all(|&p| cx.as_list(p).is_some()) => {
+                let v: Option<Vec<T<'h>>> = xs.iter().map(|&p| one(p)).collect();
+                v.map_or(Reply::Decline, |v| Reply::Again(cx.list(&v)))
+            }
+            Some(_) => one(spec).map_or(Reply::Decline, Reply::Again),
+            None => Reply::Decline,
+        });
+    };
     let several = cx.as_list(spec).is_some_and(|xs| xs.first().is_some_and(|&y| cx.as_list(y).is_some()));
     let mut out = Vec::with_capacity(ps.len());
     for p in &ps {
@@ -356,6 +375,27 @@ fn replace_walk<'l, 'h>(
         pos.pop();
     }
     Ok(if changed { h.app(head, &out) } else { x })
+}
+
+/// `replace_at(x, rules, pos)`: `x` with the part at the position (an index, `[i, j, ...]`, or a list of
+/// positions; negative indices count from the end) replaced by `replace(part, rules)`; a position named twice is
+/// rewritten twice.
+pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [x, rules, spec] = *args else { return Ok(Reply::Decline) };
+    let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
+    let replace = h.sym_term(h.sym("replace"));
+    let mut cur = x;
+    for p in ps {
+        cx.tick(1)?;
+        let Ok(part) = part_at(h, cur, &p) else { return Ok(Reply::Done(lib.bad_index(h, h.int(p[0]), 0))) };
+        let v = cx.eval(h.app(replace, &[part, rules]))?;
+        match rebuild_at(h, cur, &p, Edit::Set(v)) {
+            Ok(Some(u)) => cur = u,
+            _ => return Ok(Reply::Decline),
+        }
+    }
+    Ok(settle(lib, h, cur))
 }
 
 /// The edit at each of several positions, the deepest and last first so earlier positions stay valid.
@@ -615,7 +655,15 @@ pub(crate) fn take_smallest<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T
 fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [xs, n] = *args else { return Ok(Reply::Decline) };
-    let View::Int(count @ 0..) = h.view(n) else { return Ok(Reply::Decline) };
+    let count = match h.view(n) {
+        View::Int(k @ 0..) => k,
+        _ => match crate::more::up_to_count(h, n, usize::MAX) {
+            // `up_to(n)`: at most the number of elements
+            Some(k) => k.min(cx.as_list(xs).map_or(0, |v| v.len() as i64)),
+            None => return Ok(Reply::Decline),
+        },
+    };
+    let n = h.int(count);
     // `take_largest(xs -> prop, n)`: "Element", "Index", a list of them, or `all` (an association of both)
     let (xs, prop) = match h.view(xs) {
         View::App { head, args: [l, p] } if head == h.sym_term(h.sym("rule")) => (*l, Some(*p)),
@@ -623,11 +671,7 @@ fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool
     };
     let sym = |s: &str| h.sym_term(h.sym(s));
     if let Some(elems) = cx.as_list(xs) {
-        if let Some(mut ix) = by_value(cx, elems)? {
-            // largest first (equal values: the later first)
-            if largest {
-                ix.reverse();
-            }
+        if let Some(mut ix) = by_value(cx, elems, largest)? {
             if count as usize > ix.len() {
                 return Ok(Reply::Decline);
             }
@@ -682,12 +726,15 @@ fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool
 /// The positions of `xs` in increasing order of value (stable), when every element is a real number or a closed
 /// numeric expression with a machine value (`exp(pi)`, `7*pi`: numerical order, decision cov-core.6) or a
 /// number-like value such as a quantity (`crate::sort::value_order`). `None` otherwise.
-fn by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>]) -> Res<Option<Vec<usize>>> {
+fn by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>], largest: bool) -> Res<Option<Vec<usize>>> {
     let h = cx.heap();
     if xs.is_empty() || xs.len() > 100_000 {
         return Ok(None);
     }
-    if let Some(ix) = crate::sort::value_order(cx, xs)? {
+    if let Some(mut ix) = crate::sort::value_order(cx, xs)? {
+        if largest {
+            ix.reverse();
+        }
         return Ok(Some(ix));
     }
     let n = h.sym_term(h.sym("n"));
@@ -709,9 +756,60 @@ fn by_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, xs: &[T<'h>]) -> Res<Option<Vec<u
         }
         vals.push(v);
     }
+    // stable both ways: equal values keep their order
     let mut ix: Vec<usize> = (0..xs.len()).collect();
-    ix.sort_by(|&a, &b| vals[a].total_cmp(&vals[b]));
+    if largest {
+        ix.sort_by(|&a, &b| vals[b].total_cmp(&vals[a]));
+    } else {
+        ix.sort_by(|&a, &b| vals[a].total_cmp(&vals[b]));
+    }
     Ok(Some(ix))
+}
+
+/// `take_largest_by(xs, f, n)`: the `n` elements with the largest `f(x)` (numerical order; equal values in
+/// order); `take_smallest_by(xs, f, n)`; `n` may be `up_to(n)`. An association keeps the chosen entries.
+pub(crate) fn take_largest_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    take_extreme_by(lib, cx, t, args, true)
+}
+
+/// `take_smallest_by(xs, f, n)`: the `n` elements with the smallest `f(x)`.
+pub(crate) fn take_smallest_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    take_extreme_by(lib, cx, t, args, false)
+}
+
+fn take_extreme_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], largest: bool) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let [x, f, n] = *args else { return Ok(Reply::Decline) };
+    let es = crate::assocs::entries(lib, h, x);
+    let elems: Vec<T<'h>> = match &es {
+        Some(es) => es.iter().map(|&(_, v)| v).collect(),
+        None => take!(lib.list_operand(h, t, x, 1)).to_vec(),
+    };
+    let count = match h.view(n) {
+        View::Int(k @ 0..) => k as usize,
+        _ => match crate::more::up_to_count(h, n, elems.len()) {
+            Some(k) => k as usize,
+            None => return Ok(Reply::Decline),
+        },
+    };
+    if count > elems.len() {
+        return Ok(Reply::Decline);
+    }
+    let mut keys = Vec::with_capacity(elems.len());
+    for &e in &elems {
+        cx.tick(1)?;
+        keys.push(cx.eval(h.app(f, &[e]))?);
+    }
+    let Some(mut ix) = by_value(cx, &keys, largest)? else { return Ok(Reply::Decline) };
+    ix.truncate(count);
+    Ok(match es {
+        Some(es) => {
+            let rule = h.sym_term(lib.s.rule);
+            let out: Vec<T<'h>> = ix.iter().map(|&i| h.app(rule, &[es[i].0, es[i].1])).collect();
+            Reply::Done(h.app(h.sym_term(lib.s.assoc), &out))
+        }
+        None => Reply::Done(cx.list(&ix.iter().map(|&i| elems[i]).collect::<Vec<_>>())),
+    })
 }
 
 /// `full_form(x)`: `x`, shown with every part as a plain call (`add(x, pow(y, 2))`); `input_form(x)`: `x` shown in

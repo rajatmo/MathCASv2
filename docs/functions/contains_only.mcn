@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# contains_only
+
+#% text
+# `contains_only(xs, ys)` tests whether the list `xs` has no element outside `ys`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# An association stands for its values.
+
+#% item
+# `contains_only(ys)` is the operator form, applied to `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+contains_only([b, a, a], [a, b, c])
+#% output
+#= true
+
+#% cell
+contains_only([d, f, e], [a, b, c])
+#% output
+#= false
+
+#% cell
+contains_only([1, 2], [])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+contains_only(assoc(a -> x, b -> y), [x, y, z])
+#% output
+#= true
+
+#% cell
+contains_only([1, 2, 3])([2, 3])
+#% output
+#= true
+
+#% cell
+contains_only(characters("facetious"), ["a", "e", "i"])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `contains_any`, `contains_all`, `contains_none`, `contains_exactly`, `intersection`, `is_subset`

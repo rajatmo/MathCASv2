@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# replace_repeated
+
+#% text
+# `replace_repeated(e, rules)` applies the rules to `e` over and over until it no longer changes.
+
+#% section
+# Details
+
+#% item
+# It is `rewrite(e, rules, strategy: fixed_point)`; each pass rewrites every matching part once.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+replace_repeated(f(f(f(f(x)))), f(f(y_)) :> f(y))
+#% output
+#= f(x)
+
+#% cell
+replace_repeated(x^2 + y^2, [x -> y, y -> z])
+#% output
+#= 2*z^2
+#% cell
+replace_repeated(x, x -> y)
+#% output
+#= y
+
+#% subsection
+# Scope
+
+#% cell
+replace_repeated(log(a^2), log(b_^n_) :> n*log(b))
+#% output
+#= 2*log(a)
+#% cell
+replace_repeated([a, b], [a -> b, b -> c])
+#% output
+#= [c, c]
+
+#% section
+# See also
+
+#% text
+# `rewrite`, `replace`, `fix_point`

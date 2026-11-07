@@ -80,7 +80,7 @@ length(take(chain, -900))
 letters = select(characters("the quick brown fox jumps over the lazy dog"), c => c != " ")
 take(sort_by(tally(letters), p => -p[2]), 3)
 #% output
-#= [["o", 4], ["e", 3], ["t", 2]]
+#= [["o", 4], ["e", 3], ["h", 2]]
 
 #% subsection
 # Properties and relations

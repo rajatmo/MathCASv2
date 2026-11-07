@@ -46,6 +46,39 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         [xs, f, g] => (xs, f, Some(g)),
         _ => return Ok(Reply::Decline),
     };
+    // a rule `f -> v` given last arrives as options: the rule itself
+    let f = match h.view(f) {
+        View::App { head, args: &[r] } if head == h.sym_term(h.sym("options")) => r,
+        _ => f,
+    };
+    // `group_by(xs, [f1, f2, ...])` (not a dataset's column list): groups by f1, each group grouped by the rest (decision cov-core.9)
+    let of_dataset = crate::table::Table::of(&lib.d, h, xs).is_some();
+    if let Some(fs) = cx.as_list(f).filter(|fs| !fs.is_empty() && !of_dataset) {
+        if fs.len() == 1 {
+            let mut a = vec![xs, fs[0]];
+            a.extend(g);
+            return Ok(Reply::Again(h.call(h.sym("group_by"), &a)));
+        }
+        let outer = cx.eval(h.call(h.sym("group_by"), &[xs, fs[0]]))?;
+        let Some(es) = lib.as_assoc(h, outer).map(|es| es.to_vec()) else { return Ok(Reply::Done(outer)) };
+        let rest = cx.list(&fs[1..]);
+        let mut out = Vec::with_capacity(es.len());
+        for e in es {
+            let Some((k, v)) = lib.entry(h, e) else { return Ok(Reply::Decline) };
+            let mut a = vec![v, rest];
+            a.extend(g);
+            let inner = cx.eval(h.call(h.sym("group_by"), &a))?;
+            out.push(lib.rule(h, k, inner));
+        }
+        return Ok(Reply::Done(lib.assoc(h, &out)));
+    }
+    // `group_by(xs, f -> v)`: keys by f, the members mapped by v (decision cov-core.9)
+    let (f, fv) = match h.view(f) {
+        View::App { head, args: &[a, b] } if head == h.sym_term(h.sym("rule")) || head == h.sym_term(h.sym("rule_delayed")) => {
+            (a, Some(b))
+        }
+        _ => (f, None),
+    };
     // a dataset groups its rows (package data)
     if let Some(tab) = crate::table::Table::of(&lib.d, h, xs) {
         return crate::aggregate::group_dataset(lib, cx, &tab, f, g);
@@ -65,7 +98,15 @@ pub(crate) fn group_by<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     let mut groups: Vec<T<'h>> = Vec::with_capacity(keys.len());
     for m in &members {
         cx.tick(m.len() as u64 / 16)?;
-        let items: Vec<T<'h>> = m.iter().map(|&i| xs[i]).collect();
+        let mut items: Vec<T<'h>> = m.iter().map(|&i| xs[i]).collect();
+        if let Some(fv) = fv {
+            for it in items.iter_mut() {
+                *it = match lib.entry(h, *it) {
+                    Some((k, v)) if entries.is_some() => lib.rule(h, k, cx.eval(h.app(fv, &[v]))?),
+                    _ => cx.eval(h.app(fv, &[*it]))?,
+                };
+            }
+        }
         groups.push(if entries.is_some() { lib.assoc(h, &items) } else { cx.list(&items) });
     }
     if let Some(g) = g {

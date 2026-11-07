@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# xor
+
+#% text
+# `xor(a, b, ...)` is `true` when an odd number of the arguments are `true`.
+
+#% section
+# Details
+
+#% item
+# Every argument must be `true` or `false`; otherwise the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+xor(true, false)
+#% output
+#= true
+
+#% cell
+xor(true, true)
+#% output
+#= false
+
+#% cell
+xor(true, true, true)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+xor(a, true)
+#% output
+#= xor(a, true)
+
+#% cell
+map(x => xor(x, true), [true, false])
+#% output
+#= [false, true]
+
+#% section
+# See also
+
+#% text
+# `and`, `or`, `not`, `implies`
