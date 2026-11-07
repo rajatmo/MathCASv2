@@ -60,8 +60,8 @@ Editor support
 editors\vscode is a VS Code extension (no dependencies): syntax colouring for .mc and .mcn, error diagnostics while
 typing, go to definition (also into imported module files), hover, completion (including module members after
 "M."), the outline, and the commands "MathCAS: Run File" and "MathCAS: Run Selection". With this folder on PATH:
-  code --install-extension mathcas-0.3.0.vsix
-or copy editors\vscode to %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.3.0 and restart VS Code
+  code --install-extension mathcas-0.4.0.vsix
+or copy editors\vscode to %USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.4.0 and restart VS Code
 (editors\vscode\INSTALL.txt has the details and the settings). Other editors can start mc-lsp.exe as a language
 server over stdio.
 

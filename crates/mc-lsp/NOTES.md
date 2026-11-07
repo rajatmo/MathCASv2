@@ -93,8 +93,8 @@ copies `editors\vscode` into the dist and writes the `.vsix`; `tools/dist-README
 
 1. Put `mc-repl.exe` and `mc-lsp.exe` in one folder on PATH (e.g. the dist folder), or set `mathcas.repl.path` and
    `mathcas.server.path`.
-2. Either `code --install-extension mathcas-0.3.0.vsix` (the `.vsix` is in the dist; `tools\vsix.ps1 -OutDir <folder>`
-   builds one), or copy `editors\vscode` to `%USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.3.0`.
+2. Either `code --install-extension mathcas-0.4.0.vsix` (the `.vsix` is in the dist; `tools\vsix.ps1 -OutDir <folder>`
+   builds one), or copy `editors\vscode` to `%USERPROFILE%\.vscode\extensions\mathcas.mathcas-0.4.0`.
 3. Restart VS Code (or "Developer: Reload Window") and open a `.mc` file; server messages go to the "MathCAS" output
    panel.
 

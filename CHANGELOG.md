@@ -1,6 +1,21 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-11-07)
+
+**Numerical integration:** `n_integrate` chooses a method by dimension: adaptive cubature (Genz-Malik rules) for 2 to 7
+variables; randomised lattice quasi-Monte Carlo or VEGAS with VEGAS+ stratification above; Sobol and plain Monte
+Carlo on request. The integrand runs in compiled blocks on all cores, results are the same at any thread count, and
+the statistical methods return `around(value, error)`. New options `max_points`, `points`, `iterations`, `seed` and
+`error_estimate`; a message when a goal is not met. Long compiled sums and products are much faster.
+
+**Notebook:** math input keeps the cell font's brackets around powers and grows them as the same glyph around
+fractions; no shift around boxes; no completion inside comments; keyboard control of `manipulate` sliders; higher
+contrast light and dark colour schemes. The documentation window's home page is a grid of topic cards.
+
+**Documentation:** 150 new function pages (operators, predicates, lists, associations, strings, random numbers,
+distributions and statistics, colours and plot options).
+
+**Plots:** tick positions given as exact constants (`pi/2`) are placed and labelled.
 
 **Coverage (Phase 9):**
 - Regions (`mc-geom`: membership, measure, centroid, distance, polygon boolean operations).
