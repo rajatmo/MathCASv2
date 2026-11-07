@@ -25,10 +25,28 @@
 # The integrand must give a real or complex number at every sample point; a symbol left in it gives a failure.
 
 #% item
+# With several ranges the default method depends on their number: adaptive cubature for 2 to 7 variables; above 7, a randomised lattice rule when the integrand is built from analytic functions only, and VEGAS otherwise.
+
+#% item
+# The sampling methods (`vegas`, `lattice`, `sobol`, `monte_carlo`) give `around(value, error)`, the error being a statistical estimate (one standard error); the result is the same for the same `seed`, whatever the number of threads.
+
+#% item
 # Options:
 
 #% subitem
-# `method: gauss_kronrod` (the default for finite intervals) or `double_exponential` (suited to end-point singularities).
+# `method:` one of `gauss_kronrod` (the default for one finite interval), `double_exponential` (suited to end-point singularities), `nested` (one-dimensional rules range by range), `cubature` (Genz–Malik rules on boxes), `vegas` (adaptive Monte Carlo), `lattice` (randomised lattice rule), `sobol` (scrambled Sobol points) or `monte_carlo` (plain sampling).
+
+#% subitem
+# `precision_goal: p` and `accuracy_goal: a` ask for a relative error 10^-p or an absolute error 10^-a. The default precision goal is 8 digits for the deterministic methods (6 for cubature in 4 or more variables), 4 for `lattice` and `sobol`, 3 for `vegas` and `monte_carlo`.
+
+#% subitem
+# `max_points: n` limits the evaluations of the integrand (default 10^7 for the multidimensional methods).
+
+#% subitem
+# `points: n` sets the evaluations per iteration for `vegas`, or in all for the other sampling methods; `iterations: k` fixes the number of averaged VEGAS iterations; `seed: n` selects the random numbers (default 0).
+
+#% subitem
+# `error_estimate: true` gives `around(value, error)` for every method.
 
 #% subitem
 # `digits: d` works at `d` decimal digits and gives a ball whose radius is an error estimate.
@@ -37,7 +55,10 @@
 # `rigorous: true` gives a ball guaranteed to contain the integral.
 
 #% item
-# When the error estimate does not reach the goal, the result is a failure tagged `not_converged` holding the estimate and its error.
+# When the error estimate does not reach the goal, a message says how far it got; a deterministic estimate that is still far from the goal is a failure tagged `not_converged` holding the estimate and its error.
+
+#% item
+# The integrand is evaluated in blocks of points, compiled when possible and spread over the session's threads.
 
 #% section
 # Examples
@@ -75,7 +96,7 @@ n_integrate(1/sqrt(x), [x, 0, 1])
 #% cell
 n_integrate(x*y, [x, 0, 1], [y, 0, x])
 #% output
-#= 0.12500000000000003
+#= 0.12499999999999996
 
 #% subsection
 # Scope
@@ -102,7 +123,7 @@ n_integrate(1/sqrt(abs(x)), [x, -1, 0, 1])
 #% cell
 n_integrate(x^2 + y^2, [x, -1, 1], [y, -sqrt(1 - x^2), sqrt(1 - x^2)])
 #% output
-#= 1.5707963268596363
+#= 1.570796326873142
 
 #% text
 # Logarithmic singularities at both ends:
@@ -111,6 +132,38 @@ n_integrate(x^2 + y^2, [x, -1, 1], [y, -sqrt(1 - x^2), sqrt(1 - x^2)])
 n_integrate(log(x)*log(1 - x), [x, 0, 1])
 #% output
 #= 0.3550659331517734
+
+#% text
+# A four-dimensional integral by adaptive cubature:
+
+#% cell
+n_integrate(1/(1 + x + y + z + w), [x, 0, 1], [y, 0, 1], [z, 0, 1], [w, 0, 1])
+#% output
+#= 0.347143923109804
+
+#% text
+# Infinite ranges in several variables:
+
+#% cell
+n_integrate(exp(-x^2 - y^2 - z^2), [x, -inf, inf], [y, -inf, inf], [z, -inf, inf]) - pi^(3/2)
+#% output
+#= -5.624034571383163e-11
+
+#% text
+# Ten variables: a randomised lattice rule, with its error estimate:
+
+#% cell
+n_integrate(cos(x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10), [x1, 0, 1], [x2, 0, 1], [x3, 0, 1], [x4, 0, 1], [x5, 0, 1], [x6, 0, 1], [x7, 0, 1], [x8, 0, 1], [x9, 0, 1], [x10, 0, 1])
+#% output
+#= around(0.18634872535732494, 1.0691994201898687e-5)
+
+#% text
+# The exact value for comparison:
+
+#% cell
+n((2*sin(1/2))^10*cos(5))
+#% output
+#= 0.18634298557785392
 
 #% subsection
 # Options
@@ -130,6 +183,47 @@ n_integrate(exp(-x^2), [x, 0, 1], digits: 30)
 n_integrate(exp(-x^2), [x, 0, 1], rigorous: true)
 #% output
 #= 0.7468241328124270254
+
+#% text
+# VEGAS concentrates its points on a narrow peak:
+
+#% cell
+n_integrate(exp(-200*((x - 0.3)^2 + (y - 0.6)^2 + (z - 0.5)^2)), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: vegas)
+#% output
+#= around(0.0019685787954326025, 1.9650891822561495e-6)
+
+#% text
+# Scrambled Sobol points with a tighter goal:
+
+#% cell
+n_integrate(exp(x*y*z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: sobol, precision_goal: 6)
+#% output
+#= around(1.1464980050735512, 4.862165764335378e-7)
+
+#% text
+# Another seed gives other random numbers and an estimate within the errors:
+
+#% cell
+n_integrate(exp(x*y*z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: monte_carlo, seed: 7)
+#% output
+#= around(1.1447684316620976, 0.0010576678670683613)
+
+#% text
+# The error estimate of a deterministic method:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], error_estimate: true)
+#% output
+#= around(0.7468241328124272, 8.291413475940725e-15)
+
+#% text
+# Too few evaluations for the goal: the estimate, with a message saying how far it got and where the largest error is left:
+
+#% cell
+n_integrate(1/sqrt(x + y + z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: cubature, max_points: 3000)
+#% output
+#| n_integrate: cubature: the goals were not met after 2937 evaluations; the error estimate is 1.235e-5 (relative 1.432e-5), the largest part (1.169e-5) in the region around x = 1.250e-1, y = 1.250e-1, z = 1.250e-1; raise max_points: or lower precision_goal:
+#= 0.8628424976353988
 
 #% text
 # The double exponential method:
@@ -181,6 +275,16 @@ n_integrate(1/x, [x, -1, 1])
 n_integrate(sin(x), [x, 0, a])
 #% output
 #! failure(argument, n_integrate, 2)
+
+#% text
+# A Monte Carlo error is itself an estimate. With a strong singularity the estimate can be far from the integral (here 100); the iterations of VEGAS then disagree, and a message says that the error estimate is unreliable:
+
+#% cell
+n_integrate(1/(x*y)^0.9, [x, 0, 1], [y, 0, 1], method: vegas, max_points: 10^6)
+#% output
+#| n_integrate: vegas: the goals were not met after 727284 evaluations; the error estimate is 7.393e-1 (relative 9.064e-3); raise max_points: or lower precision_goal:
+#| n_integrate: vegas: the iterations disagree (chi^2 per degree of freedom 14.24 over 8 iterations); the error estimate is unreliable
+#= around(81.56779924904357, 0.7393142679597606)
 
 #% text
 # A fast oscillation near an end point does not converge to the default accuracy; the failure holds the estimate and its error:

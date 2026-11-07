@@ -98,7 +98,8 @@ fn multiple_integrals() {
     close("disc", disc, std::f64::consts::PI, 1e-9);
     close("cube", s.real("n_integrate(x*y*z, [x, 0, 1], [y, 0, 1], [z, 0, 2])"), 0.5, 1e-14);
     let g = s.real("n_integrate(exp(-x^2 - y^2), [x, -inf, inf], [y, -inf, inf])");
-    close("gauss 2d", g, std::f64::consts::PI, 1e-12);
+    // adaptive cubature (the default for 2 to 7 variables) meets the default goal of 8 digits with room to spare
+    close("gauss 2d", g, std::f64::consts::PI, 1e-10);
 }
 
 #[test]

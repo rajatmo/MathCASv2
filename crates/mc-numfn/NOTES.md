@@ -274,3 +274,9 @@ Scratch scopes: `NativeCx::scratch(f)` runs one evaluation in a private region d
 `MC_NUMFN_TRACE=<file>` appends one line per compilation or refusal of a numeric function (a profiling aid: why a
 solver's function runs interpreted). It writes to a file, not standard error (writing to the console from inside a
 native blocked the REPL).
+
+## Round 13 (quad-1)
+
+`Par::cached` (the code of the expression's family from the N1 cache, lifted constants appended to each point's
+inputs), `Par::sequential_only`; `par_expr` now uses the cache and never compiles under `Policy::Interpreted`.
+`Compiled`'s fields are `pub(crate)` for it. Details: `crates/mc-quad/NOTES.md`, package quad-1.

@@ -13,9 +13,9 @@ use std::sync::{Arc, OnceLock};
 /// ([`Compiled::cached`]) is shared by a family of expressions and called with this instance's constants after
 /// the inputs (decision N1.1).
 pub struct Compiled {
-    code: Arc<ExprFn>,
+    pub(crate) code: Arc<ExprFn>,
     /// the lifted constants, passed after the inputs
-    lifted: Vec<f64>,
+    pub(crate) lifted: Vec<f64>,
 }
 
 /// Compile `body` in `vars`; the reason when the compiler refuses.

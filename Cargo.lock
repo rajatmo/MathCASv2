@@ -2741,6 +2741,8 @@ dependencies = [
  "mc-eval",
  "mc-numeric",
  "mc-numfn",
+ "mc-random",
+ "rayon",
 ]
 
 [[package]]

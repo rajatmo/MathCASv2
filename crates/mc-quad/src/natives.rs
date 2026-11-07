@@ -12,6 +12,7 @@
 //! of d plus guard digits, the result a ball whose radius is the error estimate; `rigorous: true` adds
 //! Clenshaw–Curtis bounds from complex-ball evaluation on Bernstein ellipses, and the ball contains the integral.
 use crate::machine::{End, Outcome};
+use crate::multi::{self, Kind as MKind};
 use crate::nested::{Bound, Plan, Problem};
 use crate::options::{self, Method, OptionError, Options};
 use crate::{gk, hp, rigorous};
@@ -28,8 +29,12 @@ use std::sync::Arc;
 
 const NAME: &str = "n_integrate";
 
-/// The most ranges of a multiple integral (the work grows as a power of their number).
+/// The most ranges of a multiple integral by nested one-dimensional rules (the work grows as a power of their
+/// number).
 const MAX_RANGES: usize = 6;
+
+/// The most ranges of any multiple integral (the sampling methods).
+const MAX_DIMS: usize = 64;
 
 /// `n_integrate(...)`.
 pub(crate) struct NIntegrate {
@@ -159,8 +164,8 @@ impl Native for NIntegrate {
             return Ok(Reply::Decline);
         }
         let _scope = StopScope::enter(Some(&self.stop));
-        if specs.len() > MAX_RANGES || cx.as_list(*f).is_some() {
-            return Ok(bad_argument(h, h.int(if cx.as_list(*f).is_some() { 1 } else { MAX_RANGES as i64 + 2 })));
+        if specs.len() > MAX_DIMS || cx.as_list(*f).is_some() {
+            return Ok(bad_argument(h, h.int(if cx.as_list(*f).is_some() { 1 } else { MAX_DIMS as i64 + 2 })));
         }
         let (vars, points) = match ranges(cx, &ar, specs)? {
             Ok(v) => v,
@@ -176,11 +181,171 @@ impl Native for NIntegrate {
                 }
             }
         }
+        let kind = opts.method.and_then(MKind::of);
         if opts.digits.is_some() || opts.rigorous {
+            if kind.is_some() {
+                return Ok(bad_argument(h, h.sym_term(h.sym("method"))));
+            }
             return ball_call(cx, &ar, *f, &vars, &points, &opts);
         }
-        machine_call(cx, &ar, *f, &vars, &points, &opts)
+        // the method (decision quad-1.2): nested one-dimensional rules for one variable or when a one-dimensional
+        // method is named; the multidimensional methods otherwise
+        let (kind, auto) = match (opts.method, kind) {
+            (Some(_), Some(k)) => (Some(k), false),
+            (Some(_), None) => (None, false),
+            (None, _) if vars.len() >= 2 => (Some(multi::automatic(cx, *f, vars.len())?), true),
+            (None, _) => (None, true),
+        };
+        match kind {
+            Some(k) => multi_call(cx, &ar, *f, &vars, &points, &opts, k, auto),
+            None if vars.len() > MAX_RANGES => Ok(bad_argument(h, h.int(MAX_RANGES as i64 + 2))),
+            None => machine_call(cx, &ar, *f, &vars, &points, &opts),
+        }
     }
+}
+
+/// With the environment variable `MC_QUAD_TRACE` naming a file, every machine-precision integration appends a
+/// line to it: method, variables, evaluations of the integrand, estimate, error estimate, converged (a measurement
+/// aid for the benchmarks).
+fn trace<S: Scalar>(method: &str, dims: usize, calls: u64, o: &Outcome<S>) {
+    static PATH: std::sync::OnceLock<Option<std::ffi::OsString>> = std::sync::OnceLock::new();
+    if let Some(p) = PATH.get_or_init(|| std::env::var_os("MC_QUAD_TRACE")) {
+        use std::io::Write;
+        let line = match o {
+            Outcome::Done { value, err, converged } => {
+                let v = match value.to_num() {
+                    Num::Real(r) => format!("{:e}", r.to_f64()),
+                    other => format!("{other:?}"),
+                };
+                format!("{method} {dims} {calls} {v} {err:e} {converged}")
+            }
+            Outcome::NotNumeric(_) => format!("{method} {dims} {calls} not_numeric"),
+        };
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
+/// Print `text` as a message of `n_integrate` (the engine's `message`: scripts print `n_integrate: text`,
+/// notebooks a message).
+fn message<'h>(cx: &mut NativeCx<'_, '_, 'h>, text: &str) -> Res<()> {
+    let h = cx.heap();
+    cx.eval(h.call(h.sym("message"), &[h.sym_term(h.sym(NAME)), h.string(text)]))?;
+    Ok(())
+}
+
+/// A multiple (or single) integral by a multidimensional method; `auto`: chosen automatically, so a point where
+/// the integrand is not real, or (in 2 or 3 variables) a missed goal, also tries the nested one-dimensional rules.
+#[allow(clippy::too_many_arguments)]
+fn multi_call<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    ar: &Arith<'h, Heap>,
+    f: T<'h>,
+    vars: &[Sym],
+    points: &[Vec<Point<'h>>],
+    opts: &Options,
+    kind: MKind,
+    auto: bool,
+) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    if vars.len() > kind.max_dims() {
+        return Ok(bad_argument(h, h.int(kind.max_dims() as i64 + 2)));
+    }
+    let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
+    let ranges = bounds(cx, vars, points, &nopts)?;
+    let g = multi::integrand(cx, f, vars, opts.policy())?;
+    if g.outputs() != 1 {
+        return Ok(bad_argument(h, h.int(1)));
+    }
+    let mut est = match multi::run(cx, g, ranges, kind, opts)? {
+        Ok(e) => e,
+        Err(pt) => {
+            if auto && vars.len() <= MAX_RANGES {
+                // complex values, or a failure the nested rules report with its point
+                return machine_call(cx, ar, f, vars, points, opts);
+            }
+            let nums: Vec<Num> = pt.iter().map(|&x| Num::Real(Real::Machine(x))).collect();
+            return Ok(Reply::Done(failure(h, "not_numeric", &[f, rules(h, ar, vars, &nums)])));
+        }
+    };
+    trace(
+        kind.name(),
+        vars.len(),
+        est.calls,
+        &Outcome::Done { value: est.value, err: est.err, converged: est.converged },
+    );
+    let mut kind = kind;
+    if auto && kind == MKind::Lattice && !est.converged {
+        // a smooth-looking integrand the lattice rule did not resolve (a peak, a singularity): VEGAS with the same
+        // budget, keeping the smaller error estimate
+        let ranges = bounds(cx, vars, points, &nopts)?;
+        let g = multi::integrand(cx, f, vars, opts.policy())?;
+        if let Ok(v) = multi::run(cx, g, ranges, MKind::Vegas, opts)? {
+            trace("vegas", vars.len(), v.calls, &Outcome::Done { value: v.value, err: v.err, converged: v.converged });
+            if v.err < est.err {
+                est = v;
+                kind = MKind::Vegas;
+            }
+        }
+    }
+    if auto && kind == MKind::Cubature && !est.converged && vars.len() <= 3 {
+        // the nested rules handle singular inner integrals better; keep the better estimate
+        if let Outcome::Done { value, err, converged } = real_outcome(cx, f, vars, points, opts)? {
+            if err < est.err {
+                est = multi::Estimate { value, err, converged, worst: None, ..est };
+            }
+        }
+    }
+    let usable = multi::usable(&est, kind);
+    if usable {
+        for m in multi::messages(h, &est, kind, vars) {
+            message(cx, &m)?;
+        }
+    }
+    let v = scalar_term(ar, est.value);
+    Ok(Reply::Done(if !usable {
+        failure(h, "not_converged", &[h.sym_term(h.sym(NAME)), v, h.real(est.err)])
+    } else if kind.statistical() || opts.error_estimate {
+        multi::around(h, est.value, est.err)
+    } else {
+        v
+    }))
+}
+
+/// The plan of the nested one-dimensional rules (`max_points` caps the subdivisions of each level).
+fn nested_plan(opts: &Options) -> Plan {
+    let mut max_subdivisions = opts.max_subdivisions();
+    if let Some(n) = opts.max_points {
+        // a subdivision evaluates 30 points (two 15-point intervals)
+        max_subdivisions = max_subdivisions.min((n / 30).max(1) as usize);
+    }
+    Plan {
+        method: opts.method.filter(|m| matches!(m, Method::GaussKronrod | Method::DoubleExponential)),
+        goals: opts.machine_goals(),
+        limits: gk::Limits { max_subdivisions, max_recursion: opts.max_recursion() },
+    }
+}
+
+/// The real machine-precision integral by nested one-dimensional rules.
+fn real_outcome<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    f: T<'h>,
+    vars: &[Sym],
+    points: &[Vec<Point<'h>>],
+    opts: &Options,
+) -> Res<Outcome<f64>> {
+    let all: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
+    let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
+    let real = mc_numfn::compile_expr(cx, f, &all, &nopts)?;
+    if real.outputs() != 1 {
+        return Ok(Outcome::NotNumeric(vec![]));
+    }
+    let bounds = bounds(cx, vars, points, &nopts)?;
+    let mut p = Problem { f: real, ranges: bounds, plan: nested_plan(opts), calls: 0 };
+    let o = p.solve(cx)?;
+    trace("nested", vars.len(), p.calls, &o);
+    Ok(o)
 }
 
 /// Does `t` contain one of the symbols `syms`? Each shared subterm is visited once.
@@ -219,29 +384,26 @@ fn machine_call<'h>(
     let h = cx.heap();
     let all: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
     let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
-    let plan = Plan {
-        method: opts.method,
-        goals: opts.machine_goals(),
-        limits: gk::Limits { max_subdivisions: opts.max_subdivisions(), max_recursion: opts.max_recursion() },
-    };
+    let plan = nested_plan(opts);
     let real = mc_numfn::compile_expr(cx, f, &all, &nopts)?;
     if real.outputs() != 1 {
         return Ok(bad_argument(h, h.int(1)));
     }
     let bounds = bounds(cx, vars, points, &nopts)?;
-    let mut p = Problem { f: real, ranges: bounds, plan };
+    let mut p = Problem { f: real, ranges: bounds, plan, calls: 0 };
     let outcome = p.solve(cx)?;
+    trace("nested", vars.len(), p.calls, &outcome);
     if let Outcome::NotNumeric(pt) = &outcome {
         // a complex value there: the whole integral in complex machine numbers
         if pt.len() == vars.len() && complex_at(cx, f, &all, pt)? {
             let cf: Box<dyn NumFn<'h, C64> + 'h> = Box::new(Interpreted::new(cx, f, &all, Prep::Machine)?);
             let bounds = self::bounds(cx, vars, points, &nopts)?;
-            let mut p = Problem { f: cf, ranges: bounds, plan };
+            let mut p = Problem { f: cf, ranges: bounds, plan, calls: 0 };
             let outcome = p.solve(cx)?;
-            return reply(cx, ar, f, vars, outcome);
+            return reply(cx, ar, f, vars, outcome, opts);
         }
     }
-    reply(cx, ar, f, vars, outcome)
+    reply(cx, ar, f, vars, outcome, opts)
 }
 
 /// Estimates whose error estimate is below this fraction of their magnitude are returned with a warning when the
@@ -256,8 +418,14 @@ fn reply<'h, S: Scalar>(
     f: T<'h>,
     vars: &[Sym],
     o: Outcome<S>,
+    opts: &Options,
 ) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `error_estimate: true`: the value with its error estimate
+    let shown = |value: S, err: f64| match value.to_num() {
+        Num::Real(r) if opts.error_estimate => multi::around(h, r.to_f64(), err),
+        _ => scalar_term(ar, value),
+    };
     if let Outcome::Done { value, err, converged: false, .. } = &o {
         let mag = value.abs();
         if err.is_finite() && mag.is_finite() && *err <= USABLE * mag {
@@ -266,9 +434,12 @@ fn reply<'h, S: Scalar>(
                 err / mag
             );
             // a warning (the engine's `message`): scripts print it as `n_integrate: text`, notebooks as a message
-            cx.eval(h.call(h.sym("message"), &[h.sym_term(h.sym("n_integrate")), h.string(&msg)]))?;
-            return Ok(Reply::Done(scalar_term(ar, *value)));
+            message(cx, &msg)?;
+            return Ok(Reply::Done(shown(*value, *err)));
         }
+    }
+    if let Outcome::Done { value, err, converged: true } = &o {
+        return Ok(Reply::Done(shown(*value, *err)));
     }
     Ok(Reply::Done(result(h, ar, f, vars, o)))
 }
@@ -393,10 +564,8 @@ fn ball_call<'h>(
     let mut fr = Interpreted::new(cx, f, &all, Prep::Digits(work))?;
     match rigorous::integrate(cx, &mut fr, f, &ends, p, target)? {
         rigorous::Verdict::Enclosure(b) => Ok(Reply::Done(ar.number(&hp::round(&b, p0)))),
-        rigorous::Verdict::Unverified => Ok(Reply::Done(failure(
-            h,
-            "not_verified",
-            &[h.sym_term(h.sym(NAME)), ar.number(&hp::round(&approx, p0))],
-        ))),
+        rigorous::Verdict::Unverified => {
+            Ok(Reply::Done(failure(h, "not_verified", &[h.sym_term(h.sym(NAME)), ar.number(&hp::round(&approx, p0))])))
+        }
     }
 }

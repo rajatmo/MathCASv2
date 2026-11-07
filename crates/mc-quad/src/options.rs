@@ -36,6 +36,18 @@ pub(crate) enum Method {
     GaussKronrod,
     /// the double-exponential substitution (tanh-sinh, exp-sinh, sinh-sinh)
     DoubleExponential,
+    /// nested one-dimensional rules, each level choosing as for one variable (decision N2.7)
+    Nested,
+    /// Genz–Malik adaptive cubature on hyper-rectangles
+    Cubature,
+    /// VEGAS+ adaptive Monte Carlo
+    Vegas,
+    /// randomised rank-1 lattice rule (quasi-Monte Carlo)
+    Lattice,
+    /// scrambled Sobol points (quasi-Monte Carlo)
+    Sobol,
+    /// plain Monte Carlo
+    MonteCarlo,
 }
 
 /// The options of one call.
@@ -57,6 +69,16 @@ pub(crate) struct Options {
     pub rigorous: bool,
     /// `compile: auto | true | false` (`None`: the default policy)
     pub compile: Option<Policy>,
+    /// `max_points: n`: the most evaluations of the integrand
+    pub max_points: Option<u64>,
+    /// `points: n`: evaluations per VEGAS iteration, or in all for the other sampling methods
+    pub points: Option<u64>,
+    /// `iterations: k`: averaged VEGAS iterations
+    pub iterations: Option<usize>,
+    /// `seed: n`: the random seed of the sampling methods (default 0)
+    pub seed: Option<u64>,
+    /// `error_estimate: true`: the result as `around(value, error)` for every method
+    pub error_estimate: bool,
 }
 
 /// Why the options were refused.
@@ -112,6 +134,35 @@ pub(crate) fn split<'a, 'h>(
                     Some("auto" | "automatic") => None,
                     Some("gauss_kronrod") => Some(Method::GaussKronrod),
                     Some("double_exponential") => Some(Method::DoubleExponential),
+                    Some("nested") => Some(Method::Nested),
+                    Some("cubature") => Some(Method::Cubature),
+                    Some("vegas") => Some(Method::Vegas),
+                    Some("lattice") => Some(Method::Lattice),
+                    Some("sobol") => Some(Method::Sobol),
+                    Some("monte_carlo") => Some(Method::MonteCarlo),
+                    _ => return Err(bad()),
+                }
+            }
+            "max_points" => match h.view(v) {
+                View::Int(k @ 1..) => o.max_points = Some(k as u64),
+                _ => return Err(bad()),
+            },
+            "points" => match h.view(v) {
+                View::Int(k @ 16..) => o.points = Some(k as u64),
+                _ => return Err(bad()),
+            },
+            "iterations" => match h.view(v) {
+                View::Int(k @ 1..=100_000) => o.iterations = Some(k as usize),
+                _ => return Err(bad()),
+            },
+            "seed" => match h.view(v) {
+                View::Int(k) => o.seed = Some(k as u64),
+                _ => return Err(bad()),
+            },
+            "error_estimate" => {
+                o.error_estimate = match symbol().as_deref() {
+                    Some(names::TRUE) => true,
+                    Some(names::FALSE) => false,
                     _ => return Err(bad()),
                 }
             }

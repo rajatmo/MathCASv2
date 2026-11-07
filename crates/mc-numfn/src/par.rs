@@ -12,10 +12,11 @@
 //! - **Fuel and interrupts** (decision N4b.6): one unit per point before the batch, as the compiled backend charges
 //!   per call; the loops' fuel from every thread is charged to the calling task as it is spent, and a limit or an
 //!   interrupt stops every thread and returns the evaluator's failure.
-use crate::{auto_expr, Arg, Auto, Backend, Interpreted, NumFn, Options, Stats, Var};
+use crate::{auto_expr, Arg, Auto, Backend, Compiled, Interpreted, NumFn, Options, Policy, Stats, Var};
 use mc_core::{Sym, T};
 use mc_eval::{Abort, Control, NativeCx, Res};
 use mc_jit::ExprFn;
+use std::sync::Arc;
 
 /// Batches smaller than this run sequentially: a compiled point costs tens of nanoseconds, and handing blocks to
 /// other threads some microseconds.
@@ -38,7 +39,9 @@ pub struct ParStats {
 /// as the sequential backend for single points, small batches, refused expressions and declined points.
 pub struct Par<'h, I> {
     seq: I,
-    code: Option<ExprFn>,
+    code: Option<Arc<ExprFn>>,
+    /// constants passed after each point's inputs (code of a cached family, decision N1.1)
+    lifted: Vec<f64>,
     refusal: Option<String>,
     /// the control block of the batches' compiled loops (its stop word stops a batch)
     ctl: Control,
@@ -49,7 +52,9 @@ pub struct Par<'h, I> {
     _h: std::marker::PhantomData<T<'h>>,
 }
 
-/// `expr` in `vars` as a [`Par`] over the automatic backend of [`auto_expr`] (with `opts`).
+/// `expr` in `vars` as a [`Par`] over the automatic backend of [`auto_expr`] (with `opts`). The parallel code
+/// comes from the process-wide cache ([`Par::cached`]); with [`Policy::Interpreted`] nothing is compiled and every
+/// batch is sequential.
 pub fn par_expr<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     expr: T<'h>,
@@ -58,7 +63,10 @@ pub fn par_expr<'h>(
 ) -> Res<Par<'h, Auto<'h, Interpreted<'h>>>> {
     let mut seq = auto_expr(cx, expr, vars, opts)?;
     let (body, numeric) = (seq.interpreted().body(), seq.interpreted().numeric());
-    Ok(Par::new(cx, seq, vars, body, numeric))
+    if opts.policy == Policy::Interpreted {
+        return Ok(Par::sequential_only(seq, "compilation is off"));
+    }
+    Ok(Par::cached(cx, seq, vars, body, numeric))
 }
 
 impl<'h, I: NumFn<'h, f64>> Par<'h, I> {
@@ -76,10 +84,29 @@ impl<'h, I: NumFn<'h, f64>> Par<'h, I> {
                 (v.sym, a)
             })
             .collect();
-        let (code, refusal) = match mc_jit::compile_expr(cx, &params, body, consts, mc_jit::Backend::Cranelift) {
+        let code = mc_jit::compile_expr(cx, &params, body, consts, mc_jit::Backend::Cranelift).map(Arc::new);
+        Par::with_code(seq, code, vec![])
+    }
+
+    /// [`Par::new`] with the code of `body`'s family from the process-wide code cache (package N1): compiled at
+    /// most once per family, and called with this instance's lifted constants after each point's inputs.
+    pub fn cached(cx: &mut NativeCx<'_, '_, 'h>, seq: I, vars: &[Var], body: T<'h>, consts: bool) -> Par<'h, I> {
+        match Compiled::cached(cx, vars, body, consts) {
+            Ok(c) => Par::with_code(seq, Ok(c.code), c.lifted),
+            Err(e) => Par::with_code(seq, Err(e), vec![]),
+        }
+    }
+
+    /// A [`Par`] that never splits (`why`: its refusal).
+    pub fn sequential_only(seq: I, why: &str) -> Par<'h, I> {
+        Par::with_code(seq, Err(why.to_string()), vec![])
+    }
+
+    fn with_code(seq: I, code: Result<Arc<ExprFn>, String>, lifted: Vec<f64>) -> Par<'h, I> {
+        let (code, refusal) = match code {
             Ok(c) if c.draws() => (None, Some("the code draws random numbers (an effect)".to_string())),
             Ok(c) if c.output_types().contains(&mc_jit::ir::Ty::Bool) => (None, Some("a boolean result".to_string())),
-            Ok(c) if c.inputs() != seq.inputs() || c.outputs() != seq.outputs() => {
+            Ok(c) if c.inputs() != seq.inputs() + lifted.len() || c.outputs() != seq.outputs() => {
                 (None, Some(format!("{} outputs compiled, {} sequential", c.outputs(), seq.outputs())))
             }
             Ok(c) => (Some(c), None),
@@ -88,6 +115,7 @@ impl<'h, I: NumFn<'h, f64>> Par<'h, I> {
         Par {
             seq,
             code,
+            lifted,
             refusal,
             ctl: Control::default(),
             threads: None,
@@ -127,8 +155,21 @@ impl<'h, I: NumFn<'h, f64>> Par<'h, I> {
     /// One batch on `threads` threads.
     fn split(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[f64], out: &mut [f64], threads: usize) -> Res<bool> {
         let code = self.code.as_ref().expect("compiled");
-        let (ni, no) = (code.inputs(), code.outputs());
+        let (ni, no) = (code.inputs() - self.lifted.len(), code.outputs());
         let n = out.len() / no;
+        // the lifted constants after each point's inputs
+        let widened: Vec<f64>;
+        let all: &[f64] = if self.lifted.is_empty() {
+            args
+        } else {
+            let mut w = Vec::with_capacity(n * (ni + self.lifted.len()));
+            for k in 0..n {
+                w.extend_from_slice(&args[k * ni..(k + 1) * ni]);
+                w.extend_from_slice(&self.lifted);
+            }
+            widened = w;
+            &widened
+        };
         cx.tick(n as u64)?;
         let interrupt = cx.stop_flag().clone();
         let mut failed: Option<Abort> = None;
@@ -140,7 +181,7 @@ impl<'h, I: NumFn<'h, f64>> Par<'h, I> {
                 }
                 !cx.stopped()
             };
-            mc_jit::batch::run(code, &self.ctl, args, out, threads, &interrupt, &mut charge)
+            mc_jit::batch::run(code, &self.ctl, all, out, threads, &interrupt, &mut charge)
         };
         if let Some(e) = failed {
             return Err(e);

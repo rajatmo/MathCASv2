@@ -689,12 +689,16 @@ pub enum K {
     B,
 }
 
-/// Most machine reals of one sum or product sorted inline; with more, the arithmetic's own code sorts them.
-pub const MAX_SORTED: usize = 6;
+/// Most machine reals of one sum or product sorted inline; with more, the arithmetic's own code sorts them
+/// (package quad-1: was 6, so a sum of seven or more terms called the arithmetic, about 2 us per call).
+pub const MAX_SORTED: usize = 64;
 
-/// Sorting networks for 2 to [`MAX_SORTED`] values (comparators as index pairs, the minimum to the first), each
-/// with the fewest comparators known for its size.
-pub const NETWORKS: [&[(usize, usize)]; MAX_SORTED + 1] = [
+/// Sizes up to this have the hand-made networks of [`NETWORKS`]; larger ones Batcher's ([`network`]).
+pub const SMALL_NETWORKS: usize = 6;
+
+/// Sorting networks for 2 to [`SMALL_NETWORKS`] values (comparators as index pairs, the minimum to the first),
+/// each with the fewest comparators known for its size.
+pub const NETWORKS: [&[(usize, usize)]; SMALL_NETWORKS + 1] = [
     &[],
     &[],
     &[(0, 1)],
@@ -703,6 +707,36 @@ pub const NETWORKS: [&[(usize, usize)]; MAX_SORTED + 1] = [
     &[(0, 1), (3, 4), (2, 4), (2, 3), (0, 3), (0, 2), (1, 4), (1, 3), (1, 2)],
     &[(1, 2), (4, 5), (0, 2), (3, 5), (0, 1), (3, 4), (2, 5), (0, 3), (1, 4), (2, 4), (1, 3), (2, 3)],
 ];
+
+/// A sorting network for `n` values (comparators as index pairs, the minimum to the first): [`NETWORKS`] up to
+/// [`SMALL_NETWORKS`], else Batcher's odd-even merge sort for the next power of two with the comparators that
+/// touch the padding dropped (padding values are larger than all others, so those comparators never swap).
+pub fn network(n: usize) -> Vec<(usize, usize)> {
+    if n <= SMALL_NETWORKS {
+        return NETWORKS[n].to_vec();
+    }
+    let size = n.next_power_of_two();
+    let mut out = vec![];
+    let mut p = 1;
+    while p < size {
+        let mut k = p;
+        while k >= 1 {
+            let mut j = k % p;
+            while j + k < size {
+                for i in 0..k.min(size - j - k) {
+                    let (a, b) = (i + j, i + j + k);
+                    if a / (2 * p) == b / (2 * p) && b < n {
+                        out.push((a, b));
+                    }
+                }
+                j += 2 * k;
+            }
+            k /= 2;
+        }
+        p *= 2;
+    }
+    out
+}
 
 /// What lowering knows of the exponent of a power of machine reals.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1310,7 +1344,7 @@ impl Lower<'_> {
             self.emit(Op::FKey(k, x));
             keys.push(k);
         }
-        for &(i, j) in NETWORKS[xs.len()] {
+        for (i, j) in network(xs.len()) {
             let (lo, hi) = (self.reg(K::I), self.reg(K::I));
             self.emit(Op::IMinMax(false, lo, keys[i], keys[j]));
             self.emit(Op::IMinMax(true, hi, keys[i], keys[j]));

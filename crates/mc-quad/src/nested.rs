@@ -36,6 +36,8 @@ pub(crate) struct Problem<'h, S> {
     pub ranges: Vec<Vec<Bound<'h>>>,
     /// methods and goals
     pub plan: Plan,
+    /// evaluations of the integrand so far
+    pub calls: u64,
 }
 
 impl<'h, S: Scalar> Problem<'h, S> {
@@ -68,7 +70,7 @@ impl<'h, S: Scalar> Problem<'h, S> {
         match plan.method {
             Some(Method::GaussKronrod) => gk::integrate(cx, &mut f, &pieces, goals, plan.limits),
             Some(Method::DoubleExponential) => de::integrate(cx, &mut f, &pieces, goals, de_level),
-            None => {
+            Some(_) | None => {
                 // the automatic choice (decision N2.7): the double-exponential rule first when the integrand is not
                 // numeric at a finite end (an endpoint singularity), Gauss–Kronrod first otherwise; the other
                 // method when the first does not converge, keeping the better estimate
@@ -141,6 +143,7 @@ impl<'h, S: Scalar> Integrand<'h, S> for Level<'_, 'h, S> {
                 args.extend(self.prefix.iter().map(|&v| S::real(v)));
                 args.push(S::real(x));
             }
+            self.p.calls += xs.len() as u64;
             if self.p.f.eval_flat(cx, &args, out)? {
                 err.fill(0.0);
                 return Ok(Ok(()));

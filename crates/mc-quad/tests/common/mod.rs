@@ -56,6 +56,34 @@ impl Sys {
     }
 }
 
+impl Sys {
+    /// Evaluate `src`, stopped if it runs longer than `limit`: the result and the time it took.
+    pub fn limited(&mut self, src: &str, limit: Duration) -> (Result<String, EngineError>, Duration) {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let stop = self.stop.clone();
+        let done = Arc::new(AtomicBool::new(false));
+        let watch = done.clone();
+        let start = Instant::now();
+        let t = std::thread::spawn(move || {
+            while !watch.load(Ordering::Relaxed) {
+                if start.elapsed() >= limit {
+                    stop.raise();
+                    return;
+                }
+                std::thread::park_timeout(Duration::from_millis(20));
+            }
+        });
+        let r = self.engine.eval(src, &self.stop).map(|e| e.printed);
+        let took = start.elapsed();
+        done.store(true, Ordering::Relaxed);
+        t.thread().unpark();
+        t.join().unwrap();
+        self.stop.clear();
+        (r, took)
+    }
+}
+
 /// Assert |got - want| <= tol * max(1, |want|).
 pub fn close(src: &str, got: f64, want: f64, tol: f64) {
     assert!((got - want).abs() <= tol * want.abs().max(1.0), "{src}: {got} vs {want}");

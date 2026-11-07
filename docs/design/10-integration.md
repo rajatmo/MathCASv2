@@ -101,6 +101,27 @@ These build on the pieces above and go into separate packages (`.mc` modules, or
 | Physics inputs | parton-distribution grids, running couplings, natural-unit conversions | — |
 | Learned sampling | normalising-flow importance sampling | Gao et al. 2020 |
 
+### Status
+
+- **2.1 done** (package quad-1): the multidimensional methods evaluate the integrand in blocks of up to 2^15 points
+  through `mc_numfn::Par` (compiled code of the expression's cached family split over the session's threads,
+  the interpreter for what does not compile or `compile: false`); points are generated in parallel blocks keyed by
+  position and every sum is added in point order, so results are identical at any thread count. The
+  one-dimensional rules keep their small batches (30 or 122 points).
+- **2.5 partly done**: `precision_goal`, `accuracy_goal` and `max_points` apply to every machine-precision method
+  (for the nested rules `max_points` caps the subdivisions); `error_estimate: true` returns `around(value, error)`
+  for any method; a message says when the goal was not met, how many evaluations were spent, and (cubature) where
+  the largest error is left or (VEGAS) whether the iterations agree. High-precision Gauss–Legendre is not done.
+- **2.2 done**: Genz–Malik degree-7/5 cubature with a region heap, fourth-difference splitting and rounds of
+  regions evaluated together; variable inner bounds, infinite ranges and split points through a piecewise map of
+  the unit cube. Default for 2 to 7 variables (in 2 or 3 variables a missed goal also tries the nested rules).
+- **2.3 done**: VEGAS with VEGAS+ stratification (χ² per degree of freedom reported), randomised rank-1 lattice
+  sequence with the tent transformation, Owen-scrambled Sobol points, plain Monte Carlo; results `around(value,
+  error)`; Philox streams per block, `seed:` option (default 0). The lattice generating vector and the Sobol
+  parameters come from this project's own searches (64 dimensions). Default above 7 variables: lattice for
+  integrands of analytic functions, VEGAS otherwise.
+- Benchmark: `crates/mc-quad/tests/bench.rs` (ignored test `genz_benchmark`), results in `crates/mc-quad/NOTES.md`.
+
 ## 4. Order of work
 
 1. 2.1 batched, parallel evaluation, together with 2.5 goals and reporting. Everything else uses these.

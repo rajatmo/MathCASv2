@@ -503,3 +503,10 @@ redefining the global); solutions and their derivatives in compiled functions an
 special functions and steps giving the same solution (same content key) compiled and interpreted; common
 subexpressions with loops, assignments and branches; constants, globals (invalidation), data arguments, untyped
 parameters. `tests/engine.rs`: the `x*pi` refusal became `n*pi` (exact).
+
+## Round 13 (quad-1): sums and products of up to 64 machine reals inline
+
+`ir::MAX_SORTED` is 64 (was 6): sizes above `SMALL_NETWORKS` (6) sort through `ir::network(n)`, Batcher's
+odd-even merge network for the next power of two without the comparators that touch the padding. A sum of 8
+machine reals had called the arithmetic (about 2 us); now it is inline (25 times faster). Decision quad-1.11 in
+`crates/mc-quad/NOTES.md`.

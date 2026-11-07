@@ -75,7 +75,7 @@ const ANALYTIC: &[&str] = &[
 ];
 
 /// Is the body built from numbers, symbols and analytic heads only?
-fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<bool> {
+pub(crate) fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<bool> {
     let h = cx.heap();
     let heads: Vec<T<'h>> = ANALYTIC.iter().map(|s| h.sym_term(h.sym(s))).collect();
     let mut seen = HashSet::new();

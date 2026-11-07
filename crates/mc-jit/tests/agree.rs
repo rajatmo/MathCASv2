@@ -533,6 +533,25 @@ fn sorting_networks_sort() {
             assert!(v.windows(2).all(|w| w[0] <= w[1]), "network {n} on {bits:b}");
         }
     }
+    // the generated networks up to the inline limit: every 0-1 sequence up to 20 values, random ones beyond
+    let mut r = Rng(5);
+    for n in 2..=mc_jit::ir::MAX_SORTED {
+        let net = mc_jit::ir::network(n);
+        let cases: Vec<Vec<u32>> = if n <= 20 {
+            (0u32..1 << n).map(|bits| (0..n).map(|i| (bits >> i) & 1).collect()).collect()
+        } else {
+            (0..2000).map(|_| (0..n).map(|_| r.below(4) as u32).collect()).collect()
+        };
+        for mut v in cases {
+            for &(i, j) in &net {
+                assert!(i < j && j < n);
+                if v[i] > v[j] {
+                    v.swap(i, j);
+                }
+            }
+            assert!(v.windows(2).all(|w| w[0] <= w[1]), "network {n}");
+        }
+    }
 }
 
 #[test]
