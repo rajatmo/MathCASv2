@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.3.0 (2026-11-07)
+
+**Notebook:**
+- Documentation in the editor: F1 opens a function's page, completion with one-line usage, a usage hint with the current argument, and hover; the documentation is hyperlinked throughout, with an index.
+- `manipulate` with sliders, re-evaluated as they move.
+- 3D pictures turn and zoom by dragging.
+- Export to HTML and PDF (File > Export, `mc-repl --export`).
+- Copy and paste of root, fraction and power boxes.
+- One output per statement.
+- One file per notebook (pictures embedded).
+- Calm Ctrl+wheel magnification.
+- Output alignment Left or Right (View menu), Left by default.
+- `labeled` and `legended` values drawn with their labels.
+
+**Speed:**
+- Compiled code calls special functions, step functions, `piecewise`, interpolations and ODE solutions, and large right-hand sides and Jacobians compile, so typical stiff ODE workloads run several times to more than ten times faster.
+- Packed complex arrays with elementwise arithmetic and functions.
+- `parallel_table`, `parallel_map`, `parallel_sum`, with results identical to the serial run.
+- `profile` and `timing(e, breakdown: true)`.
+
+**Functions working together:** solve rules, interpolations, ODE solutions, quantities, uncertain numbers, datasets and distributions are accepted by the functions they naturally feed. New in this area:
+- `options(...)` lists merge with later options;
+- `%`, `%%`, `%n`;
+- `scientific_form`, `number_form`;
+- `put`/`get`;
+- `domain`;
+- `interpolation_order` and derivatives of interpolations;
+- `find_root` methods;
+- `simplify` with time budgets.
+
+**Graphics:**
+- Ticks in data units on log and signed-log axes, minor ticks, and a signed-log scale matching the common definition.
+- Row and rounded legends, legend placement, label sizes, TeX `m`, `\it`, `f` and `~`, fitted framed insets.
+- Deeper sampling at steep ends; a fast 3D re-render path.
+
+**Documentation:** 412 function pages (736 functions in the help index).
+
 ## 0.2.0 (2026-11-06)
 
 **Notebook:** one kind of cell. Input and output are the same plain text in the cell's own font, with exactly three
