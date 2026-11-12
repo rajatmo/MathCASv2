@@ -126,7 +126,7 @@ function_surjective(csch(x), x)
 #% cell
 [function_surjective(sin(x), x), function_surjective(floor(x), x)]
 #% output
-#= [false, function_surjective(floor(x), x)]
+#= [false, false]
 
 #% section
 # See also

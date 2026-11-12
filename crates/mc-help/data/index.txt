@@ -242,7 +242,7 @@ join	core	Lists	join(xs, ys, ...): the elements of terms with one head, in order
 reverse	core	Lists	reverse(xs): the elements in reverse order; reverse(x, n), reverse(x, [n1, ...]): the parts at those levels reversed
 unique	core	Lists	unique(xs): the elements without repetitions (compared by identity), in order of first occurrence
 flatten	core	Lists	flatten(xs), flatten(xs, d): nested terms with the head of xs spliced in (to depth d)
-transpose	core	Lists	transpose(m): rows and columns of a rectangular list of lists exchanged
+transpose	core	Lists	transpose(m): rows and columns of a rectangular list of lists exchanged; transpose(a, [p1, ..., pk]): level i of the array a moved to level p_i (a level named twice: the diagonal)
 apply	core	Lists	apply(f, xs): the head of xs replaced by f; apply(f, x, levels): the heads of the parts at levels (n, [n], [m, n])
 sum	core	Lists	sum(xs): the canonical sum of the elements; sum(f, [k, a, b]), sum(f, [k, n]): the sum of f for k from a to b (exact for integer bounds; closed forms for polynomial and geometric terms, symbolic or infinite bounds; zeta for k^-s)
 piecewise	core	Lists	piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call
@@ -341,7 +341,7 @@ depth	core	Lists	depth(t): 1 for an atom, one more than the deepest argument oth
 leaf_count	core	Lists	leaf_count(t): the number of atoms in t, heads included
 string_join	core	Lists	string_join(s1, s2, ...) or string_join([s1, ...]): the strings concatenated
 to_string	core	Lists	to_string(t): the printed form of t (a string stays itself)
-string_length	core	Lists	string_length(s): the number of characters of s
+string_length	core	Lists	string_length(s): the number of characters of s (of each string of a list of strings)
 map_apply	core	Lists	map_apply(f, xs): each element g(a, b, ...) of xs as f(a, b, ...)
 comap	core	Lists	comap(fs, x): each function g of fs applied to x, keeping the head of fs ([f, g] gives [f(x), g(x)])
 comap_apply	core	Lists	comap_apply(fs, xs): each function g of fs applied to the elements of xs as arguments
@@ -1825,7 +1825,7 @@ matrix_function	higher	Linear algebra	matrix_function(f, m): the matrix function
 matrix_exp	higher	Linear algebra	matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v
 matrix_log	higher	Linear algebra	matrix_log(m): the principal matrix logarithm
 matrix_power	higher	Linear algebra	matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)
-conjugate_transpose	higher	Linear algebra	conjugate_transpose(m): the conjugate of the transpose of m
+conjugate_transpose	higher	Linear algebra	conjugate_transpose(m), conjugate_transpose(a, perm): the conjugate of the transpose of m (of a with its levels permuted as transpose does)
 hilbert_matrix	higher	Linear algebra	hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular
 rotation_matrix	higher	Linear algebra	rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w
 sparse_array	higher	Linear algebra	sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form
