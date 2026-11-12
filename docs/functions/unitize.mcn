@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# unitize
+
+#% text
+# `unitize(x)` gives 0 when `x` is zero and 1 otherwise; `unitize(x, d)` gives 0 when `abs(x) < d`.
+
+#% section
+# Details
+
+#% item
+# Lists are taken element by element.
+
+#% item
+# A numeric expression is decided rigorously: a 30-digit enclosure that excludes 0 gives 1, `simplify` giving 0 gives 0; when neither decides, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unitize([[1, 0, 2], [0.0, -3, 0]])
+#% output
+#= [[1, 0, 1], [0, 1, 0]]
+
+#% cell
+unitize(pi)
+#% output
+#= 1
+
+#% cell
+unitize(sqrt(2) + sqrt(3) - sqrt(5 + 2*sqrt(6)))
+#% output
+#= 0
+
+#% cell
+unitize([e, pi], 3)
+#% output
+#= [0, 1]
+
+#% cell
+unitize(x)
+#% output
+#= unitize(x)
+
+#% section
+# See also
+
+#% text
+# `sign`, `chop`, `possible_zero_q`

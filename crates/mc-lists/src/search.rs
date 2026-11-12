@@ -19,8 +19,9 @@ impl<'h> Probe<'h> {
     /// The probe of the (evaluated) pattern term `p`; `None` when it is not a valid pattern.
     pub fn new(cx: &NativeCx<'_, '_, 'h>, p: T<'h>) -> Option<Probe<'h>> {
         let l = mc_eval::syntax::pattern(cx.heap(), p).ok()?;
-        if matches!(l.pat, Pat::Lit(_)) {
-            return Some(Probe::Lit(p));
+        // the literal the pattern stands for: p itself, or the term inside verbatim(...)
+        if let Pat::Lit(lit) = &l.pat {
+            return Some(Probe::Lit(lit.get(cx.heap())));
         }
         cx.compile_pattern(l.pat).ok().map(Probe::Pat)
     }

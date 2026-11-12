@@ -141,3 +141,23 @@ broken greedily, so equivalent inputs can give forms that agree as expressions b
 ## Round 36
 
 - `logical_expand` of an equation whose left side is a series at 0: the conjunction of the coefficient equations.
+
+## Round 38: more.mc
+
+A second source, `lib/more.mc`, evaluated after the other libraries (it uses the interval helpers of the lists
+library); its functions are in `MORE_FUNCTIONS`.
+
+- `max_machine_number`: (2 - 2^-52) 2^1023.
+- `unitize(x)`, `unitize(x, d)`: zero decided rigorously: a 30-digit enclosure excluding 0 gives 1, `simplify` giving
+  0 gives 0; otherwise the call stays unevaluated (no numerical guess).
+- `is_duplicate_free`, `matching_dissimilarity`.
+- `associate_to(held a, rules)`, `key_drop_from(held a, k)`: the association held by a symbol, stored back with `set`.
+- `vector_around(v, s)`: forms with correlations become the covariance matrix; `around_replace(e, rules, order)`:
+  first order mean e(mu), variance g C g; second order adds tr(HC)/2 to the mean and tr(HCHC)/2 to the variance
+  (moments of a quadratic form in normal variables). Taking e as a whole makes repeated variables correlated.
+- `interval_intersection`: pairwise intersection of boxes; real result an `interval`, one complex box a
+  `centered_interval`, several complex boxes an argument failure (one centered interval cannot hold them).
+- `find_divisions`: steps m 10^k (m in 1, 2, 5; powers of the base otherwise; multiples of u with k >= 0 when u is
+  given) near span/n; the step whose number of intervals is closest to n, the smaller on a tie; the second level uses
+  steps dividing the first level's step.
+- Seen while testing: `log(10.0, 5.0)` (two arguments, machine numbers) stays unevaluated.

@@ -283,6 +283,15 @@ pub(crate) fn subset_position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T
     Ok(Reply::Done(cx.list(&out)))
 }
 
+/// `subset_count(xs, p)`, `subset_count(xs, p, n)`: the number of subsets `subset_cases` gives (disjoint unless
+/// `overlaps: true`; at most `n`).
+pub(crate) fn subset_count<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, xs: &[T<'h>]) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let a = take!(args(lib, h, t, xs, false));
+    let found = take!(search(lib, cx, t, &a)?);
+    Ok(Reply::Done(h.int(found.len() as i64)))
+}
+
 /// `subset_replace(xs, p -> r)`, `subset_replace(xs, rules, n)`: each subset of `xs` matching a rule's list
 /// pattern (not overlapping) replaced by its `r`, which takes the place of the element matching the pattern's
 /// first slot; the subset's other elements are removed.

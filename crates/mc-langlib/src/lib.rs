@@ -65,3 +65,25 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("throw_exception", "throw_exception(exc): throw the exception, tagged by its type, to the nearest catch_exception of that type or of a type it is a kind of"),
     ("catch_exception", "catch_exception(body, type), (body, type, f): the value of body, or the exception of that type (or a kind of it) thrown in it, or f of it"),
 ];
+
+/// The second source of the library (`lib/more.mc`): machine limits, `unitize`, list predicates, associations held in
+/// symbols, uncertain vectors and uncertainty propagation, interval intersection and tick divisions. It is evaluated
+/// after the other libraries (it uses the interval helpers of the lists library).
+pub const MORE_SOURCE: &str = include_str!("../lib/more.mc");
+
+/// The name of [`MORE_SOURCE`] in messages.
+pub const MORE_ORIGIN: &str = "lib/more.mc";
+
+/// The public functions of [`MORE_SOURCE`] with a one-line description.
+pub const MORE_FUNCTIONS: &[(&str, &str)] = &[
+    ("max_machine_number", "max_machine_number: the largest finite machine number, (2 - 2^-52) 2^1023"),
+    ("unitize", "unitize(x): 0 when x is zero, else 1; unitize(x, d): 0 when abs(x) < d, else 1; lists elementwise; an undecided zero test stays unevaluated"),
+    ("is_duplicate_free", "is_duplicate_free(xs), is_duplicate_free(xs, test): whether no two elements of xs are identical (test(a, b) true for no two)"),
+    ("matching_dissimilarity", "matching_dissimilarity(u, v): the fraction of the positions where the Boolean vectors u and v (true/false or 1/0) differ"),
+    ("associate_to", "associate_to(a, rules): the association held by the symbol a with the rules added (keys replaced), stored back in a"),
+    ("key_drop_from", "key_drop_from(a, k), key_drop_from(a, [k1, ...]): the association held by the symbol a without those keys, stored back in a"),
+    ("vector_around", "vector_around(v, [s1, ...]): a vector with independent uncertainties; vector_around(v, c): with covariance matrix c; [[s1, ...], r] or [[s1, ...], R] give it from correlations"),
+    ("around_replace", "around_replace(e, x -> around(m, s)), (e, [rules]), (e, [x, y] -> vector_around(ms, c)), (e, rules, 2): e at uncertain values, the uncertainty propagated through e as a whole to first (or second) order"),
+    ("interval_intersection", "interval_intersection(i1, i2, ...): the intersection of intervals and centered intervals (an interval of the common real pieces; a centered interval for one common complex box)"),
+    ("find_divisions", "find_divisions([a, b], n): about n nice divisions covering [a, b] (1, 2 or 5 times a power of 10); [a, b, u]: multiples of u; [n1, n2]: divisions and subdivisions; find_divisions(spec, n, base)"),
+];

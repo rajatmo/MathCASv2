@@ -107,6 +107,11 @@ const LANGUAGE: &[(&str, &str)] = &[
     ("repeated", "repeated(p), repeated(p, n), repeated(p, [m, n]): the pattern of a run of arguments each matching p"),
     ("key_value_pattern", "key_value_pattern([p1, ...]): the pattern of an association (or list of rules) with entries matching p1, ..."),
     ("replace_list", "replace_list(e, rules), replace_list(e, rules, n): the results of every way the rules match the whole of e"),
+    ("break", "break(): failure(break), which ends the innermost while or for loop around it with null"),
+    ("continue", "continue(): failure(continue), which ends the current iteration of the innermost while or for loop around it"),
+    ("verbatim", "verbatim(p): the pattern that matches the term p itself, its pattern constructs (x_, _) taken literally"),
+    ("hold_pattern", "hold_pattern(p): the pattern p, kept unevaluated where it is written"),
+    ("alternatives", "alternatives(p1, p2, ...): the pattern p1 | p2 | ... as a call (apply(alternatives, list) builds one)"),
 ];
 
 /// The prelude's functions (`lib/prelude.mc`, written in the language itself and defined in every session): no
@@ -324,6 +329,7 @@ fn sources() -> Vec<(&'static str, Area, Functions)> {
         ("Lists", Area::Core, mc_lists::FUNCTIONS),
         ("Associations and sets", Area::Core, mc_assoc::FUNCTIONS),
         ("Language library", Area::Core, mc_langlib::FUNCTIONS),
+        ("Language library", Area::Core, mc_langlib::MORE_FUNCTIONS),
         ("Number sequences", Area::SymbolicNumeric, mc_combinat::FUNCTIONS),
         ("Further functions", Area::SymbolicNumeric, mc_further_functions::FUNCTIONS),
         ("Differential algebra", Area::Higher, mc_diffalg::FUNCTIONS),

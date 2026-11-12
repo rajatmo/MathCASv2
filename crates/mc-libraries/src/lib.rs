@@ -83,6 +83,7 @@ pub const FUNCTIONS: &[Functions] = &[
     mc_cad::FUNCTIONS,
     mc_dist::FUNCTIONS,
     mc_langlib::FUNCTIONS,
+    mc_langlib::MORE_FUNCTIONS,
     mc_combinat::FUNCTIONS,
     mc_fields::FUNCTIONS,
     mc_further_functions::FUNCTIONS,
@@ -129,6 +130,8 @@ pub const SOURCES: &[Source] = &[
     Source { name: "special-function", origin: mc_special::LIB_ORIGIN, text: mc_special::LIB_SOURCE },
     Source { name: "mechanics", origin: mc_mechanics::ORIGIN, text: mc_mechanics::SOURCE },
     Source { name: "differential algebra", origin: mc_diffalg::ORIGIN, text: mc_diffalg::SOURCE },
+    // more of the language library (after the lists library, whose interval helpers it uses)
+    Source { name: "more language", origin: mc_langlib::MORE_ORIGIN, text: mc_langlib::MORE_SOURCE },
 ];
 
 /// Register every library's natives with `k`, and the exporters and importers of pictures with `mc-io`. `stop` is

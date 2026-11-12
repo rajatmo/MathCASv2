@@ -702,3 +702,14 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
 
 - `NativeCx::eval` returns `Abort::Limit` when the control block is halted: a native that swallowed an earlier abort
   stops at its next nested evaluation (see mc-cad NOTES).
+
+## Round 38: loop control and literal patterns
+
+- `break()` and `continue()` are `failure(break)` and `failure(continue)` (nonlocal.rs): failure values, so they end
+  blocks and strict calls up to the innermost `while` or `for`, which reads them in `lang::loop_exit` (break: the loop
+  ends with `null`; continue: next iteration). No new evaluator mechanism, as for `throw`.
+- No `return`: whether it should end the innermost loop or the enclosing function is a design question left open;
+  early exit is `catch`/`throw`, loops end with `break()`.
+- Pattern heads `verbatim(p)` (the term p itself, its pattern constructs bind nothing) and `hold_pattern(p)` (held,
+  lowered as p) in `syntax.rs`; `alternatives` registered as a declining native so `apply(alternatives, xs)` is a
+  known call.

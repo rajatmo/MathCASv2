@@ -666,3 +666,22 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
   heads: `partition`, `tuples`, `permutations`, `fold`, `fold_list`, `symmetric_difference`): a non-list whose last
   argument is `options(...)` is an argument error, as any non-list was before. `accumulate(time_series(ts,
   temporal_regularity: true))` had added the settings to the data (`time_series(ts, ts + options(...))`).
+
+## Round 38: arrays, subset counts, tours, symbols by name, cleanup
+
+- `array_filter(f, a, r)` (`arrays.rs`): blocks of radius r (a count, per-level radii, or `[before, after]` pairs)
+  around every element of the full array; padding "Fixed" (edge repeated, default), "Periodic", "Reflected" or a
+  value. A radius list longer than the array's depth (a kernel array) is not read: the call stays unevaluated.
+- `array_reduce(f, a, n | [n1, ...])`: f of each vector (sub-array) along the levels, those levels removed.
+- `subset_count`: the number of subsets `subset_cases` gives (disjoint by default), in `subsets.rs`.
+- `find_shortest_tour` (`tour.rs`): exact dynamic programming over subsets (Bellman 1962; Held and Karp 1962) for up
+  to 20 elements; more stay unevaluated rather than giving a heuristic tour as the shortest. Euclidean distance,
+  `abs(x - y)`, edit distance (Levenshtein 1966) of strings, or `distance_function:` (`inf` is no step; no finite
+  tour gives `failure(not_found, ...)`). The minimum is decided in machine arithmetic, the length returned is the
+  exact sum along the tour; of the two directions of a symmetric tour the one with the smaller second index.
+- `symbol(name)` reads the name with the reader (keywords and expressions are `failure(argument, symbol, 1)`);
+  `symbol_name(x)` drops the module path.
+- `with_cleanup(body, cleanup)`, `(init, body, cleanup)`: held; the cleanup runs after a value or a failure (a throw);
+  an interrupt or limit stops it too.
+- `free_of` with `verbatim(p)`: the literal probe is the term inside `verbatim` (search.rs `Probe::new`).
+- Gap seen: `box_matrix(0, [n, n])` gives `failure(division_by_zero)` entries (not changed here).

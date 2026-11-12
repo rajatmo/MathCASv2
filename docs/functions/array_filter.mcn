@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# array_filter
+
+#% text
+# `array_filter(f, a, r)` applies `f` to the block of radius `r` around every element of the array `a` and gives the array of the results.
+
+#% section
+# Details
+
+#% item
+# `r` is a count (the same radius at every level), a list `[r1, r2, ...]` (radius `ri` at level `i`; the elements at the last of these levels are taken whole) or a list of pairs `[before, after]`.
+
+#% item
+# Outside the array the block takes the nearest element (`padding: "Fixed"`, the default); `padding: "Periodic"` wraps around, `padding: "Reflected"` mirrors at the edge element, any other value pads with that value.
+
+#% item
+# Each block is a nested list with the depth of the levels filtered.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+array_filter(f, range(6), 1)
+#% output
+#= [f([1, 1, 2]), f([1, 2, 3]), f([2, 3, 4]), f([3, 4, 5]), f([4, 5, 6]), f([5, 6, 6])]
+
+#% cell
+array_filter(total, [1, 4, 9, 16, 25], 1, padding: 0)
+#% output
+#= [5, 14, 29, 50, 41]
+
+#% cell
+array_filter(f, [[1, 2, 3], [4, 5, 6]], [0, 1])
+#% output
+#= [[f([[1, 1, 2]]), f([[1, 2, 3]]), f([[2, 3, 3]])], [f([[4, 4, 5]]), f([[4, 5, 6]]), f([[5, 6, 6]])]]
+
+#% cell
+array_filter(xs => max(flatten(xs)), [[1, 0, 0], [0, 0, 0], [0, 0, 7]], 1)
+#% output
+#= [[1, 1, 0], [1, 7, 7], [0, 7, 7]]
+
+#% cell
+array_filter(f, [a, b, c], [[1, 0]], padding: "Periodic")
+#% output
+#= [f([c, a]), f([a, b]), f([b, c])]
+
+#% section
+# See also
+
+#% text
+# `array_reduce`, `partition`, `list_convolve`

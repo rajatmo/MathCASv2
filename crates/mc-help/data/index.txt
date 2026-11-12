@@ -28,6 +28,11 @@ reap	core	Language	reap(e), reap(e, p), reap(e, p, f): [value of e, the values s
 repeated	core	Language	repeated(p), repeated(p, n), repeated(p, [m, n]): the pattern of a run of arguments each matching p
 key_value_pattern	core	Language	key_value_pattern([p1, ...]): the pattern of an association (or list of rules) with entries matching p1, ...
 replace_list	core	Language	replace_list(e, rules), replace_list(e, rules, n): the results of every way the rules match the whole of e
+break	core	Language	break(): failure(break), which ends the innermost while or for loop around it with null
+continue	core	Language	continue(): failure(continue), which ends the current iteration of the innermost while or for loop around it
+verbatim	core	Language	verbatim(p): the pattern that matches the term p itself, its pattern constructs (x_, _) taken literally
+hold_pattern	core	Language	hold_pattern(p): the pattern p, kept unevaluated where it is written
+alternatives	core	Language	alternatives(p1, p2, ...): the pattern p1 | p2 | ... as a call (apply(alternatives, list) builds one)
 say	core	Language	say(x, ...): print the arguments on one line, strings as their text; the value is null
 is_even	core	Language	is_even(n): whether the integer n is even
 is_odd	core	Language	is_odd(n): whether the integer n is odd
@@ -375,6 +380,13 @@ subset_cases	core	Lists	subset_cases(xs, p), subset_cases(xs, p, n): the sublist
 subset_position	core	Lists	subset_position(xs, p), subset_position(xs, p, n): the positions of the elements of each subset of xs matching the list pattern p, in the pattern's order (overlaps: false for disjoint ones)
 subset_replace	core	Lists	subset_replace(xs, p -> r), subset_replace(xs, rules, n): each subset of xs matching a list pattern (disjoint, at most n) replaced by r, at the place of its first element
 split	core	Lists	split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list
+array_filter	core	Lists	array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: "Fixed" (the edge repeated), "Periodic", "Reflected" or a value
+array_reduce	core	Lists	array_reduce(f, a, n): f applied to each vector of the array a along level n, that level removed; array_reduce(f, a, [n1, n2, ...]): to each sub-array along those levels
+subset_count	core	Lists	subset_count(xs, p), subset_count(xs, p, n): the number of disjoint subsets of xs (elements in any order) matching the list pattern p (overlaps: true counts every subset)
+find_shortest_tour	core	Lists	find_shortest_tour(xs): [length, tour], the shortest closed tour through the points, numbers or strings xs (positions from 1 back to 1); find_shortest_tour(xs, j, k): the shortest path from xs[j] to xs[k] through all the others; distance_function: f; exact, up to 20 elements
+symbol	core	Lists	symbol(name): the symbol with the name given as a string
+symbol_name	core	Lists	symbol_name(x): the name of the symbol x as a string, without its module path
+with_cleanup	core	Lists	with_cleanup(body, cleanup), with_cleanup(init, body, cleanup): the value of body, with cleanup evaluated after it (also when body gives a failure or throws)
 union	core	Associations and sets	union(xs, ys, ...): the elements of any argument, without repetitions, in canonical order
 intersection	core	Associations and sets	intersection(xs, ys, ...): the elements of every argument, without repetitions, in canonical order
 complement	core	Associations and sets	complement(all, xs, ...): the elements of all in no other argument, without repetitions, in canonical order
@@ -444,6 +456,16 @@ register_exception_type	core	Language library	register_exception_type(type), (ty
 exception_types	core	Language library	exception_types(): the registered exception types
 throw_exception	core	Language library	throw_exception(exc): throw the exception, tagged by its type, to the nearest catch_exception of that type or of a type it is a kind of
 catch_exception	core	Language library	catch_exception(body, type), (body, type, f): the value of body, or the exception of that type (or a kind of it) thrown in it, or f of it
+max_machine_number	core	Language library	max_machine_number: the largest finite machine number, (2 - 2^-52) 2^1023
+unitize	core	Language library	unitize(x): 0 when x is zero, else 1; unitize(x, d): 0 when abs(x) < d, else 1; lists elementwise; an undecided zero test stays unevaluated
+is_duplicate_free	core	Language library	is_duplicate_free(xs), is_duplicate_free(xs, test): whether no two elements of xs are identical (test(a, b) true for no two)
+matching_dissimilarity	core	Language library	matching_dissimilarity(u, v): the fraction of the positions where the Boolean vectors u and v (true/false or 1/0) differ
+associate_to	core	Language library	associate_to(a, rules): the association held by the symbol a with the rules added (keys replaced), stored back in a
+key_drop_from	core	Language library	key_drop_from(a, k), key_drop_from(a, [k1, ...]): the association held by the symbol a without those keys, stored back in a
+vector_around	core	Language library	vector_around(v, [s1, ...]): a vector with independent uncertainties; vector_around(v, c): with covariance matrix c; [[s1, ...], r] or [[s1, ...], R] give it from correlations
+around_replace	core	Language library	around_replace(e, x -> around(m, s)), (e, [rules]), (e, [x, y] -> vector_around(ms, c)), (e, rules, 2): e at uncertain values, the uncertainty propagated through e as a whole to first (or second) order
+interval_intersection	core	Language library	interval_intersection(i1, i2, ...): the intersection of intervals and centered intervals (an interval of the common real pieces; a centered interval for one common complex box)
+find_divisions	core	Language library	find_divisions([a, b], n): about n nice divisions covering [a, b] (1, 2 or 5 times a power of 10); [a, b, u]: multiples of u; [n1, n2]: divisions and subdivisions; find_divisions(spec, n, base)
 bell_b	symbolic	Number sequences	bell_b(n), bell_b(n, x): the Bell number (Bell polynomial) of integer n >= 0
 bernoulli_b	symbolic	Number sequences	bernoulli_b(n), bernoulli_b(n, x): the Bernoulli number (polynomial); B_1 = -1/2
 euler_e	symbolic	Number sequences	euler_e(n), euler_e(n, x): the Euler number (polynomial)

@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# with_cleanup
+
+#% text
+# `with_cleanup(body, cleanup)` evaluates `body`, then `cleanup`, and gives the value of `body`.
+
+#% section
+# Details
+
+#% item
+# `with_cleanup(init, body, cleanup)` evaluates `init` first.
+
+#% item
+# The cleanup runs also when the body gives a failure or throws a value: the failure is the result, and an outer `catch` takes a thrown value.
+
+#% item
+# An interrupt or an exhausted limit stops the whole evaluation, the cleanup with it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+with_cleanup({ x = 7; x^2 }, unset(x))
+#% output
+#= 49
+
+#% cell
+x
+#% output
+#= x
+
+#% cell
+catch(with_cleanup(print(1), { throw(done); print(2) }, print(3)))
+#% output
+#| 1
+#| 3
+#= done
+
+#% section
+# See also
+
+#% text
+# `catch`, `throw`, `check`

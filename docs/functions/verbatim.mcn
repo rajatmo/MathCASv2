@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# verbatim
+
+#% text
+# `verbatim(p)` is the pattern that matches the term `p` itself: the pattern constructs in it (`x_`, `_`, `xs__`) are taken literally.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+match_q(x_, verbatim(x_))
+#% output
+#= true
+
+#% cell
+match_q(y, verbatim(x_))
+#% output
+#= false
+
+#% cell
+rewrite([f(x), f(x_), f(y_)], f(verbatim(x_)) -> x^2)
+#% output
+#= [f(x), x^2, f(y_)]
+
+#% cell
+free_of(f(_), verbatim(_))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `hold_pattern`, `match_q`, `cases`

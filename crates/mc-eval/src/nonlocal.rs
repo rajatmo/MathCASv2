@@ -35,6 +35,32 @@ use std::sync::Arc;
 /// The tag of a thrown failure: `failure(thrown, v)` or `failure(thrown, v, tag)`.
 const THROWN: &str = "thrown";
 
+/// The tag of `break()`, `failure(break)`: a `while` or `for` loop whose body gives it ends with `null`.
+pub(crate) const BREAK: &str = "break";
+
+/// The tag of `continue()`, `failure(continue)`: a `while` or `for` loop whose body gives it goes on with its next
+/// iteration.
+pub(crate) const CONTINUE: &str = "continue";
+
+/// `break()` and `continue()`: the failures `failure(break)` and `failure(continue)`. Like a thrown value they are
+/// failure values, so they end the blocks and strict calls around them up to the innermost loop, which reads them
+/// (`crate::lang`); outside a loop they stay as the value.
+struct LoopControl(&'static str);
+
+impl Native for LoopControl {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if !args.is_empty() {
+            return Ok(Reply::Decline);
+        }
+        let h = cx.heap();
+        Ok(Reply::Done(h.call(cx.ev.k.names.failure, &[h.sym_term(h.sym(self.0))])))
+    }
+}
+
 /// `failure(thrown, v[, tag])` as `(v, tag)`.
 fn thrown<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<(T<'h>, Option<T<'h>>)> {
     let h = cx.heap();
@@ -320,4 +346,11 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("reap"), Attributes { effect: true, ..a(Hold::First) }, Box::new(Reap(harvest)));
     k.register(h.sym("repeated"), a(Hold::None), Box::new(Repeated));
     k.register(h.sym("key_value_pattern"), a(Hold::None), Box::new(Repeated));
+    k.register(h.sym(BREAK), a(Hold::None), Box::new(LoopControl(BREAK)));
+    k.register(h.sym(CONTINUE), a(Hold::None), Box::new(LoopControl(CONTINUE)));
+    // pattern heads read by the matcher (`crate::syntax`): `verbatim(p)` matches the term p itself, `hold_pattern(p)`
+    // the pattern p kept unevaluated; `alternatives(p, q, ...)` is the pattern `p | q | ...` as a call
+    k.register(h.sym("verbatim"), a(Hold::All), Box::new(Repeated));
+    k.register(h.sym("hold_pattern"), a(Hold::All), Box::new(Repeated));
+    k.register(h.sym("alternatives"), a(Hold::None), Box::new(Repeated));
 }

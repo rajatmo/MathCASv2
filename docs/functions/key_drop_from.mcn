@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# key_drop_from
+
+#% text
+# `key_drop_from(a, k)` removes the key `k` (or the keys of a list) from the association held by the symbol `a`, stores the result back in `a` and gives it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+a = assoc(x -> 1, y -> 2, z -> 3)
+
+#% cell
+key_drop_from(a, x)
+#% output
+#= assoc(y -> 2, z -> 3)
+
+#% cell
+key_drop_from(a, [y, w])
+#% output
+#= assoc(z -> 3)
+
+#% cell
+a
+#% output
+#= assoc(z -> 3)
+
+#% section
+# See also
+
+#% text
+# `associate_to`, `key_drop`

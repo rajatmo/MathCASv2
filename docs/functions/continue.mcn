@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# continue
+
+#% text
+# `continue()` gives `failure(continue)`, which ends the current iteration of the innermost `while` or `for` loop around it; the loop goes on with the next one.
+
+#% section
+# Details
+
+#% item
+# Like every failure, `failure(continue)` ends the blocks and strict calls between it and the loop.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+{ var s = 0; for k in range(10) { if is_odd(k) then continue(); s = s + k }; s }
+#% output
+#= 30
+
+#% cell
+total(select(range(10), is_even))
+#% output
+#= 30
+
+#% section
+# See also
+
+#% text
+# `break`, `catch`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# symbol_name
+
+#% text
+# `symbol_name(x)` gives the name of the symbol `x` as a string, without its module path.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+symbol_name(x)
+#% output
+#= "x"
+
+#% cell
+map(symbol_name, [alpha, beta1])
+#% output
+#= ["alpha", "beta1"]
+
+#% cell
+symbol(symbol_name(z)) === z
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `symbol`, `to_string`, `names`

@@ -409,6 +409,9 @@ property of the printer, not of the term. Packed polynomials keep their own inte
 
 - Errors are values: `failure(tag, details...)`. A failure propagates through strict arguments (a call with a failure
   argument returns that failure) unless the function declares that it handles failures.
+- Loop control is failures too: `break()` is `failure(break)` and `continue()` is `failure(continue)`; they end the
+  blocks and strict calls around them, and the innermost `while` or `for` loop reads them (break: the loop's value is
+  `null`; continue: the next iteration). Outside a loop they stay as the value. (Decision of November 2026.)
 - Diagnostics (warnings) are attached to the evaluation result as a list, not printed during evaluation. A computation
   that produces a value with a warning still returns the value.
 - Limits are fuel, wall-clock time and memory, set per evaluation with defaults per session. Exceeding one gives

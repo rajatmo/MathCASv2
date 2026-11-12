@@ -50,6 +50,31 @@ fn failure<'h>(cx: &NativeCx<'_, '_, 'h>, tag: &str, details: &[T<'h>]) -> T<'h>
     h.call(cx.ev.k.names.failure, &args)
 }
 
+/// What a loop does with the value of its body: `failure(break)` (from `break()`) ends the loop with `null`,
+/// `failure(continue)` (from `continue()`) goes on with the next iteration, any other failure ends the loop with that
+/// failure; `None` for a value that is no failure.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum LoopExit {
+    Break,
+    Continue,
+    Fail,
+}
+
+fn loop_exit<'h>(cx: &NativeCx<'_, '_, 'h>, v: T<'h>) -> Option<LoopExit> {
+    if !is_failure(cx, v) {
+        return None;
+    }
+    let h = cx.heap();
+    Some(match h.view(v) {
+        View::App { args: &[k], .. } => match h.view(k) {
+            View::Sym(s) if h.sym_name(s) == crate::nonlocal::BREAK => LoopExit::Break,
+            View::Sym(s) if h.sym_name(s) == crate::nonlocal::CONTINUE => LoopExit::Continue,
+            _ => LoopExit::Fail,
+        },
+        _ => LoopExit::Fail,
+    })
+}
+
 /// The type a local binding is declared with, `let(typed(x, T), v)`, if it is an atomic type.
 fn declared_type(h: &Heap, sc: &crate::subst::Scopes, p: T<'_>) -> Option<crate::pat::Ty> {
     match h.view(p) {
@@ -255,12 +280,11 @@ pub(crate) fn resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, frame: Frame<'h>, v: T<'
     match frame {
         Frame::Block(st) => block_resume(cx, st, v),
         Frame::While(st) => while_resume(cx, st, v),
-        Frame::For(st) => {
-            if is_failure(cx, v) {
-                return Ok(FormOut::Reply(Reply::Done(v)));
-            }
-            for_next(cx, st)
-        }
+        Frame::For(st) => match loop_exit(cx, v) {
+            Some(LoopExit::Fail) => Ok(FormOut::Reply(Reply::Done(v))),
+            Some(LoopExit::Break) => Ok(FormOut::Reply(Reply::Done(cx.null()))),
+            Some(LoopExit::Continue) | None => for_next(cx, st),
+        },
         // invariant: evaluation levels resume in the machine; only form frames reach here
         Frame::Eval(_) => unreachable!("an evaluation level is not a form"),
     }
@@ -365,8 +389,10 @@ fn block_resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: Box<BlockState<'h>>, 
 /// A `while` loop's condition or body has value `v`.
 fn while_resume<'h>(cx: &mut NativeCx<'_, '_, 'h>, mut st: WhileState<'h>, v: T<'h>) -> Res<FormOut<'h>> {
     if st.in_body {
-        if is_failure(cx, v) {
-            return Ok(FormOut::Reply(Reply::Done(v)));
+        match loop_exit(cx, v) {
+            Some(LoopExit::Fail) => return Ok(FormOut::Reply(Reply::Done(v))),
+            Some(LoopExit::Break) => return Ok(FormOut::Reply(Reply::Done(cx.null()))),
+            Some(LoopExit::Continue) | None => {}
         }
         cx.tick(1)?;
         st.in_body = false;

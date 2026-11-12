@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# find_divisions
+
+#% text
+# `find_divisions([a, b], n)` gives about `n` nice divisions covering the interval from `a` to `b`: the multiples of a step that is 1, 2 or 5 times a power of 10.
+
+#% section
+# Details
+
+#% item
+# The step chosen is the one whose number of intervals is closest to `n` (the smaller step on a tie); the divisions run from the multiple at or below `a` to the one at or above `b`, and are exact numbers.
+
+#% item
+# `find_divisions([a, b, u], n)` uses multiples of `u` (1, 2 or 5 times `u` times a power of 10 of at least 1); `find_divisions(spec, n, base)` uses the powers of `base` (base 10: also 2 and 5 times them).
+
+#% item
+# `find_divisions(spec, [n1, n2])` gives the divisions and, for each interval between them, its own divisions into about `n2` (steps dividing the first one; per level units with `[a, b, [u1, u2]]`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_divisions([0, 1], 5)
+#% output
+#= [0, 1/5, 2/5, 3/5, 4/5, 1]
+
+#% cell
+find_divisions([0.1, 0.9], 5)
+#% output
+#= [0, 1/5, 2/5, 3/5, 4/5, 1]
+
+#% cell
+find_divisions([-3.7, 12.2], 4)
+#% output
+#= [-5, 0, 5, 10, 15]
+
+#% cell
+find_divisions([0, 10, pi], 5)
+#% output
+#= [0, pi, 2*pi, 3*pi, 4*pi]
+
+#% cell
+find_divisions([0, 1], 5, 2)
+#% output
+#= [0, 1/4, 1/2, 3/4, 1]
+
+#% cell
+find_divisions([0, 1], [2, 4])
+#% output
+#= [[0, 1/2, 1], [[0, 1/10, 1/5, 3/10, 2/5, 1/2], [1/2, 3/5, 7/10, 4/5, 9/10, 1]]]
+
+#% section
+# See also
+
+#% text
+# `subdivide`, `range`

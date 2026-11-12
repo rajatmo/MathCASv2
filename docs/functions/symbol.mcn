@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# symbol
+
+#% text
+# `symbol(name)` gives the symbol whose name is the string `name`.
+
+#% section
+# Details
+
+#% item
+# `symbol(name)` is the symbol the reader makes of the name, so `symbol("x") === x`.
+
+#% item
+# A string that is not a single name (a keyword, a number, an expression) gives `failure(argument, symbol, 1)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+symbol("x17")
+#% output
+#= x17
+
+#% cell
+symbol("x17") === x17
+#% output
+#= true
+
+#% cell
+symbol_name(symbol("y32"))
+#% output
+#= "y32"
+
+#% cell
+symbol("1 + 2")
+#% output
+#! failure(argument, symbol, 1)
+
+#% section
+# See also
+
+#% text
+# `symbol_name`, `to_expression`, `is_symbol`

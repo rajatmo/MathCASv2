@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# break
+
+#% text
+# `break()` gives `failure(break)`, which ends the innermost `while` or `for` loop around it; the loop's value is then `null`.
+
+#% section
+# Details
+
+#% item
+# Like every failure, `failure(break)` ends the blocks and strict calls between it and the loop.
+
+#% item
+# Outside a loop it stays a failure value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+{ var i = 1; while true { if i > 10 then break(); i = i + 1 }; i }
+#% output
+#= 11
+
+#% cell
+{ var s = []; for k in range(10) { if k^2 > 20 then break(); s = append(s, k) }; s }
+#% output
+#= [1, 2, 3, 4]
+
+#% cell
+break()
+#% output
+#! failure(break)
+
+#% section
+# See also
+
+#% text
+# `continue`, `catch`, `throw`

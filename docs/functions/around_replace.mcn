@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# around_replace
+
+#% text
+# `around_replace(e, x -> around(m, s))` gives `e` at the uncertain value of `x`, the uncertainty propagated through `e` as a whole.
+
+#% section
+# Details
+
+#% item
+# A list of rules gives several independent variables; `[x, y] -> vector_around(ms, c)` gives correlated ones.
+
+#% item
+# To first order the mean is `e` at the means and the variance `g . C . g`, `g` the gradient and `C` the covariance matrix. `around_replace(e, rules, 2)` works to second order: the mean adds `trace(H C)/2` and the variance `trace(H C H C)/2`, `H` the Hessian (the moments of normally distributed variables).
+
+#% item
+# Because `e` is taken as a whole, a variable occurring several times is correlated with itself, unlike in arithmetic on `around` values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+around_replace(exp(s) + exp(s/2), s -> around(2., 0.3))
+#% output
+#= around(10.107337927389695, 2.624459103948052)
+
+#% cell
+exp(around(2., 0.3)) + exp(around(2., 0.3)/2)
+#% output
+#= around(10.107337927389695, 2.2539048926715877)
+
+#% cell
+around_replace(x*y, [x -> around(2., 0.1), y -> around(3., 0.2)])
+#% output
+#= around(6.0, 0.5)
+
+#% cell
+around_replace(sin(s), s -> around(1.56, 0.01), 2)
+#% output
+#= around(0.9998917231439548, 0.00012905437448170262)
+
+#% cell
+around_replace(exp(s) + exp(r/2), [s, r] -> vector_around([2., 2.], [[0.3, 0.3], 0.5]))
+#% output
+#= around(10.107337927389695, 2.446208582020831)
+
+#% section
+# See also
+
+#% text
+# `around`, `vector_around`

@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# matching_dissimilarity
+
+#% text
+# `matching_dissimilarity(u, v)` gives the fraction of the positions where the Boolean vectors `u` and `v` differ.
+
+#% section
+# Details
+
+#% item
+# Entries are `true` and `false`, or 1 and 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matching_dissimilarity([1, 0, 1, 1, 0], [1, 1, 0, 1, 1])
+#% output
+#= 3/5
+
+#% cell
+matching_dissimilarity([true, false, true], [true, true, false])
+#% output
+#= 2/3
+
+#% cell
+hamming_distance([1, 0, 1, 1, 0], [1, 1, 0, 1, 1])/5
+#% output
+#= 3/5
+
+#% section
+# See also
+
+#% text
+# `hamming_distance`

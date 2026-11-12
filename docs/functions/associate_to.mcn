@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# associate_to
+
+#% text
+# `associate_to(a, rules)` adds the rules to the association held by the symbol `a`, stores the result back in `a` and gives it.
+
+#% section
+# Details
+
+#% item
+# `rules` is a rule, a list of rules or an association; a key already present takes the new value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+a = assoc(x -> 1, y -> 2)
+
+#% cell
+associate_to(a, x -> 10)
+#% output
+#= assoc(x -> 10, y -> 2)
+
+#% cell
+associate_to(a, [z -> 3])
+#% output
+#= assoc(x -> 10, y -> 2, z -> 3)
+
+#% cell
+a
+#% output
+#= assoc(x -> 10, y -> 2, z -> 3)
+
+#% section
+# See also
+
+#% text
+# `key_drop_from`, `join`, `assoc`

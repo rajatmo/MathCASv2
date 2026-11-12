@@ -48,6 +48,7 @@
 #![warn(missing_docs)]
 mod access;
 mod arrange;
+mod arrays;
 mod assocs;
 mod combinat;
 mod construct;
@@ -70,6 +71,8 @@ mod strings;
 mod structure;
 mod subsets;
 mod sums;
+mod symbols;
+mod tour;
 
 use ctx::Lib;
 use mc_core::{Heap, Store, T};
@@ -495,10 +498,25 @@ functions! {
         "subset_replace(xs, p -> r), subset_replace(xs, rules, n): each subset of xs matching a list pattern (disjoint, at most n) replaced by r, at the place of its first element";
     "split" => strings::split,
         "split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list";
+    // --- blocks and slices of arrays, subset counts, tours, symbols by name, cleanup (round 38) ---
+    "array_filter" => arrays::array_filter,
+        "array_filter(f, a, r): f applied to the block of radius r (a count, [r1, r2, ...] per level, or [[before, after], ...]) around every element of the array a; padding: \"Fixed\" (the edge repeated), \"Periodic\", \"Reflected\" or a value";
+    "array_reduce" => arrays::array_reduce,
+        "array_reduce(f, a, n): f applied to each vector of the array a along level n, that level removed; array_reduce(f, a, [n1, n2, ...]): to each sub-array along those levels";
+    "subset_count" => subsets::subset_count,
+        "subset_count(xs, p), subset_count(xs, p, n): the number of disjoint subsets of xs (elements in any order) matching the list pattern p (overlaps: true counts every subset)";
+    "find_shortest_tour" => tour::find_shortest_tour,
+        "find_shortest_tour(xs): [length, tour], the shortest closed tour through the points, numbers or strings xs (positions from 1 back to 1); find_shortest_tour(xs, j, k): the shortest path from xs[j] to xs[k] through all the others; distance_function: f; exact, up to 20 elements";
+    "symbol" => symbols::symbol,
+        "symbol(name): the symbol with the name given as a string";
+    "symbol_name" => symbols::symbol_name,
+        "symbol_name(x): the name of the symbol x as a string, without its module path";
+    "with_cleanup" => symbols::with_cleanup,
+        "with_cleanup(body, cleanup), with_cleanup(init, body, cleanup): the value of body, with cleanup evaluated after it (also when body gives a failure or throws)";
 }
 
 /// The functions whose arguments are all held; every other one is strict.
-const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "value_q"];
+const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "value_q", "with_cleanup"];
 
 /// The functions whose first argument is held and the others strict: the body of an iterated `sum` or `product` is
 /// evaluated for each term (a `sow` or `print` in it runs per term), not once before the terms exist.
@@ -522,6 +540,7 @@ const PATTERNS: &[&str] = &[
     "subset_cases",
     "subset_position",
     "subset_replace",
+    "subset_count",
 ];
 
 /// Register every function of [`FUNCTIONS`] with `k`, all strict (decision I.2) except those of `HELD`. `stop` is

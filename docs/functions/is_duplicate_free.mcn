@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# is_duplicate_free
+
+#% text
+# `is_duplicate_free(xs)` is `true` when no two elements of the list `xs` are identical.
+
+#% section
+# Details
+
+#% item
+# `is_duplicate_free(xs, test)` is `true` when `test(a, b)` is `true` for no two elements `a` before `b`.
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_duplicate_free([1, 7, 8, 4, 3, 4])
+#% output
+#= false
+
+#% cell
+is_duplicate_free([1, 1.0])
+#% output
+#= true
+
+#% cell
+is_duplicate_free([[1, 2], [3, 0]], (a, b) => total(a) == total(b))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `unique`, `tally`

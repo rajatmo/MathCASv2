@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# interval_intersection
+
+#% text
+# `interval_intersection(i1, i2, ...)` gives the intersection of intervals and centered intervals.
+
+#% section
+# Details
+
+#% item
+# Real intervals give an `interval` of the pieces common to all (`interval()` when there are none).
+
+#% item
+# When a centered interval with a complex centre is involved, a common box of the complex plane is given as one centered interval; a real result is an `interval`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+interval_intersection(interval([-2, 3]), interval([1, 4]))
+#% output
+#= interval([1, 3])
+
+#% cell
+interval_intersection(interval([-2, 0]), interval([1, 4]))
+#% output
+#= interval()
+
+#% cell
+interval_intersection(interval([-2, pi]), interval([e, 4]))
+#% output
+#= interval([e, pi])
+
+#% cell
+interval_intersection(interval([-2, -1/2], [1/2, 2]), centered_interval(0, 1 + im))
+#% output
+#= interval([-1, -1/2], [1/2, 1])
+
+#% cell
+interval_intersection(centered_interval(2 + 3*im, 1 + im), centered_interval(1 + im, 2 + 2*im))
+#% output
+#= centered_interval(2 + 5*im/2, 1 + im/2)
+
+#% section
+# See also
+
+#% text
+# `interval`, `interval_union`, `interval_member_q`

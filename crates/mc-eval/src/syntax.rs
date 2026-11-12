@@ -68,6 +68,10 @@ struct Heads {
     alternatives: Sym,
     repeated: Sym,
     key_value: Sym,
+    /// `verbatim(p)`: the term p itself, its pattern constructs matched literally
+    verbatim: Sym,
+    /// `hold_pattern(p)`: the pattern p (held where it is written, so it is not evaluated)
+    hold_pattern: Sym,
     longest: Sym,
     shortest: Sym,
     rule: Sym,
@@ -90,6 +94,8 @@ impl Heads {
             alternatives: h.sym("alternatives"),
             repeated: h.sym("repeated"),
             key_value: h.sym("key_value_pattern"),
+            verbatim: h.sym("verbatim"),
+            hold_pattern: h.sym("hold_pattern"),
             longest: h.sym("longest"),
             shortest: h.sym("shortest"),
             rule: h.sym("rule"),
@@ -101,8 +107,22 @@ impl Heads {
 
     /// Mask of the pattern heads: a term without any of these bits contains no pattern.
     fn mask(&self, h: &Heap) -> u64 {
-        [self.any, self.seq1, self.seq0, self.typed, self.named, self.optional, self.held, self.condition, self.alternatives, self.repeated, self.key_value]
-            .iter()
+        [
+            self.any,
+            self.seq1,
+            self.seq0,
+            self.typed,
+            self.named,
+            self.optional,
+            self.held,
+            self.condition,
+            self.alternatives,
+            self.repeated,
+            self.key_value,
+            self.verbatim,
+            self.hold_pattern,
+        ]
+        .iter()
             .fold(0, |m, &s| m | h.mask(h.sym_term(s)))
     }
 }
@@ -210,6 +230,8 @@ impl<'h> Lower<'_, 'h> {
                     stack.push(args[1]);
                 }
                 Some(s) if (s == hd.condition || s == hd.typed) && args.len() == 2 => stack.push(args[0]),
+                // the pattern constructs inside verbatim(p) are literal: they bind nothing
+                Some(s) if s == hd.verbatim && args.len() == 1 => {}
                 _ => {
                     stack.push(head);
                     stack.extend_from_slice(args);
@@ -322,7 +344,8 @@ impl<'h> Lower<'_, 'h> {
                 }
             }
             _ if is(hd.optional) => return Err(DefError::Unsupported("optional(p) without a default")),
-            1 if is(hd.held) => self.convert(args[0], depth + 1)?,
+            1 if is(hd.held) || is(hd.hold_pattern) => self.convert(args[0], depth + 1)?,
+            1 if is(hd.verbatim) => Pat::Lit(Raw::new(args[0])),
             _ => {
                 let hp = self.convert(head, depth + 1)?;
                 let args: Vec<Pat> = args.iter().map(|&a| self.convert(a, depth + 1)).collect::<Result<_, _>>()?;

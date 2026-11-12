@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# vector_around
+
+#% text
+# `vector_around(v, [s1, ...])` is the vector `v` with independent standard uncertainties `si`; `vector_around(v, c)` is the vector with the covariance matrix `c`.
+
+#% section
+# Details
+
+#% item
+# `vector_around(v, [[s1, ...], r])` gives every two entries the correlation `r`, `vector_around(v, [[s1, ...], R])` the correlation matrix `R`; both are kept as the covariance matrix.
+
+#% item
+# `around_replace` takes it for a list of variables.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vector_around([1.8, 2.4], [0.3, 0.4])
+#% output
+#= vector_around([1.8, 2.4], [0.3, 0.4])
+
+#% cell
+vector_around([1.8, 2.4], [[0.3, 0.4], 0.5])
+#% output
+#= vector_around([1.8, 2.4], [[0.09, 0.06], [0.06, 0.16000000000000003]])
+
+#% cell
+vector_around([1, 2], [[1/10, 1/5], [[1, 1/2], [1/2, 1]]])
+#% output
+#= vector_around([1, 2], [[1/100, 1/100], [1/100, 1/25]])
+
+#% section
+# See also
+
+#% text
+# `around`, `around_replace`
