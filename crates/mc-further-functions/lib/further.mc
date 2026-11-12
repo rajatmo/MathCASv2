@@ -656,9 +656,38 @@ fn c30_radon_mono(i, j, p, c, s) = total(flatten(map(a => map(b => {
   if mod(k, 2) == 1 then 0 else binomial(i, a)*binomial(j, b)*(p*c)^(i - a)*(-s)^a*(p*s)^(j - b)*c^b*gamma((k + 1)/2)
 }, range(0, j)), range(0, i))))
 fn c30_iradon(g, p, f, x, y) =
-  if not is_atom(g) and head(g) === dirac_delta and length(g) == 1 then c30_iradon_delta(g[1], p, f, x, y)
+  if not is_atom(g) and head(g) === radon_transform and length(g) == 3 and g[3] === [p, f] and is_list(g[2]) and length(g[2]) == 2 then rewrite(g[1], [g[2][1] -> x, g[2][2] -> y])
+  else if not is_atom(g) and head(g) === dirac_delta and length(g) == 1 then c30_iradon_delta(g[1], p, f, x, y)
   else if not is_atom(g) and head(g) === piecewise and length(g[1]) == 1 and g[2] === 0 then c30_iradon_disk(g[1][1][1], p, x, y)
-  else c30_iradon_gauss(g, p, f, x, y)
+  else {
+    let r = c30_iradon_gauss(g, p, f, x, y)
+    if r === none then c30_iradon_lin(g, p, f, x, y) else r
+  }
+# whether e is a call h(p, phi) of a function without rules (it stays a call on new symbols)
+fn c30_undef_call(e, vs) = not is_atom(e) and is_symbol(head(e)) and apply(list, e) === vs and c30_held_probe(head(e))
+fn c30_held_probe(h) = {
+  let t = h(c30_q1, c30_q2)
+  not is_atom(t) and head(t) === h and t[1] === c30_q1 and t[2] === c30_q2
+}
+# linearity: a sum term by term and constant factors outside; calls of undefined functions stay as transforms
+fn c30_iradon_lin(g, p, f, x, y) = {
+  let ts = if not is_atom(g) and head(g) === add then apply(list, g) else [g]
+  if length(ts) == 1 and c30_undef_call(g, [p, f]) then none else c30_iradon_terms(ts, p, f, x, y)
+}
+fn c30_iradon_terms(ts, p, f, x, y) = {
+  let parts = map(t => {
+    let fs = if not is_atom(t) and head(t) === mul then apply(list, t) else [t]
+    let c = product(select(fs, u => free_of(u, p) and free_of(u, f)))
+    let rest = product(select(fs, u => not (free_of(u, p) and free_of(u, f))))
+    if c30_undef_call(rest, [p, f]) then c*inverse_radon_transform(rest, [p, f], [x, y])
+    else if length(ts) == 1 and c === 1 or rest === 1 then none
+    else {
+      let r = c30_iradon(rest, p, f, x, y)
+      if r === none then none else c*r
+    }
+  }, ts)
+  if some(parts, r => r === none) then none else total(parts)
+}
 # k 2 sqrt(r^2 - p^2) on |p| < r (the chord lengths of the disk of radius r): k times the disk's indicator
 fn c30_iradon_disk(e, p, x, y) = {
   let r2 = simplify(rewrite(e, p -> 0)^2/4)

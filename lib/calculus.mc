@@ -1126,7 +1126,114 @@ fn calc_hankel_term(f, r, s, nu) = {
 }
 fn calc_hankel(f, r, s, nu) = {
   let ts = map(t => calc_hankel_term(t, r, s, nu), calc_terms(expand(f)))
-  if some(ts, t => t === null) then null else simplify(calc_total(ts))
+  if some(ts, t => t === null) then calc_hankel_mb(f, r, s, nu) else simplify(calc_total(ts))
+}
+
+# --- transforms as inverse Mellin transforms of products (Mellin-Parseval) ---
+
+# When f has the Mellin transform F(z) on the strip a < re(z) < b, the Hankel transform H(s) = integrate(f(r)
+# bessel_j(nu, s r) r, [r, 0, inf]) has the Mellin transform M[H](w) = M[bessel_j(nu, t)](w) F(2 - w) on the strip
+# max(-re(nu), 2 - b) < re(w) < min(3/2, 2 - a), and the Mellin convolution of f and g has the transform F(z) G(z) on
+# the intersection of their strips (Titchmarsh 1948, sections 1.5 and 2.15; Paris and Kaminski 2001, section 3.1).
+# The product is written with gamma functions only (sin(pi u) = pi/(gamma(u) gamma(1 - u)), cos(pi u) = pi/(gamma(1/2 +
+# u) gamma(1/2 - u)), and their reciprocals) and inverted by inverse_mellin_transform on that strip. The residue series
+# closed to the left is the function on all of x > 0 only when the product of the gamma factors gamma(a w + c)^e has
+# decay exponent sum(e |a|) > 0 (the Mellin-Barnes integral converges absolutely and is analytic in a sector about the
+# positive axis), or decay exponent 0 and sum(e a) > 0 (the case q > p of a Meijer G-function, whose series in x
+# converges everywhere); otherwise (as for p = q, a function with a jump at x = 1) the transform declines.
+
+# the strip [lo, hi, rest] of a Mellin transform's condition c in z (re(z) bounds; -inf, inf for an open side; rest the
+# conjunction of the parts free of z), or null for a condition of another form
+fn calc_mstrip(c, z) = {
+  let cs = if not is_atom(c) and head(c) === `and` then apply(list, c) else [c]
+  let t = calc_mstrip_t
+  var lo = -inf
+  var hi = inf
+  var rest = true
+  var ok = true
+  for q in cs {
+    if free_of(q, z) then rest = rest and q
+    else if (head(q) === less or head(q) === greater) and length(q) == 2 then {
+      let dd = if head(q) === less then q[1] - q[2] else q[2] - q[1]
+      let e = expand(rewrite(dd, re(u_) :> calc_mstrip_re(u, z, t)))
+      let k = coefficient(e, t, 1)
+      let d = expand(e - k*t)
+      if not free_of(e, z) or not free_of(e, calc_mstrip_bad) or not is_number(k) or k == 0 or not free_of(d, t) then ok = false
+      else if k > 0 then hi = min(hi, -d/k)
+      else lo = max(lo, -d/k)
+    } else ok = false
+  }
+  if ok then [lo, hi, rest] else null
+}
+fn calc_mstrip_re(u, z, t) = {
+  let k = coefficient(expand(u), z, 1)
+  let d = expand(u - k*z)
+  if is_number(k) and is_real(k) and free_of(d, z) then k*t + re(d) else calc_mstrip_bad
+}
+
+# e with sin, cos, csc, sec of pi (a w + c) written with gamma functions
+fn calc_gamma_form(e, w) = rewrite(e, [
+  sin(u_) :> (if free_of(u, w) then sin(u) else pi/(gamma(u/pi)*gamma(1 - u/pi))),
+  cos(u_) :> (if free_of(u, w) then cos(u) else pi/(gamma(1/2 + u/pi)*gamma(1/2 - u/pi))),
+  csc(u_) :> (if free_of(u, w) then csc(u) else gamma(u/pi)*gamma(1 - u/pi)/pi),
+  sec(u_) :> (if free_of(u, w) then sec(u) else gamma(1/2 + u/pi)*gamma(1/2 - u/pi)/pi)])
+
+# [sum(e |a|), sum(e a)] over the gamma factors gamma(a w + c)^e of the product g, or null when a factor in w is not a
+# gamma power, a power c^w or rational in w
+fn calc_mb_slope(u, w) = {
+  let k = coefficient(expand(u), w, 1)
+  if is_number(k) and is_real(k) and k != 0 and free_of(expand(u - k*w), w) then k else null
+}
+fn calc_mb_weight(g, w) =
+  if free_of(g, w) then [0, 0]
+  else if head(g) === gamma then (if calc_mb_slope(g[1], w) === null then null else [abs(calc_mb_slope(g[1], w)), calc_mb_slope(g[1], w)])
+  else if head(g) === pow and free_of(g[1], w) then [0, 0]
+  else if head(g) === pow and head(g[1]) === gamma and is_integer(g[2]) then (if calc_mb_slope(g[1][1], w) === null then null else [g[2]*abs(calc_mb_slope(g[1][1], w)), g[2]*calc_mb_slope(g[1][1], w)])
+  else if head(g) === pow and is_integer(g[2]) and polynomial_expression_q(g[1], [w]) then [0, 0]
+  else if polynomial_expression_q(g, [w]) then [0, 0]
+  else null
+fn calc_mb_closes_left(g, w) = {
+  let ws = map(f => calc_mb_weight(f, w), calc_factors(g))
+  if some(ws, p => p === null) then false else {
+    let dl = calc_total(map(p => p[1], ws))
+    let ka = calc_total(map(p => p[2], ws))
+    dl > 0 or (dl == 0 and ka > 0)
+  }
+}
+
+# the inverse Mellin transform of the product g in w at x on the strip lo < re(w) < hi, or null
+fn calc_mb_invert(g, w, x, lo, hi) = {
+  let g2 = expand_all(calc_gamma_form(g, w))
+  let g3 = if head(g2) === add then simplify(g2) else g2
+  if lo === -inf or not (simplify(lo < hi) === true) or not calc_mb_closes_left(g3, w) then null else {
+    let v = inverse_mellin_transform(g3, w, x, assumptions: lo < re(w) and re(w) < hi)
+    if free_of(v, inverse_mellin_transform) and free_of(v, mellin_transform) and free_of(v, sum) and not (head(v) === failure) then v else null
+  }
+}
+
+# the Hankel transform of order nu by the Mellin product, or null
+fn calc_hankel_mb(f, r, s, nu) = {
+  let z = calc_mb_z
+  let w = calc_mb_w
+  let mf = mellin_transform(f, r, z, generate_conditions: true)
+  let st = if head(mf) === conditional_expression then calc_mstrip(mf[2], z) else null
+  if st === null then null else
+    calc_mb_invert(2^(w - 1)*gamma((nu + w)/2)/gamma(1 + (nu - w)/2)*rewrite(mf[1], z -> 2 - w), w, s, max(-re(nu), 2 - st[2]), min(3/2, 2 - st[1]))
+}
+
+# the Mellin convolution integrate(f(x) g(y/x)/x, [x, 0, inf]) by the Mellin product, or null; with gc, the
+# conditions of the two transforms free of the transform variable as conditional_expression
+fn calc_mconv_mb(f, g, x, y, gc) = {
+  let z = calc_mb_z
+  let mf = mellin_transform(f, x, z, generate_conditions: true)
+  let mg = mellin_transform(g, x, z, generate_conditions: true)
+  let sf = if head(mf) === conditional_expression then calc_mstrip(mf[2], z) else null
+  let sg = if head(mg) === conditional_expression then calc_mstrip(mg[2], z) else null
+  if sf === null or sg === null then null else {
+    let v = calc_at(u => calc_mb_invert(mf[1]*mg[1], z, u, max(sf[1], sg[1]), min(sf[2], sg[2])), y)
+    let c = simplify(sf[3] and sg[3])
+    if v === null then null else if gc and not (c === true) then conditional_expression(v, c) else v
+  }
 }
 # options: assumptions: (the transform computed under them), generate_conditions: true (the convergence conditions
 # re(a) > 0 for a decay exp(-a r), and s >= 0, attached as conditional_expression)
@@ -2246,6 +2353,38 @@ rule max_value(fc_, v_) := calc_vopt(max_value, fc, v) when calc_vopt_ok(max_val
 rule arg_min(fc_, v_) := calc_vopt(arg_min, fc, v) when calc_vopt_ok(arg_min, fc, v)
 rule arg_max(fc_, v_) := calc_vopt(arg_max, fc, v) when calc_vopt_ok(arg_max, fc, v)
 
+# The global extrema of a quadratic a x^2 + b x + c in x whose leading coefficients are real parameters, by the
+# complete case split: the maximum is c - b^2/(4 a) at -b/(2 a) when a < 0, c (at x = 0, every point being a maximum)
+# when a = b = 0, and unbounded (inf, the point indeterminate) otherwise; the minimum likewise with a > 0. Used when
+# a coefficient is not a number.
+fn calc_pq_parts(f, x) =
+  if not is_symbol(x) or is_list(f) or not polynomial_expression_q(f, [x]) or exponent(f, x) > 2 or exponent(f, x) < 1 then null
+  else {
+    let a2 = coefficient(f, x, 2)
+    let a1 = coefficient(f, x, 1)
+    let a0 = expand(f - a2*x^2 - a1*x)
+    if every([a2, a1, a0], is_number) or not free_of([a2, a1, a0], x) or not free_of([a2, a1, a0], im) then null else [a2, a1, a0]
+  }
+# [value, point] of the maximum (s = 1) or minimum (s = -1)
+fn calc_pq_opt(f, x, s) = {
+  let cs = calc_pq_parts(f, x)
+  let a2 = cs[1]
+  let a1 = cs[2]
+  let a0 = cs[3]
+  let big = if s == 1 then inf else -inf
+  if a2 === 0 then [piecewise([[a0, a1 == 0]], big), piecewise([[0, a1 == 0]], indeterminate)]
+  else {
+    let opens = if s == 1 then a2 < 0 else a2 > 0
+    [piecewise([[a0 - a1^2/(4*a2), opens], [a0, a2 == 0 and a1 == 0]], big), piecewise([[-a1/(2*a2), opens], [0, a2 == 0 and a1 == 0]], indeterminate)]
+  }
+}
+rule maximize(f_, x_) := (r => [r[1], [x -> r[2]]])(calc_pq_opt(f, x, 1)) when not (calc_pq_parts(f, x) === null)
+rule minimize(f_, x_) := (r => [r[1], [x -> r[2]]])(calc_pq_opt(f, x, -1)) when not (calc_pq_parts(f, x) === null)
+rule max_value(f_, x_) := calc_pq_opt(f, x, 1)[1] when not (calc_pq_parts(f, x) === null)
+rule min_value(f_, x_) := calc_pq_opt(f, x, -1)[1] when not (calc_pq_parts(f, x) === null)
+rule arg_max(f_, x_) := calc_pq_opt(f, x, 1)[2] when not (calc_pq_parts(f, x) === null)
+rule arg_min(f_, x_) := calc_pq_opt(f, x, -1)[2] when not (calc_pq_parts(f, x) === null)
+
 # --- truth-value search: find_instance over booleans ---
 
 # cb_assignments(vs): every assignment of true and false to the symbols vs, as lists of rules (false first)
@@ -2305,11 +2444,71 @@ rule integrate_change_variables(i_, us_, eqs_) := {
 # radon_transform(f, [x, y], [p, phi]): the integral of f over the line x cos(phi) + y sin(phi) = p, parametrized by
 # t: x = p cos(phi) - t sin(phi), y = p sin(phi) + t cos(phi), integrated over the real t (Deans, The Radon
 # Transform and Some of Its Applications, chapter 1)
-rule radon_transform(f_, xy_, pf_) := {
-  let g = rewrite(f, [xy[1] -> pf[1]*cos(pf[2]) - cb_radt*sin(pf[2]), xy[2] -> pf[1]*sin(pf[2]) + cb_radt*cos(pf[2])])
-  let r = integrate(expand(g), [cb_radt, -inf, inf])
-  if not free_of(r, integrate) then failure(unevaluated, radon_transform, "the line integral has no closed form") else simplify(trig_reduce(rewrite(cb_plain(r), sin(pf[2])^2 -> 1 - cos(pf[2])^2)))
-} when is_list(xy) and length(xy) == 2 and is_list(pf) and length(pf) == 2
+# Before integrating, powers sin(phi)^n (n >= 2) are written with cos(phi), so that x^2 + y^2 becomes p^2 + t^2. A factor
+# unit_step(q(t)) with q quadratic in t and a negative leading coefficient restricts t to the interval between the
+# roots of q: the transform is the integral over that interval where the discriminant D of q is positive, and 0
+# elsewhere (piecewise, D > 0 solved for p). A factor dirac_delta(x - a, y - b) (the unit mass at (a, b)) gives c(a,
+# b) dirac_delta(p - a cos(phi) - b sin(phi)), the rotation (x, y) -> (p, t) having Jacobian 1. Options: assumptions:
+# (the integral computed under them), generate_conditions: true (its convergence conditions as
+# conditional_expression).
+fn cb_rad_trig(e, phi) = expand(rewrite(expand_all(e), sin(u_)^n_ :> (if u === phi and is_integer(n) and n >= 2 then sin(u)^mod(n, 2)*(1 - cos(u)^2)^quotient(n, 2) else sin(u)^n)))
+fn cb_find_step(e, t) =
+  if is_atom(e) then null
+  else if head(e) === unit_step and length(e) == 1 and not free_of(e, t) then e
+  else fold((a, u) => if a === null then cb_find_step(u, t) else a, null, apply(list, e))
+fn cb_rad_step(g, t, p, asm) = {
+  let s1 = cb_find_step(g, t)
+  let rest0 = if s1 === null then null else rewrite(g, s1 -> 1)
+  let st = if s1 === null or not free_of(rest0, unit_step) or not (expand(g - rest0*s1) === 0) then [] else [s1]
+  if length(st) != 1 then null else {
+    let q = expand(st[1][1])
+    let ok = polynomial_expression_q(q, [t]) and exponent(q, t) == 2
+    let a2 = if ok then coefficient(q, t, 2) else 0
+    if not ok or not is_number(a2) or not (a2 < 0) then null else {
+      let a1 = coefficient(q, t, 1)
+      let a0 = expand(q - a2*t^2 - a1*t)
+      let dd = simplify(a1^2 - 4*a2*a0)
+      let rest = rest0
+      let v = integrate(rest, [t, (-a1 + sqrt(dd))/(2*a2), (-a1 - sqrt(dd))/(2*a2)])
+      let c = if polynomial_expression_q(dd, [p], is_rational) then reduce(dd > 0, p, reals) else dd > 0
+      if not free_of(v, integrate) or head(v) === failure then null else {
+        let pw = piecewise([[simplify(v), if head(c) === reduce or head(c) === failure then dd > 0 else c]], 0)
+        if asm === true then pw else simplify(pw, assumptions: asm)
+      }
+    }
+  }
+}
+fn cb_rad_delta(f, xy) = {
+  let fs = calc_factors(f)
+  let ds = select(fs, u => head(u) === dirac_delta and length(u) == 2)
+  if length(ds) != 1 then null else {
+    let a = expand(xy[1] - ds[1][1])
+    let b = expand(xy[2] - ds[1][2])
+    let rest = product(select(fs, u => not (u === ds[1])))
+    if free_of(a, xy[1]) and free_of(a, xy[2]) and free_of(b, xy[1]) and free_of(b, xy[2]) then [rewrite(rest, [xy[1] -> a, xy[2] -> b]), a, b] else null
+  }
+}
+fn cb_radon(f, xy, pf, asm, gc) = {
+  let dl = cb_rad_delta(f, xy)
+  if not is_atom(f) and head(f) === equal and length(f) == 2 then {
+    let l = cb_radon(f[1], xy, pf, asm, gc)
+    let r = cb_radon(f[2], xy, pf, asm, gc)
+    if head(l) === failure then l else if head(r) === failure then r else l == r
+  }
+  else if not is_atom(f) and head(f) === inverse_radon_transform and length(f) == 3 and f[3] === xy and is_list(f[2]) and length(f[2]) == 2 then rewrite(f[1], [f[2][1] -> pf[1], f[2][2] -> pf[2]])
+  else if not (dl === null) then dl[1]*dirac_delta(pf[1] - dl[2]*cos(pf[2]) - dl[3]*sin(pf[2])) else {
+    let g = cb_rad_trig(rewrite(f, [xy[1] -> pf[1]*cos(pf[2]) - cb_radt*sin(pf[2]), xy[2] -> pf[1]*sin(pf[2]) + cb_radt*cos(pf[2])]), pf[2])
+    let sv = cb_rad_step(g, cb_radt, pf[1], asm)
+    if not (sv === null) then sv else {
+      let r = if asm === true then integrate(g, [cb_radt, -inf, inf], generate_conditions: gc) else integrate(g, [cb_radt, -inf, inf], assumptions: asm, generate_conditions: gc)
+      let tidy = e => simplify(trig_reduce(rewrite(cb_plain(e), sin(pf[2])^2 -> 1 - cos(pf[2])^2)))
+      if not free_of(r, integrate) then failure(unevaluated, radon_transform, "the line integral has no closed form")
+      else if head(r) === conditional_expression then conditional_expression(tidy(r[1]), r[2])
+      else tidy(r)
+    }
+  }
+}
+rule radon_transform(f_, xy_, pf_, opts___) := cb_radon(f, xy, pf, nl_asm(opts), nl_gc(opts)) when is_list(xy) and length(xy) == 2 and is_list(pf) and length(pf) == 2
 
 # --- asymptotic expansions of integrals, sums and products ---
 
@@ -2636,10 +2835,17 @@ rule r_stability_conditions(eqs_, vs_, t_, pts_) := cb_stability(eqs, vs, t, pts
 # the first integer where it fails); for holonomic sides of total order below 40 this decides the identity, since a
 # holonomic sequence vanishing on more consecutive terms than its order (and its leading-coefficient zeros) is zero
 fn cb_seq_ok(v) = is_numeric(v) and simplify(v) === 0
+# e with the free occurrences of the symbol k replaced by v: pure functions (the defining function of a
+# difference_root, whose bound variable may be k) are left alone
+fn cb_subst_free(e, k, v) =
+  if e === k then v
+  else if is_atom(e) then e
+  else if head(e) === `fn` then e
+  else apply(cb_subst_free(head(e), k, v), map(u => cb_subst_free(u, k, v), apply(list, e)))
 rule difference_root_reduce(eq_, k_, opts___) := {
-  let vals = map(j => simplify(rewrite(eq[1] - eq[2], k -> j)), range(0, 40))
+  let vals = map(j => simplify(cb_subst_free(eq[1] - eq[2], k, j)), range(0, 40))
   if every(vals, v => v === 0) then true else if some(vals, v => is_numeric(v) and not (v === 0)) then false else difference_root_reduce(eq, k)
-} when head(eq) === equal and is_symbol(k) and every(map(j => rewrite(eq[1] - eq[2], k -> j), range(0, 3)), is_numeric)
+} when head(eq) === equal and is_symbol(k) and every(map(j => cb_subst_free(eq[1] - eq[2], k, j), range(0, 3)), is_numeric)
 
 # --- Green's functions of second-order linear boundary and initial value problems: green_function ---
 
@@ -2745,6 +2951,76 @@ fn calc_to_radicals(e) =
   if is_atom(e) then e
   else if head(e) === root and length(e) == 2 then calc_to_rad_root(e)
   else apply(head(e), map(calc_to_radicals, apply(list, e)))
+
+# to_radicals(e, options): cubics: false keeps the roots of irreducible cubics other than a x^3 + b (the ones that
+# need Cardano's formula), quartics: false those of irreducible quartics other than a x^4 + b x^2 + c (Ferrari's);
+# assumptions: (none for no assumptions) decide the roots of a polynomial with parameters: its roots from roots, the
+# real ones by the assumptions, root(p, k) the k-th smallest real root when every comparison needed is decided by
+# the assumptions (k past the real roots, or a comparison left open, keeps root(p, k))
+fn calc_trad_opts(opts) = {
+  let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
+  let known = every(rs, r => match_q(r, cubics -> _) or match_q(r, quartics -> _) or match_q(r, assumptions -> _))
+  let get = (nm, dflt) => {
+    let hit = select(rs, r => r[1] === nm)
+    if length(hit) == 0 then dflt else hit[1][2]
+  }
+  if not known or length(rs) == 0 then null else {
+    let asm = get(assumptions, true)
+    [not (get(cubics, true) === false), not (get(quartics, true) === false), if asm === none then true else asm]
+  }
+}
+fn calc_trad_plain(poly, x, deg) = {
+  let cs = coefficient_list(poly, x)
+  let mid = if deg == 3 then [cs[2], cs[3]] else [cs[2], cs[4]]
+  every(mid, c => c === 0)
+}
+fn calc_to_rad_root_o(e, o) = {
+  let poly = e[1](calc_trx)
+  let deg = degree(poly, calc_trx)
+  if not is_numeric(n(e)) then calc_to_rad_param(e, o[3])
+  else if (deg == 3 and not o[1] or deg == 4 and not o[2]) and not calc_trad_plain(poly, calc_trx, deg) then e
+  else calc_to_rad_root(e)
+}
+fn calc_to_rad_param(e, asm) = {
+  let k = e[2]
+  let eqs = roots(e[1](calc_trx) == 0, calc_trx)
+  let vals = if head(eqs) === head(cb_a or cb_b) then map(q => q[2], apply(list, eqs)) else (if head(eqs) === equal then [eqs[2]] else [])
+  let deg = degree(e[1](calc_trx), calc_trx)
+  let ps = select(variables(e[1](calc_trx)), v => not (v === calc_trx))
+  # a statement c decided true by simplify or, with one parameter, by reduce of its negation over the reals
+  let holds = c => simplify(c, assumptions: asm) === true or (length(ps) == 1 and reduce(asm and not c, ps[1], reals) === false)
+  # real by simplify; not real when v^2 is real and negative
+  let isreal = map(v => if simplify(element(v, reals), assumptions: asm) === true then true else if simplify(element(expand(v^2), reals), assumptions: asm) === true and holds(expand(v^2) < 0) then false else null, vals)
+  if length(vals) != deg or not free_of(vals, root) or not every(isreal, r => r === true or r === false) or not is_integer(k) then e else {
+    var rest = select(range(deg), i => isreal[i] === true)
+    var pick = null
+    var ok = true
+    for step in range(k) {
+      if ok then {
+        let ms = select(rest, i => every(rest, j => i === j or holds(vals[i] <= vals[j])))
+        if length(ms) == 0 then ok = false else {
+          pick = vals[ms[1]]
+          rest = select(rest, j => not (j === ms[1]))
+        }
+      }
+    }
+    if ok and not (pick === null) then pick else e
+  }
+}
+fn calc_to_radicals_o(e, o) =
+  if is_atom(e) then e
+  else if head(e) === root and length(e) == 2 then calc_to_rad_root_o(e, o)
+  else apply(head(e), map(t => calc_to_radicals_o(t, o), apply(list, e)))
+rule to_radicals(e_, opts___) := calc_to_radicals_o(e, calc_trad_opts(opts)) when calc_trad_opts(opts) !== null
+
+# eigenvalues(m, cubics: true), (m, k, quartics: true): the eigenvalues with the roots of cubics (quartics) written
+# with radicals
+fn calc_eig_rad(opts) = {
+  let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
+  if length(rs) > 0 and every(rs, r => match_q(r, cubics -> true) or match_q(r, quartics -> true)) then [some(rs, r => r[1] === cubics), some(rs, r => r[1] === quartics), true] else null
+}
+rule eigenvalues(m_, opts___) := calc_to_radicals_o(eigenvalues(m), calc_eig_rad(opts)) when is_list(m) and calc_eig_rad(opts) !== null
+rule eigenvalues(m_, k_, opts___) := calc_to_radicals_o(eigenvalues(m, k), calc_eig_rad(opts)) when is_list(m) and is_integer(k) and calc_eig_rad(opts) !== null
 
 # derivatives of the zeta function at 0: zeta'(0) = -log(2 pi)/2 (from the functional equation), and zeta''(0) =
 # (12 gamma^2 - pi^2 - 12 log(2 pi)^2 + 24 gamma_1)/24 (Stieltjes constant gamma_1; the Laurent coefficients of the

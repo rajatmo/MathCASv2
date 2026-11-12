@@ -224,3 +224,12 @@ differences and ratios, generating functions and convergence, interruption.
 
 - `sum(.., [k, a, inf], generate_conditions: true)`: the ratio-test condition r < 1 when r depends on the parameters.
 - The reflection formula is not applied to a gamma pair at an integer (gamma(1) gamma(3) of (k^2 - 1)/(k^2 + 2) divided by sin(pi) = 0).
+
+## Round 38: convergence on the scale of iterated logarithms
+
+- The comparison of `sum_convergence` with `n^p log(n)^q log(log(n))^r log(log(log(n)))^s` (Bertrand's series)
+  goes one level deeper (four levels), and each level's limit `lim g / log^(k + 1)(n)` that `limit` does not find
+  directly is taken after the change of variable `n = exp^(k + 1)(v)` with `power_expand`, where the iterated
+  logarithms are powers of v (`scaled_limit`). `1/(n log n log log n)` diverges, `1/(n log n (log log n)^2)`
+  converges.
+- Gap: summands with `harmonic_number` and other discrete functions (no asymptotic equivalent is substituted).

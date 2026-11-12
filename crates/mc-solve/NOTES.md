@@ -290,3 +290,10 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   the complexes; 0 and 1 are not values); `sign(u) == 0` and `real_sign(u) == 0` as u = 0 (their other values
   are taken on half-lines). Every solution is still checked by substitution. Not done: the complex solutions of
   `gudermannian(u) == v` (the call keeps declining without `reals`).
+
+## Round 38: integer families with a parameter
+
+- `solve(..., integers)` takes the answer of `reduce` over the integers also when it is a family with a parameter:
+  `common and (d1 or d2 ...)`, each `d_i` the equations `x == v` of every unknown with conditions free of the
+  unknowns (the Pell family `x + y sqrt(d) = +-(x1 + y1 sqrt(d))^c(1)`, `element(c(1), integers)`, `c(1) >= 1` under
+  positivity). The conditions go on each value as `conditional_expression` (`condition_as_conditional_rules`).

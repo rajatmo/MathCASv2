@@ -87,7 +87,7 @@ pub fn mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, f: T<'h>, x: T
     }
     let v = super::laplace::tidy(cx, b, v)?;
     let v = rational_bases(cx, b, v, s)?;
-    if !st.checked && verify::mellin(cx, b, f, x, s, v)? == verify::Verdict::Refuted {
+    if !st.checked && verify::mellin(cx, b, f, x, s, v, st.cond)? == verify::Verdict::Refuted {
         return Ok(None);
     }
     Ok(Some(with_condition(cx, tc, v, st.cond)?))

@@ -1279,3 +1279,47 @@ Numeric issues seen (open in `mc-special`): `scorer_hi(1e6)` does not return (an
 takes ~1.5 s per value and hangs under interrupt, `kelvin_ker(2, 0.)` gives -inf (ker_2(0) = 1/2), `hypergeometric_u(a,
 b, 0.)` with b < 1 and `inverse_elliptic_nome_q(1.)` stay unevaluated, `hyperfactorial(-2.2)` gives a real value
 (the continuation by the Hurwitz zeta function is complex there).
+
+## Round 38: options of to_radicals
+
+- `to_radicals(e, cubics: false)` keeps the roots of irreducible cubics other than `a x^3 + b` (the ones needing
+  Cardano's formula), `quartics: false` those of irreducible quartics other than `a x^4 + b x^2 + c`;
+  `eigenvalues(m, cubics: true)` and `eigenvalues(m, k, quartics: true)` write the eigenvalues with radicals.
+- `assumptions:` decides `root(p, k)` for a polynomial with parameters: its roots from `roots`, each one real when
+  `simplify` says so and not real when its square is real and negative under the assumptions; `root(p, k)` is the
+  k-th smallest real root when every comparison needed holds by `simplify` or (one parameter) by `reduce` of its
+  negation. A comparison left open, or `k` past the real roots, keeps the root object (the order of the non-real roots
+  is not attempted). `assumptions: none` means no assumptions.
+
+## Round 38: Radon transform
+
+- `radon_transform(f, [x, y], [p, phi], options)`: `assumptions:` and `generate_conditions: true` pass to the line
+  integral. Before integrating, `sin(phi)^n` (n >= 2) is written with `cos(phi)`, so `x^2 + y^2` becomes `p^2 + t^2`
+  in the line's parameter t; Gaussians times `cos` or `sin` of linear forms then integrate in closed form.
+- A factor `unit_step(q(t))`, q quadratic in t with a negative leading coefficient (a disk, or any region whose
+  section by each line is an interval): the integral between the roots of q where the discriminant D is positive,
+  0 elsewhere (`piecewise`, `D > 0` solved for p by `reduce` when D is a rational polynomial in p). A factor
+  `dirac_delta(x - a, y - b)` gives `c(a, b) dirac_delta(p - a cos(phi) - b sin(phi))` (the rotation has Jacobian 1;
+  Deans, *The Radon Transform and Some of Its Applications*, 1983, chapter 2).
+- `radon_transform(inverse_radon_transform(F, [p, phi], [x, y]), [x, y], [p, phi])` is F; an equation is
+  transformed side by side.
+- Not done: `dirac_delta(q(x, y))` for a curve q = 0 (a sum over the intersection points, valid only where the line
+  meets the curve), and transforms of differential equations in an undefined u (`R[u_x] = cos(phi) d/dp R[u]`, Deans
+  section 2.4): the transform of `u(x, y)` stays a failure, because `d` of a held `radon_transform(u(x, y), [x, y],
+  [p, phi])` in p differentiates through the list `[p, phi]` and gives a list (a gap of `d` for list arguments).
+
+## Round 38: extrema of quadratics with parameters
+
+- `maximize`, `minimize`, `max_value`, `min_value`, `arg_max`, `arg_min` of `a x^2 + b x + c` in x with a coefficient
+  that is not a number (real parameters): the complete case split. The maximum is `c - b^2/(4 a)` at `-b/(2 a)` when `a
+  < 0`, c at 0 when `a = b = 0` (every point is a maximum), and unbounded otherwise (`inf`, the point
+  `indeterminate`), as `piecewise`; the minimum likewise with `a > 0`. Polynomials of higher degree with parameters
+  are not attempted (their extrema need the real root structure of the derivative as a function of the parameters).
+
+## Round 38: identities of recurrence sequences
+
+- `difference_root_reduce(lhs == rhs, n)` substitutes the integers for n only where n is free: the defining
+  function of a `difference_root`, whose bound variable may itself be n, is left alone (`cb_subst_free`). Before,
+  the substitution entered the pure function, so an identity of a sequence defined with the same index name stayed
+  unevaluated. The reduction of an expression to one `difference_root` (closure of recurrences under sums and
+  products) is not implemented.

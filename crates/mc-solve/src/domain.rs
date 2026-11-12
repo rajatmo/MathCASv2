@@ -289,7 +289,13 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                 IN_INTEGER_REDUCE.with(|f| f.set(true));
                 let r = cx.eval(h.call(h.sym("reduce"), &[conj, var_list, h.sym_term(h.sym("integers"))]));
                 IN_INTEGER_REDUCE.with(|f| f.set(false));
-                if let Some(rules) = condition_as_rules(cx, r?, &vars) {
+                let r = r?;
+                if let Some(rules) = condition_as_rules(cx, r, &vars) {
+                    return Ok(Some(rules));
+                }
+                // families with a parameter (the Pell family x + y sqrt(d) = (x1 + y1 sqrt(d))^c(1)): the conditions
+                // on the parameter as conditional_expression on each value
+                if let Some(rules) = condition_as_conditional_rules(cx, r, &vars)? {
                     return Ok(Some(rules));
                 }
             }
@@ -1002,6 +1008,60 @@ pub fn condition_as_rules<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>, vars: &[T
         out.push(cx.list(&rules));
     }
     Some(cx.list(&out))
+}
+
+/// `c` as solution rules when it is `common and (d1 or d2 or ...)` (or one conjunction) with each `d_i` the equations
+/// `x == v` of every unknown and conditions free of the unknowns: those conditions (with `common`, also free of the
+/// unknowns) become `conditional_expression(v, conditions)` on each value. `None` for another form.
+pub fn condition_as_conditional_rules<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: T<'h>, vars: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let or = h.sym_term(h.sym("or"));
+    let mut top = vec![];
+    conjuncts(h, c, &mut top);
+    let (common, rest): (Vec<T<'h>>, Vec<T<'h>>) = top.into_iter().partition(|&t| !mentions(h, t, vars));
+    let disj: Vec<Vec<T<'h>>> = match rest.as_slice() {
+        [d] if matches!(h.view(*d), View::App { head, .. } if head == or) => {
+            let View::App { args, .. } = h.view(*d) else { unreachable!() };
+            args.iter()
+                .map(|&a| {
+                    let mut v = vec![];
+                    conjuncts(h, a, &mut v);
+                    v
+                })
+                .collect()
+        }
+        _ => vec![rest.clone()],
+    };
+    let mut out = vec![];
+    for d in disj {
+        cx.tick(1)?;
+        let (conds, eqs): (Vec<T<'h>>, Vec<T<'h>>) = d.into_iter().partition(|&t| !mentions(h, t, vars));
+        if eqs.len() != vars.len() {
+            return Ok(None);
+        }
+        let all: Vec<T<'h>> = common.iter().chain(conds.iter()).copied().collect();
+        let cond = match all.as_slice() {
+            [] => None,
+            [one] => Some(*one),
+            _ => Some(h.call(h.sym("and"), &all)),
+        };
+        let mut rules = vec![];
+        for &x in vars {
+            let Some(v) = eqs.iter().find_map(|&e| match h.view(e) {
+                View::App { head, args: &[a, b] } if head == h.sym_term(h.sym("equal")) && a == x && !mentions(h, b, vars) => Some(b),
+                _ => None,
+            }) else {
+                return Ok(None);
+            };
+            let v = match cond {
+                Some(cd) => cx.eval(h.call(h.sym("conditional_expression"), &[v, cd]))?,
+                None => v,
+            };
+            rules.push(h.call(h.sym(names::RULE), &[x, v]));
+        }
+        out.push(cx.list(&rules));
+    }
+    Ok(Some(cx.list(&out)))
 }
 
 /// Is `t` a root object `root(f, k)`?

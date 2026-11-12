@@ -6,8 +6,8 @@
 //! converges, `|z| > 1` diverges, and on `|z| = 1` Raabe's test (`s > 1`, or `s > 0` when `z != 1`, Dirichlet's
 //! test); a symbolic `z` gives the condition `abs(z) < 1`, solved for one parameter in the simple cases
 //! (`abs(x) < 2` for `(x/2)^n`); `c n^e` with a symbolic exponent gives `re(-e) > 1`; otherwise the comparison
-//! with `n^p log(n)^q log(log(n))^r` through the limits `p = lim log|f| / log n` and so on (Cauchy's condensation
-//! test), and the ratio test with `lim |f(n + 1) / f(n)|`.
+//! with `n^p log(n)^q log(log(n))^r log(log(log(n)))^s` through the limits `p = lim log|f| / log n` and so on
+//! (Cauchy's condensation test, Bertrand's series), and the ratio test with `lim |f(n + 1) / f(n)|`.
 use crate::cx::Sx;
 use crate::{hyper, prod, some};
 use mc_api::{names, Store, View, T};
@@ -72,10 +72,10 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
     let af = sx.ev("abs", &[f])?;
     let mut g = sx.ev("log", &[af])?;
     let mut scale = n;
-    for _ in 0..3 {
+    for k in 0..4 {
         let ls = sx.ev("log", &[scale])?;
         let q = sx.div(g, ls)?;
-        let p = sx.ev("limit", &[q, to])?;
+        let p = scaled_limit(sx, q, n, k)?;
         if !is_number(sx, p) {
             break;
         }
@@ -109,6 +109,27 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
         }
     }
     Ok(None)
+}
+
+/// `lim q` as `n -> inf`, where `q` has the iterated logarithm `log^(k + 1)(n)` in its denominator: the limit
+/// itself, else after the change of variable `n = exp^(k + 1)(v)` (`power_expand` writes `log(exp(v))` as `v`), in
+/// which the iterated logarithms become powers of `v` and the limit as `v -> inf` is one of the scale of logarithms
+/// (`log(log(log(n)))/log(log(n))` is `log(v)/v` with `n = exp(exp(v))`).
+fn scaled_limit<'h>(sx: &mut Sx<'_, '_, '_, 'h>, q: T<'h>, n: T<'h>, k: usize) -> Res<T<'h>> {
+    let to = sx.rule(n, sx.sym("inf"));
+    let l = sx.ev("limit", &[q, to])?;
+    if is_number(sx, l) {
+        return Ok(l);
+    }
+    let v = sx.sym("sum·v");
+    let mut e = v;
+    for _ in 0..=k {
+        e = sx.ev("exp", &[e])?;
+    }
+    let qs = sx.subst(q, n, e)?;
+    let qs = sx.ev("power_expand", &[qs])?;
+    let tv = sx.rule(v, sx.sym("inf"));
+    sx.ev("limit", &[qs, tv])
 }
 
 /// Is `t` a number (real, possibly infinite)?

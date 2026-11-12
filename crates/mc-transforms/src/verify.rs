@@ -30,17 +30,17 @@ enum Def {
 
 /// Check `v` as the Laplace transform of `f` (variable `t`, transform variable `s`).
 pub(crate) fn laplace<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, t: T<'h>, s: T<'h>, v: T<'h>) -> Res<Verdict> {
-    run(cx, b, Def::Laplace, f, t, s, v)
+    run_in(cx, b, Def::Laplace, f, t, s, v, None)
 }
 
-/// Check `v` as the Mellin transform of `f`.
-pub(crate) fn mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, s: T<'h>, v: T<'h>) -> Res<Verdict> {
-    run(cx, b, Def::Mellin, f, x, s, v)
+/// Check `v` as the Mellin transform of `f`; with the strip's condition, at points inside the strip.
+pub(crate) fn mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, s: T<'h>, v: T<'h>, strip: Option<T<'h>>) -> Res<Verdict> {
+    run_in(cx, b, Def::Mellin, f, x, s, v, strip)
 }
 
 /// Check `v` as the sine (`sin: true`) or cosine transform of `f`.
 pub(crate) fn sin_cos<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, sin: bool, f: T<'h>, t: T<'h>, w: T<'h>, v: T<'h>) -> Res<Verdict> {
-    run(cx, b, if sin { Def::Sin } else { Def::Cos }, f, t, w, v)
+    run_in(cx, b, if sin { Def::Sin } else { Def::Cos }, f, t, w, v, None)
 }
 
 fn uncheckable<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> bool {
@@ -71,8 +71,11 @@ fn has_undefined<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>) -> 
     false
 }
 
+/// Real points tried for a Mellin integral with a known strip (the first two inside it are used).
+const MELLIN_POINTS: [(i64, i64); 12] = [(1, 2), (1, 3), (3, 2), (5, 4), (5, 2), (7, 2), (-1, 2), (-1, 3), (9, 2), (-3, 2), (11, 2), (-5, 2)];
+
 #[allow(clippy::too_many_arguments)]
-fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, def: Def, f: T<'h>, t: T<'h>, s: T<'h>, v: T<'h>) -> Res<Verdict> {
+fn run_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, def: Def, f: T<'h>, t: T<'h>, s: T<'h>, v: T<'h>, strip: Option<T<'h>>) -> Res<Verdict> {
     let h = b.heap();
     if uncheckable(cx, b, f) || uncheckable(cx, b, v) {
         return Ok(Verdict::Unverified);
@@ -112,7 +115,7 @@ fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, def: Def, f: T<'h>, t: 
         let vs = apply(cx, b, "rewrite", &[v, rl])?;
         let points: Vec<T<'h>> = match def {
             Def::Laplace => vec![b.rat((6.0 + 4.0 * total).ceil() as i64 * 2 + 1, 2)],
-            Def::Mellin => vec![b.rat(1, 2), b.rat(1, 3)],
+            Def::Mellin => mellin_points(cx, b, strip, rl, s)?,
             Def::Sin | Def::Cos => vec![b.rat(7, 10)],
         };
         for p in points {
@@ -157,12 +160,12 @@ fn run<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, def: Def, f: T<'h>, t: 
 
 /// Check `f` as the inverse Laplace transform of `big` (the forward integral of `f` against `big`).
 pub(crate) fn inverse_laplace<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, big: T<'h>, s: T<'h>, t: T<'h>, f: T<'h>) -> Res<Verdict> {
-    run(cx, b, Def::Laplace, f, t, s, big)
+    run_in(cx, b, Def::Laplace, f, t, s, big, None)
 }
 
 /// Check `f` as the inverse Mellin transform of `big`.
 pub(crate) fn inverse_mellin<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, big: T<'h>, s: T<'h>, x: T<'h>, f: T<'h>) -> Res<Verdict> {
-    run(cx, b, Def::Mellin, f, x, s, big)
+    run_in(cx, b, Def::Mellin, f, x, s, big, None)
 }
 
 /// Check `v` as the Z transform of `f`: `n_sum(f(n) z^-n, [n, 0, inf])` at `z = 3` (and sample parameters).
@@ -218,6 +221,31 @@ pub(crate) fn z<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, n: T
     } else {
         Verdict::Unverified
     })
+}
+
+/// The sample points of a Mellin integral: the first two of [`MELLIN_POINTS`] where the strip's condition (at the
+/// parameters' sample values `rl`) holds, else 1/2 and 1/3.
+fn mellin_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, strip: Option<T<'h>>, rl: T<'h>, s: T<'h>) -> Res<Vec<T<'h>>> {
+    let h = b.heap();
+    let mut out = vec![];
+    if let Some(c) = strip {
+        let c = apply(cx, b, "rewrite", &[c, rl])?;
+        for (n, d) in MELLIN_POINTS {
+            cx.tick(1)?;
+            let p = b.rat(n, d);
+            let cp = apply(cx, b, "rewrite", &[c, h.call(b.hd.list, &[h.call(h.sym(names::RULE), &[s, p])])])?;
+            if cx.is_true(cp) {
+                out.push(p);
+                if out.len() == 2 {
+                    break;
+                }
+            }
+        }
+    }
+    if out.is_empty() {
+        out = vec![b.rat(1, 2), b.rat(1, 3)];
+    }
+    Ok(out)
 }
 
 /// `g = heaviside_theta(t - a) r` (or `unit_step`) with a number a > 0: `(r, a)`; otherwise `(g, lo)`.

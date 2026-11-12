@@ -146,3 +146,9 @@ registrations. Library code is `lib/further.mc` (helpers prefixed `c30_`); the m
   iterates in complex ball arithmetic and decides escape and capture only when the ball is on one side, doubling the
   precision (from 128 bits, or d digits, up to 2^16) until every decision is certain, else it stays unevaluated.
   i + 10^-309 under z^2 escapes at k = 2055 (|z0|^(2^k) > 4); machine arithmetic gave 1055.
+
+## Round 38: inverse Radon transform
+
+- Linearity: a sum term by term with constant factors outside, calls `g(p, phi)` of undefined functions kept as
+  `inverse_radon_transform(g(p, phi), [p, phi], [x, y])`; a term with no known preimage keeps the whole sum
+  unevaluated. `inverse_radon_transform(radon_transform(f, [x, y], [p, phi]), [p, phi], [x, y])` is f.

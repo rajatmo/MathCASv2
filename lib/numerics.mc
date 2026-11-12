@@ -664,13 +664,13 @@ fn nl_uc(f, g, tau, t, asm) = {
 # mellin_convolve(f, g, x, y): the Mellin convolution, the integral of f(x) g(y/x)/x over 0 < x < inf (y > 0);
 # lists of variables for several dimensions; constant factors come out; unevaluated when the integral cannot be
 # done
-fn nl_mc(f, g, x, y, asm) = {
+fn nl_mc(f, g, x, y, asm, gc) = {
   let ts = nl_fc_vars(x)
   let ys = nl_fc_vars(y)
   let sf = nl_cv_split(f, ts)
   let sg = nl_cv_split(g, ts)
   let c = sf[1]*sg[1]
-  if c !== 1 then (if c === 0 then 0 else c*apply(mellin_convolve, join([sf[2], sg[2], x, y], if asm === true then [] else [assumptions -> asm])))
+  if c !== 1 then (if c === 0 then 0 else c*apply(mellin_convolve, join(join([sf[2], sg[2], x, y], if asm === true then [] else [assumptions -> asm]), if gc then [generate_conditions -> true] else [])))
   else {
     let num = every(ys, v => is_number(v) and is_inexact(v))
     var r = f*rewrite(g, map(i => ts[i] -> ys[i]/ts[i], range(length(ts))))/product(ts)
@@ -681,8 +681,16 @@ fn nl_mc(f, g, x, y, asm) = {
         ok = is_number(r) or free_of(r, integrate)
       }
     }
-    if ok then (if num then r else simplify(r, assumptions: asm and fold((p, q) => p and q, map(v => v > 0, ys)))) else null
+    if ok then (if num then r else simplify(r, assumptions: asm and fold((p, q) => p and q, map(v => v > 0, ys))))
+    else if length(ts) == 1 and not num then (if asm === true then calc_mconv_mb(f, g, ts[1], ys[1], gc) else assuming(asm, calc_mconv_mb(f, g, ts[1], ys[1], gc)))
+    else null
   }
+}
+
+# whether generate_conditions: true is among trailing options
+fn nl_gc(opts) = {
+  let rs = flatten(map(o => if not is_atom(o) and head(o) === options then apply(list, o) else [o], opts))
+  some(rs, r => match_q(r, generate_conditions -> true))
 }
 
 # the assumptions among trailing options (true without them)
@@ -692,7 +700,7 @@ fn nl_asm(opts) = {
   if length(hit) == 0 then true else hit[1][2]
 }
 rule unilateral_convolve(f_, g_, tau_, t_, opts___) := nl_uc(f, g, tau, t, nl_asm(opts)) when nl_uc(f, g, tau, t, nl_asm(opts)) !== null
-rule mellin_convolve(f_, g_, x_, y_, opts___) := nl_mc(f, g, x, y, nl_asm(opts)) when nl_mc(f, g, x, y, nl_asm(opts)) !== null
+rule mellin_convolve(f_, g_, x_, y_, opts___) := nl_mc(f, g, x, y, nl_asm(opts), nl_gc(opts)) when nl_mc(f, g, x, y, nl_asm(opts), nl_gc(opts)) !== null
 
 # --- list_interpolation, function_interpolation ---
 
