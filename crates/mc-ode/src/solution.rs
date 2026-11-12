@@ -217,7 +217,10 @@ struct SolutionFn {
 
 impl mc_jit::callee::Callee for SolutionFn {
     fn value(&self, args: &[f64]) -> Option<f64> {
-        let sol = match self.sol.read().upgrade() {
+        // the read guard ends with this statement: kept as a temporary of a `match` scrutinee it would live through
+        // the arms, and the write below would wait on this thread's own read lock for ever
+        let held = self.sol.read().upgrade();
+        let sol = match held {
             Some(s) => s,
             None => {
                 let s = find(self.key)?;
