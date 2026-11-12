@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# is_normal_subgroup
+
+#% text
+# `is_normal_subgroup(G, H)`: whether H is a normal subgroup of G
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+v4 = permutation_group([cycles([[1, 2], [3, 4]]), cycles([[1, 3], [2, 4]])]); is_normal_subgroup(symmetric_group(4), v4)
+#% output
+#= true
+
+#% cell
+is_normal_subgroup(symmetric_group(4), group_stabilizer(symmetric_group(4), 4))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `group_normal_closure`, `composition_series`

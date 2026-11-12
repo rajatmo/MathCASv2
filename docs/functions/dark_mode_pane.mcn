@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# dark_mode_pane
+
+#% text
+# `dark_mode_pane(x)` is `x`, shown in dark mode.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dark_mode_pane([1, 2, 3])
+#% output
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `graphics`

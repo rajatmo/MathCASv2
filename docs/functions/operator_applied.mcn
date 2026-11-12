@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# operator_applied
+
+#% text
+# `operator_applied(f)(x)(y)` is `f(y, x)`; `operator_applied(f, spec)` takes the arguments of `f` over several calls, as `curry_applied` does.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+operator_applied(f)(x)(y)
+#% output
+#= f(y, x)
+
+#% cell
+map(operator_applied(take)(2), [[1, 2, 3], [4, 5, 6]])
+#% output
+#= [[1, 2], [4, 5]]
+
+#% cell
+operator_applied(f, 3)(x)(y)(z)
+#% output
+#= f(x, y, z)
+
+#% cell
+operator_applied(f, [2, 1])(x)(y)
+#% output
+#= f(y, x)
+
+#% cell
+operator_applied(nest, [3, 1, 2])(x)(4)(f)
+#% output
+#= f(f(f(f(x))))
+
+#% section
+# See also
+
+#% text
+# `curry_applied`, `reverse_applied`

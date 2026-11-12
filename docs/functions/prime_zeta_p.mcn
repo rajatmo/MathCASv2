@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# prime_zeta_p
+
+#% text
+# `prime_zeta_p(s)` is the prime zeta function, the sum of `p^-s` over the primes `p`.
+
+#% section
+# Details
+
+#% item
+# It is evaluated for inexact `s` with real part above 1, by the series `sum over k of moebius_mu(k)/k log(zeta(k s))`; `n(prime_zeta_p(2), 30)` gives 30 digits.
+
+#% item
+# An exact argument stays unevaluated until `n` is applied.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+prime_zeta_p(2.)
+#% output
+#= 0.45224742004106544
+
+#% cell
+n(prime_zeta_p(2), 30)
+#% output
+#= 0.452247420041065498506543364832248
+
+#% cell
+prime_zeta_p(1.5 + 2.*im)
+#% output
+#= -0.13197927923571662 - 0.42464346272670406im
+
+#% cell
+n(prime_zeta_p(3))
+#% output
+#= 0.1747626392994435
+
+#% section
+# See also
+
+#% text
+# `zeta`, `moebius_mu`, `prime`

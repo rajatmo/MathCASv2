@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# gegenbauer_c
+
+#% text
+# `gegenbauer_c(n, a, x)` gives the Gegenbauer polynomial C_n^(a)(x).
+
+#% text
+# `gegenbauer_c(n, x)` gives the limit (2/n) T_n(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gegenbauer_c(2, a, x)
+#% output
+#= -a + 2*a*x^2 + 2*a^2*x^2
+
+#% cell
+gegenbauer_c(3, x)
+#% output
+#= (2/3)*(-3*x + 4*x^3)
+
+#% subsection
+# Scope
+
+#% cell
+gegenbauer_c(2.5, 1.5, 0.3)
+#% output
+#= -1.5821725940398246
+
+#% section
+# See also
+
+#% text
+# `chebyshev_t`, `jacobi_p`

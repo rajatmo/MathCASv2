@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# delta_polynomial
+
+#% text
+# `delta_polynomial(p, q, u, x)` gives the Delta-polynomial of the differential polynomials `p` and `q`, whose leaders are derivatives of the same function: both are differentiated so that their leaders become the least common derivative `w`, and `s_q D p - s_p D q` is formed, free of `w` (`s_p`, `s_q` the separants).
+
+#% section
+# Details
+
+#% item
+# The result is `none` when the leaders belong to different functions. A chain whose Delta-polynomials all reduce to 0 is coherent (Rosenfeld, 1959); `rosenfeld_groebner` adds them to the equations still to process.
+
+#% item
+# The ranking is `ranking: orderly` (the default) or `ranking: elimination`, as for `differential_leader`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delta_polynomial(derivative(1, 0)(u)(x, t) - u(x, t), derivative(0, 1)(u)(x, t) - x*u(x, t), u, [x, t])
+#% output
+#= -derivative(0, 1)(u)(x, t) + x*derivative(1, 0)(u)(x, t) + u(x, t)
+
+#% text
+# Its remainder is not 0, so the system `u_x == u`, `u_t == x u` has only the solution 0:
+
+#% cell
+differential_reduce(delta_polynomial(derivative(1, 0)(u)(x, t) - u(x, t), derivative(0, 1)(u)(x, t) - x*u(x, t), u, [x, t]), [derivative(1, 0)(u)(x, t) - u(x, t), derivative(0, 1)(u)(x, t) - x*u(x, t)], u, [x, t])
+#% output
+#= u(x, t)
+
+#% section
+# See also
+
+#% text
+# `differential_reduce`, `rosenfeld_groebner`

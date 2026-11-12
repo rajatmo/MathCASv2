@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# differential_separant
+
+#% text
+# `differential_separant(p, u, x)` gives the separant of the differential polynomial `p` in the functions `u` of `x`: its derivative with respect to its leader. Every proper derivative of `p` is linear in its own leader, with the separant as coefficient.
+
+#% section
+# Details
+
+#% item
+# The ranking is `ranking: orderly` (the default) or `ranking: elimination`, as for `differential_leader`. The separant is 0 when `p` contains no derivative of the functions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differential_separant(y'(x)^2 - 4*y(x), y, x)
+#% output
+#= 2*y'(x)
+
+#% text
+# The derivative of `p` is linear in `y''`, with the separant as coefficient:
+
+#% cell
+d(y'(x)^2 - 4*y(x), x)
+#% output
+#= -4*y'(x) + 2*y'(x)*y''(x)
+
+#% section
+# See also
+
+#% text
+# `differential_leader`, `differential_initial`, `differential_reduce`

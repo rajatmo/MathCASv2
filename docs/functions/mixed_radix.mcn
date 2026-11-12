@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# mixed_radix
+
+#% text
+# `mixed_radix([b1, ..., bk])` stands for a base in which the last `k` digits have the bases `b1, ..., bk`; whatever is left forms one leading digit.
+
+#% section
+# Details
+
+#% item
+# `mixed_radix` is inert: it is the base argument of `integer_digits` and `from_digits`.
+
+#% item
+# The bases are integers at least 2. The leading digit is not reduced: it holds the quotient left after the last base, as the days in a count of days, hours, minutes and seconds.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_digits(100000, mixed_radix([24, 60, 60]))
+#% output
+#= [1, 3, 46, 40]
+
+#% cell
+from_digits([1, 3, 46, 40], mixed_radix([24, 60, 60]))
+#% output
+#= 100000
+
+#% cell
+integer_digits(1000, mixed_radix([2, 3, 5]))
+#% output
+#= [33, 0, 2, 0]
+
+#% subsection
+# Applications
+
+#% text
+# Feet and inches from a number of inches (12 inches to the foot):
+
+#% cell
+integer_digits(100, mixed_radix([12]))
+#% output
+#= [8, 4]
+
+#% text
+# A count of seconds as days, hours, minutes, seconds, padded to four digits:
+
+#% cell
+integer_digits(5000, mixed_radix([24, 60, 60]), 4)
+#% output
+#= [0, 1, 23, 20]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `from_digits`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_extended_gcd
+
+#% text
+# `polynomial_extended_gcd(p, q, x)` gives `[g, [s, t]]`: the monic greatest common divisor `g` of `p` and `q` and polynomials with `g = s p + t q`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_extended_gcd(x^2 - 1, x^3 - 1, x)
+#% output
+#= [-1 + x, [-x, 1]]
+
+#% cell
+polynomial_extended_gcd(x^2 + 1, x^3 + x + 1, x)
+#% output
+#= [1, [-x, 1]]
+
+#% section
+# See also
+
+#% text
+# `polynomial_gcd`, `extended_gcd`

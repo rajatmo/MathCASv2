@@ -1,0 +1,130 @@
+#! mathcas 2 notebook
+
+#% title
+# fold
+
+#% text
+# `fold(f, x, xs)` gives `f(...f(f(x, xs[1]), xs[2])..., xs[n])`: the elements of `xs` combined from the left, starting from `x`.
+
+#% text
+# `fold(f, xs)` starts from the first element of `xs`.
+
+#% section
+# Details
+
+#% item
+# `f` takes two arguments: the value so far and the next element.
+
+#% item
+# `fold(f, x, [])` is `x`; `fold(f, [])` is a failure, since there is no first element.
+
+#% item
+# `fold_list` gives every intermediate value, not only the last.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold(f, x, [a, b, c])
+#% output
+#= f(f(f(x, a), b), c)
+
+#% cell
+fold((s, k) => s + k, 0, range(10))
+#% output
+#= 55
+
+#% cell
+fold((a, b) => a*b, [1, 2, 3, 4, 5])
+#% output
+#= 120
+
+#% subsection
+# Scope
+
+#% text
+# Any kind of value can be carried along, here a list:
+
+#% cell
+fold((acc, k) => append(acc, k^2), [], [1, 2, 3])
+#% output
+#= [1, 4, 9]
+
+#% text
+# An empty list gives the start value:
+
+#% cell
+fold(f, x, [])
+#% output
+#= x
+
+#% subsection
+# Applications
+
+#% text
+# A polynomial evaluated by Horner's scheme from its coefficients, highest first:
+
+#% cell
+fold((acc, c) => acc*x + c, 0, [2, -3, 0, 5])
+#% output
+#= 5 + (-3 + 2*x)*x^2
+
+#% cell
+fold((acc, c) => acc*2 + c, 0, [2, -3, 0, 5])
+#% output
+#= 9
+
+#% text
+# The greatest common divisor of many numbers, two at a time:
+
+#% cell
+fold(gcd, [84, 126, 210])
+#% output
+#= 42
+
+#% text
+# A number from its digits:
+
+#% cell
+fold((acc, d) => 10*acc + d, 0, [3, 1, 4, 1, 5])
+#% output
+#= 31415
+
+#% subsection
+# Properties and relations
+
+#% text
+# The last value of `fold_list` is the value of `fold`:
+
+#% cell
+last(fold_list((a, b) => a + b, 0, [4, 5, 6])) == fold((a, b) => a + b, 0, [4, 5, 6])
+#% output
+#= true
+
+#% text
+# For a sum, `total` does the same directly:
+
+#% cell
+total(range(10))
+#% output
+#= 55
+
+#% subsection
+# Possible issues
+
+#% text
+# Without a start value, an empty list has nothing to start from:
+
+#% cell
+fold((a, b) => a + b, [])
+#% output
+#! failure(index, 1, 0)
+
+#% section
+# See also
+
+#% text
+# `fold_list`, `nest`, `accumulate`, `total`, `map`

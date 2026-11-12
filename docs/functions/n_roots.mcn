@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# n_roots
+
+#% text
+# `n_roots(p == q, x)` gives the numerical roots of a polynomial equation in x as `x == r1 or x == r2 or ...`.
+
+#% section
+# Details
+
+#% item
+# Roots are repeated by their multiplicity.
+
+#% item
+# A polynomial p alone is taken as `p == 0`.
+
+#% item
+# `precision_goal: d` with d above machine precision gives the roots with d digits (computed with that working precision).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n_roots(1 + 2*x + 3*x^2 + 4*x^3 == 0, x)
+#% output
+#= x == -0.605829586188268 or x == -0.07208520690586599 - 0.6383267351483765im or x == -0.07208520690586599 + 0.6383267351483765im
+
+#% cell
+n_roots(x^3 - 5*x^2 + 6*x - 1 == 0, x)
+#% output
+#= x == 0.19806226419516174 or x == 1.554958132087371 or x == 3.246979603717467
+
+#% cell
+n_roots((x - 1)*(x - 2)^2 == 0, x)
+#% output
+#= x == 1.0 or x == 2.0 or x == 2.0
+
+#% subsection
+# Options
+
+#% text
+# The roots with 30 digits:
+
+#% cell
+n_roots(x^3 - 5*x^2 + 6*x - 1 == 0, x, precision_goal: 30)
+#% output
+#= x == 0.19806226419516174752779536098510990 or x == 1.5549581320873711914221948710064105 or x == 3.2469796037174670610500097680084796
+
+#% section
+# See also
+
+#% text
+# `n_solve`, `roots`, `solve`

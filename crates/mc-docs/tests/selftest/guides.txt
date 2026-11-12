@@ -1,0 +1,32 @@
+# Round 21: the guides are listed on the home page, one click away, and draw their examples and plots.
+size 1100 800
+theme light
+wait 10
+shot home
+clicklink topic:calculus
+wait 10
+shot calculus
+scroll 700
+wait 5
+shot calculus-down
+go topic:plotting-and-graphics
+wait 20
+scroll 500
+wait 10
+shot plotting
+theme dark
+shot plotting-dark
+back
+back
+wait 5
+# round 23: a search finds guides above the functions, and a click opens one
+search laplace
+wait 10
+shot search-guides
+clicklink topic:transforms-and-series
+wait 10
+shot transforms
+search meijer
+wait 10
+shot search-meijer
+quit

@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# frobenius_solve
+
+#% text
+# `frobenius_solve(coins, k)` gives all lists of non-negative integers `x` with `coins.x = k`, in increasing lexicographic order; `frobenius_solve(coins, k, m)` at most `m` of them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+frobenius_solve([6, 9, 20], 44)
+#% output
+#= [[1, 2, 1], [4, 0, 1]]
+
+#% cell
+frobenius_solve([6, 9, 20], 44, 1)
+#% output
+#= [[1, 2, 1]]
+
+#% cell
+frobenius_solve([5, 2, 1], 3)
+#% output
+#= [[0, 0, 3], [0, 1, 1]]
+
+#% cell
+frobenius_solve([6, 9, 20], 43)
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `frobenius_number`, `integer_partitions`

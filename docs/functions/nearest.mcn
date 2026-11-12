@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# nearest
+
+#% text
+# `nearest(xs, x)` gives the elements of `xs` nearest to `x`; `nearest(xs, x, n)` gives the `n` nearest, nearest first.
+
+#% section
+# Details
+
+#% item
+# Numbers are compared by their difference, numeric vectors by Euclidean distance, strings by edit distance.
+
+#% item
+# Without `n` every element at the least distance is given.
+
+#% item
+# With a list of rules `v -> label` or an association `label -> v` the labels are given.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+nearest([1, 2, 4, 8, 16, 32], 20)
+#% output
+#= [16]
+
+#% cell
+nearest([1, 2, 4, 8, 16, 32], 20, 3)
+#% output
+#= [16, 8, 32]
+
+#% cell
+nearest([[-1, -1], [1, -1], [1, 1], [-1, 1]], [2, 3])
+#% output
+#= [[1, 1]]
+
+#% subsection
+# Scope
+
+#% cell
+nearest(["aaaa", "abaa", "bbbb", "aaaba"], "aaba", 3)
+#% output
+#= ["aaaa", "aaaba", "abaa"]
+
+#% cell
+nearest([[0, 0] -> "origin", [5, 5] -> "far"], [1, 2])
+#% output
+#= ["origin"]
+
+#% cell
+nearest(assoc(a -> 1.5, b -> 4.0), 3)
+#% output
+#= [b]
+
+#% section
+# See also
+
+#% text
+# `min_by`, `select`, `norm`

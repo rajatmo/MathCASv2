@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# robinson_schensted
+
+#% text
+# `robinson_schensted(w)`: the insertion and recording tableaux [P, Q] of the word or permutation
+
+#% section
+# Details
+
+#% item
+# The insertion tableau P is built by row insertion, the recording tableau Q records where each step ended. A word with repeated letters gives a semistandard P.
+
+#% item
+# The length of the first row of P is the length of a longest increasing (non-decreasing) subsequence.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+robinson_schensted([3, 1, 4, 2, 5])
+#% output
+#= [[[1, 2, 5], [3, 4]], [[1, 3, 5], [2, 4]]]
+
+#% cell
+robinson_schensted(cycles([[1, 3], [2, 4]]))
+#% output
+#= [[[1, 2], [3, 4]], [[1, 2], [3, 4]]]
+
+#% cell
+robinson_schensted([1, 2, 2, 1])
+#% output
+#= [[[1, 1, 2], [2]], [[1, 2, 3], [4]]]
+
+#% section
+# See also
+
+#% text
+# `inverse_robinson_schensted`, `standard_young_tableaux`

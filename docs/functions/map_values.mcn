@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# map_values
+
+#% text
+# `map_values(f, a)` gives the association `a` with every value `v` replaced by `f(v)`; the keys stay.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map_values(v => v^2, assoc("x" -> 2, "y" -> 3))
+#% output
+#= assoc("x" -> 4, "y" -> 9)
+
+#% subsection
+# Scope
+
+#% text
+# Totals of grouped values:
+
+#% cell
+map_values(total, group_by(range(10), is_even))
+#% output
+#= assoc(false -> 25, true -> 30)
+
+#% section
+# See also
+
+#% text
+# `map`, `assoc`, `keys`

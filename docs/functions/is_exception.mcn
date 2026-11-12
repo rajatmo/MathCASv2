@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# is_exception
+
+#% text
+# `is_exception(x)` is `true` when `x` is `exception(type, data)`.
+
+#% section
+# Details
+
+#% item
+# An exception that has been thrown is a failure, `failure(thrown, exc, type)`, not an exception.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_exception(exception(data_error))
+#% output
+#= true
+
+#% cell
+is_exception(3)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `exception`, `is_failure`

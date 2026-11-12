@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# table_view
+
+#% text
+# `table_view(rows)`: rows shown as a scrollable table (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+table_view([[1, 2], [3, 4]])
+#% output
+#= table_view([[1, 2], [3, 4]])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

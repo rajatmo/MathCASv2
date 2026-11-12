@@ -1,0 +1,105 @@
+#! mathcas 2 notebook
+
+#% title
+# polylog
+
+#% text
+# `polylog(s, z)` gives the polylogarithm `Li_s(z)`, the sum of `z^k/k^s` for `k >= 1`.
+
+#% section
+# Details
+
+#% item
+# The series (DLMF 25.12.10) converges for `abs(z) < 1`; elsewhere the function is continued analytically, with a branch cut on `z > 1`.
+
+#% item
+# Exact values: `polylog(s, 0)` is 0, `polylog(s, 1)` is `zeta(s)` for `s > 1`, `polylog(1, z)` is `-log(1 - z)`, and integer `s <= 0` gives rational functions of `z`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `polylog` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polylog(2, 0.5)
+#% output
+#= 0.5822405264650125
+
+#% cell
+polylog(2, 1)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+polylog(1, z)
+#% output
+#= -log(1 - z)
+
+#% cell
+polylog(3, -1.0)
+#% output
+#= -0.9015426773696957
+
+#% subsection
+# Scope
+
+#% text
+# A negative integer order is a rational function:
+
+#% cell
+polylog(-1, z)
+#% output
+#= z/(1 - z)^2
+
+#% text
+# Outside the unit disc:
+
+#% cell
+polylog(2, -3.0)
+#% output
+#= -1.9393754207667089
+
+#% text
+# A complex argument:
+
+#% cell
+polylog(2, 0.5*im)
+#% output
+#= -0.05897507442156586 + 0.4872223582945224im
+
+#% text
+# 30 digits:
+
+#% cell
+n(polylog(2, 1/2), 30)
+#% output
+#= 0.582240526465012505902656320159680
+
+#% subsection
+# Properties and relations
+
+#% text
+# The series:
+
+#% cell
+sum(0.5^k/k^2, [k, 1, 60]) - polylog(2, 0.5)
+#% output
+#= 1.1102230246251565e-16
+
+#% text
+# The derivative in `z`:
+
+#% cell
+d(polylog(3, z), z)
+#% output
+#= polylog(2, z)/z
+
+#% section
+# See also
+
+#% text
+# `zeta`, `lerch_phi`, `log`

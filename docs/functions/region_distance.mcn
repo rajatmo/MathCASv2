@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# region_distance
+
+#% text
+# `region_distance(reg, p)` is the distance from the point `p` to the region (0 inside).
+
+#% section
+# Details
+
+#% item
+# The nearest part (corner, edge, face or inside) is found numerically and the distance is given exactly from the region's coordinates.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk:
+
+#% cell
+region_distance(disk(), [3, 3])
+#% output
+#= -1 + 3*2^(1/2)
+
+#% text
+# A segment:
+
+#% cell
+region_distance(line([[0, 0], [1, 1]]), [3, 4])
+#% output
+#= 13^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# Boxes:
+
+#% cell
+[region_distance(rectangle([0, 0], [1, 2]), [3, 4]), region_distance(cuboid([0, 0, 0], [1, 2, 3]), [4, 5, 6])]
+#% output
+#= [2*2^(1/2), 3*3^(1/2)]
+
+#% text
+# A symbolic point:
+
+#% cell
+region_distance(disk(), [x, y])
+#% output
+#= max(0, -1 + (x^2 + y^2)^(1/2))
+
+#% text
+# A polyline in space:
+
+#% cell
+region_distance(line([[0, 0, 0], [1, 1, 1], [0, 0, 1]]), [1, 2, 3])
+#% output
+#= 5^(1/2)
+
+#% section
+# See also
+
+#% text
+# `signed_region_distance`, `region_nearest`

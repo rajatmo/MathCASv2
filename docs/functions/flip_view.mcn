@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# flip_view
+
+#% text
+# `flip_view([a, b, ...])`: views flipped through by clicking (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+flip_view([x + y, a + b])
+#% output
+#= flip_view([x + y, a + b])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

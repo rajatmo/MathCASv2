@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_labels
+
+#% text
+# `plot_labels` is an option of `plot`: `plot_labels: [l1, l2, ...]` writes a label at the right end of each curve, in the curve's colour.
+
+#% section
+# Details
+
+#% item
+# Labels at the curves avoid a separate legend; they may be strings or expressions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_labels: ["sin", "cos"])
+#% output
+#= image("plot_labels.files/plot_labels-1.svgz")
+
+#% cell
+plot([x, x^2, x^3], [x, 0, 1.2], plot_labels: [x, x^2, x^3])
+#% output
+#= image("plot_labels.files/plot_labels-2.svgz")
+
+#% cell
+plot(exp(-x), [x, 0, 3], plot_labels: ["decay"])
+#% output
+#= image("plot_labels.files/plot_labels-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot_legends`, `plot_label`, `text`

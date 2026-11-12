@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# stipple_shading
+
+#% text
+# `stipple_shading(...)`: a stippled surface shading (accepted; surfaces are lit as usual)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d([stipple_shading(), standard_orange, sphere()])
+#% output
+#= image("stipple_shading.files/stipple_shading-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

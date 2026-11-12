@@ -1,0 +1,39 @@
+# Powers of a linear form times sines and cosines (translated from Rubi section 4.1.10, MIT): integration by parts
+# for positive powers, the sine and cosine integrals for 1/(c + d x), reduction for the other negative powers, and
+# multiple angles for powers of the sine.
+
+## 4.1.10 (c + d x)^m sin(e + f x), m a positive integer: by parts
+int((c_. + d_.*x)^m_.*sin(e_. + f_.*x)) := -(c + d*x)^m*cos(e + f*x)/f + d*m/f*int((c + d*x)^(m - 1)*cos(e + f*x))
+    when free(c, d, e, f) and integer(m) and m > 0
+int((c_. + d_.*x)^m_.*cos(e_. + f_.*x)) := (c + d*x)^m*sin(e + f*x)/f - d*m/f*int((c + d*x)^(m - 1)*sin(e + f*x))
+    when free(c, d, e, f) and integer(m) and m > 0
+
+## 4.1.10 sin(e + f x)/(c + d x): the sine and cosine integrals
+int(sin(e_. + f_.*x)/(c_. + d_.*x)) := cos(e - c*f/d)*sin_integral(c*f/d + f*x)/d + sin(e - c*f/d)*cos_integral(c*f/d + f*x)/d
+    when free(c, d, e, f)
+int(cos(e_. + f_.*x)/(c_. + d_.*x)) := cos(e - c*f/d)*cos_integral(c*f/d + f*x)/d - sin(e - c*f/d)*sin_integral(c*f/d + f*x)/d
+    when free(c, d, e, f)
+
+## 4.1.10 (c + d x)^m sin(e + f x), m < -1: by parts the other way
+int((c_. + d_.*x)^m_*sin(e_. + f_.*x)) := (c + d*x)^(m + 1)*sin(e + f*x)/(d*(m + 1)) - f/(d*(m + 1))*int((c + d*x)^(m + 1)*cos(e + f*x))
+    when free(c, d, e, f) and integer(m) and m < -1
+int((c_. + d_.*x)^m_*cos(e_. + f_.*x)) := (c + d*x)^(m + 1)*cos(e + f*x)/(d*(m + 1)) + f/(d*(m + 1))*int((c + d*x)^(m + 1)*sin(e + f*x))
+    when free(c, d, e, f) and integer(m) and m < -1
+
+## 4.1.10 (c + d x)^m sin(e + f x)^n, n > 1: multiple angles
+int((c_. + d_.*x)^m_*sin(e_. + f_.*x)^n_) := int(expand((c + d*x)^m*trig_reduce(sin(e + f*x)^n)))
+    when free(c, d, e, f, m) and integer(n) and n > 1 and integer(m) and m < 0
+int((c_. + d_.*x)^m_*cos(e_. + f_.*x)^n_) := int(expand((c + d*x)^m*trig_reduce(cos(e + f*x)^n)))
+    when free(c, d, e, f, m) and integer(n) and n > 1 and integer(m) and m < 0
+
+## 4.1.10 (c + d x)^m sin(e + f x) with m not an integer: through exponentials (incomplete gamma functions)
+int((c_. + d_.*x)^m_*sin(e_. + f_.*x)) := im/2*int((c + d*x)^m*exp(-im*(e + f*x))) - im/2*int((c + d*x)^m*exp(im*(e + f*x)))
+    when free(c, d, e, f, m) and not integer(m)
+int((c_. + d_.*x)^m_*cos(e_. + f_.*x)) := 1/2*int((c + d*x)^m*exp(-im*(e + f*x))) + 1/2*int((c + d*x)^m*exp(im*(e + f*x)))
+    when free(c, d, e, f, m) and not integer(m)
+
+## 6.1.10 sinh(e + f x)/(c + d x), cosh(e + f x)/(c + d x): the hyperbolic sine and cosine integrals
+int(sinh(e_. + f_.*x)/(c_. + d_.*x)) := cosh(e - c*f/d)*sinh_integral(c*f/d + f*x)/d + sinh(e - c*f/d)*cosh_integral(c*f/d + f*x)/d
+    when free(c, d, e, f)
+int(cosh(e_. + f_.*x)/(c_. + d_.*x)) := cosh(e - c*f/d)*cosh_integral(c*f/d + f*x)/d + sinh(e - c*f/d)*sinh_integral(c*f/d + f*x)/d
+    when free(c, d, e, f)

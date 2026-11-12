@@ -1,0 +1,97 @@
+#! mathcas 2 notebook
+
+#% title
+# rest
+
+#% text
+# `rest(xs)` gives the list `xs` without its first element.
+
+#% section
+# Details
+
+#% item
+# `rest(xs)` is `drop(xs, 1)`; `most(xs)` drops the last element instead.
+
+#% item
+# The rest of a one-element list is `[]`; of an empty list, a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rest([a, b, c, d])
+#% output
+#= [b, c, d]
+
+#% cell
+rest([x])
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# Any compound term keeps its head:
+
+#% cell
+rest(f(1, 2, 3))
+#% output
+#= f(2, 3)
+
+#% subsection
+# Applications
+
+#% text
+# Differences of neighbouring elements:
+
+#% cell
+xs = [1, 4, 9, 16, 25]
+rest(xs) - most(xs)
+#% output
+#= [3, 5, 7, 9]
+
+#% text
+# The ratios of consecutive Fibonacci numbers, approaching the golden ratio:
+
+#% cell
+fib = map(first, nest_list(p => [p[2], p[1] + p[2]], [1, 1], 10))
+n(rest(fib)/most(fib))
+#% output
+#= [1.0, 2.0, 1.5, 1.6666666666666667, 1.6, 1.625, 1.6153846153846154, 1.619047619047619, 1.6176470588235294, 1.6181818181818182]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `first` and `rest` together rebuild the list:
+
+#% cell
+prepend(rest(xs), first(xs)) === xs
+#% output
+#= true
+
+#% text
+# The same as `drop` with 1:
+
+#% cell
+rest(xs) === drop(xs, 1)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% cell
+rest([])
+#% output
+#! failure(index, 1, 0)
+
+#% section
+# See also
+
+#% text
+# `most`, `first`, `drop`, `take`, `last`

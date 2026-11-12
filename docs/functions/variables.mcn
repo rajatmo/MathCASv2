@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# variables
+
+#% text
+# `variables(p)` gives the variables of the polynomial `p`: its symbols and the non-polynomial subexpressions (kernels) such as `sin(x)`.
+
+#% section
+# Details
+
+#% item
+# The variables are listed in canonical order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+variables(x^2 + y*z)
+#% output
+#= [x, y, z]
+
+#% cell
+variables(a*sin(x) + b)
+#% output
+#= [a, b, sin(x)]
+
+#% cell
+variables(sqrt(x) + x^2)
+#% output
+#= [x]
+
+#% cell
+variables(42)
+#% output
+#= []
+
+#% subsection
+# Properties and relations
+
+#% text
+# The degree in each variable:
+
+#% cell
+p = x^3*y + y^2*z; table(degree(p, v), v, variables(p))
+#% output
+#= [3, 2, 1]
+
+#% section
+# See also
+
+#% text
+# `degree`, `coefficient`

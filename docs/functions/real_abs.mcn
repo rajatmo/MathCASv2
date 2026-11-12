@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# real_abs
+
+#% text
+# `real_abs(x)` gives the absolute value of a real number `x`.
+
+#% section
+# Details
+
+#% item
+# Symbolic and complex arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+real_abs(-3)
+#% output
+#= 3
+
+#% cell
+real_abs(2.5)
+#% output
+#= 2.5
+
+#% cell
+real_abs(e - 3)
+#% output
+#= 3 - e
+
+#% section
+# See also
+
+#% text
+# `abs`, `real_sign`

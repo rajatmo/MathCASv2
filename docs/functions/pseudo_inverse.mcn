@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# pseudo_inverse
+
+#% text
+# `pseudo_inverse(m)` gives the Moore-Penrose pseudo-inverse of a matrix of numbers.
+
+#% section
+# Details
+
+#% item
+# The pseudo-inverse `p` satisfies `m.p.m == m`, `p.m.p == p` and makes `m.p` and `p.m` Hermitian; for an invertible matrix it is the inverse.
+
+#% item
+# Exact matrices give exact results; machine matrices are computed from the singular value decomposition.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pseudo_inverse([[1, 2], [3, 4]])
+#% output
+#= [[-2, 1], [3/2, -1/2]]
+
+#% cell
+pseudo_inverse([[1, 2], [2, 4]])
+#% output
+#= [[1/25, 2/25], [2/25, 4/25]]
+
+#% cell
+pseudo_inverse([[1.0, 0.0, 1.0], [0.0, 1.0, 1.0]])
+#% output
+#= [[0.6666666666666667, -0.3333333333333335], [-0.3333333333333335, 0.6666666666666667], [0.3333333333333333, 0.3333333333333333]]
+
+#% subsection
+# Applications
+
+#% text
+# The least-squares line through four points: the solution of the overdetermined system:
+
+#% cell
+a = [[1, 0], [1, 1], [1, 2], [1, 3]]; y = [1, 2, 2, 4]; dot(pseudo_inverse(a), y)
+#% output
+#= [9/10, 9/10]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The defining identity `m.p.m == m`:
+
+#% cell
+m = [[1, 2], [2, 4], [0, 1]]; p = pseudo_inverse(m); dot(m, p, m) == m
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `inverse`, `svd`, `fit`

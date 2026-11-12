@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# character_range
+
+#% text
+# `character_range(a, b)` gives the characters from `a` to `b` as one-character strings; `a` and `b` are one-character strings or code points.
+
+#% section
+# Details
+
+#% item
+# An empty list is given when `b` comes before `a`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+character_range("a", "e")
+#% output
+#= ["a", "b", "c", "d", "e"]
+
+#% cell
+character_range("A", "F")
+#% output
+#= ["A", "B", "C", "D", "E", "F"]
+
+#% cell
+character_range(48, 57)
+#% output
+#= ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+
+#% subsection
+# Scope
+
+#% cell
+character_range("α", "ε")
+#% output
+#= ["α", "β", "γ", "δ", "ε"]
+
+#% cell
+string_join(character_range("a", "z"))
+#% output
+#= "abcdefghijklmnopqrstuvwxyz"
+
+#% section
+# See also
+
+#% text
+# `characters`, `to_character_code`, `from_characters`

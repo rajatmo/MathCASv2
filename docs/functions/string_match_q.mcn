@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# string_match_q
+
+#% text
+# `string_match_q(s, p)` gives `true` when the whole of `s` matches the string pattern `p`. In a literal string pattern, `*` stands for any run of characters and `@` for a run of characters that are not capital letters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_match_q("apppbb", string_expression("a", ___, "b"))
+#% output
+#= true
+
+#% cell
+string_match_q("2024-11-05", regular_expression("\\d{4}-\\d{2}-\\d{2}"))
+#% output
+#= true
+
+#% cell
+string_match_q(["apple", "banana"], "a*")
+#% output
+#= [true, false]
+
+#% cell
+string_match_q("Apple", "a*", ignore_case: true)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `string_free_q`, `string_contains`, `string_cases`

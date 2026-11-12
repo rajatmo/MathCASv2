@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# transformation_function
+
+#% text
+# `transformation_function(m)`: the affine map whose homogeneous matrix is m; transformation_function(m)(p) maps a point or a list of points
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = rotation_transform(pi/3)
+
+#% cell
+f([[1, 0], [0, 1]])
+#% output
+#= [[1/2, (1/2)*3^(1/2)], [(-1/2)*3^(1/2), 1/2]]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

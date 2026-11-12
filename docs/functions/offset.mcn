@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# offset
+
+#% text
+# `offset([dx, dy], pos)`: a position (drawn at pos; the shift in points is not applied)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([point([0, 0]), text("origin", offset([0, 8], [0, 0]))], plot_range: 1)
+#% output
+#= image("offset.files/offset-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

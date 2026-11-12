@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# q_factorial
+
+#% text
+# `q_factorial(n, q)` gives the q-factorial `[n]_q!`, `(q; q)_n/(1 - q)^n`.
+
+#% section
+# Details
+
+#% item
+# The q-factorial is the product of the q-numbers `(1 - q^k)/(1 - q) = 1 + q + ... + q^(k - 1)` for `k` from 1 to `n`; at `q = 1` it is `factorial(n)`.
+
+#% item
+# The count comes first, as in `factorial(n)`: `q_factorial(n, q)` (it was `q_factorial(q, n)` before round 19).
+
+#% item
+# With a symbolic `q` and an integer `n` the result is a polynomial; machine numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+q_factorial(3, q)
+#% output
+#= (1 + q)*(1 + q + q^2)
+
+#% cell
+q_factorial(4, 2)
+#% output
+#= 315
+
+#% cell
+q_factorial(5, 0.5)
+#% output
+#= 9.5361328125
+
+#% subsection
+# Properties and relations
+
+#% text
+# The limit `q -> 1` is the factorial:
+
+#% cell
+q_factorial(5, 1)
+#% output
+#= 120
+
+#% cell
+q_factorial(5, 0.99999)
+#% output
+#= 119.99400014499783
+
+#% section
+# See also
+
+#% text
+# `q_pochhammer`, `q_binomial`, `q_gamma`, `factorial`

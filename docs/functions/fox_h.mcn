@@ -1,0 +1,88 @@
+#! mathcas 2 notebook
+
+#% title
+# fox_h
+
+#% text
+# `fox_h([[an], [ap]], [[bm], [bq]], z)` gives the Fox H function `H^(m,n)_(p,q)(z)` with the parameter pairs `[a_j, A_j]` (the first `n` in `an`, the rest in `ap`) and `[b_j, B_j]` (the first `m` in `bm`, the rest in `bq`), the scales `A_j, B_j > 0`.
+
+#% section
+# Details
+
+#% item
+# `H(z)` is the Mellin-Barnes integral of `prod gamma(b_j + B_j s) prod gamma(1 - a_j - A_j s)/(prod gamma(1 - b_j - B_j s) prod gamma(a_j + A_j s)) z^(-s)` over `s` (j up to m and n in the numerator, the rest in the denominator).
+
+#% item
+# With all scales equal to `c` the function is `meijer_g(a, b, z, c)/c`, which evaluates further in closed form where it can; equal pairs in the first a-group and the second b-group (or the second a-group and the first b-group) cancel; the order of the pairs in a group does not matter.
+
+#% item
+# Numerical values are sums of residues: at the poles of the `gamma(b_j + B_j s)` when `mu = sum B_j - sum A_j > 0`, at those of the `gamma(1 - a_j - A_j s)` when `mu < 0` (for `mu = 0` by the size of `z`). Machine arguments use machine arithmetic; arguments with more digits give a value of that precision. Poles of higher order are handled by a symmetric perturbation of the parameters.
+
+#% item
+# `fox_h` threads over lists of `z`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fox_h([[[1/10, 6/5], [13/10, 1]], [[17/5, 2]]], [[[7/5, 2]], [[1/5, 1]]], 0.2)
+#% output
+#= 0.27964621202572143
+
+#% cell
+n(fox_h([[[1/10, 6/5], [13/10, 1]], [[17/5, 2]]], [[[7/5, 2]], [[1/5, 1]]], 1/5), 20)
+#% output
+#= 0.2796462120257199007190618794
+
+#% cell
+fox_h([[[1/2, 2/3]], []], [[[3/4, 4/5]], [[5/6, 6/7]]], [0.5, 1.5, 2.5])
+#% output
+#= [0.37815202526464364, 0.09349268672356775, -0.3280518133955136]
+
+#% text
+# Equal scales give Meijer G functions and their closed forms:
+
+#% cell
+fox_h([[[0, 1]], []], [[[0, 1]], [[0, 1]]], 5)
+#% output
+#= exp(-5)
+
+#% cell
+fox_h([[[a, 1]], []], [[[0, 1]], [[b, 1]]], z)
+#% output
+#= gamma(1 - a)*hypergeometric_1f1(1 - a, 1 - b, -z)/gamma(1 - b)
+
+#% cell
+fox_h([[], []], [[[b, 1/2]], []], z)
+#% output
+#= 2*exp(-z^2)*z^(2*b)
+
+#% text
+# Cancellation of equal pairs:
+
+#% cell
+fox_h([[[a1, p1]], [[a2, p2], [a3, p3]]], [[[b1, q1], [a2, p2]], [[a1, p1], [b2, q2]]], z)
+#% output
+#= fox_h([[], [[a3, p3]]], [[[b1, q1]], [[b2, q2]]], z)
+
+#% text
+# The derivative in `z` is a Fox H function with the parameters shifted (`a - A`, `b - B`) and the pairs `(-1, 1)` in the first a-group and `(0, 1)` in the second b-group added (Kilbas and Saigo 2004, 2.2); `d` knows it, to any order:
+
+#% cell
+d(fox_h([[], []], [[[0, 1]], []], z), z)
+#% output
+#= -exp(-z)
+
+#% cell
+rewrite(d(fox_h([[[1/10, 6/5], [13/10, 1]], [[17/5, 2]]], [[[7/5, 2]], [[1/5, 1]]], z), z), z -> 0.2)
+#% output
+#= 0.7545107128176634
+
+#% section
+# See also
+
+#% text
+# `meijer_g`, `fox_h_reduce`, `meijer_g_reduce`, `hypergeometric_pfq`

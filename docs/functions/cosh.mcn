@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# cosh
+
+#% text
+# `cosh(x)` gives the hyperbolic cosine `(exp(x) + exp(-x))/2`.
+
+#% section
+# Details
+
+#% item
+# `cosh(0)` is 1 and `cosh(-x)` is `cosh(x)`; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `cosh` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cosh(0)
+#% output
+#= 1
+
+#% cell
+cosh(1.0)
+#% output
+#= 1.5430806348152437
+
+#% cell
+cosh(-2.0)
+#% output
+#= 3.7621956910836314
+
+#% cell
+n(cosh(1), 30)
+#% output
+#= 1.5430806348152437784779056207570617
+
+#% subsection
+# Applications
+
+#% text
+# A hanging chain (catenary) with parameter 2, from `x = -2` to `2`:
+
+#% cell
+plot(2*cosh(x/2), [x, -2, 2])
+#% output
+#= image("cosh.files/cosh-5.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(cosh(x), x)
+#% output
+#= sinh(x)
+
+#% text
+# As exponentials:
+
+#% cell
+trig_to_exp(cosh(x))
+#% output
+#= (1/2)*exp(x) + (1/2)*exp(-x)
+
+#% section
+# See also
+
+#% text
+# `sinh`, `tanh`, `cos`, `exp`

@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# sec
+
+#% text
+# `sec(x)` gives the secant 1/cos(x).
+
+#% section
+# Details
+
+#% item
+# `sec(x)` stays unevaluated for symbolic `x`; where `cos(x)` has an exact value, `sec(x)` is its reciprocal.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `sec` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sec(pi/3)
+#% output
+#= 2
+
+#% cell
+sec(1.0)
+#% output
+#= 1.8508157176809255
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic arguments and symmetry:
+
+#% cell
+sec(-x)
+#% output
+#= sec(x)
+
+#% text
+# 30 digits:
+
+#% cell
+n(sec(1), 30)
+#% output
+#= 1.8508157176809256179117532413986502
+
+#% section
+# See also
+
+#% text
+# `cos`, `sin`, `cos`, `tan`

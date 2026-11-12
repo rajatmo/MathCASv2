@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# dotted
+
+#% text
+# `dotted` is a graphics directive: dotted lines.
+
+#% section
+# Details
+
+#% item
+# It applies to what follows it in its list; it can stand in `directive(...)`, `edge_form(...)` and `plot_style`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# In a graphic:
+
+#% cell
+graphics([dotted, thick, line([[0, 0], [2, 0]])])
+#% output
+#= image("dotted.files/dotted-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# As a plot style:
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: dotted)
+#% output
+#= image("dotted.files/dotted-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Combined with a colour:
+
+#% cell
+graphics([directive(red, dotted), line([[0, 0], [1, 1]])])
+#% output
+#= image("dotted.files/dotted-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `directive`, `thickness`, `dashing`

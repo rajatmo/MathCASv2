@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# circumsphere
+
+#% text
+# `circumsphere([p1, ..., pk])`: the sphere (in the plane a circle) through the points, centred in their affine hull
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+circumsphere([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])
+#% output
+#= sphere([1/2, 1/2, 1/2], (1/2)*3^(1/2))
+
+#% cell
+circumsphere([[1, 0], [0, 1], [-1, 0]])
+#% output
+#= sphere([0, 0], 1)
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

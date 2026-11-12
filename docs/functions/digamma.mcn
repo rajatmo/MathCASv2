@@ -1,0 +1,108 @@
+#! mathcas 2 notebook
+
+#% title
+# digamma
+
+#% text
+# `digamma(x)` gives the digamma function, the derivative of `log(gamma(x))`.
+
+#% section
+# Details
+
+#% item
+# `digamma(x)` is `gamma'(x)/gamma(x)` (DLMF 5.2.2). It has simple poles at 0, -1, -2, ...
+
+#% item
+# Positive integers and half-integers give exact values in terms of `euler_gamma`, `log(2)` and harmonic numbers; machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `digamma` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+digamma(1)
+#% output
+#= -euler_gamma
+
+#% cell
+digamma(4)
+#% output
+#= 11/6 - euler_gamma
+
+#% cell
+digamma(1/2)
+#% output
+#= -2*log(2) - euler_gamma
+
+#% cell
+digamma(2.5)
+#% output
+#= 0.7031566406452432
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits:
+
+#% cell
+n(digamma(1/3), 30)
+#% output
+#= -3.132033780020806322996419074287269
+
+#% text
+# A complex argument:
+
+#% cell
+digamma(1.0 + 1.0*im)
+#% output
+#= 0.09465032062247669 + 1.076674047468581im
+
+#% text
+# A negative argument between the poles:
+
+#% cell
+digamma(-0.5)
+#% output
+#= 0.03648997397857652
+
+#% subsection
+# Properties and relations
+
+#% text
+# The recurrence `digamma(x + 1) = digamma(x) + 1/x`:
+
+#% cell
+digamma(3.7) - digamma(2.7) - 1/2.7
+#% output
+#= 0.0
+
+#% text
+# The derivative is `polygamma(1, x)`:
+
+#% cell
+d(digamma(x), x)
+#% output
+#= polygamma(1, x)
+
+#% subsection
+# Possible issues
+
+#% text
+# The poles have no value:
+
+#% cell
+digamma(0)
+#% output
+#! failure(pole, digamma(0))
+
+#% section
+# See also
+
+#% text
+# `polygamma`, `log_gamma`, `gamma`, `harmonic_number`, `euler_gamma`

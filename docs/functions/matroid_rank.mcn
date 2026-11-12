@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# matroid_rank
+
+#% text
+# `matroid_rank(M), (M, S)`: the rank of the matroid or of the subset S
+
+#% section
+# Details
+
+#% item
+# A matroid is `linear_matroid(A)` (the columns of a rational matrix), `graphic_matroid(edges)` (the edges of a graph), `uniform_matroid(r, m)` or `matroid(bases)` (bases as lists of elements 1, ..., m); its elements are numbered 1, ..., m, at most 22.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matroid_rank(linear_matroid([[1, 0, 1, 1], [0, 1, 1, 2]]))
+#% output
+#= 2
+
+#% cell
+matroid_rank(linear_matroid([[1, 0, 1, 1], [0, 1, 1, 2]]), [3, 4])
+#% output
+#= 2
+
+#% cell
+matroid_rank(uniform_matroid(2, 5), [1, 2, 3])
+#% output
+#= 2
+
+#% section
+# See also
+
+#% text
+# `matroid_bases`, `matroid_circuits`, `tutte_polynomial`

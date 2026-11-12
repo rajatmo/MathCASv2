@@ -1,0 +1,416 @@
+//! The natives behind the notebook protocol (docs/design/08-notebook.md, 5.2): `out`, the history of numbered
+//! statements, and `message`, a warning of library code that front ends show apart from `print` output; and
+//! `timing`, the wall-clock time of an evaluation (for stage timings in scripts and notebooks).
+//!
+//! Both keep their state in own values of hidden symbols (names that are not identifiers, so no program can
+//! write them): the number of the running statement in `out#line` and the value of statement `n` in `out#n`. The
+//! evaluator records reads of own values, so a memoised `out()` is stale as soon as the line number changes.
+use mc_api::names;
+use mc_core::{Heap, Store, View, T};
+use mc_eval::{Attributes, CallKind, Hold, Kernel, Native, NativeCx, Reply, Res};
+
+/// The functions of this module with a one-line description.
+pub const FUNCTIONS: &[(&str, &str)] = &[
+    (
+        "out",
+        "out(n): the value of numbered statement n of a notebook session; out() the last value, out(-k) the k-th previous one",
+    ),
+    (
+        "message",
+        "message(tag, text): a warning from tag (a function's name); front ends show it apart from print output",
+    ),
+    (
+        "eval",
+        "eval(e): the value of e; inside an argument a function holds, it marks e to be evaluated first",
+    ),
+    (
+        "attributes",
+        "attributes(f): the list of the attributes of the symbol f (listable, hold_all, orderless, ...)",
+    ),
+    ("set_attributes", "set_attributes(f, a), set_attributes(f, [a, ...]): give the symbol f the attributes"),
+    ("clear_attributes", "clear_attributes(f, a), clear_attributes(f, [a, ...]): remove the attributes from f"),
+    ("unset", "unset(x, ...): remove the own value and rules of the symbol x (its attributes stay); unset(f(p)) removes the one rule with left side f(p)"),
+    ("protect", "protect(f, ...): give the symbols the protected attribute (their definitions may not change); the names of those that changed"),
+    ("unprotect", "unprotect(f, ...): remove the protected attribute; the names of the symbols that changed"),
+    ("composition", "composition(f, g, ...): the function x => f(g(...(x))); applied to arguments it calls them in turn"),
+    ("right_composition", "right_composition(f, g, ...): the function x => ...(g(f(x))), the functions applied left to right"),
+    ("through", "through(p(f, g, ...)(x)): p(f(x), g(x), ...); through(e, p) only when the inner head is p"),
+    ("activate", "activate(e): every inert head inactive(f) in e replaced by f, and the result evaluated; activate(e, p) only the f matching the pattern p; heads: false leaves heads alone"),
+    ("unevaluated", "unevaluated(e): as an argument of a call, e itself is passed, unevaluated; the call gets the wrapper back if no definition applies"),
+    ("time_constrained", "time_constrained(e, t), time_constrained(e, t, fail): the value of e if reached within t seconds, else fail (failure(limit, time))"),
+    ("memory_constrained", "memory_constrained(e, b), memory_constrained(e, b, fail): the value of e if evaluating it allocates at most b bytes, else fail (failure(limit, memory))"),
+    ("pause", "pause(t): null after waiting t seconds (an interrupt stops it)"),
+    ("inactive", "inactive(f): an inert head: inactive(f)(x) stays a call until activate"),
+    (
+        "timing",
+        "timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds; timing(e, breakdown: true) adds where the time went",
+    ),
+    (
+        "profile",
+        "profile(e): [seconds, value, rows]: e evaluated with every call measured; rows [f, kind, calls, own seconds, total seconds] by own time",
+    ),
+    ("names", "names(pattern), names([pattern, ...]): the sorted names of the symbols matching the string pattern (* any characters, @ any characters but capitals), as strings"),
+    ("own_values", "own_values(x): [x :> value] for a symbol with a value, [] without one"),
+    ("down_values", "down_values(f): the rules defined for calls f(...), as [lhs :> rhs, ...] in the order they are tried"),
+    ("up_values", "up_values(g): the rules attached to g (@on(g)) for calls with g(...) or g as an argument, as [lhs :> rhs, ...]"),
+    ("sub_values", "sub_values(f): the rules defined for calls with a compound head rooted at f (f(x_)(y_) := ...), as [lhs :> rhs, ...]"),
+    ("subscript", "subscript(x, i, ...): the indexed name x_i (an inert form, shown with the indices below; usable as a variable)"),
+    ("quantity_array", "quantity_array(v, unit), quantity_array(v, [u1, ..., uk]): the array v with its entries quantities of the unit (one unit per position of the innermost lists); the result is a list of quantities"),
+];
+
+/// The hidden symbol holding the number of the running numbered statement.
+pub(crate) const LINE: &str = "out#line";
+
+/// The hidden symbol holding the value of numbered statement `n`.
+pub(crate) fn entry(n: u64) -> String {
+    format!("out#{n}")
+}
+
+/// Register `out`, `message` and `timing`.
+pub(crate) fn install(k: &mut Kernel, h: &Heap) {
+    k.register(h.sym("out"), Attributes::default(), Box::new(Out));
+    k.register(h.sym("message"), Attributes { effect: true, ..Attributes::default() }, Box::new(Message));
+    // the argument is held (it is timed here, not before the call); reading the clock is an effect, so a timing is
+    // never memoised or run speculatively
+    k.register(h.sym("timing"), Attributes { hold: Hold::All, effect: true, ..Attributes::default() }, Box::new(Timing));
+    k.register(h.sym("profile"), Attributes { hold: Hold::All, effect: true, ..Attributes::default() }, Box::new(Profile));
+    k.register(h.sym("names"), Attributes::default(), Box::new(Names));
+    // the symbol is held: its value is read here, not substituted
+    k.register(h.sym("own_values"), Attributes { hold: Hold::All, ..Attributes::default() }, Box::new(OwnValues));
+    // an indexed name: inert (no definitions), so it can stand for a variable
+    k.register(h.sym("subscript"), Attributes::default(), Box::new(Inert));
+    for (name, kind) in [("down_values", Kind::Down), ("up_values", Kind::Up), ("sub_values", Kind::Sub)] {
+        k.register(h.sym(name), Attributes { hold: Hold::All, ..Attributes::default() }, Box::new(Values(kind)));
+    }
+}
+
+/// A warning in the session output: `message(tag, text)` with `text` a string. `None` for anything else.
+pub(crate) fn as_message(h: &Heap, t: T<'_>) -> Option<(String, String)> {
+    let View::App { head, args } = h.view(t) else { return None };
+    let (View::Sym(s), [tag, text]) = (h.view(head), args) else { return None };
+    if h.sym_name(s) != "message" {
+        return None;
+    }
+    let tag = match h.view(*tag) {
+        View::Sym(t) => h.sym_name(t),
+        View::Str(t) => t.to_string(),
+        _ => return None,
+    };
+    let View::Str(text) = h.view(*text) else { return None };
+    Some((tag, text.to_string()))
+}
+
+/// `out(n)`, `out()`, `out(-k)`.
+struct Out;
+
+impl Native for Out {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let k = match args {
+            [] => -1,
+            [n] => match h.view(*n) {
+                View::Int(n) if n != 0 => n,
+                _ => return Ok(Reply::Done(failure(h, &[h.sym_term(h.sym("out")), h.int(1)], "argument"))),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        let line = cx.value(h.sym(LINE)).and_then(|t| match h.view(t) {
+            View::Int(n) => Some(n),
+            _ => None,
+        });
+        // relative to the running statement; outside a numbered evaluation only absolute numbers make sense
+        let n = if k > 0 { Some(k) } else { line.map(|l| l + k).filter(|&n| n > 0) };
+        let value = n.and_then(|n| cx.value(h.sym(&entry(n as u64))));
+        Ok(Reply::Done(match value {
+            Some(v) => v,
+            None => failure(h, &[h.int(n.unwrap_or(k))], "history"),
+        }))
+    }
+}
+
+/// `failure(tag, details...)`.
+fn failure<'h>(h: &'h Heap, details: &[T<'h>], tag: &str) -> T<'h> {
+    let mut a = vec![h.sym_term(h.sym(tag))];
+    a.extend_from_slice(details);
+    h.call(h.sym(names::FAILURE), &a)
+}
+
+/// `message(tag, text)`: puts the warning into the session output, as `print` does with its argument.
+struct Message;
+
+impl Native for Message {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [tag, text] = args else { return Ok(Reply::Decline) };
+        if !matches!(h.view(*tag), View::Sym(_) | View::Str(_)) || !matches!(h.view(*text), View::Str(_)) {
+            return Ok(Reply::Decline);
+        }
+        cx.emit(h.call(h.sym("message"), &[*tag, *text]))?;
+        Ok(Reply::Done(cx.null()))
+    }
+}
+
+/// `timing(e)`: `[seconds, value]`, the value of `e` and the wall-clock seconds its evaluation took.
+struct Timing;
+
+impl Native for Timing {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let (e, breakdown) = match *args {
+            [e] => (e, false),
+            [e, o] => match option_value(cx, o, "breakdown")? {
+                Some(v) => (e, v == cx.heap().sym_term(cx.heap().sym(names::TRUE))),
+                None => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        // reading the clock is an effect: it keeps the result out of the memo (a second timing of the same term
+        // measures again)
+        cx.effect()?;
+        if !breakdown {
+            let start = std::time::Instant::now();
+            let value = cx.eval(e)?;
+            let seconds = start.elapsed().as_secs_f64();
+            let h = cx.heap();
+            return Ok(Reply::Done(cx.list(&[h.real(seconds), value])));
+        }
+        let young0 = cx.heap().young_bytes();
+        let start = std::time::Instant::now();
+        let (value, lines) = cx.profiled(e)?;
+        let seconds = start.elapsed().as_secs_f64();
+        let allocated = cx.heap().young_bytes().saturating_sub(young0);
+        let h = cx.heap();
+        let lines = lines.unwrap_or_default();
+        let own = |kind: CallKind| lines.iter().filter(|l| l.kind == kind).fold(0.0, |a, l| a + l.own);
+        let (compiled, library) = (own(CallKind::Compiled), own(CallKind::Native));
+        let entry = |k: &str, v: T<'h>| h.call(h.sym(names::RULE), &[h.string(k), v]);
+        // the definitions' own time and the evaluation outside every measured call are the interpreter's; no
+        // collection runs inside an evaluation (collections run between statements), so `gc` is 0 by design
+        let parts = h.call(
+            h.sym("assoc"),
+            &[
+                entry("compiled", h.real(compiled)),
+                entry("library", h.real(library)),
+                entry("interpreter", h.real((seconds - compiled - library).max(0.0))),
+                entry("gc", h.real(0.0)),
+                entry("allocated_mb", h.real(allocated as f64 / (1u64 << 20) as f64)),
+            ],
+        );
+        Ok(Reply::Done(cx.list(&[h.real(seconds), value, parts])))
+    }
+}
+
+/// The value of option `name` in the held option list `o` (`options(name -> v)`, evaluated); `None` when `o` is no
+/// such list.
+fn option_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, o: T<'h>, name: &str) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let View::App { head, args: &[r] } = h.view(o) else { return Ok(None) };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") {
+        return Ok(None);
+    }
+    let View::App { head: rh, args: &[k, v] } = h.view(r) else { return Ok(None) };
+    let rule = matches!(h.view(rh), View::Sym(s) if h.sym_name(s) == names::RULE || h.sym_name(s) == names::RULE_DELAYED);
+    if !rule || !matches!(h.view(k), View::Sym(s) if h.sym_name(s) == name) {
+        return Ok(None);
+    }
+    Ok(Some(cx.eval(v)?))
+}
+
+/// `profile(e)`: `[seconds, value, rows]`, the value of `e` and where the time of its evaluation went: one row
+/// `[f, kind, calls, own, total]` per function `f` and kind of call (`"library"` for natives, `"compiled"` for
+/// compiled code, `"definitions"` for functions defined by rules), sorted by own time (the time not spent in other
+/// measured calls), largest first; then a row `[evaluation, "interpreter", 1, own, seconds]` for the evaluation
+/// outside every measured call. `profile(e, top: n)` keeps the first n rows of functions (default 25).
+struct Profile;
+
+impl Native for Profile {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let (e, top) = match *args {
+            [e] => (e, 25),
+            [e, o] => match option_value(cx, o, "top")?.map(|v| cx.heap().view(v)) {
+                Some(View::Int(n)) if n > 0 => (e, n as usize),
+                _ => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        cx.effect()?;
+        let start = std::time::Instant::now();
+        let (value, lines) = cx.profiled(e)?;
+        let seconds = start.elapsed().as_secs_f64();
+        let h = cx.heap();
+        let Some(mut lines) = lines else {
+            // inside another profile: that one measures
+            return Ok(Reply::Done(cx.list(&[h.real(seconds), value, cx.list(&[])])));
+        };
+        lines.sort_by(|a, b| b.own.total_cmp(&a.own).then_with(|| b.total.total_cmp(&a.total)));
+        let outside = (seconds - lines.iter().fold(0.0, |a, l| a + l.own)).max(0.0);
+        let mut rows: Vec<T<'h>> = lines
+            .iter()
+            .take(top)
+            .map(|l| {
+                let row = [h.sym_term(l.sym), h.string(l.kind.name()), h.int(l.calls as i64), h.real(l.own), h.real(l.total)];
+                cx.list(&row)
+            })
+            .collect();
+        let rest = [h.sym_term(h.sym("evaluation")), h.string("interpreter"), h.int(1), h.real(outside), h.real(seconds)];
+        rows.push(cx.list(&rest));
+        let rows = cx.list(&rows);
+        Ok(Reply::Done(cx.list(&[h.real(seconds), value, rows])))
+    }
+}
+
+/// `names(pattern)`: the sorted names of the symbols whose name matches the string pattern (`*` any characters,
+/// `@` any characters but capitals; a list of patterns: those matching any), as strings. Symbols that no program
+/// can write (names that are not identifiers: the hidden ones and the renamed locals) are left out.
+struct Names;
+
+impl Native for Names {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [p] = args else { return Ok(Reply::Decline) };
+        let pats: Vec<String> = match (h.view(*p), cx.as_list(*p)) {
+            (View::Str(s), _) => vec![s.to_string()],
+            (_, Some(items)) => {
+                let mut v = vec![];
+                for &i in items {
+                    match h.view(i) {
+                        View::Str(s) => v.push(s.to_string()),
+                        _ => return Ok(Reply::Decline),
+                    }
+                }
+                v
+            }
+            _ => return Ok(Reply::Decline),
+        };
+        let mut found: Vec<String> = (0..h.sym_count())
+            .map(|i| h.sym_name(mc_api::Sym(i as u32)))
+            .filter(|n| n.chars().next().is_some_and(|c| c.is_alphabetic() || c == '$') && n.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$'))
+            .filter(|n| !n.contains('$') || n.starts_with('$') && !n[1..].contains('$'))
+            .filter(|n| pats.iter().any(|p| glob(p.as_bytes(), n.as_bytes())))
+            .collect();
+        found.sort();
+        found.dedup();
+        let items: Vec<T<'h>> = found.iter().map(|n| h.string(n)).collect();
+        Ok(Reply::Done(cx.list(&items)))
+    }
+}
+
+/// Does `name` match `pat` (`*` any run of characters, `@` any run of characters that are not capitals)?
+fn glob(pat: &[u8], name: &[u8]) -> bool {
+    match pat.split_first() {
+        None => name.is_empty(),
+        Some((b'*', rest)) => (0..=name.len()).any(|k| glob(rest, &name[k..])),
+        Some((b'@', rest)) => (0..=name.len()).take_while(|&k| name[..k].iter().all(|c| !c.is_ascii_uppercase())).any(|k| glob(rest, &name[k..])),
+        Some((c, rest)) => name.split_first().is_some_and(|(n, tail)| n == c && glob(rest, tail)),
+    }
+}
+
+/// `own_values(x)`: `[x :> value]` (the held symbol's value as a rule), or `[]` when `x` has no value.
+struct OwnValues;
+
+impl Native for OwnValues {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [x] = args else { return Ok(Reply::Decline) };
+        let View::Sym(s) = h.view(*x) else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(match cx.own_value(s) {
+            Some(v) => cx.list(&[h.call(h.sym(names::RULE_DELAYED), &[*x, v])]),
+            None => cx.list(&[]),
+        }))
+    }
+}
+
+/// Which definitions a `*_values` function lists.
+#[derive(Clone, Copy, PartialEq)]
+enum Kind {
+    Down,
+    Up,
+    Sub,
+}
+
+/// `down_values(f)`, `up_values(g)`, `sub_values(f)`: the source of the rules a symbol holds, as `lhs :> rhs`
+/// rules (the left side as written, the right side unevaluated). Rules with native right sides (built-in code)
+/// and the catch-all a `fn` adds are not listed.
+struct Values(Kind);
+
+impl Native for Values {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let [x] = args else { return Ok(Reply::Decline) };
+        let s = match h.view(*x) {
+            View::Sym(s) => s,
+            // a name as a string, as `names` gives it
+            View::Str(n) => h.sym(n),
+            _ => return Ok(Reply::Decline),
+        };
+        let call = h.sym(mc_eval::pat::CALL);
+        let items: Vec<T<'h>> = cx
+            .rule_sources(s)
+            .into_iter()
+            .filter(|&(outer, _)| match self.0 {
+                Kind::Down => outer.is_none(),
+                Kind::Sub => outer == Some(call),
+                Kind::Up => outer.is_some_and(|o| o != call),
+            })
+            .map(|(_, src)| src)
+            .collect();
+        // rules without pattern variables first, in canonical order (they cannot overlap, so this changes nothing
+        // about which applies), then the others in the order they are tried
+        let (mut lits, pats): (Vec<T<'h>>, Vec<T<'h>>) = items.into_iter().partition(|&r| match h.view(r) {
+            View::App { args: &[lhs, _], .. } => !has_pattern(h, lhs),
+            _ => false,
+        });
+        cx.sort(&mut lits);
+        lits.extend(pats);
+        Ok(Reply::Done(cx.list(&lits)))
+    }
+}
+
+/// Whether a left side holds a pattern construct (a variable, a condition, alternatives, ...).
+fn has_pattern(h: &Heap, t: T<'_>) -> bool {
+    match h.view(t) {
+        View::App { head, args } => {
+            let construct = matches!(h.view(head), View::Sym(s) if matches!(&*h.sym_name(s),
+                "any" | "seq0" | "seq1" | "typed" | "named" | "condition" | "alternatives" | "optional" | "repeated"
+                    | "key_value_pattern" | "held"));
+            construct || has_pattern(h, head) || args.iter().any(|&a| has_pattern(h, a))
+        }
+        _ => false,
+    }
+}
+
+/// A head without definitions: its calls stay as they are (`subscript(x, i)`).
+struct Inert;
+
+impl Native for Inert {
+    fn call<'h>(&self, _cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, _args: &[T<'h>]) -> Res<Reply<'h>> {
+        Ok(Reply::Decline)
+    }
+}

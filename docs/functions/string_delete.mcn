@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# string_delete
+
+#% text
+# `string_delete(s, p)` removes from `s` every substring matching the string pattern `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_delete("a1b22c333", digit_character)
+#% output
+#= "abc"
+
+#% cell
+string_delete("  some   text ", whitespace)
+#% output
+#= "sometext"
+
+#% section
+# See also
+
+#% text
+# `string_replace`, `string_cases`

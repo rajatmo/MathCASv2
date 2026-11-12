@@ -1,0 +1,106 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_digits
+
+#% text
+# `integer_digits(n)` gives the decimal digits of `abs(n)`, most significant first.
+
+#% text
+# `integer_digits(n, b)` gives the digits in base `b`.
+
+#% text
+# `integer_digits(n, b, len)` pads with zeros on the left, or keeps the last `len` digits.
+
+#% section
+# Details
+
+#% item
+# The sign is dropped. `integer_digits(0)` is `[0]`.
+
+#% item
+# The base may be a `mixed_radix` list of bases.
+
+#% item
+# `integer_digits` is listable in its first argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_digits(2026)
+#% output
+#= [2, 0, 2, 6]
+
+#% cell
+integer_digits(13, 2)
+#% output
+#= [1, 1, 0, 1]
+
+#% cell
+integer_digits(5, 2, 8)
+#% output
+#= [0, 0, 0, 0, 0, 1, 0, 1]
+
+#% cell
+integer_digits(-405)
+#% output
+#= [4, 0, 5]
+
+#% subsection
+# Scope
+
+#% text
+# Keep the last digits only:
+
+#% cell
+integer_digits(123456, 10, 3)
+#% output
+#= [4, 5, 6]
+
+#% text
+# A large integer in base 16:
+
+#% cell
+integer_digits(2^64 - 1, 16)
+#% output
+#= [15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15]
+
+#% text
+# A mixed radix, here days, hours, minutes and seconds:
+
+#% cell
+integer_digits(200000, mixed_radix([24, 60, 60]))
+#% output
+#= [2, 7, 33, 20]
+
+#% subsection
+# Applications
+
+#% text
+# The digit sum of `2^100`:
+
+#% cell
+sum(integer_digits(2^100))
+#% output
+#= 115
+
+#% subsection
+# Properties and relations
+
+#% text
+# `from_digits` inverts it:
+
+#% cell
+from_digits(integer_digits(98765, 7), 7)
+#% output
+#= 98765
+
+#% section
+# See also
+
+#% text
+# `from_digits`, `integer_length`, `real_digits`, `mixed_radix`, `integer_reverse`

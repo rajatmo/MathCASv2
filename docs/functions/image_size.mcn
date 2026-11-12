@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# image_size
+
+#% text
+# `image_size` is an option of graphics and plots that sets the size of a picture in points (pixels at scale 1): a width `w`, or `[w, h]`. The default width is 360.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], image_size: 200)
+#% output
+#= image("image_size.files/image_size-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], image_size: [500, 150])
+#% output
+#= image("image_size.files/image_size-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `aspect_ratio`, `export_data`

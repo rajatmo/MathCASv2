@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# is_missing
+
+#% text
+# `is_missing(x)` gives `true` if `x` is `missing()` or `missing(reason)`, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# `null` and failures are not missing values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_missing(missing())
+#% output
+#= true
+
+#% cell
+is_missing(0)
+#% output
+#= false
+
+#% subsection
+# Applications
+
+#% text
+# The rows that lack a value:
+
+#% cell
+scores = dataset([assoc("name" -> "Ada", "score" -> 7), assoc("name" -> "Ben")])
+select(scores, r => is_missing(r["score"]))
+#% output
+#= name | score
+#= -----+--------
+#= Ben  | missing
+#= dataset: 1 row, 2 columns
+
+#% text
+# Counting the missing values of a column:
+
+#% cell
+count(column(scores, "score"), missing())
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `missing`, `dataset`

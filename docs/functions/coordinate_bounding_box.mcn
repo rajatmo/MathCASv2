@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# coordinate_bounding_box
+
+#% text
+# `coordinate_bounding_box(pts)` gives the corners `[[min x, min y, ...], [max x, max y, ...]]` of the points in `pts`; `coordinate_bounding_box(pts, d)` pads them as `coordinate_bounds` does.
+
+#% section
+# Details
+
+#% item
+# It is the transpose of `coordinate_bounds`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coordinate_bounding_box([[0, 1], [1, 2], [2, 1], [3, 2], [4, 0]])
+#% output
+#= [[0, 0], [4, 2]]
+
+#% cell
+coordinate_bounding_box([[3, -3], [3, 3], [-3, 3], [-3, -3]], [1, 2])
+#% output
+#= [[-4, -5], [4, 5]]
+
+#% section
+# See also
+
+#% text
+# `coordinate_bounds`, `coordinate_bounding_box_array`

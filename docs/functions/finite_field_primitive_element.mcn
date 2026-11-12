@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_primitive_element
+
+#% text
+# `finite_field_primitive_element(F)` gives the primitive element of the finite field `F` with the least index.
+
+#% section
+# Details
+
+#% item
+# A primitive element generates the multiplicative group: its powers are all the nonzero elements.
+
+#% item
+# The generator `x` of a field with a Conway polynomial is primitive, but an element of smaller index may be too.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+finite_field_primitive_element(finite_field(7, 2))
+#% output
+#= finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [0, 1])
+
+#% subsection
+# Scope
+
+#% text
+# A prime field, a field with the exponential representation and an extension:
+
+#% cell
+[finite_field_primitive_element(finite_field(2, 1)), finite_field_primitive_element(finite_field(7, 2, "Exponential")), finite_field_primitive_element(finite_field(11, 3))]
+#% output
+#= [finite_field_element(finite_field(2, &(1 + &1), "Polynomial"), [1]), finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Exponential"), 2), finite_field_element(finite_field(11, &(9 + 2*&1 + &1^3), "Polynomial"), [0, 1])]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Over a prime field it is the least primitive root:
+
+#% cell
+[finite_field_primitive_element(finite_field(23, 1)), primitive_root(23)]
+#% output
+#= [finite_field_element(finite_field(23, &(18 + &1), "Polynomial"), [5]), 5]
+
+#% text
+# The element is primitive, and no element of smaller index is:
+
+#% cell
+Q = finite_field(7, 2)
+p = finite_field_primitive_element(Q)
+[is_finite_field_element_primitive(p), finite_field_index(p), map(k => is_finite_field_element_primitive(Q(k)), range(1, finite_field_index(p) - 1))]
+#% output
+#= [true, 7, [false, false, false, false, false, false]]
+
+#% text
+# The norm of a primitive element is a primitive root of the prime field:
+
+#% cell
+[finite_field_element_norm(finite_field_primitive_element(finite_field(11, 3))), primitive_root(11)]
+#% output
+#= [2, 2]
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be a field; anything else stays unevaluated:
+
+#% cell
+finite_field_primitive_element(5)
+#% output
+#= finite_field_primitive_element(5)
+
+#% section
+# See also
+
+#% text
+# `is_finite_field_element_primitive`, `primitive_root`, `finite_field_log`

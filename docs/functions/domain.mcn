@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# domain
+
+#% text
+# `domain(f)` gives the interval `[lo, hi]` on which the interpolating function `f`, a numerical solution of a differential equation, has values.
+
+#% section
+# Details
+
+#% item
+# `f` may be an `interpolating_function` from `n_dsolve` or `parametric_n_dsolve_value`, or the function of `t` that `n_dsolve_value` gives.
+
+#% item
+# A stopping event ends the solution early; the domain then ends at the event.
+
+#% item
+# Outside its domain, a call `f(t)` gives `failure(out_of_range, t, [lo, hi])`.
+
+#% item
+# For any other argument, `domain(f)` stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The domain of a solution on [0, 2]:
+
+#% cell
+domain(n_dsolve_value([y'(t) == -y(t), y(0) == 1], y(t), [t, 0, 2]))
+#% output
+#= [0.0, 2.0]
+
+#% text
+# A stopping event ends the solution of x'' = -x, x(0) = 1, where x first reaches zero, at pi/2:
+
+#% cell
+f = parametric_n_dsolve_value([x''(z) == -x(z), x(0) == xc, x'(0) == 0], x, [z, 0, 10], [xc], events: [x(z) == 0]);
+domain(f(1.0))
+#% output
+#= [0.0, 1.5707963237654676]
+
+#% section
+# See also
+
+#% text
+# `n_dsolve`, `n_dsolve_value`, `parametric_n_dsolve_value`, `interpolating_function`

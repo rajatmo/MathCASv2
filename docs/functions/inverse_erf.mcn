@@ -1,0 +1,95 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_erf
+
+#% text
+# `inverse_erf(y)` gives the `x` with `erf(x) = y`, for `-1 < y < 1`.
+
+#% section
+# Details
+
+#% item
+# The inverse is odd; `inverse_erf(0)` is 0 and `inverse_erf(y)` tends to `inf` as `y` tends to 1.
+
+#% item
+# Machine numbers and balls give numerical values; other exact arguments stay unevaluated.
+
+#% item
+# Near 1 the argument `1 - y` loses digits in machine numbers; `inverse_erfc` of the small difference keeps them.
+
+#% item
+# `inverse_erf` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_erf(0.5)
+#% output
+#= 0.4769362762044699
+
+#% cell
+inverse_erf(0)
+#% output
+#= 0
+
+#% cell
+inverse_erf(-0.9)
+#% output
+#= -1.1630871536766743
+
+#% cell
+n(inverse_erf(1/2), 30)
+#% output
+#= 0.47693627620446987338141835364313056
+
+#% subsection
+# Applications
+
+#% text
+# The half-width of the central 95% interval of a standard normal distribution:
+
+#% cell
+sqrt(2.0)*inverse_erf(0.95)
+#% output
+#= 1.959963984540054
+
+#% subsection
+# Properties and relations
+
+#% text
+# `erf` undoes it:
+
+#% cell
+erf(inverse_erf(0.3))
+#% output
+#= 0.29999999999999993
+
+#% text
+# The relation to `inverse_erfc`:
+
+#% cell
+inverse_erf(0.4) - inverse_erfc(0.6)
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Outside `(-1, 1)` there is no real value, and the call stays unevaluated:
+
+#% cell
+inverse_erf(1.5)
+#% output
+#= inverse_erf(1.5)
+
+#% section
+# See also
+
+#% text
+# `erf`, `inverse_erfc`, `erfc`, `quantile`

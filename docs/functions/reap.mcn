@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# reap
+
+#% text
+# `reap(e)` evaluates `e` (held) and gives `[v, groups]`: `v` is the value of `e`, and `groups` holds the values sown while it ran, one list per tag in order of the tag's first use (`[]` when nothing was sown). `reap(e, p)` collects only the tags matching the pattern `p` (a list of patterns gives one entry per pattern), and `reap(e, p, f)` gives `f(tag, values)` for each tag instead of the values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reap({ sow(a); b; sow(c); sow(d); e })
+#% output
+#= [e, [[a, c, d]]]
+
+#% cell
+reap(for k in range(10) { if is_prime(k) then sow(k) })
+#% output
+#= [null, [[2, 3, 5, 7]]]
+
+#% cell
+reap({ sow(1, [x, x]); sow(2, y); sow(3, x) }, [x, y])
+#% output
+#= [3, [[[1, 1, 3]], [[2]]]]
+
+#% cell
+reap({ sow(1, x); sow(2, y); sow(3, x) }, _, (t, vs) => t -> vs)
+#% output
+#= [3, [x -> [1, 3], y -> [2]]]
+
+#% cell
+reap(x)
+#% output
+#= [x, []]
+
+#% section
+# See also
+
+#% text
+# `sow`, `catch`

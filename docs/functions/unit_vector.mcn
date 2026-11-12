@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# unit_vector
+
+#% text
+# `unit_vector(n, k)` gives the vector of length `n` with a 1 at position `k` and 0 elsewhere; `unit_vector(k)` gives the 2-vector for `k` = 1 or 2.
+
+#% section
+# Details
+
+#% item
+# The vector is the k-th column of `identity_matrix(n)`.
+
+#% item
+# `unit_vector(k)` is defined only for `k` equal to 1 or 2.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unit_vector(4, 2)
+#% output
+#= [0, 1, 0, 0]
+
+#% cell
+unit_vector(2)
+#% output
+#= [0, 1]
+
+#% cell
+unit_vector(3, 3)
+#% output
+#= [0, 0, 1]
+
+#% cell
+dot(unit_vector(3, 1), [7, 8, 9])
+#% output
+#= 7
+
+#% section
+# See also
+
+#% text
+# `identity_matrix`, `diagonal_matrix`, `constant_array`

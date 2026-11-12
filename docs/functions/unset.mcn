@@ -1,0 +1,98 @@
+#! mathcas 2 notebook
+
+#% title
+# unset
+
+#% text
+# `unset(x)` removes the own value of the symbol `x` and all its rules.
+
+#% text
+# `unset(f(p))` removes the one rule of `f` whose left side is `f(p)`.
+
+#% section
+# Details
+
+#% item
+# `unset(x, y, ...)` and `unset([x, y, ...])` remove several. The arguments are not evaluated.
+
+#% item
+# The attributes of the symbol stay (they are its signature, set by decorators or `set_attributes`); `clear_attributes(f, eval(attributes(f)))` removes them too. A built-in function keeps its built-in meaning.
+
+#% item
+# The left side of `unset(f(p))` is compared with the rules' left sides up to the names of pattern variables: `unset(f(y_))` removes the rule `f(x_) := ...`. When no rule has that left side the value is `failure(not_defined, f(p))`.
+
+#% item
+# `unset` works in the middle of an evaluation: later statements of the same block see the symbol without its definitions.
+
+#% item
+# A protected symbol (`protect`) cannot be unset: the value is `failure(protected, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = 5
+x + 1
+#% output
+#= 6
+
+#% cell
+unset(x)
+x + 1
+#% output
+#= 1 + x
+
+#% text
+# Rules are removed too:
+
+#% cell
+rule sq(y_) := y^2
+sq(3)
+#% output
+#= 9
+
+#% cell
+unset(sq)
+sq(3)
+#% output
+#= sq(3)
+
+#% subsection
+# Scope
+
+#% text
+# One rule only:
+
+#% cell
+rule g(0) := 1
+rule g(n_) := 10*n
+unset(g(0))
+[g(0), g(2)]
+#% output
+#= [0, 20]
+
+#% text
+# Inside a block:
+
+#% cell
+{ var_x = 2; unset(var_x); var_x }
+#% output
+#= var_x
+
+#% subsection
+# Possible issues
+
+#% cell
+rule h(1) := 2
+unset(h(2))
+#% output
+#! failure(not_defined, h(2))
+
+#% section
+# See also
+
+#% text
+# `protect`, `clear_attributes`, `attributes`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# permutation_inverse
+
+#% text
+# `permutation_inverse(p)`: the inverse permutation
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutation_inverse(cycles([[1, 2, 3, 4], [5, 6]]))
+#% output
+#= cycles([[1, 4, 3, 2], [5, 6]])
+
+#% cell
+permutation_product(cycles([[1, 5, 2]]), permutation_inverse(cycles([[1, 5, 2]])))
+#% output
+#= cycles([])
+
+#% section
+# See also
+
+#% text
+# `permutation_product`, `permutation_power`

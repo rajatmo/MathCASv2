@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# mersenne_prime_exponent_q
+
+#% text
+# `mersenne_prime_exponent_q(p)` tests whether `p` is the exponent of a known Mersenne prime.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mersenne_prime_exponent_q(127)
+#% output
+#= true
+
+#% cell
+mersenne_prime_exponent_q(28)
+#% output
+#= false
+
+#% cell
+select(range(2, 130), mersenne_prime_exponent_q)
+#% output
+#= [2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127]
+
+#% section
+# See also
+
+#% text
+# `mersenne_prime_exponent`, `is_prime`

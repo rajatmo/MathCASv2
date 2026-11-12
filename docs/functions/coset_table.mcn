@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# coset_table
+
+#% text
+# `coset_table(F), (F, [w1, ...])`: the coset table of the subgroup by Todd-Coxeter enumeration
+
+#% section
+# Details
+
+#% item
+# Rows are the cosets, numbered in standard order (coset 1 is the subgroup); the columns give the images under a, a^-1, b, b^-1, ...
+
+#% item
+# The table is computed by Todd-Coxeter enumeration in the HLT strategy.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coset_table(finitely_presented_group([a], [a^3]))
+#% output
+#= [[2, 3], [3, 1], [1, 2]]
+
+#% cell
+coset_table(finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]), [a, b])
+#% output
+#= [[1, 1, 1, 1]]
+
+#% cell
+length(coset_table(finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]), [b]))
+#% output
+#= 20
+
+#% section
+# See also
+
+#% text
+# `subgroup_index`, `permutation_group`

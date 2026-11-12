@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# annulus
+
+#% text
+# `annulus(c, [r0, r1])` is the ring between the circles of radii `r0` and `r1` about `c`: a primitive of graphics and a region.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([orange, annulus([0, 0], [1, 2])])
+#% output
+#= image("annulus.files/annulus-1.svgz")
+
+#% cell
+region_measure(annulus([0, 0], [1, 2]))
+#% output
+#= 3*pi
+
+#% cell
+region_member(annulus(), [3/4, 0])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `region_measure`

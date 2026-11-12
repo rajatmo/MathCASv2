@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# hyperfactorial
+
+#% text
+# `hyperfactorial(n)` gives the product 1^1 2^2 ... n^n.
+
+#% section
+# Details
+
+#% item
+# Exact for non-negative integers up to 2000.
+#% item
+# Other numbers continue it as the K-function `exp(zeta'(-1, z + 1) - zeta'(-1))` (DLMF 5.17), with principal logarithms in the defining sum of the Hurwitz zeta function: real for `z >= -1` and at the integers, complex for non-integer `z < -1`; `hyperfactorial(-n)` is `(-1)^(n (n - 1)/2) hyperfactorial(n - 1)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hyperfactorial(3)
+#% output
+#= 108
+
+#% cell
+map(hyperfactorial, range(0, 5))
+#% output
+#= [1, 1, 4, 108, 27648, 86400000]
+
+#% section
+# See also
+
+#% text
+# `factorial`

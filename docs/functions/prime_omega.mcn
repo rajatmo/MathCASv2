@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# prime_omega
+
+#% text
+# `prime_omega(n)` gives the number of prime factors of `n` counted with multiplicity.
+
+#% section
+# Details
+
+#% item
+# `prime_omega(1)` is 0; `prime_omega(p^k)` is `k`.
+
+#% item
+# `prime_omega` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+prime_omega(12)
+#% output
+#= 3
+
+#% cell
+prime_omega(30)
+#% output
+#= 3
+
+#% cell
+prime_omega(64)
+#% output
+#= 6
+
+#% cell
+prime_omega(range(10))
+#% output
+#= [0, 1, 1, 2, 1, 2, 1, 3, 2, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sum of the exponents of the factorisation:
+
+#% cell
+[prime_omega(720), sum(factor_integer(720)[all, 2])]
+#% output
+#= [7, 7]
+
+#% text
+# `liouville_lambda` is `(-1)^prime_omega(n)`:
+
+#% cell
+[liouville_lambda(720), (-1)^prime_omega(720)]
+#% output
+#= [-1, -1]
+
+#% section
+# See also
+
+#% text
+# `prime_nu`, `liouville_lambda`, `factor_integer`

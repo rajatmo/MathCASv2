@@ -1,0 +1,147 @@
+#! mathcas 2 notebook
+
+#% title
+# cases
+
+#% text
+# `cases(xs, p)` gives the elements of the list `xs` that match the pattern `p`.
+
+#% text
+# `cases(xs, p -> r)` gives `r` for each element matching `p`, with the pattern's names bound.
+
+#% section
+# Details
+
+#% item
+# Patterns: `_` anything, `x_` named, `x_: T` of a type, `f(x_)` by head, `p when c` with a condition.
+
+#% item
+# Only the elements of `xs` are tested, not their parts.
+
+#% item
+# `select` is the counterpart with a test function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cases([1, a, 2.5, b, 3], _: Int)
+#% output
+#= [1, 3]
+
+#% cell
+cases([f(1), g(2), f(3)], f(_))
+#% output
+#= [f(1), f(3)]
+
+#% cell
+cases([f(1), g(2), f(3)], f(k_) -> k^2)
+#% output
+#= [1, 9]
+
+#% subsection
+# Scope
+
+#% text
+# A condition on the match:
+
+#% cell
+cases([3, -1, 4, -5], k_ when k < 0)
+#% output
+#= [-1, -5]
+
+#% text
+# Rules picked out of a list:
+
+#% cell
+cases([x -> 1, y -> 2, x -> 3], (x -> v_) -> v)
+#% output
+#= [1, 3]
+
+#% text
+# Pairs with a given first element:
+
+#% cell
+cases([[1, a], [2, b], [1, c]], [1, s_] -> s)
+#% output
+#= [a, c]
+
+#% text
+# The parts at every level, inner parts first:
+
+#% cell
+cases([1, f(2), [3, x]], _: Int, inf)
+#% output
+#= [1, 2, 3]
+
+#% text
+# The values of an association:
+
+#% cell
+cases(assoc(a -> 1, b -> x, c -> 2), _: Int)
+#% output
+#= [1, 2]
+
+#% subsection
+# Applications
+
+#% text
+# The exponents of the powers of `x` in a sum's terms:
+
+#% cell
+cases([x^2, 3, x^5, y], x^k_ -> k)
+#% output
+#= [2, 5]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `count` counts the matches, `position` gives where they are:
+
+#% cell
+xs = [1, a, 2, b]
+[count(xs, _: Int), position(xs, _: Int)]
+#% output
+#= [2, [[1], [3]]]
+
+#% text
+# `select` with a type test does the same as a typed pattern:
+
+#% cell
+select([1, a, 2, b], is_integer)
+#% output
+#= [1, 2]
+
+#% subsection
+# Possible issues
+
+#% text
+# A rule as the pattern binds to the right: write the pattern of a rule in parentheses:
+
+#% cell
+cases([x -> 1, y -> 2], x -> v_ -> v)
+#% output
+#= []
+
+#% text
+# The type names `Str` and `Sym` are not accepted in a pattern here; test with `is_string` or `is_symbol` through `select` instead:
+
+#% cell
+cases(["id", 4, "name", 2.5], _: Str)
+#% output
+#= ["id", "name"]
+
+#% cell
+select(["id", 4, "name", 2.5], is_string)
+#% output
+#= ["id", "name"]
+
+#% section
+# See also
+
+#% text
+# `select`, `count`, `position`, `rewrite`, `member_of`

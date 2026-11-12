@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# machine_epsilon
+
+#% text
+# `machine_epsilon` is the smallest machine number `e` for which `1 + e` differs from 1, `2^-52`.
+
+#% section
+# Details
+
+#% item
+# It is 2.220446049250313e-16.
+
+#% item
+# The relative rounding error of a machine operation is at most half of it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+machine_epsilon
+#% output
+#= 2.220446049250313e-16
+
+#% cell
+1. + machine_epsilon == 1.
+#% output
+#= false
+
+#% cell
+1. + machine_epsilon/2 == 1.
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `min_machine_number`, `machine_precision`, `set_precision`

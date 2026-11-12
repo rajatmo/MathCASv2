@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_tautology
+
+#% text
+# `is_tautology(e)` tells whether the Boolean expression `e` is true for every assignment of `true` and `false` to its variables (the symbols in it, at most 20); `is_tautology(e, vars)` takes the variables given. It stays unevaluated when some value is neither true nor false.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_tautology(a or not a)
+#% output
+#= true
+
+#% cell
+is_tautology(implies(a and b, a))
+#% output
+#= true
+
+#% cell
+is_tautology(a or b)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `is_satisfiable`, `boolean_table`, `equivalent`

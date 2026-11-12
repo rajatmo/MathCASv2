@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# cube_root
+
+#% text
+# `cube_root(x)` gives the real cube root of the real number `x`.
+
+#% section
+# Details
+
+#% item
+# For negative `x` the result is negative, unlike `x^(1/3)` which gives the principal complex root.
+
+#% item
+# Complex `x` gives the principal root.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cube_root(-27)
+#% output
+#= -3
+
+#% cell
+cube_root(128.)
+#% output
+#= 5.039684199579492
+
+#% cell
+cube_root(18)
+#% output
+#= 2^(1/3)*3^(2/3)
+
+#% cell
+n(cube_root(18), 40)
+#% output
+#= 2.620741394208896607141661280441996270239428
+
+#% cell
+cube_root(-4.5)
+#% output
+#= -1.6509636244473134
+
+#% section
+# See also
+
+#% text
+# `surd`, `sqrt`

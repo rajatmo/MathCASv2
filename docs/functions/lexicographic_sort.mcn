@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# lexicographic_sort
+
+#% text
+# `lexicographic_sort(xs)` sorts the elements of `xs` in lexicographic order of their parts (`lexicographic_order`); `lexicographic_sort(xs, p)` compares the parts with the ordering function `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lexicographic_sort([[b, c], [b, b, a, a], [a, b, c]])
+#% output
+#= [[a, b, c], [b, b, a, a], [b, c]]
+
+#% cell
+lexicographic_sort([[a, b, c], [], [b, a]])
+#% output
+#= [[], [a, b, c], [b, a]]
+
+#% cell
+lexicographic_sort([[inf, 0.], [0, 0., 1.], [-inf, 2., 2., 3.]], numerical_order)
+#% output
+#= [[-inf, 2.0, 2.0, 3.0], [0, 0.0, 1.0], [inf, 0.0]]
+
+#% section
+# See also
+
+#% text
+# `lexicographic_order`, `sort`, `sort_by`

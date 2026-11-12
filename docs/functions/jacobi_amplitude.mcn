@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_amplitude
+
+#% text
+# `jacobi_amplitude(u, m)` gives the amplitude `am(u | m)`, the `phi` with `elliptic_f(phi, m) = u`.
+
+#% section
+# Details
+
+#% item
+# The amplitude inverts the elliptic integral of the first kind (DLMF 22.16.1); `am(u | 0)` is `u`, `am(u | 1)` is the Gudermannian of `u`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_amplitude(1.0, 0.5)
+#% output
+#= 0.9323150798838539
+
+#% cell
+jacobi_amplitude(u, 0)
+#% output
+#= u
+
+#% cell
+jacobi_amplitude(2.0, 0.9)
+#% output
+#= 1.378750823589225
+
+#% subsection
+# Properties and relations
+
+#% text
+# `sin` of the amplitude is `jacobi_sn`:
+
+#% cell
+sin(jacobi_amplitude(0.7, 0.4)) - jacobi_sn(0.7, 0.4)
+#% output
+#= -1.1102230246251565e-16
+
+#% text
+# The inverse of `elliptic_f`:
+
+#% cell
+elliptic_f(jacobi_amplitude(1.3, 0.6), 0.6)
+#% output
+#= 1.3
+
+#% section
+# See also
+
+#% text
+# `elliptic_f`, `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

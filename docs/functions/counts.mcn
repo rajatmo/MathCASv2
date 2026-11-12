@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# counts
+
+#% text
+# `counts(xs)` gives the association from each distinct element of the list `xs` to the number of times it occurs.
+
+#% section
+# Details
+
+#% item
+# The keys are in the order of first occurrence.
+
+#% item
+# Elements are compared by identity.
+
+#% item
+# `tally` gives the same counts as a list of pairs.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+counts([a, b, a, c, a])
+#% output
+#= assoc(a -> 3, b -> 1, c -> 1)
+
+#% cell
+counts(characters("hello"))
+#% output
+#= assoc("h" -> 1, "e" -> 1, "l" -> 2, "o" -> 1)
+
+#% cell
+counts([])
+#% output
+#= assoc()
+
+#% subsection
+# Applications
+
+#% text
+# The distribution of the sum of two dice over all 36 throws:
+
+#% cell
+key_sort(counts(flatten(table(i + j, i, 6, j, 6))))
+#% output
+#= assoc(2 -> 1, 3 -> 2, 4 -> 3, 5 -> 4, 6 -> 5, 7 -> 6, 8 -> 5, 9 -> 4, 10 -> 3, 11 -> 2, 12 -> 1)
+
+#% text
+# Word frequencies, the most common read by key:
+
+#% cell
+c = counts(string_split("a rose is a rose is a rose"))
+c["rose"]
+#% output
+#= 3
+
+#% subsection
+# Properties and relations
+
+#% text
+# The counts add up to the length of the list:
+
+#% cell
+xs = characters("abracadabra")
+total(values(counts(xs))) == length(xs)
+#% output
+#= true
+
+#% text
+# `tally` gives pairs:
+
+#% cell
+tally(xs)
+#% output
+#= [["a", 5], ["b", 2], ["r", 2], ["c", 1], ["d", 1]]
+
+#% section
+# See also
+
+#% text
+# `tally`, `count`, `group_by`, `unique`, `histogram_list`

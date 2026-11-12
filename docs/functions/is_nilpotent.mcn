@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_nilpotent
+
+#% text
+# `is_nilpotent(G)`: whether the lower central series reaches the trivial group
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_nilpotent(dihedral_group(8)), is_nilpotent(dihedral_group(6))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `lower_central_series`, `is_solvable`

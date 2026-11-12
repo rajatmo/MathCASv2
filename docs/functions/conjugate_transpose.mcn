@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# conjugate_transpose
+
+#% text
+# `conjugate_transpose(m)` gives the conjugate of the transpose of `m`.
+
+#% section
+# Details
+
+#% item
+# See the usage above.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conjugate_transpose([[1 + 2*im, 3], [0, im]])
+#% output
+#= [[1 - 2im, 0], [3, -im]]
+
+#% cell
+conjugate_transpose([[a, b], [c, d]])
+#% output
+#= [[conjugate(a), conjugate(c)], [conjugate(b), conjugate(d)]]
+
+#% section
+# See also
+
+#% text
+# `transpose`, `conjugate`

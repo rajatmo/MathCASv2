@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic
+
+#% text
+# `asymptotic(f, x -> a)` gives the leading term of the asymptotic expansion of `f` as `x` tends to `a` (a point, `inf` or `-inf`): a simpler function `g` with `f/g` tending to 1.
+
+#% section
+# Details
+
+#% item
+# At a finite point the leading term is that of the series, with fractional powers and logarithms where needed.
+
+#% item
+# At an infinity the leading term is found by Gruntz's algorithm in the scale of exponentials and logarithms; special functions (gamma, erf, Airy and Bessel functions of large argument and others) enter through their asymptotic expansions.
+
+#% item
+# `direction: from_above` and `direction: from_below` give the expansion on one side of a finite point.
+
+#% item
+# When the leading term cannot be found, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic(sin(x), x -> 0)
+#% output
+#= x
+
+#% cell
+asymptotic(x^4 + 5*x^3 + 3*x - 11, x -> inf)
+#% output
+#= x^4
+
+#% subsection
+# Scope
+
+#% text
+# A pole:
+
+#% cell
+asymptotic((3*x^3 + 5)/(x^2 - 1), x -> 1)
+#% output
+#= 4/(-1 + x)
+
+#% text
+# Exponentials of different growth:
+
+#% cell
+[asymptotic(2^x/(1 + 4^x), x -> inf), asymptotic((x^2 + 3*x)*2^x, x -> inf)]
+#% output
+#= [2^-x, 2^x*x^2]
+
+#% text
+# Stirling's formula and the decay of the Airy function:
+
+#% cell
+[asymptotic(gamma(x), x -> inf), asymptotic(airy_ai(x), x -> inf)]
+#% output
+#= [2^(1/2)*exp(-x)*pi^(1/2)*x^(-1/2 + x), exp((-2/3)*x^(3/2))/(2*pi^(1/2)*x^(1/4))]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The ratio of a function and its leading term tends to 1:
+
+#% cell
+limit(gamma(x)/asymptotic(gamma(x), x -> inf), x -> inf)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `series`, `limit`, `normal`

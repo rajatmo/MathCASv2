@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# bell_b
+
+#% text
+# `bell_b(n)` gives the Bell number, the number of partitions of an `n`-element set; `bell_b(n, x)` gives the Bell polynomial.
+
+#% section
+# Details
+
+#% item
+# `n` an integer `>= 0`; the numbers come from Bell's triangle with exact integers, so any size up to index 40000 is exact. With a symbolic `x` the result is the polynomial `sum(stirling_s2(n, k) x^k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bell_b(5)
+#% output
+#= 52
+
+#% cell
+bell_b(range(0, 8))
+#% output
+#= [1, 1, 2, 5, 15, 52, 203, 877, 4140]
+
+#% cell
+bell_b(100)
+#% output
+#= 47585391276764833658790768841387207826363669686825611466616334637559114497892442622672724044217756306953557882560751
+
+#% cell
+bell_b(4, x)
+#% output
+#= x + 7*x^2 + 6*x^3 + x^4
+
+#% cell
+bell_b(3, 2)
+#% output
+#= 22
+
+#% section
+# See also
+
+#% text
+# `stirling_s2`, `partitions_p`, `bernoulli_b`

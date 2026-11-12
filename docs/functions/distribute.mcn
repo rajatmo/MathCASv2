@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# distribute
+
+#% text
+# `distribute(e)` spreads a call `f(..., a + b, ...)` over the sums among its arguments: the sum of `f` applied to every choice of one term from each sum, the first argument varying slowest. `distribute(e, g)` spreads over the arguments of calls of `g` instead of sums, and `distribute(e, g, f)` only when the head of `e` is `f`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+distribute(f(a + b, c + d + e))
+#% output
+#= f(a, c) + f(a, d) + f(a, e) + f(b, c) + f(b, d) + f(b, e)
+
+#% cell
+distribute(f(g(a, b), g(c, d, e)), g)
+#% output
+#= g(f(a, c), f(a, d), f(a, e), f(b, c), f(b, d), f(b, e))
+
+#% cell
+distribute(f(a, b), g)
+#% output
+#= f(a, b)
+
+#% cell
+expand((a + b)*(u + v)) === distribute((a + b)*(u + v))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `expand`, `outer`, `tuples`

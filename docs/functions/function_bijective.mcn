@@ -1,0 +1,110 @@
+#! mathcas 2 notebook
+
+#% title
+# function_bijective
+
+#% text
+# `function_bijective(f, x)` gives `true` when `f` is injective and surjective (onto the reals), and `false` when it is not; `function_bijective([f, cond, ycond], x, y)` asks it from the points with `cond` onto the points with `ycond`.
+
+#% section
+# Details
+
+#% item
+# Injectivity and surjectivity are decided as by `function_injective` and `function_surjective`; with parameters the conditions of both are conjoined.
+
+#% item
+# A complex function with a nonzero period is not injective; a complex polynomial of one variable is injective only when it has degree 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_bijective(sinh(x), x)
+#% output
+#= true
+
+#% cell
+function_bijective(sinh(x), x, complexes)
+#% output
+#= false
+
+#% cell
+function_bijective([x + 2*y, 3*x - y], [x, y])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# The principal logarithm onto the strip of its values:
+
+#% cell
+[function_bijective(log(x), x, complexes), function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)]
+#% output
+#= [false, true]
+
+#% text
+# A cubic beyond its turning points, onto the positive numbers:
+
+#% cell
+function_bijective([x^3 - x, x > 1, y > 0], x, y)
+#% output
+#= true
+
+#% text
+# The integers:
+
+#% cell
+function_bijective([x + 1, element(x, integers), element(y, integers)], x, y)
+#% output
+#= true
+
+#% subsection
+# Options
+
+#% cell
+function_bijective(x^3 + a*x + b, x)
+#% output
+#= conditional_expression(true, element(a | b, reals) and a > 0)
+
+#% cell
+function_bijective(a*x, x, complexes)
+#% output
+#= conditional_expression(true, a != 0)
+
+#% cell
+function_bijective(a*x, x, complexes, generate_conditions: automatic)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A bijection is injective and surjective:
+
+#% cell
+[function_injective(x^3, x), function_surjective(x^3, x), function_bijective(x^3, x)]
+#% output
+#= [true, true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# Parameters give conditions, and a non-injective function is not bijective:
+
+#% cell
+[function_bijective(a*x + b, x), function_bijective(x^3 - x, x)]
+#% output
+#= [conditional_expression(true, element(a | b, reals) and (a > 0 or a < 0) and a != 0), false]
+
+#% section
+# See also
+
+#% text
+# `function_injective`, `function_surjective`, `function_range`

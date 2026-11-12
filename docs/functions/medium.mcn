@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# medium
+
+#% text
+# `medium` is a size: `image_size: medium` is 360 points wide; `point_size(medium)`, `thickness(medium)`, `arrowheads(medium)` and font sizes take it too.
+
+#% section
+# Details
+
+#% item
+# `point_size(medium)` draws points 4.5 points across.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# As an image size:
+
+#% cell
+graphics(disk(), image_size: medium)
+#% output
+#= image("medium.files/medium-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Points of this size:
+
+#% cell
+graphics([point_size(medium), point([[0, 0], [1, 1]])])
+#% output
+#= image("medium.files/medium-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Line widths:
+
+#% cell
+graphics([thickness(medium), line([[0, 0], [1, 0.5]])])
+#% output
+#= image("medium.files/medium-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `thickness`, `arrowheads`

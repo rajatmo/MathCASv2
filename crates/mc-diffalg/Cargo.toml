@@ -1,0 +1,16 @@
+[package]
+name = "mc-diffalg"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 differential equations and differential algebra: Lie point symmetries of ordinary and partial differential equations, reduction by symmetries, conservation laws, differential polynomials and rankings, Rosenfeld-Groebner and Thomas decompositions, the Painleve test"
+
+[dependencies]
+
+[dev-dependencies]
+mc-api = { path = "../mc-api" }
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

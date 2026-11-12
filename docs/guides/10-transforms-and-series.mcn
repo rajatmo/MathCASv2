@@ -1,0 +1,340 @@
+#! mathcas 2 notebook
+
+#% title
+# Transforms and series
+
+#% text
+# An integral transform turns a problem about a function into one about its transform, where differentiation becomes multiplication. The engine has the Laplace, Fourier, Mellin and z transforms with their inverses, and `series` and `asymptotic` for local and large-argument expansions.
+
+#% section
+# The Laplace transform
+
+#% cell
+laplace_transform(exp(-3t), t, s)
+#% output
+#= (3 + s)^-1
+
+#% cell
+laplace_transform(t^2*sin(2t), t, s)
+#% output
+#= 4*(-4 + 3*s^2)/(4 + s^2)^3
+
+#% cell
+laplace_transform(sqrt(t), t, s)
+#% output
+#= pi^(1/2)/(2*s^(3/2))
+
+#% cell
+laplace_transform(heaviside_theta(t - 2), t, s)
+#% output
+#= exp(-2*s)/s
+
+#% text
+# The inverse. A rational function is inverted by its residues.
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 4), s, t)
+#% output
+#= (1/2)*sin(2*t)
+
+#% cell
+inverse_laplace_transform(1/(s*(s + 1)), s, t)
+#% output
+#= 1 - exp(-t)
+
+#% cell
+inverse_laplace_transform(exp(-2s)/s^2, s, t)
+#% output
+#= (-2 + t)*heaviside_theta(-2 + t)
+
+#% text
+# Derivatives of an undefined function bring in its initial values, which is how a differential equation becomes algebra.
+
+#% cell
+laplace_transform(y''(t) + 3y'(t) + 2y(t), t, s)
+#% output
+#= -3*y(0) - y'(0) + 2*laplace_transform(y(t), t, s) + laplace_transform(y(t), t, s)*s^2 - s*y(0) + 3*s*laplace_transform(y(t), t, s)
+
+#% section
+# The Fourier transform
+
+#% text
+# The convention is `1/sqrt(2 pi) integrate(f*exp(im*w*t), [t, -inf, inf])`; `fourier_parameters:` chooses another.
+
+#% cell
+fourier_transform(exp(-t^2), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp((-1/4)*w^2)
+
+#% cell
+fourier_transform(exp(-abs(t)), t, w)
+#% output
+#= 2^(1/2)/(pi^(1/2)*(1 + w^2))
+
+#% cell
+fourier_transform(dirac_delta(t), t, w)
+#% output
+#= 2^(1/2)/(2*pi^(1/2))
+
+#% cell
+inverse_fourier_transform(exp(-w^2/4)/sqrt(2), w, t)
+#% output
+#= exp(-t^2)
+
+#% cell
+fourier_transform(exp(-t^2), t, w, fourier_parameters: [1, -1])
+#% output
+#= exp((-1/4)*w^2)*pi^(1/2)
+
+#% text
+# For an even or odd function the cosine and sine transforms hold on the half line.
+
+#% cell
+fourier_cos_transform(exp(-t), t, w)
+#% output
+#= 2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+
+#% cell
+fourier_sin_transform(exp(-t), t, w)
+#% output
+#= w*2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+
+#% section
+# The Mellin transform
+
+#% cell
+mellin_transform(exp(-x), x, s)
+#% output
+#= gamma(s)
+
+#% cell
+mellin_transform(1/(1 + x), x, s)
+#% output
+#= pi*csc(pi*s)
+
+#% cell
+inverse_mellin_transform(gamma(s), s, x)
+#% output
+#= exp(-x)
+
+#% text
+# A Mellin transform exists only in a strip of the `s` plane. `generate_conditions: true` returns it.
+
+#% cell
+mellin_transform(exp(-x), x, s, generate_conditions: true)
+#% output
+#= conditional_expression(gamma(s), re(s) > 0)
+
+#% cell
+mellin_transform(bessel_j(0, x), x, s)
+#% output
+#= gamma((1/2)*s)*2^(-1 + s)/gamma(1 - (1/2)*s)
+
+#% section
+# The z transform
+
+#% text
+# For sequences: `sum(f(n)*z^-n, [n, 0, inf])`.
+
+#% cell
+z_transform(a^n, n, z)
+#% output
+#= z/(z - a)
+
+#% cell
+z_transform(n, n, z)
+#% output
+#= z/(-1 + z)^2
+
+#% cell
+z_transform(1/factorial(n), n, z)
+#% output
+#= exp(z^-1)
+
+#% cell
+inverse_z_transform(z/(z - 1)^2, z, n)
+#% output
+#= n
+
+#% cell
+z_transform(a^n, n, z, generate_conditions: true)
+#% output
+#= conditional_expression(z/(z - a), abs(z) > abs(a))
+
+#% section
+# Conditions and domains
+
+#% text
+# A transform integral converges only for some values of the parameter. The two-sided Laplace transform returns its strip of convergence with the value; `generate_conditions: false` gives the bare value.
+
+#% cell
+bilateral_laplace_transform(exp(-abs(t)), t, s)
+#% output
+#= conditional_expression(-2/(-1 + s^2), -1 < re(s) and re(s) < 1)
+
+#% cell
+bilateral_laplace_transform(exp(-abs(t)), t, s, generate_conditions: false)
+#% output
+#= -2/(-1 + s^2)
+
+#% text
+# The one-sided Laplace transform of `exp(t)` is `1/(s - 1)` only for `re(s) > 1`; the value is returned without the condition. A function with no definition stays a call.
+
+#% cell
+laplace_transform(exp(t), t, s)
+#% output
+#= (-1 + s)^-1
+
+#% cell
+laplace_transform(f(t), t, s)
+#% output
+#= laplace_transform(f(t), t, s)
+
+#% cell
+laplace_transform(sin(t)/t, t, s)
+#% output
+#= atan(s^-1)
+
+#% cell
+laplace_transform(bessel_j(0, t), t, s)
+#% output
+#= (1 + s^2)^(-1/2)
+
+#% section
+# Series
+
+#% text
+# `series(f, x, x0, n)` expands about `x0` up to the power `n`; the error is carried as `O(...)`, and `normal` removes it.
+
+#% cell
+series(exp(x), x, 0, 5)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+
+#% cell
+series(sin(x)/x, x, 0, 6)
+#% output
+#= 1 - x^2/6 + x^4/120 - x^6/5040 + O(x^7)
+
+#% cell
+series(1/(1 - x - x^2), x, 0, 6)
+#% output
+#= 1 + x + 2*x^2 + 3*x^3 + 5*x^4 + 8*x^5 + 13*x^6 + O(x^7)
+
+#% text
+# A pole gives negative powers; a branch point gives fractional ones.
+
+#% cell
+series(1/sin(x)^2, x, 0, 3)
+#% output
+#= x^-2 + 1/3 + x^2/15 + O(x^4)
+
+#% cell
+series(sqrt(x)*exp(x), x, 0, 3)
+#% output
+#= x^(1/2) + x^(3/2) + (1/2)*x^(5/2) + O(x^(7/2))
+
+#% text
+# Special functions expand too, and the coefficients are exact.
+
+#% cell
+series(bessel_j(0, x), x, 0, 6)
+#% output
+#= 1 - x^2/4 + x^4/64 - x^6/2304 + O(x^7)
+
+#% cell
+series(gamma(x), x, 1, 2)
+#% output
+#= 1 - euler_gamma*(x - 1) + ((1/12)*pi^2 + (1/2)*euler_gamma^2)*(x - 1)^2 + O((x - 1)^3)
+
+#% cell
+series(tan(x), x, 0, 7)
+#% output
+#= x + x^3/3 + 2*x^5/15 + 17*x^7/315 + O(x^8)
+
+#% text
+# A series is also a sum. `sum` with an infinite range gives the exact value where a closed form exists, and `n_sum` the number.
+
+#% cell
+sum(1/k^2, [k, 1, inf])
+#% output
+#= (1/6)*pi^2
+
+#% cell
+sum(x^k/factorial(k), [k, 0, inf])
+#% output
+#= exp(x)
+
+#% section
+# Asymptotics
+
+#% text
+# `asymptotic(f, x -> a)` gives the leading term at a point or at infinity, and `limit` gives the value.
+
+#% cell
+asymptotic(gamma(x), x -> inf)
+#% output
+#= 2^(1/2)*exp(-x)*pi^(1/2)*x^(-1/2 + x)
+
+#% cell
+asymptotic(erfc(x), x -> inf)
+#% output
+#= exp(-x^2)/(pi^(1/2)*x)
+
+#% cell
+asymptotic(bessel_k(0, x), x -> inf)
+#% output
+#= 2^(1/2)*exp(-x)*pi^(1/2)/(2*x^(1/2))
+
+#% cell
+asymptotic(airy_ai(x), x -> inf)
+#% output
+#= exp((-2/3)*x^(3/2))/(2*pi^(1/2)*x^(1/4))
+
+#% cell
+asymptotic(1/sin(x) - 1/x, x -> 0)
+#% output
+#= (1/6)*x
+
+#% cell
+limit(gamma(x + 1/2)/(gamma(x)*sqrt(x)), x -> inf)
+#% output
+#= 1
+
+#% section
+# Common mistakes
+
+#% item
+# The variable order is the function first, then the variable of the function, then the new one: `laplace_transform(f, t, s)`. Swapping `t` and `s` transforms with respect to the wrong variable.
+
+#% cell
+laplace_transform(exp(-3t), t, s)
+#% output
+#= (3 + s)^-1
+
+#% cell
+laplace_transform(exp(-3t), s, t)
+#% output
+#= exp(-3*t)/t
+
+#% item
+# The Laplace transform is the one-sided one, from 0; a function that is nonzero for negative `t` loses that part. Use `bilateral_laplace_transform` for the whole line.
+
+#% item
+# A truncated series ends in an order term, which is not a number. Use `normal` before substituting a value.
+
+#% cell
+series(exp(x), x, 0, 3)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + O(x^4)
+
+#% cell
+normal(series(exp(x), x, 0, 3))
+#% output
+#= 1 + x + (1/2)*x^2 + (1/6)*x^3
+
+#% section
+# Related functions
+
+#% text
+# `laplace_transform`, `inverse_laplace_transform`, `bilateral_laplace_transform`, `fourier_transform`, `inverse_fourier_transform`, `fourier_cos_transform`, `mellin_transform`, `inverse_mellin_transform`, `z_transform`, `inverse_z_transform`, `series`, `normal`, `asymptotic`, `sum`, `n_sum`, `limit`

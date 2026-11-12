@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# event_data
+
+#% text
+# `event_data(data, flags)`: observed data with a flag per element (1: censored); `ed("Data")` and `ed("Flags")` read it
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+ed = event_data([8, 3, 5, 4, 9], [0, 1, 1, 0, 0])
+
+#% cell
+ed("Flags")
+#% output
+#= [0, 1, 1, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `mean`, `median`, `time_series`, `weighted_data`, `temporal_data`

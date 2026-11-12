@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# key_complement
+
+#% text
+# `key_complement([a1, a2, ...])` gives the association of the entries of `a1` whose keys occur in none of `a2`, .... Each element may be an association, a list of rules or a single rule.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_complement([assoc(a -> 1, b -> 2), assoc(a -> 3, c -> 4)])
+#% output
+#= assoc(b -> 2)
+
+#% cell
+key_complement([[a -> 1, b -> 2], [a -> 2]])
+#% output
+#= assoc(b -> 2)
+
+#% cell
+key_complement([assoc(b -> 2)])
+#% output
+#= assoc(b -> 2)
+
+#% section
+# See also
+
+#% text
+# `key_drop`, `keys`, `complement`

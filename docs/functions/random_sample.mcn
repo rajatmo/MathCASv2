@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# random_sample
+
+#% text
+# `random_sample(xs, n)` gives `n` elements of `xs` taken at distinct positions, without replacement, in random order.
+# `random_sample(xs)` gives a random permutation of `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(5); random_sample(range(10), 4)
+#% output
+#= [2, 6, 9, 10]
+
+#% cell
+seed(5); random_sample([a, b, c, d])
+#% output
+#= [a, c, d, b]
+
+#% subsection
+# Scope
+
+#% text
+# No position is used twice:
+
+#% cell
+seed(6); length(unique(random_sample(range(100), 100)))
+#% output
+#= 100
+
+#% section
+# See also
+
+#% text
+# `random_choice`, `permutations`, `seed`

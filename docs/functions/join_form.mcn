@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# join_form
+
+#% text
+# `join_form(f)` is a graphics directive for the form of the corners where the segments of the lines that follow meet, with `f` one of `round`, `miter` or `bevel`.
+
+#% section
+# Details
+
+#% item
+# Lines are drawn with the renderer's own ends and corners; `join_form` is accepted so that code written for other renderers runs, and is not drawn.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([join_form(round), thickness(0.05), line([[0, 0], [1, 1], [2, 0]])])
+#% output
+#= image("join_form.files/join_form-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: [join_form(square), thick])
+#% output
+#= image("join_form.files/join_form-2.svgz")
+
+#% cell
+join_form(round)
+#% output
+#= join_form(round)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics([thickness(0.05), line([[0, 0], [1, 1], [2, 0]])])
+#% output
+#= image("join_form.files/join_form-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `thickness`, `line`, `dashing`, `cap_form`

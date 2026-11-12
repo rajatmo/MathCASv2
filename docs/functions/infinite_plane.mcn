@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# infinite_plane
+
+#% text
+# `infinite_plane([p1, p2, p3]) or infinite_plane(p, [v1, v2])`: the plane through three points, or through p spanned by v1 and v2
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+region_nearest(infinite_plane([[0, 0, 0], [1, 0, 0], [0, 3, 1]]), [1, 2, 3])
+#% output
+#= [1, 27/10, 9/10]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

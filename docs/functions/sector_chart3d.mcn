@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# sector_chart3d
+
+#% text
+# `sector_chart3d([[a, r, h], ...])` draws sectors with angles in proportion to `a`, radii to `r` and heights to `h` from `[a, r, h]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sector_chart3d([[1, 2, 3], [2, 1, 1], [1, 1, 2]])
+#% output
+#= image("sector_chart3d.files/sector_chart3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `sector_chart`

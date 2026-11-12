@@ -1,0 +1,119 @@
+#! mathcas 2 notebook
+
+#% title
+# continued_fraction
+
+#% text
+# `continued_fraction(x)` gives the terms of the continued fraction of `x`.
+
+#% text
+# `continued_fraction(x, n)` gives at most `n` terms.
+
+#% section
+# Details
+
+#% item
+# A rational number has a finite continued fraction. A quadratic irrational, such as `sqrt(2)`, has a periodic one: its period forms a final sublist.
+
+#% item
+# Other exact irrationals need a count `n`; machine numbers and balls give the terms their precision supports.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+continued_fraction(415/93)
+#% output
+#= [4, 2, 6, 7]
+
+#% cell
+continued_fraction(sqrt(2))
+#% output
+#= [1, [2]]
+
+#% cell
+continued_fraction(pi, 10)
+#% output
+#= [3, 7, 15, 1, 292, 1, 1, 1, 2, 1]
+
+#% cell
+continued_fraction(1/2 + sqrt(5)/2)
+#% output
+#= [[1]]
+
+#% subsection
+# Scope
+
+#% text
+# A machine number:
+
+#% cell
+continued_fraction(3.14159)
+#% output
+#= [3, 7, 15, 1, 25, 1, 7]
+
+#% text
+# Other quadratic irrationals:
+
+#% cell
+continued_fraction(sqrt(19))
+#% output
+#= [4, [2, 1, 3, 1, 2, 8]]
+
+#% cell
+continued_fraction(3/2 + sqrt(7)/2)
+#% output
+#= [2, [1, 4, 1, 1]]
+
+#% text
+# `e` has a regular pattern:
+
+#% cell
+continued_fraction(e, 15)
+#% output
+#= [2, 1, 2, 1, 1, 4, 1, 1, 6, 1, 1, 8, 1, 1, 10]
+
+#% subsection
+# Applications
+
+#% text
+# The best rational approximations of `pi`, from the convergents:
+
+#% cell
+table(from_continued_fraction(continued_fraction(pi, k)), k, 4)
+#% output
+#= [3, 22/7, 333/106, 355/113]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `from_continued_fraction` inverts it; the value comes back in another form:
+
+#% cell
+v = from_continued_fraction(continued_fraction(sqrt(13)))
+
+#% cell
+[n(v, 20), n(sqrt(13), 20)]
+#% output
+#= [3.605551275463989293119221, 3.605551275463989293119221]
+
+#% subsection
+# Possible issues
+
+#% text
+# A quadratic irrational over a common denominator is not recognized; split the fraction:
+
+#% cell
+continued_fraction((1 + sqrt(5))/2)
+#% output
+#= continued_fraction((1/2)*(1 + 5^(1/2)))
+
+#% section
+# See also
+
+#% text
+# `from_continued_fraction`, `rationalize`, `real_digits`

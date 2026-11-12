@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# rescaling_transform
+
+#% text
+# `rescaling_transform([[a1, b1], ...], [[c1, d1], ...])`: each coordinate's range [a, b] mapped linearly onto [c, d] (default [0, 1])
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rescaling_transform([[xmin, xmax], [ymin, ymax]], [[0, 1], [0, 1]])([x, y])
+#% output
+#= [x/(xmax - xmin) - xmin/(xmax - xmin), y/(ymax - ymin) - ymin/(ymax - ymin)]
+
+#% cell
+rescaling_transform([[0, 10]])([5])
+#% output
+#= [1/2]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,212 @@
+#! mathcas 2 notebook
+
+#% title
+# product
+
+#% text
+# `product(xs)` gives the product of the elements of `xs`.
+
+#% text
+# `product(f, [k, a, b])` gives the product of `f` for `k` from `a` to `b`; `product(f, [k, [x1, x2, ...]])` over the values given.
+
+#% section
+# Details
+
+#% item
+# With integer bounds the factors are multiplied, exactly. An empty range (`b < a`) gives 1.
+
+#% item
+# With symbolic or infinite bounds closed forms are found for constant, power and exponential factors (`2^n`, `x^(n (n + 1)/2)`), and for rational functions of the index through `pochhammer`, `gamma` and `factorial`: telescoping products (`1 + 1/k` gives `1 + n`), products of linear factors, and to infinity with Euler's reflection formula (`sinh(pi)/pi`).
+
+#% item
+# With an inexact factor or bound the product is numeric, as `n_product`.
+
+#% item
+# A product that has no closed form stays as it is. The variable is local to the product; several iterators nest, the first outermost.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+product([1, 2, 3, 4])
+#% output
+#= 24
+
+#% cell
+product(k, [k, 1, 10])
+#% output
+#= 3628800
+
+#% cell
+product(2, [k, 1, n])
+#% output
+#= 2^n
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic factors:
+
+#% cell
+product([a, b, c])
+#% output
+#= a*b*c
+
+#% text
+# Over a list of values, and with a step:
+
+#% cell
+product(x - r, [r, [1, 2, 3]])
+#% output
+#= (-3 + x)*(-2 + x)*(-1 + x)
+
+#% cell
+product(k, [k, 1, 10, 2])
+#% output
+#= 945
+
+#% text
+# Two indices, and the empty range:
+
+#% cell
+product(i + j, [i, 1, 2], [j, 1, 2])
+#% output
+#= 72
+
+#% cell
+product(k, [k, 5, 2])
+#% output
+#= 1
+
+#% text
+# Symbolic bounds: factorials, `pochhammer` symbols and powers:
+
+#% cell
+product(k, [k, 1, n])
+#% output
+#= factorial(n)
+
+#% cell
+product(a + k, [k, 0, n])
+#% output
+#= pochhammer(a, 1 + n)
+
+#% cell
+product(x^k, [k, 1, n])
+#% output
+#= x^((1/2)*n*(1 + n))
+
+#% text
+# Products that telescope:
+
+#% cell
+product(1 + 1/k, [k, 1, n])
+#% output
+#= 1 + n
+
+#% cell
+product(k/(k + 2), [k, 1, n])
+#% output
+#= 2/((1 + n)*(2 + n))
+
+#% text
+# Products of rational functions through `pochhammer` and `gamma`, to infinity with Euler's reflection formula:
+
+#% cell
+product(1 + 1/k^2, [k, 1, n])
+#% output
+#= pochhammer(1 - im, n)*pochhammer(1 + im, n)/pochhammer(1, n)^2
+
+#% cell
+product(1 + 1/k^2, [k, 1, inf])
+#% output
+#= sinh(pi)/pi
+
+#% cell
+product(4*k^2/(4*k^2 - 1), [k, 1, inf])
+#% output
+#= (1/2)*pi
+
+#% cell
+product(1 - 1/k^2, [k, 2, m])
+#% output
+#= (1 + m)/(2*m)
+
+#% cell
+product((k^3 - 1)/(k^3 + 1), [k, 2, inf])
+#% output
+#= 2/3
+
+#% subsection
+# Properties and relations
+
+#% text
+# A zero factor gives 0:
+
+#% cell
+product(1 - 1/k, [k, 1, 5])
+#% output
+#= 0
+
+#% text
+# `n_product` gives the numerical value of an infinite product, to compare with the closed form:
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf]) - n(product(1 + 1/k^2, [k, 1, inf]))
+#% output
+#= 4.440892098500626e-16
+
+#% text
+# The logarithm of a product is the sum of the logarithms:
+
+#% cell
+n(log(product(1 + 1/k^2, [k, 1, 10])) - sum(log(1 + 1/k^2), [k, 1, 10]))
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Divergent products and products with no closed form stay unevaluated:
+
+#% cell
+product(1 + 1/k, [k, 1, inf])
+#% output
+#= product(1 + k^-1, [k, 1, inf])
+
+#% cell
+product(f(k), [k, 1, n])
+#% output
+#= product(f(k), [k, 1, n])
+
+#% cell
+product(1 + (-1)^k/k, [k, 2, n])
+#% output
+#= product(1 + (-1)^k/k, [k, 2, n])
+
+#% text
+# A product of lists is not threaded:
+
+#% cell
+product([[1, 2], [3, 4]])
+#% output
+#= [1, 2]*[3, 4]
+
+#% text
+# With an inexact factor the infinite product is numeric and only as accurate as `n_product`, with a message about the integral:
+
+#% cell
+product(1.0 + 1/k^2, [k, 1, inf]) - n(sinh(pi)/pi)
+#% output
+#= -3.552713678800501e-15
+
+#% section
+# See also
+
+#% text
+# `sum`, `n_product`, `total`, `factorial`, `pochhammer`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_transitive
+
+#% text
+# `is_transitive(G), (G, n)`: whether the group has one orbit on 1, ..., n
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_transitive(dihedral_group(6)), is_transitive(dihedral_group(6), 7)]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `group_orbits`, `is_primitive`

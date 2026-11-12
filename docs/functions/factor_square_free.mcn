@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# factor_square_free
+
+#% text
+# `factor_square_free(p)` gives the square-free factorisation of the polynomial `p`: a product of powers of square-free polynomials that have no common factor.
+
+#% section
+# Details
+
+#% item
+# Each factor is square-free, but need not be irreducible. The factorisation needs only gcds of `p` and its derivatives, so it is cheaper than `factor`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factor_square_free(x^3 - 3*x + 2)
+#% output
+#= (2 + x)*(-1 + x)^2
+
+#% cell
+factor_square_free((x^2 - 1)^2*(x + 3))
+#% output
+#= (3 + x)*(-1 + x^2)^2
+
+#% cell
+factor_square_free(x^4 + 2*x^2 + 1)
+#% output
+#= (1 + x^2)^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# Compared with `factor`, which splits each factor into irreducibles:
+
+#% cell
+p = expand((x^2 - 1)*(x - 2)^3); [factor_square_free(p), factor(p)]
+#% output
+#= [(-1 + x^2)*(-2 + x)^3, (-1 + x)*(1 + x)*(-2 + x)^3]
+
+#% text
+# The product gives the polynomial back:
+
+#% cell
+p = x^5 - x^4 - 2*x^3 + 2*x^2 + x - 1; expand(factor_square_free(p)) == p
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `factor`, `polynomial_gcd`, `is_square_free`, `discriminant`

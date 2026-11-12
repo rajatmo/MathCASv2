@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# discretize_region
+
+#% text
+# `discretize_region(reg)`: a triangle mesh_region of a plane region (disks as fine polygons), a line mesh of lines
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+m = discretize_region(polygon([[0, 0], [3, 0], [3, 1], [1, 1], [1, 2], [0, 2]]))
+
+#% cell
+mesh_cell_count(m)
+#% output
+#= [6, 9, 4]
+
+#% cell
+area(m)
+#% output
+#= 4.0
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

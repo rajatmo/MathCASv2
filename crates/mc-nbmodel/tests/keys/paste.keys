@@ -1,0 +1,97 @@
+Pasting text from other programs (round 19): blocks of code become cells, line breaks and tabs are made the
+notebook's own, and copied cells come back as the same cells.
+
+=== code pasted at an insertion point makes one Input cell per block between blank lines
+--- before
+‖
+--- keys
+Clip("f(x_) := x^2\n\nf(3)\nf(4)\n\n\n") Ctrl+V
+--- after
+#% cell
+f(x_) := x^2
+
+#% cell
+f(3)
+f(4)▮
+
+=== blank lines inside brackets keep a block together
+--- before
+‖
+--- keys
+Clip("g(x_) := {\n    a = x\n\n    a + 1\n}\n\ng(2)") Ctrl+V
+--- after
+#% cell
+g(x_) := {
+    a = x
+
+    a + 1
+}
+
+#% cell
+g(2)▮
+
+=== other programs' line breaks and leading tabs become the notebook's
+--- before
+#% cell
+▮
+--- keys
+Clip("h(x_) := {\r\n\tx\r\n}") Ctrl+V
+--- after
+#% cell
+h(x_) := {
+    x
+}▮
+
+=== prose pasted at an insertion point of a Text style stays one cell
+--- before
+‖
+--- keys
+Alt+7 Clip("one\n\ntwo") Ctrl+V
+--- after
+#% text
+one
+
+two▮
+
+=== cells copied as text and pasted back are the same cells
+--- before
+#% cell ◆
+a = 1
+
+#% cell ◆
+b = a + 1
+--- keys
+Ctrl+C Ctrl+End Clip("a = 1\n\nb = a + 1") Ctrl+V
+--- after
+#% cell
+a = 1
+
+#% cell
+b = a + 1
+
+#% cell
+a = 1
+
+#% cell
+b = a + 1▮
+
+=== pasted blocks are one undo step
+--- before
+#% cell
+x
+‖
+--- keys
+Clip("p\n\nq") Ctrl+V Ctrl+Z
+--- after
+#% cell
+x
+‖
+
+=== a call pasted at an insertion point keeps its closing bracket
+--- before
+‖
+--- keys
+Clip("w = x^2/sqrt(y) + surd(a, 3)") Ctrl+V
+--- after
+#% cell
+w = x^2/sqrt(y) + surd(a, 3)▮

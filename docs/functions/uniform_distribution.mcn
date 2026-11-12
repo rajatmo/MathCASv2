@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# uniform_distribution
+
+#% text
+# `uniform_distribution([a, b])` is the continuous uniform distribution on `[a, b]`; `uniform_distribution()` is the one on `[0, 1]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(uniform_distribution([a, b]))
+#% output
+#= (1/2)*(a + b)
+
+#% cell
+variance(uniform_distribution([0, 1]))
+#% output
+#= 1/12
+
+#% cell
+pdf(uniform_distribution([0, 2]), x)
+#% output
+#= piecewise([[1/2, 0 <= x and x <= 2]], 0)
+
+#% subsection
+# Scope
+
+#% text
+# Draws from it:
+
+#% cell
+seed(1); random_variate(uniform_distribution([-1, 1]), 4)
+#% output
+#= [-0.15610725508070056, 0.2826304277448053, -0.44204816920710077, -0.912522111937119]
+
+#% text
+# The probability of a sub-interval:
+
+#% cell
+cdf(uniform_distribution([0, 10]), 3)
+#% output
+#= 3/10
+
+#% section
+# See also
+
+#% text
+# `normal_distribution`, `random_real`, `pdf`, `cdf`

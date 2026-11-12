@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# riemann_r
+
+#% text
+# `riemann_r(x)` gives Riemann's approximation `R(x)` to the number of primes up to `x`, by Gram's series `1 + sum((ln x)^k/(k k! zeta(k + 1)))`; evaluated for inexact `x` (real or complex, at the precision of `x`), `riemann_r(1)` is 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+riemann_r(1000.)
+#% output
+#= 168.35944628116727
+
+#% cell
+riemann_r([2., 3., 4.])
+#% output
+#= [1.541009016187132, 2.0046766483089256, 2.426657752706807]
+
+#% cell
+riemann_r(1.5 + sqrt(-1))
+#% output
+#= 1.3324367394020404 + 0.5220926889611722im
+
+#% cell
+prime_pi(1000)
+#% output
+#= 168
+
+#% section
+# See also
+
+#% text
+# `prime_pi`, `zeta`

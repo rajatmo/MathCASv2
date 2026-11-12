@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# euclidean_distance
+
+#% text
+# `euclidean_distance(u, v)` gives the Euclidean distance between the vectors `u` and `v`.
+
+#% section
+# Details
+
+#% item
+# The distance is `sqrt(abs(u1 - v1)^2 + abs(u2 - v2)^2 + ...)`; coordinates that agree are left out, so a single difference gives `abs(u_i - v_i)`.
+
+#% item
+# For numbers it is `abs(u - v)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+euclidean_distance([a, b], [a, c])
+#% output
+#= abs(b - c)
+
+#% cell
+euclidean_distance([1, 2, 3], [2, 4, 6])
+#% output
+#= 14^(1/2)
+
+#% cell
+euclidean_distance([a, b, c], [x, y, z])
+#% output
+#= (abs(a - x)^2 + abs(b - y)^2 + abs(c - z)^2)^(1/2)
+
+#% cell
+euclidean_distance([1., 5., 2.], [4., 15., 18.])
+#% output
+#= 19.1049731745428
+
+#% cell
+euclidean_distance(3, 7)
+#% output
+#= 4
+
+#% section
+# See also
+
+#% text
+# `norm`, `hamming_distance`

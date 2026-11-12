@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# is_subset
+
+#% text
+# `is_subset(xs, ys)` gives `true` when every element of `xs` is also an element of `ys`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_subset([1, 2], [1, 2, 3])
+#% output
+#= true
+
+#% cell
+is_subset([1, 4], [1, 2, 3])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Repetitions and order do not matter:
+
+#% cell
+is_subset([2, 2, 1], [1, 2])
+#% output
+#= true
+
+#% text
+# The empty list is a subset of every list:
+
+#% cell
+is_subset([], [a])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `intersection`, `union`, `complement`, `member`

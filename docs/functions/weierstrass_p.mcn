@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_p
+
+#% text
+# `weierstrass_p(u, [g2, g3])` gives the Weierstrass elliptic function `p(u; g2, g3)`.
+
+#% section
+# Details
+
+#% item
+# `p` is the even elliptic function with a double pole `1/u^2` at the lattice points that solves `p'^2 = 4 p^3 - g2 p - g3` (DLMF 23.2, 23.3).
+
+#% item
+# Numerical values come from the roots of `4 t^3 - g2 t - g3`, half-periods from the complete integrals `K(m)` (by the arithmetic-geometric mean) and the theta series of `theta_1` at the reduced argument (DLMF 23.6).
+
+#% item
+# `weierstrass_p(u, [0, 0]) = 1/u^2`; the value at `u = 0` is `complex_infinity`; the function is even.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_p(5.0, [1, 2])
+#% output
+#= 18.350508193585224
+
+#% cell
+n(weierstrass_p(1/3, [1, 2]), 30)
+#% output
+#= 9.0064386881227981952859598594593
+
+#% cell
+weierstrass_p(2.0 + im, [im, im + 2])
+#% output
+#= -0.44149302509780536 + 0.5836125857258407im
+
+#% cell
+weierstrass_p([1.0, 2.0], [1, 2])
+#% output
+#= [1.1236536562011785, 2.6585414738960105]
+
+#% cell
+weierstrass_p(-x, [g2, g3])
+#% output
+#= weierstrass_p(x, [g2, g3])
+
+#% text
+# The differential equation:
+
+#% cell
+p = weierstrass_p(0.7, [1, 2]); weierstrass_p_prime(0.7, [1, 2])^2 - (4*p^3 - p - 2)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `weierstrass_p_prime`, `weierstrass_zeta`, `weierstrass_sigma`, `inverse_weierstrass_p`, `jacobi_sn`

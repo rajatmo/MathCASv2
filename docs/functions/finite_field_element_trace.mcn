@@ -1,0 +1,96 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_element_trace
+
+#% text
+# `finite_field_element_trace(a)` gives the trace of the element `a` of `F_(p^n)` to the prime field: the sum of its conjugates `a + a^p + ... + a^(p^(n-1))`, as an integer from 0 to `p - 1`.
+
+#% section
+# Details
+
+#% item
+# The trace is linear over the prime field; it is the negated coefficient of `x^(n-1)` in the characteristic polynomial of `a`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(3, 4)
+
+#% cell
+finite_field_element_trace(F([1, 1, 2]))
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# An element of the prime field has the trace `n a`, here `4 * 2` modulo 3:
+
+#% cell
+finite_field_element_trace(finite_field(3, 4)(2))
+#% output
+#= 2
+
+#% text
+# The values over the first nine elements, as the trace is a linear map onto the prime field:
+
+#% cell
+table(finite_field_element_trace(finite_field(3, 4)(k)), k, range(0, 8))
+#% output
+#= [0, 1, 2, 1, 2, 0, 2, 0, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The trace is additive:
+
+#% cell
+a = F(20)
+
+#% cell
+b = F(55)
+
+#% cell
+finite_field_element_trace(a + b) == mod(finite_field_element_trace(a) + finite_field_element_trace(b), 3)
+#% output
+#= true
+
+#% text
+# Exactly a third of the elements have trace 0:
+
+#% cell
+count(table(finite_field_element_trace(F(k)), k, range(0, 80)), 0)
+#% output
+#= 27
+
+#% text
+# The trace is the sum of the conjugates `a`, `a^3`, `a^9` and `a^27`, taken in the field:
+
+#% cell
+finite_field(3, 4)([1, 1, 2]) + finite_field(3, 4)([1, 1, 2])^3 + finite_field(3, 4)([1, 1, 2])^9 + finite_field(3, 4)([1, 1, 2])^27 == finite_field(3, 4)(finite_field_element_trace(finite_field(3, 4)([1, 1, 2])))
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be a finite field element; an integer stays unevaluated:
+
+#% cell
+finite_field_element_trace(3)
+#% output
+#= finite_field_element_trace(3)
+
+#% section
+# See also
+
+#% text
+# `finite_field_element_norm`, `finite_field_element_minimal_polynomial`, `frobenius_automorphism`

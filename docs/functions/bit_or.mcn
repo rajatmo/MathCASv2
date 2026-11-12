@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# bit_or
+
+#% text
+# `bit_or(n1, n2, ...)` gives the bitwise or of the integers.
+
+#% section
+# Details
+
+#% item
+# Negative integers are taken in two's complement. `bit_or()` is 0. `bit_or` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bit_or(12, 10)
+#% output
+#= 14
+
+#% cell
+bit_or(1, 2, 4, 8)
+#% output
+#= 15
+
+#% cell
+bit_or(-8, 3)
+#% output
+#= -5
+
+#% subsection
+# Properties and relations
+
+#% text
+# `and` plus `or` is the sum:
+
+#% cell
+[bit_and(37, 22) + bit_or(37, 22), 37 + 22]
+#% output
+#= [59, 59]
+
+#% section
+# See also
+
+#% text
+# `bit_and`, `bit_xor`, `bit_not`

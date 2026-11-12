@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# scorer_gi_prime
+
+#% text
+# `scorer_gi_prime(z)` gives the derivative of the Scorer function `Gi(z)`.
+
+#% section
+# Details
+
+#% item
+# `Gi'(z) = Bi'(z) - Hi'(z)` (DLMF 9.12); `Gi'(0) = Bi'(0)/3`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scorer_gi_prime(1.0)
+#% output
+#= -0.04843777526150429
+
+#% cell
+n(scorer_gi_prime(2), 30)
+#% output
+#= -0.06725379415890528611444655157876688
+
+#% cell
+scorer_gi_prime(0)
+#% output
+#= 3^(1/6)/(3*gamma(1/3))
+
+#% text
+# A difference quotient of `scorer_gi`:
+
+#% cell
+(scorer_gi(1.0 + 1.0e-6) - scorer_gi(1.0 - 1.0e-6))/2.0e-6
+#% output
+#= -0.04843777526297721
+
+#% section
+# See also
+
+#% text
+# `scorer_gi`, `scorer_hi_prime`, `airy_bi_prime`

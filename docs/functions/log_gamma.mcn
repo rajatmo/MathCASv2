@@ -1,0 +1,122 @@
+#! mathcas 2 notebook
+
+#% title
+# log_gamma
+
+#% text
+# `log_gamma(x)` gives the logarithm of the gamma function of `x`.
+
+#% section
+# Details
+
+#% item
+# For `x > 0` the value is the real `log(gamma(x))`; for complex and negative arguments it is the principal branch of DLMF 5.4, analytic off the negative real axis, which can differ from `log(gamma(x))` by a multiple of `2*pi*im`.
+
+#% item
+# `log_gamma` does not overflow where `gamma` does: it is the way to work with factorials of large numbers.
+
+#% item
+# Positive integers give exact values; machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `log_gamma` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log_gamma(5)
+#% output
+#= log(24)
+
+#% cell
+log_gamma(10.5)
+#% output
+#= 13.940625219403763
+
+#% text
+# 30 digits:
+
+#% cell
+n(log_gamma(1/3), 30)
+#% output
+#= 0.9854206469277670691871740369779614
+
+#% text
+# Far beyond the range of machine numbers for `gamma`:
+
+#% cell
+log_gamma(1.0e6)
+#% output
+#= 12815504.569147611
+
+#% subsection
+# Scope
+
+#% text
+# A negative non-integer argument gives a complex value:
+
+#% cell
+log_gamma(-2.5)
+#% output
+#= -0.056243716497674054 - 9.42477796076938im
+
+#% text
+# A complex machine number:
+
+#% cell
+log_gamma(2.0 + 3.0*im)
+#% output
+#= -2.092851753092731 + 2.302396543466868im
+
+#% text
+# Each element of a list:
+
+#% cell
+log_gamma([1.0, 2.0, 3.0])
+#% output
+#= [0.0, 0.0, 0.6931471805599453]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative is `digamma`:
+
+#% cell
+d(log_gamma(x), x)
+#% output
+#= digamma(x)
+
+#% text
+# For a positive argument it agrees with `log(gamma(x))`:
+
+#% cell
+log_gamma(7.3) - log(gamma(7.3))
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# `gamma` overflows long before `log_gamma` does:
+
+#% cell
+gamma(200.0)
+#% output
+#= inf
+
+#% cell
+log_gamma(200.0)
+#% output
+#= 857.9336698258575
+
+#% section
+# See also
+
+#% text
+# `gamma`, `digamma`, `polygamma`, `log_barnes_g`, `factorial`

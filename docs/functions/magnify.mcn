@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# magnify
+
+#% text
+# `magnify(x)`: x shown larger as a picture; magnify(x, k) of a picture is the picture (inert otherwise)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+magnify(expand((x + y)^3))
+#% output
+#= image("magnify.files/magnify-1.svgz")
+
+#% cell
+magnify("string", 2)
+#% output
+#= magnify("string", 2)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

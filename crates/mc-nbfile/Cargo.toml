@@ -1,0 +1,16 @@
+[package]
+name = "mc-nbfile"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 .mcn notebook files: reading, writing and atomic saving"
+
+[dependencies]
+# deflate for the descriptions embedded with pictures (MIT OR Zlib OR Apache-2.0)
+miniz_oxide = "0.8"
+# the high-resolution PNG of a dense plot's SVG, made when it is embedded (Apache-2.0 OR MIT; already in the lock);
+# no text or system fonts: the drawings embedded are ours, their glyphs are paths
+resvg = { version = "0.49", default-features = false, features = ["raster-images"] }

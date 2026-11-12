@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# torus
+
+#% text
+# `torus(c, [r_inner, r_outer])`: the surface of a torus about the z axis through c (torus() has radii 1/2 and 1)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+t = torus([0, 0, 0], [1/2, 1])
+
+#% cell
+graphics3d([standard_orange, t, opacity(0.4), filled_torus([3, 0, 0], [1/2, 2])])
+#% output
+#= image("torus.files/torus-2.svgz")
+
+#% cell
+[area(t), region_bounds(t)]
+#% output
+#= [(3/4)*pi^2, [[-1, 1], [-1, 1], [-1/4, 1/4]]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# correlation
+
+#% text
+# `correlation(xs, ys)` gives Pearson's correlation coefficient of two lists of the same length, the covariance divided by both standard deviations. `correlation(m)` gives the matrix of correlations of the columns of `m`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+correlation([1, 2, 3, 4], [2, 4, 5, 9])
+#% output
+#= (11/130)*130^(1/2)
+
+#% cell
+correlation([10, 20, 30], [3, 2, 1])
+#% output
+#= -1
+
+#% cell
+correlation([[1, 2], [2, 3], [4, 4]])
+#% output
+#= [[1, (3/14)*21^(1/2)], [(3/14)*21^(1/2), 1]]
+
+#% section
+# See also
+
+#% text
+# `covariance`, `std_dev`

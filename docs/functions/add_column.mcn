@@ -1,0 +1,85 @@
+#! mathcas 2 notebook
+
+#% title
+# add_column
+
+#% text
+# `add_column(ds, c, f)` gives the dataset `ds` with column `c` set to `f(row)` for each row.
+
+#% text
+# `add_column(ds, c, values)` gives `ds` with column `c` set to the list `values`, one per row.
+
+#% section
+# Details
+
+#% item
+# A column `c` that `ds` already has is replaced where it is; a new one comes last.
+
+#% item
+# The calls `f(row)` are evaluated like the elements of `map`; a failure among them is the result.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+shop = dataset([["item", "kind", "price", "stock"], ["pen", "office", 1.5, 40], ["lamp", "home", 24.0, 3], ["ink", "office", 6.0, missing()], ["mug", "home", 8.5, 12]])
+add_column(shop, "cents", r => round(100 * r["price"]))
+#% output
+#= item | kind   | price |   stock | cents
+#= -----+--------+-------+---------+------
+#= pen  | office |   1.5 |      40 |   150
+#= lamp | home   |  24.0 |       3 |  2400
+#= ink  | office |   6.0 | missing |   600
+#= mug  | home   |   8.5 |      12 |   850
+#= dataset: 4 rows, 5 columns
+
+#% subsection
+# Scope
+
+#% text
+# A list of values:
+
+#% cell
+add_column(shop, "rank", [3, 1, 4, 2])
+#% output
+#= item | kind   | price |   stock | rank
+#= -----+--------+-------+---------+-----
+#= pen  | office |   1.5 |      40 |    3
+#= lamp | home   |  24.0 |       3 |    1
+#= ink  | office |   6.0 | missing |    4
+#= mug  | home   |   8.5 |      12 |    2
+#= dataset: 4 rows, 5 columns
+
+#% text
+# Replacing a column:
+
+#% cell
+add_column(shop, "price", r => 2 * r["price"])
+#% output
+#= item | kind   | price |   stock
+#= -----+--------+-------+--------
+#= pen  | office |   3.0 |      40
+#= lamp | home   |  48.0 |       3
+#= ink  | office |  12.0 | missing
+#= mug  | home   |  17.0 |      12
+#= dataset: 4 rows, 4 columns
+
+#% subsection
+# Possible issues
+
+#% text
+# A list must have one value per row:
+
+#% cell
+add_column(shop, "rank", [1, 2])
+#% output
+#! failure(shape_mismatch, add_column)
+
+#% section
+# See also
+
+#% text
+# `dataset`, `column`, `aggregate`

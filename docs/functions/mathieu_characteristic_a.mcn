@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_characteristic_a
+
+#% text
+# `mathieu_characteristic_a(r, q)` gives the characteristic value `a_r(q)` of the even Mathieu functions.
+
+#% section
+# Details
+
+#% item
+# At an integer `r >= 0` the even solution is periodic (period `pi` for even `r`, `2 pi` for odd `r`); for other real `r` the value has characteristic exponent `r`, `cos(pi r) = w_I(pi; a, q)` (DLMF 28.2.16), continuous in `r` with `a_r(0) = r^2`; `a_(-r) = a_r`.
+
+#% item
+# Numerical values for real `q`: the eigenvalues of the truncated tridiagonal matrices of the Fourier coefficients (DLMF 28.4) as a start, refined by the secant method on `y'(pi/2)` or `y(pi/2)` (integer `r`) or `w_I(pi) - cos(pi r)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mathieu_characteristic_a(1, 0.5)
+#% output
+#= 1.4667668425160558
+
+#% cell
+mathieu_characteristic_a([1, 2], 0.33)
+#% output
+#= [1.3158195407174649, 4.044736208026365]
+
+#% cell
+mathieu_characteristic_a(15/17, 0.5)
+#% output
+#= 0.43084814223083295
+
+#% cell
+mathieu_characteristic_a(-2*pi, 0.5)
+#% output
+#= 39.48166637624438
+
+#% cell
+mathieu_characteristic_a(r, 0)
+#% output
+#= r^2
+
+#% section
+# See also
+
+#% text
+# `mathieu_c`, `mathieu_s`

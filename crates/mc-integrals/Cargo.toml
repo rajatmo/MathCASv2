@@ -1,0 +1,34 @@
+[package]
+name = "mc-integrals"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 integration: the integrate driver, antiderivatives (rational, elementary, algebraic) and definite integrals"
+
+[dependencies]
+# number fields: root_sum results of the rational integrator (package F1)
+mc-algebra = { path = "../mc-algebra" }
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+# derivatives, partial fractions, the term builder and the shared helpers
+mc-calculus = { path = "../mc-calculus" }
+mc-core = { path = "../mc-core" }
+# sign questions of integrate answered by the decision service (package F3)
+mc-decide = { path = "../mc-decide" }
+mc-eval = { path = "../mc-eval" }
+# the tower-based integration engine: Risch decision procedure, Risch-Norman ansatz (package 14A)
+mc-integrate = { path = "../mc-integrate" }
+# limits at the bounds and critical points of definite integrals
+mc-limit = { path = "../mc-limit" }
+mc-poly = { path = "../mc-poly" }
+# the rule table for what the engine does not reach (package 14C)
+mc-integrate-rules = { path = "../mc-integrate-rules" }
+# the complexity measure that picks the smaller of two antiderivatives (read only)
+mc-simplify = { path = "../mc-simplify" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

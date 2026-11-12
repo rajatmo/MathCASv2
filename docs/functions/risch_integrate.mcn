@@ -1,0 +1,128 @@
+#! mathcas 2 notebook
+
+#% title
+# risch_integrate
+
+#% text
+# `risch_integrate(f, x)` integrates `f` by the Risch decision procedure: it gives an elementary antiderivative, or proves that there is none.
+
+#% section
+# Details
+
+#% item
+# The procedure decides integrands in one exponential `exp(u)` or one logarithm `log(u)` over the rational functions of `x` (`u` rational); trigonometric functions enter as exponentials of `im u` and the answer is written back with `sin` and `cos`.
+
+#% item
+# When no elementary antiderivative exists the result is `failure(nonelementary, risch_integrate, reason)`; the reason names the step that proves it: a Risch differential equation without a rational solution, a residue that is not a constant, or a limited integration problem without a solution.
+
+#% item
+# For integrands with roots the proofs come from Chebyshev's theorem on binomial differentials `x^m (a + b x^n)^p` and from Hermite reduction in the field of `y^2 = P`: a remainder of the second kind (no residues) that is not exact has no elementary integral (Liouville's theorem).
+
+#% item
+# An integrand outside the procedure (two or more exponentials and logarithms, a root that neither method decides, a residue polynomial without rational roots) leaves the call unevaluated.
+
+#% item
+# Symbolic parameters are constants: a proof holds for generic values of them.
+
+#% item
+# Every antiderivative is checked by differentiation. `integrate` runs the same procedure among its methods, and answers non-elementary integrals with special functions where it can.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An elementary antiderivative:
+
+#% cell
+risch_integrate(x*exp(x^2), x)
+#% output
+#= (1/2)*exp(x^2)
+
+#% text
+# The Gaussian has no elementary antiderivative:
+
+#% cell
+risch_integrate(exp(-x^2), x)
+#% output
+#! failure(nonelementary, risch_integrate, "the Risch differential equation of exp^1 has no rational solution")
+
+#% text
+# `integrate` gives it with the error function:
+
+#% cell
+integrate(exp(-x^2), x)
+#% output
+#= (1/2)*erf(x)*pi^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A binomial differential outside Chebyshev's three cases:
+
+#% cell
+risch_integrate(sqrt(1 + x^3), x)
+#% output
+#! failure(nonelementary, risch_integrate, "Chebyshev's theorem: x^m (a + b x^n)^p with m = 0, n = 3, p = 1/2: none of p, (m + 1)/n = 1/3, (m + 1)/n + p = 5/6 is an integer")
+
+#% text
+# A remainder of the second kind after Hermite reduction:
+
+#% cell
+risch_integrate(x^2/sqrt(x^3 + x + 1), x)
+#% output
+#! failure(nonelementary, risch_integrate, "Hermite reduction in the function field of y^2 = x^3 + x + 1: the remainder is a nonzero differential of the second kind, not exact, so no elementary antiderivative exists (Liouville)")
+
+#% text
+# A logarithmic integrand:
+
+#% cell
+risch_integrate(1/(x*log(x)^2), x)
+#% output
+#= -1/log(x)
+
+#% text
+# The logarithmic integral is not elementary:
+
+#% cell
+risch_integrate(1/log(x), x)
+#% output
+#! failure(nonelementary, risch_integrate, "a residue of the simple part is not a constant (Rothstein-Trager)")
+
+#% cell
+risch_integrate(log(x)/(1 + x), x)
+#% output
+#! failure(nonelementary, risch_integrate, "the coefficient of log^1 is not D b + c D log for a rational b and a constant c (limited integration)")
+
+#% text
+# A trigonometric integrand is decided through exponentials:
+
+#% cell
+risch_integrate(sin(x)/x, x)
+#% output
+#! failure(nonelementary, risch_integrate, "the Risch differential equation of exp^1 has no rational solution")
+
+#% cell
+risch_integrate(x*cos(2*x), x)
+#% output
+#= (1/4)*cos(2*x) + (1/2)*x*sin(2*x)
+
+#% subsection
+# Possible issues
+
+#% text
+# Two monomials (here an exponential and a logarithm) are outside the procedure:
+
+#% cell
+risch_integrate(exp(x)*log(x), x)
+#% output
+#= risch_integrate(log(x)*exp(x), x)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `d`, `erf`, `exp_integral_ei`

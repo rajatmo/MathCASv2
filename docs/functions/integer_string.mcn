@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_string
+
+#% text
+# `integer_string(n)` gives the decimal digits of `abs(n)` as a string; `integer_string(n, b)` uses base `b`; `integer_string(n, b, len)` has exactly `len` characters.
+
+#% section
+# Details
+
+#% item
+# Digits above 9 are the letters `a` to `z`, so the base is at most 36.
+
+#% item
+# A shorter result is padded with zeros on the left, a longer one cut to its last `len` characters.
+
+#% item
+# `integer_string(n, "Roman")` gives a Roman numeral for 0 < n < 4000.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_string(1988, "Roman")
+#% output
+#= "MCMLXXXVIII"
+
+#% cell
+integer_string(255, 16)
+#% output
+#= "ff"
+
+#% cell
+integer_string(5, 2, 8)
+#% output
+#= "00000101"
+
+#% cell
+integer_string(12345, 10, 3)
+#% output
+#= "345"
+
+#% cell
+integer_string(-42)
+#% output
+#= "42"
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `from_digits`, `to_string`

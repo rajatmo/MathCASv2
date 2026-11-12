@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# labeled
+
+#% text
+# `labeled(x, label)` is x with a label below it, as one graphic.
+
+#% text
+# `labeled(x, label, pos)` puts the label at `top`, `bottom`, `left` or `right`.
+
+#% section
+# Details
+
+#% item
+# x may be a graphic, a plot or a string; the label may be any expression and takes `$...$` math. Around anything else (a function, data) `labeled` stays as it is: plots read it as the label of that curve or data set.
+
+#% item
+# `labeled([x1, x2, ...], [l1, l2, ...])` labels each part, in a row.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A plot with a caption:
+
+#% cell
+labeled(plot(sin(x), [x, 0, 6]), "$\\sin x$")
+#% output
+#= image("labeled.files/labeled-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Several parts:
+
+#% cell
+labeled([graphics(disk()), graphics(circle())], ["disk", "circle"])
+#% output
+#= image("labeled.files/labeled-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# The label on the left:
+
+#% cell
+labeled(graphics(disk()), "a disk", left)
+#% output
+#= image("labeled.files/labeled-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Around a function or data that is not a picture, `labeled` stays as it is, so plots read it: the label goes at the end of the curve:
+
+#% cell
+plot([labeled(sin(x), "sin"), labeled(cos(x), "cos")], [x, 0, 6])
+#% output
+#= image("labeled.files/labeled-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `framed`, `legended`, `grid`

@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# tan
+
+#% text
+# `tan(x)` gives the tangent of `x`, `sin(x)/cos(x)`, with `x` in radians.
+
+#% section
+# Details
+
+#% item
+# `tan(q*pi)` is exact for a rational `q` whose denominator is 1, 3, 4 or 6; at odd multiples of `pi/2` it has poles. Other exact arguments stay unevaluated.
+
+#% item
+# A minus sign is taken out: `tan(-x)` is `-tan(x)`. The period is `pi`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `tan` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tan(pi/4)
+#% output
+#= 1
+
+#% cell
+tan(pi/3)
+#% output
+#= 3^(1/2)
+
+#% cell
+tan(1.0)
+#% output
+#= 1.5574077246549023
+
+#% cell
+tan([0, pi/6, pi/4])
+#% output
+#= [0, (1/3)*3^(1/2), 1]
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits:
+
+#% cell
+n(tan(1), 30)
+#% output
+#= 1.5574077246549022305069748074583602
+
+#% text
+# A complex argument:
+
+#% cell
+tan(1.0 + 1.0*im)
+#% output
+#= 0.2717525853195118 + 1.0839233273386946im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(tan(x), x)
+#% output
+#= cos(x)^-2
+
+#% text
+# The inverse:
+
+#% cell
+atan(tan(0.5))
+#% output
+#= 0.5
+
+#% subsection
+# Possible issues
+
+#% text
+# The pole at `pi/2`:
+
+#% cell
+tan(pi/2)
+#% output
+#= tan((1/2)*pi)
+
+#% section
+# See also
+
+#% text
+# `sin`, `cos`, `atan`, `tanh`

@@ -1,0 +1,247 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_laplace_transform
+
+#% text
+# `inverse_laplace_transform(F, s, t)` gives the function `f(t)` whose Laplace transform is `F(s)`.
+
+#% text
+# `inverse_laplace_transform(F, [s1, s2], [t1, t2])` inverts in several variables, one after the other.
+
+#% section
+# Details
+
+#% item
+# A rational function of `s` is inverted by its residues: the denominator is factored, each root found, and the Heaviside expansion summed; exponentials of complex conjugate roots are written with `sin` and `cos`, pairs `exp(a t)`, `exp(-a t)` with `cosh` and `sinh`.
+
+#% item
+# A polynomial part gives `dirac_delta(t)` and its derivatives.
+
+#% item
+# `exp(-a s) G(s)` with `a > 0` gives `g(t - a) heaviside_theta(t - a)`; `G(s + a)` gives `exp(-a t) g(t)`; `G(s)/s` gives the integral of `g` from 0 to `t`.
+
+#% item
+# Logarithms and inverse tangents are inverted through their derivatives: the inverse of `F` is minus the inverse of the derivative of `F`, divided by `t`.
+
+#% item
+# Roots, error functions, logarithms of `s` and some Bessel functions come from a table.
+
+#% item
+# Every value is checked: its Laplace integral at a sample point must agree with `F`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rational function:
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 3*s + 2), s, t)
+#% output
+#= -exp(-2*t) + exp(-t)
+
+#% text
+# Sine and cosine:
+
+#% cell
+inverse_laplace_transform(a/(s^2 + a^2), s, t)
+#% output
+#= sin(a*t)
+
+#% cell
+inverse_laplace_transform(s/(s^2 + a^2), s, t)
+#% output
+#= cos(a*t)
+
+#% subsection
+# Scope
+
+#% text
+# A double pole:
+
+#% cell
+inverse_laplace_transform(s/(s^2 + a^2)^2, s, t)
+#% output
+#= t*sin(a*t)/(2*a)
+
+#% text
+# Hyperbolic functions:
+
+#% cell
+inverse_laplace_transform(a/(s^2 - a^2), s, t)
+#% output
+#= sinh(a*t)
+
+#% text
+# Symbolic coefficients:
+
+#% cell
+inverse_laplace_transform(1/(a*s + b), s, t)
+#% output
+#= exp(-b*t/a)/a
+
+#% text
+# A delay:
+
+#% cell
+inverse_laplace_transform(exp(-2*s)/s^2, s, t)
+#% output
+#= (-2 + t)*heaviside_theta(-2 + t)
+
+#% text
+# Square roots:
+
+#% cell
+inverse_laplace_transform(1/sqrt(s + 1), s, t)
+#% output
+#= exp(-t)/(pi^(1/2)*t^(1/2))
+
+#% cell
+inverse_laplace_transform(1/(s*sqrt(s + 1)), s, t)
+#% output
+#= erf(t^(1/2))
+
+#% text
+# Logarithms and inverse tangents:
+
+#% cell
+inverse_laplace_transform(log((s + a)/(s + b)), s, t)
+#% output
+#= (-exp(-a*t) + exp(-b*t))/t
+
+#% cell
+inverse_laplace_transform(atan(1/(2*s)), s, t)
+#% output
+#= sin((1/2)*t)/t
+
+#% text
+# The polynomial part:
+
+#% cell
+inverse_laplace_transform((s^2 + 1)/(s + 1), s, t)
+#% output
+#= -dirac_delta(t) + 2*exp(-t) + dirac_delta'(t)
+
+#% text
+# Fractional powers and an essential singularity:
+
+#% cell
+inverse_laplace_transform(1/s^(3/2), s, t)
+#% output
+#= 2*t^(1/2)/pi^(1/2)
+
+#% cell
+inverse_laplace_transform(exp(-sqrt(s)), s, t)
+#% output
+#= exp(-1/(4*t))/(2*pi^(1/2)*t^(3/2))
+
+#% text
+# Poles at 0:
+
+#% cell
+inverse_laplace_transform(1/(s*(s + 1)), s, t)
+#% output
+#= 1 - exp(-t)
+
+#% cell
+inverse_laplace_transform(1/(s^2*(s^2 + 4)), s, t)
+#% output
+#= (-1/8)*sin(2*t) + (1/4)*t
+
+#% subsection
+# Options
+
+#% text
+# `assumptions:` and `generate_conditions:` are accepted; an inverse of this kind has no conditions to report:
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, t, assumptions: t > 0)
+#% output
+#= sin(t)
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, t, generate_conditions: true)
+#% output
+#= sin(t)
+
+#% text
+# A number for `t` gives the value there:
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, 2.5)
+#% output
+#= 0.5984721441039564
+
+#% subsection
+# Properties and relations
+
+#% text
+# The forward transform gives the function back:
+
+#% cell
+laplace_transform(inverse_laplace_transform(1/(s^2 + 2*s + 5), s, t), t, s)
+#% output
+#= (4 + (1 + s)^2)^-1
+
+#% text
+# The value at a number agrees with the function:
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, 2.5) - sin(2.5)
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# A pure delay of a pole at 0 is recognised; the step is written `heaviside_theta`:
+
+#% cell
+inverse_laplace_transform(exp(-s)/s, s, t)
+#% output
+#= heaviside_theta(-1 + t)
+
+#% text
+# A transform with no rule stays a call: a pure polynomial in `s` (its inverse is a derivative of `dirac_delta`, which is given only next to a proper part), a growing exponential, and an essential singularity at 0 combined with a pole:
+
+#% cell
+inverse_laplace_transform(s^2, s, t)
+#% output
+#= inverse_laplace_transform(s^2, s, t)
+
+#% cell
+inverse_laplace_transform(exp(s), s, t)
+#% output
+#= inverse_laplace_transform(exp(s), s, t)
+
+#% cell
+inverse_laplace_transform(exp(-1/s)/s, s, t)
+#% output
+#= inverse_laplace_transform(exp(-1/s)/s, s, t)
+
+#% text
+# An undefined function stays a call:
+
+#% cell
+inverse_laplace_transform(F(s), s, t)
+#% output
+#= inverse_laplace_transform(F(s), s, t)
+
+#% text
+# `working_precision:` is not an option; a number for `t` at the precision wanted gives a value at that precision:
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, n(2, 30))
+#% output
+#= 0.909297426825681695396019865911745
+
+#% section
+# See also
+
+#% text
+# `laplace_transform`, `inverse_bilateral_laplace_transform`, `apart`, `inverse_z_transform`

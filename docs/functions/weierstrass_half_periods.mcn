@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_half_periods
+
+#% text
+# `weierstrass_half_periods([g2, g3])` gives the half-periods `[omega1, omega3]` of the Weierstrass functions of invariants `g2`, `g3`.
+
+#% section
+# Details
+
+#% item
+# The half-periods are the reduced basis of the period lattice: `tau = omega3/omega1` lies in the fundamental domain (`|Re tau| <= 1/2`, `|tau| >= 1`) and `omega1` has a positive real part; for real invariants with `g3 < 0` they are `-im` times those of `[g2, -g3]` (DLMF 23.10.18).
+
+#% item
+# Numerical values come from the roots of `4 t^3 - g2 t - g3` and the complete elliptic integrals (the method of `weierstrass_p`); the lattice is then reduced.
+
+#% item
+# `[a, 0]` with `a > 0` (lemniscatic) and `[0, b]` with `b > 0` (equianharmonic) give closed forms in `gamma(1/4)` and `gamma(1/3)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_half_periods([1.0, 2.0])
+#% output
+#= [1.308364762637097, 0.6541823813185484 + 1.229368751632915im]
+
+#% cell
+n(weierstrass_half_periods([1, 2]), 30)
+#% output
+#= [1.3083647626370968653240501853340823, 0.654182381318548432662025092667041 + 1.229368751632915099119895204985502im]
+
+#% cell
+weierstrass_half_periods([0.5 + im, 1.0])
+#% output
+#= [0.6543470042388131 + 1.3134409876370876im, -1.475468741560145 + 0.09825031101076429im]
+
+#% cell
+weierstrass_half_periods([1, 0])
+#% output
+#= [gamma(1/4)^2/(4*pi^(1/2)), (im/4)*gamma(1/4)^2/pi^(1/2)]
+
+#% cell
+weierstrass_half_periods([0, 1])
+#% output
+#= [gamma(1/3)^3/(4*pi), (1/2 + (im/2)*3^(1/2))*gamma(1/3)^3/(4*pi)]
+
+#% text
+# The invariants of the half-periods:
+
+#% cell
+weierstrass_invariants(weierstrass_half_periods([0.5, 1.0 - im]))
+#% output
+#= [0.4999999999999997 - 4.1454676381654933e-16im, 1.0000000000000002 - 1.0im]
+
+#% section
+# See also
+
+#% text
+# `weierstrass_e1`, `weierstrass_eta1`, `weierstrass_invariants`, `weierstrass_p`, `weierstrass_zeta`

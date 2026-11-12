@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# dark_gray
+
+#% text
+# `dark_gray` is the colour dark gray, `gray_level(0.25)`, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([dark_gray, disk()])
+#% output
+#= image("dark_gray.files/dark_gray-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [dark_gray])
+#% output
+#= image("dark_gray.files/dark_gray-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(dark_gray), disk([0, 0])], [dark_gray, disk([2, 0])], [darker(dark_gray), disk([4, 0])]])
+#% output
+#= image("dark_gray.files/dark_gray-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `gray`, `light_gray`, `black`

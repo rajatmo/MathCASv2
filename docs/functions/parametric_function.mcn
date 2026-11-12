@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_function
+
+#% text
+# `parametric_function(params, expr, data)` is the result of `parametric_n_dsolve_value`: `f(v1, ..., vm)` integrates the equations with the parameters set to the numbers `v1, ..., vm` and gives `expr`.
+
+#% section
+# Details
+
+#% item
+# The third argument holds the equations in the solver's own form; it is not meant to be written by hand.
+
+#% item
+# A symbolic value of a parameter leaves the call as it is; `table` and `plot` give it numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+p = parametric_n_dsolve_value([y'(t) == -k*y(t), y(0) == 1], y(1), [t, 0, 1], [k]); p(1.0)
+#% output
+#= 0.3678794422457897
+
+#% cell
+p(2.0)
+#% output
+#= 0.13533528475265347
+
+#% cell
+[p(1.0), exp(-1.0)]
+#% output
+#= [0.3678794422457897, 0.36787944117144233]
+
+#% subsection
+# Scope
+
+#% text
+# Several parameter values:
+
+#% cell
+table(p(k), k, [0.5, 1.0, 2.0])
+#% output
+#= [0.6065306602676048, 0.3678794422457897, 0.13533528475265347]
+
+#% subsection
+# Applications
+
+#% text
+# `y(1)` as a function of the decay rate:
+
+#% cell
+plot(p(k), [k, 0, 3])
+#% output
+#= image("parametric_function.files/parametric_function-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `parametric_n_dsolve_value`, `n_dsolve_value`, `find_root`

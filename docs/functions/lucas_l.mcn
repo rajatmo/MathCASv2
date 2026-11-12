@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# lucas_l
+
+#% text
+# `lucas_l(n)` gives the Lucas number L_n.
+
+#% text
+# `lucas_l(n, x)` gives the Lucas polynomial L_n(x).
+
+#% section
+# Details
+
+#% item
+# L_0 = 2, L_1 = 1, L_(n+1) = L_n + L_(n-1); L_n = F_(n-1) + F_(n+1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lucas_l(10)
+#% output
+#= 123
+
+#% cell
+lucas_l(4, x)
+#% output
+#= 2 + 4*x^2 + x^4
+
+#% subsection
+# Scope
+
+#% cell
+lucas_l(2.5)
+#% output
+#= 3.330190676785562
+
+#% section
+# See also
+
+#% text
+# `fibonacci`

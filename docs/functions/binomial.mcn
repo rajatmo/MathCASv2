@@ -1,0 +1,154 @@
+#! mathcas 2 notebook
+
+#% title
+# binomial
+
+#% text
+# `binomial(n, k)` gives the binomial coefficient "n choose k".
+
+#% section
+# Details
+
+#% item
+# For integers `0 <= k <= n`, `binomial(n, k)` is the number of ways to choose `k` things from `n`: `n!/(k!*(n - k)!)`.
+
+#% item
+# `k` must be an integer. For `k < 0` the value is 0; for `k > n >= 0` it is 0 too.
+
+#% item
+# `n` may be a negative integer or a fraction; then `binomial(n, k)` is `n*(n - 1)*...*(n - k + 1)/k!`.
+
+#% item
+# `binomial(n, 0)` and `binomial(n, n)` are 1 and `binomial(n, 1)` and `binomial(n, n - 1)` are `n` for symbolic `n`; other symbolic arguments stay unevaluated.
+
+#% item
+# `binomial` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+binomial(5, 2)
+#% output
+#= 10
+
+#% text
+# The number of five-card hands from a deck of 52:
+
+#% cell
+binomial(52, 5)
+#% output
+#= 2598960
+
+#% cell
+binomial(100, 50)
+#% output
+#= 100891344545564193334812497256
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic special cases:
+
+#% cell
+[binomial(m, 0), binomial(m, 1), binomial(m, m), binomial(m, m - 1)]
+#% output
+#= [1, m, 1, m]
+
+#% text
+# Out of range values of `k`:
+
+#% cell
+binomial(10, 11)
+#% output
+#= 0
+
+#% cell
+binomial(10, -1)
+#% output
+#= 0
+
+#% text
+# A negative and a fractional top:
+
+#% cell
+binomial(-3, 2)
+#% output
+#= 6
+
+#% cell
+binomial(1/2, 3)
+#% output
+#= 1/16
+
+#% text
+# Each element of a list:
+
+#% cell
+binomial([4, 5, 6], 2)
+#% output
+#= [6, 10, 15]
+
+#% subsection
+# Applications
+
+#% text
+# A row of Pascal's triangle:
+
+#% cell
+table(binomial(6, k), k, range(0, 6))
+#% output
+#= [1, 6, 15, 20, 15, 6, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The coefficients of a binomial power:
+
+#% cell
+expand((1 + x)^5)
+#% output
+#= 1 + 5*x + 10*x^2 + 10*x^3 + 5*x^4 + x^5
+
+#% text
+# The sum of a row is a power of 2:
+
+#% cell
+sum(binomial(10, k), [k, 0, 10])
+#% output
+#= 1024
+
+#% text
+# Symmetry:
+
+#% cell
+binomial(20, 7) == binomial(20, 13)
+#% output
+#= true
+
+#% cell
+binomial(2.5, 2)
+#% output
+#= 1.875
+
+#% subsection
+# Possible issues
+
+#% text
+# Symbols are not evaluated:
+
+#% cell
+binomial(n, 2)
+#% output
+#= binomial(n, 2)
+
+#% section
+# See also
+
+#% text
+# `factorial`, `gamma`, `beta`, `expand`

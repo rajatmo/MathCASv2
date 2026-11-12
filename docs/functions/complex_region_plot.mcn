@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_region_plot
+
+#% text
+# `complex_region_plot(cond, [z, z0, z1])` draws where a condition on the complex variable `z` holds, over the rectangle with corners `z0` and `z1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex_region_plot(abs(z) < 1, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_region_plot.files/complex_region_plot-1.svgz")
+
+#% cell
+complex_region_plot(re(z^2) > 0 and abs(z) < 2, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_region_plot.files/complex_region_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `region_plot`, `complex_contour_plot`

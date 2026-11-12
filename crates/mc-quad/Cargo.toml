@@ -1,0 +1,27 @@
+[package]
+name = "mc-quad"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 numerical integration: n_integrate (adaptive Gauss-Kronrod, tanh-sinh, rigorous Clenshaw-Curtis with ball error bounds, adaptive cubature, VEGAS+, lattice and Sobol quasi-Monte Carlo) as a native of the evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the NumFn trait and its backends (package N0)
+mc-numfn = { path = "../mc-numfn" }
+# complex machine numbers, ball elementary functions and constants
+mc-numeric = { path = "../mc-numeric" }
+# counter-based random streams (Philox) for Monte Carlo and the randomisations of quasi-Monte Carlo
+mc-random = { path = "../mc-random" }
+# the session's thread pool: point generation and maps in parallel blocks
+rayon = "1.12"
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# key_union
+
+#% text
+# `key_union([a1, a2, ...])` gives the associations with every key that any of them has: a key an association lacks is added with the value `missing(key_absent, key)`.
+
+#% section
+# Details
+
+#% item
+# `key_union(list, f)` gives `f(key)` for an absent key instead.
+
+#% item
+# Keys come in order of first appearance; every result has the same keys in the same order.
+
+#% item
+# Lists of rules are read as associations.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_union([assoc(a -> 1), assoc(b -> 2)])
+#% output
+#= [assoc(a -> 1, b -> missing("KeyAbsent", b)), assoc(a -> missing("KeyAbsent", a), b -> 2)]
+
+#% text
+# A default value for the absent keys:
+
+#% cell
+key_union([assoc(a -> 1), assoc(b -> 2)], k => 0)
+#% output
+#= [assoc(a -> 1, b -> 0), assoc(a -> 0, b -> 2)]
+
+#% section
+# See also
+
+#% text
+# `key_intersection`, `merge`, `join_across`

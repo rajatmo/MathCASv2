@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# vector_greater
+
+#% text
+# `vector_greater([a, b])` states that `a > b` holds componentwise; a scalar side is compared with every component.
+
+#% section
+# Details
+
+#% item
+# With numbers it gives `true` or `false`; with symbols it stays as it is, a constraint for `n_minimize` and its relatives.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Numbers:
+
+#% cell
+vector_greater([[3, 2], [1, 2]])
+#% output
+#= false
+
+#% text
+# A constraint of a linear program:
+
+#% cell
+n_minimize([dot([1, 1], v), vector_greater_equal([dot([[1, 2], [1, 0]], v), [3, -1]])], v)
+#% output
+#= [1.0, [v -> [-1.0, 2.0]]]
+
+#% section
+# See also
+
+#% text
+# `n_minimize`, `vector_greater_equal`, `vector_less_equal`, `greater_equal`

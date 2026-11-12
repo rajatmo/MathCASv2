@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# candlestick_chart
+
+#% text
+# `candlestick_chart([[date, [open, high, low, close]], ...])` draws a candle per day from `[date, [open, high, low, close]]` entries; rising days green, falling days red.
+
+#% section
+# Details
+
+#% item
+# Dates are `[y, m, d]` lists or numbers; the candles are evenly spaced.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+candlestick_chart([[[2010, 1, 4], [626.95, 629.51, 624.24, 626.75]], [[2010, 1, 5], [627.18, 627.84, 621.54, 623.99]], [[2010, 1, 6], [625.86, 625.86, 606.36, 608.26]], [[2010, 1, 7], [609.4, 610, 592.65, 594.1]]])
+#% output
+#= image("candlestick_chart.files/candlestick_chart-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `renko_chart`

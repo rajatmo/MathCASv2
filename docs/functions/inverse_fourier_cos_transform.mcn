@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_fourier_cos_transform
+
+#% text
+# `inverse_fourier_cos_transform(g, w, t)` gives the inverse cosine transform `sqrt(2/pi) integrate(g*cos(w*t), [w, 0, inf])` of `g`, for `t > 0`.
+
+#% section
+# Details
+
+#% item
+# The same integral as `fourier_cos_transform`, with the variables exchanged.
+
+#% item
+# `fourier_parameters: [a, b]` gives `2 sqrt(abs(b)/(2 pi)^(1 + a)) integrate(g*cos(b*w*t), [w, 0, inf])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_fourier_cos_transform(exp(-w), w, t)
+#% output
+#= 2^(1/2)*(pi^-1)^(1/2)/(1 + t^2)
+
+#% cell
+inverse_fourier_cos_transform(1/(1 + w^2), w, t)
+#% output
+#= (1/2)*2^(1/2)*exp(-t)*pi^(1/2)
+
+#% subsection
+# Properties and relations
+
+#% cell
+inverse_fourier_cos_transform(fourier_cos_transform(exp(-t^2), t, w), w, t)
+#% output
+#= exp(-t^2)
+
+#% section
+# See also
+
+#% text
+# `fourier_cos_transform`, `inverse_fourier_sin_transform`

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# scientific_form
+
+#% text
+# `scientific_form(x)` shows the machine reals in `x` as `m × 10^e`, with six significant digits; `scientific_form(x, n)` with `n`.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `scientific_form` stays around the value as a wrapper that changes only how it is shown.
+
+#% item
+# Only machine reals change: integers, fractions and symbols are shown as they are.
+
+#% item
+# Front ends show the form; text meant to be read back (`to_string`, scripts without display mode) keeps the wrapper.
+
+#% item
+# The pages keep values as text that reads back, so they show the wrapper; `mc-repl` and the notebook show `3.30809 × 10^5`, `1.23 × 10^5` and `[1.5, -2 × 10^-3, 2.5 × 10^7 + x]` for the examples below.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scientific_form(330808.9917147705)
+#% output
+#= 3.30809 × 10^5
+
+#% cell
+scientific_form(123456.789, 3)
+#% output
+#= 1.23 × 10^5
+
+#% subsection
+# Scope
+
+#% text
+# Every machine real inside an expression:
+
+#% cell
+scientific_form([1.5, -0.002, x + 2.5e7])
+#% output
+#= [1.5, -2 × 10^-3, 2.5 × 10^7 + x]
+
+#% section
+# See also
+
+#% text
+# `number_form`, `input_form`, `n`

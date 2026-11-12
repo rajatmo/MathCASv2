@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# svd
+
+#% text
+# `svd(m)` gives `[u, s, v]` with `m == dot(u, s, conjugate_transpose(v))`, `s` diagonal with decreasing singular values, for a machine matrix `m`.
+
+#% section
+# Details
+
+#% item
+# `u` and `v` have orthonormal columns. Exact matrices are converted to machine numbers.
+
+#% item
+# Exact and ball matrices are decomposed in machine arithmetic too.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+svd([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [[[0.40455358483375686, -0.9145142956773045], [0.9145142956773044, 0.40455358483375703]], [[5.4649857042190435, 0.0], [0.0, 0.3659661906262578]], [[0.5760484367663208, 0.8174155604703633], [0.8174155604703633, -0.5760484367663208]]]
+
+#% cell
+svd([[2.0, 0.0], [0.0, 1.0]])
+#% output
+#= [[[1.0, 0.0], [0.0, 1.0]], [[2.0, 0.0], [0.0, 1.0]], [[1.0, 0.0], [0.0, 1.0]]]
+
+#% cell
+svd([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]])
+#% output
+#= [[[0.7071067811865475, 0.7071067811865475], [0.7071067811865475, -0.7071067811865475]], [[1.7320508075688772, 0.0], [0.0, 0.9999999999999999]], [[0.408248290463863, 0.7071067811865476], [0.816496580927726, 0.0], [0.408248290463863, -0.7071067811865476]]]
+
+#% subsection
+# Applications
+
+#% text
+# The best rank-1 approximation keeps the largest singular value:
+
+#% cell
+f = svd([[3.0, 1.0], [1.0, 3.0], [1.0, 1.0]]); round(f[2][1, 1]*outer(mul, f[1][all, 1], f[3][all, 1]), 1.0e-9)
+#% output
+#= [[2.0, 2.0], [2.0, 2.0], [1.0, 1.0]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The diagonal holds the singular values:
+
+#% cell
+f = svd([[1.0, 2.0], [3.0, 4.0]]); table(f[2][k, k], k, 2) - singular_values([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [0.0, 0.0]
+
+#% section
+# See also
+
+#% text
+# `singular_values`, `pseudo_inverse`, `qr`, `rank`

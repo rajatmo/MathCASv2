@@ -1,0 +1,176 @@
+#! mathcas 2 notebook
+
+#% title
+# kelvin_ber
+
+#% text
+# `kelvin_ber(nu, x)` gives the Kelvin function `ber_nu(x)`, the real part of `bessel_j(nu, x*exp(3*pi*im/4))`.
+
+#% text
+# `kelvin_ber(x)` gives `ber_0(x)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.61.1. Kelvin functions describe the current density in a wire carrying alternating current (the skin effect).
+
+#% item
+# Machine numbers, arbitrary-precision numbers and complex numbers give numerical values, at any real or complex order `nu`; the result is real for a real `x` and a real order. `kelvin_ber(0)` is 1; a symbolic argument stays.
+
+#% item
+# The series in powers of `x` converges for every `x`; for large `x` the function grows like `exp(x/sqrt(2))`, so a machine `kelvin_ber(x)` overflows the machine range above about `x = 1010` and gives an infinity.
+
+#% item
+# `kelvin_ber(nu, x)` is listable in `x` and in `nu`; `kelvin_ber(x)` with a list stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kelvin_ber(1.0)
+#% output
+#= 0.984381781213087
+
+#% cell
+kelvin_ber(0)
+#% output
+#= 1
+
+#% cell
+kelvin_ber(2, 3.0)
+#% output
+#= 0.8083684656372669
+
+#% cell
+kelvin_ber(5.0)
+#% output
+#= -6.230082478666359
+
+#% subsection
+# Scope
+
+#% text
+# A non-integer and a negative order:
+
+#% cell
+kelvin_ber(0.5, 2.0)
+#% output
+#= -0.3072383294073614
+
+#% cell
+kelvin_ber(-1, 2.0)
+#% output
+#= 0.9970776519264288
+
+#% text
+# A complex argument and a complex order:
+
+#% cell
+kelvin_ber(1.0 + 1.0*im)
+#% output
+#= 1.062608537087665 + 0.0im
+
+#% cell
+kelvin_ber(2.5, 1.0 + 1.0*im)
+#% output
+#= -0.05148506689258099 + 0.10619217919286231im
+
+#% text
+# 30 digits, with an exact argument (and an arbitrary-precision order and argument):
+
+#% cell
+n(kelvin_ber(2), 30)
+#% output
+#= 0.75173418271380822855099890123074657596
+
+#% cell
+kelvin_ber(2, n(3, 30))
+#% output
+#= 0.80836846563726819090985894560215623734
+
+#% text
+# Lists of arguments, and large arguments:
+
+#% cell
+kelvin_ber(2, [1.0, 2.0])
+#% output
+#= [0.010411241723107732, 0.16527943067022768]
+
+#% cell
+[kelvin_ber(30.0), kelvin_ber(100.0)]
+#% output
+#= [-46117602.57798512, 7.368706878094927e28]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The series `ber(x)` as the sum of `(-1)^k*(x/2)^(4k)/(2k)!^2`:
+
+#% cell
+kelvin_ber(3.0) - sum((-1)^k*(3.0/2)^(4*k)/factorial(2*k)^2, [k, 0, 30])
+#% output
+#= -4.718447854656915e-16
+
+#% text
+# The definition:
+
+#% cell
+kelvin_ber(1.5) - re(bessel_j(0, 1.5*exp(3*pi*im/4)))
+#% output
+#= 0.0
+
+#% cell
+kelvin_ber(2, 3.0) - re(bessel_j(2, 3.0*exp(3*pi*im/4)))
+#% output
+#= 0.0
+
+#% text
+# With `kelvin_bei`, the modulus of `bessel_j(0, x*exp(3*pi*im/4))` squared:
+
+#% cell
+kelvin_ber(1.0)^2 + kelvin_bei(1.0)^2 - abs(bessel_j(0, 1.0*exp(3*pi*im/4)))^2
+#% output
+#= 1.1102230246251565e-16
+
+#% subsection
+# Possible issues
+
+#% text
+# At exact zero only the order 0 is evaluated; an inexact zero gives the value:
+
+#% cell
+kelvin_ber(2, 0)
+#% output
+#= 0
+
+#% cell
+kelvin_ber(2, 0.0)
+#% output
+#= 0.0
+
+#% text
+# The derivative is not given in closed form:
+
+#% cell
+d(kelvin_ber(x), x)
+#% output
+#= (1/2)*(kelvin_bei(1, x) + kelvin_ber(1, x))*2^(1/2)
+
+#% text
+# A machine argument beyond 1100 overflows: the value is an infinity with the sign of the cosine in the asymptotic phase:
+
+#% cell
+kelvin_ber(1e5)
+#% output
+#= inf
+
+#% section
+# See also
+
+#% text
+# `kelvin_bei`, `kelvin_ker`, `kelvin_kei`, `bessel_j`

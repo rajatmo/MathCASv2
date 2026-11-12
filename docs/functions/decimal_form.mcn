@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# decimal_form
+
+#% text
+# `decimal_form(x)` shows the number `x` as a plain decimal, never in scientific notation; `decimal_form(x, n)` with `n` significant digits.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `decimal_form` stays around the value as a display wrapper. The wrapper stays around the value: it is a display directive and changes no computation.
+
+#% item
+# It reaches into lists and expressions: every machine real inside is shown in decimal form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+decimal_form(1.5e-8)
+#% output
+#= decimal_form(1.5e-8)
+
+#% cell
+decimal_form(123456789.0)
+#% output
+#= decimal_form(123456789.0)
+
+#% cell
+decimal_form([0.5, 2.0e10])
+#% output
+#= decimal_form([0.5, 20000000000.0])
+
+#% section
+# See also
+
+#% text
+# `number_form`, `scientific_form`, `engineering_form`

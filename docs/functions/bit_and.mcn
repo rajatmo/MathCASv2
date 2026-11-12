@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# bit_and
+
+#% text
+# `bit_and(n1, n2, ...)` gives the bitwise and of the integers.
+
+#% section
+# Details
+
+#% item
+# Negative integers are taken in two's complement with infinitely many leading ones, so `bit_and(-1, n)` is `n`.
+
+#% item
+# `bit_and()` is -1. `bit_and` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bit_and(12, 10)
+#% output
+#= 8
+
+#% cell
+bit_and(255, 1000, 63)
+#% output
+#= 40
+
+#% cell
+bit_and(-1, 12345)
+#% output
+#= 12345
+
+#% cell
+bit_and(-8, 31)
+#% output
+#= 24
+
+#% subsection
+# Applications
+
+#% text
+# The low four bits of a number:
+
+#% cell
+bit_and(2026, 15)
+#% output
+#= 10
+
+#% subsection
+# Properties and relations
+
+#% text
+# The bits of the result:
+
+#% cell
+[integer_digits(12, 2, 4), integer_digits(10, 2, 4), integer_digits(bit_and(12, 10), 2, 4)]
+#% output
+#= [[1, 1, 0, 0], [1, 0, 1, 0], [1, 0, 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `bit_or`, `bit_xor`, `bit_not`, `integer_digits`

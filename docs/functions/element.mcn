@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# element
+
+#% text
+# `element(x, domain)` states that `x` lies in the domain, such as `integers` or `positive_reals`.
+
+#% text
+# `element([x, y, ...], domain)` states it for each of the variables.
+
+#% section
+# Details
+
+#% item
+# With numbers the statement is decided at once and gives `true` or `false`. With symbols it stays as a fact, to be passed to `assuming` or given to `refine`.
+
+#% item
+# The domains are `integers`, `rationals`, `reals`, `complexes` and their parts `positive_integers`, `negative_integers`, `nonnegative_integers`, `nonpositive_integers`, `positive_rationals`, `negative_rationals`, `positive_reals`, `negative_reals`, `nonnegative_reals` and `nonpositive_reals`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(3, integers)
+#% output
+#= true
+
+#% cell
+element(1/2, integers)
+#% output
+#= false
+
+#% cell
+element(sqrt(2), rationals)
+#% output
+#= false
+
+#% cell
+element(x, reals)
+#% output
+#= element(x, reals)
+
+#% subsection
+# Scope
+
+#% text
+# Several variables at once:
+
+#% cell
+assuming(element([x, y], positive_reals), simplify(sqrt(x^2*y^2)))
+#% output
+#= x*y
+
+#% text
+# An integer parameter in trigonometric values:
+
+#% cell
+assuming(element(n, integers), refine(cos(2*pi*n)))
+#% output
+#= 1
+
+#% text
+# A fact given to `refine` directly:
+
+#% cell
+refine(sqrt(x^2), element(x, nonnegative_reals))
+#% output
+#= x
+
+#% subsection
+# Applications
+
+#% text
+# The sign of an odd power of a negative integer:
+
+#% cell
+assuming(element(k, negative_integers), is_negative(k^5))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A domain fact and the corresponding inequality act the same way:
+
+#% cell
+[assuming(element(x, positive_reals), simplify(sqrt(x^2))), assuming(x > 0, simplify(sqrt(x^2)))]
+#% output
+#= [x, x]
+
+#% section
+# See also
+
+#% text
+# `assuming`, `refine`, `integers`, `reals`, `positive_reals`

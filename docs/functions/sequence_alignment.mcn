@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# sequence_alignment
+
+#% text
+# `sequence_alignment(a, b)` aligns the strings (or lists) `a` and `b` globally and gives the runs they share, with a pair `[piece of a, piece of b]` where they differ (a gap is an empty piece; adjacent differences are merged). A match scores 1, a mismatch and each element of a gap -1 (the Needleman-Wunsch algorithm); among alignments with the best score, gaps come as early as possible.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sequence_alignment("abcXabcXabc", "abcYabcYabc")
+#% output
+#= ["abc", ["X", "Y"], "abc", ["X", "Y"], "abc"]
+
+#% cell
+sequence_alignment("ac", "abcd")
+#% output
+#= ["a", ["", "b"], "c", ["", "d"]]
+
+#% cell
+sequence_alignment("One fish two fish", "One fish two fish red fish blue fish")
+#% output
+#= ["One fish two", ["", " fish red fish blue"], " fish"]
+
+#% cell
+sequence_alignment([1, 2, 3, 4], [1, 3, 4, 5])
+#% output
+#= [[1], [[2], []], [3, 4], [[], [5]]]
+
+#% section
+# See also
+
+#% text
+# `hamming_distance`, `sequence_cases`, `nearest`

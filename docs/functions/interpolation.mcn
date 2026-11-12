@@ -1,0 +1,196 @@
+#! mathcas 2 notebook
+
+#% title
+# interpolation
+
+#% text
+# `interpolation([[x1, y1], [x2, y2], ...])` gives a function through the points, a cubic spline.
+
+#% text
+# `interpolation([y1, y2, ...])` takes the values at x = 1, 2, ....
+
+#% section
+# Details
+
+#% item
+# The result is a function: call it as `f(x)` with a real number, or with a list of numbers.
+
+#% item
+# Its derivatives are interpolating functions too: `f'(x)`, `f''(x)`, `d(f(x), x)`.
+
+#% item
+# The default spline is cubic with not-a-knot ends; it reproduces a cubic polynomial exactly.
+
+#% item
+# The points may come in any order; they are sorted by x. Two points with the same x are an error.
+
+#% item
+# At least two points are needed, and every coordinate must be a number.
+
+#% item
+# Options:
+
+#% subitem
+# `method: linear` joins the points by straight segments; `method: cubic` is the default.
+
+#% subitem
+# `interpolation_order: k` uses, near each x, the polynomial of degree k through the k + 1 nearest points (for k = 3 the cubic through two points on each side); it is continuous but its derivative jumps at the points. `interpolation_order: 1` is `method: linear`.
+
+#% item
+# Outside the range of the data, the value is `failure(out_of_range, x, [x_min, x_max])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A spline through four points of y = x^2:
+
+#% cell
+f = interpolation([[0, 0], [1, 1], [2, 4], [3, 9]]); f(1.5)
+#% output
+#= 2.25
+
+#% text
+# Values at the points x = 1, 2, 3, ...:
+
+#% cell
+g = interpolation([1, 4, 9, 16, 25]); g(2.5)
+#% output
+#= 6.25
+
+#% text
+# A list of arguments gives a list of values:
+
+#% cell
+f([0.5, 1.5, 2.5])
+#% output
+#= [0.25, 2.25, 6.25]
+
+#% subsection
+# Scope
+
+#% text
+# The points need not be sorted:
+
+#% cell
+interpolation([[2, 4], [0, 0], [1, 1]])(0.5)
+#% output
+#= 0.25
+
+#% text
+# A spline through a table of a function, compared with the function:
+
+#% cell
+tab = table([x, sin(x)], x, range(0, 3, 0.25)); s = interpolation(tab); s(1.1) - sin(1.1)
+#% output
+#= -8.541141582885103e-6
+
+#% text
+# The derivatives of the spline:
+
+#% cell
+[f'(1.5), f''(1.5), d(f(x), x) /. x -> 0.5]
+#% output
+#= [3.0, 2.0, 1.0]
+
+#% cell
+s'(1.1) - cos(1.1)
+#% output
+#= -5.3548600041419814e-5
+
+#% text
+# The interpolated function can be plotted, integrated and solved like any other:
+
+#% cell
+plot(s(x), [x, 0, 3])
+#% output
+#= image("interpolation.files/interpolation-8.svgz")
+
+#% cell
+n_integrate(s(x), [x, 0, 3])
+#% output
+#= 1.9899906434676486
+
+#% cell
+find_root(s(x) == 0.5, [x, 0.5])
+#% output
+#= [x -> 0.523598802267984]
+
+#% subsection
+# Options
+
+#% text
+# Straight segments between the points:
+
+#% cell
+h = interpolation([[0, 0], [1, 1], [2, 4], [3, 9]], method: linear); h(1.5)
+#% output
+#= 2.5
+
+#% text
+# The local cubic through the four nearest points of a table:
+
+#% cell
+w = interpolation(table([x, sin(x)*exp(-x/7)], x, range(0.0, 25.0, 0.5)), interpolation_order: 3); [w(1.234), w'(1.234)]
+#% output
+#= [0.7900668714466161, 0.16341801886913399]
+
+#% text
+# The local quadratic through three points:
+
+#% cell
+interpolation([[0, 1], [1, 2], [2, 5], [3, 10]], interpolation_order: 2)(2.5)
+#% output
+#= 7.25
+
+#% subsection
+# Applications
+
+#% text
+# Tabulate an expensive function once, then evaluate the table instead; here an integral that depends on a parameter:
+
+#% cell
+jtab = table([a, n_integrate(exp(-a*y^2), [y, 0, 1])], a, range(0, 4, 0.5)); J = interpolation(jtab); J(1.7)
+#% output
+#= 0.6353842101878224
+
+#% cell
+J(1.7) - n_integrate(exp(-1.7*y^2), [y, 0, 1])
+#% output
+#= -6.480214330584211e-6
+
+#% subsection
+# Possible issues
+
+#% text
+# Outside the range of the data the value is a failure:
+
+#% cell
+f(5)
+#% output
+#! failure(out_of_range, 5, [0.0, 3.0])
+
+#% text
+# The derivative of a local interpolation jumps at the points; at a point it is the derivative of the piece to the right:
+
+#% cell
+q = interpolation([[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]], interpolation_order: 1); [q'(0.5), q'(1), q'(1.5)]
+#% output
+#= [1.0, -1.0, -1.0]
+
+#% text
+# Two values at the same x:
+
+#% cell
+interpolation([[0, 0], [0, 1], [1, 2]])
+#% output
+#! failure(argument, interpolation, 1)
+
+#% section
+# See also
+
+#% text
+# `table`, `n_dsolve`, `interpolating_function`, `list_plot`, `n_integrate`, `put`

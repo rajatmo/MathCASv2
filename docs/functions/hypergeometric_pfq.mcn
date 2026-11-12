@@ -1,0 +1,87 @@
+#! mathcas 2 notebook
+
+#% title
+# hypergeometric_pfq
+
+#% text
+# `hypergeometric_pfq([a1, ..., ap], [b1, ..., bq], z)` gives the generalized hypergeometric function `pFq(a1, ..., ap; b1, ..., bq; z)`.
+
+#% section
+# Details
+
+#% item
+# The series is the sum of `(a1)_k*...*(ap)_k/((b1)_k*...*(bq)_k)*z^k/k!` (DLMF 16.2.1). It converges everywhere for `p <= q`, in the unit disc for `p = q + 1`, and only as an asymptotic series for `p > q + 1` unless it terminates.
+
+#% item
+# The functions `hypergeometric_0f1`, `hypergeometric_1f1` and `hypergeometric_2f1` are the cases with few parameters.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hypergeometric_pfq([1, 1], [2], 0.5)
+#% output
+#= 1.3862943611198906
+
+#% cell
+hypergeometric_pfq([1, 2, 3], [4, 5], 0.5)
+#% output
+#= 1.189874754256423
+
+#% cell
+hypergeometric_pfq([], [], 1.0)
+#% output
+#= 2.718281828459045
+
+#% subsection
+# Scope
+
+#% text
+# With two parameter lists of length 2 and 1 the function is the Gauss function:
+
+#% cell
+hypergeometric_pfq([-2, 1], [3], z)
+#% output
+#= 1 - (2/3)*z + (1/6)*z^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# `0F0` is the exponential:
+
+#% cell
+hypergeometric_pfq([], [], 2.0) - exp(2.0)
+#% output
+#= 0.0
+
+#% text
+# The 2F1 case:
+
+#% cell
+hypergeometric_pfq([0.5, 1.0], [2.0], 0.3) - hypergeometric_2f1(0.5, 1.0, 2.0, 0.3)
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# A 3F2 at `z = 1`, where the series converges since the parameter excess is positive, is not evaluated:
+
+#% cell
+hypergeometric_pfq([1, 1, 1], [2, 2], 1.0)
+#% output
+#= hypergeometric_pfq([1, 1, 1], [2, 2], 1.0)
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_pfq_regularized`, `hypergeometric_2f1`, `hypergeometric_1f1`, `hypergeometric_0f1`

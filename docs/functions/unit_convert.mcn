@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# unit_convert
+
+#% text
+# `unit_convert(q, unit)` gives the quantity `q` in another unit of the same dimension.
+
+#% text
+# `unit_convert(q)` gives `q` in SI base units.
+
+#% section
+# Details
+
+#% item
+# Conversion factors are exact, so exact magnitudes stay exact.
+
+#% item
+# Temperatures in kelvins, degrees Celsius and Fahrenheit convert with their offsets.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unit_convert(quantity(1, "Miles"), "Kilometers")
+#% output
+#= quantity(25146/15625, "Kilometers")
+
+#% cell
+unit_convert(quantity(100, "Kilometers"/"Hours"), "Meters"/"Seconds")
+#% output
+#= quantity(250/9, "Meters"/"Seconds")
+
+#% subsection
+# Scope
+
+#% cell
+unit_convert(quantity(30, "DegreesCelsius"), "DegreesFahrenheit")
+#% output
+#= quantity(86, "DegreesFahrenheit")
+
+#% cell
+unit_convert(quantity(1, "Newtons"))
+#% output
+#= quantity(1, "Kilograms"*"Meters"/"Seconds"^2)
+
+#% section
+# See also
+
+#% text
+# `quantity`, `quantity_magnitude`

@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# replace_list
+
+#% text
+# `replace_list(e, rules)` gives the list of the results of every way a rule matches the whole of `e`; `replace_list(e, rules, n)` at most `n` of them.
+
+#% section
+# Details
+
+#% item
+# The rules are tried in order and each rule's matches in the matcher's enumeration order (sequence variables shortest first).
+
+#% item
+# `replace_list(rules)(e)` is the operator form.
+
+#% item
+# Under an associative-commutative head a single pattern takes one argument, so `x_ + y_` does not match `a + b + c`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+replace_list([a, b, c], [x__, y__] -> [x, y])
+#% output
+#= [[[a], [b, c]], [[a, b], [c]]]
+
+#% cell
+replace_list([a, b, b, b, c, c, a], [___, x_, x_, ___] -> x)
+#% output
+#= [b, b, c]
+
+#% cell
+replace_list(x, [x -> a, x -> b, x -> c])
+#% output
+#= [a, b, c]
+
+#% section
+# See also
+
+#% text
+# `replace`, `rewrite`, `match_q`, `cases`

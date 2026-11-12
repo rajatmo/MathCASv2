@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# group_orbit
+
+#% text
+# `group_orbit(G, x)`: the orbit of the point x, sorted
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_orbit(permutation_group([cycles([[1, 2], [4, 5]]), cycles([[2, 3]])]), 1)
+#% output
+#= [1, 2, 3]
+
+#% cell
+group_orbit(dihedral_group(6), 4)
+#% output
+#= [1, 2, 3, 4, 5, 6]
+
+#% section
+# See also
+
+#% text
+# `group_orbits`, `group_stabilizer`

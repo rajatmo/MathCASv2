@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# image_size_multipliers
+
+#% text
+# `image_size_multipliers`: style option: image_size_multipliers: [a, b], the scale of pictures inside text (accepted)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+style([graphics(disk())], image_size_multipliers: [0.4, 0.2])
+#% output
+#= style([graphics(disk())], image_size_multipliers: [0.4, 0.2])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

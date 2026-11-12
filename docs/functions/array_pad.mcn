@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# array_pad
+
+#% text
+# `array_pad(a, m)` adds `m` zeros on every side of every level of the array `a`; `array_pad(a, m, pad)` adds `pad` or copies of `a` chosen by a named rule.
+
+#% section
+# Details
+
+#% item
+# `m = [l, r]` adds `l` entries before and `r` after; `m = [[l1, r1], [l2, r2], ...]` gives the counts of each level.
+
+#% item
+# A negative count removes entries from that side.
+
+#% item
+# The rules `"Fixed"`, `"Periodic"`, `"Reversed"` and `"Reflected"` take the new entries from the array itself: the nearest edge entry, the cyclic repetition, the cyclic repetition with every other copy reversed, and the mirror image that does not repeat the edge entry.
+
+#% item
+# `array_pad` is defined in the prelude.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+array_pad([1, 2, 3], 1)
+#% output
+#= [0, 1, 2, 3, 0]
+
+#% cell
+array_pad([1, 2, 3], [2, 4])
+#% output
+#= [0, 0, 1, 2, 3, 0, 0, 0, 0]
+
+#% cell
+array_pad([1, 2, 3], 2, x)
+#% output
+#= [x, x, 1, 2, 3, x, x]
+
+#% cell
+array_pad([[1, 2], [3, 4]], 1)
+#% output
+#= [[0, 0, 0, 0], [0, 1, 2, 0], [0, 3, 4, 0], [0, 0, 0, 0]]
+
+#% cell
+array_pad(range(10), -2)
+#% output
+#= [3, 4, 5, 6, 7, 8]
+
+#% text
+# The edge rules:
+
+#% cell
+array_pad([a, b, c], 4, "Periodic")
+#% output
+#= [c, a, b, c, a, b, c, a, b, c, a]
+
+#% cell
+array_pad([1, 2, 3], 2, "Fixed")
+#% output
+#= [1, 1, 1, 2, 3, 3, 3]
+
+#% cell
+array_pad([a, b, c], 4, "Reversed")
+#% output
+#= [c, c, b, a, a, b, c, c, b, a, a]
+
+#% cell
+array_pad([a, b, c], 4, "Reflected")
+#% output
+#= [a, b, c, b, a, b, c, b, a, b, c]
+
+#% section
+# See also
+
+#% text
+# `array_reshape`, `pad_left`, `pad_right`, `center_array`

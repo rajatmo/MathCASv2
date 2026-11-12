@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# line_thickness
+
+#% text
+# `line_thickness` is an option of `plot` and the list plots: `line_thickness: [w1, w2, ...]` gives the width of each curve in points, cycled.
+
+#% section
+# Details
+
+#% item
+# The default width is 2 points.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], line_thickness: [1, 4])
+#% output
+#= image("line_thickness.files/line_thickness-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], line_thickness: [6])
+#% output
+#= image("line_thickness.files/line_thickness-2.svgz")
+
+#% cell
+list_line_plot([[1, 3, 2, 4], [4, 2, 3, 1]], line_thickness: [0.5, 3])
+#% output
+#= image("line_thickness.files/line_thickness-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `line_style`, `plot_style`, `thick`, `thickness`

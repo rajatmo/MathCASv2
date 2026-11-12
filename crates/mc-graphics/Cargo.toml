@@ -1,0 +1,28 @@
+[package]
+name = "mc-graphics"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 graphics: the graphics model (read from the graphics term through the store contract), colours, themes, the PNG, SVG and vector PDF renderers and the 3D viewer; no evaluator"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+# labels: printed expressions typeset as boxes, laid out with the math font's metrics
+mc-boxes = { path = "../mc-boxes" }
+mc-syntax = { path = "../mc-syntax" }
+# glyph outlines for every renderer (STIX Two Math, SIL Open Font License)
+mc-mathfont = { path = "../mc-mathfont" }
+# rasterising paths; PNG encoding
+tiny-skia = "0.11"
+# Flate compression of PDF streams
+miniz_oxide = "0.8"
+
+[dev-dependencies]
+# a unit test reads numbers on the real store
+mc-core = { path = "../mc-core" }
+mc-engine = { path = "../mc-engine" }
+# the SVG renderer checked by rendering its output with an independent SVG rasteriser
+resvg = { version = "0.49", default-features = false, features = ["raster-images"] }

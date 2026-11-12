@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# date_list_plot
+
+#% text
+# `date_list_plot([[date, v], ...])` draws values against dates, the axis labelled with years, months or days.
+
+#% section
+# Details
+
+#% item
+# Dates are `[y, m, d]` lists (also with hours, minutes, seconds) or strings such as `"August 15, 2006"`.
+
+#% item
+# `date_list_plot(values, start)` places the values at successive days; `[date1, date2]` spreads them; `[date, automatic, "Month"]` steps them by months (also `"Week"`, `"Year"`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+date_list_plot([[[2010, 1, 4], 130.5], [[2010, 2, 5], 129], [[2010, 3, 6], 128.1], [[2010, 5, 1], 135]])
+#% output
+#= image("date_list_plot.files/date_list_plot-1.svgz")
+
+#% cell
+date_list_plot(sin(range(100) / (2 * pi)), "August 15, 2006")
+#% output
+#= image("date_list_plot.files/date_list_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `date_list_log_plot`

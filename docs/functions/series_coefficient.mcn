@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# series_coefficient
+
+#% text
+# `series_coefficient(s, k)` gives the coefficient of order k of the series s; `series_coefficient(s, [k1, k2, ...])` of a series in several variables.
+
+#% text
+# `series_coefficient(f, [x, x0, k])` gives the coefficient of (x - x0)^k in the expansion of f; further specifications take coefficients in further variables.
+
+#% section
+# Details
+
+#% item
+# With a symbolic k the general coefficient is given for sums of terms c x^m h(x) with h one of exp, sin, cos, sinh, cosh of a linear function and a power of a linear function; it holds for the integers k >= m.
+
+#% item
+# Orders below the first term give 0, orders beyond the truncation of the series `indeterminate`.
+
+#% item
+# The order k must be an exact integer.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+series_coefficient(series(exp(sin(x)), x, 0, 10), 8)
+#% output
+#= 31/5760
+
+#% cell
+series_coefficient(1/(1 - t - t^2), [t, 0, 10])
+#% output
+#= 89
+
+#% cell
+series_coefficient(exp(x + y), [x, 0, 3], [y, 0, 3])
+#% output
+#= 1/36
+
+#% cell
+series_coefficient(sin(x), [x, pi, 3])
+#% output
+#= 1/6
+
+#% section
+# See also
+
+#% text
+# `series`, `coefficient`, `normal`

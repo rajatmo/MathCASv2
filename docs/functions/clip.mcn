@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# clip
+
+#% text
+# `clip(x)` gives `x` limited to `[-1, 1]`.
+
+#% text
+# `clip(x, [lo, hi])` gives `x` limited to `[lo, hi]`.
+
+#% text
+# `clip(x, [lo, hi], [vlo, vhi])` gives `vlo` for `x < lo` and `vhi` for `x > hi`.
+
+#% section
+# Details
+
+#% item
+# `x` must be a real number or a closed numeric expression; symbols stay unevaluated.
+
+#% item
+# `clip` is listable in its first argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+clip(0.5)
+#% output
+#= 0.5
+
+#% cell
+clip(3)
+#% output
+#= 1
+
+#% cell
+clip(7, [0, 5])
+#% output
+#= 5
+
+#% cell
+clip(-2, [0, 5], [-1, 99])
+#% output
+#= -1
+
+#% subsection
+# Scope
+
+#% text
+# Each element of a list:
+
+#% cell
+clip([-3, -1, 0, 2, 4], [-2, 2])
+#% output
+#= [-2, -1, 0, 2, 2]
+
+#% text
+# A symbol stays:
+
+#% cell
+clip(x)
+#% output
+#= clip(x)
+
+#% subsection
+# Applications
+
+#% text
+# A saturated signal:
+
+#% cell
+plot(clip(2*sin(x)), [x, 0, 2*pi])
+#% output
+#= image("clip.files/clip-7.svgz")
+
+#% section
+# See also
+
+#% text
+# `rescale`, `min`, `max`, `unit_step`

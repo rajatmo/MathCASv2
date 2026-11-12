@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# adjacency_matrix
+
+#% text
+# `adjacency_matrix(g)` is the matrix whose (i, j) entry counts the edges from vertex i to vertex j.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+adjacency_matrix(graph([1 -> 2, 2 -> 3, 3 -> 1]))
+#% output
+#= [[0, 1, 0], [0, 0, 1], [1, 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

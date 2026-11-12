@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# subresultants
+
+#% text
+# `subresultants(p, q, x)` gives the principal subresultant coefficients `[psc0, psc1, ..., psck]` of the polynomials `p` and `q` in `x`, where `k` is the smaller of their degrees.
+
+#% text
+# `subresultants(p, q, x, modulus: n)` computes them modulo the prime `n`.
+
+#% section
+# Details
+
+#% item
+# `pscj` is the coefficient of `x^j` in the j-th subresultant polynomial (see `subresultant_polynomials`); `psc0` is the resultant.
+
+#% item
+# The degree of the greatest common divisor of `p` and `q` is the smallest `j` with `pscj` nonzero; with `q = d(p, x)` this counts the distinct roots of `p`, as cylindrical decomposition uses it.
+
+#% item
+# The chain is computed with Lazard's and Ducos's optimisations of the subresultant algorithm, with exact divisions only, so the coefficients may contain parameters.
+
+#% item
+# Polynomials with inexact numbers leave the call unevaluated.
+
+#% item
+# When the degree of `p` is smaller than that of `q`, the coefficients are those of `subresultants(q, p, x)` with the sign `(-1)^((deg p - j)(deg q - j))` on `pscj`, the symmetry of the subresultants; `subresultant_polynomials` and `subresultant_polynomial_remainders` need the degree of `p` at least that of `q`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subresultants(x^3 - 3*x + 1, x^2 + x - 2, x)
+#% output
+#= [1, 0, 1]
+
+#% subsection
+# Scope
+
+#% cell
+subresultants(x^4 + a*x^2 + b, 4*x^3 + 2*a*x, x)
+#% output
+#= [256*b^3 - 128*a^2*b^2 + 16*b*a^4, 8*a^3 - 32*a*b, 8*a, 4]
+
+#% cell
+subresultants((x - 1)^2*(x + 2), (x - 1)*(x + 3), x)
+#% output
+#= [0, 4, 1]
+
+#% cell
+subresultants(x^3 + 2*x + 1, x^2 + 1, x, modulus: 3)
+#% output
+#= [2, 1, 1]
+
+#% text
+# The smaller degree first:
+
+#% cell
+[subresultants(x + 1, x^3 + 2, x), subresultants(x^3 + 2, x + 1, x)]
+#% output
+#= [[1, 1], [-1, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The first coefficient is the resultant:
+
+#% cell
+[subresultants(x^3 + x + 7, 2*x^2 - 5, x)[1], resultant(x^3 + x + 7, 2*x^2 - 5, x)]
+#% output
+#= [147, 147]
+
+#% section
+# See also
+
+#% text
+# `subresultant_polynomials`, `subresultant_polynomial_remainders`, `resultant`, `discriminant`

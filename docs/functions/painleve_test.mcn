@@ -1,0 +1,71 @@
+#! mathcas 2 notebook
+
+#% title
+# painleve_test
+
+#% text
+# `painleve_test(eq, y, x)` applies the Painleve test to the ordinary differential equation `eq` for `y(x)`, polynomial in `y` and its derivatives: for each dominant balance at a movable singular point `x0` it gives the rules `leading_exponent -> p`, `leading_coefficient -> a` (for `y ~ a (x - x0)^p`), `resonances -> [...]`, `conditions -> [...]` (the compatibility conditions that are not satisfied, as expressions that must vanish) and `passes -> true` or `false`.
+
+#% section
+# Details
+
+#% item
+# The algorithm of Ablowitz, Ramani and Segur (1980): the leading exponents balance two or more terms; the resonances are the roots of the polynomial `Q(r)` of the dominant terms linearised at `a (x - x0)^p + b (x - x0)^(p + r)`, of which -1 is always one; at each positive integer resonance the coefficient of the Laurent series is arbitrary only if a compatibility condition holds.
+
+#% item
+# A branch passes when the leading exponent and all resonances are integers and every compatibility condition holds. The test is necessary for the Painleve property, not sufficient. `point: s` names the singular point (default `x0`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The first Painleve equation passes:
+
+#% cell
+painleve_test(y''(x) == 6*y(x)^2 + x, y, x)
+#% output
+#= [[leading_exponent -> -2, leading_coefficient -> 1, resonances -> [-1, 6], conditions -> [], passes -> true]]
+
+#% text
+# With `x^2` in place of `x` the condition at the resonance 6 fails, unless `a == 0`:
+
+#% cell
+painleve_test(y''(x) == 6*y(x)^2 + a*x^2, y, x)
+#% output
+#= [[leading_exponent -> -2, leading_coefficient -> 1, resonances -> [-1, 6], conditions -> [-a], passes -> false]]
+
+#% subsection
+# Scope
+
+#% text
+# The second Painleve equation, with its two branches:
+
+#% cell
+painleve_test(y''(x) == 2*y(x)^3 + x*y(x) + alpha, y, x)
+#% output
+#= [[leading_exponent -> -1, leading_coefficient -> -1, resonances -> [-1, 4], conditions -> [], passes -> true], [leading_exponent -> -1, leading_coefficient -> 1, resonances -> [-1, 4], conditions -> [], passes -> true]]
+
+#% text
+# A non-integer leading exponent (an algebraic branch point):
+
+#% cell
+painleve_test(y''(x) == y(x)^4, y, x)[1]
+#% output
+#= [leading_exponent -> -2/3, leading_coefficient -> (1/3)*30^(1/3), resonances -> [-1, 10/3], conditions -> [], passes -> false]
+
+#% text
+# The Chazy equation, with the resonances -1, -2, -3:
+
+#% cell
+painleve_test(y'''(x) == 2*y(x)*y''(x) - 3*y'(x)^2, y, x)
+#% output
+#= [[leading_exponent -> -1, leading_coefficient -> -6, resonances -> [-3, -2, -1], conditions -> [], passes -> true]]
+
+#% section
+# See also
+
+#% text
+# `lie_point_symmetries`, `d_solve`, `series`

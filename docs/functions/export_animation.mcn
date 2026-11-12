@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# export_animation
+
+#% text
+# `export_animation("file.gif", [g1, g2, ...])` writes the graphics (or plots) as the frames of an animated GIF that loops, and gives the path.
+
+#% section
+# Details
+
+#% item
+# Option `frame_rate: n` sets the frames per second (default 10).
+
+#% item
+# `export_data("file.gif", [g1, g2, ...])` writes the same animation at 10 frames a second.
+
+#% item
+# Frames of different sizes are drawn on a canvas of the largest, white around the smaller ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A growing circle:
+
+#% cell
+f = export_animation(string_join(temporary_directory(), "circle.gif"), table(graphics(circle([0, 0], r), plot_range: 3), r, [1, 2, 3])); string_ends(f, "circle.gif")
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Plots as frames:
+
+#% cell
+f = export_animation(string_join(temporary_directory(), "waves.gif"), table(plot(sin(x + t), [x, 0, 6], plot_range: [-1, 1]), t, range(0, 3, 0.5))); string_ends(f, "waves.gif")
+#% output
+#= true
+
+#% subsection
+# Options
+
+#% text
+# Two frames a second:
+
+#% cell
+string_ends(export_animation(string_join(temporary_directory(), "slow.gif"), [graphics(disk()), graphics(circle())], frame_rate: 2), ".gif")
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `export_data`, `graphics`, `plot`

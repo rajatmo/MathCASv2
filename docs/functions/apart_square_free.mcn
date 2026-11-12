@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# apart_square_free
+
+#% text
+# `apart_square_free(e, x)` writes the rational function e of x as a polynomial plus terms `a/d^j`, d running over the square-free factors of its denominator and deg a < deg d.
+
+#% text
+# `apart_square_free(e)` does this in the last variable of e.
+
+#% section
+# Details
+
+#% item
+# The denominator is not factored beyond its square-free factors (and the factors it is written with), unlike `apart`.
+
+#% item
+# Lists, equations, inequalities and logical combinations are handled element-wise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+apart_square_free((x^2 - 2)/(x^4 - 2*x^2 + 1))
+#% output
+#= -1/(-1 + x^2)^2 + (-1 + x^2)^-1
+
+#% cell
+apart((x^2 - 2)/(x^4 - 2*x^2 + 1))
+#% output
+#= -3/(4*(1 + x)) - 1/(4*(-1 + x)^2) - 1/(4*(1 + x)^2) + 3/(4*(-1 + x))
+
+#% cell
+apart_square_free(24*((x^2 - 1)/((x^4 - 2*x^2 + 1)*(x + 5))))
+#% output
+#= (5 - x)/(-1 + x^2) + (5 + x)^-1
+
+#% cell
+apart_square_free((x^2 + x*y + y^2)/(x^4 - 2*x^2*y^2 + y^4), x)
+#% output
+#= (2*y^2 + x*y)/(-y^2 + x^2)^2 + (-y^2 + x^2)^-1
+
+#% cell
+apart_square_free((x - 1)/(x*(x + 1)^2))
+#% output
+#= -1/x + 2/(1 + x)^2 + (1 + x)^-1
+
+#% section
+# See also
+
+#% text
+# `apart`, `partial_fractions`, `together`, `factor_square_free_list`

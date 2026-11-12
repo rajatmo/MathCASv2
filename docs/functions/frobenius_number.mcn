@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# frobenius_number
+
+#% text
+# `frobenius_number(coins)` gives the largest integer that cannot be written as a non-negative combination of the positive integers `coins` (`inf` when their gcd exceeds 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+frobenius_number([3, 5])
+#% output
+#= 7
+
+#% cell
+frobenius_number([6, 9, 20])
+#% output
+#= 43
+
+#% cell
+frobenius_number([4, 6])
+#% output
+#= inf
+
+#% section
+# See also
+
+#% text
+# `frobenius_solve`, `gcd`

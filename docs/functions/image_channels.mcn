@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# image_channels
+
+#% text
+# `image_channels(img)` gives the number of channels of the image `img`: 1 gray, 2 gray and alpha, 3 color, 4 color and alpha.
+
+#% section
+# Details
+
+#% item
+# Only the file's header is read.
+
+#% item
+# Palette images count as color (3), or color with alpha (4) when the palette has transparency.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+image_channels(image([[0.5]]))
+#% output
+#= 1
+
+#% cell
+image_channels(image([[[0.5, 1]]]))
+#% output
+#= 2
+
+#% cell
+image_channels(image([[[1, 0, 0, 0.5]]]))
+#% output
+#= 4
+
+#% subsection
+# Properties and relations
+
+#% text
+# The channel count is the last dimension of the pixel array:
+
+#% cell
+let img = image([[[1, 0, 0], [0, 1, 0]]])
+[image_channels(img), length(image_data(img)[1, 1])]
+#% output
+#= [3, 3]
+
+#% subsection
+# Possible issues
+
+#% text
+# A number is not an image:
+
+#% cell
+image_channels(7)
+#% output
+#! failure(argument, image_channels, 1)
+
+#% section
+# See also
+
+#% text
+# `image`, `image_data`, `image_dimensions`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# lighting
+
+#% text
+# `lighting` is an option and a directive of 3D graphics that names the lights: a list of `ambient_light`, `directional_light`, `point_light` and `spot_light`, or `automatic`.
+
+#% section
+# Details
+
+#% item
+# The 3D renderer shades faces with its own fixed light; the option is accepted, so code written for other lighting runs, and is not used.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(sphere(), lighting: [ambient_light(gray), directional_light(white, [1, 1, 1])])
+#% output
+#= image("lighting.files/lighting-1.svgz")
+
+#% cell
+plot3d(sin(x + y), [x, 0, 3], [y, 0, 3], lighting: automatic)
+#% output
+#= image("lighting.files/lighting-2.svgz")
+
+#% cell
+graphics3d(sphere(), lighting: [point_light(red, [2, 0, 2])])
+#% output
+#= image("lighting.files/lighting-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics3d(sphere())
+#% output
+#= image("lighting.files/lighting-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `ambient_light`, `directional_light`, `point_light`, `spot_light`, `graphics3d`

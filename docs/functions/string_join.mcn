@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# string_join
+
+#% text
+# `string_join(s1, s2, ...)` gives the strings joined into one string.
+
+#% text
+# `string_join([s1, s2, ...])` joins the strings of a list.
+
+#% section
+# Details
+
+#% item
+# The arguments must be strings; convert other values with `to_string` first.
+
+#% item
+# No separator is inserted; `riffle` puts one between the parts of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_join("data", "_", "2026", ".csv")
+#% output
+#= "data_2026.csv"
+
+#% cell
+string_join(["a", "b", "c"])
+#% output
+#= "abc"
+
+#% cell
+string_join([])
+#% output
+#= ""
+
+#% subsection
+# Applications
+
+#% text
+# File names built from a base name, as the reheating script saves each plot twice:
+
+#% cell
+map(ext => string_join("energy_densities", ext), [".pdf", ".png"])
+#% output
+#= ["energy_densities.pdf", "energy_densities.png"]
+
+#% text
+# A comma-separated line from numbers:
+
+#% cell
+string_join(riffle(map(to_string, [1, 2.5, 3/4]), ", "))
+#% output
+#= "1, 2.5, 3/4"
+
+#% subsection
+# Properties and relations
+
+#% text
+# The length of a join is the sum of the lengths:
+
+#% cell
+string_length(string_join("abc", "de")) == string_length("abc") + string_length("de")
+#% output
+#= true
+
+#% text
+# `characters` and `string_join` undo each other:
+
+#% cell
+string_join(characters("round trip"))
+#% output
+#= "round trip"
+
+#% subsection
+# Possible issues
+
+#% text
+# Numbers must be converted first:
+
+#% cell
+string_join("n = ", 5)
+#% output
+#! failure(argument, string_join, 2)
+
+#% cell
+string_join("n = ", to_string(5))
+#% output
+#= "n = 5"
+
+#% section
+# See also
+
+#% text
+# `to_string`, `say`, `string_split`, `riffle`, `characters`

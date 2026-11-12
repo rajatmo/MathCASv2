@@ -1,0 +1,185 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_mellin_transform
+
+#% text
+# `inverse_mellin_transform(F, s, x)` gives the function whose Mellin transform is `F`.
+
+#% section
+# Details
+
+#% item
+# The Mellin-Barnes integral is closed to the left: the residues at the poles of a gamma factor `gamma(a s + c)` (`a > 0`) and of rational factors left of the strip are summed in closed form by `sum`.
+
+#% item
+# The strip is the fundamental one (right of those poles) unless `assumptions:` or a `conditional_expression` give another (`-1 < re(s) and re(s) < 0`).
+
+#% item
+# `c^s G(s)` gives `g(x/c)`; a table holds Bessel functions and the forms without a gamma factor (`pi csc(pi s)`, `gamma(s) zeta(s)`, polygamma functions).
+
+#% item
+# A rational `F` alone gives a function that vanishes for `x > 1`.
+
+#% item
+# `generate_conditions: true` gives the strip.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_mellin_transform(gamma(s), s, x)
+#% output
+#= exp(-x)
+
+#% cell
+inverse_mellin_transform(gamma(2*s), s, x)
+#% output
+#= (1/2)*exp(-x^(1/2))
+
+#% subsection
+# Scope
+
+#% text
+# Bessel functions:
+
+#% cell
+inverse_mellin_transform(2^(s - 1)*gamma(s/2)/gamma(1 - s/2), s, x)
+#% output
+#= bessel_j(0, x)
+
+#% cell
+inverse_mellin_transform(2^(s - 2)*gamma(s/2)^2, s, x)
+#% output
+#= bessel_k(0, x)
+
+#% text
+# A rational function:
+
+#% cell
+inverse_mellin_transform(1/(s + a), s, x)
+#% output
+#= heaviside_theta(1 - x)*x^a
+
+#% text
+# From the table:
+
+#% cell
+inverse_mellin_transform(pi*csc(pi*s), s, x)
+#% output
+#= (1 + x)^-1
+
+#% text
+# A power:
+
+#% cell
+inverse_mellin_transform(a^(s - 1), s, x)
+#% output
+#= dirac_delta(x - a)
+
+#% text
+# A shift and a ratio of gamma functions:
+
+#% cell
+inverse_mellin_transform(gamma(s + 1), s, x)
+#% output
+#= x*exp(-x)
+
+#% cell
+inverse_mellin_transform(gamma(s)/gamma(s + 2), s, x)
+#% output
+#= (1 - x)*heaviside_theta(1 - x)
+
+#% text
+# The beta-type kernel, and a rational function with two poles:
+
+#% cell
+inverse_mellin_transform(gamma(s)*gamma(1 - s), s, x)
+#% output
+#= (1 + x)^-1
+
+#% cell
+inverse_mellin_transform(1/(s*(s + 1)), s, x)
+#% output
+#= (1 - x)*heaviside_theta(1 - x)
+
+#% subsection
+# Options
+
+#% text
+# Another strip:
+
+#% cell
+inverse_mellin_transform(gamma(s), s, x, assumptions: -1 < re(s) and re(s) < 0)
+#% output
+#= -1 + exp(-x)
+
+#% cell
+inverse_mellin_transform(gamma(s), s, x, generate_conditions: true)
+#% output
+#= conditional_expression(exp(-x), re(s) > 0)
+
+#% subsection
+# Properties and relations
+
+#% text
+# A number for `x` gives the value there:
+
+#% cell
+inverse_mellin_transform(gamma(s), s, 2.0) - exp(-2.0)
+#% output
+#= 0.0
+
+#% text
+# The forward transform gives `F` back:
+
+#% cell
+mellin_transform(inverse_mellin_transform(gamma(s)*gamma(1 - s), s, x), x, s)
+#% output
+#= pi*csc(pi*s)
+
+#% subsection
+# Possible issues
+
+#% text
+# A product of gamma functions with a quotient `gamma(2 s)` gives a function with a step:
+
+#% cell
+inverse_mellin_transform(gamma(s)^2/gamma(2*s), s, x)
+#% output
+#= 2*heaviside_theta(1 - 4*x)/(1 - 4*x)^(1/2)
+
+#% text
+# The transform of `1/(1 + x^2)` comes back:
+
+#% cell
+inverse_mellin_transform(mellin_transform(1/(1 + x^2), x, s), s, x)
+#% output
+#= (1 + x^2)^-1
+
+#% text
+# An undefined function stays a call, and `working_precision:` is not an option (a number for `x` at the precision wanted gives the value at that precision):
+
+#% cell
+inverse_mellin_transform(F(s), s, x)
+#% output
+#= inverse_mellin_transform(F(s), s, x)
+
+#% cell
+inverse_mellin_transform(gamma(s), s, x, working_precision: 30)
+#% output
+#= inverse_mellin_transform(gamma(s), s, x, working_precision: 30)
+
+#% cell
+inverse_mellin_transform(gamma(s), s, n(2, 30))
+#% output
+#= 0.1353352832366126918939994949724844
+
+#% section
+# See also
+
+#% text
+# `mellin_transform`, `gamma`, `sum`

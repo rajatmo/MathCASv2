@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# centered_interval
+
+#% text
+# `centered_interval(c, r)` represents the interval of the numbers within `r` of `c`.
+
+#% section
+# Details
+
+#% item
+# Functions give f(c) with the radius r times the largest |f'| at c - r, c and c + r (an estimate, not a rigorous enclosure; balls give those).
+
+#% item
+# `centered_interval([[m, e, rm, re], p])` reads the centre m 2^e and the radius rm 2^re.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+centered_interval(2, 0.1)
+#% output
+#= centered_interval(2, 0.1)
+
+#% cell
+airy_ai(centered_interval(2, 0.1))
+#% output
+#= centered_interval(0.03527351107369801, 0.0053209089578315555)
+
+#% cell
+centered_interval(1, 1/10) + 2
+#% output
+#= centered_interval(3.0, 0.1000000000000055)
+
+#% section
+# See also
+
+#% text
+# `interval`, `around`

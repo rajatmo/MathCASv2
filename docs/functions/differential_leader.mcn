@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# differential_leader
+
+#% text
+# `differential_leader(p, u, x)` gives the leader of the differential polynomial `p` in the functions `u` (a name or a list) of `x` (a name or a list): the derivative of highest rank that occurs in `p`.
+
+#% section
+# Details
+
+#% item
+# The ranking is `ranking: orderly` (the default: derivatives of higher total order rank higher, then the earlier function of the list `u`, then the multi-index lexicographically) or `ranking: elimination` (every derivative of an earlier function ranks above every derivative of a later one).
+
+#% item
+# Differential polynomials are polynomials in the functions and their derivatives with coefficients rational in the independent variables. The result is `none` when `p` contains no derivative of the functions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differential_leader(derivative(1, 0)(u)(x, t)^2 - 4*u(x, t)*derivative(0, 1)(u)(x, t), u, [x, t])
+#% output
+#= derivative(1, 0)(u)(x, t)
+
+#% text
+# Orderly and elimination rankings:
+
+#% cell
+differential_leader(y'(x) + z''(x)*y(x), [y, z], x)
+#% output
+#= z''(x)
+
+#% cell
+differential_leader(y'(x) + z(x)*y(x), [y, z], x, ranking: elimination)
+#% output
+#= y'(x)
+
+#% section
+# See also
+
+#% text
+# `differential_initial`, `differential_separant`, `differential_reduce`, `rosenfeld_groebner`

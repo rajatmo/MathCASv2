@@ -1,0 +1,136 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse
+
+#% text
+# `inverse(m)` gives the inverse of the square matrix `m`.
+
+#% section
+# Details
+
+#% item
+# The inverse is the matrix `w` with `dot(m, w)` equal to the identity matrix.
+
+#% item
+# The entries may be exact numbers, symbolic expressions, machine numbers or balls.
+
+#% item
+# A singular matrix gives `failure(singular, inverse)`; a matrix that is not square gives `failure(not_square, inverse)`.
+
+#% item
+# To solve `dot(m, x) == b`, `linear_solve(m, b)` is faster and more accurate than forming the inverse.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse([[1, 2], [3, 4]])
+#% output
+#= [[-2, 1], [3/2, -1/2]]
+
+#% text
+# A diagonal matrix:
+
+#% cell
+inverse([[2, 0, 0], [0, 4, 0], [0, 0, 5]])
+#% output
+#= [[1/2, 0, 0], [0, 1/4, 0], [0, 0, 1/5]]
+
+#% text
+# A symbolic matrix:
+
+#% cell
+inverse([[x, 1], [1, x]])
+#% output
+#= [[x/(-1 + x^2), -1/(-1 + x^2)], [-1/(-1 + x^2), x/(-1 + x^2)]]
+
+#% subsection
+# Scope
+
+#% text
+# Machine numbers:
+
+#% cell
+inverse([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [[-1.9999999999999998, 1.0], [1.4999999999999998, -0.49999999999999994]]
+
+#% text
+# Balls:
+
+#% cell
+inverse(n([[1, 2], [3, 4]], 20))
+#% output
+#= [[-2.00000000000000000000000, 1.0000000000000000000000], [1.50000000000000000000000, -0.500000000000000000000000]]
+
+#% text
+# Complex entries:
+
+#% cell
+inverse([[1, im], [0, 1]])
+#% output
+#= [[1, -im], [0, 1]]
+
+#% text
+# The 3 x 3 Hilbert matrix has an inverse with integer entries:
+
+#% cell
+inverse(table(1/(i + j - 1), i, 3, j, 3))
+#% output
+#= [[9, -36, 30], [-36, 192, -180], [30, -180, 180]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A matrix times its inverse is the identity:
+
+#% cell
+m = [[2, 1], [7, 3]]; dot(m, inverse(m))
+#% output
+#= [[1, 0], [0, 1]]
+
+#% text
+# The inverse of the inverse is the matrix:
+
+#% cell
+inverse(inverse(m)) == m
+#% output
+#= true
+
+#% text
+# `linear_solve` with the identity matrix gives the inverse:
+
+#% cell
+linear_solve(m, identity_matrix(2)) == inverse(m)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A singular matrix has no inverse:
+
+#% cell
+inverse([[1, 2], [2, 4]])
+#% output
+#! failure(singular, inverse)
+
+#% text
+# A nearly singular machine matrix has a huge inverse, which changes greatly with tiny changes of the entries:
+
+#% cell
+inverse([[1.0, 1.0], [1.0, 1.0 + 1e-15]])
+#% output
+#= [[900719925474100.3, -900719925474099.3], [-900719925474099.3, 900719925474099.3]]
+
+#% section
+# See also
+
+#% text
+# `linear_solve`, `det`, `dot`, `identity_matrix`, `lu`

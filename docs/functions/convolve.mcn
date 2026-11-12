@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# convolve
+
+#% text
+# `convolve(f, g, x, y)` gives the convolution of f and g: `integrate(f(x) g(y - x), [x, -inf, inf])` as a function of y.
+
+#% section
+# Details
+
+#% item
+# Piecewise polynomials with rational interval bounds convolve to a piecewise polynomial in y.
+
+#% item
+# The value is that of `integrate`, simplified; convergence conditions it reports are kept.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+convolve(dirac_delta(x), f(x), x, y)
+#% output
+#= f(y)
+
+#% cell
+convolve(exp(-a*x^2), 1, x, y)
+#% output
+#= conditional_expression(pi^(1/2)/a^(1/2), re(a) > 0)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `fourier_transform`

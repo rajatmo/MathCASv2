@@ -1,0 +1,77 @@
+#! mathcas 2 notebook
+
+#% title
+# map_indexed
+
+#% text
+# `map_indexed(f, xs)` gives `[f(x1, 1), f(x2, 2), ...]`: `f` applied to each element of `xs` and its position.
+
+#% section
+# Details
+
+#% item
+# `f` takes two arguments, the element first and the position second.
+
+#% item
+# Positions start at 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map_indexed(f, [a, b, c])
+#% output
+#= [f(a, 1), f(b, 2), f(c, 3)]
+
+#% cell
+map_indexed((x, i) => x*i, [10, 20, 30])
+#% output
+#= [10, 40, 90]
+
+#% subsection
+# Applications
+
+#% text
+# Numbered labels:
+
+#% cell
+map_indexed((s, i) => string_join([to_string(i), ". ", s]), ["mass", "charge", "spin"])
+#% output
+#= ["1. mass", "2. charge", "3. spin"]
+
+#% text
+# A polynomial from its coefficients, lowest power first:
+
+#% cell
+total(map_indexed((c, i) => c*x^(i - 1), [1, -2, 0, 4]))
+#% output
+#= 1 - 2*x + 4*x^3
+
+#% text
+# The pairs of a list's values with their positions, for `list_plot`:
+
+#% cell
+map_indexed((y, i) => [i, y], [0.5, 0.8, 0.6])
+#% output
+#= [[1, 0.5], [2, 0.8], [3, 0.6]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same with `map_thread` over the list and its positions:
+
+#% cell
+xs = [a, b, c]
+map_indexed(f, xs) === map_thread(f, [xs, range(length(xs))])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `map`, `map_thread`, `array`, `table`

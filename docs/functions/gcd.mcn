@@ -1,0 +1,154 @@
+#! mathcas 2 notebook
+
+#% title
+# gcd
+
+#% text
+# `gcd(a, b, ...)` gives the greatest common divisor of the exact numbers `a`, `b`, ....
+
+#% text
+# `gcd(p, q, ...)` gives the greatest common divisor of the polynomials `p`, `q`, ....
+
+#% section
+# Details
+
+#% item
+# The result for integers is never negative. `gcd()` is 0, and `gcd(0, n)` is the absolute value of `n`.
+
+#% item
+# For fractions, the gcd is the largest rational `g` such that each argument is an integer multiple of `g`.
+
+#% item
+# For polynomials, the integer content is included: `gcd(6*x, 4)` is 2.
+
+#% item
+# Machine reals and complex numbers give a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gcd(12, 18)
+#% output
+#= 6
+
+#% cell
+gcd(12, 18, 8)
+#% output
+#= 2
+
+#% text
+# Polynomials:
+
+#% cell
+gcd(x^2 - 1, x^2 + 2x + 1)
+#% output
+#= 1 + x
+
+#% subsection
+# Scope
+
+#% text
+# Signs and zeros:
+
+#% cell
+gcd(-12, 18)
+#% output
+#= 6
+
+#% cell
+gcd(0, 7)
+#% output
+#= 7
+
+#% cell
+gcd()
+#% output
+#= 0
+
+#% text
+# Fractions:
+
+#% cell
+gcd(2/3, 4/9)
+#% output
+#= 2/9
+
+#% text
+# Large integers:
+
+#% cell
+gcd(2^100, 6^50)
+#% output
+#= 1125899906842624
+
+#% text
+# Polynomials in several variables:
+
+#% cell
+gcd(x^2*y, x*y^2)
+#% output
+#= x*y
+
+#% subsection
+# Applications
+
+#% text
+# Reducing a fraction by hand:
+
+#% cell
+g = gcd(84, 126); [84/g, 126/g]
+#% output
+#= [2, 3]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The product of the gcd and the lcm is the product of the numbers:
+
+#% cell
+gcd(12, 18)*lcm(12, 18)
+#% output
+#= 216
+
+#% text
+# The gcd divides each number:
+
+#% cell
+mod([12, 18, 8], gcd(12, 18, 8))
+#% output
+#= [0, 0, 0]
+
+#% subsection
+# Possible issues
+
+#% text
+# Machine reals give a failure:
+
+#% cell
+gcd(2.0, 4)
+#% output
+#! failure(argument, gcd, "gcd takes exact numbers or polynomials")
+
+#% text
+# `gcd` does not map over a list; with a list argument the call stays unevaluated:
+
+#% cell
+gcd([12, 18], 8)
+#% output
+#= gcd([12, 18], 8)
+
+#% cell
+map(k => gcd(k, 8), [12, 18])
+#% output
+#= [4, 2]
+
+#% section
+# See also
+
+#% text
+# `lcm`, `mod`, `factor_integer`, `polynomial_lcm`, `polynomial_quotient`

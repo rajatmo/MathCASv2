@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# absolute_thickness
+
+#% text
+# `absolute_thickness(p)` is a graphics directive: lines that follow are p points wide.
+
+#% section
+# Details
+
+#% item
+# A point is 1/72 inch, and a pixel when the graphic is drawn at its natural size.
+
+#% item
+# Unlike `thickness`, the width does not change with the size of the graphic.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A hairline and a heavy line:
+
+#% cell
+graphics([absolute_thickness(0.5), line([[0, 0], [3, 0]]), absolute_thickness(6), line([[0, 1], [3, 1]])])
+#% output
+#= image("absolute_thickness.files/absolute_thickness-1.svgz")
+
+#% text
+# The edges of a polygon:
+
+#% cell
+graphics([face_form(none), edge_form([blue, absolute_thickness(3)]), polygon([[0, 0], [2, 0], [1, 2]])])
+#% output
+#= image("absolute_thickness.files/absolute_thickness-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `thickness`, `absolute_dashing`, `edge_form`

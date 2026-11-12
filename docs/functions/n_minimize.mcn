@@ -1,0 +1,246 @@
+#! mathcas 2 notebook
+
+#% title
+# n_minimize
+
+#% text
+# `n_minimize(f, vars)` gives the global minimum of `f` over the variables `vars` (the result is `[f_min, [x -> x_min, ...]]`).
+
+#% text
+# `n_minimize([f, cons...], vars)` subject to the constraints `cons`.
+
+#% section
+# Details
+
+#% item
+# The search is global: a quasi-random sample of a search box (from the bounds the constraints give, or 10 units around the start) seeds local searches from its best and most separated points.
+
+#% item
+# Constraints are equations and inequalities (`==`, `<=`, `>=`, `<`, `>`), combined with `and`, `or` and lists, and `element(x, dom)` for `integers`, `nonnegative_integers`, `reals`, `vectors(n, dom)` and the regions `disk`, `ball`, `rectangle`, `cuboid`, `triangle`, `polygon`, `circle` and `sphere` (with numbers or variables in them).
+
+#% item
+# When the objective and every constraint are affine, the problem is a linear program: it is solved by the simplex method and the vertex is solved again exactly from its active constraints, so the answer is correct to the last digit. Integer variables are handled by branch and bound.
+
+#% item
+# Other problems are solved by the augmented Lagrangian method with BFGS steps, followed by Newton's method on the first-order (KKT) conditions of the active constraints, so a constrained minimum is found to machine precision rather than to the square root of it.
+
+#% item
+# A variable that appears in `dot`, `total` or `indexed` is a vector; its length is found from the expressions.
+
+#% item
+# An infeasible problem gives `inf` and `indeterminate` values with a message; an unbounded one `-inf`. A message also says when the first-order conditions could not be verified (a nonsmooth objective, for example).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The global minimum of a quartic with two local minima:
+
+#% cell
+n_minimize(x^4 - 3x^2 - x, x)
+#% output
+#= [-3.5139050389347886, [x -> 1.300839565941577]]
+
+#% text
+# A minimum on a disk, met exactly:
+
+#% cell
+n_minimize(x + y, element([x, y], disk()))
+#% output
+#= [-1.414213562373095, [x -> -0.7071067811865475, y -> -0.7071067811865475]]
+
+#% subsection
+# Scope
+
+#% text
+# A linear program:
+
+#% cell
+n_minimize([x + y, x + 2y >= 3, x >= -1], [x, y])
+#% output
+#= [1.0, [x -> -1.0, y -> 2.0]]
+
+#% text
+# Integer variables:
+
+#% cell
+n_minimize([x + y, x + 2y >= 3, x >= -2], [element(x, integers), element(y, integers)])
+#% output
+#= [1.0, [x -> -2, y -> 3]]
+
+#% text
+# A vector variable:
+
+#% cell
+n_minimize([dot([1, 1], v), vector_greater_equal([dot([[1, 2], [1, 0]], v), [3, -1]])], v)
+#% output
+#= [1.0, [v -> [-1.0, 2.0]]]
+
+#% text
+# Either of two disks:
+
+#% cell
+n_minimize([x + y, x^2 + y^2 <= 1 or (x + 2)^2 + (y + 2)^2 <= 1], [x, y])
+#% output
+#= [-5.414213562373095, [x -> -2.7071067811865475, y -> -2.7071067811865475]]
+
+#% text
+# An equality and inequalities together:
+
+#% cell
+n_minimize([x + 2y, x^2 + 2y^2 <= 3, x + y == 2, x >= 1], [x, y])
+#% output
+#= [2.333333333333333, [x -> 1.6666666666666667, y -> 0.3333333333333332]]
+
+#% text
+# Many local minima on an interval, and two variables with an equality constraint:
+
+#% cell
+n_minimize([sin(x) + sin(10*x/3), x >= 2 and x <= 7], x)
+#% output
+#= [-1.8995993491521133, [x -> 5.145735290256128]]
+
+#% cell
+n_minimize([x^2 + y^2, x*y == 1], [x, y])
+#% output
+#= [2.0, [x -> -1.0, y -> -1.0]]
+
+#% text
+# An integer variable with a nonlinear objective:
+
+#% cell
+n_minimize([x^2 - 3*x, element(x, integers)], x)
+#% output
+#= [-2.0, [x -> 2]]
+
+#% text
+# A start point sets the centre of the search box:
+
+#% cell
+n_minimize(x^4 - 3x^2 - x, [x, 0])
+#% output
+#= [-3.5139050389347894, [x -> 1.3008395659415772]]
+
+#% text
+# The Rosenbrock function, with a narrow curved valley:
+
+#% cell
+n_minimize((1 - x)^2 + 100*(y - x^2)^2, [x, y])
+#% output
+#= [0.0, [x -> 1.0, y -> 1.0]]
+
+#% text
+# A nonsmooth objective:
+
+#% cell
+n_minimize(abs(x) + abs(x - 1), x)
+#% output
+#= [1.0, [x -> 3.637978807091713e-13]]
+
+#% subsection
+# Options
+
+#% text
+# `working_precision:` gives the result at that many digits (a ball when the value is exact):
+
+#% cell
+n_minimize(x^4 - 3x^2 - x, x, working_precision: 30)
+#% output
+#= [-3.51390503893478902140946768805, [x -> 1.30083956594157712623218518009]]
+
+#% cell
+n_minimize((x - 1)^2 + (y - 2)^2, [x, y], working_precision: 30)
+#% output
+#= [ball(0, 4.33e-78), [x -> 1.0000000000000000000000000000, y -> 2.00000000000000000000000000000]]
+
+#% text
+# `precision_goal:` for the first-order conditions:
+
+#% cell
+n_minimize([x + y, x^2 + y^2 <= 1], [x, y], precision_goal: 12)
+#% output
+#= [-1.414213562373095, [x -> -0.7071067811865475, y -> -0.7071067811865475]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The exact minimum, a root object, agrees with the numerical value:
+
+#% cell
+first(n_minimize(x^4 - 3x^2 - x, x)) - n(first(minimize(x^4 - 3x^2 - x, x)))
+#% output
+#= 4.440892098500626e-16
+
+#% text
+# A maximum is a minimum of the negative:
+
+#% cell
+n_maximize(-x^4 + 3x^2 + x, x)
+#% output
+#= [3.5139050389347886, [x -> 1.300839565941577]]
+
+#% subsection
+# Possible issues
+
+#% text
+# No point satisfies the constraints:
+
+#% cell
+n_minimize([x, x >= 1 and x <= 0], x)
+#% output
+#| n_minimize: no point satisfies the constraints
+#= [inf, [x -> indeterminate]]
+
+#% text
+# The objective is unbounded below:
+
+#% cell
+n_minimize([x, x <= 0], x)
+#% output
+#| n_minimize: the objective is unbounded on the feasible set
+#= [-inf, [x -> indeterminate]]
+
+#% text
+# An unconstrained problem that is unbounded below gives `-inf` too (the search sees the objective fall along a ray, away from every point it found):
+
+#% cell
+n_minimize(1/x, x)
+#% output
+#| n_minimize: the objective is unbounded on the feasible set
+#= [-inf, [x -> indeterminate]]
+
+#% text
+# A function whose infimum is not attained gives a point far out and a message that the first-order conditions are not met:
+
+#% cell
+n_minimize(exp(x), x)
+#% output
+#| n_minimize: the result is not proven optimal: the first-order conditions were not met to machine precision at it
+#= [0.0, [x -> -979.4385431032266]]
+
+#% text
+# A symbol that is not in the list and has no value is a parameter the optimum depends on: a message and `failure(not_numeric, ...)`, no number:
+
+#% cell
+n_minimize(x^2 + y^2, x)
+#% output
+#| n_minimize: the objective or a constraint contains the symbol y without a value: n_minimize and n_maximize need numerical parameters
+#! failure(not_numeric, x^2 + y^2)
+
+#% text
+# With constraints `working_precision:` refines the optimum on the boundary at that many digits (the Karush-Kuhn-Tucker system is solved with `find_root`):
+
+#% cell
+n_minimize([x^2 + y^2, x + y >= 1], [x, y], working_precision: 30)
+#% output
+#= [0.500000000000000000000000000000, [x -> 0.500000000000000000000000000000, y -> 0.500000000000000000000000000000]]
+
+#% section
+# See also
+
+#% text
+# `n_maximize`, `n_min_value`, `n_arg_min`, `find_minimum`, `minimize`

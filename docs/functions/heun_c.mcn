@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# heun_c
+
+#% text
+# `heun_c(q, alpha, gamma, delta, epsilon, z)` gives the confluent Heun function, the solution of the confluent Heun equation that is analytic at 0 with value 1.
+
+#% section
+# Details
+
+#% item
+# The equation is `z (z - 1) y'' + (gamma (z - 1) + delta z + epsilon z (z - 1)) y' + (alpha z - q) y = 0` (DLMF 31.12.1 in the non-symmetric form): regular singularities 0 and 1, an irregular one at infinity.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values: the series at the normalization point and analytic continuation by Taylor series along the segment to `z`, around the singularities on the upper side (values on the cuts are the limits from above).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heun_c(4, -0.6, -0.7, -0.18, 0.3, 0.12)
+#% output
+#= 1.0554288220733243
+
+#% cell
+n(heun_c(9/10, -14/10, 12/100, 3/100, -2/10, 1/10), 30)
+#% output
+#= 0.264492287180015860111802116578139
+
+#% cell
+heun_c(1.2, -1.4, 0.12, 0.03, -0.2, [0.15, 0.1 + im, im])
+#% output
+#= [-0.4171006308434595, -3.071479979000812 - 12.66117617832355im, -1.197454871827918 - 12.99990071960344im]
+
+#% cell
+heun_c(q, al, ga, de, ep, 0)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `heun_g`, `heun_b`, `hypergeometric_1f1`

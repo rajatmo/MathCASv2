@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# coulomb_h1
+
+#% text
+# `coulomb_h1(l, eta, rho)` gives the outgoing Coulomb wave function `H+_l(eta, rho) = G_l(eta, rho) + i F_l(eta, rho)`.
+
+#% section
+# Details
+
+#% item
+# `H+_l = e^(i theta) (-2 i rho)^(l + 1 + i eta) U(l + 1 + i eta, 2 l + 2, -2 i rho)` with `theta = rho - eta log(2 rho) - l pi/2 + sigma_l(eta)` and the Coulomb phase `sigma_l = (log_gamma(l + 1 + i eta) - log_gamma(l + 1 - i eta))/(2 i)` (DLMF 33.2.7, 33.2.10).
+
+#% item
+# At `eta = 0`, `H+_l(0, rho) = i rho h1_l(rho)`; `H+_0(0, rho) = e^(i rho)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coulomb_h1(2, 0.2, 3.0)
+#% output
+#= 0.9784483839750212 + 0.8117976880895289im
+
+#% cell
+n(coulomb_h1(3, 2, 5), 25)
+#% output
+#= 2.04869471377719559294238463661 + 0.431315931140878690123879600042im
+
+#% cell
+coulomb_h1(1, 0.8, 5.0) - (coulomb_g(1, 0.8, 5.0) + im*coulomb_f(1, 0.8, 5.0))
+#% output
+#= 0.0 + 0.0im
+
+#% cell
+coulomb_h1(0, 0, r)
+#% output
+#= exp(im*r)
+
+#% cell
+n(coulomb_h1(11, -3, 70), 30)
+#% output
+#= -0.08638660006647463187750067853342391 - 0.9820310077292347389706320543648796im
+
+#% section
+# See also
+
+#% text
+# `coulomb_h2`, `coulomb_f`, `coulomb_g`

@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# ball
+
+#% text
+# `ball([x, y, z], r)` is a solid ball in `graphics3d`, drawn as its surface.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(ball())
+#% output
+#= image("ball.files/ball-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Balls of several radii:
+
+#% cell
+graphics3d(table(ball([k, 0, 0], k/4), k, 4))
+#% output
+#= image("ball.files/ball-2.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A ball and a sphere look alike:
+
+#% cell
+graphics_row([graphics3d(ball()), graphics3d(sphere())])
+#% output
+#= image("ball.files/ball-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

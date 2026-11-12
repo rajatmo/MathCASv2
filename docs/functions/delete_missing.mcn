@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# delete_missing
+
+#% text
+# `delete_missing(xs)` gives the list `xs` without its elements `missing(...)` (and without rules whose value is one); for an association it drops the entries whose value is `missing(...)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delete_missing([a, b, missing(), c])
+#% output
+#= [a, b, c]
+
+#% cell
+delete_missing(assoc(a -> x, b -> missing(), c -> y))
+#% output
+#= assoc(a -> x, c -> y)
+
+#% cell
+delete_missing([a -> 1, b -> missing(), c -> 3])
+#% output
+#= [a -> 1, c -> 3]
+
+#% section
+# See also
+
+#% text
+# `missing`, `is_missing`, `select`

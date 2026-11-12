@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# projection
+
+#% text
+# `projection(u, v)` gives the projection of the vector `u` onto the vector `v`.
+
+#% section
+# Details
+
+#% item
+# The result is `u.v / v.v * v` with the second argument conjugated: `<u, v> = u . conjugate(v)`.
+
+#% item
+# `projection(u, v, f)` uses the inner product `f(a, b)`; then `u` and `v` may be any objects, such as functions.
+
+#% item
+# For a matrix `vs` in place of `v`, `projection(u, vs)` projects onto the span of its rows (through an orthonormal basis, see `orthogonalize`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+projection([5, 6, 7], [1, 0, 0])
+#% output
+#= [5, 0, 0]
+
+#% cell
+projection([5, 6, 7], [1, 1, 1])
+#% output
+#= [6, 6, 6]
+
+#% cell
+projection([a, b, c], [1, 1, 1])
+#% output
+#= [(1/3)*(a + b + c), (1/3)*(a + b + c), (1/3)*(a + b + c)]
+
+#% cell
+projection([3 + im, 2, 2 - im], [2, 4, 5*im])
+#% output
+#= [2/5 + -16*im/45, 4/5 + -32*im/45, 8/9 + im]
+
+#% cell
+projection([1, 2, 3], [[1, 1, 0], [0, 1, 0]])
+#% output
+#= [1, 2, 0]
+
+#% cell
+projection(x^2, 3*x^2 - 1, (f, g) => integrate(f*g, [x, -1, 1]))
+#% output
+#= (1/3)*(-1 + 3*x^2)
+
+#% section
+# See also
+
+#% text
+# `orthogonalize`, `dot`, `normalized`

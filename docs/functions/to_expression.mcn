@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# to_expression
+
+#% text
+# `to_expression(s)` reads the string `s` as MathCAS source and evaluates it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+to_expression("1 + 2*3")
+#% output
+#= 7
+
+#% cell
+to_expression("factor(x^2 - 1)")
+#% output
+#= (-1 + x)*(1 + x)
+
+#% subsection
+# Scope
+
+#% text
+# Expressions built as text:
+
+#% cell
+to_expression(string_join(["sum(k, [k, 1, ", to_string(10), "])"]))
+#% output
+#= 55
+
+#% subsection
+# Possible issues
+
+#% text
+# Text that is not valid source gives a syntax failure:
+
+#% cell
+to_expression("1 +")
+#% output
+#! failure(syntax, "1:4: expected an expression, found end of input")
+
+#% section
+# See also
+
+#% text
+# `to_string`, `eval`, `import_data`

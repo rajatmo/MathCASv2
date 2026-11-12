@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# airy_ai_zero
+
+#% text
+# `airy_ai_zero(k)` gives the `k`-th zero of the Airy function `Ai` (all are negative); `airy_ai_zero(k, x0)` gives the `k`-th zero below `x0`.
+
+#% section
+# Details
+
+#% item
+# Numerical values: the sign changes are counted in machine arithmetic, the bracket bisected, and the zero refined by Newton's method at the working precision; exact arguments stay unevaluated and `n` gives the values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(airy_ai_zero(1))
+#% output
+#= -2.338107410459767
+
+#% cell
+n(airy_ai_zero(3))
+#% output
+#= -5.520559828095551
+
+#% cell
+n(airy_ai_zero(2, -500))
+#% output
+#= -500.16973203561264
+
+#% cell
+n(airy_ai_zero(1), 25)
+#% output
+#= -2.3381074104597670384891972524
+
+#% cell
+n(airy_ai_zero([1, 2, 3]))
+#% output
+#= [-2.338107410459767, -4.08794944413097, -5.520559828095551]
+
+#% section
+# See also
+
+#% text
+# `airy_ai`, `bessel_j_zero`

@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# legendre_p
+
+#% text
+# `legendre_p(n, x)` gives the Legendre polynomial P_n(x).
+
+#% text
+# `legendre_p(n, m, x)` gives the associated Legendre function P_n^m(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% item
+# The associated functions include the factor (-1)^m (1 - x^2)^(m/2).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+legendre_p(3, x)
+#% output
+#= (-3/2)*x + (5/2)*x^3
+
+#% cell
+legendre_p(2, 1, x)
+#% output
+#= -3*x*(1 - x^2)^(1/2)
+
+#% subsection
+# Scope
+
+#% cell
+legendre_p(1/2, 0.3)
+#% output
+#= 0.7009385309696551
+
+#% cell
+legendre_p(3, 0.25)
+#% output
+#= -0.3359375
+
+#% section
+# See also
+
+#% text
+# `legendre_q`, `spherical_harmonic_y`

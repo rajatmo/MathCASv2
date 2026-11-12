@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# canonical_coordinates
+
+#% text
+# `canonical_coordinates([xi, eta], [x, y])` gives canonical coordinates `[r, s]` of the generator `xi d/dx + eta d/dy`: functions with `xi r_x + eta r_y == 0` and `xi s_x + eta s_y == 1`, in which the generator is the translation `d/ds`.
+
+#% section
+# Details
+
+#% item
+# `r` is a first integral of `dy/dx == eta/xi` (from `d_solve`), and `s` the integral of `dx/xi` along its solutions; when `xi` or `eta` is zero the coordinates come from one integration.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The scaling `x d/dx + y d/dy`:
+
+#% cell
+canonical_coordinates([x, y], [x, y])
+#% output
+#= [y/x, log(x)]
+
+#% text
+# The rotation:
+
+#% cell
+canonical_coordinates([-y, x], [x, y])
+#% output
+#= [(1/2)*(-x^2 - y^2), atan(y/x)]
+
+#% text
+# The projective generator of sl(2):
+
+#% cell
+canonical_coordinates([x^2, x*y], [x, y])
+#% output
+#= [y/x, -1/x]
+
+#% section
+# See also
+
+#% text
+# `symmetry_reduce_order`, `symmetry_d_solve`, `lie_point_symmetries`

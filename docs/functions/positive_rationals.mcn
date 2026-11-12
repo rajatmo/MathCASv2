@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# positive_rationals
+
+#% text
+# `positive_rationals` is the domain of the rational numbers greater than 0, for facts `element(x, positive_rationals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, positive_rationals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(2/3, positive_rationals)
+#% output
+#= true
+
+#% cell
+element(4, positive_rationals)
+#% output
+#= true
+
+#% cell
+element(-1/2, positive_rationals)
+#% output
+#= false
+
+#% cell
+element(sqrt(2), positive_rationals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(q, positive_rationals), refine(abs(q)))
+#% output
+#= q
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, positive_rationals)
+#% output
+#= element(x, rationals) and x > 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `rationals`

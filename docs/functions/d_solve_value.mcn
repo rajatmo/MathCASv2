@@ -1,0 +1,207 @@
+#! mathcas 2 notebook
+
+#% title
+# d_solve_value
+
+#% text
+# `d_solve_value(eqs, y(x), x)` gives the solution of a differential equation as an expression in `x`; `d_solve_value(eqs, y, x)` gives it as a function `x => sol`, and `d_solve_value(eqs, expr, x)` the expression `expr` (such as `y(3)` or `y'(x)`) with the solution put in.
+
+#% section
+# Details
+
+#% item
+# It solves as `d_solve` does; with several solutions the result is their list, and for a list of functions a list of values.
+
+#% item
+# A value at a point is checked for a blow-up of the solution between the initial point and that point; if the solution is not defined all the way, the result is `failure(blow_up, d_solve_value, x0, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Exponential decay from 3:
+
+#% cell
+d_solve_value([y'(x) == -2*y(x), y(0) == 3], y(x), x)
+#% output
+#= 3*exp(-2*x)
+
+#% subsection
+# Scope
+
+#% text
+# The general solution with its constants:
+
+#% cell
+d_solve_value(y''(x) + 4*y(x) == 0, y(x), x)
+#% output
+#= c(1)*cos(2*x) + c(2)*sin(2*x)
+
+#% text
+# The value at a point and the derivative:
+
+#% cell
+d_solve_value([y''(x) + y(x) == 0, y(0) == 0, y'(0) == 1], y(3), x)
+#% output
+#= sin(3)
+
+#% cell
+d_solve_value([y''(x) + y(x) == 0, y(0) == 0, y'(0) == 1], y'(x), x)
+#% output
+#= cos(x)
+
+#% text
+# A system:
+
+#% cell
+d_solve_value([y'(x) == z(x), z'(x) == -y(x), y(0) == 1, z(0) == 0], [y(x), z(x)], x)
+#% output
+#= [cos(x), -sin(x)]
+
+#% text
+# A function, a value at a point, and a machine value from an inexact point:
+
+#% cell
+d_solve_value([y'(x) == y(x), y(0) == 1], y, x)
+#% output
+#= x => exp(x)
+
+#% cell
+d_solve_value([y'(x) == y(x), y(0) == 1], y(1), x)
+#% output
+#= e
+
+#% cell
+d_solve_value([y'(x) == y(x), y(0) == 1], y(0.5), x)
+#% output
+#= 1.6487212707001282
+
+#% text
+# With several solutions the result is their list:
+
+#% cell
+d_solve_value(y'(x)^2 == y(x), y(x), x)
+#% output
+#= [(c(1) - (1/2)*x)^2, (c(1) + (1/2)*x)^2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `d_solve` gives rules:
+
+#% cell
+d_solve([y'(x) == -2*y(x), y(0) == 3], y(x), x)
+#% output
+#= [[y(x) -> 3*exp(-2*x)]]
+
+#% text
+# The value is the expression with the rule of `d_solve` put in:
+
+#% cell
+y(x) /. first(d_solve([y'(x) == y(x)^2, y(0) == 1], y(x), x))
+#% output
+#= -1/(-1 + x)
+
+#% cell
+d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(x), x)
+#% output
+#= -1/(-1 + x)
+
+#% text
+# A value at a point agrees with the numerical solution:
+
+#% cell
+n(d_solve_value([y'(x) == x*y(x), y(0) == 1], y(2), x)) - n_dsolve_value([y'(x) == x*y(x), y(0) == 1], y(2), [x, 0, 2])
+#% output
+#= -2.0856821159043193e-8
+
+#% subsection
+# Possible issues
+
+#% text
+# Constants stay in a value when conditions do not fix them:
+
+#% cell
+d_solve_value(y'(x) == y(x)^2, y(1), x)
+#% output
+#= -1/(1 + c(1))
+
+#% text
+# A solution is only valid up to its singularities. The solution of `y' = y^2`, `y(0) = 1` is `-1/(x - 1)` and blows up at `x = 1`: the value is given before it, with the formula for `y(x)`, and from there on a `failure(blow_up, ...)` with the interval is returned:
+
+#% cell
+d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(1/2), x)
+#% output
+#= 2
+
+#% cell
+d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(0.999), x)
+#% output
+#= 999.9999999999991
+
+#% cell
+d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(2), x)
+#% output
+#! failure(blow_up, d_solve_value, 0.0, 2.0)
+
+#% text
+# The same happens for a singularity of the right-hand side and for a solution that grows without bound at a finite point:
+
+#% cell
+d_solve_value([y'(x) == tan(x), y(0) == 1], y(2), x)
+#% output
+#! failure(blow_up, d_solve_value, 0.0, 2.0)
+
+#% cell
+d_solve_value([y'(x) == y(x)^3, y(0) == 1], y(1/4), x)
+#% output
+#= 2^(1/2)
+
+#% cell
+d_solve_value([y'(x) == y(x)^3, y(0) == 1], y(3/4), x)
+#% output
+#! failure(blow_up, d_solve_value, 0.0, 0.75)
+
+#% text
+# The formula itself, `-1/(x - 1)`, is not restricted: it is a function of `x`, and the interval of validity is not part of it:
+
+#% cell
+d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(x), x)
+#% output
+#= -1/(-1 + x)
+
+#% text
+# An undefined function on the right-hand side is not integrated; the call stays with its integral:
+
+#% cell
+d_solve_value(y'(x) == f(x), y(x), x)
+#% output
+#= c(1) + integrate(f(x), x)
+
+#% cell
+d_solve_value([y'(x) == f(x), y(0) == 1], y(2), x)
+#% output
+#= 1 + integrate(f(t), [t, 0, 2])
+
+#% text
+# A list of values at several points is not threaded; ask for each, or for their sum:
+
+#% cell
+d_solve_value([y'(x) == y(x), y(0) == 1], [y(1), y(2)], x)
+#% output
+#= d_solve_value([y'(x) == y(x), y(0) == 1], [y(1), y(2)], x)
+
+#% cell
+d_solve_value([y'(x) == y(x), y(0) == 1], y(1) + y(2), x)
+#% output
+#= e + exp(2)
+
+#% section
+# See also
+
+#% text
+# `d_solve`, `n_dsolve_value`

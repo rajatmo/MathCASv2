@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# group_normal_closure
+
+#% text
+# `group_normal_closure(G, H)`: the least normal subgroup of G containing H (a group or elements)
+
+#% section
+# Details
+
+#% item
+# The second argument may be a group, a permutation or a list of permutations.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_order(group_normal_closure(symmetric_group(4), cycles([[1, 2, 3]])))
+#% output
+#= 12
+
+#% cell
+group_order(group_normal_closure(symmetric_group(4), cycles([[1, 2], [3, 4]])))
+#% output
+#= 4
+
+#% section
+# See also
+
+#% text
+# `is_normal_subgroup`, `derived_subgroup`

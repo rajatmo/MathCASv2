@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# bar_chart3d
+
+#% text
+# `bar_chart3d(values)` or `bar_chart3d(matrix)` draws bars as boxes in space, a row of bars per row of the matrix.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bar_chart3d([1, 2, 3])
+#% output
+#= image("bar_chart3d.files/bar_chart3d-1.svgz")
+
+#% cell
+bar_chart3d([[1, 2, 3], [2, 1, 2]])
+#% output
+#= image("bar_chart3d.files/bar_chart3d-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`

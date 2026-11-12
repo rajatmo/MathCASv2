@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# cross_matrix
+
+#% text
+# `cross_matrix(r)` gives the array with ones along the horizontal and vertical lines through the centre, `2 r + 1` entries per dimension.
+
+#% section
+# Details
+
+#% item
+# A list of radii gives a different arm length for each axis.
+
+#% item
+# `cross_matrix(r, d)` gives an array of the dimensions `d`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cross_matrix(1)
+#% output
+#= [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+
+#% cell
+cross_matrix(2)
+#% output
+#= [[0, 0, 1, 0, 0], [0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0], [0, 0, 1, 0, 0]]
+
+#% cell
+cross_matrix([1, 2])
+#% output
+#= [[0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `disk_matrix`, `diamond_matrix`, `box_matrix`

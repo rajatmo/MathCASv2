@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# lower_triangularize
+
+#% text
+# `lower_triangularize(m)` replaces the entries of `m` above the main diagonal by zeros; `lower_triangularize(m, k)` those above the `k`-th diagonal.
+
+#% section
+# Details
+
+#% item
+# The matrix need not be square.
+
+#% item
+# A matrix of machine reals gets machine zeros.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+#% output
+#= [[1, 0, 0], [4, 5, 0], [7, 8, 9]]
+
+#% cell
+lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], -1)
+#% output
+#= [[0, 0, 0], [4, 0, 0], [7, 8, 0]]
+
+#% cell
+lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], 1)
+#% output
+#= [[1, 2, 0], [4, 5, 6], [7, 8, 9]]
+
+#% cell
+lower_triangularize([[1.25, 3.2], [7.9, -1.4]])
+#% output
+#= [[1.25, 0.0], [7.9, -1.4]]
+
+#% section
+# See also
+
+#% text
+# `upper_triangularize`, `lower_triangular_matrix_q`, `diagonal`

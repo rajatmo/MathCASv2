@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# unit_box
+
+#% text
+# `unit_box(x)` gives 1 for |x| <= 1/2 and 0 otherwise.
+
+#% text
+# `unit_box(x, y, ...)` gives the product of the boxes.
+
+#% section
+# Details
+
+#% item
+# Symbolic arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unit_box(1/2)
+#% output
+#= 1
+
+#% cell
+unit_box(0.7)
+#% output
+#= 0
+
+#% cell
+unit_box(0.1, 0.3)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `unit_triangle`, `unit_step`, `heaviside_theta`

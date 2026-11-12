@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_integrate
+
+#% text
+# `asymptotic_integrate(f, [t, a, b], [x, x0, k])` gives the expansion of the definite integral of f in t to order k in x at x0.
+
+#% text
+# `asymptotic_integrate(f, x, [x, x0, k])` expands an antiderivative; `asymptotic_integrate(f, spec, x -> x0)` gives the leading term.
+
+#% section
+# Details
+
+#% item
+# For a parameter x at a finite point the integrand is expanded and integrated term by term; otherwise the closed-form integral is expanded.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_integrate(sin(t*x), [t, 0, 1], x -> 0)
+#% output
+#= (1/2)*x
+
+#% cell
+asymptotic_integrate(exp(t*x), [t, 0, 1], [x, 0, 5])
+#% output
+#= 1 + (1/2)*x + (1/6)*x^2 + (1/24)*x^3 + (1/120)*x^4 + (1/720)*x^5
+
+#% cell
+asymptotic_integrate(sin(x), x, [x, 0, 8])
+#% output
+#= -1 + (1/2)*x^2 - (1/24)*x^4 + (1/720)*x^6 - (1/40320)*x^8
+
+#% cell
+asymptotic_integrate(exp(-m*sin(x)), x, [m, 0, 2])
+#% output
+#= x + m*cos(x) - (1/8)*m^2*sin(2*x) + (1/4)*x*m^2
+
+#% section
+# See also
+
+#% text
+# `integrate`, `series`, `asymptotic_sum`

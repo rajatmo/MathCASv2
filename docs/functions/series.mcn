@@ -1,0 +1,251 @@
+#! mathcas 2 notebook
+
+#% title
+# series
+
+#% text
+# `series(e, x, x0, n)` gives the power series of `e` in `x` about the point `x0`, up to the power n of (x - x0).
+
+#% section
+# Details
+
+#% item
+# The result is a truncated sum followed by an order term `O((x - x0)^(n + 1))` for the terms left out.
+
+#% item
+# A pole at `x0` gives negative powers (a Laurent series).
+
+#% item
+# The coefficients may hold symbols.
+
+#% item
+# `normal` turns a series into its truncated sum, an ordinary expression.
+
+#% item
+# An order term in the input, `e + O(x^k)`, limits the result to that order.
+
+#% item
+# At a branch point the result has fractional powers (a Puiseux series); when the function is real only on the left of the point, the powers are of `x0 - x`, unless `assumptions:` put `x` on one side.
+
+#% item
+# `series(e, x -> x0)` gives the leading term and the order of the next one; a list `e` is expanded elementwise.
+
+#% item
+# At an essential singularity the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential function about 0:
+
+#% cell
+series(exp(x), x, 0, 5)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+
+#% text
+# The sine:
+
+#% cell
+series(sin(x), x, 0, 7)
+#% output
+#= x - x^3/6 + x^5/120 - x^7/5040 + O(x^8)
+
+#% text
+# The logarithm about 1:
+
+#% cell
+series(log(x), x, 1, 4)
+#% output
+#= (x - 1) - (x - 1)^2/2 + (x - 1)^3/3 - (x - 1)^4/4 + O((x - 1)^5)
+
+#% text
+# The leading term only, with the order of the next term:
+
+#% cell
+series(gamma(sin(x) - x)^3, x -> 0)
+#% output
+#= -216*x^-9 + O(x^-7)
+
+#% text
+# A branch point of `asin`, from the side where it is real:
+
+#% cell
+series(asin(x), x, 1, 1)
+#% output
+#= (1/2)*pi - 2^(1/2)*(1 - x)^(1/2) + O((1 - x)^(3/2))
+
+#% subsection
+# Scope
+
+#% text
+# A removable singularity:
+
+#% cell
+series(sin(x)/x, x, 0, 6)
+#% output
+#= 1 - x^2/6 + x^4/120 - x^6/5040 + O(x^7)
+
+#% text
+# A pole gives negative powers:
+
+#% cell
+series(1/sin(x), x, 0, 3)
+#% output
+#= x^-1 + x/6 + 7*x^3/360 + O(x^4)
+
+#% cell
+series(1/(x^2 + x), x, 0, 2)
+#% output
+#= x^-1 - 1 + x - x^2 + O(x^3)
+
+#% text
+# Symbolic coefficients:
+
+#% cell
+series(a/(1 - b*x), x, 0, 3)
+#% output
+#= a + a*b*x + a*b^2*x^2 + a*b^3*x^3 + O(x^4)
+
+#% text
+# Compositions and products:
+
+#% cell
+series(exp(sin(x)), x, 0, 4)
+#% output
+#= 1 + x + x^2/2 - x^4/8 + O(x^5)
+
+#% cell
+series(tan(x), x, 0, 7)
+#% output
+#= x + x^3/3 + 2*x^5/15 + 17*x^7/315 + O(x^8)
+
+#% text
+# About another point:
+
+#% cell
+series(cos(x), x, pi, 3)
+#% output
+#= -1 + (x - pi)^2/2 + O((x - pi)^4)
+
+#% subsection
+# Applications
+
+#% text
+# Approximate a function near a point by its truncated series, and compare:
+
+#% cell
+p = normal(series(sin(x), x, 0, 5)); [p /. x -> 0.1, sin(0.1)]
+#% output
+#= [0.09983341666666667, 0.09983341664682815]
+
+#% text
+# Read off a limit from the leading terms:
+
+#% cell
+series((1 - cos(x))/x^2, x, 0, 2)
+#% output
+#= 1/2 - x^2/24 + O(x^3)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `normal` gives the truncated sum:
+
+#% cell
+normal(series(exp(x), x, 0, 3))
+#% output
+#= 1 + x + (1/2)*x^2 + (1/6)*x^3
+
+#% text
+# An order term in the input limits the order of the result:
+
+#% cell
+series(cos(x) + O(x^4), x, 0, 6)
+#% output
+#= 1 - x^2/2 + O(x^4)
+
+#% text
+# A polynomial is its own series:
+
+#% cell
+series(x^2 + 3x + 1, x, 0, 5)
+#% output
+#= 1 + 3*x + x^2 + O(x^6)
+
+#% text
+# Logarithms at the point and fractional powers give logarithmic and Puiseux series:
+
+#% cell
+series(log(x), x, 0, 2)
+#% output
+#= log(x) + O(x^3)
+
+#% cell
+series(cos(sqrt(x)), x, 0, 3)
+#% output
+#= 1 - x/2 + x^2/24 - x^3/720 + O(x^4)
+
+#% text
+# Truncated series combine in arithmetic, to the precision their terms determine:
+
+#% cell
+series(sin(x), x, 0, 5)^2 + series(cos(x), x, 0, 5)^2
+#% output
+#= 1 + O(x^6)
+
+#% cell
+1/series(cos(x), x, 0, 4)
+#% output
+#= 1 + x^2/2 + 5*x^4/24 + O(x^5)
+
+#% text
+# `d` differentiates a series term by term:
+
+#% cell
+d(series(tan(x), x, 0, 5), x)
+#% output
+#= 1 + x^2 + 2*x^4/3 + O(x^5)
+
+#% subsection
+# Possible issues
+
+#% text
+# A substitution into a series keeps the order term; use `normal` first:
+
+#% cell
+series(sin(x), x, 0, 3) /. x -> 0.1
+#% output
+#= 0.1 - 0.1^3/6 + O(0.1^4)
+
+#% text
+# When no term of the expansion lies up to the requested order, the series is the order term at the leading power:
+
+#% cell
+series(x^(-1/4), x, inf, 0)
+#% output
+#= O(x^(-1/4))
+
+#% text
+# `log(-x)` stays `log(-x)` (valid for either sign of `x`); a symbolic power of the variable moves into the exponents and the order term:
+
+#% cell
+series(log(-x), x, 0, 2)
+#% output
+#= log(-x) + O(x^3)
+
+#% cell
+series(x^(m + 1)*exp(x), x, 0, 1)
+#% output
+#= O(x^(3 + m)) + x^(1 + m) + x^(2 + m)
+
+#% section
+# See also
+
+#% text
+# `normal`, `O`, `limit`, `d`, `coefficient`

@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# is_negative
+
+#% text
+# `is_negative(x)` gives `true` when `x` is a negative real, `false` when it is known not to be, and stays unevaluated when neither is decided.
+
+#% section
+# Details
+
+#% item
+# Numbers and closed numeric expressions are decided by numerical bounds; symbols by the assumptions in force.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_negative(-3)
+#% output
+#= true
+
+#% cell
+is_negative(2.5)
+#% output
+#= false
+
+#% cell
+is_negative(3 - pi)
+#% output
+#= true
+
+#% cell
+is_negative(x)
+#% output
+#= is_negative(x)
+
+#% subsection
+# Scope
+
+#% text
+# Decided by assumptions:
+
+#% cell
+assuming(x < 0, is_negative(x^3))
+#% output
+#= true
+
+#% cell
+assuming(x < 0, is_negative(x^2))
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# `is_negative(x)` is `is_positive(-x)`:
+
+#% cell
+[is_negative(log(1/2)), is_positive(-log(1/2))]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `is_positive`, `is_nonnegative`, `sign`

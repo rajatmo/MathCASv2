@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# half_plane
+
+#% text
+# `half_plane([p1, p2], w) or half_plane(p, v, w)`: the half-plane bounded by the line through p1 and p2 (or through p along v), on the side of w
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+h = half_plane([0, 0], [1, 0], [0, 1])
+
+#% cell
+[signed_region_distance(h, [2, -3]), region_member(h, [x, y])]
+#% output
+#= [3, element(x | y, reals) and y >= 0]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

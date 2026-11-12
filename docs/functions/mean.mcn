@@ -1,0 +1,184 @@
+#! mathcas 2 notebook
+
+#% title
+# mean
+
+#% text
+# `mean(xs)` gives the mean of the list of values `xs`, their sum divided by their number.
+
+#% text
+# `mean(d)` gives the mean of the distribution `d`.
+
+#% section
+# Details
+
+#% item
+# Exact values give an exact mean, machine reals a machine real, and symbols a symbolic expression.
+
+#% item
+# For a list of rows, such as points `[[x1, y1], [x2, y2], ...]`, the mean is taken column by column.
+
+#% item
+# The mean of a distribution is exact, and symbolic for symbolic parameters.
+
+#% item
+# An empty list is an error.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The mean of four integers:
+
+#% cell
+mean([1, 2, 3, 4])
+#% output
+#= 5/2
+
+#% text
+# Of machine reals:
+
+#% cell
+mean([1.5, 2.5, 4.0])
+#% output
+#= 2.6666666666666665
+
+#% text
+# Of symbols:
+
+#% cell
+mean([a, b, c])
+#% output
+#= (1/3)*(a + b + c)
+
+#% text
+# Of a distribution:
+
+#% cell
+mean(exponential_distribution(l))
+#% output
+#= l^-1
+
+#% subsection
+# Scope
+
+#% text
+# Column by column, for a list of points:
+
+#% cell
+mean([[1, 2], [3, 4], [5, 9]])
+#% output
+#= [3, 5]
+
+#% text
+# Means of distributions with symbolic parameters:
+
+#% cell
+[mean(normal_distribution(mu, sigma)), mean(poisson_distribution(m)), mean(uniform_distribution([a, b]))]
+#% output
+#= [mu, m, (1/2)*(a + b)]
+
+#% cell
+mean(beta_distribution(2, 3))
+#% output
+#= 2/5
+
+#% text
+# The values of an association:
+
+#% cell
+mean(assoc(a -> 1, b -> 2))
+#% output
+#= 3/2
+
+#% subsection
+# Applications
+
+#% text
+# The centre of a cloud of random points:
+
+#% cell
+seed(1); mean(random_variate(normal_distribution(3, 1), [1000, 2]))
+#% output
+#= [3.009304984244505, 2.9970135420853543]
+
+#% text
+# The mean of the points of a random walk started at [1, 1], as for the posterior mean of a Markov chain Monte Carlo run:
+
+#% cell
+seed(11); chain = nest_list(p => p + 0.1*random_variate(normal_distribution(), 2), [1, 1], 300); mean(chain)
+#% output
+#= [1.3359683668652962, 2.353046913944984]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The mean of 1, ..., n is (n + 1)/2:
+
+#% cell
+mean(range(100))
+#% output
+#= 101/2
+
+#% text
+# The sample mean approaches the mean of the distribution:
+
+#% cell
+seed(5); [mean(random_real([0, 1], 10^5)), mean(uniform_distribution([0, 1]))]
+#% output
+#= [0.5001847710444205, 1/2]
+
+#% text
+# The mean is sensitive to outliers, the median is not:
+
+#% cell
+[mean([1, 2, 3, 100]), median([1, 2, 3, 100])]
+#% output
+#= [53/2, 5/2]
+
+#% text
+# The mean of quantities is in their unit; of a dataset, column by column:
+
+#% cell
+mean([quantity(1, "Meters"), quantity(300, "Centimeters")])
+#% output
+#= quantity(2, "Meters")
+
+#% cell
+mean(dataset([assoc("a" -> 1, "b" -> 2.0), assoc("a" -> 3, "b" -> 5.0)]))
+#% output
+#= assoc("a" -> 2, "b" -> 3.5)
+
+#% cell
+mean([around(1.0, 0.1), around(2.0, 0.2)])
+#% output
+#= around(1.5, 0.1118033988749895)
+
+#% subsection
+# Possible issues
+
+#% text
+# The mean of an empty list:
+
+#% cell
+mean([])
+#% output
+#! failure(argument, mean, "the list is empty")
+
+#% text
+# A single number is not a list:
+
+#% cell
+mean(3)
+#% output
+#= mean(3)
+
+#% section
+# See also
+
+#% text
+# `median`, `variance`, `std_dev`, `quantile`, `total`, `expectation`

@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# catalan
+
+#% text
+# `catalan` is Catalan's constant `G = 0.9159...`, the sum of `(-1)^k/(2k + 1)^2` for `k >= 0`.
+
+#% section
+# Details
+
+#% item
+# `catalan` is exact and known to be a positive real; `n(catalan, d)` gives `d` digits.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catalan
+#% output
+#= catalan
+
+#% cell
+n(catalan)
+#% output
+#= 0.915965594177219
+
+#% cell
+n(catalan, 40)
+#% output
+#= 0.9159655941772190150546035149323841107741494
+
+#% subsection
+# Properties and relations
+
+#% text
+# The alternating series:
+
+#% cell
+sum((-1)^k/(2*k + 1.0)^2, [k, 0, 10000]) - n(catalan)
+#% output
+#= 1.2497500812003182e-9
+
+#% text
+# An integral of `atan(x)/x`:
+
+#% cell
+n_integrate(atan(x)/x, [x, 0, 1]) - n(catalan)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `pi`, `euler_gamma`, `catalan_number`, `zeta`

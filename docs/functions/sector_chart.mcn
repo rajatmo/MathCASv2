@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# sector_chart
+
+#% text
+# `sector_chart([[a1, r1], ...])` draws sectors with angles in proportion to the `a` values and radii in proportion to the `r` values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sector_chart([[1, 2], [2, 1], [3, 3]])
+#% output
+#= image("sector_chart.files/sector_chart-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`

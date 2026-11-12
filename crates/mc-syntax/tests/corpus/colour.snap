@@ -1,0 +1,315 @@
+42/number
+-/op 7/number
+1_000_000/number
+0x1F/number
+0b1011/number
+0xFFFF_FFFF_FFFF_FFFF_FFFF/number
+123456789012345678901234567890123456789/number
+-/op 123456789012345678901234567890123456789/number
+-/op 9223372036854775808/number
+9223372036854775807/number
+1.5/number
+1./number
+2e-10/number
+-/op 0.0/number
+1e300/number
+6.02214076e23/number
+1.25~40/number
+2~100/number
+-/op 1.25~40/number
+1e-5~30/number
+3im/number
+1.5im/number
+-/op 3im/number
+2/number +/op 3im/number
+2/number -/op 3im/number
+1.5~20im/number
+3/number //op 4/number
+-/op 3/number //op 4/number
+6/number //op 4/number
+4/number //op 2/number
+0/number //op 5/number
+5/number //op 0/number
+3/number //op -/op 4/number
+1/number //op 2/number //op 3/number
+(/op 1/number //op 2/number )/op //op 3/number
+x/global //op 4/number
+3/number */op 4/number ^/op -/op 1/number
+-/op (/op 3/number //op 4/number )/op
+-/op (/op -/op 7/number )/op
+"hello"/string
+"tab\tnewline\nquote\"backslash\\"/string
+"unicode \u{3b8} and θ"/string
+""/string
+r"$\alpha_1 \le \beta$"/string
+r#"say "hi" \o/"#/string
+r##"a "# b\"##/string
+text/global (/op r"$\theta$"/string ,/op [/op 0/number ,/op 1/number ]/op )/op
+x/global
+α/global
+θ1/global
+_tmp/global
+pi/global
+π/global
+∞/global
+e/global
+im/global
+inf/global
+true/constant
+false/constant
+null/constant
+Geo.area/global
+`if`/global
+`a b`/global
+`x_`/global
+a/global +/op b/global
+a/global -/op b/global
+a/global +/op b/global -/op c/global +/op d/global
+a/global */op b/global
+a/global //op b/global
+a/global */op b/global //op c/global */op d/global
+2/number x/global
+2/number x/global ^/op 2/number
+3/number (/op a/global +/op b/global )/op
+2/number pi/global
+-/op x/global
+-/op x/global ^/op 2/number
+(/op -/op x/global )/op ^/op 2/number
+-/op a/global */op b/global
+a/global */op -/op b/global
+a/global ^/op b/global ^/op c/global
+(/op a/global ^/op b/global )/op ^/op c/global
+a/global ^/op -/op 1/number
+a/global ^/op -/op b/global
+a/global ^/op (/op 1/number //op 2/number )/op
+x/global ^/op -/op 2/number
+(/op a/global +/op b/global )/op */op (/op c/global -/op d/global )/op
+(/op a/global +/op b/global )/op +/op c/global
+a/global +/op (/op b/global +/op c/global )/op
+a/global */op (/op b/global */op c/global )/op
+(/op a/global */op b/global )/op */op c/global
+a/global -/op (/op b/global +/op c/global )/op
+a/global -/op (/op b/global -/op c/global )/op
+a/global -/op 7/number
+a/global +/op -/op 7/number
+a/global -/op -/op 7/number
+a/global -/op 3/number //op 4/number
+a/global -/op b/global */op c/global
+a/global -/op 2/number y/global
+a/global //op (/op b/global */op c/global )/op
+a/global //op b/global //op c/global
+(/op a/global //op b/global )/op //op c/global
+1/number //op x/global
+-/op 1/number */op x/global */op y/global
+-/op 1/number */op 7/number
+x/global ^/op 2/number +/op 2/number x/global */op y/global +/op y/global ^/op 2/number
+3/number x/global ^/op 2/number -/op 2/number x/global +/op 1/number
+(/op x/global +/op 1/number )/op ^/op 10/number
+2/number ^/op -/op 3/number
+a/global ==/op b/global
+a/global !=/op b/global
+a/global </op b/global
+a/global <=/op b/global
+a/global >/op b/global
+a/global >=/op b/global
+a/global ===/op b/global
+a/global !==/op b/global
+a/global </op b/global and/keyword b/global </op c/global
+a/global or/keyword b/global
+a/global or/keyword b/global or/keyword c/global
+a/global and/keyword b/global and/keyword c/global
+a/global and/keyword (/op b/global or/keyword c/global )/op
+(/op a/global and/keyword b/global )/op or/keyword c/global
+not/keyword a/global
+not/keyword a/global and/keyword b/global
+not/keyword (/op a/global and/keyword b/global )/op
+not/keyword a/global ==/op b/global
+not/keyword not/keyword a/global
+(/op a/global ==/op b/global )/op ==/op c/global
+x/global >/op 0/number or/keyword x/global </op -/op 1/number
+a/global ->/op b/global
+a/global :>/op b/global
+a/global ->/op b/global ->/op c/global
+(/op a/global ->/op b/global )/op ->/op c/global
+x_/pattern ->/op x/pattern ^/op 2/number
+f/global (/op x_/pattern )/op :>/op g/global (/op x/pattern )/op
+_/pattern
+x_/pattern
+xs__/pattern
+xs___/pattern
+__/pattern
+___/pattern
+x_/pattern :/op Int/global
+xs__/pattern :/op Real/global
+_/pattern :/op Str/global
+x_/pattern :/op Int/global |/op Real/global
+x_/pattern :/op List/global [/op Int/global ]/op
+x_/pattern :/op Array/global [/op Real/global ,/op 2/number ]/op
+x_/pattern :/op Complex/global [/op Float/global ]/op
+x_/pattern :/op Head/global [/op f/global ]/op
+x_/pattern :/op (/op Int/global ,/op Real/global )/op ->/op Bool/global
+x_/pattern :/op Int/global where/keyword x/pattern >/op 0/number
+x/pattern @/op f/global (/op y_/pattern )/op
+p/pattern @/op (/op a_/pattern |/op b_/pattern )/op
+x_/pattern when/keyword x/pattern >/op 0/number
+f/global (/op x_/pattern )/op when/keyword x/global >/op 0/number
+a_/pattern |/op b_/pattern
+0/number |/op 1/number |/op 2/number
+f/global (/op x_/pattern =/op 1/number )/op
+f/global (/op x_/pattern :/op Int/global =/op 1/number ,/op y_/pattern )/op
+rewrite/global (/op e/global ,/op [/op sin/global (/op a_/pattern )/op ^/op 2/number +/op cos/global (/op a_/pattern )/op ^/op 2/number ->/op 1/number ]/op )/op
+cases/global (/op xs/global ,/op _/pattern :/op Int/global )/op
+f/global (/op )/op
+f/global (/op x/global )/op
+f/global (/op x/global ,/op y/global ,/op z/global )/op
+f/global (/op a/global )/op (/op b/global )/op
+(/op f/global +/op g/global )/op (/op x/global )/op
+(/op x/local =>/op x/local ^/op 2/number )/op (/op 3/number )/op
+[/op ]/op
+[/op 1/number ,/op 2/number ,/op 3/number ]/op
+[/op [/op 1/number ,/op 2/number ]/op ,/op [/op 3/number ,/op 4/number ]/op ]/op
+xs/global [/op 1/number ]/op
+xs/global [/op i/global ,/op j/global ]/op
+xs/global [/op -/op 1/number ]/op
+xs/global [/op 2/number :/op 5/number ]/op
+xs/global [/op i/global :/op j/global ,/op 1/number ]/op
+m/global [/op 1/number ]/op [/op 2/number ]/op
+f/global (/op x/global )/op [/op 1/number ]/op
+n/global (/op x/global ,/op digits/global :/op 50/number )/op
+n/global (/op pi/global ,/op 50/number )/op
+plot/global (/op f/global ,/op x/global ,/op from/global :/op 0/number ,/op to/global :/op 1/number )/op
+f/global (/op options/global (/op a/global ->/op 1/number )/op )/op
+f/global '/op
+f/global ''/op
+f/global '''/op
+f/global ''''/op
+y/global ''/op (/op t/global )/op
+derivative/global (/op 5/number )/op (/op f/global )/op
+derivative/global (/op 1/number )/op (/op g/global (/op x/global )/op )/op
+f/global '/op (/op x/global )/op +/op g/global ''/op (/op x/global )/op
+xs/global |>/op f/global
+range/global (/op 5/number )/op |>/op map/global (/op k/local =>/op k/local ^/op 2/number ,/op _/pattern )/op |>/op sum/global
+a/global |>/op f/global (/op b/global ,/op _/pattern )/op
+x/global |>/op g/global (/op 1/number )/op
+x/local =>/op x/local ^/op 3/number -/op 2/number x/local
+(/op x/local ,/op y/local )/op =>/op x/local +/op y/local
+(/op )/op =>/op 42/number
+(/op x/local :/op Real/global )/op =>/op x/local ^/op 2/number
+(/op x/local ,/op y/local :/op Int/global =/op 2/number )/op =>/op x/local */op y/local
+(/op xs/local .../op )/op =>/op length/global (/op xs/local )/op
+(/op held/keyword e/local )/op =>/op e/local
+&/op (/op &1/local +/op 1/number )/op
+&/op (/op &1/local +/op &2/local )/op
+&/op (/op &2/local )/op
+&/op (/op f/global (/op &1/local ,/op &/op (/op &1/local */op 2/number )/op )/op )/op
+map/global (/op &/op (/op &1/local ^/op 2/number )/op ,/op xs/global )/op
+x/local =>/op y/local =>/op x/local +/op y/local
+f/global (/op x/local =>/op x/local ,/op y/global )/op
+{/op let/keyword y/local =/op 2/number ;/op let/keyword z/local =/op y/local +/op 1/number ;/op y/local */op z/local }/op
+{/op var/keyword i/local =/op 0/number ;/op i/local =/op i/local +/op 1/number ;/op i/local }/op
+{/op let/keyword x/local :/op Int/global =/op 3/number ;/op x/local }/op
+{/op }/op
+{/op a/global ;/op b/global ;/op c/global }/op
+if/keyword c/global then/keyword a/global else/keyword b/global
+if/keyword c/global then/keyword a/global
+if/keyword a/global then/keyword if/keyword b/global then/keyword x/global else/keyword y/global else/keyword z/global
+if/keyword c/global then/keyword (/op if/keyword d/global then/keyword x/global )/op else/keyword y/global
+if/keyword c/global then/keyword a/global else/keyword if/keyword d/global then/keyword b/global else/keyword e/global
+(/op if/keyword c/global then/keyword a/global else/keyword b/global )/op +/op 1/number
+while/keyword i/global </op 10/number {/op i/global =/op i/global +/op 1/number }/op
+for/keyword x/local in/keyword xs/global {/op print/global (/op x/local )/op }/op
+for/keyword k/local in/keyword range/global (/op 10/number )/op {/op s/global =/op s/global +/op k/local }/op
+match/keyword e/global {/op 0/number =>/op 1/number ,/op n_/pattern =>/op n/pattern */op 2/number }/op
+match/keyword e/global {/op x_/pattern when/keyword x/pattern >/op 0/number =>/op 1/number ,/op _/pattern =>/op 0/number }/op
+match/keyword e/global {/op 0/number |/op 1/number =>/op true/constant ,/op _/pattern =>/op false/constant }/op
+match/keyword e/global {/op }/op
+match/keyword p/global {/op [/op a_/pattern ,/op b_/pattern ]/op =>/op a/pattern +/op b/pattern ,/op f/global (/op x_/pattern )/op =>/op x/pattern }/op
+fn/keyword fact/global (/op 0/number )/op =/op 1/number
+fn/keyword fact/global (/op n/local :/op Int/global )/op when/keyword n/local >/op 0/number =/op n/local */op fact/global (/op n/local -/op 1/number )/op
+fn/keyword sq/global (/op x/local )/op =/op x/local */op x/local
+fn/keyword area/global (/op r/local :/op Real/global )/op :/op Real/global =/op pi/global */op sq/global (/op r/local )/op
+fn/keyword n/global (/op x/local ,/op d/local :/op Int/global =/op 16/number ;/op guard/local :/op Int/global =/op 32/number ,/op max_precision/local :/op Int/global =/op 100_000/number )/op =/op x/local
+fn/keyword plot_points/global (/op held/keyword e/local ,/op held/keyword v/local :/op Sym/global ,/op a/local :/op Real/global ,/op b/local :/op Real/global )/op =/op e/local
+fn/keyword total/global (/op first/local ,/op rest/local .../op )/op =/op first/local +/op sum/global (/op rest/local )/op
+fn/keyword pick/global (/op x_/pattern :/op Int/global ,/op [/op a_/pattern ,/op b_/pattern ]/op )/op =/op a/pattern
+fn/keyword g/global (/op x/local )/op =/op y/global when/keyword y/global >/op 0/number
+@/op listable/global fn/keyword h/global (/op x/local )/op =/op x/local ^/op 2/number
+@/op associative/global @/op commutative/global @/op identity/global (/op 0/number )/op sym/keyword oplus/global
+@/op commutative/global sym/keyword otimes/global
+@/op uses_assumptions/global @/op handles_failures/global fn/keyword refine2/global (/op x/local )/op =/op x/local
+sym/keyword mysym/global
+rule/keyword fib/global (/op 0/number )/op =/op 0/number
+rule/keyword fib/global (/op 1/number )/op =/op 1/number
+rule/keyword fib/global (/op n_/pattern :/op Int/global )/op :=/op fib/global (/op n/pattern )/op =/op fib/global (/op n/pattern -/op 1/number )/op +/op fib/global (/op n/pattern -/op 2/number )/op
+rule/keyword f/global (/op x_/pattern )/op :=/op x/pattern ^/op 2/number when/keyword x/pattern >/op 0/number
+rule/keyword f/global (/op x_/pattern )/op when/keyword x/pattern </op 0/number :=/op -/op x/pattern
+@/op on/global (/op square/global )/op rule/keyword area/global (/op square/global (/op a_/pattern )/op )/op :=/op a/pattern ^/op 2/number
+@/op effect/global rule/keyword log_it/global (/op x_/pattern )/op :=/op print/global (/op x/pattern )/op
+x/global =/op 3/number
+x/global :=/op random/global (/op )/op
+f/global (/op x_/pattern )/op :=/op x/pattern ^/op 2/number
+let/keyword f/local =/op x/local =>/op x/local ^/op 3/number -/op 2/number x/local
+var/keyword counter/local =/op 0/number
+unset/global (/op x/global )/op
+module/keyword Geo/global {/op fn/keyword sq/global (/op x/local )/op =/op x/local */op x/local ;/op pub/keyword fn/keyword area/global (/op r/local :/op Real/global )/op :/op Real/global =/op pi/global */op sq/global (/op r/local )/op }/op
+module/keyword M/global {/op pub/keyword sym/keyword s/global ;/op pub/keyword x/global =/op 1/number ;/op let/keyword y/local =/op 2/number }/op
+import/keyword Geo/global
+import/keyword Geo/global ./op {/op area/global ,/op sq/global }/op
+import/keyword core/global except/global e/global
+import/keyword core/global except/global e/global ,/op im/global
+assuming/global (/op x/global >/op 0/number ,/op simplify/global (/op sqrt/global (/op x/global ^/op 2/number )/op )/op )/op
+#! mathcas 2/comment
+# Round-trip corpus of whole programs: statements over several lines, new lines as separators, the tour of/comment
+# 04-syntax.md section 1. The file is read as one program./comment
+let/keyword f/local =/op x/local =>/op x/local ^/op 3/number -/op 2/number x/local # lambda; a numeric literal before a name multiplies/comment
+diff/global (/op f/local (/op x/global )/op ,/op x/global )/op
+range/global (/op 5/number )/op |>/op map/global (/op k/local =>/op k/local ^/op 2/number ,/op _/pattern )/op |>/op sum/global
+{/op let/keyword y/local =/op 2/number ;/op let/keyword z/local =/op y/local +/op 1/number ;/op y/local */op z/local }/op
+fn/keyword fact/global (/op 0/number )/op =/op 1/number
+fn/keyword fact/global (/op n/local :/op Int/global )/op when/keyword n/local >/op 0/number =/op n/local */op fact/global (/op n/local -/op 1/number )/op
+fact/global (/op -/op 1/number )/op
+rule/keyword fib/global (/op 0/number )/op =/op 0/number
+rule/keyword fib/global (/op 1/number )/op =/op 1/number
+rule/keyword fib/global (/op n_/pattern :/op Int/global )/op :=/op fib/global (/op n/pattern )/op =/op fib/global (/op n/pattern -/op 1/number )/op +/op fib/global (/op n/pattern -/op 2/number )/op
+@/op associative/global @/op commutative/global @/op identity/global (/op 0/number )/op
+sym/keyword oplus/global
+fn/keyword plot_points/global (/op held/keyword e/global ,/op held/keyword v/global :/op Sym/global ,/op a/global :/op Real/global ,/op b/global :/op Real/global )/op =/op e/global
+n/global (/op pi/global ,/op 50/number )/op
+1.25~40/number
+2/number +/op 3im/number
+assuming/global (/op x/global >/op 0/number ,/op simplify/global (/op sqrt/global (/op x/global ^/op 2/number )/op )/op )/op
+rewrite/global (/op e/global ,/op [/op sin/global (/op a_/pattern )/op ^/op 2/number +/op cos/global (/op a_/pattern )/op ^/op 2/number ->/op 1/number ]/op )/op
+module/keyword Geo/global {/op
+fn/keyword sq/global (/op x/local )/op =/op x/local */op x/local
+pub/keyword fn/keyword area/global (/op r/local :/op Real/global )/op :/op Real/global =/op pi/global */op sq/global (/op r/local )/op
+}/op
+import/keyword Geo/global
+area/global (/op 1/number )/op
+# multi-line blocks, control flow and pipes/comment
+{/op
+var/keyword total/local =/op 0/number
+for/keyword k/local in/keyword range/global (/op 10/number )/op {/op
+total/local =/op total/local +/op k/local
+}/op
+total/local
+}/op
+let/keyword result/local =/op range/global (/op 100/number )/op
+|>/op select/global (/op &/op (/op &1/local >/op 3/number )/op ,/op _/pattern )/op
+|>/op map/global (/op x/local =>/op x/local ^/op 2/number ,/op _/pattern )/op
+match/keyword shape/global {/op
+circle/global (/op r_/pattern )/op =>/op pi/global */op r/pattern ^/op 2/number ,/op
+square/global (/op a_/pattern )/op when/keyword a/pattern >/op 0/number =>/op a/pattern ^/op 2/number
+_/pattern =>/op 0/number
+}/op
+if/keyword x/global >/op 0/number then/keyword
+1/number
+else/keyword
+-/op 1/number
+f/local (/op a/global ,/op
+b/global ,/op
+c/global )/op
+@/op on/global (/op square/global )/op
+rule/keyword area/global (/op square/global (/op a_/pattern )/op )/op :=/op a/pattern ^/op 2/number
+var/keyword i/local =/op 0/number
+while/keyword i/local </op 10/number {/op i/local =/op i/local +/op 1/number }/op
+i/local =/op 0/number

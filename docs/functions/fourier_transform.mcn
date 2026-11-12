@@ -1,0 +1,267 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_transform
+
+#% text
+# `fourier_transform(f, t, w)` gives the Fourier transform `1/sqrt(2 pi) integrate(f*exp(im*w*t), [t, -inf, inf])` of `f`.
+
+#% text
+# `fourier_transform(f, [t1, t2], [w1, w2])` transforms in several variables, one after the other.
+
+#% section
+# Details
+
+#% item
+# Sums are transformed term by term; a term with an undefined function stays as a `fourier_transform` call.
+
+#% item
+# Polynomials, exponentials `exp(im c t)`, `sin` and `cos` give delta functions: `t^k` gives `sqrt(2 pi) (-im)^k` times the k-th derivative of `dirac_delta(w)`.
+
+#% item
+# Steps, `sign(t)`, `1/t`, powers and logarithms of `abs(t)`, `sin(a t)/t` and `sech` come from a table; `exp(im c t) g(t)` gives `G(w + c)`.
+
+#% item
+# Factors `unit_step(t - a)` and `unit_step(b - t)` become the bounds of the integral; Gaussians `exp(-a t^2 + b t + c)` (with `re(a) > 0`) have a closed form.
+
+#% item
+# Even and odd functions go through the cosine and sine transforms, so that the value holds for every real `w` (`exp(-abs(w))`); rational functions without real poles by residues, with `heaviside_theta` of `w` choosing the half plane.
+
+#% item
+# Otherwise the integral is left to `integrate`; when it gives no value the call stays unevaluated.
+
+#% item
+# `fourier_parameters: [a, b]` gives the transform `sqrt(abs(b)/(2 pi)^(1 - a)) integrate(f*exp(im*b*w*t), [t, -inf, inf])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rectangular pulse:
+
+#% cell
+fourier_transform(unit_step(t)*unit_step(1 - t), t, w)
+#% output
+#= (im - im*cos(w) + sin(w))*2^(1/2)/(2*pi^(1/2)*w)
+
+#% text
+# A Gaussian:
+
+#% cell
+fourier_transform(exp(-t^2), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp((-1/4)*w^2)
+
+#% subsection
+# Scope
+
+#% text
+# Distributions:
+
+#% cell
+fourier_transform(1, t, w)
+#% output
+#= dirac_delta(w)*2^(1/2)*pi^(1/2)
+
+#% cell
+fourier_transform(sin(a*t), t, w)
+#% output
+#= -im/2*dirac_delta(a + w)*2^(1/2)*pi^(1/2) + (im/2)*dirac_delta(w - a)*2^(1/2)*pi^(1/2)
+
+#% cell
+fourier_transform(heaviside_theta(t), t, w)
+#% output
+#= (im/2)*2^(1/2)/(pi^(1/2)*w) + (1/2)*dirac_delta(w)*2^(1/2)*pi^(1/2)
+
+#% cell
+fourier_transform(t^2, t, w)
+#% output
+#= -2^(1/2)*pi^(1/2)*dirac_delta''(w)
+
+#% text
+# Powers of abs(t):
+
+#% cell
+fourier_transform(1/sqrt(abs(t)), t, w)
+#% output
+#= abs(w)^(-1/2)
+
+#% text
+# A band-limited signal:
+
+#% cell
+fourier_transform(sin(3*t)/t, t, w)
+#% output
+#= (1/4)*(sign(3 + w) + sign(3 - w))*2^(1/2)*pi^(1/2)
+
+#% text
+# A rational function:
+
+#% cell
+fourier_transform(1/(1 + t^2), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp(-abs(w))*pi^(1/2)
+
+#% text
+# A list:
+
+#% cell
+fourier_transform([exp(-t^2), exp(-2*t^2)], t, w)
+#% output
+#= [(1/2)*2^(1/2)*exp((-1/4)*w^2), (1/2)*exp((-1/8)*w^2)]
+
+#% text
+# A Gaussian with a symbolic width, and a Lorentzian, with the facts that make them transforms:
+
+#% cell
+fourier_transform(exp(-a*t^2), t, w, assumptions: a > 0)
+#% output
+#= 2^(1/2)*exp(-w^2/(4*a))/(2*a^(1/2))
+
+#% cell
+fourier_transform(1/(t^2 + a^2), t, w, assumptions: a > 0)
+#% output
+#= 2^(1/2)*exp(-a*abs(w))*pi^(1/2)/(2*a)
+
+#% text
+# The hyperbolic secant gives a hyperbolic secant; a damped exponential gives a Lorentzian, and a one-sided one a complex value:
+
+#% cell
+fourier_transform(sech(t), t, w)
+#% output
+#= (1/2)*2^(1/2)*pi^(1/2)*sech((1/2)*pi*w)
+
+#% cell
+fourier_transform(exp(-abs(t)), t, w)
+#% output
+#= 2^(1/2)/(pi^(1/2)*(1 + w^2))
+
+#% cell
+fourier_transform(exp(-t)*unit_step(t), t, w)
+#% output
+#= 2^(1/2)/(pi^(1/2)*(2 - 2im*w))
+
+#% text
+# A shift in time and a modulation:
+
+#% cell
+fourier_transform(dirac_delta(t - 1), t, w)
+#% output
+#= 2^(1/2)*exp(im*w)/(2*pi^(1/2))
+
+#% cell
+fourier_transform(exp(3*im*t)*exp(-t^2), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp((1/4)*(3im + im*w)^2)
+
+#% text
+# Distributions of the absolute value and the sign:
+
+#% cell
+fourier_transform(sign(t), t, w)
+#% output
+#= im*2^(1/2)/(pi^(1/2)*w)
+
+#% cell
+fourier_transform(abs(t), t, w)
+#% output
+#= -2^(1/2)/(pi^(1/2)*abs(w)^2)
+
+#% subsection
+# Options
+
+#% cell
+fourier_transform(dirac_delta(t), t, w, fourier_parameters: [1, -1])
+#% output
+#= 1
+
+#% text
+# The three common conventions: `[0, 1]` (the default) is symmetric, `[1, 1]` has no factor in front, `[0, 2*pi]` is the frequency form:
+
+#% cell
+fourier_transform(exp(-abs(t)), t, w, fourier_parameters: [0, 1])
+#% output
+#= 2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+
+#% cell
+fourier_transform(exp(-abs(t)), t, w, fourier_parameters: [1, 1])
+#% output
+#= 2/(1 + w^2)
+
+#% cell
+fourier_transform(exp(-abs(t)), t, w, fourier_parameters: [0, 2*pi])
+#% output
+#= 2/(1 + 4*pi^2*w^2)
+
+#% text
+# A number for `w` gives the value there, to the precision of `w`:
+
+#% cell
+fourier_transform(exp(-t^2), t, 2.0)
+#% output
+#= 0.2601300475114445
+
+#% cell
+fourier_transform(exp(-t^2), t, n(1, 30))
+#% output
+#= 0.5506953149031837476159810627496478
+
+#% subsection
+# Properties and relations
+
+#% text
+# The inverse transform gives the function back:
+
+#% cell
+inverse_fourier_transform(fourier_transform(exp(-t^2), t, w), w, t)
+#% output
+#= exp(-t^2)
+
+#% text
+# At a number the value is the integral:
+
+#% cell
+fourier_transform(exp(-t^2), t, 2.0) - n_integrate(exp(-t^2)*cos(2*t), [t, -inf, inf])/sqrt(2*pi)
+#% output
+#= 5.551115123125783e-17
+
+#% text
+# The default convention is `fourier_parameters: [0, 1]`:
+
+#% cell
+fourier_transform(exp(-t^2), t, w) - fourier_transform(exp(-t^2), t, w, fourier_parameters: [0, 1])
+#% output
+#= 0
+
+#% text
+# With the default parameters `exp(-t^2/2)` is its own transform:
+
+#% cell
+fourier_transform(exp(-t^2/2), t, w)
+#% output
+#= exp((-1/2)*w^2)
+
+#% subsection
+# Possible issues
+
+#% text
+# An undefined function stays a call, and the result of a distribution transform may keep `abs(w) sign(w)` unsimplified:
+
+#% cell
+fourier_transform(f(t), t, w)
+#% output
+#= fourier_transform(f(t), t, w)
+
+#% cell
+fourier_transform(t*exp(-t^2), t, w)
+#% output
+#= (im/4)*w*2^(1/2)*exp((-1/4)*w^2)
+
+#% section
+# See also
+
+#% text
+# `inverse_fourier_transform`, `fourier_sin_transform`, `fourier_cos_transform`, `laplace_transform`, `integrate`

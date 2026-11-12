@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# not_element
+
+#% text
+# `not_element(x, domain)` is the negation of `element(x, domain)`: `true` when x is known not to be in the domain, `false` when it is known to be.
+
+#% section
+# Details
+
+#% item
+# The domains are those of `element`: `integers`, `rationals`, `reals`, `complexes` and their signed parts such as `positive_reals`.
+
+#% item
+# When membership is not decided the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+not_element(pi, integers)
+#% output
+#= true
+
+#% cell
+not_element(x, reals)
+#% output
+#= not_element(x, reals)
+
+#% subsection
+# Scope
+
+#% cell
+[not_element(2/3, integers), not_element(2/3, rationals), not_element(-1, positive_reals)]
+#% output
+#= [true, false, true]
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`

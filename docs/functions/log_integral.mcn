@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# log_integral
+
+#% text
+# `log_integral(x)` gives the logarithmic integral `li(x)`, the principal value of the integral of `1/log(t)` for `t` from 0 to `x`.
+
+#% section
+# Details
+
+#% item
+# `li(x)` is `exp_integral_ei(log(x))` (DLMF 6.2.8), for `x >= 0`. It has a logarithmic singularity at `x = 1`.
+
+#% item
+# `log_integral(0)` is 0. Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `log_integral` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log_integral(2.0)
+#% output
+#= 1.045163780117493
+
+#% cell
+log_integral(0)
+#% output
+#= 0
+
+#% cell
+log_integral(0.5)
+#% output
+#= -0.37867104306108795
+
+#% cell
+n(log_integral(10), 30)
+#% output
+#= 6.165599504787297937522981752669523
+
+#% subsection
+# Applications
+
+#% text
+# `li(x)` approximates the number of primes below `x`:
+
+#% cell
+[prime_pi(10^6), log_integral(1.0e6)]
+#% output
+#= [78498, 78627.54915946219]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(log_integral(x), x)
+#% output
+#= log(x)^-1
+
+#% section
+# See also
+
+#% text
+# `exp_integral_ei`, `prime_pi`, `log`

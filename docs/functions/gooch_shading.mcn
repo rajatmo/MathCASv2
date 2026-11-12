@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# gooch_shading
+
+#% text
+# `gooch_shading(...)`: a cool-to-warm surface shading (accepted; surfaces are lit as usual)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d([gooch_shading(), sphere()])
+#% output
+#= image("gooch_shading.files/gooch_shading-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

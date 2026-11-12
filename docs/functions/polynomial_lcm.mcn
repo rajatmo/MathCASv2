@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_lcm
+
+#% text
+# `polynomial_lcm(p, q, ...)` gives the least common multiple of the polynomials.
+
+#% section
+# Details
+
+#% item
+# The result is an expanded polynomial, normalized to a positive leading coefficient.
+
+#% item
+# The options of `polynomial_gcd` apply: `modulus: p` gives the monic lcm modulo the prime p; `extension: automatic` (or given algebraic numbers) gives the lcm over the number field, `p (q / gcd(p, q))`; `trig: true` as for `polynomial_gcd`. Other options are an argument failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_lcm(x^2 - 1, x^2 - 2*x + 1)
+#% output
+#= 1 - x - x^2 + x^3
+
+#% cell
+polynomial_lcm(x, x^2 + x)
+#% output
+#= x + x^2
+
+#% cell
+polynomial_lcm(x - 1, x + 1, x^2 + 1)
+#% output
+#= -1 + x^4
+
+#% subsection
+# Applications
+
+#% text
+# The common denominator of a sum of fractions:
+
+#% cell
+polynomial_lcm(x^2 - 1, x^2 + x)
+#% output
+#= -x + x^3
+
+#% subsection
+# Properties and relations
+
+#% text
+# The result is divisible by each argument:
+
+#% cell
+m = polynomial_lcm(x^2 - 1, x^3 - x^2); [polynomial_remainder(m, x^2 - 1, x), polynomial_remainder(m, x^3 - x^2, x)]
+#% output
+#= [0, 0]
+
+#% section
+# See also
+
+#% text
+# `polynomial_gcd`, `lcm`, `together`

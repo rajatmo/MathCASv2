@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# region_within
+
+#% text
+# `region_within(r1, r2)`: whether r2 lies inside r1
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[region_within(interval([-3, 1]), line([[0], [1]])), region_within(rectangle([0, 0], [2, 2]), triangle())]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

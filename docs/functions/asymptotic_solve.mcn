@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_solve
+
+#% text
+# `asymptotic_solve(eqs, [y, y0], [x, x0, k])` gives the solution y(x) of the equations with `y(x0) = y0` as a power series in `x - x0` to order k, as `[[y -> series]]`.
+
+#% text
+# `asymptotic_solve(eqs, [y], [x, x0, k])` starts from each root of the equations at x0; `asymptotic_solve(eqs, [[y1, y2], [a1, a2]], [x, x0, k])` solves a system.
+
+#% section
+# Details
+
+#% item
+# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. When a starting point is singular, or branches go to infinity (the degree in y drops at x0), the answer is a failure: those branches need expansions in fractional powers (Puiseux series), which are not implemented, and a list without them would be incomplete. With `reals`, only the branches through real starting points are given.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_solve(exp(y) - cos(x*y) + x == 0, [y, 0], [x, 0, 5])
+#% output
+#= [[y -> -x - (1/2)*x^2 - (1/3)*x^3 - (3/4)*x^4 - (6/5)*x^5]]
+
+#% cell
+asymptotic_solve(y^2 - 1 - x == 0, [y], [x, 0, 3])
+#% output
+#= [[y -> -1 - (1/2)*x + (1/8)*x^2 - (1/16)*x^3], [y -> 1 + (1/2)*x - (1/8)*x^2 + (1/16)*x^3]]
+
+#% cell
+asymptotic_solve(y^3 - x*y == 24, [y, 3], [x, 1, 3])
+#% output
+#= [[y -> 3 - (3/17576)*(-1 + x)^2 - (309/5940688)*(-1 + x)^3 + (3/26)*(-1 + x)]]
+
+#% cell
+asymptotic_solve(sin(t + x) + cos(y) == t + 1 and log(1 + x + y) - sin(t) == 0, [[x, y], [0, 0]], [t, 0, 4])
+#% output
+#= [[x -> (1/2)*t^2 + (1/6)*t^3 + (1/24)*t^4, y -> t - (1/6)*t^3 - (1/6)*t^4]]
+
+#% section
+# See also
+
+#% text
+# `solve`, `series`, `implicit_d`

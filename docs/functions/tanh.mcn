@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# tanh
+
+#% text
+# `tanh(x)` gives the hyperbolic tangent `sinh(x)/cosh(x)`.
+
+#% section
+# Details
+
+#% item
+# `tanh(0)` is 0 and `tanh(-x)` is `-tanh(x)`; the value tends to 1 as `x` tends to `inf`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values, without overflow for large arguments. `tanh` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tanh(0)
+#% output
+#= 0
+
+#% cell
+tanh(1.0)
+#% output
+#= 0.7615941559557649
+
+#% cell
+tanh(1000.0)
+#% output
+#= 1.0
+
+#% cell
+n(tanh(1), 30)
+#% output
+#= 0.7615941559557648881194582826047936
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(tanh(x), x)
+#% output
+#= cosh(x)^-2
+
+#% text
+# The relation to the logistic function:
+
+#% cell
+tanh(0.6) - (2*logistic_sigmoid(1.2) - 1)
+#% output
+#= 2.220446049250313e-16
+
+#% section
+# See also
+
+#% text
+# `sinh`, `cosh`, `tan`, `logistic_sigmoid`

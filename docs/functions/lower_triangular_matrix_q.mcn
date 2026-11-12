@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# lower_triangular_matrix_q
+
+#% text
+# `lower_triangular_matrix_q(m)` is true when every entry of `m` above the main diagonal is zero; `lower_triangular_matrix_q(m, k)` when every entry above the `k`-th diagonal is.
+
+#% section
+# Details
+
+#% item
+# The result is false for anything that is not a matrix.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lower_triangular_matrix_q([[1, 0], [2, 3]])
+#% output
+#= true
+
+#% cell
+lower_triangular_matrix_q([[1, 2], [0, 3]])
+#% output
+#= false
+
+#% cell
+lower_triangular_matrix_q([[1, 2], [0, 3]], 1)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `upper_triangular_matrix_q`, `diagonal_matrix_q`, `lower_triangularize`

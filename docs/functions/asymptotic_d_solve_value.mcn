@@ -1,0 +1,186 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_d_solve_value
+
+#% text
+# `asymptotic_d_solve_value(eqs, y(x), [x, x0, n])` gives a series solution of degree n of a differential equation at x0; `asymptotic_d_solve_value(eqs, y(x), x, [eps, 0, n])` gives the solution as a series of order n in the parameter eps.
+
+#% section
+# Details
+
+#% item
+# At an ordinary point the result is the Taylor polynomial, its coefficients from the equation and its derivatives. Values `y^(k)(x0)` not fixed by conditions are the constants `c(k + 1)`, and the result is grouped by constant.
+
+#% item
+# At a regular singular point of a linear equation of order 1 or 2 the result is a sum of Frobenius series `(x - x0)^r (1 + ...)`, one per root of the indicial polynomial (the larger root first), when the roots do not differ by an integer.
+
+#% item
+# `x -> x0` in place of `[x, x0, n]` gives the leading term.
+
+#% item
+# For a system the result is the list of the series of the unknowns.
+
+#% item
+# In the parameter form each term `eps^k y_k` comes from a linear equation solved by `d_solve`, the conditions expanded in eps.
+
+#% item
+# Equations with an irregular singular point stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The series of the exponential:
+
+#% cell
+asymptotic_d_solve_value([y'(x) - y(x) == 0, y(0) == 1], y(x), [x, 0, 4])
+#% output
+#= 1 + x + (1/2)*x^2 + (1/6)*x^3 + (1/24)*x^4
+
+#% text
+# Without conditions, grouped by constant:
+
+#% cell
+asymptotic_d_solve_value(y''(x) + y(x) == 0, y(x), [x, 0, 6])
+#% output
+#= (x - (1/6)*x^3 + (1/120)*x^5)*c(2) + (1 - (1/2)*x^2 + (1/24)*x^4 - (1/720)*x^6)*c(1)
+
+#% subsection
+# Scope
+
+#% text
+# The Airy equation at an ordinary point:
+
+#% cell
+asymptotic_d_solve_value([y''(x) + x*y(x) == 0, y(0) == 0, y'(0) == 1], y(x), [x, 0, 10])
+#% output
+#= x - (1/12)*x^4 + (1/504)*x^7 - (1/45360)*x^10
+
+#% text
+# Expansion about another point:
+
+#% cell
+asymptotic_d_solve_value([y''(x) + 2*y(x) == 0, y(3) == 1, y'(3) == 0], y(x), [x, 3, 6])
+#% output
+#= 1 - (-3 + x)^2 - (1/90)*(-3 + x)^6 + (1/6)*(-3 + x)^4
+
+#% text
+# A regular singular point:
+
+#% cell
+asymptotic_d_solve_value(2*x^2*y''(x) + 3*x*y'(x) - (x^2 + 1)*y(x) == 0, y(x), [x, 0, 4])
+#% output
+#= (1 + (1/14)*x^2 + (1/616)*x^4)*c(1)*x^(1/2) + (1 + (1/2)*x^2 + (1/40)*x^4)*c(2)/x
+
+#% text
+# A system:
+
+#% cell
+asymptotic_d_solve_value([y'(x) == z(x) + 3, z'(x) == -y(x), y(0) == 1, z(0) == 5], [y(x), z(x)], [x, 0, 3])
+#% output
+#= [1 + 8*x - (1/2)*x^2 - (4/3)*x^3, 5 - x - 4*x^2 + (1/6)*x^3]
+
+#% text
+# A perturbation series:
+
+#% cell
+asymptotic_d_solve_value([y'(x) + eps*y(x) == cos(x), y(0) == 0], y(x), x, [eps, 0, 2])
+#% output
+#= eps*(-1 + cos(x)) + (x - sin(x))*eps^2 + sin(x)
+
+#% text
+# The leading term:
+
+#% cell
+asymptotic_d_solve_value([y''(x) - y(x) == 0, y(0) == 0, y'(0) == 1], y(x), x -> 0)
+#% output
+#= x
+
+#% text
+# A Riccati equation, and an equation with a nonlinear exponential:
+
+#% cell
+asymptotic_d_solve_value([y'(x) == y(x)^2, y(0) == 1], y(x), [x, 0, 5])
+#% output
+#= 1 + x + x^2 + x^3 + x^4 + x^5
+
+#% cell
+asymptotic_d_solve_value([y'(x) == x + y(x)^2, y(0) == 0], y(x), [x, 0, 6])
+#% output
+#= (1/2)*x^2 + (1/20)*x^5
+
+#% cell
+asymptotic_d_solve_value([y'(x) == exp(-y(x)), y(0) == 0], y(x), [x, 0, 4])
+#% output
+#= x - (1/2)*x^2 + (1/3)*x^3 - (1/4)*x^4
+
+#% text
+# A right-hand side with a parameter keeps the parameter:
+
+#% cell
+asymptotic_d_solve_value(y'(x) == y(x) + t, y(x), [x, 0, 2])
+#% output
+#= t*x + (1 + x + (1/2)*x^2)*c(1) + (1/2)*t*x^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# The series agrees with the exact solution:
+
+#% cell
+normal(series(d_solve_value([y'(x) + 3*y(x) == 1, y(0) == 2], y(x), x), x, 0, 3))
+#% output
+#= 2 - 5*x + (15/2)*x^2 - (15/2)*x^3
+
+#% cell
+asymptotic_d_solve_value([y'(x) + 3*y(x) == 1, y(0) == 2], y(x), [x, 0, 3])
+#% output
+#= 2 - 5*x + (15/2)*x^2 - (15/2)*x^3
+
+#% text
+# The degree 10 polynomial at 1/2 agrees with the exponential to 11 digits:
+
+#% cell
+n(asymptotic_d_solve_value([y'(x) == y(x), y(0) == 1], y(x), [x, 0, 10]) /. x -> 1/2) - exp(0.5)
+#% output
+#= -1.2762457757276024e-11
+
+#% subsection
+# Possible issues
+
+#% text
+# At a regular singular point whose indicial roots differ by an integer the series would contain logarithms, and the call stays unevaluated; so does an irregular singular point and an expansion at infinity:
+
+#% cell
+asymptotic_d_solve_value(x^2*y''(x) + x*y'(x) + (x^2 - 1/4)*y(x) == 0, y(x), [x, 0, 4])
+#% output
+#= (1 - (1/2)*x^2 + (1/24)*x^4)*c(2)/x^(1/2) + (1 - (1/6)*x^2 + (1/120)*x^4)*c(1)*x^(1/2)
+
+#% cell
+asymptotic_d_solve_value(y''(x) == y(x)/x^3, y(x), [x, 0, 3])
+#% output
+#= asymptotic_d_solve_value(y''(x) == y(x)/x^3, y(x), [x, 0, 3])
+
+#% cell
+asymptotic_d_solve_value([y'(x) == y(x), y(0) == 1], y(x), x -> inf)
+#% output
+#= asymptotic_d_solve_value([y'(x) == y(x), y(0) == 1], y(x), x -> inf)
+
+#% text
+# Roots of the indicial equation that differ by an integer (and a double root) give a logarithmic second solution:
+
+#% cell
+asymptotic_d_solve_value(x^2*y''(x) + x*y'(x) + x^2*y(x) == 0, y(x), [x, 0, 4])
+#% output
+#= (1 - (1/4)*x^2 + (1/64)*x^4)*c(1) + (1 - (1/128)*x^4 + (1 - (1/4)*x^2 + (1/64)*x^4)*log(x))*c(2)
+
+#% section
+# See also
+
+#% text
+# `d_solve`, `d_solve_value`, `series`, `n_dsolve`

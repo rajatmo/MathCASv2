@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# composition_series
+
+#% text
+# `composition_series(G)`: a series of subgroups, each maximal normal in the one before, down to the trivial group
+
+#% section
+# Details
+
+#% item
+# Abelian layers of the derived series are refined into steps of prime index; a perfect layer is split at a maximal normal subgroup found from the normal closures of the conjugacy class representatives.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map(group_order, composition_series(symmetric_group(4)))
+#% output
+#= [24, 12, 4, 2, 1]
+
+#% cell
+map(group_order, composition_series(symmetric_group(5)))
+#% output
+#= [120, 60, 1]
+
+#% cell
+map(group_order, composition_series(cyclic_group(12)))
+#% output
+#= [12, 4, 2, 1]
+
+#% section
+# See also
+
+#% text
+# `is_simple_group`, `derived_series`

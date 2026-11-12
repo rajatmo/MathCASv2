@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# parallel_axis_plot
+
+#% text
+# `parallel_axis_plot([row1, row2, ...])` draws each row as a line across parallel axes, one per column, each axis scaled to its column's range.
+
+#% section
+# Details
+
+#% item
+# Several matrices are drawn in several colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+parallel_axis_plot([[4, 5, 10, 7, 3], [9, 8, 2, 2, 5], [5, 3, 2, 7, 4]])
+#% output
+#= image("parallel_axis_plot.files/parallel_axis_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `radial_axis_plot`

@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# order
+
+#% text
+# `order(a, b)` gives 1 when `a` comes before `b` in the canonical order, -1 when it comes after, and 0 when they are the same term. Ordering functions like it can be given to `sort` and `is_ordered`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+order(1, 2)
+#% output
+#= 1
+
+#% cell
+order(b, a)
+#% output
+#= -1
+
+#% cell
+order(x, x)
+#% output
+#= 0
+
+#% cell
+sort([3, 1, 2], order)
+#% output
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `sort`, `is_ordered`, `numerical_order`, `alphabetic_order`, `lexicographic_order`

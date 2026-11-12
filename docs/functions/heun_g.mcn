@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# heun_g
+
+#% text
+# `heun_g(a, q, alpha, beta, gamma, delta, z)` gives the local Heun function, the solution of the general Heun equation that is analytic at 0 with value 1.
+
+#% section
+# Details
+
+#% item
+# The equation is `y'' + (gamma/z + delta/(z - 1) + epsilon/(z - a)) y' + (alpha beta z - q)/(z (z - 1)(z - a)) y = 0` with `epsilon = alpha + beta + 1 - gamma - delta` (DLMF 31.2.1); the series at 0 has the recurrence of DLMF 31.3.1.
+
+#% item
+# The singularities are 0, 1, `a` and infinity; `gamma` must not be a non-positive integer.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values: the series at the normalization point and analytic continuation by Taylor series along the segment to `z`, around the singularities on the upper side (values on the cuts are the limits from above).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heun_g(4.3 + 0.1*im, -0.2, 1.3, 0.12, -0.14, 4.32, 0.12)
+#% output
+#= 1.0523224656822903 - 0.001171736267294486im
+
+#% cell
+n(heun_g(12/10, 9/10, -14/10, 12/100, 3/100, -2/10, 1/10), 30)
+#% output
+#= 3.56908496265667212886240725085997
+
+#% cell
+heun_g(1.2, 0.9, -1.4, 0.12, 0.03, -0.2, [0.1, 0.1 + im, im, 4])
+#% output
+#= [3.5690849626566727, -0.8608580150844576 + 22.02398188525745im, -2.58173686897918 + 21.6034468416846im, 4.987364306608002 + 0.12378957859672736im]
+
+#% cell
+heun_g(a, q, al, be, ga, de, 0)
+#% output
+#= 1
+
+#% text
+# With `q = alpha beta a` and `epsilon = 0` the factor `z - a` cancels and the equation is the hypergeometric one: `heun_g(a, alpha beta a, alpha, beta, gamma, alpha + beta + 1 - gamma, z) = 2F1(alpha, beta; gamma; z)`:
+
+#% cell
+heun_g(2, 0.3*0.7*2, 0.3, 0.7, 1.1, 0.9, 0.4) - hypergeometric_2f1(0.3, 0.7, 1.1, 0.4)
+#% output
+#= 2.220446049250313e-16
+
+#% section
+# See also
+
+#% text
+# `heun_c`, `heun_b`, `heun_d`, `heun_t`, `hypergeometric_2f1`

@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# moebius_mu
+
+#% text
+# `moebius_mu(n)` gives the Moebius function: 0 when a square of a prime divides `n`, otherwise `(-1)^k` with `k` the number of prime factors of `n`.
+
+#% section
+# Details
+
+#% item
+# `moebius_mu(1)` is 1. The function is multiplicative.
+
+#% item
+# `moebius_mu` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+moebius_mu(30)
+#% output
+#= -1
+
+#% cell
+moebius_mu(12)
+#% output
+#= 0
+
+#% cell
+moebius_mu(7)
+#% output
+#= -1
+
+#% cell
+moebius_mu(range(12))
+#% output
+#= [1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0]
+
+#% subsection
+# Applications
+
+#% text
+# The Mertens function, the partial sum of `moebius_mu`, up to 1000:
+
+#% cell
+sum(moebius_mu(range(1000)))
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sum over the divisors is 0 except for `n = 1`:
+
+#% cell
+table(divisor_sum(n, moebius_mu), n, 6)
+#% output
+#= [1, 0, 0, 0, 0, 0]
+
+#% text
+# Dirichlet inversion of `zeta`: the sum of `moebius_mu(n)/n^2` is `1/zeta(2)`:
+
+#% cell
+[sum(moebius_mu(range(20000))/range(20000)^2.0), 6/pi^2.0]
+#% output
+#= [0.6079271711101355, 0.6079271018540267]
+
+#% section
+# See also
+
+#% text
+# `liouville_lambda`, `is_square_free`, `prime_nu`, `divisor_sum`

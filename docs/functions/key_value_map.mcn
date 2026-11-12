@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# key_value_map
+
+#% text
+# `key_value_map(f, a)` gives `[f(k1, v1), f(k2, v2), ...]` for the entries `k -> v` of the association `a`, in order; `key_value_map(f)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_value_map(f, assoc(a -> 1, b -> 2, c -> 3))
+#% output
+#= [f(a, 1), f(b, 2), f(c, 3)]
+
+#% cell
+key_value_map((k, v) => string_join(k, "=", to_string(v)), assoc("x" -> 1, "y" -> 2))
+#% output
+#= ["x=1", "y=2"]
+
+#% section
+# See also
+
+#% text
+# `key_map`, `map_values`, `keys`

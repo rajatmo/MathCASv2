@@ -1,0 +1,782 @@
+//! The self-test (design 9.8): with `MCNB_SELFTEST=<script>` the window runs a script that injects input through
+//! egui's raw input hook, takes screenshots and measures frame times. Script lines (one step per line, `#` comments):
+//!
+//! - `out <dir>`: where screenshots and the log go (default: the script's folder)
+//! - `open <file>`: open a notebook in a tab (as File > Open); `new`: replace the active tab's notebook by an empty
+//!   one; `newtab`: a new Untitled tab
+//! - `ppp <x>`: emulate a display scale (1 = 100 %, 1.5 = 150 %)
+//! - `rclick <x> <y>` / `mclick <x> <y>` / `shiftclick <x> <y>` / `tripleclick <x> <y>`; `drag <x0> <y0> <x1> <y1>`
+//!   (a primary drag in steps); `move <x> <y>` (the pointer moves; the log gets the pointer shape a frame later)
+//! - `generate <n>`: load a generated notebook of `n` cells of mixed styles (the performance probe); `longcell <n>`:
+//!   a notebook whose second cell is an Input cell of `n` lines of code, the caret at its end
+//! - `type <label> <text>`: type `text` one character per frame (as a hand types: each key gets its own frame) and
+//!   log the frame times of those frames under `label` (round 19: typing latency)
+//! - `theme light|dark|system`, `zoom <factor>`, `size <w> <h>`
+//! - `keys <keys>`: chords and quoted text as in the key scripts, sent as egui key and text events
+//! - `click <x> <y>` / `dblclick <x> <y>`: a primary click at window coordinates
+//! - `wait <frames>`: let frames pass (kernel responses arrive)
+//! - `shot <name>`: a screenshot `<name>.png`
+//! - `probe <label>`: log the frame time of the next frames
+//! - `scroll <pixels>`: scroll the notebook
+//! - `ime <text>` / `imecommit <text>`: an input method composes / commits text; `tabs`: write the tabs to the log
+//! - `sel`: write the selection to the log; `boxes`: the box caret or selection of the typeset cell or output with
+//!   the caret, in the box notation; `hit <x> <y>`: what is at a window position; `images`: the picture
+//!   cache's size and the drawings' rasterisation times; `about` / `about off`: the About dialog; `prefs` / `prefs off`: the preferences dialog; `clip`:
+//!   write the clipboard's text to the log; `setclip <text>`: put text on the clipboard as another program would
+//!   (`\n` a line break); `focus`: the focused widget and whether a popup is open; `help`: the
+//!   completion list, the usage hint, the hovered name's usage line and the pages asked for (F1, Ctrl+click)
+//! - `ctrlclick <x> <y>`: a primary click with Ctrl held; `hovername <name>` / `ctrlclickname <name>`: the pointer
+//!   onto (a Ctrl+click on) the first `name` in the plain cell with the caret
+//! - `save <file>`: save the notebook there; `log <text>`: write a line to the log; `dump <name>`: write the
+//!   notebook text to `<name>.mcn`
+//! - `init yes|no|always`: answer the initialization question
+//! - `wheel <lines> [count] [frames]`: `count` Ctrl+wheel events of `lines` lines (positive: away from the user) in
+//!   one frame, repeated over `frames` frames; `pad <points> [frames]`: one Ctrl+wheel event of `points` points (a
+//!   precision touchpad) per frame; `anchor <y>`: write the magnification, the scroll offset and the cell (and the
+//!   fraction of it) at window height `y` to the log
+//! - `plainwheel <lines>`: one wheel event without Ctrl; `view3d`: the 3D views kept on outputs and the render
+//!   times so far (milliseconds: median and largest)
+//! - `export <file>`: File > Export to an `.html` or `.pdf` file
+//! - `warnings`: the warnings of the cell with the caret (round 20: `x(x - a)`); `fixwarning`: apply the first
+//!   one's quick fix; `products`: the faint multiplication signs of that cell (round 35: the gaps and where each
+//!   `×` is drawn)
+//! - math input checks (round 32, `tests/selftest/input-*.txt`): `formula <label>` starts a formula (the previous
+//!   one gets a `result <label>: pass` or `fail (<fields>)` line); `expect <field> "<value>"` compares a field and
+//!   logs `ok` or `FAIL` with both values; `show <field>` logs a field; `eval` evaluates the cell with the caret
+//!   and waits for the kernel (30 s at most); `roundtrip` selects the last evaluated cell's output, copies it,
+//!   pastes it as math into a new cell at the end, evaluates that cell and checks that its value prints as the
+//!   copied output did (`ok pasted` / `FAIL pasted`). Fields: `boxes` (box notation), `linear` (linear text: what
+//!   Copy gives), `canon` (the stored text), `output` (the printed output of the last `eval`), `messages` (the
+//!   other cells it made), `gaps` (round 35: the white space that multiplies, `|` between gaps); `linear` and
+//!   `output` compare without spaces
+//! - `quit`
+use crate::app::App;
+use crate::theme::ThemeChoice;
+use eframe::egui::{self, Event, Modifiers, PointerButton, ViewportCommand};
+use mc_nbmodel::keys::{Chord, Key};
+use mc_nbmodel::script::{parse_steps, Step};
+use mc_nbmodel::{Cell, CellId, Notebook, Style};
+use std::io::Write;
+use std::path::PathBuf;
+
+/// A running self-test.
+pub struct SelfTest {
+    steps: Vec<String>,
+    next: usize,
+    wait: u32,
+    dir: PathBuf,
+    log: Vec<String>,
+    probe: Option<(String, Vec<f64>, u32)>,
+    pending: Vec<Event>,
+    /// events for the following frames, one batch per frame
+    later: Vec<Vec<Event>>,
+    /// log the pointer shape after this frame (the `move` step)
+    cursor_log: Option<String>,
+    frame: u64,
+    /// the formula being checked (round 32, `formula`): its label and the checks that failed so far
+    formula: Option<(String, Vec<String>)>,
+    /// the Input cell the last `eval` evaluated
+    evaluated: Option<CellId>,
+    /// `eval` waits for the kernel: until this time at most, and at least this many frames
+    until_idle: Option<(std::time::Instant, u32)>,
+    /// `roundtrip`: the printed output that the pasted cell must evaluate to again
+    roundtrip: Option<String>,
+}
+
+impl SelfTest {
+    /// The self-test of the script at `path`.
+    pub fn load(path: &str) -> Option<SelfTest> {
+        let text = std::fs::read_to_string(path).ok()?;
+        let dir = std::path::Path::new(path).parent().map(PathBuf::from).unwrap_or_default();
+        let steps =
+            text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_string).collect();
+        Some(SelfTest {
+            steps,
+            next: 0,
+            wait: 3,
+            dir,
+            log: vec![],
+            probe: None,
+            pending: vec![],
+            later: vec![],
+            cursor_log: None,
+            frame: 0,
+            formula: None,
+            evaluated: None,
+            until_idle: None,
+            roundtrip: None,
+        })
+    }
+
+    fn write_log(&self) {
+        if let Ok(mut f) = std::fs::File::create(self.dir.join("selftest.log")) {
+            for l in &self.log {
+                let _ = writeln!(f, "{l}");
+            }
+        }
+    }
+
+    /// Put the pending events into this frame's input.
+    pub fn inject(&mut self, _app: &mut App, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if self.pending.is_empty() && !self.later.is_empty() {
+            self.pending = self.later.remove(0);
+        }
+        for e in self.pending.drain(..) {
+            if let Event::Key { modifiers, pressed: true, .. } = &e {
+                raw.events.push(Event::ModifiersChanged(*modifiers));
+            }
+            raw.events.push(e);
+        }
+    }
+
+    /// Run the next step after a frame.
+    pub fn after_frame(&mut self, app: &mut App, ctx: &egui::Context) {
+        self.frame += 1;
+        ctx.request_repaint();
+        if let Some(at) = self.cursor_log.take() {
+            let icon = ctx.output(|o| o.cursor_icon);
+            self.log.push(format!("pointer at {at}: {icon:?}"));
+        }
+        if let Some((label, times, left)) = &mut self.probe {
+            times.push(app.frame_ms);
+            *left -= 1;
+            if *left == 0 {
+                let mut t = times.clone();
+                t.sort_by(|a, b| a.total_cmp(b));
+                let line = format!(
+                    "probe {label}: {} frames, median {:.2} ms, p90 {:.2} ms, max {:.2} ms",
+                    t.len(),
+                    t[t.len() / 2],
+                    t[(t.len() * 9 / 10).min(t.len() - 1)],
+                    t[t.len() - 1]
+                );
+                self.log.push(line);
+                self.probe = None;
+                self.write_log();
+            }
+        }
+        if self.wait > 0 {
+            self.wait -= 1;
+            return;
+        }
+        if let Some((deadline, min)) = &mut self.until_idle {
+            let nb = app.notebook();
+            let busy = nb.running_cell().is_some() || nb.queue_len() > 0;
+            if *min > 0 {
+                *min -= 1;
+                return;
+            }
+            if busy && std::time::Instant::now() < *deadline {
+                return;
+            }
+            if busy {
+                self.log.push("eval: the kernel did not answer in time".to_string());
+            }
+            self.until_idle = None;
+            if let Some(want) = self.roundtrip.take() {
+                let got = self.evaluated.and_then(|id| output_of(app.notebook(), id)).map(|(_, t)| t);
+                let ok = got.as_deref() == Some(want.as_str());
+                self.log.push(if ok {
+                    "  ok pasted".to_string()
+                } else {
+                    format!("  FAIL pasted: the copied output {want:?} pasted and evaluated gave {got:?}")
+                });
+                if !ok {
+                    if let Some((_, fails)) = &mut self.formula {
+                        fails.push("pasted".to_string());
+                    }
+                }
+            }
+        }
+        let Some(step) = self.steps.get(self.next).cloned() else {
+            return;
+        };
+        self.next += 1;
+        self.wait = 2;
+        let (cmd, arg) = step.split_once(' ').unwrap_or((step.as_str(), ""));
+        match cmd {
+            "out" => {
+                self.dir = PathBuf::from(arg);
+                let _ = std::fs::create_dir_all(&self.dir);
+            }
+            "open" => {
+                let start = std::time::Instant::now();
+                app.open(std::path::Path::new(arg));
+                self.log.push(format!("open {arg}: {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
+            }
+            "new" => app.load_notebook(Notebook::new()),
+            "newtab" => app.new_tab(),
+            "ppp" => {
+                let want: f32 = arg.parse().unwrap_or(1.0);
+                let native = ctx.pixels_per_point() / ctx.zoom_factor();
+                ctx.set_zoom_factor(want / native);
+                self.wait = 6;
+            }
+            "move" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    self.pending.push(Event::PointerMoved(egui::pos2(v[0], v[1])));
+                    self.cursor_log = Some(arg.to_string());
+                }
+            }
+            "rclick" | "mclick" | "shiftclick" | "tripleclick" | "ctrlclick" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    let p = egui::pos2(v[0], v[1]);
+                    let (button, modifiers, n) = match cmd {
+                        "rclick" => (PointerButton::Secondary, Modifiers::NONE, 1),
+                        "mclick" => (PointerButton::Middle, Modifiers::NONE, 1),
+                        "shiftclick" => (PointerButton::Primary, Modifiers::SHIFT, 1),
+                        "ctrlclick" => (PointerButton::Primary, Modifiers::COMMAND, 1),
+                        _ => (PointerButton::Primary, Modifiers::NONE, 3),
+                    };
+                    self.pending.push(Event::PointerMoved(p));
+                    if !modifiers.is_none() {
+                        self.pending.push(Event::ModifiersChanged(modifiers));
+                    }
+                    // one click per frame (as a hand clicks), the modifier released a frame after the last
+                    for k in 0..n {
+                        let clicks: Vec<Event> =
+                            [true, false].map(|pressed| Event::PointerButton { pos: p, button, pressed, modifiers }).into();
+                        if k == 0 {
+                            self.pending.extend(clicks);
+                        } else {
+                            self.later.push(clicks);
+                        }
+                    }
+                    if !modifiers.is_none() {
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                    }
+                    self.wait = 2 + n as u32;
+                }
+            }
+            "drag" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 4 {
+                    let (a, b) = (egui::pos2(v[0], v[1]), egui::pos2(v[2], v[3]));
+                    self.pending.push(Event::PointerMoved(a));
+                    self.pending.push(Event::PointerButton {
+                        pos: a,
+                        button: PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Modifiers::NONE,
+                    });
+                    // one move per frame, then the release
+                    for k in 1..=8 {
+                        self.later.push(vec![Event::PointerMoved(a + (b - a) * (k as f32 / 8.0))]);
+                    }
+                    self.later.push(vec![Event::PointerButton {
+                        pos: b,
+                        button: PointerButton::Primary,
+                        pressed: false,
+                        modifiers: Modifiers::NONE,
+                    }]);
+                    self.wait = 12;
+                }
+            }
+            "generate" => {
+                let n: usize = arg.parse().unwrap_or(1000);
+                let start = std::time::Instant::now();
+                app.load_notebook(generated(n));
+                self.log.push(format!("generate {n}: {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
+            }
+            "longcell" => {
+                let n: usize = arg.parse().unwrap_or(1000);
+                let start = std::time::Instant::now();
+                let nb = long_cell(n);
+                let (id, len) = (nb.cells()[1].id, nb.cells()[1].text.len());
+                app.load_notebook(nb);
+                app.run(ctx, mc_nbmodel::Command::SelectText(id, len, len));
+                self.log.push(format!("longcell {n}: {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
+            }
+            "type" => {
+                let (label, text) = arg.split_once(' ').unwrap_or(("typing", arg));
+                let text = text.trim_matches('"').replace("\\n", "\n");
+                let mut n = 0;
+                for ch in text.chars() {
+                    let batch = if ch == '\n' {
+                        key_events(Chord::parse("Enter").expect("valid"))
+                    } else {
+                        vec![Event::Text(ch.to_string())]
+                    };
+                    self.later.push(batch);
+                    n += 1;
+                }
+                // the probe starts with the first typed frame
+                self.probe = Some((label.to_string(), vec![], n.max(1) as u32 + 1));
+                self.wait = n as u32 + 3;
+            }
+            "theme" => app.set_theme(ThemeChoice::from_name(arg)),
+            "zoom" => app.set_magnification(arg.parse().unwrap_or(1.0)),
+            "size" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    ctx.send_viewport_cmd(ViewportCommand::InnerSize(egui::vec2(v[0], v[1])));
+                }
+                self.wait = 6;
+            }
+            "keys" => {
+                match parse_steps(arg) {
+                    Ok(steps) => {
+                        for s in steps {
+                            match s {
+                                Step::Key(c) => self.pending.extend(key_events(c)),
+                                Step::Type(t) => {
+                                    for ch in t.chars() {
+                                        if ch == '\n' {
+                                            self.pending.extend(key_events(Chord::parse("Enter").expect("valid")));
+                                        } else {
+                                            self.pending.push(Event::Text(ch.to_string()));
+                                        }
+                                    }
+                                }
+                                _ => self.log.push(format!("keys: unsupported step {s:?}")),
+                            }
+                        }
+                    }
+                    Err(e) => self.log.push(format!("keys: {e}")),
+                }
+                // the modifiers of the last chord are released (a later click is not a Shift+click)
+                if self.pending.iter().any(|e| matches!(e, Event::Key { modifiers, .. } if !modifiers.is_none())) {
+                    self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                }
+            }
+            "click" | "dblclick" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    let p = egui::pos2(v[0], v[1]);
+                    self.pending.push(Event::PointerMoved(p));
+                    let n = if cmd == "click" { 1 } else { 2 };
+                    for k in 0..n {
+                        let clicks: Vec<Event> = [true, false]
+                            .map(|pressed| Event::PointerButton {
+                                pos: p,
+                                button: PointerButton::Primary,
+                                pressed,
+                                modifiers: Modifiers::NONE,
+                            })
+                            .into();
+                        if k == 0 {
+                            self.pending.extend(clicks);
+                        } else {
+                            self.later.push(clicks);
+                        }
+                    }
+                    self.wait = 2 + n;
+                }
+            }
+            "wait" => self.wait = arg.parse().unwrap_or(10),
+            "shot" => {
+                let path = self.dir.join(format!("{arg}.png"));
+                ctx.send_viewport_cmd(ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |img| {
+                    save_png(&path, &img)
+                })));
+                self.log.push(format!("shot {arg}"));
+                self.wait = 4;
+            }
+            "probe" => self.probe = Some((arg.to_string(), vec![], 30)),
+            "scroll" => {
+                app.scroll(arg.parse().unwrap_or(400.0));
+            }
+            "save" => {
+                let start = std::time::Instant::now();
+                let ok = app.save_path(std::path::Path::new(arg));
+                self.log.push(format!("save {arg}: {ok}, {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
+            }
+            "log" => self.log.push(arg.to_string()),
+            "export" => {
+                let ok = app.export_to(std::path::Path::new(arg));
+                self.log.push(format!("export {arg}: {ok}"));
+            }
+            "wheel" | "pad" => {
+                let mut it = arg.split_whitespace();
+                let d: f32 = it.next().and_then(|v| v.parse().ok()).unwrap_or(1.0);
+                let (count, frames) = if cmd == "wheel" {
+                    let count: usize = it.next().and_then(|v| v.parse().ok()).unwrap_or(1);
+                    (count, it.next().and_then(|v| v.parse().ok()).unwrap_or(1usize))
+                } else {
+                    (1, it.next().and_then(|v| v.parse().ok()).unwrap_or(1usize))
+                };
+                let unit = if cmd == "wheel" { egui::MouseWheelUnit::Line } else { egui::MouseWheelUnit::Point };
+                let event = Event::MouseWheel {
+                    unit,
+                    delta: egui::vec2(0.0, d),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
+                    modifiers: Modifiers::CTRL,
+                };
+                let batch = vec![event; count];
+                self.pending.push(Event::ModifiersChanged(Modifiers::CTRL));
+                self.pending.extend(batch.clone());
+                for _ in 1..frames {
+                    self.later.push(batch.clone());
+                }
+                self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                self.wait = frames as u32 + 2;
+            }
+            "plainwheel" => {
+                let d: f32 = arg.parse().unwrap_or(1.0);
+                self.pending.push(Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(0.0, d),
+                    phase: egui::TouchPhase::Move,
+                    source: egui::MouseWheelSource::Unknown,
+                    modifiers: Modifiers::NONE,
+                });
+            }
+            "view3d" => self.log.push(format!("view3d: {}", app.view3d_probe())),
+            "anchor" => {
+                let y: f32 = arg.parse().unwrap_or(300.0);
+                self.log.push(format!("anchor: {}", app.zoom_probe(y)));
+            }
+            "ime" => self
+                .pending
+                .push(Event::Ime(egui::ImeEvent::Preedit { text: arg.to_string(), active_range_chars: None })),
+            "imecommit" => self.pending.push(Event::Ime(egui::ImeEvent::Commit(arg.to_string()))),
+            "tabs" => {
+                let list: Vec<String> = app.tabs_summary();
+                self.log.push(format!("tabs: {}", list.join(" ")));
+            }
+            "about" => app.show_about(arg != "off"),
+            "prefs" => app.show_preferences(arg != "off"),
+            "clip" => {
+                // the text flavour, and the box flavour when the clipboard holds one
+                let c = app.clipboard_contents();
+                let boxes = c.boxes.map(|b| format!(" boxes {b:?}")).unwrap_or_default();
+                self.log.push(format!("clipboard: {:?}{boxes}", c.text));
+            }
+            "setclip" => app.set_clipboard_text(&arg.trim_matches('"').replace("\\n", "\n")),
+            "help" => self.log.push(format!("help: {}", app.help_state())),
+            "warnings" => {
+                let w = app.warnings_state();
+                self.log.push(format!("warnings: {w}"));
+            }
+            "products" => {
+                let s = app.products_state(ctx);
+                self.log.push(format!("products: {s}"));
+            }
+            "fixwarning" => {
+                let done = app.fix_first_warning(ctx);
+                self.log.push(format!("fixwarning: {done}"));
+            }
+            "hovername" | "ctrlclickname" => match app.screen_point_of(arg) {
+                Some(p) => {
+                    self.pending.push(Event::PointerMoved(p));
+                    // a second small move: a tooltip shows once the pointer moved over what it already hovers
+                    self.later.push(vec![]);
+                    self.later.push(vec![Event::PointerMoved(p + egui::vec2(1.0, 0.0))]);
+                    if cmd == "ctrlclickname" {
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::COMMAND)]);
+                        self.later.push(
+                            [true, false]
+                                .map(|pressed| Event::PointerButton {
+                                    pos: p,
+                                    button: PointerButton::Primary,
+                                    pressed,
+                                    modifiers: Modifiers::COMMAND,
+                                })
+                                .into(),
+                        );
+                        self.later.push(vec![Event::ModifiersChanged(Modifiers::NONE)]);
+                    }
+                    self.wait = 6;
+                }
+                None => self.log.push(format!("{cmd}: no `{arg}` in the cell with the caret")),
+            },
+            "focus" => {
+                let (focused, popup) = (ctx.memory(|m| m.focused()), egui::Popup::is_any_open(ctx));
+                self.log.push(format!("focus: {focused:?}, popup open: {popup}"));
+            }
+            "sel" => self.log.push(format!("selection: {:?}", app.notebook().selection())),
+            "boxes" => {
+                let nb = app.notebook();
+                let line = match (nb.input_editor(), nb.output_caret()) {
+                    // a code cell without boxes has no box notation (as with the editor of rounds 9 to 33)
+                    (Some((id, e)), _) if mc_boxes::has_boxes(e.root()) => format!("boxes: input {} {}", id.0, e.notation()),
+                    (None, Some((id, e))) => format!("boxes: output {} {}", id.0, e.notation()),
+                    _ => "boxes: none".to_string(),
+                };
+                self.log.push(line);
+            }
+            "hit" => {
+                let v: Vec<f32> = arg.split(' ').filter_map(|x| x.parse().ok()).collect();
+                if v.len() == 2 {
+                    let what = app.hit_at(egui::pos2(v[0], v[1]));
+                    self.log.push(format!("hit {arg}: {what}"));
+                }
+            }
+            "images" => {
+                let images = app.images.borrow();
+                let (bytes, entries, uploads) = images.stats();
+                self.log.push(format!("images: {} MB in {entries} entries, {uploads} uploads", bytes >> 20));
+                // the drawings rasterised so far (round nb-svg): each time with its width in pixels
+                let times: Vec<String> = images.svg_times.iter().map(|(ms, w)| format!("{ms:.1} ms at {w} px")).collect();
+                self.log.push(format!("svg rasters: {}", times.join(", ")));
+            }
+            "init" => app.answer_init(
+                match arg {
+                    "no" => mc_nbmodel::InitAnswer::No,
+                    "always" => mc_nbmodel::InitAnswer::Always,
+                    _ => mc_nbmodel::InitAnswer::Yes,
+                },
+                ctx,
+            ),
+            "dump" => {
+                let text = app.notebook().to_text();
+                let _ = std::fs::write(self.dir.join(format!("{arg}.mcn")), text);
+            }
+            "formula" => {
+                self.finish_formula();
+                self.formula = Some((arg.to_string(), vec![]));
+                self.log.push(format!("formula {arg}"));
+            }
+            "eval" => {
+                // Shift+Enter on the cell with the caret, then wait for the kernel (at most 30 s)
+                self.evaluated = app.notebook().current_cell();
+                app.run(ctx, mc_nbmodel::Command::Evaluate);
+                self.until_idle = Some((std::time::Instant::now() + std::time::Duration::from_secs(30), 3));
+            }
+            "show" => {
+                let v = field(app, self.evaluated, arg);
+                self.log.push(format!("show {arg}: {v:?}"));
+            }
+            "expect" => {
+                let (what, want) = arg.split_once(' ').unwrap_or((arg, ""));
+                let want = unquote(want);
+                let got = field(app, self.evaluated, what);
+                let ok = match what {
+                    // the same terms: spaces do not matter
+                    "linear" | "output" | "pasted" => squash(&got) == squash(&want),
+                    _ => got == want,
+                };
+                let line = if ok {
+                    format!("  ok {what}")
+                } else {
+                    format!("  FAIL {what}: want {want:?}, got {got:?}")
+                };
+                self.log.push(line);
+                if !ok {
+                    if let Some((_, fails)) = &mut self.formula {
+                        fails.push(what.to_string());
+                    }
+                }
+            }
+            "roundtrip" => {
+                // the output selected whole and copied as a user would, pasted as math into a new cell at the end;
+                // `expect pasted` then compares that cell's linear text with the printed output
+                let out = self.evaluated.and_then(|id| output_of(app.notebook(), id));
+                match out {
+                    Some((out, text)) => {
+                        app.run(ctx, mc_nbmodel::Command::SelectText(out, 0, text.len()));
+                        app.run(ctx, mc_nbmodel::Command::Copy);
+                        app.run(ctx, mc_nbmodel::Command::Move(mc_nbmodel::Motion::DocEnd, false));
+                        app.run(ctx, mc_nbmodel::Command::PasteMath);
+                        let pasted = current_linear(app);
+                        self.log.push(format!("  pasted {pasted:?}"));
+                        // the pasted cell evaluates; its value must print as the copied output did
+                        self.evaluated = app.notebook().current_cell();
+                        app.run(ctx, mc_nbmodel::Command::Evaluate);
+                        self.until_idle = Some((std::time::Instant::now() + std::time::Duration::from_secs(30), 3));
+                        self.roundtrip = Some(text);
+                    }
+                    None => {
+                        self.log.push("  FAIL pasted: no output".to_string());
+                        if let Some((_, fails)) = &mut self.formula {
+                            fails.push("pasted".to_string());
+                        }
+                    }
+                }
+            }
+            "quit" => {
+                self.finish_formula();
+                self.write_log();
+                app.discard_changes();
+                ctx.send_viewport_cmd(ViewportCommand::Close);
+            }
+            other => self.log.push(format!("unknown step `{other}`")),
+        }
+        self.write_log();
+    }
+}
+
+impl SelfTest {
+    /// Close the formula being checked: one `result` line.
+    fn finish_formula(&mut self) {
+        if let Some((label, fails)) = self.formula.take() {
+            let line = if fails.is_empty() {
+                format!("result {label}: pass")
+            } else {
+                format!("result {label}: fail ({})", fails.join(", "))
+            };
+            self.log.push(line);
+        }
+    }
+}
+
+/// A script value: `"text"` with `\n` and `\"`, or a bare word.
+fn unquote(s: &str) -> String {
+    let s = s.trim();
+    let inner = s.strip_prefix('"').and_then(|t| t.strip_suffix('"')).unwrap_or(s);
+    inner.replace("\\n", "\n").replace("\\\"", "\"")
+}
+
+/// Text without its spaces (linear text and printed values compare by their characters).
+fn squash(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect()
+}
+
+/// The linear text of the cell with the caret: its boxes' linear text, else its text.
+fn current_linear(app: &App) -> String {
+    let nb = app.notebook();
+    if let Some((_, e)) = nb.input_editor() {
+        return e.linear();
+    }
+    nb.current_cell().and_then(|id| nb.cell(id)).map(|c| c.text.clone()).unwrap_or_default()
+}
+
+/// The Output cell of input `id` and its printed text.
+fn output_of(nb: &Notebook, id: CellId) -> Option<(CellId, String)> {
+    let i = nb.index_of(id)?;
+    nb.cells()[i + 1..]
+        .iter()
+        .take_while(|c| c.input_of == Some(id))
+        .find(|c| c.style == Style::Output)
+        .map(|c| (c.id, c.text.clone()))
+}
+
+/// A checked field (`expect` and `show`): `boxes` the box notation of the cell with the caret, `linear` its
+/// linear text (what Copy gives), `canon` its stored text (what the kernel reads), `output` the printed output of
+/// the last evaluated cell, `messages` the other cells that evaluation made (prints and messages), `pasted` the
+/// linear text of the cell with the caret.
+fn field(app: &App, evaluated: Option<CellId>, what: &str) -> String {
+    let nb = app.notebook();
+    match what {
+        // a cell without boxes is `none`, as with the editor of rounds 9 to 33 (it had no box editor then)
+        "boxes" => match nb.input_editor() {
+            Some((_, e)) if mc_boxes::has_boxes(e.root()) => e.notation(),
+            _ => "none".to_string(),
+        },
+        "linear" | "pasted" => current_linear(app),
+        "canon" => nb.current_cell().and_then(|id| nb.cell(id)).map(|c| c.text.clone()).unwrap_or_default(),
+        // round 35: the white space that multiplies, `|` between gaps
+        "gaps" => {
+            let text = nb.current_cell().and_then(|id| nb.cell(id)).map(|c| c.text.clone()).unwrap_or_default();
+            let gaps: Vec<String> =
+                mc_syntax::parse(&text).products.iter().map(|s| text[s.start as usize..s.end as usize].to_string()).collect();
+            gaps.join("|")
+        }
+        "output" => evaluated.and_then(|id| output_of(nb, id)).map(|(_, t)| t).unwrap_or_else(|| "<none>".into()),
+        "messages" => {
+            let Some(id) = evaluated else { return String::new() };
+            let Some(i) = nb.index_of(id) else { return String::new() };
+            let texts: Vec<String> = nb.cells()[i + 1..]
+                .iter()
+                .take_while(|c| c.input_of == Some(id))
+                .filter(|c| c.style != Style::Output)
+                .map(|c| c.text.clone())
+                .collect();
+            texts.join(" | ")
+        }
+        other => format!("<unknown field {other}>"),
+    }
+}
+
+/// The egui events of a chord: the key press with its modifiers.
+fn key_events(c: Chord) -> Vec<Event> {
+    use egui::Key as E;
+    let key = match c.key {
+        Key::Enter | Key::KeypadEnter => E::Enter,
+        Key::Tab => E::Tab,
+        Key::Backspace => E::Backspace,
+        Key::Delete => E::Delete,
+        Key::Insert => E::Insert,
+        Key::Escape => E::Escape,
+        Key::Space => E::Space,
+        Key::Left => E::ArrowLeft,
+        Key::Right => E::ArrowRight,
+        Key::Up => E::ArrowUp,
+        Key::Down => E::ArrowDown,
+        Key::Home => E::Home,
+        Key::End => E::End,
+        Key::PageUp => E::PageUp,
+        Key::PageDown => E::PageDown,
+        Key::KeypadPeriod => E::Period,
+        Key::F(n) => match E::from_name(&format!("F{n}")) {
+            Some(k) => k,
+            None => return vec![],
+        },
+        Key::Char(ch) => match ch {
+            '[' => E::OpenBracket,
+            ']' => E::CloseBracket,
+            '\'' => E::Quote,
+            '.' => E::Period,
+            ',' => E::Comma,
+            '/' => E::Slash,
+            '-' => E::Minus,
+            '=' => E::Equals,
+            ';' => E::Semicolon,
+            _ => match E::from_name(&ch.to_ascii_uppercase().to_string()) {
+                Some(k) => k,
+                None => return vec![],
+            },
+        },
+    };
+    let modifiers =
+        Modifiers { alt: c.mods.alt, ctrl: c.mods.ctrl, shift: c.mods.shift, mac_cmd: false, command: c.mods.ctrl };
+    vec![
+        Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers },
+        Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers },
+    ]
+}
+
+/// A notebook of `n` cells of mixed styles, for the performance probe.
+pub fn generated(n: usize) -> Notebook {
+    let mut cells = vec![];
+    let mut k = 0u64;
+    while cells.len() < n {
+        let id = CellId(k);
+        let cell = match k % 10 {
+            0 => Cell::new(id, Style::Section, &format!("Section {}", k / 10)),
+            1 | 5 => Cell::new(id, Style::Text, "Some prose explaining the computation below, long enough to wrap onto a second line when the window is narrow."),
+            2 | 6 | 8 => Cell::new(id, Style::Input, &format!("f{k}(x_) := x^2 + {k}\nsum(f{k}(i), [i, 1, 100])")),
+            3 | 7 | 9 => {
+                let mut c = Cell::new(id, Style::Output, &format!("{}", k * k + 338_350));
+                c.label = Some(k as u32);
+                c
+            }
+            _ => Cell::new(id, Style::Subsection, "Subsection"),
+        };
+        cells.push(cell);
+        k += 1;
+    }
+    Notebook::with_cells(cells)
+}
+
+/// A notebook with a title and one Input cell of `n` lines of code (the long-cell typing probe).
+pub fn long_cell(n: usize) -> Notebook {
+    let mut src = String::new();
+    for k in 0..n {
+        if k > 0 {
+            src.push('\n');
+        }
+        src.push_str(&match k % 4 {
+            0 => format!("f{k}(x_) := sum(x^j / factorial(j), [j, 0, {k}])  # a comment"),
+            1 => format!("    g{k} = table(sin(i * pi / {k}), [i, 1, 10])"),
+            2 => format!("    s{k} = \"a string with (brackets) {k}\""),
+            _ => format!("h{k} = [f{}(2), g{}, s{}]", k - 3, k - 2, k - 1),
+        });
+    }
+    Notebook::with_cells(vec![Cell::new(CellId(0), Style::Title, "Long cell"), Cell::new(CellId(1), Style::Input, &src)])
+}
+
+fn save_png(path: &std::path::Path, img: &egui::ColorImage) {
+    if let Ok(file) = std::fs::File::create(path) {
+        let mut enc = png::Encoder::new(std::io::BufWriter::new(file), img.width() as u32, img.height() as u32);
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        if let Ok(mut w) = enc.write_header() {
+            let bytes: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_array()).collect();
+            let _ = w.write_image_data(&bytes);
+        }
+    }
+}

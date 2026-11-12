@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# is_primitive
+
+#% text
+# `is_primitive(G), (G, n)`: whether the group is transitive and has no nontrivial block system
+
+#% section
+# Details
+
+#% item
+# A transitive group is primitive when it preserves no partition of the points other than the trivial ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_primitive(dihedral_group(6)), is_primitive(dihedral_group(7)), is_primitive(mathieu_group(24))]
+#% output
+#= [false, true, true]
+
+#% section
+# See also
+
+#% text
+# `group_blocks`, `is_transitive`

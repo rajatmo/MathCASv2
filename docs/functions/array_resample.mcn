@@ -1,0 +1,145 @@
+#! mathcas 2 notebook
+
+#% title
+# array_resample
+
+#% text
+# `array_resample(a, n)` resamples the array `a` to `n` samples by linear interpolation.
+
+#% section
+# Details
+
+#% item
+# With the default mode `"point"` the samples run from the first element to the last; with `"bin"` each element is a cell of width 1 and the samples are the centres of `n` equal cells, with the nearest value beyond the ends.
+
+#% item
+# `array_resample(a, n, "point", [lo, hi])` samples from position `lo` to `hi` (the elements are at positions 1, 2, ...).
+
+#% item
+# `n` is the size along the first axis; the other axes are scaled in proportion, or `n` is a list with one size for each axis. `scaled(f)` multiplies the number of samples by `f` (for a range, the length of the range).
+
+#% item
+# The mode `["bin", d]` shifts the cells: `d = -1` starts at the first element, `d = 1` ends at the last. `data_range: [a, b]` gives the coordinates of the first and last element (a list of ranges for several axes); `lo` and `hi` are then in those coordinates.
+
+#% item
+# The option `resampling` is `"linear"` (the default), `"nearest"`, `"nearest_left"` or `"nearest_right"` (a tie takes the average, the left or the right element), or `"quadratic"` or `"cubic"`: the cardinal B-spline of that degree through the elements, with the data continued beyond the ends by the padding (machine reals). The option `padding` gives the elements beyond the data: `"fixed"` (default, the nearest element), `"periodic"`, `"reflected"` or a number.
+
+#% item
+# Exact data give exact results; symbols are interpolated too.
+
+#% item
+# At least two samples are needed in the "point" mode: `failure(argument, array_resample, 2)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+array_resample([1, 2, 3, 4, 5], 9)
+#% output
+#= [1, 3/2, 2, 5/2, 3, 7/2, 4, 9/2, 5]
+
+#% cell
+array_resample([1, 2, 3, 4, 5], 3)
+#% output
+#= [1, 3, 5]
+
+#% subsection
+# Scope
+
+#% text
+# A matrix, resampled in both directions:
+
+#% cell
+array_resample([[1, 2, 3], [2, 3, 4], [3, 4, 5]], 6)
+#% output
+#= [[1, 7/5, 9/5, 11/5, 13/5, 3], [7/5, 9/5, 11/5, 13/5, 3, 17/5], [9/5, 11/5, 13/5, 3, 17/5, 19/5], [11/5, 13/5, 3, 17/5, 19/5, 21/5], [13/5, 3, 17/5, 19/5, 21/5, 23/5], [3, 17/5, 19/5, 21/5, 23/5, 5]]
+
+#% text
+# Symbolic data:
+
+#% cell
+array_resample([a, b, c], 5)
+#% output
+#= [a, (1/2)*a + (1/2)*b, b, (1/2)*b + (1/2)*c, c]
+
+#% text
+# A range of positions:
+
+#% cell
+array_resample(range(100), 5, "point", [55, 63])
+#% output
+#= [55, 57, 59, 61, 63]
+
+#% text
+# Cells:
+
+#% cell
+array_resample([1, 2, 3], 6, "bin")
+#% output
+#= [1, 5/4, 7/4, 9/4, 11/4, 3]
+
+#% subsection
+# Options
+
+#% text
+# Nearest values:
+
+#% cell
+array_resample([1, 2, 3], 6, resampling: "nearest")
+#% output
+#= [1, 1, 2, 2, 3, 3]
+
+#% text
+# Beyond the data:
+
+#% cell
+array_resample([1, 2, 3], 9, "bin", padding: 0)
+#% output
+#= [2/3, 1, 4/3, 5/3, 2, 7/3, 8/3, 3, 2]
+
+#% text
+# Spline interpolation through the elements:
+
+#% cell
+array_resample([1, 3, 2, 5, 4], 9, resampling: "cubic")
+#% output
+#= [1.0, 2.188466520526789, 3.000000000000001, 2.3725952641916455, 2.0, 3.4461524227066325, 5.000000000000001, 4.842795044981829, 4.000000000000001]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Resampling to the original number of samples gives the data again (also in the cell mode), and `n` smaller than 2 is rejected:
+
+#% cell
+[array_resample([1, 2, 3, 4], 4), array_resample([1, 2, 3, 4, 5], 5, "bin"), array_resample([1, 2, 3, 4], 1)]
+#% output
+#= [[1, 2, 3, 4], [1, 2, 3, 4, 5], failure(argument, array_resample, 2)]
+
+#% subsection
+# Possible issues
+
+#% text
+# The size must be an integer, an array must have elements, and the mode must be known; the failure names the argument:
+
+#% cell
+[array_resample([1, 2, 3], 4.5), array_resample([], 3), array_resample([1, 2, 3], 5, "foo"), array_resample([1, 2, 3], 5, resampling: "foo")]
+#% output
+#= [failure(argument, array_resample, 2), failure(argument, array_resample, 1), failure(argument, array_resample, 3), failure(argument, array_resample, 5)]
+
+#% text
+# A single element is repeated, and the spline modes give machine reals that agree with the data to rounding:
+
+#% cell
+[array_resample([1], 3), array_resample([1, 2, 3, 4], 4, resampling: "quadratic")]
+#% output
+#= [[1, 1, 1], [0.9999999999999994, 1.9999999999999984, 2.9999999999999973, 3.9999999999999964]]
+
+#% section
+# See also
+
+#% text
+# `interpolation`, `range`

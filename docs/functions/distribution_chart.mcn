@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# distribution_chart
+
+#% text
+# `distribution_chart(data)` draws violins: each data set's density estimate mirrored, with its quartile range and median.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+distribution_chart([[1, 2, 2, 3, 3, 3, 4, 5], [2, 4, 4, 5, 6, 6, 7, 9]])
+#% output
+#= image("distribution_chart.files/distribution_chart-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `box_whisker_chart`

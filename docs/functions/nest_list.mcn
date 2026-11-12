@@ -1,0 +1,114 @@
+#! mathcas 2 notebook
+
+#% title
+# nest_list
+
+#% text
+# `nest_list(f, x, n)` gives the list `[x, f(x), f(f(x)), ...]` of `n` + 1 values, `f` applied 0 to `n` times.
+
+#% section
+# Details
+
+#% item
+# The first element is the start value `x` itself.
+
+#% item
+# `n` must be a non-negative integer; each step is evaluated once, in order, so `f` may draw random numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+nest_list(f, x, 3)
+#% output
+#= [x, f(x), f(f(x)), f(f(f(x)))]
+
+#% cell
+nest_list(x => 2x, 1, 8)
+#% output
+#= [1, 2, 4, 8, 16, 32, 64, 128, 256]
+
+#% cell
+nest_list(x => (x + 2/x)/2, 1.0, 4)
+#% output
+#= [1.0, 1.5, 1.4166666666666665, 1.4142156862745097, 1.4142135623746899]
+
+#% subsection
+# Scope
+
+#% text
+# A pair as the state, here consecutive Fibonacci numbers:
+
+#% cell
+nest_list(p => [p[2], p[1] + p[2]], [0, 1], 6)
+#% output
+#= [[0, 1], [1, 1], [1, 2], [2, 3], [3, 5], [5, 8], [8, 13]]
+
+#% text
+# Symbolic iterates:
+
+#% cell
+nest_list(x => x^2 + c, 0, 3)
+#% output
+#= [0, c, c + c^2, c + (c + c^2)^2]
+
+#% subsection
+# Applications
+
+#% text
+# A random walk on the integers:
+
+#% cell
+seed(12); nest_list(k => k + random_choice([-1, 1]), 0, 10)
+#% output
+#= [0, -1, 0, -1, -2, -1, -2, -3, -2, -1, 0]
+
+#% text
+# A Metropolis chain in a few lines, as in the MCMC script: propose a step, accept it with probability given by the target density, here a standard normal.
+
+#% cell
+seed(11)
+fn step(x) = {
+  let y = x + random_real([-1, 1])
+  if random_real() < exp((x^2 - y^2)/2) then y else x
+}
+chain = nest_list(step, 0.0, 2000)
+[mean(chain), std_dev(chain)]
+#% output
+#= [-0.007551374323117318, 1.0313858993801788]
+
+#% text
+# The orbit of the logistic map:
+
+#% cell
+nest_list(x => 3.2*x*(1 - x), 0.5, 6)
+#% output
+#= [0.5, 0.8, 0.5119999999999999, 0.7995392, 0.512884056522752, 0.7994688034800593, 0.5130189943751091]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The list has `n` + 1 elements:
+
+#% cell
+length(nest_list(x => x + 1, 0, 100))
+#% output
+#= 101
+
+#% text
+# Its last element is `nest`:
+
+#% cell
+last(nest_list(x => 2x + 1, 0, 6)) == nest(x => 2x + 1, 0, 6)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `nest`, `fold_list`, `fix_point`, `table`, `accumulate`

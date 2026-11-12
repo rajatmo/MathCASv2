@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# blue
+
+#% text
+# `blue` is the colour blue, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([blue, disk()])
+#% output
+#= image("blue.files/blue-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [blue])
+#% output
+#= image("blue.files/blue-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(blue), disk([0, 0])], [blue, disk([2, 0])], [darker(blue), disk([4, 0])]])
+#% output
+#= image("blue.files/blue-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `red`, `green`, `rgb_color`

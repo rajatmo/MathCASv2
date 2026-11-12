@@ -1,0 +1,118 @@
+#! mathcas 2 notebook
+
+#% title
+# root_sum
+
+#% text
+# `root_sum(x => p(x), x => g(x))` is the sum of `g(r)` over the roots `r` of the polynomial `p`, each counted with its multiplicity.
+
+#% section
+# Details
+
+#% item
+# `p` is factored over the rational numbers. The roots of linear and quadratic factors are written with radicals; a factor of degree 3 or more stays as a `root_sum` over that factor, with integer coefficients.
+
+#% item
+# When `g` is a rational function of its argument, the sum over a factor of higher degree is computed exactly: a rational number, or a rational function when `g` has one other variable.
+
+#% item
+# `n` gives the numeric value: the sum over the numeric roots.
+
+#% item
+# `normal` writes the sum with root objects: `g(root(p, 1)) + ... + g(root(p, d))`.
+
+#% item
+# `d` differentiates the function inside the sum; the sum is over roots that do not depend on the variable.
+
+#% item
+# `integrate` gives a `root_sum` for the logarithmic part of a rational function when the residues are the roots of an irreducible polynomial of degree 3 or more; `to_radicals` writes cubics and quartics with radicals.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The sum of the squares of the roots of a cubic:
+
+#% cell
+root_sum(x => x^3 + x + 1, x => x^2)
+#% output
+#= -2
+
+#% text
+# Quadratic factors are written with radicals:
+
+#% cell
+root_sum(x => x^2 - 2, x => x*log(z - x))
+#% output
+#= log(z - 2^(1/2))*2^(1/2) - log(z + 2^(1/2))*2^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A sum over the roots of an irreducible cubic stays:
+
+#% cell
+root_sum(x => x^3 + x + 1, x => log(2 - x))
+#% output
+#= root_sum(x => 1 + x + x^3, x => log(2 - x))
+
+#% text
+# Its numeric value:
+
+#% cell
+n(root_sum(x => x^3 + x + 1, x => log(2 - x)))
+#% output
+#= 2.3978952727983702
+
+#% text
+# A rational function of the roots and another variable:
+
+#% cell
+root_sum(x => x^3 + x + 1, x => 1/(z - x))
+#% output
+#= (1 + 3*z^2)/(1 + z + z^3)
+
+#% text
+# `normal` writes the sum over root objects:
+
+#% cell
+normal(root_sum(x => x^3 + x + 7, x => sin(x)))
+#% output
+#= sin(root(&(7 + &1 + &1^3), 1)) + sin(root(&(7 + &1 + &1^3), 2)) + sin(root(&(7 + &1 + &1^3), 3))
+
+#% text
+# Repeated factors count with their multiplicity:
+
+#% cell
+root_sum(x => (x^3 + x + 1)^2, x => x^2)
+#% output
+#= -4
+
+#% subsection
+# Applications
+
+#% text
+# The antiderivative of a rational function whose residues need a cubic:
+
+#% cell
+integrate(1/(x^3 + x + 1), x)
+#% output
+#= root_sum(t => 1 + t + t^3, t => log(x - t)/(1 + 3*t^2))
+
+#% text
+# Its derivative is the integrand again:
+
+#% cell
+d(integrate(1/(x^3 + x + 1), x), x)
+#% output
+#= (1 + x + x^3)^-1
+
+#% section
+# See also
+
+#% text
+# `to_radicals`, `root`, `integrate`, `minimal_polynomial`

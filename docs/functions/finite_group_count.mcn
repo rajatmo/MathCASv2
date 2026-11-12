@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_group_count
+
+#% text
+# `finite_group_count(k)` gives the number of groups of order `k` up to isomorphism.
+
+#% section
+# Details
+
+#% item
+# Orders up to 64 come from a table; larger squarefree orders from Hoelder's formula; other orders stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+finite_group_count(range(1, 20))
+#% output
+#= [1, 1, 1, 2, 1, 2, 1, 5, 2, 2, 1, 5, 1, 2, 1, 14, 1, 5, 1, 5]
+
+#% cell
+finite_group_count(24)
+#% output
+#= 15
+
+#% cell
+finite_group_count(2*3*5*7*11)
+#% output
+#= 36
+
+#% section
+# See also
+
+#% text
+# `finite_abelian_group_count`

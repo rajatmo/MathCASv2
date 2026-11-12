@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# number_expand
+
+#% text
+# `number_expand(x)` gives the digits of `x` times their place values: `number_expand(157)` is `[100, 50, 7]`. `number_expand(x, b)` expands in base `b`, `number_expand(x, b, len)` into `len` terms, the last holding the rest.
+
+#% section
+# Details
+
+#% item
+# A fractional part stays in the last term; complex numbers expand real and imaginary parts together.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+number_expand(157)
+#% output
+#= [100, 50, 7]
+
+#% cell
+number_expand(157, 2)
+#% output
+#= [128, 0, 0, 16, 8, 4, 0, 1]
+
+#% cell
+number_expand(157, 2, 3)
+#% output
+#= [128, 0, 29]
+
+#% cell
+number_expand(1111/7, 2)
+#% output
+#= [128, 0, 0, 16, 8, 4, 2, 5/7]
+
+#% section
+# See also
+
+#% text
+# `number_compose`, `integer_digits`

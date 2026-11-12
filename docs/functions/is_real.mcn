@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# is_real
+
+#% text
+# `is_real(x)` gives `true` for a real number or a real closed numeric expression, `false` for a number that is not real.
+
+#% section
+# Details
+
+#% item
+# Symbols stay unevaluated unless the assumptions decide them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_real(3)
+#% output
+#= true
+
+#% cell
+is_real(2.5)
+#% output
+#= true
+
+#% cell
+is_real(1 + im)
+#% output
+#= false
+
+#% cell
+is_real(exp(im*pi))
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# A closed expression:
+
+#% cell
+is_real(sqrt(2) + log(3))
+#% output
+#= true
+
+#% text
+# A symbol:
+
+#% cell
+is_real(x)
+#% output
+#= is_real(x)
+
+#% cell
+assuming(element(x, reals), is_real(x^2 + 1))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `im_part`, `is_positive`, `element`, `reals`

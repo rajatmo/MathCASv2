@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_abelian_group_count
+
+#% text
+# `finite_abelian_group_count(k)` gives the number of abelian groups of order `k` up to isomorphism, the product of `partitions_p(e)` over the prime powers `p^e` exactly dividing `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+finite_abelian_group_count(range(1, 12))
+#% output
+#= [1, 1, 1, 2, 1, 1, 1, 3, 2, 1, 1, 2]
+
+#% cell
+finite_abelian_group_count(2^10*3^5)
+#% output
+#= 294
+
+#% section
+# See also
+
+#% text
+# `finite_group_count`, `partitions_p`

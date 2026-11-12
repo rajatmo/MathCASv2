@@ -1,0 +1,114 @@
+#! mathcas 2 notebook
+
+#% title
+# histogram
+
+#% text
+# `histogram(data)` draws a bar for each bin of equal width, as high as the number of values in it.
+
+#% text
+# `histogram([data1, data2, ...])` draws the histograms of several data sets over each other, half transparent.
+
+#% text
+# `histogram(data, bins, height)` takes the bins as the option `bins` does and the height of each bar: `count`, `probability`, `pdf`, `cdf` or `cumulative_count`.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# Bins include their left end and exclude their right end; their edges are multiples of the width.
+
+#% item
+# The automatic width is twice the spread of the middle half of the data over the cube root of the count, rounded up to 1, 2, 2.5 or 5 times a power of ten.
+
+#% item
+# Options:
+
+#% subitem
+# `bins: n` asks for about n bins of a round width; `bins: [w]` for width w; `bins: [lo, hi, w]` for bins of width w from lo to hi (values outside are left out).
+
+#% subitem
+# `normalized: true` scales the bars so that their total area is 1, for comparing with a probability density.
+
+#% item
+# The data may be an association (a histogram per key, the keys in the legend) or a dataset (a histogram per column); quantities count by their magnitudes, and values that are not real numbers are left out.
+
+#% subitem
+# `colors`, `legend` and the labels work as for `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two thousand samples of the standard normal distribution:
+
+#% cell
+seed(3); histogram(random_variate(normal_distribution(0, 1), 2000))
+#% output
+#= image("histogram.files/histogram-1.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Bins of width 1 from 0 to 6 for the throws of a die:
+
+#% cell
+seed(5); histogram(random_integer([1, 6], 600), bins: [0.5, 6.5, 1])
+#% output
+#= image("histogram.files/histogram-2.svgz")
+
+#% text
+# Two data sets with a legend:
+
+#% cell
+seed(8); histogram([random_variate(normal_distribution(0, 1), 800), random_variate(normal_distribution(2, 0.7), 800)], bins: 25, legend: ["first", "second"])
+#% output
+#= image("histogram.files/histogram-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Normalized, the bars approach the density of the distribution:
+
+#% cell
+seed(4); histogram(random_variate(exponential_distribution(1), 5000), bins: [0.25], normalized: true)
+#% output
+#= image("histogram.files/histogram-4.svgz")
+
+#% text
+# A density histogram and the density it estimates, in one picture:
+
+#% cell
+seed(2); show(histogram(random_variate(normal_distribution(0, 1), 3000), automatic, pdf), plot(pdf(normal_distribution(0, 1), x), [x, -4, 4]))
+#% output
+#= image("histogram.files/histogram-5.svgz")
+
+#% text
+# The heights may also be `probability`, `cdf` or `cumulative_count`:
+
+#% cell
+seed(2); histogram(random_variate(exponential_distribution(1), 2000), [0, 5, 0.25], cdf)
+#% output
+#= image("histogram.files/histogram-6.svgz")
+
+#% text
+# An association of data sets: one histogram per key, named in the legend; values that are not numbers are left out:
+
+#% cell
+histogram(assoc("before" -> [3, 4, 4, 5, 5, 5, 6, missing()], "after" -> [5, 6, 6, 7, 7, 7, 8, none]), [2, 9, 1])
+#% output
+#= image("histogram.files/histogram-7.svgz")
+
+#% section
+# See also
+
+#% text
+# `bar_chart`, `list_plot`, `random_variate`

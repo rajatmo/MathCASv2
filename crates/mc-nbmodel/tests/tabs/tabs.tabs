@@ -1,0 +1,190 @@
+Tabs of a notebook window: open, switch, reorder, close with the unsaved questions, reopen.
+
+=== new and open add tabs at the end and activate them
+new
+open a.mcn
+new
+expect Untitled-1 a.mcn [Untitled-2]
+
+=== opening an open file activates its tab
+open a.mcn
+open b.mcn
+open a.mcn
+expect [a.mcn] b.mcn
+
+=== next and previous wrap around
+open a.mcn
+open b.mcn
+open c.mcn
+next
+expect [a.mcn] b.mcn c.mcn
+prev
+expect a.mcn b.mcn [c.mcn]
+prev
+expect a.mcn [b.mcn] c.mcn
+
+=== the n-th tab, and 9 is the last
+open a.mcn
+open b.mcn
+open c.mcn
+nth 1
+expect [a.mcn] b.mcn c.mcn
+nth 2
+expect a.mcn [b.mcn] c.mcn
+nth 9
+expect a.mcn b.mcn [c.mcn]
+nth 7
+expect a.mcn b.mcn [c.mcn]
+
+=== moving keeps the active tab
+open a.mcn
+open b.mcn
+open c.mcn
+select 0
+move 0 2
+expect b.mcn c.mcn [a.mcn]
+move 1 0
+expect c.mcn b.mcn [a.mcn]
+move 2 0
+expect [a.mcn] c.mcn b.mcn
+
+=== closing the active tab activates the right neighbour, else the left one
+open a.mcn
+open b.mcn
+open c.mcn
+select 1
+close
+expect a.mcn [c.mcn]
+close
+expect [a.mcn]
+close
+expect (none)
+
+=== closing an inactive tab keeps the active one
+open a.mcn
+open b.mcn
+open c.mcn
+close 0
+expect b.mcn [c.mcn]
+
+=== a modified tab asks first; cancel keeps it
+open a.mcn
+edit
+close
+expect [*a.mcn] ? a.mcn
+answer cancel
+expect [*a.mcn]
+
+=== discard closes, saved closes
+open a.mcn
+edit
+open b.mcn
+edit
+close
+answer discard
+expect [*a.mcn]
+close
+answer saved
+expect (none)
+
+=== close others asks for each modified tab in turn
+open a.mcn
+edit
+open b.mcn
+open c.mcn
+edit
+open d.mcn
+select 1
+close-others 1
+expect *a.mcn [b.mcn] *c.mcn d.mcn ? a.mcn
+answer discard
+expect [b.mcn] *c.mcn d.mcn ? c.mcn
+answer saved
+expect [b.mcn]
+
+=== cancel stops the remaining closes
+open a.mcn
+edit
+open b.mcn
+open c.mcn
+edit
+open d.mcn
+select 1
+close-others 1
+expect *a.mcn [b.mcn] *c.mcn d.mcn ? a.mcn
+answer cancel
+expect *a.mcn [b.mcn] *c.mcn d.mcn
+
+=== close to the right
+open a.mcn
+open b.mcn
+open c.mcn
+open d.mcn
+close-right 1
+expect a.mcn [b.mcn]
+
+=== closing the window asks once for all modified tabs
+open a.mcn
+edit
+open b.mcn
+new
+edit
+close-window
+expect *a.mcn b.mcn [*Untitled-1] ?all a.mcn,Untitled-1
+answer cancel
+expect *a.mcn b.mcn [*Untitled-1]
+close-window
+answer discard
+expect *a.mcn b.mcn [*Untitled-1] !window
+
+=== closing the window without changes asks nothing
+open a.mcn
+open b.mcn
+close-window
+expect a.mcn [b.mcn] !window
+
+=== a saved tab closes without a question
+open a.mcn
+edit
+save
+close
+expect (none)
+
+=== reopen brings back the last closed files, newest first
+open a.mcn
+open b.mcn
+new
+open c.mcn
+close 1
+close 0
+close
+expect [Untitled-1]
+reopen
+expect Untitled-1 [c.mcn]
+reopen
+expect Untitled-1 c.mcn [a.mcn]
+reopen
+expect Untitled-1 c.mcn a.mcn [b.mcn]
+reopen
+expect Untitled-1 c.mcn a.mcn [b.mcn]
+
+=== reopen skips files that are open again
+open a.mcn
+open b.mcn
+close 0
+open a.mcn
+reopen
+expect b.mcn [a.mcn]
+
+=== untitled numbers keep counting
+new
+new
+close
+new
+expect Untitled-1 [Untitled-3]
+
+=== a file opened into the first blank tab gives its number back
+new
+openhere a.mcn
+new
+expect a.mcn [Untitled-1]

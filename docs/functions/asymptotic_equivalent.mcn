@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_equivalent
+
+#% text
+# `asymptotic_equivalent(f, g, x -> a)` gives true when f ~ g as x approaches a: f/g tends to 1.
+
+#% section
+# Details
+
+#% item
+# Decided by `limit(f/g, x -> a)`; options `direction:` and `assumptions:` as for `asymptotic_less_equal`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_equivalent(x^2 + 3*x + 2, x^2, x -> inf)
+#% output
+#= true
+
+#% cell
+asymptotic_equivalent(sin(x), x, x -> 0)
+#% output
+#= true
+
+#% cell
+asymptotic_equivalent(x, -x^2, x -> inf)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `asymptotic_equal`, `asymptotic`, `limit`

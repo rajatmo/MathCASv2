@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# random_polygon
+
+#% text
+# `random_polygon(k)` gives a random simple polygon with `k` vertices in the unit square; `random_polygon()` one with a random number of vertices.
+
+#% section
+# Details
+
+#% item
+# `random_polygon(type)` and `random_polygon([type, k])` give a polygon of a type: `"Simple"` (the default: random points joined in the order of their angle about their centroid, a star-shaped and so simple polygon), `"Convex"` (a uniformly random convex polygon by the method of Valtr), `"StarShaped"` (random angles and radii about the centre) or `"ConvexHull"` (the convex hull of random points).
+
+#% item
+# `random_polygon([type, dist, k])` draws the points of `"ConvexHull"` and `"Simple"` polygons from the distribution `dist`.
+
+#% item
+# `random_polygon(spec, m)` gives a list of `m` polygons, `random_polygon(spec, [m1, m2, ...])` an array of them.
+
+#% item
+# `random_polygon(d -> spec)` gives a planar polygon in a random plane through the unit cube of dimension `d`.
+
+#% item
+# The draws come from the session's generator: `seed(n)` repeats them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(1)
+
+#% cell
+random_polygon(5)
+#% output
+#= polygon([[0.2789759153964496, 0.04373894403144052], [0.8968298384314126, 0.07900383719904425], [0.7747576805661607, 0.275631237785959], [0.4219463724596497, 0.6413152138724026], [0.20179147560471555, 0.38170935472141676]])
+
+#% cell
+random_polygon(["Convex", 6])
+#% output
+#= polygon([[0.6847932202482029, 1.0], [0.4518122855270755, 0.9817849718574471], [0.11098340760797713, 0.8351457296753698], [0.015162212564986068, 0.23138165169155436], [0.0, 0.11002221536900574], [0.7823603560924436, 0.0]])
+
+#% cell
+length(random_polygon("StarShaped", [2, 3]))
+#% output
+#= 2
+
+#% cell
+graphics(random_polygon(["ConvexHull", 12]))
+#% output
+#= image("random_polygon.files/random_polygon-5.svgz")
+
+#% cell
+graphics3d(random_polygon(3 -> 8))
+#% output
+#= image("random_polygon.files/random_polygon-6.svgz")
+
+#% section
+# See also
+
+#% text
+# `polygon`, `random_real`, `seed`

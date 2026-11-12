@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# string_drop
+
+#% text
+# `string_drop(s, k)` and `string_drop(s, [i, j])` give `s` without the characters `string_take` would select.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_drop("mathematics", 4)
+#% output
+#= "ematics"
+
+#% cell
+string_drop("mathematics", -3)
+#% output
+#= "mathemat"
+
+#% cell
+string_drop("mathematics", [2, 4])
+#% output
+#= "mematics"
+
+#% section
+# See also
+
+#% text
+# `string_take`, `drop`, `string_replace`

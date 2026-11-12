@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_invariant_g2
+
+#% text
+# `weierstrass_invariant_g2([omega1, omega3])` gives the invariant `g2` of the lattice with half-periods `omega1`, `omega3`.
+
+#% section
+# Details
+
+#% item
+# The first part of `weierstrass_invariants([omega1, omega3])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_invariant_g2([1.0, 2.0*im])
+#% output
+#= 8.124218443053017
+
+#% cell
+n(weierstrass_invariant_g2([1, 2*im]), 30)
+#% output
+#= 8.124218443053017090717481882359900
+
+#% cell
+weierstrass_invariant_g2([1, im])
+#% output
+#= gamma(1/4)^8/(256*pi^2)
+
+#% section
+# See also
+
+#% text
+# `weierstrass_half_periods`, `weierstrass_e1`, `weierstrass_eta1`, `weierstrass_invariants`, `weierstrass_p`, `weierstrass_zeta`

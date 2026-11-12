@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# semidefinite_optimization
+
+#% text
+# `semidefinite_optimization(f, cons, vars)` gives the point that minimizes `f` under constraints that may require a symmetric matrix of the variables to be positive semidefinite.
+
+#% section
+# Details
+
+#% item
+# `vector_greater_equal([m, 0], ["SemidefiniteCone", n])` asks the matrix `m` to be positive semidefinite, that is all its principal minors to be non-negative.
+
+#% item
+# `semidefinite_optimization(c, [a0, a1, ..., an])` minimizes `c . x` such that `a0 + x1 a1 + ... + xn an` is positive semidefinite and returns the vector `x`.
+
+#% item
+# A fourth argument selects the result as for `quadratic_optimization`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+semidefinite_optimization(x + y, vector_greater_equal([[[x, 1], [1, y]], 0], ["SemidefiniteCone", 2]), [x, y])
+#% output
+#= [x -> 1, y -> 1]
+
+#% cell
+semidefinite_optimization([2, 3], [[[0, 1], [1, 0]], [[1, 0], [0, 0]], [[0, 0], [0, 1]]])
+#% output
+#= [(1/2)*6^(1/2), (1/3)*6^(1/2)]
+
+#% cell
+semidefinite_optimization(x + 2*y, [x^2 + 2*y^2 <= 3, x + y == 2, x >= 1], [x, y])
+#% output
+#= [x -> 5/3, y -> 1/3]
+
+#% section
+# See also
+
+#% text
+# `conic_optimization`, `positive_definite_matrix_q`, `minimize`

@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# wigner_d
+
+#% text
+# `wigner_d([j, m1, m2], theta)` gives the Wigner small d function; `wigner_d([j, m1, m2], theta, phi)` and `wigner_d([j, m1, m2], psi, theta, phi)` the D function with the phases `exp(i m2 phi)` and `exp(i m1 psi + i m2 phi)`.
+
+#% section
+# Details
+
+#% item
+# `j` and the `m` are integers or half-integers with `|m| <= j`; the value is an exact trigonometric expression and numerical for numerical angles.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wigner_d([1/2, 1/2, -1/2], t)
+#% output
+#= sin((1/2)*t)
+
+#% cell
+wigner_d([1, 0, 1], psi, t, phi)
+#% output
+#= -cos((1/2)*t)*2^(1/2)*exp(im*phi)*sin((1/2)*t)
+
+#% cell
+wigner_d([2, 2, 0], t)
+#% output
+#= 6^(1/2)*cos((1/2)*t)^2*sin((1/2)*t)^2
+
+#% cell
+n(wigner_d([1, 0, 1], 0.3, 0.5, 0.2))
+#% output
+#= -0.33224751865698443 - 0.06734990630462565im
+
+#% section
+# See also
+
+#% text
+# `clebsch_gordan`, `three_j_symbol`

@@ -1,0 +1,95 @@
+#! mathcas 2 notebook
+
+#% title
+# beta
+
+#% text
+# `beta(a, b)` gives the beta function `gamma(a)*gamma(b)/gamma(a + b)`.
+
+#% text
+# `beta(z, a, b)` gives the incomplete beta function, the integral of `t^(a - 1)*(1 - t)^(b - 1)` for `t` from 0 to `z`.
+
+#% section
+# Details
+
+#% item
+# The complete function is DLMF 5.12.1, the incomplete one DLMF 8.17.1; `beta(1, a, b)` is `beta(a, b)`.
+
+#% item
+# Rational arguments for which the gamma functions are exact give exact values; machine numbers and balls give numerical values. Symbolic arguments stay unevaluated.
+
+#% item
+# `beta` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+beta(2, 3)
+#% output
+#= 1/12
+
+#% cell
+beta(1/2, 1/2)
+#% output
+#= pi
+
+#% cell
+beta(2.5, 1.5)
+#% output
+#= 0.19634954084936207
+
+#% text
+# The incomplete function:
+
+#% cell
+beta(0.5, 2.0, 3.0)
+#% output
+#= 0.057291666666666664
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits:
+
+#% cell
+n(beta(1/3, 2/3), 30)
+#% output
+#= 3.627598728468435701188156515284311
+
+#% text
+# The incomplete function at several points:
+
+#% cell
+beta([0.25, 0.5, 0.75], 2.0, 2.0)
+#% output
+#= [0.026041666666666668, 0.08333333333333333, 0.140625]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(t^1.5*(1 - t)^0.5, [t, 0, 1]) - beta(2.5, 1.5)
+#% output
+#= -5.551115123125783e-17
+
+#% text
+# The regularized form divides by the complete function:
+
+#% cell
+beta(0.3, 2.0, 3.0)/beta(2.0, 3.0) - beta_regularized(0.3, 2.0, 3.0)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `gamma`, `beta_regularized`, `inverse_beta_regularized`, `binomial`

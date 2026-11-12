@@ -1,0 +1,148 @@
+0.000	-	-	run	15 measurements, guard job-object
+0.000	R1	20	start	
+2.012	R1	20	end	ok median 94.400 us (20508 reps)
+2.012	R1	25	start	
+4.024	R1	25	end	ok median 94.400 us (20471 reps)
+4.024	R1	30	start	
+6.036	R1	30	end	ok median 96.300 us (19751 reps)
+6.036	R2	10^3	start	
+8.062	R2	10^3	end	ok median 8.993 ms (203 reps) (property gave -1*null*(1 + 499*null) + null^2 == -1)
+8.062	R2	10^4	start	
+10.218	R2	10^4	end	ok median 99.918 ms (20 reps) (property gave -1*null*(1 + 4999*null) + null^2 == -1)
+10.218	R2	10^5	start	
+10.258	R2	10^5	end	limit no time (evaluation depth (in the warm-up))
+10.258	R8	10	start	
+12.271	R8	10	end	ok median 102.700 us (18694 reps) (property gave length(expand((a + b + c + d)^10)) == binomial(13, 3) and re... (138 chars))
+12.271	R8	20	start	
+14.283	R8	20	end	ok median 103.300 us (18359 reps) (property gave length(expand((a + b + c + d)^20)) == binomial(23, 3) and re... (144 chars))
+14.283	R8	30	start	
+16.295	R8	30	end	ok median 100.800 us (19029 reps) (property gave length(expand((a + b + c + d)^30)) == binomial(33, 3) and re... (150 chars))
+16.295	R9	10^4	start	
+18.307	R9	10^4	end	ok median 105.000 us (18440 reps) (got { let t = nest(f, x, 10000); depth(t) }, expected 10001)
+18.307	R9	10^5	start	
+20.319	R9	10^5	end	ok median 104.800 us (18500 reps) (got { let t = nest(f, x, 100000); depth(t) }, expected 100001)
+20.319	R9	10^6	start	
+22.331	R9	10^6	end	ok median 103.100 us (19159 reps) (got { let t = nest(f, x, 1000000); depth(t) }, expected 1000001)
+22.331	R12	10^4	start	
+24.342	R12	10^4	end	ok median 95.000 us (20388 reps) (got max(map(collatz_steps, range(10000))), expected 261)
+24.343	R12	10^5	start	
+26.354	R12	10^5	end	ok median 96.400 us (19970 reps) (got max(map(collatz_steps, range(100000))), expected 350)
+26.354	R12	10^6	start	
+28.366	R12	10^6	end	ok median 101.200 us (19027 reps) (got max(map(collatz_steps, range(1000000))), expected 524)
+28.366	-	-	done	2026-11-03.tsv
+0.000	-	-	run	19 measurements, guard job-object
+0.000	N1	10^4	start	
+2.012	N1	10^4	end	ok median 95.000 us (20166 reps) (not a decimal number: n(pi, 10000))
+2.012	N1	10^5	start	
+4.024	N1	10^5	end	ok median 93.300 us (20785 reps) (no stored value)
+4.024	N1	10^6	start	
+6.036	N1	10^6	end	ok median 92.700 us (20919 reps) (no stored value)
+6.036	N5	10^4	start	
+8.049	N5	10^4	end	ok median 93.000 us (20804 reps) (property gave integer_exponent(factorial(10000), 2) == 10000 - sum(integer... (262 chars))
+8.049	N5	10^5	start	
+10.061	N5	10^5	end	ok median 92.700 us (20609 reps) (property gave integer_exponent(factorial(100000), 2) == 100000 - sum(integ... (270 chars))
+10.061	N5	10^6	start	
+12.074	N5	10^6	end	ok median 92.900 us (20698 reps) (property gave integer_exponent(factorial(1000000), 2) == 1000000 - sum(int... (278 chars))
+12.074	N6	8	start	
+14.085	N6	8	end	ok median 100.700 us (19159 reps) (got [prime_pi(100000000), prime(100000000)], expected [5761455, 2038074743])
+14.085	N6	10	start	
+16.097	N6	10	end	ok median 96.900 us (20011 reps) (got [prime_pi(10000000000), prime(10000000000)], expected [455052511, 252097800623])
+16.097	N6	12	start	
+18.108	N6	12	end	ok median 97.200 us (20056 reps) (got [prime_pi(1000000000000), prime(1000000000000)], expected [37607912018, 29996224275833])
+18.108	N7	30	start	
+20.120	N7	30	end	ok median 94.800 us (20555 reps) (property gave factor_integer(next_prime(2*10^(-1 + floor(15)))*next_prime(... (167 chars))
+20.120	N7	45	start	
+22.132	N7	45	end	ok median 96.800 us (19929 reps) (property gave factor_integer(next_prime(2*10^(-1 + floor(45/2)))*next_prim... (175 chars))
+22.132	N7	60	start	
+24.145	N7	60	end	ok median 94.400 us (20502 reps) (property gave factor_integer(next_prime(2*10^(-1 + floor(30)))*next_prime(... (167 chars))
+24.145	N9	10^5	start	
+26.338	N9	10^5	end	ok median 65.229 ms (31 reps) (property gave { let c = 11817272444050056811636487347657110606840146586890... (630881 chars))
+26.338	N9	10^6	start	
+32.274	N9	10^6	end	ok median 796.953 ms (5 reps) (property gave { let c = 53109532908444800968844658791102364947313641074555... (6308330 chars))
+32.274	N9	10^7	start	
+92.303	N9	10^7	end	ok median 10.558 s (4 reps) (property stopped at the time limit; 4 repetitions fit in the time limit)
+92.303	N10	10^4	start	
+94.315	N10	10^4	end	ok median 97.200 us (19681 reps) (property gave integer_exponent(denominator(sum(map(k => k^-1, range(10000)... (162 chars))
+94.315	N10	10^5	start	
+96.327	N10	10^5	end	ok median 98.000 us (19505 reps) (property gave integer_exponent(denominator(sum(map(k => k^-1, range(100000... (165 chars))
+96.327	N10	10^6	start	
+98.339	N10	10^6	end	ok median 99.800 us (19321 reps) (property gave integer_exponent(denominator(sum(map(k => k^-1, range(100000... (168 chars))
+98.339	N12	-	start	
+100.351	N12	-	end	ok median 111.200 us (17422 reps) (got [exp(pi*sqrt(163)) < 262537412640768744, pi^4 + pi^5 < exp(6... (94 chars), expected [true, true, true])
+100.352	-	-	done	2026-11-03.tsv
+0.000	-	-	run	21 measurements, guard job-object
+0.000	P1	10	start	
+2.012	P1	10	end	ok median 106.200 us (17796 reps) (property gave length(expand((1 + expand((1 + x + y + z)^10))*expand((1 + x... (218 chars))
+2.012	P1	20	start	
+4.024	P1	20	end	ok median 100.700 us (19536 reps) (property gave length(expand((1 + expand((1 + x + y + z)^20))*expand((1 + x... (230 chars))
+4.024	P1	30	start	
+6.036	P1	30	end	ok median 94.600 us (20568 reps) (property gave length(expand((1 + expand((1 + x + y + z)^30))*expand((1 + x... (242 chars))
+6.036	P2	10	start	
+8.048	P2	10	end	ok median 99.400 us (19785 reps) (property gave length(expand((1 + expand((1 + t + x + y + z)^10))*expand((1... (243 chars))
+8.048	P2	15	start	
+10.060	P2	15	end	ok median 101.200 us (19238 reps) (property gave length(expand((1 + expand((1 + t + x + y + z)^15))*expand((1... (250 chars))
+10.060	P2	20	start	
+12.072	P2	20	end	ok median 96.000 us (20329 reps) (property gave length(expand((1 + expand((1 + t + x + y + z)^20))*expand((1... (257 chars))
+12.072	P4	5	start	
+14.084	P4	5	end	ok median 97.700 us (20004 reps) (property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^5)*(1 + y*z + x... (324 chars))
+14.084	P4	10	start	
+16.097	P4	10	end	ok median 98.400 us (19738 reps) (property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^10)*(1 + y*z + ... (330 chars))
+16.097	P4	15	start	
+18.109	P4	15	end	ok median 97.900 us (19962 reps) (property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^15)*(1 + y*z + ... (330 chars))
+18.109	P5	32	start	
+20.121	P5	32	end	ok median 93.100 us (20945 reps) (property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^32)*(7 + -3*... (136 chars))
+20.121	P5	64	start	
+22.133	P5	64	end	ok median 97.400 us (19767 reps) (property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^64)*(7 + -3*... (136 chars))
+22.133	P5	128	start	
+24.145	P5	128	end	ok median 97.000 us (19752 reps) (property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^128)*(7 + -3... (138 chars))
+24.145	P7	20	start	
+26.157	P7	20	end	ok median 97.900 us (19655 reps) (got resultant(expand(-x + (2 + x)^20), 7 + expand(-x + (2 + x)^2... (66 chars), expected 79792266297612001)
+26.157	P7	50	start	
+28.169	P7	50	end	ok median 96.700 us (20052 reps) (got resultant(expand(-x + (2 + x)^50), 7 + expand(-x + (2 + x)^5... (66 chars), expected 1798465042647412146620280340569649349251249)
+28.169	P7	100	start	
+30.182	P7	100	end	ok median 97.600 us (20001 reps) (got resultant(expand(-x + (2 + x)^100), 7 + expand(-x + (2 + x)^... (68 chars), expected 323447650962475799134464776910021681085720319890462540093389... (85 chars))
+30.182	P11	10^4	start	
+32.194	P11	10^4	end	ok median 96.600 us (20156 reps) (property gave length(expand(sum(map(k => (10000000000000000000000000000000... (356 chars))
+32.194	P11	10^5	start	
+34.206	P11	10^5	end	ok median 97.200 us (19898 reps) (property gave length(expand(sum(map(k => (10000000000000000000000000000000... (360 chars))
+34.206	P11	10^6	start	
+36.218	P11	10^6	end	ok median 100.500 us (19097 reps) (property gave length(expand(sum(map(k => (10000000000000000000000000000000... (364 chars))
+36.218	P12	100	start	
+38.230	P12	100	end	ok median 97.800 us (19604 reps) (property gave [coefficient(normal(series(exp(sin(x)), x, 0, 100)), x, 3), ... (266 chars))
+38.230	P12	1000	start	
+40.242	P12	1000	end	ok median 100.900 us (19052 reps) (property gave [coefficient(normal(series(exp(sin(x)), x, 0, 1000)), x, 3),... (270 chars))
+40.242	P12	10000	start	
+42.254	P12	10000	end	ok median 102.100 us (19225 reps) (property gave [coefficient(normal(series(exp(sin(x)), x, 0, 10000)), x, 3)... (274 chars))
+42.256	-	-	done	2026-11-03.tsv
+0.000	-	-	run	15 measurements, guard job-object
+0.000	S1	10^5	start	
+2.015	S1	10^5	end	ok median 105.900 us (18165 reps) (got sum(select(map(k => k^2, range(100000)), k => mod(k, 3) == 1... (62 chars), expected 222225555588889)
+2.015	S1	10^6	start	
+4.027	S1	10^6	end	ok median 105.000 us (18378 reps) (got sum(select(map(k => k^2, range(1000000)), k => mod(k, 3) == ... (63 chars), expected 222222555555888889)
+4.027	S1	10^7	start	
+6.038	S1	10^7	end	ok median 104.100 us (18593 reps) (got sum(select(map(k => k^2, range(10000000)), k => mod(k, 3) ==... (64 chars), expected 222222255555558888889)
+6.038	S2	10^4	start	
+8.050	S2	10^4	end	ok median 99.000 us (19673 reps) (property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 10000)),... (553 chars))
+8.050	S2	10^5	start	
+10.062	S2	10^5	end	ok median 99.900 us (19483 reps) (property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 100000))... (562 chars))
+10.062	S2	10^6	start	
+12.074	S2	10^6	end	ok median 98.700 us (19618 reps) (property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 1000000)... (571 chars))
+12.074	S6	100	start	
+14.086	S6	100	end	ok median 97.800 us (19943 reps) (property gave length(flatten(transpose(map(i => map(j => j + 100*i, range(... (380 chars))
+14.086	S6	316	start	
+16.098	S6	316	end	ok median 96.500 us (20073 reps) (property gave length(flatten(transpose(map(i => map(j => j + 316*i, range(... (380 chars))
+16.098	S6	1000	start	
+18.110	S6	1000	end	ok median 97.900 us (19433 reps) (property gave length(flatten(transpose(map(i => map(j => j + 1000*i, range... (398 chars))
+18.110	S7	10^4	start	
+20.122	S7	10^4	end	ok median 104.100 us (18354 reps) (got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (88 chars), expected 3333)
+20.122	S7	10^5	start	
+22.134	S7	10^5	end	ok median 102.300 us (18956 reps) (got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (89 chars), expected 33333)
+22.134	S7	10^6	start	
+24.145	S7	10^6	end	ok median 104.600 us (18102 reps) (got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (90 chars), expected 333333)
+24.145	S8	10^5	start	
+26.157	S8	10^5	end	ok median 102.900 us (18577 reps) (got length(map(k => h(k, 1 + k), range(100000))), expected 100000)
+26.157	S8	10^6	start	
+28.169	S8	10^6	end	ok median 103.800 us (18333 reps) (got length(map(k => h(k, 1 + k), range(1000000))), expected 1000000)
+28.169	S8	10^7	start	
+30.180	S8	10^7	end	ok median 116.000 us (17261 reps) (got length(map(k => h(k, 1 + k), range(10000000))), expected 10000000)
+30.181	-	-	done	2026-11-03.tsv

@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# lie_point_symmetries
+
+#% text
+# `lie_point_symmetries(eqs, u, x)` gives a basis of the Lie point symmetries of the differential equations `eqs` for the function `u` of `x`. Each generator `xi d/dx + eta d/du` is the list `[xi, eta]` of its coefficients, functions of `x` and `u`. With several independent variables `[x1, ..., xp]` or several functions `[u1, ..., uq]` a generator is `[xi_1, ..., xi_p, eta_1, ..., eta_q]`.
+
+#% section
+# Details
+
+#% item
+# The determining equations (`symmetry_determining_equations`) come from the prolonged generator applied to the equations on their solutions; they are split by the powers of the derivatives and solved as a linear system of partial differential equations: single derivatives are integrated, equations are split by the powers of variables the unknowns do not depend on, unknowns are solved for and eliminated, variables are separated by differentiation, and the remaining ordinary differential equations go to `d_solve`.
+
+#% item
+# Every free constant of the solution gives one generator. When unknown functions remain (an infinite-dimensional part, as for linear equations), the last element is `conditional_expression(gen, cond)` with arbitrary functions `c(1)(...)`, ... and the equations they must satisfy.
+
+#% item
+# Write derivatives as `y''(x)` for one variable and `derivative(i, j)(u)(x, t)` for several. An equation of order `n` is solved for one of its highest derivatives before the conditions are split.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The Ermakov-Pinney equation has the symmetry algebra sl(2):
+
+#% cell
+lie_point_symmetries(y''(x) == y(x)^(-3), y, x)
+#% output
+#= [[2*x, y], [x^2, x*y], [1, 0]]
+
+#% text
+# The Blasius equation: a translation and a scaling.
+
+#% cell
+lie_point_symmetries(y'''(x) + y(x)*y''(x) == 0, y, x)
+#% output
+#= [[-x, y], [1, 0]]
+
+#% text
+# `y'' = 0` has the largest possible algebra of a second-order equation, of dimension 8:
+
+#% cell
+length(lie_point_symmetries(y''(x) == 0, y, x))
+#% output
+#= 8
+
+#% subsection
+# Scope
+
+#% text
+# Partial differential equations: the Korteweg-de Vries equation (generators `[xi_x, xi_t, eta]`):
+
+#% cell
+lie_point_symmetries(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t])
+#% output
+#= [[0, 1, 0], [(1/3)*x, t, (-2/3)*u], [1, 0, 0], [t, 0, 1]]
+
+#% text
+# Burgers' equation:
+
+#% cell
+lie_point_symmetries(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t])
+#% output
+#= [[1, 0, 0], [t, 0, 1], [-x, -2*t, u], [-t*x, -t^2, -x + t*u], [0, 1, 0]]
+
+#% text
+# The heat equation: six generators and the superposition of solutions, an arbitrary solution `c(1)(x, t)` of the equation itself:
+
+#% cell
+lie_point_symmetries(derivative(0, 1)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t])
+#% output
+#= [[1, 0, 0], [t, 0, (-1/2)*u*x], [0, 1, 0], [(1/2)*x, t, 0], [t*x, t^2, (-1/2)*t*u - (1/4)*u*x^2], [0, 0, u], conditional_expression([0, 0, c(1)(x, t)], -derivative(2, 0)(c(1))(x, t) + derivative(0, 1)(c(1))(x, t) == 0)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The commutators of the generators lie in their span:
+
+#% cell
+lie_commutator_table(lie_point_symmetries(y''(x) == y(x)^(-3), y, x), [x, y])
+#% output
+#= [[0, 2*v(2), -2*v(3)], [-2*v(2), 0, -v(1)], [2*v(3), v(1), 0]]
+
+#% section
+# See also
+
+#% text
+# `symmetry_determining_equations`, `lie_commutator_table`, `symmetry_commutator`, `d_solve`

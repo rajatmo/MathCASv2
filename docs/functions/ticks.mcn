@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# ticks
+
+#% text
+# `ticks` is an option of graphics and plots: `ticks: automatic`, `none`, or `[x_ticks, y_ticks]`, each `automatic`, `none` or a list of positions or `[position, label]` pairs.
+
+#% section
+# Details
+
+#% item
+# Tick positions are in data units, also on logarithmic axes.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], axes: true, frame: false, ticks: [[0, pi, 2pi], automatic])
+#% output
+#= image("ticks.files/ticks-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], axes: true, frame: false, ticks: [[[pi/2, r"$\pi/2$"], [pi, r"$\pi$"]], none])
+#% output
+#= image("ticks.files/ticks-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `frame_ticks`, `grid_lines`, `axes`

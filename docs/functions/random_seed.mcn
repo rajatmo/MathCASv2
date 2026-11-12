@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# random_seed
+
+#% text
+# `random_seed()` gives the seed of the session generator, so that `seed(random_seed())` at the start of a later run reproduces the same draws.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(42); random_seed()
+#% output
+#= 42
+
+#% subsection
+# Scope
+
+#% text
+# Reproduce a run:
+
+#% cell
+{ seed(7); let s = random_seed(); let a = random_real(); seed(s); a == random_real() }
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `seed`, `random_real`, `random_integer`

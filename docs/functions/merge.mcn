@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# merge
+
+#% text
+# `merge([a1, a2, ...])` gives one association with the entries of all, a later value replacing an earlier one.
+# `merge([...], f)` combines the values of each key with `f`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+merge([assoc("x" -> 1, "y" -> 2), assoc("y" -> 3, "z" -> 4)])
+#% output
+#= assoc("x" -> 1, "y" -> 3, "z" -> 4)
+
+#% cell
+merge([assoc("x" -> 1, "y" -> 2), assoc("y" -> 3)], total)
+#% output
+#= assoc("x" -> 1, "y" -> 5)
+
+#% section
+# See also
+
+#% text
+# `insert`, `join`, `counts`

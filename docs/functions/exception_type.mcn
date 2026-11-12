@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# exception_type
+
+#% text
+# `exception_type(exc)` gives the type of the exception `exc`.
+
+#% section
+# Details
+
+#% item
+# The first argument of `exception(type, data)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exception_type(exception(data_error, assoc(data -> 42)))
+#% output
+#= data_error
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be an exception:
+
+#% cell
+exception_type(3)
+#% output
+#! failure(no_match, exception_type, [3])
+
+#% section
+# See also
+
+#% text
+# `exception`, `exception_tags`

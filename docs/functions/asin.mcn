@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# asin
+
+#% text
+# `asin(x)` gives the principal inverse sine of `x`, in `[-pi/2, pi/2]` for `-1 <= x <= 1`.
+
+#% section
+# Details
+
+#% item
+# Exact values at 0, `1/2`, `1/sqrt(2)`, `sqrt(3)/2`, 1 and their negatives; other exact arguments stay unevaluated.
+
+#% item
+# Outside `[-1, 1]` the value is complex, with branch cuts on the real axis beyond `-1` and `1`. Machine numbers, balls and complex numbers give numerical values. `asin` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asin(1/2)
+#% output
+#= (1/6)*pi
+
+#% cell
+asin(1)
+#% output
+#= (1/2)*pi
+
+#% cell
+asin(0.3)
+#% output
+#= 0.3046926540153975
+
+#% cell
+asin(-sqrt(2)/2)
+#% output
+#= (-1/4)*pi
+
+#% subsection
+# Scope
+
+#% text
+# Outside `[-1, 1]`:
+
+#% cell
+asin(2.0)
+#% output
+#= 1.5707963267948966 - 1.3169578969248166im
+
+#% text
+# 30 digits:
+
+#% cell
+n(asin(1/3), 30)
+#% output
+#= 0.3398369094541219370963925133917641
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(asin(x), x)
+#% output
+#= (1 - x^2)^(-1/2)
+
+#% text
+# `asin(x) + acos(x)` is `pi/2`:
+
+#% cell
+asin(0.7) + acos(0.7) - pi/2
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `sin`, `acos`, `atan`

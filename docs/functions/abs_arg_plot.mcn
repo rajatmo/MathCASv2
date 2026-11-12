@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# abs_arg_plot
+
+#% text
+# `abs_arg_plot(f, [x, a, b])` plots the modulus and the argument of f for x from a to b.
+
+#% section
+# Details
+
+#% item
+# It is `plot([abs(f), arg(f)], [x, a, b])`, and takes the options of `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A square:
+
+#% cell
+abs_arg_plot((x + im)^2, [x, -2, 2])
+#% output
+#= image("abs_arg_plot.files/abs_arg_plot-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# The argument jumps where it wraps:
+
+#% cell
+abs_arg_plot(exp(2*im*x), [x, 0, 6])
+#% output
+#= image("abs_arg_plot.files/abs_arg_plot-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# With a legend:
+
+#% cell
+abs_arg_plot(1/(x + im), [x, -3, 3], plot_legends: ["modulus", "argument"])
+#% output
+#= image("abs_arg_plot.files/abs_arg_plot-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `re_im_plot`, `plot`, `complex_plot`

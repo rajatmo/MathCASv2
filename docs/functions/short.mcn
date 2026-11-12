@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# short
+
+#% text
+# `short(x) or short(x, n)`: x to be shown in about n lines (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+short(x^2 + 1, 3)
+#% output
+#= short(1 + x^2, 3)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

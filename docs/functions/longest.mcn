@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# longest
+
+#% text
+# `longest(p)` makes the runs and repetitions inside the pattern `p` take as much as possible first; String patterns are greedy by default; `longest` makes it explicit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("abcdefg", string_expression(x__, longest(__)) :> x)
+#% output
+#= ["abcdef"]
+
+#% cell
+string_cases("0111011110", longest(repeated("1")))
+#% output
+#= ["111", "1111"]
+
+#% subsection
+# Scope
+
+#% text
+# In a term pattern a sequence variable takes the shortest run first; `longest(xs__)` makes it take the longest, before the unmarked runs; `longest(p, k)` gives it priority `k` among the marked runs (higher first).
+
+#% cell
+rewrite([a, b, c, d], [x__, longest(y__)] :> [x, y])
+#% output
+#= [[a], [b, c, d]]
+
+#% section
+# See also
+
+#% text
+# `shortest`, `string_expression`, `string_cases`

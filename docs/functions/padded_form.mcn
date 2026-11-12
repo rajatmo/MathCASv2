@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# padded_form
+
+#% text
+# `padded_form(x, n)` shows the number `x` padded with spaces on the left to `n` characters; `padded_form(x, [n, f])` with `f` digits after the decimal point.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `padded_form` stays around the value as a display wrapper. The wrapper stays around the value: it is a display directive and changes no computation.
+
+#% item
+# Padding makes columns of numbers line up.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+padded_form(12.345, 8)
+#% output
+#= padded_form(12.345, 8)
+
+#% cell
+padded_form(12.345, [8, 2])
+#% output
+#= padded_form(12.345, [8, 2])
+
+#% cell
+padded_form([1.5, 22.25, 333.125], [8, 1])
+#% output
+#= padded_form([1.5, 22.25, 333.125], [8, 1])
+
+#% section
+# See also
+
+#% text
+# `number_form`, `decimal_form`, `string_pad`

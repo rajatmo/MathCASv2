@@ -1,0 +1,91 @@
+#! mathcas 2 notebook
+
+#% title
+# euler_phi
+
+#% text
+# `euler_phi(n)` gives Euler's totient, the number of integers in `1 .. n` prime to `n`.
+
+#% section
+# Details
+
+#% item
+# `euler_phi` is multiplicative, with `euler_phi(p^k) = p^k - p^(k - 1)`; `euler_phi(1)` is 1.
+
+#% item
+# `euler_phi` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+euler_phi(12)
+#% output
+#= 4
+
+#% cell
+euler_phi(13)
+#% output
+#= 12
+
+#% cell
+euler_phi(1)
+#% output
+#= 1
+
+#% cell
+euler_phi(range(10))
+#% output
+#= [1, 1, 2, 2, 4, 2, 6, 4, 6, 4]
+
+#% subsection
+# Scope
+
+#% text
+# A large argument, factored on the way:
+
+#% cell
+euler_phi(10^20 + 1)
+#% output
+#= 97910150554895155200
+
+#% subsection
+# Properties and relations
+
+#% text
+# The count by its definition:
+
+#% cell
+count_if(range(36), k => gcd(k, 36) == 1)
+#% output
+#= 12
+
+#% cell
+euler_phi(36)
+#% output
+#= 12
+
+#% text
+# The totients of the divisors add up to `n`:
+
+#% cell
+divisor_sum(60, euler_phi)
+#% output
+#= 60
+
+#% text
+# Euler's theorem `a^phi(n) = 1 mod n`:
+
+#% cell
+power_mod(7, euler_phi(40), 40)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `carmichael_lambda`, `divisors`, `moebius_mu`, `factor_integer`

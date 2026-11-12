@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# vector_angle
+
+#% text
+# `vector_angle(u, v)` gives the angle between the vectors `u` and `v`, `acos(u . conjugate(v)/(|u| |v|))`.
+
+#% section
+# Details
+
+#% item
+# The angle lies between 0 and `pi`.
+
+#% item
+# Exact vectors give exact angles when the cosine is a known value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vector_angle([1, 0], [1, 1])
+#% output
+#= (1/4)*pi
+
+#% cell
+vector_angle([1, 0, 0], [0, 1, 0])
+#% output
+#= (1/2)*pi
+
+#% cell
+vector_angle([1, 2, 3], [-1, 0, 2])
+#% output
+#= acos((1/14)*70^(1/2))
+
+#% cell
+vector_angle([1., 2.], [2., 1.])
+#% output
+#= 0.6435011087932844
+
+#% cell
+vector_angle([a, b], [x, y])
+#% output
+#= acos((a*conjugate(x) + b*conjugate(y))/((abs(a)^2 + abs(b)^2)^(1/2)*(abs(x)^2 + abs(y)^2)^(1/2)))
+
+#% section
+# See also
+
+#% text
+# `angle_vector`, `dot`, `norm`

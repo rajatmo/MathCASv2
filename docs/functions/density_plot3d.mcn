@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# density_plot3d
+
+#% text
+# `density_plot3d(f, [x, a, b], [y, c, d], [z, e, f])` draws the values of f in the box as coloured, translucent points, larger values more opaque.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+density_plot3d(x*y*z, [x, -1, 1], [y, -1, 1], [z, -1, 1])
+#% output
+#= image("density_plot3d.files/density_plot3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_equal
+
+#% text
+# `asymptotic_equal(f, g, x -> a)` gives true when f and g are of the same order as x approaches a: f = O(g) and g = O(f).
+
+#% section
+# Details
+
+#% item
+# Decided by the upper limits of |f/g| and |g/f|; options `direction:` and `assumptions:` as for `asymptotic_less_equal`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_equal(x^2 + x*sin(x), 2*x^2 + 5, x -> inf)
+#% output
+#= true
+
+#% cell
+asymptotic_equal(x, -x^2, x -> inf)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `asymptotic_equivalent`, `asymptotic_less_equal`, `asymptotic_greater_equal`

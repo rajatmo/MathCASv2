@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# casoratian
+
+#% text
+# `casoratian([f1, ..., fk], m)` gives the Casoratian: the determinant of the matrix with rows `fi(m + j)`, j = 0, ..., k - 1.
+
+#% section
+# Details
+
+#% item
+# It is the discrete analogue of the Wronskian: a Casoratian that vanishes for every m shows that the sequences are linearly dependent.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+casoratian([2^m, 3^m], m)
+#% output
+#= 2^m*3^m
+
+#% cell
+casoratian([m, m^2, m^3], m)
+#% output
+#= 2*m*(1 + m)*(2 + m)
+
+#% cell
+casoratian([m^2, 3*m^2 + 5*m + 1, m^2 + 5*m + 1], m)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `wronskian`, `r_solve`, `det`

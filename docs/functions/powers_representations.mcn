@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# powers_representations
+
+#% text
+# `powers_representations(m, k, p)` gives the ways to write the integer `m` as a sum of `k` `p`-th powers of non-negative integers, each as an increasing list, in lexicographic order.
+
+#% section
+# Details
+
+#% item
+# For sums of two squares of a large `m` the Gaussian-integer factorisation is used, so the cost depends on the factoring of `m`, not on its size.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+powers_representations(25, 2, 2)
+#% output
+#= [[0, 5], [3, 4]]
+
+#% cell
+powers_representations(1729, 2, 3)
+#% output
+#= [[1, 12], [9, 10]]
+
+#% cell
+powers_representations(489886592769624989886788, 2, 2)
+#% output
+#= [[179075995118, 676622775808], [180837148448, 676154212078]]
+
+#% section
+# See also
+
+#% text
+# `squares_r`, `frobenius_solve`

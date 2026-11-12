@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# negative_reals
+
+#% text
+# `negative_reals` is the domain of the real numbers less than 0, for facts `element(x, negative_reals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, negative_reals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(-pi, negative_reals)
+#% output
+#= true
+
+#% cell
+element(-0.5, negative_reals)
+#% output
+#= true
+
+#% cell
+element(0, negative_reals)
+#% output
+#= false
+
+#% cell
+element(1, negative_reals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(x, negative_reals), simplify(sqrt(x^2)))
+#% output
+#= -x
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(x, negative_reals), refine(abs(x)))
+#% output
+#= -x
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, negative_reals)
+#% output
+#= element(x, reals) and x < 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `reals`

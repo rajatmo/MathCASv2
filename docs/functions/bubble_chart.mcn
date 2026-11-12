@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# bubble_chart
+
+#% text
+# `bubble_chart([[x, y, z], ...])` draws a disk at each `(x, y)` with its area in proportion to `z`.
+
+#% section
+# Details
+
+#% item
+# Several data sets are drawn in the plot colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bubble_chart([[1, 2, 3], [2, 3, 1], [3, 1, 5], [4, 4, 2]])
+#% output
+#= image("bubble_chart.files/bubble_chart-1.svgz")
+
+#% cell
+bubble_chart([[[1, 1, 1], [2, 2, 2]], [[1, 2, 3], [2, 1, 1]]])
+#% output
+#= image("bubble_chart.files/bubble_chart-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`

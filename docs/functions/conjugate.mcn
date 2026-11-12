@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# conjugate
+
+#% text
+# `conjugate(z)` gives the complex conjugate of `z`.
+
+#% section
+# Details
+
+#% item
+# Real numbers are their own conjugates; exact complex expressions are conjugated part by part. A symbol stays as `conjugate(x)`.
+
+#% item
+# `conjugate` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conjugate(3 + 4*im)
+#% output
+#= 3 - 4im
+
+#% cell
+conjugate(2.5)
+#% output
+#= 2.5
+
+#% cell
+conjugate(exp(im*pi/3))
+#% output
+#= 1/2 - (im/2)*3^(1/2)
+
+#% cell
+conjugate(x)
+#% output
+#= conjugate(x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `z*conjugate(z)` is `abs(z)^2`:
+
+#% cell
+z = 3 - 4*im; [z*conjugate(z), abs(z)^2]
+#% output
+#= [25, 25]
+
+#% subsection
+# Possible issues
+
+#% text
+# `refine` does not yet use the assumption that `x` is real to remove the conjugate:
+
+#% cell
+assuming(element(x, reals), refine(conjugate(x + 2*im)))
+#% output
+#= conjugate(2im + x)
+
+#% section
+# See also
+
+#% text
+# `re`, `im_part`, `abs`, `conjugate_transpose`

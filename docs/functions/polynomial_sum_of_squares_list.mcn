@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_sum_of_squares_list
+
+#% text
+# `polynomial_sum_of_squares_list(p, vars)` gives polynomials `[q1, q2, ...]` with `p = q1^2 + q2^2 + ...`, a certificate that `p` is nonnegative.
+
+#% section
+# Details
+
+#% item
+# For `p` of total degree at most 2 the Gram matrix of `p` in the monomials `x1, ..., xk, 1` is decomposed by symmetric Gaussian elimination, from the last variable to the first and then the constant.
+
+#% item
+# When `p` is not a sum of squares (a negative pivot, or a zero pivot with a nonzero row), or has a higher degree, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_sum_of_squares_list(x^2 + x*y + y^2, [x, y])
+#% output
+#= [y + (1/2)*x, (1/2)*x*3^(1/2)]
+
+#% cell
+q = polynomial_sum_of_squares_list(x^2 + 2*y^2 + 3*z^2 - x*y - x*z - y*z, [x, y, z])
+
+#% cell
+expand(x^2 + 2*y^2 + 3*z^2 - x*y - x*z - y*z - dot(q, q))
+#% output
+#= 0
+
+#% cell
+polynomial_sum_of_squares_list(x^2 + 2*x + 5, [x])
+#% output
+#= [1 + x, 2]
+
+#% text
+# An indefinite form is not a sum of squares:
+
+#% cell
+polynomial_sum_of_squares_list(x^2 - y^2, [x, y])
+#% output
+#= polynomial_sum_of_squares_list(-y^2 + x^2, [x, y])
+
+#% section
+# See also
+
+#% text
+# `positive_definite_matrix_q`, `cholesky`, `find_instance`

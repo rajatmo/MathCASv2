@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# convergents
+
+#% text
+# `convergents(x)` gives the convergents of the continued fraction of `x`; `convergents(x, k)` the first `k`; `convergents(terms)` those of the continued fraction with the given terms (symbolic terms allowed).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+convergents(pi, 4)
+#% output
+#= [3, 22/7, 333/106, 355/113]
+
+#% cell
+convergents(golden_ratio, 8)
+#% output
+#= [1, 2, 3/2, 5/3, 8/5, 13/8, 21/13, 34/21]
+
+#% cell
+convergents([a, b, c])
+#% output
+#= [a, (1 + a*b)/b, (a + c + a*b*c)/(1 + b*c)]
+
+#% cell
+convergents(355/113)
+#% output
+#= [3, 22/7, 355/113]
+
+#% section
+# See also
+
+#% text
+# `continued_fraction`, `from_continued_fraction`

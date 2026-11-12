@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# intersecting_q
+
+#% text
+# `intersecting_q(xs, ys)` is `true` when the lists `xs` and `ys` have at least one element in common.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# `disjoint_q` is the opposite.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+intersecting_q([1, 2], [2, 3])
+#% output
+#= true
+
+#% cell
+intersecting_q([a, b], [c])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `disjoint_q`, `intersection`

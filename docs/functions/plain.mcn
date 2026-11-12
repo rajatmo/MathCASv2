@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# plain
+
+#% text
+# `plain` is a text style for `style(...)`: plain text.
+
+#% section
+# Details
+
+#% item
+# Labels are typeset in the math font, whose shapes it does not change; it is accepted wherever text styles are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A styled label:
+
+#% cell
+graphics([circle(), text(style("label", plain, 14), [0, 0])])
+#% output
+#= image("plain.files/plain-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# In a plot title:
+
+#% cell
+plot(x, [x, 0, 1], plot_label: style("title", plain))
+#% output
+#= image("plain.files/plain-2.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# The letters are the same as without it:
+
+#% cell
+graphics_row([graphics(text(style("ab", plain, 20), [0, 0])), graphics(text(style("ab", 20), [0, 0]))])
+#% output
+#= image("plain.files/plain-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `style`, `text`

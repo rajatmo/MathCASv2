@@ -1,0 +1,77 @@
+#! mathcas 2 notebook
+
+#% title
+# root_reduce
+
+#% text
+# `root_reduce(a)` writes the algebraic number `a` as one number: a rational, `u + v sqrt(D)` when its degree is 2, or one root object `root(x => p(x), k)` with `p` its minimal polynomial.
+
+#% section
+# Details
+
+#% item
+# `a` may be built from rationals, complex rationals, radicals and root objects with sums, products and powers.
+
+#% item
+# Which root of `p` is meant is decided with certified ball enclosures; the index follows the order of root objects: real roots ascending, then the others by real and imaginary part.
+
+#% item
+# An expression that is not an algebraic number stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sum of square roots as one root object:
+
+#% cell
+root_reduce(sqrt(2) + sqrt(3))
+#% output
+#= root(&(1 - 10*&1^2 + &1^4), 4)
+
+#% text
+# Numbers of degree 2 are written with a square root:
+
+#% cell
+root_reduce((-1)^(1/3))
+#% output
+#= 1/2 + (im/2)*3^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A power of a root object:
+
+#% cell
+root_reduce(root(x => x^3 + x + 1, 1)^2)
+#% output
+#= root(&(-1 + &1 + 2*&1^2 + &1^3), 1)
+
+#% text
+# Expressions that are rational:
+
+#% cell
+[root_reduce(sqrt(2)*sqrt(8)), root_reduce(sqrt(2) + sqrt(3) - sqrt(5 + 2*sqrt(6)))]
+#% output
+#= [4, 0]
+
+#% subsection
+# Applications
+
+#% text
+# The same number as its root object:
+
+#% cell
+n([root_reduce(2^(1/3) + im), 2^(1/3) + im])
+#% output
+#= [1.2599210498948732 + 1.0im, 1.2599210498948732 + 1.0im]
+
+#% section
+# See also
+
+#% text
+# `minimal_polynomial`, `to_number_field`, `root`, `algebraic_number_norm`

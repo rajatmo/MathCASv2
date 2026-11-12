@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# split
+
+#% text
+# `split(s)` gives the words of the string `s`; `split(s, sep)` the pieces between occurrences of `sep`.
+# `split(xs)` gives the runs of identical neighbours of a list; `split(xs, test)` the runs whose neighbours pass `test(a, b)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+split("the quick brown fox")
+#% output
+#= ["the", "quick", "brown", "fox"]
+
+#% cell
+split("a,b,,c", ",")
+#% output
+#= ["a", "b", "", "c"]
+
+#% cell
+split([1, 1, 2, 3, 3, 3])
+#% output
+#= [[1, 1], [2], [3, 3, 3]]
+
+#% subsection
+# Scope
+
+#% text
+# Runs of increasing values:
+
+#% cell
+split([1, 2, 3, 2, 3, 1], (a, b) => b > a)
+#% output
+#= [[1, 2, 3], [2, 3], [1]]
+
+#% section
+# See also
+
+#% text
+# `string_split`, `gather_by`, `partition`

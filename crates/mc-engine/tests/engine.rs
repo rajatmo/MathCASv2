@@ -1,0 +1,276 @@
+//! The engine end to end: statements, results and failures, the stop flag, limits, `bind_last`, fingerprints, and
+//! the same results under collection stress and at 1 and 4 threads.
+use mc_api::Store;
+use mc_api::{Engine, EngineError, StopFlag};
+use mc_engine::{CoreEngine, EngineConfig};
+use std::time::{Duration, Instant};
+
+fn eval(e: &mut CoreEngine, src: &str) -> String {
+    match e.eval(src, &StopFlag::new()) {
+        Ok(v) => v.printed,
+        Err(err) => format!("error: {err}"),
+    }
+}
+
+/// Inputs and their printed results, evaluated in order in one session.
+const SESSION: &[(&str, &str)] = &[
+    ("1 + 2*3", "7"),
+    ("2^100 - 1", "1267650600228229401496703205375"),
+    ("1/3 + 1/6", "1/2"),
+    ("-6/4", "-3/2"),
+    ("x + 2x", "3*x"),
+    ("x*x^2*y", "y*x^3"),
+    ("8^(1/2)", "2*2^(1/2)"),
+    ("rule fib(0) = 0\nrule fib(1) = 1\nrule fib(k_: Int) := fib(k - 1) + fib(k - 2)\nfib(20)", "6765"),
+    ("fn fact(0) = 1", "null"),
+    ("fn fact(n: Int) = n*fact(n - 1)", "null"),
+    ("fact(25)", "15511210043330985984000000"),
+    ("map(fact, [1, 2, 3, 4])", "[1, 2, 6, 24]"),
+    ("1.25~20 + 1", "2.2500000000000000000"),
+    ("1/0", "failure(division_by_zero)"),
+    ("1 + 1/0", "failure(division_by_zero)"),
+    ("[1 < 2, 2 <= 1, 1/2 == 0.5, x == y, 3 != 3]", "[true, false, true, x == y, false]"),
+    ("1 < 2 and not(3 < 2)", "true"),
+    ("a = 2\nb = a^10\nb + 1", "1025"),
+    // negative integer powers of machine reals (real division is a product with the -1st power)
+    ("[1.0/4.0, 2.0^-3, 3.0/7.0, 2.0^-1, (-2.0)^-3, 1/4.0]", "[0.25, 0.125, 0.42857142857142855, 0.5, -0.125, 0.25]"),
+    ("u = 6.0\nv = 8.0\nu/v", "0.75"),
+    ("[(2/3)^-2, 2^-3, 2.0~20^-2]", "[9/4, 1/8, 0.25000000000000000000]"),
+    ("", "null"),
+];
+
+#[test]
+fn a_session_evaluates_statement_by_statement() {
+    let mut e = CoreEngine::new();
+    assert!(e.name().starts_with("mathcas-v2 "));
+    for (src, want) in SESSION {
+        assert_eq!(eval(&mut e, src), *want, "{src}");
+    }
+}
+
+#[test]
+fn results_are_the_same_under_collection_stress_and_at_1_and_4_threads() {
+    let reference: Vec<String> = {
+        let mut e = CoreEngine::with_config(EngineConfig { threads: 1, ..EngineConfig::default() });
+        SESSION.iter().map(|(src, _)| eval(&mut e, src)).collect()
+    };
+    for threads in [1, 4] {
+        let cfg = EngineConfig { threads, heap: mc_core::Config::stress(), ..EngineConfig::default() };
+        let mut e = CoreEngine::with_config(cfg);
+        let got: Vec<String> = SESSION.iter().map(|(src, _)| eval(&mut e, src)).collect();
+        assert_eq!(got, reference, "{threads} threads under stress");
+    }
+}
+
+#[test]
+fn syntax_errors_evaluate_nothing() {
+    let mut e = CoreEngine::new();
+    let stop = StopFlag::new();
+    // `2 2` is a product now (a space multiplies): a string next to a number is still an error
+    match e.eval("z = 1\n(1 +\n 2 \"a\")", &stop) {
+        Err(EngineError::Syntax { message, offset }) => {
+            assert!(message.contains("found a string"), "{message}");
+            assert_eq!(offset, 14);
+        }
+        other => panic!("{other:?}"),
+    }
+    // the first statement did not run
+    assert_eq!(eval(&mut e, "z"), "z");
+}
+
+#[test]
+fn bind_last_defines_the_last_result() {
+    let mut e = CoreEngine::new();
+    assert!(matches!(e.bind_last("result"), Err(EngineError::Other(_))));
+    assert_eq!(eval(&mut e, "2^10"), "1024");
+    e.bind_last("result").unwrap();
+    assert_eq!(eval(&mut e, "result + 1"), "1025");
+    // a failed evaluation leaves the last result in place
+    assert!(eval(&mut e, "(").starts_with("error"));
+    e.bind_last("again").unwrap();
+    assert_eq!(eval(&mut e, "again"), "1025");
+}
+
+#[test]
+fn fingerprints_are_structural() {
+    let fp = |prelude: &str, src: &str| {
+        let mut e = CoreEngine::new();
+        eval(&mut e, prelude);
+        e.eval(src, &StopFlag::new()).unwrap().fingerprint.unwrap()
+    };
+    let a = fp("1", "[x^2 + 1/3, f(2^80), \"s\", 1.5]");
+    // other terms and symbols created first, the same value built another way
+    let b = fp("[zz, q(1), 7^30, w]", "[1/3 + x*x, f(2^40*2^40), \"s\", 3/2*1.0]");
+    assert_eq!(a, b);
+    assert_ne!(a, fp("1", "[x^2 + 1/3, f(2^80), \"t\", 1.5]"));
+    // the fingerprint depends on the structure only, so another store gives the same one (in every process)
+    let st = mc_api::RefStore::new();
+    let t = st.call(st.sym("list"), &[st.int(1), st.sym_term(st.sym("x"))]);
+    assert_eq!(fp("1", "[1, x]"), mc_core::shapes::fingerprint(&st, t));
+}
+
+#[test]
+fn a_raised_flag_stops_the_evaluation() {
+    let mut e = CoreEngine::new();
+    eval(&mut e, "rule spin(n_) := spin(n + 1)");
+    let stop = StopFlag::new();
+    // raised before the evaluation: nothing runs
+    stop.raise();
+    assert_eq!(e.eval("spin(0)", &stop), Err(EngineError::Stopped));
+    stop.clear();
+    // raised during the evaluation, from another thread
+    let raiser = {
+        let stop = stop.clone();
+        std::thread::spawn(move || {
+            let t0 = Instant::now();
+            while t0.elapsed() < Duration::from_millis(100) {
+                std::thread::yield_now();
+            }
+            stop.raise();
+        })
+    };
+    let t0 = Instant::now();
+    assert_eq!(e.eval("spin(0)", &stop), Err(EngineError::Stopped));
+    assert!(t0.elapsed() < Duration::from_secs(10));
+    raiser.join().unwrap();
+    // the session goes on
+    stop.clear();
+    assert_eq!(eval(&mut e, "2 + 2"), "4");
+}
+
+#[test]
+fn the_depth_limit_is_an_engine_limit() {
+    let mut e = CoreEngine::new();
+    eval(&mut e, "rule deep(n_) := 1 + deep(n + 1)");
+    match e.eval("deep(0)", &StopFlag::new()) {
+        Err(EngineError::Limit(what)) => assert_eq!(what, "evaluation depth"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(eval(&mut e, "2 + 2"), "4");
+}
+
+/// `+`, `*` and `^` (and so `-` and `/`) thread over lists element-wise, broadcasting non-list operands and
+/// nesting; lists of different lengths give `failure(shape_mismatch)` (semantics 7.2).
+#[test]
+fn arithmetic_threads_over_lists() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("[1, 2, 3] + [4, 5, 6]", "[5, 7, 9]"),
+        ("2*[1, 2, 3]", "[2, 4, 6]"),
+        ("[1, 2]*[3, 4]", "[3, 8]"),
+        ("[1, 2] + 1", "[2, 3]"),
+        ("x*[a, b] + [1, 2]", "[1 + a*x, 2 + b*x]"),
+        ("[[1, 2], [3, 4]] + 1", "[[2, 3], [4, 5]]"),
+        ("[[1, 2], [3, 4]]*[10, 100]", "[[10, 20], [300, 400]]"),
+        ("[1, 2]^2", "[1, 4]"),
+        ("2^[1, 2, 3]", "[2, 4, 8]"),
+        ("[1, 2] - [3, 4]", "[-2, -2]"),
+        ("[1, 2]/2", "[1/2, 1]"),
+        ("[1, 2]/[3, 4]", "[1/3, 1/2]"),
+        ("[1.5, 2.5]*2", "[3.0, 5.0]"),
+        ("[] + []", "[]"),
+        ("[1, 2] + [1, 2, 3]", "failure(shape_mismatch)"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}
+
+/// `e /. rules` is `rewrite(e, rules)`; it binds looser than `->`, chains left to right, and `/.` before a digit
+/// stays a division.
+#[test]
+fn the_rewrite_operator() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("x^2 /. x -> 3", "9"),
+        ("x + y /. [x -> 1, y -> 2]", "3"),
+        ("x^2 /. x -> y /. y -> 4", "16"),
+        ("[x, x^2] /. x -> 2", "[2, 4]"),
+        ("f(x) /. f(u_) :> u^2", "x^2"),
+        ("x /. find_root(cos(x) == x, [x, 1])", "0.7390851332151607"),
+        ("(x + y)^2 /. x -> 1 |> expand", "1 + 2*y + y^2"),
+        ("a/0.5", "2.0*a"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}
+
+/// A `fn` with no matching clause fails on ground arguments but stays unevaluated on symbolic ones, where a
+/// condition or a type test may be undecided, so numeric code can substitute numbers later (04 section 6.2).
+#[test]
+fn checked_functions_stay_symbolic_on_symbolic_arguments() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("fn h(x) when x > 0 = x^2", "null"),
+        ("h(3)", "9"),
+        ("h(-3)", "failure(no_match, h, [-3])"),
+        ("h(y)", "h(y)"),
+        ("h(pi)", "pi^2"),
+        ("h(-pi)", "failure(no_match, h, [-pi])"),
+        ("x /. find_root(h(x) - 4, [x, 1])", "2.0"),
+        ("fn k(x: Int) = x + 1", "null"),
+        ("k(\"a\")", "failure(no_match, k, [\"a\"])"),
+        ("k([1])", "failure(no_match, k, [[1]])"),
+        ("k(y)", "k(y)"),
+        ("k(2)", "3"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}
+
+/// Numeric constants and closed numeric expressions take the kind of an inexact operand: a machine real makes them
+/// machine reals, a ball (without machine reals) a ball at its precision; exact arithmetic keeps them exact.
+#[test]
+fn constants_follow_inexact_contagion() {
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("0.5*pi", "1.5707963267948966"),
+        ("2.0^pi", "8.824977827076287"),
+        ("1.5 + sqrt(2)", "2.914213562373095"),
+        ("x*0.5*pi", "1.5707963267948966*x"),
+        ("cos(0.5*sqrt(2)/pi) - cos(0.22507907903927651)", "0.0"),
+        ("2*pi", "2*pi"),
+        ("1 + pi", "1 + pi"),
+        ("2.0*f(1)", "2.0*f(1)"),
+        ("1.5~30*pi", "4.7123889803846898576939650749192543"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}
+
+#[test]
+fn timing_gives_the_seconds_and_the_value_and_evaluates_once() {
+    let mut e = CoreEngine::new();
+    // the argument is evaluated inside timing, once (print is an effect)
+    assert_eq!(eval(&mut e, "t = timing(print(sum(range(100000))))\nt[2]"), "5000050000");
+    assert_eq!(eval(&mut e, "[is_number(t[1]), t[1] >= 0, t[1] < 60]"), "[true, true, true]");
+    // the value is whatever the argument gives: a symbolic term, a failure
+    assert_eq!(eval(&mut e, "timing(x + x)[2]"), "2*x");
+    assert_eq!(eval(&mut e, "timing(1/0)[2]"), "failure(division_by_zero)");
+    // a definition in the timed expression takes effect; a statement after the timing sees it
+    assert_eq!(eval(&mut e, "timing(w = 5)\nw + 1"), "6");
+    // each timing measures: the same term timed twice is not answered from the memo
+    assert_eq!(eval(&mut e, "u = timing(length(range(10^6)))
+v = timing(length(range(10^6)))
+u[1] !== v[1]"), "true");
+    // a longer evaluation takes measurably longer
+    assert_eq!(eval(&mut e, "timing(length(range(3*10^6)))[1] > timing(1)[1]"), "true");
+    // wrong argument counts stay unevaluated
+    assert_eq!(eval(&mut e, "timing()"), "timing()");
+    assert_eq!(eval(&mut e, "timing(1, 2)"), "timing(1, 2)");
+}
+
+#[test]
+fn infinities_in_arithmetic_and_comparisons() {
+    // mc-arith B.17 through the evaluator: what a Metropolis step computes when a proposal leaves the prior's support
+    let mut e = CoreEngine::new();
+    for (src, want) in [
+        ("[inf + 1, -3.0 + inf, -1/2*(inf - 3.0), 2*inf, -0.5*inf, inf*inf, 1/inf]", "[inf, inf, -inf, inf, -inf, inf, 0]"),
+        ("[1.0 < inf, -0.3 < -inf, -inf < inf, inf <= inf, max(1, inf), min(2.5, -inf)]", "[true, false, true, true, inf, -inf]"),
+        ("[inf == inf, inf == 1.0, inf != -inf]", "[true, false, true]"),
+        ("inf - inf", "failure(indeterminate, inf - inf)"),
+        ("0*inf", "failure(indeterminate, 0*inf)"),
+        ("x + inf", "inf + x"),
+    ] {
+        assert_eq!(eval(&mut e, src), want, "{src}");
+    }
+}

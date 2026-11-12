@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# gray
+
+#% text
+# `gray` is the colour gray, `gray_level(0.5)`, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([gray, disk()])
+#% output
+#= image("gray.files/gray-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [gray])
+#% output
+#= image("gray.files/gray-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(gray), disk([0, 0])], [gray, disk([2, 0])], [darker(gray), disk([4, 0])]])
+#% output
+#= image("gray.files/gray-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `light_gray`, `dark_gray`, `gray_level`

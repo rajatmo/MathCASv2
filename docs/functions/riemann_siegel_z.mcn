@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# riemann_siegel_z
+
+#% text
+# `riemann_siegel_z(t)` gives the Riemann-Siegel Z function `exp(im*riemann_siegel_theta(t))*zeta(1/2 + im*t)`, real for real `t`.
+
+#% section
+# Details
+
+#% item
+# `abs(Z(t))` is `abs(zeta(1/2 + im*t))`, and the real zeros of `Z` are the zeros of `zeta` on the critical line (DLMF 25.10.1).
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+riemann_siegel_z(0)
+#% output
+#= zeta(1/2)
+
+#% cell
+riemann_siegel_z(10.0)
+#% output
+#= -1.5491945461810235
+
+#% cell
+riemann_siegel_z(20.0)
+#% output
+#= 1.1478424121851991
+
+#% subsection
+# Applications
+
+#% text
+# The first zero of `zeta` on the critical line:
+
+#% cell
+find_root(riemann_siegel_z(t) == 0, [t, 14])
+#% output
+#= [t -> 14.134725141734691]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The modulus of `zeta` on the critical line:
+
+#% cell
+abs(riemann_siegel_z(17.0)) - abs(zeta(0.5 + 17.0*im))
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `riemann_siegel_theta`, `zeta`

@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# greater
+
+#% text
+# `greater(a, b)`, written `a > b`, compares two real values; it stays symbolic when the order cannot be decided.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+5 > 2
+#% output
+#= true
+
+#% cell
+e > 2.718281
+#% output
+#= true
+
+#% cell
+x > 0
+#% output
+#= x > 0
+
+#% subsection
+# Scope
+
+#% text
+# Inequalities in `reduce`:
+
+#% cell
+reduce(x^2 > 4, x, reals)
+#% output
+#= x < -2 or 2 < x
+
+#% section
+# See also
+
+#% text
+# `less`, `greater_equal`, `max`

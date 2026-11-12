@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# d_stability_conditions
+
+#% text
+# `d_stability_conditions(eqs, vs, t)` gives, for each equilibrium of the autonomous differential equations eqs in the unknown functions vs, a pair `[point, condition]`: the condition under which the equilibrium is asymptotically stable.
+
+#% text
+# `d_stability_conditions(eqs, vs, t, points)` considers the given points.
+
+#% section
+# Details
+
+#% item
+# The equations are written as a first-order system; at each equilibrium (from `d_fixed_points`) the condition is that every eigenvalue of the Jacobian has a negative real part (Lyapunov's indirect method). Numbers decide it; a point on the boundary counts as not stable.
+
+#% item
+# The point lists the values of the unknowns and of their derivatives below the order of the equations.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d_stability_conditions(x'(t) == -2*x(t), x(t), t)
+#% output
+#= [[[0], true]]
+
+#% cell
+d_stability_conditions(y'(t) == a*y(t), y, t)
+#% output
+#= [[[0], re(a) < 0]]
+
+#% cell
+d_stability_conditions(x'(t) == x(t)^2 - 5*x(t) + 6, x, t)
+#% output
+#= [[[2], true], [[3], false]]
+
+#% cell
+d_stability_conditions(y(t)^2 + 3*y'(t) + y''(t) == 2, y, t)
+#% output
+#= [[[-2^(1/2), 0], false], [[2^(1/2), 0], true]]
+
+#% cell
+d_stability_conditions([x'(t) == -x(t) - y(t), y'(t) == 2*x(t) - y(t)], [x, y], t)
+#% output
+#= [[[0, 0], true]]
+
+#% section
+# See also
+
+#% text
+# `r_stability_conditions`, `d_fixed_points`, `eigenvalues`

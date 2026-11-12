@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# bin_lists
+
+#% text
+# `bin_lists(xs, w)` gives the lists of the real numbers of `xs` in the bins `[k w, (k + 1) w)` from the lowest to the highest occupied; `bin_lists(xs, [a, b, dx])` uses the bins `[a, a + dx)`, ... up to `b`; `bin_lists(xs, [[e1, e2, ...]])` the bins `[e1, e2)`, `[e2, e3)`, ....
+
+#% section
+# Details
+
+#% item
+# Elements that have no real numerical value are left out.
+
+#% item
+# The bins are those of `bin_counts`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bin_lists([1, 3, 2, 1, 4, 5, 6, 2], 2)
+#% output
+#= [[1, 1], [3, 2, 2], [4, 5], [6]]
+
+#% cell
+bin_lists([1, 3, 2, 1, 4, 5, 6, 2], [0, 10, 1])
+#% output
+#= [[], [1, 1], [2, 2], [3], [4], [5], [6], [], [], []]
+
+#% cell
+bin_lists([1, 3, 2, 1, 4, 5, 6, 2], [[-inf, 2, 5, 7, inf]])
+#% output
+#= [[1, 1], [3, 2, 4, 2], [5, 6], []]
+
+#% section
+# See also
+
+#% text
+# `bin_counts`, `gather_by`

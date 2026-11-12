@@ -1,0 +1,96 @@
+#! mathcas 2 notebook
+
+#% title
+# r_solve
+
+#% text
+# `r_solve(eqs, a, n)` solves a linear recurrence with polynomial (or constant) coefficients for the sequence `a(n)`, giving `[[a -> (n => sol)]]`; `r_solve(eqs, a(n), n)` gives `[[a(n) -> sol]]`.
+
+#% section
+# Details
+
+#% item
+# With constant coefficients the solution is a combination of `r^n` (and `n^j r^n` for a multiple root) over the roots of the characteristic polynomial; shifts may be negative.
+
+#% item
+# A first-order recurrence `a(n + 1) = r(n) a(n) + g(n)` is solved by the product `h(n) = prod_{k=1}^{n-1} r(k)` (so `c(1) = a(1)`) and the sum `h(n) sum_{k=0}^{n-1} g(k) / h(k + 1)`.
+
+#% item
+# Polynomial coefficients of higher order: the hypergeometric solutions by Petkovšek's algorithm Hyper (a full basis is required). A right side `sum b^n P(n)` gets a particular solution `b^n u(n)` with `u` a rational solution by Abramov's algorithm.
+
+#% item
+# Every solution is substituted back into the recurrence at several integers before it is returned. `generated_parameters: f` names the constants `f(1), f(2), ...`.
+
+#% item
+# The constants are `c(1)`, `c(2)`, ...; initial values `a(k) == v` in `eqs` fix them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Doubling:
+
+#% cell
+r_solve(a(n + 1) == 2*a(n), a(n), n)
+#% output
+#= [[a(n) -> c(1)*2^(-1 + n)]]
+
+#% text
+# The Fibonacci numbers:
+
+#% cell
+r_solve([a(n + 2) == a(n + 1) + a(n), a(0) == 0, a(1) == 1], a(n), n)
+#% output
+#= [[a(n) -> (-1/5)*(-(1 + 5^(1/2))^n + (1 - 5^(1/2))^n)*(1/2)^n*5^(1/2)]]
+
+#% subsection
+# Scope
+
+#% text
+# A double root:
+
+#% cell
+r_solve(a(n + 2) - 4*a(n + 1) + 4*a(n) == 0, a(n), n)
+#% output
+#= [[a(n) -> c(1)*2^n + n*c(2)*2^n]]
+
+#% text
+# Shifts backwards:
+
+#% cell
+r_solve([a(n) == 3*a(n - 1), a(0) == 2], a, n)
+#% output
+#= [[a -> (n => 2*3^n)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The tenth Fibonacci number from the closed form:
+
+#% cell
+expand(r_solve_value([a(n + 2) == a(n + 1) + a(n), a(0) == 0, a(1) == 1], a(n), n) /. n -> 10)
+#% output
+#= 55
+
+#% text
+# Polynomial coefficients (hypergeometric solutions by Petkovšek's Hyper) and right-hand sides:
+
+#% cell
+r_solve((m + 4)*a(m + 2) - a(m + 1) - (m + 1)*a(m) == 0, a(m), m)
+#% output
+#= [[a(m) -> c(2)*(-1)^m/(2 + 3*m + m^2) + (3 + 2*m)*c(1)/((1 + m)*(2 + m))]]
+
+#% cell
+r_solve([a(m + 2) - 5*a(m + 1) + 6*a(m) == m, a(0) == 1, a(1) == 3], a(m), m)
+#% output
+#= [[a(m) -> (1/4)*(3 - 2^(2 + m) + 2*m + 5*3^m)]]
+
+#% section
+# See also
+
+#% text
+# `r_solve_value`, `d_solve`, `fibonacci`

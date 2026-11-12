@@ -1,0 +1,24 @@
+[package]
+name = "mc-poly"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 polynomial algebra: packed sparse multivariate polynomials, expansion, gcd, factorisation, resultants, rational functions and truncated power series"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the half-gcd for gcd and lcm of exact numbers (this crate owns both names)
+mc-numtheory = { path = "../mc-numtheory" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }
+mc-syntax = { path = "../mc-syntax" }
+num-bigint = "0.4"
+num-traits = "0.2"

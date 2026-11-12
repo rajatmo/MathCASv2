@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_theta_prime
+
+#% text
+# `elliptic_theta_prime(a, u, q)` gives the derivative of the Jacobi theta function `theta_a(u, q)` in `u`.
+
+#% section
+# Details
+
+#% item
+# The derivative is taken term by term in the series of DLMF 20.2; `a` is 1, 2, 3 or 4 and `abs(q) < 1`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_theta_prime(1, 0, 0.5)
+#% output
+#= 0.5489785325603406
+
+#% cell
+elliptic_theta_prime(3, 1.0, 0.3)
+#% output
+#= -1.0420501818127352
+
+#% cell
+elliptic_theta_prime(2, 0.5, 0.1)
+#% output
+#= -0.5728609100292524
+
+#% subsection
+# Properties and relations
+
+#% text
+# A difference quotient of `elliptic_theta`:
+
+#% cell
+(elliptic_theta(4, 0.7 + 1.0e-6, 0.3) - elliptic_theta(4, 0.7 - 1.0e-6, 0.3))/2.0e-6 - elliptic_theta_prime(4, 0.7, 0.3)
+#% output
+#= 1.6758594512111813e-11
+
+#% text
+# The even functions have zero slope at 0:
+
+#% cell
+elliptic_theta_prime(3, 0, 0.5)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `elliptic_theta`, `neville_theta_s`

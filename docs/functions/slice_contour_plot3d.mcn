@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# slice_contour_plot3d
+
+#% text
+# `slice_contour_plot3d(f, surface, [x, ...], [y, ...], [z, ...])` draws the values of a function in ten bands of colour on surfaces in a box.
+
+#% section
+# Details
+
+#% item
+# The surfaces are those of `slice_density_plot3d`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+slice_contour_plot3d(x^2 + y^2 + z^2, "CenterPlanes", [x, -1, 1], [y, -1, 1], [z, -1, 1])
+#% output
+#= image("slice_contour_plot3d.files/slice_contour_plot3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `slice_density_plot3d`

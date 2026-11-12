@@ -1,0 +1,892 @@
+//! The lexer (04-syntax.md section 2): source text to tokens with spans.
+//!
+//! Two pieces of layout are decided here rather than in the parser:
+//! - **New lines** end statements, except inside `(...)` and `[...]`, where they are dropped. The lexer keeps a stack
+//!   of open brackets for this; inside `{...}` new lines are significant again (blocks, modules, match arms).
+//! - **Juxtaposition** (`2x`, `3(a+b)`): a [`Tok::Juxt`] token is inserted between a number and a name or `(` that
+//!   follows it with no space in between (decision C.3). Operands separated by white space (`a b`, `2 pi r`) are
+//!   multiplied by the parser, which sees the space as a gap between the tokens' spans (round 35).
+use crate::ident::{alias, is_ident_continue, is_ident_start, is_keyword, symbol_alias, unicode_operator, PLACEHOLDER};
+use crate::span::{Diagnostic, Span};
+
+/// The kind of a pattern token: `x_`, `xs__`, `xs___`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PatKind {
+    /// `_`: exactly one term.
+    Single,
+    /// `__`: one or more arguments.
+    Seq1,
+    /// `___`: zero or more arguments.
+    Seq0,
+}
+
+/// The body of a numeric literal, as written (underscores removed).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum NumKind {
+    /// Digits in base `radix` (10, 16 or 2), without prefix.
+    Int { digits: String, radix: u32 },
+    /// A machine real: decimal text accepted by `f64::from_str`.
+    Real(String),
+    /// A ball literal `mantissa~digits`.
+    Ball { mantissa: String, digits: String },
+}
+
+/// A numeric literal; `imag` for the `im` suffix.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct NumLit {
+    pub kind: NumKind,
+    pub imag: bool,
+}
+
+/// Punctuation and operators.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum P {
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    LBrace,
+    RBrace,
+    Comma,
+    Semi,
+    Colon,
+    Dot,
+    Ellipsis,
+    Assign,
+    ColonAssign,
+    Pipe,
+    /// `/.`: rewrite with rules
+    Replace,
+    Arrow,
+    ColonArrow,
+    FatArrow,
+    Bar,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    Same,
+    NotSame,
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    Caret,
+    At,
+    Amp,
+}
+
+impl P {
+    pub fn text(self) -> &'static str {
+        match self {
+            P::LParen => "(",
+            P::RParen => ")",
+            P::LBracket => "[",
+            P::RBracket => "]",
+            P::LBrace => "{",
+            P::RBrace => "}",
+            P::Comma => ",",
+            P::Semi => ";",
+            P::Colon => ":",
+            P::Dot => ".",
+            P::Ellipsis => "...",
+            P::Assign => "=",
+            P::ColonAssign => ":=",
+            P::Pipe => "|>",
+            P::Replace => "/.",
+            P::Arrow => "->",
+            P::ColonArrow => ":>",
+            P::FatArrow => "=>",
+            P::Bar => "|",
+            P::Eq => "==",
+            P::Ne => "!=",
+            P::Lt => "<",
+            P::Le => "<=",
+            P::Gt => ">",
+            P::Ge => ">=",
+            P::Same => "===",
+            P::NotSame => "!==",
+            P::Plus => "+",
+            P::Minus => "-",
+            P::Star => "*",
+            P::Slash => "/",
+            P::Caret => "^",
+            P::At => "@",
+            P::Amp => "&",
+        }
+    }
+}
+
+/// The token of `∈`: element membership between operands (`x ∈ reals` reads as `element(x, reals)`), and the
+/// `in` of a `for` loop.
+pub const ELEMENT: &str = "∈";
+
+/// Operators, longest first so that the first match is the longest.
+const PUNCT: &[(&str, P)] = &[
+    ("===", P::Same),
+    ("!==", P::NotSame),
+    ("...", P::Ellipsis),
+    ("==", P::Eq),
+    ("!=", P::Ne),
+    ("<=", P::Le),
+    (">=", P::Ge),
+    (":=", P::ColonAssign),
+    (":>", P::ColonArrow),
+    ("|>", P::Pipe),
+    ("/.", P::Replace),
+    ("->", P::Arrow),
+    ("=>", P::FatArrow),
+    ("(", P::LParen),
+    (")", P::RParen),
+    ("[", P::LBracket),
+    ("]", P::RBracket),
+    ("{", P::LBrace),
+    ("}", P::RBrace),
+    (",", P::Comma),
+    (";", P::Semi),
+    (":", P::Colon),
+    (".", P::Dot),
+    ("=", P::Assign),
+    ("|", P::Bar),
+    ("<", P::Lt),
+    (">", P::Gt),
+    ("+", P::Plus),
+    ("-", P::Minus),
+    ("*", P::Star),
+    ("/", P::Slash),
+    ("^", P::Caret),
+    ("@", P::At),
+    ("&", P::Amp),
+];
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Tok {
+    /// A name: plain, qualified (`M.f`) or backquoted.
+    Ident(String),
+    /// A reserved word.
+    Kw(&'static str),
+    Pattern { name: Option<String>, kind: PatKind },
+    Num(NumLit),
+    Str(String),
+    /// `&k`
+    Slot(u32),
+    /// `'` marks directly after a name; the count.
+    Prime(u32),
+    Punct(P),
+    /// Implicit multiplication of a number and an adjacent name or parenthesis.
+    Juxt,
+    /// `√`: the prefix square root.
+    Sqrt,
+    /// `□`: an unfilled template slot; never valid (08-notebook.md section 4.3).
+    Placeholder,
+    Newline,
+    Eof,
+}
+
+impl Tok {
+    /// A short description for error messages.
+    pub fn describe(&self) -> String {
+        match self {
+            Tok::Ident(n) => format!("name `{n}`"),
+            Tok::Kw(k) => format!("keyword `{k}`"),
+            Tok::Pattern { .. } => "a pattern".into(),
+            Tok::Num(_) => "a number".into(),
+            Tok::Str(_) => "a string".into(),
+            Tok::Slot(k) => format!("`&{k}`"),
+            Tok::Prime(_) => "`'`".into(),
+            Tok::Punct(p) => format!("`{}`", p.text()),
+            Tok::Juxt => "a juxtaposed factor".into(),
+            Tok::Sqrt => "`√`".into(),
+            Tok::Placeholder => "a placeholder `□`".into(),
+            Tok::Newline => "end of line".into(),
+            Tok::Eof => "end of input".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Token {
+    pub tok: Tok,
+    pub span: Span,
+}
+
+/// The result of lexing: tokens (always ending with [`Tok::Eof`]) and the errors found. Lexing never stops at an
+/// error; the offending text is skipped or kept in a best-effort token so that parsing can report more.
+pub struct Lexed {
+    pub tokens: Vec<Token>,
+    pub errors: Vec<Diagnostic>,
+    /// The spans of the comments (`#` to the end of the line, without the line end).
+    pub comments: Vec<Span>,
+}
+
+pub fn lex(src: &str) -> Lexed {
+    let mut lx = Lexer {
+        src,
+        pos: 0,
+        tokens: Vec::new(),
+        errors: Vec::new(),
+        comments: Vec::new(),
+        brackets: Vec::new(),
+        space: true,
+    };
+    lx.run();
+    Lexed { tokens: lx.tokens, errors: lx.errors, comments: lx.comments }
+}
+
+struct Lexer<'s> {
+    src: &'s str,
+    pos: usize,
+    tokens: Vec<Token>,
+    errors: Vec<Diagnostic>,
+    comments: Vec<Span>,
+    /// Open brackets: `(`, `[` or `{`.
+    brackets: Vec<char>,
+    /// Whitespace was seen since the last token.
+    space: bool,
+}
+
+impl<'s> Lexer<'s> {
+    fn peek(&self) -> Option<char> {
+        self.src[self.pos..].chars().next()
+    }
+    fn peek2(&self) -> Option<char> {
+        let mut it = self.src[self.pos..].chars();
+        it.next();
+        it.next()
+    }
+    fn bump(&mut self) -> Option<char> {
+        let c = self.peek()?;
+        self.pos += c.len_utf8();
+        Some(c)
+    }
+    fn error(&mut self, start: usize, msg: impl Into<String>) {
+        let end = self.pos.max(start);
+        self.errors.push(Diagnostic::new(Span::new(start, end), msg));
+    }
+
+    fn push(&mut self, tok: Tok, start: usize) {
+        // Juxtaposition: a number directly followed by a name or `(`.
+        if matches!(tok, Tok::Ident(_) | Tok::Punct(P::LParen) | Tok::Sqrt) && !self.space {
+            if let Some(Token { tok: Tok::Num(_), span, .. }) = self.tokens.last() {
+                let at = span.end as usize;
+                self.tokens.push(Token { tok: Tok::Juxt, span: Span::new(at, at) });
+            }
+        }
+
+        self.tokens.push(Token { tok, span: Span::new(start, self.pos) });
+        self.space = false;
+    }
+
+    fn newlines_significant(&self) -> bool {
+        !matches!(self.brackets.last(), Some('(') | Some('['))
+    }
+
+    fn run(&mut self) {
+        while let Some(c) = self.peek() {
+            let start = self.pos;
+            match c {
+                '\n' => {
+                    self.bump();
+                    self.space = true;
+                    if self.newlines_significant()
+                        && !matches!(self.tokens.last(), None | Some(Token { tok: Tok::Newline, .. }))
+                    {
+                        self.tokens.push(Token { tok: Tok::Newline, span: Span::new(start, start + 1) });
+                    }
+                }
+                c if c.is_whitespace() => {
+                    self.bump();
+                    self.space = true;
+                }
+                '#' => {
+                    while let Some(c) = self.peek() {
+                        if c == '\n' {
+                            break;
+                        }
+                        self.bump();
+                    }
+                    self.comments.push(Span::new(start, self.pos));
+                    self.space = true;
+                }
+                '"' => self.string(),
+                'r' if self.raw_hashes().is_some() => self.raw_string(),
+                '`' => self.backquoted(),
+                '0'..='9' => self.number(),
+                '&' if matches!(self.peek2(), Some('0'..='9')) => self.slot(),
+                '%' => self.history(),
+                '°' if self.after_operand() => self.degree(),
+                c if is_ident_start(c) => self.ident(),
+                c if symbol_alias(c).is_some() => {
+                    self.bump();
+                    let name = symbol_alias(c).unwrap_or_default().to_string();
+                    self.push(Tok::Ident(name), start);
+                    self.primes();
+                }
+                PLACEHOLDER => {
+                    self.bump();
+                    self.push(Tok::Placeholder, start);
+                }
+                c if unicode_operator(c).is_some() => self.unicode_operator(c),
+                _ => self.punct(),
+            }
+        }
+        let end = self.src.len();
+        self.tokens.push(Token { tok: Tok::Eof, span: Span::new(end, end) });
+    }
+
+    fn punct(&mut self) {
+        let start = self.pos;
+        let rest = &self.src[self.pos..];
+        for &(text, p) in PUNCT {
+            // `a/.5` is a division by 0.5, not a rewrite
+            if p == P::Replace && rest.starts_with(text) && rest[text.len()..].starts_with(|c: char| c.is_ascii_digit()) {
+                continue;
+            }
+            if rest.starts_with(text) {
+                self.pos += text.len();
+                match p {
+                    P::LParen => self.brackets.push('('),
+                    P::LBracket => self.brackets.push('['),
+                    P::LBrace => self.brackets.push('{'),
+                    P::RParen | P::RBracket | P::RBrace => {
+                        let open = match p {
+                            P::RParen => '(',
+                            P::RBracket => '[',
+                            _ => '{',
+                        };
+                        // A mismatched closer is reported by the parser. For layout it closes the nearest matching
+                        // opener, or the innermost one if none matches, so that new lines become significant
+                        // again after an error such as `(]`.
+                        match self.brackets.iter().rposition(|&b| b == open) {
+                            Some(i) => self.brackets.truncate(i),
+                            None => {
+                                self.brackets.pop();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                self.push(Tok::Punct(p), start);
+                return;
+            }
+        }
+        let c = self.bump().unwrap_or(' ');
+        let msg = match c {
+            '\'' => "a prime mark `'` must directly follow a name".to_string(),
+            '~' => "`~` must directly follow the digits of a number (a ball literal such as `1.25~40`)".to_string(),
+            '!' => "unexpected `!`; inequality is `!=` and negation is `not`".to_string(),
+            '°' => "`°` must directly follow a number, a name or a closing bracket (`30°` is `30*(pi/180)`)".to_string(),
+            c if !c.is_ascii() => {
+                format!("unexpected character `{c}` (U+{:04X}): it has no meaning in MathCAS syntax", c as u32)
+            }
+            c => format!("unexpected character `{c}`"),
+        };
+        self.error(start, msg);
+        self.space = true;
+    }
+
+    /// A Unicode operator character (`ident::UNICODE_OPERATORS`): the token of its ASCII spelling.
+    fn unicode_operator(&mut self, c: char) {
+        let start = self.pos;
+        let text = unicode_operator(c).unwrap_or("");
+        // `∈` between two operands is element membership (design 08 section 3.9), not the `in` of a `for` loop
+        if c == '∈' {
+            self.bump();
+            self.push(Tok::Kw(ELEMENT), start);
+            return;
+        }
+        if text == "sqrt" {
+            self.bump();
+            self.push(Tok::Sqrt, start);
+            return;
+        }
+        if let Some(kw) = crate::ident::KEYWORDS.iter().copied().find(|k| *k == text) {
+            self.bump();
+            self.push(Tok::Kw(kw), start);
+            return;
+        }
+        match PUNCT.iter().find(|e| e.0 == text) {
+            Some(&(_, p)) => {
+                self.bump();
+                self.push(Tok::Punct(p), start);
+            }
+            None => self.punct(),
+        }
+    }
+
+    /// An identifier run: a name, a keyword, a pattern (`x_`, `__`), or a qualified name `M.f`.
+    fn ident(&mut self) {
+        let start = self.pos;
+        let run = self.run_ident();
+        let trailing = run.len() - run.trim_end_matches('_').len();
+        if trailing > 0 {
+            let name = &run[..run.len() - trailing];
+            let kind = match trailing {
+                1 => PatKind::Single,
+                2 => PatKind::Seq1,
+                3 => PatKind::Seq0,
+                _ => {
+                    self.error(start, "a pattern ends in at most three underscores");
+                    PatKind::Seq0
+                }
+            };
+            if !name.is_empty() && (is_keyword(name) || name.starts_with(|c: char| c.is_ascii_digit())) {
+                self.error(start, format!("`{name}` cannot name a pattern"));
+            }
+            let name = if name.is_empty() { None } else { Some(name.to_string()) };
+            self.push(Tok::Pattern { name, kind }, start);
+            return;
+        }
+        if is_keyword(&run) {
+            let kw = crate::ident::KEYWORDS.iter().copied().find(|k| *k == run).unwrap_or("null");
+            self.push(Tok::Kw(kw), start);
+            return;
+        }
+        let mut name = alias(&run).map(str::to_string).unwrap_or(run);
+        // Qualified name: `.` directly followed by another identifier.
+        while self.peek() == Some('.') && self.peek2().is_some_and(is_ident_start) {
+            let save = self.pos;
+            self.bump();
+            let seg = self.run_ident();
+            if seg.ends_with('_') || is_keyword(&seg) {
+                self.error(save, format!("`{seg}` cannot be part of a qualified name"));
+            }
+            name.push('.');
+            name.push_str(&seg);
+        }
+        self.push(Tok::Ident(name), start);
+        self.primes();
+    }
+
+    fn run_ident(&mut self) -> String {
+        let start = self.pos;
+        while self.peek().is_some_and(is_ident_continue) {
+            self.bump();
+        }
+        self.src[start..self.pos].to_string()
+    }
+
+    /// Prime marks directly after a name.
+    fn primes(&mut self) {
+        let start = self.pos;
+        let mut n = 0u32;
+        while self.peek() == Some('\'') {
+            self.bump();
+            n = n.saturating_add(1);
+        }
+        if n > 0 {
+            self.push(Tok::Prime(n), start);
+        }
+    }
+
+    /// A backquoted name: any characters, with the escapes of strings plus `` \` ``.
+    fn backquoted(&mut self) {
+        let start = self.pos;
+        self.bump();
+        let mut name = String::new();
+        loop {
+            match self.peek() {
+                None | Some('\n') => {
+                    self.error(start, "unterminated backquoted name");
+                    break;
+                }
+                Some('`') => {
+                    self.bump();
+                    break;
+                }
+                Some('\\') => {
+                    if let Some(c) = self.escape(true) {
+                        name.push(c);
+                    }
+                }
+                Some(c) => {
+                    self.bump();
+                    name.push(c);
+                }
+            }
+        }
+        self.push(Tok::Ident(name), start);
+        self.primes();
+    }
+
+    fn string(&mut self) {
+        let start = self.pos;
+        self.bump();
+        let mut s = String::new();
+        loop {
+            match self.peek() {
+                None | Some('\n') => {
+                    self.error(start, "unterminated string");
+                    break;
+                }
+                Some('"') => {
+                    self.bump();
+                    break;
+                }
+                Some('\\') => {
+                    if let Some(c) = self.escape(false) {
+                        s.push(c);
+                    }
+                }
+                Some(c) => {
+                    self.bump();
+                    s.push(c);
+                }
+            }
+        }
+        self.push(Tok::Str(s), start);
+    }
+
+    /// The number of `#` signs of a raw string starting here: `r`, that many `#`, then `"`.
+    fn raw_hashes(&self) -> Option<usize> {
+        let rest = self.src[self.pos..].strip_prefix('r')?;
+        let hashes = rest.len() - rest.trim_start_matches('#').len();
+        rest[hashes..].starts_with('"').then_some(hashes)
+    }
+
+    /// A raw string `r"..."` or `r#"..."#` (any number of `#`, the same at both ends): the characters between the
+    /// quotes as they are, with no escapes. It ends at the first `"` followed by as many `#` as it began with, so
+    /// `r#"say "hi""#` holds quotes. Like a plain string it ends on its line.
+    fn raw_string(&mut self) {
+        let start = self.pos;
+        let hashes = self.raw_hashes().unwrap_or(0);
+        let body = self.pos + 1 + hashes + 1;
+        let close: String = std::iter::once('"').chain(std::iter::repeat_n('#', hashes)).collect();
+        let line = self.src[body..].find('\n').map_or(self.src.len(), |k| body + k);
+        match self.src[body..line].find(&close) {
+            Some(k) => {
+                self.pos = body + k + close.len();
+                self.push(Tok::Str(self.src[body..body + k].to_string()), start);
+            }
+            None => {
+                self.pos = line;
+                self.error(start, format!("unterminated raw string (it ends with `{close}`)"));
+                self.push(Tok::Str(self.src[body..line].to_string()), start);
+            }
+        }
+    }
+
+    /// An escape after `\`: `\n \t \" \\ \u{...}`, and `` \` `` in backquoted names.
+    fn escape(&mut self, backquoted: bool) -> Option<char> {
+        let start = self.pos;
+        self.bump();
+        let c = self.peek();
+        match c {
+            Some('n') => {
+                self.bump();
+                Some('\n')
+            }
+            Some('t') => {
+                self.bump();
+                Some('\t')
+            }
+            Some('"') => {
+                self.bump();
+                Some('"')
+            }
+            Some('\\') => {
+                self.bump();
+                Some('\\')
+            }
+            Some('`') if backquoted => {
+                self.bump();
+                Some('`')
+            }
+            Some('u') => {
+                self.bump();
+                if self.peek() != Some('{') {
+                    self.error(start, "expected `{` after `\\u`");
+                    return None;
+                }
+                self.bump();
+                let hs = self.pos;
+                while self.peek().is_some_and(|c| c.is_ascii_hexdigit()) {
+                    self.bump();
+                }
+                let hex = &self.src[hs..self.pos];
+                if self.peek() != Some('}') {
+                    self.error(start, "expected `}` to close `\\u{...}`");
+                    return None;
+                }
+                self.bump();
+                match u32::from_str_radix(hex, 16).ok().and_then(char::from_u32) {
+                    Some(c) if hex.len() <= 6 => Some(c),
+                    _ => {
+                        self.error(start, format!("`\\u{{{hex}}}` is not a Unicode scalar value"));
+                        None
+                    }
+                }
+            }
+            _ => {
+                if c.is_some() {
+                    self.bump();
+                }
+                self.error(start, "unknown escape; the escapes are \\n \\t \\\" \\\\ \\u{...}");
+                None
+            }
+        }
+    }
+
+    /// `%` (the previous result), `%%` (the one before; one more `%` per step back), `%n` (result n): the tokens
+    /// of `out(-1)`, `out(-2)`, `out(n)` (gap G77).
+    fn history(&mut self) {
+        let start = self.pos;
+        let mut back = 0u32;
+        while self.peek() == Some('%') {
+            self.bump();
+            back += 1;
+        }
+        let ds = self.pos;
+        if back == 1 {
+            while self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                self.bump();
+            }
+        }
+        let digits = self.src[ds..self.pos].to_string();
+        let span = Span::new(start, self.pos);
+        let tok = |t: Tok| Token { tok: t, span };
+        self.push(Tok::Ident("out".into()), start);
+        self.tokens.push(tok(Tok::Punct(P::LParen)));
+        let num = |d: String| Tok::Num(NumLit { kind: NumKind::Int { digits: d, radix: 10 }, imag: false });
+        if digits.is_empty() {
+            self.tokens.push(tok(Tok::Punct(P::Minus)));
+            self.tokens.push(tok(num(back.to_string())));
+        } else {
+            self.tokens.push(tok(num(digits)));
+        }
+        self.tokens.push(tok(Tok::Punct(P::RParen)));
+        self.space = false;
+    }
+
+    /// Whether the last token ends an operand (a name, number, string, closing bracket or prime), directly before
+    /// the current position.
+    fn after_operand(&self) -> bool {
+        let Some(last) = self.tokens.last() else { return false };
+        last.span.end as usize == self.pos
+            && matches!(
+                last.tok,
+                Tok::Ident(_) | Tok::Num(_) | Tok::Punct(P::RParen | P::RBracket) | Tok::Prime(_)
+            )
+    }
+
+    /// `°` right after an operand, the degree (design 08 section 3.9: the alias `deg`): the tokens of
+    /// `*(pi/180)`, so `sin(30°)` is `sin(30*(pi/180))`.
+    fn degree(&mut self) {
+        let start = self.pos;
+        self.bump();
+        let span = Span::new(start, self.pos);
+        let tok = |t: Tok| Token { tok: t, span };
+        let num = Tok::Num(NumLit { kind: NumKind::Int { digits: "180".into(), radix: 10 }, imag: false });
+        for t in [
+            Tok::Punct(P::Star),
+            Tok::Punct(P::LParen),
+            Tok::Ident("pi".into()),
+            Tok::Punct(P::Slash),
+            num,
+            Tok::Punct(P::RParen),
+        ] {
+            self.tokens.push(tok(t));
+        }
+        self.space = false;
+    }
+
+    fn slot(&mut self) {
+        let start = self.pos;
+        self.bump();
+        let ds = self.pos;
+        while self.peek().is_some_and(|c| c.is_ascii_digit()) {
+            self.bump();
+        }
+        let k = match self.src[ds..self.pos].parse::<u32>() {
+            Ok(k) if k >= 1 => k,
+            _ => {
+                self.error(start, "a slot is `&1`, `&2`, ...");
+                1
+            }
+        };
+        self.push(Tok::Slot(k), start);
+    }
+
+    /// Digits of `radix` with single `_` separators between digits.
+    fn digits(&mut self, radix: u32, out: &mut String) {
+        loop {
+            match self.peek() {
+                Some(c) if c.is_digit(radix) => {
+                    self.bump();
+                    out.push(c);
+                }
+                Some('_') if self.peek2().is_some_and(|c| c.is_digit(radix)) && !out.is_empty() => {
+                    self.bump();
+                }
+                _ => return,
+            }
+        }
+    }
+
+    fn number(&mut self) {
+        let start = self.pos;
+        let rest = &self.src[self.pos..];
+        let radix = if rest.starts_with("0x") || rest.starts_with("0X") {
+            16
+        } else if rest.starts_with("0b") || rest.starts_with("0B") {
+            2
+        } else {
+            10
+        };
+        let kind = if radix != 10 {
+            self.pos += 2;
+            let mut d = String::new();
+            self.digits(radix, &mut d);
+            if d.is_empty() {
+                self.error(start, if radix == 16 { "expected hexadecimal digits after `0x`" } else { "expected binary digits after `0b`" });
+                d.push('0');
+            }
+            NumKind::Int { digits: d, radix }
+        } else {
+            let mut text = String::new();
+            self.digits(10, &mut text);
+            let mut real = false;
+            // `1.` and `1.5` are reals; `.` followed by a letter or `.` is not part of the number.
+            if self.peek() == Some('.') && !self.peek2().is_some_and(|c| c == '.' || is_ident_continue(c) && !c.is_ascii_digit()) {
+                self.bump();
+                text.push('.');
+                self.digits(10, &mut text);
+                real = true;
+            }
+            if matches!(self.peek(), Some('e') | Some('E')) {
+                let save = self.pos;
+                self.bump();
+                let mut exp = String::from("e");
+                if let Some(s @ ('+' | '-')) = self.peek() {
+                    self.bump();
+                    exp.push(s);
+                }
+                if self.peek().is_some_and(|c| c.is_ascii_digit()) {
+                    self.digits(10, &mut exp);
+                    text.push_str(&exp);
+                    real = true;
+                } else {
+                    // Not an exponent: `2e` is `2` times `e`.
+                    self.pos = save;
+                }
+            }
+            if self.peek() == Some('~') {
+                let ts = self.pos;
+                self.bump();
+                let mut digits = String::new();
+                self.digits(10, &mut digits);
+                if digits.is_empty() {
+                    self.error(ts, "expected the precision in decimal digits after `~`");
+                    digits.push('1');
+                }
+                NumKind::Ball { mantissa: text, digits }
+            } else if real {
+                NumKind::Real(text)
+            } else {
+                NumKind::Int { digits: text, radix: 10 }
+            }
+        };
+        // The imaginary suffix: `im` or `ⅈ`, not followed by more identifier characters.
+        let rest = &self.src[self.pos..];
+        let suffix = if rest.starts_with("im") {
+            2
+        } else if rest.starts_with('ⅈ') {
+            'ⅈ'.len_utf8()
+        } else {
+            0
+        };
+        let imag = suffix > 0 && !rest[suffix..].chars().next().is_some_and(is_ident_continue);
+        if imag {
+            self.pos += suffix;
+        }
+        self.push(Tok::Num(NumLit { kind, imag }), start);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn toks(src: &str) -> Vec<Tok> {
+        let l = lex(src);
+        assert!(l.errors.is_empty(), "{:?}", l.errors);
+        l.tokens.into_iter().map(|t| t.tok).collect()
+    }
+
+    #[test]
+    fn numbers() {
+        let t = toks("1_000 0x1F 0b101 1.5 1. 2e-10 1.25~40 3im 2~100");
+        let kinds: Vec<_> = t.iter().filter_map(|t| if let Tok::Num(n) = t { Some(n.clone()) } else { None }).collect();
+        assert_eq!(kinds[0].kind, NumKind::Int { digits: "1000".into(), radix: 10 });
+        assert_eq!(kinds[1].kind, NumKind::Int { digits: "1F".into(), radix: 16 });
+        assert_eq!(kinds[2].kind, NumKind::Int { digits: "101".into(), radix: 2 });
+        assert_eq!(kinds[3].kind, NumKind::Real("1.5".into()));
+        assert_eq!(kinds[4].kind, NumKind::Real("1.".into()));
+        assert_eq!(kinds[5].kind, NumKind::Real("2e-10".into()));
+        assert_eq!(kinds[6].kind, NumKind::Ball { mantissa: "1.25".into(), digits: "40".into() });
+        assert!(kinds[7].imag);
+        assert_eq!(kinds[8].kind, NumKind::Ball { mantissa: "2".into(), digits: "100".into() });
+    }
+
+    #[test]
+    fn juxtaposition_and_names() {
+        assert_eq!(
+            toks("2x 2 x 3(a) π θ1 M.f x_ xs__ ___ f''"),
+            vec![
+                Tok::Num(NumLit { kind: NumKind::Int { digits: "2".into(), radix: 10 }, imag: false }),
+                Tok::Juxt,
+                Tok::Ident("x".into()),
+                Tok::Num(NumLit { kind: NumKind::Int { digits: "2".into(), radix: 10 }, imag: false }),
+                Tok::Ident("x".into()),
+                Tok::Num(NumLit { kind: NumKind::Int { digits: "3".into(), radix: 10 }, imag: false }),
+                Tok::Juxt,
+                Tok::Punct(P::LParen),
+                Tok::Ident("a".into()),
+                Tok::Punct(P::RParen),
+                Tok::Ident("pi".into()),
+                Tok::Ident("θ1".into()),
+                Tok::Ident("M.f".into()),
+                Tok::Pattern { name: Some("x".into()), kind: PatKind::Single },
+                Tok::Pattern { name: Some("xs".into()), kind: PatKind::Seq1 },
+                Tok::Pattern { name: None, kind: PatKind::Seq0 },
+                Tok::Ident("f".into()),
+                Tok::Prime(2),
+                Tok::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn newlines_inside_brackets_are_dropped() {
+        let t = toks("f(a,\n b)\n{ x\n y }\n");
+        let n = t.iter().filter(|t| **t == Tok::Newline).count();
+        assert_eq!(n, 3);
+    }
+
+    #[test]
+    fn raw_strings() {
+        assert_eq!(toks(r#"r"$\alpha_1$""#), vec![Tok::Str(r"$\alpha_1$".into()), Tok::Eof]);
+        assert_eq!(toks(r##"r#"say "hi" \n"#"##), vec![Tok::Str(r#"say "hi" \n"#.into()), Tok::Eof]);
+        assert_eq!(toks(r###"r##"a"#b"##"###), vec![Tok::Str(r##"a"#b"##.into()), Tok::Eof]);
+        assert_eq!(toks(r##"r"" r#""#"##), vec![Tok::Str(String::new()), Tok::Str(String::new()), Tok::Eof]);
+        // `r` alone, or followed by `#` without a quote, is a name (then a comment)
+        assert_eq!(toks("r + r1 # c"), vec![Tok::Ident("r".into()), Tok::Punct(P::Plus), Tok::Ident("r1".into()), Tok::Eof]);
+        assert_eq!(toks("r#c"), vec![Tok::Ident("r".into()), Tok::Eof]);
+        assert_eq!(toks(r#"br"x""#)[..2], [Tok::Ident("br".into()), Tok::Str("x".into())]);
+        // unterminated: an error up to the line end, the text kept
+        let l = lex("r#\"a\" b\nc");
+        assert_eq!(l.errors.len(), 1, "{:?}", l.errors);
+        assert!(l.errors[0].message.starts_with("unterminated raw string"));
+        assert_eq!(l.tokens[0].tok, Tok::Str("a\" b".into()));
+        assert_eq!(l.tokens[0].span, Span::new(0, 7));
+    }
+
+    #[test]
+    fn strings_and_errors() {
+        assert_eq!(toks(r#""a\n\u{3b8}\"""#)[0], Tok::Str("a\nθ\"".into()));
+        let l = lex("\"abc\n x ! y");
+        assert_eq!(l.errors.len(), 2);
+    }
+}

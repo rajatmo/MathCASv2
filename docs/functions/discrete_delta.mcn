@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_delta
+
+#% text
+# `discrete_delta(n)` gives 1 when `n` is 0 and 0 when it is another number.
+
+#% text
+# `discrete_delta(n1, n2, ...)` gives 1 when every argument is 0 and 0 when one is a nonzero number.
+
+#% section
+# Details
+
+#% item
+# With symbolic arguments the call stays.
+
+#% item
+# `kronecker_delta(n1, n2)` compares two arguments with each other instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_delta(0)
+#% output
+#= 1
+
+#% cell
+discrete_delta(3)
+#% output
+#= 0
+
+#% cell
+discrete_delta(n)
+#% output
+#= discrete_delta(n)
+
+#% cell
+table(discrete_delta(k - 2), k, range(0, 4))
+#% output
+#= [0, 0, 1, 0, 0]
+
+#% subsection
+# Properties and relations
+
+#% cell
+z_transform(discrete_delta(n - 2), n, z)
+#% output
+#= z^-2
+
+#% section
+# See also
+
+#% text
+# `kronecker_delta`, `dirac_delta`, `unit_step`, `z_transform`

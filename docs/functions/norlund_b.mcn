@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# norlund_b
+
+#% text
+# `norlund_b(n, a)` gives the Norlund number, `n!` times the coefficient of `t^n` in `(t/(e^t - 1))^a`; `norlund_b(n, a, x)` gives the Norlund polynomial.
+
+#% section
+# Details
+
+#% item
+# The result is a polynomial in `a` (and `x`); with `a = 1` it is the Bernoulli number `B_n`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+norlund_b(3, a)
+#% output
+#= (1/8)*a^2 - (1/8)*a^3
+
+#% cell
+norlund_b(4, 1)
+#% output
+#= -1/30
+
+#% cell
+norlund_b(2, a, x)
+#% output
+#= (-1/12)*a + (1/4)*a^2 - a*x + x^2
+
+#% section
+# See also
+
+#% text
+# `bernoulli_b`

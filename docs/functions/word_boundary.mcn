@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# word_boundary
+
+#% text
+# `word_boundary` is a string pattern for the empty text between a word character and another character (or an end of the string).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_replace("aa abcd aa", string_expression(word_boundary, "aa", word_boundary) -> "XX")
+#% output
+#= "XX abcd XX"
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

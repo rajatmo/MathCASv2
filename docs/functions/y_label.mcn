@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# y_label
+
+#% text
+# `y_label` is an option of every plot: `y_label: "text"` writes a label beside the y axis, read upwards.
+
+#% section
+# Details
+
+#% item
+# `$...$` in the text is mathematics.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], y_label: "amplitude")
+#% output
+#= image("y_label.files/y_label-1.svgz")
+
+#% cell
+plot(x^2, [x, 0, 2], x_label: "$x$", y_label: "$x^2$")
+#% output
+#= image("y_label.files/y_label-2.svgz")
+
+#% cell
+list_plot([1, 4, 9, 16], y_label: "square")
+#% output
+#= image("y_label.files/y_label-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `x_label`, `frame_label`, `axes_label`

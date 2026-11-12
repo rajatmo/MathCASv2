@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# renko_chart
+
+#% text
+# `renko_chart([[date, price], ...])` draws bricks of a fixed size each time the price moves that far.
+
+#% section
+# Details
+
+#% item
+# `renko_chart(prices, size)` gives the brick size (default a 25th of the price range).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+renko_chart([10, 11, 13, 12, 15, 17, 16, 14, 11, 12, 15])
+#% output
+#= image("renko_chart.files/renko_chart-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `candlestick_chart`

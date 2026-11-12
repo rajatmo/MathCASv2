@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# quotient_remainder
+
+#% text
+# `quotient_remainder(m, n)` gives the list `[quotient(m, n), mod(m, n)]`.
+
+#% section
+# Details
+
+#% item
+# The quotient rounds towards `-inf` and the remainder has the sign of `n`, so `m == n*q + r` for the pair `[q, r]`.
+
+#% item
+# Integers, rationals and machine numbers are accepted.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quotient_remainder(17, 5)
+#% output
+#= [3, 2]
+
+#% cell
+quotient_remainder(-17, 5)
+#% output
+#= [-4, 3]
+
+#% cell
+quotient_remainder(17, -5)
+#% output
+#= [-4, -3]
+
+#% subsection
+# Applications
+
+#% text
+# Hours and minutes from a number of minutes:
+
+#% cell
+quotient_remainder(1000, 60)
+#% output
+#= [16, 40]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The pair reconstructs the dividend:
+
+#% cell
+qr = quotient_remainder(100, 7); 7*qr[1] + qr[2]
+#% output
+#= 100
+
+#% section
+# See also
+
+#% text
+# `quotient`, `mod`, `integer_digits`

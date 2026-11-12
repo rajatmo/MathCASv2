@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# catalan_number
+
+#% text
+# `catalan_number(n)` gives the Catalan number `binomial(2*n, n)/(n + 1)`.
+
+#% section
+# Details
+
+#% item
+# Catalan numbers count, among other things, the ways to bracket a product of `n + 1` factors and the binary trees with `n` nodes.
+
+#% item
+# Integer `n >= 0` gives integers of any size; `catalan_number` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catalan_number(5)
+#% output
+#= 42
+
+#% cell
+catalan_number(0)
+#% output
+#= 1
+
+#% cell
+catalan_number(range(10))
+#% output
+#= [1, 2, 5, 14, 42, 132, 429, 1430, 4862, 16796]
+
+#% cell
+catalan_number(100)
+#% output
+#= 896519947090131496687170070074100632420837521538745909320
+
+#% subsection
+# Properties and relations
+
+#% text
+# The binomial form:
+
+#% cell
+[catalan_number(12), binomial(24, 12)/13]
+#% output
+#= [208012, 208012]
+
+#% text
+# The recurrence `C(n + 1)` as the sum of `C(k)*C(n - k)`:
+
+#% cell
+[catalan_number(8), sum(catalan_number(k)*catalan_number(7 - k), [k, 0, 7])]
+#% output
+#= [1430, 1430]
+
+#% section
+# See also
+
+#% text
+# `binomial`, `catalan`, `stirling_s2`, `partitions_p`

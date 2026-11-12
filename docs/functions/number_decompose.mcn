@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# number_decompose
+
+#% text
+# `number_decompose(x, [u1, u2, ..., un])` writes `x` as counts of the units `u1`, ..., `u(n-1)` taken greedily, followed by the remainder in units of `un`.
+
+#% section
+# Details
+
+#% item
+# The counts are integers truncated toward zero, so negative `x` gives negative counts.
+
+#% item
+# The remainder is left exact when `x` is exact.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+number_decompose(100000, [86400, 3600, 60, 1])
+#% output
+#= [1, 3, 46, 40]
+
+#% cell
+number_decompose(99, [10, 5, 2, 1])
+#% output
+#= [9, 1, 2, 0]
+
+#% cell
+number_decompose(-99, [10, 5, 2, 1])
+#% output
+#= [-9, -1, -2, 0]
+
+#% cell
+number_decompose(99/2, [10, 5, 2, 1])
+#% output
+#= [4, 1, 2, 1/2]
+
+#% cell
+number_decompose(10*pi, [e, 1])
+#% output
+#= [11, -11*e + 10*pi]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `quotient`

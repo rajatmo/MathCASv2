@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# rectangle_chart3d
+
+#% text
+# `rectangle_chart3d([[w, d, h], ...])` draws boxes of width, depth and height given by `[w, d, h]` side by side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rectangle_chart3d([[1, 2, 3], [2, 1, 1], [1, 1, 2]])
+#% output
+#= image("rectangle_chart3d.files/rectangle_chart3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `rectangle_chart`

@@ -1,0 +1,338 @@
+#! mathcas 2 notebook
+
+#% title
+# reduce
+
+#% text
+# `reduce(cond, x, reals)` gives the condition `cond` on the real variable `x`, written as intervals: `x < a`, `b < x and x <= c` and so on, joined by `or`.
+
+#% text
+# `reduce(cond, [x, y, ...], dom)` solves for several variables over `reals`, `integers` or `complexes`, giving cylindrical conditions: one on `x`, then one on `y` for that `x`, and so on.
+
+#% section
+# Details
+
+#% item
+# `cond` is built from polynomial or rational equations and inequalities with `and`, `or`, `not` and the quantifiers `exists` and `for_all`.
+
+#% item
+# Over the reals, several variables are handled by cylindrical algebraic decomposition (see `cylindrical_decomposition`); `abs`, `max` and `min` are split into cases there. In one variable the condition is polynomial or rational, possibly with `exp`, `log`, `sin`, `cos` or `tan` of the variable itself (see Possible issues).
+
+#% item
+# Over the integers, linear and quadratic equations in two variables give their families of solutions with an integer parameter `c(1)` (Pell equations included); bounded problems give the list of solutions.
+
+#% item
+# Over the complexes, equations and `!=` in several variables or with parameters give a triangular description: each variable is solved given the earlier ones.
+
+#% item
+# Parameters that are not among the variables give the cases in which solutions exist.
+
+#% item
+# Without a domain, equations alone (and `!=`) in one variable are solved over the complexes; a condition with an inequality is over the reals.
+
+#% item
+# `reduce(eqs, x, modulus: n)` gives the solutions of polynomial equations modulo `n`.
+
+#% item
+# The endpoints are exact, with `root` objects where they are not rational or radical.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reduce(x^2 < 4, x, reals)
+#% output
+#= -2 < x and x < 2
+
+#% cell
+reduce(x^2 - 3*x + 2 >= 0, x, reals)
+#% output
+#= x <= 1 or 2 <= x
+
+#% cell
+reduce((x - 1)/(x + 2) > 0, x, reals)
+#% output
+#= x < -2 or 1 < x
+
+#% cell
+reduce(x^3 == x, x, reals)
+#% output
+#= x == -1 or x == 0 or x == 1
+
+#% subsection
+# Scope
+
+#% text
+# Several conditions:
+
+#% cell
+reduce(x^2 > 1 and x < 3, x, reals)
+#% output
+#= x < -1 or 1 < x and x < 3
+
+#% text
+# A condition that always holds, and one that never holds:
+
+#% cell
+reduce(x^2 + 1 > 0, x, reals)
+#% output
+#= true
+
+#% cell
+reduce(x^2 < 0, x, reals)
+#% output
+#= false
+
+#% text
+# Roots that are not radicals:
+
+#% cell
+reduce(x^5 - x - 1 == 0, x, reals)
+#% output
+#= x == root(&(-1 - &1 + &1^5), 1)
+
+#% text
+# Two variables over the reals:
+
+#% cell
+reduce(x^2 + y^2 < 1 and y > x, [x, y], reals)
+#% output
+#= -1 < x and x <= (-1/2)*2^(1/2) and -(1 - x^2)^(1/2) < y and y < (1 - x^2)^(1/2) or (-1/2)*2^(1/2) < x and x < (1/2)*2^(1/2) and x < y and y < (1 - x^2)^(1/2)
+
+#% text
+# A quantifier is eliminated:
+
+#% cell
+reduce(exists(y, x == y^2), x, reals)
+#% output
+#= x >= 0
+
+#% text
+# A parameter gives the case in which there are solutions:
+
+#% cell
+reduce(a*x^2 + 1 == 0, x, reals)
+#% output
+#= a < 0 and (x == (-a)^(1/2)/a or x == -(-a)^(1/2)/a)
+
+#% text
+# Integer solutions of a bounded problem:
+
+#% cell
+reduce(x^2 - 2*y^2 == 1 and x > 0 and x < 20, [x, y], integers)
+#% output
+#= x == 1 and y == 0 or x == 3 and y == -2 or x == 3 and y == 2 or x == 17 and y == -12 or x == 17 and y == 12
+
+#% text
+# Complex solutions:
+
+#% cell
+reduce(x^2 + 1 == 0, x, complexes)
+#% output
+#= x == -im or x == im
+
+#% cell
+reduce(x^2 + y^2 == 1 and x == y, [x, y], complexes)
+#% output
+#= (x == (-1/2)*2^(1/2) or x == (1/2)*2^(1/2)) and y == x
+
+#% text
+# Equations without a domain are over the complexes:
+
+#% cell
+reduce(x^3 == 1, x)
+#% output
+#= x == 1 or x == -(-1)^(1/3) or x == (-1)^(2/3)
+
+#% text
+# Modulo a prime, and with an absolute value over the reals:
+
+#% cell
+reduce(x^2 == 2, x, modulus: 7)
+#% output
+#= x == 3 or x == 4
+
+#% cell
+reduce(abs(x - 1) < 2, x, reals)
+#% output
+#= -1 < x and x < 3
+
+#% text
+# Parameters: the cases are given as conditions on them:
+
+#% cell
+reduce(x^2 > a, x, reals)
+#% output
+#= a < 0 or a == 0 and (x < 0 or x > 0) or a > 0 and (x < -a^(1/2) or x > a^(1/2))
+
+#% cell
+reduce(a*x > 1, x, reals)
+#% output
+#= a < 0 and x < a^-1 or a > 0 and x > a^-1
+
+#% text
+# Quantifiers over the reals:
+
+#% cell
+reduce(exists(x, x^2 + b*x + 1 == 0), b, reals)
+#% output
+#= b <= -2 or b >= 2
+
+#% cell
+reduce(for_all(x, x^2 + b*x + 1 > 0), b, reals)
+#% output
+#= -2 < b and b < 2
+
+#% text
+# Conditions that combine into one, and a region in the plane:
+
+#% cell
+reduce(x > 1 and x > 2, x, reals)
+#% output
+#= 2 < x
+
+#% cell
+reduce(abs(x) + abs(y) <= 1 and y > 0, [x, y], reals)
+#% output
+#= -1 < x and x <= 0 and 0 < y and y <= 1 + x or 0 < x and x < 1 and 0 < y and y <= 1 - x
+
+#% text
+# Integer solutions of a linear condition:
+
+#% cell
+reduce(2*x + 3*y == 7 and x >= 0 and y >= 0, [x, y], integers)
+#% output
+#= x == 2 and y == 1
+
+#% subsection
+# Options
+
+#% text
+# `assumptions:` restricts the parameters:
+
+#% cell
+reduce(x^2 > a, x, reals, assumptions: a > 0)
+#% output
+#= a > 0 and (x < -a^(1/2) or x > a^(1/2))
+
+#% subsection
+# Properties and relations
+
+#% text
+# The equality case gives the real roots:
+
+#% cell
+[reduce(x^3 - 2*x == 0, x, reals), solve(x^3 - 2*x == 0, x)]
+#% output
+#= [x == 0 or x == -2^(1/2) or x == 2^(1/2), [[x -> 0], [x -> -2^(1/2)], [x -> 2^(1/2)]]]
+
+#% text
+# The condition holds exactly where the original does; a point in the region gives `true`:
+
+#% cell
+reduce(x^3 - x - 1 > 0, x, reals)
+#% output
+#= root(&(-1 - &1 + &1^3), 1) < x
+
+#% cell
+reduce(x^3 - x - 1 > 0, x, reals) /. x -> 2
+#% output
+#= true
+
+#% text
+# The end points are exact; `n` gives their values:
+
+#% cell
+n(reduce(x^3 - x - 1 == 0, x, reals))
+#% output
+#= x == 1.324717957244746
+
+#% subsection
+# Possible issues
+
+#% text
+# A condition on a function of the unknown itself (`exp`, `log`, `sin`, `cos`, `tan` of the variable) next to rational conditions is solved by mapping the answer back through the function's inverse on each monotone branch; a periodic function needs bounds on the variable:
+
+#% cell
+reduce(exp(x) > 1, x, reals)
+#% output
+#= 0 < x
+
+#% cell
+reduce(log(x) < 1, x, reals)
+#% output
+#= 0 < x and x < e
+
+#% cell
+reduce(sin(x) > 1/2 and 0 < x and x < 2*pi, x, reals)
+#% output
+#= (1/6)*pi < x and x < (5/6)*pi
+
+#% cell
+reduce(sin(x) == 0 and 0 < x and x < 4*pi, x, reals)
+#% output
+#= x == pi or x == 2*pi or x == 3*pi
+
+#% text
+# Powers of one exponential with rational multiples of the unknown are reduced through that exponential:
+
+#% cell
+reduce(exp(x) + exp(-x) > 3, x, reals)
+#% output
+#= x < log((1/2)*(3 - 5^(1/2))) or log((1/2)*(3 + 5^(1/2))) < x
+
+#% text
+# A periodic function without bounds over the reals, and a transcendental condition with a parameter, are not solved: the call returns a failure and `solve` or `find_root` can be used for the points:
+
+#% cell
+reduce(sin(x) == 0, x, reals)
+#% output
+#! failure(unsolved, reduce, "reduce handles one real variable with rational coefficients")
+
+#% cell
+reduce(exp(x) > a, x, reals)
+#% output
+#! failure(unsolved, reduce, "reduce handles one real variable with rational coefficients")
+
+#% text
+# Over the complexes a transcendental equation is solved with a generated integer parameter:
+
+#% cell
+reduce(exp(x) == x, x, complexes)
+#% output
+#= conditional_expression(x == -product_log(c(1), -1), element(c(1), integers))
+
+#% text
+# `working_precision:` is not an option, and the domain `rationals` gives `false` for an equation with only irrational solutions; other domains for inequalities are refused:
+
+#% cell
+reduce(x^2 < 2, x, reals, working_precision: 30)
+#% output
+#! failure(argument, reduce, "expected a condition, a variable and reals")
+
+#% cell
+reduce(x^2 == 2, x, rationals)
+#% output
+#= false
+
+#% cell
+reduce(x^2 < 2, x, integers)
+#% output
+#! failure(argument, reduce, "reduce works over the reals")
+
+#% text
+# The endpoints are exact; `n` gives them to any number of digits:
+
+#% cell
+n(reduce(x^2 > 2, x, reals), 30)
+#% output
+#= x < -1.4142135623730950488016887242096981 or 1.4142135623730950488016887242096981 < x
+
+#% section
+# See also
+
+#% text
+# `solve`, `cylindrical_decomposition`, `resolve`, `find_instance`, `minimize`, `roots`, `assuming`

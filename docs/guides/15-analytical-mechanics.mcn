@@ -1,0 +1,151 @@
+#! mathcas 2 notebook
+
+#% title
+# Analytical mechanics
+
+#% text
+# A mechanical system is described by its Lagrangian `L`, a function of the coordinates `x(t)`, their derivatives and the time. From it come the equations of motion, the Hamiltonian, conserved quantities, the small oscillations about an equilibrium, and numerical solutions with a check of the energy. Coordinates are written as functions `x(t)` or by their names `x`; several form a list.
+
+#% section
+# Equations of motion
+
+#% text
+# `euler_lagrange_equations` gives one equation `dL/dq - d/dt dL/dq' == 0` for each coordinate.
+
+#% cell
+euler_lagrange_equations(m*l^2*th'(t)^2/2 + m*g*l*cos(th(t)), th, t)
+#% output
+#= [-m*l^2*th''(t) - g*l*m*sin(th(t)) == 0]
+
+#% cell
+euler_lagrange_equations(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], t)
+#% output
+#= [-V'(r(t)) - m*r''(t) + m*th'(t)^2*r(t) == 0, -m*r(t)^2*th''(t) - 2*m*r(t)*r'(t)*th'(t) == 0]
+
+#% text
+# The equations go to `d_solve` as they are:
+
+#% cell
+d_solve(euler_lagrange_equations(x'(t)^2/2 - w^2*x(t)^2/2, x, t), x(t), t)
+#% output
+#= [[x(t) -> c(1)*cos(t*w) + c(2)*sin(t*w)]]
+
+#% text
+# Higher derivatives in `L` give equations of higher order; a list of independent variables makes the coordinates fields, and the equations field equations:
+
+#% cell
+euler_lagrange_equations(x''(t)^2/2, x, t)
+#% output
+#= [x''''(t) == 0]
+
+#% cell
+euler_lagrange_equations(d(u(x, t), t)^2/2 - c^2*d(u(x, t), x)^2/2, u, [x, t])
+#% output
+#= [-derivative(0, 2)(u)(x, t) + c^2*derivative(2, 0)(u)(x, t) == 0]
+
+#% section
+# Constraints
+
+#% text
+# `constraints:` adds a Lagrange multiplier for each constraint and appends the constraints to the equations:
+
+#% cell
+euler_lagrange_equations(m*(x'(t)^2 + y'(t)^2)/2 - m*g*y(t), [x, y], t, constraints: [x(t)^2 + y(t)^2 == l^2])
+#% output
+#= [-m*x''(t) + 2*x(t)*lambda(1)(t) == 0, -g*m - m*y''(t) + 2*y(t)*lambda(1)(t) == 0, -l^2 + x(t)^2 + y(t)^2 == 0]
+
+#% section
+# Hamiltonian mechanics
+
+#% text
+# `legendre_transform` gives the Hamiltonian in the coordinates and named momenta, `hamilton_equations` its equations, `poisson_bracket` the brackets.
+
+#% cell
+H = legendre_transform(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], [pr, pth], t)
+
+#% cell
+hamilton_equations(H, [r, th], [pr, pth], t)
+#% output
+#= [r'(t) == pr(t)/m, th'(t) == pth(t)/(m*r(t)^2), pr'(t) == -V'(r(t)) + pth(t)^2/(m*r(t)^3), pth'(t) == 0]
+
+#% cell
+poisson_bracket(y*pz - z*py, z*px - x*pz, [x, y, z], [px, py, pz])
+#% output
+#= py*x - px*y
+
+#% section
+# Conservation laws
+
+#% text
+# `noether_charge` gives the charge of a symmetry after checking it; `time_shift:` moves time and `gauge:` allows a total derivative. The energy is `energy_function`.
+
+#% cell
+noether_charge(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], t, [0, 1])
+#% output
+#= m*r(t)^2*th'(t)
+
+#% cell
+noether_charge(m*(x'(t)^2 + y'(t)^2)/2 - g*m*y(t), [x, y], t, [t, 0], gauge: m*x(t))
+#% output
+#= -m*x(t) + m*t*x'(t)
+
+#% cell
+energy_function(m*l^2*th'(t)^2/2 + m*g*l*cos(th(t)), th, t)
+#% output
+#= (1/2)*m*l^2*th'(t)^2 - g*l*m*cos(th(t))
+
+#% section
+# Small oscillations
+
+#% text
+# `equilibrium_points` solves for the equilibria; `normal_modes` gives the frequencies and modes about one of them.
+
+#% cell
+equilibrium_points(x'(t)^2/2 + x(t)^2/2 - x(t)^4/4, x, t)
+#% output
+#= [[x -> -1], [x -> 0], [x -> 1]]
+
+#% cell
+normal_modes(m*(x1'(t)^2 + x2'(t)^2)/2 - k*x1(t)^2/2 - k*(x2(t) - x1(t))^2/2 - k*x2(t)^2/2, [x1, x2], t)
+#% output
+#= [[(k/m)^(1/2), 3^(1/2)*(k/m)^(1/2)], [[1, 1], [-1, 1]]]
+
+#% section
+# Phase portraits and numerical solutions
+
+#% cell
+phase_portrait(th'(t)^2/2 + cos(th(t)), th, t, [x, -4, 4], [v, -3, 3])
+#% output
+#= image("15-analytical-mechanics.files/15-analytical-mechanics-15.svgz")
+
+#% text
+# `n_dsolve_motion` integrates the equations from initial positions and velocities; `energy_drift` measures how well the energy is kept.
+
+#% cell
+ld = (2*a'(t)^2 + b'(t)^2 + 2*a'(t)*b'(t)*cos(a(t) - b(t)))/2 + 9.81*(2*cos(a(t)) + cos(b(t)))
+
+#% cell
+s = n_dsolve_motion(ld, [a, b], [t, 0, 10], [1, 0.5], [0, 0])
+
+#% cell
+energy_drift(ld, [a, b], s, [t, 0, 10]) < 1.0e-5
+#% output
+#= true
+
+#% section
+# Common mistakes
+
+#% item
+# Products of coordinates need `*`: `r(t)^2*th'(t)^2`, not `r(t)^2 th'(t)^2`.
+
+#% item
+# The parameters of `L` need numeric values for `phase_portrait` and `n_dsolve_motion`.
+
+#% item
+# `noether_charge` with `time_shift: 1` gives minus the energy, by the sign of Noether's theorem.
+
+#% section
+# Related functions
+
+#% text
+# `euler_lagrange_equations`, `generalized_momenta`, `energy_function`, `legendre_transform`, `hamilton_equations`, `poisson_bracket`, `noether_charge`, `equilibrium_points`, `normal_modes`, `phase_portrait`, `n_dsolve_motion`, `energy_drift`

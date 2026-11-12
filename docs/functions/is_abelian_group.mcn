@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_abelian_group
+
+#% text
+# `is_abelian_group(G)`: whether the generators commute
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_abelian_group(abelian_group([2, 2, 3])), is_abelian_group(symmetric_group(4))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `abelian_group`, `group_center`

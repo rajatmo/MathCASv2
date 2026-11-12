@@ -1,0 +1,42 @@
+#! mathcas 2 notebook
+
+#% title
+# energy_drift
+
+#% text
+# `energy_drift(L, q, sol, [t, t0, t1])` gives the largest change `|E(t) - E(t0)|` of the energy function of `L` along the numerical solution `sol` (the rules of `n_dsolve_motion` or `n_dsolve`), sampled at 201 equally spaced times.
+
+#% section
+# Details
+
+#% item
+# `points: k` samples `k + 1` times.
+
+#% item
+# For a Lagrangian that does not depend on `t` explicitly the energy is conserved exactly, so the drift measures the error of the integration.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Kepler's problem in polar coordinates:
+
+#% cell
+lk = (r'(t)^2 + r(t)^2*f'(t)^2)/2 + 1/r(t)
+
+#% cell
+s = n_dsolve_motion(lk, [r, f], [t, 0, 30], [1, 0], [0, 1.2])
+
+#% cell
+energy_drift(lk, [r, f], s, [t, 0, 30]) < 1.0e-6
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `n_dsolve_motion`, `energy_function`, `n_dsolve`

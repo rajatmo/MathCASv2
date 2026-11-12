@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# exception_types
+
+#% text
+# `exception_types()` gives the exception types registered so far.
+
+#% section
+# Details
+
+#% item
+# A type is registered by `register_exception_type`; the order is the order of registration.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+exception_types()
+#% output
+#= [arg_error, arg_type_error]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Registering a type again keeps its place:
+
+#% cell
+register_exception_type(r_a)
+register_exception_type(r_b, r_a)
+register_exception_type(r_a)
+exception_types()
+#% output
+#= [arg_error, arg_type_error, r_a, r_b]
+
+#% section
+# See also
+
+#% text
+# `register_exception_type`

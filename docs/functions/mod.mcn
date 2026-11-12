@@ -1,0 +1,155 @@
+#! mathcas 2 notebook
+
+#% title
+# mod
+
+#% text
+# `mod(a, m)` gives the remainder of `a` on division by `m`, with the sign of `m`.
+
+#% text
+# `mod(a, m, d)` gives the remainder shifted to lie between `d` and `d + m`.
+
+#% section
+# Details
+
+#% item
+# `mod(a, m)` is `a - m*floor(a/m)`, so for `m > 0` it lies in 0, ..., `m` - 1 and is never negative.
+
+#% item
+# `mod(a, m, d)` is `a - m*floor((a - d)/m)`; `mod(a, m, 1)` lies in 1, ..., `m`.
+
+#% item
+# `a` and `m` may be integers, fractions or machine reals.
+
+#% item
+# `mod` is listable: it applies to each element of a list.
+
+#% item
+# `m` = 0 gives a division-by-zero failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mod(17, 5)
+#% output
+#= 2
+
+#% text
+# The remainder of a negative number is still between 0 and `m` - 1:
+
+#% cell
+mod(-17, 5)
+#% output
+#= 3
+
+#% text
+# The sign follows `m`:
+
+#% cell
+mod(17, -5)
+#% output
+#= -3
+
+#% subsection
+# Scope
+
+#% text
+# An offset: remainders from 1 to 5 instead of 0 to 4:
+
+#% cell
+mod(10, 5, 1)
+#% output
+#= 5
+
+#% text
+# Fractions and machine reals:
+
+#% cell
+mod(7/2, 1)
+#% output
+#= 1/2
+
+#% cell
+mod(5.5, 2)
+#% output
+#= 1.5
+
+#% cell
+mod(-1.5, 1.0)
+#% output
+#= 0.5
+
+#% text
+# Each element of a list:
+
+#% cell
+mod(range(6), 3)
+#% output
+#= [1, 2, 0, 1, 2, 0]
+
+#% text
+# Large integers:
+
+#% cell
+mod(10^30 + 7, 10)
+#% output
+#= 7
+
+#% subsection
+# Applications
+
+#% text
+# The fractional part of a ball:
+
+#% cell
+mod(n(pi, 30), 1)
+#% output
+#= 0.1415926535897932384626433832795029
+
+#% subsection
+# Properties and relations
+
+#% text
+# The quotient and the remainder rebuild the number:
+
+#% cell
+quotient(17, 5)*5 + mod(17, 5)
+#% output
+#= 17
+
+#% text
+# `power_mod` gives the same remainder without forming the large power:
+
+#% cell
+[mod(3^100, 7), power_mod(3, 100, 7)]
+#% output
+#= [4, 4]
+
+#% subsection
+# Possible issues
+
+#% text
+# A remainder modulo 0 is undefined:
+
+#% cell
+mod(7, 0)
+#% output
+#! failure(division_by_zero)
+
+#% text
+# A modulus with an irrational value is not reduced:
+
+#% cell
+mod(2pi + 1, 2pi)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `quotient`, `floor`, `power_mod`, `gcd`

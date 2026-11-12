@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# x_scale
+
+#% text
+# `x_scale` is an option of every plot: `x_scale: linear`, `log`, `signed_log` or `signed_log(c)` sets the scale of the x axis.
+
+#% section
+# Details
+
+#% item
+# `signed_log(c)` maps `v` to `sign(v)*log10(1 + abs(v)/c)` (default `c = 1`): linear near 0 and logarithmic far from it, for both signs.
+
+#% item
+# A `log` scale needs positive values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(log(x), [x, 0.01, 100], x_scale: log)
+#% output
+#= image("x_scale.files/x_scale-1.svgz")
+
+#% cell
+plot(x, [x, -100, 100], x_scale: signed_log)
+#% output
+#= image("x_scale.files/x_scale-2.svgz")
+
+#% cell
+list_plot([[1, 1], [10, 2], [100, 3], [1000, 4]], x_scale: log)
+#% output
+#= image("x_scale.files/x_scale-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Both axes logarithmic, a power law as a straight line:
+
+#% cell
+plot(x^-2, [x, 1, 100], x_scale: log, y_scale: log)
+#% output
+#= image("x_scale.files/x_scale-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `y_scale`, `log_log_plot`, `log_plot`

@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# discriminant
+
+#% text
+# `discriminant(p, x)` gives the discriminant of the polynomial `p` with respect to `x`.
+
+#% section
+# Details
+
+#% item
+# The discriminant is `a^(2n - 2)` times the product of the squared differences of the roots, `a` the leading coefficient and `n` the degree. It is 0 exactly when `p` has a repeated root.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discriminant(a*x^2 + b*x + c, x)
+#% output
+#= -4*a*c + b^2
+
+#% cell
+discriminant(x^3 + p*x + q, x)
+#% output
+#= -27*q^2 - 4*p^3
+
+#% cell
+discriminant(x^2 - 2*x + 1, x)
+#% output
+#= 0
+
+#% subsection
+# Applications
+
+#% text
+# For which `c` the cubic `x^3 - 3x + c` has a double root:
+
+#% cell
+solve(discriminant(x^3 - 3*x + c, x) == 0, c)
+#% output
+#= [[c -> -2], [c -> 2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sign of the discriminant tells a cubic's real roots: positive for three, negative for one:
+
+#% cell
+[discriminant(x^3 - 3*x + 1, x), discriminant(x^3 + x + 1, x)]
+#% output
+#= [81, -31]
+
+#% section
+# See also
+
+#% text
+# `resultant`, `roots`, `factor_square_free`

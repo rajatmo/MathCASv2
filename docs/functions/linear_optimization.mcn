@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# linear_optimization
+
+#% text
+# `linear_optimization(f, cons, vars)` gives the point `[x -> ..., y -> ...]` at which the linear function `f` is smallest under the constraints `cons`.
+
+#% section
+# Details
+
+#% item
+# `cons` is a list of equations and inequalities, read as their conjunction; `vars` is a variable or a list of variables.
+
+#% item
+# The conditions may be `vector_less_equal([a, b, ...])`, `vector_greater_equal(...)` (elementwise chains) and equalities of lists; with a vector variable `v` and `dot(c, v)` the result is `[v -> [...]]`.
+
+#% item
+# `linear_optimization(c, [a, b])` and `linear_optimization(c, [a, b], [aeq, beq])` give the vector `x` minimizing `dot(c, x)` under `dot(a, x) + b >= 0` (and `dot(aeq, x) + beq == 0`).
+
+#% item
+# The problem is passed to `minimize`, so the answer is exact; use `minimize` for the optimal value as well. A problem that is infeasible or unbounded is returned as `minimize` gives it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+linear_optimization(x + y, [x + 2*y >= 3, x >= 0, y >= 0], [x, y])
+#% output
+#= [x -> 0, y -> 3/2]
+
+#% cell
+linear_optimization([1, 1], [[[1, 0], [0, 1]], [0, 0]], [[[1, 2]], [-3]])
+#% output
+#= [0, 3/2]
+
+#% cell
+linear_optimization(x + y, vector_less_equal([[x - 2*y, -x + y], [3, 2]]), [x, y])
+#% output
+#= [x -> -7, y -> -5]
+
+#% cell
+linear_optimization(dot([3, 4], v), [dot([1, -2], v) <= 3, dot([-1, 1], v) <= 2], v)
+#% output
+#= [v -> [-7, -5]]
+
+#% cell
+linear_optimization(x - y, [x + y + z == 1/2, x - 2*z == 1, 2*x - y >= 1], [x, y, z])
+#% output
+#= [x -> 4/7, y -> 1/7, z -> -3/14]
+
+#% cell
+linear_optimization(x + y, [x + 2*y >= 3, -1 <= x and x <= 2, -1 <= y and y <= 1], [x, y])
+#% output
+#= [x -> 1, y -> 1]
+
+#% section
+# See also
+
+#% text
+# `minimize`, `maximize`, `convex_optimization`

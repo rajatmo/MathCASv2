@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# primitive_root
+
+#% text
+# `primitive_root(n)` gives the smallest primitive root modulo `n`, a number whose powers give every residue prime to `n`.
+
+#% section
+# Details
+
+#% item
+# Primitive roots exist for `n` = 2, 4, `p^k` and `2*p^k` with `p` an odd prime; for other `n` the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+primitive_root(7)
+#% output
+#= 3
+
+#% cell
+primitive_root(23)
+#% output
+#= 5
+
+#% cell
+primitive_root(50)
+#% output
+#= 27
+
+#% cell
+primitive_root(12)
+#% output
+#= primitive_root(12)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Its order is `euler_phi(n)`:
+
+#% cell
+[multiplicative_order(primitive_root(41), 41), euler_phi(41)]
+#% output
+#= [40, 40]
+
+#% text
+# Its powers run through every residue prime to `n`:
+
+#% cell
+sort(table(power_mod(3, k, 7), k, 6))
+#% output
+#= [1, 2, 3, 4, 5, 6]
+
+#% section
+# See also
+
+#% text
+# `multiplicative_order`, `euler_phi`, `power_mod`, `carmichael_lambda`

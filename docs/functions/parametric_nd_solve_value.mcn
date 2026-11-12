@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_nd_solve_value
+
+#% text
+# `parametric_nd_solve_value(eqs, expr, [t, t0, t1], [p1, ..., pm])` gives `expr` along the numerical solution of `eqs` as a function of the parameters `p1, ..., pm`.
+
+#% section
+# Details
+
+#% item
+# It is another name of `parametric_n_dsolve_value`; the result `f` is a parametric function, and `f(v1, ..., vm)` the value with the parameters set to the numbers `v1, ..., vm`.
+
+#% item
+# `find_root` and `plot` can use `f(a)` of a symbolic parameter: the call waits for a number.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = parametric_nd_solve_value([y''(t) + a*y(t) == 0, y(0) == 1, y'(0) == 0], y(10), [t, 0, 10], [a])
+
+#% cell
+f(1)
+#% output
+#= -0.8390715009436508
+
+#% cell
+find_root(f(a), [a, 1])
+#% output
+#= [a -> 1.2090265378821354]
+
+#% section
+# See also
+
+#% text
+# `parametric_nd_solve`, `parametric_n_dsolve_value`, `find_root`

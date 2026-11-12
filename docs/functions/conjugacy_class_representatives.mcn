@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# conjugacy_class_representatives
+
+#% text
+# `conjugacy_class_representatives(G)`: one element of each conjugacy class
+
+#% section
+# Details
+
+#% item
+# Classes are ordered by the order of their elements, then by size; the identity comes first.
+
+#% item
+# Groups of at most 2000000 elements are enumerated; larger ones get representatives from random elements, tested for conjugacy, until the class sizes add up to the group order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conjugacy_class_representatives(symmetric_group(4))
+#% output
+#= [cycles([]), cycles([[1, 3], [2, 4]]), cycles([[1, 2]]), cycles([[1, 3, 4]]), cycles([[1, 4, 2, 3]])]
+
+#% cell
+length(conjugacy_class_representatives(mathieu_group(12)))
+#% output
+#= 15
+
+#% section
+# See also
+
+#% text
+# `conjugacy_class_sizes`, `conjugacy_classes`, `character_table`

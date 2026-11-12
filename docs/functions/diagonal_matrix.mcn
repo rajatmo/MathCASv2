@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# diagonal_matrix
+
+#% text
+# `diagonal_matrix(v)` gives the square matrix with the elements of `v` on the diagonal and zeros elsewhere.
+
+#% text
+# `diagonal_matrix(v, k)` puts `v` on the `k`-th diagonal: above the main diagonal for `k > 0`, below it for `k < 0`.
+
+#% section
+# Details
+
+#% item
+# The matrix has side `length(v) + abs(k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+diagonal_matrix([1, 2, 3])
+#% output
+#= [[1, 0, 0], [0, 2, 0], [0, 0, 3]]
+
+#% cell
+diagonal_matrix([a, b])
+#% output
+#= [[a, 0], [0, b]]
+
+#% cell
+diagonal_matrix([1, 1], 1)
+#% output
+#= [[0, 1, 0], [0, 0, 1], [0, 0, 0]]
+
+#% cell
+diagonal_matrix([5, 6], -1)
+#% output
+#= [[0, 0, 0], [5, 0, 0], [0, 6, 0]]
+
+#% subsection
+# Applications
+
+#% text
+# A tridiagonal matrix as a sum of three diagonals:
+
+#% cell
+diagonal_matrix([2, 2, 2]) + diagonal_matrix([-1, -1], 1) + diagonal_matrix([-1, -1], -1)
+#% output
+#= [[2, -1, 0], [-1, 2, -1], [0, -1, 2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The determinant is the product of the diagonal:
+
+#% cell
+det(diagonal_matrix([4, 5, 6]))
+#% output
+#= 120
+
+#% text
+# The powers of a diagonal matrix are the powers of the entries:
+
+#% cell
+matrix_power(diagonal_matrix([2, 3]), 5)
+#% output
+#= [[32, 0], [0, 243]]
+
+#% section
+# See also
+
+#% text
+# `identity_matrix`, `trace`, `matrix_power`

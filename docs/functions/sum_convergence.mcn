@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# sum_convergence
+
+#% text
+# `sum_convergence(f, n)` gives `true` when the sum of `f(n)` converges, `false` when it diverges, or a condition on the parameters.
+
+#% text
+# `sum_convergence(f, [n, a, inf])` asks about the sum from `a`, where a pole of `f` at an integer makes it diverge.
+
+#% section
+# Details
+
+#% item
+# The tests: the term test; for a hypergeometric term the ratio test with Raabe's refinement on the boundary (Dirichlet's test for `|z| = 1`, `z != 1`); a symbolic ratio gives the condition `abs(z) < 1`, solved for one parameter; `c n^e` with a symbolic `e` gives `re(-e) > 1`; alternating signs with terms tending to 0; then the comparison with `n^p log(n)^q log(log(n))^r` through limits, and the ratio test by limits.
+
+#% item
+# When no test decides, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sum_convergence(1/n, n)
+#% output
+#= false
+
+#% cell
+sum_convergence(3^n*n^2/factorial(n), n)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+sum_convergence(1/n^b, n)
+#% output
+#= re(b) > 1
+
+#% cell
+sum_convergence((x/2)^n, n)
+#% output
+#= abs(x) < 2
+
+#% cell
+sum_convergence((-1)^n/(2*n + 1), n)
+#% output
+#= true
+
+#% cell
+sum_convergence(x^n/factorial(n), n)
+#% output
+#= true
+
+#% cell
+sum_convergence(1/n^2, [n, 0, inf])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `sum`, `n_sum`, `limit`

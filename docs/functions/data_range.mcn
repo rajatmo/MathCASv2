@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# data_range
+
+#% text
+# `data_range` is an option of `list_density_plot`: `data_range: [[x0, x1], [y0, y1]]` gives the coordinates of the matrix's first and last columns and rows.
+
+#% section
+# Details
+
+#% item
+# Without it the columns and rows are numbered 1, 2, ...
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_density_plot([[1, 2, 3], [4, 5, 6]], data_range: [[0, 1], [0, 2]])
+#% output
+#= image("data_range.files/data_range-1.svgz")
+
+#% cell
+list_density_plot(table(sin(i*j/10.0), i, 20, j, 20), data_range: [[0, 2], [0, 2]])
+#% output
+#= image("data_range.files/data_range-2.svgz")
+
+#% cell
+list_density_plot([[1, 2, 3], [4, 5, 6]])
+#% output
+#= image("data_range.files/data_range-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_density_plot`, `plot_range`

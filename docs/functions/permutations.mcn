@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# permutations
+
+#% text
+# `permutations(xs)` gives every arrangement of the elements of `xs`; `permutations(xs, n)` those of at most `n` elements, `permutations(xs, [n])` exactly `n`.
+
+#% section
+# Details
+
+#% item
+# Repeated elements give each arrangement once.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutations([1, 2, 3])
+#% output
+#= [[1, 2, 3], [1, 3, 2], [2, 1, 3], [2, 3, 1], [3, 1, 2], [3, 2, 1]]
+
+#% subsection
+# Scope
+
+#% text
+# Every length:
+
+#% cell
+permutations([1, 2], all)
+#% output
+#= [[], [1], [2], [1, 2], [2, 1]]
+
+#% section
+# See also
+
+#% text
+# `subsets`, `tuples`

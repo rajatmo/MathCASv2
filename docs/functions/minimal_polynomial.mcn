@@ -1,0 +1,115 @@
+#! mathcas 2 notebook
+
+#% title
+# minimal_polynomial
+
+#% text
+# `minimal_polynomial(a, x)` gives the minimal polynomial of the algebraic number `a` in the variable `x`: the irreducible polynomial with integer coefficients, positive leading coefficient and coprime coefficients that has `a` as a root.
+
+#% text
+# `minimal_polynomial(a)` gives it as a function `&(p(&1))`.
+
+#% section
+# Details
+
+#% item
+# `a` may be built from rational and complex rational numbers, sums, products, integer powers, radicals such as `2^(1/3)` (principal values) and root objects `root(x => p(x), k)`.
+
+#% item
+# The computation is exact: `a` is placed in one number field and its minimal polynomial is the square-free part of its characteristic polynomial there. Which root each radical or root object means is decided with certified ball enclosures, and the result is checked by evaluating it on an enclosure of `a`.
+
+#% item
+# A number that is not algebraic, such as `pi`, leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sum of two square roots:
+
+#% cell
+minimal_polynomial(sqrt(2) + sqrt(3), x)
+#% output
+#= 1 - 10*x^2 + x^4
+
+#% text
+# The golden ratio, as a function:
+
+#% cell
+minimal_polynomial((1 + sqrt(5))/2)
+#% output
+#= &(-1 - &1 + &1^2)
+
+#% subsection
+# Scope
+
+#% text
+# Cube roots and the imaginary unit:
+
+#% cell
+minimal_polynomial(2^(1/3) + im, x)
+#% output
+#= 5 + 12*x + 3*x^2 - 4*x^3 + 3*x^4 + x^6
+
+#% text
+# A root object:
+
+#% cell
+minimal_polynomial(root(x => x^5 - x - 1, 1)^2 + 1, y)
+#% output
+#= -1 - 4*y^2 + 8*y^3 - 5*y^4 + y^5
+
+#% text
+# A rational number has a linear minimal polynomial:
+
+#% cell
+minimal_polynomial(3/4, x)
+#% output
+#= -3 + 4*x
+
+#% text
+# Nested radicals:
+
+#% cell
+minimal_polynomial(sqrt(2 + sqrt(2)), x)
+#% output
+#= 2 - 4*x^2 + x^4
+
+#% subsection
+# Applications
+
+#% text
+# Decide that two expressions are the same number: their difference has the minimal polynomial x.
+
+#% cell
+minimal_polynomial(sqrt(2) + sqrt(3) - sqrt(5 + 2*sqrt(6)), x)
+#% output
+#= x
+
+#% text
+# The degree of a field extension: Q(2^(1/3), im) has degree 6.
+
+#% cell
+degree(minimal_polynomial(2^(1/3) + im, x), x)
+#% output
+#= 6
+
+#% subsection
+# Properties and relations
+
+#% text
+# Trigonometric values at rational multiples of pi:
+
+#% cell
+[minimal_polynomial(cos(2*pi/7), x), minimal_polynomial(cos(pi/9), x)]
+#% output
+#= [-1 - 4*x + 4*x^2 + 8*x^3, -1 - 6*x + 8*x^3]
+
+#% section
+# See also
+
+#% text
+# `to_number_field`, `factor`, `root_sum`, `solve`

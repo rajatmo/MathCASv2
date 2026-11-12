@@ -1,0 +1,122 @@
+#! mathcas 2 notebook
+
+#% title
+# function_continuous
+
+#% text
+# `function_continuous(f, x)` gives `true` when `f` is continuous for every real `x`, and `false` when it is not; `function_continuous([f, cond], x)` asks where `cond` holds, and `complexes` asks over the complex numbers.
+
+#% section
+# Details
+
+#% item
+# The answer decides whether the discontinuities of `function_discontinuities` meet the region: by `reduce` for one real variable, by the cylindrical decomposition for polynomial conditions in several variables, over the real and imaginary parts for complex variables, and otherwise by a numeric witness (a sign change refined by bisection).
+
+#% item
+# With parameters the answer is `conditional_expression(true, c)`: `c` is the condition on the parameters under which the discontinuities miss the region (a sufficient condition when the discontinuities are not polynomial).
+
+#% item
+# `generate_conditions: false` gives the value without its condition; `automatic` leaves out the conditions `p != q`; `none` leaves the call unevaluated when a condition would be needed.
+
+#% item
+# `assumptions:` (or `assuming`) gives facts about the parameters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_continuous(sin(x), x)
+#% output
+#= true
+
+#% cell
+function_continuous(floor(x), x)
+#% output
+#= false
+
+#% text
+# The logarithm is continuous on its domain:
+
+#% cell
+function_continuous([log(x), x > 0], x)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Over the complexes the square root has a branch cut:
+
+#% cell
+function_continuous(sqrt(x), x, complexes)
+#% output
+#= false
+
+#% text
+# A pole on the unit circle, and none:
+
+#% cell
+[function_continuous(erf(sin(x + y)/(x^2 + y^2 - 1)), [x, y]), function_continuous(erf(sin(x + y)/(x^2 + y^2 + 1)), [x, y])]
+#% output
+#= [false, true]
+
+#% text
+# Over the complexes `x^2 + y^2 + 1` has zeros:
+
+#% cell
+function_continuous(erf(sin(x + y)/(x^2 + y^2 + 1)), [x, y], complexes)
+#% output
+#= false
+
+#% subsection
+# Options
+
+#% text
+# A parameter gives a conditional answer:
+
+#% cell
+function_continuous(log(x^2 + a), x)
+#% output
+#= conditional_expression(true, a > 0)
+
+#% cell
+function_continuous(cos(x*y)/a, [x, y], generate_conditions: automatic)
+#% output
+#= conditional_expression(true, element(a, reals))
+
+#% cell
+function_continuous(sin(x + y)/(exp(x*y) + a), [x, y], assumptions: a > 0)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# Continuous on the reals, not on the complexes (poles at `2 im` and `-2 im`):
+
+#% cell
+[function_continuous(4/(x^2 + 4), x), function_continuous(4/(x^2 + 4), x, complexes)]
+#% output
+#= [true, false]
+
+#% subsection
+# Possible issues
+
+#% text
+# A piecewise function is analysed through its pieces and the points where they meet: here the pieces differ by 1 at 0, and `unit_step` jumps there too:
+
+#% cell
+[function_continuous(piecewise([[x, x < 0], [x + 1, x >= 0]], 0), x), function_continuous(unit_step(x), x)]
+#% output
+#= [false, false]
+
+#% section
+# See also
+
+#% text
+# `function_discontinuities`, `function_analytic`, `function_meromorphic`, `function_domain`

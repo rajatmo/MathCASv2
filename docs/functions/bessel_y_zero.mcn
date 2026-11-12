@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_y_zero
+
+#% text
+# `bessel_y_zero(nu, k)` gives the `k`-th positive zero of the Bessel function `Y_nu`; `bessel_y_zero(nu, k, x0)` gives the `k`-th zero above `x0`.
+
+#% section
+# Details
+
+#% item
+# For a non-integer `k = m - t` the value is a zero of `Y_nu cos(pi t) + J_nu sin(pi t)`: the `m`-th positive one for `t < 1/2`, the `(m - 1)`-th for `t >= 1/2` (the first zero of the family enters the origin at `t = 1/2`), continuous in `k`.
+
+#% item
+# Numerical values: the sign changes are counted in machine arithmetic, the bracket bisected, and the zero refined by Newton's method at the working precision; exact arguments stay unevaluated and `n` gives the values.
+
+#% item
+# `nu > -1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(bessel_y_zero(0, 1))
+#% output
+#= 0.8935769662791675
+
+#% cell
+n(bessel_y_zero(0, 2))
+#% output
+#= 3.957678419314858
+
+#% cell
+n(bessel_y_zero(1, 10, 50), 30)
+#% output
+#= 80.89137529327611329860122080154373
+
+#% cell
+n(bessel_y_zero(0, 2/3), 20)
+#% output
+#= 0.073819598152447496768098
+
+#% cell
+bessel_y(0, n(bessel_y_zero(0, 3), 30))
+#% output
+#= ball(9.3964057169798394931e-36, 1.40e-32)
+
+#% section
+# See also
+
+#% text
+# `bessel_j_zero`, `bessel_y`

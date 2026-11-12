@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# green_function
+
+#% text
+# `green_function([L, bc1, bc2], u(x), [x, a, b], y)` gives the Green's function G(x, y) of the second-order linear differential operator L with two homogeneous conditions: `L G = dirac_delta(x - y)` with G satisfying the conditions in x.
+
+#% section
+# Details
+
+#% item
+# L is an expression in u(x), u'(x) and u''(x); the conditions are equations in u and u' at points.
+
+#% item
+# Conditions at two points (a boundary value problem) give `G = ua(min(x, y)) ub(max(x, y))/(a2(y) W(y))` with ua, ub the homogeneous solutions satisfying the left and right conditions, a2 the coefficient of u'' and W the Wronskian; conditions at one point (an initial value problem) give the causal Green's function, 0 for x < y.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+green_function([-u''(x), u(0) == 0, u(1) == 0], u(x), [x, 0, 1], y)
+#% output
+#= (x - x*y)*heaviside_theta(y - x) + (y - x*y)*heaviside_theta(x - y)
+
+#% cell
+green_function([u''(x) + 5*u'(x) + 6*u(x), u(0) == 0, u'(0) == 0], u(x), [x, 0, inf], y)
+#% output
+#= (-exp(-3*x + 3*y) + exp(-2*x + 2*y))*heaviside_theta(x - y)
+
+#% cell
+green_function([-x^2*u''(x) + x*u'(x) + 3*u(x), u(1) == 0, u(2) == 0], u(x), [x, 1, 2], y)
+#% output
+#= (-16 + 16*x^4 - x^4*y^4 + y^4)*heaviside_theta(y - x)/(60*x*y^4) + (-16 + 16*y^4 - x^4*y^4 + x^4)*heaviside_theta(x - y)/(60*x*y^4)
+
+#% cell
+green_function([-u''(x) - u(x), u(0) == 0, u'(1) == 0], u(x), [x, 0, 1], y)
+#% output
+#= (cos(x) + sin(1)*sin(x)/cos(1))*heaviside_theta(x - y)*sin(y) + (cos(y) + sin(1)*sin(y)/cos(1))*heaviside_theta(y - x)*sin(x)
+
+#% section
+# See also
+
+#% text
+# `d_solve`, `heaviside_theta`, `dirac_delta`, `wronskian`

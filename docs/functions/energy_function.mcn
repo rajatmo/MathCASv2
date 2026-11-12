@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# energy_function
+
+#% text
+# `energy_function(L, q, t)` gives the energy (the Jacobi integral) `sum q' dL/dq' - L` of the Lagrangian `L` in the coordinates `q`.
+
+#% section
+# Details
+
+#% item
+# The energy function is conserved along every solution when `L` does not depend on `t` explicitly.
+
+#% item
+# It is the Hamiltonian written in the velocities; `energy_drift` uses it to check numerical solutions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+energy_function(m*x'(t)^2/2 - k*x(t)^2/2, x, t)
+#% output
+#= (1/2)*k*x(t)^2 + (1/2)*m*x'(t)^2
+
+#% cell
+energy_function(m*l^2*th'(t)^2/2 + m*g*l*cos(th(t)), th, t)
+#% output
+#= (1/2)*m*l^2*th'(t)^2 - g*l*m*cos(th(t))
+
+#% text
+# Conservation, checked with the equation of motion `x'' = -x^3`:
+
+#% cell
+simplify(rewrite(d(energy_function(x'(t)^2/2 - x(t)^4/4, x, t), t), x''(t) -> -x(t)^3))
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `generalized_momenta`, `legendre_transform`, `noether_charge`, `energy_drift`

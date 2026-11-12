@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# raster
+
+#% text
+# `raster(cells)` is a graphics primitive: a grid of coloured cells, one per element of the matrix cells, the first row at the bottom, filling the rectangle from (0, 0) to (columns, rows).
+
+#% text
+# `raster(cells, [[x0, y0], [x1, y1]])` stretches the grid over the rectangle with these corners.
+
+#% text
+# `raster(cells, rect, g)` colours numbers with the gradient g instead of gray.
+
+#% section
+# Details
+
+#% item
+# A cell is a number from 0 to 1 (a gray from black to white, or a colour of the gradient), a list `[r, g, b]` or `[r, g, b, a]`, a colour such as `red`, or `none` for a transparent cell.
+
+#% item
+# Each cell is one flat colour, with no smoothing between cells, in PNG, SVG and PDF alike.
+
+#% item
+# A raster with numbers that are not yet known stays as it is; other wrong cells give a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A small checkerboard:
+
+#% cell
+graphics(raster([[0, 1, 0], [1, 0, 1], [0, 1, 0]]))
+#% output
+#= image("raster.files/raster-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Colours, and a transparent cell showing the disk behind:
+
+#% cell
+graphics([orange, disk([1, 1], 0.9), raster([[red, none], [[0, 0, 1], [0, 0.6, 0.3, 0.5]]], [[0, 0], [2, 2]])])
+#% output
+#= image("raster.files/raster-2.svgz")
+
+#% text
+# Numbers coloured by a gradient:
+
+#% cell
+graphics(raster(table(mod(i*k, 7)/6, i, 7, k, 7), [[0, 0], [1, 1]], viridis), frame: true)
+#% output
+#= image("raster.files/raster-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `list_density_plot`, `gradient_color`

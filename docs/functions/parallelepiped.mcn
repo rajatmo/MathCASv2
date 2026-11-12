@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# parallelepiped
+
+#% text
+# `parallelepiped(p, [v1, v2, ...])`: the points p + t1 v1 + t2 v2 + ... with each t in [0, 1]
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+p = parallelepiped([0, 0, 0], [[1, 0, 0], [1, 1, 0], [0, 1, 1]])
+
+#% cell
+[volume(p), region_nearest(p, [2, 2, 2])]
+#% output
+#= [1, [2, 2, 1]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# hankel_transform
+
+#% text
+# `hankel_transform(f, r, s)` gives the Hankel transform of order 0, `integrate(f bessel_j(0, s r) r, [r, 0, inf])`; `hankel_transform(f, r, s, nu)` the transform of order nu.
+
+#% section
+# Details
+
+#% item
+# Closed forms for sums of `c r^mu`, `c r^mu exp(-a r)`, `c r^mu exp(-a r^2)`, `c r^nu (r^2 + a^2)^-p` and `g(r) dirac_delta(r - b)` (DLMF 10.22; Erdelyi et al., Tables of Integral Transforms II). Other functions leave the transform unevaluated.
+
+#% item
+# A numeric s evaluates the closed form at s.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hankel_transform(exp(-r^2), r, s)
+#% output
+#= (1/2)*exp((-1/4)*s^2)
+
+#% cell
+hankel_transform(1/sqrt(1 + r^2), r, s)
+#% output
+#= exp(-s)/s
+
+#% cell
+hankel_transform(1/r^3, r, s)
+#% output
+#= -s
+
+#% cell
+hankel_transform(r^2*dirac_delta(r - 2), r, s)
+#% output
+#= 8*bessel_j(0, 2*s)
+
+#% section
+# See also
+
+#% text
+# `inverse_hankel_transform`, `bessel_j`, `fourier_transform`

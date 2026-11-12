@@ -1,0 +1,245 @@
+#! mathcas 2 notebook
+
+#% title
+# Groups and combinatorics
+
+#% text
+# Permutations, groups of permutations given by generators, groups given by generators and relations, and the combinatorics around them: partially ordered sets, matroids, Young tableaux and counting up to symmetry. Every group computation runs on a base and strong generating set, so groups with billions of elements are handled without listing them.
+
+#% section
+# Permutations
+
+#% text
+# A permutation is written in disjoint cycles: `cycles([[1, 2, 3], [4, 5]])` sends 1 to 2, 2 to 3, 3 to 1 and exchanges 4 and 5. The form is canonical (each cycle starts at its least point), so equal permutations are equal expressions.
+
+#% cell
+p = cycles([[3, 1, 2], [5, 4]])
+
+#% text
+# Products apply the left factor first: the image of a point under `permutation_product(p, q)` is its image under p, then under q.
+
+#% cell
+[permutation_product(cycles([[1, 2]]), cycles([[2, 3]])), permutation_product(cycles([[2, 3]]), cycles([[1, 2]]))]
+#% output
+#= [cycles([[1, 3, 2]]), cycles([[1, 2, 3]])]
+
+#% cell
+[permutation_order(p), permutation_sign(p), permutation_cycle_type(p, 6), permutation_inverse(p)]
+#% output
+#= [6, -1, [3, 2, 1], cycles([[1, 3, 2], [4, 5]])]
+
+#% cell
+[permutation_list(p, 6), permutation_cycles([2, 3, 1, 5, 4, 6])]
+#% output
+#= [[2, 3, 1, 5, 4, 6], cycles([[1, 2, 3], [4, 5]])]
+
+#% section
+# Permutation groups
+
+#% text
+# A group is given by generators. The order, membership and everything else come from a stabiliser chain computed by the Schreier-Sims algorithm. The Rubik's cube group acts on the 48 movable facets; its order is about 4.3 times 10^19.
+
+#% cell
+cube = permutation_group([cycles([[1,3,8,6],[2,5,7,4],[9,33,25,17],[10,34,26,18],[11,35,27,19]]), cycles([[9,11,16,14],[10,13,15,12],[1,17,41,40],[4,20,44,37],[6,22,46,35]]), cycles([[17,19,24,22],[18,21,23,20],[6,25,43,16],[7,28,42,13],[8,30,41,11]]), cycles([[25,27,32,30],[26,29,31,28],[3,38,43,19],[5,36,45,21],[8,33,48,24]]), cycles([[33,35,40,38],[34,37,39,36],[3,9,46,32],[2,12,47,29],[1,14,48,27]]), cycles([[41,43,48,46],[42,45,47,44],[14,22,30,38],[15,23,31,39],[16,24,32,40]])]); group_order(cube)
+#% output
+#= 43252003274489856000
+
+#% cell
+[group_orbits(cube), is_group_element(cube, cycles([[1, 3]]))]
+#% output
+#= [[[1, 3, 6, 8, 9, 11, 14, 16, 17, 19, 22, 24, 25, 27, 30, 32, 33, 35, 38, 40, 41, 43, 46, 48], [2, 4, 5, 7, 10, 12, 13, 15, 18, 20, 21, 23, 26, 28, 29, 31, 34, 36, 37, 39, 42, 44, 45, 47]], false]
+
+#% text
+# Named groups: symmetric, alternating, cyclic, dihedral, abelian, and the Mathieu groups.
+
+#% cell
+map(k => group_order(mathieu_group(k)), [11, 12, 22, 23, 24])
+#% output
+#= [7920, 95040, 443520, 10200960, 244823040]
+
+#% text
+# Orbits and stabilisers satisfy the orbit-stabiliser theorem; here M24 is 5-transitive, so the stabiliser of five points has order 244823040 / (24 23 22 21 20).
+
+#% cell
+m24 = mathieu_group(24); [length(group_orbit(m24, 1)), group_order(group_stabilizer(m24, [1, 2, 3, 4, 5])), group_order(m24)/(24*23*22*21*20)]
+#% output
+#= [24, 48, 48]
+
+#% section
+# Subgroups and series
+
+#% cell
+s4 = symmetric_group(4); v4 = permutation_group([cycles([[1, 2], [3, 4]]), cycles([[1, 3], [2, 4]])]); [is_normal_subgroup(s4, v4), subgroup_index(s4, v4), right_coset_representatives(s4, v4)]
+#% output
+#= [true, 6, [cycles([]), cycles([[1, 2]]), cycles([[1, 2, 3, 4]]), cycles([[1, 3, 4]]), cycles([[2, 3, 4]]), cycles([[1, 3, 4, 2]])]]
+
+#% cell
+[map(group_order, derived_series(s4)), map(group_order, lower_central_series(dihedral_group(8))), map(group_order, composition_series(s4))]
+#% output
+#= [[24, 12, 4, 1], [16, 4, 2, 1], [24, 12, 4, 2, 1]]
+
+#% cell
+[is_solvable(s4), is_solvable(symmetric_group(5)), is_simple_group(alternating_group(5)), is_simple_group(mathieu_group(11))]
+#% output
+#= [true, false, true, true]
+
+#% text
+# Centralisers, set stabilisers and conjugating elements are found by backtrack search.
+
+#% cell
+[group_order(group_centralizer(symmetric_group(8), cycles([[1, 2, 3], [4, 5, 6]]))), group_order(group_set_stabilizer(symmetric_group(6), [1, 2])), is_conjugate(alternating_group(5), cycles([[1, 2, 3, 4, 5]]), cycles([[1, 3, 5, 2, 4]]))]
+#% output
+#= [36, 48, false]
+
+#% text
+# A transitive group is primitive when it preserves no nontrivial partition of the points. The symmetries of a hexagon preserve the three pairs of opposite vertices.
+
+#% cell
+[group_blocks(dihedral_group(6)), is_primitive(dihedral_group(7))]
+#% output
+#= [[[1, 4], [2, 5], [3, 6]], true]
+
+#% section
+# Conjugacy classes and characters
+
+#% cell
+[conjugacy_class_representatives(s4), conjugacy_class_sizes(s4)]
+#% output
+#= [[cycles([]), cycles([[1, 3], [2, 4]]), cycles([[1, 2]]), cycles([[1, 3, 4]]), cycles([[1, 4, 2, 3]])], [1, 3, 6, 8, 6]]
+
+#% text
+# The character table has the irreducible characters as rows and the classes, in the order above, as columns. The values are exact: the icosahedral group A5 has the golden ratio among them.
+
+#% cell
+character_table(alternating_group(5))
+#% output
+#= [[1, 1, 1, 1, 1], [3, -1, 0, 1/2 + (1/2)*5^(1/2), 1/2 - (1/2)*5^(1/2)], [3, -1, 0, 1/2 - (1/2)*5^(1/2), 1/2 + (1/2)*5^(1/2)], [4, 0, 1, -1, -1], [5, 1, -1, 0, 0]]
+
+#% text
+# The first orthogonality relation on the table of M11: the weighted inner product of two different characters is 0, of a character with itself the group order.
+
+#% cell
+s = conjugacy_class_sizes(mathieu_group(11)); t = character_table(mathieu_group(11)); [map(first, t), simplify(total(s*t[6]*conjugate(t[7]))), simplify(total(s*t[6]*conjugate(t[6])))]
+#% output
+#= [[1, 10, 10, 10, 11, 16, 16, 44, 45, 55], 0, 7920]
+
+#% section
+# Finitely presented groups
+
+#% text
+# Generators are symbols and relators are words, lists of letters such as `a`, `a^-1`, `a^3`; nested lists concatenate, so `table([a, b], 5)` is (a b)^5. Coset enumeration finds the order of a finite group and its actions on cosets.
+
+#% cell
+f = finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]); [group_order(f), subgroup_index(f, [a]), group_order(permutation_group(f, [b]))]
+#% output
+#= [60, 30, 60]
+
+#% text
+# A relation `u -> v` states u = v. The group with x^2 = y^3 = (x y)^5 is not the binary icosahedral group: its abelian invariants show a factor of order 19, and its order is 19 times 120.
+
+#% cell
+g = finitely_presented_group([x, y], [[x, x] -> [y, y, y], [y, y, y] -> table([x, y], 5)]); [abelian_invariants(g), group_order(g)]
+#% output
+#= [[19], 2280]
+
+#% text
+# Knuth-Bendix completion gives a rewriting system that reduces every word to a normal form; here the free abelian group of rank 2.
+
+#% cell
+z2 = finitely_presented_group([a, b], [[a, b] -> [b, a]]); [group_order(z2), word_normal_form(z2, [b, a, b^-1, a, a])]
+#% output
+#= [inf, [a^3]]
+
+#% section
+# Posets, matroids and tableaux
+
+#% text
+# On the divisors ordered by divisibility the Moebius function of the poset is the classical one.
+
+#% cell
+d = poset(divisors(36), (a, b) => mod(b, a) == 0); map(x => poset_moebius_mu(d, 1, x), divisors(36)) == map(moebius_mu, divisors(36))
+#% output
+#= true
+
+#% cell
+[linear_extension_count(poset(subsets([1, 2, 3]), (s, t) => is_subset(s, t))), is_lattice(d)]
+#% output
+#= [48, true]
+
+#% text
+# The Tutte polynomial of the complete graph on four vertices: T(1, 1) counts its 16 spanning trees and T(2, 2) its 2^6 edge sets.
+
+#% cell
+k4 = graphic_matroid(subsets([1, 2, 3, 4], [2])); [tutte_polynomial(k4, x, y), tutte_polynomial(k4, 1, 1), tutte_polynomial(k4, 2, 2)]
+#% output
+#= [2*x + 2*y + 3*x^2 + 3*y^2 + 4*x*y + x^3 + y^3, 16, 64]
+
+#% text
+# The Robinson-Schensted correspondence pairs permutations with pairs of standard tableaux of one shape, so the squares of the hook length counts add up to n!.
+
+#% cell
+[robinson_schensted([3, 1, 4, 2, 5]), total(map(s => standard_young_tableaux_count(s)^2, integer_partitions(8)))]
+#% output
+#= [[[[1, 2, 5], [3, 4]], [[1, 3, 5], [2, 4]]], 40320]
+
+#% section
+# Counting up to symmetry
+
+#% text
+# Polya's theorem counts colourings up to a group from its cycle index: necklaces of six beads in two colours, up to rotation and up to rotation and reflection, and the colourings of the corners of a square by weight.
+
+#% cell
+[cycle_index_polynomial(cyclic_group(4), x), polya_count(cyclic_group(6), 2), polya_count(dihedral_group(6), 2)]
+#% output
+#= [(1/4)*x(1)^4 + (1/4)*x(2)^2 + (1/2)*x(4), 14, 13]
+
+#% cell
+polya_count(dihedral_group(4), [r, b])
+#% output
+#= b*r^3 + r*b^3 + 2*b^2*r^2 + b^4 + r^4
+
+#% section
+# Common mistakes
+
+#% item
+# A power of a list is taken elementwise, so `[a, b]^3` in a relator is the word a^3 b^3, not (a b)^3. Repeat the word with `table`.
+
+#% cell
+group_order(finitely_presented_group([a, b], [a^2, b^3, [a, b]^5]))
+#% output
+#= 1
+
+#% cell
+group_order(finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]))
+#% output
+#= 60
+
+#% item
+# Products apply the left factor first, and conjugation is g^-1 a g: `conjugating_element(G, a, b)` gives g with that product equal to b.
+
+#% cell
+c = conjugating_element(symmetric_group(4), cycles([[1, 2, 3]]), cycles([[2, 3, 4]])); permutation_product(permutation_inverse(c), cycles([[1, 2, 3]]), c)
+#% output
+#= cycles([[2, 3, 4]])
+
+#% item
+# A group acts on 1, ..., n with n the largest point its generators move; give n to count fixed points beyond it.
+
+#% cell
+[is_transitive(cyclic_group(5)), is_transitive(cyclic_group(5), 6), group_orbits(cyclic_group(3), 5)]
+#% output
+#= [true, false, [[1, 2, 3], [4], [5]]]
+
+#% item
+# Overlapping cycles are not a product: `cycles` leaves them unevaluated. Multiply with `permutation_product`.
+
+#% cell
+[cycles([[1, 2], [2, 3]]), permutation_product(cycles([[1, 2]]), cycles([[2, 3]]))]
+#% output
+#= [cycles([[1, 2], [2, 3]]), cycles([[1, 3, 2]])]
+
+#% section
+# Related functions
+
+#% text
+# `cycles`, `permutation_product`, `permutation_inverse`, `permutation_order`, `permutation_sign`, `permutation_group`, `group_order`, `group_orbit`, `group_stabilizer`, `group_centralizer`, `group_normal_closure`, `derived_series`, `composition_series`, `is_primitive`, `group_blocks`, `symmetric_group`, `mathieu_group`, `conjugacy_class_representatives`, `character_table`, `finitely_presented_group`, `coset_table`, `knuth_bendix`, `abelian_invariants`, `poset_moebius_mu`, `linear_extensions`, `matroid_rank`, `tutte_polynomial`, `robinson_schensted`, `standard_young_tableaux_count`, `cycle_index_polynomial`, `polya_count`

@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# n_solve_values
+
+#% text
+# `n_solve_values(eq, x)` gives the numerical values of the solutions of `eq` for `x`, as a list `[a, b, ...]`.
+
+#% text
+# `n_solve_values(eqs, [x, y, ...])` gives one list of values per solution, `[[a1, b1, ...], ...]`.
+
+#% section
+# Details
+
+#% item
+# It takes the same equations, domains and options as `n_solve`, and gives the values of `n_solve`'s rules in the order of the unknowns.
+
+#% item
+# The roots of a polynomial in one unknown are ordered by real part, then by imaginary part.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The five roots of a quintic:
+
+#% cell
+n_solve_values(x^5 - 2*x + 3 == 0, x)
+#% output
+#= [-1.4236058485523317, -0.24672925691056402 - 1.3208163474502475im, -0.24672925691056402 + 1.3208163474502475im, 0.9585321811867299 - 0.498427779031846im, 0.9585321811867299 + 0.498427779031846im]
+
+#% text
+# The real roots only:
+
+#% cell
+n_solve_values(x^5 - 2*x + 3 == 0, x, reals)
+#% output
+#= [-1.4236058485523317]
+
+#% subsection
+# Scope
+
+#% text
+# A system, one list per solution:
+
+#% cell
+n_solve_values([x*y == 1, x + y == 3], [x, y])
+#% output
+#= [[0.3819660112501051, 2.618033988749895], [2.618033988749895, 0.3819660112501051]]
+
+#% text
+# A transcendental equation over the reals, through `product_log`:
+
+#% cell
+n_solve_values(e^x - x == 7, x, reals)
+#% output
+#= [-6.999087285366495, 2.22154230138681]
+
+#% section
+# See also
+
+#% text
+# `n_solve`, `solve_values`, `find_root`

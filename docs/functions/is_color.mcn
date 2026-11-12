@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_color
+
+#% text
+# `is_color(x)`: whether x is a colour with numeric components (a named colour or a colour term)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_color(red), is_color(lab_color(1, 0.5, 0.5)), is_color(1.2), is_color("#ff0000")]
+#% output
+#= [true, true, false, false]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_solvable
+
+#% text
+# `is_solvable(G)`: whether the derived series reaches the trivial group
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_solvable(symmetric_group(4)), is_solvable(symmetric_group(5))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `derived_series`, `is_nilpotent`

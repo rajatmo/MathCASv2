@@ -1,0 +1,144 @@
+#! mathcas 2 notebook
+
+#% title
+# say
+
+#% text
+# `say(x1, x2, ...)` prints its arguments one after the other on a single line and gives `null`.
+
+#% section
+# Details
+
+#% item
+# Strings are printed as their text, without quotes; every other value is printed in its usual form, as `to_string` gives it.
+
+#% item
+# No separator is put between the arguments: write the spaces into the strings.
+
+#% item
+# The value is `null`, so a notebook cell or script that ends with `say` shows only the printed line.
+
+#% item
+# `say` is defined in the prelude as `print(string_join(map(to_string, parts)))`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+say("Hello, world")
+#% output
+#| Hello, world
+
+#% text
+# Text and values on one line:
+
+#% cell
+say("2^64 = ", 2^64)
+#% output
+#| 2^64 = 18446744073709551616
+
+#% cell
+x = 3/7
+say("x = ", x, ", n(x) = ", n(x))
+#% output
+#| x = 3/7, n(x) = 0.42857142857142855
+
+#% subsection
+# Scope
+
+#% text
+# Any value can be printed: lists and symbolic expressions:
+
+#% cell
+say("roots: ", solve(y^2 == 2, y))
+#% output
+#| roots: [[y -> -2^(1/2)], [y -> 2^(1/2)]]
+
+#% cell
+say("expression: ", expand((a + b)^3))
+#% output
+#| expression: 3*a*b^2 + 3*b*a^2 + a^3 + b^3
+
+#% text
+# Without arguments, an empty line:
+
+#% cell
+say()
+#% output
+#|
+
+#% subsection
+# Applications
+
+#% text
+# Progress lines in a loop:
+
+#% cell
+for k in [1, 2, 3] { say("step ", k, " of 3: ", k^2) }
+#% output
+#| step 1 of 3: 1
+#| step 2 of 3: 4
+#| step 3 of 3: 9
+
+#% text
+# Reporting a numerical result with its check, as a script does:
+
+#% cell
+r = find_root(cos(t) - t, [t, 1])
+say("root ", t /. r, ", residual ", (cos(t) - t) /. r)
+#% output
+#| root 0.7390851332151607, residual 0.0
+
+#% subsection
+# Properties and relations
+
+#% text
+# `print` takes a single value and gives it back:
+
+#% cell
+print("a")
+#% output
+#| a
+#= "a"
+
+#% cell
+say("a", 1, "b")
+#% output
+#| a1b
+
+#% text
+# The value of `say` is `null`:
+
+#% cell
+say("value") === null
+#% output
+#| value
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Numbers are not separated automatically:
+
+#% cell
+say(1, 2, 3)
+#% output
+#| 123
+
+#% text
+# A failure among the arguments is not printed: it is the value of the call:
+
+#% cell
+say("result: ", failure(not_found, "key"))
+#% output
+#! failure(not_found, "key")
+
+#% section
+# See also
+
+#% text
+# `print`, `to_string`, `string_join`, `timing`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# boolean_region
+
+#% text
+# `boolean_region(f, [r1, r2, ...])`: the plane region of the points whose membership in r1, r2, ... satisfies the Boolean function f (`xor`, or a function of true/false values)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+boolean_region(xor, [rectangle(), rectangle([1/2, 1/2])])
+#% output
+#= polygon([[[0, 0], [1, 0], [1, 1/2], [1/2, 1/2], [1/2, 1], [0, 1]], [[1/2, 1], [1, 1], [1, 1/2], [3/2, 1/2], [3/2, 3/2], [1/2, 3/2]]])
+
+#% cell
+area(boolean_region((a, b) => a and not(b), [rectangle(), rectangle([1/2, 1/2])]))
+#% output
+#= 3/4
+
+#% cell
+area(boolean_region(xor, [disk([0, 0], 1), disk([1, 0], 1)]))
+#% output
+#= 3.826236361213296
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

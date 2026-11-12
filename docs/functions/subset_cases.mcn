@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# subset_cases
+
+#% text
+# `subset_cases(xs, p)` gives the sublists of `xs` that match the list pattern `p` with their elements taken in any order, each in the pattern's order. Each element of `xs` is used at most once unless `overlaps: true`; `subset_cases(xs, p, n)` gives at most `n`; `p -> r` gives `r` for each match. Patterns with runs (`__`, `repeated`) take the largest subsets first.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subset_cases([1, 2, 3, a, a, b, c], [a, _: Int])
+#% output
+#= [[a, 1], [a, 2]]
+
+#% cell
+subset_cases([1, 2, 3, a, a, b, c], [a, i_: Int] :> f(i))
+#% output
+#= [f(1), f(2)]
+
+#% cell
+subset_cases([a, b, c, 1, 2], [_: Sym, _: Int], overlaps: true)
+#% output
+#= [[a, 1], [a, 2], [b, 1], [b, 2], [c, 1], [c, 2]]
+
+#% cell
+subset_cases([1, a, 2, b, 3], [repeated(_: Int)])
+#% output
+#= [[1, 2, 3]]
+
+#% section
+# See also
+
+#% text
+# `subset_position`, `subset_replace`, `sequence_cases`, `cases`

@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# comap
+
+#% text
+# `comap(fs, x)` applies each function in `fs` to `x`, keeping the head of `fs`.
+
+#% section
+# Details
+
+#% item
+# `comap([f, g], x)` is `[f(x), g(x)]`; `comap(f + g, x)` is `f(x) + g(x)`.
+
+#% item
+# An association of functions gives an association of values.
+
+#% item
+# `comap(fs)` is the operator form.
+
+#% item
+# `comap(fs, x, levels)` applies the parts of `fs` at the levels (a level specification as for `level`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+comap([f, g, h], x)
+#% output
+#= [f(x), g(x), h(x)]
+
+#% cell
+comap([sin, cos, tan], pi/3)
+#% output
+#= [(1/2)*3^(1/2), 1/2, 3^(1/2)]
+
+#% cell
+comap([mean, median, max], [6, 2, 3, 4, 4, 4, 0])
+#% output
+#= [23/7, 4, 6]
+
+#% subsection
+# Scope
+
+#% text
+# At level 2:
+
+#% cell
+comap([[sin, cos], [tan]], 0, [2])
+#% output
+#= [[0, 1], [0]]
+
+#% cell
+comap(assoc("a" -> f, "b" -> g), x)
+#% output
+#= assoc("a" -> f(x), "b" -> g(x))
+
+#% cell
+comap(f + g, x)
+#% output
+#= f(x) + g(x)
+
+#% cell
+comap([sin, cos])(pi/6)
+#% output
+#= [1/2, (1/2)*3^(1/2)]
+
+#% section
+# See also
+
+#% text
+# `comap_apply`, `map`, `through`

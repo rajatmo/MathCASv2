@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# operate
+
+#% text
+# `operate(p, f(x, y))` gives `p(f)(x, y)`: `p` applied to the head. `operate(p, e, n)` applies it to the head at depth `n` (`n = 2`: the head of the head), and `operate(p, e, 0)` is `p(e)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+operate(p, f(x, y))
+#% output
+#= p(f)(x, y)
+
+#% cell
+operate(g, f(x)(y)(z), 2)
+#% output
+#= g(f(x))(y)(z)
+
+#% cell
+operate(p, f(x), 0)
+#% output
+#= p(f(x))
+
+#% section
+# See also
+
+#% text
+# `apply`, `head`, `map_at`

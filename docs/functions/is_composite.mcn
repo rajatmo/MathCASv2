@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# is_composite
+
+#% text
+# `is_composite(n)` gives `true` for an integer `n > 1` that is not prime.
+
+#% section
+# Details
+
+#% item
+# 0, 1, negative integers and non-integers give `false`.
+
+#% item
+# `is_composite` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_composite(9)
+#% output
+#= true
+
+#% cell
+is_composite(7)
+#% output
+#= false
+
+#% cell
+is_composite(1)
+#% output
+#= false
+
+#% cell
+is_composite(range(10))
+#% output
+#= [false, false, false, true, false, true, false, true, true, true]
+
+#% subsection
+# Scope
+
+#% text
+# A large integer:
+
+#% cell
+is_composite(2^67 - 1)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# Every integer above 1 is prime or composite:
+
+#% cell
+every(range(2, 50), k => is_prime(k) or is_composite(k))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_prime`, `factor_integer`, `is_prime_power`

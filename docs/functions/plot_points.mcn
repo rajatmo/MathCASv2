@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_points
+
+#% text
+# `plot_points` is an option of `density_plot` and `contour_plot`: `plot_points: n` samples the function on an `n` by `n` grid.
+
+#% section
+# Details
+
+#% item
+# The defaults are 100 for `density_plot` and 80 for `contour_plot`. Fewer points are faster and coarser.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+density_plot(sin(x*y), [x, 0, 3], [y, 0, 3], plot_points: 10)
+#% output
+#= image("plot_points.files/plot_points-1.svgz")
+
+#% cell
+density_plot(sin(x*y), [x, 0, 3], [y, 0, 3], plot_points: 150)
+#% output
+#= image("plot_points.files/plot_points-2.svgz")
+
+#% cell
+contour_plot(sin(x*y), [x, 0, 3], [y, 0, 3], plot_points: 20)
+#% output
+#= image("plot_points.files/plot_points-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `density_plot`, `contour_plot`, `mesh`

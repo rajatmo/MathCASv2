@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# vertex_count
+
+#% text
+# `vertex_count(g)` is the number of vertices of a graph.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vertex_count(grid_graph([3, 4]))
+#% output
+#= 12
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# trig_factor
+
+#% text
+# `trig_factor(e)` factors the trigonometric and hyperbolic expression `e`.
+
+#% section
+# Details
+
+#% item
+# Tangents, cotangents, secants and cosecants (circular and hyperbolic) are written through sines and cosines; the expression is put over a common denominator and the numerator and denominator are factored with the sines and cosines as variables, once as given and once with multiple angles and sums expanded (`trig_expand`); the smaller result is kept.
+
+#% item
+# A factor `a cos(u) + a sin(u)` becomes `sqrt(2) a sin(u + pi/4)`, and `a sin(u) - a cos(u)` becomes `sqrt(2) a sin(u - pi/4)`.
+
+#% item
+# Lists, equations, inequalities and logical combinations are factored part by part.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+trig_factor(sin(x)^2 + tan(x)^2)
+#% output
+#= (1 + cos(x)^2)*sin(x)^2/cos(x)^2
+
+#% cell
+trig_factor(cosh(x)^2 - cosh(x)^4)
+#% output
+#= -(-1 + cosh(x))*(1 + cosh(x))*cosh(x)^2
+
+#% cell
+trig_factor(sin(x)^2 - cos(x)^2)
+#% output
+#= 2*sin(x - (1/4)*pi)*sin(x + (1/4)*pi)
+
+#% cell
+trig_factor(cos(x + y) + sin(x)*sin(y))
+#% output
+#= cos(x)*cos(y)
+
+#% cell
+trig_factor(cos(x)^3 + 3*cos(x)^2*sin(x) + 3*cos(x)*sin(x)^2 + sin(x)^3 == 2)
+#% output
+#= 2*2^(1/2)*sin(x + (1/4)*pi)^3 == 2
+
+#% cell
+trig_factor(sin(2*x) + 2*cos(x))
+#% output
+#= 2*(1 + sin(x))*cos(x)
+
+#% section
+# See also
+
+#% text
+# `factor`, `trig_expand`, `trig_reduce`, `trig_to_exp`

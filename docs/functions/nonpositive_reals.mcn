@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# nonpositive_reals
+
+#% text
+# `nonpositive_reals` is the domain of the real numbers at most 0, for facts `element(x, nonpositive_reals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, nonpositive_reals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(0, nonpositive_reals)
+#% output
+#= true
+
+#% cell
+element(-e, nonpositive_reals)
+#% output
+#= true
+
+#% cell
+element(0.1, nonpositive_reals)
+#% output
+#= false
+
+#% cell
+element(im, nonpositive_reals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(x, nonpositive_reals), refine(abs(x)))
+#% output
+#= -x
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(x, nonpositive_reals), is_positive(x))
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, nonpositive_reals)
+#% output
+#= element(x, reals) and x <= 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `reals`

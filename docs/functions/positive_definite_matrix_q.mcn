@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# positive_definite_matrix_q
+
+#% text
+# `positive_definite_matrix_q(m)` gives `true` if the square matrix `m` is positive definite: the real part of `x^H m x` is positive for every nonzero vector `x`.
+
+#% section
+# Details
+
+#% item
+# A Hermitian (for real entries: symmetric) matrix is positive definite when all eigenvalues are positive; any other matrix is tested through its Hermitian part `(m + m^H)/2`. The test is Sylvester's criterion on it: every leading principal minor is positive.
+
+#% item
+# A matrix that is not square gives `false`; entries that are not numbers leave the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+positive_definite_matrix_q([[2, 1], [1, 2]])
+#% output
+#= true
+
+#% cell
+positive_definite_matrix_q([[1, 2], [2, 1]])
+#% output
+#= false
+
+#% cell
+positive_definite_matrix_q([[2, 1 + im], [1 - im, 3]])
+#% output
+#= true
+
+#% cell
+positive_definite_matrix_q([[2., -1., 0.], [-1., 2., -1.], [0., -1., 2.]])
+#% output
+#= true
+
+#% cell
+positive_definite_matrix_q([[2.3, -1.2], [0.6, 3.7]])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `symmetric_matrix_q`, `cholesky`, `eigenvalues`

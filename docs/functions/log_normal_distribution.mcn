@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# log_normal_distribution
+
+#% text
+# `log_normal_distribution(mu, sigma)` is the distribution of `exp(X)` for `X` normal with mean `mu` and standard deviation `sigma > 0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(log_normal_distribution(mu, sigma))
+#% output
+#= exp(mu + (1/2)*sigma^2)
+
+#% cell
+pdf(log_normal_distribution(0, 1), 1.0)
+#% output
+#= 0.3989422804014327
+
+#% subsection
+# Scope
+
+#% text
+# The median is `exp(mu)`:
+
+#% cell
+n(quantile(log_normal_distribution(1, 1/2), 1/2))
+#% output
+#= 2.718281828459045
+
+#% section
+# See also
+
+#% text
+# `normal_distribution`, `quantile`, `pdf`

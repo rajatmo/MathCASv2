@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# put
+
+#% text
+# `put(value, file)` writes a value to a text file and gives the file name; `get(file)` reads it back.
+
+#% section
+# Details
+
+#% item
+# The file holds the value in input form after a first line `#! mathcas 2 value`; it can be read and edited as text.
+
+#% item
+# Machine reals are written with the digits that read back to the same number, so a value comes back exactly.
+
+#% item
+# A solution of `n_dsolve` is written as an `interpolation` through its values at 16 points per step (at least 2049 points), so it can be read in a later session; it is then a cubic spline through the solution.
+
+#% item
+# `get` evaluates the value again in the session that reads it.
+
+#% item
+# A file that cannot be written or read gives `failure(io, file, message)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Save a list and read it back:
+
+#% cell
+file = string_join(temporary_directory(), "values.mx"); put([1/3, 0.1 + 0.2, "text", x -> 2], file); get(file)
+#% output
+#= [1/3, 0.30000000000000004, "text", x -> 2]
+
+#% subsection
+# Scope
+
+#% text
+# Save the solution of a differential equation and use it again without solving:
+
+#% cell
+sol = n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 1]); string_ends(put(sol, string_join(temporary_directory(), "sol.mx")), "sol.mx")
+#% output
+#= true
+
+#% cell
+s = get(string_join(temporary_directory(), "sol.mx")); [y(0.5), y'(0.5)] /. s
+#% output
+#= [0.6065306602814926, -0.6065306532938289]
+
+#% cell
+(y(0.5) /. s) - exp(-0.5)
+#% output
+#= 5.688591819819067e-10
+
+#% text
+# Interpolations, associations and arrays are kept as they are:
+
+#% cell
+v = assoc("table" -> interpolation([1, 4, 9, 16]), "m" -> [[1.5, 2], [3, 4]]); put(v, string_join(temporary_directory(), "assoc.mx")); get(string_join(temporary_directory(), "assoc.mx")) == v
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# The file name must be a string:
+
+#% cell
+put([1, 2], 3)
+#% output
+#! failure(argument, put, 2)
+
+#% text
+# A file that does not exist gives `failure(io, file, message)`, with the system's message:
+
+#% cell
+failure_tag(get("no such file.mx"))
+#% output
+#= io
+
+#% section
+# See also
+
+#% text
+# `get`, `export_data`, `import_data`, `to_string`, `to_expression`, `n_dsolve`, `interpolation`

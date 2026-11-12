@@ -1,0 +1,155 @@
+# Powers and products of sines and cosines of one linear argument (translated from Rubi sections 4.1.0.1 and
+# 4.1.1.1, MIT; the reduction formulas are those of Gradshteyn and Ryzhik 2.510-2.513). `x` is the variable of
+# integration; inside `subst(int(u), g)` it is the new variable, replaced by `g` after integrating.
+
+## 4.1.0.1 (a sin)^m (b cos)^n: the closed case m + n = -2
+int((a_.*sin(e_. + f_.*x))^m_.*(b_.*cos(e_. + f_.*x))^n_.) := (a*sin(e + f*x))^(m + 1)*(b*cos(e + f*x))^(n + 1)/(a*b*f*(m + 1))
+    when free(a, b, e, f, m, n) and eq(m + n + 2, 0) and ne(m, -1)
+
+## 4.1.0.1 (a sin)^m cos^n: an odd power of the cosine, the substitution u = a sin
+int((a_.*sin(e_. + f_.*x))^m_.*cos(e_. + f_.*x)^n_.) := 1/(a*f)*subst(int(x^m*(1 - x^2/a^2)^((n - 1)/2)), a*sin(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not (integer((m - 1)/2) and 0 < m and m < n)
+int((a_.*cos(e_. + f_.*x))^m_.*sin(e_. + f_.*x)^n_.) := -1/(a*f)*subst(int(x^m*(1 - x^2/a^2)^((n - 1)/2)), a*cos(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not (integer((m - 1)/2) and m > 0 and m <= n)
+
+## 4.1.0.1 (a sin)^m (b cos)^n: reduction of the exponents
+int((a_.*sin(e_. + f_.*x))^m_*(b_.*cos(e_. + f_.*x))^n_) := -a*(a*sin(e + f*x))^(m - 1)*(b*cos(e + f*x))^(n + 1)/(b*f*(n + 1))
+        + a^2*(m - 1)/(b^2*(n + 1))*int((a*sin(e + f*x))^(m - 2)*(b*cos(e + f*x))^(n + 2))
+    when free(a, b, e, f) and m > 1 and n < -1 and (integer(2*m, 2*n) or eq(m + n, 0))
+int((a_.*cos(e_. + f_.*x))^m_*(b_.*sin(e_. + f_.*x))^n_) := a*(a*cos(e + f*x))^(m - 1)*(b*sin(e + f*x))^(n + 1)/(b*f*(n + 1))
+        + a^2*(m - 1)/(b^2*(n + 1))*int((a*cos(e + f*x))^(m - 2)*(b*sin(e + f*x))^(n + 2))
+    when free(a, b, e, f) and m > 1 and n < -1 and (integer(2*m, 2*n) or eq(m + n, 0))
+int((a_.*sin(e_. + f_.*x))^m_*(b_.*cos(e_. + f_.*x))^n_.) := -a*(b*cos(e + f*x))^(n + 1)*(a*sin(e + f*x))^(m - 1)/(b*f*(m + n))
+        + a^2*(m - 1)/(m + n)*int((b*cos(e + f*x))^n*(a*sin(e + f*x))^(m - 2))
+    when free(a, b, e, f, n) and m > 1 and ne(m + n, 0) and integer(2*m, 2*n)
+int((a_.*cos(e_. + f_.*x))^m_*(b_.*sin(e_. + f_.*x))^n_.) := a*(b*sin(e + f*x))^(n + 1)*(a*cos(e + f*x))^(m - 1)/(b*f*(m + n))
+        + a^2*(m - 1)/(m + n)*int((b*sin(e + f*x))^n*(a*cos(e + f*x))^(m - 2))
+    when free(a, b, e, f, n) and m > 1 and ne(m + n, 0) and integer(2*m, 2*n)
+int((a_.*sin(e_. + f_.*x))^m_*(b_.*cos(e_. + f_.*x))^n_.) := (b*cos(e + f*x))^(n + 1)*(a*sin(e + f*x))^(m + 1)/(a*b*f*(m + 1))
+        + (m + n + 2)/(a^2*(m + 1))*int((b*cos(e + f*x))^n*(a*sin(e + f*x))^(m + 2))
+    when free(a, b, e, f, n) and m < -1 and integer(2*m, 2*n)
+int((a_.*cos(e_. + f_.*x))^m_*(b_.*sin(e_. + f_.*x))^n_.) := -(b*sin(e + f*x))^(n + 1)*(a*cos(e + f*x))^(m + 1)/(a*b*f*(m + 1))
+        + (m + n + 2)/(a^2*(m + 1))*int((b*sin(e + f*x))^n*(a*cos(e + f*x))^(m + 2))
+    when free(a, b, e, f, n) and m < -1 and integer(2*m, 2*n)
+
+## 4.1.0.1 square roots of a sine and a cosine
+int((a_.*sin(e_. + f_.*x))^(1/2)*(b_.*cos(e_. + f_.*x))^(1/2)) := sqrt(a*sin(e + f*x))*sqrt(b*cos(e + f*x))/sqrt(sin(2*e + 2*f*x))*int(sqrt(sin(2*e + 2*f*x)))
+    when free(a, b, e, f)
+int((a_.*sin(e_. + f_.*x))^(-1/2)*(b_.*cos(e_. + f_.*x))^(-1/2)) := sqrt(sin(2*e + 2*f*x))/(sqrt(a*sin(e + f*x))*sqrt(b*cos(e + f*x)))*int(1/sqrt(sin(2*e + 2*f*x)))
+    when free(a, b, e, f)
+
+## 4.1.0.1 (a sin)^m (b cos)^(-m), 0 < m < 1: the substitution u = (a sin / b cos)^(1/k)
+int((a_.*sin(e_. + f_.*x))^m_*(b_.*cos(e_. + f_.*x))^n_) := denominator(m)*a*b/f*subst(int(x^(denominator(m)*(m + 1) - 1)/(a^2 + b^2*x^(2*denominator(m)))),
+        (a*sin(e + f*x))^(1/denominator(m))/(b*cos(e + f*x))^(1/denominator(m)))
+    when free(a, b, e, f) and eq(m + n, 0) and m > 0 and m < 1
+int((a_.*cos(e_. + f_.*x))^m_*(b_.*sin(e_. + f_.*x))^n_) := -denominator(m)*a*b/f*subst(int(x^(denominator(m)*(m + 1) - 1)/(a^2 + b^2*x^(2*denominator(m)))),
+        (a*cos(e + f*x))^(1/denominator(m))/(b*sin(e + f*x))^(1/denominator(m)))
+    when free(a, b, e, f) and eq(m + n, 0) and m > 0 and m < 1
+
+## 4.1.0.1 (a sin)^m (b cos)^n: the general case by a hypergeometric function
+int((a_.*cos(e_. + f_.*x))^m_*(b_.*sin(e_. + f_.*x))^n_) := -b^(2*int_part((n - 1)/2) + 1)*(b*sin(e + f*x))^(2*frac_part((n - 1)/2))*(a*cos(e + f*x))^(m + 1)
+        /(a*f*(m + 1)*(sin(e + f*x)^2)^frac_part((n - 1)/2))*hypergeometric_2f1((1 + m)/2, (1 - n)/2, (3 + m)/2, cos(e + f*x)^2)
+    when free(a, b, e, f, m, n) and rational(n) and not rational(m)
+int((a_.*sin(e_. + f_.*x))^m_*(b_.*cos(e_. + f_.*x))^n_) := b^(2*int_part((n - 1)/2) + 1)*(b*cos(e + f*x))^(2*frac_part((n - 1)/2))*(a*sin(e + f*x))^(m + 1)
+        /(a*f*(m + 1)*(cos(e + f*x)^2)^frac_part((n - 1)/2))*hypergeometric_2f1((1 + m)/2, (1 - n)/2, (3 + m)/2, sin(e + f*x)^2)
+    when free(a, b, e, f, m, n) and rational(n) and ne(m, -1)
+
+## 4.1.1.1 (b sin)^n, (b cos)^n: odd positive powers by u = cos (u = sin)
+int(sin(e_. + f_.*x)^n_) := -1/f*subst(int(expand((1 - x^2)^((n - 1)/2))), cos(e + f*x))
+    when free(e, f) and integer((n - 1)/2) and n > 1
+int(cos(e_. + f_.*x)^n_) := 1/f*subst(int(expand((1 - x^2)^((n - 1)/2))), sin(e + f*x))
+    when free(e, f) and integer((n - 1)/2) and n > 1
+
+## 4.1.1.1 (b sin)^n, (b cos)^n: reduction of the exponent
+int((b_.*sin(e_. + f_.*x))^n_) := -b*cos(e + f*x)*(b*sin(e + f*x))^(n - 1)/(f*n) + b^2*(n - 1)/n*int((b*sin(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and integer(2*n)
+int((b_.*cos(e_. + f_.*x))^n_) := b*sin(e + f*x)*(b*cos(e + f*x))^(n - 1)/(f*n) + b^2*(n - 1)/n*int((b*cos(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and integer(2*n)
+int((b_.*sin(e_. + f_.*x))^n_) := cos(e + f*x)*(b*sin(e + f*x))^(n + 1)/(b*f*(n + 1)) + (n + 2)/(b^2*(n + 1))*int((b*sin(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and integer(2*n)
+int((b_.*cos(e_. + f_.*x))^n_) := -sin(e + f*x)*(b*cos(e + f*x))^(n + 1)/(b*f*(n + 1)) + (n + 2)/(b^2*(n + 1))*int((b*cos(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and integer(2*n)
+
+## 4.1.1.1 square roots of a sine or a cosine: elliptic integrals
+int(sin(e_. + f_.*x)^(1/2)) := 2/f*elliptic_e((e - pi/2 + f*x)/2, 2) when free(e, f)
+int(sin(e_. + f_.*x)^(-1/2)) := 2/f*elliptic_f((e - pi/2 + f*x)/2, 2) when free(e, f)
+int(cos(e_. + f_.*x)^(1/2)) := 2/f*elliptic_e((e + f*x)/2, 2) when free(e, f)
+int(cos(e_. + f_.*x)^(-1/2)) := 2/f*elliptic_f((e + f*x)/2, 2) when free(e, f)
+int((b_*sin(e_. + f_.*x))^n_) := (b*sin(e + f*x))^n/sin(e + f*x)^n*int(sin(e + f*x)^n)
+    when free(b, e, f) and -1 < n and n < 1 and integer(2*n)
+int((b_*cos(e_. + f_.*x))^n_) := (b*cos(e + f*x))^n/cos(e + f*x)^n*int(cos(e + f*x)^n)
+    when free(b, e, f) and -1 < n and n < 1 and integer(2*n)
+
+## 4.1.1.1 (b sin)^n, (b cos)^n: the general case by a hypergeometric function
+int((b_.*sin(e_. + f_.*x))^n_) := cos(e + f*x)*(b*sin(e + f*x))^(n + 1)/(b*f*(n + 1)*sqrt(cos(e + f*x)^2))*hypergeometric_2f1(1/2, (n + 1)/2, (n + 3)/2, sin(e + f*x)^2)
+    when free(b, e, f, n) and not integer(2*n)
+int((b_.*cos(e_. + f_.*x))^n_) := -sin(e + f*x)*(b*cos(e + f*x))^(n + 1)/(b*f*(n + 1)*sqrt(sin(e + f*x)^2))*hypergeometric_2f1(1/2, (n + 1)/2, (n + 3)/2, cos(e + f*x)^2)
+    when free(b, e, f, n) and not integer(2*n)
+
+## 4.1.1.1 (a + b sin)^n with a^2 = b^2
+int((a_ + b_.*sin(e_. + f_.*x))^(1/2)) := -2*b*cos(e + f*x)/(f*sqrt(a + b*sin(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*cos(e_. + f_.*x))^(1/2)) := 2*b*sin(e + f*x)/(f*sqrt(a + b*cos(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*sin(e_. + f_.*x))^n_) := -b*cos(e + f*x)*(a + b*sin(e + f*x))^(n - 1)/(f*n) + a*(2*n - 1)/n*int((a + b*sin(e + f*x))^(n - 1))
+    when free(a, b, e, f) and eq(a^2 - b^2, 0) and integer(n - 1/2) and n > 0
+int((a_ + b_.*cos(e_. + f_.*x))^n_) := b*sin(e + f*x)*(a + b*cos(e + f*x))^(n - 1)/(f*n) + a*(2*n - 1)/n*int((a + b*cos(e + f*x))^(n - 1))
+    when free(a, b, e, f) and eq(a^2 - b^2, 0) and integer(n - 1/2) and n > 0
+int((a_ + b_.*sin(e_. + f_.*x))^(-1)) := -cos(e + f*x)/(f*(b + a*sin(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*cos(e_. + f_.*x))^(-1)) := sin(e + f*x)/(f*(b + a*cos(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*sin(e_. + f_.*x))^(-1/2)) := -2/f*subst(int(1/(2*a - x^2)), b*cos(e + f*x)/sqrt(a + b*sin(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*cos(e_. + f_.*x))^(-1/2)) := 2/f*subst(int(1/(2*a - x^2)), b*sin(e + f*x)/sqrt(a + b*cos(e + f*x))) when free(a, b, e, f) and eq(a^2 - b^2, 0)
+int((a_ + b_.*sin(e_. + f_.*x))^n_) := b*cos(e + f*x)*(a + b*sin(e + f*x))^n/(a*f*(2*n + 1)) + (n + 1)/(a*(2*n + 1))*int((a + b*sin(e + f*x))^(n + 1))
+    when free(a, b, e, f) and eq(a^2 - b^2, 0) and n < -1 and integer(2*n)
+int((a_ + b_.*cos(e_. + f_.*x))^n_) := -b*sin(e + f*x)*(a + b*cos(e + f*x))^n/(a*f*(2*n + 1)) + (n + 1)/(a*(2*n + 1))*int((a + b*cos(e + f*x))^(n + 1))
+    when free(a, b, e, f) and eq(a^2 - b^2, 0) and n < -1 and integer(2*n)
+
+## 4.1.1.1 (a + b sin)^n with a^2 != b^2: positive integer powers expanded, elliptic square roots
+int((a_ + b_.*sin(e_. + f_.*x))^n_) := int(expand((a + b*sin(e + f*x))^n)) when free(a, b, e, f) and integer(n) and n > 1
+int((a_ + b_.*cos(e_. + f_.*x))^n_) := int(expand((a + b*cos(e + f*x))^n)) when free(a, b, e, f) and integer(n) and n > 1
+int((a_ + b_.*sin(e_. + f_.*x))^(1/2)) := 2*sqrt(a + b)/f*elliptic_e((e - pi/2 + f*x)/2, 2*b/(a + b)) when free(a, b, e, f) and ne(a^2 - b^2, 0) and a + b > 0
+int((a_ + b_.*cos(e_. + f_.*x))^(1/2)) := 2*sqrt(a + b)/f*elliptic_e((e + f*x)/2, 2*b/(a + b)) when free(a, b, e, f) and ne(a^2 - b^2, 0) and a + b > 0
+int((a_ + b_.*sin(e_. + f_.*x))^(-1/2)) := 2/(f*sqrt(a + b))*elliptic_f((e - pi/2 + f*x)/2, 2*b/(a + b)) when free(a, b, e, f) and ne(a^2 - b^2, 0) and a + b > 0
+int((a_ + b_.*cos(e_. + f_.*x))^(-1/2)) := 2/(f*sqrt(a + b))*elliptic_f((e + f*x)/2, 2*b/(a + b)) when free(a, b, e, f) and ne(a^2 - b^2, 0) and a + b > 0
+int((a_ + b_.*sin(e_. + f_.*x))^(1/2)) := sqrt(a + b*sin(e + f*x))/sqrt((a + b*sin(e + f*x))/(a + b))*int(sqrt(a/(a + b) + b/(a + b)*sin(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and not (a + b > 0)
+int((a_ + b_.*cos(e_. + f_.*x))^(1/2)) := sqrt(a + b*cos(e + f*x))/sqrt((a + b*cos(e + f*x))/(a + b))*int(sqrt(a/(a + b) + b/(a + b)*cos(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and not (a + b > 0)
+
+## 4.1.1.1 1/(a + b sin): the continuous form when a^2 > b^2, the half-angle substitution otherwise
+int((a_ + b_.*sin(e_. + f_.*x))^(-1)) := x/sqrt(a^2 - b^2) + 2/(f*sqrt(a^2 - b^2))*atan(b*cos(e + f*x)/(a + sqrt(a^2 - b^2) + b*sin(e + f*x)))
+    when free(a, b, e, f) and a^2 - b^2 > 0 and a > 0
+int((a_ + b_.*cos(e_. + f_.*x))^(-1)) := x/sqrt(a^2 - b^2) - 2/(f*sqrt(a^2 - b^2))*atan(b*sin(e + f*x)/(a + sqrt(a^2 - b^2) + b*cos(e + f*x)))
+    when free(a, b, e, f) and a^2 - b^2 > 0 and a > 0
+int((a_ + b_.*sin(e_. + f_.*x))^(-1)) := 2/f*subst(int(1/(a + 2*b*x + a*x^2)), tan((e + f*x)/2)) when free(a, b, e, f) and ne(a^2 - b^2, 0)
+int((a_ + b_.*cos(e_. + f_.*x))^(-1)) := 2/f*subst(int(1/(a + b + (a - b)*x^2)), tan((e + f*x)/2)) when free(a, b, e, f) and ne(a^2 - b^2, 0)
+
+## 4.1.1.1 (a + b sin)^n, a^2 != b^2: reduction of the exponent
+int((a_ + b_.*sin(e_. + f_.*x))^n_) := -b*cos(e + f*x)*(a + b*sin(e + f*x))^(n + 1)/(f*(n + 1)*(a^2 - b^2))
+        + 1/((n + 1)*(a^2 - b^2))*int((a + b*sin(e + f*x))^(n + 1)*(a*(n + 1) - b*(n + 2)*sin(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and n < -1 and integer(2*n)
+int((a_ + b_.*cos(e_. + f_.*x))^n_) := b*sin(e + f*x)*(a + b*cos(e + f*x))^(n + 1)/(f*(n + 1)*(a^2 - b^2))
+        + 1/((n + 1)*(a^2 - b^2))*int((a + b*cos(e + f*x))^(n + 1)*(a*(n + 1) - b*(n + 2)*cos(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and n < -1 and integer(2*n)
+int((a_ + b_.*sin(e_. + f_.*x))^n_) := -b*cos(e + f*x)*(a + b*sin(e + f*x))^(n - 1)/(f*n)
+        + 1/n*int((a + b*sin(e + f*x))^(n - 2)*(a^2*n + b^2*(n - 1) + a*b*(2*n - 1)*sin(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and n > 1 and integer(2*n)
+int((a_ + b_.*cos(e_. + f_.*x))^n_) := b*sin(e + f*x)*(a + b*cos(e + f*x))^(n - 1)/(f*n)
+        + 1/n*int((a + b*cos(e + f*x))^(n - 2)*(a^2*n + b^2*(n - 1) + a*b*(2*n - 1)*cos(e + f*x)))
+    when free(a, b, e, f) and ne(a^2 - b^2, 0) and n > 1 and integer(2*n)
+
+## 4.1.3.1 (a + b sin)^m (c + d sin): split into two powers
+int((a_ + b_.*sin(e_. + f_.*x))^m_*(c_ + d_.*sin(e_. + f_.*x))) := d/b*int((a + b*sin(e + f*x))^(m + 1)) + (b*c - a*d)/b*int((a + b*sin(e + f*x))^m)
+    when free(a, b, c, d, e, f, m) and ne(b*c - a*d, 0)
+int((a_ + b_.*cos(e_. + f_.*x))^m_*(c_ + d_.*cos(e_. + f_.*x))) := d/b*int((a + b*cos(e + f*x))^(m + 1)) + (b*c - a*d)/b*int((a + b*cos(e + f*x))^m)
+    when free(a, b, c, d, e, f, m) and ne(b*c - a*d, 0)
+int((a_ + b_.*sin(e_. + f_.*x))^m_*sin(e_. + f_.*x)) := 1/b*int((a + b*sin(e + f*x))^(m + 1)) - a/b*int((a + b*sin(e + f*x))^m)
+    when free(a, b, e, f, m)
+int((a_ + b_.*cos(e_. + f_.*x))^m_*cos(e_. + f_.*x)) := 1/b*int((a + b*cos(e + f*x))^(m + 1)) - a/b*int((a + b*cos(e + f*x))^m)
+    when free(a, b, e, f, m)
+
+## 4.1.1.2 cos (a + b sin)^m: the substitution u = sin
+int(cos(e_. + f_.*x)*(a_ + b_.*sin(e_. + f_.*x))^m_) := (a + b*sin(e + f*x))^(m + 1)/(b*f*(m + 1)) when free(a, b, e, f, m) and ne(m, -1)
+int(sin(e_. + f_.*x)*(a_ + b_.*cos(e_. + f_.*x))^m_) := -(a + b*cos(e + f*x))^(m + 1)/(b*f*(m + 1)) when free(a, b, e, f, m) and ne(m, -1)
+int(cos(e_. + f_.*x)^p_*(a_ + b_.*sin(e_. + f_.*x))^m_.) := 1/(b^p*f)*subst(int((a + x)^m*(b^2 - x^2)^((p - 1)/2)), b*sin(e + f*x))
+    when free(a, b, e, f, m) and integer((p - 1)/2) and p > 0
+int(sin(e_. + f_.*x)^p_*(a_ + b_.*cos(e_. + f_.*x))^m_.) := -1/(b^p*f)*subst(int((a + x)^m*(b^2 - x^2)^((p - 1)/2)), b*cos(e + f*x))
+    when free(a, b, e, f, m) and integer((p - 1)/2) and p > 0

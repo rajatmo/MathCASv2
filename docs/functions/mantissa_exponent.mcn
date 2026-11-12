@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# mantissa_exponent
+
+#% text
+# `mantissa_exponent(x)` gives `[m, e]` with `x = m 10^e` and `1/10 <= |m| < 1`; `mantissa_exponent(x, b)` does the same in base `b`.
+
+#% section
+# Details
+
+#% item
+# Exact numbers give exact mantissas; zero gives `[0, 0]`; lists thread.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mantissa_exponent(3.4*10^30)
+#% output
+#= [0.34, 31]
+
+#% cell
+mantissa_exponent(123451)
+#% output
+#= [123451/1000000, 6]
+
+#% cell
+mantissa_exponent(1027, 2)
+#% output
+#= [1027/2048, 11]
+
+#% cell
+mantissa_exponent(exp(pi), 2)
+#% output
+#= [(1/32)*exp(pi), 5]
+
+#% section
+# See also
+
+#% text
+# `integer_length`, `real_digits`

@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# contains_exactly
+
+#% text
+# `contains_exactly(xs, ys)` tests whether the list `xs` has the same distinct elements as `ys`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# An association stands for its values.
+
+#% item
+# `contains_exactly(ys)` is the operator form, applied to `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+contains_exactly([b, a, b, c], [a, b, c])
+#% output
+#= true
+
+#% cell
+contains_exactly([d, f, e], [a, b, c])
+#% output
+#= false
+
+#% cell
+contains_exactly([1, 2], [])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+contains_exactly(assoc(a -> x, b -> y), [x, y, z])
+#% output
+#= false
+
+#% cell
+contains_exactly([1, 2, 3])([2, 3])
+#% output
+#= false
+
+#% cell
+contains_exactly(characters("facetious"), ["a", "e", "i"])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `contains_any`, `contains_all`, `contains_none`, `contains_only`, `intersection`, `is_subset`

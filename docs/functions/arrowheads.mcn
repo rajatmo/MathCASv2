@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# arrowheads
+
+#% text
+# `arrowheads(s)` is a graphics directive: the arrows after it get a head s times the width of the plot area long, at their end.
+
+#% text
+# `arrowheads([s0, s1])` puts heads of length s0 at the start and s1 at the end of each arrow; 0 leaves one out.
+
+#% section
+# Details
+
+#% item
+# Like other directives, it applies to what follows it in its list and in the lists inside.
+
+#% item
+# `arrowheads(0)` draws arrows as plain lines; `arrowheads(automatic)` restores the default head, sized by the line width.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Large heads:
+
+#% cell
+graphics([arrowheads(0.08), arrow([[0, 0], [1, 1]]), arrow([[0, 1], [1, 0.5]])])
+#% output
+#= image("arrowheads.files/arrowheads-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Heads at both ends, and none:
+
+#% cell
+graphics([arrowheads([0.05, 0.05]), arrow([[0, 1], [2, 1]]), arrowheads(0), arrow([[0, 0], [2, 0]])])
+#% output
+#= image("arrowheads.files/arrowheads-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `arrow`, `graphics`, `thickness`

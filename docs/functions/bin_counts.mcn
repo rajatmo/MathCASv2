@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# bin_counts
+
+#% text
+# `bin_counts(xs, w)` counts the real numbers of `xs` in the bins `[k w, (k + 1) w)`, from the bin of the smallest to that of the largest. `bin_counts(xs, [a, b, dx])` counts in the bins `[a, a + dx)`, `[a + dx, a + 2dx)`, ... up to `b`, and `bin_counts(xs, [[e1, e2, ...]])` in the bins between consecutive edges (which may be `-inf` and `inf`). Elements that are not real numbers are left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bin_counts([1, 3, 2, 1, 4, 5, 6, 2], 2)
+#% output
+#= [2, 3, 2, 1]
+
+#% cell
+bin_counts([1, 3, 2, 1, 4, 5, 6, 2], [0, 10, 1])
+#% output
+#= [0, 2, 2, 1, 1, 1, 1, 0, 0, 0]
+
+#% cell
+bin_counts([1, 3, 2, 1, 4, 5, 6, 2], [[-inf, 2, 5, 7, inf]])
+#% output
+#= [2, 4, 2, 0]
+
+#% cell
+bin_counts([1.5, 3, a, 2.5, 1, im], 2)
+#% output
+#= [2, 2]
+
+#% section
+# See also
+
+#% text
+# `histogram_list`, `tally`

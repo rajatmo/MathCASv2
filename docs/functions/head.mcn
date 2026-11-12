@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# head
+
+#% text
+# `head(x)` gives the head of a compound term `x`: `f` for `f(a, b)`, `list` for a list.
+# For an atom it gives the name of its type: `Int`, `Rat`, `Float`, `Complex`, `Str` or `Sym`.
+
+#% section
+# Details
+
+#% item
+# Sums, products and powers have the heads `add`, `mul` and `pow`; `exp(x)` is the power `e^x`.
+
+#% item
+# The type names are the ones typed patterns use (`_: Int`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+head(f(a, b))
+#% output
+#= f
+
+#% cell
+head([1, 2])
+#% output
+#= list
+
+#% cell
+head(x + y)
+#% output
+#= add
+
+#% subsection
+# Scope
+
+#% text
+# Atoms give their type:
+
+#% cell
+map(head, [3, 2/3, 1.5, 1 + im, "s", x])
+#% output
+#= [Int, Rat, Float, Complex, Str, Sym]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `apply` with the head rebuilds the term:
+
+#% cell
+t = g(1, 2)
+apply(head(t), [1, 2]) === t
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `apply`, `full_form`, `is_atom`, `length`

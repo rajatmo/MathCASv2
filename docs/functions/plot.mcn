@@ -1,0 +1,198 @@
+#! mathcas 2 notebook
+
+#% title
+# plot
+
+#% text
+# `plot(f, [x, a, b])` draws the curve of `f` for `x` from `a` to `b` as an image.
+
+#% text
+# `plot([f1, f2, ...], [x, a, b])` draws several curves in one picture, each in its own colour.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file; the notebook and this documentation show it in place.
+
+#% item
+# The function is sampled adaptively: evenly at first, then more densely where the curve bends.
+
+#% item
+# Where `f` is not a finite real number, jumps by more than the visible range (at a pole), or still jumps after the sampling has been refined as far as it goes (a step such as `floor(x)`), the curve is broken.
+
+#% item
+# The vertical range is chosen so that a few extreme values do not flatten the rest of the curve.
+
+#% item
+# Options:
+
+#% subitem
+# `x_label: "text"` and `y_label: "text"` label the axes.
+
+#% subitem
+# `legend: ["text", ...]` names the curves; `legend_position: top_right | top_left | bottom_left | bottom_right` places the box.
+
+#% subitem
+# `colors: ["#rrggbb", ...]` and `line_style: [solid | dashed | dotted | dot_dashed, ...]` set the look of each curve.
+
+#% subitem
+# `x_scale` and `y_scale`: `linear`, `log`, or `signed_log`.
+
+#% subitem
+# `plot_range: [y0, y1]` or `[[x0, x1], [y0, y1]]` fixes the range shown (an end may be `automatic`); the curves are cut off at its edges.
+
+#% subitem
+# `filling: axis | bottom | top | c | [i, j]` fills, faintly in each curve's colour, from the curve to the x axis, the bottom or top of the plot or the line y = c, or between curves i and j.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# One period of the sine:
+
+#% cell
+plot(sin(x), [x, 0, 2pi])
+#% output
+#= image("plot.files/plot-1.svgz")
+
+#% text
+# Two curves together:
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi])
+#% output
+#= image("plot.files/plot-2.svgz")
+
+#% text
+# A polynomial with its three real roots:
+
+#% cell
+plot(x^3 - 3x, [x, -2.5, 2.5])
+#% output
+#= image("plot.files/plot-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Poles break the curve instead of joining its branches:
+
+#% cell
+plot(tan(x), [x, -3, 3])
+#% output
+#= image("plot.files/plot-4.svgz")
+
+#% text
+# A function with a rapid oscillation near zero; sampling refines there:
+
+#% cell
+plot(x*sin(1/x), [x, -0.5, 0.5])
+#% output
+#= image("plot.files/plot-5.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Labels and a legend:
+
+#% cell
+plot([exp(-x), exp(-2x)], [x, 0, 3], x_label: "t", y_label: "amount", legend: ["rate 1", "rate 2"])
+#% output
+#= image("plot.files/plot-6.svgz")
+
+#% text
+# A logarithmic vertical axis turns exponentials into straight lines:
+
+#% cell
+plot([exp(x), exp(2x)], [x, 0, 5], y_scale: log)
+#% output
+#= image("plot.files/plot-7.svgz")
+
+#% text
+# Colours and line styles:
+
+#% cell
+plot([sin(x), sin(2x)], [x, 0, pi], colors: ["#e45649", "#4078f2"], line_style: [solid, dashed])
+#% output
+#= image("plot.files/plot-8.svgz")
+
+#% text
+# The region between the curve and the axis filled, and the vertical range chosen:
+
+#% cell
+plot(sin(x)/x, [x, -15, 15], filling: axis, plot_range: [-0.4, 1.1])
+#% output
+#= image("plot.files/plot-9.svgz")
+
+#% text
+# The region between two curves filled:
+
+#% cell
+plot([1 + x/2, exp(x/2)], [x, 0, 3], filling: [1, 2])
+#% output
+#= image("plot.files/plot-10.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A function and its derivative:
+
+#% cell
+plot([x*exp(-x), d(x*exp(-x), x)], [x, 0, 6], legend: ["f", "f'"])
+#% output
+#= image("plot.files/plot-11.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The solutions of an equation, as rules, give one curve each:
+
+#% cell
+plot(t*x /. solve(x^2 == 4, x), [t, 0, 1])
+#% output
+#= image("plot.files/plot-12.svgz")
+
+#% text
+# A solution of a differential equation, named in the legend:
+
+#% cell
+plot(y(t) /. n_dsolve([y'(t) == -y(t)/2, y(0) == 1], y, [t, 0, 6]), [t, 0, 6], plot_legends: automatic)
+#% output
+#= image("plot.files/plot-13.svgz")
+
+#% text
+# A quantity: its unit labels the axis:
+
+#% cell
+plot(quantity(9.81*t^2/2, "m"), [t, quantity(0, "s"), quantity(3, "s")])
+#% output
+#= image("plot.files/plot-14.svgz")
+
+#% text
+# `legended`, `labeled` and `style` around a curve give its legend entry, its label and its style:
+
+#% cell
+plot([legended(sin(x), "sine"), style(cos(x), red, dashed)], [x, 0, 2*pi])
+#% output
+#= image("plot.files/plot-15.svgz")
+
+#% text
+# A density of a distribution:
+
+#% cell
+plot(pdf(normal_distribution(0, 1), x), [x, -3, 3])
+#% output
+#= image("plot.files/plot-16.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_plot`, `table`, `n_dsolve`

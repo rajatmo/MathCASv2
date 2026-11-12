@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# design_matrix
+
+#% text
+# `design_matrix(data, [f1, ..., fm], x)` gives the matrix whose row i holds the basis functions `f1`, ..., `fm` at the i-th point of `data`. The data are rows `[x, y]` (`[x1, ..., xk, y]` with variables `[x1, ..., xk]`), or a list of values `y` at the points 1, 2, ....
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+design_matrix([[0, 1], [1, 0], [3, 2], [5, 4]], [1, x], x)
+#% output
+#= [[1, 0], [1, 1], [1, 3], [1, 5]]
+
+#% cell
+design_matrix([2, 4, 7], [1, x, x^2], x)
+#% output
+#= [[1, 1, 1], [1, 2, 4], [1, 3, 9]]
+
+#% section
+# See also
+
+#% text
+# `fit`, `pseudo_inverse`

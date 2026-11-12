@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_greater_equal
+
+#% text
+# `asymptotic_greater_equal(f, g, x -> a)` gives true when g = O(f) as x approaches a: |g/f| stays bounded near a.
+
+#% section
+# Details
+
+#% item
+# It is `asymptotic_less_equal(g, f, x -> a)`, with the same options `direction:` and `assumptions:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_greater_equal(x^2, x, x -> inf)
+#% output
+#= true
+
+#% cell
+asymptotic_greater_equal(x, x^2, x -> inf)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `asymptotic_less_equal`, `asymptotic_greater`, `asymptotic_equal`

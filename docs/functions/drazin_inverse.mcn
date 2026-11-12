@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# drazin_inverse
+
+#% text
+# `drazin_inverse(m)` gives the Drazin inverse of the square matrix `m`.
+
+#% section
+# Details
+
+#% item
+# With `k` the index of `m` (the smallest `k` with `rank(m^k) = rank(m^(k + 1))`) it is `m^k (m^(2k + 1))^+ m^k`.
+
+#% item
+# For an invertible matrix it is the inverse; for a matrix of index 1 it is the group inverse.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+drazin_inverse([[1, 2], [0, 0]])
+#% output
+#= [[1, 2], [0, 0]]
+
+#% cell
+drazin_inverse([[1, 1, 0], [0, 1, 1], [0, 0, 0]])
+#% output
+#= [[1, -1, -2], [0, 1, 1], [0, 0, 0]]
+
+#% cell
+drazin_inverse([[2, 0], [0, 4]])
+#% output
+#= [[1/2, 0], [0, 1/4]]
+
+#% cell
+drazin_inverse([[0, 1], [0, 0]])
+#% output
+#= [[0, 0], [0, 0]]
+
+#% section
+# See also
+
+#% text
+# `pseudo_inverse`, `inverse`, `matrix_power`

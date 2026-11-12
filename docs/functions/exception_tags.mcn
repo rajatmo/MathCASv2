@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# exception_tags
+
+#% text
+# `exception_tags(exc)` gives the chain of types of the exception: its type, then the types it is a kind of.
+
+#% section
+# Details
+
+#% item
+# The parents come from `register_exception_type`; an unregistered type has only itself.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+exception_tags(exception(arg_type_error))
+#% output
+#= [arg_type_error, arg_error]
+
+#% cell
+exception_tags(exception(other))
+#% output
+#= [other]
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be an exception:
+
+#% cell
+exception_tags(5)
+#% output
+#! failure(no_match, exception_tags, [5])
+
+#% section
+# See also
+
+#% text
+# `exception`, `register_exception_type`

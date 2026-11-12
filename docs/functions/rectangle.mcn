@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# rectangle
+
+#% text
+# `rectangle([x0, y0], [x1, y1])` is a graphics primitive: the filled rectangle with opposite corners [x0, y0] and [x1, y1].
+
+#% text
+# `rectangle([x, y])` is the unit square with its lower left corner at [x, y].
+
+#% text
+# `rectangle()` is the unit square at the origin.
+
+#% section
+# Details
+
+#% item
+# The sides are parallel to the axes; the corners may be given in any order.
+
+#% item
+# Filled in the current colour or as `face_form` says; edges only after `edge_form`.
+
+#% item
+# Both corners may be `scaled([u, v])` positions (fractions of the plot range), but not one of each.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rectangle:
+
+#% cell
+graphics(rectangle([0, 0], [3, 1]))
+#% output
+#= image("rectangle.files/rectangle-1.svgz")
+
+#% text
+# A bar chart made of rectangles:
+
+#% cell
+graphics([gray, rectangle([0, 0], [0.8, 2]), rectangle([1, 0], [1.8, 3]), rectangle([2, 0], [2.8, 1])], axes: true)
+#% output
+#= image("rectangle.files/rectangle-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A light background behind the whole plot area, in scaled coordinates:
+
+#% cell
+graphics([light_gray, rectangle(scaled([0, 0]), scaled([1, 1])), black, line([[0, 0], [1, 1]])])
+#% output
+#= image("rectangle.files/rectangle-3.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# Mixing a scaled corner with a plain one is not allowed:
+
+#% cell
+rectangle([0, 0], scaled([1, 1]))
+#% output
+#! failure(argument, rectangle, 2)
+
+#% section
+# See also
+
+#% text
+# `polygon`, `disk`, `scaled`, `face_form`, `edge_form`, `graphics`

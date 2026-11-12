@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_stream_plot
+
+#% text
+# `complex_stream_plot(f, [z, z0, z1])` draws streamlines of the field `(Re f, Im f)`.
+
+#% section
+# Details
+
+#% item
+# Option `plot_points` sets the number of grid points (arrows) or seeds (streamlines) per side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complex_stream_plot(1/z, [z, -2 - 2*im, 2 + 2*im])
+#% output
+#= image("complex_stream_plot.files/complex_stream_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

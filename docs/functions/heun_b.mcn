@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# heun_b
+
+#% text
+# `heun_b(q, alpha, gamma, delta, epsilon, z)` gives the biconfluent Heun function, the solution of the biconfluent Heun equation that is analytic at 0 with value 1.
+
+#% section
+# Details
+
+#% item
+# The equation is `z y'' + (gamma + delta z + epsilon z^2) y' + (alpha z - q) y = 0`: a regular singularity at 0 and an irregular one at infinity.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values: the series at the normalization point and analytic continuation by Taylor series along the segment to `z`, around the singularities on the upper side (values on the cuts are the limits from above).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heun_b(-0.2, 1.3, 0.12, -0.14, 4.32, -0.3)
+#% output
+#= 1.4180011084243804
+
+#% cell
+n(heun_b(9/10, -14/10, 12/100, 3/100, -2/10, 1/10), 30)
+#% output
+#= 1.787802431349323542867771685382054
+
+#% cell
+heun_b(1.2, -1.4, 0.12, 0.03, -0.2, [0.15, 0.1 + im, im, 4])
+#% output
+#= [2.6442328202310676, -3.6600857070164987 + 7.652933556741085im, -3.7800476761712347 + 6.818763441973563im, 2962.23012751039]
+
+#% section
+# See also
+
+#% text
+# `heun_c`, `heun_t`

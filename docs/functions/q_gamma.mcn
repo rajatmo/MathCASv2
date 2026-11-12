@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# q_gamma
+
+#% text
+# `q_gamma(z, q)` gives the q-gamma function `(q; q)_inf/(q^z; q)_inf*(1 - q)^(1 - z)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 5.18.4, for `0 < q < 1`. It satisfies `q_gamma(z + 1, q) = (1 - q^z)/(1 - q)*q_gamma(z, q)` and `q_gamma(1, q) = 1`, and tends to `gamma(z)` as `q` tends to 1.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+q_gamma(1, 0.5)
+#% output
+#= 1
+
+#% cell
+q_gamma(3.0, 0.5)
+#% output
+#= 1.5
+
+#% cell
+q_gamma(2.5, 0.9)
+#% output
+#= 1.303939613392059
+
+#% subsection
+# Properties and relations
+
+#% text
+# The recurrence:
+
+#% cell
+q_gamma(3.7, 0.6) - (1 - 0.6^2.7)/(1 - 0.6)*q_gamma(2.7, 0.6)
+#% output
+#= -4.440892098500626e-16
+
+#% text
+# As `q` grows towards 1 it approaches `gamma(2.5)` = 1.3293...:
+
+#% cell
+[q_gamma(2.5, 0.9), q_gamma(2.5, 0.99), gamma(2.5)]
+#% output
+#= [1.303939613392059, 1.3268432717873382, 1.329340388179137]
+
+#% section
+# See also
+
+#% text
+# `q_pochhammer`, `q_factorial`, `gamma`

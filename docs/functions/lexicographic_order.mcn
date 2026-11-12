@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# lexicographic_order
+
+#% text
+# `lexicographic_order(a, b)` compares the elements of `a` and `b` in turn with `order` and gives 1, -1 or 0 at the first difference; a list that is a prefix of the other comes first. Strings are compared by their characters, associations by their values. `lexicographic_order(a, b, p)` compares the elements with the ordering function `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lexicographic_order([a, b], [a, c])
+#% output
+#= 1
+
+#% cell
+lexicographic_order([a, b, c], [a, b])
+#% output
+#= -1
+
+#% cell
+lexicographic_order([2, 1], [10], numerical_order)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `lexicographic_sort`, `order`

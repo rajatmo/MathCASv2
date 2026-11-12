@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# n_dsolve_value
+
+#% text
+# `n_dsolve_value(eqs, expr, [t, t0, t1])` solves the differential equations `eqs` numerically and gives `expr`, an expression in `y(t)`, `y'(t)`, ..., along the solution.
+
+#% section
+# Details
+
+#% item
+# For an `expr` that depends on `t` the result is a function of `t`; for `expr = y(t1)` and other values at a fixed time it is a number.
+
+#% item
+# The options are those of `n_dsolve`: `method`, `digits`, `events` and so on.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n_dsolve_value([y'(t) == -y(t), y(0) == 1], y(1), [t, 0, 1])
+#% output
+#= 0.3678794422457897
+
+#% cell
+f = n_dsolve_value([y'(t) == -y(t), y(0) == 1], y(t), [t, 0, 2]); f(0.5)
+#% output
+#= 0.6065306602814926
+
+#% cell
+n_dsolve_value([y''(t) + y(t) == 0, y(0) == 0, y'(0) == 1], y(2), [t, 0, 2])
+#% output
+#= 0.9092974217084951
+
+#% subsection
+# Scope
+
+#% text
+# An expression in the solution and its derivative, the energy of an oscillator:
+
+#% cell
+en = n_dsolve_value([y''(t) + y(t) == 0, y(0) == 1, y'(0) == 0], y(t)^2 + y'(t)^2, [t, 0, 10]); [en(0.0), en(5.0), en(10.0)]
+#% output
+#= [1.0, 0.9999999711997185, 0.999999939853417]
+
+#% subsection
+# Options
+
+#% text
+# 25 digits:
+
+#% cell
+n_dsolve_value([y'(t) == y(t), y(0) == 1], y(1), [t, 0, 1], digits: 25)
+#% output
+#= 2.7182818284590452353602875
+
+#% subsection
+# Properties and relations
+
+#% text
+# The exact solution:
+
+#% cell
+exp(-1.0)
+#% output
+#= 0.36787944117144233
+
+#% section
+# See also
+
+#% text
+# `n_dsolve`, `parametric_n_dsolve_value`, `interpolating_function`

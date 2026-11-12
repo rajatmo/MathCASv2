@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetry_reduce_order
+
+#% text
+# `symmetry_reduce_order(eq, y, x, gen, v, r)` reduces the ordinary differential equation `eq` for `y(x)` by its symmetry `gen = [xi, eta]`: it gives `[eq2, r == r(x, y), v == ...]`, where `eq2` is an equation of one order less for `v(r) = ds/dr` in the canonical coordinates `r, s` of `gen`, and the last two elements give `r` and `v` in terms of `x`, `y` and `y'(x)`.
+
+#% section
+# Details
+
+#% item
+# The canonical coordinates come from `canonical_coordinates`; `x` and `y` are written in terms of `r` and `s(r)`, the derivatives by the chain rule, and the symmetry makes the result free of `s`. The result is `none` when the coordinates cannot be found or inverted.
+
+#% item
+# A solution of the reduced equation gives the solutions of `eq` by one more integration, `s = integrate(v(r), r) + c`; `symmetry_d_solve` does this.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The Ermakov-Pinney equation is invariant under translations in `x`; in the canonical coordinates `r = y`, `s = x` it becomes a first-order equation for `v = dx/dy`:
+
+#% cell
+symmetry_reduce_order(y''(x) == y(x)^(-3), y, x, [1, 0], v, r)
+#% output
+#= [-v(r)^3 - r^3*v'(r) == 0, r == y, v == y'(x)^-1]
+
+#% text
+# An equation without `y` by the translation in `y`:
+
+#% cell
+symmetry_reduce_order(x*y''(x) + y'(x) == x*y'(x)^3, y, x, [0, 1], v, r)
+#% output
+#= [r*v'(r) - r*v(r)^3 + v(r) == 0, r == x, v == y'(x)]
+
+#% text
+# The scaling of a homogeneous first-order equation turns it into a quadrature:
+
+#% cell
+symmetry_reduce_order(y'(x) == (y(x)/x)^2 + y(x)/x, y, x, [x, y], v, r)
+#% output
+#= [1 - r^2*v(r) == 0, r == y/x, v == x/(-y + x*y'(x))]
+
+#% section
+# See also
+
+#% text
+# `canonical_coordinates`, `symmetry_d_solve`, `lie_point_symmetries`

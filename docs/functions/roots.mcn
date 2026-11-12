@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# roots
+
+#% text
+# `roots(p == q, x)` gives the roots of a polynomial equation in `x` as `x == r1 or x == r2 or ...`, each root repeated by its multiplicity.
+
+#% section
+# Details
+
+#% item
+# Roots are exact where the polynomial factors or has degree at most 4 (by radicals); other irreducible factors give `root` objects, which `n` evaluates.
+
+#% item
+# Coefficients may contain other symbols: the roots are then expressions in them.
+
+#% item
+# `solve` gives the same roots as a list of rules, without repetition.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+roots(x^2 - 3*x + 2 == 0, x)
+#% output
+#= x == 1 or x == 2
+
+#% cell
+roots(x^3 == 1, x)
+#% output
+#= x == 1 or x == (-1)^(2/3) or x == -(-1)^(1/3)
+
+#% cell
+roots((x - 1)^2*(x + 2) == 0, x)
+#% output
+#= x == -2 or x == 1 or x == 1
+
+#% cell
+roots(a*x^2 + b*x + c == 0, x)
+#% output
+#= x == (-b - (-4*a*c + b^2)^(1/2))/(2*a) or x == (-b + (-4*a*c + b^2)^(1/2))/(2*a)
+
+#% subsection
+# Scope
+
+#% text
+# A quintic without a solution in radicals:
+
+#% cell
+roots(x^5 - x + 1 == 0, x)
+#% output
+#= x == root(&(1 - &1 + &1^5), 1) or x == root(&(1 - &1 + &1^5), 2) or x == root(&(1 - &1 + &1^5), 3) or x == root(&(1 - &1 + &1^5), 4) or x == root(&(1 - &1 + &1^5), 5)
+
+#% cell
+n(roots(x^5 - x + 1 == 0, x))
+#% output
+#= x == -1.1673039782614187 or x == -0.18123244446987535 - 1.0839541013177107im or x == -0.18123244446987535 + 1.0839541013177107im or x == 0.7648844336005847 - 0.3524715460317262im or x == 0.7648844336005847 + 0.3524715460317262im
+
+#% subsection
+# Properties and relations
+
+#% text
+# `solve` lists each root once, as rules:
+
+#% cell
+solve((x - 1)^2*(x + 2) == 0, x)
+#% output
+#= [[x -> -2], [x -> 1], [x -> 1]]
+
+#% section
+# See also
+
+#% text
+# `solve`, `root`, `factor`, `n_solve`

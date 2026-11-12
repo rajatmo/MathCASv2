@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# flatten_at
+
+#% text
+# `flatten_at(xs, i)` replaces the element at position `i` by its own elements, spliced into `xs`. `flatten_at(xs, [i, j, ...])` does this to the part at that position (inside its parent), and `flatten_at(xs, [[p1], [p2], ...])` to the part at each position.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+flatten_at([a, [b, c], [d, e], [f]], 2)
+#% output
+#= [a, b, c, [d, e], [f]]
+
+#% cell
+flatten_at([a, [b, c], [d, e], [f]], [[2], [4]])
+#% output
+#= [a, b, c, [d, e], f]
+
+#% cell
+flatten_at(f(g(1, 2), g(3, 4), g(5)), 2)
+#% output
+#= f(g(1, 2), 3, 4, g(5))
+
+#% cell
+flatten_at([[a, [1, 2]], b], [1, 2])
+#% output
+#= [[a, 1, 2], b]
+
+#% section
+# See also
+
+#% text
+# `flatten`, `map_at`, `replace_part`

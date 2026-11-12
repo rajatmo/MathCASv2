@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# csch
+
+#% text
+# `csch(x)` gives the hyperbolic cosecant 1/sinh(x).
+
+#% section
+# Details
+
+#% item
+# `csch(x)` stays unevaluated for symbolic `x`; where `sinh(x)` has an exact value, `csch(x)` is its reciprocal.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `csch` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+csch(im*pi/2)
+#% output
+#= -im
+
+#% cell
+csch(1.0)
+#% output
+#= 0.8509181282393216
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic arguments and symmetry:
+
+#% cell
+csch(-x)
+#% output
+#= -csch(x)
+
+#% text
+# 30 digits:
+
+#% cell
+n(csch(1), 30)
+#% output
+#= 0.8509181282393215451338427632871753
+
+#% section
+# See also
+
+#% text
+# `sinh`, `sin`, `cos`, `tan`

@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# spherical_hankel_h1
+
+#% text
+# `spherical_hankel_h1(n, z)` gives the spherical Hankel function of the first kind `spherical_bessel_j(n, z) + im*spherical_bessel_y(n, z)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.47.5. For integer `n` it is `exp(im*z)` times a polynomial in `1/z`; it describes outgoing spherical waves.
+
+#% item
+# Machine numbers give numerical values; symbolic arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spherical_hankel_h1(2, 1.5)
+#% output
+#= 0.12734928368840825 - 1.3457126936204509im
+
+#% cell
+spherical_hankel_h1(1, 2.0)
+#% output
+#= 0.43539777497999166 - 0.35061200427605527im
+
+#% cell
+spherical_hankel_h1(0, 1.0)
+#% output
+#= 0.8414709848078965 - 0.5403023058681398im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The real part is the spherical Bessel function:
+
+#% cell
+re(spherical_hankel_h1(2, 3.0)) - spherical_bessel_j(2, 3.0)
+#% output
+#= 0.0
+
+#% text
+# The conjugate of the second kind:
+
+#% cell
+spherical_hankel_h1(1, 2.0) - conjugate(spherical_hankel_h2(1, 2.0))
+#% output
+#= 0.0 + 0.0im
+
+#% section
+# See also
+
+#% text
+# `spherical_hankel_h2`, `spherical_bessel_j`, `spherical_bessel_y`, `bessel_j`

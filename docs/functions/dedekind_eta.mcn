@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# dedekind_eta
+
+#% text
+# `dedekind_eta(tau)` gives the Dedekind eta function `eta(tau)`, for `im_part(tau) > 0`.
+
+#% section
+# Details
+
+#% item
+# `eta(tau)` is `exp(pi*im*tau/12)` times the product of `1 - exp(2*pi*im*k*tau)` over `k >= 1` (DLMF 27.14.12); it satisfies `eta(-1/tau) = sqrt(-im*tau)*eta(tau)`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dedekind_eta(1.0*im)
+#% output
+#= 0.7682254223260567 + 0.0im
+
+#% cell
+dedekind_eta(0.5 + 1.0*im)
+#% output
+#= 0.7645031667971424 + 0.10064875132231726im
+
+#% cell
+dedekind_eta(2.0*im)
+#% output
+#= 0.592382781332416 + 0.0im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The product formula, with `q = exp(-2*pi)`:
+
+#% cell
+dedekind_eta(1.0*im) - exp(-pi/12.0)*q_pochhammer(exp(-2*pi*1.0))
+#% output
+#= 0.0 + 0.0im
+
+#% text
+# The transformation under `tau -> -1/tau`:
+
+#% cell
+dedekind_eta(-1/(0.2 + 1.5*im)) - sqrt(-im*(0.2 + 1.5*im))*dedekind_eta(0.2 + 1.5*im)
+#% output
+#= 1.1102230246251565e-16 - 2.2898349882893854e-16im
+
+#% section
+# See also
+
+#% text
+# `q_pochhammer`, `klein_invariant_j`, `modular_lambda`, `ramanujan_tau`

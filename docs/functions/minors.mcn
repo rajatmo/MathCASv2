@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# minors
+
+#% text
+# `minors(m)` gives the matrix of the (n - 1) x (n - 1) minors of the n-row matrix `m`; `minors(m, k)` of the `k` x `k` minors.
+
+#% section
+# Details
+
+#% item
+# The rows and columns of the result correspond to the choices of `k` rows and `k` columns of `m`, in lexicographic order.
+
+#% item
+# `minors(m, k, f)` applies `f` to each submatrix instead of `det`.
+
+#% item
+# `minors(m, 0)` is `[[1]]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+minors([[a, b, c], [d, e, f], [g, h, i]])
+#% output
+#= [[a*e - b*d, a*f - c*d, b*f - c*e], [a*h - b*g, a*i - c*g, b*i - c*h], [d*h - e*g, d*i - f*g, e*i - f*h]]
+
+#% cell
+minors([[a, b, c], [d, e, f]], 2)
+#% output
+#= [[a*e - b*d, a*f - c*d, b*f - c*e]]
+
+#% cell
+minors([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], 2)
+#% output
+#= [[-4, -8, -12, -4, -8, -4], [-8, -16, -24, -8, -16, -8], [-4, -8, -12, -4, -8, -4]]
+
+#% cell
+minors([[1, 2], [3, 4]], 1, identity)
+#% output
+#= [[[[1]], [[2]]], [[[3]], [[4]]]]
+
+#% cell
+minors([[2, 3, 2, 3], [1, 12, 1, 2], [13, 3, 3, 1], [1, 2, 12, 11]])
+#% output
+#= [[-210, -372, 10, 72], [231, 199, -11, 131], [-353, -295, 217, 91], [-1783, -1627, 185, 281]]
+
+#% section
+# See also
+
+#% text
+# `det`, `adjugate`, `subsets`

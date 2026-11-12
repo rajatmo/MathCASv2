@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# q_binomial
+
+#% text
+# `q_binomial(n, k, q)` gives the q-binomial (Gaussian) coefficient `[n, k]_q`.
+
+#% section
+# Details
+
+#% item
+# `[n, k]_q` is `(q; q)_n/((q; q)_k*(q; q)_(n - k))` (DLMF 17.2.27); for integers it is a polynomial in `q` whose coefficients count the partitions in a `k` by `n - k` box.
+
+#% item
+# At `q = 1` it is `binomial(n, k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+q_binomial(4, 2, q)
+#% output
+#= 1 + q + 2*q^2 + q^3 + q^4
+
+#% cell
+q_binomial(5, 2, 2)
+#% output
+#= 155
+
+#% cell
+q_binomial(6, 3, 0.5)
+#% output
+#= 2.724609375
+
+#% subsection
+# Applications
+
+#% text
+# The number of 2-dimensional subspaces of the 4-dimensional vector space over the field with 3 elements:
+
+#% cell
+q_binomial(4, 2, 3)
+#% output
+#= 130
+
+#% subsection
+# Properties and relations
+
+#% text
+# The limit `q -> 1`:
+
+#% cell
+q_binomial(6, 2, 1)
+#% output
+#= 15
+
+#% section
+# See also
+
+#% text
+# `q_pochhammer`, `q_factorial`, `binomial`

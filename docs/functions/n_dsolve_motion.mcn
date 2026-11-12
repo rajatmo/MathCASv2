@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# n_dsolve_motion
+
+#% text
+# `n_dsolve_motion(L, q, [t, t0, t1], q0, v0)` integrates the Euler-Lagrange equations of `L` numerically from the positions `q0` and velocities `v0` at `t0` to `t1`, and gives the rules of `n_dsolve` for the coordinate names.
+
+#% section
+# Details
+
+#% item
+# The accelerations are solved from the equations first (the mass matrix may depend on the coordinates), so `n_dsolve` gets an explicit system; the parameters of `L` must have numeric values.
+
+#% item
+# Further arguments are options of `n_dsolve`.
+
+#% item
+# `energy_drift` measures how well a solution keeps the energy.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+s = n_dsolve_motion(th'(t)^2/2 + cos(th(t)), th, [t, 0, 20], 1, 0)
+
+#% cell
+rewrite(th(10.0), s)
+#% output
+#= -0.9989497740436374
+
+#% text
+# The double pendulum, and the change of its energy over the run:
+
+#% cell
+ld = (2*a'(t)^2 + b'(t)^2 + 2*a'(t)*b'(t)*cos(a(t) - b(t)))/2 + 9.81*(2*cos(a(t)) + cos(b(t)))
+
+#% cell
+s2 = n_dsolve_motion(ld, [a, b], [t, 0, 10], [1, 0.5], [0, 0])
+
+#% cell
+rewrite([a(10.0), b(10.0)], s2)
+#% output
+#= [-0.34218273311403347, -0.5558580052472979]
+
+#% cell
+energy_drift(ld, [a, b], s2, [t, 0, 10]) < 1.0e-5
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `energy_drift`, `euler_lagrange_equations`, `n_dsolve`, `phase_portrait`

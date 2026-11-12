@@ -1,0 +1,134 @@
+#! mathcas 2 notebook
+
+#% title
+# function_period
+
+#% text
+# `function_period(f, x)` gives the smallest positive period of `f` in `x`, and `0` when `f` is not periodic; `function_period(f, n, integers)` the period of a sequence; for several variables a list of periods, one per variable with the others fixed; over the complexes a list with one complex period.
+
+#% section
+# Details
+
+#% item
+# Every periodic subterm `g(a x + b)` contributes the period of `g` divided by `a` (`2 pi` for `sin`, `pi` for `tan`, `2 pi im` for `exp` and `cosh`, `m` for `mod(u, m)`); powers `c^(a x)` of constants are exponentials (`(-1)^n` has the period 2).
+
+#% item
+# The candidates must have rational ratios; their least common multiple `T` is a period, and the smallest one is the largest `T/k` (`k <= 24`) that checks numerically at six points to 30 digits. Over the integers the period is the smallest divisor of the integer period that checks.
+
+#% item
+# Over the reals a period that is not real, a polynomial or incommensurable periods mean no period: `0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_period(sin(x), x)
+#% output
+#= 2*pi
+
+#% cell
+function_period(mod(n, 8), n, integers)
+#% output
+#= 8
+
+#% cell
+function_period(cos(x) + sin(y), [x, y])
+#% output
+#= [2*pi, 2*pi]
+
+#% subsection
+# Scope
+
+#% text
+# Sequences:
+
+#% cell
+[function_period((-1)^n, n, integers), function_period(sin(2*pi*n/17 + 3), n, integers), function_period(mod(2*n, 18), n, integers)]
+#% output
+#= [2, 17, 9]
+
+#% cell
+function_period(mod(n^3 + 7*n^2 + 3, 11), n, integers)
+#% output
+#= 11
+
+#% text
+# A root of unity:
+
+#% cell
+function_period(exp(2*pi*im*n/7), n, integers)
+#% output
+#= 7
+
+#% text
+# Complex periods:
+
+#% cell
+[function_period(exp(z), z, complexes), function_period(cosh(z), z, complexes)]
+#% output
+#= [[2im*pi], [2im*pi]]
+
+#% text
+# A parameter under an assumption:
+
+#% cell
+assuming(a > 0, function_period(sin(a*x), x))
+#% output
+#= 2*pi/a
+
+#% text
+# Several variables:
+
+#% cell
+function_period([tan(x + y), cos(x - 2*y)], [x, y])
+#% output
+#= [2*pi, pi]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A square halves the period:
+
+#% cell
+function_period(sin(x)^2, x)
+#% output
+#= pi
+
+#% text
+# Not periodic:
+
+#% cell
+[function_period(x^2, x), function_period(sin(x) + sin(sqrt(2)*x), x), function_period(exp(x), x)]
+#% output
+#= [0, 0, 0]
+
+#% text
+# The period reproduces the values (the difference at a sample point is at rounding level):
+
+#% cell
+f = sin(3*x) + cos(x/2)
+T = function_period(f, x)
+[T, abs((f /. x -> 0.4) - (f /. x -> 0.4 + n(T))) < 10^-12]
+#% output
+#= [4*pi, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# `x - floor(x)` has the period 1; a constant function has no smallest period and gives 0; an undefined function stays unevaluated:
+
+#% cell
+[function_period(x - floor(x), x), function_period(1, x), function_period(g(x), x)]
+#% output
+#= [1, 0, function_period(g(x), x)]
+
+#% section
+# See also
+
+#% text
+# `function_poles`, `function_domain`, `mod`

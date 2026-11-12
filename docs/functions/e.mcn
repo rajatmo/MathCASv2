@@ -1,0 +1,83 @@
+#! mathcas 2 notebook
+
+#% title
+# e
+
+#% text
+# `e` is the constant `e = 2.71828...`, the base of the natural logarithm.
+
+#% section
+# Details
+
+#% item
+# `e` is exact and known to be a positive real; `e^x` is the same as `exp(x)`. `n(e, d)` gives `d` digits.
+
+#% item
+# `log(e)` is 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+e
+#% output
+#= e
+
+#% cell
+n(e, 40)
+#% output
+#= 2.7182818284590452353602874713526624977572471
+
+#% cell
+log(e)
+#% output
+#= 1
+
+#% cell
+e^(im*pi)
+#% output
+#= -1
+
+#% subsection
+# Scope
+
+#% text
+# Powers of `e` are exponentials:
+
+#% cell
+e^2 == exp(2)
+#% output
+#= true
+
+#% cell
+d(e^x, x)
+#% output
+#= exp(x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The limit definition:
+
+#% cell
+limit((1 + 1/k)^k, k -> inf)
+#% output
+#= e
+
+#% text
+# The series:
+
+#% cell
+n(sum(1/factorial(k), [k, 0, 20]) - e)
+#% output
+#= -2.0502980686246613e-20
+
+#% section
+# See also
+
+#% text
+# `exp`, `log`, `pi`, `euler_gamma`

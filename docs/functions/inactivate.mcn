@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# inactivate
+
+#% text
+# `inactivate(e)` gives `e` with every symbol used as a head (except `list`) replaced by the inert head `inactive(f)`, so that nothing in it is computed; `inactivate(e, p)` replaces only the heads matching the pattern `p` (a symbol, `g | h`, a condition), and the rest of `e` is evaluated. Heads that are calls (`f(x)(y)`) are treated the same way unless `heads: false`. `activate` undoes it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inactivate(2 + 2 + 3^2)
+#% output
+#= inactive(add)(2, 2, inactive(pow)(3, 2))
+
+#% cell
+activate(inactivate(2 + 2 + 3^2))
+#% output
+#= 13
+
+#% cell
+inactivate(f(g(h(x)), y, g(z)), g)
+#% output
+#= f(inactive(g)(h(x)), y, inactive(g)(z))
+
+#% cell
+inactivate(sin(pi/3) + cos(pi/3), sin)
+#% output
+#= 1/2 + inactive(sin)((1/3)*pi)
+
+#% cell
+inactivate(f(x)(y) + g(z), heads: false)
+#% output
+#= inactive(add)(f(x)(y), inactive(g)(z))
+
+#% section
+# See also
+
+#% text
+# `activate`, `inactive`, `quote`

@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# slice_density_plot3d
+
+#% text
+# `slice_density_plot3d(f, surface, [x, a, b], [y, c, d], [z, e, f])` draws the values of a function as colours on surfaces in a box.
+
+#% section
+# Details
+
+#% item
+# Surfaces: `"CenterPlanes"` (default), `"BackPlanes"`, `"XStackedPlanes"`, `"YStackedPlanes"`, `"ZStackedPlanes"`, `"DiagonalPlanes"`, `"CenterSphere"`, an equation, a region (`sphere`, `cylinder`, `infinite_plane`, `half_plane`, `implicit_region`) or a list of them.
+
+#% item
+# `element([x, y, z], region)` instead of the ranges takes the region's bounds.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+slice_density_plot3d(exp(-(x^2 + y^2 + z^2)), "CenterPlanes", [x, -2, 2], [y, -2, 2], [z, -2, 2])
+#% output
+#= image("slice_density_plot3d.files/slice_density_plot3d-1.svgz")
+
+#% cell
+slice_density_plot3d(x * y * z, x^2 + y^2 - z == 0, [x, -1, 1], [y, -1, 1], [z, -1, 1])
+#% output
+#= image("slice_density_plot3d.files/slice_density_plot3d-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `slice_contour_plot3d`

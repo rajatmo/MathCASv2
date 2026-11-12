@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# prime_nu
+
+#% text
+# `prime_nu(n)` gives the number of distinct primes dividing `n`.
+
+#% section
+# Details
+
+#% item
+# `prime_nu(1)` is 0. The count needs the factorisation of `n`.
+
+#% item
+# `prime_nu` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+prime_nu(12)
+#% output
+#= 2
+
+#% cell
+prime_nu(30)
+#% output
+#= 3
+
+#% cell
+prime_nu(64)
+#% output
+#= 1
+
+#% cell
+prime_nu(range(10))
+#% output
+#= [0, 1, 1, 1, 1, 2, 1, 1, 1, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Compared with `prime_omega`, which counts multiplicity:
+
+#% cell
+[prime_nu(720), prime_omega(720)]
+#% output
+#= [3, 7]
+
+#% text
+# The number of square-free divisors is `2^prime_nu(n)`:
+
+#% cell
+[count_if(divisors(360), is_square_free), 2^prime_nu(360)]
+#% output
+#= [8, 8]
+
+#% section
+# See also
+
+#% text
+# `prime_omega`, `factor_integer`, `moebius_mu`

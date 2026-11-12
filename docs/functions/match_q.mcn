@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# match_q
+
+#% text
+# `match_q(x, p)` gives `true` when the term `x` matches the pattern `p`, else `false`.
+
+#% section
+# Details
+
+#% item
+# Patterns are those of `cases` and rules: `_`, `x_`, `x_: T` for a type, `f(x_)` by head, `p when c`.
+
+#% item
+# The whole of `x` must match; `free_of` and `member_of` look at parts and elements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+match_q(f(1), f(_))
+#% output
+#= true
+
+#% cell
+match_q(2.5, _: Int)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Lists of patterns and conditions:
+
+#% cell
+match_q([1, 2], [_: Int, _: Int])
+#% output
+#= true
+
+#% cell
+match_q(7, x_ when x > 5)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# `cases` keeps the elements for which `match_q` is true:
+
+#% cell
+xs = [1, a, 2]
+cases(xs, _: Int) == select(xs, x => match_q(x, _: Int))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `cases`, `count`, `free_of`, `member_of`, `rewrite`

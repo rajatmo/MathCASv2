@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# squares_r
+
+#% text
+# `squares_r(d, k)` gives the number of ways to write the integer `k` as a sum of `d` squares of integers, counting order and signs.
+
+#% section
+# Details
+
+#% item
+# For `d` = 2, 4, 6, 8 the classical divisor-sum formulas are used (any `k`); other `d` use convolution of the one-square counts (`k` up to 3000).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+squares_r(2, 45)
+#% output
+#= 8
+
+#% cell
+squares_r(4, 20)
+#% output
+#= 144
+
+#% cell
+squares_r(2, [1, 2, 5, 25])
+#% output
+#= [4, 4, 8, 12]
+
+#% cell
+sum(squares_r(2, k), [k, 0, 20^2])
+#% output
+#= 1257
+
+#% section
+# See also
+
+#% text
+# `powers_representations`, `divisor_sigma`

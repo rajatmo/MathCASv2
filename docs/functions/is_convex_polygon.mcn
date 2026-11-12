@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_convex_polygon
+
+#% text
+# `is_convex_polygon(p)`: whether a plane polygon is convex
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_convex_polygon(rectangle()), is_convex_polygon(polygon([[0, 0], [2, 0], [1, 1/2], [1, 2]]))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

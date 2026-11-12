@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# find_transient_repeat
+
+#% text
+# `find_transient_repeat(xs, k)` gives `[transient, block]`: the shortest initial part after which xs repeats the shortest block at least k times, a partial last copy allowed.
+
+#% section
+# Details
+
+#% item
+# When no block repeats k times the value is `[xs, []]`. Strings give strings.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_transient_repeat([1, 2, 3, 4, 3, 4, 3, 4], 3)
+#% output
+#= [[1, 2], [3, 4]]
+
+#% cell
+find_transient_repeat([1, 2, 3, 4, 3, 4, 3, 4], 4)
+#% output
+#= [[1, 2, 3, 4, 3, 4, 3, 4], []]
+
+#% cell
+find_transient_repeat("abcdedede", 2)
+#% output
+#= ["abc", "de"]
+
+#% section
+# See also
+
+#% text
+# `find_repeat`

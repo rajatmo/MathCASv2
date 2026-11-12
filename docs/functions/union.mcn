@@ -1,0 +1,102 @@
+#! mathcas 2 notebook
+
+#% title
+# union
+
+#% text
+# `union(xs, ys, ...)` gives the elements that occur in any of the lists, without repetitions, in canonical order.
+
+#% section
+# Details
+
+#% item
+# The result is sorted as `sort` sorts and has no repeated elements, so `union(xs)` with one list removes its duplicates and sorts it.
+
+#% item
+# Elements are compared by identity: `1` and `1.0` both stay.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+union([3, 1, 2], [2, 5])
+#% output
+#= [1, 2, 3, 5]
+
+#% cell
+union([c, a], [b, a], [d])
+#% output
+#= [a, b, c, d]
+
+#% cell
+union([3, 1, 3, 2, 1])
+#% output
+#= [1, 2, 3]
+
+#% subsection
+# Scope
+
+#% text
+# `same_test` decides when two elements are the same:
+
+#% cell
+union([3, -3, 1, 2], same_test: (a, b) => abs(a) == abs(b))
+#% output
+#= [-3, 1, 2]
+
+#% subsection
+# Applications
+
+#% text
+# All the variables of several expressions:
+
+#% cell
+union(variables(x^2 + y), variables(y*z), variables(w))
+#% output
+#= [w, x, y, z]
+
+#% text
+# The divisors of either of two numbers:
+
+#% cell
+union(divisors(12), divisors(18))
+#% output
+#= [1, 2, 3, 4, 6, 9, 12, 18]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The union contains the intersection:
+
+#% cell
+xs = [1, 2, 3, 4]
+ys = [3, 4, 5]
+is_subset(intersection(xs, ys), union(xs, ys))
+#% output
+#= true
+
+#% text
+# Its size by inclusion and exclusion:
+
+#% cell
+length(union(xs, ys)) == length(xs) + length(ys) - length(intersection(xs, ys))
+#% output
+#= true
+
+#% text
+# `unique` removes duplicates without sorting:
+
+#% cell
+[unique([3, 1, 3]), union([3, 1, 3])]
+#% output
+#= [[3, 1], [1, 3]]
+
+#% section
+# See also
+
+#% text
+# `intersection`, `complement`, `unique`, `is_subset`, `join`

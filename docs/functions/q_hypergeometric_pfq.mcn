@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# q_hypergeometric_pfq
+
+#% text
+# `q_hypergeometric_pfq([a1, ..., ar], [b1, ..., bs], q, z)` gives the basic hypergeometric series `r phi s`.
+
+#% section
+# Details
+
+#% item
+# The series is `sum_n (a1; q)_n ... (ar; q)_n/((b1; q)_n ... (bs; q)_n (q; q)_n) ((-1)^n q^(n (n - 1)/2))^(1 + s - r) z^n` (DLMF 17.4.1), with the q-Pochhammer symbols of `q_pochhammer`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; a numerator parameter `q^(-m)` ends the series.
+
+#% item
+# Lists of `z` thread.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+q_hypergeometric_pfq([0.5], [0.3], 0.2, 0.1)
+#% output
+#= 0.9124881332950714
+
+#% cell
+q_hypergeometric_pfq([0.7], [1/3], 0.2, 5)
+#% output
+#= 0.3720811428938267
+
+#% cell
+n(q_hypergeometric_pfq([17, 1/3, 1/3], [1/3, 1/9], 1/9, 1/3), 30)
+#% output
+#= -1.66868110629581418916065064413824
+
+#% cell
+q_hypergeometric_pfq([1/3, 1/3], [1/7, 1/7, 0], 1/9, [0.1, 0.3, 0.5])
+#% output
+#= [1.0681370066794638, 1.2048997490528996, 1.342314179603635]
+
+#% cell
+q_hypergeometric_pfq([0.5 + im], [0.3 + im], 0.2, im)
+#% output
+#= 0.6076732619168288 - 1.0879455614542262im
+
+#% text
+# The q-binomial theorem, `1 phi 0(a; ; q, z) = (a z; q)_inf/(z; q)_inf`:
+
+#% cell
+q_hypergeometric_pfq([0.3], [], 0.5, 0.4) - q_pochhammer(0.3*0.4, 0.5)/q_pochhammer(0.4, 0.5)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `q_pochhammer`, `hypergeometric_pfq`, `bilateral_hypergeometric_pfq`

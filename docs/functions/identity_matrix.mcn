@@ -1,0 +1,138 @@
+#! mathcas 2 notebook
+
+#% title
+# identity_matrix
+
+#% text
+# `identity_matrix(n)` gives the `n` x `n` identity matrix.
+
+#% section
+# Details
+
+#% item
+# The entries are exact: 1 on the diagonal and 0 elsewhere.
+
+#% item
+# `identity_matrix(0)` is the empty list.
+
+#% item
+# `n` must be a nonnegative integer; anything else gives a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+identity_matrix(3)
+#% output
+#= [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+#% cell
+identity_matrix(1)
+#% output
+#= [[1]]
+
+#% subsection
+# Scope
+
+#% text
+# The empty matrix:
+
+#% cell
+identity_matrix(0)
+#% output
+#= []
+
+#% text
+# A multiple of the identity:
+
+#% cell
+3*identity_matrix(2)
+#% output
+#= [[3, 0], [0, 3]]
+
+#% subsection
+# Applications
+
+#% text
+# The characteristic polynomial of a matrix:
+
+#% cell
+det([[1, 2], [3, 4]] - x*identity_matrix(2))
+#% output
+#= -2 - 5*x + x^2
+
+#% text
+# The inverse as the solution of a system with the identity on the right:
+
+#% cell
+linear_solve([[2, 1], [7, 3]], identity_matrix(2))
+#% output
+#= [[-3, 1], [7, -2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The identity leaves a matrix unchanged:
+
+#% cell
+m = [[1, 2], [3, 4]]; dot(identity_matrix(2), m) == m
+#% output
+#= true
+
+#% text
+# Its determinant is 1 and its trace is `n`:
+
+#% cell
+[det(identity_matrix(10)), trace(identity_matrix(10))]
+#% output
+#= [1, 10]
+
+#% text
+# It is the diagonal matrix of ones:
+
+#% cell
+diagonal_matrix([1, 1, 1]) == identity_matrix(3)
+#% output
+#= true
+
+#% text
+# All its eigenvalues are 1:
+
+#% cell
+eigenvalues(identity_matrix(4))
+#% output
+#= [1, 1, 1, 1]
+
+#% subsection
+# Possible issues
+
+#% text
+# The size must be a nonnegative integer:
+
+#% cell
+identity_matrix(-1)
+#% output
+#! failure(argument, identity_matrix, 1)
+
+#% cell
+identity_matrix(2.0)
+#% output
+#! failure(argument, identity_matrix, 1)
+
+#% text
+# A list of sizes gives a rectangular matrix:
+
+#% cell
+identity_matrix([2, 3])
+#% output
+#= [[1, 0, 0], [0, 1, 0]]
+
+#% section
+# See also
+
+#% text
+# `diagonal_matrix`, `dot`, `inverse`, `det`, `trace`

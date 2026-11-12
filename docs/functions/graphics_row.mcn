@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# graphics_row
+
+#% text
+# `graphics_row([g1, g2, ...])` is one graphic with the graphics (or plots) side by side.
+
+#% section
+# Details
+
+#% item
+# The value is a `graphics` term holding the parts as insets: it shows, exports and combines like any graphic.
+
+#% item
+# Plots, which are images, are used as the graphics they were drawn from.
+
+#% item
+# A row wider than 960 points is scaled down.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two plots:
+
+#% cell
+graphics_row([plot(sin(x), [x, 0, 6]), plot(cos(x), [x, 0, 6])])
+#% output
+#= image("graphics_row.files/graphics_row-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Graphics of several kinds:
+
+#% cell
+graphics_row([graphics(disk()), graphics3d(sphere()), plot(x^2, [x, -1, 1])])
+#% output
+#= image("graphics_row.files/graphics_row-2.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# Plots and a legend in one picture:
+
+#% cell
+graphics_row([plot(x, [x, 0, 1]), legended(graphics(disk()), ["a disk"])])
+#% output
+#= image("graphics_row.files/graphics_row-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics_column`, `graphics_grid`, `grid`, `show`

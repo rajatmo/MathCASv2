@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# lerch_phi
+
+#% text
+# `lerch_phi(z, s, a)` gives the Lerch transcendent, the sum of `z^k/(k + a)^s` for `k >= 0`.
+
+#% section
+# Details
+
+#% item
+# The series (DLMF 25.14.1) converges for `abs(z) < 1`; at `z = 1` with `s > 1` it is the Hurwitz zeta function.
+
+#% item
+# Special cases: `lerch_phi(z, s, 1)` is `polylog(s, z)/z`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lerch_phi(0.5, 2, 1)
+#% output
+#= 1.164481052930025
+
+#% cell
+lerch_phi(0.5, 2.0, 0.5)
+#% output
+#= 4.27714550058095
+
+#% cell
+lerch_phi(-0.5, 1.0, 1.0)
+#% output
+#= 0.8109302162163288
+
+#% subsection
+# Properties and relations
+
+#% text
+# The polylogarithm case:
+
+#% cell
+lerch_phi(0.3, 3, 1) - polylog(3, 0.3)/0.3
+#% output
+#= 0.0
+
+#% text
+# The series:
+
+#% cell
+lerch_phi(0.4, 2.0, 0.7) - sum(0.4^k/(k + 0.7)^2, [k, 0, 80])
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# On the unit circle, where the alternating series still converges for `z = -1`, the value is not computed:
+
+#% cell
+lerch_phi(-1.0, 1.0, 1.0)
+#% output
+#= lerch_phi(-1.0, 1.0, 1.0)
+
+#% section
+# See also
+
+#% text
+# `polylog`, `zeta`

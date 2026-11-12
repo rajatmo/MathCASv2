@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# geometric_transformation
+
+#% text
+# `geometric_transformation(g, m) or geometric_transformation(g, [m, b])`: in graphics, the primitives g mapped by x -> m x + b
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_gray, rectangle(), standard_blue, geometric_transformation(rectangle(), [[1, 1/2], [0, 1]])])
+#% output
+#= image("geometric_transformation.files/geometric_transformation-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# multivariate_poisson_distribution
+
+#% text
+# `multivariate_poisson_distribution(m0, [m1, ..., mk])` is the distribution of the vector `[Y0 + Y1, ..., Y0 + Yk]` of sums of independent Poisson variables `Y0` of mean `m0` and `Yi` of mean `mi`.
+
+#% section
+# Details
+
+#% item
+# The mean is `[m0 + m1, ..., m0 + mk]`; the covariance matrix has `m0 + mi` on the diagonal and `m0` elsewhere.
+
+#% item
+# `pdf(d, [x1, ..., xk])` sums over the common part `j` from 0 to the least `xi`.
+
+#% item
+# `random_variate(d)` and `random_variate(d, n)` draw one or `n` vectors.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(multivariate_poisson_distribution(1, [2, 3]))
+#% output
+#= [3, 4]
+
+#% cell
+covariance(multivariate_poisson_distribution(1, [2, 3]))
+#% output
+#= [[3, 1], [1, 4]]
+
+#% cell
+pdf(multivariate_poisson_distribution(1, [2, 3]), [1, 1])
+#% output
+#= 7/exp(6)
+
+#% cell
+length(random_variate(multivariate_poisson_distribution(1, [2, 3]), 5))
+#% output
+#= 5
+
+#% section
+# See also
+
+#% text
+# `poisson_distribution`, `wishart_matrix_distribution`, `covariance`

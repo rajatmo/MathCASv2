@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# eigenvectors
+
+#% text
+# `eigenvectors(m)` gives one eigenvector for each eigenvalue of the square matrix `m`, in the order of `eigenvalues(m)`.
+
+#% section
+# Details
+
+#% item
+# A repeated eigenvalue gets as many independent eigenvectors as it has; a defective eigenvalue (one with fewer) gets zero vectors for the missing ones.
+
+#% item
+# Exact matrices give exact vectors (with algebraic numbers where needed); machine matrices give numerical vectors of length 1, each with its entry of largest modulus positive (real).
+
+#% item
+# A real symmetric matrix of numbers with a precision (`n(m, 30)`) is solved at that precision, and its eigenvalues and eigenvectors carry it; other such matrices are solved in machine arithmetic.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+eigenvectors([[2, 0], [0, 3]])
+#% output
+#= [[0, 1], [1, 0]]
+
+#% cell
+eigenvectors([[1, 2], [2, 1]])
+#% output
+#= [[1, 1], [-1, 1]]
+
+#% cell
+eigenvectors([[2.0, 1.0], [1.0, 3.0]])
+#% output
+#= [[0.5257311121191336, 0.8506508083520401], [0.8506508083520401, -0.5257311121191336]]
+
+#% subsection
+# Scope
+
+#% text
+# A defective matrix, with one eigenvector for a double eigenvalue:
+
+#% cell
+eigenvectors([[1, 1], [0, 1]])
+#% output
+#= [[1, 0], [0, 0]]
+
+#% text
+# A rotation has complex eigenvectors:
+
+#% cell
+eigenvectors([[0, -1], [1, 0]])
+#% output
+#= [[im, 1], [-im, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Each vector satisfies `m.v == lambda*v`:
+
+#% cell
+m = [[4, 1], [2, 3]]; vs = eigenvectors(m); ls = eigenvalues(m); [dot(m, vs[1]) - ls[1]*vs[1], dot(m, vs[2]) - ls[2]*vs[2]]
+#% output
+#= [[0, 0], [0, 0]]
+
+#% section
+# See also
+
+#% text
+# `eigenvalues`, `eigensystem`, `characteristic_polynomial`

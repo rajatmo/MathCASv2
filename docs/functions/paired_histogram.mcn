@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# paired_histogram
+
+#% text
+# `paired_histogram(d1, d2)` draws histograms of two data sets back to back on common bins.
+
+#% section
+# Details
+
+#% item
+# `paired_histogram(d1, d2, bins, form)` with form `"Probability"`, `"PDF"`, `"CDF"`, `"SF"`, `"HF"` or `"CHF"`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+paired_histogram([1, 2, 2, 3, 3, 3, 4, 4, 5], [2, 3, 3, 4, 4, 4, 5, 6])
+#% output
+#= image("paired_histogram.files/paired_histogram-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `histogram`

@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# weighted_data
+
+#% text
+# `weighted_data(data, weights)`: data with a weight per element; `wd("Data")`, `wd("Weights")`, `wd("TotalWeight")` read it, and `mean(wd)` is the weighted mean
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wd = weighted_data([1, 2, 3], [3, 7, 4])
+
+#% cell
+wd("TotalWeight")
+#% output
+#= 14
+
+#% cell
+mean(wd)
+#% output
+#= 29/14
+
+#% section
+# See also
+
+#% text
+# `mean`, `median`, `time_series`, `event_data`, `temporal_data`

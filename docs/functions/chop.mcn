@@ -1,0 +1,139 @@
+#! mathcas 2 notebook
+
+#% title
+# chop
+
+#% text
+# `chop(x)` replaces inexact numbers in `x` that are smaller than 10^-10 in absolute value by exact 0.
+
+#% text
+# `chop(x, delta)` uses the threshold `delta` instead of 10^-10.
+
+#% section
+# Details
+
+#% item
+# Only inexact numbers, machine reals and balls, are replaced; exact numbers are never changed.
+
+#% item
+# A number is replaced when its absolute value is strictly less than the threshold.
+
+#% item
+# The real and imaginary parts of a complex number are chopped separately, so a tiny imaginary part disappears.
+
+#% item
+# `chop` works through any structure: lists, sums and other expressions.
+
+#% item
+# A ball is replaced when every number inside it is below the threshold, including a ball around 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+chop(1.0e-12)
+#% output
+#= 0
+
+#% text
+# Numbers above the threshold are kept:
+
+#% cell
+chop(0.5)
+#% output
+#= 0.5
+
+#% text
+# A tiny imaginary part from rounding:
+
+#% cell
+exp(pi*1.0*im)
+#% output
+#= -1.0 + 1.2246467991473532e-16im
+
+#% cell
+chop(exp(pi*1.0*im))
+#% output
+#= -1.0
+
+#% subsection
+# Scope
+
+#% text
+# Each element of a list:
+
+#% cell
+chop([1e-11, 1e-9, 2.0])
+#% output
+#= [0, 1e-9, 2.0]
+
+#% text
+# Inside a sum:
+
+#% cell
+chop(x + 1e-12)
+#% output
+#= x
+
+#% text
+# A ball around 0:
+
+#% cell
+chop(n(sqrt(2), 20) - n(sqrt(2), 20))
+#% output
+#= 0
+
+#% subsection
+# Options
+
+#% text
+# A larger threshold:
+
+#% cell
+chop(1e-5, 1e-3)
+#% output
+#= 0
+
+#% subsection
+# Applications
+
+#% text
+# Removing the rounding error of a machine computation that should give 0:
+
+#% cell
+sin(n(pi))
+#% output
+#= 1.2246467991473532e-16
+
+#% cell
+chop(sin(n(pi)))
+#% output
+#= 0
+
+#% subsection
+# Possible issues
+
+#% text
+# Exact numbers are never chopped, however small:
+
+#% cell
+chop(1/10^20)
+#% output
+#= 1/100000000000000000000
+
+#% text
+# A number equal to the threshold is kept:
+
+#% cell
+chop(1e-10)
+#% output
+#= 1e-10
+
+#% section
+# See also
+
+#% text
+# `n`, `rationalize`, `round`, `precision`

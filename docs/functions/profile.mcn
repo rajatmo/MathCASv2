@@ -1,0 +1,105 @@
+#! mathcas 2 notebook
+
+#% title
+# profile
+
+#% text
+# `profile(e)` evaluates `e` and gives `[seconds, value, rows]`: the wall-clock time, the value, and where the time went, one row `[f, kind, calls, own, total]` per function.
+
+#% text
+# `profile(e, top: n)` keeps the n rows with the most own time.
+
+#% section
+# Details
+
+#% item
+# `kind` is `"library"` for functions built into the system, `"definitions"` for functions defined by rules (`fn f(x) = ...`), and `"compiled"` for compiled code (`compile(f)`).
+
+#% item
+# `calls` counts the calls that ran (values the evaluator remembered from earlier evaluations are not recomputed and not counted); `total` is their time in seconds including the calls they made; `own` is the part not spent in other measured calls.
+
+#% item
+# The rows are sorted by own time, largest first; 25 are kept by default. The last row, `[evaluation, "interpreter", 1, own, total]`, is the time outside every measured call.
+
+#% item
+# In a parallel evaluation (`parallel_table`, `map` of expensive calls) the times are added over the worker threads, so they may exceed the wall-clock time, and the function that split the work counts its waiting as its own time.
+
+#% item
+# Profiling adds a little time to every call. Profiles do not nest: an inner `profile` gives no rows of its own.
+
+#% item
+# `timing(e, breakdown: true)` gives a summary of the same measurements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The value is the second element, the rows the third:
+
+#% cell
+fn f(x) = n_integrate(sin(x*t)^2, [t, 0, 1])
+p = profile(map(f, [1, 2, 3]))
+p[2]
+#% output
+#= [0.27267564329357963, 0.5946003119134912, 0.5232846248499106]
+
+#% text
+# The functions called, with their kinds and call counts:
+
+#% cell
+sort(map(r => r[[1, 2, 3]], select(p[3], r => member([f, map, n_integrate], r[1]))))
+#% output
+#= [[f, "definitions", 3], [map, "library", 1], [n_integrate, "library", 3]]
+
+#% subsection
+# Options
+
+#% text
+# Only the largest row and the interpreter's:
+
+#% cell
+length(profile(map(f, [4, 5]), top: 1)[3])
+#% output
+#= 2
+
+#% subsection
+# Applications
+
+#% text
+# Finding the slow part of a computation: the rows with the most own time come first.
+
+#% cell
+fn g(x) = factor(x^24 - 1)
+q = profile(map(g, [x, y]))
+q[3][1][1] == factor
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# The value is what the expression gives without `profile`:
+
+#% cell
+profile(expand((a + b)^3))[2] === expand((a + b)^3)
+#% output
+#= true
+
+#% text
+# A caller's total time covers its callees':
+
+#% cell
+r = profile(map(f, [6, 7]))[3]
+select(r, s => s[1] == f)[1][5] >= select(r, s => s[1] == n_integrate)[1][5]
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `timing`, `parallel_table`, `compile`

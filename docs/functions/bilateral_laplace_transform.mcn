@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# bilateral_laplace_transform
+
+#% text
+# `bilateral_laplace_transform(f, t, s)` gives the two-sided Laplace transform `integrate(f*exp(-s*t), [t, -inf, inf])` of `f`.
+
+#% section
+# Details
+
+#% item
+# By default the value comes with its strip of convergence, as `conditional_expression(F, a < re(s) and re(s) < b)`; `generate_conditions: false` gives the value alone.
+
+#% item
+# Sums are transformed term by term; terms with undefined functions stay as transforms.
+
+#% item
+# `dirac_delta(t - a)` gives `exp(-a s)`; other integrands go to `integrate`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bilateral_laplace_transform(exp(-abs(t)), t, s)
+#% output
+#= conditional_expression(-2/(-1 + s^2), -1 < re(s) and re(s) < 1)
+
+#% cell
+bilateral_laplace_transform(unit_step(t), t, s)
+#% output
+#= conditional_expression(s^-1, re(s) > 0)
+
+#% subsection
+# Scope
+
+#% text
+# A Gaussian:
+
+#% cell
+bilateral_laplace_transform(exp(-t^2), t, s)
+#% output
+#= exp((1/4)*s^2)*pi^(1/2)
+
+#% text
+# A delta function:
+
+#% cell
+bilateral_laplace_transform(dirac_delta(t - c), t, s)
+#% output
+#= exp(-c*s)
+
+#% text
+# Linearity:
+
+#% cell
+bilateral_laplace_transform(a*f(t) + b*exp(-t^2), t, s)
+#% output
+#= a*bilateral_laplace_transform(f(t), t, s) + b*exp((1/4)*s^2)*pi^(1/2)
+
+#% subsection
+# Options
+
+#% cell
+bilateral_laplace_transform(exp(-abs(t)), t, s, generate_conditions: false)
+#% output
+#= -2/(-1 + s^2)
+
+#% section
+# See also
+
+#% text
+# `inverse_bilateral_laplace_transform`, `laplace_transform`, `fourier_transform`

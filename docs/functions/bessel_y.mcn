@@ -1,0 +1,111 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_y
+
+#% text
+# `bessel_y(nu, x)` gives the Bessel function of the second kind `Y_nu(x)`.
+
+#% section
+# Details
+
+#% item
+# `Y_nu(x)` is the solution of Bessel's equation that is singular at 0 (DLMF 10.2.3), defined for `x > 0`; it oscillates with decreasing amplitude for large `x`.
+
+#% item
+# Half-integer orders give closed forms in `sin` and `cos`; real machine numbers and balls give numerical values for integer and fractional orders.
+
+#% item
+# `bessel_y` is listable in both arguments.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_y(0, 1.0)
+#% output
+#= 0.08825696421567696
+
+#% cell
+bessel_y(1, 2.5)
+#% output
+#= 0.1459181379667858
+
+#% cell
+bessel_y(1/2, x)
+#% output
+#= -cos(x)*2^(1/2)/(pi*x)^(1/2)
+
+#% cell
+n(bessel_y(0, 1), 30)
+#% output
+#= 0.08825696421567695798292676602351516
+
+#% subsection
+# Scope
+
+#% text
+# A fractional order:
+
+#% cell
+bessel_y(1.5, 3.0)
+#% output
+#= 0.08700809072083528
+
+#% text
+# Large arguments:
+
+#% cell
+bessel_y(0, 1000.0)
+#% output
+#= 0.0047159179776228135
+
+#% text
+# Several orders:
+
+#% cell
+bessel_y([0, 1, 2], 1.0)
+#% output
+#= [0.08825696421567696, -0.7812128213002887, -1.6506826068162543]
+
+#% subsection
+# Applications
+
+#% text
+# The first positive zero of `Y_0`:
+
+#% cell
+find_root(bessel_y(0, x) == 0, [x, 0.9])
+#% output
+#= [x -> 0.8935769662791675]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The Wronskian `J_1 Y_0 - J_0 Y_1 = 2/(pi x)`:
+
+#% cell
+bessel_j(1, 2.0)*bessel_y(0, 2.0) - bessel_j(0, 2.0)*bessel_y(1, 2.0) - 2/(pi*2.0)
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# The function is singular at 0:
+
+#% cell
+bessel_y(0, 0)
+#% output
+#! failure(pole, bessel_y(0, 0))
+
+#% section
+# See also
+
+#% text
+# `bessel_j`, `bessel_i`, `bessel_k`, `spherical_hankel_h1`

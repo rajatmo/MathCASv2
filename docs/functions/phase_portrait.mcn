@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# phase_portrait
+
+#% text
+# `phase_portrait(L, q, t, [x, a, b], [v, c, d])` draws the streamlines of the motion of one coordinate `q` of the Lagrangian `L` in its phase plane: the position `x` from `a` to `b` across, the velocity `v` from `c` to `d` up.
+
+#% section
+# Details
+
+#% item
+# The flow is `(x, v) -> (v, acc(x, v))` with the acceleration solved from the Euler-Lagrange equation; the parameters of `L` must have numeric values.
+
+#% item
+# Further arguments are options of `stream_plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The pendulum: libration inside the separatrix, rotation outside.
+
+#% cell
+phase_portrait(th'(t)^2/2 + cos(th(t)), th, t, [x, -4, 4], [v, -3, 3])
+#% output
+#= image("phase_portrait.files/phase_portrait-1.svgz")
+
+#% text
+# A damped double well, from a time-dependent Lagrangian:
+
+#% cell
+phase_portrait(exp(t/5)*(x'(t)^2/2 + x(t)^2/2 - x(t)^4/4), x, t, [x, -2, 2], [v, -2, 2])
+#% output
+#= image("phase_portrait.files/phase_portrait-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `stream_plot`, `n_dsolve_motion`, `equilibrium_points`

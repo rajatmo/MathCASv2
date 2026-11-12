@@ -1,0 +1,79 @@
+# machine: rajat-pc
+# cpu: AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD
+# cores: 16
+# ram: 31934 MB
+# os: windows x86_64
+# compiler: rustc 1.99.1 (58cf8f9c3 2026-10-13)
+# date: 2026-11-03
+# guard: job-object
+system	class	case	size	median_s	min_s	iqr_s	reps	peak_bytes	proc_peak_bytes	status	check	detail
+mathcas-v2 0.0.0	R	R1	20	9.44e-5	7.68e-5	5.200000000000004e-6	20508	1705680	7397376	ok	pass	
+mathcas-v2 0.0.0	R	R1	25	9.44e-5	8.02e-5	5.449999999999997e-6	20471	1705680	7364608	ok	pass	
+mathcas-v2 0.0.0	R	R1	30	9.63e-5	8.06e-5	9.000000000000002e-6	19751	1705780	7340032	ok	pass	
+mathcas-v2 0.0.0	R	R2	10^3	8.9933e-3	8.663e-3	2.2814999999999988e-4	203	647136	14614528	ok	fail	property gave -1*null*(1 + 499*null) + null^2 == -1
+mathcas-v2 0.0.0	R	R2	10^4	9.991755e-2	9.86235e-2	1.4630749999999942e-3	20	29779904	53157888	ok	fail	property gave -1*null*(1 + 4999*null) + null^2 == -1
+mathcas-v2 0.0.0	R	R2	10^5	-	-	-	0	-	28237824	limit	-	evaluation depth (in the warm-up)
+mathcas-v2 0.0.0	R	R8	10	1.027e-4	8.4e-5	7.400000000000004e-6	18694	1706308	7413760	ok	fail	property gave length(expand((a + b + c + d)^10)) == binomial(13, 3) and re... (138 chars)
+mathcas-v2 0.0.0	R	R8	20	1.033e-4	8.77e-5	1.1200000000000001e-5	18359	1706308	7380992	ok	fail	property gave length(expand((a + b + c + d)^20)) == binomial(23, 3) and re... (144 chars)
+mathcas-v2 0.0.0	R	R8	30	1.008e-4	8.13e-5	6.999999999999994e-6	19029	1706308	7413760	ok	fail	property gave length(expand((a + b + c + d)^30)) == binomial(33, 3) and re... (150 chars)
+mathcas-v2 0.0.0	R	R9	10^4	1.05e-4	9.31e-5	4.9999999999999996e-6	18440	70272	7430144	ok	fail	got { let t = nest(f, x, 10000); depth(t) }, expected 10001
+mathcas-v2 0.0.0	R	R9	10^5	1.048e-4	8.55e-5	4.9999999999999996e-6	18500	70272	7426048	ok	fail	got { let t = nest(f, x, 100000); depth(t) }, expected 100001
+mathcas-v2 0.0.0	R	R9	10^6	1.031e-4	8.1e-5	1.2000000000000007e-5	19159	70272	7397376	ok	fail	got { let t = nest(f, x, 1000000); depth(t) }, expected 1000001
+mathcas-v2 0.0.0	R	R12	10^4	9.5e-5	7.25e-5	1.3799999999999997e-5	20388	69299	7401472	ok	fail	got max(map(collatz_steps, range(10000))), expected 261
+mathcas-v2 0.0.0	R	R12	10^5	9.64e-5	7.5e-5	1.6074999999999998e-5	19970	69299	7417856	ok	fail	got max(map(collatz_steps, range(100000))), expected 350
+mathcas-v2 0.0.0	R	R12	10^6	1.012e-4	7.8e-5	1.9299999999999995e-5	19027	69299	7454720	ok	fail	got max(map(collatz_steps, range(1000000))), expected 524
+mathcas-v2 0.0.0	N	N1	10^4	9.5e-5	7.35e-5	1.7199999999999998e-5	20166	68564	7380992	ok	fail	not a decimal number: n(pi, 10000)
+mathcas-v2 0.0.0	N	N1	10^5	9.33e-5	7.13e-5	1.4799999999999994e-5	20785	68564	7376896	ok	unchecked	no stored value
+mathcas-v2 0.0.0	N	N1	10^6	9.27e-5	7.18e-5	1.4599999999999989e-5	20919	68564	7385088	ok	unchecked	no stored value
+mathcas-v2 0.0.0	N	N5	10^4	9.3e-5	7.11e-5	1.4699999999999991e-5	20804	68582	7389184	ok	fail	property gave integer_exponent(factorial(10000), 2) == 10000 - sum(integer... (262 chars)
+mathcas-v2 0.0.0	N	N5	10^5	9.27e-5	7.04e-5	1.6800000000000002e-5	20609	68582	7344128	ok	fail	property gave integer_exponent(factorial(100000), 2) == 100000 - sum(integ... (270 chars)
+mathcas-v2 0.0.0	N	N5	10^6	9.29e-5	7.01e-5	1.5200000000000004e-5	20698	68582	7385088	ok	fail	property gave integer_exponent(factorial(1000000), 2) == 1000000 - sum(int... (278 chars)
+mathcas-v2 0.0.0	N	N6	8	1.007e-4	7.7e-5	1.78e-5	19159	1705994	7442432	ok	fail	got [prime_pi(100000000), prime(100000000)], expected [5761455, 2038074743]
+mathcas-v2 0.0.0	N	N6	10	9.69e-5	7.62e-5	1.5300000000000006e-5	20011	1705994	7397376	ok	fail	got [prime_pi(10000000000), prime(10000000000)], expected [455052511, 252097800623]
+mathcas-v2 0.0.0	N	N6	12	9.72e-5	7.5e-5	1.5200000000000004e-5	20056	1705994	7397376	ok	fail	got [prime_pi(1000000000000), prime(1000000000000)], expected [37607912018, 29996224275833]
+mathcas-v2 0.0.0	N	N7	30	9.48e-5	7.73e-5	1.270000000000001e-5	20555	68886	7376896	ok	fail	property gave factor_integer(next_prime(2*10^(-1 + floor(15)))*next_prime(... (167 chars)
+mathcas-v2 0.0.0	N	N7	45	9.68e-5	7.88e-5	1.019999999999999e-5	19929	68886	7430144	ok	fail	property gave factor_integer(next_prime(2*10^(-1 + floor(45/2)))*next_prim... (175 chars)
+mathcas-v2 0.0.0	N	N7	60	9.44e-5	7.78e-5	8.700000000000008e-6	20502	68886	7385088	ok	fail	property gave factor_integer(next_prime(2*10^(-1 + floor(30)))*next_prime(... (167 chars)
+mathcas-v2 0.0.0	N	N9	10^5	6.5229e-2	6.44218e-2	6.017499999999981e-4	31	3007736	13406208	ok	fail	property gave { let c = 11817272444050056811636487347657110606840146586890... (630881 chars)
+mathcas-v2 0.0.0	N	N9	10^6	7.969534e-1	7.942141e-1	4.232200000000019e-3	5	26293746	62791680	ok	fail	property gave { let c = 53109532908444800968844658791102364947313641074555... (6308330 chars)
+mathcas-v2 0.0.0	N	N9	10^7	1.055770995e1	1.04721767e1	1.0769402499999892e-1	4	160912452	451866624	ok	unchecked	property stopped at the time limit; 4 repetitions fit in the time limit
+mathcas-v2 0.0.0	N	N10	10^4	9.72e-5	7.88e-5	1.2000000000000007e-5	19681	69877	7368704	ok	fail	property gave integer_exponent(denominator(sum(map(k => k^-1, range(10000)... (162 chars)
+mathcas-v2 0.0.0	N	N10	10^5	9.8e-5	8.06e-5	1.17e-5	19505	69877	7413760	ok	fail	property gave integer_exponent(denominator(sum(map(k => k^-1, range(100000... (165 chars)
+mathcas-v2 0.0.0	N	N10	10^6	9.98e-5	8.02e-5	1.299999999999999e-5	19321	69877	7442432	ok	fail	property gave integer_exponent(denominator(sum(map(k => k^-1, range(100000... (168 chars)
+mathcas-v2 0.0.0	N	N12	-	1.112e-4	9.16e-5	1.2900000000000002e-5	17422	1706366	7393280	ok	fail	got [exp(pi*sqrt(163)) < 262537412640768744, pi^4 + pi^5 < exp(6... (94 chars), expected [true, true, true]
+mathcas-v2 0.0.0	P	P1	10	1.062e-4	8.22e-5	1.3925e-5	17796	69139	7389184	ok	fail	property gave length(expand((1 + expand((1 + x + y + z)^10))*expand((1 + x... (218 chars)
+mathcas-v2 0.0.0	P	P1	20	1.007e-4	7.86e-5	1.1099999999999999e-5	19536	69139	7385088	ok	fail	property gave length(expand((1 + expand((1 + x + y + z)^20))*expand((1 + x... (230 chars)
+mathcas-v2 0.0.0	P	P1	30	9.46e-5	7.74e-5	1.2199999999999998e-5	20568	69139	7409664	ok	fail	property gave length(expand((1 + expand((1 + x + y + z)^30))*expand((1 + x... (242 chars)
+mathcas-v2 0.0.0	P	P2	10	9.94e-5	7.38e-5	1.7699999999999997e-5	19785	69139	7434240	ok	fail	property gave length(expand((1 + expand((1 + t + x + y + z)^10))*expand((1... (243 chars)
+mathcas-v2 0.0.0	P	P2	15	1.012e-4	7.76e-5	1.8699999999999994e-5	19238	69139	7434240	ok	fail	property gave length(expand((1 + expand((1 + t + x + y + z)^15))*expand((1... (250 chars)
+mathcas-v2 0.0.0	P	P2	20	9.6e-5	7.77e-5	1.1900000000000005e-5	20329	69139	7409664	ok	fail	property gave length(expand((1 + expand((1 + t + x + y + z)^20))*expand((1... (257 chars)
+mathcas-v2 0.0.0	P	P4	5	9.77e-5	7.91e-5	1.1400000000000006e-5	20004	68565	7401472	ok	fail	property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^5)*(1 + y*z + x... (324 chars)
+mathcas-v2 0.0.0	P	P4	10	9.84e-5	7.91e-5	1.1800000000000002e-5	19738	68565	7454720	ok	fail	property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^10)*(1 + y*z + ... (330 chars)
+mathcas-v2 0.0.0	P	P4	15	9.79e-5	7.87e-5	1.4699999999999991e-5	19962	68565	7401472	ok	fail	property gave expand(gcd(expand(expand(3 + (1 + x + y + z)^15)*(1 + y*z + ... (330 chars)
+mathcas-v2 0.0.0	P	P5	32	9.31e-5	7.57e-5	1.1099999999999999e-5	20945	68573	7335936	ok	fail	property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^32)*(7 + -3*... (136 chars)
+mathcas-v2 0.0.0	P	P5	64	9.74e-5	7.54e-5	1.34e-5	19767	68573	7380992	ok	fail	property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^64)*(7 + -3*... (136 chars)
+mathcas-v2 0.0.0	P	P5	128	9.7e-5	7.71e-5	1.1200000000000001e-5	19752	68573	7364608	ok	fail	property gave expand(factor(expand((1 + x + x^3)*(1 + 2*x + x^128)*(7 + -3... (138 chars)
+mathcas-v2 0.0.0	P	P7	20	9.79e-5	7.73e-5	1.3999999999999988e-5	19655	68881	7303168	ok	fail	got resultant(expand(-x + (2 + x)^20), 7 + expand(-x + (2 + x)^2... (66 chars), expected 79792266297612001
+mathcas-v2 0.0.0	P	P7	50	9.67e-5	7.81e-5	8.600000000000006e-6	20052	68881	7380992	ok	fail	got resultant(expand(-x + (2 + x)^50), 7 + expand(-x + (2 + x)^5... (66 chars), expected 1798465042647412146620280340569649349251249
+mathcas-v2 0.0.0	P	P7	100	9.76e-5	7.92e-5	1.1800000000000002e-5	20001	68881	7393280	ok	fail	got resultant(expand(-x + (2 + x)^100), 7 + expand(-x + (2 + x)^... (68 chars), expected 323447650962475799134464776910021681085720319890462540093389... (85 chars)
+mathcas-v2 0.0.0	P	P11	10^4	9.66e-5	7.78e-5	1.1200000000000001e-5	20156	68862	7389184	ok	fail	property gave length(expand(sum(map(k => (10000000000000000000000000000000... (356 chars)
+mathcas-v2 0.0.0	P	P11	10^5	9.72e-5	7.87e-5	8.099999999999994e-6	19898	68862	7376896	ok	fail	property gave length(expand(sum(map(k => (10000000000000000000000000000000... (360 chars)
+mathcas-v2 0.0.0	P	P11	10^6	1.005e-4	8.03e-5	1.3100000000000007e-5	19097	68862	7397376	ok	fail	property gave length(expand(sum(map(k => (10000000000000000000000000000000... (364 chars)
+mathcas-v2 0.0.0	P	P12	100	9.78e-5	7.78e-5	1.17e-5	19604	1706345	7417856	ok	fail	property gave [coefficient(normal(series(exp(sin(x)), x, 0, 100)), x, 3), ... (266 chars)
+mathcas-v2 0.0.0	P	P12	1000	1.009e-4	7.9e-5	1.4700000000000005e-5	19052	1706346	7434240	ok	fail	property gave [coefficient(normal(series(exp(sin(x)), x, 0, 1000)), x, 3),... (270 chars)
+mathcas-v2 0.0.0	P	P12	10000	1.021e-4	8.07e-5	1.749999999999999e-5	19225	1706347	7421952	ok	fail	property gave [coefficient(normal(series(exp(sin(x)), x, 0, 10000)), x, 3)... (274 chars)
+mathcas-v2 0.0.0	S	S1	10^5	1.059e-4	8.61e-5	1.4599999999999989e-5	18165	71156	7405568	ok	fail	got sum(select(map(k => k^2, range(100000)), k => mod(k, 3) == 1... (62 chars), expected 222225555588889
+mathcas-v2 0.0.0	S	S1	10^6	1.05e-4	8.64e-5	9.199999999999993e-6	18378	71156	7434240	ok	fail	got sum(select(map(k => k^2, range(1000000)), k => mod(k, 3) == ... (63 chars), expected 222222555555888889
+mathcas-v2 0.0.0	S	S1	10^7	1.041e-4	8.55e-5	1.1999999999999994e-5	18593	71156	7405568	ok	fail	got sum(select(map(k => k^2, range(10000000)), k => mod(k, 3) ==... (64 chars), expected 222222255555558888889
+mathcas-v2 0.0.0	S	S2	10^4	9.9e-5	8.1e-5	9.999999999999999e-6	19673	68568	7401472	ok	fail	property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 10000)),... (553 chars)
+mathcas-v2 0.0.0	S	S2	10^5	9.99e-5	8.06e-5	1.0400000000000009e-5	19483	68568	7409664	ok	fail	property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 100000))... (562 chars)
+mathcas-v2 0.0.0	S	S2	10^6	9.87e-5	8.2e-5	6.200000000000002e-6	19618	68568	7426048	ok	fail	property gave length(sort(map(k => [k, x^mod(k, 7), f(mod(7919*k, 1000000)... (571 chars)
+mathcas-v2 0.0.0	S	S6	100	9.78e-5	7.78e-5	1.1400000000000006e-5	19943	69053	7380992	ok	fail	property gave length(flatten(transpose(map(i => map(j => j + 100*i, range(... (380 chars)
+mathcas-v2 0.0.0	S	S6	316	9.65e-5	8.02e-5	9.000000000000002e-6	20073	69053	7417856	ok	fail	property gave length(flatten(transpose(map(i => map(j => j + 316*i, range(... (380 chars)
+mathcas-v2 0.0.0	S	S6	1000	9.79e-5	7.94e-5	1.34e-5	19433	69053	7393280	ok	fail	property gave length(flatten(transpose(map(i => map(j => j + 1000*i, range... (398 chars)
+mathcas-v2 0.0.0	S	S7	10^4	1.041e-4	8.44e-5	1.17e-5	18354	69640	7421952	ok	fail	got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (88 chars), expected 3333
+mathcas-v2 0.0.0	S	S7	10^5	1.023e-4	8.49e-5	8.699999999999995e-6	18956	69640	7450624	ok	fail	got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (89 chars), expected 33333
+mathcas-v2 0.0.0	S	S7	10^6	1.046e-4	8.43e-5	1.61e-5	18102	69640	7426048	ok	fail	got length(cases(map(k => if mod(k, 3) == 0 then f(k) else g(k),... (90 chars), expected 333333
+mathcas-v2 0.0.0	S	S8	10^5	1.029e-4	8.32e-5	1.3099999999999993e-5	18577	70348	7512064	ok	fail	got length(map(k => h(k, 1 + k), range(100000))), expected 100000
+mathcas-v2 0.0.0	S	S8	10^6	1.038e-4	8.31e-5	1.62e-5	18333	70348	7426048	ok	fail	got length(map(k => h(k, 1 + k), range(1000000))), expected 1000000
+mathcas-v2 0.0.0	S	S8	10^7	1.16e-4	8.26e-5	1.9700000000000005e-5	17261	70348	7426048	ok	fail	got length(map(k => h(k, 1 + k), range(10000000))), expected 10000000

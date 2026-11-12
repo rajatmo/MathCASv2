@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# specularity
+
+#% text
+# `specularity(c, n)` is a directive of 3D graphics: a shine of colour `c` and exponent `n` on the faces that follow.
+
+#% section
+# Details
+
+#% item
+# The 3D renderer shades faces with its own fixed light; `specularity` is accepted in graphics and plot options, so code written for other lighting runs, and is not drawn.
+
+#% item
+# The call stays as it is when evaluated alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d([specularity(white, 20), orange, sphere()])
+#% output
+#= image("specularity.files/specularity-1.svgz")
+
+#% cell
+plot3d(x^2 - y^2, [x, -1, 1], [y, -1, 1], plot_style: [specularity(white, 50)])
+#% output
+#= image("specularity.files/specularity-2.svgz")
+
+#% cell
+specularity(white, 20)
+#% output
+#= specularity(white, 20)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics3d([orange, sphere()])
+#% output
+#= image("specularity.files/specularity-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `plot3d`, `lighting`, `glow`

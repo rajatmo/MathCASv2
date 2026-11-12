@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# nonpositive_rationals
+
+#% text
+# `nonpositive_rationals` is the domain of the rational numbers that are less than or equal to 0.
+
+#% section
+# Details
+
+#% item
+# `element(x, nonpositive_rationals)` decides numbers and gives `element(x, rationals) and x <= 0` for a symbol.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(-2/3, nonpositive_rationals)
+#% output
+#= true
+
+#% cell
+element(1/2, nonpositive_rationals)
+#% output
+#= false
+
+#% cell
+element(x, nonpositive_rationals)
+#% output
+#= element(x, rationals) and x <= 0
+
+#% cell
+reduce((2*x^2 - 1)*(4*x^2 - 1) == 0, x, nonpositive_rationals)
+#% output
+#= x == -1/2
+
+#% section
+# See also
+
+#% text
+# `nonnegative_rationals`, `negative_rationals`, `rationals`

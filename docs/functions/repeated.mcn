@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# repeated
+
+#% text
+# `repeated(p)` is a pattern that matches a run of one or more consecutive arguments, each matching `p`; a variable in `p` must bind the same term in every repetition. `repeated(p, n)` takes at most `n`, `repeated(p, [n])` exactly `n`, and `repeated(p, [m, n])` from `m` to `n` arguments (`inf`: no limit; `[0, inf]` also allows none). It stands among the arguments of a call whose head is not associative and commutative, like a sequence variable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+match_q([a, a, a], [repeated(a)])
+#% output
+#= true
+
+#% cell
+rewrite([[], [a, a], [a, b], [a, a, a]], [repeated(a)] -> x)
+#% output
+#= [[], x, [a, b], x]
+
+#% cell
+cases([f(1, 2), f(), f(1, x)], f(repeated(_: Int, [0, inf])))
+#% output
+#= [f(1, 2), f()]
+
+#% cell
+match_q([3, 3, 3], [repeated(x_ when is_integer(x/3))])
+#% output
+#= true
+
+#% cell
+match_q([3, 6, 9], [repeated(x_)])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `cases`, `match_q`, `rewrite`

@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# blend
+
+#% text
+# `blend([c1, c2, ...])` gives the average of the colours.
+
+#% text
+# `blend([c1, c2, ..., cn], t)` gives the colour a fraction t of the way along c1, c2, ..., cn, evenly spaced: c1 at 0, cn at 1.
+
+#% section
+# Details
+
+#% item
+# Red, green, blue and opacity are mixed linearly; t is clipped to [0, 1].
+
+#% item
+# The result is an `rgb_color` with machine-real components.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Halfway between red and blue:
+
+#% cell
+blend([red, blue])
+#% output
+#= rgb_color(1/2, 0, 1/2)
+
+#% text
+# Three quarters of the way along red, green, blue:
+
+#% cell
+blend([red, green, blue], 0.75)
+#% output
+#= rgb_color(0.0, 0.5, 0.5)
+
+#% subsection
+# Applications
+
+#% text
+# A colour ramp of rectangles:
+
+#% cell
+graphics(table([blend([blue, white, red], k/8), rectangle([k, 0])], k, range(0, 8)))
+#% output
+#= image("blend.files/blend-3.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# Every element must be a colour:
+
+#% cell
+blend([red, 5])
+#% output
+#! failure(argument, blend, 1)
+
+#% section
+# See also
+
+#% text
+# `lighter`, `darker`, `color_convert`, `hue`

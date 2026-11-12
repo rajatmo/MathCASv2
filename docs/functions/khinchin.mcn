@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# khinchin
+
+#% text
+# `khinchin` is Khinchin's constant 2.6854..., the limit of the geometric mean of the continued fraction terms of almost every real number.
+
+#% section
+# Details
+
+#% item
+# `n(khinchin, p)` sums the series `ln K = (1/ln 2) sum over k of (zeta(2k) - 1)/k (1 - 1/2 + ... - 1/(2k - 1))`, whose terms fall like `4^-k`.
+
+#% item
+# It is a symbol that `n` turns into numbers; it is not used inside larger expressions by `n` yet.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(khinchin)
+#% output
+#= 2.6854520010653062
+
+#% cell
+n(khinchin, 30)
+#% output
+#= 2.685452001065306445309714835481796
+
+#% cell
+n(khinchin, 50)
+#% output
+#= 2.685452001065306445309714835481795693820382293994462953
+
+#% cell
+n(product(map(t => t^(1/200), continued_fraction(pi, 200))))
+#% output
+#= 2.727377466661712
+
+#% section
+# See also
+
+#% text
+# `continued_fraction`, `euler_gamma`

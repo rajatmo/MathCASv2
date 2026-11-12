@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# hamilton_equations
+
+#% text
+# `hamilton_equations(H, q, p, t)` gives Hamilton's equations `q' == dH/dp`, `p' == -dH/dq` of the Hamiltonian `H` in the coordinates `q` and momenta `p`, as equations in functions of `t`.
+
+#% section
+# Details
+
+#% item
+# The coordinates and momenta are names, or lists of names of equal length; `H` may use them as names (`x`, `p`) or as functions (`x(t)`, `p(t)`).
+
+#% item
+# The equations of the coordinates come first, then those of the momenta; `d_solve` and `n_dsolve` take them as they are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hamilton_equations(p^2/(2*m) + k*x^2/2, x, p, t)
+#% output
+#= [x'(t) == p(t)/m, p'(t) == -k*x(t)]
+
+#% cell
+hamilton_equations(legendre_transform(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], [pr, pth], t), [r, th], [pr, pth], t)
+#% output
+#= [r'(t) == pr(t)/m, th'(t) == pth(t)/(m*r(t)^2), pr'(t) == -V'(r(t)) + pth(t)^2/(m*r(t)^3), pth'(t) == 0]
+
+#% text
+# Solved for the oscillator:
+
+#% cell
+eqs = hamilton_equations(p^2/2 + x^2/2, x, p, t)
+
+#% cell
+d_solve(eqs, [x(t), p(t)], t)
+#% output
+#= [[x(t) -> c(1)*cos(t) + c(2)*sin(t), p(t) -> c(2)*cos(t) - c(1)*sin(t)]]
+
+#% section
+# See also
+
+#% text
+# `legendre_transform`, `poisson_bracket`, `euler_lagrange_equations`, `d_solve`

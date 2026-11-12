@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# exception_data
+
+#% text
+# `exception_data(exc)` gives the data association of the exception `exc`.
+
+#% section
+# Details
+
+#% item
+# `exception(type)` has an empty association; data that is not an association is under the key `payload`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exception_data(exception(data_error, assoc(data -> 42)))
+#% output
+#= assoc(data -> 42)
+
+#% cell
+exception_data(exception(invalid_expression, a + b))
+#% output
+#= assoc(payload -> a + b)
+
+#% subsection
+# Possible issues
+
+#% text
+# Data that is a list or a string is kept under `payload`; the argument must be an exception:
+
+#% cell
+[exception_data(exception(t1, [1, 2])), exception_data(exception(t1, "text")), exception_data(5)]
+#% output
+#= [assoc(payload -> [1, 2]), assoc(payload -> "text"), failure(no_match, exception_data, [5])]
+
+#% section
+# See also
+
+#% text
+# `exception`, `exception_type`

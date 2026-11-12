@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# luv_color
+
+#% text
+# `luv_color(l, u, v)`: a colour in CIE L*u*v* (D50 white; l from 0 to 1, u and v divided by 100)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([luv_color(0.6, 0.8, 0.2), disk()])
+#% output
+#= image("luv_color.files/luv_color-1.svgz")
+
+#% cell
+color_convert(blue, "LUV")
+#% output
+#= luv_color(0.2956790267922021, -0.1153847155694243, -1.2196875794528064)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

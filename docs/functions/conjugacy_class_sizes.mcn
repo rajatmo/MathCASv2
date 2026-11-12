@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# conjugacy_class_sizes
+
+#% text
+# `conjugacy_class_sizes(G)`: the sizes of the conjugacy classes, in the order of the representatives
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conjugacy_class_sizes(symmetric_group(4))
+#% output
+#= [1, 3, 6, 8, 6]
+
+#% cell
+total(conjugacy_class_sizes(mathieu_group(11)))
+#% output
+#= 7920
+
+#% section
+# See also
+
+#% text
+# `conjugacy_class_representatives`, `group_centralizer`

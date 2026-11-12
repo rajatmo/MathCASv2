@@ -1,0 +1,39 @@
+Colour profiles in the PDF reader (crates hayro-interpret and hayro-jpeg2000, by the same author):
+
+- CGATS001Compat-v2-micro.icc and ProPhoto-v2-micro.icc come from the Compact-ICC-Profiles project and are
+  available under CC0 1.0 Universal (the crates' assets/CGATS_LICENSE.txt and assets/LICENSE.txt, reproduced above).
+- LAB.icc (484 bytes, embedded by hayro-interpret) is a Lab identity profile generated with the LittleCMS library;
+  its own copyright tag reads "No copyright, use freely". hayro-jpeg2000 ships the byte-identical file and states
+  in its assets README that all of its profiles can be used under CC0 1.0 Universal, whose text is reproduced
+  above. The test the_embedded_lab_profile_is_the_cc0_one (crates/mc-bench/tests/notices.rs) checks that the two
+  files stay identical.
+
+Fonts embedded by the PDF reader (hayro-interpret's assets/*.pfb, the standard 14 PDF fonts) were extracted from
+PDFium; their BSD-style licence (assets/LICENSE_FOXIT) is reproduced above.
+
+The application icon (assets/app/icon_*.png, icon.ico) shows the calligraphic letters C and M of the Computer Modern
+math symbol font (cmsy, in the Type 1 version by the American Mathematical Society), drawn by TeX from
+assets/app/src/icon.tex and rasterised; those fonts are available under the SIL Open Font License 1.1, whose text is
+reproduced above with the bundled fonts. The interface icons (assets/icons) are drawn in TikZ without any font.
+
+The integration rules of crates/mc-integrate-rules (rules/*.rules, compiled into the programs) are translated from Rubi, Rich's
+rule-based integrator (github.com/RuleBasedIntegration/Rubi), into MathCAS's own pattern notation. Rubi is available
+under the MIT License:
+
+    MIT License
+
+    Copyright (c) 2018 Rule-Based-Integration Organization
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+    documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+    to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+    the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+    THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+    CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+    IN THE SOFTWARE.

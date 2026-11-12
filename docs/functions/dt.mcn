@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# dt
+
+#% text
+# `dt(e, x)` gives the total derivative of e in x: every other symbol is a function of x, its derivative written `dt(s, x)`.
+
+#% text
+# `dt(e)` gives the total differential, the sum of `d(e, s) dt(s)` over the symbols s of e; `dt(e, [x, k])` the k-th total derivative; `dt(e, x1, x2, ...)` one variable after the other.
+
+#% section
+# Details
+
+#% item
+# Numbers and constants such as `pi` and `e` have total derivative 0; `dt(x, x)` is 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dt(a*x + b, x)
+#% output
+#= a + dt(b, x) + x*dt(a, x)
+
+#% cell
+dt(x*y)
+#% output
+#= x*dt(y) + y*dt(x)
+
+#% cell
+dt(x^2*y, [x, 2])
+#% output
+#= 2*y + dt(y, [x, 2])*x^2 + 4*x*dt(y, x)
+
+#% cell
+dt(sin(x*y), x)
+#% output
+#= (y + x*dt(y, x))*cos(x*y)
+
+#% section
+# See also
+
+#% text
+# `d`, `implicit_d`

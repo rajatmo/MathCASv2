@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# resultant
+
+#% text
+# `resultant(p, q, x)` gives the resultant of the polynomials `p` and `q` with respect to `x`.
+
+#% section
+# Details
+
+#% item
+# The resultant is the determinant of the Sylvester matrix; it is 0 exactly when `p` and `q` have a common root in `x` (or both leading coefficients vanish). Other symbols are parameters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+resultant(x^2 - 1, x - 1, x)
+#% output
+#= 0
+
+#% cell
+resultant(x^2 - 1, x - 2, x)
+#% output
+#= 3
+
+#% cell
+resultant(x^2 + a*x + 1, x - b, x)
+#% output
+#= 1 + a*b + b^2
+
+#% subsection
+# Applications
+
+#% text
+# Eliminating `x` from two equations gives a condition on `y`:
+
+#% cell
+resultant(x^2 + y^2 - 1, x - y, x)
+#% output
+#= -1 + 2*y^2
+
+#% text
+# The polynomial of `sqrt(2) + sqrt(3)`, by eliminating `y` from `y^2 = 2` and `(x - y)^2 = 3`:
+
+#% cell
+expand(resultant(y^2 - 2, (x - y)^2 - 3, y))
+#% output
+#= 1 - 10*x^2 + x^4
+
+#% subsection
+# Properties and relations
+
+#% text
+# The resultant of `p` and its derivative is the discriminant up to a factor:
+
+#% cell
+p = x^3 - 2*x + 1; [resultant(p, d(p, x), x), discriminant(p, x)]
+#% output
+#= [-5, 5]
+
+#% section
+# See also
+
+#% text
+# `discriminant`, `eliminate`, `polynomial_gcd`, `groebner_basis`

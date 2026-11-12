@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# red
+
+#% text
+# `red` is the colour red, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([red, disk()])
+#% output
+#= image("red.files/red-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [red])
+#% output
+#= image("red.files/red-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(red), disk([0, 0])], [red, disk([2, 0])], [darker(red), disk([4, 0])]])
+#% output
+#= image("red.files/red-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `green`, `blue`, `rgb_color`, `lighter`

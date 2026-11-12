@@ -1,0 +1,103 @@
+#! mathcas 2 notebook
+
+#% title
+# logistic_sigmoid
+
+#% text
+# `logistic_sigmoid(z)` gives the logistic function `1/(1 + exp(-z))`.
+
+#% section
+# Details
+
+#% item
+# The function rises from 0 to 1 with value 1/2 at 0; `logistic_sigmoid(-z)` is `1 - logistic_sigmoid(z)`.
+
+#% item
+# `logistic_sigmoid(0)` is 1/2; other exact arguments stay unevaluated. Machine numbers and balls give numerical values, without overflow for large `abs(z)`.
+
+#% item
+# `logistic_sigmoid` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+logistic_sigmoid(0)
+#% output
+#= 1/2
+
+#% cell
+logistic_sigmoid(2.0)
+#% output
+#= 0.8807970779778823
+
+#% cell
+logistic_sigmoid(x)
+#% output
+#= logistic_sigmoid(x)
+
+#% cell
+logistic_sigmoid([-1.0, 0.0, 1.0])
+#% output
+#= [0.2689414213699951, 0.5, 0.7310585786300049]
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments:
+
+#% cell
+logistic_sigmoid(800.0)
+#% output
+#= 1.0
+
+#% cell
+logistic_sigmoid(-800.0)
+#% output
+#= 0.0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative is `s*(1 - s)`, checked by a difference quotient:
+
+#% cell
+s = logistic_sigmoid; (s(0.3 + 1.0e-6) - s(0.3 - 1.0e-6))/2.0e-6 - s(0.3)*(1 - s(0.3))
+#% output
+#= 1.3752637917363586e-11
+
+#% text
+# The relation to `tanh`:
+
+#% cell
+logistic_sigmoid(1.4) - (1 + tanh(0.7))/2
+#% output
+#= 0.0
+
+
+#% text
+# The derivative and the series:
+
+#% cell
+[d(logistic_sigmoid(x), x), series(logistic_sigmoid(x), x, 0, 5)]
+#% output
+#= [(1 - logistic_sigmoid(x))*logistic_sigmoid(x), 1/2 + x/4 - x^3/48 + x^5/480 + O(x^6)]
+
+#% text
+# At multiples of i pi:
+
+#% cell
+[logistic_sigmoid(2*im*pi), logistic_sigmoid(im*pi/2)]
+#% output
+#= [1/2, 1/2 + im/2]
+
+#% section
+# See also
+
+#% text
+# `exp`, `tanh`, `log`

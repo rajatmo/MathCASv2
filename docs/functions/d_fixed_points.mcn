@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# d_fixed_points
+
+#% text
+# `d_fixed_points(eqs, vars, t)` gives the fixed points (equilibria) of the ordinary differential equations `eqs` in the unknowns `vars` of `t`: the constant solutions.
+
+#% section
+# Details
+
+#% item
+# Each fixed point is a list of the state: for an unknown `y` of order `k`, the values of `y`, `y'`, ..., `y^(k - 1)` (the derivatives are 0).
+
+#% item
+# `vars` may be `y`, `y(t)` or a list of them; `eqs` an equation or a list.
+
+#% item
+# Solutions that depend on `t` are not constant and are left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d_fixed_points(x'(t) == 2*x(t) + 1, x(t), t)
+#% output
+#= [[-1/2]]
+
+#% cell
+d_fixed_points(y'(t) == a*y(t) + 5, y, t)
+#% output
+#= [[-5/a]]
+
+#% cell
+d_fixed_points(x'(t) == x(t)^2 - 5*x(t) + 6, x, t)
+#% output
+#= [[2], [3]]
+
+#% cell
+d_fixed_points(y(x)^2 + 3*y'(x) + y''(x) == 2, y, x)
+#% output
+#= [[-2^(1/2), 0], [2^(1/2), 0]]
+
+#% cell
+d_fixed_points([x'(t) == -x(t) - y(t), y'(t) == 2*x(t) - y(t)], [x, y], t)
+#% output
+#= [[0, 0]]
+
+#% section
+# See also
+
+#% text
+# `r_fixed_points`, `d_solve`, `solve`

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetry_d_solve
+
+#% text
+# `symmetry_d_solve(eq, y, x)` solves a first- or second-order ordinary differential equation for `y(x)` by a Lie point symmetry, giving rules `[[y(x) -> sol]]` or an implicit equation `[[lhs == rhs]]`. `symmetry_d_solve(eq, y, x, generator: [xi, eta])` uses the given symmetry.
+
+#% section
+# Details
+
+#% item
+# The symmetries come from `lie_point_symmetries`; for a first-order equation, whose symmetries are not found that way, from polynomial generators of degree 1 and then 2 (`lie_point_symmetries(..., degree: k)`).
+
+#% item
+# In canonical coordinates `r, s` a first-order equation becomes `ds/dr == G(r)`, a quadrature; a second-order equation becomes a first-order equation for `v = ds/dr`, solved by `d_solve`, and `s` is its integral. The constants are `c(1)`, `c(2)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A homogeneous equation, by its scaling symmetry:
+
+#% cell
+symmetry_d_solve(y'(x) == (y(x)/x)^2 + y(x)/x, y, x)
+#% output
+#= [[y(x) -> x/(c(1) - log(x))]]
+
+#% text
+# A second-order equation invariant under translations in `y`:
+
+#% cell
+symmetry_d_solve(x*y''(x) + y'(x) == x*y'(x)^3, y, x, generator: [0, 1])
+#% output
+#= [[y(x) -> c(2) + log(-c(1)^(1/2) + c(1)*(2*x + c(1)*x^2)^(1/2)/(2 + x*c(1)))/c(1)^(1/2) - log(c(1)*(2*x + c(1)*x^2)^(1/2)/(2 + x*c(1)) + c(1)^(1/2))/c(1)^(1/2)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The solution satisfies the equation:
+
+#% cell
+simplify(rewrite(y'(x) - (y(x)/x)^2 - y(x)/x, y -> (x => x/(c(1) - log(x)))))
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `canonical_coordinates`, `symmetry_reduce_order`, `lie_point_symmetries`, `d_solve`

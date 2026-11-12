@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_quotient_remainder
+
+#% text
+# `polynomial_quotient_remainder(p, q, x)` gives `[quotient, remainder]` of the polynomial `p` by `q` in `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_quotient_remainder(x^3 + 2*x + 1, x^2 + 1, x)
+#% output
+#= [x, 1 + x]
+
+#% cell
+polynomial_quotient_remainder(x^4 - 1, x - 1, x)
+#% output
+#= [1 + x + x^2 + x^3, 0]
+
+#% section
+# See also
+
+#% text
+# `polynomial_quotient`, `polynomial_remainder`

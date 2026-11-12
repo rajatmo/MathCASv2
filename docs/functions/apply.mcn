@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# apply
+
+#% text
+# `apply(f, xs)` replaces the head of `xs` by `f`: `apply(f, [a, b])` is `f(a, b)`.
+
+#% text
+# `apply(f, x, levels)` replaces the heads of the parts at the levels.
+
+#% section
+# Details
+
+#% item
+# The arguments of an association are its values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+apply(f, [a, b, c])
+#% output
+#= f(a, b, c)
+
+#% cell
+apply(add, [1, 2, 3])
+#% output
+#= 6
+
+#% subsection
+# Scope
+
+#% text
+# At level 1:
+
+#% cell
+apply(f, [[1, 2], [3]], [1])
+#% output
+#= [f(1, 2), f(3)]
+
+#% text
+# The values of an association:
+
+#% cell
+apply(f, assoc(a -> 1, b -> 2))
+#% output
+#= f(1, 2)
+
+#% text
+# Operator form:
+
+#% cell
+apply(mul)([2, 3, 7])
+#% output
+#= 42
+
+#% section
+# See also
+
+#% text
+# `map`, `fold`

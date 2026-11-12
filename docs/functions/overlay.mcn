@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# overlay
+
+#% text
+# `overlay([a, b, ...])`: the items drawn on top of each other (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+overlay([2, 4])
+#% output
+#= overlay([2, 4])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

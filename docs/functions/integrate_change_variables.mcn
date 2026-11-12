@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# integrate_change_variables
+
+#% text
+# `integrate_change_variables(inactive(integrate)(f, x), u, eq)` rewrites the inactive integral in the new variable u, related to x by the equation eq (`u == g(x)` or `x == h(u)`).
+
+#% text
+# `integrate_change_variables(inactive(integrate)(f, x, y), [u, v], [eq1, eq2])` changes several variables, with the absolute value of the Jacobian determinant.
+
+#% section
+# Details
+
+#% item
+# The integrand becomes `f/g'` written in u (or `f(h(u)) h'(u)`); the limits of a definite integral are mapped through g.
+
+#% item
+# The result is still inactive: `activate` evaluates it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integrate_change_variables(inactive(integrate)(exp(2*x), x), t, t == 2*x)
+#% output
+#= inactive(integrate)((1/2)*exp(t), t)
+
+#% cell
+integrate_change_variables(inactive(integrate)(sin(x)*cos(x), [x, 0, pi/2]), t, t == sin(x))
+#% output
+#= inactive(integrate)(t, [t, 0, 1])
+
+#% cell
+integrate_change_variables(inactive(integrate)(log(x), [x, 1, 2]), u, u == log(x))
+#% output
+#= inactive(integrate)(u*exp(u), [u, 0, log(2)])
+
+#% cell
+activate(integrate_change_variables(inactive(integrate)(exp(2*x), [x, 1, 3]), u, u == 2*x))
+#% output
+#= (1/2)*(-exp(2) + exp(6))
+
+#% cell
+integrate_change_variables(inactive(integrate)(sin(2*x)*cos(2*y), x, y), [u, v], [u == 2*x, v == 2*y])
+#% output
+#= inactive(integrate)((1/4)*cos(v)*sin(u), u, v)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `inactive`, `activate`

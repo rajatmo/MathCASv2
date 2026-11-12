@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# kronecker_product
+
+#% text
+# `kronecker_product(a, b, ...)` gives the Kronecker product of matrices or vectors.
+
+#% section
+# Details
+
+#% item
+# For an `m` by `n` matrix `a` and a `p` by `q` matrix `b`, the result is the `m*p` by `n*q` block matrix whose blocks are `a[i, j]*b`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kronecker_product([[1, 2], [3, 4]], [[0, 1], [1, 0]])
+#% output
+#= [[0, 1, 0, 2], [1, 0, 2, 0], [0, 3, 0, 4], [3, 0, 4, 0]]
+
+#% cell
+kronecker_product([1, 2], [1, 10])
+#% output
+#= [1, 10, 2, 20]
+
+#% cell
+kronecker_product(identity_matrix(2), [[a, b], [c, d]])
+#% output
+#= [[a, b, 0, 0], [c, d, 0, 0], [0, 0, a, b], [0, 0, c, d]]
+
+#% subsection
+# Applications
+
+#% text
+# The two-qubit state `|0> (x) |1>`:
+
+#% cell
+kronecker_product([1, 0], [0, 1])
+#% output
+#= [0, 1, 0, 0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The mixed-product rule `(a (x) b).(c (x) d) = (a.c) (x) (b.d)`:
+
+#% cell
+a = [[1, 2], [0, 1]]; b = [[2, 0], [1, 1]]; c = [[0, 1], [1, 0]]; dd = [[1, 1], [0, 2]]; dot(kronecker_product(a, b), kronecker_product(c, dd)) == kronecker_product(dot(a, c), dot(b, dd))
+#% output
+#= true
+
+#% text
+# The determinant:
+
+#% cell
+[det(kronecker_product(a, b)), det(a)^2*det(b)^2]
+#% output
+#= [4, 4]
+
+#% section
+# See also
+
+#% text
+# `dot`, `outer`, `identity_matrix`

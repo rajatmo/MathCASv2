@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# alphabet
+
+#% text
+# `alphabet()` and `alphabet("English")` give the list of the lower-case letters from a to z.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+alphabet()
+#% output
+#= ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]
+
+#% cell
+take(alphabet(), 5)
+#% output
+#= ["a", "b", "c", "d", "e"]
+
+#% section
+# See also
+
+#% text
+# `character_range`, `characters`

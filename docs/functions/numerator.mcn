@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# numerator
+
+#% text
+# `numerator(x)` gives the numerator of a rational number, or the product of the factors of `x` with positive exponents.
+
+#% section
+# Details
+
+#% item
+# For a product, factors with negative exponents (such as `1/y` or `y^(-2)`) are left out; a sum is one factor and is not combined over a common denominator.
+
+#% item
+# `numerator` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+numerator(6/15)
+#% output
+#= 2
+
+#% cell
+numerator(7)
+#% output
+#= 7
+
+#% cell
+numerator(x^2/(y*z))
+#% output
+#= x^2
+
+#% cell
+numerator((x + 1)/(x - 1))
+#% output
+#= 1 + x
+
+#% subsection
+# Scope
+
+#% text
+# A sum of fractions is not brought over a common denominator; combine it first:
+
+#% cell
+numerator(1/x + 1/y)
+#% output
+#= x^-1 + y^-1
+
+#% cell
+numerator(together(1/x + 1/y))
+#% output
+#= x + y
+
+#% subsection
+# Properties and relations
+
+#% text
+# The fraction is the quotient of numerator and denominator:
+
+#% cell
+numerator(22/8)/denominator(22/8)
+#% output
+#= 11/4
+
+#% section
+# See also
+
+#% text
+# `denominator`, `together`, `cancel`

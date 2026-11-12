@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# is_vector
+
+#% text
+# `is_vector(x)` gives `true` when `x` is a list none of whose elements is a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_vector([1, 2, 3])
+#% output
+#= true
+
+#% cell
+is_vector([[1, 2], [3, 4]])
+#% output
+#= false
+
+#% cell
+is_vector([a, b])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_matrix`, `is_list`, `dimensions`

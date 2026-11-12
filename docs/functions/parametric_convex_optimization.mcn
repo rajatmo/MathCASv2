@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_convex_optimization
+
+#% text
+# `parametric_convex_optimization(f, cons, vars, params)` gives a function of the parameters `params` that returns the minimizer of the convex problem for given parameter values.
+
+#% section
+# Details
+
+#% item
+# `parametric_convex_optimization(f, cons, vars, params, prop)` returns the property `prop` ("PrimalMinimumValue", "PrimalMinimizer" or "PrimalMinimizerRules") instead of the rules.
+
+#% item
+# The parameters are a symbol or a list of up to three symbols; the returned function takes one value for each.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+parametric_convex_optimization(x + y, [x + y >= 3 + a, x >= -1], [x, y], a)(1)
+#% output
+#= [x -> -1, y -> 5]
+
+#% cell
+parametric_convex_optimization((x - a)^2 + (y - b)^2, [x >= 0, y >= 0, x + 2*y <= 1], [x, y], [a, b], "PrimalMinimumValue")(1, 1)
+#% output
+#= 4/5
+
+#% cell
+parametric_convex_optimization((x - a)^2 + (y - b)^2, [x >= 0, y >= 0, x + 2*y <= 1], [x, y], [a, b], "PrimalMinimumValue")(0, 0)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `robust_convex_optimization`, `convex_optimization`, `minimize`

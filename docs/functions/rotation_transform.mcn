@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# rotation_transform
+
+#% text
+# `rotation_transform(t), rotation_transform(t, p) (about a point of the plane), rotation_transform(t, w) and rotation_transform(t, w, p) (about an axis in space), rotation_transform(t, [u, v]) (in the plane of u and v)`: a transformation_function
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+r = rotation_transform(t)
+
+#% cell
+r([x, y])
+#% output
+#= [x*cos(t) - y*sin(t), x*sin(t) + y*cos(t)]
+
+#% cell
+rotation_transform(pi/2)([1, 0])
+#% output
+#= [0, 1]
+
+#% cell
+rotation_transform(t, [1, 0, 0], [px, py, pz])
+#% output
+#= transformation_function([[1, 0, 0, 0], [0, cos(t), -sin(t), py + pz*sin(t) - py*cos(t)], [0, sin(t), cos(t), pz - py*sin(t) - pz*cos(t)], [0, 0, 0, 1]])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

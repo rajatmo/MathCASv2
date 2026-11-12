@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# unevaluated
+
+#% text
+# `unevaluated(e)` passes `e` itself, unevaluated, as an argument of a call.
+
+#% section
+# Details
+
+#% item
+# Written as a strict argument of a call `f(..., unevaluated(e), ...)`, the call receives `e` as it is written, not its value; the call's own definitions and natives then see the unevaluated term.
+
+#% item
+# If no definition of `f` applies, the result keeps the wrapper: `f(unevaluated(e))`.
+
+#% item
+# In an argument the function holds, `unevaluated(e)` stays as it is; `eval(unevaluated(e))` keeps the wrapper too.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# `length` sees the four terms of the sum, not its value:
+
+#% cell
+length(unevaluated(5 + 6 + 7 + 8))
+#% output
+#= 4
+
+#% cell
+rule f(x_) := g(x)
+f(unevaluated(1 + 1))
+#% output
+#= g(2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without a definition that applies, the wrapper stays:
+
+#% cell
+h(unevaluated(1 + 2))
+#% output
+#= h(unevaluated(1 + 2))
+
+#% cell
+hold(eval(unevaluated(1 + 2)))
+#% output
+#= hold(unevaluated(1 + 2))
+
+#% section
+# See also
+
+#% text
+# `eval`, `set_attributes`

@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# color_bar
+
+#% text
+# `color_bar` is an option of graphics: `color_bar: [gradient, [lo, hi]]` or `[gradient, [lo, hi], label]` draws a bar of the gradient's colours with a scale from `lo` to `hi` right of the plot.
+
+#% section
+# Details
+
+#% item
+# In `density_plot` and `contour_plot` the value may be `true`, a bar for the plot's own colours and values, or `false`; `none` draws no bar.
+
+#% item
+# The gradient is a name such as `"viridis"`, `"thermal"`, `"cool_warm"` or a list of colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+density_plot(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], color_bar: true)
+#% output
+#= image("color_bar.files/color_bar-1.svgz")
+
+#% cell
+contour_plot(x^2 + y^2, [x, -1, 1], [y, -1, 1], color_bar: true)
+#% output
+#= image("color_bar.files/color_bar-2.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], color_bar: ["viridis", [0, 1], "level"])
+#% output
+#= image("color_bar.files/color_bar-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `color_function`, `density_plot`, `contour_plot`, `plot_legends`

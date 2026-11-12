@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# gray_level
+
+#% text
+# `gray_level(g)` is the gray of level g, from 0 (black) to 1 (white).
+
+#% text
+# `gray_level(g, a)` is that gray with opacity a.
+
+#% section
+# Details
+
+#% item
+# `gray` is `gray_level(0.5)`, `light_gray` 0.85 and `dark_gray` 0.25.
+
+#% item
+# Converting a colour to a gray level weighs red, green and blue by their brightness to the eye (0.299, 0.587, 0.114).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Five shades side by side:
+
+#% cell
+graphics(table([gray_level(k/4), rectangle([k, 0])], k, range(0, 4)))
+#% output
+#= image("gray_level.files/gray_level-1.svgz")
+
+#% text
+# The gray level of pure red:
+
+#% cell
+color_convert(red, gray_level)
+#% output
+#= gray_level(0.299)
+
+#% section
+# See also
+
+#% text
+# `rgb_color`, `hue`, `color_convert`

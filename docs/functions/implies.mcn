@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# implies
+
+#% text
+# `implies(p, q)` is the logical implication: `true` when `p` is `false` or `q` is `true`, and `q` when `p` is `true`.
+
+#% section
+# Details
+
+#% item
+# Otherwise the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+implies(false, x)
+#% output
+#= true
+
+#% cell
+implies(true, x)
+#% output
+#= x
+
+#% cell
+implies(p, true)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% cell
+implies(true, false)
+#% output
+#= false
+
+#% cell
+implies(p, q)
+#% output
+#= implies(p, q)
+
+#% section
+# See also
+
+#% text
+# `and`, `or`, `not`, `xor`

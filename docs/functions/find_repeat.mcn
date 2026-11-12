@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# find_repeat
+
+#% text
+# `find_repeat(xs)` gives the shortest block that the list xs repeats, a partial last copy allowed.
+
+#% text
+# `find_repeat(xs, k)` requires at least k copies. Strings give a string; an array repeats along every level; a list k = [k1, k2, ...] names the levels and their copy counts, and `same_test: f` replaces === for the elements.
+
+#% section
+# Details
+
+#% item
+# Without k the block must fit at least one and a half times; with none, the value is the empty list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_repeat([1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3])
+#% output
+#= [1, 2, 3, 4]
+
+#% cell
+find_repeat([1, 2, 1, 2, 1, 2, 1, 2], 5)
+#% output
+#= []
+
+#% cell
+find_repeat("hellohellohello")
+#% output
+#= "hello"
+
+#% section
+# See also
+
+#% text
+# `find_transient_repeat`, `partition`

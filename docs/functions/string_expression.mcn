@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# string_expression
+
+#% text
+# `string_expression(p1, p2, ...)`: the strings and patterns joined in sequence; literal strings give one string, a pattern keeps the expression symbolic
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_expression("a", "b", "c")
+#% output
+#= "abc"
+
+#% cell
+string_expression("ab", x, "c", "d")
+#% output
+#= string_expression("ab", x, "cd")
+
+#% section
+# See also
+
+#% text
+# `string_join`, `string_replace`, `string_split`

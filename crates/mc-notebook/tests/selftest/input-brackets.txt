@@ -1,0 +1,67 @@
+# Brackets and bases in typeset input (round 33): a power of a selection shows its parentheses, brackets that do not
+# match yet stay in their slot (drawn where the caret is), an empty pair goes with one Backspace, an opener typed
+# over a selection wraps it. Driven by tests/input_selftest.rs.
+size 1100 620
+ppp 1
+theme light
+new
+formula base/typed-parens
+keys "(2m)" Ctrl+6 "2"
+expect boxes "((2m)^2▮)"
+expect linear "(2m)^2"
+keys Ctrl+End Down
+formula base/selection
+keys "2m" Shift+Left Shift+Left Ctrl+6 "2"
+expect boxes "(2m^2▮)"
+expect linear "(2m)^2"
+keys Ctrl+End Down
+formula base/coefficient
+keys "2m" Ctrl+6 "2"
+expect linear "2m^2"
+keys Ctrl+End Down
+formula base/negative
+keys "-x" Shift+Left Shift+Left Ctrl+6 "2"
+expect linear "(-x)^2"
+keys Ctrl+End Down
+formula base/fraction
+keys Ctrl+/ "a" Down "b" Ctrl+Space Ctrl+6 "n"
+expect linear "(a/b)^n"
+keys Ctrl+End Down
+formula base/inside-of-brackets
+keys "y = a + b" Shift+Left Shift+Left Shift+Left Shift+Left Shift+Left "(" Ctrl+6 "2"
+expect boxes "y = ((a + b)^2▮)"
+expect linear "y = (a + b)^2"
+keys Ctrl+End Down
+formula slot/open-bracket-stays-in-the-numerator
+keys Ctrl+/ "2*m" Down "k*r" Up Home "("
+expect boxes "((▮2*m/k*r)"
+expect linear "((2*m)/(k*r)"
+keys End ")"
+expect boxes "((2*m)▮/k*r)"
+expect linear "(2*m)/(k*r)"
+keys Backspace
+expect boxes "((2*m▮/k*r)"
+keys Ctrl+End Down
+formula slot/close-bracket-stays-in-the-radicand
+keys "a + " Ctrl+2 "x)"
+expect boxes "a + √(x)▮)"
+keys Ctrl+Space " + 1"
+expect boxes "a + √(x)) + 1▮"
+keys Ctrl+End Down
+formula pair/backspace-takes-both
+keys "g = " Ctrl+2 "x" Ctrl+Space " + ("
+expect boxes "g = √(x) + (▮)"
+keys Backspace
+expect boxes "g = √(x) + ▮"
+keys Ctrl+End Down
+formula pair/opener-wraps-a-selection
+keys Ctrl+/ "a + b" Shift+Home "("
+expect boxes "((⟦a + b⟧)/□)"
+keys Ctrl+End Down
+formula slot/unmatched-bracket-is-an-error-not-a-wrong-value
+keys Ctrl+/ "1" Down "2" Up Home "("
+eval
+expect output "<none>"
+show messages
+shot brackets
+quit

@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# directional_light
+
+#% text
+# `directional_light(c, p)` is a light of colour `c` shining from the direction of the point `p`, for the option `lighting` of 3D graphics.
+
+#% section
+# Details
+
+#% item
+# The 3D renderer shades faces with its own fixed light; `directional_light` is accepted in graphics and plot options, so code written for other lighting runs, and is not drawn.
+
+#% item
+# The call stays as it is when evaluated alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(sphere(), lighting: [directional_light(white, [1, 0, 1])])
+#% output
+#= image("directional_light.files/directional_light-1.svgz")
+
+#% cell
+plot3d(x*y, [x, -1, 1], [y, -1, 1], lighting: [directional_light(yellow, [0, 1, 1])])
+#% output
+#= image("directional_light.files/directional_light-2.svgz")
+
+#% cell
+directional_light(white, [1, 1, 1])
+#% output
+#= directional_light(white, [1, 1, 1])
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics3d([orange, sphere()])
+#% output
+#= image("directional_light.files/directional_light-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `plot3d`, `lighting`, `point_light`

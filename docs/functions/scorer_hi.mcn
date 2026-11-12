@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# scorer_hi
+
+#% text
+# `scorer_hi(z)` gives the Scorer function `Hi(z)`.
+
+#% section
+# Details
+
+#% item
+# `Hi(z)` is the integral of `exp(-t^3/3 + z t)` over `t > 0`, divided by `pi`; it solves `w'' - z w = 1/pi` (DLMF 9.12).
+
+#% item
+# `Hi(0) = 2 Bi(0)/3`; `Hi(x)` grows like `Bi(x)` as `x -> infinity` and tends to 0 like `-1/(pi x)` as `x -> -infinity`.
+
+#% item
+# Numerical values come from the Maclaurin series `3^(-2/3)/pi sum_k gamma((k + 1)/3) (3^(1/3) z)^k/k!`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scorer_hi(3.0)
+#% output
+#= 13.923100094807092
+
+#% cell
+n(scorer_hi(1/3), 30)
+#% output
+#= 0.5301287993618319829747095496187327
+
+#% cell
+scorer_hi(0.2 + 1.0*im)
+#% output
+#= 0.30118043491810936 + 0.29018530779146345im
+
+#% cell
+scorer_hi(0)
+#% output
+#= 2*3^(5/6)/(9*gamma(2/3))
+
+#% text
+# `Gi + Hi = Bi`:
+
+#% cell
+scorer_gi(1.7) + scorer_hi(1.7) - airy_bi(1.7)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `scorer_gi`, `scorer_hi_prime`, `airy_bi`

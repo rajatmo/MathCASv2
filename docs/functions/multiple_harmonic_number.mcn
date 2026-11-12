@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# multiple_harmonic_number
+
+#% text
+# `multiple_harmonic_number(m, [r1, ..., rk])` gives the sum over m >= n1 > n2 > ... > nk >= 1 of 1/(n1^r1 ... nk^rk).
+
+#% text
+# `multiple_harmonic_number(m, [r1, ..., rk], [s1, ..., sk])` weights each term by s1^n1 ... sk^nk.
+
+#% section
+# Details
+
+#% item
+# For an integer m the value is computed by running sums from the innermost index outward, in O(k m) operations.
+
+#% item
+# With one index the value is `harmonic_number(m, r1)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+multiple_harmonic_number(10, [2, 3], [1/4, 1/6])
+#% output
+#= 3562366081828274275871/1207910491447571251200000
+
+#% cell
+multiple_harmonic_number(5, [1, 1])
+#% output
+#= 15/8
+
+#% cell
+n(multiple_harmonic_number(4, [20, 30]))
+#% output
+#= 9.53962023100299e-7
+
+#% section
+# See also
+
+#% text
+# `harmonic_number`, `hyper_harmonic_number`, `alternating_harmonic_number`

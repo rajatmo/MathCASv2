@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# font_slant
+
+#% text
+# `font_slant`: style option: font_slant: italic | plain
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+style("slanted", font_slant: italic)
+#% output
+#= style("slanted", font_slant: italic)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

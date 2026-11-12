@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_ds
+
+#% text
+# `jacobi_ds(u, m)` gives the Jacobi elliptic function ds(u | m).
+
+#% section
+# Details
+
+#% item
+# The ratios of `jacobi_sn`, `jacobi_cn`, `jacobi_dn` (n stands for 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_ds(0.5, 0.3)
+#% output
+#= 2.036371048308527
+
+#% cell
+jacobi_ds(u, 0)
+#% output
+#= csc(u)
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `jacobi_dn`

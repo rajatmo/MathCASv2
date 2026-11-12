@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# stieltjes_gamma
+
+#% text
+# `stieltjes_gamma(n)` gives the Stieltjes constant `gamma_n`; `stieltjes_gamma(n, a)` gives the generalized constant `gamma_n(a)`.
+
+#% section
+# Details
+
+#% item
+# The constants are the coefficients of the Laurent series `zeta(s, a) = 1/(s - 1) + sum (-1)^n gamma_n(a) (s - 1)^n/n!`; `gamma_0 = euler_gamma`.
+
+#% item
+# Values come from `gamma_n(a) = lim (sum_(k<=M) log(k + a)^n/(k + a) - log(M + a)^(n+1)/(n + 1))` by Euler-Maclaurin summation in ball arithmetic, for real `a > 0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+stieltjes_gamma(0)
+#% output
+#= euler_gamma
+
+#% cell
+n(stieltjes_gamma(1))
+#% output
+#= -0.07281584548367673
+
+#% cell
+n(stieltjes_gamma(3), 20)
+#% output
+#= 0.00205383442030334586616005
+
+#% cell
+n(stieltjes_gamma(2, 1/2), 50)
+#% output
+#= 0.968864475220290711421711062323780654182598044760418806
+
+#% cell
+stieltjes_gamma(2, 1.0)
+#% output
+#= -0.00969036319287232
+
+#% cell
+n(stieltjes_gamma(10))
+#% output
+#= 0.0002053328149090648
+
+#% text
+# The constants grow quickly:
+
+#% cell
+n(stieltjes_gamma(100), 10)
+#% output
+#= -4.253401571708027e17
+
+#% section
+# See also
+
+#% text
+# `zeta`, `euler_gamma`, `polygamma`

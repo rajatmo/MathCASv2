@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# is_rational
+
+#% text
+# `is_rational(x)` gives `true` when `x` is an exact rational number, an integer or a fraction, else `false`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_rational(2/3)
+#% output
+#= true
+
+#% cell
+is_rational(4)
+#% output
+#= true
+
+#% cell
+is_rational(0.5)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Exact irrational numbers are not rational:
+
+#% cell
+[is_rational(sqrt(2)), is_rational(pi)]
+#% output
+#= [false, false]
+
+#% section
+# See also
+
+#% text
+# `is_integer`, `numerator`, `denominator`, `rationalize`

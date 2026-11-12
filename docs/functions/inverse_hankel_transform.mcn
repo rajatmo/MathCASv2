@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_hankel_transform
+
+#% text
+# `inverse_hankel_transform(g, s, r)` gives the inverse Hankel transform of order 0, `integrate(g bessel_j(0, s r) s, [s, 0, inf])`; `inverse_hankel_transform(g, s, r, nu)` of order nu.
+
+#% section
+# Details
+
+#% item
+# The Hankel transform is its own inverse, so the forms are those of `hankel_transform`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_hankel_transform(exp(-s)/s, s, r)
+#% output
+#= (1 + r^2)^(-1/2)
+
+#% cell
+inverse_hankel_transform(1/(1 + s^2)^(3/2), s, r)
+#% output
+#= exp(-r)
+
+#% section
+# See also
+
+#% text
+# `hankel_transform`

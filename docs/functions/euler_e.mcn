@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# euler_e
+
+#% text
+# `euler_e(n)` gives the Euler number `E_n`; `euler_e(n, x)` gives the Euler polynomial.
+
+#% section
+# Details
+
+#% item
+# Odd indices give 0; `E_2`, `E_4`, ... alternate in sign: -1, 5, -61, 1385. The values are exact integers from the secant number recurrence of Brent and Harvey.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+euler_e(10)
+#% output
+#= -50521
+
+#% cell
+euler_e(range(0, 8))
+#% output
+#= [1, 0, -1, 0, 5, 0, -61, 0, 1385]
+
+#% cell
+euler_e(2, x)
+#% output
+#= -x + x^2
+
+#% section
+# See also
+
+#% text
+# `bernoulli_b`, `bell_b`

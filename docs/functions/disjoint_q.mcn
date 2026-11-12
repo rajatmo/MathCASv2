@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# disjoint_q
+
+#% text
+# `disjoint_q(xs, ys)` is `true` when the lists `xs` and `ys` have no element in common.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` differ.
+
+#% item
+# `intersecting_q` is the opposite.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+disjoint_q([1, 2], [3, 4])
+#% output
+#= true
+
+#% cell
+disjoint_q([1, 2], [2, 3])
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+disjoint_q([], [1])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `intersecting_q`, `intersection`, `is_subset`

@@ -1,0 +1,134 @@
+#! mathcas 2 notebook
+
+#% title
+# resolve
+
+#% text
+# `resolve(formula)` eliminates the quantifiers `exists` and `for_all` from a formula: a sentence becomes `true` or `false`, a formula with free variables a condition on them.
+
+#% section
+# Details
+
+#% item
+# `resolve(formula, reals)` works over the real numbers; `resolve(formula, complexes)` over the complex numbers. Without a domain, a formula with an inequality is real, one with equations and `!=` only is complex.
+
+#% item
+# Real polynomial formulas are decided by a cylindrical algebraic decomposition with certified sample points; variables that occur linearly are eliminated first by virtual substitution, and `for_all` of one polynomial inequality is first tried with a sum-of-squares certificate.
+
+#% item
+# With free variables the answer is a combination of sign conditions on polynomials in them when those describe the solution set, otherwise its cylindrical form, as `reduce` writes it.
+
+#% item
+# Square roots of polynomials are allowed (each becomes a variable `r` with `r^2 == t` and `r >= 0`).
+
+#% item
+# In a sentence, a square root of a polynomial that is nonnegative everywhere (by a sum-of-squares certificate) is squared out of its atoms by sign conditions instead of becoming a variable, so the decomposition has fewer variables.
+
+#% item
+# Over the complex numbers, several equations and `!=` in one variable are eliminated by pseudo-remainders, split on the vanishing of leading coefficients; an inequality between complex values holds only between real values (a sentence is then decided over the real and imaginary parts).
+
+#% item
+# `resolve(formula, integers)` decides sentences with one kind of quantifier over the integers: a point found (checked exactly), or a bounded problem (bounds from the real decomposition) searched completely.
+
+#% item
+# A formula that cannot be resolved comes back with its quantifiers (their variables as lists).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sentence over the reals:
+
+#% cell
+resolve(for_all(x, x^2 - x + 1 > 0))
+#% output
+#= true
+
+#% text
+# Over the complex numbers the same polynomial has roots:
+
+#% cell
+resolve(for_all(x, x^2 - x + 1 != 0))
+#% output
+#= false
+
+#% text
+# Every monic quadratic takes a nonnegative value:
+
+#% cell
+resolve(for_all([b, c], exists(x, x^2 + b*x + c >= 0)), reals)
+#% output
+#= true
+
+#% text
+# A condition on the parameters:
+
+#% cell
+resolve(for_all(x, a*x^2 + b*x + c > 0), reals)
+#% output
+#= a >= 0 and b == 0 and c > 0 or a > 0 and -b^2 + 4*a*c > 0
+
+#% text
+# Two distinct real roots:
+
+#% cell
+resolve(exists([x, y], x != y and a*x^2 + b*x + c == 0 and a*y^2 + b*y + c == 0), reals)
+#% output
+#= a == 0 and b == 0 and c == 0 or a != 0 and -b^2 + 4*a*c < 0
+
+#% text
+# The arithmetic and geometric means:
+
+#% cell
+resolve(for_all([a, b], a > 0 and b > 0, (a + b)/2 >= sqrt(a*b)))
+#% output
+#= true
+
+#% text
+# Over the complex numbers, eliminating one variable:
+
+#% cell
+resolve(for_all(c, exists(x, a*x^2 + b*x + c == 0)))
+#% output
+#= a != 0 or b != 0
+
+#% text
+# Several equations in the eliminated variable:
+
+#% cell
+resolve(exists(z, x*z == y and x^2*z^2 + x^2 == 1))
+#% output
+#= -1 + x^2 + y^2 == 0 and x != 0
+
+#% text
+# The Cauchy-Schwarz inequality, with two square roots:
+
+#% cell
+resolve(for_all([a, b, c, u], a*c + b*u <= sqrt(a^2 + b^2)*sqrt(c^2 + u^2)))
+#% output
+#= true
+
+#% text
+# An inequality over the complex numbers:
+
+#% cell
+resolve(exists([x, y], x^2 + y^2 < 0), complexes)
+#% output
+#= true
+
+#% text
+# Over the integers:
+
+#% cell
+resolve(exists([x, y, z, t], 1221*x + 3434*y + 5566*z + 8778*t == 90909 and x >= 0 and y >= 0 and z >= 0 and t >= 0), integers)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `exists`, `for_all`, `cylindrical_decomposition`, `reduce`, `find_instance`

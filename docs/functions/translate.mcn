@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# translate
+
+#% text
+# `translate(g, v)`: in graphics, the primitives g shifted by v (a list of vectors: one copy each)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_blue, translate(disk([0, 0], 0.4), [[0, 0], [1, 0], [2, 0], [1, 1]])])
+#% output
+#= image("translate.files/translate-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

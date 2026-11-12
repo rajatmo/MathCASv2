@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# color_function
+
+#% text
+# `color_function` is an option of `density_plot`, `contour_plot` and `list_density_plot`: `color_function: name` colours the values by the named gradient, or by a list of colours.
+
+#% section
+# Details
+
+#% item
+# The names are `viridis`, `thermal`, `cool_warm`, `ocean`, `earth`, `rainbow` and `gray`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+density_plot(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], color_function: "thermal")
+#% output
+#= image("color_function.files/color_function-1.svgz")
+
+#% cell
+density_plot(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], color_function: "gray")
+#% output
+#= image("color_function.files/color_function-2.svgz")
+
+#% cell
+contour_plot(x^2 - y^2, [x, -1, 1], [y, -1, 1], color_function: "cool_warm")
+#% output
+#= image("color_function.files/color_function-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A list of colours:
+
+#% cell
+density_plot(x*y, [x, 0, 1], [y, 0, 1], color_function: [white, blue])
+#% output
+#= image("color_function.files/color_function-4.svgz")
+
+#% cell
+list_density_plot([[1, 2, 3], [2, 4, 6], [3, 6, 9]], color_function: "ocean")
+#% output
+#= image("color_function.files/color_function-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `color_bar`, `density_plot`, `contour_plot`, `list_density_plot`

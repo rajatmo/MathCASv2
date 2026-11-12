@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# least_squares
+
+#% text
+# `least_squares(m, b)` gives the vector `x` that minimizes the norm of `m . x - b`.
+
+#% section
+# Details
+
+#% item
+# For a matrix of less than full rank it gives the solution of least norm, the pseudo-inverse of `m` applied to `b`.
+
+#% item
+# A matrix `b` is solved for column by column.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+least_squares([[1, 0], [1, 1], [1, 2]], [1, 2, 2])
+#% output
+#= [7/6, 1/2]
+
+#% cell
+least_squares([[1, 1], [1, 1]], [1, 3])
+#% output
+#= [1, 1]
+
+#% cell
+least_squares([[1., 0.], [1., 1.], [1., 2.]], [1., 2., 2.])
+#% output
+#= [1.1666666666666663, 0.5]
+
+#% section
+# See also
+
+#% text
+# `pseudo_inverse`, `fit`

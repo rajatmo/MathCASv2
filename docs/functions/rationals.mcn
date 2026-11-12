@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# rationals
+
+#% text
+# `rationals` is the domain of the rational numbers, the quotients of integers, for facts `element(x, rationals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, rationals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(3/4, rationals)
+#% output
+#= true
+
+#% cell
+element(-2, rationals)
+#% output
+#= true
+
+#% cell
+element(sqrt(2), rationals)
+#% output
+#= false
+
+#% cell
+element(pi, rationals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(q, rationals), is_real(q))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, rationals)
+#% output
+#= element(x, rationals)
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `integers`, `reals`

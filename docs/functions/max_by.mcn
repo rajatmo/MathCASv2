@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# max_by
+
+#% text
+# `max_by(xs, f)` gives the first element of `xs` with the largest `f(x)`.
+
+#% text
+# `max_by(xs, f, n)` gives the `n` elements with the largest keys, largest first.
+
+#% section
+# Details
+
+#% item
+# Keys are compared in the canonical order; equal keys keep the order of the elements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+max_by(["aa", "b", "ccc"], string_length)
+#% output
+#= "ccc"
+
+#% subsection
+# Scope
+
+#% text
+# The two largest:
+
+#% cell
+max_by([-3, 2, 1, 3], abs, 2)
+#% output
+#= [-3, 3]
+
+#% text
+# The values of an association, with their keys:
+
+#% cell
+max_by(assoc(a -> -3, b -> 2, c -> 1), abs, 2)
+#% output
+#= assoc(a -> -3, b -> 2)
+
+#% section
+# See also
+
+#% text
+# `min_by`, `sort_by`, `take_largest`

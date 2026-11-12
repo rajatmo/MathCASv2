@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_length
+
+#% text
+# `integer_length(n)` gives the number of decimal digits of `abs(n)`.
+
+#% text
+# `integer_length(n, b)` gives the number of digits in base `b`.
+
+#% section
+# Details
+
+#% item
+# `integer_length(0)` is 0.
+
+#% item
+# `integer_length` is listable in its first argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_length(2026)
+#% output
+#= 4
+
+#% cell
+integer_length(255, 2)
+#% output
+#= 8
+
+#% cell
+integer_length(0)
+#% output
+#= 0
+
+#% cell
+integer_length(-1000)
+#% output
+#= 4
+
+#% subsection
+# Scope
+
+#% text
+# Large integers:
+
+#% cell
+integer_length(factorial(1000))
+#% output
+#= 2568
+
+#% cell
+integer_length(2^1000, 2)
+#% output
+#= 1001
+
+#% subsection
+# Properties and relations
+
+#% text
+# The length is the number of digits:
+
+#% cell
+length(integer_digits(3^50)) - integer_length(3^50)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `log`

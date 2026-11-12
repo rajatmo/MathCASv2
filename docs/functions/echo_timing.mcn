@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# echo_timing
+
+#% text
+# `echo_timing(e)` prints the wall-clock seconds the evaluation of `e` took and gives the value of `e`; `echo_timing(e, label)` prints them after the label.
+
+#% section
+# Details
+
+#% item
+# The argument is held and timed here, so the time is that of its own evaluation. `timing(e)` gives the seconds and the value as a list instead of printing.
+
+#% item
+# The time depends on the machine and its load, so this page shows no printed value: `length(echo_timing(range(10)))` prints a number of seconds and gives 10.
+
+#% item
+# The value comes back, so `echo_timing` can be put around any part of a computation.
+
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The first argument is held, so it is evaluated inside the timing:
+
+#% cell
+attributes(echo_timing)
+#% output
+#= [hold_first]
+#% section
+# See also
+
+#% text
+# `timing`, `echo`, `echo_evaluation`

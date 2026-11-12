@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_elliptic_nome_q
+
+#% text
+# `inverse_elliptic_nome_q(q)` gives the parameter `m` whose nome is `q`.
+
+#% section
+# Details
+
+#% item
+# The nome of `m` is `exp(-pi*K(1 - m)/K(m))` (`elliptic_nome_q`); this function inverts it, as `theta_2(0, q)^4/theta_3(0, q)^4` (DLMF 22.2.2).
+
+#% item
+# Machine numbers and balls give numerical values; `inverse_elliptic_nome_q(0)` is 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_elliptic_nome_q(0.1)
+#% output
+#= 0.8024032982175758
+
+#% cell
+inverse_elliptic_nome_q(0)
+#% output
+#= 0
+
+#% cell
+inverse_elliptic_nome_q(0.5)
+#% output
+#= 0.99998952213731
+
+#% subsection
+# Properties and relations
+
+#% text
+# `elliptic_nome_q` undoes it:
+
+#% cell
+elliptic_nome_q(inverse_elliptic_nome_q(0.2))
+#% output
+#= 0.20000000000000032
+
+#% section
+# See also
+
+#% text
+# `elliptic_nome_q`, `modular_lambda`, `elliptic_theta`, `elliptic_k`

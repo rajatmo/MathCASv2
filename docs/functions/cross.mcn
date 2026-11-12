@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# cross
+
+#% text
+# `cross(u, v)` gives the cross product of two vectors of length 3.
+
+#% section
+# Details
+
+#% item
+# The result is perpendicular to `u` and `v`, with length `abs(u)*abs(v)*sin(angle)`; `cross(v, u)` is `-cross(u, v)`.
+
+#% item
+# Entries may be exact, symbolic or numerical.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cross([1, 0, 0], [0, 1, 0])
+#% output
+#= [0, 0, 1]
+
+#% cell
+cross([1, 2, 3], [4, 5, 6])
+#% output
+#= [-3, 6, -3]
+
+#% cell
+cross([a, b, c], [x, y, z])
+#% output
+#= [b*z - c*y, c*x - a*z, a*y - b*x]
+
+#% subsection
+# Applications
+
+#% text
+# The normal of the plane through three points:
+
+#% cell
+p = [1, 0, 0]; q = [0, 1, 0]; r = [0, 0, 1]; cross(q - p, r - p)
+#% output
+#= [1, 1, 1]
+
+#% text
+# The area of the triangle they span:
+
+#% cell
+norm(cross(q - p, r - p))/2
+#% output
+#= (1/2)*3^(1/2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The result is perpendicular to both factors:
+
+#% cell
+u = [1, 2, 3]; v = [-2, 0, 5]; [dot(u, cross(u, v)), dot(v, cross(u, v))]
+#% output
+#= [0, 0]
+
+#% section
+# See also
+
+#% text
+# `dot`, `norm`, `curl`, `det`

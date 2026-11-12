@@ -1,0 +1,617 @@
+#! mathcas 2 notebook
+
+#% title
+# integrate
+
+#% text
+# `integrate(f, x)` gives an antiderivative of `f` with respect to `x`, without an added constant.
+
+#% text
+# `integrate(f, [x, a, b])` gives the definite integral of `f` for `x` from `a` to `b`.
+
+#% section
+# Details
+
+#% item
+# The result of `integrate(f, x)` is one antiderivative: any constant may be added to it.
+
+#% item
+# The limits of a definite integral may be `-inf` or `inf`.
+
+#% item
+# An integral that cannot be done in closed form is returned unevaluated; `n_integrate` gives its numerical value when the integrand and limits are numbers.
+
+#% item
+# A definite integral that diverges gives a failure tagged `divergent`. Convergence is decided before any method runs, at both limits and at the singular points inside the range; an oscillating integrand whose amplitude does not decay (`sin(x)` on `[0, inf]`) diverges too.
+
+#% item
+# When convergence depends on parameters, the value comes with the conditions it needs as one `conditional_expression`, for example `re(n) > -1` for `x^n` on `[0, 1]`. The option `generate_conditions: false` gives the value alone; `assumptions: a` (or `assuming`) supplies facts, and conditions the facts imply are dropped.
+
+#% item
+# `principal_value: true` gives Cauchy principal values at poles inside the range.
+
+#% item
+# Definite integrals are found by closed forms (Gaussian, gamma, Beta and Bose-Einstein integrals), residues (rational and Fourier-type integrands over the real line, trigonometric integrands over a period), substitutions, and the antiderivative with limits at the ends after splitting at singular points.
+
+#% item
+# Every definite integral with numeric data is compared with `n_integrate` before it is returned (one with parameters at sample values that satisfy its conditions); a value that disagrees is not returned.
+
+#% item
+# Several ranges give an iterated integral, the last range innermost; `integrate(f, element([x, y], reg))` integrates over a region.
+
+#% item
+# Antiderivatives with parameters are generic: they hold for all values of the parameters except a few special ones.
+
+#% item
+# Every antiderivative is checked by differentiation before it is returned; an integral the methods cannot do stays unevaluated.
+
+#% item
+# The logarithmic part of a rational function is written with radicals when its residues are roots of linear or quadratic polynomials (as `log` and `atan` terms for real integrands), and as a `root_sum` over the residues otherwise.
+
+#% item
+# Integrands with roots go through a portfolio of substitutions, each answer checked and the smallest kept: rationalising substitutions for roots of linear and linear-fractional expressions (nested roots one layer at a time), Hermite reduction for the algebraic part, Euler's and the trigonometric substitutions for square roots of quadratics, Chebyshev's three cases for `x^m (a + b x^n)^p`, lowering the degree of the radicand (`u = x^k`, `u = h(x)` from a decomposition, Goursat's `u = x + c/x`), and the logarithmic part of a square root of a quartic from the continued fraction of the root.
+
+#% item
+# Non-elementary integrals with roots are given with `elliptic_f`, `elliptic_e` and `elliptic_pi` (Legendre's forms, for square roots of quartics and cubics that reduce to them) or with `hypergeometric_2f1` (binomials); `risch_integrate` gives the proof that no elementary antiderivative exists when Chebyshev's theorem or Hermite reduction decides it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An antiderivative of a power:
+
+#% cell
+integrate(x^3, x)
+#% output
+#= (1/4)*x^4
+
+#% text
+# A definite integral:
+
+#% cell
+integrate(x^2, [x, 0, 1])
+#% output
+#= 1/3
+
+#% text
+# A trigonometric integral over a half period:
+
+#% cell
+integrate(sin(x), [x, 0, pi])
+#% output
+#= 2
+
+#% text
+# An improper integral with an infinite limit:
+
+#% cell
+integrate(exp(-x), [x, 0, inf])
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# Rational functions:
+
+#% cell
+integrate(1/(1 + x^2), x)
+#% output
+#= atan(x)
+
+#% cell
+integrate(1/(x^2 - 1), x)
+#% output
+#= (-1/2)*log(1 + x) + (1/2)*log(-1 + x)
+
+#% cell
+integrate((x + 1)/(x^2 + 2x + 2), x)
+#% output
+#= (1/2)*log(2 + 2*x + x^2)
+
+#% text
+# When the logarithmic part needs the roots of an irreducible cubic or higher, the antiderivative is a sum over those roots, `root_sum`:
+
+#% cell
+integrate(1/(x^3 + x + 1), x)
+#% output
+#= root_sum(t => 1 + t + t^3, t => log(x - t)/(1 + 3*t^2))
+
+#% cell
+integrate(1/(x^3 + 2x + 5)^2, x)
+#% output
+#= (-16/707 + (45/707)*x - (12/707)*x^2)/(5 + 2*x + x^3) + root_sum(t => 5 + 2*t + t^3, t => (90/707 - (12/707)*t)*log(x - t)/(2 + 3*t^2))
+
+#% text
+# A binomial denominator splits over a real radical field: log and atan terms in its root.
+
+#% cell
+integrate(1/(x^3 - 2), x)
+#% output
+#= (-1/12)*log(x*2^(1/3) + 2^(2/3) + x^2)*2^(1/3) + (1/6)*log(x - 2^(1/3))*2^(1/3) + (1/6)*atan((-1/3)*3^(1/2) - (1/3)*x*2^(2/3)*3^(1/2))*2^(1/3)*3^(1/2)
+
+#% text
+# Integration by parts:
+
+#% cell
+integrate(x*exp(x), x)
+#% output
+#= -exp(x) + x*exp(x)
+
+#% cell
+integrate(log(x), x)
+#% output
+#= -x + x*log(x)
+
+#% text
+# Exponential and logarithmic integrands are integrated over their differential field:
+
+#% cell
+integrate((exp(x) + 1)/(exp(x) + x), x)
+#% output
+#= log(x + exp(x))
+
+#% text
+# Antiderivatives that need special functions come out of the same engine as elementary ones:
+
+#% cell
+integrate(exp(-x^2), x)
+#% output
+#= (1/2)*erf(x)*pi^(1/2)
+
+#% cell
+integrate(sin(x)/x, x)
+#% output
+#= sin_integral(x)
+
+#% cell
+integrate(x/log(x), x)
+#% output
+#= exp_integral_ei(2*log(x))
+
+#% text
+# `risch_integrate` proves that an integral is not elementary:
+
+#% cell
+risch_integrate(exp(-x^2), x)
+#% output
+#! failure(nonelementary, risch_integrate, "the Risch differential equation of exp^1 has no rational solution")
+
+#% text
+# Products of trigonometric functions:
+
+#% cell
+integrate(sin(2x)*cos(3x), x)
+#% output
+#= (-1/10)*cos(5*x) + (1/2)*cos(x)
+
+#% text
+# Symbolic parameters:
+
+#% cell
+integrate(a*x + b, x)
+#% output
+#= b*x + (1/2)*a*x^2
+
+#% text
+# Definite integrals: a condition on a parameter for convergence:
+
+#% cell
+integrate(x^n, [x, 0, 1])
+#% output
+#= conditional_expression((1 + n)^-1, re(n) > -1)
+
+#% cell
+integrate(exp(-c*x^2), [x, -inf, inf])
+#% output
+#= conditional_expression(pi^(1/2)/c^(1/2), re(c) > 0)
+
+#% text
+# The value alone, and the value under an assumption:
+
+#% cell
+integrate(exp(-c*x^2), [x, -inf, inf], generate_conditions: false)
+#% output
+#= pi^(1/2)/c^(1/2)
+
+#% cell
+integrate(x^n, [x, 0, 1], assumptions: n > 0)
+#% output
+#= (1 + n)^-1
+
+#% text
+# Residues: a Fourier-type integral, a rational function, a trigonometric integrand over a period:
+
+#% cell
+integrate(sin(x)/x, [x, -inf, inf])
+#% output
+#= pi
+
+#% cell
+integrate(1/(x^4 + 1), [x, 0, inf])
+#% output
+#= (1/4)*pi*2^(1/2)
+
+#% cell
+integrate(1/(2 + cos(x)), [x, 0, 2*pi])
+#% output
+#= (2/3)*pi*3^(1/2)
+
+#% text
+# Euler's gamma integral, differentiated in its exponent:
+
+#% cell
+integrate(log(x)*exp(-x^2), [x, 0, inf])
+#% output
+#= (1/4)*(-euler_gamma - log(4))*pi^(1/2)
+
+#% text
+# A principal value, and a divergent integral:
+
+#% cell
+integrate(1/x, [x, -1, 2], principal_value: true)
+#% output
+#= log(2)
+
+#% cell
+integrate(sin(x), [x, 0, inf])
+#% output
+#! failure(divergent, integrate, sin(x))
+
+#% text
+# An iterated integral:
+
+#% cell
+integrate(exp(-x^2 - y^2), [x, -inf, inf], [y, -inf, inf])
+#% output
+#= pi
+
+#% text
+# A nested root:
+
+#% cell
+integrate(sqrt(x + sqrt(x)), x)
+#% output
+#= (1/8)*log((1/2)*(1 + 2*x^(1/2)) + (x^(1/2) + x)^(1/2)) + (-1/4 + (1/6)*x^(1/2) + (2/3)*x)*(x^(1/2) + x)^(1/2)
+
+#% text
+# A root of a linear-fractional expression:
+
+#% cell
+integrate(sqrt((1 + x)/(1 - x)), x)
+#% output
+#= 4*((1/2)*atan(((1 + x)/(1 - x))^(1/2)) - ((1 + x)/(1 - x))^(1/2)/(2*(1 + (1 + x)/(1 - x))))
+
+#% text
+# A binomial differential in Chebyshev's third case:
+
+#% cell
+integrate((1 + x^4)^(-1/4), x)
+#% output
+#= (-1/2)*atan((1 + x^4)^(1/4)/x) - (1/4)*log(-1 + (1 + x^4)^(1/4)/x) + (1/4)*log(1 + (1 + x^4)^(1/4)/x)
+
+#% text
+# Goursat's pseudo-elliptic integral: elementary although the root is of a quartic:
+
+#% cell
+integrate((1 + x^2)/((1 - x^2)*sqrt(1 + x^4)), x)
+#% output
+#= (-1/4)*log(-2^(1/2) + (1 + x^4)^(1/2)/x)*2^(1/2) + (1/4)*log((1 + x^4)^(1/2)/x + 2^(1/2))*2^(1/2)
+
+#% text
+# Chebyshev's pseudo-elliptic integral, from the continued fraction of the square root:
+
+#% cell
+integrate(x/sqrt(x^4 + 10*x^2 - 96*x - 71), x)
+#% output
+#= (1/8)*log(-10001/108 - (781/27)*x^2 - (1/2)*x^4 - (5/27)*x^6 - (1/108)*x^8 + (32/27)*x^5 + (352/27)*x^3 + (-781/108 + (44/9)*x - (1/4)*x^2 + (20/27)*x^3 - (5/36)*x^4 - (1/108)*x^6)*(-71 - 96*x + 10*x^2 + x^4)^(1/2))
+
+#% text
+# Elliptic integrals in Legendre's form:
+
+#% cell
+integrate(1/sqrt(1 - x^4), x)
+#% output
+#= elliptic_f(asin(x), -1)
+
+#% cell
+integrate(1/((1 - n*x^2)*sqrt(1 - x^2)*sqrt(1 - k*x^2)), x)
+#% output
+#= elliptic_pi(n, asin(x), k)
+
+#% text
+# A non-elementary binomial in hypergeometric form:
+
+#% cell
+integrate((1 + x^2)^(1/3), x)
+#% output
+#= x*hypergeometric_2f1(-1/3, 1/2, 3/2, -x^2)
+
+#% text
+# Definite integrals by residues, by substitution and by the antiderivative with limits:
+
+#% cell
+integrate(log(x)/(1 + x^2), [x, 0, inf])
+#% output
+#= 0
+
+#% cell
+integrate(1/(1 + x^3), [x, 0, inf])
+#% output
+#= (2/9)*pi*3^(1/2)
+
+#% cell
+integrate(sqrt(1 - x^2), [x, -1, 1])
+#% output
+#= (1/2)*pi
+
+#% text
+# A piecewise integrand, and an absolute value:
+
+#% cell
+integrate(piecewise([[x, x < 1]], 1), [x, 0, 2])
+#% output
+#= 3/2
+
+#% cell
+integrate(abs(x), [x, -1, 2])
+#% output
+#= 5/2
+
+#% text
+# A condition on `k` for convergence, and the value when the assumption implies it:
+
+#% cell
+integrate(x^k, [x, 1, inf])
+#% output
+#= conditional_expression(-1/(1 + k), re(k) < -1)
+
+#% cell
+integrate(x^k, [x, 1, inf], assumptions: k < -1)
+#% output
+#= -1/(1 + k)
+
+#% subsection
+# Options
+
+#% text
+# `principal_value: true` gives the Cauchy value at a pole inside the range; without it the integral diverges:
+
+#% cell
+integrate(1/x, [x, -1, 1], principal_value: true)
+#% output
+#= 0
+
+#% cell
+integrate(1/x, [x, -1, 1])
+#% output
+#! failure(divergent, integrate, x^-1)
+
+#% text
+# `assumptions:` supplies the facts that make an integral converge; without them the value comes with the condition:
+
+#% cell
+integrate(x^2*exp(-a*x), [x, 0, inf], assumptions: a > 0)
+#% output
+#= 2/a^3
+
+#% cell
+integrate(x^2*exp(-a*x), [x, 0, inf])
+#% output
+#= conditional_expression(2/a^3, re(a) > 0)
+
+#% subsection
+# Applications
+
+#% text
+# The area between the curves y = x and y = x^2 on [0, 1]:
+
+#% cell
+integrate(x - x^2, [x, 0, 1])
+#% output
+#= 1/6
+
+#% text
+# The mean value of sin(x)^2 over a full period:
+
+#% cell
+integrate(sin(x)^2, [x, 0, 2pi]) / (2pi)
+#% output
+#= 1/2
+
+#% text
+# A moment of the exponential distribution:
+
+#% cell
+integrate(x^2*exp(-x), [x, 0, inf])
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative of an antiderivative gives back the integrand:
+
+#% cell
+d(integrate(x*sin(x), x), x)
+#% output
+#= x*sin(x)
+
+#% text
+# A definite integral is the difference of an antiderivative at the limits:
+
+#% cell
+let F = integrate(x^2, x); (F /. x -> 3) - (F /. x -> 1)
+#% output
+#= 26/3
+
+#% cell
+integrate(x^2, [x, 1, 3])
+#% output
+#= 26/3
+
+#% text
+# Functions defined by cases (`abs`, `max`, `unit_step`, `piecewise`, ...) are integrated piece by piece:
+
+#% cell
+integrate(abs(sin(x)), [x, 0, 2*pi])
+#% output
+#= 4
+
+#% cell
+integrate(piecewise([[x^2, x < 1]], 2 - x), [x, 0, 3])
+#% output
+#= 1/3
+
+#% text
+# A `dirac_delta` factor picks the value at its zero:
+
+#% cell
+integrate(dirac_delta(x - 1)*x^3, [x, 0, 2])
+#% output
+#= 1
+
+#% text
+# Several ranges give an iterated integral, the last range innermost:
+
+#% cell
+integrate(x*y^2, [x, 0, 2], [y, 0, x])
+#% output
+#= 32/15
+
+#% text
+# Facts about the parameters with the `assumptions:` option:
+
+#% cell
+integrate(exp(-k*t), [t, 0, inf], assumptions: k > 0)
+#% output
+#= k^-1
+
+#% text
+# A truncated series is integrated term by term:
+
+#% cell
+integrate(series(cos(x), x, 0, 4), x)
+#% output
+#= x - x^3/6 + x^5/120 + O(x^6)
+
+#% text
+# A definite integral agrees with `n_integrate`, to the precision asked of `n`:
+
+#% cell
+integrate(exp(-x^2), [x, 0, 1]) - n_integrate(exp(-x^2), [x, 0, 1])
+#% output
+#= -2.220446049250313e-16
+
+#% cell
+n(integrate(exp(-x^2), [x, 0, 1]), 30)
+#% output
+#= 0.7468241328124270253994674361318530
+
+#% text
+# The derivative of an antiderivative is the integrand:
+
+#% cell
+simplify(d(integrate(x*exp(-x)*sin(x), x), x) - x*exp(-x)*sin(x))
+#% output
+#= 0
+
+#% subsection
+# Possible issues
+
+#% text
+# Some integrals have no closed form in terms of the functions the system knows; they stay unevaluated:
+
+#% cell
+integrate(sin(sin(x)), x)
+#% output
+#= integrate(sin(sin(x)), x)
+
+#% text
+# The numerical value of such a definite integral comes from `n_integrate`:
+
+#% cell
+n_integrate(sin(sin(x)), [x, 0, 1])
+#% output
+#= 0.4306061031206907
+
+#% text
+# An integral across a singularity that does not converge:
+
+#% cell
+integrate(1/x, [x, -1, 1])
+#% output
+#! failure(divergent, integrate, x^-1)
+
+#% text
+# The antiderivative of a symbolic power is the generic one, which does not hold for y = -1:
+
+#% cell
+integrate(x^y, x)
+#% output
+#= x^(1 + y)/(1 + y)
+
+#% text
+# A parameter without a sign assumption can leave a definite integral that has a closed form unevaluated:
+
+#% cell
+integrate(1/(x^2 + a^2), [x, -inf, inf])
+#% output
+#= integrate((a^2 + x^2)^-1, [x, -inf, inf])
+
+#% cell
+integrate(exp(-x^2)*cos(w*x), [x, -inf, inf])
+#% output
+#= exp((-1/4)*w^2)*pi^(1/2)
+
+#% cell
+integrate(bessel_j(0, x), [x, 0, inf])
+#% output
+#= 1
+
+#% text
+# The derivative of an undefined function is not integrated back by the fundamental theorem over a range:
+
+#% cell
+integrate(d(f(x), x), [x, a, b])
+#% output
+#= f(b) - f(a)
+
+#% text
+# `working_precision:` is not an option of `integrate`; it ends up in the result. Use `n_integrate` or `n` for digits:
+
+#% cell
+integrate(1/(x^2 + 1), [x, 0, inf], working_precision: 30)
+#% output
+#= (1/2)*pi
+
+#% cell
+integrate(exp(-x^2)*cos(w*x), [x, -inf, inf])
+#% output
+#= exp((-1/4)*w^2)*pi^(1/2)
+
+#% cell
+integrate(bessel_j(0, x), [x, 0, inf])
+#% output
+#= 1
+
+#% cell
+integrate(d(f(x), x), [x, a, b])
+#% output
+#= f(b) - f(a)
+
+#% cell
+n(integrate(1/(x^3 + x + 1), [x, 0, 1]))
+#% output
+#= 0.6303193224124083
+
+#% section
+# See also
+
+#% text
+# `d`, `n_integrate`, `risch_integrate`, `sum`, `simplify`

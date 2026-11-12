@@ -1,0 +1,128 @@
+#! mathcas 2 notebook
+
+#% title
+# conditional_expression
+
+#% text
+# `conditional_expression(value, condition)` is a value that holds only where `condition` holds.
+
+#% section
+# Details
+
+#% item
+# With the condition `true` the result is the value; with `false` it is `undefined`.
+
+#% item
+# Arithmetic, comparisons, `and`, `or`, `not` and the elementary and special functions take the condition outward: `f(conditional_expression(a, c), b)` is `conditional_expression(f(a, b), c)`, and the conditions of several arguments are joined by `and`.
+
+#% item
+# A joined condition is simplified once: parts implied by the others are dropped, contradictory parts make the result `undefined`, and bounds on one real variable are written as intervals.
+
+#% item
+# `simplify`, `refine`, `expand`, `factor`, `d`, `integrate`, `limit` and `n` work on the value under the condition and keep the condition. `normal` gives the value, and `reduce` adds the condition to the equations.
+
+#% item
+# Lists keep conditional elements: a list of conditional values is not one conditional value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A value that holds for positive x:
+
+#% cell
+conditional_expression(x^2, x > 0)
+#% output
+#= conditional_expression(x^2, x > 0)
+
+#% text
+# True and false conditions:
+
+#% cell
+[conditional_expression(a, true), conditional_expression(a, false)]
+#% output
+#= [a, undefined]
+
+#% subsection
+# Scope
+
+#% text
+# Functions take the conditions outward and join them:
+
+#% cell
+sin(conditional_expression(x, x > 0) + 1)*conditional_expression(x, x < 1)^2
+#% output
+#= conditional_expression(x^2*sin(1 + x), 0 < x and x < 1)
+
+#% text
+# Contradictory conditions give `undefined`:
+
+#% cell
+conditional_expression(x, x > 0) + conditional_expression(x, x < 0)
+#% output
+#= undefined
+
+#% text
+# Comparisons and logical connectives:
+
+#% cell
+conditional_expression(p, c) and (conditional_expression(q, d) or r)
+#% output
+#= conditional_expression(p and (q or r), c and d)
+
+#% text
+# `simplify` uses the condition:
+
+#% cell
+simplify(conditional_expression(sqrt(x^2), x < 0))
+#% output
+#= conditional_expression(-x, x < 0)
+
+#% text
+# Calculus works on the value:
+
+#% cell
+integrate(conditional_expression(a^x, a > 0), x)
+#% output
+#= conditional_expression(a^x/log(a), a > 0)
+
+#% cell
+limit(conditional_expression(a^x, 0 < a and a < 1), x -> inf)
+#% output
+#= conditional_expression(0, 0 < a and a < 1)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `normal` drops the condition:
+
+#% cell
+normal(conditional_expression(x^2, x > 0))
+#% output
+#= x^2
+
+#% text
+# `reduce` adds the condition to the equation:
+
+#% cell
+reduce(conditional_expression(x^2 - 1, x > 0) == 0, x)
+#% output
+#= x == 1
+
+#% text
+# `refine` refines each value under its own condition:
+
+#% cell
+refine([conditional_expression(sqrt(x^2), x > 0), conditional_expression(sqrt(x^2), x < 0)])
+#% output
+#= [conditional_expression(x, x > 0), conditional_expression(-x, x < 0)]
+
+#% section
+# See also
+
+#% text
+# `assuming`, `refine`, `simplify`, `reduce`, `piecewise`

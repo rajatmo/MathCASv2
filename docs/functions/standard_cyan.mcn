@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_cyan
+
+#% text
+# `standard_cyan`: the standard cyan: a softer cyan that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_cyan, disk()])
+#% output
+#= image("standard_cyan.files/standard_cyan-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_cyan)
+#% output
+#= image("standard_cyan.files/standard_cyan-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

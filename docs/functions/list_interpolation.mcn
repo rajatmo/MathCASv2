@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# list_interpolation
+
+#% text
+# `list_interpolation(array)` gives a function that interpolates the values of an array given at the integer coordinates 1, 2, ... in each dimension.
+
+#% section
+# Details
+
+#% item
+# `list_interpolation(array, [[xmin, xmax], ...])` puts the values at equally spaced coordinates from `xmin` to `xmax`; `list_interpolation(array, [[x1, x2, ...], ...])` at the coordinates given.
+
+#% item
+# Between the nodes the function is the Lagrange polynomial of degree `interpolation_order` (default 3) through the nearest nodes; in several dimensions it is applied along each dimension in turn.
+
+#% item
+# `interpolation_order` may be a list, one order per dimension; order 0 takes the nearest value.
+
+#% item
+# In one dimension the data may also be pairs `[[x1], v1], [[x2], v2], ...`; a value given as `[f, f', ...]` uses `f`.
+
+#% item
+# The function returns numbers at numeric arguments and stays unevaluated at symbolic ones, so that it can be plotted.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = list_interpolation([1, 2, 3, 5, 8, 5])
+
+#% cell
+f(2.5)
+#% output
+#= 2.4375
+
+#% cell
+g = list_interpolation([1, 2, 3, 5, 8, 5], [[0, 1]])
+
+#% cell
+g(0.5)
+#% output
+#= 3.874999999999999
+
+#% cell
+h = list_interpolation([[1, 2, 3, 4], [2, 2, 6, 4], [3, 6, 3, 12], [4, 4, 12, 4]])
+
+#% cell
+h(2.5, 2.5)
+#% output
+#= 3.953125
+
+#% cell
+k = list_interpolation([1, 5, 7, 2, 3, 1], [[0, 1]], interpolation_order: 0)
+
+#% cell
+[k(0.1), k(0.5)]
+#% output
+#= [5, 2]
+
+#% section
+# See also
+
+#% text
+# `interpolation`, `function_interpolation`, `interpolating_polynomial`

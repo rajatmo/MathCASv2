@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# hypergeometric_1f1
+
+#% text
+# `hypergeometric_1f1(a, b, z)` gives Kummer's confluent hypergeometric function `1F1(a; b; z)`.
+
+#% section
+# Details
+
+#% item
+# The series is the sum of `(a)_k/(b)_k*z^k/k!` (DLMF 13.2.2), an entire function of `z`.
+
+#% item
+# A non-positive integer `a` makes the series terminate; `1F1(a; a; z)` is `exp(z)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `hypergeometric_1f1` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hypergeometric_1f1(1, 2, 1.0)
+#% output
+#= 1.7182818284590453
+
+#% cell
+hypergeometric_1f1(0.5, 1.5, -2.0)
+#% output
+#= 0.5981440066613041
+
+#% cell
+hypergeometric_1f1(-3, 1, 2.0)
+#% output
+#= -0.3333333333333333
+
+#% cell
+n(hypergeometric_1f1(1/2, 3/2, 1), 30)
+#% output
+#= 1.4626517459071816088040485868569882
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments:
+
+#% cell
+hypergeometric_1f1(1.0, 3.0, 50.0)
+#% output
+#= 4.147764422869658e18
+
+#% text
+# A complex argument:
+
+#% cell
+hypergeometric_1f1(1.0, 2.0, 1.0*im)
+#% output
+#= 0.8414709848078965 + 0.4596976941318603im
+
+#% subsection
+# Properties and relations
+
+#% text
+# `1F1(1/2; 3/2; -x^2)` is `erf` up to a factor:
+
+#% cell
+hypergeometric_1f1(0.5, 1.5, -1.0) - sqrt(pi)/2*erf(1.0)
+#% output
+#= 0.0
+
+#% text
+# Kummer's transformation:
+
+#% cell
+hypergeometric_1f1(0.3, 1.7, 2.0) - exp(2.0)*hypergeometric_1f1(1.4, 1.7, -2.0)
+#% output
+#= -2.220446049250313e-16
+
+#% subsection
+# Possible issues
+
+#% text
+# Symbolic arguments stay unevaluated:
+
+#% cell
+hypergeometric_1f1(-3, 1, z)
+#% output
+#= 1 - 3*z + (3/2)*z^2 - (1/6)*z^3
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_u`, `hypergeometric_2f1`, `hypergeometric_0f1`, `whittaker_m`

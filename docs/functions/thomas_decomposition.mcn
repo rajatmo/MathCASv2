@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# thomas_decomposition
+
+#% text
+# `thomas_decomposition(eqs, u, x)` decomposes the solutions of the system of polynomial ordinary differential equations `eqs` for the functions `u` of `x` into a disjoint union of simple systems `[[p1 == 0, ...], [h1 != 0, ...]]`: triangular in the leaders, square-free in each leader, with initials and discriminants nonzero.
+
+#% section
+# Details
+
+#% item
+# The splitting of Thomas (1937), as described by Baechler, Gerdt, Lange-Hegermann and Robertz (2012): a remainder splits by its initial (zero or nonzero) and then by its discriminant (zero, where it is replaced by its square-free part, or nonzero), so different systems have no common solution.
+
+#% item
+# With one independent variable every derivative of a leader is reached by differentiation, so no further prolongation is needed. Several independent variables (Janet division) are not supported. `inequations: [h != 0, ...]` adds conditions; `ranking: orderly` (the default) or `ranking: elimination` as for `differential_leader`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# `y'^2 == 4 y` splits into the general solutions (`y != 0`) and the singular solution:
+
+#% cell
+thomas_decomposition(y'(x)^2 - 4*y(x), y, x)
+#% output
+#= [[[-4*y(x) + y'(x)^2 == 0], [y(x) != 0]], [[y(x) == 0], []]]
+
+#% cell
+thomas_decomposition(y(x)*y''(x) - y'(x)^2, y, x)
+#% output
+#= [[[-y'(x)^2 + y(x)*y''(x) == 0], [y(x) != 0]], [[y(x) == 0], []]]
+
+#% subsection
+# Scope
+
+#% text
+# The case where the initial vanishes is inconsistent here:
+
+#% cell
+thomas_decomposition(y(x)*y'(x) - 1, y, x)
+#% output
+#= [[[-1 + y(x)*y'(x) == 0], [y(x) != 0]]]
+
+#% cell
+thomas_decomposition([y'(x) - z(x), z'(x) + y(x)], [y, z], x, ranking: elimination)
+#% output
+#= [[[z(x) + z''(x) == 0, y(x) + z'(x) == 0], []]]
+
+#% section
+# See also
+
+#% text
+# `rosenfeld_groebner`, `differential_reduce`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# list_fit_plot
+
+#% text
+# `list_fit_plot(data)` draws points with their least-squares line, or polynomial of degree `n` with `list_fit_plot(data, n)`.
+
+#% section
+# Details
+
+#% item
+# `data -> [xname, yname]` labels the axes.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_fit_plot([[1, 2.1], [2, 3.9], [3, 6.2], [4, 7.8], [5, 10.1]])
+#% output
+#= image("list_fit_plot.files/list_fit_plot-1.svgz")
+
+#% cell
+list_fit_plot(table([x, x^2 + sin(5 * x)], x, range(0, 3, 0.25)), 2)
+#% output
+#= image("list_fit_plot.files/list_fit_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_plot`

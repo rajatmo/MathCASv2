@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# sow
+
+#% text
+# `sow(e)` gives `e` and hands it to the innermost enclosing `reap`. `sow(e, tag)` gives it a tag (a list of tags: once per tag); a `reap` whose pattern does not match the tag passes it on to an outer one. Outside any `reap` it only gives `e`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reap({ sow(1); sow(2); 3 })
+#% output
+#= [3, [[1, 2]]]
+
+#% cell
+reap({ sow(1, odd); sow(2, even); sow(3, odd) }, odd)
+#% output
+#= [3, [[1, 3]]]
+
+#% cell
+sow(5)
+#% output
+#= 5
+
+#% section
+# See also
+
+#% text
+# `reap`

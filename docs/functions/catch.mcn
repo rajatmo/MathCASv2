@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# catch
+
+#% text
+# `catch(e)` evaluates `e` (held) and gives the value `v` of the first `throw(v)` reached in it, or the value of `e` when nothing was thrown. `catch(e, form)` catches only throws `throw(v, tag)` whose tag matches the pattern `form`, and `catch(e, form, f)` gives `f(v, tag)`. A throw that does not match stays a failure and goes on to an outer `catch`.
+#
+# A throw is a failure value (`failure(thrown, ...)`), so the first throw reached is the first one in evaluation order: inside a list or the result of `map`, where failures are kept, `catch` takes the leftmost.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catch({ a; b; throw(c); d })
+#% output
+#= c
+
+#% cell
+catch(for k in range(100) { if k^2 > 50 then throw(k) })
+#% output
+#= 8
+
+#% cell
+catch(map(x => if x < 0 then throw(x) else x, [1, 2, -3, 4, -5]))
+#% output
+#= -3
+
+#% cell
+catch([catch([a, throw(b), c]), d])
+#% output
+#= [b, d]
+
+#% cell
+catch(catch(throw(1, small) + 2, big), small)
+#% output
+#= 1
+
+#% cell
+catch(throw(10, overflow), _, (v, t) => [t, v])
+#% output
+#= [overflow, 10]
+
+#% section
+# See also
+
+#% text
+# `throw`, `reap`, `is_failure`

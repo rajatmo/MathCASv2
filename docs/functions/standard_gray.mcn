@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_gray
+
+#% text
+# `standard_gray`: the standard gray: a softer gray that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_gray, disk()])
+#% output
+#= image("standard_gray.files/standard_gray-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_gray)
+#% output
+#= image("standard_gray.files/standard_gray-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

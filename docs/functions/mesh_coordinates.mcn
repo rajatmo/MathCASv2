@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# mesh_coordinates
+
+#% text
+# `mesh_coordinates(m)`: the coordinates of a mesh region's vertices
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mesh_coordinates(mesh_region([[0], [1], [2]], line([1, 2, 3])))
+#% output
+#= [[0.0], [1.0], [2.0]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# airy_bi
+
+#% text
+# `airy_bi(x)` gives the Airy function `Bi(x)`.
+
+#% section
+# Details
+
+#% item
+# `Bi(x)` is the second solution of `y'' = x y` (DLMF 9.2), growing as `x` tends to `inf` and oscillating with the same amplitude as `Ai` for negative `x`.
+
+#% item
+# `airy_bi(0)` is `3^(-1/6)/gamma(2/3)`. Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `airy_bi` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+airy_bi(0)
+#% output
+#= 3^(5/6)/(3*gamma(2/3))
+
+#% cell
+airy_bi(1.0)
+#% output
+#= 1.2074235949528713
+
+#% cell
+airy_bi(-5.0)
+#% output
+#= -0.13836913490160058
+
+#% cell
+n(airy_bi(1), 30)
+#% output
+#= 1.2074235949528712594363788170282870
+
+#% subsection
+# Scope
+
+#% text
+# Fast growth:
+
+#% cell
+airy_bi(10.0)
+#% output
+#= 455641153.54822516
+
+#% text
+# A complex argument:
+
+#% cell
+airy_bi(1.0 + 1.0*im)
+#% output
+#= 0.7166580733827684 + 0.6198892904008447im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The Wronskian `Ai Bi' - Ai' Bi = 1/pi`:
+
+#% cell
+airy_ai(0.7)*airy_bi_prime(0.7) - airy_ai_prime(0.7)*airy_bi(0.7) - 1/pi
+#% output
+#= -2.7755575615628914e-17
+
+#% text
+# The derivative:
+
+#% cell
+d(airy_bi(x), x)
+#% output
+#= airy_bi_prime(x)
+
+#% section
+# See also
+
+#% text
+# `airy_ai`, `airy_bi_prime`, `airy_ai_prime`

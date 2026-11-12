@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# boxed
+
+#% text
+# `boxed` is an option of `graphics3d`: `boxed: true` draws the edges of the box around the scene (the default), `boxed: false` leaves them out.
+
+#% section
+# Details
+
+#% item
+# The axes and their labels are drawn on the edges of the box, so `boxed: false` suits pictures without axes.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(sphere(), boxed: false)
+#% output
+#= image("boxed.files/boxed-1.svgz")
+
+#% cell
+graphics3d(sphere(), boxed: true)
+#% output
+#= image("boxed.files/boxed-2.svgz")
+
+#% cell
+plot3d(x*y, [x, -1, 1], [y, -1, 1], boxed: false)
+#% output
+#= image("boxed.files/boxed-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `box_ratios`, `view_point`, `graphics3d`, `axes`

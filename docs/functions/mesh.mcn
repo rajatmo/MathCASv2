@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# mesh
+
+#% text
+# `mesh` is an option of the 3D plots: `mesh: n` draws `n` mesh lines each way over the surface, `mesh: none` draws none.
+
+#% section
+# Details
+
+#% item
+# The default is 15 lines each way.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], mesh: 5)
+#% output
+#= image("mesh.files/mesh-1.svgz")
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], mesh: none)
+#% output
+#= image("mesh.files/mesh-2.svgz")
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], mesh: 30)
+#% output
+#= image("mesh.files/mesh-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot3d`, `plot_points`, `plot_style`

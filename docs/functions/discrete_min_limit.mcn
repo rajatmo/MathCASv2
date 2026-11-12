@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_min_limit
+
+#% text
+# `discrete_min_limit(f, k -> inf)` gives the lower limit of the sequence f(k) as the integer k grows; `k -> -inf` as it decreases.
+
+#% section
+# Details
+
+#% item
+# The method is that of `discrete_max_limit`, with the smallest of the limits along the residues.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_min_limit((-1)^k, k -> inf)
+#% output
+#= -1
+
+#% cell
+discrete_min_limit((-1)^k*3*k^2/(k^2 + 5), k -> inf)
+#% output
+#= -3
+
+#% cell
+discrete_min_limit(cos(k), k -> inf)
+#% output
+#= -1
+
+#% section
+# See also
+
+#% text
+# `discrete_max_limit`, `min_limit`

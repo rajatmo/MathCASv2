@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# b_spline_surface
+
+#% text
+# `b_spline_surface(array)`: in graphics3d, the cubic B-spline surface with clamped ends over a grid of control points
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(b_spline_surface([[[0, 0, 0], [1, 0, 1], [2, 0, 0]], [[0, 1, 1], [1, 1, 3], [2, 1, 1]], [[0, 2, 0], [1, 2, 1], [2, 2, 0]]]))
+#% output
+#= image("b_spline_surface.files/b_spline_surface-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

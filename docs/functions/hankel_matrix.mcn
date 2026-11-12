@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# hankel_matrix
+
+#% text
+# `hankel_matrix(c)` gives the Hankel matrix with first column `c` and zeros below the antidiagonal; `hankel_matrix(c, r)` has last row `r`; `hankel_matrix(n)` uses the entries 1, ..., n.
+
+#% section
+# Details
+
+#% item
+# The entry in row `i` and column `j` depends only on `i + j`.
+
+#% item
+# In `hankel_matrix(c, r)` the first entry of `r` is the last entry of `c` and is ignored.
+
+#% item
+# The matrix is `length(c)` by `length(r)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hankel_matrix(4)
+#% output
+#= [[1, 2, 3, 4], [2, 3, 4, 0], [3, 4, 0, 0], [4, 0, 0, 0]]
+
+#% cell
+hankel_matrix([a, b, c, d])
+#% output
+#= [[a, b, c, d], [b, c, d, 0], [c, d, 0, 0], [d, 0, 0, 0]]
+
+#% cell
+hankel_matrix([x, y, z], [z, a, b, c, d])
+#% output
+#= [[x, y, z, a, b], [y, z, a, b, c], [z, a, b, c, d]]
+
+#% cell
+hankel_matrix([1, 2, 3, 4, 5, 6], [6, 0, 0, 0])
+#% output
+#= [[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6], [4, 5, 6, 0], [5, 6, 0, 0], [6, 0, 0, 0]]
+
+#% cell
+hankel_matrix([1., 2., 3.], [3., 2., 1.])
+#% output
+#= [[1.0, 2.0, 3.0], [2.0, 3.0, 2.0], [3.0, 2.0, 1.0]]
+
+#% section
+# See also
+
+#% text
+# `toeplitz_matrix`, `hilbert_matrix`

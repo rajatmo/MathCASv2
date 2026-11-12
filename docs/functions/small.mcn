@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# small
+
+#% text
+# `small` is a size: `image_size: small` is 180 points wide; `point_size(small)`, `thickness(small)`, `arrowheads(small)` and font sizes take it too.
+
+#% section
+# Details
+
+#% item
+# `point_size(small)` draws points 3 points across.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# As an image size:
+
+#% cell
+graphics(disk(), image_size: small)
+#% output
+#= image("small.files/small-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Points of this size:
+
+#% cell
+graphics([point_size(small), point([[0, 0], [1, 1]])])
+#% output
+#= image("small.files/small-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Line widths:
+
+#% cell
+graphics([thickness(small), line([[0, 0], [1, 0.5]])])
+#% output
+#= image("small.files/small-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `thickness`, `arrowheads`

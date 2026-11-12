@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# is_primitive_polynomial
+
+#% text
+# `is_primitive_polynomial(f, p)` gives `true` when the polynomial `f` is primitive modulo the prime `p`: irreducible, with a root that generates the multiplicative group of the field it defines.
+
+#% section
+# Details
+
+#% item
+# Equivalently `x` has order `p^n - 1` modulo `f` for `f` of degree `n`. The test needs the factorisation of `p^n - 1`; when it cannot be found the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_primitive_polynomial(x^4 + x + 1, 2)
+#% output
+#= true
+
+#% cell
+is_primitive_polynomial(x^4 + x^3 + x^2 + x + 1, 2)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# The second polynomial is irreducible, but its roots have order 5:
+
+#% cell
+is_irreducible_polynomial(x^4 + x^3 + x^2 + x + 1, modulus: 2)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_irreducible_polynomial`, `conway_polynomial`, `is_finite_field_element_primitive`

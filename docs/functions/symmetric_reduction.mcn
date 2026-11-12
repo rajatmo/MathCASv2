@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetric_reduction
+
+#% text
+# `symmetric_reduction(f, [x1, ..., xn])` gives `[p, q]` with `f = p + q`, p a polynomial in the elementary symmetric polynomials of the xi and q the remainder.
+
+#% text
+# `symmetric_reduction(f, xs, [s1, ..., sn])` writes p in the names si for the elementary symmetric polynomials.
+
+#% section
+# Details
+
+#% item
+# The leading term in the lexicographic order of xs is reduced by the fundamental theorem of symmetric polynomials when its exponents do not increase, else moved to q; q is 0 exactly when f is symmetric.
+
+#% item
+# Factors free of the xi are coefficients.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+symmetric_reduction(x^2 + y^2, [x, y])
+#% output
+#= [-2*x*y + (x + y)^2, 0]
+
+#% cell
+symmetric_reduction(x^2 - y^2, [x, y], [s1, s2])
+#% output
+#= [-2*s2 + s1^2, -2*y^2]
+
+#% cell
+symmetric_reduction(x^2 - y^2, [y, x])
+#% output
+#= [-(x + y)^2 + 2*x*y, 2*x^2]
+
+#% cell
+symmetric_reduction(x^3 + y^3 + z^3, [x, y, z], [s1, s2, s3])
+#% output
+#= [3*s3 - 3*s1*s2 + s1^3, 0]
+
+#% section
+# See also
+
+#% text
+# `symmetric_polynomial`, `polynomial_reduce`

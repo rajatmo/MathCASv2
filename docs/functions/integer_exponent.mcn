@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_exponent
+
+#% text
+# `integer_exponent(n)` gives the number of trailing decimal zeros of `n`.
+
+#% text
+# `integer_exponent(n, b)` gives the largest `k` with `b^k` dividing `n`.
+
+#% section
+# Details
+
+#% item
+# `n` is a non-zero integer and `b` an integer at least 2.
+
+#% item
+# `integer_exponent` is listable in its first argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_exponent(12000)
+#% output
+#= 3
+
+#% cell
+integer_exponent(48, 2)
+#% output
+#= 4
+
+#% cell
+integer_exponent(81, 3)
+#% output
+#= 4
+
+#% cell
+integer_exponent(7, 2)
+#% output
+#= 0
+
+#% subsection
+# Applications
+
+#% text
+# The number of trailing zeros of `100!`:
+
+#% cell
+integer_exponent(factorial(100))
+#% output
+#= 24
+
+#% text
+# The power of 2 in each of 1 .. 16:
+
+#% cell
+integer_exponent(range(16), 2)
+#% output
+#= [0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4]
+
+#% section
+# See also
+
+#% text
+# `factor_integer`, `integer_digits`, `mod`

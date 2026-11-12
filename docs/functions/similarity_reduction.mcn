@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# similarity_reduction
+
+#% text
+# `similarity_reduction(eq, u, [x, t], gen, f, z)` gives the ordinary differential equation for `f(z)` that the solutions of the partial differential equation `eq` invariant under its symmetry `gen = [xi, tau, eta]` (the generator `xi d/dx + tau d/dt + eta d/du`) satisfy, as `[ode, u(x, t) -> sol, z -> z(x, t)]`.
+
+#% section
+# Details
+
+#% item
+# The invariants come from the characteristic equations `dx/xi == dt/tau == du/eta` (solved by `d_solve`): the similarity variable `z(x, t)` and the form of `u` in terms of an arbitrary function `f(z)`. The form substituted into `eq` gives an equation in `z` alone.
+
+#% item
+# Generators with `xi` and `tau` free of `u` and `eta` linear in `u` (the usual case of point symmetries) and two independent variables; otherwise the result is `none`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Travelling waves of the Korteweg-de Vries equation, from the combination of the translations:
+
+#% cell
+similarity_reduction(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t], [1, 1, 0], f, z)
+#% output
+#= [-f'(z) + f(z)*f'(z) + f'''(z) == 0, u(x, t) -> f(x - t), z -> x - t]
+
+#% text
+# Its scaling symmetry gives the equation related to the second Painleve equation:
+
+#% cell
+similarity_reduction(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t], [x, 3*t, -2*u], f, z)
+#% output
+#= [-3*f'''(z) + 2*f(z) + z*f'(z) - 3*f(z)*f'(z) == 0, u(x, t) -> f(x/t^(1/3))/t^(2/3), z -> x/t^(1/3)]
+
+#% text
+# The scaling of the heat equation gives the similarity variable `x/sqrt(t)`:
+
+#% cell
+similarity_reduction(derivative(0, 1)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t], [x, 2*t, 0], f, z)
+#% output
+#= [-2*f''(z) - z*f'(z) == 0, u(x, t) -> f(x/t^(1/2)), z -> x/t^(1/2)]
+
+#% subsection
+# Scope
+
+#% text
+# The Galilean boost of Burgers' equation:
+
+#% cell
+similarity_reduction(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t], [t, 0, 1], f, z)
+#% output
+#= [f(z) + z*f'(z) == 0, u(x, t) -> f(t) + x/t, z -> t]
+
+#% section
+# See also
+
+#% text
+# `lie_point_symmetries`, `symmetry_reduce_order`, `d_solve`

@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# eliminate
+
+#% text
+# `eliminate(eqs, xs)` gives the polynomial equations `p == 0` implied by the equations `eqs` that are free of the unknowns `xs`.
+
+#% section
+# Details
+
+#% item
+# The equations are polynomial; the result comes from a Groebner basis with the unknowns `xs` ordered first.
+
+#% item
+# The result describes the projection of the solution set; it may be larger than the set of points that have a solution.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+eliminate([x + y == 3, x - y == 1], [y])
+#% output
+#= -2 + x == 0
+
+#% cell
+eliminate([x == t^2, y == t^3], [t])
+#% output
+#= -y^2 + x^3 == 0
+
+#% cell
+eliminate([x == cos_t, y == sin_t, cos_t^2 + sin_t^2 == 1], [cos_t, sin_t])
+#% output
+#= -1 + x^2 + y^2 == 0
+
+#% subsection
+# Applications
+
+#% text
+# The implicit equation of the parametrized curve `x = t^2 - 1`, `y = t^3 - t`:
+
+#% cell
+eliminate([x == t^2 - 1, y == t^3 - t], [t])
+#% output
+#= -y^2 + x^2 + x^3 == 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as the polynomials of a Groebner basis free of the eliminated variables:
+
+#% cell
+groebner_basis([x - t^2, y - t^3], [t, x, y])
+#% output
+#= [-y^2 + x^3, -x^2 + t*y, -y + t*x, -x + t^2]
+
+#% section
+# See also
+
+#% text
+# `groebner_basis`, `resultant`, `solve`

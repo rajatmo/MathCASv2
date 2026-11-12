@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# eval
+
+#% text
+# `eval(e)` gives the value of `e`.
+
+#% section
+# Details
+
+#% item
+# Outside a held argument `eval` changes nothing: its argument is evaluated like any other, and `eval(e)` is that value.
+
+#% item
+# Written directly as an argument that a function holds, `eval(e)` forces that argument: `e` is evaluated before the call, and the function receives its value. The function's other held arguments stay unevaluated.
+
+#% item
+# On the right of a definition, `eval` is the identity too: `rule g(x_) := eval(x^2 + 1)` behaves as `rule g(x_) := x^2 + 1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+eval(1 + 1)
+#% output
+#= 2
+
+#% cell
+rule g(x_) := eval(x^2 + 1)
+g(3)
+#% output
+#= 10
+
+#% subsection
+# Scope
+
+#% text
+# A function that holds all its arguments receives `1 + 1` as written, and the value of an argument wrapped in `eval`:
+
+#% cell
+set_attributes(h, hold_all); [h(1 + 1), h(eval(1 + 1))]
+#% output
+#= [h(1 + 1), h(2)]
+
+#% text
+# `quote` holds its argument too, so `eval` inside it is evaluated first:
+
+#% cell
+quote(eval(1 + 1)) === quote(2)
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# `eval` of a value is that value:
+
+#% cell
+eval([1, x, "s"]) === [1, x, "s"]
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `attributes`, `set_attributes`

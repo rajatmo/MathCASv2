@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# q_pochhammer
+
+#% text
+# `q_pochhammer(a, q, n)` gives the q-Pochhammer symbol `(a; q)_n`, the product of `1 - a*q^k` for `k` from 0 to `n - 1`.
+
+#% text
+# `q_pochhammer(a, q)` gives the infinite product `(a; q)_inf`, for `abs(q) < 1`.
+
+#% text
+# `q_pochhammer(q)` gives `(q; q)_inf`, Euler's function.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 17.2.1; `(a; q)_0` is 1. A finite product with symbolic arguments is expanded into factors.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values for the infinite product.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+q_pochhammer(a, q, 3)
+#% output
+#= (1 - a)*(1 - a*q)*(1 - a*q^2)
+
+#% cell
+q_pochhammer(0.5, 0.5, 4)
+#% output
+#= 0.3076171875
+
+#% cell
+q_pochhammer(0.5, 0.3)
+#% output
+#= 0.3980822043018777
+
+#% cell
+q_pochhammer(0.5)
+#% output
+#= 0.2887880950866024
+
+#% subsection
+# Applications
+
+#% text
+# Euler's function generates partitions: `1/(q; q)_inf` has the partition numbers as coefficients, so at a small `q` the leading terms show:
+
+#% cell
+1/q_pochhammer(0.01)
+#% output
+#= 1.0102030507111521
+
+#% cell
+sum(partitions_p(k)*0.01^k, [k, 0, 10])
+#% output
+#= 1.0102030507111524
+
+#% subsection
+# Properties and relations
+
+#% text
+# As `q` tends to 1, `(q^a; q)_n/(1 - q)^n` tends to the Pochhammer symbol `(a)_n`:
+
+#% cell
+q_pochhammer(0.9999^3, 0.9999, 4)/(1 - 0.9999)^4
+#% output
+#= 359.7480878801689
+
+#% cell
+pochhammer(3, 4)
+#% output
+#= 360
+
+#% section
+# See also
+
+#% text
+# `q_factorial`, `q_binomial`, `q_gamma`, `dedekind_eta`, `partitions_p`, `pochhammer`

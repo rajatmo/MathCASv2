@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_mod
+
+#% text
+# `polynomial_mod(p, m)` reduces the coefficients of p modulo the integer m, or gives the remainder of p on division by the polynomial m.
+
+#% text
+# `polynomial_mod(p, [m1, m2, ...])` reduces by each modulus in turn.
+
+#% section
+# Details
+
+#% item
+# A rational coefficient a/b is reduced to a b^-1 mod m when b is invertible modulo m. A polynomial modulus is divided in its first variable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_mod(3*x^2 + 2*x + 1, 2)
+#% output
+#= 1 + x^2
+
+#% cell
+polynomial_mod(3*x^2 + 2*x + 1, x^2 + 1)
+#% output
+#= -2 + 2*x
+
+#% cell
+polynomial_mod(3*x^3 + 21*x^2 - 7*x + 55, [2*x^2 - 7, 9])
+#% output
+#= 7 + 8*x
+
+#% text
+# With several variables the remainder is that of the multivariate division in the lexicographic order of the sorted variables, so it is a polynomial (`x^2 y` modulo `x y - 1` is `x`, not `1/y`):
+
+#% cell
+polynomial_mod(x^2*y, x*y - 1)
+#% output
+#= x
+
+#% cell
+polynomial_mod(x^2 + a^2, a*x - 1)
+#% output
+#= a^2 + x^2
+
+#% section
+# See also
+
+#% text
+# `polynomial_remainder`, `mod`, `polynomial_reduce`

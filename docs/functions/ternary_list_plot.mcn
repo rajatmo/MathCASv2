@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# ternary_list_plot
+
+#% text
+# `ternary_list_plot([[a, b, c], ...])` draws compositions of three parts as points of an equilateral triangle.
+
+#% section
+# Details
+
+#% item
+# Each triple is normalised to sum 1; corner k is the k-th part alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+ternary_list_plot([[0.15, 0.3, 0.55], [0.25, 0.7, 0.05], [0.4, 0.5, 0.1], [0.8, 0, 0.2]])
+#% output
+#= image("ternary_list_plot.files/ternary_list_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_plot`

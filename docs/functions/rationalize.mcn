@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# rationalize
+
+#% text
+# `rationalize(x)` gives the simplest rational number within the error of the inexact number `x`, when one is close enough.
+
+#% text
+# `rationalize(x, dx)` gives the simplest rational within `dx` of `x`.
+
+#% section
+# Details
+
+#% item
+# "Simplest" means smallest denominator. Without `dx`, `x` stays as it is when no rational with a small denominator is within its error.
+
+#% item
+# `set_precision(x, inf)` gives the exact binary value of a machine number instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rationalize(0.75)
+#% output
+#= 3/4
+
+#% cell
+rationalize(0.333333333333333)
+#% output
+#= 0.333333333333333
+
+#% cell
+rationalize(3.14159, 0.001)
+#% output
+#= 201/64
+
+#% cell
+rationalize(pi*1.0)
+#% output
+#= 3.141592653589793
+
+#% subsection
+# Scope
+
+#% text
+# Compared with the exact binary value:
+
+#% cell
+[rationalize(0.1), set_precision(0.1, inf)]
+#% output
+#= [1/10, 3602879701896397/36028797018963968]
+
+#% text
+# Each element of a list:
+
+#% cell
+rationalize([0.5, 0.25, 0.2])
+#% output
+#= [1/2, 1/4, 1/5]
+
+#% subsection
+# Applications
+
+#% text
+# Approximations of `pi` with growing accuracy:
+
+#% cell
+table(rationalize(pi*1.0, 10.0^-k), k, [1, 2, 4, 6])
+#% output
+#= [16/5, 22/7, 333/106, 355/113]
+
+#% section
+# See also
+
+#% text
+# `set_precision`, `continued_fraction`, `n`

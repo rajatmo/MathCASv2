@@ -1,0 +1,126 @@
+#! mathcas 2 notebook
+
+#% title
+# accumulate
+
+#% text
+# `accumulate(xs)` gives the running sums `[x1, x1 + x2, x1 + x2 + x3, ...]` of the list `xs`.
+
+#% section
+# Details
+
+#% item
+# The result has the same length as `xs`; its last element is the total.
+
+#% item
+# Elements may be numbers of any kind, symbols or lists of equal length (summed element by element).
+
+#% item
+# `accumulate` is defined in the prelude through `fold_list`; for running values of another operation use `fold_list` directly.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+accumulate([1, 2, 3, 4, 5])
+#% output
+#= [1, 3, 6, 10, 15]
+
+#% cell
+accumulate([a, b, c])
+#% output
+#= [a, a + b, a + b + c]
+
+#% cell
+accumulate([])
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# Fractions and machine reals:
+
+#% cell
+accumulate([1/2, 1/4, 1/8, 1/16])
+#% output
+#= [1/2, 3/4, 7/8, 15/16]
+
+#% cell
+accumulate([0.1, 0.1, 0.1])
+#% output
+#= [0.1, 0.2, 0.30000000000000004]
+
+#% text
+# Vectors are summed element by element:
+
+#% cell
+accumulate([[1, 0], [0, 1], [1, 1]])
+#% output
+#= [[1, 0], [1, 1], [2, 2]]
+
+#% subsection
+# Applications
+
+#% text
+# A random walk from its steps:
+
+#% cell
+seed(2); accumulate(random_choice([-1, 1], 12))
+#% output
+#= [-1, -2, -3, -2, -1, -2, -3, -4, -3, -2, -3, -2]
+
+#% text
+# A cumulative distribution from a histogram's counts:
+
+#% cell
+counts = [2, 5, 9, 3, 1]
+accumulate(counts)/total(counts)
+#% output
+#= [1/10, 7/20, 4/5, 19/20, 1]
+
+#% text
+# The triangular numbers:
+
+#% cell
+accumulate(range(10))
+#% output
+#= [1, 3, 6, 10, 15, 21, 28, 36, 45, 55]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The last running sum is the total:
+
+#% cell
+last(accumulate(range(100))) == total(range(100))
+#% output
+#= true
+
+#% text
+# `fold_list` with the start value kept gives one more element:
+
+#% cell
+fold_list((a, b) => a + b, 0, [1, 2, 3])
+#% output
+#= [0, 1, 3, 6]
+
+#% text
+# Differences of consecutive running sums give the list back:
+
+#% cell
+s = accumulate([3, 1, 4, 1, 5])
+prepend(rest(s) - most(s), first(s))
+#% output
+#= [3, 1, 4, 1, 5]
+
+#% section
+# See also
+
+#% text
+# `fold_list`, `total`, `sum`, `fold`

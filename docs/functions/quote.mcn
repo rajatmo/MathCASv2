@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# quote
+
+#% text
+# `quote(x)` keeps `x` unevaluated and stays as it is when passed on, until `unquote` releases it. `eval(e)` written as the argument is evaluated first.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quote(1 + 2)
+#% output
+#= quote(1 + 2)
+
+#% cell
+quote(eval(1 + 2))
+#% output
+#= quote(3)
+
+#% cell
+unquote(quote(1 + 2))
+#% output
+#= 3
+
+#% cell
+length(quote(f(1 + 1, 2 + 2)))
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `unquote`, `hold_complete`, `eval`

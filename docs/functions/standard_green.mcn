@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_green
+
+#% text
+# `standard_green`: the standard green: a softer green that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_green, disk()])
+#% output
+#= image("standard_green.files/standard_green-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_green)
+#% output
+#= image("standard_green.files/standard_green-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

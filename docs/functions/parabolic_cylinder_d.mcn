@@ -1,0 +1,87 @@
+#! mathcas 2 notebook
+
+#% title
+# parabolic_cylinder_d
+
+#% text
+# `parabolic_cylinder_d(nu, z)` gives the parabolic cylinder function `D_nu(z)`.
+
+#% section
+# Details
+
+#% item
+# `D_nu(z)` is the solution of Weber's equation `w'' + (nu + 1/2 - z^2/4) w = 0` that decays like `z^nu*exp(-z^2/4)` as `z` tends to `inf` (DLMF 12.2 with `U(a, z) = D_(-a - 1/2)(z)`).
+
+#% item
+# For a non-negative integer `nu` it is `exp(-z^2/4)` times a Hermite polynomial, `2^(-nu/2)*hermite_h(nu, z/sqrt(2))`.
+
+#% item
+# `D_0(z)` is `exp(-z^2/4)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+parabolic_cylinder_d(0, z)
+#% output
+#= exp((-1/4)*z^2)
+
+#% cell
+parabolic_cylinder_d(0, 1.5)
+#% output
+#= 0.569782824730923
+
+#% cell
+parabolic_cylinder_d(0, [0.0, 1.0, 2.0])
+#% output
+#= [1.0, 0.7788007830714049, 0.36787944117144233]
+
+#% subsection
+# Possible issues
+
+#% text
+# Numerical values are not computed for most orders:
+
+#% cell
+parabolic_cylinder_d(0.5, 1.5)
+#% output
+#= 0.7278946486531516
+
+#% cell
+parabolic_cylinder_d(3, 1.2)
+#% output
+#= -1.3060500824049701
+
+
+#% text
+# Integer orders in closed form:
+
+#% cell
+parabolic_cylinder_d(2, x)
+#% output
+#= -exp((-1/4)*x^2) + exp((-1/4)*x^2)*x^2
+
+#% text
+# The value at 0 for any order:
+
+#% cell
+parabolic_cylinder_d(nu, 0)
+#% output
+#= 2^((1/2)*nu)*pi^(1/2)/gamma((1/2)*(1 - nu))
+
+#% text
+# Machine values:
+
+#% cell
+parabolic_cylinder_d(0.51, 0.87)
+#% output
+#= 0.8481137305149468
+
+#% section
+# See also
+
+#% text
+# `hermite_h`, `hypergeometric_u`, `whittaker_w`

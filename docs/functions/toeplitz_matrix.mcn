@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# toeplitz_matrix
+
+#% text
+# `toeplitz_matrix(c)` gives the Hermitian Toeplitz matrix with first column `c`; `toeplitz_matrix(c, r)` has first row `r`; `toeplitz_matrix(n)` has entries |i - j| + 1.
+
+#% section
+# Details
+
+#% item
+# The entry in row `i` and column `j` depends only on `i - j`.
+
+#% item
+# With one list the first row is the complex conjugate of the first column, so the matrix is Hermitian.
+
+#% item
+# The matrix is `length(c)` by `length(r)`; the first entry of `r` is ignored.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+toeplitz_matrix(4)
+#% output
+#= [[1, 2, 3, 4], [2, 1, 2, 3], [3, 2, 1, 2], [4, 3, 2, 1]]
+
+#% cell
+toeplitz_matrix([a, b, c, d])
+#% output
+#= [[a, b, c, d], [b, a, b, c], [c, b, a, b], [d, c, b, a]]
+
+#% cell
+toeplitz_matrix([1, 2, 3, 4, 5], [1, 6, 7])
+#% output
+#= [[1, 6, 7], [2, 1, 6], [3, 2, 1], [4, 3, 2], [5, 4, 3]]
+
+#% cell
+toeplitz_matrix([1 + 2*im, 3 + 4*im, 5 + 6*im])
+#% output
+#= [[1 + 2im, 3 - 4im, 5 - 6im], [3 + 4im, 1 + 2im, 3 - 4im], [5 + 6im, 3 + 4im, 1 + 2im]]
+
+#% cell
+toeplitz_matrix([1., 2., 4., 8.], [1., 0.5, 0.25, 0.125])
+#% output
+#= [[1.0, 0.5, 0.25, 0.125], [2.0, 1.0, 0.5, 0.25], [4.0, 2.0, 1.0, 0.5], [8.0, 4.0, 2.0, 1.0]]
+
+#% section
+# See also
+
+#% text
+# `hankel_matrix`, `hilbert_matrix`

@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# to_radicals
+
+#% text
+# `to_radicals(e)` replaces every `root_sum` in `e` whose polynomial is an irreducible cubic or quartic by the sum over its roots written with radicals.
+
+#% section
+# Details
+
+#% item
+# The roots are the ones `solve` gives by the cubic and quartic formulas, so they may contain complex radicals even when the sum is real.
+
+#% item
+# Sums over polynomials of other degrees stay as they are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A sum of logarithms over the roots of a pure cubic:
+
+#% cell
+to_radicals(root_sum(x => x^3 - 2, x => x*log(z - x)))
+#% output
+#= log(z - 2^(1/3))*2^(1/3) + log(z - (-1)^(2/3)*2^(1/3))*(-1)^(2/3)*2^(1/3) - log(z + (-1)^(1/3)*2^(1/3))*(-1)^(1/3)*2^(1/3)
+
+#% subsection
+# Scope
+
+#% text
+# The numeric value does not change:
+
+#% cell
+n(to_radicals(root_sum(x => x^3 + x + 1, x => log(2 - x))))
+#% output
+#= 2.3978952727983702 + 0.0im
+
+#% cell
+n(root_sum(x => x^3 + x + 1, x => log(2 - x)))
+#% output
+#= 2.3978952727983702
+
+#% section
+# See also
+
+#% text
+# `root_sum`, `solve`, `root`

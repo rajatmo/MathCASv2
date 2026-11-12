@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# fractional_part
+
+#% text
+# `fractional_part(x)` gives `x - integer_part(x)`, with the sign of `x`.
+
+#% section
+# Details
+
+#% item
+# Exact for exact numbers and closed numeric terms; machine numbers give machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fractional_part(7/3)
+#% output
+#= 1/3
+
+#% cell
+fractional_part(-2.4)
+#% output
+#= -0.3999999999999999
+
+#% cell
+fractional_part(pi)
+#% output
+#= -3 + pi
+
+#% section
+# See also
+
+#% text
+# `integer_part`, `floor`, `mod`

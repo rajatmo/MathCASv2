@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# exception
+
+#% text
+# `exception(type, data)` is an exception of the given type, with an association of data: a plain value that `throw_exception` can throw.
+
+#% section
+# Details
+
+#% item
+# `exception(type)` has no data; data that is not an association is kept under the key `payload`.
+
+#% item
+# An exception is a value, not a failure, so it can be passed to functions, stored and inspected: `exception_type`, `exception_data`, `exception_tags`. Throwing it makes a failure that propagates until `catch_exception`, as `throw` does.
+
+#% item
+# The types are symbols or strings; `register_exception_type(type, parent)` makes a type a kind of another, so that catching the parent also catches it.
+
+#% item
+# Exceptions are ordinary terms over the failures and `throw`/`catch` of the core, not a separate mechanism with messages (semantics 10).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exception(data_error, assoc(data -> 42))
+#% output
+#= exception(data_error, assoc(data -> 42))
+
+#% cell
+exception_data(exception(data_error, assoc(data -> 42)))
+#% output
+#= assoc(data -> 42)
+
+#% subsection
+# Scope
+
+#% text
+# With a hierarchy of types:
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+exception_tags(exception(arg_type_error))
+#% output
+#= [arg_type_error, arg_error]
+
+#% subsection
+# Applications
+
+#% text
+# Catching by a parent type:
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+catch_exception(1 + throw_exception(exception(arg_type_error, assoc(value -> pi))), arg_error)
+#% output
+#= exception(arg_type_error, assoc(value -> pi))
+
+#% subsection
+# Possible issues
+
+#% text
+# A type may be a string or a number, and without data the exception has an empty data association; a call without a type stays as it is:
+
+#% cell
+[exception("s", assoc(a -> 1)), exception("s"), exception()]
+#% output
+#= [exception("s", assoc(a -> 1)), exception("s", assoc()), exception()]
+
+#% section
+# See also
+
+#% text
+# `throw_exception`, `catch_exception`, `register_exception_type`, `throw`, `catch`

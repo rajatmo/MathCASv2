@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# lower_central_series
+
+#% text
+# `lower_central_series(G)`: G, [G, G], [[G, G], G], ... until it is stable
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map(group_order, lower_central_series(dihedral_group(8)))
+#% output
+#= [16, 4, 2, 1]
+
+#% cell
+map(group_order, lower_central_series(symmetric_group(4)))
+#% output
+#= [24, 12]
+
+#% section
+# See also
+
+#% text
+# `is_nilpotent`, `derived_series`

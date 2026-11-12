@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# conic_optimization
+
+#% text
+# `conic_optimization(f, cons, vars)` gives the point that minimizes `f` under constraints that are linear, quadratic bounds or cone memberships.
+
+#% section
+# Details
+
+#% item
+# A bound `norm([x, y]) <= t` is the second-order cone constraint `x^2 + y^2 <= t^2`, `t >= 0`.
+
+#% item
+# `vector_greater_equal([v, 0], ["NormCone", n])` asks the vector `v` (its last entry the cone's axis) to lie in the second-order cone, and `["SemidefiniteCone", n]` asks a symmetric matrix to be positive semidefinite.
+
+#% item
+# A fourth argument selects "PrimalMinimumValue", "PrimalMinimizer" or "PrimalMinimizerRules" as for `quadratic_optimization`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conic_optimization(x + 2*y, [x^2 + 2*y^2 <= 3, x + y == 2, x >= 1], [x, y])
+#% output
+#= [x -> 5/3, y -> 1/3]
+
+#% cell
+conic_optimization(-(x + y), [x >= 0, y >= 0, x + 2*y <= 2, x^2 + y^2 <= 1], [x, y])
+#% output
+#= [x -> 4/5, y -> 3/5]
+
+#% cell
+conic_optimization(x + y, norm([x, y]) <= 1, [x, y], "PrimalMinimumValue")
+#% output
+#= -2^(1/2)
+
+#% section
+# See also
+
+#% text
+# `second_order_cone_optimization`, `semidefinite_optimization`, `convex_optimization`

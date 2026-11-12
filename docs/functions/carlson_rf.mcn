@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# carlson_rf
+
+#% text
+# `carlson_rf(x, y, z)` gives Carlson's symmetric elliptic integral of the first kind `R_F(x, y, z)`.
+
+#% section
+# Details
+
+#% item
+# `R_F(x, y, z)` is half the integral of `1/sqrt((t + x)(t + y)(t + z))` over `t > 0` (DLMF 19.16.1); it is symmetric in its arguments and homogeneous of degree `-1/2`.
+
+#% item
+# `R_F(x, x, x) = x^(-1/2)`; `R_F(0, x, y) = (pi/2) R_K(x, y)`; two zero arguments give `complex_infinity`.
+
+#% item
+# Numerical values come from the duplication algorithm (DLMF 19.36.1), for real and complex arguments off the negative real axis.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+carlson_rf(1.0, 2.0, 3.0)
+#% output
+#= 0.7269459354689082
+
+#% cell
+n(carlson_rf(1, 4, 9), 30)
+#% output
+#= 0.5086446185700302382135790075023195
+
+#% cell
+carlson_rf(4.0, -6.0, 8.0)
+#% output
+#= 0.45584813574900473 - 0.26101764977732517im
+
+#% cell
+carlson_rf(im, 1 - 2*im, 3.0 + im)
+#% output
+#= 0.7917371064055124 - 0.047183529646425575im
+
+#% cell
+carlson_rf(x, x, x)
+#% output
+#= x^(-1/2)
+
+#% text
+# The incomplete integral of the first kind: `F(phi | m) = sin(phi) R_F(cos(phi)^2, 1 - m sin(phi)^2, 1)`:
+
+#% cell
+sin(pi/3)*carlson_rf(cos(pi/3)^2, 1 - 0.7*sin(pi/3)^2, 1) - elliptic_f(pi/3, 0.7)
+#% output
+#= 2.220446049250313e-16
+
+#% section
+# See also
+
+#% text
+# `carlson_rk`, `elliptic_f`, `elliptic_k`

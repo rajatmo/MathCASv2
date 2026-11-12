@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# thue_morse
+
+#% text
+# `thue_morse(k)` gives the parity of the number of 1 bits of the integer `k >= 0`: the Thue-Morse sequence 0, 1, 1, 0, 1, 0, 0, 1, ...
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+thue_morse(range(0, 15))
+#% output
+#= [0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0]
+
+#% cell
+thue_morse(2^20 - 1)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `digit_sum`, `bit_length`

@@ -1,0 +1,41 @@
+[package]
+name = "mc-docs"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 documentation: the function page format and its checker, and the documentation window"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "mc-docs"
+path = "src/main.rs"
+
+# the headless page tool: `mc-docs-pages check` and `mc-docs-pages update` (regenerates the outputs of the pages)
+[[bin]]
+name = "mc-docs-pages"
+path = "src/bin/pages.rs"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
+mc-engine = { path = "../mc-engine" }
+mc-help = { path = "../mc-help" }
+mc-kernel = { path = "../mc-kernel" }
+mc-nbfile = { path = "../mc-nbfile" }
+mc-notebook = { path = "../mc-notebook" }
+mc-syntax = { path = "../mc-syntax" }
+mc-ui = { path = "../mc-ui" }
+png = "0.18"
+flate2 = "1"
+# the libraries whose `FUNCTIONS` lists make the catalogue (the same list as the engine's)
+mc-libraries = { path = "../mc-libraries" }
+# the plot files of the documentation runner's sessions
+mc-plot = { path = "../mc-plot" }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"

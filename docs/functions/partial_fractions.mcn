@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# partial_fractions
+
+#% text
+# `partial_fractions(f, x)` gives the partial fraction decomposition of the rational function f in x over the complex numbers.
+
+#% text
+# `partial_fractions(f, x, extension: reals)` keeps the irreducible real quadratic factors of the denominator.
+
+#% section
+# Details
+
+#% item
+# For a denominator with simple roots a the terms are `residue/(x - a)`, the residue being numerator(a)/denominator'(a), plus the polynomial part. Repeated roots, or roots `solve` cannot give, fall back to the rational decomposition of `apart`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+partial_fractions(1/(x^2 - 1), x)
+#% output
+#= -1/(2*(1 + x)) + 1/(2*(-1 + x))
+
+#% cell
+partial_fractions(1/(x^2 + 1), x)
+#% output
+#= -im/2/(-im + x) + im/2/(im + x)
+
+#% cell
+partial_fractions((19 + 5*x + x^2)/(12 + 4*x + 3*x^2 + x^3), x, extension: reals)
+#% output
+#= 5/(4 + x^2) + (3 + x)^-1
+
+#% section
+# See also
+
+#% text
+# `apart`, `together`, `solve`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# knuth_bendix
+
+#% text
+# `knuth_bendix(F)`: a confluent rewriting system for the group (shortlex order)
+
+#% section
+# Details
+
+#% item
+# The rules l -> r rewrite words to their normal forms in the shortlex order with a < a^-1 < b < b^-1 < ...; the completion gives up past 2000 rules.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+knuth_bendix(finitely_presented_group([a], [a^3]))
+#% output
+#= [[a^2] -> [a^-1], [a, a^-1] -> [], [a^-1, a] -> [], [a^-2] -> [a]]
+
+#% cell
+knuth_bendix(finitely_presented_group([a, b], [[a, b] -> [b, a]]))
+#% output
+#= [[a, a^-1] -> [], [a^-1, a] -> [], [b, a] -> [a, b], [b, a^-1] -> [a^-1, b], [b, b^-1] -> [], [b^-1, a] -> [a, b^-1], [b^-1, a^-1] -> [a^-1, b^-1], [b^-1, b] -> []]
+
+#% section
+# See also
+
+#% text
+# `word_normal_form`, `finitely_presented_group`

@@ -1,0 +1,30 @@
+[package]
+name = "mc-io"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 import and export of data files: lists as CSV, TSV, text and JSON; PNG images"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# datasets: their representation and constructors
+mc-assoc = { path = "../mc-assoc" }
+# the spline evaluation compiled code shares
+mc-numeric = { path = "../mc-numeric" }
+serde_json = "1"
+# reading JSON objects with their keys in file order (dataset columns)
+serde = "1"
+# PNG decoding and encoding (8- and 16-bit, gray, alpha, palette)
+png = "0.18"
+# compressed streams in written PDF files
+flate2 = "1"
+# PDF parsing, page rendering and text extraction (pure Rust)
+hayro = "0.8"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

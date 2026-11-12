@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# numeric_array
+
+#% text
+# `numeric_array(xs, type)` is the array `xs` of numbers stored in the machine type `type`.
+
+#% section
+# Details
+
+#% item
+# The types are `"Integer8"`, `"Integer16"`, `"Integer32"`, `"Integer64"`, `"UnsignedInteger8"`, ..., `"Real32"`, `"Real64"`, `"ComplexReal32"` and `"ComplexReal64"`.
+
+#% item
+# The object stays unevaluated; `normal(numeric_array(xs, type))` gives the list back, with the entries of an integer type kept to its range (`"ClipAndCoerce"` as a third argument clips to the range, `"Round"` rounds first) and those of a real type as machine reals (single-precision rounding of `"Real32"` is not applied).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+numeric_array([1, 2, 3, 4], "Real32")
+#% output
+#= numeric_array([1, 2, 3, 4], "Real32")
+
+#% cell
+numeric_array([[1, 2], [3, 4]], "UnsignedInteger8")
+#% output
+#= numeric_array([[1, 2], [3, 4]], "UnsignedInteger8")
+
+#% cell
+normal(numeric_array([0, 1, 2], "UnsignedInteger8"))
+#% output
+#= [0, 1, 2]
+
+#% cell
+normal(numeric_array([0, 1000, 2000], "UnsignedInteger8", "ClipAndCoerce"))
+#% output
+#= [0, 255, 255]
+
+#% cell
+normal(numeric_array([0.1, 1.1, 2.1], "UnsignedInteger8", "Round"))
+#% output
+#= [0, 1, 2]
+
+#% section
+# See also
+
+#% text
+# `normal`, `array_reshape`

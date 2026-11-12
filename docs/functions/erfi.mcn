@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# erfi
+
+#% text
+# `erfi(x)` gives the imaginary error function `-im*erf(im*x)`.
+
+#% section
+# Details
+
+#% item
+# `erfi(x)` is `2/sqrt(pi)` times the integral of `exp(t^2)` for `t` from 0 to `x` (DLMF 7.2.1 continued to the imaginary axis). It is odd and grows like `exp(x^2)`.
+
+#% item
+# `erfi(0)` is 0; other exact arguments stay unevaluated. Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `erfi` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+erfi(1.0)
+#% output
+#= 1.6504257587975428
+
+#% cell
+erfi(0)
+#% output
+#= 0
+
+#% cell
+erfi(-0.5)
+#% output
+#= -0.614952094696511
+
+#% cell
+n(erfi(1), 30)
+#% output
+#= 1.650425758797542876025337729561362
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments:
+
+#% cell
+erfi(10.0)
+#% output
+#= 1.5243074227086696e42
+
+#% text
+# A complex argument:
+
+#% cell
+erfi(0.5 + 1.0*im)
+#% output
+#= 0.18797346722338332 + 0.9507097283189572im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(erfi(x), x)
+#% output
+#= 2*exp(x^2)/pi^(1/2)
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(2/sqrt(pi)*exp(t^2), [t, 0, 1]) - erfi(1.0)
+#% output
+#= 4.440892098500626e-16
+
+#% section
+# See also
+
+#% text
+# `erf`, `erfc`, `dawson_f`, `fresnel_s`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# whitespace
+
+#% text
+# `whitespace` is a string pattern for a run of one or more white-space characters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_replace("a   b \t c",whitespace -> " ")
+#% output
+#= "a b c"
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

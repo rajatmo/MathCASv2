@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# edge_list
+
+#% text
+# `edge_list(g)` gives the edges of a graph, as `directed_edge(a, b)` or `undirected_edge(a, b)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+edge_list(graph([a -> b, b -> c]))
+#% output
+#= [directed_edge(a, b), directed_edge(b, c)]
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

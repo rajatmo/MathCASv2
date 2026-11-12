@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# replace_at
+
+#% text
+# `replace_at(x, rules, pos)` gives `x` with the part at position `pos` replaced by `replace(part, rules)`.
+
+#% section
+# Details
+
+#% item
+# `pos` is an index, a position `[i, j, ...]`, or a list of positions; negative indices count from the end.
+
+#% item
+# A position named twice is rewritten twice.
+
+#% item
+# `replace_at(rules, pos)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+replace_at([a, a, a, a], a -> x, 2)
+#% output
+#= [a, x, a, a]
+
+#% cell
+replace_at([a, a, a, a], a -> x, [[1], [4]])
+#% output
+#= [x, a, a, x]
+
+#% cell
+replace_at([[a, a], [a, a]], a -> x, [2, 1])
+#% output
+#= [[a, a], [x, a]]
+
+#% subsection
+# Scope
+
+#% cell
+replace_at([1, 2, 3, 4], x_ :> 2*x - 1, [[2], [4]])
+#% output
+#= [1, 3, 3, 7]
+
+#% cell
+replace_at([a, a, a, a], a -> x, -2)
+#% output
+#= [a, a, x, a]
+
+#% cell
+replace_at(a -> x, 2)([a, a, a])
+#% output
+#= [a, x, a]
+
+#% section
+# See also
+
+#% text
+# `replace`, `replace_part`, `map_at`, `rewrite`

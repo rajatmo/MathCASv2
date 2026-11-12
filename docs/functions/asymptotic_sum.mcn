@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_sum
+
+#% text
+# `asymptotic_sum(f, [k, a, b], [x, x0, m])` gives the expansion of the sum of f over k to order m in x at x0; `x -> x0` gives the leading term.
+
+#% section
+# Details
+
+#% item
+# For a parameter x at a finite point the summand is expanded and summed term by term; otherwise the closed-form sum is expanded.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_sum(1/(k^2 + a), [k, 1, inf], [a, 0, 2])
+#% output
+#= (1/6)*pi^2 - (1/90)*a*pi^4 + (1/945)*a^2*pi^6
+
+#% cell
+asymptotic_sum(1/(k^2 - 1), [k, 2, n], [n, inf, 3])
+#% output
+#= 3/4 - n^-1 - 1/(2*n^3) + 1/(2*n^2)
+
+#% cell
+asymptotic_sum(1/(k^3 + a), [k, 1, inf], [a, 0, 1])
+#% output
+#= (-1/945)*a*pi^6 + zeta(3)
+
+#% section
+# See also
+
+#% text
+# `sum`, `series`, `asymptotic_product`, `asymptotic_integrate`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# subset_replace
+
+#% text
+# `subset_replace(xs, p -> r)` replaces each subset of `xs` matching the list pattern `p` (subsets that do not share elements, found from the left) by `r`, placed where the element matching the pattern's first entry was; the other elements of the subset are removed. A list of rules tries each in turn; `subset_replace(xs, rules, n)` replaces at most `n` subsets, and `subset_replace(rules)(xs)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subset_replace([1, 2, 3, 4, 5, 6], [2, 4] -> x)
+#% output
+#= [1, x, 3, 5, 6]
+
+#% cell
+subset_replace([1, 2, 3, a, a, b, c], [a, x_: Int] :> f(x))
+#% output
+#= [3, f(1), f(2), b, c]
+
+#% cell
+subset_replace([a, b, a, b, a, b, a, b], [a, a] -> x, 1)
+#% output
+#= [x, b, b, a, b, a, b]
+
+#% section
+# See also
+
+#% text
+# `subset_cases`, `sequence_replace`, `rewrite`

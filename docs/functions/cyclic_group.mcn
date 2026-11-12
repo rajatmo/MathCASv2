@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# cyclic_group
+
+#% text
+# `cyclic_group(k)`: the cyclic group of order k on k points
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cyclic_group(5)
+#% output
+#= permutation_group([cycles([[1, 2, 3, 4, 5]])])
+
+#% cell
+group_elements(cyclic_group(3))
+#% output
+#= [cycles([]), cycles([[1, 2, 3]]), cycles([[1, 3, 2]])]
+
+#% section
+# See also
+
+#% text
+# `abelian_group`, `dihedral_group`

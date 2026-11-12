@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# fox_h_reduce
+
+#% text
+# `fox_h_reduce(e, x)` writes `e` as a combination of Fox H functions of `x`, kept inactive: `inactive(fox_h)(a, b, z)`.
+
+#% section
+# Details
+
+#% item
+# The functions are those of `meijer_g_reduce`; a Meijer G function `G(z^(1/r))` becomes `|r| H(z^(sign r))` with all scales `|r|`.
+
+#% item
+# A power of `x` times one Fox H function of `k x^p` is absorbed into the parameters (`z^t H(z | (a, A)) = H(z | (a + t A, A))`); a symbolic exponent `p` is moved into the scales, valid for `p > 0`. Products of functions give products of Fox H functions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fox_h_reduce(sin(a*x), x)
+#% output
+#= (1/2)*pi^(1/2)*inactive(fox_h)([[], []], [[[1/2, 1/2]], [[0, 1/2]]], (1/2)*a*x)
+
+#% cell
+fox_h_reduce(2*sin(x) + cos(x), x)
+#% output
+#= pi^(1/2)*inactive(fox_h)([[], []], [[[1/2, 1/2]], [[0, 1/2]]], (1/2)*x) + (1/2)*pi^(1/2)*inactive(fox_h)([[], []], [[[0, 1/2]], [[1/2, 1/2]]], (1/2)*x)
+
+#% cell
+fox_h_reduce(x^b*exp(-x), x)
+#% output
+#= inactive(fox_h)([[], []], [[[b, 1]], []], x)
+
+#% cell
+fox_h_reduce(x^b*exp(-x^a), x)
+#% output
+#= conditional_expression(inactive(fox_h)([[], []], [[[b/a, a^-1]], []], x)/a, a > 0)
+
+#% cell
+fox_h_reduce(sin_integral(12*x^(1/3)), x)
+#% output
+#= (1/4)*pi^(1/2)*inactive(fox_h)([[[1, 1/2]], []], [[[1/2, 1/2]], [[0, 1/2], [0, 1/2]]], 6*x^(1/3))
+
+#% text
+# The function again:
+
+#% cell
+activate(fox_h_reduce(1/(1 + x^2), x))
+#% output
+#= (1 + x^2)^-1
+
+#% section
+# See also
+
+#% text
+# `fox_h`, `meijer_g_reduce`, `meijer_g`, `inactive`, `activate`

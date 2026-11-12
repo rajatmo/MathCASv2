@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_s_prime
+
+#% text
+# `mathieu_s_prime(a, q, z)` gives the derivative in `z` of the odd Mathieu function `mathieu_s(a, q, z)`.
+
+#% section
+# Details
+
+#% item
+# Numerical values: Taylor series of the equation re-expanded along the segment from 0, and the normalization from the characteristic exponent `nu` (`cos(pi nu) = w_I(pi)`, DLMF 28.2.16) and the Fourier coefficients of the Floquet solution (continued fractions, `sum c_k^2 = 1`). Real `a` and `q` use this normalization throughout; complex `a` or `q` use the principal branches and may differ from other conventions by the normalization.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mathieu_s_prime(2, 1, 3.2)
+#% output
+#= -0.41459068965367946
+
+#% cell
+n(mathieu_s_prime(2, 1, 37/10), 20)
+#% output
+#= -0.21740542426975775339776
+
+#% text
+# A difference quotient of `mathieu_s`:
+
+#% cell
+(mathieu_s(2, 1, 3.2 + 1.0e-6) - mathieu_s(2, 1, 3.2 - 1.0e-6))/2.0e-6
+#% output
+#= -0.414590689723493
+
+#% section
+# See also
+
+#% text
+# `mathieu_s`, `mathieu_c`

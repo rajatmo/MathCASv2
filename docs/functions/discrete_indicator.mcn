@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_indicator
+
+#% text
+# `discrete_indicator(x, x0, domain)` gives 1 if `x` equals `x0` and 0 if `x` is another element of the finite `domain`.
+
+#% section
+# Details
+
+#% item
+# It is the indicator of the single point `x0` on a finite domain of symbols or values.
+
+#% item
+# A `x0` outside the domain gives 0; an `x` that is not an element of the domain leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_indicator(a, a, [a, b, c])
+#% output
+#= 1
+
+#% cell
+discrete_indicator(b, a, [a, b, c])
+#% output
+#= 0
+
+#% cell
+discrete_indicator(x, a, [a, b, c])
+#% output
+#= discrete_indicator(x, a, [a, b, c])
+
+#% cell
+table(discrete_indicator(v, 2, [1, 2, 3]), v, [1, 2, 3])
+#% output
+#= [0, 1, 0]
+
+#% section
+# See also
+
+#% text
+# `kronecker_delta`, `boole`

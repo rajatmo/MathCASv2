@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# central_moment
+
+#% text
+# `central_moment(d, k)` gives the `k`-th central moment `E[(X - mu)^k]` of a distribution; `central_moment(xs, k)` gives `sum((xs - mean)^k)/n` of a data list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+central_moment(normal_distribution(mu, s), 4)
+#% output
+#= 3*s^4
+
+#% cell
+central_moment([1, 2, 3, 4], 2)
+#% output
+#= 5/4
+
+#% subsection
+# Scope
+
+#% text
+# The second central moment of a distribution is its variance:
+
+#% cell
+central_moment(poisson_distribution(m), 2)
+#% output
+#= m
+
+#% section
+# See also
+
+#% text
+# `moment`, `variance`, `skewness`

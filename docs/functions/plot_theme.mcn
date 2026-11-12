@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_theme
+
+#% text
+# `plot_theme` is an option of graphics and plots: `plot_theme: "dark"` draws the background, frame, ticks, labels, grid lines and legend box in the colours of the dark notebook theme, and `"light"` in the light ones. The data keeps its colours.
+# Without the option a picture is written in its light colours, and the notebook redraws its chrome in the window's theme. With it, the colours are fixed in every file the picture is written to (PNG, SVG and PDF), so a plot can be exported for a dark slide or web page.
+
+#% section
+# Details
+
+#% item
+# The value may be a string or a symbol: `plot_theme: dark` works too.
+
+#% item
+# Other names are accepted and change nothing.
+
+#% item
+# A colour given with `background:` is kept in either theme.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi], legend: ["sin", "cos"], plot_theme: "dark")
+#% output
+#= image("plot_theme.files/plot_theme-1.svgz")
+
+#% cell
+graphics([red, disk()], frame: true, plot_theme: dark)
+#% output
+#= image("plot_theme.files/plot_theme-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Write a dark plot to an SVG file:
+
+#% cell
+f = export_data(string_join([temporary_directory(), "dark.svg"]), plot(sin(x), [x, 0, 2pi], plot_theme: "dark")); string_ends(f, "dark.svg")
+#% output
+#= true
+
+#% text
+# An explicit background stays as given:
+
+#% cell
+plot(x^2, [x, -1, 1], plot_theme: "dark", background: black)
+#% output
+#= image("plot_theme.files/plot_theme-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `background`, `export_data`, `plot`, `graphics`

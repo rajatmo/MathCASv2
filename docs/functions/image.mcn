@@ -1,0 +1,128 @@
+#! mathcas 2 notebook
+
+#% title
+# image
+
+#% text
+# `image(a)` gives the image whose pixels are the reals in the array `a`, with `a` of size height x width (gray) or height x width x channels.
+
+#% text
+# `image("file.png")` is an image value for an existing PNG file; it stays as it is.
+
+#% text
+# `image(a, bit_depth: 16)` stores 16 bits per sample instead of 8.
+
+#% section
+# Details
+
+#% item
+# An image value is `image("path")`, naming a PNG file. The notebook shows it in place, and plots are image values too.
+
+#% item
+# Channels: 1 is gray, 2 is gray with alpha, 3 is red, green and blue, 4 adds alpha. A matrix is a gray image.
+
+#% item
+# Samples are clipped to [0, 1] and rounded to the nearest of 256 levels (65536 with `bit_depth: 16`).
+
+#% item
+# The file is written to the system's temporary folder and named after its content, so equal arrays give equal image values.
+
+#% item
+# Exact numbers such as `1/2` are converted with `n`; anything that is not a number gives a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A small gray ramp, two rows of three pixels:
+
+#% cell
+let ramp = image([[0.0, 0.5, 1.0], [1.0, 0.5, 0.0]])
+image_dimensions(ramp)
+#% output
+#= [3, 2]
+
+#% text
+# The pixels come back with `image_data`, each level a multiple of 1/255:
+
+#% cell
+image_data(image([[0.0, 1.0]]))
+#% output
+#= [[[0.0], [1.0]]]
+
+#% subsection
+# Scope
+
+#% text
+# A color image from rows of [red, green, blue] triples:
+
+#% cell
+let rgb = image([[[1, 0, 0], [0, 1, 0]], [[0, 0, 1], [1, 1, 1]]])
+image_channels(rgb)
+#% output
+#= 3
+
+#% text
+# A gradient built with `table`, one row per y:
+
+#% cell
+let g = image(table([x/9, y/9, 0.5], y, range(0, 9), x, range(0, 9)))
+image_dimensions(g)
+#% output
+#= [10, 10]
+
+#% subsection
+# Options
+
+#% text
+# Sixteen bits keep finer steps than eight:
+
+#% cell
+let fine = image([[0.3]], bit_depth: 16)
+image_data(fine)[1, 1, 1]
+#% output
+#= 0.30000762951094834
+
+#% cell
+image_data(image([[0.3]]))[1, 1, 1]
+#% output
+#= 0.30196078431372547
+
+#% subsection
+# Properties and relations
+
+#% text
+# Equal arrays make the same image value:
+
+#% cell
+image([[0, 1], [1, 0]]) === image([[0.0, 1.0], [1.0, 0.0]])
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Values outside [0, 1] are clipped:
+
+#% cell
+image_data(image([[-0.5, 2]]))
+#% output
+#= [[[0.0], [1.0]]]
+
+#% text
+# A last dimension of more than 4 is not a pixel:
+
+#% cell
+image([[[0.1, 0.2, 0.3, 0.4, 0.5]]])
+#% output
+#! failure(argument, image, 1)
+
+#% section
+# See also
+
+#% text
+# `image_data`, `image_dimensions`, `image_channels`, `import_data`, `export_data`, `plot`

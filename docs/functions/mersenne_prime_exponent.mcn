@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# mersenne_prime_exponent
+
+#% text
+# `mersenne_prime_exponent(k)` gives the exponent `p` of the `k`-th known Mersenne prime `2^p - 1`, for `k` from 1 to 52.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mersenne_prime_exponent(range(1, 10))
+#% output
+#= [2, 3, 5, 7, 13, 17, 19, 31, 61, 89]
+
+#% cell
+mersenne_prime_exponent(30)
+#% output
+#= 132049
+
+#% cell
+is_prime(2^mersenne_prime_exponent(8) - 1)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `mersenne_prime_exponent_q`, `is_prime`

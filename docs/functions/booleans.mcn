@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# booleans
+
+#% text
+# `booleans` is the domain of the truth values `true` and `false`.
+
+#% section
+# Details
+
+#% item
+# `element(x, booleans)` is `true` for `true` and `false`, `false` for numbers and strings, and stays unevaluated for a symbol.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(true, booleans)
+#% output
+#= true
+
+#% cell
+element(0, booleans)
+#% output
+#= false
+
+#% cell
+element(x, booleans)
+#% output
+#= element(x, booleans)
+
+#% section
+# See also
+
+#% text
+# `element`, `integers`, `reals`

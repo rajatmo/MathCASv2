@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# rational_expression_q
+
+#% text
+# `rational_expression_q(e, x)` tests whether `e` is a quotient of polynomials in `x` (or in a list of variables; in all its variables when none are given).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rational_expression_q((x^2 + 1)/(x - 1), x)
+#% output
+#= true
+
+#% cell
+rational_expression_q(sin(x)/x, x)
+#% output
+#= false
+
+#% cell
+rational_expression_q(x/y)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `together`, `apart`, `variables`

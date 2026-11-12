@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# hypergeometric_0f1
+
+#% text
+# `hypergeometric_0f1(b, z)` gives the confluent hypergeometric limit function `0F1(; b; z)`.
+
+#% section
+# Details
+
+#% item
+# The series is the sum of `z^k/((b)_k*k!)` (DLMF 16.2.1), an entire function of `z`. Bessel functions are special cases.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `hypergeometric_0f1` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hypergeometric_0f1(1, 1.0)
+#% output
+#= 2.2795853023360673
+
+#% cell
+hypergeometric_0f1(2.5, -3.0)
+#% output
+#= 0.21423710771131335
+
+#% cell
+n(hypergeometric_0f1(1/2, 1), 30)
+#% output
+#= 3.7621956910836314595622134777737461
+
+#% subsection
+# Scope
+
+#% text
+# A complex argument:
+
+#% cell
+hypergeometric_0f1(1.0, 1.0*im)
+#% output
+#= 0.7517341827138083 + 0.9722916273066612im
+
+#% subsection
+# Properties and relations
+
+#% text
+# `0F1(; 1; -x^2/4)` is `bessel_j(0, x)`:
+
+#% cell
+hypergeometric_0f1(1, -1.0) - bessel_j(0, 2.0)
+#% output
+#= 0.0
+
+#% text
+# `0F1(; 1/2; x^2/4)` is `cosh(x)`:
+
+#% cell
+hypergeometric_0f1(0.5, 1.0) - cosh(2.0)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_1f1`, `bessel_j`, `bessel_i`, `hypergeometric_pfq`

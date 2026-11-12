@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# after
+
+#% text
+# `after` is the side after, the same as `right`: a position for `placed`, for the label of `labeled` and for the corner of a placed legend.
+
+#% section
+# Details
+
+#% item
+# `placed(obj, after)` puts `obj` to the right of the plot area; `labeled(g, label, after)` puts the label to the right of the graphic.
+
+#% item
+# In `plot_legends: placed(entries, after)` the legend goes to the nearest corner of the plot.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), placed("label", after)])
+#% output
+#= image("after.files/after-1.svgz")
+
+#% cell
+labeled(graphics([blue, disk()], image_size: 120), "a disk", after)
+#% output
+#= image("after.files/after-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: placed(["sin", "cos"], after))
+#% output
+#= image("after.files/after-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `placed`, `labeled`, `left`, `right`, `above`

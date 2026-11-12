@@ -1,0 +1,113 @@
+#! mathcas 2 notebook
+
+#% title
+# pi
+
+#% text
+# `pi` is the constant `pi = 3.14159...`, the ratio of a circle's circumference to its diameter.
+
+#% section
+# Details
+
+#% item
+# `pi` is exact: it stays a symbol in exact arithmetic and is known to be a positive real. `n(pi, d)` gives `d` digits.
+
+#% item
+# Many functions give exact values at rational multiples of `pi`, such as `sin(pi/6)` and `exp(im*pi)`.
+
+#% item
+# High-precision values come from the Chudnovsky series, summed by binary splitting.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pi
+#% output
+#= pi
+
+#% cell
+n(pi)
+#% output
+#= 3.141592653589793
+
+#% cell
+n(pi, 50)
+#% output
+#= 3.141592653589793238462643383279502884197169399375105821
+
+#% cell
+sin(pi/6)
+#% output
+#= 1/2
+
+#% subsection
+# Scope
+
+#% text
+# Exact arithmetic keeps `pi`:
+
+#% cell
+(pi + 1)^2 - pi^2
+#% output
+#= -pi^2 + (1 + pi)^2
+
+#% cell
+expand((pi + 1)^2 - pi^2)
+#% output
+#= 1 + 2*pi
+
+#% text
+# Numerical bounds decide comparisons:
+
+#% cell
+pi > 22/7
+#% output
+#= false
+
+#% subsection
+# Applications
+
+#% text
+# The area of a circle of radius 3:
+
+#% cell
+pi*3^2
+#% output
+#= 9*pi
+
+#% text
+# The Basel sum:
+
+#% cell
+sum(1/k^2, [k, 1, inf])
+#% output
+#= (1/6)*pi^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# Euler's identity:
+
+#% cell
+exp(im*pi) + 1
+#% output
+#= 0
+
+#% text
+# Rational approximations from the continued fraction:
+
+#% cell
+from_continued_fraction(continued_fraction(pi, 4))
+#% output
+#= 355/113
+
+#% section
+# See also
+
+#% text
+# `e`, `euler_gamma`, `catalan`, `n`

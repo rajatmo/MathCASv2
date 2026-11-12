@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# bar_legend
+
+#% text
+# `bar_legend(scheme)` is a colour bar legend, a value of the option `plot_legends`: in density and contour plots it colours the plot with the scheme and shows the colour bar.
+
+#% section
+# Details
+
+#% item
+# In curve plots the labels of a list argument are shown as the legend's entries. In density and contour plots the scheme is a name such as `"viridis"` (or a list of colours); `color_bar: false` hides the bar.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 6], plot_legends: bar_legend(["a", "b"]))
+#% output
+#= image("bar_legend.files/bar_legend-1.svgz")
+
+#% cell
+bar_legend(["low", "high"])
+#% output
+#= bar_legend(["low", "high"])
+
+#% text
+# In a density plot it names the colour scheme and shows the colour bar:
+
+#% cell
+density_plot(x*y, [x, 0, 1], [y, 0, 1], plot_legends: bar_legend("viridis"))
+#% output
+#= image("bar_legend.files/bar_legend-3.svgz")
+
+#% cell
+density_plot(x*y, [x, 0, 1], [y, 0, 1], color_bar: true)
+#% output
+#= image("bar_legend.files/bar_legend-4.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# A curve plot has no colour bar: a scheme name there is not used and the plot says so.
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_legends: bar_legend("viridis"))
+#% output
+#| plot: options not used: plot_legends: bar_legend("viridis")
+#= image("bar_legend.files/bar_legend-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `color_bar`, `plot_legends`, `line_legend`, `point_legend`

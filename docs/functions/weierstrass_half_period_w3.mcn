@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_half_period_w3
+
+#% text
+# `weierstrass_half_period_w3([g2, g3])` gives the half-period `omega3` of the Weierstrass functions of invariants `g2`, `g3`.
+
+#% section
+# Details
+
+#% item
+# The half-periods are the reduced basis of the period lattice: `tau = omega3/omega1` lies in the fundamental domain (`|Re tau| <= 1/2`, `|tau| >= 1`) and `omega1` has a positive real part; for real invariants with `g3 < 0` they are `-im` times those of `[g2, -g3]` (DLMF 23.10.18).
+
+#% item
+# `omega2 = -omega1 - omega3`; `weierstrass_p(u + 2 omega_k, [g2, g3]) = weierstrass_p(u, [g2, g3])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_half_period_w3([11.0, 7.0])
+#% output
+#= 0.0 + 1.8540746773013719im
+
+#% cell
+n(weierstrass_half_period_w3([1, 2]), 25)
+#% output
+#= 0.65418238131854843266202509267 + 1.2293687516329150991198952050im
+
+#% cell
+weierstrass_half_period_w3([0.5 + im, 1.0])
+#% output
+#= -1.475468741560145 + 0.09825031101076429im
+
+#% cell
+weierstrass_half_period_w3([1, 0])
+#% output
+#= (im/4)*gamma(1/4)^2/pi^(1/2)
+
+#% cell
+w = weierstrass_half_period_w3([1.0, 2.0]); weierstrass_p(0.3 + 2*w, [1, 2]) - weierstrass_p(0.3, [1, 2])
+#% output
+#= -5.329070518200751e-15 + 9.413973564546419e-15im
+
+#% section
+# See also
+
+#% text
+# `weierstrass_half_periods`, `weierstrass_e1`, `weierstrass_eta1`, `weierstrass_invariants`, `weierstrass_p`, `weierstrass_zeta`

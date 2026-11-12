@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# nest_while_list
+
+#% text
+# `nest_while_list(f, x, test)` gives the list of the values `nest_while(f, x, test)` goes through, from `x` to the first value for which `test` fails.
+
+#% section
+# Details
+
+#% item
+# `nest_while_list(f, x, test, 1, max)` applies `f` at most `max` times.
+
+#% item
+# The list always starts with `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+nest_while_list(n => n/2, 96, is_even)
+#% output
+#= [96, 48, 24, 12, 6, 3]
+
+#% subsection
+# Scope
+
+#% text
+# The test sees every value so far:
+
+#% cell
+nest_while_list(x => mod(3*x, 7), 1, unequal, all)
+#% output
+#= [1, 3, 2, 6, 4, 5, 1]
+
+#% subsection
+# Applications
+
+#% text
+# A Collatz sequence until it reaches 1:
+
+#% cell
+nest_while_list(n => if is_even(n) then n/2 else 3n + 1, 7, n => n != 1)
+#% output
+#= [7, 22, 11, 34, 17, 52, 26, 13, 40, 20, 10, 5, 16, 8, 4, 2, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `nest_list` takes a fixed number of steps instead:
+
+#% cell
+nest_list(n => n/2, 96, 3)
+#% output
+#= [96, 48, 24, 12]
+
+#% section
+# See also
+
+#% text
+# `nest_while`, `nest_list`, `fixed_point_list`

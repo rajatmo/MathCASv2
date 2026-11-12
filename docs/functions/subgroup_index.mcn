@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# subgroup_index
+
+#% text
+# `subgroup_index(G, H)`: the index of the subgroup H in G (G a permutation or finitely presented group)
+
+#% section
+# Details
+
+#% item
+# For a finitely presented group the subgroup is given by words and its index is found by coset enumeration.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subgroup_index(symmetric_group(4), dihedral_group(4))
+#% output
+#= 3
+
+#% cell
+subgroup_index(finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]), [a])
+#% output
+#= 30
+
+#% section
+# See also
+
+#% text
+# `group_order`, `right_coset_representatives`, `coset_table`

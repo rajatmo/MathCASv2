@@ -1,0 +1,123 @@
+#! mathcas 2 notebook
+
+#% title
+# function_discontinuities
+
+#% text
+# `function_discontinuities(f, x)` gives the condition on `x` at which `f` is not continuous; `function_discontinuities(f, [x, y], complexes)` does so for several complex variables.
+
+#% section
+# Details
+
+#% item
+# The condition collects the poles (`cos(u) == 0` for `tan(u)`), the boundary of the real domain (`x <= 0` for `sqrt(x)`), the branch points and cuts over the complexes, and the jumps of step functions (`sin(pi u) == 0` for `floor(u)`).
+
+#% item
+# Kinks (`abs`, `max`) are not discontinuities; `function_singularities` lists them too.
+
+#% item
+# A function without definitions (`g(x)`) is taken to be continuous.
+
+#% item
+# With one real variable and conditions linear in it the answer is reduced: `x <= 1` rather than `x == 0 or x <= 1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The tangent is discontinuous where the cosine vanishes:
+
+#% cell
+function_discontinuities(tan(x), x)
+#% output
+#= cos(x) == 0
+
+#% text
+# The logarithm over the complexes: its branch point and cut:
+
+#% cell
+function_discontinuities(log(x), x, complexes)
+#% output
+#= x == 0 or im_part(x) == 0 and re(x) <= 0
+
+#% subsection
+# Scope
+
+#% text
+# The poles of the gamma function:
+
+#% cell
+function_discontinuities(gamma(x), x)
+#% output
+#= sin(pi*x) == 0 and x <= 0
+
+#% text
+# Jumps of a step function and the poles inside it:
+
+#% cell
+function_discontinuities(floor(1/(x^2 - 1)), x)
+#% output
+#= x^2 == 1 or sin(pi/(-1 + x^2)) == 0
+
+#% text
+# Two variables:
+
+#% cell
+function_discontinuities((x^2 + y^2)*csc(x*y), [x, y])
+#% output
+#= sin(x*y) == 0
+
+#% text
+# A list of functions:
+
+#% cell
+function_discontinuities([sqrt(x - y), log(x + y)], [x, y], complexes)
+#% output
+#= x - y == 0 or x + y == 0 or im_part(x - y) == 0 and re(x - y) <= 0 or im_part(x + y) == 0 and re(x + y) <= 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# A maximum of continuous functions is continuous where they are; only the domain of the logarithm remains:
+
+#% cell
+function_discontinuities(max(log(abs(x) + 1), x*sin(x)), x)
+#% output
+#= abs(x) <= -1
+
+#% text
+# The singularities add the kinks:
+
+#% cell
+function_singularities(max(log(abs(x) + 1), x*sin(x)), x)
+#% output
+#= x == 0 or abs(x) <= -1 or log(1 + abs(x)) - x*sin(x) == 0
+
+#% text
+# The condition is not simplified: `x^2 == -4` holds for no real `x`, and `function_continuous` decides that:
+
+#% cell
+[function_discontinuities(1/(x^2 + 4), x), function_continuous(1/(x^2 + 4), x)]
+#% output
+#= [x^2 == -4, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# A removable singularity is a discontinuity of the function as written, and a piecewise function is not handled:
+
+#% cell
+[function_discontinuities(sin(x)/x, x), function_discontinuities(piecewise([[1, x > 0]], 0), x)]
+#% output
+#= [x == 0, x == 0]
+
+#% section
+# See also
+
+#% text
+# `function_continuous`, `function_singularities`, `function_domain`, `function_poles`

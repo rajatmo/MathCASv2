@@ -1,0 +1,26 @@
+[package]
+name = "mc-transforms"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 integral transforms: Laplace (one- and two-sided), Mellin, Fourier (exponential, sine, cosine), Z and their inverses; discrete_delta and kronecker_delta"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the term builder, the shared helpers and the transforms by name
+mc-calculus = { path = "../mc-calculus" }
+# definite integrals and antiderivatives for what the rules and tables do not cover, and their numeric checks
+mc-integrals = { path = "../mc-integrals" }
+# signs of constants and substitutions
+mc-limit = { path = "../mc-limit" }
+# the transform tables are read from source text
+mc-syntax = { path = "../mc-syntax" }
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

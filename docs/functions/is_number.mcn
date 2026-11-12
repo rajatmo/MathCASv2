@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# is_number
+
+#% text
+# `is_number(x)` gives `true` when `x` is a number: an integer, a rational, a real or a complex number.
+
+#% section
+# Details
+
+#% item
+# Exact constants such as `pi` and expressions such as `sqrt(2)` are not number atoms; `n` turns them into numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_number(3)
+#% output
+#= true
+
+#% cell
+is_number(2.5 + im)
+#% output
+#= true
+
+#% cell
+is_number(pi)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# After a numerical value:
+
+#% cell
+is_number(n(pi))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_exact`, `is_inexact`, `n`, `is_atom`

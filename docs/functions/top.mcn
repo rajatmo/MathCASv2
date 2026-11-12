@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# top
+
+#% text
+# `top` is the top side: a position for `placed`, for the label of `labeled` and for the corner of a placed legend.
+
+#% section
+# Details
+
+#% item
+# `placed(obj, top)` puts `obj` above the plot area; `labeled(g, label, top)` puts the label above the graphic.
+
+#% item
+# In `plot_legends: placed(entries, top)` the legend goes to the nearest corner of the plot.
+
+#% item
+# As a value of the option `filling`, `top` fills from each curve to the top of the plot.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), placed("label", top)])
+#% output
+#= image("top.files/top-1.svgz")
+
+#% cell
+labeled(graphics([blue, disk()], image_size: 120), "a disk", top)
+#% output
+#= image("top.files/top-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: placed(["sin", "cos"], top))
+#% output
+#= image("top.files/top-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# The value of `filling`:
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], filling: top)
+#% output
+#= image("top.files/top-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `placed`, `labeled`, `left`, `right`, `above`

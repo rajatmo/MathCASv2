@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_reduce
+
+#% text
+# `polynomial_reduce(p, [g1, ..., gk], [x1, ..., xm])` gives `[[q1, ..., qk], r]` with `p = q1 g1 + ... + qk gk + r`, where no term of r is divisible by the leading term of any gi.
+
+#% section
+# Details
+
+#% item
+# The multivariate division algorithm in the lexicographic order of the variables x1 > x2 > ... (Cox, Little and O'Shea, section 2.3). With a Groebner basis as the gi the remainder is the normal form of p.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_reduce(x^3 + y^3, [x - y], [x, y])
+#% output
+#= [[x*y + x^2 + y^2], 2*y^3]
+
+#% cell
+polynomial_reduce(x^2*y + x*y^2 + y^2, [x*y - 1, y^2 - 1], [x, y])
+#% output
+#= [[x + y, 1], 1 + x + y]
+
+#% section
+# See also
+
+#% text
+# `polynomial_quotient`, `polynomial_remainder`, `groebner_basis`

@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# take_largest
+
+#% text
+# `take_largest(xs, n)` gives the `n` largest elements of `xs`, largest first.
+
+#% section
+# Details
+
+#% item
+# Elements are compared in the canonical order, so numbers by value.
+
+#% item
+# `take_smallest` gives the smallest ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take_largest([3, 1, 4, 1, 5], 2)
+#% output
+#= [5, 4]
+
+#% subsection
+# Scope
+
+#% text
+# The values of an association, keeping their keys:
+
+#% cell
+take_largest(assoc(a -> 3, b -> 1, c -> 2), 2)
+#% output
+#= assoc(a -> 3, c -> 2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The first elements of `reverse_sort`:
+
+#% cell
+xs = [3, 1, 4, 1, 5]
+take_largest(xs, 3) == take(reverse_sort(xs), 3)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `take_smallest`, `reverse_sort`, `max`, `max_by`

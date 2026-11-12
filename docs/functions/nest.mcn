@@ -1,0 +1,119 @@
+#! mathcas 2 notebook
+
+#% title
+# nest
+
+#% text
+# `nest(f, x, n)` gives `f` applied `n` times to `x`: `f(f(...f(x)...))`.
+
+#% section
+# Details
+
+#% item
+# `n` must be a non-negative integer; `nest(f, x, 0)` is `x`.
+
+#% item
+# The intermediate values are not kept; `nest_list` gives them all.
+
+#% item
+# To iterate until the value stops changing, use `fix_point`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+nest(f, x, 3)
+#% output
+#= f(f(f(x)))
+
+#% cell
+nest(x => 2x, 1, 10)
+#% output
+#= 1024
+
+#% cell
+nest(x => x^2, y, 3)
+#% output
+#= y^8
+
+#% subsection
+# Scope
+
+#% text
+# Exact rational arithmetic throughout:
+
+#% cell
+nest(x => (x + 2/x)/2, 1, 4)
+#% output
+#= 665857/470832
+
+#% text
+# A list as the state:
+
+#% cell
+nest(p => [p[2], p[1] + p[2]], [0, 1], 20)
+#% output
+#= [6765, 10946]
+
+#% subsection
+# Applications
+
+#% text
+# Newton's iteration for the square root of 2, at machine precision:
+
+#% cell
+nest(x => (x + 2/x)/2, 1.0, 6)
+#% output
+#= 1.414213562373095
+
+#% text
+# A continued fraction approaching the golden ratio:
+
+#% cell
+nest(x => 1 + 1/x, 1, 10)
+#% output
+#= 144/89
+
+#% cell
+n(nest(x => 1 + 1/x, 1, 10))
+#% output
+#= 1.6179775280898876
+
+#% subsection
+# Properties and relations
+
+#% text
+# `nest` is the last element of `nest_list`:
+
+#% cell
+nest(x => 3x + 1, 0, 5) == last(nest_list(x => 3x + 1, 0, 5))
+#% output
+#= true
+
+#% text
+# `fix_point` iterates until nothing changes:
+
+#% cell
+fix_point(x => (x + 2/x)/2, 1.0)
+#% output
+#= 1.414213562373095
+
+#% subsection
+# Possible issues
+
+#% text
+# The count must be a non-negative integer:
+
+#% cell
+nest(f, x, -1)
+#% output
+#! failure(argument, nest, 3)
+
+#% section
+# See also
+
+#% text
+# `nest_list`, `fix_point`, `fold`, `table`

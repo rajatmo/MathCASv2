@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# parallelogram
+
+#% text
+# `parallelogram(p, [v1, v2])`: the parallelogram with corners p, p + v1, p + v1 + v2, p + v2; parallelogram() the one at the origin with v1 = [1, 0], v2 = [1, 1]
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+g = parallelogram([0, 0], [[1, 0], [1, 1]])
+
+#% cell
+[area(g), region_centroid(g), region_bounds(g)]
+#% output
+#= [1, [1, 1/2], [[0, 2], [0, 1]]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

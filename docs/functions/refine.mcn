@@ -1,0 +1,198 @@
+#! mathcas 2 notebook
+
+#% title
+# refine
+
+#% text
+# `refine(e)` rewrites `e` by the identities that hold under the assumptions in force (from `assuming`).
+
+#% text
+# `refine(e, facts)` adds the facts to the assumptions for this call.
+
+#% section
+# Details
+
+#% item
+# Facts are inequalities (`x > 0`), domain facts (`element(n, integers)`), or several of them joined by `and` or in a list.
+
+#% item
+# `refine` applies the rules that depend on signs and domains: `abs`, `sqrt` and other powers, `sin(n*pi)` for integers and similar values. It does not search for a simpler form as `simplify` does.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+refine(sqrt(x^2), x > 0)
+#% output
+#= x
+
+#% cell
+refine(abs(x), x < 0)
+#% output
+#= -x
+
+#% cell
+refine(sin(n*pi), element(n, integers))
+#% output
+#= 0
+
+#% cell
+assuming(x > 2, refine(abs(x - 1)))
+#% output
+#= -1 + x
+
+#% subsection
+# Scope
+
+#% text
+# Several facts:
+
+#% cell
+refine(abs(x*y), [x > 0, y < 0])
+#% output
+#= -x*y
+
+#% text
+# Powers with a known sign of the base:
+
+#% cell
+refine((x^2)^(1/2) + (y^4)^(1/4), x < 0 and y > 0)
+#% output
+#= y - x
+
+#% text
+# Integer parameters in trigonometric values:
+
+#% cell
+refine(cos(n*pi), element(n, integers))
+#% output
+#= (-1)^n
+
+#% text
+# Signs, maxima and relations:
+
+#% cell
+refine(sign(x), x > 0)
+#% output
+#= 1
+
+#% cell
+refine(max(x, y), x > y)
+#% output
+#= x
+
+#% cell
+refine(x^2 > 0, x > 1)
+#% output
+#= true
+
+#% text
+# Facts about several symbols:
+
+#% cell
+refine(abs(x - y), x > y)
+#% output
+#= x - y
+
+#% cell
+refine(abs(x), x > 1 and y > x)
+#% output
+#= x
+
+#% text
+# Real parts and exponents of reals and integers:
+
+#% cell
+refine(re(x), element(x, reals))
+#% output
+#= x
+
+#% cell
+refine(im_part(x), element(x, reals))
+#% output
+#= 0
+
+#% cell
+refine((-1)^(2*n), element(n, integers))
+#% output
+#= 1
+
+#% text
+# An inverse function on the interval where it inverts:
+
+#% cell
+refine(asin(sin(x)), -pi/2 <= x and x <= pi/2)
+#% output
+#= x
+
+#% subsection
+# Options
+
+#% text
+# `assumptions:` as an option:
+
+#% cell
+refine(abs(x), assumptions: x > 0)
+#% output
+#= x
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without assumptions nothing changes:
+
+#% cell
+refine(sqrt(x^2))
+#% output
+#= (x^2)^(1/2)
+
+#% text
+# `simplify` also uses the assumptions and searches further:
+
+#% cell
+assuming(x > 0, [refine(sqrt(x^2)/x), simplify(sqrt(x^2)/x)])
+#% output
+#= [1, 1]
+
+#% text
+# `refine` keeps the value: the input and the result agree at a sample point that satisfies the facts:
+
+#% cell
+[abs(x - 1.5) /. x -> 3.2, refine(abs(x - 1.5), x > 2) /. x -> 3.2]
+#% output
+#= [1.7000000000000002, 1.7000000000000002]
+
+#% subsection
+# Possible issues
+
+#% text
+# Not every simplification that holds under the facts is done: the conjugate of a real, and the floor of an integer plus a half:
+
+#% cell
+refine(conjugate(x), element(x, reals))
+#% output
+#= x
+
+#% cell
+refine(floor(n + 1/2), element(n, integers))
+#% output
+#= n
+#% cell
+refine(conjugate(x), element(x, reals))
+#% output
+#= x
+
+#% cell
+refine(floor(n + 1/2), element(n, integers))
+#% output
+#= n
+
+#% section
+# See also
+
+#% text
+# `assuming`, `simplify`, `element`, `power_expand`

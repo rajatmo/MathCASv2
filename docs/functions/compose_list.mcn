@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# compose_list
+
+#% text
+# `compose_list([f1, f2, ...], x)` gives the list `x`, `f1(x)`, `f2(f1(x))`, ...
+
+#% section
+# Details
+
+#% item
+# The first function is applied first.
+
+#% item
+# `compose_list([], x)` is `[x]`. `fold_list` is the version that also takes a second argument at each step.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+compose_list([f, g, h], x)
+#% output
+#= [x, f(x), g(f(x)), h(g(f(x)))]
+
+#% cell
+compose_list([x => x + 1, x => 2*x, x => x^2], 3)
+#% output
+#= [3, 4, 8, 64]
+
+#% section
+# See also
+
+#% text
+# `nest_list`, `fold_list`

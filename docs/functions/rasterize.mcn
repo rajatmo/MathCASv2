@@ -1,0 +1,74 @@
+#! mathcas 2 notebook
+
+#% title
+# rasterize
+
+#% text
+# `rasterize(x)` makes `x` a picture: graphics are rendered, other values drawn as their text.
+
+#% text
+# `rasterize(x, p)` gives property `p` of the picture: `"RasterSize"`, `"ImageSize"`, `"BoundingBox"`, `"Data"`, `"Regions"`, `"Image"`, or a list of them.
+
+#% section
+# Details
+
+#% item
+# Sizes are in pixels, one pixel a point. `"BoundingBox"` is `[w, h, b]` with `b` the height above the baseline; a picture's baseline is its bottom edge, so `b` is `h`.
+
+#% item
+# `"Data"` is the pixels as rows of `[r, g, b]` triples (0 to 255), the top row first.
+
+#% item
+# `"Regions"` gives `[tag, "Region"] -> [[left, top], [right, bottom]]` for each `annotation(prim, tag, "Region")` of a graphic, in pixels with y up from the bottom edge.
+
+#% item
+# `"Properties"` lists the property names; an unknown name gives `failure(unknown_property, ...)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rasterize(graphics([red, disk()]))
+#% output
+#= image("rasterize.files/rasterize-1.svgz")
+
+#% cell
+rasterize(x^2 + 1)
+#% output
+#= image("rasterize.files/rasterize-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# The size of a picture, and the regions of its annotated parts:
+
+#% cell
+g = graphics([red, annotation(disk(), "Red", "Region"), blue, annotation(disk([3, 0]), "Blue", "Region")], image_size: 100);
+
+#% cell
+rasterize(g, ["RasterSize", "BoundingBox"])
+#% output
+#= [[100, 45], [100, 45, 45]]
+
+#% cell
+rasterize(g, "Regions")
+#% output
+#= [["Red", "Region"] -> [[6, 40], [41, 5]], ["Blue", "Region"] -> [[59, 40], [94, 5]]]
+
+#% text
+# The colour of a pixel in the middle of the red disk:
+
+#% cell
+rasterize(g, "Data")[23, 23]
+#% output
+#= [255, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `plot`

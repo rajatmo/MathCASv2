@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# kronecker_symbol
+
+#% text
+# `kronecker_symbol(a, n)` gives the Kronecker symbol `(a/n)`, the Jacobi symbol extended to all integers `n`.
+
+#% section
+# Details
+
+#% item
+# For odd `n > 0` it is `jacobi_symbol(a, n)`; the factor 2 contributes 0 for even `a` and 1 or -1 by `mod(a, 8)`, and `n = -1` contributes the sign of `a`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kronecker_symbol(3, 8)
+#% output
+#= -1
+
+#% cell
+kronecker_symbol(5, 8)
+#% output
+#= -1
+
+#% cell
+kronecker_symbol(-1, -5)
+#% output
+#= -1
+
+#% cell
+kronecker_symbol(2, 15)
+#% output
+#= 1
+
+#% subsection
+# Applications
+
+#% text
+# A Dirichlet character modulo 12, the Kronecker symbol of the discriminant 12:
+
+#% cell
+table(kronecker_symbol(12, k), k, 12)
+#% output
+#= [1, 0, 0, 0, -1, 0, -1, 0, 0, 0, 1, 0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# For odd positive `n` it is the Jacobi symbol:
+
+#% cell
+[kronecker_symbol(10, 21), jacobi_symbol(10, 21)]
+#% output
+#= [-1, -1]
+
+#% section
+# See also
+
+#% text
+# `jacobi_symbol`, `mod`

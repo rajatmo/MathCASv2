@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# gaussian_matrix
+
+#% text
+# `gaussian_matrix(r)` gives the `2 r + 1` by `2 r + 1` kernel of the Gaussian of standard deviation `r/2`, sampled at the integers and normalized to total 1.
+
+#% section
+# Details
+
+#% item
+# `gaussian_matrix([r, s])` uses the standard deviation `s`.
+
+#% item
+# `gaussian_matrix([[r]])` gives the one-dimensional kernel (a vector).
+
+#% item
+# The kernel is the outer product of the normalized one-dimensional kernel with itself.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gaussian_matrix(1)
+#% output
+#= [[0.011343736558495075, 0.0838195058022106, 0.011343736558495075], [0.0838195058022106, 0.6193470305571773, 0.0838195058022106], [0.011343736558495075, 0.0838195058022106, 0.011343736558495075]]
+
+#% cell
+total(flatten(gaussian_matrix(2)))
+#% output
+#= 1.0
+
+#% cell
+gaussian_matrix([2, 1])
+#% output
+#= [[0.0029690167439504977, 0.013306209891013653, 0.021938231279714643, 0.013306209891013653, 0.0029690167439504977], [0.013306209891013653, 0.05963429543618014, 0.09832033134884577, 0.05963429543618014, 0.013306209891013653], [0.021938231279714643, 0.09832033134884577, 0.16210282163712664, 0.09832033134884577, 0.021938231279714643], [0.013306209891013653, 0.05963429543618014, 0.09832033134884577, 0.05963429543618014, 0.013306209891013653], [0.0029690167439504977, 0.013306209891013653, 0.021938231279714643, 0.013306209891013653, 0.0029690167439504977]]
+
+#% cell
+gaussian_matrix([[3]])
+#% output
+#= [0.03663284536919403, 0.11128075847888486, 0.21674532140370778, 0.27068214949642655, 0.21674532140370778, 0.11128075847888486, 0.03663284536919403]
+
+#% section
+# See also
+
+#% text
+# `disk_matrix`, `list_convolve`

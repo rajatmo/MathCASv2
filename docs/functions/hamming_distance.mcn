@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# hamming_distance
+
+#% text
+# `hamming_distance(a, b)` gives the number of places where the strings or lists `a` and `b`, of the same length, differ.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hamming_distance("abc", "cba")
+#% output
+#= 2
+
+#% cell
+hamming_distance([1, 0, 0, 1, 1], [0, 0, 1, 0, 1])
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `string_length`, `count_if`

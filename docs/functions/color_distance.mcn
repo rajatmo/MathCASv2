@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# color_distance
+
+#% text
+# `color_distance(c1, c2)`: the CIE 1976 colour difference (Euclidean distance in L*a*b*, lightness from 0 to 1)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+color_distance(gray, lab_color(0.5, 0.5, 0))
+#% output
+#= 0.5011471921518182
+
+#% cell
+color_distance(red, [orange, pink, blue])
+#% output
+#= [0.37888028233634435, 0.574549881161756, 1.8401141640394665]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

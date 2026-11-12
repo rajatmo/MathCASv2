@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# slice_vector_plot3d
+
+#% text
+# `slice_vector_plot3d([vx, vy, vz], surface, [x, ...], [y, ...], [z, ...])` draws arrows of a vector field on surfaces in a box.
+
+#% section
+# Details
+
+#% item
+# The surfaces are those of `slice_density_plot3d`, drawn faintly.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+slice_vector_plot3d([y, -x, z], "CenterPlanes", [x, -2, 2], [y, -2, 2], [z, -2, 2])
+#% output
+#= image("slice_vector_plot3d.files/slice_vector_plot3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `slice_density_plot3d`

@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# count_distinct
+
+#% text
+# `count_distinct(xs)` gives the number of distinct elements of `xs`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity: `1` and `1.0` are distinct. `count_distinct(xs, f)` counts the classes that `unique(xs, f)` keeps: an element is new unless `f(y, x)` is true for an element `y` kept before it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count_distinct([1, 2, 1, 3, 2])
+#% output
+#= 3
+
+#% cell
+count_distinct([a, a, a])
+#% output
+#= 1
+
+#% cell
+count_distinct([])
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# With a test:
+
+#% cell
+count_distinct([3.0, 3.1, 3.11, 3.5], (a, b) => abs(a - b) <= 0.01)
+#% output
+#= 3
+
+#% cell
+count_distinct([1, 1.0])
+#% output
+#= 2
+
+#% cell
+count_distinct(characters("mississippi"))
+#% output
+#= 4
+
+#% section
+# See also
+
+#% text
+# `unique`, `tally`, `count`, `length`

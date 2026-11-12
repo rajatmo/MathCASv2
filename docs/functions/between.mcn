@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# between
+
+#% text
+# `between(x, [a, b])` is `a <= x and x <= b`; `between(x, [[a1, b1], [a2, b2], ...])` holds when x is in one of the ranges.
+
+#% text
+# `between([a, b])` is the operator form: `between([a, b])(x)` is `between(x, [a, b])`.
+
+#% section
+# Details
+
+#% item
+# A range may also be an `interval(...)` or a `centered_interval(c, w)` (the range `[c - w, c + w]`).
+
+#% item
+# When x is an interval it must lie inside one of the ranges.
+
+#% item
+# Numerical comparisons are decided; symbolic ones stay as inequalities.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+between(3, [2, 5])
+#% output
+#= true
+
+#% cell
+between(x, [a, b])
+#% output
+#= a <= x and x <= b
+
+#% cell
+select([5, 10, 15, 20, 25], between([10, 20]))
+#% output
+#= [10, 15, 20]
+
+#% cell
+between(2, [e, pi])
+#% output
+#= false
+
+#% cell
+between(interval([3, 4]), centered_interval(5, 3))
+#% output
+#= true
+
+#% cell
+between(6, [[2, 5], [8, 12]])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `interval`, `clip`, `rescale`

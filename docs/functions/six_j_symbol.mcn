@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# six_j_symbol
+
+#% text
+# `six_j_symbol([j1, j2, j3], [j4, j5, j6])` gives Wigner's 6j symbol by Racah's formula, exact; zero unless the four triples satisfy the triangle conditions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+six_j_symbol([1, 2, 3], [2, 1, 2])
+#% output
+#= (1/105)*21^(1/2)
+
+#% cell
+six_j_symbol([1/2, 1/2, 1], [5/2, 7/2, 3])
+#% output
+#= (-1/21)*21^(1/2)
+
+#% cell
+six_j_symbol([1, 2, 3], [4, 5, 12])
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `three_j_symbol`, `clebsch_gordan`

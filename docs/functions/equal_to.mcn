@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# equal_to
+
+#% text
+# `equal_to(y)` is the function `x => x == y`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+select([1, 2.0, 2, 3], equal_to(2))
+#% output
+#= [2.0, 2]
+
+#% section
+# See also
+
+#% text
+# `unequal_to`, `greater_than`

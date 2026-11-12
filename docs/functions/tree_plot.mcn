@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# tree_plot
+
+#% text
+# `tree_plot(edges)` draws a tree in layers from its root.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tree_plot([1 -> 2, 1 -> 3, 2 -> 4, 2 -> 5, 3 -> 6])
+#% output
+#= image("tree_plot.files/tree_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

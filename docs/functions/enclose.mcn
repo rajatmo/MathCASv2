@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# enclose
+
+#% text
+# `enclose(e)` gives the value of `e`, or the failure that a `confirm` inside it threw. `enclose(e, f)` gives `f` of that failure; `enclose(e, f, tag)` catches only the throws of `confirm(x, info, tag)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+enclose(confirm(2) + 3)
+#% output
+#= 5
+
+#% cell
+enclose(confirm(missing()) + 3)
+#% output
+#! failure(confirmation_failed, missing())
+
+#% cell
+enclose(confirm(missing()) + 3, v => "no value")
+#% output
+#! failure(confirmation_failed, missing())
+
+#% section
+# See also
+
+#% text
+# `confirm`, `catch`, `check`

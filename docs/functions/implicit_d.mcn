@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# implicit_d
+
+#% text
+# `implicit_d(f, eq, y, x)` gives the derivative of f in x when y is the function of x defined implicitly by the equation eq.
+
+#% text
+# `implicit_d(f, [eq1, ...], [y1, ...], x)` uses a system of equations for several variables; `[x, k]` gives the k-th derivative and further variables mixed derivatives. `implicit_d(eq, y, x)` gives dy/dx.
+
+#% section
+# Details
+
+#% item
+# The derivatives y' solve the linear system J y' = -F_x, with F = lhs - rhs and J its Jacobian in the variables (the implicit function theorem); the total derivative of f is then applied k times.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+implicit_d(2*y, x^2 + y^2 == 1, y, x)
+#% output
+#= -2*x/y
+
+#% cell
+implicit_d(y^3 - 3*x*y == 2, y, x)
+#% output
+#= -y/(x - y^2)
+
+#% cell
+implicit_d(y, x^2 + y^2 == 1, y, [x, 2])
+#% output
+#= (-x^2 - y^2)/y^3
+
+#% cell
+implicit_d(tan(x + y + z), [x == y*z, sin(y + z) == x^2], [y, z], x)
+#% output
+#= (cos(y + z) + 2*x)/(cos(y + z)*cos(x + y + z)^2)
+
+#% section
+# See also
+
+#% text
+# `d`, `linear_solve`

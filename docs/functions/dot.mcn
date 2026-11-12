@@ -1,0 +1,166 @@
+#! mathcas 2 notebook
+
+#% title
+# dot
+
+#% text
+# `dot(a, b)` gives the product of the vectors or matrices `a` and `b`.
+
+#% text
+# `dot(a, b, c, ...)` multiplies from the left: `dot(dot(a, b), c)`, and so on.
+
+#% section
+# Details
+
+#% item
+# A vector is a list and a matrix a list of rows. Two vectors give the scalar product; a matrix and a vector give a vector; two matrices give the matrix product.
+
+#% item
+# A vector on the left multiplies like a row: `dot(v, m)` is the vector of the sums `v[i]*m[i, j]`.
+
+#% item
+# Complex entries are not conjugated: `dot(u, v)` is the sum of `u[i]*v[i]`.
+
+#% item
+# The inner sizes must agree; otherwise the result is `failure(shape_mismatch, dot)`.
+
+#% item
+# `dot(a)` is `a`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The scalar product of two vectors:
+
+#% cell
+dot([1, 2, 3], [4, 5, 6])
+#% output
+#= 32
+
+#% text
+# A matrix times a vector:
+
+#% cell
+dot([[1, 2], [3, 4]], [5, 6])
+#% output
+#= [17, 39]
+
+#% text
+# The product of two matrices:
+
+#% cell
+dot([[1, 2], [3, 4]], [[0, 1], [1, 0]])
+#% output
+#= [[2, 1], [4, 3]]
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic entries:
+
+#% cell
+dot([a, b], [c, d])
+#% output
+#= a*c + b*d
+
+#% text
+# A vector on the left:
+
+#% cell
+dot([5, 6], [[1, 2], [3, 4]])
+#% output
+#= [23, 34]
+
+#% text
+# Several factors:
+
+#% cell
+dot([[1, 2], [3, 4]], [[5, 6], [7, 8]], [1, 1])
+#% output
+#= [41, 93]
+
+#% text
+# A row times a column, and a column times a row:
+
+#% cell
+dot([[1, 2, 3]], [[1], [2], [3]])
+#% output
+#= [[14]]
+
+#% cell
+dot([[1], [2], [3]], [[1, 2, 3]])
+#% output
+#= [[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+
+#% text
+# Balls:
+
+#% cell
+dot(n([1, pi], 20), [1, 1])
+#% output
+#= 4.14159265358979323846264
+
+#% subsection
+# Applications
+
+#% text
+# Fibonacci numbers from powers of a matrix:
+
+#% cell
+m = [[1, 1], [1, 0]]; dot(m, m, m, m, m)
+#% output
+#= [[8, 5], [5, 3]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The identity matrix leaves a vector unchanged:
+
+#% cell
+dot(identity_matrix(2), [x, y])
+#% output
+#= [x, y]
+
+#% text
+# The Euclidean norm is the square root of the scalar product with itself:
+
+#% cell
+u = [1, 2, 2]; sqrt(dot(u, u)) == norm(u)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Without conjugation, a nonzero complex vector can have scalar product 0 with itself:
+
+#% cell
+dot([1, im], [1, im])
+#% output
+#= 0
+
+#% cell
+dot([1, im], conjugate([1, im]))
+#% output
+#= 2
+
+#% text
+# Vectors of different lengths:
+
+#% cell
+dot([1, 2], [1, 2, 3])
+#% output
+#! failure(shape_mismatch, dot)
+
+#% section
+# See also
+
+#% text
+# `inner`, `outer`, `cross`, `norm`, `transpose`, `kronecker_product`

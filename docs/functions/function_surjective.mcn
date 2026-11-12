@@ -1,0 +1,135 @@
+#! mathcas 2 notebook
+
+#% title
+# function_surjective
+
+#% text
+# `function_surjective(f, x)` gives `true` when every real number is a value of `f`, and `false` when some is not; `function_surjective([f, cond, ycond], x, y)` asks whether every `y` with `ycond` is a value at some `x` with `cond`; a list of components is a map to several values, and `complexes` asks over the complex numbers.
+
+#% section
+# Details
+
+#% item
+# Linear maps: the rank of the coefficient matrix. Polynomial maps over the reals: the sentence `for_all(y, ycond implies exists(x, cond and f(x) == y))` by the cylindrical decomposition, giving a condition on the parameters; over the complexes by complex quantifier elimination.
+
+#% item
+# Other functions of one real variable: on an interval between consecutive singular points where `f` is continuous, limits `-inf` and `inf` at its ends prove surjectivity; when `f` is strictly monotonic on each interval its image is known, and a value outside every image (and not taken at a singular point) proves the opposite.
+
+#% item
+# One complex variable: a value with no solution of `f == v` (0, 1, -1, `im`, `-im`, `2 pi im`; a solution that does not check by substitution counts as none) proves that `f` is not surjective; a solution `x = g(y)` defined where `ycond` holds proves that it is.
+
+#% item
+# A condition that holds only on a set of parameters of measure zero (`a == 0 and b != 0`) is given as the generic value `false` with the complementary condition.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_surjective(tan(x), x)
+#% output
+#= true
+
+#% cell
+function_surjective(tan(x), x, complexes)
+#% output
+#= false
+
+#% cell
+function_surjective([x + y^3, y - x^5], [x, y])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# A cubic, and the same cubic for positive `x`:
+
+#% cell
+[function_surjective(x^3 - x, x), function_surjective([x^3 - x, x > 0], x)]
+#% output
+#= [true, false]
+
+#% text
+# Onto the positive numbers:
+
+#% cell
+function_surjective([x^3 - x, x > 0, y > 0], x, y)
+#% output
+#= true
+
+#% text
+# The exponential omits 0 and nothing else:
+
+#% cell
+[function_surjective(exp(x), x, complexes), function_surjective([exp(x), true, y != 0], x, y, complexes)]
+#% output
+#= [false, true]
+
+#% text
+# Linear maps by their rank:
+
+#% cell
+[function_surjective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y + 9*z], [x, y, z]), function_surjective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y], [x, y, z])]
+#% output
+#= [false, true]
+
+#% text
+# The integers onto the integers:
+
+#% cell
+function_surjective([x/2 + 1, element(x, integers), element(y, integers)], x, y)
+#% output
+#= true
+
+#% subsection
+# Options
+
+#% cell
+function_surjective(a*x^2 + b*x*y + c*y^2, [x, y])
+#% output
+#= conditional_expression(true, element(a | b | c, reals) and (a == 0 and b != 0 or a != 0 and -b^2 + 4*a*c < 0))
+
+#% cell
+function_surjective(a*x^2 + b*x + c, x)
+#% output
+#= conditional_expression(false, element(a | b | c, reals) and a != 0)
+
+#% subsection
+# Properties and relations
+
+#% text
+# A function that omits 0:
+
+#% cell
+function_surjective(csch(x), x)
+#% output
+#= false
+
+#% text
+# Over the complexes a polynomial map may be onto when it is not over the reals:
+
+#% cell
+[function_surjective([x + y^2, y - x^2], [x, y]), function_surjective([x + y^2, y - x^2], [x, y], complexes)]
+#% output
+#= [false, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# The sine takes the values of `[-1, 1]` only; a step function, whose range is not an interval, stays unevaluated:
+
+#% cell
+[function_surjective(sin(x), x), function_surjective(floor(x), x)]
+#% output
+#= [false, function_surjective(floor(x), x)]
+
+#% section
+# See also
+
+#% text
+# `function_bijective`, `function_injective`, `function_range`, `resolve`

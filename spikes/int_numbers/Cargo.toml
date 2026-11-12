@@ -1,0 +1,12 @@
+[package]
+name = "int_numbers"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Integration spike I3: spike 3's big integers, rationals and balls as payloads in spike 1b's collected, hash-consed arena"
+
+[dependencies]
+hashbrown = "0.15"
+rustc-hash = "2"
+num-bigint = "0.4"
+num-traits = "0.2"

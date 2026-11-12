@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# capsule_shape
+
+#% text
+# `capsule_shape([p1, p2], r)`: the points within r of the segment p1 p2 (a cylinder with a hemisphere on each end); `capsule_shape()` has the segment from (-1, 0, 0) to (1, 0, 0) and radius 1
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+capsule_shape()
+#% output
+#= capsule_shape([[-1, 0, 0], [1, 0, 0]], 1)
+
+#% cell
+volume(capsule_shape())
+#% output
+#= (10/3)*pi
+
+#% cell
+volume(capsule_shape([[0, 0, 0], [0, 0, 3]], 2))
+#% output
+#= (68/3)*pi
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

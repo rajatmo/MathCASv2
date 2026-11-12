@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# dirac_delta
+
+#% text
+# `dirac_delta(x)` represents the Dirac delta function.
+
+#% section
+# Details
+
+#% item
+# It is 0 at nonzero real numbers and stays unevaluated otherwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dirac_delta(2)
+#% output
+#= 0
+
+#% cell
+dirac_delta(0)
+#% output
+#= dirac_delta(0)
+
+#% cell
+dirac_delta(x)
+#% output
+#= dirac_delta(x)
+
+#% section
+# See also
+
+#% text
+# `heaviside_theta`, `unit_step`

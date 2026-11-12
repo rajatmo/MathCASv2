@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# through
+
+#% text
+# `through(p(f, g, ...)(x))` gives `p(f(x), g(x), ...)`: each function of the head applied to the arguments.
+
+#% text
+# `through(e, p)` does so only when the inner head is `p`.
+
+#% section
+# Details
+
+#% item
+# The result is evaluated; a term whose head is not a call is left as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+through(p(f, g)(x))
+#% output
+#= p(f(x), g(x))
+
+#% cell
+through([sin, cos](0.5))
+#% output
+#= [0.479425538604203, 0.8775825618903728]
+
+#% subsection
+# Scope
+
+#% text
+# Only for one head:
+
+#% cell
+through(p(f, g)(x), q)
+#% output
+#= p(f, g)(x)
+
+#% subsection
+# Applications
+
+#% text
+# Several statistics of one list:
+
+#% cell
+through([min, max, mean]([3, 1, 4, 1, 5]))
+#% output
+#= [1, 5, 14/5]
+
+#% section
+# See also
+
+#% text
+# `map`, `composition`, `apply`

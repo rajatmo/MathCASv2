@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# square_wave
+
+#% text
+# `square_wave(x)` gives the square wave of period 1: 1 when `x - floor(x) < 1/2`, -1 otherwise.
+
+#% text
+# `square_wave([a, b], x)` gives b on the first half of each period and a on the second.
+
+#% section
+# Details
+
+#% item
+# Lists are mapped element-wise; symbolic arguments stay unevaluated. The derivative is 0 away from the jumps.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+square_wave(0.2)
+#% output
+#= 1
+
+#% cell
+table(square_wave(x), [x, 0, 2, 2/3])
+#% output
+#= [1, -1, 1, 1]
+
+#% cell
+square_wave([0, 5], [0.4, 1.2, 3.6])
+#% output
+#= [5, 5, 0]
+
+#% section
+# See also
+
+#% text
+# `triangle_wave`, `sawtooth_wave`, `unit_step`

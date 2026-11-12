@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# hazard_function
+
+#% text
+# `hazard_function(d, x)` gives the hazard rate of the distribution `d` at `x`: the density at `x` divided by the probability of a value at least `x` (`survival(d, x)` for a continuous distribution).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hazard_function(exponential_distribution(l), 2)
+#% output
+#= l
+
+#% cell
+hazard_function(normal_distribution(0, 1), 1.)
+#% output
+#= 1.5251352761609813
+
+#% section
+# See also
+
+#% text
+# `survival`, `pdf`, `cdf`

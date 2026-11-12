@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# digit_count
+
+#% text
+# `digit_count(n, b, d)` gives how many times the digit `d` occurs among the base-`b` digits of the integer `n` (a list of digits gives a list of counts). `digit_count(n, b)` gives the counts of the digits 1, 2, ..., b - 1 and 0, and `digit_count(n)` those in base 10. `digit_count(n, b, d, len)` counts in the last `len` digits, with leading zeros when `n` has fewer.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+digit_count(2147, 2, 1)
+#% output
+#= 5
+
+#% cell
+digit_count(122000)
+#% output
+#= [1, 2, 0, 0, 0, 0, 0, 0, 0, 3]
+
+#% cell
+digit_count(242442422, 3, [1, 2])
+#% output
+#= [6, 7]
+
+#% cell
+digit_count(factorial(100))
+#% output
+#= [15, 19, 10, 10, 14, 19, 7, 14, 20, 30]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `digit_sum`

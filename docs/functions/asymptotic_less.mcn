@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_less
+
+#% text
+# `asymptotic_less(f, g, x -> a)` gives true when f = o(g) as x approaches a: f/g tends to 0.
+
+#% section
+# Details
+
+#% item
+# Decided by `max_limit(abs(f/g), x -> a)`; options `direction:` and `assumptions:` as for `asymptotic_less_equal`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_less(x, x^2, x -> inf)
+#% output
+#= true
+
+#% cell
+asymptotic_less(x^2, 2*x^2, x -> inf)
+#% output
+#= false
+
+#% cell
+asymptotic_less(x^2, x, x -> 0)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `asymptotic_greater`, `asymptotic_less_equal`, `asymptotic_equivalent`

@@ -1,0 +1,384 @@
+== plain: "1+x"
+box 21.3 x 10.0 baseline 7.5
+line 0..3 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+char '1' text 10.0 at 0.0 7.5
+char '+' text 10.0 at 7.7 7.5
+char 'x' text 10.0 at 15.3 7.5
+row [] stops 0.0 7.7 15.3 21.3
+== operators: "a -> b <= c != d"
+box 83.9 x 10.0 baseline 7.5
+line 0..16 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+char 'a' text 10.0 at 0.0 7.5
+char ' ' text 10.0 at 6.0 7.5
+char '→' math 10.0 at 12.0 7.5
+char ' ' text 10.0 at 21.5 7.5
+char 'b' text 10.0 at 27.5 7.5
+char ' ' text 10.0 at 33.5 7.5
+char '≤' math 10.0 at 39.5 7.5
+char ' ' text 10.0 at 46.7 7.5
+char 'c' text 10.0 at 52.7 7.5
+char ' ' text 10.0 at 58.7 7.5
+char '≠' math 10.0 at 64.7 7.5
+char ' ' text 10.0 at 71.9 7.5
+char 'd' text 10.0 at 77.9 7.5
+row [] stops 0.0 6.0 12.0 21.5 21.5 27.5 33.5 39.5 46.7 46.7 52.7 58.7 64.7 71.9 71.9 77.9 83.9
+== fraction: "1+((x)/(y))"
+box 23.7 x 22.0 baseline 13.6
+line 0..3 top 0.0 baseline 13.6 bottom 22.0 indent 0.0
+char '1' text 10.0 at 0.0 13.6
+char '+' text 10.0 at 7.7 13.6
+char 'x' text 10.0 at 16.5 7.5
+char 'y' text 10.0 at 16.5 19.5
+rule 16.5 10.7 6.0 x 0.7
+row [] stops 0.0 7.7 15.3 23.7
+row [2.0] stops 16.5 22.5
+row [2.1] stops 16.5 22.5
+== nested fraction: "((1)/(((1)/(x)) + 1))"
+box 34.8 x 34.1 baseline 13.6
+line 0..1 top 0.0 baseline 13.6 bottom 34.1 indent 0.0
+char '1' text 10.0 at 14.4 7.5
+char '1' text 10.0 at 2.4 19.5
+char 'x' text 10.0 at 2.4 31.6
+rule 2.4 22.7 6.0 x 0.7
+char ' ' text 10.0 at 9.6 25.6
+char '+' text 10.0 at 15.6 25.6
+char ' ' text 10.0 at 21.6 25.6
+char '1' text 10.0 at 27.6 25.6
+rule 1.2 10.7 32.4 x 0.7
+row [] stops 0.0 34.8
+row [0.0] stops 14.4 20.4
+row [0.1] stops 1.2 9.6 15.6 21.6 27.6 33.6
+row [0.1 0.0] stops 2.4 8.4
+row [0.1 0.1] stops 2.4 8.4
+== small rational: "((1)/(2))x"
+box 11.7 x 17.2 baseline 10.0
+line 0..2 top 0.0 baseline 10.0 bottom 17.2 indent 0.0
+char '1' text 5.5 at 1.2 4.1
+char '2' text 5.5 at 1.2 15.8
+rule 1.2 7.1 3.3 x 0.7
+char 'x' text 10.0 at 5.7 10.0
+row [] stops 0.0 5.7 11.7
+row [0.0] stops 1.2 4.5
+row [0.1] stops 1.2 4.5
+== superscript: "((x)^(2)) + ((e)^(((x)^(2))))"
+box 42.8 x 12.7 baseline 10.2
+line 0..5 top 0.0 baseline 10.2 bottom 12.7 indent 0.0
+char 'x' text 10.0 at 0.0 10.2
+char '2' text 7.0 at 6.0 6.6
+char ' ' text 10.0 at 10.6 10.2
+char '+' text 10.0 at 16.6 10.2
+char ' ' text 10.0 at 22.6 10.2
+char 'e' text 10.0 at 28.6 10.2
+char 'x' text 7.0 at 34.6 6.6
+char '2' text 5.5 at 38.8 4.1
+row [] stops 0.0 10.6 16.6 22.6 28.6 42.8
+row [0.0] stops 0.0 6.0
+row [0.1] stops 6.0 10.2
+row [4.0] stops 28.6 34.6
+row [4.1] stops 34.6 42.4
+row [4.1 0.0] stops 34.6 38.8
+row [4.1 0.1] stops 38.8 42.1
+== subscript: "((subscript(x, i))) + ((subscript(a, n + 1)))"
+box 56.0 x 11.4 baseline 7.5
+line 0..5 top 0.0 baseline 7.5 bottom 11.4 indent 0.0
+char 'x' text 10.0 at 0.0 7.5
+char 'i' text 7.0 at 6.0 9.6
+char ' ' text 10.0 at 10.6 7.5
+char '+' text 10.0 at 16.6 7.5
+char ' ' text 10.0 at 22.6 7.5
+char 'a' text 10.0 at 28.6 7.5
+char 'n' text 7.0 at 34.6 9.6
+char ' ' text 7.0 at 38.8 9.6
+char '+' text 7.0 at 43.0 9.6
+char ' ' text 7.0 at 47.2 9.6
+char '1' text 7.0 at 51.4 9.6
+row [] stops 0.0 10.6 16.6 22.6 28.6 56.0
+row [0.0] stops 0.0 6.0
+row [0.1] stops 6.0 10.2
+row [4.0] stops 28.6 34.6
+row [4.1] stops 34.6 38.8 43.0 47.2 51.4 55.6
+== sub and super: "((((subscript(x, i))))^(2))"
+box 10.6 x 15.5 baseline 10.8
+line 0..1 top 0.0 baseline 10.8 bottom 15.5 indent 0.0
+char 'x' text 10.0 at 0.0 10.8
+char '2' text 7.0 at 6.0 5.2
+char 'i' text 7.0 at 6.0 13.7
+row [] stops 0.0 10.6
+row [0.0] stops 0.0 10.6
+row [0.0 0.0] stops 0.0 6.0
+row [0.0 0.1] stops 6.0 10.2
+row [0.1] stops 6.0 10.2
+== radical: "((sqrt(x + 1)))"
+box 37.9 x 12.7 baseline 10.0
+line 0..1 top 0.0 baseline 10.0 bottom 12.7 indent 0.0
+glyph 1657 10.0 at 0.0 10.0
+rule 7.9 0.8 30.0 x 0.7
+char 'x' text 10.0 at 7.9 10.0
+char ' ' text 10.0 at 13.9 10.0
+char '+' text 10.0 at 19.9 10.0
+char ' ' text 10.0 at 25.9 10.0
+char '1' text 10.0 at 31.9 10.0
+row [] stops 0.0 37.9
+row [0.0] stops 7.9 13.9 19.9 25.9 31.9 37.9
+== root: "((surd(x, 3)))"
+box 14.5 x 12.7 baseline 10.0
+line 0..1 top 0.0 baseline 10.0 bottom 12.7 indent 0.0
+char '3' text 5.5 at 0.7 6.1
+glyph 1657 10.0 at 0.6 10.0
+rule 8.5 0.8 6.0 x 0.7
+char 'x' text 10.0 at 8.5 10.0
+row [] stops 0.0 14.5
+row [0.0] stops 0.7 4.0
+row [0.1] stops 8.5 14.5
+== tall radical: "((sqrt(((1)/(x)))))"
+box 20.2 x 24.5 baseline 16.0
+line 0..1 top 0.0 baseline 16.0 bottom 24.5 indent 0.0
+glyph 1659 10.0 at 0.0 21.8
+rule 11.8 0.8 8.4 x 0.7
+char '1' text 10.0 at 13.0 9.9
+char 'x' text 10.0 at 13.0 21.9
+rule 13.0 13.1 6.0 x 0.7
+row [] stops 0.0 20.2
+row [0.0] stops 11.8 20.2
+row [0.0 0.0] stops 13.0 19.0
+row [0.0 0.1] stops 13.0 19.0
+== over under: "((overscript(x, →)))((underscript(y, 0)))((underoverscript(S, a, b)))"
+box 18.6 x 25.6 baseline 15.3
+line 0..3 top 0.0 baseline 15.3 bottom 25.6 indent 0.0
+char 'x' text 10.0 at 0.3 15.3
+char '→' math 7.0 at 0.0 5.3
+char 'y' text 10.0 at 6.6 15.3
+char '0' text 7.0 at 7.5 23.9
+char 'S' text 10.0 at 12.6 15.3
+char 'b' text 7.0 at 13.5 5.3
+char 'a' text 7.0 at 13.5 23.9
+row [] stops 0.0 6.6 12.6 18.6
+row [0.0] stops 0.3 6.3
+row [0.1] stops 0.0 6.6
+row [1.0] stops 6.6 12.6
+row [1.1] stops 7.5 11.7
+row [2.0] stops 12.6 18.6
+row [2.1] stops 13.5 17.7
+row [2.2] stops 13.5 17.7
+== grid: "(([[a, b], [c, d]]))"
+box 20.0 x 26.5 baseline 15.8
+line 0..1 top 0.0 baseline 15.8 bottom 26.5 indent 0.0
+char 'a' text 10.0 at 0.0 8.4
+char 'b' text 10.0 at 14.0 8.4
+char 'c' text 10.0 at 0.0 22.9
+char 'd' text 10.0 at 14.0 22.9
+row [] stops 0.0 20.0
+row [0.0] stops 0.0 6.0
+row [0.1] stops 14.0 20.0
+row [0.2] stops 0.0 6.0
+row [0.3] stops 14.0 20.0
+== stretchy delimiters: "(((([[1, 2], [3, 4]]))))"
+box 44.0 x 26.5 baseline 15.8
+line 0..5 top 0.0 baseline 15.8 bottom 26.5 indent 0.0
+delim '(' 0.0 1.3 6.0 x 23.9 stroke 0.9
+delim '(' 6.0 1.3 6.0 x 23.9 stroke 0.9
+char '1' text 10.0 at 12.0 8.4
+char '2' text 10.0 at 26.0 8.4
+char '3' text 10.0 at 12.0 22.9
+char '4' text 10.0 at 26.0 22.9
+delim ')' 32.0 1.3 6.0 x 23.9 stroke 0.9
+delim ')' 38.0 1.3 6.0 x 23.9 stroke 0.9
+row [] stops 0.0 6.0 12.0 32.0 38.0 44.0
+row [2.0] stops 12.0 18.0
+row [2.1] stops 26.0 32.0
+row [2.2] stops 12.0 18.0
+row [2.3] stops 26.0 32.0
+== sum inline: "((sum(k, [k, 1, n])))"
+box 30.0 x 16.6 baseline 10.7
+line 0..1 top 0.0 baseline 10.7 bottom 16.6 indent 0.0
+glyph 1646 10.0 at 0.0 10.8
+char 'n' text 7.0 at 9.4 5.3
+char 'k' text 7.0 at 9.4 14.9
+char '=' text 7.0 at 13.6 14.9
+char '1' text 7.0 at 17.8 14.9
+char 'k' text 10.0 at 24.0 10.7
+row [] stops 0.0 30.0
+row [0.0] stops 9.4 13.6
+row [0.1] stops 17.8 22.0
+row [0.2] stops 9.4 13.6
+row [0.3] stops 24.0 30.0
+== sum display: "((sum(k, [k, 1, n])))"
+box 20.3 x 30.1 baseline 17.6
+line 0..1 top 0.0 baseline 17.6 bottom 30.1 indent 0.0
+glyph 1647 10.0 at 0.7 17.5
+char 'n' text 7.0 at 4.2 5.3
+char 'k' text 7.0 at 0.0 28.3
+char '=' text 7.0 at 4.2 28.3
+char '1' text 7.0 at 8.4 28.3
+char 'k' text 10.0 at 14.3 17.6
+row [] stops 0.0 20.3
+row [0.0] stops 0.0 4.2
+row [0.1] stops 8.4 12.6
+row [0.2] stops 4.2 8.4
+row [0.3] stops 14.3 20.3
+== integral display: "((integrate(f, [x, 0, 1])))"
+box 36.3 x 29.8 baseline 17.3
+line 0..1 top 0.0 baseline 17.3 bottom 29.8 indent 0.0
+glyph 1699 10.0 at 0.0 17.2
+char '1' text 7.0 at 10.3 5.3
+char '0' text 7.0 at 4.9 28.0
+char 'f' text 10.0 at 16.6 17.3
+char 'd' text 10.0 at 24.3 17.3
+char 'x' text 10.0 at 30.3 17.3
+row [] stops 0.0 36.3
+row [0.0] stops 4.9 9.1
+row [0.1] stops 10.3 14.5
+row [0.2] stops 16.6 22.6
+row [0.3] stops 30.3 36.3
+== integral inline: "((integrate(f, x)))"
+box 28.2 x 10.0 baseline 7.5
+line 0..1 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+glyph 1698 10.0 at 0.0 7.4
+char 'f' text 10.0 at 8.5 7.5
+char 'd' text 10.0 at 16.2 7.5
+char 'x' text 10.0 at 22.2 7.5
+row [] stops 0.0 28.2
+row [0.0] stops 8.5 14.5
+row [0.1] stops 22.2 28.2
+== limit display: "((limit(f, x -> 0)))"
+box 25.7 x 18.5 baseline 7.5
+line 0..1 top 0.0 baseline 7.5 bottom 18.5 indent 0.0
+char 'l' text 10.0 at 0.0 7.5
+char 'i' text 10.0 at 6.0 7.5
+char 'm' text 10.0 at 12.0 7.5
+char 'x' text 7.0 at 1.5 16.7
+char '→' math 7.0 at 5.7 16.7
+char '0' text 7.0 at 12.3 16.7
+char 'f' text 10.0 at 19.7 7.5
+row [] stops 0.0 25.7
+row [0.0] stops 1.5 5.7
+row [0.1] stops 12.3 16.5
+row [0.2] stops 19.7 25.7
+== derivative inline: "((d(f, x)))"
+box 17.0 x 11.4 baseline 7.5
+line 0..1 top 0.0 baseline 7.5 bottom 11.4 indent 0.0
+char '∂' math 10.0 at 0.0 7.5
+char 'x' text 7.0 at 4.8 9.6
+char 'f' text 10.0 at 11.0 7.5
+row [] stops 0.0 17.0
+row [0.0] stops 4.8 9.0
+row [0.1] stops 11.0 17.0
+== derivative display: "((d(f, x)))"
+box 13.2 x 23.7 baseline 14.4
+line 0..1 top 0.0 baseline 14.4 bottom 23.7 indent 0.0
+char '∂' math 10.0 at 1.2 7.5
+char 'f' text 10.0 at 6.0 7.5
+char '∂' math 10.0 at 1.2 21.2
+char 'x' text 10.0 at 6.0 21.2
+rule 1.2 11.5 10.8 x 0.7
+row [] stops 0.0 13.2
+row [0.1] stops 6.0 12.0
+row [0.0] stops 6.0 12.0
+== placeholder: "((□)/(□))"
+box 11.7 x 22.0 baseline 13.6
+line 0..1 top 0.0 baseline 13.6 bottom 22.0 indent 0.0
+placeholder 10.0 at 1.2 7.5
+placeholder 10.0 at 1.2 19.5
+rule 1.2 10.7 9.3 x 0.7
+row [] stops 0.0 11.7
+row [0.0] stops 1.2 10.5
+row [0.1] stops 1.2 10.5
+== graphic: "((image(\"p.png\")))"
+box 80.0 x 52.5 baseline 50.0
+line 0..1 top 0.0 baseline 50.0 bottom 52.5 indent 0.0
+graphic "p.png" 0.0 0.0 80.0 x 50.0
+row [] stops 0.0 80.0
+== empty: ""
+box 0.0 x 10.0 baseline 7.5
+line 0..0 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+row [] stops 0.0
+== wrap: "f(alpha, beta, gamma) + g(delta, epsilon)"
+box 132.0 x 22.0 baseline 7.5
+line 0..22 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+line 22..41 top 12.0 baseline 19.5 bottom 22.0 indent 0.0
+char 'f' text 10.0 at 0.0 7.5
+char '(' text 10.0 at 6.0 7.5
+char 'a' text 10.0 at 12.0 7.5
+char 'l' text 10.0 at 18.0 7.5
+char 'p' text 10.0 at 24.0 7.5
+char 'h' text 10.0 at 30.0 7.5
+char 'a' text 10.0 at 36.0 7.5
+char ',' text 10.0 at 42.0 7.5
+char ' ' text 10.0 at 48.0 7.5
+char 'b' text 10.0 at 54.0 7.5
+char 'e' text 10.0 at 60.0 7.5
+char 't' text 10.0 at 66.0 7.5
+char 'a' text 10.0 at 72.0 7.5
+char ',' text 10.0 at 78.0 7.5
+char ' ' text 10.0 at 84.0 7.5
+char 'g' text 10.0 at 90.0 7.5
+char 'a' text 10.0 at 96.0 7.5
+char 'm' text 10.0 at 102.0 7.5
+char 'm' text 10.0 at 108.0 7.5
+char 'a' text 10.0 at 114.0 7.5
+char ')' text 10.0 at 120.0 7.5
+char ' ' text 10.0 at 126.0 7.5
+char '+' text 10.0 at 0.0 19.5
+char ' ' text 10.0 at 6.0 19.5
+char 'g' text 10.0 at 12.0 19.5
+char '(' text 10.0 at 18.0 19.5
+char 'd' text 10.0 at 24.0 19.5
+char 'e' text 10.0 at 30.0 19.5
+char 'l' text 10.0 at 36.0 19.5
+char 't' text 10.0 at 42.0 19.5
+char 'a' text 10.0 at 48.0 19.5
+char ',' text 10.0 at 54.0 19.5
+char ' ' text 10.0 at 60.0 19.5
+char 'e' text 10.0 at 66.0 19.5
+char 'p' text 10.0 at 72.0 19.5
+char 's' text 10.0 at 78.0 19.5
+char 'i' text 10.0 at 84.0 19.5
+char 'l' text 10.0 at 90.0 19.5
+char 'o' text 10.0 at 96.0 19.5
+char 'n' text 10.0 at 102.0 19.5
+char ')' text 10.0 at 108.0 19.5
+row [] stops 0.0 6.0 12.0 18.0 24.0 30.0 36.0 42.0 48.0 54.0 60.0 66.0 72.0 78.0 84.0 90.0 96.0 102.0 108.0 114.0 120.0 126.0 0.0 6.0 12.0 18.0 24.0 30.0 36.0 42.0 48.0 54.0 60.0 66.0 72.0 78.0 84.0 90.0 96.0 102.0 108.0 114.0
+== wrap newline: "f(a,\nb)"
+box 32.0 x 22.0 baseline 7.5
+line 0..5 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+line 5..7 top 12.0 baseline 19.5 bottom 22.0 indent 20.0
+char 'f' text 10.0 at 0.0 7.5
+char '(' text 10.0 at 6.0 7.5
+char 'a' text 10.0 at 12.0 7.5
+char ',' text 10.0 at 18.0 7.5
+char 'b' text 10.0 at 20.0 19.5
+char ')' text 10.0 at 26.0 19.5
+row [] stops 0.0 6.0 12.0 18.0 24.0 20.0 26.0 32.0
+== wrap fraction slots: "((aaaa + bbbb + cccc + dddd)/(2))"
+box 80.4 x 34.0 baseline 25.6
+line 0..1 top 0.0 baseline 25.6 bottom 34.0 indent 0.0
+char 'a' text 10.0 at 1.2 7.5
+char 'a' text 10.0 at 7.2 7.5
+char 'a' text 10.0 at 13.2 7.5
+char 'a' text 10.0 at 19.2 7.5
+char ' ' text 10.0 at 25.2 7.5
+char '+' text 10.0 at 31.2 7.5
+char ' ' text 10.0 at 37.2 7.5
+char 'b' text 10.0 at 43.2 7.5
+char 'b' text 10.0 at 49.2 7.5
+char 'b' text 10.0 at 55.2 7.5
+char 'b' text 10.0 at 61.2 7.5
+char ' ' text 10.0 at 67.2 7.5
+char '+' text 10.0 at 1.2 19.5
+char ' ' text 10.0 at 7.2 19.5
+char 'c' text 10.0 at 13.2 19.5
+char 'c' text 10.0 at 19.2 19.5
+char 'c' text 10.0 at 25.2 19.5
+char 'c' text 10.0 at 31.2 19.5
+char ' ' text 10.0 at 37.2 19.5
+char '+' text 10.0 at 43.2 19.5
+char ' ' text 10.0 at 49.2 19.5
+char 'd' text 10.0 at 55.2 19.5
+char 'd' text 10.0 at 61.2 19.5
+char 'd' text 10.0 at 67.2 19.5
+char 'd' text 10.0 at 73.2 19.5
+char '2' text 10.0 at 37.2 31.5
+rule 1.2 22.7 78.0 x 0.7
+row [] stops 0.0 80.4
+row [0.0] stops 1.2 7.2 13.2 19.2 25.2 31.2 37.2 43.2 49.2 55.2 61.2 67.2 1.2 7.2 13.2 19.2 25.2 31.2 37.2 43.2 49.2 55.2 61.2 67.2 73.2 79.2
+row [0.1] stops 37.2 43.2

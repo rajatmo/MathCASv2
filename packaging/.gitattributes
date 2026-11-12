@@ -1,0 +1,5 @@
+# Shell scripts and desktop files run on Linux: keep LF line ends in every checkout.
+*.sh text eol=lf
+*.desktop text eol=lf
+*.selftest text eol=lf
+*.xml text eol=lf

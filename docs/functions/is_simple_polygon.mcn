@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_simple_polygon
+
+#% text
+# `is_simple_polygon(p)`: whether a plane polygon does not cross itself
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_simple_polygon(polygon([[0, 0], [1, 0], [1, 1], [0, 1]])), is_simple_polygon(polygon([[0, 0], [1, 1], [1, 0], [0, 1]]))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

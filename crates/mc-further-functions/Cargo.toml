@@ -1,0 +1,19 @@
+[package]
+name = "mc-further-functions"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 further functions (the catalogue topic; the round 30 coverage library until round 34): Fox H and Meijer G reductions, spheroidal radial functions, Julia set iteration counts, shortest tours, Schur decompositions, number field discriminants and other functions that call the other libraries through the evaluator"
+
+[dependencies]
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+
+[dev-dependencies]
+mc-api = { path = "../mc-api" }
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

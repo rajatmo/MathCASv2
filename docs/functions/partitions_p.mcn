@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# partitions_p
+
+#% text
+# `partitions_p(n)` gives the number of partitions of the integer `n`: the ways to write `n` as a sum of positive integers, order disregarded.
+
+#% section
+# Details
+
+#% item
+# `partitions_p(0)` is 1 and negative `n` give 0. Large `n` use the Hardy-Ramanujan-Rademacher series.
+
+#% item
+# `partitions_p` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+partitions_p(5)
+#% output
+#= 7
+
+#% cell
+partitions_p(0)
+#% output
+#= 1
+
+#% cell
+partitions_p(range(10))
+#% output
+#= [1, 2, 3, 5, 7, 11, 15, 22, 30, 42]
+
+#% cell
+partitions_p(100)
+#% output
+#= 190569292
+
+#% subsection
+# Scope
+
+#% text
+# A large argument:
+
+#% cell
+partitions_p(1000)
+#% output
+#= 24061467864032622473692149727991
+
+#% subsection
+# Properties and relations
+
+#% text
+# The generating function `1/(q; q)_inf`:
+
+#% cell
+series(1/product(1 - q^k, [k, 1, 8]), q, 0, 8)
+#% output
+#= 1 + q + 2*q^2 + 3*q^3 + 5*q^4 + 7*q^5 + 11*q^6 + 15*q^7 + 22*q^8 + O(q^9)
+
+#% text
+# Ramanujan's congruence `p(5k + 4) = 0 mod 5`:
+
+#% cell
+mod(partitions_p(table(5*k + 4, k, range(0, 8))), 5)
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `partitions_q`, `q_pochhammer`, `stirling_s2`

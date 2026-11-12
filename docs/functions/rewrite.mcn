@@ -1,0 +1,165 @@
+#! mathcas 2 notebook
+
+#% title
+# rewrite
+
+#% text
+# `rewrite(e, lhs -> rhs)` gives `e` with every part that matches the pattern `lhs` replaced by `rhs`.
+
+#% text
+# `rewrite(e, [r1, r2, ...])` applies a list of rules: at each part the first rule that matches is used.
+
+#% section
+# Details
+
+#% item
+# `e /. rules` is the same as `rewrite(e, rules)`.
+
+#% item
+# Parts are tried from the whole expression inwards; a part that has been replaced is not searched again, and the result is evaluated once at the end.
+
+#% item
+# Patterns: `x_` matches anything and names it, `x_: T` a term of type `T`, `p when c` adds a condition; names on the left are available on the right.
+
+#% item
+# `lhs -> rhs` evaluates `rhs` when the rule is made; `lhs :> rhs` evaluates it afresh for each match.
+
+#% item
+# A rule list such as `[x -> 1, y -> 2]` from `solve` or `find_root` substitutes values: `e /. sol`.
+
+#% item
+# A list of rule lists, as `solve` gives, is not taken apart: map over it to substitute each solution.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Substituting a value:
+
+#% cell
+x^2 + 3x /. x -> 2
+#% output
+#= 10
+
+#% cell
+rewrite(x^2 + y, [x -> a, y -> b])
+#% output
+#= b + a^2
+
+#% text
+# A pattern rule:
+
+#% cell
+rewrite(f(1) + f(2) + g(3), f(k_) -> k^2)
+#% output
+#= 5 + g(3)
+
+#% subsection
+# Scope
+
+#% text
+# Each solution of an equation, put back into an expression:
+
+#% cell
+map(s => x^3 /. s, solve(x^2 == 2, x))
+#% output
+#= [-2*2^(1/2), 2*2^(1/2)]
+
+#% text
+# A condition on the pattern:
+
+#% cell
+rewrite([1, -2, 3, -4], k_ when k < 0 -> 0)
+#% output
+#= [1, 0, 3, 0]
+
+#% text
+# A typed pattern:
+
+#% cell
+rewrite([1, 2.5, x], k_: Int -> int)
+#% output
+#= [int, 2.5, x]
+
+#% text
+# A delayed right side is evaluated for each match:
+
+#% cell
+seed(3); rewrite([a, a, a], a :> random_integer(9))
+#% output
+#= [9, 5, 7]
+
+#% subsection
+# Applications
+
+#% text
+# An identity used as a rule:
+
+#% cell
+rewrite(sin(x)^2 + cos(x)^2 + 1, sin(a_)^2 + cos(a_)^2 -> 1)
+#% output
+#= 2
+
+#% text
+# The value of a numerical solution:
+
+#% cell
+r = find_root(exp(x) - 3x, [x, 1])
+x /. r
+#% output
+#= 0.6190612867359451
+
+#% subsection
+# Properties and relations
+
+#% text
+# Rules are tried once over the expression; a replacement is not rewritten again:
+
+#% cell
+rewrite(a, [a -> b, b -> c])
+#% output
+#= b
+
+#% text
+# `rewrite` acts on the evaluated expression, so the pattern must match its canonical form; `x - y` is a sum with `-1*y`:
+
+#% cell
+rewrite(x - y, y -> 2)
+#% output
+#= -2 + x
+
+#% text
+# A product pattern also matches inside a longer product:
+
+#% cell
+rewrite(2*a*b, a*b -> c)
+#% output
+#= 2*c
+
+#% text
+# Both sides are put in canonical order first, so the order of the terms in a sum does not matter:
+
+#% cell
+rewrite(1 + x, x + 1 -> y)
+#% output
+#= y
+
+#% subsection
+# Possible issues
+
+#% text
+# A whole list of solutions as the rule leaves the call as it is:
+
+#% cell
+x^3 /. solve(x^2 == 2, x)
+#% output
+#= [-2*2^(1/2), 2*2^(1/2)]
+
+#% section
+# See also
+
+#% text
+# `solve`, `find_root`, `cases`, `position`, `assuming`

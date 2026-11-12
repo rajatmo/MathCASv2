@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# ceiling
+
+#% text
+# `ceiling(x)` gives the least integer at least `x`.
+
+#% text
+# `ceiling(x, a)` gives the least multiple of `a` at least `x`.
+
+#% section
+# Details
+
+#% item
+# Exact numbers, machine numbers and balls are rounded; exact constants such as `pi` are rounded by a numerical bound.
+
+#% item
+# For complex numbers the real and imaginary parts are rounded separately.
+
+#% item
+# `ceiling` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+ceiling(2.3)
+#% output
+#= 3
+
+#% cell
+ceiling(-2.3)
+#% output
+#= -2
+
+#% cell
+ceiling(7/2)
+#% output
+#= 4
+
+#% cell
+ceiling(pi)
+#% output
+#= 4
+
+#% subsection
+# Scope
+
+#% text
+# The next multiple of 5:
+
+#% cell
+ceiling(17, 5)
+#% output
+#= 20
+
+#% text
+# A complex number:
+
+#% cell
+ceiling(1.2 - 3.7*im)
+#% output
+#= 2 - 3im
+
+#% text
+# Each element of a list:
+
+#% cell
+ceiling([0.1, 1.0, 1.9])
+#% output
+#= [1, 1, 2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `ceiling(x)` is `-floor(-x)`:
+
+#% cell
+[ceiling(-4.5), -floor(4.5)]
+#% output
+#= [-4, -4]
+
+#% section
+# See also
+
+#% text
+# `floor`, `round`, `integer_part`, `quotient`

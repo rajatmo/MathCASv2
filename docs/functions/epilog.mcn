@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# epilog
+
+#% text
+# `epilog` is an option of graphics and plots: graphics content drawn over everything else, in the plot's data coordinates.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2pi], epilog: [red, point_size(0.02), point([pi/2, 1])])
+#% output
+#= image("epilog.files/epilog-1.svgz")
+
+#% cell
+plot(x^2, [x, 0, 2], epilog: [text("vertex", [0.2, 0.3])])
+#% output
+#= image("epilog.files/epilog-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# On a log axis, positions are still data values:
+
+#% cell
+log_plot(exp(x), [x, 0, 5], epilog: [point([2, exp(2)])])
+#% output
+#= image("epilog.files/epilog-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `prolog`, `show`, `graphics`, `text`

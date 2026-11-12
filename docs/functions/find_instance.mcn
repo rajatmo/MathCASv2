@@ -1,0 +1,104 @@
+#! mathcas 2 notebook
+
+#% title
+# find_instance
+
+#% text
+# `find_instance(cond, x)` gives one point satisfying `cond` as `[[x -> v]]`; `find_instance(cond, [x, y])` for several variables; `[]` when there is none.
+
+#% section
+# Details
+
+#% item
+# With one variable the condition is reduced by `reduce` and a root or a simple number inside an interval is taken.
+
+#% item
+# With several variables the equations are solved by `solve` and the unknowns left free are set to 0.
+
+#% item
+# Real polynomial conditions with an inequality (or the domain `reals`) take a sample point of the cylindrical algebraic decomposition; `find_instance(cond, vars, reals, n)` lists up to `n` points of a finite solution set.
+
+#% item
+# `find_instance(cond, vars, integers)` and `find_instance(cond, vars, integers, n)`: Pell equations `x^2 - D y^2 == 1` through the powers of the fundamental unit, bounded problems by bounds from the real decomposition and a complete search of the box, others by a search of the integer points with coordinates up to 60 in absolute value. Every point is checked exactly; when none is found the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A root:
+
+#% cell
+find_instance(x^2 == 4 and x > 0, x)
+#% output
+#= [[x -> 2]]
+
+#% text
+# A point of an interval:
+
+#% cell
+find_instance(x^2 < 4 and x > 1, x)
+#% output
+#= [[x -> 3/2]]
+
+#% subsection
+# Scope
+
+#% text
+# Two equations:
+
+#% cell
+find_instance(x + y == 3 and x - y == 1, [x, y])
+#% output
+#= [[x -> 2, y -> 1]]
+
+#% text
+# An underdetermined system:
+
+#% cell
+find_instance(x + y == 3, [x, y])
+#% output
+#= [[x -> 3, y -> 0]]
+
+#% text
+# No solution:
+
+#% cell
+find_instance(x^2 < 0, x)
+#% output
+#= []
+
+#% text
+# All the points of a finite real set:
+
+#% cell
+find_instance(x^2 + y^2 == 1 and x == 2*y + 1, [x, y], reals, 5)
+#% output
+#= [[x -> -3/5, y -> -4/5], [x -> 1, y -> 0]]
+
+#% text
+# A solution of a Pell equation in a range:
+
+#% cell
+find_instance(x^2 - 3*y^2 == 1 and 10 < x and x < 100, [x, y], integers)
+#% output
+#= [[x -> 26, y -> 15]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `reduce` gives all the solutions:
+
+#% cell
+reduce(x^2 < 4 and x > 1, x)
+#% output
+#= 1 < x and x < 2
+
+#% section
+# See also
+
+#% text
+# `reduce`, `solve`

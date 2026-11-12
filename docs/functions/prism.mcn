@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# prism
+
+#% text
+# `prism([p1, ..., p6])`: the solid triangular prism with ends p1 p2 p3 and p4 p5 p6
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+p = prism([[1, 0, 1], [0, 0, 0], [2, 0, 0], [1, 2, 1], [0, 2, 0], [2, 2, 0]])
+
+#% cell
+[volume(p), region_centroid(p)]
+#% output
+#= [2, [1, 1, 1/3]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# expectation
+
+#% text
+# `expectation(f, d)` gives `E[f(X)]` for `X` distributed as `d`, where `f` is a function.
+# `expectation(e, x, d)` gives the expectation of the expression `e` in `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+expectation(x^2, x, normal_distribution(mu, s))
+#% output
+#= mu^2 + s^2
+
+#% cell
+expectation(k => k^2, poisson_distribution(m))
+#% output
+#= m + m^2
+
+#% subsection
+# Scope
+
+#% text
+# A numerical expectation:
+
+#% cell
+n(expectation(cos(x), x, normal_distribution(0, 1)))
+#% output
+#= 0.6065306597126334
+
+#% section
+# See also
+
+#% text
+# `mean`, `variance`, `moment`, `pdf`

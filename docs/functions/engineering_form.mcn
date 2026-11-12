@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# engineering_form
+
+#% text
+# `engineering_form(x)` shows the number `x` in scientific notation with an exponent that is a multiple of 3; `engineering_form(x, n)` with `n` significant digits.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `engineering_form` stays around the value as a display wrapper. The wrapper stays around the value: it is a display directive and changes no computation.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+engineering_form(12345.6789)
+#% output
+#= engineering_form(12345.6789)
+
+#% cell
+engineering_form(0.000123)
+#% output
+#= engineering_form(0.000123)
+
+#% cell
+engineering_form(1.0e9, 3)
+#% output
+#= engineering_form(1000000000.0, 3)
+
+#% section
+# See also
+
+#% text
+# `scientific_form`, `number_form`, `decimal_form`

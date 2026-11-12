@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# accounting_form
+
+#% text
+# `accounting_form(x)` shows the number `x` with negative values in parentheses and no scientific notation; `accounting_form(x, n)` with `n` significant digits.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `accounting_form` stays around the value as a display wrapper. The wrapper stays around the value: it is a display directive and changes no computation.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+accounting_form(-1234.5)
+#% output
+#= accounting_form(-1234.5)
+
+#% cell
+accounting_form([1.5, -2.5, 1.0e9])
+#% output
+#= accounting_form([1.5, -2.5, 1000000000.0])
+
+#% cell
+accounting_form(-0.25, 2)
+#% output
+#= accounting_form(-0.25, 2)
+
+#% section
+# See also
+
+#% text
+# `number_form`, `decimal_form`, `percent_form`

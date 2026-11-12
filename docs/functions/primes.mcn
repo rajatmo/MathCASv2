@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# primes
+
+#% text
+# `primes` is the domain of the prime numbers: `element(x, primes)` is `true` when `x` is a prime number.
+
+#% section
+# Details
+
+#% item
+# Negative integers, 1 and numbers that are not integers are not in the domain.
+
+#% item
+# `element(x, primes)` maps over lists and stays unevaluated for symbols.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(107, primes)
+#% output
+#= true
+
+#% cell
+element([17, -17, 1, 9, 7/2], primes)
+#% output
+#= [true, false, false, false, false]
+
+#% cell
+element(2^107 - 1, primes)
+#% output
+#= true
+
+#% cell
+element(a, primes)
+#% output
+#= element(a, primes)
+
+#% section
+# See also
+
+#% text
+# `is_prime`, `prime`, `integers`

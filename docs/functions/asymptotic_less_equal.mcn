@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# asymptotic_less_equal
+
+#% text
+# `asymptotic_less_equal(f, g, x -> a)` gives true when f = O(g) as x approaches a: |f/g| stays bounded near a.
+
+#% section
+# Details
+
+#% item
+# Decided by `max_limit(abs(f/g), x -> a)`: a finite value gives true, inf gives false; an undecided limit gives `failure(undecided, ...)`.
+
+#% item
+# Options: `direction:` as for `limit` (from_above, from_below, two_sided, -1, 1, ...); `assumptions:` facts on the parameters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asymptotic_less_equal(x, x^2, x -> inf)
+#% output
+#= true
+
+#% cell
+asymptotic_less_equal(1/x^2, 1/(x*sin(x)), x -> 0)
+#% output
+#= true
+
+#% cell
+asymptotic_less_equal(sin(x), x*unit_step(x), x -> 0, direction: from_above)
+#% output
+#= true
+
+#% cell
+asymptotic_less_equal(x^2, x, x -> inf)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `asymptotic_less`, `asymptotic_equal`, `asymptotic_greater_equal`, `asymptotic_equivalent`, `max_limit`

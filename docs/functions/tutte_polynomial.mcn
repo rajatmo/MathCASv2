@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# tutte_polynomial
+
+#% text
+# `tutte_polynomial(M, x, y)`: the Tutte polynomial of the matroid (or graphic matroid)
+
+#% section
+# Details
+
+#% item
+# A matroid is `linear_matroid(A)` (the columns of a rational matrix), `graphic_matroid(edges)` (the edges of a graph), `uniform_matroid(r, m)` or `matroid(bases)` (bases as lists of elements 1, ..., m); its elements are numbered 1, ..., m, at most 22.
+
+#% item
+# T(1, 1) counts the bases (spanning trees of a connected graph) and T(2, 2) = 2^m.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tutte_polynomial(graphic_matroid([[1, 2], [2, 3], [3, 1]]), x, y)
+#% output
+#= x + y + x^2
+
+#% cell
+tutte_polynomial(graphic_matroid(subsets([1, 2, 3, 4], [2])), x, y)
+#% output
+#= 2*x + 2*y + 3*x^2 + 3*y^2 + 4*x*y + x^3 + y^3
+
+#% cell
+tutte_polynomial(graphic_matroid(subsets([1, 2, 3, 4], [2])), 1, 1)
+#% output
+#= 16
+
+#% cell
+tutte_polynomial(uniform_matroid(2, 4), x, y)
+#% output
+#= 2*x + 2*y + x^2 + y^2
+
+#% section
+# See also
+
+#% text
+# `matroid_rank`, `matroid_bases`

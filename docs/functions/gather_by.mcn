@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# gather_by
+
+#% text
+# `gather_by(xs, f)` gathers the elements of `xs` into lists of elements with the same `f(x)`, in order of first appearance.
+# `gather_by(xs, f, r)` reduces each list with `r`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gather_by(range(10), x => mod(x, 3))
+#% output
+#= [[1, 4, 7, 10], [2, 5, 8], [3, 6, 9]]
+
+#% cell
+gather_by(["apple", "bean", "avocado", "beet"], s => string_take(s, 1))
+#% output
+#= [["apple", "avocado"], ["bean", "beet"]]
+
+#% subsection
+# Scope
+
+#% text
+# Reduce each group:
+
+#% cell
+gather_by(range(10), x => mod(x, 3), total)
+#% output
+#= [22, 15, 18]
+
+#% section
+# See also
+
+#% text
+# `group_by`, `count_by`, `unique_by`, `split`

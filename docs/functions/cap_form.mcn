@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# cap_form
+
+#% text
+# `cap_form(f)` is a graphics directive for the form of the ends of the lines that follow, with `f` one of `round`, `square` or `butt`.
+
+#% section
+# Details
+
+#% item
+# Lines are drawn with the renderer's own ends and corners; `cap_form` is accepted so that code written for other renderers runs, and is not drawn.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([cap_form(round), thickness(0.05), line([[0, 0], [1, 1], [2, 0]])])
+#% output
+#= image("cap_form.files/cap_form-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: [cap_form(square), thick])
+#% output
+#= image("cap_form.files/cap_form-2.svgz")
+
+#% cell
+cap_form(round)
+#% output
+#= cap_form(round)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics([thickness(0.05), line([[0, 0], [1, 1], [2, 0]])])
+#% output
+#= image("cap_form.files/cap_form-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `thickness`, `line`, `dashing`, `join_form`

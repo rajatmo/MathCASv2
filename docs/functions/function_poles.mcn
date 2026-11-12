@@ -1,0 +1,116 @@
+#! mathcas 2 notebook
+
+#% title
+# function_poles
+
+#% text
+# `function_poles(f, z)` gives the poles of the meromorphic function `f` of `z` with their orders, `[[p1, m1], [p2, m2], ...]`; `function_poles([f, cond], z)` those where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# Candidates are the solutions of the pole conditions of `function_singularities`; the order at `p` is the smallest `m` for which `limit((z - p)^m f, z -> p)` is finite (for a rational function, the multiplicity of `p` in the reduced denominator), and it is checked numerically near `p`. Removable points are no poles.
+
+#% item
+# A family of poles is given as `conditional_expression(p(c(1)), element(c(1), integers))`; inside a bounded condition (`abs(z) < r`) the members are listed.
+
+#% item
+# A function that is not meromorphic where the condition holds leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_poles((x^3 - 2)/((x - 1)*(x^2 - 1)), x)
+#% output
+#= [[-1, 1], [1, 2]]
+
+#% cell
+function_poles(tan(x) + 1, x)
+#% output
+#= [[conditional_expression((1/2)*pi + pi*c(1), element(c(1), integers)), 1]]
+
+#% subsection
+# Scope
+
+#% text
+# Complex poles:
+
+#% cell
+function_poles((x^2 - 3)/(x^3 - 2) + x/(x - 1)^3, x)
+#% output
+#= [[1, 3], [-(-1)^(1/3)*2^(1/3), 1], [2^(1/3), 1], [(-1)^(2/3)*2^(1/3), 1]]
+
+#% text
+# A removable point is no pole:
+
+#% cell
+function_poles((1 - cos(x))/x^2, x)
+#% output
+#= []
+
+#% text
+# The logarithm has a cut: only on its half plane are the poles listed:
+
+#% cell
+function_poles([log(x) + 1/(x - 1), re(x) > 0], x)
+#% output
+#= [[1, 1]]
+
+#% text
+# Poles inside a disc:
+
+#% cell
+function_poles([tan(x)^3 + x, abs(x) < 2], x)
+#% output
+#= [[(-1/2)*pi, 3], [(1/2)*pi, 3]]
+
+#% cell
+function_poles([1/(exp(x) - 2), abs(x) < 2], x)
+#% output
+#= [[log(2), 1]]
+
+#% subsection
+# Options
+
+#% cell
+function_poles([1/(x - a), re(x) > 0], x, assumptions: re(a) > 0)
+#% output
+#= [[a, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The order is the order of the leading term of the Laurent series:
+
+#% cell
+function_poles((exp(x) - 1 - x)/x^2 + sin(x - 1)/(x^2 - 1)^2, x)
+#% output
+#= [[-1, 2], [1, 1]]
+
+#% cell
+series(tan(x)^3 + x, x, pi/2, 1)
+#% output
+#= -(x - (1/2)*pi)^-3 + (x - (1/2)*pi)^-1 + (1/2)*pi + 11*(x - (1/2)*pi)/15 + O((x - (1/2)*pi)^2)
+
+#% subsection
+# Possible issues
+
+#% text
+# A function that is not meromorphic stays unevaluated; the poles of gamma are the family of the non-positive integers (`c(1) >= 0`) and those of the hyperbolic tangent a family on the imaginary axis:
+
+#% cell
+[function_poles(sqrt(x), x), function_poles(gamma(x), x), function_poles(tanh(x), x)]
+#% output
+#= [function_poles(x^(1/2), x), [[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]], [[conditional_expression(-im/2*pi + im*pi*c(1), element(c(1), integers)), 1]]]
+
+#% section
+# See also
+
+#% text
+# `function_meromorphic`, `function_singularities`, `series`, `limit`

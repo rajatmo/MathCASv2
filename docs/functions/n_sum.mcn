@@ -1,0 +1,214 @@
+#! mathcas 2 notebook
+
+#% title
+# n_sum
+
+#% text
+# `n_sum(f, [k, a, b])` gives the sum of `f` for `k` from `a` to `b` in machine precision; `b` may be `inf`.
+
+#% section
+# Details
+
+#% item
+# The terms are evaluated exactly and then numerically, one by one; a series whose terms become negligible stops there.
+
+#% item
+# A slowly converging series (terms like `k^-s`) is summed by the Euler-Maclaurin formula: the first terms, the integral of the tail by `n_integrate`, and three derivative corrections.
+
+#% item
+# An alternating series is accelerated with Wynn's epsilon algorithm, checked against Richardson extrapolation of the even partial sums.
+
+#% item
+# A long finite range is the difference of two tails. `[k, a, b, h]` steps by `h`; several iterators nest, the first outermost.
+
+#% item
+# `sum` with an inexact summand or bound (what `n` makes of an unevaluated sum) uses the same method.
+
+#% item
+# `rigorous: true` is not available: a message says that the value is an estimate, not an enclosure, and the estimate is given.
+
+#% item
+# `working_precision: d` (or `digits: d`) sums at `d` digits and gives the result to them. A sum with a closed form (`1/k^2`, `1/k^3`, `(-1)^k/k`) is taken from `sum` first, so that it costs nothing.
+
+#% item
+# A divergent series gives a message and stays unevaluated: the size of the terms far out (`k` near 1000, 10000, 100000) decides, terms that do not tend to zero or that fall no faster than `1/k` with one sign diverge. A series that may converge but only like `1/(k log(k))` is reported as too slowly convergent.
+
+#% item
+# Alternating series are summed by the acceleration of Cohen, Rodriguez Villegas and Zagier; other convergent series (also `sin(k)/k`, `cos(k)/k^2`) by the Abel-Plana formula. `method:` takes `euler_maclaurin` (the Abel-Plana tail), `alternating_signs` or `direct`; an unknown option or method prints a message.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n_sum(1/k^2, [k, 1, inf])
+#% output
+#= 1.6449340668482264
+
+#% cell
+n_sum((-1)^k/k, [k, 1, inf])
+#% output
+#= -0.6931471805599453
+
+#% subsection
+# Scope
+
+#% text
+# A slowly converging series:
+
+#% cell
+n_sum(1/k^(11/10), [k, 1, inf])
+#% output
+#= 10.58444846495081
+
+#% text
+# A step:
+
+#% cell
+n_sum(1/2^i, [i, 0, inf, 2])
+#% output
+#= 1.3333333333333333
+
+#% text
+# Sums of sums: the inner sum over `k` for each `j`, then the outer one, here over `j` up to 19 (the full sum is `zeta(2)^2`, 2.7058):
+
+#% cell
+total(map(j => n_sum(1/(j*k)^2, [k, 1, inf]), range(1, 20)))
+#% output
+#= 2.625583296163507
+
+#% text
+# A numeric value of an unevaluated sum:
+
+#% cell
+n(sum(exp(-k^5), [k, 1, inf]))
+#% output
+#= 0.367879441171455
+
+#% text
+# Terms with a factorial, and a finite range:
+
+#% cell
+n_sum(2^k/factorial(k), [k, 0, inf])
+#% output
+#= 7.389056098930649
+
+#% cell
+n_sum(1/k^2, [k, 1, 10])
+#% output
+#= 1.5497677311665408
+
+#% text
+# A telescoping series:
+
+#% cell
+n_sum(1/(k*(k + 1)), [k, 1, inf])
+#% output
+#= 0.9999999999999999
+
+#% subsection
+# Options
+
+#% text
+# `working_precision:` (or `digits:`) sums at that many digits:
+
+#% cell
+n_sum((-1)^k/k, [k, 1, inf], working_precision: 30)
+#% output
+#= -0.6931471805599453094172321214581766
+
+#% cell
+n_sum(1/factorial(k), [k, 0, inf], working_precision: 30)
+#% output
+#= 2.7182818284590452353602874713526625
+
+#% subsection
+# Properties and relations
+
+#% text
+# Slowly converging sums to machine accuracy:
+
+#% cell
+n_sum(1/n^(51/50), [n, 1, inf]) - n(zeta(51/50))
+#% output
+#= 4.263256414560601e-14
+
+#% text
+# At 30 digits the sum agrees with the closed form to 35 digits:
+
+#% cell
+n_sum(1/factorial(k), [k, 0, inf], working_precision: 30) - n(e, 40)
+#% output
+#= ball(9.1941692104759664924e-36, 2.42e-35)
+
+#% subsection
+# Possible issues
+
+#% text
+# A divergent series gives a message and stays unevaluated (the exact `sum` also decides convergence):
+
+#% cell
+n_sum(1/k, [k, 1, inf])
+#% output
+#| n_sum: the sum does not converge (its terms do not fall fast enough), so it has no numerical value
+#= n_sum(k^-1, [k, 1, inf])
+
+#% cell
+n_sum((-1)^k, [k, 1, inf])
+#% output
+#| n_sum: the sum does not converge (its terms do not fall fast enough), so it has no numerical value
+#= n_sum((-1)^k, [k, 1, inf])
+
+#% text
+# A series that converges by cancellation, like `sin(k)/k`, is summed to machine accuracy (the sum is `(pi - 1)/2`):
+
+#% cell
+n_sum(sin(k)/k, [k, 1, inf]) - (pi - 1)/2
+#% output
+#= 0.0
+
+#% text
+# Terms with a symbolic parameter are not summed numerically (a message says so):
+
+#% cell
+n_sum(x^k/factorial(k), [k, 0, inf])
+#% output
+#= n_sum(x^k/factorial(k), [k, 0, inf])
+
+#% text
+# Several iterators nest, the first outermost; the value is right, but the inner sum is first formed with the outer index still a symbol, and one message per outer value says so:
+
+#% cell
+n_sum(1/(j*k)^2, [j, 1, 3], [k, 1, 3])
+#% output
+#= 1.8526234567901234
+
+#% text
+# A range that is infinite in both directions is two one-sided sums; a bound that is not an integer starts the terms at it (`a`, `a + 1`, ... up to `b`):
+
+#% cell
+n_sum(exp(-k^2), [k, -inf, inf])
+#% output
+#= 1.7726372048266523
+
+#% cell
+n_sum(1/k^2, [k, 1, 5.5])
+#% output
+#= 1.4636111111111112
+
+#% text
+# `rigorous: true` is reported as unavailable and the estimate is returned:
+
+#% cell
+n_sum(1/k^2, [k, 1, inf], rigorous: true)
+#% output
+#| n_sum: rigorous: true is not available for numeric sums and products: the value is an estimate, not an enclosure
+#= 1.6449340668482264
+
+#% section
+# See also
+
+#% text
+# `sum`, `n_product`, `n_integrate`

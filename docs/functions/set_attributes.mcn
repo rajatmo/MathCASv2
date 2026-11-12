@@ -1,0 +1,113 @@
+#! mathcas 2 notebook
+
+#% title
+# set_attributes
+
+#% text
+# `set_attributes(f, a)` gives the symbol `f` the attribute `a`; `set_attributes(f, [a, b, ...])` several.
+
+#% section
+# Details
+
+#% item
+# `listable`: calls with list arguments map over them; `hold_all`, `hold_first`, `hold_rest`: arguments are passed unevaluated; `orderless`: an associative and commutative head; `flat`: an associative head (nested calls are spliced in, the order is kept, and a pattern argument may match a run of arguments wrapped in the head); `effect`: calls perform effects; `handles_failures`: failures arrive as arguments.
+
+#% item
+# `protected`: the symbol's definitions may not change (see `protect`). `locked`, `read_protected`, `numeric_function`, `one_identity` and `constant` are accepted and change nothing.
+
+#% item
+# The attributes of a protected symbol change only by removing `protected`; otherwise the value is `failure(protected, f)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+set_attributes(f1, listable)
+f1([1, 2, 3])
+#% output
+#= [f1(1), f1(2), f1(3)]
+
+#% subsection
+# Scope
+
+#% text
+# Held arguments:
+
+#% cell
+set_attributes(q1, hold_all)
+q1(1 + 1)
+#% output
+#= q1(1 + 1)
+
+#% text
+# `flat` splices nested calls, also in an `orderless` head, which sorts them:
+
+#% cell
+set_attributes(ff, flat)
+set_attributes(oo, [orderless, flat])
+[ff(ff(1, 2), ff(3, 4)), oo(oo(c, a), b)]
+#% output
+#= [ff(1, 2, 3, 4), oo(a, b, c)]
+
+#% text
+# Several symbols at once, and the held arguments of `hold_first` and `hold_rest`:
+
+#% cell
+set_attributes([p1, p2], listable)
+set_attributes(h1, hold_first)
+set_attributes(h2, hold_rest)
+[attributes(p1), attributes(p2), h1(1 + 1, 2 + 2), h2(1 + 1, 2 + 2)]
+#% output
+#= [[listable], [listable], h1(1 + 1, 4), h2(2, 2 + 2)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `clear_attributes` undoes it:
+
+#% cell
+set_attributes(f2, listable)
+clear_attributes(f2, listable)
+f2([1, 2])
+#% output
+#= f2([1, 2])
+
+#% subsection
+# Possible issues
+
+#% text
+# An unknown attribute and a name that is not a symbol are failures:
+
+#% cell
+[set_attributes(zz, foo), set_attributes(2, listable)]
+#% output
+#= [failure(argument, set_attributes, 2), failure(argument, set_attributes, 1)]
+
+#% text
+# The attributes that are accepted and change nothing are not stored:
+
+#% cell
+set_attributes(pp, [flat, one_identity])
+attributes(pp)
+#% output
+#= [flat]
+
+#% text
+# A rule on a flat head sees the whole run of arguments:
+
+#% cell
+set_attributes(g1, flat)
+rule g1(x_, y_) := x + y
+g1(1, 2, 3)
+#% output
+#= 6
+
+#% section
+# See also
+
+#% text
+# `attributes`, `clear_attributes`, `map`

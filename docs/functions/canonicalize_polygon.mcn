@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# canonicalize_polygon
+
+#% text
+# `canonicalize_polygon(p)`: the polygon with its distinct corners sorted and the boundary as indices, anticlockwise
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+canonicalize_polygon(rectangle())
+#% output
+#= polygon([[0, 0], [0, 1], [1, 0], [1, 1]], [1, 3, 4, 2])
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

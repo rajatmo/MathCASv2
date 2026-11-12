@@ -1,0 +1,36 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_reduction
+
+#% text
+# `polynomial_reduction(p, [g1, g2, ...], [x1, x2, ...])` gives the remainder of p on division by the polynomials gi.
+
+#% section
+# Details
+
+#% item
+# The remainder is the second part of `polynomial_reduce(p, gs, xs)`; for a Groebner basis it is the normal form of p.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_reduction(x^3 + y^3, [x^2 - y^2 - 1, x + 2*y - 7], [x, y])
+#% output
+#= 7 - 2*y + 7*y^2 - y^3
+
+#% cell
+let gb = groebner_basis([x^2 + y^2 - 1, x*y - 2], [x, y])
+polynomial_reduction((x^2 + y^2)^2, gb, [x, y])
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `polynomial_reduce`, `groebner_basis`, `polynomial_remainder`

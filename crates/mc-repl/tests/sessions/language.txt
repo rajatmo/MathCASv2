@@ -1,0 +1,114 @@
+# A REPL session on the language features (item H), checked by tests/core_sessions.rs: each `mc> ` line is an
+# input (`..> ` lines continue it), the lines after it are the output (printed output first, then the value).
+
+mc> (x => x + 1)(2)
+3
+mc> square = x => x^2
+null
+mc> map(square, [1, 2, 3])
+[1, 4, 9]
+mc> &(&1 + &2)(5, 6)
+11
+mc> ((x, ys...) => [x, ys])(1, 2, 3)
+[1, [2, 3]]
+mc> ((x, y = 10) => x + y)(1)
+11
+mc> ((x: Int) => x)(1/2)
+failure(no_match, (x: Int) => x, [1/2])
+mc> add_y = y => (x => x + y)
+null
+mc> add_y(x)(1)
+1 + x
+mc> { let a = 2; let b = a + 1; a*b }
+6
+mc> { let x = 1; let g = y => x + y; let x = 10; g(0) + x }
+11
+mc> { var i = 0; var s = 0; while i < 10 { i = i + 1; s = s + i }; s }
+55
+mc> fn sumto(n: Int) = {
+..>   var s = 0
+..>   for i in range(n) {
+..>     s = s + i
+..>   }
+..>   s
+..> }
+null
+mc> sumto(100)
+5050
+mc> make_counter = () => { var c = 0; () => { c = c + 1 } }
+null
+mc> ctr = make_counter()
+null
+mc> ctr()
+1
+mc> ctr()
+2
+mc> for x in [1, 2, 3] { print(x*10) }
+10
+20
+30
+null
+mc> print("done"); 1 + 1
+done
+2
+mc> while 1 { 2 }
+failure(not_boolean, 1)
+mc> if 1 > 2 then 3
+null
+mc> match 3 { 0 => zero, n_ when n > 2 => big, _ => small }
+big
+mc> match [1, 2, 3] { [h_, t___] => t }
+[2, 3]
+mc> match q { 0 => zero }
+failure(no_match, q)
+mc> rewrite(g(a, h(a)), a -> b)
+g(b, h(b))
+mc> rewrite(h(h(h(x))), h(y_) :> y)
+h(h(x))
+mc> rewrite(h(h(h(x))), h(y_) :> y, strategy: fixed_point)
+x
+mc> rewrite(d(d(d(1))), d(n_) :> n + 1, strategy: innermost)
+4
+mc> fn gd(x, n: Int = 10) = x + n
+null
+mc> [gd(1), gd(1, 2)]
+[11, 3]
+mc> gd(1, "a")
+failure(no_match, gd, [1, "a"])
+mc> fn sc(x; scale: Int = 3) = x*scale
+null
+mc> [sc(2), sc(2, scale: 5)]
+[6, 10]
+mc> sc(2, bogus: 1)
+failure(unknown_option, bogus)
+mc> fn hf(held e, x) = x
+null
+mc> hf(print(1), print(2))
+2
+2
+mc> fn fact(n: Int) = if n == 0 then 1 else n*fact(n - 1)
+null
+mc> fact(20)
+2432902008176640000
+mc> fact(x)
+fact(x)
+mc> @listable fn sq(x) = x^2
+null
+mc> sq([1, 2, 3])
+[1, 4, 9]
+mc> @associative @commutative @identity(0) sym oplus
+null
+mc> oplus(a, 0, oplus(b, 0))
+oplus(a, b)
+mc> @on(square_of) rule area(square_of(a_)) := a^2
+null
+mc> area(square_of(3))
+9
+mc> rule fib(0) = 0
+null
+mc> rule fib(1) = 1
+null
+mc> rule fib(k_: Int) := { let v = fib(k - 1) + fib(k - 2); fib(k) = v; v }
+null
+mc> fib(200)
+280571172992510140037611932413038677189525

@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# is_irreducible_polynomial
+
+#% text
+# `is_irreducible_polynomial(f)` gives `true` when the polynomial `f` cannot be written as a product of two polynomials of lower degree with rational coefficients.
+
+#% section
+# Details
+
+#% item
+# `is_irreducible_polynomial(f, modulus: p)` tests irreducibility over the integers modulo the prime `p`, and `is_irreducible_polynomial(f, extension: F)` over the finite field `F`; a polynomial with finite field elements as coefficients is tested over their field.
+
+#% item
+# Constants are not irreducible. Over the rationals `f` is factored; over a finite field it is factored there.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_irreducible_polynomial(x^4 + 1)
+#% output
+#= true
+
+#% cell
+is_irreducible_polynomial(x^4 + 1, modulus: 3)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Over an extension field:
+
+#% cell
+is_irreducible_polynomial(x^2 + x + 1, extension: finite_field(2, 2))
+#% output
+#= false
+
+#% text
+# Several variables:
+
+#% cell
+is_irreducible_polynomial(x^2 - y^2)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `factor`, `is_primitive_polynomial`, `conway_polynomial`

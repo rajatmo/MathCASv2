@@ -1,0 +1,26 @@
+[package]
+name = "mc-bench"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 benchmark runner: case files, guarded child-process runs, progress, results and summary"
+
+# Almost no dependencies on purpose: the runner drives any engine through the `Engine` trait of `mc-api`, so it neither
+# parses nor evaluates the concrete syntax itself (decision D.1). `mc-engine` is for the `mc-bench` binary only, which
+# runs the cases on the real engine; nothing in the workspace depends on this crate but dev-dependencies.
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-engine = { path = "../mc-engine" }
+
+# no documentation for the binary: its name is the library's, and the two would collide
+[[bin]]
+name = "mc-bench"
+path = "src/bin/mc-bench.rs"
+doc = false
+
+# The Unix guard's resource limit and `wait4` (RlimitGuard).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

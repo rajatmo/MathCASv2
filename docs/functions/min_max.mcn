@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# min_max
+
+#% text
+# `min_max(xs)` gives `[min(xs), max(xs)]`; `min_max(xs, d)` widens the interval by `d` on each side, `min_max(xs, [d1, d2])` by `d1` below and `d2` above.
+
+#% section
+# Details
+
+#% item
+# An association stands for its values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+min_max([3, 1, 4, 1, 5])
+#% output
+#= [1, 5]
+
+#% cell
+min_max([3, 1, 4], 1)
+#% output
+#= [0, 5]
+
+#% cell
+min_max([3, 1, 4], [1, 2])
+#% output
+#= [0, 6]
+
+#% subsection
+# Scope
+
+#% cell
+min_max([pi, e, 3])
+#% output
+#= [e, pi]
+
+#% cell
+min_max(assoc(a -> 2, b -> 7))
+#% output
+#= [2, 7]
+
+#% section
+# See also
+
+#% text
+# `min`, `max`, `interval`

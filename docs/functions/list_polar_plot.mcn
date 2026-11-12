@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# list_polar_plot
+
+#% text
+# `list_polar_plot([r1, r2, ...])` draws the radii at equally spaced angles from 0.
+
+#% text
+# `list_polar_plot([[theta1, r1], ...])` draws them at the given angles.
+
+#% section
+# Details
+
+#% item
+# The axes cross at the origin and both have the same units.
+
+#% item
+# `joined: true` joins the points.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Radii at equal angles:
+
+#% cell
+list_polar_plot([1, 2, 3, 2, 1, 2])
+#% output
+#= image("list_polar_plot.files/list_polar_plot-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Angles and radii:
+
+#% cell
+list_polar_plot(table([t, 1 + cos(t)], t, range(0, 6.2, 0.2)))
+#% output
+#= image("list_polar_plot.files/list_polar_plot-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Joined:
+
+#% cell
+list_polar_plot(table([t, t/6], t, range(0, 12, 0.1)), joined: true)
+#% output
+#= image("list_polar_plot.files/list_polar_plot-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Several data sets, each in its colour:
+
+#% cell
+list_polar_plot([range(40)/10, sqrt(range(40))])
+#% output
+#= image("list_polar_plot.files/list_polar_plot-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `polar_plot`, `list_plot`

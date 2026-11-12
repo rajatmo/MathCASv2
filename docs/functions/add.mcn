@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# add
+
+#% text
+# `add(a, b, ...)` is the sum `a + b + ...`; the operator `+` writes it.
+
+#% section
+# Details
+
+#% item
+# Sums are kept in a canonical order and like terms are collected: `x + x` is `2*x`.
+
+#% item
+# A list argument adds element by element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+add(1, 2, 3)
+#% output
+#= 6
+
+#% cell
+x + y + x
+#% output
+#= y + 2*x
+
+#% cell
+add([1, 2], [10, 20])
+#% output
+#= [11, 22]
+
+#% subsection
+# Scope
+
+#% text
+# Its head as a function, for example with `apply`:
+
+#% cell
+apply(add, [a, b, c])
+#% output
+#= a + b + c
+
+#% text
+# Folding a list:
+
+#% cell
+fold(add, 0, range(10))
+#% output
+#= 55
+
+#% section
+# See also
+
+#% text
+# `mul`, `total`, `sum`, `expand`

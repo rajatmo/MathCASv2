@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# shortest
+
+#% text
+# `shortest(p)` makes the runs and repetitions inside the pattern `p` take as little as possible first (string patterns are greedy by default).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("0111011110", shortest(repeated("1")))
+#% output
+#= ["1", "1", "1", "1", "1", "1", "1"]
+
+#% cell
+string_replace("011110A010", shortest(string_expression("0", __, "0")) :> "x")
+#% output
+#= "xAx"
+
+#% subsection
+# Scope
+
+#% text
+# In a term pattern `shortest(xs__)` makes the run as short as possible before the unmarked runs are considered; `shortest(p, k)` gives it priority `k` among the marked runs (higher first).
+
+#% cell
+rewrite([a, b, c, d], [x__, shortest(y__)] :> [x, y])
+#% output
+#= [[a, b, c], [d]]
+
+#% section
+# See also
+
+#% text
+# `longest`, `string_expression`, `string_cases`

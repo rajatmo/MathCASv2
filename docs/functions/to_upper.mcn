@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# to_upper
+
+#% text
+# `to_upper(s)` gives `s` in upper case, by the Unicode case mapping.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+to_upper("MathCAS v2")
+#% output
+#= "MATHCAS V2"
+
+#% cell
+to_upper("straße")
+#% output
+#= "STRASSE"
+
+#% section
+# See also
+
+#% text
+# `to_lower`, `characters`

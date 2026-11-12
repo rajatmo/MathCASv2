@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# diagonal
+
+#% text
+# `diagonal(m)` gives the entries of the main diagonal of the matrix `m`; `diagonal(m, k)` the `k`-th diagonal.
+
+#% section
+# Details
+
+#% item
+# Positive `k` counts diagonals above the main one, negative `k` below it.
+
+#% item
+# The matrix need not be square.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+diagonal([[a, b, c], [d, e, f], [g, h, i]])
+#% output
+#= [a, e, i]
+
+#% cell
+diagonal([[a, b, c], [d, e, f], [g, h, i]], 1)
+#% output
+#= [b, f]
+
+#% cell
+diagonal([[a, b, c], [d, e, f], [g, h, i]], -1)
+#% output
+#= [d, h]
+
+#% cell
+diagonal([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]], 2)
+#% output
+#= [3, 8]
+
+#% section
+# See also
+
+#% text
+# `diagonal_matrix`, `trace`, `upper_triangularize`

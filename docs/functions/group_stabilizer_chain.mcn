@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# group_stabilizer_chain
+
+#% text
+# `group_stabilizer_chain(G)`: [base, strong generating set] by the Schreier-Sims algorithm
+
+#% section
+# Details
+
+#% item
+# The base is a list of points whose pointwise stabiliser is trivial; the strong generators contain generators of every stabiliser of an initial part of the base.
+
+#% item
+# The chain is computed by the deterministic Schreier-Sims algorithm in Knuth's incremental form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_stabilizer_chain(symmetric_group(4))
+#% output
+#= [[1, 2, 3], [cycles([[1, 2]]), cycles([[1, 2, 3, 4]]), cycles([[2, 4, 3]]), cycles([[3, 4]])]]
+
+#% cell
+first(group_stabilizer_chain(mathieu_group(24)))
+#% output
+#= [1, 2, 3, 5, 4, 6, 7]
+
+#% section
+# See also
+
+#% text
+# `group_order`, `group_stabilizer`

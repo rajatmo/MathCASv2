@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# expand_denominator
+
+#% text
+# `expand_denominator(e)` expands the denominators of all fractions in `e`, leaving the numerators alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+expand_denominator((x - 1)*((x - 2)/((x - 3)*(x - 4))))
+#% output
+#= (-2 + x)*(-1 + x)/(12 - 7*x + x^2)
+
+#% cell
+expand_denominator((x - y)^2/(u - v)^2)
+#% output
+#= (x - y)^2/(-2*u*v + u^2 + v^2)
+
+#% section
+# See also
+
+#% text
+# `expand_numerator`, `expand_all`, `expand`

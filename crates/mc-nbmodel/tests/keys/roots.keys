@@ -1,0 +1,169 @@
+N-th roots (round 19, decision U19.3): Ctrl+5 (Ctrl+%) makes a root with an index, or moves between a root's
+index and radicand (giving a square root an index). The canonical text is `((surd(x, n)))`, the real n-th root.
+
+=== Ctrl+5 makes an n-th root with the caret in its index; Ctrl+5 again goes to the radicand
+--- before
+#% cell
+y = ▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "x+1"
+--- after
+#% cell typeset
+y = ((surd(x+1▮, 3)))
+--- boxes
+y = √[3](x+1▮)
+
+=== Ctrl+% is Ctrl+5
+--- before
+#% cell
+▮
+--- keys
+Ctrl+% "4" Ctrl+% "z"
+--- boxes
+√[4](z▮)
+
+=== Ctrl+5 in a square root gives it an index
+--- before
+#% cell
+▮
+--- keys
+Ctrl+2 "x" Ctrl+5 "3"
+--- boxes
+√[3▮](x)
+
+=== Ctrl+5 in the index goes back to the end of the radicand
+--- before
+#% cell
+▮
+--- keys
+Ctrl+2 "x" Ctrl+5 "3" Ctrl+5 "y"
+--- boxes
+√[3](xy▮)
+
+=== Backspace at the start of the radicand steps to the index's end, deleting nothing
+--- before
+#% cell
+▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "x" Left Backspace
+--- boxes
+√[3▮](x)
+
+=== Backspace in an emptied index leaves a square root
+--- before
+#% cell
+▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "x" Left Backspace Backspace Backspace
+--- boxes
+√(▮x)
+
+=== Delete at the end of a filled root's radicand writes it as linear text, the term kept
+--- before
+#% cell
+▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "x" Delete
+--- after
+#% cell
+surd(x, 3)▮
+
+=== a typed operator after the root stays outside it
+--- before
+#% cell
+▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "x" Ctrl+Space "+1"
+--- after
+#% cell typeset
+((surd(x, 3)))+1▮
+
+=== undo of the root is one step; redo brings it back
+--- before
+#% cell
+a+▮
+--- keys
+Ctrl+5 Ctrl+Z
+--- after
+#% cell
+a+▮
+
+=== an n-th root copied from one cell pastes as an n-th root into another
+--- before
+#% cell typeset
+((surd(x, 3)))▮
+
+#% cell
+y+
+--- keys
+Ctrl+A Ctrl+C Click(1,2) Ctrl+V
+--- after
+#% cell typeset
+((surd(x, 3)))
+
+#% cell typeset
+y+((surd(x, 3)))▮
+--- clip
+text "surd(x, 3)"
+boxes "((surd(x, 3)))"
+
+=== evaluating a cell with an n-th root sends the real root
+--- before
+#% cell
+▮
+--- keys
+Ctrl+5 "3" Ctrl+5 "8" Shift+Enter
+--- after
+#% cell label=1 typeset
+((surd(8, 3)))
+#% output n=1
+#= ((surd(8, 3)))
+‖
+
+=== Paste as math reads another program's text as boxes: the copied cell comes back identical
+--- before
+#% cell typeset
+y = ((1)/(x)) + ((surd(x, 3))) + ((e)^(((sqrt(t)))))▮
+
+#% cell
+z
+--- keys
+Ctrl+A Ctrl+Shift+C Click(1,1) Ctrl+Shift+V
+--- after
+#% cell typeset
+y = ((1)/(x)) + ((surd(x, 3))) + ((e)^(((sqrt(t)))))
+
+#% cell typeset
+zy = ((1)/(x)) + ((surd(x, 3))) + ((e)^(((sqrt(t)))))▮
+--- clip
+text "y = 1/x + surd(x, 3) + e^sqrt(t)"
+
+=== Paste as math of text that does not read pastes the text
+--- before
+#% cell
+▮
+--- keys
+Clip("f(") Ctrl+Shift+V
+--- after
+#% cell
+f(▮
+
+=== Down from the insertion point above enters a cell with boxes at its start
+--- before
+‖
+#% cell typeset
+y + ((e)^(((sqrt(t)))))
+--- keys
+Down "a"
+--- boxes
+a▮y + (e^√(t))
+
+=== Up from the insertion point below enters its last line at the goal x (the line's start without one)
+--- before
+#% cell typeset
+y + ((e)^(((sqrt(t)))))
+‖
+--- keys
+Up "a"
+--- boxes
+a▮y + (e^√(t))

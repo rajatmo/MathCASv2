@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# barnes_g
+
+#% text
+# `barnes_g(z)` gives the Barnes G-function, with `barnes_g(z + 1) = gamma(z)*barnes_g(z)` and `barnes_g(1) = 1`.
+
+#% section
+# Details
+
+#% item
+# `G` is entire, with zeros at 0, -1, -2, ... (DLMF 5.17). At positive integers it is the superfactorial: `G(n + 2) = 1!*2!*...*n!`.
+
+#% item
+# Positive integers give exact values; machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+barnes_g(5)
+#% output
+#= 12
+
+#% cell
+barnes_g(1)
+#% output
+#= 1
+
+#% cell
+barnes_g(2.5)
+#% output
+#= 0.9475739010838258
+
+#% cell
+barnes_g(0)
+#% output
+#= 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The functional equation:
+
+#% cell
+barnes_g(3.7) - gamma(2.7)*barnes_g(2.7)
+#% output
+#= 0.0
+
+#% text
+# The superfactorial:
+
+#% cell
+barnes_g(6) - product(factorial(k), [k, 1, 4])
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `log_barnes_g`, `gamma`, `factorial`

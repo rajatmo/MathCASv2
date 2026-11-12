@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# cylinder
+
+#% text
+# `cylinder([[x1, y1, z1], [x2, y2, z2]], r)` is a solid cylinder of radius r between two points in `graphics3d`.
+
+#% text
+# `cylinder()` runs from [0, 0, -1] to [0, 0, 1] with radius 1.
+
+#% section
+# Details
+
+#% item
+# Coordinates are in the units of the graphic; the box around the scene follows the data unless `plot_range` says otherwise.
+
+#% item
+# Colours, `opacity` and `edge_form` before it in its list style it; faces are lit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The default:
+
+#% cell
+graphics3d(cylinder())
+#% output
+#= image("cylinder.files/cylinder-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A thin tilted cylinder:
+
+#% cell
+graphics3d(cylinder([[0, 0, 0], [2, 1, 2]], 0.2))
+#% output
+#= image("cylinder.files/cylinder-2.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# Cylinders as the legs of a table:
+
+#% cell
+graphics3d([brown, cuboid([0, 0, 1], [2, 1, 1.1]), gray, table(cylinder([[x, y, 0], [x, y, 1]], 0.05), x, [0.1, 1.9], y, [0.1, 0.9])])
+#% output
+#= image("cylinder.files/cylinder-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `sphere`, `plot3d`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# greater_than
+
+#% text
+# `greater_than(y)` is the function `x => x > y`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+greater_than(3)(5)
+#% output
+#= true
+
+#% cell
+select(range(10), greater_than(6))
+#% output
+#= [7, 8, 9, 10]
+
+#% section
+# See also
+
+#% text
+# `less_than`, `greater_equal_than`, `less_equal_than`, `equal_to`, `unequal_to`

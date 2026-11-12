@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_form
+
+#% text
+# `matrix_form(m)` shows the list of lists `m` as a matrix.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `matrix_form` stays around the value as a wrapper that changes only how it is shown.
+
+#% item
+# Functions that need a plain matrix, such as `det`, do not look through the wrapper: apply them before wrapping.
+
+#% item
+# A vector is shown as a column.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matrix_form([[1, 2], [3, 4]])
+#% output
+#= matrix_form([[1, 2], [3, 4]])
+
+#% cell
+matrix_form(identity_matrix(3))
+#% output
+#= matrix_form([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+#% cell
+matrix_form(hankel_matrix(3))
+#% output
+#= matrix_form([[1, 2, 3], [2, 3, 0], [3, 0, 0]])
+
+#% cell
+matrix_form(array_pad([[1, 2], [3, 4]], 1))
+#% output
+#= matrix_form([[0, 0, 0, 0], [0, 1, 2, 0], [0, 3, 4, 0], [0, 0, 0, 0]])
+
+#% section
+# See also
+
+#% text
+# `grid`, `table_view`, `full_form`

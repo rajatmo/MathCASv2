@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_weierstrass_p
+
+#% text
+# `inverse_weierstrass_p(p, [g2, g3])` gives a `u` with `weierstrass_p(u, [g2, g3]) = p`.
+
+#% section
+# Details
+
+#% item
+# `u` is plus or minus `R_F(p - e1, p - e2, p - e3)` (DLMF 23.6.31 with the roots `e1`, `e2`, `e3` of `4 t^3 - g2 t - g3`), the sign the one with `weierstrass_p_prime(u) = sqrt(4 p^3 - g2 p - g3)` (the principal root); for real arguments a negative real `u` is moved by the real period.
+
+#% item
+# `inverse_weierstrass_p([p, q], [g2, g3])` takes the sign with `weierstrass_p_prime(u, [g2, g3]) = q`.
+
+#% item
+# The other solutions differ from `u` by a sign and a period.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_weierstrass_p(7.0, [1, 2])
+#% output
+#= 2.2385322312096347
+
+#% cell
+n(inverse_weierstrass_p(1/3, [1, 2]), 30)
+#% output
+#= -1.3083647626370968653240501853341 + 0.5836990519927154443754597137060im
+
+#% cell
+inverse_weierstrass_p(3.0 + im, [im, im + 2])
+#% output
+#= -0.5566694624256354 + 0.08952411123355775im
+
+#% cell
+u = inverse_weierstrass_p(2.5, [1, 2]); weierstrass_p(u, [1, 2])
+#% output
+#= 2.5000000000000004
+
+#% cell
+inverse_weierstrass_p([7.0, -sqrt(4*343.0 - 9)], [1, 2])
+#% output
+#= 0.37819729406455915
+
+#% section
+# See also
+
+#% text
+# `weierstrass_p`, `carlson_rf`

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# rosenfeld_groebner
+
+#% text
+# `rosenfeld_groebner(eqs, u, x)` decomposes the solutions of the system of polynomial differential equations `eqs` for the functions `u` of `x` into regular differential chains: a list of components `[[p1 == 0, ...], [h1 != 0, ...]]`, each a chain of equations with increasing leaders and the inequations (initials and separants) that hold on its generic solutions. The radical differential ideal of `eqs` is the intersection of the components.
+
+#% section
+# Details
+
+#% item
+# The algorithm of Boulier, Lazard, Ollivier and Petitot (1995): the lowest equation is reduced by the chain; a nonzero remainder splits the computation into three cases (it joins the chain with initial and separant nonzero, its separant vanishes, its initial vanishes), Delta-polynomials restore coherence, and components whose inequations reduce to 0 are dropped.
+
+#% item
+# The components may overlap; `thomas_decomposition` gives a disjoint decomposition. `inequations: [h != 0, ...]` adds conditions; `ranking: orderly` (the default) or `ranking: elimination` as for `differential_leader`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The general solutions and the singular solution of `y'^2 == 4 y`:
+
+#% cell
+rosenfeld_groebner(y'(x)^2 - 4*y(x), y, x)
+#% output
+#= [[[-4*y(x) + y'(x)^2 == 0], [y'(x) != 0]], [[y(x) == 0], []]]
+
+#% text
+# A system of partial differential equations whose only solution is 0:
+
+#% cell
+rosenfeld_groebner([derivative(1, 0)(u)(x, t)^2 - 4*u(x, t), derivative(0, 1)(u)(x, t) - u(x, t)], u, [x, t])
+#% output
+#= [[[u(x, t) == 0], []]]
+
+#% subsection
+# Scope
+
+#% text
+# An elimination ranking decouples a system: an equation for `z` alone, and `y` in terms of `z`:
+
+#% cell
+rosenfeld_groebner([y'(x) - z(x), z'(x) + y(x)], [y, z], x, ranking: elimination)
+#% output
+#= [[[z(x) + z''(x) == 0, y(x) + z'(x) == 0], []]]
+
+#% section
+# See also
+
+#% text
+# `thomas_decomposition`, `differential_reduce`, `delta_polynomial`

@@ -1,0 +1,138 @@
+#! mathcas 2 notebook
+
+#% title
+# Precision and numerics
+
+#% text
+# Three kinds of numbers: exact (integers, rationals, `sqrt(2)`, `pi`), machine reals (about 16 digits) and arbitrary precision balls with a guaranteed error bound. `n` converts between them; the numerical functions take `working_precision:`.
+
+#% section
+# Exact, machine and arbitrary precision
+
+#% cell
+q = 1/3 + 2/7
+
+#% cell
+n(q)
+#% output
+#= 0.6190476190476191
+
+#% cell
+n(q, 40)
+#% output
+#= 0.61904761904761904761904761904761904761904762
+
+#% cell
+n(pi, 50)
+#% output
+#= 3.141592653589793238462643383279502884197169399375105821
+
+#% cell
+precision(1/3)
+#% output
+#= inf
+
+#% cell
+precision(1.5)
+#% output
+#= 15.954589770191003
+
+#% text
+# Mixing kinds gives the least exact one: a single machine real makes the result a machine real, so ask for digits at the start.
+
+#% cell
+n(pi, 30) + 1/2
+#% output
+#= 3.6415926535897932384626433832795029
+
+#% cell
+n(pi, 30) + 0.5
+#% output
+#= 3.641592653589793
+
+#% cell
+0.1 + 0.2
+#% output
+#= 0.30000000000000004
+
+#% section
+# Numerical functions with working_precision
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], working_precision: 30)
+#% output
+#= 0.74682413281242702539946743613185
+
+#% cell
+find_root(cos(x) == x, [x, 1], working_precision: 30)
+#% output
+#= [x -> 0.739085133215160641655312087674]
+
+#% cell
+n_sum(1/factorial(k), [k, 0, inf], working_precision: 30)
+#% output
+#= 2.7182818284590452353602874713526625
+
+#% text
+# `n_minimize` returns the minimum found and where; here it is the global one of this quartic, whose two valleys are near -1.3 and 1.1.
+
+#% cell
+n_minimize(x^4 - 3x^2 + x, [x, 1])
+#% output
+#= [-3.5139050389347886, [x -> -1.300839565941577]]
+
+#% text
+# `rationalize` returns exact values, `set_precision` changes a number's precision, `chop` drops tiny parts.
+
+#% cell
+rationalize(0.75)
+#% output
+#= 3/4
+
+#% cell
+set_precision(0.1, 30)
+#% output
+#= 0.100000000000000005551115123126
+
+#% cell
+chop(n(exp(pi*im)))
+#% output
+#= -1.0
+
+#% section
+# Common mistakes
+
+#% item
+# `n(x, 20)` of a result that cancelled is shorter than 20 digits; ask for more at the start.
+
+#% cell
+n(sqrt(2), 20)^2 - 2
+#% output
+#= ball(-2.0679515313825691872e-25, 4.08e-25)
+
+#% item
+# Machine reals round every operation: do exact work first.
+
+#% cell
+1.0e30 + 1 - 1.0e30
+#% output
+#= 0.0
+
+#% cell
+10^30 + 1 - 10^30
+#% output
+#= 1
+
+#% item
+# The imaginary unit is `im`.
+
+#% cell
+n(exp(1 + 2im))
+#% output
+#= -1.1312043837568135 + 2.4717266720048188im
+
+#% section
+# Related functions
+
+#% text
+# `n`, `precision`, `n_integrate`, `find_root`, `n_sum`, `n_minimize`, `rationalize`, `set_precision`

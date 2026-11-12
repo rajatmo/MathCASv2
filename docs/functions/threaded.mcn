@@ -1,0 +1,118 @@
+#! mathcas 2 notebook
+
+#% title
+# threaded
+
+#% text
+# `threaded(v)` marks `v` as an operand to be spread over the trailing levels of the arrays it is combined with; `threaded(v, n)` spreads it from level `n`.
+
+#% section
+# Details
+
+#% item
+# By itself `threaded(v)` is inert: it stands for `v`, placed along some levels of the other arguments by `elementwise`.
+
+#% item
+# `threaded(v)` lines the dimensions of `v` up with the last levels of the other arguments; `threaded(v, n)` with `n > 0` puts the first dimension of `v` at level `n`, and with `n < 0` at level `r + n + 1`, where `r` is the rank of the array it is combined with.
+
+#% item
+# A threaded value whose dimensions do not fit gives `failure(shape_mismatch)`, one placed too deep `failure(threaded_level, n)`.
+
+#% item
+# Combining only threaded values (and scalars) gives a threaded result.
+
+#% item
+# Arithmetic and every listable function spread a threaded operand the same way: `[[1, 2], [3, 4]] + threaded([x, y])` is `[[1 + x, 2 + y], [3 + x, 4 + y]]`, and `2*threaded([-1, 1])` is `threaded([-2, 2])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A row spread over every row of a matrix:
+
+#% cell
+elementwise(add)([[1, 2], [3, 4], [5, 6]], threaded([x, y]))
+#% output
+#= [[1 + x, 2 + y], [3 + x, 4 + y], [5 + x, 6 + y]]
+
+#% text
+# Spread from the first level, the entries then go down the columns:
+
+#% cell
+elementwise(add)([[1, 2], [3, 4]], threaded([x, y], 1))
+#% output
+#= [[1 + x, 2 + x], [3 + y, 4 + y]]
+
+#% text
+# Only threaded values give a threaded value:
+
+#% cell
+elementwise(mul)(2, threaded([-1, 1]))
+#% output
+#= threaded([-2, 2])
+
+#% subsection
+# Scope
+
+#% text
+# A matrix spread over the last two levels of an array of rank 3:
+
+#% cell
+elementwise(add)(array_reshape(range(8), [2, 2, 2]), threaded([[10, 20], [30, 40]]))
+#% output
+#= [[[11, 22], [33, 44]], [[15, 26], [37, 48]]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Threaded operands combine in the arithmetic: the sum of two is threaded, a threaded vector added to a matrix goes along the rows, and a threaded matrix of the same shape pairs entry by entry:
+
+#% cell
+[threaded([1, 2]) + threaded([10, 20]), [[1, 2], [3, 4]] + threaded([10, 20]), [[1, 2], [3, 4]] + threaded([[10, 20], [30, 40]])]
+#% output
+#= [threaded([11, 22]), [[11, 22], [13, 24]], [[11, 22], [33, 44]]]
+
+#% text
+# A negative level counts from the last level, so level `-1` is the default and `-2` of a matrix is the first level:
+
+#% cell
+[elementwise(add)([[1, 2], [3, 4]], threaded([10, 20], -1)), elementwise(add)([[1, 2], [3, 4]], threaded([10, 20], -2))]
+#% output
+#= [[[11, 22], [13, 24]], [[11, 12], [23, 24]]]
+
+#% subsection
+# Possible issues
+
+#% text
+# Dimensions that do not fit:
+
+#% cell
+elementwise(add)([[1, 2], [3, 4]], threaded([x, y, z]))
+#% output
+#! failure(shape_mismatch)
+
+#% text
+# A level beyond the rank of the array is an error:
+
+#% cell
+elementwise(add)([[1, 2], [3, 4]], threaded([10, 20], 5))
+#% output
+#! failure(threaded_level, 5)
+
+#% text
+# Alone, a threaded value stays threaded, and a function of it is not evaluated:
+
+#% cell
+[sin(threaded([0, pi/2])), threaded(5)]
+#% output
+#= [sin(threaded([0, (1/2)*pi])), threaded(5)]
+
+#% section
+# See also
+
+#% text
+# `elementwise`

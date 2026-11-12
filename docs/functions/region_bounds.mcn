@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# region_bounds
+
+#% text
+# `region_bounds(reg)` gives the ranges `[[xmin, xmax], [ymin, ymax], ...]` of the region's coordinates.
+
+#% section
+# Details
+
+#% item
+# Implicit and parametric regions are bounded numerically, by sampling and bisection.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A triangle:
+
+#% cell
+region_bounds(triangle([[0, 0], [1, 2], [2, 1]]))
+#% output
+#= [[0, 2], [0, 2]]
+
+#% text
+# A disk:
+
+#% cell
+region_bounds(disk([1, 2], 3))
+#% output
+#= [[-2, 4], [-1, 5]]
+
+#% subsection
+# Scope
+
+#% text
+# An implicit region:
+
+#% cell
+region_bounds(implicit_region(x^2 + 4*y^2 <= 4, [x, y]))
+#% output
+#= [[-2.0, 2.0], [-1.0, 1.0]]
+
+#% section
+# See also
+
+#% text
+# `region_centroid`, `is_bounded_region`

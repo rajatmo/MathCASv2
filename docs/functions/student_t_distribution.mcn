@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# student_t_distribution
+
+#% text
+# `student_t_distribution(n)` is Student's t distribution with `n > 0` degrees of freedom.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(student_t_distribution(5))
+#% output
+#= 0
+
+#% cell
+variance(student_t_distribution(n))
+#% output
+#= n/(-2 + n)
+
+#% cell
+pdf(student_t_distribution(1), x)
+#% output
+#= 1/(pi*(1 + x^2))
+
+#% subsection
+# Scope
+
+#% text
+# A two-sided 95 % critical value with 10 degrees of freedom:
+
+#% cell
+n(quantile(student_t_distribution(10), 0.975))
+#% output
+#= 2.2281388519862744
+
+#% section
+# See also
+
+#% text
+# `normal_distribution`, `chi_square_distribution`, `quantile`

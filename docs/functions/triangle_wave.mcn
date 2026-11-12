@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# triangle_wave
+
+#% text
+# `triangle_wave(x)` gives the triangle wave of period 1 that is 0 at 0, 1 at 1/4, 0 at 1/2 and -1 at 3/4.
+
+#% text
+# `triangle_wave([a, b], x)` gives the same wave between a and b.
+
+#% section
+# Details
+
+#% item
+# The value is `1 - 4 |s - 1/2|` with `s = sawtooth_wave(x + 1/4)`; exact arguments give exact values.
+
+#% item
+# Lists are mapped element-wise; symbolic arguments stay unevaluated. The derivative is `4 square_wave(x + 1/4)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+triangle_wave(0.2)
+#% output
+#= 0.8
+
+#% cell
+table(triangle_wave(x), [x, 0, 1, 1/8])
+#% output
+#= [0, 1/2, 1, 1/2, 0, -1/2, -1, -1/2, 0]
+
+#% cell
+triangle_wave([0, 2], 1.6)
+#% output
+#= 0.5999999999999996
+
+#% cell
+n(triangle_wave(1/47), 30)
+#% output
+#= 0.08510638297872340425531914893617021
+
+#% cell
+d(triangle_wave(x), x)
+#% output
+#= 4*square_wave(1/4 + x)
+
+#% section
+# See also
+
+#% text
+# `square_wave`, `sawtooth_wave`, `heaviside_lambda`, `unit_triangle`

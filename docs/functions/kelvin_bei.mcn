@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# kelvin_bei
+
+#% text
+# `kelvin_bei(nu, x)` gives the Kelvin function `bei_nu(x)`, the imaginary part of `bessel_j(nu, x*exp(3*pi*im/4))`.
+
+#% text
+# `kelvin_bei(x)` gives `bei_0(x)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.61.1. `kelvin_bei(0)` is 0.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kelvin_bei(1.0)
+#% output
+#= 0.24956604003665978
+
+#% cell
+kelvin_bei(0)
+#% output
+#= 0
+
+#% cell
+kelvin_bei(2, 3.0)
+#% output
+#= -0.8910223637797722
+
+#% cell
+kelvin_bei(5.0)
+#% output
+#= 0.11603438155020038
+
+#% subsection
+# Properties and relations
+
+#% text
+# The definition:
+
+#% cell
+kelvin_bei(1.5) - im_part(bessel_j(0, 1.5*exp(3*pi*im/4)))
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `kelvin_ber`, `kelvin_ker`, `kelvin_kei`, `bessel_j`

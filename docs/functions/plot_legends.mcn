@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_legends
+
+#% text
+# `plot_legends` is an option of every plot: `plot_legends: ["a", "b", ...]` labels the curves or data sets in order; `plot_legends: automatic` uses the plotted expressions.
+
+#% section
+# Details
+
+#% item
+# Labels may be strings (with `$...$` for mathematics) or expressions. `line_legend([...])` and `point_legend([...])` choose the samples, and `placed(legend, pos)` the position.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: ["sine", "cosine"])
+#% output
+#= image("plot_legends.files/plot_legends-1.svgz")
+
+#% cell
+plot([x, x^2, x^3], [x, 0, 1], plot_legends: automatic)
+#% output
+#= image("plot_legends.files/plot_legends-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: placed(["sine", "cosine"], below))
+#% output
+#= image("plot_legends.files/plot_legends-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Data sets:
+
+#% cell
+list_line_plot([[1, 2, 4, 8], [1, 2, 3, 4]], plot_legends: line_legend([red, blue], ["doubling", "adding"]))
+#% output
+#= image("plot_legends.files/plot_legends-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `legend`, `line_legend`, `point_legend`, `placed`, `plot_labels`

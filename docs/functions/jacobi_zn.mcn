@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_zn
+
+#% text
+# `jacobi_zn(u, m)` gives the Jacobi zeta function `Z(u | m) = E(am(u | m) | m) - E(m)*u/K(m)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 22.16.32. `Z` is odd in `u` and periodic with period `2*K(m)`; it vanishes at `u = 0` and `u = K(m)`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_zn(0.5, 0.5)
+#% output
+#= 0.11638850054726674
+
+#% cell
+jacobi_zn(1.0, 0.9)
+#% output
+#= 0.35386282791233
+
+#% cell
+jacobi_zn(elliptic_k(0.5), 0.5)
+#% output
+#= 0.0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The definition:
+
+#% cell
+jacobi_zn(0.7, 0.4) - (jacobi_epsilon(0.7, 0.4) - elliptic_e(0.4)*0.7/elliptic_k(0.4))
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `jacobi_epsilon`, `elliptic_e`, `elliptic_k`, `jacobi_amplitude`

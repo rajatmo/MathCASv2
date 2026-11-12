@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_k
+
+#% text
+# `elliptic_k(m)` gives the complete elliptic integral of the first kind `K(m)`, the integral of `1/sqrt(1 - m*sin(t)^2)` for `t` from 0 to `pi/2`.
+
+#% section
+# Details
+
+#% item
+# The parameter is `m = k^2` (DLMF 19.2.8 with `k^2 = m`). `K(0)` is `pi/2`; `K(m)` has a logarithmic singularity at `m = 1` and is complex for `m > 1`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values (by the arithmetic-geometric mean).
+
+#% item
+# `elliptic_k` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_k(0)
+#% output
+#= (1/2)*pi
+
+#% cell
+elliptic_k(0.5)
+#% output
+#= 1.8540746773013719
+
+#% cell
+elliptic_k(-1.0)
+#% output
+#= 1.3110287771460598
+
+#% cell
+n(elliptic_k(1/2), 30)
+#% output
+#= 1.854074677301371918433850347195260
+
+#% subsection
+# Applications
+
+#% text
+# The period of a pendulum of length 1 m released at 120 degrees, `4*sqrt(L/g)*K(sin(a/2)^2)`:
+
+#% cell
+4*sqrt(1/9.81)*elliptic_k(sin(pi/3)^2)
+#% output
+#= 2.754089828887826
+
+#% subsection
+# Properties and relations
+
+#% text
+# The series in `m`, `pi/2` times the sum of `(binomial(2k, k)/4^k)^2*m^k`:
+
+#% cell
+pi/2*sum((binomial(2*k, k)/4^k)^2*0.36^k, [k, 0, 200]) - elliptic_k(0.36)
+#% output
+#= -6.661338147750939e-16
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(1/sqrt(1 - 0.5*sin(t)^2), [t, 0, pi/2]) - elliptic_k(0.5)
+#% output
+#= 2.220446049250313e-16
+
+#% subsection
+# Possible issues
+
+#% text
+# `m = 1` is the singularity:
+
+#% cell
+elliptic_k(1)
+#% output
+#! failure(pole, elliptic_k(1))
+
+#% section
+# See also
+
+#% text
+# `elliptic_e`, `elliptic_f`, `elliptic_pi`, `jacobi_sn`

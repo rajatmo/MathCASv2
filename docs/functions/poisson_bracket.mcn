@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# poisson_bracket
+
+#% text
+# `poisson_bracket(f, g, q, p)` gives the Poisson bracket `sum (df/dq dg/dp - df/dp dg/dq)` of `f` and `g` over the conjugate pairs of the coordinates `q` and momenta `p`.
+
+#% section
+# Details
+
+#% item
+# `q` and `p` are names (or terms such as `x(t)`), single or as lists of equal length.
+
+#% item
+# `poisson_bracket(f, H, q, p)` is the rate of change of `f` along the flow of the Hamiltonian `H`: a function whose bracket with `H` vanishes is conserved.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+poisson_bracket(x, p, x, p)
+#% output
+#= 1
+
+#% text
+# The angular momentum algebra `{L_x, L_y} = L_z`:
+
+#% cell
+poisson_bracket(y*pz - z*py, z*px - x*pz, [x, y, z], [px, py, pz])
+#% output
+#= py*x - px*y
+
+#% cell
+poisson_bracket(p^2/(2*m) + k*x^2/2, x, x, p)
+#% output
+#= -p/m
+
+#% text
+# A component of the Runge-Lenz vector is conserved in Kepler's problem:
+
+#% cell
+simplify(poisson_bracket(py*(x*py - y*px) - x/sqrt(x^2 + y^2), (px^2 + py^2)/2 - 1/sqrt(x^2 + y^2), [x, y], [px, py]))
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `hamilton_equations`, `legendre_transform`, `noether_charge`

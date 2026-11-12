@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# sinh
+
+#% text
+# `sinh(x)` gives the hyperbolic sine `(exp(x) - exp(-x))/2`.
+
+#% section
+# Details
+
+#% item
+# `sinh(0)` is 0 and `sinh(-x)` is `-sinh(x)`; other exact arguments stay unevaluated. Imaginary arguments give sines: `sinh(im*x)` is `im*sin(x)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `sinh` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sinh(0)
+#% output
+#= 0
+
+#% cell
+sinh(1.0)
+#% output
+#= 1.1752011936438014
+
+#% cell
+sinh(-2.0)
+#% output
+#= -3.6268604078470186
+
+#% cell
+n(sinh(1), 30)
+#% output
+#= 1.1752011936438014568823818505956008
+
+#% subsection
+# Scope
+
+#% text
+# Small arguments keep their relative accuracy:
+
+#% cell
+sinh(1.0e-10)
+#% output
+#= 1e-10
+
+#% text
+# A complex argument:
+
+#% cell
+sinh(1.0 + 1.0*im)
+#% output
+#= 0.6349639147847361 + 1.2984575814159773im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(sinh(x), x)
+#% output
+#= cosh(x)
+
+#% text
+# `cosh^2 - sinh^2 = 1`:
+
+#% cell
+cosh(1.7)^2 - sinh(1.7)^2
+#% output
+#= 0.9999999999999991
+
+#% text
+# As exponentials:
+
+#% cell
+trig_to_exp(sinh(x))
+#% output
+#= (-1/2)*exp(-x) + (1/2)*exp(x)
+
+#% section
+# See also
+
+#% text
+# `cosh`, `tanh`, `sin`, `exp`

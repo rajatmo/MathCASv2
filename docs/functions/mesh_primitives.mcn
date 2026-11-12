@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# mesh_primitives
+
+#% text
+# `mesh_primitives(m, d)`: the cells of dimension d of a mesh region as primitives with coordinates
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+m = mesh_region([[0, 0], [1, 0], [0, 1]], triangle([1, 2, 3]))
+
+#% cell
+mesh_primitives(m, 1)
+#% output
+#= [line([[0.0, 0.0], [1.0, 0.0]]), line([[1.0, 0.0], [0.0, 1.0]]), line([[0.0, 1.0], [0.0, 0.0]])]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

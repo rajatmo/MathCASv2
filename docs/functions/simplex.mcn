@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# simplex
+
+#% text
+# `simplex([p1, ..., pk])` is the convex hull of affinely independent points; `simplex(n)` is the standard simplex of n dimensions.
+
+#% section
+# Details
+
+#% item
+# The standard simplex has the origin and the unit vectors as its corners.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The standard 3-simplex has volume 1/6:
+
+#% cell
+region_measure(simplex(3))
+#% output
+#= 1/6
+
+#% text
+# Centroids of standard simplices:
+
+#% cell
+map(region_centroid, [simplex(1), simplex(2), simplex(3)])
+#% output
+#= [[1/2], [1/3, 1/3], [1/4, 1/4, 1/4]]
+
+#% subsection
+# Scope
+
+#% text
+# A triangle in space:
+
+#% cell
+region_measure(simplex([[0, 0, 0], [1, 0, 0], [0, 1, 1]]))
+#% output
+#= (1/2)*2^(1/2)
+
+#% section
+# See also
+
+#% text
+# `triangle`, `tetrahedron`

@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# modular_inverse
+
+#% text
+# `modular_inverse(k, n)` gives the `r` with `mod(k*r, n) == 1`, in the range `0 .. n - 1`.
+
+#% section
+# Details
+
+#% item
+# The inverse exists when `gcd(k, n) == 1`; otherwise the result stays unevaluated, as `power_mod(k, -1, n)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+modular_inverse(3, 7)
+#% output
+#= 5
+
+#% cell
+modular_inverse(35, 97)
+#% output
+#= 61
+
+#% cell
+modular_inverse(-2, 9)
+#% output
+#= 4
+
+#% subsection
+# Properties and relations
+
+#% text
+# The product is 1 modulo `n`:
+
+#% cell
+mod(17*modular_inverse(17, 1000), 1000)
+#% output
+#= 1
+
+#% subsection
+# Possible issues
+
+#% text
+# No inverse when the numbers share a factor:
+
+#% cell
+modular_inverse(4, 10)
+#% output
+#= power_mod(4, -1, 10)
+
+#% section
+# See also
+
+#% text
+# `power_mod`, `extended_gcd`, `mod`

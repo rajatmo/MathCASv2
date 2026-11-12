@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# O
+
+#% text
+# `O(x^n)` stands for the order term of a printed power series: terms of order `x^n` and higher.
+
+#% section
+# Details
+
+#% item
+# `o(x)` is the order term `O(x)` as a value: a series in x with no terms; `o(x)^k` is `O(x^k)` and `f + o(x)^k` is the series of f to that order. `o(x, x0)` is `O(x - x0)`.
+
+#% item
+# A series prints with its order term; `series(... + O(x^n), x, 0, k)` reads such an expression back as a series.
+
+#% item
+# `normal` drops the order term.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+series(exp(x), x, 0, 3)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + O(x^4)
+
+#% cell
+series(1 + x + x^2 + O(x^3), x, 0, 2)
+#% output
+#= 1 + x + x^2 + O(x^3)
+
+#% cell
+normal(series(1/(1 - x), x, 0, 4))
+#% output
+#= 1 + x + x^2 + x^3 + x^4
+
+#% subsection
+# Scope
+
+#% cell
+x + x^2/2 + o(x)^10
+#% output
+#= x + x^2/2 + O(x^10)
+
+#% cell
+1/(1 + exp(x + o(x)^5))
+#% output
+#= 1/2 - x/4 + x^3/48 + O(x^5)
+
+#% cell
+exp(x) + o(x, 1)^3
+#% output
+#= e + e*(x - 1) + (1/2)*e*(x - 1)^2 + O((x - 1)^3)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Arithmetic of series keeps the smaller order:
+
+#% cell
+series(sin(x), x, 0, 5)*series(cos(x), x, 0, 3)
+#% output
+#= x - 2*x^3/3 + O(x^5)
+
+#% section
+# See also
+
+#% text
+# `series`, `normal`, `o`

@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# carmichael_lambda
+
+#% text
+# `carmichael_lambda(n)` gives the Carmichael function, the exponent of the multiplicative group modulo `n`: the least `m` with `mod(a^m, n) == 1` for every `a` prime to `n`.
+
+#% section
+# Details
+
+#% item
+# It divides `euler_phi(n)` and equals it exactly when `n` has a primitive root.
+
+#% item
+# `carmichael_lambda` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+carmichael_lambda(8)
+#% output
+#= 2
+
+#% cell
+carmichael_lambda(15)
+#% output
+#= 4
+
+#% cell
+carmichael_lambda(561)
+#% output
+#= 80
+
+#% cell
+carmichael_lambda(range(10))
+#% output
+#= [1, 1, 2, 2, 4, 2, 6, 2, 6, 4]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Every unit raised to `carmichael_lambda(n)` is 1:
+
+#% cell
+union(table(power_mod(a, carmichael_lambda(24), 24), a, select(range(24), a => gcd(a, 24) == 1)))
+#% output
+#= [1]
+
+#% text
+# Compared with `euler_phi`:
+
+#% cell
+[carmichael_lambda(24), euler_phi(24)]
+#% output
+#= [2, 8]
+
+#% section
+# See also
+
+#% text
+# `euler_phi`, `multiplicative_order`, `primitive_root`

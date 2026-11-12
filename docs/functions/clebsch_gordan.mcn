@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# clebsch_gordan
+
+#% text
+# `clebsch_gordan([j1, m1], [j2, m2], [j, m])` gives the Clebsch-Gordan coefficient for coupling `j1` and `j2` to `j`, exact (a rational times a square root).
+
+#% section
+# Details
+
+#% item
+# Half-integer arguments are allowed; the value is 0 outside the selection rules (`m = m1 + m2`, the triangle condition).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+clebsch_gordan([5, 0], [4, 0], [1, 0])
+#% output
+#= (1/33)*165^(1/2)
+
+#% cell
+clebsch_gordan([1/2, -1/2], [1, 0], [1/2, -1/2])
+#% output
+#= (-1/3)*3^(1/2)
+
+#% cell
+clebsch_gordan([2, 1], [2, 4], [4, 2])
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `three_j_symbol`, `six_j_symbol`, `wigner_d`

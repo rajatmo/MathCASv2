@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# golden_angle
+
+#% text
+# `golden_angle` is `pi (3 - sqrt(5))`, the angle in radians (about 137.5 degrees) that divides a full turn in the golden ratio.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(golden_angle)
+#% output
+#= 2.399963229728653
+
+#% cell
+n(golden_angle*180/pi)
+#% output
+#= 137.50776405003785
+
+#% section
+# See also
+
+#% text
+# `golden_ratio`

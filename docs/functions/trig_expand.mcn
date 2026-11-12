@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# trig_expand
+
+#% text
+# `trig_expand(e)` expands sines and cosines of sums and integer multiples by the addition theorems.
+
+#% section
+# Details
+
+#% item
+# `sin(a + b)`, `cos(a + b)` and `sin(n*x)`, `cos(n*x)` for integers `n` become polynomials in the sines and cosines of the parts; the result is expanded.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+trig_expand(sin(2*x))
+#% output
+#= 2*cos(x)*sin(x)
+
+#% cell
+trig_expand(cos(x + y))
+#% output
+#= cos(x)*cos(y) - sin(x)*sin(y)
+
+#% cell
+trig_expand(sin(3*x))
+#% output
+#= -sin(x)^3 + 3*cos(x)^2*sin(x)
+
+#% cell
+trig_expand(cos(2*x)^2)
+#% output
+#= -2*cos(x)^2*sin(x)^2 + cos(x)^4 + sin(x)^4
+
+#% subsection
+# Scope
+
+#% text
+# Hyperbolic functions:
+
+#% cell
+trig_expand(sinh(x + y))
+#% output
+#= cosh(x)*sinh(y) + cosh(y)*sinh(x)
+
+#% text
+# Sums of three angles:
+
+#% cell
+trig_expand(sin(a + b + c))
+#% output
+#= cos(a)*cos(b)*sin(c) + cos(a)*cos(c)*sin(b) + cos(b)*cos(c)*sin(a) - sin(a)*sin(b)*sin(c)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `trig_reduce` goes the other way:
+
+#% cell
+trig_reduce(trig_expand(cos(3*x)))
+#% output
+#= cos(3*x)
+
+#% section
+# See also
+
+#% text
+# `trig_reduce`, `trig_to_exp`, `expand`, `simplify`

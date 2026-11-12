@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# reals
+
+#% text
+# `reals` is the domain of the real numbers, for facts `element(x, reals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, reals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(pi, reals)
+#% output
+#= true
+
+#% cell
+element(-2.5, reals)
+#% output
+#= true
+
+#% cell
+element(im, reals)
+#% output
+#= false
+
+#% cell
+element(1 + im, reals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(x, reals), simplify(sqrt(x^2)))
+#% output
+#= abs(x)
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(x, reals), is_nonnegative(x^2))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, reals)
+#% output
+#= element(x, reals)
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `complexes`, `rationals`

@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# insert
+
+#% text
+# `insert(a, k -> v)` or `insert(a, k, v)` gives the association `a` with the key `k` set to `v`: in place when it exists, else added at the end.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+insert(assoc("x" -> 1), "y" -> 2)
+#% output
+#= assoc("x" -> 1, "y" -> 2)
+
+#% cell
+insert(assoc("x" -> 1, "y" -> 2), "x", 10)
+#% output
+#= assoc("x" -> 10, "y" -> 2)
+
+#% subsection
+# Scope
+
+#% text
+# An entry whose key the association already has replaces the value in place, whatever the position given:
+
+#% cell
+insert(assoc(a -> 1, b -> 2), a -> 3, 2)
+#% output
+#= assoc(a -> 3, b -> 2)
+
+#% text
+# The original association is not changed:
+
+#% cell
+{ let a = assoc("x" -> 1); let b = insert(a, "y" -> 2); [a, b] }
+#% output
+#= [assoc("x" -> 1), assoc("x" -> 1, "y" -> 2)]
+
+#% section
+# See also
+
+#% text
+# `delete_key`, `merge`, `assoc`

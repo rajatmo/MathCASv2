@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# outer_polygon
+
+#% text
+# `outer_polygon(p)`: the outer boundary of a polygon (its holes filled), indexed
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+outer_polygon(polygon([[0, 0], [4, 0], [4, 4], [0, 4]] -> [[[1, 1], [2, 1], [2, 2], [1, 2]]]))
+#% output
+#= polygon([[0, 0], [0, 4], [4, 0], [4, 4]], [1, 3, 4, 2])
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

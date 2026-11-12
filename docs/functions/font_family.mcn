@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# font_family
+
+#% text
+# `font_family`: style option: font_family: "name" (labels use the bundled math font)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+text(style("G", 40, font_family: "Times"))
+#% output
+#= text(style("G", 40, font_family: "Times"))
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# struve_l
+
+#% text
+# `struve_l(nu, z)` gives the modified Struve function `L_nu(z)`.
+
+#% section
+# Details
+
+#% item
+# `L_nu(z)` is `-im*exp(-im*nu*pi/2)*H_nu(im*z)` (DLMF 11.2.2), the series of `(z/2)^(2k + nu + 1)/(gamma(k + 3/2)*gamma(k + nu + 3/2))`.
+
+#% item
+# Machine numbers and balls give numerical values; symbolic arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+struve_l(0, 1.0)
+#% output
+#= 0.7102431859378909
+
+#% cell
+struve_l(1, 2.5)
+#% output
+#= 1.9880307722359416
+
+#% cell
+struve_l(0.5, 2.0)
+#% output
+#= 1.558402036629881
+
+#% cell
+n(struve_l(0, 1), 30)
+#% output
+#= 0.7102431859378908887385266778116507
+
+#% subsection
+# Properties and relations
+
+#% text
+# For large `x`, `L_0(x)` and `I_0(x)` agree to all but a tiny relative difference:
+
+#% cell
+(struve_l(0, 20.0) - bessel_i(0, 20.0))/bessel_i(0, 20.0)
+#% output
+#= -7.326388656826871e-10
+
+
+#% text
+# Half-integer orders are elementary:
+
+#% cell
+struve_l(1/2, x)
+#% output
+#= -2^(1/2)/(pi^(1/2)*x^(1/2)) + cosh(x)*2^(1/2)/(pi^(1/2)*x^(1/2))
+
+#% section
+# See also
+
+#% text
+# `struve_h`, `bessel_i`

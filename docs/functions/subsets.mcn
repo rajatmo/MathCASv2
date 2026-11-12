@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# subsets
+
+#% text
+# `subsets(xs)` gives every sublist of `xs`, by size; `subsets(xs, n)` those with at most `n` elements, `subsets(xs, [n])` exactly `n`.
+
+#% text
+# `subsets(xs, spec, m)` gives the first `m` of them, `[k]` the `k`-th.
+
+#% section
+# Details
+
+#% item
+# Elements are taken by position.
+
+#% item
+# The subsets of a product, sum or other call have its head.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subsets([a, b, c])
+#% output
+#= [[], [a], [b], [c], [a, b], [a, c], [b, c], [a, b, c]]
+
+#% cell
+subsets([a, b, c], [2])
+#% output
+#= [[a, b], [a, c], [b, c]]
+
+#% subsection
+# Scope
+
+#% text
+# The first four:
+
+#% cell
+subsets([1, 2, 3], all, 4)
+#% output
+#= [[], [1], [2], [3]]
+
+#% text
+# The products of two factors:
+
+#% cell
+total(subsets(a*b*c, [2]))
+#% output
+#= a*b + a*c + b*c
+
+#% section
+# See also
+
+#% text
+# `permutations`, `tuples`

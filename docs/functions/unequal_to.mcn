@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# unequal_to
+
+#% text
+# `unequal_to(y)` is the function `x => x != y`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+select([1, 2, 3, 2], unequal_to(2))
+#% output
+#= [1, 3]
+
+#% section
+# See also
+
+#% text
+# `equal_to`, `less_than`

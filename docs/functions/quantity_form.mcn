@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# quantity_form
+
+#% text
+# `quantity_form(q, form)` shows the quantity `q` in the given form, such as "Abbreviation" or "LongForm"; it stays unevaluated.
+
+#% section
+# Details
+
+#% item
+# It is a display wrapper: the value of the quantity is unchanged.
+
+#% item
+# The notebook interface chooses the unit names for the form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quantity_form(quantity(3, "Meters"), "Abbreviation")
+#% output
+#= quantity_form(quantity(3, "Meters"), "Abbreviation")
+
+#% cell
+quantity_form(quantity(3, "Meters"), "LongForm")
+#% output
+#= quantity_form(quantity(3, "Meters"), "LongForm")
+
+#% cell
+quantity_form(quantity(5, "Seconds"), "Abbreviation")
+#% output
+#= quantity_form(quantity(5, "Seconds"), "Abbreviation")
+
+#% section
+# See also
+
+#% text
+# `quantity`, `unit_convert`

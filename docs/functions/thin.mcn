@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# thin
+
+#% text
+# `thin` is a graphics directive: lines half a point wide.
+
+#% section
+# Details
+
+#% item
+# It applies to what follows it in its list; it can stand in `directive(...)`, `edge_form(...)` and `plot_style`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# In a graphic:
+
+#% cell
+graphics([thin, circle(), thick, circle([0, 0], 0.5)])
+#% output
+#= image("thin.files/thin-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# As a plot style:
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: thin)
+#% output
+#= image("thin.files/thin-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Combined with a colour:
+
+#% cell
+graphics([directive(red, thin), line([[0, 0], [1, 1]])])
+#% output
+#= image("thin.files/thin-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `directive`, `thickness`, `dashing`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_young_tableaux
+
+#% text
+# `standard_young_tableaux(shape)`: the standard Young tableaux of the shape
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+standard_young_tableaux([2, 2])
+#% output
+#= [[[1, 2], [3, 4]], [[1, 3], [2, 4]]]
+
+#% cell
+standard_young_tableaux([3, 1])
+#% output
+#= [[[1, 2, 3], [4]], [[1, 2, 4], [3]], [[1, 3, 4], [2]]]
+
+#% section
+# See also
+
+#% text
+# `standard_young_tableaux_count`, `robinson_schensted`

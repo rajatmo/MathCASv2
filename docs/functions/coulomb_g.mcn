@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# coulomb_g
+
+#% text
+# `coulomb_g(l, eta, rho)` gives the irregular Coulomb wave function `G_l(eta, rho)`.
+
+#% section
+# Details
+
+#% item
+# `G_l = H+_l - i F_l` with `H+_l` as in `coulomb_h1` (DLMF 33.2.7-33.2.8).
+
+#% item
+# At `eta = 0`, `G_l(0, rho) = -rho y_l(rho)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; integer and half-integer `l` (an integer `2 l + 2`) use the integer branch of `hypergeometric_u`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coulomb_g(3, 0.12, 7.0)
+#% output
+#= -1.0693069229244365
+
+#% cell
+n(coulomb_g(3, 12/100, 3), 30)
+#% output
+#= 1.625113876479269664022347040484569
+
+#% cell
+coulomb_g(l, 0, r)
+#% output
+#= -r*spherical_bessel_y(l, r)
+
+#% text
+# The Wronskian `F' G - F G' = 1`, by difference quotients:
+
+#% cell
+h = 1.0e-5; r0 = 2.5; (coulomb_f(1, 0.4, r0 + h) - coulomb_f(1, 0.4, r0 - h))/(2*h)*coulomb_g(1, 0.4, r0) - coulomb_f(1, 0.4, r0)*(coulomb_g(1, 0.4, r0 + h) - coulomb_g(1, 0.4, r0 - h))/(2*h)
+#% output
+#= 0.9999999999982196
+
+#% section
+# See also
+
+#% text
+# `coulomb_f`, `coulomb_h1`, `hypergeometric_u`

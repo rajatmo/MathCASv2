@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# siegel_theta
+
+#% text
+# `siegel_theta(omega, s)` gives the Siegel (Riemann) theta function `sum exp(pi i n.omega.n + 2 pi i n.s)` over the integer vectors `n`; `siegel_theta([nu1, nu2], omega, s)` gives the function with characteristics.
+
+#% section
+# Details
+
+#% item
+# `omega` is a symmetric matrix with a positive definite imaginary part; other matrices stay unevaluated.
+
+#% item
+# With characteristics the terms are `exp(pi i (n + nu1).omega.(n + nu1) + 2 pi i (n + nu1).(s + nu2))`.
+
+#% item
+# The sum runs over the lattice points where the terms reach the working precision, around the largest one; the omitted terms are bounded and added to the radius.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+siegel_theta([[im, -1/2], [-1/2, im]], [0.5, 0])
+#% output
+#= 1.0074837203450846
+
+#% cell
+n(siegel_theta([[im, 0], [0, im]], [1, 2]), 30)
+#% output
+#= 1.1803405990160962260453379405584886
+
+#% cell
+siegel_theta([[1/2, 0], [0, 1/2]], [[im, 0], [0, im]], [0.1 + im, 0])
+#% output
+#= 14.849894009124256 - 10.789079534000802im
+
+#% text
+# In one dimension it is a Jacobi theta function:
+
+#% cell
+siegel_theta([[0.5 + im]], [2])
+#% output
+#= 1.0000069746847124 + 0.08642783652859559im
+
+#% cell
+elliptic_theta(3, 2*pi, exp(im*pi*(0.5 + im)))
+#% output
+#= 1.0000069746847124 + 0.08642783652859562im
+
+#% text
+# A matrix that is not symmetric:
+
+#% cell
+siegel_theta([[im, 1], [0, 2*im]], [1, 2.0])
+#% output
+#= siegel_theta([[im, 1], [0, 2im]], [1, 2.0])
+
+#% section
+# See also
+
+#% text
+# `elliptic_theta`, `riemann_siegel_theta`

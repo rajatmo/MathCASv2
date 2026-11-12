@@ -1,0 +1,132 @@
+#! mathcas 2 notebook
+
+#% title
+# select
+
+#% text
+# `select(xs, f)` gives the elements `x` of the list `xs` for which `f(x)` is `true`, in their order.
+
+#% section
+# Details
+
+#% item
+# Elements for which `f` gives `false` or anything that is not `true` are left out.
+
+#% item
+# `f` may be a function name, a lambda or a slot function.
+
+#% item
+# To keep elements that match a pattern, use `cases`; for the first match only, `select_first`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+select([1, 2, 3, 4, 5, 6], is_even)
+#% output
+#= [2, 4, 6]
+
+#% cell
+select(range(30), is_prime)
+#% output
+#= [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+#% cell
+select([3, -1, 4, -1, 5], x => x > 0)
+#% output
+#= [3, 4, 5]
+
+#% subsection
+# Scope
+
+#% text
+# Strings:
+
+#% cell
+select(["red", "green", "blue"], s => string_contains(s, "r"))
+#% output
+#= ["red", "green"]
+
+#% text
+# Mixed elements, by type:
+
+#% cell
+select([1, x, 2.5, "a", 3/4], is_number)
+#% output
+#= [1, 2.5, 3/4]
+
+#% text
+# At most `n` elements:
+
+#% cell
+select(range(20), is_prime, 3)
+#% output
+#= [2, 3, 5]
+
+#% subsection
+# Applications
+
+#% text
+# The real roots among the numerical roots of a polynomial:
+
+#% cell
+zs = map(s => x /. s, n_solve(x^3 - 2x + 2 == 0, x))
+select(zs, is_real)
+#% output
+#= [-1.7692923542386314]
+
+#% text
+# Rows of data within a window:
+
+#% cell
+data = table([t, t^2], t, range(0, 2, 1/4))
+select(data, p => 1/2 <= p[1] and p[1] <= 1)
+#% output
+#= [[1/2, 1/4], [3/4, 9/16], [1, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `count_if` counts what `select` keeps:
+
+#% cell
+length(select(range(50), is_odd)) == count_if(range(50), is_odd)
+#% output
+#= true
+
+#% text
+# `cases` does the same with a pattern:
+
+#% cell
+cases([1, x, 2, y], _: Int)
+#% output
+#= [1, 2]
+
+#% subsection
+# Possible issues
+
+#% text
+# An undecided test leaves the element out:
+
+#% cell
+select([1, a, -2], x => x < 0)
+#% output
+#= [-2]
+
+#% text
+# On an association, the test is given each value, and the entries whose values pass are kept; `select_keys` tests the keys:
+
+#% cell
+select(assoc("a" -> 3, "b" -> 8, "c" -> 1), v => v > 2)
+#% output
+#= assoc("a" -> 3, "b" -> 8)
+
+#% section
+# See also
+
+#% text
+# `cases`, `select_first`, `count_if`, `drop_failures`, `map`

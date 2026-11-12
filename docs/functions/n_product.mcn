@@ -1,0 +1,200 @@
+#! mathcas 2 notebook
+
+#% title
+# n_product
+
+#% text
+# `n_product(f, [k, a, b])` gives the product of `f` for `k` from `a` to `b` in machine precision; `b` may be `inf`.
+
+#% section
+# Details
+
+#% item
+# The product is the exponential of the sum of the logarithms of the factors, summed as `n_sum` does.
+
+#% item
+# `product` with an inexact factor or bound uses the same method.
+
+#% item
+# A product with a factor that is 0 (for `k = 1` in `1 - 1/k`) or a constant 0 factor stays a call; a product whose partial products tend to 0 (`exp(-k)`) gives 0.0.
+
+#% item
+# `method:` takes the same values as for `n_sum`; an unknown option prints a message and is ignored; `rigorous: true` is not available.
+
+#% item
+# `working_precision: d` (or `digits: d`) multiplies at `d` digits and gives the result to them; infinite products at high precision are slow.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf])
+#% output
+#= 3.676077910374978
+
+#% text
+# The exact value:
+
+#% cell
+product(1 + 1/k^2, [k, 1, inf])
+#% output
+#= sinh(pi)/pi
+
+#% subsection
+# Scope
+
+#% text
+# A finite range:
+
+#% cell
+n_product(1 + (-1)^i/i^2, [i, 100, 10^4])
+#% output
+#= 1.0000503370333975
+
+#% text
+# A product that converges to `2/pi`, and one with exponentials:
+
+#% cell
+n_product(1 - 1/(4*k^2), [k, 1, inf])
+#% output
+#= 0.6366197723675815
+
+#% cell
+n_product(exp(1/k^2), [k, 1, inf])
+#% output
+#= 5.1806683178971165
+
+#% text
+# A finite product with a constant factor:
+
+#% cell
+n_product(2, [k, 1, 10])
+#% output
+#= 1024.0
+
+#% text
+# Telescoping products and a product with factorials:
+
+#% cell
+n_product(1 - 1/(k + 1)^2, [k, 1, inf])
+#% output
+#= 0.4999999999999999
+
+#% cell
+n_product(1 + 1/factorial(k), [k, 1, inf])
+#% output
+#= 3.68215413618363
+
+#% text
+# A product with a negative sign, and with a step:
+
+#% cell
+n_product(1 + (-1)^k/k, [k, 2, inf])
+#% output
+#= 0.999999999999989
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf, 2])
+#% output
+#= 2.5091784786580567
+
+#% subsection
+# Options
+
+#% text
+# `working_precision:` (or `digits:`):
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, 10], working_precision: 30)
+#% output
+#= 3.342847116573681370124638790129678
+
+#% text
+# `digits:` is the same as `working_precision:`; at 100 digits the product agrees with the closed form `sinh(pi)/pi` to 100 digits:
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf], digits: 20)
+#% output
+#= 3.67607791037497772069570
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf], working_precision: 100) - n(sinh(pi)/pi, 100)
+#% output
+#= ball(0, 4.32e-104)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Against the exact value `sinh(pi)/pi` in machine precision:
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf]) - n(sinh(pi)/pi)
+#% output
+#= 4.440892098500626e-16
+
+#% subsection
+# Possible issues
+
+#% text
+# A finite product of numbers is multiplied directly, so a product of integers is exact:
+
+#% cell
+n_product(k, [k, 1, 10])
+#% output
+#= 3628800.0
+
+#% text
+# A divergent product gives a message and stays unevaluated:
+
+#% cell
+n_product(k, [k, 1, inf])
+#% output
+#| n_product: the product does not converge (its terms do not fall fast enough), so it has no numerical value
+#= n_product(k, [k, 1, inf])
+
+#% cell
+n_product(1/k, [k, 1, inf])
+#% output
+#| n_product: the product does not converge (its terms do not fall fast enough), so it has no numerical value
+#= n_product(k^-1, [k, 1, inf])
+
+#% text
+# A product with a zero factor is 0. An unknown option is reported and ignored:
+
+#% cell
+n_product(1 - 1/k, [k, 1, 5])
+#% output
+#= 0.0
+
+#% cell
+n_product(1 + 1/k^2, [k, 1, inf], bar: 1)
+#% output
+#| n_product: unknown option bar: the options are working_precision, digits, method and rigorous
+#= 3.676077910374978
+
+#% text
+# Factors that tend to a limit other than 1 (here 2) have no convergent product:
+
+#% cell
+n_product(2 - 1/k^2, [k, 2, inf])
+#% output
+#| n_product: the product does not converge (its terms do not fall fast enough), so it has no numerical value
+#= n_product(2 - k^-2, [k, 2, inf])
+
+#% text
+# A symbolic parameter is not allowed:
+
+#% cell
+n_product(1 + x/k, [k, 1, inf])
+#% output
+#| n_product: the product's terms are not numbers (a symbol without a value): n_sum and n_product need numerical terms
+#= n_product(1 + x/k, [k, 1, inf])
+#% section
+# See also
+
+#% text
+# `product`, `n_sum`

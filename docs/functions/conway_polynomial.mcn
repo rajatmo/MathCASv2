@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# conway_polynomial
+
+#% text
+# `conway_polynomial(p, n, x)` gives the Conway polynomial of degree `n` over the integers modulo the prime `p`, in the variable `x`.
+
+#% section
+# Details
+
+#% item
+# The Conway polynomial is the least monic primitive polynomial, in a fixed order of the coefficients, whose roots map to roots of the Conway polynomials of the subfields under `a -> a^((p^n - 1)/(p^d - 1))`. It defines `finite_field(p, n)`.
+
+#% item
+# The polynomials are computed when first needed (a search for prime `n`, an enumeration of a coset of compatible elements for composite `n`) or read from a table; when neither is possible within the limits the result is a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+conway_polynomial(2, 8, x)
+#% output
+#= 1 + x^2 + x^3 + x^4 + x^8
+
+#% cell
+conway_polynomial(101, 3, t)
+#% output
+#= 99 + 3*t + t^3
+
+#% subsection
+# Properties and relations
+
+#% text
+# It is primitive:
+
+#% cell
+is_primitive_polynomial(conway_polynomial(3, 6, x), 3)
+#% output
+#= true
+
+#% text
+# Degree 1: `x` minus the least primitive root:
+
+#% cell
+[conway_polynomial(31, 1, x), primitive_root(31)]
+#% output
+#= [28 + x, 3]
+
+#% section
+# See also
+
+#% text
+# `finite_field`, `is_primitive_polynomial`, `is_irreducible_polynomial`

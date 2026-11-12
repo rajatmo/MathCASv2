@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# principal_components
+
+#% text
+# `principal_components(data)` gives the rows of the numeric matrix `data` in the coordinates of the principal axes, the eigenvectors of the covariance matrix.
+
+#% section
+# Details
+
+#% item
+# The columns of the result are ordered by decreasing variance; the mean of each column is subtracted first.
+
+#% item
+# The sign of each axis is fixed by making the first component of the axis negative.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+principal_components([[1., 2.], [2., 3.], [4., 10.]])
+#% output
+#= [[3.2705329110195445, 0.28529328017989053], [1.9996938973384735, -0.3351647774727787], [-5.270226808358019, 0.04987149729288731]]
+
+#% cell
+covariance(principal_components([[1., 2.], [2., 3.], [4., 10.]]))
+#% output
+#= [[21.23522590832513, -1.1102230246251565e-16], [-1.1102230246251565e-16, 0.09810742500820661]]
+
+#% section
+# See also
+
+#% text
+# `karhunen_loeve_decomposition`, `covariance`, `eigensystem`, `svd`

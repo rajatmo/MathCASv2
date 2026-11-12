@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# beta_regularized
+
+#% text
+# `beta_regularized(z, a, b)` gives the regularized incomplete beta function `beta(z, a, b)/beta(a, b)`.
+
+#% section
+# Details
+
+#% item
+# `beta_regularized(z, a, b)` is `I_z(a, b)` of DLMF 8.17.2; it rises from 0 at `z = 0` to 1 at `z = 1`, and it is the distribution function of the beta distribution.
+
+#% item
+# Integer parameters with exact `z` give exact values; machine numbers and balls give numerical values.
+
+#% item
+# `beta_regularized` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+beta_regularized(1/2, 2, 3)
+#% output
+#= beta_regularized(1/2, 2, 3)
+
+#% cell
+beta_regularized(0.3, 2.5, 4.0)
+#% output
+#= 0.3521975859067672
+
+#% cell
+beta_regularized(z, 1, 2)
+#% output
+#= beta_regularized(z, 1, 2)
+
+#% subsection
+# Applications
+
+#% text
+# The probability of at most 3 successes in 10 trials of chance 0.5, from the binomial-beta relation:
+
+#% cell
+1 - beta_regularized(0.5, 4, 7)
+#% output
+#= 0.171875
+
+#% cell
+n(sum(binomial(10, k), [k, 0, 3])/2^10)
+#% output
+#= 0.171875
+
+#% subsection
+# Properties and relations
+
+#% text
+# The symmetry `I_z(a, b) = 1 - I_(1 - z)(b, a)`:
+
+#% cell
+beta_regularized(0.2, 3.0, 5.0) + beta_regularized(0.8, 5.0, 3.0)
+#% output
+#= 1.0
+
+#% text
+# The inverse:
+
+#% cell
+inverse_beta_regularized(beta_regularized(0.4, 2.0, 3.0), 2.0, 3.0)
+#% output
+#= 0.4
+
+#% section
+# See also
+
+#% text
+# `beta`, `inverse_beta_regularized`, `gamma_regularized`, `beta_distribution`

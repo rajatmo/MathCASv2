@@ -1,0 +1,117 @@
+#! mathcas 2 notebook
+
+#% title
+# position
+
+#% text
+# `position(t, p)` gives the positions of the parts of `t` that match the pattern `p`, as index lists for `part`.
+
+#% section
+# Details
+
+#% item
+# Parts at every depth are searched, the whole term and heads included; each position is a list of indices.
+
+#% item
+# Positions come in the order the parts are written.
+
+#% item
+# `t[pos...]`, or `part(t, i, j, ...)`, gets the part back.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+position([a, b, a, c], a)
+#% output
+#= [[1], [3]]
+
+#% cell
+position([[1, 2], [3, 1]], 1)
+#% output
+#= [[1, 1], [2, 2]]
+
+#% cell
+position([1, x, 2.5, y], _: Int)
+#% output
+#= [[1]]
+
+#% subsection
+# Scope
+
+#% text
+# Positions inside an expression:
+
+#% cell
+position(f(x, g(x, y)), x)
+#% output
+#= [[1], [2, 1]]
+
+#% text
+# Only the parts at level 2:
+
+#% cell
+position([a, [a, b]], a, [2])
+#% output
+#= [[2, 1]]
+
+#% subsection
+# Applications
+
+#% text
+# Where the largest value of a list occurs:
+
+#% cell
+v = [3, 9, 2, 9, 4]
+position(v, max(v))
+#% output
+#= [[2], [4]]
+
+#% text
+# The entry of a matrix found by its value, then read back:
+
+#% cell
+m = [[4, 7], [7, 1]]
+p = position(m, 1)
+m[p[1][1], p[1][2]]
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# The number of positions is the number of matches at the top level for a flat list:
+
+#% cell
+length(position([a, b, a, c], a)) == count([a, b, a, c], a)
+#% output
+#= true
+
+#% text
+# `ordering` gives the positions that sort a list:
+
+#% cell
+ordering([30, 10, 20])
+#% output
+#= [2, 3, 1]
+
+#% subsection
+# Possible issues
+
+#% text
+# The search goes into every part, so a pattern may match inside elements as well:
+
+#% cell
+position([1, [1, 2]], 1)
+#% output
+#= [[1], [2, 1]]
+
+#% section
+# See also
+
+#% text
+# `part`, `cases`, `count`, `ordering`, `select_first`

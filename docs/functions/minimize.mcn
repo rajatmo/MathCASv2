@@ -1,0 +1,180 @@
+#! mathcas 2 notebook
+
+#% title
+# minimize
+
+#% text
+# `minimize(f, x)` gives the global minimum of `f` over the reals as `[value, [x -> point]]`; `minimize([f, cond], x)` under the condition `cond`; `minimize(f, [x, y])` in several variables.
+
+#% section
+# Details
+
+#% item
+# With one variable the candidates are the real critical points, the closed ends of the domain that `reduce` gives for `cond`, and its isolated points; the limits at open ends and at infinities show whether the minimum is attained.
+
+#% item
+# A function unbounded below gives `[-inf, [x -> -inf]]` (or `inf`, the side where it falls without bound).
+
+#% item
+# When the infimum is a finite limit at an infinity it is given with the point at that infinity (`[0, [x -> -inf]]` for `exp(x)`); a limit at an open end that is not attained leaves the call unevaluated.
+
+#% item
+# With several variables the candidates are the solutions of the Lagrange (KKT) equations for every set of active constraints; with as many active constraints as variables the constraints alone give the vertices (linear programs). Conditions may combine equations and inequalities with `and` and `or`; `minimize(f, element([x, y], disk()))` takes the region as the condition.
+
+#% item
+# A solution of the critical equations that leaves variables free has them set to 0. Far feasible points sampled along fixed directions decide unboundedness: values that keep falling give `-inf` for `min_value`.
+
+#% item
+# Equal minima at several points: the smallest point (coordinate by coordinate) is given.
+
+#% item
+# Values are compared numerically; results are exact.
+
+#% item
+# Polynomial and rational problems the methods above leave open go through the cylindrical algebraic decomposition: the objective becomes a new first variable, and the lowest value with a feasible point above it is the minimum. The answer is exact (a rational, a radical or a root object), the point is a certified sample point (a rational one when there is one) checked by substitution, an infimum that is not attained has the point `indeterminate`, and infeasible constraints give `inf`. `abs`, `max` and `min` are split into cases.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+minimize(x^2 - 4*x + 1, x)
+#% output
+#= [-3, [x -> 2]]
+
+#% text
+# A cubic is unbounded below:
+
+#% cell
+minimize(x^3 - 3*x, x)
+#% output
+#= [-inf, [x -> -inf]]
+
+#% subsection
+# Scope
+
+#% text
+# On an interval the ends count:
+
+#% cell
+minimize([x^3 - 3*x, x >= -3 and x <= 3], x)
+#% output
+#= [-18, [x -> -3]]
+
+#% text
+# Two variables:
+
+#% cell
+minimize(x^2 + y^2 - 2*x + 4*y, [x, y])
+#% output
+#= [-5, [x -> 1, y -> -2]]
+
+#% text
+# A linear function on a disk:
+
+#% cell
+minimize([x - 2*y, x^2 + y^2 <= 1], [x, y])
+#% output
+#= [-5^(1/2), [x -> (-1/5)*5^(1/2), y -> (2/5)*5^(1/2)]]
+
+#% text
+# Equations and inequalities together:
+
+#% cell
+minimize([x + 2*y, x^2 + 2*y^2 <= 3 and x + y == 2 and x >= 1], [x, y])
+#% output
+#= [7/3, [x -> 5/3, y -> 1/3]]
+
+#% text
+# A linear program:
+
+#% cell
+minimize([2*x + 3*y - z, 1 <= x + y + z and x + y + z <= 2 and 1 <= x - y + z and x - y + z <= 2 and x - y - z == 3], [x, y, z])
+#% output
+#= [3, [x -> 2, y -> -1/2, z -> -1/2]]
+
+#% text
+# A union of regions:
+
+#% cell
+minimize([x*y, x^2 + y^2 <= 1 or (x + 1)^2 + (y - 1)^2 <= 2], [x, y])
+#% output
+#= [-4, [x -> -2, y -> 2]]
+
+#% text
+# Several variables through the decomposition: a minimum attained on a curve, at a rational point of it:
+
+#% cell
+minimize((x*y - 3)^2 + 1, [x, y])
+#% output
+#= [1, [x -> -1, y -> -3]]
+
+#% text
+# Piecewise objectives and constraints:
+
+#% cell
+minimize([max(x, y), x + y >= 2], [x, y])
+#% output
+#= [1, [x -> 1, y -> 1]]
+
+#% text
+# An infimum that is not attained:
+
+#% cell
+minimize([x^2 + 1, x*y >= 1], [x, y])
+#% output
+#= [1, [x -> indeterminate, y -> indeterminate]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `maximize` is the minimum of the negative:
+
+#% cell
+maximize(-x^4 + 2*x^2, x)
+#% output
+#= [1, [x -> -1]]
+
+#% cell
+minimize(x^4 - 2*x^2, x)
+#% output
+#= [-1, [x -> -1]]
+
+#% subsection
+# Possible issues
+
+#% text
+# An infimum approached at an infinity is given with that point:
+
+#% cell
+minimize(exp(x), x)
+#% output
+#= [0, [x -> -inf]]
+
+#% text
+# An infimum at an open end that is not attained is given with an indeterminate point:
+
+#% cell
+minimize([x, x > 0], x)
+#% output
+#= [0, [x -> indeterminate]]
+
+#% text
+# Infeasible constraints give `inf`:
+
+#% cell
+minimize([x + y, x^2 + y^2 < 0], [x, y])
+#% output
+#= [inf, [x -> indeterminate, y -> indeterminate]]
+
+#% section
+# See also
+
+#% text
+# `maximize`, `min_value`, `arg_min`, `find_minimum`, `function_range`

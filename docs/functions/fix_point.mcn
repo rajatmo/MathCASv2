@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# fix_point
+
+#% text
+# `fix_point(f, x)` applies `f` from `x` until the value no longer changes; `fix_point(f, x, n)` at most `n` times.
+
+#% text
+# `fix_point(f, x, same_test: g)` stops when `g(previous, next)` is `true`.
+
+#% section
+# Details
+
+#% item
+# Numbers that agree count as no change.
+
+#% item
+# It is the last value of `fixed_point_list`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fix_point(x => floor(x/2), 100)
+#% output
+#= 0
+
+#% cell
+fix_point(cos, 0.7)
+#% output
+#= 0.7390851332151571
+
+#% subsection
+# Scope
+
+#% text
+# A test of convergence:
+
+#% cell
+fix_point(x => (x + 2/x)/2, 1, same_test: (a, b) => abs(a - b) < 1/10^6)
+#% output
+#= 886731088897/627013566048
+
+#% section
+# See also
+
+#% text
+# `fixed_point_list`, `nest_while`, `nest`

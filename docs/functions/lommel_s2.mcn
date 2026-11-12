@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# lommel_s2
+
+#% text
+# `lommel_s2(mu, nu, z)` gives the Lommel function `S_(mu, nu)(z)`.
+
+#% section
+# Details
+
+#% item
+# `S_(mu, nu)(z)` is the solution of the same equation as `lommel_s1` that behaves like `z^(mu - 1)` for large `z` (DLMF 11.9.5); it is `s_(mu, nu)(z)` plus a combination of `bessel_j` and `bessel_y`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lommel_s2(0.5, 0.5, 1.0)
+#% output
+#= 1.0000000000000002
+
+#% cell
+lommel_s2(1.5, 0.5, 2.0)
+#% output
+#= 1.4142135623730951
+
+#% cell
+lommel_s2(0.5, 0.5, 50.0)
+#% output
+#= 0.1414213562373095
+
+#% subsection
+# Properties and relations
+
+#% text
+# For large `z` it approaches `z^(mu - 1)`:
+
+#% cell
+lommel_s2(0.5, 0.25, 1000.0)*1000.0^0.5
+#% output
+#= 0.9999998125011601
+
+#% section
+# See also
+
+#% text
+# `lommel_s1`, `struve_h`, `bessel_y`

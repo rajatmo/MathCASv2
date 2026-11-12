@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# positive_integers
+
+#% text
+# `positive_integers` is the domain of the integers greater than 0, for facts `element(x, positive_integers)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, positive_integers)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(5, positive_integers)
+#% output
+#= true
+
+#% cell
+element(1, positive_integers)
+#% output
+#= true
+
+#% cell
+element(0, positive_integers)
+#% output
+#= false
+
+#% cell
+element(-3, positive_integers)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(n, positive_integers), refine(abs(n)))
+#% output
+#= n
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(n, positive_integers), is_positive(n))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, positive_integers)
+#% output
+#= element(x, integers) and x > 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `integers`

@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# before
+
+#% text
+# `before` is the side before, the same as `left`: a position for `placed`, for the label of `labeled` and for the corner of a placed legend.
+
+#% section
+# Details
+
+#% item
+# `placed(obj, before)` puts `obj` to the left of the plot area; `labeled(g, label, before)` puts the label to the left of the graphic.
+
+#% item
+# In `plot_legends: placed(entries, before)` the legend goes to the nearest corner of the plot.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), placed("label", before)])
+#% output
+#= image("before.files/before-1.svgz")
+
+#% cell
+labeled(graphics([blue, disk()], image_size: 120), "a disk", before)
+#% output
+#= image("before.files/before-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: placed(["sin", "cos"], before))
+#% output
+#= image("before.files/before-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `placed`, `labeled`, `left`, `right`, `above`

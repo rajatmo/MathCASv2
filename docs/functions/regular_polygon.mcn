@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# regular_polygon
+
+#% text
+# `regular_polygon(n)` is the regular polygon of n corners on the unit circle (the points of `circle_points`); `regular_polygon(r, n)` and `regular_polygon(c, r, n)` others.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_blue, edge_form(blue), regular_polygon(5)])
+#% output
+#= image("regular_polygon.files/regular_polygon-1.svgz")
+
+#% cell
+area(regular_polygon(6))
+#% output
+#= (3/2)*3^(1/2)
+
+#% section
+# See also
+
+#% text
+# `plot`

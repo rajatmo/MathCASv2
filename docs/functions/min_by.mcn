@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# min_by
+
+#% text
+# `min_by(xs, f)` gives the first element of `xs` with the smallest `f(x)`.
+
+#% text
+# `min_by(xs, f, n)` gives the `n` elements with the smallest keys, smallest first.
+
+#% section
+# Details
+
+#% item
+# Keys are compared in the canonical order; equal keys keep the order of the elements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+min_by(["aa", "b", "ccc"], string_length)
+#% output
+#= "b"
+
+#% subsection
+# Scope
+
+#% text
+# The two smallest:
+
+#% cell
+min_by([-3, 2, 1, 3], abs, 2)
+#% output
+#= [1, 2]
+
+#% section
+# See also
+
+#% text
+# `max_by`, `sort_by`, `take_smallest`

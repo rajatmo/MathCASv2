@@ -1,0 +1,22 @@
+[package]
+name = "mc-simplify"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 simplification: simplify by cost-guided search over rational, trigonometric and exponential rewritings; trig_expand, trig_reduce, trig_to_exp, exp_to_trig, power_expand"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+# the decision service behind facts, refine and the predicates (package F3)
+mc-decide = { path = "../mc-decide" }
+mc-eval = { path = "../mc-eval" }
+mc-numeric = { path = "../mc-numeric" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

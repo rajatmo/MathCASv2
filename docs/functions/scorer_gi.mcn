@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# scorer_gi
+
+#% text
+# `scorer_gi(z)` gives the Scorer function `Gi(z)`.
+
+#% section
+# Details
+
+#% item
+# `Gi(z) = Bi(z) - Hi(z)` is a solution of the inhomogeneous Airy equation `w'' - z w = -1/pi` (DLMF 9.12).
+
+#% item
+# `Gi(0) = Bi(0)/3`; `Gi(x)` tends to 0 at both ends of the real line, like `1/(pi x)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values, by the Maclaurin series of `Hi` at a working precision that covers the cancellation of `Bi - Hi`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scorer_gi(5.0)
+#% output
+#= 0.06491978409385311
+
+#% cell
+n(scorer_gi(1/3), 30)
+#% output
+#= 0.2384894214372833303739938866807654
+
+#% cell
+scorer_gi(0.2 + 1.0*im)
+#% output
+#= 0.368791881947282 + 0.04259021009349048im
+
+#% cell
+scorer_gi(0)
+#% output
+#= 3^(5/6)/(9*gamma(2/3))
+
+#% text
+# The value tends to `1/(pi x)` for large `x`:
+
+#% cell
+scorer_gi(50.0)*pi*50.0
+#% output
+#= 1.000016002561148
+
+#% section
+# See also
+
+#% text
+# `scorer_hi`, `scorer_gi_prime`, `airy_bi`, `airy_ai`

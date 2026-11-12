@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# polygonal_number
+
+#% text
+# `polygonal_number(k)` gives the `k`-th triangular number; `polygonal_number(r, k)` the `k`-th `r`-gonal number `((r - 2) k^2 - (r - 4) k)/2`.
+
+#% section
+# Details
+
+#% item
+# Both arguments may be symbolic, and either may be a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polygonal_number(5)
+#% output
+#= 15
+
+#% cell
+polygonal_number(range(1, 6))
+#% output
+#= [1, 3, 6, 10, 15, 21]
+
+#% cell
+polygonal_number(5, 3)
+#% output
+#= 12
+
+#% cell
+polygonal_number(r, k)
+#% output
+#= (1/2)*((-2 + r)*k^2 - k*(-4 + r))
+
+#% section
+# See also
+
+#% text
+# `catalan_number`, `partitions_p`

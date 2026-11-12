@@ -1,0 +1,99 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_element_norm
+
+#% text
+# `finite_field_element_norm(a)` gives the norm of the element `a` of `F_(p^n)` to the prime field: the product of its conjugates `a a^p ... a^(p^(n-1))`, as an integer from 0 to `p - 1`.
+
+#% section
+# Details
+
+#% item
+# The norm is `a^((p^n - 1)/(p - 1))`.
+
+#% item
+# The norm is multiplicative and is 0 only for 0. Up to the sign `(-1)^n` it is the constant term of the characteristic polynomial of `a`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(5, 3)
+
+#% cell
+finite_field_element_norm(F([1, 2]))
+#% output
+#= 4
+
+#% subsection
+# Scope
+
+#% text
+# An element of the prime field has the norm `a^n`:
+
+#% cell
+finite_field_element_norm(F(3))
+#% output
+#= 2
+
+#% text
+# Zero is the only element of norm 0:
+
+#% cell
+finite_field_element_norm(F(0))
+#% output
+#= 0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The norm is multiplicative:
+
+#% cell
+a = F(17)
+
+#% cell
+b = F(99)
+
+#% cell
+finite_field_element_norm(a * b) == mod(finite_field_element_norm(a) * finite_field_element_norm(b), 5)
+#% output
+#= true
+
+#% text
+# The norm of the generator of a Conway field is the least primitive root modulo p:
+
+#% cell
+[finite_field_element_norm(F([0, 1])), primitive_root(5)]
+#% output
+#= [2, 2]
+
+#% text
+# The norm is the product of the conjugates `a`, `a^5` and `a^25`, taken in the field:
+
+#% cell
+F([1, 2]) * F([1, 2])^5 * F([1, 2])^25 == F(finite_field_element_norm(F([1, 2])))
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be a finite field element; anything else stays unevaluated:
+
+#% cell
+finite_field_element_norm(2)
+#% output
+#= finite_field_element_norm(2)
+
+#% section
+# See also
+
+#% text
+# `finite_field_element_trace`, `finite_field_element_minimal_polynomial`, `finite_field`

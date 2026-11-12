@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# unilateral_convolve
+
+#% text
+# `unilateral_convolve(f, g, tau, t)` gives the convolution of `f` and `g` on `[0, inf)`: the integral of `f(tau) g(t - tau)` for `tau` from 0 to `t`.
+
+#% section
+# Details
+
+#% item
+# `t` is taken positive; `assumptions: c` adds the condition `c`.
+
+#% item
+# Factors that do not depend on `tau` come out of the convolution, and a `dirac_delta(tau)` factor gives the other function at `t`.
+
+#% item
+# `unilateral_convolve(f, g, [tau1, ...], [t1, ...])` convolves in several variables.
+
+#% item
+# When the integral cannot be done the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unilateral_convolve(exp(-tau), exp(-2*tau), tau, t)
+#% output
+#= (-1 + exp(t))*exp(-2*t)
+
+#% cell
+unilateral_convolve(tau, exp(tau), tau, t)
+#% output
+#= -1 - t + exp(t)
+
+#% cell
+unilateral_convolve(dirac_delta(tau), f(tau), tau, t)
+#% output
+#= f(t)
+
+#% cell
+unilateral_convolve(a*r(tau), s(tau), tau, t)
+#% output
+#= a*unilateral_convolve(r(tau), s(tau), tau, t)
+
+#% cell
+unilateral_convolve(exp(-2*tau), tau*sin(tau), tau, t)
+#% output
+#= (1/25)*(-4*exp(-2*t) - 3*sin(t) + 4*cos(t) - 5*t*cos(t) + 10*t*sin(t))
+
+#% section
+# See also
+
+#% text
+# `mellin_convolve`, `laplace_transform`, `integrate`

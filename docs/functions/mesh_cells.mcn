@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# mesh_cells
+
+#% text
+# `mesh_cells(m, d)`: the cells of dimension d of a mesh region as index primitives (point(1), line([1, 2]), ...); mesh_cells(m, all), mesh_cells(m, [d, i])
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+m = mesh_region([[0, 0], [1, 0], [1, 1], [0, 1]], polygon([1, 2, 3, 4]))
+
+#% cell
+mesh_cells(m, 1)
+#% output
+#= [line([1, 2]), line([2, 3]), line([3, 4]), line([4, 1])]
+
+#% cell
+mesh_cells(m, all)
+#% output
+#= [[point(1), point(2), point(3), point(4)], [line([1, 2]), line([2, 3]), line([3, 4]), line([4, 1])], [polygon([1, 2, 3, 4])]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

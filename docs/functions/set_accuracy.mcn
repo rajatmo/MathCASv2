@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# set_accuracy
+
+#% text
+# `set_accuracy(x, a)` gives the number `x` with its precision set so that its accuracy is `a` digits after the decimal point.
+
+#% section
+# Details
+
+#% item
+# The precision is `a` plus the decimal logarithm of `abs(x)`, rounded up to a whole number of digits.
+
+#% item
+# It maps over lists.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+set_accuracy(1/3, 10)
+#% output
+#= 0.333333333
+
+#% cell
+set_accuracy(123456789/7, 4)
+#% output
+#= 17636684.143
+
+#% cell
+set_accuracy(2.5, 3)
+#% output
+#= 2.500
+
+#% cell
+accuracy(set_accuracy(1/3, 10))
+#% output
+#= 10.66098858484764
+
+#% section
+# See also
+
+#% text
+# `set_precision`, `accuracy`, `precision`

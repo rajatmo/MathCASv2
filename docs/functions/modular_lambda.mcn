@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# modular_lambda
+
+#% text
+# `modular_lambda(tau)` gives the modular lambda function, `theta_2(0, q)^4/theta_3(0, q)^4` with `q = exp(im*pi*tau)`, for `im_part(tau) > 0`.
+
+#% section
+# Details
+
+#% item
+# `lambda(tau)` is the parameter `m` whose nome is `exp(im*pi*tau)` (DLMF 23.15.6); on the imaginary axis it is real and between 0 and 1.
+
+#% item
+# It is invariant under `tau -> tau + 2` and under the level-2 congruence subgroup.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+modular_lambda(1.0*im)
+#% output
+#= 0.5 + 0.0im
+
+#% cell
+modular_lambda(0.5 + 1.0*im)
+#% output
+#= 0.2285655979651146 + 0.6363088584618941im
+
+#% cell
+modular_lambda(2.0*im)
+#% output
+#= 0.029437251522859413 + 0.0im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The period 2:
+
+#% cell
+modular_lambda(0.3 + 0.8*im) - modular_lambda(2.3 + 0.8*im)
+#% output
+#= 1.1102230246251565e-16 + 3.3306690738754696e-16im
+
+#% text
+# The relation to the nome:
+
+#% cell
+modular_lambda(1.0*im) - inverse_elliptic_nome_q(exp(-pi*1.0))
+#% output
+#= -2.220446049250313e-16 + 0.0im
+
+#% section
+# See also
+
+#% text
+# `klein_invariant_j`, `inverse_elliptic_nome_q`, `elliptic_nome_q`, `dedekind_eta`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# throw
+
+#% text
+# `throw(v)` gives `failure(thrown, v)` and `throw(v, tag)` gives `failure(thrown, v, tag)`. Like every failure it ends blocks and loops and passes through strict calls, until a `catch` takes its value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+throw(1)
+#% output
+#! failure(thrown, 1)
+
+#% cell
+catch({ print("before"); throw(7); print("never") })
+#% output
+#| before
+#= 7
+
+#% cell
+catch(throw(a, done), done)
+#% output
+#= a
+
+#% section
+# See also
+
+#% text
+# `catch`, `is_failure`, `drop_failures`

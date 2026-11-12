@@ -1,0 +1,244 @@
+#! mathcas 2 notebook
+
+#% title
+# d
+
+#% text
+# `d(f, x)` gives the derivative of `f` with respect to `x`.
+
+#% text
+# `d(f, [x, n])` gives the `n`-th derivative with respect to `x`.
+
+#% text
+# `d(f, x, y, ...)` differentiates with respect to `x`, then `y`, and so on: a mixed partial derivative.
+
+#% text
+# `d(f, [x, y, ...])` gives the gradient: the list of the first derivatives with respect to each variable.
+
+#% section
+# Details
+
+#% item
+# Every symbol other than the variable is a constant: `d(a*x, x)` is `a`.
+
+#% item
+# Derivatives of the elementary functions and many special functions are known; the chain, product and quotient rules combine them.
+
+#% item
+# The derivative of a function the system does not know is written with a prime: `d(f(x), x)` is `f'(x)`.
+
+#% item
+# `d(f, [x, 0])` is `f` itself.
+
+#% item
+# In `d(f, [x, n])` the order `n` is an integer; a list of two symbols, `d(f, [x, n])` with a symbol `n`, is a list of variables and gives the gradient `[d(f, x), d(f, n)]`.
+
+#% item
+# The variable must be a symbol; a number in its place gives a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The derivative of a power:
+
+#% cell
+d(x^5, x)
+#% output
+#= 5*x^4
+
+#% text
+# The product rule:
+
+#% cell
+d(sin(x)*exp(x), x)
+#% output
+#= cos(x)*exp(x) + exp(x)*sin(x)
+
+#% text
+# The third derivative:
+
+#% cell
+d(x^4, [x, 3])
+#% output
+#= 24*x
+
+#% text
+# A mixed partial derivative:
+
+#% cell
+d(x^2*y^3, x, y)
+#% output
+#= 6*x*y^2
+
+#% text
+# A gradient:
+
+#% cell
+d(x^2 + y^2, [x, y])
+#% output
+#= [2*x, 2*y]
+
+#% subsection
+# Scope
+
+#% text
+# Symbols other than the variable are treated as constants:
+
+#% cell
+d(a*x^2 + b*x + c, x)
+#% output
+#= b + 2*a*x
+
+#% text
+# Unknown functions keep their derivatives as primes:
+
+#% cell
+d(f(x)^2, x)
+#% output
+#= 2*f(x)*f'(x)
+
+#% cell
+d(f(g(x)), x)
+#% output
+#= f'(g(x))*g'(x)
+
+#% text
+# A variable in the exponent:
+
+#% cell
+d(x^x, x)
+#% output
+#= (1 + log(x))*x^x
+
+#% text
+# Special functions:
+
+#% cell
+d(gamma(x), x)
+#% output
+#= digamma(x)*gamma(x)
+
+#% cell
+d(bessel_j(0, x), x)
+#% output
+#= (1/2)*(bessel_j(-1, x) - bessel_j(1, x))
+
+#% text
+# A higher derivative of a composite function:
+
+#% cell
+d(exp(-t^2), [t, 4])
+#% output
+#= 12*exp(-t^2) - 48*exp(-t^2)*t^2 + 16*exp(-t^2)*t^4
+
+#% subsection
+# Applications
+
+#% text
+# The slope of a curve at a point: differentiate, then put the point in.
+
+#% cell
+d(x^3 - 2x, x) /. x -> 2
+#% output
+#= 10
+
+#% text
+# The critical points of a cubic, where the derivative vanishes:
+
+#% cell
+solve(d(x^3 - 3x, x) == 0, x)
+#% output
+#= [[x -> -1], [x -> 1]]
+
+#% text
+# The gradient of a function of two variables, at a point:
+
+#% cell
+d(x^2*y + y^3, [x, y]) /. [x -> 1, y -> 2]
+#% output
+#= [4, 13]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Differentiation undoes integration:
+
+#% cell
+d(integrate(x*sin(x), x), x)
+#% output
+#= x*sin(x)
+
+#% text
+# The order of mixed derivatives does not matter for smooth functions:
+
+#% cell
+simplify(d(sin(x*y^2), x, y) - d(sin(x*y^2), y, x))
+#% output
+#= 0
+
+#% text
+# A constant has derivative zero:
+
+#% cell
+d(5, x)
+#% output
+#= 0
+
+#% text
+# A truncated series is differentiated term by term:
+
+#% cell
+d(series(exp(x), x, 0, 4), x)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + O(x^4)
+
+#% text
+# A piecewise function differentiates piece by piece:
+
+#% cell
+d(piecewise([[x^2, x < 0]], x), x)
+#% output
+#= piecewise([[2*x, x < 0]], 1)
+
+#% text
+# The solution of `d_solve` as a pure function goes into the equation:
+
+#% cell
+sol = d_solve(y'(x) == 2*y(x), y, x); rewrite(y'(x) - 2*y(x), sol[1])
+#% output
+#= 0
+
+#% text
+# The second gradient (the Hessian) with `[[x, y], 2]`:
+
+#% cell
+d(x^2*y^3, [[x, y], 2])
+#% output
+#= [[2*y^3, 6*x*y^2], [6*x*y^2, 6*y*x^2]]
+
+#% subsection
+# Possible issues
+
+#% text
+# The second argument names a variable, not an order; give the order in a list:
+
+#% cell
+d(sin(x), 2)
+#% output
+#! failure(argument, d, "a number is not a variable")
+
+#% cell
+d(sin(x), [x, 2])
+#% output
+#= -sin(x)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `series`, `n_dsolve`, `find_root`

@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# singular_values
+
+#% text
+# `singular_values(m)` gives the nonzero singular values of the matrix `m`, in decreasing order.
+
+#% section
+# Details
+
+#% item
+# The singular values are the square roots of the eigenvalues of `dot(conjugate_transpose(m), m)`. Exact matrices give exact values where the eigenvalues are exact.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+singular_values([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [5.4649857042190435, 0.3659661906262578]
+
+#% cell
+singular_values([[3, 0], [0, 4]])
+#% output
+#= [4, 3]
+
+#% cell
+singular_values([[1.0, 1.0], [1.0, 1.0]])
+#% output
+#= [1.9999999999999998]
+
+#% subsection
+# Applications
+
+#% text
+# The condition number of a matrix in the 2-norm:
+
+#% cell
+s = singular_values([[1.0, 2.0], [2.0, 4.001]]); first(s)/last(s)
+#% output
+#= 25008.00095999726
+
+#% subsection
+# Properties and relations
+
+#% text
+# The largest singular value is the 2-norm:
+
+#% cell
+[first(singular_values([[1.0, 2.0], [3.0, 4.0]])), norm([[1.0, 2.0], [3.0, 4.0]])]
+#% output
+#= [5.4649857042190435, 5.4649857042190435]
+
+#% section
+# See also
+
+#% text
+# `svd`, `norm`, `rank`, `eigenvalues`

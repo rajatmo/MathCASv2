@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# crossing_count
+
+#% text
+# `crossing_count(curve, p)` gives the least number of times a ray from `p` crosses the closed curve, over all directions of the ray; a point on the curve adds 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+crossing_count([[0, 0], [2, 0], [2, 2], [0, 2]], [1, 1])
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

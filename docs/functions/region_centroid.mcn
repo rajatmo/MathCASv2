@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# region_centroid
+
+#% text
+# `region_centroid(reg)` is the centroid of the region: its centre of mass for a uniform density.
+
+#% section
+# Details
+
+#% item
+# Polygons use the signed-area formulas; curves are weighted by length.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rectangle:
+
+#% cell
+region_centroid(rectangle([a, b], [c, d]))
+#% output
+#= [(1/2)*(a + c), (1/2)*(b + d)]
+
+#% text
+# A non-convex polygon:
+
+#% cell
+region_centroid(polygon([[0, 0], [3, -1], [1, 0], [3, 1]]))
+#% output
+#= [4/3, 0]
+
+#% subsection
+# Scope
+
+#% text
+# A polyline:
+
+#% cell
+region_centroid(line([[0, 0], [1, 1], [1, 0]]))
+#% output
+#= [(1 + (1/2)*2^(1/2))/(1 + 2^(1/2)), (1/2 + (1/2)*2^(1/2))/(1 + 2^(1/2))]
+
+#% text
+# Points:
+
+#% cell
+region_centroid(point([[0, 0], [2, 0], [1, 3]]))
+#% output
+#= [1, 1]
+
+#% text
+# A tetrahedron:
+
+#% cell
+region_centroid(simplex([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]]))
+#% output
+#= [1/4, 1/4, 1/4]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_bounds`

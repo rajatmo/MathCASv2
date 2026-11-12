@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# coordinate_bounds
+
+#% text
+# `coordinate_bounds(pts)` gives `[[min, max], ...]` of each coordinate of the points in `pts`; `coordinate_bounds(pts, d)` pads each side by `d`.
+
+#% section
+# Details
+
+#% item
+# The points are the innermost lists of `pts`, at any depth.
+
+#% item
+# The padding is a number, `scaled(s)` (`s` times the width), or a list with one entry per coordinate, each a number, `scaled(s)` or `[below, above]`.
+
+#% item
+# Symbolic coordinates give `min` and `max` terms.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coordinate_bounds([[0, 1], [1, 2], [2, 1], [3, 2], [4, 0]])
+#% output
+#= [[0, 4], [0, 2]]
+
+#% cell
+coordinate_bounds([[0, 1], [1, 2], [4, 0]], scaled(1/4))
+#% output
+#= [[-1, 5], [-1/2, 5/2]]
+
+#% cell
+coordinate_bounds([[3, -3], [-3, 3]], [[1, 2], [3, 4]])
+#% output
+#= [[-4, 5], [-6, 7]]
+
+#% cell
+coordinate_bounds([[1, 2], [a, b], [3, 2]])
+#% output
+#= [[min(1, a), max(3, a)], [min(2, b), max(2, b)]]
+
+#% section
+# See also
+
+#% text
+# `coordinate_bounding_box`, `coordinate_bounds_array`, `min`, `max`

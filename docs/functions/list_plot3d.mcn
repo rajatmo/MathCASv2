@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# list_plot3d
+
+#% text
+# `list_plot3d(m)` draws the surface of a matrix of heights, the rows along y.
+
+#% text
+# `list_plot3d([[x1, y1, z1], ...])` draws a surface through scattered points.
+
+#% section
+# Details
+
+#% item
+# Scattered points are interpolated on a grid (each grid point the inverse-distance-weighted mean of the points; far from all points there is no surface).
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Heights in a table:
+
+#% cell
+list_plot3d(table(sin(i/3)*cos(j/4), i, 20, j, 20))
+#% output
+#= image("list_plot3d.files/list_plot3d-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Scattered points:
+
+#% cell
+seed(3); list_plot3d(map(p => [p[1], p[2], p[1]*p[2]], table([random_real(), random_real()], 40)))
+#% output
+#= image("list_plot3d.files/list_plot3d-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Coloured by height:
+
+#% cell
+list_plot3d(table(i*j, i, 10, j, 10), color_function: viridis, mesh: none)
+#% output
+#= image("list_plot3d.files/list_plot3d-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot3d`, `list_point_plot3d`, `list_density_plot`

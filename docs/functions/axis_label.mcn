@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# axis_label
+
+#% text
+# `axis_label`: option of axis_object: axis_label: the label at the axis's end
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics(axis_object(line([[0, 0], [4, 1]]), [0, 100], axis_label: "percent"))
+#% output
+#= image("axis_label.files/axis_label-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

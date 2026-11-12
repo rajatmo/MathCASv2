@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetry_commutator
+
+#% text
+# `symmetry_commutator(v, w, vars)` gives the commutator `[v, w]` of the vector fields `v = sum v_i d/dvars_i` and `w`, given by their lists of components over the variables `vars`.
+
+#% section
+# Details
+
+#% item
+# The components of `[v, w]` are `sum_j (v_j d(w_i, vars_j) - w_j d(v_i, vars_j))`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The translation and the projective generator of sl(2):
+
+#% cell
+symmetry_commutator([1, 0], [x^2, x*y], [x, y])
+#% output
+#= [2*x, y]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The commutator is antisymmetric:
+
+#% cell
+symmetry_commutator([x, 0], [y, x], [x, y]) + symmetry_commutator([y, x], [x, 0], [x, y])
+#% output
+#= [0, 0]
+
+#% section
+# See also
+
+#% text
+# `lie_commutator_table`, `lie_point_symmetries`

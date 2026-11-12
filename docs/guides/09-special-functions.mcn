@@ -1,0 +1,354 @@
+#! mathcas 2 notebook
+
+#% title
+# Special functions
+
+#% text
+# Gamma, Bessel, Airy, elliptic, hypergeometric and zeta functions are ordinary functions of the engine: exact arguments give exact values where a closed form is known, an inexact argument gives a number, and the number can have as many digits as you ask for.
+
+#% section
+# Exact values and exact reductions
+
+#% text
+# Where an identity gives a closed form, the value is exact.
+
+#% cell
+gamma(5)
+#% output
+#= 24
+
+#% cell
+gamma(1/2)
+#% output
+#= pi^(1/2)
+
+#% cell
+gamma(7/2)
+#% output
+#= (15/8)*pi^(1/2)
+
+#% cell
+zeta(2)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+zeta(-1)
+#% output
+#= -1/12
+
+#% cell
+bessel_j(1/2, x)
+#% output
+#= 2^(1/2)*sin(x)/(pi*x)^(1/2)
+
+#% cell
+airy_ai(0)
+#% output
+#= 3^(1/3)/(3*gamma(2/3))
+
+#% text
+# Otherwise the call stays as it is, a symbolic value that can be differentiated, expanded in series and evaluated later.
+
+#% cell
+gamma(1/3)
+#% output
+#= gamma(1/3)
+
+#% cell
+d(bessel_j(0, x), x)
+#% output
+#= (1/2)*(bessel_j(-1, x) - bessel_j(1, x))
+
+#% cell
+d(erf(x), x)
+#% output
+#= 2*exp(-x^2)/pi^(1/2)
+
+#% section
+# Evaluating to any precision
+
+#% text
+# A machine real argument gives a machine real result. `n(f, digits)` evaluates to that many digits, and every digit printed is correct: the engine carries a guaranteed error bound.
+
+#% cell
+gamma(2.5)
+#% output
+#= 1.329340388179137
+
+#% cell
+n(gamma(1/3), 40)
+#% output
+#= 2.6789385347077476336556929409746776441286894
+
+#% cell
+n(bessel_j(0, 10), 30)
+#% output
+#= -0.24593576445134833519776086248532875
+
+#% cell
+n(zeta(3), 50)
+#% output
+#= 1.202056903159594285399738161511449990764986292340498882
+
+#% cell
+n(airy_ai(2), 30)
+#% output
+#= 0.03492413042327437913532208079180761
+
+#% cell
+n(elliptic_k(1/2), 30)
+#% output
+#= 1.854074677301371918433850347195260
+
+#% text
+# Complex arguments use `im`, and the result is complex.
+
+#% cell
+n(gamma(1/2 + 3im), 25)
+#% output
+#= 0.0214456705524306460595528022516 + 0.0068653648372616779142384938199im
+
+#% cell
+n(zeta(1/2 + 14im), 20)
+#% output
+#= 0.02224114260999358924621320 - 0.1032581232664500579023631im
+
+#% cell
+n(bessel_k(1, 2 + im), 20)
+#% output
+#= 0.0362915924004270455710960 - 0.1240638345728347622360960im
+
+#% text
+# Very large arguments are fine: these three take well under a second.
+
+#% cell
+n(log_gamma(10^20), 25)
+#% output
+#= 4505170185988091368013.8759970
+
+#% cell
+n(bessel_j(0, 10^6), 20)
+#% output
+#= 0.0003310430137398737409879630
+
+#% cell
+n(erfc(30), 20)
+#% output
+#= 2.564656203756111600033397e-393
+
+#% section
+# Hypergeometric functions
+
+#% text
+# `hypergeometric_2f1`, `hypergeometric_1f1`, `hypergeometric_0f1` and `hypergeometric_pfq` are the general families that many named functions are special cases of. A parameter that cancels, or a negative integer one, reduces them; otherwise they stay symbolic and give numbers on request.
+
+#% cell
+hypergeometric_1f1(a, a, x)
+#% output
+#= exp(x)
+
+#% cell
+hypergeometric_2f1(-2, b, c, x)
+#% output
+#= 1 - 2*b*x/c + b*(1 + b)*x^2/(c*(1 + c))
+
+#% cell
+hypergeometric_2f1(1, 1, 2, 0)
+#% output
+#= 1
+
+#% cell
+hypergeometric_2f1(1, 1, 2, -x)
+#% output
+#= log(1 + x)/x
+
+#% text
+# Numbers are exact to the digits asked for, also outside the unit disc, where the series does not converge.
+
+#% cell
+n(hypergeometric_2f1(1, 1, 2, -3), 20)
+#% output
+#= 0.46209812037329687294482
+
+#% cell
+n(hypergeometric_2f1(1/3, 2/3, 5/6, 1/2), 30)
+#% output
+#= 1.198808846182582928290331757134737
+
+#% section
+# Other families
+
+#% text
+# Polylogarithms, polygamma functions, complete and incomplete elliptic integrals, Jacobi functions, orthogonal polynomials and exponential integrals follow the same rules: exact reductions at special arguments, numbers on request.
+
+#% cell
+polylog(2, 1)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+n(polylog(2, 1/2), 30)
+#% output
+#= 0.582240526465012505902656320159680
+
+#% cell
+n(polygamma(1, 1/3), 25)
+#% output
+#= 10.0955971254270940817920040999
+
+#% cell
+n(elliptic_e(1/3), 25)
+#% output
+#= 1.43031525717221972392252841453
+
+#% cell
+n(jacobi_sn(1/2, 1/3), 20)
+#% output
+#= 0.473637640369355901827184
+
+#% cell
+n(bessel_y(0, 2), 20)
+#% output
+#= 0.510375672649745119596607
+
+#% cell
+n(exp_integral_ei(2), 20)
+#% output
+#= 4.954234356001890163379505
+
+#% cell
+laguerre_l(2, x)
+#% output
+#= 1 - 2*x + (1/2)*x^2
+
+#% section
+# Rewriting with function_expand
+
+#% text
+# `function_expand` writes a function with more elementary ones where an identity allows it. This is the way to see what a special function is made of.
+
+#% cell
+function_expand(factorial(n))
+#% output
+#= gamma(1 + n)
+
+#% cell
+function_expand(binomial(n, k))
+#% output
+#= gamma(1 + n)/(gamma(1 + k)*gamma(1 + n - k))
+
+#% cell
+function_expand(bessel_j(1/2, x))
+#% output
+#= 2^(1/2)*sin(x)/(pi*x)^(1/2)
+
+#% cell
+function_expand(harmonic_number(n))
+#% output
+#= euler_gamma + digamma(1 + n)
+
+#% cell
+function_expand(chebyshev_t(n, x))
+#% output
+#= cos(n*acos(x))
+
+#% cell
+function_expand(beta(a, b))
+#% output
+#= gamma(a)*gamma(b)/gamma(a + b)
+
+#% section
+# Meijer G
+
+#% text
+# `meijer_g` is the most general function of the family: almost every function above is a Meijer G-function of some parameters. Exact parameters give a named function when one exists.
+
+#% cell
+meijer_g([[], []], [[0], []], x)
+#% output
+#= exp(-x)
+
+#% cell
+meijer_g([[], []], [[a/2], [-a/2]], x^2/4)
+#% output
+#= bessel_j(a, x)
+
+#% cell
+meijer_g([[1], []], [[1], []], x)
+#% output
+#= x/(1 + x)
+
+#% cell
+meijer_g([[], []], [[0, 1/2], []], x)
+#% output
+#= exp(-2*x^(1/2))*pi^(1/2)
+
+#% text
+# With an inexact argument the same function is a number, at the precision of the input.
+
+#% cell
+n(meijer_g([[], []], [[0, 1/2], []], 2), 20)
+#% output
+#= 0.10476220810438479797195
+
+#% section
+# Which function to reach for
+
+#% item
+# Factorials, binomials and Beta integrals: `gamma`, `log_gamma`, `beta`, `polygamma`, `digamma`.
+#% item
+# Error function and Gaussian integrals: `erf`, `erfc`, `erfi`, `inverse_erf`.
+#% item
+# Waves and cylinders: `bessel_j`, `bessel_y`, `bessel_i`, `bessel_k`, with `spherical_bessel_j` for spheres; Airy functions near turning points.
+#% item
+# Pendulums, arc lengths and ellipses: `elliptic_k`, `elliptic_e`, `elliptic_f`, `jacobi_sn`.
+#% item
+# Sums over integers: `zeta`, `polylog`.
+#% item
+# Orthogonal polynomials: `legendre_p`, `hermite_h`, `chebyshev_t`, `laguerre_l`.
+#% item
+# Everything else, and a way to look for closed forms: `hypergeometric_pfq` and `meijer_g`.
+
+#% section
+# Common mistakes
+
+#% item
+# Exact input stays symbolic. `gamma(1/3)` has no closed form, so it prints as it was typed; ask for a number with `n`, or give a machine real.
+
+#% cell
+gamma(1/3)
+#% output
+#= gamma(1/3)
+
+#% cell
+n(gamma(1/3))
+#% output
+#= 2.678938534707748
+
+#% item
+# A machine real in an argument makes the result a machine real with about 16 digits, even when you ask for more. Ask for digits with `n(f, digits)` of exact input.
+
+#% cell
+n(bessel_j(0, 10), 30)
+#% output
+#= -0.24593576445134833519776086248532875
+
+#% cell
+n(bessel_j(0, 10.0), 30)
+#% output
+#= -0.24593576445134835
+
+#% item
+# The imaginary unit is `im`; `i` is an ordinary symbol.
+
+#% cell
+n(gamma(1/2 + 3im), 10)
+#% output
+#= 0.021445670552431 + 0.0068653648372617im
+
+#% section
+# Related functions
+
+#% text
+# `gamma`, `beta`, `zeta`, `polygamma`, `erf`, `bessel_j`, `airy_ai`, `elliptic_k`, `hypergeometric_2f1`, `hypergeometric_pfq`, `meijer_g`, `function_expand`, `n`

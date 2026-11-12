@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# theme_color
+
+#% text
+# `theme_color("Accent1"), ...`: a colour chosen by the theme (pictures use the standard palette); not itself a colour value for is_color
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([theme_color("Accent3"), disk()])
+#% output
+#= image("theme_color.files/theme_color-1.svgz")
+
+#% cell
+is_color(theme_color("Accent1"))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

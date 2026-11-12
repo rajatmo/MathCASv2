@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# italic
+
+#% text
+# `italic` is a text style for `style(...)`: italic text.
+
+#% section
+# Details
+
+#% item
+# Labels are typeset in the math font, whose shapes it does not change; it is accepted wherever text styles are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A styled label:
+
+#% cell
+graphics([circle(), text(style("label", italic, 14), [0, 0])])
+#% output
+#= image("italic.files/italic-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# In a plot title:
+
+#% cell
+plot(x, [x, 0, 1], plot_label: style("title", italic))
+#% output
+#= image("italic.files/italic-2.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# The letters are the same as without it:
+
+#% cell
+graphics_row([graphics(text(style("ab", italic, 20), [0, 0])), graphics(text(style("ab", 20), [0, 0]))])
+#% output
+#= image("italic.files/italic-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `style`, `text`

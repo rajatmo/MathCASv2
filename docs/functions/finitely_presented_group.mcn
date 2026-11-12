@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# finitely_presented_group
+
+#% text
+# `finitely_presented_group([a, b, ...], [r1, ...])`: the group with these generators and relators (words as lists of letters)
+
+#% section
+# Details
+
+#% item
+# Generators are symbols. A word is a list of letters `a`, `a^-1` or `a^k`; nested lists are concatenated, so `table([a, b], 5)` is the word (a b)^5. (`[a, b]^5` is the list `[a^5, b^5]`.)
+
+#% item
+# A relator is a word equal to the identity; `u -> v` states that the words u and v are equal.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)])
+
+#% cell
+group_order(f)
+#% output
+#= 60
+
+#% cell
+group_order(finitely_presented_group([s, t], [table([s, t], 2) -> [s, s, s], [s, s, s] -> t^5]))
+#% output
+#= 120
+
+#% section
+# See also
+
+#% text
+# `group_order`, `coset_table`, `knuth_bendix`, `abelian_invariants`

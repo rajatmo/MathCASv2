@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# reverse_applied
+
+#% text
+# `reverse_applied(f)(a, b, ...)` is `f` applied to the arguments in reverse order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reverse_applied(f)(a, b, c)
+#% output
+#= f(c, b, a)
+
+#% cell
+reverse_applied(append)(4, [1, 2, 3])
+#% output
+#= [1, 2, 3, 4]
+
+#% section
+# See also
+
+#% text
+# `apply`, `reverse`, `operator_applied`

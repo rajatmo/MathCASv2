@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# down_values
+
+#% text
+# `down_values(f)` gives the rules defined for calls `f(...)`, as `lhs :> rhs` with the left side as it was written, in the order they are tried (the most specific first). `down_values("f")` takes the name as a string.
+
+#% section
+# Details
+
+#% item
+# A definition with optional arguments is listed once, as written. Built-in code and the catch-all a `fn` adds for arguments that match no clause are not listed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rule fact(0) := 1
+
+#% cell
+rule fact(k_) := k * fact(k - 1)
+
+#% cell
+down_values(fact)
+#% output
+#= [fact(0) :> 1, fact(k_) :> k*fact(k - 1)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The listed rules can be applied by hand:
+
+#% cell
+rewrite(quote(fact(3)), down_values(fact))
+#% output
+#= quote(3*fact(3 - 1))
+
+#% section
+# See also
+
+#% text
+# `up_values`, `sub_values`, `own_values`, `names`

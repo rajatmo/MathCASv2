@@ -1,0 +1,469 @@
+#! mathcas 2 notebook
+
+#% title
+# solve
+
+#% text
+# `solve(eq, x)` gives the solutions of the equation `eq` for `x` as a list of rule lists `[[x -> a], [x -> b], ...]`.
+
+#% text
+# `solve([eq1, eq2, ...], [x, y, ...])` solves a system of equations for several unknowns.
+
+#% section
+# Details
+
+#% item
+# An equation is written with `==`. An expression without `==` is taken as equal to zero.
+
+#% item
+# Each solution is a list of rules, one per unknown, ready to be used with `/.` or `rewrite`.
+
+#% item
+# Polynomial equations are solved by radicals up to degree 2, for binomials such as x^n == a and their compositions, and for biquadratic quartics; other cubics and quartics with numeric coefficients and all higher degrees give `root` objects, exact descriptions of the roots that `n` evaluates to numbers. The options `cubics: true` and `quartics: true` ask for radicals (Cardano's and Ferrari's formulas); with symbolic coefficients the formulas are used.
+
+#% item
+# Roots are listed with their multiplicity: a double root appears twice.
+
+#% item
+# Rational, radical and transcendental equations are solved too: a function of the unknown is solved for and inverted. Periodic functions give all their solutions, with a generated integer parameter `c(1)` and the condition `element(c(1), integers)` (`generated_parameters: d` names it `d(1)`); an inverse function gives its value under the condition that it lies in the function's range. An equation `a u e^(b u) == c` is solved with `product_log`.
+
+#% item
+# Systems of polynomial equations are solved by elimination (Groebner bases). Equations with parameters give the generic solutions, valid when no denominator vanishes; `reduce` gives every case.
+
+#% item
+# `solve(eqs, x, reals)` keeps the real solutions (a solution with square roots of parameters under the condition that it is real), `solve(eqs, x, integers)` the integer ones; `modulus: n` solves modulo n.
+
+#% item
+# Every solution is checked by substitution into the equations, exactly or numerically; a candidate that fails the check is dropped.
+
+#% item
+# Solutions are listed in canonical order; `max_roots: k` keeps the first k.
+
+#% item
+# An equation with no solution gives the empty list.
+
+#% item
+# `abs(u) == v` gives `u == v` and `u == -v` for a nonnegative v (the real reading of the absolute value); a sum of logarithms with rational coefficients is combined into one logarithm of a product and every solution is checked by substitution.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The two roots of a quadratic:
+
+#% cell
+solve(x^2 - 5x + 6 == 0, x)
+#% output
+#= [[x -> 2], [x -> 3]]
+
+#% text
+# Complex roots:
+
+#% cell
+solve(x^2 + 1 == 0, x)
+#% output
+#= [[x -> -im], [x -> im]]
+
+#% text
+# A linear system:
+
+#% cell
+solve([x + y == 3, x - y == 1], [x, y])
+#% output
+#= [[x -> 2, y -> 1]]
+
+#% text
+# A transcendental equation:
+
+#% cell
+solve(exp(x) == 2, x)
+#% output
+#= [[x -> conditional_expression(log(2) + 2im*pi*c(1), element(c(1), integers))]]
+
+#% subsection
+# Scope
+
+#% text
+# The general quadratic, in terms of its coefficients:
+
+#% cell
+solve(x^2 + p*x + q == 0, x)
+#% output
+#= [[x -> (1/2)*(-p - (-4*q + p^2)^(1/2))], [x -> (1/2)*(-p + (-4*q + p^2)^(1/2))]]
+
+#% text
+# A cubic with integer roots, and one with radicals:
+
+#% cell
+solve(x^3 - 6x^2 + 11x - 6 == 0, x)
+#% output
+#= [[x -> 1], [x -> 2], [x -> 3]]
+
+#% cell
+solve(x^3 - 2 == 0, x)
+#% output
+#= [[x -> 2^(1/3)], [x -> -(-1)^(1/3)*2^(1/3)], [x -> (-1)^(2/3)*2^(1/3)]]
+
+#% text
+# A quintic, whose roots are described exactly by `root` objects:
+
+#% cell
+solve(x^5 - x + 1 == 0, x)
+#% output
+#= [[x -> root(&(1 - &1 + &1^5), 1)], [x -> root(&(1 - &1 + &1^5), 2)], [x -> root(&(1 - &1 + &1^5), 3)], [x -> root(&(1 - &1 + &1^5), 4)], [x -> root(&(1 - &1 + &1^5), 5)]]
+
+#% text
+# A radical equation:
+
+#% cell
+solve(sqrt(x + 1) == 3, x)
+#% output
+#= [[x -> 8]]
+
+#% text
+# A nonlinear system:
+
+#% cell
+solve([x^2 + y^2 == 1, x == y], [x, y])
+#% output
+#= [[x -> (-1/2)*2^(1/2), y -> (-1/2)*2^(1/2)], [x -> (1/2)*2^(1/2), y -> (1/2)*2^(1/2)]]
+
+#% text
+# An expression without `==` is set equal to zero:
+
+#% cell
+solve(x^4 - 1, x)
+#% output
+#= [[x -> -1], [x -> -im], [x -> im], [x -> 1]]
+
+#% subsection
+# Options
+
+#% text
+# `max_roots:` keeps the first roots in the canonical order, and `generated_parameters:` names the integer parameter of a periodic family:
+
+#% cell
+solve(x^3 - x == 0, x, max_roots: 2)
+#% output
+#= [[x -> 0], [x -> 1]]
+
+#% cell
+solve(sin(x) == 1/2, x, generated_parameters: k)
+#% output
+#= [[x -> conditional_expression((1/6)*pi + 2*pi*k(1), element(k(1), integers))], [x -> conditional_expression((5/6)*pi + 2*pi*k(1), element(k(1), integers))]]
+
+#% text
+# `method: root` and `cubics:` choose root objects or radicals for a cubic:
+
+#% cell
+solve(x^3 + x + 1 == 0, x, method: root)
+#% output
+#= [[x -> root(&(1 + &1 + &1^3), 1)], [x -> root(&(1 + &1 + &1^3), 2)], [x -> root(&(1 + &1 + &1^3), 3)]]
+
+#% cell
+solve(x^3 + x + 1 == 0, x, cubics: false)
+#% output
+#= [[x -> root(&(1 + &1 + &1^3), 1)], [x -> root(&(1 + &1 + &1^3), 2)], [x -> root(&(1 + &1 + &1^3), 3)]]
+
+#% text
+# `verify_solutions: false` skips the substitution check; `assumptions:` states facts about parameters:
+
+#% cell
+solve(x^2 + 1 == 0, x, verify_solutions: false)
+#% output
+#= [[x -> -im], [x -> im]]
+
+#% cell
+solve(x^2 == a, x, assumptions: a > 0)
+#% output
+#= [[x -> -a^(1/2)], [x -> a^(1/2)]]
+
+#% text
+# `working_precision:` is accepted and the solutions stay exact; `n` gives digits:
+
+#% cell
+solve(x^2 - 2 == 0, x, working_precision: 30)
+#% output
+#= [[x -> -2^(1/2)], [x -> 2^(1/2)]]
+
+#% cell
+n(solve(x^5 - x + 1 == 0, x), 30)
+#% output
+#= [[x -> -1.1673039782614186842560458998548422], [x -> -0.18123244446987538390180023778112064 - 1.0839541013177106684303444929807666im], [x -> -0.18123244446987538390180023778112064 + 1.0839541013177106684303444929807666im], [x -> 0.7648844336005847260298231877085417 - 0.3524715460317262493179470914025811im], [x -> 0.7648844336005847260298231877085417 + 0.3524715460317262493179470914025811im]]
+
+#% subsection
+# Applications
+
+#% text
+# The values of the solutions, by putting each solution into `x`:
+
+#% cell
+solve(x^2 == 4, x) |> map(s => x /. s, _)
+#% output
+#= [-2, 2]
+
+#% text
+# The golden ratio is the positive root of x^2 = x + 1:
+
+#% cell
+solve(x^2 - x - 1 == 0, x)
+#% output
+#= [[x -> (1/2)*(1 - 5^(1/2))], [x -> (1/2)*(1 + 5^(1/2))]]
+
+#% text
+# The real solutions of a quadratic with parameters, with the condition under which they are real:
+
+#% cell
+solve(x^2 + a*x + b == 0, x, reals)
+#% output
+#= [[x -> conditional_expression((-1/2)*a - (1/2)*(-4*b + a^2)^(1/2), b < (1/4)*a^2)], [x -> conditional_expression((-1/2)*a + (1/2)*(-4*b + a^2)^(1/2), b < (1/4)*a^2)]]
+
+#% text
+# Integer solutions of an equation bounded by conditions:
+
+#% cell
+solve(x^2 + 2*y^3 == 3681 and x > 0 and y > 0, [x, y], integers)
+#% output
+#= [[x -> 15, y -> 12], [x -> 41, y -> 10], [x -> 57, y -> 6]]
+
+#% text
+# Solutions modulo 7:
+
+#% cell
+solve(x^5 - 2*x - 1 == 0, x, modulus: 7)
+#% output
+#= [[x -> 4], [x -> 6]]
+
+#% text
+# An equation solved with `product_log`:
+
+#% cell
+solve(e^x == x + 2, x, reals)
+#% output
+#= [[x -> -2 - product_log(-1, -1/exp(2))], [x -> -2 - product_log(-1/exp(2))]]
+
+#% text
+# Numerical values of the roots of a quintic:
+
+#% cell
+n(solve(x^5 - x + 1 == 0, x))
+#% output
+#= [[x -> -1.1673039782614187], [x -> -0.18123244446987535 - 1.0839541013177107im], [x -> -0.18123244446987535 + 1.0839541013177107im], [x -> 0.7648844336005847 - 0.3524715460317262im], [x -> 0.7648844336005847 + 0.3524715460317262im]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A double root is listed twice:
+
+#% cell
+solve(x^2 - 2x + 1 == 0, x)
+#% output
+#= [[x -> 1], [x -> 1]]
+
+#% text
+# An equation with no solution:
+
+#% cell
+solve(x == x + 1, x)
+#% output
+#= []
+
+#% text
+# An equation that is not polynomial, with conditions bounding the unknown: the real roots in that interval
+
+#% cell
+solve(sin(x) == 0 and 0 < x and x < 7, x)
+#% output
+#= [[x -> pi], [x -> 2*pi]]
+
+#% text
+# Roots without a closed form are numbers:
+
+#% cell
+solve(bessel_j(0, x) == 0 and 0 < x and x < 6, x)
+#% output
+#= [[x -> 2.4048255576957724], [x -> 5.520078110286311]]
+
+#% text
+# Facts about the unknowns with the `assumptions:` option:
+
+#% cell
+solve(x^2 == 4, x, assumptions: x > 0)
+#% output
+#= [[x -> 2]]
+
+#% text
+# The solutions go into other functions through `rewrite`:
+
+#% cell
+sol = solve(x^2 - 3*x + 1 == 0, x); simplify(rewrite(x^2 - 3*x + 1, sol))
+#% output
+#= [0, 0]
+
+#% text
+# Each numerical solution of the quintic satisfies the equation:
+
+#% cell
+map(s => x^5 - x + 1 /. s, n(solve(x^5 - x + 1 == 0, x)))
+#% output
+#= [-6.661338147750939e-16, -5.551115123125783e-17 - 2.220446049250313e-16im, -5.551115123125783e-17 + 2.220446049250313e-16im, 1.942890293094024e-16 + 1.1102230246251565e-16im, 1.942890293094024e-16 - 1.1102230246251565e-16im]
+
+#% text
+# For a condition on the unknown, `reduce` gives the region and `solve` the points:
+
+#% cell
+solve(sin(x) == 1/2 and 0 <= x and x <= 2*pi, x)
+#% output
+#= [[x -> (1/6)*pi], [x -> (5/6)*pi]]
+
+#% subsection
+# Possible issues
+
+#% text
+# Solutions with parameters are generic: this one assumes a is not zero.
+
+#% cell
+solve(a*x + b == 0, x)
+#% output
+#= [[x -> -b/a]]
+
+#% text
+# A periodic equation has infinitely many solutions, written with a generated parameter:
+
+#% cell
+solve(sin(x) == 1/2, x)
+#% output
+#= [[x -> conditional_expression((1/6)*pi + 2*pi*c(1), element(c(1), integers))], [x -> conditional_expression((5/6)*pi + 2*pi*c(1), element(c(1), integers))]]
+
+#% text
+# Conditions on the unknown pick the members of the families:
+
+#% cell
+solve(sin(x) == 1/2 and 0 < x and x < 7, x)
+#% output
+#= [[x -> (1/6)*pi], [x -> (5/6)*pi], [x -> (13/6)*pi]]
+
+#% text
+# A list of solutions is not itself a rule list; map over it to use each solution:
+
+#% cell
+x /. solve(x^2 == 4, x)
+#% output
+#= [-2, 2]
+
+#% text
+# An inequality is not an equation; `solve` says so and `reduce` solves it:
+
+#% cell
+solve(x^2 - 5*x + 6 > 0, x)
+#% output
+#! failure(argument, solve, "solve takes equations (use reduce for inequalities)")
+
+#% cell
+reduce(x^2 - 5*x + 6 > 0, x, reals)
+#% output
+#= x < 2 or 3 < x
+
+#% text
+# No inverse is known for a function of the unknown such as `x^x`, or for a Bessel function without a range:
+
+#% cell
+solve(x^x == 2, x)
+#% output
+#! failure(unsolved, solve, "no inverse is known for a function of the unknown")
+
+#% cell
+solve(bessel_j(0, x) == 0, x)
+#% output
+#! failure(unsolved, solve, "no inverse is known for a function of the unknown")
+
+#% text
+# An equation `x^2 == 2^x` has the real solutions 2, 4 and about -0.77; all three come back, through the branches 0 and -1 of `product_log`:
+
+#% cell
+solve(x^2 == 2^x, x, reals)
+#% output
+#= [[x -> -2*product_log(-1, (-1/2)*log(2))/log(2)], [x -> -2*product_log((-1/2)*log(2))/log(2)], [x -> -2*product_log((1/2)*log(2))/log(2)]]
+
+#% text
+# `n` of the list gives numbers for the branch 0 but leaves the branch -1 as a call (and `n(product_log(-1))` is `indeterminate`, although the value is complex); give the numbers to `product_log` directly:
+
+#% cell
+n(solve(x^2 == 2^x, x, reals))
+#% output
+#= [[x -> 4.000000000000001], [x -> 2.0], [x -> -0.766664695962123]]
+
+#% cell
+-2*product_log(-1, -0.5*log(2.0))/log(2.0)
+#% output
+#= 4.000000000000001
+
+#% text
+# A product equal to zero, and a value of the inverse error function:
+
+#% cell
+solve(x*exp(x) == 0, x)
+#% output
+#= [[x -> 0]]
+
+#% cell
+solve(erf(x) == 1/2, x)
+#% output
+#= [[x -> inverse_erf(1/2)]]
+
+#% text
+# Over the reals the `product_log` solutions exist only where the argument is in the range of the branch: `x exp(x) == -1` has no real solution, `x exp(x) == -1/e` a double one:
+
+#% cell
+solve(x*exp(x) == -1, x, reals)
+#% output
+#= []
+
+#% cell
+solve(x*exp(x) == -1/e, x, reals)
+#% output
+#= [[x -> -1], [x -> product_log(-1, -1/e)]]
+
+#% text
+# Over the complexes `x exp(x) == -1` has a solution for every branch of `product_log`, but only the principal branch is returned, and `n` of it is `indeterminate`:
+
+#% cell
+solve(x*exp(x) == -1, x)
+#% output
+#= [[x -> product_log(-1)]]
+
+#% cell
+n(solve(x*exp(x) == -1, x))
+#% output
+#= [[x -> -0.31813150520476413 + 1.3372357014306895im]]
+
+#% text
+# An equation with the unknown inside and outside a function is not solved, and a product of trigonometric functions is solved factor by factor:
+
+#% cell
+solve(log(x) + x == 1, x)
+#% output
+#= [[x -> conditional_expression(exp(1 - product_log(c(1), e)), element(c(1), integers))]]
+
+#% cell
+solve(sin(x)*cos(x) == 0, x)
+#% output
+#= [[x -> conditional_expression(2*pi*c(1), element(c(1), integers))], [x -> conditional_expression((-1/2)*pi + 2*pi*c(1), element(c(1), integers))], [x -> conditional_expression((1/2)*pi + 2*pi*c(1), element(c(1), integers))], [x -> conditional_expression(pi + 2*pi*c(1), element(c(1), integers))]]
+
+#% text
+# An unknown option is refused (also `generate_conditions:`):
+
+#% cell
+solve(x^2 == 2, x, bar: 1)
+#% output
+#! failure(argument, solve, "solve does not take the option bar")
+
+#% section
+# See also
+
+#% text
+# `find_root`, `factor`, `n`, `rewrite`

@@ -1,0 +1,85 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_limit
+
+#% text
+# `discrete_limit(f, n -> inf)` gives the limit of the sequence `f(n)` as the integer `n` tends to infinity.
+
+#% section
+# Details
+
+#% item
+# `fibonacci` and `lucas_l` are written by Binet's formulas and powers `(-c)^n` as `(-1)^n c^n`.
+
+#% item
+# A sequence with `(-1)^n` is split into its even and odd terms: when their limits agree that is the limit, otherwise the result is `failure(no_limit, discrete_limit, f)`.
+
+#% item
+# Factorials, binomials and other gamma quotients are taken through Stirling's series.
+
+#% item
+# A list of rules `[m -> inf, n -> inf]` takes the limits one after the other, the last rule first; a list `f` maps elementwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_limit(n/(n + 1), n -> inf)
+#% output
+#= 1
+
+#% text
+# An alternating sequence that tends to 0:
+
+#% cell
+discrete_limit((-5)^n/factorial(n), n -> inf)
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# Ratios of Fibonacci and Lucas numbers:
+
+#% cell
+[discrete_limit(fibonacci(n)/lucas_l(n), n -> inf), discrete_limit(fibonacci(n)/2^n, n -> inf)]
+#% output
+#= [(1/5)*5^(1/2), 0]
+
+#% text
+# Factorials against exponentials:
+
+#% cell
+discrete_limit(factorial(n)/3^n/exp(n), n -> inf)
+#% output
+#= inf
+
+#% text
+# Several sequences at once:
+
+#% cell
+discrete_limit([n/(n + 2), exp(-n/(n + 1))], n -> inf)
+#% output
+#= [1, exp(-1)]
+
+#% subsection
+# Possible issues
+
+#% text
+# The even and odd terms of `(-1)^n` have different limits:
+
+#% cell
+discrete_limit((-1)^n, n -> inf)
+#% output
+#! failure(no_limit, discrete_limit, (-1)^n)
+
+#% section
+# See also
+
+#% text
+# `limit`, `sum`, `fibonacci`

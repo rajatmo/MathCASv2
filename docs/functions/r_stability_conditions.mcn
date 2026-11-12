@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# r_stability_conditions
+
+#% text
+# `r_stability_conditions(eqs, vs, n)` gives, for each equilibrium of the autonomous recurrence equations eqs in the unknown sequences vs, a pair `[point, condition]`: the condition under which the equilibrium is asymptotically stable.
+
+#% text
+# `r_stability_conditions(eqs, vs, n, points)` considers the given points.
+
+#% section
+# Details
+
+#% item
+# The recurrences are written as a first-order system; at each fixed point (from `r_fixed_points`) the condition is that every eigenvalue of the Jacobian has absolute value below 1. Numbers decide it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+r_stability_conditions(a(n + 1) == (1/2)*a(n), a(n), n)
+#% output
+#= [[[0], true]]
+
+#% cell
+r_stability_conditions(y(n + 1) == a*y(n), y, n)
+#% output
+#= [[[0], -1 < a and a < 1]]
+
+#% cell
+r_stability_conditions(a(n + 1) == 2*(1 - a(n))*a(n), a(n), n)
+#% output
+#= [[[0], false], [[1/2], true]]
+
+#% cell
+r_stability_conditions([y(n + 1) == 3 - z(n), z(n + 1) == (1 - y(n))/2], [y(n), z(n)], n)
+#% output
+#= [[[5, -2], true]]
+
+#% cell
+r_stability_conditions(a(n + 2) == a(n + 1)*a(n)^2, a(n), n)
+#% output
+#= [[[-1, -1], false], [[0, 0], true], [[1, 1], false]]
+
+#% section
+# See also
+
+#% text
+# `d_stability_conditions`, `r_fixed_points`, `eigenvalues`

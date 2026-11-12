@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# algebraic_number
+
+#% text
+# `algebraic_number(theta, [c0, c1, ..., c(d-1)])` represents the element `c0 + c1 theta + ... + c(d-1) theta^(d-1)` of the number field `Q(theta)`.
+
+#% section
+# Details
+
+#% item
+# The normal form has `theta` an algebraic integer: `root(g, k)` of its monic integer minimal polynomial `g` of degree `d` (a radical when `d = 2`), and exactly `d` rational coefficients, the polynomial reduced modulo `g`.
+
+#% item
+# A generator with a minimal polynomial of leading coefficient `a` becomes `a theta` (the coefficients `c_i` become `c_i/a^i`); an `algebraic_number` as the generator becomes the root of its minimal polynomial.
+
+#% item
+# A rational generator, or an element whose reduced polynomial is constant, gives the number itself; `n` gives the numerical value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+algebraic_number(root(x => x^3 + x + 1, 3), [1, 2, 1])
+#% output
+#= algebraic_number(root(&(1 + &1 + &1^3), 3), [1, 2, 1])
+
+#% cell
+algebraic_number(3^(1/5), [1, 2, 1, 3, 3, 1])
+#% output
+#= algebraic_number(root(&(-3 + &1^5), 1), [4, 2, 1, 3, 3])
+
+#% cell
+algebraic_number(root(x => 5*x^5 + 11*x + 1, 1), [1, 1, 2])
+#% output
+#= algebraic_number(root(&(625 + 1375*&1 + &1^5), 1), [1, 1/5, 2/25, 0, 0])
+
+#% cell
+algebraic_number((1 + im)/2, [1, 3])
+#% output
+#= algebraic_number(1 + im, [1, 3/2])
+
+#% cell
+[algebraic_number(3, [1, 2]), algebraic_number(5/2, [3, 2])]
+#% output
+#= [7, 8]
+
+#% cell
+n(algebraic_number(sqrt(2)*im, [1, -1]), 30)
+#% output
+#= 1.000000000000000000000000000000000 - 1.4142135623730950488016887242096981im
+
+#% cell
+number_field_discriminant(algebraic_number(root(x => x^3 + x + 1, 3), [1, 2, 1]))
+#% output
+#= -31
+
+#% section
+# See also
+
+#% text
+# `root`, `minimal_polynomial`, `to_number_field`, `number_field_discriminant`

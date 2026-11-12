@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# interpolating_function
+
+#% text
+# `interpolating_function("y", [lo, hi], steps, key)` is a numerical solution of `n_dsolve` on the interval `[lo, hi]`; `f(t)` gives its value at `t`.
+
+#% section
+# Details
+
+#% item
+# The arguments describe the stored solution: the name of the unknown (`"y'"` for the derivative), the interval, the number of steps and a key identifying the data.
+
+#% item
+# A list of times gives a list of values; exact times such as `pi/2` are evaluated through `n`. Outside the interval the call fails with `failure(out_of_range, t, [lo, hi])`.
+
+#% item
+# `d(f(u), u)` gives the derivative, the same object with the name `"y'"`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+s = n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 2]); f = y /. s[1]
+
+#% cell
+f(1.0)
+#% output
+#= 0.3678794409408397
+
+#% cell
+f([0.5, 1.5])
+#% output
+#= [0.6065306602814926, 0.2231301616204551]
+
+#% cell
+f(pi/2)
+#% output
+#= 0.2078795763235876
+
+#% subsection
+# Scope
+
+#% text
+# The derivative is another interpolating function:
+
+#% cell
+d(f(u), u)
+#% output
+#= interpolating_function("y'", [0.0, 2.0], 21, "7d83dd8f58ce332a")(u)
+
+#% cell
+rewrite(d(f(u), u), u -> 1.0)
+#% output
+#= -0.36787938057265485
+
+#% text
+# A plot of the solution:
+
+#% cell
+plot(f(t), [t, 0, 2])
+#% output
+#= image("interpolating_function.files/interpolating_function-7.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# Outside the interval of the solution:
+
+#% cell
+f(3.0)
+#% output
+#! failure(out_of_range, 3.0, [0.0, 2.0])
+
+#% section
+# See also
+
+#% text
+# `n_dsolve`, `n_dsolve_value`, `domain`, `plot`

@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# airy_bi_zero
+
+#% text
+# `airy_bi_zero(k)` gives the `k`-th zero of the Airy function `Bi` (all its real zeros are negative); `airy_bi_zero(k, x0)` gives the `k`-th zero below `x0`.
+
+#% section
+# Details
+
+#% item
+# The zeros are counted by sign changes of the machine `airy_bi` from `min(x0, 0)` downwards and refined by Newton's method at the working precision.
+
+#% item
+# Exact arguments stay unevaluated; `n` gives the values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(airy_bi_zero(1))
+#% output
+#= -1.173713222709128
+
+#% cell
+n(airy_bi_zero(3))
+#% output
+#= -4.830737841662016
+
+#% cell
+n(airy_bi_zero(1), 25)
+#% output
+#= -1.17371322270912792491997996247
+
+#% cell
+n(airy_bi_zero(2, -500))
+#% output
+#= -500.23996579701316
+
+#% cell
+n([airy_bi_zero(1), airy_bi_zero(2), airy_bi_zero(3)])
+#% output
+#= [-1.173713222709128, -3.271093302836353, -4.830737841662016]
+
+#% text
+# Bi vanishes there:
+
+#% cell
+airy_bi(n(airy_bi_zero(2), 30))
+#% output
+#= ball(1.6873234417731333878e-35, 9.17e-34)
+
+#% section
+# See also
+
+#% text
+# `airy_ai_zero`, `airy_bi`, `bessel_j_zero`

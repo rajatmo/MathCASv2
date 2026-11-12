@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_theta
+
+#% text
+# `elliptic_theta(a, u, q)` gives the Jacobi theta function `theta_a(u, q)`, for `a` = 1, 2, 3 or 4 and nome `abs(q) < 1`.
+
+#% section
+# Details
+
+#% item
+# The functions are the Fourier series of DLMF 20.2.1-20.2.4: `theta_3(u, q)` is 1 plus `2*q^(n^2)*cos(2*n*u)` summed over `n >= 1`, and the others are its shifts.
+
+#% item
+# `theta_1` is odd in `u`, the other three are even; all have period `2*pi` in `u` (`theta_3` and `theta_4` have period `pi`).
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_theta(3, 0, 0.5)
+#% output
+#= 2.128936827211877
+
+#% cell
+elliptic_theta(1, 1.0, 0.3)
+#% output
+#= 1.2256818891044179
+
+#% cell
+elliptic_theta(2, 0.5, 0.1)
+#% output
+#= 0.9877965496358908
+
+#% cell
+elliptic_theta(4, 0.5, 0.1)
+#% output
+#= 0.8918563114390475
+
+#% subsection
+# Scope
+
+#% text
+# A complex argument:
+
+#% cell
+elliptic_theta(3, 0.5 + 0.5*im, 0.2)
+#% output
+#= 1.3284718010298178 - 0.4061137931625702im
+
+#% subsection
+# Properties and relations
+
+#% text
+# The series of `theta_3`:
+
+#% cell
+elliptic_theta(3, 0.4, 0.3) - (1 + 2*sum(0.3^(n^2)*cos(2*n*0.4), [n, 1, 30]))
+#% output
+#= 0.0
+
+#% text
+# Jacobi's identity `theta_3(0)^4 = theta_2(0)^4 + theta_4(0)^4`:
+
+#% cell
+elliptic_theta(3, 0, 0.4)^4 - elliptic_theta(2, 0, 0.4)^4 - elliptic_theta(4, 0, 0.4)^4
+#% output
+#= 1.7763568394002505e-15
+
+#% section
+# See also
+
+#% text
+# `elliptic_theta_prime`, `neville_theta_s`, `elliptic_nome_q`, `dedekind_eta`, `jacobi_sn`

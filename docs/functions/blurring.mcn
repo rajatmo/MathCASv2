@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# blurring
+
+#% text
+# `blurring(...)`: a blur effect (accepted, not drawn)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([blurring(), standard_red, disk()])
+#% output
+#= image("blurring.files/blurring-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

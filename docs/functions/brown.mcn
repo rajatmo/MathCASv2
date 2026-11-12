@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# brown
+
+#% text
+# `brown` is the colour brown, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([brown, disk()])
+#% output
+#= image("brown.files/brown-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [brown])
+#% output
+#= image("brown.files/brown-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(brown), disk([0, 0])], [brown, disk([2, 0])], [darker(brown), disk([4, 0])]])
+#% output
+#= image("brown.files/brown-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `orange`, `red`, `rgb_color`

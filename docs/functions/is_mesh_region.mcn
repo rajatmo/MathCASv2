@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_mesh_region
+
+#% text
+# `is_mesh_region(m)`: whether m is a valid mesh region
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_mesh_region(mesh_region([[0], [1]], line([1, 2]))), is_mesh_region(disk())]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

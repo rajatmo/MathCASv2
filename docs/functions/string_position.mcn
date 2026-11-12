@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# string_position
+
+#% text
+# `string_position(s, p)` gives the positions `[start, end]` (1-based, inclusive) of the matches of the string pattern `p` in `s`; matches may overlap unless `overlaps: false`. `string_position(s, p, n)` gives at most `n`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_position("abxxabxxab", "ab")
+#% output
+#= [[1, 2], [5, 6], [9, 10]]
+
+#% cell
+string_position("aaaa", "aa")
+#% output
+#= [[1, 2], [2, 3], [3, 4]]
+
+#% cell
+string_position("aaaa", "aa", overlaps: false)
+#% output
+#= [[1, 2], [3, 4]]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_count`

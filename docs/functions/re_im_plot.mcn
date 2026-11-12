@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# re_im_plot
+
+#% text
+# `re_im_plot(f, [x, a, b])` plots the real and the imaginary part of f for x from a to b.
+
+#% section
+# Details
+
+#% item
+# It is `plot([re(f), im_part(f)], [x, a, b])`, and takes the options of `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A rotating phase:
+
+#% cell
+re_im_plot(exp(im*x), [x, 0, 6])
+#% output
+#= image("re_im_plot.files/re_im_plot-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A function with complex values on part of the line:
+
+#% cell
+re_im_plot(sqrt(x), [x, -2, 2])
+#% output
+#= image("re_im_plot.files/re_im_plot-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# With a legend:
+
+#% cell
+re_im_plot((x + im)^2, [x, -2, 2], plot_legends: ["re", "im"])
+#% output
+#= image("re_im_plot.files/re_im_plot-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `abs_arg_plot`, `plot`, `complex_plot`

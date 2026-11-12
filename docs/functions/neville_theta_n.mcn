@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# neville_theta_n
+
+#% text
+# `neville_theta_n(z, m)` gives the Neville theta function `theta_n(z | m)`.
+
+#% section
+# Details
+
+#% item
+# `theta_n(z | m)` is `theta_4(pi*z/(2*K(m)), q)/theta_4(0, q)`, with the nome `q` of `m` (DLMF 20.1, 22.2). It is even and `theta_n(0 | m)` is 1.
+
+#% item
+# It is the common denominator of the quotients that give `sn`, `cn` and `dn`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+neville_theta_n(0.5, 0.3)
+#% output
+#= 1.0182516442144647
+
+#% cell
+neville_theta_n(0, 0.3)
+#% output
+#= 1
+
+#% cell
+neville_theta_n(1.0, 0.9)
+#% output
+#= 1.2530036936634286
+
+#% subsection
+# Properties and relations
+
+#% text
+# The quotient `theta_d/theta_n` is `dn`:
+
+#% cell
+neville_theta_d(1.1, 0.6)/neville_theta_n(1.1, 0.6) - jacobi_dn(1.1, 0.6)
+#% output
+#= 1.1102230246251565e-16
+
+#% section
+# See also
+
+#% text
+# `neville_theta_s`, `neville_theta_c`, `neville_theta_d`, `elliptic_theta`

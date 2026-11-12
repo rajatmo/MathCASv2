@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# directed_edge
+
+#% text
+# `directed_edge(a, b)` is the directed edge from `a` to `b` of a graph.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graph([directed_edge(1, 2), directed_edge(2, 3)])
+#% output
+#= image("directed_edge.files/directed_edge-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

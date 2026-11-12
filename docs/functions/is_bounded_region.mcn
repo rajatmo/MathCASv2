@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# is_bounded_region
+
+#% text
+# `is_bounded_region(reg)` tells whether the region lies inside a ball of finite radius.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_bounded_region(disk())
+#% output
+#= true
+
+#% text
+# Not a region:
+
+#% cell
+is_bounded_region(x)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `region_bounds`

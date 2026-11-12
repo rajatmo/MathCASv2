@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# digit_sum
+
+#% text
+# `digit_sum(n)` gives the sum of the decimal digits of `|n|`, `digit_sum(n, b)` of its digits in base `b`. `digit_sum(n, b, k)` sums the first `k` digits (the last `-k` for negative `k`). A list of numbers or of bases gives a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+digit_sum(58127)
+#% output
+#= 23
+
+#% cell
+digit_sum(58127, 2)
+#% output
+#= 9
+
+#% cell
+digit_sum(6345354, 10, -4)
+#% output
+#= 17
+
+#% cell
+digit_sum(9^1000 + 1)
+#% output
+#= 4339
+
+#% cell
+digit_sum(7, [2, 3, 4])
+#% output
+#= [3, 3, 4]
+
+#% section
+# See also
+
+#% text
+# `digit_count`, `integer_digits`, `total`

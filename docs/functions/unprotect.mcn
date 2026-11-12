@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# unprotect
+
+#% text
+# `unprotect(f, ...)` removes the attribute `protected` from the symbols, so their definitions may change again.
+
+#% section
+# Details
+
+#% item
+# The value is the list of the names, as strings, of the symbols that were protected.
+
+#% item
+# The arguments are not evaluated; a list of symbols, or a string naming a symbol, also works.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+protect(p1, p2)
+unprotect(p1)
+#% output
+#= ["p1"]
+
+#% cell
+[attributes(p1), attributes(p2)]
+#% output
+#= [[], [protected]]
+
+#% section
+# See also
+
+#% text
+# `protect`, `clear_attributes`

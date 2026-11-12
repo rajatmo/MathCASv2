@@ -1,0 +1,148 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_fourier_transform
+
+#% text
+# `inverse_fourier_transform(g, w, t)` gives the inverse Fourier transform `1/sqrt(2 pi) integrate(g*exp(-im*w*t), [w, -inf, inf])` of `g`.
+
+#% section
+# Details
+
+#% item
+# It is computed as `fourier_transform` is, with the opposite sign in the exponent.
+
+#% item
+# `fourier_parameters: [a, b]` gives `sqrt(abs(b)/(2 pi)^(1 + a)) integrate(g*exp(-im*b*w*t), [w, -inf, inf])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A Gaussian:
+
+#% cell
+inverse_fourier_transform(exp(-w^2/4)/sqrt(2), w, t)
+#% output
+#= exp(-t^2)
+
+#% cell
+inverse_fourier_transform(1/(1 + w^2), w, t)
+#% output
+#= (1/2)*2^(1/2)*exp(-abs(t))*pi^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# A band-limited spectrum:
+
+#% cell
+inverse_fourier_transform(unit_step(w + 1)*unit_step(1 - w), w, t)
+#% output
+#= 2^(1/2)*sin(t)/(pi^(1/2)*t)
+
+#% text
+# A pole off the axis:
+
+#% cell
+inverse_fourier_transform(1/(a + im*w), w, t, assumptions: a > 0)
+#% output
+#= heaviside_theta(-t)*2^(1/2)*exp(a*t)*pi^(1/2)
+
+#% text
+# Distributions:
+
+#% cell
+inverse_fourier_transform(1/w, w, t)
+#% output
+#= -im/2*2^(1/2)*pi^(1/2)*sign(t)
+
+#% cell
+inverse_fourier_transform(1, w, t)
+#% output
+#= dirac_delta(t)*2^(1/2)*pi^(1/2)
+
+#% text
+# Two variables:
+
+#% cell
+inverse_fourier_transform(exp(-u^2 - v^2), [u, v], [x, y])
+#% output
+#= (1/2)*exp((-1/4)*x^2 - (1/4)*y^2)
+
+#% text
+# A Lorentzian and a hyperbolic function in the frequency variable:
+
+#% cell
+inverse_fourier_transform(exp(-abs(w)), w, t)
+#% output
+#= 2^(1/2)/(pi^(1/2)*(1 + t^2))
+
+#% cell
+inverse_fourier_transform(sinc(w), w, t)
+#% output
+#= (1/4)*(sign(1 + t) + sign(1 - t))*2^(1/2)*pi^(1/2)
+
+#% subsection
+# Options
+
+#% text
+# `fourier_parameters:` as for `fourier_transform`; with `[0, 1]` the result is the default one:
+
+#% cell
+inverse_fourier_transform(exp(-abs(w)), w, t, fourier_parameters: [0, 1])
+#% output
+#= 2^(1/2)*(pi^-1)^(1/2)/(1 + t^2)
+
+#% text
+# A number for `t` gives the value there:
+
+#% cell
+inverse_fourier_transform(1/(w^2 + 1), w, 0.5)
+#% output
+#= 0.7601734505331404
+
+#% text
+# `assumptions:` is accepted:
+
+#% cell
+inverse_fourier_transform(exp(-w^2), w, t, assumptions: t > 0)
+#% output
+#= (1/2)*2^(1/2)*exp((-1/4)*t^2)
+
+#% subsection
+# Properties and relations
+
+#% cell
+inverse_fourier_transform(fourier_transform(exp(-t^2), t, w), w, t)
+#% output
+#= exp(-t^2)
+
+#% text
+# At a number the value is the integral:
+
+#% cell
+inverse_fourier_transform(1/(w^2 + 1), w, 0.5) - n_integrate(cos(0.5*w)/(w^2 + 1), [w, -inf, inf])/sqrt(2*pi)
+#% output
+#= -1.093990765754782e-7
+
+#% subsection
+# Possible issues
+
+#% text
+# An undefined function stays a call:
+
+#% cell
+inverse_fourier_transform(F(w), w, t)
+#% output
+#= inverse_fourier_transform(F(w), w, t)
+
+#% section
+# See also
+
+#% text
+# `fourier_transform`, `inverse_fourier_sin_transform`, `inverse_fourier_cos_transform`

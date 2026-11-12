@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# permutation_order
+
+#% text
+# `permutation_order(p)`: the order of the permutation
+
+#% section
+# Details
+
+#% item
+# The order is the least common multiple of the cycle lengths.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutation_order(cycles([[1, 2, 3], [4, 5]]))
+#% output
+#= 6
+
+#% cell
+permutation_order(cycles([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10, 11, 12]]))
+#% output
+#= 35
+
+#% section
+# See also
+
+#% text
+# `permutation_cycle_type`, `permutation_power`

@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# nonnegative_rationals
+
+#% text
+# `nonnegative_rationals` is the domain of the rational numbers that are greater than or equal to 0.
+
+#% section
+# Details
+
+#% item
+# `element(x, nonnegative_rationals)` decides numbers and gives `element(x, rationals) and x >= 0` for a symbol.
+
+#% item
+# `reduce(eqs, x, nonnegative_rationals)` gives the rational roots that are not negative.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(2/3, nonnegative_rationals)
+#% output
+#= true
+
+#% cell
+element(pi, nonnegative_rationals)
+#% output
+#= false
+
+#% cell
+element(x, nonnegative_rationals)
+#% output
+#= element(x, rationals) and x >= 0
+
+#% cell
+reduce((2*x^2 - 1)*(4*x^2 - 1) == 0, x, nonnegative_rationals)
+#% output
+#= x == 1/2
+
+#% cell
+refine(element(x, nonnegative_reals), element(x, nonnegative_rationals))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `nonpositive_rationals`, `positive_rationals`, `rationals`

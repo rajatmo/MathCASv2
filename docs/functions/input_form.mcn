@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# input_form
+
+#% text
+# `input_form(x)` shows `x` in the input syntax, as text that reads back as the same term.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `input_form` stays around the value as a wrapper that changes only how it is shown.
+
+#% item
+# Values are already shown in the input syntax, so `input_form` matters where a front end typesets output.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+input_form(x + y^2)
+#% output
+#= x + y^2
+
+#% cell
+input_form([1/2, a*b])
+#% output
+#= [1/2, a*b]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `full_form` shows the plain calls instead:
+
+#% cell
+full_form(x + y^2)
+#% output
+#= add(x, pow(y, 2))
+
+#% section
+# See also
+
+#% text
+# `full_form`, `to_string`

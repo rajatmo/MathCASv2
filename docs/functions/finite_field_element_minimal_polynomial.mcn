@@ -1,0 +1,107 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_element_minimal_polynomial
+
+#% text
+# `finite_field_element_minimal_polynomial(a, x)` gives the minimal polynomial of the finite field element `a` over the prime field, in the variable `x`, with integer coefficients from 0 to `p - 1`.
+
+#% section
+# Details
+
+#% item
+# `finite_field_element_minimal_polynomial(a, x, k)` gives the minimal polynomial over the subfield with `p^k` elements (`k` dividing the degree of the field); its coefficients are elements of the field of `a`.
+
+#% item
+# The minimal polynomial is the product of `x - c` over the distinct conjugates `c = a^(p^i)`; its degree divides the degree of the field.
+
+#% item
+# `minimal_polynomial(a, x)` gives the same for an element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(2, 4)
+
+#% cell
+finite_field_element_minimal_polynomial(F([0, 1]), x)
+#% output
+#= 1 + x + x^4
+
+#% subsection
+# Scope
+
+#% text
+# An element of a subfield has a minimal polynomial of smaller degree:
+
+#% cell
+finite_field_element_minimal_polynomial(F([0, 1])^5, x)
+#% output
+#= 1 + x + x^2
+
+#% text
+# Over the subfield with 4 elements:
+
+#% cell
+finite_field_element_minimal_polynomial(F([0, 1]), x, 2)
+#% output
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^4), "Polynomial"), [0, 1, 1]) + x*finite_field_element(finite_field(2, &(1 + &1 + &1^4), "Polynomial"), [1]) + finite_field_element(finite_field(2, &(1 + &1 + &1^4), "Polynomial"), [1])*x^2
+
+#% subsection
+# Properties and relations
+
+#% text
+# The defining polynomial of a Conway field is the minimal polynomial of its generator:
+
+#% cell
+finite_field_element_minimal_polynomial(F([0, 1]), x) == conway_polynomial(2, 4, x)
+#% output
+#= true
+
+#% text
+# The minimal polynomial is the product of `x - c` over the conjugates `c = a^(5^i)`, here for an element of `F_(5^3)`; the difference expands to zero, and the element is a root:
+
+#% cell
+G = finite_field(5, 3)
+b = G([1, 2])
+m = finite_field_element_minimal_polynomial(b, x)
+[expand((x - b)*(x - b^5)*(x - b^25) - m), m /. x -> b]
+#% output
+#= [0, finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [])]
+
+#% text
+# Zero has the polynomial `x`, an element of the prime field a linear one:
+
+#% cell
+[finite_field_element_minimal_polynomial(G(0), x), finite_field_element_minimal_polynomial(G(3), x)]
+#% output
+#= [x, 2 + x]
+
+#% subsection
+# Possible issues
+
+#% text
+# The degree `k` of the subfield must divide the degree of the field (here 3); otherwise the call stays unevaluated:
+
+#% cell
+finite_field_element_minimal_polynomial(G([1, 2]), x, 2)
+#% output
+#= finite_field_element_minimal_polynomial(finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2]), x, 2)
+
+#% text
+# `k` equal to the degree of the field gives a linear polynomial `x - a`:
+
+#% cell
+finite_field_element_minimal_polynomial(G([1, 2]), x, 3)
+#% output
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [4, 3]) + x*finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1])
+
+#% section
+# See also
+
+#% text
+# `minimal_polynomial`, `finite_field_element_norm`, `finite_field_element_trace`, `conway_polynomial`

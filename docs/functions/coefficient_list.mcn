@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# coefficient_list
+
+#% text
+# `coefficient_list(p, x)` gives the list of the coefficients of `x^0`, `x^1`, ..., `x^degree(p, x)` in the polynomial `p`.
+
+#% text
+# `coefficient_list(p, [x, y, ...])` gives the nested lists for several variables.
+
+#% section
+# Details
+
+#% item
+# `p` is expanded first; missing powers have coefficient 0. The zero polynomial gives `[]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coefficient_list(x^3 - 2*x + 5, x)
+#% output
+#= [5, -2, 0, 1]
+
+#% cell
+coefficient_list((1 + x)^4, x)
+#% output
+#= [1, 4, 6, 4, 1]
+
+#% cell
+coefficient_list(a*x^2 + b, x)
+#% output
+#= [b, 0, a]
+
+#% subsection
+# Scope
+
+#% text
+# Two variables, with the first variable's powers outermost:
+
+#% cell
+coefficient_list(1 + x + x*y + y^2, [x, y])
+#% output
+#= [[1, 0, 1], [1, 1, 0]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The coefficients rebuild the polynomial:
+
+#% cell
+p = 3*x^3 - x + 7; c = coefficient_list(p, x); sum(c[k + 1]*x^k, [k, 0, 3]) == p
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `coefficient`, `degree`, `expand`

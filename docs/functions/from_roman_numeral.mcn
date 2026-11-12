@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# from_roman_numeral
+
+#% text
+# `from_roman_numeral(s)` gives the integer of the Roman numeral string `s` (subtractive pairs such as `XC` are understood, lower case too).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+from_roman_numeral("MCMXCIV")
+#% output
+#= 1994
+
+#% cell
+from_roman_numeral(roman_numeral(1234))
+#% output
+#= 1234
+
+#% cell
+from_roman_numeral(["XII", "XLII"])
+#% output
+#= [12, 42]
+
+#% section
+# See also
+
+#% text
+# `roman_numeral`, `from_digits`

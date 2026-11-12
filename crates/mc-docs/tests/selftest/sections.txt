@@ -1,0 +1,15 @@
+# Round 20: a place with an anchor (F1 on an option) and a typeset value selected and copied.
+size 1100 800
+theme light
+place plot#plot_range
+wait 20
+shot plot-range
+place apart
+wait 10
+clickvalue 1
+copy
+clip
+shot value-selected
+theme dark
+shot value-selected-dark
+quit

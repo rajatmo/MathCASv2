@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# temporal_data
+
+#% text
+# `temporal_data(values, times)`: the same container as `time_series` (same forms, properties and statistics)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+td = temporal_data([[1, 10], [2, 20], [4, 25]])
+
+#% cell
+td("Duration")
+#% output
+#= 15
+
+#% cell
+mean(td)
+#% output
+#= 7/3
+
+#% section
+# See also
+
+#% text
+# `mean`, `median`, `time_series`, `weighted_data`, `event_data`

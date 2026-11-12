@@ -1,0 +1,79 @@
+#! mathcas 2 notebook
+
+#% title
+# fresnel_f
+
+#% text
+# `fresnel_f(z)` gives the Fresnel auxiliary function `f(z)`.
+
+#% section
+# Details
+
+#% item
+# `f(z)` is `(1/2 - fresnel_s(z))*cos(pi*z^2/2) - (1/2 - fresnel_c(z))*sin(pi*z^2/2)` (DLMF 7.2.10); it decays like `1/(pi*z)` for large `z` and separates the oscillation of the Fresnel integrals from their slow approach to 1/2.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; `fresnel_f(0)` is 1/2.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fresnel_f(0)
+#% output
+#= 1/2
+
+#% cell
+fresnel_f(1.0)
+#% output
+#= 0.27989340037682287
+
+#% cell
+fresnel_f(3.0)
+#% output
+#= 0.10572078929768558
+
+#% subsection
+# Properties and relations
+
+#% text
+# The definition:
+
+#% cell
+fresnel_f(1.3) - ((0.5 - fresnel_s(1.3))*cos(pi*1.3^2/2) - (0.5 - fresnel_c(1.3))*sin(pi*1.3^2/2))
+#% output
+#= 0.0
+
+#% text
+# The large-argument behaviour `f(z)` close to `1/(pi*z)`:
+
+#% cell
+fresnel_f(4.0)*pi*4.0
+#% output
+#= 0.998828490135902
+
+
+#% text
+# Large arguments (the asymptotic series):
+
+#% cell
+[fresnel_f(10.0), fresnel_f(-7.0)]
+#% output
+#= [0.03183002141511776, 0.954532907453036]
+
+#% text
+# The derivative:
+
+#% cell
+d(fresnel_f(x), x)
+#% output
+#= -pi*x*fresnel_g(x)
+
+#% section
+# See also
+
+#% text
+# `fresnel_g`, `fresnel_s`, `fresnel_c`

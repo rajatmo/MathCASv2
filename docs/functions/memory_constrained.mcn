@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# memory_constrained
+
+#% text
+# `memory_constrained(e, b)` evaluates `e` allocating at most `b` bytes.
+
+#% section
+# Details
+
+#% item
+# The value is the value of `e` if evaluating it allocates at most `b` bytes; otherwise the evaluation is stopped (or its value dropped) and the value is `failure(limit, memory)`.
+
+#% item
+# `memory_constrained(e, b, fail)` evaluates `fail` instead of giving the failure.
+
+#% item
+# The bytes counted are those the evaluation adds to the heap, and the size of the value itself; the measure is coarse for small amounts.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+memory_constrained(range(100), 100, "too much memory")
+#% output
+#= "too much memory"
+
+#% cell
+memory_constrained(range(5), 10^6)
+#% output
+#= [1, 2, 3, 4, 5]
+
+#% section
+# See also
+
+#% text
+# `time_constrained`, `pause`

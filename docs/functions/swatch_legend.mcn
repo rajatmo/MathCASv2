@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# swatch_legend
+
+#% text
+# `swatch_legend([colours], [labels])` is a legend of colour swatches, for `plot_legends` and `legended`.
+
+#% section
+# Details
+
+#% item
+# In plots the entries take the plot's colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Beside a graphic:
+
+#% cell
+legended(graphics([red, disk(), blue, disk([2, 0])]), swatch_legend([red, blue], ["one", "two"]))
+#% output
+#= image("swatch_legend.files/swatch_legend-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# In a plot:
+
+#% cell
+plot([x, x^2], [x, 0, 1], plot_legends: swatch_legend(["a", "b"]))
+#% output
+#= image("swatch_legend.files/swatch_legend-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same entries as a line legend:
+
+#% cell
+legended(graphics(disk()), line_legend([black], ["disk"]))
+#% output
+#= image("swatch_legend.files/swatch_legend-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `line_legend`, `legended`

@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# string_pad
+
+#% text
+# `string_pad(s, n)` pads `s` with spaces on the right to `n` characters; `string_pad(s, n, pad)` pads with `pad`.
+# The option `side:` puts the padding on the `right` (default), the `left` or both sides (`center`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_join([string_pad("ab", 6), "|"])
+#% output
+#= "ab    |"
+
+#% cell
+string_pad("42", 6, "0", side: left)
+#% output
+#= "000042"
+
+#% cell
+string_pad("title", 11, "-", side: center)
+#% output
+#= "---title---"
+
+#% subsection
+# Scope
+
+#% text
+# A string already long enough is unchanged:
+
+#% cell
+string_pad("abcdef", 3)
+#% output
+#= "abcdef"
+
+#% section
+# See also
+
+#% text
+# `string_trim`, `pad_left`, `number_form`

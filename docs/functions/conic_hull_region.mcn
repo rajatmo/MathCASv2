@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# conic_hull_region
+
+#% text
+# `conic_hull_region([p, q1, ..., qk])`: the points p + sum t_i (q_i - p) with t_i >= 0; conic_hull_region([p], [v1, ...]) a cone of directions
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+c = conic_hull_region([[0, 0]], [[1, -1], [1, 1]])
+
+#% cell
+[region_member(c, [1, 0]), region_member(c, [-1, 0])]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

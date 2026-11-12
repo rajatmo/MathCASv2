@@ -1,0 +1,98 @@
+#! mathcas 2 notebook
+
+#% title
+# function_analytic
+
+#% text
+# `function_analytic(f, x)` gives `true` when `f` is analytic at every real `x`, `false` otherwise; `function_analytic([f, cond], x)` on the part where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# Functions with singularities (poles, branch points of roots and logarithms) are not analytic.
+
+#% item
+# Absolute values, floors and other functions that are only piecewise analytic leave the call unevaluated.
+
+#% item
+# Over the complexes, `tanh`, `sech`, `gudermannian` (poles where `cosh(u) == 0`), `coth`, `csch` (where `sinh(u) == 0`) and the inverse trigonometric and hyperbolic functions (branch cuts) are not analytic everywhere.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Sine and tangent:
+
+#% cell
+function_analytic(sin(x), x)
+#% output
+#= true
+
+#% cell
+function_analytic(tan(x), x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# On an interval without the poles:
+
+#% cell
+function_analytic([tan(x), -pi/2 < x and x < pi/2], x)
+#% output
+#= true
+
+#% text
+# Over the complexes:
+
+#% cell
+function_analytic(exp(x) + x, x, complexes)
+#% output
+#= true
+
+#% cell
+function_analytic(sqrt(x), x, complexes)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# `function_singularities` gives the singular points:
+
+#% cell
+function_singularities(tan(x), x)
+#% output
+#= cos(x) == 0
+
+#% text
+# Special functions that are entire, and the facts of the `assumptions:` option:
+
+#% cell
+[function_analytic(fresnel_c(x), x), function_analytic(log(x), x, assumptions: x > 0)]
+#% output
+#= [true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# A function with a removable singularity is not analytic where it is undefined, and an unknown function is taken to be analytic:
+
+#% cell
+[function_analytic(sin(x)/x, x), function_analytic(g(x), x), function_analytic(x^a, x)]
+#% output
+#= [false, true, false]
+
+#% section
+# See also
+
+#% text
+# `function_singularities`, `function_domain`

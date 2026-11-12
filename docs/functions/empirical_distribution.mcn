@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# empirical_distribution
+
+#% text
+# `empirical_distribution(data)` is the distribution that takes each value of `data` with the relative frequency it has in `data`.
+
+#% section
+# Details
+
+#% item
+# `empirical_distribution(weights -> data)` gives the values the given weights (normalized to total 1).
+
+#% item
+# `pdf`, `cdf`, `mean`, `variance`, `standard_deviation`, `quantile`, `median` and `random_variate` work on it; the variance is the population variance (division by the number of values).
+
+#% item
+# The distribution is an inert term; the data may be exact numbers or symbols that compare.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(empirical_distribution([1, 2, 2, 5]))
+#% output
+#= 5/2
+
+#% cell
+variance(empirical_distribution([1, 2, 2, 5]))
+#% output
+#= 9/4
+
+#% cell
+pdf(empirical_distribution([1, 2, 2, 5]), 2)
+#% output
+#= 1/2
+
+#% cell
+cdf(empirical_distribution([1, 2, 2, 5]), 3)
+#% output
+#= 3/4
+
+#% cell
+quantile(empirical_distribution([1, 2, 2, 5]), 3/4)
+#% output
+#= 2
+
+#% cell
+mean(empirical_distribution([1, 3] -> [10, 20]))
+#% output
+#= 35/2
+
+#% section
+# See also
+
+#% text
+# `pdf`, `cdf`, `quantile`, `random_variate`, `mean`

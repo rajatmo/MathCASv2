@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# permutation_support
+
+#% text
+# `permutation_support(p)`: the points the permutation moves
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutation_support(cycles([[2, 5], [7, 9, 8]]))
+#% output
+#= [2, 5, 7, 8, 9]
+
+#% cell
+permutation_support(cycles([]))
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `permutation_list`, `group_degree`

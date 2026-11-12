@@ -1,0 +1,445 @@
+Typing, new cells at the insertion point, line breaks, deletion and undo (design 2.7, 3.2, 3.5).
+
+=== typing at the insertion point creates an Input cell
+--- before
+‖
+--- keys
+"1+1"
+--- after
+#% cell
+1+1▮
+
+=== a cell typed between two Text cells is an Input cell
+--- before
+#% text
+# a
+
+‖
+#% text
+# b
+--- keys
+"x"
+--- after
+#% text
+# a
+
+#% cell
+x▮
+
+#% text
+# b
+
+=== a cell typed after a section joins the section
+--- before
+#% section
+# S
+
+#% text
+# t
+
+‖
+--- keys
+"y"
+--- after
+#% section
+# S
+
+#% text
+# t
+
+#% cell
+y▮
+--- groups
+{S t y}
+
+=== Alt+digit at an insertion point sets the style typing creates
+--- before
+‖
+--- keys
+Alt+4 "Intro"
+--- after
+#% section
+# Intro▮
+
+=== Return in an Input cell is a line break
+--- before
+#% cell
+f(x▮
+--- keys
+Enter "y"
+--- after
+#% cell
+f(x
+y▮
+
+=== Return in a Title or Section is a line break in the same cell
+--- before
+#% title
+# Big▮
+--- keys
+Enter "Two"
+--- after
+#% title
+# Big
+# Two▮
+
+=== Return at the end of an Item creates a new Item
+--- before
+#% item
+# first▮
+--- keys
+Enter "second"
+--- after
+#% item
+# first
+
+#% item
+# second▮
+
+=== Return inside an Item moves the rest into the new Item
+--- before
+#% item
+# ab▮cd
+--- keys
+Enter
+--- after
+#% item
+# ab
+
+#% item
+# ▮cd
+
+=== quotes in prose become curly, in input they stay straight
+--- before
+#% text
+# ▮
+--- keys
+"say \"hi\" it's"
+--- after
+#% text
+# say “hi” it’s▮
+
+=== quotes in input stay straight
+--- before
+#% cell
+▮
+--- keys
+"\"a\""
+--- after
+#% cell
+"a"▮
+
+=== Backspace and Delete
+--- before
+#% cell
+ab▮cd
+--- keys
+Backspace Delete
+--- after
+#% cell
+a▮d
+
+=== Backspace at the start of a cell does nothing
+--- before
+#% cell
+a
+
+#% cell
+▮b
+--- keys
+Backspace
+--- after
+#% cell
+a
+
+#% cell
+▮b
+
+=== Ctrl+Backspace deletes a word
+--- before
+#% cell
+alpha + beta▮
+--- keys
+Ctrl+Backspace
+--- after
+#% cell
+alpha + ▮
+
+=== typing replaces a text selection
+--- before
+#% cell
+a⟦bc⟧d
+--- keys
+"X"
+--- after
+#% cell
+aX▮d
+
+=== undo of typing is one unit per run
+--- before
+#% cell
+▮
+--- keys
+"abc" Ctrl+Z
+--- after
+#% cell
+▮
+
+=== a pause ends a typing run
+--- before
+#% cell
+▮
+--- keys
+"ab" Pause "cd" Ctrl+Z
+--- after
+#% cell
+ab▮
+
+=== a word after white space starts a new undo unit
+--- before
+#% cell
+▮
+--- keys
+"ab cd" Ctrl+Z
+--- after
+#% cell
+ab ▮
+
+=== undo of a cell created by typing removes the cell; redo brings it back
+--- before
+#% text
+# t
+
+‖
+--- keys
+"x" Ctrl+Z
+--- after
+#% text
+# t
+
+‖
+
+=== redo after undo
+--- before
+‖
+--- keys
+"x" Ctrl+Z Ctrl+Y
+--- after
+#% cell
+x▮
+
+=== a new edit clears redo
+--- before
+#% cell
+▮
+--- keys
+"a" Ctrl+Z "b" Ctrl+Y
+--- after
+#% cell
+b▮
+
+=== Tab indents, Shift+Tab outdents
+--- before
+#% cell
+⟦a
+b⟧
+--- keys
+Tab
+--- after
+#% cell
+    ⟦a
+    b⟧
+
+=== Shift+Tab outdents the selected lines
+--- before
+#% cell
+    ⟦a
+    b⟧
+--- keys
+Shift+Tab
+--- after
+#% cell
+⟦a
+b⟧
+
+=== typing with cells selected does nothing
+--- before
+#% cell ◆
+a
+--- keys
+"x"
+--- after
+#% cell ◆
+a
+
+=== Message cells are not editable
+--- before
+#% cell
+1 +
+#% output
+#! error▮
+--- keys
+"x"
+--- after
+#% cell
+1 +
+#% output
+#! error▮
+
+=== Ctrl+A selects the cell's content, then all cells
+--- before
+#% cell
+a▮b
+
+#% cell
+c
+--- keys
+Ctrl+A
+--- after
+#% cell
+⟦ab⟧
+
+#% cell
+c
+
+=== a second Ctrl+A selects every cell
+--- before
+#% cell
+a▮b
+
+#% cell
+c
+--- keys
+Ctrl+A Ctrl+A
+--- after
+#% cell ◆
+ab
+
+#% cell ◆
+c
+
+=== the reserved keys do nothing
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+9 Ctrl+J F7 Ctrl+0
+--- after
+#% cell
+a▮
+
+=== Esc name Esc inserts the alias's character
+--- before
+#% cell
+x = ▮
+--- keys
+Esc "a" Esc " + " Esc "inf" Esc " " Esc "->" Esc
+--- after
+#% cell
+x = α + ∞ →▮
+
+=== an unknown alias stays marked (in a code cell the mark is the editor's, not a character of the text)
+--- before
+#% cell
+▮
+--- keys
+Esc "nosuch" Esc
+--- after
+#% cell
+nosuch▮
+
+=== Backspace after the marker removes it
+--- before
+#% text
+# a▮
+--- keys
+Esc Backspace "b"
+--- after
+#% text
+# ab▮
+
+=== Alt+/ comments the selected lines of an input
+--- before
+#% cell
+⟦a = 1
+b⟧ = 2
+--- keys
+Alt+/
+--- after
+#% cell
+⟦# a = 1
+# b⟧ = 2
+
+=== Alt+/ again uncomments them
+--- before
+#% cell
+⟦# a = 1
+# b⟧ = 2
+--- keys
+Alt+/
+--- after
+#% cell
+⟦a = 1
+b⟧ = 2
+
+=== Alt+/ with a caret comments its line
+--- before
+#% cell
+x
+y▮
+--- keys
+Alt+/
+--- after
+#% cell
+x
+# y▮
+
+=== Ctrl+. from inside a name selects the name, then the enclosing expressions (design 3.4)
+--- before
+#% cell
+f(a▮a + b*c, d)
+--- keys
+Ctrl+.
+--- after
+#% cell
+f(⟦aa⟧ + b*c, d)
+
+=== Ctrl+. after b selects the product, then outwards to the cell
+--- before
+#% cell
+f(aa + b▮*c, d)
+--- keys
+Ctrl+. Ctrl+. Ctrl+. Ctrl+. Ctrl+. Ctrl+.
+--- after
+#% cell ◆
+f(aa + b*c, d)
+
+=== Ctrl+. in text selects the content, then the cell
+--- before
+#% text
+# some▮ words
+--- keys
+Ctrl+.
+--- after
+#% text
+# ⟦some words⟧
+
+=== Ctrl+Shift+B selects the brackets around the caret, then the next ones out
+--- before
+#% cell
+f(g(x▮), y)
+--- keys
+Ctrl+Shift+B Ctrl+Shift+B
+--- after
+#% cell
+f⟦(g(x), y)⟧
+
+=== Esc with a text selection does nothing
+--- before
+#% cell
+a⟦bc⟧
+--- keys
+Esc
+--- after
+#% cell
+a⟦bc⟧

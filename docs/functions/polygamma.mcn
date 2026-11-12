@@ -1,0 +1,210 @@
+#! mathcas 2 notebook
+
+#% title
+# polygamma
+
+#% text
+# `polygamma(n, x)` gives the `n`-th derivative of `digamma(x)`.
+
+#% section
+# Details
+
+#% item
+# `polygamma(0, x)` is `digamma(x)`; `polygamma(n, x)` is the `(n + 1)`-th derivative of `log(gamma(x))` (DLMF 5.15). The order `n` is an integer `n >= 0`; other orders stay unevaluated.
+
+#% item
+# At positive integers and half integers the values are exact, in terms of `zeta` values and `pi`; machine numbers, arbitrary-precision numbers and complex numbers give numerical values, with the reflection formula for negative real parts.
+
+#% item
+# At a non-positive integer the function has a pole and the call gives a `failure(pole, ...)`.
+
+#% item
+# `polygamma` is listable in both arguments. The derivative in `x` raises the order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polygamma(1, 1)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+polygamma(2, 1)
+#% output
+#= -2*zeta(3)
+
+#% cell
+polygamma(1, 2.5)
+#% output
+#= 0.49035775610023485
+
+#% cell
+polygamma(0, 3)
+#% output
+#= 3/2 - euler_gamma
+
+#% subsection
+# Scope
+
+#% text
+# Half integers, and integers beyond 1:
+
+#% cell
+polygamma(1, 1/2)
+#% output
+#= (1/2)*pi^2
+
+#% cell
+polygamma(2, 1/2)
+#% output
+#= -14*zeta(3)
+
+#% cell
+polygamma(2, 5)
+#% output
+#= -2*(-2035/1728 + zeta(3))
+
+#% text
+# 30 digits, and a complex argument at 30 digits:
+
+#% cell
+n(polygamma(3, 1/2), 30)
+#% output
+#= 97.4090910340024372364403326887051
+
+#% cell
+n(polygamma(5, 1 + 2*im), 30)
+#% output
+#= 0.8302018429081821536853593114435708 - 0.09532582584596955552140837821807758im
+
+#% text
+# A complex argument in machine precision:
+
+#% cell
+polygamma(1, 1.0 + 2.0*im)
+#% output
+#= 0.12493116214094462 - 0.4778255501472298im
+
+#% text
+# A negative argument:
+
+#% cell
+polygamma(1, -2.5)
+#% output
+#= 9.539246644989124
+
+#% text
+# Several orders at once:
+
+#% cell
+polygamma([1, 2, 3], 1.0)
+#% output
+#= [1.6449340668482264, -2.4041138063191885, 6.493939402266829]
+
+#% text
+# A high order, and a large argument:
+
+#% cell
+polygamma(100, 1.0)
+#% output
+#= -9.332621544394415e157
+
+#% cell
+polygamma(1, 1e10)
+#% output
+#= 1.00000000005e-10
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative raises the order:
+
+#% cell
+d(polygamma(2, x), x)
+#% output
+#= polygamma(3, x)
+
+#% text
+# `polygamma(1, x)` is the sum of `1/(x + k)^2` for `k >= 0`; the partial sum up to `k = 20000` misses a tail of about `1/20000`:
+
+#% cell
+polygamma(1, 2.0) - sum(1.0/(2 + k)^2, [k, 0, 20000])
+#% output
+#= 4.99937507707493e-5
+
+#% text
+# The recurrence `polygamma(1, x + 1) = polygamma(1, x) - 1/x^2`:
+
+#% cell
+polygamma(1, 3.0) - (polygamma(1, 2.0) - 1/4)
+#% output
+#= 5.551115123125783e-17
+
+#% text
+# The values at 1 are `zeta` values times a factorial, `polygamma(n, 1) = (-1)^(n + 1) n! zeta(n + 1)`:
+
+#% cell
+polygamma(3, 1.0) - 6*zeta(4)
+#% output
+#= 8.881784197001252e-16
+
+#% text
+# The reflection formula `polygamma(1, 1 - x) + polygamma(1, x) = pi^2/sin(pi x)^2`:
+
+#% cell
+polygamma(1, 0.3) + polygamma(1, 0.7) - pi^2/sin(pi*0.3)^2
+#% output
+#= 3.552713678800501e-15
+
+#% subsection
+# Possible issues
+
+#% text
+# A pole at a non-positive integer is reported as a failure:
+
+#% cell
+polygamma(1, -1)
+#% output
+#! failure(pole, polygamma(1, -1))
+
+#% text
+# A symbolic order, a non-integer order and negative orders stay unevaluated:
+
+#% cell
+polygamma(n, x)
+#% output
+#= polygamma(n, x)
+
+#% cell
+polygamma(1/2, 2.0)
+#% output
+#= polygamma(1/2, 2.0)
+
+#% cell
+polygamma(-1, 2.0)
+#% output
+#= 0.0
+
+#% text
+# Where the value is beyond the machine range the result is `-inf` or `indeterminate`; an arbitrary-precision value of the exact call, `n(polygamma(1000, 5/2), 20)`, gives the finite number `-1.8479726587272638e2169`:
+
+#% cell
+polygamma(1000, 2.5)
+#% output
+#= -inf
+
+#% cell
+polygamma(10^6, 2.5)
+#% output
+#= indeterminate
+
+#% section
+# See also
+
+#% text
+# `digamma`, `log_gamma`, `zeta`, `harmonic_number`

@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# alternating_factorial
+
+#% text
+# `alternating_factorial(m)` gives m! - (m - 1)! + (m - 2)! - ... +- 1!.
+
+#% section
+# Details
+
+#% item
+# At inexact m the value is the continuation `e gamma(m + 2) gamma(-m - 1, 1) - cos(pi m) (1 + e exp_integral_ei(-1))`, which satisfies a(m) + a(m - 1) = m!.
+
+#% item
+# Lists are mapped element-wise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+table(alternating_factorial(k), [k, 10])
+#% output
+#= [1, 1, 5, 19, 101, 619, 4421, 35899, 326981, 3301819]
+
+#% cell
+alternating_factorial(35)
+#% output
+#= 10046343320261587490171853861825564422981
+
+#% cell
+alternating_factorial(1.2)
+#% output
+#= 1.012247779036864
+
+#% section
+# See also
+
+#% text
+# `factorial`, `subfactorial`, `gamma`

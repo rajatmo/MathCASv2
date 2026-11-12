@@ -1,0 +1,126 @@
+#! mathcas 2 notebook
+
+#% title
+# function_injective
+
+#% text
+# `function_injective(f, x)` gives `true` when `f` takes no value twice on its domain and `false` when it does.
+
+#% section
+# Details
+
+#% item
+# A function whose derivative has one sign on its domain is injective; two equal values found among samples of the domain prove that it is not.
+
+#% item
+# `function_injective([f, cond], x)` restricts the domain.
+
+#% item
+# When neither is shown the call stays unevaluated.
+
+#% item
+# Samples that are equal in machine arithmetic for a function that saturates (`logistic_sigmoid` at 40) are compared again at 40 digits.
+
+#% item
+# Maps of several variables or components, and polynomials with parameters, are decided by the cylindrical decomposition (`f(x1) == f(x2)` implies `x1 == x2`); a scalar polynomial with parameters is injective where its derivative has one strict sign. Over the complexes a function with a period is not injective.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential:
+
+#% cell
+function_injective(e^x, x)
+#% output
+#= true
+
+#% text
+# A cubic with a local maximum and minimum:
+
+#% cell
+function_injective(x^3 - x, x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# The same cubic beyond its minimum:
+
+#% cell
+function_injective([x^3 - x, x > 1], x)
+#% output
+#= true
+
+#% text
+# A parabola:
+
+#% cell
+function_injective(x^2, x)
+#% output
+#= false
+
+#% cell
+function_injective([x^2, x >= 0], x)
+#% output
+#= true
+
+#% subsection
+# Options
+
+#% text
+# A curve in the plane:
+
+#% cell
+[function_injective([x^2 + 2*x, x^3 - x], x), function_injective([x^2 + x, x^3 - x], x)]
+#% output
+#= [true, false]
+
+#% text
+# A parameter:
+
+#% cell
+function_injective(x^3 + a*x + b, x)
+#% output
+#= conditional_expression(true, element(a | b, reals) and a > 0)
+
+#% text
+# Over the complexes:
+
+#% cell
+[function_injective(exp(x), x, complexes), function_injective(log(x), x, complexes), function_injective([x^2, re(x) >= 0, im_part(y) != 0], x, y, complexes)]
+#% output
+#= [false, true, true]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A function with a derivative of one sign is monotonic:
+
+#% cell
+function_monotonicity(e^x, x)
+#% output
+#= 1
+
+#% subsection
+# Possible issues
+
+#% text
+# A function that is not known stays unevaluated; a step function repeats its values and is not injective:
+
+#% cell
+[function_injective(g(x), x), function_injective(floor(x), x)]
+#% output
+#= [function_injective(g(x), x), false]
+
+#% section
+# See also
+
+#% text
+# `function_monotonicity`, `function_sign`

@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# full_form
+
+#% text
+# `full_form(x)` shows `x` with every part written as a plain call: `x + y^2` as `add(x, pow(y, 2))`.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `full_form` stays around the value as a wrapper that changes only how it is shown.
+
+#% item
+# It shows the structure functions such as `part`, `head` and `level` work on.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+full_form(x + y^2)
+#% output
+#= add(x, pow(y, 2))
+
+#% cell
+full_form([1, a*b])
+#% output
+#= list(1, mul(a, b))
+
+#% subsection
+# Scope
+
+#% text
+# Divisions and the exponential:
+
+#% cell
+full_form(a/b)
+#% output
+#= mul(a, pow(b, -1))
+
+#% cell
+full_form(exp(x))
+#% output
+#= pow(e, x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `head` gives the outermost call shown:
+
+#% cell
+head(x + y^2)
+#% output
+#= add
+
+#% section
+# See also
+
+#% text
+# `input_form`, `head`, `level`, `to_string`

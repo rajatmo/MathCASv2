@@ -1,0 +1,30 @@
+# Binomials x^m (a + b x^n)^p (translated from Rubi sections 1.1.1.1, 1.1.3.1 and 1.1.3.2, MIT). The cases with an
+# elementary antiderivative are Chebyshev's three (p, (m + 1)/n or (m + 1)/n + p an integer); they are reduced
+# to linear radicals, which the substitution of src/methods.rs makes rational. Otherwise the answer is a Gauss
+# hypergeometric function (Abramowitz and Stegun 15.3.1 integrated term by term).
+
+## 1.1.3 positive integer powers: expanded
+int(x^m_.*(a_ + b_.*x^n_.)^p_) := int(expand(x^m*(a + b*x^n)^p)) when free(a, b, m, n) and integer(p) and p > 1
+int((a_ + b_.*x^n_)^p_) := int(expand((a + b*x^n)^p)) when free(a, b, n) and integer(p) and p > 1
+
+## 1.1.3.2 the second case of Chebyshev: (m + 1)/n an integer, u = x^n
+int(x^m_.*(a_ + b_.*x^n_)^p_) := 1/n*subst(int(x^((m + 1)/n - 1)*(a + b*x)^p), x^n)
+    when free(a, b, m, n, p) and ne(n, 1) and integer((m + 1)/n) and not integer(p)
+int(x^m_*(a_ + b_.*x)^p_) := 1/b^(m + 1)*subst(int((x - a)^m*x^p), a + b*x)
+    when free(a, b, p) and integer(m) and m > 0 and not integer(p)
+
+## 1.1.3.2 the third case of Chebyshev: (m + 1)/n + p an integer, x^(n p) taken out
+int(x^m_.*(a_ + b_.*x^n_)^p_) := int(x^(m + n*p)*(b + a*x^(-n))^p)
+    when free(a, b, m, n, p) and rational(m, n, p) and not integer(p) and not integer((m + 1)/n) and integer((m + 1)/n + p)
+int((a_ + b_.*x^n_)^p_) := int(x^(n*p)*(b + a*x^(-n))^p)
+    when free(a, b, n, p) and rational(n, p) and not integer(p) and not integer(1/n) and integer(1/n + p)
+
+## 1.1.3.1 (a + b x^n)^p and x^m (a + b x^n)^p otherwise: a hypergeometric function
+int((a_ + b_.*x^n_)^p_) := a^p*x*hypergeometric_2f1(-p, 1/n, 1/n + 1, -b*x^n/a)
+    when free(a, b, n, p) and ne(n, 1) and ne(n, -1) and not integer(p) and a > 0 and not (rational(n, p) and integer(1/n + p))
+int((a_ + b_.*x^n_)^p_) := a^int_part(p)*(a + b*x^n)^frac_part(p)/(1 + b*x^n/a)^frac_part(p)*int((1 + b*x^n/a)^p)
+    when free(a, b, n, p) and ne(n, 1) and ne(n, -1) and not integer(p) and not (a > 0) and not (rational(n, p) and integer(1/n + p))
+int(x^m_.*(a_ + b_.*x^n_.)^p_) := a^p*x^(m + 1)/(m + 1)*hypergeometric_2f1(-p, (m + 1)/n, (m + 1)/n + 1, -b*x^n/a)
+    when free(a, b, m, n, p) and ne(m, -1) and not integer(p) and a > 0 and not integer((m + 1)/n) and not (rational(m, n, p) and integer((m + 1)/n + p))
+int(x^m_.*(a_ + b_.*x^n_.)^p_) := a^int_part(p)*(a + b*x^n)^frac_part(p)/(1 + b*x^n/a)^frac_part(p)*int(x^m*(1 + b*x^n/a)^p)
+    when free(a, b, m, n, p) and ne(m, -1) and not integer(p) and not (a > 0) and ne(a, 1) and not integer((m + 1)/n) and not (rational(m, n, p) and integer((m + 1)/n + p))

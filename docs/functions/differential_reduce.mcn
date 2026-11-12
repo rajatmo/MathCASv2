@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# differential_reduce
+
+#% text
+# `differential_reduce(p, ps, u, x)` gives the full remainder of the differential polynomial `p` with respect to the differential polynomials `ps` in the functions `u` of `x`: proper derivatives of the leaders of `ps` are eliminated with the derivatives of `ps` (multiplying by separants), then the degrees in the leaders are lowered by pseudo-division (multiplying by initials).
+
+#% section
+# Details
+
+#% item
+# The remainder is defined up to a factor of the base field. For a regular differential chain `ps` it is 0 exactly when `p` lies in the differential ideal of `ps` saturated by their initials and separants (Ritt; Kolchin, Differential Algebra and Algebraic Groups, I.9).
+
+#% item
+# The ranking is `ranking: orderly` (the default) or `ranking: elimination`, as for `differential_leader`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differential_reduce(y''(x), [y'(x)^2 - 4*y(x)], y, x)
+#% output
+#= y'(x)
+
+#% cell
+differential_reduce(y'(x)^3, [y'(x)^2 - 4*y(x)], y, x)
+#% output
+#= y(x)*y'(x)
+
+#% text
+# A member of the differential ideal reduces to 0:
+
+#% cell
+differential_reduce(d(y'(x)^2 - 4*y(x), x, x), [y'(x)^2 - 4*y(x)], y, x)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `delta_polynomial`, `rosenfeld_groebner`, `differential_leader`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# count_distinct_by
+
+#% text
+# `count_distinct_by(xs, f)` gives the number of distinct values of `f(x)` over the elements of `xs` (the values of an association). `count_distinct_by(f)(xs)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count_distinct_by([[a, x], [a, y], [b, z]], first)
+#% output
+#= 2
+
+#% cell
+count_distinct_by([1, 2, 3, -2, -3], abs)
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `count_distinct`, `count_by`

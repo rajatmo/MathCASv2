@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# dimensional_mesh_components
+
+#% text
+# `dimensional_mesh_components(m)`: the cells of each dimension of a mesh region as mesh regions, lowest dimension first
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dimensional_mesh_components(mesh_region([[1, 0], [2, 0], [3, -1/2], [3, 1/2]], [line([1, 2]), polygon([2, 3, 4])]))
+#% output
+#= [empty_region(2), mesh_region([[1.0, 0.0], [2.0, 0.0]], [line([[1, 2]])]), mesh_region([[2.0, 0.0], [3.0, -0.5], [3.0, 0.5]], [polygon([[1, 2, 3]])])]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

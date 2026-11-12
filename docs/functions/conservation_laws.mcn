@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# conservation_laws
+
+#% text
+# `conservation_laws(eq, u, x)` gives the conservation laws of the differential equation `eq` from its multipliers. For an ordinary differential equation each is `[Lambda, Phi]` with `Lambda eq == D_x Phi`, so `Phi` is a first integral. For an evolution equation `u_t == F` in `[x, t]` each is `[Lambda, T, X]`: on the solutions `D_t T + D_x X == 0`, with the density `T` and the flux `X`.
+
+#% section
+# Details
+
+#% item
+# The multipliers come from `conservation_law_multipliers` (with the same options `order: q` and `degree: d`). The density is the homotopy integral `T = integrate(u Lambda(x, t, s u, s u_x, ...), [s, 0, 1])`; the flux and a first integral are found by integrating a total derivative, the highest derivative first.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The first conservation laws of the Korteweg-de Vries equation:
+
+#% cell
+conservation_laws(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t])
+#% output
+#= [[u(x, t), (1/2)*u(x, t)^2, (-1/2)*derivative(1, 0)(u)(x, t)^2 + (1/3)*u(x, t)^3 + u(x, t)*derivative(2, 0)(u)(x, t)], [-x + t*u(x, t), -x*u(x, t) + (1/2)*t*u(x, t)^2, -x*derivative(2, 0)(u)(x, t) - (1/2)*t*derivative(1, 0)(u)(x, t)^2 - (1/2)*x*u(x, t)^2 + (1/3)*t*u(x, t)^3 + t*u(x, t)*derivative(2, 0)(u)(x, t) + derivative(1, 0)(u)(x, t)], [1, u(x, t), (1/2)*u(x, t)^2 + derivative(2, 0)(u)(x, t)]]
+
+#% text
+# First integrals of the harmonic oscillator:
+
+#% cell
+conservation_laws(y''(x) + y(x) == 0, y, x)
+#% output
+#= [[cos(x), cos(x)*y'(x) + sin(x)*y(x)], [sin(x), sin(x)*y'(x) - cos(x)*y(x)]]
+
+#% text
+# The energy of the anharmonic oscillator, from a multiplier linear in `y'`:
+
+#% cell
+conservation_laws(y''(x) + y(x)^3 == 0, y, x, order: 1, degree: 1)
+#% output
+#= [[y'(x), (1/4)*y(x)^4 + (1/2)*y'(x)^2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The laws hold on the soliton `3 sech((x - t)/2)^2` of the equation:
+
+#% cell
+map(l => n(rewrite(rewrite(d(l[2], t) + d(l[3], x), u -> ((x, t) => 3*sech((x - t)/2)^2)), [x -> 0.3, t -> 0.7])), conservation_laws(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t]))
+#% output
+#= [8.881784197001252e-16, 4.440892098500626e-16, 0.0]
+
+#% section
+# See also
+
+#% text
+# `conservation_law_multipliers`, `lie_point_symmetries`

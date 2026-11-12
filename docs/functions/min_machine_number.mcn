@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# min_machine_number
+
+#% text
+# `min_machine_number` is the smallest positive machine number of full precision, `2^-1022`.
+
+#% section
+# Details
+
+#% item
+# It is 2.2250738585072014e-308.
+
+#% item
+# Smaller positive numbers are subnormal and have fewer significant digits.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+min_machine_number
+#% output
+#= 2.2250738585072014e-308
+
+#% cell
+min_machine_number*machine_epsilon > 0.
+#% output
+#= true
+
+#% cell
+1/min_machine_number
+#% output
+#= 4.49423283715579e307
+
+#% section
+# See also
+
+#% text
+# `machine_epsilon`, `machine_precision`

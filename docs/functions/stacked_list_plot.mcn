@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# stacked_list_plot
+
+#% text
+# `stacked_list_plot([data1, data2, ...])` draws data sets stacked on one another, the bands between them filled.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+stacked_list_plot([[3, 2, 1, 6, 4, 7], [7, 8, 8, 3, 5, 9], [2, 2, 3, 3, 4, 4]])
+#% output
+#= image("stacked_list_plot.files/stacked_list_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_line_plot`

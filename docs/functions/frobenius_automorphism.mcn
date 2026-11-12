@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# frobenius_automorphism
+
+#% text
+# `frobenius_automorphism(a)` gives `a^p` for an element `a` of a finite field of characteristic `p`.
+
+#% section
+# Details
+
+#% item
+# `frobenius_automorphism(a, k)` gives `a^(p^k)`; `k` is taken modulo the degree `n` of the field, so `k = n` gives `a` back.
+
+#% item
+# The Frobenius automorphism generates the Galois group of `F_(p^n)` over `F_p`; its fixed points are the prime field.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(3, 3)
+
+#% cell
+a = F([1, 0, 2])
+
+#% cell
+frobenius_automorphism(a)
+#% output
+#= finite_field_element(finite_field(3, &(1 + 2*&1 + &1^3), "Polynomial"), [0, 2, 2])
+
+#% subsection
+# Scope
+
+#% text
+# Powers of the Frobenius:
+
+#% cell
+table(frobenius_automorphism(a, k), k, range(0, 3))
+#% output
+#= [finite_field_element(finite_field(3, &(1 + 2*&1 + &1^3), "Polynomial"), [1, 0, 2]), finite_field_element(finite_field(3, &(1 + 2*&1 + &1^3), "Polynomial"), [0, 2, 2]), finite_field_element(finite_field(3, &(1 + 2*&1 + &1^3), "Polynomial"), [0, 1, 2]), finite_field_element(finite_field(3, &(1 + 2*&1 + &1^3), "Polynomial"), [1, 0, 2])]
+
+#% subsection
+# Properties and relations
+
+#% text
+# It is multiplicative and fixes the prime field:
+
+#% cell
+b = F(11)
+
+#% cell
+[frobenius_automorphism(a * b) == frobenius_automorphism(a) * frobenius_automorphism(b), frobenius_automorphism(F(2)) == F(2)]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `finite_field_element_trace`, `finite_field_element_norm`, `finite_field_embedding`

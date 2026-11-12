@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# hexadecimal_character
+
+#% text
+# `hexadecimal_character` is a string pattern for one hexadecimal digit (0-9, a-f, A-F).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("0x1Fz", repeated(hexadecimal_character))
+#% output
+#= ["0", "1F"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# graphics_column
+
+#% text
+# `graphics_column([g1, g2, ...])` is one graphic with the graphics (or plots) one above the other.
+
+#% section
+# Details
+
+#% item
+# The value is a `graphics` term holding the parts as insets.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two plots:
+
+#% cell
+graphics_column([plot(sin(x), [x, 0, 6]), plot(cos(x), [x, 0, 6])])
+#% output
+#= image("graphics_column.files/graphics_column-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Graphics of different sizes:
+
+#% cell
+graphics_column([graphics(disk(), image_size: 100), graphics(rectangle([0, 0], [3, 1]))])
+#% output
+#= image("graphics_column.files/graphics_column-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as a grid of one column:
+
+#% cell
+graphics_column([graphics(disk()), graphics(circle())])
+#% output
+#= image("graphics_column.files/graphics_column-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics_row`, `graphics_grid`, `grid`

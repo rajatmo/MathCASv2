@@ -1,0 +1,123 @@
+#! mathcas 2 notebook
+
+#% title
+# Simplification and assumptions
+
+#% text
+# `simplify` and `full_simplify` look for a simpler form of an expression, `expand` and `factor` give the two standard shapes of a polynomial, and `assuming` tells them facts about the symbols (a variable is positive, an integer) so that more identities hold.
+
+#% section
+# Choosing a form
+
+#% cell
+expand((x + 1)^4)
+#% output
+#= 1 + 4*x + 6*x^2 + 4*x^3 + x^4
+
+#% cell
+factor(x^4 - 1)
+#% output
+#= (-1 + x)*(1 + x)*(1 + x^2)
+
+#% cell
+simplify((x^2 - 1)/(x - 1))
+#% output
+#= 1 + x
+
+#% cell
+simplify(sin(x)^2 + cos(x)^2)
+#% output
+#= 1
+
+#% cell
+simplify(sin(x)^2 + cos(x)^2 + gamma(x + 1)/gamma(x))
+#% output
+#= 1 + x
+
+#% text
+# `simplify` has no options: it picks the form with the fewest leaves, and already applies many identities of special functions. `full_simplify` is the wider search: it also tries more expansions and identities between functions, and may take longer. On these two examples they agree; try `full_simplify` when `simplify` leaves a form you do not like.
+
+#% cell
+[simplify(x*gamma(x)), full_simplify(x*gamma(x))]
+#% output
+#= [gamma(1 + x), gamma(1 + x)]
+
+#% cell
+e = csc(pi*v)*(bessel_i(-v, z) - bessel_i(v, z))/2; [simplify(e), full_simplify(e)]
+#% output
+#= [bessel_k(v, z)/pi, bessel_k(v, z)/pi]
+
+#% section
+# Assumptions
+
+#% text
+# Many identities hold only for some values: `sqrt(x^2)` is `x` only when `x` is not negative. Without a fact the engine leaves it alone.
+
+#% cell
+simplify(sqrt(x^2))
+#% output
+#= (x^2)^(1/2)
+
+#% cell
+assuming(x > 0, simplify(sqrt(x^2)))
+#% output
+#= x
+
+#% cell
+assuming(element(n, integers), simplify(sin(n*pi)))
+#% output
+#= 0
+
+#% cell
+refine(abs(x), x > 0)
+#% output
+#= x
+
+#% cell
+refine(abs(x), x < 0)
+#% output
+#= -x
+
+#% text
+# `assuming(facts, body)` adds the facts for the evaluation of `body`; `refine(e, facts)` rewrites a single expression.
+
+#% section
+# Special functions
+
+#% cell
+function_expand(gamma(n + 3)/gamma(n + 1))
+#% output
+#= (1 + n)*(2 + n)
+
+#% cell
+function_expand(bessel_j(1/2, x))
+#% output
+#= 2^(1/2)*sin(x)/(pi*x)^(1/2)
+
+#% section
+# Common mistakes
+
+#% item
+# `simplify` does not guess a domain: `sqrt(x^2)` stays until you say something about `x`.
+
+#% item
+# Equal expressions can have different shapes; "simplest" is a choice. Compare the forms of one polynomial.
+
+#% cell
+[expand((x - 1)*(x + 1)), factor(x^2 - 1)]
+#% output
+#= [-1 + x^2, (-1 + x)*(1 + x)]
+
+#% item
+# Assumptions apply only inside `assuming` (or in a `refine` call); they do not stay after it.
+
+#% cell
+assuming(x > 0, refine(abs(x))); refine(abs(x))
+#% output
+#= abs(x)
+
+#% section
+# Related functions
+
+#% text
+# `simplify`, `full_simplify`, `expand`, `factor`, `assuming`, `refine`, `function_expand`

@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# fold_pair_list
+
+#% text
+# `fold_pair_list(f, y, xs)` folds `f` over `xs` where `f(y, x)` gives a pair `[out, y']`: the list of the outputs, the state passed on.
+
+#% text
+# `fold_pair_list(f, y, xs, g)` gives `g([out, y'])` instead of `out`; `fold_pair_list(f, xs)` starts from the first element.
+
+#% section
+# Details
+
+#% item
+# The result keeps the head of `xs`.
+
+#% item
+# An `f` that does not give a pair leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold_pair_list((y, x) => [p(y, x), q(y, x)], u, [1, 2, 3])
+#% output
+#= [p(u, 1), p(q(u, 1), 2), p(q(q(u, 1), 2), 3)]
+
+#% cell
+fold_pair_list(take_drop, [a, b, c, d, e, f], [1, 3, 2])
+#% output
+#= [[a], [b, c, d], [e, f]]
+
+#% cell
+fold_pair_list((y, x) => [quotient(y, x), mod(y, x)], 498, [100, 50, 20, 5, 1])
+#% output
+#= [4, 1, 2, 1, 3]
+
+#% subsection
+# Scope
+
+#% cell
+fold_pair_list(list, 0, [1, 2, 3], last)
+#% output
+#= [1, 2, 3]
+
+#% cell
+fold_pair_list((y, x) => [p(y, x), q(y, x)], [a, b, c])
+#% output
+#= [p(a, b), p(q(a, b), c)]
+
+#% cell
+fold_pair_list(f, y0, [])
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `fold_pair`, `fold_list`, `fold`

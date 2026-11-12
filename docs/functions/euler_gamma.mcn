@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# euler_gamma
+
+#% text
+# `euler_gamma` is Euler's constant `gamma = 0.5772...`, the limit of `1 + 1/2 + ... + 1/n - log(n)`.
+
+#% section
+# Details
+
+#% item
+# `euler_gamma` is exact and known to be a positive real; `n(euler_gamma, d)` gives `d` digits, computed by the Brent-McMillan method.
+
+#% item
+# It appears in special values such as `digamma(1) = -euler_gamma`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+euler_gamma
+#% output
+#= euler_gamma
+
+#% cell
+n(euler_gamma, 40)
+#% output
+#= 0.57721566490153286060651209008240243104215934
+
+#% cell
+digamma(1)
+#% output
+#= -euler_gamma
+
+#% subsection
+# Properties and relations
+
+#% text
+# The slow limit of the harmonic numbers minus the logarithm; the difference is about `1/(2n)`:
+
+#% cell
+n(harmonic_number(1000) - log(1000)) - n(euler_gamma)
+#% output
+#= 0.0004999166666753707
+
+#% text
+# The derivative of `gamma` at 1:
+
+#% cell
+d(gamma(x), x) /. x -> 1
+#% output
+#= -euler_gamma
+
+#% section
+# See also
+
+#% text
+# `digamma`, `harmonic_number`, `e`, `pi`

@@ -1,0 +1,28 @@
+# Exponentials times powers of sines and cosines (translated from Rubi section 4.7.7, MIT).
+
+## 4.7.7 exp(a + b x) sin(c + d x)^n, exp(a + b x) cos(c + d x)^n
+int(exp(a_. + b_.*x)*sin(c_. + d_.*x)) := exp(a + b*x)*(b*sin(c + d*x) - d*cos(c + d*x))/(b^2 + d^2) when free(a, b, c, d) and ne(b^2 + d^2, 0)
+int(exp(a_. + b_.*x)*cos(c_. + d_.*x)) := exp(a + b*x)*(b*cos(c + d*x) + d*sin(c + d*x))/(b^2 + d^2) when free(a, b, c, d) and ne(b^2 + d^2, 0)
+int(exp(a_. + b_.*x)*sin(c_. + d_.*x)^n_) := b*exp(a + b*x)*sin(c + d*x)^n/(b^2 + d^2*n^2) - d*n*exp(a + b*x)*cos(c + d*x)*sin(c + d*x)^(n - 1)/(b^2 + d^2*n^2)
+        + n*(n - 1)*d^2/(b^2 + d^2*n^2)*int(exp(a + b*x)*sin(c + d*x)^(n - 2))
+    when free(a, b, c, d) and n > 1 and ne(b^2 + d^2*n^2, 0)
+int(exp(a_. + b_.*x)*cos(c_. + d_.*x)^n_) := b*exp(a + b*x)*cos(c + d*x)^n/(b^2 + d^2*n^2) + d*n*exp(a + b*x)*sin(c + d*x)*cos(c + d*x)^(n - 1)/(b^2 + d^2*n^2)
+        + n*(n - 1)*d^2/(b^2 + d^2*n^2)*int(exp(a + b*x)*cos(c + d*x)^(n - 2))
+    when free(a, b, c, d) and n > 1 and ne(b^2 + d^2*n^2, 0)
+
+## 8.8 polylogarithms: polylog(n, a x^q)/x, x^m polylog(n, a x) by parts (d/dx polylog(n, a x) = polylog(n - 1, a x)/x)
+int(polylog(n_, a_.*x^q_.)*x^(-1)) := polylog(n + 1, a*x^q)/q when free(a, n, q)
+int(polylog(n_, a_.*x^q_.)) := x*polylog(n, a*x^q) - q*int(polylog(n - 1, a*x^q)) when free(a, n, q) and n > 0
+int(x^m_.*polylog(n_, a_.*x^q_.)) := x^(m + 1)*polylog(n, a*x^q)/(m + 1) - q/(m + 1)*int(x^m*polylog(n - 1, a*x^q))
+    when free(a, m, n, q) and ne(m, -1) and n > 0
+int(polylog(n_, c_.*(a_. + b_.*x))) := (a + b*x)*polylog(n, c*(a + b*x))/b - int(polylog(n - 1, c*(a + b*x))) when free(a, b, c, n) and n > 0 and ne(a, 0)
+
+## 8.7 the Hurwitz zeta function: d/dq zeta(s, q) = -s zeta(s + 1, q)
+int(zeta(s_, a_. + b_.*x)) := -zeta(s - 1, a + b*x)/(b*(s - 1)) when free(a, b, s) and ne(s, 1) and ne(s, 2)
+int(zeta(2, a_. + b_.*x)) := polygamma(1, a + b*x)/b when free(a, b)
+int(x^m_*zeta(s_, a_. + b_.*x)) := -x^m*zeta(s - 1, a + b*x)/(b*(s - 1)) + m/(b*(s - 1))*int(x^(m - 1)*zeta(s - 1, a + b*x))
+    when free(a, b, s) and ne(s, 1) and ne(s, 2) and integer(m) and m > 0
+int(x^m_*zeta(2, a_. + b_.*x)) := x^m*polygamma(1, a + b*x)/b - m/b*int(x^(m - 1)*polygamma(1, a + b*x)) when free(a, b) and integer(m) and m > 0
+int(x^m_.*polygamma(n_, a_. + b_.*x)) := x^m*polygamma(n - 1, a + b*x)/b - m/b*int(x^(m - 1)*polygamma(n - 1, a + b*x))
+    when free(a, b, n) and integer(m) and m > 0 and integer(n) and n > 0
+int(polygamma(n_, a_. + b_.*x)) := polygamma(n - 1, a + b*x)/b when free(a, b, n) and integer(n) and n > 0

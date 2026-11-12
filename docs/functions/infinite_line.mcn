@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# infinite_line
+
+#% text
+# `infinite_line([p1, p2]) or infinite_line(p, v)`: the line through two points, or through p in the direction v
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+l = infinite_line([[2, 2], [3, 3]])
+
+#% cell
+[region_distance(l, [0, 1]), region_bounds(l)]
+#% output
+#= [(1/2)*2^(1/2), [[-inf, inf], [-inf, inf]]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# key_sort_by
+
+#% text
+# `key_sort_by(a, f)` gives the association `a` (or the association of a list of rules) with its entries in the canonical order of `f(key)`. `key_sort_by(f)(a)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_sort_by(assoc(2 -> a, 3 -> b, 1 -> c), k => mod(k, 3))
+#% output
+#= assoc(3 -> b, 1 -> c, 2 -> a)
+
+#% cell
+key_sort_by(["aaa" -> 1, "ab" -> 2, "abcd" -> 3], string_length)
+#% output
+#= assoc("ab" -> 2, "aaa" -> 1, "abcd" -> 3)
+
+#% section
+# See also
+
+#% text
+# `key_sort`, `sort_by`

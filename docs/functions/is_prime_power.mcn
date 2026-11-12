@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# is_prime_power
+
+#% text
+# `is_prime_power(n)` gives `true` when `abs(n)` is `p^k` for a prime `p` and `k >= 1`.
+
+#% section
+# Details
+
+#% item
+# 1 is not a prime power; primes are.
+
+#% item
+# `is_prime_power` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_prime_power(8)
+#% output
+#= true
+
+#% cell
+is_prime_power(12)
+#% output
+#= false
+
+#% cell
+is_prime_power(7)
+#% output
+#= true
+
+#% cell
+is_prime_power(1)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# A large power:
+
+#% cell
+is_prime_power(3^101)
+#% output
+#= true
+
+#% text
+# The prime powers below 30:
+
+#% cell
+select(range(30), is_prime_power)
+#% output
+#= [2, 3, 4, 5, 7, 8, 9, 11, 13, 16, 17, 19, 23, 25, 27, 29]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Exactly where `mangoldt_lambda` is not 0:
+
+#% cell
+select(range(30), k => mangoldt_lambda(k) != 0)
+#% output
+#= [2, 3, 4, 5, 7, 8, 9, 11, 13, 16, 17, 19, 23, 25, 27, 29]
+
+#% section
+# See also
+
+#% text
+# `is_prime`, `factor_integer`, `mangoldt_lambda`, `prime_nu`

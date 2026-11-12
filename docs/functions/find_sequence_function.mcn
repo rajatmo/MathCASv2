@@ -1,0 +1,71 @@
+#! mathcas 2 notebook
+
+#% title
+# find_sequence_function
+
+#% text
+# `find_sequence_function(xs, n)` gives a closed form `f(n)` with `f(1) = xs[1]`, `f(2) = xs[2]`, ...
+
+#% section
+# Details
+
+#% item
+# The search covers polynomials, polynomials divided by `n` or `n + 1`, and such expressions times `n!`, `fibonacci(n)`, `(-1)^n` or `c^n` for `c` = 2, 3, 4, 5; then sequences whose differences are geometric, `a + b r^n` with `r` a number or a symbol.
+
+#% item
+# At least two terms beyond those fixing the form must agree, so the list needs at least three terms.
+
+#% item
+# When nothing fits the result is `failure(no_sequence_function, xs)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_sequence_function([1, 1, 2, 3, 5, 8, 13], n)
+#% output
+#= fibonacci(n)
+
+#% cell
+find_sequence_function([2, 5, 10, 17, 26, 37, 50], n)
+#% output
+#= 1 + n^2
+
+#% cell
+find_sequence_function([2, 5/2, 10/3, 17/4, 26/5, 37/6, 50/7], n)
+#% output
+#= (1 + n^2)/n
+
+#% cell
+find_sequence_function([1, 2, 6, 24, 120, 720, 5040], n)
+#% output
+#= factorial(n)
+
+#% cell
+find_sequence_function([-1, 1, -1, 1, -1, 1], n)
+#% output
+#= (-1)^n
+
+#% cell
+find_sequence_function([2, 6, 12, 20, 30, 42], k)
+#% output
+#= k + k^2
+
+#% cell
+find_sequence_function([1 + a, 1 + a^2, 1 + a^3, 1 + a^4, 1 + a^5], n)
+#% output
+#= 1 + a^n
+
+#% cell
+find_sequence_function([2/3, 4/9, 8/27, 16/81, 32/243], n)
+#% output
+#= (2/3)^n
+
+#% section
+# See also
+
+#% text
+# `recurrence_table`, `interpolation`, `fit`

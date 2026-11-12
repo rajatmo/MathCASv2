@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_range
+
+#% text
+# `plot_range` is an option of graphics and plots that sets the region shown.
+# Its values are `[[x0, x1], [y0, y1]]`, `[y0, y1]` for the vertical range only, a number `r` for `y` from `-r` to `r`, or `automatic`. Any end may be `automatic`.
+
+#% section
+# Details
+
+#% item
+# Plots choose a range that shows the interesting part of the curves; `plot_range: all` shows every sampled point.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(1/x, [x, 0.01, 2], plot_range: [0, 10])
+#% output
+#= image("plot_range.files/plot_range-1.svgz")
+
+#% cell
+plot(tan(x), [x, -3, 3], plot_range: 5)
+#% output
+#= image("plot_range.files/plot_range-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Fix only one end:
+
+#% cell
+plot(exp(x), [x, 0, 3], plot_range: [0, automatic])
+#% output
+#= image("plot_range.files/plot_range-3.svgz")
+
+#% text
+# Both directions:
+
+#% cell
+graphics([circle()], plot_range: [[-2, 2], [-1.5, 1.5]])
+#% output
+#= image("plot_range.files/plot_range-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot_range_padding`, `plot`, `graphics`, `aspect_ratio`

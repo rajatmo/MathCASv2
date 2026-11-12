@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# key_value_pattern
+
+#% text
+# `key_value_pattern([p1, ..., pk])` is a pattern that matches an association, or a list of rules, having `k` distinct entries that match the rule patterns `p1`, ..., `pk`, in any order; `key_value_pattern(p)` is `key_value_pattern([p])`. Other entries may be present.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+match_q(assoc(a -> 1, b -> 2, c -> 3), key_value_pattern(b -> 2))
+#% output
+#= true
+
+#% cell
+rewrite(assoc(a -> 1, b -> 2, c -> 3), key_value_pattern([a -> x_, c -> y_]) :> [x, y])
+#% output
+#= [1, 3]
+
+#% cell
+cases([assoc("n" -> 1, "ok" -> true), assoc("n" -> 2)], key_value_pattern("ok" -> true))
+#% output
+#= [assoc("n" -> 1, "ok" -> true)]
+
+#% cell
+match_q([a -> 1], key_value_pattern([]))
+#% output
+#= true
+
+#% cell
+match_q(assoc(a -> 1), key_value_pattern(b -> _))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `assoc`, `match_q`, `cases`, `repeated`

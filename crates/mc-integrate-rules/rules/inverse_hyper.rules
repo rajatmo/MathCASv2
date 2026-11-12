@@ -1,0 +1,22 @@
+# Inverse hyperbolic functions times powers of x: integration by parts (translated from Rubi sections 7.1.2, 7.3.2
+# and 7.5.1, MIT).
+
+## 7.1.2 x^m asinh(c x)
+int(x^m_.*asinh(c_.*x)) := x^(m + 1)*asinh(c*x)/(m + 1) - c/(m + 1)*int(x^(m + 1)/sqrt(1 + c^2*x^2)) when free(c, m) and ne(m, -1)
+
+## 7.3.2 x^m atanh(c x), x^m acoth(c x)
+int(x^m_.*atanh(c_.*x)) := x^(m + 1)*atanh(c*x)/(m + 1) - c/(m + 1)*int(x^(m + 1)/(1 - c^2*x^2)) when free(c, m) and ne(m, -1)
+int(x^m_.*acoth(c_.*x)) := x^(m + 1)*acoth(c*x)/(m + 1) - c/(m + 1)*int(x^(m + 1)/(1 - c^2*x^2)) when free(c, m) and ne(m, -1)
+int(acoth(c_.*x)) := x*acoth(c*x) + log(1 - c^2*x^2)/(2*c) when free(c)
+
+## 7.5.1 x^m acsch(c x)
+int(acsch(c_.*x)) := x*acsch(c*x) + 1/c*int(1/(x*sqrt(1 + 1/(c^2*x^2)))) when free(c)
+int(x^m_.*acsch(c_.*x)) := x^(m + 1)*acsch(c*x)/(m + 1) + 1/(c*(m + 1))*int(x^(m - 1)/sqrt(1 + 1/(c^2*x^2))) when free(c, m) and ne(m, -1)
+
+## 7.1.5 x^m (a + b asinh(c x))^n, x^m (a + b acosh(c x))^n: x = sinh(t)/c, x = cosh(t)/c
+int(x^m_.*(a_. + b_.*asinh(c_.*x))^n_) := 1/c^(m + 1)*subst(int((a + b*x)^n*sinh(x)^m*cosh(x)), asinh(c*x))
+    when free(a, b, c, n) and integer(m) and m >= 0
+int(x^m_.*(a_. + b_.*acosh(c_.*x))^n_) := 1/c^(m + 1)*subst(int((a + b*x)^n*cosh(x)^m*sinh(x)), acosh(c*x))
+    when free(a, b, c, n) and integer(m) and m >= 0
+int((a_. + b_.*asinh(c_.*x))^n_) := 1/c*subst(int((a + b*x)^n*cosh(x)), asinh(c*x)) when free(a, b, c, n)
+int((a_. + b_.*acosh(c_.*x))^n_) := 1/c*subst(int((a + b*x)^n*sinh(x)), acosh(c*x)) when free(a, b, c, n)

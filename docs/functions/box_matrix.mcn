@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# box_matrix
+
+#% text
+# `box_matrix(r)` gives the array of ones of size `2 r + 1` per dimension.
+
+#% section
+# Details
+
+#% item
+# A list of radii gives a different radius for each axis (a rectangle or a box).
+
+#% item
+# `box_matrix(r, d)` gives an array of the dimensions `d` with ones where every coordinate is within `r` of the centre.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+box_matrix(1)
+#% output
+#= [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+
+#% cell
+box_matrix([1, 2])
+#% output
+#= [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1], [1, 1, 1, 1, 1]]
+
+#% cell
+box_matrix(1, [5, 5])
+#% output
+#= [[0, 0, 0, 0, 0], [0, 1, 1, 1, 0], [0, 1, 1, 1, 0], [0, 1, 1, 1, 0], [0, 0, 0, 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `disk_matrix`, `diamond_matrix`, `cross_matrix`, `constant_array`

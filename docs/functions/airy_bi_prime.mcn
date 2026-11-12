@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# airy_bi_prime
+
+#% text
+# `airy_bi_prime(x)` gives the derivative `Bi'(x)` of the Airy function.
+
+#% section
+# Details
+
+#% item
+# `airy_bi_prime(0)` is `3^(1/6)/gamma(1/3)`. Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# Its derivative is `x*airy_bi(x)` (DLMF 9.2.1).
+
+#% item
+# `airy_bi_prime` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+airy_bi_prime(0)
+#% output
+#= 3^(1/6)/gamma(1/3)
+
+#% cell
+airy_bi_prime(1.0)
+#% output
+#= 0.9324359333927756
+
+#% cell
+airy_bi_prime(-3.0)
+#% output
+#= -0.6756112226852585
+
+#% cell
+n(airy_bi_prime(1), 30)
+#% output
+#= 0.9324359333927756329594514536744353
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(airy_bi_prime(x), x)
+#% output
+#= x*airy_bi(x)
+
+#% section
+# See also
+
+#% text
+# `airy_bi`, `airy_ai_prime`, `airy_ai`

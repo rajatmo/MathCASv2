@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# binary_read_list
+
+#% text
+# `binary_read_list(file, type, count)`: the values of a binary file (or of a `byte_array`) as a list. Types: "Byte" (default), "Character8", "Integer8" to "Integer64", "UnsignedInteger8" to "UnsignedInteger64", "Real32", "Real64", or a list of types read in turn; little endian unless `byte_order: 1`
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+binary_read_list(byte_array([1, 2, 255, 0]), "Integer16")
+#% output
+#= [513, 255]
+
+#% cell
+binary_read_list(byte_array([65, 66, 67]), "Character8", 2)
+#% output
+#= ["A", "B"]
+
+#% cell
+binary_read_list(byte_array([1, 2, 3, 4, 5, 6]), ["Byte", "Integer16"])
+#% output
+#= [[1, 770], [4, 1541]]
+
+#% cell
+f = string_join(temporary_directory(), "binary_read_list_demo.bin"); binary_write(f, [1.5, 2.5], "Real32"); binary_read_list(f, "Real32")
+#% output
+#= [1.5, 2.5]
+
+#% section
+# See also
+
+#% text
+# `byte_array`, `binary_write`, `import_data`

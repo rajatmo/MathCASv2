@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# lighter
+
+#% text
+# `lighter(c)` gives the colour c a third of the way to white.
+
+#% text
+# `lighter(c, f)` gives c a fraction f of the way to white, f between 0 and 1.
+
+#% section
+# Details
+
+#% item
+# The opacity of c is kept.
+
+#% item
+# `lighter(c, f)` is `blend([c, white], f)` with c's opacity.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A lighter red:
+
+#% cell
+lighter(red)
+#% output
+#= rgb_color(1, 1/3, 1/3)
+
+#% text
+# Black half way to white:
+
+#% cell
+lighter(black, 0.5)
+#% output
+#= rgb_color(0.5, 0.5, 0.5)
+
+#% subsection
+# Applications
+
+#% text
+# A fill lighter than its edge:
+
+#% cell
+graphics([face_form(lighter(blue, 0.7)), edge_form(blue), disk()])
+#% output
+#= image("lighter.files/lighter-3.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# The fraction is at most 1:
+
+#% cell
+lighter(red, 2)
+#% output
+#= rgb_color(1, 1, 1)
+
+#% section
+# See also
+
+#% text
+# `darker`, `blend`

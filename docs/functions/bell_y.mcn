@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# bell_y
+
+#% text
+# `bell_y(n, k, xs)` gives the partial Bell polynomial B(n, k) in the variables `xs`; `bell_y(n, xs)` the complete Bell polynomial.
+
+#% section
+# Details
+
+#% item
+# B(n, k) sums n!/(prod (j!)^m_j m_j!) x_1^m_1 x_2^m_2 ... over the partitions of `n` into `k` parts (m_j parts equal to j).
+
+#% item
+# With `xs = [1, 1, ...]` it gives the Stirling numbers of the second kind; with `xs = [0!, -1!, 2!, ...]` the Stirling numbers of the first kind.
+
+#% item
+# `bell_y(m)` for a matrix `m` of one column is the complete Bell polynomial `bell_y(n, x)` of that column; for rows `[a_i, x_i]` it is the sum over `k` of `a_k` times `bell_y(n, k, x)`: `bell_y(constant_array([1, z], n))` is the Touchard polynomial, the sum of `z^k` times the Stirling numbers of the second kind.
+
+#% item
+# It is computed with the recurrence B(n, k) = sum over i of binomial(n - 1, i - 1) x_i B(n - i, k - 1) and expanded.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bell_y(4, 2, [x1, x2, x3])
+#% output
+#= 3*x2^2 + 4*x1*x3
+
+#% cell
+bell_y(3, [x1, x2, x3])
+#% output
+#= x3 + 3*x1*x2 + x1^3
+
+#% cell
+bell_y([[x1], [x2], [x3]])
+#% output
+#= x3 + 3*x1*x2 + x1^3
+
+#% cell
+map(n => bell_y(constant_array([1, z], n)), range(1, 5))
+#% output
+#= [z, z + z^2, z + 3*z^2 + z^3, z + 7*z^2 + 6*z^3 + z^4, z + 15*z^2 + 25*z^3 + 10*z^4 + z^5]
+
+#% cell
+map(m => map(k => bell_y(m, k, constant_array(1, m)), range(0, m)), range(0, 5))
+#% output
+#= [[1], [0, 1], [0, 1, 1], [0, 1, 3, 1], [0, 1, 7, 6, 1], [0, 1, 15, 25, 10, 1]]
+
+#% cell
+bell_y(5, 3, [1, 1, 1, 1, 1]) == stirling_s2(5, 3)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `stirling_s2`, `stirling_s1`

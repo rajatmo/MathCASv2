@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# champernowne_number
+
+#% text
+# `champernowne_number(b)` is the number whose base-`b` digits after the point are the integers 1, 2, 3, ... written one after another; `champernowne_number()` is the base-10 number 0.123456789101112...
+
+#% section
+# Details
+
+#% item
+# `n(champernowne_number(b), p)` gives `p` digits; the number is irrational and transcendental.
+
+#% item
+# The call stays symbolic until `n` is applied.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+champernowne_number()
+#% output
+#= champernowne_number(10)
+
+#% cell
+n(champernowne_number(), 25)
+#% output
+#= 0.123456789101112131415161718192
+
+#% cell
+n(champernowne_number(3), 25)
+#% output
+#= 0.59895816753843399250017221793
+
+#% cell
+n(champernowne_number(2))
+#% output
+#= 0.8622401258680545
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `from_digits`, `real_digits`

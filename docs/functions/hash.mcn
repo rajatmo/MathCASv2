@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# hash
+
+#% text
+# `hash(e)` gives a 64-bit hash of the term `e`.
+
+#% text
+# `hash(e, method)` gives the digest of `e` by `method`; `hash(e, method, format)` in the given format.
+
+#% section
+# Details
+
+#% item
+# Methods: `"MD5"`, `"SHA"` (SHA-1), `"SHA224"`, `"SHA256"`, `"SHA384"`, `"SHA512"`, `"CRC32"`, `"Adler32"`, also written `["SHA", 256]`; `"Expression"` is the default 64-bit hash.
+
+#% item
+# A string is hashed as its UTF-8 bytes; another term as the UTF-8 bytes of `to_string(e)`, so equal terms have equal digests.
+
+#% item
+# Formats: `"Integer"` (the default, the digest as an unsigned integer), `"HexString"`, `"DecimalString"`, `"ByteList"` (the digest's bytes).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hash("The quick brown fox jumps over the lazy dog", "SHA256", "HexString")
+#% output
+#= "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"
+
+#% cell
+hash("abc", "MD5")
+#% output
+#= 191415658344158766168031473277922803570
+
+#% subsection
+# Scope
+
+#% cell
+hash("abc", "CRC32", "HexString")
+#% output
+#= "352441c2"
+
+#% cell
+hash("abc", "MD5", "ByteList")
+#% output
+#= [144, 1, 80, 152, 60, 210, 79, 176, 214, 150, 63, 125, 40, 225, 127, 114]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Equal terms have equal hashes:
+
+#% cell
+hash(x^2 + 1) === hash(1 + x^2)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `to_string`, `to_character_code`

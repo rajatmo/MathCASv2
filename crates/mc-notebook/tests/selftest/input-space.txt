@@ -1,0 +1,125 @@
+# A space between operands multiplies (round 35): formulas typed with spaces, each checked for its stored text,
+# its linear text, the gaps the faint multiplication sign is drawn in, and its value; the warning on `sin x` and its
+# fix; `Esc * Esc`; screenshots of the faint signs in both themes at 100, 150 and 200 %. Driven by
+# tests/input_selftest.rs (`space`).
+size 1000 700
+ppp 1
+theme light
+new
+
+formula space/mc2
+keys Ctrl+End "m c^2"
+expect canon "m c^2"
+expect linear "m c^2"
+expect gaps " "
+products
+eval
+expect output "m*c^2"
+
+formula space/2pir
+keys Ctrl+End "2 pi r"
+expect canon "2 pi r"
+expect gaps " | "
+products
+eval
+expect output "2*pi*r"
+
+formula space/two-products
+keys Ctrl+End "a b + c d"
+expect canon "a b + c d"
+expect gaps " | "
+eval
+expect output "a*b + c*d"
+
+formula space/brackets
+keys Ctrl+End "(x + 1) (x - 1)"
+expect canon "(x + 1) (x - 1)"
+expect linear "(x + 1) (x - 1)"
+expect gaps " "
+products
+eval
+expect output "(-1 + x)*(1 + x)"
+
+formula space/expand
+keys Ctrl+End "expand((x + 1) (x - 1))"
+expect gaps " "
+eval
+expect output "-1 + x^2"
+
+formula space/list
+keys Ctrl+End "[a b, c]"
+expect canon "[a b, c]"
+expect gaps " "
+eval
+expect output "[a*b, c]"
+
+formula space/across-a-line
+keys Ctrl+End "[2 a" Enter "b, c]"
+expect canon "[2 a\nb, c]"
+expect gaps " |\n"
+products
+eval
+expect output "[2*a*b, c]"
+
+formula space/adjacent
+keys Ctrl+End "2x + 3x"
+expect gaps ""
+products
+eval
+expect output "5*x"
+
+formula space/call-without-space
+keys Ctrl+End "f(x) + f (x)"
+expect gaps " "
+eval
+expect output "f(x) + f*x"
+
+formula space/beside-a-box
+keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space " y " Ctrl+2 "z" Ctrl+Space
+expect canon "((x)^(2)) y ((sqrt(z)))"
+expect boxes "(x^2) y √(z)▮"
+expect gaps " | "
+products
+eval
+expect output "y*x^2*z^(1/2)"
+
+formula space/times-alias
+keys Ctrl+End "a" Esc "*" Esc "b"
+expect canon "a×b"
+expect gaps ""
+eval
+expect output "a*b"
+
+formula space/sin-lint
+keys Ctrl+End "sin x"
+expect gaps " "
+warnings
+fixwarning
+wait 3
+expect canon "sin(x)"
+warnings
+eval
+expect output "sin(x)"
+
+log the faint signs in one cell, in both themes at 100, 150 and 200 %
+keys Ctrl+End "E = m c^2 + 2 pi r + (x + 1) (x - 1) + [a" Enter "b, c d]"
+keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space " y " Ctrl+2 "z" Ctrl+Space " + 2 x y"
+wait 3
+products
+shot space-light-100
+theme dark
+wait 4
+shot space-dark-100
+ppp 1.5
+wait 6
+shot space-dark-150
+theme light
+wait 4
+shot space-light-150
+ppp 2
+wait 6
+shot space-light-200
+theme dark
+wait 4
+shot space-dark-200
+quit

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# xyz_color
+
+#% text
+# `xyz_color(x, y, z)`: a colour in CIE 1931 XYZ (relative to the D50 white, y = 1 for white)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+color_convert(white, "XYZ")
+#% output
+#= xyz_color(0.9642119944211995, 1.0, 0.8251882845188288)
+
+#% cell
+graphics([xyz_color(0.3, 0.2, 0.6), disk()])
+#% output
+#= image("xyz_color.files/xyz_color-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

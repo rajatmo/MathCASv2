@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# lie_commutator_table
+
+#% text
+# `lie_commutator_table(gens, vars)` gives the matrix of the commutators `[v_i, v_j]` of the vector fields `gens` (lists of components over `vars`), each written as a combination of the basis elements `v(1)`, `v(2)`, ...
+
+#% section
+# Details
+
+#% item
+# The coordinates are found from the components at sample points (exact equations at rational points when the fields are rational, least squares at machine points otherwise) and checked symbolically. A commutator outside the span of `gens` is given by its components.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lie_commutator_table([[2*x, y], [x^2, x*y], [1, 0]], [x, y])
+#% output
+#= [[0, 2*v(2), -2*v(3)], [-2*v(2), 0, -v(1)], [2*v(3), v(1), 0]]
+
+#% text
+# The symmetry algebra of the Korteweg-de Vries equation:
+
+#% cell
+lie_commutator_table(lie_point_symmetries(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t]), [x, t, u])
+#% output
+#= [[0, v(1), 0, v(3)], [-v(1), 0, (-1/3)*v(3), (2/3)*v(4)], [0, (1/3)*v(3), 0, 0], [-v(3), (-2/3)*v(4), 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `symmetry_commutator`, `lie_point_symmetries`

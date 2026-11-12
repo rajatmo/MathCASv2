@@ -1,0 +1,435 @@
+# Math input corpus, part 2 (round 32): primes and derivatives, sums and integrals written linearly, matrices as
+# lists, units, long expressions that wrap, everyday algebra. Checks as in part 1. Driven by tests/input_selftest.rs.
+size 1000 700
+ppp 1
+theme light
+new
+
+# ---- primes and derivatives ----
+formula deriv/prime-call
+keys Ctrl+End "f(x_) := x" Ctrl+6 "3" Ctrl+Space "; f'(2)"
+expect boxes "f(x_) := (x^3); f'(2)▮"
+expect linear "f(x_) := x^3; f'(2)"
+eval
+expect output "12"
+
+formula deriv/second-prime
+keys Ctrl+End "sin''(x)"
+expect linear "sin''(x)"
+eval
+expect output "-sin(x)"
+roundtrip
+
+formula deriv/power
+keys Ctrl+End "d(x" Ctrl+6 "3" Ctrl+Space ", x)"
+expect boxes "d((x^3), x)▮"
+expect linear "d(x^3, x)"
+eval
+expect output "3*x^2"
+roundtrip
+
+formula deriv/chain
+keys Ctrl+End "d(sin(x)" Ctrl+6 "2" Ctrl+Space ", x)"
+expect boxes "d((sin(x)^2), x)▮"
+expect linear "d(sin(x)^2, x)"
+eval
+expect output "2*cos(x)*sin(x)"
+roundtrip
+
+formula deriv/gauss
+keys Ctrl+End "d(e" Ctrl+6 "x" Ctrl+6 "2" Ctrl+Space Ctrl+Space ", x)"
+expect boxes "d((e^(x^2)), x)▮"
+expect linear "d(e^x^2, x)"
+eval
+expect output "2*x*exp(x^2)"
+roundtrip
+
+formula deriv/reciprocal
+keys Ctrl+End "d(1" Ctrl+/ "x" Ctrl+Space ", x)"
+expect boxes "d((1/x), x)▮"
+expect linear "d(1/x, x)"
+eval
+expect output "-1/x^2"
+roundtrip
+
+formula deriv/root
+keys Ctrl+End "d(" Ctrl+2 "x" Ctrl+Space ", x)"
+expect boxes "d(√(x), x)▮"
+expect linear "d(sqrt(x), x)"
+eval
+expect output "1/(2*x^(1/2))"
+roundtrip
+
+formula deriv/mixed
+keys Ctrl+End "d(x" Ctrl+6 "2" Ctrl+Space "*y" Ctrl+6 "3" Ctrl+Space ", x, y)"
+expect boxes "d((x^2)*(y^3), x, y)▮"
+expect linear "d(x^2*y^3, x, y)"
+eval
+expect output "6*x*y^2"
+roundtrip
+
+formula deriv/prime-of-root
+keys Ctrl+End "g(x_) := " Ctrl+2 "x" Ctrl+Space "; g'(4)"
+expect boxes "g(x_) := √(x); g'(4)▮"
+expect linear "g(x_) := sqrt(x); g'(4)"
+eval
+expect output "1/4"
+
+formula deriv/symbolic-exponent
+keys Ctrl+End "d(x" Ctrl+6 "n" Ctrl+Space ", x)"
+expect boxes "d((x^n), x)▮"
+expect linear "d(x^n, x)"
+eval
+expect output "n*x^(-1 + n)"
+roundtrip
+
+# ---- sums and integrals written linearly ----
+formula calculus/antiderivative
+keys Ctrl+End "integrate(x" Ctrl+6 "2" Ctrl+Space ", x)"
+expect boxes "integrate((x^2), x)▮"
+expect linear "integrate(x^2, x)"
+eval
+expect output "(1/3)*x^3"
+roundtrip
+
+formula calculus/definite
+keys Ctrl+End "integrate(x" Ctrl+6 "2" Ctrl+Space ", [x, 0, 1])"
+expect boxes "integrate((x^2), [x, 0, 1])▮"
+expect linear "integrate(x^2, [x, 0, 1])"
+eval
+expect output "1/3"
+
+formula calculus/gaussian-integral
+keys Ctrl+End "integrate(e" Ctrl+6 "-x" Ctrl+6 "2" Ctrl+Space Ctrl+Space ", [x, -" Esc "inf" Esc ", " Esc "inf" Esc "])"
+expect boxes "integrate((e^-(x^2)), [x, -∞, ∞])▮"
+expect linear "integrate(e^(-x^2), [x, -∞, ∞])"
+eval
+expect output "pi^(1/2)"
+roundtrip
+
+formula calculus/arctan
+keys Ctrl+End "integrate(1" Ctrl+/ "1 + x" Ctrl+6 "2" Ctrl+Space Ctrl+Space ", x)"
+expect boxes "integrate((1/1 + (x^2)), x)▮"
+expect linear "integrate(1/(1 + x^2), x)"
+eval
+expect output "atan(x)"
+roundtrip
+
+formula calculus/sin-squared
+keys Ctrl+End "integrate(sin(x)" Ctrl+6 "2" Ctrl+Space ", [x, 0, " Esc "p" Esc "])"
+expect boxes "integrate((sin(x)^2), [x, 0, π])▮"
+expect linear "integrate(sin(x)^2, [x, 0, π])"
+eval
+expect output "(1/2)*pi"
+roundtrip
+
+formula calculus/sum-squares
+keys Ctrl+End "sum(k" Ctrl+6 "2" Ctrl+Space ", [k, 1, n])"
+expect boxes "sum((k^2), [k, 1, n])▮"
+expect linear "sum(k^2, [k, 1, n])"
+eval
+expect output "(1/6)*n*(1 + n)*(1 + 2*n)"
+roundtrip
+
+formula calculus/geometric
+keys Ctrl+End "sum(1" Ctrl+/ "2" Ctrl+6 "k" Ctrl+Space Ctrl+Space ", [k, 0, " Esc "inf" Esc "])"
+expect boxes "sum((1/(2^k)), [k, 0, ∞])▮"
+expect linear "sum(1/2^k, [k, 0, ∞])"
+eval
+expect output "2"
+
+formula calculus/telescoping-product
+keys Ctrl+End "product(1 + 1" Ctrl+/ "k" Ctrl+Space ", [k, 1, 10])"
+expect boxes "product(1 + (1/k), [k, 1, 10])▮"
+expect linear "product(1 + 1/k, [k, 1, 10])"
+eval
+expect output "11"
+
+formula calculus/arcsine
+keys Ctrl+End "integrate(1" Ctrl+/ Ctrl+2 "1 - x" Ctrl+6 "2" Ctrl+Space Ctrl+Space Ctrl+Space ", [x, 0, 1])"
+expect boxes "integrate((1/√(1 - (x^2))), [x, 0, 1])▮"
+expect linear "integrate(1/sqrt(1 - x^2), [x, 0, 1])"
+eval
+expect output "(1/2)*pi"
+
+formula calculus/limit
+keys Ctrl+End "limit(sin(x)" Ctrl+/ "x" Ctrl+Space ", x " Esc "->" Esc " 0)"
+expect boxes "limit((sin(x)/x), x → 0)▮"
+expect linear "limit(sin(x)/x, x → 0)"
+eval
+expect output "1"
+
+formula calculus/e-series
+keys Ctrl+End "sum(1" Ctrl+/ "factorial(k)" Ctrl+Space ", [k, 0, " Esc "inf" Esc "])"
+expect boxes "sum((1/factorial(k)), [k, 0, ∞])▮"
+expect linear "sum(1/factorial(k), [k, 0, ∞])"
+eval
+expect output "e"
+
+# ---- matrices as lists ----
+formula matrix/det
+keys Ctrl+End "det([[1, 2], [3, 4]])"
+expect linear "det([[1, 2], [3, 4]])"
+eval
+expect output "-2"
+
+formula matrix/times-vector
+keys Ctrl+End "dot([[1, 2], [3, 4]], [5, 6])"
+expect linear "dot([[1, 2], [3, 4]], [5, 6])"
+eval
+expect output "[17, 39]"
+roundtrip
+
+formula matrix/inverse
+keys Ctrl+End "inverse([[2, 0], [0, 4]])"
+expect linear "inverse([[2, 0], [0, 4]])"
+eval
+expect output "[[1/2, 0], [0, 1/4]]"
+roundtrip
+
+formula matrix/fraction-entries
+keys Ctrl+End "det([[1, 1" Ctrl+/ "2" Ctrl+Space "], [1" Ctrl+/ "3" Ctrl+Space ", 1" Ctrl+/ "4" Ctrl+Space "]])"
+expect boxes "det([[1, (1/2)], [(1/3), (1/4)]])▮"
+expect linear "det([[1, 1/2], [1/3, 1/4]])"
+eval
+expect output "1/12"
+
+formula matrix/rotation
+keys Ctrl+End "simplify(det([[cos(" Esc "th" Esc "), -sin(" Esc "th" Esc ")], [sin(" Esc "th" Esc "), cos(" Esc "th" Esc ")]]))"
+expect linear "simplify(det([[cos(θ), -sin(θ)], [sin(θ), cos(θ)]]))"
+eval
+expect output "1"
+
+formula matrix/dot
+keys Ctrl+End "dot([1, 2, 3], [4, 5, 6])"
+eval
+expect output "32"
+
+formula matrix/transpose
+keys Ctrl+End "transpose([[1, 2, 3]])"
+eval
+expect output "[[1], [2], [3]]"
+roundtrip
+
+formula matrix/symbolic
+keys Ctrl+End "dot([[a, b], [c, d]], [[x], [y]])"
+eval
+expect output "[[a*x + b*y], [c*x + d*y]]"
+roundtrip
+
+formula matrix/power-entries
+keys Ctrl+End "[[x" Ctrl+6 "2" Ctrl+Space ", " Ctrl+2 "y" Ctrl+Space "], [1" Ctrl+/ "z" Ctrl+Space ", 0]]"
+expect boxes "[[(x^2), √(y)], [(1/z), 0]]▮"
+expect linear "[[x^2, sqrt(y)], [1/z, 0]]"
+eval
+expect output "[[x^2, y^(1/2)], [z^-1, 0]]"
+roundtrip
+
+# ---- units ----
+formula units/sum
+keys Ctrl+End "quantity(3, \"Meters\") + quantity(2, \"Feet\")"
+expect linear "quantity(3, \"Meters\") + quantity(2, \"Feet\")"
+eval
+expect output "quantity(1504/127, \"Feet\")"
+roundtrip
+
+formula units/speed
+keys Ctrl+End "quantity(6, \"Meters\")" Ctrl+/ "quantity(2, \"Seconds\")"
+expect boxes "(quantity(6, \"Meters\")/quantity(2, \"Seconds\")▮)"
+expect linear "quantity(6, \"Meters\")/quantity(2, \"Seconds\")"
+eval
+expect output "quantity(3, \"Meters\"/\"Seconds\")"
+roundtrip
+
+formula units/area
+keys Ctrl+End "quantity(2, \"Meters\")" Ctrl+6 "2"
+expect boxes "(quantity(2, \"Meters\")^2▮)"
+expect linear "quantity(2, \"Meters\")^2"
+eval
+expect output "quantity(4, \"Meters\"^2)"
+roundtrip
+
+formula units/convert
+keys Ctrl+End "unit_convert(quantity(1, \"Kilometers\"), \"Meters\")"
+eval
+expect output "quantity(1000, \"Meters\")"
+roundtrip
+
+formula units/root
+keys Ctrl+End Ctrl+2 "quantity(16, \"Meters\"" Ctrl+6 "2" Ctrl+Space ")"
+expect boxes "√(quantity(16, (\"Meters\"^2))▮)"
+expect linear "sqrt(quantity(16, \"Meters\"^2))"
+eval
+expect output "quantity(4, \"Meters\")"
+
+formula units/kinetic
+keys Ctrl+End "quantity(1" Ctrl+/ "2" Ctrl+Space ", \"Kilograms\")*quantity(3, \"Meters\"" Ctrl+/ "\"Seconds\"" Ctrl+Space ")" Ctrl+6 "2"
+expect boxes "quantity((1/2), \"Kilograms\")*(quantity(3, (\"Meters\"/\"Seconds\"))^2▮)"
+expect linear "quantity(1/2, \"Kilograms\")*quantity(3, \"Meters\"/\"Seconds\")^2"
+eval
+expect output "quantity(9/2, \"Kilograms\"*\"Meters\"^2/\"Seconds\"^2)"
+roundtrip
+
+# ---- long expressions that wrap ----
+formula long/binomial
+keys Ctrl+End "expand((1 + x)" Ctrl+6 "10" Ctrl+Space ")"
+expect boxes "expand(((1 + x)^10))▮"
+expect linear "expand((1 + x)^10)"
+eval
+expect output "1 + 10*x + 45*x^2 + 120*x^3 + 210*x^4 + 252*x^5 + 210*x^6 + 120*x^7 + 45*x^8 + 10*x^9 + x^10"
+roundtrip
+
+formula long/harmonic
+keys Ctrl+End "1 + 1" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "3" Ctrl+Space " + 1" Ctrl+/ "4" Ctrl+Space " + 1" Ctrl+/ "5" Ctrl+Space " + 1" Ctrl+/ "6" Ctrl+Space " + 1" Ctrl+/ "7" Ctrl+Space " + 1" Ctrl+/ "8" Ctrl+Space " + 1" Ctrl+/ "9" Ctrl+Space " + 1" Ctrl+/ "10" Ctrl+Space " + 1" Ctrl+/ "11" Ctrl+Space " + 1" Ctrl+/ "12" Ctrl+Space " + 1" Ctrl+/ "13" Ctrl+Space " + 1" Ctrl+/ "14" Ctrl+Space " + 1" Ctrl+/ "15" Ctrl+Space " + 1" Ctrl+/ "16" Ctrl+Space " + 1" Ctrl+/ "17" Ctrl+Space " + 1" Ctrl+/ "18" Ctrl+Space " + 1" Ctrl+/ "19" Ctrl+Space " + 1" Ctrl+/ "20"
+expect linear "1 + 1/2 + 1/3 + 1/4 + 1/5 + 1/6 + 1/7 + 1/8 + 1/9 + 1/10 + 1/11 + 1/12 + 1/13 + 1/14 + 1/15 + 1/16 + 1/17 + 1/18 + 1/19 + 1/20"
+eval
+expect output "55835135/15519504"
+shot c2-harmonic
+roundtrip
+
+formula long/series
+keys Ctrl+End "normal(series(e" Ctrl+6 "x" Ctrl+Space ", x, 0, 8))"
+expect boxes "normal(series((e^x), x, 0, 8))▮"
+expect linear "normal(series(e^x, x, 0, 8))"
+eval
+expect output "1 + x + (1/2)*x^2 + (1/6)*x^3 + (1/24)*x^4 + (1/120)*x^5 + (1/720)*x^6 + (1/5040)*x^7 + (1/40320)*x^8"
+roundtrip
+
+formula long/mixed
+keys Ctrl+End "(x" Ctrl+6 "2" Ctrl+Space " + 2x + 1)" Ctrl+/ "(x + 1)" Ctrl+Space " + " Ctrl+2 "x" Ctrl+6 "2" Ctrl+Space " + y" Ctrl+6 "2" Ctrl+Space " + z" Ctrl+6 "2" Ctrl+Space Ctrl+Space " + e" Ctrl+6 "-(x" Ctrl+6 "2" Ctrl+Space " + y" Ctrl+6 "2" Ctrl+Space ")" Ctrl+/ "2" Ctrl+Space Ctrl+Space " + sin(" Esc "a" Esc ")" Ctrl+6 "2" Ctrl+Space " + cos(" Esc "a" Esc ")" Ctrl+6 "2" Ctrl+Space " /. [x -> 0, y -> 0, z -> 0]"
+expect linear "(x^2 + 2x + 1)/(x + 1) + sqrt(x^2 + y^2 + z^2) + e^(-((x^2 + y^2)/2)) + sin(α)^2 + cos(α)^2 /. [x -> 0, y -> 0, z -> 0]"
+eval
+expect output "2 + cos(α)^2 + sin(α)^2"
+shot c2-mixed
+
+formula long/factor
+keys Ctrl+End "factor(x" Ctrl+6 "12" Ctrl+Space " - 1)"
+expect boxes "factor((x^12) - 1)▮"
+expect linear "factor(x^12 - 1)"
+eval
+expect output "(-1 + x)*(1 + x)*(1 + x^2)*(1 + x + x^2)*(1 - x + x^2)*(1 - x^2 + x^4)"
+roundtrip
+
+# ---- everyday algebra ----
+formula algebra/square
+keys Ctrl+End "expand((a + b)" Ctrl+6 "2" Ctrl+Space ")"
+expect boxes "expand(((a + b)^2))▮"
+expect linear "expand((a + b)^2)"
+eval
+expect output "2*a*b + a^2 + b^2"
+roundtrip
+
+formula algebra/add-fractions
+keys Ctrl+End "1" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "3"
+expect boxes "(1/2) + (1/3▮)"
+expect linear "1/2 + 1/3"
+eval
+expect output "5/6"
+roundtrip
+
+formula algebra/tower
+keys Ctrl+End "2" Ctrl+6 "3" Ctrl+6 "2"
+expect boxes "(2^(3^2▮))"
+expect linear "2^3^2"
+eval
+expect output "512"
+
+formula algebra/minus-square
+keys Ctrl+End "-x" Ctrl+6 "2" Ctrl+Space " /. x -> 3"
+expect boxes "-(x^2) /. x -> 3▮"
+expect linear "-x^2 /. x -> 3"
+eval
+expect output "-9"
+
+formula algebra/coefficient
+keys Ctrl+End "2x" Ctrl+6 "2" Ctrl+Space " /. x -> 3"
+expect boxes "2(x^2) /. x -> 3▮"
+expect linear "2x^2 /. x -> 3"
+eval
+expect output "18"
+
+formula algebra/factorials
+keys Ctrl+End "factorial(10)" Ctrl+/ "factorial(3)*factorial(7)"
+expect boxes "(factorial(10)/factorial(3)*factorial(7)▮)"
+expect linear "factorial(10)/(factorial(3)*factorial(7))"
+eval
+expect output "120"
+
+formula algebra/function-power
+keys Ctrl+End "sin(x)" Ctrl+6 "2"
+expect boxes "(sin(x)^2▮)"
+expect linear "sin(x)^2"
+eval
+expect output "sin(x)^2"
+roundtrip
+
+formula algebra/negative-exponent
+keys Ctrl+End "x" Ctrl+6 "-1"
+expect boxes "(x^-1▮)"
+expect linear "x^(-1)"
+eval
+expect output "x^-1"
+roundtrip
+
+formula algebra/fraction-of-fraction
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space Ctrl+/ "c"
+expect boxes "((a/b)/c▮)"
+expect linear "(a/b)/c"
+eval
+expect output "a/(b*c)"
+roundtrip
+
+formula algebra/continued-fraction
+keys Ctrl+End "simplify(1" Ctrl+/ "1 + 1" Ctrl+/ "1 + 1" Ctrl+/ "x" Ctrl+Space Ctrl+Space Ctrl+Space ")"
+expect boxes "simplify((1/1 + (1/1 + (1/x))))▮"
+expect linear "simplify(1/(1 + 1/(1 + 1/x)))"
+eval
+expect output "(1 + x)/(1 + 2*x)"
+roundtrip
+
+formula algebra/imaginary-root
+keys Ctrl+End Ctrl+2 "-4"
+expect boxes "√(-4▮)"
+expect linear "sqrt(-4)"
+eval
+expect output "2im"
+roundtrip
+
+formula algebra/abs-fraction
+keys Ctrl+End "abs(-3" Ctrl+/ "4" Ctrl+Space ")"
+expect boxes "abs(-(3/4))▮"
+expect linear "abs(-(3/4))"
+eval
+expect output "3/4"
+
+formula algebra/binomial
+keys Ctrl+End "binomial(10, 3)"
+eval
+expect output "120"
+
+formula algebra/group-power
+keys Ctrl+End "(x + 1)" Ctrl+6 "2" Ctrl+Space " /. x -> 2"
+expect boxes "((x + 1)^2) /. x -> 2▮"
+expect linear "(x + 1)^2 /. x -> 2"
+eval
+expect output "9"
+
+formula algebra/power-of-power
+keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space Ctrl+6 "3"
+expect boxes "((x^2)^3▮)"
+expect linear "(x^2)^3"
+eval
+expect output "x^6"
+roundtrip
+
+formula algebra/empty-fraction-key
+keys Ctrl+End "y = " Ctrl+/ "1" Down "x" Ctrl+Space "; y"
+expect boxes "y = (1/x); y▮"
+expect linear "y = 1/x; y"
+eval
+expect output "x^-1"
+show messages
+
+dump input-corpus2
+shot c2-end
+quit

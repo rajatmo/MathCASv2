@@ -1,0 +1,139 @@
+#! mathcas 2 notebook
+
+#% title
+# random_variate
+
+#% text
+# `random_variate(d)` gives a random value drawn from the distribution `d`.
+
+#% text
+# `random_variate(d, n)` gives a list of `n` values; `random_variate(d, [n1, n2, ...])` gives nested lists.
+
+#% section
+# Details
+
+#% item
+# The values come from the session's generator; `seed(k)` makes them repeatable.
+
+#% item
+# Continuous distributions give machine reals; discrete ones give integers.
+
+#% item
+# The parameters of the distribution must be numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A standard normal value:
+
+#% cell
+seed(1); random_variate(normal_distribution())
+#% output
+#= -0.8289777865469348
+
+#% text
+# Five values with mean 10 and standard deviation 2:
+
+#% cell
+random_variate(normal_distribution(10, 2), 5)
+#% output
+#= [13.075859784335181, 10.867251516087766, 10.820685436010395, 10.444509280480991, 7.365381201635947]
+
+#% text
+# Counts from a Poisson distribution:
+
+#% cell
+random_variate(poisson_distribution(3), 10)
+#% output
+#= [2, 1, 1, 1, 1, 3, 1, 1, 2, 1]
+
+#% subsection
+# Scope
+
+#% text
+# A 2 x 3 array of uniform values:
+
+#% cell
+random_variate(uniform_distribution([0, 1]), [2, 3])
+#% output
+#= [[0.44115230692063645, 0.7526692246241176, 0.6523591909068733], [0.21820093829849596, 0.017459750127277407, 0.8185179936332682]]
+
+#% text
+# Binomial counts:
+
+#% cell
+random_variate(binomial_distribution(10, 0.3), 8)
+#% output
+#= [2, 2, 2, 5, 3, 1, 4, 5]
+
+#% text
+# Gamma values:
+
+#% cell
+random_variate(gamma_distribution(2, 3), 3)
+#% output
+#= [3.857570110538446, 0.4667213221212127, 7.992416333910114]
+
+#% text
+# A histogram of many normal values:
+
+#% cell
+seed(2); histogram(random_variate(normal_distribution(), 2000))
+#% output
+#= image("random_variate.files/random_variate-7.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A random walk in the plane with Gaussian steps of width 0.15, the proposal step of a Metropolis sampler:
+
+#% cell
+seed(11); walk = nest_list(p => p + 0.15*random_variate(normal_distribution(), 2), [0, 0], 500); list_line_plot(walk)
+#% output
+#= image("random_variate.files/random_variate-8.svgz")
+
+#% text
+# Fit a distribution to simulated data:
+
+#% cell
+seed(3); estimated_distribution(random_variate(normal_distribution(5, 2), 1000), normal_distribution(m, s))
+#% output
+#= normal_distribution(5.041948397014239, 1.9992946087893353)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sample mean and variance approach those of the distribution, here 1/2 and 1/4:
+
+#% cell
+seed(4); xs = random_variate(exponential_distribution(2), 10^4); [mean(xs), variance(xs)]
+#% output
+#= [0.49959193150953823, 0.24694037843684094]
+
+#% cell
+[mean(exponential_distribution(2)), variance(exponential_distribution(2))]
+#% output
+#= [1/2, 1/4]
+
+#% subsection
+# Possible issues
+
+#% text
+# A distribution with a symbolic parameter cannot be sampled:
+
+#% cell
+random_variate(normal_distribution(mu, 1))
+#% output
+#! failure(argument, random_variate, "the parameters of the distribution must be numeric")
+
+#% section
+# See also
+
+#% text
+# `seed`, `normal_distribution`, `random_real`, `random_normal`, `histogram`, `estimated_distribution`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# matroid_circuits
+
+#% text
+# `matroid_circuits(M)`: the minimal dependent sets of the matroid
+
+#% section
+# Details
+
+#% item
+# A matroid is `linear_matroid(A)` (the columns of a rational matrix), `graphic_matroid(edges)` (the edges of a graph), `uniform_matroid(r, m)` or `matroid(bases)` (bases as lists of elements 1, ..., m); its elements are numbered 1, ..., m, at most 22.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matroid_circuits(linear_matroid([[1, 0, 1, 2], [0, 1, 1, 2]]))
+#% output
+#= [[3, 4], [1, 2, 3], [1, 2, 4]]
+
+#% cell
+matroid_circuits(graphic_matroid([[1, 2], [2, 3], [3, 1], [3, 4]]))
+#% output
+#= [[1, 2, 3]]
+
+#% section
+# See also
+
+#% text
+# `matroid_bases`, `matroid_rank`

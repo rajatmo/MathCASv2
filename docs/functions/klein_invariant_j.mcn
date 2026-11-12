@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# klein_invariant_j
+
+#% text
+# `klein_invariant_j(tau)` gives Klein's absolute invariant `J(tau)`, for `im_part(tau) > 0`.
+
+#% section
+# Details
+
+#% item
+# `J(tau)` is invariant under the modular group: `J(tau + 1) = J(tau)` and `J(-1/tau) = J(tau)` (DLMF 23.15.7, normalized so that `J(im) = 1`). The j-invariant of number theory is `1728*J`.
+
+#% item
+# In terms of the modular lambda function, `J` is `4/27*(1 - lambda + lambda^2)^3/(lambda*(1 - lambda))^2`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+klein_invariant_j(1.0*im)
+#% output
+#= 1.0 + 0.0im
+
+#% cell
+klein_invariant_j(0.5 + 0.8*im)
+#% output
+#= 0.008535608791971561 + 3.2682348319558855e-33im
+
+#% cell
+klein_invariant_j(2.0*im)
+#% output
+#= 166.375 + 0.0im
+
+#% subsection
+# Properties and relations
+
+#% text
+# Invariance under `tau -> -1/tau`:
+
+#% cell
+klein_invariant_j(0.3 + 1.1*im) - klein_invariant_j(-1/(0.3 + 1.1*im))
+#% output
+#= 2.220446049250313e-16 + 2.220446049250313e-16im
+
+#% text
+# At `exp(2*pi*im/3)` the value is 0:
+
+#% cell
+klein_invariant_j(exp(2*pi*im/3.0))
+#% output
+#= 2.322905700116782e-46 - 2.245265026760062e-46im
+
+#% section
+# See also
+
+#% text
+# `modular_lambda`, `dedekind_eta`, `elliptic_theta`

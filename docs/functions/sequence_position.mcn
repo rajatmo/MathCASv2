@@ -1,0 +1,42 @@
+#! mathcas 2 notebook
+
+#% title
+# sequence_position
+
+#% text
+# `sequence_position(xs, p)` gives the `[start, end]` positions of the runs of `xs` that match the list pattern `p`.
+
+#% section
+# Details
+
+#% item
+# The runs are those `sequence_cases` finds.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sequence_position([a, b, c, a, b], [a, b])
+#% output
+#= [[1, 2], [4, 5]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The runs at those positions:
+
+#% cell
+xs = [a, b, c, a, b]
+map(r => xs[r[1]:r[2]], sequence_position(xs, [a, b]))
+#% output
+#= [[a, b], [a, b]]
+
+#% section
+# See also
+
+#% text
+# `sequence_cases`, `position`

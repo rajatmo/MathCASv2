@@ -1,0 +1,93 @@
+#! mathcas 2 notebook
+
+#% title
+# arguments_options
+
+#% text
+# `arguments_options(f(a1, ..., opts), n)` splits a call into its arguments and its options: `[arguments, options]`.
+
+#% section
+# Details
+
+#% item
+# `n` is the number of arguments, or `[min, max]` (`max` may be `inf`).
+
+#% item
+# The options are the rules after the arguments (`a -> v`, `a :> v`), or lists of rules at any depth, flattened to one list. A rule that is needed to reach the minimum number of arguments counts as an argument.
+
+#% item
+# A call with too few or too many arguments gives `failure(argument_count, f, given, n)`.
+
+#% item
+# The call is held: `f` is not evaluated, so a rule of `f` may split its own call. The arguments are evaluated; `wrapper: h` keeps them unevaluated and gives `[h(arguments), h(options)]`. `options_mode: none` takes every item as an argument. The same settings can be given as an association third argument with the keys `"Head"` and `"OptionsMode"`.
+
+#% item
+# Which options a function declares is not known here: any trailing rule is an option.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+arguments_options(f(1, a -> 0), 1)
+#% output
+#= [[1], [a -> 0]]
+
+#% cell
+arguments_options(f(1, 2, a -> 3), [1, 3])
+#% output
+#= [[1, 2], [a -> 3]]
+
+#% subsection
+# Scope
+
+#% text
+# Options in nested lists:
+
+#% cell
+arguments_options(f(x, a -> 0, [b -> 5, [[c -> 17]]]), 1)
+#% output
+#= [[x], [a -> 0, b -> 5, c -> 17]]
+
+#% text
+# `wrapper` keeps the arguments unevaluated, and the association form gives the head:
+
+#% cell
+[arguments_options(f(1 + 1, a -> 2), 1, wrapper: hold), arguments_options(f(1 + 1, a -> 2), 1, assoc("Head" -> g))]
+#% output
+#= [[hold(1 + 1), hold(a -> 2)], [g(1 + 1), g(a -> 2)]]
+
+#% text
+# Options given as rules with delayed values, and with no arguments:
+
+#% cell
+[arguments_options(f(1, a :> 2), 1), arguments_options(f(), 0)]
+#% output
+#= [[[1], [a :> 2]], [[], []]]
+
+#% subsection
+# Possible issues
+
+#% text
+# Too many arguments:
+
+#% cell
+arguments_options(f(1, 2), 1)
+#% output
+#! failure(argument_count, f, 2, 1)
+
+#% text
+# An argument after an option, a range with the minimum above the maximum, and a call that is not a call of a head give failures:
+
+#% cell
+[arguments_options(f(1, a -> 1, 2), [1, 2]), arguments_options(f(x), [2, 1]), arguments_options(5, 1)]
+#% output
+#= [failure(argument_count, f, 3, [1, 2]), failure(argument, arguments_options, 2), failure(argument, arguments_options, 1)]
+
+#% section
+# See also
+
+#% text
+# `check_arguments`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# mean_around
+
+#% text
+# `mean_around(xs)` gives the mean of the numbers `xs` with its standard error, as `around(mean, s/sqrt(n))` with `s` the sample standard deviation.
+
+#% section
+# Details
+
+#% item
+# For a list of `around(x, d)` values the result is the mean weighted by `1/d^2`, with the error `1/sqrt(sum(1/d^2))`.
+
+#% item
+# For a list of vectors the result is `vector_around(mean, c/n)` with `c` the sample covariance matrix.
+
+#% item
+# The scalar result is numeric; the vector result keeps exact data exact.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean_around([1, 2, 3, 4, 3, 2, 1])
+#% output
+#= around(2.2857142857142856, 0.420560041253707)
+
+#% cell
+mean_around([2.745, 2.964, 2.203, 3.768, 4.339, 2.341, 2.452, 3.071, 3.052, 2.163])
+#% output
+#= around(2.9098000000000006, 0.22225644847537923)
+
+#% cell
+mean_around([around(0.49114, 0.042), around(0.59556, 0.0096)])
+#% output
+#= around(0.5903754538401862, 0.009358641663089926)
+
+#% cell
+mean_around([[1, 1], [0, 2], [3, 1]])
+#% output
+#= vector_around([4/3, 4/3], [[7/9, -2/9], [-2/9, 1/9]])
+
+#% section
+# See also
+
+#% text
+# `around`, `mean`, `std_dev`

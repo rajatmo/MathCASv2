@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# byte_array
+
+#% text
+# `byte_array([b1, b2, ...])`: a list of bytes (integers 0 to 255); a list holding anything else is `failure(argument, byte_array, 1)`
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+byte_array([1, 2, 255])
+#% output
+#= byte_array([1, 2, 255])
+
+#% cell
+byte_array([1, 300])
+#% output
+#! failure(argument, byte_array, 1)
+
+#% section
+# See also
+
+#% text
+# `binary_read_list`, `binary_write`, `import_data`

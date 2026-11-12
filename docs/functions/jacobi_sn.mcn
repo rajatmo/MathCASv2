@@ -1,0 +1,200 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_sn
+
+#% text
+# `jacobi_sn(u, m)` gives the Jacobi elliptic function `sn(u | m)`, the sine of `jacobi_amplitude(u, m)`.
+
+#% section
+# Details
+
+#% item
+# `sn` has the real period `4*K(m)` and the imaginary period `2*i*K(1 - m)` (DLMF 22.4); `sn(u | 0)` is `sin(u)` and `sn(u | 1)` is `tanh(u)` (DLMF 22.5).
+
+#% item
+# The parameter `m` is the square of the modulus: `sn(u | m)` with `m = k^2`.
+
+#% item
+# Machine numbers, arbitrary-precision numbers and complex numbers (in `u` and in `m`) give numerical values, for any real `m`: also `m > 1` and `m < 0`. `jacobi_sn(0, m)` is 0 and symbolic arguments stay.
+
+#% item
+# `jacobi_sn` is listable. The derivative in `u` is `jacobi_cn(u, m) jacobi_dn(u, m)`; the derivative in `m` is not given in closed form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_sn(1.0, 0.5)
+#% output
+#= 0.8030018248956439
+
+#% cell
+jacobi_sn(u, 0)
+#% output
+#= sin(u)
+
+#% cell
+jacobi_sn(u, 1)
+#% output
+#= tanh(u)
+
+#% cell
+jacobi_sn(0.5, 0.9)
+#% output
+#= 0.4638403680117277
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits, with exact or arbitrary-precision arguments:
+
+#% cell
+n(jacobi_sn(2, 1/2), 30)
+#% output
+#= 0.9946623253580176836012543020534988
+
+#% cell
+jacobi_sn(2, n(1/2, 30))
+#% output
+#= 0.9946623253580176836012543020534988
+
+#% text
+# A complex argument and a complex parameter:
+
+#% cell
+jacobi_sn(1.0 + 1.0*im, 0.5)
+#% output
+#= 1.1739018062335427 + 0.416955916003231im
+
+#% cell
+jacobi_sn(1.0, 1.5 + 0.5*im)
+#% output
+#= 0.7187078312977817 - 0.04493056247024052im
+
+#% text
+# A parameter above 1 or below 0:
+
+#% cell
+[jacobi_sn(1.0, 2.0), jacobi_sn(1.0, -1.0), jacobi_sn(2.0, 100.0)]
+#% output
+#= [0.6721019039743272, 0.9076832214049462, 0.08917971277881047]
+
+#% text
+# Near the limits of `m`, and for a large argument:
+
+#% cell
+[jacobi_sn(1.0, 1e-10), jacobi_sn(1.0, 1 - 1e-10), jacobi_sn(100.0, 0.5)]
+#% output
+#= [0.8414709848005302, 0.7615941559643054, 0.11960192815774341]
+
+#% text
+# Lists of arguments:
+
+#% cell
+jacobi_sn([0.1, 0.2], 0.5)
+#% output
+#= [0.09975068547462485, 0.19802174298197045]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `sn^2 + cn^2 = 1`:
+
+#% cell
+jacobi_sn(0.8, 0.3)^2 + jacobi_cn(0.8, 0.3)^2
+#% output
+#= 1.0
+
+#% text
+# The quarter period gives 1:
+
+#% cell
+jacobi_sn(elliptic_k(0.5), 0.5)
+#% output
+#= 1.0
+
+#% text
+# `sn` is odd and has the real period `4 K(m)`:
+
+#% cell
+jacobi_sn(-1.0, 0.5) + jacobi_sn(1.0, 0.5)
+#% output
+#= 0.0
+
+#% cell
+jacobi_sn(4*elliptic_k(0.3) + 0.4, 0.3) - jacobi_sn(0.4, 0.3)
+#% output
+#= 0.0
+
+#% text
+# A shift by the quarter period gives `cd`:
+
+#% cell
+jacobi_sn(elliptic_k(0.3) + 0.4, 0.3) - jacobi_cd(0.4, 0.3)
+#% output
+#= -1.1102230246251565e-16
+
+#% text
+# The definition through the amplitude, and the inverse:
+
+#% cell
+jacobi_sn(0.4, 0.3) - sin(jacobi_amplitude(0.4, 0.3))
+#% output
+#= 0.0
+
+#% cell
+inverse_jacobi_sn(jacobi_sn(0.7, 0.5), 0.5)
+#% output
+#= 0.7
+
+#% text
+# The derivative:
+
+#% cell
+d(jacobi_sn(u, m), u)
+#% output
+#= jacobi_cn(u, m)*jacobi_dn(u, m)
+
+#% subsection
+# Possible issues
+
+#% text
+# Exact arguments that do not simplify stay unevaluated until `n` is applied, and so does an infinite argument:
+
+#% cell
+jacobi_sn(1/2, 1/2)
+#% output
+#= jacobi_sn(1/2, 1/2)
+
+#% cell
+jacobi_sn(inf, 0.5)
+#% output
+#= jacobi_sn(inf, 0.5)
+
+#% text
+# The derivative in `m` has no closed form:
+
+#% cell
+d(jacobi_sn(u, m), m)
+#% output
+#= (-(jacobi_epsilon(u, m) - u*(1 - m))*jacobi_dn(u, m) + m*jacobi_cn(u, m)*jacobi_sn(u, m))*jacobi_cn(u, m)/(2*m*(1 - m))
+
+#% text
+# A huge machine argument is reduced modulo the period: at `1e15` the value agrees with the exact evaluation `n(jacobi_sn(10^15, 1/2), 20)` (-0.8851134754125867452), but a machine argument near `1e300` gives the value 0.0, which cannot be right:
+
+#% cell
+jacobi_sn(1e15, 0.5)
+#% output
+#= -0.8851134754125868
+
+#% section
+# See also
+
+#% text
+# `jacobi_cn`, `jacobi_dn`, `jacobi_amplitude`, `inverse_jacobi_sn`, `elliptic_k`

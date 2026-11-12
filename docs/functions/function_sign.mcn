@@ -1,0 +1,139 @@
+#! mathcas 2 notebook
+
+#% title
+# function_sign
+
+#% text
+# `function_sign(f, x)` gives `1` when `f >= 0` for every `x` of its domain, `-1` when `f <= 0`, `0` when `f == 0`, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# The sign is proved from the facts of the domain where it can be (`refine`); otherwise, for one variable without parameters, it is found by sampling the domain: a change of sign among the samples gives `indeterminate`.
+
+#% item
+# `function_sign([f, cond], x)` restricts the domain.
+
+#% item
+# `function_sign(f, n, integers)` for a sequence.
+
+#% item
+# A function not defined on the whole real line gives `indeterminate` unless a condition restricts the domain.
+
+#% item
+# With parameters, several variables or `strict_inequalities: true` the sign of a polynomial (or rational) function is decided by the cylindrical decomposition: `conditional_expression(1, c)` with the condition on the parameters; `generate_conditions` and `assumptions` as for `function_continuous`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An absolute value and a sine:
+
+#% cell
+function_sign(abs(x), x)
+#% output
+#= 1
+
+#% cell
+function_sign(sin(x), x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# A shifted sine:
+
+#% cell
+function_sign(sin(x) + 3/2, x)
+#% output
+#= 1
+
+#% text
+# On a restricted domain:
+
+#% cell
+function_sign([sin(x), 0 <= x and x <= pi], x)
+#% output
+#= 1
+
+#% text
+# A difference that is never positive:
+
+#% cell
+function_sign(x - sqrt(x^2), x)
+#% output
+#= -1
+
+#% subsection
+# Options
+
+#% text
+# A quadratic with parameters:
+
+#% cell
+function_sign(x^2 + a*x + b, x)
+#% output
+#= conditional_expression(1, -4*b + a^2 <= 0)
+
+#% text
+# Two variables:
+
+#% cell
+[function_sign(x^2 + a*x*y + y^2, [x, y]), function_sign(x*y, [x, y])]
+#% output
+#= [conditional_expression(1, -2 <= a and a <= 2), indeterminate]
+
+#% text
+# Strict inequalities:
+
+#% cell
+map(&(function_sign(&1, x, strict_inequalities: true)), [x^2, x^2 + 1])
+#% output
+#= [indeterminate, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `function_monotonicity` is the sign of the derivative:
+
+#% cell
+function_monotonicity(x^3, x)
+#% output
+#= 1
+
+#% cell
+function_sign(d(x^3, x), x)
+#% output
+#= 1
+
+#% subsection
+# Possible issues
+
+#% text
+# Without a proof the answer comes from samples of the domain; a sign change between samples very close together can be missed:
+
+#% cell
+function_sign(x^2 - 10^-8, x)
+#% output
+#= indeterminate
+
+#% text
+# A square root is not defined on the whole line, so its sign is indeterminate unless the domain is restricted:
+
+#% cell
+[function_sign(sqrt(x), x), function_sign([sqrt(x), x > 0], x)]
+#% output
+#= [indeterminate, 1]
+
+#% section
+# See also
+
+#% text
+# `function_monotonicity`, `function_convexity`, `refine`, `sign`

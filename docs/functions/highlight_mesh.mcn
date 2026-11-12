@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# highlight_mesh
+
+#% text
+# `highlight_mesh(m, style(d, directives...), ...)`: the mesh region m shown with its cells of dimension d drawn with the directives (`d` alone: red)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+m = mesh_region([[0, 0], [1, 0], [1, 1], [0, 1]], polygon([1, 2, 3, 4]))
+
+#% cell
+highlight_mesh(m, style(0, red), style(1, blue))
+#% output
+#= image("highlight_mesh.files/highlight_mesh-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

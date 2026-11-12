@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# string_cases
+
+#% text
+# `string_cases(s, p)` gives the substrings of `s` that match the string pattern `p`, left to right without overlaps; `string_cases(s, p -> r)` (or `:>`) gives `r` for each match, with the pattern's variables bound to their texts; `string_cases(s, spec, n)` at most `n`. Options `overlaps: true | all` and `ignore_case: true`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("a10b6a77a3", string_expression("a", repeated(digit_character)))
+#% output
+#= ["a10", "a77", "a3"]
+
+#% cell
+string_cases("x=1, y=22", string_expression(v_, "=", n @ repeated(digit_character)) :> [v, to_expression(n)])
+#% output
+#= [["x", 1], ["y", 22]]
+
+#% cell
+string_cases("abcdefg", string_expression(shortest(x__), __) -> x)
+#% output
+#= ["a"]
+
+#% cell
+string_cases("aaaa", "aa", overlaps: true)
+#% output
+#= ["aa", "aa", "aa"]
+
+#% section
+# See also
+
+#% text
+# `string_position`, `string_count`, `string_match_q`, `string_replace`, `string_expression`

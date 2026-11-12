@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# paired_bar_chart
+
+#% text
+# `paired_bar_chart(d1, d2)` draws the values of `d1` as bars to the left and those of `d2` to the right of a common axis.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+paired_bar_chart([1, 2, 3, 4], [4, 3, 2, 2])
+#% output
+#= image("paired_bar_chart.files/paired_bar_chart-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`

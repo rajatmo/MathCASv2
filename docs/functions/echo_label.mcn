@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# echo_label
+
+#% text
+# `echo_label(label)` is the function that prints its argument after `label` and gives the argument.
+
+#% section
+# Details
+
+#% item
+# `echo_label(label)(x)` is `echo(x, label)`; `echo_label()(x)` is `echo(x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+echo_label("sum:")(1 + 1)
+#% output
+#| sum: 2
+#= 2
+
+#% cell
+map(echo_label("x:"), [1, 2])
+#% output
+#| x: 1
+#| x: 2
+#= [1, 2]
+
+#% section
+# See also
+
+#% text
+# `echo`, `echo_function`

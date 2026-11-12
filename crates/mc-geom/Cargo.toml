@@ -1,0 +1,22 @@
+[package]
+name = "mc-geom"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 regions: geometric regions (disks, balls, boxes, polygons, simplices, intervals, implicit and parametric regions), their measures, centroids, bounds, membership and distances, Boolean operations on polygons, and integrals over regions"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# compiled evaluation of conditions and parametrisations when regions are sampled numerically
+mc-numfn = { path = "../mc-numfn" }
+# printing terms (a mesh region already in its canonical form is left as it is)
+mc-syntax = { path = "../mc-syntax" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled engine
+mc-engine = { path = "../mc-engine" }

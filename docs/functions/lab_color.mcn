@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# lab_color
+
+#% text
+# `lab_color(l, a, b)`: a colour in CIE L*a*b* (D50 white; l from 0 to 1, a and b the chromatic axes divided by 100)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics(table([lab_color(0.6, a, 0.3), disk([4 * a, 0], 0.4)], a, [-1/2, -1/4, 0, 1/4, 1/2]))
+#% output
+#= image("lab_color.files/lab_color-1.svgz")
+
+#% cell
+color_convert(red, "LAB")
+#% output
+#= lab_color(0.5428864534538778, 0.8081134268912615, 0.6988425707629881)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

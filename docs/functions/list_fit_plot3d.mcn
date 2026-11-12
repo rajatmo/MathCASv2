@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# list_fit_plot3d
+
+#% text
+# `list_fit_plot3d([[x, y, z], ...])` draws points in space with their least-squares plane.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_fit_plot3d([[1, 2, 3], [2, 1, 1], [1, 1, 2], [3, 3, 4], [2, 3, 3.5]])
+#% output
+#= image("list_fit_plot3d.files/list_fit_plot3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_fit_plot`

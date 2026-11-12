@@ -1,0 +1,152 @@
+#! mathcas 2 notebook
+
+#% title
+# length
+
+#% text
+# `length(xs)` gives the number of elements of the list `xs`.
+
+#% text
+# `length(t)` gives the number of arguments of any compound term `t`, and 0 for an atom.
+
+#% section
+# Details
+
+#% item
+# Only the top level is counted: a nested list counts as one element.
+
+#% item
+# Numbers, symbols and strings are atoms and have length 0; for the number of characters of a string use `string_length`.
+
+#% item
+# For an association, the number of entries.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+length([a, b, c, d])
+#% output
+#= 4
+
+#% cell
+length([])
+#% output
+#= 0
+
+#% cell
+length([[1, 2], [3, 4, 5]])
+#% output
+#= 2
+
+#% subsection
+# Scope
+
+#% text
+# The arguments of a symbolic term:
+
+#% cell
+length(f(x, y, z))
+#% output
+#= 3
+
+#% cell
+length(a + b + c)
+#% output
+#= 3
+
+#% text
+# Atoms have length 0:
+
+#% cell
+[length(42), length(x), length("text")]
+#% output
+#= [0, 0, 0]
+
+#% text
+# Associations:
+
+#% cell
+length(assoc("a" -> 1, "b" -> 2))
+#% output
+#= 2
+
+#% subsection
+# Applications
+
+#% text
+# The number of solutions of an equation:
+
+#% cell
+length(solve(x^4 == 1, x))
+#% output
+#= 4
+
+#% text
+# The number of primes below 1000:
+
+#% cell
+length(select(range(1000), is_prime))
+#% output
+#= 168
+
+#% subsection
+# Properties and relations
+
+#% text
+# The length of a range is its number of steps plus one:
+
+#% cell
+length(range(0, 10, 1/2))
+#% output
+#= 21
+
+#% text
+# `join` adds lengths:
+
+#% cell
+length(join([1, 2], [3, 4, 5])) == length([1, 2]) + length([3, 4, 5])
+#% output
+#= true
+
+#% text
+# The shape of a matrix, with the length of its first row:
+
+#% cell
+m = [[1, 2, 3], [4, 5, 6]]
+[length(m), length(m[1])]
+#% output
+#= [2, 3]
+
+#% subsection
+# Possible issues
+
+#% text
+# A string is an atom; its length is 0:
+
+#% cell
+length("hello")
+#% output
+#= 0
+
+#% cell
+string_length("hello")
+#% output
+#= 5
+
+#% text
+# A sum is a term with arguments, so `length` counts its terms:
+
+#% cell
+length(x^2 + 2x + 1)
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `string_length`, `depth`, `leaf_count`, `count`

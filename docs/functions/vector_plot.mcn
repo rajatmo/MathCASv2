@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# vector_plot
+
+#% text
+# `vector_plot([vx, vy], [x, a, b], [y, c, d])` draws arrows of the vector field on a grid, scaled and coloured by its magnitude.
+
+#% section
+# Details
+
+#% item
+# Option `plot_points` sets the number of grid points (arrows) or seeds (streamlines) per side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vector_plot([-1 - x^2 + y, 1 + x - y^2], [x, -3, 3], [y, -3, 3])
+#% output
+#= image("vector_plot.files/vector_plot-1.svgz")
+
+#% cell
+vector_plot([y, -x], [x, -2, 2], [y, -2, 2], plot_points: 10)
+#% output
+#= image("vector_plot.files/vector_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `stream_plot`

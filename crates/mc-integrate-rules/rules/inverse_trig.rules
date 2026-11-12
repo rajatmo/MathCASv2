@@ -1,0 +1,31 @@
+# Inverse trigonometric functions times powers of x: integration by parts, the algebraic integrals that remain
+# going to the binomial rules (translated from Rubi sections 5.1.2, 5.2.2, 5.3.2, 5.4 and 5.5.1, MIT).
+
+## 5.1.2 x^m asin(c x), x^m acos(c x)
+int(x^m_.*asin(c_.*x)) := x^(m + 1)*asin(c*x)/(m + 1) - c/(m + 1)*int(x^(m + 1)/sqrt(1 - c^2*x^2)) when free(c, m) and ne(m, -1)
+int(x^m_.*acos(c_.*x)) := x^(m + 1)*acos(c*x)/(m + 1) + c/(m + 1)*int(x^(m + 1)/sqrt(1 - c^2*x^2)) when free(c, m) and ne(m, -1)
+
+## 5.3.2 x^m atan(c x), x^m acot(c x)
+int(x^m_.*atan(c_.*x)) := x^(m + 1)*atan(c*x)/(m + 1) - c/(m + 1)*int(x^(m + 1)/(1 + c^2*x^2)) when free(c, m) and ne(m, -1)
+int(x^m_.*acot(c_.*x)) := x^(m + 1)*acot(c*x)/(m + 1) + c/(m + 1)*int(x^(m + 1)/(1 + c^2*x^2)) when free(c, m) and ne(m, -1)
+int(acot(c_.*x)) := x*acot(c*x) + log(1 + c^2*x^2)/(2*c) when free(c)
+
+## 5.5.1 x^m asec(c x), x^m acsc(c x)
+int(asec(c_.*x)) := x*asec(c*x) - 1/c*int(1/(x*sqrt(1 - 1/(c^2*x^2)))) when free(c)
+int(acsc(c_.*x)) := x*acsc(c*x) + 1/c*int(1/(x*sqrt(1 - 1/(c^2*x^2)))) when free(c)
+int(x^m_.*asec(c_.*x)) := x^(m + 1)*asec(c*x)/(m + 1) - 1/(c*(m + 1))*int(x^(m - 1)/sqrt(1 - 1/(c^2*x^2))) when free(c, m) and ne(m, -1)
+int(x^m_.*acsc(c_.*x)) := x^(m + 1)*acsc(c*x)/(m + 1) + 1/(c*(m + 1))*int(x^(m - 1)/sqrt(1 - 1/(c^2*x^2))) when free(c, m) and ne(m, -1)
+
+## 5.1.5 x^m (a + b asin(c x))^n, m a non-negative integer: x = sin(t)/c
+int(x^m_.*(a_. + b_.*asin(c_.*x))^n_) := 1/c^(m + 1)*subst(int((a + b*x)^n*sin(x)^m*cos(x)), asin(c*x))
+    when free(a, b, c, n) and integer(m) and m >= 0
+int(x^m_.*(a_. + b_.*acos(c_.*x))^n_) := -1/c^(m + 1)*subst(int((a + b*x)^n*cos(x)^m*sin(x)), acos(c*x))
+    when free(a, b, c, n) and integer(m) and m >= 0
+int((a_. + b_.*asin(c_.*x))^n_) := 1/c*subst(int((a + b*x)^n*cos(x)), asin(c*x)) when free(a, b, c, n)
+int((a_. + b_.*acos(c_.*x))^n_) := -1/c*subst(int((a + b*x)^n*sin(x)), acos(c*x)) when free(a, b, c, n)
+
+## 5.1.3 (a + b asin(c x))^n/sqrt(d + e x^2) with e = -c^2 d: the derivative divides
+int((a_. + b_.*asin(c_.*x))^n_.*(d_ + e_.*x^2)^(-1/2)) := (a + b*asin(c*x))^(n + 1)/(b*c*sqrt(d)*(n + 1))
+    when free(a, b, c, d, e, n) and eq(e + c^2*d, 0) and d > 0 and ne(n, -1)
+int((a_. + b_.*acos(c_.*x))^n_.*(d_ + e_.*x^2)^(-1/2)) := -(a + b*acos(c*x))^(n + 1)/(b*c*sqrt(d)*(n + 1))
+    when free(a, b, c, d, e, n) and eq(e + c^2*d, 0) and d > 0 and ne(n, -1)

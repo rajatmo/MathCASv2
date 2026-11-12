@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# permutation_list
+
+#% text
+# `permutation_list(p), (p, n)`: the list of images of 1, 2, ..., n
+
+#% section
+# Details
+
+#% item
+# Without n the list runs to the largest moved point.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutation_list(cycles([[1, 3]]))
+#% output
+#= [3, 2, 1]
+
+#% cell
+permutation_list(cycles([[1, 3]]), 5)
+#% output
+#= [3, 2, 1, 4, 5]
+
+#% section
+# See also
+
+#% text
+# `permutation_cycles`, `permutation_image`

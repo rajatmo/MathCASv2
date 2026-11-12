@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# truncate_sum
+
+#% text
+# `truncate_sum(e, k)` cuts every sum `sum(f, [i, a, b])` in e to its first k terms, i = a, ..., a + k - 1.
+
+#% section
+# Details
+
+#% item
+# With an integer k the terms are added; with a symbolic k the sum keeps its new upper limit. Inactive sums are cut too; `activate_result: false` keeps the result inactive. A range from -inf keeps the last k terms, one over the whole line the terms -k to k, and a list k = [k1, k2] names the ranges of a multiple sum (`all` keeps one whole). A finite range is cut only when it has more than 100 terms.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+truncate_sum(sum(f(i), [i, 1, inf]), 5)
+#% output
+#= f(1) + f(2) + f(3) + f(4) + f(5)
+
+#% cell
+truncate_sum(sum(cos(i), [i, 3, inf]), 3)
+#% output
+#= cos(3) + cos(4) + cos(5)
+
+#% cell
+truncate_sum(sum(exp(-sin(i)), [i, 1, inf]), m)
+#% output
+#= sum(exp(-sin(i)), [i, 1, m])
+
+#% section
+# See also
+
+#% text
+# `sum`, `n_sum`

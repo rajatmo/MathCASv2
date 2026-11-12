@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# translation_transform
+
+#% text
+# `translation_transform(v)`: the shift by v, as a transformation_function
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+translation_transform([1, 2])([x, y])
+#% output
+#= [1 + x, 2 + y]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

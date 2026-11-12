@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# asa_triangle
+
+#% text
+# `asa_triangle(alpha, c, beta)`: the triangle with the side c between the angles alpha and beta
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+asa_triangle(pi/6, 1, pi/3)
+#% output
+#= triangle([[0, 0], [1, 0], [3/4, (1/4)*3^(1/2)]])
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

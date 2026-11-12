@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_jacobi_nd
+
+#% text
+# `inverse_jacobi_nd(v, m)` gives the `u` with `jacobi_nd(u, m) = v`, the inverse of the Jacobi elliptic function `nd`.
+
+#% section
+# Details
+
+#% item
+# The value is the principal branch of DLMF 22.15, real for a real `v` in the range of the function on the real line and `0 <= m < 1`.
+#% item
+# For a real `m > 1` the value is `inverse_jacobi_nc(v, 1/m)/sqrt(m)` (the reciprocal-modulus transformation, DLMF 22.17), real for a real `v` in the range of the function on the real line.
+
+#% item
+# Machine numbers and balls give numerical values; exact arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_jacobi_nd(1.2, 0.5)
+#% output
+#= 0.9578977976026843
+
+#% cell
+inverse_jacobi_nd(1.0, 0.5)
+#% output
+#= 0.0
+
+#% cell
+inverse_jacobi_nd(1.1, 0.3)
+#% output
+#= 0.8945735832606405
+
+#% subsection
+# Properties and relations
+
+#% text
+# `jacobi_nd` undoes it:
+
+#% cell
+jacobi_nd(inverse_jacobi_nd(1.2, 0.4), 0.4)
+#% output
+#= 1.2
+
+#% text
+# The inverse grows to the quarter period `K(m)` at the end of the range:
+
+#% cell
+[inverse_jacobi_nd(sqrt(2.0), 0.5), elliptic_k(0.5)]
+#% output
+#= [1.854074677301372, 1.8540746773013719]
+
+#% section
+# See also
+
+#% text
+# `jacobi_nd`, `inverse_jacobi_sn`, `jacobi_amplitude`, `elliptic_f`

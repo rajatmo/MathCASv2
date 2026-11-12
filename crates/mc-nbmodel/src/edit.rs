@@ -1,0 +1,1539 @@
+//! Applying commands (design 3): typing, motion, selection, clipboard, cell operations, styles, grouping and
+//! evaluation requests. Every change goes through the primitives of [`crate::notebook`], so undo, the selection
+//! and the groups stay consistent.
+use crate::cell::{Cell, CellId};
+use crate::command::{Bracket, Command, Effects, Motion};
+use crate::env::{Clip, Env};
+use crate::notebook::{Notebook, Run, Selection};
+use crate::style::{FontRole, ReturnKey, Style};
+use crate::text;
+
+/// The indentation Tab inserts (decision NB-core.5: spaces, so files and the painter agree on widths).
+pub const INDENT: &str = "    ";
+
+/// The alias start marker typed by Esc (design 3.9).
+pub const ALIAS_MARK: char = '⋮';
+
+impl Notebook {
+    /// Apply a command. The window repaints after every command; [`Effects`] says what else to do.
+    pub fn apply(&mut self, cmd: Command, env: &mut dyn Env) -> Effects {
+        let mut fx = Effects { changed: true, ..Effects::default() };
+        let before = (self.sel.clone(), self.structure_rev());
+        if !matches!(cmd, Command::Move(Motion::Up | Motion::Down, _)) {
+            self.goal_x = None;
+        }
+        let modified = self.is_modified();
+        if !matches!(cmd, Command::Insert(_) | Command::Backspace | Command::Alias) {
+            self.closers.clear();
+        }
+        self.sync_code();
+        self.sync_out(env);
+        match cmd {
+            Command::Undo => fx.beep = !self.undo(),
+            Command::Redo => fx.beep = !self.redo(),
+            cmd => {
+                self.begin_unit();
+                let run = self.dispatch(cmd, env, &mut fx);
+                self.end_unit(run);
+            }
+        }
+        self.sync_code();
+        self.sync_out(env);
+        fx.modified = self.is_modified() && (!modified || self.structure_rev() != before.1 || fx.modified);
+        fx.scroll = self.sel != before.0;
+        fx
+    }
+
+    fn dispatch(&mut self, cmd: Command, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        use Command as C;
+        if let Some(run) = self.code_dispatch(&cmd, env, fx) {
+            return run;
+        }
+        if self.out_dispatch(&cmd, env).is_some() {
+            return None;
+        }
+        match cmd {
+            C::Insert(t) => return self.type_text(&t, env, fx),
+            C::Enter => return self.enter(env, fx),
+            C::Tab => self.tab(env, fx),
+            C::Outdent => self.outdent(env, fx),
+            // comments are toggled in code cells by their editor (mc-edit)
+            C::ToggleComment => fx.beep = true,
+            C::Alias => return self.alias(env, fx),
+            C::ExtendSelection => self.extend_selection(),
+            C::CheckBalance => fx.beep = !self.check_balance(),
+            C::Backspace | C::Delete | C::DeleteWordBack | C::DeleteWordForward => return self.delete(&cmd, env, fx),
+            C::Move(m, extend) => self.motion(m, extend, env),
+            C::SelectAll => self.select_all(),
+            C::Undo | C::Redo => unreachable!("handled by apply"),
+            C::Cut => {
+                if self.copy(env, false) {
+                    self.delete(&C::Delete, env, fx);
+                }
+            }
+            C::Copy => fx.beep = !self.copy(env, false),
+            C::CopyPlain => fx.beep = !self.copy(env, true),
+            C::CopyLatex => fx.beep = !self.copy_latex(env),
+            C::ReplaceWord(name) => fx.beep = !self.replace_word(&name),
+            C::Paste => self.paste(env, fx),
+            C::PasteMath => {
+                // the clipboard's text read as math; text that does not read pastes as it is
+                let mut clip = env.clipboard();
+                if clip.boxes.is_none() {
+                    if let Some(row) = clip.text.as_deref().and_then(|t| mc_boxes::typeset_input(t).ok()) {
+                        let row = mc_boxes::restrict(&row);
+                        if mc_boxes::has_boxes(&row) {
+                            clip.boxes = Some(mc_boxes::to_text(&row));
+                        }
+                    }
+                }
+                self.paste_override = Some(clip);
+                if self.code_dispatch(&C::Paste, env, fx).is_none() {
+                    self.paste(env, fx);
+                }
+                self.paste_override = None;
+            }
+            C::Evaluate => self.evaluate(false, fx),
+            C::EvaluateNext => self.evaluate(true, fx),
+            C::EvaluateNotebook => {
+                let ids = self.cells.iter().filter(|c| c.evaluatable()).map(|c| c.id).collect();
+                self.enqueue(ids, fx);
+            }
+            C::EvaluateInitialization => {
+                let ids = self.initialization_cells();
+                self.push_queue(ids);
+            }
+            C::InitAnswer(a) => self.answer_init(a),
+            C::Abort => self.abort(),
+            C::Unqueue => {
+                let ids = self.selected_cells();
+                self.unqueue(&ids);
+            }
+            C::QuitKernel => self.quit_kernel(),
+            C::SetStyle(s) => self.set_style(s),
+            C::Divide => fx.beep = !self.divide(),
+            C::Merge => fx.beep = !self.merge(),
+            C::GroupTogether => self.mark_together(true),
+            C::Ungroup => self.mark_together(false),
+            C::SetManualGrouping(on) => {
+                if on {
+                    self.header.set("grouping", Some("manual".into()));
+                } else {
+                    self.header.remove("grouping");
+                }
+                self.structure_changed();
+            }
+            C::ToggleGroup => fx.beep = !self.toggle_group(),
+            C::OpenAll => self.open_close_all(false),
+            C::CloseAll => self.open_close_all(true),
+            C::ToggleInitialization => {
+                self.toggle_prop(|c| c.props.initialization = Some(!c.initialization()));
+            }
+            C::ToggleEditable => self.toggle_prop(|c| c.props.editable = Some(!c.editable())),
+            C::ToggleEvaluatable => self.toggle_prop(|c| c.props.evaluatable = Some(!c.evaluatable())),
+            C::ToggleDeletable => self.toggle_prop(|c| c.props.deletable = Some(!c.deletable())),
+            C::ShowExpression => fx.beep = !self.show_expression(),
+            C::InputFromAbove => fx.beep = !self.copy_from_above(false),
+            C::OutputFromAbove => fx.beep = !self.copy_from_above(true),
+            C::SameStyleBelow => fx.beep = !self.same_style_below(),
+            C::DeleteAllOutput => {
+                let mut i = 0;
+                while i < self.cells.len() {
+                    if self.cells[i].generated() {
+                        let mut j = i;
+                        while j < self.cells.len() && self.cells[j].generated() {
+                            j += 1;
+                        }
+                        self.remove_cells(i..j, true);
+                    } else {
+                        i += 1;
+                    }
+                }
+            }
+            C::NewCell(style) => {
+                let at = match self.sel {
+                    Selection::Gap(g) => g,
+                    _ => match self.current_cell().and_then(|id| self.index_of(id)) {
+                        Some(i) => self.outputs_end(i),
+                        None => self.cells.len(),
+                    },
+                };
+                self.create_cell(at, style, "");
+            }
+            C::ClickText(id, pos, extend) => self.click_text(id, pos, extend),
+            C::SelectText(id, anchor, pos) => self.select(Selection::Caret { cell: id, anchor, pos }),
+            C::SelectWord(id, pos) => {
+                if let Some(c) = self.cell(id) {
+                    // in an output shown as one unit a double-click selects all of it
+                    let (a, b) =
+                        if env.atomic(c) { (0, c.text.len()) } else { text::word_at(&c.text, pos.min(c.text.len())) };
+                    self.select(Selection::Caret { cell: id, anchor: a, pos: b });
+                }
+            }
+            C::SelectLine(id, pos) => {
+                if let Some(c) = self.cell(id) {
+                    let pos = pos.min(c.text.len());
+                    let (a, b) = if env.atomic(c) {
+                        (0, c.text.len())
+                    } else {
+                        (text::line_start(&c.text, pos), text::line_end(&c.text, pos))
+                    };
+                    self.select(Selection::Caret { cell: id, anchor: a, pos: b });
+                }
+            }
+            C::ClickGap(g) => {
+                self.gap_style = None;
+                self.select(Selection::Gap(g));
+            }
+            C::ClickBracket(b, shift, ctrl) => self.click_bracket(b, shift, ctrl),
+            C::DoubleClickBracket(b) => {
+                if let Bracket::Group(s, e) = b {
+                    if let Some(g) = self.groups.list.iter().position(|g| g.start == s && g.end == e) {
+                        self.toggle_group_at(g, 0);
+                    }
+                }
+            }
+            C::MoveCells(to, copy) => fx.beep = !self.move_cells(to, copy),
+            C::ResizeGraphic(id, size) => fx.beep = !self.resize_graphic(id, size),
+            C::SetOutputAttrs(id, attrs) => fx.beep = !self.set_output_attrs(id, attrs),
+            C::SetControl(id, k, v, done) => fx.beep = !self.set_control(id, k, v, done),
+            // without a typeset cell at the caret (handled before): nothing to act on
+            C::Structure(_) | C::ExitStructure => fx.beep = true,
+            // a click in boxes: handled by the code cell's or the output's editor before this
+            C::ClickBox(..) => {}
+            C::Nop => {}
+            C::App(a) => fx.app = Some(a),
+        }
+        None
+    }
+
+    /// Set or clear the `size` of a graphic's output (a resize ends, or a double-click restores the natural size).
+    fn resize_graphic(&mut self, id: CellId, size: Option<(u32, u32)>) -> bool {
+        if self.cell(id).and_then(|c| c.graphic()).is_none() {
+            return false;
+        }
+        let value = size.map(|(w, h)| mc_nbfile::images::size_value(w.max(1), h.max(1)));
+        self.update_cell(id, true, |c| match value {
+            Some(v) => c.out_extra.set("size", Some(v)),
+            None => c.out_extra.remove("size"),
+        });
+        true
+    }
+
+    fn set_output_attrs(&mut self, id: CellId, attrs: Vec<(String, Option<String>)>) -> bool {
+        let Some(c) = self.cell(id) else { return false };
+        if c.style != crate::Style::Output {
+            return false;
+        }
+        let changed = attrs.iter().any(|(n, v)| c.out_extra.get(n) != v.as_deref() || (v.is_none() && c.out_extra.has(n)));
+        if !changed {
+            return true;
+        }
+        self.update_cell(id, true, |c| {
+            for (n, v) in &attrs {
+                match v {
+                    Some(v) => c.out_extra.set(n, Some(v.clone())),
+                    None => c.out_extra.remove(n),
+                }
+            }
+        });
+        true
+    }
+
+    // ----- typing -----
+
+    /// A new cell of `style` holding `text` at `at`, the caret at its end; groups closed around it open.
+    pub(crate) fn create_cell(&mut self, at: usize, style: Style, content: &str) -> CellId {
+        let c = self.new_cell(style, content);
+        let id = c.id;
+        self.insert_cells(at, vec![c], true);
+        let i = self.index_of(id).expect("inserted");
+        let heads: Vec<usize> = self.groups.containing(i).iter().map(|&g| self.groups.list[g].start).collect();
+        if heads.iter().any(|&h| self.cells[h].closed.is_some()) {
+            for h in heads {
+                let hid = self.cells[h].id;
+                self.update_cell(hid, true, |c| c.closed = None);
+            }
+        }
+        self.gap_style = None;
+        self.select(Selection::Caret { cell: id, anchor: content.len(), pos: content.len() });
+        id
+    }
+
+    /// The cell and range an edit applies to: the caret's cell, or for an Output cell a new Input copy after the
+    /// output's group (design 2.8: "edit duplicates"); `None` for cells that cannot be edited.
+    fn edit_target(&mut self) -> Option<(CellId, usize, usize)> {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return None };
+        let i = self.index_of(cell)?;
+        let c = &self.cells[i];
+        if !c.editable() {
+            return None;
+        }
+        let (a, b) = (anchor.min(pos), anchor.max(pos));
+        if c.style.info().ret != ReturnKey::Duplicate || c.expr_view {
+            return Some((cell, a, b));
+        }
+        let mut end = i + 1;
+        while end < self.cells.len() && self.cells[end].generated() {
+            end += 1;
+        }
+        let mut copy = self.new_cell(Style::Input, &c.text.clone());
+        copy.props.typeset = self.cells[i].props.typeset;
+        let id = copy.id;
+        self.insert_cells(end, vec![copy], true);
+        self.select(Selection::Caret { cell: id, anchor: a, pos: b });
+        Some((id, a, b))
+    }
+
+    /// Replace `a..b` of a cell's text by `s`; the caret goes after it.
+    fn replace_range(&mut self, id: CellId, a: usize, b: usize, s: &str) {
+        let Some(c) = self.cell(id) else { return };
+        let mut t = c.text.clone();
+        t.replace_range(a..b, s);
+        self.set_text(id, t, true);
+        self.select(Selection::Caret { cell: id, anchor: a + s.len(), pos: a + s.len() });
+    }
+
+    fn type_text(&mut self, t: &str, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        if t.is_empty() {
+            return None;
+        }
+        match self.sel.clone() {
+            Selection::Gap(g) => {
+                let style = self.gap_style();
+                let t = if style.info().font == FontRole::Prose { smart_quotes("", t) } else { t.to_string() };
+                // an opener typed at an insertion point makes a cell holding the pair (NB5.1)
+                let pair = match t.as_str() {
+                    "(" => Some("()"),
+                    "[" => Some("[]"),
+                    "{" => Some("{}"),
+                    "\"" if style.is_code() => Some("\"\""),
+                    _ => None,
+                };
+                if let Some(pair) = pair.filter(|_| self.auto_close) {
+                    let id = self.create_cell(g, style, pair);
+                    self.closers.push((id, 1));
+                    self.select(Selection::Caret { cell: id, anchor: 1, pos: 1 });
+                    return Some(Run::Typing(id, false, env.now()));
+                }
+                let id = self.create_cell(g, style, &t);
+                Some(Run::Typing(id, t.ends_with(char::is_whitespace), env.now()))
+            }
+            Selection::Cells { .. } => None,
+            Selection::Caret { .. } => {
+                let Some((id, a, b)) = self.edit_target() else {
+                    fx.beep = true;
+                    return None;
+                };
+                if self.auto_close {
+                    if let Some(space) = self.auto_close_typed(id, a, b, t) {
+                        return Some(Run::Typing(id, space, env.now()));
+                    }
+                }
+                let c = self.cell(id).expect("target exists");
+                let t = if c.style.info().font == FontRole::Prose && !c.expr_view {
+                    smart_quotes(&c.text[..a], t)
+                } else {
+                    t.to_string()
+                };
+                self.shift_closers(id, a, b, t.len());
+                self.replace_range(id, a, b, &t);
+                Some(Run::Typing(id, t.ends_with(char::is_whitespace), env.now()))
+            }
+        }
+    }
+
+    /// Automatic closing (decision NB5.1): typing `t` over `a..b` of cell `id` when it is an opening bracket, a
+    /// quote, or a closer that was inserted automatically. `Some(ends with space)` when it was handled here.
+    ///
+    /// - `(`, `[`, `{` insert their closer, the caret between, except inside strings and comments of code and
+    ///   right before a letter, digit or `_` (typing a bracket before existing text is usually meant to wrap it);
+    /// - `"` (code cells only; prose has smart quotes) pairs outside strings and comments when the next character
+    ///   is white space, a closer, `,`, `;` or the end;
+    /// - with a selection an opener (or `"` in code) wraps it and the selection stays on the wrapped text;
+    /// - a typed closer right before a closer inserted automatically steps over it.
+    fn auto_close_typed(&mut self, id: CellId, a: usize, b: usize, t: &str) -> Option<bool> {
+        let mut it = t.chars();
+        let (Some(ch), None) = (it.next(), it.next()) else { return None };
+        // (code cells close brackets and quotes in their editor, mc-edit; here prose and a cell's source view)
+        let c = self.cell(id)?;
+        let s = c.text.clone();
+        let closer = match ch {
+            '(' => Some(')'),
+            '[' => Some(']'),
+            '{' => Some('}'),
+            _ => None,
+        };
+        // step over an automatic closer
+        if a == b && s[a..].starts_with(ch) && self.closers.contains(&(id, a)) {
+            self.closers.retain(|&k| k != (id, a));
+            self.select(Selection::Caret { cell: id, anchor: a + 1, pos: a + 1 });
+            return Some(false);
+        }
+        let close = closer?;
+        if a != b {
+            let mut w = String::with_capacity(b - a + 2);
+            w.push(ch);
+            w.push_str(&s[a..b]);
+            w.push(close);
+            self.shift_closers(id, a, b, w.len());
+            self.replace_range(id, a, b, &w);
+            self.select(Selection::Caret { cell: id, anchor: a + 1, pos: b + 1 });
+            return Some(false);
+        }
+        let next = s[a..].chars().next();
+        let pairs = next.is_none_or(|n| !(n.is_alphanumeric() || n == '_'));
+        if !pairs {
+            return None;
+        }
+        self.shift_closers(id, a, b, 2);
+        let mut pair = String::new();
+        pair.push(ch);
+        pair.push(close);
+        self.replace_range(id, a, b, &pair);
+        self.closers.push((id, a + 1));
+        self.select(Selection::Caret { cell: id, anchor: a + 1, pos: a + 1 });
+        Some(false)
+    }
+
+    /// Keep the automatic closers of cell `id` in place when `a..b` is replaced by `len` bytes; closers inside the
+    /// replaced range are forgotten.
+    fn shift_closers(&mut self, id: CellId, a: usize, b: usize, len: usize) {
+        self.closers.retain(|&(c, p)| c != id || p < a || p >= b);
+        for (c, p) in &mut self.closers {
+            if *c == id && *p >= b {
+                *p = *p + len - (b - a);
+            }
+        }
+    }
+
+    fn enter(&mut self, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        let Selection::Caret { cell, .. } = self.sel else { return None };
+        let c = self.cell(cell)?;
+        match c.style.info().ret {
+            ReturnKey::NewCell if !c.expr_view => {
+                let Some((id, a, b)) = self.edit_target() else {
+                    fx.beep = true;
+                    return None;
+                };
+                let c = self.cell(id).expect("target");
+                let (style, head, tail) = (c.style, c.text[..a].to_string(), c.text[b..].to_string());
+                self.set_text(id, head, true);
+                let i = self.index_of(id).expect("target");
+                let new = self.create_cell(i + 1, style, &tail);
+                self.select(Selection::Caret { cell: new, anchor: 0, pos: 0 });
+                None
+            }
+            _ => self.type_text("\n", env, fx),
+        }
+    }
+
+    fn selected_lines(&self) -> Option<(CellId, Vec<usize>)> {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return None };
+        let c = self.cell(cell)?;
+        let (a, b) = (anchor.min(pos), anchor.max(pos));
+        let starts = text::lines(&c.text)
+            .into_iter()
+            .filter(|r| r.start == text::line_start(&c.text, a) || (r.start > a && r.start < b.max(a + 1)))
+            .map(|r| r.start)
+            .collect();
+        Some((cell, starts))
+    }
+
+    fn tab(&mut self, env: &mut dyn Env, fx: &mut Effects) {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return };
+        let multi = self.cell(cell).is_some_and(|c| c.text[anchor.min(pos)..anchor.max(pos)].contains('\n'));
+        if !multi {
+            self.type_text(INDENT, env, fx);
+            return;
+        }
+        let Some((id, starts)) = self.selected_lines() else { return };
+        if !self.cell(id).is_some_and(|c| c.editable() && c.style.info().ret != ReturnKey::Duplicate) {
+            fx.beep = true;
+            return;
+        }
+        let mut t = self.cell(id).expect("selected").text.clone();
+        for &s in starts.iter().rev() {
+            t.insert_str(s, INDENT);
+        }
+        let added = INDENT.len() * starts.len();
+        self.set_text(id, t, true);
+        let (a, b) = (anchor.min(pos), anchor.max(pos));
+        self.select(Selection::Caret { cell: id, anchor: a + INDENT.len(), pos: b + added });
+    }
+
+    fn outdent(&mut self, _env: &mut dyn Env, fx: &mut Effects) {
+        let Some((id, starts)) = self.selected_lines() else { return };
+        let Selection::Caret { anchor, pos, .. } = self.sel else { return };
+        if !self.cell(id).is_some_and(|c| c.editable() && c.style.info().ret != ReturnKey::Duplicate) {
+            fx.beep = true;
+            return;
+        }
+        let mut t = self.cell(id).expect("selected").text.clone();
+        let (mut a, mut b) = (anchor.min(pos), anchor.max(pos));
+        for &s in starts.iter().rev() {
+            let n = t[s..].chars().take(INDENT.len()).take_while(|&c| c == ' ').count();
+            t.replace_range(s..s + n, "");
+            let shift = |p: usize| if p > s { p - n.min(p - s) } else { p };
+            (a, b) = (shift(a), shift(b));
+        }
+        self.set_text(id, t, true);
+        self.select(Selection::Caret { cell: id, anchor: a, pos: b });
+    }
+
+    /// Esc (design 3.9): start an alias with the marker [`ALIAS_MARK`], or replace the marker and the name typed
+    /// after it by the alias's characters. An unknown name stays marked (guess 11); templates need typeset input
+    /// and stay marked too.
+    fn alias(&mut self, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        if let Selection::Gap(_) = self.sel {
+            // Esc at an insertion point starts a cell with the alias mark
+            return self.type_text(&ALIAS_MARK.to_string(), env, fx);
+        }
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return None };
+        let c = self.cell(cell)?;
+        let line_start = text::line_start(&c.text, pos);
+        let open = c.text[line_start..pos].rfind(ALIAS_MARK).map(|k| line_start + k);
+        match open {
+            Some(m) if anchor == pos => {
+                let name = c.text[m + ALIAS_MARK.len_utf8()..pos].to_string();
+                match mc_boxes::aliases::lookup_cell(&name) {
+                    // templates make boxes: code cells only (their editor), so not here
+                    Some(mc_boxes::aliases::Alias::Text(r)) => {
+                        self.sel = Selection::Caret { cell, anchor: m, pos };
+                        let Some((id, a, b)) = self.edit_target() else {
+                            fx.beep = true;
+                            return None;
+                        };
+                        // automatic closers after the alias move with the text (R32.2)
+                        self.shift_closers(id, a, b, r.len());
+                        self.replace_range(id, a, b, r);
+                        Some(Run::Typing(id, false, env.now()))
+                    }
+                    _ => {
+                        fx.beep = true;
+                        None
+                    }
+                }
+            }
+            // Esc with a text selection leaves it alone
+            _ if anchor != pos => None,
+            _ => self.type_text(&ALIAS_MARK.to_string(), env, fx),
+        }
+    }
+
+    /// Ctrl+. (design 3.4): the next syntactic unit of input cells (mc-syntax's grammar), the whole content of
+    /// other cells, then the cell itself; further presses keep the cell selected.
+    fn extend_selection(&mut self) {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return };
+        let Some(c) = self.cell(cell) else { return };
+        let (a, b) = (anchor.min(pos), anchor.max(pos));
+        // (code cells grow by their syntax in their editor, mc-edit)
+        let next = (!(a == 0 && b == c.text.len())).then_some(0..c.text.len());
+        match next {
+            Some(r) => self.select(Selection::Caret { cell, anchor: r.start, pos: r.end }),
+            None => self.select(Selection::Cells { ids: vec![cell], anchor: cell }),
+        }
+    }
+
+    /// Ctrl+Shift+B: the smallest bracketed expression strictly around the selection; again: the next one out.
+    fn check_balance(&mut self) -> bool {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return false };
+        let Some(c) = self.cell(cell) else { return false };
+        let colouring = mc_syntax::colour(&c.text, None);
+        match colouring.enclosing_brackets(anchor.min(pos), anchor.max(pos)) {
+            Some(r) => {
+                self.select(Selection::Caret { cell, anchor: r.start, pos: r.end });
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn delete(&mut self, cmd: &Command, env: &mut dyn Env, fx: &mut Effects) -> Option<Run> {
+        match self.sel.clone() {
+            Selection::Cells { ids, .. } => {
+                let deletable: Vec<CellId> =
+                    ids.into_iter().filter(|id| self.cell(*id).is_some_and(|c| c.deletable())).collect();
+                if deletable.is_empty() {
+                    fx.beep = true;
+                    return None;
+                }
+                let first = deletable.iter().filter_map(|id| self.index_of(*id)).min().expect("cells exist");
+                for id in deletable {
+                    if let Some(i) = self.index_of(id) {
+                        self.remove_cells(i..i + 1, true);
+                    }
+                }
+                self.select(Selection::Gap(first));
+                None
+            }
+            Selection::Gap(_) => None,
+            Selection::Caret { cell, anchor, pos } => {
+                let c = self.cell(cell)?;
+                let s = &c.text;
+                let pair = |o: char| match o {
+                    '(' => Some(')'),
+                    '[' => Some(']'),
+                    '{' => Some('}'),
+                    '"' => Some('"'),
+                    _ => None,
+                };
+                // Backspace right after an opener whose automatic closer follows deletes both (NB5.1)
+                let both = anchor == pos
+                    && *cmd == Command::Backspace
+                    && self.closers.contains(&(cell, pos))
+                    && s[..pos].chars().next_back().and_then(pair).is_some_and(|cl| s[pos..].starts_with(cl));
+                let (a, b) = if both {
+                    (text::prev_char(s, pos), pos + 1)
+                } else if anchor != pos {
+                    (anchor.min(pos), anchor.max(pos))
+                } else {
+                    match cmd {
+                        Command::Backspace => (text::prev_char(s, pos), pos),
+                        Command::Delete => (pos, text::next_char(s, pos)),
+                        Command::DeleteWordBack => (text::word_left(s, pos), pos),
+                        _ => (pos, text::word_right(s, pos)),
+                    }
+                };
+                if a == b {
+                    // Backspace at a cell's start, Delete at its end: cells are never merged by deletion
+                    return None;
+                }
+                self.sel = Selection::Caret { cell, anchor: a, pos: b };
+                let Some((id, a, b)) = self.edit_target() else {
+                    self.sel = Selection::Caret { cell, anchor, pos };
+                    fx.beep = true;
+                    return None;
+                };
+                if id == cell {
+                    self.shift_closers(id, a, b, 0);
+                } else {
+                    self.closers.clear();
+                }
+                self.replace_range(id, a, b, "");
+                Some(Run::Deleting(id, env.now()))
+            }
+        }
+    }
+
+    // ----- motion -----
+
+    /// The visible cell before the insertion point `g`.
+    fn visible_before(&self, g: usize) -> Option<usize> {
+        (0..g.min(self.cells.len())).rev().find(|&j| self.is_visible(j))
+    }
+
+    /// The visible cell at or after `g`.
+    fn visible_from(&self, g: usize) -> Option<usize> {
+        (g..self.cells.len()).find(|&j| self.is_visible(j))
+    }
+
+    /// The gap after cell `i` (past any hidden cells).
+    fn gap_after(&self, i: usize) -> usize {
+        self.normal_gap(i + 1)
+    }
+
+    fn caret_enterable(&self, i: usize) -> bool {
+        self.cells[i].style != Style::Message && !self.cells[i].props.hidden
+    }
+
+    fn motion(&mut self, m: Motion, extend: bool, env: &mut dyn Env) {
+        match self.sel.clone() {
+            Selection::Caret { cell, anchor, pos } => self.caret_motion(cell, anchor, pos, m, extend, env),
+            Selection::Gap(g) => match m {
+                Motion::DocStart => self.select(Selection::Gap(0)),
+                Motion::DocEnd => self.select(Selection::Gap(self.cells.len())),
+                Motion::Down | Motion::Right | Motion::WordRight => {
+                    let Some(j) = self.visible_from(g) else { return };
+                    if extend {
+                        let id = self.cells[j].id;
+                        self.select(Selection::Cells { ids: vec![id], anchor: id });
+                    } else if !self.caret_enterable(j) {
+                        self.select(Selection::Gap(self.gap_after(j)));
+                    } else {
+                        let id = self.cells[j].id;
+                        // a cell with boxes is entered at its start: its text is canonical box text, whose widths are
+                        // not the boxes' (round 19: Down from above landed in the exponent of a power)
+                        let pos = if m == Motion::Down {
+                            let lines = env.lines(&self.cells[j]);
+                            let x = self.goal_x.unwrap_or(0.0);
+                            env.pos_at(&self.cells[j], lines[0].clone(), x)
+                        } else {
+                            0
+                        };
+                        self.select(Selection::Caret { cell: id, anchor: pos, pos });
+                    }
+                }
+                Motion::Up | Motion::Left | Motion::WordLeft => {
+                    let Some(j) = self.visible_before(g) else { return };
+                    if extend {
+                        let id = self.cells[j].id;
+                        self.select(Selection::Cells { ids: vec![id], anchor: id });
+                    } else if !self.caret_enterable(j) {
+                        self.select(Selection::Gap(j));
+                    } else {
+                        let c = &self.cells[j];
+                        let id = c.id;
+                        let pos = if m == Motion::Up {
+                            let lines = env.lines(c);
+                            let x = self.goal_x.unwrap_or(0.0);
+                            env.pos_at(c, lines.last().expect("a line").clone(), x)
+                        } else {
+                            c.text.len()
+                        };
+                        self.select(Selection::Caret { cell: id, anchor: pos, pos });
+                    }
+                }
+                Motion::Home | Motion::End => {}
+            },
+            Selection::Cells { ids, anchor } => {
+                let idx: Vec<usize> = ids.iter().filter_map(|id| self.index_of(*id)).collect();
+                let (Some(&lo), Some(&hi)) = (idx.iter().min(), idx.iter().max()) else { return };
+                match (m, extend) {
+                    (Motion::DocStart, _) => self.select(Selection::Gap(0)),
+                    (Motion::DocEnd, _) => self.select(Selection::Gap(self.cells.len())),
+                    (Motion::Up | Motion::Down, true) => {
+                        // extend the cell range by the next visible cell on the side away from the anchor
+                        let a = self.index_of(anchor).unwrap_or(lo);
+                        let (mut from, mut to) = (lo, hi);
+                        if m == Motion::Down {
+                            if a <= lo && hi > a || a == lo && hi == lo {
+                                if let Some(j) = self.visible_from(hi + 1) {
+                                    to = self.groups.after_hidden(j) - 1;
+                                }
+                            } else if let Some(j) = self.visible_from(lo + 1) {
+                                from = j;
+                            }
+                        } else if a >= hi && lo < a || a == hi && hi == lo {
+                            if let Some(j) = self.visible_before(lo) {
+                                from = j;
+                            }
+                        } else if let Some(j) = self.visible_before(hi) {
+                            to = self.groups.after_hidden(j) - 1;
+                        }
+                        let ids = self.cells[from..=to].iter().map(|c| c.id).collect();
+                        self.select(Selection::Cells { ids, anchor });
+                    }
+                    (Motion::Up | Motion::Left | Motion::WordLeft, _) => self.select(Selection::Gap(lo)),
+                    (Motion::Down | Motion::Right | Motion::WordRight, _) => {
+                        self.select(Selection::Gap(self.gap_after(hi)))
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn caret_motion(&mut self, cell: CellId, anchor: usize, pos: usize, m: Motion, extend: bool, env: &mut dyn Env) {
+        let Some(i) = self.index_of(cell) else { return };
+        let c = self.cells[i].clone();
+        let s = &c.text;
+        let set = |nb: &mut Notebook, p: usize| {
+            let anchor = if extend { anchor } else { p };
+            nb.select(Selection::Caret { cell, anchor, pos: p });
+        };
+        // an output shown as one unit (typeset) has two caret places: before it and after it
+        let atomic = env.atomic(&c);
+        match m {
+            Motion::Left | Motion::Right if anchor != pos && !extend => {
+                let p = if m == Motion::Left { anchor.min(pos) } else { anchor.max(pos) };
+                set(self, p);
+            }
+            Motion::Left | Motion::WordLeft => {
+                if pos > 0 && atomic {
+                    set(self, 0);
+                } else if pos > 0 {
+                    set(self, if m == Motion::Left { text::prev_char(s, pos) } else { text::word_left(s, pos) });
+                } else if !extend {
+                    self.select(Selection::Gap(i));
+                }
+            }
+            Motion::Right | Motion::WordRight => {
+                if pos < s.len() && atomic {
+                    set(self, s.len());
+                } else if pos < s.len() {
+                    set(self, if m == Motion::Right { text::next_char(s, pos) } else { text::word_right(s, pos) });
+                } else if !extend {
+                    self.select(Selection::Gap(self.gap_after(i)));
+                }
+            }
+            Motion::Up | Motion::Down => {
+                let lines = env.lines(&c);
+                let k = lines.iter().position(|r| pos <= r.end).unwrap_or(lines.len() - 1);
+                let x = *self.goal_x.get_or_insert_with(|| env.x_of(&c, pos));
+                let goal = self.goal_x;
+                if m == Motion::Up && k > 0 {
+                    let p = env.pos_at(&c, lines[k - 1].clone(), x);
+                    set(self, p);
+                } else if m == Motion::Down && k + 1 < lines.len() {
+                    let p = env.pos_at(&c, lines[k + 1].clone(), x);
+                    set(self, p);
+                } else if extend {
+                    set(self, if m == Motion::Up { 0 } else { s.len() });
+                } else if m == Motion::Up {
+                    self.select(Selection::Gap(i));
+                } else {
+                    self.select(Selection::Gap(self.gap_after(i)));
+                }
+                self.goal_x = goal;
+            }
+            Motion::Home | Motion::End => {
+                let lines = env.lines(&c);
+                let r = lines.iter().find(|r| pos >= r.start && pos <= r.end).cloned().unwrap_or(0..s.len());
+                set(self, if m == Motion::Home { r.start } else { r.end });
+            }
+            Motion::DocStart => self.select(Selection::Gap(0)),
+            Motion::DocEnd => self.select(Selection::Gap(self.cells.len())),
+        }
+    }
+
+    fn select_all(&mut self) {
+        if let Selection::Caret { cell, anchor, pos } = self.sel {
+            if let Some(c) = self.cell(cell) {
+                let len = c.text.len();
+                if !(anchor.min(pos) == 0 && anchor.max(pos) == len) {
+                    self.select(Selection::Caret { cell, anchor: 0, pos: len });
+                    return;
+                }
+            }
+        }
+        let ids: Vec<CellId> = self.cells.iter().map(|c| c.id).collect();
+        if let Some(&first) = ids.first() {
+            self.select(Selection::Cells { ids, anchor: first });
+        }
+    }
+
+    fn click_text(&mut self, id: CellId, pos: usize, extend: bool) {
+        match self.sel.clone() {
+            Selection::Caret { cell, anchor, .. } if extend && cell == id => {
+                self.select(Selection::Caret { cell, anchor, pos });
+            }
+            Selection::Caret { cell, .. } if extend => {
+                // a selection dragged across cells becomes a selection of the cells (guess 21)
+                if let (Some(a), Some(b)) = (self.index_of(cell), self.index_of(id)) {
+                    let ids = self.cells[a.min(b)..=a.max(b)].iter().map(|c| c.id).collect();
+                    self.select(Selection::Cells { ids, anchor: cell });
+                }
+            }
+            _ => self.select(Selection::Caret { cell: id, anchor: pos, pos }),
+        }
+    }
+
+    fn bracket_range(&self, b: Bracket) -> Option<(usize, usize)> {
+        match b {
+            Bracket::Cell(id) => self.index_of(id).map(|i| (i, i + 1)),
+            Bracket::Group(s, e) => (s < e && e <= self.cells.len()).then_some((s, e)),
+        }
+    }
+
+    fn click_bracket(&mut self, b: Bracket, shift: bool, ctrl: bool) {
+        let Some((s, e)) = self.bracket_range(b) else { return };
+        let clicked: Vec<CellId> = self.cells[s..e].iter().map(|c| c.id).collect();
+        let current = self.sel.clone();
+        let sel = match current {
+            Selection::Cells { ids, anchor } if ctrl => {
+                let mut ids = ids;
+                if clicked.iter().all(|c| ids.contains(c)) {
+                    ids.retain(|c| !clicked.contains(c));
+                } else {
+                    ids.extend(clicked.iter().filter(|c| !ids.contains(c)).copied().collect::<Vec<_>>());
+                }
+                ids.sort_by_key(|id| self.index_of(*id));
+                match ids.first() {
+                    None => Selection::Gap(s),
+                    Some(&f) => Selection::Cells { anchor: if ids.contains(&anchor) { anchor } else { f }, ids },
+                }
+            }
+            Selection::Cells { anchor, .. } | Selection::Caret { cell: anchor, .. } if shift => {
+                let a = self.index_of(anchor).unwrap_or(s);
+                let (lo, hi) = (a.min(s), (a + 1).max(e));
+                Selection::Cells { ids: self.cells[lo..hi].iter().map(|c| c.id).collect(), anchor }
+            }
+            _ => Selection::Cells { anchor: clicked[0], ids: clicked },
+        };
+        self.select(sel);
+    }
+
+    // ----- clipboard -----
+
+    /// Copy the selection; `plain` writes only the text flavour. `false` when nothing is selected.
+    fn copy(&mut self, env: &mut dyn Env, plain: bool) -> bool {
+        match self.sel.clone() {
+            Selection::Caret { cell, anchor, pos } if anchor != pos => {
+                let c = self.cell(cell).expect("selected");
+                let t = c.text[anchor.min(pos)..anchor.max(pos)].to_string();
+                env.set_clipboard(Clip::text(t));
+                true
+            }
+            Selection::Cells { ids, .. } => {
+                // a cell with boxes gives its linear text (`x^2`, not its canonical box text)
+                let linear = |c: &crate::cell::Cell| {
+                    if c.props.typeset && c.style.is_code() {
+                        mc_boxes::linear_text(&mc_boxes::from_text(&c.text))
+                    } else {
+                        c.text.clone()
+                    }
+                };
+                let text = ids.iter().filter_map(|id| self.cell(*id)).map(linear).collect::<Vec<_>>().join("\n\n");
+                let cells = (!plain).then(|| self.fragment(&ids));
+                env.set_clipboard(Clip { text: Some(text), cells, boxes: None });
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Copy as LaTeX: the selected part of a typeset cell, or the selected text or whole content of the caret's cell
+    /// typeset, or the selected Input and Output cells one per line. `false` when there is nothing to copy.
+    fn copy_latex(&mut self, env: &mut dyn Env) -> bool {
+        let of_cell = |_nb: &Notebook, c: &crate::cell::Cell, text: &str| -> Option<String> {
+            let row = if c.style == Style::Output {
+                if c.failure || c.graphic().is_some() {
+                    return None;
+                }
+                mc_boxes::typeset_output(text).row
+            } else if c.style.is_code() {
+                if c.props.typeset {
+                    mc_boxes::from_text(text)
+                } else {
+                    mc_boxes::typeset_input(text).unwrap_or_else(|_| mc_boxes::Row::text(text))
+                }
+            } else {
+                return None;
+            };
+            Some(mc_boxes::to_latex(&row))
+        };
+        let latex = match self.sel.clone() {
+            Selection::Caret { cell, anchor, pos } => {
+                if let Some((_, ed)) = self.code_editor().filter(|(id, _)| *id == cell) {
+                    let row = if ed.range().is_some() { ed.selected() } else { ed.root().clone() };
+                    Some(mc_boxes::to_latex(&row))
+                } else if let Some(row) = self.out_boxes(cell) {
+                    Some(mc_boxes::to_latex(&row))
+                } else {
+                    let Some(c) = self.cell(cell) else { return false };
+                    let text = if anchor != pos { &c.text[anchor.min(pos)..anchor.max(pos)] } else { c.text.as_str() };
+                    of_cell(self, c, text)
+                }
+            }
+            Selection::Cells { ids, .. } => {
+                let parts: Vec<String> =
+                    ids.iter().filter_map(|id| self.cell(*id)).filter_map(|c| of_cell(self, c, &c.text)).collect();
+                (!parts.is_empty()).then(|| parts.join("\n"))
+            }
+            Selection::Gap(_) => None,
+        };
+        match latex.filter(|l| !l.is_empty()) {
+            Some(l) => {
+                env.set_clipboard(Clip::text(l));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Replace the name before the caret of a plain cell (a completion accepted).
+    fn replace_word(&mut self, name: &str) -> bool {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return false };
+        let Some(c) = self.cell(cell) else { return false };
+        if anchor != pos || !c.editable() {
+            return false;
+        }
+        let before = &c.text[..pos];
+        let len: usize = before
+            .chars()
+            .rev()
+            .take_while(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '.')
+            .map(char::len_utf8)
+            .sum();
+        self.replace_range(cell, pos - len, pos, name);
+        true
+    }
+
+    /// What a paste reads: the clipboard, or what Paste as math made of it.
+    pub(crate) fn paste_clip(&self, env: &mut dyn Env) -> Clip {
+        self.paste_override.clone().unwrap_or_else(|| env.clipboard())
+    }
+
+    fn paste(&mut self, env: &mut dyn Env, fx: &mut Effects) {
+        let clip = self.paste_clip(env);
+        let fragment = clip.cells.clone().or_else(|| clip.text.clone().filter(|t| mc_nbfile::parse_cells(t).is_some()));
+        match self.sel.clone() {
+            Selection::Caret { .. } => {
+                let t = clip.text.unwrap_or_default();
+                if !t.is_empty() || clip.boxes.is_some() {
+                    let Some((id, a, b)) = self.edit_target() else {
+                        fx.beep = true;
+                        return;
+                    };
+                    // boxes into a code cell (it takes its first boxes); elsewhere their linear text
+                    let code = self.cell(id).is_some_and(|c| c.style.is_code());
+                    if let Some(bx) = clip.boxes.as_deref().filter(|_| code) {
+                        if !self.paste_tree(bx, env).unwrap_or(false) {
+                            fx.beep = true;
+                        }
+                    } else if !t.is_empty() {
+                        // another program's line breaks and leading tabs (round 19): CR LF and a lone CR are line
+                        // breaks, and in code a tab at a line's start is the indentation Tab types
+                        let t = if code { text::untab(&text::unix_lines(&t), INDENT) } else { text::unix_lines(&t) };
+                        self.replace_range(id, a, b, &t);
+                    }
+                }
+            }
+            Selection::Gap(g) => self.paste_at(g, fragment, clip.text, clip.boxes, env),
+            Selection::Cells { ids, .. } => {
+                // pasting over selected cells replaces them (guess 5)
+                let first = ids.iter().filter_map(|id| self.index_of(*id)).min().unwrap_or(0);
+                for id in ids {
+                    if let Some(i) = self.index_of(id) {
+                        self.remove_cells(i..i + 1, true);
+                    }
+                }
+                self.paste_at(first, fragment, clip.text, clip.boxes, env);
+            }
+        }
+    }
+
+    fn paste_at(&mut self, g: usize, fragment: Option<String>, text: Option<String>, boxes: Option<String>, env: &mut dyn Env) {
+        let style = self.gap_style();
+        if let Some(cells) = fragment.and_then(|f| self.cells_of_fragment(&f)) {
+            let n = cells.len();
+            self.insert_cells(g, cells, true);
+            self.select(Selection::Gap(g + n));
+        } else if let Some(bx) = boxes.filter(|_| style.is_code()) {
+            // boxes at an insertion point: one Input cell holding them (round 13)
+            self.create_cell(g, style, "");
+            self.paste_tree(&bx, env);
+        } else if let Some(t) = text.filter(|t| !t.trim().is_empty()) {
+            // plain text at an insertion point: code splits at its blank lines outside brackets and strings, one
+            // cell per block (round 19: copied cells give their texts joined by blank lines, so cells copied out to
+            // another program and back come back as those cells); prose is one cell
+            let t = text::unix_lines(&t);
+            let blocks = if style.is_code() {
+                text::code_blocks(&text::untab(&t, INDENT))
+            } else {
+                vec![t.trim_matches('\n').to_string()]
+            };
+            for (at, b) in (g..).zip(blocks) {
+                self.create_cell(at, style, &b);
+            }
+        }
+    }
+
+    // ----- evaluation -----
+
+    fn evaluate(&mut self, next: bool, fx: &mut Effects) {
+        match self.sel.clone() {
+            Selection::Caret { cell, .. } => {
+                let Some(i) = self.index_of(cell) else { return };
+                if !self.cells[i].evaluatable() {
+                    fx.beep = true;
+                    return;
+                }
+                self.enqueue(vec![cell], fx);
+                let after = self.after_outputs(i);
+                self.select(after);
+                if next {
+                    let target = (i + 1..self.cells.len()).find(|&j| self.cells[j].evaluatable() && self.is_visible(j));
+                    if let Some(j) = target {
+                        let id = self.cells[j].id;
+                        self.select(Selection::Caret { cell: id, anchor: 0, pos: 0 });
+                    }
+                }
+            }
+            Selection::Cells { ids, .. } => {
+                let mut ids = ids;
+                ids.sort_by_key(|id| self.index_of(*id));
+                if !ids.iter().any(|id| self.cell(*id).is_some_and(|c| c.evaluatable())) {
+                    fx.beep = true;
+                }
+                self.enqueue(ids, fx);
+            }
+            Selection::Gap(_) => fx.beep = true,
+        }
+    }
+
+    // ----- styles and cell operations -----
+
+    fn set_style(&mut self, style: Style) {
+        if let Selection::Gap(_) = self.sel {
+            self.gap_style = Some(style);
+            return;
+        }
+        for id in self.selected_cells() {
+            let boxes = self.cell(id).is_some_and(|c| c.props.typeset) && !style.is_code();
+            self.update_cell(id, true, |c| {
+                if c.generated() && !style.generated() {
+                    c.input_of = None;
+                    c.failure = false;
+                }
+                c.style = style;
+                // boxes exist only in code cells: prose holds their linear text (the file cannot hold boxes there)
+                if c.props.typeset && !style.is_code() {
+                    c.text = mc_boxes::linear_text(&mc_boxes::from_text(&c.text));
+                    c.props.typeset = false;
+                }
+                if !style.info().label {
+                    c.label = None;
+                }
+            });
+            // the caret was a place in the box text: it goes to the end of the linear text
+            if boxes {
+                if let (Selection::Caret { cell, .. }, Some(c)) = (&self.sel, self.cell(id)) {
+                    if *cell == id {
+                        let end = c.text.len();
+                        self.select(Selection::Caret { cell: id, anchor: end, pos: end });
+                    }
+                }
+            }
+        }
+    }
+
+    fn divide(&mut self) -> bool {
+        let Selection::Caret { cell, anchor, pos } = self.sel else { return false };
+        let Some(c) = self.cell(cell) else { return false };
+        if c.generated() || !c.editable() {
+            return false;
+        }
+        let (a, b) = (anchor.min(pos), anchor.max(pos));
+        // in a cell with boxes the division goes between top-level items only (the text inside a box is no piece)
+        if c.props.typeset {
+            let inside = self.code.as_ref().filter(|e| e.cell == cell).is_some_and(|e| {
+                let s = e.ed.selection();
+                !s.anchor.path.is_empty() || !s.head.path.is_empty()
+            });
+            if inside {
+                return false;
+            }
+        }
+        let typeset = c.props.typeset;
+        let t = c.text.clone();
+        let style = c.style;
+        let trim = |s: &str| s.strip_suffix('\n').unwrap_or(s).to_string();
+        let lead = |s: &str| s.strip_prefix('\n').unwrap_or(s).to_string();
+        let pieces: Vec<String> = if a == b {
+            vec![trim(&t[..a]), lead(&t[a..])]
+        } else {
+            vec![trim(&t[..a]), lead(&trim(&t[a..b])), lead(&t[b..])]
+        };
+        let keep: Vec<(usize, String)> = pieces.into_iter().enumerate().filter(|(_, p)| !p.is_empty()).collect();
+        if keep.len() < 2 {
+            return false;
+        }
+        let i = self.index_of(cell).expect("exists");
+        let boxes = |p: &str| typeset && mc_boxes::has_boxes(&mc_boxes::from_text(p));
+        let first = boxes(&keep[0].1);
+        self.set_text(cell, keep[0].1.clone(), true);
+        self.update_cell(cell, true, |c| {
+            c.label = None;
+            c.props.typeset = first;
+        });
+        // the caret goes to the start of the piece after the caret, or of the selection's piece
+        let mut focus_id = cell;
+        for (at, (k, p)) in (i + 1..).zip(&keep[1..]) {
+            let mut nc = self.new_cell(style, p);
+            nc.props.typeset = boxes(p);
+            if *k >= 1 && focus_id == cell {
+                focus_id = nc.id;
+            }
+            self.insert_cells(at, vec![nc], true);
+        }
+        self.select(Selection::Caret { cell: focus_id, anchor: 0, pos: 0 });
+        true
+    }
+
+    fn merge(&mut self) -> bool {
+        let Selection::Cells { ids, .. } = self.sel.clone() else { return false };
+        let mut idx: Vec<usize> = ids.iter().filter_map(|id| self.index_of(*id)).collect();
+        idx.sort_unstable();
+        let keep: Vec<usize> = idx.iter().copied().filter(|&i| !self.cells[i].generated()).collect();
+        if keep.len() < 2 {
+            return false;
+        }
+        let first = self.cells[keep[0]].id;
+        let joined = keep.iter().map(|&i| self.cells[i].text.as_str()).collect::<Vec<_>>().join("\n");
+        let drop: Vec<CellId> = idx.iter().filter(|&&i| i != keep[0]).map(|&i| self.cells[i].id).collect();
+        self.set_text(first, joined, true);
+        for id in drop {
+            if let Some(i) = self.index_of(id) {
+                self.remove_cells(i..i + 1, true);
+            }
+        }
+        self.select(Selection::Cells { ids: vec![first], anchor: first });
+        true
+    }
+
+    fn mark_together(&mut self, on: bool) {
+        let ids = self.selected_cells();
+        let idx: Vec<usize> = ids.iter().filter_map(|id| self.index_of(*id)).collect();
+        let (Some(&lo), Some(&hi)) = (idx.iter().min(), idx.iter().max()) else { return };
+        let range: Vec<CellId> = if on {
+            self.cells[lo..=hi].iter().map(|c| c.id).collect()
+        } else {
+            // ungrouping a cell ungroups the whole run it belongs to
+            let (mut a, mut b) = (lo, hi);
+            while a > 0 && self.cells[a - 1].props.together && self.cells[a].props.together {
+                a -= 1;
+            }
+            while b + 1 < self.cells.len() && self.cells[b + 1].props.together && self.cells[b].props.together {
+                b += 1;
+            }
+            self.cells[a..=b].iter().map(|c| c.id).collect()
+        };
+        if on && range.len() < 2 {
+            return;
+        }
+        for id in range {
+            self.update_cell(id, true, |c| c.props.together = on);
+        }
+    }
+
+    /// Open or close group `g`; closing shows its `k`-th cell.
+    fn toggle_group_at(&mut self, g: usize, k: usize) {
+        let head = self.cells[self.groups.list[g].start].id;
+        let closed = self.cell(head).and_then(|c| c.closed).is_some();
+        self.update_cell(head, true, |c| c.closed = if closed { None } else { Some(k) });
+    }
+
+    fn toggle_group(&mut self) -> bool {
+        let ids = self.selected_cells();
+        let idx: Vec<usize> = ids.iter().filter_map(|id| self.index_of(*id)).collect();
+        let Some(&i) = idx.iter().min() else { return false };
+        let hi = idx.iter().copied().max().expect("non-empty");
+        // a selected group bracket toggles that group, showing its head
+        if let Some(g) = self.groups.list.iter().rposition(|g| g.start == i && g.end == hi + 1) {
+            if idx.len() > 1 {
+                self.toggle_group_at(g, 0);
+                return true;
+            }
+        }
+        let Some(&g) = self.groups.containing(i).first() else { return false };
+        let k = i - self.groups.list[g].start;
+        self.toggle_group_at(g, k);
+        true
+    }
+
+    fn open_close_all(&mut self, close: bool) {
+        let idx: Vec<usize> = self.selected_cells().iter().filter_map(|id| self.index_of(*id)).collect();
+        let (lo, hi) = match (idx.iter().min(), idx.iter().max()) {
+            (Some(&lo), Some(&hi)) if idx.len() > 1 => (lo, hi + 1),
+            (Some(&i), _) => match self.groups.containing(i).first() {
+                Some(&g) => (self.groups.list[g].start, self.groups.list[g].end),
+                None => return,
+            },
+            _ => return,
+        };
+        let heads: Vec<CellId> =
+            self.groups.list.iter().filter(|g| g.start >= lo && g.end <= hi).map(|g| self.cells[g.start].id).collect();
+        for h in heads {
+            self.update_cell(h, true, |c| c.closed = if close { Some(0) } else { None });
+        }
+        if let Selection::Caret { cell, .. } = self.sel {
+            if let Some(i) = self.index_of(cell) {
+                if !self.is_visible(i) {
+                    let head = self.groups.containing(i).last().map(|&g| self.cells[self.groups.list[g].start].id);
+                    if let Some(h) = head {
+                        self.select(Selection::Cells { ids: vec![h], anchor: h });
+                    }
+                }
+            }
+        }
+    }
+
+    fn toggle_prop(&mut self, f: impl Fn(&mut Cell)) {
+        for id in self.selected_cells() {
+            if self.cell(id).is_some_and(|c| !c.generated()) {
+                self.update_cell(id, true, &f);
+            }
+        }
+    }
+
+    fn show_expression(&mut self) -> bool {
+        let Some(id) = self.current_cell() else { return false };
+        let Some(c) = self.cell(id).cloned() else { return false };
+        if c.generated() {
+            return false;
+        }
+        if !c.expr_view {
+            let fragment = self.fragment(&[id]);
+            let source = fragment.strip_prefix(mc_nbfile::FRAGMENT).unwrap_or(&fragment).trim_matches('\n').to_string();
+            self.set_text(id, source, true);
+            self.update_cell(id, true, |c| c.expr_view = true);
+        } else {
+            let text = format!("{}\n{}\n", mc_nbfile::FRAGMENT, c.text);
+            let parsed = self
+                .cells_of_fragment(&text)
+                .filter(|cells| !cells.is_empty() && cells.iter().skip(1).all(|c| c.generated()));
+            let Some(mut cells) = parsed else { return false };
+            let back = cells.remove(0);
+            self.set_text(id, back.text.clone(), true);
+            self.update_cell(id, true, |c| {
+                let label = c.label;
+                *c = Cell { id: c.id, text: c.text.clone(), rev: c.rev, eval: c.eval, ..back };
+                c.label = label.or(c.label);
+                c.expr_view = false;
+            });
+        }
+        self.select(Selection::Cells { ids: vec![id], anchor: id });
+        true
+    }
+
+    fn copy_from_above(&mut self, output: bool) -> bool {
+        let before = match self.sel {
+            Selection::Gap(g) => g,
+            _ => match self.current_cell().and_then(|id| self.index_of(id)) {
+                Some(i) => i,
+                None => return false,
+            },
+        };
+        let wanted = |c: &Cell| if output { c.style == Style::Output } else { c.style.is_code() };
+        let Some(src) = self.cells[..before].iter().rev().find(|c| wanted(c)).map(|c| c.text.clone()) else {
+            return false;
+        };
+        match self.sel {
+            Selection::Gap(g) => {
+                self.create_cell(g, Style::Input, &src);
+            }
+            Selection::Caret { .. } => {
+                let Some((id, a, b)) = self.edit_target() else { return false };
+                self.replace_range(id, a, b, &src);
+            }
+            Selection::Cells { .. } => {
+                let i = before;
+                let at = self.outputs_end(i);
+                self.create_cell(at, Style::Input, &src);
+            }
+        }
+        true
+    }
+
+    fn same_style_below(&mut self) -> bool {
+        let Some(id) = self.current_cell() else { return false };
+        let Some(i) = self.index_of(id) else { return false };
+        let style = if self.cells[i].generated() { Style::Input } else { self.cells[i].style };
+        self.create_cell(i + 1, style, "");
+        true
+    }
+
+    fn move_cells(&mut self, to: usize, copy: bool) -> bool {
+        let Selection::Cells { ids, anchor } = self.sel.clone() else { return false };
+        let mut idx: Vec<usize> = ids.iter().filter_map(|id| self.index_of(*id)).collect();
+        idx.sort_unstable();
+        let (Some(&lo), Some(&hi)) = (idx.first(), idx.last()) else { return false };
+        if !copy && to >= lo && to <= hi + 1 && idx.len() == hi - lo + 1 {
+            return false;
+        }
+        let to = self.normal_gap(to);
+        let cells: Vec<Cell> = idx.iter().map(|&i| self.cells[i].clone()).collect();
+        if copy {
+            let fresh: Vec<Cell> = cells.into_iter().map(|c| self.renumber(c)).collect();
+            let new_ids: Vec<CellId> = fresh.iter().map(|c| c.id).collect();
+            self.insert_cells(to, fresh, true);
+            self.select(Selection::Cells { anchor: new_ids[0], ids: new_ids });
+            return true;
+        }
+        let before = idx.iter().filter(|&&i| i < to).count();
+        for &i in idx.iter().rev() {
+            self.remove_cells(i..i + 1, true);
+        }
+        self.insert_cells(to - before, cells, true);
+        self.select(Selection::Cells { ids, anchor });
+        true
+    }
+}
+
+/// Straight quotes typed in prose become curly ones by context (design 3.2): an opening quote at the start or after
+/// white space or an opening bracket, a closing one otherwise.
+fn smart_quotes(before: &str, typed: &str) -> String {
+    let mut out = String::new();
+    let mut prev = before.chars().next_back();
+    for c in typed.chars() {
+        let opening = prev.is_none_or(|p| p.is_whitespace() || "([{“‘".contains(p));
+        let q = match c {
+            '"' if opening => '“',
+            '"' => '”',
+            '\'' if opening => '‘',
+            '\'' => '’',
+            c => c,
+        };
+        out.push(q);
+        prev = Some(q);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::smart_quotes;
+    use crate::{Command, FakeEnv, Motion, Notebook, Selection};
+
+    const TWO_OUTPUTS: &str = "#! mathcas 2 notebook\n\n#% cell label=1\nx/2\n#% output n=1\n#= x/2\n\n#% cell label=2\nsqrt(y)\n#% output n=2 form=linear\n#= sqrt(y)\n";
+
+    #[test]
+    fn quotes() {
+        assert_eq!(smart_quotes("", "\"a\""), "“a”");
+        assert_eq!(smart_quotes("it", "'s"), "’s");
+        assert_eq!(smart_quotes("(", "'x'"), "‘x’");
+    }
+
+    /// An older notebook's output form is dropped on reading: outputs have one look (NBUI.5).
+    #[test]
+    fn output_forms_of_older_notebooks_are_dropped() {
+        let nb = Notebook::parse(TWO_OUTPUTS).unwrap();
+        assert!(nb.cells()[3].out_extra.get("form").is_none());
+        assert!(!nb.to_text().contains("form="));
+    }
+
+    #[test]
+    fn the_caret_walks_through_a_typeset_output() {
+        let mut nb = Notebook::parse(TWO_OUTPUTS).unwrap();
+        let out = nb.cells()[1].id;
+        let len = nb.cells()[1].text.len();
+        let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
+        let caret = |nb: &Notebook| nb.output_editor().map(|(_, e)| e.notation()).unwrap_or_default();
+        nb.apply(Command::ClickText(out, 0, false), &mut env);
+        assert_eq!(caret(&nb), "▮(x/2)");
+        // Right enters the fraction, walks its slots and leaves it; the model's selection is printed-text bytes
+        let walk = [("(▮x/2)", 0), ("(x▮/2)", 1), ("(x/▮2)", 2), ("(x/2▮)", 3), ("(x/2)▮", 3)];
+        for (want, byte) in walk {
+            nb.apply(Command::Move(Motion::Right, false), &mut env);
+            assert_eq!(caret(&nb), want);
+            assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: byte, pos: byte });
+        }
+        // Shift+Left selects the fraction as a whole
+        nb.apply(Command::Move(Motion::Left, true), &mut env);
+        assert_eq!(caret(&nb), "⟦(x/2)⟧");
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: len, pos: 0 });
+        nb.apply(Command::Copy, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("x/2"));
+        // a click in the denominator and Ctrl+. select a part: it copies as its printed text
+        nb.apply(Command::ClickBox(out, vec![mc_boxes::Step { item: 0, slot: 1 }], 0, false), &mut env);
+        nb.apply(Command::ExtendSelection, &mut env);
+        assert_eq!(caret(&nb), "(x/⟦2⟧)");
+        nb.apply(Command::Copy, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("2"));
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 2, pos: 3 });
+        // a selection made in bytes (Find) shows on the boxes it covers
+        nb.apply(Command::SelectText(out, 0, 1), &mut env);
+        assert_eq!(caret(&nb), "(⟦x⟧/2)");
+        // LaTeX of the selected part, then of the whole output
+        nb.apply(Command::CopyLatex, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("x"));
+        nb.apply(Command::ClickText(out, 0, false), &mut env);
+        nb.apply(Command::CopyLatex, &mut env);
+        assert_eq!(env.clip.text.as_deref(), Some("\\frac{x}{2}"));
+        // past the end: the insertion point after the output
+        nb.apply(Command::Move(Motion::End, false), &mut env);
+        nb.apply(Command::Move(Motion::Right, false), &mut env);
+        assert_eq!(nb.selection(), &Selection::Gap(2));
+        // other cells move by characters
+        let input = nb.cells()[0].id;
+        nb.apply(Command::ClickText(input, 0, false), &mut env);
+        nb.apply(Command::Move(Motion::Right, false), &mut env);
+        assert_eq!(nb.selection(), &Selection::Caret { cell: input, anchor: 1, pos: 1 });
+    }
+
+    #[test]
+    fn a_completion_replaces_the_name_before_the_caret() {
+        let mut env = FakeEnv::default();
+        // a plain cell
+        let mut nb = Notebook::parse("#! mathcas 2 notebook
+
+#% cell
+1 + si
+").unwrap();
+        let id = nb.cells()[0].id;
+        nb.apply(Command::ClickText(id, 6, false), &mut env);
+        nb.apply(Command::ReplaceWord("sin".into()), &mut env);
+        assert_eq!(nb.cells()[0].text, "1 + sin");
+        assert_eq!(nb.selection(), &Selection::Caret { cell: id, anchor: 7, pos: 7 });
+        // a typeset cell: the name in the caret's row, inside a fraction
+        let mut nb = Notebook::parse("#! mathcas 2 notebook
+
+#% cell typeset
+((co)/(2))
+").unwrap();
+        let id = nb.cells()[0].id;
+        nb.apply(Command::ClickBox(id, vec![mc_boxes::Step { item: 0, slot: 0 }], 2, false), &mut env);
+        assert_eq!(nb.code_editor().and_then(|(_, e)| e.word_before_caret()).map(|w| w.2), Some("co".to_string()));
+        nb.apply(Command::ReplaceWord("cos".into()), &mut env);
+        assert_eq!(nb.cells()[0].text, "((cos)/(2))");
+        assert_eq!(nb.code_editor().map(|(_, e)| e.notation()), Some("(cos▮/2)".to_string()));
+        // a selection made in the text (Find) selects the items it covers
+        nb.apply(Command::SelectText(id, 2, 5), &mut env);
+        assert_eq!(nb.code_editor().map(|(_, e)| e.notation()), Some("(⟦cos⟧/2)".to_string()));
+        nb.apply(Command::ClickText(id, 8, false), &mut env);
+        assert_eq!(nb.code_editor().map(|(_, e)| e.notation()), Some("(cos/▮2)".to_string()));
+    }
+
+    /// Selection in typeset input and output by keys and clicks (round nb-ui: the bugs found by driving the window).
+    #[test]
+    fn selections_in_typeset_cells_extend_by_lines_and_keep_their_anchor() {
+        let text = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\nfirst+line\nsecond+((z)^(3))\n#% output n=1\n#= a + x^2 + b\n";
+        let mut nb = Notebook::parse(text).unwrap();
+        let (input, out) = (nb.cells()[0].id, nb.cells()[1].id);
+        let mut env = FakeEnv { atomic: vec![out], ..FakeEnv::default() };
+        let boxes = |nb: &Notebook| nb.code_editor().map(|(_, e)| e.notation()).unwrap_or_default();
+        let outs = |nb: &Notebook| nb.output_editor().map(|(_, e)| e.notation()).unwrap_or_default();
+        // End and Home stop at the line break; Shift+End selects to it, not past it
+        nb.apply(Command::ClickBox(input, vec![], 2, false), &mut env);
+        nb.apply(Command::Move(Motion::End, false), &mut env);
+        assert_eq!(boxes(&nb), "first+line▮\nsecond+(z^3)");
+        nb.apply(Command::Move(Motion::Home, true), &mut env);
+        assert_eq!(boxes(&nb), "⟦first+line⟧\nsecond+(z^3)");
+        nb.apply(Command::ClickBox(input, vec![], 14, false), &mut env);
+        nb.apply(Command::Move(Motion::Home, false), &mut env);
+        assert_eq!(boxes(&nb), "first+line\n▮second+(z^3)");
+        // Shift+Up from the second line keeps the anchor (it used to drop the selection); past the first line it
+        // extends to the start
+        nb.apply(Command::ClickBox(input, vec![], 14, false), &mut env);
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert!(nb.code_editor().is_some_and(|(_, e)| e.range().is_some()), "{}", boxes(&nb));
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert_eq!(boxes(&nb), "⟦first+line\nsec⟧ond+(z^3)");
+        // Shift+Down from inside the exponent: out to the end of the cell, the anchor kept
+        nb.apply(Command::ClickBox(input, vec![mc_boxes::Step { item: 18, slot: 1 }], 0, false), &mut env);
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        assert_eq!(boxes(&nb), "first+line\nsecond+⟦(z^3)⟧");
+        // typing over a selection replaces it; Delete removes it
+        nb.apply(Command::ClickBox(input, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(input, vec![], 5, true), &mut env);
+        nb.apply(Command::Insert("Q".into()), &mut env);
+        assert_eq!(boxes(&nb), "Q▮+line\nsecond+(z^3)");
+        nb.apply(Command::ClickBox(input, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(input, vec![], 2, true), &mut env);
+        nb.apply(Command::Delete, &mut env);
+        assert_eq!(boxes(&nb), "▮line\nsecond+(z^3)");
+        // the output: a Shift+click selection extends with Shift+Down to the end, Shift+Up back to the start
+        nb.apply(Command::ClickBox(out, vec![], 0, false), &mut env);
+        nb.apply(Command::ClickBox(out, vec![], 2, true), &mut env);
+        assert!(outs(&nb).starts_with('⟦'), "{}", outs(&nb));
+        nb.apply(Command::Move(Motion::Down, true), &mut env);
+        assert!(outs(&nb).starts_with('⟦') && outs(&nb).ends_with('⟧'), "{}", outs(&nb));
+        assert_eq!(nb.selection(), &Selection::Caret { cell: out, anchor: 0, pos: nb.cells()[1].text.len() });
+        nb.apply(Command::Move(Motion::Up, true), &mut env);
+        assert!(!outs(&nb).contains('⟦'), "{}", outs(&nb));
+    }
+
+    /// Older typeset notebooks: square roots, fractions and powers stay boxes, every other box becomes its linear
+    /// text; a cell left without boxes is plain. Loading and saving give the same text again (NBUI.5).
+    #[test]
+    fn older_typeset_cells_keep_the_three_boxes_and_round_trip() {
+        let old = "#! mathcas 2 notebook\n\n#% cell label=1 typeset\n((subscript(x, i)))+((sqrt(((a)/(b)))))\n\n\
+                   #% cell typeset\n((sum(k, [k, 1, n])))\n\n#% cell\nx^2 + a/b\n";
+        let nb = Notebook::parse(old).unwrap();
+        let c = nb.cells();
+        assert_eq!(c[0].text, "subscript(x, i)+((sqrt(((a)/(b)))))");
+        assert!(c[0].props.typeset);
+        assert_eq!(c[1].text, "sum(k, [k, 1, n])");
+        assert!(!c[1].props.typeset);
+        assert_eq!(c[2].text, "x^2 + a/b");
+        assert!(!c[2].props.typeset);
+        let saved = nb.to_text();
+        let again = Notebook::parse(&saved).unwrap();
+        assert_eq!(again.to_text(), saved);
+        let texts: Vec<&str> = again.cells().iter().map(|c| c.text.as_str()).collect();
+        assert_eq!(texts, [c[0].text.as_str(), c[1].text.as_str(), c[2].text.as_str()]);
+    }
+}

@@ -1,0 +1,144 @@
+#! mathcas 2 notebook
+
+#% title
+# kelvin_ker
+
+#% text
+# `kelvin_ker(nu, x)` gives the Kelvin function `ker_nu(x)`, the real part of `exp(-nu*pi*im/2)*bessel_k(nu, x*exp(pi*im/4))`.
+
+#% text
+# `kelvin_ker(x)` gives `ker_0(x)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.61.2, for `x > 0`; `ker` has a logarithmic singularity at 0 and decays for large `x`.
+
+#% item
+# Machine numbers and complex numbers give numerical values at any real order; arbitrary-precision arguments with a non-zero order are not reduced to a number (see Possible issues). A symbolic argument stays.
+
+#% item
+# For a negative real `x` the value is the principal one and has an imaginary part; `kelvin_ker(0.0)` is `inf`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kelvin_ker(1.0)
+#% output
+#= 0.2867062087283161
+
+#% cell
+kelvin_ker(2, 2.5)
+#% output
+#= 0.18880430952581595
+
+#% cell
+[kelvin_ker(2.5), kelvin_ker(-1, 0.5)]
+#% output
+#= [-0.06968797258904535, 1.52240340653209]
+
+#% text
+# Symbolic arguments stay as they are:
+
+#% cell
+kelvin_ker(x)
+#% output
+#= kelvin_ker(x)
+
+#% cell
+kelvin_ker(nu, x)
+#% output
+#= kelvin_ker(nu, x)
+
+#% subsection
+# Scope
+
+#% text
+# A non-integer order, and a complex argument:
+
+#% cell
+kelvin_ker(0.5, 2.5)
+#% output
+#= -0.13273516893743098
+
+#% cell
+kelvin_ker(1.0 + 1.0*im)
+#% output
+#= -0.15110610751868647 - 0.4391429301194704im
+
+#% text
+# Small and large arguments, and the singularity at 0:
+
+#% cell
+[kelvin_ker(1e-10), kelvin_ker(10.0), kelvin_ker(800.0), kelvin_ker(0.0)]
+#% output
+#= [23.141782445598867, 0.000129466330214806, 7.790931487780324e-248, inf]
+
+#% text
+# 30 digits at order 0:
+
+#% cell
+n(kelvin_ker(1), 30)
+#% output
+#= 0.286706208728316045954197314872301775449
+
+#% subsection
+# Properties and relations
+
+#% text
+# The definition, at order 0, 2 and a non-integer order:
+
+#% cell
+kelvin_ker(1.5) - re(bessel_k(0, 1.5*exp(pi*im/4)))
+#% output
+#= 0.0
+
+#% cell
+kelvin_ker(2, 1.5) - re(exp(-2*pi*im/2)*bessel_k(2, 1.5*exp(pi*im/4)))
+#% output
+#= 0.0
+
+#% cell
+kelvin_ker(0.7, 1.5) - re(exp(-0.7*pi*im/2)*bessel_k(0.7, 1.5*exp(pi*im/4)))
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Exact order 0 and exact argument 0 are not evaluated, and the derivative is not given in closed form:
+
+#% cell
+kelvin_ker(0)
+#% output
+#= inf
+
+#% cell
+d(kelvin_ker(x), x)
+#% output
+#= (1/2)*(kelvin_kei(1, x) + kelvin_ker(1, x))*2^(1/2)
+
+#% text
+# At arbitrary precision a non-zero order gives an expression with `re` rather than a number, and a very large machine argument stays the real part of Bessel functions:
+
+#% cell
+n(kelvin_ker(2, 5/2), 30)
+#% output
+#= 0.18880430952581467051408141361075255419
+
+#% cell
+kelvin_ker(1e5)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `kelvin_kei`, `kelvin_ber`, `kelvin_bei`, `bessel_k`

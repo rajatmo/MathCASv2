@@ -1,0 +1,163 @@
+#! mathcas 2 notebook
+
+#% title
+# normal_distribution
+
+#% text
+# `normal_distribution(mu, sigma)` represents the normal (Gaussian) distribution with mean `mu` and standard deviation `sigma`.
+
+#% text
+# `normal_distribution()` is the standard normal distribution, `normal_distribution(0, 1)`.
+
+#% section
+# Details
+
+#% item
+# The density is exp(-(x - mu)^2/(2 sigma^2))/(sigma sqrt(2 pi)).
+
+#% item
+# The parameters may be numbers or symbols; a numeric `sigma` must be positive.
+
+#% item
+# The distribution is a value for `pdf`, `cdf`, `survival`, `quantile`, `mean`, `variance`, `std_dev`, `median`, `random_variate` and the other functions of distributions.
+
+#% item
+# With machine reals the results are machine reals; with exact numbers they are exact, in terms of `erfc` and `inverse_erfc`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The density of the standard normal distribution:
+
+#% cell
+pdf(normal_distribution(), x)
+#% output
+#= 2^(1/2)*exp((-1/2)*x^2)/(2*pi^(1/2))
+
+#% text
+# The probability of a value below 1.96:
+
+#% cell
+cdf(normal_distribution(), 1.96)
+#% output
+#= 0.9750021048517795
+
+#% text
+# The mean and variance:
+
+#% cell
+[mean(normal_distribution(3, 2)), variance(normal_distribution(3, 2))]
+#% output
+#= [3, 4]
+
+#% text
+# The density as a curve:
+
+#% cell
+plot(pdf(normal_distribution(), x), [x, -4, 4])
+#% output
+#= image("normal_distribution.files/normal_distribution-4.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic parameters:
+
+#% cell
+pdf(normal_distribution(mu, sigma), x)
+#% output
+#= 2^(1/2)*exp(-(x - mu)^2/(2*sigma^2))/(2*pi^(1/2)*sigma)
+
+#% cell
+cdf(normal_distribution(), x)
+#% output
+#= (1/2)*erfc((-1/2)*x*2^(1/2))
+
+#% text
+# The 97.5% quantile, numerically and exactly:
+
+#% cell
+quantile(normal_distribution(), 0.975)
+#% output
+#= 1.9599639845400538
+
+#% cell
+quantile(normal_distribution(), 975/1000)
+#% output
+#= -inverse_erfc(39/20)*2^(1/2)
+
+#% text
+# Skewness and kurtosis:
+
+#% cell
+[skewness(normal_distribution(2, 3)), kurtosis(normal_distribution(2, 3))]
+#% output
+#= [0, 3]
+
+#% subsection
+# Applications
+
+#% text
+# The share of a population within two standard deviations of the mean, for test scores with mean 100 and standard deviation 15:
+
+#% cell
+n(cdf(normal_distribution(100, 15), 130) - cdf(normal_distribution(100, 15), 70))
+#% output
+#= 0.9544997361036416
+
+#% text
+# Estimate the parameters from data:
+
+#% cell
+seed(3); estimated_distribution(random_variate(normal_distribution(5, 2), 1000), normal_distribution(m, s))
+#% output
+#= normal_distribution(5.041948397014239, 1.9992946087893353)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The median equals the mean `mu`:
+
+#% cell
+median(normal_distribution(mu, sigma))
+#% output
+#= mu
+
+#% text
+# `survival` stays accurate far in the tail, where 1 - `cdf` rounds to zero:
+
+#% cell
+[survival(normal_distribution(), 10.0), 1 - cdf(normal_distribution(), 10.0)]
+#% output
+#= [7.619853024160523e-24, 0.0]
+
+#% text
+# `quantile` inverts `cdf`:
+
+#% cell
+cdf(normal_distribution(), quantile(normal_distribution(), 0.9))
+#% output
+#= 0.9
+
+#% subsection
+# Possible issues
+
+#% text
+# The standard deviation must be positive:
+
+#% cell
+normal_distribution(0, 0)
+#% output
+#! failure(argument, normal_distribution, "the standard deviation sigma must be positive")
+
+#% section
+# See also
+
+#% text
+# `pdf`, `cdf`, `quantile`, `random_variate`, `estimated_distribution`, `log_normal_distribution`, `student_t_distribution`

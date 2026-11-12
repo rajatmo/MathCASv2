@@ -1,0 +1,157 @@
+#! mathcas 2 notebook
+
+#% title
+# range
+
+#% text
+# `range(n)` gives the list of the integers 1, 2, ..., `n`.
+
+#% text
+# `range(a, b)` gives `a`, `a` + 1, ... up to `b`.
+
+#% text
+# `range(a, b, step)` gives `a`, `a` + `step`, `a` + 2 `step`, ... as long as the values do not pass `b`.
+
+#% section
+# Details
+
+#% item
+# The start and the step default to 1. The end is included when the steps land on it exactly.
+
+#% item
+# The bounds and the step may be integers, fractions or machine reals; with a machine-real step the entries are computed afresh for each position, so long ranges do not accumulate rounding errors.
+
+#% item
+# A negative step counts down. An empty range (an end before the start for the direction of the step) gives `[]`.
+
+#% item
+# A step of 0, or bounds that are not real numbers, give a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+range(5)
+#% output
+#= [1, 2, 3, 4, 5]
+
+#% cell
+range(3, 8)
+#% output
+#= [3, 4, 5, 6, 7, 8]
+
+#% cell
+range(0, 1, 1/4)
+#% output
+#= [0, 1/4, 1/2, 3/4, 1]
+
+#% cell
+range(10, 1, -3)
+#% output
+#= [10, 7, 4, 1]
+
+#% subsection
+# Scope
+
+#% text
+# Machine-real steps:
+
+#% cell
+range(0, 1, 0.25)
+#% output
+#= [0.0, 0.25, 0.5, 0.75, 1.0]
+
+#% text
+# The last value stays at or before the end:
+
+#% cell
+range(1, 10, 4)
+#% output
+#= [1, 5, 9]
+
+#% text
+# A range that is empty for the direction of its step:
+
+#% cell
+range(5, 1)
+#% output
+#= []
+
+#% subsection
+# Applications
+
+#% text
+# Sampling points for a table of values:
+
+#% cell
+table([x, x^2], x, range(0, 1, 1/2))
+#% output
+#= [[0, 0], [1/2, 1/4], [1, 1]]
+
+#% text
+# The sum of the odd numbers below 20:
+
+#% cell
+sum(range(1, 19, 2))
+#% output
+#= 100
+
+#% subsection
+# Properties and relations
+
+#% text
+# A range of `n` integers has `n` elements:
+
+#% cell
+length(range(1000))
+#% output
+#= 1000
+
+#% text
+# Reversing a range gives the range with the opposite step:
+
+#% cell
+reverse(range(1, 9, 2)) === range(9, 1, -2)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A step of zero cannot reach the end:
+
+#% cell
+range(1, 5, 0)
+#% output
+#! failure(argument, range, 3)
+
+#% text
+# Bounds that are exact numeric expressions rather than numbers leave the call as it is; use a range of integers and scale it:
+
+#% cell
+range(0, pi, pi/4)
+#% output
+#= [0, (1/4)*pi, (1/2)*pi, (3/4)*pi, pi]
+
+#% cell
+range(0, 4)*pi/4
+#% output
+#= [0, (1/4)*pi, (1/2)*pi, (3/4)*pi, pi]
+
+#% text
+# A symbolic bound cannot be expanded:
+
+#% cell
+range(n)
+#% output
+#= range(n)
+
+#% section
+# See also
+
+#% text
+# `table`, `array`, `take`, `reverse`

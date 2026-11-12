@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# missing
+
+#% text
+# `missing()` stands for a value that is absent from a dataset.
+
+#% text
+# `missing(reason)` is an absent value that records why.
+
+#% section
+# Details
+
+#% item
+# `missing()` stays as it is: it is a marker, not a number.
+
+#% item
+# `dataset` puts `missing()` where a row lacks a column, and `import_data` where a field is empty or a JSON value is `null`.
+
+#% item
+# `aggregate` and `pivot` skip missing values: an empty `total` or `count` is 0, an empty `mean`, `min` or `max` is `missing()`.
+
+#% item
+# `sort_by` puts rows whose key is missing after all the others; `join_on` never matches a missing key.
+
+#% item
+# In a printed table a missing value shows as the word missing; `export_data` writes it as an empty field or as JSON `null`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Ben's score is missing:
+
+#% cell
+scores = dataset([assoc("name" -> "Ada", "score" -> 7), assoc("name" -> "Ben"), assoc("name" -> "Cleo", "score" -> 4)])
+column(scores, "score")
+#% output
+#= [7, missing(), 4]
+
+#% text
+# The mean skips it:
+
+#% cell
+aggregate(scores, "score" -> mean)
+#% output
+#= score
+#= -----
+#=  11/2
+#= dataset: 1 row, 1 column
+
+#% subsection
+# Scope
+
+#% text
+# A reason can be kept with the marker:
+
+#% cell
+is_missing(missing("sensor offline"))
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Arithmetic does not skip missing values; aggregate the column instead:
+
+#% cell
+total(column(scores, "score"))
+#% output
+#= 11 + missing()
+
+#% section
+# See also
+
+#% text
+# `is_missing`, `dataset`, `aggregate`

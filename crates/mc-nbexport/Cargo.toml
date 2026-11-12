@@ -1,0 +1,28 @@
+[package]
+name = "mc-nbexport"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 notebook export: a saved .mcn notebook as one self-contained HTML file or as a paginated PDF document"
+
+[dependencies]
+# the parsed notebook file and its pictures
+mc-nbfile = { path = "../mc-nbfile" }
+# outputs and typeset inputs as square roots, fractions and powers; their layout (PDF)
+mc-boxes = { path = "../mc-boxes" }
+# syntax colouring of code cells
+mc-syntax = { path = "../mc-syntax" }
+# the math font (STIX Two Math, SIL Open Font License 1.1) for the glyphs of roots and symbols
+mc-mathfont = { path = "../mc-mathfont" }
+# outlines and advances of the bundled text fonts (MIT / Apache-2.0)
+ttf-parser = { version = "0.25", default-features = false, features = ["std", "opentype-layout"] }
+# PNG pictures decoded for the PDF (MIT / Apache-2.0)
+png = "0.18"
+# Flate compression of PDF streams (MIT / Zlib / Apache-2.0)
+miniz_oxide = "0.8"
+# SVG drawings parsed into paths for the PDF's vector pictures (Apache-2.0 OR MIT; already in the lock); no text:
+# the drawings of mc-graphics have their glyphs as paths
+usvg = { version = "0.49", default-features = false }

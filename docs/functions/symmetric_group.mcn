@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetric_group
+
+#% text
+# `symmetric_group(k)`: the symmetric group on k points
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_order(symmetric_group(6))
+#% output
+#= 720
+
+#% cell
+symmetric_group(4)
+#% output
+#= permutation_group([cycles([[1, 2]]), cycles([[1, 2, 3, 4]])])
+
+#% section
+# See also
+
+#% text
+# `alternating_group`, `cyclic_group`

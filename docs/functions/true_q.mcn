@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# true_q
+
+#% text
+# `true_q(x)` gives `true` when `x` is `true` and `false` for anything else.
+
+#% section
+# Details
+
+#% item
+# Unlike a condition, it never stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+true_q(true)
+#% output
+#= true
+
+#% cell
+true_q(false)
+#% output
+#= false
+
+#% cell
+true_q(x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+true_q(1 < 2)
+#% output
+#= true
+
+#% cell
+map(true_q, [true, 1, "true"])
+#% output
+#= [true, false, false]
+
+#% section
+# See also
+
+#% text
+# `same`, `xor`

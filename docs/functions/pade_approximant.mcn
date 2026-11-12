@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# pade_approximant
+
+#% text
+# `pade_approximant(f, [x, x0, [m, k]])` gives the Pade approximant of f at x0: the rational function p/q with deg p = m and deg q = k whose series at x0 agrees with that of f to order m + k.
+
+#% text
+# `pade_approximant(f, [x, x0, n])` gives the diagonal approximant `[n/n]`.
+
+#% section
+# Details
+
+#% item
+# The denominator is normalized to 1 at x0; x0 may be `inf` (an approximant in 1/x).
+
+#% item
+# A pole of f at x0 is taken out first: `pade_approximant(exp(x)/x, ...)` has the factor x in its denominator.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pade_approximant(exp(x), [x, 0, [2, 3]])
+#% output
+#= (1 + (2/5)*x + (1/20)*x^2)/(1 - (3/5)*x + (3/20)*x^2 - (1/60)*x^3)
+
+#% cell
+pade_approximant(exp(x)/x, [x, 0, [2, 3]])
+#% output
+#= (1 + (1/2)*x + (1/12)*x^2)/(x*(1 - (1/2)*x + (1/12)*x^2))
+
+#% cell
+pade_approximant(cos(x), [x, 0, 2])
+#% output
+#= (1 - (5/12)*x^2)/(1 + (1/12)*x^2)
+
+#% cell
+pade_approximant(log(1 + 1/x), [x, inf, 2])
+#% output
+#= (1/(2*x^2) + x^-1)/(1 + 1/(6*x^2) + x^-1)
+
+#% cell
+series(pade_approximant(exp(x), [x, 0, [2, 3]]), x, 0, 6)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + 11*x^6/7200 + O(x^7)
+
+#% section
+# See also
+
+#% text
+# `series`, `apart`, `normal`

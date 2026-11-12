@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# qr
+
+#% text
+# `qr(m)` gives `[q, r]` with `m == dot(q, r)`, `q` with orthonormal columns and `r` upper triangular.
+
+#% section
+# Details
+
+#% item
+# Machine matrices use Householder reflections; exact matrices give exact factors from Gram-Schmidt, with square roots where the column lengths need them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+qr([[1.0, 2.0], [3.0, 4.0]])
+#% output
+#= [[[0.3162277660168378, 0.9486832980505135], [0.9486832980505135, -0.3162277660168381]], [[3.162277660168378, 4.427188724235729], [0.0, 0.6324555320336742]]]
+
+#% cell
+qr([[3, 0], [4, 5]])
+#% output
+#= [[[3/5, -4/5], [4/5, 3/5]], [[5, 4], [0, 3]]]
+
+#% cell
+qr([[1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+#% output
+#= [[[0.7071067811865475, -0.4082482904638627], [0.7071067811865476, 0.4082482904638627], [-0.0, 0.8164965809277259]], [[1.414213562373095, 0.7071067811865476], [0.0, 1.2247448713915885]]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The factors give the matrix back and `q` is orthogonal:
+
+#% cell
+m = [[2.0, 1.0], [1.0, 3.0], [0.0, 1.0]]; f = qr(m); [norm(flatten(dot(f[1], f[2]) - m)) < 1.0e-14, round(dot(transpose(f[1]), f[1]), 1.0e-12)]
+#% output
+#= [true, [[1.0, 0.0], [0.0, 1.0]]]
+
+#% section
+# See also
+
+#% text
+# `lu`, `cholesky`, `svd`

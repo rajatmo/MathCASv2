@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# percent_form
+
+#% text
+# `percent_form(x)` shows the number `x` as a percentage: `0.35` as 35%; `percent_form(x, n)` with `n` significant digits.
+
+#% section
+# Details
+
+#% item
+# The argument is evaluated first; `percent_form` stays around the value as a display wrapper. The wrapper stays around the value: it is a display directive and changes no computation.
+
+#% item
+# The displayed percentage is `100 x`; the value of `x` itself is not changed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+percent_form(0.35)
+#% output
+#= percent_form(0.35)
+
+#% cell
+percent_form(2/3)
+#% output
+#= percent_form(2/3)
+
+#% cell
+percent_form(0.123456789, 4)
+#% output
+#= percent_form(0.123456789, 4)
+
+#% cell
+percent_form([0.1, 0.25, 0.5])
+#% output
+#= percent_form([0.1, 0.25, 0.5])
+
+#% section
+# See also
+
+#% text
+# `number_form`, `decimal_form`, `scientific_form`

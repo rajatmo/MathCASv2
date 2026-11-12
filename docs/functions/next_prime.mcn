@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# next_prime
+
+#% text
+# `next_prime(x)` gives the least prime greater than `x`.
+
+#% text
+# `next_prime(x, k)` gives the `k`-th prime after `x`, or the `-k`-th before it when `k < 0`.
+
+#% section
+# Details
+
+#% item
+# `x` may be any real number; primality is decided for integers of any size (with a strong probable-prime test beyond the proven range).
+
+#% item
+# `next_prime` is listable in its first argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+next_prime(10)
+#% output
+#= 11
+
+#% cell
+next_prime(13)
+#% output
+#= 17
+
+#% cell
+next_prime(100, 3)
+#% output
+#= 107
+
+#% cell
+next_prime(100, -1)
+#% output
+#= 97
+
+#% subsection
+# Scope
+
+#% text
+# A real starting point:
+
+#% cell
+next_prime(2.5)
+#% output
+#= 3
+
+#% text
+# A large integer:
+
+#% cell
+next_prime(10^30)
+#% output
+#= 1000000000000000000000000000057
+
+#% text
+# Each element of a list:
+
+#% cell
+next_prime([1, 10, 100, 1000])
+#% output
+#= [2, 11, 101, 1009]
+
+#% subsection
+# Applications
+
+#% text
+# The first prime gap of length at least 10:
+
+#% cell
+p = 2; while next_prime(p) - p < 10 { p = next_prime(p) }; [p, next_prime(p)]
+#% output
+#= [113, 127]
+
+#% section
+# See also
+
+#% text
+# `prime`, `is_prime`, `prime_pi`

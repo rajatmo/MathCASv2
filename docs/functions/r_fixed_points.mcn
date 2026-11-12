@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# r_fixed_points
+
+#% text
+# `r_fixed_points(eqs, vars, n)` gives the fixed points of the difference equations `eqs` in the unknowns `vars` of `n`: the constant solutions.
+
+#% section
+# Details
+
+#% item
+# Each fixed point is a list of the state: for an unknown of order `k` (the largest minus the smallest shift of `n` in it), its constant value `k` times.
+
+#% item
+# `vars` may be `y`, `y(n)` or a list of them; `eqs` an equation or a list.
+
+#% item
+# Solutions that depend on `n` are not constant and are left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+r_fixed_points(a(n + 1) == 2*a(n) + 1, a(n), n)
+#% output
+#= [[-1]]
+
+#% cell
+r_fixed_points(y(n + 1) == a*y(n) + 5, y, n)
+#% output
+#= [[-5/(-1 + a)]]
+
+#% cell
+r_fixed_points(a(n + 1) == 2*(1 - a(n))*a(n), a(n), n)
+#% output
+#= [[0], [1/2]]
+
+#% cell
+r_fixed_points(a(n + 2) == a(n + 1)*a(n)^2, a(n), n)
+#% output
+#= [[-1, -1], [0, 0], [1, 1]]
+
+#% cell
+r_fixed_points([y(n + 1) + z(n) == 3, y(n) + 2*z(n + 1) == 1], [y(n), z(n)], n)
+#% output
+#= [[5, -2]]
+
+#% section
+# See also
+
+#% text
+# `d_fixed_points`, `r_solve`, `solve`

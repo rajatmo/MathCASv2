@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# group_intersection
+
+#% text
+# `group_intersection(G, H)`: the intersection of two permutation groups
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_intersection(symmetric_group(4), permutation_group([cycles([[1, 2, 3, 4]])]))
+#% output
+#= permutation_group([cycles([[1, 2, 3, 4]])])
+
+#% cell
+group_order(group_intersection(alternating_group(5), dihedral_group(5)))
+#% output
+#= 10
+
+#% section
+# See also
+
+#% text
+# `is_subgroup`, `group_centralizer`

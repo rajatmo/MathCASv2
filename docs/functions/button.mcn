@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# button
+
+#% text
+# `button(label, action)`: a button (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+button("go", null)
+#% output
+#= button("go", null)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

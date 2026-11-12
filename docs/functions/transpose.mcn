@@ -1,0 +1,138 @@
+#! mathcas 2 notebook
+
+#% title
+# transpose
+
+#% text
+# `transpose(m)` gives the matrix `m` with rows and columns exchanged.
+
+#% section
+# Details
+
+#% item
+# `m` is a rectangular list of lists: every row has the same length. Row `i` of the result is column `i` of `m`.
+
+#% item
+# The entries may be anything: numbers, symbols, strings or lists. For a list of matrices only the first two levels are exchanged.
+
+#% item
+# Complex entries are not conjugated; use `conjugate` as well for the conjugate transpose.
+
+#% item
+# Rows of different lengths give `failure(shape_mismatch, transpose)`; a flat list gives a failure too.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+transpose([[1, 2, 3], [4, 5, 6]])
+#% output
+#= [[1, 4], [2, 5], [3, 6]]
+
+#% cell
+transpose([[a, b], [c, d]])
+#% output
+#= [[a, c], [b, d]]
+
+#% subsection
+# Scope
+
+#% text
+# A row becomes a column and back:
+
+#% cell
+transpose([[1, 2, 3]])
+#% output
+#= [[1], [2], [3]]
+
+#% cell
+transpose([[1], [2], [3]])
+#% output
+#= [[1, 2, 3]]
+
+#% text
+# Entries of any kind:
+
+#% cell
+transpose([["a", "b"], ["c", "d"]])
+#% output
+#= [["a", "c"], ["b", "d"]]
+
+#% text
+# Only the first two levels are exchanged:
+
+#% cell
+transpose([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+#% output
+#= [[[1, 2], [5, 6]], [[3, 4], [7, 8]]]
+
+#% subsection
+# Applications
+
+#% text
+# The columns of a table of data, and their sums:
+
+#% cell
+data = [[1, 2], [3, 4], [5, 6]]; transpose(data)
+#% output
+#= [[1, 3, 5], [2, 4, 6]]
+
+#% cell
+map(total, transpose(data))
+#% output
+#= [9, 12]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Transposing twice gives the matrix back:
+
+#% cell
+m = [[1, 2], [3, 4]]; transpose(transpose(m)) == m
+#% output
+#= true
+
+#% text
+# The transpose of a product is the product of the transposes in reverse order:
+
+#% cell
+p = [[0, 1], [1, 0]]; transpose(dot(m, p)) == dot(transpose(p), transpose(m))
+#% output
+#= true
+
+#% text
+# A symmetric matrix is its own transpose:
+
+#% cell
+s = [[1, 2], [2, 5]]; transpose(s) == s
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A flat list of numbers is a vector, its own transpose:
+
+#% cell
+transpose([1, 2, 3])
+#% output
+#= [1, 2, 3]
+
+#% text
+# Rows must have the same length:
+
+#% cell
+transpose([[1, 2], [3]])
+#% output
+#! failure(shape_mismatch, transpose)
+
+#% section
+# See also
+
+#% text
+# `dot`, `conjugate`, `columns`, `rows`

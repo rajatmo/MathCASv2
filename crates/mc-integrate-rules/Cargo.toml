@@ -1,0 +1,21 @@
+[package]
+name = "mc-integrate-rules"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 rule-based indefinite integration: a table of integration rules (translated from Rubi, MIT) matched by the evaluator's matcher, dispatched by head features, with utility predicates as natives"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the tower engine, for the exponential integrands the rules lead to (product logarithms)
+mc-integrate = { path = "../mc-integrate" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

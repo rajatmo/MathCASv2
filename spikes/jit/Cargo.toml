@@ -1,0 +1,15 @@
+[package]
+name = "jit"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Spike E: numeric compiler for monomorphic machine-typed functions (Cranelift back end)"
+
+[dependencies]
+cranelift-codegen = "=0.137.0"
+cranelift-frontend = "=0.137.0"
+cranelift-module = "=0.137.0"
+cranelift-jit = "=0.137.0"
+cranelift-native = "=0.137.0"
+rayon = "1.12"
+hashbrown = "0.15"

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# reflection_transform
+
+#% text
+# `reflection_transform(v) or reflection_transform(v, p)`: the reflection in the plane (line) normal to v (through p)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reflection_transform([1, 0])([x, y])
+#% output
+#= [-x, y]
+
+#% cell
+reflection_transform([1, 1])([2, 0])
+#% output
+#= [0, -2]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

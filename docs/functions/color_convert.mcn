@@ -1,0 +1,88 @@
+#! mathcas 2 notebook
+
+#% title
+# color_convert
+
+#% text
+# `color_convert(c, model)` gives the colour c in the colour model `rgb_color`, `hue` or `gray_level`.
+
+#% section
+# Details
+
+#% item
+# c is a named colour or a colour term; the result has machine-real components, with the opacity last when it is not 1.
+
+#% item
+# Components outside [0, 1] are clipped first.
+
+#% item
+# A gray has hue 0; converting to `gray_level` weighs red, green and blue by 0.299, 0.587 and 0.114.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Orange by hue, saturation and brightness:
+
+#% cell
+color_convert(orange, hue)
+#% output
+#= hue(0.08333333333333333, 1.0, 1.0)
+
+#% text
+# A hue as red, green and blue:
+
+#% cell
+color_convert(hue(0.75), rgb_color)
+#% output
+#= rgb_color(0.5, 0.0, 1.0)
+
+#% subsection
+# Options
+
+#% text
+# `white_point` gives the white the XYZ values are relative to, a standard illuminant ("A", "D50", "D65", "F2", ...) or an XYZ colour. The default is D50. The white of sRGB goes to the white point:
+
+#% cell
+color_convert(white, "XYZ", white_point: xyz_color(0.98, 1, 0.95))
+#% output
+#= xyz_color(0.98, 1.0, 0.9500000000000001)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Converting there and back gives the colour again:
+
+#% cell
+color_convert(color_convert(rgb_color(0.2, 0.6, 0.4), hue), rgb_color)
+#% output
+#= rgb_color(0.2, 0.6, 0.4)
+
+#% text
+# The opacity is kept:
+
+#% cell
+color_convert(rgb_color(0, 0, 1, 0.5), gray_level)
+#% output
+#= gray_level(0.114, 0.5)
+
+#% subsection
+# Possible issues
+
+#% text
+# Only the three models are known:
+
+#% cell
+color_convert(red, cmyk)
+#% output
+#! failure(argument, color_convert, 2)
+
+#% section
+# See also
+
+#% text
+# `rgb_color`, `hue`, `gray_level`, `blend`

@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# sin_integral
+
+#% text
+# `sin_integral(x)` gives the sine integral `Si(x)`, the integral of `sin(t)/t` for `t` from 0 to `x`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 6.2.9. `Si` is odd and entire, and tends to `pi/2` as `x` tends to `inf`.
+
+#% item
+# `sin_integral(0)` is 0. Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `sin_integral` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sin_integral(1.0)
+#% output
+#= 0.946083070367183
+
+#% cell
+sin_integral(0)
+#% output
+#= 0
+
+#% cell
+sin_integral(-2.0)
+#% output
+#= -1.6054129768026948
+
+#% cell
+n(sin_integral(pi), 30)
+#% output
+#= 1.851937051982466170361053370157991
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments approach `pi/2`:
+
+#% cell
+sin_integral(1000.0) - pi/2.0
+#% output
+#= -0.0005632048261252631
+
+#% text
+# A complex argument:
+
+#% cell
+sin_integral(1.0 + 1.0*im)
+#% output
+#= 1.1042226582355819 + 0.8824538050079177im
+
+#% subsection
+# Applications
+
+#% text
+# The Gibbs overshoot of a square wave's Fourier series, `Si(pi)/(pi/2)`:
+
+#% cell
+sin_integral(pi*1.0)/(pi/2)
+#% output
+#= 1.1789797444721675
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(sin_integral(x), x)
+#% output
+#= sin(x)/x
+
+#% section
+# See also
+
+#% text
+# `cos_integral`, `sinh_integral`, `exp_integral_ei`, `sinc`

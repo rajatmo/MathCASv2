@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# normal_modes
+
+#% text
+# `normal_modes(L, q, t)` gives `[frequencies, modes]` of the small oscillations of the system with Lagrangian `L` about the equilibrium at the origin of the coordinates `q`.
+
+#% section
+# Details
+
+#% item
+# `at:` gives another equilibrium, as a list of values or of rules for the coordinates.
+
+#% item
+# The quadratic approximation `L = q'.M.q'/2 + q'.A.q - q.K.q/2` gives `M q'' + G q' + K q = 0` with `G = A - A^T`. The frequencies `w` are the roots of `det(K - w^2 M + i w G) = 0`, which is even in `w` and is solved for `w^2`; the modes are the null vectors of `K - w^2 M + i w G`.
+
+#% item
+# Without gyroscopic terms (`G = 0`) the `w^2` are the eigenvalues of `M^-1 K` and the modes are real; with them (a magnetic field, a rotating frame) the modes are complex: `[im, 1]` is a circular motion.
+
+#% item
+# A degenerate frequency is repeated once for each of its modes.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two equal masses between three equal springs:
+
+#% cell
+normal_modes(m*(x1'(t)^2 + x2'(t)^2)/2 - k*x1(t)^2/2 - k*(x2(t) - x1(t))^2/2 - k*x2(t)^2/2, [x1, x2], t)
+#% output
+#= [[(k/m)^(1/2), 3^(1/2)*(k/m)^(1/2)], [[1, 1], [-1, 1]]]
+
+#% text
+# The double pendulum of equal masses and lengths:
+
+#% cell
+normal_modes(m*l^2*(2*a'(t)^2 + b'(t)^2 + 2*a'(t)*b'(t)*cos(a(t) - b(t)))/2 + m*g*l*(2*cos(a(t)) + cos(b(t))), [a, b], t)
+#% output
+#= [[(-g*(-2 + 2^(1/2))/l)^(1/2), (g*(2 + 2^(1/2))/l)^(1/2)], [[(1/2)*2^(1/2), 1], [(-1/2)*2^(1/2), 1]]]
+
+#% text
+# About the minimum at `x = 1` of a double well:
+
+#% cell
+normal_modes(x'(t)^2/2 + x(t)^2/2 - x(t)^4/4, x, t, at: [x -> 1])
+#% output
+#= [[2^(1/2)], [[1]]]
+
+#% text
+# A charge in a harmonic trap and a magnetic field (frequencies `(sqrt(b^2 + 4 k m) -+ b)/(2 m)`):
+
+#% cell
+normal_modes(x'(t)^2/2 + y'(t)^2/2 + (x(t)*y'(t) - y(t)*x'(t))/2 - (x(t)^2 + y(t)^2), [x, y], t)
+#% output
+#= [[1, 2], [[im, 1], [-im, 1]]]
+
+#% section
+# See also
+
+#% text
+# `equilibrium_points`, `eigensystem`, `euler_lagrange_equations`

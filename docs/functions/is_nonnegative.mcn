@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# is_nonnegative
+
+#% text
+# `is_nonnegative(x)` gives `true` when `x` is a real at least 0, `false` when it is known not to be, and stays unevaluated when neither is decided.
+
+#% section
+# Details
+
+#% item
+# Numbers and closed numeric expressions are decided by numerical bounds; symbols by the assumptions in force.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_nonnegative(0)
+#% output
+#= true
+
+#% cell
+is_nonnegative(-1)
+#% output
+#= false
+
+#% cell
+is_nonnegative(sqrt(2) - 1)
+#% output
+#= true
+
+#% cell
+is_nonnegative(x)
+#% output
+#= is_nonnegative(x)
+
+#% subsection
+# Scope
+
+#% text
+# Decided by assumptions:
+
+#% cell
+assuming(element(x, reals), is_nonnegative(x^2))
+#% output
+#= true
+
+#% cell
+assuming(x >= 0, is_nonnegative(x + 1))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `is_positive`, `is_negative`, `assuming`

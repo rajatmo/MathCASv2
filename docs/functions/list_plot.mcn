@@ -1,0 +1,206 @@
+#! mathcas 2 notebook
+
+#% title
+# list_plot
+
+#% text
+# `list_plot([y1, y2, ...])` draws the points (1, y1), (2, y2), ... as an image.
+
+#% text
+# `list_plot([[x1, y1], [x2, y2], ...])` draws the points (x1, y1), (x2, y2), ....
+
+#% text
+# `list_plot([data1, data2, ...])` draws several data sets, each in its own colour.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file, with an SVG and a PDF copy of the same plot next to it; `export_data` writes it to a file.
+
+#% item
+# A list of pairs is read as points; a list of other lists is read as several data sets.
+
+#% item
+# Points whose coordinates are not real numbers are left out.
+
+#% item
+# Options:
+
+#% subitem
+# `joined: true` joins the points by a line.
+
+#% subitem
+# `x_label: "text"` and `y_label: "text"` label the axes; `legend: ["text", ...]` names the data sets.
+
+#% subitem
+# `colors: ["#rrggbb", ...]` sets the colour of each data set.
+
+#% subitem
+# `x_scale` and `y_scale`: `linear`, `log`, or `signed_log`.
+
+#% subitem
+# `filling: axis` fills the region between the points and the x axis.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Values at x = 1, 2, 3, ...:
+
+#% cell
+list_plot([1, 4, 9, 16, 25])
+#% output
+#= image("list_plot.files/list_plot-1.svgz")
+
+#% text
+# Points given by their coordinates:
+
+#% cell
+list_plot(table([x, sin(x)], x, range(0, 6, 0.2)))
+#% output
+#= image("list_plot.files/list_plot-2.svgz")
+
+#% text
+# A cloud of random points:
+
+#% cell
+seed(4); list_plot(random_variate(normal_distribution(), [200, 2]))
+#% output
+#= image("list_plot.files/list_plot-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Two data sets:
+
+#% cell
+list_plot([table(k, k, 10), table(10 - k, k, 10)], legend: ["up", "down"])
+#% output
+#= image("list_plot.files/list_plot-4.svgz")
+
+#% text
+# A point that is not numeric is left out:
+
+#% cell
+list_plot([[1, 1], [2, a], [3, 3]])
+#% output
+#= image("list_plot.files/list_plot-5.svgz")
+
+#% subsection
+# Options
+
+#% text
+# The points joined by a line:
+
+#% cell
+list_plot(table([x, sin(x)], x, range(0, 6, 0.2)), joined: true)
+#% output
+#= image("list_plot.files/list_plot-6.svgz")
+
+#% text
+# Labels on the axes:
+
+#% cell
+list_plot(table(k^2, k, 10), x_label: "k", y_label: "k squared")
+#% output
+#= image("list_plot.files/list_plot-7.svgz")
+
+#% text
+# A logarithmic y axis makes exponential growth a straight line:
+
+#% cell
+list_plot(table([x, exp(x)], x, range(0, 5, 0.5)), y_scale: log)
+#% output
+#= image("list_plot.files/list_plot-8.svgz")
+
+#% text
+# A colour and a filling to the axis:
+
+#% cell
+list_plot(table(k^2, k, 10), colors: ["#e45649"], filling: axis)
+#% output
+#= image("list_plot.files/list_plot-9.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# The samples of a two-parameter random walk, drawn as a scatter plot of its points:
+
+#% cell
+seed(11); chain = nest_list(p => p + 0.15*random_variate(normal_distribution(), 2), [1, 1], 1000); list_plot(chain)
+#% output
+#= image("list_plot.files/list_plot-10.svgz")
+
+#% text
+# A computed table, saved as an image file:
+
+#% cell
+export_data("squares.png", list_plot(table(k^2, k, 10)))
+#% output
+#= "squares.png"
+
+#% subsection
+# Properties and relations
+
+#% text
+# `around` values are drawn with error bars, intervals as bars over the interval:
+
+#% cell
+list_plot([around(1, 0.2), around(2.2, 0.3), interval([2.5, 3.5]), around(3.8, 0.1)])
+#% output
+#= image("list_plot.files/list_plot-12.svgz")
+
+#% text
+# Quantities in different units are converted to the first one's, which labels the axis:
+
+#% cell
+list_plot([quantity(1, "m"), quantity(150, "cm"), quantity(2.2, "m")])
+#% output
+#= image("list_plot.files/list_plot-13.svgz")
+
+#% text
+# An association of data sets: the keys make the legend:
+
+#% cell
+list_plot(assoc("squares" -> range(6)^2, "cubes" -> range(6)^3/6))
+#% output
+#= image("list_plot.files/list_plot-14.svgz")
+
+#% text
+# A dataset with two columns: points, the columns naming the axes:
+
+#% cell
+list_plot(dataset(assoc("time" -> [0, 1, 2, 3], "height" -> [0, 4.1, 7.9, 9.6])))
+#% output
+#= image("list_plot.files/list_plot-15.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# A list of pairs is read as points, not as two data sets of two values each:
+
+#% cell
+list_plot([[1, 2], [3, 4]])
+#% output
+#= image("list_plot.files/list_plot-16.svgz")
+
+#% text
+# An empty list has nothing to draw:
+
+#% cell
+list_plot([])
+#% output
+#! failure(argument, list_plot, 1)
+
+#% section
+# See also
+
+#% text
+# `list_line_plot`, `plot`, `list_log_plot`, `list_log_log_plot`, `histogram`, `export_data`

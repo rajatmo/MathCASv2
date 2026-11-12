@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# not_same
+
+#% text
+# `not_same(a, b)`, written `a !== b`, gives `true` when the two terms are not identical.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+1 !== 1.0
+#% output
+#= true
+
+#% cell
+not_same(f(x), f(x))
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `same`, `unequal`

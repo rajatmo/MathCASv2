@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# nonpositive_integers
+
+#% text
+# `nonpositive_integers` is the domain of the integers at most 0, for facts `element(x, nonpositive_integers)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, nonpositive_integers)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(0, nonpositive_integers)
+#% output
+#= true
+
+#% cell
+element(-4, nonpositive_integers)
+#% output
+#= true
+
+#% cell
+element(1, nonpositive_integers)
+#% output
+#= false
+
+#% cell
+element(-1/2, nonpositive_integers)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(n, nonpositive_integers), refine(abs(n)))
+#% output
+#= -n
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(n, nonpositive_integers), is_positive(n))
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, nonpositive_integers)
+#% output
+#= element(x, integers) and x <= 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `integers`

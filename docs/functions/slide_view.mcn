@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# slide_view
+
+#% text
+# `slide_view([a, b, ...])`: views shown one at a time (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+slide_view([a, b, c, d])
+#% output
+#= slide_view([a, b, c, d])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

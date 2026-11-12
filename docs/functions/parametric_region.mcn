@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_region
+
+#% text
+# `parametric_region([f1, f2, ...], [[u, a, b], ...])` is the set of points `(f1, f2, ...)` as the parameters run over their ranges.
+
+#% section
+# Details
+
+#% item
+# The measure is the integral of the length, area or volume element over the parameters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Half of the unit circle:
+
+#% cell
+c = parametric_region([cos(t), sin(t)], [[t, 0, pi]])
+
+#% text
+# Its length:
+
+#% cell
+region_measure(c)
+#% output
+#= pi
+
+#% text
+# Its bounds:
+
+#% cell
+region_bounds(c)
+#% output
+#= [[-1.0, 1.0], [0.0, 1.0]]
+
+#% section
+# See also
+
+#% text
+# `implicit_region`, `region_integrate`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# start_of_string
+
+#% text
+# `start_of_string` is a string pattern for the empty text at the start of the string.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_replace("aaa", string_expression(start_of_string, "a") -> "X")
+#% output
+#= "Xaa"
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

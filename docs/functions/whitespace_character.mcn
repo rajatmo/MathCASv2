@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# whitespace_character
+
+#% text
+# `whitespace_character` is a string pattern for one white-space character.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_count("a b\tc\nd", whitespace_character)
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

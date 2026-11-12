@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_series
+
+#% text
+# `fourier_series(f, t, k)` gives the exponential Fourier series of `f` to order `k`: the coefficients `c_n` times `exp(im n t)`, summed for `n` from `-k` to `k`.
+
+#% section
+# Details
+
+#% item
+# With `fourier_parameters: [a, b]` the terms are `(abs(b)/(2 pi))^((1 - a)/2) c_n exp(im b n t)`, the coefficients those of `fourier_coefficient` with the same parameters.
+
+#% item
+# Lists of variables and orders give the series in several variables.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_series(t^2 + t, t, 2)
+#% output
+#= (-2 - im)*exp(im*t) + (-2 + im)*exp(-im*t) + (1/3)*pi^2 + (1/2 + -im/2)*exp(-2im*t) + (1/2 + im/2)*exp(2im*t)
+
+#% cell
+fourier_series(abs(t), t, 1)
+#% output
+#= (1/2)*pi - 2*exp(-im*t)/pi - 2*exp(im*t)/pi
+
+#% section
+# See also
+
+#% text
+# `fourier_coefficient`, `fourier_trig_series`, `series`

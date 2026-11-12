@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# cylindrical_decomposition
+
+#% text
+# `cylindrical_decomposition(formula, [x, y, ...])` writes the solution set of a real polynomial formula as cylindrical cells: conditions on `x`, then on `y` given `x`, and so on.
+
+#% section
+# Details
+
+#% item
+# Bounds are roots of polynomials in the earlier variables: rationals, square roots, or `root` objects.
+
+#% item
+# Neighbouring cells whose description above is the same are combined.
+
+#% item
+# Quantified variables are eliminated first; the free variables are the listed ones.
+
+#% item
+# Every cell's sample point is certified, and the answer is checked at rational sample points before it is returned.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The unit disk:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 < 1, [x, y])
+#% output
+#= -1 < x and x < 1 and -(1 - x^2)^(1/2) < y and y < (1 - x^2)^(1/2)
+
+#% text
+# Part of the disk:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 < 1 and y > x, [x, y])
+#% output
+#= -1 < x and x <= (-1/2)*2^(1/2) and -(1 - x^2)^(1/2) < y and y < (1 - x^2)^(1/2) or (-1/2)*2^(1/2) < x and x < (1/2)*2^(1/2) and x < y and y < (1 - x^2)^(1/2)
+
+#% text
+# The other order of the variables:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 < 1 and y > x, [y, x])
+#% output
+#= (-1/2)*2^(1/2) < y and y <= (1/2)*2^(1/2) and -(1 - y^2)^(1/2) < x and x < y or (1/2)*2^(1/2) < y and y < 1 and -(1 - y^2)^(1/2) < x and x < (1 - y^2)^(1/2)
+
+#% text
+# A ball:
+
+#% cell
+cylindrical_decomposition(x^2 + y^2 + z^2 < 1, [x, y, z])
+#% output
+#= -1 < x and x < 1 and -(1 - x^2)^(1/2) < y and y < (1 - x^2)^(1/2) and -(1 - x^2 - y^2)^(1/2) < z and z < (1 - x^2 - y^2)^(1/2)
+
+#% text
+# A curve:
+
+#% cell
+cylindrical_decomposition(y^2 == x*(-1 + x^4), [x, y])
+#% output
+#= x == -1 and y == 0 or -1 < x and x < 0 and (y == -(-x + x^5)^(1/2) or y == (-x + x^5)^(1/2)) or x == 0 and y == 0 or x == 1 and y == 0 or x > 1 and (y == -(-x + x^5)^(1/2) or y == (-x + x^5)^(1/2))
+
+#% text
+# A projection:
+
+#% cell
+cylindrical_decomposition(exists(y, x^2 + y^2 < 1 and y > x), x)
+#% output
+#= -1 < x and x < (1/2)*2^(1/2)
+
+#% section
+# See also
+
+#% text
+# `resolve`, `exists`, `for_all`, `reduce`, `find_instance`

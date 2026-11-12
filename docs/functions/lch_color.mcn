@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# lch_color
+
+#% text
+# `lch_color(l, c, h)`: a colour by lightness, chroma and hue (h from 0 to 1) in CIE L*a*b*
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics(table([lch_color(0.7, 0.5, k/8), disk([k/2, 0], 0.2)], k, 8))
+#% output
+#= image("lch_color.files/lch_color-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# vertex_colors
+
+#% text
+# `vertex_colors`: option of polygon and triangle in graphics3d: vertex_colors: [c1, c2, ...], colours at the corners
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(polygon([[0, 0, 0], [1, 0, 0], [0, 1, 0]], vertex_colors: [red, green, blue]))
+#% output
+#= image("vertex_colors.files/vertex_colors-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

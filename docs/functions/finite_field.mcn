@@ -1,0 +1,202 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field
+
+#% text
+# `finite_field(p, n)` gives the finite field with `p^n` elements, defined by the Conway polynomial of degree `n` over the integers modulo the prime `p`.
+
+#% text
+# `finite_field(q)` gives the field with `q` elements for a prime power `q`.
+
+#% text
+# `finite_field(p, f, repr)` gives the field `F_p[x]/(f)` for a pure function `f` whose value is an irreducible polynomial modulo `p`; `repr` is `"Polynomial"` or `"Exponential"`.
+
+#% section
+# Details
+
+#% item
+# `F(k)` and `F([c0, c1, ...])` give elements of a field `F`; `F("FieldSize")` and the other property names give its properties.
+
+#% item
+# A field is the term `finite_field(p, f, repr)` with the defining polynomial written as a pure function of `&1`; it evaluates to itself, so a printed field reads back as the same field.
+
+#% item
+# The standard defining polynomial is the Conway polynomial: primitive, and compatible with those of the subfields. When it is not tabulated and too costly to compute, the least primitive polynomial in the same order is used (the least irreducible one when `p^n - 1` cannot be factored); `conway_polynomial` tells which.
+
+#% item
+# With `"Polynomial"` (the default) an element shows its coefficients `[c0, c1, ...]` as a polynomial in the generator `x`; with `"Exponential"` it shows its index: 0 for zero, `k` for `x^(k - 1)`. The exponential representation needs a primitive defining polynomial.
+
+#% item
+# `F(k)` for an integer `k` is the element whose coefficients are the base-`p` digits of `k` (in the exponential representation, the element of index `k`); `F([c0, ...])` takes the coefficients, exact rationals with denominators prime to `p` included.
+
+#% item
+# The properties are `"Characteristic"`, `"ExtensionDegree"`, `"FieldSize"`, `"FieldIrreducible"` and `"ElementRepresentation"`; a list of names gives the list of values.
+
+#% item
+# Elements of one field combine with `+`, `-`, `*`, `/` and integer powers, and with exact numbers; `factor`, `expand`, `polynomial_gcd`, `polynomial_remainder` and the related functions work on polynomials whose coefficients are elements, and `extension: F` factors over `F`.
+
+#% item
+# The characteristic must be a prime below 2^62; other arguments leave the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The field with 9 elements:
+
+#% cell
+F = finite_field(3, 2)
+
+#% text
+# Two elements and their sum, product and quotient:
+
+#% cell
+a = F([1, 2])
+
+#% cell
+b = F(5)
+
+#% cell
+[a + b, a * b, a / b]
+#% output
+#= [finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), []), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1, 1]), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2])]
+
+#% subsection
+# Scope
+
+#% text
+# A field given by its size:
+
+#% cell
+finite_field(25)
+#% output
+#= finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial")
+
+#% text
+# A field with a defining polynomial of your choice, which need not be monic:
+
+#% cell
+G = finite_field(7, &(2*&1^2 + 1), "Polynomial")
+
+#% cell
+G([0, 1])^2
+#% output
+#= finite_field_element(finite_field(7, &(1 + 2*&1^2), "Polynomial"), [3])
+
+#% text
+# The exponential representation shows the index of each element:
+
+#% cell
+H = finite_field(2, 3, "Exponential")
+
+#% cell
+[H(3) * H(5), H(3) + H(5)]
+#% output
+#= [finite_field_element(finite_field(2, &(1 + &1 + &1^3), "Exponential"), 7), finite_field_element(finite_field(2, &(1 + &1 + &1^3), "Exponential"), 2)]
+
+#% text
+# Properties of a field:
+
+#% cell
+F(["Characteristic", "ExtensionDegree", "FieldSize", "FieldIrreducible"])
+#% output
+#= [3, 2, 9, &(2 + 2*&1 + &1^2)]
+
+#% text
+# Exact rationals join the arithmetic when their denominator is prime to `p`:
+
+#% cell
+a + 1/2
+#% output
+#= finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [0, 2])
+
+#% text
+# Factorisation over the field:
+
+#% cell
+factor(x^4 + 1, extension: F)
+#% output
+#= (finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [0, 1]) + x*finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1]))*(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [0, 2]) + x*finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1]))*(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1, 2]) + x*finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1]))*(finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2, 1]) + x*finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [1]))
+
+#% subsection
+# Applications
+
+#% text
+# Solve `x^2 + x + 1 = 0` in the field with 4 elements, by factoring:
+
+#% cell
+factor(x^2 + x + 1, extension: finite_field(2, 2))
+#% output
+#= (finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [0, 1]) + x*finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1]))*(finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1, 1]) + x*finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1]))
+
+#% subsection
+# Properties and relations
+
+#% text
+# Every nonzero element `u` satisfies `u^(q - 1) = 1`:
+
+#% cell
+all_true(table(F(k), k, range(1, 8)), u => u^8 == 1)
+#% output
+#= true
+
+#% text
+# The generator of a field with a Conway polynomial is primitive:
+
+#% cell
+is_finite_field_element_primitive(F([0, 1]))
+#% output
+#= true
+
+#% text
+# The defining polynomial is irreducible modulo `p`, and the field has `p^n` elements:
+
+#% cell
+[is_irreducible_polynomial(F("FieldIrreducible")(x), modulus: 3), F("FieldSize") == 3^F("ExtensionDegree"), length(union(table(F(k), k, range(0, 8))))]
+#% output
+#= [true, true, 9]
+
+#% subsection
+# Possible issues
+
+#% text
+# A size that is not a prime power, a prime-power characteristic and degree 0 stay unevaluated:
+
+#% cell
+[finite_field(6), finite_field(4, 2), finite_field(2, 0)]
+#% output
+#= [finite_field(6), finite_field(4, 2), finite_field(2, 0)]
+
+#% text
+# A non-negative integer argument of an element is an index; a negative integer or a rational number is a number of the prime field (`-1` is `p - 1`, `1/2` the inverse of 2), and a rational whose denominator is a multiple of the characteristic stays unevaluated:
+
+#% cell
+[F(1/2), F([1/2]), F(-1), -F(1), F(1/3)]
+#% output
+#= [finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2]), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2]), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2]), finite_field_element(finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial"), [2]), finite_field(3, &(2 + 2*&1 + &1^2), "Polynomial")(1/3)]
+
+#% text
+# An exponential representation needs a primitive polynomial (`x^2 + 1` modulo 3 is irreducible, but `x` has order 4 there, not 8):
+
+#% cell
+[finite_field(3, &(&1^2 + 1), "Exponential"), finite_field(3, &(&1^2 + 1), "Polynomial")]
+#% output
+#= [finite_field(3, &(&1^2 + 1), "Exponential"), finite_field(3, &(1 + &1^2), "Polynomial")]
+
+#% text
+# Division by zero is an error:
+
+#% cell
+F(2) / F(0)
+#% output
+#! failure(division_by_zero)
+
+#% section
+# See also
+
+#% text
+# `finite_field_element`, `finite_field_embedding`, `conway_polynomial`, `finite_field_index`, `finite_field_log`, `is_irreducible_polynomial`

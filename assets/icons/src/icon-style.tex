@@ -1,0 +1,8 @@
+% The common look of the icon set (input by every icon): a 24 x 24 canvas in big points, strokes 1.8 wide with
+% round caps and joins, filled shapes with 1.5 rounded corners, one colour (black: the windows tint the icons).
+\tikzset{
+  icon/.style={x=1bp, y=1bp, line width=1.8bp, line cap=round, line join=round},
+  fine/.style={line width=1.5bp},
+}
+% the fixed canvas: every icon has the same box whatever its ink
+\newcommand{\canvas}{\path[use as bounding box] (0,0) rectangle (24,24);}

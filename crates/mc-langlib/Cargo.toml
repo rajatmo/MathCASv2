@@ -1,0 +1,16 @@
+[package]
+name = "mc-langlib"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 language library: core-language functions written in MathCAS itself (threading, joins, Boolean functions, graphs from repeated application, resampling, argument checking, typed exceptions)"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

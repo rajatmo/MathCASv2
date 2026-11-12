@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_cos_coefficient
+
+#% text
+# `fourier_cos_coefficient(f, t, n)` gives the `n`-th coefficient of the Fourier cosine series of `f`, `2/pi` times the integral of `f cos(n t)` for `t` from 0 to `pi`: the cosine coefficient of the even extension of `f` from `[0, pi]`.
+
+#% section
+# Details
+
+#% item
+# With `fourier_parameters: [a, b]` the coefficient is `2 abs(b)/pi` times the integral of `f cos(b n t)` over `[0, pi/abs(b)]`.
+
+#% item
+# A symbolic `n` is taken to be a positive integer: the result is the generic coefficient, with the exceptional positive indices as cases of a `piecewise` (or a `discrete_delta`).
+
+#% item
+# Lists of variables and indices give the coefficients of the products of cosines.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_cos_coefficient(t^2, t, n)
+#% output
+#= 4*(-1)^n/n^2
+
+#% cell
+fourier_cos_coefficient(abs(t), t, 3)
+#% output
+#= -4/(9*pi)
+
+#% cell
+fourier_cos_coefficient(x^2*y, [x, y], [3, 5])
+#% output
+#= 16/(225*pi)
+
+#% cell
+fourier_cos_coefficient(cos(2*t), t, n)
+#% output
+#= discrete_delta(-2 + n)
+
+#% section
+# See also
+
+#% text
+# `fourier_sin_coefficient`, `fourier_cos_series`, `fourier_coefficient`

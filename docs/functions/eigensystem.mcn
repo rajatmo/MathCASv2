@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# eigensystem
+
+#% text
+# `eigensystem(m)` gives `[eigenvalues(m), eigenvectors(m)]`, the eigenvalues and an eigenvector for each.
+
+#% section
+# Details
+
+#% item
+# The two lists correspond element by element; see `eigenvectors` for repeated and defective eigenvalues.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+eigensystem([[2, 1], [1, 2]])
+#% output
+#= [[3, 1], [[1, 1], [-1, 1]]]
+
+#% cell
+eigensystem([[1, 2], [3, 4]])
+#% output
+#= [[5/2 + (1/2)*33^(1/2), 5/2 - (1/2)*33^(1/2)], [[-1/2 + (1/6)*33^(1/2), 1], [-1/2 - (1/6)*33^(1/2), 1]]]
+
+#% cell
+eigensystem([[2.0, 1.0], [1.0, 3.0]])
+#% output
+#= [[3.618033988749894, 1.3819660112501049], [[0.5257311121191336, 0.8506508083520401], [0.8506508083520401, -0.5257311121191336]]]
+
+#% subsection
+# Applications
+
+#% text
+# Diagonalizing a symmetric matrix: with the eigenvectors as columns `p`, `p^-1.m.p` is diagonal:
+
+#% cell
+m = [[2, 1], [1, 2]]; p = transpose(eigensystem(m)[2]); dot(inverse(p), m, p)
+#% output
+#= [[3, 0], [0, 1]]
+
+#% section
+# See also
+
+#% text
+# `eigenvalues`, `eigenvectors`, `characteristic_polynomial`

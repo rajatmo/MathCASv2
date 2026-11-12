@@ -1,0 +1,111 @@
+#! mathcas 2 notebook
+
+#% title
+# boolean_function
+
+#% text
+# `boolean_function(k, n)` is the Boolean function of `n` variables whose truth table is given by the binary digits of `k`.
+
+#% section
+# Details
+
+#% item
+# Bit `i` of `k` is the value at the assignment whose binary number is `i`: false is 0, true is 1, the first argument is the highest bit. So `boolean_function(1, 1)` is `not x`, `boolean_function(8, 2)` is `x and y`.
+
+#% item
+# `boolean_function(k)` uses the fewest variables that hold `k`; `boolean_function(table)` takes the list of values in the order of `boolean_table` (all true first); a value that is neither `true` nor `false` does not matter and the smallest sum of products that agrees is used. `boolean_function([[b1, ..., bn] -> v, ...])` takes rules; the assignments not named do not matter.
+
+#% item
+# `boolean_function(spec, [x, y, ...])` is the sum of products in those variables.
+
+#% item
+# `f(a, b, ...)` evaluates to `true` or `false` when every argument is; with some of them `true` or `false` it is the function of the others, in their remaining positions; otherwise it stays.
+
+#% item
+# `boolean_convert` accepts calls of these functions and `"bff"` makes one from any expression.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = boolean_function(30, 3)
+f(true, false, true)
+#% output
+#= false
+
+#% text
+# As an expression in variables:
+
+#% cell
+boolean_function(30, [x, y, z])
+#% output
+#= x and not y and not z or not x and y or not x and z
+
+#% subsection
+# Scope
+
+#% text
+# From a table (all true first, as `boolean_table` lists it):
+
+#% cell
+boolean_function([true, false, false, true])
+#% output
+#= boolean_function(9, 2)
+
+#% text
+# Fixing some arguments:
+
+#% cell
+boolean_function(30, 3)(true, x, false)
+#% output
+#= boolean_function(1, 1)(x)
+
+#% text
+# From rules, with the other assignments not mattering:
+
+#% cell
+boolean_function([[true, true, false] -> true, [false, true, true] -> false], [x, y, z])
+#% output
+#= not z
+
+#% subsection
+# Applications
+
+#% text
+# The truth table of a function:
+
+#% cell
+boolean_table(boolean_function(30, 3)(a, b, c), [a, b, c])
+#% output
+#= [false, false, false, true, true, true, true, false]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `boolean_function(5)` takes the fewest variables that hold the bits (a table of 4 entries):
+
+#% cell
+[boolean_function(5), boolean_function(0), boolean_function(15, 2)]
+#% output
+#= [boolean_function(5, 2), boolean_function(0, 1), boolean_function(15, 2)]
+
+#% subsection
+# Possible issues
+
+#% text
+# A table whose length is not a power of 2 and a negative number give failures:
+
+#% cell
+[boolean_function([true, false, false]), boolean_function(-1, 2)]
+#% output
+#= [failure(argument, boolean_function, 1), failure(argument, boolean_function, 1)]
+
+#% section
+# See also
+
+#% text
+# `boolean_convert`, `boolean_counting_function`, `boolean_table`

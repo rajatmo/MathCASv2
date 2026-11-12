@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_k
+
+#% text
+# `bessel_k(nu, x)` gives the modified Bessel function of the second kind `K_nu(x)`.
+
+#% section
+# Details
+
+#% item
+# `K_nu(x)` solves the modified Bessel equation and decays like `sqrt(pi/(2*x))*exp(-x)` (DLMF 10.25.3); it is defined for `x > 0` and singular at 0.
+
+#% item
+# Half-integer orders give closed forms; machine numbers and balls give numerical values. `K_nu` equals `K_(-nu)`.
+
+#% item
+# `bessel_k` is listable in both arguments.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_k(0, 1.0)
+#% output
+#= 0.42102443824070834
+
+#% cell
+bessel_k(1, 2.5)
+#% output
+#= 0.073890816347747
+
+#% cell
+bessel_k(1/2, x)
+#% output
+#= 2^(1/2)*exp(-x)*pi^(1/2)/(2*x^(1/2))
+
+#% cell
+n(bessel_k(0, 1), 30)
+#% output
+#= 0.4210244382407083333356273792126090
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments decay exponentially:
+
+#% cell
+bessel_k(0, 100.0)
+#% output
+#= 4.656628229175903e-45
+
+#% text
+# A fractional order:
+
+#% cell
+bessel_k(1/3, 2.0)
+#% output
+#= 0.11654496129616529
+
+#% subsection
+# Properties and relations
+
+#% text
+# An integral representation, `K_0(x)` as the integral of `exp(-x*cosh(t))`:
+
+#% cell
+n_integrate(exp(-cosh(t)), [t, 0, inf]) - bessel_k(0, 1.0)
+#% output
+#= 2.220446049250313e-16
+
+#% text
+# The Wronskian `I_0 K_1 + I_1 K_0 = 1/x`:
+
+#% cell
+bessel_i(0, 2.0)*bessel_k(1, 2.0) + bessel_i(1, 2.0)*bessel_k(0, 2.0)
+#% output
+#= 0.5000000000000004
+
+#% section
+# See also
+
+#% text
+# `bessel_i`, `bessel_y`, `bessel_j`, `kelvin_ker`

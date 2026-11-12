@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# heun_d
+
+#% text
+# `heun_d(q, alpha, gamma, delta, epsilon, z)` gives the doubly-confluent Heun function, the solution of the doubly-confluent Heun equation with `y(1) = 1` and `y'(1) = 0`.
+
+#% section
+# Details
+
+#% item
+# The equation is `z^2 y'' + (epsilon z^2 + delta z + gamma) y' + (alpha z - q) y = 0`: irregular singularities at 0 and infinity; the series at 1 starts `1 + (q - alpha)/2 (z - 1)^2`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values: the series at the normalization point and analytic continuation by Taylor series along the segment to `z`, around the singularities on the upper side (values on the cuts are the limits from above).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heun_d(4, -0.6, -0.7, -0.18, 0.3, 0.12)
+#% output
+#= 6.945649852210475
+
+#% cell
+n(heun_d(9/10, -14/10, 12/100, 3/100, -2/10, 1/10), 30)
+#% output
+#= 5.8303554938604013966662462975484
+
+#% cell
+heun_d(1.2, -1.4, 0.12, 0.03, -0.2, [0.1, 0.1 + im, im, 4])
+#% output
+#= [7.4300929263704285, -0.36307701978632134 - 0.8082273156122712im, -0.4501584088596191 - 0.8763641378866682im, 13.910129860138387]
+
+#% cell
+heun_d(q, al, ga, de, ep, 1)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `heun_c`, `heun_t`

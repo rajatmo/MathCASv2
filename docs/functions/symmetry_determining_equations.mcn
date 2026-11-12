@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetry_determining_equations
+
+#% text
+# `symmetry_determining_equations(eqs, u, x)` gives the determining equations of the Lie point symmetries of the differential equations `eqs` for `u` of `x`: linear partial differential equations for the infinitesimals `xi(x, u)` and `eta(x, u)` of a generator `xi d/dx + eta d/du`.
+
+#% section
+# Details
+
+#% item
+# With several independent variables the infinitesimals are `xi1, ..., xip`; with several functions `eta1, ..., etaq`. They are functions of all the independent and dependent variables.
+
+#% item
+# The condition is the prolonged generator applied to the equations, with each equation solved for one of its highest derivatives; its coefficients of the powers of the remaining derivatives are the determining equations (Olver, Applications of Lie Groups to Differential Equations, 2.3).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+symmetry_determining_equations(y''(x) == 0, y, x)
+#% output
+#= [-derivative(0, 2)(xi)(x, y) == 0, -2*derivative(1, 1)(xi)(x, y) + derivative(0, 2)(eta)(x, y) == 0, -derivative(2, 0)(xi)(x, y) + 2*derivative(1, 1)(eta)(x, y) == 0, derivative(2, 0)(eta)(x, y) == 0]
+
+#% cell
+symmetry_determining_equations(y''(x) == y(x)^(-3), y, x)
+#% output
+#= [-y^4*derivative(0, 2)(xi)(x, y) == 0, y^4*derivative(0, 2)(eta)(x, y) - 2*y^4*derivative(1, 1)(xi)(x, y) == 0, -3*y*derivative(0, 1)(xi)(x, y) - y^4*derivative(2, 0)(xi)(x, y) + 2*y^4*derivative(1, 1)(eta)(x, y) == 0, 3*eta(x, y) + y*derivative(0, 1)(eta)(x, y) + y^4*derivative(2, 0)(eta)(x, y) - 2*y*derivative(1, 0)(xi)(x, y) == 0]
+
+#% subsection
+# Scope
+
+#% text
+# The heat equation:
+
+#% cell
+symmetry_determining_equations(derivative(0, 1)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t])
+#% output
+#= [derivative(0, 0, 2)(xi1)(x, t, u) == 0, derivative(0, 0, 2)(xi2)(x, t, u) == 0, -derivative(0, 0, 2)(eta)(x, t, u) + 2*derivative(1, 0, 1)(xi1)(x, t, u) == 0, 2*derivative(0, 0, 1)(xi1)(x, t, u) + 2*derivative(1, 0, 1)(xi2)(x, t, u) == 0, 2*derivative(0, 0, 1)(xi2)(x, t, u) == 0, -2*derivative(1, 0, 1)(eta)(x, t, u) - derivative(0, 1, 0)(xi1)(x, t, u) + derivative(2, 0, 0)(xi1)(x, t, u) == 0, -derivative(0, 1, 0)(xi2)(x, t, u) + 2*derivative(1, 0, 0)(xi1)(x, t, u) + derivative(2, 0, 0)(xi2)(x, t, u) == 0, 2*derivative(1, 0, 0)(xi2)(x, t, u) == 0, -derivative(2, 0, 0)(eta)(x, t, u) + derivative(0, 1, 0)(eta)(x, t, u) == 0]
+
+#% section
+# See also
+
+#% text
+# `lie_point_symmetries`, `lie_commutator_table`

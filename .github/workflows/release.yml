@@ -1,0 +1,78 @@
+# Release: on a pushed tag v<version> (for example v0.2.0), build the packages (packages.yml: Windows installer and
+# zip, Linux tarball, smoke-tested) and attach them to a GitHub release named after the tag, with that version's
+# CHANGELOG.md section as its notes. The tag must match the workspace version in Cargo.toml. The tests run in ci.yml
+# on the same commit; this workflow only packages.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag v<version> to (re)build and publish"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Tag matches the workspace version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - id: v
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          version="$(sed -n 's/^version = "\([^"]*\)".*/\1/p' Cargo.toml | head -n 1)"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match the workspace version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  packages:
+    needs: version
+    uses: ./.github/workflows/packages.yml
+
+  release:
+    name: GitHub release
+    needs: [version, packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Release notes from CHANGELOG.md
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          awk -v v="$VERSION" '/^## / { on = index($0, "## " v " ") == 1 || $0 == "## " v; next } on' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then echo "MathCAS v2 $VERSION" > notes.md; fi
+          ls -l packages
+      - name: Create the release and attach the packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" packages/MathCAS-v2-* \
+            --title "MathCAS v2 $VERSION" --notes-file notes.md --verify-tag

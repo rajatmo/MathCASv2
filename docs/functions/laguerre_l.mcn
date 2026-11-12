@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# laguerre_l
+
+#% text
+# `laguerre_l(n, x)` gives the Laguerre polynomial L_n(x).
+
+#% text
+# `laguerre_l(n, a, x)` gives the generalized Laguerre polynomial L_n^a(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument (evaluated for numbers).
+
+#% item
+# At other numeric degrees the hypergeometric representation gives the value; symbolic degrees stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+laguerre_l(3, x)
+#% output
+#= 1 - 3*x + (3/2)*x^2 - (1/6)*x^3
+
+#% cell
+laguerre_l(2, a, x)
+#% output
+#= 1 - 2*x + (1/2)*a^2 + (1/2)*x^2 + (3/2)*a - a*x
+
+#% subsection
+# Scope
+
+#% cell
+laguerre_l(1.5, 0.3)
+#% output
+#= 0.5671644045780528
+
+#% section
+# See also
+
+#% text
+# `hermite_h`, `hypergeometric_1f1`

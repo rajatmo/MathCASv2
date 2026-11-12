@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# noether_charge
+
+#% text
+# `noether_charge(L, q, t, eta)` gives the conserved charge of the symmetry `q -> q + epsilon eta` of the Lagrangian `L` (one generator in `eta` per coordinate), after checking that it is a symmetry.
+
+#% section
+# Details
+
+#% item
+# `time_shift: xi` adds the change `t -> t + epsilon xi` of time; `gauge: F` allows `L` to change by the total derivative `epsilon dF/dt` (a symmetry up to a divergence).
+
+#% item
+# The charge is `sum p (eta - q' xi) + L xi - F` with `p = dL/dq'` (Noether's theorem); time translation (`time_shift: 1`) gives minus the energy.
+
+#% item
+# The symmetry condition `pr X(L) + L dxi/dt == dF/dt` (with the prolonged generator `pr X`) is simplified first; when it does not vanish the result is `failure(not_a_symmetry, noether_charge, residual)`.
+
+#% item
+# Lagrangians of first order in the derivatives.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Rotations give the angular momentum:
+
+#% cell
+noether_charge(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], t, [0, 1])
+#% output
+#= m*r(t)^2*th'(t)
+
+#% cell
+noether_charge(m*(x'(t)^2 + y'(t)^2)/2 - k*(x(t)^2 + y(t)^2)/2, [x, y], t, [-y(t), x(t)])
+#% output
+#= m*x(t)*y'(t) - m*y(t)*x'(t)
+
+#% text
+# Time translation, and a Galilean boost (a symmetry up to the total derivative of `m x`):
+
+#% cell
+noether_charge(m*x'(t)^2/2 - V(x(t)), x, t, [0], time_shift: 1)
+#% output
+#= -V(x(t)) - (1/2)*m*x'(t)^2
+
+#% cell
+noether_charge(m*(x'(t)^2 + y'(t)^2)/2 - g*m*y(t), [x, y], t, [t, 0], gauge: m*x(t))
+#% output
+#= -m*x(t) + m*t*x'(t)
+
+#% text
+# The dilatation of the inverse-square potential, and its conservation along the solutions (`x'' = 2/x^3`):
+
+#% cell
+noether_charge(x'(t)^2/2 - 1/x(t)^2, x, t, [x(t)/2], time_shift: t)
+#% output
+#= -t/x(t)^2 - (1/2)*t*x'(t)^2 + (1/2)*x(t)*x'(t)
+
+#% cell
+simplify(rewrite(d(noether_charge(x'(t)^2/2 - 1/x(t)^2, x, t, [x(t)/2], time_shift: t), t), x''(t) -> 2/x(t)^3))
+#% output
+#= 0
+
+#% text
+# Gravity breaks the vertical translation:
+
+#% cell
+noether_charge(m*(x'(t)^2 + y'(t)^2)/2 - g*m*y(t), [x, y], t, [0, 1])
+#% output
+#! failure(not_a_symmetry, noether_charge, -g*m)
+
+#% section
+# See also
+
+#% text
+# `energy_function`, `generalized_momenta`, `poisson_bracket`, `euler_lagrange_equations`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# transformed_region
+
+#% text
+# `transformed_region(reg, tf)`: the region reg under the transformation_function tf (points, lines, polygons, triangles, rectangles, cuboids, and disks or balls under similarities)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+transformed_region(rectangle(), rotation_transform(pi/4))
+#% output
+#= polygon([[0, 0], [(1/2)*2^(1/2), (1/2)*2^(1/2)], [0, 2^(1/2)], [(-1/2)*2^(1/2), (1/2)*2^(1/2)]])
+
+#% cell
+area(transformed_region(triangle(), shearing_transform(pi/6, [1, 0], [0, 1])))
+#% output
+#= 1/2
+
+#% cell
+transformed_region(disk(), translation_transform([2, 3]))
+#% output
+#= disk([2, 3], 1)
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

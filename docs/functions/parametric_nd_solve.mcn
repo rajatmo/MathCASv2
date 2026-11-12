@@ -1,0 +1,42 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_nd_solve
+
+#% text
+# `parametric_nd_solve(eqs, y, [t, t0, t1], [p1, ..., pm])` solves the differential equations `eqs` numerically as a function of the parameters `p1, ..., pm`, giving `[y -> f]`.
+
+#% section
+# Details
+
+#% item
+# `f` is the parametric function of `parametric_n_dsolve_value`: `f(v1, ..., vm)` is the interpolating function of the solution with the parameters set to the numbers `v1, ..., vm`.
+
+#% item
+# A list of unknowns gives a rule for each.
+
+#% item
+# The options are those of `n_dsolve`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sol = parametric_nd_solve([y'(t) == a*y(t), y(0) == 1], y, [t, 0, 10], [a])
+
+#% cell
+y1 = rewrite(y(1), sol)
+
+#% cell
+y1(1)
+#% output
+#= 2.71828183393394
+
+#% section
+# See also
+
+#% text
+# `parametric_nd_solve_value`, `parametric_n_dsolve_value`, `n_dsolve`

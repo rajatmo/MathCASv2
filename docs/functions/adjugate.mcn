@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# adjugate
+
+#% text
+# `adjugate(m)` gives the adjugate of the square matrix `m`: the transpose of the matrix of cofactors.
+
+#% section
+# Details
+
+#% item
+# `m . adjugate(m)` equals `det(m)` times the identity matrix, also when `m` is singular.
+
+#% item
+# The entry `[i, j]` is `(-1)^(i + j)` times the determinant of `m` without row `j` and column `i`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+adjugate([[5, 4], [4, 11]])
+#% output
+#= [[11, -4], [-4, 5]]
+
+#% cell
+adjugate([[a, b], [c, d]])
+#% output
+#= [[d, -b], [-c, a]]
+
+#% cell
+adjugate([[15, 3, 4], [3, 15, 11], [-2, 1, 7]])
+#% output
+#= [[94, -17, -27], [-43, 113, -153], [33, -21, 216]]
+
+#% text
+# The defining identity:
+
+#% cell
+dot(adjugate([[15, 3, 4], [3, 15, 11], [-2, 1, 7]]), [[15, 3, 4], [3, 15, 11], [-2, 1, 7]]) == det([[15, 3, 4], [3, 15, 11], [-2, 1, 7]])*identity_matrix(3)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `inverse`, `det`, `minors`

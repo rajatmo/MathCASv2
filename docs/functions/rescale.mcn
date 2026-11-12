@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# rescale
+
+#% text
+# `rescale(x, [a, b])` gives `(x - a)/(b - a)`, mapping `[a, b]` onto `[0, 1]`.
+
+#% text
+# `rescale(x, [a, b], [c, d])` maps `[a, b]` onto `[c, d]`.
+
+#% text
+# `rescale(xs)` maps the list `xs` onto `[0, 1]` by its own range.
+
+#% section
+# Details
+
+#% item
+# Values outside `[a, b]` are mapped linearly too, outside the target range.
+
+#% item
+# Symbols are allowed: the result is the linear expression.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rescale(5, [0, 10])
+#% output
+#= 1/2
+
+#% cell
+rescale(5, [0, 10], [-1, 1])
+#% output
+#= 0
+
+#% cell
+rescale([2, 4, 6, 10])
+#% output
+#= [0, 1/4, 1/2, 1]
+
+#% cell
+rescale(x, [a, b])
+#% output
+#= (x - a)/(b - a)
+
+#% subsection
+# Applications
+
+#% text
+# Celsius to Fahrenheit, mapping `[0, 100]` onto `[32, 212]`:
+
+#% cell
+rescale(37, [0, 100], [32, 212])
+#% output
+#= 493/5
+
+#% subsection
+# Properties and relations
+
+#% text
+# The result of `rescale(xs)` lies in `[0, 1]`:
+
+#% cell
+r = rescale([3.5, -1.0, 2.0, 8.0]); [min(r), max(r)]
+#% output
+#= [0.0, 1.0]
+
+#% section
+# See also
+
+#% text
+# `clip`, `min`, `max`

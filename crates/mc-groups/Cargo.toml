@@ -1,0 +1,18 @@
+[package]
+name = "mc-groups"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 group theory and combinatorics: permutations, permutation groups by Schreier-Sims, named groups, conjugacy classes and character tables, finitely presented groups, posets, matroids, Young tableaux and Polya counting"
+
+[dependencies]
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+
+[dev-dependencies]
+mc-api = { path = "../mc-api" }
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

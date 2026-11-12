@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# rotate
+
+#% text
+# `rotate(g, angle) or rotate(g, angle, centre)`: in graphics, the primitives g turned anticlockwise (about the centre of their bounding box by default)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_blue, rectangle([0, 0], [2, 1]), standard_orange, rotate(rectangle([0, 0], [2, 1]), pi/6)])
+#% output
+#= image("rotate.files/rotate-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

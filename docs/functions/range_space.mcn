@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# range_space
+
+#% text
+# `range_space(m)` gives a basis of the span of the columns of the exact matrix `m`.
+
+#% section
+# Details
+
+#% item
+# The basis is the nonzero rows of the reduced row echelon form of the transpose of `m`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+range_space([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+#% output
+#= [[1, 0, -1], [0, 1, 2]]
+
+#% cell
+range_space([[3, 1, a], [2, 1, b]])
+#% output
+#= [[1, 0], [0, 1]]
+
+#% cell
+range_space([[1, 2], [2, 4]])
+#% output
+#= [[1, 2]]
+
+#% section
+# See also
+
+#% text
+# `null_space`, `row_reduce`, `rank`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# less_equal_than
+
+#% text
+# `less_equal_than(y)` is the function `x => x <= y`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+select(range(10), less_equal_than(3))
+#% output
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `less_than`, `greater_equal_than`

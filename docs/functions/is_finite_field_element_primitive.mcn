@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# is_finite_field_element_primitive
+
+#% text
+# `is_finite_field_element_primitive(a)` gives `true` when the finite field element `a` generates the multiplicative group of its field, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# The test checks `a^((q - 1)/r) != 1` for every prime `r` dividing `q - 1`; when `q - 1` cannot be factored the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(7, 2)
+
+#% cell
+is_finite_field_element_primitive(F([0, 1]))
+#% output
+#= true
+
+#% cell
+is_finite_field_element_primitive(F([0, 1])^2)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# There are `euler_phi(q - 1)` primitive elements:
+
+#% cell
+[count(table(is_finite_field_element_primitive(F(k)), k, range(1, 48)), true), euler_phi(48)]
+#% output
+#= [16, 16]
+
+#% section
+# See also
+
+#% text
+# `finite_field_primitive_element`, `multiplicative_order`, `primitive_root`

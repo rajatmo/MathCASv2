@@ -1,0 +1,131 @@
+#! mathcas 2 notebook
+
+#% title
+# aggregate
+
+#% text
+# `aggregate(ds, specs)` gives a dataset of one row that sums up all rows of `ds` as `specs` says.
+
+#% text
+# `aggregate(ds, by, specs)` gives a row for each group of rows with the same key `by`.
+
+#% text
+# `aggregate(groups, specs)` gives a row for each dataset of the association `groups`, as `group_by` makes it.
+
+#% section
+# Details
+
+#% item
+# `specs` is a list (or a single one) of `c -> f` (the function `f` of column `c`, named `c`), `name -> [c, f]` (named `name`) and `count` (the number of rows, named count).
+
+#% item
+# `f` may be `total`, `mean`, `count`, `min`, `max`, or any function, which receives the list of the column's values.
+
+#% item
+# Missing values are skipped: an empty `total` or `count` is 0, an empty `mean`, `min` or `max` is `missing()`.
+
+#% item
+# `by` is a column name, a list of column names (one key column each), or a function of the row (the key column is then named key).
+
+#% item
+# Groups come in the order of their first row; the key columns come first.
+
+#% item
+# Numeric columns are summed from their packed values: exact for integers, compensated for reals.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+shop = dataset([["item", "kind", "price", "stock"], ["pen", "office", 1.5, 40], ["lamp", "home", 24.0, 3], ["ink", "office", 6.0, missing()], ["mug", "home", 8.5, 12]])
+aggregate(shop, ["price" -> mean, "stock" -> total, count])
+#% output
+#= price | stock | count
+#= ------+-------+------
+#=  10.0 |    55 |     4
+#= dataset: 1 row, 3 columns
+
+#% text
+# One row per kind:
+
+#% cell
+aggregate(shop, "kind", ["price" -> max, "cheapest" -> ["price", min], count])
+#% output
+#= kind   | price | cheapest | count
+#= -------+-------+----------+------
+#= office |   6.0 |      1.5 |     2
+#= home   |  24.0 |      8.5 |     2
+#= dataset: 2 rows, 4 columns
+
+#% subsection
+# Scope
+
+#% text
+# Any function of the values, here the list itself:
+
+#% cell
+aggregate(shop, "kind", "item" -> (xs => xs))
+#% output
+#= kind   | item
+#= -------+----------------
+#= office | ["pen", "ink"]
+#= home   | ["lamp", "mug"]
+#= dataset: 2 rows, 2 columns
+
+#% text
+# Grouping by a function of the row:
+
+#% cell
+aggregate(shop, r => r["price"] > 5, "item" -> count)
+#% output
+#= key   | item
+#= ------+-----
+#= false |    1
+#= true  |    3
+#= dataset: 2 rows, 2 columns
+
+#% text
+# The groups of `group_by`:
+
+#% cell
+aggregate(group_by(shop, "kind"), "stock" -> total)
+#% output
+#= key    | stock
+#= -------+------
+#= office |    40
+#= home   |    15
+#= dataset: 2 rows, 2 columns
+
+#% subsection
+# Properties and relations
+
+#% text
+# `count` of a column counts its values; the count spec counts rows:
+
+#% cell
+aggregate(shop, ["stock" -> count, count])
+#% output
+#= stock | count
+#= ------+------
+#=     3 |     4
+#= dataset: 1 row, 2 columns
+
+#% subsection
+# Possible issues
+
+#% text
+# An output name may appear once:
+
+#% cell
+aggregate(shop, "kind", "kind" -> count)
+#% output
+#! failure(duplicate_column, "kind")
+
+#% section
+# See also
+
+#% text
+# `group_by`, `pivot`, `dataset`, `missing`, `total`, `mean`

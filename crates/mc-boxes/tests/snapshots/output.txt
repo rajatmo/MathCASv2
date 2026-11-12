@@ -1,0 +1,393 @@
+== "11/15"
+box 14.4 x 23.7 baseline 14.4
+line 0..1 top 0.0 baseline 14.4 bottom 23.7 indent 0.0
+char '1' text 10.0 at 1.2 7.5
+char '1' text 10.0 at 7.2 7.5
+char '1' text 10.0 at 1.2 21.2
+char '5' text 10.0 at 7.2 21.2
+rule 1.2 11.5 12.0 x 0.7
+row [] stops 0.0 14.4
+row [0.0] stops 1.2 7.2 13.2
+row [0.1] stops 1.2 7.2 13.2
+== "(x + 1)^5/(x - 1)^2"
+box 50.2 x 29.6 baseline 17.4
+line 0..1 top 0.0 baseline 17.4 bottom 29.6 indent 0.0
+char '(' text 10.0 at 1.8 10.5
+char 'x' text 10.0 at 7.8 10.5
+char ' ' text 10.0 at 13.8 10.5
+char '+' text 10.0 at 19.8 10.5
+char ' ' text 10.0 at 25.8 10.5
+char '1' text 10.0 at 31.8 10.5
+char ')' text 10.0 at 37.8 10.5
+char '5' text 7.0 at 43.8 5.3
+char '(' text 10.0 at 1.2 27.1
+char 'x' text 10.0 at 7.2 27.1
+char ' ' text 10.0 at 13.2 27.1
+char '−' math 10.0 at 19.2 27.1
+char ' ' text 10.0 at 26.4 27.1
+char '1' text 10.0 at 32.4 27.1
+char ')' text 10.0 at 38.4 27.1
+char '2' text 7.0 at 44.4 21.9
+rule 1.2 14.4 47.8 x 0.7
+row [] stops 0.0 50.2
+row [0.0] stops 1.8 48.4
+row [0.0 0.0] stops 1.8 7.8 13.8 19.8 25.8 31.8 37.8 43.8
+row [0.0 0.1] stops 43.8 48.0
+row [0.1] stops 1.2 49.0
+row [0.1 0.0] stops 1.2 7.2 13.2 19.2 26.4 32.4 38.4 44.4
+row [0.1 0.1] stops 44.4 48.6
+== "sqrt(2)*sqrt(x) + surd(x, 3)"
+box 69.5 x 19.3 baseline 13.7
+line 0..7 top 0.0 baseline 13.7 bottom 19.3 indent 0.0
+glyph 1658 10.0 at 0.0 16.7
+rule 10.4 0.8 6.0 x 0.7
+char '2' text 10.0 at 10.4 13.7
+glyph 1658 10.0 at 18.1 16.7
+rule 28.5 0.8 6.0 x 0.7
+char 'x' text 10.0 at 28.5 13.7
+char ' ' text 10.0 at 34.5 13.7
+char '+' text 10.0 at 40.5 13.7
+char ' ' text 10.0 at 46.5 13.7
+char '3' text 5.5 at 53.1 9.1
+glyph 1658 10.0 at 53.1 16.7
+rule 63.5 0.8 6.0 x 0.7
+char 'x' text 10.0 at 63.5 13.7
+row [] stops 0.0 16.4 18.1 34.5 40.5 46.5 52.5 69.5
+row [0.0] stops 10.4 16.4
+row [2.0] stops 28.5 34.5
+row [6.0] stops 53.1 56.4
+row [6.1] stops 63.5 69.5
+== "2*x*y^2 - 3*x"
+box 58.8 x 11.4 baseline 8.9
+line 0..11 top 0.0 baseline 8.9 bottom 11.4 indent 0.0
+char '2' text 10.0 at 0.0 8.9
+char 'x' text 10.0 at 7.7 8.9
+char 'y' text 10.0 at 15.3 8.9
+char '2' text 7.0 at 21.3 5.3
+char ' ' text 10.0 at 25.9 8.9
+char '−' math 10.0 at 31.9 8.9
+char ' ' text 10.0 at 39.1 8.9
+char '3' text 10.0 at 45.1 8.9
+char 'x' text 10.0 at 52.8 8.9
+row [] stops 0.0 6.0 7.7 13.7 15.3 25.9 31.9 39.1 45.1 51.1 52.8 58.8
+row [4.0] stops 15.3 21.3
+row [4.1] stops 21.3 25.5
+== "subscript(a, n)^2 + overscript(x, \"^\")"
+box 34.6 x 20.0 baseline 15.3
+line 0..5 top 0.0 baseline 15.3 bottom 20.0 indent 0.0
+char 'a' text 10.0 at 0.0 15.3
+char '2' text 7.0 at 6.0 9.8
+char 'n' text 7.0 at 6.0 18.3
+char ' ' text 10.0 at 10.6 15.3
+char '+' text 10.0 at 16.6 15.3
+char ' ' text 10.0 at 22.6 15.3
+char 'x' text 10.0 at 28.6 15.3
+char '^' text 7.0 at 29.5 5.3
+row [] stops 0.0 10.6 16.6 22.6 28.6 34.6
+row [0.0] stops 0.0 10.6
+row [0.0 0.0] stops 0.0 6.0
+row [0.0 0.1] stops 6.0 10.2
+row [0.1] stops 6.0 10.2
+row [4.0] stops 28.6 34.6
+row [4.1] stops 29.5 33.7
+== "sum(1/k^2, [k, 1, n])"
+box 27.3 x 30.1 baseline 17.6
+line 0..1 top 0.0 baseline 17.6 bottom 30.1 indent 0.0
+glyph 1647 10.0 at 0.7 17.5
+char 'n' text 7.0 at 4.2 5.3
+char 'k' text 7.0 at 0.0 28.3
+char '=' text 7.0 at 4.2 28.3
+char '1' text 7.0 at 8.4 28.3
+char '1' text 10.0 at 17.8 10.6
+char 'k' text 10.0 at 15.5 25.0
+char '2' text 7.0 at 21.5 22.1
+rule 15.5 14.6 10.6 x 0.7
+row [] stops 0.0 27.3
+row [0.0] stops 0.0 4.2
+row [0.1] stops 8.4 12.6
+row [0.2] stops 4.2 8.4
+row [0.3] stops 14.3 27.3
+row [0.3 0.0] stops 17.8 23.8
+row [0.3 0.1] stops 15.5 26.1
+row [0.3 0.1 0.0] stops 15.5 21.5
+row [0.3 0.1 0.1] stops 21.5 25.7
+== "product(f(k), [k, 1, n])"
+box 39.8 x 30.1 baseline 17.6
+line 0..1 top 0.0 baseline 17.6 bottom 30.1 indent 0.0
+glyph 1641 10.0 at 0.0 17.5
+char 'n' text 7.0 at 5.0 5.3
+char 'k' text 7.0 at 0.8 28.4
+char '=' text 7.0 at 5.0 28.4
+char '1' text 7.0 at 9.2 28.4
+char 'f' text 10.0 at 15.8 17.6
+char '(' text 10.0 at 21.8 17.6
+char 'k' text 10.0 at 27.8 17.6
+char ')' text 10.0 at 33.8 17.6
+row [] stops 0.0 39.8
+row [0.0] stops 0.8 5.0
+row [0.1] stops 9.2 13.4
+row [0.2] stops 5.0 9.2
+row [0.3] stops 15.8 21.8 27.8 33.8 39.8
+== "integrate(e^(-x^2), [x, 0, inf])"
+box 51.1 x 29.8 baseline 17.3
+line 0..1 top 0.0 baseline 17.3 bottom 29.8 indent 0.0
+glyph 1699 10.0 at 0.0 17.2
+char '∞' math 7.0 at 10.3 5.3
+char '0' text 7.0 at 4.9 28.0
+char 'ⅇ' math 10.0 at 19.1 17.3
+char '−' math 7.0 at 24.3 13.7
+char 'x' text 7.0 at 29.3 13.7
+char '2' text 5.5 at 33.5 11.1
+char 'd' text 10.0 at 39.1 17.3
+char 'x' text 10.0 at 45.1 17.3
+row [] stops 0.0 51.1
+row [0.0] stops 4.9 9.1
+row [0.1] stops 10.3 17.0
+row [0.2] stops 19.1 37.5
+row [0.2 0.0] stops 19.1 24.3
+row [0.2 0.1] stops 24.3 29.3 37.1
+row [0.2 0.1 1.0] stops 29.3 33.5
+row [0.2 0.1 1.1] stops 33.5 36.8
+row [0.3] stops 45.1 51.1
+== "integrate(f(x), x)"
+box 49.7 x 23.5 baseline 14.3
+line 0..1 top 0.0 baseline 14.3 bottom 23.5 indent 0.0
+glyph 1699 10.0 at 0.0 14.3
+char 'f' text 10.0 at 12.0 14.3
+char '(' text 10.0 at 18.0 14.3
+char 'x' text 10.0 at 24.0 14.3
+char ')' text 10.0 at 30.0 14.3
+char 'd' text 10.0 at 37.7 14.3
+char 'x' text 10.0 at 43.7 14.3
+row [] stops 0.0 49.7
+row [0.0] stops 12.0 18.0 24.0 30.0 36.0
+row [0.1] stops 43.7 49.7
+== "limit(sin(x)/x, x -> 0)"
+box 58.1 x 25.4 baseline 14.4
+line 0..1 top 0.0 baseline 14.4 bottom 25.4 indent 0.0
+char 'l' text 10.0 at 0.0 14.4
+char 'i' text 10.0 at 6.0 14.4
+char 'm' text 10.0 at 12.0 14.4
+char 'x' text 7.0 at 1.5 23.6
+char '→' math 7.0 at 5.7 23.6
+char '0' text 7.0 at 12.3 23.6
+char 's' text 10.0 at 20.9 7.5
+char 'i' text 10.0 at 26.9 7.5
+char 'n' text 10.0 at 32.9 7.5
+char '(' text 10.0 at 38.9 7.5
+char 'x' text 10.0 at 44.9 7.5
+char ')' text 10.0 at 50.9 7.5
+char 'x' text 10.0 at 35.9 21.2
+rule 20.9 11.5 36.0 x 0.7
+row [] stops 0.0 58.1
+row [0.0] stops 1.5 5.7
+row [0.1] stops 12.3 16.5
+row [0.2] stops 19.7 58.1
+row [0.2 0.0] stops 20.9 26.9 32.9 38.9 44.9 50.9 56.9
+row [0.2 0.1] stops 35.9 41.9
+== "d(f(x), x)"
+box 31.2 x 23.7 baseline 14.4
+line 0..1 top 0.0 baseline 14.4 bottom 23.7 indent 0.0
+char '∂' math 10.0 at 1.2 7.5
+char 'f' text 10.0 at 6.0 7.5
+char '(' text 10.0 at 12.0 7.5
+char 'x' text 10.0 at 18.0 7.5
+char ')' text 10.0 at 24.0 7.5
+char '∂' math 10.0 at 10.2 21.2
+char 'x' text 10.0 at 15.0 21.2
+rule 1.2 11.5 28.8 x 0.7
+row [] stops 0.0 31.2
+row [0.1] stops 6.0 12.0 18.0 24.0 30.0
+row [0.0] stops 15.0 21.0
+== "[derivative(1)(f)(x), derivative(2)(f)(x), derivative(5)(f)(x)]"
+box 128.3 x 11.4 baseline 8.9
+line 0..20 top 0.0 baseline 8.9 bottom 11.4 indent 0.0
+char '[' text 10.0 at 0.0 8.9
+char 'f' text 10.0 at 6.0 8.9
+char '′' math 10.0 at 12.0 8.9
+char '(' text 10.0 at 15.0 8.9
+char 'x' text 10.0 at 21.0 8.9
+char ')' text 10.0 at 27.0 8.9
+char ',' text 10.0 at 33.0 8.9
+char ' ' text 10.0 at 39.0 8.9
+char 'f' text 10.0 at 45.0 8.9
+char '″' math 10.0 at 51.0 8.9
+char '(' text 10.0 at 55.3 8.9
+char 'x' text 10.0 at 61.3 8.9
+char ')' text 10.0 at 67.3 8.9
+char ',' text 10.0 at 73.3 8.9
+char ' ' text 10.0 at 79.3 8.9
+char 'f' text 10.0 at 85.3 8.9
+char '(' text 7.0 at 91.3 5.3
+char '5' text 7.0 at 95.5 5.3
+char ')' text 7.0 at 99.7 5.3
+char '(' text 10.0 at 104.3 8.9
+char 'x' text 10.0 at 110.3 8.9
+char ')' text 10.0 at 116.3 8.9
+char ']' text 10.0 at 122.3 8.9
+row [] stops 0.0 6.0 12.0 15.0 21.0 27.0 33.0 39.0 45.0 51.0 55.3 61.3 67.3 73.3 79.3 85.3 104.3 110.3 116.3 122.3 128.3
+row [15.0] stops 85.3 91.3
+row [15.1] stops 91.3 95.5 99.7 103.9
+== "[x -> pi/2, y != im, z <= inf]"
+box 134.7 x 23.7 baseline 14.4
+line 0..21 top 0.0 baseline 14.4 bottom 23.7 indent 0.0
+delim '[' 0.0 1.2 6.0 x 21.3 stroke 0.9
+char 'x' text 10.0 at 6.0 14.4
+char ' ' text 10.0 at 12.0 14.4
+char '→' math 10.0 at 18.0 14.4
+char ' ' text 10.0 at 27.5 14.4
+char 'π' math 10.0 at 34.7 7.5
+char '2' text 10.0 at 34.7 21.2
+rule 34.7 11.5 6.0 x 0.7
+char ',' text 10.0 at 41.9 14.4
+char ' ' text 10.0 at 47.9 14.4
+char 'y' text 10.0 at 53.9 14.4
+char ' ' text 10.0 at 59.9 14.4
+char '≠' math 10.0 at 65.9 14.4
+char ' ' text 10.0 at 73.1 14.4
+char 'ⅈ' math 10.0 at 79.1 14.4
+char ',' text 10.0 at 81.9 14.4
+char ' ' text 10.0 at 87.9 14.4
+char 'z' text 10.0 at 93.9 14.4
+char ' ' text 10.0 at 99.9 14.4
+char '≤' math 10.0 at 105.9 14.4
+char ' ' text 10.0 at 113.1 14.4
+char '∞' math 10.0 at 119.1 14.4
+delim ']' 128.7 1.2 6.0 x 21.3 stroke 0.9
+row [] stops 0.0 6.0 12.0 18.0 27.5 33.5 41.9 47.9 53.9 59.9 65.9 73.1 79.1 81.9 87.9 93.9 99.9 105.9 113.1 119.1 128.7 134.7
+row [5.0] stops 34.7 40.6
+row [5.1] stops 34.7 40.7
+== "\"text\""
+box 24.0 x 10.0 baseline 7.5
+line 0..4 top 0.0 baseline 7.5 bottom 10.0 indent 0.0
+char 't' text 10.0 at 0.0 7.5
+char 'e' text 10.0 at 6.0 7.5
+char 'x' text 10.0 at 12.0 7.5
+char 't' text 10.0 at 18.0 7.5
+row [] stops 0.0 6.0 12.0 18.0 24.0
+== "[[1, 2], [3, 4]]"
+box 32.0 x 26.5 baseline 15.8
+line 0..3 top 0.0 baseline 15.8 bottom 26.5 indent 0.0
+delim '[' 0.0 1.3 6.0 x 23.9 stroke 0.9
+char '1' text 10.0 at 6.0 8.4
+char '2' text 10.0 at 20.0 8.4
+char '3' text 10.0 at 6.0 22.9
+char '4' text 10.0 at 20.0 22.9
+delim ']' 26.0 1.3 6.0 x 23.9 stroke 0.9
+row [] stops 0.0 6.0 26.0 32.0
+row [1.0] stops 6.0 12.0
+row [1.1] stops 20.0 26.0
+row [1.2] stops 6.0 12.0
+row [1.3] stops 20.0 26.0
+== "(2/3)*2^(1/2) - (1/2)*x"
+box 51.6 x 26.3 baseline 17.1
+line 0..5 top 0.0 baseline 17.1 bottom 26.3 indent 0.0
+char '2' text 10.0 at 1.2 10.0
+glyph 1657 10.0 at 8.9 10.0
+rule 16.8 0.8 6.0 x 0.7
+char '2' text 10.0 at 16.8 10.0
+char '3' text 10.0 at 9.0 23.8
+rule 1.2 14.2 21.6 x 0.7
+char ' ' text 10.0 at 24.0 17.1
+char '−' math 10.0 at 30.0 17.1
+char ' ' text 10.0 at 37.2 17.1
+char 'x' text 10.0 at 44.4 10.2
+char '2' text 10.0 at 44.4 23.8
+rule 44.4 14.2 6.0 x 0.7
+row [] stops 0.0 24.0 30.0 37.2 43.2 51.6
+row [0.0] stops 1.2 7.2 8.9 22.8
+row [0.0 2.0] stops 16.8 22.8
+row [0.1] stops 9.0 15.0
+row [4.0] stops 44.4 50.4
+row [4.1] stops 44.4 50.4
+== "x^12 + 12*x^11*y + 66*x^10*y^2 + 220*x^9*y^3 + 495*x^8*y^4 + 792*x^7*y^5 + 924*x^6*y^6"
+box 194.2 x 24.2 baseline 8.9
+line 0..30 top 0.0 baseline 8.9 bottom 11.4 indent 0.0
+line 30..59 top 12.9 baseline 21.7 bottom 24.2 indent 0.0
+char 'x' text 10.0 at 0.0 8.9
+char '1' text 7.0 at 6.0 5.3
+char '2' text 7.0 at 10.2 5.3
+char ' ' text 10.0 at 14.8 8.9
+char '+' text 10.0 at 20.8 8.9
+char ' ' text 10.0 at 26.8 8.9
+char '1' text 10.0 at 32.8 8.9
+char '2' text 10.0 at 38.8 8.9
+char 'x' text 10.0 at 46.5 8.9
+char '1' text 7.0 at 52.5 5.3
+char '1' text 7.0 at 56.7 5.3
+char 'y' text 10.0 at 62.9 8.9
+char ' ' text 10.0 at 68.9 8.9
+char '+' text 10.0 at 74.9 8.9
+char ' ' text 10.0 at 80.9 8.9
+char '6' text 10.0 at 86.9 8.9
+char '6' text 10.0 at 92.9 8.9
+char 'x' text 10.0 at 100.6 8.9
+char '1' text 7.0 at 106.6 5.3
+char '0' text 7.0 at 110.8 5.3
+char 'y' text 10.0 at 117.1 8.9
+char '2' text 7.0 at 123.1 5.3
+char ' ' text 10.0 at 127.7 8.9
+char '+' text 10.0 at 133.7 8.9
+char ' ' text 10.0 at 139.7 8.9
+char '2' text 10.0 at 145.7 8.9
+char '2' text 10.0 at 151.7 8.9
+char '0' text 10.0 at 157.7 8.9
+char 'x' text 10.0 at 165.3 8.9
+char '9' text 7.0 at 171.3 5.3
+char 'y' text 10.0 at 177.6 8.9
+char '3' text 7.0 at 183.6 5.3
+char ' ' text 10.0 at 188.2 8.9
+char '+' text 10.0 at 0.0 21.7
+char ' ' text 10.0 at 6.0 21.7
+char '4' text 10.0 at 12.0 21.7
+char '9' text 10.0 at 18.0 21.7
+char '5' text 10.0 at 24.0 21.7
+char 'x' text 10.0 at 31.7 21.7
+char '8' text 7.0 at 37.7 18.1
+char 'y' text 10.0 at 43.9 21.7
+char '4' text 7.0 at 49.9 18.1
+char ' ' text 10.0 at 54.5 21.7
+char '+' text 10.0 at 60.5 21.7
+char ' ' text 10.0 at 66.5 21.7
+char '7' text 10.0 at 72.5 21.7
+char '9' text 10.0 at 78.5 21.7
+char '2' text 10.0 at 84.5 21.7
+char 'x' text 10.0 at 92.2 21.7
+char '7' text 7.0 at 98.2 18.1
+char 'y' text 10.0 at 104.5 21.7
+char '5' text 7.0 at 110.5 18.1
+char ' ' text 10.0 at 115.1 21.7
+char '+' text 10.0 at 121.1 21.7
+char ' ' text 10.0 at 127.1 21.7
+char '9' text 10.0 at 133.1 21.7
+char '2' text 10.0 at 139.1 21.7
+char '4' text 10.0 at 145.1 21.7
+char 'x' text 10.0 at 152.7 21.7
+char '6' text 7.0 at 158.7 18.1
+char 'y' text 10.0 at 165.0 21.7
+char '6' text 7.0 at 171.0 18.1
+row [] stops 0.0 14.8 20.8 26.8 32.8 38.8 44.8 46.5 61.3 62.9 68.9 74.9 80.9 86.9 92.9 98.9 100.6 115.4 117.1 127.7 133.7 139.7 145.7 151.7 157.7 163.7 165.3 175.9 177.6 188.2 0.0 6.0 12.0 18.0 24.0 30.0 31.7 42.3 43.9 54.5 60.5 66.5 72.5 78.5 84.5 90.5 92.2 102.8 104.5 115.1 121.1 127.1 133.1 139.1 145.1 151.1 152.7 163.3 165.0 175.6
+row [0.0] stops 0.0 6.0
+row [0.1] stops 6.0 10.2 14.4
+row [7.0] stops 46.5 52.5
+row [7.1] stops 52.5 56.7 60.9
+row [16.0] stops 100.6 106.6
+row [16.1] stops 106.6 110.8 115.0
+row [18.0] stops 117.1 123.1
+row [18.1] stops 123.1 127.3
+row [26.0] stops 165.3 171.3
+row [26.1] stops 171.3 175.5
+row [28.0] stops 177.6 183.6
+row [28.1] stops 183.6 187.8
+row [36.0] stops 31.7 37.7
+row [36.1] stops 37.7 41.9
+row [38.0] stops 43.9 49.9
+row [38.1] stops 49.9 54.1
+row [46.0] stops 92.2 98.2
+row [46.1] stops 98.2 102.4
+row [48.0] stops 104.5 110.5
+row [48.1] stops 110.5 114.7
+row [56.0] stops 152.7 158.7
+row [56.1] stops 158.7 162.9
+row [58.0] stops 165.0 171.0
+row [58.1] stops 171.0 175.2

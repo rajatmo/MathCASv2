@@ -1,0 +1,344 @@
+#! mathcas 2 notebook
+
+#% title
+# d_solve
+
+#% text
+# `d_solve(eqs, y, x)` solves differential equations for the function `y` of `x`, giving `[[y -> (x => sol)]]`; `d_solve(eqs, y(x), x)` gives `[[y(x) -> sol]]`. With a list of functions it solves a system; with a list of variables a partial differential equation.
+
+#% section
+# Details
+
+#% item
+# `d_solve(eqs)` reads the unknown functions and the variable off the equations.
+
+#% item
+# Linear equations of any order: constant coefficients through the roots of the characteristic polynomial (root objects for cubics and higher), a right-hand side by undetermined coefficients or by variation of parameters; Euler equations; equations without `y` by lowering the order; second order with variable coefficients by a solution found from an ansatz and reduction of order, by Airy, Bessel, hypergeometric, Legendre, Kummer and Hermite functions, or by Kovacic's algorithm for Liouvillian solutions.
+
+#% item
+# Nonlinear first-order equations: separable, Bernoulli, Riccati, homogeneous, isobaric, exact (with integrating factors), `y' == f(a x + b y)`, Clairaut, and integrating factors from Lie point symmetries. Autonomous second-order equations and equations without `y` are reduced to first order.
+
+#% item
+# Linear systems with constant coefficients by the matrix exponential; algebraic equations in a system are eliminated first.
+
+#% item
+# First-order linear partial differential equations by characteristics (arbitrary functions `c(1)(xi)`), and the wave equation `u_tt == c^2 u_xx`.
+
+#% item
+# Delay equations `y'(t) == f(t, y(t), y(t - tau))` with a history `y(t when t <= t0) == phi` on a range `[t, t0, t1]`, by the method of steps.
+
+#% item
+# The free constants are `c(1)`, `c(2)`, ... (`generated_parameters: f` names them `f(1)`, ...); conditions `y(x0) == v`, `y'(x0) == v` in `eqs`, at one point or at two (boundary values), fix them.
+
+#% item
+# Every solution is substituted back into the equation and checked (symbolically, or numerically at random points) before it is returned. An implicit solution that cannot be solved for `y` is returned as `solve(eq, y(x))`; an equation no method solves leaves the call unevaluated, and `n_dsolve` solves it numerically.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Exponential growth:
+
+#% cell
+d_solve(y'(x) == y(x), y, x)
+#% output
+#= [[y -> (x => exp(x)*c(1))]]
+
+#% text
+# The harmonic oscillator with initial conditions:
+
+#% cell
+d_solve([y''(x) + y(x) == 0, y(0) == 1, y'(0) == 0], y(x), x)
+#% output
+#= [[y(x) -> cos(x)]]
+
+#% subsection
+# Scope
+
+#% text
+# A repeated root of the characteristic polynomial:
+
+#% cell
+d_solve(y''(x) + 2*y'(x) + y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> c(1)*exp(-x) + x*c(2)*exp(-x)]]
+
+#% text
+# A right-hand side, by undetermined coefficients:
+
+#% cell
+d_solve(y''(x) + 4*y(x) == sin(x), y(x), x)
+#% output
+#= [[y(x) -> (1/3)*sin(x) + c(1)*cos(2*x) + c(2)*sin(2*x)]]
+
+#% cell
+d_solve(y'''(x) - y(x) == x, y(x), x)
+#% output
+#= [[y(x) -> -x + c(1)*exp(x) + c(2)*cos((1/2)*x*3^(1/2))*exp((-1/2)*x) + c(3)*exp((-1/2)*x)*sin((1/2)*x*3^(1/2))]]
+
+#% text
+# Variable coefficients:
+
+#% cell
+d_solve(y'(x) + y(x)/x == x^2, y(x), x)
+#% output
+#= [[y(x) -> (1/4)*x^3 + c(1)/x]]
+
+#% text
+# A Bernoulli equation and a Riccati equation:
+
+#% cell
+d_solve(y'(x) + y(x)/x == x*y(x)^2, y(x), x)
+#% output
+#= [[y(x) -> (-x^2 + x*c(1))^-1]]
+
+#% cell
+d_solve(y'(x) == y(x)^2 - 2/x^2, y(x), x)
+#% output
+#= [[y(x) -> (-2*x^3 + 3*c(1))/(3*x*c(1) + x^4)]]
+
+#% text
+# A homogeneous equation:
+
+#% cell
+d_solve(y'(x) == (x^2 + y(x)^2)/(x*y(x)), y(x), x)
+#% output
+#= [[y(x) -> -(c(1)*x^2 + 2*log(x)*x^2)^(1/2)], [y(x) -> (c(1)*x^2 + 2*log(x)*x^2)^(1/2)]]
+
+#% text
+# A Clairaut equation:
+
+#% cell
+d_solve(y(x) == x*y'(x) + y'(x)^2, y(x), x)
+#% output
+#= [[y(x) -> (x + c(1))*c(1)]]
+
+#% text
+# Airy and Bessel functions:
+
+#% cell
+d_solve(y''(x) - x*y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> airy_ai(x)*c(1) + airy_bi(x)*c(2)]]
+
+#% cell
+d_solve(x^2*y''(x) + x*y'(x) + (x^2 - 4)*y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> bessel_j(2, x)*c(1) + bessel_y(2, x)*c(2)]]
+
+#% text
+# A Liouvillian solution found by Kovacic's algorithm:
+
+#% cell
+d_solve(y''(x) == (x^2 + 3)*y(x), y(x), x)
+#% output
+#= [[y(x) -> x*c(1)*exp((1/2)*x^2) - (x*erf(x)*pi^(1/2) + exp(-x^2))*c(2)*exp((1/2)*x^2)]]
+
+#% text
+# An autonomous second-order equation:
+
+#% cell
+d_solve(y''(x) == y'(x)^2, y(x), x)
+#% output
+#= [[y(x) -> c(2) - log(x + c(1))]]
+
+#% text
+# A linear system:
+
+#% cell
+d_solve([y'(x) == z(x), z'(x) == -y(x)])
+#% output
+#= [[y(x) -> c(1)*cos(x) + c(2)*sin(x), z(x) -> c(2)*cos(x) - c(1)*sin(x)]]
+
+#% text
+# A system with an algebraic equation:
+
+#% cell
+d_solve([y'(x) - 3*z(x) == sin(x), y(x) + z(x) == 1/5, y(pi/2) == 1/2], [y, z], x)
+#% output
+#= [[y -> (x => (2 - cos(x) + 3*sin(x))/10), z -> (x => (cos(x) - 3*sin(x))/10)]]
+
+#% text
+# A first-order partial differential equation and the wave equation:
+
+#% cell
+d_solve(d(u(x, y), x) + 3*d(u(x, y), y) + u(x, y) == 1, u, [x, y])
+#% output
+#= [[u -> ((x, y) => 1 + exp(-x)*c(1)(-3*x + y))]]
+
+#% cell
+d_solve(d(u(x, t), [t, 2]) == d(u(x, t), [x, 2]))
+#% output
+#= [[u(x, t) -> c(1)(t - x) + c(2)(t + x)]]
+
+#% text
+# A delay equation:
+
+#% cell
+d_solve([x'(t) == x(t - 1)^2, x(t when t <= 0) == a*t], x(t), [t, 0, 2])
+#% output
+#= [[x(t) -> piecewise([[a*t, t <= 0], [(1/3)*(a^2*t^3 - 3*a^2*t^2 + 3*t*a^2), 0 < t and t <= 1], [(1/126)*(-163*a^4 + 42*a^2 - 1176*a^4*t^2 - 553*a^4*t^4 - 28*a^4*t^6 + 2*a^4*t^7 + 168*a^4*t^5 + 686*t*a^4 + 1064*a^4*t^3), 1 < t and t <= 2]], indeterminate)]]
+
+#% text
+# A boundary-value problem:
+
+#% cell
+d_solve([y''(x) + y(x) == 0, y(0) == 0, y(pi/2) == 1], y(x), x)
+#% output
+#= [[y(x) -> sin(x)]]
+
+#% text
+# Names for the constants:
+
+#% cell
+d_solve(y''(x) - 4*y(x) == 0, y(x), x, generated_parameters: f)
+#% output
+#= [[y(x) -> f(1)*exp(2*x) + f(2)*exp(-2*x)]]
+
+#% text
+# A separable equation and a first-order equation whose solution needs an error function:
+
+#% cell
+d_solve(y'(x) == sin(x)*y(x), y(x), x)
+#% output
+#= [[y(x) -> c(1)*exp(-cos(x))]]
+
+#% cell
+d_solve(y'(x) == exp(-x^2), y(x), x)
+#% output
+#= [[y(x) -> c(1) + (1/2)*erf(x)*pi^(1/2)]]
+
+#% text
+# Variation of parameters, with a right-hand side that undetermined coefficients cannot handle:
+
+#% cell
+d_solve(y''(x) + y(x) == tan(x), y(x), x)
+#% output
+#= [[y(x) -> c(1)*cos(x) + c(2)*sin(x) - cos(x)*log((1 + sin(x))/cos(x))]]
+
+#% text
+# A square root of the unknown:
+
+#% cell
+d_solve(y'(x) == sqrt(y(x)), y(x), x)
+#% output
+#= [[y(x) -> (c(1) + (1/2)*x)^2]]
+
+#% text
+# The logistic equation, and a Riccati equation that needs Airy functions:
+
+#% cell
+d_solve(y'(x) == y(x)*(1 - y(x)), y(x), x)
+#% output
+#= [[y(x) -> exp(x + c(1))/(-1 + exp(x + c(1)))]]
+
+#% cell
+d_solve(y'(x) == y(x)^2 - x, y(x), x)
+#% output
+#= [[y(x) -> -(airy_bi_prime(x) + airy_ai_prime(x)*c(1))/(airy_bi(x) + airy_ai(x)*c(1))]]
+
+#% text
+# A power of the unknown that gives two branches:
+
+#% cell
+d_solve(y'(x) == y(x) + x*y(x)^5, y(x), x)
+#% output
+#= [[y(x) -> -1/(1/4 - x + c(1)*exp(-4*x))^(1/4)], [y(x) -> (1/4 - x + c(1)*exp(-4*x))^(-1/4)]]
+
+#% text
+# Boundary values at two points (`e` is the exponential constant):
+
+#% cell
+d_solve([y''(x) == y(x), y(0) == 1, y(1) == 2], y(x), x)
+#% output
+#= [[y(x) -> (-2*e - exp(2*x) + 2*exp(1 + 2*x) + exp(2))*exp(-x)/((-1 + e)*(1 + e))]]
+
+#% subsection
+# Options
+
+#% text
+# `assumptions:` states what is known about the parameters:
+
+#% cell
+d_solve([y'(x) == a*y(x), y(0) == 1], y(x), x, assumptions: a > 0)
+#% output
+#= [[y(x) -> exp(a*x)]]
+
+#% text
+# `generated_parameters:` names the constants:
+
+#% cell
+d_solve(y''(x) + y(x) == 0, y(x), x, generated_parameters: k)
+#% output
+#= [[y(x) -> cos(x)*k(1) + k(2)*sin(x)]]
+
+#% subsection
+# Applications
+
+#% text
+# Damped oscillations:
+
+#% cell
+d_solve([y''(t) + y'(t)/2 + 4*y(t) == 0, y(0) == 1, y'(0) == 0], y(t), t)
+#% output
+#= [[y(t) -> (cos((3/4)*t*7^(1/2)) + (1/21)*7^(1/2)*sin((3/4)*t*7^(1/2)))*exp((-1/4)*t)]]
+
+#% text
+# Logistic growth:
+
+#% cell
+d_solve([x'(t) == x(t)^2 - 5*x(t) + 6, x(0) == 5/2], x(t), t)
+#% output
+#= [[x(t) -> (3 + 2*exp(t))/(1 + exp(t))]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The solution satisfies the equation:
+
+#% cell
+sol = d_solve_value(y''(x) - 3*y'(x) + 2*y(x) == 0, y(x), x)
+
+#% cell
+simplify(d(sol, [x, 2]) - 3*d(sol, x) + 2*sol)
+#% output
+#= 0
+
+#% text
+# The solution of an initial value problem agrees with the numerical solution to the tolerance of `n_dsolve_value`:
+
+#% cell
+n(d_solve_value([y'(x) == x*y(x), y(0) == 1], y(2), x))
+#% output
+#= 7.3890560989306495
+
+#% cell
+n_dsolve_value([y'(x) == x*y(x), y(0) == 1], y(2), [x, 0, 2])
+#% output
+#= 7.389056119787471
+
+#% subsection
+# Possible issues
+
+#% text
+# An equation no method solves stays a call; `n_dsolve` gives the numerical solution:
+
+#% cell
+d_solve(y''(x) == -y(x)^3, y(x), x)
+#% output
+#= solve(integrate(-2^(1/2)/(-4*c(1) - y(x)^4)^(1/2), y(x)) == x + c(2), y(x))
+
+#% cell
+d_solve(y'(x) == y(x) + exp(y(x)), y(x), x)
+#% output
+#= solve(integrate((y(x) + exp(y(x)))^-1, y(x)) == x + c(1), y(x))
+
+#% section
+# See also
+
+#% text
+# `d_solve_value`, `asymptotic_d_solve_value`, `n_dsolve`, `r_solve`, `integrate`

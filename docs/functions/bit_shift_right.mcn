@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# bit_shift_right
+
+#% text
+# `bit_shift_right(k, s)` shifts the integer `k` right by `s` bits: `floor(k/2^s)`, also for negative `k`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bit_shift_right(1000, 3)
+#% output
+#= 125
+
+#% cell
+bit_shift_right(-9, 1)
+#% output
+#= -5
+
+#% cell
+bit_shift_right([8, 16, 33], 2)
+#% output
+#= [2, 4, 8]
+
+#% section
+# See also
+
+#% text
+# `bit_length`, `bit_flip`, `bit_and`

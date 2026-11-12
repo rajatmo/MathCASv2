@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# smooth_histogram3d
+
+#% text
+# `smooth_histogram3d([[x, y], ...])` draws a kernel density estimate of points of the plane as a surface.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+smooth_histogram3d(table([sin(k), cos(2 * k)], k, range(1, 200)))
+#% output
+#= image("smooth_histogram3d.files/smooth_histogram3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `smooth_histogram`

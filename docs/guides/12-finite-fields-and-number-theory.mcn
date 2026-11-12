@@ -1,0 +1,299 @@
+#! mathcas 2 notebook
+
+#% title
+# Finite fields and number theory
+
+#% text
+# Integers modulo a prime, and the larger fields with `p^n` elements built over them. The engine computes in these fields exactly, factors polynomials over them, finds discrete logarithms, and relates fields to each other by embeddings. The first half of this guide covers the integer functions the fields rest on.
+
+#% section
+# Integers: primes, factors, residues
+
+#% cell
+[is_prime(2^61 - 1), next_prime(10^12), prime_pi(10^6)]
+#% output
+#= [true, 1000000000039, 78498]
+
+#% cell
+factor_integer(360)
+#% output
+#= [[2, 3], [3, 2], [5, 1]]
+
+#% cell
+factor_integer(2^64 + 1)
+#% output
+#= [[274177, 1], [67280421310721, 1]]
+
+#% cell
+[euler_phi(360), divisor_sigma(0, 360), divisor_sigma(1, 360), moebius_mu(30), carmichael_lambda(360)]
+#% output
+#= [96, 24, 1170, -1, 12]
+
+#% text
+# Modular arithmetic: `mod` reduces, `power_mod` raises to a power without forming it, `modular_inverse` divides. An inverse exists exactly when the number is prime to the modulus.
+
+#% cell
+[mod(-7, 5), power_mod(3, 10^18, 1000007), modular_inverse(7, 40)]
+#% output
+#= [3, 963300, 23]
+
+#% cell
+modular_inverse(6, 40)
+#% output
+#= power_mod(6, -1, 40)
+
+#% text
+# The group of residues prime to `n` has order `euler_phi(n)`. `multiplicative_order` is the order of one element and `primitive_root` the least generator, which exists only for `n` of the form 2, 4, `p^k` or `2 p^k`.
+
+#% cell
+[multiplicative_order(3, 101), primitive_root(101), primitive_root(100)]
+#% output
+#= [100, 2, primitive_root(100)]
+
+#% cell
+[jacobi_symbol(5, 21), jacobi_symbol(2, 17), is_prime_power(81)]
+#% output
+#= [1, 1, true]
+
+#% section
+# Fields with p^n elements
+
+#% text
+# `finite_field(p, n)` is the field of `p^n` elements, defined by the Conway polynomial of degree `n` over the integers modulo `p`; `finite_field(q)` takes the size. `F(k)` gives the element whose coefficients are the base-`p` digits of `k`, and `F([c0, c1, ...])` the element `c0 + c1 x + ...` with `x` the generator. The properties are asked by name.
+
+#% cell
+F = finite_field(3, 2)
+
+#% cell
+F(["Characteristic", "ExtensionDegree", "FieldSize", "FieldIrreducible"])
+#% output
+#= [3, 2, 9, &(2 + 2*&1 + &1^2)]
+
+#% cell
+a = F([1, 2])
+
+#% cell
+b = F(5)
+
+#% cell
+map(u => u("Coefficients"), [a + b, a * b, a / b, a^-1 * a])
+#% output
+#= [[], [1, 1], [2], [1]]
+
+#% text
+# Elements print in full, with their field; `"Coefficients"` shows the part that varies. An element has an index, coefficients, a trace and a norm. The index of the element with coefficients `c_i` is `c0 + c1 p + c2 p^2 + ...`, so `F(finite_field_index(a))` is `a`.
+
+#% cell
+a(["Index", "Coefficients", "Trace", "Norm"])
+#% output
+#= [7, [1, 2], 1, 2]
+
+#% cell
+F(finite_field_index(a)) == a
+#% output
+#= true
+
+#% text
+# With `"Exponential"` an element shows its index as an exponent of the generator, and products add the indices: this is the representation in which the field's multiplication table is a table of sums.
+
+#% cell
+H = finite_field(2, 3, "Exponential")
+
+#% cell
+H(3) * H(5)
+#% output
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^3), "Exponential"), 7)
+
+#% text
+# The standard defining polynomial is the Conway polynomial, `conway_polynomial(p, n, x)`; you can give your own irreducible polynomial instead, as a pure function of `&1`.
+
+#% cell
+conway_polynomial(2, 8, x)
+#% output
+#= 1 + x^2 + x^3 + x^4 + x^8
+
+#% cell
+G = finite_field(7, &(2*&1^2 + 1), "Polynomial")
+
+#% cell
+G([0, 1])^2
+#% output
+#= finite_field_element(finite_field(7, &(1 + 2*&1^2), "Polynomial"), [3])
+
+#% section
+# Roots, order and discrete logarithms
+
+#% text
+# `finite_field_root(a, n)` lists the `n`-th roots of `a`; `finite_field_primitive_element` gives the least generator of the multiplicative group; `is_finite_field_element_primitive` tells whether an element generates it. The primitive elements number `euler_phi(q - 1)`.
+
+#% cell
+K = finite_field(5, 2)
+
+#% cell
+finite_field_root(K([1, 1]), 2)
+#% output
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [3, 2]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2, 3])]
+
+#% cell
+[is_finite_field_element_primitive(K([0, 1])), is_finite_field_element_primitive(K(1)), finite_field_primitive_element(K)("Coefficients")]
+#% output
+#= [true, false, [0, 1]]
+
+#% text
+# `finite_field_log(a)` is the discrete logarithm to the base `x`: the `k` with `x^k == a`. Another base is the second argument. The method factors the order of the group (Pohlig and Hellman), so it works in a field of 2^40 elements as it does in a small one.
+
+#% cell
+L = finite_field(11, 3)
+
+#% cell
+c = L([3, 1, 4]); k = finite_field_log(c); [k, L([0, 1])^k == c]
+#% output
+#= [760, true]
+
+#% cell
+M = finite_field(2, 40)
+
+#% cell
+finite_field_log(M([0, 1])^123456789012)
+#% output
+#= 123456789012
+
+#% section
+# Trace, norm, minimal polynomial, Frobenius
+
+#% text
+# For an element of `F_(p^n)`, `finite_field_element_trace` and `finite_field_element_norm` are the sum and the product of its conjugates, integers modulo `p`. `finite_field_element_minimal_polynomial(a, x)` is the monic polynomial of least degree over the prime field with root `a`, and `frobenius_automorphism` raises to the power `p`.
+
+#% cell
+Q = finite_field(2, 4)
+
+#% cell
+[finite_field_element_trace(Q([0, 1])), finite_field_element_norm(Q([0, 1]))]
+#% output
+#= [0, 1]
+
+#% cell
+finite_field_element_minimal_polynomial(Q([0, 1]), x)
+#% output
+#= 1 + x + x^4
+
+#% cell
+finite_field_element_minimal_polynomial(Q([0, 1])^5, x)
+#% output
+#= 1 + x + x^2
+
+#% cell
+frobenius_automorphism(Q([1, 1])) == Q([1, 1])^2
+#% output
+#= true
+
+#% section
+# Polynomials over a field
+
+#% text
+# Polynomials whose coefficients are elements of a field are factored, expanded and divided by the usual functions. `extension: F` factors a polynomial with integer coefficients over `F`; `is_irreducible_polynomial` and `is_primitive_polynomial` test over a prime field.
+
+#% cell
+[is_irreducible_polynomial(x^4 + x + 1, modulus: 2), is_primitive_polynomial(x^4 + x + 1, 2), is_irreducible_polynomial(x^4 + 1, modulus: 2)]
+#% output
+#= [true, true, false]
+
+#% cell
+R = finite_field(3, 2)
+
+#% cell
+[length(factor(x^2 + 1, extension: R)), length(factor(x^4 + 1, extension: R))]
+#% output
+#= [2, 4]
+
+#% cell
+polynomial_gcd(x^4 + 1, x^2 + 1, extension: R) == R(1)
+#% output
+#= true
+
+#% text
+# `x^2 + 1` has no root modulo 3 but splits in the field of 9 elements, and `x^4 + 1` splits there into four linear factors; the number of factors is the `length` of the factored product.
+
+#% cell
+[is_irreducible_polynomial(x^2 + 1, modulus: 3), is_irreducible_polynomial(x^2 + 1, extension: R)]
+#% output
+#= [true, false]
+
+#% cell
+count(table(is_finite_field_element_primitive(R(k)), k, range(1, 8)), true) == euler_phi(8)
+#% output
+#= true
+
+#% section
+# Embeddings between fields
+
+#% text
+# `finite_field_embedding(K, F)` exists exactly when both fields have the same characteristic and the degree of `K` divides that of `F`; it maps the generator of `K` to a root of its defining polynomial in `F`. The embedding is a function on elements, and its projection inverts it on the image.
+
+#% cell
+S = finite_field(3, 2)
+
+#% cell
+T = finite_field(3, 4)
+
+#% cell
+e = finite_field_embedding(S, T)
+
+#% cell
+[e(S(5)) + e(S(7)) == e(S(5) + S(7)), e(S(5)) * e(S(7)) == e(S(5) * S(7))]
+#% output
+#= [true, true]
+
+#% cell
+e("Projection")(e(S(5))) == S(5)
+#% output
+#= true
+
+#% text
+# Without an embedding (here the characteristics differ) the call stays unevaluated.
+
+#% cell
+finite_field_embedding(finite_field(2, 3), T)
+#% output
+#= finite_field_embedding(finite_field(2, &(1 + &1 + &1^3), "Polynomial"), finite_field(3, &(2 + 2*&1^3 + &1^4), "Polynomial"))
+
+#% section
+# Common mistakes
+
+#% item
+# Elements of different fields do not combine: the sum stays a sum, with no error. Embed one field into the other first.
+
+#% cell
+finite_field(2, 2)(3) + finite_field(3, 1)(2)
+#% output
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), "Polynomial"), [2])
+
+#% item
+# `a^(1/n)` is not a root in a finite field: it stays unevaluated. Use `finite_field_root(a, n)`, which lists all the roots (an empty list when there are none).
+
+#% cell
+finite_field_root(finite_field(7, 1)(3), 2)
+#% output
+#= []
+
+#% item
+# The index of an element in the polynomial representation is not its logarithm. `finite_field_log(a)` is the exponent of the generator; in the `"Exponential"` representation the index of a nonzero element is one more than its logarithm.
+
+#% cell
+E = finite_field(7, 2, "Exponential"); [finite_field_index(E(10)), finite_field_log(E(10))]
+#% output
+#= [10, 9]
+
+#% item
+# `modular_inverse` and `multiplicative_order` need an argument prime to the modulus; `primitive_root(n)` needs a modulus that has one. Otherwise the call stays unevaluated.
+
+#% cell
+[modular_inverse(6, 40), primitive_root(100)]
+#% output
+#= [power_mod(6, -1, 40), primitive_root(100)]
+
+#% section
+# Related functions
+
+#% text
+# `finite_field`, `finite_field_element`, `finite_field_embedding`, `finite_field_log`, `finite_field_root`, `finite_field_primitive_element`, `finite_field_index`, `finite_field_element_trace`, `finite_field_element_norm`, `finite_field_element_minimal_polynomial`, `frobenius_automorphism`, `conway_polynomial`, `is_primitive_polynomial`, `is_irreducible_polynomial`, `factor_integer`, `power_mod`, `modular_inverse`, `primitive_root`, `multiplicative_order`, `euler_phi`, `jacobi_symbol`

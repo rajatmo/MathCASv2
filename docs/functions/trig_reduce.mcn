@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# trig_reduce
+
+#% text
+# `trig_reduce(e)` writes products and powers of sines and cosines as sums of sines and cosines of multiple angles.
+
+#% section
+# Details
+
+#% item
+# The product-to-sum formulas are applied until no product of trigonometric functions remains; the result is linear in sines and cosines.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+trig_reduce(sin(x)^2)
+#% output
+#= 1/2 - (1/2)*cos(2*x)
+
+#% cell
+trig_reduce(sin(x)*cos(y))
+#% output
+#= (1/2)*sin(x + y) + (1/2)*sin(x - y)
+
+#% cell
+trig_reduce(cos(x)^3)
+#% output
+#= (1/4)*cos(3*x) + (3/4)*cos(x)
+
+#% cell
+trig_reduce(sin(x)^2*cos(x)^2)
+#% output
+#= 1/8 - (1/8)*cos(4*x)
+
+#% subsection
+# Applications
+
+#% text
+# An integral is easier in the reduced form:
+
+#% cell
+integrate(trig_reduce(sin(x)^4), x)
+#% output
+#= (-1/4)*sin(2*x) + (1/32)*sin(4*x) + (3/8)*x
+
+#% subsection
+# Properties and relations
+
+#% text
+# `trig_expand` goes the other way; the result equals `cos(x)^3` once `sin(x)^2` is replaced by `1 - cos(x)^2`:
+
+#% cell
+trig_expand(trig_reduce(cos(x)^3))
+#% output
+#= (1/4)*cos(x)^3 + (3/4)*cos(x) - (3/4)*cos(x)*sin(x)^2
+
+#% section
+# See also
+
+#% text
+# `trig_expand`, `trig_to_exp`, `simplify`

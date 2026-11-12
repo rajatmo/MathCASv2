@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# partitions_q
+
+#% text
+# `partitions_q(n)` gives the number of partitions of `n` into distinct parts.
+
+#% section
+# Details
+
+#% item
+# By Euler's theorem this is also the number of partitions of `n` into odd parts. `partitions_q(0)` is 1.
+
+#% item
+# `partitions_q` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+partitions_q(5)
+#% output
+#= 3
+
+#% cell
+partitions_q(0)
+#% output
+#= 1
+
+#% cell
+partitions_q(range(10))
+#% output
+#= [1, 1, 2, 2, 3, 4, 5, 6, 8, 10]
+
+#% cell
+partitions_q(100)
+#% output
+#= 444793
+
+#% subsection
+# Properties and relations
+
+#% text
+# The generating function, the product of `1 + q^k`:
+
+#% cell
+series(product(1 + q^k, [k, 1, 8]), q, 0, 8)
+#% output
+#= 1 + q + q^2 + 2*q^3 + 2*q^4 + 3*q^5 + 4*q^6 + 5*q^7 + 6*q^8 + O(q^9)
+
+#% section
+# See also
+
+#% text
+# `partitions_p`

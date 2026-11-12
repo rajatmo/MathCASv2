@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# rgb_color
+
+#% text
+# `rgb_color(r, g, b)` is the colour with red, green and blue components r, g, b between 0 and 1.
+
+#% text
+# `rgb_color(r, g, b, a)` is the colour with opacity a.
+
+#% text
+# `rgb_color("#rrggbb")` is the colour of a hexadecimal code.
+
+#% section
+# Details
+
+#% item
+# In graphics a colour is a directive: what follows it is drawn in that colour.
+
+#% item
+# Components outside [0, 1] are clipped when the graphic is drawn.
+
+#% item
+# A hexadecimal code becomes the three components as machine reals.
+
+#% item
+# The named colours (`red`, `green`, `blue`, `black`, `white`, `gray`, `light_gray`, `dark_gray`, `cyan`, `magenta`, `yellow`, `orange`, `purple`, `brown`, `pink`) can be used wherever a colour is expected.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A colour stays as written:
+
+#% cell
+rgb_color(0.2, 0.4, 0.8)
+#% output
+#= rgb_color(0.2, 0.4, 0.8)
+
+#% text
+# A hexadecimal code:
+
+#% cell
+rgb_color("#ff8000")
+#% output
+#= rgb_color(1.0, 0.5019607843137255, 0.0)
+
+#% text
+# Colours as directives:
+
+#% cell
+graphics([rgb_color(0.2, 0.4, 0.8), disk(), rgb_color(1, 1, 1, 0.5), disk([0.3, 0.3], 0.5)])
+#% output
+#= image("rgb_color.files/rgb_color-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same colour by hue, saturation and brightness:
+
+#% cell
+color_convert(rgb_color(0.2, 0.4, 0.8), hue)
+#% output
+#= hue(0.611111111111111, 0.7500000000000001, 0.8)
+
+#% subsection
+# Possible issues
+
+#% text
+# Components must be numbers (or symbols that become numbers later):
+
+#% cell
+rgb_color(1, "half", 0)
+#% output
+#! failure(argument, rgb_color, 2)
+
+#% section
+# See also
+
+#% text
+# `hue`, `gray_level`, `opacity`, `color_convert`, `blend`

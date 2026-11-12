@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# grad
+
+#% text
+# `grad(f, [x1, ..., xn])` gives the gradient `[d(f, x1), ..., d(f, xn)]` of the scalar `f`.
+
+#% text
+# `grad([f1, ..., fm], [x1, ..., xn])` gives the Jacobian matrix of the functions.
+
+#% section
+# Details
+
+#% item
+# The variables are Cartesian coordinates.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+grad(x^2 + y^2, [x, y])
+#% output
+#= [2*x, 2*y]
+
+#% cell
+grad(x*y*z, [x, y, z])
+#% output
+#= [y*z, x*z, x*y]
+
+#% cell
+grad([x*y, x + y], [x, y])
+#% output
+#= [[y, x], [1, 1]]
+
+#% subsection
+# Applications
+
+#% text
+# The gradient at a point points uphill; at a minimum it is zero:
+
+#% cell
+f = (x - 1)^2 + (y + 2)^2; g = grad(f, [x, y]); solve([g[1] == 0, g[2] == 0], [x, y])
+#% output
+#= [[x -> 1, y -> -2]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The curl of a gradient is zero:
+
+#% cell
+curl(grad(x^2*y*z, [x, y, z]), [x, y, z])
+#% output
+#= [0, 0, 0]
+
+#% text
+# The divergence of the gradient is the Laplacian:
+
+#% cell
+[div(grad(x^3*y, [x, y]), [x, y]), laplacian(x^3*y, [x, y])]
+#% output
+#= [6*x*y, 6*x*y]
+
+#% section
+# See also
+
+#% text
+# `div`, `curl`, `laplacian`, `d`

@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# spheroidal_s1_prime
+
+#% text
+# `spheroidal_s1_prime(n, m, gamma, z)` gives the derivative of `spheroidal_s1(n, m, gamma, z)` in `z`.
+
+#% section
+# Details
+
+#% item
+# With `S(z) = P(z) N(z)/D`, `P = (z^2 - 1)^(m/2) z^(-m)`, `N = sum a_k w_k j_v(gamma z)` and `D = sum (-1)^k a_k w_k` (see `spheroidal_s1`), the derivative is `P' N/D + P gamma sum a_k w_k j_v'(gamma z)/D` with `P'/P = m/(z (z^2 - 1))` and `j_v'(x) = j_(v-1)(x) - (v + 1) j_v(x)/x` (`j_0' = -j_1`; DLMF 10.51.2).
+
+#% item
+# It is the row of `d` for `spheroidal_s1`: `d(spheroidal_s1(n, m, gamma, z), z)` is this function. Integers `n >= m >= 0`, inexact `gamma` or `z`, `z` not 0 and not on the unit circle `|z| = 1`; the value is complex like that of `spheroidal_s1`. It threads over lists of `z`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spheroidal_s1_prime(2, 1, 1.3, 2.5)
+#% output
+#= 0.0456226149756908 + 0.0im
+
+#% text
+# The derivative operator gives the same function; a central difference of `spheroidal_s1` agrees:
+
+#% cell
+d(spheroidal_s1(2, 1, 1.3, z), z)
+#% output
+#= spheroidal_s1_prime(2, 1, 1.3, z)
+
+#% cell
+(spheroidal_s1(2, 1, 1.3, 2.5 + 1e-5) - spheroidal_s1(2, 1, 1.3, 2.5 - 1e-5))/2e-5
+#% output
+#= 0.04562261497753627 + 0.0im
+
+#% cell
+n(spheroidal_s1_prime(2, 1, 1/3, 5/2), 20)
+#% output
+#= 0.0339059841549122618197 + 0.im
+
+#% text
+# The second derivative follows from the differential equation `(z^2 - 1) S'' + 2 z S' - (lambda - gamma^2 (z^2 - 1) + m^2/(z^2 - 1)) S = 0`, with `lambda = spheroidal_eigenvalue(n, m, gamma)`:
+
+#% cell
+rewrite(d(spheroidal_s1(2, 1, 1.3, z), [z, 2]), z -> 2.5)
+#% output
+#= -0.25647253680409404 - 0.0im
+
+#% section
+# See also
+
+#% text
+# `spheroidal_s1`, `spheroidal_ps`, `d`

@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# pairwise_probability_plot
+
+#% text
+# `pairwise_probability_plot(data)` draws a grid of P-P plots: the distribution functions of each pair of columns against each other.
+
+#% section
+# Details
+
+#% item
+# Points on the dashed diagonal mean the two columns are distributed alike.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pairwise_probability_plot(table([sin(k), k^2 / 100, k / 5], k, range(1, 60)))
+#% output
+#= image("pairwise_probability_plot.files/pairwise_probability_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `pairwise_quantile_plot`

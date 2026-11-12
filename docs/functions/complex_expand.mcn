@@ -1,0 +1,147 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_expand
+
+#% text
+# `complex_expand(e)` writes `e` as `a + b*im` with `a` and `b` real, taking every symbol as real; `complex_expand(e, [z1, z2])` takes `z1` and `z2` as complex.
+
+#% section
+# Details
+
+#% item
+# Sums and products are expanded as complex numbers; integer powers are multiplied out.
+
+#% item
+# `exp`, `sin`, `cos`, `tan`, `sinh`, `cosh` and `tanh` of a complex argument use the addition theorems, so `sin(a + b*im)` becomes `sin(a)*cosh(b) + im*cos(a)*sinh(b)`.
+
+#% item
+# `re`, `im_part`, `conjugate` and `abs` of an expression are written with its real and imaginary parts.
+
+#% item
+# `log` of a nonreal value is `log(abs(z)) + im*arg(z)`; other powers of a nonreal base use the polar form.
+
+#% item
+# A complex variable `z` has the parts `re(z)` and `im_part(z)`.
+
+#% item
+# `complex_expand` maps over lists.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The real part of a sine of a complex argument:
+
+#% cell
+complex_expand(re(sin(a + b*im)))
+#% output
+#= cosh(b)*sin(a)
+
+#% text
+# The whole value:
+
+#% cell
+complex_expand(sin(a + b*im))
+#% output
+#= cosh(b)*sin(a) + im*cos(a)*sinh(b)
+
+#% cell
+complex_expand(exp(x + im*y))
+#% output
+#= cos(y)*exp(x) + im*exp(x)*sin(y)
+
+#% subsection
+# Scope
+
+#% text
+# Powers and quotients:
+
+#% cell
+complex_expand((x + im*y)^2)
+#% output
+#= -y^2 + 2im*x*y + x^2
+
+#% cell
+complex_expand(1/(x + im*y))
+#% output
+#= x/(x^2 + y^2) - im*y/(x^2 + y^2)
+
+#% text
+# The modulus and the logarithm:
+
+#% cell
+complex_expand(abs(x + im*y))
+#% output
+#= (x^2 + y^2)^(1/2)
+
+#% cell
+complex_expand(log(x + im*y))
+#% output
+#= im*arg(x + im*y) + (1/2)*log(x^2 + y^2)
+
+#% text
+# A complex variable:
+
+#% cell
+complex_expand(re(z^2), z)
+#% output
+#= -im_part(z)^2 + re(z)^2
+
+#% cell
+complex_expand(conjugate(z), [z])
+#% output
+#= -im*im_part(z) + re(z)
+
+#% text
+# A list:
+
+#% cell
+complex_expand([cos(x + im*y), cosh(im*x)])
+#% output
+#= [cos(x)*cosh(y) - im*sin(x)*sinh(y), cos(x)]
+
+#% subsection
+# Applications
+
+#% text
+# The real and imaginary parts of a function on a line:
+
+#% cell
+f = complex_expand(exp(im*t)*(1 + im*t))
+
+#% cell
+[complex_expand(re(f)), complex_expand(im_part(f))]
+#% output
+#= [cos(t) - t*sin(t), t*cos(t) + sin(t)]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Symbols are real, so their conjugates are themselves:
+
+#% cell
+complex_expand(conjugate(x*y + im))
+#% output
+#= -im + x*y
+
+#% subsection
+# Possible issues
+
+#% text
+# A real symbol under a fractional power is taken as it is, even though a negative value would make it nonreal:
+
+#% cell
+complex_expand(sqrt(x))
+#% output
+#= x^(1/2)
+
+#% section
+# See also
+
+#% text
+# `re`, `im_part`, `conjugate`, `abs`, `exp_to_trig`, `simplify`

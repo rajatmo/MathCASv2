@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# own_values
+
+#% text
+# `own_values(x)` gives the value of the symbol `x` as a one-element list of a delayed rule `x :> value`, or the empty list when `x` has no value.
+
+#% section
+# Details
+
+#% item
+# The symbol is held, so its value is read instead of substituted.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = 5
+
+#% cell
+own_values(x)
+#% output
+#= [x :> 5]
+
+#% cell
+own_values(not_a_symbol_with_a_value)
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `names`, `unset`

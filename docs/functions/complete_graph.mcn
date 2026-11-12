@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# complete_graph
+
+#% text
+# `complete_graph(n)` is the graph of n vertices with every pair joined.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+complete_graph(5)
+#% output
+#= image("complete_graph.files/complete_graph-1.svgz")
+
+#% cell
+edge_count(complete_graph(5))
+#% output
+#= 10
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

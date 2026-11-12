@@ -1,0 +1,42 @@
+#! mathcas 2 notebook
+
+#% title
+# register_exception_type
+
+#% text
+# `register_exception_type(type, parent)` declares `type` as an exception type that is a kind of `parent`.
+
+#% section
+# Details
+
+#% item
+# `register_exception_type(type)` declares a type with no parent; the parent may be a list of types.
+
+#% item
+# The value is an association of the type and its parents. The types and parents are kept for the session; `exception_types()` lists the types.
+
+#% item
+# A thrown exception is caught by `catch_exception` for its own type and for every type it is a kind of.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+#% output
+#= assoc(exception_type -> arg_type_error, parent_exception_types -> [arg_error])
+
+#% cell
+exception_types()
+#% output
+#= [arg_error, arg_type_error]
+
+#% section
+# See also
+
+#% text
+# `exception`, `exception_tags`, `catch_exception`

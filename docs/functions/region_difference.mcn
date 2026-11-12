@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# region_difference
+
+#% text
+# `region_difference(r1, r2)` is the part of the plane polygon `r1` outside `r2`.
+
+#% section
+# Details
+
+#% item
+# Where `r2` lies inside `r1` the result has a hole.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A square with a hole:
+
+#% cell
+d = region_difference(rectangle([0, 0], [4, 4]), rectangle([1, 1], [2, 2]))
+
+#% cell
+area(d)
+#% output
+#= 15
+
+#% cell
+graphics([light_blue, edge_form(blue), d])
+#% output
+#= image("region_difference.files/region_difference-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `region_union`

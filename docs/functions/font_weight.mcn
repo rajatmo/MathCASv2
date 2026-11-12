@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# font_weight
+
+#% text
+# `font_weight`: style option: font_weight: bold | plain
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+style("bold text", font_weight: bold)
+#% output
+#= style("bold text", font_weight: bold)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

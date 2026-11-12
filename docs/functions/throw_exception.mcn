@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# throw_exception
+
+#% text
+# `throw_exception(exc)` throws the exception `exc`, tagged by its type, to the nearest `catch_exception` that takes its type.
+
+#% section
+# Details
+
+#% item
+# It is `throw(exc, type)`: the value of the call is a failure that propagates through the surrounding computation until it is caught.
+
+#% item
+# Without a catching `catch_exception` the failure is the result of the whole evaluation, `failure(thrown, exc, type)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catch_exception(1 + throw_exception(exception(data_error, assoc(data -> 42))), data_error)
+#% output
+#= exception(data_error, assoc(data -> 42))
+
+#% text
+# Uncaught:
+
+#% cell
+throw_exception(exception(data_error))
+#% output
+#! failure(thrown, exception(data_error, assoc()), data_error)
+
+#% section
+# See also
+
+#% text
+# `catch_exception`, `exception`, `throw`

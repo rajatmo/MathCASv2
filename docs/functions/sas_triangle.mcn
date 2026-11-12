@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# sas_triangle
+
+#% text
+# `sas_triangle(a, gamma, b)`: the triangle with sides a and b and the angle gamma between them
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sas_triangle(1, pi/2, 2)
+#% output
+#= triangle([[0, 0], [5^(1/2), 0], [(4/5)*5^(1/2), (2/5)*5^(1/2)]])
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# hexahedron
+
+#% text
+# `hexahedron([p1, ..., p8])`: the solid with bottom face p1 p2 p3 p4 and top face p5 p6 p7 p8
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = hexahedron([[0, 0, 0], [1, 0, 0], [2, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [2, 1, 1], [1, 1, 1]])
+
+#% cell
+[volume(x), region_centroid(x)]
+#% output
+#= [1, [1, 1/2, 1/2]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

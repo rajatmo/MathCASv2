@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# point
+
+#% text
+# `point([x, y])` is a graphics primitive: a point at [x, y].
+
+#% text
+# `point([[x1, y1], [x2, y2], ...])` is several points.
+
+#% section
+# Details
+
+#% item
+# Points are drawn as dots in the current colour; `point_size` (a fraction of the plot width) or `absolute_point_size` (in points) sets their diameter.
+
+#% item
+# A position may also be `scaled([u, v])`, a fraction of the plot range.
+
+#% item
+# A packed array of n pairs (as `table` makes) is read without unpacking, so large point sets are cheap.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# One point:
+
+#% cell
+graphics(point([1, 2]))
+#% output
+#= image("point.files/point-1.svgz")
+
+#% text
+# Three larger red points:
+
+#% cell
+graphics([red, absolute_point_size(8), point([[0, 0], [1, 1], [2, 0]])])
+#% output
+#= image("point.files/point-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Points of a computed list, with a frame:
+
+#% cell
+graphics(point(table([k, sin(k)], k, 3)), frame: true)
+#% output
+#= image("point.files/point-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `point_size`, `absolute_point_size`, `line`, `list_plot`, `graphics`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# word_normal_form
+
+#% text
+# `word_normal_form(F, w)`: the shortlex normal form of the word
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+word_normal_form(finitely_presented_group([a, b], [a^2, b^2, table([a, b], 3)]), [a, b, a, b, a])
+#% output
+#= [b]
+
+#% cell
+word_normal_form(finitely_presented_group([a, b], [[a, b] -> [b, a]]), [b, a, b^-1, a, a])
+#% output
+#= [a^3]
+
+#% section
+# See also
+
+#% text
+# `knuth_bendix`, `finitely_presented_group`

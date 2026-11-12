@@ -1,0 +1,147 @@
+#! mathcas 2 notebook
+
+#% title
+# median
+
+#% text
+# `median(xs)` gives the middle value of the sorted list `xs`, or the mean of the two middle values when their number is even.
+
+#% text
+# `median(d)` gives the median of the distribution `d`, `quantile(d, 1/2)`.
+
+#% section
+# Details
+
+#% item
+# The values of the list must be real numbers, so that they can be sorted.
+
+#% item
+# For a list of rows, the median is taken column by column.
+
+#% item
+# An empty list is an error.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The middle of three values:
+
+#% cell
+median([3, 1, 2])
+#% output
+#= 2
+
+#% text
+# An even number of values gives the mean of the two middle ones:
+
+#% cell
+median([4, 1, 3, 2])
+#% output
+#= 5/2
+
+#% text
+# The median of a distribution:
+
+#% cell
+median(exponential_distribution(2.0))
+#% output
+#= 0.34657359027997264
+
+#% subsection
+# Scope
+
+#% text
+# Machine reals and fractions:
+
+#% cell
+[median([1.5, 9.0, 2.0, 2.5]), median([1, 1/2, 1/3])]
+#% output
+#= [2.25, 1/2]
+
+#% text
+# Column by column:
+
+#% cell
+median([[1, 5], [2, 4], [3, 9]])
+#% output
+#= [2, 5]
+
+#% text
+# Distributions with symbolic parameters:
+
+#% cell
+[median(normal_distribution(mu, sigma)), median(log_normal_distribution(m, s))]
+#% output
+#= [mu, exp(m)]
+
+#% text
+# A discrete distribution:
+
+#% cell
+median(poisson_distribution(3))
+#% output
+#= 3
+
+#% subsection
+# Applications
+
+#% text
+# A typical value that one outlier does not move, unlike the mean:
+
+#% cell
+[median([1, 2, 3, 100]), mean([1, 2, 3, 100])]
+#% output
+#= [5/2, 53/2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The median of a distribution is its quantile at 1/2:
+
+#% cell
+[median(exponential_distribution(l)), quantile(exponential_distribution(l), 1/2)]
+#% output
+#= [log(2)/l, log(2)/l]
+
+#% text
+# For a symmetric distribution, the median equals the mean:
+
+#% cell
+median(normal_distribution(3, 2)) == mean(normal_distribution(3, 2))
+#% output
+#= true
+
+#% cell
+median([quantity(1, "Meters"), quantity(3, "Meters"), quantity(150, "Centimeters")])
+#% output
+#= quantity(3/2, "Meters")
+
+#% subsection
+# Possible issues
+
+#% text
+# Symbols cannot be sorted, so the median of a list of symbols stays unevaluated:
+
+#% cell
+median([a, b, c])
+#% output
+#= median([a, b, c])
+
+#% text
+# An empty list:
+
+#% cell
+median([])
+#% output
+#! failure(argument, median, "the list is empty")
+
+#% section
+# See also
+
+#% text
+# `mean`, `quantile`, `sort`, `variance`, `std_dev`

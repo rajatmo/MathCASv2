@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# region_disjoint
+
+#% text
+# `region_disjoint(r1, r2, ...)`: whether no two of the regions have a point in common
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[region_disjoint(line([[0], [1]]), interval([2, 4])), region_disjoint(rectangle(), rectangle([2, 2]))]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# word_character
+
+#% text
+# `word_character` is a string pattern for one letter or digit.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("a-1_b", word_character)
+#% output
+#= ["a", "1", "b"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

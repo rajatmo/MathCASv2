@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# precision
+
+#% text
+# `precision(x)` gives the number of correct significant decimal digits of `x`.
+
+#% section
+# Details
+
+#% item
+# Exact numbers have precision `inf`; machine reals 15.95 (their 53 bits); a ball the digits its radius leaves correct. For an expression it is the least precision of its numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+precision(1/3)
+#% output
+#= inf
+
+#% cell
+precision(0.5)
+#% output
+#= 15.954589770191003
+
+#% cell
+precision(n(pi, 30))
+#% output
+#= 34.91947949702182
+
+#% cell
+precision(1~20)
+#% output
+#= 20.16900970948674
+
+#% subsection
+# Scope
+
+#% text
+# The least precision of an expression:
+
+#% cell
+precision(1~30 + x*2~10)
+#% output
+#= 10.23501985257536
+
+#% subsection
+# Properties and relations
+
+#% text
+# Arithmetic with balls tracks the error, so precision is lost on cancellation:
+
+#% cell
+a = n(1 + 10^-15, 25); precision(a - 1)
+#% output
+#= 15.006089553390062
+
+#% text
+# `set_precision` sets it:
+
+#% cell
+precision(set_precision(0.1, 40))
+#% output
+#= 40.0369894233095
+
+#% section
+# See also
+
+#% text
+# `accuracy`, `set_precision`, `n`

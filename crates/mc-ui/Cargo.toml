@@ -1,0 +1,31 @@
+[package]
+name = "mc-ui"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 window support shared by the notebook and the documentation window: bundled fonts, the clipboard, the graphics interface and GPU choice, the settings folder"
+
+[dependencies]
+# eframe's default features without `default_fonts`: the windows bring their own fonts, so egui's built-in ones
+# (Ubuntu Light, Hack, its emoji and icon fonts) are not compiled in
+eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
+# eframe's default feature `winit/default`, which a dependent cannot name through eframe
+winit = "0.30.13"
+# STIX Two Math, the last fallback for mathematical symbols
+mc-mathfont = { path = "../mc-mathfont" }
+png = "0.18"
+serde_json = "1"
+# the icons: SVGs (generated from TikZ by tools/icons.ps1) rasterised at the display's scale
+resvg = { version = "0.49", default-features = false }
+# glyph extents of the text fonts (the layout of typeset cells measures with the cell's own font)
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5.4"
+
+# Linux and the BSDs (X11, and Wayland compositors with the data-control protocol), macOS
+[target.'cfg(not(any(windows, target_os = "android", target_arch = "wasm32")))'.dependencies]
+arboard = { version = "3.7", default-features = false, features = ["image-data", "wayland-data-control"] }

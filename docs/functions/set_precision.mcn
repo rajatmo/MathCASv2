@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# set_precision
+
+#% text
+# `set_precision(x, d)` gives `x` with every number as a ball of `d` significant digits.
+
+#% text
+# `set_precision(x, inf)` makes every number exact.
+
+#% section
+# Details
+
+#% item
+# Machine reals are converted by their exact binary value, so `set_precision(0.1, 30)` shows the binary error of `0.1`. Exact numbers become balls of `d` digits.
+
+#% item
+# Use `n(x, d)` to evaluate an expression to `d` digits instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+set_precision(0.1, 30)
+#% output
+#= 0.100000000000000005551115123126
+
+#% cell
+set_precision(1/3, 20)
+#% output
+#= 0.33333333333333333333
+
+#% cell
+set_precision(0.5, inf)
+#% output
+#= 1/2
+
+#% cell
+set_precision(0.1, inf)
+#% output
+#= 3602879701896397/36028797018963968
+
+#% subsection
+# Scope
+
+#% text
+# Every number of an expression:
+
+#% cell
+set_precision(2.0*x + 1/3, 10)
+#% output
+#= 0.333333333 + 2.000000000*x
+
+#% subsection
+# Properties and relations
+
+#% text
+# Compared with `n`, which computes `1/10` to the requested digits:
+
+#% cell
+[set_precision(0.1, 25), n(1/10, 25)]
+#% output
+#= [0.1000000000000000055511151, 0.10000000000000000000000000000]
+
+#% section
+# See also
+
+#% text
+# `precision`, `accuracy`, `n`, `rationalize`

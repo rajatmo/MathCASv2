@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# zernike_r
+
+#% text
+# `zernike_r(n, m, r)` gives the radial Zernike polynomial R_n^m(r).
+
+#% section
+# Details
+
+#% item
+# R_n^m is zero when n - m is odd or |m| > n.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+zernike_r(4, 2, r)
+#% output
+#= -3*r^2 + 4*r^4
+
+#% cell
+zernike_r(3, 1, 0.5)
+#% output
+#= -0.625
+
+#% section
+# See also
+
+#% text
+# `legendre_p`

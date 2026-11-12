@@ -1,0 +1,30 @@
+[package]
+name = "mc-repl"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 read-eval-print loop with a pluggable engine"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-engine = { path = "../mc-engine" }
+mc-kernel = { path = "../mc-kernel" }
+# pictures embedded in notebooks written by --update
+mc-nbfile = { path = "../mc-nbfile" }
+# string literals, to recognise a value that the last `print` already showed
+mc-syntax = { path = "../mc-syntax" }
+# `--export`: a saved notebook as HTML or PDF
+mc-nbexport = { path = "../mc-nbexport" }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[dev-dependencies]
+# the stub engine of the benchmark runner, for the shell's own tests
+mc-bench = { path = "../mc-bench" }
+# a test native (G93)
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }

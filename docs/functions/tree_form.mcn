@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# tree_form
+
+#% text
+# `tree_form(x)` shows `x` as a tree: each call's head on a line, its arguments below it, indented. It is a display wrapper: the value is `tree_form(x)` itself, drawn as a tree when shown.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tree_form(1 + x^2)
+#% output
+#= add
+#= ├─ 1
+#= └─ pow
+#=    ├─ x
+#=    └─ 2
+
+#% cell
+tree_form(f(a, g(b, c)))
+#% output
+#= f
+#= ├─ a
+#= └─ g
+#=    ├─ b
+#=    └─ c
+
+#% section
+# See also
+
+#% text
+# `full_form`, `depth`, `level`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# scaling_transform
+
+#% text
+# `scaling_transform([s1, s2, ...]) or scaling_transform([s1, ...], p)`: scaling per axis (about p); scaling_transform(s, v) scaling by s along v
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scaling_transform([2, 3])([x, y])
+#% output
+#= [2*x, 3*y]
+
+#% cell
+scaling_transform(2, [1, 1])([1, 0])
+#% output
+#= [3/2, 1/2]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

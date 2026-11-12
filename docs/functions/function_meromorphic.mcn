@@ -1,0 +1,122 @@
+#! mathcas 2 notebook
+
+#% title
+# function_meromorphic
+
+#% text
+# `function_meromorphic(f, z)` gives `true` when `f` is meromorphic in the complex variable `z` (analytic except at poles), and `false` when it is not; `function_meromorphic([f, cond], z)` asks where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# The singular points of `f` that are not poles (branch points and cuts, functions analytic nowhere such as `abs` and `re`) must miss the region.
+
+#% item
+# Poles come from negative powers, `tan`, `sec`, `csc`, `cot` and their hyperbolic forms, the gamma family, `zeta`.
+
+#% item
+# Several variables, parameters (`conditional_expression(true, c)`) and the options of `function_continuous` are accepted.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+function_meromorphic(tan(x), x)
+#% output
+#= true
+
+#% cell
+function_meromorphic(log(x), x)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# The logarithm away from its cut, its zero a pole of the quotient:
+
+#% cell
+function_meromorphic([tanh(x)/log(x), re(x) > 0], x)
+#% output
+#= true
+
+#% text
+# The square root in the upper half plane:
+
+#% cell
+function_meromorphic([sqrt(z), im_part(z) > 0], z)
+#% output
+#= true
+
+#% text
+# Two variables:
+
+#% cell
+[function_meromorphic(pochhammer(x, y), [x, y]), function_meromorphic(x^y, [x, y])]
+#% output
+#= [true, false]
+
+#% text
+# The incomplete gamma function where its argument has a positive real part:
+
+#% cell
+function_meromorphic([gamma(x, y), re(y) > 0], [x, y])
+#% output
+#= true
+
+#% subsection
+# Options
+
+#% text
+# The cut of `log(z + a)` misses the right half plane when `re(a) >= 0`:
+
+#% cell
+function_meromorphic([log(z + a), re(z) > 0], z)
+#% output
+#= conditional_expression(true, re(a) >= 0)
+
+#% cell
+function_meromorphic(sin(z)^a, z, assumptions: element(a, positive_integers))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# Functions with jumps or kinks are not meromorphic:
+
+#% cell
+[function_meromorphic(unit_step(x), x), function_meromorphic(abs(z), z)]
+#% output
+#= [false, false]
+
+#% text
+# The poles of a meromorphic function:
+
+#% cell
+function_poles(tan(x), x)
+#% output
+#= [[conditional_expression((1/2)*pi + pi*c(1), element(c(1), integers)), 1]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A power with a symbolic exponent stays unevaluated; give the exponent's type:
+
+#% cell
+[function_meromorphic(z^a, z), function_meromorphic(z^a, z, assumptions: element(a, integers))]
+#% output
+#= [function_meromorphic(z^a, z), true]
+
+#% section
+# See also
+
+#% text
+# `function_poles`, `function_analytic`, `function_singularities`, `function_continuous`

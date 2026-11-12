@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# Plotting and graphics
+
+#% text
+# `plot` draws curves, `plot3d` surfaces, `list_plot` data points and `histogram` distributions. Each returns an image that the notebook shows under the cell (hover a plot for coordinates; drag a 3D picture to turn it). Options are given as `name: value` after the arguments.
+
+#% section
+# Curves
+
+#% text
+# The range is a list `[x, a, b]` with the variable first. A list of expressions draws several curves, each in its own colour.
+
+#% cell
+plot(sin(x), [x, 0, 2pi])
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2pi], legend: ["sin", "cos"])
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-2.svgz")
+
+#% text
+# Options: `plot_range` fixes the part shown (a curve that leaves it is cut off, as `1/x` is near 0), `x_label` and `y_label` label the axes, `filling` shades a region, `colors` and `line_style` set the look of each curve.
+
+#% cell
+plot(1/x, [x, -2, 2], plot_range: [-5, 5])
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-3.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], filling: axis, x_label: "x", y_label: "sin(x)")
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-4.svgz")
+
+#% section
+# Surfaces and data
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3])
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-5.svgz")
+
+#% text
+# `list_plot` takes values (plotted against 1, 2, 3, ...) or pairs; `joined: true` joins the points. A symbolic table is data like any other list.
+
+#% cell
+list_plot(table(k^2, k, 10))
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-6.svgz")
+
+#% cell
+list_plot([[0, 1], [1, 3], [2, 2], [3, 5]], joined: true)
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-7.svgz")
+
+#% text
+# `histogram` counts values into bins; `bins:` sets their number or width. Seed the generator to get the same picture every time.
+
+#% cell
+seed(1); histogram(random_normal(0, 1, 500), bins: 20)
+#% output
+#= image("07-plotting-and-graphics.files/07-plotting-and-graphics-8.svgz")
+
+#% section
+# Common mistakes
+
+#% item
+# The range needs its variable: `plot(sin(x), [0, 2pi])` is an error, not a plot over `[0, 2pi]`.
+
+#% cell
+plot(sin(x), [0, 2pi])
+#% output
+#! failure(argument, plot, 2)
+
+#% item
+# Every symbol other than the plot variable needs a value first: set `a = 2` before `plot(a*sin(x), [x, 0, 2pi])`, or use `manipulate` for a slider.
+
+#% item
+# `table(k^2, k, 1, 3)` is not the squares of 1 to 3: the extra range makes a second, nested loop over the same name `k` (and a message says so). Write `table(k^2, k, 3)` or `table(k^2, k, range(1, 3))`.
+
+#% cell
+table(k^2, k, 1, 3)
+#% output
+#| table: the iterator `k, a, b` is a variable and its range, then a count: for k from a to b write `k, range(a, b)`
+#= [[1, 1, 1]]
+
+#% section
+# Related functions
+
+#% text
+# `plot`, `plot3d`, `list_plot`, `histogram`, `manipulate`, `table`, `seed`

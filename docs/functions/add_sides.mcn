@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# add_sides
+
+#% text
+# `add_sides(rel, c)` adds c to every side of the equation or inequality rel.
+
+#% text
+# `add_sides(a == b, rel)` adds a and b to the two sides of rel (or, with an equation as second argument, its sides to those of rel).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+add_sides(x - 3 == 7, 3)
+#% output
+#= x == 10
+
+#% cell
+add_sides(a == b, c == d)
+#% output
+#= a + c == b + d
+
+#% cell
+add_sides(z == 7, y > m*x + b)
+#% output
+#= y + z > 7 + b + m*x
+
+#% section
+# See also
+
+#% text
+# `subtract_sides`, `multiply_sides`, `divide_sides`, `solve`

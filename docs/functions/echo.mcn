@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# echo
+
+#% text
+# `echo(x)` prints `x` and gives `x`; `echo(x, label)` prints it after the label; `echo(x, label, f)` prints `f(x)` instead.
+
+#% section
+# Details
+
+#% item
+# The value is `x` itself, so `echo` can be put around any part of a computation.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+echo(1 + 1)
+#% output
+#| 2
+#= 2
+
+#% cell
+echo(x^2, "square:")
+#% output
+#| square: x^2
+#= x^2
+
+#% cell
+echo(range(5), "length:", length)
+#% output
+#| length: 5
+#= [1, 2, 3, 4, 5]
+
+#% section
+# See also
+
+#% text
+# `echo_label`, `echo_function`, `echo_evaluation`, `print`

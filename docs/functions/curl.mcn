@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# curl
+
+#% text
+# `curl(v, [x, y, z])` gives the curl of the three-dimensional vector field `v`.
+
+#% text
+# `curl([v1, v2], [x, y])` gives the scalar curl `d(v2, x) - d(v1, y)` of a plane field.
+
+#% section
+# Details
+
+#% item
+# The variables are Cartesian coordinates.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+curl([-y, x, 0], [x, y, z])
+#% output
+#= [0, 0, 2]
+
+#% cell
+curl([x*y, y*z, z*x], [x, y, z])
+#% output
+#= [-y, -z, -x]
+
+#% cell
+curl([-y, x], [x, y])
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# A gradient field has no curl (`expand` collects the terms):
+
+#% cell
+expand(curl(grad(sin(x*y) + z^2, [x, y, z]), [x, y, z]))
+#% output
+#= [0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `grad`, `div`, `cross`

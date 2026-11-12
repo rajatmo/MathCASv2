@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# power_mod
+
+#% text
+# `power_mod(a, b, m)` gives `mod(a^b, m)`, computed without forming `a^b`.
+
+#% section
+# Details
+
+#% item
+# A negative exponent uses the inverse of `a` modulo `m`, which must exist.
+
+#% item
+# The exponent may be a large integer; the work is proportional to its number of bits.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+power_mod(2, 10, 1000)
+#% output
+#= 24
+
+#% cell
+power_mod(3, 200, 7)
+#% output
+#= 2
+
+#% cell
+power_mod(3, -1, 7)
+#% output
+#= 5
+
+#% cell
+power_mod(2, 10^20, 10^9 + 7)
+#% output
+#= 855473248
+
+#% subsection
+# Applications
+
+#% text
+# The Fermat test of 561, a Carmichael number, which passes for every base prime to it:
+
+#% cell
+power_mod(2, 560, 561)
+#% output
+#= 1
+
+#% cell
+is_prime(561)
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as reducing the full power:
+
+#% cell
+[power_mod(7, 13, 50), mod(7^13, 50)]
+#% output
+#= [7, 7]
+
+#% subsection
+# Possible issues
+
+#% text
+# An inverse that does not exist:
+
+#% cell
+power_mod(2, -1, 8)
+#% output
+#= power_mod(2, -1, 8)
+
+#% section
+# See also
+
+#% text
+# `mod`, `modular_inverse`, `multiplicative_order`, `primitive_root`

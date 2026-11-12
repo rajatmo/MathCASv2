@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_dn
+
+#% text
+# `jacobi_dn(u, m)` gives the Jacobi elliptic function `dn(u | m)`, `sqrt(1 - m*jacobi_sn(u, m)^2)`.
+
+#% section
+# Details
+
+#% item
+# `dn` has the real period `2*K(m)`; `dn(u | 0)` is 1 and `dn(u | 1)` is `sech(u)` (DLMF 22.2, 22.5).
+
+#% item
+# Real machine numbers and balls give numerical values. `jacobi_dn` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_dn(1.0, 0.5)
+#% output
+#= 0.8231610016315962
+
+#% cell
+jacobi_dn(u, 0)
+#% output
+#= 1
+
+#% cell
+jacobi_dn(0.5, 0.9)
+#% output
+#= 0.8979793436947593
+
+#% subsection
+# Properties and relations
+
+#% text
+# `dn^2 + m sn^2 = 1`:
+
+#% cell
+jacobi_dn(0.8, 0.3)^2 + 0.3*jacobi_sn(0.8, 0.3)^2
+#% output
+#= 1.0
+
+#% text
+# The derivative:
+
+#% cell
+d(jacobi_dn(u, m), u)
+#% output
+#= -m*jacobi_cn(u, m)*jacobi_sn(u, m)
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_cn`, `inverse_jacobi_dn`

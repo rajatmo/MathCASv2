@@ -1,0 +1,137 @@
+#! mathcas 2 notebook
+
+#% title
+# variance
+
+#% text
+# `variance(xs)` gives the sample variance of the list of values `xs`, the sum of the squared deviations from the mean divided by n - 1.
+
+#% text
+# `variance(d)` gives the variance of the distribution `d`.
+
+#% section
+# Details
+
+#% item
+# Exact values give an exact variance, machine reals a machine real, and symbols a symbolic expression.
+
+#% item
+# For a list of rows, the variance is taken column by column.
+
+#% item
+# A list needs at least two elements.
+
+#% item
+# The variance of a distribution is exact, and symbolic for symbolic parameters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The variance of four integers:
+
+#% cell
+variance([1, 2, 3, 4])
+#% output
+#= 5/3
+
+#% text
+# Of machine reals:
+
+#% cell
+variance([1.0, 2.0, 3.0, 4.0])
+#% output
+#= 1.6666666666666667
+
+#% text
+# Of a distribution:
+
+#% cell
+variance(binomial_distribution(n, p))
+#% output
+#= n*p*(1 - p)
+
+#% subsection
+# Scope
+
+#% text
+# Column by column:
+
+#% cell
+variance([[1, 2], [3, 4], [5, 9]])
+#% output
+#= [4, 13]
+
+#% text
+# Of symbols:
+
+#% cell
+variance([a, b])
+#% output
+#= (a - (1/2)*(a + b))^2 + (b - (1/2)*(a + b))^2
+
+#% text
+# Of several distributions:
+
+#% cell
+[variance(normal_distribution(mu, sigma)), variance(poisson_distribution(m)), variance(uniform_distribution([a, b])), variance(gamma_distribution(k, t))]
+#% output
+#= [sigma^2, m, (1/12)*(b - a)^2, k*t^2]
+
+#% subsection
+# Applications
+
+#% text
+# Compare the sample variance of simulated Poisson counts with the variance of the distribution, which equals its mean:
+
+#% cell
+seed(1); counts3 = random_variate(poisson_distribution(3), 5000); n([mean(counts3), variance(counts3)])
+#% output
+#= [3.0222, 2.935094178835767]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sample variance is the second central moment times n/(n - 1):
+
+#% cell
+central_moment([1, 2, 3, 4], 2)*4/3
+#% output
+#= 5/3
+
+#% text
+# It is the square of the standard deviation:
+
+#% cell
+variance([2, 4, 4, 5]) == std_dev([2, 4, 4, 5])^2
+#% output
+#= true
+
+#% text
+# A shift of all the values does not change it, even with large values:
+
+#% cell
+[variance([1e9 + 1, 1e9 + 2, 1e9 + 3]), variance([10^20 + 1, 10^20 + 2, 10^20 + 3])]
+#% output
+#= [1.0, 1]
+
+#% subsection
+# Possible issues
+
+#% text
+# One value has no sample variance:
+
+#% cell
+variance([7])
+#% output
+#! failure(argument, variance, "the list needs at least two elements")
+
+#% section
+# See also
+
+#% text
+# `std_dev`, `mean`, `central_moment`, `moment`, `median`

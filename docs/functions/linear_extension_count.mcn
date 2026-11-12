@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# linear_extension_count
+
+#% text
+# `linear_extension_count(P)`: the number of linear extensions of the poset
+
+#% section
+# Details
+
+#% item
+# The count runs over the down-sets of the poset (at most 26 elements).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+linear_extension_count(poset([a, b, c, d], [[a, b], [c, d]]))
+#% output
+#= 6
+
+#% cell
+linear_extension_count(poset(subsets([1, 2, 3]), (s, t) => is_subset(s, t)))
+#% output
+#= 48
+
+#% section
+# See also
+
+#% text
+# `linear_extensions`

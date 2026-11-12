@@ -1,0 +1,342 @@
+//! Each function's behaviour on source text: normal cases, edge cases and failures.
+mod common;
+use common::{check, Env};
+
+#[test]
+fn construction() {
+    check(
+        &mut Env::new(),
+        &[
+            ("range(5)", "[1, 2, 3, 4, 5]"),
+            ("range(0)", "[]"),
+            ("range(-3)", "[]"),
+            ("range(3, 7)", "[3, 4, 5, 6, 7]"),
+            ("range(7, 3)", "[]"),
+            ("range(2, 10, 3)", "[2, 5, 8]"),
+            ("range(10, 1, -4)", "[10, 6, 2]"),
+            ("range(1, 1, -1)", "[1]"),
+            ("range(0, 1, 1/4)", "[0, 1/4, 1/2, 3/4, 1]"),
+            ("range(1/2, 3)", "[1/2, 3/2, 5/2]"),
+            ("range(10^20, 10^20 + 2)", "[100000000000000000000, 100000000000000000001, 100000000000000000002]"),
+            ("range(0, 1, 0.25)", "[0.0, 0.25, 0.5, 0.75, 1.0]"),
+            ("length(range(0, 1, 0.1))", "11"),
+            ("length(range(0, 0.3, 0.1))", "4"),
+            ("range(2.5)", "[1.0, 2.0]"),
+            ("range(x)", "range(x)"),
+            ("range(1, x)", "range(1, x)"),
+            ("range(1, 5, 0)", "failure(argument, range, 3)"),
+            ("range(1, 5, 0.0)", "failure(argument, range, 3)"),
+            ("range(\"a\")", "failure(argument, range, 1)"),
+            ("range(1, \"a\")", "failure(argument, range, 2)"),
+            ("range(1, 2im)", "failure(argument, range, 2)"),
+            ("range(10^30)", "failure(limit, memory, range(1000000000000000000000000000000))"),
+            ("fn sq(k) = k^2", "null"),
+            ("array(sq, 4)", "[1, 4, 9, 16]"),
+            ("array(f, 0)", "[]"),
+            ("array(f, -1)", "failure(argument, array, 2)"),
+            ("nest(f, x, 3)", "f(f(f(x)))"),
+            ("nest(f, x, 0)", "x"),
+            ("nest(sq, 2, 4)", "65536"),
+            ("nest(f, x, -1)", "failure(argument, nest, 3)"),
+            ("nest(f, x, n)", "nest(f, x, n)"),
+            ("nest_list(sq, 2, 3)", "[2, 4, 16, 256]"),
+            ("nest_list(f, x, 0)", "[x]"),
+            ("fn inv(k) = 1/(k - 1)", "null"),
+            ("nest(inv, 2, 5)", "failure(division_by_zero)"),
+            ("nest_list(inv, 2, 5)", "failure(division_by_zero)"),
+            ("fold(g, x, [a, b, c])", "g(g(g(x, a), b), c)"),
+            ("fold(g, x, [])", "x"),
+            ("fold(add, [1, 2, 3, 4])", "10"),
+            ("fold(add, [])", "failure(index, 1, 0)"),
+            ("fold_list(add, 0, [1, 2, 3])", "[0, 1, 3, 6]"),
+            ("fold_list(g, [a, b])", "[a, g(a, b)]"),
+            ("fold(g, x, 3)", "failure(argument, fold, 3)"),
+        ],
+    );
+}
+
+#[test]
+fn access() {
+    check(
+        &mut Env::new(),
+        &[
+            ("xs = [a, b, c, d, e]", "null"),
+            ("length(xs)", "5"),
+            ("length([])", "0"),
+            ("length(x)", "0"),
+            ("length(17)", "0"),
+            ("length(f(x, y) + g(z))", "2"),
+            ("xs[1]", "a"),
+            ("xs[5]", "e"),
+            ("xs[-1]", "e"),
+            ("xs[-5]", "a"),
+            ("xs[0]", "list"),
+            ("xs[6]", "failure(index, 6, 5)"),
+            ("xs[-6]", "failure(index, -6, 5)"),
+            ("xs[1.5]", "failure(index, 1.5, 5)"),
+            ("xs[k]", "[a, b, c, d, e][k]"),
+            ("y[1]", "y[1]"),
+            ("part(17, 1)", "failure(index, 1, 0)"),
+            ("xs[2:4]", "[b, c, d]"),
+            ("xs[2:-2]", "[b, c, d]"),
+            ("xs[3:2]", "[]"),
+            ("xs[6:5]", "[]"),
+            ("xs[1:6]", "failure(index, 6, 5)"),
+            ("xs[4:2]", "failure(index, 2, 5)"),
+            ("xs[[5, 1, 1]]", "[e, a, a]"),
+            ("xs[[1, 9]]", "failure(index, 9, 5)"),
+            ("m = [[1, 2, 3], [4, 5, 6]]", "null"),
+            ("m[2, 3]", "6"),
+            ("m[-1, -1]", "6"),
+            ("m[1:2, 2]", "[2, 5]"),
+            ("m[[2, 1], 2:3]", "[[5, 6], [2, 3]]"),
+            ("m[2, 4]", "failure(index, 4, 3)"),
+            ("m[1, 1, 1]", "failure(index, 1, 0)"),
+            ("(x + y + z)[2:3]", "y + z"),
+            ("f(a, b)[0]", "f"),
+            ("first(xs)", "a"),
+            ("last(xs)", "e"),
+            ("first([])", "failure(index, 1, 0)"),
+            ("last([])", "failure(index, -1, 0)"),
+            ("first(\"s\")", "failure(argument, first, 1)"),
+            ("first(y)", "first(y)"),
+            ("rest(xs)", "[b, c, d, e]"),
+            ("rest([a])", "[]"),
+            ("rest([])", "failure(index, 1, 0)"),
+            ("rest(f(a, b, c))", "f(b, c)"),
+            ("rest(1 + x + y)", "x + y"),
+            ("most(xs)", "[a, b, c, d]"),
+            ("most([])", "failure(index, -1, 0)"),
+            ("take(xs, 2)", "[a, b]"),
+            ("take(xs, -2)", "[d, e]"),
+            ("take(xs, 0)", "[]"),
+            ("take(xs, 5)", "[a, b, c, d, e]"),
+            ("take(xs, 6)", "failure(index, 6, 5)"),
+            ("take(xs, 1/2)", "failure(argument, take, 2)"),
+            ("drop(xs, 2)", "[c, d, e]"),
+            ("drop(xs, -2)", "[a, b, c]"),
+            ("drop(xs, 5)", "[]"),
+            ("drop(xs, -6)", "failure(index, -6, 5)"),
+        ],
+    );
+}
+
+#[test]
+fn reshaping() {
+    check(
+        &mut Env::new(),
+        &[
+            ("append([1, 2], 3)", "[1, 2, 3]"),
+            ("append([], [1])", "[[1]]"),
+            ("prepend([1, 2], 0)", "[0, 1, 2]"),
+            ("append(f(a), b)", "f(a, b)"),
+            ("append(x + 1, 2)", "3 + x"),
+            ("append(3, 2)", "failure(argument, append, 1)"),
+            ("join([1], [2, 3], [], [4])", "[1, 2, 3, 4]"),
+            ("join()", "[]"),
+            ("join([1])", "[1]"),
+            ("join(f(a), f(b, c))", "f(a, b, c)"),
+            ("join([1], f(2))", "failure(argument, join, 2)"),
+            ("join([1], 2)", "failure(argument, join, 2)"),
+            ("reverse([1, 2, 3])", "[3, 2, 1]"),
+            ("reverse([])", "[]"),
+            ("reverse(f(a, b))", "f(b, a)"),
+            ("unique([3, 1, 3, 2, 1, x, x])", "[3, 1, 2, x]"),
+            ("unique([])", "[]"),
+            ("unique([1, 1.0, 1, [1], [1]])", "[1, 1.0, [1]]"),
+            ("unique([a + b, b + a, \"s\", \"s\"])", "[a + b, \"s\"]"),
+            ("unique(f(a, b, a))", "f(a, b)"),
+            ("unique(3)", "failure(argument, unique, 1)"),
+            ("unique([1], [2])", "unique([1], [2])"),
+            ("length(unique(join(range(10^5), range(10^5, 1, -1))))", "100000"),
+            ("flatten([1, [2, [3, [4]]], [], 5])", "[1, 2, 3, 4, 5]"),
+            ("flatten([1, [2, [3, [4]]]], 1)", "[1, 2, [3, [4]]]"),
+            ("flatten([1, [2, [3, [4]]]], 0)", "[1, [2, [3, [4]]]]"),
+            ("flatten([1, f([2])])", "[1, f([2])]"),
+            ("flatten(f(a, f(b, f(c)), g(d)))", "f(a, b, c, g(d))"),
+            ("flatten([1], -1)", "failure(argument, flatten, 2)"),
+            ("transpose([[1, 2], [3, 4], [5, 6]])", "[[1, 3, 5], [2, 4, 6]]"),
+            ("transpose([[1, 2, 3]])", "[[1], [2], [3]]"),
+            ("transpose([])", "[]"),
+            ("transpose([[], []])", "[]"),
+            ("transpose([[1, 2], [3]])", "failure(shape_mismatch, transpose)"),
+            // a vector of numbers is its own transpose (round 37)
+            ("transpose([1, 2])", "[1, 2]"),
+            ("transpose([1, \"a\"])", "failure(argument, transpose, 1)"),
+            ("apply(add, [1, 2, x])", "3 + x"),
+            ("apply(f, g(a, b))", "f(a, b)"),
+            ("apply(list, a + b)", "[a, b]"),
+            ("apply(f, 3)", "failure(argument, apply, 2)"),
+        ],
+    );
+}
+
+#[test]
+fn reduction() {
+    check(
+        &mut Env::new(),
+        &[
+            ("sum([])", "0"),
+            ("sum(range(100))", "5050"),
+            ("sum([2^62, 2^62, 2^62, -2^62])", "9223372036854775808"),
+            ("sum([1/2, 1/3, 1/6])", "1"),
+            ("sum([x, 2x, 1/2, 1/3, y])", "5/6 + y + 3*x"),
+            ("sum([0.5, 1/2])", "1.0"),
+            ("sum([x, -x])", "0"),
+            ("sum([1, 1/0])", "failure(division_by_zero)"),
+            ("sum(3)", "failure(argument, sum, 1)"),
+            ("sum(xs)", "sum(xs)"),
+            ("product([])", "1"),
+            ("product(range(20))", "2432902008176640000"),
+            ("product(range(25))", "15511210043330985984000000"),
+            ("product([x, x, 2, 1/2])", "x^2"),
+            ("product([2^40, 2^40, 2^-80])", "1"),
+            ("product([0, x])", "0"),
+            ("total([[1, 2], [3, [4]], 5], inf)", "15"),
+            ("total([[1, 2], [3, 4], [5, 6]])", "[9, 12]"),
+            ("total([])", "0"),
+            ("max([3, 1/2, 2.5])", "3"),
+            ("max(3, [7, [11]], 2)", "11"),
+            ("min(3, [1, 7])", "1"),
+            ("min([2^70, 2^71])", "1180591620717411303424"),
+            ("max([1/3, 0.3])", "1/3"),
+            ("max([2, 2.0])", "2"),
+            ("max([x, 1])", "max([x, 1])"),
+            ("max([])", "failure(argument, max, 1)"),
+            ("min()", "failure(argument, min, 1)"),
+        ],
+    );
+}
+
+#[test]
+fn selection() {
+    check(
+        &mut Env::new(),
+        &[
+            ("fn odd(k) = imod(k, 2) == 1", "null"),
+            ("select(range(10), odd)", "[1, 3, 5, 7, 9]"),
+            ("select([], odd)", "[]"),
+            ("select(f(1, 2, 3), odd)", "f(1, 3)"),
+            ("select([1, x, 3], odd)", "[1, 3]"),
+            ("fn bad(k) = 1/0", "null"),
+            ("select([1, 2], bad)", "failure(division_by_zero)"),
+            ("xs = [f(1), g(2), f(x), f(3), f(1, 2), 7, \"s\"]", "null"),
+            ("cases(xs, f(k_: Int))", "[f(1), f(3)]"),
+            ("cases(xs, f(_))", "[f(1), f(x), f(3)]"),
+            ("cases(xs, f(__))", "[f(1), f(x), f(3), f(1, 2)]"),
+            ("cases(xs, f(___))", "[f(1), f(x), f(3), f(1, 2)]"),
+            ("cases(xs, _: Int)", "[7]"),
+            ("cases(xs, _: String)", "[\"s\"]"),
+            ("cases(xs, f(1) | g(_))", "[f(1), g(2)]"),
+            ("cases(xs, f(k_) when k > 1)", "[f(3)]"),
+            ("cases(xs, f(k_: Int) -> k^2)", "[1, 9]"),
+            ("cases(xs, f(k__) -> k)", "[[1], [x], [3], [1, 2]]"),
+            ("cases(xs, w @ f(_: Int) -> [w])", "[[f(1)], [f(3)]]"),
+            ("cases([f(1, 1), f(1, 2), f(2, 2)], f(k_, k_))", "[f(1, 1), f(2, 2)]"),
+            ("cases([g(1, 2, 3, 1)], g(a__, b__, a__) -> [a, b])", "[[[1], [2, 3]]]"),
+            ("cases(h(f(1), f(a)), f(_: Symbol))", "[f(a)]"),
+            ("cases(xs, 7)", "[7]"),
+            ("cases(xs, f(x_, x__))", "failure(argument, cases, 2)"),
+            ("cases(3, _)", "failure(argument, cases, 1)"),
+            ("count(xs, f(_))", "3"),
+            ("count(xs, q(_))", "0"),
+            ("count([1, 2, 1], 1)", "2"),
+            ("count([], _)", "0"),
+        ],
+    );
+}
+
+#[test]
+fn sorting() {
+    check(
+        &mut Env::new(),
+        &[
+            ("sort([c, 3, b, 1/2, \"s\", f(x), a, 2.5])", "[1/2, 2.5, 3, \"s\", a, b, c, f(x)]"),
+            ("sort([])", "[]"),
+            ("sort([3, 1, 2, 1])", "[1, 1, 2, 3]"),
+            ("sort(f(c, a, b))", "f(a, b, c)"),
+            ("sort([f(b), f(a, b), f(a)])", "[f(a), f(b), f(a, b)]"),
+            ("sort(3)", "failure(argument, sort, 1)"),
+            ("sort([3, 1, 2], greater)", "[3, 2, 1]"),
+            ("fn by_last(a, b) = last(a) < last(b)", "null"),
+            // elements for which neither comes first trade places (decision cov-core.7)
+            ("sort([[1, 3], [2, 1], [3, 2], [4, 1]], by_last)", "[[4, 1], [2, 1], [3, 2], [1, 3]]"),
+            ("sort([1, 2], same)", "[2, 1]"),
+            ("fn boom(a, b) = 1/0", "null"),
+            ("sort([2, 1], boom)", "failure(division_by_zero)"),
+            ("ordered([1, 2, 2, 3])", "true"),
+            ("ordered([2, 1])", "false"),
+            ("ordered([])", "true"),
+            ("ordered([1, x, f(x)])", "true"),
+            ("ordered([3, 2, 1], greater)", "true"),
+            ("ordered([3, 3, 1], greater)", "false"),
+            ("ordered([1, 2], boom)", "failure(division_by_zero)"),
+        ],
+    );
+}
+
+#[test]
+fn measures_and_strings() {
+    check(
+        &mut Env::new(),
+        &[
+            ("depth(x)", "1"),
+            ("depth(f())", "1"),
+            ("depth(f(x))", "2"),
+            ("depth(f(g(x), y))", "3"),
+            ("depth([1, [2, [3]]])", "4"),
+            ("depth(nest(f, x, 1000))", "1001"),
+            ("leaf_count(x)", "1"),
+            ("leaf_count(f(x, y))", "3"),
+            ("leaf_count(f(g(x), g(x)))", "5"),
+            ("leaf_count(nest(f, x, 10))", "11"),
+            ("string_join(\"a\", \"b\", [\"c\", [\"d\"]])", "\"abcd\""),
+            ("string_join([])", "\"\""),
+            ("string_join(\"a\", 1)", "failure(argument, string_join, 2)"),
+            ("string_join(\"a\", y)", "string_join(\"a\", y)"),
+            ("to_string(x^2 + 1)", "\"1 + x^2\""),
+            ("to_string(\"s\")", "\"s\""),
+            ("to_string(2^100)", "\"1267650600228229401496703205376\""),
+            ("to_string([1, f(x)])", "\"[1, f(x)]\""),
+            ("string_join(\"s\", to_string(42))", "\"s42\""),
+            ("string_length(\"h\\u{e9}llo\")", "5"),
+            ("string_length(\"\")", "0"),
+            ("string_length(3)", "failure(argument, string_length, 1)"),
+            ("split(\" a b  c \")", "[\"a\", \"b\", \"c\"]"),
+            ("split(\"a,,b\", \",\")", "[\"a\", \"\", \"b\"]"),
+            ("split(\"a--b--\", \"--\")", "[\"a\", \"b\", \"\"]"),
+            ("split(\"\")", "[]"),
+            ("split(\"a\", \"\")", "failure(argument, split, 2)"),
+        ],
+    );
+}
+
+#[test]
+fn function_valued_arguments_may_be_natives_and_rules() {
+    check(
+        &mut Env::new(),
+        &[
+            ("rule twice(k_) := 2k", "null"),
+            ("array(twice, 3)", "[2, 4, 6]"),
+            ("select(range(6), even)", "[]"),
+            ("rule even(k_: Int) := imod(k, 2) == 0", "null"),
+            ("select(range(6), even)", "[2, 4, 6]"),
+            ("fold(imul, 1, range(10))", "3628800"),
+            ("nest(twice, 1, 10)", "1024"),
+        ],
+    );
+}
+
+#[test]
+fn lambdas() {
+    check(
+        &mut Env::new(),
+        &[
+            ("select(range(10), k => imod(k, 3) == 0)", "[3, 6, 9]"),
+            ("sort([1, 2, 3], (a, b) => a > b)", "[3, 2, 1]"),
+            ("nest(k => 2k, 1, 10)", "1024"),
+            ("fold((a, b) => a*b, 1, range(5))", "120"),
+            ("array(k => k^2, 3)", "[1, 4, 9]"),
+        ],
+    );
+}

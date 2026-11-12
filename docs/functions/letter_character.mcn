@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# letter_character
+
+#% text
+# `letter_character` is a string pattern for one letter (any script).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("a1b2é3", letter_character)
+#% output
+#= ["a", "b", "é"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

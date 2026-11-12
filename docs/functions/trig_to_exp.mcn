@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# trig_to_exp
+
+#% text
+# `trig_to_exp(e)` writes trigonometric and hyperbolic functions as exponentials.
+
+#% section
+# Details
+
+#% item
+# `sin(x)` becomes `(exp(im*x) - exp(-im*x))/(2*im)`, `cosh(x)` becomes `(exp(x) + exp(-x))/2`, and the other functions are quotients of these.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+trig_to_exp(sin(x))
+#% output
+#= -im/2*exp(im*x) + (im/2)*exp(-im*x)
+
+#% cell
+trig_to_exp(cos(x))
+#% output
+#= (1/2)*exp(-im*x) + (1/2)*exp(im*x)
+
+#% cell
+trig_to_exp(cosh(x))
+#% output
+#= (1/2)*exp(x) + (1/2)*exp(-x)
+
+#% cell
+trig_to_exp(tanh(x))
+#% output
+#= exp(x)/(exp(x) + exp(-x)) - exp(-x)/(exp(x) + exp(-x))
+
+#% subsection
+# Applications
+
+#% text
+# A trigonometric identity, checked through exponentials:
+
+#% cell
+expand(trig_to_exp(sin(x)^2 + cos(x)^2))
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# `exp_to_trig` goes the other way:
+
+#% cell
+exp_to_trig(trig_to_exp(sin(x)))
+#% output
+#= sin(x)
+
+#% section
+# See also
+
+#% text
+# `exp_to_trig`, `trig_expand`, `exp`

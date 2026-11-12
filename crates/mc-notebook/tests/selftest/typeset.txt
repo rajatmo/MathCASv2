@@ -1,0 +1,67 @@
+# Typeset math in the window (round 19): build, click into slots, drag across boxes, copy and paste between cells
+# and from another program, undo, in both themes and at 150 %.
+size 900 600
+ppp 1
+theme light
+new
+keys "y = " Ctrl+/ "1" Down "x" Ctrl+Space " + " Ctrl+2 "x" Ctrl+5 "3" Ctrl+5 Ctrl+Space " + " "e" Ctrl+6 Ctrl+2 "t"
+boxes
+shot t1-built
+log click into the denominator
+click 77 140
+boxes
+log click into the radicand
+click 137 131
+boxes
+log click into the index
+click 117 126
+boxes
+log double-click the radicand
+dblclick 137 131
+boxes
+log drag from the numerator to past the root
+drag 77 116 150 131
+boxes
+shot t2-dragged
+keys Ctrl+C
+clip
+log paste into a new cell below
+keys Ctrl+End Down
+keys "z = " Ctrl+V
+boxes
+shot t3-pasted
+log undo the paste, redo it
+keys Ctrl+Z
+boxes
+keys Ctrl+Shift+Z
+boxes
+log text from another program pastes as text with Ctrl+V and as math with Ctrl+Shift+V
+keys Ctrl+End Down
+setclip "w = x^2/sqrt(y) + surd(a, 3)"
+keys Ctrl+V
+boxes
+keys Ctrl+End Down Ctrl+Shift+V
+boxes
+log an example copied in the documentation window, pasted as math
+keys Ctrl+End Down
+setclip "table(2^k, k, 10)"
+keys Ctrl+Shift+V
+boxes
+shot t4-pasted-math
+log Backspace after the power enters it, then the root, then deletes t; undo brings it back
+keys Ctrl+Home Down End Backspace
+boxes
+keys Backspace
+boxes
+keys Backspace
+boxes
+keys Ctrl+Z
+boxes
+dump typeset
+theme dark
+wait 4
+shot t5-dark
+ppp 1.5
+wait 6
+shot t6-dark-150
+quit

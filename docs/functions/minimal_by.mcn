@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# minimal_by
+
+#% text
+# `minimal_by(xs, f)` gives every element of `xs` with the smallest `f(x)`, in their order; `minimal_by(xs, f, n)` the `n` elements with the smallest keys, smallest first.
+
+#% section
+# Details
+
+#% item
+# For an association, the entries with the smallest values.
+
+#% item
+# `n` may be `up_to(n)` (at most `n`); ties keep their order.
+
+#% item
+# `minimal_by(f)(xs)` is `minimal_by(xs, f)`.
+
+#% item
+# `min_by` gives the first such element alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+minimal_by([[a, 1], [b, 1], [a, 2], [d, 1], [b, 3]], last)
+#% output
+#= [[a, 1], [b, 1], [d, 1]]
+
+#% cell
+minimal_by([[a, 1], [b, 1], [b, 3]], first, up_to(4))
+#% output
+#= [[a, 1], [b, 1], [b, 3]]
+
+#% section
+# See also
+
+#% text
+# `maximal_by`, `min_by`, `sort_by`

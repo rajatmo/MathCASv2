@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# real_exponent
+
+#% text
+# `real_exponent(x)` gives the base-10 logarithm of `abs(x)` as a machine number; `real_exponent(x, b)` uses base `b`.
+
+#% section
+# Details
+
+#% item
+# `real_exponent(0)` is `-inf`.
+
+#% item
+# Exact and symbolic numeric arguments (`pi^pi`) give a machine number, computed from 30 digits so the last digit is right.
+
+#% item
+# A list of numbers or of bases gives a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+real_exponent(1000)
+#% output
+#= 3.0
+
+#% cell
+real_exponent(123.456)
+#% output
+#= 2.0915122016277716
+
+#% cell
+real_exponent(123.456, 2)
+#% output
+#= 6.947853143387016
+
+#% cell
+real_exponent(pi^pi)
+#% output
+#= 1.5618423877889918
+
+#% cell
+real_exponent(pi, [2, 3, 10])
+#% output
+#= [1.6514961294723187, 1.041978045992186, 0.49714987269413385]
+
+#% cell
+real_exponent(0)
+#% output
+#= -inf
+
+#% section
+# See also
+
+#% text
+# `log`, `log10`, `integer_length`

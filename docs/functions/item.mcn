@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# item
+
+#% text
+# `item(x, options)`: x with options for its place in a grid, row or column (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+item(88, alignment: right)
+#% output
+#= item(88, alignment: right)
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

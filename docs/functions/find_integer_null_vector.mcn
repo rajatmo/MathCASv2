@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# find_integer_null_vector
+
+#% text
+# `find_integer_null_vector([x1, ..., xn])` gives integers c1, ..., cn, not all zero, with c1 x1 + ... + cn xn = 0 to the precision of the numbers.
+
+#% text
+# `find_integer_null_vector(xs, d)` only accepts a relation of norm at most d.
+
+#% section
+# Details
+
+#% item
+# The search is the PSLQ algorithm at the precision of the input (machine numbers 53 bits, numbers of `n(x, d)` their own); every relation is checked again before it is returned.
+
+#% item
+# When the relation is as large as relations that hold for any numbers at that precision, a message says it may be an artifact; when none exists below the bound PSLQ proves, the result is a failure with a message.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A relation among 1, sqrt(2) and 2:
+
+#% cell
+find_integer_null_vector([1, sqrt(2.0), 2.0])
+#% output
+#= [2, 0, -1]
+
+#% text
+# Machin's formula for pi, at 30 digits:
+
+#% cell
+find_integer_null_vector(n([pi/4, atan(1/5), atan(1/239)], 30))
+#% output
+#= [1, -4, 1]
+
+#% subsection
+# Scope
+
+#% text
+# Logarithms:
+
+#% cell
+find_integer_null_vector(n([1, log(2), log(3), log(6)], 40))
+#% output
+#= [0, 1, 1, -1]
+
+#% subsection
+# Possible issues
+
+#% text
+# No relation of small size:
+
+#% cell
+find_integer_null_vector(n([zeta(3), pi^3, 1], 50))
+#% output
+#| find_integer_null_vector: no integer relation found within the precision of the input
+#! failure(not_found, find_integer_null_vector)
+
+#% section
+# See also
+
+#% text
+# `root_approximant`, `rationalize`, `minimal_polynomial`, `n`

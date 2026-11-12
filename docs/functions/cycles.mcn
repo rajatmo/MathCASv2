@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# cycles
+
+#% text
+# `cycles([[p1, p2, ...], ...])`: the permutation with these disjoint cycles, in canonical form
+
+#% section
+# Details
+
+#% item
+# A permutation is a list of disjoint cycles of positive integers; `cycles` rotates each cycle to start at its least point, orders the cycles by that point and drops fixed points, so equal permutations are equal expressions.
+
+#% item
+# Cycles that share a point leave the call unevaluated.
+
+#% item
+# `cycles([])` is the identity.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cycles([[3, 1, 2], [5, 4], [6]])
+#% output
+#= cycles([[1, 2, 3], [4, 5]])
+
+#% cell
+cycles([])
+#% output
+#= cycles([])
+
+#% cell
+permutation_list(cycles([[1, 4], [2, 3]]))
+#% output
+#= [4, 3, 2, 1]
+
+#% section
+# See also
+
+#% text
+# `permutation_product`, `permutation_inverse`, `permutation_order`, `permutation_list`

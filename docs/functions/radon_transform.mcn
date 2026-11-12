@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# radon_transform
+
+#% text
+# `radon_transform(f, [x, y], [p, phi])` gives the Radon transform of f: the integral of f over the line `x cos(phi) + y sin(phi) = p`.
+
+#% section
+# Details
+
+#% item
+# The line is parametrized by `x = p cos(phi) - t sin(phi)`, `y = p sin(phi) + t cos(phi)` and the integral over the real t evaluated in closed form; the result is simplified with `trig_reduce`.
+
+#% item
+# Numbers for p and phi give the value on that line.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+radon_transform(exp(-x^2 - y^2), [x, y], [p, phi])
+#% output
+#= exp(-p^2)*pi^(1/2)
+
+#% cell
+radon_transform(x*exp(-x^2 - y^2), [x, y], [p, phi])
+#% output
+#= p*cos(phi)*exp(-p^2)*pi^(1/2)
+
+#% cell
+radon_transform(x*exp(-x^2 - y^2), [x, y], [3, pi/3])
+#% output
+#= 3*pi^(1/2)/(2*exp(9))
+
+#% cell
+radon_transform((x^2 + 5*y^2)*exp(-x^2 - y^2), [x, y], [p, phi])
+#% output
+#= (3/2 + cos(2*phi) + 3*p^2 - 2*cos(2*phi)*p^2)*exp(-p^2)*pi^(1/2)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `fourier_transform`, `hankel_transform`

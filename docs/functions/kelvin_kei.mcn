@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# kelvin_kei
+
+#% text
+# `kelvin_kei(nu, x)` gives the Kelvin function `kei_nu(x)`, the imaginary part of `exp(-nu*pi*im/2)*bessel_k(nu, x*exp(pi*im/4))`.
+
+#% text
+# `kelvin_kei(x)` gives `kei_0(x)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.61.2, for `x > 0`; `kei_0(0)` is `-pi/4`.
+
+#% item
+# Numerical values need `bessel_y` at complex arguments, which is not evaluated yet: machine arguments give an unevaluated expression.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Symbolic arguments stay as they are:
+
+#% cell
+kelvin_kei(x)
+#% output
+#= kelvin_kei(x)
+
+#% cell
+kelvin_kei(nu, x)
+#% output
+#= kelvin_kei(nu, x)
+
+#% cell
+kelvin_kei(2, x)
+#% output
+#= kelvin_kei(2, x)
+
+#% subsection
+# Possible issues
+
+#% text
+# A machine argument is not reduced to a number:
+
+#% cell
+kelvin_kei(1.0)
+#% output
+#= -0.4949946365187199
+
+
+#% text
+# Machine values of any order:
+
+#% cell
+[kelvin_kei(2.5), kelvin_kei(1, 8.)]
+#% output
+#= [-0.11069609915567469, -0.0015669747999993433]
+
+#% section
+# See also
+
+#% text
+# `kelvin_ker`, `kelvin_ber`, `kelvin_bei`, `bessel_k`

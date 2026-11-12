@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# golden_ratio
+
+#% text
+# `golden_ratio` is the golden ratio `(1 + sqrt(5))/2 = 1.6180...`.
+
+#% section
+# Details
+
+#% item
+# `golden_ratio` is exact and known to be a positive real; `n(golden_ratio, d)` gives `d` digits.
+
+#% item
+# It satisfies `golden_ratio^2 == golden_ratio + 1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+golden_ratio
+#% output
+#= golden_ratio
+
+#% cell
+n(golden_ratio)
+#% output
+#= 1.618033988749895
+
+#% cell
+n(golden_ratio, 40)
+#% output
+#= 1.61803398874989484820458683436563811772030918
+
+#% cell
+n(fibonacci(40)/fibonacci(39), 15)
+#% output
+#= 1.6180339887498947364
+
+#% cell
+simplify(golden_ratio^2 - golden_ratio - 1)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `fibonacci`, `catalan`, `euler_gamma`

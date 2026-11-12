@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_pi
+
+#% text
+# `elliptic_pi(n, m)` gives the complete elliptic integral of the third kind `Pi(n | m)`.
+
+#% text
+# `elliptic_pi(n, phi, m)` gives the incomplete integral `Pi(n; phi | m)`, the integral of `1/((1 - n*sin(t)^2)*sqrt(1 - m*sin(t)^2))` for `t` from 0 to `phi`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 19.2.7 with `k^2 = m`, `n` the characteristic. `Pi(0 | m)` is `K(m)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; `n > 1` takes the Cauchy principal value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_pi(0.3, 0.5)
+#% output
+#= 2.250376821943947
+
+#% cell
+elliptic_pi(0, 0.5) - elliptic_k(0.5)
+#% output
+#= 0.0
+
+#% cell
+elliptic_pi(0.3, pi/4, 0.5)
+#% output
+#= 0.8777133738265032
+
+#% subsection
+# Properties and relations
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(1/((1 - 0.3*sin(t)^2)*sqrt(1 - 0.5*sin(t)^2)), [t, 0, pi/2]) - elliptic_pi(0.3, 0.5)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `elliptic_k`, `elliptic_e`, `elliptic_f`

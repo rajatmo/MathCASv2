@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# coulomb_f
+
+#% text
+# `coulomb_f(l, eta, rho)` gives the regular Coulomb wave function `F_l(eta, rho)`.
+
+#% section
+# Details
+
+#% item
+# `F_l(eta, rho) = C_l(eta) rho^(l + 1) e^(-i rho) M(l + 1 - i eta, 2 l + 2, 2 i rho)` with `C_l(eta) = 2^l e^(-pi eta/2) |gamma(l + 1 + i eta)|/gamma(2 l + 2)` (DLMF 33.2.4-33.2.5); `|gamma|` continues to complex `l` and `eta` as `exp((log_gamma(l + 1 + i eta) + log_gamma(l + 1 - i eta))/2)`.
+
+#% item
+# At `eta = 0`, `F_l(0, rho) = rho j_l(rho)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coulomb_f(3, 0.12, 7.0)
+#% output
+#= 0.15899181007331104
+
+#% cell
+n(coulomb_f(3, 2, 5), 30)
+#% output
+#= 0.43131593114087869012387960004177853
+
+#% cell
+coulomb_f(2/3, 0.7 + 0.1*im, 3.2)
+#% output
+#= 1.132683472485845 - 0.01993514125618819im
+
+#% cell
+coulomb_f(l, 0, r)
+#% output
+#= r*spherical_bessel_j(l, r)
+
+#% text
+# A strongly repulsive field keeps the regular solution tiny near the origin; its digits are kept:
+
+#% cell
+n(coulomb_f(1/2, 7, 1), 20)
+#% output
+#= 9.26469883853782447175694e-8
+
+#% section
+# See also
+
+#% text
+# `coulomb_g`, `coulomb_h1`, `coulomb_h2`, `hypergeometric_1f1`

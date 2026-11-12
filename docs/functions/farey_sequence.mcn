@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# farey_sequence
+
+#% text
+# `farey_sequence(k)` gives the Farey sequence of order `k`: the fractions in `[0, 1]` with denominator at most `k`, in increasing order; `farey_sequence(k, j)` gives its `j`-th term.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+farey_sequence(5)
+#% output
+#= [0, 1/5, 1/4, 1/3, 2/5, 1/2, 3/5, 2/3, 3/4, 4/5, 1]
+
+#% cell
+farey_sequence(24, 17)
+#% output
+#= 2/21
+
+#% cell
+length(farey_sequence(15))
+#% output
+#= 73
+
+#% section
+# See also
+
+#% text
+# `euler_phi`, `continued_fraction`

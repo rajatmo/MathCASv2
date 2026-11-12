@@ -1,0 +1,28 @@
+MathCAS v2 kernel for Jupyter
+=============================
+
+Lets Jupyter Notebook, JupyterLab and VS Code's notebook editor (with the Jupyter extension) run MathCAS: a
+.ipynb notebook with the kernel "MathCAS v2" evaluates its cells in one MathCAS session.
+
+Needs Python 3 with ipykernel and jupyter_client (pip install ipykernel). The installer registers the kernel when
+it finds them; by hand, from the distribution folder:
+
+  python jupyter\install.py                      register for the current user (mc-kernel.exe found next to it)
+  python jupyter\install.py --kernel PATH        use another mc-kernel executable
+  python jupyter\install.py --sys-prefix         register in the current Python environment instead
+  python jupyter\install.py --default            also make it the kernel new notebooks start with
+  python jupyter\install.py --uninstall          remove it again (and the default setting)
+  jupyter kernelspec list                        check: "mathcas" is listed
+
+Using it
+- Jupyter: jupyter lab (or jupyter notebook), New -> MathCAS v2.
+- VS Code: open or create a .ipynb file, "Select Kernel" -> "Jupyter Kernel..." -> "MathCAS v2". Cells are coloured
+  as MathCAS when the MathCAS extension (editors\vscode) is installed.
+- Each cell shows the value of its last statement; print/say output appears above it; a failure value is shown in
+  red and the run continues; read errors stop "run all". Interrupt stops a running cell and keeps the session;
+  restart starts a fresh one. Tab completes names (library, prelude, your definitions, module members).
+- Plots: plot(f, [x, a, b]) and list_plot(data) show as images in the cell (examples\plots.ipynb).
+- examples\jupyter.ipynb is a sample notebook.
+
+Files: mathcas_kernel.py (the kernel: a wrapper that talks to mc-kernel.exe over its JSON-lines protocol),
+install.py, the logos.

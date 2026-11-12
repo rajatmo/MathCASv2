@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# find_min_value
+
+#% text
+# `find_min_value(f, [x, x0])` gives the value of a local minimum of `f` found by a local search from `x = x0`, with the arguments and options of `find_minimum`.
+
+#% text
+# `find_min_value([f, cons...], vars)` subject to constraints.
+
+#% section
+# Details
+
+#% item
+# It is `find_minimum` with only the value or the position kept; the position is always a list of the variables' values.
+
+#% item
+# Without a starting value the search starts at 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A local extremum near a start:
+
+#% cell
+find_min_value(x*cos(x), [x, 5])
+#% output
+#= -3.2883713955908966
+
+#% text
+# Several variables:
+
+#% cell
+find_min_value(sin(x)*sin(2y), [[x, 2], [y, 2]])
+#% output
+#= -1.0
+
+#% subsection
+# Scope
+
+#% text
+# With a constraint:
+
+#% cell
+find_min_value([x - 2y, x^2 + y^2 <= 1], [x, y])
+#% output
+#= -2.23606797749979
+
+#% text
+# A linear program:
+
+#% cell
+find_min_value([x + y, 3x + 2y >= 7 and x >= 0 and y >= 0], [x, y])
+#% output
+#= 2.3333333333333335
+
+#% section
+# See also
+
+#% text
+# `find_minimum`, `find_minimum`, `find_maximum`, `n_minimize`

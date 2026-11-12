@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# up_values
+
+#% text
+# `up_values(g)` gives the rules attached to `g` with `@on(g)`: rules for calls of another head that have `g(...)` or `g` among their arguments (semantics 6.5), as `lhs :> rhs` with the left side as it was written.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+@on(square) rule area(square(a_)) := a^2
+
+#% cell
+up_values(square)
+#% output
+#= [area(square(a_)) :> a^2]
+
+#% text
+# The rule is stored with `square`, not with `area`:
+
+#% cell
+down_values(area)
+#% output
+#= []
+
+#% section
+# See also
+
+#% text
+# `down_values`, `sub_values`, `own_values`

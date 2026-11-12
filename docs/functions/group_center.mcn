@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# group_center
+
+#% text
+# `group_center(G)`: the centre of the group
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_center(dihedral_group(8))
+#% output
+#= permutation_group([cycles([[1, 5], [2, 6], [3, 7], [4, 8]])])
+
+#% cell
+group_order(group_center(mathieu_group(11)))
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `group_centralizer`, `is_abelian_group`

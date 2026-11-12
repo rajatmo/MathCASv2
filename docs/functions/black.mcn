@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# black
+
+#% text
+# `black` is the colour black, a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([black, disk()])
+#% output
+#= image("black.files/black-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2pi], colors: [black])
+#% output
+#= image("black.files/black-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Lighter and darker shades:
+
+#% cell
+graphics([[lighter(black), disk([0, 0])], [black, disk([2, 0])], [darker(black), disk([4, 0])]])
+#% output
+#= image("black.files/black-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `white`, `gray`, `gray_level`

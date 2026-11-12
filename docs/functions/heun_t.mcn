@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# heun_t
+
+#% text
+# `heun_t(q, alpha, gamma, delta, epsilon, z)` gives the triconfluent Heun function, the solution of the triconfluent Heun equation with `y(0) = 1` and `y'(0) = 0`.
+
+#% section
+# Details
+
+#% item
+# The equation is `y'' + (gamma + delta z + epsilon z^2) y' + (alpha z - q) y = 0`: entire solutions, an irregular singularity at infinity only.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values (Taylor series continued along the segment from 0 to `z`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heun_t(-0.2, 1.3, 0.12, -0.14, 4.32, -0.3)
+#% output
+#= 0.9967469436314327
+
+#% cell
+n(heun_t(9/10, -14/10, 12/100, 3/100, -2/10, 1/10), 30)
+#% output
+#= 1.0047183377847068369792470512980993
+
+#% cell
+heun_t(1.2, -1.4, 0.12, 0.03, -0.2, [0.15, 0.1 + im, im, 4])
+#% output
+#= [1.014237240166174, 0.4100730770512462 - 0.04170019253553197im, 0.4390517543353412 - 0.14849217035943463im, 5157.031777738096]
+
+#% text
+# With `gamma = delta = epsilon = 0`, `alpha = -1`, `q = 0` the equation is Airy's, `y'' = z y`:
+
+#% cell
+heun_t(0, -1, 0, 0, 0, 1.3) - (airy_ai(1.3)/airy_ai(0) + airy_bi(1.3)/airy_bi(0))/2
+#% output
+#= -2.220446049250313e-16
+
+#% section
+# See also
+
+#% text
+# `heun_b`, `heun_d`, `airy_ai`

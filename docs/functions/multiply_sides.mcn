@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# multiply_sides
+
+#% text
+# `multiply_sides(rel, c)` multiplies every side of the equation or inequality rel by c.
+
+#% section
+# Details
+
+#% item
+# An inequality is reversed for a negative c. When the sign of c is not decided the result is a piecewise over c > 0 and c < 0 (over c != 0 for an equation), with rel itself otherwise.
+
+#% item
+# `assumptions:` facts that decide the sign of c. `multiply_sides(a == b, c == d)` multiplies side by side.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+multiply_sides(x/2 == 3, 2)
+#% output
+#= x == 6
+
+#% cell
+multiply_sides(x > 1, -2)
+#% output
+#= -2*x < -2
+
+#% cell
+multiply_sides(x/a > 1, a, assumptions: a > 0)
+#% output
+#= x > a
+
+#% cell
+multiply_sides(a == b, c)
+#% output
+#= piecewise([[a*c == b*c, c != 0]], a == b)
+
+#% section
+# See also
+
+#% text
+# `divide_sides`, `add_sides`, `subtract_sides`

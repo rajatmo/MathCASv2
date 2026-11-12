@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_bilateral_laplace_transform
+
+#% text
+# `inverse_bilateral_laplace_transform(F, s, t)` gives the function whose two-sided Laplace transform is `F`.
+
+#% text
+# `inverse_bilateral_laplace_transform(conditional_expression(F, a < re(s) and re(s) < b), s, t)` uses the strip `a < re(s) < b`.
+
+#% section
+# Details
+
+#% item
+# A rational function is inverted by residues: the poles left of the strip give the function for `t >= 0`, those right of it (with the opposite sign) the function for `t < 0`; the value is a `piecewise`.
+
+#% item
+# Without a strip, the strip containing the imaginary axis is used; simple poles on the axis give `sign(t)/2` terms.
+
+#% item
+# `exp(a s) G(s)` gives `g(t + a)`; a constant gives `dirac_delta(t)`; `exp(c s^2 + d s)` with `c > 0` gives a Gaussian.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_bilateral_laplace_transform(conditional_expression(1/((1 + s)*(1 - s)), -1 < re(s) and re(s) < 1), s, t)
+#% output
+#= piecewise([[(1/2)*exp(-t), t >= 0]], (1/2)*exp(t))
+
+#% subsection
+# Scope
+
+#% text
+# Another strip of the same function:
+
+#% cell
+inverse_bilateral_laplace_transform(conditional_expression(1/(s*(s - 4)*(s - 8)), 4 < re(s) and re(s) < 8), s, t)
+#% output
+#= piecewise([[1/32 - (1/16)*exp(4*t), t >= 0]], (-1/32)*exp(8*t))
+
+#% text
+# A Gaussian:
+
+#% cell
+inverse_bilateral_laplace_transform(exp(s^2/2), s, t)
+#% output
+#= 2^(1/2)*exp((-1/2)*t^2)/(2*pi^(1/2))
+
+#% text
+# A constant:
+
+#% cell
+inverse_bilateral_laplace_transform(1, s, t)
+#% output
+#= dirac_delta(t)
+
+#% section
+# See also
+
+#% text
+# `bilateral_laplace_transform`, `inverse_laplace_transform`

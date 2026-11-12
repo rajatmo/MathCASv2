@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# longest_common_sequence
+
+#% text
+# `longest_common_sequence(a, b)` gives a longest list of elements (characters of strings) that occur in both `a` and `b` in the same order, not necessarily next to each other.
+
+#% section
+# Details
+
+#% item
+# For strings the result is a string; for lists a list.
+
+#% item
+# `longest_common_subsequence` requires the elements to be consecutive.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+longest_common_sequence("abcdef", "xbdy")
+#% output
+#= "bd"
+
+#% cell
+longest_common_sequence([1, 3, 2, 5, 4], [3, 5, 2, 4])
+#% output
+#= [3, 2, 4]
+
+#% section
+# See also
+
+#% text
+# `longest_common_subsequence`

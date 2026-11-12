@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# is_dataset
+
+#% text
+# `is_dataset(x)` gives `true` if `x` is a dataset, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# A dataset is the term `dataset(assoc(c1 -> col1, ...))` with columns of one length, as `dataset` makes it.
+
+#% item
+# An association of columns is not a dataset until `dataset` is applied to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A dataset and an association:
+
+#% cell
+is_dataset(dataset(assoc("a" -> [1, 2])))
+#% output
+#= true
+
+#% cell
+is_dataset(assoc("a" -> [1, 2]))
+#% output
+#= false
+
+#% subsection
+# Properties and relations
+
+#% text
+# Selecting the datasets of a list:
+
+#% cell
+select([dataset([]), [], 3, dataset(assoc("x" -> [0]))], is_dataset)
+#% output
+#= [dataset(assoc()), dataset(assoc("x" -> [0]))]
+
+#% section
+# See also
+
+#% text
+# `dataset`, `is_assoc`

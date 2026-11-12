@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# pairwise_smooth_density_histogram
+
+#% text
+# `pairwise_smooth_density_histogram(data)` draws a grid of panels with a kernel density estimate of each pair of columns as colours.
+
+#% section
+# Details
+
+#% item
+# Gaussian kernels with Silverman's bandwidth.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pairwise_smooth_density_histogram(table([sin(k), cos(2 * k), k / 50], k, range(1, 200)))
+#% output
+#= image("pairwise_smooth_density_histogram.files/pairwise_smooth_density_histogram-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `pairwise_density_histogram`

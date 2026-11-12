@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# fold_while_list
+
+#% text
+# `fold_while_list(f, x, xs, test)` gives the list of values `fold_while(f, x, xs, test)` goes through: `x`, then each new value, up to the first for which `test` is not `true`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold_while_list((a, b) => a/b, 120, range(10), is_integer)
+#% output
+#= [120, 120, 60, 20, 5, 1, 1/6]
+
+#% section
+# See also
+
+#% text
+# `fold_while`, `fold_list`

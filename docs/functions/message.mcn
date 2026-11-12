@@ -1,0 +1,25 @@
+#! mathcas 2 notebook
+
+#% title
+# message
+
+#% text
+# `message(tag, text)` issues a warning from `tag` (usually a function name); front ends show it apart from the printed output, and the evaluation goes on.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+message(my_fn, "the step is large; results may be rough"); 42
+#% output
+#| my_fn: the step is large; results may be rough
+#= 42
+
+#% section
+# See also
+
+#% text
+# `print`, `check`, `is_failure`

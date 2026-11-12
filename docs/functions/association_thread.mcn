@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# association_thread
+
+#% text
+# `association_thread(ks, vs)` and `association_thread(ks -> vs)` give the association of the entries `ks[i] -> vs[i]` of two lists of the same length (a repeated key keeps its last value).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+association_thread([a, b, c], [1, 2, 3])
+#% output
+#= assoc(a -> 1, b -> 2, c -> 3)
+
+#% cell
+association_thread([1, 2, 1] -> [x, y, z])
+#% output
+#= assoc(1 -> z, 2 -> y)
+
+#% cell
+association_thread(["x", "y"], [[1, 2], [3, 4]])
+#% output
+#= assoc("x" -> [1, 2], "y" -> [3, 4])
+
+#% section
+# See also
+
+#% text
+# `association_map`, `assoc`, `zip`

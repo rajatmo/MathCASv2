@@ -1,0 +1,254 @@
+#! mathcas 2 notebook
+
+#% title
+# full_simplify
+
+#% text
+# `full_simplify(e)` gives the simplest form of `e` it finds by a wider search than `simplify`: special functions are also expanded and identities between them tried.
+
+#% section
+# Details
+
+#% item
+# The search is `simplify`'s, with `function_expand` as one more rewriting, every subexpression searched on its own before the expression it is in, and more steps.
+
+#% item
+# Identities of special functions are used when they make the form simpler: the reflection and recurrence of gamma and polygamma, the dilogarithm reflection, reductions of hypergeometric functions to named functions, Bessel functions, sums of arctangents of rationals, the inverse of `product_log`.
+
+#% item
+# An identity guarded by a condition (`product_log(x*exp(x))` is `x` only for `x >= -1`) is used only when the assumptions prove the condition.
+
+#% item
+# Every form found by an identity is checked numerically at a few points (satisfying the assumptions) before it is returned; a form that differs from the input is not used.
+
+#% item
+# Among equally simple forms the one written with an identity's named function is preferred (`full_simplify(x*gamma(x))` is `gamma(1 + x)`).
+
+#% item
+# Options: `assumptions: a`, `complexity_function: f` as for `simplify`; `transformation_functions: [automatic, f, ...]` adds the functions `f` as rewritings (without `automatic`, only they are used); `excluded_forms: [p, ...]` leaves subexpressions matching the patterns as they are; `time_constraint: s` limits the time in seconds; `trig: false` leaves out the trigonometric factoring.
+
+#% item
+# `full_simplify(e, facts)` simplifies under the extra facts.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The gamma recurrence:
+
+#% cell
+full_simplify(x*gamma(x))
+#% output
+#= gamma(1 + x)
+
+#% text
+# Machin's formula:
+
+#% cell
+full_simplify(16*atan(1/5) - 4*atan(1/239))
+#% output
+#= pi
+
+#% subsection
+# Scope
+
+#% text
+# The dilogarithm reflection:
+
+#% cell
+full_simplify(polylog(2, 1 - z) + polylog(2, z) - zeta(2))
+#% output
+#= -log(z)*log(1 - z)
+
+#% text
+# An inverse function under a condition:
+
+#% cell
+full_simplify(product_log(x*log(x)), x > 1/e)
+#% output
+#= log(x)
+
+#% text
+# Modified Bessel functions:
+
+#% cell
+full_simplify(csc(pi*v)*(bessel_i(-v, z) - bessel_i(v, z))/2)
+#% output
+#= bessel_k(v, z)/pi
+
+#% text
+# Gamma and error functions, and inverse trigonometric functions:
+
+#% cell
+full_simplify(gamma(x + 1)/gamma(x))
+#% output
+#= x
+
+#% cell
+full_simplify(erf(x) + erfc(x))
+#% output
+#= 1
+
+#% cell
+full_simplify(asin(x) + acos(x))
+#% output
+#= (1/2)*pi
+
+#% cell
+full_simplify(atan(1/2) + atan(1/3))
+#% output
+#= (1/4)*pi
+
+#% text
+# Binomial coefficients, and index shifts of the Fibonacci numbers for integers:
+
+#% cell
+full_simplify(binomial(n, 2)*2 - n*(n - 1))
+#% output
+#= 0
+
+#% cell
+full_simplify(fibonacci(n + 2) - fibonacci(n + 1) - fibonacci(n), element(n, integers))
+#% output
+#= 0
+
+#% text
+# Square roots of products need the signs:
+
+#% cell
+full_simplify(sqrt(x)*sqrt(y) - sqrt(x*y), x > 0 and y > 0)
+#% output
+#= 0
+
+#% subsection
+# Options
+
+#% text
+# Leave the logarithm alone:
+
+#% cell
+full_simplify(im_part(log(x) + 2*x - 3*y) - 2*im_part(x), excluded_forms: [log(_)])
+#% output
+#= im_part(log(x) - 3*y)
+
+#% text
+# `assumptions:` as an option, or the facts as a second argument:
+
+#% cell
+full_simplify(sqrt(x^2), assumptions: x > 0)
+#% output
+#= x
+
+#% cell
+full_simplify(sqrt(x^2), x < 0)
+#% output
+#= -x
+
+#% text
+# An identity with a condition that the assumptions prove, and without them:
+
+#% cell
+full_simplify(product_log(x*exp(x)), x >= -1)
+#% output
+#= x
+
+#% cell
+full_simplify(product_log(x*exp(x)))
+#% output
+#= product_log(x*exp(x))
+
+#% text
+# `trig: false` leaves out the trigonometric factoring, and `transformation_functions:` without `automatic` uses only the given functions:
+
+#% cell
+full_simplify(sin(x)*cos(x), trig: false)
+#% output
+#= cos(x)*sin(x)
+
+#% cell
+full_simplify(sin(x)^2 + cos(x)^2, transformation_functions: [expand])
+#% output
+#= cos(x)^2 + sin(x)^2
+
+#% text
+# `time_constraint:` in seconds; a very short limit still gives the identity that comes first:
+
+#% cell
+full_simplify(x*gamma(x), time_constraint: 0.0001)
+#% output
+#= gamma(1 + x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# A form that is not simpler is not taken:
+
+#% cell
+[simplify(chebyshev_t(n, x)), full_simplify(chebyshev_t(n, x))]
+#% output
+#= [chebyshev_t(n, x), chebyshev_t(n, x)]
+
+#% text
+# The result has the same value as the input at a sample point:
+
+#% cell
+[(asin(x) + acos(x)) /. x -> 0.3, full_simplify(asin(x) + acos(x)) /. x -> 0.3]
+#% output
+#= [1.5707963267948968, (1/2)*pi]
+
+#% subsection
+# Possible issues
+
+#% text
+# Some identities are not found: a hypergeometric function that is a logarithm, and a shift by a multiple of `pi` with an integer:
+
+#% cell
+full_simplify(hypergeometric_2f1(1, 1, 2, -x))
+#% output
+#= log(1 + x)/x
+
+#% cell
+full_simplify(sin(n*pi + x), element(n, integers))
+#% output
+#= (-1)^n*sin(x)
+
+#% text
+# A condition that is not known blocks a rewriting: `log(exp(x))` needs `x` real:
+
+#% cell
+full_simplify(log(exp(x)))
+#% output
+#= log(exp(x))
+
+#% cell
+full_simplify(log(exp(x)), element(x, reals))
+#% output
+#= x
+
+#% text
+# Reductions of special functions that `simplify` leaves alone:
+
+#% cell
+simplify(hypergeometric2f1(1, 1, 2, -x))
+#% output
+#= log(1 + x)/x
+
+#% cell
+full_simplify(hypergeometric2f1(1, 1, 2, -x))
+#% output
+#= log(1 + x)/x
+
+#% cell
+full_simplify(exp_integral_e(1, x) - gamma(0, x), x > 0)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `simplify`, `function_expand`, `refine`, `assuming`

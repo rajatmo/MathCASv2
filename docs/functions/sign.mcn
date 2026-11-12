@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# sign
+
+#% text
+# `sign(x)` gives -1, 0 or 1 for a real `x` that is negative, zero or positive.
+
+#% section
+# Details
+
+#% item
+# For a complex number `z` other than 0, `sign(z)` is `z/abs(z)`, a number on the unit circle.
+
+#% item
+# Exact constants are decided numerically; a symbol stays unevaluated, and `refine` decides it from the assumptions.
+
+#% item
+# `sign` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sign(-3)
+#% output
+#= -1
+
+#% cell
+sign(0)
+#% output
+#= 0
+
+#% cell
+sign(2.5)
+#% output
+#= 1
+
+#% cell
+sign(pi - 3)
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# A complex number:
+
+#% cell
+sign(3 + 4*im)
+#% output
+#= 3/5 + 4*im/5
+
+#% text
+# Each element of a list:
+
+#% cell
+sign([-2, 0, 7])
+#% output
+#= [-1, 0, 1]
+
+#% text
+# A symbol with an assumption:
+
+#% cell
+assuming(x > 0, refine(sign(x)))
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# `x == sign(x)*abs(x)`:
+
+#% cell
+sign(-7.5)*abs(-7.5)
+#% output
+#= -7.5
+
+#% section
+# See also
+
+#% text
+# `abs`, `unit_step`, `is_positive`, `is_negative`

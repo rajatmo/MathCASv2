@@ -1,0 +1,1672 @@
+//! The natives: terms in, algorithms, terms out. Every function declines (stays unevaluated) on arguments it does
+//! not understand.
+use crate::backtrack;
+use crate::chain::{Chain, Nat};
+use crate::classes;
+use crate::comb::{self, Matroid, Poset};
+use crate::fp::{self, Word};
+use crate::groups::{self, Group};
+use crate::named;
+use crate::perm::{self, Perm};
+use crate::Ctl;
+use mc_core::{Heap, Store, View, T};
+use mc_eval::{Attributes, Kernel, Native, NativeCx, Reply, Res};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, OnceLock};
+
+type Fx = for<'a, 'k, 'h> fn(&mut NativeCx<'a, 'k, 'h>, &[T<'h>]) -> Res<Option<T<'h>>>;
+
+struct F(Fx);
+
+impl Native for F {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        Ok(match (self.0)(cx, args)? {
+            Some(t) => Reply::Done(t),
+            None => Reply::Decline,
+        })
+    }
+
+    fn reads_term(&self) -> bool {
+        false
+    }
+}
+
+/// Limits of the enumerations (elements, cosets, tableaux, extensions listed in full).
+const LIST_LIMIT: usize = 200_000;
+const COSET_LIMIT: usize = 4_000_000;
+const RULE_LIMIT: usize = 2_000;
+/// Subsets enumerated by the matroid functions: ground sets up to this size.
+const MATROID_MAX: usize = 22;
+
+// ---------------------------------------------------------------------------------------------------------------
+// terms
+
+fn args_of<'h>(h: &'h Heap, t: T<'h>, name: &str) -> Option<&'h [T<'h>]> {
+    match h.view(t) {
+        View::App { head, args } => match h.view(head) {
+            View::Sym(s) if h.sym_name(s) == name => Some(args),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn list<'h>(h: &'h Heap, t: T<'h>) -> Option<&'h [T<'h>]> {
+    args_of(h, t, "list")
+}
+
+fn int(h: &Heap, t: T<'_>) -> Option<i64> {
+    match h.view(t) {
+        View::Int(v) => Some(v),
+        _ => None,
+    }
+}
+
+fn uint(h: &Heap, t: T<'_>) -> Option<usize> {
+    int(h, t).filter(|&v| v >= 0).map(|v| v as usize)
+}
+
+fn ints(h: &Heap, t: T<'_>) -> Option<Vec<i64>> {
+    list(h, t)?.iter().map(|&x| int(h, x)).collect()
+}
+
+fn ilist<'h>(h: &'h Heap, xs: impl IntoIterator<Item = i64>) -> T<'h> {
+    let v: Vec<T<'h>> = xs.into_iter().map(|x| h.int(x)).collect();
+    h.call(h.sym("list"), &v)
+}
+
+fn tlist<'h>(h: &'h Heap, xs: &[T<'h>]) -> T<'h> {
+    h.call(h.sym("list"), xs)
+}
+
+fn boolean<'h>(h: &'h Heap, b: bool) -> T<'h> {
+    h.sym_term(h.sym(if b { "true" } else { "false" }))
+}
+
+fn u128_term(h: &Heap, v: u128) -> T<'_> {
+    if v <= i64::MAX as u128 {
+        h.int(v as i64)
+    } else {
+        h.big_int(false, &[v as u64, (v >> 64) as u64])
+    }
+}
+
+fn i128_term(h: &Heap, v: i128) -> T<'_> {
+    if v.unsigned_abs() <= i64::MAX as u128 {
+        h.int(v as i64)
+    } else {
+        let m = v.unsigned_abs();
+        h.big_int(v < 0, &[m as u64, (m >> 64) as u64])
+    }
+}
+
+fn nat_term<'h>(h: &'h Heap, n: &Nat) -> T<'h> {
+    h.big_int(false, &n.0)
+}
+
+/// The permutation of a `cycles(...)` term (degree: its largest point).
+fn perm_of(h: &Heap, t: T<'_>) -> Option<Perm> {
+    let [c] = args_of(h, t, "cycles")? else { return None };
+    let cs = list(h, *c)?;
+    let mut cyc: Vec<Vec<usize>> = Vec::with_capacity(cs.len());
+    let mut n = 0;
+    for &x in cs {
+        let pts = ints(h, x)?;
+        if pts.iter().any(|&p| !(1..=1 << 24).contains(&p)) {
+            return None;
+        }
+        let pts: Vec<usize> = pts.iter().map(|&p| p as usize - 1).collect();
+        n = n.max(pts.iter().map(|&p| p + 1).max().unwrap_or(0));
+        cyc.push(pts);
+    }
+    let mut p: Perm = (0..n as u32).collect();
+    let mut seen = vec![false; n];
+    for c in &cyc {
+        for &x in c {
+            if seen[x] {
+                return None;
+            }
+            seen[x] = true;
+        }
+        for k in 0..c.len() {
+            p[c[k]] = c[(k + 1) % c.len()] as u32;
+        }
+    }
+    Some(p)
+}
+
+fn perm_term<'h>(h: &'h Heap, p: &[u32]) -> T<'h> {
+    let cs: Vec<T<'h>> = perm::cycles(p).iter().map(|c| ilist(h, c.iter().map(|&x| x as i64 + 1))).collect();
+    h.call(h.sym("cycles"), &[tlist(h, &cs)])
+}
+
+fn perms_term<'h>(h: &'h Heap, ps: &[Perm]) -> T<'h> {
+    let v: Vec<T<'h>> = ps.iter().map(|p| perm_term(h, p)).collect();
+    tlist(h, &v)
+}
+
+/// The generators of a `permutation_group([...])` term.
+fn group_gens(h: &Heap, t: T<'_>) -> Option<Vec<Perm>> {
+    let [g] = args_of(h, t, "permutation_group")? else { return None };
+    list(h, *g)?.iter().map(|&x| perm_of(h, x)).collect()
+}
+
+fn degree(ps: &[Perm]) -> usize {
+    ps.iter().map(|p| perm::support_end(p)).max().unwrap_or(0)
+}
+
+fn widen_all(ps: &[Perm], n: usize) -> Vec<Perm> {
+    ps.iter().map(|p| perm::widen(&p[..perm::support_end(p).min(p.len())], n)).collect()
+}
+
+type Cache = Mutex<HashMap<Vec<Perm>, Arc<Group>>>;
+
+fn cache() -> &'static Cache {
+    static C: OnceLock<Cache> = OnceLock::new();
+    C.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// The group generated by `gens` at degree n (cached).
+fn make(gens: &[Perm], n: usize, ctl: &Ctl) -> Res<Arc<Group>> {
+    let gens = widen_all(gens, n);
+    let mut key = gens.clone();
+    key.push(vec![n as u32]);
+    if let Some(g) = cache().lock().map(|c| c.get(&key).cloned()).ok().flatten() {
+        return Ok(g);
+    }
+    let g = Arc::new(Group::new(n, gens, ctl)?);
+    if let Ok(mut c) = cache().lock() {
+        if c.len() > 256 {
+            c.clear();
+        }
+        c.insert(key, g.clone());
+    }
+    Ok(g)
+}
+
+fn ctl(cx: &NativeCx<'_, '_, '_>) -> Ctl {
+    Ctl::of(cx.stop_flag())
+}
+
+/// A group argument and the degree it needs.
+fn group_arg(h: &Heap, t: T<'_>) -> Option<Vec<Perm>> {
+    group_gens(h, t)
+}
+
+/// A group, an element or a list of elements, as generators.
+fn gens_arg(h: &Heap, t: T<'_>) -> Option<Vec<Perm>> {
+    if let Some(g) = group_gens(h, t) {
+        return Some(g);
+    }
+    if let Some(p) = perm_of(h, t) {
+        return Some(vec![p]);
+    }
+    list(h, t)?.iter().map(|&x| perm_of(h, x)).collect()
+}
+
+/// Generators without redundant ones (each kept only if not generated by the earlier ones).
+fn minimise(n: usize, gens: &[Perm], ctl: &Ctl) -> Res<Vec<Perm>> {
+    let mut c = Chain::trivial(n);
+    let mut out = Vec::new();
+    for g in gens {
+        if !c.contains(g) {
+            c.extend(0, g.clone(), ctl)?;
+            out.push(g.clone());
+        }
+    }
+    Ok(out)
+}
+
+fn group_term<'h>(h: &'h Heap, g: &Group, ctl: &Ctl) -> Res<T<'h>> {
+    let mut gens = minimise(g.n, &g.gens, ctl)?;
+    if gens.len() > 2 * g.n.max(4) {
+        gens = minimise(g.n, &g.chain.strong_gens(), ctl)?;
+    }
+    Ok(h.call(h.sym("permutation_group"), &[perms_term(h, &gens)]))
+}
+
+fn point(h: &Heap, t: T<'_>) -> Option<u32> {
+    int(h, t).filter(|&p| (1..=1 << 24).contains(&p)).map(|p| p as u32 - 1)
+}
+
+fn points(h: &Heap, t: T<'_>) -> Option<Vec<u32>> {
+    if let Some(p) = point(h, t) {
+        return Some(vec![p]);
+    }
+    list(h, t)?.iter().map(|&x| point(h, x)).collect()
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// permutations
+
+fn f_cycles<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [c] = a else { return Ok(None) };
+    let t = h.call(h.sym("cycles"), &[*c]);
+    Ok(perm_of(h, t).map(|p| perm_term(h, &p)))
+}
+
+fn f_product<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(ps) = a.iter().map(|&x| perm_of(h, x)).collect::<Option<Vec<Perm>>>() else { return Ok(None) };
+    let n = ps.iter().map(|p| p.len()).max().unwrap_or(0);
+    let mut r = perm::identity(n);
+    for p in &ps {
+        r = perm::mul(&r, &perm::widen(p, n));
+    }
+    Ok(Some(perm_term(h, &r)))
+}
+
+fn f_inverse<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    Ok(perm_of(h, *p).map(|p| perm_term(h, &perm::inv(&p))))
+}
+
+fn f_power<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p, k] = a else { return Ok(None) };
+    let (Some(p), Some(k)) = (perm_of(h, *p), int(h, *k)) else { return Ok(None) };
+    let o = perm::order(&p).unwrap_or(1) as i128;
+    let k = (k as i128).rem_euclid(o) as i64;
+    Ok(Some(perm_term(h, &perm::pow(&p, k))))
+}
+
+fn f_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    Ok(perm_of(h, *p).and_then(|p| perm::order(&p)).map(|o| u128_term(h, o)))
+}
+
+fn f_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    if let Some(l) = list(h, *p) {
+        // an image list
+        let Some(q) = image_list(h, l) else { return Ok(None) };
+        return Ok(Some(h.int(perm::sign(&q))));
+    }
+    Ok(perm_of(h, *p).map(|p| h.int(perm::sign(&p))))
+}
+
+fn image_list(h: &Heap, l: &[T<'_>]) -> Option<Perm> {
+    let n = l.len();
+    let mut seen = vec![false; n];
+    let mut p = Vec::with_capacity(n);
+    for &x in l {
+        let v = int(h, x)?;
+        if v < 1 || v as usize > n || seen[v as usize - 1] {
+            return None;
+        }
+        seen[v as usize - 1] = true;
+        p.push(v as u32 - 1);
+    }
+    Some(p)
+}
+
+fn f_cycle_type<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (p, n) = match a {
+        [p] => (perm_of(h, *p), None),
+        [p, n] => (perm_of(h, *p), uint(h, *n)),
+        _ => return Ok(None),
+    };
+    let Some(p) = p else { return Ok(None) };
+    let ct = match n {
+        None => perm::cycle_type(&p).into_iter().filter(|&c| c > 1).collect::<Vec<_>>(),
+        Some(n) if n >= perm::support_end(&p) => perm::cycle_type(&perm::widen(&p[..perm::support_end(&p)], n)),
+        Some(_) => return Ok(None),
+    };
+    Ok(Some(ilist(h, ct.into_iter().map(|c| c as i64))))
+}
+
+fn f_list<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (p, n) = match a {
+        [p] => (perm_of(h, *p), None),
+        [p, n] => (perm_of(h, *p), uint(h, *n)),
+        _ => return Ok(None),
+    };
+    let Some(p) = p else { return Ok(None) };
+    let e = perm::support_end(&p);
+    let n = n.unwrap_or(e);
+    if n < e {
+        return Ok(None);
+    }
+    let q = perm::widen(&p[..e], n);
+    Ok(Some(ilist(h, q.iter().map(|&x| x as i64 + 1))))
+}
+
+fn f_from_list<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [l] = a else { return Ok(None) };
+    let Some(l) = list(h, *l) else { return Ok(None) };
+    Ok(image_list(h, l).map(|p| perm_term(h, &p)))
+}
+
+fn f_image<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p, x] = a else { return Ok(None) };
+    let Some(p) = perm_of(h, *p) else { return Ok(None) };
+    let img = |v: i64| if v >= 1 && (v as usize) <= p.len() { p[v as usize - 1] as i64 + 1 } else { v };
+    if let Some(v) = int(h, *x) {
+        if v >= 1 {
+            return Ok(Some(h.int(img(v))));
+        }
+        return Ok(None);
+    }
+    let Some(vs) = ints(h, *x) else { return Ok(None) };
+    if vs.iter().any(|&v| v < 1) {
+        return Ok(None);
+    }
+    Ok(Some(ilist(h, vs.into_iter().map(img))))
+}
+
+fn f_support<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    let Some(p) = perm_of(h, *p) else { return Ok(None) };
+    Ok(Some(ilist(h, (0..p.len()).filter(|&i| p[i] as usize != i).map(|i| i as i64 + 1))))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// permutation groups
+
+/// The group of the first argument (at the degree that also covers `extra`).
+fn group1<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>, extra: usize) -> Res<Option<Arc<Group>>> {
+    let h = cx.heap();
+    let Some(gens) = group_arg(h, t) else { return Ok(None) };
+    let n = degree(&gens).max(extra);
+    Ok(Some(make(&gens, n, &ctl(cx))?))
+}
+
+fn f_degree<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    Ok(group_arg(h, *g).map(|gens| h.int(degree(&gens) as i64)))
+}
+
+fn f_group_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    if let Some(f) = fp_of(cx, *g) {
+        return fp_order(cx, &f);
+    }
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    Ok(Some(nat_term(h, &g.chain.order())))
+}
+
+fn f_generators<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    if let Some(f) = fp_of(cx, *g) {
+        return Ok(Some(tlist(h, &f.names)));
+    }
+    Ok(group_arg(h, *g).map(|gens| perms_term(h, &gens)))
+}
+
+fn f_elements<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let Some(mut els) = g.chain.elements(LIST_LIMIT, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "group_elements"]))) };
+    els.sort();
+    Ok(Some(perms_term(h, &els)))
+}
+
+fn f_member<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, p] = a else { return Ok(None) };
+    let Some(p) = perm_of(h, *p) else { return Ok(None) };
+    let Some(g) = group1(cx, *g, p.len())? else { return Ok(None) };
+    Ok(Some(boolean(h, g.contains(&perm::widen(&p, g.n)))))
+}
+
+fn f_chain<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let base = ilist(h, g.chain.base().iter().map(|&b| b as i64 + 1));
+    let sgs = perms_term(h, &g.chain.strong_gens());
+    Ok(Some(tlist(h, &[base, sgs])))
+}
+
+fn f_orbit<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, x] = a else { return Ok(None) };
+    let Some(x) = point(h, *x) else { return Ok(None) };
+    let Some(g) = group1(cx, *g, x as usize + 1)? else { return Ok(None) };
+    let mut o = groups::orbit(g.n, &g.gens, x);
+    o.sort_unstable();
+    Ok(Some(ilist(h, o.iter().map(|&y| y as i64 + 1))))
+}
+
+fn f_orbits<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (g, n) = match a {
+        [g] => (*g, 0),
+        [g, n] => match uint(h, *n) {
+            Some(n) => (*g, n),
+            None => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    let Some(g) = group1(cx, g, n)? else { return Ok(None) };
+    let os: Vec<T<'h>> = groups::orbits(g.n, &g.gens).iter().map(|o| ilist(h, o.iter().map(|&y| y as i64 + 1))).collect();
+    Ok(Some(tlist(h, &os)))
+}
+
+fn f_stabilizer<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, x] = a else { return Ok(None) };
+    let Some(pts) = points(h, *x) else { return Ok(None) };
+    let need = pts.iter().map(|&p| p as usize + 1).max().unwrap_or(0);
+    let Some(g) = group1(cx, *g, need)? else { return Ok(None) };
+    let c = ctl(cx);
+    let s = groups::stabilizer(&g, &pts, &c)?;
+    Ok(Some(group_term(h, &s, &c)?))
+}
+
+fn f_set_stabilizer<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, x] = a else { return Ok(None) };
+    let Some(pts) = points(h, *x) else { return Ok(None) };
+    let need = pts.iter().map(|&p| p as usize + 1).max().unwrap_or(0);
+    let Some(g) = group1(cx, *g, need)? else { return Ok(None) };
+    let c = ctl(cx);
+    let s = backtrack::set_stabilizer(&g, &pts, &c)?;
+    Ok(Some(group_term(h, &s, &c)?))
+}
+
+/// Two groups at a common degree (the second may also be an element or a list of elements).
+fn two_groups<'h>(cx: &NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Option<(Arc<Group>, Arc<Group>)>> {
+    let h = cx.heap();
+    let (Some(ga), Some(gb)) = (group_arg(h, a), gens_arg(h, b)) else { return Ok(None) };
+    let n = degree(&ga).max(degree(&gb));
+    let c = ctl(cx);
+    Ok(Some((make(&ga, n, &c)?, make(&gb, n, &c)?)))
+}
+
+fn f_cosets<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], left: bool) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    if !g.contains_group(&s) {
+        return Ok(None);
+    }
+    let Some(mut reps) = groups::right_cosets(&g, &s, LIST_LIMIT, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "cosets"]))) };
+    if left {
+        // g H = (H g^-1)^-1
+        reps = reps.iter().map(|r| perm::inv(r)).collect();
+    }
+    Ok(Some(perms_term(h, &reps)))
+}
+
+fn f_right_cosets<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_cosets(cx, a, false)
+}
+
+fn f_left_cosets<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_cosets(cx, a, true)
+}
+
+fn f_index<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    if let Some(f) = fp_of(cx, *g) {
+        let Some(sub) = words_arg(cx, &f, *s) else { return Ok(None) };
+        let Some(t) = fp::enumerate(f.m, &f.rels, &sub, COSET_LIMIT, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "coset_enumeration"]))) };
+        return Ok(Some(h.int(t.rows.len() as i64)));
+    }
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    if !g.contains_group(&s) {
+        return Ok(None);
+    }
+    let (Some(a), Some(b)) = (g.order(), s.order()) else { return Ok(None) };
+    Ok(Some(u128_term(h, a / b)))
+}
+
+fn f_normal_closure<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    let c = ctl(cx);
+    let r = groups::normal_closure(&g, &s.gens, &c)?;
+    Ok(Some(group_term(h, &r, &c)?))
+}
+
+fn f_centralizer<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    let c = ctl(cx);
+    let r = backtrack::centralizer(&g, &s.gens, &c)?;
+    Ok(Some(group_term(h, &r, &c)?))
+}
+
+fn f_center<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let r = backtrack::centralizer(&g, &g.gens, &c)?;
+    Ok(Some(group_term(h, &r, &c)?))
+}
+
+fn f_intersection<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    let c = ctl(cx);
+    let r = backtrack::intersection(&g, &s, &c)?;
+    Ok(Some(group_term(h, &r, &c)?))
+}
+
+fn f_is_subgroup<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    if group_arg(h, *s).is_none() {
+        return Ok(None);
+    }
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    Ok(Some(boolean(h, g.contains_group(&s))))
+}
+
+fn f_is_normal<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, s] = a else { return Ok(None) };
+    if group_arg(h, *s).is_none() {
+        return Ok(None);
+    }
+    let Some((g, s)) = two_groups(cx, *g, *s)? else { return Ok(None) };
+    Ok(Some(boolean(h, g.contains_group(&s) && groups::is_normal(&g, &s))))
+}
+
+fn f_derived<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let d = groups::derived_subgroup(&g, &c)?;
+    Ok(Some(group_term(h, &d, &c)?))
+}
+
+fn series_term<'h>(h: &'h Heap, s: &[Group], c: &Ctl) -> Res<T<'h>> {
+    let mut v = Vec::with_capacity(s.len());
+    for g in s {
+        v.push(group_term(h, g, c)?);
+    }
+    Ok(tlist(h, &v))
+}
+
+fn f_derived_series<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let s = groups::derived_series(&g, &c)?;
+    Ok(Some(series_term(h, &s, &c)?))
+}
+
+fn f_lower_central<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let s = groups::lower_central_series(&g, &c)?;
+    Ok(Some(series_term(h, &s, &c)?))
+}
+
+fn f_composition<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let Some(s) = groups::composition_series(&g, &c)? else { return Ok(Some(cx.failure(&["limit", "composition_series"]))) };
+    Ok(Some(series_term(h, &s, &c)?))
+}
+
+fn f_is_solvable<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    Ok(Some(boolean(h, groups::is_solvable(&g, &ctl(cx))?)))
+}
+
+fn f_is_nilpotent<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    Ok(Some(boolean(h, groups::is_nilpotent(&g, &ctl(cx))?)))
+}
+
+fn f_is_abelian<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    Ok(Some(boolean(h, groups::is_abelian(&g))))
+}
+
+fn f_is_simple<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    if g.is_trivial() {
+        return Ok(Some(boolean(h, false)));
+    }
+    let Some(s) = groups::composition_series(&g, &c)? else { return Ok(Some(cx.failure(&["limit", "is_simple_group"]))) };
+    Ok(Some(boolean(h, s.len() == 2)))
+}
+
+/// The group and the points it acts on: 1..n with n the degree, or the given n.
+fn acting<'h>(cx: &NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<Arc<Group>>> {
+    let h = cx.heap();
+    match a {
+        [g] => group1(cx, *g, 0),
+        [g, n] => match uint(h, *n) {
+            Some(n) => {
+                let Some(gens) = group_arg(h, *g) else { return Ok(None) };
+                if degree(&gens) > n {
+                    return Ok(None);
+                }
+                Ok(Some(make(&gens, n, &ctl(cx))?))
+            }
+            None => Ok(None),
+        },
+        _ => Ok(None),
+    }
+}
+
+fn transitive(g: &Group) -> bool {
+    g.n <= 1 || groups::orbit(g.n, &g.gens, 0).len() == g.n
+}
+
+fn f_is_transitive<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(g) = acting(cx, a)? else { return Ok(None) };
+    Ok(Some(boolean(h, transitive(&g))))
+}
+
+fn f_is_primitive<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(g) = acting(cx, a)? else { return Ok(None) };
+    Ok(Some(boolean(h, transitive(&g) && groups::nontrivial_blocks(g.n, &g.gens).is_none())))
+}
+
+fn f_blocks<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let blocks_term = |bs: &[Vec<u32>]| -> T<'h> {
+        let v: Vec<T<'h>> = bs.iter().map(|b| ilist(h, b.iter().map(|&x| x as i64 + 1))).collect();
+        tlist(h, &v)
+    };
+    match a {
+        [g] => {
+            let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+            if !transitive(&g) {
+                return Ok(None);
+            }
+            let bs = groups::nontrivial_blocks(g.n, &g.gens).unwrap_or_else(|| vec![(0..g.n as u32).collect()]);
+            Ok(Some(blocks_term(&bs)))
+        }
+        [g, pq] => {
+            let Some(pq) = points(h, *pq) else { return Ok(None) };
+            let [p, q] = pq[..] else { return Ok(None) };
+            let Some(g) = group1(cx, *g, p.max(q) as usize + 1)? else { return Ok(None) };
+            if !transitive(&g) {
+                return Ok(None);
+            }
+            Ok(Some(blocks_term(&groups::minimal_blocks(g.n, &g.gens, p, q))))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn conj_args<'h>(cx: &NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<(Arc<Group>, Perm, Perm)>> {
+    let h = cx.heap();
+    let [g, x, y] = a else { return Ok(None) };
+    let (Some(x), Some(y), Some(gens)) = (perm_of(h, *x), perm_of(h, *y), group_arg(h, *g)) else { return Ok(None) };
+    let n = degree(&gens).max(x.len()).max(y.len());
+    let g = make(&gens, n, &ctl(cx))?;
+    Ok(Some((g, perm::widen(&x, n), perm::widen(&y, n))))
+}
+
+fn f_is_conjugate<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some((g, x, y)) = conj_args(cx, a)? else { return Ok(None) };
+    if !g.contains(&x) || !g.contains(&y) {
+        return Ok(None);
+    }
+    Ok(Some(boolean(h, backtrack::conjugator(&g, &x, &y, &ctl(cx))?.is_some())))
+}
+
+fn f_conjugator<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some((g, x, y)) = conj_args(cx, a)? else { return Ok(None) };
+    if !g.contains(&x) || !g.contains(&y) {
+        return Ok(None);
+    }
+    Ok(Some(match backtrack::conjugator(&g, &x, &y, &ctl(cx))? {
+        Some(c) => perm_term(h, &c),
+        None => cx.failure(&["not_conjugate"]),
+    }))
+}
+
+fn f_abelian_invariants<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    if let Some(f) = fp_of(cx, *g) {
+        return Ok(fp::abelian_invariants(f.m, &f.rels).map(|v| tlist(h, &v.iter().map(|&x| u128_term(h, x)).collect::<Vec<_>>())));
+    }
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let Some(v) = groups::abelian_invariants(&g, &ctl(cx))? else { return Ok(None) };
+    Ok(Some(tlist(h, &v.iter().map(|&x| u128_term(h, x)).collect::<Vec<_>>())))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// named groups
+
+fn named_term<'h>(h: &'h Heap, (_, gens): (usize, Vec<Perm>)) -> T<'h> {
+    h.call(h.sym("permutation_group"), &[perms_term(h, &gens)])
+}
+
+fn f_named<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], make: fn(usize) -> (usize, Vec<Perm>)) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [k] = a else { return Ok(None) };
+    let Some(k) = uint(h, *k).filter(|&k| k <= 1 << 16) else { return Ok(None) };
+    Ok(Some(named_term(h, make(k))))
+}
+
+fn f_symmetric<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_named(cx, a, named::symmetric)
+}
+
+fn f_alternating<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_named(cx, a, named::alternating)
+}
+
+fn f_cyclic<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_named(cx, a, named::cyclic)
+}
+
+fn f_dihedral<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    f_named(cx, a, named::dihedral)
+}
+
+fn f_abelian<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [ks] = a else { return Ok(None) };
+    let Some(ks) = ints(h, *ks) else { return Ok(None) };
+    if ks.iter().any(|&k| !(1..=1 << 16).contains(&k)) {
+        return Ok(None);
+    }
+    let ks: Vec<usize> = ks.iter().map(|&k| k as usize).collect();
+    Ok(Some(named_term(h, named::abelian(&ks))))
+}
+
+fn f_mathieu<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [k] = a else { return Ok(None) };
+    let Some(k) = uint(h, *k) else { return Ok(None) };
+    let c = ctl(cx);
+    let gens = match k {
+        11 | 12 | 23 | 24 => named::mathieu(k).expect("listed degrees").1,
+        21 | 22 => {
+            // the stabiliser of the last points of M23, on the remaining points
+            let (n, gens) = named::mathieu(23).expect("listed degrees");
+            let g = Group::new(n, gens, &c)?;
+            let fixed: Vec<u32> = (k as u32..23).rev().collect();
+            let s = groups::stabilizer(&g, &fixed, &c)?;
+            let gens = minimise(n, &s.gens, &c)?;
+            gens.iter().map(|p| p[..k].to_vec()).collect()
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(h.call(h.sym("permutation_group"), &[perms_term(h, &gens)])))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// classes and characters
+
+fn f_class_reps<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let Some((reps, _)) = classes::reps_and_sizes(&g, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "conjugacy_classes"]))) };
+    Ok(Some(perms_term(h, &reps)))
+}
+
+fn f_class_sizes<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let Some((_, sizes)) = classes::reps_and_sizes(&g, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "conjugacy_classes"]))) };
+    Ok(Some(tlist(h, &sizes.iter().map(|&s| u128_term(h, s)).collect::<Vec<_>>())))
+}
+
+fn f_classes<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    if g.order().is_none_or(|o| o > LIST_LIMIT as u128) {
+        return Ok(Some(cx.failure(&["limit", "conjugacy_classes"])));
+    }
+    let Some(cl) = classes::Classes::compute(&g, &ctl(cx))? else { return Ok(None) };
+    let Some(els) = g.chain.elements(LIST_LIMIT, &ctl(cx))? else { return Ok(None) };
+    let mut out: Vec<Vec<Perm>> = vec![Vec::new(); cl.reps.len()];
+    for e in els {
+        let k = cl.class(&g, &e);
+        out[k].push(e);
+    }
+    let v: Vec<T<'h>> = out
+        .iter_mut()
+        .map(|c| {
+            c.sort();
+            perms_term(h, c)
+        })
+        .collect();
+    Ok(Some(tlist(h, &v)))
+}
+
+/// sum_s m_s zeta_o^s as an exact number: an integer when the multiplicities are constant on the classes of
+/// (Z/o)^* (then the value is sum_d M_d mu(o/d), Ramanujan's sums), else the sum of powers of exp(2 pi i/o)
+/// evaluated by the engine.
+fn value_term<'h>(cx: &mut NativeCx<'_, '_, 'h>, (o, ms): &classes::Value) -> Res<T<'h>> {
+    let h = cx.heap();
+    let o = *o;
+    let gcd = |mut a: u64, mut b: u64| {
+        while b != 0 {
+            (a, b) = (b, a % b);
+        }
+        a
+    };
+    let rational = (0..o).all(|s| ms[s as usize] == ms[gcd(s, o) as usize % o as usize]);
+    if rational {
+        let mu = |mut n: u64| -> i64 {
+            let mut r = 1;
+            let mut p = 2;
+            while p * p <= n {
+                if n.is_multiple_of(p) {
+                    n /= p;
+                    if n.is_multiple_of(p) {
+                        return 0;
+                    }
+                    r = -r;
+                }
+                p += 1;
+            }
+            if n > 1 {
+                r = -r;
+            }
+            r
+        };
+        let mut v: i64 = 0;
+        for d in 1..=o {
+            if o % d == 0 {
+                v += ms[(d % o) as usize] as i64 * mu(o / d);
+            }
+        }
+        return Ok(h.int(v));
+    }
+    // o an odd prime and m constant on the squares and on the non-squares: m_0 + A eta_+ + B eta_- with the
+    // Gauss periods eta_+ + eta_- = -1, eta_+ - eta_- = sqrt(o) (o = 1 mod 4) or i sqrt(o) (o = 3 mod 4)
+    let prime = o > 2 && (2..o).take_while(|d| d * d <= o).all(|d| o % d != 0);
+    if prime {
+        let squares: Vec<bool> = {
+            let mut q = vec![false; o as usize];
+            for s in 1..o {
+                q[(s * s % o) as usize] = true;
+            }
+            q
+        };
+        let a = (1..o).find(|&s| squares[s as usize]).map(|s| ms[s as usize]);
+        let b = (1..o).find(|&s| !squares[s as usize]).map(|s| ms[s as usize]);
+        if let (Some(a), Some(b)) = (a, b) {
+            if (1..o).all(|s| ms[s as usize] == if squares[s as usize] { a } else { b }) {
+                let (a, b) = (a as i64, b as i64);
+                let root = h.call(h.sym("pow"), &[h.int(o as i64), h.call(h.sym("pow"), &[h.int(2), h.int(-1)])]);
+                let mut g = vec![h.int(a - b), h.call(h.sym("pow"), &[h.int(2), h.int(-1)]), root];
+                if o % 4 == 3 {
+                    g.push(h.sym_term(h.sym("im")));
+                }
+                let half = h.call(h.sym("mul"), &[h.int(-(a + b)), h.call(h.sym("pow"), &[h.int(2), h.int(-1)])]);
+                let v = h.call(h.sym("add"), &[h.int(ms[0] as i64), half, h.call(h.sym("mul"), &g)]);
+                return cx.eval(v);
+            }
+        }
+    }
+    // real and imaginary parts: (m_s + m_(o-s)) cos(2 pi s/o) + i (m_s - m_(o-s)) sin(2 pi s/o), s <= o/2, so
+    // that the engine's special values of cos and sin give radicals where they exist
+    let mut terms = vec![h.int(ms[0] as i64)];
+    let pi = h.sym_term(h.sym("pi"));
+    let im = h.sym_term(h.sym("im"));
+    for s in 1..=o / 2 {
+        let (a, b) = (ms[s as usize] as i64, ms[(o - s) as usize] as i64);
+        if 2 * s == o {
+            terms.push(h.int(-a));
+            continue;
+        }
+        let angle = h.call(h.sym("mul"), &[h.int(2 * s as i64), pi, h.call(h.sym("pow"), &[h.int(o as i64), h.int(-1)])]);
+        if a + b != 0 {
+            terms.push(h.call(h.sym("mul"), &[h.int(a + b), h.call(h.sym("cos"), &[angle])]));
+        }
+        if a != b {
+            terms.push(h.call(h.sym("mul"), &[h.int(a - b), im, h.call(h.sym("sin"), &[angle])]));
+        }
+    }
+    let sum = cx.eval(h.call(h.sym("add"), &terms))?;
+    cx.eval(h.call(h.sym("simplify"), &[sum]))
+}
+
+fn f_character_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let Some((_, table)) = classes::character_table(&g, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "character_table"]))) };
+    let mut rows = Vec::with_capacity(table.len());
+    for row in &table {
+        let mut v = Vec::with_capacity(row.len());
+        for x in row {
+            v.push(value_term(cx, x)?);
+        }
+        rows.push(tlist(h, &v));
+    }
+    Ok(Some(tlist(h, &rows)))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// finitely presented groups
+
+struct Fp<'h> {
+    names: Vec<T<'h>>,
+    m: usize,
+    rels: Vec<Word>,
+}
+
+fn letter<'h>(cx: &NativeCx<'_, '_, 'h>, names: &[T<'h>], t: T<'h>) -> Option<Word> {
+    let h = cx.heap();
+    let find = |x: T<'h>| names.iter().position(|&n| cx.cmp(n, x) == std::cmp::Ordering::Equal);
+    if let Some(i) = find(t) {
+        return Some(vec![2 * i as u32]);
+    }
+    let [b, e] = args_of(h, t, "pow")? else { return None };
+    let i = find(*b)?;
+    let e = int(h, *e)?;
+    if e.unsigned_abs() > 1 << 16 {
+        return None;
+    }
+    let x = if e < 0 { 2 * i as u32 + 1 } else { 2 * i as u32 };
+    Some(vec![x; e.unsigned_abs() as usize])
+}
+
+/// A word: a list of letters and words (nested lists are concatenated, so `table([a, b], 3)` is (a b)^3), or one
+/// letter; a relation `u -> v` (or `u == v`) is the relator u v^-1.
+fn word<'h>(cx: &NativeCx<'_, '_, 'h>, names: &[T<'h>], t: T<'h>) -> Option<Word> {
+    let h = cx.heap();
+    if let Some([u, v]) = args_of(h, t, "rule").or_else(|| args_of(h, t, "equal")) {
+        let mut w = word(cx, names, *u)?;
+        w.extend(fp::inverse(&word(cx, names, *v)?));
+        return Some(w);
+    }
+    if let Some(l) = list(h, t) {
+        let mut w = Vec::new();
+        for &x in l {
+            w.extend(word(cx, names, x)?);
+        }
+        return Some(w);
+    }
+    letter(cx, names, t)
+}
+
+fn fp_of<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Fp<'h>> {
+    let h = cx.heap();
+    let [g, r] = args_of(h, t, "finitely_presented_group")? else { return None };
+    let names = list(h, *g)?.to_vec();
+    if names.iter().any(|&x| !matches!(h.view(x), View::Sym(_))) {
+        return None;
+    }
+    let rels = list(h, *r)?.iter().map(|&x| word(cx, &names, x)).collect::<Option<Vec<Word>>>()?;
+    Some(Fp { m: names.len(), names, rels })
+}
+
+fn words_arg<'h>(cx: &NativeCx<'_, '_, 'h>, f: &Fp<'h>, t: T<'h>) -> Option<Vec<Word>> {
+    let h = cx.heap();
+    list(h, t)?.iter().map(|&x| word(cx, &f.names, x)).collect()
+}
+
+fn word_term<'h>(h: &'h Heap, f: &Fp<'h>, w: &[u32]) -> T<'h> {
+    let mut out = Vec::new();
+    let mut k = 0;
+    while k < w.len() {
+        let mut j = k;
+        while j < w.len() && w[j] == w[k] {
+            j += 1;
+        }
+        let g = f.names[(w[k] / 2) as usize];
+        let e = (j - k) as i64 * if w[k] % 2 == 1 { -1 } else { 1 };
+        out.push(if e == 1 { g } else { h.call(h.sym("pow"), &[g, h.int(e)]) });
+        k = j;
+    }
+    tlist(h, &out)
+}
+
+fn fp_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &Fp<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if fp::abelian_invariants(f.m, &f.rels).is_some_and(|v| v.contains(&0)) {
+        return Ok(Some(h.sym_term(h.sym("inf"))));
+    }
+    match fp::enumerate(f.m, &f.rels, &[], COSET_LIMIT, &ctl(cx))? {
+        Some(t) => Ok(Some(h.int(t.rows.len() as i64))),
+        None => Ok(Some(cx.failure(&["limit", "coset_enumeration"]))),
+    }
+}
+
+fn f_presented<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    // validation only: a malformed presentation stays as it is, a valid one too
+    let _ = (cx, a);
+    Ok(None)
+}
+
+fn f_coset_table<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (f, sub) = match a {
+        [f] => (fp_of(cx, *f), Some(Vec::new())),
+        [f, s] => match fp_of(cx, *f) {
+            Some(fp) => {
+                let sub = words_arg(cx, &fp, *s);
+                (Some(fp), sub)
+            }
+            None => (None, None),
+        },
+        _ => return Ok(None),
+    };
+    let (Some(f), Some(sub)) = (f, sub) else { return Ok(None) };
+    let Some(t) = fp::enumerate(f.m, &f.rels, &sub, COSET_LIMIT, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "coset_enumeration"]))) };
+    if t.rows.len() > LIST_LIMIT {
+        return Ok(Some(cx.failure(&["limit", "coset_table"])));
+    }
+    let rows: Vec<T<'h>> = t.rows.iter().map(|r| ilist(h, r.iter().map(|&x| x as i64 + 1))).collect();
+    Ok(Some(tlist(h, &rows)))
+}
+
+fn f_permutation_group<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let (f, sub) = match a {
+        [f] => (fp_of(cx, *f), Some(Vec::new())),
+        [f, s] => match fp_of(cx, *f) {
+            Some(fp) => {
+                let sub = words_arg(cx, &fp, *s);
+                (Some(fp), sub)
+            }
+            None => (None, None),
+        },
+        _ => return Ok(None),
+    };
+    let (Some(f), Some(sub)) = (f, sub) else { return Ok(None) };
+    let Some(t) = fp::enumerate(f.m, &f.rels, &sub, COSET_LIMIT, &ctl(cx))? else { return Ok(Some(cx.failure(&["limit", "coset_enumeration"]))) };
+    let gens: Vec<Perm> = (0..f.m).map(|i| t.rows.iter().map(|r| r[2 * i]).collect()).collect();
+    Ok(Some(h.call(h.sym("permutation_group"), &[perms_term(h, &gens)])))
+}
+
+fn rewriting<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: &Fp<'h>) -> Res<Option<fp::Rewriting>> {
+    fp::knuth_bendix(f.m, &f.rels, RULE_LIMIT, &ctl(cx))
+}
+
+fn f_knuth_bendix<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [f] = a else { return Ok(None) };
+    let Some(f) = fp_of(cx, *f) else { return Ok(None) };
+    let Some(sys) = rewriting(cx, &f)? else { return Ok(Some(cx.failure(&["limit", "knuth_bendix"]))) };
+    let rules: Vec<T<'h>> = sys.rules.iter().map(|(l, r)| h.call(h.sym("rule"), &[word_term(h, &f, l), word_term(h, &f, r)])).collect();
+    Ok(Some(tlist(h, &rules)))
+}
+
+fn f_word_normal_form<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [f, w] = a else { return Ok(None) };
+    let Some(f) = fp_of(cx, *f) else { return Ok(None) };
+    let Some(w) = word(cx, &f.names, *w) else { return Ok(None) };
+    let Some(sys) = rewriting(cx, &f)? else { return Ok(Some(cx.failure(&["limit", "knuth_bendix"]))) };
+    Ok(Some(word_term(h, &f, &sys.reduce(&fp::free_reduce(&w)))))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// posets
+
+struct PosetArg<'h> {
+    elems: Vec<T<'h>>,
+    p: Poset,
+}
+
+fn poset_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<PosetArg<'h>>> {
+    let h = cx.heap();
+    let Some([e, r]) = args_of(h, t, "poset") else { return Ok(None) };
+    let Some(elems) = list(h, *e).map(|l| l.to_vec()) else { return Ok(None) };
+    let k = elems.len();
+    if k > 4096 {
+        return Ok(None);
+    }
+    let find = |cx: &NativeCx<'_, '_, 'h>, x: T<'h>| elems.iter().position(|&y| cx.cmp(x, y) == std::cmp::Ordering::Equal);
+    let mut pairs = Vec::new();
+    if let Some(rs) = list(h, *r) {
+        for &pr in rs {
+            let Some([a, b]) = list(h, pr) else { return Ok(None) };
+            let (Some(i), Some(j)) = (find(cx, *a), find(cx, *b)) else { return Ok(None) };
+            pairs.push((i, j));
+        }
+    } else {
+        // a relation function: f(a, b) true when a <= b
+        for i in 0..k {
+            for j in 0..k {
+                if i != j {
+                    let v = cx.eval(h.app(*r, &[elems[i], elems[j]]))?;
+                    if cx.is_true(v) {
+                        pairs.push((i, j));
+                    } else if !cx.is_false(v) {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+    }
+    Ok(Poset::new(k, &pairs).map(|p| PosetArg { elems, p }))
+}
+
+fn f_poset_mu<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(&p) = a.first() else { return Ok(None) };
+    let Some(pa) = poset_of(cx, p)? else { return Ok(None) };
+    let mu = pa.p.moebius();
+    match a {
+        [_] => Ok(Some(tlist(h, &mu.iter().map(|r| ilist(h, r.iter().copied())).collect::<Vec<_>>()))),
+        [_, x, y] => {
+            let find = |x: T<'h>| pa.elems.iter().position(|&e| cx.cmp(e, x) == std::cmp::Ordering::Equal);
+            let (Some(i), Some(j)) = (find(*x), find(*y)) else { return Ok(None) };
+            Ok(Some(h.int(mu[i][j])))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn f_linear_extensions<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    let Some(pa) = poset_of(cx, *p)? else { return Ok(None) };
+    let Some(exts) = pa.p.linear_extensions(LIST_LIMIT) else { return Ok(Some(cx.failure(&["limit", "linear_extensions"]))) };
+    let v: Vec<T<'h>> = exts.iter().map(|e| tlist(h, &e.iter().map(|&i| pa.elems[i]).collect::<Vec<_>>())).collect();
+    Ok(Some(tlist(h, &v)))
+}
+
+fn f_linear_extension_count<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    let Some(pa) = poset_of(cx, *p)? else { return Ok(None) };
+    Ok(pa.p.linear_extension_count().map(|c| u128_term(h, c)))
+}
+
+fn f_covers<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    let Some(pa) = poset_of(cx, *p)? else { return Ok(None) };
+    let v: Vec<T<'h>> = pa.p.covers().iter().map(|&(i, j)| tlist(h, &[pa.elems[i], pa.elems[j]])).collect();
+    Ok(Some(tlist(h, &v)))
+}
+
+fn f_is_lattice<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p] = a else { return Ok(None) };
+    let Some(pa) = poset_of(cx, *p)? else { return Ok(None) };
+    Ok(Some(boolean(h, pa.p.is_lattice())))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// matroids
+
+/// An integer matrix (rows); rational rows are scaled by the least common multiple of their denominators.
+fn int_matrix(h: &Heap, t: T<'_>) -> Option<Vec<Vec<i128>>> {
+    let rows = list(h, t)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for &r in rows {
+        let es = list(h, r)?;
+        let mut nums = Vec::with_capacity(es.len());
+        let mut dens = Vec::with_capacity(es.len());
+        for &e in es {
+            match h.view(e) {
+                View::Int(v) => {
+                    nums.push(v as i128);
+                    dens.push(1i128);
+                }
+                View::Rational { num, den } => {
+                    nums.push(int(h, num)? as i128);
+                    dens.push(int(h, den)? as i128);
+                }
+                _ => return None,
+            }
+        }
+        let g = |mut a: i128, mut b: i128| {
+            while b != 0 {
+                (a, b) = (b, a % b);
+            }
+            a.abs()
+        };
+        let l = dens.iter().try_fold(1i128, |l, &d| (l / g(l, d)).checked_mul(d))?;
+        out.push(nums.iter().zip(&dens).map(|(&n, &d)| n.checked_mul(l / d)).collect::<Option<Vec<i128>>>()?);
+    }
+    if out.iter().any(|r| r.len() != out[0].len()) {
+        return None;
+    }
+    Some(out)
+}
+
+fn matroid_of<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> Option<Matroid> {
+    let h = cx.heap();
+    let m = if let Some([a]) = args_of(h, t, "linear_matroid") {
+        Matroid::Linear(int_matrix(h, *a)?)
+    } else if let Some([e]) = args_of(h, t, "graphic_matroid") {
+        let mut verts: Vec<T<'h>> = Vec::new();
+        let mut edges = Vec::new();
+        for &ed in list(h, *e)? {
+            let [u, v] = list(h, ed)? else { return None };
+            let mut idx = |x: T<'h>| match verts.iter().position(|&y| cx.cmp(x, y) == std::cmp::Ordering::Equal) {
+                Some(i) => i,
+                None => {
+                    verts.push(x);
+                    verts.len() - 1
+                }
+            };
+            let (a, b) = (idx(*u), idx(*v));
+            edges.push((a, b));
+        }
+        Matroid::Graphic(verts.len(), edges)
+    } else if let Some([r, m]) = args_of(h, t, "uniform_matroid") {
+        let (r, m) = (uint(h, *r)?, uint(h, *m)?);
+        if r > m {
+            return None;
+        }
+        Matroid::Uniform(r, m)
+    } else {
+        let a = args_of(h, t, "matroid")?;
+        let (bs, m) = match a {
+            [bs] => (*bs, None),
+            [bs, m] => (*bs, Some(uint(h, *m)?)),
+            _ => return None,
+        };
+        let bases: Vec<Vec<i64>> = list(h, bs)?.iter().map(|&b| ints(h, b)).collect::<Option<_>>()?;
+        let m = m.unwrap_or_else(|| bases.iter().flatten().copied().max().unwrap_or(0) as usize);
+        if m > 63 || bases.iter().flatten().any(|&x| x < 1 || x as usize > m) || bases.is_empty() {
+            return None;
+        }
+        let masks: Vec<u64> = bases.iter().map(|b| b.iter().fold(0u64, |s, &x| s | 1 << (x - 1))).collect();
+        if masks.iter().any(|b| b.count_ones() != masks[0].count_ones()) {
+            return None;
+        }
+        Matroid::Bases(m, masks)
+    };
+    (m.size() <= MATROID_MAX).then_some(m)
+}
+
+fn mask_term(h: &Heap, s: u64) -> T<'_> {
+    ilist(h, (0..64).filter(|&j| s >> j & 1 == 1).map(|j| j as i64 + 1))
+}
+
+fn f_matroid_rank<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(m) = a.first().and_then(|&t| matroid_of(cx, t)) else { return Ok(None) };
+    let size = m.size();
+    let s = match a {
+        [_] => (1u64 << size) - 1,
+        [_, s] => {
+            let Some(xs) = ints(h, *s) else { return Ok(None) };
+            if xs.iter().any(|&x| x < 1 || x as usize > size) {
+                return Ok(None);
+            }
+            xs.iter().fold(0u64, |s, &x| s | 1 << (x - 1))
+        }
+        _ => return Ok(None),
+    };
+    Ok(m.rank(s).map(|r| h.int(r as i64)))
+}
+
+fn f_matroid_bases<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [m] = a else { return Ok(None) };
+    let Some(m) = matroid_of(cx, *m) else { return Ok(None) };
+    Ok(m.bases().map(|bs| tlist(h, &bs.iter().map(|&b| mask_term(h, b)).collect::<Vec<_>>())))
+}
+
+fn f_matroid_circuits<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [m] = a else { return Ok(None) };
+    let Some(m) = matroid_of(cx, *m) else { return Ok(None) };
+    Ok(m.circuits().map(|bs| tlist(h, &bs.iter().map(|&b| mask_term(h, b)).collect::<Vec<_>>())))
+}
+
+fn f_tutte<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [m, x, y] = a else { return Ok(None) };
+    let Some(m) = matroid_of(cx, *m) else { return Ok(None) };
+    let Some(t) = m.tutte() else { return Ok(None) };
+    let mut terms = Vec::new();
+    for (i, row) in t.iter().enumerate() {
+        for (j, &c) in row.iter().enumerate() {
+            if c != 0 {
+                terms.push(h.call(
+                    h.sym("mul"),
+                    &[i128_term(h, c), h.call(h.sym("pow"), &[*x, h.int(i as i64)]), h.call(h.sym("pow"), &[*y, h.int(j as i64)])],
+                ));
+            }
+        }
+    }
+    Ok(Some(cx.eval(h.call(h.sym("add"), &terms))?))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// tableaux
+
+fn tableau_term<'h>(h: &'h Heap, t: &[Vec<i64>]) -> T<'h> {
+    tlist(h, &t.iter().map(|r| ilist(h, r.iter().copied())).collect::<Vec<_>>())
+}
+
+fn int_tableau(h: &Heap, t: T<'_>) -> Option<Vec<Vec<i64>>> {
+    list(h, t)?.iter().map(|&r| ints(h, r)).collect()
+}
+
+fn shape_of(h: &Heap, t: T<'_>) -> Option<Vec<usize>> {
+    let s = ints(h, t)?;
+    if s.iter().any(|&x| x < 0) || s.windows(2).any(|w| w[0] < w[1]) || s.iter().sum::<i64>() > 4096 {
+        return None;
+    }
+    Some(s.into_iter().filter(|&x| x > 0).map(|x| x as usize).collect())
+}
+
+fn f_rs<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [w] = a else { return Ok(None) };
+    let w = match perm_of(h, *w) {
+        Some(p) => p.iter().map(|&x| x as i64 + 1).collect(),
+        None => match ints(h, *w) {
+            Some(w) => w,
+            None => return Ok(None),
+        },
+    };
+    let (p, q) = comb::rsk(&w);
+    let q: Vec<Vec<i64>> = q.iter().map(|r| r.iter().map(|&x| x as i64).collect()).collect();
+    Ok(Some(tlist(h, &[tableau_term(h, &p), tableau_term(h, &q)])))
+}
+
+fn f_rs_inverse<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [p, q] = a else { return Ok(None) };
+    let (Some(p), Some(q)) = (int_tableau(h, *p), int_tableau(h, *q)) else { return Ok(None) };
+    let n: usize = q.iter().map(|r| r.len()).sum();
+    let mut qs: Vec<i64> = q.iter().flatten().copied().collect();
+    qs.sort_unstable();
+    if qs != (1..=n as i64).collect::<Vec<_>>() {
+        return Ok(None);
+    }
+    let q: Vec<Vec<usize>> = q.iter().map(|r| r.iter().map(|&x| x as usize).collect()).collect();
+    Ok(comb::rsk_inverse(&p, &q).map(|w| ilist(h, w)))
+}
+
+fn f_hooks<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [s] = a else { return Ok(None) };
+    let Some(s) = shape_of(h, *s) else { return Ok(None) };
+    let hk: Vec<Vec<i64>> = comb::hooks(&s).iter().map(|r| r.iter().map(|&x| x as i64).collect()).collect();
+    Ok(Some(tableau_term(h, &hk)))
+}
+
+fn f_syt<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [s] = a else { return Ok(None) };
+    let Some(s) = shape_of(h, *s) else { return Ok(None) };
+    let Some(ts) = comb::standard_tableaux(&s, LIST_LIMIT) else { return Ok(Some(cx.failure(&["limit", "standard_young_tableaux"]))) };
+    let v: Vec<T<'h>> = ts.iter().map(|t| tableau_term(h, &t.iter().map(|r| r.iter().map(|&x| x as i64).collect()).collect::<Vec<_>>())).collect();
+    Ok(Some(tlist(h, &v)))
+}
+
+/// n! / prod hooks, exactly (by prime exponents).
+fn f_syt_count<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [s] = a else { return Ok(None) };
+    let Some(s) = shape_of(h, *s) else { return Ok(None) };
+    let n: usize = s.iter().sum();
+    let mut ex = vec![0i64; n + 1];
+    let mut add = |mut m: usize, d: i64| {
+        let mut p = 2;
+        while m > 1 {
+            while m.is_multiple_of(p) {
+                ex[p] += d;
+                m /= p;
+            }
+            p += 1;
+        }
+    };
+    for k in 2..=n {
+        add(k, 1);
+    }
+    for r in comb::hooks(&s) {
+        for x in r {
+            add(x, -1);
+        }
+    }
+    let mut v = Nat::one();
+    for (p, &e) in ex.iter().enumerate() {
+        for _ in 0..e.max(0) {
+            v.mul_small(p as u64);
+        }
+    }
+    Ok(Some(nat_term(h, &v)))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Polya counting
+
+/// The cycle types (all n parts, as multiplicities m_1..m_n) with their numbers of elements.
+type CycleTypes = Vec<(Vec<usize>, u128)>;
+
+fn cycle_types(g: &Group, c: &Ctl) -> Res<Option<CycleTypes>> {
+    let n = g.n;
+    let mult = |ct: &[usize]| -> Vec<usize> {
+        let mut m = vec![0; n + 1];
+        for &l in ct {
+            m[l] += 1;
+        }
+        m
+    };
+    let Some(order) = g.order() else { return Ok(None) };
+    let mut fact: u128 = 1;
+    let mut fact_ok = true;
+    for k in 2..=n as u128 {
+        match fact.checked_mul(k) {
+            Some(f) => fact = f,
+            None => fact_ok = false,
+        }
+    }
+    // the full symmetric or alternating group on its points: n! / z_lambda per partition
+    if fact_ok && n >= 2 && (order == fact || (n >= 3 && order * 2 == fact)) {
+        let alt = order != fact;
+        let mut out = Vec::new();
+        for lam in comb::partitions(n) {
+            if alt && lam.iter().filter(|&&l| l % 2 == 0).count() % 2 == 1 {
+                continue;
+            }
+            let m = mult(&lam);
+            let mut z: u128 = 1;
+            for (k, &mk) in m.iter().enumerate().skip(1) {
+                for i in 1..=mk {
+                    z *= k as u128 * i as u128;
+                }
+            }
+            out.push((m, fact / z));
+        }
+        return Ok(Some(out));
+    }
+    let mut counts: HashMap<Vec<usize>, u128> = HashMap::new();
+    if let Some(els) = g.chain.elements(classes::ENUM_LIMIT as usize, c)? {
+        for e in els {
+            *counts.entry(mult(&perm::cycle_type(&e))).or_insert(0) += 1;
+        }
+    } else {
+        let Some((reps, sizes)) = classes::reps_and_sizes(g, c)? else { return Ok(None) };
+        for (r, s) in reps.iter().zip(sizes) {
+            *counts.entry(mult(&perm::cycle_type(r))).or_insert(0) += s;
+        }
+    }
+    let mut out: Vec<(Vec<usize>, u128)> = counts.into_iter().collect();
+    out.sort();
+    Ok(Some(out))
+}
+
+fn f_cycle_index<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, x] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let Some(order) = g.order() else { return Ok(None) };
+    let Some(types) = cycle_types(&g, &c)? else { return Ok(Some(cx.failure(&["limit", "cycle_index_polynomial"]))) };
+    let inv = h.call(h.sym("pow"), &[u128_term(h, order), h.int(-1)]);
+    let mut terms = Vec::new();
+    for (m, k) in &types {
+        let mut fs = vec![u128_term(h, *k), inv];
+        for (len, &mk) in m.iter().enumerate().skip(1) {
+            if mk > 0 {
+                fs.push(h.call(h.sym("pow"), &[h.app(*x, &[h.int(len as i64)]), h.int(mk as i64)]));
+            }
+        }
+        terms.push(h.call(h.sym("mul"), &fs));
+    }
+    Ok(Some(cx.eval(h.call(h.sym("add"), &terms))?))
+}
+
+fn f_polya<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let [g, w] = a else { return Ok(None) };
+    let Some(g) = group1(cx, *g, 0)? else { return Ok(None) };
+    let c = ctl(cx);
+    let Some(order) = g.order() else { return Ok(None) };
+    let Some(types) = cycle_types(&g, &c)? else { return Ok(Some(cx.failure(&["limit", "polya_count"]))) };
+    // x_k -> k colours (a number) or sum_i w_i^k (a list of weights)
+    let weights = list(h, *w).map(|l| l.to_vec());
+    let sub = |len: usize| -> T<'h> {
+        match &weights {
+            Some(ws) => h.call(h.sym("add"), &ws.iter().map(|&wi| h.call(h.sym("pow"), &[wi, h.int(len as i64)])).collect::<Vec<_>>()),
+            None => *w,
+        }
+    };
+    let inv = h.call(h.sym("pow"), &[u128_term(h, order), h.int(-1)]);
+    let mut terms = Vec::new();
+    for (m, k) in &types {
+        let mut fs = vec![u128_term(h, *k), inv];
+        for (len, &mk) in m.iter().enumerate().skip(1) {
+            if mk > 0 {
+                fs.push(h.call(h.sym("pow"), &[sub(len), h.int(mk as i64)]));
+            }
+        }
+        terms.push(h.call(h.sym("mul"), &fs));
+    }
+    let s = cx.eval(h.call(h.sym("add"), &terms))?;
+    Ok(Some(cx.eval(h.call(h.sym("expand"), &[s]))?))
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// registration
+
+const TABLE: &[(&str, Fx, &str)] = &[
+    ("cycles", f_cycles, "cycles([[p1, p2, ...], ...]): the permutation with these disjoint cycles, in canonical form"),
+    ("permutation_product", f_product, "permutation_product(p1, p2, ...): the product, applying p1 first"),
+    ("permutation_inverse", f_inverse, "permutation_inverse(p): the inverse permutation"),
+    ("permutation_power", f_power, "permutation_power(p, k): the k-th power of the permutation (k may be negative)"),
+    ("permutation_order", f_order, "permutation_order(p): the order of the permutation"),
+    ("permutation_sign", f_sign, "permutation_sign(p): 1 for an even permutation, -1 for an odd one (p cycles or an image list)"),
+    ("permutation_cycle_type", f_cycle_type, "permutation_cycle_type(p), (p, n): the cycle lengths in decreasing order (with fixed points up to n)"),
+    ("permutation_list", f_list, "permutation_list(p), (p, n): the list of images of 1, 2, ..., n"),
+    ("permutation_cycles", f_from_list, "permutation_cycles(list): the permutation with this list of images, as cycles"),
+    ("permutation_image", f_image, "permutation_image(p, x): the image of the point x (or of each point of a list)"),
+    ("permutation_support", f_support, "permutation_support(p): the points the permutation moves"),
+    ("permutation_group", f_permutation_group, "permutation_group([g1, ...]): the group generated by the permutations; permutation_group(F), (F, H): a finitely presented group acting on the cosets of H"),
+    ("group_degree", f_degree, "group_degree(G): the largest point moved by a generator"),
+    ("group_order", f_group_order, "group_order(G): the number of elements of a permutation or finitely presented group"),
+    ("group_generators", f_generators, "group_generators(G): the generators of the group"),
+    ("group_elements", f_elements, "group_elements(G): the elements of the group, sorted"),
+    ("is_group_element", f_member, "is_group_element(G, p): whether the permutation lies in the group"),
+    ("group_stabilizer_chain", f_chain, "group_stabilizer_chain(G): [base, strong generating set] by the Schreier-Sims algorithm"),
+    ("group_orbit", f_orbit, "group_orbit(G, x): the orbit of the point x, sorted"),
+    ("group_orbits", f_orbits, "group_orbits(G), (G, n): the orbits on 1, ..., n (n the degree by default)"),
+    ("group_stabilizer", f_stabilizer, "group_stabilizer(G, x), (G, [x1, ...]): the subgroup fixing the points"),
+    ("group_set_stabilizer", f_set_stabilizer, "group_set_stabilizer(G, [x1, ...]): the subgroup mapping the set to itself"),
+    ("right_coset_representatives", f_right_cosets, "right_coset_representatives(G, H): representatives r of the right cosets H r of H in G"),
+    ("left_coset_representatives", f_left_cosets, "left_coset_representatives(G, H): representatives r of the left cosets r H of H in G"),
+    ("subgroup_index", f_index, "subgroup_index(G, H): the index of the subgroup H in G (G a permutation or finitely presented group)"),
+    ("group_normal_closure", f_normal_closure, "group_normal_closure(G, H): the least normal subgroup of G containing H (a group or elements)"),
+    ("group_centralizer", f_centralizer, "group_centralizer(G, x): the elements of G commuting with x (an element, elements or a group)"),
+    ("group_center", f_center, "group_center(G): the centre of the group"),
+    ("group_intersection", f_intersection, "group_intersection(G, H): the intersection of two permutation groups"),
+    ("is_subgroup", f_is_subgroup, "is_subgroup(G, H): whether H is a subgroup of G"),
+    ("is_normal_subgroup", f_is_normal, "is_normal_subgroup(G, H): whether H is a normal subgroup of G"),
+    ("derived_subgroup", f_derived, "derived_subgroup(G): the commutator subgroup [G, G]"),
+    ("derived_series", f_derived_series, "derived_series(G): G, G', G'', ... until it is stable"),
+    ("lower_central_series", f_lower_central, "lower_central_series(G): G, [G, G], [[G, G], G], ... until it is stable"),
+    ("composition_series", f_composition, "composition_series(G): a series of subgroups, each maximal normal in the one before, down to the trivial group"),
+    ("is_solvable", f_is_solvable, "is_solvable(G): whether the derived series reaches the trivial group"),
+    ("is_nilpotent", f_is_nilpotent, "is_nilpotent(G): whether the lower central series reaches the trivial group"),
+    ("is_abelian_group", f_is_abelian, "is_abelian_group(G): whether the generators commute"),
+    ("is_simple_group", f_is_simple, "is_simple_group(G): whether the group is nontrivial with no proper nontrivial normal subgroup"),
+    ("is_transitive", f_is_transitive, "is_transitive(G), (G, n): whether the group has one orbit on 1, ..., n"),
+    ("is_primitive", f_is_primitive, "is_primitive(G), (G, n): whether the group is transitive and has no nontrivial block system"),
+    ("group_blocks", f_blocks, "group_blocks(G), (G, [p, q]): a block system with the least nontrivial blocks (the minimal one with p and q in one block)"),
+    ("is_conjugate", f_is_conjugate, "is_conjugate(G, a, b): whether b = g^-1 a g for some g in G"),
+    ("conjugating_element", f_conjugator, "conjugating_element(G, a, b): an element g of G with g^-1 a g = b"),
+    ("abelian_invariants", f_abelian_invariants, "abelian_invariants(G): the elementary divisors of the abelianisation (0 for each infinite cyclic factor)"),
+    ("symmetric_group", f_symmetric, "symmetric_group(k): the symmetric group on k points"),
+    ("alternating_group", f_alternating, "alternating_group(k): the alternating group on k points"),
+    ("cyclic_group", f_cyclic, "cyclic_group(k): the cyclic group of order k on k points"),
+    ("dihedral_group", f_dihedral, "dihedral_group(k): the dihedral group of order 2 k, the symmetries of a k-gon"),
+    ("abelian_group", f_abelian, "abelian_group([n1, n2, ...]): the direct product of cyclic groups of these orders"),
+    ("mathieu_group", f_mathieu, "mathieu_group(k): the Mathieu group M_k (k = 11, 12, 21, 22, 23, 24) as a permutation group on k points"),
+    ("conjugacy_class_representatives", f_class_reps, "conjugacy_class_representatives(G): one element of each conjugacy class"),
+    ("conjugacy_class_sizes", f_class_sizes, "conjugacy_class_sizes(G): the sizes of the conjugacy classes, in the order of the representatives"),
+    ("conjugacy_classes", f_classes, "conjugacy_classes(G): the conjugacy classes as sorted lists of elements"),
+    ("character_table", f_character_table, "character_table(G): the irreducible characters (rows) on the conjugacy classes (columns)"),
+    ("finitely_presented_group", f_presented, "finitely_presented_group([a, b, ...], [r1, ...]): the group with these generators and relators (words as lists of letters)"),
+    ("coset_table", f_coset_table, "coset_table(F), (F, [w1, ...]): the coset table of the subgroup by Todd-Coxeter enumeration"),
+    ("knuth_bendix", f_knuth_bendix, "knuth_bendix(F): a confluent rewriting system for the group (shortlex order)"),
+    ("word_normal_form", f_word_normal_form, "word_normal_form(F, w): the shortlex normal form of the word"),
+    ("poset_moebius_mu", f_poset_mu, "poset_moebius_mu(P, x, y): the Moebius function of the poset; poset_moebius_mu(P): its matrix"),
+    ("linear_extensions", f_linear_extensions, "linear_extensions(P): the linear orders of the elements compatible with the poset"),
+    ("linear_extension_count", f_linear_extension_count, "linear_extension_count(P): the number of linear extensions of the poset"),
+    ("poset_covers", f_covers, "poset_covers(P): the covering pairs [x, y] (the Hasse diagram)"),
+    ("is_lattice", f_is_lattice, "is_lattice(P): whether every two elements have a join and a meet"),
+    ("matroid_rank", f_matroid_rank, "matroid_rank(M), (M, S): the rank of the matroid or of the subset S"),
+    ("matroid_bases", f_matroid_bases, "matroid_bases(M): the bases of the matroid"),
+    ("matroid_circuits", f_matroid_circuits, "matroid_circuits(M): the minimal dependent sets of the matroid"),
+    ("tutte_polynomial", f_tutte, "tutte_polynomial(M, x, y): the Tutte polynomial of the matroid (or graphic matroid)"),
+    ("robinson_schensted", f_rs, "robinson_schensted(w): the insertion and recording tableaux [P, Q] of the word or permutation"),
+    ("inverse_robinson_schensted", f_rs_inverse, "inverse_robinson_schensted(P, Q): the word with insertion tableau P and recording tableau Q"),
+    ("hook_lengths", f_hooks, "hook_lengths(shape): the hook length of each cell of the Young diagram"),
+    ("standard_young_tableaux", f_syt, "standard_young_tableaux(shape): the standard Young tableaux of the shape"),
+    ("standard_young_tableaux_count", f_syt_count, "standard_young_tableaux_count(shape): the number of standard Young tableaux, by the hook length formula"),
+    ("cycle_index_polynomial", f_cycle_index, "cycle_index_polynomial(G, x): the cycle index (1/|G|) sum over g of prod x(k)^(number of k-cycles of g)"),
+    ("polya_count", f_polya, "polya_count(G, k), (G, [w1, ...]): the number of colourings with k colours up to the group, or the pattern inventory"),
+];
+
+const fn descriptions() -> [(&'static str, &'static str); TABLE.len()] {
+    let mut out = [("", ""); TABLE.len()];
+    let mut i = 0;
+    while i < TABLE.len() {
+        out[i] = (TABLE[i].0, TABLE[i].2);
+        i += 1;
+    }
+    out
+}
+
+const DESCRIPTIONS: [(&str, &str); TABLE.len()] = descriptions();
+
+/// The public functions with one-line descriptions.
+pub const FUNCTIONS: &[(&str, &str)] = &DESCRIPTIONS;
+
+pub fn install(k: &mut Kernel, h: &Heap) {
+    for (name, f, _) in TABLE {
+        k.register(h.sym(name), Attributes::default(), Box::new(F(*f)));
+    }
+}

@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# light_cyan
+
+#% text
+# `light_cyan` is the colour light cyan, a pale tint of `cyan`: a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Details
+
+#% item
+# `light_cyan` is a named colour like `cyan`; it stays a symbol until a graphic draws it.
+
+#% item
+# Pale tints suit filled areas and backgrounds behind darker curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_cyan, disk()])
+#% output
+#= image("light_cyan.files/light_cyan-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], colors: [cyan, light_cyan])
+#% output
+#= image("light_cyan.files/light_cyan-2.svgz")
+
+#% cell
+light_cyan
+#% output
+#= light_cyan
+
+#% subsection
+# Scope
+
+#% text
+# The tint beside the full colour and its darker shade:
+
+#% cell
+graphics([[light_cyan, disk([0, 0])], [cyan, disk([2, 0])], [darker(cyan), disk([4, 0])]])
+#% output
+#= image("light_cyan.files/light_cyan-4.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A pale band behind a curve:
+
+#% cell
+graphics([[light_cyan, rectangle([0, -1], [3, 1])], [black, line(table([t, sin(2*t)], t, range(0, 3, 0.05)))]])
+#% output
+#= image("light_cyan.files/light_cyan-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `cyan`, `light_gray`, `lighter`, `rgb_color`, `light_magenta`

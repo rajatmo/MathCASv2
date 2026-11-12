@@ -1,0 +1,25 @@
+# Round 20: a call of a variable is marked and fixed; F1 on an option opens its section. Run by
+# tests/warnings_selftest.rs (it opens a window: `cargo test -- --ignored`), which checks the log.
+size 1000 600
+ppp 1
+theme light
+new
+keys "integrate(sqrt(x(x - a)), x)"
+wait 5
+warnings
+shot warning
+fixwarning
+wait 3
+warnings
+new
+keys "x*sin(x) + f(2)"
+wait 3
+warnings
+new
+keys "plot(sin(x), [x, 0, 1], plot_range: all)"
+keys Left Left Left Left Left Left Left Left
+keys F1
+wait 3
+help
+dump fixed
+quit

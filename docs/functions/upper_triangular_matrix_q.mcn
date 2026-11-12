@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# upper_triangular_matrix_q
+
+#% text
+# `upper_triangular_matrix_q(m)` is true when every entry of `m` below the main diagonal is zero; `upper_triangular_matrix_q(m, k)` when every entry below the `k`-th diagonal is.
+
+#% section
+# Details
+
+#% item
+# The result is false for anything that is not a matrix.
+
+#% item
+# Entries are compared with zero by `==`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+upper_triangular_matrix_q([[1, 2], [0, 3]])
+#% output
+#= true
+
+#% cell
+upper_triangular_matrix_q([[1, 2], [4, 3]])
+#% output
+#= false
+
+#% cell
+upper_triangular_matrix_q([[1, 2], [4, 3]], -1)
+#% output
+#= true
+
+#% cell
+upper_triangular_matrix_q(identity_matrix(3))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `lower_triangular_matrix_q`, `diagonal_matrix_q`, `upper_triangularize`

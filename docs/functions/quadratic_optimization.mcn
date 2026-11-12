@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# quadratic_optimization
+
+#% text
+# `quadratic_optimization(f, cons, vars)` gives the point `[x -> ..., y -> ...]` that minimizes the convex quadratic `f` under the constraints `cons`.
+
+#% section
+# Details
+
+#% item
+# `cons` is one condition or a list of them (equalities, inequalities and chains such as `1 <= y <= 2`); `vars` is the list of the variables.
+
+#% item
+# A fourth argument selects the result: "PrimalMinimumValue", "PrimalMinimizer" (the values only), "PrimalMinimizerRules" (the default), or a list of these.
+
+#% item
+# `quadratic_optimization([q, c], [a, b])` minimizes `x . q . x/2 + c . x` under `a . x + b >= 0`, and `quadratic_optimization([q, c], [a, b], [aeq, beq])` also under `aeq . x + beq == 0`; the result is the vector `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quadratic_optimization(x^2 + y^2, [x + y == 2, 1 <= y, y <= 2], [x, y])
+#% output
+#= [x -> 1, y -> 1]
+
+#% cell
+quadratic_optimization(x^2 + y^2, x + y >= 1, [x, y], "PrimalMinimumValue")
+#% output
+#= 1/2
+
+#% cell
+quadratic_optimization(2*x^2 + 20*y^2 + 6*x*y + 5*x, [-x + y >= 2, y >= 0], [x, y], ["PrimalMinimumValue", "PrimalMinimizer"])
+#% output
+#= [-449/112, [-97/56, 15/56]]
+
+#% cell
+quadratic_optimization([[[2, 0], [0, 2]], [0, 0]], [[[1, 1]], [-1]])
+#% output
+#= [1/2, 1/2]
+
+#% section
+# See also
+
+#% text
+# `convex_optimization`, `linear_optimization`, `minimize`, `conic_optimization`

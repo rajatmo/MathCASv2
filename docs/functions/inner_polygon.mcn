@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# inner_polygon
+
+#% text
+# `inner_polygon(p)`: the holes of a polygon as a polygon (empty_region(2) when there are none)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inner_polygon(polygon([[0, 0], [4, 0], [4, 4], [0, 4]] -> [[[1, 1], [2, 1], [2, 2], [1, 2]]]))
+#% output
+#= polygon([[1, 1], [1, 2], [2, 1], [2, 2]], [[1, 3, 4, 2]])
+
+#% cell
+inner_polygon(triangle())
+#% output
+#= empty_region(2)
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

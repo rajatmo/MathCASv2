@@ -1,0 +1,97 @@
+#! mathcas 2 notebook
+
+#% title
+# multiplicative_order
+
+#% text
+# `multiplicative_order(a, n)` gives the least `k >= 1` with `mod(a^k, n) == 1`.
+
+#% section
+# Details
+
+#% item
+# The order exists when `gcd(a, n) == 1`; otherwise the call stays unevaluated. It divides `carmichael_lambda(n)` and `euler_phi(n)`.
+
+#% item
+# `multiplicative_order(a, n, [r1, r2, ...])` gives the least `k >= 1` with `a^k` congruent to one of the `r_i` modulo `n` (a single residue may be given without the list); it stays unevaluated when no power of `a` reaches them. A list for `a` or `n` threads.
+
+#% item
+# `multiplicative_order(a)` of a nonzero element `a` of a finite field is the least `k >= 1` with `a^k == 1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+multiplicative_order(2, 7)
+#% output
+#= 3
+
+#% cell
+multiplicative_order(10, 7)
+#% output
+#= 6
+
+#% cell
+multiplicative_order(3, 100)
+#% output
+#= 20
+
+#% text
+# The least power of 5 that is congruent to 3 or 11 modulo 7, and the least power of 2 that is congruent to 1 or -1 modulo 15:
+
+#% cell
+multiplicative_order(5, 7, [3, 11])
+#% output
+#= 2
+
+#% cell
+multiplicative_order(2, 15, [1, -1])
+#% output
+#= 4
+
+#% text
+# The order of an element of a finite field (the field of 9 elements has 8 nonzero ones):
+
+#% cell
+multiplicative_order(finite_field(3, 2)([1, 1]))
+#% output
+#= 4
+
+#% subsection
+# Applications
+
+#% text
+# The period of the decimal expansion of `1/7` is the order of 10 modulo 7:
+
+#% cell
+real_digits(1/7)
+#% output
+#= [[[1, 4, 2, 8, 5, 7]], 0]
+
+#% text
+# Periods of `1/p` for some primes:
+
+#% cell
+table(multiplicative_order(10, p), p, [3, 7, 11, 13, 17])
+#% output
+#= [1, 6, 2, 6, 16]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The order divides `carmichael_lambda(n)`:
+
+#% cell
+mod(carmichael_lambda(100), multiplicative_order(3, 100))
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `primitive_root`, `carmichael_lambda`, `power_mod`, `euler_phi`

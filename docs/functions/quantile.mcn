@@ -1,0 +1,172 @@
+#! mathcas 2 notebook
+
+#% title
+# quantile
+
+#% text
+# `quantile(xs, q)` gives the element of rank max(1, ceil(n q)) of the sorted list `xs` of n values.
+
+#% text
+# `quantile(d, q)` gives the least x with `cdf(d, x) >= q` for the distribution `d`.
+
+#% text
+# `quantile(xs, [q1, q2, ...])` and `quantile(d, [q1, q2, ...])` give several quantiles.
+
+#% section
+# Details
+
+#% item
+# The probability `q` must be a real number from 0 to 1.
+
+#% item
+# The quantile of a list is always one of its elements; there is no interpolation between elements.
+
+#% item
+# For a list of rows, the quantile is taken column by column.
+
+#% item
+# With a machine real `q` the quantile of a distribution is a machine real; with an exact `q` it is exact, for instance in terms of `inverse_erfc`, and `n` gives it to any number of digits.
+
+#% item
+# For a discrete distribution, the quantile is an integer.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The lower quartile of ten values:
+
+#% cell
+quantile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.25)
+#% output
+#= 3
+
+#% text
+# Three quantiles at once:
+
+#% cell
+quantile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [0.1, 0.5, 0.9])
+#% output
+#= [1, 5, 9]
+
+#% text
+# The 97.5% quantile of the standard normal distribution:
+
+#% cell
+quantile(normal_distribution(), 0.975)
+#% output
+#= 1.9599639845400538
+
+#% subsection
+# Scope
+
+#% text
+# Exact probabilities give exact quantiles:
+
+#% cell
+quantile(normal_distribution(), 975/1000)
+#% output
+#= -inverse_erfc(39/20)*2^(1/2)
+
+#% cell
+n(quantile(normal_distribution(), 99/100), 30)
+#% output
+#= 2.326347874040841100885606163346912
+
+#% text
+# Symbolic quantiles:
+
+#% cell
+quantile(exponential_distribution(l), q)
+#% output
+#= -log(1 - q)/l
+
+#% text
+# A discrete distribution:
+
+#% cell
+quantile(poisson_distribution(3), 0.5)
+#% output
+#= 3
+
+#% text
+# Column by column:
+
+#% cell
+quantile([[1, 10], [2, 20], [3, 30], [4, 40]], 0.5)
+#% output
+#= [2, 20]
+
+#% subsection
+# Applications
+
+#% text
+# A 90% interval of a simulated sample, as for a credible interval from a chain of samples:
+
+#% cell
+seed(7); xs = random_variate(normal_distribution(2, 0.5), 5000); quantile(xs, [0.05, 0.5, 0.95])
+#% output
+#= [1.1756012818490271, 2.0036089241169353, 2.810066251826863]
+
+#% text
+# The same interval of the distribution:
+
+#% cell
+quantile(normal_distribution(2, 0.5), [0.05, 0.5, 0.95])
+#% output
+#= [1.1775731865242638, 2.0, 2.822426813475736]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `quantile` inverts `cdf`:
+
+#% cell
+cdf(normal_distribution(), quantile(normal_distribution(), 0.9))
+#% output
+#= 0.9
+
+#% text
+# At 0 and 1 the quantile of a list is its least and greatest element:
+
+#% cell
+[quantile([3, 1, 2], 0), quantile([3, 1, 2], 1)]
+#% output
+#= [1, 3]
+
+#% text
+# The median is the quantile at 1/2:
+
+#% cell
+[quantile(normal_distribution(mu, sigma), 1/2), median(normal_distribution(mu, sigma))]
+#% output
+#= [mu, mu]
+
+#% subsection
+# Possible issues
+
+#% text
+# For an even number of values, the quantile at 1/2 is the lower middle element, while `median` takes the mean of the two:
+
+#% cell
+[quantile([1, 2, 3, 4], 1/2), median([1, 2, 3, 4])]
+#% output
+#= [2, 5/2]
+
+#% text
+# A probability outside [0, 1]:
+
+#% cell
+quantile(normal_distribution(), 1.5)
+#% output
+#! failure(argument, quantile, "the probability must be a real number in [0, 1]")
+
+#% section
+# See also
+
+#% text
+# `median`, `cdf`, `mean`, `sort`, `histogram_list`

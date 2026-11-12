@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# symmetric_polynomial
+
+#% text
+# `symmetric_polynomial(k, xs)` gives the elementary symmetric polynomial of degree `k` in the list `xs`: the sum of the products of all `k`-element subsets.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+symmetric_polynomial(2, [a, b, c])
+#% output
+#= a*b + a*c + b*c
+
+#% cell
+symmetric_polynomial(3, [a, b, c, d])
+#% output
+#= a*b*c + a*b*d + a*c*d + b*c*d
+
+#% section
+# See also
+
+#% text
+# `subsets`

@@ -1,0 +1,113 @@
+#! mathcas 2 notebook
+
+#% title
+# last
+
+#% text
+# `last(xs)` gives the last element of the list `xs`.
+
+#% section
+# Details
+
+#% item
+# `last(xs)` is `xs[-1]`. It works on any compound term.
+
+#% item
+# The last element of an empty list is a failure; `last(xs, d)` gives `d` instead (`d` is evaluated like every argument).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+last([a, b, c])
+#% output
+#= c
+
+#% cell
+last(range(10))
+#% output
+#= 10
+
+#% subsection
+# Scope
+
+#% text
+# A default for an empty list:
+
+#% cell
+last([], none)
+#% output
+#= none
+
+#% text
+# The last argument of a term:
+
+#% cell
+last(f(x, y, z))
+#% output
+#= z
+
+#% text
+# The last row of a matrix:
+
+#% cell
+last([[1, 2], [3, 4]])
+#% output
+#= [3, 4]
+
+#% subsection
+# Applications
+
+#% text
+# The final state of an iteration:
+
+#% cell
+last(nest_list(x => (x + 2/x)/2, 1.0, 5))
+#% output
+#= 1.414213562373095
+
+#% text
+# The final sample of a chain, as the MCMC script reports it:
+
+#% cell
+seed(4); chain = accumulate(random_real([-1, 1], 50))
+last(chain)
+#% output
+#= 6.048141477674674
+
+#% subsection
+# Properties and relations
+
+#% text
+# `last` and `most` take a list apart:
+
+#% cell
+xs = [1, 2, 3, 4]
+append(most(xs), last(xs)) === xs
+#% output
+#= true
+
+#% text
+# The last element of the running sums is the total:
+
+#% cell
+last(accumulate(xs)) == total(xs)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% cell
+last([])
+#% output
+#! failure(index, -1, 0)
+
+#% section
+# See also
+
+#% text
+# `first`, `most`, `rest`, `take`, `part`

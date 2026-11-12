@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# names
+
+#% text
+# `names(pattern)` gives the sorted names of the symbols that match the string pattern, as strings. A list of patterns gives the names matching any of them.
+
+#% section
+# Details
+
+#% item
+# In a pattern `*` stands for any run of characters and `@` for any run of characters that are not capitals; every other character stands for itself.
+
+#% item
+# The symbols are those the session knows: the functions and constants of the language and everything the program wrote.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+names("bessel_*")
+#% output
+#= ["bessel_i", "bessel_i_scaled", "bessel_j", "bessel_j_zero", "bessel_k", "bessel_k_scaled", "bessel_y", "bessel_y_zero"]
+
+#% subsection
+# Scope
+
+#% text
+# Several patterns:
+
+#% cell
+names(["golden_ratio", "catalan"])
+#% output
+#= ["catalan", "golden_ratio"]
+
+#% section
+# See also
+
+#% text
+# `attributes`, `own_values`

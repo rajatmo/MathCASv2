@@ -1,0 +1,95 @@
+#! mathcas 2 notebook
+
+#% title
+# reverse
+
+#% text
+# `reverse(xs)` gives the elements of the list `xs` in reverse order.
+
+#% section
+# Details
+
+#% item
+# Only the top level is reversed; inner lists keep their order.
+
+#% item
+# For the characters of a string, use `string_reverse`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+reverse([1, 2, 3])
+#% output
+#= [3, 2, 1]
+
+#% cell
+reverse([[1, 2], [3, 4]])
+#% output
+#= [[3, 4], [1, 2]]
+
+#% subsection
+# Scope
+
+#% text
+# Any compound term:
+
+#% cell
+reverse(f(a, b, c))
+#% output
+#= f(c, b, a)
+
+#% subsection
+# Applications
+
+#% text
+# A decreasing order from an increasing one:
+
+#% cell
+reverse(sort([3, 1, 2]))
+#% output
+#= [3, 2, 1]
+
+#% text
+# The digits of a number read backwards:
+
+#% cell
+from_digits(reverse(integer_digits(12345)))
+#% output
+#= 54321
+
+#% text
+# The squares up to 225 whose digits read the same backwards:
+
+#% cell
+select(range(15)^2, k => integer_digits(k) === reverse(integer_digits(k)))
+#% output
+#= [1, 4, 9, 121]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Reversing twice gives the list back:
+
+#% cell
+reverse(reverse([a, b, c]))
+#% output
+#= [a, b, c]
+
+#% text
+# `string_reverse` is the counterpart for text:
+
+#% cell
+string_reverse("stressed")
+#% output
+#= "desserts"
+
+#% section
+# See also
+
+#% text
+# `sort`, `string_reverse`, `rotate_left`, `transpose`

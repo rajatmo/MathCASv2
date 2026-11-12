@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# group_centralizer
+
+#% text
+# `group_centralizer(G, x)`: the elements of G commuting with x (an element, elements or a group)
+
+#% section
+# Details
+
+#% item
+# The centraliser is found by backtrack search with the base along the cycles of the element.
+
+#% item
+# The second argument may be a permutation, a list of permutations or a group.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_order(group_centralizer(symmetric_group(8), cycles([[1, 2, 3], [4, 5, 6]])))
+#% output
+#= 36
+
+#% cell
+group_centralizer(symmetric_group(4), cycles([[1, 2], [3, 4]]))
+#% output
+#= permutation_group([cycles([[3, 4]]), cycles([[1, 2]]), cycles([[1, 3], [2, 4]])])
+
+#% section
+# See also
+
+#% text
+# `group_center`, `is_conjugate`, `conjugacy_class_sizes`

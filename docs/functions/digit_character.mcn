@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# digit_character
+
+#% text
+# `digit_character` is a string pattern for one digit 0-9.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("a1b22", digit_character)
+#% output
+#= ["1", "2", "2"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

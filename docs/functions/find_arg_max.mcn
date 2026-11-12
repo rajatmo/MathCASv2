@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# find_arg_max
+
+#% text
+# `find_arg_max(f, [x, x0])` gives the position of a local maximum of `f` found by a local search from `x = x0`, with the arguments and options of `find_maximum`.
+
+#% text
+# `find_arg_max([f, cons...], vars)` subject to constraints.
+
+#% section
+# Details
+
+#% item
+# It is `find_maximum` with only the value or the position kept; the position is always a list of the variables' values.
+
+#% item
+# Without a starting value the search starts at 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A local extremum near a start:
+
+#% cell
+find_arg_max(x*cos(x), [x, 5])
+#% output
+#= [6.437298179171947]
+
+#% text
+# Several variables:
+
+#% cell
+find_arg_max(sin(x)*sin(2y), [[x, 2], [y, 2]])
+#% output
+#= [1.5707963267948966, 0.7853981633974483]
+
+#% subsection
+# Scope
+
+#% text
+# With a constraint:
+
+#% cell
+find_arg_max([x - 2y, x^2 + y^2 <= 1], [x, y])
+#% output
+#= [0.4472135954999579, -0.8944271909999159]
+
+#% text
+# A linear program:
+
+#% cell
+find_arg_max([x + y, 3x + 2y >= 7 and x >= 0 and y >= 0], [x, y])
+#% output
+#| find_maximum: the objective is unbounded on the feasible set
+#= [indeterminate, indeterminate]
+
+#% section
+# See also
+
+#% text
+# `find_maximum`, `find_minimum`, `find_maximum`, `n_minimize`

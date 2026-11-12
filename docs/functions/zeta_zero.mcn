@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# zeta_zero
+
+#% text
+# `zeta_zero(k)` gives the `k`-th nontrivial zero `1/2 + i t` of the Riemann zeta function above the real axis; `zeta_zero(-k)` its conjugate; `zeta_zero(k, t0)` gives the `k`-th zero above the height `t0`, and `zeta_zero(-k, t0)` the `k`-th zero below it, the zeros `1/2 +- i t` being ordered by their imaginary parts (so `zeta_zero(1, -20)` is `1/2 - 14.13...i`).
+
+#% section
+# Details
+
+#% item
+# The zeros are the sign changes of the Riemann-Siegel function `Z(t)`, real on the critical line (DLMF 25.10.3), counted with a step of a sixth of the mean spacing `2 pi/log(t/(2 pi))`; a pair of zeros closer than the step would be missed.
+
+#% item
+# Numerical values: the sign changes are counted in machine arithmetic, the bracket bisected, and the zero refined by Newton's method at the working precision; exact arguments stay unevaluated and `n` gives the values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(zeta_zero(1))
+#% output
+#= 0.5 + 14.134725141734695im
+
+#% cell
+n(zeta_zero(54), 30)
+#% output
+#= 0.5000000000000000000000000000000000 + 150.92525761224146676185252467830563im
+
+#% cell
+n(zeta_zero(-3, 20), 30)
+#% output
+#= 0.5000000000000000000000000000000000 - 21.022039638771554992628479593896903im
+
+#% cell
+n(zeta_zero([1, 2, 3, 4, 5]))
+#% output
+#= [0.5 + 14.134725141734695im, 0.5 + 21.022039638771556im, 0.5 + 25.01085758014569im, 0.5 + 30.424876125859512im, 0.5 + 32.93506158773919im]
+
+#% cell
+abs(zeta(n(zeta_zero(10), 30)))
+#% output
+#= ball(7.0816667559248181759e-68, 1.31e-63)^(1/2)
+
+#% section
+# See also
+
+#% text
+# `zeta`, `riemann_siegel_z`, `riemann_siegel_theta`

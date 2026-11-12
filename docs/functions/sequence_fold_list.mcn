@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# sequence_fold_list
+
+#% text
+# `sequence_fold_list(f, [x1, ..., xk], xs)` gives `x1, ..., xk` followed, in turn, by `f` applied to the last `k` values and the next element of `xs`. `sequence_fold_list(f, init, xs, n)` takes the next `n - k` elements each time (moving by one).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sequence_fold_list(f, [x, y], [a, b, c])
+#% output
+#= [x, y, f(x, y, a), f(y, f(x, y, a), b), f(f(x, y, a), f(y, f(x, y, a), b), c)]
+
+#% cell
+sequence_fold_list(add, [1, 1], constant_array(0, 10))
+#% output
+#= [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144]
+
+#% cell
+sequence_fold_list(f, [x, y], [a, b, c], 4)
+#% output
+#= [x, y, f(x, y, a, b), f(y, f(x, y, a, b), b, c)]
+
+#% section
+# See also
+
+#% text
+# `sequence_fold`, `fold_list`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# fold_while
+
+#% text
+# `fold_while(f, x, xs, test)` folds like `fold(f, x, xs)` while `test` of the latest value gives `true`, and gives the first value for which it does not (or the last value, when the list ends). `fold_while(f, x, xs, test, m)` applies `test` to the latest `m` values, and `fold_while(f, x, xs, test, m, k)` gives the value `k` places before that one (`k <= 0`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold_while((a, b) => a/b, 120, range(10), is_integer)
+#% output
+#= 1/6
+
+#% cell
+fold_while((a, b) => a/b, 120, range(10), is_integer, 1, -1)
+#% output
+#= 1
+
+#% cell
+fold_while((a, b) => a - b, 12, range(6), is_positive)
+#% output
+#= -3
+
+#% section
+# See also
+
+#% text
+# `fold_while_list`, `fold`, `nest_while`

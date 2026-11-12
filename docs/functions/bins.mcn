@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# bins
+
+#% text
+# `bins` is an option of `histogram`: `bins: n` uses about `n` bins of a round width, `bins: [w]` bins of width `w`, `bins: [lo, hi, w]` bins of width `w` from `lo` to `hi`, and `automatic` a choice from the data.
+
+#% section
+# Details
+
+#% item
+# The bins are half-open intervals `[a, a + w)`; data outside `[lo, hi]` is left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(1); data = random_real([0, 1], 200); histogram(data, bins: 5)
+#% output
+#= image("bins.files/bins-1.svgz")
+
+#% cell
+histogram(data, bins: [0.05])
+#% output
+#= image("bins.files/bins-2.svgz")
+
+#% cell
+histogram(data, bins: [0, 2, 0.25])
+#% output
+#= image("bins.files/bins-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A normal sample with the automatic choice:
+
+#% cell
+seed(2); histogram(random_variate(normal_distribution(0, 1), 500), bins: automatic)
+#% output
+#= image("bins.files/bins-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `histogram`, `normalized`

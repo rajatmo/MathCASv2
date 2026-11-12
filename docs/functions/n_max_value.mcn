@@ -1,0 +1,123 @@
+#! mathcas 2 notebook
+
+#% title
+# n_max_value
+
+#% text
+# `n_max_value(f, vars)` gives the value of the global maximum of `f` over the variables `vars` (a number).
+
+#% text
+# `n_max_value([f, cons...], vars)` subject to the constraints `cons`.
+
+#% section
+# Details
+
+#% item
+# The search is global: a quasi-random sample of a search box (from the bounds the constraints give, or 10 units around the start) seeds local searches from its best and most separated points.
+
+#% item
+# Constraints are equations and inequalities (`==`, `<=`, `>=`, `<`, `>`), combined with `and`, `or` and lists, and `element(x, dom)` for `integers`, `nonnegative_integers`, `reals`, `vectors(n, dom)` and the regions `disk`, `ball`, `rectangle`, `cuboid`, `triangle`, `polygon`, `circle` and `sphere` (with numbers or variables in them).
+
+#% item
+# When the objective and every constraint are affine, the problem is a linear program: it is solved by the simplex method and the vertex is solved again exactly from its active constraints, so the answer is correct to the last digit. Integer variables are handled by branch and bound.
+
+#% item
+# Other problems are solved by the augmented Lagrangian method with BFGS steps, followed by Newton's method on the first-order (KKT) conditions of the active constraints, so a constrained minimum is found to machine precision rather than to the square root of it.
+
+#% item
+# A variable that appears in `dot`, `total` or `indexed` is a vector; its length is found from the expressions.
+
+#% item
+# An infeasible problem gives `inf` and `indeterminate` values with a message; an unbounded one `-inf`. A message also says when the first-order conditions could not be verified (a nonsmooth objective, for example).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The global maximum of a quartic with two local minima:
+
+#% cell
+n_max_value(-x^4 + 3x^2 + x, x)
+#% output
+#= 3.5139050389347886
+
+#% text
+# A maximum on a disk, met exactly:
+
+#% cell
+n_max_value(x + y, element([x, y], disk()))
+#% output
+#= 1.414213562373095
+
+#% subsection
+# Scope
+
+#% text
+# A linear program:
+
+#% cell
+n_max_value([-x - y, x + 2y >= 3, x >= -1], [x, y])
+#% output
+#= -1.0
+
+#% text
+# Integer variables:
+
+#% cell
+n_max_value([-x - y, x + 2y >= 3, x >= -2], [element(x, integers), element(y, integers)])
+#% output
+#= -1.0
+
+#% text
+# A vector variable:
+
+#% cell
+n_max_value([dot([-1, -1], v), vector_greater_equal([dot([[1, 2], [1, 0]], v), [3, -1]])], v)
+#% output
+#= -1.0
+
+#% text
+# Either of two disks:
+
+#% cell
+n_max_value([-x - y, x^2 + y^2 <= 1 or (x + 2)^2 + (y + 2)^2 <= 1], [x, y])
+#% output
+#= 5.414213562373095
+
+#% text
+# An equality and inequalities together:
+
+#% cell
+n_max_value([-x - 2y, x^2 + 2y^2 <= 3, x + y == 2, x >= 1], [x, y])
+#% output
+#= -2.333333333333333
+
+#% subsection
+# Possible issues
+
+#% text
+# No point satisfies the constraints:
+
+#% cell
+n_max_value([x, x >= 1 and x <= 0], x)
+#% output
+#| n_max_value: no point satisfies the constraints
+#= -inf
+
+#% text
+# The objective is unbounded above:
+
+#% cell
+n_max_value([x, x >= 0], x)
+#% output
+#| n_max_value: the objective is unbounded on the feasible set
+#= inf
+
+#% section
+# See also
+
+#% text
+# `n_minimize`, `n_maximize`, `n_min_value`, `n_arg_min`, `find_minimum`, `minimize`

@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# longest_common_subsequence
+
+#% text
+# `longest_common_subsequence(a, b)` gives the longest run of consecutive elements that the lists (or strings) `a` and `b` both contain.
+
+#% section
+# Details
+
+#% item
+# For strings the result is a string; for lists a list. The first such run in `a` is returned when several have the maximal length.
+
+#% item
+# `longest_common_sequence` allows gaps.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+longest_common_subsequence("abcdef", "xbcdy")
+#% output
+#= "bcd"
+
+#% cell
+longest_common_subsequence([1, 2, 3, 4], [0, 2, 3, 5])
+#% output
+#= [2, 3]
+
+#% subsection
+# Scope
+
+#% text
+# Nothing in common:
+
+#% cell
+longest_common_subsequence("abc", "xyz")
+#% output
+#= ""
+
+#% section
+# See also
+
+#% text
+# `longest_common_sequence`

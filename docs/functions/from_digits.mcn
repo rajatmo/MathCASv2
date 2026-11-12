@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# from_digits
+
+#% text
+# `from_digits(digits)` gives the integer whose decimal digits are `digits`.
+
+#% text
+# `from_digits(digits, b)` reads the digits in base `b`.
+
+#% section
+# Details
+
+#% item
+# The digits are any integers, also outside `0 .. b - 1`.
+
+#% item
+# The base may be a `mixed_radix` list of bases.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+from_digits([2, 0, 2, 6])
+#% output
+#= 2026
+
+#% cell
+from_digits([1, 1, 0, 1], 2)
+#% output
+#= 13
+
+#% cell
+from_digits([15, 15], 16)
+#% output
+#= 255
+
+#% subsection
+# Scope
+
+#% text
+# Digits beyond the base are carried:
+
+#% cell
+from_digits([1, 12, 3])
+#% output
+#= 223
+
+#% text
+# A mixed radix:
+
+#% cell
+from_digits([2, 7, 33, 20], mixed_radix([24, 60, 60]))
+#% output
+#= 200000
+
+#% subsection
+# Properties and relations
+
+#% text
+# `integer_digits` inverts it:
+
+#% cell
+integer_digits(from_digits([3, 1, 4, 1, 5], 6), 6)
+#% output
+#= [3, 1, 4, 1, 5]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `mixed_radix`, `integer_reverse`

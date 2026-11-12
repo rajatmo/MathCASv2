@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# polya_count
+
+#% text
+# `polya_count(G, k), (G, [w1, ...])`: the number of colourings with k colours up to the group, or the pattern inventory
+
+#% section
+# Details
+
+#% item
+# The number of colourings of the points with k colours up to the group is the cycle index at x(i) = k (Polya's theorem); with weights it is the pattern inventory, the cycle index at x(i) = sum of w_j^i.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polya_count(cyclic_group(6), 2)
+#% output
+#= 14
+
+#% cell
+polya_count(dihedral_group(6), 2)
+#% output
+#= 13
+
+#% cell
+polya_count(cyclic_group(4), [r, b])
+#% output
+#= b*r^3 + r*b^3 + 2*b^2*r^2 + b^4 + r^4
+
+#% section
+# See also
+
+#% text
+# `cycle_index_polynomial`

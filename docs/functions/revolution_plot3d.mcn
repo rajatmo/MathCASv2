@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# revolution_plot3d
+
+#% text
+# `revolution_plot3d(f, [t, a, b])` draws the surface swept by the curve z = f(t), at distance t from the z axis, turned once about the axis.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% item
+# A list of functions draws several surfaces.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A paraboloid:
+
+#% cell
+revolution_plot3d(t^2, [t, 0, 1])
+#% output
+#= image("revolution_plot3d.files/revolution_plot3d-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A vase:
+
+#% cell
+revolution_plot3d(sin(3t)/3 + t, [t, 0.1, 2])
+#% output
+#= image("revolution_plot3d.files/revolution_plot3d-2.svgz")
+
+#% text
+# Two surfaces:
+
+#% cell
+revolution_plot3d([t, 2 - t], [t, 0, 1])
+#% output
+#= image("revolution_plot3d.files/revolution_plot3d-3.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Turned over a part of the circle, with a turn of the angle:
+
+#% cell
+revolution_plot3d(sqrt(t), [t, 0, 1], [p, 0, 3pi/2])
+#% output
+#= image("revolution_plot3d.files/revolution_plot3d-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `spherical_plot3d`, `parametric_plot3d`, `plot3d`

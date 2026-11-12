@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_group
+
+#% text
+# `mathieu_group(k)`: the Mathieu group M_k (k = 11, 12, 21, 22, 23, 24) as a permutation group on k points
+
+#% section
+# Details
+
+#% item
+# M11, M12, M23 and M24 come from classical generators; M22 and M21 are the stabilisers of one and two points of M23.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map(k => group_order(mathieu_group(k)), [11, 12, 22, 23, 24])
+#% output
+#= [7920, 95040, 443520, 10200960, 244823040]
+
+#% cell
+mathieu_group(11)
+#% output
+#= permutation_group([cycles([[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]]), cycles([[3, 7, 11, 8], [4, 10, 5, 6]])])
+
+#% cell
+is_primitive(mathieu_group(24))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `symmetric_group`, `character_table`

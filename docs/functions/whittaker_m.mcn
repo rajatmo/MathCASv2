@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# whittaker_m
+
+#% text
+# `whittaker_m(k, m, z)` gives the Whittaker function `M_(k, m)(z) = exp(-z/2)*z^(m + 1/2)*hypergeometric_1f1(m - k + 1/2, 1 + 2*m, z)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 13.14.2; `M` solves Whittaker's equation `w'' + (-1/4 + k/z + (1/4 - m^2)/z^2) w = 0`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+whittaker_m(1, 0.5, 1.0)
+#% output
+#= 0.6065306597126334
+
+#% cell
+whittaker_m(0.5, 0.25, 2.0)
+#% output
+#= 0.9948565892668342
+
+#% cell
+whittaker_m(1.2, 1.5, 3.0)
+#% output
+#= 4.355464529230369
+
+#% subsection
+# Properties and relations
+
+#% text
+# The definition through `hypergeometric_1f1`:
+
+#% cell
+whittaker_m(0.3, 0.7, 1.2) - exp(-0.6)*1.2^1.2*hypergeometric_1f1(0.9, 2.4, 1.2)
+#% output
+#= -2.220446049250313e-16
+
+#% section
+# See also
+
+#% text
+# `whittaker_w`, `hypergeometric_1f1`, `hypergeometric_u`

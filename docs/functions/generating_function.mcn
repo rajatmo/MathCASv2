@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# generating_function
+
+#% text
+# `generating_function(f, n, z)` gives the sum of `f z^n` over `n >= 0` in closed form.
+
+#% text
+# `generating_function(f, [n, m], [x, y])` gives the generating function in several variables.
+
+#% section
+# Details
+
+#% item
+# `generate_conditions: true` attaches the convergence region `abs(z) < 1/r` of the ratio test, r the limit of `abs(f(n + 1)/f(n))`.
+
+#% item
+# The function is linear; lists, equations and rules thread.
+
+#% item
+# An unknown sequence `g(n + s)` is expressed through `generating_function(g(n), n, z)` by the shift rules; `b^n g(n)` is that function at `b z`.
+
+#% item
+# Known terms are summed by `sum`: polynomials times powers, hypergeometric series (with Bessel and exponential closed forms), rational functions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+generating_function(a^n, n, z)
+#% output
+#= (1 - a*z)^-1
+
+#% cell
+generating_function(n*(n + 1)*(-1/2)^n, n, z)
+#% output
+#= -8*z/(2 + z)^3
+
+#% subsection
+# Scope
+
+#% cell
+generating_function(1/factorial(n)^2, n, x)
+#% output
+#= bessel_i(0, 2*x^(1/2))
+
+#% cell
+generating_function(1/(factorial(n + 1)*factorial(m)), [n, m], [x, y])
+#% output
+#= (-1 + exp(x))*exp(y)/x
+
+#% text
+# Shift rules:
+
+#% cell
+generating_function([f(n + 1), f(n - 1)], n, z)
+#% output
+#= [generating_function(f(n), n, z)/z - f(0)/z, f(-1) + z*generating_function(f(n), n, z)]
+
+#% section
+# See also
+
+#% text
+# `sum`, `series`, `r_solve`

@@ -1,0 +1,166 @@
+#! mathcas 2 notebook
+
+#% title
+# Solving equations and inequalities
+
+#% text
+# `solve` finds solutions of equations and systems, `reduce` gives the full condition on the unknowns (inequalities, cases, domains), and `find_root` finds one numerical root near a starting value. Pick by what you need: a list of exact solutions, a description of a whole set, or a number.
+
+#% section
+# Equations with solve
+
+#% text
+# An equation is written with `==`. The answer is a list of solutions, each a list of rules `x -> value`, so it can be used with `rewrite` (or `/.`).
+
+#% cell
+solve(x^2 - 5x + 6 == 0, x)
+#% output
+#= [[x -> 2], [x -> 3]]
+
+#% cell
+solve(x^3 - 2 == 0, x)
+#% output
+#= [[x -> 2^(1/3)], [x -> -(-1)^(1/3)*2^(1/3)], [x -> (-1)^(2/3)*2^(1/3)]]
+
+#% cell
+s = solve(x^2 - 2x - 1 == 0, x)
+
+#% cell
+rewrite(x^2, s)
+#% output
+#= [(1 - 2^(1/2))^2, (1 + 2^(1/2))^2]
+
+#% text
+# A system lists the equations and the unknowns. With symbolic parameters the generic solution is given.
+
+#% cell
+solve([x + y == 3, x - y == 1], [x, y])
+#% output
+#= [[x -> 2, y -> 1]]
+
+#% cell
+solve(a*x + b == 0, x)
+#% output
+#= [[x -> -b/a]]
+
+#% text
+# Equations with functions of the unknown are inverted; periodic functions give all solutions with a generated integer parameter `c(1)`.
+
+#% cell
+solve(exp(x) == 5, x)
+#% output
+#= [[x -> conditional_expression(log(5) + 2im*pi*c(1), element(c(1), integers))]]
+
+#% cell
+solve(sin(x) == 1/2, x)
+#% output
+#= [[x -> conditional_expression((1/6)*pi + 2*pi*c(1), element(c(1), integers))], [x -> conditional_expression((5/6)*pi + 2*pi*c(1), element(c(1), integers))]]
+
+#% text
+# `solve(eqs, x, reals)` keeps the real solutions; an equation without solutions gives the empty list.
+
+#% cell
+solve(x^2 + 1 == 0, x, reals)
+#% output
+#= []
+
+#% cell
+solve(x^2 + 1 == 0, x)
+#% output
+#= [[x -> -im], [x -> im]]
+
+#% section
+# Inequalities and cases with reduce
+
+#% text
+# `reduce` answers with a condition, written with intervals joined by `or`.
+
+#% cell
+reduce(x^2 - 3x + 2 < 0, x, reals)
+#% output
+#= 1 < x and x < 2
+
+#% cell
+reduce(x^2 > 4, x, reals)
+#% output
+#= x < -2 or 2 < x
+
+#% cell
+reduce(abs(x - 1) <= 2, x, reals)
+#% output
+#= -1 <= x and x <= 3
+
+#% text
+# For an equation with a parameter, `reduce` lists every case, where `solve` gives the generic solution only.
+
+#% cell
+reduce(a*x == 1, x, reals)
+#% output
+#= a < 0 and x == a^-1 or a > 0 and x == a^-1
+
+#% section
+# Numerical roots
+
+#% text
+# When there is no closed form, `find_root(f, [x, x0])` searches near `x0` and returns rules as `solve` does; for higher degrees `solve` gives exact `root` objects, which `n` evaluates.
+
+#% cell
+find_root(cos(x) == x, [x, 1])
+#% output
+#= [x -> 0.7390851332151607]
+
+#% cell
+solve(x^5 - x - 1 == 0, x)
+#% output
+#= [[x -> root(&(-1 - &1 + &1^5), 1)], [x -> root(&(-1 - &1 + &1^5), 2)], [x -> root(&(-1 - &1 + &1^5), 3)], [x -> root(&(-1 - &1 + &1^5), 4)], [x -> root(&(-1 - &1 + &1^5), 5)]]
+
+#% cell
+n(solve(x^5 - x - 1 == 0, x))
+#% output
+#= [[x -> 1.1673039782614187], [x -> -0.7648844336005847 - 0.3524715460317262im], [x -> -0.7648844336005847 + 0.3524715460317262im], [x -> 0.18123244446987535 - 1.0839541013177107im], [x -> 0.18123244446987535 + 1.0839541013177107im]]
+
+#% section
+# Common mistakes
+
+#% item
+# One `=` assigns; an equation is `==`. An expression without `==` is taken as equal to zero.
+
+#% cell
+solve(x^2 - 4, x)
+#% output
+#= [[x -> -2], [x -> 2]]
+
+#% item
+# The answer is a list of lists of rules, not a number: use `rewrite(expr, solution)` to substitute.
+
+#% cell
+rewrite(x + 1, solve(x^2 == 9, x))
+#% output
+#= [-2, 4]
+
+#% item
+# With parameters, `solve` gives the generic solution, valid when no denominator vanishes. `reduce` states the condition under which it holds (here `a` is not zero).
+
+#% cell
+solve(a*x == 1, x)
+#% output
+#= [[x -> a^-1]]
+
+#% cell
+reduce(a*x == 1, x, reals)
+#% output
+#= a < 0 and x == a^-1 or a > 0 and x == a^-1
+
+#% item
+# The unknown must be a symbol without a value: after `x = 3`, the `x` in an equation is 3.
+
+#% cell
+x = 3; x^2 == 9
+#% output
+#= true
+
+#% section
+# Related functions
+
+#% text
+# `solve`, `reduce`, `find_root`, `rewrite`, `n`, `n_minimize`

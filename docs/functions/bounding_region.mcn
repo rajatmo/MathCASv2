@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# bounding_region
+
+#% text
+# `bounding_region(points, form)`: a region holding the points: "MinRectangle" (default; also "MinCuboid", "MinInterval"), "MinDisk" or "MinBall" (the smallest ball), "MinConvexPolygon" (the convex hull)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pts = [[3, 10], [6, 3], [10, 2], [2, 8], [3, 3]]
+
+#% cell
+bounding_region(pts, "MinDisk")
+#% output
+#= disk([13/2, 6], (1/2)*113^(1/2))
+
+#% cell
+bounding_region(pts, "MinConvexPolygon")
+#% output
+#= polygon([[3, 10], [2, 8], [3, 3], [10, 2]], [1, 2, 3, 4])
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

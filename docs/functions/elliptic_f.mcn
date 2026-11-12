@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_f
+
+#% text
+# `elliptic_f(phi, m)` gives the incomplete elliptic integral of the first kind `F(phi | m)`, the integral of `1/sqrt(1 - m*sin(t)^2)` for `t` from 0 to `phi`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 19.2.4 with `k^2 = m`. `F(pi/2 | m)` is `elliptic_k(m)`, and `F(phi | 0)` is `phi`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `elliptic_f` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_f(pi/4, 0.5)
+#% output
+#= 0.8260178762492452
+
+#% cell
+elliptic_f(1.0, 0)
+#% output
+#= 1.0
+
+#% cell
+elliptic_f(pi/2, 0.5) - elliptic_k(0.5)
+#% output
+#= 2.220446049250313e-16
+
+#% cell
+n(elliptic_f(1, 1/3), 30)
+#% output
+#= 1.0515224356380810195409081596619524
+
+#% subsection
+# Properties and relations
+
+#% text
+# `jacobi_amplitude` inverts it in `phi`:
+
+#% cell
+jacobi_amplitude(elliptic_f(0.8, 0.3), 0.3)
+#% output
+#= 0.8
+
+#% text
+# The derivative in `phi`:
+
+#% cell
+d(elliptic_f(phi, m), phi)
+#% output
+#= (1 - m*sin(phi)^2)^(-1/2)
+
+#% section
+# See also
+
+#% text
+# `elliptic_k`, `elliptic_e`, `jacobi_amplitude`, `inverse_jacobi_sn`

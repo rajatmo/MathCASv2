@@ -1,0 +1,256 @@
+#! mathcas 2 notebook
+
+#% title
+# mellin_transform
+
+#% text
+# `mellin_transform(f, x, s)` gives the Mellin transform `integrate(x^(s - 1)*f, [x, 0, inf])` of `f`.
+
+#% text
+# `mellin_transform(f, [x, y], [s, t])` transforms in several variables.
+
+#% section
+# Details
+
+#% item
+# Powers of `x` are distributions: `x^a` gives `2 pi dirac_delta(im (s + a))`.
+
+#% item
+# The scaling rules `f(a x)` (giving `a^-s F(s)`) and `f(x^k)` (giving `F(s/k)/abs(k)`), and `x^a f(x)` (giving `F(s + a)`).
+
+#% item
+# `g(log(x)) unit_step(x - 1)` is the Laplace transform of `g` at `-s`; steps `unit_step(x - a)` with `a > 0` restrict the integral.
+
+#% item
+# Bessel functions, error functions, exponential integrals and the Bose-Einstein kernel `1/(exp(x) - 1)` come from a table; other integrands go to `integrate`.
+
+#% item
+# `generate_conditions: true` gives the strip of convergence.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mellin_transform(exp(-a*x), x, s)
+#% output
+#= gamma(s)*a^-s
+
+#% cell
+mellin_transform(1/(1 + x), x, s)
+#% output
+#= pi*csc(pi*s)
+
+#% subsection
+# Scope
+
+#% text
+# Bessel functions:
+
+#% cell
+mellin_transform(bessel_j(1, x), x, s)
+#% output
+#= gamma(1/2 + (1/2)*s)*2^(-1 + s)/gamma(3/2 - (1/2)*s)
+
+#% cell
+mellin_transform(bessel_k(0, x), x, s)
+#% output
+#= 2^(-2 + s)*gamma((1/2)*s)^2
+
+#% text
+# Error functions:
+
+#% cell
+mellin_transform(erfc(x), x, s)
+#% output
+#= gamma(1/2 + (1/2)*s)/(pi^(1/2)*s)
+
+#% text
+# Steps:
+
+#% cell
+mellin_transform(unit_step(x - 1), x, s)
+#% output
+#= -1/s
+
+#% cell
+mellin_transform(sin(log(x))*unit_step(x - 1), x, s)
+#% output
+#= (1 + s^2)^-1
+
+#% text
+# A delta function:
+
+#% cell
+mellin_transform(dirac_delta(x - 1), x, s)
+#% output
+#= 1
+
+#% text
+# Powers of x:
+
+#% cell
+mellin_transform(x^2 + 3*x, x, s)
+#% output
+#= 2*pi*dirac_delta(im*(2 + s)) + 6*pi*dirac_delta(im*(1 + s))
+
+#% text
+# Scaling:
+
+#% cell
+mellin_transform(exp(-x^2), x, s)
+#% output
+#= (1/2)*gamma((1/2)*s)
+
+#% text
+# Two variables:
+
+#% cell
+mellin_transform(exp(-x - 3*y^2), [x, y], [s, t])
+#% output
+#= (1/2)*gamma(s)*gamma((1/2)*t)*3^((-1/2)*t)
+
+#% text
+# Rational functions and a power with a Gaussian:
+
+#% cell
+mellin_transform(1/(1 + x)^2, x, s)
+#% output
+#= gamma(s)*gamma(2 - s)
+
+#% cell
+mellin_transform(x*exp(-x^2), x, s)
+#% output
+#= (1/2)*gamma((1/2)*(1 + s))
+
+#% text
+# The Bose-Einstein kernel gives the Riemann zeta function:
+
+#% cell
+mellin_transform(1/(exp(x) - 1), x, s)
+#% output
+#= gamma(s)*zeta(s)
+
+#% text
+# Trigonometric functions and the inverse tangent:
+
+#% cell
+mellin_transform(sin(x), x, s)
+#% output
+#= gamma(s)*sin((1/2)*pi*s)
+
+#% cell
+mellin_transform(atan(x), x, s)
+#% output
+#= -pi/(2*s*cos((1/2)*pi*s))
+
+#% text
+# A piecewise function:
+
+#% cell
+mellin_transform(piecewise([[1, x < 1]], 0), x, s)
+#% output
+#= s^-1
+
+#% subsection
+# Options
+
+#% cell
+mellin_transform(exp(-x), x, s, generate_conditions: true)
+#% output
+#= conditional_expression(gamma(s), re(s) > 0)
+
+#% text
+# `assumptions:` states what is known about `s`, and the strip comes with a symbolic power:
+
+#% cell
+mellin_transform(exp(-x), x, s, assumptions: s > 0)
+#% output
+#= gamma(s)
+
+#% cell
+mellin_transform(x^a*exp(-x), x, s, generate_conditions: true)
+#% output
+#= conditional_expression(gamma(a + s), re(a + s) > 0)
+
+#% text
+# A number for `s` gives the value there, to the precision of `s` (there is no `working_precision:` option):
+
+#% cell
+mellin_transform(exp(-x), x, 5/2)
+#% output
+#= (3/4)*pi^(1/2)
+
+#% cell
+mellin_transform(exp(-x), x, n(5/2, 30))
+#% output
+#= 1.3293403881791370204736256125058589
+
+#% subsection
+# Properties and relations
+
+#% text
+# At a number the value is the integral, and for `exp(-x)` it is the gamma function:
+
+#% cell
+mellin_transform(exp(-x), x, 2.5) - n_integrate(x^1.5*exp(-x), [x, 0, inf])
+#% output
+#= 2.4655832930875476e-12
+
+#% cell
+mellin_transform(exp(-x), x, 2.5) - gamma(2.5)
+#% output
+#= 0.0
+
+#% text
+# The inverse gives the transform back:
+
+#% cell
+mellin_transform(inverse_mellin_transform(gamma(s)*gamma(1/2 - s), s, x), x, s)
+#% output
+#= gamma(s)*gamma(1/2 - s)
+
+#% subsection
+# Possible issues
+
+#% text
+# A strip is reported only with a conditional result; the transform of `1/(1 + x^2)`, valid for `0 < re(s) < 2`, comes without it:
+
+#% cell
+mellin_transform(1/(1 + x^2), x, s, generate_conditions: true)
+#% output
+#= conditional_expression((1/2)*pi*csc((1/2)*pi*s), 0 < re(s) and re(s) < 2)
+
+#% text
+# A number `s` outside the strip stays unevaluated: the integral diverges, and the closed form there is only the analytic continuation, not its value:
+
+#% cell
+mellin_transform(1/(1 + x^2), x, 3)
+#% output
+#= mellin_transform((1 + x^2)^-1, x, 3)
+
+#% text
+# A step that does not start at 1, an undefined function, and `working_precision:` leave the call as it is:
+
+#% cell
+mellin_transform(exp(-x)*unit_step(x - 2), x, s)
+#% output
+#= mellin_transform(exp(-x)*unit_step(-2 + x), x, s)
+
+#% cell
+mellin_transform(f(x), x, s)
+#% output
+#= mellin_transform(f(x), x, s)
+
+#% cell
+mellin_transform(exp(-x), x, s, working_precision: 30)
+#% output
+#= mellin_transform(exp(-x), x, s, working_precision: 30)
+
+#% section
+# See also
+
+#% text
+# `inverse_mellin_transform`, `laplace_transform`, `gamma`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# binary_write
+
+#% text
+# `binary_write(file, data, type)`: write bytes, integers or reals (or a string as its bytes) to a binary file; gives the file name
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = string_join(temporary_directory(), "binary_write_demo.bin"); binary_write(f, [65, 66, 67]); binary_read_list(f, "Character8")
+#% output
+#= ["A", "B", "C"]
+
+#% section
+# See also
+
+#% text
+# `byte_array`, `binary_read_list`, `export_data`

@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# robust_convex_optimization
+
+#% text
+# `robust_convex_optimization(f, for_all(params, region, cons), vars)` gives the point that minimizes `f` such that the constraints `cons` hold for every value of the uncertain parameters in `region`.
+
+#% section
+# Details
+
+#% item
+# The region must be a box: bounds on each parameter, written as inequalities or as `element(p, interval([lo, hi]))`. With constraints affine in the parameters the worst cases are the corners of the box, so the problem is solved with the constraints at all corners.
+
+#% item
+# Other regions (a ball, a polytope) leave the call unevaluated.
+
+#% item
+# A fourth argument selects the result as for `quadratic_optimization`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+robust_convex_optimization(x + y, for_all([a, b], -1 <= a and a <= 1 and 0 <= b and b <= 1, 10*x >= a and y >= b), [x, y])
+#% output
+#= [x -> 1/10, y -> 1]
+
+#% cell
+robust_convex_optimization(x + y, for_all(t, -1 <= t and t <= 1, [x + 2*y >= 3 + t, x >= -1]), [x, y])
+#% output
+#= [x -> -1, y -> 5/2]
+
+#% cell
+robust_convex_optimization(x + y, for_all(t, element(t, interval([-1, 1])), [x + 2*y >= 3 + t, x >= -1]), [x, y])
+#% output
+#= [x -> -1, y -> 5/2]
+
+#% section
+# See also
+
+#% text
+# `parametric_convex_optimization`, `convex_optimization`, `for_all`

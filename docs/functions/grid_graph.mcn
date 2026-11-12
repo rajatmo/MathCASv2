@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# grid_graph
+
+#% text
+# `grid_graph([m, n])` is the m x n grid of vertices joined to their neighbours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+grid_graph([3, 4])
+#% output
+#= image("grid_graph.files/grid_graph-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

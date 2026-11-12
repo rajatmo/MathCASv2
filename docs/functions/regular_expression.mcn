@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# regular_expression
+
+#% text
+# `regular_expression("re")` is a string pattern written as a regular expression: literals, `.`, classes `[a-z]`, `[^...]`, `\d \w \s` and their negations, the anchors `^ $ \b`, groups (bound to `$1`, `$2`, ... in a replacement string; `$0` is the whole match), `|`, and the quantifiers `* + ? {m,n}`, lazy when followed by `?`. Look-around and back references are not supported.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("x1 y22 z333", regular_expression("[a-z]\\d+"))
+#% output
+#= ["x1", "y22", "z333"]
+
+#% cell
+string_replace("hello world", regular_expression("(\\w+) (\\w+)") -> "$2 $1")
+#% output
+#= "world hello"
+
+#% cell
+string_cases("x1 y22 z333", regular_expression("[a-z]\\d+?"))
+#% output
+#= ["x1", "y2", "z3"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `string_replace`

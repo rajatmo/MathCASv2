@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# count_by
+
+#% text
+# `count_by(xs, f)` gives an association from each value of `f(x)` to the number of elements of `xs` that give it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count_by(range(10), is_even)
+#% output
+#= assoc(false -> 5, true -> 5)
+
+#% cell
+count_by(["apple", "bean", "avocado"], s => string_take(s, 1))
+#% output
+#= assoc("a" -> 2, "b" -> 1)
+
+#% subsection
+# Scope
+
+#% text
+# A histogram of word lengths:
+
+#% cell
+count_by(["a", "bb", "cc", "ddd"], string_length)
+#% output
+#= assoc(1 -> 1, 2 -> 2, 3 -> 1)
+
+#% section
+# See also
+
+#% text
+# `counts`, `gather_by`, `group_by`, `tally`

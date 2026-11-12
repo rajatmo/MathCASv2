@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# acos
+
+#% text
+# `acos(x)` gives the principal inverse cosine of `x`, in `[0, pi]` for `-1 <= x <= 1`.
+
+#% section
+# Details
+
+#% item
+# Exact values at 0, `1/2`, `1/sqrt(2)`, `sqrt(3)/2`, 1 and their negatives; other exact arguments stay unevaluated.
+
+#% item
+# Outside `[-1, 1]` the value is complex. Machine numbers, balls and complex numbers give numerical values. `acos` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+acos(1/2)
+#% output
+#= (1/3)*pi
+
+#% cell
+acos(-1)
+#% output
+#= pi
+
+#% cell
+acos(0.3)
+#% output
+#= 1.2661036727794992
+
+#% cell
+acos(0)
+#% output
+#= (1/2)*pi
+
+#% subsection
+# Scope
+
+#% text
+# Outside `[-1, 1]`:
+
+#% cell
+acos(2.0)
+#% output
+#= 0.0 + 1.3169578969248166im
+
+#% subsection
+# Applications
+
+#% text
+# The angle between two vectors:
+
+#% cell
+u = [1, 2, 2]; v = [2, 1, -2]; acos(dot(u, v)/(norm(u)*norm(v)))
+#% output
+#= (1/2)*pi
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(acos(x), x)
+#% output
+#= -1/(1 - x^2)^(1/2)
+
+#% section
+# See also
+
+#% text
+# `cos`, `asin`, `atan`

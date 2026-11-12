@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=MathCAS v2 Documentation
+GenericName=Function reference
+Comment=Browse and search the MathCAS function pages
+Exec=mc-docs
+TryExec=mc-docs
+Icon=mathcas
+Terminal=false
+Categories=Education;Science;Math;Documentation;
+Keywords=help;reference;functions;
+StartupWMClass=mc-docs

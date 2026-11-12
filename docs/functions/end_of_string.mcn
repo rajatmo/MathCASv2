@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# end_of_string
+
+#% text
+# `end_of_string` is a string pattern for the empty text at the end of the string.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_replace("aaa", string_expression("a", end_of_string) -> "X")
+#% output
+#= "aaX"
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

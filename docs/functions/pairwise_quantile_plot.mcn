@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# pairwise_quantile_plot
+
+#% text
+# `pairwise_quantile_plot(data)` draws a grid of Q-Q plots: the quantiles of each pair of columns against each other.
+
+#% section
+# Details
+
+#% item
+# A straight line means the columns differ only in location and scale.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pairwise_quantile_plot(table([sin(k), k^2 / 100, k / 5], k, range(1, 60)))
+#% output
+#= image("pairwise_quantile_plot.files/pairwise_quantile_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `pairwise_probability_plot`

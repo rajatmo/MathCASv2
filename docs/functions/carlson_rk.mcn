@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# carlson_rk
+
+#% text
+# `carlson_rk(x, y)` gives the complete symmetric elliptic integral `R_K(x, y) = (2/pi) R_F(0, x, y)`.
+
+#% section
+# Details
+
+#% item
+# `R_K(x, y) = 1/agm(sqrt(x), sqrt(y))`; `K(m) = (pi/2) R_K(1, 1 - m)`.
+
+#% item
+# `R_K(x, x) = x^(-1/2)`; a zero argument gives `complex_infinity`.
+
+#% item
+# Numerical values come from the duplication algorithm of `carlson_rf`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+carlson_rk(2.0, 3.0)
+#% output
+#= 0.637305654068301
+
+#% cell
+n(carlson_rk(5, 7), 30)
+#% output
+#= 0.41040751430462836940653167883696572
+
+#% cell
+carlson_rk(4, [1.0, 2.0, 3.0, 4.0, 5.0])
+#% output
+#= [0.6864402503091751, 0.5901702995080481, 0.5365910035746821, 0.5, 0.472503165464879]
+
+#% cell
+carlson_rk(x, x)
+#% output
+#= x^(-1/2)
+
+#% text
+# The complete integral of the first kind:
+
+#% cell
+(pi/2)*carlson_rk(1, 1 - 0.3) - elliptic_k(0.3)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `carlson_rf`, `elliptic_k`

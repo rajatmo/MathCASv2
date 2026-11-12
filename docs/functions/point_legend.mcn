@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# point_legend
+
+#% text
+# `point_legend([colours], [labels])` is a legend of point markers in the given colours with the given labels, a value of the option `plot_legends`.
+
+#% text
+# `point_legend([labels])` uses the colours of the plot.
+
+#% section
+# Details
+
+#% item
+# It suits plots of points; `line_legend` draws line samples instead. `placed(point_legend(...), pos)` moves it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_plot([[1, 2, 3, 4], [2, 3, 2, 1]], plot_legends: point_legend([blue, red], ["first", "second"]))
+#% output
+#= image("point_legend.files/point_legend-1.svgz")
+
+#% cell
+list_plot([[1, 4, 9], [1, 2, 3]], plot_legends: point_legend(["squares", "integers"]))
+#% output
+#= image("point_legend.files/point_legend-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 6], plot_legends: placed(point_legend([red, blue], ["a", "b"]), below))
+#% output
+#= image("point_legend.files/point_legend-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `line_legend`, `plot_legends`, `placed`, `list_plot`

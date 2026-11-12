@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# coefficient_arrays
+
+#% text
+# `coefficient_arrays(polys, vars)` gives the list `[a0, a1, ..., ad]` of arrays of the coefficients of the polynomial, or list of polynomials, in the variables `vars`.
+
+#% section
+# Details
+
+#% item
+# `a0` holds the constant terms, `a1` the linear coefficients (one row per polynomial), `a2` the quadratic ones at the positions `[i, j]` with `i <= j`, and so on.
+
+#% item
+# For a list of `m` polynomials every array has a leading dimension `m`; for a single polynomial it has none.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coefficient_arrays(x^2 + x*y + 3 + 2*y, [x, y])
+#% output
+#= [3, [0, 2], [[1, 1], [0, 0]]]
+
+#% cell
+coefficient_arrays([x + 2*y - 1, 3*x*y], [x, y])
+#% output
+#= [[-1, 0], [[1, 2], [0, 0]], [[[0, 0], [0, 0]], [[0, 3], [0, 0]]]]
+
+#% cell
+coefficient_arrays(5*x^3, [x])
+#% output
+#= [0, [0], [[0]], [[[5]]]]
+
+#% section
+# See also
+
+#% text
+# `coefficient_rules`, `coefficient_list`, `coefficient`

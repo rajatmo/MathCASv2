@@ -1,0 +1,80 @@
+#! mathcas 2 notebook
+
+#% title
+# activate
+
+#% text
+# `activate(e)` replaces every inert head `inactive(f)` in `e` by `f` and evaluates the result.
+
+#% section
+# Details
+
+#% item
+# `inactive(f)(x, ...)` keeps a call unevaluated; `activate` lets it evaluate.
+
+#% item
+# `activate(e, p)` replaces only the heads `inactive(f)` whose `f` matches the pattern `p` (a symbol, or any pattern).
+
+#% item
+# `activate(e, heads: false)` leaves the heads of calls alone: only arguments are activated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+activate(inactive(add)(1, 2))
+#% output
+#= 3
+
+#% cell
+e = inactive(mul)(3, inactive(add)(1, 1))
+activate(e)
+#% output
+#= 6
+
+#% subsection
+# Scope
+
+#% text
+# Activate only additions:
+
+#% cell
+activate(inactive(add)(2, 2, inactive(pow)(3, 2)), add)
+#% output
+#= 4 + inactive(pow)(3, 2)
+
+#% text
+# Activate everything except integration:
+
+#% cell
+activate(inactive(add)(inactive(cos)(pi), inactive(integrate)(x, x)), f_ when not match_q(f, integrate))
+#% output
+#= -1 + inactive(integrate)(x, x)
+
+#% subsection
+# Options
+
+#% cell
+activate(inactive(derivative)(1)(cos)(x), heads: false)
+#% output
+#= inactive(derivative)(1)(cos)(x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without `activate` the call stays:
+
+#% cell
+inactive(add)(1, 2)
+#% output
+#= inactive(add)(1, 2)
+
+#% section
+# See also
+
+#% text
+# `inactive`, `inactivate`, `composition`, `through`

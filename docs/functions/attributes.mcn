@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# attributes
+
+#% text
+# `attributes(f)` gives the list of the attributes of the symbol `f`: `listable`, `hold_all`, `hold_first`, `hold_rest`, `orderless`, `effect`, `handles_failures`, `protected`.
+
+#% section
+# Details
+
+#% item
+# The argument is held: `attributes(f)` names the symbol `f`, whatever value it has.
+
+#% item
+# `orderless` stands for an associative and commutative head (arguments flattened and sorted).
+
+#% item
+# `protected` (given by `protect`): the symbol's definitions may not change.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+attributes(add)
+#% output
+#= [flat, listable, orderless]
+
+#% cell
+attributes(table)
+#% output
+#= [hold_all]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `set_attributes` gives a symbol attributes:
+
+#% cell
+set_attributes(g1, listable)
+attributes(g1)
+#% output
+#= [listable]
+
+#% section
+# See also
+
+#% text
+# `set_attributes`, `clear_attributes`

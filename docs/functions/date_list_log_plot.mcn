@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# date_list_log_plot
+
+#% text
+# `date_list_log_plot(data)` is `date_list_plot` with a logarithmic y axis.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+date_list_log_plot(range(50, 1000, 50), [2007, 1, 1])
+#% output
+#= image("date_list_log_plot.files/date_list_log_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `date_list_plot`

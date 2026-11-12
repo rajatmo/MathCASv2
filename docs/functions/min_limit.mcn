@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# min_limit
+
+#% text
+# `min_limit(f, x -> a)` gives the limit inferior of `f` as `x` tends to `a`: the smallest value that `f` keeps coming back to near `a`.
+
+#% text
+# `min_limit(f, x -> a, direction: from_above)` and `direction: from_below` take one side.
+
+#% section
+# Details
+
+#% item
+# When the limit exists, `min_limit` gives it.
+
+#% item
+# A sum of a function with a limit and a bounded oscillation `c sin(u)`, `c cos(u)` with `u` tending to an infinity gives the limit minus the amplitude.
+
+#% item
+# At a finite point without a direction, the smaller of the two one-sided values is given.
+
+#% item
+# When the value cannot be decided, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An oscillation that settles between -1 and 1:
+
+#% cell
+min_limit(sin(x) - 1/x, x -> inf)
+#% output
+#= -1
+
+#% text
+# A pole of odd order:
+
+#% cell
+min_limit(1/x, x -> 0)
+#% output
+#= -inf
+
+#% subsection
+# Scope
+
+#% text
+# The amplitude of a combination of sine and cosine:
+
+#% cell
+min_limit(3*sin(x) + 4*cos(x), x -> inf)
+#% output
+#= -5
+
+#% subsection
+# Properties and relations
+
+#% text
+# `min_limit(f)` is `-max_limit(-f)`:
+
+#% cell
+[min_limit(cos(2*x)/2, x -> inf), -max_limit(-cos(2*x)/2, x -> inf)]
+#% output
+#= [-1/2, -1/2]
+
+#% section
+# See also
+
+#% text
+# `max_limit`, `limit`

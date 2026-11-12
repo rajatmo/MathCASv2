@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# nest_graph
+
+#% text
+# `nest_graph(f, start, n)` gives the graph of repeated application of `f`: edges from each vertex `v` to the values of `f(v)`, for `n` levels.
+
+#% section
+# Details
+
+#% item
+# `start` is one vertex or a list of vertices; `f(v)` is one vertex or a list of them.
+
+#% item
+# Level 0 is the starting vertices; each level adds the values of `f` on the vertices found at the previous one; the last level is not expanded. The default is one level, `inf` continues until no new vertex appears.
+
+#% item
+# Vertices come in the order they are found, edges in the order of their source vertices; an edge is listed once.
+
+#% item
+# The other options (`vertex_labels`, ...) go to `graph`; `directed_edges: false` makes the edges undirected.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+g = nest_graph(f, x, 3)
+[vertex_list(g), edge_list(g)]
+#% output
+#= [[x, f(x), f(f(x)), f(f(f(x)))], [directed_edge(x, f(x)), directed_edge(f(x), f(f(x))), directed_edge(f(f(x)), f(f(f(x))))]]
+
+#% text
+# Two values at each step:
+
+#% cell
+edge_list(nest_graph(x => [f(x), h(x)], x0, 2))
+#% output
+#= [directed_edge(x0, f(x0)), directed_edge(x0, h(x0)), directed_edge(f(x0), f(f(x0))), directed_edge(f(x0), h(f(x0))), directed_edge(h(x0), f(h(x0))), directed_edge(h(x0), h(h(x0)))]
+
+#% subsection
+# Scope
+
+#% text
+# Starting from several vertices:
+
+#% cell
+edge_list(nest_graph(x => mod(x^2 + 1, 5), [0, 1, 2], 2))
+#% output
+#= [directed_edge(0, 1), directed_edge(1, 2), directed_edge(2, 0)]
+
+#% text
+# Until nothing new appears:
+
+#% cell
+vertex_list(nest_graph(x => if x < 4 then [x + 1, x + 2] else [], 1, inf))
+#% output
+#= [1, 2, 3, 4, 5]
+
+#% subsection
+# Options
+
+#% cell
+edge_list(nest_graph(x => mod(x^2 + 1, 5), [0, 1, 2], 2, directed_edges: false))
+#% output
+#= [undirected_edge(0, 1), undirected_edge(1, 2), undirected_edge(2, 0)]
+
+#% section
+# See also
+
+#% text
+# `graph`, `vertex_list`, `edge_list`, `nest_list`

@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# mittag_leffler_e
+
+#% text
+# `mittag_leffler_e(a, z)` gives the Mittag-Leffler function `E_a(z)`, the sum of `z^k/gamma(a*k + 1)` for `k >= 0`.
+
+#% text
+# `mittag_leffler_e(a, b, z)` gives the two-parameter function `E_(a, b)(z)`, the sum of `z^k/gamma(a*k + b)`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 10.46.3 generalized; `E_1(z)` is `exp(z)` and `E_2(z^2)` is `cosh(z)`. The functions solve fractional relaxation equations.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mittag_leffler_e(1, 1.0)
+#% output
+#= 2.718281828459045
+
+#% cell
+mittag_leffler_e(0.5, 1.0)
+#% output
+#= 5.008980080762283
+
+#% cell
+mittag_leffler_e(2, 4.0)
+#% output
+#= 3.7621956910836314
+
+#% cell
+mittag_leffler_e(1, 2, 1.0)
+#% output
+#= 1.7182818284590453
+
+#% subsection
+# Properties and relations
+
+#% text
+# `E_(1/2)(z)` is `exp(z^2)*erfc(-z)`:
+
+#% cell
+mittag_leffler_e(0.5, 0.8) - exp(0.64)*erfc(-0.8)
+#% output
+#= 0.0
+
+#% text
+# `E_2(z^2)` is `cosh(z)`:
+
+#% cell
+mittag_leffler_e(2, 4.0) - cosh(2.0)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `exp`, `erfc`, `gamma`

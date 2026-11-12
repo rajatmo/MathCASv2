@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# from_polar_coordinates
+
+#% text
+# `from_polar_coordinates([r, theta])` gives the Cartesian point `[r cos(theta), r sin(theta)]`.
+
+#% section
+# Details
+
+#% item
+# `from_polar_coordinates([r, t1, ..., tk])` uses hyperspherical coordinates: `x1 = r cos(t1)`, `x2 = r sin(t1) cos(t2)`, ..., the last coordinate `r sin(t1) ... sin(tk)`.
+
+#% item
+# A list of points maps over the function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+from_polar_coordinates([2, pi/3])
+#% output
+#= [1, 3^(1/2)]
+
+#% cell
+from_polar_coordinates([1, a, b])
+#% output
+#= [cos(a), cos(b)*sin(a), sin(a)*sin(b)]
+
+#% cell
+from_polar_coordinates([[1, 0], [2, pi/2]])
+#% output
+#= [[1, 0], [0, 2]]
+
+#% section
+# See also
+
+#% text
+# `angle_vector`

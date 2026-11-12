@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# rank
+
+#% text
+# `rank(m)` gives the rank of the matrix `m`, the number of linearly independent rows.
+
+#% section
+# Details
+
+#% item
+# Exact matrices are row-reduced exactly. For machine matrices the rank counts the singular values above `max(r, c)*eps*s_max`, with `s_max` the largest.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rank([[1, 2], [2, 4]])
+#% output
+#= 1
+
+#% cell
+rank([[1, 2], [3, 4]])
+#% output
+#= 2
+
+#% cell
+rank([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+#% output
+#= 2
+
+#% cell
+rank([[0, 0], [0, 0]])
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# A machine matrix close to singular:
+
+#% cell
+rank([[1.0, 2.0], [1.0, 2.0 + 1.0e-20]])
+#% output
+#= 1
+
+#% text
+# A non-square matrix:
+
+#% cell
+rank([[1, 0, 1], [0, 1, 1]])
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# Rank plus nullity is the number of columns:
+
+#% cell
+m = [[1, 2, 3], [2, 4, 6], [1, 1, 1]]; rank(m) + length(null_space(m))
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `null_space`, `row_reduce`, `det`, `singular_values`

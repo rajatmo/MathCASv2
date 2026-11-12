@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# group_generators
+
+#% text
+# `group_generators(G)`: the generators of the group
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+group_generators(dihedral_group(5))
+#% output
+#= [cycles([[1, 2, 3, 4, 5]]), cycles([[2, 5], [3, 4]])]
+
+#% cell
+group_generators(finitely_presented_group([a, b], [a^2, b^3, table([a, b], 5)]))
+#% output
+#= [a, b]
+
+#% section
+# See also
+
+#% text
+# `permutation_group`, `group_stabilizer_chain`

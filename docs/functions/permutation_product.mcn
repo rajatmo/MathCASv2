@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# permutation_product
+
+#% text
+# `permutation_product(p1, p2, ...)`: the product, applying p1 first
+
+#% section
+# Details
+
+#% item
+# The product applies its arguments from left to right: the image of x under `permutation_product(p, q)` is the image under q of the image under p.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permutation_product(cycles([[1, 2]]), cycles([[2, 3]]))
+#% output
+#= cycles([[1, 3, 2]])
+
+#% cell
+permutation_product(cycles([[2, 3]]), cycles([[1, 2]]))
+#% output
+#= cycles([[1, 2, 3]])
+
+#% cell
+permutation_product(cycles([[1, 2, 3]]), cycles([[1, 2, 3]]), cycles([[1, 2, 3]]))
+#% output
+#= cycles([])
+
+#% section
+# See also
+
+#% text
+# `permutation_inverse`, `permutation_power`, `cycles`

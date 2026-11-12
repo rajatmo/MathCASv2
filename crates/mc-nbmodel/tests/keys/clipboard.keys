@@ -1,0 +1,263 @@
+Clipboard with boxes (round 13): a copied range holding a square root, fraction or power box goes on the
+clipboard as its linear text (for other programs) and as the box flavour (its canonical box text, 4.4); pasting the
+box flavour into a code cell inserts the boxes (a plain cell takes its first boxes, its characters stay characters),
+at an insertion point it makes one Input cell holding them. Text from other programs stays text, `((` included.
+`--- clip` gives the clipboard at the end.
+
+=== a fraction copied from one cell pastes as a fraction into a plain cell
+--- before
+#% cell typeset
+((a)/(b))▮
+
+#% cell
+x+
+--- keys
+Ctrl+A Ctrl+C Click(1,2) Ctrl+V
+--- after
+#% cell typeset
+((a)/(b))
+
+#% cell typeset
+x+((a)/(b))▮
+--- boxes
+x+(a/b)▮
+--- clip
+text "a/b"
+boxes "((a)/(b))"
+
+=== the plain cell's own characters stay characters when it takes the pasted boxes
+--- before
+#% cell typeset
+((a)/(b))▮
+
+#% cell
+f((y))+
+--- keys
+Ctrl+A Ctrl+C Click(1,7) Ctrl+V
+--- after
+#% cell typeset
+((a)/(b))
+
+#% cell typeset
+f((y))+((a)/(b))▮
+--- boxes
+f((y))+(a/b)▮
+
+=== a root pasted into the middle of a fraction's numerator nests there
+--- before
+#% cell typeset
+((sqrt(x)))▮
+
+#% cell typeset
+((ab)/(c))
+--- keys
+Ctrl+A Ctrl+C Click(1,3) Ctrl+V
+--- after
+#% cell typeset
+((sqrt(x)))
+
+#% cell typeset
+((a*((sqrt(x)))▮*b)/(c))
+--- boxes
+(a*√(x)▮*b/c)
+
+=== a part of a slot holding a box copies with it; a slot's plain part copies as text only
+--- before
+#% cell typeset
+((1+((x)^(2)))/(c))▮
+--- keys
+Ctrl+A Ctrl+C
+--- clip
+text "(1+x^2)/c"
+boxes "((1+((x)^(2)))/(c))"
+
+=== a selection without boxes in a cell with boxes copies as text only
+--- before
+#% cell typeset
+ab+((x)^(2))▮
+--- keys
+Home Shift+Right Shift+Right Ctrl+C
+--- clip
+text "ab"
+
+=== Copy as plain text writes the linear text only
+--- before
+#% cell typeset
+((sqrt(x)))▮
+--- keys
+Ctrl+A Ctrl+Shift+C
+--- clip
+text "sqrt(x)"
+
+=== a power cut from one cell pastes into another; the cell it left is plain again
+--- before
+#% cell typeset
+y+((x)^(2))▮
+
+#% cell
+z
+--- keys
+Shift+Left Ctrl+X Click(1,1) Ctrl+V
+--- after
+#% cell
+y+
+
+#% cell typeset
+z*((x)^(2))▮
+--- clip
+text "x^2"
+boxes "((x)^(2))"
+
+=== pasted boxes replace a selection in a plain cell
+--- before
+#% cell typeset
+((a)/(b))▮
+
+#% cell
+1 + abc + 2
+--- keys
+Ctrl+A Ctrl+C Click(1,4) Shift+Click(1,7) Ctrl+V
+--- after
+#% cell typeset
+((a)/(b))
+
+#% cell typeset
+1 + ((a)/(b))▮ + 2
+--- boxes
+1 + (a/b)▮ + 2
+
+=== pasted boxes replace a selection in a cell with boxes
+--- before
+#% cell typeset
+((sqrt(x)))▮
+
+#% cell typeset
+((x)^(2))+1
+--- keys
+Ctrl+A Ctrl+C Click(1,0) Shift+Right Ctrl+V
+--- after
+#% cell typeset
+((sqrt(x)))
+
+#% cell typeset
+((sqrt(x)))▮+1
+--- boxes
+√(x)▮+1
+
+=== boxes pasted at an insertion point make one Input cell holding them
+--- before
+#% cell typeset
+((x)^(2))▮
+
+#% cell
+y
+--- keys
+Ctrl+A Ctrl+C Gap(2) Ctrl+V
+--- after
+#% cell typeset
+((x)^(2))
+
+#% cell
+y
+
+#% cell typeset
+((x)^(2))▮
+--- boxes
+(x^2)▮
+
+=== pasting boxes is one undo unit; undo leaves the plain cell as it was
+--- before
+#% cell typeset
+((a)/(b))▮
+
+#% cell
+x+
+--- keys
+Ctrl+A Ctrl+C Click(1,2) Ctrl+V Ctrl+Z
+--- after
+#% cell typeset
+((a)/(b))
+
+#% cell
+x+▮
+
+=== text from another program stays text in a plain cell, `((` included
+--- before
+#% cell
+y = ▮
+--- keys
+Clip("((a)/(b))") Ctrl+V
+--- after
+#% cell
+y = ((a)/(b))▮
+--- boxes
+none
+
+=== text from another program stays text in a cell with boxes, `((` included
+--- before
+#% cell typeset
+((x)^(2))▮
+--- keys
+Clip("+((a)/(b))") Ctrl+V
+--- boxes
+(x^2)+((a)/(b))▮
+
+=== boxes pasted into a Text cell give their linear text
+--- before
+#% cell typeset
+((a)/(b))▮
+
+#% text
+see:
+--- keys
+Ctrl+A Ctrl+C Click(1,4) Ctrl+V
+--- after
+#% cell typeset
+((a)/(b))
+
+#% text
+see:a/b▮
+
+=== copied cells give the linear text of their boxes and the cells flavour
+--- before
+#% cell typeset ◆
+((a)/(b))+1
+--- keys
+Ctrl+C
+--- clip
+text "a/b+1"
+cells
+
+=== a root copied from typeset output pastes as a root box
+--- before
+#% cell label=1
+2^(1/2)
+#% output n=1
+#= ⟦2^(1/2)⟧
+
+#% cell
+r=
+--- keys
+TypesetOutputs Ctrl+C Click(2,2) Ctrl+V
+--- after
+#% cell label=1
+2^(1/2)
+#% output n=1
+#= 2^(1/2)
+
+#% cell typeset
+r=((sqrt(2)))▮
+--- clip
+text "2^(1/2)"
+boxes "((sqrt(2)))"
+
+=== a part of typeset output without boxes copies as text only
+--- before
+#% cell label=1
+x + y
+#% output n=1
+#= ⟦x⟧ + y
+--- keys
+TypesetOutputs Ctrl+C
+--- clip
+text "x"

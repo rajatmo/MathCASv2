@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# numerical_sort
+
+#% text
+# `numerical_sort(xs)` sorts the elements of `xs` (a list, or any compound term, whose head stays) that have a real numerical value (`inf` and `-inf` included) by that value, and puts the others after them in canonical order. `sort` uses the canonical order instead, which does not order numerical constants by value.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+numerical_sort([1, pi, e, inf, -sqrt(2), -inf])
+#% output
+#= [-inf, -2^(1/2), 1, e, pi, inf]
+
+#% cell
+numerical_sort(data(0, 1, inf, -inf, x))
+#% output
+#= data(-inf, 0, 1, inf, x)
+
+#% cell
+sort([1, pi, e, inf, -sqrt(2), -inf])
+#% output
+#= [1, e, inf, pi, -inf, -2^(1/2)]
+
+#% cell
+numerical_sort([b, a, inf, 0])
+#% output
+#= [0, inf, a, b]
+
+#% section
+# See also
+
+#% text
+# `sort`, `sort_by`, `ordering`

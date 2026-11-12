@@ -1,0 +1,108 @@
+#! mathcas 2 notebook
+
+#% title
+# max_limit
+
+#% text
+# `max_limit(f, x -> a)` gives the limit superior of `f` as `x` tends to `a`: the largest value that `f` keeps coming back to near `a`.
+
+#% text
+# `max_limit(f, x -> a, direction: from_above)` and `direction: from_below` take one side.
+
+#% section
+# Details
+
+#% item
+# When the limit exists, `max_limit` gives it.
+
+#% item
+# A sum of a function with a limit and a bounded oscillation `c sin(u)`, `c cos(u)` with `u` tending to an infinity gives the limit plus the amplitude.
+
+#% item
+# At a finite point without a direction, the larger of the two one-sided values is given.
+
+#% item
+# A list of rules `[y -> b, x -> a]` takes the limits one after the other, the last rule first.
+
+#% item
+# When the value cannot be decided, the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An oscillation that settles between -1 and 1:
+
+#% cell
+max_limit(sin(x) - 1/x, x -> inf)
+#% output
+#= 1
+
+#% text
+# A pole of odd order: the values grow without bound on one side:
+
+#% cell
+max_limit(1/x, x -> 0)
+#% output
+#= inf
+
+#% subsection
+# Scope
+
+#% text
+# The amplitude of a combination of sine and cosine:
+
+#% cell
+max_limit(3*sin(x) + 4*cos(x) + 1, x -> inf)
+#% output
+#= 6
+
+#% text
+# Iterated limits, the last rule first:
+
+#% cell
+[max_limit(y/(x + y), [y -> 0, x -> 0]), max_limit(y/(x + y), [x -> 0, y -> 0])]
+#% output
+#= [1, 0]
+
+#% subsection
+# Options
+
+#% text
+# One side of the point:
+
+#% cell
+max_limit(x/(x^3 + x^2), x -> 0, direction: from_below)
+#% output
+#= -inf
+
+#% subsection
+# Properties and relations
+
+#% text
+# Where the limit exists, `max_limit`, `min_limit` and `limit` agree:
+
+#% cell
+[max_limit(sqrt(x^2 + 3*x) - sqrt(x^2 + 2*x), x -> inf), min_limit(sqrt(x^2 + 3*x) - sqrt(x^2 + 2*x), x -> inf)]
+#% output
+#= [1/2, 1/2]
+
+#% subsection
+# Possible issues
+
+#% text
+# A growing oscillation reaches both infinities:
+
+#% cell
+[max_limit(x*sin(x), x -> inf), min_limit(x*sin(x), x -> inf)]
+#% output
+#= [inf, -inf]
+
+#% section
+# See also
+
+#% text
+# `min_limit`, `limit`, `discrete_limit`

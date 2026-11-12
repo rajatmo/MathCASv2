@@ -1,0 +1,102 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_root
+
+#% text
+# `finite_field_root(a, n)` gives the list of the `n`-th roots of the finite field element `a`: the `b` in its field with `b^n == a`, by increasing index.
+
+#% section
+# Details
+
+#% item
+# The list is empty when there is no root. In `F_q` a nonzero `a` has `gcd(n, q - 1)` roots when it has one; zero has the single root zero.
+
+#% item
+# The roots are the roots of `x^n - a`, found by distinct- and equal-degree factorisation.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(5, 2)
+
+#% cell
+finite_field_root(F([1, 1]), 2)
+#% output
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [3, 2]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2, 3])]
+
+#% subsection
+# Scope
+
+#% text
+# Cube roots of 1:
+
+#% cell
+finite_field_root(F(1), 3)
+#% output
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [1]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [1, 2]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [3, 3])]
+
+#% text
+# The root of zero, and the first root of an element (itself):
+
+#% cell
+[finite_field_root(finite_field(5, 2)(0), 3), finite_field_root(finite_field(5, 2)(2), 1)]
+#% output
+#= [[finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [])], [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2])]]
+
+#% text
+# A prime field and a field of characteristic 2, where every element has exactly one square root:
+
+#% cell
+[finite_field_root(finite_field(7, 1)(2), 2), finite_field_root(finite_field(2, 3)(5), 2)]
+#% output
+#= [[finite_field_element(finite_field(7, &(4 + &1), "Polynomial"), [3]), finite_field_element(finite_field(7, &(4 + &1), "Polynomial"), [4])], [finite_field_element(finite_field(2, &(1 + &1 + &1^3), "Polynomial"), [1, 1])]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Each root satisfies the equation:
+
+#% cell
+map(b => b^4, finite_field_root(F([2, 3])^4, 4))
+#% output
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [4, 3]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [4, 3]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [4, 3]), finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [4, 3])]
+
+#% text
+# A nonzero element with a root has `gcd(n, q - 1)` of them; here `q = 25`, `n = 6`:
+
+#% cell
+[length(finite_field_root(finite_field(5, 2)(1), 6)), gcd(6, 24)]
+#% output
+#= [6, 6]
+
+#% text
+# In an exponential field the element `x^4` has no cube root (3 does not divide 4), and the two square roots of an element differ by the sign:
+
+#% cell
+E = finite_field(7, 2, "Exponential")
+[finite_field_root(E(5), 3), map(r => r^2 == E(9), finite_field_root(E(9), 2)), finite_field_root(E(9), 2)[2] == -finite_field_root(E(9), 2)[1]]
+#% output
+#= [[], [true, true], true]
+
+#% subsection
+# Possible issues
+
+#% text
+# A non-positive `n` and an argument that is not an element stay unevaluated; an element without a root gives the empty list:
+
+#% cell
+[finite_field_root(finite_field(5, 2)(2), 0), finite_field_root(finite_field(5, 2)(2), -1), finite_field_root(2, 2), finite_field_root(finite_field(7, 1)(3), 2)]
+#% output
+#= [finite_field_root(finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2]), 0), finite_field_root(finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Polynomial"), [2]), -1), finite_field_root(2, 2), []]
+
+#% section
+# See also
+
+#% text
+# `finite_field_element`, `finite_field_log`, `factor`

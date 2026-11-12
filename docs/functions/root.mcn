@@ -1,0 +1,102 @@
+#! mathcas 2 notebook
+
+#% title
+# root
+
+#% text
+# `root(x => p(x), k)` stands for the `k`-th root of the polynomial `p`.
+
+#% section
+# Details
+
+#% item
+# The roots are ordered: the real roots ascending, then the complex roots by real part and then imaginary part.
+
+#% item
+# A `root` object is exact: it stays as it is and `n` evaluates it to any precision. `roots` and `solve` give `root` objects for factors without a solution in radicals.
+
+#% item
+# The canonical form: a root object prints with its polynomial as a slot function, `root(&(p(&1)), k)`, whatever variable it was written with; the polynomial is the primitive irreducible factor over the rationals that the root belongs to, and `k` its index among that factor's roots. A root of a factor of degree one is that rational number, of degree two the radical `(-b +- sqrt(b^2 - 4 a c))/(2 a)`.
+
+#% item
+# `root(f, k, 0)` is the same as `root(f, k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+root(x => x^3 - 2, 1)
+#% output
+#= root(&(-2 + &1^3), 1)
+
+#% cell
+n(root(x => x^3 - 2, 1))
+#% output
+#= 1.2599210498948732
+
+#% cell
+n(root(x => x^5 - x + 1, 1), 30)
+#% output
+#= -1.1673039782614186842560458998548422
+
+#% cell
+n(root(x => x^5 - x + 1, 2))
+#% output
+#= -0.18123244446987535 - 1.0839541013177107im
+
+#% subsection
+# Scope
+
+#% text
+# The roots of a quintic, in order:
+
+#% cell
+n(table(root(x => x^5 - 3*x + 1, k), k, 5))
+#% output
+#= [-1.3887919844072543, 0.3347341419433527, 1.2146480426984618, -0.08029510011728015 - 1.328355109820654im, -0.08029510011728015 + 1.328355109820654im]
+
+#% text
+# Roots of reducible polynomials and of quadratics:
+
+#% cell
+root(&(&1^5 - 3*&1), 2)
+#% output
+#= 0
+
+#% cell
+root(&(&1^2 - 3*&1 - 1), 2)
+#% output
+#= (1/2)*(3 + 13^(1/2))
+
+#% cell
+root(&(&1^5 - 3*&1), 3)
+#% output
+#= root(&(-3 + &1^4), 2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The value is a root:
+
+#% cell
+r = n(root(x => x^5 - x + 1, 1)); r^5 - r + 1
+#% output
+#= -6.661338147750939e-16
+
+#% text
+# `solve` returns `root` objects:
+
+#% cell
+solve(x^5 - x + 1 == 0, x)[1]
+#% output
+#= [x -> root(&(1 - &1 + &1^5), 1)]
+
+#% section
+# See also
+
+#% text
+# `roots`, `solve`, `n`, `find_root`

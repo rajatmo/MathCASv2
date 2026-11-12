@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# identity
+
+#% text
+# `identity(x)` gives `x` itself.
+
+#% section
+# Details
+
+#% item
+# It is useful as a function argument where no change is wanted.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+identity(3)
+#% output
+#= 3
+
+#% cell
+identity([1, 2])
+#% output
+#= [1, 2]
+
+#% cell
+map(identity, [a, b])
+#% output
+#= [a, b]
+
+#% subsection
+# Scope
+
+#% cell
+fold_pair_list((y, x) => [quotient(y, x), mod(y, x)], 498, [100, 50], identity)
+#% output
+#= [[4, 98], [1, 48]]
+
+#% cell
+comap([identity, sqrt], 4)
+#% output
+#= [4, 2]
+
+#% section
+# See also
+
+#% text
+# `construct`, `map`

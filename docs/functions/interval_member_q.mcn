@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# interval_member_q
+
+#% text
+# `interval_member_q(i, x)` gives `true` if the number `x` lies in the interval `i`, or every piece of the interval `x` lies in `i`.
+
+#% section
+# Details
+
+#% item
+# `i` is an `interval(...)` of real pieces or a `centered_interval(c, r)`; a complex centre and radius give a rectangle in the complex plane.
+
+#% item
+# `interval_member_q(i)` is a function that tests membership.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+interval_member_q(interval([2, 5]), pi)
+#% output
+#= true
+
+#% cell
+interval_member_q(interval([2, 5]), interval([3, 4]))
+#% output
+#= true
+
+#% cell
+interval_member_q(interval([2, 5]), interval([4, 6]))
+#% output
+#= false
+
+#% cell
+interval_member_q(centered_interval(2 + 3*im, 1 + im), e + pi*im)
+#% output
+#= true
+
+#% cell
+interval_member_q(interval([3, 4]))(pi)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `interval`, `centered_interval`, `interval_union`

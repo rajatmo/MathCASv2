@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# pairwise_list_plot
+
+#% text
+# `pairwise_list_plot(data)` draws a grid of scatter plots of each pair of the data's columns, with each column's histogram on the diagonal.
+
+#% section
+# Details
+
+#% item
+# Rows of numbers, a dataset, `data -> names` or several matrices (groups in several colours).
+
+#% item
+# Columns that are not numbers in every row are left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pairwise_list_plot([[1, 2, 3], [2, 3, 5], [3, 5, 4], [4, 4, 7], [5, 7, 8]])
+#% output
+#= image("pairwise_list_plot.files/pairwise_list_plot-1.svgz")
+
+#% cell
+pairwise_list_plot([[1, 2, 3], [2, 3, 5], [3, 5, 4], [4, 4, 7]] -> ["a", "b", "c"])
+#% output
+#= image("pairwise_list_plot.files/pairwise_list_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `pairwise_density_histogram`

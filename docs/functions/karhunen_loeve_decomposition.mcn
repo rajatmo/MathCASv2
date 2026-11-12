@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# karhunen_loeve_decomposition
+
+#% text
+# `karhunen_loeve_decomposition(data)` gives the pair `[transformed, basis]` of the Karhunen-Loeve transform of the numeric matrix `data` whose rows are the variables.
+
+#% section
+# Details
+
+#% item
+# The basis rows are the eigenvectors of the covariance matrix of the rows of `data`, largest eigenvalue first.
+
+#% item
+# `transformed` is `basis . data`; `transpose(basis) . transformed` gives the data back.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+karhunen_loeve_decomposition([[1., 2., 4.], [2., 3., 10.]])
+#% output
+#= [[[2.216487549347941, 3.4873265630290113, 10.757247268725504], [0.2952675796384683, 0.9157256372911374, 0.5306893625254716]], [[0.32519047801420087, 0.94564853566687], [0.94564853566687, -0.32519047801420087]]]
+
+#% cell
+let r = karhunen_loeve_decomposition([[1., 2., 4.], [2., 3., 10.]]); dot(transpose(r[2]), r[1])
+#% output
+#= [[0.9999999999999999, 2.0, 4.0], [2.0, 2.9999999999999996, 10.0]]
+
+#% section
+# See also
+
+#% text
+# `principal_components`, `eigensystem`, `covariance`

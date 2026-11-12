@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# opacity
+
+#% text
+# `opacity(a)` is a graphics directive: what follows is drawn with opacity a, from 0 (invisible) to 1 (opaque).
+
+#% text
+# `opacity(a, c)` also sets the colour c.
+
+#% section
+# Details
+
+#% item
+# The opacity multiplies the opacity of the colour in force, so `opacity(0.5)` with `rgb_color(1, 0, 0, 0.5)` gives 0.25.
+
+#% item
+# It applies to lines, points, text and faces; `face_form` and `edge_form` take their own.
+
+#% item
+# Values outside [0, 1] are clipped.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Overlapping translucent disks:
+
+#% cell
+graphics([opacity(0.5), red, disk([0, 0]), blue, disk([1, 0]), green, disk([0.5, 0.8])])
+#% output
+#= image("opacity.files/opacity-1.svgz")
+
+#% text
+# Opacity and colour at once:
+
+#% cell
+graphics([black, rectangle([0, 0], [2, 1]), opacity(0.3, white), disk([1, 0.5], 0.4)])
+#% output
+#= image("opacity.files/opacity-2.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# The colour must be a colour:
+
+#% cell
+opacity(0.5, 7)
+#% output
+#! failure(argument, opacity, 2)
+
+#% section
+# See also
+
+#% text
+# `rgb_color`, `face_form`, `edge_form`, `graphics`

@@ -1,0 +1,115 @@
+#! mathcas 2 notebook
+
+#% title
+# partition
+
+#% text
+# `partition(xs, n)` gives the list `xs` cut into runs of `n` consecutive elements.
+
+#% text
+# `partition(xs, n, d)` gives runs of `n` elements starting every `d` positions; with `d` less than `n` the runs overlap.
+
+#% section
+# Details
+
+#% item
+# Only complete runs are kept: elements left over at the end are dropped.
+
+#% item
+# `n` and `d` must be positive integers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+partition(range(6), 2)
+#% output
+#= [[1, 2], [3, 4], [5, 6]]
+
+#% cell
+partition(range(7), 3)
+#% output
+#= [[1, 2, 3], [4, 5, 6]]
+
+#% cell
+partition(range(5), 2, 1)
+#% output
+#= [[1, 2], [2, 3], [3, 4], [4, 5]]
+
+#% subsection
+# Scope
+
+#% text
+# Runs that skip elements:
+
+#% cell
+partition(range(10), 2, 4)
+#% output
+#= [[1, 2], [5, 6], [9, 10]]
+
+#% subsection
+# Applications
+
+#% text
+# A flat list of numbers read as a matrix of rows of three:
+
+#% cell
+partition(range(9), 3)
+#% output
+#= [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+
+#% text
+# A moving average over three neighbours:
+
+#% cell
+v = [1, 3, 2, 6, 4, 8]
+map(mean, partition(v, 3, 1))
+#% output
+#= [2, 11/3, 4, 6]
+
+#% text
+# The segments of a polygonal path, as pairs of consecutive points:
+
+#% cell
+partition([[0, 0], [1, 0], [1, 1], [0, 1]], 2, 1)
+#% output
+#= [[[0, 0], [1, 0]], [[1, 0], [1, 1]], [[1, 1], [0, 1]]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Without overlap and with nothing left over, flattening gives the list back:
+
+#% cell
+flatten(partition(range(8), 4), 1) === range(8)
+#% output
+#= true
+
+#% text
+# Overlapping pairs give the consecutive differences:
+
+#% cell
+map(p => p[2] - p[1], partition([1, 4, 9, 16], 2, 1))
+#% output
+#= [3, 5, 7]
+
+#% subsection
+# Possible issues
+
+#% text
+# Leftover elements are dropped silently:
+
+#% cell
+partition(range(5), 2)
+#% output
+#= [[1, 2], [3, 4]]
+
+#% section
+# See also
+
+#% text
+# `flatten`, `take`, `gather`, `split`, `transpose`

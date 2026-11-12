@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# random_normal
+
+#% text
+# `random_normal()` gives a machine real from the standard normal distribution; `random_normal(mu, sigma)` from the normal distribution with mean `mu` and standard deviation `sigma`.
+# `random_normal(mu, sigma, n)` gives a list of `n` of them; `[n1, n2, ...]` gives an array.
+
+#% section
+# Details
+
+#% item
+# The draws come from the session generator; `seed(k)` makes them reproducible.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(1); random_normal()
+#% output
+#= -0.8289777865469348
+
+#% cell
+seed(1); random_normal(10, 2, 5)
+#% output
+#= [8.342044426906131, 7.961814596840059, 13.075859784335181, 10.867251516087766, 10.820685436010395]
+
+#% subsection
+# Scope
+
+#% text
+# The sample mean and standard deviation approach the parameters:
+
+#% cell
+seed(2); xs = random_normal(5, 3, 100000); [mean(xs), std_dev(xs)]
+#% output
+#= [5.00234598462906, 3.012576142811012]
+
+#% section
+# See also
+
+#% text
+# `random_real`, `random_variate`, `normal_distribution`, `seed`

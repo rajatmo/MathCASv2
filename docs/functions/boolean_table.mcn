@@ -1,0 +1,83 @@
+#! mathcas 2 notebook
+
+#% title
+# boolean_table
+
+#% text
+# `boolean_table(e, [x1, ..., xn])` gives the values of `e` for every assignment of `true` and `false` to the variables, from all true to all false with the last variable changing fastest. `e` may be a list or a rule of expressions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+boolean_table(x and y, [x, y])
+#% output
+#= [true, false, false, false]
+
+#% cell
+boolean_table([x, y, xor(x, y)], [x, y])
+#% output
+#= [[true, true, false], [true, false, true], [false, true, true], [false, false, false]]
+
+#% cell
+boolean_table([x, y] -> implies(x, y), [x, y])
+#% output
+#= [[true, true] -> true, [true, false] -> false, [false, true] -> true, [false, false] -> true]
+
+#% subsection
+# Scope
+
+#% text
+# Variables that do not occur, and variables that are not all given (the others stay in the entries):
+
+#% cell
+[boolean_table(x or y, [x, y, z]), boolean_table(x and z, [x, y])]
+#% output
+#= [[true, true, true, true, true, true, false, false], [z, z, false, false]]
+
+#% text
+# An expression without variables is repeated:
+
+#% cell
+boolean_table(3, [x])
+#% output
+#= [3, 3]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The table has `2^n` rows, and a conjunction is true in one of them:
+
+#% cell
+[length(boolean_table(x and y and z, [x, y, z])), count(boolean_table(x and y and z, [x, y, z]), true)]
+#% output
+#= [8, 1]
+
+#% text
+# The truth table agrees with `boolean_function`:
+
+#% cell
+boolean_function(boolean_table(x or y, [x, y]), [x, y])
+#% output
+#= x or y
+
+#% subsection
+# Possible issues
+
+#% text
+# The variables must be given as a list:
+
+#% cell
+boolean_table(x, x)
+#% output
+#= boolean_table(x, x)
+
+#% section
+# See also
+
+#% text
+# `is_tautology`, `is_satisfiable`, `tuples`

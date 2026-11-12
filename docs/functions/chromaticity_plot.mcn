@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# chromaticity_plot
+
+#% text
+# `chromaticity_plot(space)` draws the CIE 1931 chromaticity diagram with the gamut triangles of RGB colour spaces, or colours as points.
+
+#% section
+# Details
+
+#% item
+# Spaces: `"sRGB"`, `"AdobeRGB"`, `"WideGamutRGB"`, `"ProPhotoRGB"`, `"AppleRGB"`, `"DisplayP3"`, `"Rec2020"`, `"NTSC"`, `"CIERGB"`.
+
+#% item
+# The spectral locus is the CIE 1931 standard observer's; the white point of each space is marked.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+chromaticity_plot("sRGB")
+#% output
+#= image("chromaticity_plot.files/chromaticity_plot-1.svgz")
+
+#% cell
+chromaticity_plot(["sRGB", "Rec2020", red, orange])
+#% output
+#= image("chromaticity_plot.files/chromaticity_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `chromaticity_plot3d`

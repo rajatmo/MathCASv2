@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# axis_object
+
+#% text
+# `axis_object(path, [t0, t1])`: an axis drawn along line([p, q]), infinite_line(...), [horizontal, y, [x0, x1]] or [vertical, x, [y0, y1]] (names as strings or symbols), with ticks labelled from t0 to t1 (option axis_label)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics(axis_object(line([[0, 0], [10, 10]]), [0, 10], axis_label: "t"))
+#% output
+#= image("axis_object.files/axis_object-1.svgz")
+
+#% cell
+graphics([circle(), axis_object(["horizontal", 0]), axis_object(["vertical", 0])], plot_range: 1.5)
+#% output
+#= image("axis_object.files/axis_object-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_exp_prime
+
+#% text
+# `elliptic_exp_prime(u, [a, b])` gives the derivative in `u` of `elliptic_exp(u, [a, b])`.
+
+#% section
+# Details
+
+#% item
+# For the point `[x, y] = elliptic_exp(u, [a, b])` of `y^2 = x^3 + a x^2 + b x` the derivative is `[2 y, 3 p^2 - g2/4]` with `p = x + a/3` and `g2 = 4 a^2/3 - 4 b`: `[p'(u), p''(u)/2]` of the Weierstrass function of the curve.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_exp_prime(0.7, [1.0, 2.0])
+#% output
+#= [-6.149550200488952, 12.515970582511383]
+
+#% cell
+n(elliptic_exp_prime(7/10, [1, 2]), 25)
+#% output
+#= [-6.14955020048895092892081, 12.51597058251138052516433]
+
+#% cell
+elliptic_exp_prime(1.2 + im, [2.0, -1.0])
+#% output
+#= [0.4838594187127222 - 0.06901232028986981im, -1.2017813537672615 + 0.05122347290367988im]
+
+#% text
+# Against a difference quotient:
+
+#% cell
+h = 1.0*10^-6; (elliptic_exp(0.7 + h, [1, 2]) - elliptic_exp(0.7 - h, [1, 2]))/(2*h)
+#% output
+#= [-6.149550200618137, 12.515970583049096]
+
+#% section
+# See also
+
+#% text
+# `elliptic_exp`, `elliptic_log`, `weierstrass_p_prime`

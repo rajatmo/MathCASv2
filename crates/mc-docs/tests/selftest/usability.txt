@@ -1,0 +1,23 @@
+# The documentation window's search, copy button and typeset outputs (round 19). Run by `tests/usability_selftest.rs`.
+size 1100 800
+ppp 1
+theme light
+wait 5
+typesearch nintegrate
+typesearch intgrate
+typesearch numericaly
+typesearch polynomial roots
+go page:table
+wait 5
+copybutton 1
+wait 3
+clip
+go page:expand
+wait 5
+find x^2
+wait 3
+shot expand-find
+theme dark
+wait 4
+shot expand-dark
+quit

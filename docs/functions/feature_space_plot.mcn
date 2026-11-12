@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# feature_space_plot
+
+#% text
+# `feature_space_plot(data)` draws numeric vectors projected on their first two principal components.
+
+#% section
+# Details
+
+#% item
+# Several data sets are drawn in several colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+feature_space_plot([[1, 2, 3], [2, 3, 4], [5, 1, 2], [0, 0, 1], [3, 3, 3]])
+#% output
+#= image("feature_space_plot.files/feature_space_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `feature_space_plot3d`

@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# coth
+
+#% text
+# `coth(x)` gives the hyperbolic cotangent 1/tanh(x).
+
+#% section
+# Details
+
+#% item
+# `coth(x)` stays unevaluated for symbolic `x`; where `tanh(x)` has an exact value, `coth(x)` is its reciprocal.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `coth` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coth(inf)
+#% output
+#= 1
+
+#% cell
+coth(1.0)
+#% output
+#= 1.3130352854993315
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic arguments and symmetry:
+
+#% cell
+coth(-x)
+#% output
+#= -coth(x)
+
+#% text
+# 30 digits:
+
+#% cell
+n(coth(1), 30)
+#% output
+#= 1.313035285499331303636161246930848
+
+#% section
+# See also
+
+#% text
+# `tanh`, `sin`, `cos`, `tan`

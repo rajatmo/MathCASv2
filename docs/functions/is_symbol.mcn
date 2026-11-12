@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# is_symbol
+
+#% text
+# `is_symbol(x)` gives `true` when `x` is a symbol, such as `a` or `pi`, else `false`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_symbol(a)
+#% output
+#= true
+
+#% cell
+is_symbol(f(a))
+#% output
+#= false
+
+#% cell
+is_symbol(3)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# The symbols of a list:
+
+#% cell
+select([a, 1, b, "c", f(d)], is_symbol)
+#% output
+#= [a, b]
+
+#% section
+# See also
+
+#% text
+# `is_atom`, `is_string`, `head`

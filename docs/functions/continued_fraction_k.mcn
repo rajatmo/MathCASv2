@@ -1,0 +1,42 @@
+#! mathcas 2 notebook
+
+#% title
+# continued_fraction_k
+
+#% text
+# `continued_fraction_k(f, g, [i, imin, imax])` gives the finite continued fraction `f(imin)/(g(imin) + f(imin + 1)/(g(imin + 1) + ...))` ending at `imax`; `continued_fraction_k(g, [i, imin, imax])` takes every numerator 1; `[i, imax]` means `[i, 1, imax]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+continued_fraction_k(n^2, [n, 1, 10])
+#% output
+#= 13690825314204/17021645372933
+
+#% cell
+continued_fraction_k(a(n), b(n), [n, 3])
+#% output
+#= a(1)/(b(1) + a(2)/(b(2) + a(3)/b(3)))
+
+#% cell
+continued_fraction_k(1, [k, 8])
+#% output
+#= 21/34
+
+#% text
+# An infinite fraction with constant terms converges to the root of `K^2 + g K - f = 0` of smaller modulus (here `f = 1`, `g = 1`: the golden ratio minus 1):
+
+#% cell
+continued_fraction_k(1, [n, 1, inf])
+#% output
+#= (1/2)*(-1 + 5^(1/2))
+
+#% section
+# See also
+
+#% text
+# `continued_fraction`, `from_continued_fraction`, `convergents`

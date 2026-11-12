@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# equilibrium_points
+
+#% text
+# `equilibrium_points(L, q, t)` gives the equilibria of the system with Lagrangian `L`: the solutions of `dV/dq == 0`, with `V = -L` at rest (all velocities 0), as rules for the coordinates written as in `q`.
+
+#% section
+# Details
+
+#% item
+# Periodic families keep the integer constants of `solve`.
+
+#% item
+# `normal_modes(..., at: point)` gives the small oscillations about an equilibrium.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+equilibrium_points(x'(t)^2/2 + x(t)^2/2 - x(t)^4/4, x, t)
+#% output
+#= [[x -> -1], [x -> 0], [x -> 1]]
+
+#% cell
+equilibrium_points(m*l^2*th'(t)^2/2 + m*g*l*cos(th(t)), th, t)
+#% output
+#= [[th -> conditional_expression(2*pi*c(1), element(c(1), integers))], [th -> conditional_expression(pi + 2*pi*c(1), element(c(1), integers))]]
+
+#% cell
+equilibrium_points((x'(t)^2 + y'(t)^2)/2 - (x(t)^2 - 1)^2 - y(t)^2, [x, y], t)
+#% output
+#= [[x -> -1, y -> 0], [x -> 0, y -> 0], [x -> 1, y -> 0]]
+
+#% section
+# See also
+
+#% text
+# `normal_modes`, `phase_portrait`, `solve`

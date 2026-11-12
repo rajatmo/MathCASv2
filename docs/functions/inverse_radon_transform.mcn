@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_radon_transform
+
+#% text
+# `inverse_radon_transform(g, [p, phi], [x, y])` gives the function `f(x, y)` whose Radon transform (its integrals over the lines `x cos(phi) + y sin(phi) = p`) is `g(p, phi)`; `inverse_radon_transform(g, [p, phi], [x0, y0])` its value at a point.
+
+#% section
+# Details
+
+#% item
+# Transforms `e^(-p^2) Q(p, cos(phi), sin(phi))` with a polynomial `Q` invert to `e^(-x^2 - y^2) P(x, y)`: the coefficients of `P` come from the transforms of `e^(-r^2) x^i y^j` (Gaussian moments in the rotated frame), matched at sample lines.
+
+#% item
+# A point mass `dirac_delta(p - a cos(phi) - b sin(phi))` inverts to `dirac_delta(x - a, y - b)`; the chord lengths `2 sqrt(r^2 - p^2)` on `|p| < r` invert to the disk of radius `r`.
+
+#% item
+# The convention is that of `radon_transform`: `inverse_radon_transform(radon_transform(f, [x, y], [p, phi]), [p, phi], [x, y]) = f`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_radon_transform(e^(-p^2), [p, phi], [x, y])
+#% output
+#= exp(-x^2 - y^2)/pi^(1/2)
+
+#% cell
+inverse_radon_transform((cos(phi)^2 + 2*p^2*sin(phi)^2)*e^(-p^2), [p, phi], [x, y])
+#% output
+#= 2*exp(-x^2 - y^2)*y^2/pi^(1/2)
+
+#% cell
+inverse_radon_transform(p*(2*p^2 - 3)*sin(phi)*sin(2*phi)*e^(-p^2), [p, phi], [x, y])
+#% output
+#= 2*x*(-1 + 2*y^2)*exp(-x^2 - y^2)/pi^(1/2)
+
+#% cell
+inverse_radon_transform(p*cos(phi)*e^(-p^2), [p, phi], [1/3, 1/5])
+#% output
+#= 1/(3*exp(34/225)*pi^(1/2))
+
+#% cell
+inverse_radon_transform(dirac_delta(p - a*cos(phi) - b*sin(phi)), [p, phi], [x, y])
+#% output
+#= dirac_delta(x - a, y - b)
+
+#% text
+# Round trip:
+
+#% cell
+radon_transform(inverse_radon_transform((1 + 2*p^2)*e^(-p^2), [p, phi], [x, y]), [x, y], [p, phi])
+#% output
+#= (1 + 2*p^2)*exp(-p^2)
+
+#% section
+# See also
+
+#% text
+# `radon_transform`, `fourier_transform`

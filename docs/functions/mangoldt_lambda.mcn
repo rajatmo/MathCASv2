@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# mangoldt_lambda
+
+#% text
+# `mangoldt_lambda(n)` gives the von Mangoldt function: `log(p)` when `n` is a power of the prime `p`, otherwise 0.
+
+#% section
+# Details
+
+#% item
+# The value is exact: `log(2)` for `n = 8`.
+
+#% item
+# `mangoldt_lambda` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mangoldt_lambda(8)
+#% output
+#= log(2)
+
+#% cell
+mangoldt_lambda(12)
+#% output
+#= 0
+
+#% cell
+mangoldt_lambda(7)
+#% output
+#= log(7)
+
+#% cell
+mangoldt_lambda(range(10))
+#% output
+#= [0, log(2), log(3), log(2), log(5), 0, log(7), log(2), log(3), 0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Its sum over the divisors of `n` is `log(n)`:
+
+#% cell
+simplify(divisor_sum(360, mangoldt_lambda) - log(360))
+#% output
+#= 0
+
+#% text
+# Chebyshev's function, the partial sum, is close to `x`:
+
+#% cell
+n(sum(mangoldt_lambda(range(10000))))
+#% output
+#= 10013.396693263108
+
+#% section
+# See also
+
+#% text
+# `is_prime_power`, `moebius_mu`, `prime_pi`

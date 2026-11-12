@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# apply_sides
+
+#% text
+# `apply_sides(f, r)` applies `f` to both sides of the relation `r` (`==`, `!=`, `<`, `<=`, `>`, `>=`); a list of relations threads.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+apply_sides(f, a == b)
+#% output
+#= f(a) == f(b)
+
+#% cell
+apply_sides(sqrt, x^2 + 1 > 4)
+#% output
+#= (1 + x^2)^(1/2) > 2
+
+#% cell
+apply_sides(y => y^4, a == b)
+#% output
+#= a^4 == b^4
+
+#% section
+# See also
+
+#% text
+# `add_sides`, `multiply_sides`, `divide_sides`

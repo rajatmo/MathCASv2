@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# function_interpolation
+
+#% text
+# `function_interpolation(f, [x, a, b])` gives a function that interpolates the expression `f` of `x` over the range from `a` to `b`; more ranges `[y, c, d], ...` interpolate in several variables.
+
+#% section
+# Details
+
+#% item
+# `f` is sampled on an equally spaced grid (65 points in one dimension, 33 per variable in two, 17 in more) and interpolated as by `list_interpolation`, with `interpolation_order` (default 3).
+
+#% item
+# The function returns numbers at numeric arguments and stays unevaluated at symbolic ones.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+f = function_interpolation(exp(-sin(x)^2), [x, 0, 6])
+
+#% cell
+[f(2.0), exp(-sin(2.0)^2)]
+#% output
+#= [0.43744082611576535, 0.43743733819214914]
+
+#% cell
+g = function_interpolation(sin(x)*y^2, [x, 0, 2], [y, 0, 2])
+
+#% cell
+[g(1.0, 1.5), sin(1.0)*1.5^2]
+#% output
+#= [1.8933097158177672, 1.8933097158177672]
+
+#% section
+# See also
+
+#% text
+# `list_interpolation`, `interpolation`

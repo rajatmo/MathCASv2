@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# probability
+
+#% text
+# `probability(c, x, d)` gives the probability that the condition `c` on `x` holds when `x` has the distribution `d`. The condition compares `x` with a bound (`x < b`, `b <= x`, `x == b`, ...) or is the conjunction of a lower and an upper bound. For the discrete families (binomial, Poisson, geometric) the bounds are rounded to the integers they allow.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+probability(x > 1, x, exponential_distribution(2))
+#% output
+#= exp(-2)
+
+#% cell
+probability(mu - s < x and x < mu + s, x, normal_distribution(mu, s))
+#% output
+#= erf((1/2)*2^(1/2))
+
+#% cell
+probability(x == 3, x, poisson_distribution(2))
+#% output
+#= 4/(3*exp(2))
+
+#% cell
+probability(x >= 90, x, poisson_distribution(100.))
+#% output
+#= 0.8536538253012671
+
+#% section
+# See also
+
+#% text
+# `cdf`, `pdf`, `expectation`

@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# im_part
+
+#% text
+# `im_part(z)` gives the imaginary part of the complex number `z`.
+
+#% section
+# Details
+
+#% item
+# Every real number has the exact imaginary part 0, also machine reals. Symbols stay unevaluated unless the assumptions make them real.
+
+#% item
+# `im_part` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+im_part(3 + 4*im)
+#% output
+#= 4
+
+#% cell
+im_part(2.5)
+#% output
+#= 0
+
+#% cell
+im_part(exp(im*pi/3))
+#% output
+#= (1/2)*3^(1/2)
+
+#% cell
+im_part([1 + im, 2 - 3*im])
+#% output
+#= [1, -3]
+
+#% subsection
+# Scope
+
+#% text
+# A real symbol:
+
+#% cell
+assuming(element(x, reals), refine(im_part(x + 2*im)))
+#% output
+#= 2
+
+#% subsection
+# Properties and relations
+
+#% text
+# `z == re(z) + im*im_part(z)`:
+
+#% cell
+z = 2.5 - 1.5*im; re(z) + im*im_part(z)
+#% output
+#= 2.5 - 1.5im
+
+#% section
+# See also
+
+#% text
+# `re`, `abs`, `arg`, `conjugate`

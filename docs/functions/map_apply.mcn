@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# map_apply
+
+#% text
+# `map_apply(f, xs)` replaces the head of each element of `xs` by `f`: `g(a, b)` becomes `f(a, b)`.
+
+#% section
+# Details
+
+#% item
+# Elements that are atoms are kept as they are.
+
+#% item
+# An association keeps its keys; each value is treated as an element.
+
+#% item
+# `map_apply(f)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map_apply(f, [[a, b], [c, d]])
+#% output
+#= [f(a, b), f(c, d)]
+
+#% cell
+map_apply(add, [[1, 2, 3], [4, 5, 6]])
+#% output
+#= [6, 15]
+
+#% cell
+map_apply(f, [a, [b, c], 2])
+#% output
+#= [a, f(b, c), 2]
+
+#% subsection
+# Scope
+
+#% cell
+map_apply(f, assoc("x" -> [1, 2], "y" -> [3]))
+#% output
+#= assoc("x" -> f(1, 2), "y" -> f(3))
+
+#% cell
+map_apply(f)([[1], [2, 3]])
+#% output
+#= [f(1), f(2, 3)]
+
+#% section
+# See also
+
+#% text
+# `apply`, `map`, `comap_apply`

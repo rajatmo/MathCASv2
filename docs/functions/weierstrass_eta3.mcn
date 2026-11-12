@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_eta3
+
+#% text
+# `weierstrass_eta3([g2, g3])` gives the quasi-period `eta3 = weierstrass_zeta(omega3, [g2, g3])`.
+
+#% section
+# Details
+
+#% item
+# `weierstrass_zeta(u + 2 omega_k, [g2, g3]) = weierstrass_zeta(u, [g2, g3]) + 2 eta_k` (DLMF 23.2.14), with the half-periods of `weierstrass_half_periods`.
+
+#% item
+# Legendre's relation `eta1 omega3 - eta3 omega1 = im pi/2` holds; `eta1 + eta2 + eta3 = 0`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_eta3([9.0, 3.0])
+#% output
+#= 0.0 - 0.6044868570808551im
+
+#% cell
+n(weierstrass_eta3([23, 7]), 25)
+#% output
+#= 0. - 0.85063681885494943860547775512im
+
+#% cell
+weierstrass_eta3([0.5 + im, 1.0])
+#% output
+#= -0.5880499600216562 - 0.010996587080599515im
+
+#% cell
+weierstrass_eta3([1, 0])
+#% output
+#= -im*pi^(3/2)/gamma(1/4)^2
+
+#% text
+# The quasi-periodicity of zeta:
+
+#% cell
+w = weierstrass_half_period_w3([9.0, 3.0]); weierstrass_zeta(0.4 + 2*w, [9, 3]) - weierstrass_zeta(0.4, [9, 3]) - 2*weierstrass_eta3([9.0, 3.0])
+#% output
+#= 0.0 - 1.3322676295501878e-15im
+
+#% section
+# See also
+
+#% text
+# `weierstrass_half_periods`, `weierstrass_e1`, `weierstrass_eta1`, `weierstrass_invariants`, `weierstrass_p`, `weierstrass_zeta`

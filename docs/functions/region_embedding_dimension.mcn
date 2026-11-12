@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# region_embedding_dimension
+
+#% text
+# `region_embedding_dimension(reg)` is the number of coordinates of the region's points.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[region_embedding_dimension(circle()), region_embedding_dimension(line([[0, 0, 0], [1, 1, 1]]))]
+#% output
+#= [2, 3]
+
+#% section
+# See also
+
+#% text
+# `region_dimension`

@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# text
+
+#% text
+# `text(expr, [x, y])` is a graphics primitive: expr as a label centred at [x, y].
+
+#% text
+# `text(expr, [x, y], [ox, oy])` places the point [ox, oy] of the label's box at [x, y]: [-1, 0] its left end, [1, 0] its right end, [0, -1] its bottom, [0, 1] its top.
+
+#% section
+# Details
+
+#% item
+# A string is shown as text; between `$` signs it is math in a small TeX subset: `^` and `_` scripts, Greek letters and symbols by name, fractions and square roots, as in `"$\\alpha_1 \\le \\frac{1}{\\sqrt{2}}$"` (a backslash is written twice in a string).
+
+#% item
+# `subscript(a, b)` and `superscript(a, b)` set b as an index or an exponent of a; any other expression is shown in its typeset form, single letters in italics.
+
+#% item
+# The label takes the current colour and the size of the last `font_size` directive, else the graphic's `font_size` option (10 points).
+
+#% item
+# The label itself is never evaluated further by `graphics`, so `text(pi, ...)` shows π.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A word at the origin:
+
+#% cell
+graphics([circle(), text("centre", [0, 0])])
+#% output
+#= image("text.files/text-1.svgz")
+
+#% text
+# Math in a string:
+
+#% cell
+graphics(text("$E = m c^2$", [0, 0]))
+#% output
+#= image("text.files/text-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Expressions are typeset:
+
+#% cell
+graphics([text(x^2/2, [0, 0]), text(subscript(a, 1), [1, 0])])
+#% output
+#= image("text.files/text-3.svgz")
+
+#% text
+# Labels to the right of points:
+
+#% cell
+graphics([point([[0, 0], [1, 1]]), text("A", [0.05, 0], [-1, 0]), text("B", [1.05, 1], [-1, 0])])
+#% output
+#= image("text.files/text-4.svgz")
+
+#% subsection
+# Options
+
+#% text
+# A larger label in blue:
+
+#% cell
+graphics([blue, font_size(24), text("big", [0, 0])])
+#% output
+#= image("text.files/text-5.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# The offset is a pair:
+
+#% cell
+text("a", [0, 0], 1)
+#% output
+#! failure(argument, text, 3)
+
+#% section
+# See also
+
+#% text
+# `font_size`, `graphics`, `plot`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# number_string
+
+#% text
+# `number_string` is a string pattern for the text of a decimal number: an optional minus sign, digits with an optional fractional part, or a point and digits.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("t = -3.5, n = 12, x = .5", number_string)
+#% output
+#= ["-3.5", "12", ".5"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

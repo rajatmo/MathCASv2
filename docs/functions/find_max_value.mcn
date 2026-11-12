@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# find_max_value
+
+#% text
+# `find_max_value(f, [x, x0])` gives the value of a local maximum of `f` found by a local search from `x = x0`, with the arguments and options of `find_maximum`.
+
+#% text
+# `find_max_value([f, cons...], vars)` subject to constraints.
+
+#% section
+# Details
+
+#% item
+# It is `find_maximum` with only the value or the position kept; the position is always a list of the variables' values.
+
+#% item
+# Without a starting value the search starts at 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A local extremum near a start:
+
+#% cell
+find_max_value(x*cos(x), [x, 5])
+#% output
+#= 6.361003944833854
+
+#% text
+# Several variables:
+
+#% cell
+find_max_value(sin(x)*sin(2y), [[x, 2], [y, 2]])
+#% output
+#= 1.0
+
+#% subsection
+# Scope
+
+#% text
+# With a constraint:
+
+#% cell
+find_max_value([x - 2y, x^2 + y^2 <= 1], [x, y])
+#% output
+#= 2.23606797749979
+
+#% text
+# A linear program:
+
+#% cell
+find_max_value([x + y, 3x + 2y >= 7 and x >= 0 and y >= 0], [x, y])
+#% output
+#| find_maximum: the objective is unbounded on the feasible set
+#= inf
+
+#% section
+# See also
+
+#% text
+# `find_maximum`, `find_minimum`, `find_maximum`, `n_minimize`

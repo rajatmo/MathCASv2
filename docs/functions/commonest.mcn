@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# commonest
+
+#% text
+# `commonest(xs)` gives the elements of `xs` that occur most often, in order of first occurrence. `commonest(xs, n)` gives the `n` most frequent elements (ties broken by first occurrence), also in order of first occurrence.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+commonest([b, a, c, 2, a, b, 1, 2])
+#% output
+#= [b, a, 2]
+
+#% cell
+commonest([b, a, c, 2, a, b, 1, 2], 4)
+#% output
+#= [b, a, c, 2]
+
+#% cell
+commonest([1, 2, 2, 3, 3, 3, 4])
+#% output
+#= [3]
+
+#% section
+# See also
+
+#% text
+# `tally`, `counts`, `max_by`

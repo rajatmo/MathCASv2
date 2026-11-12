@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# factor_terms
+
+#% text
+# `factor_terms(p)` pulls out the numerical content of p: the gcd of its integer coefficients.
+
+#% text
+# `factor_terms(p, x)` also pulls out the factors free of x (the gcd of the coefficients of the powers of x); `factor_terms(p, [x1, x2, ...])` does so for each variable in turn.
+
+#% section
+# Details
+
+#% item
+# Lists and the sides of comparisons are handled element-wise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factor_terms(3 + 6*x + 3*x^2)
+#% output
+#= 3*(1 + 2*x + x^2)
+
+#% cell
+factor_terms(3 + 3*a + 6*a*x + 6*x + 12*a*x^2 + 12*x^2, x)
+#% output
+#= 3*(1 + a)*(1 + 2*x + 4*x^2)
+
+#% cell
+factor_terms(7*x + (14*y + 21)/z)
+#% output
+#= 7*(x + 3/z + 2*y/z)
+
+#% cell
+factor_terms(-6*y - 6*a*y + 2*x^2*y + 2*a*x^2*y + 4*a*y^2 + 4*a^2*y^2, [x, y])
+#% output
+#= 2*y*(1 + a)*(-3 + 2*a*y + x^2)
+
+#% text
+# `modulus: m` reduces the coefficients modulo `m` and pulls out the leading coefficient when it is invertible:
+
+#% cell
+factor_terms(5*x^2 + 2, modulus: 3)
+#% output
+#= 2*(1 + x^2)
+
+#% cell
+factor_terms(3*x + 10, modulus: 7)
+#% output
+#= 3*(1 + x)
+
+#% section
+# See also
+
+#% text
+# `factor`, `factor_list`, `collect`

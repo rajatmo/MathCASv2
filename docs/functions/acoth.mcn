@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# acoth
+
+#% text
+# `acoth(z)` gives the inverse hyperbolic cotangent.
+
+#% section
+# Details
+
+#% item
+# For complex `z` the principal value is `atanh(1/z)`.
+
+#% item
+# Exact special values and odd symmetry are applied; other exact arguments stay unevaluated.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+acoth(0)
+#% output
+#= (im/2)*pi
+
+#% cell
+acoth(2.0)
+#% output
+#= 0.5493061443340549
+
+#% subsection
+# Scope
+
+#% cell
+acoth(0.5)
+#% output
+#= 0.5493061443340549 - 1.5707963267948966im
+
+#% text
+# 30 digits:
+
+#% cell
+n(acoth(1/3), 30)
+#% output
+#= 0.3465735902799726547086160607290883 - 1.570796326794896619231321691639751im
+
+#% section
+# See also
+
+#% text
+# `log`, `atan`, `asin`, `acos`

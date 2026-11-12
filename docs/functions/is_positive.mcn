@@ -1,0 +1,96 @@
+#! mathcas 2 notebook
+
+#% title
+# is_positive
+
+#% text
+# `is_positive(x)` gives `true` when `x` is a positive real, `false` when it is known not to be, and stays unevaluated when neither is decided.
+
+#% section
+# Details
+
+#% item
+# Numbers and closed numeric expressions such as `pi - 3` are decided by numerical bounds; symbols by the assumptions in force.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_positive(3)
+#% output
+#= true
+
+#% cell
+is_positive(-2.5)
+#% output
+#= false
+
+#% cell
+is_positive(pi - 3)
+#% output
+#= true
+
+#% cell
+is_positive(x)
+#% output
+#= is_positive(x)
+
+#% subsection
+# Scope
+
+#% text
+# Decided by assumptions:
+
+#% cell
+assuming(x > 1, is_positive(x - 1))
+#% output
+#= true
+
+#% cell
+assuming(x > 0, is_positive(x^2 + x))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# Zero is neither positive nor negative:
+
+#% cell
+[is_positive(0), is_negative(0), is_nonnegative(0)]
+#% output
+#= [false, false, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# A non-real number is left undecided rather than `false`:
+
+#% cell
+is_positive(1 + im)
+#% output
+#= false
+
+#% text
+# A number that is not real is neither positive nor negative:
+
+#% cell
+is_positive(im)
+#% output
+#= false
+
+#% cell
+is_negative(im)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `is_negative`, `is_nonnegative`, `sign`, `assuming`

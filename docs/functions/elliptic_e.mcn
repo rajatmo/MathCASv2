@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# elliptic_e
+
+#% text
+# `elliptic_e(m)` gives the complete elliptic integral of the second kind `E(m)`, the integral of `sqrt(1 - m*sin(t)^2)` for `t` from 0 to `pi/2`.
+
+#% text
+# `elliptic_e(phi, m)` gives the incomplete integral `E(phi | m)`, with upper limit `phi`.
+
+#% section
+# Details
+
+#% item
+# The parameter is `m = k^2` (DLMF 19.2.5, 19.2.8). `E(0)` is `pi/2` and `E(1)` is 1.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values. `elliptic_e` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+elliptic_e(0)
+#% output
+#= (1/2)*pi
+
+#% cell
+elliptic_e(1)
+#% output
+#= 1
+
+#% cell
+elliptic_e(0.5)
+#% output
+#= 1.3506438810476755
+
+#% cell
+elliptic_e(pi/4, 0.5)
+#% output
+#= 0.7481865041776613
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits:
+
+#% cell
+n(elliptic_e(1/2), 30)
+#% output
+#= 1.3506438810476755025201747353387258
+
+#% text
+# The incomplete integral beyond `pi/2` adds whole half-periods:
+
+#% cell
+elliptic_e(pi*1.0, 0.5) - 2*elliptic_e(0.5)
+#% output
+#= 0.0
+
+#% subsection
+# Applications
+
+#% text
+# The circumference of an ellipse with semi-axes 2 and 1, `4*a*E(1 - b^2/a^2)`:
+
+#% cell
+4*2*elliptic_e(1 - 1/4.0)
+#% output
+#= 9.688448220547675
+
+#% subsection
+# Properties and relations
+
+#% text
+# Legendre's relation for `m = 1/2`, `2 E K - K^2 = pi/2`:
+
+#% cell
+2*elliptic_e(0.5)*elliptic_k(0.5) - elliptic_k(0.5)^2 - pi/2
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `elliptic_k`, `elliptic_f`, `elliptic_pi`, `jacobi_epsilon`

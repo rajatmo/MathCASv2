@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# signed_region_distance
+
+#% text
+# `signed_region_distance(reg, p)` is the distance from `p` to the boundary of the region, negative inside a solid region.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+signed_region_distance(disk(), [1/2, 0])
+#% output
+#= -1/2
+
+#% cell
+signed_region_distance(rectangle([0, 0], [2, 2]), [1/2, 1])
+#% output
+#= -1/2
+
+#% text
+# Outside it is the distance:
+
+#% cell
+signed_region_distance(triangle(), [1, 1])
+#% output
+#= (1/2)*2^(1/2)
+
+#% section
+# See also
+
+#% text
+# `region_distance`

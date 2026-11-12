@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# fresnel_s
+
+#% text
+# `fresnel_s(z)` gives the Fresnel integral, the integral of sin(pi t^2/2) from 0 to z.
+
+#% section
+# Details
+
+#% item
+# Numerical values through the error function of complex argument; odd; the limits at infinity are 1/2 and -1/2.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fresnel_s(1.0)
+#% output
+#= 0.43825914739035465
+
+#% cell
+fresnel_s(inf)
+#% output
+#= 1/2
+
+#% cell
+fresnel_s(-x)
+#% output
+#= -fresnel_s(x)
+
+#% section
+# See also
+
+#% text
+# `erf`, `fresnel_c`

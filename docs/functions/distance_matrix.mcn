@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# distance_matrix
+
+#% text
+# `distance_matrix(points)` gives the matrix of Euclidean distances between the points.
+
+#% section
+# Details
+
+#% item
+# `distance_matrix(a, b)` gives the distances between the points of `a` and the points of `b`.
+
+#% item
+# The points are vectors or numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+distance_matrix([[0, 0], [3, 4], [1, 1]])
+#% output
+#= [[0, 5, 2^(1/2)], [5, 0, 13^(1/2)], [2^(1/2), 13^(1/2), 0]]
+
+#% cell
+distance_matrix([1, 4, 9])
+#% output
+#= [[0, 3, 8], [3, 0, 5], [8, 5, 0]]
+
+#% cell
+distance_matrix([[0, 0], [1, 0]], [[0, 1], [1, 1], [2, 2]])
+#% output
+#= [[1, 2^(1/2), 2*2^(1/2)], [2^(1/2), 1, 5^(1/2)]]
+
+#% section
+# See also
+
+#% text
+# `euclidean_distance`, `manhattan_distance`, `nearest`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# center
+
+#% text
+# `center` is the centre: a position for `placed`, the middle of the plot area.
+
+#% section
+# Details
+
+#% item
+# `placed(obj, center)` puts `obj` at the middle of the plot area, the same as `placed(obj, [0.5, 0.5])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), placed("centre", center)])
+#% output
+#= image("center.files/center-1.svgz")
+
+#% cell
+plot(sin(x)^2, [x, 0, pi], epilog: [placed("peak", center)])
+#% output
+#= image("center.files/center-2.svgz")
+
+#% cell
+graphics([gray, disk(), placed(graphics([red, disk()], image_size: 30), center)])
+#% output
+#= image("center.files/center-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as the fractions `[0.5, 0.5]`:
+
+#% cell
+graphics([circle(), placed("centre", [0.5, 0.5])])
+#% output
+#= image("center.files/center-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `placed`, `left`, `right`, `above`, `below`

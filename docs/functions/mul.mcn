@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# mul
+
+#% text
+# `mul(a, b, ...)` is the product `a*b*...`; the operator `*` writes it, and a number before a name may omit it (`2x`).
+
+#% section
+# Details
+
+#% item
+# Products are kept in a canonical order and equal factors are collected into powers: `x*x` is `x^2`.
+
+#% item
+# A list argument multiplies element by element.
+
+#% item
+# A name followed by brackets is a call, never a product: `x(x - a)` is `x` applied to `x - a` (its head is `x`),
+# also with a space, `x (x - a)`. Write the product with `*`: `x*(x - a)`. A number before a bracket multiplies:
+# `2(x + 1)` is `2*(x + 1)`. The notebook marks a call of a name that is also used as a variable with a warning
+# and offers to insert the `*`; a value that comes back holding such a call gets a note under it, and prints the
+# call in brackets as a power's base, `(x(x - a))^(1/2)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mul(2, 3, 4)
+#% output
+#= 24
+
+#% cell
+x*y*x
+#% output
+#= y*x^2
+
+#% cell
+[1, 2, 3]*[4, 5, 6]
+#% output
+#= [4, 10, 18]
+
+#% subsection
+# Scope
+
+#% text
+# A number times a list scales it:
+
+#% cell
+3*[1, 2, 3]
+#% output
+#= [3, 6, 9]
+
+#% text
+# A bracket after a name is a call, so the product needs its `*`:
+
+#% cell
+[head(x(x - a)), head(x*(x - a))]
+#% output
+#= [x, mul]
+
+#% cell
+[integrate(x*(x - a), x), integrate(x(x - a), x)]
+#% output
+#= [(1/3)*x^3 - (1/2)*a*x^2, integrate(x(x - a), x)]
+
+#% text
+# Its head with `apply`:
+
+#% cell
+apply(mul, range(5))
+#% output
+#= 120
+
+#% section
+# See also
+
+#% text
+# `add`, `pow`, `product`, `dot`

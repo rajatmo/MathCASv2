@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# recurrence_table
+
+#% text
+# `recurrence_table(eqs, a, [n, nmin, nmax])` gives the list `a(nmin), ..., a(nmax)` of the sequence defined by the recurrence and initial values in `eqs`.
+
+#% text
+# `recurrence_table(eqs, a, [n, nmax])` starts at the first initial index (1 when there is none); `[n, nmin, nmax, step]` steps.
+
+#% section
+# Details
+
+#% item
+# The recurrence is solved for its highest shift and iterated from consecutive initial values, exactly or with the numbers given; nonlinear recurrences are allowed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+recurrence_table([a(n + 1) == 3*a(n), a(1) == 7], a, [n, 1, 10])
+#% output
+#= [7, 21, 63, 189, 567, 1701, 5103, 15309, 45927, 137781]
+
+#% cell
+recurrence_table([a(n) == a(n - 1) + a(n - 2), a(1) == 1, a(2) == 1], a, [n, 10])
+#% output
+#= [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+
+#% subsection
+# Scope
+
+#% text
+# A nonlinear recurrence:
+
+#% cell
+recurrence_table([x(n + 1) == (7/2)*x(n)*(1 - x(n)), x(0) == 1/3], x, [n, 0, 4])
+#% output
+#= [1/3, 7/9, 49/81, 5488/6561, 20610184/43046721]
+
+#% section
+# See also
+
+#% text
+# `r_solve`, `r_solve_value`, `nest_list`

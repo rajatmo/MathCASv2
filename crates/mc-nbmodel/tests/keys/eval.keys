@@ -1,0 +1,478 @@
+Evaluation with the fake kernel (design 2.6, 2.8, 5.3 - 5.7). The fake kernel numbers statements unless the test
+says `--- kernel old`.
+
+=== Shift+Enter labels the input and its output, the insertion point goes below the output
+--- before
+#% cell
+1+1▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖
+
+=== every statement consumes a number: input 2, outputs 2 and 3, then input 4
+--- before
+#% cell
+a▮
+
+#% cell
+1+1
+3+3
+
+#% cell
+5
+--- keys
+Shift+Enter Down Shift+Enter Down Shift+Enter
+--- after
+#% cell label=1
+a
+#% output n=1
+#= a
+
+#% cell label=2
+1+1
+3+3
+#% output n=2
+#= 2
+#% output n=3
+#= 6
+
+#% cell label=4
+5
+#% output n=4
+#= 5
+‖
+
+=== a statement ending in ; consumes a number and shows nothing
+--- before
+#% cell
+1;
+2▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+1;
+2
+#% output n=2
+#= 2
+‖
+
+=== re-evaluating replaces the generated cells and the label
+--- before
+#% cell
+7▮
+--- keys
+Shift+Enter Click(0,0) Shift+Enter
+--- after
+#% cell label=2
+7
+#% output n=2
+#= 7
+‖
+
+=== print and warnings become Print and Message cells in the output block of the value
+--- before
+#% cell
+print("hi")
+warn("careful")
+3▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+print("hi")
+warn("careful")
+3
+#% output n=3
+#| hi
+#? careful
+#= 3
+‖
+
+=== a read error labels the input and shows the error in a Message cell
+--- before
+#% cell
+1 +▮
+
+#% cell
+2
+--- keys
+Shift+Enter Down Shift+Enter
+--- after
+#% cell label=1
+1 +
+#% output
+#! <cell>:1:1: expected an expression
+#!   1 +
+#!   ^
+
+#% cell label=2
+2
+#% output n=2
+#= 2
+‖
+
+=== a failure is the statement's value
+--- before
+#% cell
+1/0▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+1/0
+#% output n=1
+#! failure(division_by_zero)
+‖
+
+=== abort ends the running statement with aborted
+--- before
+#% cell
+loop▮
+--- keys
+Shift+Enter Alt+.
+--- after
+#% cell label=1
+loop
+#% output n=1
+#! aborted
+‖
+
+=== abort clears the queue
+--- before
+#% cell
+loop
+
+#% cell
+2
+--- keys
+Bracket(0) Shift+Bracket(1) Shift+Enter Alt+.
+--- after
+#% cell label=1 ◆
+loop
+#% output n=1
+#! aborted
+
+#% cell ◆
+2
+
+=== a running cell is not queued twice
+--- before
+#% cell
+loop▮
+--- keys
+Shift+Enter Click(0,0) Shift+Enter Alt+.
+--- after
+#% cell label=1
+loop
+#% output n=1
+#! aborted
+‖
+
+=== a kernel without numbering: one value per cell, the notebook counts
+--- kernel old
+--- before
+#% cell
+1+1
+3+3▮
+
+#% cell
+4
+--- keys
+Shift+Enter Down Shift+Enter
+--- after
+#% cell label=1
+1+1
+3+3
+#% output n=1
+#= 6
+
+#% cell label=2
+4
+#% output n=2
+#= 4
+‖
+
+=== a kernel that dies leaves a Message; the next evaluation starts again at 1
+--- before
+#% cell
+loop▮
+
+#% cell
+5
+--- keys
+Shift+Enter Crash Down Shift+Enter
+--- after
+#% cell
+loop
+#% output
+#! the kernel stopped: exit code 1
+
+#% cell label=1
+5
+#% output n=1
+#= 5
+‖
+
+=== quitting the kernel keeps labels; the next kernel starts at 1
+--- before
+#% cell
+5▮
+
+#% cell
+6
+--- keys
+Shift+Enter Quit Down Shift+Enter
+--- after
+#% cell label=1
+5
+#% output n=1
+#= 5
+
+#% cell label=1
+6
+#% output n=1
+#= 6
+‖
+
+=== initialization cells first when the answer is yes
+--- before
+#% code
+c = 1
+
+#% cell
+2▮
+--- keys
+Shift+Enter InitYes
+--- after
+#% code label=1
+c = 1
+
+#% cell label=2
+2
+#% output n=2
+#= 2
+‖
+
+=== no initialization cells when the answer is no, and no second question
+--- before
+#% code
+c = 1
+
+#% cell
+2▮
+
+#% cell
+3
+--- keys
+Shift+Enter InitNo Down Shift+Enter
+--- after
+#% code
+c = 1
+
+#% cell label=1
+2
+#% output n=1
+#= 2
+
+#% cell label=2
+3
+#% output n=2
+#= 3
+‖
+
+=== evaluating selected cells evaluates the evaluatable ones in order
+--- before
+#% cell
+1
+
+#% text
+# t
+
+#% cell
+2
+--- keys
+Bracket(0) Shift+Bracket(2) Shift+Enter
+--- after
+#% cell label=1 ◆
+1
+#% output n=1
+#= 1
+
+#% text ◆
+# t
+
+#% cell label=2 ◆
+2
+#% output n=2
+#= 2
+
+=== Shift+Keypad Enter goes on to the next input
+--- before
+#% cell
+1▮
+
+#% text
+# t
+
+#% cell
+2
+--- keys
+Shift+KeypadEnter
+--- after
+#% cell label=1
+1
+#% output n=1
+#= 1
+
+#% text
+# t
+
+#% cell
+▮2
+
+=== editing an output duplicates it as a new input after the output's group
+--- before
+#% cell label=1
+1+1
+#% output n=1
+#= 2▮
+
+#% text
+# after
+--- keys
+"0"
+--- after
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+
+#% cell
+20▮
+
+#% text
+# after
+
+=== Print cells are edited in place
+--- before
+#% cell label=1
+print(1)
+#% output
+#| 1▮
+--- keys
+"!"
+--- after
+#% cell label=1
+print(1)
+#% output
+#| 1!▮
+
+=== delete all output keeps inputs and text
+--- before
+#% cell label=1
+print(1)
+2
+#% output n=2
+#| 1
+#= 2
+
+#% text
+# t
+--- keys
+DeleteAllOutput
+--- after
+#% cell label=1
+print(1)
+2
+
+#% text
+# t
+‖
+
+=== editing an evaluated input keeps its label
+--- before
+#% cell label=3
+x▮
+#% output n=3
+#= x
+--- keys
+"y"
+--- after
+#% cell label=3
+xy▮
+#% output n=3
+#= x
+
+=== undo does not remove generated cells
+--- before
+#% cell
+▮
+--- keys
+"4" Shift+Enter Ctrl+Z
+--- after
+#% cell label=1
+▮
+#% output n=1
+#= 4
+
+=== G91: every shown statement of a cell gets its own output, in order; ; and definitions show nothing
+--- before
+#% cell
+1+2
+x = 4;
+print("p")
+2+3
+x▮
+--- keys
+Shift+Enter
+--- after
+#% cell label=1
+1+2
+x = 4;
+print("p")
+2+3
+x
+#% output n=1
+#= 3
+#% output n=4
+#| p
+#= 5
+#% output n=5
+#= x
+‖
+
+=== G91: a file written by the headless runner (one block per value) reads back unchanged, and so does an old one
+--- before
+#% cell
+1+2
+2+3
+#% output n=1
+#= 3
+#% output n=2
+#= 5
+
+#% cell
+7▮
+#% output
+#= 7
+--- keys
+"7"
+--- after
+#% cell
+1+2
+2+3
+#% output n=1
+#= 3
+#% output n=2
+#= 5
+
+#% cell
+77▮
+#% output
+#= 7

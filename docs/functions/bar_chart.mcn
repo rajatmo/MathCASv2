@@ -1,0 +1,91 @@
+#! mathcas 2 notebook
+
+#% title
+# bar_chart
+
+#% text
+# `bar_chart([v1, v2, ...])` draws a bar of height vk at position k.
+
+#% text
+# `bar_chart([[a1, a2, ...], [b1, b2, ...], ...])` draws a group of bars side by side for each inner list, the k-th bar of every group in the k-th colour.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# Bars start at zero, so negative values point down.
+
+#% item
+# Options: `labels: ["a", "b", ...]` writes these under the bars or groups; `colors`, `legend` and the axis labels work as for `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Five values:
+
+#% cell
+bar_chart([3, 1, 4, 1, 5])
+#% output
+#= image("bar_chart.files/bar_chart-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Groups of three, with a legend for the position in the group:
+
+#% cell
+bar_chart([[1, 2, 3], [2, 3, 1], [3, 1, 2], [-1, 2, 0.5]], legend: ["x", "y", "z"])
+#% output
+#= image("bar_chart.files/bar_chart-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Labels under the bars:
+
+#% cell
+bar_chart([12, 7, 9, 4], labels: ["north", "east", "south", "west"], y_label: "sales")
+#% output
+#= image("bar_chart.files/bar_chart-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# An association: the keys label the bars:
+
+#% cell
+bar_chart(assoc("north" -> 12, "south" -> 7, "east" -> 9, "west" -> 4))
+#% output
+#= image("bar_chart.files/bar_chart-4.svgz")
+
+#% text
+# Groups from an association of associations, with the inner keys in the legend:
+
+#% cell
+bar_chart(assoc("2024" -> assoc("a" -> 3, "b" -> 5), "2025" -> assoc("a" -> 4, "b" -> 6)), plot_legends: automatic)
+#% output
+#= image("bar_chart.files/bar_chart-5.svgz")
+
+#% text
+# Quantities as their magnitudes; missing values have no bar:
+
+#% cell
+bar_chart([quantity(2, "kg"), missing(), quantity(3.5, "kg")])
+#% output
+#= image("bar_chart.files/bar_chart-6.svgz")
+
+#% section
+# See also
+
+#% text
+# `histogram`, `list_plot`, `list_line_plot`

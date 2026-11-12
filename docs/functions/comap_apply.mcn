@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# comap_apply
+
+#% text
+# `comap_apply(fs, xs)` applies each function in `fs` to the elements of `xs` as arguments.
+
+#% section
+# Details
+
+#% item
+# `comap_apply([f, g], [x, y])` is `[f(x, y), g(x, y)]`.
+
+#% item
+# The head of `fs` is kept; an association of functions gives an association.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+comap_apply([f, g, h], [1, 2])
+#% output
+#= [f(1, 2), g(1, 2), h(1, 2)]
+
+#% cell
+comap_apply([add, mul], [2, 3, 4])
+#% output
+#= [9, 24]
+
+#% cell
+comap_apply([(a, b) => a + b, (a, b) => a*b], [3, 4])
+#% output
+#= [7, 12]
+
+#% subsection
+# Scope
+
+#% cell
+comap_apply(assoc("sum" -> add, "product" -> mul), [2, 5])
+#% output
+#= assoc("sum" -> 7, "product" -> 10)
+
+#% cell
+comap_apply(f(a, b), g(x, y))
+#% output
+#= f(a(x, y), b(x, y))
+
+#% section
+# See also
+
+#% text
+# `comap`, `map_apply`, `apply`

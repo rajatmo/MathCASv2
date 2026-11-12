@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_red
+
+#% text
+# `standard_red`: the standard red: a softer red that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_red, disk()])
+#% output
+#= image("standard_red.files/standard_red-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_red)
+#% output
+#= image("standard_red.files/standard_red-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

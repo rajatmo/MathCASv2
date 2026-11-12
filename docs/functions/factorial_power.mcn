@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# factorial_power
+
+#% text
+# `factorial_power(x, n)` gives the falling factorial x (x - 1) ... (x - n + 1).
+
+#% text
+# `factorial_power(x, n, h)` gives x (x - h) ... (x - (n - 1) h).
+
+#% section
+# Details
+
+#% item
+# Integer n give the product; numbers otherwise gamma(x + 1)/gamma(x - n + 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factorial_power(x, 3)
+#% output
+#= x*(-2 + x)*(-1 + x)
+
+#% cell
+factorial_power(10, 3)
+#% output
+#= 720
+
+#% cell
+factorial_power(x, 3, 2)
+#% output
+#= x*(-4 + x)*(-2 + x)
+
+#% section
+# See also
+
+#% text
+# `pochhammer`, `factorial`, `binomial`

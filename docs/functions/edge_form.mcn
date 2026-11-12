@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# edge_form
+
+#% text
+# `edge_form(d)` is a graphics directive: the edges of polygons, rectangles and disks that follow are drawn with the directive d, or with every directive of a list d.
+
+#% text
+# `edge_form()` and `edge_form(none)` draw no edges, the default.
+
+#% section
+# Details
+
+#% item
+# The directives inside are colours, `opacity`, `thickness`, `absolute_thickness`, `dashing` and `absolute_dashing`; edges start black and 1 point wide.
+
+#% item
+# Edges do not change the current colour of what follows; the face is still filled as before.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A disk with a black edge:
+
+#% cell
+graphics([orange, edge_form(black), disk()])
+#% output
+#= image("edge_form.files/edge_form-1.svgz")
+
+#% text
+# A thick dashed red edge around an empty rectangle:
+
+#% cell
+graphics([face_form(none), edge_form([red, absolute_thickness(3), dashing(dashed)]), rectangle([0, 0], [2, 1])])
+#% output
+#= image("edge_form.files/edge_form-2.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# Only directives may appear inside:
+
+#% cell
+edge_form(7)
+#% output
+#! failure(argument, edge_form, 1)
+
+#% section
+# See also
+
+#% text
+# `face_form`, `polygon`, `disk`, `rectangle`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# stacked_date_list_plot
+
+#% text
+# `stacked_date_list_plot([data1, data2, ...])` draws data sets against dates stacked on one another, the bands filled.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+stacked_date_list_plot([[1, 2, 3, 4], [2, 2, 2, 2]], [2000, 1, 1])
+#% output
+#= image("stacked_date_list_plot.files/stacked_date_list_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `stacked_list_plot`

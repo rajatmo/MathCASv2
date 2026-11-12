@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# perimeter
+
+#% text
+# `perimeter(reg)`: the length of the boundary of a plane region
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[perimeter(disk([0, 0], r)), perimeter(sss_triangle(3, 4, 5)), perimeter(simplex(2))]
+#% output
+#= [2*pi*r, 12, 2 + 2^(1/2)]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

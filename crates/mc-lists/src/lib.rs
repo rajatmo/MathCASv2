@@ -1,0 +1,553 @@
+//! MathCAS v2 list and structure library (item I): natives of the evaluator for building, taking apart,
+//! reshaping, reducing, selecting and sorting lists and other compound terms, and a few string functions.
+//!
+//! [`install`] registers every function of [`FUNCTIONS`] with a kernel. The natives work on any compound term where
+//! that makes sense (`length(a + b)` is 2, `rest(f(a, b, c))` is `f(b, c)`); a symbol where a compound term is
+//! expected leaves the call unevaluated, any other wrong argument gives `failure(argument, f, k)` (argument `k` of
+//! `f`), and an index outside a term gives `failure(index, i, n)`.
+//!
+//! - `construct`: `range`, `array`, `table`, `nest`, `nest_list`, `fold`, `fold_list`, `map_indexed`, `map_thread`,
+//!   `scan`;
+//! - `predicates`: `is_integer`, `is_rational`, `is_number`, `is_exact`, `is_inexact`, `is_machine_number`,
+//!   `is_list`, `is_vector`, `is_matrix`, `is_string`, `is_symbol`, `is_atom`, `all_true`, `any_true`, `none_true`;
+//! - `search`: `free_of`, `member_of`, `position` (patterns compiled by the evaluator), `select_first`;
+//! - `arrange`: `riffle`, `catenate`, `partition`, `rotate_left`, `rotate_right`, `pad_left`, `pad_right`,
+//!   `constant_array`, `thread`;
+//! - `group`: `tally`, `gather`, `gather_by`, `unique_by`, `count_by`;
+//! - `combinat`: `subsets`, `tuples`, `permutations`, `outer`, `inner`;
+//! - `access`: `length`, `part`, `first`, `last`, `rest`, `most`, `take`, `drop`;
+//! - `reshape`: `append`, `prepend`, `join`, `reverse`, `flatten`, `transpose`, `apply`;
+//! - `reduce`: `sum`, `product`, `total`, `max`, `min`;
+//! - `select`: `select`, `cases`, `count` (patterns through `matching`);
+//! - `sort`: `sort`, `ordered`, `sort_by`, `ordering`, `max_by`, `min_by`;
+//! - `measure`: `depth`, `leaf_count`;
+//! - `strings`: `string_join`, `to_string`, `string_length`, `split`.
+//!
+//! Every loop over elements charges fuel and polls the interrupt (`ctx::Meter`), results are built once (no
+//! repeated appends), and nested structure is walked with explicit stacks. Decisions of this crate are numbered
+//! I.1, I.2, ... (item I) and 1A.1, 1A.2, ... (roadmap item 1A) in the comments where they are applied.
+//!
+//! ```
+//! use mc_core::{Session, Store};
+//! use std::sync::{atomic::AtomicBool, Arc};
+//! let stop = Arc::new(AtomicBool::new(false));
+//! let mut s = Session::with_state(mc_core::Config::default(), 1, |h| {
+//!     let mut k = mc_eval::Kernel::new(h, mc_eval::EvalConfig::default());
+//!     mc_lists::install(&mut k, h, &stop);
+//!     k
+//! });
+//! let n = s.step(|h, k| {
+//!     let t = h.call(h.sym("length"), &[h.call(h.sym("range"), &[h.int(10)])]);
+//!     match h.view(k.eval(h, t).value) {
+//!         mc_api::View::Int(n) => n,
+//!         _ => -1,
+//!     }
+//! });
+//! assert_eq!(n, 10);
+//! ```
+#![warn(missing_docs)]
+mod access;
+mod arrange;
+mod assocs;
+mod combinat;
+mod construct;
+mod ctx;
+mod group;
+mod groupings;
+mod hash;
+mod levels;
+mod matching;
+mod measure;
+mod more;
+mod parallel;
+mod predicates;
+mod reduce;
+mod reshape;
+mod search;
+mod select;
+mod sort;
+mod strings;
+mod structure;
+mod subsets;
+mod sums;
+
+use ctx::Lib;
+use mc_core::{Heap, Store, T};
+use mc_eval::{Attributes, Hold, Kernel, Native, NativeCx, Reply, Res};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+/// The implementation of one function.
+pub(crate) type Body = for<'a, 'b, 'c, 'h> fn(&Lib, &mut NativeCx<'a, 'b, 'h>, T<'h>, &'c [T<'h>]) -> Res<Reply<'h>>;
+
+/// A native of the library: its body and the shared state. It keeps only symbols, so it needs no tracing.
+struct Fun {
+    lib: Arc<Lib>,
+    body: Body,
+    /// whether a dataset as the first argument declines the call (one of [`DATASET_ROWS`])
+    rows_of_datasets: bool,
+    /// a pattern argument may be a failure pattern (one of [`PATTERNS`]): only a failure as the first argument
+    /// (the data) is the result
+    patterns: bool,
+    /// how an association as the first argument is seen (decision io-core.4)
+    assoc: assocs::AssocMode,
+}
+
+impl Native for Fun {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if self.rows_of_datasets && args.first().is_some_and(|&x| self.lib.is_dataset(cx.heap(), x)) {
+            return Ok(Reply::Decline);
+        }
+        if self.patterns {
+            if let Some(&x) = args.first().filter(|&&x| self.lib.is_failure(cx.heap(), x)) {
+                return Ok(Reply::Done(x));
+            }
+        }
+        if self.assoc != assocs::AssocMode::Own {
+            if let Some(es) = args.first().and_then(|&x| assocs::entries(&self.lib, cx.heap(), x)) {
+                return assocs::call(&self.lib, self.body, self.assoc, cx, t, args, es);
+            }
+        }
+        (self.body)(&self.lib, cx, t, args)
+    }
+}
+
+/// The lists library written in MathCAS itself (`lib/lists.mc`): evaluated by the engine
+/// after the other libraries.
+pub const LIB_SOURCE: &str = include_str!("../../../lib/lists.mc");
+
+/// The name of [`LIB_SOURCE`] in messages.
+pub const LIB_ORIGIN: &str = "lib/lists.mc";
+
+/// The functions a dataset (`dataset(assoc(...))`, the datasets of `mc-assoc`) gives its own meaning on its rows:
+/// with a dataset as the first argument they decline, and the dataset's argument-head rules answer (as `part` does
+/// for associations, decision 1A.16). A dataset is one term `dataset(columns)`, so the structural meaning would
+/// see a single argument.
+pub const DATASET_ROWS: &[&str] =
+    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "sort_by"];
+
+macro_rules! functions {
+    ($($name:literal => $body:path, $desc:literal;)*) => {
+        /// Every function of the library, with a one-line description.
+        pub const FUNCTIONS: &[(&str, &str)] = &[$(($name, $desc),)*];
+        const BODIES: &[(&str, Body)] = &[$(($name, $body),)*];
+    };
+}
+
+functions! {
+    "range" => construct::range,
+        "range(n), range(a, b), range(a, b, step): the list a, a + step, ... up to b (a and step default to 1)";
+    "array" => construct::array,
+        "array(f, n): the list [f(1), ..., f(n)]; array(f, [n1, n2, ...]): nested lists of f(i1, i2, ...); array(f, n, r): indices from r, or n points of a range r = [a, b]; array(f, n, r, g): head g";
+    "table" => construct::table,
+        "table(e, k, r): e for each k in r (a list, or n for 1..n); more pairs k, r nest; table(e, n): n values of e";
+    "parallel_table" => parallel::parallel_table,
+        "parallel_table(e, k, r, ...): table(e, k, r, ...) with the values evaluated on the worker threads; the result is the serial one";
+    "parallel_map" => parallel::parallel_map,
+        "parallel_map(f, xs): map(f, xs) with the calls evaluated on the worker threads; the result is the serial one";
+    "parallel_sum" => parallel::parallel_sum,
+        "parallel_sum(e, k, r, ...): the sum of the values of parallel_table(e, k, r, ...)";
+    "subdivide" => construct::subdivide,
+        "subdivide(n), subdivide(b, n), subdivide(a, b, n): the n + 1 equally spaced values from a (default 0) to b (default 1)";
+    "map_indexed" => construct::map_indexed,
+        "map_indexed(f, xs): [f(x1, 1), f(x2, 2), ...]; map_indexed(f, x, levels): f(part, position) for the parts at levels";
+    "map_thread" => construct::map_thread,
+        "map_thread(f, [xs, ys, ...]): [f(xs[1], ys[1], ...), f(xs[2], ys[2], ...), ...]";
+    "scan" => construct::scan,
+        "scan(f, xs): f(x) for each element in order, for its effects; the value is null";
+    "nest" => construct::nest,
+        "nest(f, x, n): f applied n times to x";
+    "nest_while" => construct::nest_while,
+        "nest_while(f, x, test), nest_while(f, x, test, m, max, n): f applied from x while test of the latest value (latest m values) is true, at most max times";
+    "nest_while_list" => construct::nest_while_list,
+        "nest_while_list(f, x, test), nest_while_list(f, x, test, m, max, n): the list of the values nest_while goes through, x first";
+    "fixed_point_list" => construct::fixed_point_list,
+        "fixed_point_list(f, x), fixed_point_list(f, x, n): x, f(x), f(f(x)), ... until a value repeats the one before it (at most n steps; same_test: g decides)";
+    "nest_list" => construct::nest_list,
+        "nest_list(f, x, n): [x, f(x), ..., f^n(x)]";
+    "fold" => construct::fold,
+        "fold(f, x, xs): f(...f(f(x, xs[1]), xs[2])..., xs[n]); fold(f, xs) starts from xs[1]";
+    "differences" => construct::differences,
+        "differences(xs): [x2 - x1, x3 - x2, ...]; differences(xs, n): the n-th differences";
+    "fold_list" => construct::fold_list,
+        "fold_list(f, x, xs): the list of every intermediate value of fold";
+    "length" => access::length,
+        "length(t): the number of arguments of t (0 for an atom)";
+    "part" => access::part,
+        "part(t, i, ...): t[i, ...], 1-based, negative from the end, 0 the head; a span i:j, span(i, j, step), a list or all selects several";
+    "first" => access::first,
+        "first(xs): the first element";
+    "last" => access::last,
+        "last(xs): the last element";
+    "rest" => access::rest,
+        "rest(xs): all elements but the first";
+    "most" => access::most,
+        "most(xs): all elements but the last";
+    "take" => access::take_,
+        "take(xs, n): the first n elements (the last -n for negative n)";
+    "drop" => access::drop,
+        "drop(xs, n): all but the first n elements (the last -n for negative n)";
+    "append" => reshape::append,
+        "append(xs, x): x added at the end";
+    "prepend" => reshape::prepend,
+        "prepend(xs, x): x added at the start";
+    "join" => reshape::join,
+        "join(xs, ys, ...): the elements of terms with one head, in order";
+    "reverse" => reshape::reverse,
+        "reverse(xs): the elements in reverse order; reverse(x, n), reverse(x, [n1, ...]): the parts at those levels reversed";
+    "unique" => reshape::unique,
+        "unique(xs): the elements without repetitions (compared by identity), in order of first occurrence";
+    "flatten" => reshape::flatten,
+        "flatten(xs), flatten(xs, d): nested terms with the head of xs spliced in (to depth d)";
+    "transpose" => reshape::transpose,
+        "transpose(m): rows and columns of a rectangular list of lists exchanged";
+    "apply" => reshape::apply,
+        "apply(f, xs): the head of xs replaced by f; apply(f, x, levels): the heads of the parts at levels (n, [n], [m, n])";
+    "sum" => reduce::sum,
+        "sum(xs): the canonical sum of the elements; sum(f, [k, a, b]), sum(f, [k, n]): the sum of f for k from a to b (exact for integer bounds; closed forms for polynomial and geometric terms, symbolic or infinite bounds; zeta for k^-s)";
+    "piecewise" => sums::piecewise,
+        "piecewise([[v1, c1], [v2, c2], ...]), piecewise(cases, default): the value of the first case whose condition is true (default, or 0, when none is); undecided conditions keep the call";
+    "product" => reduce::product,
+        "product(xs): the canonical product of the elements; product(f, [k, a, b]), product(f, [k, [x, ...]]): the product of the terms";
+    "total" => reduce::total,
+        "total(xs): the sum of the elements (lists added element-wise: column sums of a matrix); total(xs, n): levels 1 to n (inf: all); total(xs, [n]): level n only";
+    "max" => reduce::max,
+        "max(xs), max(a, b, ...): the largest real number (lists flattened)";
+    "min" => reduce::min,
+        "min(xs), min(a, b, ...): the smallest real number (lists flattened)";
+    "select" => select::select,
+        "select(xs, f): the elements x with f(x) true";
+    "drop_failures" => select::drop_failures,
+        "drop_failures(xs): the elements of xs that neither are nor contain a failure (rows [x, failure(...)] are dropped whole)";
+    "cases" => select::cases,
+        "cases(xs, p): the elements matching the pattern p; cases(xs, p -> r): r for each match";
+    "count" => select::count,
+        "count(xs, p): the number of elements matching the pattern p; count(x, p, levels): of the parts at levels";
+    "sort" => sort::sort,
+        "sort(xs): the elements in canonical order; sort(xs, by): ordered by the predicate by(a, b)";
+    "ordered" => sort::ordered,
+        "ordered(xs), ordered(xs, by): whether the elements are in canonical order (or by holds for neighbours)";
+    "sort_by" => sort::sort_by,
+        "sort_by(xs, f): the elements ordered by the canonical order of f(x), stably";
+    "ordering" => sort::ordering,
+        "ordering(xs): the positions of the elements in sorted order; ordering(xs, n): the first n (last -n)";
+    "max_by" => sort::max_by,
+        "max_by(xs, f): the first element with the largest f(x) in the canonical order";
+    "min_by" => sort::min_by,
+        "min_by(xs, f): the first element with the smallest f(x) in the canonical order";
+    "match_q" => structure::match_q,
+        "match_q(x, p): whether x matches the pattern p";
+    "head" => structure::head,
+        "head(x): the head of a compound term; for an atom the name of its type (Int, Rat, Float, Complex, Str, Sym)";
+    "dimensions" => structure::dimensions,
+        "dimensions(x): the lengths of the levels of x that form a full array ([2, 3] for a 2 by 3 matrix)";
+    "array_depth" => structure::array_depth,
+        "array_depth(x): the number of levels of x that form a full array";
+    "extract" => structure::extract,
+        "extract(x, pos): the part at a position [i, j, ...]; extract(x, [pos1, ...]): the list of parts at several";
+    "replace_part" => structure::replace_part,
+        "replace_part(x, pos -> v), replace_part(x, [pos1 -> v1, ...]): x with the parts at the positions replaced";
+    "delete" => structure::delete,
+        "delete(x, pos), delete(x, [pos1, ...]): x without the parts at the positions";
+    "map_at" => structure::map_at,
+        "map_at(f, x, pos), map_at(f, x, [pos1, ...]): x with each part p at the positions replaced by f(p)";
+    "level" => structure::level,
+        "level(x, levels): the list of the parts of x at the levels (n, [n], [m, n]; negative from the leaves)";
+    "replace" => structure::replace,
+        "replace(x, rules): the first rule matching the whole of x applied; replace(x, rules, levels): applied to the parts at the levels";
+    "delete_cases" => structure::delete_cases,
+        "delete_cases(xs, p): the elements not matching p; delete_cases(x, p, levels): matching parts at the levels removed";
+    "first_case" => structure::first_case,
+        "first_case(xs, p), first_case(xs, p, default): the first element matching p (p -> r: its r), else default or failure(not_found, p)";
+    "reverse_sort" => structure::reverse_sort,
+        "reverse_sort(xs): the elements in reverse canonical order";
+    "take_largest" => structure::take_largest,
+        "take_largest(xs, n): the n largest elements, largest first";
+    "take_smallest" => structure::take_smallest,
+        "take_smallest(xs, n): the n smallest elements, smallest first";
+    "sequence_cases" => structure::sequence_cases,
+        "sequence_cases(xs, p), sequence_cases(xs, p, n): the runs of consecutive elements matching the list pattern p ([a, b], [x_, x_]), at most n; p -> r gives each run's r; overlaps: true or all";
+    "sequence_position" => structure::sequence_position,
+        "sequence_position(xs, p), sequence_position(xs, p, n): the [start, end] positions of the runs matching the list pattern p (the longest at each start; overlaps: false or all)";
+    "sequence_count" => structure::sequence_count,
+        "sequence_count(xs, p): the number of non-overlapping runs matching the list pattern p (overlaps: true or all)";
+    "sequence_replace" => structure::sequence_replace,
+        "sequence_replace(xs, p -> r), sequence_replace(xs, [rules], n): each run matching a list pattern replaced by one element r (at most n runs)";
+    "sequence_split" => structure::sequence_split,
+        "sequence_split(xs, p), sequence_split(xs, p, n): the pieces of xs between the runs matching the list pattern p (at most n pieces; rules keep their right sides between)";
+    "full_form" => structure::display_wrapper,
+        "full_form(x): x shown with every part written as a plain call, add(x, pow(y, 2))";
+    "tree_form" => structure::display_wrapper,
+        "tree_form(x): x shown as a tree, each call's head above its arguments (a display wrapper)";
+    "input_form" => structure::display_wrapper,
+        "input_form(x): x shown in the input syntax (a wrapper the printer removes)";
+    "scientific_form" => structure::display_wrapper,
+        "scientific_form(x), scientific_form(x, n): x with its machine reals shown as m × 10^e to n significant digits (6 by default); a display wrapper";
+    "number_form" => structure::display_wrapper,
+        "number_form(x), number_form(x, n): x with its machine reals shown to n significant digits (6 by default), in m × 10^e form outside 10^-5 to 10^6; a display wrapper";
+    "matrix_form" => structure::display_wrapper,
+        "matrix_form(m): m shown as a matrix (a display wrapper that stays unevaluated)";
+    "decimal_form" => structure::display_wrapper,
+        "decimal_form(x), decimal_form(x, n): x shown as a plain decimal, never in scientific notation (a display wrapper)";
+    "engineering_form" => structure::display_wrapper,
+        "engineering_form(x), engineering_form(x, n): x shown with an exponent that is a multiple of 3 (a display wrapper)";
+    "accounting_form" => structure::display_wrapper,
+        "accounting_form(x), accounting_form(x, n): x shown with negative numbers in parentheses (a display wrapper)";
+    "padded_form" => structure::display_wrapper,
+        "padded_form(x, n), padded_form(x, [n, f]): x shown padded to n characters (f digits after the point) (a display wrapper)";
+    "percent_form" => structure::display_wrapper,
+        "percent_form(x), percent_form(x, n): x shown as a percentage, x = 0.35 as 35% (a display wrapper)";
+    "base_form" => structure::display_wrapper,
+        "base_form(x, b): the number x shown in base b (a display wrapper)";
+    "band" => structure::display_wrapper,
+        "band(start), band(start, end, step): the positions start + k step in the rules of sparse_array (a value, a list of values or blocks along the band)";
+    "primes" => structure::display_wrapper,
+        "primes: the domain of the prime numbers; element(x, primes) tests whether the integer x is prime";
+    "empirical_distribution" => structure::display_wrapper,
+        "empirical_distribution(data), empirical_distribution(weights -> data): the distribution of the values with their relative frequencies (an inert term with pdf, cdf, mean, variance, quantile, random_variate)";
+    "multivariate_poisson_distribution" => structure::display_wrapper,
+        "multivariate_poisson_distribution(m0, [m1, ..., mk]): the distribution of the vector of the sums Y0 + Yi of independent Poisson variables (mean, covariance, pdf, random_variate)";
+    "wishart_matrix_distribution" => structure::display_wrapper,
+        "wishart_matrix_distribution(nu, sigma): the distribution of the sum of nu outer products of multinormal vectors (mean, variance, pdf, random_variate)";
+    "quantity_form" => structure::display_wrapper,
+        "quantity_form(q, form): the quantity q shown in the given form, \"Abbreviation\" or \"LongForm\" (a display wrapper that stays unevaluated)";
+    "numeric_array" => structure::display_wrapper,
+        "numeric_array(xs, type): the array xs of numbers stored as the machine type (a display wrapper; normal gives the list)";
+    "is_integer" => predicates::is_integer,
+        "is_integer(x): whether x is an integer";
+    "is_rational" => predicates::is_rational,
+        "is_rational(x): whether x is an exact real number (an integer or a fraction)";
+    "is_number" => predicates::is_number,
+        "is_number(x): whether x is a number of any kind, complex included";
+    "is_exact" => predicates::is_exact,
+        "is_exact(x): whether x is an exact number (integer, rational, or complex with exact parts)";
+    "is_inexact" => predicates::is_inexact,
+        "is_inexact(x): whether x is an inexact number (machine real, ball, or complex with an inexact part)";
+    "is_machine_number" => predicates::is_machine_number,
+        "is_machine_number(x): whether x is a machine real or a complex number with machine-real parts";
+    "is_list" => predicates::is_list,
+        "is_list(x): whether x is a list";
+    "is_vector" => predicates::is_vector,
+        "is_vector(v), is_vector(v, test): whether v is a list without list elements (each passing test)";
+    "is_matrix" => predicates::is_matrix,
+        "is_matrix(m), is_matrix(m, test): whether m is a nonempty list of equal-length vectors (entries passing test)";
+    "is_string" => predicates::is_string,
+        "is_string(x): whether x is a string";
+    "is_symbol" => predicates::is_symbol,
+        "is_symbol(x): whether x is a symbol";
+    "is_atom" => predicates::is_atom,
+        "is_atom(x): whether x is not a compound term (complex numbers are compound)";
+    "all_true" => predicates::all_true,
+        "all_true(xs, f): whether f(x) is true for every element";
+    "any_true" => predicates::any_true,
+        "any_true(xs, f): whether f(x) is true for some element";
+    "none_true" => predicates::none_true,
+        "none_true(xs, f): whether f(x) is true for no element";
+    "free_of" => search::free_of,
+        "free_of(t, p): whether no part of t (at any depth, heads included) matches the pattern p";
+    "member_of" => search::member_of,
+        "member_of(xs, p): whether some element of xs matches the pattern p";
+    "position" => search::position,
+        "position(t, p): the positions (index lists for part) of the parts of t matching the pattern p";
+    "select_first" => search::select_first,
+        "select_first(xs, f), select_first(xs, f, d): the first x with f(x) true (else d or failure(not_found, ...))";
+    "riffle" => arrange::riffle,
+        "riffle(xs, s): s between consecutive elements; riffle(xs, ys): the elements of xs and ys alternating; riffle(xs, s, n), riffle(xs, s, [i, j, k]): s at every n-th place (at places i, i + k, ..., j)";
+    "catenate" => arrange::catenate,
+        "catenate(xss): the lists of xss joined into one list";
+    "partition" => arrange::partition,
+        "partition(xs, n), partition(xs, n, d): the runs of n consecutive elements, starting every d (default n)";
+    "rotate_left" => arrange::rotate_left,
+        "rotate_left(xs), rotate_left(xs, k): the elements cycled k (default 1) places to the left";
+    "rotate_right" => arrange::rotate_right,
+        "rotate_right(xs), rotate_right(xs, k): the elements cycled k (default 1) places to the right";
+    "pad_left" => arrange::pad_left,
+        "pad_left(xs, n), pad_left(xs, n, x): xs made n long by adding x (default 0; a list repeats cyclically) at the start or cutting it; n may list lengths per level; pad_left(xss) pads rows to a matrix";
+    "pad_right" => arrange::pad_right,
+        "pad_right(xs, n), pad_right(xs, n, x): xs made n long by adding x (default 0; a list repeats cyclically) at the end, or cut at the end; n may list lengths per level; pad_right(xss) pads rows to a matrix";
+    "constant_array" => arrange::constant_array,
+        "constant_array(c, n), constant_array(c, [n1, ...]): the list (nested lists) of copies of c";
+    "thread" => arrange::thread,
+        "thread(f(a, b, ...)): [f(a1, b1, ...), f(a2, b2, ...), ...] over the list arguments, others repeated; thread(x, g): over the arguments with head g";
+    "tally" => group::tally,
+        "tally(xs): the pairs [x, n] of each distinct element and its number of occurrences";
+    "gather" => group::gather,
+        "gather(xs): the lists of identical elements, in order of first occurrence";
+    "gather_by" => group::gather_by,
+        "gather_by(xs, f): the lists of elements with identical f(x); gather_by(xs, f, r): each list reduced by r";
+    "unique_by" => group::unique_by,
+        "unique_by(xs, f): the first element of each distinct f(x), in order";
+    "count_by" => group::count_by,
+        "count_by(xs, f): the association of each key f(x) with its number of elements";
+    "subsets" => combinat::subsets,
+        "subsets(xs), subsets(xs, n | [n] | [a, b]): the sublists of xs (of at most n, exactly n, a to b elements)";
+    "tuples" => combinat::tuples,
+        "tuples(xs, n): every list of n elements of xs; tuples([xs1, ...]): every list with its i-th element from xsi";
+    "permutations" => combinat::permutations,
+        "permutations(xs), permutations(xs, n | [n] | [a, b]): the distinct arrangements of the elements";
+    "outer" => combinat::outer,
+        "outer(f, xs, ys, ...): the nested lists of f(x, y, ...) for every choice of elements";
+    "inner" => combinat::inner,
+        "inner(f, a, b), inner(f, a, b, g): the generalised product of vectors or matrices, g (default add) of f's";
+    "depth" => measure::depth,
+        "depth(t): 1 for an atom, one more than the deepest argument otherwise";
+    "leaf_count" => measure::leaf_count,
+        "leaf_count(t): the number of atoms in t, heads included";
+    "string_join" => strings::string_join,
+        "string_join(s1, s2, ...) or string_join([s1, ...]): the strings concatenated";
+    "to_string" => strings::to_string,
+        "to_string(t): the printed form of t (a string stays itself)";
+    "string_length" => strings::string_length,
+        "string_length(s): the number of characters of s";
+    "map_apply" => more::map_apply,
+        "map_apply(f, xs): each element g(a, b, ...) of xs as f(a, b, ...)";
+    "comap" => more::comap,
+        "comap(fs, x): each function g of fs applied to x, keeping the head of fs ([f, g] gives [f(x), g(x)])";
+    "comap_apply" => more::comap_apply,
+        "comap_apply(fs, xs): each function g of fs applied to the elements of xs as arguments";
+    "map_all" => more::map_all,
+        "map_all(f, x): f applied to every part of x, innermost first";
+    "is_array" => more::is_array,
+        "is_array(x), is_array(x, d), is_array(x, d, test): whether x is a full array (of depth d, with test true for each element)";
+    "fold_pair_list" => more::fold_pair_list,
+        "fold_pair_list(f, y, xs), fold_pair_list(f, y, xs, g): the outputs of f(y, x) = [out, y'] for each element in turn";
+    "fold_pair" => more::fold_pair,
+        "fold_pair(f, y, xs), fold_pair(f, y, xs, g): the last output of fold_pair_list";
+    "subsequences" => more::subsequences,
+        "subsequences(xs), subsequences(xs, n | [n] | [a, b]): the runs of consecutive elements, by length";
+    "contains_any" => more::contains_any,
+        "contains_any(xs, ys): whether xs has some element of ys";
+    "contains_all" => more::contains_all,
+        "contains_all(xs, ys): whether xs has every element of ys";
+    "contains_none" => more::contains_none,
+        "contains_none(xs, ys): whether xs has no element of ys";
+    "contains_only" => more::contains_only,
+        "contains_only(xs, ys): whether every element of xs is in ys";
+    "contains_exactly" => more::contains_exactly,
+        "contains_exactly(xs, ys): whether xs and ys have the same distinct elements";
+    "nearest" => more::nearest,
+        "nearest(xs, x), nearest(xs, x, n): the elements of xs nearest to x (numbers, vectors, strings)";
+    "pick" => more::pick,
+        "pick(xs, sel), pick(xs, sel, p): the elements of xs where sel is true (or matches p)";
+    "min_max" => more::min_max,
+        "min_max(xs), min_max(xs, d): [min(xs), max(xs)], widened by d";
+    "take_drop" => more::take_drop,
+        "take_drop(xs, n): [take(xs, n), drop(xs, n)]";
+    "power_range" => more::power_range,
+        "power_range(b), power_range(a, b), power_range(a, b, r): a, a r, a r^2, ... up to b (a = 1, r = 10 by default)";
+    "first_position" => more::first_position,
+        "first_position(x, p), first_position(x, p, d): the position of the first part of x matching p";
+    "count_distinct" => more::count_distinct,
+        "count_distinct(xs): the number of distinct elements of xs; count_distinct(xs, f): of the classes f(a, b) puts together";
+    "groupings" => groupings::groupings,
+        "groupings(xs, spec): every tree grouping the elements of xs in order with the heads and arities of spec (k, [k1, ...], h -> k, [h1, h2] -> k, [h -> k, ...])";
+    "hash" => hash::hash,
+        "hash(e), hash(e, method), hash(e, method, format): a digest of e (\"MD5\", \"SHA\", \"SHA256\", \"SHA512\", \"CRC32\", ...) as an integer, \"HexString\", \"DecimalString\" or \"ByteList\"";
+    "delete_elements" => more::delete_elements,
+        "delete_elements(xs, es): xs without the elements of es";
+    "position_largest" => more::position_largest,
+        "position_largest(xs): the positions of the largest elements of xs; position_largest(xs, n): of the n largest values, grouped";
+    "position_smallest" => more::position_smallest,
+        "position_smallest(xs): the positions of the smallest elements of xs; position_smallest(xs, n): of the n smallest values, grouped";
+    "symmetric_difference" => more::symmetric_difference,
+        "symmetric_difference(xs, ys, ...): the sorted elements in an odd number of the lists";
+    "xor" => more::xor,
+        "xor(a, b, ...): true when an odd number of the arguments are true";
+    "implies" => more::implies,
+        "implies(p, q): the logical implication p => q";
+    "true_q" => more::true_q,
+        "true_q(x): whether x is true (anything else gives false)";
+    "construct" => more::construct,
+        "construct(f, a, b, ...): f(a, b, ...)";
+    "identity" => more::identity,
+        "identity(x): x itself";
+    "quote" => more::quote,
+        "quote(x): x kept unevaluated (unquote releases it; eval(e) as the argument is evaluated first)";
+    "unquote" => more::unquote,
+        "unquote(e): e with every outermost quote(x) and hold_complete(x) in it replaced by x, evaluated";
+    "inactivate" => more::inactivate,
+        "inactivate(e), inactivate(e, p): e with every head symbol (those matching p) replaced by the inert inactive(f), the rest evaluated";
+    "sequence_alignment" => more::sequence_alignment,
+        "sequence_alignment(a, b): the runs the strings or lists a and b share, with [piece of a, piece of b] where they differ (a global alignment)";
+    "hold_complete" => more::hold_complete,
+        "hold_complete(x, ...): x kept unevaluated";
+    "check" => more::check,
+        "check(x, y): the value of x, or of y when x gives a failure";
+    "value_q" => more::value_q,
+        "value_q(x): whether x has a value";
+    "to_character_code" => more::to_character_code,
+        "to_character_code(s): the code points of the characters of s; to_character_code(s, \"UTF8\"): its UTF-8 bytes (\"ASCII\", \"ISO8859-1\": the codes that fit, none for the others)";
+    "character_range" => more::character_range,
+        "character_range(a, b): the characters from a to b";
+    "up_to" => more::up_to,
+        "up_to(n): at most n (in take, drop, partition, take_largest, ...)";
+    "take_largest_by" => structure::take_largest_by,
+        "take_largest_by(xs, f, n): the n elements with the largest f(x)";
+    "take_smallest_by" => structure::take_smallest_by,
+        "take_smallest_by(xs, f, n): the n elements with the smallest f(x)";
+    "replace_at" => structure::replace_at,
+        "replace_at(x, rules, pos): x with the part at pos replaced by replace(part, rules)";
+    "subset_cases" => subsets::subset_cases,
+        "subset_cases(xs, p), subset_cases(xs, p, n): the sublists of xs, elements in any order, matching the list pattern p (each element used once unless overlaps: true; at most n); p -> r gives each r";
+    "subset_position" => subsets::subset_position,
+        "subset_position(xs, p), subset_position(xs, p, n): the positions of the elements of each subset of xs matching the list pattern p, in the pattern's order (overlaps: false for disjoint ones)";
+    "subset_replace" => subsets::subset_replace,
+        "subset_replace(xs, p -> r), subset_replace(xs, rules, n): each subset of xs matching a list pattern (disjoint, at most n) replaced by r, at the place of its first element";
+    "split" => strings::split,
+        "split(s), split(s, sep): the words of s, or the pieces between occurrences of sep; split(xs), split(xs, test): the runs of identical neighbours (or neighbours passing test(a, b)) of a list";
+}
+
+/// The functions whose arguments are all held; every other one is strict.
+const HELD: &[&str] = &["quote", "inactivate", "table", "piecewise", "parallel_table", "parallel_sum", "hold_complete", "check", "value_q"];
+
+/// The functions whose first argument is held and the others strict: the body of an iterated `sum` or `product` is
+/// evaluated for each term (a `sow` or `print` in it runs per term), not once before the terms exist.
+const HELD_FIRST: &[&str] = &["sum", "product"];
+
+/// The functions taking a pattern after the data: the pattern may be a failure pattern (`failure(___)`), so a
+/// failure among the arguments is not their result, except as the data (decision p6core.21).
+const PATTERNS: &[&str] = &[
+    "cases",
+    "count",
+    "position",
+    "free_of",
+    "member_of",
+    "delete_cases",
+    "first_case",
+    "sequence_cases",
+    "sequence_position",
+    "sequence_count",
+    "sequence_replace",
+    "sequence_split",
+    "subset_cases",
+    "subset_position",
+    "subset_replace",
+];
+
+/// Register every function of [`FUNCTIONS`] with `k`, all strict (decision I.2) except those of `HELD`. `stop` is
+/// the flag `mc-arith`'s long loops poll, the one the engine raises with the evaluator's interrupt (decision I.1).
+pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
+    let lib = Arc::new(Lib::new(h, stop));
+    for &(name, body) in BODIES {
+        // `table` holds its body and iterators (decision 1A.14)
+        let hold = if HELD.contains(&name) {
+            Hold::All
+        } else if HELD_FIRST.contains(&name) {
+            Hold::First
+        } else {
+            Hold::None
+        };
+        let rows_of_datasets = DATASET_ROWS.contains(&name);
+        let patterns = PATTERNS.contains(&name) || name == "match_q";
+        let assoc = assocs::mode(name);
+        let f = Fun { lib: lib.clone(), body, rows_of_datasets, patterns: patterns && name != "match_q", assoc };
+        k.register(h.sym(name), Attributes { hold, handles_failures: patterns, ..Attributes::default() }, Box::new(f));
+    }
+    // a helper of the library (`total(xs, method: "CompensatedSummation")`): no usage line, not in the help index
+    let helper = "nl_total_compensated";
+    let f = Fun { lib: lib.clone(), body: reduce::total_compensated, rows_of_datasets: false, patterns: false, assoc: assocs::mode(helper) };
+    k.register(h.sym(helper), Attributes::default(), Box::new(f));
+    // `map` with levels, over associations and other compound terms (the evaluator's `map` keeps lists)
+    let more = lib.clone();
+    k.wrap_native(h.sym("map"), move |inner| Box::new(levels::MapMore { inner, lib: more }));
+}

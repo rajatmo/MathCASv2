@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# kurtosis
+
+#% text
+# `kurtosis(d)` gives the kurtosis `E[(X - mu)^4]/sigma^4` of a distribution, 3 for a normal one; `kurtosis(xs)` gives `m4/m2^2` of a data list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kurtosis(normal_distribution(mu, s))
+#% output
+#= 3
+
+#% cell
+kurtosis(exponential_distribution(l))
+#% output
+#= 9
+
+#% cell
+kurtosis([1, 2, 3, 4, 100])
+#% output
+#= 18802417/5791210
+
+#% section
+# See also
+
+#% text
+# `skewness`, `variance`, `central_moment`

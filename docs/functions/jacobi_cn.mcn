@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_cn
+
+#% text
+# `jacobi_cn(u, m)` gives the Jacobi elliptic function `cn(u | m)`, the cosine of `jacobi_amplitude(u, m)`.
+
+#% section
+# Details
+
+#% item
+# `cn` has the real period `4*K(m)`; `cn(u | 0)` is `cos(u)` and `cn(u | 1)` is `sech(u)` (DLMF 22.2, 22.5).
+
+#% item
+# Real machine numbers and balls give numerical values. `jacobi_cn` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_cn(1.0, 0.5)
+#% output
+#= 0.5959765676721407
+
+#% cell
+jacobi_cn(u, 0)
+#% output
+#= cos(u)
+
+#% cell
+jacobi_cn(0.5, 0.9)
+#% output
+#= 0.8859187959416738
+
+#% subsection
+# Applications
+
+#% text
+# The angle of a pendulum released at 90 degrees, `2*asin(k*sn(K - t | m))`, at a few times (units with `g/L = 1`):
+
+#% cell
+table(2*asin(sqrt(0.5)*jacobi_cn(t, 0.5)), t, [0.0, 0.5, 1.0])
+#% output
+#= [1.5707963267948968, 1.3473352057145445, 0.8700191230969488]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(jacobi_cn(u, m), u)
+#% output
+#= -jacobi_dn(u, m)*jacobi_sn(u, m)
+
+#% text
+# The quarter period is a zero:
+
+#% cell
+jacobi_cn(elliptic_k(0.3), 0.3)
+#% output
+#= 7.655061253971189e-17
+
+#% section
+# See also
+
+#% text
+# `jacobi_sn`, `jacobi_dn`, `jacobi_amplitude`, `inverse_jacobi_cn`

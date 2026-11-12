@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# image_scaled
+
+#% text
+# `image_scaled([u, v])` is a position given as fractions of the picture: `[0, 0]` the lower left corner, `[1, 1]` the upper right.
+
+#% section
+# Details
+
+#% item
+# It is read as fractions of the plot area, like `scaled`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), text("upper left", image_scaled([0.15, 0.9]))])
+#% output
+#= image("image_scaled.files/image_scaled-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], epilog: [text("note", image_scaled([0.8, 0.8]))])
+#% output
+#= image("image_scaled.files/image_scaled-2.svgz")
+
+#% cell
+graphics([circle(), red, point(image_scaled([0.5, 0.5]))])
+#% output
+#= image("image_scaled.files/image_scaled-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `scaled`, `placed`, `text`

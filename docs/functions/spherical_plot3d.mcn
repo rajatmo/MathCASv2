@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# spherical_plot3d
+
+#% text
+# `spherical_plot3d(r, [theta, a, b], [phi, c, d])` draws the surface at distance r from the origin, at polar angle theta (from the z axis) and azimuth phi.
+
+#% section
+# Details
+
+#% item
+# r may depend on theta and phi; theta usually runs from 0 to pi and phi from 0 to 2 pi.
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The unit sphere:
+
+#% cell
+spherical_plot3d(1, [t, 0, pi], [p, 0, 2pi])
+#% output
+#= image("spherical_plot3d.files/spherical_plot3d-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A bumpy sphere:
+
+#% cell
+spherical_plot3d(1 + sin(5t)*sin(5p)/5, [t, 0, pi], [p, 0, 2pi])
+#% output
+#= image("spherical_plot3d.files/spherical_plot3d-2.svgz")
+
+#% text
+# Part of a sphere:
+
+#% cell
+spherical_plot3d(1, [t, 0, pi/2], [p, 0, 3pi/2])
+#% output
+#= image("spherical_plot3d.files/spherical_plot3d-3.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Without mesh lines, coloured by height:
+
+#% cell
+spherical_plot3d(1 + cos(t)^2, [t, 0, pi], [p, 0, 2pi], mesh: none, color_function: ocean)
+#% output
+#= image("spherical_plot3d.files/spherical_plot3d-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `parametric_plot3d`, `plot3d`, `revolution_plot3d`

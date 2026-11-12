@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# cantor_staircase
+
+#% text
+# `cantor_staircase(x)` gives the Cantor function (the Cantor staircase) at `x`.
+
+#% section
+# Details
+
+#% item
+# The function is 0 for `x <= 0` and 1 for `x >= 1`, constant on each middle third removed in the construction of the Cantor set, continuous and nondecreasing.
+
+#% item
+# At rational `x` the value is exact: the ternary expansion of `x` is eventually periodic, and the periodic part sums as a geometric series. At inexact `x` it is computed to the precision of `x`.
+
+#% item
+# At other exact arguments it stays unevaluated; `n` evaluates it numerically.
+
+#% item
+# Lists are mapped elementwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cantor_staircase(1/3)
+#% output
+#= 1/2
+
+#% cell
+cantor_staircase(15/17)
+#% output
+#= 3/4
+
+#% cell
+cantor_staircase(0.76)
+#% output
+#= 0.6875
+
+#% cell
+n(cantor_staircase(1/sqrt(2)), 20)
+#% output
+#= 0.625000000000000000000000
+
+#% cell
+cantor_staircase([[1/2, 0], [0, 1/2]])
+#% output
+#= [[1/2, 0], [0, 1/2]]
+
+#% section
+# See also
+
+#% text
+# `unit_step`, `floor`

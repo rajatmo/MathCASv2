@@ -1,0 +1,176 @@
+//! The interface contract of the MathCAS v2 core (docs/design/05-assembly.md section 3).
+//!
+//! Generic crates (`mc-arith`, `mc-syntax`, `mc-bench`) are written against [`Store`] and tested against the simple
+//! [`RefStore`] in this crate; `mc-core` implements the same trait with the concurrent, collected arena. The
+//! [`conformance`] checks state what every implementation must satisfy. [`engine`] is the interface of a whole
+//! evaluator with a session ([`Engine`], [`StopFlag`]): what the benchmark runner, the REPL, the kernel and the
+//! documentation drive.
+//!
+//! Changes to this crate are changes of the contract: every implementation and user is updated with them.
+use std::marker::PhantomData;
+
+pub mod conformance;
+pub mod engine;
+pub mod packed;
+mod refstore;
+pub use engine::{Engine, EngineError, EngineFactory, Evaluated, RaiseHook, StopFlag};
+pub use packed::{Elem, Packed, PACK_MIN};
+pub use packed::complex_head;
+pub use refstore::RefStore;
+
+/// A term handle: 32 bits, `Copy`, branded with the lifetime of the store borrow that produced it. Equal terms are
+/// the same handle (hash-consing), so `==` is structural identity (semantics 1.1). A handle must not outlive its
+/// borrow; terms kept across evaluations live in the store's root containers.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(transparent)]
+pub struct T<'h> {
+    raw: u32,
+    _brand: PhantomData<&'h ()>,
+}
+
+impl<'h> T<'h> {
+    /// For store implementations only.
+    pub fn from_raw(raw: u32) -> T<'h> {
+        T { raw, _brand: PhantomData }
+    }
+    /// For store implementations only.
+    pub fn raw(self) -> u32 {
+        self.raw
+    }
+}
+
+/// A symbol. Symbols are immediates: they never move and may be held anywhere without rooting.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
+pub struct Sym(pub u32);
+
+/// A read-only view of one term, borrowed from the store for `'h`.
+#[derive(Clone, Copy, Debug)]
+pub enum View<'h> {
+    /// An integer that fits in `i64`.
+    Int(i64),
+    /// An integer that does not fit in `i64`: sign and magnitude limbs (64-bit, least significant first, top limb
+    /// nonzero, at least two limbs or a magnitude above `i64::MAX`).
+    BigInt { neg: bool, mag: &'h [u64] },
+    /// A rational in canonical form: reduced, denominator greater than 1 (semantics 2.4).
+    Rational { num: T<'h>, den: T<'h> },
+    /// A machine real (IEEE binary64).
+    Real(f64),
+    /// A ball (semantics 2.3): sign and payload words `[exp, radius mantissa, radius exponent, mantissa limbs...]`
+    /// (integration decision I3.5). The working precision p is the bit width of the midpoint mantissa, which is
+    /// stored widened to exactly p bits; a zero midpoint keeps p in the `exp` word (`mc-arith` decision B.2). Equal
+    /// balls at the same precision therefore have equal words.
+    Ball { neg: bool, words: &'h [u64] },
+    Str(&'h str),
+    Sym(Sym),
+    /// A compound term: head (any term) and arguments. A packed array ([`packed`]) views as its `list(...)` too.
+    App { head: T<'h>, args: &'h [T<'h>] },
+}
+
+/// The store: construction and inspection of terms. All methods take `&self`, so terms can be built from many
+/// threads at once (integration decision I2.1).
+pub trait Store: Sync {
+    /// The symbol with this name, created on first use.
+    fn sym(&self, name: &str) -> Sym;
+    fn sym_name(&self, s: Sym) -> String;
+    /// The term of a symbol.
+    fn sym_term<'h>(&'h self, s: Sym) -> T<'h>;
+
+    fn int<'h>(&'h self, v: i64) -> T<'h>;
+    /// An integer from sign and magnitude limbs (least significant first, leading zero limbs allowed). Canonical: an
+    /// integer that fits in `i64` is always [`View::Int`] (integration decision I3.1).
+    fn big_int<'h>(&'h self, neg: bool, mag: &[u64]) -> T<'h>;
+    /// A rational from canonical parts. The caller (normally `mc-arith`) reduces first; implementations check this in
+    /// debug builds.
+    fn rational<'h>(&'h self, num: T<'h>, den: T<'h>) -> T<'h>;
+    fn real<'h>(&'h self, v: f64) -> T<'h>;
+    fn ball<'h>(&'h self, neg: bool, words: &[u64]) -> T<'h>;
+    fn string<'h>(&'h self, s: &str) -> T<'h>;
+    fn app<'h>(&'h self, head: T<'h>, args: &[T<'h>]) -> T<'h>;
+
+    fn view<'h>(&'h self, t: T<'h>) -> View<'h>;
+    /// A hash of the term's structure, consistent with identity and stable across collections.
+    fn structural_hash(&self, t: T<'_>) -> u64;
+
+    /// Convenience: `head(args)` with a symbol head.
+    fn call<'h>(&'h self, head: Sym, args: &[T<'h>]) -> T<'h> {
+        let h = self.sym_term(head);
+        self.app(h, args)
+    }
+
+    /// The payload of a packed array (semantics 11, [`packed`]), read without unpacking; `None` for every other
+    /// term. A store that does not pack returns `None` always (the default). The term itself is the `list` its view
+    /// shows: the payload is a faster way to read the same elements.
+    fn packed<'h>(&'h self, t: T<'h>) -> Option<Packed<'h>> {
+        let _ = t;
+        None
+    }
+
+    /// The rectangular `list(...)` of machine reals with dimensions `dims` (outermost first) and leaves `data` in
+    /// row-major order: the same term as building it element by element, packed when the rule says so. Panics
+    /// unless the product of `dims` is `data.len()`.
+    fn real_array<'h>(&'h self, dims: &[usize], data: &[f64]) -> T<'h> {
+        packed::build_nested(self, dims, data.len(), |i| self.real(data[i]))
+    }
+
+    /// The rectangular `list(...)` of machine integers, as [`Store::real_array`].
+    fn int_array<'h>(&'h self, dims: &[usize], data: &[i64]) -> T<'h> {
+        packed::build_nested(self, dims, data.len(), |i| self.int(data[i]))
+    }
+
+    /// The rectangular `list(...)` of machine complex numbers `complex(re, im)` with dimensions `dims` and the
+    /// leaves' parts `parts` (real and imaginary part of each leaf in turn, row-major): the same term as building
+    /// it element by element, packed when the rule says so. Panics unless `parts` holds two words per leaf.
+    fn complex_array<'h>(&'h self, dims: &[usize], parts: &[f64]) -> T<'h> {
+        assert!(parts.len().is_multiple_of(2), "complex leaves have two parts");
+        let complex = self.sym(names::COMPLEX);
+        packed::build_nested(self, dims, parts.len() / 2, |i| {
+            self.call(complex, &[self.real(parts[2 * i]), self.real(parts[2 * i + 1])])
+        })
+    }
+
+    /// The list of machine complex numbers with parts `parts` (packed when long enough).
+    fn complexes<'h>(&'h self, parts: &[f64]) -> T<'h> {
+        self.complex_array(&[parts.len() / 2], parts)
+    }
+
+    /// The list of machine reals `[data...]` (packed when long enough).
+    fn reals<'h>(&'h self, data: &[f64]) -> T<'h> {
+        self.real_array(&[data.len()], data)
+    }
+
+    /// The list of machine integers `[data...]` (packed when long enough).
+    fn ints<'h>(&'h self, data: &[i64]) -> T<'h> {
+        self.int_array(&[data.len()], data)
+    }
+}
+
+/// Symbol names fixed by the contract (semantics sections 1, 3, 10).
+pub mod names {
+    pub const LIST: &str = "list";
+    pub const ADD: &str = "add";
+    pub const MUL: &str = "mul";
+    pub const POW: &str = "pow";
+    pub const COMPLEX: &str = "complex";
+    pub const FAILURE: &str = "failure";
+    pub const RULE: &str = "rule";
+    pub const RULE_DELAYED: &str = "rule_delayed";
+    pub const TRUE: &str = "true";
+    pub const FALSE: &str = "false";
+    pub const NULL: &str = "null";
+
+    /// Failure tags (semantics 10): `failure(TAG, details...)`.
+    pub mod failure {
+        pub const DIVISION_BY_ZERO: &str = "division_by_zero";
+        pub const LIMIT: &str = "limit";
+        pub const MEMORY: &str = "memory";
+        pub const FUEL: &str = "fuel";
+        pub const TIME: &str = "time";
+        pub const INTERRUPTED: &str = "interrupted";
+        pub const NO_MATCH: &str = "no_match";
+        pub const EFFECT_IN_CONDITION: &str = "effect_in_condition";
+        /// `failure(limit, depth)`: the evaluation nested deeper than the evaluator's limit.
+        pub const DEPTH: &str = "depth";
+        /// `failure(definition, message)`: a malformed definition.
+        pub const DEFINITION: &str = "definition";
+    }
+}

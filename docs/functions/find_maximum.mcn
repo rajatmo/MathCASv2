@@ -1,0 +1,86 @@
+#! mathcas 2 notebook
+
+#% title
+# find_maximum
+
+#% text
+# `find_maximum(f, [x, x0])` searches for a local maximum of `f` near `x0`; the result is `[f_max, [x -> x_max]]`.
+
+#% text
+# `find_maximum(f, [[x, x0], [y, y0], ...])` searches in several variables.
+
+#% section
+# Details
+
+#% item
+# The search is numerical, by the same methods as `find_minimum` applied to `-f`. It finds a local maximum: the starting point decides which.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_maximum(-x^2 + 4*x, [x, 0])
+#% output
+#= [4.0, [x -> 2.0]]
+
+#% cell
+find_maximum(sin(x), [x, 1])
+#% output
+#= [1.0, [x -> 1.5707963267948966]]
+
+#% cell
+find_maximum(x*exp(-x), [x, 2])
+#% output
+#= [0.36787944117144233, [x -> 1.0]]
+
+#% cell
+find_maximum(-(x - 1)^2 - (y + 2)^2 + 3, [[x, 0], [y, 0]])
+#% output
+#= [3.0, [x -> 1.0, y -> -2.0]]
+
+#% subsection
+# Scope
+
+#% text
+# Different starting points find different local maxima:
+
+#% cell
+find_maximum(sin(x) + sin(3*x)/3, [x, 1])
+#% output
+#= [0.9428090415820634, [x -> 0.7853981633974483]]
+
+#% cell
+find_maximum(sin(x) + sin(3*x)/3, [x, 7])
+#% output
+#= [0.9428090415820636, [x -> 7.0685834705770345]]
+
+#% subsection
+# Applications
+
+#% text
+# The largest area of a rectangle with perimeter 4:
+
+#% cell
+find_maximum(x*(2 - x), [x, 0.5])
+#% output
+#= [1.0, [x -> 1.0]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The maximum of `f` is minus the minimum of `-f`:
+
+#% cell
+find_minimum(x^2 - 4*x, [x, 0])
+#% output
+#= [-4.0, [x -> 2.0]]
+
+#% section
+# See also
+
+#% text
+# `find_minimum`, `find_root`, `maximize`

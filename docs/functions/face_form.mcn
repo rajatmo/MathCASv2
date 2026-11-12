@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# face_form
+
+#% text
+# `face_form(c)` is a graphics directive: polygons, rectangles and disks that follow are filled with the colour c (a colour, or a list of a colour and an `opacity`).
+
+#% text
+# `face_form()` and `face_form(none)` leave faces empty.
+
+#% section
+# Details
+
+#% item
+# Without `face_form` faces take the current colour.
+
+#% item
+# Lines, points and text keep the current colour; only faces change.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A yellow face with a blue outline drawn by a circle:
+
+#% cell
+graphics([face_form(yellow), blue, disk(), circle()])
+#% output
+#= image("face_form.files/face_form-1.svgz")
+
+#% text
+# An empty triangle with black edges:
+
+#% cell
+graphics([face_form(), edge_form(black), polygon([[0, 0], [1, 0], [0.5, 1]])])
+#% output
+#= image("face_form.files/face_form-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A translucent face:
+
+#% cell
+graphics([face_form([green, opacity(0.4)]), disk([0, 0]), disk([1, 0])])
+#% output
+#= image("face_form.files/face_form-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `edge_form`, `opacity`, `polygon`, `disk`

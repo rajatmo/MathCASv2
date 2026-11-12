@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_subgroup
+
+#% text
+# `is_subgroup(G, H)`: whether H is a subgroup of G
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[is_subgroup(symmetric_group(4), alternating_group(4)), is_subgroup(alternating_group(4), symmetric_group(4))]
+#% output
+#= [true, false]
+
+#% section
+# See also
+
+#% text
+# `is_normal_subgroup`, `subgroup_index`

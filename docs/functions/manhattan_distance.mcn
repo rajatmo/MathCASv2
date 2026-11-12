@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# manhattan_distance
+
+#% text
+# `manhattan_distance(u, v)` gives the sum of the absolute differences of the entries of `u` and `v`.
+
+#% section
+# Details
+
+#% item
+# For two numbers it is `abs(u - v)`.
+
+#% item
+# Symbolic entries give a sum of absolute values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+manhattan_distance([1, 2], [4, 6])
+#% output
+#= 7
+
+#% cell
+manhattan_distance([a, b], [c, d])
+#% output
+#= abs(a - c) + abs(b - d)
+
+#% cell
+manhattan_distance(3, -2)
+#% output
+#= 5
+
+#% section
+# See also
+
+#% text
+# `euclidean_distance`, `distance_matrix`, `norm`

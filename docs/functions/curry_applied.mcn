@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# curry_applied
+
+#% text
+# `curry_applied(f, spec)` is `f` taking its arguments over several calls: `curry_applied(f, n)(a1)(a2)...(an)` is `f(a1, ..., an)`; `curry_applied(spec)(f)` is `curry_applied(f, spec)`. The spec is `n`, `[i1, ..., ik]` (`f` of the arguments `i1`, ..., `ik` of `max(i)` arguments) or `n -> [i1, ..., ik]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+curry_applied(f, 3)(a)(b)(c)
+#% output
+#= f(a, b, c)
+
+#% cell
+curry_applied(2)(f)(x)(y)
+#% output
+#= f(x, y)
+
+#% cell
+map(curry_applied(add, 2)(10), [1, 2, 3])
+#% output
+#= [11, 12, 13]
+
+#% cell
+curry_applied(integrate, [3, 1, 2])(x)(y)(x*sin(y))
+#% output
+#= (-1/2)*cos(y)*x^2
+
+#% cell
+curry_applied(f, 4 -> [2, 3])(a)(b)(c)(d)
+#% output
+#= f(b, c)
+
+#% cell
+curry_applied(f, 3)(a, b)
+#% output
+#= curry_applied(f, 3)(a, b)
+
+#% cell
+curry_applied(composition, 3)(f, g, h, x)
+#% output
+#= f(g(h(x)))
+
+#% section
+# See also
+
+#% text
+# `operator_applied`, `reverse_applied`

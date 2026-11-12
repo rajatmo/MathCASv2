@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# column
+
+#% text
+# `column(ds, c)` gives the list of the values of column `c` of the dataset `ds`, one per row.
+
+#% section
+# Details
+
+#% item
+# Column names are compared by identity: `"1"`, `1` and `1.0` are different names.
+
+#% item
+# `ds[c]` gives the same list when `c` is not an integer.
+
+#% item
+# A numeric column without missing values is a packed array.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+shop = dataset([["item", "kind", "price", "stock"], ["pen", "office", 1.5, 40], ["lamp", "home", 24.0, 3], ["ink", "office", 6.0, missing()], ["mug", "home", 8.5, 12]])
+column(shop, "price")
+#% output
+#= [1.5, 24.0, 6.0, 8.5]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Part notation gives the same column:
+
+#% cell
+shop["price"] === column(shop, "price")
+#% output
+#= true
+
+#% text
+# Any list function applies to a column:
+
+#% cell
+max(column(shop, "price"))
+#% output
+#= 24.0
+
+#% subsection
+# Possible issues
+
+#% text
+# A name the dataset does not have:
+
+#% cell
+column(shop, "colour")
+#% output
+#! failure(missing_key, "colour")
+
+#% section
+# See also
+
+#% text
+# `columns`, `rows`, `dataset`, `add_column`

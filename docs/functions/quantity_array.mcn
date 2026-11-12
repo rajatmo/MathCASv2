@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# quantity_array
+
+#% text
+# `quantity_array(v, unit)` gives the array `v` with every entry a quantity of `unit`; `quantity_array(v, [u1, ..., uk])` gives the entries at position `i` of each innermost list the unit `ui`. The result is a list of quantities, so list functions and quantity arithmetic apply to it directly.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quantity_array([1, 2, 3], "Meters")
+#% output
+#= [quantity(1, "Meters"), quantity(2, "Meters"), quantity(3, "Meters")]
+
+#% cell
+quantity_array([[1, 2], [3, 4]], ["Meters", "Seconds"])
+#% output
+#= [[quantity(1, "Meters"), quantity(2, "Seconds")], [quantity(3, "Meters"), quantity(4, "Seconds")]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# List functions work on the quantities:
+
+#% cell
+total(quantity_array([1, 2, 3], "Meters"))
+#% output
+#= quantity(6, "Meters")
+
+#% section
+# See also
+
+#% text
+# `quantity`, `quantity_magnitude`

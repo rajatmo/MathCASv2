@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# transformation_matrix
+
+#% text
+# `transformation_matrix(f)`: the homogeneous matrix of a transformation_function
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+transformation_matrix(translation_transform([a, b]))
+#% output
+#= [[1, 0, a], [0, 1, b], [0, 0, 1]]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

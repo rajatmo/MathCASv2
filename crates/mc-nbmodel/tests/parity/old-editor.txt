@@ -1,0 +1,1850 @@
+=== autoclose.keys / an opener inserts its closer with the caret between
+#! mathcas 2 notebook
+
+#% cell
+f(▮)
+--- clip
+
+=== autoclose.keys / every bracket kind pairs
+#! mathcas 2 notebook
+
+#% cell
+[{(▮)}]
+--- clip
+
+=== autoclose.keys / typing the closer steps over the automatic one
+#! mathcas 2 notebook
+
+#% cell
+f(x)▮
+--- clip
+
+=== autoclose.keys / nested pairs are stepped over in turn
+#! mathcas 2 notebook
+
+#% cell
+g([1, 2])+1▮
+--- clip
+
+=== autoclose.keys / a closer that was not inserted automatically is typed
+#! mathcas 2 notebook
+
+#% cell
+a)▮)
+--- clip
+
+=== autoclose.keys / Backspace after an opener deletes its untouched closer too
+#! mathcas 2 notebook
+
+#% cell
+x▮
+--- clip
+
+=== autoclose.keys / after typing over the closer Backspace deletes one character
+#! mathcas 2 notebook
+
+#% cell
+x(a▮
+--- clip
+
+=== autoclose.keys / an opener before a name does not pair
+#! mathcas 2 notebook
+
+#% cell
+(▮x
+--- clip
+
+=== autoclose.keys / an opener with a selection wraps it and keeps it selected
+#! mathcas 2 notebook
+
+#% cell
+(⟦a+b⟧)*c
+--- clip
+
+=== autoclose.keys / a quote pairs before the end, a space or a closer
+#! mathcas 2 notebook
+
+#% cell
+f("ab"▮)
+--- clip
+
+=== autoclose.keys / a quote before a name does not pair
+#! mathcas 2 notebook
+
+#% cell
+"▮x
+--- clip
+
+=== autoclose.keys / a quote with a selection wraps it
+#! mathcas 2 notebook
+
+#% cell
+"⟦hi⟧"
+--- clip
+
+=== autoclose.keys / no brackets are paired inside a string
+#! mathcas 2 notebook
+
+#% cell
+"a (▮"
+--- clip
+
+=== autoclose.keys / no brackets are paired inside a comment
+#! mathcas 2 notebook
+
+#% cell
+x # see [▮
+--- clip
+
+=== autoclose.keys / a prime is not paired
+#! mathcas 2 notebook
+
+#% cell
+f'▮
+--- clip
+
+=== autoclose.keys / undo removes the pair in one step
+#! mathcas 2 notebook
+
+#% cell
+x▮
+--- clip
+
+=== autoclose.keys / moving the caret forgets the automatic closers
+#! mathcas 2 notebook
+
+#% cell
+()▮)
+--- clip
+
+=== autoclose.keys / an opener at the insertion point makes a cell with the pair
+#! mathcas 2 notebook
+
+#% cell
+(▮)
+--- clip
+
+=== autoclose.keys / prose cells pair brackets but keep their smart quotes
+#! mathcas 2 notebook
+
+#% text
+# (“a▮)
+--- clip
+
+=== autoclose.keys / without the setting nothing is paired
+#! mathcas 2 notebook
+
+#% cell
+f(▮
+--- clip
+
+=== cells.keys / divide at the caret
+#! mathcas 2 notebook
+
+#% cell
+ab
+
+#% cell
+▮cd
+--- clip
+
+=== cells.keys / divide at a line start drops the line break
+#! mathcas 2 notebook
+
+#% cell
+a = 1
+
+#% cell
+▮b = 2
+--- clip
+
+=== cells.keys / divide with a selection makes up to three cells
+#! mathcas 2 notebook
+
+#% text
+# ab
+
+#% text
+# ▮cd
+
+#% text
+# ef
+--- clip
+
+=== cells.keys / a divided input loses its label
+#! mathcas 2 notebook
+
+#% cell
+x
+
+#% cell
+▮y
+--- clip
+
+=== cells.keys / merge joins the cells into the first one's style
+#! mathcas 2 notebook
+
+#% cell ◆
+a=1
+b=2
+c
+--- clip
+
+=== cells.keys / merge drops generated cells
+#! mathcas 2 notebook
+
+#% cell label=1 ◆
+1
+2
+--- clip
+
+=== cells.keys / merging one cell does nothing
+#! mathcas 2 notebook
+
+#% cell ◆
+a
+--- clip
+
+=== cells.keys / input from above
+#! mathcas 2 notebook
+
+#% cell
+f(x)
+
+#% text
+# t
+
+#% cell
+f(x)▮
+--- clip
+
+=== cells.keys / output from above makes an input
+#! mathcas 2 notebook
+
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+
+#% cell
+2▮
+--- clip
+
+=== cells.keys / same style below goes directly after the cell, before its outputs
+#! mathcas 2 notebook
+
+#% cell label=1
+x
+
+#% cell
+y▮
+#% output n=1
+#= x
+--- clip
+
+=== cells.keys / same style below in text
+#! mathcas 2 notebook
+
+#% text
+# a
+
+#% text
+# b▮
+--- clip
+
+=== cells.keys / Alt+digit sets the style of the caret's cell
+#! mathcas 2 notebook
+
+#% section
+# Heading▮
+--- clip
+
+=== cells.keys / a style without labels drops the label
+#! mathcas 2 notebook
+
+#% text
+# x▮
+--- clip
+
+=== cells.keys / Ctrl+8 toggles the initialization attribute
+#! mathcas 2 notebook
+
+#% cell init
+x
+
+#% code noinit
+y▮
+--- clip
+
+=== cells.keys / show expression shows the cell's source; edited and shown again it reads back
+#! mathcas 2 notebook
+
+#% cell label=2 noeval ◆
+x
+--- clip
+
+=== cells.keys / a cell shown as its source is saved as the cell it describes
+#! mathcas 2 notebook
+
+#% text ◆
+# hello
+--- clip
+
+=== cells.keys / Delete with cells selected deletes them
+#! mathcas 2 notebook
+
+#% cell
+a
+
+‖
+#% cell
+c
+--- clip
+
+=== cells.keys / cells that cannot be deleted stay
+#! mathcas 2 notebook
+
+#% cell nodelete ◆
+a
+--- clip
+
+=== cells.keys / copy and paste cells at an insertion point
+#! mathcas 2 notebook
+
+#% cell label=1
+a
+#% output n=1
+#= a
+
+#% text
+# t
+
+#% cell label=1
+a
+#% output n=1
+#= a
+‖
+--- clip
+text "a\n\na"
+cells
+=== cells.keys / plain text pasted at an insertion point becomes one input cell
+#! mathcas 2 notebook
+
+#% cell
+x = 1
+y = 2▮
+--- clip
+text "x = 1\ny = 2"
+=== cells.keys / text pasted into a cell replaces the selection
+#! mathcas 2 notebook
+
+#% cell
+aXY▮c
+--- clip
+text "XY"
+=== cells.keys / paste over selected cells replaces them
+#! mathcas 2 notebook
+
+#% cell
+z▮
+
+#% cell
+b
+--- clip
+text "z"
+=== cells.keys / cut cells, undo brings them back
+#! mathcas 2 notebook
+
+#% cell ◆
+a
+
+#% cell
+b
+--- clip
+text "a"
+cells
+=== cells.keys / move cells by dragging their bracket
+#! mathcas 2 notebook
+
+#% text
+# b
+
+#% text
+# c
+
+#% text ◆
+# a
+--- clip
+
+=== cells.keys / copy cells by dragging with Ctrl
+#! mathcas 2 notebook
+
+#% text
+# a
+
+#% text
+# b
+
+#% text ◆
+# a
+--- clip
+
+=== cells.keys / shift-click extends a cell selection; ctrl-click toggles one cell
+#! mathcas 2 notebook
+
+#% text ◆
+# a
+
+#% text
+# b
+
+#% text ◆
+# c
+
+#% text
+# d
+--- clip
+
+=== cells.keys / undo of a merge restores the cells
+#! mathcas 2 notebook
+
+#% cell ◆
+a
+
+#% cell ◆
+b
+--- clip
+
+=== clipboard.keys / text from another program stays text in a plain cell, `((` included
+#! mathcas 2 notebook
+
+#% cell
+y = ((a)/(b))▮
+--- clip
+text "((a)/(b))"
+=== eval.keys / Shift+Enter labels the input and its output, the insertion point goes below the output
+#! mathcas 2 notebook
+
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖
+--- clip
+
+=== eval.keys / every statement consumes a number: input 2, outputs 2 and 3, then input 4
+#! mathcas 2 notebook
+
+#% cell label=1
+a
+#% output n=1
+#= a
+
+#% cell label=2
+1+1
+3+3
+#% output n=2
+#= 2
+#% output n=3
+#= 6
+
+#% cell label=4
+5
+#% output n=4
+#= 5
+‖
+--- clip
+
+=== eval.keys / a statement ending in ; consumes a number and shows nothing
+#! mathcas 2 notebook
+
+#% cell label=1
+1;
+2
+#% output n=2
+#= 2
+‖
+--- clip
+
+=== eval.keys / re-evaluating replaces the generated cells and the label
+#! mathcas 2 notebook
+
+#% cell label=2
+7
+#% output n=2
+#= 7
+‖
+--- clip
+
+=== eval.keys / print and warnings become Print and Message cells in the output block of the value
+#! mathcas 2 notebook
+
+#% cell label=1
+print("hi")
+warn("careful")
+3
+#% output n=3
+#| hi
+#? careful
+#= 3
+‖
+--- clip
+
+=== eval.keys / a read error labels the input and shows the error in a Message cell
+#! mathcas 2 notebook
+
+#% cell label=1
+1 +
+#% output
+#! <cell>:1:1: expected an expression
+#!   1 +
+#!   ^
+
+#% cell label=2
+2
+#% output n=2
+#= 2
+‖
+--- clip
+
+=== eval.keys / a failure is the statement's value
+#! mathcas 2 notebook
+
+#% cell label=1
+1/0
+#% output n=1
+#! failure(division_by_zero)
+‖
+--- clip
+
+=== eval.keys / abort ends the running statement with aborted
+#! mathcas 2 notebook
+
+#% cell label=1
+loop
+#% output n=1
+#! aborted
+‖
+--- clip
+
+=== eval.keys / abort clears the queue
+#! mathcas 2 notebook
+
+#% cell label=1 ◆
+loop
+#% output n=1
+#! aborted
+
+#% cell ◆
+2
+--- clip
+
+=== eval.keys / a running cell is not queued twice
+#! mathcas 2 notebook
+
+#% cell label=1
+loop
+#% output n=1
+#! aborted
+‖
+--- clip
+
+=== eval.keys / a kernel without numbering: one value per cell, the notebook counts
+#! mathcas 2 notebook
+
+#% cell label=1
+1+1
+3+3
+#% output n=1
+#= 6
+
+#% cell label=2
+4
+#% output n=2
+#= 4
+‖
+--- clip
+
+=== eval.keys / a kernel that dies leaves a Message; the next evaluation starts again at 1
+#! mathcas 2 notebook
+
+#% cell
+loop
+#% output
+#! the kernel stopped: exit code 1
+
+#% cell label=1
+5
+#% output n=1
+#= 5
+‖
+--- clip
+
+=== eval.keys / quitting the kernel keeps labels; the next kernel starts at 1
+#! mathcas 2 notebook
+
+#% cell label=1
+5
+#% output n=1
+#= 5
+
+#% cell label=1
+6
+#% output n=1
+#= 6
+‖
+--- clip
+
+=== eval.keys / initialization cells first when the answer is yes
+#! mathcas 2 notebook
+
+#% code label=1
+c = 1
+
+#% cell label=2
+2
+#% output n=2
+#= 2
+‖
+--- clip
+
+=== eval.keys / no initialization cells when the answer is no, and no second question
+#! mathcas 2 notebook
+
+#% code
+c = 1
+
+#% cell label=1
+2
+#% output n=1
+#= 2
+
+#% cell label=2
+3
+#% output n=2
+#= 3
+‖
+--- clip
+
+=== eval.keys / evaluating selected cells evaluates the evaluatable ones in order
+#! mathcas 2 notebook
+
+#% cell label=1 ◆
+1
+#% output n=1
+#= 1
+
+#% text ◆
+# t
+
+#% cell label=2 ◆
+2
+#% output n=2
+#= 2
+--- clip
+
+=== eval.keys / Shift+Keypad Enter goes on to the next input
+#! mathcas 2 notebook
+
+#% cell label=1
+1
+#% output n=1
+#= 1
+
+#% text
+# t
+
+#% cell
+▮2
+--- clip
+
+=== eval.keys / editing an output duplicates it as a new input after the output's group
+#! mathcas 2 notebook
+
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+
+#% cell
+20▮
+
+#% text
+# after
+--- clip
+
+=== eval.keys / Print cells are edited in place
+#! mathcas 2 notebook
+
+#% cell label=1
+print(1)
+#% output
+#| 1!▮
+--- clip
+
+=== eval.keys / delete all output keeps inputs and text
+#! mathcas 2 notebook
+
+#% cell label=1
+print(1)
+2
+
+#% text
+# t
+‖
+--- clip
+
+=== eval.keys / editing an evaluated input keeps its label
+#! mathcas 2 notebook
+
+#% cell label=3
+xy▮
+#% output n=3
+#= x
+--- clip
+
+=== eval.keys / undo does not remove generated cells
+#! mathcas 2 notebook
+
+#% cell label=1
+▮
+#% output n=1
+#= 4
+--- clip
+
+=== eval.keys / G91: every shown statement of a cell gets its own output, in order; ; and definitions show nothing
+#! mathcas 2 notebook
+
+#% cell label=1
+1+2
+x = 4;
+print("p")
+2+3
+x
+#% output n=1
+#= 3
+#% output n=4
+#| p
+#= 5
+#% output n=5
+#= x
+‖
+--- clip
+
+=== eval.keys / G91: a file written by the headless runner (one block per value) reads back unchanged, and so does an old one
+#! mathcas 2 notebook
+
+#% cell
+1+2
+2+3
+#% output n=1
+#= 3
+#% output n=2
+#= 5
+
+#% cell
+77▮
+#% output
+#= 7
+--- clip
+
+=== graphics.keys / a picture value becomes an Output cell holding its image value
+#! mathcas 2 notebook
+
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+--- clip
+
+=== graphics.keys / resizing stores the size on the output block, undo takes it back
+#! mathcas 2 notebook
+
+#% cell label=1
+image("p.png")
+#% output n=1 size=320x200
+#= image("p.png")
+‖
+--- clip
+
+=== graphics.keys / undoing a resize
+#! mathcas 2 notebook
+
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+--- clip
+
+=== graphics.keys / a double-click restores the natural size
+#! mathcas 2 notebook
+
+#% cell label=1
+image("p.png")
+#% output n=1
+#= image("p.png")
+‖
+--- clip
+
+=== graphics.keys / the size is kept when the input is evaluated again and shows a picture again
+#! mathcas 2 notebook
+
+#% cell label=1
+image("p.png")
+#% output n=1 size=320x200
+#= image("p.png")
+‖
+--- clip
+
+=== graphics.keys / the k-th picture keeps the k-th size; a value that is not a picture takes none
+#! mathcas 2 notebook
+
+#% cell label=1
+image("a.png")
+7
+image("b.png")
+#% output n=1 size=100x50
+#= image("a.png")
+#% output n=2
+#= 7
+#% output n=3 size=300x150
+#= image("b.png")
+‖
+--- clip
+
+=== graphics.keys / resizing something that is not a graphic does nothing
+#! mathcas 2 notebook
+
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖
+--- clip
+
+=== groups.keys / titles: Subtitle and Subsubtitle are plain members of the Title's group
+#! mathcas 2 notebook
+
+#% title
+# T
+
+#% subtitle
+# st
+
+#% subsubtitle
+# sst
+
+#% text
+# x
+
+#% title
+# T2
+
+#% text
+# y
+‖
+--- clip
+
+=== groups.keys / sections nest by level
+#! mathcas 2 notebook
+
+#% text
+# t0
+
+#% section
+# S
+
+#% subsection
+# SS
+
+#% subsubsection
+# SSS
+
+#% text
+# a
+
+#% subsection
+# SS2
+
+#% text
+# b
+
+#% section
+# S2
+‖
+--- clip
+
+=== groups.keys / inputs collect the outputs right after them
+#! mathcas 2 notebook
+
+#% cell
+i
+#% output n=1
+#= o
+
+#% text
+# t
+
+#% cell
+i2
+#% output n=2
+#| p
+#? m
+#= o2
+#% output n=3
+#= o3
+
+#% cell
+i3
+
+#% cell
+i4
+#% output n=4
+#= o4
+‖
+--- clip
+
+=== groups.keys / outputs after text are plain cells
+#! mathcas 2 notebook
+
+#% code
+c
+#% output n=1
+#= o
+
+#% cell
+i
+
+#% text
+# t
+‖
+--- clip
+
+=== groups.keys / items collect items of higher level
+#! mathcas 2 notebook
+
+#% item
+# i
+
+#% itemparagraph
+# ip
+
+#% subitem
+# s
+
+#% subsubitem
+# ss
+
+#% subitem
+# s2
+
+#% item
+# i2
+
+#% text
+# t
+
+#% itemnumbered
+# n
+
+#% subitemnumbered
+# sn
+‖
+--- clip
+
+=== groups.keys / items collect input groups inside sections
+#! mathcas 2 notebook
+
+#% section
+# S
+
+#% item
+# i
+
+#% subitem
+# s
+
+#% cell
+c
+#% output n=1
+#= o
+
+#% subsection
+# SS
+‖
+--- clip
+
+=== groups.keys / a whole document
+#! mathcas 2 notebook
+
+#% title
+# Title
+
+#% section
+# S1
+
+#% text
+# t
+
+#% cell
+In
+#% output n=1
+#= Out
+
+#% cell
+x
+
+#% subsection
+# Sub
+
+#% item
+# i1
+
+#% subitem
+# s1
+
+#% item
+# i2
+
+#% text
+# t2
+
+#% section
+# S2
+
+#% code
+c
+#% output n=2
+#? m
+#| pr
+#= o
+
+#% chapter
+# cc
+
+#% section
+# sec
+‖
+--- clip
+
+=== groups.keys / a cell typed after a section's text joins the section
+#! mathcas 2 notebook
+
+#% section
+# S
+
+#% text
+# t
+
+#% cell
+x▮
+--- clip
+
+=== groups.keys / double-clicking a group's bracket closes it showing its first cell, again opens it
+#! mathcas 2 notebook
+
+#% section closed
+# S
+
+#% text
+# t
+‖
+--- clip
+
+=== groups.keys / double-clicking a closed group's bracket opens it
+#! mathcas 2 notebook
+
+#% section
+# S
+
+#% text
+# t
+‖
+--- clip
+
+=== groups.keys / double-clicking a single cell's bracket does nothing
+#! mathcas 2 notebook
+
+#% text
+# t
+‖
+--- clip
+
+=== groups.keys / Ctrl+' in an output closes the input group showing the output
+#! mathcas 2 notebook
+
+#% cell label=1 shown=3
+print(1)
+2
+#% output n=2
+#| 1
+#= 2▮
+--- clip
+
+=== groups.keys / Ctrl+' in the input closes the group showing the input; again opens it
+#! mathcas 2 notebook
+
+#% cell label=1 closed
+2▮
+#% output n=1
+#= 2
+--- clip
+
+=== groups.keys / Ctrl+' twice opens the group again
+#! mathcas 2 notebook
+
+#% cell label=1
+2▮
+#% output n=1
+#= 2
+--- clip
+
+=== groups.keys / Ctrl+A then Ctrl+} closes every group, nested ones too; Ctrl+{ opens them
+#! mathcas 2 notebook
+
+#% section closed ◆
+# S
+
+#% subsection closed ◆
+# SS
+
+#% text ◆
+# a
+
+#% cell closed ◆
+x
+#% output n=1
+#= 1 ◆
+--- clip
+
+=== groups.keys / Ctrl+{ opens every group of the selection
+#! mathcas 2 notebook
+
+#% section ◆
+# S
+
+#% subsection ◆
+# SS
+
+#% text ◆
+# a
+--- clip
+
+=== groups.keys / a cell typed after a closed group's head lands in the group and opens it
+#! mathcas 2 notebook
+
+#% section
+# S
+
+#% text
+# t
+
+#% cell
+x▮
+--- clip
+
+=== groups.keys / Down skips the cells hidden in a closed group, keeping the column
+#! mathcas 2 notebook
+
+#% section closed
+# S
+
+#% text
+# hidden
+
+#% section
+# S▮2
+--- clip
+
+=== groups.keys / cells grouped by hand
+#! mathcas 2 notebook
+
+#% text together ◆
+# a
+
+#% text together ◆
+# b
+
+#% text
+# c
+--- clip
+
+=== groups.keys / ungrouping removes the marks of the whole run
+#! mathcas 2 notebook
+
+#% text
+# a▮
+
+#% text
+# b
+
+#% text
+# c
+--- clip
+
+=== groups.keys / manual grouping keeps only groups by hand
+#! mathcas 2 notebook grouping=manual
+
+#% section
+# S
+
+#% text together
+# a
+
+#% text together
+# b
+‖
+--- clip
+
+=== indent.keys / Return keeps the line's indentation
+#! mathcas 2 notebook
+
+#% cell
+f(x) := {
+    a = 1
+    b▮
+--- clip
+
+=== indent.keys / Return after an opening bracket indents one level more
+#! mathcas 2 notebook
+
+#% cell
+g = table(
+    x▮
+--- clip
+
+=== indent.keys / Return between a bracket and its closer puts the closer on its own line
+#! mathcas 2 notebook
+
+#% cell
+f(x) := {
+    y▮
+}
+--- clip
+
+=== indent.keys / the closer line keeps the outer indentation
+#! mathcas 2 notebook
+
+#% cell
+    h = [
+        1▮
+    ]
+--- clip
+
+=== indent.keys / with automatic closing, typing an opener then Return splits the pair
+#! mathcas 2 notebook
+
+#% cell
+k = {
+    a▮
+}
+--- clip
+
+=== indent.keys / Return inside a string is a plain line break
+#! mathcas 2 notebook
+
+#% cell
+    s = "a(
+▮"
+--- clip
+
+=== indent.keys / Return in a Text cell keeps no indentation
+#! mathcas 2 notebook
+
+#% text
+#     indented prose
+# b▮
+--- clip
+
+=== indent.keys / Backspace in leading spaces goes back to the previous indentation stop
+#! mathcas 2 notebook
+
+#% cell
+a
+    ▮b
+--- clip
+
+=== indent.keys / Backspace in an odd indentation goes to the stop below
+#! mathcas 2 notebook
+
+#% cell
+a
+    ▮b
+--- clip
+
+=== indent.keys / Backspace after a single space deletes one space
+#! mathcas 2 notebook
+
+#% cell
+a
+▮b
+--- clip
+
+=== indent.keys / Backspace after text deletes one character
+#! mathcas 2 notebook
+
+#% cell
+    x ▮
+--- clip
+
+=== indent.keys / undo of a Return with indentation is one step
+#! mathcas 2 notebook
+
+#% cell
+f(▮)
+--- clip
+
+=== manipulate.keys / a manipulate value asks for its result at the initial positions
+#! mathcas 2 notebook
+
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
+#% output n=1
+#= manipulate(a+1, [a, 0, 10, 1], [[b, 2], 0, 1])
+#% output manipulated
+#= { let a = 0; let b = 1.0; a+1 }
+‖
+--- clip
+
+=== manipulate.keys / moving a control keeps its position and shows the new result; the file reads back the same
+#! mathcas 2 notebook
+
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1])
+#% output n=1 controls=3
+#= manipulate(a+1, [a, 0, 10, 1])
+#% output manipulated
+#= { let a = 3; a+1 }
+‖
+--- clip
+
+=== manipulate.keys / a saved position is evaluated from where it was, and re-evaluating the input starts at the initial one
+#! mathcas 2 notebook
+
+#% cell label=1
+manipulate(a+1, [a, 0, 10, 1])▮
+#% output n=1 controls=6
+#= manipulate(a+1, [a, 0, 10, 1])
+#% output manipulated
+#= { let a = 6; a+1 }
+--- clip
+
+=== motion.keys / Down on the last line goes to the insertion point below; again into the next cell keeping the column
+#! mathcas 2 notebook
+
+#% cell
+abc
+
+‖
+#% cell
+xyz
+--- clip
+
+=== motion.keys / Down twice reaches the next cell at the same column
+#! mathcas 2 notebook
+
+#% cell
+abc
+
+#% cell
+xy▮z
+--- clip
+
+=== motion.keys / Up mirrors Down
+#! mathcas 2 notebook
+
+#% cell
+a▮bc
+
+#% cell
+xyz
+--- clip
+
+=== motion.keys / Up and Down move between lines inside a cell, keeping the goal column
+#! mathcas 2 notebook
+
+#% cell
+abc▮
+d
+efgh
+--- clip
+
+=== motion.keys / Right at the end goes to the insertion point after the cell, then into the next one
+#! mathcas 2 notebook
+
+#% cell
+a
+
+#% cell
+▮b
+--- clip
+
+=== motion.keys / Left at the start goes to the insertion point before the cell
+#! mathcas 2 notebook
+
+#% cell
+a
+
+‖
+#% cell
+b
+--- clip
+
+=== motion.keys / movement skips Message cells
+#! mathcas 2 notebook
+
+#% cell label=1
+1 +
+#% output
+#! error
+
+‖
+#% cell
+x
+--- clip
+
+=== motion.keys / Ctrl+Home and Ctrl+End
+#! mathcas 2 notebook
+
+#% cell
+a
+
+#% cell
+b
+‖
+--- clip
+
+=== motion.keys / Ctrl+Home goes before the first cell
+#! mathcas 2 notebook
+
+‖
+#% cell
+a
+
+#% cell
+b
+--- clip
+
+=== motion.keys / word motion
+#! mathcas 2 notebook
+
+#% cell
+f(aa + ▮b)
+--- clip
+
+=== motion.keys / Shift extends the selection; Left collapses it to its start
+#! mathcas 2 notebook
+
+#% cell
+a⟦bc⟧d
+--- clip
+
+=== motion.keys / Left collapses a selection to its start
+#! mathcas 2 notebook
+
+#% cell
+a▮bcd
+--- clip
+
+=== motion.keys / Home and End
+#! mathcas 2 notebook
+
+#% cell
+<abc>▮
+--- clip
+
+=== motion.keys / Shift+Down at an insertion point selects the next cell; again extends
+#! mathcas 2 notebook
+
+#% text ◆
+# a
+
+#% text ◆
+# b
+--- clip
+
+=== motion.keys / clicking between cells sets the insertion point
+#! mathcas 2 notebook
+
+#% cell
+a
+
+‖
+#% cell
+b
+--- clip
+
+=== motion.keys / Up from an insertion point goes into the output above
+#! mathcas 2 notebook
+
+#% cell label=1
+1
+#% output n=1
+#= ▮1
+--- clip
+
+=== paste.keys / code pasted at an insertion point makes one Input cell per block between blank lines
+#! mathcas 2 notebook
+
+#% cell
+f(x_) := x^2
+
+#% cell
+f(3)
+f(4)▮
+--- clip
+text "f(x_) := x^2\n\nf(3)\nf(4)\n\n\n"
+=== paste.keys / blank lines inside brackets keep a block together
+#! mathcas 2 notebook
+
+#% cell
+g(x_) := {
+    a = x
+
+    a + 1
+}
+
+#% cell
+g(2)▮
+--- clip
+text "g(x_) := {\n    a = x\n\n    a + 1\n}\n\ng(2)"
+=== paste.keys / other programs' line breaks and leading tabs become the notebook's
+#! mathcas 2 notebook
+
+#% cell
+h(x_) := {
+    x
+}▮
+--- clip
+text "h(x_) := {\r\n\tx\r\n}"
+=== paste.keys / prose pasted at an insertion point of a Text style stays one cell
+#! mathcas 2 notebook
+
+#% text
+# one
+#
+# two▮
+--- clip
+text "one\n\ntwo"
+=== paste.keys / cells copied as text and pasted back are the same cells
+#! mathcas 2 notebook
+
+#% cell
+a = 1
+
+#% cell
+b = a + 1
+
+#% cell
+a = 1
+
+#% cell
+b = a + 1▮
+--- clip
+text "a = 1\n\nb = a + 1"
+=== paste.keys / pasted blocks are one undo step
+#! mathcas 2 notebook
+
+#% cell
+x
+‖
+--- clip
+text "p\n\nq"
+=== paste.keys / a call pasted at an insertion point keeps its closing bracket
+#! mathcas 2 notebook
+
+#% cell
+w = x^2/sqrt(y) + surd(a, 3)▮
+--- clip
+text "w = x^2/sqrt(y) + surd(a, 3)"
+=== typeset.keys / Ctrl+Shift+N on input that does not parse beeps and changes nothing
+#! mathcas 2 notebook
+
+#% cell
+f(▮
+--- clip
+
+=== typeset.keys / typed linear text stays linear: a/b, x^2 and sqrt(x) are just characters
+#! mathcas 2 notebook
+
+#% cell
+a/b + x^2 + sqrt(x)▮
+--- clip
+
+=== typing.keys / typing at the insertion point creates an Input cell
+#! mathcas 2 notebook
+
+#% cell
+1+1▮
+--- clip
+
+=== typing.keys / a cell typed between two Text cells is an Input cell
+#! mathcas 2 notebook
+
+#% text
+# a
+
+#% cell
+x▮
+
+#% text
+# b
+--- clip
+
+=== typing.keys / a cell typed after a section joins the section
+#! mathcas 2 notebook
+
+#% section
+# S
+
+#% text
+# t
+
+#% cell
+y▮
+--- clip
+
+=== typing.keys / Alt+digit at an insertion point sets the style typing creates
+#! mathcas 2 notebook
+
+#% section
+# Intro▮
+--- clip
+
+=== typing.keys / Return in an Input cell is a line break
+#! mathcas 2 notebook
+
+#% cell
+f(x
+y▮
+--- clip
+
+=== typing.keys / Return in a Title or Section is a line break in the same cell
+#! mathcas 2 notebook
+
+#% title
+# Big
+# Two▮
+--- clip
+
+=== typing.keys / Return at the end of an Item creates a new Item
+#! mathcas 2 notebook
+
+#% item
+# first
+
+#% item
+# second▮
+--- clip
+
+=== typing.keys / Return inside an Item moves the rest into the new Item
+#! mathcas 2 notebook
+
+#% item
+# ab
+
+#% item
+# ▮cd
+--- clip
+
+=== typing.keys / quotes in prose become curly, in input they stay straight
+#! mathcas 2 notebook
+
+#% text
+# say “hi” it’s▮
+--- clip
+
+=== typing.keys / quotes in input stay straight
+#! mathcas 2 notebook
+
+#% cell
+"a"▮
+--- clip
+
+=== typing.keys / Backspace and Delete
+#! mathcas 2 notebook
+
+#% cell
+a▮d
+--- clip
+
+=== typing.keys / Backspace at the start of a cell does nothing
+#! mathcas 2 notebook
+
+#% cell
+a
+
+#% cell
+▮b
+--- clip
+
+=== typing.keys / Ctrl+Backspace deletes a word
+#! mathcas 2 notebook
+
+#% cell
+alpha + ▮
+--- clip
+
+=== typing.keys / typing replaces a text selection
+#! mathcas 2 notebook
+
+#% cell
+aX▮d
+--- clip
+
+=== typing.keys / undo of typing is one unit per run
+#! mathcas 2 notebook
+
+#% cell
+▮
+--- clip
+
+=== typing.keys / a pause ends a typing run
+#! mathcas 2 notebook
+
+#% cell
+ab▮
+--- clip
+
+=== typing.keys / a word after white space starts a new undo unit
+#! mathcas 2 notebook
+
+#% cell
+ab ▮
+--- clip
+
+=== typing.keys / undo of a cell created by typing removes the cell; redo brings it back
+#! mathcas 2 notebook
+
+#% text
+# t
+‖
+--- clip
+
+=== typing.keys / redo after undo
+#! mathcas 2 notebook
+
+#% cell
+x▮
+--- clip
+
+=== typing.keys / a new edit clears redo
+#! mathcas 2 notebook
+
+#% cell
+b▮
+--- clip
+
+=== typing.keys / Tab indents, Shift+Tab outdents
+#! mathcas 2 notebook
+
+#% cell
+    ⟦a
+    b⟧
+--- clip
+
+=== typing.keys / Shift+Tab outdents the selected lines
+#! mathcas 2 notebook
+
+#% cell
+⟦a
+b⟧
+--- clip
+
+=== typing.keys / typing with cells selected does nothing
+#! mathcas 2 notebook
+
+#% cell ◆
+a
+--- clip
+
+=== typing.keys / Message cells are not editable
+#! mathcas 2 notebook
+
+#% cell
+1 +
+#% output
+#! error▮
+--- clip
+
+=== typing.keys / Ctrl+A selects the cell's content, then all cells
+#! mathcas 2 notebook
+
+#% cell
+⟦ab⟧
+
+#% cell
+c
+--- clip
+
+=== typing.keys / a second Ctrl+A selects every cell
+#! mathcas 2 notebook
+
+#% cell ◆
+ab
+
+#% cell ◆
+c
+--- clip
+
+=== typing.keys / the reserved keys do nothing
+#! mathcas 2 notebook
+
+#% cell
+a▮
+--- clip
+
+=== typing.keys / Alt+/ comments the selected lines of an input
+#! mathcas 2 notebook
+
+#% cell
+⟦# a = 1
+# b⟧ = 2
+--- clip
+
+=== typing.keys / Alt+/ again uncomments them
+#! mathcas 2 notebook
+
+#% cell
+⟦a = 1
+b⟧ = 2
+--- clip
+
+=== typing.keys / Alt+/ with a caret comments its line
+#! mathcas 2 notebook
+
+#% cell
+x
+# y▮
+--- clip
+
+=== typing.keys / Ctrl+. from inside a name selects the name, then the enclosing expressions (design 3.4)
+#! mathcas 2 notebook
+
+#% cell
+f(⟦aa⟧ + b*c, d)
+--- clip
+
+=== typing.keys / Ctrl+. after b selects the product, then outwards to the cell
+#! mathcas 2 notebook
+
+#% cell ◆
+f(aa + b*c, d)
+--- clip
+
+=== typing.keys / Ctrl+. in text selects the content, then the cell
+#! mathcas 2 notebook
+
+#% text
+# ⟦some words⟧
+--- clip
+
+=== typing.keys / Ctrl+Shift+B selects the brackets around the caret, then the next ones out
+#! mathcas 2 notebook
+
+#% cell
+f⟦(g(x), y)⟧
+--- clip
+

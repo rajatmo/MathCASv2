@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# halftone_shading
+
+#% text
+# `halftone_shading(...)`: a halftone surface shading (accepted; surfaces are lit as usual)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d([halftone_shading(), standard_cyan, cylinder()])
+#% output
+#= image("halftone_shading.files/halftone_shading-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

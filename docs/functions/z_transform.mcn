@@ -1,0 +1,245 @@
+#! mathcas 2 notebook
+
+#% title
+# z_transform
+
+#% text
+# `z_transform(f, n, z)` gives the Z transform `sum(f*z^-n, [n, 0, inf])` of the sequence `f`.
+
+#% text
+# `z_transform(f, [n, m], [z, w])` transforms in several variables.
+
+#% section
+# Details
+
+#% item
+# Sums term by term; terms with undefined functions stay as `z_transform` calls; shifts `f(n + k)` and `f(n - k)` of an undefined `f` give its transform and initial values.
+
+#% item
+# `a^n g(n)` gives `G(z/a)`, `n g(n)` gives `-z G'(z)`, `unit_step(n - k) g(n)` gives `z^-k` times the transform of `g(n + k)`, `discrete_delta(n - k)` gives `z^-k`.
+
+#% item
+# Trigonometric functions are written as exponentials; factorial powers and Pochhammer symbols of `n` as polynomials; other sequences go to `sum`.
+
+#% item
+# `generate_conditions: true` gives the region of convergence `abs(z) > r`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+z_transform(a^n, n, z)
+#% output
+#= z/(z - a)
+
+#% cell
+z_transform(n^2, n, z)
+#% output
+#= z*(1 + z)/(-1 + z)^3
+
+#% subsection
+# Scope
+
+#% cell
+z_transform(n*(n + 1)*(-1/2)^n, n, z)
+#% output
+#= -8*z^2/(1 + 2*z)^3
+
+#% cell
+z_transform(sin(w*n), n, z)
+#% output
+#= z*sin(w)/(1 - 2*z*cos(w) + z^2)
+
+#% cell
+z_transform([discrete_delta(n), discrete_delta(n - 5)], n, z)
+#% output
+#= [1, z^-5]
+
+#% cell
+z_transform(unit_step(n - 3), n, z)
+#% output
+#= 1/(z^2*(-1 + z))
+
+#% cell
+z_transform(a^(n + m), [n, m], [z, w])
+#% output
+#= -w*z/((a - z)*(w - a))
+
+#% text
+# Undefined functions:
+
+#% cell
+z_transform(f(n + 1), n, z)
+#% output
+#= z*(-f(0) + z_transform(f(n), n, z))
+
+#% cell
+z_transform(a^n*f(n), n, z)
+#% output
+#= z_transform(f(n), n, z/a)
+
+#% text
+# Trigonometric sequences and sequences with factorials:
+
+#% cell
+z_transform(cos(w*n), n, z)
+#% output
+#= z*(z - cos(w))/(1 - 2*z*cos(w) + z^2)
+
+#% cell
+z_transform(1/factorial(n), n, z)
+#% output
+#= exp(z^-1)
+
+#% cell
+z_transform(2^n/factorial(n), n, z)
+#% output
+#= exp(2/z)
+
+#% text
+# Binomial coefficients and shifted reciprocals:
+
+#% cell
+z_transform(binomial(n, 2), n, z)
+#% output
+#= z/(-1 + z)^3
+
+#% cell
+z_transform(1/(n + 1), n, z)
+#% output
+#= -z*log(1 - z^-1)
+
+#% text
+# A step times a polynomial, and a sequence with no closed sum in `z`, given by a hypergeometric function:
+
+#% cell
+z_transform(unit_step(n)*(n + 1)^2, n, z)
+#% output
+#= (1 + z)*z^2/(-1 + z)^3
+
+#% cell
+z_transform(1/(n^2 + 1), n, z)
+#% output
+#= hypergeometric_pfq([-im, im, 1], [1 - im, 1 + im], z^-1)
+
+#% text
+# A delay of an undefined sequence brings in its values at negative `n`:
+
+#% cell
+z_transform(f(n - 2), n, z)
+#% output
+#= f(-2) + f(-1)/z + z_transform(f(n), n, z)/z^2
+
+#% subsection
+# Options
+
+#% cell
+z_transform(a^n, n, z, generate_conditions: true)
+#% output
+#= conditional_expression(z/(z - a), abs(z) > abs(a))
+
+#% text
+# The region of convergence of a sum of exponentials is that of the larger one:
+
+#% cell
+z_transform(2^n + 3^n, n, z, generate_conditions: true)
+#% output
+#= conditional_expression(z*((-3 + z)^-1 + (-2 + z)^-1), abs(z) > 3)
+
+#% text
+# A number for `z` gives the value of the sum there, exact, machine or at the precision of `z`:
+
+#% cell
+z_transform((1/2)^n, n, 3)
+#% output
+#= 6/5
+
+#% cell
+z_transform((1/2)^n, n, 3.0)
+#% output
+#= 1.2000000000000002
+
+#% cell
+z_transform((1/2)^n, n, n(3, 30))
+#% output
+#= 1.2000000000000000000000000000000000
+
+#% subsection
+# Properties and relations
+
+#% cell
+inverse_z_transform(z_transform(n*2^n, n, z), z, n)
+#% output
+#= n*2^n
+
+#% text
+# At a number the value is the sum:
+
+#% cell
+sum((1/2)^n*3^-n, [n, 0, inf])
+#% output
+#= 6/5
+
+#% cell
+z_transform(2^n, n, 3)
+#% output
+#= 3
+
+#% subsection
+# Possible issues
+
+#% text
+# A sequence that grows too fast has no transform; for a number `z` inside the region where the sum diverges the call stays (the closed form there is only the analytic continuation), and exactly on the boundary too:
+
+#% cell
+z_transform(2^n, n, 1.5)
+#% output
+#= z_transform(2^n, n, 1.5)
+
+#% cell
+z_transform(2^n, n, 2)
+#% output
+#= z_transform(2^n, n, 2)
+
+#% text
+# `factorial(n)` grows too fast for the sum to converge and stays a call; in a sum, the part with an undefined sequence stays a call and the rest is transformed:
+
+#% cell
+z_transform(factorial(n), n, 3.0)
+#% output
+#= z_transform(factorial(n), n, 3.0)
+
+#% cell
+z_transform(f(n) + 2*a^n, n, z)
+#% output
+#= 2*z/(z - a) + z_transform(f(n), n, z)
+
+#% text
+# Fibonacci numbers and harmonic numbers have closed transforms, checked here against the sum at `z = 3`:
+
+#% cell
+z_transform(fibonacci(n), n, 3.0) - 3.0/(9 - 3 - 1)
+#% output
+#= 0.0
+
+#% cell
+z_transform(harmonic_number(n), n, 3.0) - sum(harmonic_number(k)/3.0^k, [k, 0, 200])
+#% output
+#= 1.1102230246251565e-16
+
+#% text
+# `working_precision:` is not an option; the call is returned with it:
+
+#% cell
+z_transform(a^n, n, z, working_precision: 30)
+#% output
+#= z_transform(a^n, n, z, working_precision: 30)
+
+#% section
+# See also
+
+#% text
+# `inverse_z_transform`, `sum`, `discrete_delta`, `laplace_transform`

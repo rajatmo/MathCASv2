@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# divisor_sum
+
+#% text
+# `divisor_sum(n, f)` gives the sum of `f(d)` over the positive divisors `d` of `n`.
+
+#% text
+# `divisor_sum(n, f, cond)` sums only over the divisors `d` with `cond(d)` true.
+
+#% section
+# Details
+
+#% item
+# `f` and `cond` are functions of one argument, such as `d => d^2` or a named function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+divisor_sum(12, d => d)
+#% output
+#= 28
+
+#% cell
+divisor_sum(12, d => 1)
+#% output
+#= 6
+
+#% cell
+divisor_sum(30, d => d^2)
+#% output
+#= 1300
+
+#% cell
+divisor_sum(36, d => d, d => is_odd(d))
+#% output
+#= 13
+
+#% subsection
+# Properties and relations
+
+#% text
+# Moebius inversion: the sum of `moebius_mu(d)` is 0 for `n > 1`:
+
+#% cell
+divisor_sum(60, moebius_mu)
+#% output
+#= 0
+
+#% text
+# Gauss's identity, the totients of the divisors add up to `n`:
+
+#% cell
+divisor_sum(100, euler_phi)
+#% output
+#= 100
+
+#% section
+# See also
+
+#% text
+# `divisors`, `divisor_sigma`, `moebius_mu`, `euler_phi`

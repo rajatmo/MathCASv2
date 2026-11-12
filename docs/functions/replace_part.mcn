@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# replace_part
+
+#% text
+# `replace_part(x, pos -> v)` gives `x` with the part at the position `pos` replaced by `v`.
+
+#% text
+# `replace_part(x, [pos1 -> v1, pos2 -> v2, ...])` replaces several parts.
+
+#% section
+# Details
+
+#% item
+# A position is an index or a list of indices; a rule `[p1, p2] -> v` whose left side is a list of positions replaces each.
+
+#% item
+# Positions outside `x` are ignored; the result is evaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+replace_part([a, b, c], 2 -> x)
+#% output
+#= [a, x, c]
+
+#% cell
+replace_part([[a, b], [c, d]], [[1, 1] -> x, [2, 2] -> y])
+#% output
+#= [[x, b], [c, y]]
+
+#% subsection
+# Scope
+
+#% text
+# Inside other heads, then evaluated:
+
+#% cell
+replace_part(f(1, x, y), 1 -> 10)
+#% output
+#= f(10, x, y)
+
+#% subsection
+# Properties and relations
+
+#% text
+# Replacing the parts `position` finds:
+
+#% cell
+t = [1, a, 2, b]
+replace_part(t, position(t, _: Int) -> 0)
+#% output
+#= [0, a, 0, b]
+
+#% section
+# See also
+
+#% text
+# `map_at`, `extract`, `delete`, `rewrite`

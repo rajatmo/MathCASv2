@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_part
+
+#% text
+# `integer_part(x)` gives `x` truncated toward zero.
+
+#% section
+# Details
+
+#% item
+# Exact for exact numbers and for closed numeric terms such as `pi`; machine numbers stay machine numbers.
+
+#% item
+# Complex numbers are truncated componentwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_part(-7/3)
+#% output
+#= -2
+
+#% cell
+integer_part(2.7)
+#% output
+#= 2.0
+
+#% cell
+integer_part(pi)
+#% output
+#= 3
+
+#% subsection
+# Scope
+
+#% cell
+integer_part(5/2 - 7/3*im)
+#% output
+#= 2 - 2im
+
+#% section
+# See also
+
+#% text
+# `fractional_part`, `floor`, `ceiling`, `round`

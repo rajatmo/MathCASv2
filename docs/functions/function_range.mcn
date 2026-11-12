@@ -1,0 +1,133 @@
+#! mathcas 2 notebook
+
+#% title
+# function_range
+
+#% text
+# `function_range(f, x, y)` gives the values of `f` over the reals as a condition on `y`; `function_range([f, cond], x, y)` on the part where `cond` holds.
+
+#% section
+# Details
+
+#% item
+# A rational function (parameters allowed) is decided by quantifier elimination of `exists(x, f == y)`; other functions of one variable by their extreme values on each interval of the domain (critical points, kinks of `abs`, ends, limits), so they are taken to be continuous there. A harmonic `c + a sin(w) + b cos(w)` gives `c - R <= y <= c + R`.
+
+#% item
+# A side without a bound drops out of the condition; `true` means every real value.
+
+#% item
+# A bound is closed only when a point of the domain takes the value; a limit that is approached but not taken (`exp` at `-inf`, `atan`, `tanh`, `1/(1 + x^2)` at infinity) gives an open bound. Every answer is checked against samples of the function; a function with jumps, or one the engine cannot analyse, leaves the call unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+function_range(x^2, x, y)
+#% output
+#= y >= 0
+
+#% text
+# A cubic takes every value:
+
+#% cell
+function_range(x^3, x, y)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# On an interval:
+
+#% cell
+function_range([x^2 + 1, -1 <= x and x <= 2], x, y)
+#% output
+#= 1 <= y and y <= 5
+
+#% text
+# A downward parabola:
+
+#% cell
+function_range(4 - x^2, x, y)
+#% output
+#= y <= 4
+
+#% text
+# A rational function and a function with a bounded range:
+
+#% cell
+[function_range(x/(1 + x^2), x, y), function_range(sin(x), x, y)]
+#% output
+#= [-1/2 <= y and y <= 1/2, -1 <= y and y <= 1]
+
+#% text
+# Bounds that are not attained are open:
+
+#% cell
+[function_range(exp(x), x, y), function_range(1/x, x, y), function_range(1/(1 + x^2), x, y), function_range(atan(x), x, y)]
+#% output
+#= [y > 0, y != 0, 0 < y and y <= 1, (-1/2)*pi < y and y < (1/2)*pi]
+
+#% text
+# Functions with a kink, a boundary or a periodic part:
+
+#% cell
+[function_range(abs(x), x, y), function_range(sqrt(x), x, y), function_range(log(x), x, y), function_range(sin(x) + cos(x), x, y)]
+#% output
+#= [y >= 0, y >= 0, true, -2^(1/2) <= y and y <= 2^(1/2)]
+
+#% text
+# A parameter:
+
+#% cell
+function_range(x^2 + a, x, y)
+#% output
+#= y >= a
+
+#% subsection
+# Properties and relations
+
+#% text
+# The ends are the minimum and the maximum:
+
+#% cell
+minimize([x^2 + 1, -1 <= x and x <= 2], x)
+#% output
+#= [1, [x -> 0]]
+
+#% cell
+maximize([x^2 + 1, -1 <= x and x <= 2], x)
+#% output
+#= [5, [x -> 2]]
+
+#% text
+# Sample values lie within the range `-1/2 <= y <= 1/2`:
+
+#% cell
+map(t => -1/2 <= t/(1 + t^2) and t/(1 + t^2) <= 1/2, [-10, -1, 0, 0.3, 2, 50])
+#% output
+#= [true, true, true, true, true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# A function with jumps leaves the call unevaluated (its range is not an interval):
+
+#% cell
+function_range(floor(x), x, y)
+#% output
+#= function_range(floor(x), x, y)
+
+#% section
+# See also
+
+#% text
+# `minimize`, `maximize`, `function_domain`

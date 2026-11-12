@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_fourier
+
+#% text
+# `inverse_fourier(list)` gives the inverse discrete Fourier transform of a list of numbers; `inverse_fourier(array)` transforms along every level.
+
+#% section
+# Details
+
+#% item
+# The inverse transform of `v` of length `n` is `u[r] = 1/n^((1 + a)/2) sum(v[s] exp(-2 pi im b (r - 1)(s - 1)/n), s = 1..n)` with `fourier_parameters: [a, b]` (default `[0, 1]`), so that it undoes `fourier` with the same parameters.
+
+#% item
+# The result is numeric, at the precision of the data.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_fourier([1, 2, 3, 4])
+#% output
+#= [5.0 + 0.0im, -1.0 + 1.0im, -1.0 + 0.0im, -1.0 - 1.0im]
+
+#% cell
+chop(inverse_fourier(fourier([1, 1, 0, 0, 0])))
+#% output
+#= [1.0000000000000002, 1.0000000000000002, 0, 0, 0]
+
+#% cell
+chop(inverse_fourier(fourier([1, 2, 3], fourier_parameters: [1, -1]), fourier_parameters: [1, -1]))
+#% output
+#= [1.0, 2.0, 3.0]
+
+#% section
+# See also
+
+#% text
+# `fourier`, `inverse_fourier_transform`, `chop`

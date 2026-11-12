@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# factor_terms_list
+
+#% text
+# `factor_terms_list(p)` gives the list `[c, q]`: the integer content `c` of the polynomial `p` and the primitive polynomial `q`. `factor_terms_list(p, x)` also splits off the factor free of `x`: `[c, g, q]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factor_terms_list(2*x^2 - 2)
+#% output
+#= [2, -1 + x^2]
+
+#% cell
+factor_terms_list(6*a^2 + 9*x^2 + 12*b^2)
+#% output
+#= [3, 2*a^2 + 3*x^2 + 4*b^2]
+
+#% cell
+factor_terms_list(3 + 3*a + 6*a*x + 6*x + 12*a*x^2 + 12*x^2, x)
+#% output
+#= [3, 1 + a, 1 + 2*x + 4*x^2]
+
+#% section
+# See also
+
+#% text
+# `factor_square_free_list`, `polynomial_gcd`

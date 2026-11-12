@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# take_drop
+
+#% text
+# `take_drop(xs, n)` gives `[take(xs, n), drop(xs, n)]`.
+
+#% section
+# Details
+
+#% item
+# `n` may be anything `take` accepts, including `-n`, `[m, n]` and `up_to(n)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take_drop([a, b, c, d], 2)
+#% output
+#= [[a, b], [c, d]]
+
+#% cell
+take_drop([a, b, c, d], -1)
+#% output
+#= [[d], [a, b, c]]
+
+#% cell
+take_drop([a, b, c, d], up_to(6))
+#% output
+#= [[a, b, c, d], []]
+
+#% subsection
+# Scope
+
+#% cell
+take_drop(range(10), [3, 5])
+#% output
+#= [[3, 4, 5], [1, 2, 6, 7, 8, 9, 10]]
+
+#% cell
+fold_pair_list(take_drop, [a, b, c, d, e, f], [1, 3, 2])
+#% output
+#= [[a], [b, c, d], [e, f]]
+
+#% section
+# See also
+
+#% text
+# `take`, `drop`, `partition`

@@ -1,0 +1,79 @@
+#! mathcas 2 notebook
+
+#% title
+# boolean_minimize
+
+#% text
+# `boolean_minimize(e)` gives a small sum of products for the Boolean expression `e`.
+
+#% section
+# Details
+
+#% item
+# `boolean_minimize(e, form)` uses the named form as `boolean_convert` does (`"cnf"` gives a small product of sums); `boolean_minimize(e, form, cond)` and `boolean_minimize(e, cond)` need agree with `e` only where `cond` is true.
+
+#% item
+# The terms are in order of their literals, a variable before its negation. The cover is greedy: small, not always the smallest.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+boolean_minimize((a and b) or (a and not b))
+#% output
+#= a
+
+#% cell
+boolean_minimize(xor(a, b, c), "cnf")
+#% output
+#= (not a or not b or c) and (not a or b or not c) and (a or not b or not c) and (a or b or c)
+
+#% subsection
+# Scope
+
+#% text
+# Given that a holds:
+
+#% cell
+boolean_minimize((a and b) or c, a)
+#% output
+#= b or c
+
+#% text
+# In nand only:
+
+#% cell
+boolean_minimize(implies(a, b), "nand")
+#% output
+#= nand(a, not b)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The result is equivalent to the input:
+
+#% cell
+is_tautology(equivalent((a and b) or (not a and c) or (b and c), boolean_minimize((a and b) or (not a and c) or (b and c))))
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A contradiction and a tautology, and an expression that is not Boolean (the failure names `boolean_convert`):
+
+#% cell
+[boolean_minimize(a and not a), boolean_minimize(a or not a), boolean_minimize(1)]
+#% output
+#= [false, true, failure(argument, boolean_convert, 1)]
+
+#% section
+# See also
+
+#% text
+# `boolean_convert`, `logical_expand`

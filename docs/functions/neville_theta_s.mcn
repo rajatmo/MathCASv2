@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# neville_theta_s
+
+#% text
+# `neville_theta_s(z, m)` gives the Neville theta function `theta_s(z | m)`.
+
+#% section
+# Details
+
+#% item
+# `theta_s(z | m)` is `2*K(m)/pi` times `theta_1(pi*z/(2*K(m)), q)/theta_1'(0, q)`, with the nome `q` of `m` (DLMF 20.1 and 22.2). It is odd in `z`.
+
+#% item
+# The four Neville functions give the Jacobi elliptic functions as quotients: `jacobi_sn(z, m)` is `theta_s/theta_n`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+neville_theta_s(0.5, 0.3)
+#% output
+#= 0.4828708375384975
+
+#% cell
+neville_theta_s(0, 0.3)
+#% output
+#= 0
+
+#% cell
+neville_theta_s(1.0, 0.9)
+#% output
+#= 0.9649202577470535
+
+#% subsection
+# Properties and relations
+
+#% text
+# The quotient that gives `sn`:
+
+#% cell
+neville_theta_s(0.7, 0.4)/neville_theta_n(0.7, 0.4) - jacobi_sn(0.7, 0.4)
+#% output
+#= -1.1102230246251565e-16
+
+#% section
+# See also
+
+#% text
+# `neville_theta_c`, `neville_theta_d`, `neville_theta_n`, `elliptic_theta`, `jacobi_sn`

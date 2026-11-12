@@ -1,0 +1,273 @@
+#! mathcas 2 notebook
+
+#% title
+# function_expand
+
+#% text
+# `function_expand(e)` writes the special functions in `e` with more elementary ones where an identity allows it.
+
+#% section
+# Details
+
+#% item
+# `factorial`, `binomial`, `beta` and `pochhammer` become gamma functions; `harmonic_number(x)` becomes `euler_gamma + digamma(x + 1)`; `erfc(x)` becomes `1 - erf(x)`.
+
+#% item
+# Bessel functions of order 1/2 and -1/2 become sines, cosines, hyperbolic functions and exponentials; `spherical_bessel_j(0, x)` is `sin(x)/x`.
+
+#% item
+# `sec`, `csc`, `cot`, `sech`, `csch`, `coth` and `sinc` are written with `sin`, `cos`, `sinh` and `cosh`.
+
+#% item
+# `chebyshev_t(n, x)` and `chebyshev_u(n, x)` with a symbolic `n` become `cos(n*acos(x))` and `sin((n + 1)*acos(x))/sqrt(1 - x^2)`; `catalan_number(n)` and `factorial_power(x, n)` gamma functions; `dirac_delta(x, y)` the product `dirac_delta(x)*dirac_delta(y)`; `elliptic_nome_q(m)` an exponential of complete elliptic integrals.
+
+#% item
+# Ratios of gamma functions whose arguments differ by an integer become products of linear factors.
+
+#% item
+# Other functions are left as they are.
+
+#% item
+# Trigonometric functions of rational multiples of `pi` with denominators `2^k`, `3 2^k`, `5 2^k` and `15 2^k` become radicals; trigonometric functions of inverse trigonometric functions become algebraic.
+
+#% item
+# Identities of special functions: the zeta reflection, polygamma and gamma functions over a common argument, the dilogarithm reflection, Bessel functions at `-x`, Airy functions at rotated arguments, Jacobi functions by `jacobi_sn`, `jacobi_cn` and `jacobi_dn`, hypergeometric functions as Bessel functions, elementary functions and elliptic integrals, arctangents of rationals combined.
+
+#% item
+# `function_expand(e, facts)` and `assumptions: a` give the facts some identities need: `fibonacci(n + 3)` is `lucas_l(n) + 2*fibonacci(n)` for an integer `n`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A Bessel function of half-integer order:
+
+#% cell
+function_expand(bessel_j(1/2, x))
+#% output
+#= 2^(1/2)*sin(x)/(pi*x)^(1/2)
+
+#% text
+# The complementary error function:
+
+#% cell
+function_expand(erfc(x) + erf(x))
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% cell
+function_expand(factorial_power(x, -2))
+#% output
+#= 1/((1 + x)*(2 + x))
+
+#% cell
+function_expand(chebyshev_t(n, x))
+#% output
+#= cos(n*acos(x))
+
+#% text
+# Combinatorial functions as gamma functions:
+
+#% cell
+function_expand(beta(a, b))
+#% output
+#= gamma(a)*gamma(b)/gamma(a + b)
+
+#% cell
+function_expand(binomial(n, k))
+#% output
+#= gamma(1 + n)/(gamma(1 + k)*gamma(1 + n - k))
+
+#% text
+# Reciprocal trigonometric functions:
+
+#% cell
+function_expand(sec(x)*cos(x))
+#% output
+#= 1
+
+#% text
+# The modified Bessel function of the second kind:
+
+#% cell
+function_expand(bessel_k(1/2, x))
+#% output
+#= 2^(1/2)*exp(-x)*pi^(1/2)/(2*x^(1/2))
+
+#% text
+# A trigonometric constant in radicals:
+
+#% cell
+function_expand(sin(pi/8))
+#% output
+#= (1/2)*(2 - 2^(1/2))^(1/2)
+
+#% text
+# The functional equation of zeta:
+
+#% cell
+function_expand(zeta(1 - z)/zeta(z))
+#% output
+#= gamma(z)*2^(1 - z)*pi^-z*sin((1/2)*pi*(1 - z))
+
+#% text
+# Polygamma functions over one argument:
+
+#% cell
+function_expand(polygamma(3, z - 2) - polygamma(3, z))
+#% output
+#= 6*((-2 + z)^-4 + (-1 + z)^-4)
+
+#% text
+# An index shift for an integer index:
+
+#% cell
+function_expand(fibonacci(n + 3), element(n, integers))
+#% output
+#= lucas_l(n) + 2*fibonacci(n)
+
+#% text
+# More half-integer order functions and orthogonal polynomials of a given degree:
+
+#% cell
+function_expand(bessel_i(1/2, x))
+#% output
+#= 2^(1/2)*sinh(x)/(pi*x)^(1/2)
+
+#% cell
+function_expand(legendre_p(2, x))
+#% output
+#= -1/2 + (3/2)*x^2
+
+#% cell
+function_expand(hermite_h(3, x))
+#% output
+#= -12*x + 8*x^3
+
+#% text
+# A harmonic number, a Struve function of order 1/2, and a spherical Bessel function:
+
+#% cell
+function_expand(harmonic_number(n))
+#% output
+#= euler_gamma + digamma(1 + n)
+
+#% cell
+function_expand(struve_h(1/2, x))
+#% output
+#= 2^(1/2)/(pi^(1/2)*x^(1/2)) - cos(x)*2^(1/2)/(pi^(1/2)*x^(1/2))
+
+#% cell
+function_expand(spherical_bessel_j(1, x))
+#% output
+#= sin(x)/x^2 - cos(x)/x
+
+#% text
+# A trigonometric constant, and a ratio of gamma functions that differ by an integer:
+
+#% cell
+function_expand(cos(pi/5))
+#% output
+#= (1/4)*(1 + 5^(1/2))
+
+#% cell
+function_expand(gamma(n + 3)/gamma(n), element(n, integers))
+#% output
+#= n*(1 + n)*(2 + n)
+
+#% subsection
+# Options
+
+#% text
+# `assumptions:` gives the facts as an option; an index shift of the Lucas numbers for an integer:
+
+#% cell
+function_expand(lucas_l(n + 2), assumptions: element(n, integers))
+#% output
+#= (3/2)*lucas_l(n) + (5/2)*fibonacci(n)
+
+#% text
+# Without the fact the index stays:
+
+#% cell
+function_expand(lucas_l(n + 2))
+#% output
+#= lucas_l(2 + n)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `simplify` of the expanded form:
+
+#% cell
+simplify(function_expand(pochhammer(a, 3)))
+#% output
+#= a*(1 + a)*(2 + a)
+
+#% text
+# The expansion has the value of the input:
+
+#% cell
+[function_expand(bessel_j(1/2, x)) /. x -> 1.7, bessel_j(1/2, 1.7)]
+#% output
+#= [0.606848808007618, 0.606848808007618]
+
+#% cell
+[function_expand(zeta(1 - z)/zeta(z)) /. z -> 0.3, zeta(0.7)/zeta(0.3)]
+#% output
+#= [3.071538346739371, 3.071538346739371]
+
+#% subsection
+# Possible issues
+
+#% text
+# Only the orders 1/2 and -1/2 of the Bessel functions are expanded, and trigonometric functions of multiple arguments are left alone:
+
+#% cell
+function_expand(bessel_j(3/2, x))
+#% output
+#= -cos(x)*2^(1/2)*(1/(pi*x))^(1/2) + 2^(1/2)*(1/(pi*x))^(1/2)*sin(x)/x
+
+#% cell
+function_expand(sin(3*x))
+#% output
+#= sin(3*x)
+
+#% text
+# Constants that are not radicals stay, and so does a power with a sign condition (use `refine`):
+
+#% cell
+function_expand(sin(pi/7))
+#% output
+#= sin((1/7)*pi)
+
+#% cell
+function_expand(sqrt(x^2), assumptions: x > 0)
+#% output
+#= (x^2)^(1/2)
+
+#% text
+# All orders `n + 1/2` are elementary, by the recurrence from the orders `1/2` and `-1/2`:
+
+#% cell
+function_expand(bessel_j(3/2, x))
+#% output
+#= -cos(x)*2^(1/2)*(1/(pi*x))^(1/2) + 2^(1/2)*(1/(pi*x))^(1/2)*sin(x)/x
+
+#% cell
+function_expand(bessel_k(5/2, x))
+#% output
+#= (1 + 3/x^2 + 3/x)*2^(1/2)*exp(-x)*pi^(1/2)/(2*x^(1/2))
+
+#% section
+# See also
+
+#% text
+# `simplify`, `gamma`, `bessel_j`, `trig_to_exp`

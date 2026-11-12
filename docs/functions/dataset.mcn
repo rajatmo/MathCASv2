@@ -1,0 +1,185 @@
+#! mathcas 2 notebook
+
+#% title
+# dataset
+
+#% text
+# `dataset([row1, row2, ...])` gives the table whose rows are the associations `row1`, `row2`, ..., with a column for every key.
+
+#% text
+# `dataset(assoc(c1 -> col1, c2 -> col2, ...))` gives the table whose columns `c1`, `c2`, ... hold the lists `col1`, `col2`, ... of equal length.
+
+#% text
+# `dataset([[c1, c2, ...], [v1, v2, ...], ...])` gives the table whose first row names the columns.
+
+#% text
+# `dataset(rows, [c1, c2, ...])` gives the table of the lists `rows` under the column names `c1`, `c2`, ....
+
+#% section
+# Details
+
+#% item
+# A dataset is the term `dataset(assoc(c1 -> col1, ...))`: an association from column names to columns, all of the same length. Columns of machine integers or reals are stored as packed arrays.
+
+#% item
+# A key that some rows lack, and the end of a short row, become `missing()` in their column.
+
+#% item
+# The list functions `length`, `part`, `first`, `last`, `rest`, `most`, `take`, `drop`, `reverse`, `join`, `select` and `sort_by` work on the rows of a dataset; a row is an association from column names to values.
+
+#% item
+# `ds[i]` is row `i`, `ds[i, c]` the value of column `c` in that row, `ds[c]` the whole column `c` when `c` is not an integer, and `ds[i:j]` the dataset of rows `i` to `j`.
+
+#% item
+# A dataset is shown as a table: numbers aligned right, strings without quotes, at most 20 rows (the first and the last ones) and a line with its size.
+
+#% item
+# `import_data(file, "dataset")` reads a CSV, TSV, whitespace or JSON file as a dataset, and `export_data` writes one back.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A dataset from rows; Lea has no team, so that cell is missing:
+
+#% cell
+crew = dataset([assoc("name" -> "Ida", "team" -> "red", "laps" -> 12), assoc("name" -> "Lea", "laps" -> 9), assoc("name" -> "Max", "team" -> "blue", "laps" -> 15)])
+crew
+#% output
+#= name | team    | laps
+#= -----+---------+-----
+#= Ida  | red     |   12
+#= Lea  | missing |    9
+#= Max  | blue    |   15
+#= dataset: 3 rows, 3 columns
+
+#% text
+# The second row, and one of its values:
+
+#% cell
+crew[2]
+#% output
+#= assoc("name" -> "Lea", "team" -> missing(), "laps" -> 9)
+
+#% cell
+crew[3, "laps"]
+#% output
+#= 15
+
+#% subsection
+# Scope
+
+#% text
+# From columns:
+
+#% cell
+dataset(assoc("x" -> [1, 2, 3], "square" -> [1, 4, 9]))
+#% output
+#=   x | square
+#= ----+-------
+#=   1 |      1
+#=   2 |      4
+#=   3 |      9
+#= dataset: 3 rows, 2 columns
+
+#% text
+# From a table whose first row is the header:
+
+#% cell
+dataset([["planet", "moons"], ["Mars", 2], ["Jupiter", 95]])
+#% output
+#= planet  | moons
+#= --------+------
+#= Mars    |     2
+#= Jupiter |    95
+#= dataset: 2 rows, 2 columns
+
+#% text
+# Rows and columns behave like the elements of a list:
+
+#% cell
+crew = dataset([assoc("name" -> "Ida", "laps" -> 12), assoc("name" -> "Lea", "laps" -> 9), assoc("name" -> "Max", "laps" -> 15)])
+select(crew, r => r["laps"] > 10)
+#% output
+#= name | laps
+#= -----+-----
+#= Ida  |   12
+#= Max  |   15
+#= dataset: 2 rows, 2 columns
+
+#% cell
+sort_by(crew, "laps")
+#% output
+#= name | laps
+#= -----+-----
+#= Lea  |    9
+#= Ida  |   12
+#= Max  |   15
+#= dataset: 3 rows, 2 columns
+
+#% cell
+take(crew, -1)
+#% output
+#= name | laps
+#= -----+-----
+#= Max  |   15
+#= dataset: 1 row, 2 columns
+
+#% text
+# An association of rows:
+
+#% cell
+dataset(assoc(r1 -> assoc("a" -> 1, "b" -> 2), r2 -> assoc("a" -> 3, "b" -> 4)))
+#% output
+#=   a |   b
+#= ----+----
+#=   1 |   2
+#=   3 |   4
+#= dataset: 2 rows, 2 columns
+
+#% subsection
+# Properties and relations
+
+#% text
+# A dataset made from its own rows is the same dataset:
+
+#% cell
+dataset(rows(crew)) === crew
+#% output
+#= true
+
+#% text
+# The shown table is a view; inside other values a dataset prints as its term:
+
+#% cell
+[dataset(assoc("a" -> [1]))]
+#% output
+#= [dataset(assoc("a" -> [1]))]
+
+#% subsection
+# Possible issues
+
+#% text
+# Columns of different lengths are refused:
+
+#% cell
+dataset(assoc("a" -> [1, 2], "b" -> [3]))
+#% output
+#! failure(shape_mismatch, dataset)
+
+#% text
+# A row longer than the header is too:
+
+#% cell
+dataset([["a"], [1, 2]])
+#% output
+#! failure(shape_mismatch, dataset)
+
+#% section
+# See also
+
+#% text
+# `rows`, `column`, `columns`, `add_column`, `aggregate`, `pivot`, `join_on`, `missing`, `import_data`

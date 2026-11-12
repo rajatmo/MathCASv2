@@ -1,0 +1,420 @@
+Cell operations (design 3.6 - 3.8), styles and cell properties.
+
+=== divide at the caret
+--- before
+#% cell
+ab▮cd
+--- keys
+Ctrl+Shift+D
+--- after
+#% cell
+ab
+
+#% cell
+▮cd
+
+=== divide at a line start drops the line break
+--- before
+#% cell
+a = 1
+▮b = 2
+--- keys
+Ctrl+Shift+D
+--- after
+#% cell
+a = 1
+
+#% cell
+▮b = 2
+
+=== divide with a selection makes up to three cells
+--- before
+#% text
+# ab⟦cd⟧ef
+--- keys
+Ctrl+Shift+D
+--- after
+#% text
+# ab
+
+#% text
+# ▮cd
+
+#% text
+# ef
+
+=== a divided input loses its label
+--- before
+#% cell label=4
+x▮y
+--- keys
+Ctrl+Shift+D
+--- after
+#% cell
+x
+
+#% cell
+▮y
+
+=== merge joins the cells into the first one's style
+--- before
+#% cell
+a=1
+
+#% cell
+b=2
+
+#% text
+# c
+--- keys
+Bracket(0) Shift+Bracket(2) Ctrl+Shift+M
+--- after
+#% cell ◆
+a=1
+b=2
+c
+
+=== merge drops generated cells
+--- before
+#% cell label=1
+1
+#% output n=1
+#= 1
+
+#% cell
+2
+--- keys
+Bracket(0) Shift+Bracket(2) Ctrl+Shift+M
+--- after
+#% cell label=1 ◆
+1
+2
+
+=== merging one cell does nothing
+--- before
+#% cell ◆
+a
+--- keys
+Ctrl+Shift+M
+--- after
+#% cell ◆
+a
+
+=== input from above
+--- before
+#% cell
+f(x)
+
+#% text
+# t
+‖
+--- keys
+Ctrl+L
+--- after
+#% cell
+f(x)
+
+#% text
+# t
+
+#% cell
+f(x)▮
+
+=== output from above makes an input
+--- before
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+‖
+--- keys
+Ctrl+Shift+L
+--- after
+#% cell label=1
+1+1
+#% output n=1
+#= 2
+
+#% cell
+2▮
+
+=== same style below goes directly after the cell, before its outputs
+--- before
+#% cell label=1
+x▮
+#% output n=1
+#= x
+--- keys
+Alt+Enter "y"
+--- after
+#% cell label=1
+x
+
+#% cell
+y▮
+#% output n=1
+#= x
+--- groups
+x {y x}
+
+=== same style below in text
+--- before
+#% text
+# a▮
+--- keys
+Alt+Enter "b"
+--- after
+#% text
+# a
+
+#% text
+# b▮
+
+=== Alt+digit sets the style of the caret's cell
+--- before
+#% text
+# Heading▮
+--- keys
+Alt+4
+--- after
+#% section
+# Heading▮
+
+=== a style without labels drops the label
+--- before
+#% cell label=2
+x▮
+--- keys
+Alt+7
+--- after
+#% text
+# x▮
+
+=== Ctrl+8 toggles the initialization attribute
+--- before
+#% cell
+x▮
+
+#% code
+y
+--- keys
+Ctrl+8 Down Down Ctrl+8
+--- after
+#% cell init
+x
+
+#% code noinit
+y▮
+
+=== show expression shows the cell's source; edited and shown again it reads back
+--- before
+#% cell label=2
+x▮
+--- keys
+Ctrl+Shift+E Click(0,15) " noeval" Ctrl+Shift+E
+--- after
+#% cell label=2 noeval ◆
+x
+
+=== a cell shown as its source is saved as the cell it describes
+--- before
+#% text
+# hello▮
+--- keys
+Ctrl+Shift+E
+--- after
+#% text ◆
+# hello
+
+=== Delete with cells selected deletes them
+--- before
+#% cell
+a
+
+#% cell
+b
+
+#% cell
+c
+--- keys
+Bracket(1) Delete
+--- after
+#% cell
+a
+
+‖
+#% cell
+c
+
+=== cells that cannot be deleted stay
+--- before
+#% cell nodelete
+a
+--- keys
+Bracket(0) Delete
+--- after
+#% cell nodelete ◆
+a
+
+=== copy and paste cells at an insertion point
+--- before
+#% cell label=1
+a
+#% output n=1
+#= a
+
+#% text
+# t
+--- keys
+Bracket(0,2) Ctrl+C Gap(3) Ctrl+V
+--- after
+#% cell label=1
+a
+#% output n=1
+#= a
+
+#% text
+# t
+
+#% cell label=1
+a
+#% output n=1
+#= a
+‖
+
+=== plain text pasted at an insertion point becomes one input cell
+--- before
+‖
+--- keys
+Clip("x = 1\ny = 2") Ctrl+V
+--- after
+#% cell
+x = 1
+y = 2▮
+
+=== text pasted into a cell replaces the selection
+--- before
+#% cell
+a⟦b⟧c
+--- keys
+Clip("XY") Ctrl+V
+--- after
+#% cell
+aXY▮c
+
+=== paste over selected cells replaces them
+--- before
+#% cell
+a
+
+#% cell
+b
+--- keys
+Clip("z") Bracket(0) Ctrl+V
+--- after
+#% cell
+z▮
+
+#% cell
+b
+
+=== cut cells, undo brings them back
+--- before
+#% cell
+a
+
+#% cell
+b
+--- keys
+Bracket(0) Ctrl+X Ctrl+Z
+--- after
+#% cell ◆
+a
+
+#% cell
+b
+
+=== move cells by dragging their bracket
+--- before
+#% text
+# a
+
+#% text
+# b
+
+#% text
+# c
+--- keys
+Bracket(0) Move(3)
+--- after
+#% text
+# b
+
+#% text
+# c
+
+#% text ◆
+# a
+
+=== copy cells by dragging with Ctrl
+--- before
+#% text
+# a
+
+#% text
+# b
+--- keys
+Bracket(0) CopyTo(2)
+--- after
+#% text
+# a
+
+#% text
+# b
+
+#% text ◆
+# a
+
+=== shift-click extends a cell selection; ctrl-click toggles one cell
+--- before
+#% text
+# a
+
+#% text
+# b
+
+#% text
+# c
+
+#% text
+# d
+--- keys
+Bracket(0) Shift+Bracket(2) Ctrl+Bracket(1)
+--- after
+#% text ◆
+# a
+
+#% text
+# b
+
+#% text ◆
+# c
+
+#% text
+# d
+
+=== undo of a merge restores the cells
+--- before
+#% cell
+a
+
+#% cell
+b
+--- keys
+Bracket(0) Shift+Bracket(1) Ctrl+Shift+M Ctrl+Z
+--- after
+#% cell ◆
+a
+
+#% cell ◆
+b

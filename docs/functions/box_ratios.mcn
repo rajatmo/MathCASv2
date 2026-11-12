@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# box_ratios
+
+#% text
+# `box_ratios` is an option of `graphics3d` and the 3D plots: `box_ratios: [a, b, c]` gives the relative side lengths of the box.
+
+#% section
+# Details
+
+#% item
+# The default for plots is `automatic`, a box with the proportions of the data; `[1, 1, 1]` draws a cube whatever the ranges are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(cuboid(), box_ratios: [1, 1, 3])
+#% output
+#= image("box_ratios.files/box_ratios-1.svgz")
+
+#% cell
+plot3d(10*sin(x*y), [x, 0, 3], [y, 0, 3], box_ratios: [1, 1, 1])
+#% output
+#= image("box_ratios.files/box_ratios-2.svgz")
+
+#% cell
+plot3d(10*sin(x*y), [x, 0, 3], [y, 0, 3], box_ratios: [3, 3, 1])
+#% output
+#= image("box_ratios.files/box_ratios-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `view_point`, `boxed`, `graphics3d`, `plot3d`, `aspect_ratio`

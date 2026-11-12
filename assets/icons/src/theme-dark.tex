@@ -1,0 +1,12 @@
+\documentclass[tikz,border=0pt]{standalone}
+\input{icon-style}
+\begin{document}
+\begin{tikzpicture}[icon]
+\canvas
+% the dark theme: a crescent moon
+\begin{scope}
+\clip (12,12) circle (8);
+\fill[even odd rule] (12,12) circle (8) (16.5,15.5) circle (6.8);
+\end{scope}
+\end{tikzpicture}
+\end{document}

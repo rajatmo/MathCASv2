@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# interpolating_polynomial
+
+#% text
+# `interpolating_polynomial(data, x)` gives the polynomial in `x` of least degree that takes the values in `data`, in Newton form.
+
+#% section
+# Details
+
+#% item
+# `data` may be values `[f1, f2, ...]` at `x = 1, 2, ...`, or points `[[x1, f1], [x2, f2], ...]`.
+
+#% item
+# An entry `[x1, f1, d1, d2, ...]` (or `[x1, [f1, d1, ...]]`, or `[f1, d1, ...]` among plain values) also prescribes derivatives (Hermite interpolation, by confluent divided differences).
+
+#% item
+# `automatic` in place of a value leaves it free; the polynomial then comes from a linear solve and is expanded.
+
+#% item
+# The points may be symbols.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+interpolating_polynomial([1, 4, 9, 16], x)
+#% output
+#= 1 + (-1 + x)*(1 + x)
+
+#% cell
+expand(interpolating_polynomial([1, 4, 9, 16], x))
+#% output
+#= x^2
+
+#% cell
+interpolating_polynomial([[-1, 4], [0, 2], [1, 6]], x)
+#% output
+#= 4 + (-2 + 3*x)*(1 + x)
+
+#% cell
+interpolating_polynomial([4, 7, 2, [8, 0], 9], x)
+#% output
+#= 4 + (-1 + x)*(3 + (-4 + (-3 + x)*(19/6 + (-4 + x)*(-107/36 + (109/72)*(-4 + x))))*(-2 + x))
+
+#% cell
+interpolating_polynomial([[-1, automatic, 0], [0, 1, 1], [1, automatic, 0]], x)
+#% output
+#= 1 + x - (1/3)*x^3
+
+#% cell
+factor(interpolating_polynomial([[0, 1], [a, 0], [b, 0], [c, 0]], x))
+#% output
+#= (a - x)*(b - x)*(c - x)/(a*b*c)
+
+#% section
+# See also
+
+#% text
+# `interpolation`, `fit`, `expand`

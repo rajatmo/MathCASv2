@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# subdivide
+
+#% text
+# `subdivide(n)` gives the `n + 1` equally spaced values `[0, 1/n, 2/n, ..., 1]`.
+
+#% text
+# `subdivide(b, n)` gives `n + 1` equally spaced values from 0 to `b`; `subdivide(a, b, n)` from `a` to `b`.
+
+#% section
+# Details
+
+#% item
+# The values are `a + (b - a)*k/n` for `k = 0, 1, ..., n`: exact when the ends are exact, machine reals when an end is one.
+
+#% item
+# Both ends are included, so the list has `n + 1` elements; `n` must be a positive integer.
+
+#% item
+# Symbolic ends give symbolic values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subdivide(4)
+#% output
+#= [0, 1/4, 1/2, 3/4, 1]
+
+#% cell
+subdivide(0, 10, 5)
+#% output
+#= [0, 2, 4, 6, 8, 10]
+
+#% subsection
+# Scope
+
+#% text
+# Machine reals and symbolic ends:
+
+#% cell
+subdivide(1.0, 2, 4)
+#% output
+#= [1.0, 1.25, 1.5, 1.75, 2.0]
+
+#% cell
+subdivide(a, b, 2)
+#% output
+#= [a, a + (1/2)*(b - a), b]
+
+#% subsection
+# Applications
+
+#% text
+# Sample points for a table of values:
+
+#% cell
+map(x => [x, x^2], subdivide(0, 1, 4))
+#% output
+#= [[0, 0], [1/4, 1/16], [1/2, 1/4], [3/4, 9/16], [1, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same values as a `range` with a fractional step:
+
+#% cell
+subdivide(0, 1, 4) == range(0, 1, 1/4)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `range`, `table`, `array`

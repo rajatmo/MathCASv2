@@ -1,0 +1,101 @@
+#! mathcas 2 notebook
+
+#% title
+# compile
+
+#% text
+# `compile(f)` gives the typed function `f` a compiled specialisation and returns `f`, or `failure(not_compilable, f, reason)`.
+
+#% section
+# Details
+
+#% item
+# `f` is defined with `fn` and typed parameters: `Int` (machine integers) and `Real` (machine reals); an untyped parameter is a vector of machine numbers.
+
+#% item
+# Calls with arguments of the declared types run the compiled code; other calls, and calls whose results leave machine numbers, run the ordinary definition. The results are the same.
+
+#% item
+# `compile` runs immediately, but the compiled code is used from the next statement on; `compiled_info(f)` describes it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fn sq(x: Real) = x*x + 1
+
+#% cell
+compile(sq)
+#% output
+#= sq
+
+#% cell
+sq(3.0)
+#% output
+#= 10.0
+
+#% cell
+sq(x)
+#% output
+#= sq(x)
+
+#% subsection
+# Scope
+
+#% text
+# A loop over machine integers:
+
+#% cell
+fn steps(n: Int): Int = { var k = 0; var m = n; while m != 1 { m = if mod(m, 2) == 0 then quotient(m, 2) else 3*m + 1; k = k + 1 }; k }
+
+#% cell
+compile(steps)
+#% output
+#= steps
+
+#% cell
+steps(27)
+#% output
+#= 111
+
+#% subsection
+# Properties and relations
+
+#% text
+# The compiled function gives the values of the definition:
+
+#% cell
+fn g(x: Real) = sin(x)^2 + cos(x)
+
+#% cell
+before = g(0.7); compile(g); g(0.7) - before
+#% output
+#= 0.0
+
+#% subsection
+# Possible issues
+
+#% text
+# Functions with a native implementation and recursive functions are not compiled:
+
+#% cell
+compile(sin)
+#% output
+#! failure(not_compilable, sin, "`sin` has a native implementation")
+
+#% cell
+fn fib(n: Int): Int = if n < 2 then n else fib(n - 1) + fib(n - 2)
+
+#% cell
+compile(fib)
+#% output
+#! failure(not_compilable, fib, "the recursive call of `fib`")
+
+#% section
+# See also
+
+#% text
+# `compiled_info`

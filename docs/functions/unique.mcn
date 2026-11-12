@@ -1,0 +1,123 @@
+#! mathcas 2 notebook
+
+#% title
+# unique
+
+#% text
+# `unique(xs)` gives the elements of the list `xs` without repetitions, in the order of their first occurrence.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity (`===`): `1` and `1.0` are different elements.
+
+#% item
+# Unlike `union`, the order is kept rather than sorted.
+
+#% item
+# To compare by a key, use `unique_by`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unique([3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5])
+#% output
+#= [3, 1, 4, 5, 9, 2, 6]
+
+#% cell
+unique(["b", "a", "b"])
+#% output
+#= ["b", "a"]
+
+#% cell
+unique([])
+#% output
+#= []
+
+#% subsection
+# Scope
+
+#% text
+# Lists and expressions as elements:
+
+#% cell
+unique([[1, 2], [2, 1], [1, 2], x^2, x^2])
+#% output
+#= [[1, 2], [2, 1], x^2]
+
+#% text
+# A test that two elements count as the same:
+
+#% cell
+unique([1, 2, 11, 12, 21], (a, b) => floor(a/10) == floor(b/10))
+#% output
+#= [1, 11, 21]
+
+#% text
+# The values of an association, keeping the keys of the first ones:
+
+#% cell
+unique(assoc(a -> 1, b -> 2, c -> 1))
+#% output
+#= assoc(a -> 1, b -> 2)
+
+#% subsection
+# Applications
+
+#% text
+# The distinct values of a column of data:
+
+#% cell
+grades = ["B", "A", "C", "A", "B", "B"]
+unique(grades)
+#% output
+#= ["B", "A", "C"]
+
+#% text
+# The distinct prime factors of the numbers from 2 to 20:
+
+#% cell
+sort(unique(flatten(map(k => map(first, factor_integer(k)), range(2, 20)))))
+#% output
+#= [2, 3, 5, 7, 11, 13, 17, 19]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `union` also removes repetitions, but sorts:
+
+#% cell
+[unique([3, 1, 3, 2]), union([3, 1, 3, 2])]
+#% output
+#= [[3, 1, 2], [1, 2, 3]]
+
+#% text
+# The number of distinct elements:
+
+#% cell
+length(unique(characters("mississippi")))
+#% output
+#= 4
+
+#% subsection
+# Possible issues
+
+#% text
+# Equal values of different kinds are kept apart:
+
+#% cell
+unique([1, 1.0, 2/2])
+#% output
+#= [1, 1.0]
+
+#% section
+# See also
+
+#% text
+# `unique_by`, `union`, `tally`, `counts`, `gather`

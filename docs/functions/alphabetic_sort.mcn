@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# alphabetic_sort
+
+#% text
+# `alphabetic_sort(xs)` sorts the strings of `xs` in alphabetic order (`alphabetic_order`); `alphabetic_sort(xs, "English")` is the same.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+alphabetic_sort(["cat", "fish", "catfish", "Cat"])
+#% output
+#= ["cat", "Cat", "catfish", "fish"]
+
+#% section
+# See also
+
+#% text
+# `alphabetic_order`, `sort`

@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# cyclotomic
+
+#% text
+# `cyclotomic(k, x)` gives the k-th cyclotomic polynomial in x, whose roots are the primitive k-th roots of unity.
+
+#% section
+# Details
+
+#% item
+# It is computed as the product of `(x^d - 1)^moebius_mu(k/d)` over the divisors d of k (Moebius inversion of x^k - 1 = product of the cyclotomic polynomials of the divisors).
+
+#% item
+# x may be a number: `cyclotomic(k, 1)` is p for k a power of the prime p and 1 for other k > 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cyclotomic(5, x)
+#% output
+#= 1 + x + x^2 + x^3 + x^4
+
+#% cell
+cyclotomic(12, x)
+#% output
+#= 1 - x^2 + x^4
+
+#% cell
+table(cyclotomic(k, 1), [k, 2, 20])
+#% output
+#= [2, 3, 2, 5, 1, 7, 2, 3, 1, 11, 1, 13, 1, 1, 2, 17, 1, 19, 1]
+
+#% section
+# See also
+
+#% text
+# `factor`, `moebius_mu`, `divisors`

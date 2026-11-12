@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# euler_lagrange_equations
+
+#% text
+# `euler_lagrange_equations(L, q, t)` gives the Euler-Lagrange equations of the Lagrangian `L` for the coordinate `q` (a function `x(t)` or its name `x`, or a list of coordinates), as a list of equations `... == 0`.
+
+#% section
+# Details
+
+#% item
+# Each equation is the variational derivative `dL/dq - d/dt dL/dq' + d^2/dt^2 dL/dq'' - ...` set to zero: derivatives of any order (up to 6) may occur in `L`, and `L` may depend on `t` explicitly.
+
+#% item
+# With a list of variables `t = [x1, ..., xn]` the coordinates are fields `u(x1, ..., xn)` and the equations are the field equations: the sum over the derivatives `u_k` of `u` in `L` (total order up to 4) of `(-1)^|k| D^k (dL/du_k)`.
+
+#% item
+# `constraints: [g1, ...]` adds a multiplier `lambda(k)(t)` for each constraint (an equation, or an expression equal to zero) and appends the constraints to the equations. A holonomic constraint `g(q, t)` contributes `lambda dg/dq`; a constraint in the velocities (rolling, linear in `q'`) the force `lambda dg/dq'` of d'Alembert's principle.
+
+#% item
+# `multipliers: [mu, ...]` names the multipliers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+euler_lagrange_equations(m*x'(t)^2/2 - k*x(t)^2/2, x, t)
+#% output
+#= [-k*x(t) - m*x''(t) == 0]
+
+#% cell
+euler_lagrange_equations(m*l^2*th'(t)^2/2 + m*g*l*cos(th(t)), th, t)
+#% output
+#= [-m*l^2*th''(t) - g*l*m*sin(th(t)) == 0]
+
+#% text
+# Polar coordinates for a central force, and a charge in a magnetic field:
+
+#% cell
+euler_lagrange_equations(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], t)
+#% output
+#= [-V'(r(t)) - m*r''(t) + m*th'(t)^2*r(t) == 0, -m*r(t)^2*th''(t) - 2*m*r(t)*r'(t)*th'(t) == 0]
+
+#% cell
+euler_lagrange_equations(m*(x'(t)^2 + y'(t)^2)/2 + q*b*(x(t)*y'(t) - y(t)*x'(t))/2, [x, y], t)
+#% output
+#= [-m*x''(t) + b*q*y'(t) == 0, -m*y''(t) - b*q*x'(t) == 0]
+
+#% text
+# Higher derivatives and explicit time dependence:
+
+#% cell
+euler_lagrange_equations(x''(t)^2/2 - t*x(t), x, t)
+#% output
+#= [-t + x''''(t) == 0]
+
+#% subsection
+# Scope
+
+#% text
+# A list of independent variables makes the coordinates fields: the wave equation and the biharmonic equation of a plate.
+
+#% cell
+euler_lagrange_equations(d(u(x, t), t)^2/2 - c^2*d(u(x, t), x)^2/2, u, [x, t])
+#% output
+#= [-derivative(0, 2)(u)(x, t) + c^2*derivative(2, 0)(u)(x, t) == 0]
+
+#% cell
+euler_lagrange_equations((d(w(x, y), x, x) + d(w(x, y), y, y))^2/2, w, [x, y])
+#% output
+#= [2*derivative(2, 2)(w)(x, y) + derivative(0, 4)(w)(x, y) + derivative(4, 0)(w)(x, y) == 0]
+
+#% subsection
+# Options
+
+#% text
+# The pendulum in Cartesian coordinates, its length a constraint with a multiplier:
+
+#% cell
+euler_lagrange_equations(m*(x'(t)^2 + y'(t)^2)/2 - m*g*y(t), [x, y], t, constraints: [x(t)^2 + y(t)^2 == l^2])
+#% output
+#= [-m*x''(t) + 2*x(t)*lambda(1)(t) == 0, -g*m - m*y''(t) + 2*y(t)*lambda(1)(t) == 0, -l^2 + x(t)^2 + y(t)^2 == 0]
+
+#% text
+# A wheel rolling without slipping, a constraint in the velocities:
+
+#% cell
+euler_lagrange_equations(m*x'(t)^2/2 + j*th'(t)^2/2, [x, th], t, constraints: [x'(t) == a*th'(t)], multipliers: [mu])
+#% output
+#= [mu(t) - m*x''(t) == 0, -a*mu(t) - j*th''(t) == 0, -a*th'(t) + x'(t) == 0]
+
+#% section
+# See also
+
+#% text
+# `generalized_momenta`, `legendre_transform`, `hamilton_equations`, `noether_charge`, `n_dsolve_motion`, `d_solve`

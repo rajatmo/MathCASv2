@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# pairwise_density_histogram
+
+#% text
+# `pairwise_density_histogram(data)` draws a grid of panels with the counts of each pair of columns binned in squares as colours.
+
+#% section
+# Details
+
+#% item
+# The diagonal shows each column's histogram.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pairwise_density_histogram(table([sin(k), cos(2 * k), k / 50], k, range(1, 200)))
+#% output
+#= image("pairwise_density_histogram.files/pairwise_density_histogram-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `pairwise_list_plot`

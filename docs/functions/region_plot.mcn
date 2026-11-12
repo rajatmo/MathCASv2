@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# region_plot
+
+#% text
+# `region_plot(cond, [x, a, b], [y, c, d])` draws the region where the condition holds, filled, with its boundary.
+
+#% section
+# Details
+
+#% item
+# `region_plot([c1, c2, ...], ...)` draws several regions in the plot colours.
+
+#% item
+# `region_plot(reg)` draws a region: an implicit region over its bounds, other regions as they are.
+
+#% item
+# The boundary is found between grid points from the condition's margin (`b - a` for `a <= b`), so curved edges are smooth; option `plot_points` (default 120).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+region_plot(x^2 + y^3 < 2, [x, -2, 2], [y, -2, 2])
+#% output
+#= image("region_plot.files/region_plot-1.svgz")
+
+#% text
+# Two regions:
+
+#% cell
+region_plot([x^2 + y^2 < 1, x + y > 0], [x, -2, 2], [y, -2, 2])
+#% output
+#= image("region_plot.files/region_plot-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# An implicit region:
+
+#% cell
+region_plot(implicit_region(x^2 + y^2 <= 1 and x > 0, [x, y]))
+#% output
+#= image("region_plot.files/region_plot-3.svgz")
+
+#% text
+# A primitive:
+
+#% cell
+region_plot(disk([0, 0], [2, 1]))
+#% output
+#= image("region_plot.files/region_plot-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `complex_region_plot`, `region_plot3d`, `contour_plot`

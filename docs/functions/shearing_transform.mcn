@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# shearing_transform
+
+#% text
+# `shearing_transform(t, u, v)`: the shear by the angle t in the direction u, in proportion to the coordinate along v
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+shearing_transform(t, [1, 0], [0, 1])
+#% output
+#= transformation_function([[1, tan(t), 0], [0, 1, 0], [0, 0, 1]])
+
+#% cell
+graphics([standard_gray, rectangle(), standard_blue, geometric_transformation(rectangle(), shearing_transform(pi/6, [1, 0], [0, 1]))])
+#% output
+#= image("shearing_transform.files/shearing_transform-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

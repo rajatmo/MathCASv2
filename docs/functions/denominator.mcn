@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# denominator
+
+#% text
+# `denominator(x)` gives the denominator of a rational number, or the product of the factors of `x` with negative exponents, inverted.
+
+#% section
+# Details
+
+#% item
+# An integer has denominator 1. Sums are not combined over a common denominator.
+
+#% item
+# `denominator` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+denominator(6/15)
+#% output
+#= 5
+
+#% cell
+denominator(7)
+#% output
+#= 1
+
+#% cell
+denominator(x^2/(y*z))
+#% output
+#= y*z
+
+#% cell
+denominator((x + 1)/(x - 1)^2)
+#% output
+#= (-1 + x)^2
+
+#% subsection
+# Scope
+
+#% text
+# Each element of a list:
+
+#% cell
+denominator([1/2, 2/3, 3/4])
+#% output
+#= [2, 3, 4]
+
+#% text
+# Combine a sum first:
+
+#% cell
+denominator(together(1/x + 1/y))
+#% output
+#= x*y
+
+#% subsection
+# Applications
+
+#% text
+# The least common denominator of several fractions:
+
+#% cell
+apply(lcm, denominator([1/6, 3/8, 5/12]))
+#% output
+#= 24
+
+#% section
+# See also
+
+#% text
+# `numerator`, `together`, `lcm`

@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# free_of
+
+#% text
+# `free_of(t, p)` gives `true` when no part of `t`, at any depth and heads included, matches the pattern `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+free_of(x^2 + y, z)
+#% output
+#= true
+
+#% cell
+free_of(x^2 + y, x)
+#% output
+#= false
+
+#% cell
+free_of(f(g(1)), g)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# A pattern:
+
+#% cell
+free_of([1, 2, x], _: Float)
+#% output
+#= true
+
+#% text
+# Keep the terms that do not involve x:
+
+#% cell
+select([x, 2, y^2, x*y], t => free_of(t, x))
+#% output
+#= [2, y^2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# A sub-sum is a part of a sum:
+
+#% cell
+free_of(a + b + c, a + c)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `member_of`, `cases`, `count`, `variables`

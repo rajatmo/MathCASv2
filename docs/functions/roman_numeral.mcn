@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# roman_numeral
+
+#% text
+# `roman_numeral(k)` gives the Roman numeral of the integer `k >= 0` as a string.
+
+#% section
+# Details
+
+#% item
+# Zero gives `"N"`; numbers from 4000 on repeat `M`. `from_roman_numeral` is the inverse.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+roman_numeral(2023)
+#% output
+#= "MMXXIII"
+
+#% cell
+roman_numeral([1, 4, 9, 14, 40, 90, 400, 1994])
+#% output
+#= ["I", "IV", "IX", "XIV", "XL", "XC", "CD", "MCMXCIV"]
+
+#% cell
+roman_numeral(0)
+#% output
+#= "N"
+
+#% section
+# See also
+
+#% text
+# `from_roman_numeral`, `integer_digits`

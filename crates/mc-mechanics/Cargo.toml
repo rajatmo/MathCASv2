@@ -1,0 +1,16 @@
+[package]
+name = "mc-mechanics"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 analytical mechanics toolkit: Euler-Lagrange and Hamilton equations, Legendre transforms, Poisson brackets, Noether charges, constraints with multipliers, small oscillations, phase portraits and numerical integration of the equations of motion"
+
+[dependencies]
+
+[dev-dependencies]
+mc-api = { path = "../mc-api" }
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

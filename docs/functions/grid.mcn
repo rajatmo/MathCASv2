@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# grid
+
+#% text
+# `grid([[a, b, ...], [c, d, ...], ...])` is the parts laid out in rows and columns as one graphic: graphics and plots as pictures, other expressions typeset.
+
+#% section
+# Details
+
+#% item
+# `frame: true` draws a frame around it, `frame: all` lines between all cells; `background` colours it.
+
+#% item
+# The value is a `graphics` term, so it shows, exports and combines like any graphic.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A table of expressions:
+
+#% cell
+grid([[x, x^2], [sqrt(y), "text"]], frame: all)
+#% output
+#= image("grid.files/grid-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Plots and graphics:
+
+#% cell
+grid([[plot(sin(x), [x, 0, 6]), graphics(disk())], [graphics3d(sphere()), "a label"]])
+#% output
+#= image("grid.files/grid-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# A framed table on a coloured background:
+
+#% cell
+grid(table([k, k^2, k^3], k, 4), frame: true, background: light_gray)
+#% output
+#= image("grid.files/grid-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics_grid`, `row`, `column`, `framed`

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_style
+
+#% text
+# `plot_style` is an option of every plot: `plot_style: d` applies the directives `d` (colours, `thick`, `dashed` and so on) to every curve; `plot_style: [d1, d2, ...]` gives one per curve or surface, cycled.
+
+#% section
+# Details
+
+#% item
+# A single entry may itself be a list of directives, such as `[red, thick]`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], plot_style: [[red, thick]])
+#% output
+#= image("plot_style.files/plot_style-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_style: [blue, [orange, dashed]])
+#% output
+#= image("plot_style.files/plot_style-2.svgz")
+
+#% cell
+list_plot(table(k^2, k, 10), plot_style: [point_size(large)])
+#% output
+#= image("plot_style.files/plot_style-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Surfaces:
+
+#% cell
+plot3d(x*y, [x, -1, 1], [y, -1, 1], plot_style: [light_blue])
+#% output
+#= image("plot_style.files/plot_style-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `colors`, `line_style`, `line_thickness`, `thick`, `dashed`

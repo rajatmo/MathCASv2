@@ -1,0 +1,159 @@
+#! mathcas 2 notebook
+
+#% title
+# time_constrained
+
+#% text
+# `time_constrained(e, t)` evaluates `e` for at most `t` seconds.
+
+#% section
+# Details
+
+#% item
+# The value is the value of `e` if the evaluation ends within `t` seconds; otherwise the evaluation is stopped and the value is `failure(limit, time)`.
+
+#% item
+# `time_constrained(e, t, fail)` evaluates `fail` instead of giving the failure.
+
+#% item
+# `e` and `fail` are held: they are evaluated by `time_constrained` itself. The limit `t` is evaluated and must be a non-negative number of seconds; with another value the call stays unevaluated.
+
+#% item
+# The limit stops long library computations too (they poll the interrupt), and the session goes on normally after it. The time of a stopped evaluation is a little more than `t` (the next poll).
+
+#% item
+# With nested limits the shorter one decides: an inner limit that expires gives the inner failure or `fail`, and the outer evaluation goes on; an outer limit that expires stops everything inside.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+time_constrained(pause(10), 0.5, "timed out")
+#% output
+#= "timed out"
+
+#% cell
+time_constrained(2 + 3, 1)
+#% output
+#= 5
+
+#% cell
+time_constrained(pause(10), 0.2)
+#% output
+#! failure(limit, time)
+
+#% subsection
+# Scope
+
+#% text
+# Library computations that take long are stopped: the digits of `pi`, a long table, a numerical integral at high precision:
+
+#% cell
+time_constrained(n(pi, 10^6), 0.2, "stopped")
+#% output
+#= "stopped"
+
+#% cell
+time_constrained(table(k^2, k, range(1, 10^8)), 0.2)
+#% output
+#! failure(limit, time)
+
+#% cell
+time_constrained(n_integrate(sin(1/t)*t, [t, 0, 1], working_precision: 40), 0.2)
+#% output
+#! failure(limit, time)
+
+#% text
+# A computation that ends in time gives its value, and the result of an evaluation of the third argument is any expression:
+
+#% cell
+time_constrained(integrate(exp(-x^2)*sin(x)/x, [x, 0, inf]), 1)
+#% output
+#= (1/2)*pi*erf(1/2)
+
+#% cell
+time_constrained(pause(10), 0.3, a + b)
+#% output
+#= a + b
+
+#% text
+# The shorter of nested limits decides:
+
+#% cell
+time_constrained(time_constrained(pause(10), 0.3, "inner"), 5)
+#% output
+#= "inner"
+
+#% cell
+time_constrained(time_constrained(pause(10), 5), 0.3)
+#% output
+#! failure(limit, time)
+
+#% text
+# Each call in a `map` gets its own limit:
+
+#% cell
+map(t => time_constrained(pause(10), t, t), [0.1, 0.2])
+#% output
+#= [0.1, 0.2]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The time used is close to the limit; the first element of `timing` is the seconds spent:
+
+#% cell
+first(timing(time_constrained(pause(5), 0.1))) < 0.5
+#% output
+#= true
+
+#% text
+# The expression is held: with the limit 0 it is not evaluated at all, and the assignment in it is not made:
+
+#% cell
+v = 1; time_constrained(v = 5, 0); v
+#% output
+#! failure(limit, time)
+#= 1
+
+#% subsection
+# Possible issues
+
+#% text
+# A limit of 0 stops even a trivial evaluation, since no time is allowed:
+
+#% cell
+time_constrained(1 + 1, 0)
+#% output
+#! failure(limit, time)
+
+#% text
+# A limit that is not a non-negative number (a negative number, a symbol, a string, `inf`) leaves the call unevaluated; for no limit just evaluate the expression:
+
+#% cell
+time_constrained(1 + 1, -1)
+#% output
+#= time_constrained(1 + 1, -1)
+
+#% cell
+time_constrained(1 + 1, inf)
+#% output
+#= time_constrained(1 + 1, inf)
+
+#% text
+# A failure in the third argument is the result:
+
+#% cell
+time_constrained(pause(10), 0.3, 1/0)
+#% output
+#! failure(division_by_zero)
+
+#% section
+# See also
+
+#% text
+# `memory_constrained`, `pause`, `timing`

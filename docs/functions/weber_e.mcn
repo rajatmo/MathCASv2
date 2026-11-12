@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# weber_e
+
+#% text
+# `weber_e(nu, z)` gives the Weber function `E_nu(z)`, the integral of `sin(nu*t - z*sin(t))` for `t` from 0 to `pi`, divided by `pi`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 11.10.2. For integer orders it is related to Struve functions, for example `E_0 = -H_0`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weber_e(0.5, 1.0)
+#% output
+#= 0.09950754264004316
+
+#% cell
+weber_e(1.5, 2.0)
+#% output
+#= 0.10882159808007968
+
+#% cell
+weber_e(0, 2.0) + struve_h(0, 2.0)
+#% output
+#= 0.0
+
+#% subsection
+# Properties and relations
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(sin(0.5*t - 1.0*sin(t)), [t, 0, pi])/pi - weber_e(0.5, 1.0)
+#% output
+#= 2.7755575615628914e-17
+
+#% section
+# See also
+
+#% text
+# `anger_j`, `struve_h`, `bessel_y`

@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# coefficient_rules
+
+#% text
+# `coefficient_rules(p, vars)` gives the rules `[e1, e2, ...] -> c` for each monomial of `p`, in decreasing lexicographic order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coefficient_rules(x^2 + y + 3, [x, y])
+#% output
+#= [[2, 0] -> 1, [0, 1] -> 1, [0, 0] -> 3]
+
+#% cell
+coefficient_rules(x^2*y + 2*x*y^2, [x, y])
+#% output
+#= [[2, 1] -> 1, [1, 2] -> 2]
+
+#% section
+# See also
+
+#% text
+# `monomial_list`, `coefficient_list`

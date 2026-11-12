@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# highlighted
+
+#% text
+# `highlighted(f)` marks a curve or data set inside a plot: it is drawn thicker. Outside a plot it stays as it is (a graphic is itself).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+highlighted(x^2 + 1)
+#% output
+#= highlighted(1 + x^2)
+
+#% cell
+plot([sin(x), highlighted(cos(x))], [x, 0, 6])
+#% output
+#= image("highlighted.files/highlighted-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `plot`

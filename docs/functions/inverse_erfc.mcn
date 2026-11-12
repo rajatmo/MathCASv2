@@ -1,0 +1,78 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_erfc
+
+#% text
+# `inverse_erfc(q)` gives the `x` with `erfc(x) = q`, for `0 < q < 2`.
+
+#% section
+# Details
+
+#% item
+# `inverse_erfc(1)` is 0; the value tends to `inf` as `q` tends to 0 and to `-inf` as `q` tends to 2.
+
+#% item
+# Small `q` keep their relative accuracy, so tail probabilities far below the machine epsilon can be inverted.
+
+#% item
+# Machine numbers and balls give numerical values; `inverse_erfc` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_erfc(0.5)
+#% output
+#= 0.4769362762044699
+
+#% cell
+inverse_erfc(1)
+#% output
+#= 0
+
+#% cell
+inverse_erfc(1.5)
+#% output
+#= -0.4769362762044699
+
+#% cell
+n(inverse_erfc(1/10), 30)
+#% output
+#= 1.1630871536766740867262542605629476
+
+#% subsection
+# Scope
+
+#% text
+# Very small tail probabilities:
+
+#% cell
+inverse_erfc(1.0e-100)
+#% output
+#= 15.065574702592645
+
+#% cell
+inverse_erfc([0.1, 0.01, 0.001])
+#% output
+#= [1.163087153676674, 1.8213863677184496, 2.3267537655135246]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `erfc` undoes it:
+
+#% cell
+erfc(inverse_erfc(1.0e-20))
+#% output
+#= 9.999999999999974e-21
+
+#% section
+# See also
+
+#% text
+# `erfc`, `inverse_erf`, `erf`

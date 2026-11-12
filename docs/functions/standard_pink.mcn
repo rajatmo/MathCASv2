@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_pink
+
+#% text
+# `standard_pink`: the standard pink: a softer pink that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_pink, disk()])
+#% output
+#= image("standard_pink.files/standard_pink-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_pink)
+#% output
+#= image("standard_pink.files/standard_pink-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

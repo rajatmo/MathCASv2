@@ -1,0 +1,230 @@
+#! mathcas 2 notebook
+
+#% title
+# factor
+
+#% text
+# `factor(p)` writes the polynomial `p` as a product of factors that are irreducible over the integers.
+
+#% section
+# Details
+
+#% item
+# A polynomial may have several variables. Rational coefficients are pulled out as a numeric factor.
+
+#% item
+# Repeated factors are collected as powers.
+
+#% item
+# Factors are irreducible over the rational numbers: x^2 - 2 and x^2 + 1 stay as they are.
+
+#% item
+# `factor(p, extension: a)` factors a polynomial in one variable over the rational numbers with the algebraic number `a` (or a list of them) adjoined, together with the algebraic numbers in the coefficients of `p`; `extension: automatic` adjoins only the latter. The factors are monic up to a rational multiple and checked by expansion (Trager's algorithm over a number field). `factor_square_free` and `polynomial_gcd` take the same option.
+
+#% item
+# In a quotient of polynomials, the numerator and the denominator are factored and common factors cancel.
+
+#% item
+# `factor` maps over lists.
+
+#% item
+# Functions such as `sin(x)` are treated as variables.
+
+#% item
+# An integer is left as it is; `factor_integer` gives its prime factors.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A difference of squares:
+
+#% cell
+factor(x^2 - 1)
+#% output
+#= (-1 + x)*(1 + x)
+
+#% text
+# A cubic with three integer roots:
+
+#% cell
+factor(x^3 - 6x^2 + 11x - 6)
+#% output
+#= (-3 + x)*(-2 + x)*(-1 + x)
+
+#% text
+# Integer coefficients that are not monic:
+
+#% cell
+factor(6x^2 + 13x + 6)
+#% output
+#= (2 + 3*x)*(3 + 2*x)
+
+#% text
+# Several variables:
+
+#% cell
+factor(x^3 - y^3)
+#% output
+#= (x - y)*(x*y + x^2 + y^2)
+
+#% subsection
+# Scope
+
+#% text
+# Repeated factors:
+
+#% cell
+factor(x^2 + 2x*y + y^2)
+#% output
+#= (x + y)^2
+
+#% cell
+factor((x^2 - 1)*(x + 1))
+#% output
+#= (-1 + x)*(1 + x)^2
+
+#% text
+# A common numeric factor, and rational coefficients:
+
+#% cell
+[factor(2x^2 - 8), factor(x^2/4 - 1)]
+#% output
+#= [2*(-2 + x)*(2 + x), (1/4)*(-2 + x)*(2 + x)]
+
+#% text
+# A factorisation that is not obvious:
+
+#% cell
+factor(x^4 + 4)
+#% output
+#= (2 - 2*x + x^2)*(2 + 2*x + x^2)
+
+#% text
+# Cyclotomic factors:
+
+#% cell
+factor(x^10 - 1)
+#% output
+#= (-1 + x)*(1 + x)*(1 + x + x^2 + x^3 + x^4)*(1 - x + x^2 - x^3 + x^4)
+
+#% text
+# A quotient, with the common factor cancelled:
+
+#% cell
+factor((x^2 - 1)/(x^2 + 2x + 1))
+#% output
+#= (-1 + x)/(1 + x)
+
+#% text
+# A polynomial in a function:
+
+#% cell
+factor(sin(x)^2 - 1)
+#% output
+#= (-1 + sin(x))*(1 + sin(x))
+
+#% text
+# A list:
+
+#% cell
+factor([x^2 - 1, x^2 + 2x + 1])
+#% output
+#= [(-1 + x)*(1 + x), (1 + x)^2]
+
+#% text
+# Over an extension of the rational numbers:
+
+#% cell
+factor(x^4 + 1, extension: sqrt(2))
+#% output
+#= (1 + x*2^(1/2) + x^2)*(1 - x*2^(1/2) + x^2)
+
+#% cell
+factor(x^4 - 10x^2 + 1, extension: [sqrt(2), sqrt(3)])
+#% output
+#= (x - 2^(1/2) - 3^(1/2))*(x - 2^(1/2) + 3^(1/2))*(x - 3^(1/2) + 2^(1/2))*(x + 2^(1/2) + 3^(1/2))
+
+#% cell
+factor(x^3 - 2, extension: 2^(1/3))
+#% output
+#= (x - 2^(1/3))*(x*2^(1/3) + 2^(2/3) + x^2)
+
+#% text
+# The algebraic numbers in the coefficients:
+
+#% cell
+factor(x^2 - sqrt(2)*x, extension: automatic)
+#% output
+#= x*(x - 2^(1/2))
+
+#% subsection
+# Applications
+
+#% text
+# The roots of a polynomial can be read off its factors:
+
+#% cell
+factor(x^4 - 5x^2 + 4)
+#% output
+#= (-2 + x)*(-1 + x)*(1 + x)*(2 + x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `expand` undoes `factor`:
+
+#% cell
+expand(factor(x^6 - y^6))
+#% output
+#= -y^6 + x^6
+
+#% text
+# Integers are factored by `factor_integer`:
+
+#% cell
+[factor(360), factor_integer(360)]
+#% output
+#= [360, [[2, 3], [3, 2], [5, 1]]]
+
+#% text
+# Both sides of an equation or inequality are factored:
+
+#% cell
+factor(x^2 - 1 == x^3 - x)
+#% output
+#= (-1 + x)*(1 + x) == x*(-1 + x)*(1 + x)
+
+#% subsection
+# Possible issues
+
+#% text
+# Factors with irrational or complex coefficients are not found without the `extension:` option:
+
+#% cell
+[factor(x^2 - 2), factor(x^2 + 1)]
+#% output
+#= [-2 + x^2, 1 + x^2]
+
+#% cell
+[factor(x^2 - 2, extension: sqrt(2)), factor(x^2 + 1, extension: im)]
+#% output
+#= [(x - 2^(1/2))*(x + 2^(1/2)), (-im + x)*(im + x)]
+
+#% text
+# A polynomial with inexact coefficients is not factored:
+
+#% cell
+factor(x^2 - 1.0)
+#% output
+#= -1.0 + x^2
+
+#% section
+# See also
+
+#% text
+# `expand`, `factor_integer`, `factor_square_free`, `solve`, `together`, `apart`, `minimal_polynomial`, `to_number_field`

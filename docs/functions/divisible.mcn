@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# divisible
+
+#% text
+# `divisible(n, m)` gives `true` when `n/m` is an integer, `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# Gaussian integers are included: `divisible(5, 2 + im)` is `true`.
+
+#% item
+# Both arguments must be exact numbers; symbols stay unevaluated.
+
+#% item
+# `divisible` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+divisible(12, 3)
+#% output
+#= true
+
+#% cell
+divisible(12, 5)
+#% output
+#= false
+
+#% cell
+divisible(10^20, 2^20)
+#% output
+#= true
+
+#% cell
+divisible(5, 2 + im)
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Each element of a list:
+
+#% cell
+divisible(range(10), 3)
+#% output
+#= [false, false, true, false, false, true, false, false, true, false]
+
+#% subsection
+# Applications
+
+#% text
+# The numbers below 30 divisible by 3 or 5:
+
+#% cell
+select(range(30), k => divisible(k, 3) or divisible(k, 5))
+#% output
+#= [3, 5, 6, 9, 10, 12, 15, 18, 20, 21, 24, 25, 27, 30]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as a zero remainder:
+
+#% cell
+[divisible(91, 7), mod(91, 7) == 0]
+#% output
+#= [true, true]
+
+#% section
+# See also
+
+#% text
+# `mod`, `gcd`, `is_coprime`

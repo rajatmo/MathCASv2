@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# y_scale
+
+#% text
+# `y_scale` is an option of every plot: `y_scale: linear`, `log`, `signed_log` or `signed_log(c)` sets the scale of the y axis, as `x_scale` does for the x axis.
+
+#% section
+# Details
+
+#% item
+# `signed_log` shows values of both signs over many orders of magnitude; a `log` scale needs positive values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(exp(x), [x, 0, 10], y_scale: log)
+#% output
+#= image("y_scale.files/y_scale-1.svgz")
+
+#% cell
+plot(x^3, [x, -10, 10], y_scale: signed_log)
+#% output
+#= image("y_scale.files/y_scale-2.svgz")
+
+#% cell
+plot(x^3, [x, -10, 10], y_scale: signed_log(100))
+#% output
+#= image("y_scale.files/y_scale-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `x_scale`, `log_plot`, `list_log_plot`

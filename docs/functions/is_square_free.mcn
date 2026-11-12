@@ -1,0 +1,73 @@
+#! mathcas 2 notebook
+
+#% title
+# is_square_free
+
+#% text
+# `is_square_free(n)` gives `true` when no square of a prime divides the integer `n`.
+
+#% section
+# Details
+
+#% item
+# 1 is square-free. The test factors `n`.
+
+#% item
+# `is_square_free` is listable.
+
+#% item
+# For a polynomial, `is_square_free(p)` is true when no square of a nonconstant polynomial divides `p` (the gcd of `p` and each derivative is constant); `is_square_free(p, x)` looks at the variable `x` only, and `modulus: m` works modulo a prime. The integer content is not looked at.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_square_free(30)
+#% output
+#= true
+
+#% cell
+is_square_free(12)
+#% output
+#= false
+
+#% cell
+is_square_free(1)
+#% output
+#= true
+
+#% cell
+is_square_free(range(10))
+#% output
+#= [true, true, true, false, true, true, true, false, false, true]
+
+#% subsection
+# Applications
+
+#% text
+# The density of square-free numbers is `6/pi^2`:
+
+#% cell
+n(count_if(range(10000), is_square_free)/10000)
+#% output
+#= 0.6083
+
+#% subsection
+# Properties and relations
+
+#% text
+# Square-free exactly where `moebius_mu` is not 0:
+
+#% cell
+table(moebius_mu(k) != 0, k, 10) == is_square_free(range(10))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `moebius_mu`, `factor_integer`, `factor_square_free`

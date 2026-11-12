@@ -1,0 +1,51 @@
+[package]
+name = "mc-libraries"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 library registry: every library crate, their installation into a kernel, the libraries written in MathCAS in load order, and the FUNCTIONS tables"
+
+[dependencies]
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the library crates, in the order the engine installs them
+mc-lists = { path = "../mc-lists" }
+mc-assoc = { path = "../mc-assoc" }
+mc-numeric = { path = "../mc-numeric" }
+mc-numtheory = { path = "../mc-numtheory" }
+mc-combinat = { path = "../mc-combinat" }
+mc-poly = { path = "../mc-poly" }
+mc-algebra = { path = "../mc-algebra" }
+mc-calculus = { path = "../mc-calculus" }
+mc-dsolve = { path = "../mc-dsolve" }
+mc-integrals = { path = "../mc-integrals" }
+mc-limit = { path = "../mc-limit" }
+mc-transforms = { path = "../mc-transforms" }
+mc-jit = { path = "../mc-jit" }
+mc-strings = { path = "../mc-strings" }
+mc-roots = { path = "../mc-roots" }
+mc-quad = { path = "../mc-quad" }
+mc-ode = { path = "../mc-ode" }
+mc-graphics-kernel = { path = "../mc-graphics-kernel" }
+mc-geom = { path = "../mc-geom" }
+mc-plot = { path = "../mc-plot" }
+mc-io = { path = "../mc-io" }
+mc-simplify = { path = "../mc-simplify" }
+mc-special = { path = "../mc-special" }
+mc-linalg = { path = "../mc-linalg" }
+mc-solve = { path = "../mc-solve" }
+mc-decide = { path = "../mc-decide" }
+mc-cad = { path = "../mc-cad" }
+mc-sums = { path = "../mc-sums" }
+mc-random = { path = "../mc-random" }
+mc-dist = { path = "../mc-dist" }
+mc-fields = { path = "../mc-fields" }
+mc-further-functions = { path = "../mc-further-functions" }
+mc-groups = { path = "../mc-groups" }
+# libraries written in MathCAS only (a source text and a FUNCTIONS table)
+mc-langlib = { path = "../mc-langlib" }
+mc-mechanics = { path = "../mc-mechanics" }
+mc-diffalg = { path = "../mc-diffalg" }

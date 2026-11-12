@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# diamond_matrix
+
+#% text
+# `diamond_matrix(r)` gives the array of ones where the sum of the distances from the centre along the axes is at most `r`, zeros elsewhere.
+
+#% section
+# Details
+
+#% item
+# The array has `2 r + 1` entries per dimension; a list of radii gives a different radius for each axis.
+
+#% item
+# `diamond_matrix(r, d)` gives an array of the dimensions `d`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+diamond_matrix(1)
+#% output
+#= [[0, 1, 0], [1, 1, 1], [0, 1, 0]]
+
+#% cell
+diamond_matrix(3)
+#% output
+#= [[0, 0, 0, 1, 0, 0, 0], [0, 0, 1, 1, 1, 0, 0], [0, 1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 1, 1], [0, 1, 1, 1, 1, 1, 0], [0, 0, 1, 1, 1, 0, 0], [0, 0, 0, 1, 0, 0, 0]]
+
+#% cell
+diamond_matrix([1, 2])
+#% output
+#= [[0, 0, 1, 0, 0], [1, 1, 1, 1, 1], [0, 0, 1, 0, 0]]
+
+#% section
+# See also
+
+#% text
+# `disk_matrix`, `box_matrix`, `cross_matrix`

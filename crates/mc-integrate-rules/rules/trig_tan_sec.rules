@@ -1,0 +1,50 @@
+# Powers of tangents, cotangents, secants and cosecants of a linear argument (translated from Rubi sections 4.3.1.1,
+# 4.5.1.1 and 4.7.2-4.7.3, MIT). Integer powers and rational functions of them also go through Bioche's
+# substitutions (src/methods.rs); these rules give the shorter forms of the reduction formulas.
+
+## 4.3.1.1 (b tan)^n, (b cot)^n: reduction of the exponent
+int((b_.*tan(e_. + f_.*x))^n_) := b*(b*tan(e + f*x))^(n - 1)/(f*(n - 1)) - b^2*int((b*tan(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1
+int((b_.*cot(e_. + f_.*x))^n_) := -b*(b*cot(e + f*x))^(n - 1)/(f*(n - 1)) - b^2*int((b*cot(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1
+int((b_.*tan(e_. + f_.*x))^n_) := (b*tan(e + f*x))^(n + 1)/(b*f*(n + 1)) - 1/b^2*int((b*tan(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1
+int((b_.*cot(e_. + f_.*x))^n_) := -(b*cot(e + f*x))^(n + 1)/(b*f*(n + 1)) - 1/b^2*int((b*cot(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1
+
+## 4.3.1.1 (b tan)^n, (b cot)^n with n not an integer: the substitution u = b tan
+int((b_.*tan(e_. + f_.*x))^n_) := b/f*subst(int(x^n/(b^2 + x^2)), b*tan(e + f*x)) when free(b, e, f, n) and not integer(n)
+int((b_.*cot(e_. + f_.*x))^n_) := -b/f*subst(int(x^n/(b^2 + x^2)), b*cot(e + f*x)) when free(b, e, f, n) and not integer(n)
+
+## 4.3.1.1 (a + b tan)^n: a^2 + b^2 != 0
+int((a_ + b_.*tan(e_. + f_.*x))^(-1)) := a*x/(a^2 + b^2) + b/(f*(a^2 + b^2))*log(a*cos(e + f*x) + b*sin(e + f*x))
+    when free(a, b, e, f) and ne(a^2 + b^2, 0)
+int((a_ + b_.*cot(e_. + f_.*x))^(-1)) := a*x/(a^2 + b^2) - b/(f*(a^2 + b^2))*log(a*sin(e + f*x) + b*cos(e + f*x))
+    when free(a, b, e, f) and ne(a^2 + b^2, 0)
+int((a_ + b_.*tan(e_. + f_.*x))^n_) := b/f*subst(int((a + x)^n/(b^2 + x^2)), b*tan(e + f*x)) when free(a, b, e, f, n) and ne(a^2 + b^2, 0) and not integer(n)
+
+## 4.5.1.1 (b sec)^n, (b csc)^n: reduction of the exponent
+int((b_.*sec(e_. + f_.*x))^n_) := b*sin(e + f*x)*(b*sec(e + f*x))^(n - 1)/(f*(n - 1)) + b^2*(n - 2)/(n - 1)*int((b*sec(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and integer(2*n)
+int((b_.*csc(e_. + f_.*x))^n_) := -b*cos(e + f*x)*(b*csc(e + f*x))^(n - 1)/(f*(n - 1)) + b^2*(n - 2)/(n - 1)*int((b*csc(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and integer(2*n)
+int((b_.*sec(e_. + f_.*x))^n_) := -sin(e + f*x)*(b*sec(e + f*x))^(n + 1)/(b*f*n) + (n + 1)/(b^2*n)*int((b*sec(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and integer(2*n)
+int((b_.*csc(e_. + f_.*x))^n_) := cos(e + f*x)*(b*csc(e + f*x))^(n + 1)/(b*f*n) + (n + 1)/(b^2*n)*int((b*csc(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and integer(2*n)
+
+## 4.5.1.1 (b sec)^n, (b csc)^n otherwise: through powers of the cosine (sine)
+int((b_.*sec(e_. + f_.*x))^n_) := (b*sec(e + f*x))^n*cos(e + f*x)^n*int(cos(e + f*x)^(-n)) when free(b, e, f, n) and not integer(n)
+int((b_.*csc(e_. + f_.*x))^n_) := (b*csc(e + f*x))^n*sin(e + f*x)^n*int(sin(e + f*x)^(-n)) when free(b, e, f, n) and not integer(n)
+
+## 4.3.0 (a sec)^m (b tan)^n: odd powers of the tangent by u = sec, even powers of the secant by u = tan
+int((a_.*sec(e_. + f_.*x))^m_.*(b_.*tan(e_. + f_.*x))^n_.) := -(a*sec(e + f*x))^m*(b*tan(e + f*x))^(n + 1)/(b*f*m)
+    when free(a, b, e, f, m, n) and eq(m + n + 1, 0)
+int((a_.*sec(e_. + f_.*x))^m_.*tan(e_. + f_.*x)^n_.) := a/f*subst(int((a*x)^(m - 1)*(x^2 - 1)^((n - 1)/2)), sec(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not (integer(m/2) and 0 < m and m < n + 1)
+int(sec(e_. + f_.*x)^m_*(b_.*tan(e_. + f_.*x))^n_.) := 1/f*subst(int((b*x)^n*(1 + x^2)^(m/2 - 1)), tan(e + f*x))
+    when free(b, e, f, n) and integer(m/2) and m > 0 and not (integer((n - 1)/2) and 0 < n and n < m - 1)
+int((a_.*csc(e_. + f_.*x))^m_.*cot(e_. + f_.*x)^n_.) := -a/f*subst(int((a*x)^(m - 1)*(x^2 - 1)^((n - 1)/2)), csc(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not (integer(m/2) and 0 < m and m < n + 1)
+int(csc(e_. + f_.*x)^m_*(b_.*cot(e_. + f_.*x))^n_.) := -1/f*subst(int((b*x)^n*(1 + x^2)^(m/2 - 1)), cot(e + f*x))
+    when free(b, e, f, n) and integer(m/2) and m > 0 and not (integer((n - 1)/2) and 0 < n and n < m - 1)

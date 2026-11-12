@@ -1,0 +1,94 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_i
+
+#% text
+# `bessel_i(nu, x)` gives the modified Bessel function of the first kind `I_nu(x)`.
+
+#% section
+# Details
+
+#% item
+# `I_nu(x)` solves the modified Bessel equation `x^2 y'' + x y' - (x^2 + nu^2) y = 0` and is regular at 0 (DLMF 10.25.2); it grows like `exp(x)/sqrt(2*pi*x)`.
+
+#% item
+# Exact values at 0 and for half-integer orders; machine numbers and balls give numerical values.
+
+#% item
+# `bessel_i` is listable in both arguments.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bessel_i(0, 1.0)
+#% output
+#= 1.2660658777520084
+
+#% cell
+bessel_i(1, 2.5)
+#% output
+#= 2.5167162452886984
+
+#% cell
+bessel_i(0, 0)
+#% output
+#= 1
+
+#% cell
+bessel_i(1/2, x)
+#% output
+#= 2^(1/2)*sinh(x)/(pi*x)^(1/2)
+
+#% subsection
+# Scope
+
+#% text
+# 30 digits:
+
+#% cell
+n(bessel_i(0, 1), 30)
+#% output
+#= 1.2660658777520083355982446252147175
+
+#% text
+# A fractional order and a large argument:
+
+#% cell
+bessel_i(2.5, 3.0)
+#% output
+#= 1.5153394466819652
+
+#% cell
+bessel_i(0, 100.0)
+#% output
+#= 1.0737517071310738e42
+
+#% subsection
+# Properties and relations
+
+#% text
+# `I_0(x)` is `J_0(i x)`, the series with all signs positive:
+
+#% cell
+bessel_i(0, 1.0) - sum(0.25^k/factorial(k)^2, [k, 0, 30])
+#% output
+#= 2.220446049250313e-16
+
+#% text
+# The derivative of `I_0`, the mean of the neighbouring orders (which are equal, `I_(-1) = I_1`):
+
+#% cell
+d(bessel_i(0, x), x)
+#% output
+#= (1/2)*(bessel_i(-1, x) + bessel_i(1, x))
+
+#% section
+# See also
+
+#% text
+# `bessel_k`, `bessel_j`, `hypergeometric_0f1`, `kelvin_ber`

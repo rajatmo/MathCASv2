@@ -1,0 +1,36 @@
+//! Two-dimensional typesetting without UI (design 08, section 4): the box tree, its canonical text,
+//! the alias table, and layout with line breaking over a metrics trait. Painting is the caller's: [`layout::layout`]
+//! gives positioned characters, math-font glyphs and rules.
+//!
+//! The notebook's cells use three boxes only, the square root, the fraction and the power (decision NBUI.5): the
+//! editor (`mc-edit`) makes them, [`math_text`] reads printed output into them, [`restrict`] reduces older box trees
+//! to them. Plot labels (`mc-graphics`) use the full set through [`typeset_output`].
+//!
+//! ```
+//! let row = mc_boxes::from_text("1+((x)/(2))");
+//! assert_eq!(mc_boxes::notation(&row), "1+(x/2)");
+//! assert_eq!(mc_boxes::linear_text(&row), "1+x/2");
+//! let out = mc_boxes::typeset_output("x^2/2");
+//! assert_eq!(mc_boxes::notation(&out.row), "((x^2)/2)");
+//! ```
+pub mod aliases;
+pub mod canonical;
+pub mod latex;
+pub mod layout;
+pub mod linear;
+pub mod math;
+pub mod ops;
+pub mod printed;
+mod scan;
+pub mod tree;
+
+pub use canonical::{from_text, to_text, to_text_mapped, TextMap};
+pub use scan::{source_text, ESCAPE};
+pub use latex::to_latex;
+pub use linear::linear_text;
+pub use math::{has_boxes, label_rows, linear_segments, math_text, restrict, LabelRow};
+pub use printed::{
+    output_input_boxes, output_input_text, typeset_input, typeset_output, typeset_output_with, OutputOptions, SourceMap,
+    Typeset, MATRIX_MAX,
+};
+pub use tree::{notation, write_notation, Pos, BigOp, Item, Node, Row, RowPath, Side, Step, MAX_NESTING};

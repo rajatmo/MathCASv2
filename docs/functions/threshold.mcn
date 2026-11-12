@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# threshold
+
+#% text
+# `threshold(data)` sets the elements of `data` with absolute value at most `10^-10` to zero; `threshold(data, delta)` uses `delta`.
+
+#% section
+# Details
+
+#% item
+# `threshold(data, [kind, delta, ...])` applies a thresholding function: `"Hard"` (keep `x` when `abs(x) > delta`), `"Soft"` (shrink toward zero by `delta`), `"Firm"` with `[delta, r, p]` (linear between the thresholds `delta - p r delta` and `delta + (1 - p) r delta`), `"PiecewiseGarrote"` (`x - delta^2/x`), `"SmoothGarrote"` with `[delta, k]` (`x^(2k + 1)/(delta^(2k) + x^(2k))`) and `"Hyperbola"` (`sign(x) sqrt(x^2 - delta^2)`).
+
+#% item
+# `threshold(data, ["LargestValues", k])` keeps the `k` elements largest in absolute value.
+
+#% item
+# The data may be nested lists of any depth; exact zeros stay exact and inexact elements become inexact zeros.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+threshold([1, 10^-1, 10^-2, 10^-8, 10^-11])
+#% output
+#= [1, 1/10, 1/100, 1/100000000, 0]
+
+#% cell
+threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], 3/2)
+#% output
+#= [-3, 0, -2, 0, 2, 0, 0, 0, -3, 3, 2]
+
+#% cell
+threshold([-3, 1, -2, 0, 2, -1, 0, 1, -3, 3, 2], ["LargestValues", 3])
+#% output
+#= [-3, 0, 0, 0, 0, 0, 0, 0, -3, 3, 0]
+
+#% cell
+threshold([[0, 0.2, 0.4], [0.6, 0.8, 1]], 0.5)
+#% output
+#= [[0, 0.0, 0.0], [0.6, 0.8, 1]]
+
+#% cell
+threshold([-1.0, -0.5, 0.1, 0.5, 1.0], ["Soft", 0.3])
+#% output
+#= [-0.7, -0.2, 0.0, 0.2, 0.7]
+
+#% section
+# See also
+
+#% text
+# `chop`, `clip`, `fourier`

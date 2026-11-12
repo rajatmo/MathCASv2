@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# accuracy
+
+#% text
+# `accuracy(x)` gives the number of correct decimal digits after the decimal point of `x`, `-log10` of its error bound.
+
+#% section
+# Details
+
+#% item
+# Exact numbers have accuracy `inf`; for an expression it is the least accuracy of its numbers.
+
+#% item
+# Accuracy and precision differ by the size of the number: `precision(x)` is about `accuracy(x) + log10(abs(x))`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+accuracy(1/3)
+#% output
+#= inf
+
+#% cell
+accuracy(1~20)
+#% output
+#= 20.16900970948674
+
+#% cell
+accuracy(1000~20)
+#% output
+#= 17.169009709486744
+
+#% cell
+accuracy(0.001~20)
+#% output
+#= 23.169009709486737
+
+#% subsection
+# Properties and relations
+
+#% text
+# Precision and accuracy of the same ball:
+
+#% cell
+x = 12345.678~20; [precision(x), accuracy(x)]
+#% output
+#= [20.16900970948674, 16.07749476397754]
+
+#% section
+# See also
+
+#% text
+# `precision`, `set_precision`, `n`

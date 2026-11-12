@@ -1,0 +1,22 @@
+[package]
+name = "mc-graphics-kernel"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 graphics, the kernel side: the natives of the graphics term (primitives, directives, graphics, show, colour functions), transformations and layouts of pictures"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# the graphics model, colours, labels and the renderers
+mc-graphics = { path = "../mc-graphics" }
+# remembered plots are read back from their printed terms
+mc-syntax = { path = "../mc-syntax" }
+
+[dev-dependencies]
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

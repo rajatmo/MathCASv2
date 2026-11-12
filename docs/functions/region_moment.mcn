@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# region_moment
+
+#% text
+# `region_moment(reg, [i, j, ...])`: the integral of x^i y^j ... over the region
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+[region_moment(disk(), [2, 2]), region_moment(rectangle(), [2, 2])]
+#% output
+#= [(1/24)*pi, 1/9]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

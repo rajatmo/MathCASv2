@@ -1,0 +1,310 @@
+One kind of cell (decision NBUI.5): plain text plus three boxes, made only by the box keys (Ctrl+2 square root,
+Ctrl+/ fraction, Ctrl+6 power). A plain code cell takes boxes at its first box key; its text is then canonical box
+text (4.4) and `--- boxes` gives the tree with the caret (`▮`) or selection in the box notation. When the last box
+goes the cell is plain text again.
+
+=== Ctrl+/ makes a fraction of the operand before the caret (a `*` joins a box and a name, NBB.14)
+--- before
+#% cell
+1+x▮
+--- keys
+Ctrl+/ "Q" Ctrl+Space "Z"
+--- after
+#% cell typeset
+1+((x)/(Q))*Z▮
+--- boxes
+1+(x/Q)*Z▮
+
+=== Ctrl+/ on a selection makes it the numerator
+--- before
+#% cell
+⟦1+x⟧
+--- keys
+Ctrl+/ "2"
+--- boxes
+(1+x/2▮)
+
+=== Ctrl+6 and Ctrl+^ make a superscript
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+6 "2" Ctrl+Space "+y" Ctrl+^ "n"
+--- after
+#% cell typeset
+((x)^(2))+((y)^(n▮))
+--- boxes
+(x^2)+(y^n▮)
+
+=== Ctrl+2 and Ctrl+@ insert a square root
+--- before
+#% cell
+1+▮
+--- keys
+Ctrl+2 "x" Ctrl+Space "+" Ctrl+@ "y"
+--- after
+#% cell typeset
+1+((sqrt(x)))+((sqrt(y▮)))
+--- boxes
+1+√(x)+√(y▮)
+
+=== Tab goes to the next placeholder, Shift+Tab to the previous
+--- before
+#% cell
+▮
+--- keys
+Ctrl+/ Tab "B" Shift+Tab
+--- boxes
+(⟦□⟧/B)
+
+=== Esc name Esc inserts a Greek letter
+--- before
+#% cell typeset
+((x)^(2))▮
+--- keys
+Ctrl+/ Esc "alpha" Esc
+--- boxes
+((x^2)/α▮)
+
+=== Up moves from the denominator to the numerator
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Up "z"
+--- boxes
+(xz▮/a)
+
+=== Left past the start goes to the insertion point before the cell
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Left Left Left Left Left
+--- after
+‖
+#% cell typeset
+((x)/(a))
+--- boxes
+none
+
+=== Right past the end goes to the insertion point after the cell
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+^ "2" Right Right
+--- after
+#% cell typeset
+((x)^(2))
+‖
+--- boxes
+none
+
+=== Backspace in boxes
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Backspace
+--- boxes
+(x/a▮)
+
+=== undo goes back to the text before the structure
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+Z Ctrl+Z
+--- after
+#% cell
+x▮
+
+=== implicit multiplication stays visible
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+2 "b"
+--- boxes
+a*√(b▮)
+
+=== Ctrl+Shift+N on input that does not parse beeps and changes nothing
+--- before
+#% cell
+f(▮
+--- keys
+Ctrl+Shift+N
+--- after
+#% cell
+f(▮
+
+=== evaluating a typeset cell sends its canonical text
+--- before
+#% cell
+6▮
+--- keys
+Ctrl+/ "3" Shift+Enter
+--- after
+#% cell label=1 typeset
+((6)/(3))
+#% output n=1
+#= ((6)/(3))
+‖
+
+=== structure keys in a Text cell do nothing
+--- before
+#% text
+# a▮
+--- keys
+Ctrl+/
+--- after
+#% text
+# a▮
+--- boxes
+none
+
+=== copy in boxes copies the plain text and the boxes, which paste back as boxes (round 13)
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+A Ctrl+C Right Ctrl+V
+--- boxes
+(x/y)*(x/y)▮
+
+=== copy as plain text in boxes copies the plain text only, which pastes back as linear text
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Ctrl+A Ctrl+Shift+C Right Ctrl+V
+--- boxes
+(x/y)*x/y▮
+
+=== undo puts the caret back where it was in the boxes (NB6.5)
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Up "c" Ctrl+Z
+--- boxes
+(x▮/ab)
+
+=== redo puts the caret back after the edit
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Up "c" Ctrl+Z Ctrl+Y
+--- boxes
+(xc▮/ab)
+
+=== undo of typing in a denominator keeps the caret in it
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Ctrl+Z
+--- boxes
+(x/▮□)
+
+=== Shift+Right out of a slot selects the box, Shift+Left back into it selects from the anchor again
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "ab" Left Shift+Right Shift+Right Shift+Left
+--- boxes
+(x/a⟦b⟧)
+
+=== Shift+Right and Shift+Left after a box keep their anchor
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "a" Ctrl+Space "+y" Left Left Shift+Right Shift+Right Shift+Left
+--- boxes
+(x/a)⟦+⟧y
+
+=== typed linear text stays linear: a/b, x^2 and sqrt(x) are just characters
+--- before
+#% cell
+▮
+--- keys
+"a/b + x^2 + sqrt(x)"
+--- after
+#% cell
+a/b + x^2 + sqrt(x)▮
+--- boxes
+none
+
+=== Ctrl+2 on a selection makes it the radicand, the caret at its end
+--- before
+#% cell
+1+⟦x+y⟧
+--- keys
+Ctrl+2
+--- boxes
+1+√(x+y▮)
+
+=== Up goes from the denominator to the numerator, Right leaves the box
+--- before
+#% cell
+a▮
+--- keys
+Ctrl+/ "b" Up "c" Right Right Right "+1"
+--- boxes
+(ac/b)+1▮
+
+=== Backspace at the start of a denominator unwraps the fraction into linear text
+--- before
+#% cell
+x▮
+--- keys
+Ctrl+/ "y" Left Backspace
+--- after
+#% cell
+x/▮y
+--- boxes
+none
+
+=== Backspace at the start of a radicand leaves the radicand; the cell is plain again
+--- before
+#% cell
+▮
+--- keys
+Ctrl+2 "x+1" Home Backspace "!"
+--- after
+#% cell
+!▮x+1
+--- boxes
+none
+
+=== Shift+arrows select across a box; copying gives it (round 13: as a box); typing replaces the selection
+--- before
+#% cell
+a+b▮
+--- keys
+Ctrl+6 "2" Ctrl+Space "+c" Home Right Right Shift+Right Ctrl+C End "*" Ctrl+V Home Shift+Right "z"
+--- boxes
+z▮+(b^2)+c*(b^2)
+
+=== a box key at an insertion point makes an Input cell with the box
+--- before
+‖
+#% cell
+x
+--- keys
+Ctrl+2 "8"
+--- boxes
+√(8▮)
+
+=== a plain cell's `((` are characters when it takes its first box (not box marks)
+--- before
+#% cell
+((a)/(b)) + x▮
+--- keys
+Ctrl+6 "2"
+--- boxes
+((a)/(b)) + (x^2▮)

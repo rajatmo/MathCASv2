@@ -1,0 +1,85 @@
+#! mathcas 2 notebook
+
+#% title
+# exp_to_trig
+
+#% text
+# `exp_to_trig(e)` writes exponentials of imaginary arguments by Euler's formula, `exp(im*x) = cos(x) + im*sin(x)`.
+
+#% section
+# Details
+
+#% item
+# Exponentials of real arguments are left as they are.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exp_to_trig(exp(im*x))
+#% output
+#= cos(x) + im*sin(x)
+
+#% cell
+exp_to_trig(exp(-im*x))
+#% output
+#= cos(x) - im*sin(x)
+
+#% cell
+exp_to_trig((exp(im*x) + exp(-im*x))/2)
+#% output
+#= cos(x)
+
+#% cell
+exp_to_trig(exp(x) + exp(-x))
+#% output
+#= exp(x) + exp(-x)
+
+#% subsection
+# Scope
+
+#% text
+# A difference of logarithms that is an inverse function (the midpoint of the two arguments a positive number):
+
+#% cell
+exp_to_trig(log(1 + im*x) - log(1 - im*x))
+#% output
+#= 2im*atan(x)
+
+#% cell
+exp_to_trig(log(2 + x) - log(2 - x))
+#% output
+#= 2*atanh((1/2)*x)
+
+#% cell
+exp_to_trig(log(z + sqrt(z^2 + 1)))
+#% output
+#= asinh(z)
+
+#% text
+# A complex exponent with a real part:
+
+#% cell
+exp_to_trig(exp((1 + im)*t))
+#% output
+#= cos(t)*exp(t) + im*exp(t)*sin(t)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `trig_to_exp` goes the other way:
+
+#% cell
+exp_to_trig(trig_to_exp(cos(x)))
+#% output
+#= cos(x)
+
+#% section
+# See also
+
+#% text
+# `trig_to_exp`, `exp`, `cos`, `sin`

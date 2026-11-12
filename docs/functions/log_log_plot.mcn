@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# log_log_plot
+
+#% text
+# `log_log_plot(f, [x, a, b])` plots `f` with logarithmic x and y axes, for `0 < a < b`.
+
+#% section
+# Details
+
+#% item
+# Power laws appear as straight lines; the slope is the exponent.
+
+#% item
+# It takes the options of `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log_log_plot([x^2, x^3], [x, 1, 100], legend: [r"$x^2$", r"$x^3$"])
+#% output
+#= image("log_log_plot.files/log_log_plot-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A spectrum over many decades:
+
+#% cell
+log_log_plot(x^3/(exp(x) - 1), [x, 0.01, 30], x_label: r"$x$")
+#% output
+#= image("log_log_plot.files/log_log_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot`, `log_linear_plot`, `list_log_log_plot`

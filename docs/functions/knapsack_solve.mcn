@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# knapsack_solve
+
+#% text
+# `knapsack_solve(items, cap)` gives the number of copies of each item that maximize the total payoff within the total cost `cap`.
+
+#% section
+# Details
+
+#% item
+# An item is a cost (payoff 1), `[payoff, cost]` or `[payoff, cost, max_count]`, or a list of rules with the keys "Payoff", "Cost" and "MaxCount".
+
+#% item
+# Items given as an association or as a list of `name -> item` rules give the counts in the same form.
+
+#% item
+# The problem is solved exactly by dynamic programming over the costs (decimal costs are scaled to integers); a capacity above 200000 scaled units leaves the call unevaluated.
+
+#% item
+# Several optimal solutions exist often; one of them is returned.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+knapsack_solve([4, 2, 3], 8)
+#% output
+#= [0, 4, 0]
+
+#% cell
+knapsack_solve([[3, 4], [2, 5]], 10)
+#% output
+#= [2, 0]
+
+#% cell
+knapsack_solve([[3, 2, 7], [2, 1, 5]], 10)
+#% output
+#= [3, 4]
+
+#% cell
+knapsack_solve(assoc("apples" -> [8, 3, 3], "oranges" -> [9, 7, 5]), 25)
+#% output
+#= assoc("apples" -> 3, "oranges" -> 2)
+
+#% cell
+knapsack_solve([["Payoff" -> 4, "Cost" -> 12], ["Payoff" -> 5, "Cost" -> 13, "MaxCount" -> 2]], 45)
+#% output
+#= [1, 2]
+
+#% section
+# See also
+
+#% text
+# `linear_optimization`, `frobenius_solve`

@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# pyramid
+
+#% text
+# `pyramid([p1, p2, p3, p4, p5])`: the solid pyramid with base p1 p2 p3 p4 and apex p5 (a region and a graphics primitive)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+p = pyramid([[0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0], [1, 1, 2]])
+
+#% cell
+graphics3d([standard_blue, opacity(0.8), p])
+#% output
+#= image("pyramid.files/pyramid-2.svgz")
+
+#% cell
+[volume(p), region_centroid(p)]
+#% output
+#= [8/3, [1, 1, 1/2]]
+
+#% cell
+region_distance(p, [1, 2, 3])
+#% output
+#= 2^(1/2)
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

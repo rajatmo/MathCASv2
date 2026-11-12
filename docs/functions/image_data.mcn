@@ -1,0 +1,110 @@
+#! mathcas 2 notebook
+
+#% title
+# image_data
+
+#% text
+# `image_data(img)` gives the pixels of the image `img` as an array height x width x channels of reals in [0, 1].
+
+#% section
+# Details
+
+#% item
+# The first index picks a row from the top, the second a pixel from the left, the third a channel.
+
+#% item
+# Gray images have one channel, gray with alpha two, color three (red, green, blue) and color with alpha four.
+
+#% item
+# An 8-bit sample s becomes s/255 and a 16-bit sample s/65535. Palette images are expanded to color.
+
+#% item
+# The array is packed: a photograph of millions of pixels takes 8 bytes per sample.
+
+#% item
+# The file is read each time, so the result follows changes to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The pixels of a two-pixel gray image:
+
+#% cell
+image_data(image([[0.2, 0.8]]))
+#% output
+#= [[[0.2], [0.8]]]
+
+#% text
+# One pixel of a color image, as [red, green, blue]:
+
+#% cell
+let img = image([[[1, 0.5, 0], [0, 0, 1]]])
+image_data(img)[1, 1]
+#% output
+#= [1.0, 0.5019607843137255, 0.0]
+
+#% subsection
+# Scope
+
+#% text
+# Images read from files and plots work the same way:
+
+#% cell
+let p = list_plot([1, 4, 9])
+length(image_data(p)[1, 1])
+#% output
+#= 4
+
+#% subsection
+# Applications
+
+#% text
+# The mean brightness of a gradient:
+
+#% cell
+let g = image(table(x/99, y, 10, x, range(0, 99)))
+mean(flatten(image_data(g)))
+#% output
+#= 0.5
+
+#% text
+# An image's negative:
+
+#% cell
+let neg = image(1 - image_data(g))
+image_data(neg)[1, 1]
+#% output
+#= [1.0]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Levels that are multiples of 1/255 come back exactly:
+
+#% cell
+let a = n(table(k/255, j, 2, k, range(0, 9)))
+map(r => map(p => p[1], r), image_data(image(a))) === a
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# The argument must be an image value:
+
+#% cell
+image_data([[0.5]])
+#% output
+#! failure(argument, image_data, 1)
+
+#% section
+# See also
+
+#% text
+# `image`, `image_dimensions`, `image_channels`, `import_data`

@@ -1,0 +1,140 @@
+#! mathcas 2 notebook
+
+#% title
+# zeta
+
+#% text
+# `zeta(s)` gives the Riemann zeta function of `s`.
+
+#% section
+# Details
+
+#% item
+# For `s > 1`, `zeta(s)` is the sum of `1/k^s` for `k` from 1 to `inf` (DLMF 25.2.1); elsewhere it is the analytic continuation.
+
+#% item
+# `zeta` has a pole at `s` = 1; the exact 1 gives `failure(pole, zeta(1))`.
+
+#% item
+# Exact values: at positive even integers as rational multiples of powers of `pi`, and at 0 and the negative integers as rationals. The trivial zeros are at -2, -4, ....
+
+#% item
+# Other exact arguments stay unevaluated, such as `zeta(3)`. Real machine numbers and balls give numerical values.
+
+#% item
+# `zeta` is listable: it applies to each element of a list.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+zeta(2)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+zeta(-1)
+#% output
+#= -1/12
+
+#% text
+# A machine number:
+
+#% cell
+zeta(3.0)
+#% output
+#= 1.2020569031595942
+
+#% text
+# 30 digits:
+
+#% cell
+n(zeta(3), 30)
+#% output
+#= 1.2020569031595942853997381615114500
+
+#% subsection
+# Scope
+
+#% text
+# Even positive integers:
+
+#% cell
+zeta([2, 4, 6, 8])
+#% output
+#= [(1/6)*pi^2, (1/90)*pi^4, (1/945)*pi^6, (1/9450)*pi^8]
+
+#% text
+# Zero and negative integers:
+
+#% cell
+zeta(0)
+#% output
+#= -1/2
+
+#% cell
+zeta(-2)
+#% output
+#= 0
+
+#% cell
+zeta(-13)
+#% output
+#= -1/12
+
+#% text
+# Arguments below 1 by continuation:
+
+#% cell
+zeta(0.5)
+#% output
+#= -1.4603545088095868
+
+#% cell
+zeta(-1.5)
+#% output
+#= -0.025485201889833036
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sum of the reciprocal squares:
+
+#% cell
+sum(1/k^2, [k, 1, inf])
+#% output
+#= (1/6)*pi^2
+
+#% text
+# For large `s`, `zeta(s)` is close to 1:
+
+#% cell
+n(zeta(30) - 1)
+#% output
+#= 9.313274324196682e-10
+
+#% subsection
+# Possible issues
+
+#% text
+# The pole gives a failure for an exact argument, but `nan` for a machine one:
+
+#% cell
+zeta(1)
+#% output
+#! failure(pole, zeta(1))
+
+#% cell
+zeta(1.0)
+#% output
+#= indeterminate
+
+#% section
+# See also
+
+#% text
+# `sum`, `polylog`, `gamma`, `n`

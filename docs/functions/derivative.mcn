@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# derivative
+
+#% text
+# `derivative(n)(f)` gives the `n`-th derivative of the function `f`, printed as `f'`, `f''`, ...
+
+#% text
+# `derivative(n1, ..., nk)(f)` gives the partial derivative of a function of `k` arguments, `ni` times in the `i`-th argument.
+
+#% section
+# Details
+
+#% item
+# `f'(x)` is `derivative(1)(f)(x)`. For known functions applying the derivative gives the derivative's value: `sin'(x)` is `cos(x)`; for unknown functions it stays as `f'(x)`, which is what `d(f(x), x)` gives.
+
+#% item
+# For a lambda the derivative is a lambda.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+derivative(1)(sin)
+#% output
+#= sin'
+
+#% cell
+derivative(1)(sin)(x)
+#% output
+#= cos(x)
+
+#% cell
+sin''(0.5)
+#% output
+#= -0.479425538604203
+
+#% cell
+d(f(x), x)
+#% output
+#= f'(x)
+
+#% subsection
+# Scope
+
+#% text
+# A lambda:
+
+#% cell
+derivative(1)(x => x^3)
+#% output
+#= &(3*&1^2)
+
+#% text
+# Partial derivatives of an unknown function of two arguments:
+
+#% cell
+d(g(x, y), x, y)
+#% output
+#= derivative(1, 1)(g)(x, y)
+
+#% subsection
+# Applications
+
+#% text
+# A differential equation written with derivatives, solved numerically:
+
+#% cell
+s = n_dsolve([y''(t) + y(t) == 0, y(0) == 0, y'(0) == 1], y, [t, 0, 3]); y(1.0) /. s
+#% output
+#= 0.8414709830825576
+
+#% subsection
+# Properties and relations
+
+#% text
+# The chain rule produces derivatives of unknown functions:
+
+#% cell
+d(f(x^2), x)
+#% output
+#= 2*x*f'(x^2)
+
+#% section
+# See also
+
+#% text
+# `d`, `n_dsolve`, `integrate`

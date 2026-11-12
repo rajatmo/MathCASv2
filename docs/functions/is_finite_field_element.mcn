@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# is_finite_field_element
+
+#% text
+# `is_finite_field_element(a)` gives `true` when `a` is an element of a finite field, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# An integer is not a finite field element, even though it combines with them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_finite_field_element(finite_field(5, 2)(7))
+#% output
+#= true
+
+#% cell
+is_finite_field_element(7)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `finite_field_element`, `finite_field`

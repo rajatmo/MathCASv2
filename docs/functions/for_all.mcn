@@ -1,0 +1,71 @@
+#! mathcas 2 notebook
+
+#% title
+# for_all
+
+#% text
+# `for_all(x, formula)` is the statement that every `x` satisfies the formula; `for_all([x, y], formula)` binds several variables, `for_all(x, cond, formula)` is `for_all(x, implies(cond, formula))`.
+
+#% section
+# Details
+
+#% item
+# `for_all` stays as written; `resolve`, `reduce` and `cylindrical_decomposition` eliminate it.
+
+#% item
+# Variables that do not occur are dropped, and a `for_all` over no variable is its formula.
+
+#% item
+# `not(for_all(x, f))` is `exists(x, not f)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An unresolved statement:
+
+#% cell
+for_all([x, y], x^2 + y^2 >= 0)
+#% output
+#= for_all([x, y], x^2 + y^2 >= 0)
+
+#% text
+# Resolved:
+
+#% cell
+resolve(for_all([x, y], x^2 + y^2 >= 0))
+#% output
+#= true
+
+#% text
+# Boolean variables:
+
+#% cell
+resolve(for_all([p, q], implies(p and implies(p, q), q)))
+#% output
+#= true
+
+#% text
+# When is a quadratic positive everywhere:
+
+#% cell
+reduce(for_all(x, x^2 + a*x + 1 > 0), a)
+#% output
+#= -2 < a and a < 2
+
+#% text
+# Negation:
+
+#% cell
+not(for_all(x, x == a))
+#% output
+#= exists(x, x != a)
+
+#% section
+# See also
+
+#% text
+# `resolve`, `exists`, `cylindrical_decomposition`, `reduce`, `find_instance`

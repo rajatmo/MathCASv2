@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_sequence_transform
+
+#% text
+# `fourier_sequence_transform(f, k, w)` gives the discrete-time Fourier transform of the sequence f(k): the sum of `f(k) exp(-im k w)` over all integers k.
+
+#% section
+# Details
+
+#% item
+# By linearity: `discrete_delta(k - k0)` gives `exp(-im k0 w)`; a one-sided term `g(k) unit_step(k - k0)` or `g(k) unit_step(k1 - k)` is a Z transform at `z = exp(im w)` or `exp(-im w)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_sequence_transform((1/2)^k*unit_step(k), k, w)
+#% output
+#= 2*exp(im*w)/(-1 + 2*exp(im*w))
+
+#% cell
+fourier_sequence_transform(discrete_delta(k - k0), k, w)
+#% output
+#= exp(-im*k0*w)
+
+#% cell
+fourier_sequence_transform(unit_step(k)/factorial(k), k, w)
+#% output
+#= exp(exp(-im*w))
+
+#% section
+# See also
+
+#% text
+# `z_transform`, `fourier_transform`

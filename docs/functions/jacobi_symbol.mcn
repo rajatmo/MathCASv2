@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# jacobi_symbol
+
+#% text
+# `jacobi_symbol(a, n)` gives the Jacobi symbol `(a/n)` for an odd `n > 0`.
+
+#% section
+# Details
+
+#% item
+# For a prime `n` it is the Legendre symbol: 1 when `a` is a non-zero square modulo `n`, -1 when it is not, 0 when `n` divides `a`. For composite `n` it is the product of the Legendre symbols of the prime factors.
+
+#% item
+# The value is found by quadratic reciprocity, without factoring `n`. For even or negative `n` use `kronecker_symbol`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+jacobi_symbol(2, 7)
+#% output
+#= 1
+
+#% cell
+jacobi_symbol(3, 7)
+#% output
+#= -1
+
+#% cell
+jacobi_symbol(14, 7)
+#% output
+#= 0
+
+#% cell
+jacobi_symbol(1001, 9907)
+#% output
+#= -1
+
+#% subsection
+# Applications
+
+#% text
+# The quadratic residues modulo 11:
+
+#% cell
+select(range(10), a => jacobi_symbol(a, 11) == 1)
+#% output
+#= [1, 3, 4, 5, 9]
+
+#% cell
+union(mod(range(10)^2, 11))
+#% output
+#= [1, 3, 4, 5, 9]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Euler's criterion `a^((p - 1)/2) = (a/p) mod p`:
+
+#% cell
+[power_mod(5, 11, 23), mod(jacobi_symbol(5, 23), 23)]
+#% output
+#= [22, 22]
+
+#% section
+# See also
+
+#% text
+# `kronecker_symbol`, `power_mod`, `is_prime`

@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_name
+
+#% text
+# `integer_name(n)` gives the English name of the integer `n`.
+
+#% section
+# Details
+
+#% item
+# Numbers below 1000 are spelled out, hyphenated where it is usual; larger ones read as digits followed by the scale name (`1 million 234 thousand 567`).
+
+#% item
+# `integer_name(n, "Words")` spells every group of three digits.
+
+#% item
+# A list of integers gives a list of names.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_name(67)
+#% output
+#= "sixty‐seven"
+
+#% cell
+integer_name(-544)
+#% output
+#= "negative five hundred forty‐four"
+
+#% cell
+integer_name(0)
+#% output
+#= "zero"
+
+#% cell
+integer_name(1234567)
+#% output
+#= "1 million 234 thousand 567"
+
+#% cell
+integer_name(10990089, "Words")
+#% output
+#= "ten million, nine hundred ninety thousand, eighty‐nine"
+
+#% cell
+integer_name([12, 123, 1234])
+#% output
+#= ["twelve", "one hundred twenty‐three", "1 thousand 234"]
+
+#% section
+# See also
+
+#% text
+# `integer_string`, `integer_digits`

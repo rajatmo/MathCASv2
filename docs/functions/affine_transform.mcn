@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# affine_transform
+
+#% text
+# `affine_transform(m) or affine_transform([m, b])`: x -> m x + b, as a transformation_function
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+affine_transform([[[1, 2], [0, 1]], [1, 1]])([x, y])
+#% output
+#= [1 + x + 2*y, 1 + y]
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# haloing
+
+#% text
+# `haloing(...)`: a halo effect (accepted, not drawn)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([haloing(), text("label", [0, 0])], plot_range: 1)
+#% output
+#= image("haloing.files/haloing-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,29 @@
+[package]
+name = "mc-numtheory"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 number theory: integer functions, rounding, primes, prime counting, factorisation and modular arithmetic"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# uncertain numbers (around, interval, centered_interval) through the number functions
+mc-numeric = { path = "../mc-numeric" }
+# scoped parallelism on the session pool (sieving, prime counting)
+rayon = "1.12"
+
+[dev-dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
+# tests that evaluate source text through the assembled core
+mc-engine = { path = "../mc-engine" }
+# the owner of gcd and lcm
+mc-poly = { path = "../mc-poly" }
+mc-syntax = { path = "../mc-syntax" }
+rayon = "1.12"

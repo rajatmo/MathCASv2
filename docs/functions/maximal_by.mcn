@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# maximal_by
+
+#% text
+# `maximal_by(xs, f)` gives every element of `xs` with the largest `f(x)`, in their order; `maximal_by(xs, f, n)` the `n` elements with the largest keys, largest first.
+
+#% section
+# Details
+
+#% item
+# For an association, the entries with the largest values.
+
+#% item
+# `n` may be `up_to(n)` (at most `n`); ties keep their order.
+
+#% item
+# `maximal_by(f)(xs)` is `maximal_by(xs, f)`.
+
+#% item
+# `max_by` gives the first such element alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+maximal_by([[a, 3], [b, 2], [a, 2], [d, 1], [b, 3]], last)
+#% output
+#= [[a, 3], [b, 3]]
+
+#% cell
+maximal_by([1, 5, 3, 5, 2], abs, 3)
+#% output
+#= [5, 5, 3]
+
+#% cell
+maximal_by(last)(assoc("a" -> [4, 1], "b" -> [2, 3]))
+#% output
+#= assoc("b" -> [2, 3])
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic keys are ordered canonically:
+
+#% cell
+maximal_by([[a, 1], [b, 1], [d, 2]], first)
+#% output
+#= [[d, 2]]
+
+#% section
+# See also
+
+#% text
+# `minimal_by`, `max_by`, `sort_by`

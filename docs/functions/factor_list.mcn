@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# factor_list
+
+#% text
+# `factor_list(p)` gives the list `[[c, 1], [f1, e1], [f2, e2], ...]` of the numeric factor c and the irreducible factors fi of p with their multiplicities ei.
+
+#% section
+# Details
+
+#% item
+# The factors are those of `factor`; for a rational function the factors of the denominator have negative multiplicities.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factor_list(2*x^3 + 2*x^2 - 2*x - 2)
+#% output
+#= [[2, 1], [-1 + x, 1], [1 + x, 2]]
+
+#% cell
+factor_list(x^3 - 6*x^2 + 11*x - 6)
+#% output
+#= [[1, 1], [-3 + x, 1], [-2 + x, 1], [-1 + x, 1]]
+
+#% cell
+factor_list((x + 2)/(x^2 - 4*y^2))
+#% output
+#= [[1, 1], [2 + x, 1], [x - 2*y, -1], [x + 2*y, -1]]
+
+#% text
+# `exp(c w)` with an integer `c` is read as the `c`-th power of the kernel `exp(w)`, so exponentials factor like polynomials:
+
+#% cell
+factor_list(exp(2*x) - 2*exp(x) + 1)
+#% output
+#= [[1, 1], [-1 + exp(x), 2]]
+
+#% section
+# See also
+
+#% text
+# `factor`, `factor_terms`, `factor_square_free`

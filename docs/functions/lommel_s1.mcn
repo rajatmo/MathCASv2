@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# lommel_s1
+
+#% text
+# `lommel_s1(mu, nu, z)` gives the Lommel function `s_(mu, nu)(z)`.
+
+#% section
+# Details
+
+#% item
+# `s_(mu, nu)(z)` is the particular solution of `z^2 w'' + z w' + (z^2 - nu^2) w = z^(mu + 1)` given by the series of DLMF 11.9.3; `mu + nu` and `mu - nu` must not be negative odd integers.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lommel_s1(0.5, 0.5, 1.0)
+#% output
+#= 0.4596976941318603
+
+#% cell
+lommel_s1(1.5, 0.5, 2.0)
+#% output
+#= 0.771243185749177
+
+#% cell
+lommel_s1(1, 0, 3.0)
+#% output
+#= 1.2600519549019333
+
+#% subsection
+# Properties and relations
+
+#% text
+# The differential equation, checked numerically at `z = 1.3` with `mu = 1/2`, `nu = 1/3`:
+
+#% cell
+f = z => lommel_s1(0.5, 1/3, z); z0 = 1.3; h = 1.0e-4; z0^2*(f(z0 + h) - 2*f(z0) + f(z0 - h))/h^2 + z0*(f(z0 + h) - f(z0 - h))/(2*h) + (z0^2 - 1/9)*f(z0) - z0^1.5
+#% output
+#= -3.3976959024073494e-9
+
+#% section
+# See also
+
+#% text
+# `lommel_s2`, `struve_h`, `bessel_j`

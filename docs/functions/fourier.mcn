@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier
+
+#% text
+# `fourier(list)` gives the discrete Fourier transform of a list of numbers; `fourier(array)` transforms along every level of an array.
+
+#% section
+# Details
+
+#% item
+# The transform of `u` of length `n` is `v[s] = 1/n^((1 - a)/2) sum(u[r] exp(2 pi im b (r - 1)(s - 1)/n), r = 1..n)` with `fourier_parameters: [a, b]`, default `[0, 1]`. `[1, -1]` is the convention of signal processing, `[-1, 1]` that of data analysis.
+
+#% item
+# The result is numeric, at machine precision for exact or machine data and at the precision of the data otherwise.
+
+#% item
+# The fast algorithm is the mixed-radix Cooley-Tukey recursion on the prime factors of `n`.
+
+#% item
+# `inverse_fourier` with the same parameters undoes it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier([1, 1, 2, 2, 1, 1, 0, 0])
+#% output
+#= [2.8284271247461903 + 0.0im, -0.5000000000000001 + 1.2071067811865475im, 0.0 + 0.0im, 0.5000000000000001 - 0.20710678118654752im, 0.0 + 0.0im, 0.5000000000000001 + 0.20710678118654752im, 0.0 - 0.0im, -0.5000000000000001 - 1.2071067811865475im]
+
+#% cell
+abs(fourier([1, 1, 2, 2, 1, 1, 0, 0]))^2
+#% output
+#= [8.000000000000002, 1.7071067811865477, 0.0, 0.29289321881345265, 0.0, 0.29289321881345265, 0.0, 1.7071067811865477]
+
+#% cell
+fourier([1, 0, 1, 0, 0, 1, 0, 0, 0, 1], fourier_parameters: [1, 1])
+#% output
+#= [4.0 + 0.0im, 1.1180339887498947 + 0.3632712640026804im, 1.5 - 0.3632712640026805im, -1.1180339887498951 - 1.5388417685876266im, 1.4999999999999998 - 1.5388417685876268im, 0.0 + 0.0im, 1.5000000000000002 + 1.5388417685876266im, -1.1180339887498945 + 1.538841768587627im, 1.5000000000000004 + 0.36327126400268017im, 1.118033988749895 - 0.3632712640026804im]
+
+#% cell
+fourier(n([1, 0, 0, 1], 30))
+#% output
+#= [1.0000000000000000000000000000000000000 + 0.im, 0.50000000000000000000000000000000000000 - 0.50000000000000000000000000000000000000im, 0. + 0.im, 0.50000000000000000000000000000000000000 + 0.50000000000000000000000000000000000000im]
+
+#% cell
+fourier([[1, 0], [0, 1]])
+#% output
+#= [[1.0000000000000002, 0.0], [0.0, 1.0000000000000002]]
+
+#% section
+# See also
+
+#% text
+# `inverse_fourier`, `fourier_transform`, `threshold`

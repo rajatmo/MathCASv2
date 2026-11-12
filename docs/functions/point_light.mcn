@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# point_light
+
+#% text
+# `point_light(c, p)` is a light of colour `c` at the point `p`, for the option `lighting` of 3D graphics.
+
+#% section
+# Details
+
+#% item
+# The 3D renderer shades faces with its own fixed light; `point_light` is accepted in graphics and plot options, so code written for other lighting runs, and is not drawn.
+
+#% item
+# The call stays as it is when evaluated alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d(sphere(), lighting: [point_light(white, [2, 2, 2])])
+#% output
+#= image("point_light.files/point_light-1.svgz")
+
+#% cell
+plot3d(x*y, [x, -1, 1], [y, -1, 1], lighting: [point_light(red, [0, 0, 3])])
+#% output
+#= image("point_light.files/point_light-2.svgz")
+
+#% cell
+point_light(white, [1, 1, 1])
+#% output
+#= point_light(white, [1, 1, 1])
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics3d([orange, sphere()])
+#% output
+#= image("point_light.files/point_light-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `plot3d`, `lighting`, `spot_light`

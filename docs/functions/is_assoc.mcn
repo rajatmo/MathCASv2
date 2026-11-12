@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# is_assoc
+
+#% text
+# `is_assoc(x)` gives `true` when `x` is an association.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_assoc(assoc("a" -> 1))
+#% output
+#= true
+
+#% cell
+is_assoc([a -> 1])
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `assoc`, `to_rules`, `keys`

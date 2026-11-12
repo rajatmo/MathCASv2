@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_c
+
+#% text
+# `mathieu_c(a, q, z)` gives the even Mathieu function with characteristic value `a` and parameter `q`.
+
+#% section
+# Details
+
+#% item
+# It is the even Floquet solution `ce_nu(z) = sum_k c_k cos((nu + 2k) z)` of `y'' + (a - 2 q cos(2 z)) y = 0` with `sum c_k^2 = 1` (DLMF 28.2, 28.12).
+
+#% item
+# Numerical values: Taylor series of the equation re-expanded along the segment from 0, and the normalization from the characteristic exponent `nu` (`cos(pi nu) = w_I(pi)`, DLMF 28.2.16) and the Fourier coefficients of the Floquet solution (continued fractions, `sum c_k^2 = 1`). Real `a` and `q` use this normalization throughout; complex `a` or `q` use the principal branches and may differ from other conventions by the normalization.
+
+#% item
+# `mathieu_c(a, 0, z) = cos(sqrt(a) z)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mathieu_c(2, 1, 3.2)
+#% output
+#= -0.8995311634414612
+
+#% cell
+n(mathieu_c(2, 1, 37/10), 20)
+#% output
+#= -0.7067473413037672704676
+
+#% cell
+mathieu_c(a, 0, z)
+#% output
+#= cos(z*a^(1/2))
+
+#% text
+# At a characteristic value the function is periodic:
+
+#% cell
+a0 = mathieu_characteristic_a(0, 1.0); mathieu_c(a0, 1.0, pi + 0.3) - mathieu_c(a0, 1.0, 0.3)
+#% output
+#= -3.3306690738754696e-16
+
+#% section
+# See also
+
+#% text
+# `mathieu_s`, `mathieu_s_prime`, `mathieu_characteristic_a`

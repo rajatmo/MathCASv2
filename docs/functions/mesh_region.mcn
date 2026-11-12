@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# mesh_region
+
+#% text
+# `mesh_region(points, cells)`: a region made of cells (point, line, polygon, triangle, tetrahedron, hexahedron, ...) over indexed points; evaluates to its canonical form
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+m = mesh_region([[0, 0], [1, 0], [1, 1], [0, 1]], polygon([1, 2, 3, 4]))
+
+#% cell
+show(m, graphics([red, point([1/2, 1/2])]))
+#% output
+#= image("mesh_region.files/mesh_region-2.svgz")
+
+#% cell
+[area(m), region_centroid(m)]
+#% output
+#= [1.0, [0.5, 0.5]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

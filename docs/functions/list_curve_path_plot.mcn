@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# list_curve_path_plot
+
+#% text
+# `list_curve_path_plot([[x, y], ...])` draws a curve through the points in nearest-neighbour order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_curve_path_plot([[0, 0], [1, 1], [1, 0], [0, 1], [0.5, 1.2]])
+#% output
+#= image("list_curve_path_plot.files/list_curve_path_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_line_plot`

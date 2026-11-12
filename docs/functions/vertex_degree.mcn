@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# vertex_degree
+
+#% text
+# `vertex_degree(g)` gives the degree of each vertex; `vertex_degree(g, v)` that of one.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vertex_degree(graph([1 -> 2, 1 -> 3, 2 -> 3]))
+#% output
+#= [2, 2, 2]
+
+#% cell
+vertex_degree(graph([1 -> 2, 1 -> 3, 2 -> 3]), 1)
+#% output
+#= 2
+
+#% section
+# See also
+
+#% text
+# `graph`, `graph_plot`

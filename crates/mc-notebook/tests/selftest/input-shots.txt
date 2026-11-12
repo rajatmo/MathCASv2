@@ -1,0 +1,49 @@
+# Screenshots of math input (round 32), checked by eye: baseline alignment, script sizes and offsets, fraction bars,
+# radical fit, placeholders, the caret inside structures, the selection highlight, clipping; both themes at 100 %,
+# 150 % and 200 %. Driven by tests/input_selftest.rs (the run checks only that every picture was written).
+size 1000 700
+ppp 1
+theme light
+new
+keys Ctrl+End "f = e" Ctrl+6 "-x" Ctrl+6 "2" Ctrl+Space Ctrl+/ "2" Ctrl+Space Ctrl+Space " + " Ctrl+2 "1 + " Ctrl+2 "1 + " Ctrl+2 "x" Ctrl+Space Ctrl+Space Ctrl+Space " + " Ctrl+5 "3" Ctrl+5 "27" Ctrl+Space " + x" Ctrl+6 "3" Ctrl+/ "2"
+keys Ctrl+End "g = " Ctrl+/ Ctrl+Space " + " Ctrl+6 Ctrl+Space " + " Ctrl+2
+keys Ctrl+End "h = (" Ctrl+2 "5" Ctrl+Space " + 1)" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "1 + 1" Ctrl+/ "1 + 1" Ctrl+/ "x"
+keys Ctrl+End "1 + 1" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "3" Ctrl+Space " + 1" Ctrl+/ "4" Ctrl+Space " + 1" Ctrl+/ "5" Ctrl+Space " + 1" Ctrl+/ "6" Ctrl+Space " + 1" Ctrl+/ "7" Ctrl+Space " + 1" Ctrl+/ "8" Ctrl+Space " + 1" Ctrl+/ "9" Ctrl+Space " + 1" Ctrl+/ "10" Ctrl+Space " + 1" Ctrl+/ "11" Ctrl+Space " + 1" Ctrl+/ "12" Ctrl+Space " + 1" Ctrl+/ "13" Ctrl+Space " + 1" Ctrl+/ "14" Ctrl+Space " + 1" Ctrl+/ "15" Ctrl+Space " + 1" Ctrl+/ "16" Ctrl+Space " + 1" Ctrl+/ "17" Ctrl+Space " + 1" Ctrl+/ "18" Ctrl+Space " + 1" Ctrl+/ "19" Ctrl+Space " + 1" Ctrl+/ "20"
+eval
+keys Ctrl+End "det([[1, 1" Ctrl+/ "2" Ctrl+Space "], [1" Ctrl+/ "3" Ctrl+Space ", 1" Ctrl+/ "4" Ctrl+Space "]]) + integrate(" Ctrl+2 "x" Ctrl+Space ", [x, 0, 1]) + " Esc "a" Esc Ctrl+6 "2" Ctrl+Space " + quantity(3, \"Meters\")" Ctrl+/ "quantity(2, \"Seconds\")"
+eval
+keys Ctrl+End "(1 + x)" Ctrl+6 "5"
+eval
+log caret in the denominator of the first cell
+keys Ctrl+Home Down Ctrl+Space Home Right Right Right Right Right Right Right Right Right
+boxes
+shot s1-light-100
+log a selection across the boxes of the first cell
+keys Ctrl+Space Home Shift+End
+boxes
+shot s2-light-100-selected
+log the Insert menu with the box keys and the aliases
+click 93 12
+wait 3
+shot s8-insert-menu
+move 136 322
+wait 4
+shot s9-greek-menu
+keys Esc
+keys Ctrl+Space Home Right Right Right Right Right Right Right Right Right
+theme dark
+wait 4
+shot s3-dark-100
+ppp 1.5
+wait 6
+shot s4-dark-150
+theme light
+wait 4
+shot s5-light-150
+ppp 2
+wait 6
+shot s6-light-200
+theme dark
+wait 4
+shot s7-dark-200
+quit

@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# lyapunov_solve
+
+#% text
+# `lyapunov_solve(a, c)` gives the matrix x with `a . x + x . conjugate_transpose(a) == c`.
+
+#% text
+# `lyapunov_solve(a, b, c)` gives the matrix x with `a . x + x . b == c` (the Sylvester equation).
+
+#% section
+# Details
+
+#% item
+# The equation is solved as the linear system `(I (x) a + transpose(b) (x) I) vec(x) == vec(c)` with Kronecker products; exact matrices give exact solutions.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lyapunov_solve([[1, 3], [2, 1]], [[-2, -1], [-1, -4]])
+#% output
+#= [[11/10, -7/10], [-7/10, -3/5]]
+
+#% cell
+lyapunov_solve([[-1, 1], [1, -2]], [[-1, 0], [0, 0]])
+#% output
+#= [[5/6, 1/3], [1/3, 1/6]]
+
+#% cell
+let a = [[-3, 2], [-1, -1]]
+let x = lyapunov_solve(a, [[1, 0], [0, 1]])
+dot(a, x) + dot(x, transpose(a))
+#% output
+#= [[1, 0], [0, 1]]
+
+#% cell
+lyapunov_solve([[1, 2], [0, 3]], [[2, 0], [1, 1]], [[1, 1], [1, 1]])
+#% output
+#= [[3/20, 1/4], [3/20, 1/4]]
+
+#% section
+# See also
+
+#% text
+# `discrete_lyapunov_solve`, `riccati_solve`, `kronecker_product`

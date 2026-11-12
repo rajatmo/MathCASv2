@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# orthogonalize
+
+#% text
+# `orthogonalize(vs)` gives an orthonormal basis of the span of the vectors `vs` by the Gram-Schmidt process.
+
+#% section
+# Details
+
+#% item
+# Vectors that depend on earlier ones are dropped.
+
+#% item
+# The inner product is `a . conjugate(b)`; `orthogonalize(vs, f)` uses `f(a, b)`.
+
+#% item
+# Exact input gives exact results; machine numbers are compared to zero with a relative tolerance of 1e-10.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+orthogonalize([[1, 0, 1], [1, 1, 1]])
+#% output
+#= [[(1/2)*2^(1/2), 0, (1/2)*2^(1/2)], [0, 1, 0]]
+
+#% cell
+orthogonalize([[2, 3], [0, 2], [3, 1]])
+#% output
+#= [[(2/13)*13^(1/2), (3/13)*13^(1/2)], [(-3/13)*13^(1/2), (2/13)*13^(1/2)]]
+
+#% cell
+orthogonalize([[1, 2], [2, 4]])
+#% output
+#= [[(1/5)*5^(1/2), (2/5)*5^(1/2)]]
+
+#% cell
+orthogonalize([[1.25, 3], [7.9, -1.4]])
+#% output
+#= [[0.38461538461538464, 0.9230769230769231], [0.923076923076923, -0.3846153846153846]]
+
+#% section
+# See also
+
+#% text
+# `projection`, `qr`, `null_space`

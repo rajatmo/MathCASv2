@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# alphabetic_order
+
+#% text
+# `alphabetic_order(a, b)` gives 1, 0 or -1 as the strings `a` and `b` are in alphabetic order, equal or not: letter case is folded first, then lower case comes before upper case. `alphabetic_order()` and `alphabetic_order("English")` are the ordering function itself, for `sort`. Other languages' collations are not available.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+alphabetic_order("cat", "Cat")
+#% output
+#= 1
+
+#% cell
+alphabetic_order("fish", "cat")
+#% output
+#= -1
+
+#% cell
+sort(["cat", "fish", "catfish", "Cat"], alphabetic_order())
+#% output
+#= ["cat", "Cat", "catfish", "fish"]
+
+#% section
+# See also
+
+#% text
+# `alphabetic_sort`, `order`, `sort`

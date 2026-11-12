@@ -1,0 +1,192 @@
+#! mathcas 2 notebook
+
+#% title
+# expand
+
+#% text
+# `expand(e)` multiplies out the products and positive integer powers of sums in `e`, giving a sum of terms.
+
+#% section
+# Details
+
+#% item
+# Products of sums are distributed and powers of sums with a positive integer exponent are multiplied out; like terms are collected.
+
+#% item
+# A quotient is expanded in its numerator: each term is divided by the denominator, which is left as it is.
+
+#% item
+# Arguments of functions are not touched: `expand(sin(x + y))` stays as it is.
+
+#% item
+# Negative, fractional, real and symbolic exponents are left as they are.
+
+#% item
+# Lists are expanded element by element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A binomial power:
+
+#% cell
+expand((x + 1)^5)
+#% output
+#= 1 + 5*x + 10*x^2 + 10*x^3 + 5*x^4 + x^5
+
+#% text
+# A product of two sums:
+
+#% cell
+expand((x + y)*(x - y))
+#% output
+#= -y^2 + x^2
+
+#% text
+# The square of a trinomial:
+
+#% cell
+expand((a + b + c)^2)
+#% output
+#= 2*a*b + 2*a*c + 2*b*c + a^2 + b^2 + c^2
+
+#% subsection
+# Scope
+
+#% text
+# A product of several factors:
+
+#% cell
+expand(x*(x + 1)*(x + 2))
+#% output
+#= 2*x + 3*x^2 + x^3
+
+#% text
+# Coefficients other than 1:
+
+#% cell
+expand((2x - 3)^3)
+#% output
+#= -27 + 54*x - 36*x^2 + 8*x^3
+
+#% text
+# Radicals in the coefficients:
+
+#% cell
+expand((x + sqrt(2))^2)
+#% output
+#= 2 + 2*x*2^(1/2) + x^2
+
+#% text
+# Sums multiplying functions:
+
+#% cell
+expand(sin(x)*(1 + cos(x)))
+#% output
+#= cos(x)*sin(x) + sin(x)
+
+#% text
+# A quotient: the numerator is expanded and each term keeps the denominator.
+
+#% cell
+expand((x + 1)^2/(x - 1))
+#% output
+#= x^2/(-1 + x) + 2*x/(-1 + x) + (-1 + x)^-1
+
+#% text
+# Lists, element by element:
+
+#% cell
+expand([(x + 1)^2, (x - 1)^2])
+#% output
+#= [1 + 2*x + x^2, 1 - 2*x + x^2]
+
+#% subsection
+# Applications
+
+#% text
+# The number of terms of a large binomial power:
+
+#% cell
+length(expand((a + b)^20))
+#% output
+#= 21
+
+#% text
+# Checking a factorisation by multiplying it out:
+
+#% cell
+expand((x - 1)*(x^2 + x + 1))
+#% output
+#= -1 + x^3
+
+#% subsection
+# Properties and relations
+
+#% text
+# `factor` reverses `expand` for polynomials:
+
+#% cell
+factor(expand((x + 1)^3))
+#% output
+#= (1 + x)^3
+
+#% text
+# `simplify` may choose the factored form:
+
+#% cell
+simplify(expand((x + 1)^2))
+#% output
+#= (1 + x)^2
+
+#% subsection
+# Possible issues
+
+#% text
+# Powers that are not positive integers are not expanded:
+
+#% cell
+expand((1 + x)^-2)
+#% output
+#= (1 + x)^-2
+
+#% cell
+expand((x + 1)^2.0)
+#% output
+#= (1 + x)^2.0
+
+#% cell
+expand((x + y)^n)
+#% output
+#= (x + y)^n
+
+#% text
+# Arguments of functions are left alone:
+
+#% cell
+expand(sin(x + y))
+#% output
+#= sin(x + y)
+
+#% cell
+expand(exp(x + y))
+#% output
+#= exp(x + y)
+
+#% text
+# Both sides of an equation are expanded:
+
+#% cell
+expand((x + 1)^2 == 0)
+#% output
+#= 1 + 2*x + x^2 == 0
+
+#% section
+# See also
+
+#% text
+# `factor`, `simplify`, `coefficient`

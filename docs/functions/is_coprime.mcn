@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# is_coprime
+
+#% text
+# `is_coprime(a, b, ...)` gives `true` when the integers are pairwise coprime, with no prime factor in common.
+
+#% section
+# Details
+
+#% item
+# With two arguments it is `gcd(a, b) == 1`; with more, every pair must be coprime.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_coprime(8, 15)
+#% output
+#= true
+
+#% cell
+is_coprime(8, 14)
+#% output
+#= false
+
+#% cell
+is_coprime(6, 35, 11)
+#% output
+#= true
+
+#% cell
+is_coprime(6, 35, 10)
+#% output
+#= false
+
+#% subsection
+# Applications
+
+#% text
+# The chance that two random integers are coprime is `6/pi^2`; among the pairs below 100:
+
+#% cell
+n(count_if(tuples(range(100), 2), p => is_coprime(p[1], p[2]))/100^2)
+#% output
+#= 0.6087
+
+#% cell
+6/pi^2.0
+#% output
+#= 0.6079271018540267
+
+#% subsection
+# Properties and relations
+
+#% text
+# Pairwise coprime is stronger than a gcd of 1:
+
+#% cell
+[is_coprime(6, 10, 15), gcd(6, 10, 15)]
+#% output
+#= [false, 1]
+
+#% section
+# See also
+
+#% text
+# `gcd`, `divisible`, `euler_phi`

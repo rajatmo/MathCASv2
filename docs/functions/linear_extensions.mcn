@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# linear_extensions
+
+#% text
+# `linear_extensions(P)`: the linear orders of the elements compatible with the poset
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+linear_extensions(poset([a, b, c, d], [[a, b], [c, d]]))
+#% output
+#= [[a, b, c, d], [a, c, b, d], [a, c, d, b], [c, a, b, d], [c, a, d, b], [c, d, a, b]]
+
+#% section
+# See also
+
+#% text
+# `linear_extension_count`, `poset_covers`

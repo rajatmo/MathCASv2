@@ -1,0 +1,159 @@
+#! mathcas 2 notebook
+
+#% title
+# kronecker_delta
+
+#% text
+# `kronecker_delta(n1, n2, ...)` gives 1 when all the arguments are equal and 0 when two of them are different numbers.
+
+#% text
+# `kronecker_delta(n)` gives 1 for 0 and 0 for other numbers.
+
+#% section
+# Details
+
+#% item
+# Numbers are compared by value, exact or machine: `kronecker_delta(1/2, 0.5)` is 1. Two machine numbers that differ in the last bit are different (`0.1 + 0.2` and `0.3`).
+
+#% item
+# With symbolic arguments that may differ the call stays; equal arguments give 1, and arguments that differ by a nonzero number (`a` and `a + 1`) give 0.
+
+#% item
+# `kronecker_delta` is not listable: a list argument stays. It is the discrete delta of an index; for a continuous variable use `dirac_delta`, and for the sequence `1, 0, 0, ...` of a transform `discrete_delta`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+kronecker_delta(2, 2)
+#% output
+#= 1
+
+#% cell
+kronecker_delta(1, 2)
+#% output
+#= 0
+
+#% cell
+kronecker_delta(a, a)
+#% output
+#= 1
+
+#% cell
+kronecker_delta(i, j)
+#% output
+#= kronecker_delta(i, j)
+
+#% subsection
+# Scope
+
+#% text
+# The identity matrix as a table:
+
+#% cell
+table(kronecker_delta(i, j), i, range(1, 3), j, range(1, 3))
+#% output
+#= [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+#% text
+# Several arguments are all equal or not:
+
+#% cell
+[kronecker_delta(1, 1, 1), kronecker_delta(1, 1, 2), kronecker_delta(x, y, x)]
+#% output
+#= [1, 0, kronecker_delta(x, y, x)]
+
+#% text
+# One argument is compared with 0:
+
+#% cell
+[kronecker_delta(0), kronecker_delta(3)]
+#% output
+#= [1, 0]
+
+#% text
+# Exact, machine and complex numbers, and expressions that simplify to equal ones:
+
+#% cell
+[kronecker_delta(1/2, 0.5), kronecker_delta(im, im), kronecker_delta(2*a - a, a), kronecker_delta(a, a + 1)]
+#% output
+#= [1, 1, 1, 0]
+
+#% text
+# Large integers are compared exactly:
+
+#% cell
+kronecker_delta(10^100, 10^100)
+#% output
+#= 1
+
+#% subsection
+# Applications
+
+#% text
+# The delta picks one term out of a sum:
+
+#% cell
+sum(kronecker_delta(k, 3)*k^2, [k, 1, 10])
+#% output
+#= 9
+
+#% text
+# A symbol that has a value is replaced before the comparison:
+
+#% cell
+kronecker_delta(i, j) /. [i -> 2, j -> 2]
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# The table of deltas is the identity matrix:
+
+#% cell
+identity_matrix(3) == table(kronecker_delta(i, j), i, range(1, 3), j, range(1, 3))
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A list is not threaded; use `map`:
+
+#% cell
+kronecker_delta([1, 2, 3], 2)
+#% output
+#= kronecker_delta([1, 2, 3], 2)
+
+#% cell
+map(k => kronecker_delta(k, 2), [1, 2, 3])
+#% output
+#= [0, 1, 0]
+
+#% text
+# Machine numbers are compared as they are; rounding makes sums differ from their exact values:
+
+#% cell
+kronecker_delta(0.1 + 0.2, 0.3)
+#% output
+#= 0
+
+#% text
+# An exact and an arbitrary-precision number that cannot be compared stay a call:
+
+#% cell
+kronecker_delta(n(1/3, 30), 1/3)
+#% output
+#= kronecker_delta(0.3333333333333333333333333333333333, 1/3)
+
+#% section
+# See also
+
+#% text
+# `discrete_delta`, `dirac_delta`, `identity_matrix`

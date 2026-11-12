@@ -1,0 +1,731 @@
+% MathCAS v2: getting started with numeric work. Build: latexmk -pdf quickstart.tex (or pdflatex twice).
+% Every example below was run through the current development build; outputs are copied verbatim.
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{kw}{RGB}{0,70,140}
+\definecolor{cm}{RGB}{110,110,110}
+\definecolor{st}{RGB}{150,60,0}
+\definecolor{bg}{RGB}{246,247,249}
+\definecolor{fr}{RGB}{215,218,224}
+\definecolor{tipbg}{RGB}{238,244,252}
+
+\lstdefinelanguage{mathcas}{
+  morekeywords={let,var,fn,rule,sym,module,pub,import,if,then,else,while,for,in,match,when,held,and,or,not,true,false,null},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+\lstset{
+  language=mathcas,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  commentstyle=\color{cm}\itshape,
+  stringstyle=\color{st},
+  backgroundcolor=\color{bg},
+  frame=single, rulecolor=\color{fr}, framesep=4pt,
+  columns=fullflexible, keepspaces=true,
+  breaklines=true, breakatwhitespace=true,
+  showstringspaces=false,
+  aboveskip=6pt, belowskip=6pt,
+  literate={~}{{\char126}}1,
+}
+% a REPL exchange: input lines start with "mc> ", the next line is the output
+\lstnewenvironment{repl}{}{}
+\lstnewenvironment{shell}{\lstset{language={},keywordstyle={}}}{}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\tip}[1]{\par\smallskip\noindent\colorbox{tipbg}{\parbox{\dimexpr\linewidth-2\fboxsep}{\small\textbf{Tip.} #1}}\par\smallskip}
+\setlist{itemsep=2pt,topsep=4pt}
+% long function names in running text cannot hyphenate: let the spacing stretch instead of overrunning the margin
+\emergencystretch=3em
+
+\title{\textbf{MathCAS v2}\\[4pt]\large Getting started with numeric work}
+\author{}
+\date{Version 0.7.0, November 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\noindent This tutorial is for people who want numbers out of MathCAS: evaluating formulas to any number of
+digits, finding roots and minima, writing fast numeric loops and running simulations with random numbers. It
+assumes no earlier knowledge of MathCAS. Work through it at the REPL; every example was run on the current
+build and its output is copied unchanged.
+
+\tableofcontents
+
+\section{Setting up}
+
+The distribution folder (or the installed program) holds \code{mc-notebook.exe}, the notebook, and
+\code{mc-docs.exe}, the documentation window (a page with examples for every function, also opened by F1 in the
+notebook, with short guides to twelve topics on its start page); \code{mc-repl.exe}, the interactive REPL, which also
+runs scripts and notebooks; \code{mc-kernel.exe} and \code{mc-lsp.exe} for editors; \code{mc-bench.exe}, the
+benchmark runner; \code{examples\textbackslash} and the VS Code extension. This tutorial uses the REPL: start it and
+type an expression; its value is printed below it. In the notebook the same inputs work in a cell
+(Shift+Enter evaluates it); \code{x(x - a)} is a call and products need \code{*} there too.
+
+\begin{repl}
+mc> 1/3 + 1/6
+1/2
+mc> exp(1.5)
+4.4816890703380645
+\end{repl}
+
+\noindent Useful REPL commands while doing numerics:
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\code{:time} & toggle timing: prints \code{time: ... ms} after each result \\
+\code{:load file.mc} & read and run a script \\
+\code{:history}, \code{:redo [k]} & show earlier inputs, run one again \\
+\textbf{Ctrl+C} & stop a long computation and keep the session \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Longer work goes into a script file \code{work.mc}, run with \code{mc-repl work.mc} (add \code{-i}
+to stay in the REPL afterwards). \code{say(a, b, ...)} prints its arguments from a script.
+
+\paragraph{Notebooks.} Every example in this tutorial also runs in a Jupyter notebook, in Jupyter itself or in
+VS Code. With Python and \code{ipykernel} installed, the installer registers the kernel (or run
+\code{python jupyter\textbackslash install.py} in the program folder). Then open a \code{.ipynb} file, choose the
+kernel \textbf{MathCAS v2}, and each cell shows the value of its last statement. Interrupt stops a running cell;
+restart gives a fresh session. \code{examples\textbackslash jupyter.ipynb} is a sample.
+
+\section{Three kinds of numbers}
+
+MathCAS keeps three kinds of numbers apart, and knowing which one you hold is the key to numeric work.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}llX@{}}
+\toprule
+\textbf{Kind} & \textbf{Written} & \textbf{Behaviour} \\
+\midrule
+exact & \code{3}, \code{2/7}, \code{sqrt(2)}, \code{pi} & integers and rationals of any size; constants and roots stay symbolic \\
+machine real & \code{1.5}, \code{2.0e-8}, \code{n(x)} & IEEE double precision: fast, about 16 digits, no error tracking \\
+ball & \code{1.25\char126 30}, \code{n(x, 30)} & a value with a guaranteed error bound, at any precision \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\noindent Exact arithmetic never rounds. \code{n} turns an exact quantity into a number: with one argument
+into a machine real, with a digit count into a ball.
+
+\begin{repl}
+mc> q = 1/3 + 2/7
+mc> q
+13/21
+mc> n(q)
+0.6190476190476191
+mc> n(q, 40)
+0.61904761904761904761904761904761904761904762
+\end{repl}
+
+\noindent \textbf{Mixing kinds} gives the least exact kind present: exact $<$ ball $<$ machine real. A single
+machine real in a computation makes the whole result a machine real, so ask for digits at the start, not at
+the end:
+
+\begin{repl}
+mc> n(pi, 30) + 1/2
+3.6415926535897932384626433832795029
+mc> n(pi, 30) + 0.5
+3.641592653589793
+\end{repl}
+
+\noindent \code{precision(x)} tells you what you hold: the number of correct decimal digits, \code{inf} for an
+exact number, about 16 for a machine real.
+
+\begin{repl}
+mc> precision(1/3)
+inf
+mc> precision(1.5)
+15.954589770191003
+mc> precision(n(pi, 30))
+34.91947949702182
+\end{repl}
+
+\section{Machine reals and their limits}
+
+Machine reals are what most numeric software uses. They are fast, but they round every operation, silently:
+
+\begin{repl}
+mc> 0.1 + 0.2
+0.30000000000000004
+mc> 1.0e30 + 1 - 1.0e30
+0.0
+mc> 10^30 + 1 - 10^30
+1
+\end{repl}
+
+\noindent The second line lost the \code{1} entirely: next to $10^{30}$ it falls below the 16 digits a machine
+real carries. The exact computation on the third line has no such problem. This is the usual pattern in
+MathCAS: \emph{compute exactly while you can, turn into numbers as late as possible}.
+
+\section{Arbitrary precision with balls}
+
+\code{n(x, d)} evaluates \code{x} with at least \code{d} correct digits. The result is a \emph{ball}: a midpoint
+and a radius that is guaranteed to enclose the true value. MathCAS prints only the digits that the radius
+guarantees.
+
+\begin{repl}
+mc> n(pi, 50)
+3.141592653589793238462643383279502884197169399375105821
+mc> n(sqrt(2), 40)
+1.4142135623730950488016887242096980785696719
+mc> n(exp(1), 30)
+2.7182818284590452353602874713526625
+mc> n(euler_gamma, 30)
+0.5772156649015328606065120900824024
+\end{repl}
+
+\noindent You can also write a ball directly: \code{1.25\char126 20} is 1.25 with 20 correct digits.
+
+\paragraph{Balls track their own error.} When digits are lost, the ball knows, and prints fewer:
+
+\begin{repl}
+mc> b = 1~20
+mc> (b + 10^-15) - b
+1.000e-15
+mc> n(sqrt(2), 20)^2 - 2
+ball(-2.0679515313825691872e-25, 4.08e-25)
+\end{repl}
+
+\noindent Starting from 20 digits, the subtraction leaves only four. The second result is a number so close to
+zero that not a single digit is certain, so MathCAS shows the ball as it is: a midpoint and a radius. A ball
+whose interval contains zero is the honest answer to \textquotedblleft is this zero?\textquotedblright: as far
+as 20 digits can tell.
+
+\tip{When a result has fewer digits than you asked for, the computation lost precision on the way (a
+cancellation like the one above). Ask for more digits at the start: \code{n(expr, 50)} instead of
+\code{n(expr, 20)}.}
+
+\paragraph{Functions of balls.} Every elementary function (\code{exp}, \code{log}, \code{sin} \ldots\
+\code{tanh}, \code{sqrt}, powers) evaluates on balls to any precision. Large arguments are no problem, because
+the argument reduction is done with enough digits:
+
+\begin{repl}
+mc> n(sin(10^20), 20)
+-0.645251285265780844205812
+mc> n(exp(100), 20)
+2.688117141816135448413e43
+\end{repl}
+
+\paragraph{Working with the digits.} A few helpers for the boundary between numbers and exact values:
+
+\begin{repl}
+mc> rationalize(0.75)
+3/4
+mc> rationalize(n(pi), 1/1000)
+201/64
+mc> set_precision(0.1, 30)
+0.100000000000000005551115123126
+mc> chop(n(exp(pi*1im)))
+-1.0
+\end{repl}
+
+\noindent \code{set\_precision} shows that the machine real \code{0.1} is not one tenth: it is the nearest
+binary fraction, and with 30 digits you see the difference.
+
+\section{Complex numbers}
+
+The imaginary unit is written \code{im}, as in \code{3 + 4im}. Machine complex numbers and complex balls print
+as sums such as \code{-1.13 + 2.47im}.
+
+\begin{repl}
+mc> abs(3 + 4im)
+5
+mc> n(exp(1 + 2im))
+-1.1312043837568135 + 2.4717266720048188im
+mc> n(exp(1 + 2im), 30)
+-1.1312043837568136384312552555107947 + 2.471726672004818927616930893551665im
+mc> n(sqrt(-2))
+0.0 + 1.4142135623730951im
+\end{repl}
+
+\noindent \code{re}, \code{im\_part}, \code{conjugate} and \code{arg} take complex numbers apart.
+
+\section{Exact first, numbers last}
+
+Many questions have an exact answer that MathCAS can find; you then evaluate it to as many digits as you need.
+Differentiation, integration and series are symbolic:
+
+\begin{repl}
+mc> d(sin(x)^2, x)
+2*cos(x)*sin(x)
+mc> integrate(1/(1 + x^2), [x, 0, 1])
+(1/4)*pi
+mc> n(integrate(1/(1 + x^2), [x, 0, 1]), 30)
+0.7853981633974483096156608458198757
+mc> series(exp(x), x, 0, 5)
+1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+\end{repl}
+
+\noindent The same holds for sums: add exactly, then evaluate.
+
+\begin{repl}
+mc> n(sum(map(k => 1/k^2, range(1000))), 30)
+1.6439345666815598031390580238222156
+\end{repl}
+
+\noindent Lists of numbers come from \code{range}, \code{table}, \code{map} and \code{nest\_list}; \code{n}
+works on whole lists.
+
+\begin{repl}
+mc> n(range(0, 1, 1/4))
+[0.0, 0.25, 0.5, 0.75, 1.0]
+mc> table(n(k*pi/4), k, range(0, 4))
+[0.0, 0.7853981633974483, 1.5707963267948966, 2.356194490192345, 3.141592653589793]
+\end{repl}
+
+\noindent Arithmetic works element by element on lists, so a whole vector of values is one expression:
+
+\begin{repl}
+mc> [1, 2, 3] + [10, 20, 30]
+[11, 22, 33]
+mc> n(pi)*[1, 2, 3]/2
+[1.5707963267948966, 3.141592653589793, 4.71238898038469]
+mc> [1, 2, 3]^2
+[1, 4, 9]
+\end{repl}
+
+\section{Iterations}
+
+\code{nest\_list(f, x, k)} applies \code{f} to \code{x} \code{k} times and keeps every step: a fixed-point
+iteration in one line. Newton's method for $\sqrt 2$, $x \mapsto (x + 2/x)/2$, doubles the number of correct
+digits each step:
+
+\begin{repl}
+mc> nest_list(x => (x + 2/x)/2, 1.0, 5)
+[1.0, 1.5, 1.4166666666666665, 1.4142156862745097, 1.4142135623746899, 1.414213562373095]
+\end{repl}
+
+\noindent The same iteration on a 30-digit ball needs only one more step to reach 30 digits, and the result
+says how many it has:
+
+\begin{repl}
+mc> nest(x => (x + 2/x)/2, 1~30, 6)
+1.4142135623730950488016887242
+\end{repl}
+
+\noindent Symbolic and numeric work combine naturally: here is Newton's method for any function, with the
+derivative computed symbolically once.
+
+\begin{lstlisting}
+fn newton(f, x0, steps) = {
+  var x = x0
+  let df = d(f(t), t)          # the derivative, exactly
+  for i in range(steps) { x = x - f(x)/rewrite(df, [t -> x]) }
+  x
+}
+\end{lstlisting}
+\begin{repl}
+mc> newton(t => t^2 - 2, 1.0, 6)
+1.414213562373095
+mc> newton(t => t^2 - 2, 1~50, 8)
+1.41421356237309504880168872420969807856967187538
+\end{repl}
+
+\noindent Of course you rarely need to write this yourself: that is what \code{find\_root} is for.
+
+\section{Finding roots}
+
+\code{find\_root(f, [x, x0])} finds a root of \code{f} (or a solution of \code{lhs == rhs}) near the starting
+value \code{x0}. It uses Newton's method with the exact derivative. The result is a list of rules, so you can
+substitute it into other expressions.
+
+\begin{repl}
+mc> find_root(cos(x) - x, [x, 1])
+[x -> 0.7390851332151607]
+mc> r = find_root(cos(x) - x, [x, 1])
+mc> rewrite(x, r)
+0.7390851332151607
+\end{repl}
+
+\noindent The second argument chooses the method:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\code{[x, x0]} & Newton from \code{x0} (exact derivative; secant steps when there is none) \\
+\code{[x, x0, x1]} & secant method from two starting values \\
+\code{[x, x0, a, b]} & Brent's method inside the bracket $[a, b]$ (a sign change is required) \\
+\code{[[x, x0], [y, y0]]} & a system of equations: Newton with the exact Jacobian, Broyden as a fallback \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{repl}
+mc> find_root(x^3 - 2x - 5, [x, 2, 3])
+[x -> 2.0945514815423265]
+mc> find_root([x^2 + y^2 - 4, x - y], [[x, 1], [y, 1]])
+[x -> 1.4142135623730951, y -> 1.4142135623730951]
+mc> find_root(x^2 + 1, [x, 1 + 1im])
+[x -> 0.0 + 1.0im]
+\end{repl}
+
+\noindent A complex starting value searches in the complex plane, as on the last line.
+
+\paragraph{Many digits.} The option \code{working\_precision: d} (also written \code{digits: d}) refines the machine root with balls. For a simple root of
+a real function in one variable, the result is \emph{verified}: the ball is proved to contain exactly one root.
+
+\begin{repl}
+mc> find_root(cos(x) == x, [x, 1], digits: 40)
+[x -> 0.7390851332151606416553120876738734040134]
+mc> find_root(sin(x), [x, 3], digits: 60)
+[x -> 3.1415926535897932384626433832795028841971693993751058209749]
+\end{repl}
+
+\paragraph{When it fails.} A root finder that cannot converge does not stop your session. It returns a
+\code{failure} value with its best estimate and an error estimate:
+
+\begin{repl}
+mc> find_root(exp(x) + 1, [x, 0])
+failure(not_converged, find_root, [x -> -8136.132507311747], 8125.743451212817)
+\end{repl}
+
+\noindent ($e^x + 1$ has no real root; Newton's method ran off to $-\infty$.) Failures are ordinary values:
+test them with \code{is\_failure}, and choose a different starting value or a bracket.
+
+\section{Finding minima and maxima}
+
+\code{find\_minimum(f, [x, x0])} returns the minimum value and where it is attained; \code{find\_maximum} works
+the same way. Several variables use BFGS with the exact gradient.
+
+\begin{repl}
+mc> find_minimum(x^4 - 3x^2 + x, [x, 1])
+[-1.0702301817761541, [x -> 1.1309011226299859]]
+mc> find_maximum(sin(x)*exp(-x/5), [x, 1])
+[0.7450600126415114, [x -> 1.373400766945016]]
+mc> find_minimum((x - 1)^2 + 100(y - x^2)^2, [[x, -1], [y, 1]])
+[0.0, [x -> 1.0, y -> 1.0]]
+\end{repl}
+
+\noindent The last one is Rosenbrock's banana function, a classic hard case: a long curved valley with its
+minimum at $(1, 1)$.
+
+\paragraph{A precision subtlety.} Near a minimum a function is flat, so its value changes very little when
+the position does. A minimiser can therefore locate the \emph{value} to full precision but the \emph{position}
+only to about half the digits:
+
+\begin{repl}
+mc> f = x^3 - 6x^2 + 9x + 1
+mc> find_minimum(f, [x, 2.5])
+[0.9999999999999929, [x -> 3.0000000298023224]]
+mc> find_root(d(f, x), [x, 2.5])
+[x -> 3.0]
+\end{repl}
+
+\noindent When you need the position accurately, solve $f'(x) = 0$ with \code{find\_root}, as on the last line.
+
+\section{Numeric integration}
+
+Many integrals have no closed form that \code{integrate} can find (\code{x\textasciicircum x} over $[0, 1]$ has none, while \code{exp(-x\textasciicircum 2)} has one with \code{erf}); it then leaves them as they are.
+\code{n\_integrate(f, [x, a, b])} computes their value numerically.
+
+\begin{repl}
+mc> integrate(x^x, [x, 0, 1])
+integrate(x^x, [x, 0, 1])
+mc> n_integrate(x^x, [x, 0, 1])
+0.7834305107121345
+mc> n_integrate(exp(-x^2), [x, -inf, inf])
+1.7724538509055159
+\end{repl}
+
+\noindent (The last one is $\sqrt\pi$.) By default the integrand is compiled, the interval is split adaptively
+where the integrand is hard (Gauss--Kronrod rules), and the result is good to about eight digits relative,
+usually to all sixteen. Singularities at the ends are handled by a second method (double-exponential rules),
+chosen automatically:
+
+\begin{repl}
+mc> n_integrate(1/sqrt(x), [x, 0, 1])
+1.9999999999999998
+mc> n_integrate(log(x)^2, [x, 0, 1])
+2.0
+\end{repl}
+
+\paragraph{Ranges.} \code{inf} and \code{-inf} are allowed as limits. List known trouble spots inside the range
+between the limits, \code{[x, a, s1, s2, b]}, to split there. More ranges give a multiple integral; inner limits
+may depend on outer variables:
+
+\begin{repl}
+mc> n_integrate(1/(1 + x^2), [x, -1, 0, 1])
+1.5707963267948966
+mc> n_integrate(x*y, [x, 0, 1], [y, 0, x])
+0.12499999999999996
+\end{repl}
+
+\paragraph{Many digits, and guarantees.} \code{working\_precision: d} (or \code{digits: d}) integrates on balls to \code{d} digits. The error is
+then estimated, not proved; add \code{rigorous: true} for a ball that is guaranteed to contain the integral
+(for integrands built from the elementary functions, on a finite range).
+
+\begin{repl}
+mc> n_integrate(exp(-x^2), [x, 0, 1], digits: 40)
+0.746824132812427025399467436131853005354500
+mc> n_integrate(exp(-x^2), [x, 0, 1], digits: 30, rigorous: true)
+0.74682413281242702539946743613185
+\end{repl}
+
+\paragraph{When it fails.} A divergent integral or one that cannot reach the goal gives a failure with the
+estimate and the error estimate, as \code{find\_root} does:
+
+\begin{repl}
+mc> n_integrate(1/x, [x, 0, 1])
+failure(not_converged, n_integrate, 44.501326166534795, 13.112269516493784)
+\end{repl}
+
+\noindent Other options: \code{accuracy\_goal} and \code{precision\_goal} (in digits); \code{method}, either
+\code{gauss\_kronrod} or \code{double\_exponential}; \code{max\_subdivisions}; and \code{compile: false}.
+
+\section{Differential equations}
+
+\code{n\_dsolve(equations, unknowns, [t, t0, t1])} solves ordinary differential equations numerically. Write the
+equations with primes and give the initial conditions as equations too. The result is a list of rules, like
+\code{find\_root}'s: each unknown becomes an \code{interpolating\_function}, a function you can evaluate anywhere
+in the range.
+
+\begin{repl}
+mc> sol = n_dsolve([y'(t) == -y(t)/2, y(0) == 1], y, [t, 0, 10])
+mc> sol
+[y -> interpolating_function("y", [0.0, 10.0], 39, "66d23807a7863f0f")]
+mc> rewrite(y(2), sol)
+0.3678794417481203
+mc> rewrite(y([0, 1, 2]), sol)
+[1.0, 0.6065306598001193, 0.3678794417481203]
+\end{repl}
+
+\noindent The summary shows the range and the number of steps taken (39). The exact value $e^{-1}$ is
+0.36787944117144233: by default the solution is accurate to about eight digits; ask for more with
+\code{precision\_goal: 12}. Evaluating outside the range gives \code{failure(out\_of\_range, ...)}.
+
+\paragraph{Higher order and systems.} Second and higher derivatives are written with more primes; systems list
+their unknowns. Products must be written with \code{*} (\code{x(t)*y(t)}: \code{x(t) y(t)} or
+\code{x(t)(28 - z(t))} would read as a call). The Lorenz system:
+
+\begin{lstlisting}
+lor = n_dsolve([x'(t) == 10*(y(t) - x(t)),
+                y'(t) == x(t)*(28 - z(t)) - y(t),
+                z'(t) == x(t)*y(t) - 8*z(t)/3,
+                x(0) == 1, y(0) == 1, z(0) == 1], [x, y, z], [t, 0, 20])
+\end{lstlisting}
+\begin{repl}
+mc> rewrite([x(20), y(20), z(20)], lor)
+[13.804638918840993, 12.968730181543803, 34.912416415052746]
+\end{repl}
+
+\paragraph{Stiff equations.} Some equations mix very fast and very slow behaviour; explicit methods then crawl.
+\code{n\_dsolve} notices this and switches to an implicit method (\code{method: stiff} forces it). The Van der Pol
+oscillator with $\mu = 1000$ is a classic test:
+
+\begin{repl}
+mc> vdp = n_dsolve([v''(t) == 1000*(1 - v(t)^2)*v'(t) - v(t), v(0) == 2, v'(0) == 0], v, [t, 0, 3000])
+mc> vdp
+[v -> interpolating_function("v", [0.0, 3000.0], 2920, "8caf0157fb22950b")]
+\end{repl}
+
+\noindent That took about 5 ms. The right-hand side is compiled, as for \code{n\_integrate}.
+
+\paragraph{Events.} \code{events: [g == 0]} stops the integration where \code{g} crosses zero: here, when a
+dropped ball reaches the ground. The rules then also say where it stopped.
+
+\begin{repl}
+mc> fall = n_dsolve([h''(t) == -9.81, h(0) == 10, h'(0) == 0], h, [t, 0, 5], events: [h(t) == 0])
+mc> fall
+[h -> interpolating_function("h", [0.0, 1.4278431229270643], 4, "196ff5f967e63e16"), events -> [[1.4278431229270643, 1]]]
+\end{repl}
+
+\paragraph{One value, many digits.} \code{n\_dsolve\_value(equations, expr, range)} gives the value of an
+expression of the solution directly. With \code{digits: d} it switches to a Taylor-series method on balls. The
+equation $y' = 1 + y^2$, $y(0) = 0$ has the solution $\tan t$:
+
+\begin{repl}
+mc> n_dsolve_value([y'(t) == 1 + y(t)^2, y(0) == 0], y(3/2), [t, 0, 3/2], digits: 30)
+14.10141994717171938764608365199
+mc> n(tan(3/2), 30)
+14.10141994717171938764608365198776
+\end{repl}
+
+\section{Fast numeric loops: the compiler}
+
+Loops written in MathCAS are interpreted, which costs about a microsecond per operation. For numeric loops
+MathCAS has a compiler that produces machine code. A function qualifies when its parameters are typed
+(\code{Int} or \code{Real}) and its body uses arithmetic, comparisons, \code{if}, \code{let}/\code{var},
+\code{while}, \code{for} over ranges and the elementary functions. Put \code{@compiled} before \code{fn}, or call
+\code{compile(f)} later.
+
+\begin{lstlisting}
+fn slow(n: Int) = { var s = 0.0; for k in range(n) { s = s + sin(1.0*k) }; s }
+\end{lstlisting}
+\begin{repl}
+mc> :time
+timing on
+mc> slow(200000)
+-0.03338662721108862
+time: 1.143 s
+mc> compile(slow)
+slow
+mc> slow(200000)
+-0.03338662721108862
+time: 1.136 ms
+\end{repl}
+
+\noindent A thousand times faster, with the same result to the last bit. That is a guarantee, not luck:
+whenever compiled code meets something it cannot do natively (an integer overflow, the square root of a
+negative number, a function it does not know), the call falls back to the interpreter. Compiling never
+changes an answer.
+
+Two more examples: the trapezoidal rule for $\int_0^1 e^{-x^2}\,dx$, and the logistic map, a classic of chaos.
+
+\begin{lstlisting}
+@compiled fn trap(m: Int) = {
+  let h = 1.0/m
+  var s = 0.5*(exp(0.0) + exp(-1.0))
+  for k in range(m - 1) { s = s + exp(-(k*h)^2) }
+  s*h
+}
+@compiled fn logistic(r: Real, n: Int) = {
+  var x = 0.5
+  for k in range(n) { x = r*x*(1.0 - x) }
+  x
+}
+\end{lstlisting}
+\begin{repl}
+mc> trap(1000)
+0.7468240714991843
+mc> logistic(3.7, 1000)
+0.8101078985832381
+\end{repl}
+
+\noindent \code{compiled\_info(f)} shows what the compiler made of a function: parameter and result types,
+code size, compile time, and how many calls ran compiled or fell back.
+
+\begin{repl}
+mc> compiled_info(trap)
+[params -> [Int], result -> Real, hir_nodes -> 41, lir_instructions -> 73, code_bytes -> 856, back_end -> "cranelift", compile_microseconds -> 868, inlined -> [], state -> "active", runs -> 1, declines -> 0]
+\end{repl}
+
+\tip{Compile the inner loop, not the whole program. Exact arithmetic, symbolic work and balls stay in the
+interpreter, where they belong: at high precision the arithmetic itself, not the interpreter, takes the time.}
+
+\section{Random numbers and simulation}
+
+The session has one random generator. \code{seed(n)} makes a run reproducible.
+
+\begin{center}
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\code{random\_real()}, \code{random\_real([a, b], n)} & uniform reals in $[0, 1)$ or $[a, b)$; with \code{n}, a list \\
+\code{random\_integer([a, b], n)} & uniform integers from \code{a} to \code{b} \\
+\code{random\_normal(mu, sigma)} & normally distributed reals \\
+\code{random\_choice(xs)}, \code{random\_sample(xs, n)} & elements of a list, with and without repetition \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{repl}
+mc> seed(42)
+mc> random_real()
+0.3354948980859701
+mc> random_real([0, 10], 3)
+[1.5456113417635597, 9.64328247450341, 4.275784977896785]
+mc> random_integer([1, 6], 5)
+[3, 6, 5, 6, 3]
+\end{repl}
+
+\noindent A Monte Carlo estimate of $\pi$: the fraction of random points in the unit square that fall inside
+the quarter circle is $\pi/4$.
+
+\begin{repl}
+mc> seed(7)
+mc> 4.0*count_if(range(100000), k => random_real()^2 + random_real()^2 < 1)/100000
+3.14604
+\end{repl}
+
+\noindent The error of such an estimate shrinks like $1/\sqrt{N}$: a hundred times more points for one more
+digit. So simulations want speed: compiled functions can draw random numbers, and draw exactly the numbers
+the interpreter would.
+
+\begin{lstlisting}
+@compiled fn mc_pi(k: Int) = {
+  var hits = 0
+  for i in range(k) {
+    let a = random_real()
+    let b = random_real()
+    if a*a + b*b < 1.0 then hits = hits + 1 else hits
+  }
+  4.0*hits/k
+}
+\end{lstlisting}
+\begin{repl}
+mc> seed(7)
+mc> mc_pi(10^7)
+3.140728
+\end{repl}
+
+\noindent Ten million points take about a quarter of a second. Compiled code also handles complex numbers
+(\code{complex(x, y)}, \code{im}, arithmetic, \code{abs}, \code{exp} and the other elementary functions): a
+Mandelbrot escape-time loop compiles.
+
+\section{Failures, limits and interrupts}
+
+Numeric work fails in ordinary ways: an iteration does not converge, a value is not a number, a computation
+takes too long. MathCAS reports all of these as values instead of crashing or hanging:
+
+\begin{itemize}
+  \item \code{failure(not\_converged, f, estimate, error)}: a solver gave up; the estimate is often still
+    useful.
+  \item \code{failure(not\_numeric, f, point)}: the function did not give a number at some point (a typo in a
+    variable name is the usual cause).
+  \item \code{failure(division\_by\_zero)}, \code{failure(argument, f, k)}: bad input.
+  \item \textbf{Ctrl+C} interrupts any computation, compiled loops included, and keeps the session and its
+    definitions.
+\end{itemize}
+
+\noindent \code{is\_failure(v)} and \code{failure\_tag(v)} let a script react to them.
+
+\section{Quick reference}
+
+\begin{center}
+\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+\textbf{Write} & \textbf{Meaning} \\
+\midrule
+\code{n(x)}, \code{n(x, d)} & machine real; ball with at least \code{d} correct digits \\
+\code{1.25\char126 30} & a ball literal with 30 digits \\
+\code{precision(x)}, \code{accuracy(x)} & correct digits: relative, absolute \\
+\code{set\_precision(x, d)}, \code{rationalize(x, tol)}, \code{chop(x)} & change precision, back to exact, drop tiny parts \\
+\code{pi}, \code{e}, \code{euler\_gamma}, \code{catalan}, \code{im} & constants \\
+\code{re}, \code{im\_part}, \code{abs}, \code{arg}, \code{conjugate} & complex parts \\
+\code{floor}, \code{ceiling}, \code{round}, \code{clip}, \code{rescale}, \code{sign} & rounding and ranges \\
+\code{d(f, x)}, \code{integrate(f, x)}, \code{integrate(f, [x, a, b])} & exact derivative, antiderivative, definite integral \\
+\code{series(f, x, x0, k)} & power series to order \code{k} \\
+\code{find\_root(f, [x, x0])} and variants & roots (Newton, secant, Brent, systems, complex) \\
+\code{find\_minimum}, \code{find\_maximum} & local extrema (Brent, BFGS) \\
+\code{n\_integrate(f, [x, a, b])} & numeric integral (also infinite and multiple ranges) \\
+\code{n\_dsolve(eqs, y, [t, t0, t1])}, \code{n\_dsolve\_value} & differential equations \\
+\code{nest(f, x, k)}, \code{nest\_list(f, x, k)} & iterate a function \\
+\code{range}, \code{table}, \code{map}, \code{sum}, \code{total} & build and reduce lists \\
+\code{@compiled fn}, \code{compile(f)}, \code{compiled\_info(f)} & compile to machine code, inspect \\
+\code{seed}, \code{random\_real}, \code{random\_integer}, \code{random\_normal} & random numbers \\
+\code{option: value} after the arguments & options, e.g.\ \code{digits: 40} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Where to go next}
+
+The documentation window has a short guide for each of: getting started, solving equations and inequalities, calculus and transforms, simplification and assumptions, differential equations, precision and numerics, plotting and graphics, lists and data, special functions, transforms and series, function properties, and finite fields and number theory. Each shows worked examples whose outputs were written by the engine, the common mistakes, and links to the function pages; the search box finds guides as well as functions, and the notebook's Help menu has a Guides entry that opens the list. This tutorial's numeric tools are the ones to reach for when a symbolic answer does not exist; the symbolic ones are \code{solve}, \code{reduce}, \code{d\_solve}, \code{limit}, \code{series}, \code{integrate} and the integral transforms \code{laplace\_transform}, \code{fourier\_transform}, \code{mellin\_transform} and \code{z\_transform}. Plots (see \code{plot}, \code{plot3d}, \code{list\_plot}), special functions (\code{gamma}, \code{zeta}, Bessel functions) and linear algebra have their own pages.
+
+\end{document}

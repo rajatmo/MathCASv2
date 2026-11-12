@@ -1,0 +1,139 @@
+#! mathcas 2 notebook
+
+#% title
+# function_convexity
+
+#% text
+# `function_convexity(f, x)` gives `1` when `f` is convex on its domain, `-1` when concave, `0` when linear, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# It is the sign of the second derivative on the domain of `f` (see `function_sign`).
+
+#% item
+# Functions with kinks or jumps, such as `abs` and `floor`, are decided from the slopes between neighbouring sample points, since their second derivative misses the kinks.
+
+#% item
+# `function_convexity([f, cond], x)` restricts the domain.
+
+#% item
+# In several variables the principal minors of the Hessian decide: all `>= 0` for convex, of alternating sign for concave (`strict_inequalities: true`: strictly).
+
+#% item
+# With parameters `conditional_expression(1, c)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola and a cubic:
+
+#% cell
+function_convexity(x^2, x)
+#% output
+#= 1
+
+#% cell
+function_convexity(x^3, x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# The logarithm is concave on its domain:
+
+#% cell
+function_convexity([log(x), x > 0], x)
+#% output
+#= -1
+
+#% text
+# A linear function:
+
+#% cell
+function_convexity(3*x + 1, x)
+#% output
+#= 0
+
+#% text
+# A cubic on half the line:
+
+#% cell
+function_convexity([x^3, x > 0], x)
+#% output
+#= 1
+
+#% text
+# A kink is convex:
+
+#% cell
+function_convexity(abs(x), x)
+#% output
+#= 1
+
+#% subsection
+# Options
+
+#% text
+# Two variables:
+
+#% cell
+[function_convexity(x^2 + y^2, [x, y]), function_convexity(x^2 - y^2, [x, y]), function_convexity(-exp(x + y), [x, y])]
+#% output
+#= [1, indeterminate, -1]
+
+#% text
+# Parameters:
+
+#% cell
+function_convexity(x^2 + a*x*y + y^2, [x, y])
+#% output
+#= conditional_expression(1, -2 <= a and a <= 2)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sign of the second derivative:
+
+#% cell
+function_sign(d(exp(x), [x, 2]), x)
+#% output
+#= 1
+
+#% cell
+function_convexity(exp(x), x)
+#% output
+#= 1
+
+#% text
+# A convex function lies below its chords: the midpoint check at sample points for `exp`:
+
+#% cell
+map(t => exp((t + 3)/2) <= (exp(t) + exp(3))/2, [-2, 0, 1, 2.5])
+#% output
+#= [true, true, true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# The same for the square root, and an unknown function stays unevaluated:
+
+#% cell
+[function_convexity(sqrt(x), x), function_convexity([sqrt(x), x > 0], x), function_convexity(g(x), x)]
+#% output
+#= [indeterminate, -1, function_convexity(g(x), x)]
+
+#% section
+# See also
+
+#% text
+# `function_sign`, `function_monotonicity`, `d`

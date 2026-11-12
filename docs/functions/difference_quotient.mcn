@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# difference_quotient
+
+#% text
+# `difference_quotient(f, [x, h])` gives the difference quotient `(f(x + h) - f(x))/h`.
+
+#% text
+# `difference_quotient(f, [x, k, h])` gives the k-th forward difference quotient; `difference_quotient(f, spec1, spec2, ...)` applies the specifications in turn.
+
+#% section
+# Details
+
+#% item
+# The k-th quotient is the sum of `(-1)^(k - j) binomial(k, j) f(x + j h)` over j = 0, ..., k, divided by h^k and cancelled.
+
+#% item
+# A list of functions is mapped element-wise. The limit h -> 0 is the derivative.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+difference_quotient(x^3, [x, h])
+#% output
+#= 3*x^2 + 3*h*x + h^2
+
+#% cell
+difference_quotient(f(x), [x, 2, h])
+#% output
+#= (f(x) + f(x + 2*h) - 2*f(h + x))/h^2
+
+#% cell
+difference_quotient(f(x, y), [x, r], [y, s])
+#% output
+#= (f(x, y) + f(r + x, s + y) - f(x, s + y) - f(r + x, y))/(r*s)
+
+#% cell
+limit(difference_quotient(x*sin(x), [x, h]), h -> 0)
+#% output
+#= x*cos(x) + sin(x)
+
+#% section
+# See also
+
+#% text
+# `d`, `difference_delta`, `limit`

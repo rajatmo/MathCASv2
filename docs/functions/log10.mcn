@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# log10
+
+#% text
+# `log10(x)` gives the base-10 logarithm of `x`.
+
+#% section
+# Details
+
+#% item
+# An exact power of 10 gives its exponent; any other argument becomes `log(x)/log(10)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+log10(10^5)
+#% output
+#= 5
+
+#% cell
+log10(1/10)
+#% output
+#= -1
+
+#% cell
+log10(x)
+#% output
+#= log(x)/log(10)
+
+#% subsection
+# Scope
+
+#% cell
+log10(3.0)
+#% output
+#= 0.4771212547196624
+
+#% cell
+n(log10(3), 25)
+#% output
+#= 0.4771212547196624372950279033
+
+#% section
+# See also
+
+#% text
+# `log`, `log_base`, `exp`

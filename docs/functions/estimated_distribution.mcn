@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# estimated_distribution
+
+#% text
+# `estimated_distribution(xs, d)` gives the distribution `d` with its symbolic parameters estimated from the data `xs` by maximum likelihood.
+# The option `method: moments` uses the method of moments instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+seed(1); estimated_distribution(random_normal(3, 2, 10000), normal_distribution(mu, s))
+#% output
+#= normal_distribution(3.006388522938442, 1.9948841519736833)
+
+#% cell
+estimated_distribution([2, 3, 1, 4, 2, 3], poisson_distribution(m))
+#% output
+#= poisson_distribution(5/2)
+
+#% subsection
+# Scope
+
+#% text
+# The method of moments:
+
+#% cell
+seed(2); estimated_distribution(random_variate(gamma_distribution(2, 3), 10000), gamma_distribution(k, t), method: moments)
+#% output
+#= gamma_distribution(1.9560860821053139, 3.0811653181660112)
+
+#% section
+# See also
+
+#% text
+# `find_fit`, `mean`, `pdf`

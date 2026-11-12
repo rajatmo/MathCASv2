@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# factorial2
+
+#% text
+# `factorial2(n)` gives the double factorial n (n - 2) (n - 4) ....
+
+#% section
+# Details
+
+#% item
+# factorial2(0) = factorial2(-1) = 1; other numbers by the gamma-function interpolation.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+factorial2(7)
+#% output
+#= 105
+
+#% cell
+factorial2(8)
+#% output
+#= 384
+
+#% cell
+factorial2(2.5)
+#% output
+#= 2.407069456116044
+
+#% section
+# See also
+
+#% text
+# `factorial`, `subfactorial`

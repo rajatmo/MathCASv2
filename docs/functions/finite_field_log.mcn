@@ -1,0 +1,108 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_log
+
+#% text
+# `finite_field_log(a)` gives the discrete logarithm of the nonzero finite field element `a` to the base `x`, the generator: the `k` from 0 to `q - 2` with `x^k == a`.
+
+#% section
+# Details
+
+#% item
+# `finite_field_log(a, g)` gives the `k` with `g^k == a`, the least one below the order of `g`, when `a` is a power of `g`; otherwise the call stays unevaluated.
+
+#% item
+# The method is Pohlig and Hellman's: the logarithm modulo each prime power dividing the order, by baby steps and giant steps, combined by the Chinese remainder theorem. Prime factors of the order above 2^46 are out of reach.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(11, 3)
+
+#% cell
+a = F([3, 1, 4])
+
+#% cell
+k = finite_field_log(a)
+
+#% cell
+F([0, 1])^k == a
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Another base:
+
+#% cell
+g = F([2, 2])
+
+#% cell
+finite_field_log(g^100, g)
+#% output
+#= 100
+
+#% text
+# A larger field:
+
+#% cell
+G = finite_field(2, 40)
+
+#% cell
+finite_field_log(G([0, 1])^123456789012)
+#% output
+#= 123456789012
+
+#% subsection
+# Properties and relations
+
+#% text
+# The logarithm inverts the power, and for the exponential representation it is the shown index less one:
+
+#% cell
+Q = finite_field(7, 2)
+k = finite_field_log(Q([3, 5]))
+[Q([0, 1])^k == Q([3, 5]), finite_field_log(finite_field(7, 2, "Exponential")(10)), finite_field_log(Q(6))]
+#% output
+#= [true, 9, 24]
+
+#% text
+# A field with large characteristic (about 10^12 elements):
+
+#% cell
+big = finite_field(1000003, 2)
+big([0, 1])^finite_field_log(big([5, 7])) == big([5, 7])
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# Zero has no logarithm, and an element that is not a power of the base gives no answer (the middle value is 0: `1` is the 0th power):
+
+#% cell
+[finite_field_log(Q(0)), finite_field_log(Q(1), Q([0, 1])^2), finite_field_log(Q([0, 1]), Q([0, 1])^2)]
+#% output
+#= [finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [])), 0, finite_field_log(finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [0, 1]), finite_field_element(finite_field(7, &(3 + 6*&1 + &1^2), "Polynomial"), [4, 1]))]
+
+#% text
+# The logarithm is the least one: the base `3` has the order 6 in `F_49`, so `3^7 = 3`:
+
+#% cell
+finite_field_log(Q(3)^7, Q(3))
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `finite_field_index`, `finite_field_primitive_element`, `is_finite_field_element_primitive`

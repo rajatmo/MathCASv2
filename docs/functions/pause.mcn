@@ -1,0 +1,33 @@
+#! mathcas 2 notebook
+
+#% title
+# pause
+
+#% text
+# `pause(t)` waits `t` seconds.
+
+#% section
+# Details
+
+#% item
+# The value is `null`. An interrupt, or the limit of an enclosing `time_constrained`, ends the wait.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pause(0.1)
+
+#% cell
+time_constrained(pause(5), 0.1, "stopped")
+#% output
+#= "stopped"
+
+#% section
+# See also
+
+#% text
+# `time_constrained`, `timing`

@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# labels
+
+#% text
+# `labels` is an option of `bar_chart`: `labels: ["a", "b", ...]` writes the labels under the bars or groups of bars.
+
+#% section
+# Details
+
+#% item
+# Labels are given in the order of the data; a group of bars gets one label.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bar_chart([3, 5, 2], labels: ["red", "green", "blue"])
+#% output
+#= image("labels.files/labels-1.svgz")
+
+#% cell
+bar_chart([[1, 2], [3, 4], [2, 2]], labels: ["2024", "2025", "2026"])
+#% output
+#= image("labels.files/labels-2.svgz")
+
+#% cell
+bar_chart([10, 20, 15, 5], labels: ["Q1", "Q2", "Q3", "Q4"])
+#% output
+#= image("labels.files/labels-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `bar_chart`, `plot_legends`

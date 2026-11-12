@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# fibonacci
+
+#% text
+# `fibonacci(n)` gives the Fibonacci number F_n.
+
+#% text
+# `fibonacci(n, x)` gives the Fibonacci polynomial F_n(x).
+
+#% section
+# Details
+
+#% item
+# F_0 = 0, F_1 = 1, F_(n+1) = F_n + F_(n-1); negative n by F_(-n) = (-1)^(n+1) F_n.
+
+#% item
+# Other numeric n use Binet's formula (phi^n - cos(pi n) phi^-n)/sqrt(5) with the golden ratio phi.
+
+#% item
+# Exact integers are computed by fast doubling.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fibonacci(10)
+#% output
+#= 55
+
+#% cell
+map(fibonacci, range(10))
+#% output
+#= [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+
+#% cell
+fibonacci(5, x)
+#% output
+#= 1 + 3*x^2 + x^4
+
+#% subsection
+# Scope
+
+#% cell
+fibonacci(-6)
+#% output
+#= -8
+
+#% cell
+fibonacci(2.5)
+#% output
+#= 1.4893065462657096
+
+#% cell
+length(integer_digits(fibonacci(10^4)))
+#% output
+#= 2090
+
+#% section
+# See also
+
+#% text
+# `lucas_l`, `binomial`

@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# x_label
+
+#% text
+# `x_label` is an option of every plot: `x_label: "text"` writes a label under the x axis.
+
+#% section
+# Details
+
+#% item
+# `$...$` in the text is mathematics: `"$t$ (s)"`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot(sin(x), [x, 0, 2*pi], x_label: "angle")
+#% output
+#= image("x_label.files/x_label-1.svgz")
+
+#% cell
+plot(exp(-t), [t, 0, 3], x_label: "$t$ (s)", y_label: "$N/N_0$")
+#% output
+#= image("x_label.files/x_label-2.svgz")
+
+#% cell
+list_plot([1, 4, 9, 16], x_label: "n")
+#% output
+#= image("x_label.files/x_label-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `y_label`, `frame_label`, `axes_label`, `plot_label`

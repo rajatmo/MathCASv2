@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_young_tableaux_count
+
+#% text
+# `standard_young_tableaux_count(shape)`: the number of standard Young tableaux, by the hook length formula
+
+#% section
+# Details
+
+#% item
+# The count is n! divided by the product of the hook lengths.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+standard_young_tableaux_count([3, 2])
+#% output
+#= 5
+
+#% cell
+standard_young_tableaux_count([10, 9, 8, 7, 6, 5, 4, 3, 2, 1])
+#% output
+#= 44261486084874072183645699204710400
+
+#% cell
+total(map(s => standard_young_tableaux_count(s)^2, integer_partitions(8)))
+#% output
+#= 40320
+
+#% section
+# See also
+
+#% text
+# `hook_lengths`, `standard_young_tableaux`

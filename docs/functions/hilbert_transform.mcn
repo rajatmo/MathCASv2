@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# hilbert_transform
+
+#% text
+# `hilbert_transform(f, t, s)` gives the Hilbert transform `(1/pi) PV integrate(f(t)/(s - t), [t, -inf, inf])`.
+
+#% section
+# Details
+
+#% item
+# By linearity from the transforms of `sin(a t + b)`, `cos(a t + b)`, `exp(im (a t + b))`, `dirac_delta(t)` and constants, and for a rational function vanishing at infinity from its complex partial fractions: `(t - z)^-k` becomes `im sign(im(z)) (s - z)^-k`.
+
+#% item
+# A numeric s evaluates the closed form at s.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hilbert_transform(sin(t), t, s)
+#% output
+#= -cos(s)
+
+#% cell
+hilbert_transform(1/(1 + t^2), t, s)
+#% output
+#= s/(1 + s^2)
+
+#% cell
+hilbert_transform(exp(2*im*t), t, s)
+#% output
+#= -im*exp(2im*s)
+
+#% cell
+hilbert_transform(dirac_delta(t), t, s)
+#% output
+#= 1/(pi*s)
+
+#% section
+# See also
+
+#% text
+# `inverse_hilbert_transform`, `fourier_transform`

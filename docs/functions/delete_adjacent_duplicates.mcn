@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# delete_adjacent_duplicates
+
+#% text
+# `delete_adjacent_duplicates(xs)` removes every element identical to the element just before it; `delete_adjacent_duplicates(xs, test)` removes those for which `test(previous, x)` is true. Any head is kept; an association is compared by its values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delete_adjacent_duplicates([3, 2, 2, 2, 3, 3, 1])
+#% output
+#= [3, 2, 3, 1]
+
+#% cell
+delete_adjacent_duplicates([3, 2., 2, 3/2, 1.5, 1], equal)
+#% output
+#= [3, 2.0, 3/2, 1]
+
+#% cell
+delete_adjacent_duplicates(f(x, x, y, y, x))
+#% output
+#= f(x, y, x)
+
+#% cell
+delete_adjacent_duplicates(assoc(a -> 1, b -> 1, c -> 2))
+#% output
+#= assoc(a -> 1, c -> 2)
+
+#% section
+# See also
+
+#% text
+# `unique`, `split`

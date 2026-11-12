@@ -1,0 +1,280 @@
+#! mathcas 2 notebook
+
+#% title
+# table
+
+#% text
+# `table(e, k, n)` evaluates `e` for `k` = 1, 2, ..., `n` and collects the values in a list.
+
+#% text
+# `table(e, k, xs)` evaluates `e` once for each element `k` of the list `xs`.
+
+#% text
+# `table(e, k1, r1, k2, r2, ...)` nests: the first variable picks the outer list, the last one the innermost.
+
+#% text
+# `table(e, [k, a, b])` and `table(e, [k, a, b, step])` run `k` from `a` to `b` (by `step`, default 1); the bounds may be any numbers: `table(k, [k, 1.5, 4])` is `[1.5, 2.5, 3.5]`.
+
+#% text
+# `table(e, n)` gives `n` values of `e`, evaluated afresh each time.
+
+#% section
+# Details
+
+#% item
+# The arguments are held: `e` is evaluated only after the variable has been given its value, once per value.
+
+#% item
+# With the option `parallel: true` the values are computed on the session's worker threads, as `parallel_table` computes them; the result is the same.
+
+#% item
+# The variable is local to the call. A definition of the same name outside is neither used nor changed.
+
+#% item
+# A count `n` must be an integer; a count of 0 or less gives the empty list.
+
+#% item
+# With several variables, a later range may use the values of the earlier variables, so triangular arrays need no special form.
+
+#% item
+# A range that is not a list or an integer (a symbol, a real number, a string) leaves the call unevaluated or gives a failure naming the argument.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The first ten powers of 2:
+
+#% cell
+table(2^k, k, 10)
+#% output
+#= [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+
+#% text
+# Values over a list of points:
+
+#% cell
+table(x^i, i, [1, 3, 5])
+#% output
+#= [x, x^3, x^5]
+
+#% text
+# A multiplication square, one inner list per row:
+
+#% cell
+table(i*j, i, 3, j, 3)
+#% output
+#= [[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+
+#% text
+# Without a variable, the expression is simply repeated:
+
+#% cell
+table(0, 4)
+#% output
+#= [0, 0, 0, 0]
+
+#% subsection
+# Scope
+
+#% text
+# Exact arithmetic is kept in every entry:
+
+#% cell
+table(1/k, k, 4)
+#% output
+#= [1, 1/2, 1/3, 1/4]
+
+#% cell
+table(sin(k*pi/6), k, 6)
+#% output
+#= [1/2, (1/2)*3^(1/2), 1, (1/2)*3^(1/2), 1/2, 0]
+
+#% text
+# The range can be any list, including one built by another function:
+
+#% cell
+table(k, k, range(2, 10, 3))
+#% output
+#= [2, 5, 8]
+
+#% text
+# The inner range may depend on the outer variable:
+
+#% cell
+table(i + j, i, 3, j, i)
+#% output
+#= [[2], [3, 4], [4, 5, 6]]
+
+#% text
+# A conditional body:
+
+#% cell
+table(if is_even(k) then k else 0, k, 6)
+#% output
+#= [0, 2, 0, 4, 0, 6]
+
+#% text
+# A count alone as an iterator repeats the rest:
+
+#% cell
+table(0, 2, 3)
+#% output
+#= [[0, 0, 0], [0, 0, 0]]
+
+#% text
+# Iterate over the solutions of an equation:
+
+#% cell
+table(rewrite(x^2 + x, s), s, solve(x^2 == 4, x))
+#% output
+#= [2, 6]
+
+#% text
+# Iterator lists, with a step that may be negative or fractional, and bounds that are not integers (a range of floats includes the end that is reached):
+
+#% cell
+[table(k, [k, 10, 1, -3]), table(k, [k, 0, 1, 1/4]), table(k, [k, 1.5, 4]), table(k, [k, 0.1, 0.5, 0.1])]
+#% output
+#= [[10, 7, 4, 1], [0, 1/4, 1/2, 3/4, 1], [1.5, 2.5, 3.5], [0.1, 0.2, 0.30000000000000004, 0.4, 0.5]]
+
+#% text
+# A symbolic start:
+
+#% cell
+table(k^2, [k, a, a + 2])
+#% output
+#= [a^2, (1 + a)^2, (2 + a)^2]
+
+#% text
+# Several iterator lists nest, the first outermost, and a later one may use the earlier variables:
+
+#% cell
+table(i*j, [i, 1, 3], [j, 1, i])
+#% output
+#= [[1], [2, 4], [3, 6, 9]]
+
+#% text
+# Iterator lists and plain ranges mix:
+
+#% cell
+table(i + j, [i, 1, 2], j, 3)
+#% output
+#= [[2, 3, 4], [3, 4, 5]]
+
+#% subsection
+# Options
+
+#% text
+# The values computed on the worker threads:
+
+#% cell
+table(n_integrate(t^k*exp(-t), [t, 0, inf]), k, 4, parallel: true)
+#% output
+#= [0.9999999999999998, 2.0000000000004143, 6.000000000000002, 24.000000000000004]
+
+#% subsection
+# Applications
+
+#% text
+# The first ten primes:
+
+#% cell
+table(prime(k), k, 10)
+#% output
+#= [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+
+#% text
+# A row of Pascal's triangle:
+
+#% cell
+table(binomial(4, k), k, [0, 1, 2, 3, 4])
+#% output
+#= [1, 4, 6, 4, 1]
+
+#% text
+# Repeated draws from a seeded generator give the same list every time the page runs:
+
+#% cell
+seed(7); table(random_integer([1, 6]), 8)
+#% output
+#= [6, 3, 6, 5, 1, 2, 3, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The sum of the first hundred integers, from the list of them:
+
+#% cell
+sum(table(k, k, 100))
+#% output
+#= 5050
+
+#% text
+# The count form evaluates its expression once per entry:
+
+#% cell
+length(table(0, 1000))
+#% output
+#= 1000
+
+#% subsection
+# Possible issues
+
+#% text
+# The count must be an integer:
+
+#% cell
+table(n^2, n, 2.5)
+#% output
+#! failure(argument, table, 3)
+
+#% text
+# A symbolic count cannot be expanded, so the call stays as it is:
+
+#% cell
+table(k^2, k, m)
+#% output
+#= table(k^2, k, m)
+
+#% text
+# A negative count gives the empty list rather than a failure:
+
+#% cell
+table(k, k, -3)
+#% output
+#= []
+
+#% text
+# An empty range gives the empty list, and bounds that are symbols or infinite stay unevaluated:
+
+#% cell
+[table(k, [k, 5, 1]), table(k, [k, 1, b]), table(k, [k, 1, inf])]
+#% output
+#= [[], table(k, [k, 1, b]), table(k, [k, 1, inf])]
+
+#% text
+# A step of 0 is rejected by `range`:
+
+#% cell
+table(k, [k, 1, 3, 0])
+#% output
+#! failure(argument, range, 3)
+
+#% text
+# An integer start with a real end gives floats:
+
+#% cell
+table(k, [k, 1, 3.5])
+#% output
+#= [1.0, 2.0, 3.0]
+
+#% section
+# See also
+
+#% text
+# `array`, `range`, `map`, `sum`, `parallel_table`

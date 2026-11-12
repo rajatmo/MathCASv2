@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# csc
+
+#% text
+# `csc(x)` gives the cosecant 1/sin(x).
+
+#% section
+# Details
+
+#% item
+# `csc(x)` stays unevaluated for symbolic `x`; where `sin(x)` has an exact value, `csc(x)` is its reciprocal.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% item
+# `csc` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+csc(pi/6)
+#% output
+#= 2
+
+#% cell
+csc(1.0)
+#% output
+#= 1.1883951057781212
+
+#% subsection
+# Scope
+
+#% text
+# Symbolic arguments and symmetry:
+
+#% cell
+csc(-x)
+#% output
+#= -csc(x)
+
+#% text
+# 30 digits:
+
+#% cell
+n(csc(1), 30)
+#% output
+#= 1.1883951057781212162615994523745510
+
+#% section
+# See also
+
+#% text
+# `sin`, `sin`, `cos`, `tan`

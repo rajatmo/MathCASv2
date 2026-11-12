@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# directive
+
+#% text
+# `directive(d1, d2, ...)` is several directives as one: colours, `thick`, `dashed`, `thickness(...)`, `opacity(...)`, a font size.
+
+#% section
+# Details
+
+#% item
+# It can stand where one directive is expected: in `edge_form`, in `plot_style`, in graphics content.
+
+#% item
+# What is not a directive (a font option) styles text or is left out.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A thick dashed blue edge:
+
+#% cell
+graphics([face_form(pink), edge_form(directive(thick, dashed, blue)), disk()])
+#% output
+#= image("directive.files/directive-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Styles of curves:
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 6], plot_style: [directive(red, dashed), directive(blue, thick)])
+#% output
+#= image("directive.files/directive-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as a list of directives:
+
+#% cell
+graphics([[red, thick], line([[0, 0], [1, 1]]), directive(blue, thick), line([[0, 1], [1, 0]])])
+#% output
+#= image("directive.files/directive-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `style`, `thick`, `dashed`, `edge_form`

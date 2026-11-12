@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# subset_position
+
+#% text
+# `subset_position(xs, p)` gives the positions of the elements of each subset of `xs` matching the list pattern `p`, listed in the pattern's order. Every matching subset is given unless `overlaps: false`; `subset_position(xs, p, n)` gives at most `n`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subset_position([1, 2, 3, 4, 1, 3], [1, 3])
+#% output
+#= [[1, 3], [1, 6], [5, 3], [5, 6]]
+
+#% cell
+subset_position([1, 2, 3, 4], [_, _])
+#% output
+#= [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4], [3, 4]]
+
+#% cell
+subset_position([a, b, c, 1, 2], [_: Sym, _: Int], overlaps: false)
+#% output
+#= [[1, 4], [2, 5]]
+
+#% section
+# See also
+
+#% text
+# `subset_cases`, `subset_replace`, `sequence_position`, `position`

@@ -1,0 +1,66 @@
+#! mathcas 2 notebook
+
+#% title
+# center_array
+
+#% text
+# `center_array(a, n)` gives the array `a` in the middle of an array of size `n` filled with zeros; `center_array(a, n, x)` fills with `x`; `center_array(n)` is a 1 in the middle of `n` zeros.
+
+#% section
+# Details
+
+#% item
+# `a` may be a single object: `center_array(x, 5)` is `[0, 0, x, 0, 0]`.
+
+#% item
+# `n` is a size or a list of sizes, one per level; an array of lower rank than the size list is taken as a row (`[1, 2, 3]` with `[5, 5]` sits in the middle row of a 5 x 5 array).
+
+#% item
+# When the padding is odd the extra entry goes to the right (or bottom); a size smaller than the array cuts it around its centre.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+center_array(5)
+#% output
+#= [0, 0, 1, 0, 0]
+
+#% cell
+center_array([1, 2, 3], 8)
+#% output
+#= [0, 0, 1, 2, 3, 0, 0, 0]
+
+#% cell
+center_array([1, 2, 3], 6, x)
+#% output
+#= [x, 1, 2, 3, x, x]
+
+#% cell
+center_array([[1, 2], [3, 4]], [4, 4], 0)
+#% output
+#= [[0, 0, 0, 0], [0, 1, 2, 0], [0, 3, 4, 0], [0, 0, 0, 0]]
+
+#% cell
+center_array([1, 2, 3], [5, 5])
+#% output
+#= [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0], [0, 1, 2, 3, 0], [0, 0, 0, 0, 0], [0, 0, 0, 0, 0]]
+
+#% cell
+center_array([1, 2, 3, 4, 5, 6, 7, 8, 9], 3)
+#% output
+#= [4, 5, 6]
+
+#% cell
+center_array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10], [11, 12, 13, 14, 15]], [2, 3])
+#% output
+#= [[7, 8, 9], [12, 13, 14]]
+
+#% section
+# See also
+
+#% text
+# `array_pad`, `pad_left`

@@ -1,0 +1,126 @@
+#! mathcas 2 notebook
+
+#% title
+# function_monotonicity
+
+#% text
+# `function_monotonicity(f, x)` gives `1` when `f` is nondecreasing on its domain, `-1` when nonincreasing, `0` when constant, and `indeterminate` otherwise.
+
+#% section
+# Details
+
+#% item
+# It is the sign of the derivative `d(f, x)` on the domain of `f` (see `function_sign`).
+
+#% item
+# Functions with jumps or kinks, such as `floor`, `unit_step` and `abs`, are decided from the differences of their values at sample points, since their derivative misses the jumps.
+
+#% item
+# `function_monotonicity([f, cond], x)` restricts the domain; `function_monotonicity(f, n, integers)` uses differences for a sequence.
+
+#% item
+# A function not defined on the whole real line gives `indeterminate` unless a condition (or a domain such as `positive_reals`) restricts it.
+
+#% item
+# With parameters the sign of the derivative is decided by the cylindrical decomposition (positive factors such as `exp(a x)` dropped); a function constant for some parameters is not increasing there (`a x + 1` increases for `a > 0`).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The exponential and the sine:
+
+#% cell
+function_monotonicity(e^x, x)
+#% output
+#= 1
+
+#% cell
+function_monotonicity(sin(x), x)
+#% output
+#= indeterminate
+
+#% subsection
+# Scope
+
+#% text
+# The logarithm on its domain:
+
+#% cell
+function_monotonicity([log(x), x > 0], x)
+#% output
+#= 1
+
+#% text
+# A function constant on half the line:
+
+#% cell
+function_monotonicity(sqrt(x^2) - x, x)
+#% output
+#= -1
+
+#% text
+# A step function is nondecreasing:
+
+#% cell
+function_monotonicity(floor(x), x)
+#% output
+#= 1
+
+#% text
+# A sequence:
+
+#% cell
+function_monotonicity(n^2, n, integers)
+#% output
+#= indeterminate
+
+#% subsection
+# Options
+
+#% text
+# Parameters:
+
+#% cell
+[function_monotonicity(x^3 + a*x + b, x), function_monotonicity(exp(a*x), x)]
+#% output
+#= [conditional_expression(1, element(a | b, reals) and a >= 0), conditional_expression(1, a > 0)]
+
+#% text
+# On the positive reals:
+
+#% cell
+function_monotonicity(x^α, x, positive_reals, assumptions: α > 0)
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# A strictly monotonic function is injective:
+
+#% cell
+function_injective(x^3 + x, x)
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# The same for a function on half the line:
+
+#% cell
+[function_monotonicity(sqrt(x), x), function_monotonicity(sqrt(x), x, positive_reals)]
+#% output
+#= [indeterminate, 1]
+
+#% section
+# See also
+
+#% text
+# `function_sign`, `function_convexity`, `function_injective`, `d`

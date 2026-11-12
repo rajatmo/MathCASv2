@@ -1,0 +1,129 @@
+#! mathcas 2 notebook
+
+#% title
+# join_across
+
+#% text
+# `join_across(left, right, key)` joins two lists of associations: each record of `left` is combined with the records of `right` whose `key` value is the same.
+
+#% section
+# Details
+
+#% item
+# `key` is a key present in both, a rule `lk -> rk` for keys of different names, or a list of them (a record matches when all the pairs of values agree).
+
+#% item
+# A fourth argument gives the type of join: `"inner"` (the default) keeps only the matching pairs, `"left"` also the records of `left` without a partner, `"right"` those of `right`, `"outer"` both. The keys the missing side would have are `missing("Unmatched")`. A string in any case or a symbol is accepted.
+
+#% item
+# Records come in the order of `left`, partners in the order of `right`; unmatched records of `right` follow.
+
+#% item
+# A key that both records have, other than a same-named join key (which is kept once), keeps the value of `left`. The option `key_collision_function: f` changes this: `left` or `right` keep that side's value, and a function `f` of the key gives the two new keys `[kl, kr]` under which both values are kept.
+
+#% item
+# Two datasets are joined by `join_on`, with `how` the type.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+join_across([assoc("name" -> "Ana", "age" -> 31), assoc("name" -> "Bo", "age" -> 27)],
+  [assoc("name" -> "Ana", "town" -> "Lyon"), assoc("name" -> "Cy", "town" -> "Nice")], "name")
+#% output
+#= [assoc("name" -> "Ana", "age" -> 31, "town" -> "Lyon")]
+
+#% text
+# Keeping the records of the first list without a partner:
+
+#% cell
+join_across([assoc("k" -> 1, "v" -> "a"), assoc("k" -> 2, "v" -> "b")],
+  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", "left")
+#% output
+#= [assoc("k" -> 1, "v" -> "a", "w" -> "x"), assoc("k" -> 2, "v" -> "b", "w" -> missing("Unmatched"))]
+
+#% text
+# All records of both sides:
+
+#% cell
+join_across([assoc("k" -> 1, "v" -> "a"), assoc("k" -> 2, "v" -> "b")],
+  [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 3, "w" -> "y")], "k", "outer")
+#% output
+#= [assoc("k" -> 1, "v" -> "a", "w" -> "x"), assoc("k" -> 2, "v" -> "b", "w" -> missing("Unmatched")), assoc("k" -> 3, "v" -> missing("Unmatched"), "w" -> "y")]
+
+#% subsection
+# Scope
+
+#% text
+# Keys of different names:
+
+#% cell
+join_across([assoc("id" -> 1, "v" -> "a")], [assoc("ref" -> 1, "w" -> "x")], "id" -> "ref")
+#% output
+#= [assoc("id" -> 1, "v" -> "a", "ref" -> 1, "w" -> "x")]
+
+#% text
+# A record with several partners gives one result for each:
+
+#% cell
+join_across([assoc("k" -> 1, "v" -> "a")], [assoc("k" -> 1, "w" -> "x"), assoc("k" -> 1, "w" -> "y")], "k")
+#% output
+#= [assoc("k" -> 1, "v" -> "a", "w" -> "x"), assoc("k" -> 1, "v" -> "a", "w" -> "y")]
+
+#% subsection
+# Options
+
+#% text
+# A key present in both records keeps the left value, or both under new names:
+
+#% cell
+join_across([assoc("k" -> 1, "v" -> "a")], [assoc("k" -> 1, "v" -> "x")], "k", key_collision_function: (x => [[x, "left"], [x, "right"]]))
+#% output
+#= [assoc("k" -> 1, ["v", "left"] -> "a", ["v", "right"] -> "x")]
+
+#% text
+# `left` and `right` keep one side's value of a key both records have:
+
+#% cell
+[join_across([assoc("k" -> 1, "v" -> 1)], [assoc("k" -> 1, "v" -> 2)], "k", key_collision_function: left), join_across([assoc("k" -> 1, "v" -> 1)], [assoc("k" -> 1, "v" -> 2)], "k", key_collision_function: right)]
+#% output
+#= [[assoc("k" -> 1, "v" -> 1)], [assoc("k" -> 1, "v" -> 2)]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# An inner join over several keys, and a join with an empty side:
+
+#% cell
+[join_across([assoc("a" -> 1, "b" -> 2, "v" -> 1)], [assoc("a" -> 1, "b" -> 2, "w" -> 5), assoc("a" -> 1, "b" -> 3, "w" -> 6)], ["a", "b"]), join_across([], [assoc("k" -> 1)], "k"), join_across([assoc("k" -> 1)], [], "k", "outer")]
+#% output
+#= [[assoc("a" -> 1, "b" -> 2, "v" -> 1, "w" -> 5)], [], [assoc("k" -> 1)]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A key that neither side has gives no pairs, and the values are compared exactly (`1.0` is not `1`):
+
+#% cell
+[join_across([assoc("k" -> 1)], [assoc("k" -> 1)], "z"), join_across([assoc("k" -> 1.0)], [assoc("k" -> 1)], "k")]
+#% output
+#= [[], []]
+
+#% text
+# An unknown type of join and records that are not associations are failures:
+
+#% cell
+[join_across([assoc("k" -> 1)], [assoc("k" -> 1)], "k", "cross"), join_across([1, 2], [assoc("k" -> 1)], "k")]
+#% output
+#= [failure(argument, join_across, 4), failure(argument, join_across, 1)]
+
+#% section
+# See also
+
+#% text
+# `join_on`, `merge`, `group_by`

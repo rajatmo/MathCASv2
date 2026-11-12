@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# pick
+
+#% text
+# `pick(xs, sel)` gives the elements of `xs` where the corresponding element of `sel` is `true`; `pick(xs, sel, p)` where it matches the pattern `p`.
+
+#% section
+# Details
+
+#% item
+# `xs` and `sel` have the same shape; nested lists are picked element by element.
+
+#% item
+# The result keeps the head of `xs`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+pick([a, b, c, d], [true, false, false, true])
+#% output
+#= [a, d]
+
+#% cell
+pick([a, b, c, d, e], [1, 0, 1, 0, 0], 1)
+#% output
+#= [a, c]
+
+#% cell
+pick([[a, b, c], [d, e, f]], [[1, 0, 0], [0, 1, 1]], 1)
+#% output
+#= [[a], [e, f]]
+
+#% subsection
+# Scope
+
+#% cell
+pick([a, b, c, d], [1, 2, 3, 4], 2 | 4)
+#% output
+#= [b, d]
+
+#% cell
+pick(characters("ABC"), [true, false, true])
+#% output
+#= ["A", "C"]
+
+#% section
+# See also
+
+#% text
+# `select`, `cases`, `position`

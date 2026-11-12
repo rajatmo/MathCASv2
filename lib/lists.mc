@@ -1,0 +1,1115 @@
+#! mathcas 2
+# Lists library: vectors, matrices and number functions written in MathCAS itself, evaluated
+# after the numerics library, defined in every session. Helper functions are prefixed `b29_` and not part of the
+# interface. Methods and literature: crates/mc-lists/NOTES.md, section "Round 29: the lists library".
+
+# b29_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol)
+fn b29_matrix(rows, cols, f) = map(i => map(j => f(i, j), range(cols)), range(rows))
+
+# b29_small(x, scale): whether the inexact number x is zero up to rounding relative to scale
+fn b29_small(x, scale) = abs(x) <= 1.0e-10*max(1, scale)
+
+# --- vectors ---
+
+# unit_vector(n, k): the vector of length n with a 1 at position k and zeros elsewhere; unit_vector(k) is the
+# 2-vector (k = 1 or 2)
+fn unit_vector(n: Int, k: Int) when n >= 1 and k >= 1 and k <= n = map(i => boole(i == k), range(n))
+fn unit_vector(k: Int) when k == 1 or k == 2 = unit_vector(2, k)
+
+# angle_vector(phi): [cos(phi), sin(phi)]; angle_vector([r, phi]): the point of polar coordinates r, phi;
+# angle_vector([r, theta, phi]): the point of spherical coordinates (theta from the z axis); angle_vector(c, p):
+# the same relative to the point c
+fn angle_vector(p) when not is_list(p) = [cos(p), sin(p)]
+fn angle_vector(p) when is_list(p) and length(p) == 1 = angle_vector(p[1])
+fn angle_vector(p) when is_list(p) and length(p) == 2 = [p[1]*cos(p[2]), p[1]*sin(p[2])]
+fn angle_vector(p) when is_list(p) and length(p) == 3 = [p[1]*sin(p[2])*cos(p[3]), p[1]*sin(p[2])*sin(p[3]), p[1]*cos(p[2])]
+fn angle_vector(c, p) when is_list(c) = map(i => c[i] + angle_vector(p)[i], range(length(c)))
+
+# vector_angle(u, v): the angle arccos(u . conjugate(v)/(|u| |v|)) between two vectors
+fn vector_angle(u, v) when is_list(u) and is_list(v) and length(u) == length(v) =
+  if is_inexact(total(flatten([u, v]))) and every(flatten([u, v]), t => abs(im_part(t)) < 1.0e-300) then {
+    # real machine or high-precision vectors: Kahan's 2 atan2(|a - b|, |a + b|) of the unit vectors, exact to the last
+    # digit for parallel vectors where acos(cos) loses half the digits (8e-9 for a parallel pair)
+    # vectors whose 2 x 2 minors u_i v_j - u_j v_i all vanish in the arithmetic are parallel: 0 or pi exactly
+    # (normalising first would leave 2.5e-16 for [1, 2] and [0.1, 0.2])
+    let len = length(u)
+    let minors = flatten(table(u[i]*v[j] - u[j]*v[i], [i, 1, len], [j, i + 1, len]))
+    let d = dot(u, v)
+    if len >= 2 and every(minors, t => t == 0) and d != 0 then (if d > 0 then 0*d else acos(-1 + 0*d)) else {
+      let a = u/norm(u)
+      let b = v/norm(v)
+      2*atan(norm(a + b), norm(a - b))
+    }
+  } else acos(dot(u, conjugate(v))/(norm(u)*norm(v)))
+
+# manhattan_distance(u, v): the sum of |u_i - v_i|
+fn manhattan_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) = total(map(i => abs(u[i] - v[i]), range(length(u))))
+fn manhattan_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)
+
+# from_polar_coordinates([r, theta1, ..., theta_(n-1)]): the Cartesian point of hyperspherical coordinates (the
+# angle theta1 first: x1 = r cos(theta1), x2 = r sin(theta1) cos(theta2), ...); a list of points maps over it
+fn from_polar_coordinates(p) when is_list(p) and length(p) >= 1 and not is_list(p[1]) = {
+  let k = length(p)
+  let sines = j => product(map(t => sin(p[t + 1]), range(j - 1)))
+  if k == 1 then [p[1]]
+  else map(j => if j < k then p[1]*sines(j)*cos(p[j + 1]) else p[1]*sines(j), range(k))
+}
+fn from_polar_coordinates(ps) when is_list(ps) and length(ps) >= 1 and is_list(ps[1]) = map(from_polar_coordinates, ps)
+fn from_polar_coordinates(ps) when is_list(ps) and length(ps) == 0 = []
+
+# --- matrix predicates ---
+
+# b29_zero_matrix(d, scale): whether every entry of d is zero (up to rounding when inexact)
+fn b29_zero_matrix(d, scale) = every(flatten(d), x => x === 0 or (is_inexact(x) and b29_small(x, scale)) or (is_number(x) and simplify(x) === 0))
+
+# symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
+fn symmetric_matrix_q(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - transpose(m), max(map(abs, flatten(m))))
+
+# b29_numeric_matrix(m): whether every entry of the matrix m is a number
+fn b29_numeric_matrix(m) = every(flatten(m), x => is_number(x))
+
+# positive_definite_matrix_q(m): whether the Hermitian part (m + m^H)/2 of the square matrix m is positive definite
+# (so a real matrix is tested through its symmetric part), by Sylvester's criterion: every leading principal minor
+# positive; unevaluated for entries that are not numbers
+fn positive_definite_matrix_q(m) when is_matrix(m) and length(m) == length(m[1]) and b29_numeric_matrix(m) = {
+  let h = (m + conjugate(transpose(m)))/2
+  every(range(length(m)), k => { let d = det(map(r => take(r, k), take(h, k))); is_numeric(d) and n(re(d)) > 0 })
+}
+fn positive_definite_matrix_q(m) when is_matrix(m) and (length(m) != length(m[1])) = false
+
+# --- matrix functions ---
+
+# permanent(m): the permanent of the matrix m (sum over the injections of the rows into the columns of the products
+# of the chosen entries; for a square matrix the sum over all permutations), by Ryser's formula
+fn b29_ryser(m) = {
+  let k = length(m)
+  let cols = range(length(m[1]))
+  let terms = map(s => (-1)^length(s)*product(map(r => total(map(j => r[j], s)), m)), subsets(cols))
+  (-1)^k*total(terms)
+}
+# a matrix with symbolic entries: the dynamic programme over the column subsets (the permanent of the first i rows
+# with the columns S, |S| = i, is the sum over j in S of m[i][j] times that of the first i - 1 rows with S without j),
+# expanding as it goes, so the work follows the number of terms of the answer (Ryser's product of sums would expand
+# to n^n terms first)
+fn b29_perm_dp(m) = {
+  let c = length(m[1])
+  var layer = association_thread([[]], [1])
+  for i in range(length(m)) {
+    let prev = layer
+    let sets = subsets(range(c), [i])
+    layer = association_thread(sets, map(s => expand(total(map(j => m[i][j]*lookup(prev, select(s, x => x != j)), s))), sets))
+  }
+  total(map(k => lookup(layer, k), keys(layer)))
+}
+fn permanent(m) when is_matrix(m) and length(m) <= length(m[1]) =
+  if every(flatten(m), is_numeric) then (
+    if length(m) == length(m[1]) then expand(b29_ryser(m))
+    else total(map(cs => b29_ryser(map(r => map(j => r[j], cs), m)), subsets(range(length(m[1])), [length(m)])))
+  ) else b29_perm_dp(m)
+fn permanent(m) when is_matrix(m) and length(m) > length(m[1]) = permanent(transpose(m))
+
+# shearing_matrix(theta, v, w): the matrix I + tan(theta) u w^T of the shear along the direction v (u = v/|v|) with
+# the normal w (|w| = 1 after scaling)
+fn shearing_matrix(t, v, w) when is_list(v) and is_list(w) and length(v) == length(w) = {
+  let u = v/norm(v)
+  let nn = w/norm(w)
+  b29_matrix(length(v), length(v), (i, j) => boole(i == j) + tan(t)*u[i]*nn[j])
+}
+
+# scaling_matrix([s1, ..., sk]): the diagonal matrix of the factors; scaling_matrix(s, v): the scaling by s along the
+# direction v, I + (s - 1) v v^T/(v . v); scaling_matrix([s1, ..., sk], [v1, ..., vk]) scales along the directions
+fn scaling_matrix(s) when is_list(s) = diagonal_matrix(s)
+fn scaling_matrix(s, v) when is_list(v) and not is_list(s) = {
+  let k = length(v)
+  b29_matrix(k, k, (i, j) => simplify(boole(i == j) + (s - 1)*v[i]*conjugate(v[j])/dot(v, conjugate(v))))
+}
+fn scaling_matrix(ss, vs) when is_list(vs) and is_list(ss) and is_list(vs[1]) = {
+  let k = length(vs[1])
+  b29_matrix(k, k, (i, j) => boole(i == j) + total(map(t => (ss[t] - 1)*vs[t][i]*conjugate(vs[t][j])/dot(vs[t], conjugate(vs[t])), range(length(vs)))))
+}
+
+# distance_matrix(points): the matrix of Euclidean distances of the points (vectors or numbers);
+# distance_matrix(a, b): the distances of the points of a to those of b
+fn distance_matrix(a) when is_list(a) = distance_matrix(a, a)
+fn distance_matrix(a, b) when is_list(a) and is_list(b) = map(u => map(v => nl_dm_dist(u, v), b), a)
+
+# the distance the points' data type calls for: strings and sequences of different lengths by the edit distance,
+# lists of booleans by the Jaccard dissimilarity, lists of strings by the edit distance of the sequences, numbers
+# by the Euclidean distance (a non-number contributing 0 or 1 to it when the list is mixed); an association is its
+# values, taken by the keys of the first (associations whose keys come in another order align by key)
+fn nl_dm_dist(u, v) =
+  if is_assoc(u) and is_assoc(v) then nl_dm_dist(values(u), map(k => v[k], keys(u)))
+  else if is_string(u) and is_string(v) then nl_edit_dist(u, v)
+  else if is_list(u) and is_list(v) then nl_dm_list(u, v)
+  else if is_list(u) or is_list(v) then euclidean_distance(u, v)
+  else abs(u - v)
+fn nl_dm_list(u, v) =
+  if length(u) > 0 and length(v) > 0 and every(u, x => is_string(x)) and every(v, x => is_string(x)) then nl_edit_dist(u, v)
+  else if length(u) != length(v) then nl_dtw(u, v)
+  else if length(u) > 0 and every(u, nl_is_bool) and every(v, nl_is_bool) then {
+    let both = length(select(range(length(u)), i => u[i] and v[i]))
+    let diff = length(select(range(length(u)), i => not (u[i] === v[i])))
+    if diff == 0 then 0 else diff/(both + diff)
+  }
+  else if any_true(u, nl_is_nominal) or any_true(v, nl_is_nominal) then
+    euclidean_distance(map(i => if is_string(u[i]) or is_string(v[i]) then boole(not (u[i] === v[i])) else abs(u[i] - v[i]), range(length(u))), constant_array(0, length(u)))
+  else euclidean_distance(u, v)
+fn nl_is_bool(x) = x === true or x === false
+fn nl_is_nominal(x) = is_string(x) or nl_is_bool(x)
+# nl_dtw(u, v): dynamic time warping distance of two numeric sequences of different lengths (least total |u_i - v_j|
+# over monotone alignments), the distance between ragged numeric points
+fn nl_dtw(u, v) = {
+  let m = length(v)
+  var prev = join([0], constant_array(inf, m))
+  for i in range(length(u)) {
+    var cur = [inf]
+    for j in range(m) { cur = append(cur, abs(u[i] - v[j]) + min(prev[j + 1], cur[j], prev[j])) }
+    prev = cur
+  }
+  prev[m + 1]
+}
+# edit_dist(u, v): the least number of insertions, deletions and substitutions turning the string (or list) u into v
+fn nl_edit_dist(u, v) = {
+  let a = if is_string(u) then characters(u) else u
+  let b = if is_string(v) then characters(v) else v
+  var prev = range(0, length(b))
+  for i in range(length(a)) {
+    var cur = [i]
+    for j in range(length(b)) { cur = append(cur, min(prev[j + 1] + 1, cur[j] + 1, prev[j] + boole(not (a[i] === b[j])))) }
+    prev = cur
+  }
+  prev[length(b) + 1]
+}
+
+# quantity matrices (round 36): a matrix whose columns each hold quantities of one dimension (or plain numbers) is
+# M . diag(u) with the column units u; row_reduce, null_space, rank, least_squares and
+# matrix_minimal_polynomial work on the magnitudes M and put the units back. A matrix not of that form stays
+# unevaluated.
+fn nl_qm_is(x) = not is_atom(x) and head(x) === quantity
+fn nl_qm_has(m) = is_list(m) and length(select(flatten([m]), nl_qm_is)) > 0
+fn nl_qm_unit(col) = { let qs = select(col, nl_qm_is); if length(qs) == 0 then 1 else quantity_unit(qs[1]) }
+fn nl_qm_mag(x, u) = if nl_qm_is(x) then quantity_magnitude(x, u) else if u === 1 or x === 0 then x else failure(incompatible_units)
+# [magnitudes, column units] of a matrix (a vector is one column)
+fn nl_qm_split(m) = {
+  let a = if is_matrix(m) then m else map(x => [x], m)
+  let us = map(j => nl_qm_unit(map(r => r[j], a)), range(length(a[1])))
+  [map(r => map(j => nl_qm_mag(r[j], us[j]), range(length(us))), a), us]
+}
+fn nl_qm_ok(m) = is_list(m) and length(m) > 0 and nl_qm_has(m) and free_of(nl_qm_split(m)[1], failure)
+fn nl_qm_make(x, u) = if u === 1 or x === 0 then x else quantity(x, u)
+fn nl_qm_row_reduce(m) = {
+  let s = nl_qm_split(m)
+  let us = s[2]
+  map(r => { let p = select(range(length(r)), j => not (r[j] === 0)); if length(p) == 0 then r else map(j => nl_qm_make(r[j], us[j]/us[p[1]]), range(length(r))) }, row_reduce(s[1]))
+}
+fn nl_qm_null_space(m) = {
+  let s = nl_qm_split(m)
+  let us = s[2]
+  map(v => { let f = last(select(range(length(v)), j => not (v[j] === 0))); map(j => nl_qm_make(v[j], us[f]/us[j]), range(length(v))) }, null_space(s[1]))
+}
+rule row_reduce(m_) := nl_qm_row_reduce(m) when is_matrix(m) and nl_qm_ok(m)
+rule null_space(m_) := nl_qm_null_space(m) when is_matrix(m) and nl_qm_ok(m)
+rule rank(m_) := rank(nl_qm_split(m)[1]) when is_matrix(m) and nl_qm_ok(m)
+fn least_squares(m, b) when is_matrix(m) and is_list(b) and (nl_qm_has(m) or nl_qm_has(b)) and free_of(nl_qm_split(m)[1], failure) and free_of(nl_qm_split(b)[1], failure) = {
+  let sm = nl_qm_split(m)
+  let sb = nl_qm_split(b)
+  let y = least_squares(sm[1], sb[1])
+  let x = map(j => map(k => nl_qm_make(y[j][k], sb[2][k]/sm[2][j]), range(length(sb[2]))), range(length(sm[2])))
+  if is_matrix(b) then x else map(first, x)
+}
+fn matrix_minimal_polynomial(m, x) when is_matrix(m) and nl_qm_ok(m) and length(union(nl_qm_split(m)[2])) == 1 = {
+  let s = nl_qm_split(m)
+  let u = s[2][1]
+  let p = matrix_minimal_polynomial(s[1], x)
+  let cs = coefficient_list(p, x)
+  let d = length(cs) - 1
+  total(map(i => x^i * nl_qm_make(cs[i + 1], u^(d - i)), range(0, d)))
+}
+
+# least_squares(m, b): the vector x minimizing |m . x - b| (the minimum-norm one when m is rank deficient), the
+# pseudo-inverse of m applied to b (a matrix b: column by column)
+fn least_squares(m, b) when is_matrix(m) and is_list(b) = dot(pseudo_inverse(m), b)
+
+# drazin_inverse(m): the Drazin inverse of the square matrix m, m^k (m^(2k + 1))^+ m^k with k the index of m (the
+# smallest k with rank(m^k) = rank(m^(k + 1)))
+fn drazin_inverse(m) when is_matrix(m) and length(m) == length(m[1]) = {
+  let k = length(m)
+  var p = identity_matrix(k)
+  var idx = 0
+  var done = false
+  var pw = m
+  while not done and idx < k {
+    let r0 = rank(p)
+    p = dot(p, m)
+    if rank(p) == r0 then done = true else idx = idx + 1
+  }
+  let mk = matrix_power(m, idx)
+  if idx == 0 then inverse(m) else dot(mk, dot(pseudo_inverse(matrix_power(m, 2*idx + 1)), mk))
+}
+
+# --- structuring matrices (kernels of image processing) ---
+
+# b29_nd(dims, idx, f): the nested list of f(index vector) over a grid of the given dimensions
+fn b29_nd(dims, idx, f) = if length(dims) == 0 then f(idx) else map(i => b29_nd(rest(dims), append(idx, i), f), range(first(dims)))
+
+# b29_shape(r, d, test): the array of the given dimensions d (a number: every dimension) with entries boole(test(x)),
+# x the offsets from the centre in units of the radii r (a number: two dimensions)
+fn b29_shape(r, d, test) = {
+  let rs = if is_list(r) then r else [r, r]
+  let ds = if is_list(d) then d else constant_array(d, length(rs))
+  b29_nd(ds, [], idx => boole(test(map(i => (idx[i] - (ds[i] + 1)/2)/rs[i], range(length(ds))), rs)))
+}
+fn b29_size(r) = if is_list(r) then map(t => 2*t + 1, r) else 2*r + 1
+
+# disk_matrix(r), disk_matrix(r, d): the array of 1 where (x1/r1)^2 + ... <= 1 (a disk, ball or ellipsoid of
+# radii r around the centre of an array of 2 r + 1 entries or of the dimensions d), else 0
+fn disk_matrix(r) = b29_shape(r, b29_size(r), (x, rs) => total(map(t => t^2, x)) <= 1)
+fn disk_matrix(r, d) = b29_shape(r, d, (x, rs) => total(map(t => t^2, x)) <= 1)
+
+# diamond_matrix(r), (r, d): 1 where |x1/r1| + ... <= 1, else 0
+fn diamond_matrix(r) = b29_shape(r, b29_size(r), (x, rs) => total(map(abs, x)) <= 1)
+fn diamond_matrix(r, d) = b29_shape(r, d, (x, rs) => total(map(abs, x)) <= 1)
+
+# box_matrix(r), (r, d): 1 where every |xi/ri| <= 1, i.e. the whole array when it is 2 r + 1 entries wide
+fn box_matrix(r) = b29_shape(r, b29_size(r), (x, rs) => every(x, t => abs(t) <= 1))
+fn box_matrix(r, d) = b29_shape(r, d, (x, rs) => every(x, t => abs(t) <= 1))
+
+# cross_matrix(r), (r, d): 1 on the axes through the centre up to the radii (every entry whose offsets are zero in
+# all but one dimension), else 0
+fn cross_matrix(r) = b29_shape(r, b29_size(r), (x, rs) => length(select(x, t => t != 0)) <= 1 and every(x, t => abs(t) <= 1))
+fn cross_matrix(r, d) = b29_shape(r, d, (x, rs) => length(select(x, t => t != 0)) <= 1 and every(x, t => abs(t) <= 1))
+
+# gaussian_matrix(r), ([r, s]): the (2 r + 1) x (2 r + 1) kernel of the Gaussian of standard deviation r/2 (s)
+# sampled at the integers, normalized to total 1 (the outer product of the normalized one-dimensional kernel)
+fn gaussian_matrix(p) when not is_list(p) = gaussian_matrix([p, p/2])
+fn gaussian_matrix(p) when is_list(p) and length(p) == 2 and not is_list(p[1]) = {
+  let r = p[1]
+  let sg = n(p[2])
+  let g = map(t => exp(-t^2/(2*sg^2)), range(-r, r))
+  let w = total(g)
+  let k = map(t => t/w, g)
+  b29_matrix(2*r + 1, 2*r + 1, (i, j) => k[i]*k[j])
+}
+fn gaussian_matrix(p) when is_list(p) and length(p) == 1 and is_list(p[1]) = {
+  let r = p[1][1]
+  let g = map(t => exp(-t^2/(2*(n(r)/2)^2)), range(-r, r))
+  map(t => t/total(g), g)
+}
+
+# --- numbers ---
+
+# mixed_fraction_parts(x): [ip, fp], the integer part and the fractional part of x with the sign of x (the real and
+# the imaginary part separately for a complex x); a list maps
+fn mixed_fraction_parts(x) when is_list(x) = map(mixed_fraction_parts, x)
+fn mixed_fraction_parts(x) when not is_list(x) and is_numeric(x) and is_real(n(x)) === true = [integer_part(x), fractional_part(x)]
+fn mixed_fraction_parts(x) when not is_list(x) and is_numeric(x) and is_real(n(x)) === false = {
+  let a = mixed_fraction_parts(re(x))
+  let b = mixed_fraction_parts(im_part(x))
+  [a[1] + im*b[1], a[2] + im*b[2]]
+}
+
+# perfect_number(k): the k-th (even) perfect number 2^(p - 1) (2^p - 1), p the k-th Mersenne prime exponent
+fn perfect_number(k: Int) when k >= 1 and k <= 51 = { let p = mersenne_prime_exponent(k); 2^(p - 1)*(2^p - 1) }
+
+# rudin_shapiro(n): (-1)^(the number of occurrences of the digits 11 in the binary expansion of n), n >= 0
+fn rudin_shapiro(k) when is_list(k) = map(rudin_shapiro, k)
+fn rudin_shapiro(k: Int) when k >= 0 = {
+  let b = integer_digits(k, 2)
+  (-1)^total(map(i => b[i]*b[i + 1], range(length(b) - 1)))
+}
+
+# quadratic_irrational_q(x): whether x is an irrational root of a quadratic polynomial with integer coefficients
+fn quadratic_irrational_q(x) when is_list(x) = map(quadratic_irrational_q, x)
+fn quadratic_irrational_q(x) when not is_list(x) = {
+  let c = is_numeric(x) and not is_inexact(x) and not is_integer(x) and not is_rational(x)
+  if not c then false else { let p = minimal_polynomial(x, b29_t); free_of(p, minimal_polynomial) and degree(p, b29_t) == 2 }
+}
+
+# discrete_indicator(x, x0, domain): 1 if x = x0 and 0 if x is another element of the finite domain; 0 for an x0
+# outside the domain; unevaluated for an x that is not an element
+rule discrete_indicator(x_, x0_, dom_) := 0 when is_list(dom) and not member_of(dom, x0)
+rule discrete_indicator(x_, x0_, dom_) := boole(x === x0) when is_list(dom) and member_of(dom, x0) and member_of(dom, x)
+
+# list_convolve(ker, list): the convolution of the list with the kernel, only where the kernel fits (n - k + 1
+# entries); list_convolve(ker, list, q): cyclic, the kernel entry q aligned with the first entry of the list;
+# matrices (two-dimensional kernel and array) likewise for the valid part
+fn b29_conv1(ker, xs) = {
+  let k = length(ker)
+  map(i => total(map(j => ker[j]*xs[i + k - j], range(k))), range(length(xs) - k + 1))
+}
+fn list_convolve(ker, xs) when is_list(ker) and is_list(xs) and not is_list(ker[1]) and not is_list(xs[1]) and length(ker) <= length(xs) = b29_conv1(ker, xs)
+fn list_convolve(ker, xs) when is_matrix(ker) and is_matrix(xs) and length(ker) <= length(xs) and length(ker[1]) <= length(xs[1]) = {
+  let kr = length(ker)
+  let kc = length(ker[1])
+  b29_matrix(length(xs) - kr + 1, length(xs[1]) - kc + 1, (i, j) => total(flatten(b29_matrix(kr, kc, (a, b) => ker[a][b]*xs[i + kr - a][j + kc - b]))))
+}
+fn list_convolve(ker, xs, q) when is_list(ker) and is_list(xs) and is_integer(q) and not is_list(ker[1]) and not is_list(xs[1]) = {
+  let m = length(xs)
+  map(i => total(map(j => ker[j]*xs[mod(i - j + q - 1, m) + 1], range(length(ker)))), range(m))
+}
+
+# cumulant(r, data): the r-th cumulant of the list data computed from its raw moments (kappa_r = m_r -
+# sum_k binomial(r - 1, k - 1) kappa_k m_(r - k)); cumulant(dist, r): the r-th derivative of log(moment generating
+# function) at 0 for a distribution
+fn b29_cumulants(ms, r) = {
+  var ks = []
+  for q in range(r) {
+    ks = append(ks, ms[q] - total(map(k => binomial(q - 1, k - 1)*ks[k]*(if q - k == 0 then 1 else ms[q - k]), range(q - 1))))
+  }
+  ks
+}
+fn cumulant(data, r: Int) when is_list(data) and r >= 1 = {
+  let m = length(data)
+  last(b29_cumulants(map(q => total(map(x => x^q, data))/m, range(r)), r))
+}
+fn cumulant(r: Int, data) when is_list(data) and r >= 1 = cumulant(data, r)
+
+# --- polynomials and arrays ---
+
+# array_rules(a), array_rules(a, v): the rules [i, j, ...] -> x of the entries x of the array a that differ from v
+# (0), followed by the rule of the other positions [_, _, ...] -> v
+fn array_rules(a) = array_rules(a, 0)
+fn array_rules(a, v) when is_list(a) = {
+  let d = dimensions(a)
+  let pos = select(b29_flat(b29_nd(d, [], idx => idx), length(d)), idx => not (b29_part_at(a, idx) === v))
+  append(map(idx => idx -> b29_part_at(a, idx), pos), constant_array(_, length(d)) -> v)
+}
+fn b29_part_at(a, idx) = fold((x, i) => x[i], a, idx)
+fn b29_flat(xs, k) = if k <= 1 then xs else flatten(xs, k - 1)
+
+# matrix_minimal_polynomial(m, x): the monic polynomial in x of least degree that vanishes at the square matrix m
+# (the first linear dependency among the powers I, m, m^2, ...)
+fn matrix_minimal_polynomial(m, x) when is_matrix(m) and length(m) == length(m[1]) and not nl_qm_has(m) = {
+  let k = length(m)
+  var pows = [flatten(identity_matrix(k))]
+  var cur = identity_matrix(k)
+  var res = 0
+  var d = 0
+  while res === 0 and d < k + 1 {
+    d = d + 1
+    cur = dot(cur, m)
+    pows = append(pows, flatten(cur))
+    let ns = null_space(transpose(pows))
+    if length(ns) > 0 then { let c = ns[1]; res = total(map(i => c[i]/c[d + 1]*x^(i - 1), range(d + 1))) }
+  }
+  res
+}
+
+# coefficient_arrays(polys, vars): the list [a0, a1, ..., ad] of arrays of the coefficients of the polynomial (or list
+# of polynomials) in the variables vars: a_k holds the coefficient of a monomial x_i1 ... x_ik (i1 <= ... <= ik) at
+# the position [i1, ..., ik] (after the polynomial's own index for a list), 0 elsewhere
+fn b29_sorted_q(t) = every(range(length(t) - 1), i => t[i] <= t[i + 1])
+# b29_eq_poly(p): lhs - rhs of an equation, else p
+fn b29_eq_poly(p) = if not is_atom(p) and head(p) === head(b29_p == b29_q) and length(p) == 2 then p[1] - p[2] else p
+fn coefficient_arrays(ps, vars) when is_list(ps) and is_list(vars) = {
+  let nv = length(vars)
+  let rules = map(p => coefficient_rules(b29_eq_poly(p), vars), ps)
+  let deg = max(map(r => max(map(q => total(first(q)), r)), rules))
+  let entry = (i, t) => {
+    if not b29_sorted_q(t) then 0
+    else {
+      let ex = map(j => length(select(t, s => s == j)), range(nv))
+      let hit = select(rules[i], q => first(q) == ex)
+      if length(hit) == 0 then 0 else last(hit[1])
+    }
+  }
+  map(k => b29_nd(join([length(ps)], constant_array(nv, k)), [], idx => entry(idx[1], rest(idx))), range(0, deg))
+}
+fn coefficient_arrays(p, vars) when not is_list(p) and is_list(vars) = map(a => a[1], coefficient_arrays([p], vars))
+
+# pfaffian_det(m): the Pfaffian of the antisymmetric matrix m (expansion along the first row; 0 for odd size)
+fn b29_pfaffian(m) = {
+  let k = length(m)
+  if k == 0 then 1
+  else total(map(j => (-1)^j*m[1][j]*b29_pfaffian(b29_minor2(m, j)), range(2, k)))
+}
+fn b29_minor2(m, j) = {
+  let keep = select(range(length(m)), i => i != 1 and i != j)
+  map(a => map(b => m[a][b], keep), keep)
+}
+fn pfaffian_det(m) when is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m + transpose(m), 1) =
+  if mod(length(m), 2) == 1 then 0 else expand(b29_pfaffian(m))
+
+# principal_components(data): the rows of the data matrix in the coordinates of its principal axes (the eigenvectors of
+# the covariance matrix, largest eigenvalue first), the mean subtracted; karhunen_loeve_decomposition(data): [the
+# transformed rows, the basis] basis the eigenvectors of the covariance matrix of the rows of data (the rows are the variables), applied to the uncentred data
+fn b29_axes(cov) = {
+  let es = eigensystem(cov)
+  let ord = reverse(ordering(map(v => re(n(v)), es[1])))
+  map(i => { let v = es[2][i]/norm(es[2][i]); if re(n(v[1])) > 0 then -v else v }, ord)
+}
+fn principal_components(data) when is_matrix(data) and every(flatten(data), x => is_numeric(x)) = {
+  let m = length(data)
+  let c = length(data[1])
+  let mu = map(j => total(map(r => r[j], data))/m, range(c))
+  let x = map(r => r - mu, data)
+  dot(x, transpose(b29_axes(dot(transpose(x), x)/(m - 1))))
+}
+fn karhunen_loeve_decomposition(data; standardized = false) when is_matrix(data) and every(flatten(data), x => is_numeric(x)) = {
+  let c = length(data[1])
+  let xc = map(r => r - total(r)/c, data)
+  let basis = map(v => if re(n(v[1])) < 0 then -v else v, b29_axes(dot(xc, transpose(xc))/(c - 1)))
+  # standardized: true transforms the data with each row's mean taken off
+  [dot(basis, if standardized === true then xc else data), basis]
+}
+
+# --- precision ---
+
+# machine_epsilon: the smallest machine number e with 1 + e != 1 (2^-52); min_machine_number: the smallest positive
+# normal machine number (2^-1022)
+rule machine_epsilon := 2.220446049250313e-16
+rule min_machine_number := 2.2250738585072014e-308
+
+# set_accuracy(x, a): x with the precision of every number in it set so that its accuracy is a digits after the decimal
+# point (a number: precision a plus the decimal logarithm of its absolute value; a list or any other expression:
+# its parts; symbols stay)
+rule set_accuracy(x_, a_) := map(t => set_accuracy(t, a), x) when is_list(x) and is_real(a)
+rule set_accuracy(x_, a_) := (if n(x) == 0 then set_precision(x, a) else set_precision(x, ceiling(a + log(abs(n(x)))/log(10)))) when is_numeric(x) and is_real(a) and not is_list(x)
+rule set_accuracy(x_, a_) := x when is_symbol(x) and not is_numeric(x) and is_real(a)
+rule set_accuracy(x_, a_) := apply(head(x), map(k => set_accuracy(x[k], a), range(length(x)))) when not is_atom(x) and not is_numeric(x) and not is_list(x) and is_real(a)
+
+# --- intervals ---
+
+# b29_boxes(i): the boxes [re lo, re hi, im lo, im hi] of an interval or centered interval, or of a number
+fn b29_boxes(i) = {
+  let h = head(i)
+  if h === interval then map(p => [p[1], p[2], 0, 0], map(k => i[k], range(length(i))))
+  else if h === centered_interval then { let c = i[1]; let r = i[2]; [[re(c) - re(r), re(c) + re(r), im_part(c) - im_part(r), im_part(c) + im_part(r)]] }
+  else [[re(i), re(i), im_part(i), im_part(i)]]
+}
+fn b29_box_in(b, c) = c[1] <= b[1] and b[2] <= c[2] and c[3] <= b[3] and b[4] <= c[4]
+
+# interval_member_q(i, x): whether the number x, or every piece of the interval x, lies in the interval i (real
+# intervals, or centered intervals with complex centers); interval_member_q(i)(x) likewise
+fn interval_member_q(i, x) when head(i) === interval or head(i) === centered_interval =
+  every(b29_boxes(x), b => any_true(map(c => b29_box_in(b, c), b29_boxes(i)), t => t))
+fn interval_member_q(i) = x => interval_member_q(i, x)
+
+# interval_union(i1, i2, ...): the union of the intervals as one interval (real pieces merged); the smallest
+# centered interval containing them when a complex centered interval is involved
+fn interval_union(parts...) when length(parts) >= 1 and every(parts, t => head(t) === interval or head(t) === centered_interval) = {
+  let bs = flatten(map(b29_boxes, parts), 1)
+  if every(bs, b => b[3] == 0 and b[4] == 0) then apply(interval, map(b => [b[1], b[2]], bs))
+  else {
+    let lo = min(map(b => b[1], bs))
+    let hi = max(map(b => b[2], bs))
+    let ilo = min(map(b => b[3], bs))
+    let ihi = max(map(b => b[4], bs))
+    centered_interval((lo + hi)/2 + im*(ilo + ihi)/2, (hi - lo)/2 + im*(ihi - ilo)/2)
+  }
+}
+
+# --- knapsack ---
+
+# b29_is_rule(r): whether r is a rule a -> b
+fn b29_is_rule(r) = head(r) === head(0 -> 0)
+
+# b29_item(it): [payoff, cost, maximal count] of a knapsack item: a number is a cost with payoff 1; a list is
+# [payoff, cost] or [payoff, cost, maximal count]; a list of rules or an association has the keys "Payoff", "Cost"
+# and "MaxCount"
+fn b29_item(it) = {
+  if is_assoc(it) then b29_item(map(k => k -> lookup(it, k), keys(it)))
+  else if is_list(it) and length(it) > 0 and every(it, r => b29_is_rule(r)) then {
+    let get = (k, d) => { let hit = select(it, r => first(r) == k); if length(hit) == 0 then d else last(hit[1]) }
+    [get("Payoff", 1), get("Cost", 1), get("MaxCount", inf)]
+  }
+  else if is_list(it) then [it[1], it[2], if length(it) >= 3 then it[3] else inf]
+  else [1, it, inf]
+}
+
+# knapsack_solve(items, cap): the counts of each item that maximize the total payoff within the total cost cap
+# (an unbounded or bounded integer knapsack by dynamic programming over the scaled costs); items given as an
+# association or a list of rules give the counts the same way
+fn b29_knap(its, cap) = {
+  let rawcost = map(t => if is_inexact(t[2]) then rationalize(t[2]) else t[2], its)
+  let sc = fold((a, c) => lcm(a, denominator(c)), 1, rawcost)
+  let w = map(c => c*sc, rawcost)
+  let cp = floor(cap*sc)
+  let m = length(its)
+  if not every(w, c => is_integer(c) and c > 0) or cp > 200000 then null
+  else {
+    var table = [constant_array(0, cp + 1)]
+    for i in range(m) {
+      let prev = last(table)
+      let wi = w[i]
+      let pay = its[i][1]
+      let mx = min(its[i][3], floor(cp/wi))
+      table = append(table, map(c => max(map(k => prev[c - k*wi + 1] + k*pay, range(0, min(mx, floor(c/wi))))), range(0, cp)))
+    }
+    var c = cp
+    var out = constant_array(0, m)
+    for t in range(m) {
+      let i = m + 1 - t
+      let wi = w[i]
+      let target = table[i + 1][c + 1]
+      let mx = min(its[i][3], floor(c/wi))
+      let ks = select(range(0, mx), k => table[i][c - k*wi + 1] + k*its[i][1] == target)
+      let k = if i == m then first(ks) else last(ks)
+      out[i] = k
+      c = c - k*wi
+    }
+    out
+  }
+}
+fn b29_knap_items(items) = if is_assoc(items) then map(k => b29_item(lookup(items, k)), keys(items)) else map(t => b29_item(if b29_is_rule(t) then last(t) else t), items)
+fn b29_knap_ok(its, cap) = {
+  let rawcost = map(t => if is_inexact(t[2]) then rationalize(t[2]) else t[2], its)
+  let sc = fold((a, c) => lcm(a, denominator(c)), 1, rawcost)
+  length(its) > 0 and every(its, t => is_numeric(t[1]) and is_numeric(t[2]) and n(t[2]) > 0) and floor(cap*sc) <= 200000
+}
+rule knapsack_solve(items_, cap_) := {
+  let res = b29_knap(b29_knap_items(items), cap)
+  if is_assoc(items) then association_thread(keys(items), res)
+  else if every(items, t => b29_is_rule(t)) then map(i => first(items[i]) -> res[i], range(length(items)))
+  else res
+} when (is_list(items) or is_assoc(items)) and is_numeric(cap) and b29_knap_ok(b29_knap_items(items), cap)
+
+# --- the domain of the primes ---
+
+# element(x, primes): whether the integer x is a prime (false for other numbers, a list element by element); other
+# arguments stay unevaluated
+rule element(x_, primes) := map(t => element(t, primes), x) when is_list(x)
+rule element(x_, primes) := x > 1 and is_prime(x) when is_integer(x)
+# an exact numeric expression is false only when it is a non-integer rational or its value is far from an integer;
+# one that may be an integer, ((e + 7)^2 - e^2)/7 - 2 e say, is simplified first (and stays unevaluated if that
+# does not decide it)
+rule element(x_, primes) := false when is_numeric(x) and not is_integer(x) and is_real(n(x)) === true and (is_rational(x) or is_inexact(x) or abs(n(x, 30) - round(n(x, 30))) > 10^-20)
+rule element(x_, primes) := element(simplify(x), primes) when is_numeric(x) and not is_integer(x) and not is_rational(x) and not is_inexact(x) and is_integer(simplify(x))
+
+# is_prime(z, gaussian_integers: true): primality in Z[i]: a + b i with a b != 0 is prime when a^2 + b^2 is a
+# rational prime; a unit times a rational integer n is prime when |n| is a prime congruent to 3 modulo 4 (Hardy and
+# Wright, An Introduction to the Theory of Numbers, 15.1)
+fn gauss_is_prime(z) = {
+  let a = re(z)
+  let b = im_part(z)
+  if not (is_integer(a) and is_integer(b)) then false
+  else if a != 0 and b != 0 then is_prime(a^2 + b^2)
+  else { let m = abs(a + b); is_prime(m) and mod(m, 4) == 3 }
+}
+fn gauss_prime_opts(z; gaussian_integers = false) = if gaussian_integers === true then gauss_is_prime(z) else is_prime(z)
+rule is_prime(z_, o_) := gauss_prime_opts(z, o) when not is_atom(o) and head(o) === options and is_number(z)
+
+# --- convex optimization: quadratic, conic, second-order cone, semidefinite, robust, parametric ---
+# All of them read the problem as constraints on the variables, turn norm bounds and matrix cones into polynomial
+# inequalities (a bound norm(v) <= t is |v|^2 <= t^2 with t >= 0; a symmetric matrix is positive semidefinite
+# when all its principal minors are non-negative) and minimize with the symbolic optimizer.
+
+# b29_cone_conditions(c): the scalar conditions equivalent to the constraint c
+fn b29_cone_conditions(c) = {
+  if is_atom(c) then [c]
+  else if head(c) === less_equal and length(c) == 2 and head(c[1]) === pow and c[1][2] == 1/2 then {
+    let s = rewrite(c[1][1], abs(u_)^2 :> u^2)
+    [s <= c[2]^2, c[2] >= 0]
+  }
+  else if head(c) === vector_greater_equal and length(c) == 2 and is_list(c[1]) and length(c[1]) == 2 and is_list(c[2]) and length(c[2]) >= 1 then {
+    let kind = c[2][1]
+    let v = c[1][1]
+    let w = c[1][2]
+    if kind == "SemidefiniteCone" and is_matrix(v) then {
+      let m = if is_matrix(w) then v - w else v
+      let k = length(m)
+      map(s => det(map(i => map(j => m[i][j], s), s)) >= 0, select(subsets(range(k)), s => length(s) > 0))
+    }
+    else if kind == "NormCone" and is_list(v) then {
+      let t = last(v) - (if is_list(w) then last(w) else w)
+      let xs = most(v)
+      [total(map(a => a^2, xs)) <= t^2, t >= 0]
+    }
+    else if kind == "NonNegativeCone" then [vector_greater_equal([v, w])]
+    else [c]
+  }
+  else [c]
+}
+
+# b29_opt_result(f, rules, prop): the answer of an optimization in the form the property names: the rules (default),
+# "PrimalMinimumValue", "PrimalMinimizer" (the values), or a list of properties
+fn b29_opt_result(f, rules, prop) = {
+  let ok = is_list(rules) and length(rules) > 0 and every(rules, r => b29_is_rule(r))
+  if not ok then rules
+  else if is_list(prop) then map(p => b29_opt_result(f, rules, p), prop)
+  else if prop == "PrimalMinimumValue" then simplify(rewrite(f, rules))
+  else if prop == "PrimalMinimizer" then map(r => last(r), rules)
+  else rules
+}
+
+# (a repeated constraint is dropped: the robust forms repeat the constraints that do not depend on the parameters)
+fn b29_opt_run(f, cons0, vars) = {
+  let cons = if is_list(cons0) then unique(cons0) else cons0
+  if c30_special(f, cons, vars) then c30_run(f, cons, vars) else optimization_point(f, flatten(map(b29_cone_conditions, if is_list(cons) then cons else [cons]), 1), vars)
+}
+
+rule quadratic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_list(f) or not is_matrix(f[1])
+rule quadratic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_list(f) or not is_matrix(f[1])
+rule conic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars)
+rule conic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop)
+rule second_order_cone_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_vector(f) or not is_symbol(vars)
+rule second_order_cone_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_vector(f) or not is_symbol(vars)
+rule semidefinite_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_vector(f)
+rule semidefinite_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_vector(f)
+
+# semidefinite_optimization(c, [a0, a1, ..., an]): the vector x minimizing c . x such that a0 + x1 a1 + ... + xn an is
+# positive semidefinite
+rule semidefinite_optimization(c_, mats_) := {
+  let k = length(c)
+  let xs = map(i => to_expression(string_join(["sdp_x", to_string(i)])), range(k))
+  let m = map(i => map(j => mats[1][i][j] + total(map(t => xs[t]*mats[t + 1][i][j], range(k))), range(length(mats[1]))), range(length(mats[1])))
+  let cons = b29_cone_conditions(vector_greater_equal([m, 0], ["SemidefiniteCone", length(m)]))
+  let r = optimization_point(dot(c, xs), cons, xs)
+  if is_list(r) and length(r) > 0 and every(r, t => b29_is_rule(t)) then map(t => last(t), r) else r
+} when is_vector(c) and is_list(mats) and length(mats) == length(c) + 1 and every(mats, is_matrix)
+
+# quadratic_optimization([q, c], [a, b]), ([q, c], [a, b], [aeq, beq]): the vector x minimizing x . q . x/2 + c . x
+# under a . x + b >= 0 (and aeq . x + beq == 0)
+rule quadratic_optimization(qc_, ab_) := b29_qmat(qc[1], qc[2], ab, [[], []]) when is_list(qc) and length(qc) == 2 and is_matrix(qc[1]) and lo_pair(ab)
+rule quadratic_optimization(qc_, ab_, eq_) := b29_qmat(qc[1], qc[2], ab, eq) when is_list(qc) and length(qc) == 2 and is_matrix(qc[1]) and lo_pair(ab) and lo_pair(eq)
+fn b29_qmat(q, c, ab, eq) = {
+  let k = length(c)
+  let xs = map(i => to_expression(string_join(["qo_x", to_string(i)])), range(k))
+  let ineq = map(i => dot(ab[1][i], xs) + ab[2][i] >= 0, range(length(ab[1])))
+  let equ = map(i => dot(eq[1][i], xs) + eq[2][i] == 0, range(length(eq[1])))
+  let r = optimization_point(dot(xs, dot(q, xs))/2 + dot(c, xs), join(ineq, equ), xs)
+  if is_list(r) and length(r) > 0 and every(r, t => b29_is_rule(t)) then map(t => last(t), r) else r
+}
+
+# parametric_convex_optimization(f, cons, vars, params), (..., prop): the function of the parameters that gives the
+# minimizer (or the property) of the problem for given values of the parameters; up to three parameters
+fn b29_param_solve(f, cons, vars, params, vals, prop) = {
+  let sub = map(i => params[i] -> vals[i], range(length(params)))
+  b29_opt_result(rewrite(f, sub), b29_opt_run(rewrite(f, sub), rewrite(cons, sub), vars), prop)
+}
+rule parametric_convex_optimization(f_, cons_, vars_, params_) := parametric_convex_optimization(f, cons, vars, params, "PrimalMinimizerRules")
+rule parametric_convex_optimization(f_, cons_, vars_, params_, prop_) := {
+  let ps = if is_list(params) then params else [params]
+  let pk = length(ps)
+  if pk == 1 then (a => b29_param_solve(f, cons, vars, ps, [a], prop))
+  else if pk == 2 then ((a, b) => b29_param_solve(f, cons, vars, ps, [a, b], prop))
+  else ((a, b, c) => b29_param_solve(f, cons, vars, ps, [a, b, c], prop))
+} when (not is_list(params) or length(params) <= 3) and not is_string(params)
+
+# robust_convex_optimization(f, for_all(params, region, cons), vars): the minimizer of f such that cons holds for every
+# value of the parameters in the region. For a region that is a box (bounds on each parameter, written as inequalities
+# or as element(p, interval([lo, hi]))) and constraints affine in the parameters the worst cases are at the corners of
+# the box, so the problem is solved with the constraints at every corner; other regions stay unevaluated.
+fn b29_box_region(r) = {
+  if is_atom(r) then r
+  else if head(r) === element and length(r) == 2 and head(r[2]) === interval and length(r[2]) == 1 then r[2][1][1] <= r[1] and r[1] <= r[2][1][2]
+  else if is_list(r) then fold((a, b) => a and b, b29_box_region(r[1]), map(b29_box_region, rest(r)))
+  else if head(r) === head(b29_p and b29_q) then fold((u, v) => u and v, true, map(b29_box_region, map(k => r[k], range(length(r)))))
+  else r
+}
+fn b29_corners(ps, region) = {
+  let reg = b29_box_region(region)
+  let los = map(p => minimize([p, reg], ps), ps)
+  let his = map(p => minimize([-p, reg], ps), ps)
+  if not every(join(los, his), t => is_list(t) and length(t) == 2 and is_numeric(t[1])) then null
+  else {
+    let lo = map(t => t[1], los)
+    let hi = map(t => -t[1], his)
+    let cs = tuples([0, 1], length(ps))
+    let corners = map(c => map(i => ps[i] -> (if c[i] == 0 then lo[i] else hi[i]), range(length(ps))), cs)
+    if every(corners, c => rewrite(reg, c) === true) then corners else null
+  }
+}
+rule robust_convex_optimization(f_, fa_, vars_) := {
+  let ps = if is_list(fa[1]) then fa[1] else [fa[1]]
+  let cons = if is_list(fa[3]) then fa[3] else [fa[3]]
+  let corners = b29_corners(ps, fa[2])
+  b29_opt_run(f, flatten(map(c => rewrite(cons, c), corners), 1), vars)
+} when head(fa) === for_all and length(fa) == 3 and b29_corners(if is_list(fa[1]) then fa[1] else [fa[1]], fa[2]) !== null
+rule robust_convex_optimization(f_, fa_, vars_, prop_) := b29_opt_result(f, robust_convex_optimization(f, fa, vars), prop) when head(fa) === for_all
+
+# --- distributions: empirical, multivariate Poisson, Wishart matrix ---
+# These are inert terms like the families of mc-dist; the statistics below are rules on them.
+
+# b29_emp(d): [values, weights] of empirical_distribution(data) or empirical_distribution(weights -> data), the
+# values sorted and equal ones merged, the weights summing to 1
+fn b29_emp(d) = {
+  let a = d[1]
+  let weighted = b29_is_rule(a)
+  let xs = if weighted then last(a) else a
+  let ws = if weighted then first(a) else constant_array(1, length(xs))
+  let total_w = total(ws)
+  let ord = sort(unique_by(xs, x => x))
+  let wsum = v => total(map(k => ws[k], select(range(length(xs)), k => xs[k] === v)))/total_w
+  [ord, map(wsum, ord)]
+}
+rule pdf(d_, x_) := { let e = b29_emp(d); let h = select(range(length(e[1])), k => e[1][k] == x); if length(h) == 0 then 0 else e[2][h[1]] } when head(d) === empirical_distribution and not is_list(x)
+rule cdf(d_, x_) := { let e = b29_emp(d); total(map(k => e[2][k], select(range(length(e[1])), k => e[1][k] <= x))) } when head(d) === empirical_distribution and not is_list(x)
+rule mean(d_) := { let e = b29_emp(d); total(map(k => e[1][k]*e[2][k], range(length(e[1])))) } when head(d) === empirical_distribution
+rule variance(d_) := { let e = b29_emp(d); let m = mean(d); total(map(k => (e[1][k] - m)^2*e[2][k], range(length(e[1])))) } when head(d) === empirical_distribution
+rule standard_deviation(d_) := sqrt(variance(d)) when head(d) === empirical_distribution
+rule quantile(d_, q_) := { let e = b29_emp(d); let cum = accumulate(e[2]); e[1][first(select(range(length(cum)), k => cum[k] >= q))] } when head(d) === empirical_distribution and is_numeric(q) and q > 0 and q <= 1
+rule median(d_) := quantile(d, 1/2) when head(d) === empirical_distribution
+rule random_variate(d_) := { let e = b29_emp(d); let u = random_real(); let cum = accumulate(e[2]); e[1][first(select(range(length(cum)), k => cum[k] >= u))] } when head(d) === empirical_distribution
+rule random_variate(d_, k_) := map(t => random_variate(d), range(k)) when head(d) === empirical_distribution and is_integer(k)
+
+# multivariate_poisson_distribution(m0, [m1, ..., mk]): the vector (Y0 + Y1, ..., Y0 + Yk) of sums of independent
+# Poisson variables of means m0 and mi
+rule mean(d_) := map(m => d[1] + m, d[2]) when head(d) === multivariate_poisson_distribution
+rule covariance(d_) := map(i => map(j => if i == j then d[1] + d[2][i] else d[1], range(length(d[2]))), range(length(d[2]))) when head(d) === multivariate_poisson_distribution
+rule variance(d_) := map(m => d[1] + m, d[2]) when head(d) === multivariate_poisson_distribution
+rule random_variate(d_) := { let y0 = random_variate(poisson_distribution(d[1])); map(m => y0 + random_variate(poisson_distribution(m)), d[2]) } when head(d) === multivariate_poisson_distribution
+rule random_variate(d_, k_) := map(t => random_variate(d), range(k)) when head(d) === multivariate_poisson_distribution and is_integer(k)
+rule pdf(d_, xs_) := {
+  let m0 = d[1]
+  let ms = d[2]
+  let top = min(xs)
+  sum(map(j => exp(-m0)*m0^j/factorial(j)*product(map(i => exp(-ms[i])*ms[i]^(xs[i] - j)/factorial(xs[i] - j), range(length(ms)))), range(0, top)))
+} when head(d) === multivariate_poisson_distribution and is_list(xs) and length(xs) == length(d[2]) and every(xs, x => is_integer(x) and x >= 0)
+
+# wishart_matrix_distribution(nu, sigma): the sum of nu outer products x x^T of vectors of the multinormal
+# distribution of covariance sigma (for integer nu >= the dimension): mean nu sigma, variance nu (sigma_ij^2 +
+# sigma_ii sigma_jj) elementwise, and the density det(x)^((nu - p - 1)/2) exp(-tr(sigma^-1 x)/2)/(2^(nu p/2) det(sigma)^(nu/2) Gamma_p(nu/2))
+rule mean(d_) := d[1]*d[2] when head(d) === wishart_matrix_distribution
+rule variance(d_) := map(i => map(j => d[1]*(d[2][i][j]^2 + d[2][i][i]*d[2][j][j]), range(length(d[2]))), range(length(d[2]))) when head(d) === wishart_matrix_distribution
+rule random_variate(d_) := {
+  let p = length(d[2])
+  let l = cholesky(n(d[2]))
+  let zs = map(t => dot(l, map(i => random_variate(normal_distribution(0, 1)), range(p))), range(d[1]))
+  total(map(z => map(i => map(j => z[i]*z[j], range(p)), range(p)), zs))
+} when head(d) === wishart_matrix_distribution and is_integer(d[1]) and d[1] >= length(d[2]) and is_matrix(d[2])
+rule random_variate(d_, k_) := map(t => random_variate(d), range(k)) when head(d) === wishart_matrix_distribution and is_integer(k)
+rule pdf(d_, x_) := {
+  let nu = d[1]
+  let sg = d[2]
+  let p = length(sg)
+  let mgamma = pi^(p*(p - 1)/4)*product(map(j => gamma(nu/2 + (1 - j)/2), range(p)))
+  det(x)^((nu - p - 1)/2)*exp(-trace(dot(inverse(sg), x))/2)/(2^(nu*p/2)*det(sg)^(nu/2)*mgamma)
+} when head(d) === wishart_matrix_distribution and is_matrix(x) and is_matrix(d[2])
+
+# --- constants given by series ---
+# `n` hands khinchin and champernowne_number(b) to b29_n_constant(x, digits) (digits 0: machine precision).
+
+# khinchin: Khinchin's constant 2.68545..., the geometric mean of the continued fraction terms of almost every real
+# number; ln K = (1/ln 2) sum_(k >= 1) (zeta(2k) - 1)/k (1 - 1/2 + ... - 1/(2k - 1)) (Khinchin; Bailey, Borwein and
+# Crandall 1997), whose terms fall like 4^-k
+fn b29_khinchin(p) = {
+  let w = p + 12
+  var s = 0
+  var alt = 0
+  for k in range(ceiling(1.7*w) + 2) {
+    alt = alt + (-1)^(2*k)/(2*k - 1) - (if k > 1 then 1/(2*k - 2) else 0)
+    s = s + (n(zeta(2*k), w + ceiling(1.25*k) + 6) - 1)/k*n(alt, w)
+  }
+  n(exp(s/log(2)), p)
+}
+
+# champernowne_number(b): the base-b number 0.123456789(10)(11)... whose digits are the integers written one after
+# another (10 by default)
+fn b29_champernowne(b, p) = {
+  let digits = ceiling(p*log(10)/log(b)) + 8
+  var acc = 0
+  var count = 0
+  var k = 1
+  while count < digits {
+    let ds = integer_digits(k, b)
+    acc = acc*b^length(ds) + from_digits(ds, b)
+    count = count + length(ds)
+    k = k + 1
+  }
+  n(acc/b^count, p)
+}
+rule champernowne_number() := champernowne_number(10)
+fn b29_n_constant(x, d) = {
+  let p = if d == 0 then 25 else d
+  let v = if x === khinchin then b29_khinchin(p) else if is_integer(x[1]) and x[1] >= 2 then b29_champernowne(x[1], p) else null
+  if v === null then x else if d == 0 then n(v) else v
+}
+
+# --- c30: integer and complex variables, inactive forms, in the convex optimizers ---
+# Variables declared element(x, integers) (or constrained so, also nonnegative/nonpositive integers) are found by branch
+# and bound over the symbolic relaxation: a fractional relaxed value v of an integer variable splits the problem into
+# x <= floor(v) and x >= floor(v) + 1; a node is pruned when its relaxed value cannot beat the best integer point
+# (Land and Doig 1960). Exact relaxations stay exact. A complex variable z (element(z, complexes)) is split into the
+# real variables of its real and imaginary parts; a complex vector inequality means both parts compare (the cone of
+# the reals and the imaginary axis). inactive(add) and inactive(norm) are taken as their active forms.
+
+fn c30_prep(e) = rewrite(e, [inactive(add)(u_, w_) :> u + w, inactive(norm)(u_) :> sqrt(total(map(a => abs(a)^2, u)))])
+fn c30_domain_of(d) = if d === integers or d === nonnegative_integers or d === nonpositive_integers then 1 else if d === complexes then 2 else if d === reals then 0 else 3
+fn c30_is_el(c) = not is_atom(c) and head(c) === element and length(c) == 2
+fn c30_conj(c) = {
+  if is_list(c) then flatten(map(c30_conj, c), 1)
+  else if not is_atom(c) and head(c) === head(c30_p and c30_q) then flatten(map(k => c30_conj(c[k]), range(length(c))), 1)
+  else [c]
+}
+fn c30_entry(v) = if c30_is_el(v) then [v[1], c30_domain_of(v[2]), v[2]] else [v, 0, reals]
+fn c30_special(f, cons, vars) = {
+  let vl = if is_list(vars) then vars else [vars]
+  length(select(vl, c30_is_el)) > 0 or not free_of([f, cons], element) or not free_of([f, cons], inactive)
+}
+fn c30_solve(f, cons, vs) = {
+  let r = optimization_point(f, cons, vs)
+  if is_list(r) and length(r) > 0 and every(r, t => b29_is_rule(t)) and free_of(r, indeterminate) and free_of(r, minimize) then r else null
+}
+fn c30_frac(v, r) = {
+  let a = simplify(rewrite(v, r))
+  if is_integer(a) then false else abs(n(a) - round(n(a))) > 1/10000000
+}
+# the tie-break between integer points of equal value: the lexicographically smaller point
+fn c30_lex_less(a, b) = {
+  var out = false
+  var done = false
+  for k in range(length(a)) {
+    if not done and abs(a[k] - b[k]) > 1/1000000000 then { out = a[k] < b[k]; done = true }
+  }
+  out
+}
+fn c30_bb(f, cons, vs, ints) = {
+  var best = null
+  var best_val = 0
+  var stack = [cons]
+  var nodes = 0
+  while length(stack) > 0 and nodes < 300 {
+    let node = first(stack)
+    stack = rest(stack)
+    nodes = nodes + 1
+    let r = c30_solve(f, node, vs)
+    if not (r === null) then {
+      let val = n(simplify(rewrite(f, r)))
+      if best === null or val <= best_val + 1/1000000000 then {
+        let bad = select(ints, v => c30_frac(v, r))
+        if length(bad) == 0 then {
+          let cand = map(t => if length(select(ints, u => u === t[1])) > 0 then t[1] -> round(t[2]) else t, r)
+          if best === null or val < best_val - 1/1000000000 or c30_lex_less(map(t => n(t[2]), cand), map(t => n(t[2]), best)) then {
+            best = cand
+            best_val = val
+          }
+        } else {
+          let v = bad[1]
+          let x0 = n(rewrite(v, r))
+          stack = join([join(node, [v <= floor(x0)]), join(node, [v >= floor(x0) + 1])], stack)
+        }
+      }
+    }
+  }
+  best
+}
+fn c30_cparts(d) = if is_list(d) then flatten(map(c30_cparts, d), 1) else [complex_expand(re(d)) >= 0, complex_expand(im_part(d)) >= 0]
+fn c30_ccond(c) = {
+  if is_atom(c) then [c]
+  else if (head(c) === vector_greater_equal or head(c) === vector_less_equal) and length(c) == 1 and is_list(c[1]) and length(c[1]) == 2 then {
+    let d = complex_expand(if head(c) === vector_greater_equal then c[1][1] - c[1][2] else c[1][2] - c[1][1])
+    select(c30_cparts(d), t => not (t === true))
+  }
+  else if head(c) === equal and length(c) == 2 and not is_list(c[1]) then {
+    let d = complex_expand(c[1] - c[2])
+    select([complex_expand(re(d)) == 0, complex_expand(im_part(d)) == 0], t => not (t === true))
+  }
+  else if (head(c) === less_equal or head(c) === greater_equal) and length(c) == 2 then [apply(head(c), [complex_expand(c[1]), complex_expand(c[2])])]
+  else [c]
+}
+fn c30_opt(f, cons0, vars) = {
+  let cons = if is_list(cons0) then unique(cons0) else cons0
+  if c30_special(f, cons, vars) then c30_run(f, cons, vars) else optimization_point(f, cons, vars)
+}
+# a vector variable x (used through dot, total or indexed) is split into its entries first, as optimization_point does
+fn c30_run(f, cons, vars) = {
+  let vs = if is_list(vars) then vars else [vars]
+  let isvec = length(vs) == 1 and is_symbol(vs[1]) and not free_of([f, cons], vs[1]) and lo_is_vector_use(f, vs[1])
+  if isvec then {
+    let dim = lo_dimension([f, cons], vs[1])
+    let xs = map(k => to_expression(string_join(["lo_v", to_string(k)])), range(dim))
+    let r = c30_run1(rewrite(f, vs[1] -> xs), rewrite(cons, vs[1] -> xs), xs)
+    if is_list(r) and length(r) > 0 and every(r, t => b29_is_rule(t)) then [vs[1] -> map(t => t[2], r)] else r
+  } else c30_run1(f, cons, vars)
+}
+fn c30_run1(f0, cons0, vars) = {
+  let f1 = c30_prep(f0)
+  let cl = flatten(map(c30_conj, c30_prep(if is_list(cons0) then cons0 else [cons0])), 1)
+  let elem = select(cl, c30_is_el)
+  let ents = map(e => [e[1], max(join([e[2]], map(c => c30_domain_of(c[2]), select(elem, c => c[1] === e[1] and c30_domain_of(c[2]) < 3)))), e[3]], map(c30_entry, if is_list(vars) then vars else [vars]))
+  let others = select(cl, c => not (c30_is_el(c) and c30_domain_of(c[2]) < 3))
+  let sign = flatten(map(e => if e[3] === nonnegative_integers then [e[1] >= 0] else if e[3] === nonpositive_integers then [e[1] <= 0] else [], ents), 1)
+  let cplx = select(ents, e => e[2] == 2)
+  let sub = map(e => e[1] -> to_expression(string_join(["c30re", to_string(e[1])])) + im*to_expression(string_join(["c30im", to_string(e[1])])), cplx)
+  let f2 = if length(cplx) == 0 then f1 else complex_expand(rewrite(f1, sub))
+  let c2 = join(others, sign)
+  let c3 = if length(cplx) == 0 then c2 else flatten(map(c30_ccond, rewrite(c2, sub)), 1)
+  let c4 = flatten(map(b29_cone_conditions, c3), 1)
+  let vs = flatten(map(e => if e[2] == 2 then [to_expression(string_join(["c30re", to_string(e[1])])), to_expression(string_join(["c30im", to_string(e[1])]))] else [e[1]], ents), 1)
+  let ints = map(e => e[1], select(ents, e => e[2] == 1))
+  let r = if length(ints) == 0 then c30_solve(f2, c4, vs) else c30_bb(f2, c4, vs, ints)
+  if r === null then optimization_point(f0, cons0, vars)
+  else flatten(map(e => if e[2] == 2 then [e[1] -> simplify(rewrite(to_expression(string_join(["c30re", to_string(e[1])])) + im*to_expression(string_join(["c30im", to_string(e[1])])), r))] else select(r, t => t[1] === e[1]), ents), 1)
+}
+
+# prime_omega(z), prime_omega(n, gaussian_integers: true): the number of prime factors, with multiplicity, in the
+# Gaussian integers. A Gaussian integer of norm N = a^2 + b^2 has, for every rational prime p with multiplicity e in N,
+# e prime factors above 2 and above p = 1 (mod 4) (each of norm p), and e/2 above p = 3 (mod 4) (each p itself, of
+# norm p^2); units have none (Hardy and Wright, ch. 12).
+fn c30_gauss_omega(a, b) = {
+  let fs = factor_integer(a^2 + b^2)
+  total(map(f => if mod(f[1], 4) == 3 then f[2]/2 else f[2], fs))
+}
+rule prime_omega(z_) := c30_gauss_omega(re(z), im_part(z)) when is_integer(re(z)) and is_integer(im_part(z)) and not (im_part(z) == 0) and abs(re(z)) + abs(im_part(z)) > 1
+rule prime_omega(z_, gaussian_integers: g_) := if g == true then (if is_integer(z) and z != 0 then (if abs(z) == 1 then 0 else c30_gauss_omega(z, 0)) else prime_omega(z)) else prime_omega(z) when is_integer(z) and z != 0 or (is_integer(re(z)) and is_integer(im_part(z)))
+
+# from_digits(ds), from_digits(ds, b) with symbolic digits or base: the polynomial sum of d_k b^(n - k) (Horner's rule)
+rule from_digits(ds_) := fold((acc, d) => acc*10 + d, 0, ds) when is_list(ds) and length(ds) > 0 and not every(ds, is_integer) and (every(ds, is_list) or every(ds, d => not is_list(d) and not is_string(d)))
+rule from_digits(ds_, b_) := fold((acc, d) => acc*b + d, 0, ds) when is_list(ds) and length(ds) > 0 and not (every(ds, is_integer) and is_integer(b)) and (every(ds, is_list) or every(ds, d => not is_list(d) and not is_string(d)))
+
+# --- c30: options and forms of linear algebra functions ---
+# matrix_log and permanent take a method (Jordan, Schur, Ryser, ...): every method gives the same value
+rule matrix_log(m_, method: mth_) := matrix_log(m) when is_matrix(m)
+rule permanent(m_, method: mth_) := permanent(m) when is_matrix(m)
+# distance_matrix(points, distance_function: f): f applied to every pair of points
+rule distance_matrix(pts_, distance_function: df_) := map(a => map(b => df(a, b), pts), pts) when is_list(pts) and length(pts) > 0
+# identity_matrix(n, sparse_array, working_precision: p): the identity matrix at precision p (machine numbers at machine precision)
+rule identity_matrix(k_, sparse_array, working_precision: p_) := if p > 15.9 and p < 16 then n(identity_matrix(k)) else n(identity_matrix(k), p) when is_integer(k) and k > 0
+# cross(v1, ..., v(k)) of k vectors in k + 1 dimensions: the vector whose i-th entry is (-1)^(i + k + 1) times the
+# determinant of the vectors without their i-th entry (so that its dot product with each vector is 0)
+fn c30_gcross(vs) = {
+  let dim = length(vs[1])
+  map(i => (-1)^(i + dim)*det(map(v => map(j => v[j], select(range(dim), j => not (j == i))), vs)), range(dim))
+}
+rule cross(a_, b_, c_) := c30_gcross([a, b, c]) when is_list(a) and length(a) == 4 and length(b) == 4 and length(c) == 4
+rule cross(a_, b_, c_, d_) := c30_gcross([a, b, c, d]) when is_list(a) and length(a) == 5 and length(b) == 5 and length(c) == 5 and length(d) == 5
+# a scalar against a vector: the scalar is taken at every entry
+rule euclidean_distance(u_, w_) := rewrite(sqrt(total(abs(u - w)^2)), (abs(z_)^2)^(1/2) :> abs(z)) when is_list(w) and not is_list(u)
+rule manhattan_distance(u_, w_) := total(abs(u - w)) when is_list(w) and not is_list(u)
+rule manhattan_distance(u_, w_) := total(abs(u - w)) when is_list(u) and not is_list(w)
+rule euclidean_distance(u_, w_) := rewrite(sqrt(total(abs(u - w)^2)), (abs(z_)^2)^(1/2) :> abs(z)) when is_list(u) and not is_list(w)
+# total(xs, method: "CompensatedSummation"): Neumaier's compensated sum (a running compensation for the low bits
+# lost by each addition); the default total is the plain sum in the canonical order (the same packed, unpacked and
+# compiled), which "Pairwise" and "Ordinary" name
+rule total(xs_, method: mth_) := nl_total_compensated(xs) when mth == "CompensatedSummation" and is_list(xs)
+# what the native passes on: reals that are not all machine numbers (the same sum, folded), anything else (the plain total)
+rule b29_total_fold(xs_) := {
+  let r = fold((acc, x) => {
+    let t = acc[1] + x
+    [t, acc[2] + (if abs(acc[1]) >= abs(x) then (acc[1] - t) + x else (x - t) + acc[1])]
+  }, [0.0, 0.0], xs)
+  r[1] + r[2]
+} when every(xs, is_real)
+rule b29_total_fold(xs_) := total(xs)
+rule total(xs_, method: mth_) := total(xs) when (mth == "Pairwise" or mth == "Ordinary") and is_list(xs) and every(xs, is_real)
+
+# lo_cmp(a, b, op): op applied entry by entry to lists of any depth (a scalar against a list is taken at every entry)
+fn lo_cmp(a, b, op) = if is_list(a) or is_list(b) then flatten(map(k => lo_cmp(if is_list(a) then a[k] else a, if is_list(b) then b[k] else b, op), range(if is_list(a) then length(a) else length(b))), 1) else [op(a, b)]
+
+# flatten(a, [[l1, l2, ...], [l3, ...], ...]): the levels of a gathered into new levels, the levels of each group
+# merged (in the order of the group) into one; the groups give the new levels in order. The array is permuted so that
+# the levels in the groups follow each other, then every group is merged.
+fn c30_permute_at(a, perm, dn, js, lev) = {
+  let r = length(perm)
+  if lev > r then fold((x, i) => x[i], a, map(k => js[perm[k]], range(r)))
+  else map(j => c30_permute_at(a, perm, dn, join(js, [j]), lev + 1), range(dn[lev]))
+}
+fn c30_permute(a, perm) = {
+  let d = dimensions(a)
+  let r = length(perm)
+  let dn = map(j => d[select(range(r), k => perm[k] == j)[1]], range(r))
+  c30_permute_at(a, perm, dn, [], 1)
+}
+# merge c consecutive levels starting at level d
+fn c30_merge(a, d, c) = if c == 1 then a else if d == 1 then flatten(map(row => c30_merge(row, 1, c - 1), a), 1) else map(row => c30_merge(row, d - 1, c), a)
+rule flatten(a_, spec_) := {
+  let flat = flatten(spec, 1)
+  let r = length(flat)
+  let perm = map(k => first(select(range(r), j => flat[j] == k)), range(r))
+  let t = c30_permute(a, perm)
+  var out = t
+  var starts = []
+  var s = 1
+  for g in spec {
+    starts = join(starts, [s])
+    s = s + length(g)
+  }
+  for gi in range(length(spec), 1, -1) {
+    out = c30_merge(out, starts[gi], length(spec[gi]))
+  }
+  out
+} when is_list(a) and is_list(spec) and length(spec) > 0 and every(spec, g => is_list(g) and length(g) > 0 and every(g, is_integer)) and sort(flatten(spec, 1)) == range(length(dimensions(a)))
+
+# real_valued_numeric_q(x): x is a numeric expression with a real value
+fn real_valued_numeric_q(x) = is_numeric(x) and is_real(n(x))
+
+# operator forms whose data comes last: nest_list(f, n)(x) is nest_list(f, x, n), nest(f, n)(x) is nest(f, x, n)
+rule nest_list(f_, n_)(x_) := nest_list(f, x, n) when is_integer(n)
+rule nest(f_, n_)(x_) := nest(f, x, n) when is_integer(n)
+
+# qr(m, full): the factorization with a square q: the columns of q completed to an orthonormal basis of the space
+# and r padded with zero rows (m == dot(q, r) still)
+rule qr(m_, full) := nl_qr_full(m) when is_matrix(m)
+rule qr(m_, "Full") := nl_qr_full(m) when is_matrix(m)
+fn nl_qr_full(m) = {
+  let t = qr(m)
+  let q = t[1]
+  let r = t[2]
+  let rows = length(m)
+  let k = length(r)
+  if k >= rows then t else {
+    let basis = orthogonalize(join(transpose(q), identity_matrix(rows)))
+    [transpose(basis), join(r, constant_array(constant_array(0, length(r[1])), rows - k))]
+  }
+}
+
+# array_reshape(xs, dims, "Extrapolated"): the missing entries continue the last step of the data linearly
+rule array_reshape(xs_, dims_, "Extrapolated") := {
+  let fl = flatten(xs)
+  let total = apply(mul, dims)
+  let step = fl[-1] - fl[-2]
+  array_reshape(join(fl, table(fl[-1] + k*step, k, total - length(fl))), dims)
+} when is_list(xs) and is_list(dims) and length(flatten(xs)) >= 2 and apply(mul, dims) > length(flatten(xs))
+
+# rotate_left(x, [n1, n2, ...]), rotate_right(x, [n1, ...]): level k rotated by nk (rows, then columns, ...)
+fn nl_rot(x, ns, left) = if length(ns) == 0 or not is_list(x) then x else map(r => nl_rot(r, rest(ns), left), if left then rotate_left(x, ns[1]) else rotate_right(x, ns[1]))
+rule rotate_left(x_, ns_) := nl_rot(x, ns, true) when is_list(x) and is_list(ns) and length(ns) > 0
+rule rotate_right(x_, ns_) := nl_rot(x, ns, false) when is_list(x) and is_list(ns) and length(ns) > 0
+
+# take_list(m, rows, cols): the matrix cut into blocks, [row block][column block]
+rule take_list(m_, rs_, cs_) := map(b => map(c => transpose(c), take_list(transpose(b), cs)), take_list(m, rs)) when is_matrix(m) and is_list(rs) and is_list(cs)
+
+# orthogonalize(vs, tolerance: t): Gram-Schmidt dropping the vectors whose remainder is shorter than t
+rule orthogonalize(vs_, tolerance: t_) := {
+  var basis = []
+  for v in vs {
+    var w = v
+    for e in basis { w = w - dot(w, conjugate(e))*e }
+    let nw = norm(w)
+    if nw >= t then basis = append(basis, w/nw)
+  }
+  basis
+} when is_list(vs)
+
+# flatten_at(n) is the operator form: flatten_at(n)(x) is flatten_at(x, n)
+rule flatten_at(n_) := nl_flatten_at_op(n)
+rule nl_flatten_at_op(n_)(x_) := flatten_at(x, n)
+
+# rotation_matrix(theta, [u, v]): the rotation by theta in the plane of the vectors u and v (from u towards v), the
+# identity on the orthogonal complement: I + (cos t - 1) (a a^H + b b^H) + sin t (b a^H - a b^H) with (a, b) an
+# orthonormal basis of the plane (Gram-Schmidt of u, v with the Hermitian product <x, y> = conjugate(x) . y, so that
+# complex vectors give a unitary matrix; for real vectors a^H = a^T)
+rule rotation_matrix(t_, uv_) := {
+  let a = uv[1]/norm(uv[1])
+  let w = uv[2] - dot(conjugate(a), uv[2])*a
+  let b = w/norm(w)
+  let n = length(a)
+  map(i => map(j => simplify(boole(i == j) + (cos(t) - 1)*(a[i]*conjugate(a[j]) + b[i]*conjugate(b[j])) + sin(t)*(b[i]*conjugate(a[j]) - a[i]*conjugate(b[j]))), range(n)), range(n))
+} when is_list(uv) and length(uv) == 2 and is_list(uv[1]) and is_list(uv[2]) and length(uv[1]) == length(uv[2]) and not is_list(t)
+# rotation_matrix([u, v]) for complex vectors (round 36): the unitary map I + E (U - I) E^H, E = [a, b] the
+# orthonormal basis of the plane as above, U = [[al, -conjugate(be)], [be, conjugate(al)]] with v/|v| = al a + be b,
+# so u/|u| goes to v/|v| and the orthogonal complement is fixed (real vectors keep the native rotation)
+rule rotation_matrix(uv_) := {
+  let a = uv[1]/norm(uv[1])
+  let w = uv[2] - dot(conjugate(a), uv[2])*a
+  let b = w/norm(w)
+  let vn = uv[2]/norm(uv[2])
+  let al = dot(conjugate(a), vn)
+  let be = dot(conjugate(b), vn)
+  let n = length(a)
+  map(i => map(j => simplify(boole(i == j) + (al - 1)*a[i]*conjugate(a[j]) - conjugate(be)*a[i]*conjugate(b[j]) + be*b[i]*conjugate(a[j]) + (conjugate(al) - 1)*b[i]*conjugate(b[j])), range(n)), range(n))
+} when is_list(uv) and length(uv) == 2 and is_list(uv[1]) and is_list(uv[2]) and length(uv[1]) == length(uv[2]) and not every(join(uv[1], uv[2]), x => is_real(n(x)))
+
+
+
+
+# variance(weighted_data(d, w)): sum w (d - m)^2 / sum w with m the weighted mean (frequency weights: the variance
+# of the distribution the weights give the values, round 37); numbers by two passes (no cancellation), other
+# weights as one fraction, (W sum w d^2 - (sum w d)^2)/W^2 with its numerator expanded
+fn r37_weighted_ok(d, w) = is_list(d) and is_list(w) and length(d) == length(w) and length(d) > 0 and every(d, x => not is_list(x))
+rule variance(weighted_data(d_, w_)) := {
+  let tw = total(w)
+  if every(join(d, w), x => is_number(x)) then dot(w, (d - dot(d, w)/tw)^2)/tw else expand(tw*dot(w, d^2) - dot(w, d)^2)/tw^2
+} when r37_weighted_ok(d, w)
+rule std_dev(weighted_data(d_, w_)) := sqrt(variance(weighted_data(d, w))) when r37_weighted_ok(d, w)

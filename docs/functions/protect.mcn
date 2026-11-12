@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# protect
+
+#% text
+# `protect(f, ...)` gives the symbols the attribute `protected`: their definitions may no longer change.
+
+#% section
+# Details
+
+#% item
+# The value is the list of the names, as strings, of the symbols that were not protected before.
+
+#% item
+# The arguments are not evaluated; a list of symbols, or a string naming a symbol, also works.
+
+#% item
+# Assigning to a protected symbol, defining a rule for it, attaching a rule to it with `@on`, `unset` and changing its attributes give `failure(protected, f)`. The symbol's existing definitions keep working.
+
+#% item
+# `unprotect(f)` or `clear_attributes(f, protected)` removes the attribute.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rule area(r_) := pi*r^2
+protect(area)
+#% output
+#= ["area"]
+
+#% cell
+attributes(area)
+#% output
+#= [protected]
+
+#% cell
+rule area(r_) := 2*r
+#% output
+#! failure(protected, area)
+
+#% cell
+area(2)
+#% output
+#= 4*pi
+
+#% subsection
+# Scope
+
+#% text
+# Own values:
+
+#% cell
+limit_value = 10
+protect(limit_value)
+limit_value = 20
+#% output
+#! failure(protected, limit_value)
+
+#% cell
+unprotect(limit_value)
+limit_value = 20
+limit_value
+#% output
+#= 20
+
+#% section
+# See also
+
+#% text
+# `unprotect`, `attributes`, `unset`

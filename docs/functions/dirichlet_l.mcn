@@ -1,0 +1,39 @@
+#! mathcas 2 notebook
+
+#% title
+# dirichlet_l
+
+#% text
+# `dirichlet_l(k, j, s)` gives the Dirichlet L-function of the character with modulus `k` and Conrey label `j`: `k^(-s)` times the sum of `chi(a) zeta(s, a/k)`. Evaluated for inexact `s` (machine precision); `k = 1` is the zeta function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dirichlet_l(4, 3, 2.)
+#% output
+#= 0.9159655941772189
+
+#% cell
+dirichlet_l(1, 1, 2)
+#% output
+#= (1/6)*pi^2
+
+#% cell
+dirichlet_l(3, 2, 1.5)
+#% output
+#= 0.7039682448687328
+
+#% cell
+dirichlet_l(2, 1, 1. + sqrt(-1))
+#% output
+#= 0.6543589174072333 - 0.3843763502147998im
+
+#% section
+# See also
+
+#% text
+# `zeta`

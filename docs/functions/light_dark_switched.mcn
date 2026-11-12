@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# light_dark_switched
+
+#% text
+# `light_dark_switched(c_light, c_dark)`: a colour for light and dark themes (pictures use c_light; the notebook themes their chrome)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_dark_switched(standard_blue, standard_orange), disk()])
+#% output
+#= image("light_dark_switched.files/light_dark_switched-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

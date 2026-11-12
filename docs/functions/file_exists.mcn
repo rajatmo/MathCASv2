@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# file_exists
+
+#% text
+# `file_exists(path)` gives `true` when the file or directory `path` exists, else `false`.
+
+#% section
+# Details
+
+#% item
+# Relative paths are relative to the working directory.
+
+#% item
+# Use it to import optional data files only when they are there.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+export_data("squares.csv", table([k, k^2], k, 5)); file_exists("squares.csv")
+#% output
+#= true
+
+#% cell
+file_exists("no-such-file.csv")
+#% output
+#= false
+
+#% subsection
+# Applications
+
+#% text
+# Import a file only when it exists:
+
+#% cell
+if file_exists("squares.csv") then length(import_data("squares.csv")) else 0
+#% output
+#= 5
+
+#% section
+# See also
+
+#% text
+# `file_names`, `import_data`, `export_data`

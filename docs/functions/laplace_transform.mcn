@@ -1,0 +1,271 @@
+#! mathcas 2 notebook
+
+#% title
+# laplace_transform
+
+#% text
+# `laplace_transform(f, t, s)` gives the Laplace transform `integrate(f*exp(-s*t), [t, 0, inf])` of `f`.
+
+#% text
+# `laplace_transform(f, [t1, t2], [s1, s2])` gives the transform in several variables, one after the other.
+
+#% section
+# Details
+
+#% item
+# Sums are transformed term by term; a term with a function that has no definition stays as a `laplace_transform` call.
+
+#% item
+# Derivatives of undefined functions give `s^n F(s)` minus the initial values; `integrate(g(u), [u, 0, t])` gives `G(s)/s`.
+
+#% item
+# The shift rules: `exp(a t) g(t)` gives `G(s - a)`, `unit_step(t - a) g(t)` gives `exp(-a s)` times the transform of `g(t + a)`; `t^n g(t)` gives `(-1)^n` times the n-th derivative of `G` (when `g` is known; an undefined `g` leaves the call).
+
+#% item
+# Bessel functions, error functions, logarithms, integral sines and cosines and Laguerre polynomials come from a table; other integrands go to `integrate`.
+
+#% item
+# A value found by a rule or the table is checked against `n_integrate` at a sample point before it is returned.
+
+#% item
+# `generate_conditions: true` gives the conditions of convergence of the integral as a `conditional_expression`.
+
+#% item
+# A numeric `s` gives the value at that point (the numerical integral when no closed form is found).
+
+#% item
+# The result has the precision of `s`: an exact `s` gives an exact value where there is a closed form, a number a machine value, an arbitrary-precision number a value at its precision. There is no `working_precision:` option.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A ramp switched on at `t = 1`:
+
+#% cell
+laplace_transform(t*unit_step(t - 1), t, s)
+#% output
+#= (1 + s)*exp(-s)/s^2
+
+#% text
+# The value at a point:
+
+#% cell
+laplace_transform(t*unit_step(t - 1), t, 0.3)
+#% output
+#= 10.700707632069259
+
+#% text
+# Two variables:
+
+#% cell
+laplace_transform(x*exp(-y), [x, y], [p, q])
+#% output
+#= 1/(p^2*(1 + q))
+
+#% subsection
+# Scope
+
+#% text
+# Trigonometric and hyperbolic functions:
+
+#% cell
+laplace_transform(sin(w*t), t, s)
+#% output
+#= w/(s^2 + w^2)
+
+#% cell
+laplace_transform(t*cosh(a*t), t, s)
+#% output
+#= (a^2 + s^2)/((a + s)^2*(a - s)^2)
+
+#% text
+# Powers and logarithms:
+
+#% cell
+laplace_transform(t^n, t, s)
+#% output
+#= gamma(1 + n)*s^(-1 - n)
+
+#% cell
+laplace_transform(log(t), t, s)
+#% output
+#= (-euler_gamma - log(s))/s
+
+#% text
+# Special functions:
+
+#% cell
+laplace_transform(bessel_j(0, a*t), t, s)
+#% output
+#= (a^2 + s^2)^(-1/2)
+
+#% cell
+laplace_transform(sin_integral(t), t, s)
+#% output
+#= atan(s^-1)/s
+
+#% cell
+laplace_transform(laguerre_l(n, t), t, s)
+#% output
+#= s^(-1 - n)*(-1 + s)^n
+
+#% text
+# Derivatives of an undefined function:
+
+#% cell
+laplace_transform(f''(t), t, s)
+#% output
+#= -f'(0) + laplace_transform(f(t), t, s)*s^2 - s*f(0)
+
+#% text
+# A delta function and a piecewise function:
+
+#% cell
+laplace_transform(dirac_delta(t - 2), t, s)
+#% output
+#= exp(-2*s)
+
+#% cell
+laplace_transform(piecewise([[1, t < 1]], 0), t, s)
+#% output
+#= (1 - exp(-s))/s
+
+#% text
+# A damped oscillation with symbolic parameters; `assumptions:` states what is known about them:
+
+#% cell
+laplace_transform(exp(-a*t)*sin(w*t), t, s, assumptions: a > 0)
+#% output
+#= w/(w^2 + (a + s)^2)
+
+#% text
+# Square roots, and an integrand divided by `t`:
+
+#% cell
+laplace_transform(1/sqrt(t), t, s)
+#% output
+#= pi^(1/2)/s^(1/2)
+
+#% cell
+laplace_transform(sin(t)/t, t, s)
+#% output
+#= atan(s^-1)
+
+#% subsection
+# Options
+
+#% text
+# The conditions of convergence:
+
+#% cell
+laplace_transform(exp(-a*t), t, s, generate_conditions: true)
+#% output
+#= conditional_expression((a + s)^-1, re(a + s) > 0)
+
+#% text
+# The region of convergence, also for a symbolic power:
+
+#% cell
+laplace_transform(t^n, t, s, generate_conditions: true)
+#% output
+#= conditional_expression(gamma(1 + n)*s^(-1 - n), re(n) > -1 and re(s) > 0)
+
+#% text
+# There is no `working_precision:` option; the precision of the result follows the point `s`, here a 30-digit number:
+
+#% cell
+laplace_transform(t*exp(-t), t, n(2, 30))
+#% output
+#= 0.1111111111111111111111111111111111
+
+#% subsection
+# Properties and relations
+
+#% text
+# The inverse transform gives the function back:
+
+#% cell
+inverse_laplace_transform(laplace_transform(t*sin(t), t, s), s, t)
+#% output
+#= t*sin(t)
+
+#% text
+# At a number `s` the value is the integral itself:
+
+#% cell
+laplace_transform(t^2*exp(-3*t), t, 2.5)
+#% output
+#= 0.012021036814425245
+
+#% cell
+n_integrate(t^2*exp(-3*t)*exp(-2.5*t), [t, 0, inf])
+#% output
+#= 0.012021036814425248
+
+#% text
+# The point may be complex:
+
+#% cell
+laplace_transform(sin(t), t, 1 + 2im)
+#% output
+#= -1/10 + -im/5
+
+#% subsection
+# Possible issues
+
+#% text
+# A transform that the rules, the table and `integrate` cannot find stays a call, although it may exist:
+
+#% cell
+laplace_transform(tan(t), t, s)
+#% output
+#= laplace_transform(tan(t), t, s)
+
+#% cell
+laplace_transform(exp(t^3), t, 5.0)
+#% output
+#= laplace_transform(exp(t^3), t, 5.0)
+
+#% text
+# The rules for `t^n g(t)` and for a step times `g(t)` apply when `g` has a known transform; with an undefined `g` the call stays, while the shift `exp(a t) g(t)` is done:
+
+#% cell
+laplace_transform(t*f(t), t, s)
+#% output
+#= laplace_transform(t*f(t), t, s)
+
+#% cell
+laplace_transform(exp(-t)*f(t), t, s)
+#% output
+#= laplace_transform(f(t), t, 1 + s)
+
+#% text
+# A number `s` outside the region of convergence stays unevaluated: the integral diverges, and the closed form there is only the analytic continuation, not its value:
+
+#% cell
+laplace_transform(exp(t), t, 0.5)
+#% output
+#= laplace_transform(exp(t), t, 0.5)
+
+#% cell
+laplace_transform(exp(t), t, s, generate_conditions: true)
+#% output
+#= conditional_expression((-1 + s)^-1, re(s) > 1)
+
+#% text
+# `working_precision:` is not an option of this function; the call is returned with it:
+
+#% cell
+laplace_transform(t*exp(-t), t, s, working_precision: 30)
+#% output
+#= laplace_transform(t*exp(-t), t, s, working_precision: 30)
+
+#% section
+# See also
+
+#% text
+# `inverse_laplace_transform`, `bilateral_laplace_transform`, `mellin_transform`, `fourier_transform`, `integrate`

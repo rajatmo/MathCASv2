@@ -1,0 +1,41 @@
+#! mathcas 2 notebook
+
+#% title
+# tuples
+
+#% text
+# `tuples(xs, n)` gives every list of `n` elements taken from `xs`, with repetition, in order.
+# `tuples([xs1, xs2, ...])` gives every list whose i-th element comes from `xsi`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tuples([0, 1], 3)
+#% output
+#= [[0, 0, 0], [0, 0, 1], [0, 1, 0], [0, 1, 1], [1, 0, 0], [1, 0, 1], [1, 1, 0], [1, 1, 1]]
+
+#% cell
+tuples([[a, b], [1, 2, 3]])
+#% output
+#= [[a, 1], [a, 2], [a, 3], [b, 1], [b, 2], [b, 3]]
+
+#% subsection
+# Scope
+
+#% text
+# The number of tuples is the product of the lengths:
+
+#% cell
+length(tuples(range(4), 3))
+#% output
+#= 64
+
+#% section
+# See also
+
+#% text
+# `outer`, `subsets`, `permutations`

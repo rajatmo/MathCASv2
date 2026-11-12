@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# dendrogram
+
+#% text
+# `dendrogram(data)` draws the tree of an agglomerative clustering of the data with average linkage.
+
+#% section
+# Details
+
+#% item
+# Numbers and vectors use the Euclidean distance, strings the edit distance; `data -> labels` names the leaves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+dendrogram([1, 2, 5, 9, 10, 2.5])
+#% output
+#= image("dendrogram.files/dendrogram-1.svgz")
+
+#% cell
+dendrogram(["apple", "apply", "ape", "banana", "band"])
+#% output
+#= image("dendrogram.files/dendrogram-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `clustering_tree`

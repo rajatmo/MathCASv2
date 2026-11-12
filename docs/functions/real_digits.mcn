@@ -1,0 +1,92 @@
+#! mathcas 2 notebook
+
+#% title
+# real_digits
+
+#% text
+# `real_digits(x)` gives `[digits, e]` with the decimal digits of `abs(x)` and the exponent `e`, so that `abs(x) = 0.d1 d2 ... * 10^e`.
+
+#% text
+# `real_digits(x, b)` gives the digits in base `b`.
+
+#% text
+# `real_digits(x, b, len)` gives `len` digits.
+
+#% section
+# Details
+
+#% item
+# A machine number gives the digits of its value to its precision; a ball gives its correct digits.
+
+#% item
+# A rational number gives its digits exactly: the repeating part forms a final sublist.
+
+#% item
+# An exact irrational number such as `pi` needs a length.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+real_digits(123.456)
+#% output
+#= [[1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 3]
+
+#% cell
+real_digits(1/7)
+#% output
+#= [[[1, 4, 2, 8, 5, 7]], 0]
+
+#% cell
+real_digits(1/12)
+#% output
+#= [[8, [3]], -1]
+
+#% cell
+real_digits(pi, 10, 20)
+#% output
+#= [[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4], 1]
+
+#% subsection
+# Scope
+
+#% text
+# Another base:
+
+#% cell
+real_digits(0.75, 2, 6)
+#% output
+#= [[1, 1, 0, 0, 0, 0], 0]
+
+#% cell
+real_digits(1/3, 2)
+#% output
+#= [[[1, 0]], -1]
+
+#% text
+# A ball:
+
+#% cell
+real_digits(sqrt(2~25))
+#% output
+#= [[1, 4, 1, 4, 2, 1, 3, 5, 6, 2, 3, 7, 3, 0, 9, 5, 0, 4, 8, 8, 0, 1, 6, 8, 8], 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The period of `1/p` is `multiplicative_order(10, p)`:
+
+#% cell
+[length(real_digits(1/17)[1][1]), multiplicative_order(10, 17)]
+#% output
+#= [16, 16]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `from_digits`, `continued_fraction`, `n`

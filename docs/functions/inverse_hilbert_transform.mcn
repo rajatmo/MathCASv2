@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_hilbert_transform
+
+#% text
+# `inverse_hilbert_transform(g, s, t)` gives the inverse Hilbert transform, which is `-hilbert_transform(g, s, t)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_hilbert_transform(-cos(s), s, t)
+#% output
+#= sin(t)
+
+#% cell
+inverse_hilbert_transform(s/(1 + s^2), s, t)
+#% output
+#= (1 + t^2)^-1
+
+#% section
+# See also
+
+#% text
+# `hilbert_transform`

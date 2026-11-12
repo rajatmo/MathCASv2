@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# standard_brown
+
+#% text
+# `standard_brown`: the standard brown: a softer brown that reads on light and dark pages alike
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_brown, disk()])
+#% output
+#= image("standard_brown.files/standard_brown-1.svgz")
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: standard_brown)
+#% output
+#= image("standard_brown.files/standard_brown-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

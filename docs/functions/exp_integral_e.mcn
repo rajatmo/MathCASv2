@@ -1,0 +1,208 @@
+#! mathcas 2 notebook
+
+#% title
+# exp_integral_e
+
+#% text
+# `exp_integral_e(nu, x)` gives the generalized exponential integral `E_nu(x)`, the integral of `exp(-x*t)/t^nu` for `t` from 1 to `inf`.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 8.19.3; `exp_integral_e(1, x)` is `E_1(x)`, `-exp_integral_ei(-x)` for `x > 0`.
+
+#% item
+# `exp_integral_e(0, x)` is `exp(-x)/x`. `exp_integral_e(nu, 0)` is `1/(nu - 1)` for `nu > 1`; for `nu <= 1` the integral diverges (`inf` for an inexact `nu`, a pole failure for an exact one).
+
+#% item
+# Machine numbers, arbitrary-precision numbers and complex numbers (in the order and in the argument) give numerical values. On the negative real axis the value is that of the principal branch, continuous from above: `E_1(-x)` is `-exp_integral_ei(x) - i pi`.
+
+#% item
+# `exp_integral_e` is listable. The derivative in `x` is `-exp_integral_e(nu - 1, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+exp_integral_e(1, 1.0)
+#% output
+#= 0.21938393439552029
+
+#% cell
+exp_integral_e(2, 0.5)
+#% output
+#= 0.326643862324553
+
+#% cell
+exp_integral_e(0.5, 2.0)
+#% output
+#= 0.05702612399289205
+
+#% cell
+n(exp_integral_e(1, 1), 30)
+#% output
+#= 0.21938393439552027367716377546012165
+
+#% subsection
+# Scope
+
+#% text
+# Several orders:
+
+#% cell
+exp_integral_e([1, 2, 3], 1.0)
+#% output
+#= [0.21938393439552029, 0.14849550677592205, 0.10969196719776014]
+
+#% text
+# Special values, exact:
+
+#% cell
+[exp_integral_e(0, x), exp_integral_e(0, 2), exp_integral_e(2, 0)]
+#% output
+#= [exp(-x)/x, 1/(2*exp(2)), 1]
+
+#% text
+# Complex arguments, and a complex order:
+
+#% cell
+exp_integral_e(1 + 1.0*im, 2 + 3*im)
+#% output
+#= -0.018943830508373647 + 0.02044377010283004im
+
+#% cell
+exp_integral_e(1.5 + 2.0*im, 2.0)
+#% output
+#= 0.03365764460040722 - 0.01872665558475361im
+
+#% text
+# Negative arguments, on the branch cut, and negative orders:
+
+#% cell
+exp_integral_e(1, -2.0)
+#% output
+#= -4.954234356001891 - 3.141592653589793im
+
+#% cell
+exp_integral_e(-3, 0.5)
+#% output
+#= 95.83184423459608
+
+#% text
+# Large and small arguments, and large orders:
+
+#% cell
+[exp_integral_e(1, 100.0), exp_integral_e(1, 1e-300), exp_integral_e(1000, 3.0)]
+#% output
+#= [3.683597761682032e-46, 690.1983122333122, 4.968754436630453e-5]
+
+#% text
+# 30 digits, at a rational order:
+
+#% cell
+n(exp_integral_e(7/3, 5/2), 30)
+#% output
+#= 0.018489561566471233182890495039224377
+
+#% subsection
+# Properties and relations
+
+#% text
+# The integral definition:
+
+#% cell
+n_integrate(exp(-2*t)/t^3, [t, 1, inf]) - exp_integral_e(3, 2.0)
+#% output
+#= 9.367506770274758e-17
+
+#% text
+# The relation to `exp_integral_ei`:
+
+#% cell
+exp_integral_e(1, 2.0) + exp_integral_ei(-2.0)
+#% output
+#= 0.0
+
+#% text
+# The recurrence `nu E_(nu + 1)(x) = exp(-x) - x E_nu(x)`:
+
+#% cell
+exp_integral_e(3, 1.5) - (exp(-1.5) - 1.5*exp_integral_e(2, 1.5))/2
+#% output
+#= 0.0
+
+#% text
+# The half order is an error function, `E_(1/2)(x) = sqrt(pi/x) erfc(sqrt(x))`:
+
+#% cell
+exp_integral_e(1/2, 2.0) - sqrt(pi/2.0)*erfc(sqrt(2.0))
+#% output
+#= 3.469446951953614e-17
+
+#% text
+# The incomplete gamma function, `E_nu(x) = x^(nu - 1) gamma(1 - nu, x)`:
+
+#% cell
+exp_integral_e(3, 0.5) - 0.5^2*gamma(-2, 0.5)
+#% output
+#= 0.0
+
+#% text
+# The derivative:
+
+#% cell
+d(exp_integral_e(n, x), x)
+#% output
+#= -exp_integral_e(-1 + n, x)
+
+#% subsection
+# Possible issues
+
+#% text
+# A symbolic order or argument, and a non-integer exact order at an exact point, stay unevaluated:
+
+#% cell
+exp_integral_e(n, x)
+#% output
+#= exp_integral_e(n, x)
+
+#% cell
+exp_integral_e(3/2, 2)
+#% output
+#= exp_integral_e(3/2, 2)
+
+#% text
+# At 0 the integral diverges for `nu <= 1`: an exact order gives a pole failure, an inexact one `inf`:
+
+#% cell
+exp_integral_e(1, 0)
+#% output
+#! failure(pole, exp_integral_e(1, 0))
+
+#% cell
+exp_integral_e(1, 0.0)
+#% output
+#= inf
+
+#% text
+# A value below the smallest machine number is 0; an arbitrary-precision argument gives it:
+
+#% cell
+exp_integral_e(1, 1000.0)
+#% output
+#= 0.0
+
+#% cell
+n(exp_integral_e(1, 1000), 20)
+#% output
+#= 5.07089306023516654992720e-438
+
+#% section
+# See also
+
+#% text
+# `exp_integral_ei`, `gamma`, `log_integral`, `erfc`

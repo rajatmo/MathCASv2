@@ -1,0 +1,102 @@
+#! mathcas 2 notebook
+
+#% title
+# decompose
+
+#% text
+# `decompose(p, x)` writes the polynomial `p` in `x` as a composition `g1(g2(...(gk(x))))` and gives the list `[g1, g2, ..., gk]`, outermost first.
+
+#% text
+# `decompose(p, x, modulus: n)` decomposes `p` over the integers modulo the prime `n`.
+
+#% section
+# Details
+
+#% item
+# Every component after the first is monic and has no constant term, so the decomposition is unique for each sequence of degrees; the first component carries the leading coefficient and the constant term.
+
+#% item
+# A polynomial in `x^k` (with `k` the gcd of its exponents) gives `x^k` as its last component; a linear outer component is kept unless it is `x` itself.
+
+#% item
+# Components of increasing degree are searched from the inside (Kozen and Landau: an inner component of degree r is the truncated (n/r)-th root of the leading part of `p`), and each candidate is accepted only when `p` is exactly its outer component composed with it, so every answer is verified.
+
+#% item
+# Coefficients may contain other symbols; they are treated as parameters (rational functions of them).
+
+#% item
+# Modulo a prime that divides a component degree, the candidates are enumerated (up to 4096); beyond that the call stays unevaluated.
+
+#% item
+# A polynomial of prime degree, or of degree at most 1, is indecomposable and comes back as a list with itself.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+decompose(x^6 + 3*x^3 + 1, x)
+#% output
+#= [1 + 3*x + x^2, x^3]
+
+#% cell
+decompose(expand((x^2 - 3*x)^3 + 2*(x^2 - 3*x) - 5), x)
+#% output
+#= [-5 + 2*x + x^3, -3*x + x^2]
+
+#% subsection
+# Scope
+
+#% text
+# Three levels:
+
+#% cell
+decompose(expand(((x^2 + x)^2 + 1)^2 - 7), x)
+#% output
+#= [-6 + 2*x + x^2, x^2, x + x^2]
+
+#% text
+# Symbolic coefficients:
+
+#% cell
+decompose(expand((c*x^2 + x)^2 + d), x)
+#% output
+#= [d + x*c^2, x^2, x/c + x^2]
+
+#% text
+# Over the integers modulo 5:
+
+#% cell
+decompose(expand((x^2 + 2*x)^2 + 3*x^2 + 6*x + 1), x, modulus: 5)
+#% output
+#= [1 + 3*x + x^2, 2*x + x^2]
+
+#% text
+# An indecomposable polynomial:
+
+#% cell
+decompose(x^4 + x + 1, x)
+#% output
+#= [1 + x + x^4]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Composing the components gives the polynomial back:
+
+#% cell
+g = decompose(x^8 + 4*x^6 + 6*x^4 + 4*x^2 + 3, x)
+
+#% cell
+expand(rewrite(g[1], x -> rewrite(g[2], x -> g[3])))
+#% output
+#= 3 + 4*x^2 + 6*x^4 + 4*x^6 + x^8
+
+#% section
+# See also
+
+#% text
+# `factor`, `expand`, `resultant`

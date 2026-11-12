@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# mellin_convolve
+
+#% text
+# `mellin_convolve(f, g, x, y)` gives the Mellin convolution of `f` and `g`: the integral of `f(x) g(y/x)/x` for `x` from 0 to `inf`.
+
+#% section
+# Details
+
+#% item
+# `y` is taken positive; a numeric `y` gives a numerical integral.
+
+#% item
+# Factors that do not depend on `x` come out of the convolution.
+
+#% item
+# `mellin_convolve(f, g, [x1, ...], [y1, ...])` convolves in several variables.
+
+#% item
+# When the integral cannot be done the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mellin_convolve(exp(-x), 1/(x + 1), x, 0.3)
+#% output
+#= 1.2225356050805647
+
+#% cell
+mellin_convolve(unit_box(x - 1), x, x, y)
+#% output
+#= (4/3)*y
+
+#% cell
+mellin_convolve(3*f(x), g(x), x, y)
+#% output
+#= 3*mellin_convolve(f(x), g(x), x, y)
+
+#% section
+# See also
+
+#% text
+# `unilateral_convolve`, `mellin_transform`, `integrate`

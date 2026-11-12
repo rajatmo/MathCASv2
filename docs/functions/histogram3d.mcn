@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# histogram3d
+
+#% text
+# `histogram3d([[x, y], ...])` draws counts of points of the plane in the cells of a grid as boxes.
+
+#% section
+# Details
+
+#% item
+# `histogram3d(data, n, "PDF" | "Probability")` for other heights.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+histogram3d(table([sin(k), cos(2 * k)], k, range(1, 300)))
+#% output
+#= image("histogram3d.files/histogram3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `histogram`

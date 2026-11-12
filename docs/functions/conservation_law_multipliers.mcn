@@ -1,0 +1,63 @@
+#! mathcas 2 notebook
+
+#% title
+# conservation_law_multipliers
+
+#% text
+# `conservation_law_multipliers(eq, u, x)` gives a basis of the multipliers of the differential equation `eq` for `u` of `x`: functions `Lambda` of the independent variables and of `u` with `Lambda eq` a total divergence for every function `u`, that is, `E_u(Lambda eq) == 0` for the Euler operator `E_u`. Each multiplier gives a conservation law (`conservation_laws`).
+
+#% section
+# Details
+
+#% item
+# `order: q` lets the multipliers depend on the derivatives of `u` up to order `q` (for several independent variables, the derivatives in the first one, as for an evolution equation `u_t == F`). The default is 0.
+
+#% item
+# The condition `E_u(Lambda eq) == 0` is split by the powers of the derivatives `Lambda` does not depend on and solved like the determining equations of `lie_point_symmetries`. An infinite family is given as `conditional_expression(c(1)(...), cond)`. `degree: d` looks for multipliers that are polynomials of total degree at most `d` instead (useful for ordinary differential equations, whose multipliers of order 1 form an infinite family).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The Korteweg-de Vries equation: mass, momentum and the Galilean law:
+
+#% cell
+conservation_law_multipliers(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t])
+#% output
+#= [u(x, t), -x + t*u(x, t), 1]
+
+#% text
+# With multipliers of order 2 the energy appears:
+
+#% cell
+conservation_law_multipliers(derivative(0, 1)(u)(x, t) + u(x, t)*derivative(1, 0)(u)(x, t) + derivative(3, 0)(u)(x, t) == 0, u, [x, t], order: 2)
+#% output
+#= [(1/2)*u(x, t)^2 + derivative(2, 0)(u)(x, t), u(x, t), -x + t*u(x, t), 1]
+
+#% subsection
+# Scope
+
+#% text
+# The multipliers of the heat equation are the solutions of the backward heat equation:
+
+#% cell
+conservation_law_multipliers(derivative(0, 1)(u)(x, t) == derivative(2, 0)(u)(x, t), u, [x, t])
+#% output
+#= [conditional_expression(c(1)(x, t), -derivative(0, 1)(c(1))(x, t) - derivative(2, 0)(c(1))(x, t) == 0)]
+
+#% text
+# Integrating factors of an ordinary differential equation:
+
+#% cell
+conservation_law_multipliers(y''(x) + y(x) == 0, y, x)
+#% output
+#= [cos(x), sin(x)]
+
+#% section
+# See also
+
+#% text
+# `conservation_laws`, `lie_point_symmetries`

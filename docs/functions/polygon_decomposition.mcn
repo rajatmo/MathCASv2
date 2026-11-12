@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# polygon_decomposition
+
+#% text
+# `polygon_decomposition(reg)`: a polygon without holes (or a rectangle, triangle) as a list of triangles `polygon([p1, p2, p3], [1, 2, 3])`
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polygon_decomposition(rectangle())
+#% output
+#= [polygon([[0, 1], [0, 0], [1, 0]], [1, 2, 3]), polygon([[1, 0], [1, 1], [0, 1]], [1, 2, 3])]
+
+#% cell
+polygon_decomposition(polygon([[0, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3]]), "Triangle")
+#% output
+#= [polygon([[0, 0], [4, 0], [4, 1]], [1, 2, 3]), polygon([[0, 0], [4, 1], [1, 1]], [1, 2, 3]), polygon([[0, 3], [0, 0], [1, 1]], [1, 2, 3]), polygon([[1, 1], [1, 3], [0, 3]], [1, 2, 3])]
+
+#% cell
+total(map(area, out()))
+#% output
+#= 6
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

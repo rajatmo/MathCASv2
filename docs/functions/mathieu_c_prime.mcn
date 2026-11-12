@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_c_prime
+
+#% text
+# `mathieu_c_prime(a, q, z)` gives the derivative in `z` of the even Mathieu function `mathieu_c(a, q, z)`.
+
+#% section
+# Details
+
+#% item
+# Numerical values: the derivative of the same integration that gives `mathieu_c` (Taylor series of the equation re-expanded along the segment from 0) with the normalization of the even Floquet solution (DLMF 28.12).
+
+#% item
+# `d(mathieu_c(a, q, z), z)` is `mathieu_c_prime(a, q, z)`, and `d(mathieu_c_prime(a, q, z), z)` is `-(a - 2 q cos 2z) mathieu_c(a, q, z)` (the Mathieu equation, DLMF 28.2.1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mathieu_c_prime(3, 2, 0.5)
+#% output
+#= 0.14781230215799046
+
+#% cell
+n(mathieu_c_prime(3, 2, 1/2), 20)
+#% output
+#= 0.1478123021579904684952923
+
+#% text
+# A difference quotient of `mathieu_c`:
+
+#% cell
+(mathieu_c(3, 2, 0.5 + 1.0e-6) - mathieu_c(3, 2, 0.5 - 1.0e-6))/2.0e-6
+#% output
+#= 0.14781230217586483
+
+#% text
+# The derivatives of `mathieu_c` reduce to `mathieu_c` and `mathieu_c_prime`:
+
+#% cell
+d(mathieu_c(a, q, z), [z, 2])
+#% output
+#= -(a - 2*q*cos(2*z))*mathieu_c(a, q, z)
+
+#% section
+# See also
+
+#% text
+# `mathieu_c`, `mathieu_s`, `mathieu_s_prime`

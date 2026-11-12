@@ -1,0 +1,160 @@
+#! mathcas 2 notebook
+
+#% title
+# finite_field_element
+
+#% text
+# `finite_field_element(F, k)` gives the element of the finite field `F` with index `k`.
+
+#% text
+# `finite_field_element(F, [c0, c1, ...])` gives the element `c0 + c1 x + c2 x^2 + ...` of `F`, where `x` is the generator.
+
+#% section
+# Details
+
+#% item
+# `a(prop)` gives a property of the element `a`; `a([prop1, prop2, ...])` a list of them.
+
+#% item
+# The canonical form keeps the coefficients reduced modulo `p` and modulo the defining polynomial, without trailing zeros (zero is `[]`); in a field with the exponential representation it is the index (0 for zero, `k` for `x^(k - 1)`).
+
+#% item
+# The index of an element in the polynomial representation is `c0 + c1 p + c2 p^2 + ...`; an index of `q` or more is reduced like a longer coefficient list.
+
+#% item
+# The properties are those of the field (`"Characteristic"`, `"ExtensionDegree"`, `"FieldSize"`, `"FieldIrreducible"`, `"ElementRepresentation"`) and `"Field"`, `"Index"`, `"Coefficients"`, `"Trace"` and `"Norm"`.
+
+#% item
+# Elements of one field combine with each other and with exact numbers whose denominators are prime to `p`. Elements of different fields do not combine: their sum stays a sum.
+
+#% item
+# `a^k` takes any integer `k`; `a^(1/n)` stays unevaluated, `finite_field_root(a, n)` lists the roots.
+
+#% item
+# `a == b` compares elements, also with integers: `F(0) == 0` is `true`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+F = finite_field(5, 3)
+
+#% cell
+a = finite_field_element(F, [1, 2, 3])
+
+#% cell
+b = finite_field_element(F, 42)
+
+#% cell
+(a^2 + b) / (a - 3*b)
+#% output
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [4, 3, 2])
+
+#% subsection
+# Scope
+
+#% text
+# Properties of an element:
+
+#% cell
+b(["Index", "Coefficients", "Trace", "Norm"])
+#% output
+#= [42, [2, 3, 1], 0, 1]
+
+#% cell
+a("Field") == F
+#% output
+#= true
+
+#% text
+# Negative powers are powers of the inverse:
+
+#% cell
+a^-1 * a
+#% output
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1])
+
+#% text
+# In a field with the exponential representation, products add the indices:
+
+#% cell
+E = finite_field(5, 2, "Exponential")
+
+#% cell
+[E(4) * E(7), (E(4) * E(7))("Coefficients")]
+#% output
+#= [finite_field_element(finite_field(5, &(2 + 4*&1 + &1^2), "Exponential"), 10), [1, 3]]
+
+#% text
+# Elements of different fields stay apart:
+
+#% cell
+finite_field(2, 2)(3) + finite_field(3, 1)(2)
+#% output
+#= finite_field_element(finite_field(2, &(1 + &1 + &1^2), "Polynomial"), [1, 1]) + finite_field_element(finite_field(3, &(1 + &1), "Polynomial"), [2])
+
+#% text
+# Membership:
+
+#% cell
+[element(1/3, F), element(1/5, F), element(a, F)]
+#% output
+#= [true, false, true]
+
+#% subsection
+# Applications
+
+#% text
+# Polynomial arithmetic with coefficients in a field:
+
+#% cell
+polynomial_remainder(x^4 + a*x + 1, b*x^2 + 1, x)
+#% output
+#= finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [0, 4, 1]) + x*finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])
+
+#% subsection
+# Properties and relations
+
+#% text
+# The Frobenius map is additive:
+
+#% cell
+frobenius_automorphism(a + b) == frobenius_automorphism(a) + frobenius_automorphism(b)
+#% output
+#= true
+
+#% text
+# `finite_field_index` gives the index:
+
+#% cell
+finite_field_index(b)
+#% output
+#= 42
+
+#% subsection
+# Possible issues
+
+#% text
+# Square roots by a power stay unevaluated; `finite_field_root` finds them. An unknown property too:
+
+#% cell
+[a^(1/2), a("Foo"), finite_field_root(a^2, 2) ]
+#% output
+#= [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])^(1/2), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])("Foo"), [finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [4, 3, 2]), finite_field_element(finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial"), [1, 2, 3])]]
+
+#% text
+# A rational whose denominator is divisible by `p` is not an element:
+
+#% cell
+F([1/5, 1])
+#% output
+#= finite_field(5, &(3 + 3*&1 + &1^3), "Polynomial")([1/5, 1])
+
+#% section
+# See also
+
+#% text
+# `finite_field`, `finite_field_index`, `finite_field_element_norm`, `finite_field_element_trace`, `frobenius_automorphism`, `finite_field_root`

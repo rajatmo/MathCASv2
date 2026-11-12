@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# string_starts
+
+#% text
+# `string_starts(s, prefix)` gives `true` when `s` starts with `prefix`; with a list of strings, with one of them.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_starts("n_integrate", "n_")
+#% output
+#= true
+
+#% cell
+string_starts("integrate", "n_")
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Any of several prefixes:
+
+#% cell
+string_starts("list_plot", ["list_", "log_"])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `string_ends`, `string_contains`, `string_take`

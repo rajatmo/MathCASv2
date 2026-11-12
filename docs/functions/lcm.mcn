@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# lcm
+
+#% text
+# `lcm(a, b, ...)` gives the least common multiple of integers or rational numbers.
+
+#% text
+# `lcm(p, q, ...)` gives the least common multiple of polynomials.
+
+#% section
+# Details
+
+#% item
+# The result is non-negative; `lcm()` is 1 and a zero argument gives 0.
+
+#% item
+# For rationals the lcm is the lcm of the numerators over the gcd of the denominators.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lcm(4, 6)
+#% output
+#= 12
+
+#% cell
+lcm(2, 3, 5, 7)
+#% output
+#= 210
+
+#% cell
+lcm(1/2, 2/3)
+#% output
+#= 2
+
+#% cell
+lcm(x^2 - 1, x + 1)
+#% output
+#= -1 + x^2
+
+#% subsection
+# Scope
+
+#% text
+# The lcm of a list:
+
+#% cell
+apply(lcm, range(20))
+#% output
+#= 232792560
+
+#% subsection
+# Applications
+
+#% text
+# When two periodic events of periods 12 and 18 coincide again:
+
+#% cell
+lcm(12, 18)
+#% output
+#= 36
+
+#% subsection
+# Properties and relations
+
+#% text
+# `gcd*lcm` is the product for two positive integers:
+
+#% cell
+[gcd(84, 120)*lcm(84, 120), 84*120]
+#% output
+#= [10080, 10080]
+
+#% section
+# See also
+
+#% text
+# `gcd`, `polynomial_lcm`, `extended_gcd`

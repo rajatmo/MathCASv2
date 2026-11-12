@@ -1,0 +1,82 @@
+#! mathcas 2 notebook
+
+#% title
+# check_arguments
+
+#% text
+# `check_arguments(f(a1, ...), n)` is `true` when the call has the right number of arguments, the options after them not counted, and `false` otherwise.
+
+#% section
+# Details
+
+#% item
+# `n` is the number of arguments, or `[min, max]` (`max` may be `inf`).
+
+#% item
+# Otherwise the result is `false`: it serves as a condition (`rule f(args___) := ... when check_arguments(f(args), 2)`). `arguments_options` gives the reason, `failure(argument_count, f, given, n)`.
+
+#% item
+# The call is held, as for `arguments_options`, and the options after the arguments are not counted; the settings of `arguments_options` (`options_mode`, an association third argument) apply.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+check_arguments(f(1, a -> 0), 1)
+#% output
+#= true
+
+#% cell
+check_arguments(f(1, 2, 3), [2, inf])
+#% output
+#= true
+
+#% subsection
+# Scope
+
+#% text
+# Options do not count unless `options_mode: none`, and a call that is not a call of a head fails:
+
+#% cell
+[check_arguments(f(1, a -> 2, b -> 3), 1), check_arguments(f(1, a -> 2), 2, options_mode: none), check_arguments(5, 1)]
+#% output
+#= [true, true, false]
+
+#% subsection
+# Properties and relations
+
+#% text
+# It is the test of the failure of `arguments_options`:
+
+#% cell
+[check_arguments(f(1, 2, 3), [1, 2]), is_failure(arguments_options(f(1, 2, 3), [1, 2]))]
+#% output
+#= [false, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# Too few:
+
+#% cell
+check_arguments(f(1), [2, inf])
+#% output
+#= false
+
+#% text
+# The reason:
+
+#% cell
+arguments_options(f(1), [2, inf])
+#% output
+#! failure(argument_count, f, 1, [2, inf])
+
+#% section
+# See also
+
+#% text
+# `arguments_options`

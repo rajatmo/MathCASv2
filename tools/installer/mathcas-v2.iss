@@ -1,0 +1,158 @@
+; MathCAS v2 installer (Inno Setup 6). Built by tools\package.ps1, which passes:
+;   /DAppVersion=<version> /DAppCommit=<commit> /DSourceDir=<dist folder> /DOutputDir=<packages folder> /DOutputName=<file name>
+; Per-user by default (no administrator rights), all users on request; Start Menu entries; on the tasks page the
+; .mcn file association, a PATH entry (removed again on uninstall), the VS Code extension and the Jupyter kernel (each
+; editor choice only when that editor is found).
+
+#ifndef AppVersion
+  #define AppVersion "dev"
+#endif
+#ifndef AppCommit
+  #define AppCommit "local"
+#endif
+
+[Setup]
+AppId={{C366AAA7-AA93-4378-9EAC-0D9B8E37C835}
+AppName=MathCAS v2
+AppVersion={#AppVersion}
+AppVerName=MathCAS v2 {#AppVersion} ({#AppCommit})
+LicenseFile={#SourceDir}\LICENSE.txt
+AppPublisher=Rajat Mandal
+DefaultDirName={autopf}\MathCAS v2
+DefaultGroupName=MathCAS v2
+DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+ChangesEnvironment=yes
+SetupIconFile=icon.ico
+UninstallDisplayIcon={app}\icon.ico
+UninstallDisplayName=MathCAS v2
+SourceDir={#SourceDir}
+OutputDir={#OutputDir}
+OutputBaseFilename={#OutputName}
+Compression=lzma2/max
+SolidCompression=yes
+WizardStyle=modern
+; a little larger than the default and resizable: no clipped lists or wrapped labels at 125-150 % scaling
+WizardSizePercent=120,120
+WizardResizable=yes
+
+; every choice is on the tasks page (a scrolling checklist with group headings); the finish page keeps only two
+; short "open" choices, because its list does not scroll and long labels wrapped and hid checkboxes
+[Tasks]
+Name: "mcnassoc"; Description: "Open .mcn notebooks with MathCAS"; GroupDescription: "Files and shortcuts:"
+Name: "addtopath"; Description: "Add MathCAS to the PATH (use mc-repl in any terminal)"; GroupDescription: "Files and shortcuts:"
+Name: "vscode"; Description: "Install the VS Code extension"; GroupDescription: "Editor integration:"; Check: VsCodeFound
+Name: "jupyter"; Description: "Register the Jupyter kernel"; GroupDescription: "Editor integration:"; Check: JupyterFound
+
+[Files]
+Source: "*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\MathCAS v2 Notebook"; Filename: "{app}\mc-notebook.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
+Name: "{group}\MathCAS v2 Documentation"; Filename: "{app}\mc-docs.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
+Name: "{group}\MathCAS v2 REPL"; Filename: "{app}\mc-repl.exe"; WorkingDir: "{userdocs}"; IconFilename: "{app}\icon.ico"
+Name: "{group}\MathCAS v2 quick start guide"; Filename: "{app}\quickstart.pdf"
+Name: "{group}\MathCAS v2 examples"; Filename: "{app}\examples"
+Name: "{group}\MathCAS v2 licence"; Filename: "{app}\LICENSE.txt"
+Name: "{group}\MathCAS v2 third-party notices"; Filename: "{app}\THIRD-PARTY-NOTICES.txt"
+Name: "{group}\Uninstall MathCAS v2"; Filename: "{uninstallexe}"
+
+[Registry]
+; the .mcn association (per user, or for all users in an administrator install), removed on uninstall
+Root: HKA; Subkey: "Software\Classes\.mcn"; ValueType: string; ValueName: ""; ValueData: "MathCAS.Notebook";   Flags: uninsdeletevalue; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook"; ValueType: string; ValueName: ""; ValueData: "MathCAS notebook";   Flags: uninsdeletekey; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook\DefaultIcon"; ValueType: string; ValueName: "";   ValueData: "{app}\icon.ico"; Tasks: mcnassoc
+Root: HKA; Subkey: "Software\Classes\MathCAS.Notebook\shell\open\command"; ValueType: string; ValueName: "";   ValueData: """{app}\mc-notebook.exe"" ""%1"""; Tasks: mcnassoc
+
+[Run]
+; the editor tasks run during installation (with a status line), not as finish-page choices
+Filename: "{cmd}"; Parameters: "/c code --install-extension ""{app}\mathcas-{#AppVersion}.vsix"""; \
+  StatusMsg: "Installing the VS Code extension..."; Tasks: vscode; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --kernel ""{app}\mc-kernel.exe"" --default"; \
+  StatusMsg: "Registering the Jupyter kernel..."; Tasks: jupyter; Flags: runhidden
+Filename: "{app}\mc-notebook.exe"; Description: "Open the MathCAS notebook"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\quickstart.pdf"; Description: "Open the quick start guide"; \
+  Flags: postinstall shellexec skipifsilent unchecked
+
+[UninstallRun]
+Filename: "{cmd}"; Parameters: "/c code --uninstall-extension mathcas.mathcas"; Check: VsCodeFound; \
+  Flags: runhidden; RunOnceId: "VsCodeExtension"
+Filename: "{cmd}"; Parameters: "/c python ""{app}\jupyter\install.py"" --uninstall"; Check: JupyterFound; \
+  Flags: runhidden; RunOnceId: "JupyterKernel"
+
+[Code]
+const
+  EnvKeyUser = 'Environment';
+  EnvKeyMachine = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';
+
+function VsCodeFound: Boolean;
+var
+  Code: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'), '/c where code >nul 2>nul', '', SW_HIDE, ewWaitUntilTerminated, Code)
+    and (Code = 0);
+end;
+
+{ a Python on the PATH with ipykernel: what the Jupyter kernel needs }
+function JupyterFound: Boolean;
+var
+  Code: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'), '/c python -c "import ipykernel, jupyter_client" >nul 2>nul', '',
+    SW_HIDE, ewWaitUntilTerminated, Code) and (Code = 0);
+end;
+
+{ the PATH of this install's scope: the user's for a per-user install, the machine's for all users }
+procedure PathKey(var Root: Integer; var Key: String);
+begin
+  if IsAdminInstallMode then begin Root := HKEY_LOCAL_MACHINE; Key := EnvKeyMachine; end
+  else begin Root := HKEY_CURRENT_USER; Key := EnvKeyUser; end;
+end;
+
+function HasEntry(const Path, Dir: String): Boolean;
+begin
+  Result := Pos(';' + Uppercase(Dir) + ';', ';' + Uppercase(Path) + ';') > 0;
+end;
+
+procedure AddToPath(const Dir: String);
+var
+  Root: Integer; Key, Path: String;
+begin
+  PathKey(Root, Key);
+  if not RegQueryStringValue(Root, Key, 'Path', Path) then Path := '';
+  if HasEntry(Path, Dir) then exit;
+  if (Path <> '') and (Copy(Path, Length(Path), 1) <> ';') then Path := Path + ';';
+  RegWriteExpandStringValue(Root, Key, 'Path', Path + Dir);
+end;
+
+procedure RemoveFromPath(const Dir: String);
+var
+  Root: Integer; Key, Path, Rest, Part, Kept: String; P: Integer;
+begin
+  PathKey(Root, Key);
+  if not RegQueryStringValue(Root, Key, 'Path', Path) then exit;
+  Rest := Path + ';'; Kept := '';
+  while Rest <> '' do begin
+    P := Pos(';', Rest);
+    Part := Copy(Rest, 1, P - 1);
+    Delete(Rest, 1, P);
+    if (Part <> '') and (CompareText(Part, Dir) <> 0) then begin
+      if Kept <> '' then Kept := Kept + ';';
+      Kept := Kept + Part;
+    end;
+  end;
+  if Kept <> Path then RegWriteExpandStringValue(Root, Key, 'Path', Kept);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and WizardIsTaskSelected('addtopath') then AddToPath(ExpandConstant('{app}'));
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then RemoveFromPath(ExpandConstant('{app}'));
+end;

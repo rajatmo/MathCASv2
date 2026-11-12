@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# derived_series
+
+#% text
+# `derived_series(G)`: G, G', G'', ... until it is stable
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+map(group_order, derived_series(symmetric_group(4)))
+#% output
+#= [24, 12, 4, 1]
+
+#% cell
+map(group_order, derived_series(symmetric_group(5)))
+#% output
+#= [120, 60]
+
+#% section
+# See also
+
+#% text
+# `is_solvable`, `lower_central_series`, `composition_series`

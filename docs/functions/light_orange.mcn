@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# light_orange
+
+#% text
+# `light_orange` is the colour light orange, a pale tint of `orange`: a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Details
+
+#% item
+# `light_orange` is a named colour like `orange`; it stays a symbol until a graphic draws it.
+
+#% item
+# Pale tints suit filled areas and backgrounds behind darker curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_orange, disk()])
+#% output
+#= image("light_orange.files/light_orange-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], colors: [orange, light_orange])
+#% output
+#= image("light_orange.files/light_orange-2.svgz")
+
+#% cell
+light_orange
+#% output
+#= light_orange
+
+#% subsection
+# Scope
+
+#% text
+# The tint beside the full colour and its darker shade:
+
+#% cell
+graphics([[light_orange, disk([0, 0])], [orange, disk([2, 0])], [darker(orange), disk([4, 0])]])
+#% output
+#= image("light_orange.files/light_orange-4.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A pale band behind a curve:
+
+#% cell
+graphics([[light_orange, rectangle([0, -1], [3, 1])], [black, line(table([t, sin(2*t)], t, range(0, 3, 0.05)))]])
+#% output
+#= image("light_orange.files/light_orange-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `orange`, `light_gray`, `lighter`, `rgb_color`, `light_purple`

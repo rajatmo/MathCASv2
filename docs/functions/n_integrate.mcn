@@ -1,0 +1,344 @@
+#! mathcas 2 notebook
+
+#% title
+# n_integrate
+
+#% text
+# `n_integrate(f, [x, a, b])` gives a numerical approximation to the integral of `f` for `x` from `a` to `b`.
+
+#% text
+# `n_integrate(f, [x, a, s1, s2, ..., b])` splits the interval at the points `s1`, `s2`, ..., where `f` has kinks or singularities.
+
+#% text
+# `n_integrate(f, [x, a, b], [y, c, d], ...)` gives a multiple integral; the inner limits `c`, `d` may depend on `x`.
+
+#% section
+# Details
+
+#% item
+# The limits may be `-inf` and `inf`; infinite intervals are mapped to finite ones.
+
+#% item
+# Integrable singularities at the ends of the interval, such as `1/sqrt(x)` at 0, are handled. A singularity inside the interval should be given as a split point.
+
+#% item
+# `unit_step(u)`, `heaviside_theta(u)`, `abs(u)` and `sign(u)` of a linear `u` make the root of `u` a split point automatically. `g(x)*dirac_delta(u)` with linear `u` is integrated by the sifting property; other uses of `dirac_delta` give a message that the value is not reliable. An isolated sample point where the integrand is undefined but has equal limits on both sides (`sin(x)/x` at 0) takes their mean; a singular point at the middle of an interval is a split point.
+
+#% item
+# The integrand must give a real or complex number at every sample point; a symbol left in it gives a failure.
+
+#% item
+# With several ranges the default method depends on their number: adaptive cubature for 2 to 7 variables; above 7, a randomised lattice rule when the integrand is built from analytic functions only, and VEGAS otherwise.
+
+#% item
+# The sampling methods (`vegas`, `lattice`, `sobol`, `monte_carlo`) give `around(value, error)`, the error being a statistical estimate (one standard error); the result is the same for the same `seed`, whatever the number of threads.
+
+#% item
+# Options:
+
+#% subitem
+# `method:` one of `gauss_kronrod` (the default for one finite interval), `double_exponential` (suited to end-point singularities), `nested` (one-dimensional rules range by range), `cubature` (Genz–Malik rules on boxes), `vegas` (adaptive Monte Carlo), `lattice` (randomised lattice rule), `sobol` (scrambled Sobol points) or `monte_carlo` (plain sampling).
+
+#% subitem
+# `precision_goal: p` and `accuracy_goal: a` ask for a relative error 10^-p or an absolute error 10^-a. The default precision goal is 8 digits for the deterministic methods (6 for cubature in 4 or more variables), 4 for `lattice` and `sobol`, 3 for `vegas` and `monte_carlo`.
+
+#% subitem
+# `max_points: n` limits the evaluations of the integrand (default 10^7 for the multidimensional methods).
+
+#% subitem
+# `points: n` sets the evaluations per iteration for `vegas`, or in all for the other sampling methods; `iterations: k` fixes the number of averaged VEGAS iterations; `seed: n` selects the random numbers (default 0).
+
+#% subitem
+# `error_estimate: true` gives `around(value, error)` for every method.
+
+#% subitem
+# `digits: d` works at `d` decimal digits and gives a ball whose radius is an error estimate.
+
+#% subitem
+# `rigorous: true` gives a ball guaranteed to contain the integral.
+
+#% item
+# When the error estimate does not reach the goal, a message says how far it got; a deterministic estimate that is still far from the goal is a failure tagged `not_converged` holding the estimate and its error.
+
+#% item
+# The integrand is evaluated in blocks of points, compiled when possible and spread over the session's threads.
+
+#% item
+# An integrand `boole(cond) g` with a polynomial condition is integrated over the cells of the cylindrical decomposition of the region (the condition and the ranges), so the region's boundary becomes the limits of nested integrals; squares of sines and cosines on a half-line are split into their oscillating and constant parts; a logarithm of the variable on `[a, inf)` decaying slower than any power is integrated after `x = e^u`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An integral over a finite interval:
+
+#% cell
+n_integrate(sin(x)^2, [x, 0, pi])
+#% output
+#= 1.570796326794897
+
+#% text
+# Over the whole real line:
+
+#% cell
+n_integrate(exp(-x^2), [x, -inf, inf])
+#% output
+#= 1.7724538509055159
+
+#% text
+# An integrable singularity at an end point:
+
+#% cell
+n_integrate(1/sqrt(x), [x, 0, 1])
+#% output
+#= 1.9999999999999998
+
+#% text
+# A double integral over a triangle:
+
+#% cell
+n_integrate(x*y, [x, 0, 1], [y, 0, x])
+#% output
+#= 0.12499999999999996
+
+#% subsection
+# Scope
+
+#% text
+# A kink inside the interval, given as a split point:
+
+#% cell
+n_integrate(abs(x - 1/3), [x, 0, 1/3, 1])
+#% output
+#= 0.2777777777777779
+
+#% text
+# A singularity inside the interval, at the split point 0:
+
+#% cell
+n_integrate(1/sqrt(abs(x)), [x, -1, 0, 1])
+#% output
+#= 4.000000000000002
+
+#% text
+# Inner limits that depend on the outer variable: the integral of x^2 + y^2 over the unit disc.
+
+#% cell
+n_integrate(x^2 + y^2, [x, -1, 1], [y, -sqrt(1 - x^2), sqrt(1 - x^2)])
+#% output
+#= 1.570796326873142
+
+#% text
+# Logarithmic singularities at both ends:
+
+#% cell
+n_integrate(log(x)*log(1 - x), [x, 0, 1])
+#% output
+#= 0.3550659331517734
+
+#% text
+# A four-dimensional integral by adaptive cubature:
+
+#% cell
+n_integrate(1/(1 + x + y + z + w), [x, 0, 1], [y, 0, 1], [z, 0, 1], [w, 0, 1])
+#% output
+#= 0.347143923109804
+
+#% text
+# Infinite ranges in several variables:
+
+#% cell
+n_integrate(exp(-x^2 - y^2 - z^2), [x, -inf, inf], [y, -inf, inf], [z, -inf, inf]) - pi^(3/2)
+#% output
+#= -5.624034571383163e-11
+
+#% text
+# Ten variables: a randomised lattice rule, with its error estimate:
+
+#% cell
+n_integrate(cos(x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8 + x9 + x10), [x1, 0, 1], [x2, 0, 1], [x3, 0, 1], [x4, 0, 1], [x5, 0, 1], [x6, 0, 1], [x7, 0, 1], [x8, 0, 1], [x9, 0, 1], [x10, 0, 1])
+#% output
+#= around(0.18634872535732494, 1.0691994201898687e-5)
+
+#% text
+# The exact value for comparison:
+
+#% cell
+n((2*sin(1/2))^10*cos(5))
+#% output
+#= 0.18634298557785392
+
+#% text
+# A complex integrand, and an oscillating integral over a half line:
+
+#% cell
+n_integrate(exp(im*x), [x, 0, pi])
+#% output
+#= 2.070921920692625e-16 + 2.0000000000000004im
+
+#% cell
+n_integrate(sin(x)/x, [x, 0, inf])
+#% output
+#= 1.570796326794897
+
+#% subsection
+# Options
+
+#% text
+# More digits, as a ball:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], digits: 30)
+#% output
+#= 0.74682413281242702539946743613185
+
+#% text
+# A result guaranteed to contain the exact value:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], rigorous: true)
+#% output
+#= 0.7468241328124270254
+
+#% text
+# VEGAS concentrates its points on a narrow peak:
+
+#% cell
+n_integrate(exp(-200*((x - 0.3)^2 + (y - 0.6)^2 + (z - 0.5)^2)), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: vegas)
+#% output
+#= around(0.0019685787954326025, 1.9650891822561495e-6)
+
+#% text
+# Scrambled Sobol points with a tighter goal:
+
+#% cell
+n_integrate(exp(x*y*z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: sobol, precision_goal: 6)
+#% output
+#= around(1.1464980050735512, 4.862165764335378e-7)
+
+#% text
+# Another seed gives other random numbers and an estimate within the errors:
+
+#% cell
+n_integrate(exp(x*y*z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: monte_carlo, seed: 7)
+#% output
+#= around(1.1447684316620976, 0.0010576678670683613)
+
+#% text
+# The error estimate of a deterministic method:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], error_estimate: true)
+#% output
+#= around(0.7468241328124272, 8.291413475940725e-15)
+
+#% text
+# Too few evaluations for the goal: the estimate, with a message saying how far it got and where the largest error is left:
+
+#% cell
+n_integrate(1/sqrt(x + y + z), [x, 0, 1], [y, 0, 1], [z, 0, 1], method: cubature, max_points: 3000)
+#% output
+#| n_integrate: cubature: the goals were not met after 2937 evaluations; the error estimate is 1.235e-5 (relative 1.432e-5), the largest part (1.169e-5) in the region around x = 1.250e-1, y = 1.250e-1, z = 1.250e-1; raise max_points: or lower precision_goal:
+#= 0.8628424976353988
+
+#% text
+# The double exponential method:
+
+#% cell
+n_integrate(sin(x)/x, [x, 0, 1], method: double_exponential)
+#% output
+#= 0.9460830703671831
+
+#% text
+# `working_precision:` is the same as `digits:`; a 60-digit value:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], working_precision: 60)
+#% output
+#= 0.746824132812427025399467436131853005354499686812606329027654499
+
+#% text
+# `precision_goal:` asks for a smaller relative error:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], precision_goal: 12)
+#% output
+#= 0.7468241328124272
+
+#% subsection
+# Properties and relations
+
+#% text
+# Exact and numerical integration agree to rounding:
+
+#% cell
+integrate(x^2, [x, 0, 1]) - n_integrate(x^2, [x, 0, 1])
+#% output
+#= -1.1102230246251565e-16
+
+#% cell
+n_integrate(1/(1 + x^2), [x, 0, inf]) - pi/2
+#% output
+#= 2.220446049250313e-16
+
+#% text
+# With `digits`, the agreement extends to all the digits asked for:
+
+#% cell
+n_integrate(exp(x), [x, 0, 1], digits: 40) - (e - 1)
+#% output
+#= ball(4.0977716665014145293e-44, 8.98e-44)
+
+#% text
+# The 30-digit value against the closed form to 40 digits:
+
+#% cell
+n_integrate(exp(-x^2), [x, 0, 1], working_precision: 30) - n(sqrt(pi)*erf(1)/2, 40)
+#% output
+#= ball(2.0383272977827472313e-34, 3.86e-34)
+
+#% subsection
+# Possible issues
+
+#% text
+# A singularity inside the interval that is not given as a split point may land on a sample point:
+
+#% cell
+n_integrate(1/x, [x, -1, 1])
+#% output
+#! failure(not_converged, n_integrate, 7.29624693995845e-15, 26.224539032987565)
+
+#% text
+# A symbolic limit cannot be integrated numerically:
+
+#% cell
+n_integrate(sin(x), [x, 0, a])
+#% output
+#! failure(argument, n_integrate, 2)
+
+#% text
+# A Monte Carlo error is itself an estimate. With a strong singularity the estimate can be far from the integral (here 100); the iterations of VEGAS then disagree, and a message says that the error estimate is unreliable:
+
+#% cell
+n_integrate(1/(x*y)^0.9, [x, 0, 1], [y, 0, 1], method: vegas, max_points: 10^6)
+#% output
+#| n_integrate: vegas: the goals were not met after 727284 evaluations; the error estimate is 7.393e-1 (relative 9.064e-3); raise max_points: or lower precision_goal:
+#| n_integrate: vegas: the iterations disagree (chi^2 per degree of freedom 14.24 over 8 iterations); the error estimate is unreliable
+#= around(81.56779924904357, 0.7393142679597606)
+
+#% text
+# A fast oscillation near an end point does not converge to the default accuracy; the failure holds the estimate and its error:
+
+#% cell
+n_integrate(sin(1/x), [x, 0, 1])
+#% output
+#! failure(not_converged, n_integrate, 0.5040670573734137, 1.6766555641862712e-6)
+
+#% section
+# See also
+
+#% text
+# `integrate`, `n_dsolve`, `find_root`, `n`

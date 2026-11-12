@@ -1,0 +1,24 @@
+[package]
+name = "mc-limit"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 limits: limit, max_limit, min_limit, discrete_limit and asymptotic (a walk with fast rules, Gruntz's algorithm), and the real bounds and switching functions definite integrals share"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# derivatives, the term builder and the shared helpers
+mc-calculus = { path = "../mc-calculus" }
+# signs of constants answered by the decision service (package F3)
+mc-decide = { path = "../mc-decide" }
+mc-poly = { path = "../mc-poly" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

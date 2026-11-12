@@ -1,0 +1,139 @@
+Return and Backspace in code keep the indentation (round 19).
+
+=== Return keeps the line's indentation
+--- before
+#% cell
+f(x) := {
+    a = 1▮
+--- keys
+Enter "b"
+--- after
+#% cell
+f(x) := {
+    a = 1
+    b▮
+
+=== Return after an opening bracket indents one level more
+--- before
+#% cell
+g = table(▮
+--- keys
+Enter "x"
+--- after
+#% cell
+g = table(
+    x▮
+
+=== Return between a bracket and its closer puts the closer on its own line
+--- before
+#% cell
+f(x) := {▮}
+--- keys
+Enter "y"
+--- after
+#% cell
+f(x) := {
+    y▮
+}
+
+=== the closer line keeps the outer indentation
+--- before
+#% cell
+    h = [▮]
+--- keys
+Enter "1"
+--- after
+#% cell
+    h = [
+        1▮
+    ]
+
+=== with automatic closing, typing an opener then Return splits the pair
+--- before
+#% cell
+k = ▮
+--- keys
+AutoClose "{" Enter "a"
+--- after
+#% cell
+k = {
+    a▮
+}
+
+=== Return inside a string is a plain line break
+--- before
+#% cell
+    s = "a(▮"
+--- keys
+Enter
+--- after
+#% cell
+    s = "a(
+▮"
+
+=== Return in a Text cell keeps no indentation
+--- before
+#% text
+    indented prose▮
+--- keys
+Enter "b"
+--- after
+#% text
+    indented prose
+b▮
+
+=== Backspace in leading spaces goes back to the previous indentation stop
+--- before
+#% cell
+a
+        ▮b
+--- keys
+Backspace
+--- after
+#% cell
+a
+    ▮b
+
+=== Backspace in an odd indentation goes to the stop below
+--- before
+#% cell
+a
+      ▮b
+--- keys
+Backspace
+--- after
+#% cell
+a
+    ▮b
+
+=== Backspace after a single space deletes one space
+--- before
+#% cell
+a
+ ▮b
+--- keys
+Backspace
+--- after
+#% cell
+a
+▮b
+
+=== Backspace after text deletes one character
+--- before
+#% cell
+    x  ▮
+--- keys
+Backspace
+--- after
+#% cell
+    x ▮
+
+=== undo of a Return with indentation is one step
+--- before
+#% cell
+f(▮)
+--- keys
+Enter Ctrl+Z
+--- after
+#% cell
+f(▮)

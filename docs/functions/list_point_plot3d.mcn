@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# list_point_plot3d
+
+#% text
+# `list_point_plot3d([[x1, y1, z1], ...])` draws points in space with axes.
+
+#% section
+# Details
+
+#% item
+# A matrix of heights is drawn as its points at x = 1, 2, ... and y = 1, 2, ....
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Points on a helix:
+
+#% cell
+list_point_plot3d(table([cos(t), sin(t), t], t, range(0, 10, 0.2)))
+#% output
+#= image("list_point_plot3d.files/list_point_plot3d-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A random cloud:
+
+#% cell
+seed(1); list_point_plot3d(table([random_real(), random_real(), random_real()], 200))
+#% output
+#= image("list_point_plot3d.files/list_point_plot3d-2.svgz")
+
+#% subsection
+# Options
+
+#% text
+# From another side:
+
+#% cell
+list_point_plot3d(table([t, t^2, t^3], t, range(0, 1, 0.05)), view_point: front)
+#% output
+#= image("list_point_plot3d.files/list_point_plot3d-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `list_line_plot3d`, `list_plot3d`, `list_plot`

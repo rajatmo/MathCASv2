@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# matrix_power
+
+#% text
+# `matrix_power(m, k)` gives the k-th power of a square matrix.
+
+#% section
+# Details
+
+#% item
+# Integer powers by repeated squaring; negative powers through the inverse; other powers as the matrix function x^k.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matrix_power([[1, 1], [1, 0]], 10)
+#% output
+#= [[89, 55], [55, 34]]
+
+#% cell
+matrix_power([[1, 2], [3, 4]], -1)
+#% output
+#= [[-2, 1], [3/2, -1/2]]
+
+#% subsection
+# Scope
+
+#% cell
+matrix_power([[2, 1], [1, 2]], 1/2)
+#% output
+#= [[(1/2)*(1 + 3^(1/2)), (1/2)*(-1 + 3^(1/2))], [(1/2)*(-1 + 3^(1/2)), (1/2)*(1 + 3^(1/2))]]
+
+#% section
+# See also
+
+#% text
+# `matrix_function`, `dot`, `inverse`

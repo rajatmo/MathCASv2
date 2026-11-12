@@ -1,0 +1,95 @@
+#! mathcas 2 notebook
+
+#% title
+# gamma_regularized
+
+#% text
+# `gamma_regularized(a, x)` gives the regularized upper incomplete gamma function `gamma(a, x)/gamma(a)`.
+
+#% section
+# Details
+
+#% item
+# `gamma_regularized(a, x)` is `Q(a, x)` of DLMF 8.2.4: the integral of `t^(a - 1)*exp(-t)` from `x` to `inf`, divided by `gamma(a)`. It falls from 1 at `x = 0` to 0.
+
+#% item
+# `1 - gamma_regularized(a, x)` is the lower function `P(a, x)`, the distribution function of the gamma distribution.
+
+#% item
+# Integer `a` with exact `x` gives exact values; machine numbers and balls give numerical values.
+
+#% item
+# `gamma_regularized` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+gamma_regularized(2, 1)
+#% output
+#= 2/e
+
+#% cell
+gamma_regularized(2.5, 1.0)
+#% output
+#= 0.8491450360846097
+
+#% cell
+gamma_regularized(1, x)
+#% output
+#= exp(-x)
+
+#% cell
+n(gamma_regularized(1/2, 2), 30)
+#% output
+#= 0.0455002638963584144005652743330669
+
+#% subsection
+# Scope
+
+#% text
+# Large parameters:
+
+#% cell
+gamma_regularized(100.0, 90.0)
+#% output
+#= 0.8417790108135699
+
+#% text
+# Several points:
+
+#% cell
+gamma_regularized(3.0, [0.5, 1.0, 2.0])
+#% output
+#= [0.9856123220330293, 0.9196986029286058, 0.6766764161830635]
+
+#% subsection
+# Applications
+
+#% text
+# The probability that a chi-square value with 4 degrees of freedom exceeds 9.49:
+
+#% cell
+gamma_regularized(2.0, 9.49/2)
+#% output
+#= 0.049953131223294894
+
+#% subsection
+# Properties and relations
+
+#% text
+# The inverse in the second argument:
+
+#% cell
+inverse_gamma_regularized(2.5, gamma_regularized(2.5, 1.3))
+#% output
+#= 1.3
+
+#% section
+# See also
+
+#% text
+# `gamma`, `inverse_gamma_regularized`, `beta_regularized`, `gamma_distribution`

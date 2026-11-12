@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# mouseover
+
+#% text
+# `mouseover(x, over)` is `x` as shown; `over` replaces it on hovering in interactive front ends.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mouseover(1, 2)
+#% output
+#= 1
+
+#% section
+# See also
+
+#% text
+# `plot`

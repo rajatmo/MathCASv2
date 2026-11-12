@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# rudin_shapiro
+
+#% text
+# `rudin_shapiro(n)` gives the n-th term of the Rudin-Shapiro sequence, `(-1)` to the number of (overlapping) occurrences of the binary digits 11 in `n`.
+
+#% section
+# Details
+
+#% item
+# The sequence starts with `rudin_shapiro(0) = 1`.
+
+#% item
+# The partial sums satisfy the square-root bound of the Rudin-Shapiro polynomials.
+
+#% item
+# The function maps over lists.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rudin_shapiro(6)
+#% output
+#= -1
+
+#% cell
+map(rudin_shapiro, range(0, 9))
+#% output
+#= [1, 1, 1, -1, 1, 1, -1, 1, 1, 1]
+
+#% cell
+rudin_shapiro([3, 5, 8, 11])
+#% output
+#= [-1, 1, 1, -1]
+
+#% cell
+accumulate(map(rudin_shapiro, range(0, 15)))
+#% output
+#= [1, 2, 3, 2, 3, 4, 3, 4, 5, 6, 7, 6, 5, 4, 5, 4]
+
+#% section
+# See also
+
+#% text
+# `thue_morse`, `integer_digits`

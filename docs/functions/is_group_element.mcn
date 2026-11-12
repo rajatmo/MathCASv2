@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# is_group_element
+
+#% text
+# `is_group_element(G, p)`: whether the permutation lies in the group
+
+#% section
+# Details
+
+#% item
+# Membership is decided by sifting through the stabiliser chain.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+g = mathieu_group(11); [is_group_element(g, cycles([[1, 2]])), is_group_element(g, cycles([[3, 7, 11, 8], [4, 10, 5, 6]]))]
+#% output
+#= [false, true]
+
+#% section
+# See also
+
+#% text
+# `group_order`, `is_subgroup`

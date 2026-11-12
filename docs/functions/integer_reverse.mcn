@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# integer_reverse
+
+#% text
+# `integer_reverse(n)` gives the integer with the decimal digits of `n` in reverse order.
+
+#% text
+# `integer_reverse(n, b)` reverses the digits in base `b`.
+
+#% section
+# Details
+
+#% item
+# Leading zeros of the result are dropped: `integer_reverse(120)` is 21.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+integer_reverse(12345)
+#% output
+#= 54321
+
+#% cell
+integer_reverse(120)
+#% output
+#= 21
+
+#% cell
+integer_reverse(11, 2)
+#% output
+#= 13
+
+#% subsection
+# Applications
+
+#% text
+# The palindromes among the squares below 1000:
+
+#% cell
+select(table(k^2, k, 31), s => integer_reverse(s) == s)
+#% output
+#= [1, 4, 9, 121, 484, 676]
+
+#% section
+# See also
+
+#% text
+# `integer_digits`, `from_digits`

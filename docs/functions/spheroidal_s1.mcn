@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# spheroidal_s1
+
+#% text
+# `spheroidal_s1(n, m, gamma, z)` gives the radial spheroidal function of the first kind `S^(m)(1)_n(z, gamma)`.
+
+#% section
+# Details
+
+#% item
+# The function is the expansion `(z^2 - 1)^(m/2) z^(-m) sum a_k w_k j_(n+2k)(gamma z)/sum (-1)^k a_k w_k` in spherical Bessel functions, with the coefficients `a_k` of `spheroidal_ps` and `w_k = (n + m + 2k)!/(n - m + 2k)!` (Flammer 1957, 4.1.17; DLMF 30.11.3).
+
+#% item
+# Integers `n >= m >= 0` and inexact `gamma` or `z` (exact arguments stay unevaluated); the value is complex, with an inexact zero imaginary part when it is real. Arguments with more digits give a value of that precision.
+
+#% item
+# `spheroidal_s1` threads over lists of `z`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spheroidal_s1(1, 0, 2.5, 1)
+#% output
+#= 0.584507273003611 + 0.0im
+
+#% cell
+spheroidal_s1(5, 1, 0.1, 0.3)
+#% output
+#= -0.0 - 3.934705565821266e-12im
+
+#% cell
+n(spheroidal_s1(7, 5, 1, 2), 30)
+#% output
+#= 0.00002738983051767685078038275244168 + 0.im
+
+#% cell
+n(spheroidal_s1(2, 1, 1/3, -11), 20)
+#% output
+#= -0.29985857194498797329 + 0.im
+
+#% text
+# A list of arguments, one of them large:
+
+#% cell
+spheroidal_s1(1, 0, 1.5, [0.5, 2.0, 200.0])
+#% output
+#= [0.2597690237629468 + 0.0im, 0.3949083238478165 + 0.0im, 6.774300789537011e-5 + 0.0im]
+
+#% text
+# The derivative in `z` is `spheroidal_s1_prime`:
+
+#% cell
+d(spheroidal_s1(2, 1, 1.3, z), z)
+#% output
+#= spheroidal_s1_prime(2, 1, 1.3, z)
+
+#% section
+# See also
+
+#% text
+# `spheroidal_ps`, `spheroidal_eigenvalue`, `spherical_bessel_j`, `spheroidal_s1_prime`

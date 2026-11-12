@@ -1,0 +1,172 @@
+#! mathcas 2 notebook
+
+#% title
+# Calculus and transforms
+
+#% text
+# `limit`, `d`, `series`, `integrate` and the integral transforms work symbolically; the numerical counterparts (`n_integrate`, `n_sum`) take over when no closed form exists.
+
+#% section
+# Derivatives and limits
+
+#% cell
+d(x^3*sin(x), x)
+#% output
+#= cos(x)*x^3 + 3*x^2*sin(x)
+
+#% text
+# `d(f, [x, 2])` is the second derivative.
+
+#% cell
+d(exp(-x^2), [x, 2])
+#% output
+#= -2*exp(-x^2) + 4*exp(-x^2)*x^2
+
+#% cell
+limit(sin(x)/x, x -> 0)
+#% output
+#= 1
+
+#% text
+# A two-sided limit that does not exist is reported, and `direction:` names one side.
+
+#% cell
+limit(1/x, x -> 0, direction: from_above)
+#% output
+#= inf
+
+#% cell
+limit((1 + 1/n)^n, n -> inf)
+#% output
+#= e
+
+#% section
+# Series and sums
+
+#% text
+# `series(e, x, x0, k)` expands about `x0` up to the power `k`; the remainder is written `O(...)`.
+
+#% cell
+series(exp(x), x, 0, 5)
+#% output
+#= 1 + x + x^2/2 + x^3/6 + x^4/24 + x^5/120 + O(x^6)
+
+#% cell
+series(1/(1 - x), x, 0, 4)
+#% output
+#= 1 + x + x^2 + x^3 + x^4 + O(x^5)
+
+#% cell
+sum(1/k^2, [k, 1, inf])
+#% output
+#= (1/6)*pi^2
+
+#% cell
+sum(k^2, [k, 1, n])
+#% output
+#= (1/6)*n*(1 + n)*(1 + 2*n)
+
+#% section
+# Integration
+
+#% text
+# `integrate(f, x)` is an antiderivative, `integrate(f, [x, a, b])` a definite integral. An integral for which no closed form is found stays as it is; `n_integrate` computes it numerically.
+
+#% cell
+integrate(x*exp(x), x)
+#% output
+#= -exp(x) + x*exp(x)
+
+#% cell
+integrate(1/(1 + x^2), [x, 0, 1])
+#% output
+#= (1/4)*pi
+
+#% cell
+integrate(exp(-x^2), [x, -inf, inf])
+#% output
+#= pi^(1/2)
+
+#% cell
+integrate(exp(-x^2), [x, 0, 1])
+#% output
+#= (1/2)*erf(1)*pi^(1/2)
+
+#% cell
+integrate(x^x, [x, 0, 1])
+#% output
+#= integrate(x^x, [x, 0, 1])
+
+#% cell
+n_integrate(x^x, [x, 0, 1])
+#% output
+#= 0.7834305107121345
+
+#% section
+# Integral transforms
+
+#% text
+# `laplace_transform(f, t, s)`, `fourier_transform(f, t, w)`, `mellin_transform(f, t, s)` and `z_transform(f, n, z)` have inverses `inverse_laplace_transform` and so on. The result is a function of the new variable.
+
+#% cell
+laplace_transform(exp(-2t)*sin(3t), t, s)
+#% output
+#= 3/(9 + (2 + s)^2)
+
+#% cell
+inverse_laplace_transform(1/(s^2 + 1), s, t)
+#% output
+#= sin(t)
+
+#% cell
+fourier_transform(exp(-t^2), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp((-1/4)*w^2)
+
+#% cell
+z_transform(2^n, n, z)
+#% output
+#= z/(-2 + z)
+
+#% section
+# Common mistakes
+
+#% item
+# The variable comes second in `d(f, x)`. A product needs `*`: `d(x(x + 1), x)` differentiates a call of `x`, not the product `x*(x + 1)`.
+
+#% cell
+d(x(x + 1), x)
+#% output
+#= x'(1 + x)
+
+#% cell
+d(x*(x + 1), x)
+#% output
+#= 1 + 2*x
+
+#% item
+# `limit(f, x -> a)` takes a rule, not a list. A limit whose two sides differ has no two-sided value (`failure(no_limit, ...)`): name a side with `direction:`.
+
+#% cell
+limit(1/x, x -> 0)
+#% output
+#! failure(no_limit, limit, x^-1, "the two-sided limit does not exist: the function is unbounded, tending to inf on one side and -inf on the other")
+
+#% cell
+limit(1/x, x -> 0, direction: from_below)
+#% output
+#= -inf
+
+#% item
+# A range that passes a singularity is not integrated blindly: `integrate(1/x^2, [x, -1, 1])` diverges and says so. An `integrate(...)` that comes back unchanged means instead that no closed form was found.
+
+#% cell
+integrate(1/x^2, [x, -1, 1])
+#% output
+#! failure(divergent, integrate, x^-2)
+
+#% section
+# Related functions
+
+#% text
+# `d`, `limit`, `series`, `integrate`, `n_integrate`, `sum`, `laplace_transform`, `fourier_transform`, `z_transform`, `mellin_transform`

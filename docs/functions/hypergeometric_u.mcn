@@ -1,0 +1,133 @@
+#! mathcas 2 notebook
+
+#% title
+# hypergeometric_u
+
+#% text
+# `hypergeometric_u(a, b, z)` gives Tricomi's confluent hypergeometric function `U(a, b, z)`.
+
+#% section
+# Details
+
+#% item
+# `U(a, b, z)` is the solution of Kummer's equation that behaves like `z^(-a)` as `z` tends to `inf` (DLMF 13.2.6). It has a branch cut on the negative real axis.
+
+#% item
+# Real machine numbers and balls give numerical values. `hypergeometric_u` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hypergeometric_u(1, 2, 1.0)
+#% output
+#= 1.0
+
+#% cell
+hypergeometric_u(0.5, 1.5, 2.0)
+#% output
+#= 0.7071067811865476
+
+#% cell
+hypergeometric_u(1.0, 1.0, 10.0)
+#% output
+#= 0.09156333393978808
+
+#% subsection
+# Scope
+
+#% text
+# Several points:
+
+#% cell
+hypergeometric_u(0.5, 1.5, [0.5, 1.0, 2.0])
+#% output
+#= [1.4142135623730951, 1.0, 0.7071067811865476]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `U(1/2, 1/2, x^2)` is `sqrt(pi)*exp(x^2)*erfc(x)`:
+
+#% cell
+hypergeometric_u(0.5, 0.5, 1.0) - sqrt(pi)*exp(1.0)*erfc(1.0)
+#% output
+#= 1.1102230246251565e-16
+
+#% text
+# The large-argument behaviour `z^(-a)`:
+
+#% cell
+hypergeometric_u(0.7, 1.3, 1000.0)*1000.0^0.7
+#% output
+#= 0.9997203324825422
+
+#% subsection
+# Possible issues
+
+#% text
+# A complex argument is evaluated by Tricomi's formula (DLMF 13.2.42) with the principal power of `z`; on the negative real axis that is the value from above the cut:
+
+#% cell
+hypergeometric_u(1.0, 2.0, 1.0 + 1.0*im)
+#% output
+#= 0.5 - 0.5im
+
+#% text
+# A positive integer `b` is the logarithmic case, evaluated as the mean of the two sides `b + eps` and `b - eps`; `U(1, 3, z) = 1/z + 1/z^2`:
+
+#% cell
+[hypergeometric_u(1, 3, 3.), 4/9]
+#% output
+#= [0.4444444444444444, 4/9]
+
+#% text
+# At 30 digits the cancellation of the two sides is absorbed in the working precision:
+
+#% cell
+n(hypergeometric_u(5, 3, 1/100), 30)
+#% output
+#= 405.0470588768353743722841360664760
+
+
+#% text
+# At a non-positive integer a, a polynomial:
+
+#% cell
+hypergeometric_u(-2, b, z)
+#% output
+#= b - 2*z - 2*b*z + b^2 + z^2
+
+#% text
+# Its value there:
+
+#% cell
+hypergeometric_u(-2, 1, 1.5)
+#% output
+#= -1.75
+
+#% text
+# Complex arguments:
+
+#% cell
+hypergeometric_u(3 - im, 2*im, 3.)
+#% output
+#= -0.0052653933206882 + 0.0007931661643468159im
+
+#% text
+# The derivative in z:
+
+#% cell
+d(hypergeometric_u(a, b, x), x)
+#% output
+#= -a*hypergeometric_u(1 + a, 1 + b, x)
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_1f1`, `whittaker_w`, `exp_integral_e`

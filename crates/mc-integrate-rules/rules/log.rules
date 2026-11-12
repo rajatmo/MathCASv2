@@ -1,0 +1,13 @@
+# Logarithms of trigonometric functions: integration by parts, then x cot and x tan, whose antiderivatives need
+# the dilogarithm (translated from Rubi sections 3.5 and 4.3.10, MIT; the closed forms follow from
+# cot u = i (1 + e^(2iu))/(e^(2iu) - 1) and d/dw polylog(2, w) = -log(1 - w)/w).
+
+## 3.5 log(c sin), log(c cos)
+int(log(c_.*sin(a_. + b_.*x))) := x*log(c*sin(a + b*x)) - b*int(x*cot(a + b*x)) when free(a, b, c)
+int(log(c_.*cos(a_. + b_.*x))) := x*log(c*cos(a + b*x)) + b*int(x*tan(a + b*x)) when free(a, b, c)
+
+## 4.3.10 x cot(a + b x), x tan(a + b x)
+int(x*cot(a_. + b_.*x)) := x*log(1 - exp(2*im*(a + b*x)))/b - im*x^2/2 - im/(2*b^2)*polylog(2, exp(2*im*(a + b*x)))
+    when free(a, b)
+int(x*tan(a_. + b_.*x)) := im*x^2/2 - x*log(1 + exp(2*im*(a + b*x)))/b + im/(2*b^2)*polylog(2, -exp(2*im*(a + b*x)))
+    when free(a, b)

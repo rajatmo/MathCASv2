@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# dark_red
+
+#% text
+# `dark_red`: the colour dark red (a deep shade)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([red, disk(), dark_red, disk([2.5, 0])])
+#% output
+#= image("dark_red.files/dark_red-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# date_list_step_plot
+
+#% text
+# `date_list_step_plot(data)` is `date_list_plot` drawn as steps holding each value until the next date.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+date_list_step_plot([1, 2, 3, 4, 5, 6, 7], [2000, 8])
+#% output
+#= image("date_list_step_plot.files/date_list_step_plot-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `date_list_plot`

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# association_map
+
+#% text
+# `association_map(f, xs)` gives the association of the entries `x -> f(x)` for the elements of the list `xs` (a repeated element once). For an association `a`, it applies `f` to each rule `k -> v` and builds the association of the results. `association_map(f)` is the operator form, `association_map(f)(xs)` being `association_map(f, xs)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+association_map(f, [a, b, c])
+#% output
+#= assoc(a -> f(a), b -> f(b), c -> f(c))
+
+#% cell
+association_map(x => x^2, range(5))
+#% output
+#= assoc(1 -> 1, 2 -> 4, 3 -> 9, 4 -> 16, 5 -> 25)
+
+#% cell
+association_map(reverse, assoc(a -> 1, b -> 2))
+#% output
+#= assoc(1 -> a, 2 -> b)
+
+#% section
+# See also
+
+#% text
+# `association_thread`, `assoc`, `map`

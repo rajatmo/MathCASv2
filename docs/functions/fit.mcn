@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# fit
+
+#% text
+# `fit(data, [f1, ..., fm], x)` gives the combination `c1 f1 + ... + cm fm` of the basis functions that fits the data best in least squares, with the coefficients computed numerically (through the pseudo-inverse of the design matrix, which stays accurate when the normal equations would not). The data are as for `design_matrix`; several variables are a list `[x1, ..., xk]`.
+
+#% section
+# Details
+
+#% item
+# `fit_regularization: ["L2", lambda]` (also `"Tikhonov"`, `"RidgeRegression"`) minimises the sum of the squared residuals plus `lambda` times the sum of the squared coefficients; `fit_regularization: ["L1", lambda]` (also `"LASSO"`) the sum of the squared residuals plus `lambda` times the sum of the absolute values of all the coefficients, the constant one included.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fit([[0, 1], [1, 0], [3, 2], [5, 4]], [1, x], x)
+#% output
+#= 0.18644067796610164 + 0.694915254237288*x
+
+#% cell
+fit([[0, 1], [1, 0], [3, 2], [5, 4]], [1, x, x^2], x)
+#% output
+#= 0.6783919597989949 - 0.2663316582914572*x + 0.19095477386934676*x^2
+
+#% cell
+fit([5, 4, 3, 2, 1, 0, 1, 2, 3, 4, 5], [1, x, x^2], x)
+#% output
+#= 7.272727272727275 - 2.097902097902098*x + 0.17482517482517482*x^2
+
+#% cell
+fit([[0, 0, 0], [1, 0, 1], [0, 1, 2], [1, 1, 0], [1/2, 1/2, 1]], [1, x, y], [x, y])
+#% output
+#= 0.8000000000000002 - 0.5*x + 0.4999999999999999*y
+
+#% section
+# See also
+
+#% text
+# `design_matrix`, `find_fit`, `interpolation`

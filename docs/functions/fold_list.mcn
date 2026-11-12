@@ -1,0 +1,95 @@
+#! mathcas 2 notebook
+
+#% title
+# fold_list
+
+#% text
+# `fold_list(f, x, xs)` gives the list `[x, f(x, xs[1]), f(f(x, xs[1]), xs[2]), ...]` of every value of `fold`.
+
+#% text
+# `fold_list(f, xs)` starts from the first element of `xs`.
+
+#% section
+# Details
+
+#% item
+# With a start value the result has one more element than `xs`; without one, the same number.
+
+#% item
+# The last element is `fold(f, x, xs)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fold_list(f, x, [a, b, c])
+#% output
+#= [x, f(x, a), f(f(x, a), b), f(f(f(x, a), b), c)]
+
+#% cell
+fold_list((a, b) => a + b, 0, [1, 2, 3, 4])
+#% output
+#= [0, 1, 3, 6, 10]
+
+#% cell
+fold_list((a, b) => a*b, [1, 2, 3, 4, 5])
+#% output
+#= [1, 2, 6, 24, 120]
+
+#% subsection
+# Scope
+
+#% text
+# The running maximum:
+
+#% cell
+fold_list(max, [3, 1, 4, 1, 5, 9, 2, 6])
+#% output
+#= [3, 3, 4, 4, 5, 9, 9, 9]
+
+#% subsection
+# Applications
+
+#% text
+# A balance with interest added each year and a withdrawal:
+
+#% cell
+fold_list((b, w) => b*105/100 - w, 1000, [30, 30, 30])
+#% output
+#= [1000, 1020, 1041, 21261/20]
+
+#% text
+# A discrete dynamical system driven by inputs, here an exponential filter:
+
+#% cell
+fold_list((s, x) => 0.5*s + 0.5*x, 0.0, [1.0, 1.0, 1.0, 0.0, 0.0])
+#% output
+#= [0.0, 0.5, 0.75, 0.875, 0.4375, 0.21875]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `accumulate` is the running sum without the start value:
+
+#% cell
+rest(fold_list((a, b) => a + b, 0, [1, 2, 3])) === accumulate([1, 2, 3])
+#% output
+#= true
+
+#% text
+# `nest_list` iterates a function of one argument instead:
+
+#% cell
+nest_list(x => 2x, 1, 4)
+#% output
+#= [1, 2, 4, 8, 16]
+
+#% section
+# See also
+
+#% text
+# `fold`, `accumulate`, `nest_list`, `scan`

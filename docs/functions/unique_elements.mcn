@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# unique_elements
+
+#% text
+# `unique_elements([xs1, xs2, ...])` gives, for each of the lists, its distinct elements that are in none of the other lists.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unique_elements([[1, 2, 2, b, b, a], [4, 3, 2, 1]])
+#% output
+#= [[b, a], [4, 3]]
+
+#% cell
+unique_elements([[1, 2, 3, 4], [2, 3, 4, 5], [3, 4, 5, 6]])
+#% output
+#= [[1], [], [6]]
+
+#% section
+# See also
+
+#% text
+# `unique`, `complement`, `symmetric_difference`

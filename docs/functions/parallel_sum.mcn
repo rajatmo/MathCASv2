@@ -1,0 +1,83 @@
+#! mathcas 2 notebook
+
+#% title
+# parallel_sum
+
+#% text
+# `parallel_sum(e, k, r)` gives the sum of the values of `e` for each `k` in `r`, the values computed on the session's worker threads.
+
+#% text
+# `parallel_sum(e, k1, r1, k2, r2, ...)` sums over every combination of the iterators.
+
+#% section
+# Details
+
+#% item
+# `parallel_sum(e, k, r)` is `sum(parallel_table(e, k, r))`: the values are computed as `parallel_table` computes them, then added in the canonical order.
+
+#% item
+# Unlike `sum(e, [k, a, b])`, which may find a closed form for a symbolic range, `parallel_sum` always computes every term.
+
+#% item
+# Nested iterators give nested lists, which are summed as `sum` sums a list of lists: element by element.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# The sum of the first hundred integers:
+
+#% cell
+parallel_sum(k, k, range(100))
+#% output
+#= 5050
+
+#% text
+# Symbolic terms are added as `sum` adds them:
+
+#% cell
+parallel_sum(x^k/factorial(k), k, range(0, 3))
+#% output
+#= 1 + x + (1/2)*x^2 + (1/6)*x^3
+
+#% subsection
+# Scope
+
+#% text
+# Exact rationals stay exact:
+
+#% cell
+parallel_sum(1/k^2, k, 10)
+#% output
+#= 1968329/1270080
+
+#% subsection
+# Applications
+
+#% text
+# A sum of expensive terms, each a numerical integral:
+
+#% cell
+parallel_sum(n_integrate(t^n*exp(-t), [t, 0, inf]), n, range(0, 4))
+#% output
+#= 34.00000000000041
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same as summing the parallel table:
+
+#% cell
+parallel_sum(sqrt(k*1.0), k, 50) == sum(parallel_table(sqrt(k*1.0), k, 50))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `sum`, `total`, `parallel_table`, `parallel_map`

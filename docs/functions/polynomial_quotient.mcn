@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_quotient
+
+#% text
+# `polynomial_quotient(p, q, x)` gives the quotient of the division of `p` by `q` as polynomials in `x`.
+
+#% section
+# Details
+
+#% item
+# The division is with remainder: `p == q*polynomial_quotient(p, q, x) + polynomial_remainder(p, q, x)`, with the remainder of lower degree in `x` than `q`. Coefficients may be rational functions of other symbols.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_quotient(x^3 + 2*x + 1, x - 1, x)
+#% output
+#= 3 + x + x^2
+
+#% cell
+polynomial_quotient(x^4 - 1, x^2 + 1, x)
+#% output
+#= -1 + x^2
+
+#% cell
+polynomial_quotient(x^2, 2*x + 1, x)
+#% output
+#= -1/4 + (1/2)*x
+
+#% cell
+polynomial_quotient(x^2 + a*x, x + b, x)
+#% output
+#= a + x - b
+
+#% subsection
+# Properties and relations
+
+#% text
+# The division identity:
+
+#% cell
+p = x^5 + 3*x^2 - 1; q = x^2 - x + 2; expand(q*polynomial_quotient(p, q, x) + polynomial_remainder(p, q, x) - p)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `polynomial_remainder`, `polynomial_gcd`, `apart`

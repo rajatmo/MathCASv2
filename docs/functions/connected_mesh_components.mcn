@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# connected_mesh_components
+
+#% text
+# `connected_mesh_components(m)`: the connected pieces of a mesh region as mesh regions
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+connected_mesh_components(mesh_region([[0], [1], [2]], [point(1), line([2, 3])]))
+#% output
+#= [mesh_region([[1.0], [2.0]], [line([[1, 2]])]), mesh_region([[0.0]], [point([[1]])])]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

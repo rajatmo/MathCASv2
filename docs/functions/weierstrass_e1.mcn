@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_e1
+
+#% text
+# `weierstrass_e1([g2, g3])` gives the root `e1 = weierstrass_p(omega1, [g2, g3])` of `4 t^3 - g2 t - g3`.
+
+#% section
+# Details
+
+#% item
+# The half-periods `omega_k` are those of `weierstrass_half_periods` (`omega2 = -omega1 - omega3`).
+
+#% item
+# The three roots add up to zero; for `[a, 0]` with `a > 0` and `[0, b]` with `b > 0` the values are closed forms.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_e1([11.0, 7.0])
+#% output
+#= 1.9142135623730951
+
+#% cell
+n(weierstrass_e1([5, 1]), 25)
+#% output
+#= 1.2071067811865475244008443621
+
+#% cell
+weierstrass_e1([0.5 + im, 1.0])
+#% output
+#= -0.4629125711663471 - 0.5567903033680378im
+
+#% cell
+weierstrass_e1([1, 0])
+#% output
+#= 1/2
+
+#% text
+# The roots add up to zero:
+
+#% cell
+weierstrass_e1([5.0, 1.0]) + weierstrass_e2([5.0, 1.0]) + weierstrass_e3([5.0, 1.0])
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `weierstrass_half_periods`, `weierstrass_eta1`, `weierstrass_invariants`, `weierstrass_p`, `weierstrass_zeta`

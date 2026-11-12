@@ -1,0 +1,91 @@
+#! mathcas 2 notebook
+
+#% title
+# Differential equations
+
+#% text
+# `d_solve` solves ordinary and partial differential equations symbolically; `d_solve_value` returns the solution as an expression, and `n_dsolve` solves numerically when there is no closed form. Derivatives are written with primes: `y'(x)`, `y''(x)`.
+
+#% section
+# Symbolic solutions
+
+#% text
+# The result is a list of solutions. A general solution has constants `c(1)`, `c(2)`; initial conditions are equations in the list.
+
+#% cell
+d_solve(y'(x) == y(x), y(x), x)
+#% output
+#= [[y(x) -> c(1)*exp(x)]]
+
+#% cell
+d_solve([y'(x) == y(x), y(0) == 2], y(x), x)
+#% output
+#= [[y(x) -> 2*exp(x)]]
+
+#% cell
+d_solve(y''(x) + y(x) == 0, y(x), x)
+#% output
+#= [[y(x) -> c(1)*cos(x) + c(2)*sin(x)]]
+
+#% cell
+d_solve([y''(x) + y(x) == 0, y(0) == 1, y'(0) == 0], y(x), x)
+#% output
+#= [[y(x) -> cos(x)]]
+
+#% text
+# `d_solve_value` gives the solution itself rather than rules, and can evaluate it.
+
+#% cell
+d_solve_value([y'(x) == 2*y(x), y(0) == 1], y(x), x)
+#% output
+#= exp(2*x)
+
+#% cell
+d_solve_value([y'(x) == 2*y(x), y(0) == 1], y(1), x)
+#% output
+#= exp(2)
+
+#% text
+# A system lists the unknown functions.
+
+#% cell
+d_solve([x'(t) == y(t), y'(t) == -x(t), x(0) == 1, y(0) == 0], [x(t), y(t)], t)
+#% output
+#= [[x(t) -> cos(t), y(t) -> -sin(t)]]
+
+#% section
+# Numerical solutions
+
+#% text
+# `n_dsolve(eqs, y, [t, t0, t1])` returns rules with an interpolating function; use `rewrite` to evaluate it.
+
+#% cell
+sol = n_dsolve([y'(t) == y(t)^2 - t, y(0) == 0.5], y, [t, 0, 2])
+
+#% cell
+rewrite(y(2), sol)
+#% output
+#= -0.9957138427589801
+
+#% section
+# Common mistakes
+
+#% item
+# Initial conditions belong inside the list of equations, not as an extra argument.
+
+#% item
+# Products of unknown functions need `*`: `x(t)*y(t)`. `x(t) y(t)` and `x(t)(28 - z(t))` read as calls.
+
+#% item
+# Name the unknown as `y(x)` to get rules `y(x) -> ...`, or as `y` to get a function `y -> (x => ...)`.
+
+#% cell
+d_solve(y'(x) == y(x), y, x)
+#% output
+#= [[y -> (x => exp(x)*c(1))]]
+
+#% section
+# Related functions
+
+#% text
+# `d_solve`, `d_solve_value`, `n_dsolve`, `n_dsolve_value`, `rewrite`, `laplace_transform`

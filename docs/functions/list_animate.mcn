@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# list_animate
+
+#% text
+# `list_animate([f1, f2, ...])`: the frames as an animation; shown as its first frame (export_animation writes them all)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+list_animate(table(plot(sin(x + t), [x, 0, 2 * pi]), t, [0, 1/2, 1]))
+#% output
+#= image("list_animate.files/list_animate-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

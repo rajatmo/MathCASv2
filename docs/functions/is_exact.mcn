@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# is_exact
+
+#% text
+# `is_exact(x)` gives `true` when `x` is an exact number: an integer, a fraction, or a complex number with exact parts.
+
+#% section
+# Details
+
+#% item
+# Symbols and expressions are not numbers, so they give `false` even when exact, like `pi` or `sqrt(2)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_exact(1/3)
+#% output
+#= true
+
+#% cell
+is_exact(1 + im)
+#% output
+#= true
+
+#% cell
+is_exact(0.5)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% text
+# Exact constants and expressions are not exact numbers:
+
+#% cell
+[is_exact(pi), is_exact(sqrt(2))]
+#% output
+#= [false, false]
+
+#% section
+# See also
+
+#% text
+# `is_inexact`, `n`, `rationalize`

@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# winding_polygon
+
+#% text
+# `winding_polygon(curve)`: the region a closed curve (points, a line, a polygon) encloses by the non-zero winding rule, as a polygon
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+star = [[0.35, 0.2], [0.9, 0.75], [0.1, 0.55], [0.9, 0.35], [0.42, 0.9]];
+
+#% cell
+area(winding_polygon(star))
+#% output
+#= 0.18160082878110223
+
+#% cell
+area(crossing_polygon(star))
+#% output
+#= 0.12595165756220444
+
+#% section
+# See also
+
+#% text
+# `region_union`, `region_intersection`, `canonicalize_polygon`, `region_measure`

@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# material_shading
+
+#% text
+# `material_shading(name)` is a directive of 3D graphics that names a material for the faces that follow.
+
+#% section
+# Details
+
+#% item
+# The 3D renderer shades faces with its own fixed light; `material_shading` is accepted in graphics and plot options, so code written for other lighting runs, and is not drawn.
+
+#% item
+# The call stays as it is when evaluated alone.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics3d([material_shading("glazed"), sphere()])
+#% output
+#= image("material_shading.files/material_shading-1.svgz")
+
+#% cell
+plot3d(x*y, [x, -1, 1], [y, -1, 1], plot_style: [material_shading("matte")])
+#% output
+#= image("material_shading.files/material_shading-2.svgz")
+
+#% cell
+material_shading("glazed")
+#% output
+#= material_shading("glazed")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The picture is the same without it:
+
+#% cell
+graphics3d([orange, sphere()])
+#% output
+#= image("material_shading.files/material_shading-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `plot3d`, `lighting`, `toon_shading`

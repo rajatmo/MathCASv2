@@ -1,0 +1,100 @@
+#! mathcas 2 notebook
+
+#% title
+# boolean_convert
+
+#% text
+# `boolean_convert(e, form)` writes the Boolean expression `e` in the given form.
+
+#% section
+# Details
+
+#% item
+# `e` is an expression in symbols with `and`, `or`, `not`, `xor`, `nand`, `nor`, `implies`, `equivalent`, or a call of `boolean_function`; at most 14 variables.
+
+#% item
+# The form is a string in any case or a symbol: `"dnf"` (the default), `"cnf"`, `"anf"` or `"esop"` (exclusive or of products), `"nand"`, `"nor"`, `"binary_nand"`, `"binary_nor"` (only those operations, two arguments), `"ite"` (nested `if` on the variables in order), `"and"`, `"or"`, `"implies"` (written with `not`) and `"bff"` (a `boolean_function` call).
+
+#% item
+# `boolean_convert(e, form, cond)` or `boolean_convert(e, cond)` need agree with `e` only where `cond` is true.
+
+#% item
+# The sum of products is the Quine-McCluskey prime implicants with the essential ones and then a greedy cover: small, not always the smallest.
+
+#% item
+# A function of the wrong kind gives `failure(argument, boolean_convert, k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+boolean_convert(equivalent(x, y, z))
+#% output
+#= x and y and z or not x and not y and not z
+
+#% text
+# Several forms of an exclusive or:
+
+#% cell
+map(f => boolean_convert(xor(x, y), f), ["dnf", "cnf", "nand", "nor"])
+#% output
+#= [x and not y or not x and y, (not x or not y) and (x or y), nand(nand(x, not y), nand(not x, y)), nor(nor(not x, not y), nor(x, y))]
+
+#% subsection
+# Scope
+
+#% text
+# Under a condition:
+
+#% cell
+boolean_convert(xor(x, y, z), "dnf", x and (y or z))
+#% output
+#= y and z
+
+#% text
+# The algebraic normal form:
+
+#% cell
+boolean_convert(implies(a, b), "anf")
+#% output
+#= xor(true, a, a and b)
+
+#% text
+# A check of equivalence:
+
+#% cell
+e = boolean_counting_function([2, 3], 4)(a, b, c, d)
+is_tautology(equivalent(e, boolean_convert(e, "cnf"), boolean_convert(e, "nand")))
+#% output
+#= true
+
+#% subsection
+# Properties and relations
+
+#% text
+# The exclusive-or form and the `ite` form of an implication, which is equivalent to it:
+
+#% cell
+[boolean_convert(a and b, "esop"), boolean_convert(implies(a, b), "ite"), is_tautology(equivalent(implies(a, b), boolean_convert(implies(a, b), "ite")))]
+#% output
+#= [a and b, if a then if b then true else false else true, true]
+
+#% subsection
+# Possible issues
+
+#% text
+# An unknown form, and an expression that is not Boolean, give a failure that names the argument:
+
+#% cell
+[boolean_convert(a or b, "foo"), boolean_convert(1)]
+#% output
+#= [failure(argument, boolean_convert, 2), failure(argument, boolean_convert, 1)]
+
+#% section
+# See also
+
+#% text
+# `boolean_minimize`, `boolean_function`, `logical_expand`, `is_tautology`

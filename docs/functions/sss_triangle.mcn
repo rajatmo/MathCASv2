@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# sss_triangle
+
+#% text
+# `sss_triangle(a, b, c)`: the triangle with sides a, b, c, placed with corners (0, 0) and (c, 0)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+t = sss_triangle(3, 4, 5)
+
+#% cell
+[area(t), region_centroid(t)]
+#% output
+#= [6, [41/15, 4/5]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

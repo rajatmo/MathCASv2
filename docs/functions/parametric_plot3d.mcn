@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# parametric_plot3d
+
+#% text
+# `parametric_plot3d([fx, fy, fz], [u, a, b], [v, c, d])` draws the surface of the points (fx, fy, fz) for u and v in their ranges.
+
+#% text
+# `parametric_plot3d([fx, fy, fz], [u, a, b])` draws the space curve for u from a to b.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% item
+# Surfaces are sampled on a 61 by 61 grid of the parameters with mesh lines; curves at 400 points.
+
+#% item
+# A list of triples draws several surfaces or curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A torus:
+
+#% cell
+parametric_plot3d([cos(u)*(2 + cos(v)), sin(u)*(2 + cos(v)), sin(v)], [u, 0, 2pi], [v, 0, 2pi])
+#% output
+#= image("parametric_plot3d.files/parametric_plot3d-1.svgz")
+
+#% text
+# A helix:
+
+#% cell
+parametric_plot3d([cos(t), sin(t), t/5], [t, 0, 6pi])
+#% output
+#= image("parametric_plot3d.files/parametric_plot3d-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Two curves:
+
+#% cell
+parametric_plot3d([[cos(t), sin(t), 0], [0, cos(t), sin(t)]], [t, 0, 2pi])
+#% output
+#= image("parametric_plot3d.files/parametric_plot3d-3.svgz")
+
+#% subsection
+# Options
+
+#% text
+# Coloured by height, without mesh lines:
+
+#% cell
+parametric_plot3d([u*cos(v), u*sin(v), u^2], [u, 0, 1], [v, 0, 2pi], color_function: thermal, mesh: none)
+#% output
+#= image("parametric_plot3d.files/parametric_plot3d-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot3d`, `spherical_plot3d`, `revolution_plot3d`, `parametric_plot`

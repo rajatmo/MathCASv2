@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# is_boundary_mesh_region
+
+#% text
+# `is_boundary_mesh_region(m)`: whether m is a valid boundary mesh region
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+is_boundary_mesh_region(boundary_mesh_region([[0], [1]], point([[1], [2]])))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

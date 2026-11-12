@@ -1,0 +1,57 @@
+#! mathcas 2 notebook
+
+#% title
+# neville_theta_c
+
+#% text
+# `neville_theta_c(z, m)` gives the Neville theta function `theta_c(z | m)`.
+
+#% section
+# Details
+
+#% item
+# `theta_c(z | m)` is `theta_2(pi*z/(2*K(m)), q)/theta_2(0, q)`, with the nome `q` of `m` (DLMF 20.1, 22.2). It is even in `z` and `theta_c(0 | m)` is 1.
+
+#% item
+# `jacobi_cn(z, m)` is `theta_c/theta_n`.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+neville_theta_c(0.5, 0.3)
+#% output
+#= 0.8964776434470245
+
+#% cell
+neville_theta_c(0, 0.3)
+#% output
+#= 1
+
+#% cell
+neville_theta_c(1.0, 0.9)
+#% output
+#= 0.7993416994774856
+
+#% subsection
+# Properties and relations
+
+#% text
+# The quotient that gives `cn`:
+
+#% cell
+neville_theta_c(0.7, 0.4)/neville_theta_n(0.7, 0.4) - jacobi_cn(0.7, 0.4)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `neville_theta_s`, `neville_theta_d`, `neville_theta_n`, `elliptic_theta`, `jacobi_cn`

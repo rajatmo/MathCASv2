@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# sequence_cases
+
+#% text
+# `sequence_cases(xs, p)` gives the runs of consecutive elements of `xs` that match the list pattern `p`, such as `[a, b]` or `[x_, x_]`.
+
+#% text
+# `sequence_cases(xs, p -> r)` gives `r` for each run, with the pattern's names bound.
+
+#% section
+# Details
+
+#% item
+# Runs are found from the left and do not overlap; at each start the longest matching run is taken.
+
+#% item
+# A list pattern with sequence variables (`[a, __]`) matches runs of several lengths.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+sequence_cases([1, 2, 2, 3, 3, 3], [x_, x_])
+#% output
+#= [[2, 2], [3, 3]]
+
+#% cell
+sequence_cases([a, b, c, a, b], [a, b])
+#% output
+#= [[a, b], [a, b]]
+
+#% subsection
+# Scope
+
+#% text
+# A rule gives a value per run:
+
+#% cell
+sequence_cases([1, 2, 5, 6], [x_, y_] when y == x + 1 -> x + y)
+#% output
+#= [3, 11]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `sequence_count` counts the same runs:
+
+#% cell
+xs = [1, 1, 2, 1, 1]
+length(sequence_cases(xs, [1, 1])) == sequence_count(xs, [1, 1])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `sequence_position`, `sequence_replace`, `sequence_split`, `cases`, `partition`

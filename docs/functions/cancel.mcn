@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# cancel
+
+#% text
+# `cancel(e)` writes each term of `e` in lowest terms, cancelling the common factors of its numerator and denominator.
+
+#% section
+# Details
+
+#% item
+# Sums of fractions are not brought over a common denominator; use `together` for that.
+
+#% item
+# `cancel` works over the rationals and treats non-polynomial subexpressions as variables.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cancel((x^2 - 1)/(x - 1))
+#% output
+#= 1 + x
+
+#% cell
+cancel((x^3 - y^3)/(x - y))
+#% output
+#= x*y + x^2 + y^2
+
+#% cell
+cancel((x^2 + 2*x + 1)/(x^2 - 1))
+#% output
+#= (1 + x)/(-1 + x)
+
+#% cell
+cancel((sin(x)^2 - 1)/(sin(x) + 1))
+#% output
+#= -1 + sin(x)
+
+#% subsection
+# Scope
+
+#% text
+# Each term separately:
+
+#% cell
+cancel((x^2 - 1)/(x + 1) + (x^2 - 4)/(x - 2))
+#% output
+#= 1 + 2*x
+
+#% subsection
+# Properties and relations
+
+#% text
+# `together` combines the terms, `cancel` does not:
+
+#% cell
+e = 1/(x - 1) - 1/(x + 1); [cancel(e), together(e)]
+#% output
+#= [-1/(1 + x) + (-1 + x)^-1, 2/(-1 + x^2)]
+
+#% section
+# See also
+
+#% text
+# `together`, `factor`, `apart`, `simplify`, `polynomial_gcd`

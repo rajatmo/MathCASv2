@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# differential_initial
+
+#% text
+# `differential_initial(p, u, x)` gives the initial of the differential polynomial `p` in the functions `u` of `x`: the coefficient of the highest power of its leader.
+
+#% section
+# Details
+
+#% item
+# The ranking is `ranking: orderly` (the default) or `ranking: elimination`, as for `differential_leader`. A polynomial without derivatives of the functions is its own initial.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differential_initial(x*y(x)*y'(x)^2 + y(x)^3, y, x)
+#% output
+#= x*y(x)
+
+#% cell
+differential_initial(derivative(0, 1)(u)(x, t)*derivative(1, 0)(u)(x, t) + u(x, t), u, [x, t])
+#% output
+#= derivative(0, 1)(u)(x, t)
+
+#% section
+# See also
+
+#% text
+# `differential_leader`, `differential_separant`

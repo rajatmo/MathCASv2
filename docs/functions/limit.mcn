@@ -1,0 +1,263 @@
+#! mathcas 2 notebook
+
+#% title
+# limit
+
+#% text
+# `limit(f, x -> a)` gives the limit of `f` as `x` tends to `a` along the real numbers.
+
+#% text
+# `limit(f, x -> a, direction: from_above)` and `direction: from_below` give the limits from one side.
+
+#% section
+# Details
+
+#% item
+# The point `a` may be a number, a symbolic expression, `inf` or `-inf`.
+
+#% item
+# The limit may be `inf` or `-inf`.
+
+#% item
+# When the two sides have different limits, the result is `failure(no_limit, limit, f)`.
+
+#% item
+# When the limit cannot be decided, the call stays unevaluated.
+
+#% item
+# Limits the fast rules do not decide go to Gruntz's algorithm (most rapidly varying subexpressions); every finite value is checked numerically near the point before it is returned.
+
+#% item
+# `x -> a` may be a list of rules (iterated limits, the last rule first) or `[x, y] -> [a, b]` (decided when the function depends on the variables through one product).
+
+#% item
+# Options:
+
+#% subitem
+# `direction: from_above` (x decreasing to `a`) or `from_below` (x increasing to `a`).
+
+#% item
+# One-sided limits onto the branch cut of `log` and of non-integer powers (the negative reals) take the side of approach into account: `limit(log(-10 + t im), t -> 0, direction: from_below)` is `log(10) - im pi`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A classical limit:
+
+#% cell
+limit(sin(x)/x, x -> 0)
+#% output
+#= 1
+
+#% text
+# A limit at infinity:
+
+#% cell
+limit((1 + 1/x)^x, x -> inf)
+#% output
+#= e
+
+#% text
+# A removable singularity:
+
+#% cell
+limit((x^2 - 1)/(x - 1), x -> 1)
+#% output
+#= 2
+
+#% text
+# An infinite limit:
+
+#% cell
+limit(1/x^2, x -> 0)
+#% output
+#= inf
+
+#% subsection
+# Scope
+
+#% text
+# Indeterminate forms 0 times infinity, 0^0 and infinity minus infinity:
+
+#% cell
+[limit(x*log(x), x -> 0), limit(x^x, x -> 0), limit(sqrt(x^2 + x) - x, x -> inf)]
+#% output
+#= [0, 1, 1/2]
+
+#% text
+# Symbolic parameters:
+
+#% cell
+[limit((1 + a/x)^x, x -> inf), limit((a^x - 1)/x, x -> 0)]
+#% output
+#= [exp(a), log(a)]
+
+#% text
+# Exponentials and logarithms of different growth, decided by Gruntz's algorithm:
+
+#% cell
+[limit(exp(x)*(exp(1/x - exp(-x)) - exp(1/x)), x -> inf), limit((3^x + 5^x)^(1/x), x -> inf)]
+#% output
+#= [-1, 5]
+
+#% text
+# Special functions of a large argument, through their asymptotic expansions:
+
+#% cell
+[limit(x*exp(x^2)*erfc(x), x -> inf), limit(factorial(n)*exp(n)/n^(n + 1/2), n -> inf)]
+#% output
+#= [pi^(-1/2), 2^(1/2)*pi^(1/2)]
+
+#% text
+# Iterated limits (the last rule first) and a limit in two variables through their product:
+
+#% cell
+[limit(real_abs(x)*tan(y)^2, [y -> pi/2, x -> 0]), limit(tan(x*y)/(x*y), [x, y] -> [0, 0])]
+#% output
+#= [0, 1]
+
+#% text
+# Rational functions at infinity:
+
+#% cell
+limit((3x^2 + 1)/(2x^2 - x), x -> inf)
+#% output
+#= 3/2
+
+#% text
+# A bounded factor times a vanishing one:
+
+#% cell
+limit(x*sin(1/x), x -> 0)
+#% output
+#= 0
+
+#% subsection
+# Options
+
+#% text
+# The two sides of a pole:
+
+#% cell
+[limit(1/x, x -> 0, direction: from_above), limit(1/x, x -> 0, direction: from_below)]
+#% output
+#= [inf, -inf]
+
+#% text
+# An essential singularity, with different limits on each side:
+
+#% cell
+[limit(exp(1/x), x -> 0, direction: from_above), limit(exp(1/x), x -> 0, direction: from_below)]
+#% output
+#= [inf, 0]
+
+#% subsection
+# Applications
+
+#% text
+# A derivative from its definition as the limit of a difference quotient:
+
+#% cell
+limit(((x + h)^3 - x^3)/h, h -> 0)
+#% output
+#= 3*x^2
+
+#% text
+# The leading behaviour of a difference, through a limit of the ratio:
+
+#% cell
+limit((sin(x) - x)/x^3, x -> 0)
+#% output
+#= -1/6
+
+#% subsection
+# Properties and relations
+
+#% text
+# The limit agrees with the constant term of the series:
+
+#% cell
+[limit((1 - cos(x))/x^2, x -> 0), series((1 - cos(x))/x^2, x, 0, 2)]
+#% output
+#= [1/2, 1/2 - x^2/24 + O(x^3)]
+
+#% text
+# Special functions at an infinite argument:
+
+#% cell
+[limit(airy_ai(x), x -> inf), limit(fresnel_s(x), x -> -inf), limit(bessel_j(n, x), x -> inf)]
+#% output
+#= [0, -1/2, 0]
+
+#% text
+# Facts about the parameters with the `assumptions:` option:
+
+#% cell
+limit(exp(-k*t), t -> inf, assumptions: k > 0)
+#% output
+#= 0
+
+#% text
+# The direction may also be given as -1 (from above) or 1 (from below):
+
+#% cell
+limit(1/x, x -> 0, direction: -1)
+#% output
+#= inf
+
+#% subsection
+# Possible issues
+
+#% text
+# A limit from both sides at a pole of odd order does not exist:
+
+#% cell
+limit(1/x, x -> 0)
+#% output
+#! failure(no_limit, limit, x^-1, "the two-sided limit does not exist: the function is unbounded, tending to inf on one side and -inf on the other")
+
+#% cell
+limit(abs(x)/x, x -> 0)
+#% output
+#! failure(no_limit, limit, abs(x)/x, "the two-sided limit does not exist: the one-sided limits differ")
+
+#% text
+# An oscillation has no limit: its limit superior is above its limit inferior; a jump of `floor` has one-sided limits that differ:
+
+#% cell
+limit(sin(1/x), x -> 0)
+#% output
+#! failure(no_limit, limit, sin(x^-1), "the limit superior is above the limit inferior")
+
+#% cell
+limit(floor(x), x -> 1)
+#% output
+#! failure(no_limit, limit, floor(x), "the two-sided limit does not exist: the one-sided limits differ")
+
+#% text
+# `log(x)` at 0 tends to `-inf` from both sides (the imaginary part from below stays bounded); a limit that is unbounded with opposite signs says so in its failure:
+
+#% cell
+limit(log(x), x -> 0)
+#% output
+#= -inf
+
+#% cell
+limit(log(x) + tan(x)^3, x -> 0)
+#% output
+#= -inf
+
+#% cell
+limit(1/x, x -> 0)
+#% output
+#! failure(no_limit, limit, x^-1, "the two-sided limit does not exist: the function is unbounded, tending to inf on one side and -inf on the other")
+
+#% section
+# See also
+
+#% text
+# `series`, `d`, `sum`, `integrate`, `max_limit`, `min_limit`, `discrete_limit`, `asymptotic`

@@ -1,0 +1,347 @@
+# Caret, selection, deletion and undo inside the boxes (round 32): Left/Right through every structure, Up/Down
+# between numerator and denominator and between base and exponent, Home/End, Tab between placeholders, selection
+# across box boundaries, Backspace and Delete at each structure edge, undo and redo after every kind of edit,
+# typing over a selection, linear text and boxes into each other, and the latency of typing into a long cell.
+# Driven by tests/input_selftest.rs. Home and End inside a slot go to the slot's edges (the editor's rows); on the
+# top row they go to the visual line's edges.
+size 1000 700
+ppp 1
+theme light
+new
+
+# ---- Left and Right through a fraction, a root and a power ----
+formula caret/build
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space " + " Ctrl+2 "c" Ctrl+Space " + d" Ctrl+6 "e"
+expect boxes "(a/b) + √(c) + (d^e▮)"
+expect linear "a/b + sqrt(c) + d^e"
+
+formula caret/home-end
+keys Home
+expect boxes "(a/b) + √(c) + (d^▮e)"
+keys End
+expect boxes "(a/b) + √(c) + (d^e▮)"
+keys Ctrl+Space Home
+expect boxes "▮(a/b) + √(c) + (d^e)"
+keys End
+expect boxes "(a/b) + √(c) + (d^e)▮"
+
+formula caret/home-end-twice
+keys End Left Home Home
+expect boxes "▮(a/b) + √(c) + (d^e)"
+keys Right Right End End
+expect boxes "(a/b) + √(c) + (d^e)▮"
+keys Left Shift+Home Shift+Home
+expect boxes "⟦(a/b) + √(c) + (d^e)⟧"
+keys End
+
+formula caret/right-through
+keys Home Right
+expect boxes "(▮a/b) + √(c) + (d^e)"
+keys Right
+expect boxes "(a▮/b) + √(c) + (d^e)"
+keys Right
+expect boxes "(a/▮b) + √(c) + (d^e)"
+keys Right
+expect boxes "(a/b▮) + √(c) + (d^e)"
+keys Right
+expect boxes "(a/b)▮ + √(c) + (d^e)"
+keys Right Right Right
+expect boxes "(a/b) + ▮√(c) + (d^e)"
+keys Right
+expect boxes "(a/b) + √(▮c) + (d^e)"
+keys Right
+expect boxes "(a/b) + √(c▮) + (d^e)"
+keys Right
+expect boxes "(a/b) + √(c)▮ + (d^e)"
+keys Right Right Right Right
+expect boxes "(a/b) + √(c) + (▮d^e)"
+keys Right
+expect boxes "(a/b) + √(c) + (d▮^e)"
+keys Right
+expect boxes "(a/b) + √(c) + (d^▮e)"
+keys Right
+expect boxes "(a/b) + √(c) + (d^e▮)"
+keys Right
+expect boxes "(a/b) + √(c) + (d^e)▮"
+
+formula caret/left-through
+keys Left
+expect boxes "(a/b) + √(c) + (d^e▮)"
+keys Left Left
+expect boxes "(a/b) + √(c) + (d▮^e)"
+keys Left Left
+expect boxes "(a/b) + √(c) + ▮(d^e)"
+keys Left Left Left Left
+expect boxes "(a/b) + √(c▮) + (d^e)"
+keys Left Left
+expect boxes "(a/b) + ▮√(c) + (d^e)"
+keys Left Left Left Left
+expect boxes "(a/b▮) + √(c) + (d^e)"
+keys Left Left
+expect boxes "(a▮/b) + √(c) + (d^e)"
+keys Left Left
+expect boxes "▮(a/b) + √(c) + (d^e)"
+
+formula caret/up-down
+keys Right Right Down
+expect boxes "(a/b▮) + √(c) + (d^e)"
+keys Up
+expect boxes "(a▮/b) + √(c) + (d^e)"
+keys Down
+expect boxes "(a/b▮) + √(c) + (d^e)"
+keys Ctrl+Space End Left
+expect boxes "(a/b) + √(c) + (d^e▮)"
+keys Down
+expect boxes "(a/b) + √(c) + (d▮^e)"
+keys Up
+expect boxes "(a/b) + √(c) + (d^e▮)"
+
+# ---- Tab between placeholders ----
+formula tab/fraction
+keys Ctrl+End Ctrl+/
+expect boxes "(▮□/□)"
+keys Tab
+expect boxes "(□/⟦□⟧)"
+keys "b"
+expect boxes "(□/b▮)"
+keys Shift+Tab
+expect boxes "(⟦□⟧/b)"
+keys "a"
+expect boxes "(a▮/b)"
+expect linear "a/b"
+
+formula tab/nested
+keys Ctrl+End "f = " Ctrl+/ Ctrl+2 Tab "x"
+expect boxes "f = (√(□)/x▮)"
+keys Shift+Tab "y"
+expect boxes "f = (√(y▮)/x)"
+expect linear "f = sqrt(y)/x"
+
+formula tab/power
+keys Ctrl+End Ctrl+6
+expect boxes "(▮□^□)"
+keys "2" Tab "n"
+expect boxes "(2^n▮)"
+
+formula tab/root-index
+keys Ctrl+End "r = " Ctrl+5 Tab "x"
+expect boxes "r = √[□](x▮)"
+keys Shift+Tab "3"
+expect boxes "r = √[3▮](x)"
+expect linear "r = surd(x, 3)"
+
+# ---- selection across box boundaries, typing over a selection ----
+formula select/out-of-slot
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space " + " Ctrl+2 "c" Ctrl+Space " + d" Ctrl+6 "e"
+keys Ctrl+Space Home Right Right Shift+Right
+expect boxes "⟦(a/b)⟧ + √(c) + (d^e)"
+keys Shift+Right Shift+Right Shift+Right
+expect boxes "⟦(a/b) + ⟧√(c) + (d^e)"
+keys Shift+Right
+expect boxes "⟦(a/b) + √(c)⟧ + (d^e)"
+keys Ctrl+C
+clip
+
+formula select/back-into-anchor-box
+keys Ctrl+Space Home Right Right Shift+Right Shift+Left
+expect boxes "(a▮/b) + √(c) + (d^e)"
+
+formula select/type-over
+keys Ctrl+Space Home Right Right Shift+Right "q"
+expect boxes "q▮ + √(c) + (d^e)"
+keys Ctrl+Z
+expect boxes "⟦(a/b)⟧ + √(c) + (d^e)"
+keys Ctrl+Shift+Z
+expect boxes "q▮ + √(c) + (d^e)"
+keys Ctrl+Z
+
+formula select/shift-end-from-slot
+keys Ctrl+Space Home Right Right Ctrl+Space Shift+End
+expect boxes "(a/b)⟦ + √(c) + (d^e)⟧"
+keys Delete
+expect boxes "(a/b)▮"
+keys Ctrl+Z
+expect boxes "(a/b)⟦ + √(c) + (d^e)⟧"
+
+formula select/box-key-on-selection
+keys End Shift+Left Shift+Left Shift+Left Shift+Left Shift+Left Ctrl+/ "2"
+expect boxes "(a/b) + (√(c) + (d^e)/2▮)"
+keys Ctrl+Z
+keys Ctrl+Z
+expect boxes "(a/b) + ⟦√(c) + (d^e)⟧"
+
+formula select/box-key-on-spaced-selection
+keys End Shift+Left Shift+Left Shift+Left Shift+Left Shift+Left Shift+Left Ctrl+2
+expect boxes "(a/b) + √(√(c) + (d^e)▮)"
+expect linear "a/b + sqrt(sqrt(c) + d^e)"
+
+formula select/grow
+keys Ctrl+End "alpha" Ctrl+/ "beta"
+keys Ctrl+.
+expect boxes "(alpha/⟦beta⟧)"
+keys Ctrl+.
+expect boxes "⟦(alpha/beta)⟧"
+
+# ---- Backspace and Delete at each structure edge, each undone and redone ----
+formula delete/denominator
+keys Ctrl+End "x" Ctrl+/ "y"
+expect boxes "(x/y▮)"
+keys Backspace
+expect boxes "(x/▮□)"
+keys Backspace
+expect boxes "none"
+expect canon "x/"
+keys Ctrl+Z
+expect boxes "(x/▮□)"
+keys Ctrl+Z
+expect boxes "(x/y▮)"
+keys Ctrl+Y
+expect boxes "(x/▮□)"
+keys Ctrl+Shift+Z
+expect boxes "none"
+expect canon "x/"
+
+formula delete/radicand-start
+keys Ctrl+End "1 + " Ctrl+2 "c"
+keys Left Backspace
+expect boxes "none"
+expect canon "1 + c"
+keys Ctrl+Z
+expect boxes "1 + √(▮c)"
+
+formula delete/base-start
+keys Ctrl+End "d" Ctrl+6 "e"
+keys Ctrl+Space Home Right Backspace
+expect boxes "none"
+expect canon "d^e"
+keys Ctrl+Z
+expect boxes "(▮d^e)"
+
+formula delete/after-box
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space
+expect boxes "(a/b)▮"
+keys Backspace
+expect boxes "(a/b▮)"
+keys Backspace Backspace Backspace Backspace
+expect boxes "none"
+
+formula delete/before-box
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space Home
+keys Delete
+expect boxes "(▮a/b)"
+
+formula delete/numerator-end
+keys Right Delete
+expect boxes "none"
+expect canon "a/b"
+keys Ctrl+Z
+expect boxes "(a▮/b)"
+
+formula delete/blank-box
+keys Ctrl+End "z = " Ctrl+/
+expect boxes "z = (▮□/□)"
+keys Backspace
+expect boxes "none"
+expect canon "z = "
+keys Ctrl+Z
+expect boxes "z = (▮□/□)"
+
+formula delete/power-exponent-start
+keys Ctrl+End "x" Ctrl+6 "2" Left Backspace
+expect canon "x^2"
+keys Ctrl+Z
+expect boxes "(x^▮2)"
+
+formula delete/fraction-with-sums
+keys Ctrl+End "a + b" Ctrl+/ "c + d"
+expect boxes "a + (b/c + d▮)"
+keys Home Backspace
+expect canon "a + b/(c + d)"
+keys Ctrl+Z
+expect boxes "a + (b/▮c + d)"
+
+# ---- undo and redo after every kind of edit ----
+formula undo/structure-key
+keys Ctrl+End "u" Ctrl+6
+expect boxes "(u^▮□)"
+keys Ctrl+Z
+expect boxes "none"
+expect canon "u"
+keys Ctrl+Shift+Z
+expect boxes "(u^▮□)"
+
+formula undo/typing-in-slot
+keys "2"
+expect boxes "(u^2▮)"
+keys Ctrl+Z
+expect boxes "(u^▮□)"
+
+formula undo/alias
+keys Ctrl+End "v + " Ctrl+2 Esc "a" Esc
+expect boxes "v + √(α▮)"
+keys Ctrl+Z
+expect boxes "v + √(a▮)"
+
+formula undo/paste-math
+keys Ctrl+End
+setclip "x^2/sqrt(y)"
+keys Ctrl+Shift+V
+expect boxes "((x^2)/√(y))▮"
+keys Ctrl+Z
+expect boxes "none"
+keys Ctrl+Y
+expect boxes "((x^2)/√(y))▮"
+
+formula undo/exit-and-type
+keys Ctrl+End "w" Ctrl+/ "2" Ctrl+Space "+1"
+expect boxes "(w/2)+1▮"
+keys Ctrl+Z
+expect boxes "(w/2)▮"
+keys Ctrl+Z
+expect boxes "(w/▮□)"
+
+# ---- linear text and boxes ----
+formula convert/linear-stays
+keys Ctrl+End "x^2/sqrt(y)"
+expect boxes "none"
+expect canon "x^2/sqrt(y)"
+
+formula convert/copy-paste-math
+keys Ctrl+End "1" Ctrl+/ "x" Ctrl+Space " + " Ctrl+2 "x" Ctrl+6 "3"
+expect boxes "(1/x) + √((x^3▮))"
+keys Ctrl+A Ctrl+Shift+C
+clip
+keys Ctrl+End Ctrl+Shift+V
+expect boxes "(1/x) + √((x^3))▮"
+
+formula convert/plain-copy-paste-text
+keys Ctrl+End Ctrl+V
+expect boxes "none"
+expect canon "1/x + sqrt(x^3)"
+
+formula convert/enter-in-boxes
+keys Ctrl+End "p = " Ctrl+/ "1" Down "2" Ctrl+Space Enter "p" Ctrl+6 "2"
+expect boxes "p = (1/2)\n(p^2▮)"
+eval
+expect output "1/4"
+
+formula convert/assignment-then-value
+keys Ctrl+End "y = " Ctrl+/ "1" Down "x" Ctrl+Space "; y"
+expect boxes "y = (1/x); y▮"
+eval
+expect output "x^-1"
+
+# ---- the latency of typing into a long cell with boxes ----
+formula latency/long-typeset
+keys Ctrl+End "h = 1" Ctrl+/ "1" Ctrl+Space " + 1" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "3" Ctrl+Space " + 1" Ctrl+/ "4" Ctrl+Space " + 1" Ctrl+/ "5" Ctrl+Space " + 1" Ctrl+/ "6" Ctrl+Space " + 1" Ctrl+/ "7" Ctrl+Space " + 1" Ctrl+/ "8" Ctrl+Space " + 1" Ctrl+/ "9" Ctrl+Space " + 1" Ctrl+/ "10" Ctrl+Space " + " Ctrl+2 "1" Ctrl+Space " + " Ctrl+2 "2" Ctrl+Space " + " Ctrl+2 "3" Ctrl+Space " + " Ctrl+2 "4" Ctrl+Space " + " Ctrl+2 "5" Ctrl+Space " + x" Ctrl+6 "2" Ctrl+Space " + x" Ctrl+6 "3" Ctrl+Space " + x" Ctrl+6 "4" Ctrl+Space " + x" Ctrl+6 "5" Ctrl+Space " + x" Ctrl+6 "6" Ctrl+Space
+keys Enter "h2 = 1" Ctrl+/ "1" Ctrl+Space " + 1" Ctrl+/ "2" Ctrl+Space " + 1" Ctrl+/ "3" Ctrl+Space " + 1" Ctrl+/ "4" Ctrl+Space " + 1" Ctrl+/ "5" Ctrl+Space " + 1" Ctrl+/ "6" Ctrl+Space " + 1" Ctrl+/ "7" Ctrl+Space " + 1" Ctrl+/ "8" Ctrl+Space " + 1" Ctrl+/ "9" Ctrl+Space " + 1" Ctrl+/ "10" Ctrl+Space " + " Ctrl+2 "1" Ctrl+Space " + " Ctrl+2 "2" Ctrl+Space " + " Ctrl+2 "3" Ctrl+Space " + " Ctrl+2 "4" Ctrl+Space " + " Ctrl+2 "5" Ctrl+Space " + x" Ctrl+6 "2" Ctrl+Space " + x" Ctrl+6 "3" Ctrl+Space " + x" Ctrl+6 "4" Ctrl+Space " + x" Ctrl+6 "5" Ctrl+Space " + x" Ctrl+6 "6" Ctrl+Space
+shot k1-long-typeset
+type typeset-end " + y + z + w + abc + def"
+keys Home
+type typeset-start "q + "
+shot k2-long-typeset-typed
+longcell 300
+type plain-300 " + y + z + w + abc + def"
+
+dump input-caret
+quit

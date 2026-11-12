@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# point_size
+
+#% text
+# `point_size(d)` is a graphics directive: points that follow are d times the width of the plot area across.
+
+#% section
+# Details
+
+#% item
+# The default is 0.012, about 4 points at the default width of 360 points.
+
+#% item
+# `absolute_point_size` gives the diameter in points instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Small and large points:
+
+#% cell
+graphics([point_size(0.01), point([0, 0]), point_size(0.05), point([1, 0])])
+#% output
+#= image("point_size.files/point_size-1.svgz")
+
+#% subsection
+# Possible issues
+
+#% text
+# A size is a number that is not negative:
+
+#% cell
+point_size("big")
+#% output
+#! failure(argument, point_size, 1)
+
+#% section
+# See also
+
+#% text
+# `absolute_point_size`, `point`

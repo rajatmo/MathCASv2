@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# algebraics
+
+#% text
+# `algebraics` is the domain of the algebraic numbers, the roots of nonzero polynomials with rational coefficients, for `element(x, algebraics)`.
+
+#% section
+# Details
+
+#% item
+# Rationals, `im` and their sums, products and rational powers are algebraic, and so are sin, cos and tan of rational multiples of pi.
+
+#% item
+# Not algebraic: `pi` and `e`; exp, log, sin, cos and tan at algebraic arguments other than 0 (log: other than 0 and 1) by the Lindemann-Weierstrass theorem; `b^c` for algebraic b other than 0 and 1 and algebraic irrational c by the Gelfond-Schneider theorem; a sum or product with exactly one transcendental part.
+
+#% item
+# Numbers outside these classes, such as `euler_gamma`, stay undecided.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element((6 + im*sqrt(5))^(1/3), algebraics)
+#% output
+#= true
+
+#% cell
+element(pi, algebraics)
+#% output
+#= false
+
+#% cell
+element(sqrt(2)^sqrt(2), algebraics)
+#% output
+#= false
+
+#% cell
+element(sin(pi/7), algebraics)
+#% output
+#= true
+
+#% cell
+element(euler_gamma, algebraics)
+#% output
+#= element(euler_gamma, algebraics)
+
+#% section
+# See also
+
+#% text
+# `element`, `rationals`, `reals`, `minimal_polynomial`

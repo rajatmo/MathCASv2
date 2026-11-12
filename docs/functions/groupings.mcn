@@ -1,0 +1,88 @@
+#! mathcas 2 notebook
+
+#% title
+# groupings
+
+#% text
+# `groupings(xs, k)` gives every tree of lists with `k` arguments each whose leaves are the elements of `xs` in order.
+
+#% text
+# `groupings(xs, spec)` uses the heads and arities of `spec`: `h -> k`, `h -> [k1, k2, ...]`, `[h1, h2] -> k`, or a list of such rules.
+
+#% section
+# Details
+
+#% item
+# `groupings(n, spec)` groups `range(n)`; a list of lists of one length groups each of them.
+
+#% item
+# Trees with fewer calls come first; then by the root's head in the order given, by the sizes of the root's parts (larger first), by the shapes of the parts and by where the larger parts stand.
+
+#% item
+# An arity 1 wraps: each tree is followed by itself wrapped in each one-argument head.
+
+#% item
+# `[k, orderless]` and `h -> [k, orderless]` take the parts of that head in one order only.
+
+#% item
+# Heads such as `add` evaluate their trees.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+groupings(4, 2)
+#% output
+#= [[[[1, 2], 3], 4], [1, [[2, 3], 4]], [[1, [2, 3]], 4], [1, [2, [3, 4]]], [[1, 2], [3, 4]]]
+
+#% cell
+groupings([a, b, c, d, e], 3)
+#% output
+#= [[[a, b, c], d, e], [a, [b, c, d], e], [a, b, [c, d, e]]]
+
+#% subsection
+# Scope
+
+#% text
+# Several heads with their arities:
+
+#% cell
+groupings([a, b, c, d], [g -> 3, f -> 2])
+#% output
+#= [g(f(a, b), c, d), g(a, f(b, c), d), g(a, b, f(c, d)), f(g(a, b, c), d), f(a, g(b, c, d)), f(f(f(a, b), c), d), f(a, f(f(b, c), d)), f(f(a, f(b, c)), d), f(a, f(b, f(c, d))), f(f(a, b), f(c, d))]
+
+#% text
+# A one-argument head:
+
+#% cell
+groupings([a, b], [neg -> 1, f -> 2])
+#% output
+#= [f(a, b), neg(f(a, b)), f(a, neg(b)), neg(f(a, neg(b))), f(neg(a), b), neg(f(neg(a), b)), f(neg(a), neg(b)), neg(f(neg(a), neg(b)))]
+
+#% text
+# Sums and products of three ones:
+
+#% cell
+groupings([1, 1, 1], [add -> 2, mul -> 2])
+#% output
+#= [3, 3, 2, 2, 2, 2, 1, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# Binary trees are counted by the Catalan numbers:
+
+#% cell
+table(length(groupings(n, 2)), n, 8)
+#% output
+#= [1, 1, 2, 5, 14, 42, 132, 429]
+
+#% section
+# See also
+
+#% text
+# `tuples`, `subsets`, `partition`

@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# chi_square_distribution
+
+#% text
+# `chi_square_distribution(k)` is the chi-square distribution with `k > 0` degrees of freedom: the sum of the squares of `k` standard normal variables.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mean(chi_square_distribution(k))
+#% output
+#= k
+
+#% cell
+variance(chi_square_distribution(k))
+#% output
+#= 2*k
+
+#% cell
+cdf(chi_square_distribution(2), x)
+#% output
+#= piecewise([[1 - exp((-1/2)*x), x > 0]], 0)
+
+#% subsection
+# Scope
+
+#% text
+# The 95 % point with 3 degrees of freedom:
+
+#% cell
+n(quantile(chi_square_distribution(3), 0.95))
+#% output
+#= 7.814727903251178
+
+#% section
+# See also
+
+#% text
+# `gamma_distribution`, `student_t_distribution`, `quantile`

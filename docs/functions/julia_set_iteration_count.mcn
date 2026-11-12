@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# julia_set_iteration_count
+
+#% text
+# `julia_set_iteration_count(f, z, z0)` gives the number of iterations of the rational map `z -> f` after which the orbit of `z0` is caught by an attracting cycle of `f` (or escapes to infinity, for a polynomial). `julia_set_iteration_count(c, z0)` is the count for `z^2 + c`.
+
+#% section
+# Details
+
+#% item
+# The attracting cycles are found from the critical points of `f` (every attracting cycle attracts one). A point is caught within `1/32` of a cycle point `p`, divided by `max(1, |f'(p)|)^2`; infinity catches it beyond `|z| = 32`, or, for a polynomial of degree `d`, beyond the escape radius `max(4, 1 + sum |a_k/a_d|)`.
+
+#% item
+# Points of the Julia set are never caught: they give `max_iterations + 1` (the option `max_iterations`, default 1000).
+
+#% item
+# `z0` may be a list or an array of points; the computation is in machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+julia_set_iteration_count(z^2 - 1, z, 0.1 - 0.2*im)
+#% output
+#= 4
+
+#% cell
+julia_set_iteration_count(z^2 - 1, z, [0, 0.5 + 0.5*im, 1 + im, 1.5 + 1.5*im, 2 + 2*im])
+#% output
+#= [0, 5, 2, 1, 1]
+
+#% text
+# The form for `z^2 + c`:
+
+#% cell
+julia_set_iteration_count(-1, 0.1 - 0.2*im)
+#% output
+#= 4
+
+#% text
+# A rational map with the superattracting fixed point 0 and the cycle `1 -> infinity -> 1`:
+
+#% cell
+julia_set_iteration_count(z^2/(z^2 - 1), z, range(0, 7))
+#% output
+#= [0, 1, 10, 6, 4, 4, 4, 4]
+
+#% text
+# 0 lands on the repelling fixed point -1 of `z^3 - z - 1`, in the Julia set:
+
+#% cell
+[julia_set_iteration_count(z^3 - z - 1, z, 0), julia_set_iteration_count(z^3 - z - 1, z, 0, max_iterations: 50)]
+#% output
+#= [1001, 51]
+
+#% section
+# See also
+
+#% text
+# `julia_set_plot`, `mandelbrot_set_member_q`, `mandelbrot_set_plot`

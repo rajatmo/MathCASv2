@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# root_approximant
+
+#% text
+# `root_approximant(x)` gives an algebraic number of degree at most 8 and small coefficients that is close to the number x.
+
+#% text
+# `root_approximant(x, n)` allows degree at most n.
+
+#% section
+# Details
+
+#% item
+# For each degree d the integer relation search (PSLQ) is run on 1, x, ..., x^d; the first polynomial whose coefficients are small compared with the precision of x is taken, and the result is its root nearest x, written as `solve` writes it.
+
+#% item
+# With n given and no small polynomial found, the polynomial of degree n is taken.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A square root:
+
+#% cell
+root_approximant(n(sqrt(67)))
+#% output
+#= 67^(1/2)
+
+#% text
+# A degree-4 number:
+
+#% cell
+root_approximant(n(sqrt(2) + sqrt(3)), 4)
+#% output
+#= 2^(1/2) + 3^(1/2)
+
+#% text
+# An exact number is evaluated first:
+
+#% cell
+root_approximant(sqrt(2 + sqrt(3)))
+#% output
+#= (1/2)*(2^(1/2) + 6^(1/2))
+
+#% section
+# See also
+
+#% text
+# `find_integer_null_vector`, `root_reduce`, `minimal_polynomial`, `rationalize`

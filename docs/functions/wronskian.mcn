@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# wronskian
+
+#% text
+# `wronskian([f1, ..., fk], x)` gives the Wronskian: the determinant of the matrix with rows `d(fi, [x, j])`, j = 0, ..., k - 1.
+
+#% text
+# `wronskian(eq, y, x)` gives the Wronskian of a fundamental system of the linear differential equation eq for y(x).
+
+#% section
+# Details
+
+#% item
+# For an equation `a_k y^(k) + a_(k-1) y^(k-1) + ... = r` the value is Abel's `exp(-integrate(a_(k-1)/a_k, x))`, normalised without a constant factor.
+
+#% item
+# A zero Wronskian of analytic functions shows that they are linearly dependent.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wronskian([exp(x), exp(2*x)], x)
+#% output
+#= exp(3*x)
+
+#% cell
+wronskian([sin(x), cos(x), x*sin(x), x*cos(x)], x)
+#% output
+#= 4
+
+#% cell
+wronskian([x^2, 3*x^2 + 5*x + 1, x^2 + 5*x + 1], x)
+#% output
+#= 0
+
+#% cell
+wronskian(x^2*y''(x) + x*y'(x) + y(x) == 0, y, x)
+#% output
+#= x^-1
+
+#% section
+# See also
+
+#% text
+# `casoratian`, `d_solve`, `det`

@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# spheroidal_ps
+
+#% text
+# `spheroidal_ps(n, m, gamma, x)` gives the angular spheroidal function of the first kind `Ps^m_n(x, gamma^2)` for `-1 < x < 1`.
+
+#% section
+# Details
+
+#% item
+# The function is the sum `sum (-1)^k a_k P^m_(n+2k)(x)` of Ferrers functions (Condon-Shortley phase) with the coefficients of the eigenvalue's continued fraction (DLMF 30.8.1), normalized by `integrate(Ps^2, [x, -1, 1]) = 2 (n + m)!/((2n + 1)(n - m)!)` (DLMF 30.4.4).
+
+#% item
+# Integers `n >= m >= 0`; `spheroidal_ps(n, m, 0, x) = legendre_p(n, m, x)`; arguments with `|x| >= 1` stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spheroidal_ps(5, 1, 0, 0.3)
+#% output
+#= 0.16079837663884378
+
+#% cell
+n(spheroidal_ps(7, 5, 4, 0), 50)
+#% output
+#= 5197.949191793180304847731343835592982674520025655020852
+
+#% cell
+n(spheroidal_ps(2, 1, 1/3, 1/2), 20)
+#% output
+#= -1.300875733572396152328754
+
+#% cell
+spheroidal_ps(2, 0, 1.0, 0.3)
+#% output
+#= -0.34480205554972826
+
+#% text
+# The normalization:
+
+#% cell
+n_integrate(spheroidal_ps(2, 0, 1.5, x)^2, [x, -1, 1])
+#% output
+#= 0.3999999999999999
+
+#% cell
+n(2/5)
+#% output
+#= 0.4
+
+#% section
+# See also
+
+#% text
+# `spheroidal_eigenvalue`, `legendre_p`

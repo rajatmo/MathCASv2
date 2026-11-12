@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# horner_form
+
+#% text
+# `horner_form(p)` writes the polynomial `p` in nested (Horner) form; `horner_form(p, x)` or `horner_form(p, [x, y])` chooses the variables, nested in order. A quotient has numerator and denominator done separately.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+horner_form(1 + 2*x + 3*x^2)
+#% output
+#= 1 + x*(2 + 3*x)
+
+#% cell
+horner_form(x^3 + 1)
+#% output
+#= 1 + x^3
+
+#% cell
+horner_form(1 + 2*x + 3*x*y + y^2, [x, y])
+#% output
+#= 1 + x*(2 + 3*y) + y^2
+
+#% section
+# See also
+
+#% text
+# `expand`, `collect`

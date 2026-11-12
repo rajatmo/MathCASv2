@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# end_of_line
+
+#% text
+# `end_of_line` is a string pattern for the empty text at the end of the string or before a newline.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("one\ntwo", string_expression(repeated(letter_character), end_of_line))
+#% output
+#= ["one", "two"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

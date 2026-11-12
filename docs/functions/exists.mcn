@@ -1,0 +1,71 @@
+#! mathcas 2 notebook
+
+#% title
+# exists
+
+#% text
+# `exists(x, formula)` is the statement that some `x` satisfies the formula; `exists([x, y], formula)` binds several variables, `exists(x, cond, formula)` is `exists(x, cond and formula)`.
+
+#% section
+# Details
+
+#% item
+# `exists` stays as written; `resolve`, `reduce` and `cylindrical_decomposition` eliminate it.
+
+#% item
+# Variables that do not occur are dropped, and an `exists` over no variable is its formula.
+
+#% item
+# `not(exists(x, f))` is `for_all(x, not f)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# An unresolved statement:
+
+#% cell
+exists(x, x^2 - x + 1 == 0)
+#% output
+#= exists(x, 1 - x + x^2 == 0)
+
+#% text
+# Resolved over the reals:
+
+#% cell
+resolve(exists(x, element(x, reals), x^2 - x + 1 == 0))
+#% output
+#= false
+
+#% text
+# A variable that does not occur:
+
+#% cell
+exists(x, y == 0)
+#% output
+#= y == 0
+
+#% text
+# The values of a for which a line meets an ellipse:
+
+#% cell
+reduce(exists([x, y], x^2 + a*y^2 <= 1 and x - y >= 2), a)
+#% output
+#= a <= 1/3
+
+#% text
+# Negation:
+
+#% cell
+not(exists(x, x == a))
+#% output
+#= for_all(x, x != a)
+
+#% section
+# See also
+
+#% text
+# `resolve`, `for_all`, `cylindrical_decomposition`, `reduce`, `find_instance`

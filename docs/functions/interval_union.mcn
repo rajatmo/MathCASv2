@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# interval_union
+
+#% text
+# `interval_union(i1, i2, ...)` gives the union of the intervals as one interval, overlapping pieces merged.
+
+#% section
+# Details
+
+#% item
+# Real intervals and real centered intervals give an `interval` of disjoint pieces.
+
+#% item
+# When a centered interval with a complex centre is involved the result is the smallest centered interval that contains them all.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+interval_union(interval([1, 3]), interval([2, 4]))
+#% output
+#= interval([1, 4])
+
+#% cell
+interval_union(interval([-2, 0]), interval([1, 4]))
+#% output
+#= interval([-2, 0], [1, 4])
+
+#% cell
+interval_union(centered_interval(-1, 1/2), centered_interval(1, 1/2))
+#% output
+#= interval([-3/2, -1/2], [1/2, 3/2])
+
+#% cell
+interval_union(centered_interval(2 + 3*im, 1 + im), centered_interval(1 + im, 2 + 2*im))
+#% output
+#= centered_interval(1 + 3*im/2, 2 + 5*im/2)
+
+#% section
+# See also
+
+#% text
+# `interval`, `centered_interval`, `interval_member_q`

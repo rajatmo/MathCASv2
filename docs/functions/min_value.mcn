@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# min_value
+
+#% text
+# `min_value(f, x)` gives the global minimum value of `f`.
+
+#% section
+# Details
+
+#% item
+# It is the first part of `minimize(f, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A parabola:
+
+#% cell
+min_value(x^2 + 2*x, x)
+#% output
+#= -1
+
+#% subsection
+# Scope
+
+#% text
+# On an interval:
+
+#% cell
+min_value([x^3, -1 <= x and x <= 2], x)
+#% output
+#= -1
+
+#% subsection
+# Properties and relations
+
+#% text
+# `minimize` gives the point too:
+
+#% cell
+minimize(x^2 + 2*x, x)
+#% output
+#= [-1, [x -> -1]]
+
+#% section
+# See also
+
+#% text
+# `minimize`, `max_value`, `arg_min`

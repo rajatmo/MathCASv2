@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_sin_transform
+
+#% text
+# `fourier_sin_transform(f, t, w)` gives the sine transform `sqrt(2/pi) integrate(f*sin(w*t), [t, 0, inf])` of `f`, for `w > 0`.
+
+#% section
+# Details
+
+#% item
+# The integral is taken with `w > 0`; when `integrate` finds no value, the Laplace transform at `s = -im w` and `s = im w` gives it (for exponentially decaying `f`, or when the numeric check confirms it).
+
+#% item
+# `g(t)/t` gives the integral of the cosine transform of `g` from 0 to `w`.
+
+#% item
+# `fourier_parameters: [a, b]` gives the transform `2 sqrt(abs(b)/(2 pi)^(1 - a)) integrate(f*sin(b*w*t), [t, 0, inf])`.
+
+#% item
+# The transform is its own inverse; `inverse_fourier_sin_transform` is the same integral.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_sin_transform(exp(-t), t, w)
+#% output
+#= w*2^(1/2)*(pi^-1)^(1/2)/(1 + w^2)
+
+#% cell
+fourier_sin_transform(t/(t^2 + 1), t, w)
+#% output
+#= (1/2)*2^(1/2)*exp(-w)*pi^(1/2)
+
+#% subsection
+# Scope
+
+#% cell
+fourier_sin_transform(1/sqrt(t), t, w)
+#% output
+#= w^(-1/2)
+
+#% cell
+fourier_sin_transform(exp(-t^2), t, w)
+#% output
+#= dawson_f((1/2)*w)*2^(1/2)*(pi^-1)^(1/2)
+
+#% cell
+fourier_sin_transform(t*exp(-a*t), t, w)
+#% output
+#= 2*a*w*2^(1/2)*(pi^-1)^(1/2)/(a^2 + w^2)^2
+
+#% cell
+fourier_sin_transform(cos(t)*exp(-t)/t, t, w)
+#% output
+#= (atan((1/2)*w) + atan((1/4)*w*(2 + w^2)))*2^(1/2)/(2*pi^(1/2))
+
+#% subsection
+# Options
+
+#% cell
+fourier_sin_transform(exp(-t), t, w, fourier_parameters: [1, 2*pi])
+#% output
+#= 4*w*2^(1/2)*pi^(3/2)/(1 + 4*pi^2*w^2)
+
+#% section
+# See also
+
+#% text
+# `inverse_fourier_sin_transform`, `fourier_cos_transform`, `fourier_transform`

@@ -1,0 +1,55 @@
+#! mathcas 2 notebook
+
+#% title
+# thick
+
+#% text
+# `thick` is a graphics directive: lines 2 points wide.
+
+#% section
+# Details
+
+#% item
+# It applies to what follows it in its list; it can stand in `directive(...)`, `edge_form(...)` and `plot_style`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# In a graphic:
+
+#% cell
+graphics([thick, line([[0, 0], [1, 1]]), thin, line([[0, 1], [1, 0]])])
+#% output
+#= image("thick.files/thick-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# As a plot style:
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_style: thick)
+#% output
+#= image("thick.files/thick-2.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# Combined with a colour:
+
+#% cell
+graphics([directive(red, thick), line([[0, 0], [1, 1]])])
+#% output
+#= image("thick.files/thick-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `directive`, `thickness`, `dashing`

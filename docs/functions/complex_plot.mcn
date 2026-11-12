@@ -1,0 +1,61 @@
+#! mathcas 2 notebook
+
+#% title
+# complex_plot
+
+#% text
+# `complex_plot(f, [z, z0, z1])` shows f over the rectangle of the complex plane with corners z0 and z1 by domain colouring.
+
+#% section
+# Details
+
+#% item
+# The hue is the argument of f (red for positive reals, then yellow, green, cyan, blue, magenta going round); the colour is dark near zeros and light near poles.
+
+#% item
+# f is evaluated at 120 by 120 points.
+
+#% item
+# The value is `image("path")`, a PNG with SVG and PDF copies next to it.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Two zeros:
+
+#% cell
+complex_plot(z^2 - 1, [z, -2 - 2im, 2 + 2im])
+#% output
+#= image("complex_plot.files/complex_plot-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A pole and a zero:
+
+#% cell
+complex_plot((z - 1)/(z + 1), [z, -2 - 2im, 2 + 2im])
+#% output
+#= image("complex_plot.files/complex_plot-2.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# The zeros of a polynomial:
+
+#% cell
+complex_plot(z^5 - 1, [z, -1.5 - 1.5im, 1.5 + 1.5im])
+#% output
+#= image("complex_plot.files/complex_plot-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `complex_plot3d`, `re_im_plot`, `abs_arg_plot`, `density_plot`

@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# spheroidal_eigenvalue
+
+#% text
+# `spheroidal_eigenvalue(n, m, gamma)` gives the spheroidal eigenvalue `lambda^m_n(gamma^2)`, the separation constant of `(1 - x^2) w'' - 2 x w' + (lambda + gamma^2 (1 - x^2) - m^2/(1 - x^2)) w = 0` (DLMF 30.2.1).
+
+#% section
+# Details
+
+#% item
+# Integers `n >= |m|`; `gamma` real (prolate for real `gamma`, oblate for imaginary `gamma`) or complex; other orders stay unevaluated.
+
+#% item
+# The value is the root of the continued fraction of the Legendre expansion (DLMF 30.8.2, Bouwkamp's method), started from the eigenvalue of the truncated tridiagonal matrix and refined by the secant method at doubling precision.
+
+#% item
+# `spheroidal_eigenvalue(n, m, 0) = n (n + 1)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+spheroidal_eigenvalue(2, 1, 0.5)
+#% output
+#= 5.856900130405332
+
+#% cell
+spheroidal_eigenvalue(5, 0, 0)
+#% output
+#= 30
+
+#% cell
+n(spheroidal_eigenvalue(117, 5, 1), 50)
+#% output
+#= 13805.4991058412031617406729670551836816410639977815546
+
+#% cell
+n(spheroidal_eigenvalue(11, 1, 21), 30)
+#% output
+#= -64.0060112829149547547007261694847
+
+#% cell
+spheroidal_eigenvalue(5, [0, 1, 2, 3, 4, 5], 0.5)
+#% output
+#= [29.87613901304222, 29.871850414242004, 29.858990350517676, 29.83757594380256, 29.807635481191625, 29.76920805440443]
+
+#% text
+# An imaginary gamma (the oblate case):
+
+#% cell
+spheroidal_eigenvalue(2, 0, 2.0*im)
+#% output
+#= 8.091509102150699
+
+#% section
+# See also
+
+#% text
+# `spheroidal_ps`, `mathieu_characteristic_a`, `legendre_p`

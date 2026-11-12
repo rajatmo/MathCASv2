@@ -1,0 +1,11 @@
+[package]
+name = "mc-help"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 help index: every function's usage lines and description (generated from the catalogue and the documentation pages), and the scanning that editors need for completion, usage hints, hover and F1"
+
+[dependencies]

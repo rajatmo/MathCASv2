@@ -1,0 +1,35 @@
+# Powers and products of hyperbolic functions that the tower engine (which reads them through exp) does not reach:
+# fractional and symbolic powers. The reduction formulas are those of the trigonometric rules with the signs of the
+# hyperbolic identities (Gradshteyn and Ryzhik 2.41-2.42); the substitutions follow Rubi section 6 (MIT).
+
+## 6.1 (b sinh)^n, (b cosh)^n: reduction of the exponent
+int((b_.*sinh(e_. + f_.*x))^n_) := b*cosh(e + f*x)*(b*sinh(e + f*x))^(n - 1)/(f*n) - b^2*(n - 1)/n*int((b*sinh(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and not integer(n)
+int((b_.*cosh(e_. + f_.*x))^n_) := b*sinh(e + f*x)*(b*cosh(e + f*x))^(n - 1)/(f*n) + b^2*(n - 1)/n*int((b*cosh(e + f*x))^(n - 2))
+    when free(b, e, f) and n > 1 and not integer(n)
+int((b_.*sinh(e_. + f_.*x))^n_) := cosh(e + f*x)*(b*sinh(e + f*x))^(n + 1)/(b*f*(n + 1)) - (n + 2)/(b^2*(n + 1))*int((b*sinh(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and not integer(n)
+int((b_.*cosh(e_. + f_.*x))^n_) := -sinh(e + f*x)*(b*cosh(e + f*x))^(n + 1)/(b*f*(n + 1)) + (n + 2)/(b^2*(n + 1))*int((b*cosh(e + f*x))^(n + 2))
+    when free(b, e, f) and n < -1 and not integer(n)
+
+## 6.1 (b sinh)^n, (b cosh)^n, -1 < n < 1 or symbolic: a hypergeometric function
+int(sinh(e_. + f_.*x)^n_) := sinh(e + f*x)^(n + 1)/(f*(n + 1))*hypergeometric_2f1(1/2, (n + 1)/2, (n + 3)/2, -sinh(e + f*x)^2)
+    when free(e, f, n) and not integer(n)
+int(cosh(e_. + f_.*x)^n_) := sinh(e + f*x)/f*hypergeometric_2f1((1 - n)/2, 1/2, 3/2, -sinh(e + f*x)^2)
+    when free(e, f, n) and not integer(n)
+int((b_*sinh(e_. + f_.*x))^n_) := (b*sinh(e + f*x))^n/sinh(e + f*x)^n*int(sinh(e + f*x)^n) when free(b, e, f, n) and not integer(n)
+int((b_*cosh(e_. + f_.*x))^n_) := (b*cosh(e + f*x))^n/cosh(e + f*x)^n*int(cosh(e + f*x)^n) when free(b, e, f, n) and not integer(n)
+
+## 6.1 sinh^m cosh^n with an odd power: u = sinh (u = cosh)
+int((a_.*sinh(e_. + f_.*x))^m_.*cosh(e_. + f_.*x)^n_.) := 1/(a*f)*subst(int(x^m*(1 + x^2/a^2)^((n - 1)/2)), a*sinh(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not integer(m)
+int((a_.*cosh(e_. + f_.*x))^m_.*sinh(e_. + f_.*x)^n_.) := 1/(a*f)*subst(int(x^m*(x^2/a^2 - 1)^((n - 1)/2)), a*cosh(e + f*x))
+    when free(a, e, f, m) and integer((n - 1)/2) and not integer(m)
+
+## 6.3 (b tanh)^n, (b coth)^n with n not an integer: the substitution u = b tanh
+int((b_.*tanh(e_. + f_.*x))^n_) := b/f*subst(int(x^n/(b^2 - x^2)), b*tanh(e + f*x)) when free(b, e, f, n) and not integer(n)
+int((b_.*coth(e_. + f_.*x))^n_) := b/f*subst(int(x^n/(b^2 - x^2)), b*coth(e + f*x)) when free(b, e, f, n) and not integer(n)
+
+## 6.5 (b sech)^n, (b csch)^n with n not an integer: through powers of cosh (sinh)
+int((b_.*sech(e_. + f_.*x))^n_) := (b*sech(e + f*x))^n*cosh(e + f*x)^n*int(cosh(e + f*x)^(-n)) when free(b, e, f, n) and not integer(n)
+int((b_.*csch(e_. + f_.*x))^n_) := (b*csch(e + f*x))^n*sinh(e + f*x)^n*int(sinh(e + f*x)^(-n)) when free(b, e, f, n) and not integer(n)

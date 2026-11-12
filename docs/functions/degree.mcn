@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# degree
+
+#% text
+# `degree(p, x)` gives the largest power of `x` in the polynomial `p`.
+
+#% section
+# Details
+
+#% item
+# `p` is expanded first, so cancelled terms do not count. The zero polynomial has degree `-inf`; a nonzero constant has degree 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+degree(x^3 + 2*x + 1, x)
+#% output
+#= 3
+
+#% cell
+degree((x + 1)^5 - x^5, x)
+#% output
+#= 4
+
+#% cell
+degree(5, x)
+#% output
+#= 0
+
+#% cell
+degree(0, x)
+#% output
+#= -inf
+
+#% subsection
+# Scope
+
+#% text
+# The degree in each variable:
+
+#% cell
+p = x^2*y^3 + x*y; [degree(p, x), degree(p, y)]
+#% output
+#= [2, 3]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The degree of a product is the sum:
+
+#% cell
+[degree((x^2 + 1)*(x^3 - x), x), degree(x^2 + 1, x) + degree(x^3 - x, x)]
+#% output
+#= [5, 5]
+
+#% section
+# See also
+
+#% text
+# `coefficient`, `coefficient_list`, `variables`

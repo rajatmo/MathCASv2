@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# weierstrass_p_prime
+
+#% text
+# `weierstrass_p_prime(u, [g2, g3])` gives the derivative of the Weierstrass elliptic function `p(u; g2, g3)`.
+
+#% section
+# Details
+
+#% item
+# `p'` is odd, with a triple pole `-2/u^3` at the lattice points; `p'^2 = 4 p^3 - g2 p - g3`.
+
+#% item
+# Numerical values as for `weierstrass_p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+weierstrass_p_prime(0.5, [1, 2])
+#% output
+#= -15.914060722103613
+
+#% cell
+n(weierstrass_p_prime(1/3, [1, 2]), 30)
+#% output
+#= -53.9560603135463961472930874211945
+
+#% cell
+weierstrass_p_prime(3.3 + 2*im, [12, -7])
+#% output
+#= -2.958694511659682 + 2.942073982341144im
+
+#% text
+# A difference quotient of `weierstrass_p`:
+
+#% cell
+(weierstrass_p(0.8 + 1.0e-6, [1, 2]) - weierstrass_p(0.8 - 1.0e-6, [1, 2]))/2.0e-6 - weierstrass_p_prime(0.8, [1, 2])
+#% output
+#= -1.1512968356441888e-10
+
+#% section
+# See also
+
+#% text
+# `weierstrass_p`, `weierstrass_zeta`

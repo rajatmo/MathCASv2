@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# subset_map
+
+#% text
+# `subset_map(f, xs, positions)` applies `f` to the list of the parts of `xs` at the positions (integers, or index lists for nested parts) and puts the elements of the result back at those positions. `subset_map(f, positions)(xs)` is the operator form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subset_map(reverse, [x1, x2, x3, x4, x5, x6], [2, 4])
+#% output
+#= [x1, x4, x3, x2, x5, x6]
+
+#% cell
+subset_map(accumulate, [x1, x2, x3, x4, x5, x6], [2, 3, 4, 5])
+#% output
+#= [x1, x2, x2 + x3, x2 + x3 + x4, x2 + x3 + x4 + x5, x6]
+
+#% cell
+subset_map(reverse, [[a, b], [c]], [[1, 1], [2, 1]])
+#% output
+#= [[c, b], [a]]
+
+#% section
+# See also
+
+#% text
+# `map_at`, `replace_part`, `extract`

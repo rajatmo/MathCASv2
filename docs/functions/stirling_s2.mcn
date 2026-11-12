@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# stirling_s2
+
+#% text
+# `stirling_s2(n, k)` gives the Stirling number of the second kind, the number of ways to split `n` elements into `k` non-empty blocks.
+
+#% section
+# Details
+
+#% item
+# The definition is DLMF 26.8.1; `stirling_s2(n, n)` is 1 and `stirling_s2(n, 0)` is 0 for `n > 0`.
+
+#% item
+# `stirling_s2` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+stirling_s2(5, 2)
+#% output
+#= 15
+
+#% cell
+stirling_s2(5, 5)
+#% output
+#= 1
+
+#% cell
+stirling_s2(4, range(4))
+#% output
+#= [1, 7, 6, 1]
+
+#% cell
+stirling_s2(30, 10)
+#% output
+#= 173373343599189364594756
+
+#% subsection
+# Applications
+
+#% text
+# The number of ways to split a set of 6 into blocks, the Bell number:
+
+#% cell
+sum(stirling_s2(6, range(0, 6)))
+#% output
+#= 203
+
+#% subsection
+# Properties and relations
+
+#% text
+# The explicit formula:
+
+#% cell
+[stirling_s2(7, 3), sum((-1)^j*binomial(3, j)*(3 - j)^7, [j, 0, 3])/factorial(3)]
+#% output
+#= [301, 301]
+
+#% section
+# See also
+
+#% text
+# `stirling_s1`, `binomial`, `partitions_p`

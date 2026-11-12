@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# less
+
+#% text
+# `less(a, b)`, written `a < b`, compares two real values; it stays symbolic when the order cannot be decided.
+
+#% section
+# Details
+
+#% item
+# Exact constants compare exactly: `pi < 22/7` is decided without rounding.
+
+#% item
+# Comparisons do not chain: write `a < b and b < c` for `a < b < c`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+2 < 3
+#% output
+#= true
+
+#% cell
+pi < 22/7
+#% output
+#= true
+
+#% cell
+x < 1
+#% output
+#= x < 1
+
+#% subsection
+# Scope
+
+#% text
+# Both sides of a range:
+
+#% cell
+1 < 2 and 2 < 3
+#% output
+#= true
+
+#% text
+# Select with a comparison:
+
+#% cell
+select(range(10), k => k < 4)
+#% output
+#= [1, 2, 3]
+
+#% section
+# See also
+
+#% text
+# `less_equal`, `greater`, `min`, `reduce`

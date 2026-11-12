@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# bessel_j_zero
+
+#% text
+# `bessel_j_zero(nu, k)` gives the `k`-th positive zero of the Bessel function `J_nu`; `bessel_j_zero(nu, k, x0)` gives the `k`-th zero above `x0`.
+
+#% section
+# Details
+
+#% item
+# For a non-integer `k = m - t` (`m = ceil(k)`, `0 < t < 1`) the value is the `m`-th positive zero of `J_nu cos(pi t) - Y_nu sin(pi t)`, so that the zeros are continuous in `k` (DLMF 10.21).
+
+#% item
+# Numerical values: the sign changes are counted in machine arithmetic, the bracket bisected, and the zero refined by Newton's method at the working precision; exact arguments stay unevaluated and `n` gives the values.
+
+#% item
+# `nu > -1`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+n(bessel_j_zero(0, 1))
+#% output
+#= 2.404825557695773
+
+#% cell
+bessel_j_zero(0.0, 2)
+#% output
+#= 5.520078110286311
+
+#% cell
+n(bessel_j_zero(0, 1, 40))
+#% output
+#= 40.05842576462824
+
+#% cell
+n(bessel_j_zero(1, 20, 40), 30)
+#% output
+#= 101.3126618230387301371410563886519
+
+#% cell
+n(bessel_j_zero(1/2, [1, 2, 3]))
+#% output
+#= [3.141592653589793, 6.283185307179586, 9.42477796076938]
+
+#% text
+# A zero of the cylinder function of phase `t = 2/3`:
+
+#% cell
+x = n(bessel_j_zero(0, 1 - 2/3), 20); bessel_j(0, x)*cos(2*pi/3) - bessel_y(0, x)*sin(2*pi/3)
+#% output
+#= ball(5.5251817801679666851e-26, 3.27e-25)
+
+#% section
+# See also
+
+#% text
+# `bessel_y_zero`, `bessel_j`, `airy_ai_zero`

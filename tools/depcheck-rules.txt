@@ -1,0 +1,33 @@
+# Rules of the dependency structure, checked by tools/depcheck.ps1 (transitively, over normal and build
+# dependencies; dev-dependencies do not count). One rule per line:
+#   <crate> must not depend on <crate>
+#   * must not depend on <crate>         (no crate but <crate> itself)
+# Each rule is added in the round that makes it true (docs/design/12-architecture.md).
+
+# the benchmark runner is a leaf of the tree: engines and their users get the Engine trait from mc-api (round 34)
+* must not depend on mc-bench
+
+# the UI crates use the graphics model and its renderers without the kernel: mc-graphics reads terms through the
+# store contract only, the natives are mc-graphics-kernel's (round 34)
+mc-notebook must not depend on mc-eval
+mc-notebook must not depend on mc-core
+mc-nbmodel must not depend on mc-eval
+mc-nbmodel must not depend on mc-core
+mc-nbexport must not depend on mc-eval
+mc-nbexport must not depend on mc-core
+mc-ui must not depend on mc-eval
+mc-ui must not depend on mc-core
+mc-boxes must not depend on mc-eval
+mc-boxes must not depend on mc-core
+mc-edit must not depend on mc-eval
+mc-edit must not depend on mc-core
+mc-graphics must not depend on mc-eval
+mc-graphics must not depend on mc-core
+
+# calculus by area (round 34): differentiation and the shared helpers at the bottom, integration above limits
+mc-calculus must not depend on mc-limit
+mc-calculus must not depend on mc-integrals
+mc-calculus must not depend on mc-transforms
+mc-calculus must not depend on mc-dsolve
+mc-limit must not depend on mc-integrals
+mc-dsolve must not depend on mc-integrals

@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# surd
+
+#% text
+# `surd(x, n)` gives the real n-th root of `x`.
+
+#% section
+# Details
+
+#% item
+# For x < 0 and odd n the root is negative; even roots of negative numbers stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+surd(-8, 3)
+#% output
+#= -2
+
+#% cell
+surd(27, 3)
+#% output
+#= 3
+
+#% cell
+surd(-2.0, 5)
+#% output
+#= -1.148698354997035
+
+#% subsection
+# Properties and relations
+
+#% text
+# The principal power is complex:
+
+#% cell
+(-8)^(1/3)
+#% output
+#= 2*(-1)^(1/3)
+
+#% section
+# See also
+
+#% text
+# `sqrt`, `abs`

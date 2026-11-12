@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# pattern_filling
+
+#% text
+# `pattern_filling(...)`: a patterned fill of faces (accepted; faces keep their colour)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_purple, pattern_filling("Checkerboard"), rectangle()])
+#% output
+#= image("pattern_filling.files/pattern_filling-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

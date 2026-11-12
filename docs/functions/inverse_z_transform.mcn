@@ -1,0 +1,165 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_z_transform
+
+#% text
+# `inverse_z_transform(F, z, n)` gives the sequence whose Z transform is `F`.
+
+#% section
+# Details
+
+#% item
+# A rational function of `z` is inverted by the residues of `F(z) z^(n - 1)` at its nonzero poles; a pole at 0 gives `discrete_delta(n - j)` terms.
+
+#% item
+# The inverse of a `z_transform` of an undefined function is the function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_z_transform(z/(z - a), z, n)
+#% output
+#= a^n
+
+#% cell
+inverse_z_transform(z/(z - 1)^2, z, n)
+#% output
+#= n
+
+#% subsection
+# Scope
+
+#% cell
+inverse_z_transform(1/z^3, z, n)
+#% output
+#= discrete_delta(-3 + n)
+
+#% cell
+inverse_z_transform(z/((z - 1)*(z - 2)), z, n)
+#% output
+#= -1 + 2^n
+
+#% cell
+inverse_z_transform(z/(z^2 + 1), z, n)
+#% output
+#= -im/2*im^n + (im/2)*(-im)^n
+
+#% text
+# A pole of order 3 and a pole at a point other than 1:
+
+#% cell
+inverse_z_transform(z/(z - 1)^3, z, n)
+#% output
+#= (1/2)*n*(-1 + n)
+
+#% cell
+inverse_z_transform(1/(z - 2), z, n)
+#% output
+#= (1/2)*(-discrete_delta(n) + 2^n)
+
+#% text
+# Complex conjugate poles, and the Fibonacci-type recurrence:
+
+#% cell
+inverse_z_transform(z/(z^2 - 2*z + 2), z, n)
+#% output
+#= -im/2*(1 + im)^n + (im/2)*(1 - im)^n
+
+#% cell
+inverse_z_transform(z^2/(z^2 - z - 1), z, n)
+#% output
+#= (-1/5)*(-(1/2 + (1/2)*5^(1/2))^(1 + n) + (1/2 - (1/2)*5^(1/2))^(1 + n))*5^(1/2)
+
+#% text
+# A power series in `1/z` after a rational cancellation:
+
+#% cell
+inverse_z_transform(1/(1 - 1/(2*z)), z, n)
+#% output
+#= (1/2)^n
+
+#% subsection
+# Options
+
+#% text
+# A number for `n` gives the value there:
+
+#% cell
+inverse_z_transform(z/(z - 2), z, 5)
+#% output
+#= 32
+
+#% text
+# `assumptions:` and `generate_conditions:` are accepted; the region of convergence is not reported by the inverse:
+
+#% cell
+inverse_z_transform(z/(z - a), z, n, assumptions: abs(a) < 1)
+#% output
+#= a^n
+
+#% cell
+inverse_z_transform(z/(z - a), z, n, generate_conditions: true)
+#% output
+#= a^n
+
+#% subsection
+# Properties and relations
+
+#% text
+# The transform of the result gives `F` back:
+
+#% cell
+simplify(z_transform(inverse_z_transform(z^2/((z - 1)*(z - 2)), z, n), n, z))
+#% output
+#= z^2/(2 - 3*z + z^2)
+
+#% subsection
+# Possible issues
+
+#% text
+# A function that is not rational in `z` is inverted when its series in `1/z` is known; one that is not stays a call:
+
+#% cell
+inverse_z_transform(exp(1/z), z, n)
+#% output
+#= factorial(n)^-1
+
+#% cell
+inverse_z_transform(sin(1/z), z, n)
+#% output
+#= inverse_z_transform(sin(z^-1), z, n)
+
+#% text
+# `z` and `z^2` give sequences that are not zero at negative `n`, written with `discrete_delta`:
+
+#% cell
+inverse_z_transform(z^2, z, n)
+#% output
+#= discrete_delta(2 + n)
+
+#% text
+# An undefined function stays a call:
+
+#% cell
+inverse_z_transform(F(z), z, n)
+#% output
+#= inverse_z_transform(F(z), z, n)
+
+#% text
+# A number for `n` at the precision wanted gives the value at that precision (there is no `working_precision:`):
+
+#% cell
+inverse_z_transform(z/(z - 2), z, n(5, 30))
+#% output
+#= 32.000000000000000000000000000000000
+
+#% section
+# See also
+
+#% text
+# `z_transform`, `inverse_laplace_transform`, `apart`

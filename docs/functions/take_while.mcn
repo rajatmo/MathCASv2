@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# take_while
+
+#% text
+# `take_while(xs, f)` gives the elements of `xs` from the start as long as `f(x)` is `true`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+take_while([2, 4, 6, 1, 2, 3], is_even)
+#% output
+#= [2, 4, 6]
+
+#% cell
+take_while(f(1, 1, 2, 3, a, 8), is_integer)
+#% output
+#= f(1, 1, 2, 3)
+
+#% section
+# See also
+
+#% text
+# `length_while`, `take`, `select`

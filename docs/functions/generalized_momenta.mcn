@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# generalized_momenta
+
+#% text
+# `generalized_momenta(L, q, t)` gives the canonical momenta `dL/dq'` of the coordinates `q` (a function `x(t)`, its name, or a list) of the Lagrangian `L`.
+
+#% section
+# Details
+
+#% item
+# The result is a list with one momentum per coordinate.
+
+#% item
+# The momentum of a coordinate that does not occur in `L` itself (a cyclic coordinate) is conserved.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+generalized_momenta(m*x'(t)^2/2 - k*x(t)^2/2, x, t)
+#% output
+#= [m*x'(t)]
+
+#% cell
+generalized_momenta(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], t)
+#% output
+#= [m*r'(t), m*r(t)^2*th'(t)]
+
+#% text
+# The momentum of a charge differs from `m x'` by the vector potential:
+
+#% cell
+generalized_momenta(m*x'(t)^2/2 + e0*x'(t)*A(x(t)), x, t)
+#% output
+#= [e0*A(x(t)) + m*x'(t)]
+
+#% section
+# See also
+
+#% text
+# `legendre_transform`, `energy_function`, `euler_lagrange_equations`

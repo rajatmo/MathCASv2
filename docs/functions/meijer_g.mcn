@@ -1,0 +1,148 @@
+#! mathcas 2 notebook
+
+#% title
+# meijer_g
+
+#% text
+# `meijer_g([[a1, ..., an], [a(n+1), ..., ap]], [[b1, ..., bm], [b(m+1), ..., bq]], z)` gives the Meijer G-function G^(m,n)_(p,q)(z | a; b), the Mellin-Barnes integral of prod gamma(b_j - s) prod gamma(1 - a_j + s) / (prod gamma(1 - b_j + s) prod gamma(a_j - s)) z^s.
+# `meijer_g(as, bs, z, r)` gives the generalized function G(z^(1/r)).
+
+#% section
+# Details
+
+#% item
+# Numbers with one inexact give numerical values at their precision, real or complex, on both sides of the unit circle: Slater's sums of hypergeometric series (DLMF 16.17.2), for p > q or |z| > 1 through the function of 1/z (DLMF 16.19.1). Coincident poles (parameters b differing by integers) are evaluated by perturbing the parameters at a raised working precision.
+
+#% item
+# Exact parameters give named functions where the function has one: exponentials, powers, Bessel J, I, K, Tricomi's U, elliptic integrals, and otherwise sums of `hypergeometric_pfq` when the poles are simple.
+
+#% item
+# A parameter a_j (j <= n) equal to some b_k (k > m), or a_j (j > n) equal to some b_k (k <= m), cancels.
+
+#% item
+# Lists of arguments thread. The derivative in z is again a Meijer G-function.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+meijer_g([[], []], [[v], [-v]], z)
+#% output
+#= bessel_j(2*v, 2*z^(1/2))
+
+#% cell
+meijer_g([[1/2], []], [[0], [0]], x)
+#% output
+#= bessel_i(0, (1/2)*x)*exp((-1/2)*x)*pi^(1/2)
+
+#% cell
+meijer_g([[1/2, 3/2], []], [[0], [0]], x)
+#% output
+#= -4*elliptic_e(-x)
+
+#% cell
+meijer_g([[], []], [[0, 0], []], x)
+#% output
+#= 2*bessel_k(0, 2*x^(1/2))
+
+#% cell
+n(meijer_g([[], [2]], [[1/2, 3/2], []], 3), 30)
+#% output
+#= 0.04159115987539698367033039074977876
+
+#% cell
+meijer_g([[1], [2]], [[2.3, 1.5], [4]], 3)
+#% output
+#= -1.822574211449597
+
+#% subsection
+# Scope
+
+#% text
+# Complex parameters and arguments, and arguments on the negative real axis:
+
+#% cell
+meijer_g([[im + 3], [2.]], [[2/3, 1/5], [4]], 3)
+#% output
+#= -0.6645776927990714 - 3.029664216186709im
+
+#% cell
+meijer_g([[im/3], []], [[1/2, 1/3, 5/4], []], [-0.5, 0.5])
+#% output
+#= [0.43052086919707133 - 0.33844294842207184im, 0.29458219080691583 + 0.09262188975616274im]
+
+#% text
+# The generalized function with a fourth argument:
+
+#% cell
+meijer_g([[1/3], []], [[1/2], [1]], [0.1, 0.3, 0.5], 1/2)
+#% output
+#= [0.0511284527081005, 0.12611212330424154, 0.1339025770692542]
+
+#% subsection
+# Properties and relations
+
+#% text
+# G^(2,0)_(0,2) is a Bessel K function, also where its poles coincide:
+
+#% cell
+meijer_g([[], []], [[0, 0], []], 1.5) - 2*bessel_k(0, 2*sqrt(1.5))
+#% output
+#= -5.551115123125783e-17
+
+#% text
+# G^(1,0)_(0,2) with parameters 1/2 and 0 is `sin(2 sqrt(z))/sqrt(pi)`:
+
+#% cell
+meijer_g([[], []], [[1/2], [0]], 2.0) - sin(2*sqrt(2.0))/sqrt(pi)
+#% output
+#= 8.326672684688674e-17
+
+#% text
+# The derivative:
+
+#% cell
+d(meijer_g([[], []], [[1/2], [3/2]], x), x)
+#% output
+#= bessel_j(-1, 2*x^(1/2)) + (1/2)*(bessel_j(-2, 2*x^(1/2)) - bessel_j(0, 2*x^(1/2)))*x^(1/2)
+
+#% subsection
+# Possible issues
+
+#% text
+# For p = q the argument z = 1 lies on the circle where neither sum converges; such values stay unevaluated:
+
+#% cell
+meijer_g([[1/2], [1/3]], [[0], [1/4]], 1.0)
+#% output
+#= meijer_g([[1/2], [1/3]], [[0], [1/4]], 1.0)
+
+#% text
+# Machine values at large arguments come from Slater's sums at a precision raised by the cancellation of the terms (about `1.44 z` bits for `exp(-z)`), so `z` of a few thousand works and the result may underflow to `0.0`; beyond about `z = 10000` (a sum of terms near `exp(z)`) the call stays unevaluated, and an arbitrary-precision argument still gives the value:
+
+#% cell
+[meijer_g([[], []], [[0], []], 700.0), meijer_g([[1/2], []], [[0], [0]], 100000000.0)]
+#% output
+#= [9.85967654375977e-305, meijer_g([[1/2], []], [[0], [0]], 100000000.0)]
+
+#% cell
+n(meijer_g([[], []], [[0], []], 1000), 30)
+#% output
+#= 5.075958897549456765291809479574e-435
+
+#% text
+# For p = q the function can be zero on one side of the unit circle and not on the other (here m = 0, so the sum over the poles of the first gamma factors is empty inside):
+
+#% cell
+[meijer_g([[1/3], [1/2]], [[], [3/4, 0]], 1/5), n(meijer_g([[1/3], [1/2]], [[], [3/4, 0]], 5))]
+#% output
+#= [0, -0.032381393779789845]
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_pfq`, `bessel_j`, `bessel_k`, `hypergeometric_u`, `mellin_transform`, `inverse_mellin_transform`

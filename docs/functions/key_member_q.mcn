@@ -1,0 +1,49 @@
+#! mathcas 2 notebook
+
+#% title
+# key_member_q
+
+#% text
+# `key_member_q(a, k)` is `true` when the association `a` has the key `k`.
+
+#% section
+# Details
+
+#% item
+# `a` may also be a list of rules.
+
+#% item
+# A key is a whole key: `key_member_q(a, [x, y])` asks about the key `[x, y]`, not about a path.
+
+#% item
+# Anything else than an association or list of rules gives `false`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_member_q(assoc(a -> 1, b -> 2), a)
+#% output
+#= true
+
+#% cell
+key_member_q(assoc(a -> 1), c)
+#% output
+#= false
+
+#% subsection
+# Scope
+
+#% cell
+key_member_q([a -> 1, b -> 2], b)
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `key_free_q`, `key_exists`, `lookup`

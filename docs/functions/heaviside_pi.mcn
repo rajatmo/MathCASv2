@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# heaviside_pi
+
+#% text
+# `heaviside_pi(x)` gives 1 for |x| < 1/2 and 0 for |x| > 1/2; at |x| = 1/2 it stays unevaluated.
+
+#% text
+# `heaviside_pi(x, y, ...)` gives the product.
+
+#% section
+# Details
+
+#% item
+# `heaviside_pi(-1/2)` is written `heaviside_pi(1/2)`. The derivative is `2 dirac_delta(1 + 2x) - 2 dirac_delta(2x - 1)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+heaviside_pi(1/4)
+#% output
+#= 1
+
+#% cell
+heaviside_pi([-3, -1, 0, 1/3, 1])
+#% output
+#= [0, 0, 1, 1, 0]
+
+#% cell
+heaviside_pi(-1/2)
+#% output
+#= heaviside_pi(1/2)
+
+#% cell
+d(heaviside_pi(x), x)
+#% output
+#= -2*dirac_delta(-1 + 2*x) + 2*dirac_delta(1 + 2*x)
+
+#% section
+# See also
+
+#% text
+# `heaviside_lambda`, `heaviside_theta`, `unit_box`

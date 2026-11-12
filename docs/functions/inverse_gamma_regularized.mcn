@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_gamma_regularized
+
+#% text
+# `inverse_gamma_regularized(a, s)` gives the `x` with `gamma_regularized(a, x) = s`.
+
+#% section
+# Details
+
+#% item
+# For `a > 0` and `0 < s < 1` there is one solution `x > 0`; `s = 1` gives 0.
+
+#% item
+# Machine numbers and balls give numerical values.
+
+#% item
+# `inverse_gamma_regularized` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_gamma_regularized(2.0, 0.5)
+#% output
+#= 1.6783469900166605
+
+#% cell
+inverse_gamma_regularized(0.5, 0.1)
+#% output
+#= 1.3527717270477073
+
+#% cell
+inverse_gamma_regularized(10.0, 0.95)
+#% output
+#= 5.425405697091294
+
+#% subsection
+# Applications
+
+#% text
+# The 95% point of the chi-square distribution with 3 degrees of freedom:
+
+#% cell
+2*inverse_gamma_regularized(1.5, 0.05)
+#% output
+#= 7.81472790325118
+
+#% subsection
+# Properties and relations
+
+#% text
+# `gamma_regularized` undoes it:
+
+#% cell
+gamma_regularized(3.5, inverse_gamma_regularized(3.5, 0.25))
+#% output
+#= 0.24999999999999997
+
+#% section
+# See also
+
+#% text
+# `gamma_regularized`, `inverse_beta_regularized`, `gamma_distribution`, `quantile`

@@ -1,0 +1,113 @@
+#! mathcas 2 notebook
+
+#% title
+# power_expand
+
+#% text
+# `power_expand(e)` expands powers and logarithms of products and powers: `(a*b)^c` to `a^c*b^c`, `(a^b)^c` to `a^(b*c)`, `log(a*b)` to `log(a) + log(b)` and `log(a^b)` to `b*log(a)`.
+
+#% section
+# Details
+
+#% item
+# The rules are applied without their side conditions, which hold for positive reals: the result may differ from `e` for negative or complex values.
+
+#% item
+# Inside `assuming`, bases that the assumptions prove negative are left alone.
+
+#% item
+# With the option `assumptions: facts` the laws are exact on the principal branches: each carries its winding integer, `floor(1/2 - (arg(a) + arg(b))/(2 pi))` for a product, decided from the bounds the facts give (otherwise the `floor` stays in the result).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+power_expand(sqrt(x*y))
+#% output
+#= x^(1/2)*y^(1/2)
+
+#% cell
+power_expand((x^2)^(1/2))
+#% output
+#= x
+
+#% cell
+power_expand(log(x^2*y))
+#% output
+#= log(y) + 2*log(x)
+
+#% cell
+power_expand(exp(a)^b)
+#% output
+#= exp(a*b)
+
+#% subsection
+# Scope
+
+#% text
+# An inverse function applied to the function itself cancels, as formally as the power laws:
+
+#% cell
+power_expand(atan(tan(x)))
+#% output
+#= x
+
+#% text
+# Nested roots and logarithms:
+
+#% cell
+power_expand(log(sqrt(x*y^3)))
+#% output
+#= (1/2)*log(x) + (3/2)*log(y)
+
+#% cell
+power_expand((a^3*b^6)^(1/3))
+#% output
+#= a*b^2
+
+#% text
+# Under an assumption, a negative base is left alone:
+
+#% cell
+assuming(x < 0, power_expand(sqrt(x^2)))
+#% output
+#= -x
+
+#% subsection
+# Options
+
+#% text
+# With both arguments in the second quadrant the product wraps once around the origin, and the square root of the product is minus the product of the roots:
+
+#% cell
+power_expand(sqrt(x*y), assumptions: pi/2 < arg(x) and arg(x) < pi and pi/2 < arg(y) and arg(y) < pi)
+#% output
+#= -x^(1/2)*y^(1/2)
+
+#% text
+# Without information on the arguments the correction stays:
+
+#% cell
+power_expand(log(x*y), assumptions: true)
+#% output
+#= log(x) + log(y) + 2im*pi*floor(1/2 - (arg(x) + arg(y))/(2*pi))
+
+#% subsection
+# Possible issues
+
+#% text
+# The expanded form can be wrong for negative values:
+
+#% cell
+f = sqrt(x^2); [rewrite(f, x -> -2), rewrite(power_expand(f), x -> -2)]
+#% output
+#= [2, -2]
+
+#% section
+# See also
+
+#% text
+# `expand`, `refine`, `simplify`, `log`

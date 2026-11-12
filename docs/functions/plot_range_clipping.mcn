@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# plot_range_clipping
+
+#% text
+# `plot_range_clipping` is an option of graphics: `plot_range_clipping: true` cuts off what lies outside the plot range, `false` lets it show beyond the range.
+
+#% section
+# Details
+
+#% item
+# The default is `true` when a plot range is given and `false` otherwise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# With room around the plot area, the parts beyond the range show when clipping is off:
+
+#% cell
+graphics([circle(), red, disk([0.5, 0], 0.3)], plot_range: [[-0.5, 0.5], [-0.5, 0.5]], plot_range_clipping: false, frame: true, image_padding: 40)
+#% output
+#= image("plot_range_clipping.files/plot_range_clipping-1.svgz")
+
+#% cell
+graphics([circle(), red, disk([0.5, 0], 0.3)], plot_range: [[-0.5, 0.5], [-0.5, 0.5]], plot_range_clipping: true, frame: true, image_padding: 40)
+#% output
+#= image("plot_range_clipping.files/plot_range_clipping-2.svgz")
+
+#% cell
+plot(tan(x), [x, 0, 3], plot_range: [-3, 3], plot_range_clipping: true)
+#% output
+#= image("plot_range_clipping.files/plot_range_clipping-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot_range`, `plot_range_padding`, `graphics`

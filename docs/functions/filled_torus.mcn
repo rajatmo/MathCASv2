@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# filled_torus
+
+#% text
+# `filled_torus(c, [r_inner, r_outer])`: the solid torus
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+volume(filled_torus([0, 0, 0], [1/2, 1]))
+#% output
+#= (3/32)*pi^2
+
+#% cell
+region_member(filled_torus([0, 0, 0], [1/2, 1]), [3/4, 0, 0])
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

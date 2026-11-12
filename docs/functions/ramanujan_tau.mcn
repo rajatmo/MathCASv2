@@ -1,0 +1,67 @@
+#! mathcas 2 notebook
+
+#% title
+# ramanujan_tau
+
+#% text
+# `ramanujan_tau(n)` gives the Ramanujan tau function, the coefficient of `q^n` in `q` times the product of `(1 - q^k)^24`.
+
+#% section
+# Details
+
+#% item
+# `tau` is multiplicative, with `tau(p^(k + 1)) = tau(p)*tau(p^k) - p^11*tau(p^(k - 1))` for primes `p`; `tau(1)` is 1.
+
+#% item
+# `ramanujan_tau` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+ramanujan_tau(1)
+#% output
+#= 1
+
+#% cell
+ramanujan_tau(2)
+#% output
+#= -24
+
+#% cell
+ramanujan_tau(range(10))
+#% output
+#= [1, -24, 252, -1472, 4830, -6048, -16744, 84480, -113643, -115920]
+
+#% cell
+ramanujan_tau(1000)
+#% output
+#= -30328412970240000
+
+#% subsection
+# Properties and relations
+
+#% text
+# Multiplicativity:
+
+#% cell
+[ramanujan_tau(6), ramanujan_tau(2)*ramanujan_tau(3)]
+#% output
+#= [-6048, -6048]
+
+#% text
+# Deligne's bound `abs(tau(p)) <= 2*p^(11/2)`:
+
+#% cell
+n(abs(ramanujan_tau(97))/(2*97^(11/2)))
+#% output
+#= 0.4434710683210847
+
+#% section
+# See also
+
+#% text
+# `dedekind_eta`, `q_pochhammer`, `divisor_sigma`

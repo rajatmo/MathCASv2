@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# array_flatten
+
+#% text
+# `array_flatten(a)` builds one matrix from the matrix of blocks `a`.
+
+#% section
+# Details
+
+#% item
+# Every block is a matrix; a number stands for a constant block of the size the other blocks of its row and column give.
+
+#% item
+# The blocks of a row must agree in height and those of a column in width.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+array_flatten([[[[1, 2], [3, 4]], [[5], [6]]], [[[7, 8]], [[9]]]])
+#% output
+#= [[1, 2, 5], [3, 4, 6], [7, 8, 9]]
+
+#% cell
+array_flatten([[[[1, 2], [3, 4]], 0], [0, [[5]]]])
+#% output
+#= [[1, 2, 0], [3, 4, 0], [0, 0, 5]]
+
+#% cell
+array_flatten([[[[a]], [[b]]], [[[c]], [[d]]]])
+#% output
+#= [[a, b], [c, d]]
+
+#% section
+# See also
+
+#% text
+# `join`, `flatten`, `kronecker_product`

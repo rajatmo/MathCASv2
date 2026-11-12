@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_jacobi_sc
+
+#% text
+# `inverse_jacobi_sc(v, m)` gives the `u` with `jacobi_sc(u, m) = v`, the inverse of the Jacobi elliptic function `sc`.
+
+#% section
+# Details
+
+#% item
+# The value is the principal branch of DLMF 22.15, real for a real `v` in the range of the function on the real line and `0 <= m < 1`.
+#% item
+# For a real `m > 1` the value is `inverse_jacobi_sd(sqrt(m) v, 1/m)/sqrt(m)` (the reciprocal-modulus transformation, DLMF 22.17), real for a real `v` in the range of the function on the real line.
+
+#% item
+# Machine numbers and balls give numerical values; exact arguments stay unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_jacobi_sc(0.5, 0.5)
+#% output
+#= 0.47198951691035107
+
+#% cell
+inverse_jacobi_sc(0.0, 0.5)
+#% output
+#= 0.0
+
+#% cell
+inverse_jacobi_sc(-2.0, 0.3)
+#% output
+#= -1.1675723297817953
+
+#% subsection
+# Properties and relations
+
+#% text
+# `jacobi_sc` undoes it:
+
+#% cell
+jacobi_sc(inverse_jacobi_sc(0.5, 0.4), 0.4)
+#% output
+#= 0.5
+
+#% text
+# With `m = 0` the Jacobi functions are trigonometric functions, so the inverse is a trigonometric inverse:
+
+#% cell
+inverse_jacobi_sc(0.5, 0)
+#% output
+#= 0.4636476090008061
+
+#% section
+# See also
+
+#% text
+# `jacobi_sc`, `inverse_jacobi_sn`, `jacobi_amplitude`, `elliptic_f`

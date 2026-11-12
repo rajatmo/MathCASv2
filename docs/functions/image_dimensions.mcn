@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# image_dimensions
+
+#% text
+# `image_dimensions(img)` gives the size of the image `img` in pixels as `[width, height]`.
+
+#% section
+# Details
+
+#% item
+# Only the file's header is read, so the size of a large image comes at once.
+
+#% item
+# The order is width first, as images are usually described; `image_data` is indexed by row first.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Three pixels wide and two high:
+
+#% cell
+image_dimensions(image([[0, 0, 0], [1, 1, 1]]))
+#% output
+#= [3, 2]
+
+#% text
+# The size of a plot:
+
+#% cell
+image_dimensions(plot(sin(x), [x, 0, 6]))
+#% output
+#= [640, 400]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same numbers in the other order lead the dimensions of the pixel array:
+
+#% cell
+let img = image(table(0.5, y, 4, x, 7))
+let d = image_data(img)
+[image_dimensions(img), [length(d[1]), length(d)]]
+#% output
+#= [[7, 4], [7, 4]]
+
+#% subsection
+# Possible issues
+
+#% text
+# A file name alone is not an image value; wrap it with `image`:
+
+#% cell
+image_dimensions("photo.png")
+#% output
+#! failure(argument, image_dimensions, 1)
+
+#% section
+# See also
+
+#% text
+# `image`, `image_data`, `image_channels`, `import_data`

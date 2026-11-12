@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# out
+
+#% text
+# `out(n)` gives the value of numbered statement `n` of a notebook session; `out()` gives the last value, and `out(-k)` the `k`-th previous one.
+# In a notebook, `%`, `%%` and `%n` are short for `out(-1)`, `out(-2)` and `out(n)`.
+
+#% section
+# Details
+
+#% item
+# Statements are numbered across the cells of a notebook; scripts and the REPL do not number statements.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x0 = 2^10
+out(-1) + 1
+#% output
+#= 1025
+
+#% section
+# See also
+
+#% text
+# `timing`, `eval`

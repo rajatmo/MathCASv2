@@ -1,0 +1,107 @@
+#! mathcas 2 notebook
+
+#% title
+# around
+
+#% text
+# `around(x, dx)` represents the value `x` with the standard uncertainty `dx`.
+
+#% text
+# `around(list)` gives the mean of the list with its standard deviation as the uncertainty.
+
+#% section
+# Details
+
+#% item
+# Arithmetic and functions propagate the uncertainty to first order, assuming independent arguments: f(x +- d) is f(x) +- |f'(x)| d.
+
+#% item
+# The centre and the uncertainty are machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+around(1/2, 0.01)
+#% output
+#= around(0.5, 0.01)
+
+#% cell
+around(1.0, 0.1) + around(2.0, 0.2)
+#% output
+#= around(3.0, 0.223606797749979)
+
+#% cell
+sin(around(1.0, 0.1))
+#% output
+#= around(0.8414709848078965, 0.05403023058681398)
+
+#% subsection
+# Scope
+
+#% cell
+gamma(around(2.5, 0.01))
+#% output
+#= around(1.329340388179137, 0.009347345216260855)
+
+#% cell
+around(2.0, 0.1)^2
+#% output
+#= around(4.0, 0.4)
+
+#% cell
+around([1.1, 0.9, 1.0, 1.2])
+#% output
+#= around(1.05, 0.12909944487358055)
+
+#% subsection
+# Properties and relations
+
+#% text
+# The mean of uncertain values carries their uncertainties:
+
+#% cell
+mean([around(1.0, 0.1), around(2.0, 0.2)])
+#% output
+#= around(1.5, 0.1118033988749895)
+
+#% text
+# Comparisons are decided when the spreads do not overlap:
+
+#% cell
+around(1.0, 0.1) < around(3.0, 0.5)
+#% output
+#= true
+
+#% text
+# Step functions give their value when it is the same over the spread:
+
+#% cell
+floor(around(2.5, 0.1))
+#% output
+#= 2
+
+#% text
+# A quantity with an uncertainty, absolute or relative:
+
+#% cell
+around(quantity(-34.78, "Newtons"), scaled(0.04))
+#% output
+#= quantity(around(-34.78, 1.3912), "Newtons")
+
+#% text
+# Functions without a closed-form derivative propagate by a difference quotient:
+
+#% cell
+factorial(around(2.0, 0.01))
+#% output
+#= around(2.0, 0.018455686701969343)
+
+#% section
+# See also
+
+#% text
+# `interval`, `centered_interval`, `mean`, `std_dev`

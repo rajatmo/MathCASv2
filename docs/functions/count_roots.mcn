@@ -1,0 +1,76 @@
+#! mathcas 2 notebook
+
+#% title
+# count_roots
+
+#% text
+# `count_roots(p, x)` gives the number of real roots of the polynomial `p` in `x`, counted with multiplicity.
+
+#% text
+# `count_roots(p, [x, a, b])` counts the roots in the closed interval from `a` to `b`, or, when `a` or `b` is complex, in the closed rectangle of the complex plane with corners `a` and `b`.
+
+#% section
+# Details
+
+#% item
+# The coefficients may be algebraic numbers (radicals, root objects); the ends of an interval may be rational or real algebraic numbers, `-inf` or `inf`.
+
+#% item
+# Real roots are isolated exactly: with algebraic coefficients by Descartes' rule in ball arithmetic, each root then identified as a root of an irreducible factor of the norm, with exact arithmetic over the number field when the balls cannot decide. Comparisons with the ends are exact.
+
+#% item
+# Rectangles take rational (or Gaussian rational) corners and polynomials with rational coefficients. Roots on the boundary count, and are found exactly on each side; the other roots are placed by certified enclosures, so no count depends on a tolerance.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+count_roots(x^5 - 4*x^3 + x - 1, x)
+#% output
+#= 3
+
+#% cell
+count_roots(x^5 - 4*x^3 + x - 1, [x, 0, 3])
+#% output
+#= 1
+
+#% subsection
+# Scope
+
+#% text
+# Multiplicities count, and so do roots at the ends:
+
+#% cell
+count_roots((x - 1)^3*(x + 2), [x, -2, 1])
+#% output
+#= 4
+
+#% text
+# Algebraic coefficients and ends:
+
+#% cell
+count_roots(x^4 - sqrt(5)*x^2 + 1/2, [x, -sqrt(2), sqrt(2)])
+#% output
+#= 4
+
+#% text
+# A rectangle in the complex plane:
+
+#% cell
+count_roots(x^8 - 1, [x, -1/2, 2 + 2*im])
+#% output
+#= 3
+
+#% cell
+count_roots(x^4 + 4, [x, -inf, inf])
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `solve`, `n_solve`, `roots`, `reduce`, `root`

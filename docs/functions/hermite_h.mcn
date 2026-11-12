@@ -1,0 +1,168 @@
+#! mathcas 2 notebook
+
+#% title
+# hermite_h
+
+#% text
+# `hermite_h(n, x)` gives the Hermite polynomial H_n(x).
+
+#% section
+# Details
+
+#% item
+# At a non-negative integer degree the polynomial is expanded in its argument; for a number argument the value is exact for exact numbers and a machine number for machine numbers.
+
+#% item
+# At other numeric degrees the confluent hypergeometric representation gives the value, also for complex arguments; symbolic degrees stay unevaluated.
+
+#% item
+# The physicists' normalization: H_1(x) = 2x, orthogonal for the weight `exp(-x^2)`.
+
+#% item
+# `hermite_h` is listable. The derivative in `x` is `2 n hermite_h(n - 1, x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+hermite_h(3, x)
+#% output
+#= -12*x + 8*x^3
+
+#% cell
+hermite_h(4, 0.5)
+#% output
+#= 1.0
+
+#% cell
+hermite_h(10, 1/2)
+#% output
+#= 22591
+
+#% subsection
+# Scope
+
+#% text
+# A non-integer degree, in machine precision and at 30 digits (the degree and the argument exact):
+
+#% cell
+hermite_h(2.5, 0.7)
+#% output
+#= -2.3223265248560367
+
+#% cell
+n(hermite_h(5/2, 7/10), 30)
+#% output
+#= -2.3223265248560366328250951229817892961862
+
+#% text
+# A complex argument:
+
+#% cell
+hermite_h(3, 1.5 + 2.0*im)
+#% output
+#= -135.0 + 20.0im
+
+#% cell
+hermite_h(2.5, 1.0 + 1.0*im)
+#% output
+#= -11.022735094753179 + 10.098715568332006im
+
+#% text
+# Lists of degrees or of arguments:
+
+#% cell
+hermite_h([1, 2, 3], 0.5)
+#% output
+#= [1.0, -1.0, -5.0]
+
+#% cell
+hermite_h(3, [1, 2, 3])
+#% output
+#= [-4, 40, 180]
+
+#% text
+# A high degree at an exact argument is an exact integer; `n` gives it to any number of digits:
+
+#% cell
+n(hermite_h(100, 3), 30)
+#% output
+#= -5.508454287119638926665294666508560e94
+
+#% subsection
+# Properties and relations
+
+#% text
+# The derivative:
+
+#% cell
+d(hermite_h(n, x), x)
+#% output
+#= 2*n*hermite_h(-1 + n, x)
+
+#% cell
+d(hermite_h(4, x), x)
+#% output
+#= -96*x + 64*x^3
+
+#% text
+# The recurrence `H(n + 1) = 2 x H(n) - 2 n H(n - 1)`:
+
+#% cell
+hermite_h(4, 0.3) - (2*0.3*hermite_h(3, 0.3) - 6*hermite_h(2, 0.3))
+#% output
+#= 8.881784197001252e-16
+
+#% text
+# Orthogonality with the weight `exp(-x^2)`: the norm of `H_3` is `2^3 3! sqrt(pi)`:
+
+#% cell
+n_integrate(hermite_h(3, x)*hermite_h(3, x)*exp(-x^2), [x, -inf, inf]) - n(48*sqrt(pi))
+#% output
+#= 1.4210854715202004e-14
+
+#% cell
+integrate(hermite_h(2, x)^2*exp(-x^2), [x, -inf, inf])
+#% output
+#= 8*pi^(1/2)
+
+#% subsection
+# Possible issues
+
+#% text
+# A symbolic degree stays, even at a point where the value is known, and so does a negative integer degree:
+
+#% cell
+hermite_h(n, 0)
+#% output
+#= 2^n*pi^(1/2)/gamma((1/2)*(1 - n))
+
+#% cell
+hermite_h(-1, 0.5)
+#% output
+#= hermite_h(-1, 0.5)
+
+#% text
+# A machine value beyond the range of machine numbers overflows:
+
+#% cell
+hermite_h(3, 1e200)
+#% output
+#= inf
+
+#% text
+# A very high degree needs a polynomial with that many terms and is stopped by the memory cap:
+
+#% cell
+hermite_h(10^9, 0.5)
+#% output
+#! failure(limit, memory, 2^1000000000)
+
+#% section
+# See also
+
+#% text
+# `laguerre_l`, `legendre_p`, `chebyshev_t`

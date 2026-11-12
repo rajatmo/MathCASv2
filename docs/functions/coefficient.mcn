@@ -1,0 +1,84 @@
+#! mathcas 2 notebook
+
+#% title
+# coefficient
+
+#% text
+# `coefficient(p, x, k)` gives the coefficient of `x^k` in the polynomial `p`.
+
+#% text
+# `coefficient(p, x)` gives the coefficient of `x`.
+
+#% section
+# Details
+
+#% item
+# `p` is expanded first. Other symbols are parameters: the coefficient may be an expression in them.
+
+#% item
+# `k = 0` gives the terms free of `x`.
+
+#% item
+# With a form `x^s` of symbolic exponent, a power `x^(k s + c)` counts as `(x^s)^k x^c`: `coefficient(x^(1 + s), x^s)` is `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coefficient(3*x^2 + 2*x + 1, x, 2)
+#% output
+#= 3
+
+#% cell
+coefficient((x + 1)^5, x, 3)
+#% output
+#= 10
+
+#% cell
+coefficient(a*x^2 + b*x + c, x)
+#% output
+#= b
+
+#% cell
+coefficient(a*x^2 + b*x + c, x, 0)
+#% output
+#= c
+
+#% subsection
+# Scope
+
+#% text
+# A coefficient that is itself a polynomial in another variable:
+
+#% cell
+coefficient((x + y)^4, x, 2)
+#% output
+#= 6*y^2
+
+#% text
+# The coefficient of `x*y`, one variable at a time:
+
+#% cell
+coefficient(coefficient(expand((x + y + 1)^3), x), y)
+#% output
+#= 6
+
+#% subsection
+# Properties and relations
+
+#% text
+# The coefficients are the elements of `coefficient_list`:
+
+#% cell
+p = 2 - 3*x + x^3; [coefficient(p, x, 3), coefficient_list(p, x)[4]]
+#% output
+#= [1, 1]
+
+#% section
+# See also
+
+#% text
+# `coefficient_list`, `degree`, `expand`

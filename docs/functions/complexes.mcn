@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# complexes
+
+#% text
+# `complexes` is the domain of the complex numbers, for facts `element(x, complexes)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, complexes)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(1 + im, complexes)
+#% output
+#= true
+
+#% cell
+element(pi, complexes)
+#% output
+#= true
+
+#% cell
+element(sqrt(-2), complexes)
+#% output
+#= true
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(z, complexes), simplify(z + z))
+#% output
+#= 2*z
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, complexes)
+#% output
+#= element(x, complexes)
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `reals`

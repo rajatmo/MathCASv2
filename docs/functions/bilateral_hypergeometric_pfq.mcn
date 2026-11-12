@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# bilateral_hypergeometric_pfq
+
+#% text
+# `bilateral_hypergeometric_pfq([a1, ..., ap], [b1, ..., bq], z)` gives the bilateral hypergeometric series, the sum over all integers `n` of `prod (a_i)_n/prod (b_j)_n z^n`.
+
+#% section
+# Details
+
+#% item
+# With `(a)_(-n) = (-1)^n/(1 - a)_n` the sum is `(p+1)F(q)([a, 1], [b], z) + (q+1)F(p)([1 - b, 1], [1 - a], (-1)^(p - q)/z) - 1`; for `p = q` one of the two series lies outside its disk and is continued by DLMF 16.8.8.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values; `z = 0` gives 0.
+
+#% item
+# Lists of `z` thread.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bilateral_hypergeometric_pfq([1/2, 3/4], [1/4, -1/3], 5.4)
+#% output
+#= 1.1824894397340397 + 3.0380243014176918im
+
+#% cell
+n(bilateral_hypergeometric_pfq([1/2, 3/4], [1/4, 1/3], 5), 30)
+#% output
+#= 2.31258794352563689208441175328473 + 1.26104601150556993682620420807917im
+
+#% cell
+bilateral_hypergeometric_pfq([1/2, 3/4], [1/4, 1/3], [0.1, 0.3, 0.5])
+#% output
+#= [1.045820881982964 + 0.42629421764716163im, 3.8934650653815055 + 1.8794036378369892im, 10.346160813725444 + 5.243267854258829im]
+
+#% cell
+bilateral_hypergeometric_pfq([a1, a2], [b1, b2], 0)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `hypergeometric_pfq`, `q_hypergeometric_pfq`

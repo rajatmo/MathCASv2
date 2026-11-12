@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# light_pink
+
+#% text
+# `light_pink` is the colour light pink, a pale tint of `pink`: a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Details
+
+#% item
+# `light_pink` is a named colour like `pink`; it stays a symbol until a graphic draws it.
+
+#% item
+# Pale tints suit filled areas and backgrounds behind darker curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_pink, disk()])
+#% output
+#= image("light_pink.files/light_pink-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], colors: [pink, light_pink])
+#% output
+#= image("light_pink.files/light_pink-2.svgz")
+
+#% cell
+light_pink
+#% output
+#= light_pink
+
+#% subsection
+# Scope
+
+#% text
+# The tint beside the full colour and its darker shade:
+
+#% cell
+graphics([[light_pink, disk([0, 0])], [pink, disk([2, 0])], [darker(pink), disk([4, 0])]])
+#% output
+#= image("light_pink.files/light_pink-4.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A pale band behind a curve:
+
+#% cell
+graphics([[light_pink, rectangle([0, -1], [3, 1])], [black, line(table([t, sin(2*t)], t, range(0, 3, 0.05)))]])
+#% output
+#= image("light_pink.files/light_pink-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `pink`, `light_gray`, `lighter`, `rgb_color`, `light_cyan`

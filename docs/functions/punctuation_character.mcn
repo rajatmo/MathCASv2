@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# punctuation_character
+
+#% text
+# `punctuation_character` is a string pattern for one punctuation character.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+string_cases("Hi, you! (ok)", punctuation_character)
+#% output
+#= [",", "!", "(", ")"]
+
+#% section
+# See also
+
+#% text
+# `string_cases`, `string_expression`, `regular_expression`

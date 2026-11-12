@@ -1,0 +1,312 @@
+# Math input corpus, part 1 (round 32): fractions in exponents, nested roots, indexed and scripted names, Greek and
+# aliases. Every formula is typed through the keyboard into a new cell at the end, then checked: its box tree, the
+# linear text it lowers to (what Copy gives), its value, and that its output copied and pasted as math reads as the
+# same text. Driven by tests/input_selftest.rs.
+size 1000 700
+ppp 1
+theme light
+new
+
+# ---- fractions in exponents ----
+formula frac-exp/gauss
+keys Ctrl+End "e" Ctrl+6 "-x" Ctrl+6 "2" Ctrl+Space Ctrl+/ "2"
+expect boxes "(e^-((x^2)/2▮))"
+expect linear "e^(-(x^2/2))"
+eval
+expect output "exp((-1/2)*x^2)"
+roundtrip
+
+formula frac-exp/sqrt2
+keys Ctrl+End "2" Ctrl+6 "1" Ctrl+/ "2"
+expect boxes "(2^(1/2▮))"
+expect linear "2^(1/2)"
+eval
+expect output "2^(1/2)"
+roundtrip
+
+formula frac-exp/eight
+keys Ctrl+End "8" Ctrl+6 "2" Ctrl+/ "3"
+expect boxes "(8^(2/3▮))"
+expect linear "8^(2/3)"
+eval
+expect output "4"
+
+formula frac-exp/x32
+keys Ctrl+End "x" Ctrl+6 "3" Ctrl+/ "2"
+expect boxes "(x^(3/2▮))"
+expect linear "x^(3/2)"
+eval
+expect output "x^(3/2)"
+roundtrip
+
+formula frac-exp/decay
+keys Ctrl+End "e" Ctrl+6 "-t" Ctrl+/ Esc "t" Esc
+expect boxes "(e^-(t/τ▮))"
+expect linear "e^(-(t/τ))"
+eval
+expect output "exp(-t/τ)"
+roundtrip
+
+formula frac-exp/neg-rational
+keys Ctrl+End "10" Ctrl+6 "-3" Ctrl+/ "2"
+expect boxes "(10^-(3/2▮))"
+expect linear "10^(-(3/2))"
+eval
+expect output "(1/100)*10^(1/2)"
+roundtrip
+
+formula frac-exp/euler
+keys Ctrl+End "e" Ctrl+6 Esc "ii" Esc "*" Esc "p" Esc
+expect boxes "(e^ⅈ*π▮)"
+expect linear "e^(ⅈ*π)"
+eval
+expect output "-1"
+
+formula frac-exp/half-base
+keys Ctrl+End "1" Ctrl+/ "2" Ctrl+Space Ctrl+6 "1" Ctrl+/ "2"
+expect boxes "((1/2)^(1/2▮))"
+expect linear "(1/2)^(1/2)"
+eval
+expect output "(1/2)*2^(1/2)"
+roundtrip
+
+# ---- nested roots ----
+formula roots/sqrt-sqrt2
+keys Ctrl+End Ctrl+2 "2 + " Ctrl+2 "2"
+expect boxes "√(2 + √(2▮))"
+expect linear "sqrt(2 + sqrt(2))"
+eval
+expect output "(2 + 2^(1/2))^(1/2)"
+roundtrip
+
+formula roots/sqrt-sqrt16
+keys Ctrl+End Ctrl+2 Ctrl+2 "16"
+expect boxes "√(√(16▮))"
+expect linear "sqrt(sqrt(16))"
+eval
+expect output "2"
+
+formula roots/cube27
+keys Ctrl+End Ctrl+5 "3" Ctrl+5 "27"
+expect boxes "√[3](27▮)"
+expect linear "surd(27, 3)"
+eval
+expect output "3"
+
+formula roots/triple
+keys Ctrl+End Ctrl+2 "1 + " Ctrl+2 "1 + " Ctrl+2 "x"
+expect boxes "√(1 + √(1 + √(x▮)))"
+expect linear "sqrt(1 + sqrt(1 + sqrt(x)))"
+eval
+expect output "(1 + (1 + x^(1/2))^(1/2))^(1/2)"
+roundtrip
+
+formula roots/one-over
+keys Ctrl+End "1" Ctrl+/ Ctrl+2 "2"
+expect boxes "(1/√(2▮))"
+expect linear "1/sqrt(2)"
+eval
+expect output "(1/2)*2^(1/2)"
+roundtrip
+
+formula roots/hypot
+keys Ctrl+End Ctrl+2 "x" Ctrl+6 "2" Ctrl+Space " + y" Ctrl+6 "2"
+expect boxes "√((x^2) + (y^2▮))"
+expect linear "sqrt(x^2 + y^2)"
+eval
+expect output "(x^2 + y^2)^(1/2)"
+roundtrip
+
+formula roots/of-fraction
+keys Ctrl+End Ctrl+2 "a" Ctrl+/ "b"
+expect boxes "√((a/b▮))"
+expect linear "sqrt(a/b)"
+eval
+expect output "(a/b)^(1/2)"
+roundtrip
+
+formula roots/golden
+keys Ctrl+End "(" Ctrl+2 "5" Ctrl+Space " + 1)" Ctrl+/ "2"
+expect boxes "((√(5) + 1)/2▮)"
+expect linear "(sqrt(5) + 1)/2"
+eval
+expect output "(1/2)*(1 + 5^(1/2))"
+roundtrip
+
+formula roots/eight
+keys Ctrl+End Ctrl+2 "8"
+expect boxes "√(8▮)"
+expect linear "sqrt(8)"
+eval
+expect output "2*2^(1/2)"
+roundtrip
+
+formula roots/fourth
+keys Ctrl+End Ctrl+5 "4" Ctrl+5 "16"
+expect boxes "√[4](16▮)"
+expect linear "surd(16, 4)"
+eval
+expect output "2"
+
+# ---- indexed names with powers ----
+formula scripts/index-power
+keys Ctrl+End "x[i]" Ctrl+6 "2"
+expect boxes "(x[i]^2▮)"
+expect linear "x[i]^2"
+
+formula scripts/parts
+keys Ctrl+End "v = [3, 4]; v[1]" Ctrl+6 "2" Ctrl+Space " + v[2]" Ctrl+6 "2"
+expect boxes "v = [3, 4]; (v[1]^2) + (v[2]^2▮)"
+expect linear "v = [3, 4]; v[1]^2 + v[2]^2"
+eval
+expect output "25"
+
+formula scripts/underscore
+keys Ctrl+End "x_i" Ctrl+6 "2"
+expect boxes "(x_i^2▮)"
+expect linear "x_i^2"
+eval
+expect output "x_i^2"
+roundtrip
+
+formula scripts/sum-of-squares
+keys Ctrl+End "w = [1, 2, 3]; sum(w[i]" Ctrl+6 "2" Ctrl+Space ", [i, 1, 3])"
+expect boxes "w = [1, 2, 3]; sum((w[i]^2), [i, 1, 3])▮"
+expect linear "w = [1, 2, 3]; sum(w[i]^2, [i, 1, 3])"
+eval
+expect output "14"
+
+# ---- Greek letters and aliases ----
+formula greek/alpha-beta
+keys Ctrl+End Esc "a" Esc Ctrl+6 "2" Ctrl+Space " + " Esc "b" Esc Ctrl+6 "2"
+expect boxes "(α^2) + (β^2▮)"
+expect linear "α^2 + β^2"
+eval
+expect output "α^2 + β^2"
+roundtrip
+
+formula greek/pythagoras
+keys Ctrl+End "simplify(sin(" Esc "th" Esc ")" Ctrl+6 "2" Ctrl+Space " + cos(" Esc "th" Esc ")" Ctrl+6 "2" Ctrl+Space ")"
+expect boxes "simplify((sin(θ)^2) + (cos(θ)^2))▮"
+expect linear "simplify(sin(θ)^2 + cos(θ)^2)"
+eval
+expect output "1"
+
+formula greek/numeric-pi
+keys Ctrl+End "n(" Esc "p" Esc ")"
+expect boxes "none"
+expect linear "n(π)"
+eval
+expect output "3.141592653589793"
+
+formula greek/rule-arrow
+keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space " /. x " Esc "->" Esc " 3"
+expect boxes "(x^2) /. x → 3▮"
+expect linear "x^2 /. x → 3"
+eval
+expect output "9"
+
+formula greek/basel
+keys Ctrl+End "sum(1" Ctrl+/ "k" Ctrl+6 "2" Ctrl+Space Ctrl+Space ", [k, 1, " Esc "inf" Esc "])"
+expect boxes "sum((1/(k^2)), [k, 1, ∞])▮"
+expect linear "sum(1/k^2, [k, 1, ∞])"
+eval
+expect output "(1/6)*pi^2"
+roundtrip
+
+formula greek/leq
+keys Ctrl+End "3 " Esc "<=" Esc " 4"
+expect linear "3 ≤ 4"
+eval
+expect output "true"
+
+formula greek/neq
+keys Ctrl+End "2 " Esc "!=" Esc " 3"
+expect linear "2 ≠ 3"
+eval
+expect output "true"
+
+formula greek/delta-name
+keys Ctrl+End Esc "D" Esc "x = 2; " Esc "D" Esc "x" Ctrl+6 "2"
+expect boxes "Δx = 2; (Δx^2▮)"
+expect linear "Δx = 2; Δx^2"
+eval
+expect output "4"
+
+formula greek/full-name
+keys Ctrl+End Esc "alpha" Esc " + " Esc "alpha" Esc
+expect linear "α + α"
+eval
+expect output "2*α"
+roundtrip
+
+formula greek/tex-name
+keys Ctrl+End Esc "\\lambda" Esc "*3"
+expect linear "λ*3"
+eval
+expect output "3*λ"
+roundtrip
+
+formula greek/times
+keys Ctrl+End "3 " Esc "*" Esc " 4"
+expect linear "3 × 4"
+eval
+expect output "12"
+
+formula greek/exp-e
+keys Ctrl+End "log(" Esc "ee" Esc Ctrl+6 "2" Ctrl+Space ")"
+expect boxes "log((ⅇ^2))▮"
+expect linear "log(ⅇ^2)"
+eval
+expect output "2"
+
+formula greek/sqrt-template
+keys Ctrl+End Esc "sqrtt" Esc "9"
+expect boxes "√(9▮)"
+expect linear "sqrt(9)"
+eval
+expect output "3"
+
+formula greek/fraction-template
+keys Ctrl+End Esc "fract" Esc "1" Tab "3"
+expect boxes "(1/3▮)"
+expect linear "1/3"
+eval
+expect output "1/3"
+roundtrip
+
+formula greek/power-template
+keys Ctrl+End Esc "pw" Esc "2" Tab "10"
+expect boxes "(2^10▮)"
+expect linear "2^10"
+eval
+expect output "1024"
+
+formula greek/degree
+keys Ctrl+End "sin(30" Esc "deg" Esc ")"
+expect linear "sin(30°)"
+eval
+expect output "1/2"
+
+formula greek/element
+keys Ctrl+End "2 " Esc "el" Esc " integers"
+expect linear "2 ∈ integers"
+eval
+expect output "true"
+
+formula greek/hbar
+keys Ctrl+End Esc "hb" Esc "*2"
+expect linear "ℏ*2"
+eval
+expect output "2*ℏ"
+roundtrip
+
+formula greek/theta-two-ways
+keys Ctrl+End Esc "q" Esc " + " Esc "th" Esc
+expect linear "θ + θ"
+eval
+expect output "2*θ"
+
+dump input-corpus1
+shot c1-end
+quit

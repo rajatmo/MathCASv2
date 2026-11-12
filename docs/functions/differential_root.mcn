@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# differential_root
+
+#% text
+# `differential_root(f)` stands for the function defined by `f(y, x)`: a list of a linear ordinary differential equation for y(x) and its initial values at one point. `differential_root(f)(x0)` gives its value at an inexact real x0.
+
+#% section
+# Details
+
+#% item
+# The value is computed by `n_dsolve_value` from the initial point to x0. Exact arguments leave the call as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+differential_root((y, x) => [y'(x) - y(x) == 0, y(0) == 1])(0.5)
+#% output
+#= 1.6487212707001309
+
+#% cell
+differential_root((y, x) => [y''(x) + y(x) == 0, y(0) == 0, y'(0) == 1])(1.0)
+#% output
+#= 0.8414709848078933
+
+#% section
+# See also
+
+#% text
+# `difference_root`, `n_dsolve_value`, `d_solve`

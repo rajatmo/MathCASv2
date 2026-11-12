@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# equivalent
+
+#% text
+# `equivalent(a, b, ...)` is true when its arguments are all true or all false. With `true` among them it is the conjunction of the others, with `false` the conjunction of their negations, with both it is `false`; repeated arguments are dropped, and a call with two or more distinct symbolic arguments stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+equivalent(a, b)
+#% output
+#= equivalent(a, b)
+
+#% cell
+equivalent(a, b, a, b, c)
+#% output
+#= equivalent(a, b, c)
+
+#% cell
+equivalent(a, b, true)
+#% output
+#= a and b
+
+#% cell
+equivalent(a, true, false)
+#% output
+#= false
+
+#% cell
+boolean_table(equivalent(a, b), [a, b])
+#% output
+#= [true, false, false, true]
+
+#% section
+# See also
+
+#% text
+# `xor`, `implies`, `is_tautology`

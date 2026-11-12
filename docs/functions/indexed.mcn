@@ -1,0 +1,56 @@
+#! mathcas 2 notebook
+
+#% title
+# indexed
+
+#% text
+# `indexed(x, i)` is the part of the list `x` at the index `i`; `indexed(x, [i, j, ...])` is the part along the path of indices.
+
+#% section
+# Details
+
+#% item
+# `indexed(x, i)` equals `x[i]` for a list `x` and an integer `i` in range.
+
+#% item
+# For a symbol `x` it stays `indexed(x, i)`: a symbolic vector `x` can have components `indexed(x, 1)`, `indexed(x, 2)`, ...
+
+#% item
+# `indexed(x, [i, j])` is the same as `extract(x, [i, j])`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+indexed([a, b], 1)
+#% output
+#= a
+
+#% cell
+indexed(x, 1)
+#% output
+#= indexed(x, 1)
+
+#% cell
+indexed([[a, b, c], [d, e, f]], [1, 2])
+#% output
+#= b
+
+#% cell
+indexed([a, b, c], -1)
+#% output
+#= c
+
+#% cell
+indexed(x, [1, 2])
+#% output
+#= indexed(x, [1, 2])
+
+#% section
+# See also
+
+#% text
+# `extract`, `part`

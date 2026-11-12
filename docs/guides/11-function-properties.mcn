@@ -1,0 +1,313 @@
+#! mathcas 2 notebook
+
+#% title
+# Function properties
+
+#% text
+# A function can be asked what it is: where it is defined, which values it takes, where it breaks, whether it rises, bends, repeats or covers its target. The `function_*` family answers from the formula, with parameters and assumptions where they matter, and a condition on the parameters when the answer depends on them.
+
+#% section
+# Domain and range
+
+#% text
+# `function_domain` gives the condition under which a formula is defined over the reals (`complexes` as a last argument asks over the complex numbers); `function_range` gives the values as a condition on a variable `y`.
+
+#% cell
+function_domain(x/(x^2 - 1), x)
+#% output
+#= x < -1 or -1 < x and x < 1 or x > 1
+
+#% cell
+function_domain(sqrt(1 - x) + sqrt(1 + x), x)
+#% output
+#= -1 <= x and x <= 1
+
+#% cell
+function_domain(x/(x^2 + 1), x, complexes)
+#% output
+#= 1 + x^2 != 0
+
+#% cell
+function_range(x^2, x, y)
+#% output
+#= y >= 0
+
+#% text
+# A second list element restricts the domain: `[f, cond]`.
+
+#% cell
+function_range([x^2 + 1, -1 <= x and x <= 2], x, y)
+#% output
+#= 1 <= y and y <= 5
+
+#% section
+# Continuity, singularities and poles
+
+#% text
+# `function_discontinuities` gives the condition at which a function is not continuous: poles, the edge of its real domain, branch cuts over the complexes, and the jumps of step functions. `function_continuous` answers `true` or `false` for a whole domain. Kinks such as `abs` are not discontinuities.
+
+#% cell
+function_discontinuities(tan(x), x)
+#% output
+#= cos(x) == 0
+
+#% cell
+function_discontinuities(floor(x), x)
+#% output
+#= sin(pi*x) == 0
+
+#% cell
+function_discontinuities(abs(x), x)
+#% output
+#= false
+
+#% cell
+function_discontinuities(log(x), x, complexes)
+#% output
+#= x == 0 or im_part(x) == 0 and re(x) <= 0
+
+#% cell
+[function_continuous(sin(x), x), function_continuous(floor(x), x), function_continuous([log(x), x > 0], x)]
+#% output
+#= [true, false, true]
+
+#% text
+# `function_singularities` lists every point where a function is not analytic, kinks included; `function_analytic` asks for the whole line.
+
+#% cell
+function_singularities(sqrt(x), x)
+#% output
+#= x <= 0
+
+#% cell
+[function_analytic(sin(x), x), function_analytic(tan(x), x), function_analytic([tan(x), -pi/2 < x and x < pi/2], x)]
+#% output
+#= [true, false, true]
+
+#% text
+# For a function of a complex variable, `function_meromorphic` asks whether the only singularities are poles, and `function_poles` lists them with their orders. A removable point is no pole.
+
+#% cell
+[function_meromorphic(tan(x), x), function_meromorphic(log(x), x)]
+#% output
+#= [true, false]
+
+#% cell
+function_poles((x^3 - 2)/((x - 1)*(x^2 - 1)), x)
+#% output
+#= [[-1, 1], [1, 2]]
+
+#% cell
+function_poles(tan(x) + 1, x)
+#% output
+#= [[conditional_expression((1/2)*pi + pi*c(1), element(c(1), integers)), 1]]
+
+#% cell
+function_poles((1 - cos(x))/x^2, x)
+#% output
+#= []
+
+#% cell
+function_poles([1/(exp(x) - 2), abs(x) < 2], x)
+#% output
+#= [[log(2), 1]]
+
+#% section
+# Sign, monotonicity and convexity
+
+#% text
+# `function_sign`, `function_monotonicity` and `function_convexity` give `1`, `-1` or `0` (nonnegative, nonpositive or zero; nondecreasing, nonincreasing, constant; convex, concave, linear) and `indeterminate` when the function is none of them on its domain.
+
+#% cell
+[function_sign(abs(x), x), function_sign(sin(x), x), function_sign(sin(x) + 3/2, x)]
+#% output
+#= [1, indeterminate, 1]
+
+#% cell
+[function_monotonicity(e^x, x), function_monotonicity(sin(x), x), function_monotonicity(floor(x), x)]
+#% output
+#= [1, indeterminate, 1]
+
+#% cell
+[function_convexity(x^2, x), function_convexity([log(x), x > 0], x), function_convexity(3*x + 1, x)]
+#% output
+#= [1, -1, 0]
+
+#% text
+# A function not defined on the whole line gives `indeterminate` until a condition restricts it. The same holds for sequences: `function_monotonicity(f, n, integers)` uses differences.
+
+#% cell
+[function_monotonicity(log(x), x), function_monotonicity([log(x), x > 0], x)]
+#% output
+#= [indeterminate, 1]
+
+#% section
+# Periods
+
+#% text
+# `function_period` gives the smallest positive period, and `0` for a function that is not periodic. With `integers` it finds the period of a sequence, and a list of variables gives one period for each.
+
+#% cell
+function_period(sin(x)^2, x)
+#% output
+#= pi
+
+#% cell
+function_period(cos(x) + sin(y), [x, y])
+#% output
+#= [2*pi, 2*pi]
+
+#% cell
+[function_period((-1)^n, n, integers), function_period(mod(2*n, 18), n, integers)]
+#% output
+#= [2, 9]
+
+#% cell
+function_period(exp(z), z, complexes)
+#% output
+#= [2im*pi]
+
+#% cell
+function_period(x^2, x)
+#% output
+#= 0
+
+#% section
+# Injective, surjective, bijective
+
+#% text
+# `function_injective` asks whether no value is taken twice, `function_surjective` whether every value is taken, `function_bijective` both. By default the target is the real line; `[f, cond, ycond]` with `x` and `y` names the sets, and `complexes` changes the field.
+
+#% cell
+[function_injective(e^x, x), function_injective(x^3 - x, x), function_injective([x^3 - x, x > 1], x)]
+#% output
+#= [true, false, true]
+
+#% cell
+[function_surjective(x^3 - x, x), function_surjective(exp(x), x)]
+#% output
+#= [true, false]
+
+#% cell
+function_surjective([x^3 - x, x > 0, y > 0], x, y)
+#% output
+#= true
+
+#% cell
+[function_bijective(sinh(x), x), function_bijective(sinh(x), x, complexes)]
+#% output
+#= [true, false]
+
+#% text
+# Maps of several variables are given as a list of components; linear maps are decided by the rank of their matrix.
+
+#% cell
+function_bijective([x + 2*y, 3*x - y], [x, y])
+#% output
+#= true
+
+#% cell
+function_surjective([x + 2*y + 3*z, 4*x + 5*y + 6*z, 7*x + 8*y + 9*z], [x, y, z])
+#% output
+#= false
+
+#% section
+# Parameters and assumptions
+
+#% text
+# A symbol that is not the variable is a parameter. The answer is then `conditional_expression(value, condition)`: the value holds where the condition on the parameters does. `assumptions:` states facts about the parameters beforehand.
+
+#% cell
+function_bijective(x^3 + a*x + b, x)
+#% output
+#= conditional_expression(true, element(a | b, reals) and a > 0)
+
+#% cell
+function_bijective(a*x, x, complexes)
+#% output
+#= conditional_expression(true, a != 0)
+
+#% cell
+function_bijective(a*x + b, x)
+#% output
+#= conditional_expression(true, element(a | b, reals) and (a > 0 or a < 0) and a != 0)
+
+#% cell
+function_bijective(a*x + b, x, assumptions: a > 0)
+#% output
+#= true
+
+#% cell
+function_convexity(a*x^2 + b*x + c, x)
+#% output
+#= conditional_expression(1, element(a | b | c, reals) and a >= 0)
+
+#% text
+# For a function of several variables, convexity is decided by the minors of the Hessian.
+
+#% cell
+function_convexity(x^2 + y^2, [x, y])
+#% output
+#= 1
+
+#% section
+# Piecewise functions
+
+#% text
+# `piecewise_expand` writes nested `piecewise`, `if`, `max`, `min`, `abs` and `unit_step` as one `piecewise` with exclusive conditions; given the range of a variable it also cuts `floor` and `prime_pi`. The expanded form is what the other functions and `integrate` work with.
+
+#% cell
+piecewise_expand(max(a, b, c))
+#% output
+#= piecewise([[a, a - b >= 0 and a - c >= 0], [b, a - b < 0 and b - c >= 0]], c)
+
+#% cell
+piecewise_expand(unit_step(x + 1) - unit_step(x - 1) + 1)
+#% output
+#= piecewise([[1, x < -1], [2, -1 <= x and x < 1]], 1)
+
+#% cell
+piecewise_expand(floor(x), 0 < x and x < 4)
+#% output
+#= piecewise([[1, 1 <= x and x < 2], [2, 2 <= x and x < 3], [3, x >= 3]], 0)
+
+#% section
+# Common mistakes
+
+#% item
+# A formula is a function of the variable you name, nothing else: in `function_domain(1/(x - a), x)` the symbol `a` is a parameter and appears in the answer. Name every variable, as in `function_continuous(f, [x, y])`.
+
+#% cell
+function_domain(1/(x - a), x)
+#% output
+#= x < a or x > a
+
+#% item
+# `function_monotonicity` and `function_convexity` give `indeterminate` when the function changes direction or curvature, and also when it is not defined on the whole line. Restrict it first: `[log(x), x > 0]`, not `log(x)`.
+
+#% cell
+function_convexity(log(x), x)
+#% output
+#= indeterminate
+
+#% item
+# A real function can be continuous but not analytic (`abs`), and a function can be injective on the reals but not on the complexes (`sinh`). Each question has its own function and its own field; the default is the real line.
+
+#% cell
+[function_analytic(abs(x), x), function_continuous(abs(x), x)]
+#% output
+#= [false, true]
+
+#% item
+# `function_period` returns `0` for a function without a period, not `indeterminate`: for a polynomial, and for `sin(x) + sin(pi*x)`, whose two periods are incommensurable.
+
+#% cell
+function_period(sin(x) + sin(pi*x), x)
+#% output
+#= 0
+
+#% section
+# Related functions
+
+#% text
+# `function_domain`, `function_range`, `function_discontinuities`, `function_continuous`, `function_singularities`, `function_analytic`, `function_meromorphic`, `function_poles`, `function_sign`, `function_monotonicity`, `function_convexity`, `function_period`, `function_injective`, `function_surjective`, `function_bijective`, `piecewise_expand`, `reduce`

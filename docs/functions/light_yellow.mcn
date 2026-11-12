@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# light_yellow
+
+#% text
+# `light_yellow` is the colour light yellow, a pale tint of `yellow`: a directive for graphics and a value for plot options such as `colors:`.
+
+#% section
+# Details
+
+#% item
+# `light_yellow` is a named colour like `yellow`; it stays a symbol until a graphic draws it.
+
+#% item
+# Pale tints suit filled areas and backgrounds behind darker curves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([light_yellow, disk()])
+#% output
+#= image("light_yellow.files/light_yellow-1.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], colors: [yellow, light_yellow])
+#% output
+#= image("light_yellow.files/light_yellow-2.svgz")
+
+#% cell
+light_yellow
+#% output
+#= light_yellow
+
+#% subsection
+# Scope
+
+#% text
+# The tint beside the full colour and its darker shade:
+
+#% cell
+graphics([[light_yellow, disk([0, 0])], [yellow, disk([2, 0])], [darker(yellow), disk([4, 0])]])
+#% output
+#= image("light_yellow.files/light_yellow-4.svgz")
+
+#% subsection
+# Applications
+
+#% text
+# A pale band behind a curve:
+
+#% cell
+graphics([[light_yellow, rectangle([0, -1], [3, 1])], [black, line(table([t, sin(2*t)], t, range(0, 3, 0.05)))]])
+#% output
+#= image("light_yellow.files/light_yellow-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `yellow`, `light_gray`, `lighter`, `rgb_color`, `light_orange`

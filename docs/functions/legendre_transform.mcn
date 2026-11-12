@@ -1,0 +1,70 @@
+#! mathcas 2 notebook
+
+#% title
+# legendre_transform
+
+#% text
+# `legendre_transform(L, q, p, t)` gives the Hamiltonian `sum p q' - L` of the Lagrangian `L` in the coordinates `q` and the momenta `p`, with the velocities solved from `p == dL/dq'`. `legendre_transform(f, x, p)` gives the Legendre transform `p x - f(x)` of a function, with `x` solved from `p == f'(x)`.
+
+#% section
+# Details
+
+#% item
+# The momenta `p` are names (a list of names, one per coordinate); the coordinates keep the form they have in `L`.
+
+#% item
+# A singular Lagrangian, whose velocities cannot be solved for uniquely (one linear in the velocities, for example), has no Legendre transform: the call stays unevaluated.
+
+#% item
+# For `legendre_transform(f, x, p)` the first solution of `p == f'(x)` is used, with an integer constant of the solution set to 0.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+legendre_transform(m*x'(t)^2/2 - k*x(t)^2/2, x, p, t)
+#% output
+#= (1/2)*k*x(t)^2 + p^2/(2*m)
+
+#% cell
+legendre_transform(m*(r'(t)^2 + r(t)^2*th'(t)^2)/2 - V(r(t)), [r, th], [pr, pth], t)
+#% output
+#= V(r(t)) + pr^2/(2*m) + pth^2/(2*m*r(t)^2)
+
+#% text
+# Minimal coupling to a vector potential gives `(p - e A)^2/(2 m)`:
+
+#% cell
+legendre_transform(m*x'(t)^2/2 + e0*x'(t)*A(x(t)), x, p, t)
+#% output
+#= p^2/(2*m) + e0^2*A(x(t))^2/(2*m) - e0*p*A(x(t))/m
+
+#% text
+# A singular Lagrangian:
+
+#% cell
+legendre_transform(x'(t)*y(t), [x, y], [p1, p2], t)
+#% output
+#= legendre_transform(y(t)*x'(t), [x, y], [p1, p2], t)
+
+#% subsection
+# Scope
+
+#% cell
+legendre_transform(x^2/2, x, p)
+#% output
+#= (1/2)*p^2
+
+#% cell
+legendre_transform(exp(x), x, p)
+#% output
+#= -p + p*log(p)
+
+#% section
+# See also
+
+#% text
+# `hamilton_equations`, `generalized_momenta`, `energy_function`, `poisson_bracket`

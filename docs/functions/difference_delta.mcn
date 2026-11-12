@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# difference_delta
+
+#% text
+# `difference_delta(f, k)` gives the forward difference `f(k + 1) - f(k)`.
+
+#% text
+# `difference_delta(f, [k, m])` gives the `m`-th difference, `difference_delta(f, [k, m, h])` the differences with step `h`.
+
+#% section
+# Details
+
+#% item
+# Shifted values of `gamma`, `factorial`, `digamma`, `polygamma`, `harmonic_number`, Hurwitz `zeta`, `fibonacci` and `catalan_number` are written with the unshifted ones, so their differences simplify.
+
+#% item
+# A term with a constant ratio `r` gives `f (r^h - 1)^m`, also for a symbolic `m`; `factorial_power(k, n)` gives `n factorial_power(k, n - 1)`; the difference of an indefinite `sum(g, k)` is `g`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+difference_delta(i^3, i)
+#% output
+#= 1 + 3*i + 3*i^2
+
+#% cell
+difference_delta((i^2 + i + 1)*2^i, i)
+#% output
+#= (5 + 5*i + i^2)*2^i
+
+#% subsection
+# Scope
+
+#% cell
+difference_delta(digamma(i), i)
+#% output
+#= i^-1
+
+#% cell
+difference_delta(a^i, [i, p])
+#% output
+#= a^i*(-1 + a)^p
+
+#% cell
+difference_delta(factorial_power(i, p), i)
+#% output
+#= p*factorial_power(i, -1 + p)
+
+#% section
+# See also
+
+#% text
+# `discrete_shift`, `discrete_ratio`, `sum`

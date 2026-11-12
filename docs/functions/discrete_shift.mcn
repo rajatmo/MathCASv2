@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_shift
+
+#% text
+# `discrete_shift(f, k)` gives `f` with `k` replaced by `k + 1`; `discrete_shift(f, [k, m])` by `k + m`, `discrete_shift(f, [k, m, h])` by `k + m h`.
+
+#% section
+# Details
+
+#% item
+# Shifted values of known functions are written with the unshifted ones (`gamma(k + 3) = k (k + 1) (k + 2) gamma(k)`), with a polynomial factor expanded.
+
+#% item
+# Sums, products and limits whose bounds move with `k` shift their summand instead.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_shift(f(i), [i, 3])
+#% output
+#= f(3 + i)
+
+#% cell
+discrete_shift(gamma(i), [i, 3])
+#% output
+#= (2*i + 3*i^2 + i^3)*gamma(i)
+
+#% subsection
+# Scope
+
+#% cell
+discrete_shift(fibonacci(i), [i, 5])
+#% output
+#= 3*fibonacci(i) + 5*fibonacci(1 + i)
+
+#% cell
+discrete_shift(sum(f(k), [k, i + a, i + b]), i)
+#% output
+#= sum(f(1 + k), [k, a + i, b + i])
+
+#% subsection
+# Properties and relations
+
+#% text
+# A summation variable is bound: the sum does not move:
+
+#% cell
+[discrete_shift(sum(f(i), [i, a, b]), i), discrete_shift(product(f(i), [i, m, n]), n)]
+#% output
+#= [sum(f(i), [i, a, b]), product(f(i), [i, m, 1 + n])]
+
+#% section
+# See also
+
+#% text
+# `difference_delta`, `discrete_ratio`

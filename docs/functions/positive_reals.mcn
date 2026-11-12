@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# positive_reals
+
+#% text
+# `positive_reals` is the domain of the real numbers greater than 0, for facts `element(x, positive_reals)` in `assuming` and `refine`.
+
+#% section
+# Details
+
+#% item
+# `element(x, positive_reals)` with a number `x` is decided at once: `true` or `false`. With a symbol it is a fact that `assuming` adds to the assumptions.
+
+#% item
+# Functions that use assumptions (`simplify`, `refine`, `power_expand` and the sign tests) take the domain into account.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+element(pi, positive_reals)
+#% output
+#= true
+
+#% cell
+element(0.5, positive_reals)
+#% output
+#= true
+
+#% cell
+element(0, positive_reals)
+#% output
+#= false
+
+#% cell
+element(-1, positive_reals)
+#% output
+#= false
+
+#% text
+# A symbol in the domain:
+
+#% cell
+assuming(element(x, positive_reals), simplify(sqrt(x^2)))
+#% output
+#= x
+
+#% subsection
+# Scope
+
+#% cell
+assuming(element(x, positive_reals), power_expand(log(x^3)))
+#% output
+#= 3*log(x)
+
+#% subsection
+# Properties and relations
+
+#% text
+# A symbol alone is not decided:
+
+#% cell
+element(x, positive_reals)
+#% output
+#= element(x, reals) and x > 0
+
+#% section
+# See also
+
+#% text
+# `element`, `assuming`, `refine`, `reals`

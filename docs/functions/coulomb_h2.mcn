@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# coulomb_h2
+
+#% text
+# `coulomb_h2(l, eta, rho)` gives the incoming Coulomb wave function `H-_l(eta, rho) = G_l(eta, rho) - i F_l(eta, rho)`.
+
+#% section
+# Details
+
+#% item
+# `H-_l = H+_l - 2 i F_l` (DLMF 33.2.7-33.2.8); for real arguments it is the complex conjugate of `H+_l`.
+
+#% item
+# At `eta = 0`, `H-_l(0, rho) = -i rho h2_l(rho)`; `H-_0(0, rho) = e^(-i rho)`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+coulomb_h2(1, 0.8, 5.0)
+#% output
+#= -0.6894148261070179 - 0.8924295006754951im
+
+#% cell
+n(coulomb_h2(3, 2, 5), 25)
+#% output
+#= 2.04869471377719559294238463661 - 0.431315931140878690123879600042im
+
+#% cell
+coulomb_h2(0, 0, r)
+#% output
+#= exp(-im*r)
+
+#% cell
+coulomb_h2(1, 0.8, 5.0) - conjugate(coulomb_h1(1, 0.8, 5.0))
+#% output
+#= 0.0 + 0.0im
+
+#% section
+# See also
+
+#% text
+# `coulomb_h1`, `coulomb_f`, `coulomb_g`

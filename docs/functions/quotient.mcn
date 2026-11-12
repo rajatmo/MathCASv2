@@ -1,0 +1,81 @@
+#! mathcas 2 notebook
+
+#% title
+# quotient
+
+#% text
+# `quotient(a, b)` gives the integer quotient `floor(a/b)`.
+
+#% section
+# Details
+
+#% item
+# The quotient rounds towards `-inf`, so that `a == b*quotient(a, b) + mod(a, b)` with `mod(a, b)` of the sign of `b`.
+
+#% item
+# Integers, rationals and machine numbers are accepted; symbolic arguments stay unevaluated.
+
+#% item
+# `quotient` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+quotient(17, 5)
+#% output
+#= 3
+
+#% cell
+quotient(-17, 5)
+#% output
+#= -4
+
+#% cell
+quotient(17, -5)
+#% output
+#= -4
+
+#% cell
+quotient(7.5, 2)
+#% output
+#= 3
+
+#% subsection
+# Scope
+
+#% text
+# Large integers:
+
+#% cell
+quotient(10^30, 7)
+#% output
+#= 142857142857142857142857142857
+
+#% text
+# Each element of a list:
+
+#% cell
+quotient([10, 11, 12, 13], 4)
+#% output
+#= [2, 2, 3, 3]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The division identity:
+
+#% cell
+a = -23; b = 6; b*quotient(a, b) + mod(a, b)
+#% output
+#= -23
+
+#% section
+# See also
+
+#% text
+# `mod`, `quotient_remainder`, `floor`, `gcd`

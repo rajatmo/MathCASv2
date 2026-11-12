@@ -1,0 +1,10 @@
+\documentclass[tikz,border=0pt]{standalone}
+\input{icon-style}
+\begin{document}
+\begin{tikzpicture}[icon]
+\canvas
+% the insertion point: a plus in a ring
+\draw[fine] (12,12) circle (9);
+\draw[fine] (12,7.5) -- (12,16.5) (7.5,12) -- (16.5,12);
+\end{tikzpicture}
+\end{document}

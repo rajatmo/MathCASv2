@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# sub_values
+
+#% text
+# `sub_values(f)` gives the rules defined for calls whose head is itself a call rooted at `f`, such as `f(x_)(y_) := ...`, as `lhs :> rhs` with the left side as it was written.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+rule adder(k_)(x_) := x + k
+
+#% cell
+sub_values(adder)
+#% output
+#= [adder(k_)(x_) :> x + k]
+
+#% cell
+adder(10)(5)
+#% output
+#= 15
+
+#% section
+# See also
+
+#% text
+# `down_values`, `up_values`, `own_values`

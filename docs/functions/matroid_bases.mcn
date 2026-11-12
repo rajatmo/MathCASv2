@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# matroid_bases
+
+#% text
+# `matroid_bases(M)`: the bases of the matroid
+
+#% section
+# Details
+
+#% item
+# A matroid is `linear_matroid(A)` (the columns of a rational matrix), `graphic_matroid(edges)` (the edges of a graph), `uniform_matroid(r, m)` or `matroid(bases)` (bases as lists of elements 1, ..., m); its elements are numbered 1, ..., m, at most 22.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+matroid_bases(linear_matroid([[1, 0, 1, 2], [0, 1, 1, 2]]))
+#% output
+#= [[1, 2], [1, 3], [1, 4], [2, 3], [2, 4]]
+
+#% cell
+length(matroid_bases(graphic_matroid(subsets([1, 2, 3, 4], [2]))))
+#% output
+#= 16
+
+#% section
+# See also
+
+#% text
+# `matroid_rank`, `matroid_circuits`

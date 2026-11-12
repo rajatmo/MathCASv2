@@ -1,0 +1,89 @@
+#! mathcas 2 notebook
+
+#% title
+# prime_pi
+
+#% text
+# `prime_pi(x)` gives the number of primes at most `x`.
+
+#% section
+# Details
+
+#% item
+# `x` may be any real number; `prime_pi(x)` is 0 for `x < 2`.
+
+#% item
+# The count uses a sieve for small `x` and the Meissel-Lehmer method for larger `x`.
+
+#% item
+# `prime_pi` is listable.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+prime_pi(10)
+#% output
+#= 4
+
+#% cell
+prime_pi(100)
+#% output
+#= 25
+
+#% cell
+prime_pi(1000.5)
+#% output
+#= 168
+
+#% cell
+prime_pi(1)
+#% output
+#= 0
+
+#% subsection
+# Scope
+
+#% text
+# Large arguments:
+
+#% cell
+prime_pi(10^10)
+#% output
+#= 455052511
+
+#% text
+# Each element of a list:
+
+#% cell
+prime_pi([10, 100, 1000, 10000])
+#% output
+#= [4, 25, 168, 1229]
+
+#% subsection
+# Properties and relations
+
+#% text
+# `prime_pi` counts what `prime` enumerates:
+
+#% cell
+prime_pi(prime(500))
+#% output
+#= 500
+
+#% text
+# The prime number theorem, `x/log(x)` against the count:
+
+#% cell
+[prime_pi(10^8), 10^8/log(1.0e8)]
+#% output
+#= [5761455, 5428681.023790647]
+
+#% section
+# See also
+
+#% text
+# `prime`, `next_prime`, `log_integral`, `is_prime`

@@ -1,0 +1,87 @@
+#! mathcas 2 notebook
+
+#% title
+# drop_failures
+
+#% text
+# `drop_failures(xs)` gives the elements of the list `xs` that are not failures and contain no failure.
+
+#% section
+# Details
+
+#% item
+# An element that holds a failure anywhere inside it, such as a row `[x, failure(...)]`, is dropped whole.
+
+#% item
+# The other elements keep their order.
+
+#% item
+# Use it after a computation over a grid where some points have no result, before interpolating or plotting.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+drop_failures([1, failure(no_root, find_root), 3])
+#% output
+#= [1, 3]
+
+#% cell
+drop_failures([[1, 2.5], [2, failure(not_converged, n_integrate)], [3, 4.0]])
+#% output
+#= [[1, 2.5], [3, 4.0]]
+
+#% cell
+drop_failures([])
+#% output
+#= []
+
+#% subsection
+# Applications
+
+#% text
+# A table over a grid where some points fail, cleaned before interpolation, as the wall-profile script does with its shooting results:
+
+#% cell
+fn root_near(a) = find_root(x^2 - a, [x, 1, 0, 3])
+tab = table([a, x /. root_near(a)], a, [1, 4, 16, 2])
+drop_failures(tab)
+#% output
+#= [[1, 1.0], [4, 2.0], [2, 1.4142135623730951]]
+
+#% text
+# How many points were lost:
+
+#% cell
+length(tab) - length(drop_failures(tab))
+#% output
+#= 1
+
+#% subsection
+# Properties and relations
+
+#% text
+# A list without failures is unchanged:
+
+#% cell
+drop_failures([1, [2, 3], x]) === [1, [2, 3], x]
+#% output
+#= true
+
+#% text
+# `is_failure` tests a single value; it is false for a list that only contains a failure, which `drop_failures` still drops:
+
+#% cell
+xs = [1, failure(a, f), [2, failure(b, g)], 3]
+map(is_failure, xs)
+#% output
+#= [false, true, false, false]
+
+#% section
+# See also
+
+#% text
+# `is_failure`, `failure_tag`, `select`, `interpolation`

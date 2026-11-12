@@ -1,0 +1,166 @@
+#! mathcas 2 notebook
+
+#% title
+# n_dsolve
+
+#% text
+# `n_dsolve(eqs, y, [t, t0, t1])` solves the ordinary differential equations `eqs` with their initial conditions numerically for `t` from `t0` to `t1`, and gives `[y -> f]` with `f` an interpolating function.
+
+#% text
+# `n_dsolve(eqs, [y, z, ...], [t, t0, t1])` solves a system for several unknown functions.
+
+#% section
+# Details
+
+#% item
+# Derivatives are written with primes: `y'(t)`, `y''(t)`. Initial conditions give the value of each unknown, and of its derivatives up to one less than the order, at `t0`.
+
+#% item
+# The result is a rule list; `y(t) /. sol` evaluates the solution at a point, and a plot of it draws the curve.
+
+#% item
+# Options:
+
+#% subitem
+# `method: auto | rk45 | stiff | taylor`: the integration method (`auto` changes to the stiff method when the problem needs it).
+
+#% subitem
+# `accuracy_goal`, `precision_goal`, `max_steps`, `max_step_size`: the error goals and the limits of the steps.
+
+#% subitem
+# `events: [g == 0]` stops the solution where `g` becomes zero (with `event_action: record`, it records the points and goes on).
+
+#% subitem
+# `digits: d` solves with Taylor series at `d` decimal digits; values of the solution are then balls.
+
+#% item
+# When the step size shrinks to nothing (the solution blows up), the solution covers the part computed and a message says where it stopped.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# Exponential decay, evaluated at t = 1:
+
+#% cell
+s = n_dsolve([y'(t) == -y(t), y(0) == 1], y, [t, 0, 2])
+
+#% cell
+y(1) /. s
+#% output
+#= 0.3678794409408397
+
+#% text
+# The solution is an interpolating function over the interval:
+
+#% cell
+s
+#% output
+#= [y -> interpolating_function("y", [0.0, 2.0], 21, "7d83dd8f58ce332a")]
+
+#% text
+# The logistic equation, and a plot of its solution:
+
+#% cell
+logistic = n_dsolve([y'(t) == y(t)*(1 - y(t)), y(0) == 0.1], y, [t, 0, 10])
+
+#% cell
+plot(y(t) /. logistic, [t, 0, 10])
+#% output
+#= image("n_dsolve.files/n_dsolve-5.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A second-order equation, compared with its exact solution sin(t):
+
+#% cell
+s2 = n_dsolve([y''(t) + y(t) == 0, y(0) == 0, y'(0) == 1], y, [t, 0, 6])
+
+#% cell
+(y(2) /. s2) - sin(2)
+#% output
+#= -5.187932750061464e-9
+
+#% text
+# A system of two first-order equations, an oscillator, after half a period:
+
+#% cell
+osc = n_dsolve([x'(t) == v(t), v'(t) == -x(t), x(0) == 1, v(0) == 0], [x, v], [t, 0, 10])
+
+#% cell
+x(pi) /. osc
+#% output
+#= -0.9999999909648007
+
+#% text
+# The solution at several points at once:
+
+#% cell
+[y(0), y(5), y(10)] /. logistic
+#% output
+#= [0.1, 0.9428256207705609, 0.9995915655941424]
+
+#% subsection
+# Options
+
+#% text
+# A stiff equation, with the stiff method:
+
+#% cell
+stiff = n_dsolve([y'(t) == -1000*(y(t) - cos(t)), y(0) == 0], y, [t, 0, 1], method: stiff)
+
+#% cell
+y(1) /. stiff
+#% output
+#= 0.5411432357946486
+
+#% text
+# High precision with Taylor series:
+
+#% cell
+s3 = n_dsolve([y'(t) == y(t), y(0) == 1], y, [t, 0, 1], digits: 30)
+
+#% cell
+y(1) /. s3
+#% output
+#= 2.718281828459045235360287471353
+
+#% subsection
+# Applications
+
+#% text
+# A ball dropped from 10 m: the event stops the solution when it reaches the ground, and records the time.
+
+#% cell
+fall = n_dsolve([h'(t) == v(t), v'(t) == -9.81, h(0) == 10, v(0) == 0], [h, v], [t, 0, 5], events: [h(t) == 0])
+
+#% subsection
+# Possible issues
+
+#% text
+# The solution of y' = y^2 with y(0) = 1 is 1/(1 - t), which blows up at t = 1; the solution stops there:
+
+#% cell
+n_dsolve([y'(t) == y(t)^2, y(0) == 1], y, [t, 0, 2])
+#% output
+#| n_dsolve: the step size vanished (a singularity?) at t = 1.0000000010762093; the solution covers the part computed
+#= [y -> interpolating_function("y", [0.0, 1.0000000010762093], 501, "7e5099b7fca175ab")]
+
+#% text
+# Without initial conditions there is no single solution to compute:
+
+#% cell
+n_dsolve([y'(t) == -y(t)], y, [t, 0, 1])
+#% output
+#! failure(argument, n_dsolve, "no initial conditions")
+
+#% section
+# See also
+
+#% text
+# `n_integrate`, `plot`, `find_root`, `d`

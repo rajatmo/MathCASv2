@@ -1,0 +1,38 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_cos_series
+
+#% text
+# `fourier_cos_series(f, t, k)` gives the Fourier cosine series of `f` to order `k`: `a_0/2` plus `a_n cos(n t)` for `n` from 1 to `k`.
+
+#% section
+# Details
+
+#% item
+# The coefficients are those of `fourier_cos_coefficient` (from the half period `[0, pi]`); `fourier_parameters: [a, b]` scales the frequency by `b`.
+
+#% item
+# Lists of variables and orders give the series in products of cosines.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_cos_series(t^2, t, 3)
+#% output
+#= cos(2*t) - 4*cos(t) - (4/9)*cos(3*t) + (1/3)*pi^2
+
+#% cell
+fourier_cos_series(abs(t), t, 3)
+#% output
+#= (1/2)*pi - 4*cos(t)/pi - 4*cos(3*t)/(9*pi)
+
+#% section
+# See also
+
+#% text
+# `fourier_sin_series`, `fourier_trig_series`, `fourier_cos_coefficient`

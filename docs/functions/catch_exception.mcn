@@ -1,0 +1,62 @@
+#! mathcas 2 notebook
+
+#% title
+# catch_exception
+
+#% text
+# `catch_exception(body, type)` evaluates `body` and gives its value, unless an exception of the given type (or of a registered kind of it) is thrown in it: then the exception.
+
+#% section
+# Details
+
+#% item
+# `catch_exception(body, type, f)` gives `f(exception)` instead.
+
+#% item
+# Exceptions of other types go on to an outer `catch_exception`.
+
+#% item
+# `body` is held and evaluated inside.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+catch_exception(1 + 2, data_error)
+#% output
+#= 3
+
+#% cell
+catch_exception(1 + throw_exception(exception(data_error, assoc(data -> 42))), data_error)
+#% output
+#= exception(data_error, assoc(data -> 42))
+
+#% subsection
+# Scope
+
+#% text
+# With a handler:
+
+#% cell
+catch_exception(throw_exception(exception(data_error, assoc(data -> 42))), data_error, e => exception_data(e)[data])
+#% output
+#= 42
+
+#% text
+# A kind of the type is caught too:
+
+#% cell
+register_exception_type(arg_error)
+register_exception_type(arg_type_error, arg_error)
+catch_exception(throw_exception(exception(arg_type_error)), arg_error, exception_type)
+#% output
+#= arg_type_error
+
+#% section
+# See also
+
+#% text
+# `throw_exception`, `exception`, `catch`

@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# polygon_coordinates
+
+#% text
+# `polygon_coordinates(p)`: the distinct corners of a polygon, sorted
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polygon_coordinates(triangle())
+#% output
+#= [[0, 0], [0, 1], [1, 0]]
+
+#% section
+# See also
+
+#% text
+# `region_measure`, `region_member`, `region_distance`

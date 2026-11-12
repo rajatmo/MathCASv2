@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# scorer_hi_prime
+
+#% text
+# `scorer_hi_prime(z)` gives the derivative of the Scorer function `Hi(z)`.
+
+#% section
+# Details
+
+#% item
+# `Hi'(z) = 3^(-1/3)/pi sum_k gamma((k + 2)/3) (3^(1/3) z)^k/k!` (DLMF 9.12); `Hi'(0) = 2 Bi'(0)/3`.
+
+#% item
+# Machine numbers, balls and complex numbers give numerical values.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+scorer_hi_prime(1.0)
+#% output
+#= 0.9808737086542799
+
+#% cell
+n(scorer_hi_prime(-2), 30)
+#% output
+#= 0.054115969989704779963041965756215530
+
+#% cell
+scorer_hi_prime(0)
+#% output
+#= 2*3^(1/6)/(3*gamma(1/3))
+
+#% text
+# The equation `Hi'' = z Hi + 1/pi`, checked with a difference quotient of the derivative:
+
+#% cell
+z0 = 0.8; h = 1.0e-5; (scorer_hi_prime(z0 + h) - scorer_hi_prime(z0 - h))/(2*h) - z0*scorer_hi(z0) - 1/pi
+#% output
+#= 3.666766890120243e-11
+
+#% section
+# See also
+
+#% text
+# `scorer_hi`, `scorer_gi_prime`, `airy_bi_prime`

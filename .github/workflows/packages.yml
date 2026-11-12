@@ -1,0 +1,87 @@
+# Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1) and the Linux tarball
+# (packaging/linux/build-tarball.sh), smoke-test both, and upload them as the artifacts `windows` and `linux`.
+# Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
+name: Packages
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_DEBUG: "0"
+
+jobs:
+  windows:
+    name: Windows installer and zip
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      MATHCAS_V2_DIST: ${{ github.workspace }}\dist-v2
+      MATHCAS_V2_PACKAGES: ${{ github.workspace }}\dist-v2-packages
+      # the build folder inside the workspace (the scripts' default is outside the repository)
+      CARGO_TARGET_DIR: ${{ github.workspace }}\target
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: win-packages-${{ hashFiles('Cargo.lock') }}
+          restore-keys: win-packages-
+      # dist.ps1 and notices.ps1 build with --offline: fetch the dependencies first
+      - name: Fetch dependencies
+        run: cargo fetch --locked
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $known = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
+          if (-not ($known | Where-Object { Test-Path $_ })) { choco install innosetup --no-progress -y }
+      - name: Build the dist folder (tools/dist.ps1)
+        shell: pwsh
+        run: ./tools/dist.ps1
+      - name: Smoke test the binaries
+        shell: pwsh
+        run: |
+          & "$env:MATHCAS_V2_DIST\mc-repl.exe" -e "factor(x^4 - 1)" -e "integrate(1/(1 + x^2), [x, 0, inf])"
+          if ($LASTEXITCODE -ne 0) { throw "mc-repl failed ($LASTEXITCODE)" }
+          if (-not (Test-Path "$env:MATHCAS_V2_DIST\THIRD-PARTY-NOTICES.txt")) { throw "no third-party notices" }
+      - name: Package (tools/package.ps1)
+        shell: pwsh
+        run: ./tools/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist-v2-packages/MathCAS-v2-*
+          if-no-files-found: error
+          retention-days: 7
+
+  linux:
+    name: Linux tarball
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries for the windowing crates
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl-dev libfontconfig-dev
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Build the tarball (packaging/linux/build-tarball.sh)
+        run: JOBS=4 bash packaging/linux/build-tarball.sh dist-linux
+      - name: Smoke test the tarball
+        run: |
+          mkdir smoke && tar -C smoke -xzf dist-linux/MathCAS-v2-*.tar.gz
+          bash packaging/linux/smoke.sh smoke/MathCAS-v2-* smoke-work
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist-linux/MathCAS-v2-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7

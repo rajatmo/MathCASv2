@@ -1,0 +1,75 @@
+#! mathcas 2 notebook
+
+#% title
+# polar_plot
+
+#% text
+# `polar_plot(r, [theta, a, b])` draws the curve whose distance from the origin is r at the angle theta, for theta from a to b.
+
+#% text
+# `polar_plot([r1, r2, ...], [theta, a, b])` draws several such curves in one picture.
+
+#% section
+# Details
+
+#% item
+# The value is `image("path")`, a PNG file with SVG and PDF copies next to it.
+
+#% item
+# Angles are in radians, measured anticlockwise from the positive x axis; a negative r lies on the opposite side of the origin.
+
+#% item
+# The axes cross at the origin and use the same unit, so circles are drawn round.
+
+#% item
+# The options `x_label`, `y_label`, `legend`, `legend_position`, `colors`, `line_style` and `plot_range` work as for `plot`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A cardioid:
+
+#% cell
+polar_plot(1 + cos(theta), [theta, 0, 2pi])
+#% output
+#= image("polar_plot.files/polar_plot-1.svgz")
+
+#% text
+# A rose with three petals:
+
+#% cell
+polar_plot(sin(3theta), [theta, 0, pi])
+#% output
+#= image("polar_plot.files/polar_plot-2.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# A circle and a spiral together:
+
+#% cell
+polar_plot([1, theta/(2pi)], [theta, 0, 4pi], legend: ["r = 1", "spiral"])
+#% output
+#= image("polar_plot.files/polar_plot-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The same curve as a parametric plot of r cos(theta) and r sin(theta):
+
+#% cell
+parametric_plot([(1 + cos(t))*cos(t), (1 + cos(t))*sin(t)], [t, 0, 2pi])
+#% output
+#= image("polar_plot.files/polar_plot-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `parametric_plot`, `plot`

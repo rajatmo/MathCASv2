@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_max_limit
+
+#% text
+# `discrete_max_limit(f, k -> inf)` gives the upper limit of the sequence f(k) as the integer k grows; `k -> -inf` as it decreases.
+
+#% section
+# Details
+
+#% item
+# With a period P of the oscillating factors (powers of negative numbers, sin and cos of rational multiples of pi k) the value is the largest of the limits along the residues k = r (mod P). When an angle is not a rational multiple of pi the values are dense and `max_limit` over the reals is used.
+
+#% item
+# Lists are handled element-wise.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+discrete_max_limit((-1)^k, k -> inf)
+#% output
+#= 1
+
+#% cell
+discrete_max_limit((3 + (24/25)^k)*sin(pi*k/20), k -> inf)
+#% output
+#= 3
+
+#% cell
+discrete_max_limit(sin(k), k -> inf)
+#% output
+#= 1
+
+#% cell
+discrete_max_limit((-1)^k*3*k/(1 + 6*k), k -> inf)
+#% output
+#= 1/2
+
+#% section
+# See also
+
+#% text
+# `discrete_min_limit`, `max_limit`, `discrete_limit`

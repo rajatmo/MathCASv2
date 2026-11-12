@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# above
+
+#% text
+# `above` is the side above: a position for `placed`, for the label of `labeled` and for the corner of a placed legend.
+
+#% section
+# Details
+
+#% item
+# `placed(obj, above)` puts `obj` above the plot area; `labeled(g, label, above)` puts the label above the graphic.
+
+#% item
+# In `plot_legends: placed(entries, above)` the legend goes to the nearest corner of the plot.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([circle(), placed("label", above)])
+#% output
+#= image("above.files/above-1.svgz")
+
+#% cell
+labeled(graphics([blue, disk()], image_size: 120), "a disk", above)
+#% output
+#= image("above.files/above-2.svgz")
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], plot_legends: placed(["sin", "cos"], above))
+#% output
+#= image("above.files/above-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `placed`, `labeled`, `left`, `right`, `below`, `top`

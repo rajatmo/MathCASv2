@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# lu
+
+#% text
+# `lu(m)` gives `[l, u, p]` with `l` unit lower triangular, `u` upper triangular and the rows of `m` in the order `p` equal to `dot(l, u)`.
+
+#% section
+# Details
+
+#% item
+# The permutation comes from partial pivoting (for exact matrices the first nonzero pivot, for machine matrices the largest).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+lu([[1, 2], [3, 4]])
+#% output
+#= [[[1, 0], [3, 1]], [[1, 2], [0, -2]], [1, 2]]
+
+#% cell
+lu([[0, 1], [1, 0]])
+#% output
+#= [[[1, 0], [0, 1]], [[1, 0], [0, 1]], [2, 1]]
+
+#% cell
+lu([[4.0, 3.0], [6.0, 3.0]])
+#% output
+#= [[[1.0, 0.0], [0.6666666666666666, 1.0]], [[6.0, 3.0], [0.0, 1.0]], [2, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The factors give the permuted matrix back:
+
+#% cell
+m = [[2, 1, 1], [4, -6, 0], [-2, 7, 2]]; f = lu(m); dot(f[1], f[2]) == m[f[3]]
+#% output
+#= true
+
+#% text
+# The determinant is the product of the pivots, up to the sign of the permutation:
+
+#% cell
+[product(table(f[2][k, k], k, 3)), det(m)]
+#% output
+#= [-16, -16]
+
+#% section
+# See also
+
+#% text
+# `qr`, `cholesky`, `det`, `linear_solve`

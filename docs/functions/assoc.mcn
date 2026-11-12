@@ -1,0 +1,164 @@
+#! mathcas 2 notebook
+
+#% title
+# assoc
+
+#% text
+# `assoc(k1 -> v1, k2 -> v2, ...)` gives an association: a map from the keys `k1`, `k2`, ... to the values `v1`, `v2`, ....
+
+#% text
+# `assoc([k1 -> v1, ...])` makes the association from a list of rules.
+
+#% section
+# Details
+
+#% item
+# Keys and values may be any terms: strings, numbers, symbols, lists.
+
+#% item
+# Entries keep the order in which they were given. A repeated key keeps its first position and its last value.
+
+#% item
+# `a[k]` gives the value of key `k`; `lookup(a, k, default)` gives a default for a missing key.
+
+#% item
+# `keys`, `values`, `to_rules`, `insert`, `delete_key`, `key_exists`, `map_values` and `merge` work with associations; `length` counts the entries.
+
+#% item
+# Lookups are fast also for large associations: the keys are indexed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+a = assoc("x" -> 1, "y" -> 2)
+
+#% cell
+a["y"]
+#% output
+#= 2
+
+#% cell
+assoc([1 -> "one", 2 -> "two"])
+#% output
+#= assoc(1 -> "one", 2 -> "two")
+
+#% subsection
+# Scope
+
+#% text
+# A repeated key keeps its first position and its last value:
+
+#% cell
+assoc("a" -> 1, "b" -> 2, "a" -> 3)
+#% output
+#= assoc("a" -> 3, "b" -> 2)
+
+#% text
+# Keys of any kind:
+
+#% cell
+assoc(x -> 1, [1, 2] -> "pair", 2.5 -> true)
+#% output
+#= assoc(x -> 1, [1, 2] -> "pair", 2.5 -> true)
+
+#% text
+# An empty association:
+
+#% cell
+assoc()
+#% output
+#= assoc()
+
+#% text
+# Patterns of associations match associations:
+
+#% cell
+rewrite(f(assoc(1 -> 2, 3 -> 4)), f(assoc(k_ -> v_, ___)) :> [k, v])
+#% output
+#= [1, 2]
+
+#% subsection
+# Applications
+
+#% text
+# Named parameters of a model, kept together and read by name:
+
+#% cell
+model = assoc("lam" -> 4.0e-21, "f" -> 1.46e11, "nc" -> 3)
+model["lam"]*model["nc"]
+#% output
+#= 1.1999999999999998e-20
+
+#% text
+# Counting words:
+
+#% cell
+counts(string_split("the cat and the hat and the bat"))
+#% output
+#= assoc("the" -> 3, "cat" -> 1, "and" -> 2, "hat" -> 1, "bat" -> 1)
+
+#% text
+# A table of values that grows one entry at a time:
+
+#% cell
+{
+  var squares = assoc()
+  for k in range(4) { squares = insert(squares, k -> k^2) }
+  squares
+}
+#% output
+#= assoc(1 -> 1, 2 -> 4, 3 -> 9, 4 -> 16)
+
+#% subsection
+# Properties and relations
+
+#% text
+# `keys` and `values` take an association apart, `to_rules` gives its rules:
+
+#% cell
+[keys(a), values(a), to_rules(a)]
+#% output
+#= [["x", "y"], [1, 2], ["x" -> 1, "y" -> 2]]
+
+#% text
+# The number of entries:
+
+#% cell
+length(a)
+#% output
+#= 2
+
+#% text
+# An association is a value; `insert` makes a new one:
+
+#% cell
+b = insert(a, "z" -> 3)
+[a, b]
+#% output
+#= [assoc("x" -> 1, "y" -> 2), assoc("x" -> 1, "y" -> 2, "z" -> 3)]
+
+#% subsection
+# Possible issues
+
+#% text
+# A missing key gives a failure; give a default with `lookup`:
+
+#% cell
+a["w"]
+#% output
+#! failure(missing_key, "w")
+
+#% cell
+lookup(a, "w", 0)
+#% output
+#= 0
+
+#% section
+# See also
+
+#% text
+# `keys`, `values`, `lookup`, `insert`, `merge`, `counts`, `group_by`

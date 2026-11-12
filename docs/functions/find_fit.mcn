@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# find_fit
+
+#% text
+# `find_fit(data, model, params, x)` gives the parameter values minimizing the sum of squared residuals of `model` against `data`.
+
+#% section
+# Details
+
+#% item
+# `data` holds `[x, y]` pairs, rows `[x1, ..., xk, y]` for a list of variables, or plain values y at x = 1, 2, ...
+
+#% item
+# `params` lists symbols (starting at 1) or `[p, start]` pairs.
+
+#% item
+# Levenberg-Marquardt on machine numbers with the symbolic Jacobian; the result is a list of rules.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_fit([[1, 2.1], [2, 3.9], [3, 6.2]], p*x, [p], x)
+#% output
+#= [p -> 2.0357142857142856]
+
+#% cell
+find_fit([[0, 1.0], [1, 2.7], [2, 7.4], [3, 20.1]], a*exp(b*x), [[a, 1], [b, 1]], x)
+#% output
+#= [a -> 0.9983168020321654, b -> 1.0008344899743848]
+
+#% subsection
+# Scope
+
+#% text
+# Plain values:
+
+#% cell
+find_fit([1.0, 1.9, 3.2, 3.9], a + b*x, [a, b], x)
+#% output
+#= [a -> 9.289926551926663e-17, b -> 1.0]
+
+#% section
+# See also
+
+#% text
+# `find_minimum`, `rewrite`

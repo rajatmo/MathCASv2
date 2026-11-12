@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# delete_elements
+
+#% text
+# `delete_elements(xs, es)` gives `xs` without any occurrence of an element of the list `es`.
+
+#% section
+# Details
+
+#% item
+# Elements are compared by identity; the order of the rest is kept.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+delete_elements([1, 2, 3, 1, 4], [1])
+#% output
+#= [2, 3, 4]
+
+#% cell
+delete_elements([a, b, c, a], [a, c])
+#% output
+#= [b]
+
+#% cell
+delete_elements([1, 2], [])
+#% output
+#= [1, 2]
+
+#% subsection
+# Scope
+
+#% cell
+delete_elements(f(a, b, a), [a])
+#% output
+#= f(b)
+
+#% cell
+delete_elements(characters("banana"), ["a"])
+#% output
+#= ["b", "n", "n"]
+
+#% section
+# See also
+
+#% text
+# `delete_cases`, `complement`, `select`

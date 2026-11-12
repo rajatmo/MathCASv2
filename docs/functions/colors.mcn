@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# colors
+
+#% text
+# `colors` is an option of every plot: `colors: [c1, c2, ...]` gives the colour of each curve or data set in order.
+
+#% section
+# Details
+
+#% item
+# Colours are named colours, `rgb_color(...)`, or strings `"#rrggbb"`. Curves beyond the list take the default colours.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot([sin(x), cos(x)], [x, 0, 2*pi], colors: [red, blue])
+#% output
+#= image("colors.files/colors-1.svgz")
+
+#% cell
+plot([x, x^2, x^3], [x, 0, 1], colors: ["#1b9e77", "#d95f02"])
+#% output
+#= image("colors.files/colors-2.svgz")
+
+#% cell
+list_plot([[1, 2, 3], [3, 2, 1]], colors: [purple, orange])
+#% output
+#= image("colors.files/colors-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `plot_style`, `plot_theme`, `rgb_color`, `red`

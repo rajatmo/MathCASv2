@@ -1,0 +1,37 @@
+#! mathcas 2 notebook
+
+#% title
+# region_nearest
+
+#% text
+# `region_nearest(reg, p)` is the point of the region nearest to `p`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+region_nearest(disk(), [3, 4])
+#% output
+#= [3/5, 4/5]
+
+#% cell
+region_nearest(line([[0, 0], [1, 1]]), [3, 4])
+#% output
+#= [1, 1]
+
+#% text
+# Inside: the point itself:
+
+#% cell
+region_nearest(rectangle(), [1/2, 1/2])
+#% output
+#= [1/2, 1/2]
+
+#% section
+# See also
+
+#% text
+# `region_distance`

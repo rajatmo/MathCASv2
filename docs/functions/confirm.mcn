@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# confirm
+
+#% text
+# `confirm(x)` gives `x`, unless it is a failure or `missing(...)`: then `failure(confirmation_failed, x)` is thrown to the enclosing `enclose`. `confirm(x, info)` evaluates `info` (held until then) before throwing; `confirm(x, info, tag)` throws to an `enclose` with that tag. A failure that no `enclose` catches stays the failure it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+enclose(f(x, confirm(y), z))
+#% output
+#= f(x, y, z)
+
+#% cell
+enclose(confirm(missing()) + 2)
+#% output
+#! failure(confirmation_failed, missing())
+
+#% cell
+enclose(g(3 + confirm(2, null, "t")), identity, "t")
+#% output
+#= g(5)
+
+#% section
+# See also
+
+#% text
+# `enclose`, `throw`, `catch`, `is_failure`

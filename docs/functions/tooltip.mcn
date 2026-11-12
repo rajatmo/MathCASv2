@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# tooltip
+
+#% text
+# `tooltip(x, tip)` is `x`: tips are shown on hovering in interactive front ends, and a static picture shows `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+tooltip(3, "three")
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `graphics`

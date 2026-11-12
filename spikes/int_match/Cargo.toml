@@ -1,0 +1,15 @@
+[package]
+name = "int_match"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "Integration spike I2: spike 2's matcher and rule dispatch on spike 4's concurrent store and work-stealing evaluator"
+
+[dependencies]
+rustc-hash = "2"
+rayon = "1.12"
+rayon-core = "1.13"
+parking_lot = "0.12"
+crossbeam-utils = "0.8"
+# spike 2's sequential matcher, run in the same process as the single-thread baseline and as a cross-check
+matcher = { path = "../matcher" }

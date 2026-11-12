@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# cholesky
+
+#% text
+# `cholesky(m)` gives the upper triangular `u` with `m == dot(conjugate_transpose(u), u)`, for a positive definite matrix `m`.
+
+#% section
+# Details
+
+#% item
+# `m` must be Hermitian (symmetric for real entries) and positive definite; otherwise the call fails.
+
+#% item
+# Exact matrices give exact factors, with square roots where needed.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+cholesky([[4, 2], [2, 3]])
+#% output
+#= [[2, 1], [0, 2^(1/2)]]
+
+#% cell
+cholesky([[2.0, 1.0], [1.0, 2.0]])
+#% output
+#= [[1.4142135623730951, 0.7071067811865475], [0.0, 1.224744871391589]]
+
+#% cell
+cholesky([[1, 1, 1], [1, 2, 2], [1, 2, 3]])
+#% output
+#= [[1, 1, 1], [0, 1, 1], [0, 0, 1]]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The factor gives the matrix back:
+
+#% cell
+m = [[4, 2], [2, 3]]; u = cholesky(m); dot(conjugate_transpose(u), u) == m
+#% output
+#= true
+
+#% subsection
+# Possible issues
+
+#% text
+# A matrix that is not positive definite:
+
+#% cell
+cholesky([[1, 2], [2, 1]])
+#% output
+#! failure(not_positive_definite, cholesky)
+
+#% section
+# See also
+
+#% text
+# `lu`, `qr`, `det`

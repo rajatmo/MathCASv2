@@ -1,0 +1,69 @@
+#! mathcas 2 notebook
+
+#% title
+# style
+
+#% text
+# `style(expr, s1, s2, ...)` is expr shown with styles: colours, a font size (a number), `bold`, `italic`, and directives.
+
+#% section
+# Details
+
+#% item
+# In graphics, `style(content, ...)` applies its directives to the content only; a styled string in `text` takes its colour and size.
+
+#% item
+# Labels keep the math font: `bold` and `italic` are accepted and do not change the letters.
+
+#% item
+# Outside graphics the term stays as it is.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% text
+# A red label of size 20 in a graphic:
+
+#% cell
+graphics([disk(), text(style("hello", red, 20), [0, 1.3])])
+#% output
+#= image("style.files/style-1.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# Directives for part of the content:
+
+#% cell
+graphics([style(disk(), orange), circle([2, 0], 1), style(line([[0, 0], [2, 0]]), thick, dashed)])
+#% output
+#= image("style.files/style-2.svgz")
+
+#% text
+# A styled plot title:
+
+#% cell
+plot(sin(x), [x, 0, 6], plot_label: style("waves", 16))
+#% output
+#= image("style.files/style-3.svgz")
+
+#% subsection
+# Properties and relations
+
+#% text
+# The term itself:
+
+#% cell
+style("text", blue)
+#% output
+#= style("text", blue)
+
+#% section
+# See also
+
+#% text
+# `directive`, `text`, `graphics`

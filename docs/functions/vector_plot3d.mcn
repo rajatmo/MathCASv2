@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# vector_plot3d
+
+#% text
+# `vector_plot3d([vx, vy, vz], [x, a, b], [y, c, d], [z, e, f])` draws arrows of a vector field in space, coloured by magnitude.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+vector_plot3d([y, -x, z], [x, -1, 1], [y, -1, 1], [z, -1, 1])
+#% output
+#= image("vector_plot3d.files/vector_plot3d-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `vector_plot`, `stream_plot`

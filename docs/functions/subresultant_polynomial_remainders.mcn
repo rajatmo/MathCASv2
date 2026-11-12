@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# subresultant_polynomial_remainders
+
+#% text
+# `subresultant_polynomial_remainders(p, q, x)` gives `p`, `q` and the subresultant polynomial remainder sequence of `p` and `q` in `x`.
+
+#% text
+# `subresultant_polynomial_remainders(p, q, x, modulus: n)` computes it modulo the prime `n`.
+
+#% section
+# Details
+
+#% item
+# After `p` and `q` come the nonzero subresultants `Sj` that follow a regular one (of full degree `j + 1`), in decreasing degree: each is proportional to the next remainder of Euclid's algorithm, with coefficients that stay polynomial in the coefficients of the inputs.
+
+#% item
+# The last element is a greatest common divisor of `p` and `q` up to a factor free of `x`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+subresultant_polynomial_remainders(x^5 - x + 3, x^3 + 2*x - 1, x)
+#% output
+#= [3 - x + x^5, -1 + 2*x + x^3, -1 - 3*x - x^2, 2 + 10*x, -44]
+
+#% subsection
+# Scope
+
+#% cell
+subresultant_polynomial_remainders((x - a)^2*(x + 1), (x - a)*(x - 1), x)
+#% output
+#= [x*a^2 - 2*a*x - 2*a*x^2 + a^2 + x^2 + x^3, a - x - a*x + x^2, -2*a + 2*x + 2*a^2 - 2*a*x]
+
+#% cell
+subresultant_polynomial_remainders(x^5 + x^2 + 1, x^3 + x + 1, x, modulus: 2)
+#% output
+#= [1 + x^2 + x^5, 1 + x + x^3, x, 1]
+
+#% subsection
+# Properties and relations
+
+#% text
+# The last element divided by the gcd is free of `x`:
+
+#% cell
+cancel(last(subresultant_polynomial_remainders((x - 3)^2*(x + 1), (x - 3)*(x^2 + 1), x))/polynomial_gcd((x - 3)^2*(x + 1), (x - 3)*(x^2 + 1)))
+#% output
+#= 20
+
+#% section
+# See also
+
+#% text
+# `subresultant_polynomials`, `subresultants`, `polynomial_gcd`, `polynomial_remainder`

@@ -1,0 +1,25 @@
+[package]
+name = "mc-cad"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 real algebraic geometry: cylindrical algebraic decomposition, quantifier elimination over the reals, virtual substitution, reduce over several real variables"
+
+[dependencies]
+mc-api = { path = "../mc-api" }
+mc-arith = { path = "../mc-arith" }
+mc-core = { path = "../mc-core" }
+mc-eval = { path = "../mc-eval" }
+# integer polynomials: resultants, discriminants, factorisation, Groebner bases, term conversion
+mc-poly = { path = "../mc-poly" }
+# number fields, real algebraic numbers and real roots over number fields (sample points)
+mc-algebra = { path = "../mc-algebra" }
+# the Reals hook of the decision service
+mc-decide = { path = "../mc-decide" }
+rustc-hash = "2"
+
+[dev-dependencies]
+mc-engine = { path = "../mc-engine" }

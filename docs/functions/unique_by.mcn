@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# unique_by
+
+#% text
+# `unique_by(xs, f)` keeps the first element of `xs` for each distinct value of `f(x)`, in order.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+unique_by([1, -1, 2, -2, 3], abs)
+#% output
+#= [1, 2, 3]
+
+#% cell
+unique_by(["apple", "avocado", "banana"], s => string_take(s, 1))
+#% output
+#= ["apple", "banana"]
+
+#% subsection
+# Scope
+
+#% text
+# Keep one point per x coordinate:
+
+#% cell
+unique_by([[1, 5], [1, 7], [2, 3]], first)
+#% output
+#= [[1, 5], [2, 3]]
+
+#% section
+# See also
+
+#% text
+# `unique`, `gather_by`, `group_by`

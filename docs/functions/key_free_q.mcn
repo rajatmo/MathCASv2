@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# key_free_q
+
+#% text
+# `key_free_q(a, k)` is `true` when the association `a` does not have the key `k`.
+
+#% section
+# Details
+
+#% item
+# It is `not key_member_q(a, k)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+key_free_q(assoc(a -> 1, b -> 2), c)
+#% output
+#= true
+
+#% cell
+key_free_q(assoc(a -> 1, b -> 2), a)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `key_member_q`, `key_exists`

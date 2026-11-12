@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# graph
+
+#% text
+# `graph(edges)` or `graph(vertices, edges)` is a graph (network); it is shown as its picture.
+
+#% section
+# Details
+
+#% item
+# Edges are `a -> b` (directed), `undirected_edge(a, b)` or `two_way_rule(a, b)`.
+
+#% item
+# Options `graph_layout` ("SpringEmbedding", "CircularEmbedding", "LayeredDigraphEmbedding", or `spring`, `circular`, `layered`) and `vertex_labels: "Name"`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graph([1 -> 2, 2 -> 3, 3 -> 1, 3 -> 4])
+#% output
+#= image("graph.files/graph-1.svgz")
+
+#% text
+# Queries:
+
+#% cell
+g = graph([1 -> 2, 2 -> 3, 3 -> 1, 3 -> 4]); [vertex_count(g), edge_count(g)]
+#% output
+#= [4, 4]
+
+#% subsection
+# Options
+
+#% text
+# A circle with names:
+
+#% cell
+graph([undirected_edge(a, b), undirected_edge(b, c), undirected_edge(c, d)], graph_layout: "CircularEmbedding", vertex_labels: "Name")
+#% output
+#= image("graph.files/graph-3.svgz")
+
+#% section
+# See also
+
+#% text
+# `graph_plot`, `vertex_list`, `complete_graph`

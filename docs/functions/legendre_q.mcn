@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# legendre_q
+
+#% text
+# `legendre_q(n, x)` gives the Legendre function of the second kind Q_n(x) for integer n >= 0.
+
+#% section
+# Details
+
+#% item
+# See the usage above.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+legendre_q(1, x)
+#% output
+#= -1 + (1/2)*x*(log(1 + x) - log(1 - x))
+
+#% cell
+legendre_q(2, 0.5)
+#% output
+#= -0.8186632680417568
+
+#% section
+# See also
+
+#% text
+# `legendre_p`

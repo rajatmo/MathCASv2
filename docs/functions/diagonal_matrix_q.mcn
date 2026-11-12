@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# diagonal_matrix_q
+
+#% text
+# `diagonal_matrix_q(m)` is true when every entry of `m` off the main diagonal is zero; `diagonal_matrix_q(m, k)` when every entry off the `k`-th diagonal is.
+
+#% section
+# Details
+
+#% item
+# The matrix need not be square.
+
+#% item
+# The result is false for anything that is not a matrix.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+diagonal_matrix_q([[1, 0], [0, 2]])
+#% output
+#= true
+
+#% cell
+diagonal_matrix_q([[1, 1], [0, 2]])
+#% output
+#= false
+
+#% cell
+diagonal_matrix_q([[0, 1], [0, 0]], 1)
+#% output
+#= true
+
+#% cell
+diagonal_matrix_q(diagonal_matrix([1, 2, 3]))
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `upper_triangular_matrix_q`, `lower_triangular_matrix_q`, `diagonal_matrix`

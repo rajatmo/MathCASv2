@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# filled_curve
+
+#% text
+# `filled_curve([line(...), bezier_curve(...), ...])`: the region the joined pieces enclose, filled
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+graphics([standard_blue, filled_curve([line([[0, 0], [1, 0]]), bezier_curve([[1, 0], [2, 1], [1, 2], [0, 1]]), line([[0, 1], [0, 0]])])])
+#% output
+#= image("filled_curve.files/filled_curve-1.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

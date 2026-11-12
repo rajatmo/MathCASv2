@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# view_point
+
+#% text
+# `view_point` is an option of `graphics3d` and the 3D plots: `view_point: [x, y, z]` is the point the box is seen from, in units of the box, or one of `front`, `back`, `left`, `right`, `above`, `below`.
+
+#% section
+# Details
+
+#% item
+# The default is `[1.3, -2.4, 2]`, above and in front of the box; only the direction of the point matters.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], view_point: [3, 0, 1])
+#% output
+#= image("view_point.files/view_point-1.svgz")
+
+#% cell
+plot3d(sin(x)*cos(y), [x, 0, 3], [y, 0, 3], view_point: above)
+#% output
+#= image("view_point.files/view_point-2.svgz")
+
+#% cell
+graphics3d(cuboid(), view_point: front)
+#% output
+#= image("view_point.files/view_point-3.svgz")
+
+#% subsection
+# Scope
+
+#% text
+# From below:
+
+#% cell
+plot3d(x^2 - y^2, [x, -1, 1], [y, -1, 1], view_point: [1, -2, -2])
+#% output
+#= image("view_point.files/view_point-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `graphics3d`, `plot3d`, `box_ratios`, `boxed`

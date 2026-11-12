@@ -1,0 +1,60 @@
+#! mathcas 2 notebook
+
+#% title
+# logical_expand
+
+#% text
+# `logical_expand(e)` writes the Boolean combination `e` as a sum of products by distributing `and` over `or`.
+
+#% section
+# Details
+
+#% item
+# An equation whose left side is a series at 0 gives the conjunction of the equations of its coefficients up to the order.
+
+#% item
+# `implies`, `equivalent`, `xor`, `nand` and `nor` are replaced by `and`, `or` and `not`, and negations are pushed to the atoms.
+
+#% item
+# Any other subexpression (an equation, a comparison, a call) is an atom.
+
+#% item
+# Repeated factors and terms that are contradictory or contain another term are dropped; `boolean_convert` finds a smaller form.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+logical_expand((a or b) and (a or c))
+#% output
+#= a or b and c
+
+#% cell
+logical_expand(xor(a, b))
+#% output
+#= a and not b or not a and b
+
+#% subsection
+# Scope
+
+#% text
+# Equations as atoms:
+
+#% cell
+logical_expand((x == 1 or x == 2) and (y == 3 or y == 4))
+#% output
+#= x == 1 and y == 3 or x == 1 and y == 4 or x == 2 and y == 3 or x == 2 and y == 4
+
+#% cell
+logical_expand(not (a and (b or c)))
+#% output
+#= not a or not b and not c
+
+#% section
+# See also
+
+#% text
+# `boolean_convert`, `boolean_minimize`

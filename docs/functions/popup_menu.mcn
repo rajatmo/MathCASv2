@@ -1,0 +1,24 @@
+#! mathcas 2 notebook
+
+#% title
+# popup_menu
+
+#% text
+# `popup_menu(x, [a, b, ...])`: a menu of choices (inert)
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+popup_menu(a, [a, b, c])
+#% output
+#= popup_menu(a, [a, b, c])
+
+#% section
+# See also
+
+#% text
+# `graphics`, `graphics3d`

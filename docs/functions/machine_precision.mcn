@@ -1,0 +1,43 @@
+#! mathcas 2 notebook
+
+#% title
+# machine_precision
+
+#% text
+# `machine_precision` is the precision of machine numbers, `53 log10(2)` = 15.9546 digits.
+
+#% section
+# Details
+
+#% item
+# `n(machine_precision, d)` gives `d` digits of it.
+
+#% item
+# It is a symbolic expression, not a machine number.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+machine_precision
+#% output
+#= 15.954589770191003
+
+#% cell
+n(machine_precision, 30)
+#% output
+#= 15.954589770191003
+
+#% cell
+round(machine_precision)
+#% output
+#= 16
+
+#% section
+# See also
+
+#% text
+# `precision`, `accuracy`
