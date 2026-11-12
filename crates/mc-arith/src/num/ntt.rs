@@ -406,11 +406,11 @@ impl Spectrum {
 fn conv_spectrum(a: &[u64], b: &Spectrum) -> Option<Vec<Vec<u64>>> {
     let n = b.size();
     let mut res = Vec::with_capacity(3);
-    for i in 0..3 {
+    for (i, f) in b.f.iter().enumerate().take(3) {
         if super::stopped() {
             return None;
         }
-        res.push(backward(i, forward(i, a, n), Some(&b.f[i])));
+        res.push(backward(i, forward(i, a, n), Some(f)));
     }
     Some(res)
 }

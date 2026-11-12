@@ -1,0 +1,6 @@
+# The compiler every build uses, here and on the build servers: a new release of the toolchain (new lints, new
+# code generation) arrives when this file changes, not on the day it is published.
+[toolchain]
+channel = "1.99.1"
+components = ["clippy"]
+profile = "minimal"
