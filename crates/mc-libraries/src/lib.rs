@@ -44,6 +44,7 @@ pub use mc_special;
 pub use mc_strings;
 pub use mc_sums;
 pub use mc_transforms;
+pub use mc_wavelets;
 
 use mc_core::Heap;
 use mc_eval::Kernel;
@@ -90,6 +91,7 @@ pub const FUNCTIONS: &[Functions] = &[
     mc_mechanics::FUNCTIONS,
     mc_groups::FUNCTIONS,
     mc_diffalg::FUNCTIONS,
+    mc_wavelets::FUNCTIONS,
 ];
 
 /// A library written in MathCAS.
@@ -132,6 +134,7 @@ pub const SOURCES: &[Source] = &[
     Source { name: "differential algebra", origin: mc_diffalg::ORIGIN, text: mc_diffalg::SOURCE },
     // more of the language library (after the lists library, whose interval helpers it uses)
     Source { name: "more language", origin: mc_langlib::MORE_ORIGIN, text: mc_langlib::MORE_SOURCE },
+    Source { name: "wavelet", origin: mc_wavelets::ORIGIN, text: mc_wavelets::SOURCE },
 ];
 
 /// Register every library's natives with `k`, and the exporters and importers of pictures with `mc-io`. `stop` is

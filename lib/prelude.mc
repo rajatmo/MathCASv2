@@ -774,6 +774,38 @@ fn key_sort_by(f) = a => key_sort_by(a, f)
 fn hamming_distance(a: Str, b: Str) = hamming_distance(characters(a), characters(b))
 fn hamming_distance(a, b) when is_list(a) and is_list(b) and length(a) == length(b) = count_if(range(length(a)), i => a[i] !== b[i])
 
+# edit_distance(a, b): the Levenshtein distance of the strings or lists a and b, the least number of insertions,
+# deletions and substitutions of one element that turn a into b (the dynamic programme of Wagner and Fischer, J. ACM
+# 21 (1974), one row at a time)
+fn edit_distance(a: Str, b: Str) = edit_distance(characters(a), characters(b))
+fn edit_distance(a, b) when is_list(a) and is_list(b) = {
+  let m = length(a)
+  let k = length(b)
+  var row = range(0, k)
+  for i in range(m) {
+    var next = [i]
+    for j in range(k) {
+      next = append(next, min(row[j + 1] + 1, next[j] + 1, row[j] + (if a[i] === b[j] then 0 else 1)))
+    }
+    row = next
+  }
+  row[k + 1]
+}
+
+# chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i| of two vectors (or numbers)
+fn chessboard_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) and length(u) >= 1 = max(map(i => abs(u[i] - v[i]), range(length(u))))
+fn chessboard_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)
+
+# squared_euclidean_distance(u, v): the square sum |u_1 - v_1|^2 + ... of the differences of two vectors (or numbers)
+fn squared_euclidean_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) = total(map(i => abs(u[i] - v[i])^2, range(length(u))))
+fn squared_euclidean_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)^2
+
+# palindrome_q(x): whether the list, the string or the digits of the integer x read the same backwards
+fn palindrome_q(x: Str) = x === string_reverse(x)
+fn palindrome_q(x) when is_list(x) = x === reverse(x)
+fn palindrome_q(x) when is_integer(x) = palindrome_q(integer_digits(x))
+fn palindrome_q(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false
+
 # unique_elements([xs1, xs2, ...]): for each list, its distinct elements that are in none of the other lists
 fn unique_elements(xss) when is_list(xss) and all_true(xss, is_list) =
   map(i => unique(select(xss[i], x => not member(catenate(join(take(xss, i - 1), drop(xss, i))), x))), range(length(xss)))

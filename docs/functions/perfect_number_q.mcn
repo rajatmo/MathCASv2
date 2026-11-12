@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# perfect_number_q
+
+#% text
+# `perfect_number_q(k)` gives true when the integer k is a perfect number, the sum of its proper divisors: sigma_1(k) = 2 k.
+
+#% section
+# Details
+
+#% item
+# The value is false for anything other than a positive integer.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+perfect_number_q(496)
+#% output
+#= true
+
+#% cell
+select(range(10000), perfect_number_q)
+#% output
+#= [6, 28, 496, 8128]
+
+#% cell
+perfect_number_q(2^(7 - 1)*(2^7 - 1))
+#% output
+#= true
+
+#% cell
+perfect_number_q(x)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `perfect_number`, `divisor_sigma`

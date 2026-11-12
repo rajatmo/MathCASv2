@@ -1,0 +1,50 @@
+#! mathcas 2 notebook
+
+#% title
+# bit_shift_left
+
+#% text
+# `bit_shift_left(k, s)` gives the integer k shifted left by s bits, k 2^s; `bit_shift_left(k)` shifts by one bit.
+
+#% section
+# Details
+
+#% item
+# A negative s shifts right, as `bit_shift_right(k, -s)`. Lists thread over k.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bit_shift_left(32, 3)
+#% output
+#= 256
+
+#% cell
+bit_shift_left(32)
+#% output
+#= 64
+
+#% cell
+bit_shift_left([1, 2, 4, 16], 2)
+#% output
+#= [4, 8, 16, 64]
+
+#% cell
+bit_shift_left(2^100 - 1, 7) == (2^100 - 1)*2^7
+#% output
+#= true
+
+#% cell
+bit_shift_left(100, -2)
+#% output
+#= 25
+
+#% section
+# See also
+
+#% text
+# `bit_shift_right`, `bit_length`

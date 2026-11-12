@@ -1,0 +1,72 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_series
+
+#% text
+# `inverse_series(s)` gives the series x(y) with s(x(y)) = y, the reversion of the power series s; `inverse_series(s, y)` writes it in the variable y (by default the variable of s).
+
+#% section
+# Details
+
+#% item
+# When s starts at a constant c, the inverse is a series in y - c. A Puiseux series at 0 (terms c x^p with rational p and an order term) is inverted as a series in x^(1/v), v the common denominator of the exponents. When the first non-constant term of s is a power above 1, (x - x0)^v, the inverse is a series in powers of (y - c)^(1/v).
+
+#% item
+# The coefficients come from the fixed-point iteration x = (u - b_2 x^2 - ...)/b_1 in the series arithmetic, one more correct coefficient a step (the reversion of power series, Knuth, The Art of Computer Programming 2, 4.7).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+inverse_series(series(sin(x), [x, 0, 9]))
+#% output
+#= x + x^3/6 + 3*x^5/40 + 5*x^7/112 + 35*x^9/1152 + O(x^10)
+
+#% cell
+inverse_series(series(sin(x), [x, 0, 9])) - series(asin(x), [x, 0, 9])
+#% output
+#= O(x^10)
+
+#% cell
+inverse_series(1 + 2*x + 3*x^2 + O(x^5), y)
+#% output
+#= (y - 1)/2 - 3*(y - 1)^2/8 + 9*(y - 1)^3/16 - 135*(y - 1)^4/128 + O((y - 1)^5)
+
+#% text
+# A series that starts at x^2 has an inverse in powers of y^(1/2):
+
+#% cell
+inverse_series(x^2 + 3*x^4 + O(x^8))
+#% output
+#= x^(1/2) - (3/2)*x^(3/2) + (63/8)*x^(5/2) + O(x^(7/2))
+
+#% text
+# The inverse of a Puiseux series:
+
+#% cell
+inverse_series(inverse_series(x^2 + 3*x^4 + O(x^8)))
+#% output
+#= x^2 + 3*x^4 + O(x^8)
+
+#% text
+# Composing a series with its inverse gives the identity:
+
+#% cell
+compose_series(inverse_series(series(tan(x), [x, 0, 9])), series(tan(x), [x, 0, 9]))
+#% output
+#= x + O(x^10)
+
+#% cell
+inverse_series(series(f(x), [x, a, 2]))
+#% output
+#= a + f'(a)^-1*(x - f(a)) + -f''(a)/(2*f'(a)^3)*(x - f(a))^2 + O((x - f(a))^3)
+
+#% section
+# See also
+
+#% text
+# `series`, `compose_series`, `inverse_function`

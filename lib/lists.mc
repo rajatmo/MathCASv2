@@ -57,6 +57,26 @@ fn from_polar_coordinates(p) when is_list(p) and length(p) >= 1 and not is_list(
 fn from_polar_coordinates(ps) when is_list(ps) and length(ps) >= 1 and is_list(ps[1]) = map(from_polar_coordinates, ps)
 fn from_polar_coordinates(ps) when is_list(ps) and length(ps) == 0 = []
 
+# permute(xs, p): the list xs with its element i moved to position p[i], for a permutation list p (the positions
+# beyond length(p) stay) or a permutation in cycles form (cycles([[1, 3, 2]]) moves element 1 to 3, 3 to 2, 2 to 1)
+fn permute(xs, p) when is_list(xs) and not is_atom(p) and head(p) === cycles = permute(xs, permutation_list(p, length(xs)))
+fn permute(xs, p) when is_list(xs) and is_list(p) and length(p) <= length(xs) and sort(p) == range(length(p)) = {
+  let k = length(xs)
+  let q = join(p, range(length(p) + 1, k))
+  let inv = ordering(q)
+  map(j => xs[inv[j]], range(k))
+}
+
+# to_polar_coordinates([x1, ..., xn]): the hyperspherical coordinates [r, theta1, ..., theta_(n-1)] of the point, the
+# inverse of from_polar_coordinates: r = |x|, theta_k = acos(x_k/sqrt(x_k^2 + ... + x_n^2)) for k < n - 1 and the
+# last angle atan(x_(n-1), x_n) in (-pi, pi]; a list of points maps over it
+fn to_polar_coordinates(p) when is_list(p) and length(p) >= 2 and not is_list(p[1]) = {
+  let k = length(p)
+  let tail = j => sqrt(total(map(i => p[i]^2, range(j, k))))
+  join([tail(1)], map(j => acos(p[j]/tail(j)), range(k - 2)), [atan(p[k - 1], p[k])])
+}
+fn to_polar_coordinates(ps) when is_list(ps) and length(ps) >= 1 and is_list(ps[1]) = map(to_polar_coordinates, ps)
+
 # --- matrix predicates ---
 
 # b29_zero_matrix(d, scale): whether every entry of d is zero (up to rounding when inexact)
@@ -64,6 +84,45 @@ fn b29_zero_matrix(d, scale) = every(flatten(d), x => x === 0 or (is_inexact(x) 
 
 # symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
 fn symmetric_matrix_q(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - transpose(m), max(map(abs, flatten(m))))
+
+# hermitian_matrix_q(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
+fn hermitian_matrix_q(m) = is_matrix(m) and length(m) == length(m[1]) and b29_zero_matrix(m - conjugate(transpose(m)), max(map(abs, flatten(m))))
+
+# diagonalizable_matrix_q(m): whether the square exact matrix m is diagonalizable over the complex numbers, that is
+# whether its minimal polynomial has no repeated factor; that holds when the square-free part s = p/gcd(p, p') of the
+# characteristic polynomial p annihilates m (s(m) = 0), as s divides every polynomial with the roots of p (Horn and
+# Johnson, Matrix analysis, 3.3.10); unevaluated for inexact entries
+fn diagonalizable_matrix_q(m) when is_matrix(m) and length(m) == length(m[1]) and not is_inexact(total(flatten(m))) = {
+  let p = characteristic_polynomial(m, r38_t)
+  let s = cancel(p/polynomial_gcd(p, d(p, r38_t)))
+  let cs = coefficient_list(expand(s), r38_t)
+  let k = length(m)
+  var acc = 0*m
+  var pw = identity_matrix(k)
+  for i in range(length(cs)) {
+    acc = acc + cs[i]*pw
+    pw = dot(pw, m)
+  }
+  every(flatten(acc), x => possible_zero_q(x))
+}
+fn diagonalizable_matrix_q(m) when is_matrix(m) and length(m) != length(m[1]) = false
+
+# pauli_matrix(k): the Pauli matrix sigma_k for k = 1, 2, 3 and the identity matrix for k = 0; a list maps
+fn pauli_matrix(k) when k === 0 = [[1, 0], [0, 1]]
+fn pauli_matrix(k) when k === 1 = [[0, 1], [1, 0]]
+fn pauli_matrix(k) when k === 2 = [[0, -im], [im, 0]]
+fn pauli_matrix(k) when k === 3 = [[1, 0], [0, -1]]
+fn pauli_matrix(ks) when is_list(ks) = map(pauli_matrix, ks)
+
+# fourier_matrix(n): the n x n matrix of the discrete Fourier transform, F[s][r] = n^((a - 1)/2) exp(2 pi i b (r -
+# 1)(s - 1)/n) with fourier_parameters: [a, b] (default [0, 1], the convention of fourier), so that dot(F, u) is
+# fourier(u)
+fn fourier_matrix(n; fourier_parameters = [0, 1]) when is_integer(n) and n >= 1 = {
+  let a = fourier_parameters[1]
+  let b = fourier_parameters[2]
+  # the exponent reduced mod n at an integer b (exp is periodic), which keeps the entries small roots of unity
+  table(n^((a - 1)/2)*exp(2*pi*im*b*(if is_integer(b) then mod((r - 1)*(s - 1), n) else (r - 1)*(s - 1))/n), [s, 1, n], [r, 1, n])
+}
 
 # b29_numeric_matrix(m): whether every entry of the matrix m is a number
 fn b29_numeric_matrix(m) = every(flatten(m), x => is_number(x))

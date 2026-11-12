@@ -1,0 +1,54 @@
+#! mathcas 2 notebook
+
+#% title
+# continuous_wavelet_transform
+
+#% text
+# `continuous_wavelet_transform(data)` gives the continuous wavelet transform of a list with the Morlet wavelet; `continuous_wavelet_transform(data, w)` uses the wavelet w and `continuous_wavelet_transform(data, w, [noct, nvoc])` noct octaves of nvoc voices. The result is a `continuous_wavelet_data` object with the coefficient lists indexed by [octave, voice].
+
+#% section
+# Details
+
+#% item
+# The scale of [j, v] is 2 2^(j - 1 + (v - 1)/nvoc) sampling steps; by default noct = integer_length(n, 2) - 2 (at least 1) and nvoc = 4. The coefficients are W_s(t) = sum over the Fourier coefficients of the data times the conjugate Fourier transform of the wavelet at the scale s (Torrence and Compo, Bulletin of the American Meteorological Society 79, 1998), computed with the fast Fourier transform.
+
+#% item
+# The wavelets: `morlet_wavelet`, `gabor_wavelet`, `paul_wavelet`, `d_gaussian_wavelet`, `mexican_hat_wavelet`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+c = continuous_wavelet_transform([56, 40, 8, 24, 48, 48, 40, 16])
+
+#% cell
+c("IndexMap")
+#% output
+#= [[1, 1], [1, 2], [1, 3], [1, 4], [2, 1], [2, 2], [2, 3], [2, 4]]
+
+#% cell
+chop(inverse_continuous_wavelet_transform(c) - [56, 40, 8, 24, 48, 48, 40, 16])
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0]
+
+#% text
+# The scale with the largest response to a sinusoid of period 16 samples:
+
+#% cell
+{ let c = continuous_wavelet_transform(n(sin(2*pi*range(256)/16)), morlet_wavelet(), [6, 4]); let ks = c("IndexMap"); let e = map(k => total(abs(c(k)[1][2])^2), ks); ks[ordering(e)[-1]] }
+#% output
+#= [4, 1]
+
+#% cell
+wavelet_scalogram(continuous_wavelet_transform(table(sin(x^2), [x, 0, 10, 0.02]), mexican_hat_wavelet(), [6, 4]))
+#% output
+#= image("continuous_wavelet_transform.files/continuous_wavelet_transform-5.svgz")
+
+#% section
+# See also
+
+#% text
+# `inverse_continuous_wavelet_transform`, `wavelet_scalogram`, `morlet_wavelet`

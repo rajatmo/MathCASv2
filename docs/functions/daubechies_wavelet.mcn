@@ -1,0 +1,44 @@
+#! mathcas 2 notebook
+
+#% title
+# daubechies_wavelet
+
+#% text
+# `daubechies_wavelet(n)` is the orthonormal wavelet of Daubechies with n vanishing moments and a filter of 2 n taps; `daubechies_wavelet()` is `daubechies_wavelet(2)` and `daubechies_wavelet(1)` the Haar wavelet.
+
+#% section
+# Details
+
+#% item
+# The low-pass filter comes from the spectral factorisation |m0(w)|^2 = cos(w/2)^(2n) P(sin(w/2)^2), P(y) = sum_(k < n) binomial(n - 1 + k, k) y^k (Daubechies, Ten Lectures on Wavelets, 6.1), with the roots outside the unit circle: the extremal-phase filter, its largest taps first. n runs from 1 to 20.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = discrete_wavelet_transform(n(range(16)), daubechies_wavelet(2), 1)
+
+#% text
+# A wavelet with two vanishing moments annihilates a linear signal: the detail coefficients vanish away from the periodic wrap-around:
+
+#% cell
+chop(d([1])[1][2])
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, -5.656854249492381]
+
+#% text
+# The reconstruction is exact:
+
+#% cell
+chop(inverse_wavelet_transform(discrete_wavelet_transform(n(range(20)^2), daubechies_wavelet(4))) - n(range(20)^2))
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `haar_wavelet`, `discrete_wavelet_transform`, `stationary_wavelet_transform`

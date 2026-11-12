@@ -101,3 +101,13 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   the library's integer functions (prime, prime_pi, euler_phi, carmichael_lambda, moebius_mu, liouville_lambda,
   prime_nu, prime_omega, partitions_p/q, bell_b, catalan_number, euler_e, the group counts, divisor_sigma(0..3),
   squares_r(2..4), mod(n, k)): the first whose values at 1..m are all m terms (m >= 6, a period seen twice).
+
+## Round 38: bits, perfect numbers, linear recurrences
+
+- `bit_set`, `bit_clear` through `bit_or`/`bit_and` with 2^i (two's complement for negative k), `bit_shift_left` as
+  k 2^s (a negative s shifts right with the floor), all threading over lists.
+- `perfect_number_q(k)`: sigma_1(k) = 2 k for positive integers, false otherwise.
+- `find_linear_recurrence(xs)`, `(xs, d)`: the Berlekamp-Massey algorithm (Massey, IEEE Trans. Inform. Theory 15,
+  1969) over the exact numbers of the list. Decision: a recurrence of order L counts as found only when the list is
+  longer than the 2 L terms that determine it (a generic list of 2 L terms has linear complexity L, so 2 L terms
+  check nothing); otherwise `failure(no_recurrence)`.

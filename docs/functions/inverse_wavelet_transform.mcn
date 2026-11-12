@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_wavelet_transform
+
+#% text
+# `inverse_wavelet_transform(d)` gives the data from the discrete wavelet data d (of the discrete, packet or stationary transform), from the coefficients of its leaves.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = n(table(cos(k/3) + k/10, [k, 20]))
+
+#% cell
+chop(inverse_wavelet_transform(discrete_wavelet_transform(x, daubechies_wavelet(3))) - x)
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+#% text
+# Thresholding the details removes the fine structure:
+
+#% cell
+{ let d = discrete_wavelet_transform(x, haar_wavelet(), 2); let e = wavelet_map_indexed(c => 0*c, d, [1]); take(inverse_wavelet_transform(e), 4) }
+#% output
+#= [1.015422103545843, 1.015422103545843, 0.7377699395855646, 0.7377699395855646]
+
+#% section
+# See also
+
+#% text
+# `discrete_wavelet_transform`, `stationary_wavelet_transform`, `wavelet_map_indexed`

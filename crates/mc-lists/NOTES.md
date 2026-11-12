@@ -726,3 +726,17 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
 - Left: `alphabetic_sort` in other languages (collation tables), `groupings` with operator heads given as options,
   the `evaluation_monitor` of the optimizers (options are evaluated before the call, so `sow(x)` runs once), the
   missing-key result (`failure(missing_key, k)` is documented design). Tests: `mc-engine/tests/round38_lists.rs`.
+## Round 38: matrix predicates, named matrices, permutations, polar coordinates
+
+Source in `lib/lists.mc`.
+
+- `hermitian_matrix_q` as `symmetric_matrix_q` with the conjugate transpose.
+- `diagonalizable_matrix_q(m)` for exact matrices: the square-free part s = p/gcd(p, p') of the characteristic
+  polynomial p annihilates m exactly when the minimal polynomial has simple roots (Horn and Johnson, Matrix analysis,
+  3.3); s(m) by Horner's scheme in exact arithmetic, zero tested with `possible_zero_q`. Inexact matrices stay
+  unevaluated (a rank decision of a rounded matrix is not certain).
+- `pauli_matrix(k)` (k = 0 the identity), `fourier_matrix(n)` with the conventions of `fourier`
+  (`fourier_parameters: [a, b]`), the exponent reduced mod n at integer b.
+- `permute(xs, p)`: element i moves to position p[i] (cycles through `permutation_list`); positions beyond p stay.
+- `to_polar_coordinates`: the inverse of `from_polar_coordinates` (acos of the ratios to the tail norms, `atan` of
+  the last two coordinates).

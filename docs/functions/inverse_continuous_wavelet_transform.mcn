@@ -1,0 +1,47 @@
+#! mathcas 2 notebook
+
+#% title
+# inverse_continuous_wavelet_transform
+
+#% text
+# `inverse_continuous_wavelet_transform(c)` gives the data from the continuous wavelet data c; `inverse_continuous_wavelet_transform(c, w, sel)` the part of the data carried by the selected scales.
+
+#% section
+# Details
+
+#% item
+# Every scale is a convolution, so the least-squares inverse is a ratio in each Fourier coefficient: x_k = sum_s Psi_s(w_k) W_s(w_k)/sum_s |Psi_s(w_k)|^2. The frequencies that the scales hardly reach (below 1e-4 of the largest sum, the constant part among them) are kept in the data object, so the whole inverse reproduces the data to rounding. With a selection the kept part is left out.
+
+#% item
+# w must be the wavelet of the transform (or `automatic`). The option `method: "LeastSquares"` names this method, the only one.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = n(table(sin(k/5) + sin(k), [k, 100]))
+
+#% cell
+c = continuous_wavelet_transform(x, gabor_wavelet(), [6, 4])
+
+#% cell
+norm(inverse_continuous_wavelet_transform(c) - x) < 1e-10
+#% output
+#= true
+
+#% text
+# The coarse octaves alone keep the slow oscillation:
+
+#% cell
+list_line_plot(inverse_continuous_wavelet_transform(c, automatic, [5 | 6, _]))
+#% output
+#= image("inverse_continuous_wavelet_transform.files/inverse_continuous_wavelet_transform-4.svgz")
+
+#% section
+# See also
+
+#% text
+# `continuous_wavelet_transform`, `wavelet_map_indexed`

@@ -49,3 +49,4 @@ mc-groups = { path = "../mc-groups" }
 mc-langlib = { path = "../mc-langlib" }
 mc-mechanics = { path = "../mc-mechanics" }
 mc-diffalg = { path = "../mc-diffalg" }
+mc-wavelets = { path = "../mc-wavelets" }

@@ -1,0 +1,64 @@
+#! mathcas 2 notebook
+
+#% title
+# find_linear_recurrence
+
+#% text
+# `find_linear_recurrence(xs)` gives the coefficients [c1, ..., cL] of the shortest linear recurrence x_n = c1 x_(n-1) + ... + cL x_(n-L) with constant coefficients that the list xs of exact numbers or expressions satisfies; `find_linear_recurrence(xs, d)` looks only for orders up to d.
+
+#% section
+# Details
+
+#% item
+# The recurrence comes from the algorithm of Berlekamp and Massey (Massey, IEEE Transactions on Information Theory 15, 1969). It counts as found only when the list checks it beyond the 2 L terms that determine it; otherwise the result is a failure.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+find_linear_recurrence(table(2^k, [k, 10]))
+#% output
+#= [2]
+
+#% cell
+find_linear_recurrence(table(fibonacci(k), [k, 10]))
+#% output
+#= [1, 1]
+
+#% cell
+find_linear_recurrence(table(fibonacci(k)*fibonacci(k - 1)^2, [k, 12]))
+#% output
+#= [3, 6, -3, -1]
+
+#% text
+# The recurrence reproduces the list with `linear_recurrence`:
+
+#% cell
+{ let xs = table(k^3 + 2^k, [k, 12]); let c = find_linear_recurrence(xs); linear_recurrence(c, take(xs, length(c)), 12) == xs }
+#% output
+#= true
+
+#% text
+# Entries in symbols:
+
+#% cell
+find_linear_recurrence(table(a^k + k*b^k, [k, 10]))
+#% output
+#= [a + 2*b, -b^2 - 2*a*b, a*b^2]
+
+#% text
+# A list too short to check a recurrence:
+
+#% cell
+find_linear_recurrence([1, 2, 4, 9])
+#% output
+#! failure(no_recurrence)
+
+#% section
+# See also
+
+#% text
+# `linear_recurrence`, `find_generating_function`, `find_sequence_function`

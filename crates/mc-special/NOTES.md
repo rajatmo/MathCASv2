@@ -955,3 +955,15 @@ against `n(exact, 40)`, speed of 400-point tables, lattice conventions, values o
   e pi Q(-m - 1, 1)/sin(pi m), where the product of an underflow and an overflow gave `indeterminate` (m = -1000.5).
   Not reproduced: "1.5 s a value" at machine arguments (0.15 s here); a 5000-digit m takes 30 s in gamma (Stirling
   at 5000 digits).
+
+## Round 38: characteristic values of the odd Mathieu functions
+
+`mathieu_characteristic_b(r, q)` (`src/mathieu.rs`) reduces to the even values where it can: at odd r,
+b_(2n+1)(q) = a_(2n+1)(-q) (DLMF 28.2.26); at a real r that is not an integer the value with characteristic
+exponent r, which is a_r(q) (DLMF 28.12(i)); b_(-r) = b_r. At even r >= 2 it uses b_(2n+2)(-q) = b_(2n+2)(q)
+(DLMF 28.2.27) and the method of `mathieu_characteristic_a` with the odd solution (y(0) = 0, y'(0) = 1): the start
+is the eigenvalue of the truncated tridiagonal matrix of the coefficients B_(2m+2) (DLMF 28.4.8), refined by the
+secant method on y(pi/2), in double-double numbers for machine arguments and in ball arithmetic otherwise. Beyond
+|q| = 1e5 the large-q expansion is the one of a_(r-1) (DLMF 28.8.1: b_(m+1) and a_m share it). b_0 does not exist and
+stays unevaluated. The tests compare with the eigenvalues of the truncated matrices (`eigenvalues`), with the
+small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.

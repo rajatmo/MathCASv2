@@ -164,6 +164,16 @@ vector_angle	core	Language	vector_angle(u, v): the angle acos(u . v/(|u| |v|)) b
 manhattan_distance	core	Language	manhattan_distance(u, v): the sum of the absolute differences of the entries of u and v
 from_polar_coordinates	core	Language	from_polar_coordinates([r, t1, ..., tk]): the Cartesian point of hyperspherical coordinates; a list of points maps
 symmetric_matrix_q	core	Language	symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)
+hermitian_matrix_q	core	Language	hermitian_matrix_q(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)
+diagonalizable_matrix_q	core	Language	diagonalizable_matrix_q(m): whether the exact square matrix m is diagonalizable over the complex numbers
+pauli_matrix	core	Language	pauli_matrix(k): the Pauli matrix sigma_k (k = 1, 2, 3), the identity for k = 0
+fourier_matrix	core	Language	fourier_matrix(n): the n x n matrix of the discrete Fourier transform (fourier_parameters: [a, b])
+permute	core	Language	permute(xs, p): xs with element i moved to position p[i] (a permutation list or cycles)
+to_polar_coordinates	core	Language	to_polar_coordinates([x1, ..., xn]): the hyperspherical coordinates [r, theta1, ...] of the point; a list of points maps
+edit_distance	core	Language	edit_distance(a, b): the Levenshtein distance of two strings or lists
+chessboard_distance	core	Language	chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i|
+squared_euclidean_distance	core	Language	squared_euclidean_distance(u, v): the sum of |u_i - v_i|^2
+palindrome_q	core	Language	palindrome_q(x): whether the list, string or digits of the integer x read the same backwards
 positive_definite_matrix_q	core	Language	positive_definite_matrix_q(m): whether the Hermitian matrix m is positive definite (Sylvester's criterion)
 permanent	core	Language	permanent(m): the permanent of the matrix m (Ryser's formula)
 shearing_matrix	core	Language	shearing_matrix(theta, v, w): the matrix of the shear by the angle theta along the direction v normal to w
@@ -479,6 +489,11 @@ roman_numeral	symbolic	Number sequences	roman_numeral(k): the Roman numeral of k
 from_roman_numeral	symbolic	Number sequences	from_roman_numeral(s): the integer of a Roman numeral
 norlund_b	symbolic	Number sequences	norlund_b(m, a), norlund_b(m, a, x): the Norlund (generalised Bernoulli) number (polynomial)
 chinese_remainder	symbolic	Number sequences	chinese_remainder(rs, ms), (rs, ms, d): the least x with x = r_i mod m_i
+bit_set	symbolic	Number sequences	bit_set(k, i): k with bit i set to 1
+bit_clear	symbolic	Number sequences	bit_clear(k, i): k with bit i set to 0
+bit_shift_left	symbolic	Number sequences	bit_shift_left(k, s), (k): k shifted left by s bits (one bit), k 2^s
+perfect_number_q	symbolic	Number sequences	perfect_number_q(k): whether the integer k is a perfect number
+find_linear_recurrence	symbolic	Number sequences	find_linear_recurrence(xs), (xs, d): the coefficients of the shortest linear recurrence with constant coefficients that the list satisfies
 farey_sequence	symbolic	Number sequences	farey_sequence(k), farey_sequence(k, j): the Farey sequence of order k (its j-th term)
 convergents	symbolic	Number sequences	convergents(x), convergents(x, k), convergents(terms): the convergents of a continued fraction
 mantissa_exponent	symbolic	Number sequences	mantissa_exponent(x), (x, b): [m, e] with x = m b^e and 1/b <= |m| < 1
@@ -1164,6 +1179,10 @@ partial_fraction_elements	symbolic	Calculus	partial_fraction_elements(r, x), (r,
 polynomial_reduction	symbolic	Calculus	polynomial_reduction(p, [g1, ...], xs): the remainder of p on division by the gi
 symmetric_reduction	symbolic	Calculus	symmetric_reduction(f, xs), (f, xs, ss): [p, q] with f = p + q, p a polynomial in the elementary symmetric polynomials (or the names ss), q the remainder
 find_generating_function	symbolic	Calculus	find_generating_function(a, x): a rational generating function of the list a, from the shortest linear recurrence with constant coefficients
+polynomial_q	symbolic	Calculus	polynomial_q(e, x), (e, [x1, ...]), (e): whether e is a polynomial in the variables, with coefficients free of their symbols
+solve_always	symbolic	Calculus	solve_always(eqs, vars): the values of the other symbols for which the polynomial equations hold for every value of vars
+compose_series	symbolic	Calculus	compose_series(f, g), (f, g, h, ...): the power series f(g(x)) of the series f and g (g at the expansion point of f)
+inverse_series	symbolic	Calculus	inverse_series(s), (s, y): the series x(y) with s(x(y)) = y, a Puiseux series when s starts at a power above 1
 integrate_change_variables	symbolic	Calculus	integrate_change_variables(inactive(integrate)(f, x), u, eq): the inactive integral in the new variable u related to x by eq (limits mapped); [u, v], [eq1, eq2] with the Jacobian
 radon_transform	symbolic	Calculus	radon_transform(f, [x, y], [p, phi]): the integral of f over the line x cos(phi) + y sin(phi) = p
 asymptotic_integrate	symbolic	Calculus	asymptotic_integrate(f, [t, a, b], [x, x0, k]): the expansion of the integral to order k in x at x0; x -> x0 the leading term
@@ -1373,6 +1392,25 @@ vector_greater	symbolic	Root finding	vector_greater([a, b]): a > b componentwise
 vector_less_equal	symbolic	Root finding	vector_less_equal([a, b]): a <= b componentwise
 vector_less	symbolic	Root finding	vector_less([a, b]): a < b componentwise
 n_integrate	symbolic	Numerical integration	n_integrate(f, [x, a, b]): the integral of f from a to b (a, b may be -inf, inf); [x, a, s1, ..., b] splits at s1, ...; more ranges [y, c(x), d(x)] for multiple integrals (adaptive cubature for 2 to 7 variables, lattice quasi-Monte Carlo or VEGAS above); method: gauss_kronrod | double_exponential | nested | cubature | vegas | lattice | sobol | monte_carlo; precision_goal, accuracy_goal, max_points, points, iterations, seed; sampling methods give around(value, error); digits: d for a ball whose radius is an error estimate; rigorous: true for a ball guaranteed to contain the integral
+haar_wavelet	symbolic	Wavelets	haar_wavelet(): the Haar wavelet, the orthonormal filter [1, 1]/sqrt(2)
+daubechies_wavelet	symbolic	Wavelets	daubechies_wavelet(n): the orthonormal Daubechies wavelet with n vanishing moments (2 n taps); daubechies_wavelet() is n = 2
+discrete_wavelet_transform	symbolic	Wavelets	discrete_wavelet_transform(data), (data, w), (data, w, r): the r-level discrete wavelet transform of a list or matrix (padding: "Periodic", a number, "Fixed", "Reflected")
+discrete_wavelet_packet_transform	symbolic	Wavelets	discrete_wavelet_packet_transform(data), (data, w), (data, w, r): the wavelet packet transform, every node split
+stationary_wavelet_transform	symbolic	Wavelets	stationary_wavelet_transform(data), (data, w), (data, w, r): the undecimated (stationary) wavelet transform of a list or matrix
+inverse_wavelet_transform	symbolic	Wavelets	inverse_wavelet_transform(d): the data reconstructed from the discrete wavelet data d
+discrete_wavelet_data	symbolic	Wavelets	discrete_wavelet_data(coefficients, info): the coefficients of a discrete wavelet transform; d(all), d(automatic), d(index), d(pattern), d("Wavelet"), ...
+continuous_wavelet_transform	symbolic	Wavelets	continuous_wavelet_transform(data), (data, w), (data, w, [noct, nvoc]): the continuous wavelet transform of a list over noct octaves of nvoc voices
+inverse_continuous_wavelet_transform	symbolic	Wavelets	inverse_continuous_wavelet_transform(c), (c, w), (c, w, sel): the data from continuous wavelet coefficients (least squares), or the part of the selected scales
+continuous_wavelet_data	symbolic	Wavelets	continuous_wavelet_data(coefficients, info): the coefficients of a continuous wavelet transform by [octave, voice]; c(all), c(index), c("Scales"), ...
+morlet_wavelet	symbolic	Wavelets	morlet_wavelet(w0): the analytic Morlet wavelet of central frequency w0 (default 6)
+gabor_wavelet	symbolic	Wavelets	gabor_wavelet(w0): the Gabor wavelet, a Gaussian-windowed complex exponential of frequency w0 (default 6)
+paul_wavelet	symbolic	Wavelets	paul_wavelet(m): the Paul wavelet of order m (default 4)
+d_gaussian_wavelet	symbolic	Wavelets	d_gaussian_wavelet(m): the m-th derivative of a Gaussian as a wavelet (default 2)
+mexican_hat_wavelet	symbolic	Wavelets	mexican_hat_wavelet(sigma): the Mexican hat wavelet (the second derivative of a Gaussian) at the scale sigma (default 1)
+wavelet_map_indexed	symbolic	Wavelets	wavelet_map_indexed(f, d), (f, d, sel): the wavelet data d with f(c, index) applied to the selected coefficient arrays
+wavelet_list_plot	symbolic	Wavelets	wavelet_list_plot(d), (d, sel), (d, sel, f): the coefficients of discrete wavelet data of a list, one plot per index
+wavelet_matrix_plot	symbolic	Wavelets	wavelet_matrix_plot(d), (d, r), (d, sel, f): the coefficients of discrete wavelet data of a matrix, tiled as stored
+wavelet_scalogram	symbolic	Wavelets	wavelet_scalogram(d), (d, sel), (d, sel, f): the magnitude of wavelet coefficients against time and scale
 ratios	symbolic	Numerics library	ratios(xs): the successive ratios xs[i + 1]/xs[i]; ratios(xs, k): k times; ratios(xs, [k1, k2, ...]): k1 times at level 1, k2 at level 2, ...
 linear_recurrence	symbolic	Numerics library	linear_recurrence(ker, init, n): the first n terms of a[k] = ker[1] a[k - 1] + ... + ker[d] a[k - d] from init; (ker, init, [m]), (ker, init, [m1, m2]): term m, terms m1 to m2 (m1 <= 0 runs backwards)
 threshold	symbolic	Numerics library	threshold(data), (data, delta), (data, ["Hard" | "Soft" | "Firm" | "PiecewiseGarrote" | "SmoothGarrote" | "Hyperbola", delta, ...]), (data, ["LargestValues", k]): data with the small values set to zero
@@ -1751,6 +1789,7 @@ mathieu_s	higher	Special functions	mathieu_s(a, q, z): the odd Mathieu function,
 mathieu_s_prime	higher	Special functions	mathieu_s_prime(a, q, z): the derivative of the odd Mathieu function mathieu_s(a, q, z) in z
 mathieu_c_prime	higher	Special functions	mathieu_c_prime(a, q, z): the derivative of the even Mathieu function mathieu_c(a, q, z) in z
 mathieu_characteristic_a	higher	Special functions	mathieu_characteristic_a(r, q): the characteristic value a_r(q) of the even Mathieu functions
+mathieu_characteristic_b	higher	Special functions	mathieu_characteristic_b(r, q): the characteristic value b_r(q) of the odd Mathieu functions
 spheroidal_eigenvalue	higher	Special functions	spheroidal_eigenvalue(n, m, gamma): the spheroidal eigenvalue lambda of degree n and order m, the separation constant of the spheroidal wave equation
 spheroidal_ps	higher	Special functions	spheroidal_ps(n, m, gamma, x): the angular spheroidal function of the first kind Ps^m_n(x, gamma^2)
 stieltjes_gamma	higher	Special functions	stieltjes_gamma(n): the Stieltjes constant gamma_n, the coefficients of the Laurent series of zeta at 1; stieltjes_gamma(n, a): the generalized constant of the Hurwitz zeta function

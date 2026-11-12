@@ -1,0 +1,51 @@
+#! mathcas 2 notebook
+
+#% title
+# solve_always
+
+#% text
+# `solve_always(eqs, x)` gives the values of the other symbols for which the equations hold for every value of the variables x (a symbol or a list): the solutions of the system that sets every coefficient of the equations, as polynomials in x, to zero.
+
+#% section
+# Details
+
+#% item
+# The equations are polynomial or rational in the variables; a rational equation counts through the numerator of lhs - rhs after `together`. The solutions are those of `solve`, as a list of lists of rules. When there are more symbols than coefficient equations, the first symbols in the canonical order are solved for in terms of the others.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+solve_always(1 + 2*x + 3*x^2 == a + b*x + c*x^2, x)
+#% output
+#= [[a -> 1, b -> 2, c -> 3]]
+
+#% cell
+solve_always((a - 2*b + 1)*x^2 + (a - b^2 - c)*x == a^2 - b + 3*c - 1, x)
+#% output
+#= [[a -> -2 - 13^(1/2), b -> (1/2)*(-1 - 13^(1/2)), c -> (1/2)*(-11 - 3*13^(1/2))], [a -> -2 + 13^(1/2), b -> (1/2)*(-1 + 13^(1/2)), c -> (1/2)*(-11 + 3*13^(1/2))]]
+
+#% text
+# The coefficients of a cubic from its roots:
+
+#% cell
+solve_always(x^3 + a*x^2 + b*x + c == (x - r)*(x - s)*(x - t), x)
+#% output
+#= [[a -> -r - s - t, b -> r*s + r*t + s*t, c -> -r*s*t]]
+
+#% text
+# An identity in two variables:
+
+#% cell
+solve_always(a*x + b*y + c*x*y == 2*x - y, [x, y])
+#% output
+#= [[a -> 2, b -> -1, c -> 0]]
+
+#% section
+# See also
+
+#% text
+# `solve`, `coefficient_rules`

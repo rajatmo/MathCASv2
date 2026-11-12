@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# wavelet_map_indexed
+
+#% text
+# `wavelet_map_indexed(f, d)` gives the wavelet data d (discrete or continuous) with every coefficient array c replaced by f(c, index) for a function of two parameters, by f(c) otherwise; `wavelet_map_indexed(f, d, sel)` changes only the selected arrays.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = discrete_wavelet_transform([1, 2, 3, 4], haar_wavelet(), 1)
+
+#% cell
+wavelet_map_indexed(c => 2*c, d)(all)
+#% output
+#= [[0] -> [4.242640687119286, 9.899494936611667], [1] -> [-1.4142135623730951, -1.414213562373095]]
+
+#% cell
+wavelet_map_indexed((c, k) => if k === [1] then 0*c else c, d)(all)
+#% output
+#= [[0] -> [2.121320343559643, 4.949747468305834], [1] -> [-0.0, -0.0]]
+
+#% section
+# See also
+
+#% text
+# `inverse_wavelet_transform`, `inverse_continuous_wavelet_transform`

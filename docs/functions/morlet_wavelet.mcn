@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# morlet_wavelet
+
+#% text
+# `morlet_wavelet(w0)` is the analytic Morlet wavelet of central frequency w0 (default 6) for `continuous_wavelet_transform`: in frequency pi^(-1/4) exp(-(s w - w0)^2/2) for w > 0 and 0 for w < 0 (Torrence and Compo, 1998, table 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+c = continuous_wavelet_transform(n(cos(range(64)/2)), morlet_wavelet(), [3, 2])
+
+#% cell
+c("Wavelet")
+#% output
+#= morlet_wavelet(6)
+
+#% section
+# See also
+
+#% text
+# `gabor_wavelet`, `continuous_wavelet_transform`

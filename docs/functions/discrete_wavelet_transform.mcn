@@ -1,0 +1,68 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_wavelet_transform
+
+#% text
+# `discrete_wavelet_transform(data)` gives the discrete wavelet transform of a list or a matrix of numbers with the Haar wavelet; `discrete_wavelet_transform(data, w)` uses the wavelet w (`haar_wavelet()`, `daubechies_wavelet(n)`), `discrete_wavelet_transform(data, w, r)` r levels. The result is a `discrete_wavelet_data` object.
+
+#% section
+# Details
+
+#% item
+# Each level filters the data with the low-pass and high-pass filters of w and keeps every second value (periodized filtering, Mallat, A Wavelet Tour of Signal Processing, 7.5). The coefficients have the indices [0] (approximation) and [1] (detail) at the first level, [0, 0] and [0, 1] for the split of [0], and so on; for a matrix the indices 0 to 3 stand for low-low, high along the columns, high along the rows and high-high.
+
+#% item
+# The option `padding` sets how the data are extended at the right end before filtering: "Periodic" (default), a number, "Fixed" (the last value) or "Reflected". The transform is orthogonal for every padding, so `inverse_wavelet_transform` gives the data back.
+
+#% item
+# By default there are floor(log2(n/(L - 1))) levels (at least 1) for data of shortest side n and a filter of L taps. The computation is in machine numbers.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = discrete_wavelet_transform([1, 2, 3, 4, 5, 6, 7, 8], haar_wavelet(), 2)
+
+#% cell
+d(all)
+#% output
+#= [[0] -> [2.121320343559643, 4.949747468305834, 7.778174593052023, 10.606601717798213], [1] -> [-0.7071067811865476, -0.7071067811865475, -0.7071067811865479, -0.7071067811865479], [0, 0] -> [5.000000000000001, 13.000000000000002], [0, 1] -> [-2.000000000000001, -2.0]]
+
+#% cell
+d(automatic)
+#% output
+#= [[1] -> [-0.7071067811865476, -0.7071067811865475, -0.7071067811865479, -0.7071067811865479], [0, 0] -> [5.000000000000001, 13.000000000000002], [0, 1] -> [-2.000000000000001, -2.0]]
+
+#% text
+# Energy is preserved:
+
+#% cell
+{ let x = n(table(sin(k^2/9), [k, 32])); let d = discrete_wavelet_transform(x, daubechies_wavelet(3), 3); [total(x^2), total(map(r => total(r[2]^2), d(automatic)))] }
+#% output
+#= [12.456842745878532, 12.456842745878532]
+
+#% text
+# A matrix:
+
+#% cell
+discrete_wavelet_transform([[1, 2], [3, 4]], haar_wavelet(), 1)(all)
+#% output
+#= [[0] -> [[5.000000000000001]], [1] -> [[-2.000000000000001]], [2] -> [[-1.0]], [3] -> [[-1.1102230246251565e-16]]]
+
+#% text
+# Zero padding of data of odd length:
+
+#% cell
+chop(inverse_wavelet_transform(discrete_wavelet_transform(n(range(11)), daubechies_wavelet(2), 2, padding: 0)) - range(11))
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `inverse_wavelet_transform`, `stationary_wavelet_transform`, `discrete_wavelet_packet_transform`, `wavelet_list_plot`

@@ -35,6 +35,62 @@ rule bit_shift_right(k_, s_) := quotient(k, 2^s) when is_integer(k) and is_integ
 rule bit_flip(ks_, i_) := map(j => bit_flip(j, i), ks) when is_list(ks)
 rule bit_flip(k_, i_) := bit_xor(k, 2^i) when is_integer(k) and is_integer(i) and i >= 0
 
+# bit_set(k, i): k with bit i set to 1; bit_clear(k, i): k with bit i set to 0 (negative k in two's complement, as
+# bit_and and bit_or take them); bit_shift_left(k, s): k 2^s (bit_shift_left(k) shifts by one bit; a negative s
+# shifts right, floor(k / 2^-s)); all thread over lists
+rule bit_set(ks_, i_) := map(j => bit_set(j, i), ks) when is_list(ks)
+rule bit_set(k_, i_) := bit_or(k, 2^i) when is_integer(k) and is_integer(i) and i >= 0
+rule bit_clear(ks_, i_) := map(j => bit_clear(j, i), ks) when is_list(ks)
+rule bit_clear(k_, i_) := bit_and(k, bit_not(2^i)) when is_integer(k) and is_integer(i) and i >= 0
+rule bit_shift_left(k_) := bit_shift_left(k, 1)
+rule bit_shift_left(ks_, s_) := map(j => bit_shift_left(j, s), ks) when is_list(ks)
+rule bit_shift_left(k_, s_) := k*2^s when is_integer(k) and is_integer(s) and s >= 0
+rule bit_shift_left(k_, s_) := floor(k/2^(-s)) when is_integer(k) and is_integer(s) and s < 0
+
+# find_linear_recurrence(xs), (xs, d): the coefficients [c1, ..., cL] of the shortest linear recurrence
+# x_n = c1 x_(n-1) + ... + cL x_(n-L) with constant coefficients that the exact entries xs satisfy (numbers or
+# expressions in symbols, over the field of rational functions of the symbols), by the algorithm of Berlekamp and
+# Massey (Massey, IEEE Trans. Inform. Theory 15 (1969)); a recurrence counts as found only when the list
+# also checks it beyond the 2 L terms that determine it, 2 L < length(xs); with d, only when L <= d. A failure
+# otherwise.
+fn r38_berlekamp_massey(s) = {
+  var c = [1]
+  var b = [1]
+  var l = 0
+  var m = 1
+  var bb = 1
+  for k in range(length(s)) {
+    let dk = together(s[k] + total(map(i => c[i + 1]*s[k - i], range(min(l, length(c) - 1)))))
+    if dk === 0 or possible_zero_q(dk) then m = m + 1
+    else {
+      let t = c
+      let shifted = join(constant_array(0, m), b*(dk/bb))
+      let len = max(length(c), length(shifted))
+      c = map(together, pad_right(c, len) - pad_right(shifted, len))
+      if 2*l <= k - 1 then {
+        l = k - l
+        b = t
+        bb = dk
+        m = 1
+      } else m = m + 1
+    }
+  }
+  map(i => -(if i < length(c) then c[i + 1] else 0), range(l))
+}
+# r38_exact_terms(e): whether e contains no inexact number
+fn r38_exact_terms(e) = if is_number(e) then is_exact(e) else if is_atom(e) then true else every(apply(list, e), r38_exact_terms)
+fn find_linear_recurrence(xs) when is_list(xs) and length(xs) >= 2 and r38_exact_terms(xs) = {
+  let r = r38_berlekamp_massey(xs)
+  if length(r) >= 1 and 2*length(r) < length(xs) then r else failure(no_recurrence)
+}
+fn find_linear_recurrence(xs, d) when is_list(xs) and is_integer(d) and d >= 1 and length(xs) >= 2 and r38_exact_terms(xs) = {
+  let r = r38_berlekamp_massey(xs)
+  if length(r) >= 1 and length(r) <= d and 2*length(r) < length(xs) then r else failure(no_recurrence)
+}
+
+# perfect_number_q(k): whether the integer k is perfect, the sum of its proper divisors (sigma_1(k) = 2 k)
+rule perfect_number_q(k_) := is_integer(k) and k > 0 and divisor_sigma(1, k) == 2*k
+
 # --- Roman numerals ---
 
 # roman_numeral(k): the Roman numeral of the integer k >= 0 as a string (0 is "N"; the thousands are repeated M);

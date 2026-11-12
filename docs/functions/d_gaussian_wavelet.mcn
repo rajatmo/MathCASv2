@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# d_gaussian_wavelet
+
+#% text
+# `d_gaussian_wavelet(m)` is the m-th derivative of a Gaussian as a wavelet (default 2): in frequency -i^m/sqrt(gamma(m + 1/2)) (s w)^m exp(-(s w)^2/2) (Torrence and Compo, 1998, table 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = n(table(sign(cos(k^2/100)), [k, 64]))
+
+#% cell
+wavelet_scalogram(continuous_wavelet_transform(x, d_gaussian_wavelet(5), [4, 2]))
+#% output
+#= image("d_gaussian_wavelet.files/d_gaussian_wavelet-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `mexican_hat_wavelet`, `continuous_wavelet_transform`

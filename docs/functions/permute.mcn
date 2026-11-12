@@ -1,0 +1,48 @@
+#! mathcas 2 notebook
+
+#% title
+# permute
+
+#% text
+# `permute(xs, p)` gives the list xs with its element i moved to position p[i], for a permutation list p or a permutation in cycles form.
+
+#% section
+# Details
+
+#% item
+# A permutation list shorter than xs leaves the remaining positions in place. `cycles([[1, 3, 2]])` moves element 1 to position 3, 3 to 2 and 2 to 1.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+permute([a, b, c, d], [1, 4, 3, 2])
+#% output
+#= [a, d, c, b]
+
+#% cell
+fold(permute, [a, b, c, d], [[1, 4, 3, 2], [3, 2, 4, 1]])
+#% output
+#= [b, d, a, c]
+
+#% cell
+permute([a, b, c, d, e], cycles([[1, 3, 2]]))
+#% output
+#= [b, c, a, d, e]
+
+#% text
+# Moving each element to its position in the ordering sorts the list:
+
+#% cell
+{ let xs = [5, 3, 9, 1]; permute(xs, ordering(ordering(xs))) }
+#% output
+#= [1, 3, 5, 9]
+
+#% section
+# See also
+
+#% text
+# `permutation_list`, `cycles`, `ordering`

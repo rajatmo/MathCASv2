@@ -1,0 +1,30 @@
+#! mathcas 2 notebook
+
+#% title
+# gabor_wavelet
+
+#% text
+# `gabor_wavelet(w0)` is the Gabor wavelet of frequency w0 (default 6), the complex exponential exp(i w0 t) in a Gaussian window: in frequency pi^(-1/4) exp(-(s w - w0)^2/2) for every w.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = n(cos(20*pi*range(0, 255)/256))
+
+#% cell
+c = continuous_wavelet_transform(x, gabor_wavelet(6), [6, 2])
+
+#% cell
+norm(inverse_continuous_wavelet_transform(c) - x) < 1e-10
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `morlet_wavelet`, `continuous_wavelet_transform`

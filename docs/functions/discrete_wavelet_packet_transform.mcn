@@ -1,0 +1,32 @@
+#! mathcas 2 notebook
+
+#% title
+# discrete_wavelet_packet_transform
+
+#% text
+# `discrete_wavelet_packet_transform(data)`, `(data, w)`, `(data, w, r)` give the wavelet packet transform: as `discrete_wavelet_transform`, but every node of the tree, details included, is split again at the next level.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = discrete_wavelet_packet_transform(n(range(8)), haar_wavelet(), 2)
+
+#% cell
+map(r => r[1], d(automatic))
+#% output
+#= [[0, 0], [0, 1], [1, 0], [1, 1]]
+
+#% cell
+chop(inverse_wavelet_transform(d) - range(8))
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `discrete_wavelet_transform`, `inverse_wavelet_transform`

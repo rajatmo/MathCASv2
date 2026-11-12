@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# bit_clear
+
+#% text
+# `bit_clear(k, i)` gives the integer k with bit i (0 the least significant) set to 0.
+
+#% section
+# Details
+
+#% item
+# Negative integers count in two's complement, as for `bit_and`. Lists thread over k.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+bit_clear(63, 0)
+#% output
+#= 62
+
+#% cell
+bit_clear(63, 3)
+#% output
+#= 55
+
+#% cell
+bit_clear(-1, 4)
+#% output
+#= -17
+
+#% cell
+bit_clear(bit_set(11, 2), 2)
+#% output
+#= 11
+
+#% section
+# See also
+
+#% text
+# `bit_set`, `bit_flip`, `bit_and`

@@ -1,0 +1,46 @@
+#! mathcas 2 notebook
+
+#% title
+# stationary_wavelet_transform
+
+#% text
+# `stationary_wavelet_transform(data)`, `(data, w)`, `(data, w, r)` give the stationary (undecimated) wavelet transform of a list or matrix: every level keeps the length of the data, the filters of level j spread out by 2^(j - 1).
+
+#% section
+# Details
+
+#% item
+# Circular filtering at every level, halved in the inverse, which is the mean of the two reconstructions (Nason and Silverman, 1995). The result is a `discrete_wavelet_data` object; the transform is invariant under circular shifts of the data.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = stationary_wavelet_transform(n(sin(range(16)/3)), haar_wavelet(), 2)
+
+#% cell
+map(r => [r[1], length(r[2])], d(all))
+#% output
+#= [[[0], 16], [[1], 16], [[0, 0], 16], [[0, 1], 16]]
+
+#% cell
+chop(inverse_wavelet_transform(d) - n(sin(range(16)/3)))
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+#% text
+# Shifting the data shifts every coefficient list:
+
+#% cell
+{ let x = n(range(8)^2); let a = stationary_wavelet_transform(x, haar_wavelet(), 2); let b = stationary_wavelet_transform(rotate_left(x, 1), haar_wavelet(), 2); chop(rotate_left(a([0, 1])[1][2], 1) - b([0, 1])[1][2]) }
+#% output
+#= [0, 0, 0, 0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `discrete_wavelet_transform`, `inverse_wavelet_transform`, `wavelet_list_plot`

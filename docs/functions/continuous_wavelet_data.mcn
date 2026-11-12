@@ -1,0 +1,40 @@
+#! mathcas 2 notebook
+
+#% title
+# continuous_wavelet_data
+
+#% text
+# `continuous_wavelet_data(coefficients, info)` holds the result of a continuous wavelet transform; `continuous_wavelet_data([[j, v] -> list, ...])` and `continuous_wavelet_data(rules, w)` build it from coefficient lists of one length (missing indices zero, the wavelet `morlet_wavelet()` unless given). `c(all)` gives the coefficient lists as [octave, voice] -> list, `c(index)` or `c(pattern)` the selected ones, and `c(property)` the properties "IndexMap", "Scales", "Wavelet", "Octaves", "Voices", "Length".
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+c = continuous_wavelet_transform([0, 0, 1, 0, 0], mexican_hat_wavelet(1))
+
+#% cell
+c("Scales")
+#% output
+#= [[1, 1] -> 2.0, [1, 2] -> 2.378414230005442, [1, 3] -> 2.8284271247461903, [1, 4] -> 3.363585661014858]
+
+#% cell
+c([1, 2])
+#% output
+#= [[1, 2] -> [-0.1113428447700323, 0.04252860561234495, 0.13762847831537472, 0.04252860561234492, -0.1113428447700323]]
+
+#% text
+# Data from one row of coefficients:
+
+#% cell
+length(inverse_continuous_wavelet_transform(continuous_wavelet_data([[1, 2] -> [1, 0, -1, 0, 1, 0, -1, 0]])))
+#% output
+#= 8
+
+#% section
+# See also
+
+#% text
+# `continuous_wavelet_transform`, `inverse_continuous_wavelet_transform`

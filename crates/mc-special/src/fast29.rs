@@ -723,8 +723,9 @@ pub(crate) fn mathieu(a: CD, q: CD, z: CD, which: u8) -> Option<C64> {
 
 /// mathieu_characteristic_a(r, q) at a real machine q (the method of [`crate::mathieu`]: the eigenvalue of the
 /// truncated tridiagonal matrix at integer r, then the secant method on y'(pi/2) (even r) or y(pi/2) (odd r) of the
-/// even solution, or on y(pi) - cos(pi r) at other r), in double-double numbers.
-pub(crate) fn mathieu_char_a(r: f64, q: DD, start: f64) -> Option<f64> {
+/// even solution, or on y(pi) - cos(pi r) at other r), in double-double numbers. With `odd`, the characteristic
+/// value b_r(q) at an even integer r >= 2: the secant method on y(pi/2) of the odd solution (y(0) = 0, y'(0) = 1).
+pub(crate) fn mathieu_char_a(r: f64, q: DD, start: f64, odd: bool) -> Option<f64> {
     let rf = r.abs();
     let int_r = rf.fract() == 0.0 && rf < 1e4;
     let qd = CD::real(q);
@@ -732,7 +733,10 @@ pub(crate) fn mathieu_char_a(r: f64, q: DD, start: f64) -> Option<f64> {
     let cpr = if int_r { CD::ZERO } else { CD::real(CD::sin_cos_real(DD::new(rf) * crate::dd::PI).1) };
     let cond = |av: DD| -> Option<DD> {
         let a = CD::real(av);
-        if int_r {
+        if odd {
+            let (y, _, _) = mathieu_solve(a, qd, half_pi, 0.0, 1.0)?;
+            Some(y.re)
+        } else if int_r {
             let (y, d, _) = mathieu_solve(a, qd, half_pi, 1.0, 0.0)?;
             Some(if (rf as u64).is_multiple_of(2) { d.re } else { y.re })
         } else {

@@ -1,0 +1,34 @@
+#! mathcas 2 notebook
+
+#% title
+# chessboard_distance
+
+#% text
+# `chessboard_distance(u, v)` gives the Chebyshev distance of the vectors u and v, the largest of the |u_i - v_i|.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+chessboard_distance([1, 5, 2], [4, 1, 0])
+#% output
+#= 4
+
+#% cell
+chessboard_distance([1.5, 0.6], [0, 0])
+#% output
+#= 1.5
+
+#% cell
+chessboard_distance(3, -2)
+#% output
+#= 5
+
+#% section
+# See also
+
+#% text
+# `manhattan_distance`, `euclidean_distance`

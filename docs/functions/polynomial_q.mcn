@@ -1,0 +1,58 @@
+#! mathcas 2 notebook
+
+#% title
+# polynomial_q
+
+#% text
+# `polynomial_q(e, x)` gives true when e is a polynomial in x: built by sums, products and non-negative integer powers from x and from coefficients that contain no symbol of x. `polynomial_q(e, [x1, ...])` uses several variables, `polynomial_q(e)` the variables of e.
+
+#% section
+# Details
+
+#% item
+# The expression is not expanded. A variable may be any expression: a coefficient may not contain its symbols, so `sec(x)` is not a coefficient of a polynomial in `cos(x)`.
+
+#% item
+# A power b^p counts as a power of a variable b^q when p/q is a non-negative integer: `x^(3/2)` is the cube of `sqrt(x)`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+polynomial_q(x^3 - a*x + (3*x - 1)^2, x)
+#% output
+#= true
+
+#% cell
+polynomial_q(x^2 + 1/x, x)
+#% output
+#= false
+
+#% cell
+polynomial_q(x^2*y + y^3, [x, y])
+#% output
+#= true
+
+#% cell
+polynomial_q(x^(3/2) + 1, sqrt(x))
+#% output
+#= true
+
+#% cell
+polynomial_q(sec(x) + 1, cos(x))
+#% output
+#= false
+
+#% cell
+polynomial_q(x + sin(x), x)
+#% output
+#= false
+
+#% section
+# See also
+
+#% text
+# `polynomial_expression_q`, `variables`, `coefficient_list`

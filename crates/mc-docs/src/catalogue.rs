@@ -1,6 +1,6 @@
 //! The catalogue: every library function with its one-line description (the `FUNCTIONS` lists the engine installs),
 //! sorted into the five areas of the system and a topic per library.
-use mc_libraries::{mc_algebra, mc_assoc, mc_cad, mc_calculus, mc_combinat, mc_decide, mc_diffalg, mc_dist, mc_fields, mc_further_functions, mc_geom, mc_graphics_kernel, mc_groups, mc_io, mc_jit, mc_langlib, mc_linalg, mc_lists, mc_mechanics, mc_numeric, mc_numtheory, mc_ode, mc_poly, mc_quad, mc_random, mc_roots, mc_simplify, mc_solve, mc_special, mc_strings, mc_sums};
+use mc_libraries::{mc_algebra, mc_assoc, mc_cad, mc_calculus, mc_combinat, mc_decide, mc_diffalg, mc_dist, mc_fields, mc_further_functions, mc_geom, mc_graphics_kernel, mc_groups, mc_io, mc_jit, mc_langlib, mc_linalg, mc_lists, mc_mechanics, mc_numeric, mc_numtheory, mc_ode, mc_poly, mc_quad, mc_random, mc_roots, mc_simplify, mc_solve, mc_special, mc_strings, mc_sums, mc_wavelets};
 
 /// The five areas of the system, the tiles of the home page.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -248,6 +248,16 @@ const PRELUDE: &[(&str, &str)] = &[
     ("manhattan_distance", "manhattan_distance(u, v): the sum of the absolute differences of the entries of u and v"),
     ("from_polar_coordinates", "from_polar_coordinates([r, t1, ..., tk]): the Cartesian point of hyperspherical coordinates; a list of points maps"),
     ("symmetric_matrix_q", "symmetric_matrix_q(m): whether the square matrix m equals its transpose (inexact entries up to rounding)"),
+    ("hermitian_matrix_q", "hermitian_matrix_q(m): whether the square matrix m equals its conjugate transpose (inexact entries up to rounding)"),
+    ("diagonalizable_matrix_q", "diagonalizable_matrix_q(m): whether the exact square matrix m is diagonalizable over the complex numbers"),
+    ("pauli_matrix", "pauli_matrix(k): the Pauli matrix sigma_k (k = 1, 2, 3), the identity for k = 0"),
+    ("fourier_matrix", "fourier_matrix(n): the n x n matrix of the discrete Fourier transform (fourier_parameters: [a, b])"),
+    ("permute", "permute(xs, p): xs with element i moved to position p[i] (a permutation list or cycles)"),
+    ("to_polar_coordinates", "to_polar_coordinates([x1, ..., xn]): the hyperspherical coordinates [r, theta1, ...] of the point; a list of points maps"),
+    ("edit_distance", "edit_distance(a, b): the Levenshtein distance of two strings or lists"),
+    ("chessboard_distance", "chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i|"),
+    ("squared_euclidean_distance", "squared_euclidean_distance(u, v): the sum of |u_i - v_i|^2"),
+    ("palindrome_q", "palindrome_q(x): whether the list, string or digits of the integer x read the same backwards"),
     ("positive_definite_matrix_q", "positive_definite_matrix_q(m): whether the Hermitian matrix m is positive definite (Sylvester's criterion)"),
     ("permanent", "permanent(m): the permanent of the matrix m (Ryser's formula)"),
     ("shearing_matrix", "shearing_matrix(theta, v, w): the matrix of the shear by the angle theta along the direction v normal to w"),
@@ -352,6 +362,7 @@ fn sources() -> Vec<(&'static str, Area, Functions)> {
         ("Numbers and precision", Area::SymbolicNumeric, mc_numeric::FUNCTIONS),
         ("Root finding", Area::SymbolicNumeric, mc_roots::FUNCTIONS),
         ("Numerical integration", Area::SymbolicNumeric, mc_quad::FUNCTIONS),
+        ("Wavelets", Area::SymbolicNumeric, mc_wavelets::FUNCTIONS),
         ("Numerics library", Area::SymbolicNumeric, mc_quad::LIBRARY_FUNCTIONS),
         ("Differential equations", Area::SymbolicNumeric, mc_ode::FUNCTIONS),
         ("Compiled functions", Area::SymbolicNumeric, mc_jit::FUNCTIONS),

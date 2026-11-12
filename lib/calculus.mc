@@ -754,6 +754,196 @@ fn calc_poly_expr(e, xs, test) = {
 fn polynomial_expression_q(e, x) = calc_poly_expr(e, if is_list(x) then x else [x], automatic)
 fn polynomial_expression_q(e, x, test) = calc_poly_expr(e, if is_list(x) then x else [x], test)
 
+# polynomial_q(e, x), (e, [x1, ...]): whether e is a polynomial in the variables: built by sums, products and
+# non-negative integer powers from the variables and from coefficients that contain no symbol of the variables
+# (so sec(x) is no coefficient of cos(x)); a power b^p is the power (b^q)^(p/q) of a variable b^q when p/q is a
+# non-negative integer (x^(3/2) is the cube of sqrt(x)); polynomial_q(e) takes the variables of e
+fn r38_poly_power(e, xs) = {
+  let b = if head(e) === pow then e[1] else e
+  let p = if head(e) === pow then e[2] else 1
+  some(xs, x => not is_atom(x) and head(x) === pow and x[1] === b and is_rational(x[2]) and is_rational(p) and is_integer(p/x[2]) and p/x[2] >= 0)
+}
+fn r38_poly_q(e, xs, syms) = {
+  if some(xs, x => e === x) then true
+  else if every(syms, s => free_of(e, s)) then true
+  else if r38_poly_power(e, xs) then true
+  else if head(e) === add or head(e) === mul then every(apply(list, e), t => r38_poly_q(t, xs, syms))
+  else if head(e) === pow and is_integer(e[2]) and e[2] >= 0 then r38_poly_q(e[1], xs, syms)
+  else false
+}
+fn polynomial_q(e, x) = {
+  let xs = if is_list(x) then x else [x]
+  r38_poly_q(e, xs, unique(flat_map(calc_syms, xs)))
+}
+fn polynomial_q(e) = polynomial_q(e, variables(e))
+
+# solve_always(eqs, vars): the values of the other symbols for which the polynomial (or rational) equations hold
+# for every value of the variables: every coefficient of the numerator of lhs - rhs, as a polynomial in the
+# variables, vanishes; solved by solve for the symbols of those coefficients (for the first of them in the canonical
+# order when there are more symbols than equations)
+fn r38_always_parts(eq, xs) = {
+  let ex = if not is_atom(eq) and head(eq) === equal then eq[1] - eq[2] else eq
+  let num = numerator(together(ex))
+  if polynomial_expression_q(num, xs) then map(r => r[2], coefficient_rules(expand(num), xs)) else null
+}
+fn r38_solve_always(eqs, x) = {
+  let xs = if is_list(x) then x else [x]
+  let es = if is_list(eqs) then eqs else [eqs]
+  let parts = map(q => r38_always_parts(q, xs), es)
+  if some(parts, p => p === null) then null
+  else {
+    let cs = select(catenate(parts), c => not (c === 0))
+    let unknowns = sort(select(unique(flat_map(calc_syms, cs)), s => not member(xs, s)))
+    let eqs2 = map(c => c == 0, cs)
+    # more symbols than coefficient equations: the first ones in the canonical order are solved for, in terms of
+    # the others, when that system has solutions
+    let first = if length(unknowns) > length(cs) then solve(eqs2, take(unknowns, length(cs))) else []
+    if length(cs) == 0 then [[]]
+    else if length(unknowns) == 0 then (if every(cs, c => possible_zero_q(c)) then [[]] else [])
+    else if is_list(first) and length(first) >= 1 then first
+    else solve(eqs2, unknowns)
+  }
+}
+fn solve_always(eqs, x) when r38_solve_always(eqs, x) !== null = r38_solve_always(eqs, x)
+
+# --- compose_series, inverse_series ---
+# Power series as series_data(x, x0, [c_n0, ...], n0, n1) (the sum of c_k (x - x0)^k for n0 <= k < n1, plus
+# O((x - x0)^n1)); a sum of terms and an O term stands for the series it truncates. The composition f(g) is the sum of
+# the terms of f at g - x0 in the series arithmetic, which carries the orders (Knuth, The art of computer programming
+# 2, 4.7); the reversion solves y = s(x) for x by the fixed-point iteration x = (u - (b_2 x^2 + ...))/b_1, one more
+# correct coefficient a step (Knuth, 4.7, algorithm L in its simplest form; Henrici, Applied and computational complex
+# analysis 1, 1.9), after (s/b_v)^(1/v) for a leading term b_v (x - x0)^v with v > 1 (a Puiseux series in
+# (y - y0)^(1/v)).
+
+# r38_order_of(t): [variable, point, order] of an O term O((x - a)^k) or O(x - a)^k, else null
+fn r38_order_of(t) = {
+  let k = if head(t) === pow and not is_atom(t[1]) and head(t[1]) === O then t[2] else 1
+  let o = if head(t) === pow and not is_atom(t[1]) and head(t[1]) === O then t[1] else t
+  if is_atom(o) or not (head(o) === O) then null
+  else {
+    let u = o[1]
+    let bas = if not is_atom(u) and head(u) === pow then u[1] else u
+    let kk = k*(if not is_atom(u) and head(u) === pow then u[2] else 1)
+    let vs = calc_syms(bas)
+    if length(vs) != 1 or not is_integer(kk) then null
+    else {
+      let x = vs[1]
+      let a = x - bas
+      if free_of(a, x) then [x, a, kk] else null
+    }
+  }
+}
+# r38_series(s): s as series_data, or null
+fn r38_series(s) =
+  if not is_atom(s) and head(s) === series_data then s
+  else if not is_atom(s) and head(s) === add then {
+    let ts = apply(list, s)
+    let os = select(ts, t => r38_order_of(t) !== null)
+    if length(os) != 1 then null else {
+      let o = r38_order_of(os[1])
+      let p = total(select(ts, t => r38_order_of(t) === null))
+      if free_of(p, o[1]) then series_data(o[1], o[2], [p], 0, o[3])
+      else {
+        let r = series(p, [o[1], o[2], o[3] - 1])
+        if not is_atom(r) and head(r) === series_data and r[5] >= o[3] then series_data(r[1], r[2], take(r[3], max(0, min(length(r[3]), o[3] - r[4]))), r[4], o[3]) else null
+      }
+    }
+  }
+  else null
+# r38_coef(s, k): the coefficient of (x - x0)^k in the series_data s
+fn r38_coef(s, k) = if k >= s[4] and k - s[4] < length(s[3]) then s[3][k - s[4] + 1] else 0
+# r38_valuation(s, from): the least k >= from below the order with a non-zero coefficient, or null
+fn r38_valuation(s, from) = {
+  let ks = select(range(max(from, s[4]), s[5] - 1), k => not possible_zero_q(r38_coef(s, k)))
+  if length(ks) == 0 then null else ks[1]
+}
+fn r38_compose(f, g) = {
+  let x0 = f[2]
+  let h = g - x0
+  let hs = r38_series(h)
+  let v = if hs === null then null else r38_valuation(hs, 0)
+  if hs === null or v === null or v < 1 or not possible_zero_q(r38_coef(hs, 0)) then null
+  else {
+    let terms = map(k => r38_coef(f, k)*h^k, range(f[4], f[5] - 1))
+    total(terms) + O((g[1] - g[2])^(v*f[5]))
+  }
+}
+fn r38_compose_series(f, g) = {
+  let fs = r38_series(f)
+  let gs = r38_series(g)
+  if fs === null or gs === null then null else r38_compose(fs, gs)
+}
+# a composition that does not exist (g - x0 of positive valuation is needed) stays unevaluated
+fn compose_series(f, g) when r38_compose_series(f, g) !== null = r38_compose_series(f, g)
+fn compose_series(f, g, h) = compose_series(compose_series(f, g), h)
+fn compose_series(f, g, h, k) = compose_series(compose_series(compose_series(f, g), h), k)
+
+fn r38_invert_unit(s, b1, n1, y, c0) = {
+  # s: the series of valuation 1 at 0 in its variable; returns the series of x in u = y - c0 to O(u^n1)
+  let u = series_data(y, c0, [1], 1, n1)
+  var xs = u/b1
+  for i in range(n1) {
+    xs = (u - total(map(k => r38_coef(s, k)*xs^k, range(2, n1 - 1))))/b1
+  }
+  xs
+}
+fn inverse_series(s) when r38_series(s) !== null = inverse_series(s, r38_series(s)[1])
+fn inverse_series(s) when r38_series(s) === null and r38_puiseux(s) !== null = inverse_series(s, r38_puiseux(s)[1])
+# r38_puiseux(s): a sum of terms c x^p (rational p) and one O(x^q) at 0 as [x, v, the series_data in t = x^(1/v)],
+# v the common denominator of the exponents; null otherwise
+fn r38_puiseux(s) =
+  if is_atom(s) or not (head(s) === add) then null
+  else {
+    let ts = apply(list, s)
+    let os = select(ts, t => not is_atom(t) and head(t) === O)
+    let u = if length(os) == 1 then os[1][1] else null
+    let o = if u === null then null else if is_symbol(u) then [u, 1] else if not is_atom(u) and head(u) === pow and is_symbol(u[1]) then [u[1], u[2]] else null
+    if o === null or not is_rational(o[2]) then null else {
+      let x = o[1]
+      let rest = select(ts, t => not (t === os[1]))
+      let ps = map(t => exponent(t, x), rest)
+      let cs = map(i => cancel(rest[i]/x^ps[i]), range(length(rest)))
+      if not every(ps, p => is_rational(p)) or not every(cs, c => free_of(c, x)) then null else {
+        let v = apply(lcm, map(denominator, join(ps, [o[2]])))
+        let ks = map(p => p*v, ps)
+        let lo = min(join(ks, [o[2]*v]))
+        let hi = o[2]*v
+        [x, v, series_data(r38_t, 0, map(k => total(map(i => if ks[i] == k then cs[i] else 0, range(length(ks)))), range(lo, hi - 1)), lo, hi)]
+      }
+    }
+  }
+fn r38_inverse_series(s, y) = {
+  let ss = r38_series(s)
+  let pu = if ss === null then r38_puiseux(s) else null
+  if pu !== null then {
+    # a Puiseux series in t = x^(1/v): invert in t, then x = t^v in the series arithmetic
+    let ti = r38_inverse_series(pu[3], y)
+    if ti !== null and not is_atom(ti) and head(ti) === series_data then ti^pu[2] else null
+  }
+  else if ss === null or ss[4] < 0 then null else {
+    let x0 = ss[2]
+    let c0 = r38_coef(ss, 0)
+    let n1 = ss[5]
+    let v = r38_valuation(ss, 1)
+    if v === null then null
+    else if v == 1 then x0 + r38_invert_unit(ss, r38_coef(ss, 1), n1, y, c0)
+    else {
+      # w = (x - x0) ((s - c0)/(b_v (x - x0)^v))^(1/v) has valuation 1 and is known to O((x - x0)^(n1 - v + 1))
+      let bv = r38_coef(ss, v)
+      let q = series_data(ss[1], x0, map(k => r38_coef(ss, k)/bv, range(v, n1 - 1)), 0, n1 - v)
+      let w = series_data(ss[1], x0, [1], 1, n1 - v + 1)*q^(1/v)
+      let ws = r38_series(w)
+      if ws === null then null else {
+        let m = n1 - v + 1
+        let t = r38_invert_unit(ws, r38_coef(ws, 1), m, r38_t, 0)
+        let tv = ((y - c0)/bv)^(1/v)
+        x0 + total(map(k => r38_coef(t, k)*tv^k, range(1, m - 1))) + O((y - c0)^(m/v))
+      }
+    }
+  }
+}
+fn inverse_series(s, y) when is_symbol(y) and r38_inverse_series(s, y) !== null = r38_inverse_series(s, y)
+
 # possible_zero_q(e): whether e is probably zero: true when simplify gives 0; otherwise e is evaluated to 40 digits
 # at its symbols set to three complex sample points, a value that cannot be told from 0 counting as zero
 fn calc_syms(e) = if is_symbol(e) then (if is_numeric(e) then [] else [e]) else if is_atom(e) then [] else unique(flat_map(calc_syms, apply(list, e)))

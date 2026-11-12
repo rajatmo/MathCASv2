@@ -1323,3 +1323,24 @@ b, 0.)` with b < 1 and `inverse_elliptic_nome_q(1.)` stay unevaluated, `hyperfac
   the substitution entered the pure function, so an identity of a sequence defined with the same index name stayed
   unevaluated. The reduction of an expression to one `difference_root` (closure of recurrences under sums and
   products) is not implemented.
+## Round 38: series composition and reversion, polynomial tests, identities
+
+Source in `lib/calculus.mc` (helpers `r38_`).
+
+- `compose_series(f, g, ...)`: the sum of the terms c_k (g - x0)^k of f in the series arithmetic, plus the order
+  term O((x - y0)^(v n1)) for f known to O((x - x0)^n1) and g - x0 of valuation v >= 1; the arithmetic carries the
+  orders of g (Knuth, TAOCP 2, 4.7). A sum with one O term counts as the series it truncates. When g does not start
+  at x0 the call stays unevaluated.
+- `inverse_series(s, y)`: for a series of valuation 1 after its constant c, the fixed-point iteration
+  x = (u - b_2 x^2 - ...)/b_1 with u = y - c, one more correct coefficient a step (Knuth 4.7; Henrici, Applied and
+  computational complex analysis 1, 1.9), to the order of s. For a leading term b_v (x - x0)^v with v > 1 the series
+  w = (x - x0)((s - c)/(b_v (x - x0)^v))^(1/v), of valuation 1 and known to O((x - x0)^(n1 - v + 1)), is inverted
+  and evaluated at t = ((y - c)/b_v)^(1/v): a Puiseux series written as a sum with O((y - c)^((n1 - v + 1)/v)).
+  A Puiseux series at 0 as input (terms c x^p with rational p and O(x^q)) is written as a series in t = x^(1/v),
+  v the common denominator, inverted in t, and x = t^v follows in the series arithmetic.
+- `polynomial_q(e, xs)`: like `polynomial_expression_q`, but a coefficient may not contain a symbol of the variables
+  (so `sec(x)` is not a coefficient in `cos(x)`), and b^p is the power (b^q)^(p/q) of a variable b^q when p/q is a
+  non-negative integer.
+- `solve_always(eqs, xs)`: every coefficient of the numerator of lhs - rhs (polynomial in xs) set to zero and solved
+  by `solve`; decision: with more symbols than equations, the first symbols in the canonical order are solved for
+  (the coefficients of a monic cubic in terms of its roots, not the roots in terms of the coefficients).

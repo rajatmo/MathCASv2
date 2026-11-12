@@ -1,0 +1,59 @@
+#! mathcas 2 notebook
+
+#% title
+# compose_series
+
+#% text
+# `compose_series(f, g)` gives the power series of f(g(x)) for the power series f and g, where g at its expansion point equals the expansion point of f; `compose_series(f, g, h, ...)` composes several.
+
+#% section
+# Details
+
+#% item
+# The series are `series(...)` results, or sums of terms and an order term such as `x + 2*x^2 + O(x^10)`. The order of the result follows from the orders of f and g: the composition is exact as far as both series determine it.
+
+#% item
+# When g does not start at the expansion point of f the composition does not exist and the call stays unevaluated.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+compose_series(x + 2*x^2 + O(x^12), 3*x + 4*x^2 + O(x^10))
+#% output
+#= 3*x + 22*x^2 + 48*x^3 + 32*x^4 + O(x^10)
+
+#% cell
+compose_series(series(exp(x), [x, 0, 6]), series(sin(x), [x, 0, 6]))
+#% output
+#= 1 + x + x^2/2 - x^4/8 - x^5/15 - x^6/240 + O(x^7)
+
+#% text
+# The result agrees with the series of the composed function:
+
+#% cell
+compose_series(series(exp(x), [x, 0, 6]), series(sin(x), [x, 0, 6])) - series(exp(sin(x)), [x, 0, 6])
+#% output
+#= O(x^7)
+
+#% text
+# A series at another point composes with a series that starts there:
+
+#% cell
+compose_series(series(log(x), [x, 1, 5]), 1 + 3*x + O(x^5))
+#% output
+#= 3*x - 9*x^2/2 + 9*x^3 - 81*x^4/4 + O(x^5)
+
+#% cell
+compose_series(x + 2*x^2 + O(x^10), 1 + 3*x + O(x^5))
+#% output
+#= compose_series(x + 2*x^2 + O(x^10), 1 + 3*x + O(x^5))
+
+#% section
+# See also
+
+#% text
+# `series`, `inverse_series`, `normal`

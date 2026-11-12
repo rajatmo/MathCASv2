@@ -1,0 +1,29 @@
+#! mathcas 2 notebook
+
+#% title
+# wavelet_scalogram
+
+#% text
+# `wavelet_scalogram(d)` shows the magnitude of the wavelet coefficients against time and scale: for continuous wavelet data one row per scale, for discrete wavelet data of a list one row per leaf with every coefficient over the samples it covers. `wavelet_scalogram(d, sel)` uses the selected indices, `wavelet_scalogram(d, sel, f)` the values f(c) instead of |c|.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wavelet_scalogram(discrete_wavelet_transform(table(sin(20*x) + sin(10*x), [x, 1, 10, 0.01]), automatic, 4))
+#% output
+#= image("wavelet_scalogram.files/wavelet_scalogram-1.svgz")
+
+#% cell
+wavelet_scalogram(continuous_wavelet_transform(table(sin(20*x) + sin(10*x), [x, 1, 10, 0.02])), [4 | 5 | 6 | 7, _])
+#% output
+#= image("wavelet_scalogram.files/wavelet_scalogram-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `continuous_wavelet_transform`, `wavelet_list_plot`

@@ -1,0 +1,53 @@
+#! mathcas 2 notebook
+
+#% title
+# fourier_matrix
+
+#% text
+# `fourier_matrix(n)` gives the n x n matrix of the discrete Fourier transform, with entries n^((a - 1)/2) exp(2 pi i b (r - 1)(s - 1)/n) in row s and column r, so that `dot(fourier_matrix(n), u)` is `fourier(u)`.
+
+#% section
+# Details
+
+#% item
+# The option `fourier_parameters: [a, b]` (default [0, 1]) takes the conventions of `fourier`.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+fourier_matrix(2)
+#% output
+#= [[(1/2)*2^(1/2), (1/2)*2^(1/2)], [(1/2)*2^(1/2), (-1/2)*2^(1/2)]]
+
+#% cell
+fourier_matrix(4)
+#% output
+#= [[1/2, 1/2, 1/2, 1/2], [1/2, im/2, -1/2, -im/2], [1/2, -1/2, 1/2, -1/2], [1/2, -im/2, -1/2, im/2]]
+
+#% text
+# The matrix of the transform with the default parameters is unitary:
+
+#% cell
+norm(n(dot(fourier_matrix(5), conjugate(transpose(fourier_matrix(5))))) - identity_matrix(5)) < 1e-14
+#% output
+#= true
+
+#% cell
+chop(n(dot(fourier_matrix(4), [1, 2, 3, 4])) - fourier([1., 2, 3, 4]))
+#% output
+#= [0, 0, 0, 0]
+
+#% cell
+fourier_matrix(3, fourier_parameters: [1, -1])
+#% output
+#= [[1, 1, 1], [1, -1/2 - (im/2)*3^(1/2), -1/2 + (im/2)*3^(1/2)], [1, -1/2 + (im/2)*3^(1/2), -1/2 - (im/2)*3^(1/2)]]
+
+#% section
+# See also
+
+#% text
+# `fourier`, `inverse_fourier`

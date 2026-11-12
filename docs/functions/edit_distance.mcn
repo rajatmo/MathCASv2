@@ -1,0 +1,45 @@
+#! mathcas 2 notebook
+
+#% title
+# edit_distance
+
+#% text
+# `edit_distance(a, b)` gives the Levenshtein distance of the strings or lists a and b: the least number of insertions, deletions and substitutions of single elements that turn a into b.
+
+#% section
+# Details
+
+#% item
+# The dynamic programme of Wagner and Fischer (Journal of the ACM 21, 1974), one row at a time.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+edit_distance("kitten", "sitting")
+#% output
+#= 3
+
+#% cell
+edit_distance([0, 1, 1, 0, 0, 1, 0], [1, 1, 0, 0, 1, 1, 0])
+#% output
+#= 2
+
+#% cell
+map(s => edit_distance(s, "aaba"), ["aaaa", "abaa", "bbbb", "aaaba"])
+#% output
+#= [1, 2, 3, 1]
+
+#% cell
+edit_distance("", "abc")
+#% output
+#= 3
+
+#% section
+# See also
+
+#% text
+# `hamming_distance`

@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# mexican_hat_wavelet
+
+#% text
+# `mexican_hat_wavelet(sigma)` is the Mexican hat wavelet, the second derivative of a Gaussian, at the scale sigma (default 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+c = continuous_wavelet_transform([0, 0, 1, 0, 0], mexican_hat_wavelet(1))
+
+#% cell
+c([1, 1])
+#% output
+#= [[1, 1] -> [-0.267062270505332, 0.10193866620310695, 0.3302472086044502, 0.1019386662031069, -0.267062270505332]]
+
+#% text
+# The response to an impulse is the wavelet itself, symmetric about the impulse:
+
+#% cell
+{ let r = c([1, 1])[1][2]; chop(r - reverse(r)) }
+#% output
+#= [0, 0, 0, 0, 0]
+
+#% section
+# See also
+
+#% text
+# `d_gaussian_wavelet`, `continuous_wavelet_transform`

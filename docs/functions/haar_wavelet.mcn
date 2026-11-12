@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# haar_wavelet
+
+#% text
+# `haar_wavelet()` is the Haar wavelet, the orthonormal wavelet with the low-pass filter [1, 1]/sqrt(2). It is the default wavelet of the discrete transforms.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+d = discrete_wavelet_transform([1, 3, 5, 7], haar_wavelet(), 1)
+
+#% cell
+d(all)
+#% output
+#= [[0] -> [2.8284271247461903, 8.485281374238571], [1] -> [-1.4142135623730954, -1.414213562373095]]
+
+#% text
+# The approximation holds the scaled pairwise sums, the detail the scaled pairwise differences:
+
+#% cell
+chop(d(all)[1][2] - [4, 12]/sqrt(2.))
+#% output
+#= [0, 0]
+
+#% section
+# See also
+
+#% text
+# `daubechies_wavelet`, `discrete_wavelet_transform`

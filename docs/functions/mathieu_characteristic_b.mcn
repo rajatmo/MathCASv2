@@ -1,0 +1,65 @@
+#! mathcas 2 notebook
+
+#% title
+# mathieu_characteristic_b
+
+#% text
+# `mathieu_characteristic_b(r, q)` gives the characteristic value b_r(q) of the odd Mathieu functions: the value of `a` for which the equation `y'' + (a - 2 q cos(2 z)) y = 0` has the odd solution `mathieu_s(a, q, z)` of period pi (even r) or 2 pi (odd r), for integers r >= 1.
+
+#% section
+# Details
+
+#% item
+# For a real r that is not an integer it is the value with characteristic exponent r, which is also `mathieu_characteristic_a(r, q)`; `b_(-r) = b_r`, and b_0 does not exist (the call stays unevaluated).
+
+#% item
+# The odd orders reduce to the even characteristic values, `b_(2n+1)(q) = a_(2n+1)(-q)`, and `b_(2n+2)(-q) = b_(2n+2)(q)` (DLMF 28.2.26, 28.2.27). At an even order the value starts from the eigenvalue of the truncated tridiagonal matrix of the Fourier coefficients (DLMF 28.4.8) and is refined by the secant method on `y(pi/2)` of the odd solution.
+
+#% item
+# At q = 0 the value is r^2. Numeric arguments only; lists thread.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+mathieu_characteristic_b(2, 1.5)
+#% output
+#= 3.814290870563324
+
+#% cell
+mathieu_characteristic_b([1, 2, 3, 4], 0.5)
+#% output
+#= [0.4706543549338391, 3.979189215751357, 9.013719838920393, 16.008310459709477]
+
+#% text
+# For small q, b_2(q) = 4 - q^2/12 + 5 q^4/13824 - ... (DLMF 28.6.18):
+
+#% cell
+[mathieu_characteristic_b(2, 0.1), 4 - 0.1^2/12 + 5*0.1^4/13824]
+#% output
+#= [3.999166702832019, 3.999166702835648]
+
+#% text
+# The odd function with this characteristic value has period pi:
+
+#% cell
+mathieu_s(mathieu_characteristic_b(2, 3.), 3., 1.2) - mathieu_s(mathieu_characteristic_b(2, 3.), 3., 1.2 + pi)
+#% output
+#= 0.0
+
+#% text
+# The relation with the even characteristic values at odd orders:
+
+#% cell
+mathieu_characteristic_b(3, 2.) - mathieu_characteristic_a(3, -2.)
+#% output
+#= 0.0
+
+#% section
+# See also
+
+#% text
+# `mathieu_characteristic_a`, `mathieu_s`, `mathieu_c`

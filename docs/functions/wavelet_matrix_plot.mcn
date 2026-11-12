@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# wavelet_matrix_plot
+
+#% text
+# `wavelet_matrix_plot(d)` shows the coefficients of discrete wavelet data of a matrix: for the discrete transform the arrays tiled as the transform stores them, the approximation in the corner and the details of each level around it; `wavelet_matrix_plot(d, r)` up to level r, `wavelet_matrix_plot(d, sel, f)` the values f(c) of the selected arrays.
+
+#% section
+# Details
+
+#% item
+# For packet and stationary data, and with `plot_layout: "Grid"`, the arrays are drawn one by one in a grid. Complex coefficients are drawn by their modulus.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wavelet_matrix_plot(discrete_wavelet_transform(diamond_matrix(32), automatic, 3))
+#% output
+#= image("wavelet_matrix_plot.files/wavelet_matrix_plot-1.svgz")
+
+#% cell
+wavelet_matrix_plot(discrete_wavelet_transform(cross_matrix(5), automatic, 2), plot_layout: "Grid")
+#% output
+#= image("wavelet_matrix_plot.files/wavelet_matrix_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `wavelet_list_plot`, `discrete_wavelet_transform`

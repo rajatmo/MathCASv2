@@ -293,6 +293,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("mathieu_s_prime", "mathieu_s_prime(a, q, z): the derivative of the odd Mathieu function mathieu_s(a, q, z) in z"),
     ("mathieu_c_prime", "mathieu_c_prime(a, q, z): the derivative of the even Mathieu function mathieu_c(a, q, z) in z"),
     ("mathieu_characteristic_a", "mathieu_characteristic_a(r, q): the characteristic value a_r(q) of the even Mathieu functions"),
+    ("mathieu_characteristic_b", "mathieu_characteristic_b(r, q): the characteristic value b_r(q) of the odd Mathieu functions"),
     ("spheroidal_eigenvalue", "spheroidal_eigenvalue(n, m, gamma): the spheroidal eigenvalue lambda of degree n and order m, the separation constant of the spheroidal wave equation"),
     ("spheroidal_ps", "spheroidal_ps(n, m, gamma, x): the angular spheroidal function of the first kind Ps^m_n(x, gamma^2)"),
     ("stieltjes_gamma", "stieltjes_gamma(n): the Stieltjes constant gamma_n, the coefficients of the Laurent series of zeta at 1; stieltjes_gamma(n, a): the generalized constant of the Hurwitz zeta function"),

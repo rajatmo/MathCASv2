@@ -1,0 +1,27 @@
+#! mathcas 2 notebook
+
+#% title
+# paul_wavelet
+
+#% text
+# `paul_wavelet(m)` is the Paul wavelet of order m (default 4): in frequency 2^m/sqrt(m (2m - 1)!) (s w)^m exp(-s w) for w > 0 and 0 for w < 0 (Torrence and Compo, 1998, table 1).
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+x = n(table(exp(-(k - 32)^2/20), [k, 64]))
+
+#% cell
+norm(inverse_continuous_wavelet_transform(continuous_wavelet_transform(x, paul_wavelet(), [4, 4])) - x) < 1e-10
+#% output
+#= true
+
+#% section
+# See also
+
+#% text
+# `morlet_wavelet`, `continuous_wavelet_transform`

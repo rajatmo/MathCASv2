@@ -1,0 +1,35 @@
+#! mathcas 2 notebook
+
+#% title
+# wavelet_list_plot
+
+#% text
+# `wavelet_list_plot(d)` plots the coefficients of the leaves of discrete wavelet data of a list, one stem plot per index; `wavelet_list_plot(d, sel)` the selected indices, `wavelet_list_plot(d, sel, f)` the values f(c). A list of data objects is drawn together.
+
+#% section
+# Details
+
+#% item
+# The option `plot_layout` puts the plots in a column ("CommonXAxis", default) or a row ("CommonYAxis"); the other options go to the plots. Complex coefficients are drawn by their modulus.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+wavelet_list_plot(discrete_wavelet_transform(table(2 - 5*t + 5*exp(-500*(t - 0.5)^2), [t, 0., 1., 1/128]), automatic, 4))
+#% output
+#= image("wavelet_list_plot.files/wavelet_list_plot-1.svgz")
+
+#% cell
+wavelet_list_plot(stationary_wavelet_transform(sin(range(30)^2/50), automatic, 3), plot_layout: "CommonYAxis")
+#% output
+#= image("wavelet_list_plot.files/wavelet_list_plot-2.svgz")
+
+#% section
+# See also
+
+#% text
+# `wavelet_scalogram`, `discrete_wavelet_transform`

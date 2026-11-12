@@ -405,6 +405,49 @@ fn char_a_asymptotic(r: f64, q: f64) -> Option<f64> {
 }
 
 fn mathieu_characteristic_a<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    char_value(fx, a, false)
+}
+
+/// The machine characteristic value b_r(q) at an even integer r >= 2 and real q: the eigenvalue of the truncated
+/// tridiagonal matrix of the Fourier coefficients B_(2m+2) of se_r (DLMF 28.4.8).
+fn char_b_even_f64(r: usize, q: f64) -> f64 {
+    let n = r / 2 + 30 + (q.abs().sqrt() * 4.0) as usize;
+    let diag: Vec<f64> = (0..n).map(|m| (2.0 * m as f64 + 2.0).powi(2)).collect();
+    let off = vec![q; n - 1];
+    tridiag_eigen(&diag, &off, r / 2 - 1)
+}
+
+/// `mathieu_characteristic_b(r, q)`: the characteristic value b_r(q) of the odd Mathieu functions, for which the odd
+/// solution se_r is periodic (period pi for even r, 2 pi for odd r) at integers r >= 1. The relations of DLMF 28.2.26
+/// and 28.2.27 reduce it: b_(2n+1)(q) = a_(2n+1)(-q) and b_(2n+2)(-q) = b_(2n+2)(q); at other real r it is the
+/// value with characteristic exponent r, which is a_r(q) (DLMF 28.12(i)); b_(-r) = b_r. b_0 does not exist.
+fn mathieu_characteristic_b<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let (r, q) = (a[0], a[1]);
+    let Some(rf) = fx.f64_of(r) else { return Ok(None) };
+    let rf = rf.abs();
+    let int_r = rf.fract() == 0.0 && rf < 1e4;
+    if int_r && rf == 0.0 {
+        return Ok(None);
+    }
+    if fx.is_int(q, 0) {
+        return Ok(Some(fx.pow(r, fx.int(2))));
+    }
+    if !numeric(fx, a) {
+        return Ok(None);
+    }
+    if !int_r {
+        return char_value(fx, a, false);
+    }
+    if !(rf as u64).is_multiple_of(2) {
+        let mq = fx.eval(fx.neg(q))?;
+        return char_value(fx, &[r, mq], false);
+    }
+    let aq = fx.eval(fx.call("abs", &[q]))?;
+    char_value(fx, &[r, aq], true)
+}
+
+/// The characteristic value a_r(q), or with `odd` b_r(q) at an even integer r >= 2 and q >= 0.
+fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> {
     let (r, q) = (a[0], a[1]);
     if fx.is_int(q, 0) {
         return Ok(Some(fx.pow(r, fx.int(2))));
@@ -419,28 +462,33 @@ fn mathieu_characteristic_a<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'
     let qf = qp.0;
     let rf = rf.abs();
     let int_r = rf.fract() == 0.0 && rf < 1e4;
+    // the large-parameter expansion: b_r(q) ~ a_(r-1)(q) to every order for q -> +infinity (DLMF 28.8.1, where
+    // b_(m+1) shares the expansion of a_m)
+    let asym = |rf: f64, qf: f64| if odd { char_a_asymptotic(rf - 1.0, qf) } else { char_a_asymptotic(rf, qf) };
     // beyond |q| = 1e5 the Taylor steps of the solver number in the tens of thousands (and the bits of the working
     // precision grow with them): machine arguments take the large-parameter expansion at an integer order, every
     // other call stays unevaluated
     if qf.abs() > 1e5 {
         let machine = crate::fast29::machine_args(fx, a).is_some();
-        return Ok((machine && int_r).then(|| char_a_asymptotic(rf, qf)).flatten().map(|v| fx.real(v)));
+        return Ok((machine && int_r).then(|| asym(rf, qf)).flatten().map(|v| fx.real(v)));
     }
     // the start
-    let a0 = if int_r {
+    let a0 = if odd {
+        char_b_even_f64(rf as usize, qf)
+    } else if int_r {
         char_a_f64(rf as usize, qf)
     } else {
         let n2 = rf * rf;
         n2 + if (n2 - 1.0).abs() > 0.1 { qf * qf / (2.0 * (n2 - 1.0)) } else { 0.0 }
     };
     if let Some((ms, _)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0) {
+        if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0, odd) {
             return Ok(Some(fx.real(v)));
         }
         // the secant method on a double-double solution found no root (the even solution grows like e^(c sqrt|q|)
         // and the roots drown in rounding): the expansion, or a clean refusal instead of a precision spiral
         if int_r {
-            if let Some(v) = char_a_asymptotic(rf, qf) {
+            if let Some(v) = asym(rf, qf) {
                 return Ok(Some(fx.real(v)));
             }
         }
@@ -456,7 +504,11 @@ fn mathieu_characteristic_a<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'
     // the condition whose root is a_r: y'(pi/2) or y(pi/2) of the even solution at integer r; y(pi) - cos(pi r) else
     let cond = |fx: &mut Fx<'_, '_, '_, 'h>, av: T<'h>, ww: u64| -> R<'h> {
         let qw = retag(fx, mid_term(fx, xs[1]), ww);
-        if int_r {
+        if odd {
+            let zt = retag(fx, half_pi, ww);
+            let Some((y, _)) = solve(fx, av, qw, zt, 0, 1, ww)? else { return Ok(None) };
+            Ok(Some(y))
+        } else if int_r {
             let zt = retag(fx, half_pi, ww);
             let Some((y, d)) = solve(fx, av, qw, zt, 1, 0, ww)? else { return Ok(None) };
             Ok(Some(if (rf as u64).is_multiple_of(2) { d } else { y }))
@@ -525,6 +577,7 @@ pub static DEFS: &[Def] = &[
     def!("mathieu_s_prime", &[3], mathieu_s_prime, "mathieu_s_prime(a, q, z): the derivative of the odd Mathieu function mathieu_s(a, q, z) in z"),
     def!("mathieu_c_prime", &[3], mathieu_c_prime, "mathieu_c_prime(a, q, z): the derivative of the even Mathieu function mathieu_c(a, q, z) in z"),
     def!("mathieu_characteristic_a", &[2], mathieu_characteristic_a, "mathieu_characteristic_a(r, q): the characteristic value a_r(q) of the even Mathieu functions"),
+    def!("mathieu_characteristic_b", &[2], mathieu_characteristic_b, "mathieu_characteristic_b(r, q): the characteristic value b_r(q) of the odd Mathieu functions"),
 ];
 
 #[cfg(test)]

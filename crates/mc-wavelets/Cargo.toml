@@ -1,0 +1,16 @@
+[package]
+name = "mc-wavelets"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 wavelet analysis: discrete, stationary, packet and continuous wavelet transforms, their inverses, the coefficient data objects and their plots"
+
+[dependencies]
+
+[dev-dependencies]
+mc-api = { path = "../mc-api" }
+# the tests evaluate source text on the assembled core
+mc-engine = { path = "../mc-engine" }

@@ -2690,6 +2690,7 @@ dependencies = [
  "mc-strings",
  "mc-sums",
  "mc-transforms",
+ "mc-wavelets",
 ]
 
 [[package]]
@@ -3096,6 +3097,14 @@ dependencies = [
  "serde_json",
  "ttf-parser",
  "winit",
+]
+
+[[package]]
+name = "mc-wavelets"
+version = "0.12.0"
+dependencies = [
+ "mc-api",
+ "mc-engine",
 ]
 
 [[package]]
