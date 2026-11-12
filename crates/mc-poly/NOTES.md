@@ -358,3 +358,8 @@ factor by factor and stay products.
 - The Taylor table of `series` also for negative orders, and with the orders a pole of the expression lowers the
   terms by (the negative integer powers of terms in x): bessel_i(3, 2 x)/x^7 to order -4 was O(x^-3) (its x^-4 term
   dropped, a wrong zero coefficient) and to order 0 lost the terms after x^-4.
+
+## Round 38: options handed to the library
+
+- `together`/`cancel` with the options `modulus:` or `trig:` and `expand` with `trig:` decline in the native, and the
+  library's rules (mc-combinat) take them; another option of `together` is still an argument failure.

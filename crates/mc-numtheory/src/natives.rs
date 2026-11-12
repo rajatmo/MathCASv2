@@ -648,6 +648,11 @@ fn factorial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res
         let ar = Arith::new(h);
         return Ok(Reply::Again(h.call(h.sym("gamma"), &[ar.add(&[h.int(1), *x])])));
     }
+    // a half-integer: gamma(1 + x), which has a closed form there (DLMF 5.4.6)
+    if rat_of(h, *x).is_some_and(|q| q.den == Nat::from_u64(2)) {
+        let ar = Arith::new(h);
+        return Ok(Reply::Again(h.call(h.sym("gamma"), &[ar.add(&[h.int(1), *x])])));
+    }
     let Some(n) = int_of(h, *x) else { return Ok(Reply::Decline) };
     if n.neg {
         // the poles of the gamma function: no value (decision J.5)
@@ -740,6 +745,35 @@ fn binomial<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<
         }
         if *b == h.int(1) || ar.add(&[*b, h.int(1)]) == *a {
             return done(*a);
+        }
+    }
+    // non-integer rational indices differing by an integer d: C(a, b) = Gamma(a + 1)/(Gamma(b + 1) Gamma(d + 1)) is
+    // C(a, d) for d >= 0 and 0 for d < 0 (Gamma(d + 1) has a pole while Gamma(a + 1), Gamma(b + 1) are finite; DLMF
+    // 1.2.6, 5.2.1)
+    if let (Some(qa), Some(qb)) = (rat_of(h, *a), rat_of(h, *b)) {
+        let one = Nat::from_u64(1);
+        if qa.den != one && qb.den != one {
+            let d = qa.sub(&qb);
+            if d.den == one {
+                if d.num.neg {
+                    return done(h.int(0));
+                }
+                return Ok(Reply::Again(h.call(h.sym("binomial"), &[*a, rat_term(h, &d)])));
+            }
+            return Ok(Reply::Decline);
+        }
+    }
+    // an exact complex upper index and a small non-negative integer k: the falling factorial over k!
+    if let (Some(Num::Complex(..)), Some(k)) = (Arith::new(h).num(*a), word_of(h, *b)) {
+        if Arith::new(h).num(*a).is_some_and(|n| n.kind() == mc_arith::Kind::Exact) && k <= 10_000 {
+            let ar = Arith::new(h);
+            let mut fs = Vec::with_capacity(2 * k as usize);
+            for i in 0..k as i64 {
+                fs.push(ar.sub(*a, h.int(i)));
+                fs.push(ar.pow(h.int(i + 1), h.int(-1)));
+            }
+            cx.charge(k + 1)?;
+            return done(ar.mul(&fs));
         }
     }
     // a rational upper index and a small non-negative integer k: the falling factorial over k!

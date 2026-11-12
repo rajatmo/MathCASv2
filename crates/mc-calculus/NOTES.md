@@ -1344,3 +1344,15 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 - `solve_always(eqs, xs)`: every coefficient of the numerator of lhs - rhs (polynomial in xs) set to zero and solved
   by `solve`; decision: with more symbols than equations, the first symbols in the canonical order are solved for
   (the coefficients of a monic cubic in terms of its roots, not the roots in terms of the coefficients).
+## Round 38: inverse Jacobi and Weierstrass properties
+
+- The onto facts of the table with no parameter condition (`onto: [("", false)]`) were never read (the empty
+  condition was instantiated instead of taken as true): `function_surjective` of the bounded inverse Jacobi functions
+  declined. Read like the shapes now.
+- The inverse Jacobi functions dn, cd, nd, dc, ds for m > 1: their real domains (Jacobi's real transformation, DLMF
+  22.17.4) were already written; the numeric values are now real exactly on them (checked at points inside and out),
+  so the entries hold for every real m other than 1.
+- A special function of the table with a pole on the real line (the Weierstrass functions: the pole at 0 is listed,
+  the others are not) is not defined on the whole line: its sign, monotonicity and convexity are indeterminate, as for
+  any function whose domain leaves points out (DLMF 23.2.4-23.2.5). Not done: the Weierstrass functions of the
+  invariants (`weierstrass_eta1([x, y])` and the half periods as functions of g2, g3).

@@ -707,8 +707,7 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "alternating_harmonic_number", arity: 2, when: "$a == 1", real: "element($u, integers)", sr: Some(&[("true", BR)]), refs: "DLMF 25.11", ..E },
     // inverse Jacobi functions for real m other than 1: the real domain of the principal branch is the range of the
     // function on the line (for m > 1 through Jacobi's real transformation), the values bounded by a period
-    // (DLMF 22.15.1-22.15.12, 22.17.4, 22.16.(i)); for dn, cd, nd, dc, ds only m < 1, where the numeric values agree
-    // with that branch (for m > 1 they are complex on part of it: left to the function's own crate)
+    // (DLMF 22.15.1-22.15.12, 22.17.4, 22.16.(i)); the numeric values are real exactly on these sets
     Entry {
         name: "inverse_jacobi_sn",
         arity: 2,
@@ -730,7 +729,7 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_jacobi_dn",
         arity: 2,
-        when: "$a < 1",
+        when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(1/2), 1) <= $u and $u <= max((1 - $a)^(1/2), 1) or $a > 1 and -1 <= $u and $u <= 1",
         onto: &[("", false)],
         refs: "DLMF 22.15.3, 22.17.4",
@@ -739,7 +738,7 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_jacobi_cd",
         arity: 2,
-        when: "$a < 1",
+        when: M_NOT_1,
         real: "$a < 1 and -1 <= $u and $u <= 1 or $a > 1 and ($u <= -1 or $u >= 1)",
         onto: &[("", false)],
         refs: "DLMF 22.15.4, 22.17.4",
@@ -757,7 +756,7 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_jacobi_nd",
         arity: 2,
-        when: "$a < 1",
+        when: M_NOT_1,
         real: "$a < 1 and min((1 - $a)^(-1/2), 1) <= $u and $u <= max((1 - $a)^(-1/2), 1) or $a > 1 and ($u <= -1 or $u >= 1)",
         onto: &[("", false)],
         refs: "DLMF 22.15.6, 22.17.4",
@@ -766,7 +765,7 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_jacobi_dc",
         arity: 2,
-        when: "$a < 1",
+        when: M_NOT_1,
         real: "$a < 1 and ($u <= -1 or $u >= 1) or $a > 1 and -1 <= $u and $u <= 1",
         onto: &[("", false)],
         refs: "DLMF 22.15.7, 22.17.4",
@@ -812,7 +811,7 @@ pub static TABLE: &[Entry] = &[
     Entry {
         name: "inverse_jacobi_ds",
         arity: 2,
-        when: "$a < 1",
+        when: M_NOT_1,
         real: "$a < 1 and ($u <= -(1 - $a)^(1/2) or $u >= (1 - $a)^(1/2)) or $a > 1",
         onto: &[("", false)],
         refs: "DLMF 22.15.12, 22.17.4",
@@ -1351,6 +1350,9 @@ impl<'h> Hit<'h> {
     /// Onto the reals, by the first recorded parameter condition that holds; `None` when none does.
     pub fn onto(&self, cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>) -> Res<Option<bool>> {
         for (w, v) in self.facts.onto.clone() {
+            if w.is_empty() {
+                return Ok(Some(v));
+            }
             let c = inst(cx, b, &w, &self.rules)?;
             if holds(cx, b, c, &self.pf)? {
                 return Ok(Some(v));

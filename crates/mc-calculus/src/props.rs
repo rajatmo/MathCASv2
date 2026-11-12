@@ -873,6 +873,44 @@ fn chords_agree<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
     Ok(Some(true))
 }
 
+/// Does the special function `f` (a call of the table at an affine function of `x`, no condition on `x`) have a
+/// pole on the real line? It is then not defined on the whole line, and its sign, monotonicity and convexity are
+/// indeterminate, as for any function whose domain leaves out points (the Weierstrass functions: their real
+/// domain is not listed, but the pole at 0 is one of its gaps; DLMF 23.2.4-23.2.5).
+fn pole_on_line<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>) -> Res<bool> {
+    let h = b.heap();
+    if c.integers || c.complex || c.cond.is_some() {
+        return Ok(false);
+    }
+    let mut pf = c.facts.clone();
+    pf.extend(cx.assumptions().iter().copied());
+    let Some(hit) = table::lookup(cx, b, c.f, &[x], &pf)? else { return Ok(false) };
+    if !range::affine_in(cx, b, hit.arg, x)? {
+        return Ok(false);
+    }
+    if let View::App { args, .. } = h.view(c.f) {
+        if args.iter().filter(|&&a| a != hit.arg).any(|&a| !is_free(b, a, x)) {
+            return Ok(false);
+        }
+    }
+    let Some((atoms, _)) = hit.atoms(cx, b, false, sets::Mode::Sing)? else { return Ok(false) };
+    for (t, k) in atoms {
+        if k != sets::Kind::Pole {
+            continue;
+        }
+        let mut others = rustc_hash::FxHashSet::default();
+        symbols(b, t, &mut others);
+        if others.iter().any(|&s| s != x) {
+            continue;
+        }
+        let r = cx.eval(h.call(h.sym("reduce"), &[t, x, h.sym_term(h.sym("reals"))]))?;
+        if !cx.is_false(r) && !is_call(b, r, "reduce") && !is_call(b, r, names::FAILURE) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, order: usize) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let [x] = c.vars.as_slice() else { return sign_multi(cx, b, c, order) };
@@ -884,6 +922,9 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         return sign_of(cx, b, &c2, order);
     }
     let shaped = order > 0 && !c.integers && nonsmooth(b, c.f, x);
+    if pole_on_line(cx, b, c, x)? {
+        return Ok(Some(h.sym_term(h.sym("indeterminate"))));
+    }
     let Some(cs) = conditions(cx, b, c.f, &c.vars, false)? else {
         // a function with jumps or kinks whose domain is not known: its samples alone
         return if shaped { sampled_shape(cx, b, c, x, order) } else { Ok(None) };

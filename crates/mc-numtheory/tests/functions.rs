@@ -134,7 +134,9 @@ fn factorials_and_binomials() {
         ("factorial(25)", "15511210043330985984000000"),
         ("integer_length(factorial(10000))", "35660"),
         ("factorial(-1)", "factorial(-1)"),
-        ("factorial(1/2)", "factorial(1/2)"),
+        // a half-integer is handed to gamma (its closed form lives in the special functions); another rational stays
+        ("factorial(1/2)", "gamma(3/2)"),
+        ("factorial(1/3)", "factorial(1/3)"),
         ("factorial(10^9)", "failure(limit, memory, factorial(1000000000))"),
         ("factorial([3, 4])", "[6, 24]"),
         ("binomial(10, 3)", "120"),

@@ -125,6 +125,9 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
             let one = fx.int(1);
             return Ok(Some(fx.mul(&[fx.pow(fx.sub(one, x), fx.neg(p[1])), fx.pow(fx.sub(one, y), fx.neg(p[2]))])));
         }
+        if let Some(v) = f1_reduced(fx, p, x, y)? {
+            return Ok(Some(v));
+        }
     }
     if !numeric(fx, a) {
         return Ok(None);
@@ -202,6 +205,48 @@ fn appell<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
         extra = extra * 2 + 64;
     }
     Ok(best)
+}
+
+/// F1 on the special lines, from the definition summed along the diagonals m + n = N:
+/// - a zero b1 (b2): the Gauss function of the other variable;
+/// - y = x: F1 = 2F1(a, b1 + b2; c; x) (DLMF 16.16.1 type, the Vandermonde sum of (b1)_m (b2)_n);
+/// - y = -x, b1 = b2 = b: the inner sum is the coefficient of t^N in (1 - t^2)^-b, so only even N = 2k remain and
+///   F1 = 3F2(1/2 + a/2, a/2, b; 1/2 + c/2, c/2; x^2) ((a)_(2k) = 4^k (a/2)_k ((a + 1)/2)_k);
+/// - x = 1 with c - a - b1 > 0: summed over m by Gauss's theorem (DLMF 15.4.20), F1 = Gamma(c) Gamma(c - a - b1)/
+///   (Gamma(c - a) Gamma(c - b1)) 2F1(a, b2; c - b1; y), and the same with the variables exchanged.
+fn f1_reduced<'h>(fx: &mut Fx<'_, '_, '_, 'h>, p: &[T<'h>], x: T<'h>, y: T<'h>) -> R<'h> {
+    let (a, b1, b2, c) = (p[0], p[1], p[2], p[3]);
+    let g2 = |fx: &Fx<'_, '_, '_, 'h>, a: T<'h>, b: T<'h>, c: T<'h>, z: T<'h>| fx.call("hypergeometric_2f1", &[a, b, c, z]);
+    if fx.is_int(b1, 0) {
+        return Ok(Some(g2(fx, a, b2, c, y)));
+    }
+    if fx.is_int(b2, 0) {
+        return Ok(Some(g2(fx, a, b1, c, x)));
+    }
+    if x == y {
+        return Ok(Some(g2(fx, a, fx.add(&[b1, b2]), c, x)));
+    }
+    let neg = fx.eval(fx.neg(x))?;
+    if neg == y && b1 == b2 {
+        let half = fx.rat(1, 2);
+        let num = fx.list(&[fx.add(&[half, fx.mul(&[half, a])]), fx.mul(&[half, a]), b1]);
+        let den = fx.list(&[fx.add(&[half, fx.mul(&[half, c])]), fx.mul(&[half, c])]);
+        return Ok(Some(fx.call("hypergeometric_pfq", &[num, den, fx.pow(x, fx.int(2))])));
+    }
+    for (u, v, bu, bv) in [(x, y, b1, b2), (y, x, b2, b1)] {
+        if !fx.is_int(u, 1) {
+            continue;
+        }
+        let e = fx.eval(fx.sub(fx.sub(c, a), bu))?;
+        let positive = fx.rat_of(e).is_some_and(|q| !q.num.neg && !q.num.is_zero());
+        if !positive {
+            continue;
+        }
+        let g = |t: T<'h>| fx.call("gamma", &[t]);
+        let k = fx.div(fx.mul(&[g(c), g(e)]), fx.mul(&[g(fx.sub(c, a)), g(fx.sub(c, bu))]));
+        return Ok(Some(fx.mul(&[k, g2(fx, a, bv, fx.sub(c, bu), v)])));
+    }
+    Ok(None)
 }
 
 fn appell_f1<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {

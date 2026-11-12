@@ -16,3 +16,11 @@
   limit maps with its side, an infinite one stays infinite); an even root only at a positive limit.
 - An undecided `limit` whose `max_limit` is provably above its `min_limit` is `failure(no_limit, ...)` (sin(1/x) at 0,
   cos(x) at infinity); `max_limit`/`min_limit` that find nothing take the limit when it exists.
+
+## Round 38: more special functions at infinity
+
+- Limits at +-inf from the leading asymptotic terms: Scorer functions (DLMF 9.12.27-9.12.31), the zeros of Airy and
+  Bessel functions as their index grows (9.9.6, 10.21.19), the subfactorial, spherical Hankel functions (10.52), Anger
+  and Weber functions (11.11.8-11.11.10), parabolic cylinder D (12.9.1), Struve H by its order (11.6.1: 0 for nu < 1,
+  2/pi at 1, inf beyond; a symbolic order declines), and the confluent hypergeometric functions at +inf by the sign of
+  Gamma(b)/Gamma(a) (13.7.1; a nonpositive integer a is a polynomial, left to the series).

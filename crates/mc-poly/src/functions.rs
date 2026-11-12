@@ -75,6 +75,14 @@ fn expand_mod<'h>(env: &Env<'h>, e: T<'h>, o: T<'h>, m: &mut Meter) -> WorkResul
         },
         _ => None,
     };
+    // trig: true is the library's rule (the trigonometric functions expanded first)
+    if let [r] = rules {
+        if let View::App { args: &[k, _], .. } = h.view(*r) {
+            if k == env.sym("trig") {
+                return Ok(Out::Decline);
+            }
+        }
+    }
     let n = match n {
         Some(0) => return expand(env, &[e], m),
         Some(n) if n > 1 => n as u64,
@@ -585,6 +593,10 @@ pub(crate) fn polynomial_gcd_mod<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Mete
 /// `gcd(a, b, ...)` and `lcm(a, b, ...)` of polynomials (decision K.5). Calls whose arguments are all exact numbers
 /// never get here: the native sends them to mc-numtheory's half-gcd first (decision 9.1).
 pub(crate) fn gcd<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, lcm: bool) -> WorkResult<Out<'h>> {
+    // exact Gaussian rationals: the library's rule (the Euclidean algorithm in Z[i])
+    if !args.is_empty() && args.iter().all(|&a| env.ar.num(a).is_some_and(|x| x.is_exact())) && args.iter().any(|&a| env.ar.num(a).is_some_and(|x| x.as_rat().is_none())) {
+        return Ok(Out::Decline);
+    }
     if args.iter().any(|&a| env.ar.num(a).is_some_and(|x| x.as_rat().is_none())) {
         let name = if lcm { "lcm" } else { "gcd" };
         return Ok(env.arg_failure(&format!("{name} takes exact numbers or polynomials")));
@@ -1069,6 +1081,18 @@ pub(crate) fn discriminant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
 
 /// `together(e)`: one fraction in lowest terms; `cancel(e)`: each term of a sum in lowest terms.
 pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel: bool) -> WorkResult<Out<'h>> {
+    // the options modulus: m and trig: true are the library's rules
+    if let [_, o] = args {
+        if let Some(rs) = env.args_of(*o, "options") {
+            let known = rs.iter().all(|&r| match env.h().view(r) {
+                View::App { args: &[k, _], .. } => k == env.sym("modulus") || k == env.sym("trig"),
+                _ => false,
+            });
+            if known {
+                return Ok(Out::Decline);
+            }
+        }
+    }
     let [e] = args else {
         return Ok(env.arg_failure("together(e) takes one argument"));
     };

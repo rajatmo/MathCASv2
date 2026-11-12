@@ -27,13 +27,17 @@ rule thue_morse(k_) := mod(digit_sum(k, 2), 2) when is_integer(k) and k >= 0
 golden_angle := pi*(3 - sqrt(5))
 
 # bit_length(k): the number of bits of k (of -k - 1 for negative k); bit_shift_right(k, s): floor(k / 2^s);
-# bit_flip(k, i): k with bit i (0 the least significant) flipped; all thread over lists
+# bit_flip(k, i): k with bit i (0 the least significant) flipped; all thread over lists. bit_shift_right(k) shifts
+# by one bit. For k >= 0 a negative bit index counts from the most significant bit (-1 is the top bit of the
+# bit_length(k) bits); an index past the top leaves k as it is.
 rule bit_length(ks_) := map(bit_length, ks) when is_list(ks)
 rule bit_length(k_) := integer_length(if k < 0 then -k - 1 else k, 2) when is_integer(k)
+rule bit_shift_right(k_) := bit_shift_right(k, 1)
 rule bit_shift_right(ks_, s_) := map(j => bit_shift_right(j, s), ks) when is_list(ks)
 rule bit_shift_right(k_, s_) := quotient(k, 2^s) when is_integer(k) and is_integer(s) and s >= 0
 rule bit_flip(ks_, i_) := map(j => bit_flip(j, i), ks) when is_list(ks)
 rule bit_flip(k_, i_) := bit_xor(k, 2^i) when is_integer(k) and is_integer(i) and i >= 0
+rule bit_flip(k_, i_) := (if bit_length(k) + i >= 0 then bit_xor(k, 2^(bit_length(k) + i)) else k) when is_integer(k) and k >= 0 and is_integer(i) and i < 0
 
 # bit_set(k, i): k with bit i set to 1; bit_clear(k, i): k with bit i set to 0 (negative k in two's complement, as
 # bit_and and bit_or take them); bit_shift_left(k, s): k 2^s (bit_shift_left(k) shifts by one bit; a negative s
@@ -757,6 +761,69 @@ rule denominator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o))[2] wh
 rule numerator_denominator(e_, o_) := md_frac(numerator(e), denominator(e), md_m(o)) when md_opt(e, o) and md_ok(e, md_m(o))
 rule coefficient_rules(p_, v_, o_) := coefficient_rules(md_red(p, md_m(o)), v) when md_opt(p, o) and denominator(p) === 1
 rule monomial_list(p_, v_, o_) := monomial_list(md_red(p, md_m(o)), v) when md_opt(p, o) and denominator(p) === 1
+# together(e, modulus: m) and cancel(e, modulus: m): the fraction over Z/m as above; for a prime m and a numerator
+# and denominator in one variable their gcd over F_m is cancelled first (several variables: no gcd is taken, the
+# value is the same)
+fn md_uni(n, d) = {
+  let vs = union(variables(n), variables(d))
+  if length(vs) == 1 then vs[1] else none
+}
+fn md_together(e, m) = {
+  let r = together(e)
+  let n1 = md_red(numerator(r), m)
+  let d1 = md_red(denominator(r), m)
+  let x = md_uni(n1, d1)
+  if x !== none and is_prime(m) and not is_number(d1) then {
+    let g = polynomial_gcd(n1, d1, modulus: m)
+    let f = md_frac(polynomial_quotient(n1, g, x, modulus: m), polynomial_quotient(d1, g, x, modulus: m), m)
+    f[1]/f[2]
+  } else {
+    let f = md_frac(n1, d1, m)
+    f[1]/f[2]
+  }
+}
+rule together(e_, o_) := md_together(e, md_m(o)) when md_opt(e, o) and md_ok(together(e), md_m(o))
+rule cancel(e_, o_) := (if head(e) === add then apply(add, map(t => md_together(t, md_m(o)), ex_parts(e))) else md_together(e, md_m(o))) when md_opt(e, o) and md_ok(together(e), md_m(o))
+
+# --- the trig: true option of the fraction and expansion functions ---
+# The trigonometric and hyperbolic functions are read as rational functions of sin and cos (sinh and cosh):
+# tan = sin/cos, sec = 1/cos, ... (tg_sc), with sums of arguments and multiple angles expanded (trig_expand) where
+# the function expands or reduces fractions. The numerator and denominator of a fraction are then put in the normal
+# form of the ideal (cos(u)^2 + sin(u)^2 - 1): {cos(u)^2 + sin(u)^2 - 1} is its Groebner basis for an order with
+# cos(u) > sin(u), so the normal form is cos(u)^n rewritten through cos(u)^2 = 1 - sin(u)^2 down to degree <= 1 in
+# cos(u); likewise cosh(u)^2 = 1 + sinh(u)^2 (Cox, Little, O'Shea, Ideals, Varieties, and Algorithms, 2.6).
+fn tg_only(o) = not is_atom(o) and head(o) === options and length(o) == 1 and o[1][1] === trig and o[1][2] === true
+fn tg_sc(e) = rewrite(e, [tan(u_) :> sin(u)/cos(u), cot(u_) :> cos(u)/sin(u), sec(u_) :> 1/cos(u), csc(u_) :> 1/sin(u),
+  tanh(u_) :> sinh(u)/cosh(u), coth(u_) :> cosh(u)/sinh(u), sech(u_) :> 1/cosh(u), csch(u_) :> 1/sinh(u)])
+fn tg_x(e) = expand(trig_expand(e))
+fn tg_nf(p) = expand(rewrite(expand(p), [cos(u_)^k_ :> (if is_integer(k) and k >= 2 then cos(u)^mod(k, 2)*(1 - sin(u)^2)^quotient(k, 2) else cos(u)^k),
+  cosh(u_)^k_ :> (if is_integer(k) and k >= 2 then cosh(u)^mod(k, 2)*(1 + sinh(u)^2)^quotient(k, 2) else cosh(u)^k)]))
+fn tg_frac(e) = {
+  let r = together(tg_sc(trig_expand(e)))
+  cancel(tg_nf(numerator(r))/tg_nf(denominator(r)))
+}
+fn tg_numer(e) = if is_atom(e) then e
+  else if head(e) === add then apply(add, map(tg_numer, ex_parts(e)))
+  else if (head(e) === mul or head(e) === pow) and denominator(e) !== 1 then tg_x(numerator(e))/denominator(e)
+  else apply(head(e), map(tg_numer, ex_parts(e)))
+fn tg_denom(e) = if is_atom(e) then e
+  else if head(e) === add then apply(add, map(tg_denom, ex_parts(e)))
+  else if (head(e) === mul or head(e) === pow) and denominator(e) !== 1 then numerator(e)/tg_x(denominator(e))
+  else apply(head(e), map(tg_denom, ex_parts(e)))
+fn tg_all(e) = if is_atom(e) then e else {
+  let ps = map(tg_all, ex_parts(e))
+  if head(e) === pow and is_integer(ps[2]) and ps[2] < 0 then tg_x(ps[1])^ps[2]
+  else tg_x(apply(head(e), ps))
+}
+rule expand(e_, o_) := tg_x(e) when tg_only(o)
+rule expand_numerator(e_, o_) := tg_numer(e) when tg_only(o)
+rule expand_denominator(e_, o_) := tg_denom(e) when tg_only(o)
+rule expand_all(e_, o_) := tg_all(e) when tg_only(o)
+rule numerator(e_, o_) := numerator(tg_sc(e)) when tg_only(o)
+rule denominator(e_, o_) := denominator(tg_sc(e)) when tg_only(o)
+rule numerator_denominator(e_, o_) := (if is_list(e) then map(t => numerator_denominator(t, trig: true), e) else [numerator(tg_sc(e)), denominator(tg_sc(e))]) when tg_only(o)
+rule together(e_, o_) := tg_frac(e) when tg_only(o)
+rule cancel(e_, o_) := (if head(e) === add then apply(add, map(tg_frac, ex_parts(e))) else tg_frac(e)) when tg_only(o)
 rule polynomial_quotient_remainder(p_, q_, x_, o_) := [polynomial_quotient(p, q, x, o), polynomial_remainder(p, q, x, o)] when md_only(o)
 # the extended Euclidean algorithm in F_p[x] (p prime, one variable): the degree of r1 falls at every step, so at
 # most degree(q) + 1 steps
@@ -1068,6 +1135,19 @@ fn gi_complex(z) = gi_int(z) and im_part(z) != 0
 rule divisor_sigma(k_, z_) := divisor_sigma(k, z, gaussian_integers: true) when gi_complex(z) and is_integer(k)
 rule liouville_lambda(z_) := liouville_lambda(z, gaussian_integers: true) when gi_complex(z)
 rule moebius_mu(z_) := moebius_mu(z, gaussian_integers: true) when gi_complex(z)
+rule factor_integer(z_) := factor_integer(z, gaussian_integers: true) when gi_complex(z)
+rule prime_nu(z_) := prime_nu(z, gaussian_integers: true) when gi_complex(z)
+# gcd and lcm of two Gaussian rationals (one not real): z = w/d with d the least common denominator of its parts and w
+# a Gaussian integer; gcd(z1, z2) = gcd(w1, w2)/lcm(d1, d2), lcm(z1, z2) = lcm(w1, w2)/gcd(d1, d2) as for
+# rationals, the Gaussian gcd by the Euclidean algorithm with the rounded quotient (Z[i] is Euclidean for the norm)
+# and lcm(u, v) = u v/gcd(u, v), each normalised to its first-quadrant associate (re > 0, im >= 0)
+fn gq_ok(zs) = every(zs, z => is_number(z) and is_exact(z) and is_rational(re(z)) and is_rational(im_part(z))) and some(zs, z => im_part(z) != 0)
+fn gq_den(z) = lcm(denominator(re(z)), denominator(im_part(z)))
+fn gq_norm1(z) = if z === 0 then 0 else gi_assoc(z)
+fn gq_gcd2(u, v) = gq_norm1(ftl_gauss_gcd(u, v))
+fn gq_lcm2(u, v) = if u === 0 or v === 0 then 0 else gq_norm1(expand(u*v/gq_gcd2(u, v)))
+rule gcd(u_, v_) := gq_gcd2(expand(u*gq_den(u)), expand(v*gq_den(v)))/lcm(gq_den(u), gq_den(v)) when gq_ok([u, v])
+rule lcm(u_, v_) := gq_lcm2(expand(u*gq_den(u)), expand(v*gq_den(v)))/gcd(gq_den(u), gq_den(v)) when gq_ok([u, v])
 # sigma_k(n) for a k that is not a natural number (rational, negative or symbolic): the product over p^e || n of
 # (p^(k (e + 1)) - 1)/(p^k - 1), the geometric sums 1 + p^k + ... + p^(e k) (Hardy and Wright 16.7)
 rule divisor_sigma(k_, n_) := { if n == 1 then 1 else product(map(f => (f[1]^(k*(f[2] + 1)) - 1)/(f[1]^k - 1), factor_integer(n))) } when is_number(n) and is_integer(n) and n >= 1 and (not is_integer(k) or k < 0) and (is_rational(k) or not is_number(k)) and not is_list(k)
@@ -1156,3 +1236,62 @@ rule dirichlet_l(k_, j_, s_) := {
   }
   tot*k^(-s)
 } when is_integer(k) and k > 1 and is_integer(j) and gcd(j, k) == 1 and is_inexact(s) and is_number(s)
+
+# --- Dirichlet series and Euler products of arithmetic functions ---
+# sum(a(n)/n^s, [n, inf]) (or [n, 1, inf]) for the classical Dirichlet series, on their half plane of absolute
+# convergence (a numeric s outside it leaves the sum as it is): mu -> 1/zeta(s), mu^2 -> zeta(s)/zeta(2s),
+# lambda (Liouville) -> zeta(2s)/zeta(s), Lambda (von Mangoldt) -> -zeta'(s)/zeta(s), 2^omega -> zeta(s)^2/zeta(2s),
+# phi -> zeta(s - 1)/zeta(s) (re(s) > 2), sigma_k -> zeta(s) zeta(s - k) (re(s) > max(1, 1 + re(k))), and
+# sum(prime(n)^-s) = prime_zeta_p(s); the Euler products over the primes of 1 - p^-s, 1 + p^-s and their reciprocals
+# (Apostol, Introduction to Analytic Number Theory, 11.4-11.6; Hardy and Wright, 17.1-17.7).
+fn ds_iter(it) = is_list(it) and (length(it) == 2 and it[2] === inf or length(it) == 3 and it[2] === 1 and it[3] === inf)
+fn ds_factors(f) = if not is_atom(f) and head(f) === mul then ex_parts(f) else [f]
+fn ds_is_pow(t, n) = t === n or (not is_atom(t) and head(t) === pow and t[1] === n and free_of(t[2], n))
+fn ds_exp(t, n) = if t === n then 1 else t[2]
+fn ds_conv(s, b) = if is_numeric(s) then (if is_numeric(b) then n(re(s)) > n(b) else false) else true
+fn ds_value(a, n, s) =
+  if a === 1 then (if ds_conv(s, 1) then zeta(s) else null)
+  else if a === moebius_mu(n) then (if ds_conv(s, 1) then 1/zeta(s) else null)
+  else if a === moebius_mu(n)^2 then (if ds_conv(s, 1) then zeta(s)/zeta(2*s) else null)
+  else if a === liouville_lambda(n) then (if ds_conv(s, 1) then zeta(2*s)/zeta(s) else null)
+  else if a === mangoldt_lambda(n) then (if ds_conv(s, 1) then -rewrite(d(zeta(ds_tvar), ds_tvar), ds_tvar -> s)/zeta(s) else null)
+  else if a === 2^prime_nu(n) then (if ds_conv(s, 1) then zeta(s)^2/zeta(2*s) else null)
+  else if a === euler_phi(n) then (if ds_conv(s, 2) then zeta(s - 1)/zeta(s) else null)
+  else if not is_atom(a) and head(a) === divisor_sigma and length(a) == 2 and a[2] === n and free_of(a[1], n) then
+    (if ds_conv(s, if is_numeric(a[1]) then max(1, 1 + re(a[1])) else 1) then zeta(s)*zeta(s - a[1]) else null)
+  else null
+fn ds_sum(f, n) = {
+  let fs = ds_factors(f)
+  let ps = select(fs, t => ds_is_pow(t, n))
+  let rest = select(fs, t => not ds_is_pow(t, n))
+  let s = -apply(add, append(map(t => ds_exp(t, n), ps), 0))
+  let a = apply(mul, append(rest, 1))
+  if length(ps) == 0 and length(rest) == 1 and not is_atom(f) and head(f) === pow and not is_atom(f[1]) and f[1] === prime(n) and free_of(f[2], n) then
+    (if ds_conv(-f[2], 1) then prime_zeta_p(-f[2]) else null)
+  else if length(ps) == 0 then null
+  else ds_value(a, n, s)
+}
+rule sum(f_, it_) := ds_sum(f, it[1]) when ds_iter(it) and ds_sum(f, it[1]) !== null
+# the Euler products: the factor 1 + c p^e with c = 1 or -1, or its reciprocal
+fn ep_prime_pow(t, n) = not is_atom(t) and head(t) === pow and t[1] === prime(n) and free_of(t[2], n)
+fn ep_value(f, n) = {
+  let inv = not is_atom(f) and head(f) === pow and f[2] === -1
+  let g = if inv then f[1] else f
+  let parts = if not is_atom(g) and head(g) === add and length(g) == 2 then ex_parts(g) else []
+  let one = select(parts, t => t === 1)
+  let others = select(parts, t => not (t === 1))
+  if length(one) != 1 or length(others) != 1 then null else {
+    let t = others[1]
+    let neg = not is_atom(t) and head(t) === mul and length(t) == 2 and t[1] === -1 and ep_prime_pow(t[2], n)
+    let pp = if neg then t[2] else t
+    if not ep_prime_pow(pp, n) then null else {
+      let s = -pp[2]
+      if not ds_conv(s, 1) then null
+      else if neg and inv then zeta(s)
+      else if neg then 1/zeta(s)
+      else if inv then zeta(2*s)/zeta(s)
+      else zeta(s)/zeta(2*s)
+    }
+  }
+}
+rule product(f_, it_) := ep_value(f, it[1]) when ds_iter(it) and ep_value(f, it[1]) !== null

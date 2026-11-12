@@ -1489,6 +1489,13 @@ rule prime_zeta_p(s_) := {
   let top = ceiling((digits + 3)*3.33/re(s)) + 2
   sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
 } when is_inexact(s) and is_real(re(s)) and re(s) > 1
+# a real s in (1/2, 1): the same series, its terms k >= 2 real (k s > 1) and the first log(zeta(s)) of the negative
+# zeta(s) on the principal branch, log|zeta(s)| + i pi
+rule prime_zeta_p(s_) := {
+  let digits = if is_machine_number(s) then 17 else precision(s)
+  let top = ceiling((digits + 3)*3.33/s) + 2
+  sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
+} when is_inexact(s) and is_real(s) and s > 1/2 and s < 1
 
 # machine_precision: the precision of machine numbers, 53 log10(2) = 15.954589770191003...
 rule machine_precision := 15.954589770191003

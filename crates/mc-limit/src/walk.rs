@@ -194,7 +194,7 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
         (f, [params @ .., u]) if at_infinity_known(f, params.len()) && params.iter().all(|&p| is_free(b, p, t)) => {
             // special functions as their argument tends to an infinity (decision IOSYM.8)
             match lim(cx, b, *u, t, d)? {
-                Some(Lim::Inf(sg)) => Ok(at_infinity(b, f, sg)),
+                Some(Lim::Inf(sg)) => at_infinity(cx, b, f, params, sg),
                 _ => series(cx, b, g, t),
             }
         }
@@ -209,23 +209,33 @@ fn at_infinity_known(f: &str, params: usize) -> bool {
             f,
             "erf" | "erfc" | "erfi" | "airy_ai" | "airy_ai_prime" | "airy_bi" | "airy_bi_prime" | "dawson_f" | "fresnel_c"
                 | "fresnel_s" | "sin_integral" | "sinh_integral" | "cos_integral" | "cosh_integral" | "exp_integral_ei"
-                | "gamma" | "log_gamma" | "product_log"
+                | "gamma" | "log_gamma" | "product_log" | "scorer_gi" | "scorer_gi_prime" | "scorer_hi" | "scorer_hi_prime"
+                | "airy_ai_zero" | "airy_bi_zero" | "subfactorial"
         ),
         1 => matches!(
             f,
             "bessel_j" | "bessel_y" | "bessel_k" | "bessel_i" | "hankel_h1" | "hankel_h2" | "exp_integral_e" | "spherical_bessel_j"
-                | "spherical_bessel_y"
+                | "spherical_bessel_y" | "spherical_hankel_h1" | "spherical_hankel_h2" | "anger_j" | "weber_e"
+                | "parabolic_cylinder_d" | "struve_h" | "bessel_j_zero" | "bessel_y_zero"
         ),
+        2 => matches!(f, "hypergeometric_1f1" | "hypergeometric_1f1_regularized"),
         _ => false,
     }
 }
 
 /// The limit of a special function (its last argument the variable, the others fixed) as the argument tends to
-/// `inf` (`sg` 1) or `-inf` (-1); `None` when it oscillates without bound or is not listed.
-fn at_infinity<'h>(b: &Build<'h>, f: &str, sg: i8) -> Option<Lim<'h>> {
+/// `inf` (`sg` 1) or `-inf` (-1); `None` when it oscillates without bound or is not listed. The leading terms:
+/// Scorer functions DLMF 9.12.27-9.12.31 (Gi(x) ~ 1/(pi x), Hi(-x) ~ 1/(pi x), Hi and Hi' grow like exp); the
+/// zeros of Airy and Bessel functions 9.9.6, 10.21.19 (a_k ~ -(3 pi k/2)^(2/3), j_(n,k) ~ (k + n/2 - 1/4) pi); the
+/// subfactorial !x = Gamma(x + 1, -1)/e ~ Gamma(x + 1)/e; spherical Hankel functions 10.52 (~ e^(+-ix)/x); Anger
+/// and Weber functions 11.11.8-11.11.10 (J_nu - J_nu and E_nu + Y_nu are O(1/x)); parabolic cylinder functions
+/// 12.9.1 (x^nu e^(-x^2/4)); Struve H 11.6.1 (H_nu - Y_nu ~ (x/2)^(nu - 1)/(sqrt(pi) Gamma(nu + 1/2)), real nu);
+/// confluent hypergeometric 13.7.1 (M(a, b, x) ~ e^x x^(a - b)/Gamma(a) for the regularized function, real a not
+/// a nonpositive integer).
+fn at_infinity<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: &str, params: &[T<'h>], sg: i8) -> Res<Option<Lim<'h>>> {
     let zero = || Some(Lim::Fin(b.zero(), 0));
     let pi = || b.sym(b.heap().sym("pi"));
-    match (f, sg) {
+    Ok(match (f, sg) {
         ("erf", _) => Some(Lim::Fin(b.int(sg.into()), 0)),
         ("erfc", 1) => zero(),
         ("erfc", _) => Some(Lim::Fin(b.int(2), 0)),
@@ -240,8 +250,40 @@ fn at_infinity<'h>(b: &Build<'h>, f: &str, sg: i8) -> Option<Lim<'h>> {
         ("cosh_integral" | "exp_integral_ei" | "gamma" | "log_gamma" | "product_log" | "bessel_i", 1) => Some(Lim::Inf(1)),
         ("exp_integral_ei", _) => zero(),
         ("bessel_j" | "bessel_y" | "bessel_k" | "hankel_h1" | "hankel_h2" | "exp_integral_e" | "spherical_bessel_j" | "spherical_bessel_y", 1) => zero(),
+        ("spherical_hankel_h1" | "spherical_hankel_h2" | "anger_j" | "weber_e" | "parabolic_cylinder_d", 1) => zero(),
+        ("scorer_gi", _) | ("scorer_gi_prime", 1) | ("scorer_hi" | "scorer_hi_prime", -1) => zero(),
+        ("scorer_hi" | "scorer_hi_prime" | "subfactorial", 1) => Some(Lim::Inf(1)),
+        ("airy_ai_zero" | "airy_bi_zero", 1) => Some(Lim::Inf(-1)),
+        ("bessel_j_zero" | "bessel_y_zero", 1) => Some(Lim::Inf(1)),
+        ("struve_h", 1) => {
+            // 0 for nu < 1, 2/pi at nu = 1, inf for nu > 1 (Gamma(nu + 1/2) > 0 there)
+            let nu = params[0];
+            match sign(cx, b, b.sub(nu, b.one()))? {
+                Some(-1) => zero(),
+                Some(0) => Some(Lim::Fin(cx.eval(b.div(b.int(2), pi()))?, 0)),
+                Some(1) => Some(Lim::Inf(1)),
+                _ => None,
+            }
+        }
+        ("hypergeometric_1f1" | "hypergeometric_1f1_regularized", 1) => {
+            // the sign of the factor of e^x x^(a - b): 1/Gamma(a), times Gamma(b) when not regularized
+            let (a, bb) = (params[0], params[1]);
+            let nonpositive_integer = |cx: &mut NativeCx<'_, '_, 'h>, v: T<'h>| -> Res<bool> {
+                let r = cx.eval(b.call("and", &[b.call("element", &[v, b.sym(b.heap().sym("integers"))]), b.call("less_equal", &[v, b.zero()])]))?;
+                Ok(cx.is_true(r))
+            };
+            if nonpositive_integer(cx, a)? || (f == "hypergeometric_1f1" && nonpositive_integer(cx, bb)?) {
+                return Ok(None);
+            }
+            let k = if f == "hypergeometric_1f1" { b.div(b.call("gamma", &[bb]), b.call("gamma", &[a])) } else { b.div(b.one(), b.call("gamma", &[a])) };
+            let kn = cx.eval(b.call("n", &[k]))?;
+            match sign(cx, b, kn)? {
+                Some(s @ (1 | -1)) if matches!(b.heap().view(kn), View::Real(_)) => Some(Lim::Inf(s)),
+                _ => None,
+            }
+        }
         _ => None,
-    }
+    })
 }
 
 /// `Lim::Fin` of the evaluated `v`.

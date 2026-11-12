@@ -111,3 +111,27 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   1969) over the exact numbers of the list. Decision: a recurrence of order L counts as found only when the list is
   longer than the 2 L terms that determine it (a generic list of 2 L terms has linear complexity L, so 2 L terms
   check nothing); otherwise `failure(no_recurrence)`.
+## Round 38: bit indices, fraction options, Dirichlet series
+
+- `bit_flip(k, i)` with k >= 0 and i < 0 counts from the most significant bit (-1 the top bit of the
+  `bit_length(k)` bits); an index past the top leaves k. `bit_shift_right(k)` shifts by one bit.
+- `together`, `cancel` with `modulus: m`: the fraction over Z/m (numerator and denominator reduced, the denominator's
+  leading coefficient made 1 when it is a unit); for a prime m and one variable the gcd over F_m is cancelled first.
+  With several variables no gcd is taken (the value is the same, the form may not be in lowest terms).
+- `trig: true` for `expand`, `expand_all`, `expand_numerator`, `expand_denominator`, `numerator`, `denominator`,
+  `numerator_denominator`, `together`, `cancel`: tan, cot, sec, csc (and the hyperbolic ones) read as quotients of sin
+  and cos, multiple angles and sums of arguments expanded (`trig_expand`), and a fraction's numerator and denominator
+  put in the normal form of the ideal (cos(u)^2 + sin(u)^2 - 1) (its Groebner basis for cos > sin: cos of degree at most
+  1; likewise cosh^2 = 1 + sinh^2; Cox, Little, O'Shea, *Ideals, Varieties, and Algorithms* 2.6). Not done: `factor`,
+  `factor_list`, `factor_square_free(_list)` and `apart_square_free` with `trig: true` (they need the sum-to-product
+  factorisation), and `extension:` for `together`/`cancel` (`factor` over an extension takes one variable only, and a
+  radical in the coefficients is read as a variable).
+- Dirichlet series `sum(a(n)/n^s, [n, inf])` of mu, mu^2, Liouville's lambda, von Mangoldt's Lambda, 2^omega, phi and
+  sigma_k, `sum(prime(n)^-s)` = `prime_zeta_p(s)`, and the Euler products over the primes of 1 -+ p^-s and their
+  reciprocals (Apostol 11.4-11.6; Hardy and Wright 17.1-17.7). A numeric s outside the half plane of absolute
+  convergence (re(s) > 1; > 2 for phi; > max(1, 1 + re(k)) for sigma_k) leaves the sum: `sum(phi(k)/k^2)` diverges.
+- Gaussian numbers without the option: `factor_integer(z)` and `prime_nu(z)` of a non-real Gaussian integer factor in
+  Z[i]; `gcd` and `lcm` of two exact Gaussian rationals (one not real): z = w/d with d the common denominator of its
+  parts, gcd = gcd(w1, w2)/lcm(d1, d2) and lcm = lcm(w1, w2)/gcd(d1, d2) as for rationals, the Gaussian gcd by
+  Euclid with the rounded quotient, normalised to the first-quadrant associate (Hardy and Wright 12.8). Not done:
+  `divisors` of a Gaussian integer without the option (its order would be by norm), more than two arguments.

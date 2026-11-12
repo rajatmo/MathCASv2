@@ -183,3 +183,17 @@ non-power rejected in 0.9 s.
 ## Round 36, later fixes
 
 - `is_prime_power` of a Gaussian integer with parts below 10^6: the same rules in machine integers (least prime factor of the norm by trial division), without the evaluator; 250,000 values in 1.1 s (4.1 s before). Checked against a brute-force enumeration of the powers of the Gaussian primes in the box [-40, 40]^2 (1,346 values, identical).
+
+## Round 38: bitwise laws, symbolic divisor sums, rational binomials
+
+- `bit_and`, `bit_or`, `bit_xor` with symbolic arguments use the laws that hold for every integer value of the
+  symbols: and/or are idempotent, xor cancels in pairs, the integer constants fold, 0 and -1 are the identity and the
+  absorbing element of and/or (`bit_and(1, 2, x)` is 0, `bit_or(-1, 2, x)` is -1), xor with -1 is the complement
+  (`bit_xor(-1, x)` is `bit_not(x)`), `bit_not(bit_not(x))` is x. A non-integer number or a list declines.
+- `divisor_sum(n, f)` with a symbolic n: f(d) expanded into a sum of constant multiples of 1, d^k, mu(d), mu(d)^2,
+  mu(d)/d, phi(d), Lambda(d) and mu(n/d) log(d), each summed by its classical identity (Apostol, *Introduction to
+  Analytic Number Theory*, theorems 2.1, 2.2, 2.10, 2.17, exercise 2.6; Hardy and Wright 16.7); any other summand
+  declines. Checked against the sums over the divisors of 1, 12, 30, 97, 360, 1001.
+- `binomial(a, b)` of non-integer rationals with a - b = d an integer: C(a, d) for d >= 0, 0 for d < 0 (Gamma(d + 1)
+  has a pole, Gamma(a + 1) and Gamma(b + 1) are finite); an exact complex a and a natural b: the falling factorial
+  over b!. `factorial` of a half-integer is `gamma(1 + x)` (its closed form, DLMF 5.4.6); other rationals stay.

@@ -438,7 +438,12 @@ fn divisor_sum<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
             .collect();
         return Ok(Some(fx.list(&out)));
     }
-    let Some(v) = int(fx, n) else { return Ok(None) };
+    let Some(v) = int(fx, n) else {
+        if a.len() == 2 && fx.num(n).is_none() {
+            return divisor_sum_symbolic(fx, n, a[1]);
+        }
+        return Ok(None);
+    };
     if v.neg || v.is_zero() {
         return Ok(None);
     }
@@ -457,6 +462,71 @@ fn divisor_sum<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     }
     let s = fx.call("add", &terms);
     Ok(Some(if terms.is_empty() { fx.int(0) } else { s }))
+}
+
+/// The sum of f(d) over the divisors d of a symbolic n, term by term (f(d) a sum of constant multiples of known
+/// arithmetic functions of d), by the classical divisor-sum identities (Apostol, Introduction to Analytic Number
+/// Theory, theorems 2.1, 2.2, 2.10, 2.17 and exercise 2.6; Hardy and Wright 16.7): sum 1 = sigma_0(n), sum d^k =
+/// sigma_k(n), sum mu(d) = [n = 1], sum mu(d)^2 = 2^omega(n), sum mu(d)/d = phi(n)/n, sum phi(d) = n,
+/// sum Lambda(d) = log(n), sum mu(n/d) log(d) = Lambda(n). Any other term declines.
+fn divisor_sum_symbolic<'h>(fx: &mut Fx<'_, '_, '_, 'h>, n: T<'h>, f: T<'h>) -> R<'h> {
+    if fx.as_list(n).is_some() {
+        return Ok(None);
+    }
+    let d = fx.sym("divisor_sum·d");
+    let body = fx.eval(fx.h.app(f, &[d]))?;
+    let body = fx.eval(fx.call("expand", &[body]))?;
+    let terms: Vec<T<'h>> = match fx.call_of(body, "add") {
+        Some(ts) => ts.to_vec(),
+        None => vec![body],
+    };
+    fx.tick(terms.len() as u64 + 1)?;
+    let free = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| !fx.contains(t, "divisor_sum·d");
+    let mut out = Vec::with_capacity(terms.len());
+    for t in terms {
+        let factors: Vec<T<'h>> = match fx.call_of(t, "mul") {
+            Some(fs) => fs.to_vec(),
+            None => vec![t],
+        };
+        let (consts, vars): (Vec<T<'h>>, Vec<T<'h>>) = factors.into_iter().partition(|&x| free(fx, x));
+        let c = fx.mul(&consts);
+        let one = fx.int(1);
+        let is_call1 = |fx: &Fx<'_, '_, '_, 'h>, x: T<'h>, name: &str, arg: T<'h>| fx.call_of(x, name).is_some_and(|g| g.len() == 1 && g[0] == arg);
+        let value = match vars.as_slice() {
+            [] => fx.call("divisor_sigma", &[fx.int(0), n]),
+            [v] if *v == d => fx.call("divisor_sigma", &[one, n]),
+            [v] if fx.call_of(*v, "pow").is_some_and(|g| g.len() == 2 && g[0] == d && free(fx, g[1])) => {
+                let k = fx.call_of(*v, "pow").map(|g| g[1]).unwrap_or(one);
+                fx.call("divisor_sigma", &[k, n])
+            }
+            [v] if is_call1(fx, *v, "moebius_mu", d) => fx.call("kronecker_delta", &[fx.sub(one, n)]),
+            [v] if is_call1(fx, *v, "euler_phi", d) => n,
+            [v] if is_call1(fx, *v, "mangoldt_lambda", d) => fx.call("log", &[n]),
+            [v] if fx.call_of(*v, "pow").is_some_and(|g| g.len() == 2 && is_call1(fx, g[0], "moebius_mu", d) && fx.is_int(g[1], 2)) => {
+                fx.pow(fx.int(2), fx.call("prime_nu", &[n]))
+            }
+            [p, q] => {
+                let inv = fx.pow(d, fx.int(-1));
+                let quot = fx.eval(fx.mul(&[n, inv]))?;
+                let pair = |a: T<'h>, b: T<'h>| (a, b);
+                let mut hit = None;
+                for (x, y) in [pair(*p, *q), pair(*q, *p)] {
+                    if is_call1(fx, x, "moebius_mu", d) && y == inv {
+                        hit = Some(fx.div(fx.call("euler_phi", &[n]), n));
+                    } else if is_call1(fx, x, "moebius_mu", quot) && is_call1(fx, y, "log", d) {
+                        hit = Some(fx.call("mangoldt_lambda", &[n]));
+                    }
+                }
+                match hit {
+                    Some(v) => v,
+                    None => return Ok(None),
+                }
+            }
+            _ => return Ok(None),
+        };
+        out.push(fx.mul(&[c, value]));
+    }
+    Ok(Some(fx.eval(fx.add(&out))?))
 }
 
 fn kronecker_symbol<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -720,11 +790,11 @@ fn from_twos(mut v: Vec<u64>) -> Int {
 fn bits<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], op: u8) -> R<'h> {
     // arbitrary-size integers: sign-extended two's complement (Knuth 4.1, bitwise operations on infinite-precision
     // signed integers); a bit-not is -1 - n
-    let xs: Option<Vec<Int>> = a.iter().map(|&t| int(fx, t)).collect();
-    let Some(xs) = xs else { return Ok(None) };
-    if op == 3 && xs.len() != 1 {
+    if op == 3 && a.len() != 1 {
         return Ok(None);
     }
+    let xs: Option<Vec<Int>> = a.iter().map(|&t| int(fx, t)).collect();
+    let Some(xs) = xs else { return bits_symbolic(fx, a, op) };
     let w = xs.iter().map(|x| x.mag.limbs.len()).max().unwrap_or(0) + 1;
     fx.tick(w as u64 * xs.len() as u64 / 64 + 1)?;
     let mut acc: Vec<u64> = vec![if op == 0 { u64::MAX } else { 0 }; w];
@@ -740,6 +810,78 @@ fn bits<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], op: u8) -> R<'h> {
         }
     }
     Ok(Some(int_t(fx, &from_twos(acc))))
+}
+
+/// The laws of the bitwise operations on integers that hold whatever the integer values of the symbolic
+/// arguments are: and/or are idempotent, xor cancels in pairs; 0 and -1 (all bits set) are the identity and the
+/// absorbing element of and/or, 0 the identity of xor and xor with -1 is the complement; the complement is an
+/// involution. Exact integers are folded; an argument that is a number but not an integer, or a list, declines.
+fn bits_symbolic<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], op: u8) -> R<'h> {
+    let mut konst: Vec<Int> = Vec::new();
+    let mut syms: Vec<T<'h>> = Vec::new();
+    for &t in a {
+        if let Some(i) = int(fx, t) {
+            konst.push(i);
+        } else if fx.num(t).is_some() || fx.as_list(t).is_some() {
+            return Ok(None);
+        } else {
+            syms.push(t);
+        }
+    }
+    fx.tick(a.len() as u64 + 1)?;
+    if op == 3 {
+        // the complement of a complement
+        return Ok(fx.call_of(a[0], "bit_not").filter(|g| g.len() == 1).map(|g| g[0]));
+    }
+    let name = ["bit_and", "bit_or", "bit_xor"][op as usize];
+    // the folded constant
+    let c: Option<T<'h>> = if konst.is_empty() {
+        None
+    } else {
+        let ks: Vec<T<'h>> = konst.iter().map(|k| int_t(fx, k)).collect();
+        match bits(fx, &ks, op)? {
+            Some(t) => Some(t),
+            None => return Ok(None),
+        }
+    };
+    let (zero, all) = (fx.int(0), fx.int(-1));
+    // the symbolic arguments after idempotence (and/or) or pair cancellation (xor), in first-seen order
+    let mut kept: Vec<T<'h>> = Vec::new();
+    for &s in &syms {
+        match kept.iter().position(|&k| k == s) {
+            Some(p) if op == 2 => {
+                kept.remove(p);
+            }
+            Some(_) => {}
+            None => kept.push(s),
+        }
+    }
+    let mut c = c;
+    match op {
+        0 if c == Some(zero) => return Ok(Some(zero)),
+        1 if c == Some(all) => return Ok(Some(all)),
+        0 if c == Some(all) => c = None,
+        1 | 2 if c == Some(zero) => c = None,
+        _ => {}
+    }
+    // xor with all bits set is the complement
+    let mut complement = false;
+    if op == 2 && c == Some(all) && !kept.is_empty() {
+        complement = true;
+        c = None;
+    }
+    let mut args: Vec<T<'h>> = c.into_iter().collect();
+    args.extend(kept.iter().copied());
+    let body = match args.len() {
+        0 => fx.int(if op == 0 { -1 } else { 0 }),
+        1 => args[0],
+        _ => fx.call(name, &args),
+    };
+    let out = if complement { fx.call("bit_not", &[body]) } else { body };
+    if out == fx.call(name, a) {
+        return Ok(None);
+    }
+    Ok(Some(out))
 }
 fn bit_and<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     bits(fx, a, 0)

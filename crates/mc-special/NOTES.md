@@ -967,3 +967,13 @@ secant method on y(pi/2), in double-double numbers for machine arguments and in 
 |q| = 1e5 the large-q expansion is the one of a_(r-1) (DLMF 28.8.1: b_(m+1) and a_m share it). b_0 does not exist and
 stays unevaluated. The tests compare with the eigenvalues of the truncated matrices (`eigenvalues`), with the
 small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
+## Round 38: Appell F1 on special lines, Mittag-Leffler of a negative order
+
+- F1 reduces when b1 or b2 is 0, on the diagonal y = x (2F1(a, b1 + b2; c; x)), on y = -x with b1 = b2 (a 3F2 in x^2:
+  the diagonal sums are the coefficients of (1 - t^2)^-b), and at x = 1 (or y = 1) with c - a - b1 > 0 by Gauss's sum
+  over the other index (DLMF 15.4.20).
+- `mittag_leffler_e(a, b, z)` with a numeric a < 0: 1/Gamma(b) - E_(-a,b)(1/z), the series in 1/z (the continuation
+  the property table already uses for the one-parameter function).
+- `prime_zeta_p(s)` for a real inexact s in (1/2, 1): the series sum mu(k)/k log(zeta(k s)) as for s > 1, its first
+  term on the principal branch (zeta(s) < 0 there, so the imaginary part is pi); checked by the Moebius inversion
+  log zeta(s) = sum P(k s)/k. Below 1/2 the term k = 2 meets the pole: no value.

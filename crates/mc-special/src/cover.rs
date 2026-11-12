@@ -2341,6 +2341,18 @@ fn mittag_leffler<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         return Ok(None);
     }
     let (Some(af), Some(bf)) = (fx.f64_of(al), fx.f64_of(b)) else { return Ok(None) };
+    // a < 0: the series in 1/z, E_(a,b)(z) = -sum_(k >= 1) z^-k/Gamma(b - a k) = 1/Gamma(b) - E_(-a,b)(1/z) (the
+    // continuation the function's properties use, E_a(z) = 1 - E_(-a)(1/z))
+    if af < 0.0 {
+        let inv = fx.div(fx.int(1), z);
+        let e = if a.len() == 2 {
+            fx.call("mittag_leffler_e", &[fx.neg(al), inv])
+        } else {
+            fx.call("mittag_leffler_e", &[fx.neg(al), b, inv])
+        };
+        let v = fx.eval(fx.sub(fx.div(fx.int(1), fx.call("gamma", &[b])), e))?;
+        return Ok(fx.num(v).map(|_| v));
+    }
     if af <= 0.0 {
         return Ok(None);
     }
