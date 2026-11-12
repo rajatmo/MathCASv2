@@ -233,3 +233,7 @@ differences and ratios, generating functions and convergence, interruption.
   logarithms are powers of v (`scaled_limit`). `1/(n log n log log n)` diverges, `1/(n log n (log log n)^2)`
   converges.
 - Gap: summands with `harmonic_number` and other discrete functions (no asymptotic equivalent is substituted).
+- `sum(f, [k, a, inf], generate_conditions: true)` (and `[k, inf]`, from k = 1) takes its condition from
+  `sum_convergence`, so every convergence test above gives one (`sum(1/n^a)` is `zeta(a)` for `re(a) > 1`); the
+  ratio-test condition only when those tests do not decide. A condition the assumptions imply is dropped. Tests:
+  `mc-engine/tests/round38_integration.rs`.

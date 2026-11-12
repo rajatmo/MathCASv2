@@ -1208,3 +1208,80 @@ rule std_dev(weighted_data(d_, w_)) := sqrt(variance(weighted_data(d, w))) when 
 
 # conjugate_transpose(a, perm): the conjugate of transpose(a, perm)
 rule conjugate_transpose(a_, p_) := conjugate(transpose(a, p)) when is_list(a) and is_list(p)
+
+# --- ordering, frequency, missing values, distances and palindromes ---
+
+# reverse_sort_by(xs, f): the elements of xs in decreasing order of f(x); reverse_sort_by(xs, f, p): the order of
+# sort_by(xs, f, p) reversed
+fn reverse_sort_by(xs, f) = reverse(sort_by(xs, f))
+fn reverse_sort_by(xs, f, p) = reverse(sort_by(xs, f, p))
+
+# ordering_by(xs, f), ordering_by(xs, f, n): the positions of the elements of xs in the canonical order of f(x)
+# (the first n, the last -n; all: every one); for an association, of its values; ordering_by(f)(xs);
+# ordering_by(xs, f, k, p): the keys f(x) ordered by the ordering function p
+fn ordering_by(xs, f) = ordering(map(f, if is_assoc(xs) then values(xs) else xs))
+fn ordering_by(xs, f, k) = if k === all then ordering_by(xs, f) else ordering(map(f, if is_assoc(xs) then values(xs) else xs), k)
+fn ordering_by(f) = xs => ordering_by(xs, f)
+fn ordering_by(xs, f, k, p) = ordering(map(f, if is_assoc(xs) then values(xs) else xs), k, p)
+
+# commonest(xs): the elements that occur most often, in order of first occurrence; commonest(xs, n): the n most
+# common (ties by first occurrence), in order of first occurrence; commonest(xs, up_to(n)): at most n of them
+fn commonest(xs) = { let t = tally(xs); let c = max(map(p => p[2], t)); map(p => p[1], select(t, p => p[2] == c)) }
+fn commonest(xs, n: Int) when n >= 0 = {
+  let t = tally(xs)
+  let top = take(sort_by(range(length(t)), i => [-t[i][2], i]), min(n, length(t)))
+  map(i => t[i][1], sort(top))
+}
+fn commonest(xs, u) when match_q(u, up_to(_)) and is_integer(u[1]) and u[1] >= 0 = commonest(xs, u[1])
+
+# delete_missing(xs): the elements of the list xs (values of the association xs) that are not missing(...)
+fn delete_missing(xs) when is_list(xs) = select(xs, x => not is_missing(x) and not (match_q(x, _ -> _) and is_missing(x[2])))
+fn delete_missing(a) when is_assoc(a) = select_keys(a, k => not is_missing(a[k]))
+# delete_missing(xs, n): down to level n of nested lists and associations; delete_missing(xs, n, d): the elements
+# at levels 1 to n that hold a missing(...) at most d levels inside them (lists and associations)
+fn l38_has_missing(e, k) = if is_missing(e) then true else if k === inf or (is_integer(k) and k >= 1) then (if is_list(e) then any_true(e, u => l38_has_missing(u, k - 1)) else if is_assoc(e) then any_true(values(e), u => l38_has_missing(u, k - 1)) else false) else false
+fn l38_level_ok(n) = n === inf or (is_integer(n) and n >= 0)
+fn delete_missing(xs, n) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) =
+  if n === 0 then xs else map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1) else u, delete_missing(xs))
+fn delete_missing(xs, n, d) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) and l38_level_ok(d) = {
+  if n === 0 then xs else {
+    let kept = if is_list(xs) then select(xs, u => not l38_has_missing(u, d)) else select_keys(xs, k => not l38_has_missing(xs[k], d))
+    map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1, d) else u, kept)
+  }
+}
+
+# hamming_distance(a, b): the number of places where the strings or lists a and b (of one length) differ
+fn hamming_distance(a: Str, b: Str) = hamming_distance(characters(a), characters(b))
+fn hamming_distance(a, b) when is_list(a) and is_list(b) and length(a) == length(b) = count_if(range(length(a)), i => a[i] !== b[i])
+
+# edit_distance(a, b): the Levenshtein distance of the strings or lists a and b, the least number of insertions,
+# deletions and substitutions of one element that turn a into b (the dynamic programme of Wagner and Fischer, J. ACM
+# 21 (1974), one row at a time)
+fn edit_distance(a: Str, b: Str) = edit_distance(characters(a), characters(b))
+fn edit_distance(a, b) when is_list(a) and is_list(b) = {
+  let m = length(a)
+  let k = length(b)
+  var row = range(0, k)
+  for i in range(m) {
+    var next = [i]
+    for j in range(k) {
+      next = append(next, min(row[j + 1] + 1, next[j] + 1, row[j] + (if a[i] === b[j] then 0 else 1)))
+    }
+    row = next
+  }
+  row[k + 1]
+}
+
+# chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i| of two vectors (or numbers)
+fn chessboard_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) and length(u) >= 1 = max(map(i => abs(u[i] - v[i]), range(length(u))))
+fn chessboard_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)
+
+# squared_euclidean_distance(u, v): the square sum |u_1 - v_1|^2 + ... of the differences of two vectors (or numbers)
+fn squared_euclidean_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) = total(map(i => abs(u[i] - v[i])^2, range(length(u))))
+fn squared_euclidean_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)^2
+
+# palindrome_q(x): whether the list, the string or the digits of the integer x read the same backwards
+fn palindrome_q(x: Str) = x === string_reverse(x)
+fn palindrome_q(x) when is_list(x) = x === reverse(x)
+fn palindrome_q(x) when is_integer(x) = palindrome_q(integer_digits(x))
+fn palindrome_q(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false

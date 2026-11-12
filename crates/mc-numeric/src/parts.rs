@@ -201,10 +201,21 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
     if real_valued_call(env, h, x).is_some() {
         return Ok(Reply::Done(if which == Part::Im { h.int(0) } else { x }));
     }
-    // conjugate(c y) = conj(c) conjugate(y) for a number c (conjugation is multiplicative)
-    if which == Part::Conj {
-        if let Some((c, rest)) = numeric_coefficient(env, h, &ar, x) {
+    // conjugate(c y) = conj(c) conjugate(y) for a number c (conjugation is multiplicative); with c = a + b i,
+    // re(c y) = a re(y) - b im(y) and im(c y) = a im(y) + b re(y) (for a real c: c re(y) and c im(y))
+    if let Some((c, rest)) = numeric_coefficient(env, h, &ar, x) {
+        if which == Part::Conj {
             return Ok(Reply::Again(h.call(env.s.mul, &[ar.number(&conj(&c)), h.call(env.s.conjugate, &[rest])])));
+        }
+        if decompose(env, h, &ar, x).is_none() {
+            let (a, b) = parts(&c);
+            let (a, b) = (real_term(&ar, a), real_term(&ar, b));
+            let (re_y, im_y) = (h.call(env.s.re, &[rest]), h.call(env.s.im_part, &[rest]));
+            let mul = |u: T<'h>, v: T<'h>| h.call(env.s.mul, &[u, v]);
+            return Ok(Reply::Again(match which {
+                Part::Re => h.call(env.s.add, &[mul(a, re_y), mul(ar.neg(b), im_y)]),
+                _ => h.call(env.s.add, &[mul(a, im_y), mul(b, re_y)]),
+            }));
         }
     }
     if let Some((s, &[y])) = env.call_of(h, x) {
@@ -325,6 +336,13 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
     if let Some(s) = real_valued_call(env, h, x) {
         return Ok(if s == env.s.abs { Reply::Done(h.int(0)) } else { Reply::Decline });
     }
+    // arg(c y) = arg(y) for a positive real number c (a scaling does not turn the point); a negative or complex c
+    // turns it, and the sum of the angles may leave (-pi, pi]
+    if let Some((Num::Real(c), y)) = numeric_coefficient(env, h, &ar, x) {
+        if c.is_positive() && decompose(env, h, &ar, x).is_none() {
+            return Ok(Reply::Again(h.call(env.s.arg, &[y])));
+        }
+    }
     // c * r1 * ... with every real factor of decided, nonzero sign: arg(+-c)
     cx.tick(1)?;
     let Some(sms) = decompose(env, h, &ar, x) else { return Ok(Reply::Decline) };
@@ -393,6 +411,13 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
         Some(Ordering::Equal) => return Some(h.int(0)),
         Some(Ordering::Greater) => return Some(x),
         None => {}
+    }
+    // abs(c y) = |c| abs(y) for a nonzero number c (abs is multiplicative, as sign and conjugate are), so that
+    // abs(c y) sign(c y) = |c| abs(y) (c/|c|) sign(y) = c abs(y) sign(y) keeps one argument y in both
+    if let Some((c, y)) = numeric_coefficient(env, h, &ar, x) {
+        if decompose(env, h, &ar, x).is_none() {
+            return Some(h.call(env.s.mul, &[abs_num(&ar, &c), h.call(env.s.abs, &[y])]));
+        }
     }
     let sms = decompose(env, h, &ar, x)?;
     let [sm] = sms.as_slice() else { return None };

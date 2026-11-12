@@ -123,24 +123,45 @@ impl mc_eval::Native for SumWrap {
             if let Some(r) = mc_poly::opts::assumptions_option(cx, name, args)? {
                 return Ok(Reply::Done(r));
             }
-            // generate_conditions: the generic answer; with `true` an infinite sum also gets the condition of the
-            // ratio test, r < 1 for r = lim |f(k+1)/f(k)| when r depends on the parameters (sum(a^k) needs |a| < 1)
+            // generate_conditions: the generic answer; with `true` an infinite sum also gets the condition under
+            // which it converges: that of the convergence tests of `sum_convergence` (sum(1/n^a) needs re(a) > 1),
+            // else that of the ratio test, r < 1 for r = lim |f(k+1)/f(k)| when r depends on the parameters
+            // (sum(a^k) needs |a| < 1)
             if opts.len() == 1 && option(h, &opts, "generate_conditions").is_some() {
                 let wants = option(h, &opts, "generate_conditions") == Some(h.sym_term(h.sym("true")));
                 let inf = h.sym_term(h.sym("inf"));
                 if let (true, false, [f, spec]) = (wants, self.product, plain.as_slice()) {
-                    if let Some(&[k, _, hi]) = cx.as_list(*spec) {
+                    // [k, inf] runs from k = 1
+                    let range = match cx.as_list(*spec) {
+                        Some(&[k, lo, hi]) => Some((k, lo, hi)),
+                        Some(&[k, hi]) => Some((k, h.int(1), hi)),
+                        _ => None,
+                    };
+                    if let Some((k, lo, hi)) = range {
                         if hi == inf && matches!(h.view(k), View::Sym(_)) {
                             let v = cx.eval(h.call(h.sym(name), &plain))?;
                             let summed = !contains_head(h, v, h.sym_term(h.sym(name)));
-                            let next = h.call(h.sym("add"), &[k, h.int(1)]);
-                            let shifted = cx.eval(h.call(h.sym("rewrite"), &[*f, h.call(h.sym(names::RULE), &[k, next])]))?;
-                            let ratio = h.call(h.sym("simplify"), &[h.call(h.sym("abs"), &[h.call(h.sym("mul"), &[shifted, h.call(h.sym("pow"), &[*f, h.int(-1)])])])]);
-                            let r = cx.eval(h.call(h.sym("limit"), &[ratio, h.call(h.sym(names::RULE), &[k, inf])]))?;
-                            let number = matches!(h.view(r), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. });
-                            let found = !contains_head(h, r, h.sym_term(h.sym("limit"))) && !contains_head(h, r, k) && !number && r != inf;
-                            if summed && found {
-                                let cond = h.call(h.sym("less"), &[r, h.int(1)]);
+                            if !summed {
+                                return Ok(Reply::Done(v));
+                            }
+                            let conv_name = h.sym_term(h.sym("sum_convergence"));
+                            let conv = cx.eval(h.call(h.sym("sum_convergence"), &[*f, h.call(h.sym(names::LIST), &[k, lo, hi])]))?;
+                            if cx.is_true(conv) {
+                                return Ok(Reply::Done(v));
+                            }
+                            let decided = conv != h.sym_term(h.sym("false")) && !contains_head(h, conv, conv_name) && !contains_head(h, conv, k);
+                            let cond = if decided {
+                                Some(conv)
+                            } else {
+                                let next = h.call(h.sym("add"), &[k, h.int(1)]);
+                                let shifted = cx.eval(h.call(h.sym("rewrite"), &[*f, h.call(h.sym(names::RULE), &[k, next])]))?;
+                                let ratio = h.call(h.sym("simplify"), &[h.call(h.sym("abs"), &[h.call(h.sym("mul"), &[shifted, h.call(h.sym("pow"), &[*f, h.int(-1)])])])]);
+                                let r = cx.eval(h.call(h.sym("limit"), &[ratio, h.call(h.sym(names::RULE), &[k, inf])]))?;
+                                let number = matches!(h.view(r), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. });
+                                let found = !contains_head(h, r, h.sym_term(h.sym("limit"))) && !contains_head(h, r, k) && !number && r != inf;
+                                found.then(|| h.call(h.sym("less"), &[r, h.int(1)]))
+                            };
+                            if let Some(cond) = cond {
                                 // a condition the assumptions in force imply is dropped
                                 let implied = cx.eval(h.call(h.sym("refine"), &[cond]))?;
                                 if cx.is_true(implied) {

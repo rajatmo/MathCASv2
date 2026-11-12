@@ -570,3 +570,8 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   `series(sign(1 - i t), t, 0, 2)` is `1 + O(t^3)`, while for real t the value is 1 - i t + ... . Complex
   centered intervals of the elementary functions are left too (no tight box enclosure for them yet).
   Tests: `mc-engine/tests/round38_infinity.rs`.
+- With the multiplicative `conjugate` and `sign`, the other parts take a numeric factor c out of a product c y too,
+  so that the results stay in step (`abs(c y) sign(c y)` is `c abs(y) sign(y)`, and `abs(u) sign(u) = u` still
+  applies): `abs(c y) = |c| abs(y)`; `re(c y) = re(c) re(y) - im(c) im(y)` and `im_part(c y) = re(c) im(y) +
+  im(c) re(y)` (real-linear); `arg(c y) = arg(y)` for c > 0 only (a negative or complex c turns the point and the
+  sum of the angles may leave (-pi, pi]). Tests: `mc-engine/tests/round38_integration.rs`.

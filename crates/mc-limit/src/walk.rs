@@ -155,7 +155,28 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
             Ok(Some(fin(cx, k, 0)?))
         }
         ("abs" | "real_abs", [u]) => {
-            let Some(l) = lim(cx, b, *u, t, d)? else { return Ok(None) };
+            let Some(l) = lim(cx, b, *u, t, d)? else {
+                // |u1 u2 ...| = |u1| |u2| ... and |w^p| = |w|^p for a real p: the product of the moduli has a limit
+                // where u tends to infinity in a direction off the real axis (|8 i / t| = 8 / t)
+                if name.as_str() != "abs" {
+                    return Ok(None);
+                }
+                let factors = args_of(b, *u, b.hd.mul).map_or_else(|| vec![*u], |a| a.to_vec());
+                let mut moduli = Vec::with_capacity(factors.len());
+                for f in &factors {
+                    moduli.push(match args_of(b, *f, b.hd.pow) {
+                        Some([w, p]) if matches!(b.heap().view(*p), View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_)) => {
+                            b.pow(b.call("abs", &[*w]), *p)
+                        }
+                        _ => b.call("abs", &[*f]),
+                    });
+                }
+                let m = cx.eval(b.mul(&moduli))?;
+                if m == g {
+                    return Ok(None);
+                }
+                return lim(cx, b, m, t, d);
+            };
             Ok(Some(match l {
                 Lim::Fin(v, _) if v == b.zero() => Lim::Fin(v, 1),
                 Lim::Fin(v, _) => fin(cx, b.call("abs", &[v]), 0)?,

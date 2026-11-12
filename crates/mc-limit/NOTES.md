@@ -24,3 +24,6 @@
   and Weber functions (11.11.8-11.11.10), parabolic cylinder D (12.9.1), Struve H by its order (11.6.1: 0 for nu < 1,
   2/pi at 1, inf beyond; a symbolic order declines), and the confluent hypergeometric functions at +inf by the sign of
   Gamma(b)/Gamma(a) (13.7.1; a nonpositive integer a is a polynomial, left to the series).
+- `limit(abs(u))` where `u` itself has no limit the walk can express (a product tending to infinity off the real
+  axis, `8 i / t`) takes the limit of the product of the moduli, `|u1 u2 ...| = |u1| |u2| ...` with `|w^p| = |w|^p`
+  for a real number p. Tests: `mc-engine/tests/round38_integration.rs`.

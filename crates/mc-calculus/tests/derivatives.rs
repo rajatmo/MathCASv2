@@ -46,9 +46,11 @@ fn piecewise_and_complex_parts() {
         ("d(max(x, 2), x)", "if x >= 2 then 1 else 0"),
         ("d(min(x^2, y), y)", "if x^2 <= y then 0 else 1"),
         ("d(if x > 0 then x^2 else -x, x)", "if x > 0 then 2*x else -1"),
-        ("d(re(x^2), x)", "re(2*x)"),
+        // re, im_part, conjugate and abs take a numeric factor out: re(c y) = c re(y) for real c, conjugate(c y)
+        // = conj(c) conjugate(y)
+        ("d(re(x^2), x)", "2*re(x)"),
         ("d(im_part(sin(x)), x)", "im_part(cos(x))"),
-        ("d(conjugate(x^3), x)", "conjugate(3*x^2)"),
+        ("d(conjugate(x^3), x)", "3*conjugate(x^2)"),
     ]);
 }
 

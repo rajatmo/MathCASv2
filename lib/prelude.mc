@@ -101,11 +101,6 @@ fn is_ordered(xs, rest...) = apply(ordered, join([xs], rest))
 # replace_repeated(e, rules): the rules applied over and over until e no longer changes
 fn replace_repeated(e, rules) = rewrite(e, rules, strategy: fixed_point)
 
-# reverse_sort_by(xs, f): the elements of xs in decreasing order of f(x)
-fn reverse_sort_by(xs, f) = reverse(sort_by(xs, f))
-# reverse_sort_by(xs, f, p): the order of sort_by(xs, f, p) reversed
-fn reverse_sort_by(xs, f, p) = reverse(sort_by(xs, f, p))
-
 # block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks partition(xs, n) (offset d)
 # (a list n of block sizes cuts every dimension: f is applied at the level of the blocks, length(n) deep); the
 # blocks of a term with another head keep it, the result is a list of the f(block)s
@@ -149,17 +144,6 @@ rule nest_list(f_, n_)(x_) := nest_list(f, x, n) when is_integer(n)
 fn fold_while(f, x, xs, test, m: Int) = last(fold_while_list(f, x, xs, test, m))
 fn fold_while(f, x, xs, test, m: Int, k: Int) when k <= 0 = { let vs = fold_while_list(f, x, xs, test, m); vs[max(1, length(vs) + k)] }
 
-# commonest(xs): the elements that occur most often, in order of first occurrence; commonest(xs, n): the n most
-# common (ties by first occurrence), in order of first occurrence
-fn commonest(xs) = { let t = tally(xs); let c = max(map(p => p[2], t)); map(p => p[1], select(t, p => p[2] == c)) }
-fn commonest(xs, n: Int) when n >= 0 = {
-  let t = tally(xs)
-  let top = take(sort_by(range(length(t)), i => [-t[i][2], i]), min(n, length(t)))
-  map(i => t[i][1], sort(top))
-}
-# commonest(xs, up_to(n)): at most n of the most frequent elements
-fn commonest(xs, u) when match_q(u, up_to(_)) and is_integer(u[1]) and u[1] >= 0 = commonest(xs, u[1])
-
 # boole(b): 1 for true, 0 for false (element-wise on lists); other arguments stay as they are
 fn boole(true) = 1
 fn boole(false) = 0
@@ -197,22 +181,6 @@ fn association_map(f, xs) when is_list(xs) = assoc(map(x => x -> f(x), unique(xs
 fn association_map(f, a) when is_assoc(a) = assoc(map(k => f(k -> a[k]), keys(a)))
 # association_thread(ks, vs): the association of ks[i] -> vs[i]
 fn association_thread(ks, vs) when is_list(ks) and is_list(vs) and length(ks) == length(vs) = assoc(map(i => ks[i] -> vs[i], range(length(ks))))
-
-# delete_missing(xs): the elements of the list xs (values of the association xs) that are not missing(...)
-fn delete_missing(xs) when is_list(xs) = select(xs, x => not is_missing(x) and not (match_q(x, _ -> _) and is_missing(x[2])))
-fn delete_missing(a) when is_assoc(a) = select_keys(a, k => not is_missing(a[k]))
-# delete_missing(xs, n): down to level n of nested lists and associations; delete_missing(xs, n, d): the elements
-# at levels 1 to n that hold a missing(...) at most d levels inside them (lists and associations)
-fn l38_has_missing(e, k) = if is_missing(e) then true else if k === inf or (is_integer(k) and k >= 1) then (if is_list(e) then any_true(e, u => l38_has_missing(u, k - 1)) else if is_assoc(e) then any_true(values(e), u => l38_has_missing(u, k - 1)) else false) else false
-fn l38_level_ok(n) = n === inf or (is_integer(n) and n >= 0)
-fn delete_missing(xs, n) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) =
-  if n === 0 then xs else map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1) else u, delete_missing(xs))
-fn delete_missing(xs, n, d) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) and l38_level_ok(d) = {
-  if n === 0 then xs else {
-    let kept = if is_list(xs) then select(xs, u => not l38_has_missing(u, d)) else select_keys(xs, k => not l38_has_missing(xs[k], d))
-    map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1, d) else u, kept)
-  }
-}
 
 # covariance(xs, ys): the sample covariance of two lists of equal length (divisor n - 1, the second list
 # conjugated); covariance(m): the matrix of covariances of the columns of m; covariance(m1, m2): of the columns of
@@ -730,14 +698,6 @@ rule alphabetic_sort(xs_, lang_, case_ordering: c_) := sort(xs, alphabetic_order
 fn alphabet() = character_range("a", "z")
 fn alphabet(lang: Str) when lang == "English" = character_range("a", "z")
 
-# ordering_by(xs, f), ordering_by(xs, f, n): the positions of the elements of xs in the canonical order of f(x)
-# (the first n, the last -n; all: every one); for an association, of its values; ordering_by(f)(xs)
-fn ordering_by(xs, f) = ordering(map(f, if is_assoc(xs) then values(xs) else xs))
-fn ordering_by(xs, f, k) = if k === all then ordering_by(xs, f) else ordering(map(f, if is_assoc(xs) then values(xs) else xs), k)
-fn ordering_by(f) = xs => ordering_by(xs, f)
-# ordering_by(xs, f, k, p): the keys f(x) ordered by the ordering function p
-fn ordering_by(xs, f, k, p) = ordering(map(f, if is_assoc(xs) then values(xs) else xs), k, p)
-
 # split_by(xs, f): the runs of neighbours of xs with identical f(x); split_by(xs, [f1, f2, ...]): split by f1, each
 # run then by f2, and so on; split_by(f)(xs)
 fn split_by(xs, f) when is_list(xs) = if is_list(f) then (if length(f) == 0 then xs else map(ys => split_by(ys, rest(f)), split_by(xs, first(f)))) else split(xs, (a, b) => f(a) === f(b))
@@ -769,42 +729,6 @@ fn key_sort_by(rs, f) when is_list(rs) = key_sort_by(apply(assoc, rs), f)
 # r37_key_sort(a, p): the entries of a with its keys in the order of the ordering function p (`key_sort(a, p)`, round 37)
 fn r37_key_sort(a, p) when is_assoc(a) = { let ks = sort(keys(a), p); association_thread(ks, map(k => a[k], ks)) }
 fn key_sort_by(f) = a => key_sort_by(a, f)
-
-# hamming_distance(a, b): the number of places where the strings or lists a and b (of one length) differ
-fn hamming_distance(a: Str, b: Str) = hamming_distance(characters(a), characters(b))
-fn hamming_distance(a, b) when is_list(a) and is_list(b) and length(a) == length(b) = count_if(range(length(a)), i => a[i] !== b[i])
-
-# edit_distance(a, b): the Levenshtein distance of the strings or lists a and b, the least number of insertions,
-# deletions and substitutions of one element that turn a into b (the dynamic programme of Wagner and Fischer, J. ACM
-# 21 (1974), one row at a time)
-fn edit_distance(a: Str, b: Str) = edit_distance(characters(a), characters(b))
-fn edit_distance(a, b) when is_list(a) and is_list(b) = {
-  let m = length(a)
-  let k = length(b)
-  var row = range(0, k)
-  for i in range(m) {
-    var next = [i]
-    for j in range(k) {
-      next = append(next, min(row[j + 1] + 1, next[j] + 1, row[j] + (if a[i] === b[j] then 0 else 1)))
-    }
-    row = next
-  }
-  row[k + 1]
-}
-
-# chessboard_distance(u, v): the Chebyshev distance max |u_i - v_i| of two vectors (or numbers)
-fn chessboard_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) and length(u) >= 1 = max(map(i => abs(u[i] - v[i]), range(length(u))))
-fn chessboard_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)
-
-# squared_euclidean_distance(u, v): the square sum |u_1 - v_1|^2 + ... of the differences of two vectors (or numbers)
-fn squared_euclidean_distance(u, v) when is_list(u) and is_list(v) and length(u) == length(v) = total(map(i => abs(u[i] - v[i])^2, range(length(u))))
-fn squared_euclidean_distance(u, v) when not is_list(u) and not is_list(v) = abs(u - v)^2
-
-# palindrome_q(x): whether the list, the string or the digits of the integer x read the same backwards
-fn palindrome_q(x: Str) = x === string_reverse(x)
-fn palindrome_q(x) when is_list(x) = x === reverse(x)
-fn palindrome_q(x) when is_integer(x) = palindrome_q(integer_digits(x))
-fn palindrome_q(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false
 
 # unique_elements([xs1, xs2, ...]): for each list, its distinct elements that are in none of the other lists
 fn unique_elements(xss) when is_list(xss) and all_true(xss, is_list) =
@@ -1482,21 +1406,6 @@ fn lo_dimension(e, v) = {
   if length(all_d) > 0 then all_d[1] else 1
 }
 
-# prime_zeta_p(s): the sum of p^-s over the primes p, for inexact s with re(s) > 1: the series
-# sum over k of moebius_mu(k)/k log(zeta(k s)) (Froberg 1968), summed until the terms are below the precision of s
-rule prime_zeta_p(s_) := {
-  let digits = if is_machine_number(s) then 17 else precision(s)
-  let top = ceiling((digits + 3)*3.33/re(s)) + 2
-  sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
-} when is_inexact(s) and is_real(re(s)) and re(s) > 1
-# a real s in (1/2, 1): the same series, its terms k >= 2 real (k s > 1) and the first log(zeta(s)) of the negative
-# zeta(s) on the principal branch, log|zeta(s)| + i pi
-rule prime_zeta_p(s_) := {
-  let digits = if is_machine_number(s) then 17 else precision(s)
-  let top = ceiling((digits + 3)*3.33/s) + 2
-  sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
-} when is_inexact(s) and is_real(s) and s > 1/2 and s < 1
-
 # machine_precision: the precision of machine numbers, 53 log10(2) = 15.954589770191003...
 rule machine_precision := 15.954589770191003
 
@@ -1528,6 +1437,3 @@ fn numeric_array_values(x, ty, mode) when not is_list(x) = {
     if mode == "ClipAndCoerce" or mode == "Round" then clamp(v, lo, hi) else v
   }
 }
-
-# prime_zeta_p over a list or matrix of arguments
-rule prime_zeta_p(xs_) := map(prime_zeta_p, xs) when is_list(xs)

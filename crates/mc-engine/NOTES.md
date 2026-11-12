@@ -245,8 +245,10 @@ Operator forms added: `merge` (data first), `linear_solve`, `nearest` (data last
   Feshbach, Methods of Theoretical Physics, 1953, section 1.4); results simplified. Other systems stay unevaluated.
 - `log(b, x)` is `log_base(b, x)` (a rule, so other two-argument calls are left as they are); before, two machine
   arguments stayed unevaluated. Tests: `tests/round38_vectors.rs`, `tests/round38_lists.rs`.
-## Round 38: distances and palindromes in the prelude
+## Round 38: distances and palindromes in the lists library
 
 `edit_distance` (Levenshtein; the row-by-row dynamic programme of Wagner and Fischer, J. ACM 21, 1974),
 `chessboard_distance`, `squared_euclidean_distance` and `palindrome_q` (lists, strings, decimal digits of
-integers) in `lib/prelude.mc`, beside `hamming_distance`.
+integers) in `lib/lists.mc`, beside `hamming_distance`. The prelude stays small: the list functions that grew this
+round (`reverse_sort_by`, `ordering_by`, `commonest`, `delete_missing`, the distances) moved to `lib/lists.mc`,
+and `prime_zeta_p` to `lib/special.mc`.
