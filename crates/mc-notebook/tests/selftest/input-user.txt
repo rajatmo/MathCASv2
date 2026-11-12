@@ -1,0 +1,502 @@
+# A user's session of typed formulas (round 38): fractions, powers, roots and brackets mixed, selections, undo and
+# redo, cut, copy and paste, each typed through the keyboard into a new cell at the end. Every formula checks what the
+# cell shows (its boxes, `expect boxes`) and what it stores (its text, `expect canon`), and that the two agree
+# (`same`: the stored text reads back as the boxes shown); some are evaluated. Driven by tests/input_selftest.rs.
+size 1000 700
+ppp 1
+theme light
+new
+
+# ---- fractions ----
+formula frac/simple
+keys Ctrl+End "1" Ctrl+/ "2"
+expect boxes "(1/2▮)"
+expect canon "((1)/(2))"
+same
+
+formula frac/operand-of-sum
+keys Ctrl+End "a + b" Ctrl+/ "c"
+expect boxes "a + (b/c▮)"
+expect canon "a + ((b)/(c))"
+same
+
+formula frac/parenthesised-operand
+keys Ctrl+End "(a + b)" Ctrl+/ "2"
+expect boxes "((a + b)/2▮)"
+expect canon "(((a + b))/(2))"
+same
+
+formula frac/nested-denominator
+keys Ctrl+End Ctrl+/ "1" Down "1 + " Ctrl+/ "1" Down "x"
+expect boxes "(1/1 + (1/x▮))"
+expect canon "((1)/(1 + ((1)/(x))))"
+same
+
+formula frac/exit-and-continue
+keys Ctrl+End "1" Ctrl+/ "x" Ctrl+Space " + 1"
+expect boxes "(1/x) + 1▮"
+expect canon "((1)/(x)) + 1"
+same
+
+formula frac/tab-between-slots
+keys Ctrl+End "y = " Ctrl+/ Tab "4" Shift+Tab "3"
+expect boxes "y = (3▮/4)"
+expect canon "y = ((3)/(4))"
+same
+
+formula frac/call-operand
+keys Ctrl+End "f(x)" Ctrl+/ "2"
+expect boxes "(f(x)/2▮)"
+expect canon "((f(x))/(2))"
+same
+
+formula frac/negative-operand
+keys Ctrl+End "-x" Ctrl+/ "2"
+expect boxes "-(x/2▮)"
+expect canon "-((x)/(2))"
+same
+
+formula frac/evaluated
+keys Ctrl+End "3" Ctrl+/ "4" Ctrl+Space " + " Ctrl+/ "1" Down "4"
+expect boxes "(3/4) + (1/4▮)"
+expect canon "((3)/(4)) + ((1)/(4))"
+same
+eval
+expect output "1"
+
+# ---- powers ----
+formula pow/simple
+keys Ctrl+End "x" Ctrl+6 "2"
+expect boxes "(x^2▮)"
+expect canon "((x)^(2))"
+same
+
+formula pow/sum-in-exponent
+keys Ctrl+End "e" Ctrl+6 "-x + 1"
+expect boxes "(e^-x + 1▮)"
+expect canon "((e)^(-x + 1))"
+same
+
+formula pow/tower
+keys Ctrl+End "2" Ctrl+6 "3" Ctrl+6 "2"
+expect boxes "(2^(3^2▮))"
+expect canon "((2)^(((3)^(2))))"
+same
+eval
+expect output "512"
+
+formula pow/parenthesised-base
+keys Ctrl+End "(x + 1)" Ctrl+6 "2"
+expect boxes "((x + 1)^2▮)"
+expect canon "(((x + 1))^(2))"
+same
+
+formula pow/call-base
+keys Ctrl+End "f(x)" Ctrl+6 "2"
+expect boxes "(f(x)^2▮)"
+expect canon "((f(x))^(2))"
+same
+
+formula pow/two-powers
+keys Ctrl+End "x" Ctrl+6 "2" Ctrl+Space " + y" Ctrl+6 "2"
+expect boxes "(x^2) + (y^2▮)"
+expect canon "((x)^(2)) + ((y)^(2))"
+same
+
+formula pow/fraction-exponent
+keys Ctrl+End "x" Ctrl+6 "1" Ctrl+/ "3"
+expect boxes "(x^(1/3▮))"
+expect canon "((x)^(((1)/(3))))"
+same
+
+formula pow/evaluated
+keys Ctrl+End "2" Ctrl+6 "10" Ctrl+Space " - 1"
+expect boxes "(2^10) - 1▮"
+expect canon "((2)^(10)) - 1"
+same
+eval
+expect output "1023"
+
+# ---- roots ----
+formula root/simple
+keys Ctrl+End Ctrl+2 "2"
+expect boxes "√(2▮)"
+expect canon "((sqrt(2)))"
+same
+
+formula root/of-fraction
+keys Ctrl+End Ctrl+2 "1" Ctrl+/ "2"
+expect boxes "√((1/2▮))"
+expect canon "((sqrt(((1)/(2)))))"
+same
+
+formula root/nested
+keys Ctrl+End Ctrl+2 "1 + " Ctrl+2 "x"
+expect boxes "√(1 + √(x▮))"
+expect canon "((sqrt(1 + ((sqrt(x))))))"
+same
+
+formula root/coefficient
+keys Ctrl+End "3" Ctrl+2 "x"
+expect boxes "3√(x▮)"
+expect canon "3((sqrt(x)))"
+same
+
+formula root/power-inside
+keys Ctrl+End Ctrl+2 "x" Ctrl+6 "2" Ctrl+Space Ctrl+Space " + 1"
+expect boxes "√((x^2)) + 1▮"
+expect canon "((sqrt(((x)^(2))))) + 1"
+same
+
+formula root/evaluated
+keys Ctrl+End Ctrl+2 "16" Ctrl+Space " + " Ctrl+2 "9"
+expect boxes "√(16) + √(9▮)"
+expect canon "((sqrt(16))) + ((sqrt(9)))"
+same
+eval
+expect output "7"
+
+formula root/in-denominator
+keys Ctrl+End "1" Ctrl+/ Ctrl+2 "x"
+expect boxes "(1/√(x▮))"
+expect canon "((1)/(((sqrt(x)))))"
+same
+
+# ---- brackets ----
+formula bracket/auto-close
+keys Ctrl+End "f("
+expect boxes "none"
+expect canon "f()"
+same
+
+formula bracket/type-over-closer
+keys Ctrl+End "f(x)"
+expect boxes "none"
+expect canon "f(x)"
+same
+
+formula bracket/unmatched-in-numerator
+keys Ctrl+End Ctrl+/ "(a + b"
+expect boxes "((a + b▮)/□)"
+expect canon "(((a + b))/(□))"
+same
+
+formula bracket/list-with-fraction
+keys Ctrl+End "[1, " Ctrl+/ "1" Down "2" Ctrl+Space ", 3]"
+expect boxes "[1, (1/2), 3]▮"
+expect canon "[1, ((1)/(2)), 3]"
+same
+
+formula bracket/wrap-selection
+keys Ctrl+End "a + b" Shift+Home "("
+expect boxes "none"
+expect canon "(a + b)"
+same
+
+formula bracket/backspace-pair
+keys Ctrl+End "g(" Backspace
+expect boxes "none"
+expect canon "g"
+same
+
+formula bracket/around-power
+keys Ctrl+End "(" "x" Ctrl+6 "2" Ctrl+Space " + 1)"
+expect boxes "((x^2) + 1)▮"
+expect canon "(((x)^(2)) + 1)"
+same
+
+formula bracket/sum-in-exponent
+keys Ctrl+End "e" Ctrl+6 "(a + b)"
+expect boxes "(e^(a + b)▮)"
+expect canon "((e)^((a + b)))"
+same
+
+formula bracket/squared-sum
+keys Ctrl+End "(" Ctrl+/ "1" Down "2" Ctrl+Space " + 1)" Ctrl+6 "2"
+expect boxes "(((1/2) + 1)^2▮)"
+expect canon "(((((1)/(2)) + 1))^(2))"
+same
+eval
+expect output "9/4"
+
+# ---- selections ----
+formula select/into-box
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space " + c" Shift+Left Shift+Left Shift+Left Shift+Left
+expect boxes "(a/b)⟦ + c⟧"
+expect canon "((a)/(b)) + c"
+same
+
+formula select/delete-box
+keys Ctrl+End "1 + " Ctrl+/ "x" Down "y" Ctrl+Space Shift+Left Delete
+expect boxes "none"
+expect canon "1 + "
+same
+
+formula select/type-over-power
+keys Ctrl+End "u" Ctrl+6 "3" Ctrl+Space " + v" Home Shift+Right "w"
+expect boxes "none"
+expect canon "w + v"
+same
+
+formula select/wrap-in-fraction
+keys Ctrl+End "a + b" Shift+Home Ctrl+/ "2"
+expect boxes "(a + b/2▮)"
+expect canon "((a + b)/(2))"
+same
+
+formula select/wrap-in-root
+keys Ctrl+End "x + 1" Shift+Home Ctrl+2
+expect boxes "√(x + 1▮)"
+expect canon "((sqrt(x + 1)))"
+same
+
+formula select/wrap-in-power
+keys Ctrl+End "x + 1" Shift+Home Ctrl+6 "3"
+expect boxes "(x + 1^3▮)"
+expect canon "((x + 1)^(3))"
+same
+
+formula select/all-and-delete
+keys Ctrl+End "q" Ctrl+/ "r" Ctrl+A Delete
+expect boxes "none"
+expect canon ""
+same
+
+formula select/extend
+keys Ctrl+End "s" Ctrl+6 "t" Ctrl+. Ctrl+.
+expect boxes "⟦(s^t)⟧"
+expect canon "((s)^(t))"
+same
+
+formula select/in-slot-to-start
+keys Ctrl+End Ctrl+/ "a + b" Shift+Home Delete "c"
+expect boxes "(c▮/□)"
+expect canon "((c)/(□))"
+same
+
+# ---- undo and redo ----
+formula undo/fraction-steps
+keys Ctrl+End "m" Ctrl+/ "n" Ctrl+Z
+expect boxes "(m/▮□)"
+keys Ctrl+Z
+expect boxes "none"
+keys Ctrl+Shift+Z Ctrl+Shift+Z
+expect boxes "(m/n▮)"
+expect canon "((m)/(n))"
+same
+
+formula undo/deleted-box
+keys Ctrl+End "1 + " Ctrl+2 "z" Ctrl+Space Shift+Left Delete Ctrl+Z
+expect boxes "1 + ⟦√(z)⟧"
+expect canon "1 + ((sqrt(z)))"
+same
+
+formula undo/wrap
+keys Ctrl+End "p + q" Shift+Home Ctrl+/ Ctrl+Z
+expect boxes "none"
+expect canon "p + q"
+same
+
+formula undo/paste
+keys Ctrl+End
+setclip "1/(1 + x^2)"
+keys Ctrl+Shift+V Ctrl+Z
+expect boxes "none"
+expect canon ""
+keys Ctrl+Y
+expect boxes "(1/1 + (x^2))▮"
+expect canon "((1)/(1 + ((x)^(2))))"
+same
+
+formula undo/back-to-empty
+keys Ctrl+End "k" Ctrl+6 "2" Ctrl+Space " + " Ctrl+2 "k" Ctrl+Z Ctrl+Z Ctrl+Z Ctrl+Z Ctrl+Z Ctrl+Z
+expect boxes "none"
+expect canon "k"
+same
+
+formula undo/redo-everything
+keys Ctrl+Y Ctrl+Y Ctrl+Y Ctrl+Y Ctrl+Y Ctrl+Y
+expect boxes "(k^2) + √(k▮)"
+expect canon "((k)^(2)) + ((sqrt(k)))"
+same
+
+formula undo/word
+keys Ctrl+End "alpha" Ctrl+/ "beta" Ctrl+Z
+expect boxes "(alpha/▮□)"
+expect canon "((alpha)/(□))"
+same
+
+# ---- cut, copy and paste ----
+formula paste/math-text
+keys Ctrl+End
+setclip "1/(1 + x^2)"
+keys Ctrl+Shift+V
+expect boxes "(1/1 + (x^2))▮"
+expect canon "((1)/(1 + ((x)^(2))))"
+same
+
+formula paste/plain-text
+keys Ctrl+End
+setclip "sqrt(x)/2"
+keys Ctrl+V
+expect boxes "none"
+expect canon "sqrt(x)/2"
+same
+
+formula paste/into-numerator
+keys Ctrl+End Ctrl+/
+setclip "x^2"
+keys Ctrl+Shift+V Down "2"
+expect boxes "((x^2)/2▮)"
+expect canon "((((x)^(2)))/(2))"
+same
+
+formula paste/copy-box
+keys Ctrl+End "a" Ctrl+/ "b" Ctrl+Space Shift+Left Ctrl+C End " + " Ctrl+V
+expect boxes "(a/b) + (a/b)▮"
+expect canon "((a)/(b)) + ((a)/(b))"
+same
+
+formula paste/cut-box
+keys Ctrl+End Ctrl+2 "y" Ctrl+Space " + z" Home Shift+Right Ctrl+X End " + " Ctrl+V
+expect boxes " + z + √(y)▮"
+expect canon " + z + ((sqrt(y)))"
+same
+
+formula paste/two-lines
+keys Ctrl+End
+setclip "a = 1\nb = 2"
+keys Ctrl+V
+expect boxes "none"
+expect canon "a = 1\nb = 2"
+same
+
+formula paste/into-exponent
+keys Ctrl+End "e" Ctrl+6
+setclip "x/2"
+keys Ctrl+Shift+V
+expect boxes "(e^(x/2)▮)"
+expect canon "((e)^(((x)/(2))))"
+same
+
+formula paste/over-selection
+keys Ctrl+End "c + d" Shift+Left
+setclip "sqrt(d)"
+keys Ctrl+Shift+V
+expect boxes "c + √(d)▮"
+expect canon "c + ((sqrt(d)))"
+same
+
+# ---- formulas as written ----
+formula mix/quadratic
+keys Ctrl+End "x = " Ctrl+/ "-b + " Ctrl+2 "b" Ctrl+6 "2" Ctrl+Space " - 4a c" Down "2a"
+expect boxes "x = (-b + √((b^2) - 4a c)/2a▮)"
+expect canon "x = ((-b + ((sqrt(((b)^(2)) - 4a c))))/(2a))"
+same
+
+formula mix/gauss
+keys Ctrl+End "g = " Ctrl+/ "1" Down Ctrl+2 "2pi" Ctrl+Space Ctrl+Space Ctrl+Space "e" Ctrl+6 "-" Ctrl+/ "x" Ctrl+6 "2" Ctrl+Space Down "2"
+expect boxes "g = (1/√(2pi))*(e^-((x^2)/2▮))"
+expect canon "g = ((1)/(((sqrt(2pi)))))*((e)^(-((((x)^(2)))/(2))))"
+same
+
+formula mix/continued-fraction
+keys Ctrl+End "1 + " Ctrl+/ "1" Down "1 + " Ctrl+/ "1" Down "1 + " Ctrl+/ "1" Down "2"
+expect boxes "1 + (1/1 + (1/1 + (1/2▮)))"
+expect canon "1 + ((1)/(1 + ((1)/(1 + ((1)/(2))))))"
+same
+eval
+expect output "8/5"
+
+formula mix/roots-evaluated
+keys Ctrl+End Ctrl+2 "2" Ctrl+Space "*" Ctrl+2 "8" Ctrl+Space " + " Ctrl+/ "6" Down Ctrl+2 "9"
+expect boxes "√(2)*√(8) + (6/√(9▮))"
+expect canon "((sqrt(2)))*((sqrt(8))) + ((6)/(((sqrt(9)))))"
+same
+eval
+expect output "6"
+
+formula mix/two-lines
+keys Ctrl+End "a = " Ctrl+/ "1" Down "2" Ctrl+Space Enter "b = a" Ctrl+6 "2" Ctrl+Space "; b"
+expect boxes "a = (1/2)\nb = (a^2); b▮"
+expect canon "a = ((1)/(2))\nb = ((a)^(2)); b"
+same
+eval
+expect output "1/4"
+
+formula mix/insert-at-denominator-start
+keys Ctrl+End "r = " Ctrl+/ "x" Down "y" Ctrl+Space Left Left "+1"
+expect boxes "r = (x/+1▮y)"
+expect canon "r = ((x)/(+1y))"
+same
+
+formula mix/backspace-everything
+keys Ctrl+End "t" Ctrl+6 "2" Ctrl+Space "/" Ctrl+2 "t" Ctrl+Space Backspace Backspace Backspace
+expect boxes "(t^2)/▮"
+same
+keys Backspace Backspace Backspace
+expect boxes "(t^▮□)"
+same
+keys Backspace
+expect boxes "none"
+expect canon "t^"
+same
+keys Backspace Backspace
+expect canon ""
+same
+
+formula mix/delete-forward
+keys Ctrl+End Ctrl+/ "1" Down "2" Ctrl+Space " + 3" Home Delete Delete Delete
+expect boxes "none"
+expect canon "/2 + 3"
+same
+
+formula mix/power-of-fraction
+keys Ctrl+End "(" Ctrl+/ "a" Down "b" Ctrl+Space ")" Ctrl+6 "n"
+expect boxes "(((a/b))^n▮)"
+expect canon "(((((a)/(b))))^(n))"
+same
+
+formula mix/root-of-sum-of-squares
+keys Ctrl+End Ctrl+2 "x" Ctrl+6 "2" Ctrl+Space " + y" Ctrl+6 "2"
+expect boxes "√((x^2) + (y^2▮))"
+expect canon "((sqrt(((x)^(2)) + ((y)^(2)))))"
+same
+
+formula mix/derivative-quotient
+keys Ctrl+End Ctrl+/ "f(x + h) - f(x)" Down "h"
+expect boxes "(f(x + h) - f(x)/h▮)"
+expect canon "((f(x + h) - f(x))/(h))"
+same
+
+formula mix/fraction-times-fraction
+keys Ctrl+End Ctrl+/ "1" Down "2" Ctrl+Space " " Ctrl+/ "3" Down "4"
+expect boxes "(1/2) (3/4▮)"
+expect canon "((1)/(2)) ((3)/(4))"
+same
+eval
+expect output "3/8"
+
+formula mix/greek
+keys Ctrl+End Esc "a" Esc Ctrl+6 "2" Ctrl+Space " + " Ctrl+/ Esc "b" Esc Down "2"
+expect boxes "(α^2) + (β/2▮)"
+expect canon "((α)^(2)) + ((β)/(2))"
+same
+
+formula mix/no-completion-for-a-coefficient
+keys Ctrl+End "x = " Ctrl+/ "1" Down "2a"
+wait 40
+help
+keys Up "b"
+expect boxes "x = (1b▮/2a)"
+expect canon "x = ((1b)/(2a))"
+same
+
+formula mix/closer-after-moves
+keys Ctrl+End "f(" Ctrl+/ "x" Down "2" Up Down Ctrl+Space ", y)"
+expect boxes "f((x/2), y)▮"
+expect canon "f(((x)/(2)), y)"
+same
+
+dump input-user
+quit

@@ -12,7 +12,8 @@
 use mc_api::RefStore;
 mod common;
 use common::Old;
-use mc_boxes::{from_text, linear_text, restrict, to_text, typeset_input, Item, Row, RowPath, Step};
+use mc_boxes::{from_text, linear_text, restrict, to_text, Item, Row, RowPath, Step};
+use mc_typeset::typeset_input;
 use mc_edit::{Editor, Structure};
 
 /// What a construct is made of: how to type it, its canonical text, its linear text, and the canonical texts that

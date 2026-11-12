@@ -157,7 +157,7 @@ The rules of `tools/depcheck-rules.txt` that hold: nothing but dev-dependencies 
 `mc-integrals`.
 
 Step 8 of the round (output typesetting out of `mc-boxes` into a crate of its own) was not done in this round:
-`mc-boxes` was being changed by other work of the round at the same time.
+`mc-boxes` was being changed by other work of the round at the same time; round 38 did it (section 4).
 
 ### The calculus crates (step 5)
 
@@ -190,7 +190,30 @@ only through the evaluator (by name), so they need no crate dependency.
   libraries it calls itself (plots, series and uncertain arithmetic, the compiler's queue, dataset tables);
   `mc-kernel` (the notebook protocol), `mc-repl` and `mc-bench` (the benchmark runner) on `mc-engine`;
   `mc-lsp` and `mc-docs` on `mc-libraries` for the names and descriptions.
-- **Front ends.** The UI crates (`mc-ui`, `mc-boxes`, `mc-edit`, `mc-nbmodel`, `mc-nbexport`, `mc-notebook`) talk to the
+- **Front ends.** The UI crates (`mc-ui`, `mc-boxes`, `mc-typeset`, `mc-edit`, `mc-nbmodel`, `mc-nbexport`, `mc-notebook`) talk to the
   kernel over the protocol and never link the evaluator: they use `mc-graphics` (the graphics model read through
   the store contract, colours, themes, renderers, the 3D viewer), `mc-syntax` and `mc-boxes`. The natives of the
   graphics term are `mc-graphics-kernel`'s, which the libraries install.
+
+## 4. Step 8: output typesetting in a crate of its own (round 38)
+
+`mc-boxes` read texts through the parser into box trees (printed output, linear input) beside the box tree and its
+layout. Those readers are now the crate `mc-typeset`, so `mc-boxes` is the box tree, its canonical and linear text,
+the alias table, LaTeX of a tree and the layout. No behaviour changed: the same functions under a new crate name, the
+same tests (moved with the code they test).
+
+| crate | layer | lines | direct | trans | fan-in | holds |
+|---|---:|---:|---:|---:|---:|---|
+| `mc-boxes` | 2 | 5878 | 2 | 3 | 6 | the box tree (`tree`), canonical text (`canonical`, `scan`), linear text with `restrict` and `linear_segments` (`linear`), aliases, LaTeX of a tree (`latex`), the layout and line breaking (`layout`) |
+| `mc-typeset` | 3 | 2637 | 2 | 4 | 4 | `math_text` and `label_rows` (`math`: the notebook's one look of an output), `typeset_output`, `typeset_input`, `output_input_text`, `output_input_boxes` (`printed`) |
+
+(before: `mc-boxes` 8486 lines, fan-in 5.) Its users: `mc-graphics` (plot labels), `mc-nbmodel` (outputs, pasted
+text), `mc-nbexport` and `mc-notebook` (painting outputs); `mc-edit` uses it in its tests only. Three helpers the
+readers shared with the tree stayed below: `has_boxes` (in `tree`), `is_swatch` (in `ops`) and `is_one_group` (the
+canonical text's bracket scan, for the parentheses of a slot). `mc-boxes` keeps `mc-syntax` for the string literals
+of the canonical text and the parse that decides the parentheses of the linear text.
+
+New rules in `tools/depcheck-rules.txt`: neither `mc-boxes` nor `mc-edit` depends on `mc-typeset` (the layout and the
+editor know no reader of outputs), and `mc-typeset` depends on neither `mc-eval` nor `mc-core`. The layout tests of
+`mc-boxes` lay out printed output and take `mc-typeset` as a dev-dependency (dev-dependencies do not count). 63
+crates, 15 layers; 25 rules, 0 violations.

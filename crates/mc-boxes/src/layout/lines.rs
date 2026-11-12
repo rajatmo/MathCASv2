@@ -79,6 +79,24 @@ pub(super) fn break_lines(pieces: &[PieceInfo], max: Option<f32>, indent_per_lev
     }
 }
 
+/// The widest the first line of `pieces` gets while [`break_lines`] fills it (ems), up to and with a forced break:
+/// the line holds all of them at a width `a` exactly when this is at most `a` (a single piece always fits).
+pub(super) fn line_reach(pieces: &[PieceInfo]) -> f32 {
+    let mut x = 0.0f32;
+    let mut reach = f32::NEG_INFINITY;
+    for (k, p) in pieces.iter().enumerate() {
+        let w = if k == 0 { p.width - p.space_before } else { p.width };
+        if k > 0 {
+            reach = reach.max(x + w);
+        }
+        x += w;
+        if p.newline {
+            break;
+        }
+    }
+    reach
+}
+
 /// The best break before a piece in `start + 1 ..= end` (a line of `start..fit_end` fits); if no break is allowed
 /// there, the first allowed break after `end` (the line overflows), or the end of the row.
 fn choose(pieces: &[PieceInfo], start: usize, end: usize, avail: f32) -> usize {

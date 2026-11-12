@@ -521,7 +521,7 @@ impl Builder<'_> {
                 Block::new(lines, 2.0, 1.0)
             }
             Part::Formula { text } => {
-                let row = mc_boxes::math_text(&text).row;
+                let row = mc_typeset::math_text(&text).row;
                 Block::new(typeset_lines(&row, Font::Mono, TEXT, BODY, body, true, false), 5.0, 5.0)
             }
             Part::Program { text } => {
@@ -547,7 +547,7 @@ impl Builder<'_> {
             }
             Part::Out(o) => match o {
                 Out::Value(text) => {
-                    let t = mc_boxes::math_text(&text);
+                    let t = mc_typeset::math_text(&text);
                     if t.message {
                         return self.message(&text, FAILURE);
                     }
@@ -700,10 +700,10 @@ mod tests {
 
     #[test]
     fn typeset_output_draws_a_rule_for_a_fraction() {
-        let row = mc_boxes::math_text("1/3").row;
+        let row = mc_typeset::math_text("1/3").row;
         let lines = typeset_lines(&row, Font::Mono, TEXT, 0.0, 300.0, true, true);
         assert!(lines.iter().flat_map(|l| &l.ops).any(|o| matches!(o, Op::Rect { .. })));
-        let row = mc_boxes::math_text("sqrt(x)").row;
+        let row = mc_typeset::math_text("sqrt(x)").row;
         let lines = typeset_lines(&row, Font::Mono, TEXT, 0.0, 300.0, true, true);
         assert!(lines.iter().flat_map(|l| &l.ops).any(|o| matches!(o, Op::Glyph { .. } | Op::Rect { .. })));
     }

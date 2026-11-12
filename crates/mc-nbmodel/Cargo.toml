@@ -10,6 +10,8 @@ description = "MathCAS v2 notebook document model: cells, styles, grouping, sele
 
 [dependencies]
 mc-boxes = { path = "../mc-boxes" }
+# outputs read into boxes, pasted text converted to boxes
+mc-typeset = { path = "../mc-typeset" }
 mc-edit = { path = "../mc-edit" }
 mc-nbfile = { path = "../mc-nbfile" }
 mc-syntax = { path = "../mc-syntax" }

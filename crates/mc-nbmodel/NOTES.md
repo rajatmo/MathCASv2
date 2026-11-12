@@ -126,7 +126,7 @@ commands (M6) are bound to nothing.
   boxes gives linear text. Automatic closing in cells with boxes (`auto_pair`: a bracket pair, stepping over a typed
   closer).
 - Reading: a typeset cell of an older notebook keeps the three boxes, the rest linear (plain when none remain); an
-  output's `form=` is dropped. Outputs take the read-only box caret over `mc_boxes::math_text`.
+  output's `form=` is dropped. Outputs take the read-only box caret over `mc_typeset::math_text`.
 - Tests: key scripts (typeset.keys: 9 removed with their features; new: linear text stays linear, Ctrl+2 on a
   selection, slots by arrows, Backspace unwraps a fraction and a root, selection across a box with copy and typing
   over it, a box key at an insertion point), unit (older notebooks round-trip, output forms dropped).

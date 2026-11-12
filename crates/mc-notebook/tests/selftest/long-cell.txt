@@ -1,0 +1,18 @@
+# Typing latency in a long cell (round 38): a 2,000-line Input cell, letters typed at its end, then at its top on a
+# new first line (only that line changes), then opening brackets typed after them one by one (before the letters, so
+# they are not paired with a closer: each moves every line after it one level deeper, so their indent changes). Driven by tests/input_selftest.rs (`long_cell`).
+size 1000 760
+ppp 1
+theme light
+longcell 2000
+wait 5
+type end-letters " + y + z + w + abc"
+select 1 0 0
+keys Enter Up
+wait 5
+sel
+type top-letters "qrstuvwxyz"
+keys Home
+type top-brackets "(((((((((((((((("
+shot long-cell-brackets
+quit

@@ -118,6 +118,8 @@ impl App {
 
     /// The name being typed at the caret in a code cell: (cell, where, start, prefix). In typeset input the name is
     /// in the caret's row of boxes (`where` is that row; `start` an item offset), else in the text (`start` a byte).
+    /// A name starts with a letter or `_`: digits and dots before it are a number multiplying it (`2a`, round 38: the
+    /// popup opened for `2a` and took the next Down).
     pub(super) fn word_at_caret(&self) -> Option<(mc_nbmodel::CellId, Option<mc_boxes::RowPath>, usize, String)> {
         let Selection::Caret { cell, anchor, pos } = *self.doc.nb.selection() else {
             return None;
@@ -137,7 +139,8 @@ impl App {
                     return None;
                 }
             }
-            return Some((cell, Some(path), start, word));
+            let skip = number_before_name(&word);
+            return Some((cell, Some(path), start + word[..skip].chars().count(), word[skip..].to_string()));
         }
         if anchor != pos || !c.style.is_code() || c.expr_view {
             return None;
@@ -153,7 +156,9 @@ impl App {
             .take_while(|ch| ch.is_alphanumeric() || *ch == '_' || *ch == '.')
             .map(char::len_utf8)
             .sum();
-        Some((cell, None, pos - len, before[pos - len..].to_string()))
+        let word = &before[pos - len..];
+        let skip = number_before_name(word);
+        Some((cell, None, pos - len + skip, word[skip..].to_string()))
     }
 
     /// Keys for the slider last pressed: Left/Right (Down/Up) a step (a hundredth of the range when continuous),
@@ -533,9 +538,16 @@ fn in_comment_or_string(line: &str) -> bool {
     in_str
 }
 
+/// The bytes of `word` (letters, digits, `_` and `.` before the caret) before the name in it: the digits and dots of
+/// a number written against the name (`2a` is 2 times `a`, `1.5x` 1.5 times `x`); 0 when it starts with a letter or
+/// `_` (`x2`, `M.f`).
+fn number_before_name(word: &str) -> usize {
+    word.char_indices().find(|&(_, c)| !(c.is_ascii_digit() || c == '.')).map_or(word.len(), |(i, _)| i)
+}
+
 #[cfg(test)]
 mod comment_tests {
-    use super::in_comment_or_string;
+    use super::{in_comment_or_string, number_before_name};
 
     #[test]
     fn comments_and_strings_stop_completion() {
@@ -546,5 +558,16 @@ mod comment_tests {
         assert!(!in_comment_or_string("say(\"a\") + plo"));
         assert!(!in_comment_or_string("plo"));
         assert!(!in_comment_or_string("s = \"a#b\"; sq"));
+    }
+
+    #[test]
+    fn a_number_before_a_name_is_not_part_of_it() {
+        assert_eq!(number_before_name("2a"), 1);
+        assert_eq!(number_before_name("1.5x"), 3);
+        assert_eq!(number_before_name("x2"), 0);
+        assert_eq!(number_before_name("M.f"), 0);
+        assert_eq!(number_before_name("_t"), 0);
+        assert_eq!(number_before_name("12"), 2);
+        assert_eq!(number_before_name("3α"), 1);
     }
 }

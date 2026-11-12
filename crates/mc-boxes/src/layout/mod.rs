@@ -477,20 +477,52 @@ pub fn layout(row: &Row, metrics: &dyn Metrics, opts: &LayoutOptions) -> Layout 
 /// The layouts of the logical lines of a root row, kept between calls of [`layout_by_lines`]: an edit lays out again
 /// only the lines it changed (a long cell types as fast as a short one), and the layout the last call composed is
 /// changed in place where the row changed (round 37: composing every line again cost 3.5 ms a keystroke in a
-/// 2,000-line cell).
+/// 2,000-line cell). A line that fits on one line is laid out once for every bracket depth it starts at (round 38: an
+/// opening bracket typed at the top of a long cell moves the lines after it right, it does not lay them out again).
 #[derive(Clone, Debug, Default)]
 pub struct LineCache {
     opts: Option<LayoutOptions>,
-    /// by a hash of the line's items and its starting depth: the items, the depth, the layout, the call it was last
-    /// used in
+    /// by a hash of the line's items: the items, the depths the layout serves, the layout, the call it was last used in
     lines: std::collections::HashMap<u64, Vec<CachedLine>>,
     calls: u64,
     /// the layout the last call gave, and where each of its logical lines is in it
     last: Option<Composed>,
 }
 
-/// A logical line's items, the bracket depth it starts at, its layout, and the call it was last used in.
-type CachedLine = (Arc<[crate::tree::Item]>, usize, Arc<Layout>, u64);
+/// A logical line's items, the bracket depths its layout serves, its layout, and the call it was last used in.
+type CachedLine = (Arc<[crate::tree::Item]>, Fit, Arc<Layout>, u64);
+
+/// The bracket depths at which a logical line's layout is the line's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Fit {
+    /// laid out at depth 0 on one line: every depth at which it still fits on one line, moved right by the indent of
+    /// that depth (nothing else about it depends on the depth)
+    Any(engine::RootFit),
+    /// laid out at this depth (it takes more than one line there)
+    At(usize),
+}
+
+impl Fit {
+    /// How far right (size units) the layout is drawn for a line starting at bracket depth `depth`, if it is that
+    /// line's layout: the first indent the line breaker gives at that depth (two ems a level, at most half the width),
+    /// as long as the line still fits beside it.
+    fn shift(self, depth: usize, opts: &LayoutOptions) -> Option<f32> {
+        match self {
+            Fit::At(d) => (d == depth).then_some(0.0),
+            Fit::Any(_) if depth == 0 => Some(0.0),
+            Fit::Any(f) => {
+                let per = if opts.indent_continuations { engine::INDENT_PER_LEVEL } else { 0.0 };
+                let level = if f.first_closes { depth - 1 } else { depth };
+                let max = opts.max_width.map(|w| w / opts.size);
+                let indent = (per * level as f32).min(max.unwrap_or(f32::INFINITY) * 0.5);
+                if max.is_some_and(|m| f.reach > (m - indent).max(m * 0.5)) {
+                    return None;
+                }
+                Some(indent * opts.size)
+            }
+        }
+    }
+}
 
 /// A composed layout and its logical lines, in order.
 #[derive(Clone, Debug)]
@@ -499,14 +531,16 @@ struct Composed {
     parts: Vec<Part>,
 }
 
-/// One logical line of a composed layout: what it is (its items, the depth it starts at, their hash, its own layout)
-/// and where its pieces are in the composed layout.
+/// One logical line of a composed layout: what it is (its items, the depths its layout serves, their hash, its own
+/// layout and how far right it is drawn) and where its pieces are in the composed layout.
 #[derive(Clone, Debug)]
 struct Part {
     items: Arc<[crate::tree::Item]>,
-    depth: usize,
+    fit: Fit,
     hash: u64,
     lay: Arc<Layout>,
+    /// its horizontal offset
+    sx: f32,
     /// its vertical offset
     dy: f32,
     /// its first root item
@@ -528,12 +562,11 @@ struct Spans {
 use std::ops::Range;
 use std::sync::Arc;
 
-/// A quick hash of a line's items and the bracket depth it starts at (FNV-1a over the characters; boxes through
-/// their own hash).
-fn line_hash(items: &[crate::tree::Item], depth: usize) -> u64 {
+/// A quick hash of a line's items (FNV-1a over the characters; boxes through their own hash).
+fn line_hash(items: &[crate::tree::Item]) -> u64 {
     use crate::tree::Item;
     use std::hash::{Hash, Hasher};
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ depth as u64;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for it in items {
         let v = match it {
             Item::Char(c) => *c as u64,
@@ -547,6 +580,49 @@ fn line_hash(items: &[crate::tree::Item], depth: usize) -> u64 {
         h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
     }
     h
+}
+
+/// The x of a painted item.
+fn draw_x(d: &mut Draw) -> &mut f32 {
+    match d {
+        Draw::Char { x, .. }
+        | Draw::Placeholder { x, .. }
+        | Draw::Glyph { x, .. }
+        | Draw::Rule { x, .. }
+        | Draw::Delim { x, .. }
+        | Draw::Graphic { x, .. } => x,
+    }
+}
+
+/// The layout of the logical line `part` starting at bracket depth `depth` (hash `h`), and how far right it is
+/// drawn: from the cache, or laid out now (at depth 0 first: on one line there, it serves every depth it fits at).
+fn line_layout(
+    lines: &mut std::collections::HashMap<u64, Vec<CachedLine>>,
+    part: &[crate::tree::Item],
+    (depth, h, call): (usize, u64, u64),
+    metrics: &dyn Metrics,
+    opts: &LayoutOptions,
+) -> (Arc<[crate::tree::Item]>, Fit, Arc<Layout>, f32) {
+    let bucket = lines.entry(h).or_default();
+    if let Some(e) = bucket.iter_mut().find(|e| e.1.shift(depth, opts).is_some() && *e.0 == *part) {
+        e.3 = call;
+        let sx = e.1.shift(depth, opts).unwrap_or(0.0);
+        return (e.0.clone(), e.1, e.2.clone(), sx);
+    }
+    let items: Arc<[crate::tree::Item]> = bucket.iter().find(|e| *e.0 == *part).map_or_else(|| part.into(), |e| e.0.clone());
+    if !bucket.iter().any(|e| matches!(e.1, Fit::Any(_) | Fit::At(0)) && *e.0 == *part) {
+        let (lay, fit) = engine::Engine::new(metrics, opts).run_with_fit(&Row(part.to_vec()));
+        let fit = fit.map_or(Fit::At(0), Fit::Any);
+        let lay = Arc::new(lay);
+        bucket.push((items.clone(), fit, lay.clone(), call));
+        if let Some(sx) = fit.shift(depth, opts) {
+            return (items, fit, lay, sx);
+        }
+    }
+    // the bracket depth the line starts at indents it as in the whole row, and decides where it breaks
+    let lay = Arc::new(engine::Engine::new(metrics, opts).starting_at_depth(depth).run(&Row(part.to_vec())));
+    bucket.push((items.clone(), Fit::At(depth), lay.clone(), call));
+    (items, Fit::At(depth), lay, 0.0)
 }
 
 /// The vertical offset of a logical line laid out as `lay` below the composed line `prev` (none: the first line).
@@ -577,6 +653,10 @@ struct Pieces<'m> {
     prev: Option<Line>,
 }
 
+/// A logical line to compose: its items, the depths its layout serves, their hash, its layout, how far right it is
+/// drawn.
+type Placed = (Arc<[crate::tree::Item]>, Fit, u64, Arc<Layout>, f32);
+
 impl<'m> Pieces<'m> {
     /// Nothing yet: the next pieces go at `at` (the starts), the next root item is `off`, the line above is `prev`.
     fn at(metrics: &'m dyn Metrics, size: f32, at: &Spans, off: usize, prev: Option<Line>) -> Pieces<'m> {
@@ -585,9 +665,9 @@ impl<'m> Pieces<'m> {
         Pieces { metrics, size, items: vec![], stops: vec![], ink: vec![], rows: vec![], lines: vec![], next, off, prev }
     }
 
-    /// Add a logical line laid out as `lay` (`items` its items, `last`: the row's last line, which has no line break
-    /// of its own) below the pieces so far; gives its part.
-    fn push(&mut self, items: Arc<[crate::tree::Item]>, depth: usize, hash: u64, lay: Arc<Layout>, last: bool) -> Part {
+    /// Add a logical line (`last`: the row's last line, which has no line break of its own) below the pieces so far;
+    /// gives its part.
+    fn push(&mut self, (items, fit, hash, lay, sx): Placed, last: bool) -> Part {
         let dy = line_offset(self.metrics, self.size, self.prev.as_ref(), &lay);
         let (off, n) = (self.off, items.len());
         // the line's other rows follow the composed rows so far (the root row is row 0)
@@ -597,6 +677,7 @@ impl<'m> Pieces<'m> {
         let (i0, s0, k0, r0, l0) = (self.items.len(), self.stops.len(), self.ink.len(), self.rows.len(), self.lines.len());
         for d in &lay.items {
             let mut d = d.clone();
+            *draw_x(&mut d) += sx;
             match &mut d {
                 Draw::Char { y, row, index, .. } | Draw::Placeholder { y, row, index, .. } | Draw::Delim { y, row, index, .. } => {
                     *y += dy;
@@ -607,8 +688,8 @@ impl<'m> Pieces<'m> {
             }
             self.items.push(d);
         }
-        let shift_stop = |s: &Stop| Stop { baseline: s.baseline + dy, top: s.top + dy, bottom: s.bottom + dy, ..*s };
-        let shift_box = |b: &ItemBox| ItemBox { top: b.top + dy, bottom: b.bottom + dy, ..*b };
+        let shift_stop = |s: &Stop| Stop { x: s.x + sx, baseline: s.baseline + dy, top: s.top + dy, bottom: s.bottom + dy };
+        let shift_box = |b: &ItemBox| ItemBox { x: b.x + sx, top: b.top + dy, bottom: b.bottom + dy, ..*b };
         for (r, g) in lay.rows.iter().enumerate() {
             if r == 0 {
                 let k = g.stops.len().saturating_sub(1);
@@ -633,7 +714,8 @@ impl<'m> Pieces<'m> {
                 bottom: l.bottom + dy,
                 start: l.start + off,
                 end: (l.end + off).min(off + n),
-                ..*l
+                indent: l.indent + sx,
+                right: l.right + sx,
             });
         }
         self.prev = self.lines.last().copied();
@@ -650,7 +732,7 @@ impl<'m> Pieces<'m> {
             lines: grow(&mut self.next.lines, self.lines.len() - l0),
         };
         self.off += n;
-        Part { items, depth, hash, lay, dy, off, at }
+        Part { items, fit, hash, lay, sx, dy, off, at }
     }
 
     /// Put the pieces in place of `old` (ranges of `lay`).
@@ -660,6 +742,35 @@ impl<'m> Pieces<'m> {
         lay.rows[0].ink.splice(old.ink.clone(), self.ink);
         lay.rows.splice(old.rows.clone(), self.rows);
         lay.lines.splice(old.lines.clone(), self.lines);
+    }
+}
+
+/// Draw the composed line `p` of `out` again at its own `sx` (its bracket depth changed, its layout did not): every
+/// x from its own layout, as [`Pieces::push`] places it.
+fn move_part(out: &mut Layout, p: &Part) {
+    let sx = p.sx;
+    for (d, src) in out.items[p.at.items.clone()].iter_mut().zip(&p.lay.items) {
+        let mut s = src.clone();
+        *draw_x(d) = *draw_x(&mut s) + sx;
+    }
+    let root = &p.lay.rows[0];
+    for (s, src) in out.rows[0].stops[p.at.stops.clone()].iter_mut().zip(&root.stops) {
+        s.x = src.x + sx;
+    }
+    for (b, src) in out.rows[0].ink[p.at.ink.clone()].iter_mut().zip(&root.ink) {
+        b.x = src.x + sx;
+    }
+    for (g, src) in out.rows[p.at.rows.clone()].iter_mut().zip(&p.lay.rows[1..]) {
+        for (s, from) in g.stops.iter_mut().zip(&src.stops) {
+            s.x = from.x + sx;
+        }
+        for (b, from) in g.ink.iter_mut().zip(&src.ink) {
+            b.x = from.x + sx;
+        }
+    }
+    for (l, src) in out.lines[p.at.lines.clone()].iter_mut().zip(&p.lay.lines) {
+        l.indent = src.indent + sx;
+        l.right = src.right + sx;
     }
 }
 
@@ -674,9 +785,9 @@ pub fn layout_by_lines(row: &Row, metrics: &dyn Metrics, opts: &LayoutOptions, c
 
 /// [`layout_by_lines`], the layout shared with the cache. The next call changes it in place where the row changed,
 /// when nothing else holds it then (drop it before): a keystroke in a long cell costs the lines it changed and
-/// integer shifts of what follows them (their item numbers), not a composition of every line. The lines after a
-/// change of height are composed again from their own layouts, so the result is always what a composition from the
-/// start gives, number for number.
+/// integer shifts of what follows them (their item numbers), not a composition of every line; lines whose bracket
+/// depth changed are moved sideways, not laid out again. The lines after a change of height are composed again from
+/// their own layouts, so the result is always what a composition from the start gives, number for number.
 pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOptions, cache: &mut LineCache) -> Arc<Layout> {
     use crate::tree::Item;
     if cache.opts.as_ref() != Some(opts) {
@@ -709,8 +820,9 @@ pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOpt
     }
     let n = segs.len();
     let size = opts.size;
-    // the lines the last layout shares with this row at its start (`prefix`) and at its end (`suffix`)
-    let same = |p: &Part, k: usize| p.depth == depths[k] && *p.items == row.0[segs[k].clone()];
+    // the lines the last layout shares with this row at its start (`prefix`) and at its end (`suffix`): the same
+    // items, and a layout that serves the depth they start at now
+    let same = |p: &Part, k: usize| *p.items == row.0[segs[k].clone()] && p.fit.shift(depths[k], opts).is_some();
     let (prefix, suffix) = match &cache.last {
         Some(c) => {
             let old = &c.parts;
@@ -738,6 +850,8 @@ pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOpt
         }
         _ => (fresh(), vec![], vec![], vec![]),
     };
+    // how far right the kept lines after the change are drawn at the depth they start at now
+    let tail_sx: Vec<f32> = tail.iter().enumerate().map(|(i, p)| p.fit.shift(depths[n - suffix + i], opts).unwrap_or(0.0)).collect();
     // where the replaced lines are: from the end of the kept lines before them to the start of those after them
     let total = Spans {
         items: 0..out.items.len(),
@@ -759,31 +873,20 @@ pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOpt
     for k in prefix..n - suffix {
         let part = &row.0[segs[k].clone()];
         let depth = depths[k];
-        let h = line_hash(part, depth);
-        let (items, lay) = match reuse.get(&h).filter(|p| p.depth == depth && *p.items == *part) {
-            Some(p) => (p.items.clone(), p.lay.clone()),
-            None => {
-                let bucket = cache.lines.entry(h).or_default();
-                match bucket.iter_mut().find(|(items, d, _, _)| *d == depth && **items == *part) {
-                    Some(e) => {
-                        e.3 = call;
-                        (e.0.clone(), e.2.clone())
-                    }
-                    None => {
-                        // the bracket depth the line starts at indents it as in the whole row
-                        let l = Arc::new(engine::Engine::new(metrics, opts).starting_at_depth(depth).run(&Row(part.to_vec())));
-                        let items: Arc<[Item]> = part.into();
-                        bucket.push((items.clone(), depth, l.clone(), call));
-                        (items, l)
-                    }
-                }
-            }
+        let h = line_hash(part);
+        let found = reuse
+            .get(&h)
+            .filter(|p| *p.items == *part)
+            .and_then(|p| Some((p.items.clone(), p.fit, p.lay.clone(), p.fit.shift(depth, opts)?)));
+        let (items, fit, lay, sx) = match found {
+            Some(f) => f,
+            None => line_layout(&mut cache.lines, part, (depth, h, call), metrics, opts),
         };
-        new_parts.push(mid.push(items, depth, h, lay, k + 1 == n));
+        new_parts.push(mid.push((items, fit, h, lay, sx), k + 1 == n));
     }
     drop(reuse);
     // the lines after: they keep their place when the first of them does (bit for bit), and only their item numbers
-    // move; otherwise they are composed again below the new lines
+    // move (and their x where their depth moved them); otherwise they are composed again below the new lines
     let keeps_place = tail.first().is_none_or(|p| line_offset(metrics, size, mid.prev.as_ref(), &p.lay).to_bits() == p.dy.to_bits());
     if keeps_place {
         let d = |new: &Range<usize>, old: &Range<usize>| new.end as isize - old.end as isize;
@@ -821,10 +924,16 @@ pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOpt
             p.at = Spans { items: mv(&p.at.items, di), stops: mv(&p.at.stops, ds), ink: mv(&p.at.ink, dk), rows: mv(&p.at.rows, dr), lines: mv(&p.at.lines, dl) };
         }
         mid.splice_into(&mut out, &old);
+        for (p, sx) in tail.iter_mut().zip(&tail_sx) {
+            if p.sx.to_bits() != sx.to_bits() {
+                p.sx = *sx;
+                move_part(&mut out, p);
+            }
+        }
     } else {
         let count = tail.len();
-        for (i, p) in std::mem::take(&mut tail).into_iter().enumerate() {
-            new_parts.push(mid.push(p.items, p.depth, p.hash, p.lay, i + 1 == count));
+        for (i, (p, sx)) in std::mem::take(&mut tail).into_iter().zip(tail_sx).enumerate() {
+            new_parts.push(mid.push((p.items, p.fit, p.hash, p.lay, sx), i + 1 == count));
         }
         let to_end = Spans {
             items: old.items.start..out.items.len(),
@@ -838,7 +947,7 @@ pub fn layout_by_lines_shared(row: &Row, metrics: &dyn Metrics, opts: &LayoutOpt
     parts.extend(new_parts);
     parts.extend(tail);
     // the size and the first baseline, as a composition from the start takes them
-    out.width = parts.iter().fold(0.0f32, |w, p| w.max(p.lay.width));
+    out.width = parts.iter().fold(0.0f32, |w, p| w.max(p.lay.width + p.sx));
     out.height = parts.iter().fold(0.0f32, |h, p| h.max(p.lay.height + p.dy));
     out.baseline = parts.first().map_or(0.0, |p| p.lay.baseline);
     // lines not used in this call nor the one before go
@@ -941,4 +1050,108 @@ fn cubic(p0: [f32; 2], p1: [f32; 2], p2: [f32; 2], p3: [f32; 2]) -> Vec<[f32; 2]
             [a * p0[0] + b * p1[0] + c * p2[0] + d * p3[0], a * p0[1] + b * p1[1] + c * p2[1] + d * p3[1]]
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::canonical::from_text;
+    use crate::tree::Item;
+
+    /// A long cell of short lines inside and outside brackets, with boxes.
+    fn long_cell(lines: usize) -> Row {
+        let mut t = String::new();
+        for k in 0..lines {
+            match k % 4 {
+                0 => t.push_str(&format!("a{k} = f(x,\n")),
+                1 => t.push_str("  ((1)/(2)) + y)\n"),
+                2 => t.push_str(&format!("b{k} = ((x)^(2)) + ((sqrt(z)))\n")),
+                _ => t.push_str("c = [q, [1, 2]]\n"),
+            }
+        }
+        t.push_str("last");
+        from_text(&t)
+    }
+
+    /// Round 38: an opening bracket typed at the top of a long cell changes the bracket depth of every line after it;
+    /// those lines keep their own layouts (the same ones, not laid out again) and are drawn two ems further right,
+    /// and the composed layout is still the one composed from the start, number for number.
+    #[test]
+    fn a_bracket_at_the_top_keeps_the_layouts_of_the_lines_after_it() {
+        for opts in [LayoutOptions::input(13.0, Some(900.0)), LayoutOptions::input(13.0, None)] {
+            let mut row = long_cell(200);
+            let mut cache = LineCache::default();
+            drop(layout_by_lines_shared(&row, &MonoMetrics, &opts, &mut cache));
+            let before: Vec<Arc<Layout>> = cache.last.as_ref().unwrap().parts.iter().map(|p| p.lay.clone()).collect();
+            let xs_before: Vec<f32> = cache.last.as_ref().unwrap().layout.lines.iter().map(|l| l.indent).collect();
+            row.0.insert(0, Item::Char('('));
+            let lay = layout_by_lines_shared(&row, &MonoMetrics, &opts, &mut cache);
+            let parts = &cache.last.as_ref().unwrap().parts;
+            // the first line changed; every other line's layout is the one it had
+            assert_eq!(parts.len(), before.len());
+            let kept = parts.iter().zip(&before).skip(1).filter(|(p, b)| Arc::ptr_eq(&p.lay, b)).count();
+            assert_eq!(kept, parts.len() - 1);
+            // each line after the first moved right by one level (two ems), as a layout of the whole row puts them
+            for (k, (l, x0)) in lay.lines.iter().zip(&xs_before).enumerate().skip(1) {
+                assert!((l.indent - x0 - 2.0 * 13.0).abs() < 1e-3, "line {k}: {} from {x0}", l.indent);
+            }
+            let whole = layout(&row, &MonoMetrics, &opts);
+            assert_eq!(whole.lines.len(), lay.lines.len());
+            for (a, b) in whole.lines.iter().zip(&lay.lines) {
+                assert!((a.indent - b.indent).abs() < 0.01 && (a.right - b.right).abs() < 0.01 && a.start == b.start);
+            }
+            let from_start = layout_by_lines(&row, &MonoMetrics, &opts, &mut LineCache::default());
+            assert!(*lay == from_start);
+            // and back: the bracket deleted again
+            drop(lay);
+            row.0.remove(0);
+            let lay = layout_by_lines_shared(&row, &MonoMetrics, &opts, &mut cache);
+            assert!(*lay == layout_by_lines(&row, &MonoMetrics, &opts, &mut LineCache::default()));
+            for (l, x0) in lay.lines.iter().zip(&xs_before) {
+                assert!((l.indent - x0).abs() < 1e-6);
+            }
+        }
+    }
+
+    /// A line laid out at depth 0 and moved right by a depth's indent is the line laid out at that depth (by the
+    /// engine itself): the same painted items, stops and lines within rounding, for lines that open, close (a line
+    /// starting with a closer counts one level less), hold boxes, and lines near the width at which they wrap.
+    #[test]
+    fn a_line_moved_by_its_indent_is_the_line_laid_out_at_its_depth() {
+        let opts = LayoutOptions::input(10.0, Some(160.0));
+        let texts = ["x + 1\n", ") + y\n", "]]\n", "((1)/(2)) + f(((x)^(2)))\n", "abcdefghijk + lmn\n", "abcdefghijklmn\n", "q"];
+        let mut served = 0;
+        for t in texts {
+            let row = from_text(t);
+            let (zero, fit) = engine::Engine::new(&MonoMetrics, &opts).run_with_fit(&row);
+            let Some(fit) = fit else { continue };
+            for depth in 0..6 {
+                let direct = engine::Engine::new(&MonoMetrics, &opts).starting_at_depth(depth).run(&row);
+                let one_line = direct.lines.iter().filter(|l| l.start < l.end).count() <= 1;
+                match Fit::Any(fit).shift(depth, &opts) {
+                    Some(sx) => {
+                        served += 1;
+                        assert!(one_line, "{t:?} at {depth} wraps");
+                        assert_eq!(zero.items.len(), direct.items.len());
+                        for (a, b) in zero.items.iter().zip(&direct.items) {
+                            let (mut a, mut b) = (a.clone(), b.clone());
+                            assert!((*draw_x(&mut a) + sx - *draw_x(&mut b)).abs() < 1e-3, "{t:?} at {depth}");
+                        }
+                        for (k, (a, b)) in zero.rows.iter().zip(&direct.rows).enumerate() {
+                            // the stop after a line break is on the next line (another line's first)
+                            let n = if k == 0 && t.ends_with('\n') { a.stops.len() - 1 } else { a.stops.len() };
+                            for (s, r) in a.stops.iter().zip(&b.stops).take(n) {
+                                assert!((s.x + sx - r.x).abs() < 1e-3 && s.baseline == r.baseline);
+                            }
+                        }
+                        for (a, b) in zero.lines.iter().zip(&direct.lines).filter(|(a, _)| a.start < a.end) {
+                            assert!((a.indent + sx - b.indent).abs() < 1e-3 && (a.right + sx - b.right).abs() < 1e-3);
+                        }
+                    }
+                    None => assert!(!one_line, "{t:?} at {depth} fits on one line"),
+                }
+            }
+        }
+        assert!(served > 20, "{served}");
+    }
 }

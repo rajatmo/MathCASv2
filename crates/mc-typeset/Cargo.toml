@@ -1,0 +1,19 @@
+[package]
+name = "mc-typeset"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+edition = "2021"
+publish = false
+description = "MathCAS v2 output typesetting: printed output and linear input text read through the parser into box trees"
+
+[dependencies]
+# the box tree the texts become, its canonical and linear text
+mc-boxes = { path = "../mc-boxes" }
+# the parser the texts are read with
+mc-syntax = { path = "../mc-syntax" }
+
+[dev-dependencies]
+# the converted input and output must read to the same terms as the text
+mc-api = { path = "../mc-api" }

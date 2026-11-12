@@ -437,7 +437,7 @@ pub(crate) fn document(nb: &Notebook, base: &Path, out: &Path, opts: &Options) -
                 let _ = writeln!(h, "<li class=\"l{level}\"><span class=\"mark\">{}</span>{}</li>", escape(&mark), prose(&text));
             }
             Part::Formula { text } => {
-                let _ = writeln!(h, "<div class=\"formula\">{}</div>", row_html(&mc_boxes::math_text(&text).row));
+                let _ = writeln!(h, "<div class=\"formula\">{}</div>", row_html(&mc_typeset::math_text(&text).row));
             }
             Part::Program { text } => {
                 let _ = writeln!(h, "<pre class=\"program\">{}</pre>", escape(&text));
@@ -453,7 +453,7 @@ pub(crate) fn document(nb: &Notebook, base: &Path, out: &Path, opts: &Options) -
             }
             Part::Out(o) => match o {
                 Out::Value(text) => {
-                    let t = mc_boxes::math_text(&text);
+                    let t = mc_typeset::math_text(&text);
                     if t.message {
                         let _ = writeln!(h, "<div class=\"out failure\">{}</div>", escape(&text));
                     } else {
@@ -489,11 +489,11 @@ mod tests {
 
     #[test]
     fn boxes_become_mathml() {
-        let t = mc_boxes::math_text("x^2 + 1/3");
+        let t = mc_typeset::math_text("x^2 + 1/3");
         let h = row_html(&t.row);
         assert!(h.contains("<msup><mrow><mi mathvariant=\"normal\">x</mi></mrow><mrow><mn>2</mn></mrow></msup>"), "{h}");
         assert!(h.contains("<mfrac><mrow><mn>1</mn></mrow><mrow><mn>3</mn></mrow></mfrac>"), "{h}");
-        let r = row_html(&mc_boxes::math_text("sqrt(a < b)").row);
+        let r = row_html(&mc_typeset::math_text("sqrt(a < b)").row);
         assert!(r.contains("<msqrt>") && r.contains("<mo>&lt;</mo>"), "{r}");
     }
 

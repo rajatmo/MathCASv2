@@ -4,7 +4,7 @@
 //!
 //! Both formats show what the notebook shows: headings, text and items in the prose font, code cells in the code
 //! font with syntax colouring, typeset inputs and output values with their square roots, fractions and powers
-//! (`mc_boxes::from_text` and `mc_boxes::math_text`, the notebook's renderer rules), values right-justified and
+//! (`mc_boxes::from_text` and `mc_typeset::math_text`, the notebook's renderer rules), values right-justified and
 //! `print` output, failures and messages left, pictures at their `size=` (or natural) size.
 //!
 //! ```no_run

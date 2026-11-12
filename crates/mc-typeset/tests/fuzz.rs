@@ -3,7 +3,8 @@
 //! bounded; `MC_BOXES_SEED` and `MC_BOXES_CASES` override the defaults. The ignored test `measure` prints timings
 //! (run it in release through the guard).
 use mc_boxes::layout::{layout, LayoutOptions, MonoMetrics};
-use mc_boxes::{from_text, to_text, typeset_output};
+use mc_boxes::{from_text, to_text};
+use mc_typeset::typeset_output;
 use std::time::Instant;
 
 struct Rng(u64);

@@ -1,6 +1,8 @@
-# mc-boxes: two-dimensional typesetting without UI (notebook round, P4)
+# mc-boxes: two-dimensional layout without UI (notebook round, P4)
 
-Design `docs/design/08-notebook.md` section 4 and 3.9. Dependencies: `mc-syntax`, `mc-mathfont` (dev: `mc-api`).
+Design `docs/design/08-notebook.md` section 4 and 3.9. Dependencies: `mc-syntax`, `mc-mathfont` (dev: `mc-api`,
+`mc-typeset`). Since round 38 the readers of printed output and linear input (`printed`, `math`) are the crate
+`mc-typeset` (design 12, section 4); the sections below that name them describe that crate's code.
 
 ## Modules
 
@@ -8,8 +10,8 @@ Design `docs/design/08-notebook.md` section 4 and 3.9. Dependencies: `mc-syntax`
 |---|---|
 | `tree` | `Row(Vec<Item>)`, `Item::{Char, Placeholder, Box(Box<Node>)}`; `Node::{Fraction, Superscript, Subscript, Radical{index}, Overscript, Underscript, Underoverscript, Grid{rows}, BigOp{op, body, var, lower, upper}, Graphic{path}}`, `BigOp::{Sum, Product, Integral, Limit, Derivative}`; paths `Step{item, slot}`/`RowPath`; `slots()` in reading order; `at`/`at_mut`/`box_of`; `notation()` (the 4.2 test notation); `MAX_NESTING = 100` |
 | `canonical` | `to_text`/`from_text` for the 4.4 forms plus `((sum(f, k)))` and `((image("p")))`; never fails |
-| `linear` | `linear_text(&Row)` (Ctrl+Shift+I) with minimal parentheses |
-| `printed` | `typeset_output(printed) -> Typeset{row, message}` (4.5), `typeset_input(text) -> Result<Row, Vec<Diagnostic>>` (Ctrl+Shift+N), `typeset_any` |
+| `linear` | `linear_text(&Row)` (Ctrl+Shift+I) with minimal parentheses; `restrict` (the three boxes only), `linear_segments` (Find) |
+| `latex` | `to_latex(&Row)` |
 | `layout` | `layout(&Row, &dyn Metrics, &LayoutOptions) -> Layout` |
 | `edit` | `Editor` |
 | `aliases` | `data/aliases.tsv` (868 entries: Greek, TeX, HTML entities, operators, constants, letter-likes, spaces, 13 templates); `lookup(name) -> Option<Alias::{Text, Template}>`; `entries()` |
@@ -302,3 +304,32 @@ different (also under a radical: `√(x⋅(x − a))` against `√(x(x − a))`)
   Seeds by `MC_BOXES_SEED` (6 seeds run).
 - Timing (`mc-edit/tests/timing.rs`, `MC_LINES=2000`, loaded machine): composing by lines 2.2 to 3.3 ms a keystroke,
   in place 0.33 ms typing at the end, 0.82 ms at the top.
+
+## Round 38: a bracket at the top of a long cell
+
+- An opening bracket typed at the top of a long cell changed the bracket depth of every line after it, and the line
+  cache was keyed by (items, depth): every following line was laid out again (24.5 to 25.3 ms a keystroke in the
+  window's 2,000-line probe). What the depth changes in a logical line on one line is only its first indent (the line
+  breaker's indent of continuation lines and its choice among break points matter only when the line wraps). So the
+  cache is keyed by the items alone, and a line is laid out once at depth 0: when it is one line there
+  (`engine::RootFit`: the widest its line got while filled, `lines::line_reach`, and whether it starts with a closing
+  bracket, which counts one level less), that layout serves every depth at which it still fits beside its indent
+  (`Fit::Any`), drawn `sx` = the indent further right; a line that wraps at a depth is laid out at that depth
+  (`Fit::At`). A composed line keeps its `sx`; the lines after an edit whose depth changed but whose layout serves
+  the new depth are matched as unchanged and moved sideways in place (`move_part`: every x from the line's own layout
+  plus its new `sx`, as a composition from the start places it), so the result is still the fresh composition, number
+  for number (the random-edit test, seeds 1 to 5 and 37).
+- Against the whole row's layout the moved lines differ by rounding only (x + indent against indent + x): test
+  `a_line_moved_by_its_indent_is_the_line_laid_out_at_its_depth` compares a line moved by its indent with the engine's
+  layout at that depth (depths 0 to 5, lines that open, close, hold boxes, and lines near their wrapping width), and
+  `a_bracket_at_the_top_keeps_the_layouts_of_the_lines_after_it` checks that every line after the bracket keeps its
+  layout (the same `Arc`) and moves two ems, and back when the bracket is deleted.
+- `TextMap::caret_at` found the item before a byte by a scan of the row: for each of the faint multiplication signs
+  of a long cell (placed again whenever an edit before them moves them), 20 ms a keystroke at the top of the
+  2,000-line probe. A binary search over the row's offsets (they increase); test
+  `caret_positions_are_found_by_bytes` (every byte of six texts against the scan).
+- Window probe (`mc-notebook/tests/selftest/long-cell.txt`, release, 1000 x 760, median frame of each run, shared
+  machine; two runs before, five after): brackets typed at the top 24.5 and 25.3 ms before, 3.8 to 4.7 ms after;
+  letters on a new first line 3.0 and 3.6 ms before, 2.7 to 4.0 ms after; at the end 2.8 and 3.2 ms before, 2.7 to
+  4.0 ms after (the machine's load moves these by about a millisecond between runs). `mc-edit/tests/timing.rs` (mono metrics, `MC_LINES=2000`): a bracket at the
+  top and its deletion in turn, 4.5 ms before, 1.0 ms after.

@@ -18,6 +18,8 @@ path = "src/main.rs"
 [dependencies]
 eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
 mc-boxes = { path = "../mc-boxes" }
+# printed outputs read into boxes for painting
+mc-typeset = { path = "../mc-typeset" }
 # 3D pictures drawn again from another view point (`view3d`: no evaluator involved, never mc-engine)
 mc-graphics = { path = "../mc-graphics" }
 mc-help = { path = "../mc-help" }

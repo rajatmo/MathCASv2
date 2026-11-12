@@ -3,7 +3,7 @@
 //! selection, a click puts the caret between items), so a part of an output can be selected and copied.
 //!
 //! The model's selection stays bytes of the printed text (what copying, Find and every other command see); the
-//! read-only editor here holds the box caret, and the [`mc_boxes::SourceMap`] of the typeset output translates
+//! read-only editor here holds the box caret, and the [`mc_typeset::SourceMap`] of the typeset output translates
 //! between the two: a selection made in boxes is written as the bytes its items stand for, and a selection made in
 //! bytes (Find, a click before the output) puts the box caret on the items those bytes cover.
 use crate::cell::CellId;
@@ -11,7 +11,8 @@ use crate::command::{Command, Motion};
 use crate::env::{Clip, Env};
 use crate::notebook::{Notebook, Selection};
 use crate::style::Style;
-use mc_boxes::{Row, RowPath, Typeset};
+use mc_boxes::{Row, RowPath};
+use mc_typeset::Typeset;
 use mc_edit::{Command as E, Context, Editor, Position, Selection as TreeSel, Status};
 use std::ops::Range;
 use std::sync::Arc;
@@ -54,7 +55,7 @@ impl Notebook {
         }
         let current = self.outbox.as_ref().is_some_and(|o| o.cell == cell && o.rev == c.rev);
         if !current {
-            let typeset = Arc::new(mc_boxes::math_text(&c.text));
+            let typeset = Arc::new(mc_typeset::math_text(&c.text));
             let ed = Editor::new(typeset.row.clone());
             self.outbox = Some(OutBox { cell, rev: c.rev, typeset, ed, bytes: (usize::MAX, usize::MAX) });
         }
@@ -112,7 +113,7 @@ impl Notebook {
             let s = o.typeset.map.span(&p, r)?;
             return printed.get(s).map(str::to_string);
         }
-        Some(mc_boxes::output_input_text(&items))
+        Some(mc_typeset::output_input_text(&items))
     }
 
     /// The selected boxes of the output with the caret, or all of it (Copy as LaTeX).
@@ -243,7 +244,7 @@ impl Notebook {
                 // stands for, pasted as boxes into cells
                 let part = if *cmd == C::Copy { self.out_selection() } else { None };
                 let boxes = part
-                    .map(|(_, _, items)| mc_boxes::output_input_boxes(&items))
+                    .map(|(_, _, items)| mc_typeset::output_input_boxes(&items))
                     .filter(mc_boxes::has_boxes)
                     .map(|r| mc_boxes::to_text(&r));
                 env.set_clipboard(Clip { text: Some(text), cells: None, boxes });

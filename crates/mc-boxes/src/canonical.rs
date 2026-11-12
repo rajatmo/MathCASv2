@@ -177,17 +177,18 @@ impl TextMap {
         'down: loop {
             let Some(offs) = self.rows.get(&path) else { return (path, 0) };
             let n = offs.len().saturating_sub(1);
-            for i in 0..n {
-                if offs[i] < b && b < offs[i + 1] {
-                    for (step, so) in self.slots(&path, i) {
-                        if so.first().is_some_and(|&s| s <= b) && so.last().is_some_and(|&e| b <= e) {
-                            path.push(step);
-                            continue 'down;
-                        }
+            // the items before `b` (the offsets increase: a binary search, round 38; a scan of a 2,000-line cell for
+            // each multiplication sign cost 20 ms a keystroke)
+            let offset = offs[..n].partition_point(|&o| o < b);
+            // the item `b` is strictly inside, if any: the last one starting before it
+            if let Some(i) = offset.checked_sub(1).filter(|&i| b < offs[i + 1]) {
+                for (step, so) in self.slots(&path, i) {
+                    if so.first().is_some_and(|&s| s <= b) && so.last().is_some_and(|&e| b <= e) {
+                        path.push(step);
+                        continue 'down;
                     }
                 }
             }
-            let offset = offs[..n].iter().take_while(|&&o| o < b).count();
             return (path, offset);
         }
     }
@@ -667,6 +668,43 @@ mod tests {
         assert_eq!(rt("(((x)^(2))^((sqrt(z))))"), "((x^2)^√(z))");
         // a fraction whose slots are boxes
         assert_eq!(rt("((((x)^(2)))/(((sqrt(z)))))"), "((x^2)/√(z))");
+    }
+
+    #[test]
+    fn caret_positions_are_found_by_bytes() {
+        // every byte of texts with boxes (nested, side by side, at the ends, over several lines) against a scan of
+        // every item: the innermost slot holding the byte, before the first item starting at or after it
+        fn scan(map: &TextMap, b: usize) -> (RowPath, usize) {
+            let mut path: RowPath = vec![];
+            'down: loop {
+                let Some(offs) = map.rows.get(&path) else { return (path, 0) };
+                let n = offs.len().saturating_sub(1);
+                for i in 0..n {
+                    if offs[i] < b && b < offs[i + 1] {
+                        for (step, so) in map.slots(&path, i) {
+                            if so.first().is_some_and(|&s| s <= b) && so.last().is_some_and(|&e| b <= e) {
+                                path.push(step);
+                                continue 'down;
+                            }
+                        }
+                    }
+                }
+                return (path.clone(), offs[..n].iter().take_while(|&&o| o < b).count());
+            }
+        }
+        for t in [
+            "a+((x)^(2))+((sqrt(y)))",
+            "((((1)/(((x)^(2)))))/(2))\nf(x) = ((sqrt(((a)/(b)))))",
+            "((x)^(2))",
+            "",
+            "plain text, no boxes\nand a second line",
+            "((sum(((1)/(k)), [k, 1, n]))) + (([[a, b], [c, ((d)/(e))]]))",
+        ] {
+            let (text, map) = to_text_mapped(&from_text(t));
+            for b in 0..=text.len() + 1 {
+                assert_eq!(map.caret_at(b), scan(&map, b), "{t:?} at {b}");
+            }
+        }
     }
 
     #[test]

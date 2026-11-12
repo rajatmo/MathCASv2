@@ -575,7 +575,7 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
     }
     let stop = cx.stop_flag().clone();
-    let (files, layout, model) = match mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
+    let (files, layout, mut model) = match mc_graphics::render_read(h, g, &FORMATS, &|| stop.load(Ordering::Relaxed)) {
         Ok(r) => r,
         Err(f) => {
             cx.tick(1)?;
@@ -585,8 +585,24 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
     let json = sidecar::json(&layout, Scale::default(), &[]);
     let text = mc_syntax::Printer::new(h).expr(g);
     // a 3D graphic's term next to its picture: a front end turns it from there (mc_graphics::view3d)
-    let scene = mc_graphics::three::is_graphics3d(h, g).then_some(text.as_str());
-    Ok(Reply::Done(match write_files(&files, &json, scene, &[]) {
+    let three = mc_graphics::three::is_graphics3d(h, g);
+    let scene = three.then_some(text.as_str());
+    // a 3D picture of the default size also gets a column twin (round 38): the projection drawn on a page as wide as
+    // a 2D plot's twin, its text and lines at their own sizes, so the PDF export draws it at the column's width with
+    // its text in the proportion the window shows
+    let mut twins: Vec<(&str, Vec<u8>)> = vec![];
+    if three && !sized_3d(h, g) {
+        let screen = model.opts.image_size;
+        model.opts.image_size = (Some(COLUMN_SIZE.0), None);
+        if let Ok(mut made) = mc_graphics::render_model(&model, &[Format::Svg], &|| stop.load(Ordering::Relaxed)) {
+            twins.push((COLUMN_EXTENSION, made.remove(0)));
+        }
+        model.opts.image_size = screen;
+        if stop.load(Ordering::Relaxed) {
+            cx.tick(1)?;
+        }
+    }
+    Ok(Reply::Done(match write_files(&files, &json, scene, &twins) {
         Ok(path) => {
             mc_graphics::memo::remember(&path, text);
             mc_graphics::memo::remember_graphic(&path, model);
@@ -594,6 +610,14 @@ pub(crate) fn finish_graphic<'h>(cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>, who: &
         }
         Err(e) => failure(h, "io", &[h.string(&e)]),
     }))
+}
+
+/// Whether a `graphics3d` term gives its own size (`image_size`, `aspect_ratio`): its pictures keep that size, and no
+/// column twin is made.
+fn sized_3d<'h>(h: &'h Heap, g: T<'h>) -> bool {
+    let View::App { args, .. } = h.view(g) else { return false };
+    let Some(&o) = args.get(1) else { return false };
+    mc_graphics::model::rules(h, o).is_ok_and(|r| r.iter().any(|(k, _)| k == "image_size" || k == "aspect_ratio"))
 }
 
 /// [`render_to_files`] for a value that is shown as a picture by a front end without its own layout of labels:

@@ -151,7 +151,7 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
   rasterised at device pixels with four sub-pixel phases into one atlas texture of our own (1024², grows once to
   2048², cleared and refilled when full), uploaded once per glyph; each frame the visible glyphs and rules of a layout
   become one mesh.
-- **Typeset output** (M5, NB5.5/NB5.6): Output cells show `mc_boxes::typeset_output(printed)` in display style at
+- **Typeset output** (M5, NB5.5/NB5.6): Output cells show `mc_typeset::typeset_output(printed)` in display style at
   the cell width with the layout's own line breaking; the setting "Typeset output by default" (Format > Output form)
   and per output `form=linear|typeset|traditional` (`Ctrl+Shift+N`, `Ctrl+Shift+I`, `Ctrl+Shift+Alt+N`). A typeset
   output is one unit for the caret (before or after it; a double-click or a drag selects all of it; copying copies
@@ -261,7 +261,7 @@ median 0.24 ms, max 0.68 ms; scrolled to the middle 0.21 ms; typing at the end 0
 
 ## One kind of cell (round nb-ui, NBUI.5)
 
-- Outputs are always drawn by the cell renderer over `mc_boxes::math_text` (failures, pictures, outputs over the
+- Outputs are always drawn by the cell renderer over `mc_typeset::math_text` (failures, pictures, outputs over the
   typeset limit and multi-line tables stay text); layout options without operator spacing or small inline rationals,
   so the printed characters keep their places. Removed: Format > Output form, the preferences "Typeset output by
   default" and "Lists of equal-length lists as matrices" (`typeset_output`/`matrices` settings and view fields),
@@ -351,7 +351,7 @@ Copy and paste of square root, fraction and power boxes within and between cells
 ## Round 13: labeled and legended values
 
 `labeled(x, l)` and `legended(x, l)` around a value that is not a picture (the kernel shows the printed call, gap
-G80) are drawn by the notebook: `mc_boxes::math_text` reads the call into a `Node::Labeled` box (see mc-boxes NOTES),
+G80) are drawn by the notebook: `mc_typeset::math_text` reads the call into a `Node::Labeled` box (see mc-boxes NOTES),
 the cell renderer lays it out like any output (right-justified as a whole) and paints it.
 
 - The label row is painted in the theme's label colour (`Palette::label`, weak text: mono-2), a legend's swatch
@@ -750,3 +750,20 @@ User report: a power of a selection `2m` looked like `2m²`; while editing, brac
   long line wraps and the next source line starts a new line, mid-sentence, as the PDF does at 11.5 pt. The PDF
   export already does the same (`wrap_prose` keeps `\n`), so it is unchanged; whether paragraphs should reflow is
   the user's open question, for the window and the exports together.
+
+## Round 38: the input editor tested as a user types
+
+- `tests/selftest/input-user.txt` (test `input_selftest::user`): 72 formulas typed through the keyboard (fractions,
+  powers, roots and brackets mixed, selections, typing over and wrapping them, undo and redo, cut, copy, paste as text
+  and as math, evaluation of 11), each checking its box notation (`expect boxes`) and its stored text (`expect
+  canon`), and with the new step `same` that the two agree: the tree the editor holds and the view lays out reads
+  back from the stored text to the same boxes and linear text (75 checks, all agree).
+- Found and fixed: (1) an automatic closer was forgotten on any caret motion, so `(`, a fraction filled with Down,
+  then `)` gave `))` (also `[1, a/b, 3]]`); a motion now keeps the closers the caret stays inside of (`mc-edit`,
+  test `closers_survive_motions_inside_their_pair`). (2) Automatic completion took `2a` (a coefficient times `a`) as
+  a name and opened its popup (fuzzy match `hypergeometric_2f1_regularized`); a Down typed then went to the popup,
+  not the formula. The name before the caret now starts at its first letter or `_` (`number_before_name`, unit
+  test).
+- New self-test steps: `select <cell> <from> <to>` (a byte selection in a cell, as a click would set it) and
+  `same`. `tests/selftest/long-cell.txt` (test `long_cell`): the typing latency probes of a 2,000-line cell
+  (mc-boxes NOTES, round 38).

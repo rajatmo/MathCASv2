@@ -13,6 +13,8 @@ description = "MathCAS v2 notebook export: a saved .mcn notebook as one self-con
 mc-nbfile = { path = "../mc-nbfile" }
 # outputs and typeset inputs as square roots, fractions and powers; their layout (PDF)
 mc-boxes = { path = "../mc-boxes" }
+# printed outputs read into those boxes
+mc-typeset = { path = "../mc-typeset" }
 # syntax colouring of code cells
 mc-syntax = { path = "../mc-syntax" }
 # the math font (STIX Two Math, SIL Open Font License 1.1) for the glyphs of roots and symbols

@@ -9,6 +9,8 @@
 //!   (a primary drag in steps); `move <x> <y>` (the pointer moves; the log gets the pointer shape a frame later)
 //! - `generate <n>`: load a generated notebook of `n` cells of mixed styles (the performance probe); `longcell <n>`:
 //!   a notebook whose second cell is an Input cell of `n` lines of code, the caret at its end
+//! - `select <cell> <from> <to>`: select bytes `from..to` of the text of the cell at index `cell` (the caret where
+//!   they are equal), as a click and a drag would
 //! - `type <label> <text>`: type `text` one character per frame (as a hand types: each key gets its own frame) and
 //!   log the frame times of those frames under `label` (round 19: typing latency)
 //! - `theme light|dark|system`, `zoom <factor>`, `size <w> <h>`
@@ -45,7 +47,9 @@
 //!   logs `ok` or `FAIL` with both values; `show <field>` logs a field; `eval` evaluates the cell with the caret
 //!   and waits for the kernel (30 s at most); `roundtrip` selects the last evaluated cell's output, copies it,
 //!   pastes it as math into a new cell at the end, evaluates that cell and checks that its value prints as the
-//!   copied output did (`ok pasted` / `FAIL pasted`). Fields: `boxes` (box notation), `linear` (linear text: what
+//!   copied output did (`ok pasted` / `FAIL pasted`); `same` (round 38) compares what the cell with the caret
+//!   shows (the tree the editor holds and the view lays out) with what it stores (its text read back): the same boxes
+//!   and the same linear text (`ok same` / `FAIL same` with both). Fields: `boxes` (box notation), `linear` (linear text: what
 //!   Copy gives), `canon` (the stored text), `output` (the printed output of the last `eval`), `messages` (the
 //!   other cells it made), `gaps` (round 35: the white space that multiplies, `|` between gaps); `linear` and
 //!   `output` compare without spaces
@@ -288,6 +292,14 @@ impl SelfTest {
                 app.load_notebook(nb);
                 app.run(ctx, mc_nbmodel::Command::SelectText(id, len, len));
                 self.log.push(format!("longcell {n}: {:.1} ms", start.elapsed().as_secs_f64() * 1000.0));
+            }
+            "select" => {
+                let n: Vec<usize> = arg.split_whitespace().filter_map(|w| w.parse().ok()).collect();
+                if let [i, from, to] = n[..] {
+                    if let Some(id) = app.notebook().cells().get(i).map(|c| c.id) {
+                        app.run(ctx, mc_nbmodel::Command::SelectText(id, from, to));
+                    }
+                }
             }
             "type" => {
                 let (label, text) = arg.split_once(' ').unwrap_or(("typing", arg));
@@ -560,6 +572,32 @@ impl SelfTest {
                         fails.push(what.to_string());
                     }
                 }
+            }
+            "same" => {
+                // what the cell shows (the tree the editor holds and the view lays out) against what it stores (its
+                // text, read back as the file or the kernel reads it): the same boxes, the same linear text
+                let nb = app.notebook();
+                let cell = nb.current_cell().and_then(|id| nb.cell(id));
+                let held = nb.input_editor().map(|(_, e)| mc_boxes::notation(e.root()));
+                let line = match cell {
+                    Some(c) => {
+                        let (shown, stored) = (c.tree(), mc_boxes::from_text(&c.text));
+                        let (a, b) = (mc_boxes::notation(&shown), mc_boxes::notation(&stored));
+                        let (la, lb) = (mc_boxes::linear_text(&shown), mc_boxes::linear_text(&stored));
+                        if a != b || la != lb || held.as_ref().is_some_and(|h| *h != a) {
+                            format!("  FAIL same: shown {a:?} ({la:?}), stored {b:?} ({lb:?}), editor {held:?}")
+                        } else {
+                            "  ok same".to_string()
+                        }
+                    }
+                    None => "  FAIL same: no cell".to_string(),
+                };
+                if line.contains("FAIL") {
+                    if let Some((_, fails)) = &mut self.formula {
+                        fails.push("same".to_string());
+                    }
+                }
+                self.log.push(line);
             }
             "roundtrip" => {
                 // the output selected whole and copied as a user would, pasted as math into a new cell at the end;

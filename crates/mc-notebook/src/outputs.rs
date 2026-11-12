@@ -1,5 +1,5 @@
 //! Outputs drawn as the notebook draws them, for other windows (round 19: the documentation window shows its pages'
-//! outputs through this, so a page and a cell look alike). The printed text goes through `mc_boxes::math_text` (square
+//! outputs through this, so a page and a cell look alike). The printed text goes through `mc_typeset::math_text` (square
 //! roots, fractions and powers as boxes, every other character as printed), is laid out with the notebook's output
 //! options in the cell font, and painted by the notebook's painter.
 use crate::theme::Palette;
@@ -51,7 +51,7 @@ impl OutputPainter {
         let t = printed.len() <= TYPESET_MAX
             && !printed.starts_with("failure(")
             && !printed.starts_with("image(")
-            && mc_boxes::has_boxes(&mc_boxes::math_text(printed).row);
+            && mc_boxes::has_boxes(&mc_typeset::math_text(printed).row);
         self.boxed.insert(printed.to_string(), t);
         t
     }
@@ -70,7 +70,7 @@ impl OutputPainter {
                     small_inline_rationals: false,
                     ..LayoutOptions::output(size, Some(width))
                 };
-                let row = mc_boxes::math_text(printed).row;
+                let row = mc_typeset::math_text(printed).row;
                 let l = Arc::new(typeset::lay_out(&row, &opts, &font));
                 self.layouts.insert(key, l.clone());
                 l

@@ -101,3 +101,11 @@ with the selection before and after, geometry from the layout through a trait.
 - The gap left at round 34 (composition and the colour table linear in the cell) is closed in `mc-boxes`
   (`layout_by_lines_shared`) and `mc-notebook` (colours of drawn characters only); `tests/timing.rs` takes the
   number of lines from `MC_LINES` and times the in-place composition at the end and at the top of the cell.
+
+## Round 38: closers kept inside their pair
+
+- `apply` cleared the automatic closers on every caret motion. A motion without Shift now keeps those the caret is
+  still inside of (`keep_closers_around_caret`: in the closer's row between it and its opener, or in a box between
+  them); selections, clicks and motions out of the pair forget them as before. Test
+  `tests/editing.rs::closers_survive_motions_inside_their_pair` (three bracket kinds through a fraction filled with
+  Down, Left and Right inside a call, a motion out of the pair).

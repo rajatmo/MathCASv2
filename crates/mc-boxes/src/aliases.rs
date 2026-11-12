@@ -72,7 +72,7 @@ pub fn lookup_cell(name: &str) -> Option<Alias> {
     match lookup(name)? {
         Alias::Template(t) => {
             let row = crate::from_text(t);
-            (crate::math::restrict(&row) == row).then_some(Alias::Template(t))
+            (crate::restrict(&row) == row).then_some(Alias::Template(t))
         }
         text => Some(text),
     }

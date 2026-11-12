@@ -222,3 +222,14 @@ used. Tests: `tests/round20.rs`.
   an earlier process left under the same name; the session cleanup knows every sibling (`SIBLINGS`). An interrupt
   while the twins are drawn ends the evaluation. Test `tests/round37.rs` (sin, a log plot and a list plot get
   twins of their sizes; plots with `image_size:` or `aspect_ratio:` get none).
+
+## Round 38: the column twin of 3D pictures
+
+- `finish_graphic` also renders `plot-N.column.svg` for a 3D picture whose `graphics3d` term sets neither `image_size`
+  nor `aspect_ratio` (`sized_3d`): the 2D picture `mc-graphics` made of the scene, its page set to `COLUMN_SIZE`'s
+  width (569.4 points, the height from the picture's shape), its text and lines at their own sizes. The notebook's
+  PDF export draws it at its picture column's 459.9 pt, so the 10-point text prints at 8.1 pt (the window shows 10 px
+  beside the code's 13 px), where the screen drawing printed at 270 pt wide with 7.5-point text (design 08, 7.5).
+  2D graphics shown as they are (`show(graphics(...))`) still get no twin.
+- Test `tests/round38_column.rs`: three 3D plots get twins 569.4 points wide, shaped like their screen pictures,
+  with as many paths; a 3D plot with `image_size:` and a 2D graphic get none.

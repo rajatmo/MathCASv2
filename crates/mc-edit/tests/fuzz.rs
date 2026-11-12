@@ -5,7 +5,8 @@
 use mc_boxes::layout::{layout, LayoutOptions, MonoMetrics};
 mod common;
 use common::Old;
-use mc_boxes::{from_text, to_text, typeset_output, Item, Row};
+use mc_boxes::{from_text, to_text, Item, Row};
+use mc_typeset::typeset_output;
 use mc_edit::{Editor, Structure};
 use std::time::Instant;
 

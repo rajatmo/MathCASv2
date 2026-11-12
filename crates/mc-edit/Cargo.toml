@@ -15,3 +15,5 @@ mc-syntax = { path = "../mc-syntax" }
 [dev-dependencies]
 # the canonical text and its linear form must read to the same terms
 mc-api = { path = "../mc-api" }
+# printed output and linear input read into boxes for the random and matrix tests
+mc-typeset = { path = "../mc-typeset" }

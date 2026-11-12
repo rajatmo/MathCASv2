@@ -318,21 +318,29 @@ impl Editor {
         if !matches!(cmd, C::Move(Motion::Up | Motion::Down, _)) {
             self.goal_x = None;
         }
-        if matches!(
-            cmd,
-            C::Move(..)
-                | C::SetCaret(_)
-                | C::ExtendTo(_)
-                | C::Select(_)
-                | C::SelectWord(_)
-                | C::SelectAll
-                | C::ExpandSelection
-                | C::CheckBalance
-                | C::ToggleComment
-        ) {
+        // a caret motion keeps the automatic closers the caret stays inside of (round 38: Down into a fraction's
+        // denominator inside `(` forgot its `)`, and the `)` typed after the fraction made a second one)
+        let inside = matches!(cmd, C::Move(_, false));
+        if !inside
+            && matches!(
+                cmd,
+                C::Move(..)
+                    | C::SetCaret(_)
+                    | C::ExtendTo(_)
+                    | C::Select(_)
+                    | C::SelectWord(_)
+                    | C::SelectAll
+                    | C::ExpandSelection
+                    | C::CheckBalance
+                    | C::ToggleComment
+            )
+        {
             self.closers.clear();
         }
         let status = self.run(cmd, cx);
+        if inside {
+            self.keep_closers_around_caret();
+        }
         let kind = match cmd {
             C::Type(t) | C::Insert(t) => Kind::Typing { space: t.ends_with(char::is_whitespace) },
             C::Newline => Kind::Typing { space: true },
@@ -510,6 +518,21 @@ impl Editor {
         }
         self.unknown = None;
         self.pending.push(s);
+    }
+
+    /// After a caret motion: the automatic closers the caret is still inside of (between the closer and its opener,
+    /// in their row or in a box between them) stay; the others are forgotten.
+    fn keep_closers_around_caret(&mut self) {
+        let head = self.sel.head.clone();
+        let root = &self.root;
+        self.closers.retain(|c| {
+            let (Some(row), true) = (root.at(&c.path), head.path.starts_with(&c.path)) else { return false };
+            let Some(open) = matching_open(row, c.offset) else { return false };
+            match head.path.get(c.path.len()) {
+                None => open < head.offset && head.offset <= c.offset,
+                Some(step) => open < step.item && step.item < c.offset,
+            }
+        });
     }
 
     /// Brings a selection whose ends are in different rows into one row (the caret at the end it was on), before a

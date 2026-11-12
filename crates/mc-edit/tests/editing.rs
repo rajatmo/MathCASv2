@@ -493,3 +493,42 @@ fn brackets_pair_up() {
     assert!(ed.structure(Structure::Fraction));
     assert_eq!(ed.notation(), "((a + b/▮□))");
 }
+
+/// Round 38: an automatic closer is kept while the caret moves inside its pair (into a box between the brackets and
+/// back), so the closer typed after the box steps over it; a motion out of the pair forgets it.
+#[test]
+fn closers_survive_motions_inside_their_pair() {
+    use mc_edit::{Command, Context, Motion};
+    let cx = Context { geometry: None, auto_close: true };
+    let typed = |ed: &mut Editor, t: &str| {
+        for c in t.chars() {
+            ed.apply(&Command::Type(c.to_string()), &cx);
+        }
+    };
+    // `(`, a fraction with Down into its denominator, out of it, `+ 1)`: one closing bracket
+    for (open, close) in [('(', ')'), ('[', ']'), ('{', '}')] {
+        let mut ed = Editor::new(Row::default());
+        typed(&mut ed, &open.to_string());
+        ed.apply(&Command::Structure(Structure::Fraction), &cx);
+        typed(&mut ed, "1");
+        ed.apply(&Command::Move(Motion::Down, false), &cx);
+        typed(&mut ed, "2");
+        ed.apply(&Command::ExitStructure, &cx);
+        typed(&mut ed, &format!(" + 1{close}"));
+        assert_eq!(mc_boxes::to_text(ed.root()), format!("{open}((1)/(2)) + 1{close}"), "{open}");
+    }
+    // Left and Right inside the pair keep it too
+    let mut ed = Editor::new(Row::default());
+    typed(&mut ed, "f(xy");
+    ed.apply(&Command::Move(Motion::Left, false), &cx);
+    ed.apply(&Command::Move(Motion::Right, false), &cx);
+    typed(&mut ed, ")");
+    assert_eq!(mc_boxes::to_text(ed.root()), "f(xy)");
+    // a motion out of the pair forgets the closer: a closer typed after it is a closer of its own
+    let mut ed = Editor::new(Row::text("a"));
+    typed(&mut ed, "(");
+    ed.apply(&Command::Move(Motion::Right, false), &cx);
+    ed.apply(&Command::Move(Motion::Left, false), &cx);
+    typed(&mut ed, ")");
+    assert_eq!(mc_boxes::to_text(ed.root()), "a())");
+}

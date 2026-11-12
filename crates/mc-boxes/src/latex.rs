@@ -406,7 +406,7 @@ fn write_node(n: &Node, out: &mut String, depth: usize) {
             let mut text = String::new();
             for it in &label.0 {
                 match it {
-                    Item::Char(c) if crate::math::is_swatch(*c) => {}
+                    Item::Char(c) if crate::ops::is_swatch(*c) => {}
                     Item::Char('\n') => text.push_str("; "),
                     Item::Char(c) => text.push(*c),
                     _ => {}
@@ -457,14 +457,9 @@ fn tidy(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::canonical::from_text;
-    use crate::printed::typeset_output;
 
     fn inp(t: &str) -> String {
         to_latex(&from_text(t))
-    }
-
-    fn out(t: &str) -> String {
-        to_latex(&typeset_output(t).row)
     }
 
     #[test]
@@ -488,14 +483,5 @@ mod tests {
         assert_eq!(inp("total + 1"), "\\text{total} + 1");
         assert_eq!(inp("\"a b\""), "\\text{a b}");
         assert_eq!(inp("{x}"), "\\{x\\}");
-    }
-
-    #[test]
-    fn outputs() {
-        assert_eq!(out("(2/3)*2^(1/2)"), "\\frac{2 \\sqrt{2}}{3}");
-        assert_eq!(out("[[1, 2], [3, 4]]"), "\\begin{bmatrix} 1 & 2 \\\\ 3 & 4 \\end{bmatrix}");
-        assert_eq!(out("x^2 - 2*x*y"), "{x}^{2} - 2 x y");
-        assert_eq!(out("2*3"), "2\\times 3");
-        assert_eq!(out("pi + inf"), "\\pi + \\infty");
     }
 }

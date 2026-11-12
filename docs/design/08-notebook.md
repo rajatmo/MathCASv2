@@ -1093,9 +1093,19 @@ block** under a content-hash name, with the files that make it interactive:
   full-precision coordinates would deflate larger than the drawing); a stored twin exports without a kernel and
   needs no new reader. Cost: about 4.6 KB of base64 per plot (a 2D plot's block grows from about 7 to 11.5 KB;
   the 360 x 225 print twins of `export_data` stay in the session and are not stored). Not stored: twins of plots
-  with `image_size:`/`aspect_ratio:` (none is made: their size is the user's), of dense plots embedded as PNG, and
-  of 3D pictures. Older notebooks without twins open and export as before (the screen drawing at the column's
-  width); a picture resized in the window (`size=`) prints at its size from its screen drawing.
+  with `image_size:`/`aspect_ratio:` (none is made: their size is the user's) and of dense plots embedded as PNG.
+  Older notebooks without twins open and export as before (the screen drawing at the column's width); a picture
+  resized in the window (`size=`) prints at its size from its screen drawing.
+- **3D column twin** *(round 38)*: a 3D picture of the default size (no `image_size:`/`aspect_ratio:`) also gets
+  `plot-<hash>.column.svg`, stored and exported as a 2D plot's: its projection drawn by `mc-graphics` on a page
+  569.4 points wide (the 2D twin's width; the height follows the picture's shape, 465 points for a default
+  `plot3d`), its 10-point text and its lines at their own sizes. The PDF export draws it at the column's 459.9 pt,
+  so its text prints at 8.1 pt beside the code's 10.5 pt, the window's 10 px beside 13 px; the screen drawing printed
+  at 270 pt wide with its text at 7.5 pt. Measured in the exported PDF (tick digits 5.27 against 4.90 pt high; a 2D
+  plot's 6.86). The view printed is the picture's own (a view turned in the window is not printed, as before). Cost:
+  a 3D picture's twin is about as large as its drawing (`plot3d(sin(x*y), [x, 0, 3], [y, 0, 3])`: 143 KB of base64
+  more, the notebook 269 KB before, 412 KB after); a twin deflating to more than 256 KiB is not stored (the screen
+  drawing prints, as before).
 - **Dense plots** *(round nb-svg, decision nb-svg.4)*: an SVG that deflates to more than **256 KiB** is embedded as a
   PNG rendered from it at **twice** its size (light colours) with a `pHYs` chunk of 144 dots per inch; readers show a
   PNG whose `pHYs` says 72 k dpi (k = 2, 3, 4) at its pixels divided by k (`mc_nbfile::images::png_density`). Such a
@@ -1118,7 +1128,7 @@ block** under a content-hash name, with the files that make it interactive:
   lines in output blocks.
 - Size: a 2D plot adds about 7-13 KB (deflated SVG in base64 plus a 2-3 KB description; it was about 90 KB with the
   PNG), about 4-5 KB more with its column twin (round 37), a default `plot3d` about 210 KB (its scene deflates from
-  0.9 MB to 68 KB).
+  0.9 MB to 68 KB) and its column twin (round 38) about as much again.
 - Older notebooks that carry PNGs read and show as before; saving them again keeps the PNG unless the session's SVG
   sibling is still there.
 

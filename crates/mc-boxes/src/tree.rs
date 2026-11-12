@@ -140,7 +140,7 @@ pub enum Node {
     },
     /// a value shown with a label (typeset output of `labeled(x, l)` and `legended(x, l)`, round 13): the value as
     /// typeset, the label as plain text at `side` (a legend's entries one per line, each after its swatch); made by
-    /// [`crate::math_text`] only, never by editing. Its linear and canonical text is the printed `text` (no box
+    /// `mc_typeset::math_text` only, never by editing. Its linear and canonical text is the printed `text` (no box
     /// marks: it reads back as the call).
     Labeled {
         /// the value
@@ -375,6 +375,11 @@ impl Node {
             _ => true,
         }
     }
+}
+
+/// Whether `row` holds a box (a cell whose text is plain needs no box marks in the file).
+pub fn has_boxes(row: &Row) -> bool {
+    row.0.iter().any(|i| matches!(i, Item::Box(_)))
 }
 
 /// The compact notation used by tests and debugging (design 08, section 4.2's tables): `(N/D)`, `(B^E)`,

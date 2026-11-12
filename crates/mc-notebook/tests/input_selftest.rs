@@ -128,6 +128,33 @@ fn space() {
     }
 }
 
+/// Round 38: a user's session of typed formulas (fractions, powers, roots and brackets mixed, selections, undo and
+/// redo, cut, copy and paste); each formula's boxes and stored text, and that the two agree.
+#[test]
+#[ignore = "opens a window"]
+fn user() {
+    let log = run("input-user");
+    check_log("input-user", &log);
+    let formulas = log.lines().filter(|l| l.starts_with("result ")).count();
+    assert!(formulas >= 60, "{formulas} formulas\n{log}");
+    let same = log.lines().filter(|l| l.trim() == "ok same").count();
+    assert!(same >= formulas, "every formula compares what is shown with what is stored\n{log}");
+}
+
+/// Round 38: typing at the top and the end of a 2,000-line cell, an opening bracket at its top among it (every line
+/// after it one level deeper); prints the frame times (median, 90th percentile, largest) of each probe.
+#[test]
+#[ignore = "opens a window"]
+fn long_cell() {
+    let log = run("long-cell");
+    let probes: Vec<&str> = log.lines().filter(|l| l.starts_with("probe ")).collect();
+    println!("{}", probes.join("\n"));
+    for p in ["end-letters", "top-letters", "top-brackets"] {
+        assert!(probes.iter().any(|l| l.starts_with(&format!("probe {p}:"))), "{p}\n{log}");
+    }
+    assert!(log.contains("shot long-cell-brackets"), "{log}");
+}
+
 #[test]
 #[ignore = "opens a window"]
 fn shots() {

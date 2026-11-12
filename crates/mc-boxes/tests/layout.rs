@@ -4,7 +4,8 @@
 //! Further checks: every row of the tree has one caret stop per offset, hit-testing a caret gives it back, and
 //! wrapped lines stay within the width.
 use mc_boxes::layout::{layout, Draw, Layout, LayoutOptions, MonoMetrics};
-use mc_boxes::{from_text, typeset_output, Item, Node, Row, RowPath, Step};
+use mc_boxes::{from_text, Item, Node, Row, RowPath, Step};
+use mc_typeset::typeset_output;
 
 /// (name, canonical text, display style, wrap width)
 const CASES: &[(&str, &str, bool, Option<f32>)] = &[
@@ -305,7 +306,8 @@ fn stroked_delimiters() {
 /// is not a coefficient keeps them.
 #[test]
 fn coefficient_fractions_lose_their_parentheses() {
-    use mc_boxes::{math_text, Item};
+    use mc_boxes::Item;
+    use mc_typeset::math_text;
     let row = |s: &str| math_text(s).row;
     let parens = |r: &mc_boxes::Row| r.0.iter().filter(|i| matches!(i, Item::Char('(') | Item::Char(')'))).count();
     assert_eq!(parens(&row("(1/2)*pi")), 0);

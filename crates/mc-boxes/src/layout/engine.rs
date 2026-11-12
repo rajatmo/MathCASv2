@@ -3,20 +3,20 @@
 //!
 //! Internally lengths are ems of the base size with y up from the baseline; [`Engine::run`] converts to output
 //! units with y down at the end.
-use super::lines::{break_lines, LineSpan, PieceInfo, CLASS_ANY};
+use super::lines::{break_lines, line_reach, LineSpan, PieceInfo, CLASS_ANY};
 use super::metrics::{FontRole, Metrics};
 use super::{is_vector_delimiter, Draw, ItemBox, Layout, Line, LayoutOptions, RowGeom, Stop};
 use crate::ops::{is_binary, is_close, is_open, is_relation, is_word, pair_at};
 use crate::tree::{BigOp, Item, Node, Row, RowPath, Side, Step, MAX_NESTING};
 use mc_mathfont::{font, MathFont, Stretch};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 /// Row index of symbols the layout adds itself (operators of big operators, `=` of limits, `d` of integrals).
 const NO_ROW: u32 = u32::MAX;
 /// A thin space (3 mu).
 const THIN: f32 = 1.0 / 6.0;
 /// Continuation lines are indented by this many ems per bracket level (two em spaces, design 08, section 3.2).
-const INDENT_PER_LEVEL: f32 = 2.0;
+pub(super) const INDENT_PER_LEVEL: f32 = 2.0;
 /// Least distance between the baselines of two lines, in ems.
 const BASELINE_SKIP: f32 = 1.2;
 /// Gap between the bottom of a line and the top of the next, in ems.
@@ -242,11 +242,22 @@ pub(super) struct Engine<'m> {
     root_lines: RefCell<Vec<RootLine>>,
     /// the bracket depth at the start of the root row (a logical line continuing another's open brackets)
     initial_depth: usize,
+    /// what makes the root row's layout serve other bracket depths, when it is one line
+    root_fit: Cell<Option<RootFit>>,
+}
+
+/// A root row laid out on one line: the widest its line got while it was filled, as the line breaker measures it
+/// (ems; it fits wherever the line is at least this wide), and whether it starts with a closing bracket (which
+/// counts one level less for its indent).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct RootFit {
+    pub reach: f32,
+    pub first_closes: bool,
 }
 
 impl<'m> Engine<'m> {
     pub(super) fn new(m: &'m dyn Metrics, o: &'m LayoutOptions) -> Engine<'m> {
-        Engine { m, o, f: font(), rows: RefCell::new(Vec::new()), root_lines: RefCell::new(Vec::new()), initial_depth: 0 }
+        Engine { m, o, f: font(), rows: RefCell::new(Vec::new()), root_lines: RefCell::new(Vec::new()), initial_depth: 0, root_fit: Cell::new(None) }
     }
 
     /// The root row starts at bracket depth `d`.
@@ -256,6 +267,16 @@ impl<'m> Engine<'m> {
     }
 
     pub(super) fn run(self, row: &Row) -> Layout {
+        self.lay_out(row)
+    }
+
+    /// [`Engine::run`], and how the root row fits when it is one line.
+    pub(super) fn run_with_fit(self, row: &Row) -> (Layout, Option<RootFit>) {
+        let lay = self.lay_out(row);
+        (lay, self.root_fit.get())
+    }
+
+    fn lay_out(&self, row: &Row) -> Layout {
         let size = self.o.size;
         let ctx = Ctx {
             style: if self.o.display { Style::Display } else { Style::Text },
@@ -420,6 +441,15 @@ impl<'m> Engine<'m> {
         let indent = if self.o.indent_continuations { INDENT_PER_LEVEL } else { 0.0 };
         let first = if start_depth > 0 { indent * infos.first().map_or(start_depth, |i| i.depth) as f32 } else { 0.0 };
         let spans = break_lines(&infos, ctx.max_width, indent, first);
+        if path.is_empty() {
+            // a root row on one line (a forced break at its end leaves an empty line, not a second one) is the same at
+            // every bracket depth it fits at, moved by its first indent (`layout_by_lines`)
+            let one_line = spans.iter().filter(|s| s.start < s.end).count() <= 1;
+            self.root_fit.set(one_line.then(|| RootFit {
+                reach: line_reach(&infos),
+                first_closes: pieces.first().is_some_and(|p| p.ch.is_some_and(is_close)),
+            }));
+        }
         let mut lines: Vec<LineRec> = Vec::new();
         for span in spans {
             let mut f = Frag { h: strut_h, d: strut_d, ..Default::default() };

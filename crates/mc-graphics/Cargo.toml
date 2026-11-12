@@ -12,6 +12,8 @@ description = "MathCAS v2 graphics: the graphics model (read from the graphics t
 mc-api = { path = "../mc-api" }
 # labels: printed expressions typeset as boxes, laid out with the math font's metrics
 mc-boxes = { path = "../mc-boxes" }
+# plot labels as typeset formulas
+mc-typeset = { path = "../mc-typeset" }
 mc-syntax = { path = "../mc-syntax" }
 # glyph outlines for every renderer (STIX Two Math, SIL Open Font License)
 mc-mathfont = { path = "../mc-mathfont" }

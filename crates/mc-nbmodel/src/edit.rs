@@ -80,7 +80,7 @@ impl Notebook {
                 // the clipboard's text read as math; text that does not read pastes as it is
                 let mut clip = env.clipboard();
                 if clip.boxes.is_none() {
-                    if let Some(row) = clip.text.as_deref().and_then(|t| mc_boxes::typeset_input(t).ok()) {
+                    if let Some(row) = clip.text.as_deref().and_then(|t| mc_typeset::typeset_input(t).ok()) {
                         let row = mc_boxes::restrict(&row);
                         if mc_boxes::has_boxes(&row) {
                             clip.boxes = Some(mc_boxes::to_text(&row));
@@ -891,12 +891,12 @@ impl Notebook {
                 if c.failure || c.graphic().is_some() {
                     return None;
                 }
-                mc_boxes::typeset_output(text).row
+                mc_typeset::typeset_output(text).row
             } else if c.style.is_code() {
                 if c.props.typeset {
                     mc_boxes::from_text(text)
                 } else {
-                    mc_boxes::typeset_input(text).unwrap_or_else(|_| mc_boxes::Row::text(text))
+                    mc_typeset::typeset_input(text).unwrap_or_else(|_| mc_boxes::Row::text(text))
                 }
             } else {
                 return None;

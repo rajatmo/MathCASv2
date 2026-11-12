@@ -20,6 +20,13 @@ pub(crate) struct Scan {
     pub loose: Vec<usize>,
 }
 
+/// Whether the whole of `text` is one bracket group opened by `open` (`(a + b)`, not `(a) + (b)`), with strings,
+/// comments and escapes read as the canonical text reads them.
+pub fn is_one_group(text: &str, open: char) -> bool {
+    let s = Scan::new(text);
+    s.is_group(0, s.chars.len(), open)
+}
+
 fn closer(c: char) -> Option<char> {
     match c {
         '(' => Some(')'),

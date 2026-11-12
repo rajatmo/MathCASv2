@@ -18,11 +18,12 @@
 //! stands for the whole call's bytes, its value slot for the value's, the label's characters for their own (a swatch
 //! for its colour's), so selecting and copying work as for any output. Forms it does not know stay text.
 //!
-//! [`restrict`] turns any box tree into one with only those three boxes (older typeset notebooks): every other box
-//! becomes its linear text.
-use crate::linear::linear_text;
+//! [`mc_boxes::restrict`] turns any box tree into one with only those three boxes (older typeset notebooks): every
+//! other box becomes its linear text.
 use crate::printed::{SourceMap, Typeset};
-use crate::tree::{Item, Node, Row, RowPath, Side, Step};
+#[cfg(test)]
+use mc_boxes::linear_text;
+use mc_boxes::{Item, Node, Row, RowPath, Side, Step};
 use mc_syntax::ast::{Expr, ExprKind, MulOp, Stmt, StmtKind};
 use std::collections::HashMap;
 use std::ops::Range;
@@ -119,7 +120,7 @@ fn build(text: &str, range: Range<usize>, at: &HashMap<usize, Vec<Construct>>, d
     let mut i = range.start;
     while i < range.end {
         let fits = at.get(&i).and_then(|v| v.iter().find(|c| c.whole.end <= range.end));
-        if let (Some(c), true) = (fits, depth < crate::tree::MAX_NESTING) {
+        if let (Some(c), true) = (fits, depth < mc_boxes::MAX_NESTING) {
             push_box(text, c, at, depth, &mut items, &mut map);
             i = c.whole.end;
             continue;
@@ -559,11 +560,6 @@ const LINE_SWATCH: &str = "━━";
 const SQUARE_SWATCH: &str = "■";
 const POINT_SWATCH: &str = "●";
 
-/// Whether `c` is drawn as a legend's swatch.
-pub(crate) fn is_swatch(c: char) -> bool {
-    matches!(c, '━' | '■' | '●')
-}
-
 /// The `labeled` / `legended` calls of an output drawn with their labels: the output itself, or the elements of an
 /// output that is a list.
 fn labeled_calls(text: &str, stmts: &[Stmt]) -> Vec<Construct> {
@@ -933,63 +929,6 @@ fn children<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) {
     }
 }
 
-/// `row` with only roots (square and n-th), fractions and powers as boxes: every other box (a subscript, a grid,
-/// a big operator, an over- or underscript, a graphic) becomes its linear text, its slots' boxes kept where they are
-/// of the three kinds.
-pub fn restrict(row: &Row) -> Row {
-    let mut out = Vec::with_capacity(row.0.len());
-    for it in &row.0 {
-        match it {
-            Item::Box(b) => match &**b {
-                Node::Fraction { num, den } => {
-                    out.push(Item::Box(Box::new(Node::Fraction { num: restrict(num), den: restrict(den) })))
-                }
-                Node::Superscript { base, exp } => {
-                    out.push(Item::Box(Box::new(Node::Superscript { base: restrict(base), exp: restrict(exp) })))
-                }
-                Node::Radical { radicand, index } => out.push(Item::Box(Box::new(Node::Radical {
-                    radicand: restrict(radicand),
-                    index: index.as_ref().map(restrict),
-                }))),
-                _ => out.extend(Row::text(&linear_text(&Row(vec![it.clone()]))).0),
-            },
-            other => out.push(other.clone()),
-        }
-    }
-    Row(out)
-}
-
-/// A stretch of a cell's linear text and the canonical text it stands for.
-pub type Segment = (Range<usize>, Range<usize>);
-
-/// The linear text of a cell's canonical text, for Find (NBUI.7: `x^2` finds a power box), with the canonical byte
-/// range each stretch of it stands for: one stretch per item of the top row (a box's linear text stands for the whole
-/// box).
-pub fn linear_segments(canonical: &str) -> (String, Vec<Segment>) {
-    let row = crate::from_text(canonical);
-    let (_, map) = crate::to_text_mapped(&row);
-    let mut lin = String::new();
-    let mut segs = Vec::with_capacity(row.0.len());
-    for (k, it) in row.0.iter().enumerate() {
-        let a = map.offset(&[], k).unwrap_or(canonical.len());
-        let b = map.offset(&[], k + 1).unwrap_or(canonical.len());
-        let piece = match it {
-            Item::Char(c) => c.to_string(),
-            Item::Placeholder => "□".to_string(),
-            Item::Box(_) => linear_text(&Row(vec![it.clone()])),
-        };
-        let start = lin.len();
-        lin.push_str(&piece);
-        segs.push((start..lin.len(), a..b));
-    }
-    (lin, segs)
-}
-
-/// Whether `row` holds a box at any depth (a cell whose text is plain needs no box marks in the file).
-pub fn has_boxes(row: &Row) -> bool {
-    row.0.iter().any(|i| matches!(i, Item::Box(_)))
-}
-
 /// A rational coefficient keeps the parentheses its printed form needs (`(1/2)*pi`); drawn as a fraction it shows
 /// its own extent, so the parentheses would stand around it as tall brackets. A fraction of two integers wrapped in
 /// its own pair of parentheses and followed by `*` takes them into its box. Powers keep theirs (`(1/2)^n`).
@@ -1021,7 +960,7 @@ fn absorb_coefficient_parens(text: &str, found: &mut [Construct]) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::notation;
+    use mc_boxes::notation;
 
     /// The boxes of `text` in the test notation.
     fn boxes(text: &str) -> String {
@@ -1098,24 +1037,6 @@ mod tests {
         assert_eq!(boxes(t), "y = (a+b/2) + (√(x)^3)");
     }
 
-    #[test]
-    fn find_reads_the_linear_text() {
-        let t = "a+((x)^(2))+((sqrt(y)))";
-        let (lin, segs) = linear_segments(t);
-        assert_eq!(lin, "a+x^2+sqrt(y)");
-        let k = lin.find("x^2").unwrap();
-        let seg = segs.iter().find(|(l, _)| l.contains(&k)).unwrap();
-        assert_eq!(&t[seg.1.clone()], "((x)^(2))");
-    }
-
-    #[test]
-    fn old_boxes_become_linear_except_the_roots_fractions_and_powers() {
-        let row = crate::from_text("((subscript(x, i)))+((sqrt(((a)/(b)))))+((root(y, 3)))");
-        let r = restrict(&row);
-        assert_eq!(notation(&r), "subscript(x, i)+√((a/b))+√[3](y)");
-        assert!(has_boxes(&r) && !has_boxes(&Row::text("x")));
-    }
-
     /// Round 13 (G80): labeled and legended values draw their labels.
     #[test]
     fn labeled_values_draw_their_labels() {
@@ -1155,11 +1076,11 @@ mod tests {
             r#"labeled(graphics([point([0, 0])]), "a")"#,
             r#"labeled(x, "")"#,
         ] {
-            assert!(!has_boxes(&math_text(t).row), "{t}");
+            assert!(!mc_boxes::has_boxes(&math_text(t).row), "{t}");
         }
         // a value too long to be drawn with its label
         let long = format!("labeled({}, \"a\")", vec!["x"; 12_000].join("+"));
-        assert!(!has_boxes(&math_text(&long).row));
+        assert!(!mc_boxes::has_boxes(&math_text(&long).row));
     }
 
     #[test]
@@ -1228,11 +1149,11 @@ mod tests {
         let t = r#"labeled(x^2 + 1, "energy", top)"#;
         let row = math_text(t).row;
         assert_eq!(linear_text(&row), t);
-        assert_eq!(crate::to_text(&row), t);
-        assert_eq!(crate::to_text_mapped(&row).0, t);
-        assert_eq!(notation(&restrict(&row)), t);
-        assert_eq!(crate::to_text(&crate::output_input_boxes(&row)), t);
-        assert!(crate::to_latex(&row).contains("\\overset{\\text{energy}}"));
+        assert_eq!(mc_boxes::to_text(&row), t);
+        assert_eq!(mc_boxes::to_text_mapped(&row).0, t);
+        assert_eq!(notation(&mc_boxes::restrict(&row)), t);
+        assert_eq!(mc_boxes::to_text(&crate::output_input_boxes(&row)), t);
+        assert!(mc_boxes::to_latex(&row).contains("\\overset{\\text{energy}}"));
         // a part of the value copies as the value's part
         let value = row.at(&[Step { item: 0, slot: 0 }]).unwrap();
         assert_eq!(crate::output_input_text(value), "x^2 + 1");
@@ -1241,10 +1162,10 @@ mod tests {
     /// The layout: the label at the size of the text, below, above or beside the value, the value's baseline kept.
     #[test]
     fn labels_are_placed_around_the_value() {
-        use crate::layout::{layout, Draw, LayoutOptions, MonoMetrics};
+        use mc_boxes::layout::{layout, Draw, LayoutOptions, MonoMetrics};
         let lay = |t: &str| layout(&math_text(t).row, &MonoMetrics, &LayoutOptions::output(10.0, None));
         // (x, baseline, size) of the first character drawn in a row: the value's `v`, the label's `L`
-        let at = |l: &crate::layout::Layout, ch: char| {
+        let at = |l: &mc_boxes::layout::Layout, ch: char| {
             l.items
                 .iter()
                 .find_map(|d| match d {

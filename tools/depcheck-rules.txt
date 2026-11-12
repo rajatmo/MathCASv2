@@ -19,10 +19,16 @@ mc-ui must not depend on mc-eval
 mc-ui must not depend on mc-core
 mc-boxes must not depend on mc-eval
 mc-boxes must not depend on mc-core
+mc-typeset must not depend on mc-eval
+mc-typeset must not depend on mc-core
 mc-edit must not depend on mc-eval
 mc-edit must not depend on mc-core
 mc-graphics must not depend on mc-eval
 mc-graphics must not depend on mc-core
+
+# the box layout knows no parser of outputs: printed text is read into boxes by mc-typeset, above it (round 38)
+mc-boxes must not depend on mc-typeset
+mc-edit must not depend on mc-typeset
 
 # calculus by area (round 34): differentiation and the shared helpers at the bottom, integration above limits
 mc-calculus must not depend on mc-limit

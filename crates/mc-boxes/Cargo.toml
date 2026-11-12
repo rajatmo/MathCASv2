@@ -6,12 +6,15 @@ license.workspace = true
 repository.workspace = true
 edition = "2021"
 publish = false
-description = "MathCAS v2 two-dimensional typesetting without UI: box tree, caret and structure editing, canonical box text, printed output to boxes, aliases, layout and line breaking over a metrics trait"
+description = "MathCAS v2 two-dimensional layout without UI: box tree, canonical and linear box text, aliases, layout and line breaking over a metrics trait"
 
 [dependencies]
+# string literals of the canonical text, the parse that decides the parentheses of the linear text
 mc-syntax = { path = "../mc-syntax" }
 mc-mathfont = { path = "../mc-mathfont" }
 
 [dev-dependencies]
 # the canonical text and its linear form must read to the same terms
 mc-api = { path = "../mc-api" }
+# the layout tests lay out printed output read into boxes
+mc-typeset = { path = "../mc-typeset" }

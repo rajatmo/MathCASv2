@@ -47,6 +47,12 @@ pub fn is_close(c: char) -> bool {
     matches!(c, ')' | ']' | '}')
 }
 
+/// Whether `c` is drawn as a legend's swatch in typeset output: a short line (`line_legend`), a square
+/// (`swatch_legend`), a dot (`point_legend`).
+pub fn is_swatch(c: char) -> bool {
+    matches!(c, '━' | '■' | '●')
+}
+
 /// The closing bracket of an opening one.
 pub fn closer_of(open: char) -> Option<char> {
     match open {

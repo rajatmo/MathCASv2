@@ -403,7 +403,7 @@ impl Background {
                     batch.push(j);
                 }
                 for j in batch {
-                    let row = mc_boxes::math_text(&j.text).row;
+                    let row = mc_typeset::math_text(&j.text).row;
                     let mut layout = lay_out(&row, &j.opts, &j.font);
                     keep_baseline(&mut layout, &j.font, j.opts.size, j.reach.0, j.reach.1);
                     if let Some(w) = j.right {
@@ -660,10 +660,10 @@ mod tests {
         assert!(font.row > 1.0 && font.row < 1.4 && font.ascent > 0.6 && font.ascent < font.row, "{font:?}");
         let text = polynomial();
         // the first run warms the font tables up
-        let row = mc_boxes::typeset_output(&text).row;
+        let row = mc_typeset::typeset_output(&text).row;
         let _ = lay_out(&row, &LayoutOptions::output(17.3, Some(900.0)), &font);
         let t = std::time::Instant::now();
-        let row = mc_boxes::typeset_output(&text).row;
+        let row = mc_typeset::typeset_output(&text).row;
         let typeset = t.elapsed().as_secs_f64() * 1e3;
         let t = std::time::Instant::now();
         let l = lay_out(&row, &LayoutOptions::output(17.3, Some(900.0)), &font);

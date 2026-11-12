@@ -149,3 +149,16 @@ a colour for every character) is closed:
 - Typing latency (release, `type` probe, 1000 x 760, median a frame on a shared machine): at the end of a 2,000-line
   cell 11.0 and 11.5 ms before, 2.8 to 3.9 ms after; at its top 2.3 to 2.6 ms; a 300-line cell 4.4 ms before,
   2.2 ms after.
+
+## 8. A bracket at the top of a long cell (round 38)
+
+An opening bracket typed at the top of a long cell changes the bracket depth every following line starts at, and
+the line cache was keyed by depth: every line was laid out again. A logical line that fits on one line depends on
+its depth only through its first indent, so the cache now keys lines by their items, lays a line out once at depth
+0 and draws that layout at any depth where the line still fits, moved right by the depth's indent; a line that wraps
+at its depth is laid out at that depth. Lines after an edit whose depth changed are moved sideways in place, from
+their own layouts, so the composed layout is still the fresh composition, number for number. The faint
+multiplication signs were placed again by a scan of the cell for each sign whenever an edit before them moved them:
+the text map now finds a byte's item by binary search. Window probe (`tests/selftest/long-cell.txt`, a 2,000-line
+cell, median frame): brackets typed at its top 24.5 and 25.3 ms before, 3.8 to 4.7 ms after; typing at its top and
+its end unchanged (2.7 to 4.0 ms, within the machine's load).

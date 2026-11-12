@@ -206,7 +206,7 @@ fn term_row<S: Store + ?Sized>(h: &S, t: T<'_>, depth: usize) -> Row {
         _ => {}
     }
     let printed = mc_syntax::Printer::new(h).expr(t);
-    mc_boxes::typeset_output(&printed).row
+    mc_typeset::typeset_output(&printed).row
 }
 
 /// A recursive-descent reader of the TeX subset; depth is bounded by [`MAX_DEPTH`].

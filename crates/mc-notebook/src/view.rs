@@ -716,7 +716,7 @@ impl View {
         let opts = self.box_options(c);
         let tree;
         let row = if c.style == Style::Output {
-            tree = std::borrow::Cow::Owned(mc_boxes::math_text(&c.text).row);
+            tree = std::borrow::Cow::Owned(mc_typeset::math_text(&c.text).row);
             &*tree
         } else {
             // the tree the editor holds (design 11: the view lays out what the model holds, never a second tree)
@@ -773,7 +773,7 @@ impl View {
     /// The end of a root line `start..end` without its line break.
     fn line_end(&self, c: &Cell, start: usize, end: usize) -> usize {
         let row = if c.style == Style::Output {
-            std::borrow::Cow::Owned(mc_boxes::math_text(&c.text).row)
+            std::borrow::Cow::Owned(mc_typeset::math_text(&c.text).row)
         } else {
             c.tree()
         };
@@ -2075,7 +2075,7 @@ impl View {
                 return (!v.is_empty()).then(|| v.clone());
             }
         }
-        let labels = mc_boxes::label_rows(&mc_boxes::math_text(&c.text).row);
+        let labels = mc_typeset::label_rows(&mc_typeset::math_text(&c.text).row);
         let muted = self.palette.label();
         let table: Vec<Vec<Color32>> = if labels.is_empty() {
             vec![]

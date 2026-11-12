@@ -218,13 +218,84 @@ fn write_row(row: &Row, out: &mut String) {
     }
 }
 
+/// `row` with only roots (square and n-th), fractions and powers as boxes (the notebook's three, decision NBUI.5):
+/// every other box (a subscript, a grid, a big operator, an over- or underscript, a graphic) becomes its linear text,
+/// its slots' boxes kept where they are of the three kinds.
+pub fn restrict(row: &Row) -> Row {
+    let mut out = Vec::with_capacity(row.0.len());
+    for it in &row.0 {
+        match it {
+            Item::Box(b) => match &**b {
+                Node::Fraction { num, den } => {
+                    out.push(Item::Box(Box::new(Node::Fraction { num: restrict(num), den: restrict(den) })))
+                }
+                Node::Superscript { base, exp } => {
+                    out.push(Item::Box(Box::new(Node::Superscript { base: restrict(base), exp: restrict(exp) })))
+                }
+                Node::Radical { radicand, index } => out.push(Item::Box(Box::new(Node::Radical {
+                    radicand: restrict(radicand),
+                    index: index.as_ref().map(restrict),
+                }))),
+                _ => out.extend(Row::text(&linear_text(&Row(vec![it.clone()]))).0),
+            },
+            other => out.push(other.clone()),
+        }
+    }
+    Row(out)
+}
+
+/// A stretch of a cell's linear text and the canonical text it stands for.
+pub type Segment = (std::ops::Range<usize>, std::ops::Range<usize>);
+
+/// The linear text of a cell's canonical text, for Find (NBUI.7: `x^2` finds a power box), with the canonical byte
+/// range each stretch of it stands for: one stretch per item of the top row (a box's linear text stands for the whole
+/// box).
+pub fn linear_segments(canonical: &str) -> (String, Vec<Segment>) {
+    let row = crate::from_text(canonical);
+    let (_, map) = crate::to_text_mapped(&row);
+    let mut lin = String::new();
+    let mut segs = Vec::with_capacity(row.0.len());
+    for (k, it) in row.0.iter().enumerate() {
+        let a = map.offset(&[], k).unwrap_or(canonical.len());
+        let b = map.offset(&[], k + 1).unwrap_or(canonical.len());
+        let piece = match it {
+            Item::Char(c) => c.to_string(),
+            Item::Placeholder => "□".to_string(),
+            Item::Box(_) => linear_text(&Row(vec![it.clone()])),
+        };
+        let start = lin.len();
+        lin.push_str(&piece);
+        segs.push((start..lin.len(), a..b));
+    }
+    (lin, segs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::canonical::from_text;
+    use crate::tree::notation;
 
     fn lin(t: &str) -> String {
         linear_text(&from_text(t))
+    }
+
+    #[test]
+    fn find_reads_the_linear_text() {
+        let t = "a+((x)^(2))+((sqrt(y)))";
+        let (lin, segs) = linear_segments(t);
+        assert_eq!(lin, "a+x^2+sqrt(y)");
+        let k = lin.find("x^2").unwrap();
+        let seg = segs.iter().find(|(l, _)| l.contains(&k)).unwrap();
+        assert_eq!(&t[seg.1.clone()], "((x)^(2))");
+    }
+
+    #[test]
+    fn old_boxes_become_linear_except_the_roots_fractions_and_powers() {
+        let row = from_text("((subscript(x, i)))+((sqrt(((a)/(b)))))+((root(y, 3)))");
+        let r = restrict(&row);
+        assert_eq!(notation(&r), "subscript(x, i)+√((a/b))+√[3](y)");
+        assert!(crate::has_boxes(&r) && !crate::has_boxes(&Row::text("x")));
     }
 
     #[test]

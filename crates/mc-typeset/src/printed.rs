@@ -7,7 +7,7 @@
 //!
 //! Both walk the syntax tree and copy the source text between the children they convert, so text without a box
 //! form passes through unchanged (spacing, comments, operators as written).
-use crate::tree::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
+use mc_boxes::{BigOp, Item, Node, Row, RowPath, Step, MAX_NESTING};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -402,8 +402,7 @@ impl Conv<'_> {
 
     fn parenthesised(&self, e: &Expr) -> bool {
         let t = &self.src[e.span.start as usize..e.span.end as usize];
-        let s = crate::scan::Scan::new(t);
-        s.is_group(0, s.chars.len(), '(')
+        mc_boxes::is_one_group(t, '(')
     }
 
     fn expr(&self, e: &Expr, out: &mut Out, depth: usize) {
@@ -935,7 +934,7 @@ impl Conv<'_> {
 /// its linear text with the output spellings turned back (`π` to `pi`, `→` to `->`, the thin space of a product to
 /// `*`, ...). Strings lost their quotes in output and stay without them.
 pub fn output_input_text(row: &Row) -> String {
-    let lin = crate::linear::linear_text(row);
+    let lin = mc_boxes::linear_text(row);
     let mut out = String::with_capacity(lin.len());
     for c in lin.chars() {
         match c {
@@ -958,8 +957,8 @@ pub fn output_input_text(row: &Row) -> String {
 
 /// Input boxes for a part of typeset output (copying it with its boxes, round 13): the items with the output
 /// spellings turned back character by character as [`output_input_text`] does (the thin space of a product to `*`),
-/// inside the boxes too, and only the notebook's three boxes kept ([`crate::restrict`]). Its canonical text
-/// ([`crate::to_text`]) evaluates as the selected part reads.
+/// inside the boxes too, and only the notebook's three boxes kept ([`mc_boxes::restrict`]). Its canonical text
+/// ([`mc_boxes::to_text`]) evaluates as the selected part reads.
 pub fn output_input_boxes(row: &Row) -> Row {
     fn back(row: &Row) -> Row {
         let mut out = Vec::with_capacity(row.0.len());
@@ -978,7 +977,7 @@ pub fn output_input_boxes(row: &Row) -> Row {
         }
         Row(out)
     }
-    crate::restrict(&back(row))
+    mc_boxes::restrict(&back(row))
 }
 
 /// The order class of a factor in an output product: numbers, then names and their powers, then the rest.
@@ -1094,7 +1093,7 @@ fn children(e: &Expr) -> Vec<Child<'_>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tree::notation;
+    use mc_boxes::notation;
 
     fn out(t: &str) -> String {
         notation(&typeset_output(t).row)
@@ -1293,7 +1292,7 @@ mod tests {
 
     #[test]
     fn output_parts_copy_as_input_boxes() {
-        let canon = |t: &str| crate::to_text(&output_input_boxes(&crate::math_text(t).row));
+        let canon = |t: &str| mc_boxes::to_text(&output_input_boxes(&crate::math_text(t).row));
         // a thin space of a product goes back to `*`; a power `^(1/2)` is drawn and copied as a root
         assert_eq!(canon("3*x^2"), "3*((x)^(2))");
         assert_eq!(canon("2*2^(1/2)"), "2*((sqrt(2)))");
