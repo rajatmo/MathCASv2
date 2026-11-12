@@ -685,3 +685,44 @@ The crate's MathCAS library (now `lib/lists.mc`) is loaded last (`mc_lists::LIB_
   an interrupt or limit stops it too.
 - `free_of` with `verbatim(p)`: the literal probe is the term inside `verbatim` (search.rs `Probe::new`).
 - Gap seen: `box_matrix(0, [n, n])` gives `failure(division_by_zero)` entries (not changed here).
+## Round 38: argument forms of list functions
+
+- **Heads as parts** (`heads: true`, `ctx::heads_flag`): `map_all` maps the heads too; `map_apply`, `comap` and
+  `comap_apply` treat the head as a level-1 part (`comap(h(a), x, heads: true)` is `h(x)(a(x))`); `depth` counts a
+  head one level below its call; `replace_part` lets position patterns reach index 0 (`heads: false` keeps every
+  head, also for an explicit 0); `member_of(x, p, levels, heads: true)` counts as `count` does. An options term with
+  any other key declines. Associations decline with `heads: true` (their head is not a part of their tree).
+- **`transpose(a, [p1, ..., pk])`** (`reshape::transpose_levels`): level i of the full array goes to level p_i; part
+  [j1, ..., jm] of the result is part [j_p1, ..., j_pk] of a; an index named twice runs along the diagonal of the
+  shorter length (`transpose(m, [1, 1])` the diagonal). The p_i must cover 1..m. `conjugate_transpose(a, perm)` is
+  its conjugate.
+- **Ordering functions**: `take_largest(xs, n, p)`, `take_smallest`, `position_largest(xs, n, p)`,
+  `position_smallest`, `ordering_by(xs, f, k, p)`, `reverse_sort_by(xs, f, p)` order by p as `ordering(xs, all, p)`
+  does; the "largest" are the last in that order. Position groups join elements p does not separate (p gives 0, or
+  a predicate false both ways). With the canonical `order` the result follows MathCAS's canonical order (consistent
+  with `sort` and `reverse_sort`), which differs from other systems' for terms such as `-inf`.
+- **Counts**: `up_to(k)` in `ordering`, `commonest`, `cases(x, p, levels, up_to(k))` and `string_take`; `ordering(xs,
+  [m, n])` takes positions m to n of the ordering.
+- **Margins and steps**: `pad_left(xs, n, x, m)` and `pad_right` leave m copies of x at the other end (a non-list
+  padding element); `take` and `drop` accept a negative step (`[-1, 1, -2]`).
+- **Indexed table variables**: `table(e, a(x), n)` and `table(e, x(1), 3, x(2), 3)`: a call of a symbol without
+  definitions, its arguments atoms, in a variable's place is replaced by a fresh symbol (iterator lists keep their
+  one place in the walk, so a bound such as `g(i)` after `[i, 3]` is never taken for a variable).
+- **Sets of array heads**: `dimensions` and `array_depth` with `allowed_heads: [h1, h2]` (each level one head of the
+  set) or `h1 | h2` (heads of the set mixed within a level); `numeric_array(data, type)` and `byte_array(data)` hold
+  the elements of their data.
+- `delete_missing(xs, n)` down to level n; `delete_missing(xs, n, d)` drops the elements at levels 1..n holding a
+  `missing` at most d levels inside (lists and associations only). `all_true`, `any_true`, `none_true` on an
+  unexpanded `sparse_array(rules, dims[, background])` test the explicit values and the background when a position
+  is left (no expansion of 10^12 elements). `string_length` of a list of strings; `map_at` and `replace_at` with
+  `all` in a position; `replace_at` with an association of rules; multi-level rotation of associations.
+- `box_matrix`, `disk_matrix`, `diamond_matrix`, `cross_matrix` with a radius 0: the offset in units of the radius
+  was o/r; a zero radius holds only the offset 0 (|o| <= r), so other offsets are infinitely far (was a division by
+  zero in every entry).
+- `gaussian_matrix(p, [n1, ..., nd])`: the outer product of sampled one-dimensional derivative-of-Gaussian kernels
+  ((-1/(s sqrt 2))^k H_k(t/(s sqrt 2)) e^(-t^2/(2 s^2))), each scaled so its correlation with t^k is k!; for an even
+  order a multiple of the order-0 kernel first removes the total, which sampling and truncation leave nonzero (the
+  derivative of a constant is 0). Radii and deviations per dimension as `[[r1, ...], [s1, ...]]`.
+- Left: `alphabetic_sort` in other languages (collation tables), `groupings` with operator heads given as options,
+  the `evaluation_monitor` of the optimizers (options are evaluated before the call, so `sow(x)` runs once), the
+  missing-key result (`failure(missing_key, k)` is documented design). Tests: `mc-engine/tests/round38_lists.rs`.

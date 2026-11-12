@@ -194,8 +194,18 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
             (Part::Conj, _) => neg(x),
         }));
     }
+    if is_complex_infinity(h, x) {
+        // the parts of a point at infinity in no direction are undefined; its conjugate is again that point
+        return Ok(Reply::Done(if which == Part::Conj { x } else { indeterminate(h) }));
+    }
     if real_valued_call(env, h, x).is_some() {
         return Ok(Reply::Done(if which == Part::Im { h.int(0) } else { x }));
+    }
+    // conjugate(c y) = conj(c) conjugate(y) for a number c (conjugation is multiplicative)
+    if which == Part::Conj {
+        if let Some((c, rest)) = numeric_coefficient(env, h, &ar, x) {
+            return Ok(Reply::Again(h.call(env.s.mul, &[ar.number(&conj(&c)), h.call(env.s.conjugate, &[rest])])));
+        }
     }
     if let Some((s, &[y])) = env.call_of(h, x) {
         if s == env.s.conjugate {
@@ -306,6 +316,12 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
             d => Reply::Again(pi_times(env, h, &ar, d as i64, 2)),
         });
     }
+    if is_complex_infinity(h, x) {
+        // a point at infinity in no given direction: its argument may be any angle (the interval of every
+        // value, as for sin(inf))
+        let neg_pi = h.call(env.s.mul, &[h.int(-1), pi]);
+        return Ok(Reply::Again(h.call(h.sym("interval"), &[h.call(env.s.list, &[neg_pi, pi])])));
+    }
     if let Some(s) = real_valued_call(env, h, x) {
         return Ok(if s == env.s.abs { Reply::Done(h.int(0)) } else { Reply::Decline });
     }
@@ -363,7 +379,7 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
     if ar.num(x).is_some() {
         return None;
     }
-    if infinity_direction(env, h, &ar, x).is_some() {
+    if infinity_direction(env, h, &ar, x).is_some() || is_complex_infinity(h, x) {
         return Some(h.sym_term(h.sym("inf")));
     }
     if let Some((s, &[y])) = env.call_of(h, x) {
@@ -409,8 +425,18 @@ fn sign_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
             d => ar.complex(h.int(0), h.int(d as i64)),
         });
     }
+    if is_complex_infinity(h, x) {
+        return Some(indeterminate(h));
+    }
     if let Some(o) = numeval::sign(h, &ar, &env.nm, x) {
         return Some(h.int(o as i64));
+    }
+    // sign(c y) = (c/|c|) sign(y) for a nonzero number c (sign(z) = z/|z| is multiplicative)
+    if let Some((c, y)) = numeric_coefficient(env, h, &ar, x) {
+        if decompose(env, h, &ar, x).is_none() {
+            let unit = h.call(env.s.mul, &[ar.number(&c), h.call(env.s.pow, &[abs_num(&ar, &c), h.int(-1)])]);
+            return Some(h.call(env.s.mul, &[unit, h.call(env.s.sign, &[y])]));
+        }
     }
     let sms = decompose(env, h, &ar, x)?;
     let [sm] = sms.as_slice() else { return None };
@@ -431,6 +457,29 @@ fn sign_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
         factors.push(h.call(env.s.pow, &[h.int(-1), real_term(&ar, Real::Exact(q.clone()))]));
     }
     Some(h.call(env.s.mul, &factors))
+}
+
+fn is_complex_infinity(h: &Heap, x: T<'_>) -> bool {
+    x == h.sym_term(h.sym("complex_infinity"))
+}
+
+fn indeterminate<'h>(h: &'h Heap) -> T<'h> {
+    h.sym_term(h.sym("indeterminate"))
+}
+
+/// c and y for a product c y with c a nonzero number other than 1 and y not a number (the canonical product keeps
+/// its numeric factor first).
+fn numeric_coefficient<'h>(env: &Env, h: &'h Heap, ar: &Arith<'h, Heap>, x: T<'h>) -> Option<(Num, T<'h>)> {
+    let (s, args) = env.call_of(h, x)?;
+    if s != env.s.mul || args.len() < 2 {
+        return None;
+    }
+    let c = ar.num(args[0])?;
+    if c.is_zero() || args[1..].iter().any(|&a| ar.num(a).is_some()) {
+        return None;
+    }
+    let rest = if args.len() == 2 { args[1] } else { h.call(env.s.mul, &args[1..]) };
+    Some((c, rest))
 }
 
 /// The direction of a directed infinity (`inf` 0, `im*inf` 1, `-inf` 2, `-im*inf` -1).

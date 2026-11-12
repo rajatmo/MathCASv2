@@ -392,6 +392,32 @@ pub(crate) fn group_cost<'h>(cx: &NativeCx<'_, '_, 'h>, f: T<'h>) -> u64 {
     }
 }
 
+/// k for the count `up_to(k)` ("at most k").
+pub(crate) fn up_to_arg<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    match h.view(t) {
+        View::App { head, args: &[k] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "up_to") => Some(k),
+        _ => None,
+    }
+}
+
+/// The arguments before a final `options(heads -> true|false)` argument and its value (`false` without one);
+/// `None` when the final options carry anything else (the call then declines). `positional` as for [`option`].
+pub(crate) fn heads_flag<'a, 'h>(h: &'h Heap, args: &'a [T<'h>], positional: usize) -> Option<(&'a [T<'h>], bool)> {
+    let (before, v) = option(h, args, positional, "heads");
+    if before.len() == args.len() {
+        return Some((args, false));
+    }
+    let View::App { args: items, .. } = h.view(args[args.len() - 1]) else { return None };
+    if items.len() != 1 {
+        return None;
+    }
+    match h.view(v?) {
+        View::Sym(s) if h.sym_name(s) == "true" => Some((before, true)),
+        View::Sym(s) if h.sym_name(s) == "false" => Some((before, false)),
+        _ => None,
+    }
+}
+
 /// The arguments before a final `options(name -> value, ...)` argument, and the value of option `name` in it.
 /// `positional` is the number of arguments the function always takes: a final `options(...)` term among them is an
 /// operand, not the call's options (`apply(list, o)` with `o = options(a: 1)` is `[a: 1]`; round 37 integration:

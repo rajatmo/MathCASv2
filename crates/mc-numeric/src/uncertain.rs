@@ -776,10 +776,33 @@ fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
     let Some(ps) = pieces(fx, args[i]) else { return Ok(None) };
     let mut out = vec![];
     for p in ps {
+        if let Some(s) = periodic_cover(fx, &name, args.len(), p)? {
+            out.push(s);
+            continue;
+        }
         let Some(s) = image(fx, head, args, i, p)? else { return Ok(None) };
         out.push(s);
     }
     make_interval(fx, outward(fx, out))
+}
+
+/// The image of a piece at least one period long (or unbounded) under sin or cos (period 2 pi, range [-1, 1]) or
+/// tan (period pi, every real value): the whole range, since a full period attains it.
+fn periodic_cover<'h>(fx: &mut Fx<'_, '_, '_, 'h>, name: &str, arity: usize, (a, b): (T<'h>, T<'h>)) -> Res<Option<(T<'h>, T<'h>)>> {
+    let period = match (name, arity) {
+        ("sin" | "cos", 1) => 2.0 * std::f64::consts::PI,
+        ("tan", 1) => std::f64::consts::PI,
+        _ => return Ok(None),
+    };
+    let unbounded = fx.infinity(a).is_some() || fx.infinity(b).is_some();
+    if !unbounded {
+        let (Some(lo), Some(hi)) = (machine(fx, a)?, machine(fx, b)?) else { return Ok(None) };
+        // a margin for the rounding of the ends: a piece that is only about one period long goes to the sampler
+        if hi - lo <= period * (1.0 + 1e-9) || (hi - lo).is_nan() {
+            return Ok(None);
+        }
+    }
+    Ok(Some(if name == "tan" { (neg_inf(fx), fx.inf()) } else { (fx.int(-1), fx.int(1)) }))
 }
 
 // ---------------------------------------------------------------- centered intervals

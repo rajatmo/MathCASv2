@@ -320,6 +320,34 @@ pub(crate) fn table<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// threads at once.
 pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], parallel: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // an indexed variable `a(1)` or `a(x)` (a call of a symbol without definitions, its arguments atoms) in a
+    // variable's place: a fresh symbol stands for it in the body
+    if args.len() >= 3 {
+        let mut renamed: Vec<(T<'h>, T<'h>)> = vec![];
+        let mut i = 1;
+        while i + 1 < args.len() {
+            // an iterator list takes one place
+            if cx.as_list(args[i]).is_some() {
+                i += 1;
+                continue;
+            }
+            if let View::App { head, args: inner } = h.view(args[i]) {
+                if let View::Sym(s) = h.view(head) {
+                    let atoms = inner.iter().all(|&a| !matches!(h.view(a), View::App { .. }));
+                    if atoms && !inner.is_empty() && s != lib.s.list && !cx.is_defined(s) {
+                        let fresh = h.sym_term(h.sym(&format!("table·{}", renamed.len() + 1)));
+                        renamed.push((args[i], fresh));
+                    }
+                }
+            }
+            i += 2;
+        }
+        if !renamed.is_empty() {
+            let swap = |t: T<'h>| mc_numfn::replace(h, t, &mut |u| renamed.iter().find(|(v, _)| *v == u).map(|&(_, f)| f));
+            let new: Vec<T<'h>> = args.iter().map(|&a| swap(a)).collect();
+            return table_with(lib, cx, t, &new, parallel);
+        }
+    }
     // the iterator lists `[k, a, b]` and `[k, a, b, step]` are `k, range(a, b)` and `k, range(a, b, step)`: bounds
     // and steps of any numeric kind (R24-04)
     let iter_list = |t: T<'h>| match h.view(t) {

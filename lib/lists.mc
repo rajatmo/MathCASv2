@@ -257,8 +257,11 @@ fn b29_nd(dims, idx, f) = if length(dims) == 0 then f(idx) else map(i => b29_nd(
 fn b29_shape(r, d, test) = {
   let rs = if is_list(r) then r else [r, r]
   let ds = if is_list(d) then d else constant_array(d, length(rs))
-  b29_nd(ds, [], idx => boole(test(map(i => (idx[i] - (ds[i] + 1)/2)/rs[i], range(length(ds))), rs)))
+  b29_nd(ds, [], idx => boole(test(map(i => b29_scaled(idx[i] - (ds[i] + 1)/2, rs[i]), range(length(ds))), rs)))
 }
+# the offset o in units of the radius r: o/r; for r = 0 the shape holds only the offset 0 (|o| <= r), so any other
+# offset is infinitely far
+fn b29_scaled(o, r) = if r == 0 then (if o == 0 then 0 else inf) else o/r
 fn b29_size(r) = if is_list(r) then map(t => 2*t + 1, r) else 2*r + 1
 
 # disk_matrix(r), disk_matrix(r, d): the array of 1 where (x1/r1)^2 + ... <= 1 (a disk, ball or ellipsoid of
@@ -294,6 +297,36 @@ fn gaussian_matrix(p) when is_list(p) and length(p) == 1 and is_list(p[1]) = {
   let r = p[1][1]
   let g = map(t => exp(-t^2/(2*(n(r)/2)^2)), range(-r, r))
   map(t => t/total(g), g)
+}
+# gaussian_matrix(p, [n1, ..., nd]): the d-dimensional kernel of the n_i-th derivatives of the Gaussian, the outer
+# product of one-dimensional kernels sampled at the integers -r..r; p is r (standard deviation r/2), [r, s], or per
+# dimension [[r1, ..., rd]] or [[r1, ..., rd], [s1, ..., sd]]. Each one-dimensional kernel of order k is scaled so
+# that its correlation with t^k is k! (total 1 for k = 0), so it takes the k-th derivative of polynomials of degree
+# k exactly (the moments below k vanish by symmetry).
+fn gm_radii(p, d) =
+  if is_list(p) and length(p) >= 1 and is_list(p[1]) and length(p[1]) == d then
+    [p[1], if length(p) == 2 and is_list(p[2]) and length(p[2]) == d then map(n, p[2]) else map(r => n(r)/2, p[1])]
+  else if is_list(p) and length(p) == 2 and not is_list(p[1]) then [constant_array(p[1], d), constant_array(n(p[2]), d)]
+  else if not is_list(p) then [constant_array(p, d), constant_array(n(p)/2, d)]
+  else null
+fn gm_kernel(r, s, k) = {
+  # the k-th derivative of exp(-t^2/(2 s^2)) is (-1/(s sqrt 2))^k H_k(t/(s sqrt 2)) exp(-t^2/(2 s^2))
+  let c = n(s*sqrt(2))
+  let g1 = map(t => (-1/c)^k*hermite_h(k, t/c)*exp(-t^2/(2*s^2)), range(-r, r))
+  # an even order: the sampled, truncated kernel does not sum to 0 exactly; a multiple of the order-0 kernel
+  # removes the total (constants have derivative 0), odd orders sum to 0 by symmetry
+  let g0 = map(t => exp(-t^2/(2*s^2)), range(-r, r))
+  let g = if k > 0 and mod(k, 2) == 0 then g1 - total(g1)/total(g0)*g0 else g1
+  let m = total(map(i => g[i]*(r + 1 - i)^k, range(2*r + 1)))
+  # (+ 0.0 keeps the centre of an odd order a plain zero)
+  map(v => v*factorial(k)/m + 0.0, g)
+}
+# gaussian_matrix([[r1, ...], [s1, ...]]): radii and standard deviations per dimension
+fn gaussian_matrix(p) when is_list(p) and length(p) == 2 and is_list(p[1]) and is_list(p[2]) and length(p[1]) == length(p[2]) = gaussian_matrix(p, constant_array(0, length(p[1])))
+fn gaussian_matrix(p, ns) when is_list(ns) and length(ns) >= 1 and every(ns, k => is_integer(k) and k >= 0) and not (gm_radii(p, length(ns)) === null) and every(gm_radii(p, length(ns))[1], r => is_integer(r) and r >= 0) = {
+  let rs = gm_radii(p, length(ns))
+  let ks = map(i => gm_kernel(rs[1][i], rs[2][i], ns[i]), range(length(ns)))
+  fold((a, b) => outer(mul, a, b), ks[1], rest(ks))
 }
 
 # --- numbers ---
@@ -1053,9 +1086,9 @@ rule array_reshape(xs_, dims_, "Extrapolated") := {
 } when is_list(xs) and is_list(dims) and length(flatten(xs)) >= 2 and apply(mul, dims) > length(flatten(xs))
 
 # rotate_left(x, [n1, n2, ...]), rotate_right(x, [n1, ...]): level k rotated by nk (rows, then columns, ...)
-fn nl_rot(x, ns, left) = if length(ns) == 0 or not is_list(x) then x else map(r => nl_rot(r, rest(ns), left), if left then rotate_left(x, ns[1]) else rotate_right(x, ns[1]))
-rule rotate_left(x_, ns_) := nl_rot(x, ns, true) when is_list(x) and is_list(ns) and length(ns) > 0
-rule rotate_right(x_, ns_) := nl_rot(x, ns, false) when is_list(x) and is_list(ns) and length(ns) > 0
+fn nl_rot(x, ns, left) = if length(ns) == 0 or not (is_list(x) or is_assoc(x)) then x else map(r => nl_rot(r, rest(ns), left), if left then rotate_left(x, ns[1]) else rotate_right(x, ns[1]))
+rule rotate_left(x_, ns_) := nl_rot(x, ns, true) when (is_list(x) or is_assoc(x)) and is_list(ns) and length(ns) > 0
+rule rotate_right(x_, ns_) := nl_rot(x, ns, false) when (is_list(x) or is_assoc(x)) and is_list(ns) and length(ns) > 0
 
 # take_list(m, rows, cols): the matrix cut into blocks, [row block][column block]
 rule take_list(m_, rs_, cs_) := map(b => map(c => transpose(c), take_list(transpose(b), cs)), take_list(m, rs)) when is_matrix(m) and is_list(rs) and is_list(cs)
@@ -1113,3 +1146,6 @@ rule variance(weighted_data(d_, w_)) := {
   if every(join(d, w), x => is_number(x)) then dot(w, (d - dot(d, w)/tw)^2)/tw else expand(tw*dot(w, d^2) - dot(w, d)^2)/tw^2
 } when r37_weighted_ok(d, w)
 rule std_dev(weighted_data(d_, w_)) := sqrt(variance(weighted_data(d, w))) when r37_weighted_ok(d, w)
+
+# conjugate_transpose(a, perm): the conjugate of transpose(a, perm)
+rule conjugate_transpose(a_, p_) := conjugate(transpose(a, p)) when is_list(a) and is_list(p)

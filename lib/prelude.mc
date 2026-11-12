@@ -103,6 +103,8 @@ fn replace_repeated(e, rules) = rewrite(e, rules, strategy: fixed_point)
 
 # reverse_sort_by(xs, f): the elements of xs in decreasing order of f(x)
 fn reverse_sort_by(xs, f) = reverse(sort_by(xs, f))
+# reverse_sort_by(xs, f, p): the order of sort_by(xs, f, p) reversed
+fn reverse_sort_by(xs, f, p) = reverse(sort_by(xs, f, p))
 
 # block_map(f, xs, n), block_map(f, xs, n, d): f applied to the blocks partition(xs, n) (offset d)
 # (a list n of block sizes cuts every dimension: f is applied at the level of the blocks, length(n) deep); the
@@ -155,6 +157,8 @@ fn commonest(xs, n: Int) when n >= 0 = {
   let top = take(sort_by(range(length(t)), i => [-t[i][2], i]), min(n, length(t)))
   map(i => t[i][1], sort(top))
 }
+# commonest(xs, up_to(n)): at most n of the most frequent elements
+fn commonest(xs, u) when match_q(u, up_to(_)) and is_integer(u[1]) and u[1] >= 0 = commonest(xs, u[1])
 
 # boole(b): 1 for true, 0 for false (element-wise on lists); other arguments stay as they are
 fn boole(true) = 1
@@ -178,6 +182,9 @@ fn digit_sum(n: Int) = total(integer_digits(n))
 fn digit_sum(n: Int, b: Int) = total(integer_digits(n, b))
 fn digit_sum(n: Int, b: Int, k: Int) = { let ds = integer_digits(n, b); total(if k >= 0 then take(ds, min(k, length(ds))) else take(ds, max(k, -length(ds)))) }
 fn digit_sum(n: Int, bs) when is_list(bs) = map(b => digit_sum(n, b), bs)
+# in a mixed radix (the digits integer_digits gives in it)
+fn digit_sum(n: Int, b) when match_q(b, mixed_radix(_)) = total(integer_digits(n, b))
+fn digit_sum(n: Int, b, k: Int) when match_q(b, mixed_radix(_)) = { let ds = integer_digits(n, b); total(if k >= 0 then take(ds, min(k, length(ds))) else take(ds, max(k, -length(ds)))) }
 fn digit_sum(ns, rest...) when is_list(ns) = map(m => apply(digit_sum, join([m], rest)), ns)
 
 # key_value_map(f, a): [f(k1, v1), f(k2, v2), ...] for the entries of the association a
@@ -194,6 +201,18 @@ fn association_thread(ks, vs) when is_list(ks) and is_list(vs) and length(ks) ==
 # delete_missing(xs): the elements of the list xs (values of the association xs) that are not missing(...)
 fn delete_missing(xs) when is_list(xs) = select(xs, x => not is_missing(x) and not (match_q(x, _ -> _) and is_missing(x[2])))
 fn delete_missing(a) when is_assoc(a) = select_keys(a, k => not is_missing(a[k]))
+# delete_missing(xs, n): down to level n of nested lists and associations; delete_missing(xs, n, d): the elements
+# at levels 1 to n that hold a missing(...) at most d levels inside them (lists and associations)
+fn l38_has_missing(e, k) = if is_missing(e) then true else if k === inf or (is_integer(k) and k >= 1) then (if is_list(e) then any_true(e, u => l38_has_missing(u, k - 1)) else if is_assoc(e) then any_true(values(e), u => l38_has_missing(u, k - 1)) else false) else false
+fn l38_level_ok(n) = n === inf or (is_integer(n) and n >= 0)
+fn delete_missing(xs, n) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) =
+  if n === 0 then xs else map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1) else u, delete_missing(xs))
+fn delete_missing(xs, n, d) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(n) and l38_level_ok(d) = {
+  if n === 0 then xs else {
+    let kept = if is_list(xs) then select(xs, u => not l38_has_missing(u, d)) else select_keys(xs, k => not l38_has_missing(xs[k], d))
+    map(u => if is_list(u) or is_assoc(u) then delete_missing(u, n - 1, d) else u, kept)
+  }
+}
 
 # covariance(xs, ys): the sample covariance of two lists of equal length (divisor n - 1, the second list
 # conjugated); covariance(m): the matrix of covariances of the columns of m; covariance(m1, m2): of the columns of
@@ -716,6 +735,8 @@ fn alphabet(lang: Str) when lang == "English" = character_range("a", "z")
 fn ordering_by(xs, f) = ordering(map(f, if is_assoc(xs) then values(xs) else xs))
 fn ordering_by(xs, f, k) = if k === all then ordering_by(xs, f) else ordering(map(f, if is_assoc(xs) then values(xs) else xs), k)
 fn ordering_by(f) = xs => ordering_by(xs, f)
+# ordering_by(xs, f, k, p): the keys f(x) ordered by the ordering function p
+fn ordering_by(xs, f, k, p) = ordering(map(f, if is_assoc(xs) then values(xs) else xs), k, p)
 
 # split_by(xs, f): the runs of neighbours of xs with identical f(x); split_by(xs, [f1, f2, ...]): split by f1, each
 # run then by f2, and so on; split_by(f)(xs)

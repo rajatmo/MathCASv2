@@ -41,6 +41,15 @@ fn selected<'h>(lib: &Lib, h: &'h Heap, t: T<'h>, spec: T<'h>, n: usize) -> Resu
             _ => Err(lib.bad_arg(h, t, 2)),
         };
     }
+    // up_to(k): the first k characters, or all of them when there are fewer
+    if let View::App { head, args: &[k] } = h.view(spec) {
+        if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "up_to") {
+            return match h.view(k) {
+                View::Int(k) if k >= 0 => Ok((0, (k as u64).min(n as u64) as usize)),
+                _ => Err(lib.bad_arg(h, t, 2)),
+            };
+        }
+    }
     let k = lib.int(h, t, spec, 2)?;
     let m = usize::try_from(k.unsigned_abs()).ok().filter(|&m| m <= n).ok_or_else(|| lib.bad_index(h, h.int(k), n))?;
     Ok(if k >= 0 { (0, m) } else { (n - m, n) })

@@ -221,6 +221,21 @@ pub(crate) fn dimensions<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h
     let top = |x: T<'h>| if h.packed(x).is_some() { Some(list) } else { args_of(h, x).map(|(g, _)| g) };
     // `allowed_heads: full`: any heads, also different ones within a level
     let full = allowed.is_some_and(|a| matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "full"));
+    // a set of heads: a list (one head per level) or alternatives (mixed within a level)
+    if let Some((set, mixed)) = allowed.and_then(|a| head_set(cx, a)) {
+        let (x, most) = match *args {
+            [x] => (x, usize::MAX),
+            [x, n] => match h.view(n) {
+                View::Int(n) if n >= 0 => (x, n as usize),
+                _ => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        };
+        let mut dims = dims_in_set(cx, x, &set, mixed)?;
+        dims.truncate(most);
+        let v: Vec<T<'h>> = dims.iter().map(|&d| h.int(d as i64)).collect();
+        return Ok(Reply::Done(cx.list(&v)));
+    }
     let only = match allowed.map(|a| h.view(a)) {
         None => args.first().and_then(|&x| top(x)),
         Some(View::Sym(s)) if h.sym_name(s) == "all" || h.sym_name(s) == "full" => None,
@@ -289,6 +304,89 @@ fn dims_by<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, only: Option<T<'h>>, ful
     Ok(dims)
 }
 
+/// A set of allowed heads: `[h1, h2, ...]` (each level of one head of the set) or `h1 | h2 | ...` (the parts of
+/// a level may have different heads of the set); `"ListLike"` stands for `list`. `None` for another value.
+fn head_set<'h>(cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<(Vec<T<'h>>, bool)> {
+    let h = cx.heap();
+    let (items, mixed): (Vec<T<'h>>, bool) = match cx.as_list(spec) {
+        Some(xs) => (xs.to_vec(), false),
+        None => match h.view(spec) {
+            View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "alternatives") => (args.to_vec(), true),
+            _ => return None,
+        },
+    };
+    let list = h.sym_term(h.sym("list"));
+    let mut set = Vec::with_capacity(items.len());
+    for x in items {
+        match h.view(x) {
+            View::Sym(_) => set.push(x),
+            View::Str("ListLike") => set.push(list),
+            _ => return None,
+        }
+    }
+    (!set.is_empty()).then_some((set, mixed))
+}
+
+/// The head and the elements of `u` as an array level: a compound term's arguments; `numeric_array(data, type)`
+/// and `byte_array(data)` hold the elements of their data (rows of a nested data list stay arrays of that head).
+fn array_parts<'h>(cx: &NativeCx<'_, '_, 'h>, u: T<'h>) -> Option<(T<'h>, Vec<T<'h>>)> {
+    let h = cx.heap();
+    if let View::App { head, args } = h.view(u) {
+        let name = match h.view(head) {
+            View::Sym(s) => h.sym_name(s),
+            _ => String::new(),
+        };
+        if (name == "numeric_array" && args.len() == 2) || (name == "byte_array" && args.len() == 1) {
+            let rows = cx.as_list(args[0])?;
+            let elems = rows
+                .iter()
+                .map(|&r| {
+                    if cx.as_list(r).is_some() {
+                        let mut v = vec![r];
+                        v.extend_from_slice(&args[1..]);
+                        h.app(head, &v)
+                    } else {
+                        r
+                    }
+                })
+                .collect();
+            return Some((head, elems));
+        }
+    }
+    if h.packed(u).is_some() {
+        return cx.as_list(u).map(|xs| (h.sym_term(h.sym("list")), xs.to_vec()));
+    }
+    args_of(h, u).map(|(g, a)| (g, a.to_vec()))
+}
+
+/// The dimensions of `x` counting levels whose heads are in `set` (`mixed`: different heads of the set within a
+/// level).
+fn dims_in_set<'h>(cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, set: &[T<'h>], mixed: bool) -> Res<Vec<usize>> {
+    let mut dims = vec![];
+    let mut level: Vec<T<'h>> = vec![x];
+    let mut m = Meter::default();
+    loop {
+        let Some((head, first)) = array_parts(cx, level[0]) else { return Ok(dims) };
+        if !set.contains(&head) {
+            return Ok(dims);
+        }
+        let n = first.len();
+        let mut next = Vec::with_capacity(level.len() * n);
+        for &u in &level {
+            m.step(cx)?;
+            match array_parts(cx, u) {
+                Some((g, a)) if (g == head || (mixed && set.contains(&g))) && a.len() == n => next.extend(a),
+                _ => return Ok(dims),
+            }
+        }
+        dims.push(n);
+        if n == 0 {
+            return Ok(dims);
+        }
+        level = next;
+    }
+}
+
 /// `array_depth(x)`: the number of levels of `x` that form a full array (the length of `dimensions(x)`).
 /// `allowed_heads: list` (or `"ListLike"`) counts only levels of lists, `allowed_heads: all` levels of any one head
 /// (the default, P9B.6).
@@ -298,6 +396,10 @@ pub(crate) fn array_depth<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h
     let [x] = *args else { return Ok(Reply::Decline) };
     let list = h.sym_term(lib.s.list);
     let full = heads.is_some_and(|a| matches!(h.view(a), View::Sym(s) if h.sym_name(s) == "full"));
+    if let Some((set, mixed)) = heads.and_then(|a| head_set(cx, a)) {
+        let d = dims_in_set(cx, x, &set, mixed)?.len();
+        return Ok(Reply::Done(h.int(d as i64)));
+    }
     let only = match heads.map(|v| h.view(v)) {
         None if h.packed(x).is_some() => Some(list),
         None => args_of(h, x).map(|(g, _)| g),
@@ -398,12 +500,17 @@ fn rules_of<'h>(lib: &Lib, h: &'h Heap, cx: &NativeCx<'_, '_, 'h>, r: T<'h>) -> 
 /// replaced (a rule `[p1, p2] -> v` with a list of positions replaces each).
 pub(crate) fn replace_part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [x, r] = *args else { return Ok(Reply::Decline) };
-    if let Some(v) = replace_keys(lib, cx, x, r)? {
-        return Ok(Reply::Done(v));
+    // heads: true lets position patterns reach the heads (index 0); heads: false keeps every head as it is
+    let Some((plain, flag)) = crate::ctx::heads_flag(h, args, 2) else { return Ok(Reply::Decline) };
+    let heads = (plain.len() < args.len()).then_some(flag);
+    let [x, r] = *plain else { return Ok(Reply::Decline) };
+    if heads.is_none() {
+        if let Some(v) = replace_keys(lib, cx, x, r)? {
+            return Ok(Reply::Done(v));
+        }
     }
     let Some(rules) = rules_of(lib, h, cx, r) else {
-        if let Some(v) = replace_matching_parts(lib, cx, x, r)? {
+        if let Some(v) = replace_matching_parts(lib, cx, x, r, heads)? {
             return Ok(settle(lib, h, v));
         }
         return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
@@ -411,6 +518,9 @@ pub(crate) fn replace_part<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
     let mut cur = x;
     for (ps, v) in rules {
         for p in ps {
+            if heads == Some(false) && p.contains(&0) {
+                continue;
+            }
             cx.tick(1)?;
             match rebuild_at(h, cur, &p, Edit::Set(v)) {
                 Ok(Some(u)) => cur = u,
@@ -476,7 +586,13 @@ fn replace_keys<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, r: T<'h>
 /// the pattern counts from the end at the last level), any other pattern against the index of each element
 /// (`1 | 3 | 5`, `_`). A part whose position matches is replaced by the rule's right side with the pattern's
 /// variables substituted, and its own parts are not visited. `None` when a rule's left side does not compile.
-fn replace_matching_parts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, r: T<'h>) -> Res<Option<T<'h>>> {
+fn replace_matching_parts<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    x: T<'h>,
+    r: T<'h>,
+    with_heads: Option<bool>,
+) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let rules: Vec<T<'h>> = match cx.as_list(r) {
         Some(xs) => xs.to_vec(),
@@ -497,7 +613,7 @@ fn replace_matching_parts<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>
             && matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "condition")
             && cx.as_list(args[0]).is_some());
         let list = cx.as_list(p).is_some() || conditioned;
-        heads.push(list && mentions_zero(h, p));
+        heads.push(with_heads.unwrap_or(list && mentions_zero(h, p)));
         let Some(m) = Matcher::new(lib, h, if list { p } else { cx.list(&[p]) }) else { return Ok(None) };
         compiled.push((m, list, conditioned, v));
     }
@@ -618,7 +734,16 @@ fn mentions_zero(h: &Heap, t: T<'_>) -> bool {
 pub(crate) fn replace_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [x, rules, spec] = *args else { return Ok(Reply::Decline) };
-    let Some(ps) = positions(h, cx, spec) else { return Ok(Reply::Decline) };
+    let with_all = if crate::assocs::entries(lib, h, x).is_none() { positions_with_all(cx, x, spec) } else { None };
+    let Some(ps) = with_all.or_else(|| positions(h, cx, spec)) else { return Ok(Reply::Decline) };
+    // an association of replacements is the list of its rules
+    let rules = match crate::assocs::entries(lib, h, rules) {
+        Some(es) => {
+            let rule = h.sym_term(lib.s.rule);
+            cx.list(&es.iter().map(|&(k, v)| h.app(rule, &[k, v])).collect::<Vec<_>>())
+        }
+        None => rules,
+    };
     let replace = h.sym_term(h.sym("replace"));
     let mut cur = x;
     for p in ps {
@@ -716,9 +841,52 @@ fn in_values<'h>(
 }
 
 /// `map_at(f, x, pos)`, `map_at(f, x, [pos1, ...])`: `x` with each part `p` at the positions replaced by `f(p)`.
+/// The positions one position with `all` among its indices names in `x` (`[all, 2]`: the second part of every
+/// part; `all` alone: every part); `None` without an `all`, or when an index lies outside a part.
+fn positions_with_all<'h>(cx: &NativeCx<'_, '_, 'h>, x: T<'h>, spec: T<'h>) -> Option<Vec<Vec<i64>>> {
+    let h = cx.heap();
+    let is_all = |t: T<'h>| matches!(h.view(t), View::Sym(s) if h.sym_name(s) == "all");
+    let items: Vec<T<'h>> = if is_all(spec) { vec![spec] } else { cx.as_list(spec)?.to_vec() };
+    if !items.iter().any(|&i| is_all(i)) || !items.iter().all(|&i| is_all(i) || matches!(h.view(i), View::Int(_))) {
+        return None;
+    }
+    let mut out = vec![];
+    let mut todo: Vec<(T<'h>, Vec<i64>)> = vec![(x, vec![])];
+    while let Some((u, pos)) = todo.pop() {
+        let k = pos.len();
+        if k == items.len() {
+            out.push(pos);
+            continue;
+        }
+        let (_, args) = args_of(h, u)?;
+        let n = args.len() as i64;
+        let picks: Vec<i64> = match h.view(items[k]) {
+            View::Int(i) => {
+                let j = if i < 0 { n + 1 + i } else { i };
+                if !(1..=n).contains(&j) {
+                    return None;
+                }
+                vec![j]
+            }
+            _ => (1..=n).collect(),
+        };
+        for j in picks.into_iter().rev() {
+            let mut p = pos.clone();
+            p.push(j);
+            todo.push((args[j as usize - 1], p));
+        }
+    }
+    Some(out)
+}
+
 pub(crate) fn map_at<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, x, spec] = *args else { return Ok(Reply::Decline) };
+    if let Some(ps) = positions_with_all(cx, x, spec) {
+        if crate::assocs::entries(lib, h, x).is_none() {
+            return edit_all(lib, cx, x, ps, Edit::Apply(f));
+        }
+    }
     // an empty list of positions edits nothing (`[[]]` is the position of the whole term)
     if cx.as_list(spec).is_some_and(<[T<'h>]>::is_empty) {
         return Ok(Reply::Done(x));
@@ -932,6 +1100,28 @@ pub(crate) fn take_smallest<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T
 
 fn take_extreme<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], largest: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `take_largest(xs, n, p)`: by the ordering function p (as `ordering(xs, all, p)` orders), the last n in
+    // reverse (the first n for `take_smallest`); `up_to(n)` as below
+    if let [xs, n, p] = *args {
+        if !matches!(h.view(p), View::App { head, .. } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options")) {
+            let Some(items) = cx.as_list(xs) else { return Ok(Reply::Decline) };
+            let len = items.len() as i64;
+            let k = match h.view(n) {
+                View::Int(k) if (0..=len).contains(&k) => k,
+                _ => match crate::ctx::up_to_arg(h, n).map(|k| h.view(k)) {
+                    Some(View::Int(k)) if k >= 0 => k.min(len),
+                    _ => return Ok(Reply::Decline),
+                },
+            };
+            let order = h.call(h.sym("ordering"), &[xs, h.sym_term(h.sym("all")), p]);
+            let picked = if largest {
+                h.call(h.sym("reverse"), &[h.call(h.sym("take"), &[order, h.int(-k)])])
+            } else {
+                h.call(h.sym("take"), &[order, h.int(k)])
+            };
+            return Ok(Reply::Again(h.call(h.sym("part"), &[xs, picked])));
+        }
+    }
     // `excluded_forms: [...]`: elements left out before ordering; by default `none`, `indeterminate` and
     // `missing(...)` (round 17)
     let (args, excluded) = crate::ctx::option(h, args, 2, "excluded_forms");

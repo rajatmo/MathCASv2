@@ -203,7 +203,7 @@ functions! {
     "flatten" => reshape::flatten,
         "flatten(xs), flatten(xs, d): nested terms with the head of xs spliced in (to depth d)";
     "transpose" => reshape::transpose,
-        "transpose(m): rows and columns of a rectangular list of lists exchanged";
+        "transpose(m): rows and columns of a rectangular list of lists exchanged; transpose(a, [p1, ..., pk]): level i of the array a moved to level p_i (a level named twice: the diagonal)";
     "apply" => reshape::apply,
         "apply(f, xs): the head of xs replaced by f; apply(f, x, levels): the heads of the parts at levels (n, [n], [m, n])";
     "sum" => reduce::sum,
@@ -401,7 +401,7 @@ functions! {
     "to_string" => strings::to_string,
         "to_string(t): the printed form of t (a string stays itself)";
     "string_length" => strings::string_length,
-        "string_length(s): the number of characters of s";
+        "string_length(s): the number of characters of s (of each string of a list of strings)";
     "map_apply" => more::map_apply,
         "map_apply(f, xs): each element g(a, b, ...) of xs as f(a, b, ...)";
     "comap" => more::comap,

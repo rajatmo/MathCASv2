@@ -1117,7 +1117,7 @@ pub static DEFS: &[Def] = &[
     def!("matrix_exp", &[1, 2], matrix_exp_e, "matrix_exp(m): the matrix exponential; matrix_exp(m, v) its product with v"),
     def!("matrix_log", &[1], matrix_log_e, "matrix_log(m): the principal matrix logarithm"),
     def!("matrix_power", &[2], matrix_power_e, "matrix_power(m, k): the k-th matrix power (integer k by repeated squaring, negative k through the inverse)"),
-    def!("conjugate_transpose", &[1], conjugate_transpose_e, "conjugate_transpose(m): the conjugate of the transpose of m"),
+    def!("conjugate_transpose", &[1], conjugate_transpose_e, "conjugate_transpose(m), conjugate_transpose(a, perm): the conjugate of the transpose of m (of a with its levels permuted as transpose does)"),
     def!("hilbert_matrix", &[1, 2, 3], hilbert_matrix_e, "hilbert_matrix(n): the n x n Hilbert matrix 1/(i + j - 1); hilbert_matrix([m, n]) rectangular"),
     def!("sparse_array", &[1, 2, 3, 4], sparse_array_e, "sparse_array(rules, dims, default): the array with the values of position -> value rules (literal or pattern positions), built dense; sparse_array(automatic, dims, default, data): the compressed row form"),
     def!("rotation_matrix", &[1, 2, 3], rotation_matrix_e, "rotation_matrix(theta): the 2D rotation by theta; rotation_matrix(theta, w): the 3D rotation about the axis w"),

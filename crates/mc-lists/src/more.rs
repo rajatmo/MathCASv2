@@ -52,20 +52,48 @@ fn rebuild_each<'h>(
     Ok(Some(h.app(head, &out)))
 }
 
+/// `x` rebuilt with its head and each argument replaced by `f(part)` (`heads: true`: the head is a part at level 1);
+/// `None` for an atom or an association (whose head is not a part of its tree).
+fn rebuild_with_head<'h>(
+    lib: &Lib,
+    cx: &mut NativeCx<'_, '_, 'h>,
+    x: T<'h>,
+    mut f: impl FnMut(&mut NativeCx<'_, '_, 'h>, T<'h>) -> T<'h>,
+) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if entries(lib, h, x).is_some() {
+        return Ok(None);
+    }
+    let (head, args) = match cx.as_list(x) {
+        Some(xs) => (h.sym_term(lib.s.list), xs),
+        None => match compound(h, x) {
+            Some(c) => c,
+            None => return Ok(None),
+        },
+    };
+    cx.tick(args.len() as u64 + 1)?;
+    let new_head = f(cx, head);
+    let out: Vec<T<'h>> = args.iter().map(|&a| f(cx, a)).collect();
+    Ok(Some(h.app(new_head, &out)))
+}
+
 /// `map_apply(f, x)`: each element `g(a, b, ...)` of `x` becomes `f(a, b, ...)` (atoms stay); an association's
 /// values likewise.
 pub(crate) fn map_apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    let Some((args, heads)) = crate::ctx::heads_flag(h, args, 2) else { return Ok(Reply::Decline) };
     let [f, x] = *args else { return Ok(Reply::Decline) };
-    let r = rebuild_each(lib, cx, x, |cx, a| match cx.as_list(a) {
+    let each = |cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>| match cx.as_list(a) {
         Some(ys) => h.app(f, ys),
         None => match compound(h, a) {
             Some((_, ys)) => h.app(f, ys),
             None => a,
         },
-    })?;
+    };
+    let r = if heads { rebuild_with_head(lib, cx, x, each)? } else { rebuild_each(lib, cx, x, each)? };
     Ok(match r {
         Some(v) => Reply::Again(v),
+        None if heads => Reply::Decline,
         None => Reply::Done(x),
     })
 }
@@ -74,6 +102,15 @@ pub(crate) fn map_apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
 /// `[f(x), g(x)]`, `comap(f + g, x)` is `f(x) + g(x)`); an association of functions gives an association.
 pub(crate) fn comap<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // heads: true: the head of fs is a part at level 1 too (comap(h(a), x, heads: true) is h(x)(a(x)))
+    let Some((args, heads)) = crate::ctx::heads_flag(h, args, 2) else { return Ok(Reply::Decline) };
+    if heads {
+        let [fs, x] = *args else { return Ok(Reply::Decline) };
+        return Ok(match rebuild_with_head(lib, cx, fs, |_, g| h.app(g, &[x]))? {
+            Some(v) => Reply::Again(v),
+            None => Reply::Decline,
+        });
+    }
     // comap(fs, x, levels): every part g of fs at the levels becomes g(x)
     if let [fs, x, spec] = *args {
         let Some(levels) = crate::levels::level_spec(h, spec) else { return Ok(Reply::Decline) };
@@ -93,31 +130,40 @@ pub(crate) fn comap<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, arg
 /// `comap_apply(fs, xs)`: each element `g` of `fs` becomes `g(a, b, ...)` with the arguments of `xs`.
 pub(crate) fn comap_apply<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    let Some((args, heads)) = crate::ctx::heads_flag(h, args, 2) else { return Ok(Reply::Decline) };
     let [fs, xs] = *args else { return Ok(Reply::Decline) };
     let Some(ys) = elements(lib, cx, xs) else { return Ok(Reply::Decline) };
-    Ok(match rebuild_each(lib, cx, fs, |_, g| h.app(g, &ys))? {
+    let r = if heads {
+        rebuild_with_head(lib, cx, fs, |_, g| h.app(g, &ys))?
+    } else {
+        rebuild_each(lib, cx, fs, |_, g| h.app(g, &ys))?
+    };
+    Ok(match r {
         Some(v) => Reply::Again(v),
         None => Reply::Decline,
     })
 }
 
-/// `map_all(f, x)`: `f` applied to every part of `x`, innermost first (atoms included, heads not).
+/// `map_all(f, x)`: `f` applied to every part of `x`, innermost first (atoms included; heads too with
+/// `heads: true`).
 pub(crate) fn map_all<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+    let Some((args, heads)) = crate::ctx::heads_flag(cx.heap(), args, 2) else { return Ok(Reply::Decline) };
     let [f, x] = *args else { return Ok(Reply::Decline) };
     let mut m = Meter::default();
-    let v = map_all_in(cx, &mut m, f, x, 0)?;
+    let v = map_all_in(cx, &mut m, f, x, 0, heads)?;
     Ok(Reply::Again(v))
 }
 
-fn map_all_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, m: &mut Meter, f: T<'h>, x: T<'h>, depth: usize) -> Res<T<'h>> {
+fn map_all_in<'h>(cx: &mut NativeCx<'_, '_, 'h>, m: &mut Meter, f: T<'h>, x: T<'h>, depth: usize, heads: bool) -> Res<T<'h>> {
     let h = cx.heap();
     m.step(cx)?;
     let inner = match compound(h, x) {
         Some((head, args)) if depth < 10_000 => {
             let mut out = Vec::with_capacity(args.len());
             for &a in args {
-                out.push(map_all_in(cx, m, f, a, depth + 1)?);
+                out.push(map_all_in(cx, m, f, a, depth + 1, heads)?);
             }
+            let head = if heads { map_all_in(cx, m, f, head, depth + 1, heads)? } else { head };
             h.app(head, &out)
         }
         _ => x,
@@ -896,6 +942,47 @@ pub(crate) fn position_smallest<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t:
 
 fn position_extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], largest: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // position_largest(xs, n, p): ordered by the ordering function p (as `ordering(xs, all, p)` orders), the n
+    // extreme groups of elements p does not separate
+    if let [xs, n, p] = *args {
+        let View::Int(n @ 0..) = h.view(n) else { return Ok(Reply::Decline) };
+        let Some(items) = cx.as_list(xs).map(|v| v.to_vec()) else { return Ok(Reply::Decline) };
+        let order = cx.eval(h.call(h.sym("ordering"), &[xs, h.sym_term(h.sym("all")), p]))?;
+        let Some(mut ix) = cx.as_list(order).and_then(|o| {
+            o.iter().map(|&k| match h.view(k) { View::Int(k) if k >= 1 && k as usize <= items.len() => Some(k as usize - 1), _ => None }).collect::<Option<Vec<usize>>>()
+        }) else {
+            return Ok(Reply::Decline);
+        };
+        if largest {
+            ix.reverse();
+        }
+        let (zero, falsity) = (h.int(0), cx.bool(false));
+        let mut groups: Vec<Vec<T<'h>>> = vec![];
+        let mut prev: Option<usize> = None;
+        for i in ix {
+            cx.tick(1)?;
+            let same = match prev {
+                None => false,
+                Some(j) => {
+                    let a = cx.eval(h.app(p, &[items[j], items[i]]))?;
+                    let b = cx.eval(h.app(p, &[items[i], items[j]]))?;
+                    a == zero || (a == falsity && b == falsity)
+                }
+            };
+            if !same {
+                if groups.len() as i64 == n {
+                    break;
+                }
+                groups.push(vec![]);
+            }
+            prev = Some(i);
+            if let Some(g) = groups.last_mut() {
+                g.push(h.int(i as i64 + 1));
+            }
+        }
+        let out: Vec<T<'h>> = groups.iter().map(|g| cx.list(g)).collect();
+        return Ok(Reply::Done(cx.list(&out)));
+    }
     let (xs, n) = match *args {
         [xs] => (xs, None),
         [xs, n] => match h.view(n) {

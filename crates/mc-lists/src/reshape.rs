@@ -239,6 +239,9 @@ pub(crate) fn flatten<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 /// `failure(shape_mismatch, transpose)`.
 pub(crate) fn transpose<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    if let [m, perm] = *args {
+        return transpose_levels(lib, cx, t, m, perm);
+    }
     let [m] = *args else {
         return Ok(Reply::Decline);
     };
@@ -279,6 +282,76 @@ pub(crate) fn transpose<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
         out.push(cx.list(&col));
     }
     Ok(Reply::Done(cx.list(&out)))
+}
+
+/// `transpose(a, [p1, ..., pk])`: level i of the full array `a` becomes level p_i of the result, so the part at
+/// [j_1, ..., j_m] of the result is the part of `a` at [j_p1, ..., j_pk] (levels below k unchanged). The p_i are
+/// 1..m, each at least once; a level named twice runs along a diagonal (`transpose(m, [1, 1])` is the diagonal),
+/// of the smaller length.
+fn transpose_levels<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a: T<'h>, perm: T<'h>) -> Res<Reply<'h>> {
+    let h = cx.heap();
+    let Some(ps) = cx.as_list(perm) else { return Ok(Reply::Decline) };
+    let mut p = Vec::with_capacity(ps.len());
+    for &x in ps {
+        match h.view(x) {
+            View::Int(k) if k >= 1 && (k as usize) <= ps.len() => p.push(k as usize - 1),
+            _ => return Ok(Reply::Decline),
+        }
+    }
+    let m = p.iter().copied().max().map_or(0, |x| x + 1);
+    if p.is_empty() || (0..m).any(|l| !p.contains(&l)) {
+        return Ok(Reply::Decline);
+    }
+    // a packed array is taken as its nested lists
+    let a = if h.packed(a).is_some() { cx.eval(h.call(h.sym("normal"), &[a]))? } else { a };
+    if cx.as_list(a).is_none() {
+        return Ok(Reply::Decline);
+    }
+    let dims = crate::structure::list_dims(cx, a)?;
+    if dims.len() < p.len() {
+        return Ok(Reply::Done(lib.bad_arg(h, t, 2)));
+    }
+    // the length of each result level: the smallest of the levels sent to it
+    let mut out_dims = vec![usize::MAX; m];
+    for (l, &q) in p.iter().enumerate() {
+        out_dims[q] = out_dims[q].min(dims[l]);
+    }
+    let total: usize = out_dims.iter().try_fold(1usize, |acc, &d| acc.checked_mul(d)).unwrap_or(usize::MAX);
+    if total > MAX_LEN {
+        return Ok(Reply::Done(lib.too_large(h, t)));
+    }
+    charge_copy(cx, total)?;
+    let mut idx = vec![0usize; m];
+    let v = transpose_build(cx, a, &p, &out_dims, &mut idx, 0)?;
+    Ok(Reply::Done(v))
+}
+
+fn transpose_build<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    a: T<'h>,
+    p: &[usize],
+    out_dims: &[usize],
+    idx: &mut Vec<usize>,
+    level: usize,
+) -> Res<T<'h>> {
+    if level == out_dims.len() {
+        // the part of a at [j_p1, ..., j_pk]
+        let mut u = a;
+        for &q in p {
+            match cx.as_list(u) {
+                Some(items) => u = items[idx[q]],
+                None => return Ok(u),
+            }
+        }
+        return Ok(u);
+    }
+    let mut items = Vec::with_capacity(out_dims[level]);
+    for j in 0..out_dims[level] {
+        cx.tick(1)?;
+        idx[level] = j;
+        items.push(transpose_build(cx, a, p, out_dims, idx, level + 1)?);
+    }
+    Ok(cx.list(&items))
 }
 
 /// `apply(f, xs)`: the head of `xs` replaced by `f` (semantics 1: the explicit form of variadic calls).

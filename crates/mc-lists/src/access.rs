@@ -379,10 +379,15 @@ fn selected<'h>(h: &'h Heap, spec: T<'h>, len: usize) -> Result<Option<Vec<usize
                 [i] => Ok(Some(vec![at(i)?])),
                 [i, j] | [i, j, _] => {
                     let step = v.get(2).copied().unwrap_or(1);
-                    if step < 1 {
+                    if step == 0 {
                         return Ok(None);
                     }
                     let (a, b) = (at(i)?, at(j)?);
+                    // a negative step runs from i down to j
+                    if step < 0 {
+                        let s = step.unsigned_abs() as usize;
+                        return Ok(Some(if a < b { vec![] } else { (b..=a).rev().step_by(s).collect() }));
+                    }
                     Ok(Some(if a > b { vec![] } else { (a..=b).step_by(step as usize).collect() }))
                 }
                 _ => Ok(None),

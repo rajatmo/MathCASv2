@@ -135,7 +135,11 @@ pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
                 [n] => match h.view(*n) {
                     View::Int(n @ 0..) => n as usize,
                     View::Sym(s) if h.sym_name(s) == "inf" => usize::MAX,
-                    _ => return Ok(Reply::Decline),
+                    // up_to(k): at most k, which the count is already
+                    _ => match crate::ctx::up_to_arg(h, *n).map(|k| h.view(k)) {
+                        Some(View::Int(k @ 0..)) => k as usize,
+                        _ => return Ok(Reply::Decline),
+                    },
                 },
                 _ => return Ok(Reply::Decline),
             };
@@ -162,7 +166,11 @@ pub(crate) fn cases<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             [n] => match h.view(*n) {
                 View::Int(n @ 0..) => n as usize,
                 View::Sym(s) if h.sym_name(s) == "inf" => usize::MAX,
-                _ => return Ok(Reply::Decline),
+                // up_to(k): at most k, which the count is already
+                _ => match crate::ctx::up_to_arg(h, *n).map(|k| h.view(k)) {
+                    Some(View::Int(k @ 0..)) => k as usize,
+                    _ => return Ok(Reply::Decline),
+                },
             },
             _ => return Ok(Reply::Decline),
         };

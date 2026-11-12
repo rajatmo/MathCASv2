@@ -552,3 +552,21 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   within 10^-a is the zero ball with that radius, so `n(sqrt(2) + sqrt(3) - sqrt(5 + 2 sqrt(6)), [inf, 100])` is
   0 to 100 digits after the point. The doubling of the working precision and its cap are those of `n(e, d)` (L.7);
   complex results need the goal on both parts. Tests: `mc-engine/tests/r37_f37_general.rs`.
+
+## Round 38: values at infinity
+
+- At `complex_infinity` (a point at infinity in no direction) exp, sin, cos, tan, their hyperbolic forms, atan and
+  expm1 have no limit: `indeterminate` (exp tends to 0 along -inf and to inf along inf; the circular functions
+  oscillate along the real axis). The reciprocal functions and `sinc` follow. `abs` is inf; `re`, `im_part`, `sign`
+  are indeterminate; `conjugate` keeps the point; `arg` may be any angle: `interval([-pi, pi])`.
+- At a real infinity sin and cos have no limit; their values accumulate on [-1, 1], given as `interval([-1, 1])`
+  (tan: the real line; `fractional_part`: [0, 1] at inf, [-1, 0] at -inf). `exp(i inf)` runs round the unit circle:
+  indeterminate. An interval argument at least one period long, or unbounded, gives sin and cos the range [-1, 1]
+  and tan the real line (`uncertain::periodic_cover`); shorter ones go to the sampler as before.
+- `conjugate(c y) = conj(c) conjugate(y)` and `sign(c y) = (c/|c|) sign(y)` for a number c (both are
+  multiplicative), so `conjugate(-z)` is `-conjugate(z)`.
+- Left: limits in non-real directions (`direction: im`, `complexes`). The series of `sign`, `abs` and `arg` use the
+  real-variable derivative (sign' = 0), so a limit along i t would give wrong values for exactly these functions:
+  `series(sign(1 - i t), t, 0, 2)` is `1 + O(t^3)`, while for real t the value is 1 - i t + ... . Complex
+  centered intervals of the elementary functions are left too (no tight box enclosure for them yet).
+  Tests: `mc-engine/tests/round38_infinity.rs`.

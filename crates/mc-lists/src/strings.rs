@@ -86,6 +86,16 @@ pub(crate) fn string_length<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'
     let [s] = *args else {
         return Ok(Reply::Decline);
     };
+    // a list of strings: the length of each (a list with other elements stays as it is)
+    if let Some(items) = cx.as_list(s) {
+        let mut out = Vec::with_capacity(items.len());
+        for &x in items {
+            let View::Str(x) = h.view(x) else { return Ok(Reply::Decline) };
+            charge_copy(cx, x.len())?;
+            out.push(h.int(x.chars().count() as i64));
+        }
+        return Ok(Reply::Done(cx.list(&out)));
+    }
     let s = take!(string(lib, h, t, s, 1));
     charge_copy(cx, s.len())?;
     Ok(Reply::Done(h.int(s.chars().count() as i64)))

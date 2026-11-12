@@ -912,3 +912,9 @@ rule derivative(1, 0)(unit_triangle)(x_, y_) := -sign(x)*unit_box(x/2)*unit_tria
 rule derivative(0, 1)(unit_triangle)(x_, y_) := -sign(y)*unit_box(y/2)*unit_triangle(x)
 
 # (the area of the intersection of two disks, the lens, is computed by the mc-geom natives: lens_area)
+
+# integer_exponent(0, b): every power of b divides 0
+rule integer_exponent(0) := inf
+rule integer_exponent(0, b_) := inf when is_integer(b) and b > 1
+# log(b, x): the logarithm of x to the base b, as log_base(b, x)
+rule log(b_, x_) := log_base(b, x)

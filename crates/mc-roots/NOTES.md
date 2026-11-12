@@ -200,3 +200,11 @@ are accepted but not called.
   the real numbers Re x_i + sqrt(2) Im x_i (every relation of both parts is one of these); a relation is reported only
   when `holds` confirms it for the real parts and for the imaginary parts separately, otherwise `not_found`. The
   precision of a complex input is that of its parts. (Used for the Weierstrass eta values: eta1 + eta2 + eta3 = 0.)
+
+## Round 38: vector constraints
+
+- `prepare_constraints`: a constraint named by a symbol is its value; nested lists of constraints are flattened;
+  `inactive(g)` heads become `g` (the held arguments are substituted before evaluation, so a vector term plus a list
+  cannot thread too early); an equation `a == c` with a symbol a that is not a variable and a numeric c (number,
+  vector, matrix) fixes a everywhere (two different values: an argument failure). `[x, element(y, integers)]` is two
+  variables, not x with a start. Tests: `mc-engine/tests/round38_vectors.rs`.

@@ -120,12 +120,20 @@ fn leaves(h: &Heap, t: T<'_>) -> u128 {
 /// `depth(t)`: 1 for an atom, one more than the deepest argument for a compound term (heads not counted).
 pub(crate) fn depth<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // `heads: true`: a head counts as a part one level down (h(a)(x) is one deeper than h(x))
+    let (args, heads) = crate::ctx::option(h, args, 1, "heads");
+    let with_head = match heads.map(|v| h.view(v)) {
+        None => false,
+        Some(View::Sym(s)) if h.sym_name(s) == "true" => true,
+        Some(View::Sym(s)) if h.sym_name(s) == "false" => false,
+        Some(_) => return Ok(Reply::Decline),
+    };
     let [x] = *args else {
         return Ok(Reply::Decline);
     };
     // a compound term without arguments is one level, like an atom
     let f = Fold {
-        with_head: false,
+        with_head,
         atom: |_, _| 1,
         start: 0,
         combine: |a, b| Some(a.max(b)),

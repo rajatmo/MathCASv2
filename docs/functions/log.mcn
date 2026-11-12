@@ -25,7 +25,7 @@
 # `log` is listable: it applies to each element of a list.
 
 #% item
-# For a logarithm to another base, use `log_base`.
+# For a logarithm to another base, use `log_base(b, x)` or `log(b, x)`, which is the same.
 
 #% section
 # Examples
@@ -50,6 +50,19 @@ log(e^3)
 log(2.0)
 #% output
 #= 0.6931471805599453
+
+#% text
+# The logarithm to base 10 and to base 2:
+
+#% cell
+log(10.0, 5.0)
+#% output
+#= 0.6989700043360186
+
+#% cell
+log(2, 8)
+#% output
+#= 3
 
 #% text
 # The logarithm of -1:

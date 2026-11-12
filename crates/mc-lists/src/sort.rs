@@ -7,7 +7,7 @@
 //! structure are compared directly (`Canonical`: the same answer, without building number values). Both sorts are
 //! one stable merge sort that only asks "must `b` come before `a`?", so an inconsistent predicate gives some
 //! permutation, never a panic, and every comparison charges fuel and polls the interrupt.
-use crate::ctx::{apply, keys, take, Lib, Meter};
+use crate::ctx::{apply, keys, take, up_to_arg, Lib, Meter};
 use mc_arith::Order;
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Abort, NativeCx, Reply, Res};
@@ -410,7 +410,25 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         _ => return Ok(Reply::Decline),
     };
     let (_, xs) = take!(lib.operand(h, t, xs, 1));
+    // up_to(k): at most k positions; [m, k]: the positions m to k of the ordering (negative counts from the end)
+    let len = xs.len() as i64;
+    let mut span: Option<(i64, i64)> = None;
     let n = match n {
+        Some(n) if up_to_arg(h, n).is_some() => match up_to_arg(h, n).map(|k| h.view(k)) {
+            Some(View::Int(k)) if k >= 0 => Some(k.min(len)),
+            _ => return Ok(Reply::Decline),
+        },
+        Some(n) if cx.as_list(n).is_some() => {
+            let Some(&[a, b]) = cx.as_list(n) else { return Ok(Reply::Decline) };
+            let (View::Int(a), View::Int(b)) = (h.view(a), h.view(b)) else { return Ok(Reply::Decline) };
+            let at = |k: i64| if k < 0 { len + 1 + k } else { k };
+            let (a, b) = (at(a), at(b));
+            if !(1..=len).contains(&a) || !(0..=len).contains(&b) || b + 1 < a {
+                return Ok(Reply::Decline);
+            }
+            span = Some((a - 1, b));
+            None
+        }
         Some(n) => Some(take!(lib.int_operand(h, t, n, 2))),
         None => None,
     };
@@ -426,6 +444,7 @@ pub(crate) fn ordering<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     };
     let len = ix.len() as i64;
     let (lo, hi) = match n {
+        None if span.is_some() => span.map(|(a, b)| (a as usize, b as usize)).expect("a span"),
         None => (0, ix.len()),
         Some(n) if (0..=len).contains(&n) => (0, n as usize),
         Some(n) if (-len..0).contains(&n) => ((len + n) as usize, ix.len()),

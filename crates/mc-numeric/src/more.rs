@@ -392,8 +392,15 @@ fn fractional_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if let Some(v) = fx.machine_of(x) {
         return Ok(Some(fx.real(v - v.trunc())));
     }
-    if fx.infinity(x).is_some() {
-        return Ok(None);
+    // x - trunc(x) has no limit at a real infinity: its values accumulate on [0, 1] as x -> inf and on [-1, 0] as
+    // x -> -inf (the interval of the limit points, as for sin(inf))
+    match fx.infinity(x) {
+        Some(d @ (0 | 2)) => {
+            let (lo, hi) = if d == 0 { (0, 1) } else { (-1, 0) };
+            return Ok(Some(fx.call("interval", &[fx.list(&[fx.int(lo), fx.int(hi)])])));
+        }
+        Some(_) => return Ok(None),
+        None => {}
     }
     let ip = integer_part_e(fx, a)?;
     Ok(ip.map(|ip| fx.sub(x, ip)))

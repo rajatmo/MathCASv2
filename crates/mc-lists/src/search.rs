@@ -92,7 +92,15 @@ pub(crate) fn free_of<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, ar
 /// `member_of(xs, p)`: does some element of `xs` match the pattern `p` (an element itself, by identity)?
 pub(crate) fn member_of<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    // member_of(x, p, levels): whether a part of x at the levels matches p (P9B.8)
+    // member_of(x, p, levels): whether a part of x at the levels matches p (P9B.8); heads: true counts the heads
+    // as parts as `count` does
+    if let [x, p, levels, opts] = *args {
+        if crate::ctx::heads_flag(h, args, 3).is_none_or(|(rest, _)| rest.len() == args.len()) {
+            return Ok(Reply::Decline);
+        }
+        let count = h.call(h.sym("count"), &[x, p, levels, opts]);
+        return Ok(Reply::Again(h.call(h.sym("greater"), &[count, h.int(0)])));
+    }
     if let [x, p, levels] = *args {
         let count = h.call(h.sym("count"), &[x, p, levels]);
         return Ok(Reply::Again(h.call(h.sym("greater"), &[count, h.int(0)])));

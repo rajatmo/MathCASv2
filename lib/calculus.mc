@@ -3043,3 +3043,39 @@ fn calc_is_weierstrass(f, n) = {
     free_of(z, n) and simplify(f/efs[1] - 1 - w) === 0
   }
 }
+
+# --- vector calculus in orthogonal coordinates: grad, div, curl, laplacian with a coordinate system ---
+# grad(f, q, sys), div(v, q, sys), curl(v, q, sys), laplacian(f, q, sys) for sys "Cartesian", "Polar" (r, t),
+# "Cylindrical" (r, t, z) and "Spherical" (r, t, p: t the angle from the z axis, p the azimuth), from the scale
+# factors h_i of the coordinates (Morse and Feshbach, Methods of Theoretical Physics, 1953, section 1.4): the
+# gradient (1/h_i) df/dq_i; the divergence (1/H) sum d(H v_i/h_i)/dq_i with H = h_1 h_2 h_3; the curl
+# (1/(h_j h_k)) (d(h_k v_k)/dq_j - d(h_j v_j)/dq_k) for (i, j, k) cyclic (in the plane the scalar
+# (1/(h_1 h_2)) (d(h_2 v_2)/dq_1 - d(h_1 v_1)/dq_2)); the Laplacian (1/H) sum d((H/h_i^2) df/dq_i)/dq_i
+fn vc_scale(sys, q) =
+  if not (is_string(sys) and is_list(q)) then null
+  else if sys == "Cartesian" then constant_array(1, length(q))
+  else if sys == "Polar" and length(q) == 2 then [1, q[1]]
+  else if sys == "Cylindrical" and length(q) == 3 then [1, q[1], 1]
+  else if sys == "Spherical" and length(q) == 3 then [1, q[1], q[1]*sin(q[2])]
+  else null
+fn vc_ok(sys, q) = not (vc_scale(sys, q) === null) and every(q, x => is_symbol(x))
+rule grad(f_, q_, sys_) := { let hs = vc_scale(sys, q); map(i => simplify(d(f, q[i])/hs[i]), range(length(q))) } when vc_ok(sys, q) and not is_list(f)
+rule div(v_, q_, sys_) := {
+  let hs = vc_scale(sys, q)
+  let big = apply(mul, hs)
+  simplify(total(map(i => d(big*v[i]/hs[i], q[i]), range(length(q))))/big)
+} when vc_ok(sys, q) and is_list(v) and length(v) == length(q)
+rule curl(v_, q_, sys_) := {
+  let hs = vc_scale(sys, q)
+  if length(q) == 2 then simplify((d(hs[2]*v[2], q[1]) - d(hs[1]*v[1], q[2]))/(hs[1]*hs[2]))
+  else map(i => {
+    let j = mod(i, 3) + 1
+    let k = mod(i + 1, 3) + 1
+    simplify((d(hs[k]*v[k], q[j]) - d(hs[j]*v[j], q[k]))/(hs[j]*hs[k]))
+  }, range(3))
+} when vc_ok(sys, q) and is_list(v) and length(v) == length(q) and (length(q) == 2 or length(q) == 3)
+rule laplacian(f_, q_, sys_) := {
+  let hs = vc_scale(sys, q)
+  let big = apply(mul, hs)
+  simplify(total(map(i => d(big/hs[i]^2*d(f, q[i]), q[i]), range(length(q))))/big)
+} when vc_ok(sys, q) and not is_list(f)

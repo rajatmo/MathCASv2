@@ -742,7 +742,9 @@ fn variables<'h>(
     let ok = match (h.view(s), cx.as_list(s)) {
         (_, Some(items)) if !items.is_empty() => {
             // [x, x0] alone is one variable with a start; [x, y] two variables
-            let single = matches!(items, [x, a] if matches!(h.view(*x), View::Sym(_)) && !matches!(h.view(*a), View::Sym(_)) && cx.as_list(*a).is_none())
+            // ([x, element(y, integers)] is two variables)
+            let is_element = |a: T<'h>| matches!(h.view(a), View::App { head, .. } if head == hd.element);
+            let single = matches!(items, [x, a] if matches!(h.view(*x), View::Sym(_)) && !matches!(h.view(*a), View::Sym(_)) && cx.as_list(*a).is_none() && !is_element(*a))
                 || matches!(items, [x, _, _] | [x, _, _, _] if matches!(h.view(*x), View::Sym(_)) && items[1..].iter().all(|&e| !matches!(h.view(e), View::Sym(_)) && cx.as_list(e).is_none()));
             if single {
                 item(cx, s, &mut vars, &mut extra)?
@@ -758,6 +760,74 @@ fn variables<'h>(
     };
     let distinct: HashSet<Sym> = vars.iter().map(|v| v.sym).collect();
     Ok((ok && !vars.is_empty() && distinct.len() == vars.len()).then_some((vars, extra)))
+}
+
+/// The constraints as plain conditions: a constraint named by a symbol is its value, nested lists of constraints
+/// are flattened, an inactive head `inactive(g)` is `g` (the held arguments are substituted before they are
+/// evaluated, so the sum of a vector term and a list cannot thread too early), and an equation `a == c` for a
+/// symbol `a` that is not a variable and a numeric value `c` (a number, vector or matrix) fixes `a`: `a` is
+/// replaced by `c` everywhere. `None` when a parameter is given two different values.
+fn prepare_constraints<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    obj: T<'h>,
+    cons: Vec<T<'h>>,
+    vars: &[VarSpec],
+) -> Res<Option<(T<'h>, Vec<T<'h>>)>> {
+    let h = cx.heap();
+    let inactive = h.sym_term(h.sym("inactive"));
+    let activate = |t: T<'h>| {
+        mc_numfn::replace(h, t, &mut |u| match h.view(u) {
+            View::App { head, args: &[g] } if head == inactive && matches!(h.view(g), View::Sym(_)) => Some(g),
+            _ => None,
+        })
+    };
+    let mut flat = Vec::new();
+    let mut todo: Vec<T<'h>> = cons.into_iter().rev().collect();
+    while let Some(c) = todo.pop() {
+        cx.tick(1)?;
+        let c = match h.view(c) {
+            View::Sym(_) => cx.eval(c)?,
+            _ => c,
+        };
+        match cx.as_list(c) {
+            Some(items) => todo.extend(items.iter().rev().copied()),
+            None => flat.push(activate(c)),
+        }
+    }
+    let equal = h.sym_term(h.sym("equal"));
+    let is_var = |s: Sym| vars.iter().any(|v| v.sym == s);
+    // a number, or a (nested) list of numbers
+    let numeric = |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<bool> {
+        let items = cx.eval(h.call(h.sym("flatten"), &[cx.list(&[t])]))?;
+        let ar = Arith::new(h);
+        Ok(cx.as_list(items).is_some_and(|xs| !xs.is_empty() && xs.iter().all(|&x| ar.num(x).is_some())))
+    };
+    let mut params: Vec<(T<'h>, T<'h>)> = Vec::new();
+    let mut rest = Vec::new();
+    for c in flat {
+        if let View::App { head, args: &[a, b] } = h.view(c) {
+            if head == equal && matches!(h.view(a), View::Sym(s) if !is_var(s)) {
+                let b = cx.eval(b)?;
+                if numeric(cx, b)? {
+                    match params.iter().find(|(p, _)| *p == a) {
+                        Some(&(_, w)) if w != b => return Ok(None),
+                        Some(_) => {}
+                        None => params.push((a, b)),
+                    }
+                    continue;
+                }
+            }
+        }
+        rest.push(c);
+    }
+    let fix = |t: T<'h>| {
+        if params.is_empty() {
+            return t;
+        }
+        mc_numfn::replace(h, t, &mut |u| params.iter().find(|(p, _)| *p == u).map(|&(_, v)| v))
+    };
+    let obj = fix(activate(obj));
+    Ok(Some((obj, rest.into_iter().map(fix).collect())))
 }
 
 /// The heads that show a variable is a vector.
@@ -792,6 +862,10 @@ fn solve<'h>(
     };
     let Some((mut vars, extra)) = variables(cx, ar, s, &hd)? else { return Ok(bad(h.int(2))) };
     cons.extend(extra);
+    let (obj, cons) = match prepare_constraints(cx, obj, cons, &vars)? {
+        Some(v) => v,
+        None => return Ok(bad(h.int(1))),
+    };
     // vector variables: a length given by vectors(n, ...) or found by trying
     let vsyms: Vec<Sym> = VECTOR_HEADS.iter().map(|n| h.sym(n)).collect();
     // after the substitution these must be gone (the vector comparisons stay as constraints)

@@ -429,13 +429,32 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
     /// The limits of the elementary functions at the directed infinities where they exist.
     fn at_infinity(&self, f: Fun, x: T<'h>) -> Option<T<'h>> {
         // |log z| -> inf as |z| -> inf in any direction, so log(complex_infinity) is inf (the real part dominates)
-        if f == Fun::Log && x == self.st.sym_term(self.st.sym("complex_infinity")) {
-            return Some(self.inf());
+        if x == self.st.sym_term(self.st.sym("complex_infinity")) {
+            return match f {
+                Fun::Log => Some(self.inf()),
+                // no limit as |z| -> inf: exp tends to 0 along -inf and to inf along inf; sin, cos, tan and their
+                // hyperbolic forms oscillate along one axis and grow (or tend to +-i) along the other; atan tends to
+                // pi/2 in the right half plane and to -pi/2 in the left
+                Fun::Exp | Fun::Sin | Fun::Cos | Fun::Tan | Fun::Sinh | Fun::Cosh | Fun::Tanh | Fun::Atan | Fun::Expm1 => {
+                    Some(self.st.sym_term(self.st.sym("indeterminate")))
+                }
+                _ => None,
+            };
         }
         let d = self.infinity_direction(x)?;
         let inf = self.inf();
         let half_pi = self.times_pi(&q(1, 2));
+        // a periodic function at a real infinity has no limit: its values accumulate on its whole range, given as
+        // the interval of the limit points ([-1, 1] for sin and cos, the real line for tan); on the imaginary axis
+        // exp(i y) runs round the unit circle, which is no interval
+        let interval = |lo: T<'h>, hi: T<'h>| {
+            let list = self.st.call(self.st.sym(mc_api::names::LIST), &[lo, hi]);
+            self.st.call(self.st.sym("interval"), &[list])
+        };
         Some(match (f, d) {
+            (Fun::Sin | Fun::Cos, 0 | 2) => interval(self.st.int(-1), self.st.int(1)),
+            (Fun::Tan, 0 | 2) => interval(self.ar.neg(inf), inf),
+            (Fun::Exp | Fun::Expm1, 1 | -1) => self.st.sym_term(self.st.sym("indeterminate")),
             (Fun::Exp, 0) | (Fun::Log, _) | (Fun::Sqrt, 0) | (Fun::Log1p, 0) | (Fun::Expm1, 0) => inf,
             (Fun::Exp, 2) => self.st.int(0),
             (Fun::Atan, 0) => half_pi,

@@ -237,3 +237,11 @@ Operator forms added: `merge` (data first), `linear_solve`, `nearest` (data last
 ## Round 37
 
 - `equal()` and `unequal()` with no arguments are true (vacuously, as with one argument).
+
+## Round 38: vector calculus in orthogonal coordinates, logarithms to a base
+
+- `grad`, `div`, `curl`, `laplacian` with a third argument "Cartesian", "Polar" (r, t), "Cylindrical" (r, t, z) or
+  "Spherical" (r, t, p; t from the z axis) are library rules (`lib/calculus.mc`) from the scale factors (Morse and
+  Feshbach, Methods of Theoretical Physics, 1953, section 1.4); results simplified. Other systems stay unevaluated.
+- `log(b, x)` is `log_base(b, x)` (a rule, so other two-argument calls are left as they are); before, two machine
+  arguments stayed unevaluated. Tests: `tests/round38_vectors.rs`, `tests/round38_lists.rs`.

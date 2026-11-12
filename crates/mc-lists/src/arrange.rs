@@ -445,6 +445,23 @@ pub(crate) fn rotate_right<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
 /// Padding of `pad_left` (`left`) and `pad_right` to length `n` with the optional element (default 0).
 fn pad<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], left: bool) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // pad_left(xs, n, x, m): n long with a margin of m copies of x at the other end (pad_right: at the start), xs
+    // padded or cut to the n - m places left (a padding element that is not a list; one length)
+    if let [xs, n, x, m] = *args {
+        let (View::Int(n), View::Int(m)) = (h.view(n), h.view(m)) else { return Ok(Reply::Decline) };
+        if n < 0 || m < 0 || m > n || cx.as_list(x).is_some() || cx.as_list(xs).is_none() {
+            return Ok(Reply::Decline);
+        }
+        cx.tick(n as u64)?;
+        let body = match pad(lib, cx, t, &[xs, h.int(n - m), x], left)? {
+            Reply::Done(v) | Reply::Again(v) => v,
+            _ => return Ok(Reply::Decline),
+        };
+        let Some(items) = cx.as_list(body).map(|b| b.to_vec()) else { return Ok(Reply::Decline) };
+        let margin = vec![x; m as usize];
+        let out = if left { [items, margin].concat() } else { [margin, items].concat() };
+        return Ok(Reply::Done(cx.list(&out)));
+    }
     let (xs, n, x) = match *args {
         [xs] => (xs, None, h.int(0)),
         [xs, n] => (xs, Some(n), h.int(0)),

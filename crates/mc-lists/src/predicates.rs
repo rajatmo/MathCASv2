@@ -193,6 +193,53 @@ enum Quantifier {
 /// The test of every element in order, stopping as soon as the answer is known; a failure is the result (decision
 /// I.11). Values neither `true` nor `false` are kept: when nothing decides, the result is the conjunction (`all_true`,
 /// `none_true` of the negations) or disjunction (`any_true`) of them (decision p6core.4).
+/// The distinct values of `sparse_array(rules, dims[, background])`: the values of the rules and the background
+/// (0 by default) when the rules give fewer positions than the array has; `None` for any other term.
+fn sparse_elements<'h>(cx: &NativeCx<'_, '_, 'h>, x: T<'h>) -> Option<Vec<T<'h>>> {
+    let h = cx.heap();
+    let View::App { head, args } = h.view(x) else { return None };
+    if !matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "sparse_array") {
+        return None;
+    }
+    let (rules, dims, background) = match *args {
+        [r, d] => (r, d, h.int(0)),
+        [r, d, b] => (r, d, b),
+        _ => return None,
+    };
+    let dims: Vec<u128> = match h.view(dims) {
+        View::Int(n) if n >= 0 => vec![n as u128],
+        _ => cx.as_list(dims)?.iter().map(|&d| match h.view(d) { View::Int(n) if n >= 0 => Some(n as u128), _ => None }).collect::<Option<_>>()?,
+    };
+    let cells = dims.iter().try_fold(1u128, |a, &d| a.checked_mul(d))?;
+    let rules: Vec<T<'h>> = match cx.as_list(rules) {
+        Some(rs) => rs.to_vec(),
+        None => vec![rules],
+    };
+    let rule = h.sym_term(h.sym("rule"));
+    let mut positions = std::collections::HashSet::new();
+    let mut values = Vec::with_capacity(rules.len() + 1);
+    for r in rules {
+        let View::App { head, args: &[p, v] } = h.view(r) else { return None };
+        if head != rule {
+            return None;
+        }
+        // an explicit position: an integer (a vector) or a list of integers inside the dimensions
+        let idx: Vec<i64> = match h.view(p) {
+            View::Int(i) => vec![i],
+            _ => cx.as_list(p)?.iter().map(|&i| match h.view(i) { View::Int(i) => Some(i), _ => None }).collect::<Option<_>>()?,
+        };
+        if idx.len() != dims.len() || idx.iter().zip(&dims).any(|(&i, &d)| i < 1 || i as u128 > d) {
+            return None;
+        }
+        positions.insert(idx);
+        values.push(v);
+    }
+    if (positions.len() as u128) < cells {
+        values.push(background);
+    }
+    Some(values)
+}
+
 fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>], q: Quantifier) -> Res<Reply<'h>> {
     let h = cx.heap();
     let (xs, f, depth) = match *args {
@@ -206,7 +253,13 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
         _ => return Ok(Reply::Decline),
     };
     let parts: Vec<T<'h>>;
+    let sparse: Vec<T<'h>>;
     let xs: &[T<'h>] = match depth {
+        // a sparse array: its explicit values, and its background when some position is not given
+        None if sparse_elements(cx, xs).is_some() => {
+            sparse = sparse_elements(cx, xs).expect("checked");
+            &sparse
+        }
         Some(n) => {
             parts = parts_to_level(cx, xs, n)?;
             &parts
