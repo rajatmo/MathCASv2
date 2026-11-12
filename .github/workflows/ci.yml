@@ -17,6 +17,8 @@ env:
   CARGO_TERM_COLOR: always
   # line tables only in CI: smaller target folders, faster links
   CARGO_PROFILE_RELEASE_DEBUG: "0"
+  # the documentation examples' speed limit is 1 s on a development machine; the shared runners are slower
+  MC_DOCS_SLOW_SECS: "4"
 
 jobs:
   windows:

@@ -15,6 +15,13 @@ use std::time::{Duration, Instant};
 
 /// An input taking longer than this (in a release build) is reported by [`check`]: examples must be quick.
 pub const SLOW_SECS: f64 = 1.0;
+
+/// The limit [`check`] applies: [`SLOW_SECS`], or the number of seconds in the environment variable
+/// `MC_DOCS_SLOW_SECS`. The limit is a statement about a development machine; a slower or shared machine (a build
+/// server) sets a larger one, so that the check of the outputs does not fail on speed there.
+pub fn slow_secs() -> f64 {
+    std::env::var("MC_DOCS_SLOW_SECS").ok().and_then(|v| v.trim().parse::<f64>().ok()).filter(|s| *s > 0.0).unwrap_or(SLOW_SECS)
+}
 /// An input is stopped after this long.
 pub const LIMIT_SECS: u64 = 30;
 
@@ -340,8 +347,9 @@ fn compare_run(
                 _ => {}
             }
         }
-        if !cfg!(debug_assertions) && r.secs > SLOW_SECS {
-            problems.push(problem(marker(r.cell), format!("the input took {:.2} s (at most {SLOW_SECS} s)", r.secs)));
+        let limit = slow_secs();
+        if !cfg!(debug_assertions) && r.secs > limit {
+            problems.push(problem(marker(r.cell), format!("the input took {:.2} s (at most {limit} s)", r.secs)));
         }
     }
     clean(name);
