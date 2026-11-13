@@ -19,6 +19,8 @@ env:
   CARGO_PROFILE_RELEASE_DEBUG: "0"
   # the documentation examples' speed limit is 1 s on a development machine; the shared runners are slower
   MC_DOCS_SLOW_SECS: "4"
+  # speed assertions in tests are written for a development machine too
+  MC_TEST_TIME_FACTOR: "4"
 
 jobs:
   windows:

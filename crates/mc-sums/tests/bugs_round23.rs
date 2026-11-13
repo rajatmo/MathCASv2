@@ -201,7 +201,10 @@ fn b23_26_n_sum_exp_sqrt_high_precision_slow() {
     );
     let secs = t.elapsed().as_secs_f64();
     let got = got.expect("n_sum(exp(-sqrt(k)), ..., 30 digits) did not return within 10 s");
-    assert!(secs < 3.0, "took {secs:.1} s");
+    // the speed limit is for a development machine; a slower or shared one sets MC_TEST_TIME_FACTOR (the call
+    // still has to return within the 10 s above)
+    let factor = std::env::var("MC_TEST_TIME_FACTOR").ok().and_then(|v| v.trim().parse::<f64>().ok()).filter(|f| *f >= 1.0).unwrap_or(1.0);
+    assert!(secs < 3.0 * factor, "took {secs:.1} s");
     assert!(
         got.starts_with("1.6704068179663397212396278"),
         "got {got}"
