@@ -1470,3 +1470,15 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   distributions (of `cos(r)`, `erf(r)`, `sin_integral(r^2)`) are not given.
 - `maximize`/`minimize` of a sum with incommensurable periods give no point: whether the bound is attained needs a
   decision of `a + P k = b + Q m` in integers k, m, which is not done (`max_value`/`min_value` give the bound).
+## Round 39: witnesses for undecided properties, theta derivative
+
+- `function_sign`, `function_monotonicity`, `function_convexity` of a smooth function of one variable whose real domain
+  is not known (no table entry), and of a function whose derivative has no closed form: samples can only refute.
+  Real values of both signs give `indeterminate` for the sign; first or second differences of both signs at triples
+  x0 - 1/4, x0, x0 + 1/4 (ten x0 spread over [-15, 15]) give `indeterminate` for monotonicity or convexity; nothing
+  else is concluded from samples here (no sign or shape is ever proved by them). The sampling order puts a few spread
+  points first, so a slow function whose values near 0 are not real (a radial spheroidal function for |x| < 1) is
+  refuted before the budget goes to the points near 0. Gap: functions of several variables whose sampled values
+  are mostly not real (the Weierstrass invariants' functions) stay undecided.
+- Gap: a derivative rule d/du elliptic_theta = elliptic_theta_prime sends d/dq of elliptic_theta into a loop (the
+  opaque q partial is expanded again); left out.

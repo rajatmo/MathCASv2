@@ -738,6 +738,22 @@ rule legendre_q(nu_, mu_, x_) := {
   pi/(2*sin((nu + mu)*pi))*(cos((nu + mu)*pi)*legendre_p(nu, mu, x) - legendre_p(nu, mu, -x))
 } when ds_inexact([nu, mu, x]) and im_part(x) == 0 and -1 < x and x < 1 and not is_integer(nu + mu)
 
+# Ferrers functions of order 1/2 and -1/2 at a degree nu with nu + 1/2 = +-n an integer (DLMF 14.5.11, 14.5.12 at
+# x = cos t, with cos(n t) = T_n(x) and sin(n t) = sin(t) U_(n-1)(x); both even in nu + 1/2)
+rule legendre_p(nu_, 1/2, x_) := sqrt(2/pi)*(1 - x^2)^(-1/4)*chebyshev_t(abs(nu + 1/2), x) when is_rational(nu) and is_integer(nu + 1/2) and not is_numeric(x)
+rule legendre_p(nu_, -1/2, x_) := {
+  let n = abs(nu + 1/2)
+  if n == 0 then sqrt(2/pi)*(1 - x^2)^(-1/4)*acos(x) else sqrt(2/pi)*(1 - x^2)^(1/4)*chebyshev_u(n - 1, x)/n
+} when is_rational(nu) and is_integer(nu + 1/2) and not is_numeric(x)
+
+# Jacobi functions of a degree that is not an integer (DLMF 15.9.1 read as the definition off the integers):
+# Gamma(nu + a + 1)/(Gamma(nu + 1) Gamma(a + 1)) 2F1(-nu, nu + a + b + 1; a + 1; (1 - x)/2), used when that 2F1 has a
+# closed form
+fn ds_jacobi_f(nu, al, be, x) = hypergeometric_2f1(-nu, nu + al + be + 1, al + 1, (1 - x)/2)
+rule jacobi_p(nu_, al_, be_, x_) := {
+  gamma(nu + al + 1)/(gamma(nu + 1)*gamma(al + 1))*ds_jacobi_f(nu, al, be, x)
+} when is_rational(nu) and not is_integer(nu) and is_rational(al) and is_rational(be) and not (is_integer(al) and al < 0) and not (is_integer(nu + al) and nu + al < 0) and not is_numeric(x) and free_of(ds_jacobi_f(nu, al, be, x), hypergeometric_2f1)
+
 # incomplete forms of the inverse error, gamma and beta functions: solve the generalized function for its second
 # endpoint (erf(z) - erf(x0) = s, Q(a, z0) - Q(a, z) = s, I_z(a, b) - I_z0(a, b) = s)
 rule inverse_erf(x0_, s_) := inverse_erf(s + erf(x0)) when ds_inexact([x0, s])

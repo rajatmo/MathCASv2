@@ -54,6 +54,12 @@ impl Native for SolveNative {
         }
         // a power of degree beyond 100000 (x^(10^6) == 1): no method builds such a polynomial; left unevaluated at once
         if matches!(self.f, SolveFn::Solve | SolveFn::Roots | SolveFn::NSolve | SolveFn::Reduce) && args.iter().any(|&a| huge_degree(h, a)) {
+            // except the integer roots of a polynomial with few terms, which need no such polynomial
+            if self.f == SolveFn::Reduce {
+                if let Some(r) = crate::domain::huge_integer_roots(cx, args)? {
+                    return Ok(Reply::Done(r));
+                }
+            }
             return Ok(Reply::Decline);
         }
         // the options and the settings they give, in force for this call and the calls it makes (decision 11C.1)

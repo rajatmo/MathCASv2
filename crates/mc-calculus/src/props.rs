@@ -941,7 +941,12 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     }
     let Some(cs) = conditions(cx, b, c.f, &c.vars, false)? else {
         // a function with jumps or kinks whose domain is not known: its samples alone
-        return if shaped { sampled_shape(cx, b, c, x, order) } else { Ok(None) };
+        if shaped {
+            return sampled_shape(cx, b, c, x, order);
+        }
+        // a smooth function whose domain is not known: samples can still show that no sign, monotonicity or
+        // convexity holds (values of both signs, or differences of both signs); they never prove one
+        return witness_only(cx, b, c, x, order);
     };
     let indet = h.sym_term(h.sym("indeterminate"));
     // the facts about the parameters (a domain that is the whole line under them: `m >= 1` for `jacobi_nc`)
@@ -1018,6 +1023,13 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     if is_call(b, g, "d") {
         return Ok(None);
     }
+    // a derivative with no closed form (its values would be numerical derivatives): the differences of the
+    // function's samples can still show that it is not monotonic or convex
+    if order > 0 && !c.integers && contains_call(b, g, "derivative") {
+        if let Some(t) = probe_differences(cx, b, c, x, order)? {
+            return Ok(Some(t));
+        }
+    }
     // strict: a zero of f is a counterexample
     if c.strict && order == 0 {
         let mut e = h.call(h.sym("equal"), &[g, b.zero()]);
@@ -1069,6 +1081,11 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     // the samples near 0 first: a change of sign is found before the far (and slower) ones are evaluated
     let mut xs = samples(c.integers);
     xs.sort_by(|p, q| p.abs().total_cmp(&q.abs()));
+    // a few points spread over the line first: a slow function whose values near 0 are not real (|x| < 1 for a
+    // radial function) shows a change of sign before the budget is spent on the points near 0
+    if !c.integers {
+        xs = spread_first(xs);
+    }
     for v in xs {
         cx.tick(1)?;
         if out_of_time() {
@@ -1108,6 +1125,109 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         (false, false) => zero,
         _ => indet,
     }))
+}
+
+/// `indeterminate` when the first (`order` 1) or second (`order` 2) differences of `f` at a few triples x0 - h, x0,
+/// x0 + h (h = 1/4) inside the domain and the condition have both signs: f is then not monotonic (or not convex nor
+/// concave); `None` otherwise. Cheap (at most 30 values), so it is tried before the numerical derivatives.
+fn probe_differences<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, order: usize) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let mut params = rustc_hash::FxHashSet::default();
+    symbols(b, c.f, &mut params);
+    if params.iter().any(|&s| s != x) {
+        return Ok(None);
+    }
+    let (mut up, mut down) = (false, false);
+    for x0 in [0.5, -0.5, 1.5, -1.5, 3.1, -3.1, 7.3, -7.3, 15.2, -15.2] {
+        let mut ys = [0.0; 3];
+        let mut ok = true;
+        for (i, v) in [x0 - 0.25, x0, x0 + 0.25].into_iter().enumerate() {
+            cx.tick(1)?;
+            if let Some(k) = c.cond {
+                let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
+                let r = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
+                if !cx.is_true(r) {
+                    ok = false;
+                    break;
+                }
+            }
+            match value_at(cx, b, c.f, x, v)? {
+                Some(y) => ys[i] = y,
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        if !ok {
+            continue;
+        }
+        let tol = 1e-9 * (1.0 + ys[0].abs() + ys[1].abs() + ys[2].abs());
+        let ds: Vec<f64> = if order == 1 { vec![ys[1] - ys[0], ys[2] - ys[1]] } else { vec![ys[0] - 2.0 * ys[1] + ys[2]] };
+        for d in ds {
+            up |= d > tol;
+            down |= d < -tol;
+        }
+        if up && down {
+            return Ok(Some(h.sym_term(h.sym("indeterminate"))));
+        }
+    }
+    Ok(None)
+}
+
+/// The probe points 0.5, 1.5, 3.1, 7.3, 15.2, 30.4 (and their negatives, then 0.1) before the samples `xs`.
+fn spread_first(xs: Vec<f64>) -> Vec<f64> {
+    let probes = [0.5, -0.5, 1.5, -1.5, 3.1, -3.1, 7.3, -7.3, 15.2, -15.2, 30.4, -30.4, 0.1, -0.1];
+    let mut out: Vec<f64> = probes.to_vec();
+    out.extend(xs.into_iter().filter(|v| !probes.contains(v)));
+    out
+}
+
+/// `indeterminate` when samples of a function of one variable without parameters show that it has no sign (real
+/// values of both signs, order 0) or is neither monotonic nor convex/concave (differences of both signs inside runs
+/// of samples in the domain, [`sampled_shape`]); `None` otherwise: samples never prove a sign or a shape here.
+fn witness_only<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>, order: usize) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let indet = h.sym_term(h.sym("indeterminate"));
+    if c.integers || c.complex {
+        return Ok(None);
+    }
+    if order > 0 {
+        if let Some(t) = probe_differences(cx, b, c, x, order)? {
+            return Ok(Some(t));
+        }
+        return Ok(sampled_shape(cx, b, c, x, order)?.filter(|&t| t == indet));
+    }
+    let mut params = rustc_hash::FxHashSet::default();
+    symbols(b, c.f, &mut params);
+    if params.iter().any(|&s| s != x) {
+        return Ok(None);
+    }
+    let mut xs = samples(false);
+    xs.sort_by(|p, q| p.abs().total_cmp(&q.abs()));
+    let xs = spread_first(xs);
+    let (mut pos, mut neg) = (false, false);
+    for v in xs {
+        cx.tick(1)?;
+        if out_of_time() {
+            return Ok(None);
+        }
+        if let Some(k) = c.cond {
+            let rule = h.call(h.sym(names::RULE), &[x, h.real(v)]);
+            let ok = cx.eval(h.call(h.sym("rewrite"), &[k, rule]))?;
+            if !cx.is_true(ok) {
+                continue;
+            }
+        }
+        let Some(y) = value_at(cx, b, c.f, x, v)? else { continue };
+        let tol = 1e-9 * (1.0 + y.abs());
+        pos |= y > tol;
+        neg |= y < -tol;
+        if pos && neg {
+            return Ok(Some(indet));
+        }
+    }
+    Ok(None)
 }
 
 /// `f` with every `(u^2)^(1/2)` replaced by `abs(u)` (the reals).
@@ -1319,11 +1439,8 @@ fn grid_witness<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, 
         }
         let v = cx.eval(h.call(h.sym("rewrite"), &[c.f, rl]))?;
         let v = cx.eval(h.call(h.sym("n"), &[v]))?;
-        Ok(match h.view(v) {
-            View::Real(y) if y.is_finite() => Some(y),
-            View::Int(k) => Some(k as f64),
-            _ => None,
-        })
+        // a real value, also one given in complex form with an imaginary part exactly 0
+        Ok(machine_real(h, v))
     };
     let points: Vec<Vec<f64>> = (0..GRID.len().pow(n as u32))
         .map(|mut i| {

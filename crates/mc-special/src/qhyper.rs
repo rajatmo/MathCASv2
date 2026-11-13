@@ -114,6 +114,9 @@ fn bilateral_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>])
     if fx.is_int(z, 0) {
         return Ok(Some(fx.int(0)));
     }
+    if let Some(v) = one_sided(fx, a, b, z) {
+        return Ok(Some(v));
+    }
     let mut all: Vec<T<'h>> = a.to_vec();
     all.extend_from_slice(b);
     all.push(z);
@@ -145,6 +148,44 @@ fn bilateral_hypergeometric_pfq<'h>(fx: &mut Fx<'_, '_, '_, 'h>, args: &[T<'h>])
     }
     let v = fx.eval(fx.sub(fx.add(&[up, dn]), fx.int(1)))?;
     Ok(fx.num(v).map(|_| v))
+}
+
+/// The bilateral series when a lower parameter is a positive integer n: 1/(n)_k = Gamma(n + k)^-1 Gamma(n) is 0 for
+/// k <= -n, so the series starts at k = 1 - n. With m = n - 1 and (x)_(-m) = 1/((x - 1) ... (x - m)), the shift
+/// k = j - m gives prod (a)_(-m)/prod (b)_(-m) z^-m pFq(a - m; b - m without the 1; z) (one fewer lower parameter).
+/// `None` when no lower parameter is a positive integer or an (a)_(-m) is infinite (an a among 1, ..., m).
+fn one_sided<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], b: &[T<'h>], z: T<'h>) -> Option<T<'h>> {
+    let n = b.iter().filter_map(|&x| fx.int_of(x)).filter(|&v| v >= 1).min()?;
+    if n > 1000 {
+        return None;
+    }
+    let m = n - 1;
+    let mut num = vec![];
+    let mut den = vec![];
+    for &x in a {
+        for i in 1..=m {
+            let f = fx.sub(x, fx.int(i));
+            if fx.num(f).is_some_and(|v| v.is_exact_zero()) {
+                return None;
+            }
+            den.push(f);
+        }
+    }
+    let mut lows = vec![];
+    let mut dropped = false;
+    for &x in b {
+        for i in 1..=m {
+            num.push(fx.sub(x, fx.int(i)));
+        }
+        if !dropped && fx.int_of(x) == Some(n) {
+            dropped = true;
+        } else {
+            lows.push(fx.sub(x, fx.int(m)));
+        }
+    }
+    let ups: Vec<T<'h>> = a.iter().map(|&x| fx.sub(x, fx.int(m))).collect();
+    let f = fx.call("hypergeometric_pfq", &[fx.list(&ups), fx.list(&lows), z]);
+    Some(fx.mul(&[fx.div(fx.mul(&num), fx.mul(&den)), fx.pow(z, fx.int(-m)), f]))
 }
 
 /// pFq(a; b; z) evaluated; for p = q + 1 and |z| > 1 (where the series diverges) the continuation of DLMF 16.8.8,

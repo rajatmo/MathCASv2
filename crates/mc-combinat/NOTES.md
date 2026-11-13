@@ -135,3 +135,30 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   parts, gcd = gcd(w1, w2)/lcm(d1, d2) and lcm = lcm(w1, w2)/gcd(d1, d2) as for rationals, the Gaussian gcd by
   Euclid with the rounded quotient, normalised to the first-quadrant associate (Hardy and Wright 12.8). Not done:
   `divisors` of a Gaussian integer without the option (its order would be by norm), more than two arguments.
+
+## Round 39: factoring options and number functions
+
+- `factor`, `factor_square_free`, `factor_list`, `factor_square_free_list` with `trig: true`: a polynomial in sines and
+  cosines of linear arguments with rational coefficients (no constant term) is a Laurent polynomial in
+  X_v = exp(i w_v v), w_v the gcd of the coefficients of v; the numerator, real after a power of i is taken out, is
+  factored over the rationals. A factor f with prod X_v^(a_v) f(1/X) = +-f (a_v the sum of its least and largest
+  degree in X_v) is prod X_v^(a_v/2) times a sum of exp(+-i t) in pairs, read back as cosines and sines of the
+  (half) angles t; a factor that is not reciprocal is joined with the factor that is its reciprocal. The powers of
+  X_v left over must cancel. sin(x) + sin(y) is 2 cos(x/2 - y/2) sin(x/2 + y/2), 1 - cos(2x) is 2 sin(x)^2. Gap:
+  arguments with a constant term (sin(x + 1)), mixed parities of sines (sin(x) + cos(y): the numerator is not real
+  after any power of i) and hyperbolic functions stay.
+- `factor_list` and `factor_square_free_list` with `extension:` (an algebraic number, a list, `automatic`): the factors
+  of `factor` over that field, in the order of `factor_list`. The unit in front is that of `factor` (x^4 - 2 over
+  Q(sqrt 2) is [[1, 1], [x^2 - sqrt 2, 1], [x^2 + sqrt 2, 1]]; another normalisation writes -1 and sqrt 2 - x^2).
+- `together` and `cancel` with `extension:`: numerator and denominator of `together(e)` factored over the field
+  (`automatic`: the radicals of rationals in e), common factors cancelled, the numerator expanded.
+- `number_expand(x, b)` for a base b > 1 that is not an integer (or is inexact): the greedy expansion (Renyi, "Representations
+  for real numbers and their ergodic properties", 1957): the digit at place k is floor(r/b^k) of the rest r, n - 1
+  places from the leading one and the rest in the last term; n the given length or the base-b digits of the
+  precision.
+- `det` and `inverse` with `modulus: m` of an integer matrix: det reduced; the inverse is the adjugate times the
+  inverse of det mod m when gcd(det, m) = 1. `rational_expression_q(e, vars, test)`: also every coefficient passes
+  test. Gaussian integers: `divisors(z)` for a non-real z (one first-quadrant associate each, sorted) and
+  `power_mod(z, k, m)` (the parts reduced mod m at each squaring).
+- `harmonic_number(m, r, s)` (lib/calculus.mc): the sum of s^k/k^r for k <= m; polylog(r, s) at m = inf; at inexact
+  m the polylogarithm less the Lerch tail s^(m + 1) lerch_phi(s, r, m + 1); lists of m thread.

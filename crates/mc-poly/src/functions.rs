@@ -779,6 +779,14 @@ pub(crate) fn factor<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, square_fr
     if let Some(pr) = modulus {
         return factor_over_fp(env, args, m, square_free, pr);
     }
+    // trig: true is the library's rule (the factorisation in sines and cosines)
+    if let [_, o] = args {
+        if let Some(rs) = env.args_of(*o, "options") {
+            if rs.iter().all(|&r| matches!(env.h().view(r), View::App { args: &[k, _], .. } if k == env.sym("trig"))) {
+                return Ok(Out::Decline);
+            }
+        }
+    }
     let [e] = args else {
         return Ok(env.arg_failure("factor(p) takes one argument"));
     };
@@ -1081,11 +1089,11 @@ pub(crate) fn discriminant<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> 
 
 /// `together(e)`: one fraction in lowest terms; `cancel(e)`: each term of a sum in lowest terms.
 pub(crate) fn together<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter, cancel: bool) -> WorkResult<Out<'h>> {
-    // the options modulus: m and trig: true are the library's rules
+    // the options modulus: m, trig: true and extension: e are the library's rules
     if let [_, o] = args {
         if let Some(rs) = env.args_of(*o, "options") {
             let known = rs.iter().all(|&r| match env.h().view(r) {
-                View::App { args: &[k, _], .. } => k == env.sym("modulus") || k == env.sym("trig"),
+                View::App { args: &[k, _], .. } => k == env.sym("modulus") || k == env.sym("trig") || k == env.sym("extension"),
                 _ => false,
             });
             if known {

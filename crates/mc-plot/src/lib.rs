@@ -482,6 +482,36 @@ pub const COLUMN_EXTENSION: &str = "column.svg";
 /// Every file written next to a plot's PNG, by extension (removed with it).
 const SIBLINGS: [&str; 8] = ["png", "svg", "pdf", "json", "scene3d", "print.svg", "print.pdf", COLUMN_EXTENSION];
 
+/// Epilog or prolog content without the primitives that cannot be drawn because a coordinate is not a number (an
+/// undefined symbol in `point([x0, f(x0)])`): lists and `style(...)` wrappers are taken apart and each such
+/// primitive is left out (collected in `dropped`), so the plot is still drawn; `None` when nothing is left of `t`.
+/// Content that is not graphics at all is kept, so that it fails as before.
+fn drawable<'h>(h: &'h Heap, t: T<'h>, stop: &dyn Fn() -> bool, dropped: &mut Vec<T<'h>>) -> Option<T<'h>> {
+    let g = h.call(h.sym("graphics"), &[t]);
+    match mc_graphics::model::read(h, g, stop) {
+        Err(f) if f.tag == "not_numeric" => {}
+        _ => return Some(t),
+    }
+    if let View::App { head, args } = h.view(t) {
+        let name = match h.view(head) {
+            View::Sym(s) => h.sym_name(s),
+            _ => String::new(),
+        };
+        if name == names::LIST {
+            let kept: Vec<T<'h>> = args.iter().filter_map(|&a| drawable(h, a, stop, dropped)).collect();
+            return Some(h.call(h.sym(names::LIST), &kept));
+        }
+        if name == "style" && !args.is_empty() {
+            let inner = drawable(h, args[0], stop, dropped)?;
+            let mut xs = args.to_vec();
+            xs[0] = inner;
+            return Some(h.app(head, &xs));
+        }
+    }
+    dropped.push(t);
+    None
+}
+
 /// Build the plot's graphics term, render it to a fresh PNG file with the SVG and the vector PDF next to it (same
 /// name: `export_data("f.pdf", plot)` copies the PDF), and give the PNG's image term (or a failure).
 pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look: &Look<'h>, extra: Extra<'h>) -> Res<Reply<'h>> {
@@ -507,10 +537,19 @@ pub(crate) fn finish<'h>(cx: &mut NativeCx<'_, '_, 'h>, series: &[Series], look:
     let numeric;
     let look = if look.graphics.iter().any(|(k, _)| k == "epilog" || k == "prolog") {
         let mut l = look.clone();
+        let mut dropped = vec![];
         for (k, v) in l.graphics.iter_mut() {
             if k == "epilog" || k == "prolog" {
-                *v = mc_graphics_kernel::numeric_content(cx, *v)?;
+                let n = mc_graphics_kernel::numeric_content(cx, *v)?;
+                let stop = cx.stop_flag().clone();
+                *v = drawable(h, n, &|| stop.load(Ordering::Relaxed), &mut dropped).unwrap_or_else(|| cx.list(&[]));
             }
+        }
+        if !dropped.is_empty() {
+            let who = if look.who.is_empty() { "plot" } else { look.who };
+            let printed: Vec<String> = dropped.iter().map(|&d| mc_syntax::Printer::new(h).expr(d)).collect();
+            let text = format!("left out of the drawing (coordinates that are not numbers): {}", printed.join(", "));
+            cx.emit(h.call(h.sym("message"), &[h.sym_term(h.sym(who)), h.string(&text)]))?;
         }
         numeric = l;
         &numeric

@@ -26,3 +26,12 @@ int(x^m_*zeta(2, a_. + b_.*x)) := x^m*polygamma(1, a + b*x)/b - m/b*int(x^(m - 1
 int(x^m_.*polygamma(n_, a_. + b_.*x)) := x^m*polygamma(n - 1, a + b*x)/b - m/b*int(x^(m - 1)*polygamma(n - 1, a + b*x))
     when free(a, b, n) and integer(m) and m > 0 and integer(n) and n > 0
 int(polygamma(n_, a_. + b_.*x)) := polygamma(n - 1, a + b*x)/b when free(a, b, n) and integer(n) and n > 0
+
+## the derivative functions: f'(a + b x) integrates to f(a + b x)/b (DLMF 9.2, 23.2, 28.2; elliptic_exp' is the
+## derivative of elliptic_exp in its first argument)
+int(airy_ai_prime(a_. + b_.*x)) := airy_ai(a + b*x)/b when free(a, b) and ne(b, 0)
+int(airy_bi_prime(a_. + b_.*x)) := airy_bi(a + b*x)/b when free(a, b) and ne(b, 0)
+int(weierstrass_p_prime(a_. + b_.*x, g_)) := weierstrass_p(a + b*x, g)/b when free(a, b, g) and ne(b, 0)
+int(mathieu_c_prime(p_, q_, a_. + b_.*x)) := mathieu_c(p, q, a + b*x)/b when free(a, b, p, q) and ne(b, 0)
+int(mathieu_s_prime(p_, q_, a_. + b_.*x)) := mathieu_s(p, q, a + b*x)/b when free(a, b, p, q) and ne(b, 0)
+int(elliptic_exp_prime(a_. + b_.*x, g_)) := elliptic_exp(a + b*x, g)/b when free(a, b, g) and ne(b, 0)

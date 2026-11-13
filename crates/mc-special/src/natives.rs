@@ -460,6 +460,16 @@ impl Native for Pfq {
         if let Some((name, xs)) = named {
             return Ok(Reply::Again(h.call(h.sym(name), &xs)));
         }
+        // a symbolic argument, parameters differing by integers: the closed form (crate::rathyp)
+        if z.is_none() {
+            let rats = |xs: &[T<'h>]| xs.iter().map(|&x| ar.num(x).and_then(|n| n.as_rat().cloned())).collect::<Option<Vec<Rat>>>();
+            if let (Some(ra), Some(rb)) = (rats(a), rats(b)) {
+                if let Some(v) = crate::rathyp::closed_form(h, &ar, &ra, &rb, args[2]) {
+                    cx.tick(1)?;
+                    return Ok(Reply::Again(v));
+                }
+            }
+        }
         let all: Vec<T<'h>> = a.iter().chain(b.iter()).copied().chain(std::iter::once(args[2])).collect();
         let reals: Option<Vec<Real>> = all
             .iter()

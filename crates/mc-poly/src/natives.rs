@@ -219,6 +219,22 @@ pub(crate) struct PolyNative {
 impl Native for PolyNative {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         if let PolyFn::Gcd | PolyFn::Lcm = self.f {
+            // lists thread elementwise (gcd(12, [3, 7, 40]) is [3, 1, 4]); lists of different lengths do not
+            let lists: Vec<Option<&[T<'h>]>> = args.iter().map(|&a| cx.as_list(a)).collect();
+            if let Some(len) = lists.iter().flatten().map(|l| l.len()).next() {
+                if lists.iter().flatten().any(|l| l.len() != len) {
+                    return Ok(Reply::Decline);
+                }
+                cx.tick(len as u64)?;
+                let h = cx.heap();
+                let items: Vec<T<'h>> = (0..len)
+                    .map(|i| {
+                        let xs: Vec<T<'h>> = args.iter().zip(&lists).map(|(&a, l)| l.map_or(a, |l| l[i])).collect();
+                        h.call(h.sym(self.name), &xs)
+                    })
+                    .collect();
+                return Ok(Reply::Again(cx.list(&items)));
+            }
             // this crate owns `gcd` and `lcm`; exact numbers go to the half-gcd of mc-numtheory (decision 9.1)
             let _scope = StopScope::enter(Some(&self.stop));
             match mc_numtheory::number_gcd_lcm(cx, args, self.f == PolyFn::Lcm)? {

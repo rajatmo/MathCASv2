@@ -1099,6 +1099,9 @@ fn factor_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) 
 fn power_mod<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [a, e, m] = args else { return Ok(Reply::Decline) };
+    if let Some(r) = modular_root_power(cx, *a, *e, *m)? {
+        return done(r);
+    }
     let (Some(a), Some(e), Some(m)) = (int_of(h, *a), int_of(h, *e), int_of(h, *m)) else { return Ok(Reply::Decline) };
     if m.is_zero() {
         return Ok(div_zero(cx));
@@ -1116,6 +1119,56 @@ fn power_mod<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Re
     // floor convention: a negative modulus gives a result in (m, 0]
     let r = if m.neg && !r.is_zero() { Int::from_nat(r).sub(&Int::from_nat(m.mag.clone())) } else { Int::from_nat(r) };
     done(int_term(h, &r))
+}
+
+/// The most residues searched for a modular root.
+const MAX_ROOT_SEARCH: i64 = 1_000_000;
+
+/// power_mod(a, p/q, m) for a rational exponent with q > 1 and a modulus 1 < m <= [`MAX_ROOT_SEARCH`]: the least
+/// residue r with r^q = a (mod m), raised to p (a negative p through the inverse); `None` when the exponent is not
+/// such a fraction or there is no root (the call stays).
+fn modular_root_power<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, e: T<'h>, m: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let Some(q) = mc_arith::Arith::new(h).num(e).and_then(|n| n.as_rat().cloned()).filter(|q| !q.is_int()) else { return Ok(None) };
+    let (Some(a), Some(m)) = (int_of(h, a).and_then(|a| a.to_i64()), int_of(h, m).and_then(|m| m.to_i64())) else { return Ok(None) };
+    let (Some(p), Some(k)) = (q.num.to_i64(), Int::from_nat(q.den.clone()).to_i64()) else { return Ok(None) };
+    if !(2..=MAX_ROOT_SEARCH).contains(&m) || k > 64 {
+        return Ok(None);
+    }
+    let mm = m as i128;
+    let target = (a as i128).rem_euclid(mm);
+    let pow = |mut b: i128, mut n: u64| {
+        let mut r = 1i128 % mm;
+        b = b.rem_euclid(mm);
+        while n > 0 {
+            if n & 1 == 1 {
+                r = r * b % mm;
+            }
+            b = b * b % mm;
+            n >>= 1;
+        }
+        r
+    };
+    let mut root = None;
+    for r in 0..m {
+        if r % 1024 == 1023 {
+            cx.tick(1)?;
+        }
+        if pow(r as i128, k as u64) == target {
+            root = Some(r);
+            break;
+        }
+    }
+    let Some(r) = root else { return Ok(None) };
+    let v = if p >= 0 {
+        pow(r as i128, p as u64)
+    } else {
+        // the inverse of r modulo m, when r is a unit
+        let Some(inv) = modular::inverse_mod(&Int::from_i64(r), &Nat::from_u64(m as u64), cx)? else { return Ok(None) };
+        let Some(inv) = inv.to_u128() else { return Ok(None) };
+        pow(inv as i128, p.unsigned_abs())
+    };
+    Ok(Some(h.int(v as i64)))
 }
 
 fn primitive_root<'h>(cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
@@ -1249,7 +1302,7 @@ fn multiplicative_order<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'
 pub(crate) const TABLE: &[(&str, bool, Body)] = &[
     ("mod", true, mod_),
     ("quotient", true, quotient),
-    ("extended_gcd", false, extended_gcd),
+    ("extended_gcd", true, extended_gcd),
     ("floor", true, floor),
     ("ceiling", true, ceiling),
     ("round", true, round),
@@ -1267,7 +1320,7 @@ pub(crate) const TABLE: &[(&str, bool, Body)] = &[
     ("next_prime", true, next_prime_),
     ("prime", true, prime),
     ("prime_pi", true, prime_pi_),
-    ("factor_integer", false, factor_integer),
+    ("factor_integer", true, factor_integer),
     ("power_mod", true, power_mod),
     ("primitive_root", true, primitive_root),
     ("euler_phi", true, euler_phi),

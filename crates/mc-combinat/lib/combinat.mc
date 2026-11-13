@@ -329,6 +329,29 @@ rule number_expand(x_, b_, len_) := {
     map(i => r[1][i] + sqrt(-1)*r[2][i], range(length(r[1])))
   }
 } when is_numeric(x) and is_integer(b) and b > 1 and (len === null or (is_integer(len) and len > 0))
+# a base b > 1 that is not an integer (or an inexact one): the greedy expansion of |x| in powers of b (Renyi's
+# beta-expansion: the digit at place k is floor(r/b^k) of the rest r), n - 1 places from the leading one (b^top <=
+# |x| < b^(top + 1)) and the rest in the last term; n is len, or the base-b digits the precision of the inexact
+# numbers holds
+fn ne_beta(x, b, len) = {
+  let ax = abs(x)
+  var top = floor(n(log(ax)/log(b)))
+  while b^top > ax { top = top - 1 }
+  while b^(top + 1) <= ax { top = top + 1 }
+  let nn = if len !== null then len else ceiling(min(map(precision, select([x, b], is_inexact)))*n(log(10)/log(b)))
+  var r = ax
+  var out = []
+  for j in range(nn - 1) {
+    let p = b^(top - j + 1)
+    let d = floor(r/p)
+    # an inexact base gives inexact terms (2.0 at the units place)
+    out = append(out, if is_inexact(b) then n(d*p) else d*p)
+    r = r - d*p
+  }
+  # the rest from x itself (one rounding, not the running one)
+  map(t => sign(x)*t, append(out, ax - total(out)))
+}
+rule number_expand(x_, b_, len_) := ne_beta(x, b, len) when is_real(x) and x != 0 and is_numeric(b) and is_real(b) and b > 1 and not is_integer(b) and ((len === null and (is_inexact(x) or is_inexact(b))) or (is_integer(len) and len > 0))
 
 # number_compose(digits, bases): the sum of digit times base, the inverse of the decomposition of number_decompose
 rule number_compose(ds_, bs_) := sum(map(i => ds[i]*bs[i], range(length(ds)))) when is_list(ds) and is_list(bs) and length(ds) == length(bs)
@@ -674,6 +697,12 @@ fn rx_poly(e, vs) = if every(vs, v => free_of(e, v)) then true else if member(vs
 fn rx_vars(v) = if is_list(v) then v else [v]
 rule rational_expression_q(e_) := rx_poly(numerator(together(e)), variables(e, kernels: true)) and rx_poly(denominator(together(e)), variables(e, kernels: true))
 rule rational_expression_q(e_, v_) := rx_poly(numerator(together(e)), rx_vars(v)) and rx_poly(denominator(together(e)), rx_vars(v))
+# (e, vars, test): also every coefficient (a part free of the variables) passes test
+fn rx_poly_t(e, vs, t) = if every(vs, v => free_of(e, v)) then t(e) === true else if member(vs, e) then true else if is_atom(e) then false
+  else if head(e) === add or head(e) === mul then every(map(i => rx_poly_t(e[i], vs, t), range(length(e))), x => x === true)
+  else if head(e) === pow then (is_integer(e[2]) and e[2] >= 0 and rx_poly_t(e[1], vs, t))
+  else false
+rule rational_expression_q(e_, v_, t_) := rx_poly_t(numerator(together(e)), rx_vars(v), t) and rx_poly_t(denominator(together(e)), rx_vars(v), t)
 
 # the walkers of expand_numerator, expand_denominator and expand_all
 fn ex_parts(e) = map(i => e[i], range(length(e)))
@@ -782,6 +811,11 @@ fn md_together(e, m) = {
     f[1]/f[2]
   }
 }
+# det and inverse of an integer matrix modulo m: det(a) reduced; the inverse is the adjugate det(a) a^-1 times the
+# inverse of det(a) modulo m, when gcd(det(a), m) = 1
+fn md_int_matrix(a) = is_list(a) and length(a) > 0 and every(a, r => is_list(r) and length(r) == length(a) and every(r, is_integer))
+rule det(a_, o_) := mod(det(a), md_m(o)) when md_only(o) and md_int_matrix(a)
+rule inverse(a_, o_) := mod(expand(det(a)*inverse(a))*power_mod(det(a), -1, md_m(o)), md_m(o)) when md_only(o) and md_int_matrix(a) and gcd(det(a), md_m(o)) == 1
 rule together(e_, o_) := md_together(e, md_m(o)) when md_opt(e, o) and md_ok(together(e), md_m(o))
 rule cancel(e_, o_) := (if head(e) === add then apply(add, map(t => md_together(t, md_m(o)), ex_parts(e))) else md_together(e, md_m(o))) when md_opt(e, o) and md_ok(together(e), md_m(o))
 
@@ -822,6 +856,118 @@ rule expand_all(e_, o_) := tg_all(e) when tg_only(o)
 rule numerator(e_, o_) := numerator(tg_sc(e)) when tg_only(o)
 rule denominator(e_, o_) := denominator(tg_sc(e)) when tg_only(o)
 rule numerator_denominator(e_, o_) := (if is_list(e) then map(t => numerator_denominator(t, trig: true), e) else [numerator(tg_sc(e)), denominator(tg_sc(e))]) when tg_only(o)
+# factor, factor_square_free and their lists with trig: true. A polynomial in sines and cosines of linear arguments
+# with rational coefficients (no constant term) is a Laurent polynomial in X_v = exp(i w_v v), w_v the gcd of the
+# coefficients of the variable v in the arguments: sin(u) = (E - 1/E)/(2 i), cos(u) = (E + 1/E)/2 with E the
+# monomial of u. Its numerator, real after taking out a power of i, is factored over the rationals. A factor f is
+# reciprocal when prod X_v^(a_v) f(1/X) = +-f(X), a_v the sum of its least and largest degree in X_v; then
+# f = prod X_v^(a_v/2) g with g a sum of exponentials exp(+-i theta) in pairs, that is of cosines or sines of the
+# (half) angles theta. A factor that is not reciprocal is joined with the factor that is its reciprocal. The powers of
+# the X_v left over must cancel; otherwise (or with arguments of another shape) the call is the plain factorisation.
+fn tf_names() = [tf_x1, tf_x2, tf_x3, tf_x4]
+fn tf_trig_ok(p) = free_of(p, tan) and free_of(p, cot) and free_of(p, sec) and free_of(p, csc) and free_of(p, sinh) and free_of(p, cosh) and free_of(p, tanh) and free_of(p, coth) and free_of(p, sech) and free_of(p, csch)
+fn tf_args(p) = unique(map(t => t[1], cases([p], sin(_) | cos(_), inf)))
+# the coefficient of v in the linear form u (no constant term), or failure
+fn tf_lin(u, vs) = every(vs, v => is_rational(coefficient(u, v, 1))) and expand(u - fold((s, v) => s + coefficient(u, v, 1)*v, 0, vs)) === 0
+fn tf_setup(p) = {
+  let us = tf_args(p)
+  let vs = variables(us)
+  if length(us) == 0 or length(vs) == 0 or length(vs) > 4 or not every(us, u => tf_lin(u, vs)) then [] else {
+    let ws = map(v => apply(gcd, select(map(u => coefficient(u, v, 1), us), c => c !== 0)), vs)
+    let xs = take(tf_names(), length(vs))
+    # E(u) = prod X_v^(c_v/w_v)
+    let em = u => product(map(i => xs[i]^(coefficient(u, vs[i], 1)/ws[i]), range(length(vs))))
+    let q = expand(rewrite(p, [sin(u_) :> (em(u) - 1/em(u))/(2*im), cos(u_) :> (em(u) + 1/em(u))/2]))
+    [vs, ws, xs, together(q)]
+  }
+}
+fn tf_low(f, x) = min(map(r => r[1][1], coefficient_rules(f, [x])))
+fn tf_recip(f, xs) = expand(rewrite(f, map(x => x -> 1/x, xs))*product(map(x => x^(exponent(f, x) + tf_low(f, x)), xs)))
+# the half-degree vector of a reciprocal factor and its form in sines and cosines: the terms c exp(i t) and
+# c' exp(-i t) give (c + c') cos(t) + i (c - c') sin(t), with t the angle whose first variable has a positive
+# coefficient
+fn tf_angle(r, hs, vs, ws) = expand(fold((s, i) => s + ws[i]*(r[1][i] - hs[i])*vs[i], 0, range(length(vs))))
+fn tf_orient(t, vs) = { let cs = select(map(v => coefficient(t, v, 1), vs), c => c !== 0); length(cs) > 0 and cs[1] > 0 }
+fn tf_partner(ts, th) = fold((s, t) => s + (if expand(t[2] + th) === 0 then t[1] else 0), 0, ts)
+fn tf_back(f, vs, ws, xs) = {
+  let hs = map(x => (exponent(f, x) + tf_low(f, x))/2, xs)
+  let ts = map(r => [r[2], tf_angle(r, hs, vs, ws)], coefficient_rules(f, xs))
+  let c0 = fold((s, t) => s + (if t[2] === 0 then t[1] else 0), 0, ts)
+  let pos = select(ts, t => t[2] !== 0 and tf_orient(t[2], vs))
+  [hs, expand(c0 + fold((s, t) => s + (t[1] + tf_partner(ts, t[2]))*cos(t[2]) + im*(t[1] - tf_partner(ts, t[2]))*sin(t[2]), 0, pos))]
+}
+fn tf_numeric_part(t) = if is_number(t) then t else if not is_atom(t) and head(t) === mul then product(select(ex_parts(t), is_number)) else 1
+# [constant, [[factor, multiplicity], ...]] or [] when the method does not apply
+fn tf_factor_pairs(p, sq) = {
+  let st = if tf_trig_ok(p) and not (free_of(p, sin) and free_of(p, cos)) then tf_setup(p) else []
+  if length(st) == 0 then [] else {
+    let vs = st[1]
+    let ws = st[2]
+    let xs = st[3]
+    let r = st[4]
+    let den = denominator(r)
+    let dc = tf_numeric_part(den)
+    let num0 = expand(numerator(r))
+    let cs = map(t => t[2], coefficient_rules(num0, xs))
+    let unit = if every(cs, c => im_part(c) === 0) then 1 else if every(cs, c => re(c) === 0) then im else 0
+    if unit === 0 or not (expand(den/dc - product(map(x => x^exponent(den, x), xs))) === 0) then [] else {
+      let fl = if sq then factor_square_free_list(expand(num0/unit)) else factor_list(expand(num0/unit))
+      var c = unit*fl[1][1]/dc
+      var mono = map(x => -exponent(den, x), xs)
+      var out = []
+      var todo = rest(fl)
+      var ok = true
+      while ok and length(todo) > 0 {
+        let fe = first(todo)
+        todo = rest(todo)
+        let f = fe[1]
+        if every(variables(f), v => member(xs, v)) and length(coefficient_rules(f, xs)) == 1 then {
+          # a monomial factor
+          mono = map(i => mono[i] + fe[2]*exponent(f, xs[i]), range(length(xs)))
+          c = c*coefficient_rules(f, xs)[1][2]^fe[2]
+        } else {
+          let rc = tf_recip(f, xs)
+          var g = 0
+          if expand(rc - f) === 0 or expand(rc + f) === 0 then g = f else {
+            let k = select(todo, h => h[2] == fe[2] and is_number(cancel(rc/h[1])))
+            if length(k) > 0 then {
+              g = expand(f*k[1][1])
+              todo = select(todo, h => h !== k[1])
+            } else ok = false
+          }
+          if ok then {
+            let b = tf_back(g, vs, ws, xs)
+            let k0 = tf_numeric_part(b[2])
+            mono = map(i => mono[i] + fe[2]*b[1][i], range(length(xs)))
+            c = c*k0^fe[2]
+            out = append(out, [expand(b[2]/k0), fe[2]])
+          }
+        }
+      }
+      if ok and every(mono, m => m == 0) and free_of(out, exp) and free_of(c, tf_x1) then [c, out] else []
+    }
+  }
+}
+fn tf_product(pr) = pr[1]*product(map(q => q[1]^q[2], pr[2]))
+fn tf_list(pr) = join([[pr[1], 1]], sort(pr[2]))
+rule factor(p_, o_) := tf_product(tf_factor_pairs(p, false)) when tg_only(o) and length(tf_factor_pairs(p, false)) > 0
+rule factor_square_free(p_, o_) := tf_product(tf_factor_pairs(p, true)) when tg_only(o) and length(tf_factor_pairs(p, true)) > 0
+rule factor_list(p_, o_) := tf_list(tf_factor_pairs(p, false)) when tg_only(o) and length(tf_factor_pairs(p, false)) > 0
+rule factor_square_free_list(p_, o_) := tf_list(tf_factor_pairs(p, true)) when tg_only(o) and length(tf_factor_pairs(p, true)) > 0
+
+# extension: the fraction in lowest terms over the field: together, then numerator and denominator factored over it
+# (the common factors cancel), the numerator expanded
+# (automatic: the radicals of rationals in e)
+fn ex_field(e, o) = if o[1][2] === automatic then unique(select(cases([e], pow(_, _), inf), t => is_rational(t[1]) and is_rational(t[2]) and not is_integer(t[2]))) else o[1][2]
+fn ex_over(p, f) = if f === [] then factor(p) else factor(p, extension: f)
+fn ex_frac(e, o) = {
+  let r = together(e)
+  let f = ex_field(e, o)
+  expand(numerator(ex_over(numerator(r), f)/ex_over(denominator(r), f)))/denominator(ex_over(numerator(r), f)/ex_over(denominator(r), f))
+}
+fn ex_frac_ok(e, o) = ex_opt(o) and fsf_done(ex_over(numerator(together(e)), ex_field(e, o))) and fsf_done(ex_over(denominator(together(e)), ex_field(e, o)))
+rule together(e_, o_) := ex_frac(e, o) when ex_frac_ok(e, o)
+rule cancel(e_, o_) := (if head(e) === add then apply(add, map(t => ex_frac(t, o), ex_parts(e))) else ex_frac(e, o)) when ex_frac_ok(e, o)
 rule together(e_, o_) := tg_frac(e) when tg_only(o)
 rule cancel(e_, o_) := (if head(e) === add then apply(add, map(tg_frac, ex_parts(e))) else tg_frac(e)) when tg_only(o)
 rule polynomial_quotient_remainder(p_, q_, x_, o_) := [polynomial_quotient(p, q, x, o), polynomial_remainder(p, q, x, o)] when md_only(o)
@@ -884,6 +1030,13 @@ rule factor_list(p_, o_) := {
   let others = map(fsf_monic, select(ps, q => not is_number(q[1])))
   join([[expand(product(map(q => q[1]^q[2], cs))*product(map(first, others))), 1]], sort(map(last, others)))
 } when gi_opt(o) and denominator(together(p)) === 1 and length(variables(p)) == 1 and fsf_done(factor(p, o))
+# extension: an algebraic number, a list of them, or automatic (the algebraic numbers of p): the factors of factor
+# over that field (a polynomial), in the order of factor_list
+fn ex_alg(e) = e === automatic or (is_list(e) and length(e) > 0 and every(e, is_numeric)) or (not is_list(e) and is_numeric(e))
+fn ex_opt(o) = not is_atom(o) and head(o) === options and length(o) == 1 and o[1][1] === extension and ex_alg(o[1][2])
+fn ex_list(f, p) = { let l = fsf_list_of(f, p); join([l[1]], sort(rest(l))) }
+rule factor_list(p_, o_) := ex_list(factor(p, o), p) when ex_opt(o) and denominator(together(p)) === 1 and fsf_done(factor(p, o))
+rule factor_square_free_list(p_, o_) := ex_list(factor_square_free(p, o), p) when ex_opt(o) and denominator(together(p)) === 1 and fsf_done(factor_square_free(p, o))
 fn fsf_done(f) = is_atom(f) or not (head(f) === factor or head(f) === factor_square_free or head(f) === failure)
 fn fsf_list_of(f, p) = {
   let ps = if not is_atom(f) and head(f) === mul then map(i => f[i], range(length(f))) else [f]
@@ -1133,6 +1286,22 @@ rule integer_string(n_, r_, len_) := from_characters(map(mr_char, mr_pad(mr_digi
 # a Gaussian integer that is not real is factored in Z[i] without the option
 fn gi_complex(z) = gi_int(z) and im_part(z) != 0
 rule divisor_sigma(k_, z_) := divisor_sigma(k, z, gaussian_integers: true) when gi_complex(z) and is_integer(k)
+# the divisors of a Gaussian integer that is not real: one associate each (re > 0, im >= 0), in increasing order
+rule divisors(z_) := sort(divisors(z, gaussian_integers: true)) when gi_complex(z)
+# z^k modulo an integer m for a Gaussian integer z: the real and imaginary parts reduced at each squaring
+fn gi_red(z, m) = mod(re(z), m) + im*mod(im_part(z), m)
+fn gi_powmod(z, k, m) = {
+  var r = gi_red(1, m)
+  var b = gi_red(z, m)
+  var e = k
+  while e > 0 {
+    if mod(e, 2) == 1 then r = gi_red(expand(r*b), m)
+    b = gi_red(expand(b*b), m)
+    e = quotient(e, 2)
+  }
+  r
+}
+rule power_mod(z_, k_, m_) := gi_powmod(z, k, m) when gi_complex(z) and is_integer(k) and k >= 0 and is_integer(m) and m > 0
 rule liouville_lambda(z_) := liouville_lambda(z, gaussian_integers: true) when gi_complex(z)
 rule moebius_mu(z_) := moebius_mu(z, gaussian_integers: true) when gi_complex(z)
 rule factor_integer(z_) := factor_integer(z, gaussian_integers: true) when gi_complex(z)

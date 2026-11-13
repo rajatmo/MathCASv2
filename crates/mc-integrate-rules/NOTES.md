@@ -122,3 +122,9 @@ solves 177 s → 264 s (0.11 s more each: rules, substitutions and the short eng
   ported; integer powers of those are covered by Bioche's substitutions.
 - Answers are in the source rule set's forms (reduction formulas: powers of the functions), not in multiple
   angles; the elementary form is kept when both answer.
+
+## Round 39: derivative functions
+
+- f'(a + b x) integrates to f(a + b x)/b for airy_ai_prime, airy_bi_prime, weierstrass_p_prime, mathieu_c_prime,
+  mathieu_s_prime (in the third argument) and elliptic_exp_prime; not elliptic_theta_prime (no derivative rule for
+  elliptic_theta in u to check the result against) (rules/special.rules).

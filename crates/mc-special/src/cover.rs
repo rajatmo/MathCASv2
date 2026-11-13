@@ -2270,6 +2270,17 @@ fn lerch_phi<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if parts(fx, z) == Some((1.0, 0.0)) {
             return Ok(Some(fx.call("zeta", &[s, x])));
         }
+        // a positive integer s and a: the series is z^-a (Li_s(z) - sum_(i < a) z^i/i^s), which continues it
+        // beyond the unit circle on the principal branch of the polylogarithm (DLMF 25.14.1, 25.12.10)
+        if let (Some(n), Some(m)) = (fx.int_of(s), fx.int_of(x)) {
+            if n >= 1 && (1..=10_000).contains(&m) {
+                let mut terms = vec![fx.call("polylog", &[s, z])];
+                for i in 1..m {
+                    terms.push(fx.neg(fx.div(fx.pow(z, fx.int(i)), fx.pow(fx.int(i), s))));
+                }
+                return Ok(Some(fx.mul(&[fx.pow(z, fx.int(-m)), fx.add(&terms)])));
+            }
+        }
         return Ok(None);
     }
     let Some((wk, xs)) = work(fx, a, 8) else { return Ok(None) };

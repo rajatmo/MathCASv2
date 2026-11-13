@@ -297,3 +297,13 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   `common and (d1 or d2 ...)`, each `d_i` the equations `x == v` of every unknown with conditions free of the
   unknowns (the Pell family `x + y sqrt(d) = +-(x1 + y1 sqrt(d))^c(1)`, `element(c(1), integers)`, `c(1) >= 1` under
   positivity). The conditions go on each value as `conditional_expression` (`condition_as_conditional_rules`).
+
+## Round 39: integer roots of sparse polynomials
+
+- `reduce(p == 0 (and conditions), x, integers)` (and the signed integer domains) for a polynomial with few terms of
+  any degree: each factor as written alone, x^k divided out (root 0), then the rational root theorem: a root d
+  divides the constant term. A candidate is no root when one term outweighs twice the sum of the others (bounds on
+  log2 |a_i| + e_i log2 |d|, from the bit lengths), or when the value is not 0 modulo 2^31 - 1 or 2^61 - 1
+  (power_mod); otherwise p(d) is computed exactly when it has at most 200000 bits, else no answer. The terms are read
+  from the expanded factor directly (coefficient_rules is dense in the degree). Used for degrees above 60, and for
+  equations above the degree limit of the other methods (x^999997 - 25 x^12345 + 24 x, a millisecond).

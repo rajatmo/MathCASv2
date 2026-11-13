@@ -989,3 +989,28 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   se(b_3(q), q, i/2) took over 6 s. The exponent now comes from the half-period values, cos(pi nu) = 2 w_I(pi/2)
   w_II'(pi/2) - 1 and 1 - cos^2(pi nu) = -4 w_I w_II' w_I' w_II at pi/2 (DLMF 28.2.(iii)), free of cancellation,
   and the kernel takes these points (agreement with 30 digits to about 10^-14 relative, as next to them).
+## Round 39: hypergeometric closed forms
+
+- `rathyp.rs`: (q+1)Fq(a; b; z) at a symbolic z when all upper parameters but one (a0) differ from the lower ones by
+  integers. Each pair (a, b) is a rational function of k ((b + k)_n/(b)_n or (a)_m/(a + k)_m), so the series is
+  sum (a0)_k/k! R(k) z^k; partial fractions of R split it into moments (z d/dz)^r (1 - z)^-a0 (Stirling numbers of
+  the second kind) and pole sums sum (a0)_k/k! z^k/(k + beta) = z^-beta int_0^z t^(beta - 1) (1 - t)^-a0 dt
+  (DLMF 15.6.1), elementary for an integer beta (binomial expansion of t^(beta - 1) in 1 - t) and, with t = u^2, for
+  a half-integer beta and a0 in (1/2)Z (reduction formulas of int u^(2m) (1 - u^2)^s du, base asin or atanh). For
+  a0 = 1 the poles of any order give z^-beta (Li_j(z) - sum_(i < beta) z^i/i^j) (integer beta) and atanh(sqrt z)
+  (half-integer beta, order one). Poles at k = -beta with beta <= 0, poles of order two or more with a0 != 1, and
+  other betas: no closed form, the call stays. Every piece is on the principal branch of the plane cut along
+  [1, inf). 2F1(2, 3; 4; z), 2F1(3/2, 2; 3; z), 3F2(1, 1, 2; 3, 3; z) (with Li_2) and 3F2(1, 1, 3; 2, 2; z) agree with
+  the series and its continuation to 25 digits at points inside and outside the unit disc (round39_hypergeometric).
+- Bilateral series with a lower parameter a positive integer n: the terms with k <= -n vanish (1/(n)_k = 0), so the
+  series is prod (a)_(-m)/prod (b)_(-m) z^-m pFq(a - m; b - m without that one; z), m = n - 1.
+- Library (lib/special.mc): Ferrers P of order +-1/2 at nu + 1/2 an integer through Chebyshev polynomials
+  (DLMF 14.5.11, 14.5.12); Jacobi functions of a non-integer degree through 2F1 (DLMF 15.9.1) when that 2F1 has a
+  closed form. The forms differ from other spellings of the same function in their powers ((1 + (x - 1)/2)^(1/2)
+  against ((1 + x)/2)^(1/2)), which `simplify` does not identify; values agree.
+- Gap: Lerch's transcendent beyond the unit circle at non-integer s (needs a continuation such as the Hankel
+  contour); the functional equation alone does not give it.
+- Lerch transcendent beyond the unit circle at a positive integer s and a: z^-a (Li_s(z) - sum_(i < a) z^i/i^s), the
+  continuation on the principal branch of the polylogarithm (on the cut z > 1 the value from below:
+  lerch_phi(7., 1, 2) = -(log(-6) + 7)/49). Checked against the integral (1/Gamma(s)) int t^(s-1) e^(-a t)/(1 - z e^-t)
+  dt off the cut. Other orders and shifts beyond the circle stay.

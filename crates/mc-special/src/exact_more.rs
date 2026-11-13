@@ -412,7 +412,12 @@ impl<'a, 'h> More<'a, 'h> {
                         }
                     }
                 }
-                self.terminating(&[a[0], a[1]], &[a[2]], a[3])
+                if let Some(t) = self.terminating(&[a[0], a[1]], &[a[2]], a[3]) {
+                    return Some(t);
+                }
+                // parameters differing by integers: elementary functions and logarithms (crate::rathyp)
+                let (x, y, c) = (self.rat(a[0])?, self.rat(a[1])?, self.rat(a[2])?);
+                crate::rathyp::closed_form(self.h, self.ar, &[x, y], &[c], a[3]).map(Exact::Value)
             }
             S::BesselJ | S::BesselY => {
                 let nu = self.rat(a[0])?;

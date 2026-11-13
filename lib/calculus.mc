@@ -92,6 +92,13 @@ rule alternating_harmonic_number(m_, r_, s_) := calc_total(map(k => (-1)^(k + 1)
 rule alternating_harmonic_number(m_, r_, s_) := -polylog(r, -s) when m === inf
 rule alternating_harmonic_number(m_, r_, s_) := -polylog(r, -s) - (-1)^m*s^(m + 1)*lerch_phi(-s, r, m + 1) when calc_inexact([m, r, s])
 
+# harmonic_number(m, r, s): the sum of s^k/k^r for k = 1, ..., m; m = inf gives polylog(r, s); inexact m the
+# polylogarithm less the Lerch tail s^(m + 1) lerch_phi(s, r, m + 1); lists of m thread
+rule harmonic_number(m_, r_, s_) := map(k => harmonic_number(k, r, s), m) when is_list(m)
+rule harmonic_number(m_, r_, s_) := calc_total(map(k => s^k/k^r, range(m))) when calc_count(m)
+rule harmonic_number(m_, r_, s_) := polylog(r, s) when m === inf
+rule harmonic_number(m_, r_, s_) := polylog(r, s) - s^(m + 1)*lerch_phi(s, r, m + 1) when calc_inexact([m, r, s])
+
 # alternating_factorial(m): m! - (m - 1)! + ... +- 1!, the sum of (-1)^(m - k) k! for k = 1, ..., m; at inexact m
 # the continuation e gamma(m + 2) gamma(-m - 1, 1) - cos(pi m) (1 + e exp_integral_ei(-1))
 rule alternating_factorial(m_) := map(alternating_factorial, m) when is_list(m)

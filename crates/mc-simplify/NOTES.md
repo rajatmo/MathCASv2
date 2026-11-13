@@ -562,3 +562,9 @@ keep the value at random points (11 inputs x 3 points, 30 digits), user transfor
 - The points of the spot check are seeded by a hash of the input's structure, not its handle: the handle varied with allocation order, and so the points and the cost (full_simplify of the dilogarithm reflection 0.15 s to 3 s, a point where polylog converges slowly).
 
 - `time_constraint:`: the first level of moves from a small term (size <= 32) runs whatever the deadline, so a very short limit still gives the identities one move away (`full_simplify(x*gamma(x), time_constraint: 0.0001)` is `gamma(1 + x)`). It was a race with the clock: the preparation of the term could use up the 0.1 ms before the first move started.
+
+## Round 39: zeros by function_expand
+
+- `full_simplify(e)` without assumptions returns 0 (or true) at once when `function_expand(e)` is 0 (or true): a
+  difference of two forms of one special-function expression (beta(a, b) - beta(b, a), a gamma ratio against beta)
+  no longer runs the whole search over the gamma forms of its terms.

@@ -378,3 +378,8 @@ factor by factor and stay products.
   wrong value before: `series(abs(x), x, 0, 3)` gave `O(x^4)`.
 - With `derivatives: false` (the limit walk), `non_analytic_table` still gives these forms for arguments built from
   the kernels' own functions only, since their series are known.
+## Round 39: options and lists
+
+- `together`/`cancel` with `extension:` and `factor`/`factor_square_free` with `trig: true` decline in the native for
+  the library's rules (mc-combinat). `gcd` and `lcm` thread over list arguments (lists of one length, other
+  arguments broadcast).

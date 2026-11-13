@@ -69,6 +69,12 @@ pub const FUNCTIONS: &[&str] = &[
     "zeta",
     "abs",
     "polygamma",
+    "airy_ai_prime",
+    "airy_bi_prime",
+    "weierstrass_p_prime",
+    "mathieu_c_prime",
+    "mathieu_s_prime",
+    "elliptic_exp_prime",
 ];
 
 /// Functions a right side may build (beyond [`FUNCTIONS`]): special functions of answers.
@@ -82,6 +88,12 @@ pub const ANSWER_FUNCTIONS: &[&str] = &[
     "beta",
     "sign",
     "sqrt",
+    "airy_ai",
+    "airy_bi",
+    "weierstrass_p",
+    "mathieu_c",
+    "mathieu_s",
+    "elliptic_exp",
 ];
 
 /// The utilities of right sides (evaluated by the interpreter, see `crate::run`).

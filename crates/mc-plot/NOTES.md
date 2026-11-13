@@ -241,3 +241,8 @@ used. Tests: `tests/round20.rs`.
 - `list_point_plot3d`, `list_line_plot3d`, `list_plot3d`: a value may be `around(x, dx)` (its centre is drawn),
   `labeled(v, l)`, `callout(v, l)` or `v -> l` (the value is drawn, the label is not); a whole data set
   `data -> labels` is the data.
+## Round 39: epilog primitives that cannot be drawn
+
+- A primitive of `epilog` or `prolog` whose coordinates are not numbers after the numeric pass (an undefined symbol,
+  a failure term) is left out with a message naming it, and the plot is drawn: lists and `style(...)` are taken
+  apart, so the drawable primitives beside it stay. Content that is not graphics at all still fails as before.

@@ -611,6 +611,14 @@ fn run<'h>(
     cfg: &Config<'h>,
     t: T<'h>,
 ) -> Res<T<'h>> {
+    // full_simplify: a term that function_expand brings to 0 (or an equation it brings to true) is that, before any
+    // search (beta(a, b) - beta(b, a): the search over the gamma forms of the two terms is long)
+    if cfg.full && !has_facts {
+        let fe = cx.eval(b.call_named("function_expand", &[t]))?;
+        if fe == b.int(0) || fe == b.heap().sym_term(b.heap().sym(mc_api::names::TRUE)) {
+            return Ok(fe);
+        }
+    }
     let mut k = Ctx { fx, has_facts, cfg, cost };
     let t0 = prepare(cx, b, &mut k, t)?;
     if !has_facts {

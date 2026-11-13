@@ -197,3 +197,13 @@ non-power rejected in 0.9 s.
 - `binomial(a, b)` of non-integer rationals with a - b = d an integer: C(a, d) for d >= 0, 0 for d < 0 (Gamma(d + 1)
   has a pole, Gamma(a + 1) and Gamma(b + 1) are finite); an exact complex a and a natural b: the falling factorial
   over b!. `factorial` of a half-integer is `gamma(1 + x)` (its closed form, DLMF 5.4.6); other rationals stay.
+
+## Round 39: modular roots, lists, Gaussian coprimality
+
+- `power_mod(a, p/q, m)` (q > 1, 1 < m <= 10^6): the least residue r with r^q = a mod m, raised to p (through the
+  inverse for p < 0); no root leaves the call. `extended_gcd` and `factor_integer` thread over lists.
+- `is_coprime` of Gaussian integers: the gcd in Z[i] is a unit (norm 1); of an argument that is not an explicit number
+  (a symbol): false, as `is_integer` and `is_prime` (and the library's `is_even`, `is_odd`).
+- `divisible(a, b)` of exact numeric constants: a/b simplified, then decided as an integer (`element`): 2 pi and pi/2
+  true, sqrt(6) and sqrt(2) false. `quotient_remainder(a, b)` of real constants: the quotient that `quotient`
+  decides and a - b q.

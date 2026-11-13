@@ -861,6 +861,9 @@ fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
     }
     // a function of one interval argument
     let at: Vec<usize> = (0..args.len()).filter(|&i| pieces(fx, args[i]).is_some()).collect();
+    if at.len() >= 2 {
+        return several_intervals(fx, head, args, &at);
+    }
     let [i] = at[..] else { return Ok(None) };
     let Some(ps) = pieces(fx, args[i]) else { return Ok(None) };
     let mut out = vec![];
@@ -873,6 +876,38 @@ fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
         out.push(s);
     }
     make_interval(fx, outward(fx, out))
+}
+
+/// A function of several intervals (one piece each, finite ends): the box is the product of the pieces, and when
+/// the function is monotone in each argument over it (the test of [`centered_corners`]: every partial derivative
+/// keeps its sign on a grid over the box) its image is spanned by two corners; the ends are moved outwards by a few
+/// ulps. `None` otherwise (the call stays).
+fn several_intervals<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], at: &[usize]) -> Res<Option<T<'h>>> {
+    let mut centers = args.to_vec();
+    let mut unc = vec![None; args.len()];
+    for &i in at {
+        let Some(ps) = pieces(fx, args[i]) else { return Ok(None) };
+        let [(a, b)] = ps[..] else { return Ok(None) };
+        let (Some(lo), Some(hi)) = (machine(fx, a)?, machine(fx, b)?) else { return Ok(None) };
+        if !(lo.is_finite() && hi.is_finite() && lo <= hi) {
+            return Ok(None);
+        }
+        centers[i] = fx.real(0.5 * (lo + hi));
+        unc[i] = Some(fx.real(0.5 * (hi - lo)));
+    }
+    // the other arguments must be numbers
+    for (i, &c) in centers.iter().enumerate() {
+        if unc[i].is_none() && fx.num(c).is_none() && machine(fx, c)?.is_none() {
+            return Ok(None);
+        }
+    }
+    let Some(r) = centered_corners(fx, head, &centers, &unc)? else { return Ok(None) };
+    let Some(&[m, d]) = fx.call_of(r, "centered_interval") else { return Ok(None) };
+    let (Some(m), Some(d)) = (machine(fx, m)?, machine(fx, d)?) else { return Ok(None) };
+    let lo = m - d;
+    let hi = m + d;
+    let ps = outward(fx, vec![(fx.real(lo), fx.real(hi))]);
+    make_interval(fx, ps)
 }
 
 /// The image of a piece at least one period long (or unbounded) under sin or cos (period 2 pi, range [-1, 1]) or

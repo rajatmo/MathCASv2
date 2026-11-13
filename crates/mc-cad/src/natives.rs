@@ -303,6 +303,31 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
             None => Reply::Decline,
         });
     }
+    // booleans: each quantifier over truth values is the disjunction (exists) or conjunction (for_all) of its two
+    // instances
+    if dom.as_deref() == Some("booleans") {
+        return Ok(match boolean_instances(cx, f, 0) {
+            Some(t) => Reply::Again(t),
+            None => Reply::Decline,
+        });
+    }
+    // a signed real domain: the reals with the sign condition on every variable, bound or free
+    let signed = match dom.as_deref() {
+        Some("positive_reals") => Some("greater"),
+        Some("negative_reals") => Some("less"),
+        Some("nonnegative_reals") => Some("greater_equal"),
+        Some("nonpositive_reals") => Some("less_equal"),
+        _ => None,
+    };
+    if let Some(rel) = signed {
+        let mut free = vec![];
+        free_variables(&fr, f, &mut vec![], &mut free);
+        let g = restrict(cx, f, rel);
+        let mut parts: Vec<T<'h>> = free.iter().map(|&v| h.call(h.sym(rel), &[v, h.int(0)])).collect();
+        parts.push(g);
+        let c = if parts.len() == 1 { parts[0] } else { h.call(h.sym("and"), &parts) };
+        return Ok(Reply::Again(h.call(h.sym("resolve"), &[c, h.sym_term(h.sym("reals"))])));
+    }
     let reals = match dom.as_deref() {
         Some("reals") => true,
         Some("complexes") => false,
@@ -319,6 +344,91 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
         Some(t) => Reply::Done(t),
         None => Reply::Done(unresolved(cx, f)),
     })
+}
+
+/// The variables of a quantifier: one symbol or a list of symbols.
+fn bound_of<'h>(fr: &Front<'h>, v: T<'h>) -> Vec<T<'h>> {
+    match fr.list(v) {
+        Some(vs) => vs.to_vec(),
+        None => vec![v],
+    }
+}
+
+/// The symbols of `f` that are not bound by a quantifier, in order of appearance (constants and heads left out).
+fn free_variables<'h>(fr: &Front<'h>, f: T<'h>, bound: &mut Vec<T<'h>>, out: &mut Vec<T<'h>>) {
+    const CONSTANTS: [&str; 11] = ["pi", "e", "im", "true", "false", "inf", "euler_gamma", "golden_ratio", "catalan", "degree", "khinchin"];
+    if let Some(name) = fr.sym_name(f) {
+        if !CONSTANTS.contains(&name.as_str()) && !bound.contains(&f) && !out.contains(&f) {
+            out.push(f);
+        }
+        return;
+    }
+    let Some((name, args)) = fr.head(f) else { return };
+    if matches!(name.as_str(), "exists" | "for_all") && !args.is_empty() {
+        let vs = bound_of(fr, args[0]);
+        let n = bound.len();
+        bound.extend(vs);
+        for &a in &args[1..] {
+            free_variables(fr, a, bound, out);
+        }
+        bound.truncate(n);
+        return;
+    }
+    for &a in args.iter() {
+        free_variables(fr, a, bound, out);
+    }
+}
+
+/// Every quantifier of `f` restricted by the relation `rel` to 0 of its variables: exists(v, c) is
+/// exists(v, rel(v) and c), for_all(v, c) is for_all(v, rel(v) implies c).
+fn restrict<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, rel: &str) -> T<'h> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let Some((name, args)) = fr.head(f) else { return f };
+    let args: Vec<T<'h>> = args.to_vec();
+    let View::App { head, .. } = h.view(f) else { return f };
+    let inner: Vec<T<'h>> = args.iter().map(|&a| restrict(cx, a, rel)).collect();
+    if matches!(name.as_str(), "exists" | "for_all") && inner.len() == 2 {
+        let vs = bound_of(&fr, args[0]);
+        let mut conds: Vec<T<'h>> = vs.iter().map(|&v| h.call(h.sym(rel), &[v, h.int(0)])).collect();
+        let c = if conds.len() == 1 { conds.remove(0) } else { h.call(h.sym("and"), &conds) };
+        let body = if name == "exists" { h.call(h.sym("and"), &[c, inner[1]]) } else { h.call(h.sym("implies"), &[c, inner[1]]) };
+        return h.app(head, &[args[0], body]);
+    }
+    h.app(head, &inner)
+}
+
+/// The quantifiers of `f` over truth values written out: exists(p, c) is c[p -> true] or c[p -> false], for_all the
+/// conjunction; `None` past a depth of 16 variables.
+fn boolean_instances<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, depth: usize) -> Option<T<'h>> {
+    let h = cx.heap();
+    let fr = Front::new(h);
+    let Some((name, args)) = fr.head(f) else { return Some(f) };
+    let args: Vec<T<'h>> = args.to_vec();
+    let View::App { head, .. } = h.view(f) else { return Some(f) };
+    if matches!(name.as_str(), "exists" | "for_all") && args.len() == 2 {
+        let vs = bound_of(&fr, args[0]);
+        if depth + vs.len() > 16 {
+            return None;
+        }
+        let mut cur = vec![boolean_instances(cx, args[1], depth + vs.len())?];
+        for &v in &vs {
+            let mut next = vec![];
+            for &c in &cur {
+                for val in ["true", "false"] {
+                    let rule = h.call(h.sym(names::RULE), &[v, h.sym_term(h.sym(val))]);
+                    next.push(h.call(h.sym("rewrite"), &[c, rule]));
+                }
+            }
+            cur = next;
+        }
+        return Some(h.call(h.sym(if name == "exists" { "or" } else { "and" }), &cur));
+    }
+    let mut inner = vec![];
+    for &a in &args {
+        inner.push(boolean_instances(cx, a, depth)?);
+    }
+    Some(h.app(head, &inner))
 }
 
 /// A formula `resolve` could not eliminate: itself, with the variables of each quantifier as a list (the

@@ -64,6 +64,7 @@ mod heun;
 mod appell;
 mod zeros;
 mod qhyper;
+mod rathyp;
 mod mathieu;
 mod fast29;
 mod fast30;

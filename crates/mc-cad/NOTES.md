@@ -291,3 +291,10 @@ Parallel work on the session's pool (`mc-eval`'s `par` module), with the same an
 ## Round 36, Pell families
 
 - Pell families with any sign conditions on x and y (half-lines read from the points -2..2): signs and least power c(1) >= 0 or 1.
+
+## Round 39: resolve over signed reals and booleans
+
+- `resolve(f, positive_reals)` (and negative, nonnegative, nonpositive): every quantifier restricted (exists(v, s(v)
+  and c), for_all(v, s(v) implies c)) and the sign condition on every free variable added, then over the reals.
+  `resolve(f, booleans)`: each quantifier written out as the disjunction (exists) or conjunction (for_all) of its
+  instances at true and false (at most 16 variables).

@@ -72,6 +72,31 @@ fn small<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, max: i64) -> Option<i64> {
 
 fn divisible<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let (n, m) = (a[0], a[1]);
+    if fx.num(n).is_none() || fx.num(m).is_none() {
+        // exact numeric constants (2 pi, sqrt(6)): n/m simplified, then decided as an integer or not
+        let truth = |fx: &mut Fx<'_, '_, '_, 'h>, f: &str, t: T<'h>| -> Res<bool> {
+            let r = ev(fx, f, &[t])?;
+            Ok(r == fx.bool(true))
+        };
+        for t in [n, m] {
+            // numeric and exact: no inexact number in it (its precision is infinite)
+            let p = ev(fx, "precision", &[t])?;
+            if !truth(fx, "is_numeric", t)? || p != fx.inf() {
+                return Ok(None);
+            }
+        }
+        let q = ev(fx, "simplify", &[fx.div(n, m)])?;
+        if let Some(v) = fx.num(q) {
+            return Ok(match v {
+                Num::Real(Real::Exact(r)) => Some(fx.bool(r.is_int())),
+                Num::Complex(Real::Exact(r), Real::Exact(s)) => Some(fx.bool(r.is_int() && s.is_int())),
+                _ => None,
+            });
+        }
+        let ints = fx.sym("integers");
+        let r = ev(fx, "element", &[q, ints])?;
+        return Ok((r == fx.bool(true) || r == fx.bool(false)).then_some(r));
+    }
     let (Some(x), Some(y)) = (fx.num(n), fx.num(m)) else { return Ok(None) };
     if !x.is_exact() || !y.is_exact() || y.is_zero() {
         return Ok(None);
@@ -86,7 +111,33 @@ fn divisible<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn is_coprime<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
-    if a.len() < 2 || a.iter().any(|&t| int(fx, t).is_none()) {
+    if a.len() < 2 {
+        return Ok(None);
+    }
+    // Gaussian integers: coprime when the gcd in Z[i] is a unit
+    let gaussian = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| matches!(fx.num(t), Some(Num::Complex(Real::Exact(r), Real::Exact(s))) if r.is_int() && s.is_int());
+    if a.iter().all(|&t| int(fx, t).is_some() || gaussian(fx, t)) && a.iter().any(|&t| gaussian(fx, t)) {
+        for i in 0..a.len() {
+            for j in i + 1..a.len() {
+                let g = ev(fx, "gcd", &[a[i], a[j]])?;
+                // the norm g conj(g): 1 for a unit
+                let c = ev(fx, "conjugate", &[g])?;
+                let n = ev(fx, "expand", &[fx.mul(&[g, c])])?;
+                if fx.num(n).is_none() {
+                    return Ok(None);
+                }
+                if !fx.is_int(n, 1) {
+                    return Ok(Some(fx.bool(false)));
+                }
+            }
+        }
+        return Ok(Some(fx.bool(true)));
+    }
+    // like is_integer and is_prime: false for an argument that is not an explicit number (a symbol, a polynomial)
+    if a.iter().any(|&t| fx.num(t).is_none() && !fx.contains(t, "options") && fx.as_list(t).is_none()) {
+        return Ok(Some(fx.bool(false)));
+    }
+    if a.iter().any(|&t| int(fx, t).is_none()) {
         return Ok(None);
     }
     for i in 0..a.len() {
@@ -571,7 +622,12 @@ fn modular_inverse<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn quotient_remainder<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.num(a[0]).is_none() || fx.num(a[1]).is_none() {
-        return Ok(None);
+        // real numeric constants (exp(e), pi): the integer quotient when quotient decides it, and m - n q
+        let q = ev(fx, "quotient", a)?;
+        if fx.int_of(q).is_none() {
+            return Ok(None);
+        }
+        return Ok(Some(fx.list(&[q, fx.sub(a[0], fx.mul(&[a[1], q]))])));
     }
     let q = fx.call("quotient", a);
     let r = fx.call("mod", a);

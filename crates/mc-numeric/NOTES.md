@@ -600,3 +600,9 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   is a pole when the value there is infinite, or has no value while the values grow at least a hundredfold, from
   beyond 10^6, as the distance shrinks a hundredfold; the grid of the derivative leaves that end out, and with no
   critical point inside the image runs from the other end's value to the infinity of the sign just inside.
+## Round 39: several interval arguments
+
+- A function of several `interval` arguments (one piece each, finite ends, other arguments numbers) is the hull of
+  two corners of the box when it is monotone in each argument there, by the test of the several-spread
+  `centered_interval` case (every partial derivative keeps its sign on a grid over the box); otherwise the call
+  stays. The ends move outwards by a few ulps.

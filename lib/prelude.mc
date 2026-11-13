@@ -3,9 +3,12 @@
 # Everything here is in the bare namespace (the prelude is not a module). Rules: never define a symbol that has a
 # native implementation, and never reuse a name the benchmark cases define.
 
-# is_even(n), is_odd(n): parity of an integer
+# is_even(n), is_odd(n): parity of an integer; false for anything that is not an explicit integer (a symbol, a
+# closed form, a machine number), as is_integer and is_prime
 fn is_even(n: Int) = mod(n, 2) == 0
 fn is_odd(n: Int) = mod(n, 2) == 1
+fn is_even(n) = false
+fn is_odd(n) = false
 
 # clamp(x, lo, hi): x limited to the interval [lo, hi]
 fn clamp(x, lo, hi) = min(max(x, lo), hi)
@@ -1076,7 +1079,9 @@ fn range_space(m) when is_matrix(m) = { let r = row_reduce(transpose(m)); select
 fn integer_partitions(m) = if is_rational(m) and not is_integer(m) then [] else integer_partitions(m, all, all, all)
 fn integer_partitions(m, k) = integer_partitions(m, k, all, all)
 fn integer_partitions(m, k, ps) = integer_partitions(m, k, ps, all)
-fn integer_partitions(m, k, ps, cnt) when is_rational(m) and m >= 0 and (is_integer(m) or not (ps === all)) = {
+# (parts that are not positive: the generator's pruning does not hold, and with k = all there are infinitely many
+# partitions; such calls stay)
+fn integer_partitions(m, k, ps, cnt) when is_rational(m) and m >= 0 and (is_integer(m) or not (ps === all)) and (ps === all or every(ps, p => p > 0)) = {
   let avail = if ps === all then reverse(range(max(m, 1))) else reverse(sort(unique(ps)))
   let kmin = if k === all or is_integer(k) then 0 else k[1]
   let kmax = if k === all then m*10^6 else if is_integer(k) then k else if length(k) == 1 then k[1] else k[2]
