@@ -101,7 +101,7 @@ const FAILURES: &[(&str, &str)] = &[
     ("limit(1/x, x -> -inf, direction: from_below)", FINITE_SIDE),
 ];
 
-const DIRECTION: &str = "failure(argument, limit, \"direction is from_above, from_below, two_sided or reals\")";
+const DIRECTION: &str = "failure(argument, limit, \"direction is from_above, from_below, two_sided, reals, complexes or a complex number\")";
 const FINITE_SIDE: &str = "failure(argument, limit, \"an infinity is approached from the finite side\")";
 
 /// Limits this crate does not decide stay unevaluated (decision C.2); other forms.

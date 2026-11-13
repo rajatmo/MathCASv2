@@ -47,7 +47,7 @@ pub type Tick<'t> = dyn FnMut(u64) -> Result<(), Abort> + 't;
 pub type Pieces<'h> = (Vec<(T<'h>, T<'h>)>, Option<T<'h>>);
 
 /// Does `t` contain an explicit complex number (`complex(re, im)`)?
-fn has_complex<'h, S: Store + ?Sized>(h: &S, t: T<'h>) -> bool {
+pub fn has_complex<'h, S: Store + ?Sized>(h: &S, t: T<'h>) -> bool {
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
         if let View::App { head, args } = h.view(u) {

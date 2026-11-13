@@ -12,6 +12,9 @@ fn clamp(x, lo, hi) = min(max(x, lo), hi)
 
 # log_base(b, x): the logarithm of x to base b (an exact integer when x is a power of the integer b)
 fn log_base(b: Int, x: Int) when b > 1 and x > 0 and b^integer_exponent(x, b) == x = integer_exponent(x, b)
+# numbers of which one is a machine number: the quotient of the logarithms of their exact values to 40 digits,
+# rounded once to a machine number (so log_base(2.0, 8.0) is 3.0, not the quotient of two rounded logarithms)
+fn log_base(b, x) when is_number(b) and is_number(x) and (is_machine_number(b) or is_machine_number(x)) = n(n(log(set_precision(x, inf))/log(set_precision(b, inf)), 40))
 fn log_base(b, x) = log(x)/log(b)
 
 # count_if(xs, p): how many elements x of xs have p(x) true

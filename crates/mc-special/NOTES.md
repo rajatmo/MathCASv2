@@ -977,3 +977,15 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
 - `prime_zeta_p(s)` for a real inexact s in (1/2, 1): the series sum mu(k)/k log(zeta(k s)) as for s > 1, its first
   term on the principal branch (zeta(s) < 0 there, so the imaginary part is pi); checked by the Moebius inversion
   log zeta(s) = sum P(k s)/k. Below 1/2 the term k = 2 meets the pole: no value.
+
+## Round 39: Mathieu functions on the imaginary axis
+
+- For real a and q, ce and se have real Taylor coefficients in z with ce even and se odd (DLMF 28.2.(vi)), so
+  ce(i y), se'(i y) are real and se(i y), ce'(i y) purely imaginary. The computed other part was rounding noise
+  (about 1e-59 at machine arguments), which made se(b_3(q), q, i/2) leave the line i R as q varied and a root search
+  along real q fail; it is now dropped.
+- The machine kernel (fast29.rs) declined every a with 1 - w_I(pi)^2 < 10^-10, i.e. every characteristic value
+  rounded to a machine number, and those went to the ball evaluation (about 0.6 s each): a root search over
+  se(b_3(q), q, i/2) took over 6 s. The exponent now comes from the half-period values, cos(pi nu) = 2 w_I(pi/2)
+  w_II'(pi/2) - 1 and 1 - cos^2(pi nu) = -4 w_I w_II' w_I' w_II at pi/2 (DLMF 28.2.(iii)), free of cancellation,
+  and the kernel takes these points (agreement with 30 digits to about 10^-14 relative, as next to them).

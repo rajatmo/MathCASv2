@@ -595,15 +595,26 @@ fn bad<'h>(b: &Build<'h>, name: &str, message: &str) -> T<'h> {
     failure(b, "argument", &[h.sym_term(h.sym(name)), h.string(message)])
 }
 
+/// A direction off the real line.
+enum Toward<'h> {
+    /// along the real line (the [`Direction`])
+    Real,
+    /// along the ray x = a - d s, s → 0 from above, for a complex number d (`im`: from below the real axis)
+    Along(T<'h>),
+    /// from every direction in the complex plane
+    Plane,
+}
+
 /// The direction of a trailing `options(direction -> d)`, and the arguments before it; `Err` with the failure.
-fn options<'a, 'h>(b: &Build<'h>, fname: &str, args: &'a [T<'h>]) -> Result<(&'a [T<'h>], Direction), T<'h>> {
+fn options<'a, 'h>(b: &Build<'h>, fname: &str, args: &'a [T<'h>]) -> Result<(&'a [T<'h>], Direction, Toward<'h>), T<'h>> {
     let h = b.heap();
-    let Some((&last, rest)) = args.split_last() else { return Ok((args, Direction::TwoSided)) };
-    let View::App { head, args: rules } = h.view(last) else { return Ok((args, Direction::TwoSided)) };
+    let Some((&last, rest)) = args.split_last() else { return Ok((args, Direction::TwoSided, Toward::Real)) };
+    let View::App { head, args: rules } = h.view(last) else { return Ok((args, Direction::TwoSided, Toward::Real)) };
     if b.sym_of(head) != Some(h.sym("options")) {
-        return Ok((args, Direction::TwoSided));
+        return Ok((args, Direction::TwoSided, Toward::Real));
     }
     let mut direction = Direction::TwoSided;
+    let mut toward = Toward::Real;
     for &r in rules {
         let View::App { head, args: &[k, v] } = h.view(r) else { return Err(bad(b, fname, "options are name: value")) };
         let (Some(rule), Some(name)) = (b.sym_of(head), b.sym_of(k)) else {
@@ -620,10 +631,44 @@ fn options<'a, 'h>(b: &Build<'h>, fname: &str, args: &'a [T<'h>]) -> Result<(&'a
             (Some("from_above"), _) | (_, View::Int(-1)) => Direction::FromAbove,
             (Some("from_below"), _) | (_, View::Int(1)) => Direction::FromBelow,
             (Some("two_sided" | "reals"), _) => Direction::TwoSided,
-            _ => return Err(bad(b, fname, "direction is from_above, from_below, two_sided or reals")),
+            (Some("complexes"), _) => {
+                toward = Toward::Plane;
+                Direction::TwoSided
+            }
+            // a complex direction (checked to be off the real line where it is used)
+            _ if mc_calculus::diff::has_complex(h, v) || b.sym_of(v) == Some(h.sym("im")) => {
+                toward = Toward::Along(v);
+                Direction::TwoSided
+            }
+            _ => return Err(bad(b, fname, "direction is from_above, from_below, two_sided, reals, complexes or a complex number")),
         };
     }
-    Ok((rest, direction))
+    Ok((rest, direction, toward))
+}
+
+/// `limit(f, x -> a, direction: d)` for a complex d off the real line: the one-sided limit of f(a - d s) as the real
+/// s tends to 0 from above (the ray from which x approaches a). `None` (unevaluated) for an infinite or variable
+/// point, a d on the real line, and a limit not found.
+fn along<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>, dv: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let View::App { head, args: &[x, a] } = h.view(spec) else { return Ok(None) };
+    if b.sym_of(head) != Some(h.sym(names::RULE)) || !matches!(h.view(x), View::Sym(_)) || !is_free(b, a, x) {
+        return Ok(None);
+    }
+    if !is_free(b, a, h.sym_term(h.sym("inf"))) || !is_free(b, a, h.sym_term(h.sym("complex_infinity"))) {
+        return Ok(None);
+    }
+    let im = cx.eval(b.call("im_part", &[dv]))?;
+    if !matches!(sign(cx, b, im)?, Some(1 | -1)) {
+        return Ok(None);
+    }
+    let s = h.sym_term(h.sym("s%toward"));
+    let point = cx.eval(b.sub(a, b.mul(&[dv, s])))?;
+    let g = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, point])]))?;
+    Ok(match limit(cx, b, g, s, b.zero(), Direction::FromAbove)? {
+        Outcome::Value(v) if is_free(b, v, s) => Some(v),
+        _ => None,
+    })
 }
 
 impl Native for LimitFn {
@@ -632,11 +677,20 @@ impl Native for LimitFn {
         let _scope = StopScope::enter(Some(&self.stop));
         let b = Build::new(h, &self.stop);
         let name = self.kind.name();
-        let (args, direction) = match options(&b, name, args) {
+        let (args, direction, toward) = match options(&b, name, args) {
             Ok(v) => v,
             Err(f) => return Ok(Reply::Done(f)),
         };
         let [f, spec] = args else { return Ok(Reply::Decline) };
+        match toward {
+            Toward::Real => {}
+            // from every direction of the plane: not decided here
+            Toward::Plane => return Ok(Reply::Decline),
+            Toward::Along(dv) if self.kind == Kind::Limit => {
+                return Ok(along(cx, &b, *f, *spec, dv)?.map_or(Reply::Decline, Reply::Again));
+            }
+            Toward::Along(_) => return Ok(Reply::Decline),
+        }
         // the points: one rule, or a list of rules (iterated, the last innermost)
         let rules: Vec<T<'h>> = match h.view(*spec) {
             View::App { head, args: items } if b.sym_of(head) == Some(b.hd.list) && !items.is_empty() => items.to_vec(),

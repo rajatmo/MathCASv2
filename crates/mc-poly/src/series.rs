@@ -1392,7 +1392,8 @@ pub fn expansion<'h>(
         return Ok(None);
     }
     let zero = h.int(0);
-    let taylor = if derivatives { taylor_table(cx, &[e, t, zero, h.int(n.clamp(0, 60))])? } else { Default::default() };
+    let spec = [e, t, zero, h.int(n.clamp(0, 60))];
+    let taylor = if derivatives { taylor_table(cx, &spec)? } else { non_analytic_table(cx, &spec)? };
     let env = Env { ar: Arith::new(h).with_stop(stop.clone()), hd: crate::convert::Heads::new(h), name: "series" };
     let _scope = mc_arith::num::StopScope::enter(Some(stop));
     let mut tick = crate::natives::Tick { cx, stop, abort: None };
@@ -1795,6 +1796,40 @@ pub(crate) fn taylor_table<'h>(
     cx: &mut mc_eval::NativeCx<'_, '_, 'h>,
     args: &[T<'h>],
 ) -> mc_eval::Res<TaylorTable<'h>> {
+    taylor_table_with(cx, args, true)
+}
+
+/// The entries of [`taylor_table`] for the non-analytic functions (abs, sign, arg, re, im_part, conjugate) of
+/// arguments built from the series kernels' own functions only: what a series without expansions through
+/// derivatives (`derivatives: false`) still takes, since such an argument has a known series whose real and
+/// imaginary parts give the function.
+pub(crate) fn non_analytic_table<'h>(
+    cx: &mut mc_eval::NativeCx<'_, '_, 'h>,
+    args: &[T<'h>],
+) -> mc_eval::Res<TaylorTable<'h>> {
+    taylor_table_with(cx, args, false)
+}
+
+/// Is every call in `t` one of the series kernels' own?
+fn kernel_only<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            let View::Sym(s) = h.view(head) else { return false };
+            if !kernel_head(&h.sym_name(s)) {
+                return false;
+            }
+            stack.extend(args.iter().copied());
+        }
+    }
+    true
+}
+
+fn taylor_table_with<'h>(
+    cx: &mut mc_eval::NativeCx<'_, '_, 'h>,
+    args: &[T<'h>],
+    all: bool,
+) -> mc_eval::Res<TaylorTable<'h>> {
     let mut table = TaylorTable::default();
     let h = cx.heap();
     // series(e, x -> x0): the leading term, from a table of a few orders
@@ -1832,6 +1867,9 @@ pub(crate) fn taylor_table<'h>(
         }
     }
     let n = n.max(0) + extra;
+    if !all && mentions(h, *x0, h.sym_term(h.sym("inf"))) {
+        return Ok(table);
+    }
     if mentions(h, *x0, h.sym_term(h.sym("inf"))) {
         // at infinity no Taylor coefficients; the inverse hyperbolic functions by their logarithmic forms, which
         // hold on the principal branches everywhere
@@ -1875,19 +1913,39 @@ pub(crate) fn taylor_table<'h>(
         let dep: Vec<usize> = (0..fargs.len()).filter(|&i| mentions(h, fargs[i], *x)).collect();
         let [i] = dep.as_slice() else { continue };
         let arg = fargs[*i];
+        if !all && !(fargs.len() == 1 && NON_ANALYTIC.contains(&h.sym_name(fs).as_str()) && kernel_only(h, arg)) {
+            continue;
+        }
         let u0 = cx.eval(h.call(h.sym("rewrite"), &[arg, rule(*x, *x0)]))?;
         if !finite_value(h, u0) {
             continue;
         }
         // a step function whose argument sits on a jump at x0: constant on each side, so a series only for a side
         // given by the assumptions (and a known side of the argument); otherwise no entry and no series
-        if fargs.len() == 1 && on_jump(h, &h.sym_name(fs), u0) {
+        if all && fargs.len() == 1 && on_jump(h, &h.sym_name(fs), u0) {
             if let Some(s) = arg_side(cx, *x, *x0, arg)? {
                 if let Some(sub) = step_value(h, &h.sym_name(fs), arg, u0, s) {
                     stack.push((sub, want));
                     table.insert(t, Taylor { arg, u0, c: vec![], subst: Some(sub) });
                 }
             }
+            continue;
+        }
+        // abs, sign, arg, re, im_part, conjugate are not analytic: their real-variable derivatives are wrong for a
+        // complex-valued argument; through the real and imaginary parts of the argument's series, or no entry
+        if fargs.len() == 1 && NON_ANALYTIC.contains(&h.sym_name(fs).as_str()) {
+            match non_analytic_form(cx, &h.sym_name(fs), arg, *x, *x0, u0, want)? {
+                NonAnalytic::Form(sub) => {
+                    stack.push((sub, want));
+                    table.insert(t, Taylor { arg, u0, c: vec![], subst: Some(sub) });
+                    continue;
+                }
+                NonAnalytic::Decline => continue,
+                // a real argument at a zero of abs, sign or arg: the real-variable rules below
+                NonAnalytic::RealAtZero => {}
+            }
+        }
+        if !all {
             continue;
         }
         if let Some(sub) = singular_form(h, &h.sym_name(fs), fargs, *i, u0) {
@@ -1923,6 +1981,147 @@ pub(crate) fn taylor_table<'h>(
         }
     }
     Ok(table)
+}
+
+/// The functions of one argument that are not analytic (they depend on the argument's conjugate).
+const NON_ANALYTIC: [&str; 6] = ["abs", "sign", "arg", "re", "im_part", "conjugate"];
+
+/// How a non-analytic function of a series argument is expanded.
+enum NonAnalytic<'h> {
+    /// the term to expand in its place
+    Form(T<'h>),
+    /// no series (the parts of the argument are not known, or a branch point of arg)
+    Decline,
+    /// a real-valued argument at a zero of abs, sign or arg: the real-variable rules
+    RealAtZero,
+}
+
+/// `f(u)` for f in [`NON_ANALYTIC`] as an analytic term in `x`, for a real expansion variable `x` near `x0`. With
+/// the Taylor coefficients c_k = u^(k)(x0)/k! and h = x - x0 real, u = R + i I with R = sum re(c_k) h^k and I = sum
+/// im(c_k) h^k real; then re(u) = R, im(u) = I, conjugate(u) = R - i I, abs(u) = sqrt(R^2 + I^2), sign(u) = u/abs(u)
+/// (u0 != 0), and arg(u) = arg(u0) + atan((I re(u0) - R im(u0))/(R re(u0) + I im(u0))) near u0 != 0, the argument
+/// of u conj(u0), which is near |u0|^2 > 0 (off the negative real axis: on it, arg jumps across it unless I = 0).
+/// The real-variable derivatives (abs' = sign, sign' = 0) are right only for a real u. Declined: a variable the
+/// assumptions make non-real, a coefficient whose real or imaginary part does not evaluate (a parameter not known
+/// to be real), a complex u at a zero of abs, sign or arg.
+fn non_analytic_form<'h>(
+    cx: &mut mc_eval::NativeCx<'_, '_, 'h>,
+    f: &str,
+    u: T<'h>,
+    x: T<'h>,
+    x0: T<'h>,
+    u0: T<'h>,
+    want: i64,
+) -> mc_eval::Res<NonAnalytic<'h>> {
+    let h = cx.heap();
+    let call = |n: &str, a: &[T<'h>]| h.call(h.sym(n), a);
+    let assumed = !cx.assumptions().is_empty();
+    if assumed {
+        let r = cx.eval(call("refine", &[call("element", &[x, h.sym_term(h.sym("reals"))])]))?;
+        if cx.is_false(r) {
+            return Ok(NonAnalytic::Decline);
+        }
+    }
+    let rule = h.call(h.sym(mc_api::names::RULE), &[x, x0]);
+    let parts_bad = |t: T<'h>| !finite_value(h, t) || NON_ANALYTIC.iter().any(|g| mentions_head(h, t, g));
+    // the real and imaginary parts of the Taylor coefficients
+    let (mut re, mut im) = (Vec::new(), Vec::new());
+    let mut g = u;
+    let mut fact = Int::from_i64(1);
+    for k in 0..=want.max(1) {
+        cx.tick(1)?;
+        if k > 0 {
+            fact = fact.mul(&Int::from_i64(k));
+            g = cx.eval(call("d", &[g, x]))?;
+        }
+        let v = cx.eval(call("rewrite", &[g, rule]))?;
+        let ar = Arith::new(h);
+        let c = cx.eval(ar.mul(&[ar.number(&Num::rat(Rat::new(Int::from_i64(1), fact.clone()))), v]))?;
+        let part = |cx: &mut mc_eval::NativeCx<'_, '_, 'h>, p: &str| {
+            let t = call(p, &[c]);
+            // a parameter's realness comes from the assumptions
+            cx.eval(if assumed { call("refine", &[t]) } else { t })
+        };
+        let (a, b) = (part(cx, "re")?, part(cx, "im_part")?);
+        if parts_bad(a) || parts_bad(b) {
+            return Ok(NonAnalytic::Decline);
+        }
+        re.push(a);
+        im.push(b);
+    }
+    let ar = Arith::new(h);
+    let zero = h.int(0);
+    let real = im.iter().all(|&b| b == zero);
+    let dx = ar.sub(x, x0);
+    let poly = |cs: &[T<'h>]| ar.add(&cs.iter().enumerate().map(|(k, &c)| ar.mul(&[c, ar.pow(dx, h.int(k as i64))])).collect::<Vec<_>>());
+    let (r, i) = (poly(&re), poly(&im));
+    let unit = ar.complex(zero, h.int(1));
+    let at_zero = re[0] == zero && im[0] == zero;
+    if at_zero && matches!(f, "abs" | "sign" | "arg") {
+        if !real {
+            return Ok(NonAnalytic::Decline);
+        }
+        if f == "sign" {
+            return Ok(NonAnalytic::RealAtZero);
+        }
+        // a real u through 0: abs(u) = s u and arg(u) = 0 or pi on the side s of 0 that u takes (by the first
+        // nonzero derivative and the side of x0 the assumptions give); unknown: no series
+        return Ok(match arg_side(cx, x, x0, u)? {
+            Some(s) if f == "abs" => NonAnalytic::Form(ar.mul(&[h.int(s), u])),
+            Some(s) => NonAnalytic::Form(if s > 0 { zero } else { h.sym_term(h.sym("pi")) }),
+            None => NonAnalytic::Decline,
+        });
+    }
+    if real && matches!(f, "abs" | "sign") {
+        // a real u near u0 != 0 of known sign s: abs(u) = s u, sign(u) = s
+        let s = cx.eval(call("sign", &[u0]))?;
+        if let View::Int(s @ (1 | -1)) = h.view(s) {
+            return Ok(NonAnalytic::Form(if f == "abs" { ar.mul(&[h.int(s), u]) } else { h.int(s) }));
+        }
+    }
+    let half = ar.rational(h.int(1), h.int(2));
+    let modulus = || ar.pow(ar.add(&[ar.mul(&[r, r]), ar.mul(&[i, i])]), half);
+    Ok(NonAnalytic::Form(match f {
+        "re" => r,
+        "im_part" => i,
+        "conjugate" => ar.sub(r, ar.mul(&[unit, i])),
+        "abs" => modulus(),
+        "sign" => ar.mul(&[ar.add(&[r, ar.mul(&[unit, i])]), ar.pow(modulus(), h.int(-1))]),
+        _ => {
+            // arg: off the negative real axis, or constant along it
+            let (r0, i0) = (re[0], im[0]);
+            let a0 = cx.eval(call("arg", &[u0]))?;
+            if parts_bad(a0) {
+                return Ok(NonAnalytic::Decline);
+            }
+            if real {
+                // u real near u0 != 0: arg is the constant arg(u0)
+                return Ok(NonAnalytic::Form(a0));
+            }
+            if i0 == zero && cx.eval(call("less", &[r0, zero])).map(|t| cx.is_true(t))? {
+                return Ok(NonAnalytic::Decline);
+            }
+            let num = ar.sub(ar.mul(&[i, r0]), ar.mul(&[r, i0]));
+            let den = ar.add(&[ar.mul(&[r, r0]), ar.mul(&[i, i0])]);
+            ar.add(&[a0, call("atan", &[ar.mul(&[num, ar.pow(den, h.int(-1))])])])
+        }
+    }))
+}
+
+/// Does `t` contain a call with the head `name`?
+fn mentions_head<'h>(h: &'h Heap, t: T<'h>, name: &str) -> bool {
+    let head = h.sym_term(h.sym(name));
+    let mut stack = vec![t];
+    while let Some(u) = stack.pop() {
+        if let View::App { head: hd, args } = h.view(u) {
+            if hd == head {
+                return true;
+            }
+            stack.push(hd);
+            stack.extend(args.iter().copied());
+        }
+    }
+    false
 }
 
 /// Under assumptions that put `x` on one side of `x0` (`x < x0` or `x > x0`), an entry under the key `x` whose `u0`

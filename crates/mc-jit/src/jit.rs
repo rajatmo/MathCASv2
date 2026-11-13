@@ -116,8 +116,75 @@ fn host_isa() -> Result<cranelift_codegen::isa::OwnedTargetIsa, String> {
     .clone()
 }
 
+/// How compilation is made to fail on purpose ([`set_failure`]): never, by refusing, or by a panic inside the
+/// code generator (what a host the code generator does not support gives).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Failure {
+    /// compile normally
+    None,
+    /// refuse every function with a reason
+    Refuse,
+    /// panic in the code generator for every function
+    Panic,
+}
+
+/// The failure mode: 0 not read yet, then 1 + the [`Failure`] index.
+static FAILURE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+/// Make every compilation fail (a test switch: the numeric functions must then give the same answers through the
+/// interpreters). The environment variable `MC_JIT_FAIL` set to `refuse` or `panic` does the same for a whole
+/// process; this call overrides it.
+pub fn set_failure(mode: Failure) {
+    FAILURE.store(1 + mode as u8, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The current failure mode (from `MC_JIT_FAIL` until [`set_failure`] is called).
+pub fn failure() -> Failure {
+    use std::sync::atomic::Ordering::Relaxed;
+    let mut v = FAILURE.load(Relaxed);
+    if v == 0 {
+        let mode = match std::env::var("MC_JIT_FAIL").as_deref() {
+            Ok("refuse") => Failure::Refuse,
+            Ok("panic") => Failure::Panic,
+            _ => Failure::None,
+        };
+        // a concurrent `set_failure` wins
+        let _ = FAILURE.compare_exchange(0, 1 + mode as u8, Relaxed, Relaxed);
+        v = FAILURE.load(Relaxed);
+    }
+    match v {
+        2 => Failure::Refuse,
+        3 => Failure::Panic,
+        _ => Failure::None,
+    }
+}
+
+/// [`compile`] with a panic of the code generator turned into a refusal, so that the caller falls back to an
+/// interpreter: a code generator that fails on a host (an instruction set or a setting it does not support) must
+/// make evaluation slower, never change or lose an answer.
+pub fn compile_guarded(lir: &Lir) -> Result<Code, String> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compile(lir))) {
+        Ok(r) => r,
+        Err(p) => {
+            let msg = if let Some(s) = p.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = p.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "a panic without a message".to_string()
+            };
+            Err(format!("the code generator failed: {msg}"))
+        }
+    }
+}
+
 /// Compile one LIR function to machine code.
 pub fn compile(lir: &Lir) -> Result<Code, String> {
+    match failure() {
+        Failure::None => {}
+        Failure::Refuse => return Err("compilation is switched off".into()),
+        Failure::Panic => panic!("the code generator does not support this host (a test switch)"),
+    }
     let mut jb = JITBuilder::with_isa(host_isa()?, default_libcall_names());
     for f in Lib::ALL {
         jb.symbol(format!("mc_jit_{}", f.name()), rt::math_fn(f) as *const u8);

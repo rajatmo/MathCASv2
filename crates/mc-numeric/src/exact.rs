@@ -238,6 +238,9 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
         }
         let zero = self.st.int(0);
         let one = self.st.int(1);
+        if let Some(v) = self.trig_of_angle(f, x) {
+            return Some(v);
+        }
         // f(g(y)) = y for g the inverse of f
         if let View::App { head, args: [y] } = self.st.view(x) {
             let inner = match self.st.view(head) {
@@ -295,6 +298,44 @@ impl<'a, 'h, S: Store + ?Sized> Exact<'a, 'h, S> {
             Fun::Sqrt => None,
             Fun::Log1p | Fun::Expm1 => (x == zero).then_some(zero),
         }
+    }
+
+    /// cos, sin and tan of the angle `atan(a, b)` of the point (a, b): a/r, b/r and b/a with r = sqrt(a^2 + b^2).
+    /// For real a, b not both zero these are the definitions of the polar angle (cos t = a/r, sin t = b/r); for
+    /// complex a, b they hold for the angle -i log((a + i b)/r), whose exponential is (a + i b)/r and whose inverse
+    /// exponential is (a - i b)/r since (a + i b)(a - i b) = r^2. Left alone where they do not hold: exact a, b with
+    /// a^2 + b^2 = 0 (the origin, and (1, i), where r vanishes), tan with a = 0, and inexact arguments (the numeric
+    /// evaluation).
+    fn trig_of_angle(&self, f: Fun, x: T<'h>) -> Option<T<'h>> {
+        if !matches!(f, Fun::Cos | Fun::Sin | Fun::Tan) {
+            return None;
+        }
+        let View::App { head, args: [a, b] } = self.st.view(x) else { return None };
+        let View::Sym(s) = self.st.view(head) else { return None };
+        if self.nm.fun(s) != Some(Fun::Atan) {
+            return None;
+        }
+        let (a, b) = (*a, *b);
+        if [a, b].iter().any(|&t| self.ar.num(t).is_some_and(|n| !n.is_exact())) {
+            return None;
+        }
+        let two = self.st.int(2);
+        let r2 = self.ar.add(&[self.ar.pow(a, two), self.ar.pow(b, two)]);
+        if self.ar.num(r2).is_some_and(|n| n.is_zero()) {
+            return None;
+        }
+        let inv = |t: T<'h>| self.ar.pow(t, self.st.int(-1));
+        let inv_r = || inv(self.sqrt(r2));
+        Some(match f {
+            Fun::Cos => self.ar.mul(&[a, inv_r()]),
+            Fun::Sin => self.ar.mul(&[b, inv_r()]),
+            _ => {
+                if self.ar.num(a).is_some_and(|n| n.is_zero()) {
+                    return None;
+                }
+                self.ar.mul(&[b, inv(a)])
+            }
+        })
     }
 
     /// f(g(y)) for f in sin, cos, tan and g in asin, acos, atan with f not the inverse of g, as an algebraic

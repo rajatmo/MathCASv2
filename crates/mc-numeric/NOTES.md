@@ -575,3 +575,15 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   applies): `abs(c y) = |c| abs(y)`; `re(c y) = re(c) re(y) - im(c) im(y)` and `im_part(c y) = re(c) im(y) +
   im(c) re(y)` (real-linear); `arg(c y) = arg(y)` for c > 0 only (a negative or complex c turns the point and the
   sum of the angles may leave (-pi, pi]). Tests: `mc-engine/tests/round38_integration.rs`.
+
+## Round 39: logarithms to a base, trigonometric functions of atan(x, y)
+
+- `log2`, `log10` of a machine number and `log_base(b, x)` (so `log(b, x)`) with a machine argument are the
+  quotient of the logarithms of the exact binary values evaluated to 40 digits and rounded once: correctly rounded
+  unless the quotient is within 10^-40 of a rounding boundary, and exact powers give exact integers
+  (`log(2.0, 8.0)` was 2.9999999999999996, the quotient of two rounded logarithms). Checked against 50-digit
+  values and a sweep of exact powers (`tests/round39_defects.rs` in mc-engine).
+- cos, sin, tan of `atan(x, y)` are x/r, y/r, y/x with r = sqrt(x^2 + y^2): the definitions of the polar angle for
+  real x, y off the origin, and identities of -i log((x + i y)/r) for complex x, y. Not applied for inexact
+  arguments, exact ones with x^2 + y^2 = 0, and tan at x = 0. So
+  `from_polar_coordinates(to_polar_coordinates([x, y]))` is `[x, y]`.

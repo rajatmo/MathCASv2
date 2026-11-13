@@ -131,7 +131,9 @@ fn shapes_of_radius_zero() {
 #[test]
 fn logarithm_to_a_base() {
     // log(b, x) is log_base(b, x); checked against log(x)/log(b) and b^result == x
-    assert_eq!(ev("log(10.0, 5.0)"), "0.6989700043360186");
+    // the machine number nearest to log10(5) = 0.698970004336018804786... (the quotient of the two rounded
+    // logarithms was 0.6989700043360186, two ulps below)
+    assert_eq!(ev("log(10.0, 5.0)"), "0.6989700043360189");
     assert_eq!(ev("abs(log(10.0, 5.0) - n(log(5) / log(10))) < 10^-15"), "true");
     assert_eq!(ev("log(2, 8)"), "3");
     assert_eq!(ev("log(2.0, 1024)"), "10.0");

@@ -27,3 +27,15 @@
 - `limit(abs(u))` where `u` itself has no limit the walk can express (a product tending to infinity off the real
   axis, `8 i / t`) takes the limit of the product of the moduli, `|u1 u2 ...| = |u1| |u2| ...` with `|w^p| = |w|^p`
   for a real number p. Tests: `mc-engine/tests/round38_integration.rs`.
+
+## Round 39: complex arguments of sign and abs, complex directions
+
+- The walk's rule sign(u) = side of u and the Gruntz rewrites abs(u) = s u, sign(u) = s hold for a real u only; an
+  argument with an explicit complex number goes to the series (now right for these functions, see mc-poly) or
+  declines. `limit((sign(1 + im*t) - 1)/t, t -> 0)` was 0 (it is i), `limit((abs(1 + im*t) - 1)/t, t -> 0)` was i
+  (it is 0).
+- `direction: d` for a complex number d off the real line (`im`, `-im`, `exp(im*pi/4)`, `1 + im`): the limit along
+  the ray x = a - d s, s -> 0 from above, i.e. the one-sided limit in s of f(a - d s) (so `direction: im`
+  approaches from below the real axis: `sqrt(-2 + e)` tends to -i sqrt(2)). An infinite point, or no limit found,
+  stays unevaluated. `direction: complexes` (every direction at once) stays unevaluated; before, both were
+  argument failures.

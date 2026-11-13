@@ -259,7 +259,13 @@ impl Native for PolyNative {
         // series: the Taylor coefficients of the functions its kernels do not know, through the evaluator
         // (`derivatives: false`, a trailing option, turns that off; the limit walk uses it)
         let (args, derivatives) = if self.f == PolyFn::Series { crate::series::derivatives_option(h, args) } else { (args, false) };
-        let taylor = if derivatives { crate::series::taylor_table(cx, args)? } else { Default::default() };
+        let taylor = if derivatives {
+            crate::series::taylor_table(cx, args)?
+        } else if self.f == PolyFn::Series {
+            crate::series::non_analytic_table(cx, args)?
+        } else {
+            Default::default()
+        };
         let mut tick = Tick { cx, stop: &self.stop, abort: None };
         let deadline = budget.map(|s| std::time::Instant::now() + std::time::Duration::from_secs_f64(s.min(1e6)));
         let mut budgeted = Budgeted { tick: &mut tick, deadline, expired: false };

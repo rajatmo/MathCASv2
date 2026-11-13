@@ -105,29 +105,41 @@ fn unit_ball<'h>(e: E<'h>, n: usize) -> T<'h> {
     e.div(e.pow(e.pi(), e.rat(n, 2)), e.f("gamma", &[e.add(&[e.rat(n, 2), e.int(1)])]))
 }
 
-/// The signed area of a plane ring (shoelace), anticlockwise positive.
-fn shoelace<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
-    let n = ring.len();
-    let terms: Vec<T<'h>> = (0..n).map(|i| e.cross2(&ring[i], &ring[(i + 1) % n])).collect();
-    e.mul(&[e.rat(1, 2), e.add(&terms)])
+/// The edge vectors v_i - v_0 of a ring from its first vertex (i = 1, ..., n - 1). Areas are invariant under
+/// translation, so they are computed from these differences: for a parallelogram p, p + u, p + u + v, p + v the
+/// fan from p gives u x (u + v) + (u + v) x v = 2 u x v, without the coordinates of p, which the shoelace sum of the
+/// vertices themselves only cancels after expansion.
+fn from_first<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> Vec<Vec<T<'h>>> {
+    ring[1..].iter().map(|p| e.vsub(p, &ring[0])).collect()
 }
 
-/// The area of a ring in space, through the vector area of its fan of triangles.
+/// The signed area of a plane ring, anticlockwise positive: the fan of triangles from the first vertex (the
+/// shoelace formula after translating that vertex to the origin), expanded.
+fn shoelace<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
+    let d = from_first(e, ring);
+    let terms: Vec<T<'h>> = d.windows(2).map(|w| e.cross2(&w[0], &w[1])).collect();
+    e.f("expand", &[e.mul(&[e.rat(1, 2), e.add(&terms)])])
+}
+
+/// The area of a ring in space, through the vector area of its fan of triangles from the first vertex.
 fn area3<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
-    let n = ring.len();
+    let d = from_first(e, ring);
     let mut s: [Vec<T<'h>>; 3] = [vec![], vec![], vec![]];
-    for i in 0..n {
-        let c = e.cross(&ring[i], &ring[(i + 1) % n]);
+    for w in d.windows(2) {
+        let c = e.cross(&w[0], &w[1]);
         for k in 0..3 {
             s[k].push(c[k]);
         }
     }
-    let v: Vec<T<'h>> = s.iter().map(|x| e.add(x)).collect();
+    let v: Vec<T<'h>> = s.iter().map(|x| e.f("expand", &[e.add(x)])).collect();
     e.mul(&[e.rat(1, 2), e.sqrt(e.norm2(&v))])
 }
 
 /// The area of a ring: its absolute signed area in the plane, the norm of its vector area in space.
 fn ring_area<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> T<'h> {
+    if ring.len() < 3 {
+        return e.int(0);
+    }
     if ring[0].len() == 2 {
         e.f("abs", &[shoelace(e, ring)])
     } else {
@@ -347,20 +359,22 @@ pub fn mean<'h>(e: E<'h>, ps: &[Vec<T<'h>>]) -> Vec<T<'h>> {
     (0..ps[0].len()).map(|k| e.mul(&[e.rat(1, n), e.add(&ps.iter().map(|p| p[k]).collect::<Vec<_>>())])).collect()
 }
 
-/// The centroid of a plane ring with its signed area (shoelace formulas).
+/// The centroid of a plane ring with its signed area (shoelace formulas), computed with the first vertex at the
+/// origin and translated back (each coordinate the first vertex's plus a quotient in lowest terms).
 fn ring_centroid<'h>(e: E<'h>, ring: &[Vec<T<'h>>]) -> (T<'h>, Vec<T<'h>>) {
-    let n = ring.len();
     let a = shoelace(e, ring);
+    let d = from_first(e, ring);
     let mut sx = vec![];
     let mut sy = vec![];
-    for i in 0..n {
-        let (p, q) = (&ring[i], &ring[(i + 1) % n]);
+    for w in d.windows(2) {
+        let (p, q) = (&w[0], &w[1]);
         let c = e.cross2(p, q);
         sx.push(e.mul(&[e.add(&[p[0], q[0]]), c]));
         sy.push(e.mul(&[e.add(&[p[1], q[1]]), c]));
     }
     let k = e.div(e.rat(1, 6), a);
-    (a, vec![e.mul(&[k, e.add(&sx)]), e.mul(&[k, e.add(&sy)])])
+    let coord = |o: T<'h>, s: &[T<'h>]| e.add(&[o, e.f("cancel", &[e.mul(&[k, e.f("expand", &[e.add(s)])])])]);
+    (a, vec![coord(ring[0][0], &sx), coord(ring[0][1], &sy)])
 }
 
 /// The centroid of the region, as terms to evaluate.

@@ -208,3 +208,10 @@ are accepted but not called.
   cannot thread too early); an equation `a == c` with a symbol a that is not a variable and a numeric c (number,
   vector, matrix) fixes a everywhere (two different values: an argument failure). `[x, element(y, integers)]` is two
   variables, not x with a start. Tests: `mc-engine/tests/round38_vectors.rs`.
+
+## Round 39: complex values on the real line
+
+- `find_root` from a real start of a function whose values there are complex (`mathieu_s(a(q), q, i/2)` is
+  imaginary for real q) found no real value and failed with `not_numeric`. Newton's method now runs again in
+  complex arithmetic from the same start (with the symbolic derivative, else differences); an iteration that never
+  left the real line (all steps -f/f' real) gives real numbers. Only for the default and Newton methods.

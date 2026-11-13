@@ -297,12 +297,27 @@ fn log_base<'h>(fx: &mut Fx<'_, '_, '_, 'h>, b: i64, x: T<'h>) -> R<'h> {
             }
         }
     }
+    if fx.num(x).is_some_and(|n| n.kind() == mc_arith::Kind::Machine) {
+        return machine_log_quotient(fx, fx.int(b), x).map(Some);
+    }
     let l = fx.eval(fx.call("log", &[x]))?;
     // the logarithm of an infinity is inf, and so is inf divided by log(b) > 0
     if l == fx.sym("inf") {
         return Ok(Some(l));
     }
     Ok(Some(fx.div(l, fx.call("log", &[fx.int(b)]))))
+}
+
+/// log(x)/log(b) for numbers b and x of which one at least is a machine number, correctly rounded to a machine
+/// number: the quotient of the logarithms of their exact binary values is evaluated to 40 digits and rounded once.
+/// The quotient of two rounded machine logarithms is off by an ulp or more (log(8.0)/log(2.0) = 2.9999999999999996);
+/// at 40 digits only a quotient within 10^-40 of a rounding boundary could round wrongly, and an exact quotient (a
+/// power of the base, k/m for b^m = x^k) is an integer or a rational whose nearest machine number is found.
+fn machine_log_quotient<'h>(fx: &mut Fx<'_, '_, '_, 'h>, b: T<'h>, x: T<'h>) -> Res<T<'h>> {
+    let exact = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| fx.call("set_precision", &[t, fx.inf()]);
+    let q = fx.div(fx.call("log", &[exact(fx, x)]), fx.call("log", &[exact(fx, b)]));
+    let wide = fx.call("n", &[q, fx.int(40)]);
+    fx.eval(fx.call("n", &[wide]))
 }
 fn log10_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     log_base(fx, 10, a[0])

@@ -295,6 +295,40 @@ fn mathieu<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> 
     if !numeric(fx, a) {
         return Ok(None);
     }
+    let v = mathieu_numeric(fx, a, which)?;
+    match v {
+        Some(v) if imaginary_axis(fx, a) => on_imaginary_axis(fx, v, which).map(Some),
+        v => Ok(v),
+    }
+}
+
+/// Are a and q real and z = i y on the imaginary axis (y real and nonzero)?
+fn imaginary_axis<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> bool {
+    let real = |t: T<'h>| match fx.num(t) {
+        Some(Num::Real(_)) => true,
+        Some(Num::Complex(_, y)) => y.is_zero(),
+        None => false,
+    };
+    real(a[0]) && real(a[1]) && matches!(fx.num(a[2]), Some(Num::Complex(x, y)) if x.is_zero() && !y.is_zero())
+}
+
+/// For real a and q the Mathieu functions have real Taylor coefficients in z, and ce, se' are even, se, ce' odd
+/// (DLMF 28.2.(vi)): on the imaginary axis ce(i y) and se'(i y) are real and se(i y), ce'(i y) purely imaginary. The
+/// other part of a computed value is rounding noise (of the order 10^-59 at machine arguments) and is dropped, so
+/// that a function of real q such as se(a(q), q, i/2) stays on a line instead of drifting off it.
+fn on_imaginary_axis<'h>(fx: &mut Fx<'_, '_, '_, 'h>, v: T<'h>, which: Which) -> Res<T<'h>> {
+    Ok(match which {
+        Which::C | Which::SPrime => fx.eval(fx.call("re", &[v]))?,
+        Which::S | Which::CPrime => {
+            let y = fx.eval(fx.call("im_part", &[v]))?;
+            fx.eval(fx.mul(&[fx.i(), y]))?
+        }
+    })
+}
+
+/// The numeric value of a Mathieu function at numeric arguments.
+fn mathieu_numeric<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], which: Which) -> R<'h> {
+    let z = a[2];
     // machine arguments: the double-double kernel (round 29), the ball path when it declines
     if let Some((ms, real)) = crate::fast29::machine_args(fx, a) {
         let code = match which {

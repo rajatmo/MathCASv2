@@ -130,3 +130,11 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
   plane disks all use `lens_area` (natives.rs; the two circular segments, simplified). The library copy `nl_lens` in
   `lib/numerics.mc` is gone. Machine data are accepted for the measures (`two_disks`, which keeps the exact disks as
   an intersection in Boolean operations, still takes exact data only); radii must be positive.
+
+## Round 39: areas from vertex differences
+
+- Plane areas (and the vector area in space) are the fan of triangles from the first vertex, i.e. the shoelace sum
+  after translating that vertex to the origin, expanded: the area of `parallelogram(p, [u, v])` is
+  `abs(u_x v_y - u_y v_x)` without the coordinates of p, which the shoelace sum of the vertices themselves only
+  cancelled after an expansion that was not done (a long sum under `abs`). The centroid of a plane ring is computed
+  the same way and translated back, each coordinate the first vertex's plus a quotient in lowest terms.

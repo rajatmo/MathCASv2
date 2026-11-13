@@ -1140,6 +1140,9 @@ impl<'a, 'h> Gruntz<'a, 'h> {
             ("cot", [u]) => b.div(call("cos", &[*u]), call("sin", &[*u])),
             ("sec", [u]) => inv(call("cos", &[*u])),
             ("csc", [u]) => inv(call("sin", &[*u])),
+            // abs(u) = s u and sign(u) = s for a real u of sign s; a complex-valued u (an explicit complex number in
+            // it) is not rewritten
+            ("abs" | "sign" | "unit_step", [u]) if mc_calculus::diff::has_complex(b.heap(), *u) => return Ok(None),
             ("abs" | "real_abs", [u]) => match self.sign(cx, *u)? {
                 Some(s) => b.mul(&[b.int(s.into()), *u]),
                 None => return Ok(None),

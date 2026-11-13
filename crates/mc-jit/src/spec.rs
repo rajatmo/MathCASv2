@@ -162,7 +162,7 @@ pub fn build(func: &ir::Func, inlined: Vec<Sym>, backend: Backend) -> Result<Bui
     let t0 = Instant::now();
     let lir = ir::lower(func)?;
     let (back, back_end, code_bytes, fallback) = match backend {
-        Backend::Cranelift => match jit::compile(&lir) {
+        Backend::Cranelift => match jit::compile_guarded(&lir) {
             Ok(c) => {
                 let n = c.code_bytes;
                 (Back::Native(Box::new(c)), Backend::Cranelift, n, None)

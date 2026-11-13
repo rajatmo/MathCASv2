@@ -363,3 +363,18 @@ factor by factor and stay products.
 
 - `together`/`cancel` with the options `modulus:` or `trig:` and `expand` with `trig:` decline in the native, and the
   library's rules (mc-combinat) take them; another option of `together` is still an argument failure.
+
+## Round 39: series of the non-analytic functions
+
+- `abs`, `sign`, `arg`, `re`, `im_part`, `conjugate` of an argument u(x) are not expanded through their real-variable
+  derivatives any more (abs' = sign, sign' = 0 hold only for a real u: `series(sign(1 - im*t), t, 0, 2)` was
+  `1 + O(t^3)`). For the real expansion variable, the Taylor coefficients c_k of u split into real and imaginary
+  parts, u = R + i I with R, I real polynomials in x - x0, and abs(u) = sqrt(R^2 + I^2), sign(u) = u/abs(u),
+  re(u) = R, im(u) = I, conjugate(u) = R - i I, arg(u) = arg(u0) + atan((I re u0 - R im u0)/(R re u0 + I im u0))
+  (the argument of u conj(u0), near |u0|^2 > 0). A real u near u0 != 0 of known sign s gives s u and s.
+- Declined (no series): a variable the assumptions make non-real; a coefficient whose real or imaginary part does
+  not evaluate (a parameter of unknown realness: `abs(a + x)`); a complex u at a zero of abs, sign, arg; arg across
+  its cut (u0 < 0 with I not identically 0); abs and arg of a real u through 0 without a known side. The last was a
+  wrong value before: `series(abs(x), x, 0, 3)` gave `O(x^4)`.
+- With `derivatives: false` (the limit walk), `non_analytic_table` still gives these forms for arguments built from
+  the kernels' own functions only, since their series are known.

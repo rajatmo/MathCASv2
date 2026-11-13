@@ -641,22 +641,27 @@ fn mathieu_solve(a: CD, q: CD, z: CD, y0: f64, d0: f64) -> Option<(CD, CD, f64)>
     Some((y, dy, big * n as f64))
 }
 
-/// acos w = -i log(w + i sqrt(1 - w^2)).
-fn acos_cd(w: CD) -> CD {
-    let r = (CD::ONE - w * w).sqrt();
-    let l = (w + r.mul_i()).log();
-    CD { re: l.im, im: -l.re }
-}
-
-/// The Floquet normalization of [`crate::mathieu`] (ce(0) for the even function, se'(0) for the odd one), `None`
-/// near a characteristic value (cos(pi nu) near +-1, where nu is ill-conditioned).
+/// The Floquet normalization of [`crate::mathieu`] (ce(0) for the even function, se'(0) for the odd one).
+///
+/// The characteristic exponent comes from the basic solutions at the half period (DLMF 28.2.(iii), w_I(0) = 1,
+/// w_II'(0) = 1, Wronskian 1): cos(pi nu) = w_I(pi) = 2 w_I(pi/2) w_II'(pi/2) - 1 = 1 + 2 w_I'(pi/2) w_II(pi/2), so
+/// 1 - cos^2(pi nu) = -4 w_I(pi/2) w_II'(pi/2) w_I'(pi/2) w_II(pi/2) is a product, free of the cancellation in
+/// 1 - w_I(pi)^2. Near a characteristic value (cos(pi nu) near +-1, where a = b_n(q) rounded to a machine number puts
+/// it) nu = acos(...)/pi is then as accurate as elsewhere; the earlier form, from w_I(pi) itself, lost about half its
+/// digits there and had to decline (to the much slower ball evaluation).
 fn mathieu_norm(a: CD, q: CD, even: bool) -> Option<CD> {
     let pi = pi_cd();
-    let (y_pi, _, _) = mathieu_solve(a, q, pi, 1.0, 0.0)?;
-    if (CD::ONE - y_pi * y_pi).abs() < 1e-10 {
+    let half = pi.scale(0.5);
+    let (y1, d1, _) = mathieu_solve(a, q, half, 1.0, 0.0)?;
+    let (y2, d2, _) = mathieu_solve(a, q, half, 0.0, 1.0)?;
+    let w = (y1 * d2).scale(2.0) - CD::ONE;
+    let r = (-(y1 * d2 * d1 * y2).scale(4.0)).sqrt();
+    if !w.finite() || !r.finite() || r.abs() == 0.0 {
         return None;
     }
-    let nu1 = acos_cd(y_pi) / pi;
+    // acos w = -i log(w + i sqrt(1 - w^2))
+    let l = (w + r.mul_i()).log();
+    let nu1 = CD { re: l.im, im: -l.re } / pi;
     let sa = a.sqrt().to_c64();
     let n1 = nu1.to_c64();
     let mut best = (f64::INFINITY, 1.0f64, 0.0f64);

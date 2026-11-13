@@ -347,12 +347,16 @@ impl Native for FindRoot {
         }
         .filter(|j| j.outputs() == n * n);
         // the machine iteration
-        let outcome = if complex {
-            let Some(x0) = scalars::<C64>(&starts) else { return Ok(bad_argument(h, NAME, h.int(2))) };
-            let mut fv = Machine { f: &mut fm, ar: &ar };
-            let mut jv = jm.as_mut().map(|j| Machine { f: j, ar: &ar });
+        let complex_newton = |cx: &mut NativeCx<'_, '_, 'h>, fm: &mut TermFn<'h>, jm: Option<&mut TermFn<'h>>| -> Res<Option<Outcome<Num>>> {
+            let Some(x0) = scalars::<C64>(&starts) else { return Ok(None) };
+            let mut fv = Machine { f: fm, ar: &ar };
+            let mut jv = jm.map(|j| Machine { f: j, ar: &ar });
             let jd = jv.as_mut().map(|j| j as &mut dyn NumFn<'h, C64>);
-            to_nums(newton::solve(cx, &mut fv, jd, x0, &goals, None)?)
+            Ok(Some(to_nums(newton::solve(cx, &mut fv, jd, x0, &goals, None)?)))
+        };
+        let outcome = if complex {
+            let Some(o) = complex_newton(cx, &mut fm, jm.as_mut())? else { return Ok(bad_argument(h, NAME, h.int(2))) };
+            o
         } else {
             let Some(x0) = scalars::<f64>(&starts) else { return Ok(bad_argument(h, NAME, h.int(2))) };
             // machine reals: compiled when the policy says, the interpreter for refused and declined calls
@@ -379,6 +383,36 @@ impl Native for FindRoot {
                     }
                 },
             })
+        };
+        // a function with complex values at real points (mathieu_s(a, q, i/2) is imaginary for real a and q): the
+        // real iteration finds no real value, so Newton's method runs again in complex arithmetic from the same
+        // start, with the symbolic derivative and then, if that has no numeric value, with differences
+        let outcome = match outcome {
+            Outcome::NotNumeric(p) if !complex && matches!(method, RootMethod::Newton { .. }) => {
+                let mut o = complex_newton(cx, &mut fm, jm.as_mut())?;
+                if jm.is_some() && matches!(o, Some(Outcome::NotNumeric(_))) {
+                    o = complex_newton(cx, &mut fm, None)?;
+                }
+                match o {
+                    // an iteration that never left the real line (the steps -f/f' were real) gives real numbers
+                    Some(Outcome::Done { x, err, converged, iterations }) => {
+                        let on_line = x.iter().all(|v| matches!(v, Num::Real(_)) || matches!(v, Num::Complex(_, y) if y.is_zero()));
+                        let x = if on_line {
+                            x.into_iter()
+                                .map(|v| match v {
+                                    Num::Complex(a, _) => Num::Real(a),
+                                    v => v,
+                                })
+                                .collect()
+                        } else {
+                            x
+                        };
+                        Outcome::Done { x, err, converged, iterations }
+                    }
+                    _ => Outcome::NotNumeric(p),
+                }
+            }
+            o => o,
         };
         let x = match outcome {
             Outcome::NotNumeric(p) => {

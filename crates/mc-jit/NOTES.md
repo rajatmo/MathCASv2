@@ -508,3 +508,14 @@ parameters. `tests/engine.rs`: the `x*pi` refusal became `n*pi` (exact).
 odd-even merge network for the next power of two without the comparators that touch the padding. A sum of 8
 machine reals had called the arithmetic (about 2 us); now it is inline (25 times faster). Decision quad-1.11 in
 `crates/mc-quad/NOTES.md`.
+
+## Round 39: a failing code generator
+
+- A panic inside the code generator (cranelift-jit refused `is_pic` on 64-bit ARM; any host or setting it does not
+  support) unwound into the evaluator's guard and made every numeric routine answer `failure(internal, ...)`.
+  `spec::build`, the one place where machine code is chosen, now calls `jit::compile_guarded`, which turns such a
+  panic into a refusal; the function then runs on the LIR interpreter (and `mc-numfn` falls back to the evaluator
+  for any refusal), so only speed changes.
+- Test switch: `jit::set_failure(Failure::Refuse | Failure::Panic)`, or the environment variable `MC_JIT_FAIL`
+  (`refuse`, `panic`) for a whole process. `crates/mc-engine/tests/round39_compile_fallback.rs` runs integrals,
+  roots, a minimum, a differential equation, a sum, a plot and `compile` in both modes.

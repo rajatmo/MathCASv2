@@ -137,6 +137,9 @@ fn lim<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, t: T<'h>, dep
                 None => Ok(None),
             }
         }
+        // sign is locally constant only for a real argument; a complex-valued one (sign(1 + i t) = (1 + i t)/(1 +
+        // t^2)^(1/2)) varies, and its series is taken through the argument's real and imaginary parts
+        ("sign", [u]) if mc_calculus::diff::has_complex(b.heap(), *u) => series(cx, b, g, t),
         ("sign", [u]) => Ok(side_of(cx, b, *u, t, d)?.map(|s| Lim::Fin(b.int(s.into()), 0))),
         (f @ ("floor" | "ceiling"), [u]) => {
             // constant near a non-integer limit; at an integer, the side from which u approaches it decides
