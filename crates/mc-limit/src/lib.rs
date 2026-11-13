@@ -760,6 +760,20 @@ impl Native for LimitFn {
                                     _ => None,
                                 }
                             }
+                            // a sequence: its upper limit above its lower limit (sin(n), whose values are dense in
+                            // [-1, 1]) proves the same
+                            Outcome::Unknown if kind == Kind::Discrete => {
+                                let rule = h.call(h.sym(names::RULE), &[x, a]);
+                                let hi = cx.eval(h.call(h.sym("discrete_max_limit"), &[g, rule]))?;
+                                let lo = cx.eval(h.call(h.sym("discrete_min_limit"), &[g, rule]))?;
+                                let held = |t: T<'h>| !is_free(&b, t, h.sym_term(h.sym("discrete_max_limit"))) || !is_free(&b, t, h.sym_term(h.sym("discrete_min_limit")));
+                                if !held(hi) && !held(lo) && sign(cx, &b, b.sub(hi, lo))? == Some(1) {
+                                    let why = "the limit superior is above the limit inferior";
+                                    let d = vec![h.sym_term(h.sym(kind.name())), g, h.string(why)];
+                                    return Ok(Some(failure(&b, "no_limit", &d)));
+                                }
+                                None
+                            }
                             Outcome::Unknown => None,
                         }
                     }

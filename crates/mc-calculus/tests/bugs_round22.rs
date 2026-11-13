@@ -50,8 +50,8 @@ fn d21_10_integrals_over_unbounded_ranges_and_of_derivatives() {
         ("integrate(exp(-2*x^2)*sin(w*x), [x, -inf, inf])", "0"),
         ("integrate(bessel_j(0, x), [x, 0, inf])", "1"),
         ("integrate(bessel_j(2, 3*x), [x, 0, inf])", "1/3"),
-        // order -3 is below -1: no closed form claimed
-        ("integrate(bessel_j(-3, x), [x, 0, inf])", "integrate(bessel_j(-3, x), [x, 0, inf])"),
+        // order -3 is below -1, outside the formula for integrate(J_nu); at an integer order J_(-3) = -J_3, so -1
+        ("integrate(bessel_j(-3, x), [x, 0, inf])", "-1"),
     ]);
 }
 

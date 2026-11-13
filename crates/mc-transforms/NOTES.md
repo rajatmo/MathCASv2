@@ -25,3 +25,14 @@
 - The numeric check of a forward Mellin transform found by the table now samples at points inside the transform's
   strip (`verify::mellin_points`): at the old fixed points 1/2 and 1/3, outside the strip of `exp_integral_e(1,
   x)/x` (`re(s) > 1`), the quadrature of a divergent integral took 5 s; the check now takes milliseconds.
+
+## Round 39: polynomial factors and equations
+
+- `z_transform((n + 1) f(n), n, z)` (a polynomial factor that is a sum, or a power of one, times an undefined
+  function) is expanded and taken term by term by the rule `Z[n g] = -z G'`: the product was held as the transform
+  of an undefined function and the held call evaluated again without end (the evaluation depth limit).
+- In an equation or a rule, a side that is an undefined function of the variable alone keeps its transform held:
+  `z_transform(a^n == f(n), n, z)` is `z/(z - a) == z_transform(f(n), n, z)` (it stayed unevaluated as a whole).
+- The shift rule of the inverse Laplace transform retries with the shifted term expanded: a completed square under a
+  root, `(s^2 + b s + a^2)^(-1/2)`, becomes `(s^2 + a^2 - b^2/4)^(-1/2)` at `s - b/2` (the unexpanded base did not
+  match the table): `exp(-b t/2) bessel_j(0, t sqrt(a^2 - b^2/4))`.

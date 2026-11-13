@@ -95,10 +95,12 @@ fn undecided_within_budget() {
     // decided since round 37: max_limit inf above min_limit -inf, so there is no limit
     let out = s.run("limit(sin(x)*exp(x), x -> inf)");
     assert!(out.starts_with("failure(no_limit"), "{out}");
+    // decided since round 39: sin(n) over the integers is dense in [-1, 1]
+    let out = s.run("discrete_limit(sin(n), n -> inf)");
+    assert!(out.starts_with("failure(no_limit"), "{out}");
     for src in [
         "limit(exp(a*x)/exp(x), x -> inf)",
         "max_limit(sin(x)*sin(x^2), x -> inf)",
-        "discrete_limit(sin(n), n -> inf)",
     ] {
         let start = Instant::now();
         let out = s.run(src);

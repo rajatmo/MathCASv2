@@ -335,6 +335,57 @@ fn minimize1<'h>(
             best = Some((nv, c.ev("simplify", &[v])?, p));
         }
     }
+    // the real poles of g inside the domain (zeros of the denominator of together(g)): g is not defined there, and its
+    // one-sided limits bound the values without being attained (t/(1 + t) is unbounded at -1; its minimum is not 1)
+    let tg = c.ev("together", &[g])?;
+    let den = c.ev("denominator", &[tg])?;
+    let mut pole_limit: Option<(f64, T<'h>)> = None;
+    if !is_free(b, den, x) {
+        let s = c.ev("solve", &[b.call("equal", &[den, b.zero()]), x, reals])?;
+        let Some(items) = c.cx.as_list(s).map(|v| v.to_vec()) else { return Ok(None) };
+        let generated = h.sym("c");
+        let mut poles = vec![];
+        for it in items {
+            let Some(&[r]) = c.cx.as_list(it) else { return Ok(None) };
+            let View::App { args: &[_, p], .. } = h.view(r) else { return Ok(None) };
+            // a family of poles (tan x): its members c(1) = -4..4, as for the critical points
+            let p = match find_call_of(h, p, generated) {
+                Some(k) => {
+                    for j in -4..=4i64 {
+                        poles.push(c.at(p, k, b.int(j))?);
+                    }
+                    continue;
+                }
+                None => p,
+            };
+            poles.push(p);
+        }
+        for p in poles {
+            if !is_free(b, p, x) || c.num(p)?.is_none() {
+                return Ok(None);
+            }
+            if !inside(c, p)? {
+                continue;
+            }
+            for side in ["from_above", "from_below"] {
+                c.cx.tick(1)?;
+                let rule = c.rule(x, p);
+                let dir = h.call(h.sym("options"), &[c.rule(h.sym_term(h.sym("direction")), h.sym_term(h.sym(side)))]);
+                let l = c.ev("limit", &[g, rule, dir])?;
+                if l == b.neg(c.inf()) {
+                    return Ok(Some((b.neg(c.inf()), vec![p])));
+                }
+                if l == c.inf() {
+                    continue;
+                }
+                let Some(nl) = c.num(l)? else { return Ok(None) };
+                // a finite limit at a point left out: when it is the infimum, the infimum is not attained
+                if pole_limit.as_ref().is_none_or(|pl: &(f64, T<'h>)| nl < pl.0) {
+                    pole_limit = Some((nl, l));
+                }
+            }
+        }
+    }
     // the limits at open ends and infinities
     for (pt, sign) in limits {
         let rule = c.rule(x, pt);
@@ -370,6 +421,12 @@ fn minimize1<'h>(
             }
             // the infimum is a limit at an open end that is not attained
             _ => return Ok(None),
+        }
+    }
+    // the infimum is a finite limit at a pole, not attained: the value alone (min_value), no point (minimize declines)
+    if let Some((nl, l)) = pole_limit {
+        if best.as_ref().is_none_or(|bst| nl < bst.0 + 1e-12 * (1.0 + nl.abs())) {
+            return Ok(Some((c.ev("simplify", &[l])?, vec![])));
         }
     }
     if sampled {

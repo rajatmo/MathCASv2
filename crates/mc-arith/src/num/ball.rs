@@ -261,6 +261,18 @@ impl Float {
     }
     /// Exact comparison.
     pub fn cmp_exact(&self, o: &Float) -> Ordering {
+        // different signs, or magnitudes in different binades (|x| in [2^(top - 1), 2^top)): decided without
+        // aligning the mantissas, which for exponents far apart (1 against exp(-10^12)) took unbounded memory
+        if !self.is_zero() && !o.is_zero() {
+            if self.neg != o.neg {
+                return if self.neg { Ordering::Less } else { Ordering::Greater };
+            }
+            let (ts, to) = (self.top(), o.top());
+            if ts != to {
+                let larger = if ts > to { Ordering::Greater } else { Ordering::Less };
+                return if self.neg { larger.reverse() } else { larger };
+            }
+        }
         let d = self.sub_exact(o);
         if d.is_zero() {
             Ordering::Equal
@@ -534,8 +546,19 @@ impl Ball {
     }
     /// Three-valued comparison (semantics 2.5): decided only when the balls are disjoint, or both exact.
     pub fn cmp3(&self, o: &Ball) -> Option<Ordering> {
-        let d = self.mid.sub_exact(&o.mid);
         let s = self.rad.add(&o.rad);
+        // midpoints of magnitudes more than 2 binades apart: the difference has the sign of the larger term (negated
+        // for o) and exceeds half of it, so no exact difference is formed (its alignment could take unbounded memory)
+        let (a, bm) = (&self.mid, &o.mid);
+        if !a.is_zero() && !bm.is_zero() && (a.top() - bm.top()).abs() > 2 {
+            let (big, neg) = if a.top() > bm.top() { (a, a.neg) } else { (bm, !bm.neg) };
+            let half = Float::new(false, big.man.clone(), big.exp - 1);
+            if s.is_zero() || half.cmp_exact(&s.to_float()) == Ordering::Greater {
+                return Some(if neg { Ordering::Less } else { Ordering::Greater });
+            }
+            return None;
+        }
+        let d = self.mid.sub_exact(&o.mid);
         if s.is_zero() {
             return Some(if d.is_zero() { Ordering::Equal } else if d.neg { Ordering::Less } else { Ordering::Greater });
         }
@@ -555,13 +578,14 @@ impl Ball {
         if self.rad.is_zero() {
             return true;
         }
+        // r 10^d <= |m| - r, as r (10^d + 1) <= |m|: no exact |m| - r, whose alignment for a tiny r (the sum 1 +
+        // exp(-10^12)) took unbounded memory; the comparison decides far-apart magnitudes by their exponents
         let rf = self.rad.to_float();
-        let rhs = self.mid.abs().sub_exact(&rf);
-        if rhs.is_zero() || rhs.neg {
+        if self.mid.is_zero() {
             return false;
         }
-        let lhs = rf.mul_exact(&Float::from_nat(Nat::pow(10, d as u64)));
-        lhs.cmp_exact(&rhs) != Ordering::Greater
+        let lhs = rf.mul_exact(&Float::from_nat(Nat::pow(10, d as u64).add_u64(1)));
+        lhs.cmp_exact(&self.mid.abs()) != Ordering::Greater
     }
     /// Approximate number of correct bits relative to the midpoint (for reports).
     pub fn rel_bits(&self) -> f64 {

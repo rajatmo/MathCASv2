@@ -34,6 +34,11 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
             }
         }
     }
+    // the tail decides: the summand's eventual form (convergence does not depend on finitely many terms)
+    let f = eventual(sx, f, n)?;
+    if sx.free(f, n) {
+        return Ok(Some(if f == sx.int(0) { tru } else { fal }));
+    }
     let to = sx.rule(n, sx.sym("inf"));
     // a hypergeometric term: the ratio
     if let Some(r) = hyper::ratio(sx, f, n)? {
@@ -109,6 +114,100 @@ pub fn convergence<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, lo: Opti
         }
     }
     Ok(None)
+}
+
+/// The integer-valued step functions of n (`floor`, `ceiling`, `round`, `integer_part`, `boole`, `unit_step`,
+/// `sign`), innermost first, replaced by their limits as n -> inf when the limit is an integer: an integer-valued
+/// sequence with a limit equals it from some n on, so the tail is unchanged. Then, in a product, a factor
+/// `harmonic_number(n)^k` is replaced by `log(n)^k`: the ratio of the two tends to 1, which leaves every test after
+/// this point unchanged (the limits of the term, of `log|f|/log(n)` and of the ratio `f(n + 1)/f(n)`).
+fn eventual<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>) -> Res<T<'h>> {
+    const STEPS: &[&str] = &["floor", "ceiling", "round", "integer_part", "boole", "unit_step", "sign"];
+    let h = sx.h();
+    let mut g = f;
+    // a bounded number of passes (each replaces at least one step function, innermost first)
+    for _ in 0..16 {
+        let mut stack = vec![g];
+        let mut found = None;
+        while let Some(u) = stack.pop() {
+            let View::App { head, args } = h.view(u) else { continue };
+            let inner = args.iter().any(|&a| STEPS.iter().any(|s| sx.contains_any(a, &[s])));
+            let is_step = matches!(h.view(head), View::Sym(s) if STEPS.contains(&h.sym_name(s).as_str()));
+            if is_step && !inner && !sx.free(u, n) {
+                found = Some(u);
+                break;
+            }
+            stack.extend_from_slice(args);
+        }
+        let Some(u) = found else { break };
+        let to = sx.rule(n, sx.sym("inf"));
+        // boole(a < b) and the other strict and weak inequalities: by the limit of b - a (a nonzero number or an
+        // infinity decides the relation from some n on)
+        let rel = match h.view(u) {
+            View::App { head, args: &[c] } if head == sx.sym("boole") => match h.view(c) {
+                View::App { head: rh, args: &[a, bb] } => match h.view(rh) {
+                    View::Sym(s) if matches!(h.sym_name(s).as_str(), "less" | "less_equal") => Some((a, bb)),
+                    View::Sym(s) if matches!(h.sym_name(s).as_str(), "greater" | "greater_equal") => Some((bb, a)),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let l = match rel {
+            Some((a, bb)) => {
+                let dlt = sx.sub(bb, a)?;
+                let ld = sx.ev("limit", &[dlt, to])?;
+                let inf = sx.sym("inf");
+                let minf = sx.mul(&[sx.int(-1), inf])?;
+                let num = is_number(sx, ld);
+                let gt = sx.ev("greater", &[ld, sx.int(0)])?;
+                let lt = sx.ev("less", &[ld, sx.int(0)])?;
+                let pos = ld == inf || num && sx.is_true(gt);
+                let neg = ld == minf || num && sx.is_true(lt);
+                if pos {
+                    sx.int(1)
+                } else if neg {
+                    sx.int(0)
+                } else {
+                    return Ok(f);
+                }
+            }
+            None => sx.ev("limit", &[u, to])?,
+        };
+        if sx.as_int(l).is_none() {
+            return Ok(f);
+        }
+        let r = sx.rule(u, l);
+        g = sx.ev("rewrite", &[g, r])?;
+    }
+    if let View::App { head, args } = h.view(g) {
+        if head == sx.sym(names::MUL) {
+            let hn = sx.call("harmonic_number", &[n]);
+            let ln = sx.call("log", &[n]);
+            let mut changed = false;
+            let mut out = Vec::with_capacity(args.len());
+            for &a in args {
+                if a == hn {
+                    out.push(ln);
+                    changed = true;
+                } else if let Some(&[b, e]) = sx.args_of(a, names::POW) {
+                    if b == hn && sx.as_int(e).is_some() {
+                        out.push(sx.pow(ln, e)?);
+                        changed = true;
+                    } else {
+                        out.push(a);
+                    }
+                } else {
+                    out.push(a);
+                }
+            }
+            if changed && out.iter().all(|&a| !sx.contains_any(a, &["harmonic_number"])) {
+                return sx.mul(&out);
+            }
+        }
+    }
+    Ok(g)
 }
 
 /// `lim q` as `n -> inf`, where `q` has the iterated logarithm `log^(k + 1)(n)` in its denominator: the limit

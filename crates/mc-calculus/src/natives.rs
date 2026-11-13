@@ -86,6 +86,10 @@ impl Native for D {
                 Err(Halt::Unsupported) => return Ok(Reply::Decline),
             };
         }
+        // a derivative that stays (of a held transform in its own variable) comes back as the call itself
+        if t == _t {
+            return Ok(Reply::Decline);
+        }
         Ok(Reply::Again(t))
     }
 }
@@ -165,6 +169,11 @@ impl Native for DerivativeAt {
         let Some((orders, f)) = b.as_derivative(head) else {
             // the operator alone, `f'` for a function with a definition: a slot function `&(...)`
             if let Some((orders, f)) = b.as_derivative(t) {
+                // a transform's operator stays too: its body would be differentiated with placeholders in the bound
+                // slots (`derivative(0, 0, 1)(laplace_transform)` became `&(-&1/&3^2)`)
+                if b.sym_of(f).is_some_and(|s| crate::transform_kind::Kind::ALL.iter().any(|k| h.sym(k.name()) == s)) {
+                    return Ok(Reply::Decline);
+                }
                 if let Some(r) = user_derivative(cx, &b, f, &orders, None)? {
                     return Ok(Reply::Done(r));
                 }

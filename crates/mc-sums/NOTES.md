@@ -237,3 +237,13 @@ differences and ratios, generating functions and convergence, interruption.
   `sum_convergence`, so every convergence test above gives one (`sum(1/n^a)` is `zeta(a)` for `re(a) > 1`); the
   ratio-test condition only when those tests do not decide. A condition the assumptions imply is dropped. Tests:
   `mc-engine/tests/round38_integration.rs`.
+
+## Round 39: the tail of a series and generating functions
+
+- `sum_convergence` decides from the summand's eventual form after the pole test: an integer-valued step function
+  of n (`floor`, `ceiling`, `round`, `integer_part`, `unit_step`, `sign`, `boole`) that has a limit equals it from
+  some n on and is replaced by it (`boole(a < b)` by the limit of b - a); a factor `harmonic_number(n)^k` of a
+  product is replaced by `log(n)^k`, whose ratio to it tends to 1, which leaves the term, comparison and ratio tests
+  unchanged.
+- `generating_function(n^k g(n), n, z)` is `(z d/dz)^k G` also when G stays held (its derivative stays as `d(G, z)`);
+  a polynomial factor that is a sum is expanded first.

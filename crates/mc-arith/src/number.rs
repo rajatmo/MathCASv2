@@ -669,6 +669,14 @@ pub fn compare(a: &Real, b: &Real) -> Cmp3 {
     if a.kind() == Kind::Machine || b.kind() == Kind::Machine {
         return a.to_f64().partial_cmp(&b.to_f64()).map_or(Cmp3::Unordered, from);
     }
+    // a ball: by the balls (an exact operand as a ball 64 bits finer), not by the exact rational ends, whose
+    // denominators for a tiny radius (1 + exp(-10^12)) took unbounded memory
+    if a.kind() == Kind::Ball || b.kind() == Kind::Ball {
+        let p = a.prec().unwrap_or(0).max(b.prec().unwrap_or(0)).max(MIN_PREC) + 64;
+        if let (Real::Ball(x, _), Real::Ball(y, _)) = (a.to_kind(Kind::Ball, p), b.to_kind(Kind::Ball, p)) {
+            return x.cmp3(&y).map_or(Cmp3::Undecided, from);
+        }
+    }
     let ((alo, ahi), (blo, bhi)) = (a.ends(), b.ends());
     if ahi.cmp(&blo) == Ordering::Less {
         return Cmp3::Less;

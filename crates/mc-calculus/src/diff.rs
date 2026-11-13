@@ -136,7 +136,10 @@ impl<'b, 'h> Diff<'b, 'h> {
                 // the condition of a conditional is not differentiated
                 let rule = self.rule_of(head, args.len());
                 let skip = usize::from(rule.is_some_and(|r| matches!(r, Rule::Branches)));
+                let held = self.b.sym_of(head).is_some_and(|s| &*h.sym_name(s) == "d");
                 let children: Vec<T<'h>> = match rule {
+                    // an unevaluated derivative: its operand is not differentiated again (`held_d`)
+                    _ if held => vec![],
                     // a sum over roots: only the summand's body (its functions are not differentiated as terms)
                     _ if self.root_sum_body(head, args).is_some() => self.root_sum_body(head, args).into_iter().collect(),
                     // the values and the default of a piecewise function, not its conditions
@@ -240,6 +243,128 @@ impl<'b, 'h> Diff<'b, 'h> {
         Some(b.add(&parts))
     }
 
+    /// The symbols of a variable specification of a transform: a symbol, or a list of symbols.
+    fn spec_vars(&self, t: T<'h>) -> Option<Vec<T<'h>>> {
+        let b = self.b;
+        let h = b.heap();
+        match h.view(t) {
+            View::Sym(_) => Some(vec![t]),
+            View::App { head, args } if b.sym_of(head) == Some(b.hd.list) && args.iter().all(|&a| matches!(h.view(a), View::Sym(_))) => {
+                Some(args.to_vec())
+            }
+            _ => None,
+        }
+    }
+
+    /// The derivative of a call that binds variables and stayed unevaluated: an integral transform `T(f, t, s, ...)`
+    /// (or a convolution `T(f, g, t, s)`), a sum or a product. Their arguments are not values: the generic chain
+    /// rule differentiated the variable lists (a list as the derivative), and a resolved derivative operator put
+    /// placeholders in the bound slots (the transform of a constant). Here: 0 in a bound variable (the integration
+    /// variable, the index of a sum over a range); the transform of the integrand's derivative in a parameter
+    /// (differentiation under the integral sign); `d` unevaluated in the transform's own variables, in an indefinite
+    /// sum's index and in the bounds of a range. A sum in a parameter is the sum of the derivatives; a product only
+    /// when its factor is free of the variable. `None` for other calls.
+    fn binding(&mut self, name: &str, args: &[T<'h>], head: T<'h>) -> Option<Result<T<'h>, Halt>> {
+        let b = self.b;
+        let h = b.heap();
+        const TRANSFORMS: &[&str] = &[
+            "radon_transform",
+            "inverse_radon_transform",
+            "hankel_transform",
+            "inverse_hankel_transform",
+            "hilbert_transform",
+            "inverse_hilbert_transform",
+            "fourier_sequence_transform",
+            "inverse_fourier_sequence_transform",
+            "generating_function",
+            "exponential_generating_function",
+        ];
+        const CONVOLUTIONS: &[&str] = &["convolve", "unilateral_convolve", "mellin_convolve", "discrete_convolve"];
+        let transform = TRANSFORMS.contains(&name) || crate::transform_kind::Kind::ALL.iter().any(|k| k.name() == name);
+        let convolution = CONVOLUTIONS.contains(&name);
+        if transform || convolution {
+            let k = if convolution { 2 } else { 1 };
+            if args.len() < k + 2 {
+                return None;
+            }
+            let (bound, out) = (self.spec_vars(args[k])?, self.spec_vars(args[k + 1])?);
+            if out.contains(&self.x) {
+                // the derivative stays, as a term (a sum or product around it is differentiated by the rules)
+                return Some(Ok(b.call("d", &[h.app(head, args), self.x])));
+            }
+            if bound.contains(&self.x) {
+                return Some(Ok(b.zero()));
+            }
+            let extra: Vec<T<'h>> = args[k + 2..].to_vec();
+            if !extra.into_iter().all(|a| self.is_free(a)) {
+                return Some(Err(Halt::Unsupported));
+            }
+            let mut parts = vec![];
+            for i in 0..k {
+                let df = self.dv(args[i]);
+                if !b.is_zero(df) {
+                    let mut a = args.to_vec();
+                    a[i] = df;
+                    parts.push(h.app(head, &a));
+                }
+            }
+            return Some(Ok(b.add(&parts)));
+        }
+        if name != "sum" && name != "product" && name != "d" || args.len() < 2 {
+            return None;
+        }
+        if name == "d" {
+            return Some(self.held_d(args, head));
+        }
+        let mut dummy = false;
+        for &spec in &args[1..] {
+            match h.view(spec) {
+                View::Sym(_) if spec == self.x => return Some(Err(Halt::Unsupported)),
+                View::Sym(_) => {}
+                View::App { head: lh, args: parts } if b.sym_of(lh) == Some(b.hd.list) && !parts.is_empty() => {
+                    if !parts[1..].iter().all(|&p| self.is_free(p)) {
+                        return Some(Err(Halt::Unsupported));
+                    }
+                    dummy |= parts[0] == self.x;
+                }
+                _ => {
+                    if !self.is_free(spec) {
+                        return Some(Err(Halt::Unsupported));
+                    }
+                }
+            }
+        }
+        let dg = self.dv(args[0]);
+        if dummy || b.is_zero(dg) {
+            return Some(Ok(b.zero()));
+        }
+        if name == "product" {
+            return Some(Err(Halt::Unsupported));
+        }
+        let mut a = args.to_vec();
+        a[0] = dg;
+        Some(Ok(h.app(head, &a)))
+    }
+
+    /// The derivative of an unevaluated derivative `d(F, x)` or `d(F, [x, k])` in the same variable x: `d(F, [x, 2])`,
+    /// `d(F, [x, k + 1])` (so that the product rule can go through a derivative that stays, of a held transform);
+    /// 0 when F is free of the variable; unevaluated otherwise.
+    fn held_d(&mut self, args: &[T<'h>], head: T<'h>) -> Result<T<'h>, Halt> {
+        let b = self.b;
+        let h = b.heap();
+        let &[f, spec] = args else { return Err(Halt::Unsupported) };
+        if self.is_free(f) && self.is_free(spec) {
+            return Ok(b.zero());
+        }
+        let k = match h.view(spec) {
+            _ if spec == self.x => b.one(),
+            View::App { head: lh, args: &[v, k] } if b.sym_of(lh) == Some(b.hd.list) && v == self.x && matches!(h.view(k), View::Int(n) if n > 0) => k,
+            _ => return Err(Halt::Unsupported),
+        };
+        let list = h.sym_term(b.hd.list);
+        Ok(h.app(head, &[f, h.app(list, &[self.x, b.add(&[k, b.one()])])]))
+    }
+
     /// The body `g` of `root_sum(p, t => g)`, when the call has that shape.
     fn root_sum_body(&self, head: T<'h>, args: &[T<'h>]) -> Option<T<'h>> {
         let b = self.b;
@@ -324,6 +449,9 @@ impl<'b, 'h> Diff<'b, 'h> {
                 if let Some(v) = self.root_sum(args) {
                     return Ok(v);
                 }
+            }
+            if let Some(v) = self.binding(&h.sym_name(s), args, head) {
+                return v;
             }
             // abs, sign and arg are piecewise constant (abs: sign) only on the real line: with an explicit complex
             // number in the argument (`arg(1 + im x)`) they vary continuously, so keep the derivative form

@@ -108,9 +108,36 @@ pub fn gf<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, n: T<'h>, z: T<'h>) -> Res<
             // b^n g(n): G at b z; n g(n): z G'
             let formal = args.iter().any(|&a| matches!(h.view(a), View::App { args: &[x], .. } if !sx.free(x, n)) && sx.args_of(a, names::POW).is_none());
             if formal {
+                // a polynomial factor in n that is a sum, (n + 1) g(n): by linearity after expanding
+                if args.iter().any(|&a| sx.args_of(a, names::ADD).is_some() && !sx.free(a, n)) {
+                    let e = sx.ev("expand", &[f])?;
+                    if e != f && sx.args_of(e, names::ADD).is_some() {
+                        return gf(sx, e, n, z);
+                    }
+                }
                 for (i, &a) in args.iter().enumerate() {
                     let rest: Vec<T<'h>> = args.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, &x)| x).collect();
                     let r = sx.mul(&rest)?;
+                    // n^k g(n): (z d/dz)^k G (the derivative of a held G stays as d(G, z))
+                    let k = if a == n {
+                        1
+                    } else {
+                        match sx.args_of(a, names::POW) {
+                            Some(&[b, e]) if b == n => sx.as_int(e).filter(|&k| (1..=10).contains(&k)).unwrap_or(0),
+                            _ => 0,
+                        }
+                    };
+                    if k > 0 {
+                        let mut v = match gf(sx, r, n, z)? {
+                            Some(v) => v,
+                            None => return Ok(None),
+                        };
+                        for _ in 0..k {
+                            let dv = sx.ev("d", &[v, z])?;
+                            v = sx.mul(&[z, dv])?;
+                        }
+                        return Ok(Some(sx.ev("expand", &[v])?));
+                    }
                     if let Some(&[b, e]) = sx.args_of(a, names::POW) {
                         // b^(c n): G at b^c z
                         let c = sx.div(e, n)?;

@@ -34,6 +34,23 @@ rule triangle_wave(x_) := 1 - 4*abs(sawtooth_wave(x + 1/4) - 1/2) when calc_real
 rule triangle_wave(r_, x_) := map(t => triangle_wave(r, t), x) when calc_range(r) and is_list(x)
 rule triangle_wave(r_, x_) := (r[1] + r[2])/2 + (r[2] - r[1])/2*triangle_wave(x) when calc_range(r) and calc_real(x)
 
+# the waves between a and b as affine images of the unit waves (identities for every x): the function properties
+# take them in that form (the coefficient's sign from the assumptions)
+fn calc_wave_aff(f) = rewrite(f, [
+  sawtooth_wave(r_, u_) :> (if calc_range(r) then r[1] + (r[2] - r[1])*sawtooth_wave(u) else sawtooth_wave(r, u)),
+  square_wave(r_, u_) :> (if calc_range(r) then (r[1] + r[2])/2 + (r[2] - r[1])/2*square_wave(u) else square_wave(r, u)),
+  triangle_wave(r_, u_) :> (if calc_range(r) then (r[1] + r[2])/2 + (r[2] - r[1])/2*triangle_wave(u) else triangle_wave(r, u))])
+fn calc_ranged_wave(f) = not (calc_wave_aff(f) === f)
+rule function_injective(f_, rest___) := apply(function_injective, join([calc_wave_aff(f)], rest)) when calc_ranged_wave(f)
+rule function_convexity(f_, rest___) := apply(function_convexity, join([calc_wave_aff(f)], rest)) when calc_ranged_wave(f)
+rule function_monotonicity(f_, rest___) := apply(function_monotonicity, join([calc_wave_aff(f)], rest)) when calc_ranged_wave(f)
+rule function_sign(f_, rest___) := apply(function_sign, join([calc_wave_aff(f)], rest)) when calc_ranged_wave(f)
+
+# a definite integral of a wave of x over real bounds: the integral of its piecewise expansion (floor of linear
+# functions of x), which integrate takes cell by cell
+fn calc_wave_call(w, x) = not is_atom(w) and (head(w) === sawtooth_wave or head(w) === square_wave or head(w) === triangle_wave) and not free_of(w, x)
+rule integrate(w_, s_) := integrate(piecewise_expand(w), s) when is_list(s) and length(s) == 3 and is_symbol(s[1]) and calc_wave_call(w, s[1]) and calc_real(s[2]) and calc_real(s[3]) and free_of(piecewise_expand(w), head(w))
+
 # --- Heaviside shapes: heaviside_lambda, heaviside_pi ---
 
 # heaviside_lambda(x): the triangle 1 - |x| for |x| < 1, else 0; heaviside_lambda(x, y, ...) the product
@@ -122,6 +139,18 @@ rule multiple_harmonic_number(m_, rs_, ss_) := {
   c[m + 1]
 } when calc_count(m) and is_list(rs) and is_list(ss) and length(rs) == length(ss) and length(rs) > 0
 rule multiple_harmonic_number(m_, rs_, ss_) := harmonic_number(m, rs[1]) when is_list(rs) and length(rs) == 1 and ss === [1]
+# depth 2 at a symbolic m, in harmonic numbers H(r) = harmonic_number(m, r): the quasi-shuffle (stuffle) product
+# H(a) H(b) = S(a, b) + S(b, a) + H(a + b) gives S(a, a) = (H(a)^2 - H(2 a))/2; and S(a, 0) = sum (n - 1)/n^a =
+# H(a - 1) - H(a), S(0, b) = sum (m - n)/n^b = m H(b) - H(b - 1) (Hoffman, Multiple harmonic series, Pacific J.
+# Math. 152 (1992), section 2)
+rule multiple_harmonic_number(m_, rs_, ss_) := {
+  let a = rs[1]
+  let b2 = rs[2]
+  let hn = r => if r === 1 then harmonic_number(m) else harmonic_number(m, r)
+  if a === b2 then (hn(a)^2 - hn(2*a))/2
+  else if b2 === 0 then hn(a - 1) - hn(a)
+  else m*hn(b2) - hn(b2 - 1)
+} when not calc_count(m) and is_list(rs) and length(rs) == 2 and ss === [1, 1] and every(rs, r => is_integer(r) and r >= 0) and (rs[1] === rs[2] or rs[1] === 0 or rs[2] === 0)
 
 # --- asymptotic relations at a point: asymptotic_less_equal, asymptotic_equal, asymptotic_greater_equal,
 # asymptotic_equivalent, asymptotic_greater, asymptotic_less ---
@@ -146,7 +175,8 @@ fn calc_lim(kind, e, spec, dir, assm) = if is_failure(calc_limit(kind, e, spec, 
 # that vanishes on the side approached), null otherwise
 fn calc_bounded_old(v) = if calc_real(v) then true else if v === inf or v === calc_failed then false else null
 
-fn calc_bounded(v) = if head(v) === max_limit or head(v) === min_limit or head(v) === limit then null else calc_bounded_old(v)
+fn calc_held_limit(v) = not is_atom(v) and (head(v) === max_limit or head(v) === min_limit or head(v) === limit)
+fn calc_bounded(v) = if calc_held_limit(v) then null else calc_bounded_old(v)
 # calc_order1(kind, f, g, spec, dir, assm): the relation kind (o_big, o_small, theta, equivalent) of f to g along one
 # real direction, or null
 fn calc_order1(kind, f, g, spec, dir, assm) = {
@@ -175,10 +205,13 @@ fn calc_order1b(kind, f, g, spec, dir, assm) = {
 # e = 0 and c = 1; null when the series is not found
 fn calc_series_order(kind, q, x, a, dir, assm) = {
   let t = calc_order_t
-  let sq = rewrite(q, x -> a + (if dir === from_above then t else -t))
+  # a power whose base is on the negative real axis there is written with its principal branch (calc_branch)
+  let sq = calc_branch(rewrite(q, x -> a + (if dir === from_above then t else -t)), t)
   # t > 0 in the assumptions: a step function on a jump (fractional_part(x^2) at x = 2) is expanded on its side
-  let lead = if assm === automatic then assuming(t > 0, cb_lead(sq, t, 0)) else assuming(assm and t > 0, cb_lead(sq, t, 0))
-  if is_failure(lead) then null
+  let lead0 = if assm === automatic then assuming(t > 0, cb_lead(sq, t, 0)) else assuming(assm and t > 0, cb_lead(sq, t, 0))
+  # a leading term that comes with its order term: the term alone
+  let lead = if not is_failure(lead0) and not free_of(lead0, O) then normal(lead0) else lead0
+  if is_failure(lead) or head(lead) === add then null
   else if lead === 0 or not free_of(lead, series) then null else {
     let e = simplify(t*d(lead, t)/lead)
     let c = simplify(lead/t^e)
@@ -195,14 +228,15 @@ fn calc_order1a(kind, f, g, spec, dir, assm, legacy) = {
   if kind === o_big then calc_bd(calc_lim(max, abs(q), spec, dir, assm))
   else if kind === o_small then {
     let v = calc_lim(max, abs(q), spec, dir, assm)
-    if calc_real(v) then v == 0 else if v === inf or v === calc_failed then false else null
+    # a limit left unevaluated decides nothing (its numerical value is not the limit)
+    if calc_held_limit(v) then null else if calc_real(v) then v == 0 else if v === inf or v === calc_failed then false else null
   } else if kind === theta then {
     let hi = calc_bd(calc_lim(max, abs(q), spec, dir, assm))
     let lo = calc_bd(calc_lim(max, abs(1/q), spec, dir, assm))
     if hi === false or lo === false then false else if hi === true and lo === true then true else null
   } else {
     let v = calc_lim(none, q, spec, dir, assm)
-    if v === calc_failed then false else if is_numeric(v) then v == 1 else if v === inf or v === -inf or v === complex_infinity then false else null
+    if calc_held_limit(v) then null else if v === calc_failed then false else if is_numeric(v) then v == 1 else if v === inf or v === -inf or v === complex_infinity then false else null
   }
 }
 
@@ -219,9 +253,18 @@ fn calc_branch(e, t) =
     let b = calc_branch(e[1], t)
     let b0 = rewrite(b, t -> 0)
     let c1 = rewrite(d(b, t), t -> 0)
-    if is_numeric(b0) and is_real(b0) and b0 < 0 and is_numeric(c1) and not is_real(c1) then exp(im*pi*sign(im_part(c1))*e[2])*(-b)^e[2] else b^e[2]
+    if is_numeric(b0) and is_real(b0) and b0 < 0 and is_numeric(c1) and not is_real(c1) then exp(im*pi*sign(im_part(c1))*e[2])*(-b)^e[2]
+    # a base that stays on the negative real axis (a rational function of t with real coefficients, negative at t =
+    # 0): the principal power there is exp(i pi p) (-b)^p
+    else if is_numeric(b0) and is_real(b0) and b0 < 0 and free_of(b, im) and calc_real_rational(b, t) then exp(im*pi*e[2])*(-b)^e[2]
+    else b^e[2]
   }
   else apply(head(e), map(u => calc_branch(u, t), apply(list, e)))
+
+fn calc_real_rational(b, t) = {
+  let tb = together(b)
+  polynomial_expression_q(numerator(tb), [t]) and polynomial_expression_q(denominator(tb), [t]) and every(coefficient_list(expand(numerator(tb)), t), c => is_numeric(c) and is_real(c)) and every(coefficient_list(expand(denominator(tb)), t), c => is_numeric(c) and is_real(c))
+}
 
 # calc_order(kind, f, g, spec, dir, assm): at a finite point a two-sided (or reals) relation holds when it holds from
 # both sides (the two-sided limits decide when the sides do not), complexes when also along the imaginary directions; a complex direction d approaches along a - d t,
@@ -306,8 +349,25 @@ fn calc_order_curves(kind, f, g, spec, assm) = {
 # calc_relation(name, kind, f, g, spec, dir, assm): calc_order under the assumptions (whose context also simplifies the
 # ratio), a failure when undecided
 fn calc_relation(name, kind, f, g, spec, dir, assm) = {
-  let v = if assm === automatic then calc_order(kind, f, g, spec, dir, assm) else assuming(assm, calc_order(kind, f, g, spec, dir, assm))
+  let v0 = calc_relation1(kind, f, g, spec, dir, assm)
+  let v = if v0 === true or v0 === false then v0 else calc_relation_split(kind, f, g, spec, dir, assm)
   if v === true or v === false then v else failure(undecided, name, "the limits of the ratio are not decided")
+}
+fn calc_relation1(kind, f, g, spec, dir, assm) = if assm === automatic then calc_order(kind, f, g, spec, dir, assm) else assuming(assm, calc_order(kind, f, g, spec, dir, assm))
+# an assumption p >= c (or p <= c) on a parameter p, c a number: the relation decided at p = c and under p > c (p < c)
+# separately, and the same verdict for both is the verdict (x^a at a = 0 is a constant, for a > 0 it tends to 0)
+fn calc_relation_split(kind, f, g, spec, dir, assm) = {
+  let parts = if assm === automatic then [] else calc_conj_list(assm)
+  let weak = select(parts, q => not is_atom(q) and (head(q) === greater_equal or head(q) === less_equal) and length(q) == 2 and is_symbol(q[1]) and is_numeric(q[2]) and not (q[1] === spec[1]))
+  if length(weak) != 1 then null else {
+    let q = weak[1]
+    let more = select(parts, u => not (u === q))
+    let others = if length(more) == 0 then automatic else fold((a, b) => a and b, more[1], rest(more))
+    let open = if head(q) === greater_equal then q[1] > q[2] else q[1] < q[2]
+    let at = calc_relation1(kind, rewrite(f, q[1] -> q[2]), rewrite(g, q[1] -> q[2]), spec, dir, others)
+    let inside = calc_relation1(kind, f, g, spec, dir, if others === automatic then open else others and open)
+    if (at === true or at === false) and at === inside then at else null
+  }
 }
 
 fn asymptotic_less_equal(f, g, spec; direction = automatic, assumptions = automatic) when match_q(spec, _ -> _) =
@@ -352,6 +412,26 @@ fn wronskian(fs, x) when is_list(fs) and length(fs) > 0 = {
   let k = length(fs)
   simplify(det(map(j => map(f => d(f, [x, j]), fs), range(0, k - 1))))
 }
+# wronskian([y1'(x) == ..., ...], [y1, ..., yk], x) for a linear first-order system y' = A(x) y + r: Liouville's
+# formula exp(integrate(trace(A), x)) (the Wronskian of the fundamental matrix that is the identity at a point;
+# Coddington and Levinson, Theory of Ordinary Differential Equations, ch. 1, theorem 7.3)
+fn calc_wr_system(eqs, ys, x) = {
+  let dys = map(y => derivative(1)(y)(x), ys)
+  let sol = solve(eqs, dys)
+  if not is_list(sol) or length(sol) != 1 then null else {
+    let rhs = rewrite(dys, sol[1])
+    let vals = map(y => y(x), ys)
+    let lin1 = r => {
+      let er = expand(r)
+      let cs = map(v => coefficient(er, v), vals)
+      every(cs, c => every(vals, v => free_of(c, v))) and every(vals, v => free_of(expand(er - calc_total(map(i => cs[i]*vals[i], range(length(vals))))), v)) and free_of(r, dys)
+    }
+    let lin = every(rhs, lin1)
+    if not lin then null else simplify(exp(integrate(calc_total(map(i => coefficient(expand(rhs[i]), vals[i]), range(length(ys)))), x)))
+  }
+}
+fn wronskian(eqs, ys, x) when is_list(eqs) and is_list(ys) and length(eqs) == length(ys) and length(ys) > 0 and every(eqs, e => head(e) === equal) and every(ys, is_symbol) and not (calc_wr_system(eqs, ys, x) === null) =
+  calc_wr_system(eqs, ys, x)
 fn wronskian(eq, y, x) when head(eq) === equal = {
   let e = expand(eq[1] - eq[2])
   let ders = select(range(1, 20), j => not free_of(e, derivative(j)(y)(x)))
@@ -1120,6 +1200,148 @@ fn calc_transient(xs, k) = {
 fn find_transient_repeat(xs, k) =
   if is_string(xs) then map(string_join, calc_transient(characters(xs), k)) else calc_transient(xs, k)
 
+# --- series of algebraic functions given as roots: series(root(f, k), a, a0, n) ---
+
+# f = &(P(&1, a)), P polynomial in &1 with coefficients polynomial in a. When P(y, a0) has only simple roots (its
+# discriminant is not 0), the k-th root y(a) near a0 stays the continuation of the k-th root y0 at a0 (the roots
+# neither meet nor change between real and complex), and it is analytic there (the implicit function theorem); its
+# series is found by Newton's iteration y <- y - P(y)/P_y(y) on truncated series, which doubles the number of correct
+# terms at each step (Brent and Kung, J. ACM 25 (1978)).
+fn calc_root_series(f, k, a, a0, n) = {
+  let p = f(calc_rs_y)
+  let p0 = rewrite(p, a -> a0)
+  # (a root free of a is a constant: the series engine takes it so, and this rule would call itself on it)
+  let ok = not free_of(p, a) and polynomial_expression_q(p, [calc_rs_y, a]) and exponent(p0, calc_rs_y) >= 1 and not (discriminant(p0, calc_rs_y) === 0) and is_numeric(discriminant(p0, calc_rs_y))
+  if not ok then null else {
+    # the root at a0 in radicals (a root object in the arithmetic of the series is not simplified)
+    let y0 = to_radicals(root(apply(`fn`, [[`&1`], rewrite(p0, calc_rs_y -> `&1`)]), k))
+    let py = d(p, calc_rs_y)
+    if not is_numeric(y0) or not free_of(y0, root) or simplify(rewrite(py, [calc_rs_y -> y0, a -> a0])) === 0 then null else {
+      var y = y0
+      for i in range(ceiling(log(2, n + 1)) + 2) {
+        y = normal(series(y - rewrite(p, calc_rs_y -> y)/rewrite(py, calc_rs_y -> y), a, a0, n))
+      }
+      series(y, a, a0, n)
+    }
+  }
+}
+rule series(r_, a_, a0_, n_) := calc_root_series(r[1], r[2], a, a0, n) when not is_atom(r) and head(r) === root and length(r) == 2 and is_integer(r[2]) and is_symbol(a) and is_integer(n) and n >= 0 and is_numeric(a0) and not (calc_root_series(r[1], r[2], a, a0, n) === null)
+
+# --- integrals of Bessel functions of odd integer order ---
+
+# J_(n + 1) = J_(n - 1) - 2 J_n' (DLMF 10.6.1) gives, from integrate(J_1) = -J_0, integrate(J_n(u), u) = -J_0 - 2 (J_2 +
+# J_4 + ... + J_(n - 1)) for odd n > 0, written with J_0 = (2/u) J_1 - J_2 (DLMF 10.6.1 again) for n >= 3:
+# -(2/u) J_1 + J_2 - 2 (J_2 + ... + J_(n - 1)) (for n = 3: -J_2 - (2/u) J_1, which is 1 - J_2 - (2/u) J_1 + const);
+# J_(-n) = -J_n for odd n. The term c bessel_j(n, a x + b) with c, a, b free of x, a != 0.
+fn calc_bj_anti(n, u) = if n == 1 then -bessel_j(0, u) else -2*bessel_j(1, u)/u + bessel_j(2, u) - 2*calc_total(map(j => bessel_j(2*j, u), range(1, (n - 1)/2)))
+fn calc_bj_term(f, x) = {
+  let fs = calc_factors(f)
+  let js = select(fs, g => not is_atom(g) and head(g) === bessel_j and length(g) == 2 and is_integer(g[1]) and mod(g[1], 2) == 1 and not free_of(g, x))
+  let c = product(select(fs, g => not some(js, u => u === g)))
+  let ab = if length(js) == 1 then calc_lin(js[1][2], x) else null
+  if ab === null or not free_of(c, x) or ab[1] === 0 then null else {
+    let n = abs(js[1][1])
+    let sg = if js[1][1] < 0 then -1 else 1
+    [c*sg/ab[1], n, js[1][2]]
+  }
+}
+rule integrate(f_, x_) := (calc_bj_term(f, x)[1]*calc_bj_anti(calc_bj_term(f, x)[2], calc_bj_term(f, x)[3])) when is_symbol(x) and not (calc_bj_term(f, x) === null)
+fn calc_bj_def(f, s) = {
+  let t = calc_bj_term(f, s[1])
+  if t === null then null else {
+    let big = t[1]*calc_bj_anti(t[2], t[3])
+    let hi = limit(big, s[1] -> s[3])
+    let lo = limit(big, s[1] -> s[2])
+    if calc_held_limit(hi) or calc_held_limit(lo) or is_failure(hi) or is_failure(lo) then null else simplify(hi - lo)
+  }
+}
+rule integrate(f_, s_) := calc_bj_def(f, s) when is_list(s) and length(s) == 3 and is_symbol(s[1]) and not (calc_bj_def(f, s) === null)
+
+# --- Mellin transforms of g(x) cut to an interval: unit_step(x - a) g(x), piecewise([[g(x), lo < x and x < hi]]) ---
+
+# g = c x^m exp(-k x^q) (q > 0, k > 0, or k = 0): integrate(x^(s - 1) g, [x, lo, hi]) for 0 <= lo < hi <= inf is
+# (c/q) k^(-(s + m)/q) (gamma((s + m)/q, k lo^q) - gamma((s + m)/q, k hi^q)) (DLMF 8.2.2, the substitution u = k x^q),
+# gamma(w, 0) = gamma(w) and gamma(w, inf) = 0; for k = 0 it is c (hi^(s + m) - lo^(s + m))/(s + m) (hi finite).
+# [c, m, k, q] or null
+fn calc_mc_shape(g, x) = {
+  let lg = simplify(x*d(g, x)/g)
+  let c1 = simplify(d(lg, x))
+  if free_of(lg, x) then [simplify(g/x^lg), lg, 0, 1] else {
+    let q = simplify(1 + x*d(c1, x)/c1)
+    let k = simplify(-c1/(q^2*x^(q - 1)))
+    let m = simplify(lg + k*q*x^q)
+    let c = simplify(g/(x^m*exp(-k*x^q)))
+    if every([q, k, m, c], v => free_of(v, x)) and is_numeric(q) and q > 0 then [c, m, k, q] else null
+  }
+}
+fn calc_mc_cut(g, x, s, lo, hi) = {
+  let sh = calc_mc_shape(g, x)
+  if sh === null then null else {
+    let w = (s + sh[2])/sh[4]
+    if sh[3] === 0 then (if hi === inf then null else sh[1]*(hi^(s + sh[2]) - (if lo === 0 then 0 else lo^(s + sh[2])))/(s + sh[2]))
+    else if not (refine(sh[3] > 0) === true) then null else {
+      let up = if hi === inf then 0 else gamma(w, sh[3]*hi^sh[4])
+      let down = if lo === 0 then gamma(w) else gamma(w, sh[3]*lo^sh[4])
+      simplify(sh[1]/sh[4]*sh[3]^(-w)*(down - up))
+    }
+  }
+}
+# f = unit_step(x - a) g(x) (a free of x): the cut [a, inf) for a > 0, the whole transform for a <= 0, and the
+# piecewise of the two when the sign of a is not known; f = piecewise([[g, lo < x and x < hi]]) with numbers
+# 0 <= lo < hi
+fn calc_mellin_cut(f, x, s) = {
+  let fs = calc_factors(f)
+  let st = select(fs, u => not is_atom(u) and head(u) === unit_step and length(u) == 1 and not free_of(u, x) and not (calc_lin(u[1], x) === null) and calc_lin(u[1], x)[1] === 1)
+  if length(st) == 1 then {
+    let a = -calc_lin(st[1][1], x)[2]
+    let g = product(select(fs, u => not (u === st[1])))
+    let cut = calc_mc_cut(g, x, s, a, inf)
+    let whole = calc_mc_cut(g, x, s, 0, inf)
+    if not free_of(g, unit_step) or cut === null or whole === null then null
+    else if refine(a > 0) === true then cut
+    else if refine(a <= 0) === true then whole
+    else piecewise([[whole, a <= 0]], cut)
+  } else if length(fs) == 1 and not is_atom(f) and head(f) === piecewise and length(f) == 1 and length(f[1]) == 1 then {
+    let g = f[1][1][1]
+    let cd = f[1][1][2]
+    let parts = calc_conj_list(cd)
+    let lo = select(parts, p => head(p) === less and p[2] === x)
+    let hi = select(parts, p => head(p) === less and p[1] === x)
+    if length(parts) == 2 and length(lo) == 1 and length(hi) == 1 and is_numeric(lo[1][1]) and is_numeric(hi[1][2]) and lo[1][1] >= 0 and lo[1][1] < hi[1][2] then calc_mc_cut(g, x, s, lo[1][1], hi[1][2]) else null
+  } else null
+}
+rule mellin_transform(f_, x_, s_) := calc_mellin_cut(f, x, s) when is_symbol(x) and is_symbol(s) and not (calc_mellin_cut(f, x, s) === null)
+
+# --- the unit mass at a symbolic point: integrals and transforms of g(x) dirac_delta(c (x - a)) ---
+
+# [g, a, w] for f = g(x) dirac_delta(u) with u = c x + d linear in x (c != 0 free of x), a = -d/c the point where u
+# vanishes and w = 1/abs(c) its weight (the scaling rule of the delta); null for another f. The point a is a real
+# number: a shift known not to be real gives null.
+fn calc_mass(f, x) = {
+  let fs = calc_factors(f)
+  let ds = select(fs, g => not is_atom(g) and head(g) === dirac_delta and length(g) == 1 and not free_of(g, x))
+  let g = product(select(fs, h => not some(ds, u => u === h)))
+  let ab = if length(ds) == 1 then calc_lin(ds[1][1], x) else null
+  if ab === null or ab[1] === 0 or not free_of(g, dirac_delta) then null else {
+    let a = simplify(-ab[2]/ab[1])
+    if refine(element(a, reals)) === false then null else [g, a, 1/abs(ab[1])]
+  }
+}
+# integrate(g(x) dirac_delta(x - a), [x, lo, hi]) = g(a) heaviside_theta(a - lo) heaviside_theta(hi - a), the
+# factor of an infinite end left out
+fn calc_mass_int(f, s) = {
+  let m = calc_mass(f, s[1])
+  if m === null then null else {
+    let lo = if s[2] === -inf then 1 else heaviside_theta(m[2] - s[2])
+    let hi = if s[3] === inf then 1 else heaviside_theta(s[3] - m[2])
+    simplify(m[3]*rewrite(m[1], s[1] -> m[2])*lo*hi)
+  }
+}
+rule integrate(f_, s_) := calc_mass_int(f, s) when is_list(s) and length(s) == 3 and is_symbol(s[1]) and (s[2] === -inf or s[3] === inf or refine(s[2] < s[3]) === true) and not (calc_mass_int(f, s) === null)
+# the transforms with the kernels exp(-t x) on [0, inf) and exp(i t x)/sqrt(2 pi) on the line
+rule laplace_transform(f_, x_, t_) := calc_mass_int(f*exp(-t*x), [x, 0, inf]) when is_symbol(x) and not (calc_mass(f, x) === null)
+rule fourier_transform(f_, x_, t_) := calc_mass_int(f*exp(im*t*x), [x, -inf, inf])/sqrt(2*pi) when is_symbol(x) and not (calc_mass(f, x) === null)
+
 # --- truncate_sum, convolve, dt, inverse_function ---
 
 # truncate_sum(e, k): every sum(f, [i, a, b]) and inactive(sum)(f, ...) in e cut to its first k terms, the index
@@ -1439,6 +1661,28 @@ fn hankel_transform(f, r, s; assumptions = automatic, generate_conditions = fals
 fn hankel_transform(f, r, s, nu; assumptions = automatic, generate_conditions = false) when not (head(nu) === options) and not (calc_hk_run(f, r, s, nu, assumptions, false) === null) = calc_hk_run(f, r, s, nu, assumptions, generate_conditions)
 fn inverse_hankel_transform(g, s, r; assumptions = automatic, generate_conditions = false) when not (calc_hk_run(g, s, r, 0, assumptions, false) === null) = calc_hk_run(g, s, r, 0, assumptions, generate_conditions)
 fn inverse_hankel_transform(g, s, r, nu; assumptions = automatic, generate_conditions = false) when not (head(nu) === options) and not (calc_hk_run(g, s, r, nu, assumptions, false) === null) = calc_hk_run(g, s, r, nu, assumptions, generate_conditions)
+
+# --- Fourier transforms of radial functions of two variables ---
+
+# f(x, y) = h(r), r = sqrt(x^2 + y^2): with the default parameters the transform (1/(2 pi)) integrate(f exp(i (u x + v y)))
+# over the plane is the Hankel transform of order 0 of h at rho = sqrt(u^2 + v^2) (the angular integral is 2 pi
+# bessel_j(0, rho r); Stein and Weiss, Introduction to Fourier Analysis on Euclidean Spaces, ch. IV.1). The inverse
+# is the same integral, and for an even f (a radial one) the cosine transform (2/pi) integrate over the quadrant of f
+# cos(u x) cos(v y) equals it.
+fn calc_radial(f, xy) = {
+  let g = simplify(rewrite(f, [xy[1] -> calc_rad_r*cos(calc_rad_t), xy[2] -> calc_rad_r*sin(calc_rad_t)]), assumptions: calc_rad_r > 0)
+  if free_of(g, calc_rad_t) and free_of(g, xy[1]) and free_of(g, xy[2]) then g else null
+}
+fn calc_fourier2(f, xy, uv) = {
+  let h = calc_radial(f, xy)
+  let ht = if h === null then null else hankel_transform(h, calc_rad_r, calc_rad_s)
+  if h === null or head(ht) === hankel_transform or is_failure(ht) then null else simplify(rewrite(ht, calc_rad_s -> sqrt(uv[1]^2 + uv[2]^2)))
+}
+fn calc_two_syms(v) = is_list(v) and length(v) == 2 and every(v, is_symbol)
+rule fourier_transform(f_, xy_, uv_) := calc_fourier2(f, xy, uv) when calc_two_syms(xy) and calc_two_syms(uv) and not (calc_fourier2(f, xy, uv) === null)
+rule inverse_fourier_transform(f_, xy_, uv_) := calc_fourier2(f, xy, uv) when calc_two_syms(xy) and calc_two_syms(uv) and not (calc_fourier2(f, xy, uv) === null)
+rule fourier_cos_transform(f_, xy_, uv_) := calc_fourier2(f, xy, uv) when calc_two_syms(xy) and calc_two_syms(uv) and not (calc_fourier2(f, xy, uv) === null)
+rule inverse_fourier_cos_transform(f_, xy_, uv_) := calc_fourier2(f, xy, uv) when calc_two_syms(xy) and calc_two_syms(uv) and not (calc_fourier2(f, xy, uv) === null)
 
 # hilbert_transform(f, t, s): the Hilbert transform (1/pi) PV integrate(f(t)/(s - t), [t, -inf, inf]), by linearity
 # from H(sin(a t + b)) = -sign(a) cos(a s + b), H(cos(a t + b)) = sign(a) sin(a s + b), H(exp(im (a t + b))) =
@@ -1843,12 +2087,12 @@ rule fourier_sequence_transform(f_, k_, w_, options(fourier_parameters -> p_)) :
 fn calc_period(f, k) = {
   if is_atom(f) then 1
   else {
-    let own = if head(f) === pow and not free_of(f[2], k) and is_number(f[1]) and (n(f[1]) < 0) === true then 2
+    let own = if head(f) === pow and not free_of(f[2], k) and is_numeric(f[1]) and (n(f[1]) < 0) === true then 2
       else if (head(f) === sin or head(f) === cos) and not free_of(f[1], k) then {
         let ab = calc_lin(f[1], k)
         let q = if ab === null then null else simplify(ab[1]/pi)
         if q === null then inf else if is_rational(q) then 2*denominator(q) else inf
-      } else 1
+      } else if calc_mod_lin(f, k) then f[2] else 1
     let subs = map(g => calc_period(g, k), apply(list, f))
     if own === inf or some(subs, p => p === inf) then inf else apply(lcm, join([own], subs))
   }
@@ -1858,10 +2102,27 @@ fn calc_period(f, k) = {
 # sin and cos of rational multiples of pi k) take their value at k = r, the rest keeps k
 fn calc_freeze(f, k, r) = {
   if is_atom(f) then f
-  else if head(f) === pow and not free_of(f[2], k) and is_number(f[1]) and (n(f[1]) < 0) === true then (-1)^rewrite(f[2], k -> r)*(-f[1])^f[2]
+  else if head(f) === pow and not free_of(f[2], k) and is_numeric(f[1]) and (n(f[1]) < 0) === true then (-1)^rewrite(f[2], k -> r)*(-f[1])^f[2]
   else if (head(f) === sin or head(f) === cos) and not free_of(f[1], k) then rewrite(f, k -> r)
+  else if calc_mod_lin(f, k) then rewrite(f, k -> r)
+  else if calc_mod_int(f) then mod(calc_freeze(calc_mod_fact(f[1], k, f[2]), k, r), f[2])
   else apply(head(f), map(g => calc_freeze(g, k, r), apply(list, f)))
 }
+
+# mod(a k + b, m) with integers a, b and m > 0: periodic in k with period m, its value at k = r on k = r (mod m)
+fn calc_mod_int(f) = not is_atom(f) and head(f) === mod and length(f) == 2 and is_integer(f[2]) and f[2] > 0
+fn calc_mod_lin(f, k) = calc_mod_int(f) and not free_of(f[1], k) and {
+  let ab = calc_lin(f[1], k)
+  not (ab === null) and is_integer(ab[1]) and is_integer(ab[2])
+}
+# inside mod(u, m): the summands c factorial(k + j) (integers c, j) of u are multiples of m from k + j >= m on, so
+# they are 0 eventually
+fn calc_mod_fact(u, k, m) = calc_total(select(calc_terms(expand(u)), t => {
+  let fs = calc_factors(t)
+  let facts = select(fs, g => not is_atom(g) and head(g) === factorial and is_integer(simplify(g[1] - k)))
+  let c = product(select(fs, g => not some(facts, h => h === g)))
+  not (length(facts) == 1 and is_integer(c))
+}))
 
 # discrete_max_limit(f, k -> inf), discrete_min_limit(f, k -> inf): the upper and lower limits of the sequence f(k)
 # over the integers: with a period P of the oscillating parts, the extreme of the limits of the P subsequences
@@ -1869,7 +2130,11 @@ fn calc_freeze(f, k, r) = {
 # the reals, which agree with the sequence's by equidistribution (Weyl); k -> -inf by k -> -k; lists element-wise
 fn calc_dlim(f, spec, kind) = {
   let k = spec[1]
-  let g = if spec[2] === -inf then rewrite(f, k -> -k) else f
+  let g0 = if spec[2] === -inf then rewrite(f, k -> -k) else f
+  # Fibonacci and Lucas numbers by Binet's formulas: their oscillating part (-1/golden_ratio)^k is seen
+  let g = rewrite(g0, [
+    fibonacci(u_) :> (if free_of(u, k) then fibonacci(u) else (golden_ratio^u - (-1/golden_ratio)^u)/sqrt(5)),
+    lucas_l(u_) :> (if free_of(u, k) then lucas_l(u) else golden_ratio^u + (-1/golden_ratio)^u)])
   let p = calc_period(g, k)
   if p === inf then (if kind === max then max_limit(g, k -> inf) else min_limit(g, k -> inf))
   else if p > 60 then null
@@ -1878,6 +2143,29 @@ fn calc_dlim(f, spec, kind) = {
     if every(ls, v => calc_real(v) or v === inf or v === -inf) then (if kind === max then apply(max, ls) else apply(min, ls)) else null
   }
 }
+# max_limit and min_limit of f(x, y) at a point [a, b] where f - its shift is homogeneous of degree 0, f(a + l u,
+# b + l w) = f(a + u, b + w) for l > 0: f is constant on the rays from the point, so its upper (lower) limit there is
+# the supremum (infimum) of its values on the directions: over (1, t), t real, and the direction (0, 1) (and their
+# negatives, f being a function of the direction of degree 0: the values at -(u, w) are those of f(-1, -t), taken
+# too). A rational function in which the denominator vanishes along a direction where the numerator does not is
+# unbounded near it.
+fn calc_hom0(f, xy, ab) = {
+  let g = rewrite(f, [xy[1] -> ab[1] + calc_hom_u, xy[2] -> ab[2] + calc_hom_w])
+  let scaled = rewrite(g, [calc_hom_u -> calc_hom_l*calc_hom_u, calc_hom_w -> calc_hom_l*calc_hom_w])
+  if simplify(scaled - g, assumptions: calc_hom_l > 0) === 0 then g else null
+}
+fn calc_dir_extreme(f, xy, ab, kind) = {
+  let g = calc_hom0(f, xy, ab)
+  if g === null then null else {
+    let opt = if kind === max then max_value else min_value
+    let vs = [opt(rewrite(g, [calc_hom_u -> 1, calc_hom_w -> calc_hom_t]), calc_hom_t), opt(rewrite(g, [calc_hom_u -> -1, calc_hom_w -> calc_hom_t]), calc_hom_t), rewrite(g, [calc_hom_u -> 0, calc_hom_w -> 1]), rewrite(g, [calc_hom_u -> 0, calc_hom_w -> -1])]
+    let ok = every(vs, v => (is_numeric(v) and is_real(v)) or v === inf or v === -inf or v === indeterminate or v === complex_infinity)
+    let real = select(vs, v => (is_numeric(v) and is_real(v)) or v === inf or v === -inf)
+    if not ok or length(real) == 0 then null else (if kind === max then apply(max, real) else apply(min, real))
+  }
+}
+rule max_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], max) when match_q(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], max) === null)
+rule min_limit(f_, spec_) := calc_dir_extreme(f, spec[1], spec[2], min) when match_q(spec, _ -> _) and calc_two_syms(spec[1]) and is_list(spec[2]) and length(spec[2]) == 2 and every(spec[2], u => is_numeric(u)) and not (calc_dir_extreme(f, spec[1], spec[2], min) === null)
 rule discrete_max_limit(f_, spec_) := map(g => discrete_max_limit(g, spec), f) when is_list(f)
 rule discrete_max_limit(f_, spec_) := calc_dlim(f, spec, max) when match_q(spec, _ -> _) and is_symbol(spec[1]) and (spec[2] === inf or spec[2] === -inf) and not (calc_dlim(f, spec, max) === null)
 rule discrete_min_limit(f_, spec_) := map(g => discrete_min_limit(g, spec), f) when is_list(f)
@@ -2503,6 +2791,41 @@ fn calc_bint_ok(f, specs) = (not free_of(f, boole) or not free_of(f, piecewise))
 rule integrate(f_, s1_, s2_) := calc_bint(f, [s1, s2]) when calc_bint_ok(f, [s1, s2])
 rule integrate(f_, s1_, s2_, s3_) := calc_bint(f, [s1, s2, s3]) when calc_bint_ok(f, [s1, s2, s3])
 
+# --- extrema of sums of periodic functions with incommensurable periods ---
+
+# f = g + h + c, g and h continuous and periodic in x with periods P and Q whose ratio is irrational (an algebraic
+# number of degree at least 2), c free of x: the curve x -> (x mod P, x mod Q) is dense in the torus (Kronecker's
+# theorem; Hardy and Wright, An Introduction to the Theory of Numbers, theorem 442), so sup f = sup g + sup h + c and
+# inf f = inf g + inf h + c (the values only: whether the bound is attained is not decided here). The terms of f are
+# grouped by commensurable periods; null unless there are exactly two groups.
+fn calc_kron_period(g, x) = {
+  let p = function_period(g, x)
+  if is_numeric(p) and not (head(p) === function_period) and p > 0 then p else null
+}
+fn calc_kron_join(groups, t, p, x) = {
+  let is = select(range(length(groups)), i => is_rational(simplify(groups[i][2]/p)))
+  if length(is) == 0 then join(groups, [[t, p]]) else map(i => if i == is[1] then [groups[i][1] + t, function_period(groups[i][1] + t, x)] else groups[i], range(length(groups)))
+}
+fn calc_kron(f, x, kind) = {
+  let ts = calc_terms(f)
+  let c = calc_total(select(ts, t => free_of(t, x)))
+  let vs = select(ts, t => not free_of(t, x))
+  let ps = map(t => calc_kron_period(t, x), vs)
+  if length(vs) < 2 or some(ps, p => p === null) then null else {
+    let groups = fold((gs, i) => calc_kron_join(gs, vs[i], ps[i], x), [], range(length(vs)))
+    if length(groups) != 2 or some(groups, gr => not is_numeric(gr[2]) or head(gr[2]) === function_period) then null else {
+      let r = simplify(groups[1][2]/groups[2][2])
+      let mp = minimal_polynomial(r, calc_kron_t)
+      let irrational = is_numeric(r) and polynomial_expression_q(mp, [calc_kron_t]) and exponent(mp, calc_kron_t) >= 2
+      let cont = every(groups, gr => function_continuous(gr[1], x) === true)
+      let ext = map(gr => kind(gr[1], x), groups)
+      if not irrational or not cont or some(ext, v => not is_numeric(v) or not free_of(v, kind)) then null else simplify(c + calc_total(ext))
+    }
+  }
+}
+rule max_value(f_, x_) := calc_kron(f, x, max_value) when is_symbol(x) and head(f) === add and not (calc_kron(f, x, max_value) === null)
+rule min_value(f_, x_) := calc_kron(f, x, min_value) when is_symbol(x) and head(f) === add and not (calc_kron(f, x, min_value) === null)
+
 # --- optimization over a vector variable ---
 
 # minimize, maximize, min_value, max_value, arg_min, arg_max of [f, cons] in one symbol v used as a vector (through
@@ -2678,6 +3001,36 @@ fn cb_rad_delta(f, xy) = {
     if free_of(a, xy[1]) and free_of(a, xy[2]) and free_of(b, xy[1]) and free_of(b, xy[2]) then [rewrite(rest, [xy[1] -> a, xy[2] -> b]), a, b] else null
   }
 }
+# an undefined function of the two variables, u(x, y) (a symbol without attributes: the library's functions of two
+# arguments are listable, the arithmetic is flat): its transform stays (held)
+fn cb_rad_undef(u) = is_symbol(u) and attributes(u) === []
+fn cb_rad_held(f, xy) = not is_atom(f) and cb_rad_undef(head(f)) and apply(list, f) === xy
+# [u, a, b] for a factor that is the partial derivative derivative(a, b)(u)(x, y) (a = b = 0 for u(x, y)), or null
+fn cb_rad_dpart(g, xy) =
+  if cb_rad_held(g, xy) then [head(g), 0, 0]
+  else if not is_atom(g) and apply(list, g) === xy and not is_atom(head(g)) and not is_atom(head(head(g))) and head(head(head(g))) === derivative and length(head(head(g))) == 2 and length(head(g)) == 1 and cb_rad_undef(head(g)[1]) and is_integer(head(head(g))[1]) and is_integer(head(head(g))[2]) then [head(g)[1], head(head(g))[1], head(head(g))[2]]
+  else null
+fn cb_rad_has_held(f, xy) = not is_atom(f) and (not (cb_rad_dpart(f, xy) === null) or some(apply(list, f), u => cb_rad_has_held(u, xy)))
+# the transform of a linear combination of an undefined u and its partial derivatives (and terms free of u):
+# R[derivative(a, b)(u)] = cos(phi)^a sin(phi)^b d^(a + b)/dp^(a + b) R[u] (Deans, The Radon Transform and Some of Its
+# Applications, section 2.4); null for a term of another form (u times a function of x, y)
+fn cb_rad_linear(f, xy, pf, asm, gc) = {
+  let ts = calc_terms(expand(f))
+  let one = t => {
+    let fs = calc_factors(t)
+    let hs = select(fs, g => not (cb_rad_dpart(g, xy) === null))
+    let c = product(select(fs, g => cb_rad_dpart(g, xy) === null))
+    if length(hs) == 0 then cb_radon(t, xy, pf, asm, gc)
+    else if length(hs) > 1 or not free_of(c, xy[1]) or not free_of(c, xy[2]) then null else {
+      let q = cb_rad_dpart(hs[1], xy)
+      let r0 = radon_transform(q[1](xy[1], xy[2]), xy, pf)
+      c*cos(pf[2])^q[2]*sin(pf[2])^q[3]*(if q[2] + q[3] == 0 then r0 else d(r0, [pf[1], q[2] + q[3]]))
+    }
+  }
+  let vs = map(one, ts)
+  if some(vs, v => v === null or head(v) === failure) then failure(unevaluated, radon_transform, "the line integral has no closed form")
+  else simplify(calc_total(vs))
+}
 fn cb_radon(f, xy, pf, asm, gc) = {
   let dl = cb_rad_delta(f, xy)
   if not is_atom(f) and head(f) === equal and length(f) == 2 then {
@@ -2685,20 +3038,24 @@ fn cb_radon(f, xy, pf, asm, gc) = {
     let r = cb_radon(f[2], xy, pf, asm, gc)
     if head(l) === failure then l else if head(r) === failure then r else l == r
   }
+  else if cb_rad_held(f, xy) then radon_transform(f, xy, pf)
+  else if cb_rad_has_held(f, xy) then cb_rad_linear(f, xy, pf, asm, gc)
   else if not is_atom(f) and head(f) === inverse_radon_transform and length(f) == 3 and f[3] === xy and is_list(f[2]) and length(f[2]) == 2 then rewrite(f[1], [f[2][1] -> pf[1], f[2][2] -> pf[2]])
   else if not (dl === null) then dl[1]*dirac_delta(pf[1] - dl[2]*cos(pf[2]) - dl[3]*sin(pf[2])) else {
     let g = cb_rad_trig(rewrite(f, [xy[1] -> pf[1]*cos(pf[2]) - cb_radt*sin(pf[2]), xy[2] -> pf[1]*sin(pf[2]) + cb_radt*cos(pf[2])]), pf[2])
     let sv = cb_rad_step(g, cb_radt, pf[1], asm)
     if not (sv === null) then sv else {
       let r = if asm === true then integrate(g, [cb_radt, -inf, inf], generate_conditions: gc) else integrate(g, [cb_radt, -inf, inf], assumptions: asm, generate_conditions: gc)
-      let tidy = e => simplify(trig_reduce(rewrite(cb_plain(e), sin(pf[2])^2 -> 1 - cos(pf[2])^2)))
+      # a product is written with its polynomial factors' integer content taken out (factor)
+      let tidy0 = e => simplify(trig_reduce(rewrite(cb_plain(e), sin(pf[2])^2 -> 1 - cos(pf[2])^2)))
+      let tidy = e => if head(tidy0(e)) === mul then factor(tidy0(e)) else tidy0(e)
       if not free_of(r, integrate) then failure(unevaluated, radon_transform, "the line integral has no closed form")
       else if head(r) === conditional_expression then conditional_expression(tidy(r[1]), r[2])
       else tidy(r)
     }
   }
 }
-rule radon_transform(f_, xy_, pf_, opts___) := cb_radon(f, xy, pf, nl_asm(opts), nl_gc(opts)) when is_list(xy) and length(xy) == 2 and is_list(pf) and length(pf) == 2
+rule radon_transform(f_, xy_, pf_, opts___) := cb_radon(f, xy, pf, nl_asm(opts), nl_gc(opts)) when is_list(xy) and length(xy) == 2 and is_list(pf) and length(pf) == 2 and not cb_rad_held(f, xy)
 
 # --- asymptotic expansions of integrals, sums and products ---
 
@@ -3072,6 +3429,32 @@ rule green_function(eqs_, ux_, xspec_, y_) := {
     simplify(at(ua, y)*ub/(a2y*w))*heaviside_theta(x - y) + simplify(ua*at(ub, y)/(a2y*w))*heaviside_theta(y - x)
   }
 } when is_list(eqs) and length(eqs) == 3 and is_list(xspec) and is_symbol(y) and not is_atom(ux)
+
+# green_function(L, u(x, t), [x, -inf, inf], t, [y, s]): the causal fundamental solution of a constant-coefficient
+# heat or wave operator on the whole line, L G = dirac_delta(x - y) dirac_delta(t - s) (Evans, Partial Differential
+# Equations, 2.3.1 and 2.4.1): for a u_t - b u_xx (k = b/a > 0) heaviside_theta(t - s) exp(-(x - y)^2/(4 k (t -
+# s)))/(2 a sqrt(pi) sqrt(k (t - s))); for a u_tt - b u_xx (c^2 = b/a > 0) heaviside_theta(t - s - abs(x - y)/c)/(2 a
+# c). Another operator (lower-order terms, variable coefficients) is not done.
+fn cb_green_pde(op0, ux, xspec, t, ys) = {
+  let op = expand(if is_list(op0) then op0[1] else op0)
+  let u = head(ux)
+  let x = xspec[1]
+  let ut = coefficient(op, derivative(0, 1)(u)(x, t))
+  let utt = coefficient(op, derivative(0, 2)(u)(x, t))
+  let uxx = coefficient(op, derivative(2, 0)(u)(x, t))
+  let rest = expand(op - ut*derivative(0, 1)(u)(x, t) - utt*derivative(0, 2)(u)(x, t) - uxx*derivative(2, 0)(u)(x, t))
+  let consts = every([ut, utt, uxx], c => is_numeric(c) and is_real(c))
+  let y = ys[1]
+  let s = ys[2]
+  if not (rest === 0) or not consts then null
+  else if utt === 0 and not (ut === 0) and -uxx/ut > 0 then {
+    let k = -uxx/ut
+    heaviside_theta(t - s)*exp(-(x - y)^2/(4*k*(t - s)))/(2*ut*sqrt(pi)*sqrt(k*(t - s)))
+  }
+  else if ut === 0 and not (utt === 0) and -uxx/utt > 0 then heaviside_theta(t - s - abs(x - y)/sqrt(-uxx/utt))/(2*utt*sqrt(-uxx/utt))
+  else null
+}
+rule green_function(op_, ux_, xspec_, t_, ys_) := cb_green_pde(op, ux, xspec, t, ys) when not is_atom(ux) and length(ux) == 2 and is_list(xspec) and length(xspec) == 3 and xspec[2] === -inf and xspec[3] === inf and is_symbol(t) and apply(list, ux) === [xspec[1], t] and is_list(ys) and length(ys) == 2 and (not is_list(op) or length(op) == 1) and not (cb_green_pde(op, ux, xspec, t, ys) === null)
 
 # ====== formerly the round 31 library file (merged in round 34; loaded after the libraries above, before the round 30
 # ones, whose helpers it calls only when its functions run) ======

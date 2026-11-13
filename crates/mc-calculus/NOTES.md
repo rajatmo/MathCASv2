@@ -1307,6 +1307,12 @@ b, 0.)` with b < 1 and `inverse_elliptic_nome_q(1.)` stay unevaluated, `hyperfac
   meets the curve), and transforms of differential equations in an undefined u (`R[u_x] = cos(phi) d/dp R[u]`, Deans
   section 2.4): the transform of `u(x, y)` stays a failure, because `d` of a held `radon_transform(u(x, y), [x, y],
   [p, phi])` in p differentiates through the list `[p, phi]` and gives a list (a gap of `d` for list arguments).
+- Round 39: the transform of an undefined `u(x, y)` stays (held), and a linear combination of u and its partial
+  derivatives with coefficients free of x, y is transformed by `R[derivative(a, b)(u)] = cos(phi)^a sin(phi)^b
+  d^(a + b)/dp^(a + b) R[u]` (Deans, section 2.4), now that `d` of the held transform in p stays as a term; so a
+  Poisson equation becomes an ordinary equation in p. A product of u with a function of x, y has no rule (a
+  failure, as before). A transform that is a product comes out with the integer content of its polynomial factors
+  taken out (`factor`).
 
 ## Round 38: extrema of quadratics with parameters
 
@@ -1356,3 +1362,111 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   the others are not) is not defined on the whole line: its sign, monotonicity and convexity are indeterminate, as for
   any function whose domain leaves points out (DLMF 23.2.4-23.2.5). Not done: the Weierstrass functions of the
   invariants (`weierstrass_eta1([x, y])` and the half periods as functions of g2, g3).
+
+## Round 39: derivatives of calls that bind variables
+
+- `d` of a transform that stayed unevaluated (`laplace_transform(f(t), t, s)`, the Fourier, Mellin, Z, Hankel,
+  Hilbert and Radon transforms, the convolutions) no longer goes through the generic chain rule, which differentiated
+  the variable arguments as values (a list for `[p, phi]`) and resolved `derivative(0, 0, 1)(laplace_transform)` by
+  differentiating the transform of the placeholder `&1` as a constant: `-f(t)/s^2`, a false value. Now: 0 in the
+  integration variable, the transform of the integrand's derivative in a parameter (differentiation under the
+  integral sign), and in the transform's own variable the call `d(T, s)` stays as a term, so a sum or product around
+  it is differentiated by the rules (`d(s T, s) = T + s d(T, s)`); `d(d(T, s), s)` is `d(T, [s, 2])`.
+- `d` of an unevaluated `sum(g, [k, a, b])` with bounds free of the variable is `sum(d(g), [k, a, b])` (it gave a
+  list); 0 in the index; unevaluated in a bound, in the index of an indefinite sum, and for a product whose factor
+  depends on the variable.
+- The derivative operator `derivative(...)(T)` of a transform stays unevaluated too.
+
+## Round 39: periodic functions
+
+- `max_value`/`min_value` of `g + h + c`, g and h continuous and periodic in x with periods whose ratio is an
+  algebraic irrational (the minimal polynomial of the ratio has degree at least 2), c constant: the sum of the
+  extrema of g and h (Kronecker's theorem: the curve x -> (x mod P, x mod Q) is dense in the torus; Hardy and
+  Wright, theorem 442). Terms are grouped by commensurable periods; exactly two groups are needed. Whether the bound
+  is attained is not decided, so `maximize` and `minimize` (which give the point) still decline; a ratio involving
+  pi (transcendental, not tested here) declines too.
+- `integrate(w, [x, a, b])` for a unit wave w (`sawtooth_wave`, `square_wave`, `triangle_wave` of x) and real
+  bounds: the integral of `piecewise_expand(w)` (floors of linear functions), taken cell by cell.
+- The waves between a and b are rewritten as their affine images of the unit waves (an identity for every x) for
+  `function_injective`, `function_convexity`, `function_monotonicity` and `function_sign`.
+- Function properties of `alpha + beta g(x)` with every parameter in alpha and beta and beta != 0 under the
+  assumptions: injective when g is; the monotonicity and convexity of g times the sign of beta (indeterminate stays
+  indeterminate for any beta != 0).
+- A wrong value removed: with a parameter, a function with jumps or kinks has no samples, and the second derivative
+  that the shape fell back to misses the jumps (`function_convexity(c unit_step(x), x)` and `function_convexity(abs(x
+  - a), x)` gave 0, linear). Such a call now declines.
+
+## Round 39: sequences, relations, unit masses
+
+- `discrete_max_limit`/`discrete_min_limit`: `mod(a k + b, m)` (integers a, b, m > 0) is periodic with period m;
+  inside `mod(u, m)` a summand `c factorial(k + j)` (integers c, j) is a multiple of m from k + j >= m on and is
+  dropped; Fibonacci and Lucas numbers are written by Binet's formulas, so their oscillating part
+  `(-1/golden_ratio)^k` is seen (`is_numeric`, not `is_number`, for a negative base: `-1/golden_ratio` is no number
+  literal).
+- `multiple_harmonic_number(m, [a, b])` at a symbolic m for b = a, b = 0 or a = 0, in harmonic numbers: the
+  quasi-shuffle product gives `S(a, a) = (H(a)^2 - H(2 a))/2`; `S(a, 0) = H(a - 1) - H(a)`, `S(0, b) = m H(b) - H(b -
+  1)` (Hoffman 1992).
+- Asymptotic relations: an assumption `p >= c` (or `p <= c`) on a parameter is split into `p = c` and the open part;
+  when both give the same verdict it is the verdict (`asymptotic_equal(1 + x^a, 1, x -> 0)` for a >= 0). When they
+  differ the call stays undecided (`asymptotic_greater(1, x^a, x -> 0)` with a >= 0 fails at a = 0, so `true` would
+  be wrong there).
+- The series test of the relations writes a power whose base stays on the negative real axis on the side approached
+  (a rational function with real coefficients, negative at the point) with the principal branch, `b^p = exp(i pi p)
+  (-b)^p`; a leading term that comes with its order term is taken alone. A `max_limit` or `limit` that stays
+  unevaluated decides nothing (its numerical value had been compared with 0).
+- `wronskian([y1'(x) == ..., ...], [y1, ..., yk], x)` for a linear first-order system y' = A y + r: Liouville's
+  formula `exp(integrate(trace(A), x))` (Coddington and Levinson, ch. 1, theorem 7.3).
+- `integrate(g(x) dirac_delta(c (x - a)), [x, lo, hi])` with a symbolic a (lo < hi known, or an infinite end):
+  `g(a)/abs(c) heaviside_theta(a - lo) heaviside_theta(hi - a)`; `laplace_transform` and `fourier_transform` (the
+  default parameters) of such a term by the same rule. A shift known not to be real is left alone.
+
+## Round 39: radial transforms, directional limits, poles in one-variable extrema
+
+- `fourier_transform`, `inverse_fourier_transform`, `fourier_cos_transform` and `inverse_fourier_cos_transform` in two
+  variables (default parameters) of a radial f = h(sqrt(x^2 + y^2)): the Hankel transform of order 0 of h at
+  sqrt(u^2 + v^2) (Stein and Weiss, ch. IV.1); for an even f the cosine transform over the quadrant equals the
+  transform over the plane.
+- `max_limit`/`min_limit` of f(x, y) at a point where f is homogeneous of degree 0 about it (constant on rays): the
+  supremum (infimum) of the values on the directions (1, t), (-1, t), (0, 1), (0, -1); `y/(x + y)` at the origin is
+  unbounded both ways.
+- A wrong value removed: the one-variable `minimize`/`maximize`/`min_value`/`max_value` took the critical points and
+  the ends of the domain, not the real poles of g: `max_value(t/(1 + t), t)` was 1 (it is unbounded at -1). The
+  zeros of the denominator of `together(g)` (members -4..4 of a family) inside the domain are now checked from both
+  sides: -inf from one side is the infimum, a finite limit that would be the infimum declines (not attained).
+
+## Round 39: Bessel integrals and cut Mellin transforms
+
+- `integrate(c bessel_j(n, a x + b), x)` for odd integer n: from `integrate(J_1) = -J_0` and `J_(n + 1) = J_(n - 1) -
+  2 J_n'` (DLMF 10.6.1), `-J_0 - 2 (J_2 + ... + J_(n - 1))`, written with `J_0 = (2/u) J_1 - J_2` for n >= 3 (so
+  `integrate(J_3) = -J_2 - 2 J_1/u`); a definite integral by the limits of that antiderivative at the ends. Even
+  orders need `integrate(J_0)` (Struve functions) and are not done.
+- `mellin_transform(unit_step(x - a) g(x), x, s)` and of `piecewise([[g, lo < x and x < hi]])` (numbers 0 <= lo <
+  hi) for g = c x^m exp(-k x^q): incomplete gamma functions (DLMF 8.2.2 after u = k x^q); for an a of unknown sign
+  the piecewise of the whole transform (a <= 0) and the cut one.
+
+## Round 39: fundamental solutions of the heat and wave operators, series of roots
+
+- `green_function(L, u(x, t), [x, -inf, inf], t, [y, s])` for `a u_t - b u_xx` (b/a > 0) and `a u_tt - b u_xx` (b/a
+  > 0) with constant a, b: the causal fundamental solutions (Evans, 2.3.1 and 2.4.1), the heat kernel and
+  `heaviside_theta(t - s - abs(x - y)/c)/(2 a c)`. Other operators, and the form with `u` in place of `u(x, t)` (a
+  pure function), are not done.
+- `series(root(f, k), a, a0, n)` for f polynomial in the root and in a, with only simple roots at a0 (nonzero
+  discriminant, so the k-th root stays the continuation of the k-th root at a0): Newton's iteration on truncated
+  series (Brent and Kung 1978).
+
+## Round 39: left undone
+
+- `count_roots` of transcendental functions on intervals and rectangles: a rigorous count needs interval
+  evaluations of the special functions and their derivatives (`bessel_j` of an interval stays partly unevaluated)
+  and a treatment of poles (`gamma`, `tan`); not done.
+- `asymptotic_solve` through a singular point (Newton-Puiseux expansions with fractional exponents) is not done.
+- `difference_root_reduce` and `casoratian(eq, y, n)`: the operations are defined only up to choices (the initial
+  values given, the normalisation of the fundamental system) that are not fixed here; left as they are.
+- Asymptotic relations with a parameter in an exponent (`asymptotic_equal(1/(x - 1)^p, 10/(x - 1), x -> 1)`): the
+  verdict depends on p on both sides of a boundary, and one condition is not the whole answer; a split on an
+  assumption `p >= c` is done only when both parts agree.
+- The Hankel transform when the Mellin-Barnes integrand is balanced (a jump at s = 1, `sin(r)/r`): the residue
+  series on the two sides of the jump are not combined into a piecewise result; transforms that exist only as
+  distributions (of `cos(r)`, `erf(r)`, `sin_integral(r^2)`) are not given.
+- `maximize`/`minimize` of a sum with incommensurable periods give no point: whether the bound is attained needs a
+  decision of `a + P k = b + Q m` in integers k, m, which is not done (`max_value`/`min_value` give the bound).

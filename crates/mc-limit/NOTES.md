@@ -39,3 +39,7 @@
   approaches from below the real axis: `sqrt(-2 + e)` tends to -i sqrt(2)). An infinite point, or no limit found,
   stays unevaluated. `direction: complexes` (every direction at once) stays unevaluated; before, both were
   argument failures.
+## Round 39: sequences without a limit
+
+- `discrete_limit` of a sequence whose upper limit is above its lower limit (`discrete_max_limit`,
+  `discrete_min_limit`) is `failure(no_limit, discrete_limit, f, ...)`: `sin(n)`, dense in [-1, 1].

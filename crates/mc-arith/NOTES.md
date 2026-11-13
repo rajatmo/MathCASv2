@@ -176,3 +176,13 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
 ## Round 36
 
 - A machine infinity (an overflow) in a sum with the symbol inf is that infinity: of the other sign the sum is indeterminate, the same sign stays beside it (a machine infinity is not absorbed: tests/canonical.rs). Was left as inf - inf, and divided by inf gave 0.
+
+## Round 39: balls of very different magnitudes
+
+- `n(1 + exp(-10^12), 30)` and `limit(exp(-1/x^2) + 1, x -> 0)` (whose numeric check meets that sum) asked for 180
+  GB and aborted the process: the comparison of real numbers formed the exact rational ends `mid +- rad` of a ball
+  (a denominator of 10^12 bits), `has_digits` formed `|mid| - rad` exactly, and `cmp3` and `cmp_exact` aligned
+  mantissas whose exponents are 10^12 bits apart. Now `compare` takes two balls (an exact operand as a ball 64 bits
+  finer) by `cmp3`; `cmp3` decides midpoints more than two binades apart by the larger one; `cmp_exact` decides
+  different signs and different binades by the exponents; `has_digits` tests `r (10^d + 1) <= |m|`. The verdicts
+  are the same; no exact alignment of far-apart numbers is formed.

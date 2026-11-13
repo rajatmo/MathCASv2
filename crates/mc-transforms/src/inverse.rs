@@ -136,6 +136,13 @@ fn inv<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, table: &Table<'h>, bi
         if let Some(r) = inv(cx, tc, table, g, s, t, depth + 2)? {
             return Ok(Some(b.mul(&[b.call("exp", &[b.neg(b.mul(&[a, t]))]), r])));
         }
+        // a completed square under a root, (s^2 + b s + c)^p: the shifted base expanded (s^2 + c - b^2/4)
+        let ge = apply(cx, b, "expand_all", &[g])?;
+        if ge != g {
+            if let Some(r) = inv(cx, tc, table, ge, s, t, depth + 2)? {
+                return Ok(Some(b.mul(&[b.call("exp", &[b.neg(b.mul(&[a, t]))]), r])));
+            }
+        }
     }
     // G(s)/s: the integral of g from 0 to t
     for (i, &g) in fs.iter().enumerate() {

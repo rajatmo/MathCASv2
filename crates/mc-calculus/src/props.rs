@@ -921,6 +921,20 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         let c2 = Call { f: fa, cond: c.cond, vars: c.vars.clone(), complex: c.complex, integers: c.integers, facts: c.facts.clone(), strict: c.strict };
         return sign_of(cx, b, &c2, order);
     }
+    // alpha + beta g(x) with parameters only in alpha and beta (beta != 0 under the facts): the shape of g, times the
+    // sign of beta when it is known
+    if order > 0 && !c.integers && !c.complex && c.cond.is_none() {
+        if let Some((s, g)) = affine_part(cx, b, c, x)? {
+            let cg = Call { f: g, cond: None, vars: c.vars.clone(), complex: false, integers: false, facts: c.facts.clone(), strict: c.strict };
+            let indet = h.sym_term(h.sym("indeterminate"));
+            return Ok(match sign_of(cx, b, &cg, order)?.map(|r| h.view(r)) {
+                Some(View::Int(0)) => Some(b.zero()),
+                Some(View::Int(k)) if s != 0 => Some(b.int(k * s)),
+                Some(View::Sym(y)) if h.sym_term(y) == indet => Some(indet),
+                _ => None,
+            });
+        }
+    }
     let shaped = order > 0 && !c.integers && nonsmooth(b, c.f, x);
     if pole_on_line(cx, b, c, x)? {
         return Ok(Some(h.sym_term(h.sym("indeterminate"))));
@@ -984,10 +998,10 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         }
     }
     // functions with jumps or kinks: the samples of the function itself
+    // (with parameters there are no samples, and the derivatives miss the jumps and kinks: `c unit_step(x)` came out
+    // linear; undecided)
     if shaped {
-        if let Some(r) = sampled_shape(cx, b, c, x, order)? {
-            return Ok(Some(r));
-        }
+        return sampled_shape(cx, b, c, x, order);
     }
     let mut g = c.f;
     if c.integers && order > 0 {
@@ -1389,6 +1403,51 @@ fn symbols<'h>(b: &Build<'h>, t: T<'h>, out: &mut rustc_hash::FxHashSet<T<'h>>) 
     }
 }
 
+/// `f = alpha + beta g(x)` with the parameters of f in alpha and beta only (g has none) and beta != 0 under the facts:
+/// `(s, g)`, s the sign of beta (1, -1; 0 when only beta != 0 is known). `None` for another f, or a trivial split.
+fn affine_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>, x: T<'h>) -> Res<Option<(i64, T<'h>)>> {
+    let h = b.heap();
+    let parts = |t: T<'h>, s: mc_api::Sym| -> Vec<T<'h>> {
+        match h.view(t) {
+            View::App { head, args } if b.sym_of(head) == Some(s) => args.to_vec(),
+            _ => vec![t],
+        }
+    };
+    let terms = parts(c.f, b.hd.add);
+    let dep: Vec<T<'h>> = terms.iter().copied().filter(|&t| !is_free(b, t, x)).collect();
+    let [t] = dep.as_slice() else { return Ok(None) };
+    let (consts, rest): (Vec<T<'h>>, Vec<T<'h>>) = parts(*t, b.hd.mul).into_iter().partition(|&u| is_free(b, u, x));
+    if rest.is_empty() {
+        return Ok(None);
+    }
+    let beta = cx.eval(b.mul(&consts))?;
+    let g = cx.eval(b.mul(&rest))?;
+    let mut ps = rustc_hash::FxHashSet::default();
+    symbols(b, c.f, &mut ps);
+    let mut gs = rustc_hash::FxHashSet::default();
+    symbols(b, g, &mut gs);
+    // only a split that moves every parameter out of g
+    if g == c.f || !ps.iter().any(|&s| s != x) || gs.iter().any(|&s| s != x) {
+        return Ok(None);
+    }
+    let mut pf = c.facts.clone();
+    pf.extend(cx.assumptions().iter().copied());
+    let holds = |cx: &mut NativeCx<'_, '_, 'h>, rel: &str| -> Res<bool> {
+        let r = cx.eval_assuming(&pf, h.call(h.sym("refine"), &[h.call(h.sym(rel), &[beta, b.zero()])]))?;
+        Ok(cx.is_true(r))
+    };
+    let s = if holds(cx, "greater")? {
+        1
+    } else if holds(cx, "less")? {
+        -1
+    } else if holds(cx, "unequal")? {
+        0
+    } else {
+        return Ok(None);
+    };
+    Ok(Some((s, g)))
+}
+
 fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let [x] = c.vars.as_slice() else { return Ok(None) };
@@ -1396,6 +1455,13 @@ fn injective<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> 
         return Ok(None);
     }
     let x = *x;
+    // alpha + beta g(x), beta != 0: injective when g is
+    if c.cond.is_none() && !c.integers {
+        if let Some((_, g)) = affine_part(cx, b, c, x)? {
+            let cg = Call { f: g, cond: None, vars: c.vars.clone(), complex: false, integers: false, facts: c.facts.clone(), strict: c.strict };
+            return injective(cx, b, &cg);
+        }
+    }
     let mut params = rustc_hash::FxHashSet::default();
     symbols(b, c.f, &mut params);
     if params.iter().any(|&s| s != x) {

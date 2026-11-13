@@ -141,6 +141,9 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
             for &g in args {
                 match transform_any(cx, tc, kind, g, x, y)? {
                     Some(r) => out.push(r),
+                    // a side that is an undefined function of the variable alone keeps its transform held (`a^n ==
+                    // f(n)`: the equation of the transforms)
+                    None if is_call_of_variable(cx, b, g, x) => out.push(held(b, kind, g, x, y)),
                     None => return Ok(None),
                 }
             }
@@ -166,6 +169,13 @@ pub fn transform_any<'h>(cx: &mut NativeCx<'_, '_, 'h>, tc: &Cx<'_, 'h>, kind: K
         return Ok(Some(g));
     }
     transform_one(cx, tc, kind, f, x, y)
+}
+
+/// Is `f` a call `g(x)` of an undefined function `g` at the symbol `x` alone?
+fn is_call_of_variable<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>) -> bool {
+    let h = b.heap();
+    matches!(h.view(x), View::Sym(_))
+        && matches!(h.view(f), View::App { head, args: &[a] } if a == x && matches!(h.view(head), View::Sym(s) if !cx.is_defined(s)))
 }
 
 /// The transform of `f` in the symbol `x` at `y` (a symbol, or any term: computed at a symbol, then substituted).

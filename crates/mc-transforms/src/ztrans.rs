@@ -304,6 +304,18 @@ fn zt<'h>(
             return zt(cx, tc, poly, n, z, radius, checked, depth + 1);
         }
     }
+    // a polynomial factor in n that is a sum, (n + 1) g(n): expanded into the rules for n^k g(n) by linearity (the
+    // product was held as an undefined function's transform, and the held call evaluated again without end)
+    let sum_power = |g: T<'h>| match args_of(b, g, b.hd.pow) {
+        Some(&[base, e]) => args_of(b, base, b.hd.add).is_some() && matches!(h.view(e), View::Int(1..)),
+        _ => args_of(b, g, b.hd.add).is_some(),
+    };
+    if fs.len() > 1 && fs.iter().any(|&g| sum_power(g) && super::inverse::rational_in(b, g, n) && !is_free(b, g, n)) {
+        let e = apply(cx, b, "expand", &[f])?;
+        if e != f && args_of(b, e, b.hd.add).is_some() {
+            return zt(cx, tc, e, n, z, radius, checked, depth + 1);
+        }
+    }
     if unknown_function(cx, b, f, n) {
         return Ok(Some(held(b, Kind::Z, f, n, z)));
     }
