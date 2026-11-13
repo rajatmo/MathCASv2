@@ -2,7 +2,7 @@
   "name": "mathcas",
   "displayName": "MathCAS",
   "description": "MathCAS v2 language support: syntax colouring, diagnostics, go to definition, hover with links to the documentation, completion with usage lines, signature help and outline through the mc-lsp language server, and commands to run files and selections with mc-repl. No dependencies; install by copying this folder (see INSTALL.txt).",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "mathcas",
   "icon": "icon.png",
   "engines": {

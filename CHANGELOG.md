@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.13.0 (2026-11-13)
+
+MathCAS runs on macOS, about sixty new functions, and more answers where there were none.
+
+**macOS (Apple Silicon).** A disk image with the application `MathCAS Notebook.app`: the notebook, the
+documentation window, the REPL, the kernel and the language server, with the `.mcn` document type. It is built and
+tested with the other packages on every change. The application is not notarized: the first launch needs Open
+from the context menu (see the README in the image). Intel Macs are not built yet.
+
+**New functions.**
+- **Wavelets** (a new library): `discrete_wavelet_transform`, `stationary_wavelet_transform`,
+  `continuous_wavelet_transform`, the packet transform and the inverses, wavelet plots and scalograms, and the
+  Haar, Daubechies, Mexican hat, Morlet and other families. The discrete transforms reconstruct their data exactly.
+- **Series:** `inverse_series` and `compose_series`, also for series in fractional powers.
+- **Algebra and numbers:** `solve_always`, `find_linear_recurrence`, `mathieu_characteristic_b`, `pauli_matrix`,
+  `permute`, `polynomial_q`, bit operations (`bit_set`, `bit_clear`, `bit_shift_left`), distance functions.
+- **Lists and arrays:** `array_filter`, `array_reduce`, `subset_count`, `find_shortest_tour` (exact, up to 20
+  points), `unitize`, `interval_intersection`, `find_divisions`.
+- **Language:** `break()` and `continue()` in `while` and `for` loops; `symbol`, `symbol_name`, `with_cleanup`; the
+  pattern heads `verbatim` and `hold_pattern`.
+- **Uncertain values:** `vector_around`, `around_replace`.
+
+**More answers.**
+- **Transforms:** Hankel and inverse Hankel transforms through Mellin products; Mellin convolution; Radon
+  transforms of disks and point masses with their inverses.
+- **Sums:** `generate_conditions: true` gives the convergence condition (`sum(1/n^a, [n, inf])` is `zeta(a)` when
+  `re(a) > 1`); Bertrand-type series; divisor sums with a symbolic argument; Dirichlet series and Euler products.
+- **Limits and values at infinity** of the special functions; `to_radicals` options; Pell equation families.
+- **Lists and numerics:** vector constraints in `n_minimize` and its siblings; `heads: true` in the mapping
+  functions; ordering functions with `up_to`; permuted `transpose`; gradient, divergence, curl and Laplacian in
+  polar, cylindrical and spherical coordinates; `log(b, x)`.
+- **Algebra:** `trig:` and `modulus:` options of `together`, `cancel` and `expand`; bitwise laws on symbols;
+  Gaussian gcd and lcm of rationals; inverse Jacobi function properties for `m > 1`.
+- `abs`, `re`, `im_part`, `arg`, `conjugate` and `sign` all take numeric factors out (`abs(-2 k) = 2 abs(k)`).
+
+**Fixed.**
+- **A freeze:** plotting the solution of a differential equation that had been solved again after its session
+  ended could stop the kernel for good, and the interrupt did nothing. Fixed (a lock was taken twice).
+- `box_matrix(0, [n, n])` and its siblings divided by zero.
+- Compiled numerics on 64-bit ARM processors.
+
+**Notebook.**
+- 3D plots in the PDF export are laid out at the width of the text column, as 2D plots are.
+- Typing an opening bracket at the top of a very long cell no longer lays the whole cell out again (about six
+  times faster in a 2,000-line cell).
+- A closing bracket inserted automatically is kept when the caret moves inside it (a fraction filled with the
+  arrow keys no longer ends in `))`); completion does not open on `2a`.
+
+**Under the hood.** Output typesetting has its own crate (`mc-typeset`); the compiler version is pinned in
+`rust-toolchain.toml`; the speed limit of the documentation examples can be set per machine
+(`MC_DOCS_SLOW_SECS`).
+
 ## 0.12.0 (2026-11-12)
 
 Answers where there were none: this release works on inputs MathCAS left unevaluated, failed on or timed out on.
