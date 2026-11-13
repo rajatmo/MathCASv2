@@ -811,8 +811,26 @@ pub(crate) fn power_range<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
         }
         return Ok(Reply::Done(cx.list(&out)));
     };
-    if fr <= 0.0 || fr == 1.0 || fa == 0.0 {
+    if fr == 0.0 || fr == 1.0 || fa == 0.0 {
         return Ok(Reply::Done(lib.bad_arg(h, t, if fa == 0.0 { 1 } else { 3 })));
+    }
+    // a negative ratio: the terms alternate in sign; they run while their size has not passed the size of b
+    if fr < 0.0 {
+        if fr == -1.0 || fb == 0.0 {
+            return Ok(Reply::Done(lib.bad_arg(h, t, if fb == 0.0 { 2 } else { 3 })));
+        }
+        let growing = fr.abs() > 1.0;
+        let (mut out, mut cur, mut fc) = (vec![], a, fa);
+        while out.len() < 1_000_000 && fc.is_finite() && fc != 0.0 && if growing { fc.abs() <= fb.abs() * (1.0 + 1e-12) } else { fc.abs() >= fb.abs() * (1.0 - 1e-12) } {
+            cx.tick(1)?;
+            out.push(cur);
+            cur = cx.eval(h.app(mul, &[cur, r]))?;
+            match real(cx, cur)? {
+                Some(v) => fc = v,
+                None => break,
+            }
+        }
+        return Ok(Reply::Done(cx.list(&out)));
     }
     let growing = (fr > 1.0) == (fa > 0.0);
     let past = |v: f64| if growing { v > fb * (1.0 + 1e-12) } else { v < fb * (1.0 - 1e-12) };
@@ -840,18 +858,19 @@ pub(crate) fn first_position<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: 
     let h = cx.heap();
     // `heads: false` is passed on to `position`
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
-    let (x, p, d) = match *args {
-        [x, p] => (x, p, None),
-        [x, p, d] => (x, p, Some(d)),
+    let (x, p, d, lev) = match *args {
+        [x, p] => (x, p, None, None),
+        [x, p, d] => (x, p, Some(d), None),
+        // first_position(x, p, d, levels): the first position at those levels
+        [x, p, d, l] => (x, p, Some(d), Some(l)),
         _ => return Ok(Reply::Decline),
     };
-    let call = match heads {
-        Some(v) => {
-            let opts = h.call(h.sym("options"), &[h.call(h.sym("rule"), &[h.sym_term(h.sym("heads")), v])]);
-            h.call(h.sym("position"), &[x, p, opts])
-        }
-        None => h.call(h.sym("position"), &[x, p]),
-    };
+    let mut pargs = vec![x, p];
+    pargs.extend(lev);
+    if let Some(v) = heads {
+        pargs.push(h.call(h.sym("options"), &[h.call(h.sym("rule"), &[h.sym_term(h.sym("heads")), v])]));
+    }
+    let call = h.call(h.sym("position"), &pargs);
     let ps = cx.eval(call)?;
     Ok(match cx.as_list(ps) {
         Some(&[first, ..]) => Reply::Done(first),
@@ -1042,8 +1061,54 @@ fn position_extreme<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
 /// `symmetric_difference(xs, ys, ...)`: the sorted distinct elements that occur in an odd number of the lists.
 pub(crate) fn symmetric_difference<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    // no sets: the empty list
     if args.is_empty() {
-        return Ok(Reply::Decline);
+        return Ok(Reply::Done(cx.list(&[])));
+    }
+    // same_test: f: the elements x for which an odd number of the sets hold an element y with f(x, y) true, one of
+    // each class of such elements, sorted
+    let (sets, test) = crate::ctx::option(h, args, 1, "same_test");
+    if let Some(f) = test {
+        let mut lists: Vec<&'h [T<'h>]> = Vec::with_capacity(sets.len());
+        for (k, &a) in sets.iter().enumerate() {
+            let Some(xs) = cx.as_list(a) else { return Ok(Reply::Done(lib.bad_arg(h, t, k + 1))) };
+            lists.push(xs);
+        }
+        let same = |cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, y: T<'h>| -> Res<bool> {
+            cx.tick(1)?;
+            let v = cx.eval(h.app(f, &[x, y]))?;
+            Ok(cx.is_true(v))
+        };
+        let mut kept: Vec<T<'h>> = vec![];
+        for xs in &lists {
+            for &x in *xs {
+                let mut seen = false;
+                for &y in &kept {
+                    if same(cx, y, x)? {
+                        seen = true;
+                        break;
+                    }
+                }
+                if seen {
+                    continue;
+                }
+                let mut holding = 0usize;
+                for ys in &lists {
+                    let mut any = false;
+                    for &y in *ys {
+                        if same(cx, x, y)? {
+                            any = true;
+                            break;
+                        }
+                    }
+                    holding += usize::from(any);
+                }
+                if holding % 2 == 1 {
+                    kept.push(x);
+                }
+            }
+        }
+        return Ok(Reply::Again(h.call(h.sym("sort"), &[cx.list(&kept)])));
     }
     let mut count: rustc_hash::FxHashMap<T<'h>, usize> = Default::default();
     // the operands may share any head, which the result keeps (decision r37.4)
@@ -1258,12 +1323,49 @@ pub(crate) fn inactivate<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>
 /// the pairs `[piece of a, piece of b]` where they differ (adjacent differences merged). The traceback runs from the
 /// ends preferring a match, so among equal-scoring alignments the gaps come as early as possible. At most 10^7 cells
 /// (P9B.9).
+///
+/// Options: `ignore_case: true` (strings compared and given in lower case); `method: "Global"` (the default) or
+/// `"Local"` (Smith and Waterman 1981: the best-scoring pair of segments with the same scores, cells floored at 0; the
+/// parts before and after it are differences, the first maximal cell in row order taken); `merge_differences: false`
+/// (adjacent differences of different kinds, elements of `a` alone, of `b` alone, or of both, kept apart). Other
+/// options leave the call unevaluated.
 pub(crate) fn sequence_alignment<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
+    let (args, opts) = match args.split_last() {
+        Some((&o, rest)) if matches!(h.view(o), View::App { head, .. } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options")) => (rest, Some(o)),
+        _ => (args, None),
+    };
     let [a, b] = *args else { return Ok(Reply::Decline) };
+    let (mut fold_case, mut local, mut merge) = (false, false, true);
+    if let Some(o) = opts {
+        let View::App { args: rules, .. } = h.view(o) else { return Ok(Reply::Decline) };
+        for &r in rules {
+            let View::App { args: &[k, v], .. } = h.view(r) else { return Ok(Reply::Decline) };
+            let View::Sym(ks) = h.view(k) else { return Ok(Reply::Decline) };
+            let truth = |v: T<'h>| match h.view(v) {
+                View::Sym(s) if h.sym_name(s) == "true" => Some(true),
+                View::Sym(s) if h.sym_name(s) == "false" => Some(false),
+                _ => None,
+            };
+            match (h.sym_name(ks).as_str(), h.view(v)) {
+                ("ignore_case", _) => match truth(v) {
+                    Some(x) => fold_case = x,
+                    None => return Ok(Reply::Decline),
+                },
+                ("merge_differences", _) => match truth(v) {
+                    Some(x) => merge = x,
+                    None => return Ok(Reply::Decline),
+                },
+                ("method", View::Str(m)) if m == "Global" => local = false,
+                ("method", View::Str(m)) if m == "Local" => local = true,
+                _ => return Ok(Reply::Decline),
+            }
+        }
+    }
     let strings = matches!((h.view(a), h.view(b)), (View::Str(_), View::Str(_)));
     let elems = |x: T<'h>| -> Option<Vec<T<'h>>> {
         match h.view(x) {
+            View::Str(s) if fold_case => Some(s.to_lowercase().chars().map(|c| h.string(&c.to_string())).collect()),
             View::Str(s) => Some(s.chars().map(|c| h.string(&c.to_string())).collect()),
             _ => cx.as_list(x).map(|v| v.to_vec()),
         }
@@ -1276,24 +1378,40 @@ pub(crate) fn sequence_alignment<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t
     cx.tick(((n + 1) * (m + 1)) as u64)?;
     let w = m + 1;
     let mut sc = vec![0i64; (n + 1) * w];
-    for i in 0..=n {
-        sc[i * w] = -(i as i64);
+    if !local {
+        for i in 0..=n {
+            sc[i * w] = -(i as i64);
+        }
+        for (j, v) in sc.iter_mut().take(m + 1).enumerate() {
+            *v = -(j as i64);
+        }
     }
-    for (j, v) in sc.iter_mut().take(m + 1).enumerate() {
-        *v = -(j as i64);
-    }
+    let floor = if local { 0 } else { i64::MIN };
     for i in 1..=n {
         for j in 1..=m {
             let d = sc[(i - 1) * w + j - 1] + if xs[i - 1] == ys[j - 1] { 1 } else { -1 };
             let u = sc[(i - 1) * w + j] - 1;
             let l = sc[i * w + j - 1] - 1;
-            sc[i * w + j] = d.max(u).max(l);
+            sc[i * w + j] = d.max(u).max(l).max(floor);
         }
     }
+    // where the traceback starts and stops: the whole tables, or the best local segments
+    let (mut i, mut j) = (n, m);
+    if local {
+        let mut best = (0i64, 0usize, 0usize);
+        for ii in 1..=n {
+            for jj in 1..=m {
+                if sc[ii * w + jj] > best.0 {
+                    best = (sc[ii * w + jj], ii, jj);
+                }
+            }
+        }
+        (i, j) = (best.1, best.2);
+    }
+    let (end_i, end_j) = (i, j);
     // columns from the end: Some((x, y)) a pair (either may be absent: a gap)
     let mut cols: Vec<(Option<T<'h>>, Option<T<'h>>)> = vec![];
-    let (mut i, mut j) = (n, m);
-    while i > 0 || j > 0 {
+    while (i > 0 || j > 0) && !(local && (i == 0 || j == 0 || sc[i * w + j] == 0)) {
         let here = sc[i * w + j];
         if i > 0 && j > 0 && here == sc[(i - 1) * w + j - 1] + if xs[i - 1] == ys[j - 1] { 1 } else { -1 } {
             cols.push((Some(xs[i - 1]), Some(ys[j - 1])));
@@ -1320,24 +1438,39 @@ pub(crate) fn sequence_alignment<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t
         }
     };
     let mut out = vec![];
+    // a local alignment: the parts before the segments, as one difference
+    if local && (i > 0 || j > 0) {
+        out.push(cx.list(&[piece(&xs[..i]), piece(&ys[..j])]));
+    }
+    // the kind of a column: 0 shared, 1 of a alone, 2 of b alone, 3 of both, differing
+    let kind = |c: &(Option<T<'h>>, Option<T<'h>>)| match c {
+        (Some(x), Some(y)) if x == y => 0,
+        (Some(_), None) => 1,
+        (None, Some(_)) => 2,
+        _ => 3,
+    };
     let mut k = 0;
     while k < cols.len() {
-        let same = |c: &(Option<T<'h>>, Option<T<'h>>)| matches!(c, (Some(x), Some(y)) if x == y);
         let start = k;
-        if same(&cols[k]) {
-            while k < cols.len() && same(&cols[k]) {
+        let k0 = kind(&cols[k]);
+        if k0 == 0 {
+            while k < cols.len() && kind(&cols[k]) == 0 {
                 k += 1;
             }
             let run: Vec<T<'h>> = cols[start..k].iter().filter_map(|c| c.0).collect();
             out.push(piece(&run));
         } else {
-            while k < cols.len() && !same(&cols[k]) {
+            while k < cols.len() && kind(&cols[k]) != 0 && (merge || kind(&cols[k]) == k0) {
                 k += 1;
             }
             let pa: Vec<T<'h>> = cols[start..k].iter().filter_map(|c| c.0).collect();
             let pb: Vec<T<'h>> = cols[start..k].iter().filter_map(|c| c.1).collect();
             out.push(cx.list(&[piece(&pa), piece(&pb)]));
         }
+    }
+    // and the parts after them
+    if local && (end_i < n || end_j < m) {
+        out.push(cx.list(&[piece(&xs[end_i..]), piece(&ys[end_j..])]));
     }
     Ok(Reply::Done(cx.list(&out)))
 }

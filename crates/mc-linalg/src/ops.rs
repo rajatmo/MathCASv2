@@ -515,6 +515,21 @@ pub fn curl<'h>(env: &Env<'h>, args: &[T<'h>]) -> WorkResult<Out<'h>> {
         return Ok(Out::Decline);
     }
     let vars = take!(vars_arg(env, args));
+    let h = env.h();
+    // an inactive operator applied to the field (`inactive(grad)(f, vars)`): the curl of the active value
+    if let View::App { head, args: inner } = h.view(args[0]) {
+        if let View::App { head: ih, args: &[op] } = h.view(head) {
+            if matches!(h.view(ih), View::Sym(s) if h.sym_name(s) == "inactive") && matches!(h.view(op), View::Sym(_)) {
+                let active = h.app(op, inner);
+                return Ok(Out::Again(h.call(h.sym("curl"), &[active, args[1]])));
+            }
+        }
+    }
+    // a scalar field: the rank n - 1 curl, the Hodge dual of its gradient (in the plane [-f_y, f_x]; in space the
+    // antisymmetric matrix of entries eps_ijk f_k)
+    if env.as_list(args[0]).is_none() && (2..=7).contains(&vars.len()) {
+        return Ok(Out::Again(tensor_curl(env, args[0], vars, 0)));
+    }
     let Some(v) = env.as_list(args[0]) else { return Ok(Out::Done(env.bad_argument(1))) };
     if v.len() != vars.len() || !(2..=3).contains(&v.len()) {
         if v.len() == vars.len() && (4..=7).contains(&v.len()) && v.iter().all(|&x| env.as_list(x).is_none()) {

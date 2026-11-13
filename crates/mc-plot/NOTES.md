@@ -233,3 +233,11 @@ used. Tests: `tests/round20.rs`.
   2D graphics shown as they are (`show(graphics(...))`) still get no twin.
 - Test `tests/round38_column.rs`: three 3D plots get twins 569.4 points wide, shaped like their screen pictures,
   with as many paths; a 3D plot with `image_size:` and a 2D graphic get none.
+
+## Round 39: data containers and labelled data
+
+- `pie_chart` (and `pie_chart3d`) of a `weighted_data`, `event_data`, `time_series` or `temporal_data` container: of
+  its values, as the other charts.
+- `list_point_plot3d`, `list_line_plot3d`, `list_plot3d`: a value may be `around(x, dx)` (its centre is drawn),
+  `labeled(v, l)`, `callout(v, l)` or `v -> l` (the value is drawn, the label is not); a whole data set
+  `data -> labels` is the data.

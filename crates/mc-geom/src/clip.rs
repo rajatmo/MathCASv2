@@ -103,28 +103,37 @@ pub enum Fill {
     EvenOdd,
     /// a point is inside when the curve winds about it a non-zero number of times
     NonZero,
+    /// inside when the curve winds about it a positive number of times (anticlockwise)
+    Positive,
+    /// inside when the curve winds about it a negative number of times (clockwise)
+    Negative,
+}
+
+/// The winding number of the closed rings about `p` (anticlockwise turns positive).
+fn winding(p: P, rings: &[Vec<P>]) -> i32 {
+    let mut w = 0i32;
+    for r in rings {
+        let n = r.len();
+        for i in 0..n {
+            let (a, b) = (r[i], r[(i + 1) % n]);
+            let side = (b[0] - a[0]) * (p[1] - a[1]) - (p[0] - a[0]) * (b[1] - a[1]);
+            if a[1] <= p[1] && b[1] > p[1] && side > 0.0 {
+                w += 1;
+            } else if a[1] > p[1] && b[1] <= p[1] && side < 0.0 {
+                w -= 1;
+            }
+        }
+    }
+    w
 }
 
 /// Inside by the fill rule (strictly; points on an edge are not tested by the callers).
 fn inside_fill(p: P, rings: &[Vec<P>], fill: Fill) -> bool {
     match fill {
         Fill::EvenOdd => inside(p, rings),
-        Fill::NonZero => {
-            let mut w = 0i32;
-            for r in rings {
-                let n = r.len();
-                for i in 0..n {
-                    let (a, b) = (r[i], r[(i + 1) % n]);
-                    let side = (b[0] - a[0]) * (p[1] - a[1]) - (p[0] - a[0]) * (b[1] - a[1]);
-                    if a[1] <= p[1] && b[1] > p[1] && side > 0.0 {
-                        w += 1;
-                    } else if a[1] > p[1] && b[1] <= p[1] && side < 0.0 {
-                        w -= 1;
-                    }
-                }
-            }
-            w != 0
-        }
+        Fill::NonZero => winding(p, rings) != 0,
+        Fill::Positive => winding(p, rings) > 0,
+        Fill::Negative => winding(p, rings) < 0,
     }
 }
 

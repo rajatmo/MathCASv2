@@ -1,7 +1,7 @@
 //! Datasets: `dataset` (construction and normal form), `is_dataset`, `missing`, `is_missing`,
 //! `column`, `columns`, `rows`, `add_column`, `join_on`, and the list functions on a dataset's rows (`length`,
-//! `part`, `first`, `last`, `rest`, `most`, `take`, `drop`, `reverse`, `join`, `select`, `sort_by`), which reach
-//! [`rows_op`] through the dataset's argument-head rules (decision DATA.2).
+//! `part`, `first`, `last`, `rest`, `most`, `take`, `drop`, `reverse`, `join`, `select`, `select_first`, `sort_by`),
+//! which reach [`rows_op`] through the dataset's argument-head rules (decision DATA.2).
 use crate::ctx::{charge_copy, map_calls, take, Lib, Meter};
 use crate::table::{Col, Columns, Table};
 use mc_core::{Heap, Store, View, T};
@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 
 /// The functions of lists that act on a dataset's rows (`mc_lists::DATASET_ROWS`, which declines them).
 pub(crate) const ROW_FUNCTIONS: &[&str] =
-    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "sort_by"];
+    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "select_first", "sort_by"];
 
 /// The internal native the argument-head rules call: `dataset_rows(f, ds, args...)` is `f(ds, args...)` on rows.
 pub(crate) const ROWS_OP: &str = "dataset_rows";
@@ -396,6 +396,17 @@ pub(crate) fn rows_op<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
                 let ix: Vec<usize> = (0..n).filter(|&i| cx.is_true(v[i])).collect();
                 Reply::Done(tab.gather(s, h, &ix))
             }
+            Err(fail) => Reply::Done(fail),
+        },
+        // the first row for which the function is true (`d` when none is, else `failure(not_found, select_first)`)
+        ("select_first", [p, d @ ..]) if d.len() <= 1 => match row_calls(lib, cx, &tab, *p)? {
+            Ok(v) => match (0..n).find(|&i| cx.is_true(v[i])) {
+                Some(i) => Reply::Done(tab.row(s, h, i)),
+                None => match d.first() {
+                    Some(&d) => Reply::Done(d),
+                    None => Reply::Done(lib.fail_named(h, "not_found", &[f])),
+                },
+            },
             Err(fail) => Reply::Done(fail),
         },
         ("sort_by", &[by]) => sort_rows(lib, cx, &tab, by)?,

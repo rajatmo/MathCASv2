@@ -220,3 +220,9 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
   largest entry are zero; exact matrices ignore the tolerance.
 - `hankel_matrix`, `toeplitz_matrix`, `upper_triangularize`, `lower_triangularize` take `target_structure:
   "Dense" | "Sparse" | automatic` (the dense list form, as the constructors' options here); other structures stay.
+
+## Round 39: curls of scalars and of inactive operators
+
+- `curl(f, vars)` of a scalar `f`: the rank n - 1 curl (the tensor curl of rank 0), `[-f_y, f_x]` in the plane and the
+  antisymmetric matrix of entries `eps_ijk f_k` in space. `curl(inactive(op)(args), vars)`: the curl of the active
+  `op(args)` (the curl of a gradient is 0).

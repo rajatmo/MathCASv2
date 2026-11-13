@@ -39,8 +39,50 @@ fn curve<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<(Vec<P>, boo
 }
 
 /// `winding_polygon(curve)` (non-zero rule) and `crossing_polygon(curve)` (even-odd rule).
+///
+/// A second argument names the rule: "NonzeroRule", "EvenOddRule" (or "OddRule"), "PositiveRule" (the curve winds
+/// about the point anticlockwise), "NegativeRule" (clockwise). Options of the polygon (`vertex_colors: ...`) are kept
+/// when the curve is one simple closed polygon (the region is the polygon itself, its corners those of the curve);
+/// otherwise the call stays as it is.
 pub fn enclosed<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], fill: Fill) -> Res<Reply<'h>> {
-    let [c] = a else { return Ok(Reply::Decline) };
+    let h = cx.heap();
+    let (a, opts) = match a.split_last() {
+        Some((&o, rest)) if call_parts(h, o).is_some_and(|(n, _)| n == "options") => (rest, Some(o)),
+        _ => (a, None),
+    };
+    let (c, fill) = match a {
+        [c] => (c, fill),
+        [c, r] => match h.view(*r) {
+            mc_core::View::Str(s) => match s {
+                "NonzeroRule" => (c, Fill::NonZero),
+                "EvenOddRule" | "OddRule" => (c, Fill::EvenOdd),
+                "PositiveRule" => (c, Fill::Positive),
+                "NegativeRule" => (c, Fill::Negative),
+                _ => return Ok(Reply::Decline),
+            },
+            _ => return Ok(Reply::Decline),
+        },
+        _ => return Ok(Reply::Decline),
+    };
+    if let Some(o) = opts {
+        let Some((ring, _)) = curve(cx, *c)? else { return Ok(Reply::Decline) };
+        let Some(pts) = cx.as_list(*c).map(|l| l.to_vec()) else { return Ok(Reply::Decline) };
+        let shapes = clip::boolean_fill(std::slice::from_ref(&ring), &[], Op::Union, fill);
+        // the region is the polygon of the curve itself: one ring without holes, through the curve's corners only
+        let same = match shapes.as_slice() {
+            [(outer, holes)] => {
+                holes.is_empty()
+                    && outer.len() == ring.len()
+                    && outer.iter().all(|p| ring.iter().any(|q| (p[0] - q[0]).abs() <= 1e-12 * (1.0 + q[0].abs()) && (p[1] - q[1]).abs() <= 1e-12 * (1.0 + q[1].abs())))
+            }
+            _ => false,
+        };
+        if !same || pts.len() != ring.len() {
+            return Ok(Reply::Decline);
+        }
+        let e = E { h };
+        return Ok(Reply::Done(e.f("polygon", &[cx.list(&pts), o])));
+    }
     // one closed curve, or a list of them (the rule is applied to all their edges together)
     let (rings, exact) = match curve(cx, *c)? {
         Some((ring, exact)) => (vec![ring], exact),

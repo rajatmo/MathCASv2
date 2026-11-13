@@ -83,6 +83,10 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     if let Some(r) = crate::uncertain_boxes::arith(fx, t, args, &kinds)? {
         return Ok(Some(r));
     }
+    // the real and imaginary parts, conjugate, modulus and argument of a centered interval with a complex part
+    if let Some(r) = crate::uncertain_boxes::part(fx, t, args)? {
+        return Ok(Some(r));
+    }
     // one kind at a time; other arguments must be numbers or closed numeric terms
     if kinds.iter().flatten().any(|&k| k != kind) {
         return Ok(None);
@@ -160,8 +164,33 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
             return step(fx, head, &centers, &unc);
         }
     }
+    // the conjugate of x -+ dx is conj(x) -+ dx (conjugation keeps distances)
+    if !centered && centers.len() == 1 && matches!(fx.h.view(head), View::Sym(s) if fx.h.sym_name(s) == "conjugate") {
+        if let Some(d) = unc[0] {
+            let c = match (machine(fx, fx.call("re", &[centers[0]]))?, machine(fx, fx.call("im_part", &[centers[0]]))?) {
+                (Some(a), Some(b)) if b != 0.0 => fx.ar.complex(fx.real(a), fx.real(-b)),
+                _ => fx.eval(fx.call("conjugate", &[centers[0]]))?,
+            };
+            return Ok(Some(fx.call(kind, &[c, d])));
+        }
+    }
     let value = fx.eval(fx.h.app(head, &centers))?;
-    let Some(v) = machine(fx, value)? else { return Ok(None) };
+    // `around` of a real argument with a complex value (acoth(0.9), the inverse Gudermannian beyond pi/2): the value
+    // with the spread |f'(x)| dx of the first order
+    let complex_value = if centered || machine(fx, value)?.is_some() {
+        None
+    } else {
+        let (re, im) = (machine(fx, fx.call("re", &[value]))?, machine(fx, fx.call("im_part", &[value]))?);
+        match (re, im) {
+            (Some(a), Some(b)) if a.is_finite() && b.is_finite() && unc.iter().flatten().count() == 1 => Some(fx.eval(fx.call("n", &[value]))?),
+            _ => None,
+        }
+    };
+    let v = match (machine(fx, value)?, complex_value) {
+        (Some(v), _) => v,
+        (None, Some(_)) => 0.0,
+        (None, None) => return Ok(None),
+    };
     if centered {
         if let Some(r) = centered_image(fx, head, &centers, &unc)? {
             return Ok(Some(r));
@@ -219,6 +248,11 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
             let at = fx.eval(fx.call("rewrite", &[dg, fx.call("rule", &[var, fx.real(c + k * d)])]))?;
             let s = match machine(fx, at)? {
                 Some(s) if s.is_finite() => s,
+                // a complex slope (a real argument, a complex value): its modulus
+                _ if complex_value.is_some() => match machine(fx, fx.call("abs", &[at]))? {
+                    Some(s) if s.is_finite() => s,
+                    _ => return Ok(None),
+                },
                 // no derivative in closed form: a five-point difference quotient of the values
                 _ => match numeric_slope(fx, head, &centers, i, c + k * d)? {
                     Some(s) => s,
@@ -234,7 +268,8 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
         }
     }
     let spread = if centered { var2 } else { var2.sqrt() };
-    Ok(Some(fx.call(kind, &[fx.real(v), fx.real(spread)])))
+    let value = complex_value.unwrap_or_else(|| fx.real(v));
+    Ok(Some(fx.call(kind, &[value, fx.real(spread)])))
 }
 
 /// `head` of several real centered intervals (at most four) as the hull of its values at two corners of the box,
@@ -627,6 +662,43 @@ fn image<'h>(
         fx.eval(fx.h.app(head, &ys))
     };
     let (Some(fa), Some(fb)) = (machine(fx, a)?, machine(fx, b)?) else { return Ok(None) };
+    // an end where the function has a pole (csch at 0, acoth at 1): the image reaches the infinity on the side the
+    // values just inside the end have; the grid leaves that end out
+    let ga0 = at(fx, a)?;
+    let gb0 = at(fx, b)?;
+    let complex_infinity = fx.sym("complex_infinity");
+    // a pole: an infinite value, or no value where the values grow without bound towards the end (at least a
+    // hundredfold as the distance shrinks a hundredfold, from beyond 10^6)
+    let pole = |fx: &mut Fx<'_, '_, '_, 'h>, v: T<'h>, x: f64, inward: f64| -> Res<bool> {
+        if v == complex_infinity || fx.infinity(v).is_some_and(|d| d == 0 || d == 2) {
+            return Ok(true);
+        }
+        match machine(fx, v)? {
+            // a finite value: no pole
+            Some(y) if y.is_finite() => return Ok(false),
+            // an infinite numeric value (n(csch(0)) is inf): the side is read from the values inside
+            Some(_) => return Ok(true),
+            None => {}
+        }
+        if !inward.is_finite() || inward == 0.0 {
+            return Ok(false);
+        }
+        let mut ys = args.to_vec();
+        let mut near = |fx: &mut Fx<'_, '_, '_, 'h>, d: f64| -> Res<Option<f64>> {
+            ys[i] = fx.real(x + inward * d);
+            let w = fx.eval(fx.h.app(head, &ys))?;
+            machine(fx, w)
+        };
+        Ok(match (near(fx, 1e-8)?, near(fx, 1e-10)?) {
+            (Some(p), Some(q)) => p.is_finite() && q.is_finite() && p.abs() > 1e6 && q.abs() >= 99.0 * p.abs() && p.signum() == q.signum(),
+            _ => false,
+        })
+    };
+    let width = fb - fa;
+    let (pole_a, pole_b) = (pole(fx, ga0, fa, width)?, pole(fx, gb0, fb, -width)?);
+    if pole_a && pole_b {
+        return Ok(None);
+    }
     let dg = fx.eval(fx.call("d", &[g, var]))?;
     let derivative_known = !fx.contains(dg, "derivative") && !fx.contains(dg, "d");
     // the derivative (or, without one, the function) on a grid
@@ -640,6 +712,9 @@ fn image<'h>(
     // the last nonzero sample (a zero of the derivative on the grid is passed over)
     let mut prev: Option<(f64, f64)> = None;
     for k in 0..=cells {
+        if (k == 0 && pole_a) || (k == cells && pole_b) {
+            continue;
+        }
         let x = fa + (fb - fa) * k as f64 / cells as f64;
         let Some(v) = f_at(fx, probe, x)? else { return Ok(None) };
         if let Some((px, pv)) = prev {
@@ -666,8 +741,22 @@ fn image<'h>(
         }
         fx.tick(1)?;
     }
-    let ga = at(fx, a)?;
-    let gb = at(fx, b)?;
+    if pole_a || pole_b {
+        // monotone between the pole and the other end: from that end's value to the infinity of the side
+        if !critical.is_empty() {
+            return Ok(None);
+        }
+        let inside = if pole_a { fa + (fb - fa) * 1e-9 } else { fb - (fb - fa) * 1e-9 };
+        let Some(v) = f_at(fx, g, inside)? else { return Ok(None) };
+        let finite = if pole_a { gb0 } else { ga0 };
+        let finite = fx.eval(fx.call("simplify", &[finite]))?;
+        if machine(fx, finite)?.is_none_or(|x| !x.is_finite()) || !v.is_finite() || v == 0.0 {
+            return Ok(None);
+        }
+        return Ok(Some(if v > 0.0 { (finite, fx.inf()) } else { (neg_inf(fx), finite) }));
+    }
+    let ga = ga0;
+    let gb = gb0;
     let exact_ends = [a, b].iter().all(|&e| fx.num(e).is_none_or(|n| n.kind() == Kind::Exact));
     if critical.is_empty() && exact_ends {
         return span(fx, &[ga, gb]);

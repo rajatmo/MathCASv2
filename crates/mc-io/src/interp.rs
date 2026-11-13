@@ -26,6 +26,23 @@ fn real<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
     Ok(direct(v).filter(|x| x.is_finite()))
 }
 
+/// Whether the value of a data item `[x, y]` (or the item itself) is a call holding a free symbol other than a
+/// head, such as `interpolated(xs, ys, ms)(s)`: a value that may become a number, not malformed data.
+fn symbolic_value<'h>(h: &'h mc_core::Heap, it: T<'h>) -> bool {
+    let v = match h.view(it) {
+        View::App { head, args: &[_, y] } if head == h.sym_term(h.sym(names::LIST)) => y,
+        _ => it,
+    };
+    fn free<'h>(h: &'h mc_core::Heap, t: T<'h>) -> bool {
+        match h.view(t) {
+            View::Sym(_) => true,
+            View::App { args, .. } => args.iter().any(|&a| free(h, a)),
+            _ => false,
+        }
+    }
+    matches!(h.view(v), View::App { .. }) && free(h, v)
+}
+
 fn reals<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
     let Some(items) = cx.as_list(t) else {
         return Ok(None);
@@ -77,6 +94,9 @@ impl Native for Interpolation {
             };
             match p {
                 (Some(x), Some(y)) => pts.push((x, y)),
+                // a value with a free symbol (a symbolic point of the inner interpolants of a tensor product,
+                // `interpolated(...)(s)`): no interpolant yet; it is built when the value is a number
+                _ if symbolic_value(h, it) => return Ok(Reply::Decline),
                 _ => return Ok(bad(h, 1)),
             }
         }

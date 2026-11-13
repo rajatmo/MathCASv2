@@ -126,7 +126,15 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
     // `position(t, p, levels)` (levels counted from the top) and `heads: false` (decision io-core.11)
     let (args, heads) = crate::ctx::option(h, args, 2, "heads");
     let heads = heads.is_none_or(|v| !cx.is_false(v));
-    let (x, p, levels) = match *args {
+    // `position(t, p, levels, n)`: the first n positions
+    let (args, most) = match *args {
+        [x, p, spec, n] => match h.view(n) {
+            View::Int(k) if k >= 0 => (vec![x, p, spec], Some(k as usize)),
+            _ => return Ok(Reply::Decline),
+        },
+        _ => (args.to_vec(), None),
+    };
+    let (x, p, levels) = match *args.as_slice() {
         [x, p] => (x, p, None),
         [x, p, spec] => match crate::levels::level_spec(h, spec) {
             Some(l) if l.contains_level(0).is_some() => (x, p, Some(l)),
@@ -135,6 +143,9 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
         _ => return Ok(Reply::Decline),
     };
     let probe = take!(probe(lib, cx, t, p, 2));
+    if most == Some(0) {
+        return Ok(Reply::Done(cx.list(&[])));
+    }
     // the path to the top of `stack`; each entry: a term, its next child (0 the head, i argument i), its head and its
     // children with their path elements (an association's children are its values, at `key(k)`: keys are no parts)
     let mut stack: Vec<Frame<'h>> = vec![frame(h, x)];
@@ -165,6 +176,9 @@ pub(crate) fn position<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, a
                 return Ok(Reply::Done(lib.too_large(h, t)));
             }
             out.push(cx.list(&path));
+            if most == Some(out.len()) {
+                break;
+            }
         }
         stack.pop();
         path.pop();

@@ -273,7 +273,7 @@ impl<'h> Opts<'h> {
         self.pairs.is_empty()
     }
 
-    fn get(&self, k: &str) -> Option<T<'h>> {
+    pub(crate) fn get(&self, k: &str) -> Option<T<'h>> {
         self.pairs.iter().rev().find(|(n, _)| n == k).map(|&(_, v)| v)
     }
 

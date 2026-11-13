@@ -263,6 +263,27 @@ fn measure_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>], want: Option<usize
             }
         }
     }
+    // region_measure(map, [range, ...], system): the measure of the dimension the number of ranges gives (a
+    // parametric region of k parameters is k-dimensional), with the ranges as separate arguments
+    if let (None, [map, rs, rest @ ..]) = (want, a) {
+        if let Some(ranges) = cx.as_list(*rs).map(|l| l.to_vec()) {
+            let shaped = !ranges.is_empty() && ranges.iter().all(|&r| cx.as_list(r).is_some_and(|l| l.len() == 3));
+            let name = match ranges.len() {
+                1 => "arc_length",
+                2 => "area",
+                3 => "volume",
+                _ => "",
+            };
+            if shaped && !name.is_empty() && cx.as_list(*map).is_some() && rest.len() <= 1 {
+                let mut args = vec![*map];
+                args.extend(ranges);
+                args.extend(rest.iter().copied());
+                if let Some(r) = crate::coords::reply(cx, name, &args)? {
+                    return Ok(r);
+                }
+            }
+        }
+    }
     // a map with its ranges (and maybe a coordinate system): the parametric region of the map
     if a.len() >= 2 {
         let name = match want {

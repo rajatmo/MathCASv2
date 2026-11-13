@@ -149,6 +149,9 @@ pub(crate) fn split<'a, 'h>(
             "precision_goal" => o.precision_goal = Some(goal(h, ar, v).ok_or_else(bad)?),
             "max_steps" => match h.view(v) {
                 View::Int(k @ 1..=100_000_000) => o.max_steps = Some(k as usize),
+                // no limit asked for: the largest count accepted (the run still stops on an interrupt or the memory
+                // limit)
+                View::Sym(s) if h.sym_name(s) == "inf" => o.max_steps = Some(100_000_000),
                 _ => return Err(bad()),
             },
             "max_step_size" => match ar.num(v).and_then(|n| n.as_real().map(|r| r.to_f64())) {

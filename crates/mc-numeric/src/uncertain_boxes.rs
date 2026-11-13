@@ -304,3 +304,36 @@ pub(crate) fn arith<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>], k
     };
     Ok(r.and_then(|b| to_term(fx, b)))
 }
+
+/// `re`, `im_part`, `conjugate`, `abs` and `arg` of one centered interval with a complex part (the box of its centre
+/// and radius): the real part and the imaginary part are the box's sides, the conjugate the box mirrored; the modulus
+/// lies between the nearest point of the box and its farthest corner, the argument between the arguments of the
+/// corners (for a box away from 0 and from the negative real axis: the extreme rays from 0 that touch a convex set not
+/// holding 0 pass through corners). `None` for anything else.
+pub(crate) fn part<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let View::App { head, .. } = fx.h.view(t) else { return Ok(None) };
+    let View::Sym(s) = fx.h.view(head) else { return Ok(None) };
+    let name = fx.h.sym_name(s);
+    if !matches!(name.as_str(), "re" | "im_part" | "conjugate" | "abs" | "arg") {
+        return Ok(None);
+    }
+    let [a] = args else { return Ok(None) };
+    if fx.call_of(*a, "centered_interval").is_none() || !complex_parts(fx, *a)? {
+        return Ok(None);
+    }
+    let Some(z) = to_box(fx, *a)? else { return Ok(None) };
+    let real = |iv: Iv| CBox { re: iv, im: (0.0, 0.0) };
+    let r = match name.as_str() {
+        "re" => Some(real(z.re)),
+        "im_part" => Some(real(z.im)),
+        "conjugate" => Some(CBox { re: z.re, im: (-z.im.1, -z.im.0) }),
+        "abs" => {
+            let near = |a: Iv| if a.0 > 0.0 { a.0 } else if a.1 < 0.0 { -a.1 } else { 0.0 };
+            let rmin = near(z.re).hypot(near(z.im));
+            let rmax = z.re.0.abs().max(z.re.1.abs()).hypot(z.im.0.abs().max(z.im.1.abs()));
+            Some(real((down(rmin).max(0.0), up(rmax))))
+        }
+        _ => blog(z).map(|l| real(l.im)),
+    };
+    Ok(r.and_then(|b| to_term(fx, b)))
+}

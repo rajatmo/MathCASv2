@@ -540,6 +540,7 @@ impl Native for Plot3 {
             }
             Kind::List | Kind::Points | Kind::Lines => {
                 let [data] = args else { return Ok(Reply::Decline) };
+                let data = &unlabelled(cx, *data);
                 // several data sets of points (lists of triples, or matrices of heights): each in its colour
                 if self.kind != Kind::List {
                     if let Some(sets) = cx.as_list(*data).filter(|items| items.len() > 1 && items.iter().all(|&e| depth3(cx, e))) {
@@ -561,10 +562,10 @@ impl Native for Plot3 {
                     if i % 4096 == 0 {
                         cx.tick(1)?;
                     }
-                    let Some(items) = cx.as_list(r) else { return Ok(bad(h, name, 1)) };
+                    let Some(items) = cx.as_list(unlabelled(cx, r)) else { return Ok(bad(h, name, 1)) };
                     let mut vals = Vec::with_capacity(items.len());
                     for &e in items {
-                        vals.push(real(cx, e)?.unwrap_or(f64::NAN));
+                        vals.push(data_value(cx, e)?.unwrap_or(f64::NAN));
                     }
                     table.push(vals);
                 }
@@ -619,6 +620,31 @@ impl Native for Plot3 {
     }
 }
 
+/// A data value of a 3D point or line plot as a machine real: a number, the centre of `around(x, dx)`, or the value of
+/// a labelled one (`labeled(v, l)`, `callout(v, l)`, `v -> l`; the labels are not drawn).
+fn data_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<f64>> {
+    let h = cx.heap();
+    if let View::App { head, args } = h.view(t) {
+        if let View::Sym(s) = h.view(head) {
+            let name = h.sym_name(s);
+            match (name.as_str(), args) {
+                ("around", &[x, _]) | ("labeled" | "callout", &[x, _, ..]) | (mc_api::names::RULE, &[x, _]) => return data_value(cx, x),
+                _ => {}
+            }
+        }
+    }
+    real(cx, t)
+}
+
+/// The data of a 3D point or line plot without the labels of `data -> labels` (the labels are not drawn).
+fn unlabelled<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> T<'h> {
+    let h = cx.heap();
+    match h.view(t) {
+        View::App { head, args: &[d, _] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::RULE) && cx.as_list(d).is_some() => d,
+        _ => t,
+    }
+}
+
 /// Whether `t` is a list of lists of lists or of numbers in rows (a list of triples, or a matrix): one data set of a
 /// 3D point or line plot.
 fn depth3<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
@@ -634,10 +660,10 @@ fn points3<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>>
         if i % 4096 == 0 {
             cx.tick(1)?;
         }
-        let Some(items) = cx.as_list(r).map(|l| l.to_vec()) else { return Ok(None) };
+        let Some(items) = cx.as_list(unlabelled(cx, r)).map(|l| l.to_vec()) else { return Ok(None) };
         let mut vals = Vec::with_capacity(items.len());
         for e in items {
-            vals.push(real(cx, e)?.unwrap_or(f64::NAN));
+            vals.push(data_value(cx, e)?.unwrap_or(f64::NAN));
         }
         table.push(vals);
     }

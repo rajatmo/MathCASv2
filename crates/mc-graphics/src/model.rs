@@ -554,6 +554,11 @@ pub fn point<S: Store + ?Sized>(h: &S, t: T<'_>, arg: usize) -> Result<Pt, Bad> 
             };
         }
         if n == "scaled" || n == "image_scaled" {
+            // scaled(d, pos): pos shifted by the fractions d of the plot range, drawn at pos (like offset, the shift
+            // is not drawn)
+            if let [_, p] = args {
+                return point(h, *p, arg);
+            }
             let [p] = args else { return Err(Bad::Arg(arg)) };
             let p = point(h, *p, arg)?;
             return if p.scaled { Err(Bad::Arg(arg)) } else { Ok(Pt { scaled: true, ..p }) };
@@ -811,6 +816,8 @@ pub fn shape<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Result<Opt
         ("text", [e, p, rest @ ..]) if rest.len() <= 1 => {
             let at = point(h, *p, 2)?;
             let offset = match rest.first() {
+                // automatic: centred on the position
+                Some(&o) if sym_is(h, o, "automatic") => (0.0, 0.0),
                 Some(&o) => match list(h, o) {
                     Some(&[a, b]) => (scalar(h, a, 3)?, scalar(h, b, 3)?),
                     _ => return Err(Bad::Arg(3)),
@@ -1300,32 +1307,40 @@ fn transforms<S: Store + ?Sized>(h: &S, name: &str, args: &[T<'_>]) -> Option<Ve
         }
         "geometric_transformation" => {
             let t = *args.get(1)?;
-            // a transformation_function: its homogeneous matrix
-            if let Some((f, &[m])) = head_name(h, t).filter(|(f, _)| f == "transformation_function") {
-                let _ = f;
-                let rows = list(h, m)?;
-                let r: Vec<Vec<f64>> = rows.iter().map(|&r| list(h, r).and_then(|r| r.iter().map(|&x| number(h, x)).collect())).collect::<Option<_>>()?;
-                if r.len() != 3 || r.iter().any(|x| x.len() != 3) {
-                    return None;
-                }
-                return Some(vec![Affine { m: [[r[0][0], r[0][1]], [r[1][0], r[1][1]]], b: [r[0][2], r[1][2]] }]);
-            }
-            let mat = |t: T<'_>| -> Option<[[f64; 2]; 2]> {
-                let r = xys(h, t)?;
-                let &[a, b] = r.as_slice() else { return None };
-                Some([[a.0, a.1], [b.0, b.1]])
-            };
-            match mat(t) {
-                Some(m) => vec![Affine { m, b: [0.0, 0.0] }],
-                None => {
-                    let &[m, b] = list(h, t)? else { return None };
-                    let b = xy(h, b)?;
-                    vec![Affine { m: mat(m)?, b: [b.0, b.1] }]
-                }
+            match one_transformation(h, t) {
+                Some(a) => vec![a],
+                // a list of transformations: a copy of the object under each
+                None => list(h, t)?.iter().map(|&u| one_transformation(h, u)).collect::<Option<Vec<_>>>().filter(|v| !v.is_empty())?,
             }
         }
         _ => return None,
     })
+}
+
+/// One affine map of the plane: a `transformation_function` (its homogeneous 3 x 3 matrix), a 2 x 2 matrix, or a
+/// matrix with a translation `[m, b]`.
+fn one_transformation<S: Store + ?Sized>(h: &S, t: T<'_>) -> Option<Affine> {
+    if let Some((_, &[m])) = head_name(h, t).filter(|(f, _)| f == "transformation_function") {
+        let rows = list(h, m)?;
+        let r: Vec<Vec<f64>> = rows.iter().map(|&r| list(h, r).and_then(|r| r.iter().map(|&x| number(h, x)).collect())).collect::<Option<_>>()?;
+        if r.len() != 3 || r.iter().any(|x| x.len() != 3) {
+            return None;
+        }
+        return Some(Affine { m: [[r[0][0], r[0][1]], [r[1][0], r[1][1]]], b: [r[0][2], r[1][2]] });
+    }
+    let mat = |t: T<'_>| -> Option<[[f64; 2]; 2]> {
+        let r = xys(h, t)?;
+        let &[a, b] = r.as_slice() else { return None };
+        Some([[a.0, a.1], [b.0, b.1]])
+    };
+    match mat(t) {
+        Some(m) => Some(Affine { m, b: [0.0, 0.0] }),
+        None => {
+            let &[m, b] = list(h, t)? else { return None };
+            let b = xy(h, b)?;
+            Some(Affine { m: mat(m)?, b: [b.0, b.1] })
+        }
+    }
 }
 
 /// A shape under an affine map (rectangles and non-circular ellipses become polygons).

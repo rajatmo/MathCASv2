@@ -748,6 +748,10 @@ impl Native for ColorDistance {
 
 /// A colour argument: its value, `Err(None)` when it is symbolic (decline), `Err(Some(reply))` when it is wrong.
 fn colour_arg<'h>(h: &'h Heap, f: &str, t: T<'h>, k: usize) -> Result<Rgba, Option<Reply<'h>>> {
+    // an image value is left to the library's definitions for images
+    if mc_graphics::memo::image_path(h, t).is_some() {
+        return Err(None);
+    }
     match colour(h, t) {
         Colour::Value(c) => Ok(c),
         Colour::Symbolic => Err(None),
@@ -763,6 +767,10 @@ impl Native for ColorConvert {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [c, m, ..] = args else { return Ok(Reply::Decline) };
+        // an image value is left to the library's definitions for images
+        if mc_graphics::memo::image_path(h, *c).is_some() {
+            return Ok(Reply::Decline);
+        }
         let model = match h.view(*m) {
             View::Sym(s) => h.sym_name(s),
             View::Str(s) => s.to_string(),
@@ -772,6 +780,21 @@ impl Native for ColorConvert {
             Some(v) => v,
             None => match colour(h, *c) {
                 Colour::Value(v) => v,
+                // `hue(h, s, b)` with symbolic parts in RGB: each channel b - b s max(0, min(k, 4 - k, 1)) with
+                // k = mod(n + 6 h, 6), n = 5, 3, 1 for red, green, blue (the closed form of the hexcone model, Smith,
+                // "Color gamut transform pairs", SIGGRAPH 1978, written without cases)
+                Colour::Symbolic if matches!(model.as_str(), "rgb_color" | "RGB") => match model::head_name(h, *c) {
+                    Some((n, &[hh, s, b])) if n == "hue" => {
+                        let channel = |k0: i64| {
+                            let k = h.call(h.sym("mod"), &[h.call(h.sym(names::ADD), &[h.int(k0), h.call(h.sym(names::MUL), &[h.int(6), hh])]), h.int(6)]);
+                            let four_minus = h.call(h.sym(names::ADD), &[h.int(4), h.call(h.sym(names::MUL), &[h.int(-1), k])]);
+                            let m = h.call(h.sym("max"), &[h.int(0), h.call(h.sym("min"), &[k, four_minus, h.int(1)])]);
+                            h.call(h.sym(names::ADD), &[b, h.call(h.sym(names::MUL), &[h.int(-1), b, s, m])])
+                        };
+                        return Ok(Reply::Again(h.call(h.sym("rgb_color"), &[channel(5), channel(3), channel(1)])));
+                    }
+                    _ => return Ok(Reply::Decline),
+                },
                 Colour::Symbolic => return Ok(Reply::Decline),
                 Colour::Bad => {
                     // a list of colours: each

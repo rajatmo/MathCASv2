@@ -190,3 +190,9 @@ and under stress).
 - `merge` takes, besides associations, rules (an association of one entry) and lists of rules (an association of
   their entries, a later rule for a key replacing an earlier one): `merge([a -> x, a -> y, b -> z], f)` is
   `assoc(a -> f([x, y]), b -> f([z]))`. `key_sort` of a list of rules sorts the association of its entries.
+
+## Round 39: select_first on the rows of a dataset
+
+- `select_first` joins the list functions that act on a dataset's rows (`mc_lists::DATASET_ROWS`, `ROW_FUNCTIONS`):
+  the first row for which the function is true, the default when none is (else `failure(not_found, select_first)`);
+  so `ds[select_first(f), c]` works as a query.

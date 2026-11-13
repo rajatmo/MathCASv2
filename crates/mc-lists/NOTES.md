@@ -740,3 +740,80 @@ Source in `lib/lists.mc`.
 - `permute(xs, p)`: element i moves to position p[i] (cycles through `permutation_list`); positions beyond p stay.
 - `to_polar_coordinates`: the inverse of `from_polar_coordinates` (acos of the ratios to the tail norms, `atan` of
   the last two coordinates).
+
+## Round 39: argument forms, orders, alignments, statistics
+
+Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
+
+- A library definition on a native is written `rule f(x_) := ... when ...`, not `fn`: a `fn` adds the catch-all
+  `failure(no_match, f, args)` for ground calls, which turned calls the native leaves unevaluated (an operator form
+  `position(_)`, `mean(_)`) into failures. The round's definitions on `mean`, `median`, `variance`, `std_dev`,
+  `color_negate`, `darker`, `lighter`, `color_convert`, `cross`, `head`, `flatten`, `subsets`, `replace`, `moment`,
+  `central_moment`, `covariance`, `region_dimension`, `region_embedding_dimension`, `arc_length`, `region_bounds`
+  are rules. Options declared on a `fn` (`fn f(x; o = d)`) are bound in the body only, not in a `when` condition.
+- `cross([x, y])`: `[-y, x]`. `head(e, f)`: `f(head(e))`. `position(e, p, levels, n)`: the first n positions (the
+  walk stops there). `first_position(e, p, d, levels)`. `flatten(xs, [[2], [1]])` of lists of any lengths (the
+  ragged transpose). `subsets(xs, spec, [i, j, s])` (a step, negative too). `subset_map(f, xs, all)`.
+  `numerical_sort(assoc)`. `replace(e, r, all)` = levels 0 to inf. `symmetric_difference()` = `[]`;
+  `symmetric_difference(..., same_test: f)`: the elements for which an odd number of the sets hold an element `f`
+  calls the same, one per class, sorted. `hamming_distance(a, b, ignore_case: true)`. `key_complement(...,
+  same_test: f)`. `power_range(a, b, r)` with r < 0: the terms alternate in sign while their size has not passed
+  `|b|` (r = -1 is refused).
+- Alphabetic order: tailorings of Danish and Norwegian (æ, ø, å after z), Turkish (ç, ğ, ı, ö, ş, ü after c, g, h,
+  o, s, u; the lower case of I is ı and of İ is i) and Dutch (ĳ as y), from the Unicode Common Locale Data
+  Repository. `alphabetic_sort(xs, [lang], options)` compares letters (the tailoring's first-level weights), then
+  accents (the code points of the lower case) unless `ignore_diacritics: true`, then case unless `ignore_case: true`
+  (lower case first; upper case first for `case_ordering: "UpperFirst"` and by default in Danish), then the order of
+  `xs` (a stable sort); `ignore_punctuation: true` leaves out every character that is not a letter or a digit.
+- `sequence_alignment` options: `ignore_case: true` (both strings in lower case); `method: "Local"` (Smith and
+  Waterman, "Identification of common molecular subsequences", J. Mol. Biol. 147, 1981: the cells floored at 0, the
+  traceback from the first largest cell in row order to a 0; the parts before and after are differences);
+  `merge_differences: false` (differences of a alone, of b alone and of both kept apart). `gap_penalty` and
+  `similarity_rules` stay unevaluated: the scoring they stand for is not fixed here.
+- Statistics of a symbolic order (`r` not a number): Poisson moments `bell_b(r, mu)` (Touchard polynomials) and
+  cumulants `mu` for r >= 1 (Johnson, Kemp and Kotz, Univariate discrete distributions, 4.3); normal cumulants mu,
+  sigma^2, then 0, and central moments `factorial2(r - 1) sigma^r` for even r (Johnson, Kotz and Balakrishnan,
+  Continuous univariate distributions 1, 13.3); chi-square cumulants `2^(r - 1) (r - 1)! nu` (ibid., 18.3); each as
+  a `piecewise` in r. `covariance(d, i, j)`: the entry of the covariance matrix.
+- Regions: `region_dimension`/`region_embedding_dimension` of `regular_polygon(..., n)` with a symbolic n (2, 2),
+  `filled_curve([...])` (2, 2) and `joined_curve([...])` (1, the dimension of the points). `arc_length` and
+  `region_bounds` of a `bezier_curve` of exact control points (and a `b_spline_curve` of at most 4 control points
+  with the default degree, the same curve): the integral of the speed of the Bernstein form, and per coordinate the
+  values at the ends and at the real zeros of its derivative inside (0, 1).
+- `karhunen_loeve_decomposition(bs, m)`: `[m^T . b, m^T]` with zero rows added to `bs` up to the size of `m`: for the
+  orthogonal basis of a decomposition, the data rebuilt from its first `length(bs)` transformed rows. Of a list of
+  images of one size: each image's samples as one row, the transformed rows as images.
+- `shearing_matrix(t, v, w)` with v not orthogonal to w: the shear along the part of v orthogonal to w (a shear
+  moves points parallel to the planes w . x = constant).
+- Shape arrays: in `box_matrix`, `cross_matrix`, `disk_matrix`, `diamond_matrix` a dimension `all` is the natural
+  width 2 r + 1 of its radius and a radius `all` reaches the edges of its dimension; a scalar radius with a list of
+  dimensions applies to each of them.
+- Left: `groupings` with a wrapper (`groupings(xs, spec, quote)`) is not added: the order of the trees for more
+  than three leaves is a convention of its own and a wrapped list would show it as values; `knapsack_solve` with a
+  list of caps (the meaning of the positional caps is not settled); `alphabetic_sort` options with other languages
+  (only the tailorings listed); the `evaluation_monitor` of optimizers, integrators and plots (options are
+  evaluated before the call, so `sow(x)` runs once; holding a monitor needs a decision about the language).
+- Matrices modulo a prime p (`modulus: p`): `row_reduce` by Gauss-Jordan elimination over the integers mod p (each
+  pivot made 1 with its inverse `power_mod(a, -1, p)`), `null_space` (for each column without a pivot the vector with
+  1 there and minus that column's entries of the pivot rows at the pivot columns, mod p), `range_space` (the nonzero
+  rows of the reduced transpose). A modulus that is not a prime stays unevaluated. `range_space(m, tolerance: t)` of
+  an exact matrix is `range_space(m)`.
+- `positive_definite_matrix_q` of a matrix of exact constants (pi, e, radicals): the leading minors of the Hermitian
+  part, compared numerically. `symmetric_matrix_q(m, tolerance: t)`, `diagonal_matrix_q`, `upper_triangular_matrix_q`
+  and `lower_triangular_matrix_q` with `tolerance: t`: an entry (a difference for the symmetric test) counts as 0
+  when its size is at most t, a symbolic one when `possible_zero_q` says so; `symmetric_matrix_q(m, same_test: f)`.
+- `array_pad(v, m, "Extrapolated", interpolation_order: k)` of a list of numbers: the polynomial of degree k (inf:
+  through all the points) through the last k + 1 entries continued by Newton's forward differences with the k-th
+  difference held, likewise before the first entries.
+- The sequence functions (`sequence_cases`, `sequence_position`, `sequence_count`, ...) try at each start only the run
+  lengths the list pattern can match: each element of `[p1, p2, ...]` matches one element (a blank, a typed, named or
+  conditioned blank, a literal, a call that is no pattern construct), a run (`__`, `___`, `repeated(p, spec)`) or none
+  or one (`optional`), `alternatives` the widest bounds of its choices; `held`, `verbatim`, `hold_pattern`,
+  `longest`, `shortest` and `key_value_pattern` give no bound. A pattern of three single elements over a list of
+  1000 builds 1000 runs instead of half a million (the memory limit was reached before).
+- `total(e, allowed_heads: inherited)`: the sum of the arguments of `e` under any head. `nearest(ms, m)` of matrices
+  of one shape: the nearest in the Frobenius norm of the difference (unevaluated on a tie).
+  `identity_matrix(n, working_precision: p)`. `array_flatten(a, r)` for r >= 3: the transpose that interleaves block
+  and inner levels, then a reshape (a number is a constant block). `is_satisfiable(boolean_function(k, n))`: k != 0;
+  `is_tautology(boolean_function(k, n))`: k = 2^(2^n) - 1.
+- `arc_length(circle(c, r, [t0, t1]))`: r (t1 - t0) for a scalar radius and an arc of at most a full turn.

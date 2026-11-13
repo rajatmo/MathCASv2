@@ -168,10 +168,12 @@ fn permanent(m) when is_matrix(m) and length(m) <= length(m[1]) =
 fn permanent(m) when is_matrix(m) and length(m) > length(m[1]) = permanent(transpose(m))
 
 # shearing_matrix(theta, v, w): the matrix I + tan(theta) u w^T of the shear along the direction v (u = v/|v|) with
-# the normal w (|w| = 1 after scaling)
+# the normal w (|w| = 1 after scaling); a direction v not orthogonal to w shears along its part orthogonal to w,
+# v - (v . n) n (a shear moves points parallel to the planes w . x = constant)
 fn shearing_matrix(t, v, w) when is_list(v) and is_list(w) and length(v) == length(w) = {
-  let u = v/norm(v)
   let nn = w/norm(w)
+  let vp = simplify(v - dot(v, nn)*nn)
+  let u = vp/norm(vp)
   b29_matrix(length(v), length(v), (i, j) => boole(i == j) + tan(t)*u[i]*nn[j])
 }
 
@@ -306,6 +308,43 @@ fn drazin_inverse(m) when is_matrix(m) and length(m) == length(m[1]) = {
   if idx == 0 then inverse(m) else dot(mk, dot(pseudo_inverse(matrix_power(m, 2*idx + 1)), mk))
 }
 
+# --- statistics and colour operations of images ---
+
+# an image value image("file")
+fn img_is_image(x) = not is_atom(x) and head(x) === image and length(x) == 1 and is_string(x[1])
+# the channels of an image as lists of samples (one list per channel, every pixel once)
+fn img_channels_of(img) = transpose(flatten(image_data(img), 1))
+# a statistic per channel: one number for a gray image, a list for an image of several channels
+fn img_per_channel(f, img) = { let cs = map(f, img_channels_of(img)); if length(cs) == 1 then cs[1] else cs }
+rule mean(img_) := img_per_channel(mean, img) when img_is_image(img)
+rule median(img_) := img_per_channel(median, img) when img_is_image(img)
+rule variance(img_) := img_per_channel(variance, img) when img_is_image(img)
+rule std_dev(img_) := img_per_channel(std_dev, img) when img_is_image(img)
+# the colour channels (not an alpha channel: the second of two, the fourth of four) of every pixel through f
+fn img_colour_map(img, f) = {
+  let d = image_data(img)
+  let c = length(d[1, 1])
+  let k = if c == 2 or c == 4 then c - 1 else c
+  image(map(row => map(px => join(map(f, take(px, k)), drop(px, k)), row), d))
+}
+rule color_negate(img_) := img_colour_map(img, x => 1 - x) when img_is_image(img)
+rule darker(img_) := darker(img, 1/3) when img_is_image(img)
+rule darker(img_, f_) := img_colour_map(img, x => (1 - f)*x) when img_is_image(img) and is_real(n(f)) and 0 <= f and f <= 1
+rule lighter(img_) := lighter(img, 1/3) when img_is_image(img)
+rule lighter(img_, f_) := img_colour_map(img, x => x + f*(1 - x)) when img_is_image(img) and is_real(n(f)) and 0 <= f and f <= 1
+# a gray image as an RGB image (the gray level in each colour channel), an RGB image as gray by the luma weights
+# of ITU-R BT.601 (0.299, 0.587, 0.114)
+# (other channel counts and colour spaces: failure(unsupported, ...))
+rule color_convert(img_, s_) := img_convert(img, s) when img_is_image(img) and (s === "RGB" or s === "Grayscale")
+fn img_convert(img, s) = {
+  let d = image_data(img)
+  let c = length(d[1, 1])
+  if c == 1 and s === "RGB" then image(map(row => map(px => [px[1], px[1], px[1]], row), d))
+  else if (c == 3 and s === "RGB") or (c == 1 and s === "Grayscale") then img
+  else if c == 3 then image(map(row => map(px => 0.299*px[1] + 0.587*px[2] + 0.114*px[3], row), d))
+  else failure(unsupported, color_convert, s)
+}
+
 # --- structuring matrices (kernels of image processing) ---
 
 # b29_nd(dims, idx, f): the nested list of f(index vector) over a grid of the given dimensions
@@ -314,8 +353,10 @@ fn b29_nd(dims, idx, f) = if length(dims) == 0 then f(idx) else map(i => b29_nd(
 # b29_shape(r, d, test): the array of the given dimensions d (a number: every dimension) with entries boole(test(x)),
 # x the offsets from the centre in units of the radii r (a number: two dimensions)
 fn b29_shape(r, d, test) = {
-  let rs = if is_list(r) then r else [r, r]
-  let ds = if is_list(d) then d else constant_array(d, length(rs))
+  let rs0 = if is_list(r) then r else (if is_list(d) then constant_array(r, length(d)) else [r, r])
+  # a dimension `all` is the natural width 2 r + 1 of its radius; a radius `all` reaches the edges of its dimension
+  let ds = if is_list(d) then map(i => if d[i] === all then 2*rs0[i] + 1 else d[i], range(length(d))) else constant_array(d, length(rs0))
+  let rs = map(i => if rs0[i] === all then (ds[i] - 1)/2 else rs0[i], range(length(rs0)))
   b29_nd(ds, [], idx => boole(test(map(i => b29_scaled(idx[i] - (ds[i] + 1)/2, rs[i]), range(length(ds))), rs)))
 }
 # the offset o in units of the radius r: o/r; for r = 0 the shape holds only the offset 0 (|o| <= r), so any other
@@ -543,6 +584,24 @@ fn karhunen_loeve_decomposition(data; standardized = false) when is_matrix(data)
   let basis = map(v => if re(n(v[1])) < 0 then -v else v, b29_axes(dot(xc, transpose(xc))/(c - 1)))
   # standardized: true transforms the data with each row's mean taken off
   [dot(basis, if standardized === true then xc else data), basis]
+}
+# karhunen_loeve_decomposition([b1, ..., bk], m): [m^T . b, m^T], the rows b (zero rows added up to the size of m) in
+# the coordinates of the transposed basis: for the basis m of a decomposition (orthogonal) the data rebuilt from its
+# first k transformed rows (all of them: the data again)
+fn kld_with(bs, m) = { let z = 0*bs[1]; let full = join(bs, constant_array(z, length(m) - length(bs))); [dot(transpose(m), full), transpose(m)] }
+fn karhunen_loeve_decomposition(bs, m) when is_matrix(bs) and is_matrix(m) and length(bs) <= length(m) and length(m[1]) == length(m) and length(m) >= 1 = kld_with(bs, m)
+# of images of one size: each image's samples as one row, the transformed rows as images again
+fn kld_images_ok(xs) = is_list(xs) and length(xs) >= 1 and every(xs, img_is_image)
+fn kld_rows(imgs) = map(i => flatten(image_data(i)), imgs)
+fn kld_images(rows, dims) = map(r => image(array_reshape(r, dims)), rows)
+fn karhunen_loeve_decomposition(imgs; standardized = false) when kld_images_ok(imgs) = {
+  let dims = dimensions(image_data(imgs[1]))
+  let r = karhunen_loeve_decomposition(kld_rows(imgs), standardized: standardized)
+  [kld_images(r[1], dims), r[2]]
+}
+fn karhunen_loeve_decomposition(imgs, m) when kld_images_ok(imgs) and is_matrix(m) and length(imgs) <= length(m) and length(m[1]) == length(m) = {
+  let r = kld_with(kld_rows(imgs), m)
+  [kld_images(r[1], dimensions(image_data(imgs[1]))), r[2]]
 }
 
 # --- precision ---
@@ -1251,6 +1310,9 @@ fn delete_missing(xs, n, d) when (is_list(xs) or is_assoc(xs)) and l38_level_ok(
 }
 
 # hamming_distance(a, b): the number of places where the strings or lists a and b (of one length) differ
+# hamming_distance(a, b, ignore_case: true): the distance of the strings in lower case
+fn hamming_distance(a, b; ignore_case = false) when is_string(a) and is_string(b) =
+  if ignore_case === true then hamming_distance(characters(to_lower(a)), characters(to_lower(b))) else hamming_distance(characters(a), characters(b))
 fn hamming_distance(a: Str, b: Str) = hamming_distance(characters(a), characters(b))
 fn hamming_distance(a, b) when is_list(a) and is_list(b) and length(a) == length(b) = count_if(range(length(a)), i => a[i] !== b[i])
 
@@ -1285,3 +1347,276 @@ fn palindrome_q(x: Str) = x === string_reverse(x)
 fn palindrome_q(x) when is_list(x) = x === reverse(x)
 fn palindrome_q(x) when is_integer(x) = palindrome_q(integer_digits(x))
 fn palindrome_q(x) when not is_list(x) and not is_string(x) and not is_integer(x) = false
+
+# --- more argument forms of list and structure functions ---
+
+# cross([x, y]): the vector [-y, x], the plane vector turned a quarter anticlockwise (orthogonal to [x, y], of the
+# same length)
+rule cross(v_) := [-v[2], v[1]] when is_list(v) and length(v) == 2 and not is_list(v[1]) and not is_list(v[2])
+
+# head(e, f): f applied to the head of e
+rule head(e_, f_) := f(head(e))
+
+# flatten(xs, [[2], [1]]): the transpose of a list of lists of any lengths: the j-th list holds the j-th elements of
+# the lists that have one
+rule flatten(xs_, spec_) := {
+  let m = if length(xs) == 0 then 0 else max(map(length, xs))
+  map(j => map(x => x[j], select(xs, x => length(x) >= j)), range(m))
+} when is_list(xs) and spec === [[2], [1]] and every(xs, x => is_list(x))
+
+# subsets(xs, spec, [i, j, s]): the subsets numbered i, i + s, ..., up to j in the order of subsets(xs, spec) (the
+# step may be negative)
+rule subsets(xs_, spec_, ns_) := {
+  let idx = range(ns[1], ns[2], ns[3])
+  if length(idx) == 0 then [] else {
+    let all = subsets(xs, spec, [min(idx), max(idx)])
+    map(k => all[k - min(idx) + 1], idx)
+  }
+} when is_list(xs) and is_list(ns) and length(ns) == 3 and every(ns, k => is_integer(k)) and ns[3] != 0
+
+# subset_map(f, xs, all): f applied to the whole list, element by element in place
+fn subset_map(f, xs, a) when is_list(xs) and a === all = subset_map(f, xs, range(length(xs)))
+
+# numerical_sort(a) of an association: its entries in the order of numerical_sort of their values
+fn numerical_sort(a) when is_assoc(a) = {
+  let ks = keys(a)
+  let real = x => (x === inf or x === -inf or is_real(n(x))) === true
+  let num = select(ks, k => real(a[k]))
+  let other = select(ks, k => not real(a[k]))
+  let ord = join(sort(num, (p, q) => n(a[p]) <= n(a[q])), sort_by(other, k => a[k]))
+  assoc(map(k => k -> a[k], ord))
+}
+
+# replace(e, rules, all): the rules applied at every level from the leaves up (each part replaced at most once;
+# heads are not replaced)
+rule replace(e_, r_, a_) := replace(e, r, [0, inf]) when a === all
+
+
+# key_complement([a1, a2, ...], same_test: f): the entries of a1 whose keys k have f(k, k2) false for every key k2 of
+# a2, ...
+fn key_complement(xs; same_test = automatic) when is_list(xs) and length(xs) > 0 = {
+  let ms = map(x => if is_assoc(x) then x else if is_list(x) then assoc(x) else assoc([x]), xs)
+  let others = flatten(map(keys, rest(ms)), 1)
+  let keyeq = if same_test === automatic then ((p, q) => p === q) else same_test
+  select_keys(ms[1], k => not any_true(others, k2 => keyeq(k, k2) === true))
+}
+
+# --- alphabetic order: more languages and the options of alphabetic_sort ---
+
+# more tailorings of the Latin script (CLDR): Danish and Norwegian æ, ø, å after z; Turkish ç, ğ, ı, ö, ş, ü after
+# c, g, h, o, s, u (the dotless ı is the lower case of I, the dotted i that of İ); Dutch ĳ as y
+fn alpha_tailoring(lang) =
+  if lang == "Danish" or lang == "Norwegian" then assoc("æ" -> ["z", 1], "ø" -> ["z", 2], "å" -> ["z", 3])
+  else if lang == "Turkish" then assoc("ç" -> ["c", 1], "ğ" -> ["g", 1], "ı" -> ["h", 1], "ö" -> ["o", 1], "ş" -> ["s", 1], "ü" -> ["u", 1])
+  else if lang == "Dutch" then assoc("ĳ" -> ["y", 0])
+  else if lang == "English" then assoc()
+  else r37_tailoring(lang)
+# the language's lower case: Turkish I is ı and İ is i
+fn alpha_lower(s, lang) = if lang == "Turkish" then to_lower(string_replace(s, ["I" -> "ı", "İ" -> "i"])) else to_lower(s)
+# the levels of a string: [letters (first-level weights), accents (the code points of its lower case), case (1 for
+# an upper-case letter)]; punctuation and spaces left out when they are ignored
+fn alpha_levels(s0, lang, tab, nopunct) = {
+  let s = if nopunct then from_characters(select(characters(s0), c => string_match_q(c, letter_character | digit_character))) else s0
+  let low = alpha_lower(s, lang)
+  [r37_weights(low, tab), to_character_code(low), map(c => boole(alpha_lower(c, lang) != c), characters(s))]
+}
+# the strings of xs in the order of the language: letters first, then accents unless ignored, then case unless
+# ignored (lower case first, upper case first for "UpperFirst" and in Danish), then the order of xs
+fn alpha_sort(xs, lang, o) = {
+  let get = (k, d) => { let hit = select(apply(list, o), r => r[1] === k); if length(hit) == 0 then d else last(hit)[2] }
+  let tab = alpha_tailoring(lang)
+  let co = get(case_ordering, automatic)
+  let upper = co === "UpperFirst" or (co === automatic and lang == "Danish")
+  let icase = get(ignore_case, false) === true
+  let iacc = get(ignore_diacritics, false) === true
+  let lv = map(s => alpha_levels(s, lang, tab, get(ignore_punctuation, false) === true), xs)
+  let cmp = (i, j) => {
+    var o1 = lexicographic_order(lv[i][1], lv[j][1])
+    if o1 == 0 and not iacc then o1 = lexicographic_order(lv[i][2], lv[j][2])
+    if o1 == 0 and not icase then o1 = if upper then lexicographic_order(lv[j][3], lv[i][3]) else lexicographic_order(lv[i][3], lv[j][3])
+    if o1 == 0 then o1 = order(i, j)
+    o1 == 1
+  }
+  map(i => xs[i], sort(range(length(xs)), cmp))
+}
+fn alpha_sort_ok(xs, lang) = is_list(xs) and every(xs, x => is_string(x)) and is_string(lang) and alpha_tailoring(lang) !== null
+rule alphabetic_sort(xs_, lang_, o_) := alpha_sort(xs, lang, o) when not is_atom(o) and head(o) === options and alpha_sort_ok(xs, lang)
+rule alphabetic_sort(xs_, o_) := alpha_sort(xs, "English", o) when not is_atom(o) and head(o) === options and alpha_sort_ok(xs, "English")
+rule alphabetic_sort(xs_, lang_) := alpha_sort(xs, lang, options()) when alpha_sort_ok(xs, lang) and (lang == "Danish" or lang == "Norwegian" or lang == "Turkish" or lang == "Dutch")
+
+# --- statistics of distributions of a symbolic order ---
+
+# the cumulants and moments of order r (a symbol) of the Poisson, normal and chi-square distributions (Johnson, Kemp
+# and Kotz, Univariate discrete distributions, 4.3; Johnson, Kotz and Balakrishnan, Continuous univariate
+# distributions 1, 13.3 and 18.3): Poisson moments are the Touchard polynomials bell_b(r, mu), its cumulants all mu;
+# normal cumulants mu, sigma^2 and then 0, its central moments (r - 1)!! sigma^r for even r; chi-square cumulants
+# 2^(r - 1) (r - 1)! nu
+fn dist_order_symbolic(r) = not is_numeric(r) and not is_list(r)
+# whether d is a call of the head name
+fn call_head_is(d, name) = not is_atom(d) and head(d) === name
+fn cumulant(d, r) when call_head_is(d, poisson_distribution) and length(d) == 1 and dist_order_symbolic(r) = piecewise([[d[1], r >= 1]], 0)
+rule moment(d_, r_) := piecewise([[bell_b(r, d[1]), r >= 0]], 0) when call_head_is(d, poisson_distribution) and length(d) == 1 and dist_order_symbolic(r)
+fn cumulant(d, r) when call_head_is(d, normal_distribution) and length(d) == 2 and dist_order_symbolic(r) = piecewise([[d[1], r == 1], [d[2]^2, r == 2]], 0)
+rule central_moment(d_, r_) := piecewise([[factorial2(r - 1)*d[2]^r, mod(r, 2) == 0 and r >= 0]], 0) when call_head_is(d, normal_distribution) and length(d) == 2 and dist_order_symbolic(r)
+fn cumulant(d, r) when call_head_is(d, chi_square_distribution) and length(d) == 1 and dist_order_symbolic(r) = piecewise([[d[1]*factorial(r - 1)*2^(r - 1), r >= 1]], 0)
+
+# covariance(d, i, j): the entry i, j of the covariance matrix of a multivariate distribution
+rule covariance(d_, i_: Int, j_: Int) := covariance(d)[i, j] when not is_list(d) and is_matrix(covariance(d))
+
+# --- dimensions of regions given by symbols and curves ---
+
+# a regular polygon of n sides (n a symbol) is a plane region; a filled curve is a plane region, a joined curve a
+# curve, each in the space of its points
+rule region_dimension(r_) := 2 when call_head_is(r, regular_polygon) and length(r) >= 1 and not is_numeric(last(r))
+rule region_embedding_dimension(r_) := 2 when call_head_is(r, regular_polygon) and length(r) >= 1 and not is_numeric(last(r))
+fn region_curve_points(c) = if is_list(c) then flatten(map(region_curve_points, c), 1) else if not is_atom(c) and length(c) >= 1 and is_list(c[1]) then (if is_list(c[1][1]) then c[1] else [c[1]]) else []
+fn region_curve_dim(r) = { let ps = region_curve_points(r[1]); if length(ps) > 0 and every(ps, p => is_list(p) and length(p) == length(ps[1])) then length(ps[1]) else null }
+rule region_dimension(r_) := 2 when call_head_is(r, filled_curve) and length(r) == 1 and region_curve_dim(r) === 2
+rule region_embedding_dimension(r_) := 2 when call_head_is(r, filled_curve) and length(r) == 1 and region_curve_dim(r) === 2
+rule region_dimension(r_) := 1 when call_head_is(r, joined_curve) and length(r) == 1 and region_curve_dim(r) !== null
+rule region_embedding_dimension(r_) := region_curve_dim(r) when call_head_is(r, joined_curve) and length(r) == 1 and region_curve_dim(r) !== null
+
+# --- Bezier curves: length and bounds ---
+
+# the point at t of the Bezier curve of the control points ps (Bernstein form); a B-spline of n <= 4 control points
+# with the default degree (n - 1) is that Bezier curve
+fn bezier_point(ps, t) = { let k = length(ps) - 1; total(map(i => binomial(k, i)*t^i*(1 - t)^(k - i)*ps[i + 1], range(0, k))) }
+fn bezier_ok(c) = not is_atom(c) and (head(c) === bezier_curve or (head(c) === b_spline_curve and length(c[1]) <= 4)) and length(c) == 1 and is_list(c[1]) and length(c[1]) >= 2 and every(c[1], p => is_list(p) and every(p, x => is_numeric(x) and not is_inexact(x)))
+# the length: the integral of the speed over [0, 1]
+rule arc_length(c_) := {
+  integrate(sqrt(total(map(x => x^2, d(bezier_point(c[1], bezier_param), bezier_param)))), [bezier_param, 0, 1])
+} when bezier_ok(c)
+# the bounds: each coordinate at the ends and at the real zeros of its derivative inside (0, 1)
+fn bezier_range(p, t) = {
+  let sol = solve(d(p, t) == 0, t)
+  let crit = if is_list(sol) then select(map(s => s[1][2], sol), s => is_real(n(s)) and 0 < s and s < 1) else []
+  let vs = map(s => simplify(rewrite(p, t -> s)), join([0, 1], crit))
+  [min(vs), max(vs)]
+}
+rule region_bounds(c_) := map(p => bezier_range(p, bezier_param), bezier_point(c[1], bezier_param)) when bezier_ok(c)
+
+# --- matrices modulo a prime, options of the matrix tests, polynomial extrapolation ---
+
+# the value of the option k in an options(...) term (d when absent)
+fn opt_value(o, k, d) = { let hit = select(apply(list, o), r => r[1] === k); if length(hit) == 0 then d else last(hit)[2] }
+fn opt_only(o, ks) = every(apply(list, o), r => member(ks, r[1]))
+fn is_options(o) = not is_atom(o) and head(o) === options
+
+# the reduced row echelon form of an integer matrix over the integers mod the prime p (Gauss-Jordan elimination, the
+# pivots made 1 with their inverses mod p)
+fn modp_rref(m, p) = {
+  var a = mod(m, p)
+  let rows = length(a)
+  let cols = length(a[1])
+  var r = 1
+  for c in range(cols) {
+    if r <= rows then {
+      let piv = select(range(r, rows), i => a[i][c] != 0)
+      if length(piv) > 0 then {
+        let k = piv[1]
+        let tmp = a[r]
+        a[r] = a[k]
+        a[k] = tmp
+        a[r] = mod(power_mod(a[r][c], -1, p)*a[r], p)
+        for i in range(rows) {
+          if i != r and a[i][c] != 0 then a[i] = mod(a[i] - a[i][c]*a[r], p) else null
+        }
+        r = r + 1
+      } else null
+    } else null
+  }
+  a
+}
+fn modp_ok(m, o) = is_options(o) and opt_only(o, [modulus]) and is_matrix(m) and every(flatten(m), x => is_integer(x)) and is_integer(opt_value(o, modulus, 0)) and opt_value(o, modulus, 0) > 1 and is_prime(opt_value(o, modulus, 0))
+# the null space mod p: for each column without a pivot, the vector with 1 there and minus the column's entries of
+# the pivot rows at the pivot columns
+fn modp_null_space(m, p) = {
+  let a = modp_rref(m, p)
+  let cols = length(a[1])
+  let piv = map(row => first(select(range(cols), j => row[j] != 0)), select(a, row => not every(row, x => x == 0)))
+  let free = select(range(cols), j => not member(piv, j))
+  map(f => map(j => if j == f then 1 else if member(piv, j) then mod(-a[first(first(position(piv, j)))][f], p) else 0, range(cols)), free)
+}
+rule row_reduce(m_, o_) := modp_rref(m, opt_value(o, modulus, 0)) when modp_ok(m, o)
+rule null_space(m_, o_) := modp_null_space(m, opt_value(o, modulus, 0)) when modp_ok(m, o)
+rule range_space(m_, o_) := select(modp_rref(transpose(m), opt_value(o, modulus, 0)), row => not every(row, x => x == 0)) when modp_ok(m, o)
+# the tolerance of an exact matrix changes nothing
+rule range_space(m_, o_) := range_space(m) when is_options(o) and opt_only(o, [tolerance]) and is_matrix(m) and not is_inexact(total(flatten(m)))
+
+# a numeric matrix (exact constants such as pi included) is tested through its leading minors
+rule positive_definite_matrix_q(m_) := {
+  let h = (m + conjugate(transpose(m)))/2
+  every(range(length(m)), k => { let d = det(map(r => take(r, k), take(h, k))); n(re(d)) > 0 })
+} when is_matrix(m) and length(m) == length(m[1]) and every(flatten(m), x => is_numeric(x)) and not b29_numeric_matrix(m)
+
+# the tests of matrix shapes with tolerance: t (an entry counts as 0 when its size is at most t; a symbolic entry
+# when possible_zero_q says it is 0) and symmetric_matrix_q with same_test: f (f(m_ij, m_ji) for every pair)
+fn tol_zero(x, t) = if is_numeric(x) then n(abs(x)) <= t else possible_zero_q(x)
+rule symmetric_matrix_q(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(length(m)), j => tol_zero(m[i][j] - m[j][i], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule symmetric_matrix_q(m_, o_) := (is_matrix(m) and length(m) == length(m[1]) and every(range(length(m)), i => every(range(i), j => opt_value(o, same_test, null)(m[i][j], m[j][i]) === true))) when is_options(o) and opt_only(o, [same_test])
+rule diagonal_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => i == j or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule upper_triangular_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j >= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+rule lower_triangular_matrix_q(m_, o_) := (is_matrix(m) and every(range(length(m)), i => every(range(length(m[1])), j => j <= i or tol_zero(m[i][j], opt_value(o, tolerance, 0))))) when is_options(o) and opt_only(o, [tolerance]) and is_real(n(opt_value(o, tolerance, 0)))
+
+# array_pad(v, m, "Extrapolated", interpolation_order: k) of a list of numbers: the polynomial of degree k (all the
+# points for inf, at most length(v) - 1) through the last k + 1 entries continued (Newton's forward differences
+# with the k-th difference held), and likewise before the first entries
+fn extrap_right(v, k, cnt) = {
+  let q = min(k, length(v) - 1)
+  var d = drop(v, length(v) - (q + 1))
+  var out = []
+  for s in range(cnt) {
+    # the differences of the window, the highest held: the next value
+    var diffs = [d]
+    for j in range(q) {
+      let prev = last(diffs)
+      diffs = append(diffs, map(i => prev[i + 1] - prev[i], range(length(prev) - 1)))
+    }
+    let nxt = total(map(j => last(diffs[j]), range(q + 1)))
+    out = append(out, nxt)
+    d = append(rest(d), nxt)
+  }
+  out
+}
+rule array_pad(v_, m_, mode_, o_) := {
+  let k = opt_value(o, interpolation_order, 1)
+  let kk = if k === inf then length(v) - 1 else k
+  let lr = if is_integer(m) then [m, m] else if length(m) == 1 then [m[1], m[1]] else m
+  join(reverse(extrap_right(reverse(v), kk, lr[1])), v, extrap_right(v, kk, lr[2]))
+} when mode === "Extrapolated" and is_options(o) and opt_only(o, [interpolation_order]) and is_list(v) and length(v) >= 1 and every(v, x => is_numeric(x)) and (is_integer(m) or (is_list(m) and every(m, is_integer) and length(m) <= 2)) and every(flatten([m]), c => c >= 0) and (opt_value(o, interpolation_order, 1) === inf or (is_integer(opt_value(o, interpolation_order, 1)) and opt_value(o, interpolation_order, 1) >= 0))
+
+# total(e, allowed_heads: inherited): the sum of the arguments of e whatever its head
+rule total(e_, o_) := apply(add, apply(list, e)) when is_options(o) and opt_only(o, [allowed_heads]) and opt_value(o, allowed_heads, null) === inherited and not is_atom(e) and not is_options(e)
+
+# nearest(ms, m) of matrices (or arrays) of one shape: the one nearest to m in the Frobenius norm of the difference
+# (unevaluated when two are equally near)
+rule nearest(ms_, m_) := {
+  let ds = map(x => n(norm(flatten(x - m))), ms)
+  let lo = min(ds)
+  map(i => ms[i], select(range(length(ms)), i => ds[i] == lo))
+} when is_list(ms) and length(ms) >= 1 and is_matrix(m) and every(ms, x => is_matrix(x) and dimensions(x) == dimensions(m)) and every(flatten(ms), x => is_numeric(x)) and every(flatten(m), x => is_numeric(x)) and length(select(map(x => n(norm(flatten(x - m))), ms), d => d == min(map(x => n(norm(flatten(x - m))), ms)))) == 1
+# identity_matrix(n, working_precision: p): at precision p (machine numbers at machine precision)
+rule identity_matrix(k_, working_precision: p_) := (if n(p) > 15.9 and n(p) < 16 then n(identity_matrix(k)) else n(identity_matrix(k), p)) when is_integer(k) and k > 0 and is_real(n(p))
+
+# array_flatten(a, r) for r >= 3: the array of rank r made from the block array a of rank r whose entries are arrays
+# of rank r (a number stands for a constant block of the shape of the other blocks): entry (i1, ..., ir) of block
+# (b1, ..., br) goes to (b1 - 1) s1 + i1, ... (s the block shape), by a transpose that interleaves the levels and a
+# reshape
+fn af_blocks(a, r) = if r == 0 then [a] else flatten(map(x => af_blocks(x, r - 1), a), 1)
+fn af_fill(a, r, s) = if r == 0 then (if is_list(a) then a else constant_array(a, s)) else map(x => af_fill(x, r - 1, s), a)
+rule array_flatten(a_, r_) := {
+  let outer = take(dimensions(a), r)
+  let blocks = select(af_blocks(a, r), b => is_list(b))
+  let s = dimensions(blocks[1])
+  let full = af_fill(a, r, s)
+  let t = transpose(full, join(map(k => 2*k - 1, range(r)), map(k => 2*k, range(r))))
+  array_reshape(flatten(t), map(k => outer[k]*s[k], range(r)))
+} when is_integer(r) and r >= 3 and is_list(a) and length(dimensions(a)) >= r and length(select(af_blocks(a, r), b => is_list(b))) >= 1 and every(select(af_blocks(a, r), b => is_list(b)), b => length(dimensions(b)) == r and dimensions(b) == dimensions(first(select(af_blocks(a, r), c => is_list(c)))))
+
+# a Boolean function given by its number k (of n variables) is satisfiable when k is not 0, a tautology when k is
+# 2^(2^n) - 1 (the truth table of all ones)
+rule is_satisfiable(f_, v_) := f[1] != 0 when call_head_is(f, boolean_function) and length(f) == 2 and is_integer(f[1]) and is_integer(f[2]) and f[1] >= 0 and v === []
+rule is_tautology(f_, v_) := f[1] == 2^(2^f[2]) - 1 when call_head_is(f, boolean_function) and length(f) == 2 and is_integer(f[1]) and is_integer(f[2]) and f[1] >= 0 and f[2] >= 0 and f[2] <= 20 and v === []
+
+# the arc of a circle of radius r between the angles t0 and t1: r (t1 - t0) long (a full turn at most)
+rule arc_length(c_) := c[2]*(c[3][2] - c[3][1]) when call_head_is(c, circle) and length(c) == 3 and is_list(c[3]) and length(c[3]) == 2 and not is_list(c[2]) and is_real(n(c[2])) and n(c[2]) >= 0 and is_real(n(c[3][2] - c[3][1])) and n(c[3][2] - c[3][1]) >= 0 and n(c[3][2] - c[3][1]) <= n(2*pi)

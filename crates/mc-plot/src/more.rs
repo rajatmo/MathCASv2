@@ -544,6 +544,8 @@ impl Native for PieChart {
         let name = "pie_chart";
         let (a, o) = split(h, args);
         let [d] = a.as_slice() else { return Ok(Reply::Decline) };
+        // the values of a data container (weighted_data, event_data, time_series)
+        let d = &crate::chartdata::container_values(h, *d);
         let mut look = match o {
             Some(o) => plot_options(cx, o, Look::default(), &["labels"], name).unwrap_or_default(),
             None => Look::default(),

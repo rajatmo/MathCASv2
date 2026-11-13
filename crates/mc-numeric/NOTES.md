@@ -587,3 +587,16 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   real x, y off the origin, and identities of -i log((x + i y)/r) for complex x, y. Not applied for inexact
   arguments, exact ones with x^2 + y^2 = 0, and tan at x = 0. So
   `from_polar_coordinates(to_polar_coordinates([x, y]))` is `[x, y]`.
+## Round 39: parts of complex centered intervals, complex values of uncertain numbers
+
+- `re`, `im_part`, `conjugate`, `abs` and `arg` of a centered interval with a complex centre or radius (the box of
+  `uncertain_boxes`): the sides of the box, the mirrored box, the modulus between the nearest point and the farthest
+  corner, the argument between the corner arguments for a box away from 0 and from the negative real axis (else
+  unevaluated); rigorous, the ends widened outwards.
+- `around(x, dx)` of a real centre through a function with a complex value there (`acoth(around(0.9, 0.1))`): the
+  complex value with the first-order spread |f'(x)| dx; `conjugate(around(z, dz))` is `around(conj(z), dz)`. The value
+  is the function's own (its branch cuts as `n` gives them).
+- Interval images with a pole at an end (`csch(interval([0, log(3)]))`, `acoth(interval([1, coth(5)]))`): the end
+  is a pole when the value there is infinite, or has no value while the values grow at least a hundredfold, from
+  beyond 10^6, as the distance shrinks a hundredfold; the grid of the derivative leaves that end out, and with no
+  critical point inside the image runs from the other end's value to the infinity of the sign just inside.

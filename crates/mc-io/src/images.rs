@@ -178,15 +178,28 @@ pub fn numeric_array<'h>(
 /// The image of an array height x width (gray) or height x width x channels (1 to 4), or `None`.
 pub fn raster_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, depth: u8) -> Res<Option<Raster>> {
     let Some((dims, data)) = numeric_array(cx, t, 3)? else { return Ok(None) };
-    let (hgt, w, c) = match dims[..] {
+    Ok(raster_from(&dims, &data, depth))
+}
+
+/// The values of `numeric_array(values, type)`: the list of numbers it holds (`None` for anything else).
+fn values_of_numeric_array<'h>(h: &'h Heap, t: T<'h>) -> Option<T<'h>> {
+    match h.view(t) {
+        View::App { head, args: &[v, _] } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "numeric_array") => Some(v),
+        _ => None,
+    }
+}
+
+/// The image of the samples `data` of the dimensions height x width (gray) or height x width x channels (1 to 4).
+fn raster_from(dims: &[usize], data: &[f64], depth: u8) -> Option<Raster> {
+    let (hgt, w, c) = match *dims {
         [hgt, w] => (hgt, w, 1),
         [hgt, w, c] if (1..=4).contains(&c) => (hgt, w, c),
-        _ => return Ok(None),
+        _ => return None,
     };
     if w > MAX_SIDE as usize || hgt > MAX_SIDE as usize {
-        return Ok(None);
+        return None;
     }
-    Ok(Some(Raster::from_reals(w as u32, hgt as u32, c as u8, &data, depth)))
+    Some(Raster::from_reals(w as u32, hgt as u32, c as u8, data, depth))
 }
 
 /// `image(array)`, `image(array, bit_depth: 16)`: the image of an array of reals in [0, 1]. `image("path")` is
@@ -196,15 +209,19 @@ pub struct ImageOf;
 impl Native for ImageOf {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        let (a, o) = match args {
-            [a] => (*a, None),
-            [a, o] => (*a, Some(*o)),
+        let (pos, o) = crate::split_options(h, args);
+        let (a, kind) = match *pos {
+            [a] => (a, None),
+            [a, k] => match h.view(k) {
+                View::Str(s) => (a, Some(s.to_string())),
+                _ => return Ok(Reply::Decline),
+            },
             _ => return Ok(Reply::Decline),
         };
-        if o.is_none() && matches!(h.view(a), View::Str(_)) {
+        if o.is_none() && kind.is_none() && matches!(h.view(a), View::Str(_)) {
             return Ok(Reply::Decline);
         }
-        let opts = match Opts::parse(h, o, &["bit_depth"]) {
+        let opts = match Opts::parse(h, o, &["bit_depth", "color_space", "image_size", "interleaving", "image_resolution"]) {
             Ok(o) => o,
             Err(f) => return Ok(Reply::Done(f)),
         };
@@ -212,7 +229,30 @@ impl Native for ImageOf {
             Ok(d) => d.unwrap_or(8),
             Err(f) => return Ok(Reply::Done(f)),
         };
-        let Some(r) = raster_of(cx, a, depth)? else {
+        // the scale of the values of the type: "Byte" 0 .. 255, "Bit16" 0 .. 65535, "Bit" and the real types 0 .. 1
+        let scale = match kind.as_deref() {
+            None | Some("Real" | "Real32" | "Real64" | "Bit") => 1.0,
+            Some("Byte") => 255.0,
+            Some("Bit16") => 65535.0,
+            Some(_) => return Ok(Reply::Done(failure(h, "argument", &[h.sym_term(h.sym(IMAGE)), h.int(2)]))),
+        };
+        // the data of a numeric array; channels first (`interleaving: false`) turned into channels last
+        let mut a = match values_of_numeric_array(h, a) {
+            Some(d) => d,
+            None => a,
+        };
+        if opts.get("interleaving").is_some_and(|v| matches!(h.view(v), View::Sym(s) if h.sym_name(s) == names::FALSE)) {
+            a = cx.eval(h.call(h.sym("transpose"), &[a, h.call(h.sym(names::LIST), &[h.int(3), h.int(1), h.int(2)])]))?;
+        }
+        let r = match numeric_array(cx, a, 3)? {
+            Some((dims, mut data)) if scale != 1.0 => {
+                data.iter_mut().for_each(|x| *x /= scale);
+                raster_from(&dims, &data, depth)
+            }
+            Some((dims, data)) => raster_from(&dims, &data, depth),
+            None => None,
+        };
+        let Some(r) = r else {
             return Ok(Reply::Done(failure(h, "argument", &[h.sym_term(h.sym(IMAGE)), h.int(1)])));
         };
         cx.effect()?;

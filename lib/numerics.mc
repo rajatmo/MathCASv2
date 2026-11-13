@@ -918,3 +918,9 @@ rule integer_exponent(0) := inf
 rule integer_exponent(0, b_) := inf when is_integer(b) and b > 1
 # log(b, x): the logarithm of x to the base b, as log_base(b, x)
 rule log(b_, x_) := log_base(b, x)
+
+# --- numbers with uncertainty ---
+
+# cube_root(x) of a real number with uncertainty (around, centered_interval): the real cube root surd(x, 3) carried
+# through the uncertainty
+fn cube_root(x) when not is_atom(x) and (head(x) === around or head(x) === centered_interval) and length(x) == 2 and is_real(n(x[1])) = surd(x, 3)

@@ -445,3 +445,8 @@ automatic, c = automatic; o = automatic) when is_list(d) = [a, b, c]` gives `g([
   integer parameter `b` is the frequency step. The conjugate-even test of the result is list arithmetic now.
   `fourier(inverse_fourier(constant_array(0., 10^6)))` takes 4 s (timeout before; the language-level recursion is
   quadratic, 13 s at 4096 points). Shorter vectors, other precisions and non-integer `b` keep the recursion.
+
+## Round 39: cube roots of uncertain numbers
+
+- `cube_root(around(x, dx))` and `cube_root(centered_interval(c, r))` of a real centre: `surd(x, 3)` carried through
+  the uncertainty (`lib/numerics.mc`).

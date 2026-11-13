@@ -156,3 +156,7 @@ others. Gap: vector-valued unknowns (`z(0) == [1, 0]`).
   `find_root` does, rewrites the term's parameter list and body too) evaluates: `Parts::params` keeps `None` for such
   a parameter and the call substitutes only the others. `find_root(f(a), [a, 1])` of
   `f = parametric_nd_solve_value(...)` works.
+
+## Round 39: no step limit
+
+- `max_steps: inf`: the largest step count accepted (10^8); the run still stops on an interrupt or the memory limit.

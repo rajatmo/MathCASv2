@@ -1453,16 +1453,18 @@ fn sequence_runs<'h>(
     let mut ms = Vec::with_capacity(alts.len());
     for &(pat, rhs) in &alts {
         let Some(m) = Matcher::new(lib, h, pat) else { return Ok(None) };
-        ms.push((m, rhs));
+        ms.push((m, rhs, run_lengths(cx, pat)));
     }
     let mut out = vec![];
     let mut i = 0;
     while i < xs.len() && out.len() < limit {
         let top = xs.len().min(i + 4096);
         let mut next = i + 1;
-        for (m, rhs) in ms.iter_mut() {
+        for (m, rhs, (lo, hi)) in ms.iter_mut() {
             let mut any = false;
-            for j in (i + 1..=top).rev() {
+            // only the run lengths the list pattern can match (a run of three single elements is three long)
+            let (first, last) = (i + (*lo).max(1), top.min(i.saturating_add(*hi)));
+            for j in (first..=last).rev() {
                 cx.tick(1)?;
                 let run = cx.list(&xs[i..j]);
                 if m.matches(cx, run)? {
@@ -1487,6 +1489,63 @@ fn sequence_runs<'h>(
         i = next;
     }
     Ok(Some(out))
+}
+
+/// The shortest and longest runs a list pattern `[p1, p2, ...]` can match (`usize::MAX`: no bound): each element
+/// matches one element (a blank, a typed or named or conditioned single blank, a literal), a run (`__`: one or
+/// more, `___`: none or more, `repeated(p, ...)`: as many copies of `p` as its spec allows), or none or one
+/// (`optional`); `alternatives` the widest bounds of its choices. Anything that is not a list, or a pattern head
+/// not listed, gives no bound.
+fn run_lengths<'h>(cx: &NativeCx<'_, '_, 'h>, p: T<'h>) -> (usize, usize) {
+    const INF: usize = usize::MAX;
+    fn one<'h>(cx: &NativeCx<'_, '_, 'h>, q: T<'h>) -> (usize, usize) {
+        let h = cx.heap();
+        let View::App { head, args } = h.view(q) else { return (1, 1) };
+        let View::Sym(s) = h.view(head) else { return (1, 1) };
+        let mul = |a: usize, k: usize| a.saturating_mul(k);
+        match (h.sym_name(s).as_str(), args) {
+            ("any", _) => (1, 1),
+            ("seq1", _) => (1, INF),
+            ("seq0", _) => (0, INF),
+            ("typed" | "condition", [p, _]) => one(cx, *p),
+            ("named", [_, p]) => one(cx, *p),
+            ("alternatives", qs) if !qs.is_empty() => {
+                let bs: Vec<(usize, usize)> = qs.iter().map(|&a| one(cx, a)).collect();
+                (bs.iter().map(|b| b.0).min().unwrap_or(0), bs.iter().map(|b| b.1).max().unwrap_or(INF))
+            }
+            ("repeated", [p]) => (one(cx, *p).0, INF),
+            ("repeated", [p, spec]) => {
+                let (a, b) = one(cx, *p);
+                let int = |t: T<'h>| match h.view(t) {
+                    View::Int(k) if k >= 0 => Some(k as usize),
+                    View::Sym(s) if h.sym_name(s) == "inf" => Some(INF),
+                    _ => None,
+                };
+                match (int(*spec), cx.as_list(*spec)) {
+                    (Some(n), _) => (a, mul(b, n)),
+                    (None, Some(&[n])) => match int(n) {
+                        Some(n) => (mul(a, n), mul(b, n)),
+                        None => (0, INF),
+                    },
+                    (None, Some(&[m, n])) => match (int(m), int(n)) {
+                        (Some(m), Some(n)) => (mul(a, m), mul(b, n)),
+                        _ => (0, INF),
+                    },
+                    _ => (0, INF),
+                }
+            }
+            ("optional", [p, ..]) => (0, one(cx, *p).1),
+            // other pattern constructs: no bound
+            (n, _) if matches!(n, "held" | "longest" | "shortest" | "key_value_pattern" | "verbatim" | "hold_pattern") => (0, INF),
+            // a call that is no pattern construct matches one element
+            _ => (1, 1),
+        }
+    }
+    let Some(items) = cx.as_list(p) else { return (0, INF) };
+    items.iter().fold((0usize, 0usize), |(lo, hi), &q| {
+        let (a, b) = one(cx, q);
+        (lo.saturating_add(a), hi.saturating_add(b))
+    })
 }
 
 macro_rules! seq_args {

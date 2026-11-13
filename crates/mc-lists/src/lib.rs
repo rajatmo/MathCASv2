@@ -127,7 +127,7 @@ pub const LIB_ORIGIN: &str = "lib/lists.mc";
 /// for associations, decision 1A.16). A dataset is one term `dataset(columns)`, so the structural meaning would
 /// see a single argument.
 pub const DATASET_ROWS: &[&str] =
-    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "sort_by"];
+    &["length", "part", "first", "last", "rest", "most", "take", "drop", "reverse", "join", "select", "select_first", "sort_by"];
 
 macro_rules! functions {
     ($($name:literal => $body:path, $desc:literal;)*) => {

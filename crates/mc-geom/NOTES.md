@@ -138,3 +138,19 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
   `abs(u_x v_y - u_y v_x)` without the coordinates of p, which the shoelace sum of the vertices themselves only
   cancelled after an expansion that was not done (a long sum under `abs`). The centroid of a plane ring is computed
   the same way and translated back, each coordinate the first vertex's plus a quotient in lowest terms.
+## Round 39: fill rules and options of closed curves
+
+- `winding_polygon(curve, rule)`: "NonzeroRule", "EvenOddRule" (also "OddRule"), "PositiveRule" (winding number
+  above 0) and "NegativeRule" (below 0), by the winding number of the arrangement's faces (`clip::Fill`). Other
+  names stay unevaluated (no definition is fixed for them).
+- Options of the polygon (`vertex_colors: ...`) are kept when the curve is one simple closed polygon (the region is
+  the polygon itself, with the curve's corners); a crossing curve makes new corners that the options have nothing to
+  say about, and the call stays unevaluated.
+
+## Round 39: maps that fold, measures of a map with a list of ranges
+
+- The density of a parametrisation drops the absolute value of its Jacobian determinant only when the determinant
+  has one sign at all the points of a 7-per-parameter grid inside the parameter box (one point before): a map that
+  folds back, as the figure eight `[r cos x, r sin 2x]`, keeps `abs` and its area is the integral of the size (2,
+  where the signed integral was 0).
+- `region_measure(map, [[u, a, b], ...], system)`: the arc length, area or volume of the map, by the number of ranges.

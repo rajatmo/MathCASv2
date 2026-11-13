@@ -137,3 +137,19 @@ import as a dataset 312 ms (as lists of rows: 935 ms), aggregate by a 20-value k
 - `export_data` of a list of plots to PDF takes each plot's print twin (`export_twin`) as one plot alone does: pages
   of 360 x 225 pt for default-sized plots, a sized plot's own page. Test in `tests/media.rs` (three pages, their sizes,
   the first page's text equal to the single plot's PDF).
+
+## Round 39: typed image data, tensor interpolants at symbolic points
+
+- `image(data, type, options)`: the type "Byte" (samples 0 to 255), "Bit16" (0 to 65535), "Bit" and the real types
+  (0 to 1) scale the samples to [0, 1]; the data may be a `numeric_array(values, type)`; `interleaving: false` reads
+  channels first (transposed to channels last); `color_space`, `image_size`, `image_resolution` are accepted (the
+  file holds the samples; the colour space follows from the channel count). An unknown type is
+  `failure(argument, image, 2)`.
+- `interpolation(data)` with a value that holds a free symbol (the inner interpolants of the two-coordinate tensor
+  product at a symbolic point, `interpolated(...)(s)`) stays unevaluated instead of failing: `fun(s, t)` of a
+  two-coordinate interpolant is a symbolic term until `s` and `t` are numbers, so plots of it sample it. Malformed
+  data (repeated abscissae, a bare symbol as a value) still fail.
+- Statistics and colour operations of images are library rules (`lib/lists.mc`): `mean`, `median`, `variance`,
+  `std_dev` per channel over all pixels (one number for a gray image); `color_negate`, `darker`, `lighter` on the
+  colour channels (an alpha channel kept); `color_convert(img, "RGB" | "Grayscale")` (gray to RGB by copying, RGB
+  to gray by the ITU-R BT.601 luma weights 0.299, 0.587, 0.114); other conversions fail with `unsupported`.

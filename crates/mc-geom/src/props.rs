@@ -298,26 +298,56 @@ pub fn measure<'h>(cx: &mut NativeCx<'_, '_, 'h>, r: &Region<'h>) -> Res<Option<
 }
 
 /// |det| of a parametrisation's Jacobian without the absolute value where it can be dropped: the determinant
-/// simplified, and its sign taken at a sample point inside the parameter box (the absolute value stays when that
-/// sign cannot be told).
+/// simplified, and its sign taken on a grid of sample points inside the parameter box (7 per parameter, at most 3
+/// parameters; the points off the box's symmetric positions); when the sign is the same at every point it is taken
+/// as the sign of the whole (a Jacobian of one sign over the box: the map does not fold), otherwise the absolute value
+/// stays (a map that folds back over itself, as a figure eight, has a determinant of both signs).
 pub fn jacobian_density<'h>(cx: &mut NativeCx<'_, '_, 'h>, det: T<'h>, specs: &[(T<'h>, T<'h>, T<'h>)]) -> Res<T<'h>> {
     let e = E { h: cx.heap() };
     let d = cx.eval(e.f("simplify", &[det]))?;
-    let mut rules = vec![];
-    for &(u, a, b) in specs {
+    let fractions = [0.0731, 0.2143, 0.3567, 0.4142, 0.6113, 0.7529, 0.9182];
+    let mut axes: Vec<Vec<f64>> = vec![];
+    for &(_, a, b) in specs {
         let (a, b) = (num(cx, a)?, num(cx, b)?);
-        let mid = match (a, b) {
-            (Some(a), Some(b)) if a.is_finite() && b.is_finite() => a + 0.4142 * (b - a),
-            (Some(a), _) if a.is_finite() => a + 0.4142,
-            (_, Some(b)) if b.is_finite() => b - 0.4142,
-            _ => 0.4142,
+        let pts: Vec<f64> = match (a, b) {
+            (Some(a), Some(b)) if a.is_finite() && b.is_finite() => fractions.iter().map(|f| a + f * (b - a)).collect(),
+            (Some(a), _) if a.is_finite() => fractions.iter().map(|f| a + 8.0 * f).collect(),
+            (_, Some(b)) if b.is_finite() => fractions.iter().map(|f| b - 8.0 * f).collect(),
+            _ => fractions.iter().map(|f| 8.0 * f - 4.0).collect(),
         };
-        rules.push(e.f("rule", &[u, cx.heap().real(mid)]));
+        axes.push(pts);
     }
-    let at = e.f("rewrite", &[d, e.list(&rules)]);
-    Ok(match num(cx, at)? {
-        Some(v) if v > 0.0 => d,
-        Some(v) if v < 0.0 => e.neg(d),
+    if axes.len() > 3 {
+        return Ok(e.f("abs", &[d]));
+    }
+    let total: usize = axes.iter().map(Vec::len).product();
+    let mut sign = 0i32;
+    for k in 0..total {
+        cx.tick(1)?;
+        let mut q = k;
+        let mut rules = vec![];
+        for (j, &(u, _, _)) in specs.iter().enumerate() {
+            let x = axes[j][q % axes[j].len()];
+            q /= axes[j].len();
+            rules.push(e.f("rule", &[u, cx.heap().real(x)]));
+        }
+        let at = e.f("rewrite", &[d, e.list(&rules)]);
+        let s = match num(cx, at)? {
+            Some(v) if v > 0.0 => 1,
+            Some(v) if v < 0.0 => -1,
+            Some(_) => 0,
+            None => return Ok(e.f("abs", &[d])),
+        };
+        if s != 0 {
+            if sign != 0 && s != sign {
+                return Ok(e.f("abs", &[d]));
+            }
+            sign = s;
+        }
+    }
+    Ok(match sign {
+        1 => d,
+        -1 => e.neg(d),
         _ => e.f("abs", &[d]),
     })
 }

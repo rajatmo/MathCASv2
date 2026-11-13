@@ -287,3 +287,11 @@ through the same plan (plot range, area) the page is painted with; `rasterize(g,
 - Not done: positions `scaled(d, p)` and `image_scaled(d, p)` (a scaled offset from a coordinate: the point model
   holds either kind, not a sum of both), `winding_polygon` and `crossing_polygon` (the renderer fills even-odd
   only; drawing another rule's region even-odd would be a wrong picture).
+
+## Round 39: offsets in scaled coordinates, text offsets, lists of transformations
+
+- `scaled(d, pos)` and `image_scaled(d, pos)` are drawn at `pos`, as `offset(d, pos)` already was (the shift is not
+  drawn).
+- `text(e, p, automatic)`: centred on the position.
+- `geometric_transformation(g, [t1, t2, ...])`: a copy of `g` under each map (transformation functions, matrices,
+  `[m, b]` pairs).
