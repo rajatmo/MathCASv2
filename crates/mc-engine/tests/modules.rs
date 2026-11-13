@@ -222,7 +222,8 @@ fn the_prelude_is_native_free_and_avoids_benchmark_names() {
 /// Every prelude function, with its expected results.
 const PRELUDE_CASES: &[(&str, &str)] = &[
     ("[is_even(4), is_even(7), is_odd(7), is_odd(-3)]", "[true, false, true, true]"),
-    ("[is_even(x), is_even(\"a\")]", "[is_even(x), failure(no_match, is_even, [\"a\"])]"),
+    // total tests, as is_integer and is_prime: false for whatever is not an explicit integer
+    ("[is_even(x), is_even(\"a\"), is_odd(3.0), is_odd(y)]", "[false, false, false, false]"),
     ("[clamp(5, 0, 3), clamp(-1, 0, 3), clamp(2, 0, 3), clamp(1/2, 0, 1)]", "[3, 0, 2, 1/2]"),
     ("[log_base(2, 1024), log_base(10, 1000), log_base(2, 6), log_base(e, x)]", "[10, 3, log(6)/log(2), log(x)]"),
     ("count_if(range(10), is_even)", "5"),

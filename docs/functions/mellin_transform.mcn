@@ -232,12 +232,15 @@ mellin_transform(1/(1 + x^2), x, 3)
 #= mellin_transform((1 + x^2)^-1, x, 3)
 
 #% text
-# A step that does not start at 1, an undefined function, and `working_precision:` leave the call as it is:
+# A step that starts at a > 0 cuts the integral to x > a; with exp(-x) that is the upper incomplete gamma function:
 
 #% cell
 mellin_transform(exp(-x)*unit_step(x - 2), x, s)
 #% output
-#= mellin_transform(exp(-x)*unit_step(-2 + x), x, s)
+#= gamma(s, 2)
+
+#% text
+# An undefined function and `working_precision:` leave the call as it is:
 
 #% cell
 mellin_transform(f(x), x, s)

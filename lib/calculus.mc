@@ -3053,9 +3053,14 @@ fn cb_radon(f, xy, pf, asm, gc) = {
     let sv = cb_rad_step(g, cb_radt, pf[1], asm)
     if not (sv === null) then sv else {
       let r = if asm === true then integrate(g, [cb_radt, -inf, inf], generate_conditions: gc) else integrate(g, [cb_radt, -inf, inf], assumptions: asm, generate_conditions: gc)
-      # a product is written with its polynomial factors' integer content taken out (factor)
+      # in a product, each sum factor is factored on its own (its integer content taken out): factored as part of the
+      # whole product, its sign followed the leading term in the order of all the product's kernels (exp(-p^2) and
+      # pi^(1/2) among them), and (-1/2)*(-3 - 6 p^2 - ...) came out where (1/2)*(3 + 6 p^2 + ...) is the same value
       let tidy0 = e => simplify(trig_reduce(rewrite(cb_plain(e), sin(pf[2])^2 -> 1 - cos(pf[2])^2)))
-      let tidy = e => if head(tidy0(e)) === mul then factor(tidy0(e)) else tidy0(e)
+      let tidy = e => {
+        let t = tidy0(e)
+        if head(t) === mul then product(map(u => if not is_atom(u) and head(u) === add then factor(u) else u, calc_factors(t))) else t
+      }
       if not free_of(r, integrate) then failure(unevaluated, radon_transform, "the line integral has no closed form")
       else if head(r) === conditional_expression then conditional_expression(tidy(r[1]), r[2])
       else tidy(r)

@@ -198,8 +198,10 @@ fn parameter_conditions_in_the_templates() {
 
 #[test]
 fn non_real_arguments_and_partial_singular_sets() {
-    // re(J(x + i)) is real, but J's facts are about a real argument: not decided
-    assert!(ev("function_sign(re(klein_invariant_j(x + im)), x)").starts_with("function_sign("));
+    // re(J(x + i)) has no sign: J has period 1 in x, J(i) = 1 and J(1/2 + i) = -0.0518... (q = -e^(-2 pi) < 0), so
+    // its samples take both signs, and values of both signs are a proof that no sign holds (samples never prove one)
+    assert_eq!(ev("function_sign(re(klein_invariant_j(x + im)), x)"), "indeterminate");
+    assert_eq!(ev("[n(klein_invariant_j(im), 30) > 0, n(re(klein_invariant_j(1/2 + im)), 30) < 0]"), "[true, true]");
     // the pole of p at 0 decides analyticity; the other lattice points are not listed, so no singular set
     assert_eq!(ev("function_analytic(weierstrass_p(x, [g1, g2]), x, assumptions: element([g1, g2], reals))"), "false");
     assert_eq!(ev("function_singularities(weierstrass_p(x, [1, 2]), x)"), "function_singularities(weierstrass_p(x, [1, 2]), x)");

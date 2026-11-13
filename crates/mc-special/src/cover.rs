@@ -2507,6 +2507,12 @@ fn barnes_g<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if gamma_pole(fx, a[0]) {
         return Ok(None);
     }
+    // a machine real: the double-double evaluation (a few microseconds, where the balls below take milliseconds)
+    if let Some(x) = fx.machine_of(a[0]) {
+        if let Some(v) = crate::machine::gamma::barnes_g(x) {
+            return Ok(Some(fx.real(v)));
+        }
+    }
     let size = re.hypot(im) + 2.0;
     let extra = 16 + ((size * size * size.ln()).log2() - 30.0).max(0.0).ceil() as u64;
     let Some((wk, xs)) = work(fx, a, extra) else { return Ok(None) };

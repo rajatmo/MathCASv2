@@ -1014,3 +1014,13 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   continuation on the principal branch of the polylogarithm (on the cut z > 1 the value from below:
   lerch_phi(7., 1, 2) = -(log(-6) + 7)/49). Checked against the integral (1/Gamma(s)) int t^(s-1) e^(-a t)/(1 - z e^-t)
   dt off the cut. Other orders and shifts beyond the circle stay.
+
+## Round 39: the Barnes G function at machine reals
+
+- `barnes_g` of a machine real evaluated balls at 70 to 90 bits, with zeta'(-1) computed again on every call: 4 ms
+  a value, so `solve(d(barnes_g(x), x) == 0 and 0 < x < 2, x, reals)`, whose interval search samples the function
+  1001 times, took 3.6 s. Now in double-double (`machine::gamma::barnes_g`): G(x) = G(x + m)/prod_(j<m) Gamma(x + j)
+  with x + m >= 21, ln G(v + 1) by the asymptotic series (DLMF 5.17.5, terms below 10^-34 of the sum at v = 20),
+  zeta'(-1) once from ln G(21) = sum (20 - j) ln j, the gammas by Gamma(x + j + 1) = (x + j) Gamma(x + j) from one
+  double-double gamma. Within half an ulp on a sweep of x in [-12.7, 28] (30-digit values); an overflow or a shift
+  longer than 400 goes to the balls. The solve takes 0.16 s.

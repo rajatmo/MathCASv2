@@ -202,3 +202,25 @@ fn balls_enclose_and_print_correct_digits() {
         }
     }
 }
+
+/// The comparison of balls whose midpoints are many binades apart: the difference has the larger midpoint's sign and
+/// a modulus above |larger| - 2^top(smaller), so a radius sum between half the larger midpoint and that bound is
+/// still decided; one beyond the larger midpoint is not.
+#[test]
+fn far_apart_balls_compare_by_the_larger_midpoint() {
+    use mc_arith::num::{Ball, Float, Mag, Nat};
+    use std::cmp::Ordering;
+    let ball = |neg: bool, e: i64, r: Option<i64>| Ball {
+        mid: Float::new(neg, Nat::from_u64(1), e),
+        rad: r.map_or(Mag::from_float_up(&Float::zero()), |k| Mag::from_float_up(&Float::new(false, Nat::from_u64(1), k))),
+    };
+    // 2^-118 +- 2^-100 against the exact 2^-99: the radius is half of 2^-99, the gap 2^-99 - 2^-118 exceeds it
+    assert_eq!(ball(false, -118, Some(-100)).cmp3(&ball(false, -99, None)), Some(Ordering::Less));
+    assert_eq!(ball(false, -99, None).cmp3(&ball(false, -118, Some(-100))), Some(Ordering::Greater));
+    // the mirror image, and three quarters of the larger midpoint as the radius (2^-100 + 2^-101 from two balls)
+    assert_eq!(ball(true, -118, Some(-100)).cmp3(&ball(true, -99, Some(-101))), Some(Ordering::Greater));
+    // a radius of the larger midpoint itself: the balls overlap
+    assert_eq!(ball(false, -118, Some(-99)).cmp3(&ball(false, -99, None)), None);
+    // midpoints 10^6 binades apart (no alignment of that size is formed)
+    assert_eq!(ball(false, -1_000_000, Some(-60)).cmp3(&ball(false, 0, None)), Some(Ordering::Less));
+}

@@ -23,7 +23,7 @@ area(winding_polygon(star))
 #% cell
 area(crossing_polygon(star))
 #% output
-#= 0.12595165756220444
+#= 0.1259516575622045
 
 #% section
 # See also

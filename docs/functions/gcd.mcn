@@ -135,12 +135,12 @@ gcd(2.0, 4)
 #! failure(argument, gcd, "gcd takes exact numbers or polynomials")
 
 #% text
-# `gcd` does not map over a list; with a list argument the call stays unevaluated:
+# A list argument threads elementwise, as for `lcm` (lists of different lengths leave the call); so a single list is not the gcd of its elements, which is `apply(gcd, list)`:
 
 #% cell
 gcd([12, 18], 8)
 #% output
-#= gcd([12, 18], 8)
+#= [4, 2]
 
 #% cell
 map(k => gcd(k, 8), [12, 18])

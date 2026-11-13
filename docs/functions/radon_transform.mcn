@@ -39,7 +39,7 @@ radon_transform(x*exp(-x^2 - y^2), [x, y], [3, pi/3])
 #% cell
 radon_transform((x^2 + 5*y^2)*exp(-x^2 - y^2), [x, y], [p, phi])
 #% output
-#= (3/2 + cos(2*phi) + 3*p^2 - 2*cos(2*phi)*p^2)*exp(-p^2)*pi^(1/2)
+#= (1/2)*(3 + 2*cos(2*phi) + 6*p^2 - 4*cos(2*phi)*p^2)*exp(-p^2)*pi^(1/2)
 
 #% section
 # See also

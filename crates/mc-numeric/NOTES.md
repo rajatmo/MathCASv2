@@ -606,3 +606,17 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   two corners of the box when it is monotone in each argument there, by the test of the several-spread
   `centered_interval` case (every partial derivative keeps its sign on a grid over the box); otherwise the call
   stays. The ends move outwards by a few ulps.
+
+## Round 39: real values of uncertain numbers through complex intermediates
+
+- `around` of a real centre where the machine value has an imaginary part: the value is decided at the exact
+  centre (the machine numbers as their binary rationals) at 30 digits: an imaginary part exactly 0 gives a real
+  value (`appell_f3(1/2, 3/2, -4, 5, 1/2, 0, around(2.1, 0.01))`, which is the rational function (1 + 9 y)/(1 - y)^6
+  there, had `+ 5.5e-15 i`; `spherical_harmonic_y(2, 1, around(2, 0.01), pi)` with e^(i pi) had `+ 3.6e-17 i`), one
+  decided nonzero keeps the complex value, an undecided one leaves the call. The spread is the documented first order
+  |f'(x)| dx of the function itself (0.5619 for the F3 above; treating the occurrences of y in the closed form as
+  independent gave 0.6148, which is not the uncertainty of one quantity).
+- `acosh(around(0.9, 0.1))` is `around(0.451 i, 0.229)`: acosh is i acos(x) on [-1, 1] and the spread is
+  |d/dx acosh| = 1/sqrt(1 - x^2) at 0.9 times 0.1. The spread reaches the branch point 1 (beyond it acosh is real),
+  where the first-order propagation is a poor approximation, as for any function with a singularity within one
+  standard uncertainty (`sqrt(around(0.05, 0.1))` alike); it is still the documented linearisation, so it is given.

@@ -4,13 +4,13 @@
 # is_odd
 
 #% text
-# `is_odd(n)` gives `true` when the integer `n` is odd, else `false`.
+# `is_odd(n)` gives `true` when `n` is an odd integer, else `false`.
 
 #% section
 # Details
 
 #% item
-# It is defined for integers; a symbol stays unevaluated.
+# Anything that is not an explicit integer gives `false`: a symbol, a closed form, a machine real such as `3.0`, a string (as for `is_even`, `is_integer` and `is_prime`).
 
 #% section
 # Examples
@@ -43,6 +43,17 @@ is_odd(-3)
 count_if(range(20), is_odd)
 #% output
 #= 10
+
+#% subsection
+# Possible issues
+
+#% text
+# A machine real is not an integer, even when it has no fractional part:
+
+#% cell
+is_odd(3.0)
+#% output
+#= false
 
 #% section
 # See also

@@ -7,6 +7,14 @@
 //! speculative group) and is then updated by Broyden's rank-one formula; a failed line search on an updated
 //! Jacobian recomputes it once. Optional bounds (one interval per variable, real scalars) project every trial point
 //! into the box: Newton's method constrained to a bracket.
+//!
+//! The step is also bounded by a trust radius (Dennis and Schnabel, *Numerical Methods for Unconstrained
+//! Optimization and Nonlinear Equations*, 6.4; Moré's hybrid method in MINPACK): the Armijo condition alone accepts
+//! any decrease, however small, and a function that levels off (log 2 + e^(i pi z) g(z) as im z grows, a sigmoid)
+//! then takes a Newton step to a far point where |f| is a little smaller and the iteration drifts away, landing, if
+//! anywhere, on a root unrelated to the start. The radius starts at max(|x0|, 1); after each step the ratio rho of
+//! the actual decrease of |f|^2 to the decrease the linear model f + J s predicts shrinks it to |s|/4 (rho < 1/4)
+//! or widens it to 2|s| (rho > 3/4). Steps within the goals (the noise level, where rho means nothing) leave it.
 use crate::func::NumFn;
 use crate::options::Goals;
 use crate::scalar::{all_finite, norm, norm2, Scalar};
@@ -63,6 +71,8 @@ pub(crate) fn solve<'h, S: Scalar>(
     // a residual that rounds to exactly 0 ends the iteration; `err` then keeps the last step, which at a multiple root
     // (f'(x) near 0, the residual at the noise level) can be far beyond the goals: the caller polishes such a point
     let mut zero_exit = false;
+    // the trust radius
+    let mut radius = norm(&x).max(1.0);
     let mut iterations = 0;
     while iterations < goals.max_iterations {
         iterations += 1;
@@ -89,17 +99,40 @@ pub(crate) fn solve<'h, S: Scalar>(
             have_j = true;
         }
         let neg: Vec<S> = fx.iter().map(|&v| S::real(0.0) - v).collect();
-        let Some(d) = linalg::solve(n, &j, &neg).or_else(|| linalg::damped_least_squares(n, &j, &fx)) else {
+        let Some(mut d) = linalg::solve(n, &j, &neg).or_else(|| linalg::damped_least_squares(n, &j, &fx)) else {
             break;
         };
-        match line_search(cx, f, &x, &d, phi, bounds)? {
+        // the step within the radius: the fraction `scale` of the Newton step (the slope of |f|^2 along it is
+        // -2 scale |f|^2, which the Armijo condition is measured against)
+        let dn = norm(&d);
+        let scale = if dn > radius { radius / dn } else { 1.0 };
+        if scale < 1.0 {
+            d.iter_mut().for_each(|v| *v = *v * S::real(scale));
+        }
+        match line_search(cx, f, &x, &d, phi, scale, bounds)? {
             Some((xt, ft)) => {
                 let s: Vec<S> = xt.iter().zip(&x).map(|(&a, &b)| a - b).collect();
+                let sn = norm(&s);
+                if sn > goals.tol(norm(&x)) {
+                    // the decrease of |f|^2 the linear model predicts, against the actual one
+                    let model: Vec<S> = (0..n)
+                        .map(|r| (0..n).fold(fx[r], |acc, c| acc + j[r * n + c] * s[c]))
+                        .collect();
+                    let predicted = phi - norm2(&model);
+                    if predicted > 0.0 {
+                        let rho = (phi - norm2(&ft)) / predicted;
+                        if rho < 0.25 {
+                            radius = sn / 4.0;
+                        } else if rho > 0.75 {
+                            radius = radius.max(2.0 * sn);
+                        }
+                    }
+                }
                 if let Jacobian::Broyden { fresh } = &mut jac {
                     broyden_update(n, &mut j, &s, &fx, &ft);
                     *fresh = false;
                 }
-                let step = norm(&s);
+                let step = sn;
                 x = xt;
                 fx = ft;
                 err = step;
@@ -140,14 +173,16 @@ pub(crate) fn solve<'h, S: Scalar>(
     Ok(Outcome::Done { x, err, converged: ok, iterations })
 }
 
-/// Backtracking from the full step `d`: the first point x + t d (t = 1, 1/2, ...) with a numeric residual and
-/// |f|^2 <= (1 - 2 ALPHA t) phi; none once the step no longer moves x.
+/// Backtracking from the step `d` (the fraction `scale` of the Newton step): the first point x + t d (t = 1, 1/2,
+/// ...) with a numeric residual and |f|^2 <= (1 - 2 ALPHA t scale) phi; none once the step no longer moves x.
+#[allow(clippy::too_many_arguments)]
 fn line_search<'h, S: Scalar>(
     cx: &mut NativeCx<'_, '_, 'h>,
     f: &mut dyn NumFn<'h, S>,
     x: &[S],
     d: &[S],
     phi: f64,
+    scale: f64,
     bounds: Option<&[(f64, f64)]>,
 ) -> Res<Option<(Vec<S>, Vec<S>)>> {
     let mut ft = vec![S::real(0.0); x.len()];
@@ -160,7 +195,7 @@ fn line_search<'h, S: Scalar>(
         if xt.iter().zip(x).all(|(&a, &b)| (a - b).abs() == 0.0) {
             break;
         }
-        if all_finite(&xt) && f.eval(cx, &xt, &mut ft)? && norm2(&ft) <= (1.0 - 2.0 * ALPHA * t) * phi {
+        if all_finite(&xt) && f.eval(cx, &xt, &mut ft)? && norm2(&ft) <= (1.0 - 2.0 * ALPHA * t * scale) * phi {
             return Ok(Some((xt, ft)));
         }
         t *= 0.5;

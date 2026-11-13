@@ -121,12 +121,12 @@ length(divisors(360))
 # Possible issues
 
 #% text
-# `factor_integer` does not map over lists:
+# `factor_integer` threads over a list, as `map` does: the result is a list of factorizations, one level deeper than a single one:
 
 #% cell
 factor_integer([12, 15])
 #% output
-#= factor_integer([12, 15])
+#= [[[2, 2], [3, 1]], [[3, 1], [5, 1]]]
 
 #% cell
 map(factor_integer, [12, 15])

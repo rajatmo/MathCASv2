@@ -4,13 +4,13 @@
 # is_even
 
 #% text
-# `is_even(n)` gives `true` when the integer `n` is even, else `false`.
+# `is_even(n)` gives `true` when `n` is an even integer, else `false`.
 
 #% section
 # Details
 
 #% item
-# It is defined for integers; a symbol stays unevaluated (its parity is not known).
+# Anything that is not an explicit integer gives `false`: a symbol, a closed form such as `2*pi`, a machine real such as `2.0`, a string. This is the rule of `is_integer` and `is_prime`, so `is_even` can always be used as a test in `select` or `count_if`.
 
 #% section
 # Examples
@@ -61,7 +61,7 @@ select(range(10), is_even)
 #% cell
 is_even(2.0)
 #% output
-#! failure(no_match, is_even, [2.0])
+#= false
 
 #% text
 # Use `is_integer` first, or `round`, when the argument may be a real:

@@ -186,3 +186,8 @@ dev-dependencies only. Build, clippy (all targets) and tests pass offline with n
   finer) by `cmp3`; `cmp3` decides midpoints more than two binades apart by the larger one; `cmp_exact` decides
   different signs and different binades by the exponents; `has_digits` tests `r (10^d + 1) <= |m|`. The verdicts
   are the same; no exact alignment of far-apart numbers is formed.
+- `cmp3` of midpoints more than two binades apart compared the radius sum with half the larger midpoint and gave up
+  above it, where the exact comparison decided: the 30-digit Coulomb value against the 60-digit one, a difference
+  of radius 8.1e-31 below the bound 1.59e-30, stayed undecided. The modulus of the difference exceeds |big| -
+  2^top(small) >= |big| - 2^e, e = max(top(small), exp(big) - 64), and that bound is formed exactly with an
+  alignment of at most 64 bits beyond the mantissa. Test: `tests/numbers.rs`.

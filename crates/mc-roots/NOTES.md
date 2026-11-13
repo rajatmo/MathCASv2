@@ -215,3 +215,15 @@ are accepted but not called.
   imaginary for real q) found no real value and failed with `not_numeric`. Newton's method now runs again in
   complex arithmetic from the same start (with the symbolic derivative, else differences); an iteration that never
   left the real line (all steps -f/f' real) gives real numbers. Only for the default and Newton methods.
+
+## Round 39: a trust radius for Newton's method
+
+- From n = 1, `find_root(alternating_harmonic_number(n) == 0.5, [n, 1])` (complex arithmetic: the continuation has
+  the factor (-1)^n, complex off the integers) went into the upper half plane, where the function tends to log 2; a
+  Newton step of length 79 lowered |f| from 0.1938 to 0.1931, which the Armijo condition (constant 1e-4) accepts,
+  the iteration passed |n| ~ 1e93 and came back to the root -48.25 + 0.55 i. The step is now bounded by a trust
+  radius (Dennis and Schnabel, chapter 6.4; Moré's hybrid method): it starts at max(|x0|, 1), and the ratio of the
+  actual decrease of |f|^2 to the decrease of the linear model f + J s shrinks it to |s|/4 below 1/4 or widens it to
+  2|s| above 3/4 (steps within the goals, at the noise level, leave it). The Armijo condition is measured against the
+  slope of the shortened step. The same call now reaches n = 2; `x - 1e10` from 0 still converges (the radius
+  doubles while the model is exact). Tests: `mc-engine/tests/round39_integration.rs`.

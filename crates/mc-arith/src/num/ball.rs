@@ -548,12 +548,16 @@ impl Ball {
     pub fn cmp3(&self, o: &Ball) -> Option<Ordering> {
         let s = self.rad.add(&o.rad);
         // midpoints of magnitudes more than 2 binades apart: the difference has the sign of the larger term (negated
-        // for o) and exceeds half of it, so no exact difference is formed (its alignment could take unbounded memory)
+        // for o), and no exact difference is formed (its alignment could take unbounded memory). Its modulus exceeds
+        // |big| - 2^top(small) >= |big| - 2^e with e = max(top(small), exp(big) - 64): a bound within 2^-64 of |big|
+        // at worst (so a radius sum just below |big| still decides) whose exact form needs an alignment of at most
+        // 64 bits beyond the mantissa of big.
         let (a, bm) = (&self.mid, &o.mid);
         if !a.is_zero() && !bm.is_zero() && (a.top() - bm.top()).abs() > 2 {
-            let (big, neg) = if a.top() > bm.top() { (a, a.neg) } else { (bm, !bm.neg) };
-            let half = Float::new(false, big.man.clone(), big.exp - 1);
-            if s.is_zero() || half.cmp_exact(&s.to_float()) == Ordering::Greater {
+            let (big, small, neg) = if a.top() > bm.top() { (a, bm, a.neg) } else { (bm, a, !bm.neg) };
+            let e = small.top().max(big.exp - 64);
+            let lower = big.abs().sub_exact(&Float::new(false, Nat::from_u64(1), e));
+            if s.is_zero() || lower.cmp_exact(&s.to_float()) == Ordering::Greater {
                 return Some(if neg { Ordering::Less } else { Ordering::Greater });
             }
             return None;

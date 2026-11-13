@@ -13,7 +13,7 @@
 //!   else the quotient of gammas.
 use super::rgamma_coefficients;
 use crate::bernoulli::dd_table;
-use crate::dd::{exp_scaled, log, sin_cos_pi_any, Scaled, DD, HALF_LN_2PI, LN_PI, PI};
+use crate::dd::{exp_scaled, log, sin_cos_pi_any, Scaled, DD, HALF_LN_2PI, LN_2PI, LN_PI, PI};
 use mc_arith::num::{Int, Rat};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::sync::OnceLock;
@@ -193,6 +193,74 @@ pub fn log_gamma(x: f64) -> (f64, f64) {
     }
     let k = (-x).ceil();
     (re, -PI.mul_f(k).to_f64())
+}
+
+/// Entry j: B_(2j + 2) / (4 j (j + 1)), the coefficients of the asymptotic series of ln G (DLMF 5.17.5); entry 0
+/// is unused.
+fn barnes_coefficients() -> &'static [DD] {
+    static T: OnceLock<Vec<DD>> = OnceLock::new();
+    dd_table(&T, 26, |k, b| if k < 2 { Rat::new(Int::from_i64(0), Int::from_i64(1)) } else { b.mul(&Rat::new(Int::from_i64(1), Int::from_u64(4 * (k - 1) * k))) })
+}
+
+/// ln G(v + 1) - zeta'(-1) for v >= 20: v^2/2 ln v - 3 v^2/4 + v/2 ln(2 pi) - ln(v)/12 + sum_k B_(2k+2)/(4 k (k + 1)
+/// v^(2k)) (DLMF 5.17.5); at v = 20 the terms fall below 10^-34 of the sum before the series turns.
+fn ln_barnes_asymptotic(v: DD) -> DD {
+    let lv = log(v);
+    let v2 = v.sqr();
+    let lead = v2.mul(lv).mul_f(0.5).sub(v2.mul_f(0.75)).add(v.mul(LN_2PI).mul_f(0.5)).sub(lv.div_f(12.0));
+    let r2 = v2.recip();
+    let mut pw = r2;
+    let mut s = DD::ZERO;
+    let tiny = lead.hi.abs() * 1e-34;
+    for c in &barnes_coefficients()[1..] {
+        let t = c.mul(pw);
+        s = s.add(t);
+        if t.hi.abs() < tiny {
+            break;
+        }
+        pw = pw.mul(r2);
+    }
+    lead.add(s)
+}
+
+/// zeta'(-1) from G(21) = 1! 2! ... 19!, that is ln G(21) = sum_(j = 2..19) (20 - j) ln j, and the series at v = 20.
+fn zeta_prime_m1_dd() -> DD {
+    static C: OnceLock<DD> = OnceLock::new();
+    *C.get_or_init(|| {
+        let mut l = DD::ZERO;
+        for j in 2..=19u32 {
+            l = l.add(log(DD::new(j as f64)).mul_f((20 - j) as f64));
+        }
+        l.sub(ln_barnes_asymptotic(DD::new(20.0)))
+    })
+}
+
+/// The Barnes G-function of a machine real x (not an integer <= 0): G(x) = G(x + m) / prod_(j < m) Gamma(x + j)
+/// (from G(z + 1) = Gamma(z) G(z)) with x + m >= 21, G(x + m) the exponential of the asymptotic series, the gammas
+/// built up by Gamma(x + j + 1) = (x + j) Gamma(x + j) from one double-double gamma (each x + j exact). `None` when
+/// the value is not a finite nonzero double (an overflow for x beyond about 30) or the shift would be long.
+pub fn barnes_g(x: f64) -> Option<f64> {
+    if !x.is_finite() || (x <= 0.0 && x == x.floor()) {
+        return None;
+    }
+    let m = (21.0 - x).max(0.0).ceil();
+    if m > 400.0 {
+        return None;
+    }
+    let xd = DD::new(x);
+    let lg = ln_barnes_asymptotic(xd.add_f(m - 1.0)).add(zeta_prime_m1_dd());
+    let mut v = exp_scaled(lg);
+    if m > 0.0 {
+        let mut g = gamma_scaled(xd);
+        let mut p = g;
+        for j in 1..(m as i64) {
+            g = g.mul_dd(xd.add_f((j - 1) as f64));
+            p = p.mul(g);
+        }
+        v = v.div(p);
+    }
+    let r = v.to_f64();
+    (r.is_finite() && r != 0.0).then_some(r)
 }
 
 /// psi(x) as a double-double, x not a pole.

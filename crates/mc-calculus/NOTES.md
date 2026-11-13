@@ -1482,3 +1482,12 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   are mostly not real (the Weierstrass invariants' functions) stay undecided.
 - Gap: a derivative rule d/du elliptic_theta = elliptic_theta_prime sends d/dq of elliptic_theta into a loop (the
   opaque q partial is expanded again); left out.
+## Round 39: Radon transforms, function_sign of re(J)
+
+- `radon_transform` factored the whole product of its result, whose sign then followed the leading term in the
+  order of every kernel of the product (exp(-p^2), pi^(1/2) among them): `(-1/2)*(-3 - 6 p^2 - 2 cos(2 phi) + ...)`.
+  Each sum factor is now factored alone (its integer content out, its own sign): `(1/2)*(3 + 2 cos(2 phi) + 6 p^2 -
+  4 cos(2 phi) p^2)`.
+- `function_sign(re(klein_invariant_j(x + i)), x)` is `indeterminate` by the witnesses of round 39: J has period 1,
+  J(i) = 1 and J(1/2 + i) = -0.0518 (30 digits). Gap (older): `function_sign(klein_invariant_j(i (x^2 + 1)), x)` is
+  `indeterminate` although J is real and >= 1 on the imaginary axis; not traced.

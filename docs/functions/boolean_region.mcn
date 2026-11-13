@@ -25,7 +25,7 @@ area(boolean_region((a, b) => a and not(b), [rectangle(), rectangle([1/2, 1/2])]
 #% cell
 area(boolean_region(xor, [disk([0, 0], 1), disk([1, 0], 1)]))
 #% output
-#= 3.826236361213296
+#= 3.8262363612132932
 
 #% section
 # See also

@@ -177,19 +177,35 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
     let value = fx.eval(fx.h.app(head, &centers))?;
     // `around` of a real argument with a complex value (acoth(0.9), the inverse Gudermannian beyond pi/2): the value
     // with the spread |f'(x)| dx of the first order
+    // A machine value with an imaginary part need not be a complex value: a real function evaluated through complex
+    // intermediates (a hypergeometric function beyond its branch point that is a rational function there, e^(i pi)
+    // in a spherical harmonic) gives an imaginary part of rounding size. Whether the value is real is decided at the
+    // exact centre, at 30 digits: an imaginary part that is exactly 0 makes the value real, one that is decided
+    // nonzero keeps it complex, and an undecided one leaves the call unevaluated.
+    let mut real_value = None;
     let complex_value = if centered || machine(fx, value)?.is_some() {
         None
     } else {
         let (re, im) = (machine(fx, fx.call("re", &[value]))?, machine(fx, fx.call("im_part", &[value]))?);
         match (re, im) {
-            (Some(a), Some(b)) if a.is_finite() && b.is_finite() && unc.iter().flatten().count() == 1 => Some(fx.eval(fx.call("n", &[value]))?),
+            (Some(a), Some(b)) if a.is_finite() && b.is_finite() && unc.iter().flatten().count() == 1 => {
+                match real_at_exact_centre(fx, head, &centers)? {
+                    Some(Ok(r)) => {
+                        real_value = Some(r);
+                        None
+                    }
+                    Some(Err(())) => Some(fx.eval(fx.call("n", &[value]))?),
+                    None => return Ok(None),
+                }
+            }
             _ => None,
         }
     };
-    let v = match (machine(fx, value)?, complex_value) {
-        (Some(v), _) => v,
-        (None, Some(_)) => 0.0,
-        (None, None) => return Ok(None),
+    let v = match (machine(fx, value)?, real_value, complex_value) {
+        (Some(v), _, _) => v,
+        (None, Some(r), _) => r,
+        (None, None, Some(_)) => 0.0,
+        (None, None, None) => return Ok(None),
     };
     if centered {
         if let Some(r) = centered_image(fx, head, &centers, &unc)? {
@@ -249,7 +265,8 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
             let s = match machine(fx, at)? {
                 Some(s) if s.is_finite() => s,
                 // a complex slope (a real argument, a complex value): its modulus
-                _ if complex_value.is_some() => match machine(fx, fx.call("abs", &[at]))? {
+                // (for a real value, the slope's imaginary part is of rounding size too)
+                _ if complex_value.is_some() || real_value.is_some() => match machine(fx, fx.call("abs", &[at]))? {
                     Some(s) if s.is_finite() => s,
                     _ => return Ok(None),
                 },
@@ -270,6 +287,23 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
     let spread = if centered { var2 } else { var2.sqrt() };
     let value = complex_value.unwrap_or_else(|| fx.real(v));
     Ok(Some(fx.call(kind, &[value, fx.real(spread)])))
+}
+
+/// Whether `head` at the exact values of the centres (machine numbers taken as the binary rationals they are) is
+/// real, at 30 digits: `Ok(value)` (rounded to a machine number) when its imaginary part is exactly 0, `Err(())`
+/// when that part is decided nonzero, `None` when it is not decided (a ball containing 0) or there is no value.
+fn real_at_exact_centre<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>]) -> Res<Option<Result<f64, ()>>> {
+    let exact: Vec<T<'h>> = centers
+        .iter()
+        .map(|&c| if fx.num(c).is_some_and(|n| !n.is_exact()) { fx.call("set_precision", &[c, fx.inf()]) } else { c })
+        .collect();
+    let w = fx.eval(fx.call("n", &[fx.h.app(head, &exact), fx.int(30)]))?;
+    let im = fx.eval(fx.call("im_part", &[w]))?;
+    if fx.is_int(im, 0) {
+        return Ok(machine(fx, w)?.filter(|r| r.is_finite()).map(Ok));
+    }
+    let nonzero = fx.eval(fx.call("greater", &[fx.call("abs", &[im]), fx.int(0)]))?;
+    Ok((nonzero == fx.sym("true")).then_some(Err(())))
 }
 
 /// `head` of several real centered intervals (at most four) as the hull of its values at two corners of the box,

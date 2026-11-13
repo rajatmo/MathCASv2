@@ -42,12 +42,12 @@ n(log_base(3, 7))
 # Possible issues
 
 #% text
-# A machine real goes through `log(x)/log(b)`, so the last digit can be off:
+# A machine real gives the correctly rounded quotient of the logarithms (computed to 40 digits and rounded once), so a power of the base comes out exact:
 
 #% cell
 log_base(10, 0.001)
 #% output
-#= -2.9999999999999996
+#= -3.0
 
 #% text
 # A reciprocal power is not yet recognised as exact:

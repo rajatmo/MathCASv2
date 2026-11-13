@@ -231,7 +231,7 @@ find_root(x^2 + 1, [x, 1])
 #% cell
 find_root(1/x, [x, 1])
 #% output
-#! failure(not_converged, find_root, [x -> 1.2676506002282294e30], 6.338253001141147e29)
+#! failure(not_converged, find_root, [x -> 1688849860263936.0], 562949953421312.0)
 
 #% text
 # At a multiple root the function is flat and only about half of the digits are right:
