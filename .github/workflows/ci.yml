@@ -24,7 +24,9 @@ jobs:
   windows:
     name: Windows (tests, clippy)
     runs-on: windows-latest
-    timeout-minutes: 90
+    # a build without a cached target folder takes about 85 minutes (clippy, the suite, the documentation pages);
+    # the limit leaves room for it and for saving the cache, so that the next run is a warm one
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
       - name: Rust toolchain
