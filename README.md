@@ -1,7 +1,7 @@
 # MathCAS v2
 
 MathCAS is a free computer algebra system: exact and symbolic mathematics, numbers to any precision, plots, and a
-notebook to work in. It runs on Windows and Linux, and everything in it is one program you can read and build.
+notebook to work in. It runs on Windows, Linux and macOS, and everything in it is one program you can read and build.
 
 ![A notebook session: an exact integral typed with a space for the product, input with a power and a fraction, a
 plot with coordinate read-outs, a cubic solved, and a 3D surface in the dark theme](docs/media/workflow.gif)
@@ -51,6 +51,7 @@ Download the latest release from the repository's **Releases** page.
 | Windows (x64) | `MathCAS-v2-<version>-win-x64.zip` | unpack anywhere and run `mc-notebook.exe` |
 | Linux (x64) | `MathCAS-v2-<version>-linux-x64.AppImage` | `chmod +x` it and run it; `<AppImage> repl` starts the REPL |
 | Linux (x64) | `MathCAS-v2-<version>-linux-x64.tar.gz` | unpack and run `./install.sh` (per user, no root needed) |
+| macOS (Apple Silicon) | `MathCAS-v2-<version>-macos-arm64.dmg` | open the image and drag the application to Applications; the first launch needs Open from the context menu (the application is not notarized) |
 
 The `nightly` pre-release is rebuilt from every push to `main`.
 
@@ -159,7 +160,7 @@ The [changelog](CHANGELOG.md) lists what each release fixed.
 
 MathCAS is a Rust workspace: 62 crates, about 390,000 lines. A recent stable Rust toolchain is all you need. The
 notebook uses the system's graphics drivers (Direct3D 12 or OpenGL on Windows; Vulkan or OpenGL with Wayland or X11
-on Linux).
+on Linux; Metal on macOS). The compiler version is pinned in `rust-toolchain.toml`.
 
 ```bash
 cargo build --release                             # everything
@@ -170,13 +171,15 @@ cargo run --release -p mc-docs --bin mc-docs-pages -- check   # the documentatio
 ```
 
 `tools/test.ps1` runs the suite on every core with progress and a time and memory limit per test binary. CI builds
-and tests Windows and Linux on every push ([ci.yml](.github/workflows/ci.yml)).
+and tests Windows, Linux and macOS on every push ([ci.yml](.github/workflows/ci.yml)).
 
 **Packages**
 - **Windows:** `tools/dist.ps1` builds a release folder; `tools/package.ps1` builds the installer (needs Inno
   Setup 6) and the zip.
 - **Linux:** `packaging/linux/build-tarball.sh` builds the tarball and `packaging/linux/build-appimage.sh` the
   AppImage (needs `appimagetool`).
+- **macOS:** `packaging/macos/build-app.sh` builds the application bundle and the disk image, and
+  `packaging/macos/smoke.sh` tests an image.
 - **On GitHub:** a push to `main` publishes the `nightly` pre-release; a tag `v<version>` publishes a numbered
   release with that version's changelog.
 

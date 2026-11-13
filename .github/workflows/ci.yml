@@ -1,5 +1,5 @@
-# Tests and lints on every push and pull request: the whole workspace on Windows and on Linux (test suite, clippy with
-# warnings as errors, the documentation pages); both jobs are required. The test suite includes the licence check of
+# Tests and lints on every push and pull request: the whole workspace on Windows, on Linux and on macOS (test suite,
+# clippy with warnings as errors; on Windows also the documentation pages); all jobs are required. The test suite includes the licence check of
 # the shipped dependencies (crates/mc-bench/tests/notices.rs). Packages come from nightly.yml (every push to main,
 # the rolling `nightly` pre-release) and release.yml (tags v<version>), both through packages.yml.
 name: CI
@@ -69,3 +69,25 @@ jobs:
       - name: Test suite
         run: cargo test --release --locked --workspace --no-fail-fast
       # the page outputs are recorded on Windows (machine-real last bits and OS error texts differ); checked there
+
+  macos:
+    name: macOS (tests, clippy)
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal --component clippy && rustup default stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-ci-${{ hashFiles('Cargo.lock') }}
+          restore-keys: macos-ci-
+      - name: Clippy
+        run: cargo clippy --release --locked --workspace --all-targets -- -D warnings
+      - name: Test suite
+        run: cargo test --release --locked --workspace --no-fail-fast

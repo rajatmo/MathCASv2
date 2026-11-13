@@ -7,7 +7,9 @@
 //! committed memory. Other Unix systems do not apply `RLIMIT_DATA` to `mmap`, so there the limit is `RLIMIT_AS`.
 use super::{supervise, Container, Guard, GuardLimits, GuardReport};
 use std::io;
-use std::os::unix::process::{CommandExt, ExitStatusExt};
+#[cfg(not(target_vendor = "apple"))]
+use std::os::unix::process::CommandExt;
+use std::os::unix::process::ExitStatusExt;
 use std::process::{Child, Command, ExitStatus};
 
 /// `ru_maxrss` is in kibibytes on Linux and the BSDs, in bytes on Apple systems.
@@ -25,8 +27,16 @@ impl Guard for RlimitGuard {
         "rlimit"
     }
     fn enforces_memory(&self) -> bool {
-        true
+        // Apple systems refuse an address-space limit below what a process already maps (`setrlimit` gives
+        // "invalid argument") and apply no data limit to `mmap`: there the guard enforces the timeout only and
+        // still reports the peak.
+        !cfg!(target_vendor = "apple")
     }
+    #[cfg(target_vendor = "apple")]
+    fn run(&self, cmd: &mut Command, limits: &GuardLimits) -> io::Result<GuardReport> {
+        supervise(cmd, limits, &mut Rlimit { peak: None }, false)
+    }
+    #[cfg(not(target_vendor = "apple"))]
     fn run(&self, cmd: &mut Command, limits: &GuardLimits) -> io::Result<GuardReport> {
         #[cfg(any(target_os = "linux", target_os = "android"))]
         let resource = libc::RLIMIT_DATA;
@@ -108,7 +118,9 @@ mod tests {
         cmd.args(["-c", &format!("ulimit {flag}")]);
         let report = RlimitGuard.run(&mut cmd, &limits).expect("sh runs");
         assert_eq!(report.exit, Exit::Code(0), "{report:?}");
-        assert_eq!(report.stdout.trim(), "65536", "{report:?}");
+        if RlimitGuard.enforces_memory() {
+            assert_eq!(report.stdout.trim(), "65536", "{report:?}");
+        }
         assert!(report.peak_bytes.is_some_and(|p| p > 0), "{report:?}");
     }
 

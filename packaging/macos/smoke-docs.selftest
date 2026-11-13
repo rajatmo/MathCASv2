@@ -1,0 +1,13 @@
+# mc-docs self-test for the macOS smoke run (packaging/macos/smoke.sh): home, a search, a function page.
+size 1000 700
+wait 10
+go home
+shot home
+search integrate
+wait 6
+go page:integrate
+expand
+wait 6
+shot integrate
+log done
+quit

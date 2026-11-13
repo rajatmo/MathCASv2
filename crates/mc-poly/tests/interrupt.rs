@@ -30,10 +30,14 @@ fn long_kernels_stop() {
         // a large sparse product through the heap
         "expand((1 + x + y^3 + z^7 + t^13 + u^29 + v^31)^24)",
         // a long factorisation (many modular factors to recombine)
-        "factor(expand((x^200 + 2x + 1)*(x^100 - 3x^2 + 7)*(x^50 + x + 1)*(x^25 + 3)))",
+        "factor(expand((x^400 + 2x + 1)*(x^200 - 3x^2 + 7)*(x^100 + x + 1)*(x^50 + 3)))",
     ] {
         let (out, took) = interrupted(&mut s, src, after);
         assert!(took < Duration::from_secs(5), "{src} stopped after {took:?}");
+        // a machine fast enough to finish before the interrupt was sent has nothing to stop
+        if took < after {
+            continue;
+        }
         assert!(out.starts_with("failure(interrupted"), "{src}: {}", &out[..out.len().min(200)]);
     }
     // the session is usable afterwards

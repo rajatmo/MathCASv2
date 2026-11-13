@@ -107,7 +107,9 @@ fn host_isa() -> Result<cranelift_codegen::isa::OwnedTargetIsa, String> {
         let set = |fb: &mut settings::Builder, k: &str, v: &str| fb.set(k, v).map_err(|e| e.to_string());
         set(&mut fb, "opt_level", "speed")?;
         set(&mut fb, "use_colocated_libcalls", "false")?;
-        set(&mut fb, "is_pic", "true")?;
+        // position-independent code where the in-memory linker supports it (x86-64 only); elsewhere (64-bit ARM)
+        // calls and data go through absolute addresses
+        set(&mut fb, "is_pic", if cfg!(target_arch = "x86_64") { "true" } else { "false" })?;
         let isa = cranelift_native::builder().map_err(|e| format!("host: {e}"))?;
         isa.finish(settings::Flags::new(fb)).map_err(|e| e.to_string())
     })

@@ -1,5 +1,6 @@
-# Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1) and the Linux tarball
-# (packaging/linux/build-tarball.sh), smoke-test both, and upload them as the artifacts `windows` and `linux`.
+# Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball
+# (packaging/linux/build-tarball.sh) and the macOS disk image for Apple Silicon (packaging/macos/build-app.sh),
+# smoke-test each, and upload them as the artifacts `windows`, `linux` and `macos`.
 # Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
 name: Packages
 
@@ -83,5 +84,45 @@ jobs:
         with:
           name: linux
           path: dist-linux/MathCAS-v2-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  macos:
+    name: macOS disk image (Apple Silicon)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: macos-packages-${{ hashFiles('Cargo.lock') }}
+          restore-keys: macos-packages-
+      - name: Build the bundle and the image (packaging/macos/build-app.sh)
+        run: JOBS=4 bash packaging/macos/build-app.sh dist-macos
+      # the REPL, the kernel, and both windows in self-test mode (they type, evaluate, plot and save screenshots)
+      - name: Smoke test the image
+        run: bash packaging/macos/smoke.sh dist-macos/MathCAS-v2-*.dmg smoke-work
+      - name: Smoke test files, when it failed (logs and screenshots)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-smoke-failure
+          path: |
+            smoke-work/**/*.png
+            smoke-work/**/*.log
+            smoke-work/**/*.out
+          if-no-files-found: warn
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist-macos/MathCAS-v2-*.dmg
           if-no-files-found: error
           retention-days: 7

@@ -1,0 +1,17 @@
+# mc-notebook self-test for the macOS smoke run (packaging/macos/smoke.sh): type an input, evaluate it with the
+# kernel, then a plot. @OUT@ is replaced by the work folder.
+out @OUT@
+size 1000 680
+theme light
+wait 20
+formula smoke/integral
+keys "integrate(x^2 sin(x), x)"
+shot typed
+eval
+expect output "2*cos(x) - cos(x)*x^2 + 2*x*sin(x)"
+formula smoke/plot
+keys Ctrl+End "plot(sin(x), [x, 0, 6])"
+eval
+wait 30
+shot evaluated
+quit
