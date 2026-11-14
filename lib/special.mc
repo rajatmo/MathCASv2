@@ -417,6 +417,12 @@ rule ds_at(gamma(u_), 1, inf, k_) := ds_pieces([[exp(u*(log(u) - 1)), sqrt(2*pi)
 rule ds_at(factorial(u_), 1, inf, k_) := ds_pieces([[exp(u*(log(u) - 1)), sqrt(2*pi)*u^(1/2)*exp(ds_stirling(u, k))]])
 rule ds_at(digamma(u_), 1, inf, k_) := log(u) - 1/(2*u) - ds_sum(j => bernoulli_b(2*j)/(2*j*u^(2*j)), 1, floor(k/2) + 1)
 rule ds_at(harmonic_number(u_), 1, inf, k_) := log(u) + euler_gamma + 1/(2*u) - ds_sum(j => bernoulli_b(2*j)/(2*j*u^(2*j)), 1, floor(k/2) + 1)
+# Hurwitz zeta(s, u) ~ u^(1-s)/(s-1) + u^-s/2 + sum B_2j/(2j)! (s)_(2j-1) u^(1-s-2j) (DLMF 25.11.43), s != 1, and the
+# generalized harmonic numbers H(u, r) = zeta(r) - zeta(r, u + 1) = zeta(r) + u^-r - zeta(r, u)
+fn ds_hurwitz_tail(s, u, k) = ds_sum(j => bernoulli_b(2*j)/factorial(2*j)*pochhammer(s, 2*j - 1)*u^(1 - s - 2*j), 1, floor(k/2) + 1)
+rule ds_at(zeta(s_, u_), 2, inf, k_) := u^(1 - s)/(s - 1) + u^(-s)/2 + ds_hurwitz_tail(s, u, k) when not (s === 1)
+rule ds_at(harmonic_number(u_, r_), 1, inf, k_) := ds_at(harmonic_number(u), 1, inf, k) when r === 1
+rule ds_at(harmonic_number(u_, r_), 1, inf, k_) := zeta(r) + u^(1 - r)/(1 - r) + u^(-r)/2 - ds_hurwitz_tail(r, u, k) when not (r === 1)
 rule ds_at(polygamma(m_, u_), 2, inf, k_) := {
   (-1)^(m + 1)*(factorial(m - 1)/u^m + factorial(m)/(2*u^(m + 1)) + ds_sum(j => bernoulli_b(2*j)*factorial(2*j + m - 1)/(factorial(2*j)*u^(2*j + m)), 1, floor(k/2) + 1))
 } when is_integer(m) and m >= 1

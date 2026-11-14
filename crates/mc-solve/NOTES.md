@@ -307,3 +307,13 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   (power_mod); otherwise p(d) is computed exactly when it has at most 200000 bits, else no answer. The terms are read
   from the expanded factor directly (coefficient_rules is dense in the degree). Used for degrees above 60, and for
   equations above the degree limit of the other methods (x^999997 - 25 x^12345 + 24 x, a millisecond).
+
+## Round 40: powers of positive bases over the reals
+
+- `solve(c1 m1 == c2 m2, x, reals)` where c1, c2 are real numbers and m1, m2 products of powers `b^w` whose bases
+  are positive constants (or, recursively, such products: `(27^(2 x - 1))^(1/x)`) and whose exponents are rational
+  functions of the unknown with real coefficients: both sides keep one sign for every real x, so the equation is
+  `log|c1| + log m1 == log|c2| + log m2` with `log(b^w) = w log b` (`positive_logs`). Logarithms of rationals are
+  written over their prime factors (`log 27 = 3 log 3`) so that the result is exact (`x = 1/2, 3`). Sides of
+  opposite sign: no real solution. Solutions are checked in the given equation. Bases that may vanish or be
+  negative (`x^2`, `x`) are not taken.

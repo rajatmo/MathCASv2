@@ -1502,3 +1502,7 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   where the values are real (images of the unit circle) are not listed, so a domain read there is a subset.
 - The table sign of a function applies at any argument path (a sign holds pointwise) when the argument is real or the
   entry's real set is stated in the plane; monotonicity and convexity still need an affine argument.
+## Round 40: total derivatives with constants
+
+- `dt(e, x, constants: cs)` leaves the total derivatives of the remaining symbols as `dt(s, x, constants: cs)`
+  (`calc_dt_left`), and a second step (`dt(e, [x, 2], constants: cs)`) reads those back as `dt(s, x)` first.

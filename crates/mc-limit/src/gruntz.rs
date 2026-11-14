@@ -1172,6 +1172,19 @@ impl<'a, 'h> Gruntz<'a, 'h> {
             },
             ("acot", [u]) => return self.prep_call(cx, "atan", &[inv(*u)]),
             ("factorial", [u]) => return self.prep_call(cx, "gamma", &[b.add(&[*u, b.one()])]),
+            // H(n) = euler_gamma + digamma(n + 1); H(n, r) = zeta(r) - zeta(r, n + 1) for r != 1 (DLMF 25.11.4 with
+            // the sum written out)
+            ("harmonic_number", [n]) if !self.free(*n) => {
+                let Some(d) = self.prep_call(cx, "digamma", &[b.add(&[*n, b.one()])])? else { return Ok(None) };
+                b.add(&[b.heap().sym_term(b.heap().sym("euler_gamma")), d])
+            }
+            ("harmonic_number", [n, r]) if !self.free(*n) && self.free(*r) => {
+                if *r == b.one() {
+                    return self.prep_call(cx, "harmonic_number", &[*n]);
+                }
+                let Some(z) = self.prep_call(cx, "zeta", &[*r, b.add(&[*n, b.one()])])? else { return Ok(None) };
+                b.sub(call("zeta", &[*r]), z)
+            }
             ("binomial", [n, k]) => {
                 let g = |s: &mut Self, cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>| s.prep_call(cx, "gamma", &[a]);
                 let (Some(a), Some(c), Some(d)) = (

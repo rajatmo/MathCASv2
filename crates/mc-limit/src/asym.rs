@@ -216,6 +216,25 @@ pub(crate) fn at_infinity<'h>(b: &Build<'h>, f: &str, params: &[T<'h>], u: T<'h>
             }
             b.mul(&[b.int(if mi % 2 == 1 { 1 } else { -1 }), b.add(&terms)])
         }
+        ("zeta", [sv], 1) => {
+            // Hurwitz: zeta(s, u) ~ u^(1-s)/(s-1) + u^-s/2 + sum_k B_2k/(2k)! (s)_(2k-1) u^(1-s-2k), s != 1 (DLMF
+            // 25.11.43)
+            if *sv == b.one() {
+                return None;
+            }
+            let s1 = b.sub(*sv, b.one());
+            let mut terms = vec![b.mul(&[b.pow(u, b.neg(s1)), b.pow(s1, b.int(-1))]), b.mul(&[half, b.pow(u, b.neg(*sv))])];
+            for (k, &(p, q)) in BERNOULLI.iter().enumerate().take(n.min(MAX_TERMS)) {
+                let k = k + 1;
+                let mut c = vec![b.rat(p, q), b.pow(factorial(b, 2 * k), b.int(-1))];
+                for j in 0..(2 * k - 1) {
+                    c.push(b.add(&[*sv, b.int(j as i64)]));
+                }
+                c.push(b.pow(u, b.sub(b.int(1 - 2 * k as i64), *sv)));
+                terms.push(b.mul(&c));
+            }
+            b.add(&terms)
+        }
         ("zeta", [], 1) => {
             let mut terms = vec![b.one()];
             for k in 2..=(n.clamp(1, MAX_TERMS) + 1) {

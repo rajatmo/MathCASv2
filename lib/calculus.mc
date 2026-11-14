@@ -1468,12 +1468,17 @@ fn convolve(f, g, x, y; assumptions = automatic, generate_conditions = automatic
 # dt(e, x): the total derivative of e in x, every other symbol a function of x whose derivative is dt(s, x);
 # dt(e): the total differential, the sum of the partial derivatives in each symbol times dt(s); dt(e, x1, x2, ...)
 # in turn
-fn calc_dt1(e, x, cs) = {
+fn calc_dt1(e0, x, cs) = {
+  # (the constants of a left derivative are those of this call: dropped here, put back by calc_dt_left)
+  let e = rewrite(e0, dt(s_, t_, o_) :> dt(s, t))
   let ss = select(calc_syms(e), s => not (s === x) and count(cs, s) == 0)
   let rules = join([dt(s_, [x, k_]) :> derivative(k)(calc_dtf(s))(x), dt(s_, x) :> derivative(1)(calc_dtf(s))(x)], map(s => s -> calc_dtf(s)(x), ss))
   let r = d(rewrite(e, rules), x)
-  rewrite(r, [derivative(k_)(calc_dtf(s_))(t_) :> (if k == 1 then dt(s, t) else dt(s, [t, k])), calc_dtf(s_)(t_) :> s])
+  rewrite(r, [derivative(k_)(calc_dtf(s_))(t_) :> (if k == 1 then calc_dt_left(s, t, cs) else calc_dt_left(s, [t, k], cs)), calc_dtf(s_)(t_) :> s])
 }
+# the total derivative of a symbol, left as it is; with the constants it was taken under (they stay constants when the
+# derivative is evaluated again)
+fn calc_dt_left(s, t, cs) = if length(cs) == 0 then dt(s, t) else dt(s, t, constants: cs)
 rule dt(s_, t_) := 1 when is_symbol(s) and s === t
 # calc_nopat(e): whether e contains no pattern (rules of dt are built with dt(s_, x) on their left side)
 fn calc_nopat(e) = if is_atom(e) then true else not (head(e) === any) and every(apply(list, e), calc_nopat)

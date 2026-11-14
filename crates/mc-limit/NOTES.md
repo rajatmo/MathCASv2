@@ -53,3 +53,18 @@
   itself the principal value on the cut is kept.
 - A logarithm or root reaching its cut with an imaginary part whose sign is not decided (a parameter) or changes now
   gives no limit; before, the value on the cut was substituted, which could be the other side's.
+## Round 40: harmonic numbers and the Hurwitz zeta function at infinity
+
+- The limit walk writes `H(n) = euler_gamma + digamma(n + 1)` and `H(n, r) = zeta(r) - zeta(r, n + 1)` (r != 1, r free
+  of the variable); `zeta(s, u)` as u -> inf has the expansion `u^(1-s)/(s-1) + u^-s/2 + sum B_2k/(2k)! (s)_(2k-1)
+  u^(1-s-2k)` (DLMF 25.11.43). The same expansions are rules of the series helper in `lib/special.mc`
+  (`ds_hurwitz_tail`), so `series(harmonic_number(n, 1/2), n, inf, 3)` is `2 n^(1/2) + zeta(1/2) + 1/(2 n^(1/2)) -
+  1/(24 n^(3/2)) + O(n^(-7/2))`.
+
+## Round 40: limits from every direction of the plane
+
+- `limit`, `max_limit`, `min_limit` with `direction: complexes` at a finite point a: f(a) when f is continuous on the
+  plane at a (`continuous_at`): the variable, finite constants, sums, products, integer powers (a negative power
+  only of a base whose value at a is not 0), `c^u` for a constant c != 0, and exp, sin, cos, sinh, cosh, abs, re,
+  im_part, conjugate of continuous arguments. `max_limit`/`min_limit` also need a real value. Anything else (poles,
+  branch cuts, other functions) still declines.

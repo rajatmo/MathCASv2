@@ -551,7 +551,12 @@ impl mc_eval::Native for Native {
             }
             Fun::Table => {
                 let [eqs, a, spec] = args.as_slice() else { return Ok(Reply::Decline) };
-                let exact = rsolve::table(&mut sx, *eqs, *a, *spec)?;
+                let deps = option(h, &opts, "dependent_variables");
+                let exact = match rsolve::table(&mut sx, *eqs, *a, *spec)? {
+                    // a system of recurrences in several sequences
+                    None if deps.is_some() || sx.as_list(*a).is_some() => rsolve::table_system(&mut sx, *eqs, *a, *spec, deps)?,
+                    v => v,
+                };
                 // working_precision: d (an integer, or machine_precision): the values, computed exactly, rounded to d digits
                 match (exact, option(h, &opts, "working_precision")) {
                     (Some(v), Some(wp)) => match h.view(wp) {
@@ -684,12 +689,45 @@ fn shifted<'h>(sx: &mut Sx<'_, '_, '_, 'h>, g: T<'h>, k: T<'h>, s: T<'h>) -> Res
                 }
             }
         }
+        // an integral in k: indefinite, the antiderivative at k + s (the integrand shifted, a constant apart);
+        // definite with bounds free of k, a constant
+        if name == "integrate" && args.len() == 2 {
+            if args[1] == k {
+                let ks = sx.add(&[k, s])?;
+                let nb = sx.subst(args[0], k, ks)?;
+                return sx.eval(h.app(head, &[nb, k]));
+            }
+            if let Some(l) = sx.as_list(args[1]) {
+                if l.first() == Some(&k) && l[1..].iter().all(|&b| sx.free(b, k)) {
+                    return Ok(g);
+                }
+            }
+        }
         if name == "limit" && args.len() == 2 {
+            // k is the limit's own variable: bound, so the limit does not depend on it
             if let Some(&[x, p]) = sx.args_of(args[1], names::RULE) {
-                if !sx.free(p, k) {
-                    let xs = sx.add(&[x, s])?;
-                    let nb = sx.subst(args[0], x, xs)?;
-                    return sx.eval(h.app(head, &[nb, args[1]]));
+                if x == k && sx.free(p, k) {
+                    return Ok(g);
+                }
+            }
+            // a point p(k) that moves with k: the limit of F(k + s, x) at p(k + s); when p(k + s) = p(k) + s, written
+            // at the same point as the limit of F(k + s, x + s)
+            if let Some(&[x, p]) = sx.args_of(args[1], names::RULE) {
+                if !sx.free(p, k) && x != k {
+                    let ks = sx.add(&[k, s])?;
+                    let moved = sx.subst(p, k, ks)?;
+                    let d = sx.sub(moved, p)?;
+                    let d = sx.sub(d, s)?;
+                    let d = sx.ev("simplify", &[d])?;
+                    let body = sx.subst(args[0], k, ks)?;
+                    if d == sx.int(0) {
+                        let xs = sx.add(&[x, s])?;
+                        let nb = sx.subst(args[0], x, xs)?;
+                        let nb = sx.subst(nb, k, ks)?;
+                        return sx.eval(h.app(head, &[nb, args[1]]));
+                    }
+                    let to = sx.rule(x, moved);
+                    return sx.eval(h.app(head, &[body, to]));
                 }
             }
         }

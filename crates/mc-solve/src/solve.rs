@@ -248,6 +248,12 @@ fn nonpolynomial<'h>(
             let rules: Vec<(T<'h>, T<'h>)> = powers.iter().map(|&(b, n)| (b, env.ar.pow(y, n))).collect();
             (k, env.subst(eqs[0], &rules, m)?)
         } else {
+            // over the reals, two products of powers of positive bases (`2^x 5 == 3^(x^2)`): their logarithms
+            if env.cfg.reals {
+                if let Some(sols) = positive_logs(env, eqs[0], xs, m, depth)? {
+                    return Ok(Ok(sols));
+                }
+            }
             // a product of factors in different functions of the unknown (`sin(x) cos(x) == 0`): one by one
             if bad.len() <= 4 {
                 if let Some(sols) = factored_kernels(env, eqs, xs, bad, m, depth)? {
@@ -435,6 +441,179 @@ fn log_sum<'h>(env: &Env<'h>, e: T<'h>, xs: &[T<'h>], logs: &[T<'h>], m: &mut Me
         }
     }
     Ok(Some(out))
+}
+
+/// Over the reals: `e == 0` with `e = c1 m1 + c2 m2`, numbers c_i and products m_i of powers `b^w` whose bases are
+/// positive constants or (recursively) such products and whose exponents are real for real unknowns. Both
+/// sides of `c1 m1 == -c2 m2` are then positive (or both negative) for every real value of the unknowns, so the
+/// equation is equivalent to `log|c1| + log m1 == log|c2| + log m2`, with `log(b^w) = w log b` (exact for b > 0
+/// and real w). The logarithms of positive rationals are written over the primes, so that equal bases cancel.
+/// `None` when `e` has another form.
+fn positive_logs<'h>(env: &Env<'h>, e: T<'h>, xs: &[T<'h>], m: &mut Meter, depth: usize) -> WorkResult<Option<Vec<Solution<'h>>>> {
+    let h = env.h();
+    let terms: Vec<T<'h>> = match h.view(e) {
+        View::App { head, args } if head == env.hd.add => args.to_vec(),
+        _ => return Ok(None),
+    };
+    let [t1, t2] = terms.as_slice() else { return Ok(None) };
+    let mut sides = vec![];
+    for (i, &t) in [*t1, *t2].iter().enumerate() {
+        let (c, rest) = split_number(env, t);
+        // the second side moves to the right: -c2
+        let c = if i == 1 { env.ar.neg(c) } else { c };
+        let Some((re, im)) = env.machine(c) else { return Ok(None) };
+        if im != 0.0 || re == 0.0 {
+            return Ok(None);
+        }
+        let Some(l) = positive_log(env, rest, xs, m)? else { return Ok(None) };
+        sides.push((re > 0.0, abs_log(env, c), l));
+    }
+    if !env.contains_any(e, xs) {
+        return Ok(None);
+    }
+    // a positive side equal to a negative one: no real solution
+    if sides[0].0 != sides[1].0 {
+        return Ok(Some(vec![]));
+    }
+    let lhs = env.ar.add(&[sides[0].1, sides[0].2]);
+    let rhs = env.ar.add(&[sides[1].1, sides[1].2]);
+    let leq = env.ar.sub(lhs, rhs);
+    let leq = env.together(leq, m)?;
+    if !env.contains_any(leq, xs) {
+        return Ok(None);
+    }
+    let sols = match solve_eqs(env, &[leq], xs, m, depth + 1)? {
+        Ok(s) => s,
+        Err(_) => return Ok(None),
+    };
+    let mut out = vec![];
+    for s in sols {
+        if !out.contains(&s) && !refuted(env, &[e], xs, &s, m)? {
+            out.push(s);
+        }
+    }
+    Ok(Some(out))
+}
+
+/// `t` as (number, rest): the numeric factor of a product.
+fn split_number<'h>(env: &Env<'h>, t: T<'h>) -> (T<'h>, T<'h>) {
+    let h = env.h();
+    if env.ar.num(t).is_some() {
+        return (t, env.int(1));
+    }
+    if let View::App { head, args } = h.view(t) {
+        if head == env.hd.mul {
+            let (nums, rest): (Vec<T<'h>>, Vec<T<'h>>) = args.iter().partition(|&&a| env.ar.num(a).is_some());
+            if !nums.is_empty() {
+                return (env.ar.mul(&nums), env.ar.mul(&rest));
+            }
+        }
+    }
+    (env.int(1), t)
+}
+
+/// `log(abs(c))` for a real number c, a rational written over its prime factors.
+fn abs_log<'h>(env: &Env<'h>, c: T<'h>) -> T<'h> {
+    if let Some(q) = env.ar.num(c).and_then(|x| x.as_rat().cloned()) {
+        let q = if q.cmp_value(&mc_arith::num::Rat::from_i64(0)).is_lt() { q.neg() } else { q };
+        return rational_log(env, &q);
+    }
+    env.call("log", &[env.call("abs", &[c])])
+}
+
+/// `log(q)` for a positive rational q: `sum e_p log(p)` over the primes p below 10^6 dividing it, the remaining
+/// cofactor (if any) as one more logarithm.
+fn rational_log<'h>(env: &Env<'h>, q: &mc_arith::num::Rat) -> T<'h> {
+    let num = q.num.to_i64();
+    let den = q.den.to_u128().and_then(|d| i64::try_from(d).ok());
+    let (Some(num), Some(den)) = (num, den) else {
+        return env.call("log", &[env.ar.number(&mc_arith::Num::rat(q.clone()))]);
+    };
+    let mut parts: Vec<T<'h>> = vec![];
+    for (v, sign) in [(num, 1i64), (den, -1i64)] {
+        let mut v = v.unsigned_abs();
+        let mut p = 2u64;
+        while p * p <= v && p < 1_000_000 {
+            let mut k = 0i64;
+            while v % p == 0 {
+                v /= p;
+                k += 1;
+            }
+            if k > 0 {
+                parts.push(env.ar.mul(&[env.int(sign * k), env.call("log", &[env.int(p as i64)])]));
+            }
+            p += 1;
+        }
+        if v > 1 {
+            parts.push(env.ar.mul(&[env.int(sign), env.call("log", &[env.int(v as i64)])]));
+        }
+    }
+    env.ar.add(&parts)
+}
+
+/// `log(t)` when `t` is positive for every real value of the unknowns: positive constants, `e`, products of such,
+/// and powers `b^w` of such bases with exponents real for real unknowns (no `im` in them); `None` otherwise.
+fn positive_log<'h>(env: &Env<'h>, t: T<'h>, xs: &[T<'h>], m: &mut Meter) -> WorkResult<Option<T<'h>>> {
+    let h = env.h();
+    m.step(1)?;
+    if env.is_sym(t, "e") {
+        return Ok(Some(env.int(1)));
+    }
+    if !env.contains_any(t, xs) {
+        if let Some(q) = env.ar.num(t).and_then(|x| x.as_rat().cloned()) {
+            if q.cmp_value(&mc_arith::num::Rat::from_i64(0)).is_gt() {
+                return Ok(Some(rational_log(env, &q)));
+            }
+            return Ok(None);
+        }
+        if env.contains_any(t, &[env.sym("im")]) {
+            return Ok(None);
+        }
+        return Ok(match env.machine(t) {
+            Some((re, im)) if im == 0.0 && re > 0.0 => Some(env.call("log", &[t])),
+            _ => None,
+        });
+    }
+    match h.view(t) {
+        View::App { head, args } if head == env.hd.mul => {
+            let mut parts = vec![];
+            for &a in args {
+                let Some(l) = positive_log(env, a, xs, m)? else { return Ok(None) };
+                parts.push(l);
+            }
+            Ok(Some(env.ar.add(&parts)))
+        }
+        View::App { head, args: &[b, w] } if head == env.hd.pow => {
+            if !real_rational(env, w, xs) {
+                return Ok(None);
+            }
+            let Some(lb) = positive_log(env, b, xs, m)? else { return Ok(None) };
+            Ok(Some(env.ar.mul(&[w, lb])))
+        }
+        _ => Ok(None),
+    }
+}
+
+/// Is `w` real for every real value of the unknowns where it is defined? Rational functions of the unknowns
+/// with real constant coefficients (rationals, or closed constants with a real machine value).
+fn real_rational<'h>(env: &Env<'h>, w: T<'h>, xs: &[T<'h>]) -> bool {
+    let h = env.h();
+    if xs.contains(&w) {
+        return true;
+    }
+    if !env.contains_any(w, xs) {
+        if let Some(n) = env.ar.num(w) {
+            return n.as_rat().is_some() || matches!(env.machine(w), Some((_, im)) if im == 0.0);
+        }
+        return !env.contains_any(w, &[env.sym("im")]) && matches!(env.machine(w), Some((_, im)) if im == 0.0);
+    }
+    match h.view(w) {
+        View::App { head, args } if head == env.hd.add || head == env.hd.mul => args.iter().all(|&a| real_rational(env, a, xs)),
+        View::App { head, args: &[b, k] } if head == env.hd.pow => {
+            env.ar.num(k).is_some_and(|n| n.as_int().is_some()) && real_rational(env, b, xs)
+        }
+        _ => false,
+    }
 }
 
 /// `v` under the condition `c`: `conditional_expression(v, c)`, conjoined with the condition v already has.

@@ -247,3 +247,27 @@ differences and ratios, generating functions and convergence, interruption.
   unchanged.
 - `generating_function(n^k g(n), n, z)` is `(z d/dz)^k G` also when G stays held (its derivative stays as `d(G, z)`);
   a polynomial factor that is a sum is expanded first.
+
+## Round 40: sums of non-integer powers
+
+- `sum(c (k + a)^s, [k, lo, hi])` with c, s free of k, s a non-integer number or a symbol, and `lo + a = j` a
+  positive integer: `c (H(hi + a, -s) - H(j - 1, -s))` with the generalized harmonic numbers `H(n, r) = sum_{m=1}^n
+  m^-r` (`power_finite`), checked like every finite sum. With the expansions of H(n, r) at infinity in the
+  series library this gives `asymptotic_sum(1/sqrt(k), [k, 1, n], [n, inf, 3])`.
+
+## Round 40: tables of systems of recurrences
+
+- `recurrence_table(eqs, a, spec, dependent_variables: [a, b, ...])` and `recurrence_table(eqs, [a, b, ...], spec)`
+  (`table_system`): each equation that mentions the index is solved (by `solve`) for its one occurrence of highest
+  shift, which must be a single sequence; the initial values `a(k) == v` seed a table of known values, and n runs
+  upward, each step giving its value once every value it reads is known (repeated at one n while any step gives a
+  value, so steps that read each other's values at the same n are ordered by themselves). A list target gives
+  `[a(k), b(k), ...]` per k. An equation with two occurrences at its highest shift (an implicit system) is not run.
+
+## Round 40: shifts of calls that bind the variable
+
+- `discrete_shift` of `integrate(g, k)` (indefinite in k) is `integrate(g(k + s), k)` (the antiderivative at k + s,
+  up to a constant); of a definite integral in k with bounds free of k, and of `limit(g, k -> p)` with p free of k,
+  the call itself (k is bound). A limit whose point p(k) moves with k: `limit(g(k + s, x + s), x -> p(k))` when
+  p(k + s) = p(k) + s, else `limit(g(k + s, x), x -> p(k + s))`; before, the body was shifted in x only, so its
+  other occurrences of k did not move (a wrong value).

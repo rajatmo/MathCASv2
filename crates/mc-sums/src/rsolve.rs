@@ -238,6 +238,168 @@ pub fn table<'h>(sx: &mut Sx<'_, '_, '_, 'h>, eqs: T<'h>, a: T<'h>, spec: T<'h>)
     iterate(sx, &p, a, n, pl)
 }
 
+/// One recurrence of a system: the sequence it determines at its highest shift, that value as a function of the
+/// others (in the placeholders), and the occurrences `(sequence, shift, placeholder)` it reads.
+struct Step<'h> {
+    lead: T<'h>,
+    lead_shift: i64,
+    value: T<'h>,
+    reads: Vec<(T<'h>, i64, T<'h>)>,
+}
+
+/// `recurrence_table(eqs, a, spec, dependent_variables: [a, b, ...])` and `recurrence_table(eqs, [a, b, ...], spec)`:
+/// a system of recurrences, each equation solved for the one occurrence of highest shift (a single sequence there),
+/// run forward from the initial values `a(k) == v`. A list of sequences gives the list `[a(k), b(k), ...]` for each
+/// k. `None` when an equation has no unique highest occurrence, is not solvable for it, or a value is never reached.
+pub fn table_system<'h>(sx: &mut Sx<'_, '_, '_, 'h>, eqs: T<'h>, target: T<'h>, spec: T<'h>, deps: Option<T<'h>>) -> Res<Option<T<'h>>> {
+    let h = sx.h();
+    let wanted: Vec<T<'h>> = match sx.as_list(target) {
+        Some(xs) => xs.to_vec(),
+        None => vec![target],
+    };
+    let mut seqs: Vec<T<'h>> = match deps {
+        Some(d) => match sx.as_list(d) {
+            Some(xs) => xs.to_vec(),
+            None => vec![d],
+        },
+        None => wanted.clone(),
+    };
+    for &w in &wanted {
+        if !seqs.contains(&w) {
+            seqs.push(w);
+        }
+    }
+    if seqs.iter().any(|&s| !matches!(h.view(s), View::Sym(_))) || seqs.len() > 32 {
+        return Ok(None);
+    }
+    let s = some!(sx.as_list(spec)).to_vec();
+    let n = match s.first() {
+        Some(&n0) if matches!(h.view(n0), View::Sym(_)) => n0,
+        _ => return Ok(None),
+    };
+    let mut all = vec![];
+    flatten(sx, eqs, &mut all);
+    let mut known: rustc_hash::FxHashMap<(T<'h>, i64), T<'h>> = Default::default();
+    let mut steps: Vec<Step<'h>> = vec![];
+    for (ei, e) in all.into_iter().enumerate() {
+        let View::App { head, args: &[l, r] } = h.view(e) else { return Ok(None) };
+        if head != sx.sym("equal") {
+            return Ok(None);
+        }
+        let mut occ: Vec<(T<'h>, T<'h>, T<'h>)> = vec![];
+        for &f in &seqs {
+            for (arg, term) in occurrences(sx, e, f) {
+                occ.push((f, arg, term));
+            }
+        }
+        if occ.is_empty() {
+            return Ok(None);
+        }
+        if occ.iter().all(|o| sx.free(o.1, n)) {
+            // an initial value a(k) == v
+            let (k, v) = match (h.view(l), h.view(r)) {
+                (View::App { head: hl, args: &[k] }, _) if seqs.contains(&hl) => ((hl, k), r),
+                (_, View::App { head: hr, args: &[k] }) if seqs.contains(&hr) => ((hr, k), l),
+                _ => return Ok(None),
+            };
+            if seqs.iter().any(|&f| !occurrences(sx, v, f).is_empty()) {
+                return Ok(None);
+            }
+            known.insert((k.0, some!(sx.as_int(k.1))), v);
+            continue;
+        }
+        let mut reads = vec![];
+        let mut pairs = vec![];
+        for (i, &(f, arg, term)) in occ.iter().enumerate() {
+            let d = sx.sub(arg, n)?;
+            let d = sx.ev("expand", &[d])?;
+            let shift = some!(sx.as_int(d));
+            let y = sx.sym(&format!("rsolve$s{ei}_{i}"));
+            reads.push((f, shift, y));
+            pairs.push((term, y));
+        }
+        let top = reads.iter().map(|r| r.1).max().unwrap_or(0);
+        let leads: Vec<usize> = (0..reads.len()).filter(|&i| reads[i].1 == top).collect();
+        let [li] = leads.as_slice() else { return Ok(None) };
+        let (lead, lead_shift, ly) = reads.remove(*li);
+        let d = sx.sub(l, r)?;
+        let d = replace(sx, d, &pairs);
+        let eq = sx.call("equal", &[d, sx.int(0)]);
+        let sol = sx.ev("solve", &[eq, ly])?;
+        let sols = some!(sx.as_list(sol)).to_vec();
+        let [one] = sols.as_slice() else { return Ok(None) };
+        let rule = some!(sx.as_list(*one).and_then(|r| r.first().copied()));
+        let View::App { args: &[_, value], .. } = h.view(rule) else { return Ok(None) };
+        steps.push(Step { lead, lead_shift, value, reads });
+    }
+    if steps.is_empty() || known.is_empty() {
+        return Ok(None);
+    }
+    let first = known.keys().map(|k| k.1).min().unwrap_or(1);
+    let (lo, hi, st) = match s.as_slice() {
+        [_, b] => (first, some!(sx.as_int(*b)), 1),
+        [_, a0, b] => (some!(sx.as_int(*a0)), some!(sx.as_int(*b)), 1),
+        [_, a0, b, c] => (some!(sx.as_int(*a0)), some!(sx.as_int(*b)), some!(sx.as_int(*c))),
+        _ => return Ok(None),
+    };
+    if st < 1 || hi < lo || hi - lo > MAX_STEPS {
+        return Ok(None);
+    }
+    // n runs upward; at each n every step whose inputs are known gives its value (repeated while one does, as a step
+    // may read a value another gives at the same n)
+    let max_shift = steps.iter().flat_map(|s| s.reads.iter().map(|r| r.1).chain([s.lead_shift])).max().unwrap_or(0);
+    let min_shift = steps.iter().flat_map(|s| s.reads.iter().map(|r| r.1).chain([s.lead_shift])).min().unwrap_or(0);
+    let n0 = first - max_shift;
+    let n1 = hi - min_shift;
+    if n1 - n0 > 2 * MAX_STEPS {
+        return Ok(None);
+    }
+    for nv in n0..=n1 {
+        loop {
+            let mut progress = false;
+            for stp in &steps {
+                sx.cx.tick(1)?;
+                let at = nv + stp.lead_shift;
+                if at > hi || known.contains_key(&(stp.lead, at)) {
+                    continue;
+                }
+                let mut rules = vec![sx.rule(n, sx.int(nv))];
+                let mut ready = true;
+                for &(f, sh, y) in &stp.reads {
+                    match known.get(&(f, nv + sh)) {
+                        Some(&v) => rules.push(sx.rule(y, v)),
+                        None => {
+                            ready = false;
+                            break;
+                        }
+                    }
+                }
+                if !ready {
+                    continue;
+                }
+                let v = sx.subst_all(stp.value, &rules)?;
+                if sx.bad(v) || sx.cost(v) > 100_000 {
+                    return Ok(None);
+                }
+                known.insert((stp.lead, at), v);
+                progress = true;
+            }
+            if !progress {
+                break;
+            }
+        }
+    }
+    let mut rows = vec![];
+    for k in (lo..=hi).step_by(st as usize) {
+        let mut row = vec![];
+        for &w in &wanted {
+            row.push(*some!(known.get(&(w, k))));
+        }
+        rows.push(if sx.as_list(target).is_some() { sx.list(&row) } else { row[0] });
+    }
+    Ok(Some(sx.list(&rows)))
+}
+
 /// `a(k)` at integer points by running the recurrence from the initial values.
 fn iterate<'h>(sx: &mut Sx<'_, '_, '_, 'h>, p: &Problem<'h>, a: T<'h>, n: T<'h>, pts: T<'h>) -> Res<Option<T<'h>>> {
     let lo = p.shifts.iter().map(|s| s.0).min().unwrap_or(0);

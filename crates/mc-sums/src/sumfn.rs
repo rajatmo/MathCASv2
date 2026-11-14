@@ -374,6 +374,12 @@ fn finite_term<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, h
         }
         return Ok(None);
     }
+    // c (k + a)^s with s not an integer: generalized harmonic numbers
+    if let Some(s) = power_finite(sx, f, k, lo, hi)? {
+        if verify::check_sum(sx, f, k, lo, hi, s)? {
+            return Ok(Some(s));
+        }
+    }
     // Zeilberger in a variable of the upper bound
     let syms = verify::symbols(sx, hi, &[k]);
     if let [n] = syms.as_slice() {
@@ -384,6 +390,41 @@ fn finite_term<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, h
         }
     }
     Ok(None)
+}
+
+/// `sum_{k=lo}^{hi} c (k + a)^s` for c and s free of k, s not an integer and `lo + a` a positive integer j: the
+/// generalized harmonic numbers `c (H(hi + a, -s) - H(j - 1, -s))`, `H(n, r) = sum_{m=1}^n m^-r`.
+fn power_finite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<'h>) -> Res<Option<T<'h>>> {
+    let h = sx.h();
+    let (c, p) = match h.view(f) {
+        View::App { head, args } if head == sx.sym(names::MUL) => {
+            let (free, dep): (Vec<T<'h>>, Vec<T<'h>>) = args.iter().partition(|&&a| sx.free(a, k));
+            let [p] = dep.as_slice() else { return Ok(None) };
+            (sx.mul(&free)?, *p)
+        }
+        _ => (sx.int(1), f),
+    };
+    let View::App { head, args: &[b, s] } = h.view(p) else { return Ok(None) };
+    if head != sx.sym(names::POW) || !sx.free(s, k) || sx.as_int(s).is_some() {
+        return Ok(None);
+    }
+    // an exponent that is an integer for every value is left to the rational methods
+    if !matches!(h.view(s), View::Rational { .. } | View::Real(_) | View::Ball { .. } | View::Sym(_)) {
+        return Ok(None);
+    }
+    let a = sx.sub(b, k)?;
+    let a = sx.ev("expand", &[a])?;
+    let Some(a) = sx.as_int(a) else { return Ok(None) };
+    let Some(j) = sx.as_int(lo).map(|l| l + a) else { return Ok(None) };
+    if j < 1 {
+        return Ok(None);
+    }
+    let r = sx.mul(&[sx.int(-1), s])?;
+    let top = sx.plus(hi, a)?;
+    let hb = sx.ev("harmonic_number", &[top, r])?;
+    let ha = sx.ev("harmonic_number", &[sx.int(j - 1), r])?;
+    let d = sx.sub(hb, ha)?;
+    Ok(Some(sx.mul(&[c, d])?))
 }
 
 /// `z(hi + 1) - z(lo)` with `z = R t`: the upper end as `(1 + R(hi)) t(hi)`; when `z(lo)` is singular, the first

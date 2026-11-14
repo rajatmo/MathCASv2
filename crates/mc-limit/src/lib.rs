@@ -788,6 +788,84 @@ fn along<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>
     })
 }
 
+/// `limit(f, x -> a, direction: complexes)` (and `max_limit`, `min_limit`, `real` set: the value must be real) for a
+/// finite a: `f(a)` when f is continuous on the plane at a, i.e. built from the variable, constants, sums, products,
+/// powers with integer exponents (a negative one only of a base that is not 0 at a), and the functions continuous
+/// on the whole plane (exp, sin, cos, sinh, cosh, abs, re, im_part, conjugate). `None` otherwise.
+fn plane<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>, real: bool) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let View::App { head, args: &[x, a] } = h.view(spec) else { return Ok(None) };
+    if b.sym_of(head) != Some(h.sym(names::RULE)) || !matches!(h.view(x), View::Sym(_)) || !is_free(b, a, x) {
+        return Ok(None);
+    }
+    for bad in ["inf", "complex_infinity", "indeterminate"] {
+        if !is_free(b, a, h.sym_term(h.sym(bad))) {
+            return Ok(None);
+        }
+    }
+    if !continuous_at(cx, b, f, x, a)? {
+        return Ok(None);
+    }
+    let v = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, a])]))?;
+    for bad in ["inf", "complex_infinity", "indeterminate", names::FAILURE] {
+        if !is_free(b, v, h.sym_term(h.sym(bad))) {
+            return Ok(None);
+        }
+    }
+    if real {
+        let im = cx.eval(b.call("im_part", &[v]))?;
+        if sign(cx, b, im)? != Some(0) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(v))
+}
+
+/// Is `f` (a term in `x`) continuous on the complex plane at `x = a`? See [`plane`].
+fn continuous_at<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, x: T<'h>, a: T<'h>) -> Res<bool> {
+    const CONTINUOUS: &[&str] = &["exp", "sin", "cos", "sinh", "cosh", "abs", "re", "im_part", "conjugate"];
+    let h = b.heap();
+    cx.tick(1)?;
+    if is_free(b, f, x) {
+        // a constant: finite
+        return Ok(["inf", "complex_infinity", "indeterminate"].iter().all(|s| is_free(b, f, h.sym_term(h.sym(s)))));
+    }
+    if f == x {
+        return Ok(true);
+    }
+    let View::App { head, args } = h.view(f) else { return Ok(false) };
+    let Some(name) = b.sym_of(head).map(|s| h.sym_name(s).to_string()) else { return Ok(false) };
+    match (name.as_str(), args) {
+        (names::ADD | names::MUL, _) => {
+            for &u in args {
+                if !continuous_at(cx, b, u, x, a)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        // c^u = exp(u log c) for a constant c != 0 (e^u among them)
+        (names::POW, &[base, u]) if is_free(b, base, x) && !matches!(h.view(u), View::Int(_)) => {
+            let m = cx.eval(b.call("abs", &[base]))?;
+            Ok(sign(cx, b, m)? == Some(1) && continuous_at(cx, b, u, x, a)?)
+        }
+        (names::POW, &[base, k]) => {
+            let View::Int(k) = h.view(k) else { return Ok(false) };
+            if !continuous_at(cx, b, base, x, a)? {
+                return Ok(false);
+            }
+            if k >= 0 {
+                return Ok(true);
+            }
+            let v = cx.eval(h.call(h.sym("rewrite"), &[base, h.call(h.sym(names::RULE), &[x, a])]))?;
+            let m = cx.eval(b.call("abs", &[v]))?;
+            Ok(sign(cx, b, m)? == Some(1))
+        }
+        (g, &[u]) if CONTINUOUS.contains(&g) => continuous_at(cx, b, u, x, a),
+        _ => Ok(false),
+    }
+}
+
 impl Native for LimitFn {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
@@ -801,7 +879,10 @@ impl Native for LimitFn {
         let [f, spec] = args else { return Ok(Reply::Decline) };
         match toward {
             Toward::Real => {}
-            // from every direction of the plane: not decided here
+            // from every direction of the plane: the value at the point when f is continuous there
+            Toward::Plane if self.kind != Kind::Discrete && self.kind != Kind::Asymptotic => {
+                return Ok(plane(cx, &b, *f, *spec, self.kind != Kind::Limit)?.map_or(Reply::Decline, Reply::Again));
+            }
             Toward::Plane => return Ok(Reply::Decline),
             Toward::Along(dv) if self.kind == Kind::Limit => {
                 return Ok(along(cx, &b, *f, *spec, dv)?.map_or(Reply::Decline, Reply::Again));
