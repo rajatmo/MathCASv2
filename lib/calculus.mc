@@ -2652,6 +2652,18 @@ fn cb_pfe(r, x) = {
 }
 rule partial_fraction_elements(r_, x_) := cb_pfe(r, x) when is_symbol(x) and cb_poly(numerator(together(r)), [x]) and cb_poly(denominator(together(r)), [x])
 rule partial_fraction_elements(r_, x_, key_) := cb_pfe(r, x)[key] when is_string(key) and is_symbol(x) and cb_poly(numerator(together(r)), [x]) and cb_poly(denominator(together(r)), [x])
+# extension: none (the rationals) or reals: the decomposition over the irreducible factors of the denominator over
+# the rationals (apart), whose numerators have lower degree than their factor; over the reals only when every such
+# factor is linear or a quadratic without real roots (they are then the irreducible real factors), else no answer
+fn cb_pfe_q(r, x) = {
+  let t = together(r)
+  let poly = polynomial_quotient(expand(numerator(t)), expand(denominator(t)), x)
+  let dec = apart(r, x)
+  assoc("Decomposition" -> dec, "PolynomialPart" -> poly, "FractionalPart" -> dec - poly)
+}
+fn cb_real_irreducible(den, x) = every(factor_list(den), p => free_of(p[1], x) or degree(p[1], x) == 1 or (degree(p[1], x) == 2 and discriminant(p[1], x) < 0))
+fn cb_pfe_ok(r, x, key, e) = is_string(key) and member(["Decomposition", "PolynomialPart", "FractionalPart"], key) and is_symbol(x) and cb_poly(numerator(together(r)), [x]) and cb_poly(denominator(together(r)), [x]) and (e === none or e === rationals or e === reals and cb_real_irreducible(expand(denominator(together(r))), x))
+rule partial_fraction_elements(r_, x_, key_, options(extension -> e_)) := cb_pfe_q(r, x)[key] when cb_pfe_ok(r, x, key, e)
 
 # --- reductions: polynomial_reduction, symmetric_reduction ---
 

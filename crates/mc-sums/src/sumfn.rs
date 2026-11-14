@@ -594,6 +594,10 @@ fn infinite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, m: &
     if let Some(s) = series_sum(sx, f, k, lo, m)? {
         return Ok(Some(s));
     }
+    // tails of Hurwitz zeta, linear Euler sums
+    if let Some(s) = crate::special::infinite(sx, f, k, lo)? {
+        return Ok(Some(s));
+    }
     // a sum of terms
     let h = sx.h();
     if let View::App { head, args } = h.view(f) {

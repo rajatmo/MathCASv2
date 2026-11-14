@@ -303,7 +303,21 @@ impl Native for Apart {
         if let Some(p) = modulus {
             return Ok(crate::apart::apart_mod(cx, &b, e, x, p)?.map_or(Reply::Decline, Reply::Again));
         }
-        Ok(crate::apart::apart(cx, &b, e, x)?.map_or(Reply::Decline, Reply::Again))
+        if let Some(r) = crate::apart::apart(cx, &b, e, x)? {
+            return Ok(Reply::Again(r));
+        }
+        // several variables and none named: the last variable in the order of `variables` (as apart_square_free
+        // does), when every variable is a symbol
+        if x.is_none() {
+            let vs = cx.eval(b.call("variables", &[e]))?;
+            if let Some(vs) = cx.as_list(vs).map(<[T<'h>]>::to_vec) {
+                if vs.len() >= 2 && vs.iter().all(|&v| matches!(h.view(v), View::Sym(_))) {
+                    let last = vs[vs.len() - 1];
+                    return Ok(crate::apart::apart(cx, &b, e, Some(last))?.map_or(Reply::Decline, Reply::Again));
+                }
+            }
+        }
+        Ok(Reply::Decline)
     }
 }
 

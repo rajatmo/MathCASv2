@@ -7,7 +7,7 @@
 # `apart(e, x)` writes the rational function `e` of `x` as a sum of partial fractions.
 
 #% text
-# `apart(e)` does the same when `e` has one variable.
+# `apart(e)` does the same in the variable of `e`; with several variables, in the last of them in the order of `variables(e)`.
 
 #% section
 # Details

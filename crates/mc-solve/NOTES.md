@@ -317,3 +317,26 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   written over their prime factors (`log 27 = 3 log 3`) so that the result is exact (`x = 1/2, 3`). Sides of
   opposite sign: no real solution. Solutions are checked in the given equation. Bases that may vanish or be
   negative (`x^2`, `x`) are not taken.
+## Round 40: argument forms of reduce
+
+- `reduce(cond)` (`reduce_forms.rs`): `true` and `false` are the answer; otherwise the variables are the symbols of
+  the condition outside head positions, without the constants, the domains and the variables bound by `exists` and
+  `for_all`, sorted by name. `reduce(cond, element(x, dom))` is `reduce(cond, x, dom)`. A call the other paths leave
+  unevaluated or fail on keeps the old failure.
+- `primes`: the integer solutions with every variable at least 2, kept when every coordinate is prime; only a finite
+  list of integer solutions (`x == 2 and y == 2` for `x^2 + y^2 <= 10`).
+- `algebraics`: equations in one unknown solved over the complex numbers, each value kept when
+  `element(v, algebraics)` is `true`; one undecided value gives no answer.
+- A point `z == c` (c a number) inside a condition on `re(z)` and `im_part(z)` is written as conditions on the parts
+  before the plane is reduced, so `z == 0 or im_part(z) == 0 and re(z) <= 0` becomes `re(z) <= 0 and im_part(z) == 0`.
+- Signed rational domains with inequalities (`rational_points`): `element(x, r)` for a rational domain becomes its
+  sign condition, the condition is reduced over the reals with the domain's sign; the answer only when that is
+  `false` or a finite set of rational points (an interval is not the set of its rational points: no answer).
+- Step functions on a bounded interval (`reduce_steps.rs`): `floor`, `ceiling`, `integer_part` of polynomials in x
+  (`mod`, `quotient`, `fractional_part` with a numeric modulus written through them), with numeric bounds lo < x < hi
+  in the condition. The value range of each argument comes from interval Horner evaluation (widened by 1), each
+  choice of the integer values gives a polynomial condition (the condition with the values put in, and the
+  conditions that the steps take them), each is reduced, and their union is reduced once more. At most 4000 choices;
+  nested step functions, a non-polynomial argument or an unbounded x give no answer here.
+- Integer search boxes take the bounds along chains of order relations between the unknowns (`10 < a < b < 15`
+  bounds a above by 13 and b below by 12), repeated until nothing changes.

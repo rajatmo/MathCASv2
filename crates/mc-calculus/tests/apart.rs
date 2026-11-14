@@ -68,11 +68,12 @@ fn unchanged_and_declined() {
         ("apart(y/(y + 1), x)", "y/(1 + y)"),
         // a cancelled denominator gives the expanded quotient
         ("apart((x^2 - 1)/(x - 1), x)", "1 + x"),
-        // not rational in x, inexact, several variables or none: unevaluated
+        // not rational in x, inexact: unevaluated
         ("apart(sin(x)/(x + 1), x)", "apart((1 + x)^-1*sin(x), x)"),
         ("apart(x^(1/2)/(x + 1), x)", "apart(x^(1/2)/(1 + x), x)"),
         ("apart(1.5/(x^2 - 1), x)", "apart(1.5/(-1 + x^2), x)"),
-        ("apart(1/(x*y + 1))", "apart((1 + x*y)^-1)"),
+        // several variables and none named: in the last one (y), where 1/(x y + 1) is already a partial fraction
+        ("apart(1/(x*y + 1))", "(1 + x*y)^-1"),
         // a number is its own decomposition
         ("apart(3)", "3"),
         // a malformed variable

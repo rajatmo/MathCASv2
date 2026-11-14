@@ -68,3 +68,8 @@
   only of a base whose value at a is not 0), `c^u` for a constant c != 0, and exp, sin, cos, sinh, cosh, abs, re,
   im_part, conjugate of continuous arguments. `max_limit`/`min_limit` also need a real value. Anything else (poles,
   branch cuts, other functions) still declines.
+## Round 40: sums over fixed roots
+
+`limit(root_sum(p, t => g), a -> a0)` (two-sided) with p free of a: the roots do not move, so the limit of the finite
+sum is `root_sum(p, t => lim g)` when the summand's own limit is a finite value; otherwise the general method
+(`sum of 1/(a r)` tends to 0 because the sum of 1/r over the roots of t^3 + 2 is 0).

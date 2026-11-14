@@ -1083,7 +1083,7 @@ d	symbolic	Calculus	d(f, x): the derivative in x; d(f, [x, n]) the n-th; d(f, x,
 derivative	symbolic	Calculus	derivative(n)(f): the n-th derivative of the function f, written f', f'', ...; derivative(n1, ..., nk)(f) for k arguments
 integrate	symbolic	Calculus	integrate(f, x): an antiderivative in x (no constant added); integrate(f, [x, a, b]) the definite integral from a to b
 risch_integrate	symbolic	Calculus	risch_integrate(f, x): the Risch decision procedure alone (one exponential or logarithm over the rational functions of x): the antiderivative, failure(nonelementary, risch_integrate, reason) when it proves that none is elementary, unevaluated outside the procedure
-apart	symbolic	Calculus	apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) when e has one variable
+apart	symbolic	Calculus	apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) in the last of its variables
 limit	symbolic	Calculus	limit(f, x -> a): the limit of f as x tends to a (a point, inf or -inf) along the reals; direction: from_above | from_below for one side; failure(no_limit, limit, f) when the sides differ; unevaluated when not decided
 max_limit	symbolic	Calculus	max_limit(f, x -> a): the limit superior of f as x tends to a (the limit when it exists; the largest value an oscillation keeps reaching); direction: as for limit
 min_limit	symbolic	Calculus	min_limit(f, x -> a): the limit inferior of f as x tends to a; direction: as for limit

@@ -1506,3 +1506,20 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 
 - `dt(e, x, constants: cs)` leaves the total derivatives of the remaining symbols as `dt(s, x, constants: cs)`
   (`calc_dt_left`), and a second step (`dt(e, [x, 2], constants: cs)`) reads those back as `dt(s, x)` first.
+## Round 40: sums over moving roots, Lommel functions of a non-integer order
+
+- `d(root_sum(p, t => g), a)` with p depending on a: each simple root moves with r' = -p_a(r)/p_t(r), so the
+  derivative is `root_sum(p, t => g_a - g_t p_a/p_t)` (an identity where the discriminant of p is not 0). p and g
+  must be pure functions of the same parameter. Other shapes give no derivative (the differentiation used to stop
+  with an internal error: the polynomial had not been visited). Checked against central difference quotients of the
+  numeric sum at 30 digits.
+- Property entries for `lommel_s1`, `lommel_t1` (z^(mu + 1) times an entire series, DLMF 11.9.3) and `lommel_s2`,
+  `lommel_t2` (with Bessel functions of order nu, DLMF 11.9.5) for a non-integer mu (and nu for S, T): the cut
+  z <= 0; parameters where a denominator or a gamma factor of the definition is singular are left out. Integer
+  orders and symbolic parameters are not covered (s at an integer mu >= -1 is entire).
+- `partial_fraction_elements(r, x, key, extension: e)` (`lib/calculus.mc`): e = none (or rationals) is the
+  decomposition over the irreducible rational factors (apart), keys "Decomposition", "PolynomialPart",
+  "FractionalPart"; e = reals gives the same only when each such factor is linear or a quadratic with negative
+  discriminant (then they are the real irreducible factors), else no answer (x^2 - 5 would split over the reals).
+- `apart(e)` with several variables and none named takes the last of `variables(e)` when all are symbols (the
+  convention `apart_square_free` already has), so `apart((a d + b c)/(b d))` is `a/b + c/d`.

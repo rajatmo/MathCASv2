@@ -695,20 +695,61 @@ fn apply_bound(op: &str, f: f64, lo: &mut Option<i64>, hi: &mut Option<i64>) {
     }
 }
 
+/// The integer bounds carried along the order relations between two of the variables (`a < b` with `b <= 14` gives
+/// `a <= 13`, and `10 < a` gives `11 < b`), repeated until nothing changes (at most once per variable and once more).
+fn chain_bounds<'h>(h: &'h impl Store, vars: &[T<'h>], conds: &[T<'h>], bs: &mut [(Option<i64>, Option<i64>)]) {
+    // (i, j, strict): x_i < x_j or x_i <= x_j
+    let mut rels = vec![];
+    for &c in conds {
+        let View::App { args: &[l, r], .. } = h.view(c) else { continue };
+        let (Some(i), Some(j)) = (vars.iter().position(|&v| v == l), vars.iter().position(|&v| v == r)) else { continue };
+        match head_name(h, c).as_deref() {
+            Some("less") => rels.push((i, j, 1)),
+            Some("less_equal") => rels.push((i, j, 0)),
+            Some("greater") => rels.push((j, i, 1)),
+            Some("greater_equal") => rels.push((j, i, 0)),
+            _ => {}
+        }
+    }
+    for _ in 0..=vars.len() {
+        let mut changed = false;
+        for &(i, j, s) in &rels {
+            if let Some(hj) = bs[j].1 {
+                let v = hj - s;
+                if bs[i].1.is_none_or(|hi| v < hi) {
+                    bs[i].1 = Some(v);
+                    changed = true;
+                }
+            }
+            if let Some(li) = bs[i].0 {
+                let v = li + s;
+                if bs[j].0.is_none_or(|lo| v > lo) {
+                    bs[j].0 = Some(v);
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+}
+
 /// The integer points of the box the conditions give at which every equation and condition is `true`.
 fn search_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, vars: &[T<'h>], equations: &[T<'h>], conds: &[T<'h>]) -> Res<Option<T<'h>>> {
     let h = cx.heap();
     let mut ranges = vec![];
     let mut size: i64 = 1;
-    let mut los = vec![];
+    let mut bs = vec![];
     for &x in vars {
-        los.push(bounds(cx, x, conds)?.0);
+        bs.push(bounds(cx, x, conds)?);
     }
+    chain_bounds(h, vars, conds, &mut bs);
+    let los: Vec<Option<i64>> = bs.iter().map(|b| b.0).collect();
     // bounds the equations give (a sum of nonnegative terms equal to a constant)
     let eq_bounds = crate::bounds::equation_bounds(h, vars, &los, equations);
-    for (i, &x) in vars.iter().enumerate() {
-        let (lo, hi) = bounds(cx, x, conds)?;
-        let (lo, hi) = match eq_bounds[i] {
+    for (&(lo, hi), eb) in bs.iter().zip(&eq_bounds) {
+        let (lo, hi) = match *eb {
             Some(b) => (Some(lo.map_or(-b, |l| l.max(-b))), Some(hi.map_or(b, |u| u.min(b)))),
             None => (lo, hi),
         };
@@ -772,6 +813,7 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
         if mentions(h, cond, &[re_z]) || mentions(h, cond, &[im_z]) {
             let (px, py) = (h.sym_term(h.sym("reduce`re")), h.sym_term(h.sym("reduce`im")));
             let fwd = cx.list(&[h.call(h.sym(names::RULE), &[re_z, px]), h.call(h.sym(names::RULE), &[im_z, py])]);
+            let cond = split_points(cx, cond, xs)?;
             let c = cx.eval(h.call(h.sym("rewrite"), &[cond, fwd]))?;
             if !mentions(h, c, &[xs]) {
                 let r = cx.eval(h.call(h.sym("reduce"), &[c, cx.list(&[px, py]), h.sym_term(h.sym("reals"))]))?;
@@ -803,7 +845,7 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
         if matches!(h.view(xs), View::Sym(_)) {
             let r = cx.eval(h.call(h.sym("reduce"), &[cond, xs, h.sym_term(h.sym("rationals"))]))?;
             if matches!(head_name(h, r).as_deref(), Some("failure" | "reduce")) {
-                return Ok(None);
+                return rational_points(cx, cond, xs, rel);
             }
             let c = h.call(h.sym("and"), &[r, h.call(h.sym(rel), &[xs, h.int(0)])]);
             return Ok(Some(cx.eval(h.call(h.sym("reduce"), &[c, xs, h.sym_term(h.sym("reals"))]))?));
@@ -1115,6 +1157,56 @@ fn signed_rationals(name: &str) -> Option<&'static str> {
     })
 }
 
+/// `reduce(cond, x, d)` over a signed rational domain (sign relation `rel`) when the conditions are not equations
+/// alone: `element(x, r)` with r a rational domain written as its sign condition (`true` for `rationals`), the
+/// condition with the domain's sign reduced over the reals; the answer when that is `false` or a finite set of
+/// rational points (each of them then lies in the domain), `None` otherwise (a real interval is not the set of its
+/// rational points).
+fn rational_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>, rel: &str) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    fn membership<'h>(h: &'h impl Store, t: T<'h>, x: T<'h>) -> T<'h> {
+        let View::App { head, args } = h.view(t) else { return t };
+        match (head_name(h, t).as_deref(), args) {
+            (Some("element"), &[v, d]) if v == x => {
+                let d = match h.view(d) {
+                    View::Sym(s) => h.sym_name(s).to_string(),
+                    _ => return t,
+                };
+                match (d.as_str(), signed_rationals(&d)) {
+                    ("rationals", _) => h.sym_term(h.sym(names::TRUE)),
+                    (_, Some(r)) => h.call(h.sym(r), &[x, h.int(0)]),
+                    _ => t,
+                }
+            }
+            (Some("and" | "or" | "not" | "list"), _) => {
+                let new: Vec<T<'h>> = args.iter().map(|&a| membership(h, a, x)).collect();
+                h.app(head, &new)
+            }
+            _ => t,
+        }
+    }
+    let c = membership(h, cond, x);
+    let full = h.call(h.sym("and"), &[c, h.call(h.sym(rel), &[x, h.int(0)])]);
+    let r = cx.eval(h.call(h.sym("reduce"), &[full, x, h.sym_term(h.sym("reals"))]))?;
+    if r == h.sym_term(h.sym(names::FALSE)) {
+        return Ok(Some(r));
+    }
+    let points = match head_name(h, r).as_deref() {
+        Some("or") => match h.view(r) {
+            View::App { args, .. } => args.to_vec(),
+            _ => return Ok(None),
+        },
+        _ => vec![r],
+    };
+    for p in points {
+        let View::App { args: &[a, v], .. } = h.view(p) else { return Ok(None) };
+        if head_name(h, p).as_deref() != Some("equal") || a != x || !matches!(h.view(v), View::Int(_) | View::BigInt { .. } | View::Rational { .. }) {
+            return Ok(None);
+        }
+    }
+    Ok(Some(r))
+}
+
 /// The unsigned domain and the sign relation of a signed domain name (`positive_reals` is `reals` and `greater`).
 fn signed_domain(name: &str) -> Option<(&'static str, &'static str)> {
     let (sign, base) = name.split_once('_')?;
@@ -1341,6 +1433,46 @@ fn mentions<'h>(h: &'h impl Store, t: T<'h>, vars: &[T<'h>]) -> bool {
         }
     }
     false
+}
+
+/// The condition with each `z == c` and `z != c` (c a number) inside `and`, `or`, `not` written through the parts of
+/// z: `re(z) == re(c) and im_part(z) == im_part(c)` and its negation, so that a condition on the parts of z that also
+/// names points of the plane is a condition on the parts alone.
+fn split_points<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, z: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    match head_name(h, t).as_deref() {
+        Some("and" | "or" | "not") => {
+            let mut new = Vec::with_capacity(args.len());
+            for &a in args {
+                new.push(split_points(cx, a, z)?);
+            }
+            Ok(h.app(head, &new))
+        }
+        Some(rel @ ("equal" | "unequal")) => {
+            let &[a, b] = args else { return Ok(t) };
+            let neg = rel == "unequal";
+            let c = if a == z && !mentions(h, b, &[z]) {
+                b
+            } else if b == z && !mentions(h, a, &[z]) {
+                a
+            } else {
+                return Ok(t);
+            };
+            let num = cx.eval(h.call(h.sym("is_numeric"), &[c]))?;
+            if !cx.is_true(num) {
+                return Ok(t);
+            }
+            let part = |f: &str, u: T<'h>| h.call(h.sym(f), &[u]);
+            let (rc, ic) = (cx.eval(part("re", c))?, cx.eval(part("im_part", c))?);
+            let both = h.call(
+                h.sym("and"),
+                &[h.call(h.sym("equal"), &[part("re", z), rc]), h.call(h.sym("equal"), &[part("im_part", z), ic])],
+            );
+            Ok(if neg { h.call(h.sym("not"), &[both]) } else { both })
+        }
+        _ => Ok(t),
+    }
 }
 
 /// The first `abs(u)` of `t` with `u` mentioning the unknowns.

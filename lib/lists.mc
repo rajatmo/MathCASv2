@@ -441,8 +441,13 @@ fn mixed_fraction_parts(x) when not is_list(x) and is_numeric(x) and is_real(n(x
   [a[1] + im*b[1], a[2] + im*b[2]]
 }
 
-# perfect_number(k): the k-th (even) perfect number 2^(p - 1) (2^p - 1), p the k-th Mersenne prime exponent
+# perfect_number(k): the k-th (even) perfect number 2^(p - 1) (2^p - 1), p the k-th Mersenne prime exponent; a list
+# maps. perfect_number(k, "Even") is the same number (every even perfect number has this form, Euclid-Euler); no odd
+# perfect number is known, so perfect_number(k, "Odd") stays as it is
+fn perfect_number(k) when is_list(k) = map(perfect_number, k)
 fn perfect_number(k: Int) when k >= 1 and k <= 51 = { let p = mersenne_prime_exponent(k); 2^(p - 1)*(2^p - 1) }
+fn perfect_number(k, kind) when kind == "Even" and is_list(k) = map(perfect_number, k)
+fn perfect_number(k: Int, kind) when kind == "Even" and k >= 1 and k <= 51 = perfect_number(k)
 
 # rudin_shapiro(n): (-1)^(the number of occurrences of the digits 11 in the binary expansion of n), n >= 0
 fn rudin_shapiro(k) when is_list(k) = map(rudin_shapiro, k)

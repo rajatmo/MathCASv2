@@ -379,22 +379,46 @@ impl<'b, 'h> Diff<'b, 'h> {
 
     /// The derivative of `root_sum(p, t => g)` with `p` free of the variable: `root_sum(p, t => d(g))` (the sum is
     /// over roots that do not depend on the variable; `mc-algebra`).
-    fn root_sum(&mut self, args: &[T<'h>]) -> Option<T<'h>> {
+    /// With `p` depending on the variable a, each simple root r(a) of p(t, a) moves with r' = -p_a(r)/p_t(r) (implicit
+    /// differentiation), so the derivative is `root_sum(p, t => g_a - g_t p_a/p_t)`, an identity wherever p has
+    /// simple roots (its discriminant is not zero); p must be a pure function of the same parameter as g.
+    fn root_sum(&mut self, args: &[T<'h>], tick: &mut Tick<'_>) -> Result<Option<T<'h>>, Halt> {
         let b = self.b;
         let h = b.heap();
-        let &[p, g] = args else { return None };
-        if !self.is_free(p) {
-            return None;
-        }
-        let View::App { head, args: &[params, body] } = h.view(g) else { return None };
+        let &[p, g] = args else { return Ok(None) };
+        let View::App { head, args: &[params, body] } = h.view(g) else { return Ok(None) };
         if b.sym_of(head).map(|s| h.sym_name(s)).as_deref() != Some("fn") {
-            return None;
+            return Ok(None);
         }
         let db = self.dv(body);
-        if b.is_zero(db) {
-            return Some(b.zero());
+        if self.is_free(p) {
+            if b.is_zero(db) {
+                return Ok(Some(b.zero()));
+            }
+            return Ok(Some(b.call("root_sum", &[p, h.app(head, &[params, db])])));
         }
-        Some(b.call("root_sum", &[p, h.app(head, &[params, db])]))
+        // p = fn(t, p(t, a)) with the parameter t of g, a symbol other than the variable
+        let View::App { head: ph, args: &[pparams, pbody] } = h.view(p) else { return Ok(None) };
+        if ph != head || pparams != params {
+            return Ok(None);
+        }
+        let t = match h.view(params) {
+            View::Sym(_) => params,
+            View::App { head: lh, args: &[t] } if b.sym_of(lh) == Some(b.hd.list) && matches!(h.view(t), View::Sym(_)) => t,
+            _ => return Ok(None),
+        };
+        if t == self.x {
+            return Ok(None);
+        }
+        let pa = Diff::new(b, self.x).of(pbody, tick)?;
+        let pt = Diff::new(b, t).of(pbody, tick)?;
+        let gt = Diff::new(b, t).of(body, tick)?;
+        if b.is_zero(pt) {
+            return Ok(None);
+        }
+        let moved = b.mul(&[b.int(-1), gt, pa, b.pow(pt, b.int(-1))]);
+        let nb = b.add(&[db, moved]);
+        Ok(Some(b.call("root_sum", &[p, h.app(head, &[params, nb])])))
     }
 
     /// The derivative of an already visited argument.
@@ -446,8 +470,12 @@ impl<'b, 'h> Diff<'b, 'h> {
                 }
             }
             if h.sym_name(s) == "root_sum" {
-                if let Some(v) = self.root_sum(args) {
+                if let Some(v) = self.root_sum(args, tick)? {
                     return Ok(v);
+                }
+                // only the summand was visited: the generic rule cannot differentiate the other arguments
+                if self.root_sum_body(head, args).is_some() {
+                    return Err(Halt::Unsupported);
                 }
             }
             if let Some(v) = self.binding(&h.sym_name(s), args, head) {

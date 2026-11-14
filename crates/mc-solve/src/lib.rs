@@ -35,6 +35,8 @@ pub mod realroots;
 mod reduce;
 mod reduce_cx;
 mod reduce_fn;
+mod reduce_forms;
+mod reduce_steps;
 mod rootobj;
 mod solve;
 mod system;

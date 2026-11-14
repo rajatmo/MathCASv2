@@ -817,3 +817,10 @@ Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
   and inner levels, then a reshape (a number is a constant block). `is_satisfiable(boolean_function(k, n))`: k != 0;
   `is_tautology(boolean_function(k, n))`: k = 2^(2^n) - 1.
 - `arc_length(circle(c, r, [t0, t1]))`: r (t1 - t0) for a scalar radius and an arc of at most a full turn.
+
+## Round 40: even perfect numbers
+
+`perfect_number(k, "Even")` is `perfect_number(k)` (every even perfect number is 2^(p - 1) (2^p - 1), Euclid-Euler);
+a list of indices maps. `"Odd"` has no value (none is known).
+`integer_string(n, "Base64")` writes the base-64 digits of |n| with the alphabet of RFC 4648 (A-Z, a-z, 0-9, +, /);
+`integer_string(n, "Arabic")` the decimal digits as the Arabic-Indic digits U+0660 to U+0669 (`lib/prelude.mc`).

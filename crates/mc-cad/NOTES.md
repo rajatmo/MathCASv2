@@ -298,3 +298,15 @@ Parallel work on the session's pool (`mc-eval`'s `par` module), with the same an
   and c), for_all(v, s(v) implies c)) and the sign condition on every free variable added, then over the reals.
   `resolve(f, booleans)`: each quantifier written out as the disjunction (exists) or conjunction (for_all) of its
   instances at true and false (at most 16 variables).
+
+## Round 40: integer instances in one variable
+
+`find_instance(cond, x, integers)` and `find_instance(cond, x, integers, n)` in one variable, when no other path
+answers: the integers 0, 1, -1, 2, -2, ... up to 20000 in absolute value, the condition evaluated at each (only
+`true` counts), the first n. Any function that evaluates at integers can appear (`prime_pi(n) == 7` gives 17,
+`[mod(x, 3) == 1, mod(x, 5) == 2]` gives 7). Fewer than n found: no answer, no claim beyond the bound. The
+instance is a valid one, not necessarily the one another method would pick (`carmichael_lambda(n) == euler_phi(n)
+and n > 0` gives n = 1).
+`find_instance(cond, x, reals)` (and with a count) in one variable: the real solution set from `reduce`; a finite set
+gives its points with the rational ones first (`x^5 - 2 x + 1 == 0` gives 1, not the root of the quartic factor),
+`false` gives `[]`, intervals one point by the two-argument form.

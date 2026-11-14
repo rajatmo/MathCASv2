@@ -21,6 +21,11 @@
 #% item
 # `find_instance(cond, vars, integers)` and `find_instance(cond, vars, integers, n)`: Pell equations `x^2 - D y^2 == 1` through the powers of the fundamental unit, bounded problems by bounds from the real decomposition and a complete search of the box, others by a search of the integer points with coordinates up to 60 in absolute value. Every point is checked exactly; when none is found the call stays unevaluated.
 
+#% item
+# In one integer variable that no other method takes (number functions such as `prime_pi` or `mod` in the condition),
+# the integers 0, 1, -1, 2, -2, ... up to 20000 in absolute value are tried in turn: the first ones at which the
+# condition evaluates to `true`.
+
 #% section
 # Examples
 
@@ -85,6 +90,19 @@ find_instance(x^2 + y^2 == 1 and x == 2*y + 1, [x, y], reals, 5)
 find_instance(x^2 - 3*y^2 == 1 and 10 < x and x < 100, [x, y], integers)
 #% output
 #= [[x -> 26, y -> 15]]
+
+#% text
+# An integer with seven primes up to it, and a solution of two congruences:
+
+#% cell
+find_instance(prime_pi(n) == 7, n, integers)
+#% output
+#= [[n -> 17]]
+
+#% cell
+find_instance([mod(x, 3) == 1, mod(x, 5) == 2], x, integers)
+#% output
+#= [[x -> 7]]
 
 #% subsection
 # Properties and relations

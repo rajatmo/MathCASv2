@@ -162,3 +162,11 @@ rules there handle the forms the natives decline (symbolic second argument: Bern
   `power_mod(z, k, m)` (the parts reduced mod m at each squaring).
 - `harmonic_number(m, r, s)` (lib/calculus.mc): the sum of s^k/k^r for k <= m; polylog(r, s) at m = inf; at inexact
   m the polylogarithm less the Lerch tail s^(m + 1) lerch_phi(s, r, m + 1); lists of m thread.
+
+## Round 40: Roman numerals, mixed bases
+
+`roman_numeral(k)` of a negative k is the numeral of |k| (a Roman numeral has no sign); `from_roman_numeral("N")`
+is 0, the inverse of `roman_numeral(0)`. `number_compose(digits, bases)` with fewer digits than bases takes the last
+bases (the digits are the smallest places).
+`euler_e(n, 1/2) = 2^-n euler_e(n)` and `bernoulli_b(n, 1/2) = -(1 - 2^(1 - n)) bernoulli_b(n)` for a symbolic n
+(DLMF 24.4.6, 24.4.27); checked against the polynomials at several n.

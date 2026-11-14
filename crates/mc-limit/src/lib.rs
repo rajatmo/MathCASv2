@@ -921,6 +921,35 @@ impl Native for LimitFn {
             }
             points.push((x, a));
         }
+        // a sum over the roots of a polynomial free of the variable: the roots stay fixed, so the limit of the finite
+        // sum is the sum of the limits of the summand (when that is a finite value)
+        if let ([(x, a)], Kind::Limit, Direction::TwoSided) = (&points[..], self.kind, direction) {
+            if let Some(&[p, g]) = args_of(&b, *f, h.sym("root_sum")) {
+                if let (true, Some(&[t, body]), View::App { head: fh, .. }) = (is_free(&b, p, *x), args_of(&b, g, h.sym("fn")), h.view(g)) {
+                    if t != *x {
+                        let l = cx.eval(h.call(h.sym("limit"), &[body, h.call(h.sym(names::RULE), &[*x, *a])]))?;
+                        // a finite value: no limit left, no infinity, no failure
+                        let mut finite = true;
+                        let mut stack = vec![l];
+                        while let Some(u) = stack.pop() {
+                            match h.view(u) {
+                                View::Sym(s) if matches!(h.sym_name(s).as_str(), "inf" | "complex_infinity" | "indeterminate") => finite = false,
+                                View::App { head, args } => {
+                                    if matches!(h.view(head), View::Sym(s) if matches!(h.sym_name(s).as_str(), "limit" | "failure")) {
+                                        finite = false;
+                                    }
+                                    stack.extend_from_slice(args);
+                                }
+                                _ => {}
+                            }
+                        }
+                        if finite {
+                            return Ok(Reply::Again(h.call(h.sym("root_sum"), &[p, h.app(fh, &[t, l])])));
+                        }
+                    }
+                }
+            }
+        }
         let kind = self.kind;
         let stop = self.stop.clone();
         let one = |cx: &mut NativeCx<'_, '_, 'h>, g: T<'h>| -> Res<Option<T<'h>>> {

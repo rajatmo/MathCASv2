@@ -114,8 +114,12 @@ rule roman_numeral(k_) := {
   }
   string_join(out)
 } when is_integer(k) and k > 0
+# a Roman numeral has no sign: a negative k gives the numeral of |k|
+rule roman_numeral(k_) := roman_numeral(-k) when is_integer(k) and k < 0
 rule from_roman_numeral(ss_) := map(from_roman_numeral, ss) when is_list(ss)
-rule from_roman_numeral(s_) := from_digits(to_upper(s), "Roman") when is_string(s)
+# "N" (nulla) is 0, the inverse of roman_numeral(0)
+rule from_roman_numeral(s_) := 0 when is_string(s) and to_upper(s) == "N"
+rule from_roman_numeral(s_) := from_digits(to_upper(s), "Roman") when is_string(s) and to_upper(s) != "N"
 
 # --- polynomial forms of the Bernoulli, Euler and Bell numbers ---
 
@@ -128,6 +132,9 @@ rule euler_e(m_, x_) := expand(sum(binomial(m, j)*euler_e(j)/2^j*(x - 1/2)^(m - 
 rule bell_b(m_, xs_) := map(x => bell_b(m, x), xs) when is_list(xs)
 rule bernoulli_b(m_, xs_) := map(x => bernoulli_b(m, x), xs) when is_list(xs)
 rule euler_e(m_, xs_) := map(x => euler_e(m, x), xs) when is_list(xs)
+# at x = 1/2 and a symbolic index: E_m(1/2) = 2^-m E_m and B_m(1/2) = -(1 - 2^(1 - m)) B_m (DLMF 24.4.6, 24.4.27)
+rule euler_e(m_, 1/2) := euler_e(m)/2^m when is_symbol(m)
+rule bernoulli_b(m_, 1/2) := -(1 - 2^(1 - m))*bernoulli_b(m) when is_symbol(m)
 rule bell_b(ms_) := map(bell_b, ms) when is_list(ms)
 rule bernoulli_b(ms_) := map(bernoulli_b, ms) when is_list(ms)
 rule euler_e(ms_) := map(euler_e, ms) when is_list(ms)
@@ -355,6 +362,8 @@ rule number_expand(x_, b_, len_) := ne_beta(x, b, len) when is_real(x) and x != 
 
 # number_compose(digits, bases): the sum of digit times base, the inverse of the decomposition of number_decompose
 rule number_compose(ds_, bs_) := sum(map(i => ds[i]*bs[i], range(length(ds)))) when is_list(ds) and is_list(bs) and length(ds) == length(bs)
+# fewer digits than bases: the digits are the last places (the smallest bases)
+rule number_compose(ds_, bs_) := number_compose(ds, take(bs, -length(ds))) when is_list(ds) and is_list(bs) and length(ds) >= 1 and length(ds) < length(bs)
 
 # --- de Bruijn sequences, group counts, Mersenne exponents ---
 

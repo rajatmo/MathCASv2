@@ -34,6 +34,7 @@ pub mod rf;
 pub mod rsolve;
 pub mod series;
 pub mod shift;
+pub mod special;
 pub mod sumfn;
 pub mod verify;
 pub mod zeil;

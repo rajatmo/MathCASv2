@@ -1289,6 +1289,13 @@ fn integer_string(m, style) when is_integer(m) and m > 0 and m < 4000 and style 
   }
   string_join(out)
 }
+# integer_string(n, "Base64"): the digits of |n| in base 64 with the alphabet A-Z, a-z, 0-9, +, / (RFC 4648);
+# integer_string(n, "Arabic"): the decimal digits of |n| in the Arabic-Indic digits U+0660 to U+0669
+fn integer_string(m, style) when is_integer(m) and style == "Base64" = {
+  let alphabet = characters("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+  string_join(map(d => alphabet[d + 1], integer_digits(abs(m), 64)))
+}
+fn integer_string(m, style) when is_integer(m) and style == "Arabic" = from_characters(map(d => 1632 + d, integer_digits(abs(m), 10)))
 fn integer_string(m, b, len: Int) when is_integer(m) and is_integer(b) = {
   let s = integer_string(m, b)
   let l = string_length(s)

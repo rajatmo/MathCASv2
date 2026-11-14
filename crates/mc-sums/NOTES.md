@@ -271,3 +271,16 @@ differences and ratios, generating functions and convergence, interruption.
   the call itself (k is bound). A limit whose point p(k) moves with k: `limit(g(k + s, x + s), x -> p(k))` when
   p(k + s) = p(k) + s, else `limit(g(k + s, x), x -> p(k + s))`; before, the body was shifted in x only, so its
   other occurrences of k did not move (a wrong value).
+## Round 40: Hurwitz tails, Euler sums, Appell series
+
+- `sum(zeta(s, k + b), [k, lo, inf])` for a number s > 2: zeta(s - 1, lo + b) - (lo + b - 1) zeta(s, lo + b)
+  (`special.rs`; the double series summed along its diagonals). With the inner sum of `sum(1/(1 + i + j)^3, [i, inf],
+  [j, inf])` this gives the double sum.
+- Linear Euler sums `sum(H_(k + d)^(p)/(k + e)^q, [k, lo, inf])` with integer shifts, q >= 2: the shift goes into
+  the harmonic number, leaving S_(p,q) less finitely many terms and rational sums (Hurwitz zeta). Closed forms of
+  S_(p,q) for p = q ((zeta(p)^2 + zeta(2p))/2) and p = 1 (Euler); others (odd weight with p, q >= 2, even weight)
+  are not done (Flajolet and Salvy 1998 give the odd weights: a method for later).
+- `sum(t, [m, 0, inf])` with t = c x^m (a)_m (b)_m/(m! (c')_m) 2F1(u, v; w; y), the 2F1 one of the inner sums over n
+  of Appell's double series (F1: 2F1(b2, a + m; c + m; y), F2: 2F1(b2, a + m; c2; y), F3: 2F1(a2, b2; c + m; y), F4:
+  2F1(a + m, b + m; c2; y); DLMF 16.13.1-4): c times that Appell function. The double series themselves are summed
+  over n first (to the 2F1) and so are recognised too. Other double hypergeometric series (Horn's list) are not.

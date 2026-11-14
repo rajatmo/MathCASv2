@@ -67,7 +67,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
         "integrate(f, x): an antiderivative in x (no constant added); integrate(f, [x, a, b]) the definite integral from a to b",
     ),
     ("risch_integrate", "risch_integrate(f, x): the Risch decision procedure alone (one exponential or logarithm over the rational functions of x): the antiderivative, failure(nonelementary, risch_integrate, reason) when it proves that none is elementary, unevaluated outside the procedure"),
-    ("apart", "apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) when e has one variable"),
+    ("apart", "apart(e, x): the partial fraction decomposition of a rational function in x; apart(e) in the last of its variables"),
     (
         "limit",
         "limit(f, x -> a): the limit of f as x tends to a (a point, inf or -inf) along the reals; direction: from_above | from_below for one side; failure(no_limit, limit, f) when the sides differ; unevaluated when not decided",

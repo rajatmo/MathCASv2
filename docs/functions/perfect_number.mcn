@@ -15,6 +15,10 @@
 #% item
 # Every even perfect number has this form (Euclid, Euler); no odd perfect number is known.
 
+#% item
+# `perfect_number(k, "Even")` is the k-th even perfect number, the same value. A list of indices gives the list of
+# values.
+
 #% section
 # Examples
 
@@ -35,6 +39,11 @@ perfect_number(3)
 table(perfect_number(k), k, 4)
 #% output
 #= [6, 28, 496, 8128]
+
+#% cell
+perfect_number(range(5), "Even")
+#% output
+#= [6, 28, 496, 8128, 33550336]
 
 #% cell
 total(divisors(perfect_number(3))) == 2*perfect_number(3)

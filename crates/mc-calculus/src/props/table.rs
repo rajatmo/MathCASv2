@@ -504,6 +504,47 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "struve_l", arity: 2, var: 1, when: "not_element($a, integers)", real: "$u > 0 or $u == 0 and $a > -1", complex: "$u != 0 or re($a) > -1", refs: "DLMF 11.2.2", ..POSITIVE },
     Entry { name: "anger_j", arity: 2, var: 1, refs: "DLMF 11.10.1, 11.10.(i)", ..ENTIRE },
     Entry { name: "weber_e", arity: 2, var: 1, refs: "DLMF 11.10.2, 11.10.(i)", ..ENTIRE },
+    // Lommel functions of a non-integer first order mu: s_(mu,nu) = z^(mu + 1)/((mu + 1)^2 - nu^2) 1F2(1; (mu - nu + 3)/2,
+    // (mu + nu + 3)/2; -z^2/4) (DLMF 11.9.3; t with +z^2/4), z^(mu + 1) times an entire series: the cut z <= 0, the
+    // value 0 at 0 for mu > -1; the parameters where a denominator vanishes (mu +- nu an odd negative integer) left
+    // out. S_(mu,nu) and T_(mu,nu) add Bessel functions of order nu (DLMF 11.9.5), singular at 0 for a non-integer nu:
+    // the cut and z != 0, the parameters where a gamma factor has a pole left out.
+    Entry {
+        name: "lommel_s1",
+        arity: 3,
+        var: 2,
+        when: "not_element($a, integers) and not_element(($a - $b + 3)/2, integers) and not_element(($a + $b + 3)/2, integers)",
+        real: "$u > 0 or $u == 0 and $a > -1",
+        complex: "$u != 0 or re($a) > -1",
+        refs: "DLMF 11.9.3",
+        ..POSITIVE
+    },
+    Entry {
+        name: "lommel_t1",
+        arity: 3,
+        var: 2,
+        when: "not_element($a, integers) and not_element(($a - $b + 3)/2, integers) and not_element(($a + $b + 3)/2, integers)",
+        real: "$u > 0 or $u == 0 and $a > -1",
+        complex: "$u != 0 or re($a) > -1",
+        refs: "DLMF 11.9.3",
+        ..POSITIVE
+    },
+    Entry {
+        name: "lommel_s2",
+        arity: 3,
+        var: 2,
+        when: "not_element($a, integers) and not_element($b, integers) and not_element(($a - $b + 1)/2, integers) and not_element(($a + $b + 1)/2, integers)",
+        refs: "DLMF 11.9.5",
+        ..POSITIVE
+    },
+    Entry {
+        name: "lommel_t2",
+        arity: 3,
+        var: 2,
+        when: "not_element($a, integers) and not_element($b, integers) and not_element(($a - $b + 1)/2, integers) and not_element(($a + $b + 1)/2, integers)",
+        refs: "DLMF 11.9.5",
+        ..POSITIVE
+    },
     // parabolic cylinder and Mathieu functions: solutions of equations with entire coefficients (DLMF 12.2, 28.2)
     Entry { name: "parabolic_cylinder_d", arity: 2, var: 1, refs: "DLMF 12.2.(i), 12.2.5", ..ENTIRE },
     Entry { name: "mathieu_c", arity: 3, var: 2, joint: true, refs: "DLMF 28.2.(i)", ..ENTIRE },

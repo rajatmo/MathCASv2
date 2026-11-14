@@ -476,7 +476,28 @@ impl Native for FindInstance {
         if let Some(r) = find_instance(cx, &self.stop, args)? {
             return Ok(Reply::Done(r));
         }
-        self.inner.call(cx, t, args)
+        let r = self.inner.call(cx, t, args)?;
+        if matches!(r, Reply::Decline) {
+            // one integer variable that no other path took: the search
+            let h = cx.heap();
+            let fr = Front::new(h);
+            let n = match args {
+                [_, _, _] => Some(1),
+                [_, _, _, k] => match h.view(*k) {
+                    View::Int(k) if (1..=10_000).contains(&k) => Some(k as usize),
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let (Some(n), [c, x, d, ..]) = (n, args) {
+                if fr.sym_name(*d).as_deref() == Some("integers") && !fr.has_quantifier(*c) {
+                    if let Some(s) = one_integer(cx, *c, *x, n)? {
+                        return Ok(Reply::Done(s));
+                    }
+                }
+            }
+        }
+        Ok(r)
     }
 }
 
@@ -537,6 +558,10 @@ fn find_instance<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args
         return find_several(cx, stop, cond, &vars, n);
     }
     if vars.len() < 2 && fr.list(xs).is_none() && !fr.has_quantifier(cond) {
+        // one variable with the domain named: the real solution set, its rational points first
+        if args.len() >= 3 {
+            return one_real(cx, cond, xs, n);
+        }
         return Ok(None);
     }
     let r = metered(cx, stop, |m| -> WorkResult<Option<Option<Vec<Coord>>>> {
@@ -602,6 +627,90 @@ fn find_instance<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args
     }
     let r = cx.list(&rules);
     Ok(Some(cx.list(&[r])))
+}
+
+/// `find_instance(cond, x, reals)` and `(cond, x, reals, n)` in one variable: the real solution set from `reduce`;
+/// a finite set gives its points, the rational ones first (in the order of `reduce`, then the others), `[]` for none;
+/// otherwise one point of the set by the two-argument form (only for n = 1). `None` when neither answers.
+fn one_real<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>, n: usize) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if !matches!(h.view(x), View::Sym(_)) {
+        return Ok(None);
+    }
+    let r = cx.eval(h.call(h.sym("reduce"), &[cond, x, h.sym_term(h.sym("reals"))]))?;
+    if r == h.sym_term(h.sym(names::FALSE)) {
+        return Ok(Some(cx.list(&[])));
+    }
+    let name = |t: T<'h>| match h.view(t) {
+        View::App { head, .. } => match h.view(head) {
+            View::Sym(s) => Some(h.sym_name(s).to_string()),
+            _ => None,
+        },
+        _ => None,
+    };
+    let parts: Vec<T<'h>> = match (name(r).as_deref(), h.view(r)) {
+        (Some("or"), View::App { args, .. }) => args.to_vec(),
+        _ => vec![r],
+    };
+    let mut points = vec![];
+    for p in &parts {
+        match (name(*p).as_deref(), h.view(*p)) {
+            (Some("equal"), View::App { args: &[a, v], .. }) if a == x => points.push(v),
+            _ => {
+                points.clear();
+                break;
+            }
+        }
+    }
+    if !points.is_empty() {
+        let rational = |v: T<'h>| matches!(h.view(v), View::Int(_) | View::BigInt { .. } | View::Rational { .. });
+        let (mut first, rest): (Vec<T<'h>>, Vec<T<'h>>) = points.into_iter().partition(|&v| rational(v));
+        first.extend(rest);
+        let out: Vec<T<'h>> = first.into_iter().take(n).map(|v| cx.list(&[h.call(h.sym(names::RULE), &[x, v])])).collect();
+        return Ok(Some(cx.list(&out)));
+    }
+    if n != 1 || matches!(name(r).as_deref(), Some("reduce" | names::FAILURE)) {
+        return Ok(None);
+    }
+    let s = cx.eval(h.call(h.sym("find_instance"), &[cond, x]))?;
+    Ok(cx.as_list(s).is_some().then_some(s))
+}
+
+/// The most integers that [`one_integer`] tries.
+const ONE_INTEGER_SEARCH: i64 = 20_000;
+
+/// `find_instance(cond, x, integers, n)` in one variable: the integers 0, 1, -1, 2, -2, ... up to
+/// [`ONE_INTEGER_SEARCH`] in absolute value, each checked by evaluating the condition there (only `true` counts), the
+/// first `n` that satisfy it. The condition may hold any function that evaluates at integers (`prime_pi`, `mod`,
+/// `next_prime`). `None` when fewer than `n` are found: no claim is made beyond the bound.
+fn one_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>, n: usize) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    let x = match cx.as_list(x) {
+        Some(&[v]) => v,
+        _ => x,
+    };
+    if !matches!(h.view(x), View::Sym(_)) {
+        return Ok(None);
+    }
+    // a list of conditions is their conjunction
+    let cond = match cx.as_list(cond) {
+        Some(cs) => h.call(h.sym("and"), cs),
+        None => cond,
+    };
+    let mut out = vec![];
+    for k in 0..=2 * ONE_INTEGER_SEARCH {
+        cx.tick(1)?;
+        let v = if k % 2 == 1 { (k + 1) / 2 } else { -(k / 2) };
+        let rule = cx.list(&[h.call(h.sym(names::RULE), &[x, h.int(v)])]);
+        let t = cx.eval(h.call(h.sym("rewrite"), &[cond, rule]))?;
+        if cx.is_true(t) {
+            out.push(rule);
+            if out.len() == n {
+                return Ok(Some(cx.list(&out)));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// `find_instance(cond, vars, n)` over the reals: the sample points of up to `n` true cells, when every true cell

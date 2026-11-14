@@ -15,6 +15,11 @@
 #% item
 # The keys are `"Decomposition"`, `"PolynomialPart"`, `"FractionalPart"`, `"PolynomialCoefficients"` (constant term first), `"FractionalCoefficients"` (for each pole `[pole, multiplicity, [c1, ..., cm]]`, the term `cj/(x - pole)^j`), `"Poles"` and `"PoleMultiplicities"`.
 
+#% item
+# `partial_fraction_elements(r, x, key, extension: none)` decomposes over the irreducible factors of the denominator
+# over the rationals (keys `"Decomposition"`, `"PolynomialPart"`, `"FractionalPart"`); `extension: reals` gives the
+# same when every such factor is linear or a quadratic without real roots, and no answer otherwise.
+
 #% section
 # Examples
 

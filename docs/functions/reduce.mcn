@@ -34,6 +34,15 @@
 # `reduce(eqs, x, modulus: n)` gives the solutions of polynomial equations modulo `n`.
 
 #% item
+# `reduce(cond)` takes the symbols of `cond` as the variables (in the order of their names); a condition that is
+# already `true` or `false` is the answer. `reduce(cond, element(x, dom))` is `reduce(cond, x, dom)`.
+
+#% item
+# The domain `primes` gives the integer solutions whose values are all prime, when there are finitely many;
+# `algebraics` gives the solutions of equations that are algebraic numbers; a signed rational domain
+# (`nonnegative_rationals`, ...) gives a finite set of rational points or `false`.
+
+#% item
 # The endpoints are exact, with `root` objects where they are not rational or radical.
 
 #% section
@@ -198,6 +207,19 @@ reduce(x > 1 and x > 2, x, reals)
 reduce(abs(x) + abs(y) <= 1 and y > 0, [x, y], reals)
 #% output
 #= -1 < x and x <= 0 and 0 < y and y <= 1 + x or 0 < x and x < 1 and 0 < y and y <= 1 - x
+
+#% text
+# The variables taken from the condition, and the primes as the domain:
+
+#% cell
+reduce(x^2 < 1)
+#% output
+#= -1 < x and x < 1
+
+#% cell
+reduce(x + y == 10, [x, y], primes)
+#% output
+#= x == 3 and y == 7 or x == 5 and y == 5 or x == 7 and y == 3
 
 #% text
 # Integer solutions of a linear condition:

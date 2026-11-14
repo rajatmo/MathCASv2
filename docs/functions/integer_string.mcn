@@ -18,6 +18,10 @@
 #% item
 # `integer_string(n, "Roman")` gives a Roman numeral for 0 < n < 4000.
 
+#% item
+# `integer_string(n, "Base64")` writes the base-64 digits with the alphabet `A`-`Z`, `a`-`z`, `0`-`9`, `+`, `/`;
+# `integer_string(n, "Arabic")` writes the decimal digits in Arabic-Indic digits.
+
 #% section
 # Examples
 
@@ -43,6 +47,11 @@ integer_string(5, 2, 8)
 integer_string(12345, 10, 3)
 #% output
 #= "345"
+
+#% cell
+integer_string(5000, "Base64")
+#% output
+#= "BOI"
 
 #% cell
 integer_string(-42)

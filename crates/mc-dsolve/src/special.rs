@@ -42,7 +42,63 @@ pub(crate) fn basis<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, coefs: &[T<'h>], x: T<'h
     if let Some(v) = kummer(c, coefs, x)? {
         return Ok(Some(v));
     }
+    if let Some(v) = mathieu(c, p, q, x)? {
+        return Ok(Some(v));
+    }
     hermite(c, p, q, x)
+}
+
+/// The arguments of `t` when it is a call of `name`.
+fn args_of<'h>(b: &mc_calculus::term::Build<'h>, t: T<'h>, name: &str) -> Option<&'h [T<'h>]> {
+    let h = b.heap();
+    match h.view(t) {
+        mc_api::View::App { head, args } if b.sym_of(head).map(|s| h.sym_name(s)).as_deref() == Some(name) => Some(args),
+        _ => None,
+    }
+}
+
+/// Mathieu: `y'' + (A + B cos(k x + phi)) y = 0`. With
+/// `t = (k x + phi)/2` it is `y_tt + (a - 2 q cos(2 t)) y = 0`, `a = 4 A/k^2`, `q = -2 B/k^2` (DLMF 28.2.1):
+/// `mathieu_c(a, q, t)`, `mathieu_s(a, q, t)`.
+fn mathieu<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, p: T<'h>, q: T<'h>, x: T<'h>) -> Res<Option<Vec<T<'h>>>> {
+    let b = c.b;
+    if p != b.zero() {
+        return Ok(None);
+    }
+    let q = c.expand(q)?;
+    let mut consts = vec![];
+    let mut wave: Option<(T<'h>, T<'h>)> = None;
+    for t in c.terms(q) {
+        if is_free(b, t, x) {
+            consts.push(t);
+            continue;
+        }
+        // B cos(arg) or B sin(arg) with B free of x
+        let fs: Vec<T<'h>> = match args_of(b, t, "mul") {
+            Some(a) => a.to_vec(),
+            None => vec![t],
+        };
+        let (dep, free): (Vec<T<'h>>, Vec<T<'h>>) = fs.iter().partition(|&&f| !is_free(b, f, x));
+        let [f] = dep[..] else { return Ok(None) };
+        let Some(&[arg]) = args_of(b, f, "cos") else { return Ok(None) };
+        if wave.is_some() {
+            return Ok(None);
+        }
+        wave = Some((b.mul(&free), arg));
+    }
+    let Some((bb, arg)) = wave else { return Ok(None) };
+    let k = c.d(arg, x)?;
+    let k = c.simp(k)?;
+    if k == b.zero() || !is_free(b, k, x) {
+        return Ok(None);
+    }
+    let aa = b.add(&consts);
+    let k2 = b.powi(k, 2);
+    let a = c.simp(b.div(b.mul(&[b.int(4), aa]), k2))?;
+    let qq = c.simp(b.div(b.mul(&[b.int(-2), bb]), k2))?;
+    let t = c.simp(b.mul(&[b.rat(1, 2), arg]))?;
+    let t = c.expand(t)?;
+    Ok(Some(vec![c.ev("mathieu_c", &[a, qq, t])?, c.ev("mathieu_s", &[a, qq, t])?]))
 }
 
 /// `a^(1/3)`, real for negative a.

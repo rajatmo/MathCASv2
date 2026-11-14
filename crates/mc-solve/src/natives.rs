@@ -113,11 +113,17 @@ impl Native for SolveNative {
             if let Some(r) = crate::reduce::modulus(cx, args)? {
                 return Ok(Reply::Done(r));
             }
+            if let Some(r) = crate::reduce_forms::forms(cx, args)? {
+                return Ok(Reply::Done(r));
+            }
             if let Some(r) = crate::reduce::several(cx, &self.stop, args)? {
                 return Ok(Reply::Again(r));
             }
             if let Some(r) = crate::domain::reduce(cx, args)? {
                 return Ok(Reply::Again(r));
+            }
+            if let Some(r) = crate::reduce_steps::reduce(cx, args)? {
+                return Ok(Reply::Done(r));
             }
         }
         let (args, _) = crate::domain::strip_no_facts(h, args);
