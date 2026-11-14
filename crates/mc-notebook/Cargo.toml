@@ -16,7 +16,8 @@ name = "mc-notebook"
 path = "src/main.rs"
 
 [dependencies]
-eframe = { version = "0.37.0", default-features = false, features = ["accesskit", "clipboard", "links", "system_fonts", "wayland", "web_screen_reader", "wgpu", "x11"] }
+# the platform's features are named by mc-ui
+eframe = { version = "0.37.0", default-features = false, features = ["links", "system_fonts", "wgpu"] }
 mc-boxes = { path = "../mc-boxes" }
 # printed outputs read into boxes for painting
 mc-typeset = { path = "../mc-typeset" }
@@ -33,8 +34,11 @@ mc-ui = { path = "../mc-ui" }
 flate2 = "1"
 png = "0.18"
 resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts", "memmap-fonts", "raster-images"] }
-rfd = "0.17.2"
 serde_json = "1"
+
+# the system's file dialogs (a native Android program has none: the notebook shows its own, `app/pick.rs`)
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = "0.17.2"
 
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"

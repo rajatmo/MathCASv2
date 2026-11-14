@@ -53,6 +53,9 @@
 //!   Copy gives), `canon` (the stored text), `output` (the printed output of the last `eval`), `messages` (the
 //!   other cells it made), `gaps` (round 35: the white space that multiplies, `|` between gaps); `linear` and
 //!   `output` compare without spaces
+//! - the phone layout (`MCNB_LAYOUT=mobile`, Android): `calc` starts a new calculation as the Home screen's button
+//!   does; `mopen <file>` opens a notebook from Home; `mhome` goes back to Home (the notebook is written);
+//!   `mstate` logs the screen, the open notebook's file name and what shows at the bottom (keys, actions, add)
 //! - `quit`
 use crate::app::App;
 use crate::theme::ThemeChoice;
@@ -210,6 +213,10 @@ impl SelfTest {
             }
             "new" => app.load_notebook(Notebook::new()),
             "newtab" => app.new_tab(),
+            "calc" => app.mobile_calc(),
+            "mopen" => app.mobile_open(std::path::Path::new(arg)),
+            "mhome" => app.mobile_home(),
+            "mstate" => self.log.push(format!("mobile: {}", app.mobile_state())),
             "ppp" => {
                 let want: f32 = arg.parse().unwrap_or(1.0);
                 let native = ctx.pixels_per_point() / ctx.zoom_factor();

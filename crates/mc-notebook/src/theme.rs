@@ -125,6 +125,28 @@ impl Palette {
         }
     }
 
+    /// The phone layout's version of this palette: the window's surfaces, text, outlines and accent are the roles
+    /// of the Material scheme ([`Material`]); the colours of code and mathematics stay.
+    pub fn material(mut self) -> Palette {
+        let m = Material::of(self.dark);
+        self.bg = m.surface;
+        self.panel = m.surface_container;
+        self.card = m.surface_high;
+        self.border = m.outline_variant;
+        self.text = m.on_surface;
+        self.weak = m.on_surface_variant;
+        self.faint = m.outline;
+        self.accent = m.primary;
+        self.cursor = m.primary;
+        self.red = m.error;
+        self.gutter = m.outline;
+        self.guide = m.outline_variant;
+        self.input_bg = m.surface_low;
+        self.current_line = m.surface_low;
+        self.selection = m.primary_container;
+        self
+    }
+
     /// `c` at `alpha` over the background.
     pub fn over_bg(&self, c: Color32, alpha: f32) -> Color32 {
         lerp(self.bg, c, alpha)
@@ -275,7 +297,125 @@ impl Palette {
             s.text_styles.insert(TextStyle::Small, FontId::new(11.0, FontFamily::Proportional));
             s.text_styles.insert(TextStyle::Heading, FontId::new(18.0, FontFamily::Proportional));
             s.text_styles.insert(TextStyle::Monospace, FontId::new(13.0, FontFamily::Monospace));
+            // the phone layout: targets a finger can take, text read at arm's length
+            if crate::layout::mobile() {
+                s.spacing.item_spacing = egui::vec2(10.0, 8.0);
+                s.spacing.button_padding = egui::vec2(14.0, 9.0);
+                s.spacing.interact_size.y = 44.0;
+                s.text_styles.insert(TextStyle::Body, FontId::new(16.0, FontFamily::Proportional));
+                s.text_styles.insert(TextStyle::Button, FontId::new(16.0, FontFamily::Proportional));
+                s.text_styles.insert(TextStyle::Small, FontId::new(13.0, FontFamily::Proportional));
+                s.text_styles.insert(TextStyle::Heading, FontId::new(20.0, FontFamily::Proportional));
+                s.text_styles.insert(TextStyle::Monospace, FontId::new(15.0, FontFamily::Monospace));
+                // Material shapes and states: full-round buttons, large corners on what floats, a tint for a
+                // control that is pressed
+                let m = Material::of(self.dark);
+                let w = &mut s.visuals.widgets;
+                for st in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
+                    st.corner_radius = CornerRadius::same(20);
+                    st.bg_stroke = Stroke::new(1.0, m.outline);
+                }
+                w.inactive.weak_bg_fill = m.surface;
+                w.inactive.bg_fill = m.surface;
+                w.hovered.weak_bg_fill = Material::state(m.surface, m.on_surface, 0.08);
+                w.hovered.bg_fill = w.hovered.weak_bg_fill;
+                w.active.weak_bg_fill = Material::state(m.surface, m.on_surface, 0.12);
+                w.active.bg_fill = w.active.weak_bg_fill;
+                s.visuals.window_corner_radius = CornerRadius::same(28);
+                s.visuals.window_fill = m.surface_high;
+                s.visuals.window_stroke = Stroke::NONE;
+                s.visuals.text_edit_bg_color = Some(m.surface_high);
+                s.visuals.extreme_bg_color = m.surface_high;
+            }
         });
+    }
+}
+
+/// The colour roles of Material Design 3 the phone layout draws with: a scheme made from the notebook's blue, in
+/// its light and its dark form. Each "on" colour is the text and icon colour for the surface it is named after.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Material {
+    /// the main actions (filled buttons), links, the caret
+    pub primary: Color32,
+    /// text and icons on `primary`
+    pub on_primary: Color32,
+    /// standout surfaces: the floating action button, the leading circle of a list row
+    pub primary_container: Color32,
+    /// text and icons on `primary_container`
+    pub on_primary_container: Color32,
+    /// quieter filled controls (tonal buttons)
+    pub secondary_container: Color32,
+    /// text and icons on `secondary_container`
+    pub on_secondary_container: Color32,
+    /// the page
+    pub surface: Color32,
+    /// sheets, the cards of input cells
+    pub surface_low: Color32,
+    /// bars
+    pub surface_container: Color32,
+    /// dialogs
+    pub surface_high: Color32,
+    /// text and icons on the surfaces
+    pub on_surface: Color32,
+    /// secondary text, quiet icons
+    pub on_surface_variant: Color32,
+    /// outlines of controls
+    pub outline: Color32,
+    /// dividers, quiet outlines
+    pub outline_variant: Color32,
+    /// destructive actions, failures
+    pub error: Color32,
+    /// what dims the page behind a sheet or a dialog
+    pub scrim: Color32,
+}
+
+impl Material {
+    /// The scheme for a light (`dark`: a dark) screen.
+    pub fn of(dark: bool) -> Material {
+        if dark {
+            Material {
+                primary: hex(0xaac7ff),
+                on_primary: hex(0x0a305f),
+                primary_container: hex(0x284777),
+                on_primary_container: hex(0xd6e3ff),
+                secondary_container: hex(0x3e4759),
+                on_secondary_container: hex(0xdae2f9),
+                surface: hex(0x111318),
+                surface_low: hex(0x191c20),
+                surface_container: hex(0x1d2024),
+                surface_high: hex(0x282a2f),
+                on_surface: hex(0xe2e2e9),
+                on_surface_variant: hex(0xc4c6d0),
+                outline: hex(0x8e9099),
+                outline_variant: hex(0x44474e),
+                error: hex(0xffb4ab),
+                scrim: Color32::from_black_alpha(150),
+            }
+        } else {
+            Material {
+                primary: hex(0x415f91),
+                on_primary: hex(0xffffff),
+                primary_container: hex(0xd6e3ff),
+                on_primary_container: hex(0x284777),
+                secondary_container: hex(0xdae2f9),
+                on_secondary_container: hex(0x3e4759),
+                surface: hex(0xf9f9ff),
+                surface_low: hex(0xf3f3fa),
+                surface_container: hex(0xededf4),
+                surface_high: hex(0xe7e8ee),
+                on_surface: hex(0x191c20),
+                on_surface_variant: hex(0x44474e),
+                outline: hex(0x74777f),
+                outline_variant: hex(0xc4c6d0),
+                error: hex(0xba1a1a),
+                scrim: Color32::from_black_alpha(82),
+            }
+        }
+    }
+
+    /// `layer` at `alpha` over `base`: the tint of a control that is pressed or hovered (a state layer).
+    pub fn state(base: Color32, layer: Color32, alpha: f32) -> Color32 {
+        lerp(base, layer, alpha)
     }
 }
 
@@ -318,10 +458,15 @@ impl ThemeChoice {
 
     /// The palette to use now (`system_dark`: what the operating system shows).
     pub fn palette(self, system_dark: bool) -> Palette {
-        match self {
+        let palette = match self {
             ThemeChoice::System if system_dark => Palette::dark(),
             ThemeChoice::System | ThemeChoice::Light => Palette::light(),
             ThemeChoice::Dark => Palette::dark(),
+        };
+        if crate::layout::mobile() {
+            palette.material()
+        } else {
+            palette
         }
     }
 }

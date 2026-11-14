@@ -2,8 +2,9 @@
 // Explorer, the taskbar and shortcuts show it.
 fn main() {
     println!("cargo:rerun-if-changed=../../assets/app/icon.ico");
+    // built on Windows for Windows (not for another system, as the Android package is)
     #[cfg(windows)]
-    {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("../../assets/app/icon.ico");
         if let Err(e) = res.compile() {

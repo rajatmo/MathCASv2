@@ -767,3 +767,40 @@ User report: a power of a selection `2m` looked like `2m²`; while editing, brac
 - New self-test steps: `select <cell> <from> <to>` (a byte selection in a cell, as a click would set it) and
   `same`. `tests/selftest/long-cell.txt` (test `long_cell`): the typing latency probes of a 2,000-line cell
   (mc-boxes NOTES, round 38).
+
+## The layout for phones and tablets (Android)
+
+`src/app/mobile.rs`, chosen by `layout::mobile()` (Android; `MCNB_LAYOUT=mobile` anywhere, for trying it and for
+`tests/mobile_selftest.rs`). `App::ui` branches once: the desktop panels (menus, toolbar, tabs, status bar) or
+`mobile_ui`. Model, kernel, canvas, dialogs and commands are shared; the mobile shell adds none.
+
+- **Screens**: Home (New calculation, the notebooks folder newest first with a per-file sheet, Open a file) and
+  Notebook (bar: back, name = rename, kernel dot or stop, more). One sheet (`Sheet::More` / `Sheet::File`).
+- **Bottom of the notebook follows the selection** (`mobile_selection`): a caret in an editable cell → the key
+  row (KEYS, caret left/right, tab, Run) with the completions in a strip above it (`completion_popup` fills
+  `Mobile::completions` instead of drawing its list); a selected result or picture → Copy, LaTeX, Share, Delete;
+  else the round "+".
+- **Canvas**: `view::Metrics` (brackets, side margin, right pad, insertion line and "+", handle size and reach):
+  `desktop()` is the design's numbers, `mobile()` has no brackets, 22/10 pt margins, no insertion line, 12 pt
+  handles. The content column is at most 720 pt wide, in the middle of a wider screen.
+- **One notebook at a time**: leaving it (`leave_notebook`) writes it and replaces it by an empty one (its kernel
+  ends). No save question: `autosave` writes two seconds after a change; a notebook without a file becomes
+  `Calculation N.mcn` in the notebooks folder once a cell has text.
+- **Look: Material Design 3.** `theme::Material` holds the colour roles (a blue scheme, light and dark);
+  `Palette::material()` maps them onto the palette the canvas and egui draw with (surfaces, text, outlines, the
+  accent; code and mathematics colours stay). `mobile.rs` draws the components itself: a 64 pt top app bar on the
+  page colour, icon buttons with round state layers, two-line list rows with a leading circle, pill buttons
+  (filled for Run, tonal for Share and Open a file, text for the rest), outlined chips for completions, a floating
+  action button (extended on Home), a modal bottom sheet with a handle that reaches under the navigation bar, and
+  Material dialogs (`dialog.rs`: 28 pt corners, text buttons). Input cards have 12 pt corners
+  (`Metrics::card_radius`). The interface font on Android is the system Roboto (`mc-ui` `fonts.rs`). The system
+  theme and the colour of the status bar icons go through the activity (`platform::system_dark`, `light_bars`).
+- **Sizes**: `theme.rs` has a mobile branch (44 pt targets, 16 pt text); bottom bars are 56 pt; dialogs take the screen's
+  width when it is narrower than they are (`dialog::show`).
+- The on-screen keyboard is asked for only by a caret in an editable cell (`canvas.rs` `ime`).
+- Self-test steps `calc`, `mopen`, `mhome`, `mstate` drive the screens without coordinates.
+
+Left out on purpose (the user's brief: minimal; open a notebook, a quick calculation, share a plot): cell styles
+and grouping, find, preferences, tabs, the status bar, the documentation window. Known gaps: no paste key; the
+per-cell running mark went with the brackets (the bar's kernel dot shows work); a long press on a list row or a cell
+does nothing (the dots and the sheet do it).

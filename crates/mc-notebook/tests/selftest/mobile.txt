@@ -1,0 +1,33 @@
+# The phone layout (MCNB_LAYOUT=mobile) in a phone-sized window: Home, a new calculation evaluated with the kernel,
+# back to Home (the notebook is written without a question), the notebook opened again, then a tablet-sized window.
+# @DOCS@ is replaced by the notebooks folder of the run.
+size 411 890
+theme light
+wait 20
+mstate
+shot home
+calc
+wait 10
+mstate
+formula mobile/integral
+keys "integrate(x^2 sin(x), x)"
+shot typing
+eval
+expect output "2*cos(x) - cos(x)*x^2 + 2*x*sin(x)"
+mstate
+shot result
+mhome
+wait 10
+mstate
+shot home-with-notebook
+mopen @DOCS@/Calculation 1.mcn
+wait 20
+mstate
+theme dark
+wait 10
+shot reopened-dark
+theme light
+size 1100 760
+wait 20
+shot tablet
+quit

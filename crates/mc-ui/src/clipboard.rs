@@ -76,9 +76,40 @@ fn platform() -> Option<Box<dyn SystemClipboard>> {
     other::ArboardClipboard::new().map(|c| Box::new(c) as Box<dyn SystemClipboard>)
 }
 
-#[cfg(any(target_os = "android", target_arch = "wasm32"))]
+#[cfg(target_arch = "wasm32")]
 fn platform() -> Option<Box<dyn SystemClipboard>> {
     None
+}
+
+#[cfg(target_os = "android")]
+fn platform() -> Option<Box<dyn SystemClipboard>> {
+    Some(Box::new(AndroidClipboard))
+}
+
+/// Android's clipboard, through the activity: text, and a picture as a PNG file other apps are let read.
+#[cfg(target_os = "android")]
+struct AndroidClipboard;
+
+#[cfg(target_os = "android")]
+impl SystemClipboard for AndroidClipboard {
+    fn set(&mut self, contents: &Contents) -> bool {
+        contents.text.as_deref().is_some_and(crate::android::copy_text)
+    }
+
+    fn set_picture(&mut self, picture: &Picture<'_>) -> bool {
+        let png = match picture.png {
+            Some(p) => Some(p.to_vec()),
+            None => encode_png(picture.rgba, picture.width, picture.height),
+        };
+        let dir = crate::platform::shared_dir();
+        let path = dir.join("copied-picture.png");
+        let written = png.is_some_and(|p| std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, p)).is_ok());
+        written && crate::android::copy_image(&path)
+    }
+
+    fn get(&mut self) -> Option<Contents> {
+        crate::android::clipboard_text().map(|t| Contents { text: Some(t), ..Contents::default() })
+    }
 }
 
 /// A picture as a device-independent bitmap (`CF_DIB`): a `BITMAPINFOHEADER`, then the rows bottom-up as BGRA, laid

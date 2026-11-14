@@ -2833,6 +2833,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-notebook-android"
+version = "0.13.0"
+dependencies = [
+ "mc-notebook",
+ "mc-ui",
+]
+
+[[package]]
 name = "mc-numeric"
 version = "0.13.0"
 dependencies = [
@@ -3091,6 +3099,7 @@ dependencies = [
  "arboard",
  "clipboard-win",
  "eframe",
+ "jni-sys 0.3.1",
  "mc-mathfont",
  "png 0.18.1",
  "resvg",

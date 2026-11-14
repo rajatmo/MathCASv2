@@ -195,7 +195,14 @@ pub fn run_native<S: 'static>(
             c.instance_descriptor.backends = backends;
             c.native_adapter_selector = Some(std::sync::Arc::new(choose_adapter));
         }
-        let options = eframe::NativeOptions { viewport: viewport.clone(), wgpu_options, ..Default::default() };
+        let options = eframe::NativeOptions {
+            viewport: viewport.clone(),
+            wgpu_options,
+            // the activity the entry point was started with (`android::start`)
+            #[cfg(target_os = "android")]
+            android_app: crate::android::app(),
+            ..Default::default()
+        };
         starting(backends);
         let taken = slot.clone();
         result = eframe::run_native(

@@ -120,7 +120,8 @@ impl App {
             .interactable(false)
             .show(ctx, |ui| {
                 Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_max_width(560.0);
+                    // (a narrow window: what fits beside the margins)
+                    ui.set_max_width(560.0_f32.min(ctx.content_rect().width() - 44.0));
                     ui.horizontal(|ui| {
                         ui.label(job);
                         if calls.len() > 1 {

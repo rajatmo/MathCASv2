@@ -43,10 +43,16 @@ pub struct KernelProcess {
     generation: Arc<Mutex<u64>>,
 }
 
-/// The kernel executable: `MATHCAS_KERNEL`, else `mc-kernel` next to this program.
+/// The kernel executable: `MATHCAS_KERNEL`, else `mc-kernel` next to this program. On Android an app may run
+/// programs only from the folder of its native libraries, so the package carries the kernel there under a
+/// library's name, `libmc_kernel.so`.
 pub fn default_kernel() -> PathBuf {
     if let Some(p) = std::env::var_os("MATHCAS_KERNEL") {
         return PathBuf::from(p);
+    }
+    #[cfg(target_os = "android")]
+    if let Some(dir) = mc_ui::android::native_library_dir("libmc_notebook_android.so") {
+        return dir.join("libmc_kernel.so");
     }
     let name = if cfg!(windows) { "mc-kernel.exe" } else { "mc-kernel" };
     std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.join(name))).unwrap_or_else(|| PathBuf::from(name))

@@ -38,15 +38,34 @@ xdg-desktop-portal (or zenity) for file dialogs. Both windows ran in WSLg (`WGPU
 Machine reals differ in the last digit from Windows (glibc vs the Windows runtime); bit-identical results would need
 the engine's elementary functions through the pure-Rust `libm` crate (a numeric-policy decision).
 
-## Android (assessment, not built)
+## Android
 
-NDK r26+, `cargo-ndk` or `xbuild`, a `cdylib` with `android_main(app)` passing `NativeOptions { android_app }`; eframe
-with `default-features = false` and `android-native-activity` (pure Rust; it refuses `accesskit`) in every crate that
-uses eframe (`cargo check -p mc-ui --target aarch64-linux-android` passes with that set). GLES then Vulkan (already
-the order). `dirs::set_app_dir(app.internal_data_path())`. No rfd backend: the Storage Access Framework through JNI,
-or app-private files. Android 10+ cannot execute files from writable folders: ship `mc-kernel` as
-`libmc_kernel.so` in `jniLibs` or run the kernel in-process on a thread. Soft keyboard (`show_soft_input`) and IME
-commits for cell editing; larger hit targets; long-press menus; a JNI `ClipboardManager` clipboard.
+Built and run on an emulator (x86_64, Android 17); arm64 is built, not yet run on a device. The pieces:
+
+- `android::start(app)` (called first in `android_main`, crate `mc-notebook-android`) keeps the activity for
+  `gpu::run_native` (`NativeOptions { android_app }`) and names the folders: settings in the internal files folder
+  (`dirs::set_app_dir`), notebooks in the app's folder on the shared storage (`dirs::set_documents_dir`), `TMPDIR` in
+  the internal `cache` (the system's temporary folder is not writable by apps), `HOME`.
+- eframe features per platform in `Cargo.toml`: `android-native-activity` on Android (no Java code; it refuses
+  `accesskit`), the desktop set elsewhere. GLES then Vulkan, as the order always said.
+- `android::bars()`: the window lies under the status and navigation bars and under the on-screen keyboard; the
+  activity reports the free rectangle, the notebook pads its chrome by it and centres dialogs in it.
+- `android::native_library_dir(name)`: where the package's native libraries are unpacked, the only folder an app may
+  run a program from. The kernel is there as `libmc_kernel.so` (the notebook starts it as a process, as on the
+  desktop).
+- The activity is `MathCasActivity` (`packaging/android/java/`, the only Java: about 300 lines with the content
+  provider): `NativeActivity` plus the share sheet, the clipboard, the document picker and the file an "Open with"
+  intent carries. `android.rs` calls its methods through `jni-sys` (text crosses as UTF-8 `byte[]`); `platform.rs`
+  is the same set of functions for every system (`share_bytes`, `share_text`, `pick_document`, `take_incoming`,
+  `bars`), with stand-ins on a desktop. `clipboard.rs` has the Android clipboard (text; a picture as a PNG another
+  app is let read through the provider `SharedFiles`).
+- The layout for phones and tablets is `mc-notebook/src/app/mobile.rs` (its NOTES); touch is rewritten in
+  `mc-notebook/src/touch.rs`.
+- Packaging without Gradle: `packaging/android/build-apk.sh` (javac, d8, aapt2, zipalign, apksigner), `smoke.sh`.
+
+Not done: pasting from other apps (no key asks for it yet), input-method composition (keys arrive one by one, which
+the stock keyboard does for Latin text), the documentation window, a build on the build server, a signing key for a
+store. "Open with" from a file manager is declared in the manifest but was not tried; the picker was.
 
 ## Tests
 
@@ -60,8 +79,7 @@ atomic writes; the three GPU tests.
 
 Cells reach other programs only on Windows; a copied picture on Linux/macOS carries only the PNG (one flavour per
 copy); theme, icon and settings still live in mc-notebook (mc-docs depends on it for them); egui's Ubuntu-Light and
-Hack are still compiled in through eframe's `default_fonts`; DejaVu Sans Mono is wider than Consolas; the Android
-eframe feature set is not wired.
+Hack are still compiled in through eframe's `default_fonts`; DejaVu Sans Mono is wider than Consolas.
 
 ## Round nb-ui
 

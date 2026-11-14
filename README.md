@@ -147,9 +147,9 @@ mc-repl notebook.mcn --update    # evaluate a notebook and write its outputs bac
 - **Answers check themselves.** Every antiderivative is differentiated back, every solution of an equation is
   substituted in, every new rewrite of the simplifier and every transform value is compared numerically. A result
   that fails its check is not returned.
-- **The test suite** has about 2,950 tests, and the 1,900 documentation pages are re-run on each build: a stored
+- **The test suite** has about 3,050 tests, and the 1,900 documentation pages are re-run on each build: a stored
   output that no longer matches fails the build.
-- **A large example corpus** (about 44,000 inputs with known answers) is run before each release. In 0.13.0, 79.3%
+- **A large example corpus** (about 44,000 inputs with known answers) is run before each release. In 0.14.0, 80.1%
   give the known answer outright; the rest are mostly inputs MathCAS leaves unevaluated, or answers in another equal
   form, and the check finds none of them to be a wrong value. That is a statement about this corpus, not a proof: if
   you find a wrong answer, please open an issue with the input.
@@ -158,7 +158,7 @@ The [changelog](CHANGELOG.md) lists what each release fixed.
 
 ## Building from source
 
-MathCAS is a Rust workspace: 64 crates, about 400,000 lines. A recent stable Rust toolchain is all you need. The
+MathCAS is a Rust workspace: 65 crates, about 400,000 lines. A recent stable Rust toolchain is all you need. The
 notebook uses the system's graphics drivers (Direct3D 12 or OpenGL on Windows; Vulkan or OpenGL with Wayland or X11
 on Linux; Metal on macOS). The compiler version is pinned in `rust-toolchain.toml`.
 
@@ -180,6 +180,9 @@ and tests Windows, Linux and macOS on every push ([ci.yml](.github/workflows/ci.
   AppImage (needs `appimagetool`).
 - **macOS:** `packaging/macos/build-app.sh` builds the application bundle and the disk image, and
   `packaging/macos/smoke.sh` tests an image.
+- **Android:** `packaging/android/build-apk.sh` builds the notebook's package for phones, tablets and emulators
+  (needs the Android SDK and NDK), and `packaging/android/smoke.sh` tests it on an emulator or a device. It is not
+  among the published packages yet.
 - **On GitHub:** a push to `main` publishes the `nightly` pre-release; a tag `v<version>` publishes a numbered
   release with that version's changelog.
 

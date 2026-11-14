@@ -73,7 +73,7 @@ can start as soon as what it uses exists.
 | 6 checking | a runner for large sets of example inputs with known answers: per-case tracing, progress, limits and crash diagnosis (section 4) |
 | 7 speed | compiled special functions and ODE right-hand sides, packed complex arrays, parallel `table` and `map` |
 | 8 notebook maturity | documentation in the editor, typeset input, `manipulate`, 3D rotation, HTML and PDF export, plots as SVG |
-| 10 platforms | Windows installer and zip, Linux tarball and AppImage; no Android port |
+| 10 platforms | Windows installer and zip, Linux tarball and AppImage, macOS disk image; an Android package of the notebook (built by hand, not published yet) |
 
 Release 0.4.0 also shipped steps 1-2 of `10-integration.md`: cubature, quasi-Monte Carlo and VEGAS in
 `n_integrate`.

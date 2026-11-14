@@ -132,33 +132,31 @@ impl App {
     }
 
     pub(super) fn save_as(&mut self) -> bool {
-        let mut dialog = rfd::FileDialog::new().add_filter("MathCAS notebook", &["mcn"]);
-        if let Some(p) = self.path() {
-            if let Some(d) = p.parent() {
-                dialog = dialog.set_directory(d);
-            }
-            if let Some(n) = p.file_name() {
-                dialog = dialog.set_file_name(n.to_string_lossy());
-            }
-        } else {
-            let name = self.tabs.current().map_or("Untitled".to_string(), |t| t.title());
-            dialog = dialog.set_file_name(format!("{name}.mcn"));
+        let path = self.path();
+        let dir = path.as_ref().and_then(|p| p.parent().map(Path::to_path_buf));
+        let name = match path.as_ref().and_then(|p| p.file_name()) {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => format!("{}.mcn", self.tabs.current().map_or("Untitled".to_string(), |t| t.title())),
+        };
+        if pick::own() {
+            // answered in a later frame: not saved yet
+            self.pick(pick::Purpose::SaveAs, Some(name));
+            return false;
         }
-        match dialog.save_file() {
+        match system_save("MathCAS notebook", "mcn", dir.as_deref(), Some(name)) {
             Some(p) => self.save_to(&p),
             None => false,
         }
     }
 
     pub(super) fn open_dialog(&mut self) {
-        let mut dialog = rfd::FileDialog::new().add_filter("MathCAS notebook", &["mcn"]);
-        if let Some(d) = self.path().and_then(|p| p.parent().map(Path::to_path_buf)) {
-            dialog = dialog.set_directory(d);
+        if pick::own() {
+            self.pick(pick::Purpose::Open, None);
+            return;
         }
-        if let Some(ps) = dialog.pick_files() {
-            for p in ps {
-                self.open(&p);
-            }
+        let dir = self.path().and_then(|p| p.parent().map(Path::to_path_buf));
+        for p in system_open("MathCAS notebook", "mcn", dir.as_deref()) {
+            self.open(&p);
         }
     }
     /// File > Export > HTML page / PDF document: the notebook as shown (outputs included, 3D pictures and
@@ -166,11 +164,12 @@ impl App {
     pub(super) fn export_document(&mut self, ext: &str) {
         let (name, filter) = if ext == "pdf" { ("PDF document", "pdf") } else { ("HTML page", "html") };
         let stem = self.path().and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_string()));
-        let mut dialog = rfd::FileDialog::new().add_filter(name, &[filter]);
-        if let Some(s) = &stem {
-            dialog = dialog.set_file_name(format!("{s}.{ext}"));
+        let file = stem.map(|s| format!("{s}.{ext}"));
+        if pick::own() {
+            self.pick(pick::Purpose::Export(filter), file);
+            return;
         }
-        let Some(p) = dialog.save_file() else { return };
+        let Some(p) = system_save(name, filter, None, file) else { return };
         self.export_to(&p);
     }
 
@@ -225,8 +224,17 @@ impl App {
     }
 
     pub(super) fn export_script(&mut self) {
-        let dialog = rfd::FileDialog::new().add_filter("MathCAS script", &["mc"]);
-        let Some(p) = dialog.save_file() else { return };
+        if pick::own() {
+            let stem = self.path().and_then(|p| p.file_stem().map(|s| s.to_string_lossy().to_string()));
+            self.pick(pick::Purpose::Script, stem.map(|s| format!("{s}.mc")));
+            return;
+        }
+        let Some(p) = system_save("MathCAS script", "mc", None, None) else { return };
+        self.export_script_to(&p);
+    }
+
+    /// Write the notebook's code cells as a script to `path` (text cells become comments).
+    pub(super) fn export_script_to(&mut self, p: &Path) {
         let mut out = String::from("#! mathcas 2\n");
         for c in self.doc.nb.cells() {
             if c.style.is_code() {
@@ -239,8 +247,43 @@ impl App {
                 out.push('\n');
             }
         }
-        if let Err(e) = mc_nbfile::write_atomic(&p, &out) {
-            self.error = Some(format!("Cannot write {}: {e}", p.display()));
+        match mc_nbfile::write_atomic(p, &out) {
+            Ok(()) => self.status = format!("Exported {}", file_name(p)),
+            Err(e) => self.error = Some(format!("Cannot write {}: {e}", p.display())),
         }
     }
+}
+
+/// The system's Save dialog for files of one kind: the chosen path, `None` when it was cancelled.
+#[cfg(not(target_os = "android"))]
+fn system_save(kind: &str, ext: &str, dir: Option<&Path>, name: Option<String>) -> Option<PathBuf> {
+    let mut dialog = rfd::FileDialog::new().add_filter(kind, &[ext]);
+    if let Some(d) = dir {
+        dialog = dialog.set_directory(d);
+    }
+    if let Some(n) = name {
+        dialog = dialog.set_file_name(n);
+    }
+    dialog.save_file()
+}
+
+/// The system's Open dialog for files of one kind: the chosen paths (none when it was cancelled).
+#[cfg(not(target_os = "android"))]
+fn system_open(kind: &str, ext: &str, dir: Option<&Path>) -> Vec<PathBuf> {
+    let mut dialog = rfd::FileDialog::new().add_filter(kind, &[ext]);
+    if let Some(d) = dir {
+        dialog = dialog.set_directory(d);
+    }
+    dialog.pick_files().unwrap_or_default()
+}
+
+// Android has no file dialog a native program can call: the notebook's own is used (`pick::own`), these never run.
+#[cfg(target_os = "android")]
+fn system_save(_kind: &str, _ext: &str, _dir: Option<&Path>, _name: Option<String>) -> Option<PathBuf> {
+    None
+}
+
+#[cfg(target_os = "android")]
+fn system_open(_kind: &str, _ext: &str, _dir: Option<&Path>) -> Vec<PathBuf> {
+    vec![]
 }

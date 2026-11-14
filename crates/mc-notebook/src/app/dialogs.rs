@@ -4,6 +4,7 @@ use super::*;
 impl App {
     pub(super) fn dialogs(&mut self, ctx: &egui::Context) {
         self.preferences(ctx);
+        self.pick_dialog(ctx);
         if let Some(mut filter) = self.other_style.clone() {
             let mut chosen = None;
             let mut close = false;
@@ -205,10 +206,14 @@ impl App {
     }
 
     pub(super) fn update_theme(&mut self, ctx: &egui::Context) {
-        let system_dark = ctx.system_theme().is_some_and(|t| t == egui::Theme::Dark);
+        // (Android tells through its activity whether the system is dark, not through the window)
+        let system_dark = mc_ui::platform::system_dark(ctx.input(|i| i.time))
+            .unwrap_or_else(|| ctx.system_theme().is_some_and(|t| t == egui::Theme::Dark));
         let palette = self.settings.theme.palette(system_dark);
         if self.applied.as_ref() != Some(&palette) {
             palette.apply(ctx);
+            // the system draws its clock and icons dark on a light page, light on a dark one
+            mc_ui::platform::light_bars(!palette.dark);
             self.doc.view.palette = palette.clone();
             self.doc.view.clear();
             self.applied = Some(palette);

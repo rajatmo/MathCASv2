@@ -1,0 +1,21 @@
+# mc-notebook self-test for the Android smoke run (packaging/android/smoke.sh): the start screen, a new calculation,
+# an input evaluated with the kernel, then a plot. @OUT@ is replaced by the folder on the device where the log and
+# the screenshots go.
+out @OUT@
+theme light
+wait 30
+shot start
+calc
+wait 10
+formula smoke/integral
+keys "integrate(x^2 sin(x), x)"
+shot typed
+eval
+expect output "2*cos(x) - cos(x)*x^2 + 2*x*sin(x)"
+formula smoke/plot
+keys Ctrl+End "plot(sin(x), [x, 0, 6])"
+eval
+wait 30
+shot evaluated
+log finished
+quit

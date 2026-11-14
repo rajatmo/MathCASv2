@@ -100,6 +100,10 @@ impl App {
             self.status = format!("Documentation: {}", name.unwrap_or_default());
             return;
         }
+        if cfg!(target_os = "android") {
+            self.status = "The documentation window is not part of the Android app yet".into();
+            return;
+        }
         let exe = std::env::var_os("MATHCAS_DOCS").map(PathBuf::from).filter(|p| p.is_file()).or_else(|| {
             let name = if cfg!(windows) { "mc-docs.exe" } else { "mc-docs" };
             std::env::current_exe().ok().map(|e| e.with_file_name(name)).filter(|p| p.is_file())

@@ -415,7 +415,14 @@ impl App {
                     self.kernel_log = true;
                 }
             });
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            // at the window's right edge; in a toolbar that scrolls sideways (a narrow window) there is no such edge,
+            // and they follow the other tools
+            let side = if ui.ctx().content_rect().width() < NARROW {
+                Layout::left_to_right(Align::Center)
+            } else {
+                Layout::right_to_left(Align::Center)
+            };
+            ui.with_layout(side, |ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 egui::ComboBox::from_id_salt("zoom")
                     .icon(icons::combo_marker)
@@ -473,7 +480,11 @@ impl App {
                 ui.add(egui::Label::new(RichText::new(format!("{name}{m}")).color(weak).small()).truncate());
             });
             ui.add_space(12.0);
-            ui.with_layout(Layout::left_to_right(Align::Center), |ui| self.status_items(ui, weak));
+            ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                // in a narrow window the items end at the file name instead of running over it
+                ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+                self.status_items(ui, weak)
+            });
         });
     }
 

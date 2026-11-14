@@ -147,6 +147,11 @@ impl App {
         if self.modal_open() {
             return;
         }
+        // the phone layout: the on-screen keyboard comes up for a cell that is edited, not for a selected result
+        // or picture
+        if crate::layout::mobile() && (self.doc.view.graphic.is_some() || self.doc.nb.cell(cell).is_none_or(|c| c.generated())) {
+            return;
+        }
         let Some(r) = self.doc.view.caret_rect(ctx, &self.doc.nb, cell, pos) else {
             return;
         };

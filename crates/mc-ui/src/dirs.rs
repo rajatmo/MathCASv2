@@ -21,6 +21,19 @@ pub fn set_app_dir(dir: PathBuf) -> bool {
     APP_DIR.set(dir).is_ok()
 }
 
+static DOCUMENTS_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Name the folder where the user's notebooks are kept on a system without file dialogs (Android: the app's folder
+/// on the shared storage, which file managers and a computer over USB can reach). Only the first call has an effect.
+pub fn set_documents_dir(dir: PathBuf) -> bool {
+    DOCUMENTS_DIR.set(dir).is_ok()
+}
+
+/// The folder named by [`set_documents_dir`].
+pub fn documents_dir() -> Option<PathBuf> {
+    DOCUMENTS_DIR.get().cloned()
+}
+
 /// The folder of the settings, `gpu.json` and the single-instance file: `MCNB_CONFIG_DIR` when set, none in a
 /// self-test, else [`user_config_dir`].
 pub fn config_dir() -> Option<PathBuf> {

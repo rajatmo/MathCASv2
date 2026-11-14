@@ -284,6 +284,7 @@ impl App {
                 c.names.extend(names);
             }
         }
+        self.mobile.completions.clear();
         let Some(comp) = &self.doc.completion else {
             return;
         };
@@ -293,6 +294,11 @@ impl App {
             return;
         };
         let items = rank(&comp.names, &prefix);
+        // the phone layout shows the names in a strip above its keys, not in a list at the caret
+        if crate::layout::mobile() {
+            self.mobile.completions = items.iter().take(10).map(|(name, _)| name.clone()).collect();
+            return;
+        }
         // the caret of a typeset cell is the editor's (any position gives it)
         let pos = start + prefix.len();
         let Some(r) = self.doc.view.caret_rect(ctx, &self.doc.nb, cell, pos) else {
@@ -508,6 +514,8 @@ impl App {
             || self.interrupt
             || self.tabs.asked().is_some()
             || self.error.is_some()
+            || self.pick.is_some()
+            || self.mobile_modal()
             || self.about
             || self.prefs
     }

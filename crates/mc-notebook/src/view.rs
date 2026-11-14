@@ -278,6 +278,39 @@ struct Long {
 const HANDLE: f32 = 6.0;
 const HANDLE_REACH: f32 = 6.0;
 
+/// The furniture of the canvas, by the kind of window it is in. A desktop window has the cell brackets in its left
+/// margin, the "+" at the insertion line and small handles for the mouse; a phone has none of the first two (the
+/// content runs from edge to edge with a small margin) and handles a finger can take.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Metrics {
+    /// cell and group brackets in the left margin
+    pub brackets: bool,
+    /// the left edge of the content where there are no brackets (points)
+    pub side: f32,
+    /// the room right of the content (points)
+    pub right_pad: f32,
+    /// the insertion line between cells, with the "+" at its right end
+    pub plus: bool,
+    /// the side of a selected picture's handles (points)
+    pub handle: f32,
+    /// how far from a handle's middle a press still takes it (points)
+    pub handle_reach: f32,
+    /// the corner radius of the card of an input cell (points at 100 %)
+    pub card_radius: f32,
+}
+
+impl Metrics {
+    /// A desktop window (the layout of the design).
+    pub const fn desktop() -> Metrics {
+        Metrics { brackets: true, side: 0.0, right_pad: RIGHT_PAD, plus: true, handle: HANDLE, handle_reach: HANDLE_REACH, card_radius: 5.0 }
+    }
+
+    /// A phone or tablet.
+    pub const fn mobile() -> Metrics {
+        Metrics { brackets: false, side: 22.0, right_pad: 10.0, plus: false, handle: 12.0, handle_reach: 20.0, card_radius: 12.0 }
+    }
+}
+
 /// The caret's blink period (half on, half off), as the platform's default.
 pub const BLINK: f64 = 0.53;
 
@@ -298,6 +331,8 @@ pub struct View {
     /// the scale from the styles' sizes (typographic points) to egui points: the magnification (1.0 = 100 %) times
     /// `PX_PER_PT`; set through `set_magnification`
     pub zoom: f32,
+    /// the canvas's furniture (brackets, margins, handles)
+    pub metrics: Metrics,
     /// the canvas width of the last frame
     pub width: f32,
     /// the canvas's top-left of the last frame (screen coordinates)
@@ -395,6 +430,7 @@ impl View {
             tops: vec![],
             heights: vec![],
             zoom: PX_PER_PT,
+            metrics: Metrics::desktop(),
             width: 800.0,
             origin: Pos2::ZERO,
             palette,
@@ -1025,6 +1061,9 @@ impl View {
     /// The left edge of the content of a style at margin 0: right of the last reserved bracket slot and its hooks
     /// (the same for every cell, however deeply it is nested).
     fn content_edge(&self) -> f32 {
+        if !self.metrics.brackets {
+            return self.metrics.side;
+        }
         self.bracket_x(self.columns_shown()) + HOOK + BRACKET_GAP * self.zoom / PX_PER_PT
     }
 
@@ -1032,7 +1071,7 @@ impl View {
     pub fn content_x(&self, style: Style) -> (f32, f32) {
         let m = style.info().margins;
         let left = self.content_edge() + (m[0] - BASE_MARGIN).max(0.0) * self.zoom;
-        let right = (self.width - RIGHT_PAD - m[1].min(10.0)).max(left + 40.0);
+        let right = (self.width - self.metrics.right_pad - m[1].min(10.0)).max(left + 40.0);
         (left, right)
     }
 
@@ -1414,12 +1453,12 @@ impl View {
     /// What is at `p` (canvas coordinates).
     pub fn hit(&mut self, ctx: &egui::Context, nb: &Notebook, p: Pos2) -> Hit {
         let n = nb.cells().len();
-        if let Selection::Gap(g) = nb.selection() {
+        if let (Selection::Gap(g), true) = (nb.selection(), self.metrics.plus) {
             if (p - self.plus_center(*g)).length() <= 8.0 * self.zoom.max(1.0) {
                 return Hit::Plus(*g);
             }
         }
-        if p.x <= self.bracket_x(self.columns_shown()) + HOOK + 3.0 {
+        if self.metrics.brackets && p.x <= self.bracket_x(self.columns_shown()) + HOOK + 3.0 {
             let col = ((p.x - BRACKET_LEFT) / BRACKET_PITCH).round().max(0.0) as usize;
             let mut best: Option<(usize, Bracket)> = None;
             for (c, top, bottom, b) in self.brackets(nb) {
@@ -1436,7 +1475,7 @@ impl View {
         }
         // the handles of the selected picture reach a little outside it
         if let Some((id, r)) = self.graphic.and_then(|id| Some((id, self.graphic_rect(nb, nb.index_of(id)?)?))) {
-            if let Some(h) = Handle::ALL.into_iter().find(|h| (h.at(r) - p).abs().max_elem() <= HANDLE_REACH) {
+            if let Some(h) = Handle::ALL.into_iter().find(|h| (h.at(r) - p).abs().max_elem() <= self.metrics.handle_reach) {
                 return Hit::Handle(id, h);
             }
         }
@@ -1542,7 +1581,7 @@ impl View {
                     pos2(content.x - 8.0 * z, r.top() + 2.0 * z),
                     pos2(origin.x + rr + 6.0 * z, r.bottom() - 2.0 * z),
                 );
-                painter.rect_filled(panel, 5.0 * z, p.input_bg);
+                painter.rect_filled(panel, self.metrics.card_radius * z, p.input_bg);
             }
             if matches!(shown, Shown::Boxes | Shown::Typeset) {
                 if c.style == Style::Code && !c.expr_view {
@@ -1647,17 +1686,20 @@ impl View {
                 );
             }
         }
-        self.paint_brackets(painter, nb, origin, clip, &selected);
+        if self.metrics.brackets {
+            self.paint_brackets(painter, nb, origin, clip, &selected);
+        }
         // the insertion point
         let gap = self.drop_gap.or(match sel {
             Selection::Gap(g) => Some(g),
             _ => None,
         });
-        if let Some(g) = gap {
+        // (a phone shows no insertion line: a new cell is made with its "+" button; a drop target still shows)
+        if let Some(g) = gap.filter(|_| self.metrics.plus || self.drop_gap.is_some()) {
             let ppp = ctx.pixels_per_point();
             let y = painter.round_to_pixel_center(origin.y + self.gap_line_y(g));
             let left = origin.x + self.content_edge() - 4.0;
-            let right = origin.x + self.width - RIGHT_PAD - 22.0;
+            let right = origin.x + self.width - self.metrics.right_pad - if self.metrics.plus { 22.0 } else { 0.0 };
             let dragging = self.drop_gap.is_some();
             // a steady hairline (a blinking line was distracting, user decision); a drop target is 2 px in the accent
             let (width, color) = if dragging {
@@ -1666,7 +1708,7 @@ impl View {
                 (hairline(painter), p.guide_line())
             };
             painter.hline(left..=right.max(left + 20.0), y, Stroke::new(width, color));
-            if !dragging {
+            if !dragging && self.metrics.plus {
                 let center = origin + self.plus_center(g).to_vec2();
                 let hot = self.plus_hover;
                 let color = if hot { p.accent } else { p.gutter };
@@ -1876,7 +1918,7 @@ impl View {
             painter.rect_stroke(frame, 0.0, Stroke::new(hairline(painter), p.accent), egui::StrokeKind::Middle);
             for h in Handle::ALL {
                 let at = h.at(frame);
-                let sq = Rect::from_center_size(pos2(snap(painter, at.x), snap(painter, at.y)), vec2(HANDLE, HANDLE));
+                let sq = Rect::from_center_size(pos2(snap(painter, at.x), snap(painter, at.y)), vec2(self.metrics.handle, self.metrics.handle));
                 painter.rect_filled(sq, 0.0, p.bg);
                 painter.rect_stroke(sq, 0.0, Stroke::new(hairline(painter), p.accent), egui::StrokeKind::Inside);
             }

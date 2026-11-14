@@ -172,6 +172,19 @@ fn system_fonts(defs: &mut FontDefinitions) -> SystemFonts {
     }
 }
 
+/// Android's interface font, loaded from the system's font folder: the static Roboto where the system has it, else
+/// the variable one at its regular weight. `None` on other systems, or when the file cannot be read.
+fn android_ui_font(defs: &mut FontDefinitions) -> Option<String> {
+    if !cfg!(target_os = "android") {
+        return None;
+    }
+    let bytes = ["RobotoStatic-Regular.ttf", "Roboto-Regular.ttf"]
+        .iter()
+        .find_map(|f| std::fs::read(std::path::Path::new("/system/fonts").join(f)).ok())?;
+    defs.font_data.insert("roboto".to_string(), Arc::new(FontData::from_owned(bytes)));
+    Some("roboto".to_string())
+}
+
 /// The Windows font folder, on Windows.
 fn windows_font_dir() -> Option<std::path::PathBuf> {
     if !cfg!(windows) {
@@ -208,6 +221,11 @@ pub fn definitions(source: Source) -> FontDefinitions {
             symbols: vec![],
         },
     };
+    // Android: the interface is set in the system's own font (Roboto), as the apps around it are
+    let android_ui: Vec<String> = match source {
+        Source::PreferSystem => android_ui_font(&mut defs).into_iter().collect(),
+        Source::Bundled => vec![],
+    };
     let chain = |first: &[String], bundled: &[BundledFont]| -> Vec<String> {
         let mut v: Vec<String> = first.to_vec();
         v.extend(bundled.iter().map(|f| f.key.to_string()));
@@ -225,7 +243,7 @@ pub fn definitions(source: Source) -> FontDefinitions {
         (Face::Prose, chain(&system.prose, &[TEXT])),
         (Face::ProseBold, chain(&system.prose_bold, &[TEXT_BOLD, TEXT])),
         (Face::ProseItalic, chain(&system.prose_italic, &[TEXT_ITALIC, TEXT])),
-        (Face::Ui, chain(&system.prose, &[TEXT])),
+        (Face::Ui, chain(if android_ui.is_empty() { &system.prose } else { &android_ui }, &[TEXT])),
     ];
     for (face, list) in lists {
         if face == Face::Ui {

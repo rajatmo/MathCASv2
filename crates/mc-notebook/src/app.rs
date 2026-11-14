@@ -32,6 +32,8 @@ mod dialogs;
 mod files;
 mod help;
 mod keyboard;
+mod mobile;
+mod pick;
 mod prefs;
 mod tabs;
 
@@ -210,6 +212,10 @@ impl Doc {
     }
 }
 
+/// The window width (points) below which the menus and the toolbar scroll sideways: all menus and all toolbar
+/// buttons fit above it.
+const NARROW: f32 = 760.0;
+
 /// The application: a window with tabs.
 pub struct App {
     /// the active tab's notebook (its slot in `tabs` is empty while it is here)
@@ -247,6 +253,12 @@ pub struct App {
     /// a menu was opened from the keyboard: its first item takes the focus
     menu_focus: std::cell::Cell<bool>,
     error: Option<String>,
+    /// the notebook's own file dialog, when it is open (`pick.rs`)
+    pick: Option<pick::Pick>,
+    /// a finger on a touch screen between frames (`touch.rs`)
+    touch: crate::touch::Touch,
+    /// the layout for phones and tablets (`mobile.rs`)
+    mobile: mobile::Mobile,
     selftest: Option<SelfTest>,
     /// the find bar's text, when it is open
     find: Option<String>,
@@ -348,6 +360,9 @@ impl App {
             menu_ids: vec![],
             menu_focus: std::cell::Cell::new(false),
             error: None,
+            pick: None,
+            touch: crate::touch::Touch::default(),
+            mobile: mobile::Mobile::default(),
             selftest,
             find: None,
             find_focus: false,
@@ -520,6 +535,14 @@ impl eframe::App for App {
             st.inject(self, ctx, raw);
             self.selftest = Some(st);
         }
+        // Android: a finger scrolls, taps or (after a pause) drags (on the desktop systems a touch screen acts as
+        // the system's mouse, as before)
+        if cfg!(target_os = "android") {
+            let now = raw.time.unwrap_or(0.0);
+            if let Some(wait) = self.touch.rewrite(&mut raw.events, now) {
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(wait.max(0.0)));
+            }
+        }
         // Ctrl+wheel and pinches are the notebook's magnification, in whole steps; egui never sees them (it would
         // smooth them over frames and scroll with what arrives after Ctrl is released)
         let time = raw.time.unwrap_or(0.0);
@@ -617,33 +640,67 @@ impl eframe::App for App {
             }
         }
         let p = self.doc.view.palette.clone();
-        egui::Panel::top("menu")
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(6, 2)))
-            .show(ui, |ui| self.menus(ui));
-        if self.settings.show_toolbar {
-            egui::Panel::top("toolbar")
-                .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(6, 3)))
-                .exact_size(34.0)
-                .show(ui, |ui| self.toolbar(ui));
+        // Android: the window lies under the system's bars; the chrome starts below the status bar and ends above
+        // the navigation bar
+        #[cfg(target_os = "android")]
+        {
+            let (top, bottom) = mc_ui::android::bars();
+            let scale = ctx.pixels_per_point();
+            // the colour of what they border: the page under the status bar; the bottom bar, when one shows, under
+            // the navigation bar (no line between them)
+            let under = if self.mobile_bottom_bar() { p.panel } else { p.bg };
+            if top > 0.0 {
+                let bar = egui::Panel::top("system-top").frame(Frame::new().fill(p.bg)).show_separator_line(false);
+                bar.exact_size(top / scale).show(ui, |_| {});
+            }
+            if bottom > 0.0 {
+                let bar = egui::Panel::bottom("system-bottom").frame(Frame::new().fill(under)).show_separator_line(false);
+                bar.exact_size(bottom / scale).show(ui, |_| {});
+            }
         }
-        egui::Panel::top("tabs")
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin { left: 4, right: 4, top: 2, bottom: 0 }))
-            .exact_size(crate::tabbar::HEIGHT + 2.0)
-            .show(ui, |ui| self.tab_bar(ui));
-        egui::Panel::bottom("status")
-            .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 0)))
-            .exact_size(24.0)
-            .show(ui, |ui| self.status_bar(ui));
-        if self.find.is_some() {
-            egui::Panel::bottom("find")
-                .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 3)))
-                .exact_size(32.0)
-                .show(ui, |ui| self.find_bar(ui));
+        if crate::layout::mobile() {
+            self.mobile_ui(ui);
+        } else {
+            // a window narrower than the menus or the toolbar (a phone held upright): they scroll sideways
+            let narrow = ctx.content_rect().width() < NARROW;
+            let sideways = |ui: &mut egui::Ui, add: &mut dyn FnMut(&mut egui::Ui)| {
+                if narrow {
+                    let bars = egui::scroll_area::ScrollBarVisibility::AlwaysHidden;
+                    ScrollArea::horizontal().scroll_bar_visibility(bars).show(ui, |ui| add(ui));
+                } else {
+                    add(ui);
+                }
+            };
+            egui::Panel::top("menu")
+                .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(6, 2)))
+                .show(ui, |ui| sideways(ui, &mut |ui| self.menus(ui)));
+            if self.settings.show_toolbar {
+                egui::Panel::top("toolbar")
+                    .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(6, 3)))
+                    .exact_size(34.0)
+                    .show(ui, |ui| sideways(ui, &mut |ui| self.toolbar(ui)));
+            }
+            egui::Panel::top("tabs")
+                .frame(Frame::new().fill(p.panel).inner_margin(Margin { left: 4, right: 4, top: 2, bottom: 0 }))
+                .exact_size(crate::tabbar::HEIGHT + 2.0)
+                .show(ui, |ui| self.tab_bar(ui));
+            egui::Panel::bottom("status")
+                .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 0)))
+                .exact_size(24.0)
+                .show(ui, |ui| self.status_bar(ui));
+            if self.find.is_some() {
+                egui::Panel::bottom("find")
+                    .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(8, 3)))
+                    .exact_size(32.0)
+                    .show(ui, |ui| self.find_bar(ui));
+            }
+            egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.canvas(ui));
         }
-        egui::CentralPanel::default().frame(Frame::new().fill(p.bg)).show(ui, |ui| self.canvas(ui));
         self.completion_popup(&ctx);
         self.usage_hint(&ctx);
-        self.plus_popup(&ctx);
+        if !crate::layout::mobile() {
+            self.plus_popup(&ctx);
+        }
         self.dialogs(&ctx);
         // the notebook takes the keyboard itself: egui's focus navigation must not leave a button focused (Tab,
         // the next-placeholder and indent key, moves egui's focus; a focused "+" tab button then took Enter and
