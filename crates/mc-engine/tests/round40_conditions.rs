@@ -122,7 +122,8 @@ fn derivative_of_a_root_sum_with_moving_roots() {
     let mut e = CoreEngine::new();
     // documented: the roots of t^5 + a t + 1 move with a; the derivative against a central difference quotient
     let f = ev(&mut e, "f = d(root_sum(&(&1^5 + a*&1 + 1), &(exp(&1))), a); f");
-    assert!(f.starts_with("root_sum(") && !f.contains("failure"), "{f}");
+    // (a numeric factor of the summand is written outside the sum)
+    assert!(f.trim_start_matches('-').starts_with("root_sum(") && !f.contains("failure"), "{f}");
     let check = |e: &mut CoreEngine, p: &str, g: &str, a: &str| {
         let at = |v: &str| format!("root_sum(&({}), &({}))", p.replace('a', &format!("({v})")), g.replace('a', &format!("({v})")));
         let src = format!(

@@ -31,6 +31,7 @@ mod series;
 pub mod work;
 pub mod unipoly;
 pub mod z;
+pub mod zgroebner;
 
 pub use poly::Poly;
 pub use qpoly::QPoly;

@@ -337,3 +337,17 @@ field and the degree-42 norm.
   counted as the zeros of a denominator), half-lines and the line for functions with an unbounded tail
   (`exp(2 exp(x)) - log(x^2 + 1) - 20 x - 11`), and the periodic count of `sin(z/2)^5 + tan(4z)^3` on [0, 10^10].
   Tests: `mc-engine/tests/round41_roots.rs`.
+## Round 41: root sums by structure
+
+- `rootstruct` runs before the evaluation over Q: linearity (a summand that is not rational in the root is expanded;
+  its rational terms are summed apart and numeric factors taken out, unless the summand holds another variable, whose
+  parts may cancel in a limit or series in it, `(1 - cos(a t))/a^2` at a = 0); a polynomial with symbolic coefficients
+  is factored and each factor counted with its multiplicity, written with a positive leading coefficient; degree 1
+  and 2 with parameters by the explicit roots; a rational summand N/D with parameters by the resultant
+  `R(t) = Res_x(p, t D - N)`, the sum `-R_(d-1)/R_d` (declined when `R_d` vanishes identically); `log(q(y))` over a
+  rational p by `log(Res(p, q)/lc(p)^deg q) + 2 pi i k`, k read from the numeric sum at 30 digits and accepted only
+  within 10^-20 of an integer (the difference is exactly a multiple of 2 pi i).
+- Slot functions are kept with evaluated bodies, so a sum built by a computation and one typed in are the same
+  term; the library's placeholder `calc_rs_z` (used to build a summand from a computed body) is written back as a
+  slot.
+- Checked numerically against sums over `root(p, k)` at 30 digits for several parameter points.

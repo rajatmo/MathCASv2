@@ -105,9 +105,11 @@ fn root_sums() {
         ("root_sum(x => (x^3 + x + 1)^2, x => x^2)", "-4"),
         ("root_sum(x => x^3 + x + 1, x => 1/(z - x))", "(1 + 3*z^2)/(1 + z + z^3)"),
         ("root_sum(x => x^2 - 2, x => x*log(z - x))", "log(z - 2^(1/2))*2^(1/2) + -1*log(z + 2^(1/2))*2^(1/2)"),
-        ("root_sum(x => x^3 + x + 1, x => log(2 - x))", "root_sum(x => 1 + x + x^3, x => log(2 - x))"),
-        ("root_sum(x => 2*x^3 + 2*x + 2, x => log(2 - x))", "root_sum(x => 1 + x + x^3, x => log(2 - x))"),
-        ("root_sum(x => (x - 1)*(x^3 + x + 1), x => log(2 - x))", "root_sum(x => 1 + x + x^3, x => log(2 - x))"),
+        // a sum of logarithms is the logarithm of the product of 2 - r, p(2) = 11 (the numeric sum fixes the branch)
+        ("root_sum(x => x^3 + x + 1, x => log(2 - x))", "log(11)"),
+        ("root_sum(x => 2*x^3 + 2*x + 2, x => log(2 - x))", "log(11)"),
+        ("root_sum(x => (x - 1)*(x^3 + x + 1), x => log(2 - x))", "log(11)"),
+        ("root_sum(x => x^3 + x + 1, x => sin(2 - x))", "root_sum(x => 1 + x + x^3, x => sin(2 - x))"),
         ("root_sum(x => x^3 + x + 1, x => 7)", "21"),
         ("root_sum(x => x^4 - 1, x => x^3)", "0"),
     ];
@@ -120,8 +122,9 @@ fn root_sums() {
     // the derivative of a root sum
     assert_eq!(s.run("d(root_sum(t => t^3 - 2, t => t*log(x - t)), x)"), "6/(-2 + x^3)");
     // to radicals: the same number
-    let a = s.run("n(to_radicals(root_sum(x => x^3 + x + 1, x => log(2 - x))), 20)");
-    assert!(a.starts_with("complex(2.3978952727983705"), "{a}");
+    let a = s.run("n(to_radicals(root_sum(x => x^3 + x + 1, x => sin(2 - x))), 20)");
+    let b = s.run("n(root_sum(x => x^3 + x + 1, x => sin(2 - x)), 20)");
+    assert!(a.starts_with("complex(3.9375607052507289") && b.starts_with("3.9375607052507289"), "{a} {b}");
 }
 
 #[test]

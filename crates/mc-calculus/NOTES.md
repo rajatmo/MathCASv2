@@ -1585,3 +1585,18 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   sums the residues on the left only and cannot see the cancelled poles of the mirrored gamma ratio, so the right
   series (the function above the jump) is not checked; the transform declines as before.
   Tests: `mc-engine/tests/round41_tails.rs`.
+## Round 41: root sums in a parameter; quasi-polynomial generating functions; division over Z
+
+- `integrate(root_sum(p, y => g(y, a)), a)` (and over `[a, lo, hi]`) and `series(root_sum(...), a, a0, n)` with p
+  free of a: taken under the finite sum (`lib/calculus.mc`, `calc_rs_int`, `calc_rs_series`). The integral is used
+  only in closed form whose denominator factors are free of y, exponentials, or polynomials without a common root
+  with p (resultant not 0); the series only when the series of g is a polynomial in a - a0 of degree at most n.
+  Not covered: p depending on a (the roots move; series of the roots needed).
+- `generating_function(f, n, x)` for quasi-polynomials: f built from n and periodic atoms (`mod`, `kronecker_symbol`,
+  `jacobi_symbol`, `(-1)^n`, after `quotient(a, p) = (a - mod(a, p))/p` and `floor(a/v) = (a - mod(a, v))/v`) is
+  `sum_j n^j c_j(n)` with c_j periodic of period P (lcm of the atoms' periods; 8|m| for the Kronecker symbol), so the
+  generating function is `sum_j (x d/dx)^j (sum_(r<P) c_j(r) x^r)/(1 - x^P)` (Stanley, Enumerative Combinatorics I,
+  4.4). Checked against the terms to n = 20.
+- `polynomial_reduce(..., coefficient_domain: integers)` divides a term only when the quotient has integer
+  coefficients in every symbol; `rational_functions` is the default behaviour (symbols other than xs are
+  coefficients).

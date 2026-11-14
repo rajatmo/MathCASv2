@@ -377,3 +377,18 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   period or of the bounded interval are tried one by one (at most 20000); at most 3 step functions become error
   variables of the quantifier elimination. Left: `fractional_part` on an unbounded
   line (integer_part is not periodic), `quotient(a, m)` with m depending on x, nested step functions.
+## Round 41: coefficient domains of groebner_basis; inequations in eliminate
+
+- `groebner_basis(..., coefficient_domain: integers)`: the strong basis over Z (`mc_poly::zgroebner`), variables
+  ranked as over Q (elims, xs, the other symbols, `parameter_variables`), lexicographic or degree reverse
+  lexicographic; inputs with rational coefficients or numeric kernels (`sqrt(2)`) are refused.
+  `coefficient_domain: rational_functions`: every symbol other than xs is a parameter of the coefficient field
+  (the generic basis over Q(parameters), lex only). The sign convention is ours (primitive, positive leading numeric
+  coefficient), so a basis element may differ by the factor -1 from another system's.
+- `eliminate(eqs and q != 0, xs)`: each inequation adds `w q == 1` with a new unknown w, eliminated with xs (the
+  Rabinowitsch trick; the equations implied off q = 0 are those of the saturation I : q^inf, Cox, Little and O'Shea
+  4.4). `inverse_functions: ...` is accepted (it concerns equations that are not polynomial). An unknown to eliminate
+  inside another kernel (`sin(x - y)`) now gives a failure: the polynomial basis would have kept it (the answer still
+  held the unknown).
+- Gap: the equations of `eliminate` are the elimination ideal's lex basis; another generating set (a degree basis)
+  is equally right but prints differently.

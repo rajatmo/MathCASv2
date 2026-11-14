@@ -35,6 +35,7 @@ mod natives;
 pub mod qpoly;
 pub mod realroot;
 mod transroots;
+mod rootstruct;
 mod rootsum;
 
 pub use algnum::AlgNum;

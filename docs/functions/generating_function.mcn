@@ -61,6 +61,14 @@ generating_function([f(n + 1), f(n - 1)], n, z)
 #% output
 #= [generating_function(f(n), n, z)/z - f(0)/z, f(-1) + z*generating_function(f(n), n, z)]
 
+#% text
+# Periodic and quasi-polynomial sequences:
+
+#% cell
+generating_function(mod(n, 4), n, x)
+#% output
+#= (-x - 2*x^2 - 3*x^3)/(-1 + x^4)
+
 #% section
 # See also
 

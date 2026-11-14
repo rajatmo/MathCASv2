@@ -58,6 +58,14 @@ groebner_basis([x - t^2, y - t^3], [t, x, y])
 #% output
 #= [-y^2 + x^3, -x^2 + t*y, -y + t*x, -x + t^2]
 
+#% text
+# An inequation removes the points where it fails:
+
+#% cell
+eliminate(x*z == y and x^2*z^2 + x^2 == 1 and t != 0, z)
+#% output
+#= -1 + x^2 + y^2 == 0
+
 #% section
 # See also
 

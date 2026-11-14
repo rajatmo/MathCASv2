@@ -499,8 +499,46 @@ fn numerators<'h>(
 /// every other kernel a variable after them): their conjunction, `true` when there is none, `false` when eqs are
 /// inconsistent.
 fn eliminate<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out<'h>> {
-    let [_, _] = args else { return Ok(env.arg_failure("expected equations and the unknowns to eliminate")) };
-    let (eqs, xs) = match equations_and_unknowns(env, args, m)? {
+    let h = env.h();
+    // `inverse_functions: ...` matters only for equations that are not polynomial, which are not eliminated here
+    let args = match args {
+        [e, x, o] if matches!(h.view(*o), View::App { head, args: rules } if head == h.sym_term(h.sym("options"))
+            && rules.iter().all(|&r| matches!(h.view(r), View::App { args: &[k, _], .. } if k == env.sym("inverse_functions")))) =>
+        {
+            vec![*e, *x]
+        }
+        _ => args.to_vec(),
+    };
+    let [e, x] = args[..] else { return Ok(env.arg_failure("expected equations and the unknowns to eliminate")) };
+    // inequations q != 0 (q = a - b): the equation w q == 1 with a new unknown w, eliminated too (the Rabinowitsch
+    // trick: the polynomials implied by the system off q = 0 are those of the saturation I : q^inf, Cox, Little and
+    // O'Shea 4.4)
+    let and = h.sym_term(h.sym("and"));
+    let unequal = h.sym_term(h.sym("unequal"));
+    let (e, x) = match h.view(e) {
+        View::App { head, args: parts } if head == and && parts.iter().any(|&p| matches!(h.view(p), View::App { head, args: &[_, _] } if head == unequal)) => {
+            let mut kept = vec![];
+            let mut extra = match env.as_list(x) {
+                Some(l) => l.to_vec(),
+                None => vec![x],
+            };
+            for (k, &p) in parts.iter().enumerate() {
+                match h.view(p) {
+                    View::App { head, args: &[a, b] } if head == unequal => {
+                        let w = env.sym(&format!("calc_elim_w{}", k + 1));
+                        let q = env.call("add", &[a, env.call("mul", &[env.int(-1), b])]);
+                        kept.push(env.call("equal", &[env.call("mul", &[w, q]), env.int(1)]));
+                        extra.push(w);
+                    }
+                    _ => kept.push(p),
+                }
+            }
+            (env.call("and", &kept), env.list(&extra))
+        }
+        _ => (e, x),
+    };
+    let args = [e, x];
+    let (eqs, xs) = match equations_and_unknowns(env, &args, m)? {
         Ok(p) => p,
         Err(out) => return Ok(if matches!(out, Out::Done(t) if env.as_list(t) == Some(&[])) {
             Out::Done(env.sym(names::FALSE))
@@ -513,6 +551,10 @@ fn eliminate<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResult<Out
         Err(msg) => return Ok(env.arg_failure(msg)),
     };
     let nv = ring.nvars();
+    // an unknown inside another kernel (sin(x - y)) is not eliminated by a polynomial basis
+    if ring.kernels.iter().any(|&k| !xs.contains(&k) && env.contains_any(k, &xs)) {
+        return Ok(env.failure("unsolved", "an unknown to eliminate is inside a function that is not a polynomial"));
+    }
     let elim: Vec<usize> = xs.iter().map(|&x| ring.var(x).expect("in the ring")).collect();
     let mut main = elim.clone();
     let mut params = vec![];
@@ -556,6 +598,7 @@ fn groebner_basis<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
     // the options at the end: parameter_variables, monomial_order, modulus, coefficient_domain, method
     let mut order_opt: Option<T<'h>> = None;
     let mut modulus: Option<u64> = None;
+    let mut domain = Domain::Rationals;
     let (args, last_vars): (&[T<'h>], Vec<T<'h>>) = match args.split_last() {
         Some((&o, rest)) if matches!(h.view(o), View::App { head, .. } if head == h.sym_term(h.sym("options"))) => {
             let View::App { args: rules, .. } = h.view(o) else { unreachable!() };
@@ -574,8 +617,14 @@ fn groebner_basis<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
                     // the reduced basis does not depend on the method that computes it
                     View::App { args: &[k, _], .. } if k == env.sym("method") => {}
                     View::App { args: &[k, v], .. } if k == env.sym("coefficient_domain") => {
-                        if v != env.sym("rationals") {
-                            return Ok(env.arg_failure("the coefficient domain is rationals (the others are not supported)"));
+                        if v == env.sym("integers") {
+                            domain = Domain::Integers;
+                        } else if v == env.sym("rational_functions") {
+                            domain = Domain::RationalFunctions;
+                        } else if v != env.sym("rationals") {
+                            return Ok(env.arg_failure(
+                                "the coefficient domain is rationals, integers or rational_functions",
+                            ));
                         }
                     }
                     _ => return Ok(env.arg_failure("unknown option")),
@@ -591,7 +640,16 @@ fn groebner_basis<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
         [ps] => (*ps, None, None),
         _ => return Ok(env.arg_failure("expected polynomials and variables")),
     };
+    if domain == Domain::Integers {
+        if modulus.is_some() {
+            return Ok(env.arg_failure("a modulus and the coefficient domain integers exclude each other"));
+        }
+        return groebner_integers(env, ps, xs, elims, order_opt, &last_vars, m);
+    }
     if elims.is_some() || order_opt.is_some() || modulus.is_some() {
+        if domain == Domain::RationalFunctions {
+            return Ok(env.arg_failure("over rational functions the order is lexicographic, without elimination"));
+        }
         return groebner_general(env, ps, xs, elims, order_opt, modulus, &last_vars, m);
     }
     let ps = match read_equations(env, ps) {
@@ -619,16 +677,21 @@ fn groebner_basis<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
         if given.contains(&i) || lowest.contains(&i) {
             continue;
         }
-        if env.ar.num(ring.kernels[i]).is_some() {
-            // numeric kernels (sqrt(2), pi) stay in the coefficients
+        if env.ar.num(ring.kernels[i]).is_some() || domain == Domain::RationalFunctions {
+            // numeric kernels (sqrt(2), pi) stay in the coefficients, and over rational functions every symbol
+            // other than xs is a parameter of the coefficient field
             params.push(i);
         } else {
             main.push(i);
         }
     }
-    main.extend(lowest.iter().copied());
+    if domain == Domain::RationalFunctions {
+        params.extend(lowest.iter().copied());
+    } else {
+        main.extend(lowest.iter().copied());
+    }
     let c = env.conv();
-    if main.len() == given.len() {
+    if main.len() == given.len() && domain != Domain::RationalFunctions {
         // no symbolic parameters: the solver's lex basis (FGLM for zero-dimensional ideals)
         let mut out = vec![];
         for p in &crate::system::lex_basis(&nums, &ring, &given, m)? {
@@ -642,6 +705,117 @@ fn groebner_basis<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> WorkResul
     for g in &basis {
         let p = g.to_poly(nv, &main, &params);
         out.push(c.int_poly_term(&p, &ring, m)?);
+    }
+    Ok(Out::Done(env.list(&out)))
+}
+
+/// The coefficient domain of `groebner_basis`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Domain {
+    /// Q, every other symbol a variable
+    Rationals,
+    /// Z, every other symbol a variable: the strong basis
+    Integers,
+    /// Q(every symbol other than xs)
+    RationalFunctions,
+}
+
+/// `groebner_basis(polys, xs, coefficient_domain: integers)`: the reduced strong Groebner basis over Z
+/// ([`mc_poly::zgroebner`]), the variables ranked as over Q (elims, xs, the other symbols, `parameter_variables`);
+/// the order is lexicographic or `degree_reverse_lexicographic`. The polynomials must have integer coefficients and
+/// no numeric kernels (`sqrt(2)` is not in Z[xs]).
+fn groebner_integers<'h>(
+    env: &Env<'h>,
+    ps: T<'h>,
+    xs: Option<T<'h>>,
+    elims: Option<T<'h>>,
+    order_opt: Option<T<'h>>,
+    last_vars: &[T<'h>],
+    m: &mut Meter,
+) -> WorkResult<Out<'h>> {
+    use mc_poly::zgroebner::{strong_basis, ZPoly};
+    let ps = match read_equations(env, ps) {
+        Ok(Some(e)) => e,
+        Ok(None) => return Ok(Out::Done(env.list(&[env.int(1)]))),
+        Err(msg) => return Ok(env.arg_failure(msg)),
+    };
+    let read = |t: Option<T<'h>>| match t.map(|x| read_unknowns(env, x)) {
+        Some(Ok(v)) => Ok(v),
+        Some(Err(msg)) => Err(msg),
+        None => Ok(vec![]),
+    };
+    let (xs, elims) = match (read(xs), read(elims)) {
+        (Ok(a), Ok(b)) => (a, b),
+        (Err(msg), _) | (_, Err(msg)) => return Ok(env.arg_failure(msg)),
+    };
+    let order = match order_opt {
+        None => MonomialOrder::Lex,
+        Some(o) if o == env.sym("lexicographic") => MonomialOrder::Lex,
+        Some(o) if o == env.sym("degree_reverse_lexicographic") && elims.is_empty() => MonomialOrder::DegRevLex,
+        Some(_) => {
+            return Ok(env.arg_failure(
+                "over the integers the order is lexicographic or degree_reverse_lexicographic (without elimination)",
+            ))
+        }
+    };
+    let mut extra = elims.clone();
+    extra.extend(xs.iter().copied());
+    extra.extend(last_vars.iter().copied());
+    let ring = env.ring(&ps, &extra, m)?;
+    let nv = ring.nvars();
+    let idx = |v: &[T<'h>]| -> Vec<usize> { v.iter().map(|&x| ring.var(x).expect("in the ring")).collect() };
+    let (e_idx, x_idx, l_idx) = (idx(&elims), idx(&xs), idx(last_vars));
+    let mut main: Vec<usize> = vec![];
+    for &i in e_idx.iter().chain(&x_idx) {
+        if !main.contains(&i) {
+            main.push(i);
+        }
+    }
+    for i in 0..nv {
+        if main.contains(&i) || l_idx.contains(&i) {
+            continue;
+        }
+        if env.ar.num(ring.kernels[i]).is_some() {
+            return Ok(env.arg_failure("over the integers the coefficients must be integers"));
+        }
+        main.push(i);
+    }
+    for &i in &l_idx {
+        if !main.contains(&i) {
+            main.push(i);
+        }
+    }
+    let rc = env.rconv();
+    let mut input: Vec<ZPoly> = vec![];
+    for &e in &ps {
+        let f = match ratfun::read(&rc, e, &ring, m)? {
+            Ok(f) => f,
+            Err(_) => return Ok(env.arg_failure("an equation divides by zero")),
+        };
+        if f.den.as_constant() != Some(mc_poly::Z::ONE) {
+            return Ok(env.arg_failure("over the integers the polynomials must have integer coefficients"));
+        }
+        input.push(f.num.terms().map(|(e, c)| (main.iter().map(|&v| e[v]).collect(), c.clone())).collect());
+    }
+    let basis = strong_basis(&input, order, m)?;
+    let c = env.conv();
+    let ne = e_idx.len();
+    let mut out = vec![];
+    for g in &basis {
+        if g.iter().any(|(e, _)| e[..ne].iter().any(|&k| k > 0)) {
+            continue;
+        }
+        let terms: Vec<(Vec<u32>, mc_poly::Z)> = g
+            .iter()
+            .map(|(me, z)| {
+                let mut e = vec![0u32; nv];
+                for (i, &v) in main.iter().enumerate() {
+                    e[v] += me[i];
+                }
+                (e, z.clone())
+            })
+            .collect();
+        out.push(c.int_poly_term(&Poly::from_terms(nv, terms), &ring, m)?);
     }
     Ok(Out::Done(env.list(&out)))
 }

@@ -383,3 +383,15 @@ factor by factor and stay products.
 - `together`/`cancel` with `extension:` and `factor`/`factor_square_free` with `trig: true` decline in the native for
   the library's rules (mc-combinat). `gcd` and `lcm` thread over list arguments (lists of one length, other
   arguments broadcast).
+
+## Round 41: strong Groebner bases over the integers
+
+- `zgroebner`: the reduced strong Groebner basis over Z (Buchberger's algorithm for a Euclidean coefficient ring:
+  S-polynomials and G-polynomials `u (L/lm f) f + v (L/lm g) g` with `u a + v b = gcd(a, b)`, Euclidean reduction of
+  every coefficient modulo the leading coefficients whose monomial divides its own; Kandri-Rody and Kapur 1988,
+  Lichtblau 2012, Adams and Loustaunau 4.5). The S-polynomial of two elements whose leading monomials and leading
+  coefficients are both coprime is skipped (it reduces to zero). The result is minimal (no leading term divides
+  another, coefficients included), tails reduced, leading coefficients positive, sorted by leading monomial: it
+  depends only on the ideal and the order (Pauer 2007). Lex and degree reverse lexicographic orders.
+- Checked: the basis generates the same ideal over Q and modulo every prime tried (the reductions modulo p of a
+  strong basis over Z generate the ideal modulo p, including primes dividing a leading coefficient).

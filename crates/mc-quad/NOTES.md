@@ -450,3 +450,11 @@ automatic, c = automatic; o = automatic) when is_list(d) = [a, b, c]` gives `g([
 
 - `cube_root(around(x, dx))` and `cube_root(centered_interval(c, r))` of a real centre: `surd(x, 3)` carried through
   the uncertainty (`lib/numerics.mc`).
+
+## Round 41: interpolation in several variables
+
+- `interpolating_polynomial([[pt, f], [pt, f, grad], ...], [x1, ..., xn])` (`lib/numerics.mc`): the first total
+  degree k at which the conditions on the coefficients of the monomials of degree <= k are consistent; the answer
+  only when it is unique there (full column rank). Interpolation in several variables is unique only for poised
+  data (Gasca and Sauer 2000), so four generic points in the plane, or gradient data that leave a monomial
+  unconstrained (x y with data only on the axes), stay unevaluated rather than picking one of many interpolants.

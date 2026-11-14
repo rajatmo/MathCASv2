@@ -57,6 +57,14 @@ factor(interpolating_polynomial([[0, 1], [a, 0], [b, 0], [c, 0]], x))
 #% output
 #= (a - x)*(b - x)*(c - x)/(a*b*c)
 
+#% text
+# Data in several variables, with a gradient at a point:
+
+#% cell
+interpolating_polynomial([[[1, 2, 3], 4, [5, 6, 7]], [[3, 2, 1], 0]], [x, y, z])
+#% output
+#= -34 + 5*x + 6*y + 7*z
+
 #% section
 # See also
 

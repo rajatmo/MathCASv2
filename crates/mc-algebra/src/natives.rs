@@ -87,6 +87,9 @@ impl Native for AlgNative {
             return crate::transroots::count_roots(cx, &self.stop, self.name, args);
         }
         if f == AlgFn::RootSum {
+            if let Some(t) = crate::rootstruct::structural(cx, &self.stop, args)? {
+                return Ok(Reply::Again(t));
+            }
             // a numeric sum is evaluated here, so that a vanishing imaginary part can be dropped
             let mut numeric = None;
             let r = run(cx, &self.stop, self.name, |env, m| match rootsum::root_sum(env, args, m)? {

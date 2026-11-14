@@ -793,12 +793,14 @@ fn calc_order_greater(a, b, o) =
 fn calc_lead_in(p, xs, o) = if o === lexicographic then calc_lead(p, xs) else fold((best, t) => if best === null or calc_order_greater(calc_expvec(t, xs), calc_expvec(best, xs), o) then t else best, null, calc_terms(expand(p)))
 fn calc_divides(a, b) = every(range(length(a)), i => a[i] <= b[i])
 # options: monomial_order (lexicographic, degree_lexicographic, degree_reverse_lexicographic) and
-# coefficient_domain: rationals (the only domain)
+# coefficient_domain: rationals and rational_functions (the symbols other than xs are in the coefficients either
+# way) or integers (a term is divided only when the quotient has integer coefficients in every symbol, so the qi
+# are integer polynomials when p and the gi are)
 fn polynomial_reduce(p, gs, xs; monomial_order = lexicographic, coefficient_domain = rationals) =
-  if coefficient_domain !== rationals then failure(argument, polynomial_reduce, "the coefficient domain is rationals")
+  if not (coefficient_domain === rationals or coefficient_domain === rational_functions or coefficient_domain === integers) then failure(argument, polynomial_reduce, "the coefficient domain is rationals, rational_functions or integers")
   else if not (monomial_order === lexicographic or monomial_order === degree_lexicographic or monomial_order === degree_reverse_lexicographic) then failure(argument, polynomial_reduce, "unknown monomial order")
-  else calc_preduce(p, gs, xs, monomial_order)
-fn calc_preduce(p, gs, xs, o) = {
+  else calc_preduce(p, gs, xs, monomial_order, coefficient_domain === integers)
+fn calc_preduce(p, gs, xs, o, over_z) = {
   let g = if is_list(gs) then gs else [gs]
   let vs = if is_list(xs) then xs else [xs]
   var qs = constant_array(0, length(g))
@@ -813,7 +815,7 @@ fn calc_preduce(p, gs, xs, o) = {
     for i in range(length(g)) {
       if not done then {
         let lg = calc_lead_in(g[i], vs, o)
-        if calc_divides(calc_expvec(lg, vs), ev) then {
+        if calc_divides(calc_expvec(lg, vs), ev) and (not over_z or denominator(cancel(lt/lg)) === 1) then {
           let m = cancel(lt/lg)
           qs = replace_part(qs, i -> expand(qs[i] + m))
           h = expand(h - m*g[i])
@@ -1233,6 +1235,49 @@ fn calc_root_series(f, k, a, a0, n) = {
   }
 }
 rule series(r_, a_, a0_, n_) := calc_root_series(r[1], r[2], a, a0, n) when not is_atom(r) and head(r) === root and length(r) == 2 and is_integer(r[2]) and is_symbol(a) and is_integer(n) and n >= 0 and is_numeric(a0) and not (calc_root_series(r[1], r[2], a, a0, n) === null)
+
+# --- root sums in a parameter: integrals and series term by term ---
+
+# root_sum(p, y => g(y, a)) with p free of a is the finite sum of g(r, a) over the roots r of p, so an integral or a
+# series in a is taken under the sum: root_sum(p, y => integrate(g, a)), and sum_k root_sum(p, y => c_k(y)) (a -
+# a0)^k for the Taylor coefficients c_k of g. The integral is used only in closed form (no integrate, piecewise or
+# condition left) with a denominator that is a polynomial in y without a common root with p (the resultant is not
+# 0), so it is finite at every root; the series only when the series of g is a polynomial in a - a0 of degree at
+# most n.
+fn calc_rs_parts(r, a) =
+  if not is_atom(r) and head(r) === root_sum and length(r) == 2 and not is_atom(r[1]) and head(r[1]) === head(&(1)) and not is_atom(r[2]) and head(r[2]) === head(&(1)) and length(r[1][1]) == 1 and length(r[2][1]) == 1 and free_of(r[1], a) then [r[1][1][1], r[1][2], r[2][1][1], r[2][2]]
+  else null
+# the root sum with the new summand v (in the summand's variable pr[3]); the function is built on a plain symbol
+# (root_sum writes it back with a slot)
+fn calc_rs_with(r, pr, v) = replace_part(r, [[2, 2] -> rewrite(v, pr[3] -> calc_rs_z), [2, 1] -> [calc_rs_z]])
+# every factor of the denominator is free of y, an exponential (never 0), or a polynomial in y without a common
+# root with p
+fn calc_rs_finite(v, pr) =
+  every(calc_factors(denominator(together(v))), u =>
+    free_of(u, pr[3]) or (not is_atom(u) and head(u) === pow and u[1] === e)
+    or (polynomial_q(u, pr[3]) and not (expand(resultant(pr[2], rewrite(u, pr[3] -> pr[1]), pr[1])) === 0)))
+fn calc_rs_int(r, s) = {
+  let a = if is_list(s) then s[1] else s
+  let pr = calc_rs_parts(r, a)
+  if pr === null or not is_symbol(a) then null
+  else {
+    let v = integrate(pr[4], s)
+    if free_of(v, integrate) and free_of(v, piecewise) and free_of(v, conditional_expression) and calc_rs_finite(v, pr) then calc_rs_with(r, pr, v) else null
+  }
+}
+rule integrate(r_, s_) := calc_rs_int(r, s) when not is_atom(r) and head(r) === root_sum and not (calc_rs_int(r, s) === null)
+fn calc_rs_series(r, a, a0, n) = {
+  let pr = calc_rs_parts(r, a)
+  if pr === null then null
+  else {
+    let s = normal(series(pr[4], a, a0, n))
+    let t = expand(rewrite(s, a -> calc_rs_d + a0))
+    if free_of(t, series) and polynomial_q(t, calc_rs_d) and exponent(t, calc_rs_d) <= n then
+      series(calc_total(map(k => calc_rs_with(r, pr, coefficient(t, calc_rs_d, k))*(a - a0)^k, range(0, n))), a, a0, n)
+    else null
+  }
+}
+rule series(r_, a_, a0_, n_) := calc_rs_series(r, a, a0, n) when not is_atom(r) and head(r) === root_sum and is_symbol(a) and is_integer(n) and n >= 0 and is_numeric(a0) and not (calc_rs_series(r, a, a0, n) === null)
 
 # --- integrals of Bessel functions of odd integer order ---
 
@@ -2735,6 +2780,62 @@ rule find_generating_function(a_, x_) := {
   let p = cb_total(table(coefficient(expand(q*s), x, i)*x^i, [i, 0, k - 1]))
   factor(p)/factor(q)
 } when is_list(a) and is_symbol(x) and length(a) >= 3 and not (cb_first_recurrence(a, 1) === null)
+
+# --- generating functions of quasi-polynomial sequences ---
+
+# f(n) built from n by sums, products and powers of n and of periodic atoms: mod(a, p), kronecker_symbol(a, m),
+# jacobi_symbol(a, m) and (-1)^a, with a = u n + c (integers u, c), after quotient(a, p) = (a - mod(a, p))/p and
+# floor(a/v) = (a - mod(a, v))/v. Then f(n) = sum_j n^j c_j(n) with c_j periodic of a common period P (the lcm of p,
+# 8|m| (the Kronecker symbol (n/2) has period 8, (n/m') period m' for odd m'), |m| and 2), so sum_n c_j(n) x^n =
+# U_j(x)/(1 - x^P) with U_j = sum_(r < P) c_j(r) x^r and the factor n^j is (x d/dx)^j (Stanley, Enumerative
+# Combinatorics I, 4.4, quasi-polynomials). null when f has another dependence on n.
+fn calc_qp_lin(a, n) = polynomial_q(a, n) and exponent(a, n) <= 1 and is_integer(coefficient(a, n, 1)) and is_integer(coefficient(a, n, 0))
+fn calc_qp_period(e, n) =
+  if is_atom(e) then null
+  else if head(e) === mod and length(e) == 2 and is_integer(e[2]) and e[2] > 0 and calc_qp_lin(e[1], n) and not free_of(e[1], n) then e[2]
+  else if head(e) === kronecker_symbol and length(e) == 2 and is_integer(e[2]) and e[2] != 0 and calc_qp_lin(e[1], n) and not free_of(e[1], n) then 8*abs(e[2])
+  else if head(e) === jacobi_symbol and length(e) == 2 and is_integer(e[2]) and e[2] > 0 and mod(e[2], 2) == 1 and calc_qp_lin(e[1], n) and not free_of(e[1], n) then e[2]
+  else if head(e) === pow and e[1] === -1 and calc_qp_lin(e[2], n) and not free_of(e[2], n) then 2
+  else null
+fn calc_qp_pre(e, n) =
+  if is_atom(e) then e
+  else {
+    let e2 = apply(head(e), map(u => calc_qp_pre(u, n), apply(list, e)))
+    if not is_atom(e2) and head(e2) === quotient and length(e2) == 2 and is_integer(e2[2]) and e2[2] > 0 and calc_qp_lin(e2[1], n) then (e2[1] - mod(e2[1], e2[2]))/e2[2]
+    else if not is_atom(e2) and head(e2) === floor and length(e2) == 1 and polynomial_q(e2[1], n) and exponent(e2[1], n) == 1 and is_rational(coefficient(e2[1], n, 1)) and is_rational(coefficient(e2[1], n, 0)) then {
+      let v = lcm(denominator(coefficient(e2[1], n, 1)), denominator(coefficient(e2[1], n, 0)))
+      let a = expand(v*e2[1])
+      (a - mod(a, v))/v
+    }
+    else e2
+  }
+fn calc_qp_atoms(e, n) =
+  if is_atom(e) then []
+  else if not (calc_qp_period(e, n) === null) then [e]
+  else flat_map(u => calc_qp_atoms(u, n), apply(list, e))
+fn calc_qp_gf(f, n, x) = {
+  let g0 = calc_qp_pre(f, n)
+  let atoms = unique(calc_qp_atoms(g0, n))
+  if length(atoms) == 0 then null
+  else {
+    let p = apply(lcm, map(a => calc_qp_period(a, n), atoms))
+    let ks = map(i => calc_qp_k(i), range(length(atoms)))
+    let g = expand(rewrite(g0, map(i => atoms[i] -> ks[i], range(length(atoms)))))
+    if not polynomial_q(g, join([n], ks)) then null
+    else {
+      var acc = 0
+      for j in range(0, exponent(g, n)) {
+        let cj = coefficient(g, n, j)
+        let u = calc_total(map(r => rewrite(cj, map(i => ks[i] -> rewrite(atoms[i], n -> r), range(length(atoms))))*x^r, range(0, p - 1)))
+        var h = u/(1 - x^p)
+        for i in range(j) { h = x*d(h, x) }
+        acc = acc + h
+      }
+      cancel(together(acc))
+    }
+  }
+}
+rule generating_function(f_, n_, x_) := calc_qp_gf(f, n, x) when is_symbol(n) and is_symbol(x) and not free_of(f, n) and not (calc_qp_gf(f, n, x) === null)
 
 # --- series in several variables ---
 

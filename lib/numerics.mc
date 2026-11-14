@@ -190,6 +190,51 @@ fn mandelbrot_set_member_q(c; max_iterations = 1000, working_precision = machine
 # [f1, f2, ...] at 1, 2, ...; pairs [[x1, f1], ...]; [x1, f1, d1, ...] entries with derivatives (Hermite
 # interpolation; automatic marks an unknown value: then the polynomial comes from a linear solve, expanded)
 rule interpolating_polynomial(data_, x_) := nl_ip(nl_ip_points(data), x) when is_list(data) and length(data) > 0 and not is_list(x)
+# several variables: interpolating_polynomial([[pt, f], [pt, f, grad], ...], [x1, ..., xn]) with points pt in R^n,
+# values f and gradients grad (entries automatic when unknown). The polynomial of least total degree is the first
+# k = 0, 1, ... for which the linear conditions on the coefficients of the monomials of degree <= k are consistent;
+# it is returned only when it is unique there (the condition matrix has full column rank), as interpolation in
+# several variables is unique only for poised data (Gasca and Sauer, "Polynomial interpolation in several
+# variables", Adv. Comput. Math. 12 (2000)); otherwise the call stays unevaluated
+rule interpolating_polynomial(data_, xs_) := nl_ipm(data, xs) when is_list(xs) and length(xs) > 0 and every(xs, is_symbol) and is_list(data) and length(data) > 0 and not (nl_ipm(data, xs) === null)
+fn nl_ipm_ok(d, n) = is_list(d) and (length(d) == 2 or length(d) == 3) and is_list(d[1]) and length(d[1]) == n and (length(d) == 2 or (is_list(d[3]) and length(d[3]) == n))
+fn nl_ipm_at(e, xs, pt) = rewrite(e, map(i => xs[i] -> pt[i], range(length(xs))))
+fn nl_ipm(data, xs) = {
+  let n = length(xs)
+  if not every(data, d => nl_ipm_ok(d, n)) then null
+  else {
+    # the conditions: [point, j (0 for the value, i for d/dx_i), value]
+    var conds = []
+    for d in data {
+      conds = append(conds, [d[1], 0, d[2]])
+      if length(d) == 3 then {
+        for i in range(n) { if d[3][i] !== automatic then conds = append(conds, [d[1], i, d[3][i]]) }
+      }
+    }
+    var res = null
+    var k = 0
+    var go = true
+    while go {
+      let monos = map(e => product(map(i => xs[i]^e[i], range(n))), select(tuples(range(0, k), n), e => total(e) <= k))
+      if length(monos) > length(conds) then go = false
+      else {
+        let a = map(c => map(mo => nl_ipm_at(if c[2] == 0 then mo else d(mo, xs[c[2]]), xs, c[1]), monos), conds)
+        let b = map(c => c[3], conds)
+        let r = rank(a)
+        if r == rank(map(i => append(a[i], b[i]), range(length(b)))) then {
+          go = false
+          if r == length(monos) then {
+            let cs = map(i => nl_ip_c(i), range(length(monos)))
+            let sol = solve(map(i => total(map(j => a[i][j]*cs[j], range(length(monos)))) == b[i], range(length(b))), cs)
+            if length(sol) == 1 then res = expand(total(map(j => rewrite(cs[j], sol[1])*monos[j], range(length(monos)))))
+          }
+        }
+        k = k + 1
+      }
+    }
+    res
+  }
+}
 fn nl_ip_points(data) =
   if every(data, is_list) then map(d => if length(d) == 2 and is_list(d[2]) then join([d[1]], d[2]) else d, data)
   else map(i => if is_list(data[i]) then join([i], data[i]) else [i, data[i]], range(length(data)))
