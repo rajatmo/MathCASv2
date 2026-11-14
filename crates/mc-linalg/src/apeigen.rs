@@ -167,6 +167,194 @@ pub(crate) fn symmetric(a: &[Float], n: usize, p: P, vectors: bool, m: &mut Mete
     Ok((d, q))
 }
 
+/// The real and imaginary parts of a number of a ball matrix (`None` for a machine number).
+fn real_parts(x: &Num) -> Option<(Real, Real)> {
+    let ok = |r: &Real| matches!(r, Real::Ball(..) | Real::Exact(_));
+    match x {
+        Num::Real(r) if ok(r) => Some((r.clone(), Real::Exact(mc_arith::num::Rat::from_i64(0)))),
+        Num::Complex(a, b) if ok(a) && ok(b) => Some((a.clone(), b.clone())),
+        _ => None,
+    }
+}
+
+/// The nonzero singular values (decreasing) of an r x c matrix of balls and exact numbers, at the input's precision:
+/// the positive eigenvalues of the symmetric matrix [[0, A], [A^H, 0]], which are the singular values (Golub and Van
+/// Loan, 4th ed., 8.6.1), by [`ball_symmetric`] with its Weyl bound; a complex A by the real form [[P, -Q], [Q, P]]
+/// of that Hermitian matrix P + i Q, where each eigenvalue appears twice. A value whose ball contains 0 is a zero
+/// singular value and is left out (as the machine values below the rank tolerance are). `None` when an entry is a
+/// machine number or no entry is a ball.
+pub(crate) fn ball_singular_values(nums: &[Num], r: usize, c: usize, m: &mut Meter) -> WorkResult<Option<Vec<Num>>> {
+    let Some(parts) = nums.iter().map(real_parts).collect::<Option<Vec<_>>>() else { return Ok(None) };
+    let complex = parts.iter().any(|(_, b)| !matches!(b, Real::Exact(q) if q.is_zero()));
+    let n = r + c;
+    let zero = || Num::Real(Real::Exact(mc_arith::num::Rat::from_i64(0)));
+    let size = if complex { 2 * n } else { n };
+    let mut s = vec![zero(); size * size];
+    for i in 0..r {
+        for j in 0..c {
+            let (re, im) = &parts[i * c + j];
+            let (row, col) = (i, r + j);
+            let mut put = |a: usize, b: usize, v: &Real| {
+                s[a * size + b] = Num::Real(v.clone());
+                s[b * size + a] = Num::Real(v.clone());
+            };
+            put(row, col, re);
+            if complex {
+                // P in the diagonal blocks; Q = [[0, Im A], [-Im A^T, 0]] below, -Q above
+                put(n + row, n + col, re);
+                let neg = im.neg();
+                s[(n + row) * size + col] = Num::Real(im.clone());
+                s[col * size + (n + row)] = Num::Real(im.clone());
+                s[(n + col) * size + row] = Num::Real(neg.clone());
+                s[row * size + (n + col)] = Num::Real(neg);
+            }
+        }
+    }
+    let Some((vals, _)) = ball_symmetric(&s, size, false, m)? else { return Ok(None) };
+    let mut pos: Vec<Num> = vals
+        .into_iter()
+        .filter(|v| matches!(v, Num::Real(Real::Ball(b, _)) if !b.mid.neg && !b.contains_zero()))
+        .collect();
+    let mid = |v: &Num| match v {
+        Num::Real(Real::Ball(b, _)) => b.mid.clone(),
+        _ => Float::zero(),
+    };
+    pos.sort_by(|a, b| mid(b).cmp_exact(&mid(a)));
+    if complex {
+        pos = pos.into_iter().step_by(2).collect();
+    }
+    pos.truncate(r.min(c));
+    Ok(Some(pos))
+}
+
+/// The eigenvalues of a square matrix of balls and exact numbers (not symmetric) at the input's precision, in the
+/// order of `start` (machine eigenvalues of the midpoints): the characteristic polynomial by Berkowitz's algorithm in
+/// ball arithmetic at the input's precision plus 64 bits, its roots refined together by the Ehrlich-Aberth iteration
+/// on midpoints, and each enclosed in the disk of radius n |f(z)|/|f'(z)| (Henrici, "Applied and Computational Complex
+/// Analysis" I, 6.4: the disk holds a root of f), with f and f' evaluated in ball arithmetic so that the disk holds a
+/// root of every polynomial in the coefficients' balls. Disjoint disks hold one root each; for a real matrix a disk
+/// whose mirror image meets no other disk holds a real root. `None` (the machine values stand) when the disks
+/// overlap (a multiple or clustered eigenvalue) or the iteration does not settle.
+pub(crate) fn ball_general_eigenvalues(nums: &[Num], n: usize, start: &[(f64, f64)], m: &mut Meter) -> WorkResult<Option<Vec<Num>>> {
+    use mc_numeric::cball::CBall;
+    if n == 0 || n > 60 || start.len() != n {
+        return Ok(None);
+    }
+    let mut prec = 0u64;
+    let mut real_input = true;
+    for x in nums {
+        let Some((a, b)) = real_parts(x) else { return Ok(None) };
+        for p in [&a, &b] {
+            if let Real::Ball(_, q) = p {
+                prec = prec.max(*q);
+            }
+        }
+        real_input &= matches!(&b, Real::Exact(q) if q.is_zero());
+    }
+    if prec == 0 {
+        return Ok(None);
+    }
+    let w = prec + 64 + 8 * (64 - (n as u64).leading_zeros() as u64);
+    let lift = |x: &Num| x.to_kind(Kind::Ball, w);
+    let a: Vec<Num> = nums.iter().map(lift).collect();
+    let coefs = crate::eigen::berkowitz(&a, n, m)?;
+    let to_cb = |x: &Num| -> Option<CBall> {
+        let b = |r: &Real| match r.to_kind(Kind::Ball, w) {
+            Real::Ball(b, _) => Some(b),
+            _ => None,
+        };
+        match x {
+            Num::Real(r) => Some(CBall::real(b(r)?)),
+            Num::Complex(x, y) => Some(CBall::new(b(x)?, b(y)?)),
+        }
+    };
+    // highest degree first, monic
+    let Some(cs) = coefs.iter().map(to_cb).collect::<Option<Vec<CBall>>>() else { return Ok(None) };
+    let center = |z: &CBall| CBall::new(Ball::exact(z.re.mid.clone()), Ball::exact(z.im.mid.clone()));
+    let mids: Vec<CBall> = cs.iter().map(center).collect();
+    // f and f' by Horner
+    let eval = |c: &[CBall], z: &CBall| -> (CBall, CBall) {
+        let mut f = CBall::from_i64(0);
+        let mut d = CBall::from_i64(0);
+        for k in c {
+            d = d.mul(z, w).add(&f, w);
+            f = f.mul(z, w).add(k, w);
+        }
+        (f, d)
+    };
+    let fl = |x: f64| Ball::exact(float_f64(x));
+    let mut zs: Vec<CBall> = start.iter().map(|&(x, y)| CBall::new(fl(x), fl(y))).collect();
+    let mag = |z: &CBall| f64_of(&z.re.mid).hypot(f64_of(&z.im.mid));
+    let mut settled = false;
+    for _ in 0..200 {
+        m.step((n * n) as u64 + 1)?;
+        let mut worst = 0.0f64;
+        for i in 0..n {
+            let (f, d) = eval(&mids, &zs[i]);
+            let Some(nw) = f.div(&d, w) else { return Ok(None) };
+            let mut s = CBall::from_i64(0);
+            for j in 0..n {
+                if j != i {
+                    let Some(inv) = CBall::from_i64(1).div(&center(&zs[i].sub(&zs[j], w)), w) else { return Ok(None) };
+                    s = s.add(&inv, w);
+                }
+            }
+            let den = CBall::from_i64(1).sub(&center(&nw).mul(&center(&s), w), w);
+            let Some(corr) = center(&nw).div(&center(&den), w) else { return Ok(None) };
+            let corr = center(&corr);
+            worst = worst.max(mag(&corr) / mag(&zs[i]).max(1e-300));
+            zs[i] = center(&zs[i].sub(&corr, w));
+        }
+        if worst <= (2f64).powi(-((w as i32).min(1000) - 16)) {
+            settled = true;
+            break;
+        }
+    }
+    if !settled {
+        return Ok(None);
+    }
+    // the inclusion radii, with the coefficients' radii
+    let up = |b: &Ball| f64_of(&b.mid).abs() + f64_of(&b.rad.to_float());
+    let down = |b: &Ball| (f64_of(&b.mid).abs() - f64_of(&b.rad.to_float())).max(0.0);
+    let mut rad = Vec::with_capacity(n);
+    for z in &zs {
+        let (f, d) = eval(&cs, z);
+        let fu = up(&f.re).hypot(up(&f.im));
+        let dl = down(&d.re).hypot(down(&d.im)) * (1.0 - 1e-12);
+        if dl.is_nan() || dl <= 0.0 {
+            return Ok(None);
+        }
+        let r = n as f64 * fu / dl * (1.0 + 1e-12) + 2f64.powi(-((w as i32).min(1000))) * mag(z);
+        if !r.is_finite() {
+            return Ok(None);
+        }
+        rad.push(r);
+    }
+    let dist = |a: &CBall, b: &CBall| {
+        let d = a.sub(b, w);
+        f64_of(&d.re.mid).hypot(f64_of(&d.im.mid)) * (1.0 - 1e-12)
+    };
+    for i in 0..n {
+        for j in 0..i {
+            if dist(&zs[i], &zs[j]) <= rad[i] + rad[j] {
+                return Ok(None);
+            }
+        }
+    }
+    let ball = |mid: &Float, r: f64| Ball { mid: Float::round(mid.neg, mid.man.clone(), mid.exp, w).0, rad: Mag::from_float_up(&float_f64(r)) };
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let z = &zs[i];
+        let is_real = real_input && (0..n).all(|j| j == i || dist(z, &zs[j].conj()) > rad[i] + rad[j]) && {
+            // its own mirror image: the disk meets the real axis
+            f64_of(&z.im.mid).abs() <= rad[i]
+        };
+        let re = Real::Ball(ball(&z.re.mid, rad[i]), prec);
+        out.push(if is_real { Num::Real(re) } else { Num::Complex(re, Real::Ball(ball(&z.im.mid, rad[i]), prec)) });
+    }
+    Ok(Some(out))
+}
+
 /// 2^k as a radius.
 fn pow2(k: i64) -> Mag {
     Mag::pow2(k)
@@ -259,4 +447,17 @@ pub(crate) fn ball_symmetric(nums: &[Num], n: usize, vectors: bool, m: &mut Mete
         }
     }
     Ok(Some((out_vals, out_vecs)))
+}
+
+/// A float as the nearest double.
+fn f64_of(f: &Float) -> f64 {
+    mc_arith::num::float::dyadic_to_f64(f.neg, &f.man, f.exp)
+}
+
+/// A double as a float, exactly (0 for a non-finite one).
+fn float_f64(v: f64) -> Float {
+    match mc_arith::num::float::f64_to_dyadic(v) {
+        Some((neg, man, exp)) => Float::new(neg, man, exp),
+        None => Float::zero(),
+    }
 }

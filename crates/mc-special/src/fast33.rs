@@ -336,11 +336,11 @@ pub(crate) fn elliptic_f_beyond(phi: f64, m: f64) -> Option<C64> {
 
 /// tau reduced to the fundamental domain (|Re| <= 1/2, |tau| >= 1) by tau -> tau - n and tau -> -1/tau in
 /// double-double arithmetic (the input is an exact dyadic number, so the reduction keeps 30 digits where the nome
-/// series at a point near the real axis lost them all); the operations in order (`true` for -1/tau).
-fn reduce_tau(tau: CD) -> Option<(CD, Vec<bool>)> {
-    // below Im tau = 1e-8 the double-double reduction loses the point (modular_lambda(2.1 + 1e-300 i) gave a finite
-    // value of no meaning; at a dyadic point that close to the axis the true one is exponentially close to 0, 1 or a pole)
-    if !tau.finite() || tau.im.hi < 1e-8 || tau.abs() > 1e12 {
+/// series at a point near the real axis lost them all), and the steps taken in order.
+fn reduce_tau(tau: CD) -> Option<(CD, Vec<Op>)> {
+    // below Im tau = 1e-5 the rounding of the steps, amplified by up to 1/Im(tau)^2, is no longer far below 2^-53:
+    // those points go to the ball reduction of `crate::modular`
+    if !tau.finite() || tau.im.hi < 1e-5 || tau.abs() > 1e12 {
         return None;
     }
     let mut t = tau;
@@ -349,19 +349,26 @@ fn reduce_tau(tau: CD) -> Option<(CD, Vec<bool>)> {
         let n = t.re.round_hi();
         if n != 0.0 {
             t = CD::new(t.re - DD::new(n), t.im);
-            if (n.abs() % 2.0) == 1.0 {
-                ops.push(false);
-            }
+            ops.push(Op::Shift(n));
         }
-        let n2 = t.re.hi * t.re.hi + t.im.hi * t.im.hi;
-        if n2 < 1.0 - 1e-30 {
+        // a margin below the arc |t| = 1: a point on it (the image of 1/2 + 0.3679 i is one) went back and forth
+        // between t and -1/t as the rounding of |t|^2 fell on either side; Im t >= 0.866 holds with the margin too
+        let n2 = (t.re * t.re + t.im * t.im).hi;
+        if n2 < 1.0 - 1e-12 {
+            ops.push(Op::Invert(t));
             t = -(CD::ONE / t);
-            ops.push(true);
         } else {
             return Some((t, ops));
         }
     }
     None
+}
+
+/// A step of the reduction: t -> t - n, or t -> -1/t (with the t it was applied to).
+#[derive(Clone, Copy)]
+enum Op {
+    Shift(f64),
+    Invert(CD),
 }
 
 /// The theta constants (th2, th3, th4) at the nome q = exp(i pi tau) for tau in the fundamental domain (|q| <= e^(-pi sqrt3/2)).
@@ -412,11 +419,56 @@ pub(crate) fn modular_lambda(tau: CD) -> Option<C64> {
     let r = t2 / t3;
     let r2 = r * r;
     let mut x = r2 * r2;
-    for &s_op in ops.iter().rev() {
-        x = if s_op { CD::ONE - x } else { x / (x - CD::ONE) };
+    for op in ops.iter().rev() {
+        x = match *op {
+            Op::Invert(_) => CD::ONE - x,
+            Op::Shift(n) if n.abs() % 2.0 == 1.0 => x / (x - CD::ONE),
+            Op::Shift(_) => x,
+        };
     }
     let v = x.to_c64();
-    (v.re.is_finite() && v.im.is_finite()).then_some(v)
+    (v.re.is_finite() && v.im.is_finite() && v.re.hypot(v.im) > 1e-290).then_some(v)
+}
+
+/// The Dedekind eta function by the reduction: eta(t + n) = e^(i pi n/12) eta(t), eta(-1/t) = sqrt(-i t) eta(t)
+/// (DLMF 27.14.(iv), 23.15.5), and in the fundamental domain Euler's pentagonal series eta(t) = e^(i pi t/12) sum_n
+/// (-1)^n Q^(n (3n - 1)/2), Q = e^(2 i pi t) (DLMF 27.14.1, 27.14.5 with |Q| <= e^(-pi sqrt 3) < 0.0044).
+pub(crate) fn dedekind_eta(tau: CD) -> Option<C64> {
+    let (t, ops) = reduce_tau(tau)?;
+    let pi = dd::PI;
+    let qq = (t.mul_i().mul_dd(pi.mul_f(2.0))).exp();
+    let mut s = CD::ONE;
+    for n in 1..12i64 {
+        let (e1, e2) = ((n * (3 * n - 1) / 2) as u64, (n * (3 * n + 1) / 2) as u64);
+        let p = |e: u64| {
+            let mut r = CD::ONE;
+            let mut b = qq;
+            let mut e = e;
+            while e > 0 {
+                if e & 1 == 1 {
+                    r = r * b;
+                }
+                b = b * b;
+                e >>= 1;
+            }
+            r
+        };
+        let term = p(e1) + p(e2);
+        s = if n % 2 == 1 { s - term } else { s + term };
+    }
+    let mut v = (t.mul_i().mul_dd(pi.div_f(12.0))).exp() * s;
+    // back through the steps, last first: eta(t_k) from eta(t_(k+1))
+    for op in ops.iter().rev() {
+        v = match *op {
+            Op::Shift(n) => {
+                let m = n.rem_euclid(24.0);
+                v * CD::new(DD::ZERO, pi.mul_f(m).div_f(12.0)).exp()
+            }
+            Op::Invert(tk) => v / (-tk.mul_i()).sqrt(),
+        };
+    }
+    let v = v.to_c64();
+    (v.re.is_finite() && v.im.is_finite() && v.re.hypot(v.im) > 1e-290).then_some(v)
 }
 
 /// K(m) for a real machine m > 1, on the cut from below (Im m = -0): K(m) = (K(1/m) - i K(1 - 1/m))/sqrt(m)

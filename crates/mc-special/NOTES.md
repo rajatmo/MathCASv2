@@ -1041,3 +1041,46 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
 - Not done: `klein_invariant_j(0.5 + 0.3679 i)` stays unevaluated (the machine reduction declines and the point is
   below im tau = 1); `n(modular_lambda(1 + 2 i), 50)` stays a theta expression (theta_2 of the negative nome
   -e^(-2 pi) with a noise imaginary part).
+
+## Round 41: modular functions everywhere, theta functions near the circle, Mathieu functions by Fourier series
+
+- Modular functions (`modular.rs`): `klein_invariant_j`, `modular_lambda` and `dedekind_eta` at every numeric point
+  of the upper half-plane. The point is reduced to the fundamental domain by t -> t - n and t -> -1/t in the
+  arithmetic of the argument (exact for a Gaussian rational, balls otherwise, Apostol, "Modular Functions and
+  Dirichlet Series", theorem 2.3), the theta constants (J, lambda) or the pentagonal series (eta) are summed there
+  with their tails added to the radius, and the value is carried back (lambda by its two involutions, eta by
+  e^(i pi/12) and sqrt(-i t)). The working precision adds twice log2(|tau|^2/Im tau) bits; a machine result is
+  recomputed with more bits until its radius is below 2^-56 of it. Bounds: beyond 10^4 bits of loss the call stays;
+  a machine value outside the machine range (lambda and J near a cusp) stays. The machine path (`fast33`) is the
+  same reduction in double-double numbers above Im tau = 1e-5, now with a margin of 1e-12 below the arc |t| = 1 (a
+  point mapped onto the arc, the image of 1/2 + 0.3679 i, went back and forth between t and -1/t as the rounding of
+  |t|^2 fell on either side) and an eta of its own. `n(modular_lambda(1 + 2 i), 50)` is a number (it was a theta
+  expression of the negative nome); eta near the real axis no longer goes through (q; q)_inf at |q| near 1.
+- Theta functions near |q| = 1: the machine kernel judged theta_3 and theta_4 against 1 instead of their value, so
+  theta_3(0, -0.99) = 8.5e-106 came out as -3.1e-25. Now a machine value is given only when its ball has machine
+  precision (more bits while the loss stays below 4096 bits, else unevaluated), and nomes with |q| > 0.9 go through
+  the modular transformations of tau = log(q)/(i pi) (DLMF 20.7.26-33), as real positive nomes already did. A machine
+  value below the machine range stays unevaluated (it was 0.0).
+- Mathieu functions: the Floquet solution is summed as its Fourier series ce = sum C_k cos((nu + 2k) z), se = sum
+  C_k sin((nu + 2k) z) with the coefficients of the normalization (DLMF 28.12), kept per (a, q) (a plot varies z):
+  some hundred products whatever |z|, where the Taylor integration from 0 grows with |z| (a value at z = 77 took a
+  millisecond, a surface of mathieu_c 25 s). The sum is used when the tail beyond kmax is bounded (term ratio
+  q e^(2|Im z|)/(4 k^2) below 1/2; at z = 3.5 i the sum with 38 terms was 1e14 where the value is 0.138), its
+  rounding bound is within 2^-56 of the value, and the sums of the pair agreed with the integration at z = 1/2;
+  otherwise the integration, whose error bound now includes the largest Taylor term of each step (cancellation on
+  the imaginary axis). The ball path has the same Fourier route (midpoints, checked against the integration once per
+  (a, q, w)); a value at a zero of the function (z = pi/2 in a plot) then takes 0.1 ms after the first.
+- The exponent of the ball path comes from cos(pi nu) = 2 w_I w_II' - 1 and sin^2(pi nu) = -4 w_I w_II' w_I' w_II at
+  pi/2 (DLMF 28.2(iii)), as in the machine path: at a characteristic value (a = b_5(q) inside a 40-digit root search)
+  w_I(pi) was -1 within rounding and acos of a midpoint beyond -1 was no number (`find_root` stopped with
+  not_numeric).
+- Machine arguments next to balls of at least machine precision: the value is a machine number, so the machine
+  kernels take the balls' midpoints (`fast29::machine_args`); mathieu_c(a, q, 0.3) with 25-digit a and q took the
+  25-digit path, 40 ms a value.
+- `mathieu_characteristic_a(nu, q)` at non-integer nu: the eigenvalue of Hill's matrix (diagonal (nu + 2k)^2,
+  off-diagonal q) whose index at q = 0 is that of nu^2, refined by the secant method and required to stay next to it.
+  The secant method alone, started at nu^2 + q^2/(2 (nu^2 - 1)), landed in the neighbouring band near integer nu:
+  a_0.99(1) was 1.8594 (the value of a_1.01(1)) where it is -0.1104 (between a_0 and b_1), and the plot over
+  -2.5 < r < 2.5 bisected its false jumps until it timed out.
+- Not done: Eisenstein series are not a function of the library; `elliptic_theta_prime` near |q| = 1 keeps the
+  series (no transformation for the derivative); eigenvectors of non-symmetric ball matrices stay machine vectors.

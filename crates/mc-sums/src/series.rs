@@ -54,6 +54,15 @@ enum Signs {
 /// The term at (large) `j`: in machine arithmetic with a machine real index first (cheap for any `j`), an exact
 /// integer index when that gives no finite number.
 fn probe<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, j: i64, log: bool) -> Res<Option<(f64, f64)>> {
+    // a summand that is itself a numeric sum or product whose range the index bounds: at a machine index its own
+    // terms become machine numbers (here (2/n)^k as 2.0^k n^-k, which overflows past k = 1023), its compiled loop
+    // fails and the evaluator went through all 65536 terms, two seconds a probe (the infinite product of finite
+    // products n_product(1 + (-1)^n (2/n)^k/k^2, [n, 2, inf], [k, 1, n]) timed out); the exact index first
+    if j <= 1 << 20 && nested_numeric(sx, f) {
+        if let Some(v) = term(sx, f, k, j, log)? {
+            return Ok(Some(v));
+        }
+    }
     let jr = sx.h().real(j as f64);
     let t = sx.subst(f, k, jr)?;
     if let Some(v) = value(sx, t)? {
@@ -65,6 +74,23 @@ fn probe<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, j: i64, log: bool)
         return term(sx, f, k, j, log);
     }
     Ok(None)
+}
+
+/// Does `f` contain a numeric or symbolic sum or product (`n_sum`, `n_product`, `sum`, `product`)?
+fn nested_numeric<'h>(sx: &Sx<'_, '_, '_, 'h>, f: T<'h>) -> bool {
+    let h = sx.h();
+    let heads = ["n_sum", "n_product", "sum", "product"].map(|n| sx.sym(n));
+    let mut stack = vec![f];
+    while let Some(u) = stack.pop() {
+        if let View::App { head, args } = h.view(u) {
+            if heads.contains(&head) {
+                return true;
+            }
+            stack.push(head);
+            stack.extend_from_slice(args);
+        }
+    }
+    false
 }
 
 /// The principal logarithm of `v` when `log`.

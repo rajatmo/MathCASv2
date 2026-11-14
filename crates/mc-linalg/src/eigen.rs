@@ -480,6 +480,14 @@ fn eigen<'h>(env: &Env<'h>, a: &Arr<'h>, vectors: bool, m: &mut Meter) -> WorkRe
             let Some((vals, vecs)) = machine_eigen(env, a, vectors, m)? else {
                 return Ok(Err(Out::Done(env.failure("not_converged", &[]))));
             };
+            // other ball matrices: the eigenvalues at the input's precision, refined from the machine ones and
+            // enclosed (their eigenvectors stay machine vectors); clustered eigenvalues keep the machine values
+            if a.domain == Domain::Ball && !vectors {
+                let start: Vec<(f64, f64)> = vals.iter().map(|z| (z.re, z.im)).collect();
+                if let Some(bv) = crate::apeigen::ball_general_eigenvalues(&a.nums(env), n, &start, m)? {
+                    return Ok(Ok((bv.iter().map(|z| env.num(z)).collect(), vec![])));
+                }
+            }
             let vals = vals.iter().map(|&z| env.cx(z)).collect();
             let vecs = vecs.iter().map(|v| env.cx_vector(v)).collect();
             Ok(Ok((vals, vecs)))

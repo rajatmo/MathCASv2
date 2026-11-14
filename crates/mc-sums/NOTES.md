@@ -284,3 +284,14 @@ differences and ratios, generating functions and convergence, interruption.
   of Appell's double series (F1: 2F1(b2, a + m; c + m; y), F2: 2F1(b2, a + m; c2; y), F3: 2F1(a2, b2; c + m; y), F4:
   2F1(a + m, b + m; c2; y); DLMF 16.13.1-4): c times that Appell function. The double series themselves are summed
   over n first (to the 2F1) and so are recognised too. Other double hypergeometric series (Horn's list) are not.
+
+## Round 41: products of finite products
+
+- `n_product(1 + (-1)^n (2/n)^k/k^2, [n, 2, inf], [k, 1, n])` timed out. Three causes: finite ranges of more than
+  2000 terms only were compiled (a term through the evaluator costs some 30 us, so the inner products of the first
+  2048 outer terms cost a minute; now from 64 terms); the evaluator writes (2/n)^k as 2^k (n^-1)^k, which overflows in
+  machine numbers past k = 1023, so the compiled loop failed (powers of positive numbers to one exponent are now
+  merged before compiling); and the classifier probed the outer terms at machine indices, where the inner summand
+  became machine numbers and every probe went through 65536 evaluator terms (a summand containing a sum or product
+  is now probed at the exact index first). The value 0.5629461736 agrees with Richardson extrapolation of log P(N) at
+  N = 10^4, 2 10^4, 4 10^4 (even N, error c/N) to 1e-12.

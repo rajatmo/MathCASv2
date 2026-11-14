@@ -1,3 +1,4 @@
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 //! Machine fast paths for the functions of round 28: when every argument is a machine number
 //! or an exact number and one is a machine number (no balls), the value is computed natively in complex
 //! double-double arithmetic ([`crate::cdd`], about 32 digits) and rounded once, instead of through the ball loop of
@@ -21,8 +22,8 @@ pub(crate) const TOL: f64 = 1.387_778_780_781_445_7e-17;
 /// About the relative rounding of one double-double operation (2^-104), times a margin for the operations of a term.
 const U: f64 = 4.0 * 4.930_380_657_631_324e-32;
 
-/// The arguments as complex double-double numbers when every one is a machine or exact number and one is a machine
-/// number (no balls), and whether all are real. Exact rationals keep about 32 digits (a parameter 1/3 rounded to a
+/// The arguments as complex double-double numbers when every one is a machine or exact number, or a ball whose radius
+/// is below machine precision, and one is a machine number, and whether all are real. Exact rationals keep about 32 digits (a parameter 1/3 rounded to a
 /// double moved F2 by an ulp).
 pub(crate) fn machine_args<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<(Vec<CD>, bool)> {
     let mut out = Vec::with_capacity(a.len());
@@ -30,6 +31,13 @@ pub(crate) fn machine_args<'h>(fx: &Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> Option<(
     let mut real = true;
     let part = |r: &Real, machine: &mut bool| -> Option<DD> {
         match r {
+            // a ball of at least machine precision next to a machine number: the value is a machine number (the least
+            // precise argument decides), so the ball's midpoint is as good as the ball (mathieu_c(a, q, 0.3) with a and
+            // q of 25 digits took the 25-digit path, 40 ms a value, and a surface of it timed out)
+            Real::Ball(b, p) if *p >= 53 && b.rad.log2() < crate::ball::f64_of(&b.mid).abs().max(1e-300).log2() - 52.0 => {
+                let d = dd_of_ball(b);
+                d.hi.is_finite().then_some(d)
+            }
             Real::Ball(..) => None,
             Real::Machine(v) => {
                 *machine = true;
@@ -615,8 +623,13 @@ fn mathieu_solve(a: CD, q: CD, z: CD, y0: f64, d0: f64) -> Option<(CD, CD, f64)>
             }
             let t = ys[k] * hk;
             val = val + t;
+            // the largest term of a step's sums bounds its rounding (terms far above the sum cancel: on the imaginary
+            // axis, where 2q cos 2z = 2q cosh 2y is large, they lost digits that the size of y alone did not show)
+            big = big.max(t.abs());
             if k > 0 {
-                der = der + (ys[k] * hk1).scale(k as f64);
+                let dt = (ys[k] * hk1).scale(k as f64);
+                big = big.max(dt.abs());
+                der = der + dt;
             }
             hk1 = hk;
             hk = hk * h;
@@ -649,7 +662,9 @@ fn mathieu_solve(a: CD, q: CD, z: CD, y0: f64, d0: f64) -> Option<(CD, CD, f64)>
 /// 1 - w_I(pi)^2. Near a characteristic value (cos(pi nu) near +-1, where a = b_n(q) rounded to a machine number puts
 /// it) nu = acos(...)/pi is then as accurate as elsewhere; the earlier form, from w_I(pi) itself, lost about half its
 /// digits there and had to decline (to the much slower ball evaluation).
-fn mathieu_norm(a: CD, q: CD, even: bool) -> Option<CD> {
+///
+/// The same pass gives the Floquet data of [`Floquet`]: the coefficients do not depend on which function is wanted.
+fn mathieu_floquet(a: CD, q: CD) -> Option<Floquet> {
     let pi = pi_cd();
     let half = pi.scale(0.5);
     let (y1, d1, _) = mathieu_solve(a, q, half, 1.0, 0.0)?;
@@ -689,36 +704,147 @@ fn mathieu_norm(a: CD, q: CD, even: bool) -> Option<CD> {
             ratios[k as usize] = q / den;
         }
     }
+    // c_k for k = -kmax..=kmax (index k + kmax), c_0 = 1
+    let mut coef = vec![CD::ZERO; (2 * kmax + 1) as usize];
+    coef[kmax as usize] = CD::ONE;
     let (mut s2, mut s1, mut sd) = (CD::ONE, CD::ONE, nu);
     for (sign, ratios) in [(1i64, &r), (-1i64, &sr)] {
         let mut c = CD::ONE;
         for k in 1..=kmax {
             c = c * ratios[k as usize];
+            coef[(kmax + sign * k) as usize] = c;
             s2 = s2 + c * c;
             s1 = s1 + c;
             sd = sd + (nu + CD::f(2.0 * (sign * k) as f64)) * c;
         }
     }
-    let v = (if even { s1 } else { sd }) / s2.sqrt();
-    v.finite().then_some(v)
+    let root = s2.sqrt();
+    let (even, odd) = (s1 / root, sd / root);
+    if !even.finite() || !odd.finite() || root.abs() == 0.0 {
+        return None;
+    }
+    let coef: Vec<CD> = coef.into_iter().map(|c| c / root).collect();
+    Some(Floquet { a, q, nu, kmax, coef, norm: [even, odd], fourier: None })
 }
 
-/// A Mathieu function at machine arguments: which = 0 C, 1 S, 2 S'. The normalization depends on a and q only and
-/// is kept for the last pair (a plot varies z).
+/// The Floquet data of a pair (a, q): the characteristic exponent nu, the normalized Fourier coefficients C_k (k from
+/// -kmax to kmax, sum C_k^2 = 1) of ce = sum C_k cos((nu + 2k) z) and se = sum C_k sin((nu + 2k) z) (DLMF 28.12), and
+/// the normalizations ce(0), se'(0) of the solutions w_I, w_II. `fourier` records whether the Fourier sums agreed with
+/// an integration of the equation (checked once per pair, at the first value asked for).
+#[derive(Clone)]
+struct Floquet {
+    a: CD,
+    q: CD,
+    nu: CD,
+    kmax: i64,
+    coef: Vec<CD>,
+    norm: [CD; 2],
+    fourier: Option<bool>,
+}
+
+/// A Mathieu function as the Fourier sum of the Floquet solution, with the bound of its rounding: the terms
+/// e^(+-i (nu + 2k) z) by powers of e^(+-2iz), each term rounded with about U relative, accumulated over the 2 kmax + 1
+/// terms. `None` when a power leaves the double range.
+fn mathieu_fourier(f: &Floquet, z: CD, which: u8) -> Option<(CD, f64)> {
+    let (e0, f0) = ((f.nu * z).mul_i().exp(), (-(f.nu * z).mul_i()).exp());
+    let (g, h) = (z.scale(2.0).mul_i().exp(), (-z.scale(2.0).mul_i()).exp());
+    let (ginv, hinv) = (h, g);
+    let mut sum = CD::ZERO;
+    let mut mags = 0.0f64;
+    for (dir, step_e, step_f) in [(1i64, g, h), (-1i64, ginv, hinv)] {
+        let (mut ek, mut fk) = (e0, f0);
+        for j in 0..=f.kmax {
+            if j > 0 {
+                ek = ek * step_e;
+                fk = fk * step_f;
+            } else if dir < 0 {
+                // k = 0 is summed once, with the positive direction
+                continue;
+            }
+            let k = dir * j;
+            let c = f.coef[(f.kmax + k) as usize];
+            let m = f.nu + CD::f(2.0 * k as f64);
+            let t = match which {
+                0 => (ek + fk).scale(0.5),
+                1 => (ek - fk).scale(0.5).mul_i().scale(-1.0),
+                2 => (ek + fk).scale(0.5) * m,
+                _ => (ek - fk).scale(0.5).mul_i() * m,
+            } * c;
+            sum = sum + t;
+            mags += c.abs() * (ek.abs() + fk.abs()) * (1.0 + m.abs());
+        }
+    }
+    if !sum.finite() || !mags.is_finite() {
+        return None;
+    }
+    // the terms beyond |k| = kmax: their ratio is about q e^(2 |Im z|)/(4 k^2) (the coefficients fall like
+    // (q/4)^k/(k!)^2, the exponentials grow like e^(2k |Im z|)), so below 1/2 the omitted tail is at most the last term
+    // on each side; above, the truncation is not bounded and the sum is not used (at z = 3.5 i the sum with 38 terms
+    // on each side was 1e14 where mathieu_c(3, 2, z) is 0.138)
+    let kf = f.kmax as f64;
+    let ratio = f.q.abs() * (2.0 * z.im.hi.abs()).exp() / (4.0 * kf * kf);
+    if !(ratio < 0.5) {
+        return None;
+    }
+    let mut tail = 0.0f64;
+    for k in [-f.kmax, f.kmax] {
+        let c = f.coef[(f.kmax + k) as usize];
+        let m = f.nu + CD::f(2.0 * k as f64);
+        let mc = m.to_c64();
+        // |e^(+-i m z)| <= e^|Im(m z)|
+        let grow = (mc.re * z.im.hi + mc.im * z.re.hi).abs().exp();
+        tail += 2.0 * c.abs() * grow * (1.0 + m.abs());
+    }
+    Some((sum, mags * U * (16.0 + 4.0 * kf) + tail))
+}
+
+/// A Mathieu function at machine arguments: which = 0 C, 1 S, 2 S', 3 C'. The Floquet data depend on a and q only and
+/// are kept for the last pair (a plot varies z). The value is the Fourier sum of the Floquet solution (some 2 kmax
+/// products, independent of |z|) when its rounding bound is within the tolerance, else the Taylor integration from 0
+/// (whose steps grow with |z|: a value at z = 77 took a millisecond, a surface of mathieu_c 25 s). The Fourier sums of
+/// a pair are used only after they agree with the integration at one point (the exponent and the coefficients come from
+/// the continued fractions, which could lose a coefficient where a - (nu + 2k)^2 nearly vanishes).
 pub(crate) fn mathieu(a: CD, q: CD, z: CD, which: u8) -> Option<C64> {
     thread_local! {
-        static LAST: std::cell::Cell<Option<(CD, CD, bool, CD)>> = const { std::cell::Cell::new(None) };
+        static LAST: std::cell::RefCell<Option<Floquet>> = const { std::cell::RefCell::new(None) };
     }
     // 0 = ce, 1 = se, 2 = se', 3 = ce'
     let even = which == 0 || which == 3;
-    let norm = match LAST.with(|c| c.get()) {
-        Some((la, lq, le, v)) if la == a && lq == q && le == even => v,
-        _ => {
-            let v = mathieu_norm(a, q, even)?;
-            LAST.with(|c| c.set(Some((a, q, even, v))));
-            v
+    let cached = LAST.with(|c| c.borrow().as_ref().filter(|f| f.a == a && f.q == q).cloned());
+    let mut fl = match cached {
+        Some(f) => f,
+        None => {
+            let f = mathieu_floquet(a, q)?;
+            LAST.with(|c| *c.borrow_mut() = Some(f.clone()));
+            f
         }
     };
+    let norm = fl.norm[if even { 0 } else { 1 }];
+    if fl.fourier.is_none() {
+        // the check: ce and se at z = 1/2 by both routes
+        let z0 = CD::f(0.5);
+        let mut ok = true;
+        for (w, (y0, d0), nm) in [(0u8, (1.0, 0.0), fl.norm[0]), (1u8, (0.0, 1.0), fl.norm[1])] {
+            let (Some((s, e)), Some((y, _, big))) = (mathieu_fourier(&fl, z0, w), mathieu_solve(a, q, z0, y0, d0)) else {
+                ok = false;
+                break;
+            };
+            let t = y * nm;
+            let tol = 1e-26 * (s.abs() + t.abs()) + e + big * nm.abs() * U * 1e3;
+            if !((s - t).abs() <= tol) {
+                ok = false;
+            }
+        }
+        fl.fourier = Some(ok);
+        LAST.with(|c| *c.borrow_mut() = Some(fl.clone()));
+    }
+    if fl.fourier == Some(true) {
+        if let Some((v, err)) = mathieu_fourier(&fl, z, which) {
+            if v.finite() && err <= TOL * v.abs() {
+                return Some(v.to_c64());
+            }
+        }
+    }
     let (y0, d0) = if even { (1.0, 0.0) } else { (0.0, 1.0) };
     let (y, d, big) = mathieu_solve(a, q, z, y0, d0)?;
     let v = if which >= 2 { d } else { y } * norm;
@@ -1167,7 +1293,8 @@ pub(crate) fn theta(a: u8, u: CD, q: CD, deriv: bool) -> Option<C64> {
     } else {
         CD::ONE + s.scale(2.0)
     };
-    let size = v.abs().max(if odd || deriv { 0.0 } else { 1.0 });
+    // against the value itself: near |q| = 1 theta_3 and theta_4 cancel far below 1 (theta_3(0, -0.98))
+    let size = v.abs();
     (v.finite() && big * U * 1e2 <= TOL * size).then(|| v.to_c64())
 }
 

@@ -226,3 +226,19 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
 - `curl(f, vars)` of a scalar `f`: the rank n - 1 curl (the tensor curl of rank 0), `[-f_y, f_x]` in the plane and the
   antisymmetric matrix of entries `eps_ijk f_k` in space. `curl(inactive(op)(args), vars)`: the curl of the active
   `op(args)` (the curl of a gradient is 0).
+
+## Round 41: arbitrary-precision matrices
+
+- Singular values and the 2-norm of matrices of balls (with exact numbers among them, real or complex): the positive
+  eigenvalues of [[0, A], [A^H, 0]] (Golub and Van Loan 8.6.1), complex A through the real form [[P, -Q], [Q, P]]
+  of that Hermitian matrix, by the symmetric ball eigensolver with its Weyl bound. A value whose ball contains 0 is
+  a zero singular value and is left out; the norm of a matrix whose singular values all contain 0 is not given.
+  `norm(n([[1, 2], [3, 4]], 30))` stayed unevaluated.
+- Eigenvalues of non-symmetric ball matrices at the input's precision: the characteristic polynomial by Berkowitz in
+  ball arithmetic 64 bits above the input, its roots refined together by the Ehrlich-Aberth iteration from the
+  machine eigenvalues, each enclosed in the disk n |f(z)|/|f'(z)| with f evaluated in balls (Henrici, Applied and
+  Computational Complex Analysis I, 6.4), so the disk holds a root of every polynomial in the coefficient balls.
+  Disjoint disks give the values (real when the mirror image meets no other disk); overlapping ones (multiple or
+  clustered eigenvalues) keep the machine values, as do eigenvectors.
+- Swept: `det`, `inverse`, `linear_solve`, `rank`, `matrix_exp` already work at the input's precision through
+  elimination in balls; the symmetric eigenproblem since round 36.

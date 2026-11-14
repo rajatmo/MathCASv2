@@ -24,17 +24,17 @@
 #% cell
 dedekind_eta(1.0*im)
 #% output
-#= 0.7682254223260567 + 0.0im
+#= 0.7682254223260566 + 0.0im
 
 #% cell
 dedekind_eta(0.5 + 1.0*im)
 #% output
-#= 0.7645031667971424 + 0.10064875132231726im
+#= 0.7645031667971423 + 0.10064875132231726im
 
 #% cell
 dedekind_eta(2.0*im)
 #% output
-#= 0.592382781332416 + 0.0im
+#= 0.5923827813324158 + 0.0im
 
 #% subsection
 # Properties and relations
@@ -45,7 +45,7 @@ dedekind_eta(2.0*im)
 #% cell
 dedekind_eta(1.0*im) - exp(-pi/12.0)*q_pochhammer(exp(-2*pi*1.0))
 #% output
-#= 0.0 + 0.0im
+#= -1.1102230246251565e-16 + 0.0im
 
 #% text
 # The transformation under `tau -> -1/tau`:
@@ -53,7 +53,7 @@ dedekind_eta(1.0*im) - exp(-pi/12.0)*q_pochhammer(exp(-2*pi*1.0))
 #% cell
 dedekind_eta(-1/(0.2 + 1.5*im)) - sqrt(-im*(0.2 + 1.5*im))*dedekind_eta(0.2 + 1.5*im)
 #% output
-#= 1.1102230246251565e-16 - 2.2898349882893854e-16im
+#= 1.1102230246251565e-16 - 2.185751579730777e-16im
 
 #% section
 # See also

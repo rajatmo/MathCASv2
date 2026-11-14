@@ -438,7 +438,32 @@ fn theta_rule<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], deriv: bool) -> R<'h
         }
     }
     let im = parts(fx, u).map_or(0.0, |p| p.1.abs());
-    let Some((wk, xs)) = work(fx, &a[1..], (im * 3.0) as u64 + 8) else { return Ok(None) };
+    // a machine value only when its ball has machine precision: the series near |q| = 1 cancels (theta_3(0, -0.99) =
+    // 8.5e-106 came out as -3.1e-25 from a bound taken against 1 instead of the value); more bits while the loss is
+    // affordable, else no value
+    let mut extra = (im * 3.0) as u64 + 8;
+    loop {
+        let Some((v, wk, real)) = theta_work(fx, a, k, deriv, extra)? else { return Ok(None) };
+        if !wk.machine {
+            return Ok(wk.out(fx, v, real));
+        }
+        let rr = crate::modular::rel_radius(fx, v);
+        if rr <= -55.0 {
+            return Ok(wk.out(fx, v, real).filter(|o| parts(fx, *o).is_some_and(|p| p.0.hypot(p.1) > 1e-300 || p == (0.0, 0.0))));
+        }
+        let need = if rr.is_finite() { (rr + 60.0).max(0.0) as u64 } else { extra };
+        extra += need.max(32);
+        if extra > 4096 {
+            return Ok(None);
+        }
+    }
+}
+
+/// The ball value of [`theta_rule`] at `extra` bits beyond the arguments' precision, with the working form and whether
+/// the value is real.
+fn theta_work<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], k: i64, deriv: bool, extra: u64) -> Res<Option<(T<'h>, Work, bool)>> {
+    let q = a[2];
+    let Some((wk, xs)) = work(fx, &a[1..], extra) else { return Ok(None) };
     // a real nome near 1 (q = e^(-pi t), 0 < t < 1): Jacobi's imaginary transformation (DLMF 20.7.30-33 with tau = i t,
     // tau' = i/t), theta_k(z | tau) = t^(-1/2) e^(-z^2/(pi t)) {-i theta_1, theta_4, theta_3, theta_2}(i z/t | tau'): the
     // series in q' = e^(-pi/t) converges fast and has no cancellation (theta_3(pi/2, e^(-pi/1000)) = 5.09e-340 was a ball
@@ -461,13 +486,74 @@ fn theta_rule<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], deriv: bool) -> R<'h
             let v = numify(fx, fx.mul(&[pre, th]), &xs)?;
             if fx.num(v).is_some() {
                 let real = wk.real && parts(fx, a[2]).is_some_and(|p| p.0 >= 0.0);
-                return Ok(wk.out(fx, v, real));
+                return Ok(Some((v, wk, real)));
             }
         }
     }
+    // theta_3 and theta_4 are real at every real nome, theta_1 and theta_2 (with q^(1/4)) at a positive one
+    let real = wk.real && parts(fx, q).is_some_and(|p| p.0 >= 0.0 || k >= 3);
+    if !deriv && mag(fx, xs[1]) > 0.9 {
+        if let Some(v) = theta_modular(fx, k, xs[0], xs[1], wk.w)? {
+            return Ok(Some((v, wk, real)));
+        }
+    }
     let Some(v) = theta(fx, k, xs[0], xs[1], wk.w, deriv)? else { return Ok(None) };
-    let real = wk.real && parts(fx, q).is_some_and(|p| p.0 >= 0.0);
-    Ok(wk.out(fx, v, real))
+    Ok(Some((v, wk, real)))
+}
+
+/// theta_k(z, q) for a nome near the unit circle by the modular transformations of tau = log(q)/(i pi) (principal
+/// logarithm, so q^(1/4) = e^(i pi tau/4) as in the series): tau -> tau - n with theta_1, theta_2 (z | tau + 1) =
+/// e^(i pi/4) theta_1, theta_2 (z | tau) and theta_3 <-> theta_4 (DLMF 20.7.26-29), tau -> tau' = -1/tau with
+/// theta_k(z | tau) = (-i tau)^(-1/2) e^(i tau' z^2/pi) {-i theta_1, theta_4, theta_3, theta_2}(z tau' | tau') (DLMF
+/// 20.7.30-33), until tau is in the fundamental domain, where |q| <= 0.066. The series near |q| = 1 cancels to the
+/// value: theta_3(0, -0.99) = 8.5e-106 needed some 350 more bits.
+fn theta_modular<'h>(fx: &mut Fx<'_, '_, '_, 'h>, k: i64, z: T<'h>, q: T<'h>, w: u64) -> R<'h> {
+    let pi = pi_at(fx, w)?;
+    let i = fx.i();
+    let lq = fx.eval(fx.call("log", &[q]))?;
+    let mut tau = fx.eval(fx.div(lq, fx.mul(&[i, pi])))?;
+    let (mut j, mut z) = (k, z);
+    let mut mult = fx.int(1);
+    for it in 0..10_000u32 {
+        if it % 32 == 31 {
+            fx.tick(1)?;
+        }
+        let Some((x, y)) = parts(fx, tau) else { return Ok(None) };
+        if !(y > 0.0) || !x.is_finite() {
+            return Ok(None);
+        }
+        let n = x.round();
+        let x = if n != 0.0 {
+            if n.abs() > 1e15 {
+                return Ok(None);
+            }
+            let ni = n as i64;
+            tau = fx.eval(fx.sub(tau, fx.int(ni)))?;
+            if j <= 2 {
+                mult = fx.mul(&[mult, fx.call("exp", &[fx.mul(&[fx.rat(ni.rem_euclid(8), 4), i, pi])])]);
+            } else if ni % 2 != 0 {
+                j = 7 - j;
+            }
+            x - n
+        } else {
+            x
+        };
+        if x * x + y * y >= 1.0 - 1e-12 {
+            break;
+        }
+        let tp = fx.eval(fx.neg(fx.div(fx.int(1), tau)))?;
+        let root = fx.pow(fx.mul(&[fx.int(-1), i, tau]), fx.rat(-1, 2));
+        let ex = fx.call("exp", &[fx.div(fx.mul(&[i, tp, z, z]), pi)]);
+        let sign = if j == 1 { fx.neg(i) } else { fx.int(1) };
+        mult = fx.eval(fx.mul(&[mult, sign, root, ex]))?;
+        z = fx.eval(fx.mul(&[z, tp]))?;
+        j = [0, 1, 4, 3, 2][j as usize];
+        tau = tp;
+    }
+    let qn = fx.eval(fx.call("exp", &[fx.mul(&[i, pi, tau])]))?;
+    let Some(v) = theta(fx, j, z, qn, w, false)? else { return Ok(None) };
+    let v = fx.eval(fx.mul(&[mult, v]))?;
+    Ok(fx.num(v).map(|_| v))
 }
 
 fn elliptic_theta<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -549,12 +635,6 @@ fn theta_consts<'h>(fx: &Fx<'_, '_, '_, 'h>, q: T<'h>) -> [T<'h>; 3] {
     [2, 3, 4].map(|i| fx.call("elliptic_theta", &[fx.int(i), fx.int(0), q]))
 }
 
-/// The nome e^(i pi tau) of a point of the upper half-plane.
-fn nome_of<'h>(fx: &Fx<'_, '_, '_, 'h>, tau: T<'h>) -> Option<T<'h>> {
-    let (_, im) = parts(fx, tau)?;
-    (im > 0.0).then(|| fx.call("exp", &[fx.mul(&[fx.i(), fx.sym("pi"), tau])]))
-}
-
 /// Is the real part of the number tau an exact multiple of `step` (a machine real, a rational, or a ball without
 /// radius)? On such vertical lines the modular functions take real values (J on re tau in Z/2, lambda on Z, eta on
 /// 12 Z: J(-conj tau) = conj J(tau) with period 1, lambda(-conj tau) = conj lambda(tau) with lambda(tau + 1) =
@@ -610,15 +690,11 @@ fn modular_lambda_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if let Some(v) = crate::fast33::modular_lambda(ms[0]) {
             return Ok(crate::fast29::machine_out(fx, v, real && v.im == 0.0));
         }
-        // a machine point below Im tau = 1 that the reduction cannot take (a value beyond 1e308, Im tau < 1e-8): the nome
-        // series at |q| near 1 in machine numbers is noise (modular_lambda(0.3 + 1e-5 i) gave -2.6e-105 in 35 ms)
-        if ms[0].im.hi < 1.0 {
-            return Ok(None);
-        }
     }
-    let Some(q) = nome_of(fx, a[0]) else { return Ok(None) };
-    let [t2, t3, _] = theta_consts(fx, q);
-    Ok(Some(fx.pow(fx.div(t2, t3), fx.int(4))))
+    // every other numeric point (balls, machine points near the real axis): the reduction in ball arithmetic (the nome
+    // series at |q| near 1 is noise in machine numbers, and n(modular_lambda(1 + 2 i), 50) stayed a theta expression of
+    // the negative nome)
+    crate::modular::modular(fx, a[0], crate::modular::Modular::Lambda)
 }
 
 fn klein_j<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -637,17 +713,8 @@ fn klein_j_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         if let Some(v) = crate::fast33::klein_j(ms[0]) {
             return Ok(crate::fast29::machine_out(fx, v, real && v.im == 0.0));
         }
-        // a machine point below Im tau = 1 that the reduction cannot take (a value beyond 1e308, Im tau < 1e-8): the nome
-        // series at |q| near 1 in machine numbers is noise (modular_lambda(0.3 + 1e-5 i) gave -2.6e-105 in 35 ms)
-        if ms[0].im.hi < 1.0 {
-            return Ok(None);
-        }
     }
-    let Some(q) = nome_of(fx, a[0]) else { return Ok(None) };
-    let [t2, t3, t4] = theta_consts(fx, q);
-    let p8 = |t: T<'h>| fx.pow(t, fx.int(8));
-    let num = fx.pow(fx.add(&[p8(t2), p8(t3), p8(t4)]), fx.int(3));
-    Ok(Some(fx.div(num, fx.mul(&[fx.int(54), p8(fx.mul(&[t2, t3, t4]))]))))
+    crate::modular::modular(fx, a[0], crate::modular::Modular::J)
 }
 
 fn inverse_nome<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
@@ -710,21 +777,14 @@ fn dedekind_eta_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         Some(r) if r != re => fx.eval(fx.add(&[r, fx.mul(&[fx.i(), im])]))?,
         _ => tau0,
     };
-    // e^(i pi tau/12) (q; q)_inf with q = e^(2 i pi tau), evaluated at the argument's precision (balls: with pi as
-    // a ball, so the result carries its own radius and the caller's `n` judges it)
-    let ball = match fx.num(tau0) {
-        Some(Num::Complex(x, y)) if x.kind() == Kind::Ball || y.kind() == Kind::Ball => Some(x.prec().max(y.prec())),
-        Some(Num::Real(x)) if x.kind() == Kind::Ball => Some(x.prec()),
-        _ => None,
-    };
-    let pi = match ball {
-        Some(w) => pi_at(fx, w.unwrap_or(53) + 16)?,
-        None => fx.sym("pi"),
-    };
-    let pre = fx.call("exp", &[fx.mul(&[fx.rat(1, 12), fx.i(), pi, tau])]);
-    let q = fx.call("exp", &[fx.mul(&[fx.int(2), fx.i(), pi, tau])]);
-    let v = fx.mul(&[pre, fx.call("q_pochhammer", &[q, q])]);
-    Ok(Some(if ball.is_some() { fx.eval(v)? } else { numify(fx, v, &[tau0])? }))
+    // a machine point: the double-double reduction; otherwise (balls, points near the real axis, where the product
+    // (q; q)_inf at |q| near 1 needed more factors than it allows) the reduction in ball arithmetic
+    if let Some((ms, _)) = crate::fast29::machine_args(fx, &[tau]) {
+        if let Some(v) = crate::fast33::dedekind_eta(ms[0]) {
+            return Ok(crate::fast29::machine_out(fx, v, false));
+        }
+    }
+    crate::modular::modular(fx, tau, crate::modular::Modular::Eta)
 }
 
 // ---------------------------------------------------------------- q-analogues

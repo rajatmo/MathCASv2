@@ -25,6 +25,12 @@ const MAX_FAST: i64 = 400_000_000;
 /// are tried (0.5 s).
 const MAX_DIRECT: i64 = 20_000_000;
 
+/// Finite ranges longer than this are summed with the compiled summand. A term through the evaluator costs some 30 us
+/// against about 20 ns compiled (plus the compilation, about a millisecond): an infinite product whose factor is itself
+/// a finite product up to the outer index (n_product(1 + (-1)^n (2/n)^k/k^2, [n, 2, inf], [k, 1, n])) evaluated
+/// sum n ~ 2 10^6 inner terms through the evaluator and timed out.
+const FAST_FROM: i64 = 64;
+
 /// `prod_{k=lo}^{hi} f(k)` as a machine complex product; `None` when a factor is not numeric, or the running
 /// product overflows or reaches zero (the caller then sums logarithms).
 fn multiply<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, hi: i64) -> Res<Option<(f64, f64)>> {
@@ -379,7 +385,55 @@ enum Mode {
 fn fast_fn<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>) -> Res<Option<Box<dyn NumFn<'h, f64> + 'h>>> {
     let View::Sym(s) = sx.h().view(k) else { return Ok(None) };
     let opts = mc_numfn::Options { policy: mc_numfn::Policy::Compiled, ..mc_numfn::Options::default() };
+    let f = merge_powers(sx, f)?;
     Ok(Some(mc_numfn::compile_expr(sx.cx, f, &[Var::scalar(s)], &opts)?))
+}
+
+/// `f` with the powers of positive numbers to one exponent in a product merged: a^e b^e = (a b)^e for a, b > 0. The
+/// evaluator writes (2/n)^k as 2^k (n^-1)^k, which at a numeric n overflows in machine numbers past k = 1023 although
+/// the power itself is tiny: the compiled loop of n_product(1 + (2/8194)^k/k^2, [k, 1, 8194]) failed and the
+/// evaluator took two seconds instead of a millisecond.
+fn merge_powers<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>) -> Res<T<'h>> {
+    let h = sx.h();
+    let (times, power) = (sx.sym(names::MUL), sx.sym(names::POW));
+    let positive = |t: T<'h>| match h.view(t) {
+        View::Int(v) => v > 0,
+        View::Real(v) => v > 0.0,
+        View::Rational { num, .. } => matches!(h.view(num), View::Int(v) if v > 0),
+        _ => false,
+    };
+    let mut changed = false;
+    let g = mc_numfn::replace(h, f, &mut |u| {
+        let View::App { head, args } = h.view(u) else { return None };
+        if head != times {
+            return None;
+        }
+        let mut groups: Vec<(T<'h>, Vec<T<'h>>)> = vec![];
+        let mut rest = vec![];
+        for &a in args {
+            match h.view(a) {
+                View::App { head: ph, args: &[b, e] } if ph == power && positive(b) => match groups.iter_mut().find(|g| g.0 == e) {
+                    Some(g) => g.1.push(b),
+                    None => groups.push((e, vec![b])),
+                },
+                _ => rest.push(a),
+            }
+        }
+        if groups.iter().all(|g| g.1.len() < 2) {
+            return None;
+        }
+        changed = true;
+        for (e, bs) in groups {
+            let base = if bs.len() == 1 { bs[0] } else { h.call(h.sym(names::MUL), &bs) };
+            rest.push(h.call(h.sym(names::POW), &[base, e]));
+        }
+        Some(h.call(h.sym(names::MUL), &rest))
+    });
+    if !changed {
+        return Ok(f);
+    }
+    // the merged bases evaluate to one number; the products keep their unevaluated form only until then
+    sx.cx.eval(g)
 }
 
 /// The sum, the sum of the logarithms, or the product of the real terms `f(lo) .. f(hi)` with the summand compiled
@@ -507,7 +561,7 @@ fn numeric_int<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: i64, hi:
     // a long finite range with the summand compiled: the product or sum of the terms themselves (a finite range is
     // summed as it is, where the tails of an infinite series lose digits to their difference)
     if let Some(u) = hi {
-        if u - lo > 2_000 && u - lo <= MAX_DIRECT {
+        if u - lo > FAST_FROM && u - lo <= MAX_DIRECT {
             if let Some(v) = fast_loop(sx, f, k, lo, u, if product { Mode::Prod } else { Mode::Sum })? {
                 return Ok(Some(number(sx, v)?));
             }

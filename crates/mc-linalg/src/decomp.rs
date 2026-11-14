@@ -347,12 +347,25 @@ pub fn singular_values<'h>(env: &Env<'h>, args: &[T<'h>], m: &mut Meter) -> Work
             Some(v) => Out::Again(env.list(&v)),
             None => Out::Decline,
         },
-        Domain::Ball | Domain::Symbolic => Out::Decline,
+        // balls (with exact numbers among them): at their own precision with a Weyl bound
+        Domain::Ball => match crate::apeigen::ball_singular_values(&a.nums(env), a.rows(), a.cols(), m)? {
+            Some(v) => Out::Done(env.list(&v.iter().map(|x| env.num(x)).collect::<Vec<_>>())),
+            None => Out::Decline,
+        },
+        Domain::Symbolic => Out::Decline,
     })
 }
 
-/// The largest singular value (the matrix 2-norm) of a non-machine matrix: exact numeric matrices only.
+/// The largest singular value (the matrix 2-norm) of a non-machine matrix: exact numeric matrices, and balls at their
+/// own precision (the norm of a matrix of 30-digit numbers stayed unevaluated).
 pub fn largest_singular_value<'h>(env: &Env<'h>, a: &Arr<'h>, m: &mut Meter) -> WorkResult<Out<'h>> {
+    if a.domain == Domain::Ball {
+        return Ok(match crate::apeigen::ball_singular_values(&a.nums(env), a.rows(), a.cols(), m)? {
+            // no singular value away from 0: the norm is a ball around 0 that the values do not give; none is given
+            Some(v) => v.first().map_or(Out::Decline, |x| Out::Done(env.num(x))),
+            None => Out::Decline,
+        });
+    }
     if !a.domain.exact_numeric() {
         return Ok(Out::Decline);
     }

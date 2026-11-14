@@ -66,6 +66,7 @@ mod zeros;
 mod qhyper;
 mod rathyp;
 mod mathieu;
+mod modular;
 mod fast29;
 mod fast30;
 mod fast33;

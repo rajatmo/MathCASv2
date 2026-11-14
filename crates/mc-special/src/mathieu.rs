@@ -1,3 +1,4 @@
+#![allow(clippy::neg_cmp_op_on_partial_ord)]
 //! Mathieu functions, solutions of y'' + (a - 2 q cos 2z) y = 0 (DLMF 28.2.1):
 //!
 //! - `mathieu_c(a, q, z)`: the even Floquet solution ce_nu(z) = sum c_k cos((nu + 2k) z), `mathieu_s(a, q, z)` the odd
@@ -181,15 +182,151 @@ impl Which {
 /// c_(k+1)) (the minimal solutions in both directions by continued fractions, c_0 = 1) and are scaled to sum c_k^2 = 1:
 /// the even function is then ce(0) w_I(z) with ce(0) = sum c_k, the odd one se'(0) w_II(z) with se'(0) = sum (nu + 2k)
 /// c_k.
-fn floquet_norm<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, w: u64, even: bool) -> R<'h> {
+///
+/// The data are kept for the last few (a, q, w) (a plot or a table varies z only): the normalized coefficients C_k =
+/// c_k/sqrt(sum c^2) as midpoint balls, from which [`fourier`] sums the functions themselves.
+fn floquet<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, w: u64) -> Res<Option<BallFloquet>> {
+    let (Some(ab), Some(qb)) = (cb_mid(fx, a, w), cb_mid(fx, q, w)) else { return Ok(None) };
+    let hit = BALL_FLOQUET.with(|c| c.borrow().iter().find(|f| f.w == w && f.a == ab && f.q == qb).cloned());
+    if let Some(f) = hit {
+        return Ok(Some(f));
+    }
+    let Some(mut f) = floquet_data(fx, a, q, w)? else { return Ok(None) };
+    f.a = ab;
+    f.q = qb;
+    // the Fourier sums are used for this pair only when they agree with the integration at z = 1/2
+    let z0 = fx.rat(1, 2);
+    let z0 = ball_of(fx, z0, w);
+    let mut ok = true;
+    for (which, (y0, d0)) in [(Which::C, (1, 0)), (Which::S, (0, 1))] {
+        let Some((y, _)) = solve(fx, a, q, z0, y0, d0, w)? else { return Ok(None) };
+        let (Some(yb), Some(zb)) = (cb_mid(fx, y, w), cb_mid(fx, z0, w)) else { return Ok(None) };
+        let taylor = yb.mul(&f.norm[if which.even() { 0 } else { 1 }], w);
+        match fourier(&f, &zb, which, w) {
+            Some((s, scale)) => {
+                let d = cb_mag(&s.sub(&taylor, w));
+                if !(d <= 2f64.powi(-((w.min(1000) as i32) - 24)) * scale.max(cb_mag(&taylor))) {
+                    ok = false;
+                }
+            }
+            None => ok = false,
+        }
+    }
+    f.checked = ok;
+    BALL_FLOQUET.with(|c| {
+        let mut c = c.borrow_mut();
+        if c.len() >= 4 {
+            c.remove(0);
+        }
+        c.push(f.clone());
+    });
+    Ok(Some(f))
+}
+
+/// The Floquet data of a pair (a, q) at w bits (midpoints).
+#[derive(Clone)]
+struct BallFloquet {
+    a: CBall,
+    q: CBall,
+    w: u64,
+    nu: CBall,
+    kmax: i64,
+    /// C_k for k = -kmax..=kmax (index k + kmax)
+    coef: Vec<CBall>,
+    /// ce(0) and se'(0)
+    norm: [CBall; 2],
+    /// whether the Fourier sums agreed with the integration
+    checked: bool,
+}
+
+thread_local! {
+    static BALL_FLOQUET: std::cell::RefCell<Vec<BallFloquet>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The Fourier sum of the Floquet solution at z (midpoints at w bits) and the largest term (for the caller's error
+/// scale); `None` when the terms beyond kmax are not bounded by the last ones (their ratio about q e^(2|Im z|)/(4k^2)
+/// must be below 1/2) or the last ones are not negligible.
+fn fourier(f: &BallFloquet, z: &CBall, which: Which, w: u64) -> Option<(CBall, f64)> {
+    let kf = f.kmax as f64;
+    let zim = crate::ball::f64_of(&z.im.mid);
+    let zre = crate::ball::f64_of(&z.re.mid);
+    if !(cb_mag(&f.q) * (2.0 * zim.abs()).exp() / (4.0 * kf * kf) < 0.5) {
+        return None;
+    }
+    let iz = z.mul_i();
+    let e0 = mc_numeric::cball::exp(&cb_center(&f.nu.mul(&iz, w)), w)?;
+    let f0 = mc_numeric::cball::exp(&cb_center(&f.nu.mul(&iz, w).neg()), w)?;
+    let g = mc_numeric::cball::exp(&cb_center(&iz.mul_real(&Ball::from_i64(2), w)), w)?;
+    let h = mc_numeric::cball::exp(&cb_center(&iz.mul_real(&Ball::from_i64(-2), w)), w)?;
+    let (g, h, e0, f0) = (cb_center(&g), cb_center(&h), cb_center(&e0), cb_center(&f0));
+    let mut sum = CBall::from_i64(0);
+    let mut big = 0.0f64;
+    let mut last = 0.0f64;
+    for (dir, se, sf) in [(1i64, &g, &h), (-1i64, &h, &g)] {
+        let (mut ek, mut fk) = (e0.clone(), f0.clone());
+        for j in 0..=f.kmax {
+            if j > 0 {
+                ek = cb_center(&ek.mul(se, w));
+                fk = cb_center(&fk.mul(sf, w));
+            } else if dir < 0 {
+                continue;
+            }
+            let k = dir * j;
+            let c = &f.coef[(f.kmax + k) as usize];
+            let m = f.nu.add(&CBall::from_i64(2 * k), w);
+            let half = Ball::exact(crate::ball::float_of(0.5));
+            let cs = ek.add(&fk, w).mul_real(&half, w);
+            let sn = ek.sub(&fk, w).mul_real(&half, w).div_i();
+            let t = match which {
+                Which::C => cs,
+                Which::S => sn,
+                Which::SPrime => cs.mul(&m, w),
+                Which::CPrime => sn.mul(&m, w).neg(),
+            };
+            let t = cb_center(&t.mul(c, w));
+            let mt = cb_mag(&t);
+            big = big.max(mt);
+            if j == f.kmax {
+                // the last term bounds the tail; also by the growth e^|Im(m z)| for a term too small to show it
+                let mc = (crate::ball::f64_of(&m.re.mid), crate::ball::f64_of(&m.im.mid));
+                last += 2.0 * mt.max(cb_mag(c) * (mc.0 * zim + mc.1 * zre).abs().exp() * (1.0 + mc.0.hypot(mc.1)));
+            }
+            sum = sum.add(&t, w);
+        }
+    }
+    let sum = cb_center(&sum);
+    if !(last <= 2f64.powi(-((w.min(1000) as i32) + 8)) * cb_mag(&sum).max(big * 2f64.powi(-(w.min(1000) as i32)))) {
+        return None;
+    }
+    Some((sum, big))
+}
+
+/// The exponent, the coefficients and the normalizations at w bits.
+fn floquet_data<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, w: u64) -> Res<Option<BallFloquet>> {
     let pi = crate::cover::pi_at(fx, w)?;
     let pi = retag(fx, pi, w);
-    let Some((y_pi, _)) = solve(fx, a, q, pi, 1, 0, w)? else { return Ok(None) };
-    let ac = fx.eval(fx.call("acos", &[y_pi]))?;
-    if fx.num(ac).is_none() {
+    // cos(pi nu) = w_I(pi) = 2 w_I(pi/2) w_II'(pi/2) - 1 and sin^2(pi nu) = -4 w_I w_II' w_I' w_II at pi/2 (DLMF
+    // 28.2(iii)), a product free of the cancellation in 1 - w_I(pi)^2: at a characteristic value (a = b_5(q) found by a
+    // root search) w_I(pi) is -1 to within rounding, and acos of a midpoint just beyond -1 was no number (find_root
+    // at 40 digits stopped with not_numeric). pi nu = -i log(w + i sqrt(1 - w^2)).
+    let half = fx.eval(fx.mul(&[fx.rat(1, 2), pi]))?;
+    let half = retag(fx, half, w);
+    let Some((y1, d1)) = solve(fx, a, q, half, 1, 0, w)? else { return Ok(None) };
+    let Some((y2, d2)) = solve(fx, a, q, half, 0, 1, w)? else { return Ok(None) };
+    let cw = fx.eval(fx.sub(fx.mul(&[fx.int(2), y1, d2]), fx.int(1)))?;
+    let s2 = fx.eval(fx.mul(&[fx.int(-4), y1, d2, d1, y2]))?;
+    let sn = fx.eval(fx.call("sqrt", &[s2]))?;
+    let lg = fx.eval(fx.call("log", &[fx.add(&[cw, fx.mul(&[fx.i(), sn])])]))?;
+    if fx.num(lg).is_none() {
         return Ok(None);
     }
-    let nu1 = fx.eval(fx.div(ac, pi))?;
+    let nu1 = fx.eval(fx.div(fx.mul(&[fx.int(-1), fx.i(), lg]), pi))?;
+    let mut nu1 = mid_term(fx, nu1);
+    // real a and q with |cos(pi nu)| <= 1: nu is real, the imaginary part of the logarithm's modulus is rounding
+    let real_aq = matches!((fx.num(a), fx.num(q)), (Some(Num::Real(_)), Some(Num::Real(_))));
+    if real_aq && parts(fx, cw).is_some_and(|p| p.0.abs() <= 1.0) {
+        nu1 = fx.eval(fx.call("re", &[nu1]))?;
+    }
     // the branch +-nu1 + 2m nearest to sqrt(a) (the exponent continuous from q = 0, where se_nu = sin(nu z)): the sign
     // of the odd function depends on it
     let sa = fx.eval(fx.call("sqrt", &[a]))?;
@@ -231,10 +368,13 @@ fn floquet_norm<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, w: u64, eve
     let mut sum2 = vec![fx.int(1)];
     let mut sum1 = vec![fx.int(1)];
     let mut sumd = vec![nu];
+    let mut cs = vec![fx.int(0); (2 * kmax + 1) as usize];
+    cs[kmax as usize] = fx.int(1);
     for (sign, ratios) in [(1i64, &r), (-1i64, &sr)] {
         let mut c = fx.int(1);
         for k in 1..=kmax {
             c = fx.eval(fx.mul(&[c, ratios[k as usize]]))?;
+            cs[(kmax + sign * k) as usize] = c;
             sum2.push(fx.mul(&[c, c]));
             sum1.push(c);
             sumd.push(fx.mul(&[fx.add(&[nu, fx.int(2 * sign * k)]), c]));
@@ -242,16 +382,35 @@ fn floquet_norm<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, w: u64, eve
     }
     let s2 = fx.eval(fx.add(&sum2))?;
     let root = fx.eval(fx.call("sqrt", &[s2]))?;
-    let num = if even { fx.add(&sum1) } else { fx.add(&sumd) };
-    let v = fx.eval(fx.div(num, root))?;
-    Ok(fx.num(v).map(|_| v))
+    let (e1, ed) = (fx.add(&sum1), fx.add(&sumd));
+    let n0 = fx.eval(fx.div(e1, root))?;
+    let n1 = fx.eval(fx.div(ed, root))?;
+    let (Some(n0), Some(n1), Some(nub), Some(rb)) = (cb_mid(fx, n0, w), cb_mid(fx, n1, w), cb_mid(fx, nu, w), cb_mid(fx, root, w)) else { return Ok(None) };
+    let mut coef = Vec::with_capacity(cs.len());
+    for c in cs {
+        let Some(cb) = cb_mid(fx, c, w) else { return Ok(None) };
+        let Some(v) = cb.div(&rb, w) else { return Ok(None) };
+        coef.push(cb_center(&v));
+    }
+    let zero = CBall::from_i64(0);
+    Ok(Some(BallFloquet { a: zero.clone(), q: zero, w, nu: nub, kmax, coef, norm: [n0, n1], checked: false }))
 }
 
 /// The value at w bits from midpoint arguments.
+/// The Fourier sum of the Floquet solution when the pair's sums were checked and their truncation is bounded at z (a
+/// few hundred operations whatever |z|), else the integration from 0 times the normalization.
 fn value_at<'h>(fx: &mut Fx<'_, '_, '_, 'h>, xs: &[T<'h>], which: Which, w: u64) -> R<'h> {
+    let Some(f) = floquet(fx, xs[0], xs[1], w)? else { return Ok(None) };
+    if f.checked {
+        if let Some(zb) = cb_mid(fx, xs[2], w) {
+            if let Some((v, _)) = fourier(&f, &zb, which, w) {
+                return Ok(Some(cb_term(fx, &v, w)));
+            }
+        }
+    }
     let (y0, d0) = if which.even() { (1, 0) } else { (0, 1) };
     let Some((y, d)) = solve(fx, xs[0], xs[1], xs[2], y0, d0, w)? else { return Ok(None) };
-    let Some(c) = floquet_norm(fx, xs[0], xs[1], w, which.even())? else { return Ok(None) };
+    let c = cb_term(fx, &f.norm[if which.even() { 0 } else { 1 }], w);
     let v = if matches!(which, Which::SPrime | Which::CPrime) { d } else { y };
     Ok(Some(fx.eval(fx.mul(&[c, v]))?))
 }
@@ -448,6 +607,25 @@ fn char_a_f64(r: usize, q: f64) -> f64 {
     }
 }
 
+/// The machine characteristic value a_nu(q) at a real non-integer nu and real q: the eigenvalue of Hill's matrix,
+/// the truncated tridiagonal matrix of the Floquet coefficients (diagonal (nu + 2k)^2, off-diagonal q; DLMF 28.12.(i):
+/// (a - (nu + 2k)^2) c_k = q (c_(k-1) + c_(k+1))) that continues nu^2 from q = 0. Its eigenvalues are simple for q != 0,
+/// so their order does not change with q, and a_nu(q) is the one whose index at q = 0 is the number of k with
+/// (nu + 2k)^2 < nu^2: one value in each stability band, the band of nu (between a_0 and b_1 for 0 < nu < 1, between
+/// a_1 and b_2 for 1 < nu < 2). The root search on cos(pi nu(a)) = cos(pi nu) alone has a root in every band and
+/// started from nu^2 + q^2/(2 (nu^2 - 1)) it landed in the neighbouring band near integer nu (a_0.99(1) was given as
+/// 1.8594, the value of a_1.01(1), where the right one is -0.1102 near b_1(1)).
+pub(crate) fn char_nonint_f64(nu: f64, q: f64) -> f64 {
+    let nu = nu.abs();
+    let half = (nu / 2.0).ceil() as i64;
+    let kk = 30 + (q.abs().sqrt() * 4.0) as i64;
+    let ks: Vec<i64> = (-half - kk..=kk).collect();
+    let diag: Vec<f64> = ks.iter().map(|&k| (nu + 2.0 * k as f64).powi(2)).collect();
+    let off = vec![q; ks.len() - 1];
+    let j = ks.iter().filter(|&&k| (nu + 2.0 * k as f64).powi(2) < nu * nu).count();
+    tridiag_eigen(&diag, &off, j)
+}
+
 /// The large-parameter expansion of a_r(q) at an integer r >= 0 and a real machine q of large modulus (DLMF 28.8.1,
 /// h = sqrt|q|, s = 2r + 1; for q < 0 the value is a_r(|q|) at even r and b_r(|q|), with s = 2r - 1, at odd r; the
 /// terms through h^-5, the next one is smaller by about s^2/(2^5 h)). `None` unless h is large against s^2.
@@ -544,12 +722,17 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
     } else if int_r {
         char_a_f64(rf as usize, qf)
     } else {
-        let n2 = rf * rf;
-        n2 + if (n2 - 1.0).abs() > 0.1 { qf * qf / (2.0 * (n2 - 1.0)) } else { 0.0 }
+        char_nonint_f64(rf, qf)
     };
+    // the refined root must be the start's (the eigenvalue of the band, good to about 1e-13 of the matrix's size): a
+    // root search that moved to the neighbouring band gives no value
+    let size = (rf.abs() + 2.0 * (30.0 + 4.0 * qf.abs().sqrt())).powi(2) + 2.0 * qf.abs();
+    let near = |v: f64| (v - a0).abs() <= 1e-9 * (1.0 + a0.abs()) + 1e-12 * size;
     if let Some((ms, _)) = crate::fast29::machine_args(fx, a) {
         if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0, odd) {
-            return Ok(Some(fx.real(v)));
+            if near(v) {
+                return Ok(Some(fx.real(v)));
+            }
         }
         // the secant method on a double-double solution found no root (the even solution grows like e^(c sqrt|q|)
         // and the roots drown in rounding): the expansion, or a clean refusal instead of a precision spiral
@@ -617,7 +800,10 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         }
         ww = (ww * 2).min(w + 16);
     }
-    let m = mc_arith::num::Mag::from_float_up(&crate::ball::float_of((mag(fx, x1).max(1.0) * 2f64.powi(-((wk.p as i32).min(1000) - 4))).max(1e-300)));
+    if !int_r && parts(fx, x1).is_none_or(|p| !near(p.0)) {
+        return Ok(None);
+    }
+    let m =mc_arith::num::Mag::from_float_up(&crate::ball::float_of((mag(fx, x1).max(1.0) * 2f64.powi(-((wk.p as i32).min(1000) - 4))).max(1e-300)));
     let v = crate::cover::map_balls(fx, retag(fx, x1, w), |b| crate::ball::widen(b.clone(), &m));
     Ok(wk.out(fx, v, true))
 }
