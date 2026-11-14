@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.15.0 (2026-11-15)
+
+Answers that are proved, and more of them: intervals, properties with parameters, limits on branch cuts.
+
+**Intervals are enclosures.** The image of an `interval` or `centered_interval` under a function is now proved:
+monotone pieces and extrema come from enclosures of the derivatives, and an interval across a pole gives the whole
+line (`gamma`, `tan` and `zeta` across a pole no longer give a bounded interval). Complex centered intervals of the
+elementary functions and their inverses evaluate by box arithmetic. Where no image can be proved the call stays
+unevaluated: this now happens for some functions on wide intervals (`binomial`, `catalan_number`,
+`harmonic_number`, `whittaker_w` and a few more) that gave a sampled answer before.
+
+**Properties and conditions.** `function_analytic`, `function_meromorphic` and the other property functions
+answer `false` only when it holds for every value of the parameters; otherwise they give a condition on the
+parameters or stay unevaluated. `reduce` and `solve` over the integers, rationals, primes and algebraic numbers
+keep a membership that a free parameter leaves open as a condition, and take more argument forms; step functions
+(`floor`, `ceiling`, `round`, `mod`) are solved on unbounded lines. `find_instance` searches one integer or real
+variable.
+
+**Limits and calculus.** One-sided limits onto the branch cuts of the inverse circular and hyperbolic functions
+take the side the path comes from; `direction: complexes` gives the value where the function is continuous and
+no limit where two directions differ. Equations between powers of positive bases; systems in `recurrence_table`;
+nested harmonic sums as multiple harmonic numbers; Puiseux branches in `asymptotic_solve`; certified counts of the
+roots of non-polynomial functions; Mathieu's equation in `d_solve`.
+
+**Algebra.** Gröbner bases over the integers and over rational functions of parameters; sums over roots by their
+structure; `eliminate` with inequations; interpolating polynomials in several variables; generating functions of
+sequences with `mod`, `quotient` and `floor`; `apart` of an expression in several variables.
+
+**Special functions and numbers.** Modular functions (`klein_invariant_j`, `modular_lambda`, `dedekind_eta`) at
+every point of the upper half plane, at machine and arbitrary precision, real on the lines where they are real.
+Mathieu functions by Fourier sums (plots are fast) and at high precision. `inverse_gudermannian` keeps one branch.
+Inverse functions of direct functions reduce at numbers (`acoth(coth(5))`). Norms, singular values and eigenvalues
+of arbitrary-precision matrices. Lommel functions of non-integer order; Appell functions as sums.
+
+**Lists and data.** `normalized`; `knapsack_solve` with bounds; `bin_counts` and `bin_lists` in several
+dimensions; the least-area oriented rectangle; more hash methods, and byte arrays hashed by their bytes;
+interpolation from derivative data. A new `memory_available()`: builders of large matrices and grids refuse a
+result that does not fit instead of ending the kernel.
+
+**Language.** The name of a pattern variable is held, so `x_` works when `x` has a value. A new key assigned
+inside a local-variable block is kept.
+
+**Packages.** The Android package and the Linux AppImage are built and published with the other packages.
+
 ## 0.14.0 (2026-11-14)
 
 A first Android app, and more answers in calculus, special functions and data.
