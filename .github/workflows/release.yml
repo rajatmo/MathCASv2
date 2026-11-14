@@ -1,6 +1,7 @@
 # Release: on a pushed tag v<version> (for example v0.2.0), build the packages (packages.yml: Windows installer and
-# zip, Linux tarball, macOS disk image, smoke-tested) and attach them to a GitHub release named after the tag, with that version's
-# CHANGELOG.md section as its notes. The tag must match the workspace version in Cargo.toml. The tests run in ci.yml
+# zip, Linux tarball, macOS disk image, Android package) and attach them to a GitHub release named after the tag, with
+# that version's CHANGELOG.md section as its notes. Run by hand for a tag that has a release already, it builds that
+# tag's packages again and replaces the release's files. The tag must match the workspace version in Cargo.toml. The tests run in ci.yml
 # on the same commit; this workflow only packages.
 name: Release
 
@@ -46,6 +47,9 @@ jobs:
   packages:
     needs: version
     uses: ./.github/workflows/packages.yml
+    with:
+      ref: ${{ needs.version.outputs.tag }}
+    secrets: inherit
 
   release:
     name: GitHub release
@@ -68,11 +72,16 @@ jobs:
           awk -v v="$VERSION" '/^## / { on = index($0, "## " v " ") == 1 || $0 == "## " v; next } on' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "MathCAS v2 $VERSION" > notes.md; fi
           ls -l packages
+      # a release that is already there (the workflow run again for its tag) gets the packages built now
       - name: Create the release and attach the packages
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
-          gh release create "$TAG" packages/MathCAS-v2-* \
-            --title "MathCAS v2 $VERSION" --notes-file notes.md --verify-tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" packages/MathCAS-v2-* --clobber
+          else
+            gh release create "$TAG" packages/MathCAS-v2-* \
+              --title "MathCAS v2 $VERSION" --notes-file notes.md --verify-tag
+          fi

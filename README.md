@@ -181,10 +181,9 @@ and tests Windows, Linux and macOS on every push ([ci.yml](.github/workflows/ci.
 - **macOS:** `packaging/macos/build-app.sh` builds the application bundle and the disk image, and
   `packaging/macos/smoke.sh` tests an image.
 - **Android:** `packaging/android/build-apk.sh` builds the notebook's package for phones, tablets and emulators
-  (needs the Android SDK and NDK), and `packaging/android/smoke.sh` tests it on an emulator or a device. It is not
-  among the published packages yet.
+  (needs the Android SDK and NDK), and `packaging/android/smoke.sh` tests it on an emulator or a device.
 - **On GitHub:** a push to `main` publishes the `nightly` pre-release; a tag `v<version>` publishes a numbered
-  release with that version's changelog.
+  release with that version's changelog. Both hold the four packages ([packages.yml](.github/workflows/packages.yml)).
 
 ## How it is built
 

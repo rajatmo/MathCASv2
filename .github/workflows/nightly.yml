@@ -17,6 +17,7 @@ concurrency:
 jobs:
   packages:
     uses: ./.github/workflows/packages.yml
+    secrets: inherit
 
   publish:
     name: Rolling pre-release
@@ -37,7 +38,7 @@ jobs:
           short="${GITHUB_SHA::7}"
           cat > notes.md <<EOF
           The latest build of \`main\` ($short, $(date -u +%Y-%m-%d)). Not a release: for a numbered version see the
-          releases tagged \`v*\`. Windows: the installer (.exe) or the zip; Linux: the tarball; macOS (Apple Silicon): the disk image (see its README).
+          releases tagged \`v*\`. Windows: the installer (.exe) or the zip; Linux: the tarball; macOS (Apple Silicon): the disk image (see its README); Android: the .apk.
           EOF
           gh release delete nightly --cleanup-tag --yes || true
           gh release create nightly packages/MathCAS-v2-* --prerelease --target "$GITHUB_SHA" \

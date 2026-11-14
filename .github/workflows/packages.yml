@@ -1,11 +1,28 @@
 # Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball
-# (packaging/linux/build-tarball.sh) and the macOS disk image for Apple Silicon (packaging/macos/build-app.sh),
-# smoke-test each, and upload them as the artifacts `windows`, `linux` and `macos`.
+# (packaging/linux/build-tarball.sh), the macOS disk image for Apple Silicon (packaging/macos/build-app.sh) and the
+# Android package (packaging/android/build-apk.sh), check each, and upload them as the artifacts `windows`, `linux`,
+# `macos` and `android`.
 # Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
+#
+# The Android package is signed with the key of the secrets ANDROID_KEYSTORE_BASE64 (the keystore file in base64),
+# ANDROID_KEY_ALIAS and ANDROID_KEYSTORE_PASS when they are set. Without them each run makes its own debug key, and
+# Android then refuses to install one build over another (the app has to be removed first, with its notebooks).
 name: Packages
 
 on:
   workflow_call:
+    inputs:
+      ref:
+        description: "The commit, branch or tag to build (default: the one the caller runs on)"
+        type: string
+        default: ""
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEYSTORE_PASS:
+        required: false
 
 permissions:
   contents: read
@@ -26,6 +43,8 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}\target
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
       - name: Cache cargo
@@ -70,6 +89,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: System libraries for the windowing crates
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxi-dev libxcursor-dev libxrandr-dev libgl-dev libfontconfig-dev
       - name: Rust toolchain
@@ -93,6 +114,8 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
       - name: Cache cargo
@@ -124,5 +147,64 @@ jobs:
         with:
           name: macos
           path: dist-macos/MathCAS-v2-*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  android:
+    name: Android package
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      # the runner has the Android SDK (ANDROID_HOME) with platforms, build-tools and the NDK, and a JDK (JAVA_HOME)
+      - name: Rust toolchain with the Android targets
+        run: (rustup toolchain install || rustup show) && rustup target add aarch64-linux-android x86_64-linux-android
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: android-packages-${{ hashFiles('Cargo.lock') }}
+          restore-keys: android-packages-
+      - name: Signing key from the secrets, when they are set
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEYSTORE_PASS" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            {
+              echo "KEYSTORE=$RUNNER_TEMP/release.keystore"
+              echo "KEY_ALIAS=$KEY_ALIAS"
+              echo "KEYSTORE_PASS=$KEYSTORE_PASS"
+            } >> "$GITHUB_ENV"
+            echo "signing with the key of the secrets"
+          else
+            echo "::warning::no signing key in the secrets: this package is signed with a debug key made for this run, and does not install over another build"
+          fi
+      - name: Build the package (packaging/android/build-apk.sh)
+        run: bash packaging/android/build-apk.sh dist-android
+      # no emulator here: the signature, and that both ABIs hold the notebook's library and the kernel
+      - name: Check the package
+        run: |
+          apk="$(ls dist-android/MathCAS-v2-*-android.apk)"
+          tools="$ANDROID_HOME/build-tools/$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -1)"
+          "$tools/apksigner" verify --print-certs "$apk" | grep -E 'DN|SHA-256'
+          "$tools/aapt" list "$apk" > files.txt
+          for f in AndroidManifest.xml classes.dex \
+                   lib/arm64-v8a/libmc_notebook_android.so lib/arm64-v8a/libmc_kernel.so \
+                   lib/x86_64/libmc_notebook_android.so lib/x86_64/libmc_kernel.so; do
+            grep -qxF "$f" files.txt || { echo "::error::$f is not in the package"; exit 1; }
+          done
+          "$tools/aapt" dump badging "$apk" | grep -E "^package:|^sdkVersion|^native-code"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist-android/MathCAS-v2-*-android.apk
           if-no-files-found: error
           retention-days: 7
