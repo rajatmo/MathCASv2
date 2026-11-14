@@ -1,5 +1,5 @@
 # Release: on a pushed tag v<version> (for example v0.2.0), build the packages (packages.yml: Windows installer and
-# zip, Linux tarball, macOS disk image, Android package) and attach them to a GitHub release named after the tag, with
+# zip, Linux tarball and AppImage, macOS disk image, Android package) and attach them to a GitHub release named after the tag, with
 # that version's CHANGELOG.md section as its notes. Run by hand for a tag that has a release already, it builds that
 # tag's packages again and replaces the release's files. The tag must match the workspace version in Cargo.toml. The tests run in ci.yml
 # on the same commit; this workflow only packages.

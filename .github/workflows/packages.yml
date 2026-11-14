@@ -1,5 +1,5 @@
-# Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball
-# (packaging/linux/build-tarball.sh), the macOS disk image for Apple Silicon (packaging/macos/build-app.sh) and the
+# Packages: build the Windows installer and zip (tools/dist.ps1, tools/package.ps1), the Linux tarball and AppImage
+# (packaging/linux/build-tarball.sh, build-appimage.sh), the macOS disk image for Apple Silicon (packaging/macos/build-app.sh) and the
 # Android package (packaging/android/build-apk.sh), check each, and upload them as the artifacts `windows`, `linux`,
 # `macos` and `android`.
 # Called by release.yml (tags) and nightly.yml (pushes to main); the tests run in ci.yml.
@@ -84,7 +84,7 @@ jobs:
           retention-days: 7
 
   linux:
-    name: Linux tarball
+    name: Linux tarball and AppImage
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -101,10 +101,29 @@ jobs:
         run: |
           mkdir smoke && tar -C smoke -xzf dist-linux/MathCAS-v2-*.tar.gz
           bash packaging/linux/smoke.sh smoke/MathCAS-v2-* smoke-work
+      # the AppImage, from the folder the tarball was made of. The runner has no FUSE: appimagetool (itself an
+      # AppImage) and the image under test unpack themselves to run (APPIMAGE_EXTRACT_AND_RUN)
+      - name: Build the AppImage (packaging/linux/build-appimage.sh)
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          APPIMAGETOOL="$RUNNER_TEMP/appimagetool" bash packaging/linux/build-appimage.sh target/package-stage/MathCAS-v2-*-linux-x64 dist-linux
+      - name: Smoke test the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          image="$(ls dist-linux/MathCAS-v2-*.AppImage)"
+          chmod +x "$image"
+          "$image" repl -e "factor(x^4 - 1)" -e "integrate(1/(1 + x^2), [x, 0, inf])"
       - uses: actions/upload-artifact@v4
         with:
           name: linux
-          path: dist-linux/MathCAS-v2-*.tar.gz
+          path: |
+            dist-linux/MathCAS-v2-*.tar.gz
+            dist-linux/MathCAS-v2-*.AppImage
           if-no-files-found: error
           retention-days: 7
 
