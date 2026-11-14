@@ -8,6 +8,7 @@
 //! | `memory_constrained(e, b)` | the value of `e` if evaluating it allocates at most `b` bytes, else `failure(limit, memory)` |
 //! | `memory_constrained(e, b, fail)` | as above, `fail` evaluated in place of the failure |
 //! | `pause(t)` | `null` after `t` seconds (interruptible) |
+//! | `memory_available()` | the bytes the running evaluation may still allocate before its memory limit |
 //!
 //! **Time.** A watchdog thread waits on a channel for `t` seconds; if the evaluation is not done by then it raises the
 //! interrupt of the control block, which every task polls with its fuel and every long native through
@@ -175,6 +176,23 @@ fn term_bytes<'h>(h: &'h Heap, t: T<'h>, stop: usize) -> usize {
     n
 }
 
+/// `memory_available()`: the bytes the running evaluation may still allocate before its memory limit
+/// ([`NativeCx::memory_left`]). Builders written in the language compare the size of their result with it before
+/// building anything, as the native builders refuse a result over their size limit.
+struct MemoryAvailable;
+
+impl Native for MemoryAvailable {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if !args.is_empty() {
+            return Ok(Reply::Decline);
+        }
+        // the value depends on the state of the evaluation: an effect, so that no enclosing value is memoised
+        cx.effect()?;
+        let left = cx.memory_left().min(i64::MAX as usize) as i64;
+        Ok(Reply::Done(cx.heap().int(left)))
+    }
+}
+
 /// `pause(t)`: wait `t` seconds, polling the interrupt every 20 ms.
 struct Pause;
 
@@ -202,4 +220,5 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("time_constrained"), held, Box::new(TimeConstrained));
     k.register(h.sym("memory_constrained"), held, Box::new(MemoryConstrained));
     k.register(h.sym("pause"), Attributes { effect: true, ..Attributes::default() }, Box::new(Pause));
+    k.register(h.sym("memory_available"), Attributes { effect: true, ..Attributes::default() }, Box::new(MemoryAvailable));
 }

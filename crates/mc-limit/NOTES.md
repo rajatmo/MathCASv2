@@ -43,3 +43,13 @@
 
 - `discrete_limit` of a sequence whose upper limit is above its lower limit (`discrete_max_limit`,
   `discrete_min_limit`) is `failure(no_limit, discrete_limit, f, ...)`: `sin(n)`, dense in [-1, 1].
+
+## Round 40: one-sided limits onto branch cuts
+
+- The inverse circular and hyperbolic functions whose argument tends to a point of their branch cut are written in
+  their logarithm and square-root forms (DLMF 4.23(iv), 4.37(iv); each equals the function off its cuts and has its
+  cuts on the same set) before the limit, so the side the path comes from is read from the logarithms and roots as
+  for `log` and powers: `limit(atan(2 i - s), s -> 0, direction: from_above) = -pi/2 + i log(3)/2`. Along the cut
+  itself the principal value on the cut is kept.
+- A logarithm or root reaching its cut with an imaginary part whose sign is not decided (a parameter) or changes now
+  gives no limit; before, the value on the cut was substituted, which could be the other side's.

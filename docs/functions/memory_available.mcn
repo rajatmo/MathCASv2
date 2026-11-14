@@ -1,0 +1,52 @@
+#! mathcas 2 notebook
+
+#% title
+# memory_available
+
+#% text
+# `memory_available()` gives the number of bytes the running evaluation may still allocate before its memory limit stops it.
+
+#% section
+# Details
+
+#% item
+# The limit is the session's memory budget (a share of the memory the process may use), or the smaller limit of an enclosing `memory_constrained`.
+
+#% item
+# Every top-level evaluation starts with the whole budget; the value decreases as the evaluation allocates.
+
+#% item
+# A builder can compare the size of its result with `memory_available()` and give `failure(limit, memory, ...)` before allocating anything; the matrix builders `hankel_matrix` and `toeplitz_matrix` do.
+
+#% section
+# Examples
+
+#% subsection
+# Basic examples
+
+#% cell
+memory_constrained(memory_available() <= 10^6, 10^6)
+#% output
+#= true
+
+#% cell
+memory_available() > 0
+#% output
+#= true
+
+#% subsection
+# Applications
+
+#% text
+# A matrix too large for the memory left is refused before it is built:
+
+#% cell
+memory_constrained(hankel_matrix(1000), 10^6)
+#% output
+#! failure(limit, memory, [1000, 1000])
+
+#% section
+# See also
+
+#% text
+# `memory_constrained`, `time_constrained`

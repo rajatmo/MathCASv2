@@ -87,6 +87,9 @@ fn imaginary<'h>(fx: &Fx<'_, '_, '_, 'h>, x: T<'h>) -> Option<T<'h>> {
 }
 
 fn asinh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "asinh", a[0])? {
+        return Ok(Some(v));
+    }
     let x = a[0];
     if fx.is_int(x, 0) {
         return Ok(Some(x));
@@ -129,6 +132,9 @@ fn re_negative(n: &Num) -> bool {
 }
 
 fn acosh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "acosh", a[0])? {
+        return Ok(Some(v));
+    }
     let x = a[0];
     if fx.is_int(x, 1) {
         return Ok(Some(fx.int(0)));
@@ -152,6 +158,9 @@ fn acosh_n<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn atanh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "atanh", a[0])? {
+        return Ok(Some(v));
+    }
     let x = a[0];
     if fx.is_int(x, 0) {
         return Ok(Some(x));
@@ -204,6 +213,9 @@ fn inv_recip<'h>(fx: &mut Fx<'_, '_, '_, 'h>, inverse: &str, x: T<'h>, at_zero: 
 }
 
 fn acot_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "acot", a[0])? {
+        return Ok(Some(v));
+    }
     if let Some(v) = odd(fx, "acot", a[0]) {
         return Ok(Some(v));
     }
@@ -211,15 +223,24 @@ fn acot_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     inv_recip(fx, "atan", a[0], Some(half_pi))
 }
 fn asec_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "asec", a[0])? {
+        return Ok(Some(v));
+    }
     inv_recip(fx, "acos", a[0], None)
 }
 fn acsc_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "acsc", a[0])? {
+        return Ok(Some(v));
+    }
     if let Some(v) = odd(fx, "acsc", a[0]) {
         return Ok(Some(v));
     }
     inv_recip(fx, "asin", a[0], None)
 }
 fn acoth_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "acoth", a[0])? {
+        return Ok(Some(v));
+    }
     if let Some(v) = odd(fx, "acoth", a[0]) {
         return Ok(Some(v));
     }
@@ -227,10 +248,16 @@ fn acoth_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     inv_recip(fx, "atanh", a[0], Some(z))
 }
 fn asech_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "asech", a[0])? {
+        return Ok(Some(v));
+    }
     let inf = fx.inf();
     inv_recip(fx, "acosh", a[0], Some(inf))
 }
 fn acsch_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    if let Some(v) = crate::inverse_pairs::reduce(fx, "acsch", a[0])? {
+        return Ok(Some(v));
+    }
     if let Some(v) = odd(fx, "acsch", a[0]) {
         return Ok(Some(v));
     }
@@ -336,14 +363,45 @@ fn gd_n<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let t = fx.call("tanh", &[fx.mul(&[fx.rat(1, 2), a[0]])]);
     Ok(Some(fx.mul(&[fx.int(2), fx.call("atan", &[t])])))
 }
+/// The branch of the inverse Gudermannian function (DLMF 4.23(viii)): gd^-1(z) = log(tan(z/2 + pi/4)) with the
+/// principal logarithm, which is 2 atanh(tan(z/2)) everywhere but on the real intervals where |tan(z/2)| > 1 (the
+/// cuts, |x - 2 pi k| > pi/2): there tan(z/2 + pi/4) is negative and the value is 2 acoth(tan(x/2)) + pi i, the
+/// imaginary part +pi on both sides of each pole (principal atanh would give -pi i where tan(x/2) > 1). The function
+/// has period 2 pi, and gd(gd^-1(x)) = x on (-pi, pi). Is the number x real with |tan(x/2)| > 1? `None` when x is
+/// not a real number or the test is not decided at 30 digits.
+fn igd_on_cut<'h>(fx: &mut Fx<'_, '_, '_, 'h>, x: T<'h>) -> Res<Option<bool>> {
+    if !matches!(fx.num(x), Some(Num::Real(_))) {
+        return Ok(None);
+    }
+    let t = fx.call("tan", &[fx.mul(&[fx.rat(1, 2), x])]);
+    let v = fx.eval(fx.call("n", &[t, fx.int(30)]))?;
+    Ok(fx.num(v).and_then(|n| n.as_real().map(|r| r.to_f64())).filter(|t| t.is_finite() && (t.abs() - 1.0).abs() > 1e-25).map(|t| t.abs() > 1.0))
+}
+
 fn igd_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.is_int(a[0], 0) {
         return Ok(Some(a[0]));
+    }
+    // odd off the real cuts only (a number): gd^-1(-x) = -gd^-1(x) + 2 pi i on them, and a symbol may lie on one
+    if fx.num(a[0]).is_none() || igd_on_cut(fx, a[0])? == Some(true) {
+        return Ok(None);
     }
     Ok(odd(fx, "inverse_gudermannian", a[0]))
 }
 fn igd_n<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let t = fx.call("tan", &[fx.mul(&[fx.rat(1, 2), a[0]])]);
+    if igd_on_cut(fx, a[0])? == Some(true) {
+        // 2 acoth(t) + pi i (igd_on_cut), pi a number of the argument's kind
+        let pi = match fx.num(a[0]) {
+            Some(n) if n.kind() == mc_arith::Kind::Machine => fx.real(std::f64::consts::PI),
+            Some(Num::Real(r)) if r.prec().is_some() => {
+                let d = (r.prec().unwrap_or(53) as f64 * std::f64::consts::LOG10_2).ceil() as i64 + 1;
+                fx.eval(fx.call("n", &[fx.sym("pi"), fx.int(d)]))?
+            }
+            _ => fx.sym("pi"),
+        };
+        return Ok(Some(fx.add(&[fx.mul(&[fx.int(2), fx.call("acoth", &[t])]), fx.mul(&[fx.i(), pi])])));
+    }
     Ok(Some(fx.mul(&[fx.int(2), fx.call("atanh", &[t])])))
 }
 

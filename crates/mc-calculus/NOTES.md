@@ -1491,3 +1491,14 @@ Source in `lib/calculus.mc` (helpers `r38_`).
 - `function_sign(re(klein_invariant_j(x + i)), x)` is `indeterminate` by the witnesses of round 39: J has period 1,
   J(i) = 1 and J(1/2 + i) = -0.0518 (30 digits). Gap (older): `function_sign(klein_invariant_j(i (x^2 + 1)), x)` is
   `indeterminate` although J is real and >= 1 on the imaginary axis; not traced.
+
+## Round 40: modular functions on the lines where they are real
+
+- The table's real set of `klein_invariant_j`, `modular_lambda` and `dedekind_eta` was `false` (the real line is their
+  natural boundary), which made every composition with a non-real argument undefined on the reals:
+  `function_sign(klein_invariant_j(i (x^2 + 1)), x)` was indeterminate. The real set is now stated in the plane: the
+  vertical lines re u in Z/2 (J), Z (lambda), 12 Z (eta) of the upper half plane, with the signs on them (J(i t) >= 1,
+  lambda > 0 on re u in 2 Z and < 0 on 2 Z + 1, eta > 0 on 24 Z and < 0 on 24 Z + 12; DLMF 23.15, 27.14). Other curves
+  where the values are real (images of the unit circle) are not listed, so a domain read there is a subset.
+- The table sign of a function applies at any argument path (a sign holds pointwise) when the argument is real or the
+  entry's real set is stated in the plane; monotonicity and convexity still need an affine argument.

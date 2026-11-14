@@ -4,16 +4,25 @@
 # inverse_gudermannian
 
 #% text
-# `inverse_gudermannian(x)` gives the inverse Gudermannian function 2 atanh(tan(x/2)).
+# `inverse_gudermannian(x)` gives the inverse Gudermannian function log(tan(x/2 + pi/4)).
 
 #% section
 # Details
 
 #% item
+# The branch is that of the principal logarithm: `inverse_gudermannian(z) = log(tan(z/2 + pi/4))`, which equals 2 atanh(tan(z/2)) everywhere except on the real intervals where |tan(x/2)| > 1.
+
+#% item
+# The function is real on the intervals -pi/2 < x - 2 pi k < pi/2 and has period 2 pi.
+
+#% item
+# On the real intervals pi/2 < x - 2 pi k < 3 pi/2 the value is 2 acoth(tan(x/2)) + pi i: the imaginary part is +pi on both sides of each singular point, and `gudermannian(inverse_gudermannian(x)) = x` for real x in (-pi, pi).
+
+#% item
 # `inverse_gudermannian(gudermannian(x)) = x` for real x.
 
 #% item
-# `inverse_gudermannian` is odd.
+# `inverse_gudermannian(-z) = -inverse_gudermannian(z)` except on the real intervals with imaginary part pi; exact and numeric evaluation follow the same branch.
 
 #% section
 # Examples
@@ -32,12 +41,38 @@ inverse_gudermannian(1.0)
 #= 1.226191170883517
 
 #% subsection
+# Scope
+
+#% text
+# Outside (-pi/2, pi/2) on the real line the imaginary part is pi:
+
+#% cell
+inverse_gudermannian(3.0)
+#% output
+#= 0.1420681583893965 + 3.141592653589793im
+
+#% cell
+inverse_gudermannian(-3.0)
+#% output
+#= -0.1420681583893965 + 3.141592653589793im
+
+#% cell
+n(inverse_gudermannian(1 + 2 im), 20)
+#% output
+#= 0.2275106584319431969469902 + 1.422911462459226796997833im
+
+#% subsection
 # Properties and relations
 
 #% cell
 gudermannian(inverse_gudermannian(0.7))
 #% output
 #= 0.7
+
+#% cell
+gudermannian(inverse_gudermannian(3.0))
+#% output
+#= 3.0 - 0.0im
 
 #% section
 # See also

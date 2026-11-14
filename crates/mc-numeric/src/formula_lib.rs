@@ -83,8 +83,23 @@ fn complex_fn(name: &str, z: &CBall, p: u64) -> Option<CBall> {
             cb::atan(&cb::tanh(&h, w)?, w)?.mul_real(&Ball::from_i64(2), w)
         }
         "inverse_gudermannian" => {
+            // log(tan(z/2 + pi/4)) (DLMF 4.23(viii)): 2 atanh(tan(z/2)) off the real line (the two agree on the strip
+            // |re z| < pi/2 and are analytic on each half plane), and on it 2 acoth(t) + pi i where |t| > 1
             let h = z.mul_real(&Ball::from_ratio(1, 2, w), w);
-            atanh(&cb::tan(&h, w)?)?.mul_real(&Ball::from_i64(2), w)
+            let t = cb::tan(&h, w)?;
+            if z.is_real() && t.is_real() {
+                let one = Ball::from_i64(1);
+                let inside = t.re.lt(&one) == Some(true) && one.neg().lt(&t.re) == Some(true);
+                let outside = one.lt(&t.re) == Some(true) || t.re.lt(&one.neg()) == Some(true);
+                if outside {
+                    let re = atanh(&t.recip(w)?)?.re.mul(&Ball::from_i64(2), w);
+                    return Some(CBall::new(re, crate::consts::Const::Pi.ball(w)?).round(p));
+                }
+                if !inside {
+                    return None;
+                }
+            }
+            atanh(&t)?.mul_real(&Ball::from_i64(2), w)
         }
         "log10" | "log2" => {
             let b = if name == "log10" { 10 } else { 2 };
@@ -135,7 +150,15 @@ fn complex_machine(name: &str, z: C64) -> Option<C64> {
             C64::new(2.0 * a.re, 2.0 * a.im)
         }
         "inverse_gudermannian" => {
+            // the branch of complex_fn: on the real line (either zero) 2 acoth(t) + pi i where |t| > 1
             let h = C64::new(z.re / 2.0, z.im / 2.0);
+            if z.im == 0.0 {
+                let t = h.re.tan();
+                if t.abs() > 1.0 {
+                    return Some(C64::new(2.0 * (1.0 / t).atanh(), std::f64::consts::PI)).filter(|v| v.re.is_finite());
+                }
+                return Some(C64::real(2.0 * t.atanh())).filter(|v| v.re.is_finite());
+            }
             let a = atanh(h.tan());
             C64::new(2.0 * a.re, 2.0 * a.im)
         }

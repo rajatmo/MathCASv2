@@ -227,3 +227,10 @@ are accepted but not called.
   2|s| above 3/4 (steps within the goals, at the noise level, leave it). The Armijo condition is measured against the
   slope of the shortened step. The same call now reaches n = 2; `x - 1e10` from 0 still converges (the radius
   doubles while the model is exact). Tests: `mc-engine/tests/round39_integration.rs`.
+
+## Round 40: real roots of imaginary-valued functions at high precision
+
+- The ball refinement (`refine.rs`) from a real start drops an imaginary part of a Newton step that is a ball around 0:
+  for a function with imaginary values on the real line (`mathieu_s(b_5(q), q, i/2)`) the step -f/f' is real and only
+  the rounding of the parts made its imaginary part a ball, which the root then carried (`28.94... + ball(0, 7e-34) i`).
+  A step with a definite imaginary part leaves the line as before.

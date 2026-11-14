@@ -121,6 +121,13 @@ impl Native for Elementary {
         if let Some(r) = Exact::new(h, &ar, &self.nm).simplify(self.f, *x) {
             return Ok(Reply::Again(r));
         }
+        // asin(sin(c)), acos(cos(c)), atan(tan(c)) at a numeric c: its representative in the principal strip
+        if matches!(self.f, Fun::Asin | Fun::Acos | Fun::Atan) && ar.num(*x).is_none() {
+            let mut fx = crate::formula::Fx { cx: &mut *cx, ar: Arith::new(h), h };
+            if let Some(r) = crate::inverse_pairs::reduce(&mut fx, self.f.name(), *x)? {
+                return Ok(Reply::Done(r));
+            }
+        }
         let v = match ar.num(*x) {
             Some(Num::Real(Real::Ball(b, p))) => {
                 cx.tick(1 + p / 1024)?;

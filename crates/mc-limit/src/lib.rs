@@ -225,7 +225,12 @@ fn exact_limit<'h>(
     let one = |cx: &mut NativeCx<'_, '_, 'h>, pt, side| {
         let g = crate::switches::resolve_near(cx, b, f, x, pt, side)?.unwrap_or(f);
         let g = match pt {
-            Pt::Fin(a) => off_branch_cuts(cx, b, g, x, a, side)?,
+            Pt::Fin(a) => {
+                let g = inverses_on_cuts(cx, b, g, x, a)?;
+                // a log or power reaching its cut from a side that is not decided: no limit is given
+                let Some(g) = off_branch_cuts(cx, b, g, x, a, side)? else { return Ok(None) };
+                g
+            }
             _ => g,
         };
         one_sided(cx, b, g, x, pt, side, run.deadline, run.budget, run.check)
@@ -258,8 +263,9 @@ fn exact_limit<'h>(
 /// point. Both sides are equal on that side of the cut (principal branches), so the limit of the result is the
 /// one-sided limit, where substituting the point would give the value on the cut (the side of positive
 /// imaginary part). The side of `u` is read from its imaginary part at a + side 10^-k, k = 6, 9, 12 (40 digits),
-/// which must agree.
-fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, a: T<'h>, side: i8) -> Res<T<'h>> {
+/// which must agree. A point of the cut approached with an imaginary part whose sign is not decided (or changes)
+/// gives `None`: the limit is not given, never the value of the wrong side.
+fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, a: T<'h>, side: i8) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let log = h.sym("log");
     // the candidates: logs and fractional powers whose argument depends on x
@@ -280,7 +286,7 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
         stack.extend_from_slice(args);
     }
     if found.is_empty() {
-        return Ok(g);
+        return Ok(Some(g));
     }
     let im = h.sym_term(h.sym("im"));
     let pi = h.sym_term(h.sym("pi"));
@@ -334,6 +340,7 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
         // the sign of the imaginary part beside the point
         let mut sgn = 0i8;
         let mut agree = true;
+        let mut flat = true;
         for k in [6i64, 9, 12] {
             let delta = b.mul(&[b.int(side as i64), b.pow(b.int(10), b.int(-k))]);
             let pt = b.add(&[a, delta]);
@@ -342,6 +349,8 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
             let v = apply(cx, b, "n", &[v, b.int(40)])?;
             let pos = apply(cx, b, "greater", &[v, b.zero()])?;
             let neg = apply(cx, b, "less", &[v, b.zero()])?;
+            let zero = apply(cx, b, "equal", &[v, b.zero()])?;
+            flat &= cx.is_true(zero);
             let s = if cx.is_true(pos) { 1 } else if cx.is_true(neg) { -1 } else { 0 };
             if s == 0 || (sgn != 0 && s != sgn) {
                 agree = false;
@@ -350,7 +359,12 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
             sgn = s;
         }
         if !agree || sgn == 0 {
-            continue;
+            // along the cut itself (an imaginary part exactly 0 beside the point): the principal values on the cut,
+            // which substitution gives; any other undecided side: no limit
+            if flat {
+                continue;
+            }
+            return Ok(None);
         }
         let neg_arg = b.neg(arg);
         let turn = b.mul(&[b.int(sgn as i64), im, pi]);
@@ -367,9 +381,112 @@ fn off_branch_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x
         rules.push(h.call(h.sym(names::RULE), &[u, new]));
     }
     if rules.is_empty() {
+        return Ok(Some(g));
+    }
+    Ok(Some(apply(cx, b, "rewrite", &[g, cx.list(&rules)])?))
+}
+
+/// `g` with each inverse circular or hyperbolic function whose argument tends to a point of its branch cut written
+/// with logarithms and square roots, the forms of the principal branches (DLMF 4.23.(iv), 4.37.(iv)):
+///
+/// | function | cut (argument at the point) | form |
+/// |---|---|---|
+/// | atan(z) | re z = 0, abs(im z) > 1 | (i/2)(log(1 - i z) - log(1 + i z)) |
+/// | atanh(z) | im z = 0, abs(z) > 1 | (log(1 + z) - log(1 - z))/2 |
+/// | asin(z), acos(z) | im z = 0, abs(z) > 1 | -i log(i z + (1 - z)^(1/2) (1 + z)^(1/2)), pi/2 - asin(z) |
+/// | asinh(z) | re z = 0, abs(im z) > 1 | log(z + (z^2 + 1)^(1/2)) |
+/// | acosh(z) | im z = 0, z < 1 | log(z + (z + 1)^(1/2) (z - 1)^(1/2)) |
+///
+/// and acot, acoth, asec, acsc, asech, acsch as the functions above of 1/z. Each form equals the function off its
+/// cuts and has its cuts on the same set, so the side the argument comes from is then read by
+/// [`off_branch_cuts`] from the logarithms and roots, as for any of them; substituting the point would give the value
+/// on the cut, whichever side the path comes from.
+fn inverses_on_cuts<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, g: T<'h>, x: T<'h>, a: T<'h>) -> Res<T<'h>> {
+    let h = b.heap();
+    const NAMES: [&str; 12] = ["atan", "acot", "atanh", "acoth", "asin", "acos", "asec", "acsc", "asinh", "acsch", "acosh", "asech"];
+    let mut found = vec![];
+    let mut stack = vec![g];
+    let mut seen = FxHashSet::default();
+    while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
+        let View::App { head, args } = h.view(u) else { continue };
+        if let View::Sym(s) = h.view(head) {
+            let name = h.sym_name(s);
+            if args.len() == 1 && !is_free(b, args[0], x) {
+                if let Some(&n) = NAMES.iter().find(|&&n| n == name.as_str()) {
+                    found.push((u, n, args[0]));
+                }
+            }
+        }
+        stack.extend_from_slice(args);
+    }
+    if found.is_empty() {
+        return Ok(g);
+    }
+    let i = h.sym_term(h.sym("im"));
+    let half = b.rat(1, 2);
+    let mut rules = vec![];
+    for (u, name, arg) in found {
+        cx.tick(1)?;
+        // the reciprocal functions: their base function of 1/z
+        let (base, z) = match name {
+            "acot" => ("atan", b.pow(arg, b.int(-1))),
+            "acoth" => ("atanh", b.pow(arg, b.int(-1))),
+            "asec" => ("acos", b.pow(arg, b.int(-1))),
+            "acsc" => ("asin", b.pow(arg, b.int(-1))),
+            "acsch" => ("asinh", b.pow(arg, b.int(-1))),
+            "asech" => ("acosh", b.pow(arg, b.int(-1))),
+            n => (n, arg),
+        };
+        // the argument at the point, as a number
+        let at = apply(cx, b, "rewrite", &[z, h.call(h.sym(names::RULE), &[x, a])])?;
+        let at = apply(cx, b, "n", &[at, b.int(30)])?;
+        let re = apply(cx, b, "re", &[at])?;
+        let im = apply(cx, b, "im_part", &[at])?;
+        let is = |cx: &mut NativeCx<'_, '_, 'h>, rel: &str, l: T<'h>, r: T<'h>| -> Res<bool> {
+            let v = apply(cx, b, rel, &[l, r])?;
+            Ok(cx.is_true(v))
+        };
+        let (Some(_), Some(_)) = (num_of(b, re), num_of(b, im)) else { continue };
+        let one = b.one();
+        let abs_re = apply(cx, b, "abs", &[re])?;
+        let abs_im = apply(cx, b, "abs", &[im])?;
+        let on_cut = match base {
+            "atan" | "asinh" => is(cx, "equal", re, b.zero())? && is(cx, "greater", abs_im, one)?,
+            "atanh" | "asin" | "acos" => is(cx, "equal", im, b.zero())? && is(cx, "greater", abs_re, one)?,
+            _ => is(cx, "equal", im, b.zero())? && is(cx, "less", re, one)?,
+        };
+        if !on_cut {
+            continue;
+        }
+        let sqrt = |t: T<'h>| b.pow(t, half);
+        let iz = b.mul(&[i, z]);
+        let asin = |z: T<'h>| {
+            let iz = b.mul(&[i, z]);
+            let root = b.mul(&[sqrt(b.sub(b.one(), z)), sqrt(b.add(&[b.one(), z]))]);
+            b.mul(&[b.neg(i), b.call("log", &[b.add(&[iz, root])])])
+        };
+        let new = match base {
+            "atan" => b.mul(&[half, i, b.sub(b.call("log", &[b.sub(b.one(), iz)]), b.call("log", &[b.add(&[b.one(), iz])]))]),
+            "atanh" => b.mul(&[half, b.sub(b.call("log", &[b.add(&[b.one(), z])]), b.call("log", &[b.sub(b.one(), z)]))]),
+            "asin" => asin(z),
+            "acos" => b.sub(b.mul(&[half, h.sym_term(h.sym("pi"))]), asin(z)),
+            "asinh" => b.call("log", &[b.add(&[z, sqrt(b.add(&[b.pow(z, b.int(2)), b.one()]))])]),
+            _ => b.call("log", &[b.add(&[z, b.mul(&[sqrt(b.add(&[z, b.one()])), sqrt(b.sub(z, b.one()))])])]),
+        };
+        rules.push(h.call(h.sym(names::RULE), &[u, new]));
+    }
+    if rules.is_empty() {
         return Ok(g);
     }
     apply(cx, b, "rewrite", &[g, cx.list(&rules)])
+}
+
+/// `Some(t)` when `t` is a number (an integer, rational, real or ball).
+fn num_of<'h>(b: &Build<'h>, t: T<'h>) -> Option<T<'h>> {
+    matches!(b.heap().view(t), View::Int(_) | View::Real(_) | View::Ball { .. } | View::Rational { .. } | View::BigInt { .. }).then_some(t)
 }
 
 /// `v` with logarithms of rationals split over primes (`log(25)` as `2 log(5)`, decision 13C.5), when that gives

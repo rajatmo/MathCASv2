@@ -562,6 +562,12 @@ fn table_conditions<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, u: T<'h>, 
     if !complex {
         let h = b.heap();
         let real_vars: Vec<T<'h>> = vars.iter().map(|&x| h.call(h.sym("element"), &[x, h.sym_term(h.sym("reals"))])).collect();
+        // a function whose real set is stated in the plane (the modular functions): that set, for real variables
+        if hit.real_in_plane() && !analytic {
+            let Some(d) = hit.domain(cx, b, false)? else { return Ok(None) };
+            let d = cx.eval_assuming(&real_vars, h.call(h.sym("refine"), &[d]))?;
+            return Ok(Some(vec![d]));
+        }
         let r = cx.eval_assuming(&real_vars, h.call(h.sym("refine"), &[h.call(h.sym("im_part"), &[hit.arg])]))?;
         if b.ar.num(r).is_some() && r != b.zero() {
             return Ok(None);
@@ -989,12 +995,29 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     }
     // a special function of one sign, monotonic or convex on its domain for the parameters' facts (the table)
     if !c.integers && !c.complex {
-        if let Some(hit) = table::lookup(cx, b, c.f, &[x], &pf)? {
+        // the variable is real: a sign stated for arguments on a line of the plane (the modular functions on the
+        // imaginary axis) is decided for an argument such as i (x^2 + 1)
+        let mut pfx = pf.clone();
+        pfx.push(h.call(h.sym("element"), &[x, h.sym_term(h.sym("reals"))]));
+        if let Some(hit) = table::lookup(cx, b, c.f, &[x], &pfx)? {
             // a nonconstant periodic function is neither monotonic nor convex on the line
             if order > 0 && c.cond.is_none() && range::affine_in(cx, b, hit.arg, x)? && hit.periodic(cx, b)? {
                 return Ok(Some(indet));
             }
-            let ok = if order == 1 { hit.arg == x } else { range::affine_in(cx, b, hit.arg, x)? };
+            // a sign holds at every point of the domain, whatever the argument's path; monotonicity and convexity
+            // need the argument to be x (an affine function of x)
+            let ok = match order {
+                // the facts of most entries are about real arguments: a real argument (or x itself), or an entry whose
+                // real set is stated in the plane
+                0 => {
+                    hit.real_in_plane() || range::affine_in(cx, b, hit.arg, x)? || {
+                        let r = cx.eval_assuming(&pfx, h.call(h.sym("refine"), &[h.call(h.sym("element"), &[hit.arg, h.sym_term(h.sym("reals"))])]))?;
+                        cx.is_true(r)
+                    }
+                }
+                1 => hit.arg == x,
+                _ => range::affine_in(cx, b, hit.arg, x)?,
+            };
             if ok {
                 if let Some(k) = hit.shape(cx, b, order)? {
                     return Ok(Some(b.int(i64::from(k))));

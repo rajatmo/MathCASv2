@@ -15,8 +15,10 @@
 //! machine numbers) and are refined by the secant method on y'(pi/2) (even r) or y(pi/2) (odd r) of `mathieu_c`.
 use crate::cover::{mag, mid_term, numeric, parts, work};
 use mc_api::T;
+use mc_arith::num::Ball;
 use mc_arith::{Num, Real};
 use mc_eval::Res;
+use mc_numeric::cball::CBall;
 use mc_numeric::formula::{Def, Fx};
 
 type R<'h> = Res<Option<T<'h>>>;
@@ -35,10 +37,47 @@ fn retag<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, w: u64) -> T<'h> {
     }
 }
 
+/// The midpoint of a number as an exact complex ball (an exact rational rounded to w bits).
+fn cb_mid<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>, w: u64) -> Option<CBall> {
+    let part = |r: &Real| match r {
+        Real::Machine(v) => Ball::exact(crate::ball::float_of(*v)),
+        Real::Ball(b, _) => Ball::exact(b.mid.clone()),
+        Real::Exact(q) => Ball::exact(crate::ball::rat_ball(q, w).mid),
+    };
+    match fx.num(t)? {
+        Num::Real(x) => Some(CBall::real(part(&x))),
+        Num::Complex(x, y) => Some(CBall::new(part(&x), part(&y))),
+    }
+}
+
+/// A complex ball as its exact midpoint.
+fn cb_center(z: &CBall) -> CBall {
+    CBall::new(Ball::exact(z.re.mid.clone()), Ball::exact(z.im.mid.clone()))
+}
+
+/// |z| of the midpoint as an `f64`.
+fn cb_mag(z: &CBall) -> f64 {
+    crate::ball::f64_of(&z.re.mid).hypot(crate::ball::f64_of(&z.im.mid))
+}
+
+/// A complex ball as a number at w bits: real when its imaginary part is an exact zero.
+fn cb_term<'h>(fx: &Fx<'_, '_, '_, 'h>, z: &CBall, w: u64) -> T<'h> {
+    if z.is_real() {
+        fx.ar.number(&Num::Real(Real::Ball(z.re.clone(), w)))
+    } else {
+        fx.ar.number(&Num::Complex(Real::Ball(z.re.clone(), w), Real::Ball(z.im.clone(), w)))
+    }
+}
+
 /// (y, y') at z for the solution with y(0) = y0, y'(0) = d0, at w bits on midpoints.
-#[allow(clippy::too_many_arguments)]
+///
+/// The Taylor coefficients are computed in complex ball arithmetic at w bits (only the midpoints are kept, the
+/// error is estimated by the callers from a second run at more bits): one step of K terms costs K^2/2 products for the
+/// convolution with the coefficient's series. Evaluating every coefficient as a term of the evaluator made a value
+/// at 25 digits take about a second and a root search over a characteristic value tens of seconds.
 fn solve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, z: T<'h>, y0: i64, d0: i64, w: u64) -> Res<Option<(T<'h>, T<'h>)>> {
     let (Some(zf), Some(af), Some(qf)) = (parts(fx, z), parts(fx, a), parts(fx, q)) else { return Ok(None) };
+    let (Some(a), Some(q), Some(z)) = (cb_mid(fx, a, w), cb_mid(fx, q, w), cb_mid(fx, z, w)) else { return Ok(None) };
     let size = af.0.hypot(af.1) + 2.0 * qf.0.hypot(qf.1);
     let hmax = 0.5f64.min(1.0 / (1.0 + size).sqrt());
     let len = zf.0.hypot(zf.1);
@@ -47,69 +86,62 @@ fn solve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, z: T<'h>, y0: i64,
         return Ok(None);
     }
     let eps = 2f64.powi(-(w.min(1000) as i32));
-    let mut y = fx.int(y0);
-    let mut dy = fx.int(d0);
-    let nt = fx.int(n as i64);
-    let h = fx.eval(fx.div(z, nt))?;
-    let two_q = fx.eval(fx.mul(&[fx.int(2), q]))?;
-    let mh = mag(fx, h);
+    let mut y = CBall::from_i64(y0);
+    let mut dy = CBall::from_i64(d0);
+    let Some(h) = z.div(&CBall::from_i64(n as i64), w) else { return Ok(None) };
+    let h = cb_center(&h);
+    let two_q = q.mul_real(&Ball::from_i64(2), w);
+    let mh = cb_mag(&h);
     for s in 0..n {
-        if s % 8 == 7 {
-            fx.tick(1)?;
-        }
-        let z0 = fx.eval(fx.mul(&[fx.int(s as i64), h]))?;
-        let z2 = fx.mul(&[fx.int(2), z0]);
-        let c = fx.eval(fx.call("cos", &[z2]))?;
-        let sn = fx.eval(fx.call("sin", &[z2]))?;
-        if fx.num(c).is_none() || fx.num(sn).is_none() {
-            return Ok(None);
-        }
+        fx.tick(1)?;
+        let z2 = h.mul_real(&Ball::from_i64(2 * s as i64), w);
+        let Some((sn, c)) = mc_numeric::cball::sin_cos(&z2, w) else { return Ok(None) };
+        let (sn, c) = (cb_center(&sn), cb_center(&c));
         // c_i = 2^i/i! trig_i, trig = cos, -sin, -cos, sin
-        let mut cs: Vec<T<'h>> = vec![];
-        let mut ys: Vec<T<'h>> = vec![y, dy];
-        let mut val = fx.int(0);
-        let mut der = fx.int(0);
-        let mut hk = fx.int(1);
+        let mut cs: Vec<CBall> = vec![];
+        let mut ys: Vec<CBall> = vec![y.clone(), dy.clone()];
+        let mut val = CBall::from_i64(0);
+        let mut der = CBall::from_i64(0);
+        // h^(k-1) and h^k
+        let mut hk1 = CBall::from_i64(0);
+        let mut hk = CBall::from_i64(1);
         let mut small = 0;
         let mut ok = false;
-        let mut pk = fx.int(1);
+        let mut pk = Ball::from_i64(1);
         for k in 0..4000usize {
-            // c_k
+            fx.tick(1)?;
             let trig = match k % 4 {
-                0 => c,
-                1 => fx.neg(sn),
-                2 => fx.neg(c),
-                _ => sn,
+                0 => c.clone(),
+                1 => sn.neg(),
+                2 => c.neg(),
+                _ => sn.clone(),
             };
-            // 2^k/k!, exact
+            // 2^k/k!
             if k > 0 {
-                pk = fx.eval(fx.mul(&[pk, fx.rat(2, k as i64)]))?;
+                let Some(next) = pk.mul(&Ball::from_i64(2), w).div(&Ball::from_i64(k as i64), w) else { return Ok(None) };
+                pk = next;
             }
-            let fk = fx.eval(fx.mul(&[pk, trig]))?;
-            cs.push(fk);
+            cs.push(cb_center(&trig.mul_real(&pk, w)));
             if k >= ys.len() {
                 // y_k from the equation of t^(k-2)
                 let m = k - 2;
-                let mut conv = vec![];
+                let mut conv = CBall::from_i64(0);
                 for i in 0..=m {
-                    conv.push(fx.mul(&[cs[i], ys[m - i]]));
+                    conv = conv.add(&cs[i].mul(&ys[m - i], w), w);
                 }
-                let rhs = fx.sub(fx.mul(&[two_q, fx.add(&conv)]), fx.mul(&[a, ys[m]]));
-                let yk = fx.eval(fx.div(rhs, fx.int((k * (k - 1)) as i64)))?;
-                if fx.num(yk).is_none() {
-                    return Ok(None);
-                }
-                ys.push(yk);
+                let rhs = two_q.mul(&conv, w).sub(&a.mul(&ys[m], w), w);
+                let Some(yk) = rhs.div(&CBall::from_i64((k * (k - 1)) as i64), w) else { return Ok(None) };
+                ys.push(cb_center(&yk));
             }
-            let t = fx.eval(fx.mul(&[ys[k], hk]))?;
-            val = fx.eval(fx.add(&[val, t]))?;
+            let t = ys[k].mul(&hk, w);
+            val = val.add(&t, w);
             if k > 0 {
-                let hk1 = fx.div(hk, h);
-                der = fx.eval(fx.add(&[der, fx.mul(&[fx.int(k as i64), ys[k], hk1])]))?;
+                der = der.add(&ys[k].mul(&hk1, w).mul_real(&Ball::from_i64(k as i64), w), w);
             }
-            hk = fx.eval(fx.mul(&[hk, h]))?;
-            let mt = mag(fx, t) * (1.0 + k as f64 / mh.max(1e-300));
-            if k >= 4 && mt <= eps * (mag(fx, val) + mag(fx, der) * mh).max(1e-300) {
+            hk1 = hk.clone();
+            hk = cb_center(&hk.mul(&h, w));
+            let mt = cb_mag(&t) * (1.0 + k as f64 / mh.max(1e-300));
+            if k >= 4 && mt <= eps * (cb_mag(&val) + cb_mag(&der) * mh).max(1e-300) {
                 small += 1;
                 if small >= 3 {
                     ok = true;
@@ -122,10 +154,10 @@ fn solve<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: T<'h>, q: T<'h>, z: T<'h>, y0: i64,
         if !ok {
             return Ok(None);
         }
-        y = mid_term(fx, val);
-        dy = mid_term(fx, der);
+        y = cb_center(&val);
+        dy = cb_center(&der);
     }
-    Ok(Some((y, dy)))
+    Ok(Some((cb_term(fx, &y, w), cb_term(fx, &dy, w))))
 }
 
 /// Which value.

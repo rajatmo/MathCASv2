@@ -196,6 +196,7 @@ pub(crate) fn refine<'h>(
     verify: bool,
 ) -> Res<Refine> {
     let n = start.len();
+    let real_start = start.iter().all(|v| matches!(v, Num::Real(_)));
     let Some(mut x) = start.iter().map(|v| exact_num(v, p)).collect::<Option<Vec<Num>>>() else {
         return Ok(Refine::NotNumeric(start.to_vec()));
     };
@@ -236,7 +237,23 @@ pub(crate) fn refine<'h>(
             cx.tick(0)?;
             return Ok(Refine::Interrupted);
         }
-        let Some(d) = d else { break };
+        let Some(mut d) = d else { break };
+        // from a real start, a step whose imaginary part is a ball around 0 is real (a function with imaginary values
+        // on the real line, mathieu_s(a, q, i/2): -f/f' is real, and only the rounding of the parts makes a ball of
+        // its imaginary part); a step with a definite imaginary part leaves the line as before
+        if real_start {
+            for v in d.iter_mut() {
+                if let Num::Complex(a, b) = v {
+                    let noise = match b {
+                        Real::Ball(bb, _) => bb.contains_zero(),
+                        b => b.is_zero(),
+                    };
+                    if noise {
+                        *v = Num::Real(a.clone());
+                    }
+                }
+            }
+        }
         let Some(next) = x.iter().zip(&d).map(|(a, b)| exact_num(&a.add(b), p)).collect::<Option<Vec<Num>>>() else {
             return Ok(Refine::NotNumeric(x));
         };

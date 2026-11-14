@@ -358,10 +358,43 @@ pub static TABLE: &[Entry] = &[
     Entry { name: "weierstrass_p", arity: 2, sr: Some(&[("$u == 0", PO)]), sc: Some(&[("$u == 0", PO)]), partial: true, cpartial: true, refs: "DLMF 23.2.4", ..E },
     Entry { name: "weierstrass_p_prime", arity: 2, sr: Some(&[("$u == 0", PO)]), sc: Some(&[("$u == 0", PO)]), partial: true, cpartial: true, refs: "DLMF 23.2.4", ..E },
     Entry { name: "weierstrass_zeta", arity: 2, sr: Some(&[("$u == 0", PO)]), sc: Some(&[("$u == 0", PO)]), partial: true, cpartial: true, refs: "DLMF 23.2.5", ..E },
-    // modular functions of the upper half plane, the real line their natural boundary (DLMF 23.15, 27.14.12)
-    Entry { name: "dedekind_eta", real: "false", complex: "im_part($u) > 0", sr: Some(&[("true", BR)]), sc: Some(&[("im_part($u) <= 0", BR)]), refs: "DLMF 27.14.12", ..E },
-    Entry { name: "klein_invariant_j", real: "false", complex: "im_part($u) > 0", sr: Some(&[("true", BR)]), sc: Some(&[("im_part($u) <= 0", BR)]), refs: "DLMF 23.15.7", ..E },
-    Entry { name: "modular_lambda", real: "false", complex: "im_part($u) > 0", sr: Some(&[("true", BR)]), sc: Some(&[("im_part($u) <= 0", BR)]), refs: "DLMF 23.15.6", ..E },
+    // modular functions of the upper half plane, the real line their natural boundary (DLMF 23.15, 27.14.12). They
+    // take real values on vertical lines of the half plane, which a non-real argument u(x) may run along: `real`
+    // lists those lines (none meets the real line): eta(i t) > 0 (the product 27.14.12 with q = e^(-2 pi t), and
+    // eta(tau + 24) = eta(tau)), eta(12 + i t) = -eta(i t) (the factor e^(i pi tau/12)); lambda(i t) in (0, 1) (23.15.2 with real nome, lambda(tau + 2) = lambda(tau)) and
+    // lambda(1 + i t) = lambda(i t)/(lambda(i t) - 1) < 0; J real on re tau in Z/2 (J(-conj(tau)) = conj(J(tau)),
+    // period 1) with J(i t) >= 1 (23.15.7: J(i) = 1 its minimum on the axis). Other curves where the values are
+    // real (the images of the unit circle) are not listed. The signs hold where the argument is on the listed lines.
+    Entry {
+        name: "dedekind_eta",
+        real: "im_part($u) > 0 and element(re($u)/12, integers)",
+        complex: "im_part($u) > 0",
+        sr: Some(&[("true", BR)]),
+        sc: Some(&[("im_part($u) <= 0", BR)]),
+        signs: &[("im_part($u) > 0 and element(re($u)/24, integers)", 1), ("im_part($u) > 0 and element((re($u) - 12)/24, integers)", -1)],
+        refs: "DLMF 27.14.12",
+        ..E
+    },
+    Entry {
+        name: "klein_invariant_j",
+        real: "im_part($u) > 0 and element(2*re($u), integers)",
+        complex: "im_part($u) > 0",
+        sr: Some(&[("true", BR)]),
+        sc: Some(&[("im_part($u) <= 0", BR)]),
+        signs: &[("im_part($u) > 0 and element(re($u), integers)", 1)],
+        refs: "DLMF 23.15.7",
+        ..E
+    },
+    Entry {
+        name: "modular_lambda",
+        real: "im_part($u) > 0 and element(re($u), integers)",
+        complex: "im_part($u) > 0",
+        sr: Some(&[("true", BR)]),
+        sc: Some(&[("im_part($u) <= 0", BR)]),
+        signs: &[("im_part($u) > 0 and element(re($u)/2, integers)", 1), ("im_part($u) > 0 and element((re($u) - 1)/2, integers)", -1)],
+        refs: "DLMF 23.15.6",
+        ..E
+    },
     // Bessel, Hankel, Kelvin, Struve, Anger-Weber functions (DLMF 10.2, 10.8, 10.25, 10.47, 10.61, 10.65, 11.2,
     // 11.10)
     Entry { name: "bessel_k", arity: 2, var: 1, onto: &[("element($a, reals)", false)], signs: &[("element($a, reals)", 1)], mono: &[("element($a, reals)", -1)], convex: &[("element($a, reals)", 1)], ranges: &[("element($a, reals)", "$y > 0")], bound: Bound::Below, refs: "DLMF 10.25.3, 10.31.1, 10.37", ..POSITIVE },
@@ -1340,6 +1373,12 @@ impl<'h> Hit<'h> {
         let mut rules = self.rules.clone();
         rules.push(h.call(h.sym(names::RULE), &[placeholder(b, "y"), y]));
         Ok(Some(inst(cx, b, &self.facts.crange, &rules)?))
+    }
+
+    /// Is the set where the function is real stated for complex arguments (it names `im_part` of the argument: the
+    /// modular functions), so that its facts hold for a non-real argument on that set?
+    pub fn real_in_plane(&self) -> bool {
+        self.facts.real.contains("im_part")
     }
 
     /// Boundedness on the real domain.

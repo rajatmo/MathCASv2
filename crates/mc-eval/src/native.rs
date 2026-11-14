@@ -274,6 +274,13 @@ impl<'h> NativeCx<'_, '_, 'h> {
     pub fn stop_flag(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
         self.ev.k.stop_flag_ref()
     }
+    /// The bytes this evaluation may still allocate before its memory limit stops it: the session's memory budget,
+    /// or the smaller cap of an enclosing `memory_constrained`, less what the evaluation has allocated so far. A
+    /// builder whose result would not fit can refuse before allocating anything.
+    pub fn memory_left(&self) -> usize {
+        let k = &self.ev.k;
+        k.young_cap.min(k.mem_cap.load(std::sync::atomic::Ordering::Relaxed)).saturating_sub(self.ev.heap.young_bytes())
+    }
     /// Whether the evaluation should stop: the stop flag is raised, an interrupt was requested, or a limit fired.
     /// A cheap poll for loops between fuel charges.
     pub fn stopped(&self) -> bool {

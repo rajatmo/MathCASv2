@@ -555,7 +555,54 @@ fn nome_of<'h>(fx: &Fx<'_, '_, '_, 'h>, tau: T<'h>) -> Option<T<'h>> {
     (im > 0.0).then(|| fx.call("exp", &[fx.mul(&[fx.i(), fx.sym("pi"), tau])]))
 }
 
+/// Is the real part of the number tau an exact multiple of `step` (a machine real, a rational, or a ball without
+/// radius)? On such vertical lines the modular functions take real values (J on re tau in Z/2, lambda on Z, eta on
+/// 12 Z: J(-conj tau) = conj J(tau) with period 1, lambda(-conj tau) = conj lambda(tau) with lambda(tau + 1) =
+/// lambda/(lambda - 1), eta(-conj tau) = conj eta(tau) with eta(tau + 1) = e^(i pi/12) eta(tau); DLMF 23.15, 27.14).
+/// The imaginary part a computed value has there is rounding noise (about 1e-32 of the value), which kept a function
+/// such as klein_invariant_j(1/2 + i e^x) from being read as real.
+fn on_real_line<'h>(fx: &Fx<'_, '_, '_, 'h>, tau: T<'h>, step: (i64, i64)) -> bool {
+    let re = match fx.num(tau) {
+        Some(Num::Complex(x, y)) if !y.is_zero() => x,
+        _ => return false,
+    };
+    // a machine value (or an exact ball midpoint that is one) against step = 1/2, 1 or 12: the quotient is exact
+    // when it is an integer
+    let st = step.0 as f64 / step.1 as f64;
+    let int_quotient = |v: f64| v.is_finite() && (v / st).fract() == 0.0;
+    match re {
+        Real::Exact(q) => q.mul(&Rat::new(mc_arith::num::Int::from_i64(step.1), mc_arith::num::Int::from_i64(step.0))).is_int(),
+        Real::Machine(v) => int_quotient(v),
+        Real::Ball(b, _) if b.rad.is_zero() => {
+            let v = crate::ball::f64_of(&b.mid);
+            crate::ball::float_of(v) == b.mid && int_quotient(v)
+        }
+        _ => false,
+    }
+}
+
+/// The value v (a term to evaluate) of a modular function at tau: its real part on a line where the function is real
+/// ([`on_real_line`]).
+fn real_on_line<'h>(fx: &Fx<'_, '_, '_, 'h>, tau: T<'h>, step: (i64, i64), v: T<'h>) -> T<'h> {
+    if numeric(fx, &[tau]) && on_real_line(fx, tau, step) {
+        // a complex machine argument keeps a complex machine value, with the imaginary part 0.0 (as the other
+        // functions give for complex arguments)
+        let machine = matches!(fx.num(tau), Some(Num::Complex(Real::Machine(_), _) | Num::Complex(_, Real::Machine(_))));
+        if machine {
+            return fx.add(&[fx.call("re", &[v]), fx.mul(&[fx.real(0.0), fx.i()])]);
+        }
+        fx.call("re", &[v])
+    } else {
+        v
+    }
+}
+
 fn modular_lambda<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let v = modular_lambda_value(fx, a)?;
+    Ok(v.map(|v| real_on_line(fx, a[0], (1, 1), v)))
+}
+
+fn modular_lambda_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if !numeric(fx, a) {
         return Ok(None);
     }
@@ -575,6 +622,11 @@ fn modular_lambda<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn klein_j<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let v = klein_j_value(fx, a)?;
+    Ok(v.map(|v| real_on_line(fx, a[0], (1, 2), v)))
+}
+
+fn klein_j_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a[0] == fx.i() {
         return Ok(Some(fx.int(1)));
     }
@@ -617,6 +669,11 @@ fn inverse_nome<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 }
 
 fn dedekind_eta<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
+    let v = dedekind_eta_value(fx, a)?;
+    Ok(v.map(|v| real_on_line(fx, a[0], (12, 1), v)))
+}
+
+fn dedekind_eta_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if a[0] == fx.i() {
         // gamma(1/4)/(2 pi^(3/4))
         let g = fx.call("gamma", &[fx.rat(1, 4)]);

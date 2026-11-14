@@ -713,3 +713,15 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
 - Pattern heads `verbatim(p)` (the term p itself, its pattern constructs bind nothing) and `hold_pattern(p)` (held,
   lowered as p) in `syntax.rs`; `alternatives` registered as a declining native so `apply(alternatives, xs)` is a
   known call.
+
+## Round 40: memory_available
+
+- `memory_available()` (`constrained.rs`, `NativeCx::memory_left`): the bytes the running evaluation may still allocate
+  before its memory limit (the session's budget or an enclosing `memory_constrained` cap). It is an effect (its value
+  depends on the evaluation's state; without that a value was memoised across `memory_constrained` calls).
+- The matrix builders of the prelude (`a28_rows`: `hankel_matrix`, `toeplitz_matrix`, `upper_triangularize`,
+  `lower_triangularize` and the other users of `a28_matrix`) check the result's slots against it, then build the first
+  row, measure it and refuse the matrix (`failure(limit, memory, [rows, cols])`) when the rows would not fit, before
+  building them. The fixed limit of 2^26 entries is gone: `hankel_matrix(10000)` is refused under a 700 MB process cap
+  and built (800 MB) where it fits. Hankel and Toeplitz rows are slices now: `hankel_matrix(1000)` took 25 s (an
+  indexed closure call per entry) and takes 0.01 s.

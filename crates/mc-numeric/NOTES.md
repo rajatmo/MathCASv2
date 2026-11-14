@@ -620,3 +620,14 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   |d/dx acosh| = 1/sqrt(1 - x^2) at 0.9 times 0.1. The spread reaches the branch point 1 (beyond it acosh is real),
   where the first-order propagation is a poor approximation, as for any function with a singularity within one
   standard uncertainty (`sqrt(around(0.05, 0.1))` alike); it is still the documented linearisation, so it is given.
+
+## Round 40: the branch of inverse_gudermannian; inverse functions of their direct functions
+
+- `inverse_gudermannian(z)` is log(tan(z/2 + pi/4)) with the principal logarithm (DLMF 4.23(viii)): 2 atanh(tan(z/2))
+  everywhere but on the real intervals with |tan(x/2)| > 1, where it is 2 acoth(tan(x/2)) + pi i (principal atanh gave
+  -pi i where tan(x/2) > 1). Exact (`n`), machine, complex machine and ball evaluation follow it; the odd symmetry is
+  applied only to numbers off those intervals (a symbol may lie on one). gd(gd^-1(x)) = x on (-pi, pi).
+- `inverse_pairs.rs`: the twelve inverse circular and hyperbolic functions of their direct functions at an exact
+  numeric argument c reduce to the representative of c in the principal strip (table in the module comment):
+  `acoth(coth(5)) = 5`, `asin(sin(3)) = pi - 3`, `acos(cos(7)) = 7 - 2 pi`, complex arguments too. The position is
+  decided at 40 digits; on (within 1e-30 of) a strip's edge, or for |c| beyond 1e15 periods, the call stays.

@@ -39,6 +39,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("unevaluated", "unevaluated(e): as an argument of a call, e itself is passed, unevaluated; the call gets the wrapper back if no definition applies"),
     ("time_constrained", "time_constrained(e, t), time_constrained(e, t, fail): the value of e if reached within t seconds, else fail (failure(limit, time))"),
     ("memory_constrained", "memory_constrained(e, b), memory_constrained(e, b, fail): the value of e if evaluating it allocates at most b bytes, else fail (failure(limit, memory))"),
+    ("memory_available", "memory_available(): the bytes the running evaluation may still allocate before its memory limit (the session's, or that of an enclosing memory_constrained)"),
     ("pause", "pause(t): null after waiting t seconds (an interrupt stops it)"),
     ("inactive", "inactive(f): an inert head: inactive(f)(x) stays a call until activate"),
     (

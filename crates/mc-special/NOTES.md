@@ -1024,3 +1024,20 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   zeta'(-1) once from ln G(21) = sum (20 - j) ln j, the gammas by Gamma(x + j + 1) = (x + j) Gamma(x + j) from one
   double-double gamma. Within half an ulp on a sweep of x in [-12.7, 28] (30-digit values); an overflow or a shift
   longer than 400 goes to the balls. The solve takes 0.16 s.
+
+## Round 40: Mathieu functions at high precision; modular functions on their real lines
+
+- The Taylor steps of the Mathieu solver (`mathieu.rs`, `solve`) evaluated every coefficient of the recurrence as a
+  term of the evaluator: one value at 25 digits took about a second (four integrations: the value and the Floquet
+  normalization at two precisions), a characteristic value as long, and a root search over
+  `mathieu_c(mathieu_characteristic_a(5, q), q, i/2)` at 25 digits 22 s. The steps now run in complex ball arithmetic
+  on midpoints (`mc_numeric::cball::CBall`), with the same orders, step sizes and error estimate; values are
+  unchanged to the last digit and about ten times faster (the root search 1.4 s). Tests compare 50 with 80 digits and
+  the characteristic value with the eigenvalue of the truncated Fourier matrix.
+- `klein_invariant_j`, `modular_lambda` and `dedekind_eta` give real values on the vertical lines where they are real
+  (re tau in Z/2, Z and 12 Z: the reflection f(-conj tau) = conj f(tau) and the translations, DLMF 23.15, 27.14). The
+  imaginary part a computed value had there was rounding noise (about 1e-32), which kept the samples of
+  `klein_invariant_j(1/2 + i exp(x))` from being read as real.
+- Not done: `klein_invariant_j(0.5 + 0.3679 i)` stays unevaluated (the machine reduction declines and the point is
+  below im tau = 1); `n(modular_lambda(1 + 2 i), 50)` stays a theta expression (theta_2 of the negative nome
+  -e^(-2 pi) with a noise imaginary part).

@@ -915,28 +915,47 @@ fn pad_source(mode, k, len) = {
   else { let j = mod(k - 1, 2*len - 2); if j < len then j + 1 else 2*len - 1 - j }
 }
 
-# a28_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol). A matrix
-# of more than 2^26 entries is failure(limit, memory, ...) before anything is built, as for the native array
-# builders (constant_array): hankel_matrix(10000) took 98 s to reach the evaluation's memory limit.
-fn a28_matrix(rows, cols, f) =
-  if rows*cols > 67108864 then failure(limit, memory, [rows, cols])
-  else map(i => map(j => f(i, j), range(cols)), range(rows))
+# a28_rows(rows, cols, row): the matrix of the rows row(1), ..., row(rows) of length cols. A matrix that would not
+# fit in the memory the evaluation may still use (memory_available(): the session's limit, or that of an enclosing
+# memory_constrained) is failure(limit, memory, [rows, cols]) before it is built: first when its slots alone (8
+# bytes each) do not fit, then when the first row, built and measured, times the number of rows does not. The
+# measure counts everything a row costs (the evaluation of its entries too), so a builder never runs into the limit
+# halfway (hankel_matrix(10000) took 98 s to reach it, and could take the process down with it).
+fn a28_rows(rows, cols, row) =
+  if rows == 0 then []
+  else if 8*rows*cols > memory_available() then failure(limit, memory, [rows, cols])
+  else {
+    let before = memory_available()
+    let first = row(1)
+    if (before - memory_available())*(rows - 1) > memory_available() then failure(limit, memory, [rows, cols])
+    else join([first], map(row, range(2, rows)))
+  }
+# a28_matrix(rows, cols, f): the matrix of f(i, j) (lexical index names: entries may contain any symbol), built by
+# a28_rows
+fn a28_matrix(rows, cols, f) = a28_rows(rows, cols, i => map(j => f(i, j), range(cols)))
 
 # hankel_matrix(n): the n x n matrix of entries i + j - 1 (0 past n); hankel_matrix(c): the matrix with first column
-# c and zeros below the antidiagonal; hankel_matrix(c, r): first column c, last row r
+# c and zeros below the antidiagonal; hankel_matrix(c, r): first column c, last row r. Row i is the slice i, ...,
+# i + length(r) - 1 of c followed by r without its first entry (entries constant along the antidiagonals), so a row
+# costs one slice instead of an indexed call per entry.
 fn hankel_matrix(c: Int) when c >= 0 = hankel_matrix(range(c))
-fn hankel_matrix(c) when is_list(c) = hankel_matrix(c, join([last(c)], constant_array(0, length(c) - 1)))
-fn hankel_matrix(c, r) when is_list(c) and is_list(r) = {
-  let m = length(c)
-  a28_matrix(m, length(r), (i, j) => if i + j - 1 <= m then c[i + j - 1] else r[i + j - m])
-}
+fn hankel_matrix(c) when is_list(c) = if length(c) == 0 then [] else hankel_matrix(c, join([last(c)], constant_array(0, length(c) - 1)))
+fn hankel_matrix(c, r) when is_list(c) and is_list(r) =
+  if length(r) == 0 then map(i => [], c) else {
+    let k = length(r)
+    let s = join(c, rest(r))
+    a28_rows(length(c), k, i => take(s, [i, i + k - 1]))
+  }
 
 # toeplitz_matrix(n): the n x n matrix of entries |i - j| + 1; toeplitz_matrix(c): first column c, first row its
-# conjugate; toeplitz_matrix(c, r): first column c, first row r
+# conjugate; toeplitz_matrix(c, r): first column c, first row r. Row i is c[i], c[i - 1], ... down to the diagonal,
+# then r from its second entry (entries constant along the diagonals).
 fn toeplitz_matrix(c: Int) when c >= 0 = toeplitz_matrix(range(c))
 fn toeplitz_matrix(c) when is_list(c) = toeplitz_matrix(c, map(x => if is_number(x) then conjugate(x) else x, c))
-fn toeplitz_matrix(c, r) when is_list(c) and is_list(r) =
-  a28_matrix(length(c), length(r), (i, j) => if i >= j then c[i - j + 1] else r[j - i + 1])
+fn toeplitz_matrix(c, r) when is_list(c) and is_list(r) = if length(r) == 0 then map(i => [], c) else {
+  let k = length(r)
+  a28_rows(length(c), k, i => join(reverse(take(c, [i - min(i, k) + 1, i])), if k > i then take(r, [2, k - i + 1]) else []))
+}
 
 # center_array(n): a 1 in the middle of n zeros; center_array(a, n), (a, n, x), (a, [n1, n2, ...], x): the array a
 # (a scalar is a one-entry array; an array of lower rank than the size list is wrapped in lists) centred in an array

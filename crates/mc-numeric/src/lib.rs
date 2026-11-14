@@ -99,6 +99,7 @@ pub mod library;
 pub mod machine;
 pub mod formula;
 pub mod formula_lib;
+pub mod inverse_pairs;
 pub mod more;
 pub mod quantity;
 pub mod uncertain;

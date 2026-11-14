@@ -615,6 +615,7 @@ activate	core	Session	activate(e): every inert head inactive(f) in e replaced by
 unevaluated	core	Session	unevaluated(e): as an argument of a call, e itself is passed, unevaluated; the call gets the wrapper back if no definition applies
 time_constrained	core	Session	time_constrained(e, t), time_constrained(e, t, fail): the value of e if reached within t seconds, else fail (failure(limit, time))
 memory_constrained	core	Session	memory_constrained(e, b), memory_constrained(e, b, fail): the value of e if evaluating it allocates at most b bytes, else fail (failure(limit, memory))
+memory_available	core	Session	memory_available(): the bytes the running evaluation may still allocate before its memory limit (the session's, or that of an enclosing memory_constrained)
 pause	core	Session	pause(t): null after waiting t seconds (an interrupt stops it)
 inactive	core	Session	inactive(f): an inert head: inactive(f)(x) stays a call until activate
 timing	core	Session	timing(e): [seconds, value]: e evaluated, with the wall-clock time the evaluation took in seconds; timing(e, breakdown: true) adds where the time went
