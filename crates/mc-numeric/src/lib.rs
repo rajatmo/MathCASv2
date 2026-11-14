@@ -91,6 +91,7 @@
 
 mod approx;
 pub mod cball;
+mod enclose;
 pub mod consts;
 pub mod elementary;
 pub mod exact;

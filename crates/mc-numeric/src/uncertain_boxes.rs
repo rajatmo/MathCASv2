@@ -102,6 +102,246 @@ fn isin(a: Iv) -> Option<Iv> {
     icos(widen((a.0 - h, a.1 - h)))
 }
 
+/// sinh over [a, b] (increasing).
+fn isinh(a: Iv) -> Option<Iv> {
+    let r = widen((a.0.sinh(), a.1.sinh()));
+    (r.0.is_finite() && r.1.is_finite()).then_some(r)
+}
+
+/// cosh over [a, b]: 1 at 0 when 0 is inside, else the end values.
+fn icosh(a: Iv) -> Option<Iv> {
+    let (p, q) = (a.0.cosh(), a.1.cosh());
+    let lo = if a.0 <= 0.0 && a.1 >= 0.0 { 1.0 } else { p.min(q) };
+    let r = widen((lo, p.max(q)));
+    (r.1.is_finite()).then_some((r.0.max(1.0), r.1))
+}
+
+/// a / b for an interval b of one sign.
+fn idiv(a: Iv, b: Iv) -> Option<Iv> {
+    if !(b.0 > 0.0 || b.1 < 0.0) {
+        return None;
+    }
+    Some(imul(a, widen((1.0 / b.1, 1.0 / b.0))))
+}
+
+fn bscale(z: CBox, k: f64) -> CBox {
+    // multiplication by a power of two is exact
+    let s = |a: Iv| if k > 0.0 { (a.0 * k, a.1 * k) } else { (a.1 * k, a.0 * k) };
+    CBox { re: s(z.re), im: s(z.im) }
+}
+
+fn bneg(z: CBox) -> CBox {
+    bscale(z, -1.0)
+}
+
+/// i z
+fn btimes_i(z: CBox) -> CBox {
+    CBox { re: (-z.im.1, -z.im.0), im: z.re }
+}
+
+fn bconst(re: f64, im: f64) -> CBox {
+    CBox { re: (re, re), im: (im, im) }
+}
+
+/// The principal square root, exp(log(z)/2), for a box away from 0 and the negative real axis.
+fn bsqrt(z: CBox) -> Option<CBox> {
+    bexp(bscale(blog(z)?, 0.5))
+}
+
+/// The elementary functions of one complex box, each part enclosed by interval arithmetic on the parts:
+/// sin(x + iy) = sin x cosh y + i cos x sinh y, cos(x + iy) = cos x cosh y - i sin x sinh y, sinh and cosh alike,
+/// tan(x + iy) = (sin 2x + i sinh 2y)/(cos 2x + cosh 2y), tanh(x + iy) = (sinh 2x + i sin 2y)/(cosh 2x + cos 2y)
+/// (DLMF 4.21.37-38, 4.35.34-35 and the quotient forms), and the inverse functions by their principal logarithmic
+/// forms (DLMF 4.23.16-26 and 4.37.16-26: asin z = -i log(iz + sqrt(1 - z^2)), atan z = (i/2)(log(1 - iz) -
+/// log(1 + iz)), asinh z = log(z + sqrt(z^2 + 1)), acosh z = log(z + sqrt(z + 1) sqrt(z - 1)), atanh z = (log(1 + z) -
+/// log(1 - z))/2), each logarithm and square root over a box clear of its cut (else `None`); cot and coth by the
+/// quotient forms (sin 2x - i sinh 2y)/(cosh 2y - cos 2x) and (sinh 2x - i sin 2y)/(cosh 2x - cos 2y), sec, csc, sech,
+/// csch as reciprocals, and acot, asec, acsc, acoth, asech, acsch as atan, acos, asin, atanh, acosh, asinh of 1/z.
+fn bfunction(name: &str, z: CBox) -> Option<CBox> {
+    let (x, y) = (z.re, z.im);
+    let one = bconst(1.0, 0.0);
+    Some(match name {
+        "sin" => CBox { re: imul(isin(x)?, icosh(y)?), im: imul(icos(x)?, isinh(y)?) },
+        "cos" => {
+            let im = imul(isin(x)?, isinh(y)?);
+            CBox { re: imul(icos(x)?, icosh(y)?), im: (-im.1, -im.0) }
+        }
+        "sinh" => CBox { re: imul(isinh(x)?, icos(y)?), im: imul(icosh(x)?, isin(y)?) },
+        "cosh" => CBox { re: imul(icosh(x)?, icos(y)?), im: imul(isinh(x)?, isin(y)?) },
+        "exp" => bexp(z)?,
+        "tan" => {
+            let (x2, y2) = ((2.0 * x.0, 2.0 * x.1), (2.0 * y.0, 2.0 * y.1));
+            let d = iadd(icos(x2)?, icosh(y2)?);
+            CBox { re: idiv(isin(x2)?, d)?, im: idiv(isinh(y2)?, d)? }
+        }
+        "tanh" => {
+            let (x2, y2) = ((2.0 * x.0, 2.0 * x.1), (2.0 * y.0, 2.0 * y.1));
+            let d = iadd(icosh(x2)?, icos(y2)?);
+            CBox { re: idiv(isinh(x2)?, d)?, im: idiv(isin(y2)?, d)? }
+        }
+        "log" => blog(z)?,
+        "sqrt" => bsqrt(z)?,
+        "asin" => {
+            let s = bsqrt(badd(one, bneg(bmul(z, z))))?;
+            let l = blog(badd(btimes_i(z), s))?;
+            bneg(btimes_i(l))
+        }
+        "acos" => {
+            let s = bsqrt(badd(one, bneg(bmul(z, z))))?;
+            let a = bneg(btimes_i(blog(badd(btimes_i(z), s))?));
+            let h = std::f64::consts::FRAC_PI_2;
+            badd(CBox { re: widen((h, h)), im: (0.0, 0.0) }, bneg(a))
+        }
+        "atan" => {
+            let iz = btimes_i(z);
+            let d = badd(blog(badd(one, bneg(iz)))?, bneg(blog(badd(one, iz))?));
+            bscale(btimes_i(d), 0.5)
+        }
+        "asinh" => blog(badd(z, bsqrt(badd(bmul(z, z), one))?))?,
+        "acosh" => blog(badd(z, bmul(bsqrt(badd(z, one))?, bsqrt(badd(z, bneg(one)))?)))?,
+        "atanh" => bscale(badd(blog(badd(one, z))?, bneg(blog(badd(one, bneg(z)))?)), 0.5),
+        "cot" => {
+            let (x2, y2) = ((2.0 * x.0, 2.0 * x.1), (2.0 * y.0, 2.0 * y.1));
+            let d = isub(icosh(y2)?, icos(x2)?);
+            let im = idiv(isinh(y2)?, d)?;
+            CBox { re: idiv(isin(x2)?, d)?, im: (-im.1, -im.0) }
+        }
+        "coth" => {
+            let (x2, y2) = ((2.0 * x.0, 2.0 * x.1), (2.0 * y.0, 2.0 * y.1));
+            let d = isub(icosh(x2)?, icos(y2)?);
+            let im = idiv(isin(y2)?, d)?;
+            CBox { re: idiv(isinh(x2)?, d)?, im: (-im.1, -im.0) }
+        }
+        "sec" => brecip(bfunction("cos", z)?)?,
+        "csc" => brecip(bfunction("sin", z)?)?,
+        "sech" => brecip(bfunction("cosh", z)?)?,
+        "csch" => brecip(bfunction("sinh", z)?)?,
+        // the inverse reciprocal functions: F(1/z) (acot z = atan(1/z), ...)
+        _ => bfunction(reciprocal_base(name)?, brecip(z)?)?,
+    })
+}
+
+/// The inverse function F with acot z = F(1/z) and alike.
+fn reciprocal_base(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "acot" => "atan",
+        "asec" => "acos",
+        "acsc" => "asin",
+        "acoth" => "atanh",
+        "asech" => "acosh",
+        "acsch" => "asinh",
+        _ => return None,
+    })
+}
+
+/// x^2 over [a, b] (0 when 0 is inside).
+fn isqr(a: Iv) -> Iv {
+    let (p, q) = (a.0 * a.0, a.1 * a.1);
+    let lo = if a.0 <= 0.0 && a.1 >= 0.0 { 0.0 } else { p.min(q) };
+    let (l, h) = widen((lo, p.max(q)));
+    (l.max(0.0), h)
+}
+
+/// 1/z = conj(z)/|z|^2 for a box away from 0.
+fn brecip(z: CBox) -> Option<CBox> {
+    let n = iadd(isqr(z.re), isqr(z.im));
+    let im = idiv(z.im, n)?;
+    Some(CBox { re: idiv(z.re, n)?, im: (-im.1, -im.0) })
+}
+
+/// The derivative of `name` over a box (the forms of [`bfunction`]), `None` near a cut, a pole or for another name.
+fn bderiv(name: &str, z: CBox) -> Option<CBox> {
+    let one = bconst(1.0, 0.0);
+    Some(match name {
+        "sin" => bfunction("cos", z)?,
+        "cos" => bneg(bfunction("sin", z)?),
+        "sinh" => bfunction("cosh", z)?,
+        "cosh" => bfunction("sinh", z)?,
+        "exp" => bexp(z)?,
+        "tan" => {
+            let t = bfunction("tan", z)?;
+            badd(one, bmul(t, t))
+        }
+        "tanh" => {
+            let t = bfunction("tanh", z)?;
+            badd(one, bneg(bmul(t, t)))
+        }
+        "log" => brecip(z)?,
+        "sqrt" => brecip(bscale(bsqrt(z)?, 2.0))?,
+        "asin" => brecip(bsqrt(badd(one, bneg(bmul(z, z))))?)?,
+        "acos" => bneg(brecip(bsqrt(badd(one, bneg(bmul(z, z))))?)?),
+        "atan" => brecip(badd(one, bmul(z, z)))?,
+        "asinh" => brecip(bsqrt(badd(bmul(z, z), one))?)?,
+        "acosh" => brecip(bmul(bsqrt(badd(z, one))?, bsqrt(badd(z, bneg(one)))?))?,
+        "atanh" => brecip(badd(one, bneg(bmul(z, z))))?,
+        "cot" => {
+            let t = bfunction("cot", z)?;
+            bneg(badd(one, bmul(t, t)))
+        }
+        "coth" => {
+            let t = bfunction("coth", z)?;
+            badd(one, bneg(bmul(t, t)))
+        }
+        "sec" => bmul(bfunction("sec", z)?, bfunction("tan", z)?),
+        "csc" => bneg(bmul(bfunction("csc", z)?, bfunction("cot", z)?)),
+        "sech" => bneg(bmul(bfunction("sech", z)?, bfunction("tanh", z)?)),
+        "csch" => bneg(bmul(bfunction("csch", z)?, bfunction("coth", z)?)),
+        // d/dz F(1/z) = -F'(1/z) / z^2
+        _ => {
+            let base = reciprocal_base(name)?;
+            let w = brecip(z)?;
+            bneg(bmul(bderiv(base, w)?, brecip(bmul(z, z))?))
+        }
+    })
+}
+
+/// The intersection of two enclosures of the same set.
+fn bmeet(a: CBox, b: CBox) -> CBox {
+    let meet = |p: Iv, q: Iv| {
+        let r = (p.0.max(q.0), p.1.min(q.1));
+        if r.0 <= r.1 {
+            r
+        } else {
+            p
+        }
+    };
+    CBox { re: meet(a.re, b.re), im: meet(a.im, b.im) }
+}
+
+/// The value over a box: the direct box evaluation (which also checks the cuts), met with the mean value form
+/// f(c) + f'(box) (box - c) (for an analytic f on the convex box, f(z) - f(c) = (z - c) times an average of f' over
+/// the segment from c to z, which lies in any convex enclosure of f' over the box; Moore, Kearfott and Cloud,
+/// section 6.4): tight to first order where the direct form suffers from dependency (asin through log and sqrt).
+fn bvalue(name: &str, z: CBox) -> Option<CBox> {
+    let direct = bfunction(name, z)?;
+    let mid = |a: Iv| 0.5 * (a.0 + a.1);
+    let c = CBox { re: widen((mid(z.re), mid(z.re))), im: if is_real(z) { (0.0, 0.0) } else { widen((mid(z.im), mid(z.im))) } };
+    let mvf = (|| {
+        let fc = bfunction(name, c)?;
+        let d = bderiv(name, z)?;
+        let dz = badd(z, bneg(c));
+        Some(badd(fc, bmul(d, dz)))
+    })();
+    Some(match mvf {
+        Some(m) if [m.re.0, m.re.1, m.im.0, m.im.1].iter().all(|x| x.is_finite()) => bmeet(direct, m),
+        _ => direct,
+    })
+}
+
+/// A function of one centered interval with a complex part (the box of its centre and radius) among the elementary
+/// functions of [`bfunction`]: the enclosing centered interval, `None` for anything else.
+pub(crate) fn function<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let View::App { head, .. } = fx.h.view(t) else { return Ok(None) };
+    let View::Sym(s) = fx.h.view(head) else { return Ok(None) };
+    let name = fx.h.sym_name(s);
+    let [a] = args else { return Ok(None) };
+    if fx.call_of(*a, "centered_interval").is_none() || !complex_parts(fx, *a)? {
+        return Ok(None);
+    }
+    let Some(z) = to_box(fx, *a)? else { return Ok(None) };
+    Ok(bvalue(&name, z).and_then(|b| to_term(fx, b)))
+}
+
 fn badd(a: CBox, b: CBox) -> CBox {
     CBox { re: iadd(a.re, b.re), im: iadd(a.im, b.im) }
 }

@@ -1084,3 +1084,7 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   -2.5 < r < 2.5 bisected its false jumps until it timed out.
 - Not done: Eisenstein series are not a function of the library; `elliptic_theta_prime` near |q| = 1 keeps the
   series (no transformation for the derivative); eigenvectors of non-symmetric ball matrices stay machine vectors.
+## Round 41: Fresnel integrals of a ball
+
+- `fresnel_s` and `fresnel_c` of a ball whose complex erf declines (a ball of nonzero radius) returned the formula with
+  erf left in it; evaluating that ran without end. The call now stays when the formula gives no number.

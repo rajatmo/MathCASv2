@@ -5,14 +5,17 @@
 //! - `around(x, dx)`: a machine value with a standard uncertainty, propagated to first order assuming independent
 //!   arguments: f(x1 +- d1, ...) is f(x) +- sqrt(sum (df/dxi di)^2), the derivatives by `d`.
 //! - `interval([a, b], ...)`: a union of closed intervals (sorted, overlapping ones merged); the image of an
-//!   interval under a function is spanned by its values at the ends and at the critical points inside (found from
-//!   the derivative's sign changes on a grid of 128 cells and refined by bisection), exact when the function is
-//!   monotone there and the ends are exact; sums, products, powers and quotients by interval arithmetic (a
-//!   quotient by an interval containing 0 splits).
-//! - `centered_interval(c, r)`: a midpoint and a radius: f(c +- r) of one spread is the image spanned by the ends and
-//!   the critical points (the tight hull); where that fails, f(c) +- r max |f'| over c - r, c, c + r (an estimate);
-//!   functions of several spreads other than sums and products are evaluated on balls (rigorous), or stay
-//!   unevaluated when the function does not give a ball (round 36); sums, products and
+//!   interval under a function of one argument is proved by [`crate::enclose`] (monotonicity from an enclosure of
+//!   the derivative over cells, extrema by the sign of the second derivative, branch and bound on enclosures of the
+//!   values; a pole inside gives the whole line), exact when the function is monotone and the ends are exact (round
+//!   41: the grid of 128 derivative samples it replaces missed poles and extrema); sums, products, powers and
+//!   quotients by interval arithmetic (a quotient by an interval containing 0 splits).
+//! - `centered_interval(c, r)`: a midpoint and a radius: f(c +- r) of one spread is the hull of the proved image of
+//!   [c - r, c + r]; where that is not proved (a pole inside) the call stays, a radius 0 takes the point ball (round
+//!   41: the slope estimate f(c) +- r max |f'| at three points was not an enclosure); functions of several spreads
+//!   other than sums and products are evaluated on balls (rigorous), or stay unevaluated when the function does not
+//!   give a ball (round 36); the elementary functions of a complex spread go through the box arithmetic of
+//!   `uncertain_boxes` (round 41); sums, products and
 //!   powers with a complex part, an `interval` mixed in or an uncertain exponent go through the rigorous box
 //!   arithmetic of `uncertain_boxes` (a complex radius rx + i ry is the box of the two parts);
 //!   `centered_interval([[m, e, rm, re], p])` reads the mantissa/exponent form m 2^e +- rm 2^re.
@@ -21,7 +24,7 @@
 //! elementary and special functions call [`apply`].
 use crate::formula::{Def, Fx};
 use mc_api::{names, Store, View, T};
-use mc_arith::{Arith, Kind, Num, Real};
+use mc_arith::{Arith, Num, Real};
 use mc_core::Heap;
 use mc_eval::{NativeCx, Res};
 
@@ -85,6 +88,10 @@ fn apply_in<'h>(fx: &mut Fx<'_, '_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Op
     }
     // the real and imaginary parts, conjugate, modulus and argument of a centered interval with a complex part
     if let Some(r) = crate::uncertain_boxes::part(fx, t, args)? {
+        return Ok(Some(r));
+    }
+    // the elementary functions of a centered interval with a complex part: box arithmetic on the parts (round 41)
+    if let Some(r) = crate::uncertain_boxes::function(fx, t, args)? {
         return Ok(Some(r));
     }
     // one kind at a time; other arguments must be numbers or closed numeric terms
@@ -247,6 +254,15 @@ fn propagate<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>], kind:
             return Ok(Some(r));
         }
         return centered_by_balls(fx, head, &centers, &unc);
+    }
+    // one spread whose image is not proved: a point (radius 0) is the function of the point ball; a spread stays (the
+    // slope estimate at three points is not an enclosure, and the function of a wide ball is a loose one; round 41)
+    if centered {
+        let point = match unc.iter().flatten().next() {
+            Some(&d) => machine(fx, d)? == Some(0.0),
+            None => true,
+        };
+        return if point { centered_by_balls(fx, head, &centers, &unc) } else { Ok(None) };
     }
     let var = fx.sym("around·t");
     let mut var2 = 0.0;
@@ -411,7 +427,9 @@ fn centered_by_balls<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<
     let mut xs = Vec::with_capacity(centers.len());
     for (i, d) in unc.iter().enumerate() {
         let Some(d) = d else {
-            xs.push(centers[i]);
+            // a machine number stands for its exact binary value (so that balls stay balls)
+            let c = centers[i];
+            xs.push(if fx.num(c).is_some_and(|n| !n.is_exact()) { fx.eval(fx.call("set_precision", &[c, fx.inf()]))? } else { c });
             continue;
         };
         let real = |fx: &Fx<'_, '_, '_, 'h>, t: T<'h>| fx.num(t).is_some_and(|n| n.as_real().is_some());
@@ -419,7 +437,14 @@ fn centered_by_balls<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<
             return Ok(None);
         }
         let r = fx.eval(fx.call("abs", &[*d]))?;
-        let Some(b) = fx.ar.ball_with_radius(centers[i], r, BALL_BITS as u64) else { return Ok(None) };
+        let b = match fx.ar.ball_with_radius(centers[i], r, BALL_BITS as u64) {
+            Some(b) => b,
+            // machine ends: the ball of exactly that centre and radius
+            None => match (fx.machine_of(centers[i]), fx.f64_of(r)) {
+                (Some(c), Some(r)) if c.is_finite() && r.is_finite() => crate::enclose::ball_mid_rad(fx, c, r.next_up()),
+                _ => return Ok(None),
+            },
+        };
         xs.push(b);
     }
     let v = fx.eval(fx.h.app(head, &xs))?;
@@ -429,10 +454,10 @@ fn centered_by_balls<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<
     Ok(from_ball(fx, v))
 }
 
-/// `centered_interval` result of a function of one uncertain argument as the tight image of the spread: the midpoint
-/// and half-width of the values at the two ends (the function monotone on the spread), or of the interval image
-/// when the derivative changes sign on a nine-point grid; `None` when the argument is not a single non-degenerate
-/// spread or a value is not machine (the first-order estimate then applies). The half-width is rounded up.
+/// `centered_interval` result of a function of one uncertain argument as the proved image of the spread
+/// ([`crate::enclose::image`] over [c - r, c + r], the ends rounded outwards): the midpoint and half-width of its hull,
+/// the half-width rounded up; `None` when the argument is not a single non-degenerate real spread, or the image is not
+/// proved or is unbounded (a pole inside: the call stays).
 fn centered_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<T<'h>>> {
     let mut which = unc.iter().enumerate().filter(|(_, d)| d.is_some());
     let (Some((i, Some(d))), None) = (which.next(), which.next()) else { return Ok(None) };
@@ -440,50 +465,14 @@ fn centered_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>
     if d.is_nan() || d <= 0.0 || !d.is_finite() || !c.is_finite() {
         return Ok(None);
     }
-    let var = fx.sym("around·t");
-    let mut xs = centers.to_vec();
-    xs[i] = var;
-    let g = fx.h.app(head, &xs);
-    let dg = fx.eval(fx.call("d", &[g, var]))?;
-    if fx.contains(dg, "derivative") || fx.contains(dg, "d") {
+    // the spread as machine ends that contain it (c -+ d rounded outwards)
+    let (a, b) = ((c - d).next_down(), (c + d).next_up());
+    let Some(ps) = image(fx, head, centers, i, (fx.real(a), fx.real(b)))? else { return Ok(None) };
+    let (Some(&(l, _)), Some(&(_, h))) = (ps.first(), ps.last()) else { return Ok(None) };
+    let (Some(lo), Some(hi)) = (machine(fx, l)?, machine(fx, h)?) else { return Ok(None) };
+    if !(lo.is_finite() && hi.is_finite()) {
         return Ok(None);
     }
-    let mut sign = 0i32;
-    let mut monotone = true;
-    for k in 0..=8 {
-        let x = c - d + 2.0 * d * (k as f64) / 8.0;
-        let at = fx.eval(fx.call("rewrite", &[dg, fx.call("rule", &[var, fx.real(x)])]))?;
-        let Some(s) = machine(fx, at)? else { return Ok(None) };
-        if !s.is_finite() {
-            return Ok(None);
-        }
-        let sg = if s > 0.0 { 1 } else if s < 0.0 { -1 } else { 0 };
-        if sg != 0 {
-            if sign != 0 && sg != sign {
-                monotone = false;
-            }
-            sign = sg;
-        }
-    }
-    let (lo, hi) = if monotone {
-        let mut vals = [0.0; 2];
-        for (k, x) in [c - d, c + d].into_iter().enumerate() {
-            let mut ys = centers.to_vec();
-            ys[i] = fx.real(x);
-            let v = fx.eval(fx.h.app(head, &ys))?;
-            match machine(fx, v)? {
-                Some(y) if y.is_finite() => vals[k] = y,
-                _ => return Ok(None),
-            }
-        }
-        (vals[0].min(vals[1]), vals[0].max(vals[1]))
-    } else {
-        let Some((a, b)) = image(fx, head, centers, i, (fx.real(c - d), fx.real(c + d)))? else { return Ok(None) };
-        match (machine(fx, a)?, machine(fx, b)?) {
-            (Some(a), Some(b)) if a.is_finite() && b.is_finite() => (a.min(b), a.max(b)),
-            _ => return Ok(None),
-        }
-    };
     let mid = 0.5 * (lo + hi);
     let rad = (0.5 * (hi - lo) + 4.0 * f64::EPSILON * (lo.abs() + hi.abs())) * (1.0 + 4.0 * f64::EPSILON);
     Ok(Some(fx.call("centered_interval", &[fx.real(mid), fx.real(rad)])))
@@ -493,9 +482,25 @@ fn centered_image<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>
 const STEP_FUNCTIONS: &[&str] =
     &["floor", "ceiling", "round", "integer_part", "sign", "unit_step", "real_sign", "unit_box", "heaviside_theta", "kronecker_delta", "boole"];
 
-/// A step function of uncertain arguments: its value when the ends of every spread and the centre give the same value,
-/// otherwise `indeterminate`.
+/// The step functions that are monotone (non-decreasing): equal values at the two ends of a spread make them constant
+/// on it. `unit_box`, `kronecker_delta` and `boole` are not, and their value is taken only for a point.
+const MONOTONE_STEPS: &[&str] = &["floor", "ceiling", "round", "integer_part", "sign", "unit_step", "real_sign", "heaviside_theta"];
+
+/// A step function of uncertain arguments: its value when the ends of every spread and the centre give the same value
+/// (a monotone step function is then constant over the spread), `indeterminate` when they differ; a step function
+/// that is not monotone stays unevaluated over a spread (equal end values do not exclude a different value inside,
+/// as unit_box(2 -+ 3) has 1 at 0).
 fn step<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, centers: &[T<'h>], unc: &[Option<T<'h>>]) -> Res<Option<T<'h>>> {
+    let monotone =
+        centers.len() == 1 && matches!(fx.h.view(head), View::Sym(s) if MONOTONE_STEPS.contains(&fx.h.sym_name(s).as_str()));
+    let spread = |fx: &mut Fx<'_, '_, '_, 'h>, d: T<'h>| -> Res<bool> { Ok(machine(fx, d)?.is_none_or(|v| v != 0.0)) };
+    if !monotone {
+        for d in unc.iter().flatten() {
+            if spread(fx, *d)? {
+                return Ok(None);
+            }
+        }
+    }
     let value = fx.eval(fx.h.app(head, centers))?;
     let Some(v) = machine(fx, value)? else { return Ok(None) };
     for (i, d) in unc.iter().enumerate() {
@@ -678,156 +683,15 @@ fn piece_pow<'h>(fx: &mut Fx<'_, '_, '_, 'h>, x: (T<'h>, T<'h>), k: T<'h>) -> Re
 }
 
 /// The image of the interval [a, b] (argument `i` of the call) under the function `head` with the other arguments
-/// fixed.
+/// fixed: its pieces, proved by [`crate::enclose::image`] (`None`: not proved, the call stays).
 fn image<'h>(
     fx: &mut Fx<'_, '_, '_, 'h>,
     head: T<'h>,
     args: &[T<'h>],
     i: usize,
-    (a, b): (T<'h>, T<'h>),
-) -> Res<Option<(T<'h>, T<'h>)>> {
-    let var = fx.sym("interval·t");
-    let mut xs = args.to_vec();
-    xs[i] = var;
-    let g = fx.h.app(head, &xs);
-    let at = |fx: &mut Fx<'_, '_, '_, 'h>, x: T<'h>| -> Res<T<'h>> {
-        let mut ys = args.to_vec();
-        ys[i] = x;
-        fx.eval(fx.h.app(head, &ys))
-    };
-    let (Some(fa), Some(fb)) = (machine(fx, a)?, machine(fx, b)?) else { return Ok(None) };
-    // an end where the function has a pole (csch at 0, acoth at 1): the image reaches the infinity on the side the
-    // values just inside the end have; the grid leaves that end out
-    let ga0 = at(fx, a)?;
-    let gb0 = at(fx, b)?;
-    let complex_infinity = fx.sym("complex_infinity");
-    // a pole: an infinite value, or no value where the values grow without bound towards the end (at least a
-    // hundredfold as the distance shrinks a hundredfold, from beyond 10^6)
-    let pole = |fx: &mut Fx<'_, '_, '_, 'h>, v: T<'h>, x: f64, inward: f64| -> Res<bool> {
-        if v == complex_infinity || fx.infinity(v).is_some_and(|d| d == 0 || d == 2) {
-            return Ok(true);
-        }
-        match machine(fx, v)? {
-            // a finite value: no pole
-            Some(y) if y.is_finite() => return Ok(false),
-            // an infinite numeric value (n(csch(0)) is inf): the side is read from the values inside
-            Some(_) => return Ok(true),
-            None => {}
-        }
-        if !inward.is_finite() || inward == 0.0 {
-            return Ok(false);
-        }
-        let mut ys = args.to_vec();
-        let mut near = |fx: &mut Fx<'_, '_, '_, 'h>, d: f64| -> Res<Option<f64>> {
-            ys[i] = fx.real(x + inward * d);
-            let w = fx.eval(fx.h.app(head, &ys))?;
-            machine(fx, w)
-        };
-        Ok(match (near(fx, 1e-8)?, near(fx, 1e-10)?) {
-            (Some(p), Some(q)) => p.is_finite() && q.is_finite() && p.abs() > 1e6 && q.abs() >= 99.0 * p.abs() && p.signum() == q.signum(),
-            _ => false,
-        })
-    };
-    let width = fb - fa;
-    let (pole_a, pole_b) = (pole(fx, ga0, fa, width)?, pole(fx, gb0, fb, -width)?);
-    if pole_a && pole_b {
-        return Ok(None);
-    }
-    let dg = fx.eval(fx.call("d", &[g, var]))?;
-    let derivative_known = !fx.contains(dg, "derivative") && !fx.contains(dg, "d");
-    // the derivative (or, without one, the function) on a grid
-    let cells = 128;
-    let f_at = |fx: &mut Fx<'_, '_, '_, 'h>, e: T<'h>, x: f64| -> Res<Option<f64>> {
-        let v = fx.eval(fx.call("rewrite", &[e, fx.call("rule", &[var, fx.real(x)])]))?;
-        Ok(fx.f64_of(v))
-    };
-    let mut critical = vec![];
-    let probe = if derivative_known { dg } else { g };
-    // the last nonzero sample (a zero of the derivative on the grid is passed over)
-    let mut prev: Option<(f64, f64)> = None;
-    for k in 0..=cells {
-        if (k == 0 && pole_a) || (k == cells && pole_b) {
-            continue;
-        }
-        let x = fa + (fb - fa) * k as f64 / cells as f64;
-        let Some(v) = f_at(fx, probe, x)? else { return Ok(None) };
-        if let Some((px, pv)) = prev {
-            if derivative_known && v != 0.0 && (pv < 0.0) != (v < 0.0) {
-                // bisect the sign change of the derivative
-                let (mut l, mut r, mut lv) = (px, x, pv);
-                for _ in 0..60 {
-                    let m = 0.5 * (l + r);
-                    let Some(mv) = f_at(fx, dg, m)? else { break };
-                    if (mv < 0.0) == (lv < 0.0) {
-                        l = m;
-                        lv = mv;
-                    } else {
-                        r = m;
-                    }
-                }
-                critical.push(0.5 * (l + r));
-            } else if !derivative_known {
-                critical.push(x);
-            }
-        }
-        if v != 0.0 || !derivative_known {
-            prev = Some((x, v));
-        }
-        fx.tick(1)?;
-    }
-    if pole_a || pole_b {
-        // monotone between the pole and the other end: from that end's value to the infinity of the side
-        if !critical.is_empty() {
-            return Ok(None);
-        }
-        let inside = if pole_a { fa + (fb - fa) * 1e-9 } else { fb - (fb - fa) * 1e-9 };
-        let Some(v) = f_at(fx, g, inside)? else { return Ok(None) };
-        let finite = if pole_a { gb0 } else { ga0 };
-        let finite = fx.eval(fx.call("simplify", &[finite]))?;
-        if machine(fx, finite)?.is_none_or(|x| !x.is_finite()) || !v.is_finite() || v == 0.0 {
-            return Ok(None);
-        }
-        return Ok(Some(if v > 0.0 { (finite, fx.inf()) } else { (neg_inf(fx), finite) }));
-    }
-    let ga = ga0;
-    let gb = gb0;
-    let exact_ends = [a, b].iter().all(|&e| fx.num(e).is_none_or(|n| n.kind() == Kind::Exact));
-    if critical.is_empty() && exact_ends {
-        return span(fx, &[ga, gb]);
-    }
-    if exact_ends {
-        // exact ends: critical points that are simple rationals (0, 1/2, ...) are taken exactly, the rest as
-        // machine values; the span is compared by refinement
-        let mut terms = vec![ga, gb];
-        let width = (fb - fa).abs().max(1e-300);
-        for &x in &critical {
-            let snapped = (1..=12i64).find_map(|d| {
-                let n = (x * d as f64).round();
-                ((x - n / d as f64).abs() <= 1e-9 * width).then(|| fx.rat(n as i64, d))
-            });
-            let at_x = match snapped {
-                Some(q) => at(fx, q)?,
-                None => at(fx, fx.real(x))?,
-            };
-            terms.push(at_x);
-        }
-        if let Some(s) = span(fx, &terms)? {
-            return Ok(Some(s));
-        }
-    }
-    let mut vals = vec![];
-    for v in [ga, gb] {
-        let Some(m) = machine(fx, v)? else { return Ok(None) };
-        vals.push(m);
-    }
-    for x in critical {
-        let v = at(fx, fx.real(x))?;
-        let Some(m) = machine(fx, v)? else { return Ok(None) };
-        vals.push(m);
-    }
-    let lo = vals.iter().copied().fold(f64::INFINITY, f64::min);
-    let hi = vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    Ok(Some((fx.real(lo), fx.real(hi))))
+    piece: (T<'h>, T<'h>),
+) -> Res<Option<Vec<(T<'h>, T<'h>)>>> {
+    crate::enclose::image(fx, head, args, i, piece)
 }
 
 fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) -> Res<Option<T<'h>>> {
@@ -902,14 +766,30 @@ fn interval_apply<'h>(fx: &mut Fx<'_, '_, '_, 'h>, head: T<'h>, args: &[T<'h>]) 
     let Some(ps) = pieces(fx, args[i]) else { return Ok(None) };
     let mut out = vec![];
     for p in ps {
+        // a step function that is not monotone (unit_box, kronecker_delta): its derivative is 0 where it exists, which
+        // proves nothing across a jump; the call stays
+        if STEP_FUNCTIONS.contains(&name.as_str()) && !(args.len() == 1 && MONOTONE_STEPS.contains(&name.as_str())) {
+            return Ok(None);
+        }
+        // a monotone step function: the hull of its values at the ends
+        if args.len() == 1 && MONOTONE_STEPS.contains(&name.as_str()) {
+            let u = fx.eval(fx.h.app(head, &[p.0]))?;
+            let v = fx.eval(fx.h.app(head, &[p.1]))?;
+            if fx.num(u).is_none() || fx.num(v).is_none() {
+                return Ok(None);
+            }
+            out.push((u, v));
+            continue;
+        }
         if let Some(s) = periodic_cover(fx, &name, args.len(), p)? {
             out.push(s);
             continue;
         }
-        let Some(s) = image(fx, head, args, i, p)? else { return Ok(None) };
-        out.push(s);
+        let Some(mut s) = image(fx, head, args, i, p)? else { return Ok(None) };
+        out.append(&mut s);
     }
-    make_interval(fx, outward(fx, out))
+    // the proved images are already rounded outwards
+    make_interval(fx, out)
 }
 
 /// A function of several intervals (one piece each, finite ends): the box is the product of the pieces, and when
@@ -973,7 +853,8 @@ fn from_ball<'h>(fx: &Fx<'_, '_, '_, 'h>, t: T<'h>) -> Option<T<'h>> {
         Num::Real(Real::Ball(b, _)) => {
             let mid = Real::Ball(mc_arith::num::Ball::exact(b.mid.clone()), BALL_BITS as u64).to_f64();
             let rad = (b.rad.m as f64) * 2f64.powi(b.rad.e as i32);
-            let rad = rad * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1);
+            // the rounding of the midpoint to a machine number (half an ulp) belongs to the radius too
+            let rad = (rad + 0.5 * mid.abs() * f64::EPSILON) * (1.0 + 4.0 * f64::EPSILON) + f64::from_bits(1);
             Some(fx.call("centered_interval", &[fx.real(mid), fx.real(rad)]))
         }
         Num::Real(Real::Exact(_)) => Some(fx.call("centered_interval", &[t, fx.int(0)])),

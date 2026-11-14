@@ -1605,6 +1605,11 @@ fn fresnel<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], sine: bool) -> R<'h> {
         fx.mul(&[fx.rat(1, 4), fx.sub(fx.int(1), i), fx.add(&[up, fx.mul(&[i, dn])])])
     };
     let v = fx.eval(v)?;
+    // no number (erf declined a complex ball): the call stays; the formula with erf left in it made fresnel_s of a
+    // ball run without end
+    if fx.num(v).is_none() {
+        return Ok(None);
+    }
     // a real argument has a real value
     Ok(Some(if fx.num(z).is_some_and(|n| n.as_real().is_some()) { fx.call("re", &[v]) } else { v }))
 }

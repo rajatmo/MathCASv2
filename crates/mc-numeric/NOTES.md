@@ -631,3 +631,57 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   numeric argument c reduce to the representative of c in the principal strip (table in the module comment):
   `acoth(coth(5)) = 5`, `asin(sin(3)) = pi - 3`, `acos(cos(7)) = 7 - 2 pi`, complex arguments too. The position is
   decided at 40 digits; on (within 1e-30 of) a strip's edge, or for |c| beyond 1e15 periods, the call stays.
+
+## Round 41: interval images that enclose
+
+- `enclose.rs` (new): the image of a real interval [a, b] under a function of one argument, for `interval` and
+  `centered_interval` arguments, now rests on enclosures only. Cells from bisection of [a, b] are settled as
+  monotone (f' evaluated on the ball of the cell excludes 0), as holding one extremum (f'' on the ball excludes 0, the
+  zero of f' bracketed by bisection on proved signs, the extreme value enclosed by f on the bracket's ball, or exact
+  at a simple rational zero of f'), or enclosed by f on the ball of a cell of 2^-30 of the interval. Values at points
+  are point balls rounded outwards; exact ends keep their exact values (in their simplest form: csch(log(3)) = 3/4,
+  sech(log(3)) = 3/5). Literature: Moore, Kearfott and Cloud, "Introduction to Interval Analysis" (SIAM 2009),
+  chapters 5 and 6; Johansson, "Arb" (IEEE TC 66, 2017).
+- A cell without an enclosure at the smallest width (a pole) makes the image `interval([-inf, inf])`:
+  `gamma(interval([-0.5, 0.5]))`, `tan(interval([1, 2]))`, `zeta(interval([0.5, 1.5]))`. The sampled grid gave
+  bounded intervals there (tan gave [tan 2, tan 1]); `bessel_j(2, interval([-3, 3]))` excluded the value 0 at 0
+  and is now `[0, 0.4861...]`. At an end where f is infinite (csch at 0, acoth at 1, log at 0) or finite with a
+  monotone neighbour (sqrt at 0, acos at 1), the cells next to the end (at most 64 smallest widths) are taken as
+  monotone towards the end: the one assumption, true next to a pole of a meromorphic function and at the
+  algebraic and logarithmic branch points of the library.
+- No derivative in closed form (`zeta'(x)`), or a derivative whose closed form cancels so that no cell settles
+  within the budget of 600 evaluations: branch and bound on enclosures of the values (Moore-Skelboe), to 2^-44
+  relative of a value attained at a point.
+- `sinc`: its derivative cos(x)/x - sin(x)/x^2 cancels to -x/3 near 0, which no ball separates from 0; sinc is
+  known increasing on [-pi, 0] and decreasing on [0, pi] (x cos x - sin x has the derivative -x sin x), so those
+  pieces take their end values and the rest of the interval goes through the cells. `abs` and `real_abs` (a kink at
+  0) alike; the monotone step functions (floor, ceiling, round, integer_part, sign, unit_step, ...) of an interval
+  are the hull of their end values.
+- Details: machine numbers among the other arguments stand for their exact binary values (a machine number next to
+  a ball made the value machine, with no error bound); symbolic constants in the derivative become balls (pi next
+  to a ball stayed a product); a function without a ball value at a point is tried in its `function_expand` form
+  (binomial, catalan_number through gamma); exact end values are kept only when every number of the call is exact;
+  an extremum's value is the mean value form f(m) + f'([xl, xr])[xl - m, xr - m] met with f on the bracket; an end
+  whose exact value is infinite must have had no enclosure next to it (elliptic_k's ball at 1 was finite: the call
+  now stays); a cell without enclosure gives the whole line only when f has enclosures on narrow balls elsewhere.
+- Gaps: functions whose ball evaluation declines or is slow on wide balls (log_barnes_g, riemann_siegel_z,
+  fresnel_f and fresnel_g of a centered interval, catalan_number and factorial2 of an interval) now stay unevaluated
+  or are slow where the sampled grid answered; their ball forms need work before their images can be proved.
+- `centered_interval` of one spread: the hull of the proved image of [c - r, c + r] (the ends rounded outwards),
+  else unevaluated (the function of a wide ball is a loose enclosure; a radius 0 takes the point ball). The slope estimate f(c) +- r max |f'(c - r), f'(c), f'(c + r)|
+  is gone (it is not an enclosure); a pole inside leaves the call (`gamma(centered_interval(0, 0.5))`). A ball turned
+  into a centered interval now adds half an ulp of the machine midpoint to the radius (`sin(centered_interval(1.23))`
+  had radius 0).
+- Step functions of a spread: equal values at the ends decide the value only for the monotone ones (floor, ceiling,
+  round, integer_part, sign, unit_step, real_sign, heaviside_theta of one argument); `unit_box`, `kronecker_delta`
+  and `boole` of a spread stay unevaluated (`unit_box(centered_interval(2, 3))` gave 0, but the value at 0 is 1).
+- Complex centered intervals (`uncertain_boxes`): sin, cos, tan, sinh, cosh, tanh, exp, log, sqrt and the six
+  inverse circular and hyperbolic functions of a box, by interval arithmetic on the real and imaginary parts
+  (sin(x + iy) = sin x cosh y + i cos x sinh y; tan by (sin 2x + i sinh 2y)/(cos 2x + cosh 2y); the inverses by their
+  principal logarithmic forms, each logarithm and square root over a box clear of its cut, else unevaluated). The
+  parts of sin, cos, sinh and cosh are products of functions of independent variables, so each part is the exact
+  range up to rounding.
+- Unchanged (a pending decision): functions of several `interval` or `centered_interval` arguments other than sums
+  and products are decided by `centered_corners`, which takes the function as monotone in each argument when every
+  partial derivative keeps its sign on a grid over the box (5 points a side for two arguments, 3 for three or four);
+  `several_intervals` uses the same test. `around` keeps its documented first-order propagation.
