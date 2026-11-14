@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.14.0 (2026-11-14)
+
+A first Android app, and more answers in calculus, special functions and data.
+
+**Android (phones and tablets).** The notebook with its kernel as an Android package, with a layout of its own
+in Material Design: a start screen with the notebooks kept in the app, "New calculation" and "Open a file" (the
+system file picker); a notebook screen where a row of keys with Run sits on the on-screen keyboard and completions
+show as chips; Copy and Share for a selected result or plot (a plot is shared as a PNG through the system share
+sheet). Changes are saved by themselves. Light and dark follow the system. The package is built with
+`packaging/android/build-apk.sh` (Android SDK and NDK, no Gradle) and tested on an emulator with
+`packaging/android/smoke.sh`; it is not among the published packages yet and has not been tried on many devices.
+
+**Calculus.** Series of `sign`, `abs` and `arg` of complex arguments; limits of sequences; fundamental solutions
+of the heat and wave operators; derivatives of held transforms; radial transforms; unit waves. Hypergeometric
+closed forms with integer parameter differences. `cos` and `sin` of `atan` simplify.
+
+**Numbers.** Logarithms to a base are correctly rounded (`log(2.0, 8.0)` is `3.0`). Newton steps in `find_root`
+are held to a trust radius; roots of imaginary-valued functions are found. Uncertain results keep real centres,
+and complex uncertain numbers are supported. Expansions in non-integer bases; Gaussian number theory; linear algebra
+modulo a prime. A fast machine-precision Barnes G.
+
+**Data and pictures.** Charts of data containers; more picture primitives; list argument forms; alphabetical
+orders; symbolic cumulants; region measures, and areas from vertex differences. A plot is still drawn when one
+epilog primitive has a non-numeric coordinate (that primitive is left out, with a message).
+
+**Fixed.** A crash in ball comparisons. A numeric routine whose compilation fails is interpreted instead of
+failing. `is_even` and `is_odd` answer `false` for what is not an integer.
+
+**Desktop notebook.** In a narrow window the menus and the toolbar scroll sideways, the status bar's items end at
+the file name, and dialogs take the window's width.
+
 ## 0.13.0 (2026-11-13)
 
 MathCAS runs on macOS, about sixty new functions, and more answers where there were none.
