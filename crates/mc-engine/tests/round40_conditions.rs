@@ -19,7 +19,10 @@ fn one(src: &str) -> String {
 fn reduce_with_the_variables_of_the_condition() {
     let mut e = CoreEngine::new();
     // the documented inputs: conditions already decided, and the cut of a Hankel function in the parts of z
-    assert_eq!(ev(&mut e, "reduce(function_meromorphic(exp_integral_e(n, x), x))"), "false");
+    // E_n is meromorphic exactly for n = 0, -1, ... (E_0(x) = exp(-x)/x, DLMF 8.19.6), with a logarithmic branch
+    // point at 0 otherwise
+    assert_eq!(ev(&mut e, "function_meromorphic(exp_integral_e(n, x), x)"), "conditional_expression(true, element(n, integers) and n <= 0)");
+    assert_eq!(ev(&mut e, "reduce(function_meromorphic(exp_integral_e(1, x), x))"), "false");
     let cut = "re(z) <= 0 and im_part(z) == 0";
     assert_eq!(ev(&mut e, "reduce(function_singularities(hankel_h1(n, z), z, complexes))"), cut);
     assert_eq!(ev(&mut e, "reduce(function_discontinuities(hankel_h2(n, z), z, complexes))"), cut);

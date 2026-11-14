@@ -1529,3 +1529,31 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   real x, now that limits take the real variable out of im_part) gets a point inside each interval of the domain as
   a candidate, so its value is taken; before, only the limits at the ends (values not taken) bounded it and the
   answer `y > 0 and y < 0` failed the cross-check.
+
+## Round 41: properties with symbolic parameters
+
+- `true` and `false` (and `indeterminate`) are answers for every value of the parameters; otherwise a condition on
+  them or no answer. Swept: 40 functions with symbolic parameters (hypergeometric 0F1, 1F1, 2F1, U, pFq, Bessel,
+  Legendre, Laguerre, Hermite, Chebyshev, Gegenbauer, Jacobi, powers with symbolic exponents, polylog, incomplete
+  gamma, zeta, elliptic K, Struve, ...) times 14 properties over the reals and the complexes. 153 answers `false`
+  or `indeterminate` (18 of the functions) changed; except those of `legendre_q` (its real domain lies in (-1, 1)
+  for every order) and of `1/(x^2 + a)` over the complexes, each was wrong for some parameter value.
+- Causes and fixes:
+  - `sets::meets` with parameters dropped the non-polynomial conjuncts of an atom (`not_element(n, integers) and
+    z <= -1`) and took the enlarged set meeting the region as a proof that the atom does. The conjuncts free of the
+    variables are now kept as conditions on the parameters (the atom misses the region when they fail or when
+    quantifier elimination shows its polynomial part does), and an enlarged atom never proves `false` (its condition
+    to miss the region stays a sufficient one, `a > 0` for gamma(x^2 + a)). A condition the decision service
+    refutes, or one false for every truth value of its atoms (`not element(n, integers) and not not_element(n,
+    integers)`, the spherical Hankel functions), counts as `false`.
+  - `function_analytic`'s fallback answered `false` whenever a definedness condition remained; with parameters
+    those conditions are sufficient only (`x > 0` for `x^a`), so they no longer give `false`.
+  - Sign, monotonicity, convexity: `indeterminate` from a domain that is not the whole line now needs that for every
+    value of the parameters (by `resolve(for_all(params, exists(x, not domain)))`), and never comes from a power
+    with a symbolic exponent or from the period of a function with parameters (`sin(a x)` is constant for a = 0).
+  - The incomplete gamma function is entire for a positive integer order (DLMF 8.4.8): its singular set is
+    conditioned on the order (`sets.rs`, and the table entry).
+- Now conditions: 1F1, 2F1, U, pFq, Legendre P, Chebyshev T, Gegenbauer, Jacobi, incomplete gamma (analytic,
+  continuous, meromorphic), polylog (meromorphic). Now unevaluated: `x^a`, `(x + 1)^a`, `log(x)^a`, `tan(a x)`
+  (analytic), sign, monotonicity and convexity of powers with symbolic exponents, polylog, incomplete gamma,
+  elliptic K, Legendre Q with parameters.

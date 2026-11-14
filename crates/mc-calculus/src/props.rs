@@ -709,15 +709,40 @@ fn analytic<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>) -> R
     if cs.is_empty() {
         return Ok(Some(cx.bool(true)));
     }
-    let Some(k) = c.cond else { return Ok(Some(cx.bool(false))) };
+    // with parameters the conditions are sufficient only (`x > 0` for `x^a`, analytic everywhere for a = 2; a cut of
+    // a family that is a polynomial for integer parameters): they prove `true`, never `false`
+    let mut all = vec![c.f];
+    all.extend(c.cond);
+    let unknown = if spec::params(b, &all, &c.vars).is_empty() { Some(cx.bool(false)) } else { None };
+    let Some(k) = c.cond else { return Ok(unknown) };
     // every condition implied by the given one
     for d in cs {
         let r = cx.eval(h.call(h.sym("refine"), &[d, k]))?;
         if !cx.is_true(r) {
-            return Ok(Some(cx.bool(false)));
+            return Ok(unknown);
         }
     }
     Ok(Some(cx.bool(true)))
+}
+
+/// Does `f` have a power of a function of the variables with an exponent that is a symbolic expression free of them
+/// (`x^a`, `log(x)^n`)? Its domain conditions are those of generic exponents.
+fn symbolic_power<'h>(b: &Build<'h>, f: T<'h>, vars: &[T<'h>]) -> bool {
+    let h = b.heap();
+    let mut stack = vec![f];
+    while let Some(u) = stack.pop() {
+        let View::App { head, args } = h.view(u) else { continue };
+        if b.sym_of(head) == Some(b.hd.pow) {
+            if let [base, ex] = args {
+                let dep = |t: T<'h>| vars.iter().any(|&x| !is_free(b, t, x));
+                if dep(*base) && !dep(*ex) && b.ar.num(*ex).is_none() {
+                    return true;
+                }
+            }
+        }
+        stack.extend(args.iter().copied());
+    }
+    false
 }
 
 /// The machine value of `f` at `x = v` (one variable), if finite and real.
@@ -965,8 +990,26 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         let r = cx.eval_assuming(&f2, h.call(h.sym("refine"), &[all]))?;
         cx.is_true(r)
     };
+    // parameters: a power with a symbolic exponent has the domain of generic exponents (`x > 0` for `x^a`, the whole
+    // line for a = 2), and domain conditions on the parameters may hold on the whole line for some values; the
+    // property then fails only when the domain leaves out points for every value of the parameters
+    let mut with_cond = vec![c.f];
+    with_cond.extend(c.cond);
+    let has_params = !spec::params(b, &with_cond, &c.vars).is_empty();
+    let generic = has_params && symbolic_power(b, c.f, &c.vars);
     // a function not defined on the whole real line (and no condition): the property fails somewhere
     if c.cond.is_none() && !c.integers && !cs.is_empty() && !whole_line {
+        if generic {
+            return Ok(None);
+        }
+        let ps = spec::params(b, &cs, &c.vars);
+        if !ps.is_empty() {
+            // for every value of the parameters a point of the line outside the domain
+            let all = conj(cx, &cs)?;
+            let gap = b.call("exists", &[x, b.call("not", &[all])]);
+            let r = cx.eval(b.call("resolve", &[b.call("for_all", &[cx.list(&ps), gap]), h.sym_term(h.sym("reals"))]))?;
+            return Ok(cx.is_true(r).then_some(indet));
+        }
         // the gamma family (`u > 0 or u not an integer`) fails at the negative integers: no `reduce` of a
         // trigonometric condition (F27.8: `gamma(x^3)` took minutes)
         if cs.iter().any(|&k| contains_call(b, k, "not_element")) {
@@ -980,7 +1023,7 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
     }
     // a condition whose region leaves the domain: the property fails there, as without a condition
     if let Some(k) = c.cond {
-        if !c.integers && !cs.is_empty() && !cs.iter().any(|&d| contains_call(b, d, "not_element")) {
+        if !c.integers && !generic && !cs.is_empty() && !cs.iter().any(|&d| contains_call(b, d, "not_element")) {
             let all = conj(cx, &cs)?;
             let outside = cx.eval_assuming(&pf, h.call(h.sym("refine"), &[h.call(h.sym("and"), &[k, b.call("not", &[all])])]))?;
             let mut others = rustc_hash::FxHashSet::default();
@@ -1002,7 +1045,7 @@ fn sign_of_inner<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, c: &Call<'h>,
         if let Some(hit) = table::lookup(cx, b, c.f, &[x], &pfx)? {
             // a nonconstant periodic function is neither monotonic nor convex on the line
             if order > 0 && c.cond.is_none() && range::affine_in(cx, b, hit.arg, x)? && hit.periodic(cx, b)? {
-                return Ok(Some(indet));
+                return Ok((!has_params).then_some(indet));
             }
             // a sign holds at every point of the domain, whatever the argument's path; monotonicity and convexity
             // need the argument to be x (an affine function of x)

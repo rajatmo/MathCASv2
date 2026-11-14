@@ -515,14 +515,25 @@ fn walk<'h>(
             push(gamma_pole(s), Kind::Pole);
         }
         ("gamma", _) if args.len() == 2 => {
-            // the upper incomplete gamma function: entire in the order, a branch at 0 in the argument
-            let z = args[1];
-            if depends(z) {
-                if complex {
-                    push(rel("equal", z, zero), Kind::Branch);
-                    push(log_cut(z), Kind::Branch);
+            // the upper incomplete gamma function: entire in the order, a branch at 0 in the argument unless the order
+            // is a positive integer n (then (n - 1)! e^(-z) times a polynomial, entire; DLMF 8.4.8)
+            let (a, z) = (args[0], args[1]);
+            let positive_integer = |t: T<'h>| matches!(h.view(t), View::Int(k) if k > 0);
+            if depends(z) && !positive_integer(a) {
+                let order_cond = if vars.iter().any(|&x| !is_free(b, a, x)) || b.ar.num(a).is_some() {
+                    None
                 } else {
-                    push(rel("less_equal", z, zero), Kind::Branch);
+                    Some(b.call("not", &[b.call("and", &[b.call("element", &[a, h.sym_term(h.sym("integers"))]), rel("greater", a, zero)])]))
+                };
+                let with = |c: T<'h>| match order_cond {
+                    Some(o) => b.call("and", &[o, c]),
+                    None => c,
+                };
+                if complex {
+                    push(with(rel("equal", z, zero)), Kind::Branch);
+                    push(with(log_cut(z)), Kind::Branch);
+                } else {
+                    push(with(rel("less_equal", z, zero)), Kind::Branch);
                 }
             }
         }
@@ -1088,48 +1099,73 @@ pub fn meets<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ato
         }
         return Ok(Meet::Unknown);
     }
-    // parameters: the condition under which the (enlarged) set misses the region; over the complexes on the real
-    // and imaginary parts
+    // parameters: the condition under which the set misses the region, atom by atom. An atom `P and Q` with `Q` the
+    // conjuncts free of the variables (conditions on the parameters alone, `not_element(n, integers)`) misses the
+    // region exactly when `not Q` or `for_all(vars, region implies not P)`; the second part is decided by
+    // quantifier elimination on a polynomial superset of P (over the complexes on the real and imaginary parts).
+    // When the superset is larger than P (non-polynomial conjuncts dropped), its condition to miss the region is
+    // sufficient for P, but that it meets the region says nothing about P.
+    let mut cond_r = cond;
     let mut vars = s.vars.clone();
     let mut back = vec![];
-    let mut atoms_r = live.clone();
-    let mut cond_r = cond;
-    if complex {
-        atoms_r.clear();
-        for &a in &live {
-            let (rv, ra, bk) = realify(cx, b, a, &s.vars, &ps)?;
-            atoms_r.push(cx.eval(ra)?);
-            vars = rv;
-            back = bk;
+    if let (true, Some(c)) = (complex, cond) {
+        let (rv, rc, bk) = realify(cx, b, c, &s.vars, &ps)?;
+        cond_r = Some(rc);
+        vars = rv;
+        back = bk;
+    }
+    let mut exact = true;
+    let mut misses = vec![];
+    for &a in &live {
+        cx.tick(1)?;
+        let mut parts = vec![];
+        conjuncts_of(b, a, &mut parts);
+        let (qs, rest): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| s.vars.iter().all(|&x| crate::common::is_free(b, p, x)));
+        let mut alts: Vec<T<'h>> = qs.iter().map(|&q| h.call(h.sym("not"), &[q])).collect();
+        if !rest.is_empty() {
+            let p = match rest.as_slice() {
+                [p] => *p,
+                _ => h.call(h.sym("and"), &rest),
+            };
+            let p = if complex {
+                let (rv, rp, bk) = realify(cx, b, p, &s.vars, &ps)?;
+                vars = rv;
+                back = bk;
+                cx.eval(rp)?
+            } else {
+                p
+            };
+            let Some(e) = enlarge(cx, b, p, &vars)? else { return Ok(Meet::Unknown) };
+            exact &= e == p;
+            let miss = match cond_r {
+                Some(c) => h.call(h.sym("implies"), &[c, h.call(h.sym("not"), &[e])]),
+                None => h.call(h.sym("not"), &[e]),
+            };
+            if !polynomial_formula(b, miss, &vars) {
+                return Ok(Meet::Unknown);
+            }
+            let r = cx.eval(b.call("resolve", &[b.call("for_all", &[cx.list(&vars), miss]), h.sym_term(h.sym("reals"))]))?;
+            if is_head(b, r, "resolve") || is_head(b, r, names::FAILURE) || is_head(b, r, "for_all") {
+                return Ok(Meet::Unknown);
+            }
+            let r = if back.is_empty() { r } else { cx.eval(h.call(h.sym("rewrite"), &[r, cx.list(&back)]))? };
+            alts.push(r);
         }
-        if let Some(c) = cond {
-            let (_, rc, _) = realify(cx, b, c, &s.vars, &ps)?;
-            cond_r = Some(rc);
+        if alts.is_empty() {
+            // an atom that holds everywhere (refuted above when the facts exclude it)
+            return Ok(Meet::Yes);
+        }
+        misses.push(cx.eval(h.call(h.sym("or"), &alts))?);
+    }
+    let mut r = cx.eval(h.call(h.sym("and"), &misses))?;
+    // a condition the decision service refutes (`(element(a, integers) and a <= 0) and (not_element(a, integers) or
+    // a > 0)`): `conditional_expression(v, r)` is then undefined
+    if !cx.is_true(r) && !cx.is_false(r) {
+        let v = cx.eval(h.call(h.sym(mc_decide::CONDITIONAL), &[cx.bool(true), r]))?;
+        if v == h.sym_term(h.sym("undefined")) || propositionally_false(b, r) {
+            r = cx.bool(false);
         }
     }
-    let mut enlarged = vec![];
-    for &a in &atoms_r {
-        match enlarge(cx, b, a, &vars)? {
-            Some(e) => enlarged.push(e),
-            None => return Ok(Meet::Unknown),
-        }
-    }
-    let set = match enlarged.as_slice() {
-        [a] => *a,
-        _ => h.call(h.sym("or"), &enlarged),
-    };
-    let miss = match cond_r {
-        Some(c) => h.call(h.sym("implies"), &[c, h.call(h.sym("not"), &[set])]),
-        None => h.call(h.sym("not"), &[set]),
-    };
-    if !polynomial_formula(b, miss, &vars) {
-        return Ok(Meet::Unknown);
-    }
-    let r = cx.eval(b.call("resolve", &[b.call("for_all", &[cx.list(&vars), miss]), h.sym_term(h.sym("reals"))]))?;
-    if is_head(b, r, "resolve") || is_head(b, r, names::FAILURE) || is_head(b, r, "for_all") {
-        return Ok(Meet::Unknown);
-    }
-    let r = if back.is_empty() { r } else { cx.eval(h.call(h.sym("rewrite"), &[r, cx.list(&back)]))? };
     // under the facts about the parameters
     if !s.facts.is_empty() {
         let pf = match s.facts.as_slice() {
@@ -1142,16 +1178,84 @@ pub fn meets<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, s: &Spec<'h>, ato
         }
         // the set meets the region for every admissible value of the parameters (F27.6)
         if cx.is_false(rr) {
-            return Ok(Meet::Yes);
+            return Ok(if exact { Meet::Yes } else { Meet::Unknown });
         }
     }
     if cx.is_true(r) {
         return Ok(Meet::No);
     }
     if cx.is_false(r) {
-        return Ok(Meet::Yes);
+        return Ok(if exact { Meet::Yes } else { Meet::Unknown });
     }
+    // (with a superset the condition is sufficient: `a > 0` for the poles of gamma(x^2 + a))
     Ok(Meet::NoWhen(r))
+}
+
+/// Is the formula false for every truth value of its atoms (`not element(n, integers) and not not_element(n,
+/// integers)`)? `not_element(u, d)` is read as `not element(u, d)`; at most 10 atoms are tried.
+fn propositionally_false<'h>(b: &Build<'h>, t: T<'h>) -> bool {
+    // the atoms, with not_element read through element
+    fn atoms<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
+        let h = b.heap();
+        if let View::App { head, args } = h.view(t) {
+            match b.sym_of(head).map(|s| h.sym_name(s)).as_deref() {
+                Some("and" | "or" | "not") => {
+                    for &a in args {
+                        atoms(b, a, out);
+                    }
+                    return;
+                }
+                Some("not_element") => {
+                    let e = h.call(h.sym("element"), args);
+                    if !out.contains(&e) {
+                        out.push(e);
+                    }
+                    return;
+                }
+                _ => {}
+            }
+        }
+        if !out.contains(&t) {
+            out.push(t);
+        }
+    }
+    fn value<'h>(b: &Build<'h>, t: T<'h>, atoms: &[T<'h>], bits: u32) -> bool {
+        let h = b.heap();
+        let at = |u: T<'h>| atoms.iter().position(|&a| a == u).is_some_and(|i| bits >> i & 1 == 1);
+        if let View::Sym(s) = h.view(t) {
+            match h.sym_name(s).as_str() {
+                "true" => return true,
+                "false" => return false,
+                _ => {}
+            }
+        }
+        if let View::App { head, args } = h.view(t) {
+            match b.sym_of(head).map(|s| h.sym_name(s)).as_deref() {
+                Some("and") => return args.iter().all(|&a| value(b, a, atoms, bits)),
+                Some("or") => return args.iter().any(|&a| value(b, a, atoms, bits)),
+                Some("not") if args.len() == 1 => return !value(b, args[0], atoms, bits),
+                Some("not_element") => return !at(h.call(h.sym("element"), args)),
+                _ => {}
+            }
+        }
+        at(t)
+    }
+    let mut ats = vec![];
+    atoms(b, t, &mut ats);
+    ats.len() <= 10 && (0..1u32 << ats.len()).all(|bits| !value(b, t, &ats, bits))
+}
+
+/// The conjuncts of a nested `and` (the term itself when it is none).
+fn conjuncts_of<'h>(b: &Build<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
+    let h = b.heap();
+    match h.view(t) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym("and")) => {
+            for &a in args {
+                conjuncts_of(b, a, out);
+            }
+        }
+        _ => out.push(t),
+    }
 }
 
 /// A polynomial superset of the atom: the atom itself when polynomial; a cut with its non-polynomial conjuncts

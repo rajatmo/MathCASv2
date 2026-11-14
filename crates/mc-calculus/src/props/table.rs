@@ -662,6 +662,12 @@ pub static TABLE: &[Entry] = &[
         joint: true,
         real: "$u > 0 or $u == 0 and $a > 0 or $u < 0 and element($a, integers) and $a > 0",
         complex: "$u != 0 or re($a) > 0",
+        // entire for a = 1, 2, ... (a polynomial times e^(-u)), a branch point at 0 otherwise
+        sr: Some(&[("not(element($a, integers) and $a > 0) and $u <= 0", BR)]),
+        sc: Some(&[
+            ("not(element($a, integers) and $a > 0) and $u == 0", BR),
+            ("not(element($a, integers) and $a > 0) and im_part($u) == 0 and re($u) <= 0", BR),
+        ]),
         refs: "DLMF 8.2.2, 8.4.8",
         ..E
     },

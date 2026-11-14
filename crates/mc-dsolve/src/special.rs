@@ -57,7 +57,7 @@ fn args_of<'h>(b: &mc_calculus::term::Build<'h>, t: T<'h>, name: &str) -> Option
     }
 }
 
-/// Mathieu: `y'' + (A + B cos(k x + phi)) y = 0`. With
+/// Mathieu: `y'' + (A + B cos(k x + phi)) y = 0` (a sine as the cosine with phi - pi/2). With
 /// `t = (k x + phi)/2` it is `y_tt + (a - 2 q cos(2 t)) y = 0`, `a = 4 A/k^2`, `q = -2 B/k^2` (DLMF 28.2.1):
 /// `mathieu_c(a, q, t)`, `mathieu_s(a, q, t)`.
 fn mathieu<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, p: T<'h>, q: T<'h>, x: T<'h>) -> Res<Option<Vec<T<'h>>>> {
@@ -80,7 +80,12 @@ fn mathieu<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, p: T<'h>, q: T<'h>, x: T<'h>) -> 
         };
         let (dep, free): (Vec<T<'h>>, Vec<T<'h>>) = fs.iter().partition(|&&f| !is_free(b, f, x));
         let [f] = dep[..] else { return Ok(None) };
-        let Some(&[arg]) = args_of(b, f, "cos") else { return Ok(None) };
+        // B sin(u) = B cos(u - pi/2)
+        let arg = match (args_of(b, f, "cos"), args_of(b, f, "sin")) {
+            (Some(&[u]), _) => u,
+            (_, Some(&[u])) => b.sub(u, b.mul(&[b.rat(1, 2), b.heap().sym_term(b.heap().sym("pi"))])),
+            _ => return Ok(None),
+        };
         if wave.is_some() {
             return Ok(None);
         }

@@ -568,3 +568,11 @@ keep the value at random points (11 inputs x 3 points, 30 digits), user transfor
 - `full_simplify(e)` without assumptions returns 0 (or true) at once when `function_expand(e)` is 0 (or true): a
   difference of two forms of one special-function expression (beta(a, b) - beta(b, a), a gamma ratio against beta)
   no longer runs the whole search over the gamma forms of its terms.
+
+## Round 41: quarter-period shifts
+
+- The sign move (`Move::Signs`) also writes circular functions at `v + n pi/2` and hyperbolic functions at
+  `v + n i pi/2` as functions of v (`trig::quarter_shift`): `cos(v - pi/2) = sin(v)`, `tan(v + pi/2) = -cot(v)`,
+  `sinh(v + i pi/2) = i cosh(v)`, `sech(v - i pi/2) = i csch(v)`, with tan, cot, tanh, coth reduced modulo their
+  half period (DLMF 4.14, 4.21, 4.28, 4.35). A number times a sum is distributed first (`cos(2 (x/2 - pi/4))`).
+  Valid for every complex v, so it is a move of `simplify`; automatic evaluation leaves the shifted forms alone.

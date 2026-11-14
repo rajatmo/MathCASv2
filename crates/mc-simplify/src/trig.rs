@@ -478,10 +478,83 @@ pub fn odd_even<'h>(cx: &NativeCx<'_, '_, 'h>, b: &B<'h>, node: T<'h>) -> Option
     Some(if odd.contains(&s) { b.neg(f) } else { f })
 }
 
-/// Sines and cosines of sums with the sign convention of [`odd_even`], evaluated.
+/// Sines and cosines of sums with the sign convention of [`odd_even`], shifts by quarter periods reduced
+/// ([`quarter_shift`]), evaluated.
 pub fn normal_signs<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>) -> Res<T<'h>> {
-    let r = rewrite(cx, b, t, &mut |cx, b, node| Ok(odd_even(cx, b, node)))?;
+    let r = rewrite(cx, b, t, &mut |cx, b, node| Ok(quarter_shift(b, node).map(|v| odd_even(cx, b, v).unwrap_or(v)).or_else(|| odd_even(cx, b, node))))?;
     cx.eval(r)
+}
+
+/// The circular functions at `v + n pi/2` and the hyperbolic functions at `v + n i pi/2` (n an integer, v a sum of
+/// the other terms of the argument, not empty) written as a function of v: `sin(v + pi/2) = cos(v)`,
+/// `cos(v + pi/2) = -sin(v)`, `tan(v + pi/2) = -cot(v)` (DLMF 4.14.7-4.14.8 with the addition theorems 4.21.2,
+/// 4.21.3), `sinh(v + i pi/2) = i cosh(v)`, `cosh(v + i pi/2) = i sinh(v)` (DLMF 4.28.8, 4.35.2), and their
+/// reciprocals and repetitions; valid for every complex v. `None` when the argument has no such shift.
+pub fn quarter_shift<'h>(b: &B<'h>, node: T<'h>) -> Option<T<'h>> {
+    let hd = &b.hd;
+    let h = b.heap();
+    let (s, u) = match b.call_of(node) {
+        Some((s, [u])) => (s, *u),
+        _ => return None,
+    };
+    let name = h.sym_name(s);
+    let circular = matches!(name.as_str(), "sin" | "cos" | "tan" | "cot" | "sec" | "csc");
+    let hyperbolic = matches!(name.as_str(), "sinh" | "cosh" | "tanh" | "coth" | "sech" | "csch");
+    if !circular && !hyperbolic {
+        return None;
+    }
+    let pi = h.sym_term(h.sym("pi"));
+    let unit = if circular { pi } else { b.mul(&[b.i(), pi]) };
+    // a number times a sum distributed: `2 (x/2 - pi/4)` is `x - pi/2`
+    let terms = match b.call_of(u) {
+        Some((m, [k, sum])) if m == hd.mul && b.is_number(*k) && b.terms(*sum).len() > 1 => b.terms(*sum).iter().map(|&t| b.mul(&[*k, t])).collect(),
+        _ => b.terms(u),
+    };
+    let n_terms = terms.len();
+    // the sum of the shifts in units of pi/2 (an integer), and the other terms
+    let (mut quarters, mut rest) = (0i64, vec![]);
+    for t in terms {
+        let q = b.mul(&[b.int(2), b.div(t, unit)]);
+        match h.view(q) {
+            View::Int(k) => quarters = quarters.checked_add(k)?,
+            _ => rest.push(t),
+        }
+    }
+    if rest.is_empty() || rest.len() == n_terms {
+        return None;
+    }
+    let v = b.add(&rest);
+    // tan, cot, tanh, coth have the half period
+    let half = matches!(name.as_str(), "tan" | "cot" | "tanh" | "coth");
+    let n = quarters.rem_euclid(if half { 2 } else { 4 });
+    let f = |name: &str| b.call_named(name, &[v]);
+    let signed = |k: i64, t: T<'h>| if k == 1 { t } else { b.mul(&[b.int(k), t]) };
+    // (the symbol `im`, made the canonical unit by the evaluation that follows)
+    let i_times = |k: i64, t: T<'h>| b.mul(&[b.int(k), h.sym_term(h.sym("im")), t]);
+    Some(match (name.as_str(), n) {
+        (_, 0) => f(&name),
+        ("sin", 1) | ("sec", 3) => signed(1, if name == "sin" { b.call(hd.cos, &[v]) } else { b.call(hd.csc, &[v]) }),
+        ("sin", 2) | ("cos", 2) | ("sec", 2) | ("csc", 2) | ("sinh", 2) | ("cosh", 2) | ("sech", 2) | ("csch", 2) => signed(-1, f(&name)),
+        ("sin", 3) => signed(-1, b.call(hd.cos, &[v])),
+        ("cos", 1) => signed(-1, b.call(hd.sin, &[v])),
+        ("cos", 3) => b.call(hd.sin, &[v]),
+        ("tan", _) => signed(-1, b.call(hd.cot, &[v])),
+        ("cot", _) => signed(-1, b.call(hd.tan, &[v])),
+        ("sec", 1) => signed(-1, b.call(hd.csc, &[v])),
+        ("csc", 1) => b.call(hd.sec, &[v]),
+        ("csc", 3) => signed(-1, b.call(hd.sec, &[v])),
+        ("sinh", 1) => i_times(1, b.call(hd.cosh, &[v])),
+        ("sinh", 3) => i_times(-1, b.call(hd.cosh, &[v])),
+        ("cosh", 1) => i_times(1, b.call(hd.sinh, &[v])),
+        ("cosh", 3) => i_times(-1, b.call(hd.sinh, &[v])),
+        ("tanh", _) => f("coth"),
+        ("coth", _) => b.call(hd.tanh, &[v]),
+        ("sech", 1) => i_times(-1, f("csch")),
+        ("sech", 3) => i_times(1, f("csch")),
+        ("csch", 1) => i_times(-1, f("sech")),
+        ("csch", 3) => i_times(1, f("sech")),
+        _ => return None,
+    })
 }
 
 /// Products of exponentials as one exponential: `exp(a)^k exp(b) = exp(k a + b)` (valid for all values, so

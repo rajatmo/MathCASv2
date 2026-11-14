@@ -63,7 +63,7 @@ fn unknowns<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, t: T<'h>) -> Vec<T<'h>> {
     while let Some(u) = stack.pop() {
         match h.view(u) {
             View::Sym(s) => {
-                if !c.cx.protected(s) && !out.contains(&u) {
+                if !c.cx.protected(s) && !out.contains(&u) && !constant(c, u) {
                     out.push(u);
                 }
             }
@@ -83,6 +83,12 @@ fn unknowns<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, t: T<'h>) -> Vec<T<'h>> {
         }
     }
     out
+}
+
+/// Is the symbol `u` a mathematical constant (`pi`, `e`, `euler_gamma`: it has a numeric value)? A random value
+/// for it would compare `cos(x - pi/2)` with `sin(x)` at a wrong pi.
+fn constant<'h>(c: &mut Cx<'_, '_, '_, '_, 'h>, u: T<'h>) -> bool {
+    c.ev("n", &[u]).is_ok_and(|v| c.b.ar.num(v).is_some())
 }
 
 /// The residual at three random points.

@@ -350,3 +350,30 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   The roots come once each, in increasing order (the general path listed a multiple root 0 several times).
 - Gap seen: `reduce(x^2 + y == 0, x, rationals)` and the integers give `false` for a parameter y (the radical roots
   are dropped as not rational, although they are for some y); not changed here.
+
+## Round 41: free parameters over the integers and rationals, step functions on unbounded lines
+
+- `solve(eqs, x, integers | rationals)` kept a value only when its membership (and each condition) was decided
+  true, so `x^2 + y == 0` over the rationals had no solution for a free y and `reduce` answered `false`. A
+  membership or condition that stays undecided because the value has free parameters is now a condition on them:
+  `[x -> conditional_expression(v, element(v, rationals))]`, and `reduce` writes it `element(v, rationals) and
+  x == v` (`rules_as_condition` unwraps conditional values; a condition common to every solution, the
+  `element(c(1), integers)` of a family, is written once: `element(c(1), integers) and (x == pi/6 + 2 pi c(1) or
+  x == 5 pi/6 + 2 pi c(1))`). Without free parameters an undecided membership still
+  drops the value. Swept: 14 conditions over integers, rationals, primes, algebraics with `reduce`, `solve`,
+  `find_instance`, `exists`, `for_all`: of 64 answers `false` or `[]`, 59 were wrong (reduce and solve over the
+  integers and rationals, reduce over the primes) and are now conditions (over the primes a failure); the 5 left
+  are right (`x^2 == 2` has no rational root). `find_instance`, `exists` and `for_all` stayed unevaluated before
+  and after.
+- `reduce_steps.rs`: `round` (halves to the even neighbour: the ends of [k - 1/2, k + 1/2] only for even k), the
+  integers as a domain, and conditions without both bounds. Unbounded: each step value is its argument minus an
+  error in a closed box; quantifier elimination of the errors gives where the condition may hold (S) and may fail
+  (S'); outside S' it holds, so with S and S' bounded only an interval around it needs the bounded algorithm
+  (`floor(x) + floor(2 x - 1) == 0` is `1/2 <= x < 1`, `floor(x) > 0` is `1 <= x`). Otherwise, with affine step
+  arguments of rational slopes, the period T (lcm of 1/|a|; 2/|a| for round; none for integer_part, which rounds
+  towards 0) is checked symbolically (each relation unchanged by x -> x + T with the step values moved by a T) and
+  the answer on [0, T) is shifted by T c(1): `mod(x, 2) == 1` is `element(c(1), integers) and x == 1 + 2 c(1)`,
+  `[mod(x, 3) == 1, mod(x, 5) == 2]` over the integers `x == 7 + 15 c(1)`. Over the integers the points of a
+  period or of the bounded interval are tried one by one (at most 20000); at most 3 step functions become error
+  variables of the quantifier elimination. Left: `fractional_part` on an unbounded
+  line (integer_part is not periodic), `quotient(a, m)` with m depending on x, nested step functions.

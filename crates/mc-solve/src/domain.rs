@@ -322,6 +322,14 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
     let mut decider: Option<mc_decide::Decider<'h>> = None;
     'sol: for s in sols {
         cx.tick(1)?;
+        // over the integers and rationals, a membership or condition that stays undecided only because the value
+        // has free parameters (`element(sqrt(-y), rationals)`): a condition on the parameters kept with the solution
+        let mut pending: Vec<T<'h>> = vec![];
+        let with_params = |t: T<'h>| {
+            let mut ps = vec![];
+            symbols(h, t, &vars, &mut ps);
+            !ps.is_empty()
+        };
         // the values in the domain
         if dom != "complexes" {
             for &rule in cx.as_list(s).unwrap_or(&[]) {
@@ -343,8 +351,14 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                     }
                 }
                 let e = cx.eval(h.call(h.sym("element"), &[v, h.sym_term(h.sym(&dom))]))?;
-                if cx.is_false(e) || strict && !cx.is_true(e) {
+                if cx.is_false(e) {
                     continue 'sol;
+                }
+                if strict && !cx.is_true(e) {
+                    if !with_params(v) {
+                        continue 'sol;
+                    }
+                    pending.push(e);
                 }
             }
         }
@@ -381,8 +395,14 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
                     truth = if cx.is_true(r) { Some(true) } else if cx.is_false(r) { Some(false) } else { None };
                 }
             }
-            if truth == Some(false) || strict && truth != Some(true) {
+            if truth == Some(false) {
                 continue 'sol;
+            }
+            if strict && truth != Some(true) {
+                if !with_params(v) {
+                    continue 'sol;
+                }
+                pending.push(v);
             }
         }
         if radical && spurious(cx, &equations, &vars, s)? {
@@ -397,6 +417,21 @@ pub fn solve<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T<
             }
         } else {
             s
+        };
+        let s = if pending.is_empty() {
+            s
+        } else {
+            let c = if pending.len() == 1 { pending[0] } else { h.call(h.sym("and"), &pending) };
+            let rules: Vec<T<'h>> = cx
+                .as_list(s)
+                .unwrap_or(&[])
+                .iter()
+                .map(|&r| match h.view(r) {
+                    View::App { head, args: &[x, v] } => h.app(head, &[x, h.call(h.sym(mc_decide::CONDITIONAL), &[v, c])]),
+                    _ => r,
+                })
+                .collect();
+            cx.eval(cx.list(&rules))?
         };
         kept.push(s);
     }
@@ -1386,17 +1421,42 @@ fn signed_domain(name: &str) -> Option<(&'static str, &'static str)> {
 fn rules_as_condition<'h>(cx: &mut NativeCx<'_, '_, 'h>, sols: T<'h>) -> Option<T<'h>> {
     let h = cx.heap();
     let items = cx.as_list(sols)?;
+    let conj = |v: &[T<'h>]| if v.len() == 1 { v[0] } else { h.call(h.sym("and"), v) };
     let mut ors = vec![];
+    let mut conds_of = vec![];
     for &s in items {
         let rules = cx.as_list(s)?;
-        let eqs: Vec<T<'h>> = rules
-            .iter()
-            .filter_map(|&r| match h.view(r) {
-                View::App { args: &[a, b], .. } => Some(h.call(h.sym("equal"), &[a, b])),
-                _ => None,
-            })
-            .collect();
-        ors.push(if eqs.len() == 1 { eqs[0] } else { h.call(h.sym("and"), &eqs) });
+        // a conditional value `x -> conditional_expression(v, c)` is `c and x == v`
+        let mut conds: Vec<T<'h>> = vec![];
+        let mut eqs: Vec<T<'h>> = vec![];
+        for &r in rules {
+            let View::App { args: &[a, b], .. } = h.view(r) else { continue };
+            match h.view(b) {
+                View::App { head, args: &[v, c] } if head == h.sym_term(h.sym(mc_decide::CONDITIONAL)) => {
+                    if !conds.contains(&c) {
+                        conds.push(c);
+                    }
+                    eqs.push(h.call(h.sym("equal"), &[a, v]));
+                }
+                _ => eqs.push(h.call(h.sym("equal"), &[a, b])),
+            }
+        }
+        ors.push(conj(&eqs));
+        conds_of.push(conds);
+    }
+    // the same conditions on every solution (`element(c(1), integers)` of a family): once, before the disjunction
+    let common = conds_of.first().is_some_and(|c| !c.is_empty()) && conds_of.iter().all(|c| *c == conds_of[0]);
+    if common && ors.len() > 1 {
+        let mut all = conds_of[0].clone();
+        all.push(h.call(h.sym("or"), &ors));
+        return Some(h.call(h.sym("and"), &all));
+    }
+    for (o, c) in ors.iter_mut().zip(&conds_of) {
+        if !c.is_empty() {
+            let mut all = c.clone();
+            all.push(*o);
+            *o = conj(&all);
+        }
     }
     Some(match ors.len() {
         0 => cx.bool(false),
