@@ -845,3 +845,36 @@ Source in `lib/lists.mc`.
   nothing fixes (no `dot` with a list) while `indexed(x, [k])`, k > 1, is used stay unevaluated (`lo_dim_known` in
   `lib/prelude.mc`): the default length 1 left `indexed([v1], [2])` in the problem and the solver ran past the
   cell limit.
+
+## Round 41: bins of points, groupings with heads as options
+
+- `bin_counts(pts, s1, ..., sd)` and `bin_lists(pts, s1, ..., sd)` (lib/prelude.mc): points of d coordinates in the
+  cells of a grid, one bin specification per coordinate (width, `[a, b, dx]`, `[a, b]`, `[[edges]]`), an array of
+  depth d, the first coordinate outermost; points with a coordinate that is not real, or outside the bins, are left
+  out. A width w gives the bins from the one whose upper edge is the least multiple of w at or above the smallest
+  coordinate (a smallest coordinate on an edge has an empty bin below it) to the bin holding the largest. The cells
+  are counted through a flat index (one pass over the points, then one lookup per cell).
+- With one argument: unit bins (`bin_counts(xs)` = `bin_counts(xs, 1)`; quantities in one unit of the first datum;
+  points in unit cells). An array of more cells than the session's memory allows ends as the memory failure.
+- `groupings`: a head written as an option (`circle_times: 2`, `construct: 3`) is the rule; a third argument wraps
+  each tree (`quote` keeps them unevaluated). Trees with equal numbers of calls are ordered by the heads they use
+  (ascending head indices compared as lists) before the root head: with `[add -> 2, mul -> 2]` the trees of only
+  additions come first, then those with one multiplication, and so on. Gap: within one multiset of heads the order
+  of the parts' shapes is not always the one of the documented examples (seven leaves: one block of eight trees
+  sits 80 places early); the counts and the trees are right.
+
+## Round 41: further digests
+
+- `hash` takes MD2 (RFC 1319), MD4 (RFC 1320), RIPEMD-160 (Dobbertin, Bosselaers, Preneel 1996), SHA-3 and the
+  original Keccak padding (FIPS 202; the round constants and rotation offsets generated as the standard defines
+  them), BLAKE2b and BLAKE2s of any whole number of bytes (RFC 7693: the length is in the parameter block, so a
+  shorter digest is another hash), BLAKE2Xb and BLAKE2Xs (the 2016 BLAKE2X note: a root hash carrying the output
+  length, then one hash of the root per 64 or 32 bytes with the block index as node offset), and the compositions
+  "SHA256SHA256" and "RIPEMD160SHA256" (module `digests`). Checked against the published vectors of each
+  specification; BLAKE2Xs against an independent 2400-bit output.
+- A byte array is hashed by its bytes (it was its printed form). Formats "Base36String", "Base64Encoding",
+  "ByteArray" join "Integer", "HexString", "DecimalString", "ByteList".
+- `length(byte_array(bytes))` is the number of bytes; `normal(byte_array(bytes))` the list (mc-linalg's `normal`
+  wrapper).
+- Other terms are still hashed through their printed form: digests of expressions are MathCAS's own and differ
+  from those of other systems (strings and byte arrays agree).

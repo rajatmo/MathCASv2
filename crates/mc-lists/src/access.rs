@@ -20,6 +20,14 @@ pub(crate) fn length<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a
     if crate::measure::is_complex_number(h, x) {
         return Ok(Reply::Done(h.int(0)));
     }
+    // a byte array: the number of its bytes
+    if let View::App { head, args: &[l] } = h.view(x) {
+        if head == h.sym_term(h.sym("byte_array")) {
+            if let Some(bytes) = cx.as_list(l) {
+                return Ok(Reply::Done(h.int(bytes.len() as i64)));
+            }
+        }
+    }
     Ok(Reply::Done(h.int(compound(h, x).map_or(0, |(_, a)| a.len()) as i64)))
 }
 

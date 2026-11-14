@@ -86,6 +86,54 @@ pub fn local(xs: &[f64], ys: &[f64], k: usize, x: f64, d: u32) -> Option<f64> {
     Some(dv[d] * fact)
 }
 
+/// The `d`-th derivative at `x` of the piecewise Hermite interpolant: on each interval [x_i, x_{i+1}] the polynomial
+/// of degree 2m - 1 that takes the values `ys` and the derivatives `ds[i][0..m-1]` (orders 1 to m - 1) at both ends,
+/// m - 1 being the fewest derivatives the two nodes have (m = 2: the cubic Hermite interpolant). It is built in
+/// Newton form on the nodes x_i, x_{i+1} each repeated m times, the divided differences on a repeated node being
+/// f^(k)(x_i)/k! (confluent divided differences: Burden and Faires, "Numerical Analysis", section 3.4; de Boor, "A
+/// Practical Guide to Splines", chapter I). The interpolant has m - 1 continuous derivatives. `None` when `x` is not
+/// finite or lies outside the table, or the data do not fit.
+pub fn hermite(xs: &[f64], ys: &[f64], ds: &[Vec<f64>], x: f64, d: u32) -> Option<f64> {
+    let n = xs.len();
+    if n < 2 || ys.len() != n || ds.len() != n || !x.is_finite() || !(xs[0]..=xs[n - 1]).contains(&x) {
+        return None;
+    }
+    let i = xs.partition_point(|&a| a <= x).clamp(1, n - 1) - 1;
+    let m = 1 + ds[i].len().min(ds[i + 1].len());
+    // the nodes with multiplicity and the derivatives f^(k)/k! at each
+    let z: Vec<f64> = (0..2 * m).map(|j| if j < m { xs[i] } else { xs[i + 1] }).collect();
+    let taylor = |node: usize, k: usize| -> f64 {
+        let fact: f64 = (1..=k).map(|v| v as f64).product();
+        if k == 0 {
+            ys[node]
+        } else {
+            ds[node][k - 1] / fact
+        }
+    };
+    // the divided difference table, column by column, in place: c[j] = f[z_{j-k}, ..., z_j]
+    let mut c: Vec<f64> = (0..2 * m).map(|j| if j < m { ys[i] } else { ys[i + 1] }).collect();
+    for k in 1..2 * m {
+        for j in (k..2 * m).rev() {
+            c[j] = if z[j] == z[j - k] {
+                taylor(if j < m { i } else { i + 1 }, k)
+            } else {
+                (c[j] - c[j - 1]) / (z[j] - z[j - k])
+            };
+        }
+    }
+    // nested multiplication carrying the derivatives, as in `local`
+    let d = d as usize;
+    let mut dv = vec![0.0; d + 1];
+    for j in (0..2 * m).rev() {
+        for q in (1..=d).rev() {
+            dv[q] = dv[q] * (x - z[j]) + dv[q - 1];
+        }
+        dv[0] = dv[0] * (x - z[j]) + c[j];
+    }
+    let fact: f64 = (1..=d).map(|v| v as f64).product();
+    Some(dv[d] * fact)
+}
+
 impl Spline {
     /// The value at `x` ([`value`]).
     pub fn at(&self, x: f64) -> Option<f64> {
@@ -164,6 +212,28 @@ mod derivative_tests {
         assert_eq!(local(&xs, &ys, 3, -1.0, 0), None);
         // fewer points than the degree: all of them
         assert!((local(&[0.0, 1.0, 2.0], &[0.0, 1.0, 4.0], 5, 1.5, 0).unwrap() - 2.25).abs() < 1e-12);
+    }
+
+    /// The Hermite interpolant reproduces polynomials of degree 2m - 1 from m - 1 derivatives, with its derivatives.
+    #[test]
+    fn hermite_reproduces_polynomials() {
+        let xs = [-1.0, 0.3, 1.0, 2.6];
+        let p = |x: f64| x * x * x - 2.0 * x * x + 0.5;
+        let dp = |x: f64| 3.0 * x * x - 4.0 * x;
+        let ys: Vec<f64> = xs.iter().map(|&x| p(x)).collect();
+        let ds: Vec<Vec<f64>> = xs.iter().map(|&x| vec![dp(x)]).collect();
+        for x in [-0.9, 0.0, 0.5, 2.0, 2.6] {
+            assert!((hermite(&xs, &ys, &ds, x, 0).unwrap() - p(x)).abs() < 1e-12);
+            assert!((hermite(&xs, &ys, &ds, x, 1).unwrap() - dp(x)).abs() < 1e-11);
+        }
+        // quintic from first and second derivatives
+        let q = |x: f64| x.powi(5) - 3.0 * x.powi(3) + x;
+        let ys: Vec<f64> = xs.iter().map(|&x| q(x)).collect();
+        let ds: Vec<Vec<f64>> = xs.iter().map(|&x| vec![5.0 * x.powi(4) - 9.0 * x * x + 1.0, 20.0 * x.powi(3) - 18.0 * x]).collect();
+        for x in [-0.4, 0.7, 1.9] {
+            assert!((hermite(&xs, &ys, &ds, x, 0).unwrap() - q(x)).abs() < 1e-10);
+        }
+        assert_eq!(hermite(&xs, &ys, &ds, 3.0, 0), None);
     }
 
     /// The spline's derivatives agree with differences of its values.

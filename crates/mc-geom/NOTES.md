@@ -154,3 +154,15 @@ functions); `boolean_region`, `polygon_decomposition`, `winding_polygon`, `regio
   folds back, as the figure eight `[r cos x, r sin 2x]`, keeps `abs` and its area is the integral of the size (2,
   where the signed integral was 0).
 - `region_measure(map, [[u, a, b], ...], system)`: the arc length, area or volume of the map, by the number of ranges.
+
+## Round 41: least rectangles, boxes of regions
+
+- `bounding_region(pts, "MinOrientedRectangle")` for plane points: the rectangle of least area, flush with an edge
+  of the convex hull (Freeman and Shapira 1975; every edge tried, as the rotating calipers of Toussaint 1983 do),
+  as `parallelogram(corner, [a, b])` with `a` along the anticlockwise hull edge and `b` along its outward normal,
+  the corner at the least projection on both. The extremes are found numerically, the rectangle built from the
+  exact coordinates (exact points give rationals or radicals). Ties go to the first edge from the hull's first point
+  in input order. Collinear points stay unevaluated.
+- `bounding_region(region, "MinRectangle" | "MinCuboid" | "MinInterval")` of a region other than points (meshes,
+  primitives): the box of `region_bounds`; unbounded regions stay unevaluated.
+- Gap: `"MinOrientedCuboid"` (O'Rourke's algorithm for the least box in space) is not done.

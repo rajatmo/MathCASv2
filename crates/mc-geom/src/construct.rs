@@ -733,6 +733,8 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
         Some(v) => v,
         None => match read(cx, pt) {
             Some(Region::Points(v)) => v,
+            // a region other than points: its box is the one of its bounds
+            Some(_) if matches!(form.as_str(), "MinRectangle" | "MinCuboid" | "MinInterval") => return region_box(cx, pt),
             _ => return Ok(Reply::Decline),
         },
     };
@@ -791,6 +793,7 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
                 Ok(Reply::Done(e.f(head, &[h.reals(&cn), h.real(r2.sqrt())])))
             }
         }
+        "MinOrientedRectangle" if n == 2 => oriented_rectangle(cx, &v, &vn),
         "MinConvexPolygon" if n == 2 => {
             let hull = convex_hull_order(&vn);
             if hull.len() < 3 {
@@ -802,6 +805,106 @@ pub fn bounding_region<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: &[T<'h>]) -> Res<Re
         }
         _ => Ok(Reply::Decline),
     }
+}
+
+/// The box of a bounded region from `region_bounds`: an interval, a rectangle or a cuboid by the dimension.
+fn region_box<'h>(cx: &mut NativeCx<'_, '_, 'h>, reg: T<'h>) -> Res<Reply<'h>> {
+    let e = E { h: cx.heap() };
+    let b = cx.eval(e.f("region_bounds", &[reg]))?;
+    let Some(rows) = cx.as_list(b).map(<[T<'h>]>::to_vec) else { return Ok(Reply::Decline) };
+    let mut lo = Vec::with_capacity(rows.len());
+    let mut hi = Vec::with_capacity(rows.len());
+    for r in rows {
+        let Some(&[a, z]) = cx.as_list(r) else { return Ok(Reply::Decline) };
+        // finite numbers only: an unbounded region has no box
+        if crate::ex::num(cx, a)?.is_none_or(|x| !x.is_finite()) || crate::ex::num(cx, z)?.is_none_or(|x| !x.is_finite()) {
+            return Ok(Reply::Decline);
+        }
+        lo.push(a);
+        hi.push(z);
+    }
+    Ok(Reply::Done(match lo.len() {
+        1 => e.f("interval", &[e.list(&[lo[0], hi[0]])]),
+        2 => e.f("rectangle", &[e.list(&lo), e.list(&hi)]),
+        3 => e.f("cuboid", &[e.list(&lo), e.list(&hi)]),
+        _ => return Ok(Reply::Decline),
+    }))
+}
+
+/// The rectangle of least area holding plane points (`bounding_region(pts, "MinOrientedRectangle")`), as
+/// `parallelogram(corner, [a, b])`.
+///
+/// Freeman and Shapira ("Determining the minimum-area encasing rectangle for an arbitrary closed curve", Comm. ACM
+/// 18, 1975) show that a rectangle of least area has a side on an edge of the convex hull; each hull edge is tried
+/// (the rotating calipers of Toussaint, 1983, visit the same rectangles). For the edge vector u of the hull run
+/// anticlockwise and its outward normal n = (u_y, -u_x), the points project onto [u_min, u_max] along u and
+/// [n_min, n_max] along n; the area is (u_max - u_min)(n_max - n_min)/|u|^2. The corner is the point at u_min and
+/// n_min, `a` runs along u and `b` along n. The extreme points are chosen numerically; the corner and the sides are
+/// then built from the exact coordinates, so exact points give an exact rectangle. Ties take the first edge from the
+/// hull's first point (in input order). Fewer than three hull points (collinear data): no rectangle of positive
+/// area, the call stays.
+fn oriented_rectangle<'h>(cx: &mut NativeCx<'_, '_, 'h>, v: &[Vec<T<'h>>], vn: &[Vec<f64>]) -> Res<Reply<'h>> {
+    let e = E { h: cx.heap() };
+    let hull = convex_hull_order(vn);
+    let m = hull.len();
+    if m < 3 {
+        return Ok(Reply::Decline);
+    }
+    let dot = |a: &[f64], b: &[f64]| a[0] * b[0] + a[1] * b[1];
+    // (area, edge, (i_umin, i_umax, i_nmin, i_nmax))
+    let mut best: Option<(f64, usize, [usize; 4])> = None;
+    for k in 0..m {
+        cx.tick(m as u64)?;
+        let (p, q) = (&vn[hull[k]], &vn[hull[(k + 1) % m]]);
+        let u = [q[0] - p[0], q[1] - p[1]];
+        let nrm = [u[1], -u[0]];
+        let u2 = dot(&u, &u);
+        if u2 == 0.0 {
+            continue;
+        }
+        let ext = |w: &[f64; 2]| {
+            let mut lo = (f64::INFINITY, 0);
+            let mut hi = (f64::NEG_INFINITY, 0);
+            for &i in &hull {
+                let s = dot(w, &vn[i]);
+                if s < lo.0 {
+                    lo = (s, i);
+                }
+                if s > hi.0 {
+                    hi = (s, i);
+                }
+            }
+            (lo, hi)
+        };
+        let (ul, uh) = ext(&u);
+        let (nl, nh) = ext(&nrm);
+        let area = (uh.0 - ul.0) * (nh.0 - nl.0) / u2;
+        if best.as_ref().is_none_or(|b| area < b.0 * (1.0 - 1e-12)) {
+            best = Some((area, k, [ul.1, uh.1, nl.1, nh.1]));
+        }
+    }
+    let Some((_, k, [iu0, iu1, in0, in1])) = best else { return Ok(Reply::Decline) };
+    let (p, q) = (&v[hull[k]], &v[hull[(k + 1) % m]]);
+    let u = e.vsub(q, p);
+    let nrm = vec![u[1], e.neg(u[0])];
+    let u2 = e.norm2(&u);
+    let proj = |w: &[T<'h>], i: usize| e.dot(w, &v[i]);
+    let (u0, u1, n0, n1) = (proj(&u, iu0), proj(&u, iu1), proj(&nrm, in0), proj(&nrm, in1));
+    let corner = e.vadd(&e.scale(e.div(u0, u2), &u), &e.scale(e.div(n0, u2), &nrm));
+    let a = e.scale(e.div(e.sub(u1, u0), u2), &u);
+    let b = e.scale(e.div(e.sub(n1, n0), u2), &nrm);
+    let mut simp = |xs: Vec<T<'h>>| -> Res<T<'h>> {
+        let mut out = Vec::with_capacity(xs.len());
+        for x in xs {
+            let x = cx.eval(x)?;
+            out.push(if crate::ex::inexact(e.h, x) { x } else { cx.eval(e.f("simplify", &[x]))? });
+        }
+        Ok(e.list(&out))
+    };
+    let corner = simp(corner)?;
+    let a = simp(a)?;
+    let b = simp(b)?;
+    Ok(Reply::Done(e.f("parallelogram", &[corner, e.list(&[a, b])])))
 }
 
 // ---- winding and crossing counts

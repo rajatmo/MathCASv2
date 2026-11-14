@@ -230,6 +230,48 @@ fn bin_counts(xs, spec) when is_list(xs) and is_list(spec) and length(spec) == 1
   let vs = select(xs, x => is_real(n(x)))
   map(i => count_if(vs, v => e[i] <= v and v < e[i + 1]), range(length(e) - 1))
 }
+# bin_counts(xs): unit bins [k, k + 1) (quantities: of one unit of the first datum); bin_counts(pts): points [x1, ...,
+# xd] in the unit cells
+fn bin_counts(xs) when is_list(xs) and length(xs) > 0 and head(xs[1]) === quantity = bin_counts(xs, quantity(1, quantity_unit(xs[1])))
+fn bin_counts(pts) when is_matrix(pts) and length(pts[1]) >= 2 = apply(bin_counts, join([pts], constant_array(1, length(pts[1]))))
+fn bin_counts(xs) when is_list(xs) and not is_matrix(xs) = bin_counts(xs, 1)
+
+# bin_counts(pts, s1, ..., sd), bin_lists(pts, s1, ..., sd): the points [x1, ..., xd] of pts in the cells of the grid
+# with the bins s_k in coordinate k (a width, [a, b, dx], [a, b] or [[edges]] as for one coordinate), an array of
+# depth d with the first coordinate outermost; points with a coordinate that is not a real number, or outside the
+# bins, are left out. A width w gives the bins [k w, (k + 1) w) from the one whose upper edge is the least multiple
+# of w at or above the smallest coordinate (so a smallest coordinate on an edge has an empty bin below it) to the
+# bin holding the largest.
+fn nl_bin_edges(vs, w) when is_number(w) and w > 0 = if length(vs) == 0 then [] else {
+  let lo = ceiling(min(vs)/w) - 1
+  let hi = floor(max(vs)/w)
+  map(k => k*w, range(lo, hi + 1))
+}
+fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 3 and is_real(n(s[3])) = map(i => s[1] + i*s[3], range(0, ceiling((s[2] - s[1])/s[3])))
+fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 2 and is_real(n(s[1])) and is_real(n(s[2])) = nl_bin_edges(vs, [s[1], s[2], 1])
+fn nl_bin_edges(vs, s) when is_list(s) and length(s) == 1 and is_list(s[1]) = s[1]
+# the bin of v among the edges e: its position, 0 outside them
+fn nl_bin_slot(e, v) = { let i = count_if(e, a => a <= v); if i >= 1 and i < length(e) then i else 0 }
+# [the number of bins per coordinate, [[flat cell index, point], ...]] for the points inside the grid
+fn nl_bin_cells(pts, specs) = {
+  let d = length(specs)
+  let ok = select(pts, p => is_list(p) and length(p) == d and every(p, x => is_real(n(x))))
+  let edges = map(k => nl_bin_edges(map(p => p[k], ok), specs[k]), range(d))
+  if not every(edges, is_list) then failure(argument, bin_counts, 2) else {
+    let dims = map(e => max(length(e) - 1, 0), edges)
+    let cells = map(p => [map(k => nl_bin_slot(edges[k], p[k]), range(d)), p], ok)
+    let inside = select(cells, c => every(c[1], s => s > 0))
+    [dims, map(c => [1 + sum(map(k => (c[1][k] - 1)*product(drop(dims, k)), range(d))), c[2]], inside)]
+  }
+}
+fn nl_bin_grid(dims, flat) = fold((acc, d) => partition(acc, d), flat, reverse(rest(dims)))
+fn bin_counts(pts, s1, s2, rest...) when is_list(pts) = {
+  let c = nl_bin_cells(pts, join([s1, s2], rest))
+  if head(c) === failure then c else {
+    let t = counts(map(first, c[2]))
+    nl_bin_grid(c[1], map(i => lookup(t, i, 0), range(product(c[1]))))
+  }
+}
 
 # distribute(e), distribute(e, g): e = f(..., g(a, b), ...) spread over the arguments of g (add by default):
 # g(f(..., a, ...), f(..., b, ...)), every combination, the first argument varying slowest; distribute(e, g, f):
@@ -545,6 +587,16 @@ fn nl_bin_index(xs, spec) when is_list(spec) and length(spec) == 1 and is_list(s
   let ix = select(range(length(xs)), i => is_real(n(xs[i])))
   map(j => select(ix, i => e[j] <= xs[i] and xs[i] < e[j + 1]), range(length(e) - 1))
 }
+fn bin_lists(pts, s1, s2, rest...) when is_list(pts) = {
+  let c = nl_bin_cells(pts, join([s1, s2], rest))
+  if head(c) === failure then c else {
+    let t = group_by(c[2], first)
+    nl_bin_grid(c[1], map(i => map(last, lookup(t, i, [])), range(product(c[1]))))
+  }
+}
+fn bin_lists(xs) when is_list(xs) and length(xs) > 0 and head(xs[1]) === quantity = bin_lists(xs, quantity(1, quantity_unit(xs[1])))
+fn bin_lists(pts) when is_matrix(pts) and length(pts[1]) >= 2 = apply(bin_lists, join([pts], constant_array(1, length(pts[1]))))
+fn bin_lists(xs) when is_list(xs) and not is_matrix(xs) = bin_lists(xs, 1)
 fn bin_lists(r, spec) when match_q(r, _ -> _) and is_list(r[1]) = {
   let labels = if r[2] === automatic then range(length(r[1])) else r[2]
   map(ix => map(i => labels[i], ix), nl_bin_index(r[1], spec))

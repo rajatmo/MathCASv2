@@ -54,6 +54,7 @@ mod combinat;
 mod construct;
 mod ctx;
 mod group;
+mod digests;
 mod groupings;
 mod hash;
 mod levels;

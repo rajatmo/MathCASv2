@@ -153,3 +153,18 @@ import as a dataset 312 ms (as lists of rows: 935 ms), aggregate by a 20-value k
   `std_dev` per channel over all pixels (one number for a gray image); `color_negate`, `darker`, `lighter` on the
   colour channels (an alpha channel kept); `color_convert(img, "RGB" | "Grayscale")` (gray to RGB by copying, RGB
   to gray by the ITU-R BT.601 luma weights 0.299, 0.587, 0.114); other conversions fail with `unsupported`.
+
+## Round 41: interpolation with derivative data
+
+- Items `[x, f, f', ..., f^(m-1)]` (x a number or `[x]`) give the piecewise Hermite interpolant
+  `interpolated(xs, ys, hermite(ds))`: on each interval the polynomial of degree 2m - 1 matching the values and the
+  m - 1 derivatives at both ends, in Newton form on the doubled nodes with confluent divided differences
+  (`mc_numeric::spline::hermite`; Burden and Faires, "Numerical Analysis", section 3.4). It reproduces polynomials
+  of degree 2m - 1 exactly; `derivative(n)(...)` evaluates its derivatives as for the spline.
+- Items `[[x, y], f, [f_x, f_y]]` (and with the Hessian `[[f_xx, f_xy], [f_yx, f_yy]]`) on a full grid: along each
+  grid line the y-derivatives of order 0, 1 (and 2) are interpolated in x (Hermite where their x-derivatives are
+  given: f_x and f_xx for the values, f_xy for f_y; the not-a-knot spline otherwise), and at a point these are
+  interpolated in y by the Hermite scheme (the tensor-product construction of the bicubic Hermite patch, de Boor
+  1962). Every given value and derivative is taken at the nodes; polynomials of degree 3 in each variable are
+  reproduced from values and gradients.
+- Compiled code does not take the Hermite form (no registered evaluation): such calls stay interpreted.

@@ -2,7 +2,9 @@
 //! callable value `interpolated(xs, ys, ms)` (ms: the second derivatives at the nodes; all zero for linear);
 //! `interpolation(data, interpolation_order: k)`: the local polynomial of degree k through the k + 1 nearest nodes,
 //! `interpolated(xs, ys, k)` (decision io-num.13). A fourth argument is a derivative order: `interpolated(xs, ys, ms,
-//! d)` is the d-th derivative (mc-calculus turns `derivative(d)(interpolated(...))` into it).
+//! d)` is the d-th derivative (mc-calculus turns `derivative(d)(interpolated(...))` into it). Data with derivatives
+//! (`[x, f, f', ...]`, `[[x, y], f, gradient(, hessian)]`) give Hermite interpolants, `interpolated(xs, ys,
+//! hermite(ds))` (see `hermite_data`).
 use crate::failure;
 use mc_api::names;
 use mc_core::{Store, View, T};
@@ -57,6 +59,14 @@ fn reals<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
     Ok(Some(v))
 }
 
+/// [`reals`] of a list or of a packed array of reals.
+fn real_vec<'h>(cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>) -> Res<Option<Vec<f64>>> {
+    if let Some(d) = cx.heap().packed(t).and_then(|p| p.reals()) {
+        return Ok(Some(d.to_vec()));
+    }
+    reals(cx, t)
+}
+
 fn bad<'h>(h: &'h mc_core::Heap, k: i64) -> Reply<'h> {
     Reply::Done(failure(
         h,
@@ -79,6 +89,11 @@ impl Native for Interpolation {
         let Some(items) = cx.as_list(data) else {
             return Ok(bad(h, 1));
         };
+        if args.len() == 1 {
+            if let Some(r) = hermite_data(cx, items)? {
+                return Ok(r);
+            }
+        }
         if let Some(r) = several(cx, items, scheme, args.get(1).copied())? {
             return Ok(r);
         }
@@ -206,6 +221,152 @@ fn several<'h>(cx: &mut NativeCx<'_, '_, 'h>, items: &[T<'h>], scheme: Scheme, o
     let params: Vec<T<'h>> = (1..=dim).map(slot).collect();
     let body = if vector { cx.list(&comps) } else { comps[0] };
     Ok(Some(Reply::Done(h.call(h.sym("fn"), &[cx.list(&params), body]))))
+}
+
+/// Data with derivatives (Hermite interpolation): items `[x, f, f', f'', ...]` (x a number or `[x]`) give the
+/// piecewise Hermite interpolant `interpolated(xs, ys, hermite(ds))`, ds the derivatives at each node
+/// (`mc_numeric::spline::hermite`: on each interval the polynomial of degree 2m - 1 matching the m - 1 derivatives at
+/// both ends). Items `[[x, y], f, [f_x, f_y]]` or `[[x, y], f, [f_x, f_y], [[f_xx, f_xy], [f_yx, f_yy]]]` on a full grid
+/// give a function of two coordinates, Hermite in both directions (the tensor-product construction of the Hermite
+/// bicubic patch: de Boor, "Bicubic spline interpolation", J. Math. Phys. 41, 1962; Burden and Faires, "Numerical
+/// Analysis", section 3.4): along each grid line y = y_j the y-derivatives of order k = 0, 1 (and 2 with the Hessian)
+/// are interpolated in x, Hermite where their x-derivatives are given (f_x, f_xx for k = 0, f_xy for k = 1) and by the
+/// cubic spline otherwise; at a point (x, y) these give the values and y-derivatives at each y_j, interpolated in y by
+/// the one-variable Hermite scheme. The result takes every given value and derivative at the nodes. `None` when the
+/// items are not of these forms (the data then go to the other schemes).
+fn hermite_data<'h>(cx: &mut NativeCx<'_, '_, 'h>, items: &[T<'h>]) -> Res<Option<Reply<'h>>> {
+    let h = cx.heap();
+    let Some(first) = items.first().and_then(|&f| cx.as_list(f)) else { return Ok(None) };
+    if first.len() < 3 {
+        return Ok(None);
+    }
+    let dim = cx.as_list(first[0]).map_or(1, <[T<'h>]>::len);
+    let two = dim == 2 && (3..=4).contains(&first.len());
+    if dim != 1 && !two {
+        return Ok(None);
+    }
+    // a value that may become a number (an inner interpolant at a symbolic point): built later
+    if items.iter().any(|&it| cx.as_list(it).is_some_and(|parts| parts[1..].iter().any(|&p| symbolic_value(h, p)))) {
+        return Ok(Some(Reply::Decline));
+    }
+    if dim == 1 {
+        let mut rows: Vec<(f64, f64, Vec<f64>)> = Vec::with_capacity(items.len());
+        for &it in items {
+            let Some(parts) = cx.as_list(it).filter(|p| p.len() == first.len()) else { return Ok(Some(bad(h, 1))) };
+            let x = match cx.as_list(parts[0]) {
+                Some(&[x]) => real(cx, x)?,
+                Some(_) => None,
+                None => real(cx, parts[0])?,
+            };
+            let mut vals = Vec::with_capacity(parts.len() - 1);
+            for &p in &parts[1..] {
+                match real(cx, p)? {
+                    Some(v) => vals.push(v),
+                    None => return Ok(Some(bad(h, 1))),
+                }
+            }
+            let Some(x) = x else { return Ok(Some(bad(h, 1))) };
+            let f = vals.remove(0);
+            rows.push((x, f, vals));
+        }
+        rows.sort_by(|a, b| a.0.total_cmp(&b.0));
+        if rows.len() < 2 || rows.windows(2).any(|w| w[0].0 == w[1].0) {
+            return Ok(Some(bad(h, 1)));
+        }
+        let xs: Vec<f64> = rows.iter().map(|r| r.0).collect();
+        let ys: Vec<f64> = rows.iter().map(|r| r.1).collect();
+        let ds: Vec<Vec<f64>> = rows.into_iter().map(|r| r.2).collect();
+        return Ok(Some(Reply::Done(hermite_term(h, &xs, &ys, &ds))));
+    }
+    // two coordinates: [[x, y], f, [fx, fy]] and optionally [[fxx, fxy], [fyx, fyy]]
+    struct Node {
+        x: f64,
+        y: f64,
+        f: f64,
+        g: [f64; 2],
+        hess: Option<[f64; 3]>,
+    }
+    let mut nodes = Vec::with_capacity(items.len());
+    for &it in items {
+        let Some(parts) = cx.as_list(it).filter(|p| p.len() == first.len()) else { return Ok(Some(bad(h, 1))) };
+        let (Some(c), Some(f), Some(g)) = (reals(cx, parts[0])?, real(cx, parts[1])?, reals(cx, parts[2])?) else {
+            return Ok(Some(bad(h, 1)));
+        };
+        if c.len() != 2 || g.len() != 2 {
+            return Ok(Some(bad(h, 1)));
+        }
+        let hess = match parts.get(3) {
+            None => None,
+            Some(&m) => {
+                let rows: Option<Vec<T<'h>>> = cx.as_list(m).map(<[T<'h>]>::to_vec);
+                let Some(rows) = rows.filter(|r| r.len() == 2) else { return Ok(Some(bad(h, 1))) };
+                let (Some(r0), Some(r1)) = (reals(cx, rows[0])?, reals(cx, rows[1])?) else { return Ok(Some(bad(h, 1))) };
+                if r0.len() != 2 || r1.len() != 2 {
+                    return Ok(Some(bad(h, 1)));
+                }
+                Some([r0[0], r0[1], r1[1]])
+            }
+        };
+        nodes.push(Node { x: c[0], y: c[1], f, g: [g[0], g[1]], hess });
+    }
+    let mut xs: Vec<f64> = nodes.iter().map(|n| n.x).collect();
+    let mut ys: Vec<f64> = nodes.iter().map(|n| n.y).collect();
+    for v in [&mut xs, &mut ys] {
+        v.sort_by(f64::total_cmp);
+        v.dedup();
+    }
+    if xs.len() * ys.len() != nodes.len() || xs.len() < 2 || ys.len() < 2 {
+        return Ok(Some(bad(h, 1)));
+    }
+    let mut grid: Vec<Option<usize>> = vec![None; nodes.len()];
+    for (k, nd) in nodes.iter().enumerate() {
+        let cell = &mut grid[ys.partition_point(|&y| y < nd.y) * xs.len() + xs.partition_point(|&x| x < nd.x)];
+        if cell.is_some() {
+            return Ok(Some(bad(h, 1)));
+        }
+        *cell = Some(k);
+    }
+    let at = |iy: usize, ix: usize| &nodes[grid[iy * xs.len() + ix].expect("a full grid")];
+    let with_hessian = nodes[0].hess.is_some();
+    let slot = |i: usize| h.sym_term(h.sym(&format!("&{i}")));
+    let mut lines = Vec::with_capacity(ys.len());
+    for (iy, &y) in ys.iter().enumerate() {
+        let row: Vec<&Node> = (0..xs.len()).map(|ix| at(iy, ix)).collect();
+        let fv: Vec<f64> = row.iter().map(|n| n.f).collect();
+        let fd: Vec<Vec<f64>> = row.iter().map(|n| match n.hess {
+            Some(m) => vec![n.g[0], m[0]],
+            None => vec![n.g[0]],
+        }).collect();
+        let gv: Vec<f64> = row.iter().map(|n| n.g[1]).collect();
+        let mut item = vec![h.real(y), h.app(hermite_term(h, &xs, &fv, &fd), &[slot(1)])];
+        let along = |vals: Vec<f64>, ds: Option<Vec<Vec<f64>>>| -> Option<T<'h>> {
+            match ds {
+                Some(ds) => Some(hermite_term(h, &xs, &vals, &ds)),
+                None => one(h, xs.iter().copied().zip(vals).collect(), Scheme::Spline),
+            }
+        };
+        let gd = with_hessian.then(|| row.iter().map(|n| vec![n.hess.map_or(0.0, |m| m[1])]).collect());
+        let Some(g) = along(gv, gd) else { return Ok(Some(bad(h, 1))) };
+        item.push(h.app(g, &[slot(1)]));
+        if with_hessian {
+            let hv: Vec<f64> = row.iter().map(|n| n.hess.map_or(0.0, |m| m[2])).collect();
+            let Some(hh) = along(hv, None) else { return Ok(Some(bad(h, 1))) };
+            item.push(h.app(hh, &[slot(1)]));
+        }
+        lines.push(cx.list(&item));
+    }
+    if nodes.iter().any(|n| n.hess.is_some() != with_hessian) {
+        return Ok(Some(bad(h, 1)));
+    }
+    let inner = h.app(h.call(h.sym("interpolation"), &[cx.list(&lines)]), &[slot(2)]);
+    Ok(Some(Reply::Done(h.call(h.sym("fn"), &[cx.list(&[slot(1), slot(2)]), inner]))))
+}
+
+/// `interpolated(xs, ys, hermite([[d1, ...], ...]))`: the Hermite interpolant with the derivatives at each node.
+fn hermite_term<'h>(h: &'h mc_core::Heap, xs: &[f64], ys: &[f64], ds: &[Vec<f64>]) -> T<'h> {
+    let rows: Vec<T<'h>> = ds.iter().map(|d| h.reals(d)).collect();
+    let list = h.call(h.sym(names::LIST), &rows);
+    h.call(h.sym("interpolated"), &[h.reals(xs), h.reals(ys), h.call(h.sym("hermite"), &[list])])
 }
 
 /// The interpolation scheme.
@@ -337,6 +498,43 @@ impl Native for Interpolated {
         let &[x] = args else {
             return Ok(Reply::Decline);
         };
+        // the Hermite scheme: `hermite([[d1, ...], ...])`, the derivatives at each node
+        if let View::App { head: hh, args: &[ds] } = h.view(mt) {
+            if hh != h.sym_term(h.sym("hermite")) {
+                return Ok(Reply::Decline);
+            }
+            let (Some(xs), Some(ys)) = (real_vec(cx, xt)?, real_vec(cx, yt)?) else { return Ok(Reply::Decline) };
+            let Some(rows) = cx.as_list(ds).map(<[T<'h>]>::to_vec) else { return Ok(Reply::Decline) };
+            let mut dv = Vec::with_capacity(rows.len());
+            for r in rows {
+                match real_vec(cx, r)? {
+                    Some(v) => dv.push(v),
+                    None => return Ok(Reply::Decline),
+                }
+            }
+            if xs.len() < 2 || ys.len() != xs.len() || dv.len() != xs.len() {
+                return Ok(Reply::Decline);
+            }
+            let at = |cx: &mut NativeCx<'_, '_, 'h>, p: T<'h>| -> Res<Option<T<'h>>> {
+                let Some(xv) = real(cx, p)? else { return Ok(None) };
+                if !(xs[0]..=xs[xs.len() - 1]).contains(&xv) {
+                    let dom = h.call(h.sym(names::LIST), &[h.real(xs[0]), h.real(xs[xs.len() - 1])]);
+                    return Ok(Some(failure(h, "out_of_range", &[p, dom])));
+                }
+                Ok(mc_numeric::spline::hermite(&xs, &ys, &dv, xv, order).map(|v| h.real(v)))
+            };
+            if let Some(pts) = cx.as_list(x).map(<[T<'h>]>::to_vec) {
+                let mut out = Vec::with_capacity(pts.len());
+                for p in pts {
+                    match at(cx, p)? {
+                        Some(v) => out.push(v),
+                        None => return Ok(Reply::Decline),
+                    }
+                }
+                return Ok(Reply::Done(h.call(h.sym(names::LIST), &out)));
+            }
+            return Ok(at(cx, x)?.map_or(Reply::Decline, Reply::Done));
+        }
         // the nodes are packed arrays (64 points or more): read in place, no copy per call
         let slice =
             |cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>| -> Res<Option<std::borrow::Cow<'h, [f64]>>> {

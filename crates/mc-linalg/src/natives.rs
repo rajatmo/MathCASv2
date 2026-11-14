@@ -228,6 +228,10 @@ impl Native for NormalNumericArray {
                     // the prelude's `numeric_array_values(xs, type[, mode])` applies the type's range and rounding
                     return Ok(Reply::Again(h.call(h.sym("numeric_array_values"), parts)));
                 }
+                // a byte array: the list of its bytes
+                if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "byte_array") && parts.len() == 1 && cx.as_list(parts[0]).is_some() {
+                    return Ok(Reply::Done(parts[0]));
+                }
             }
         }
         self.inner.call(cx, t, args)

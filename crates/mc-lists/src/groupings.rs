@@ -7,8 +7,12 @@
 //!   one-argument head, and a one-argument head is not applied to its own result.
 //! - `xs`: a list, `n` for `range(n)`, or a list of lists of one length (each grouped, every shape applied to each in
 //!   turn).
-//! - **Order**: trees with fewer calls first; among equal counts,
-//!   by the root's head in the order given, then by the sizes of the root's parts (partitions of the number of
+//!   `h: k` written as an option is the rule `h -> k` (a head that is a function name, such as `construct`, whose
+//!   calls `construct(f, x)` are `f(x)`); `groupings(xs, spec, w)` gives each tree inside `w` (`quote` keeps them
+//!   unevaluated).
+//! - **Order**: trees with fewer calls first; among equal counts, by the heads used (the indices of the heads of all
+//!   the calls, ascending, compared as lists: trees of one head first, then those using the first two heads, ...),
+//!   then by the root's head in the order given, then by the sizes of the root's parts (partitions of the number of
 //!   leaves into arity parts, larger parts first), then by the shapes of the parts (each in this same order), then by
 //!   where the larger parts stand (from the left). Each shape is filled with the elements left to right.
 //! - The trees are counted by the super-Catalan numbers (Schroeder's problems, OEIS A001003 for arities 2 and up),
@@ -41,6 +45,21 @@ impl Shape {
             Shape::Leaf => 0,
             Shape::Node(_, cs) => 1 + cs.iter().map(|c| c.calls()).sum::<usize>(),
         }
+    }
+    /// The heads of the calls (indices into the specification), ascending: the multiset of heads used.
+    fn heads(&self) -> Vec<usize> {
+        fn go(s: &Shape, out: &mut Vec<usize>) {
+            if let Shape::Node(k, cs) = s {
+                out.push(*k);
+                for c in cs {
+                    go(c, out);
+                }
+            }
+        }
+        let mut out = vec![];
+        go(self, &mut out);
+        out.sort_unstable();
+        out
     }
 }
 
@@ -155,7 +174,9 @@ fn shapes(n: usize, heads: &[Head<'_>], memo: &mut FxHashMap<usize, Rc<Vec<Rc<Sh
                 }
             }
         }
-        base.sort_by_key(|t| t.calls());
+        // stable: fewer calls first, then by the heads used (as an ascending list of their indices, compared
+        // lexicographically), the order of generation within equal keys
+        base.sort_by_cached_key(|t| (t.calls(), t.heads()));
     }
     // one-argument heads wrap each tree, right after it (not their own results)
     let mut out = Vec::with_capacity(base.len());
@@ -237,7 +258,16 @@ fn spec_heads<'h>(cx: &NativeCx<'_, '_, 'h>, spec: T<'h>) -> Option<Vec<Head<'h>
 /// `groupings(xs, spec)`.
 pub(crate) fn groupings<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
-    let [xs, spec] = *args else { return Ok(Reply::Decline) };
+    let (xs, spec, wrap) = match *args {
+        [xs, spec] => (xs, spec, None),
+        [xs, spec, w] => (xs, spec, Some(w)),
+        _ => return Ok(Reply::Decline),
+    };
+    // `h: k` written as an option (a head that is a function name): the rule h -> k
+    let spec = match h.view(spec) {
+        View::App { head, args: &[r] } if head == h.sym_term(h.sym("options")) => r,
+        _ => spec,
+    };
     let Some(heads) = spec_heads(cx, spec) else { return Ok(Reply::Decline) };
     // the inputs: range(n), a list, or a list of lists of one length
     let inputs: Vec<Vec<T<'h>>> = match (h.view(xs), cx.as_list(xs)) {
@@ -266,7 +296,9 @@ pub(crate) fn groupings<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, 
     for s in all.iter() {
         for xs in &inputs {
             let mut i = 0;
-            out.push(fill(h, &heads, s, xs, &mut i));
+            let tree = fill(h, &heads, s, xs, &mut i);
+            // groupings(xs, spec, w): each tree inside w (quote keeps it unevaluated)
+            out.push(wrap.map_or(tree, |w| h.app(w, &[tree])));
         }
     }
     Ok(Reply::Again(cx.list(&out)))

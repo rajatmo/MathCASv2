@@ -1,14 +1,19 @@
 //! `hash(e)`, `hash(e, method)`, `hash(e, method, format)` (round 17): message digests.
 //!
-//! - **What is hashed**: a string's UTF-8 bytes; any other term the UTF-8 bytes of its `to_string` form (so equal
+//! - **What is hashed**: a string's UTF-8 bytes; a byte array `byte_array([...])` its bytes; any other term the
+//!   UTF-8 bytes of its `to_string` form (so equal
 //!   terms have equal hashes, and the value does not depend on the session). `method: "Expression"` (the default)
 //!   is the kernel's structural hash of the term, a 64-bit value stable across collections and sessions of one
 //!   build.
 //! - **Methods**: `"MD5"` (RFC 1321), `"SHA"` (SHA-1), `"SHA256"`, `"SHA512"`, `"SHA384"`, `"SHA224"` (FIPS 180-4),
 //!   `"CRC32"` (ISO 3309 / ITU-T V.42, the polynomial 0xEDB88320 reflected), `"Adler32"` (RFC 1950), also
-//!   `["SHA", 256]` and the like. Implemented from those specifications.
+//!   `["SHA", 256]` and the like. Implemented from those specifications. Round 41 (module `digests`): `"MD2"`,
+//!   `"MD4"`, `"RIPEMD160"`, `"SHA3-224"` to `"SHA3-512"` (`["SHA3", n]`), `"Keccak224"` to `"Keccak512"`,
+//!   `"BLAKE2b"`, `"BLAKE2s"` (`["BLAKE2b", bits]` for other lengths), `["BLAKE2xb", bits]`, `["BLAKE2xs", bits]`, and
+//!   the compositions `"SHA256SHA256"` (SHA-256 twice) and `"RIPEMD160SHA256"` (RIPEMD-160 of the SHA-256 digest).
 //! - **Formats**: `"Integer"` (the default: the digest as a big-endian unsigned integer), `"HexString"` (lower-case
-//!   hexadecimal), `"DecimalString"`, `"ByteList"` (the digest's bytes as a list of integers).
+//!   hexadecimal), `"DecimalString"`, `"Base36String"`, `"Base64Encoding"`, `"ByteList"` (the digest's bytes as a list
+//!   of integers), `"ByteArray"`.
 use crate::ctx::Lib;
 use mc_core::{Store, View, T};
 use mc_eval::{NativeCx, Reply, Res};
@@ -24,10 +29,50 @@ enum Method {
     Sha512,
     Crc32,
     Adler32,
+    Md2,
+    Md4,
+    Ripemd160,
+    /// SHA-256 of the SHA-256 digest
+    Sha256Sha256,
+    /// RIPEMD-160 of the SHA-256 digest
+    Ripemd160Sha256,
+    /// SHA-3 with a digest of this many bytes
+    Sha3(usize),
+    /// Keccak (the padding before SHA-3) with a digest of this many bytes
+    Keccak(usize),
+    /// BLAKE2b, BLAKE2s, BLAKE2Xb, BLAKE2Xs with this many output bytes
+    Blake2b(usize),
+    Blake2s(usize),
+    Blake2xb(usize),
+    Blake2xs(usize),
 }
 
 fn method_of(name: &str, bits: Option<i64>) -> Option<Method> {
+    // a bit count that is a whole number of bytes in 1..=max
+    let bytes = |b: i64, max: i64| (b > 0 && b % 8 == 0 && b / 8 <= max).then_some((b / 8) as usize);
+    let sha3 = |b: i64| matches!(b, 224 | 256 | 384 | 512).then_some((b / 8) as usize);
     Some(match (name.to_ascii_uppercase().as_str(), bits) {
+        ("MD2", None) => Method::Md2,
+        ("MD4", None) => Method::Md4,
+        ("RIPEMD160", None) | ("RIPEMD", Some(160)) => Method::Ripemd160,
+        ("SHA256SHA256", None) => Method::Sha256Sha256,
+        ("RIPEMD160SHA256", None) => Method::Ripemd160Sha256,
+        ("SHA3-224", None) => Method::Sha3(28),
+        ("SHA3-256", None) => Method::Sha3(32),
+        ("SHA3-384", None) => Method::Sha3(48),
+        ("SHA3-512", None) => Method::Sha3(64),
+        ("SHA3", Some(b)) => Method::Sha3(sha3(b)?),
+        ("KECCAK224", None) => Method::Keccak(28),
+        ("KECCAK256", None) => Method::Keccak(32),
+        ("KECCAK384", None) => Method::Keccak(48),
+        ("KECCAK512", None) => Method::Keccak(64),
+        ("KECCAK", Some(b)) => Method::Keccak(sha3(b)?),
+        ("BLAKE2B", None) => Method::Blake2b(64),
+        ("BLAKE2B", Some(b)) => Method::Blake2b(bytes(b, 64)?),
+        ("BLAKE2S", None) => Method::Blake2s(32),
+        ("BLAKE2S", Some(b)) => Method::Blake2s(bytes(b, 32)?),
+        ("BLAKE2XB", Some(b)) => Method::Blake2xb(bytes(b, 1 << 24)?),
+        ("BLAKE2XS", Some(b)) => Method::Blake2xs(bytes(b, 65535)?),
         ("MD5", None) => Method::Md5,
         ("SHA" | "SHA1" | "SHA-1", None) | ("SHA", Some(160)) => Method::Sha1,
         ("SHA224", None) | ("SHA", Some(224)) => Method::Sha224,
@@ -268,7 +313,68 @@ fn digest(m: Method, msg: &[u8]) -> Vec<u8> {
         ),
         Method::Crc32 => crc32(msg),
         Method::Adler32 => adler32(msg),
+        Method::Md2 => crate::digests::md2(msg),
+        Method::Md4 => crate::digests::md4(msg),
+        Method::Ripemd160 => crate::digests::ripemd160(msg),
+        Method::Sha256Sha256 => digest(Method::Sha256, &digest(Method::Sha256, msg)),
+        Method::Ripemd160Sha256 => crate::digests::ripemd160(&digest(Method::Sha256, msg)),
+        Method::Sha3(n) => crate::digests::keccak(msg, n, 0x06),
+        Method::Keccak(n) => crate::digests::keccak(msg, n, 0x01),
+        Method::Blake2b(n) => crate::digests::blake2b(msg, n),
+        Method::Blake2s(n) => crate::digests::blake2s(msg, n),
+        Method::Blake2xb(n) => crate::digests::blake2xb(msg, n),
+        Method::Blake2xs(n) => crate::digests::blake2xs(msg, n),
     }
+}
+
+/// The digest bytes in base 36 (digits then lower-case letters, big-endian unsigned).
+fn base36(bytes: &[u8]) -> String {
+    let mut digits: Vec<u8> = bytes.to_vec();
+    let mut out = Vec::new();
+    while digits.iter().any(|&d| d != 0) {
+        let mut rem = 0u32;
+        for d in digits.iter_mut() {
+            let cur = rem * 256 + *d as u32;
+            *d = (cur / 36) as u8;
+            rem = cur % 36;
+        }
+        out.push(b"0123456789abcdefghijklmnopqrstuvwxyz"[rem as usize]);
+    }
+    if out.is_empty() {
+        out.push(b'0');
+    }
+    out.reverse();
+    String::from_utf8(out).expect("ascii digits")
+}
+
+/// The bytes in Base64 (RFC 4648, with padding).
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for c in bytes.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for k in 0..4 {
+            if k <= c.len() {
+                out.push(A[((n >> (18 - 6 * k)) & 63) as usize] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+/// The bytes of a byte array `byte_array([b1, ...])`, or `None`.
+fn byte_array_bytes<'h>(cx: &NativeCx<'_, '_, 'h>, e: T<'h>) -> Option<Vec<u8>> {
+    let h = cx.heap();
+    let View::App { head, args: &[l] } = h.view(e) else { return None };
+    if head != h.sym_term(h.sym("byte_array")) {
+        return None;
+    }
+    cx.as_list(l)?.iter().map(|&b| match h.view(b) {
+        View::Int(v @ 0..=255) => Some(v as u8),
+        _ => None,
+    }).collect()
 }
 
 /// The digest bytes as a decimal string (big-endian unsigned).
@@ -327,6 +433,12 @@ pub(crate) fn hash<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     let bytes: Vec<u8> = match m {
         // the kernel's structural hash of the term
         None => h.structural_hash(e).to_be_bytes().to_vec(),
+        // a byte array: its bytes
+        Some(m) if byte_array_bytes(cx, e).is_some() => {
+            let b = byte_array_bytes(cx, e).unwrap_or_default();
+            cx.tick(b.len() as u64 / 64 + 1)?;
+            digest(m, &b)
+        }
         Some(m) => {
             let text = match str_of(e) {
                 Some(s) => s,
@@ -355,9 +467,15 @@ pub(crate) fn hash<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
         }
         "HexString" => h.string(&bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()),
         "DecimalString" => h.string(&decimal(&bytes)),
+        "Base36String" => h.string(&base36(&bytes)),
+        "Base64Encoding" => h.string(&base64(&bytes)),
         "ByteList" => {
             let v: Vec<T<'h>> = bytes.iter().map(|&b| h.int(b as i64)).collect();
             cx.list(&v)
+        }
+        "ByteArray" => {
+            let v: Vec<T<'h>> = bytes.iter().map(|&b| h.int(b as i64)).collect();
+            h.call(h.sym("byte_array"), &[cx.list(&v)])
         }
         _ => lib.bad_arg(h, t, 3),
     }))
