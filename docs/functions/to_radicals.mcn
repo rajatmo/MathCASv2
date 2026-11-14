@@ -38,12 +38,12 @@ to_radicals(root_sum(x => x^3 - 2, x => x*log(z - x)))
 #% cell
 n(to_radicals(root_sum(x => x^3 + x + 1, x => log(2 - x))))
 #% output
-#= 2.3978952727983702 + 0.0im
+#= 2.3978952727983707
 
 #% cell
 n(root_sum(x => x^3 + x + 1, x => log(2 - x)))
 #% output
-#= 2.3978952727983702
+#= 2.3978952727983707
 
 #% section
 # See also

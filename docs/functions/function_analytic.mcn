@@ -89,7 +89,7 @@ function_singularities(tan(x), x)
 #% cell
 [function_analytic(sin(x)/x, x), function_analytic(g(x), x), function_analytic(x^a, x)]
 #% output
-#= [false, true, false]
+#= [false, true, function_analytic(x^a, x)]
 
 #% section
 # See also

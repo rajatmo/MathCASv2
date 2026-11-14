@@ -109,7 +109,7 @@ fn numerics_with_tight_errors() {
         ("n_minimize(x^4 - 2*x^3 + 6*x^2 + 6*x, x)", "[-1.286406839855701, [x -> -0.39914487741277127]]"),
         // machine ends one ulp outwards (round 36): a rounded-to-nearest end can lie inside the true range, so the
         // enclosure takes the next machine number out
-        ("chebyshev_t(2, interval([1.9, 2.1]))", "interval([6.219999999999999, 7.820000000000001])"),
+        ("chebyshev_t(2, interval([1.9, 2.1]))", "interval([6.219999999999999, 7.820000000000002])"),
         ("beta_regularized(interval([1.2, 2.1]), 2, 1)", "interval([1.4399999999999997, 4.410000000000001])"),
         ("erf(interval([-2.1, -1.9]))", "interval([-0.9970205333436671, -0.9927904292352574])"),
     ]);

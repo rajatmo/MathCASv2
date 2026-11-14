@@ -259,9 +259,13 @@ fn nl_bin_cells(pts, specs) = {
   let edges = map(k => nl_bin_edges(map(p => p[k], ok), specs[k]), range(d))
   if not every(edges, is_list) then failure(argument, bin_counts, 2) else {
     let dims = map(e => max(length(e) - 1, 0), edges)
+    # the result is a dense array of product(dims) cells: one that would not fit in the memory the evaluation may
+    # still use is refused before anything is built (a cell costs some tens of bytes)
+    if 64*product(dims) > memory_available() then failure(limit, memory, dims) else {
     let cells = map(p => [map(k => nl_bin_slot(edges[k], p[k]), range(d)), p], ok)
     let inside = select(cells, c => every(c[1], s => s > 0))
     [dims, map(c => [1 + sum(map(k => (c[1][k] - 1)*product(drop(dims, k)), range(d))), c[2]], inside)]
+    }
   }
 }
 fn nl_bin_grid(dims, flat) = fold((acc, d) => partition(acc, d), flat, reverse(rest(dims)))

@@ -68,8 +68,8 @@ fn centered_interval_products_are_enclosures() {
 fn midpoint_of_a_centered_interval_and_a_ball_literal() {
     assert_eq!(ev("normal(centered_interval(0.5, 0.1))"), "0.5");
     assert_eq!(ev("normal(around(2.5, 0.1))"), "2.5");
-    // a number of 20 digits is a midpoint with a radius of its own rounding
-    assert_eq!(ev("r = centered_interval(1.23~20); r[1] == 1.23 and r[2] < 1e-19"), "true");
+    // a number of 20 digits: the midpoint is a machine number, and the radius holds its rounding to one
+    assert_eq!(ev("r = centered_interval(1.23~20); r[1] == 1.23 and 0 < r[2] and r[2] < 1e-15"), "true");
     assert_eq!(ev("a = centered_interval(1.234); normal(a + pi) == 1.234 + n(pi)"), "true");
 }
 

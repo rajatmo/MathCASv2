@@ -325,7 +325,7 @@ reduce(exp(x) > a, x, reals)
 #% cell
 reduce(exp(x) == x, x, complexes)
 #% output
-#= conditional_expression(x == -product_log(c(1), -1), element(c(1), integers))
+#= element(c(1), integers) and x == -product_log(c(1), -1)
 
 #% text
 # `working_precision:` is not an option, and the domain `rationals` gives `false` for an equation with only irrational solutions; other domains for inequalities are refused:

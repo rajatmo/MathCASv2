@@ -29,12 +29,12 @@ centered_interval(2, 0.1)
 #% cell
 airy_ai(centered_interval(2, 0.1))
 #% output
-#= centered_interval(0.03527351107369801, 0.0053209089578315555)
+#= centered_interval(0.03527351107369801, 0.005320908957831578)
 
 #% cell
 centered_interval(1, 1/10) + 2
 #% output
-#= centered_interval(3.0, 0.1000000000000055)
+#= centered_interval(3.0000000000000004, 0.10000000000000595)
 
 #% section
 # See also
