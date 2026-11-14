@@ -33,6 +33,9 @@ fn normalized_vectors() {
     assert_eq!(ev("normalized(x)"), "normalized(x)");
 }
 
+/// Three numbers: an item `[payoff, cost, max count]`, or the bounds on the three totals.
+type Triple = (i64, i64, i64);
+
 /// Items `[payoff, cost, max count]`: every count vector within the bounds, by enumeration; the best payoff and
 /// the count vectors reaching it.
 fn brute(items: &[(i64, i64, i64)], caps: (i64, i64, i64)) -> Vec<Vec<i64>> {
@@ -93,7 +96,7 @@ fn knapsack_with_several_bounds() {
         "knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], [\"MaxTotalPayoff\" -> 35, \"MaxTotalCost\" -> 30])"
     );
     // variations checked against an enumeration of every count vector
-    let cases: [(&[(i64, i64, i64)], (i64, i64, i64)); 5] = [
+    let cases: [(&[Triple], Triple); 5] = [
         (&[(7, 5, 3), (4, 3, 6), (2, 1, 9)], (40, 25, 8)),
         (&[(9, 4, 2), (5, 2, 5), (3, 3, 4), (1, 1, 10)], (31, 17, 9)),
         (&[(6, 7, 4), (11, 9, 3)], (100, 50, 6)),
