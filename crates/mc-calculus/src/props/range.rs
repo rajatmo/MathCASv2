@@ -595,6 +595,19 @@ fn intervals<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, cond: O
             return Ok(None);
         }
         if is_free(b, dg, x) {
+            // a constant piece (its limits at the ends are its value, never taken there): a point inside each
+            // interval of the domain takes the value
+            if b.is_zero(dg) {
+                for p in &ps {
+                    let t = match (p.lo, p.hi) {
+                        (Some((l, _)), Some((u, _))) => b.div(b.add(&[l, u]), b.int(2)),
+                        (Some((l, _)), None) => b.add(&[l, b.one()]),
+                        (None, Some((u, _))) => b.sub(u, b.one()),
+                        (None, None) => b.zero(),
+                    };
+                    cands.push(cx.eval(t)?);
+                }
+            }
             continue;
         }
         if critical(cx, b, dg, x, &mut cands)?.is_none() {

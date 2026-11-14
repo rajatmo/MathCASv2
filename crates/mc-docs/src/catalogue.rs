@@ -243,6 +243,7 @@ const PRELUDE: &[(&str, &str)] = &[
     ("convex_optimization", "convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints"),
     ("prime_zeta_p", "prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1"),
     ("unit_vector", "unit_vector(n, k), unit_vector(k): the vector of length n with a 1 at position k (the 2-vector for k = 1 or 2)"),
+    ("normalized", "normalized(v), normalized(v, f): v divided by its norm (v itself when the norm is 0), or by f(v); also the option normalized: true of histogram (bars of total area 1)"),
     ("angle_vector", "angle_vector(phi), angle_vector([r, phi]), angle_vector([r, theta, phi]), angle_vector(c, p): the unit vector (polar or spherical point) at the angles, relative to c"),
     ("vector_angle", "vector_angle(u, v): the angle acos(u . v/(|u| |v|)) between two real vectors"),
     ("manhattan_distance", "manhattan_distance(u, v): the sum of the absolute differences of the entries of u and v"),
@@ -286,7 +287,7 @@ const PRELUDE: &[(&str, &str)] = &[
     ("set_accuracy", "set_accuracy(x, a): x with its precision set so that its accuracy is a digits"),
     ("interval_member_q", "interval_member_q(i, x), interval_member_q(i)(x): whether the number (interval) x lies in the interval i"),
     ("interval_union", "interval_union(i1, i2, ...): the union of the intervals as one interval"),
-    ("knapsack_solve", "knapsack_solve(items, cap): the counts of each item (a cost, [payoff, cost] or [payoff, cost, max count]) that maximize the payoff within the cost cap"),
+    ("knapsack_solve", "knapsack_solve(items, cap), knapsack_solve(items, [max payoff, max cost, max count]): the counts of each item (a cost, [payoff, cost] or [payoff, cost, max count]) that maximize the payoff within the bounds"),
     ("quadratic_optimization", "quadratic_optimization(f, cons, vars), quadratic_optimization([q, c], [a, b]): the point minimizing the convex quadratic f under the constraints"),
     ("conic_optimization", "conic_optimization(f, cons, vars): the point minimizing f under linear, quadratic-bound and cone constraints (norm bounds, NormCone, SemidefiniteCone)"),
     ("second_order_cone_optimization", "second_order_cone_optimization(f, cons, vars): the point minimizing f under linear and norm(...) <= t constraints"),
@@ -299,7 +300,9 @@ const PRELUDE: &[(&str, &str)] = &[
 /// Natives that the syntax lowers to (definitions, blocks, control, bindings) or that serve other natives: not
 /// functions a program calls by name, so the documentation leaves them out.
 pub const INTERNAL: &[&str] = &[
+    "any",
     "assign",
+    "assign_part",
     "c30_fox_machine", "c30_julia_counts", "nl_fft_machine", "nl_total_compensated",
     "ball_literal",
     "block",
@@ -321,7 +324,10 @@ pub const INTERNAL: &[&str] = &[
     "let",
     "local_cell",
     "match",
+    "named",
     "option_value",
+    "seq0",
+    "seq1",
     "set",
     "set_delayed",
     "var",

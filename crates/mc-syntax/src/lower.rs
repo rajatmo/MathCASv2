@@ -638,11 +638,17 @@ impl<'h, S: Store + ?Sized> Lowerer<'h, S> {
                         for i in idx {
                             ks.push(self.expr(i)?);
                         }
-                        let pos = if ks.len() == 1 { ks[0] } else { self.call(Head::List, &ks) };
                         let v = self.expr(rhs)?;
-                        let rule = self.call(Head::Rule, &[pos, v]);
-                        let rp = self.store.sym_term(self.store.sym("replace_part"));
-                        let new = self.store.app(rp, &[x, rule]);
+                        // one key: `assign_part` also adds a new key to an association
+                        let new = if ks.len() == 1 {
+                            let ap = self.store.sym_term(self.store.sym("assign_part"));
+                            self.store.app(ap, &[x, ks[0], v])
+                        } else {
+                            let pos = self.call(Head::List, &ks);
+                            let rule = self.call(Head::Rule, &[pos, v]);
+                            let rp = self.store.sym_term(self.store.sym("replace_part"));
+                            self.store.app(rp, &[x, rule])
+                        };
                         return Ok(self.call(Head::Assign, &[x, new]));
                     }
                     _ => {}

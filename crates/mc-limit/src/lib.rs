@@ -788,11 +788,123 @@ fn along<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>
     })
 }
 
+/// `t` with the parts of a real variable `s` taken out of `re`, `im_part` and `conjugate`: a term c s^k of a sum
+/// inside them (c a number, k a natural number) leaves as re(c) s^k, im_part(c) s^k or conjugate(c) s^k, since
+/// these functions are additive and real-linear (`re(x + s) = re(x) + s` for a real s). `arg(u)` with re(u) > 0 at
+/// the point `at` is `atan(im_part(u)/re(u))` near it, and is split the same way.
+fn split_real_variable<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, s: T<'h>, at: T<'h>, depth: usize) -> Res<T<'h>> {
+    let h = b.heap();
+    if is_free(b, t, s) || depth > 64 {
+        return Ok(t);
+    }
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    let mut new = Vec::with_capacity(args.len());
+    for &a in args {
+        new.push(split_real_variable(cx, b, a, s, at, depth + 1)?);
+    }
+    let t = if new.iter().zip(args).all(|(a, b)| a == b) { t } else { b.app(head, &new) };
+    let name = b.sym_of(head).map(|x| h.sym_name(x));
+    let (Some(name), [u]) = (name.as_deref(), &new[..]) else { return Ok(t) };
+    if name == "arg" {
+        let u0 = cx.eval(h.call(h.sym("rewrite"), &[*u, h.call(h.sym(names::RULE), &[s, at])]))?;
+        let r0 = cx.eval(b.call("re", &[u0]))?;
+        if is_free(b, r0, s) && sign(cx, b, r0)? == Some(1) {
+            let re = split_real_variable(cx, b, b.call("re", &[*u]), s, at, depth + 1)?;
+            let im = split_real_variable(cx, b, b.call("im_part", &[*u]), s, at, depth + 1)?;
+            return cx.eval(b.call("atan", &[b.div(im, re)]));
+        }
+        return Ok(t);
+    }
+    if !matches!(name, "re" | "im_part" | "conjugate") {
+        return Ok(t);
+    }
+    let terms: Vec<T<'h>> = match h.view(*u) {
+        View::App { head, args } if b.sym_of(head) == Some(h.sym(names::ADD)) => args.to_vec(),
+        _ => vec![*u],
+    };
+    // c s^k: the power of s, and the numeric factor
+    let power = |f: T<'h>| -> bool {
+        f == s || matches!(h.view(f), View::App { head, args: &[bb, e] } if b.sym_of(head) == Some(h.sym(names::POW)) && bb == s && matches!(h.view(e), View::Int(k) if k > 0))
+    };
+    let mut rest = vec![];
+    let mut out = vec![];
+    for term in terms {
+        let factors: Vec<T<'h>> = match h.view(term) {
+            View::App { head, args } if b.sym_of(head) == Some(h.sym(names::MUL)) => args.to_vec(),
+            _ => vec![term],
+        };
+        let (ps, cs): (Vec<T<'h>>, Vec<T<'h>>) = factors.iter().partition(|&&f| power(f));
+        let numeric = cs.iter().all(|&c| is_free(b, c, s)) && {
+            let c = b.mul(&cs);
+            let q = cx.eval(b.call("is_numeric", &[c]))?;
+            q == h.sym_term(h.sym(names::TRUE))
+        };
+        if ps.len() == 1 && numeric {
+            let c = cx.eval(b.call(name, &[b.mul(&cs)]))?;
+            out.push(b.mul(&[c, ps[0]]));
+        } else {
+            rest.push(term);
+        }
+    }
+    if out.is_empty() {
+        return Ok(t);
+    }
+    out.push(b.call(name, &[b.add(&rest)]));
+    cx.eval(b.add(&out))
+}
+
+/// `limit(f, x -> a, direction: complexes)`: the limits along the rays from 1, i, -1 and -i (see [`along`]); two
+/// of them found and different (their difference a nonzero number) prove that there is no limit. `None` otherwise
+/// (equal limits along four rays do not prove one).
+fn plane_rays<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let im = h.sym_term(h.sym("im"));
+    let mut found: Vec<T<'h>> = vec![];
+    for d in [b.one(), im, b.int(-1), b.neg(im)] {
+        let d = cx.eval(d)?;
+        let Some(v) = ray(cx, b, f, spec, d)? else { continue };
+        for &w in &found {
+            let diff = cx.eval(b.sub(v, w))?;
+            let numeric = cx.eval(b.call("is_numeric", &[diff]))? == h.sym_term(h.sym(names::TRUE));
+            if numeric && !b.is_zero(diff) {
+                let z = cx.eval(b.call("possible_zero_q", &[diff]))?;
+                if z == h.sym_term(h.sym(names::FALSE)) {
+                    let why = "the limits along two directions differ";
+                    return Ok(Some(failure(b, "no_limit", &[h.sym_term(h.sym("limit")), f, h.string(why)])));
+                }
+            }
+        }
+        found.push(v);
+    }
+    Ok(None)
+}
+
+/// The one-sided limit of f(a - d s) as the real s tends to 0 from above, for any nonzero number d (on the real
+/// line too); the parts of s are taken out of `re`, `im_part` and `conjugate` first. `None` when not found.
+fn ray<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>, dv: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let View::App { head, args: &[x, a] } = h.view(spec) else { return Ok(None) };
+    if b.sym_of(head) != Some(h.sym(names::RULE)) || !matches!(h.view(x), View::Sym(_)) || !is_free(b, a, x) {
+        return Ok(None);
+    }
+    if !is_free(b, a, h.sym_term(h.sym("inf"))) || !is_free(b, a, h.sym_term(h.sym("complex_infinity"))) {
+        return Ok(None);
+    }
+    let s = h.sym_term(h.sym("s%toward"));
+    let point = cx.eval(b.sub(a, b.mul(&[dv, s])))?;
+    let g = cx.eval(h.call(h.sym("rewrite"), &[f, h.call(h.sym(names::RULE), &[x, point])]))?;
+    let g = split_real_variable(cx, b, g, s, b.zero(), 0)?;
+    Ok(match limit(cx, b, g, s, b.zero(), Direction::FromAbove)? {
+        Outcome::Value(v) if is_free(b, v, s) => Some(v),
+        _ => None,
+    })
+}
+
 /// `limit(f, x -> a, direction: complexes)` (and `max_limit`, `min_limit`, `real` set: the value must be real) for a
 /// finite a: `f(a)` when f is continuous on the plane at a, i.e. built from the variable, constants, sums, products,
 /// powers with integer exponents (a negative one only of a base that is not 0 at a), and the functions continuous
 /// on the whole plane (exp, sin, cos, sinh, cosh, abs, re, im_part, conjugate). `None` otherwise.
-fn plane<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>, real: bool) -> Res<Option<T<'h>>> {
+fn plane_value<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, f: T<'h>, spec: T<'h>, real: bool) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let View::App { head, args: &[x, a] } = h.view(spec) else { return Ok(None) };
     if b.sym_of(head) != Some(h.sym(names::RULE)) || !matches!(h.view(x), View::Sym(_)) || !is_free(b, a, x) {
@@ -879,9 +991,16 @@ impl Native for LimitFn {
         let [f, spec] = args else { return Ok(Reply::Decline) };
         match toward {
             Toward::Real => {}
-            // from every direction of the plane: the value at the point when f is continuous there
+            // from every direction of the plane: the value at the point when f is continuous there; else, for a
+            // plain limit, no limit when two rays give different limits
             Toward::Plane if self.kind != Kind::Discrete && self.kind != Kind::Asymptotic => {
-                return Ok(plane(cx, &b, *f, *spec, self.kind != Kind::Limit)?.map_or(Reply::Decline, Reply::Again));
+                if let Some(v) = plane_value(cx, &b, *f, *spec, self.kind != Kind::Limit)? {
+                    return Ok(Reply::Again(v));
+                }
+                if self.kind == Kind::Limit {
+                    return Ok(plane_rays(cx, &b, *f, *spec)?.map_or(Reply::Decline, Reply::Done));
+                }
+                return Ok(Reply::Decline);
             }
             Toward::Plane => return Ok(Reply::Decline),
             Toward::Along(dv) if self.kind == Kind::Limit => {
@@ -960,6 +1079,8 @@ impl Native for LimitFn {
                 let r = match kind {
                     Kind::Limit | Kind::Discrete => {
                         let o = if kind == Kind::Limit {
+                            // the variable is real along the real line
+                            g = split_real_variable(cx, &b, g, x, a, 0)?;
                             limit(cx, &b, g, x, a, direction)?
                         } else {
                             more::discrete(cx, &b, g, x, a, &opts)?

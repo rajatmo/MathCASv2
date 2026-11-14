@@ -16,6 +16,14 @@ fn b29_small(x, scale) = abs(x) <= 1.0e-10*max(1, scale)
 fn unit_vector(n: Int, k: Int) when n >= 1 and k >= 1 and k <= n = map(i => boole(i == k), range(n))
 fn unit_vector(k: Int) when k == 1 or k == 2 = unit_vector(2, k)
 
+# normalized(v): v divided by its norm (a vector, a matrix with its 2-norm, a number z as z/abs(z)); v itself when
+# the norm is zero. normalized(v, f): v/f(v) for any expression v (f an inner-product norm, say). The values of a
+# time series are normalized as a vector.
+fn b29_normalized_by(v, r) = if is_numeric(r) and r == 0 then v else v/r
+rule normalized(v_) := b29_normalized_by(v, norm(v)) when is_list(v) or is_number(v)
+rule normalized(v_, f_) := b29_normalized_by(v, f(v)) when is_atom(f) or not (head(f) === options)
+rule normalized(v_) := time_series(normalized(v("Values")), v("Times")) when not is_atom(v) and head(v) === time_series
+
 # angle_vector(phi): [cos(phi), sin(phi)]; angle_vector([r, phi]): the point of polar coordinates r, phi;
 # angle_vector([r, theta, phi]): the point of spherical coordinates (theta from the z axis); angle_vector(c, p):
 # the same relative to the point c
@@ -713,12 +721,78 @@ fn b29_knap_ok(its, cap) = {
   let sc = fold((a, c) => lcm(a, denominator(c)), 1, rawcost)
   length(its) > 0 and every(its, t => is_numeric(t[1]) and is_numeric(t[2]) and n(t[2]) > 0) and floor(cap*sc) <= 200000
 }
-rule knapsack_solve(items_, cap_) := {
-  let res = b29_knap(b29_knap_items(items), cap)
+fn b29_knap_result(items, res) =
   if is_assoc(items) then association_thread(keys(items), res)
   else if every(items, t => b29_is_rule(t)) then map(i => first(items[i]) -> res[i], range(length(items)))
   else res
-} when (is_list(items) or is_assoc(items)) and is_numeric(cap) and b29_knap_ok(b29_knap_items(items), cap)
+rule knapsack_solve(items_, cap_) := b29_knap_result(items, b29_knap(b29_knap_items(items), cap)) when (is_list(items) or is_assoc(items)) and is_numeric(cap) and b29_knap_ok(b29_knap_items(items), cap)
+
+# knapsack_solve(items, caps) with several bounds: caps is [max total payoff, max total cost] or [max total payoff,
+# max total cost, max total count] (inf for no bound), or rules or an association with the keys "MaxTotalPayoff",
+# "MaxTotalCost" and "MaxTotalCount". The largest total payoff within all bounds, by dynamic programming over the
+# reachable (cost, payoff, count) totals of the items taken so far, each total keeping up to two count vectors
+# that reach it; the counts are given when exactly one count vector reaches the largest payoff, otherwise (several
+# optima, or no bound limits some item) the call stays unevaluated. Inexact numbers are taken as the rationals they
+# are, so equal totals are recognised exactly.
+fn b29_knap_caps(caps) = {
+  if is_assoc(caps) then b29_knap_caps(map(k => k -> lookup(caps, k), keys(caps)))
+  else if every(caps, r => b29_is_rule(r)) then {
+    let get = k => { let hit = select(caps, r => first(r) == k); if length(hit) == 0 then inf else last(hit[1]) }
+    [get("MaxTotalPayoff"), get("MaxTotalCost"), get("MaxTotalCount")]
+  }
+  else [caps[1], caps[2], if length(caps) >= 3 then caps[3] else inf]
+}
+fn b29_knap_exact(x) = if x === inf then inf else if is_inexact(x) then rationalize(x, 0) else x
+# quantities: a payoff, cost or count in the unit of its bound (a quantity), or a dimensionless one, as a number
+fn b29_is_quantity(x) = not is_atom(x) and head(x) === quantity
+fn b29_knap_mag(x, cap) =
+  if b29_is_quantity(x) and b29_is_quantity(cap) then quantity_magnitude(unit_convert(x, quantity_unit(cap)))
+  else if b29_is_quantity(x) and quantity_unit(x) === "DimensionlessUnit" then quantity_magnitude(x)
+  else x
+fn b29_knap_plain_items(its, caps) = map(t => map(j => b29_knap_mag(t[j], caps[j]), range(3)), its)
+fn b29_knap_plain_caps(caps) = map(c => b29_knap_mag(c, c), caps)
+fn b29_knap_bound(cap, w) = if cap === inf or w <= 0 then inf else floor(cap/w)
+fn b29_knap_multi(its0, caps0) = {
+  let its = map(t => map(b29_knap_exact, t), its0)
+  let caps = map(b29_knap_exact, caps0)
+  let pc = caps[1]
+  let cc = caps[2]
+  let nc = caps[3]
+  var states = assoc(b29_kst(0, 0, 0) -> [[]])
+  var ok = true
+  for it in its {
+    let bound = min([it[3], b29_knap_bound(cc, it[2]), b29_knap_bound(pc, it[1]), nc])
+    if not is_integer(bound) then { ok = false }
+    else if ok then {
+      var next = assoc()
+      for key in keys(states) {
+        let vs = lookup(states, key)
+        for k in range(0, bound) {
+          let c = key[1] + k*it[2]
+          let p = key[2] + k*it[1]
+          let m = key[3] + k
+          if (cc === inf or c <= cc) and (pc === inf or p <= pc) and m <= nc then {
+            let nk = b29_kst(c, p, m)
+            let old = if key_exists(next, nk) then lookup(next, nk) else []
+            next = append(next, nk -> take(join(old, map(v => append(v, k), vs)), up_to(2)))
+          }
+        }
+      }
+      states = next
+    }
+  }
+  if not ok then null
+  else {
+    let ks = keys(states)
+    let best = max(map(k => k[2], ks))
+    let vs = flatten(map(k => lookup(states, k), select(ks, k => k[2] == best)), 1)
+    if length(vs) == 1 then vs[1] else null
+  }
+}
+fn b29_knap_multi_ok(its, caps) = length(its) > 0 and length(caps) == 3 and every(its, t => is_numeric(t[1]) and is_numeric(t[2]) and n(t[1]) >= 0 and n(t[2]) >= 0 and (t[3] === inf or is_integer(t[3]))) and every(caps, c => c === inf or (is_numeric(c) and n(c) >= 0))
+fn b29_knap_its(items, caps) = b29_knap_plain_items(b29_knap_items(items), b29_knap_caps(caps))
+fn b29_knap_cps(caps) = b29_knap_plain_caps(b29_knap_caps(caps))
+rule knapsack_solve(items_, caps_) := b29_knap_result(items, b29_knap_multi(b29_knap_its(items, caps), b29_knap_cps(caps))) when (is_list(items) or is_assoc(items)) and ((is_list(caps) and length(caps) >= 2 and length(caps) <= 3) or is_assoc(caps)) and b29_knap_multi_ok(b29_knap_its(items, caps), b29_knap_cps(caps)) and b29_knap_multi(b29_knap_its(items, caps), b29_knap_cps(caps)) !== null
 
 # --- the domain of the primes ---
 
@@ -794,14 +868,14 @@ fn b29_opt_run(f, cons0, vars) = {
   if c30_special(f, cons, vars) then c30_run(f, cons, vars) else optimization_point(f, flatten(map(b29_cone_conditions, if is_list(cons) then cons else [cons]), 1), vars)
 }
 
-rule quadratic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_list(f) or not is_matrix(f[1])
-rule quadratic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_list(f) or not is_matrix(f[1])
-rule conic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars)
-rule conic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop)
-rule second_order_cone_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_vector(f) or not is_symbol(vars)
-rule second_order_cone_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_vector(f) or not is_symbol(vars)
-rule semidefinite_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_vector(f)
-rule semidefinite_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_vector(f)
+rule quadratic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when (not is_list(f) or not is_matrix(f[1])) and lo_dim_known(f, cons, vars)
+rule quadratic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when (not is_list(f) or not is_matrix(f[1])) and lo_dim_known(f, cons, vars)
+rule conic_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when lo_dim_known(f, cons, vars)
+rule conic_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when lo_dim_known(f, cons, vars)
+rule second_order_cone_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when (not is_vector(f) or not is_symbol(vars)) and lo_dim_known(f, cons, vars)
+rule second_order_cone_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when (not is_vector(f) or not is_symbol(vars)) and lo_dim_known(f, cons, vars)
+rule semidefinite_optimization(f_, cons_, vars_) := b29_opt_run(f, cons, vars) when not is_vector(f) and lo_dim_known(f, cons, vars)
+rule semidefinite_optimization(f_, cons_, vars_, prop_) := b29_opt_result(f, b29_opt_run(f, cons, vars), prop) when not is_vector(f) and lo_dim_known(f, cons, vars)
 
 # semidefinite_optimization(c, [a0, a1, ..., an]): the vector x minimizing c . x such that a0 + x1 a1 + ... + xn an is
 # positive semidefinite

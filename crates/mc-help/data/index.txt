@@ -159,6 +159,7 @@ linear_fractional_optimization	core	Language	linear_fractional_optimization(f, c
 convex_optimization	core	Language	convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints
 prime_zeta_p	core	Language	prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1
 unit_vector	core	Language	unit_vector(n, k), unit_vector(k): the vector of length n with a 1 at position k (the 2-vector for k = 1 or 2)
+normalized	core	Language	normalized(v), normalized(v, f): v divided by its norm (v itself when the norm is 0), or by f(v); also the option normalized: true of histogram (bars of total area 1)
 angle_vector	core	Language	angle_vector(phi), angle_vector([r, phi]), angle_vector([r, theta, phi]), angle_vector(c, p): the unit vector (polar or spherical point) at the angles, relative to c
 vector_angle	core	Language	vector_angle(u, v): the angle acos(u . v/(|u| |v|)) between two real vectors
 manhattan_distance	core	Language	manhattan_distance(u, v): the sum of the absolute differences of the entries of u and v
@@ -202,7 +203,7 @@ karhunen_loeve_decomposition	core	Language	karhunen_loeve_decomposition(data): [
 set_accuracy	core	Language	set_accuracy(x, a): x with its precision set so that its accuracy is a digits
 interval_member_q	core	Language	interval_member_q(i, x), interval_member_q(i)(x): whether the number (interval) x lies in the interval i
 interval_union	core	Language	interval_union(i1, i2, ...): the union of the intervals as one interval
-knapsack_solve	core	Language	knapsack_solve(items, cap): the counts of each item (a cost, [payoff, cost] or [payoff, cost, max count]) that maximize the payoff within the cost cap
+knapsack_solve	core	Language	knapsack_solve(items, cap), knapsack_solve(items, [max payoff, max cost, max count]): the counts of each item (a cost, [payoff, cost] or [payoff, cost, max count]) that maximize the payoff within the bounds
 quadratic_optimization	core	Language	quadratic_optimization(f, cons, vars), quadratic_optimization([q, c], [a, b]): the point minimizing the convex quadratic f under the constraints
 conic_optimization	core	Language	conic_optimization(f, cons, vars): the point minimizing f under linear, quadratic-bound and cone constraints (norm bounds, NormCone, SemidefiniteCone)
 second_order_cone_optimization	core	Language	second_order_cone_optimization(f, cons, vars): the point minimizing f under linear and norm(...) <= t constraints
@@ -947,7 +948,6 @@ plot_points	visualisation	Plots	option of density_plot and contour_plot: plot_po
 contours	visualisation	Plots	option of contour_plot: contours: n (n levels evenly between the least and the greatest value, default 10) or a list of levels
 data_range	visualisation	Plots	option of list_density_plot: data_range: [[x0, x1], [y0, y1]], the coordinates of the matrix's first and last columns and rows
 bins	visualisation	Plots	option of histogram: bins: n (about n bins of a round width), [w] (width w), [lo, hi, w] (from lo to hi), automatic
-normalized	visualisation	Plots	option of histogram: normalized: true scales the bars so that their area is 1 (a probability density)
 labels	visualisation	Plots	option of bar_chart: labels: ["a", "b", ...], the labels under the bars or groups
 plot3d	visualisation	Plots	plot3d(f, [x, a, b], [y, c, d]): the surface z = f(x, y) in perspective, lit, with mesh lines and axes; plot3d([f1, f2, ...], ...) several (options mesh, plot_points, color_function, plot_style, plot_range, view_point, box_ratios)
 parametric_plot3d	visualisation	Plots	parametric_plot3d([fx, fy, fz], [u, a, b], [v, c, d]): a parametric surface; parametric_plot3d([fx, fy, fz], [u, a, b]): a space curve

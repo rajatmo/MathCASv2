@@ -1523,3 +1523,9 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   discriminant (then they are the real irreducible factors), else no answer (x^2 - 5 would split over the reals).
 - `apart(e)` with several variables and none named takes the last of `variables(e)` when all are symbols (the
   convention `apart_square_free` already has), so `apart((a d + b c)/(b d))` is `a/b + c/d`.
+## Round 40: ranges of functions constant on the reals
+
+- `function_range` by extreme values (`props/range.rs`): a piece whose derivative is identically 0 (im_part(x) for
+  real x, now that limits take the real variable out of im_part) gets a point inside each interval of the domain as
+  a candidate, so its value is taken; before, only the limits at the ends (values not taken) bounded it and the
+  answer `y > 0 and y < 0` failed the cross-check.

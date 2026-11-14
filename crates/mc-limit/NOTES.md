@@ -73,3 +73,15 @@
 `limit(root_sum(p, t => g), a -> a0)` (two-sided) with p free of a: the roots do not move, so the limit of the finite
 sum is `root_sum(p, t => lim g)` when the summand's own limit is a finite value; otherwise the general method
 (`sum of 1/(a r)` tends to 0 because the sum of 1/r over the roots of t^3 + 2 is 0).
+## Round 40: real variables in re, im_part, conjugate and arg; limits over the plane
+
+- Along the real line the limit variable is real: before the limit, `re`, `im_part` and `conjugate` of a sum give up
+  their terms c x^k (c a number) as re(c) x^k, im_part(c) x^k, conjugate(c) x^k (`split_real_variable`), and
+  `arg(u)` with re(u) > 0 at the point is atan(im_part(u)/re(u)) near it. `limit((re(x + h) - re(x))/h, h -> 0)`
+  is 1, the im_part quotient 0, `(arg(1 + h) - arg(1))/h` 0.
+- `direction: complexes` (round 39 left it unevaluated): the limits along the rays from 1, i, -1, -i (the ray
+  limits of round 39, with the ray parameter real as above); two found whose difference is a nonzero number give
+  `failure(no_limit, limit, f, "the limits along two directions differ")`. Equal ray limits prove nothing (a
+  function may still have no limit along other paths), so the call then stays unevaluated; deciding existence over
+  the plane (analyticity at the point) is not done. `abs(x + h) - abs(x)` over h with a symbolic x stays: its ray
+  limits are expressions in x whose difference is not decided. Tests `mc-engine/tests/round40_limits.rs`.

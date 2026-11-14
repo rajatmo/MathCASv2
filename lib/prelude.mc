@@ -1394,9 +1394,9 @@ fn seq_poly_fit(seq, x) = {
 # dot(a, x) + b >= 0 (and dot(aeq, x) + beq == 0)
 rule linear_optimization(c_, ab_) := lo_matrix(c, ab, [[], []]) when is_vector(c) and lo_pair(ab)
 rule linear_optimization(c_, ab_, eq_) := lo_matrix(c, ab, eq) when is_vector(c) and lo_pair(ab) and lo_pair(eq)
-rule linear_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when not is_vector(f)
-rule linear_fractional_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars)
-rule convex_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars)
+rule linear_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when not is_vector(f) and lo_dim_known(f, cons, vars)
+rule linear_fractional_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
+rule convex_optimization(f_, cons_, vars_) := c30_opt(f, cons, vars) when lo_dim_known(f, cons, vars)
 fn lo_pair(ab) = is_list(ab) and length(ab) == 2 and is_list(ab[1]) and is_list(ab[2]) and (length(ab[1]) == 0 or is_matrix(ab[1]))
 fn lo_matrix(c, ab, eq) = {
   let nvar = length(c)
@@ -1433,6 +1433,19 @@ fn optimization_point(f, cons, vars) = {
   }
 }
 fn lo_is_vector_use(f, v) = not free_of(f, dot) or not free_of(f, total) or not free_of(f, indexed)
+# lo_dim_known(f, cons, vars): false when the variable is a vector whose length nothing fixes (no dot with a list)
+# while an entry indexed(x, [k]) with k > 1 is used: the default length 1 would not hold that entry, and no other
+# length is determined, so the call stays unevaluated
+fn lo_dim_known(f, cons, vars) = {
+  let vs = if is_list(vars) then vars else [vars]
+  if not (length(vs) == 1 and is_symbol(vs[1]) and not free_of([f, cons], vs[1]) and lo_is_vector_use(f, vs[1])) then true
+  else {
+    let v = vs[1]
+    let ds = join(cases([f, cons], dot(u_, w_) :> 1 when is_list(u) and w === v, [0, inf]), cases([f, cons], dot(w_, u_) :> 1 when is_list(u) and w === v, [0, inf]))
+    let ks = join(cases([f, cons], indexed(w_, [k_]) :> k when w === v, [0, inf]), cases([f, cons], indexed(w_, k_) :> k when w === v and not is_list(k), [0, inf]))
+    length(ds) > 0 or every(ks, k => k === 1)
+  }
+}
 fn lo_dimension(e, v) = {
   let found = cases(e, dot(u_, w_) :> length(u) when is_list(u) and w === v, [0, inf])
   let found2 = cases(e, dot(w_, u_) :> length(u) when is_list(u) and w === v, [0, inf])

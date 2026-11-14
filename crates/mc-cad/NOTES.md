@@ -310,3 +310,10 @@ and n > 0` gives n = 1).
 `find_instance(cond, x, reals)` (and with a count) in one variable: the real solution set from `reduce`; a finite set
 gives its points with the rational ones first (`x^5 - 2 x + 1 == 0` gives 1, not the root of the quartic factor),
 `false` gives `[]`, intervals one point by the two-argument form.
+## Round 40: even powers of abs in optimisation
+
+- `minimize` and the other goals replace `abs(u)^(2k)` by `u^(2k)` before the cases of abs are split, when u is a
+  polynomial in the (real) variables with real number coefficients (`optimize.rs`, `even_abs_powers`): the squared
+  norm of a residual, `norm(m . [x, y] - b)` = `(|r1|^2 + |r2|^2 + |r3|^2)^(1/2)`, had 2^3 decompositions (4 s,
+  past the cell limit for three unknowns) and now has one. A complex u keeps its abs. Test
+  `mc-engine/tests/round40_optimization.rs` (minimizers checked against the normal equations).

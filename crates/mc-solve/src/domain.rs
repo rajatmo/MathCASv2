@@ -853,6 +853,11 @@ pub fn reduce<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Res<Option<T
     }
     let several = cx.as_list(xs).is_some();
     let integers = dom_name.as_deref() == Some("integers");
+    if dom_name.as_deref() == Some("rationals") && !several {
+        if let Some(t) = rational_roots(cx, cond, xs)? {
+            return Ok(Some(t));
+        }
+    }
     if integers && !several {
         if let Some(t) = sparse_integer_roots(cx, cond, xs)? {
             return Ok(Some(t));
@@ -970,6 +975,156 @@ fn sparse_integer_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>
         1 => kept[0],
         _ => h.call(h.sym("or"), &kept),
     }))
+}
+
+/// The rational roots of one polynomial equation in `x` with rational coefficients, with conditions decided at
+/// each root (`reduce(p == 0 and ..., x, rationals)`), without factoring p: each factor as written, cleared of
+/// denominators, goes to [`factor_rational_roots`]. `x == r1 or x == r2 ...` in increasing order, `false` for none;
+/// `None` when the equation is not of this shape or a candidate cannot be decided.
+fn rational_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, cond: T<'h>, x: T<'h>) -> Res<Option<T<'h>>> {
+    let h = cx.heap();
+    if !matches!(h.view(x), View::Sym(_)) {
+        return Ok(None);
+    }
+    let mut parts = vec![];
+    conjuncts(h, cond, &mut parts);
+    let (eqs, others): (Vec<T<'h>>, Vec<T<'h>>) = parts.into_iter().partition(|&p| head_name(h, p).as_deref() == Some("equal"));
+    let [eq] = eqs[..] else { return Ok(None) };
+    let View::App { args: &[l, r], .. } = h.view(eq) else { return Ok(None) };
+    let ar = mc_arith::Arith::new(h);
+    // the numerator over a common denominator: integer coefficients
+    let p = cx.eval(h.call(h.sym("numerator"), &[h.call(h.sym("together"), &[ar.sub(l, r)])]))?;
+    let factors: Vec<T<'h>> = match h.view(p) {
+        View::App { head, args } if head == h.sym_term(h.sym(names::MUL)) => args.to_vec(),
+        _ => vec![p],
+    };
+    let mut roots: Vec<T<'h>> = vec![];
+    for f in factors {
+        let f = match h.view(f) {
+            View::App { head, args: &[b, e] } if head == h.sym_term(h.sym(names::POW)) && matches!(h.view(e), View::Int(k) if k > 0) => b,
+            _ => f,
+        };
+        let Some(terms) = sparse_terms(cx, f, x)? else { return Ok(None) };
+        if terms.is_empty() {
+            return Ok(None); // the zero polynomial: every rational
+        }
+        let n = terms.iter().map(|t| t.0).max().unwrap_or(0);
+        if n == 0 {
+            continue; // a nonzero constant factor
+        }
+        let Some(rs) = factor_rational_roots(cx, &terms)? else { return Ok(None) };
+        roots.extend(rs);
+    }
+    // increasing order (exact rationals)
+    let mut keyed = vec![];
+    for v in roots {
+        let Some(q) = ar.num(v).and_then(|n| n.as_rat().cloned()) else { return Ok(None) };
+        keyed.push((q, v));
+    }
+    keyed.sort_by(|a, b| a.0.cmp_value(&b.0));
+    keyed.dedup_by(|a, b| a.0.cmp_value(&b.0) == std::cmp::Ordering::Equal);
+    let mut kept = vec![];
+    for (_, v) in keyed {
+        let rule = h.call(h.sym(names::RULE), &[x, v]);
+        let mut ok = true;
+        for &c in &others {
+            let t = cx.eval(h.call(h.sym("rewrite"), &[c, rule]))?;
+            if t == h.sym_term(h.sym(names::FALSE)) {
+                ok = false;
+                break;
+            }
+            if t != h.sym_term(h.sym(names::TRUE)) {
+                return Ok(None);
+            }
+        }
+        if ok {
+            kept.push(h.call(h.sym("equal"), &[x, v]));
+        }
+    }
+    Ok(Some(match kept.len() {
+        0 => h.sym_term(h.sym(names::FALSE)),
+        1 => kept[0],
+        _ => h.call(h.sym("or"), &kept),
+    }))
+}
+
+/// The rational roots of sum a_i x^(e_i) with integer a_i (the rational root theorem): a root u/v in lowest terms
+/// other than 0 has u dividing the lowest coefficient a_l and v dividing the leading one a_n (after x^l is divided
+/// out). Each candidate is tested by the value of v^n p(u/v) = sum a_i u^i v^(n-i): first modulo two primes (a
+/// nonzero residue rules it out), then exactly when it has at most [`MAX_EXACT_BITS`] bits; `None` when there are
+/// more than [`MAX_CANDIDATES`] candidates or a value would be larger.
+fn factor_rational_roots<'h>(cx: &mut NativeCx<'_, '_, 'h>, terms: &[(u64, mc_arith::num::Int)]) -> Res<Option<Vec<T<'h>>>> {
+    use mc_arith::num::Int;
+    let h = cx.heap();
+    let ar = mc_arith::Arith::new(h);
+    let low = terms.iter().map(|t| t.0).min().unwrap_or(0);
+    let mut out = vec![];
+    if low > 0 {
+        out.push(h.int(0));
+    }
+    let ts: Vec<(u64, Int)> = terms.iter().map(|(e, c)| (e - low, c.clone())).collect();
+    let n = ts.iter().map(|t| t.0).max().unwrap_or(0);
+    if n == 0 {
+        return Ok(Some(out));
+    }
+    let (Some(a0), Some(an)) = (ts.iter().find(|t| t.0 == 0).map(|t| t.1.clone()), ts.iter().find(|t| t.0 == n).map(|t| t.1.clone())) else {
+        return Ok(None);
+    };
+    let divisors = |cx: &mut NativeCx<'_, '_, 'h>, a: &Int| -> Res<Option<Vec<T<'h>>>> {
+        let t = ar.integer(&Int::from_nat(a.mag.clone()));
+        let ds = cx.eval(h.call(h.sym("divisors"), &[t]))?;
+        Ok(cx.as_list(ds).map(|d| d.to_vec()))
+    };
+    let (Some(us), Some(vs)) = (divisors(cx, &a0)?, divisors(cx, &an)?) else { return Ok(None) };
+    if us.len().saturating_mul(vs.len()) > MAX_CANDIDATES {
+        return Ok(None);
+    }
+    let ubits = |t: T<'h>| ar.num(t).and_then(|q| q.as_rat().cloned()).map(|q| log2_bounds(&q.num).1).unwrap_or(f64::INFINITY);
+    let cbits = ts.iter().map(|(_, c)| log2_bounds(c).1).fold(0.0, f64::max);
+    for &v in &vs {
+        for &u0 in &us {
+            let g = cx.eval(h.call(h.sym("gcd"), &[u0, v]))?;
+            if g != h.int(1) && !matches!(h.view(g), View::Int(1)) {
+                continue;
+            }
+            for u in [u0, cx.eval(ar.neg(u0))?] {
+                cx.tick(ts.len() as u64)?;
+                // v^n p(u/v) modulo two primes
+                let mut zero_mod = true;
+                for p in [2_147_483_647i64, 2_305_843_009_213_693_951] {
+                    let pt = h.int(p);
+                    let mut sum = vec![];
+                    for (e, c) in &ts {
+                        let pu = h.call(h.sym("power_mod"), &[u, h.int(*e as i64), pt]);
+                        let pv = h.call(h.sym("power_mod"), &[v, h.int((n - e) as i64), pt]);
+                        sum.push(h.call(h.sym(names::MUL), &[ar.integer(c), pu, pv]));
+                    }
+                    let r = cx.eval(h.call(h.sym("mod"), &[h.call(h.sym(names::ADD), &sum), pt]))?;
+                    if r != h.int(0) && !matches!(h.view(r), View::Int(0)) {
+                        zero_mod = false;
+                        break;
+                    }
+                }
+                if !zero_mod {
+                    continue;
+                }
+                if cbits + n as f64 * ubits(u).max(ubits(v)) > MAX_EXACT_BITS {
+                    return Ok(None);
+                }
+                let mut sum = vec![];
+                for (e, c) in &ts {
+                    let pu = h.call(h.sym(names::POW), &[u, h.int(*e as i64)]);
+                    let pv = h.call(h.sym(names::POW), &[v, h.int((n - e) as i64)]);
+                    sum.push(h.call(h.sym(names::MUL), &[ar.integer(c), pu, pv]));
+                }
+                let r = cx.eval(h.call(h.sym(names::ADD), &sum))?;
+                if r == h.int(0) || matches!(h.view(r), View::Int(0)) {
+                    out.push(cx.eval(h.call(h.sym(names::MUL), &[u, h.call(h.sym(names::POW), &[v, h.int(-1)])]))?);
+                }
+            }
+        }
+    }
+    Ok(Some(out))
 }
 
 /// `reduce(cond, x, d)` over the integers or a signed integer domain for an equation of very high degree: the

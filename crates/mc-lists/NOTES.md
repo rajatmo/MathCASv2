@@ -824,3 +824,24 @@ Source in `lib/lists.mc`, `src/more.rs`, `src/search.rs`.
 a list of indices maps. `"Odd"` has no value (none is known).
 `integer_string(n, "Base64")` writes the base-64 digits of |n| with the alphabet of RFC 4648 (A-Z, a-z, 0-9, +, /);
 `integer_string(n, "Arabic")` the decimal digits as the Arabic-Indic digits U+0660 to U+0669 (`lib/prelude.mc`).
+## Round 40: normalized vectors, knapsacks with several bounds
+
+Source in `lib/lists.mc`.
+
+- `normalized(v)`: v/norm(v) for a list (vector or matrix) or a number, v itself when the norm is exactly 0;
+  `normalized(v, f)`: v/f(v) for any v; a `time_series` has its values normalized, its times kept. Other arguments
+  stay unevaluated. The page `normalized` also keeps the histogram option of that name.
+- `knapsack_solve(items, caps)` with a list `[max payoff, max cost]` or `[max payoff, max cost, max count]`, or rules/an association with "MaxTotalPayoff", "MaxTotalCost", "MaxTotalCount". Method: dynamic
+  programming over the reachable totals (cost, payoff, count) of the first i items, each total keeping up to two
+  count vectors (Martello and Toth, Knapsack problems, 1990, ch. 3 for the bounded case); inexact data are taken as
+  their exact rationals. The answer is given only when exactly one count vector reaches the largest payoff: with
+  ties the call stays unevaluated (which optimum to prefer is a convention not fixed here; the scalar-cap form
+  still returns one of them, as documented). Quantities are taken in the unit of their bound (a dimensionless
+  quantity as its number). An item no bound limits leaves the call unevaluated. Checked against an enumeration of
+  all count vectors (`mc-engine/tests/round40_lists.rs`).
+- Gap seen: `norm` of a matrix of big floats (`n(m, 30)`) stays unevaluated.
+- The convex optimizers (`linear_optimization`, `linear_fractional_optimization`, `convex_optimization`,
+  `quadratic_`, `conic_`, `second_order_cone_`, `semidefinite_optimization`) with a vector variable x whose length
+  nothing fixes (no `dot` with a list) while `indexed(x, [k])`, k > 1, is used stay unevaluated (`lo_dim_known` in
+  `lib/prelude.mc`): the default length 1 left `indexed([v1], [2])` in the problem and the solver ran past the
+  cell limit.

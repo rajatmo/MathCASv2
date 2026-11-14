@@ -4,13 +4,25 @@
 # normalized
 
 #% text
-# `normalized` is an option of `histogram`: `normalized: true` scales the bars so that their total area is 1, a probability density.
+# `normalized(v)` gives the vector `v` divided by its norm; `normalized(v, f)` gives `v/f(v)`. As an option of `histogram`, `normalized: true` scales the bars so that their total area is 1, a probability density.
 
 #% section
 # Details
 
 #% item
-# The default is `false`: the bar heights are the counts.
+# The norm is `norm(v)`: the Euclidean length of a vector (with absolute values of complex entries), the 2-norm of a matrix, and `abs(z)` of a number `z`.
+
+#% item
+# A vector whose norm is 0 is returned as it is.
+
+#% item
+# With a function `f`, `v` may be any expression: a polynomial divided by an inner-product norm, say.
+
+#% item
+# The values of a `time_series` are normalized as one vector; the times stay.
+
+#% item
+# The option of `histogram` is `false` by default: the bar heights are the counts.
 
 #% section
 # Examples
@@ -19,19 +31,47 @@
 # Basic examples
 
 #% cell
+normalized([1, 5, 1])
+#% output
+#= [(1/9)*3^(1/2), (5/9)*3^(1/2), (1/9)*3^(1/2)]
+
+#% cell
+normalized([x, y])
+#% output
+#= [x/(abs(x)^2 + abs(y)^2)^(1/2), y/(abs(x)^2 + abs(y)^2)^(1/2)]
+
+#% cell
+normalized(3 + 4*im)
+#% output
+#= 3/5 + 4*im/5
+
+#% cell
 seed(3); data = random_variate(normal_distribution(0, 1), 1000); histogram(data, normalized: true)
 #% output
-#= image("normalized.files/normalized-1.svgz")
+#= image("normalized.files/normalized-4.svgz")
 
 #% cell
 histogram(data, normalized: false)
 #% output
-#= image("normalized.files/normalized-2.svgz")
+#= image("normalized.files/normalized-5.svgz")
+
+#% subsection
+# Scope
+
+#% cell
+normalized([[1, 2], [4, 5]], norm)
+#% output
+#= [[(23 + 2*130^(1/2))^(-1/2), 2/(23 + 2*130^(1/2))^(1/2)], [4/(23 + 2*130^(1/2))^(1/2), 5/(23 + 2*130^(1/2))^(1/2)]]
+
+#% cell
+normalized(1 + x + x^2, &(integrate(&1^2, [x, -1, 1])))
+#% output
+#= (5/22)*(1 + x + x^2)
 
 #% cell
 histogram(data, bins: [0.5], normalized: true)
 #% output
-#= image("normalized.files/normalized-3.svgz")
+#= image("normalized.files/normalized-8.svgz")
 
 #% subsection
 # Applications
@@ -42,10 +82,10 @@ histogram(data, bins: [0.5], normalized: true)
 #% cell
 show(histogram(data, normalized: true), plot(pdf(normal_distribution(0, 1), x), [x, -4, 4]))
 #% output
-#= image("normalized.files/normalized-4.svgz")
+#= image("normalized.files/normalized-9.svgz")
 
 #% section
 # See also
 
 #% text
-# `histogram`, `bins`, `pdf`
+# `norm`, `unit_vector`, `histogram`, `bins`, `pdf`

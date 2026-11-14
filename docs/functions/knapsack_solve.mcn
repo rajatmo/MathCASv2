@@ -21,6 +21,12 @@
 #% item
 # Several optimal solutions exist often; one of them is returned.
 
+#% item
+# `knapsack_solve(items, [max_payoff, max_cost])` and `knapsack_solve(items, [max_payoff, max_cost, max_count])` bound the total payoff, the total cost and the total number of items (`inf` for no bound); the bounds may also be given as rules or an association with the keys "MaxTotalPayoff", "MaxTotalCost" and "MaxTotalCount".
+
+#% item
+# With several bounds the counts are given only when exactly one choice reaches the largest payoff; when several do, the call stays unevaluated. Payoffs and costs that are quantities are taken in the unit of their bound.
+
 #% section
 # Examples
 
@@ -51,6 +57,19 @@ knapsack_solve(assoc("apples" -> [8, 3, 3], "oranges" -> [9, 7, 5]), 25)
 knapsack_solve([["Payoff" -> 4, "Cost" -> 12], ["Payoff" -> 5, "Cost" -> 13, "MaxCount" -> 2]], 45)
 #% output
 #= [1, 2]
+
+#% subsection
+# Scope
+
+#% cell
+knapsack_solve([[3, 2, 7], [2, 1, 5]], [15, 10, 5])
+#% output
+#= [5, 0]
+
+#% cell
+knapsack_solve([[8, 9, 2], [4, 4, 5], [5, 6]], assoc("MaxTotalCost" -> 30, "MaxTotalCount" -> 4, "MaxTotalPayoff" -> 35))
+#% output
+#= [2, 0, 2]
 
 #% section
 # See also

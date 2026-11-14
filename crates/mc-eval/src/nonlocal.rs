@@ -353,4 +353,10 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("verbatim"), a(Hold::All), Box::new(Repeated));
     k.register(h.sym("hold_pattern"), a(Hold::All), Box::new(Repeated));
     k.register(h.sym("alternatives"), a(Hold::None), Box::new(Repeated));
+    // the name of a pattern variable is a name, not evaluated: `x_` (`any(x)`), `x__`, `x___` and `x @ p` keep x
+    // when x has a value in the session
+    k.register(h.sym("any"), a(Hold::All), Box::new(Repeated));
+    k.register(h.sym("seq1"), a(Hold::All), Box::new(Repeated));
+    k.register(h.sym("seq0"), a(Hold::All), Box::new(Repeated));
+    k.register(h.sym("named"), a(Hold::First), Box::new(Repeated));
 }

@@ -969,15 +969,8 @@ fn set_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, v: T<'h>) -> Res<Opti
     for &i in idx {
         ks.push(cx.eval(i)?);
     }
-    let rule = h.sym_term(h.sym("rule"));
     let pos = if ks.len() == 1 { ks[0] } else { cx.list(&ks) };
-    let mut new = cx.eval(h.app(h.sym_term(h.sym("replace_part")), &[cur, h.app(rule, &[pos, v])]))?;
-    if new == cur && ks.len() == 1 {
-        // a new key of an association
-        if matches!(h.view(cur), View::App { head, .. } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "assoc")) {
-            new = cx.eval(h.app(h.sym_term(h.sym("append")), &[cur, h.app(rule, &[ks[0], v])]))?;
-        }
-    }
+    let new = with_part(cx, cur, pos, ks.len() == 1, v)?;
     let mut at = vec![cur];
     at.extend_from_slice(&ks);
     if new == cur && cx.eval(h.app(head, &at))? != v {
@@ -986,6 +979,32 @@ fn set_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, v: T<'h>) -> Res<Opti
     let set = h.sym_term(h.sym("set"));
     cx.eval(h.app(set, &[s, new]))?;
     Ok(Some(Reply::Done(v)))
+}
+
+/// `cur` with the part at `pos` replaced by `v` (`replace_part`); when nothing is replaced and `pos` is one key of
+/// an association (`single`), the key is added at the end.
+fn with_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, cur: T<'h>, pos: T<'h>, single: bool, v: T<'h>) -> Res<T<'h>> {
+    let h = cx.heap();
+    let rule = h.sym_term(h.sym("rule"));
+    let new = cx.eval(h.app(h.sym_term(h.sym("replace_part")), &[cur, h.app(rule, &[pos, v])]))?;
+    if new == cur
+        && single
+        && matches!(h.view(cur), View::App { head, .. } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "assoc"))
+    {
+        return cx.eval(h.app(h.sym_term(h.sym("append")), &[cur, h.app(rule, &[pos, v])]));
+    }
+    Ok(new)
+}
+
+/// `assign_part(x, k, v)`: the value of `x[k] = v` for a `var` local x, as the syntax lowers it: x with part k
+/// replaced, or a new key k of an association added at the end, as `set` does for a symbol.
+struct AssignPart;
+
+impl Native for AssignPart {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
+        let [x, k, v] = a else { return Ok(Reply::Decline) };
+        Ok(Reply::Done(with_part(cx, *x, *k, true, *v)?))
+    }
 }
 
 /// `define_rule(rule_delayed(L, R) | rule(L, R), list(decorators))`.
@@ -1100,6 +1119,7 @@ impl Native for IsGround {
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
+    k.register(h.sym("assign_part"), Attributes::default(), Box::new(AssignPart));
     k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
     // an assignment keeps a failure as the value it assigns (decision p6core.25: `r = find_root(...)` that fails
     // leaves `r` the failure, not unassigned)

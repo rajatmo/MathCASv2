@@ -340,3 +340,13 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   nested step functions, a non-polynomial argument or an unbounded x give no answer here.
 - Integer search boxes take the bounds along chains of order relations between the unknowns (`10 < a < b < 15`
   bounds a above by 13 and b below by 12), repeated until nothing changes.
+## Round 40: rational roots without factoring
+
+- `reduce(p == 0 and conds, x, rationals)` for one polynomial equation with rational coefficients: each factor as
+  written, cleared of denominators, gives its rational roots by the rational root theorem (`domain.rs`,
+  `factor_rational_roots`): u/v in lowest terms with u | a_l and v | a_n, each candidate tested by v^n p(u/v)
+  modulo two primes and then exactly, so no factorisation over Q of a polynomial of degree 100 is needed (it took
+  more than 6 s; now milliseconds). More than 20000 candidates or a value beyond 200000 bits: the general path.
+  The roots come once each, in increasing order (the general path listed a multiple root 0 several times).
+- Gap seen: `reduce(x^2 + y == 0, x, rationals)` and the integers give `false` for a parameter y (the radical roots
+  are dropped as not rational, although they are for some y); not changed here.

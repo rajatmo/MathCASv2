@@ -106,6 +106,10 @@ pub fn optimize<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, goal:
     if fr.has_quantifier(f) {
         return Ok(None);
     }
+    // |u|^(2k) = u^(2k) for a real polynomial u of the (real) variables: no case split of the abs (the squared
+    // norm of a residual, `norm(m . x - b)`, had 2^rows cases)
+    let f = even_abs_powers(h, f, &vars);
+    let cond = cond.map(|c| even_abs_powers(h, c, &vars));
     let g = if goal.max() { fr.ar.neg(f) } else { f };
     let tv = h.sym_term(h.sym("cad$objective"));
     let graph = h.call(h.sym("equal"), &[tv, g]);
@@ -246,6 +250,53 @@ pub(crate) fn extreme<'h>(fr: &Front<'h>, full: T<'h>, free: &[T<'h>], n: usize,
         return Ok(Some(Extreme::Unbounded));
     }
     Ok(Some(Extreme::Infimum(o.cells[i - 1].coord.clone())))
+}
+
+/// `t` with every `abs(u)^n`, n an even integer, replaced by `u^n` where `u` is a polynomial with real (not
+/// complex) number coefficients in the variables `vars` (real throughout an optimisation), so `|u|^n = u^n`.
+fn even_abs_powers<'h>(h: &'h mc_core::Heap, t: T<'h>, vars: &[T<'h>]) -> T<'h> {
+    let View::App { head, args } = h.view(t) else { return t };
+    let name = match h.view(head) {
+        View::Sym(s) => h.sym_name(s),
+        _ => String::new(),
+    };
+    if name == names::POW {
+        if let [b, e] = args {
+            if matches!(h.view(*e), View::Int(k) if k > 0 && k % 2 == 0) {
+                if let View::App { head: bh, args: &[u] } = h.view(*b) {
+                    if matches!(h.view(bh), View::Sym(s) if h.sym_name(s) == "abs") && real_polynomial(h, u, vars) {
+                        return h.call(h.sym(names::POW), &[u, *e]);
+                    }
+                }
+            }
+        }
+    }
+    let new: Vec<T<'h>> = args.iter().map(|&a| even_abs_powers(h, a, vars)).collect();
+    if new.iter().zip(args).all(|(a, b)| a == b) {
+        t
+    } else {
+        h.app(head, &new)
+    }
+}
+
+/// Whether `u` is built from the variables and real numbers by sums, products and powers with natural exponents.
+fn real_polynomial<'h>(h: &'h mc_core::Heap, u: T<'h>, vars: &[T<'h>]) -> bool {
+    match h.view(u) {
+        View::Int(_) | View::BigInt { .. } | View::Rational { .. } | View::Real(_) | View::Ball { .. } => true,
+        View::Sym(_) => vars.contains(&u),
+        View::App { head, args } => {
+            let View::Sym(s) = h.view(head) else { return false };
+            let n = h.sym_name(s);
+            if n == names::ADD || n == names::MUL {
+                args.iter().all(|&a| real_polynomial(h, a, vars))
+            } else if n == names::POW {
+                matches!(args, [b, e] if matches!(h.view(*e), View::Int(k) if k >= 0) && real_polynomial(h, *b, vars))
+            } else {
+                false
+            }
+        }
+        View::Str(_) => false,
+    }
 }
 
 fn alg(c: &Coord) -> RealAlg {

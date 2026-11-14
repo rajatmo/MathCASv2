@@ -725,3 +725,19 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
   building them. The fixed limit of 2^26 entries is gone: `hankel_matrix(10000)` is refused under a 700 MB process cap
   and built (800 MB) where it fits. Hankel and Toeplitz rows are slices now: `hankel_matrix(1000)` took 25 s (an
   indexed closure call per entry) and takes 0.01 s.
+## Round 40: new keys in associations held by `var` locals
+
+- `x[k] = v` on a `var` local lowered to `assign(x, replace_part(x, k -> v))`, and `replace_part` leaves an
+  association without the key k unchanged: inside a block a new key was silently dropped
+  (`{ var b = assoc(); b["w"] = 5; b }` gave `assoc()`), while the same assignment to a top-level symbol adds it.
+  One key now lowers to `assign(x, assign_part(x, k, v))` (`syntax.rs`, internal): the part replaced, or, when
+  nothing was replaced and x is an association, the key added at the end, by the same function `set` uses for a
+  symbol. Several indices keep `replace_part`. Test `mc-engine/tests/round40_lists.rs`.
+
+## Round 40: names of pattern variables are held
+
+- `any(x)` (`x_`), `seq1(x)` (`x__`), `seq0(x)` (`x___`) and `named(x, p)` (`x @ p`) were plain calls whose arguments
+  were evaluated: in a session where x had a value, a rule given to `rewrite` (its left side is evaluated) became
+  `any(3)` and failed with "a pattern variable that is not a symbol". They are now registered (`nonlocal.rs`) with
+  their name held (`any`, `seq1`, `seq0` hold all, `named` its first argument), declining natives otherwise, so
+  `x = 3; rewrite(f(1.5), f(x_) :> 2 x)` is 3.0 and x keeps its value. Test `mc-engine/tests/round40_patterns.rs`.
