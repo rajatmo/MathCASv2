@@ -42,7 +42,7 @@ pub(crate) struct AlgNative {
 }
 
 /// Run `f` with an environment and a metered budget, and turn its outcome into a reply.
-fn run<'h>(
+pub(crate) fn run<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
     stop: &Arc<AtomicBool>,
     name: &'static str,
@@ -78,6 +78,14 @@ impl Native for AlgNative {
             return to_radicals(cx, &self.stop, args);
         }
         let f = self.f;
+        if f == AlgFn::CountRoots {
+            // polynomials exactly; other functions (and polynomials the exact method declines) by enclosures
+            let r = run(cx, &self.stop, self.name, |env, m| crate::countroots::count_roots(env, args, m))?;
+            if !matches!(r, Reply::Decline) {
+                return Ok(r);
+            }
+            return crate::transroots::count_roots(cx, &self.stop, self.name, args);
+        }
         if f == AlgFn::RootSum {
             // a numeric sum is evaluated here, so that a vanishing imaginary part can be dropped
             let mut numeric = None;

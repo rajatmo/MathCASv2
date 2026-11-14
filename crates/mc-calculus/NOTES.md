@@ -1557,3 +1557,31 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   continuous, meromorphic), polylog (meromorphic). Now unevaluated: `x^a`, `(x + 1)^a`, `log(x)^a`, `tan(a x)`
   (analytic), sign, monotonicity and convexity of powers with symbolic exponents, polylog, incomplete gamma,
   elliptic K, Legendre Q with parameters.
+## Round 41: Puiseux branches in asymptotic_solve
+
+- One polynomial equation f(x, y) = 0 whose branches are not all regular (a singular start, branches to infinity)
+  is solved by Newton's polygon (`cb_puiseux` in `lib/calculus.mc`; Walker, Algebraic Curves, ch. IV.3; Duval
+  1989): each edge of the lower hull of (i, ord a_i) with slope -g and each simple root c of its characteristic
+  polynomial give y = x^g (c + z), z(t) with x = t^q the regular solution of f/t^(b q) found by Newton's iteration
+  on series. Branches by decreasing g, then by the real and imaginary parts of c; a regular branch to x^k, the
+  others to x^g times terms below x^k; `reals` keeps real c. A repeated root of a characteristic polynomial (a
+  second polygon), systems, non-polynomial equations and the `direction` option stay as before (declined).
+  Tests: `mc-engine/tests/round41_puiseux.rs`.
+
+## Round 41: products and sums with no closed form at infinity
+
+- `asymptotic_product(f, [k, a, n], [n, inf, m])` and `asymptotic_sum(f, [k, a, n], [n, inf, m])` when the product
+  or sum has no closed form: the tail from n + 1 on of log f (of f) is summed term by term from the expansion of the
+  summand in powers k^-a with a > 1, each term c k^-a as c zeta(a, n + 1), whose expansion at infinity the series
+  library has (Euler-Maclaurin, DLMF 25.11.43); the result is C exp(-T) (C - T) with the full product (sum) C from
+  the terms up to 200 at 40 digits and the tail beyond them to 8 more orders (the value agrees with 800 terms to 30
+  digits), given as a machine number. Summands whose expansion has logarithms, exponentials or a power k^-a with
+  a <= 1 (divergent) are left as before, and so are indefinite products (`asymptotic_product(f, k, [k, inf, m])`:
+  exp(-T) with T from k on is one answer up to a constant factor, but how many of its terms an order m keeps is
+  not settled here).
+- `asymptotic_sum` of a closed form whose expansion at infinity is not known (`harmonic_number(n, 1, exp(-7))`)
+  is a failure, not a held `series`.
+- Not done: the Hankel transform when the Mellin-Barnes integrand is balanced (p = q): `inverse_mellin_transform`
+  sums the residues on the left only and cannot see the cancelled poles of the mirrored gamma ratio, so the right
+  series (the function above the jump) is not checked; the transform declines as before.
+  Tests: `mc-engine/tests/round41_tails.rs`.

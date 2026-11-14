@@ -27,6 +27,7 @@ pub mod cx;
 pub mod gf;
 pub mod gosper;
 pub mod hyper;
+pub mod nested;
 pub mod numsum;
 pub mod prod;
 pub mod recur;

@@ -94,8 +94,8 @@ fn asymptotics_and_transforms() {
         ("expand(asymptotic_integrate(exp(t*x), [t, 0, 1], [x, 0, 3]) - (1 + x/2 + x^2/6 + x^3/24))", "0"),
         ("expand(asymptotic_sum(1/(k^2 + a), [k, 1, inf], [a, 0, 1]) - (pi^2/6 - a*pi^4/90))", "0"),
         ("expand(rewrite(y, asymptotic_solve(exp(y) - cos(x*y) + x == 0, [y, 0], [x, 0, 3])[1]) + x + x^2/2 + x^3/3)", "0"),
-        // two of the four branches leave to infinity at x = 0 (Puiseux): no incomplete list (round 36)
-        ("asymptotic_solve(x*y^4 - (x + 1)*y^2 + x == 1, [y], [x, 0, 2])", "failure(unevaluated, asymptotic_solve, \"a branch through a singular point or to infinity needs a Puiseux expansion\")"),
+        // two of the four branches leave to infinity at x = 0: all four, the last two by Newton's polygon
+        ("length(asymptotic_solve(x*y^4 - (x + 1)*y^2 + x == 1, [y], [x, 0, 2]))", "4"),
     ]);
 }
 

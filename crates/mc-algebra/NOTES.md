@@ -315,3 +315,25 @@ field and the degree-42 norm.
 ## Round 37
 
 - `root_reduce` of an atom that is not an algebraic number (true, false, a symbol) is the atom (was unevaluated).
+
+## Round 41: root counts of functions that are not polynomials
+
+- `count_roots(f, [x, a, b])` for an f that is not a polynomial (or a polynomial the exact method declines, such as
+  degree 10^6) counts by enclosures (`transroots.rs`): on a real interval by the exclusion and monotonicity tests of
+  interval analysis (Moore, Kearfott and Cloud 2009, ch. 8), bisecting at points where f is proved nonzero; on a
+  rectangle (exact dyadic corners) by the argument principle after proving f analytic there (a cover by boxes with
+  enclosures; abs is refused), with the boundary cut into pieces whose enclosure lies in a half-plane. A root at an
+  exact end counts with its order (exact zeros of f, f', ... there and a one-sided neighbourhood where the next
+  derivative has a sign). `count_roots(f, x)` and `[x, 0, inf]` for sums of real powers c x^a: the term of least and
+  of largest exponent dominate below eps and above R, the interval method runs on [eps, R] with each power bounded
+  by its values at the ends of a box (a ball cannot hold the range of x^1000000 on [1.5, 1.6]), and the count is
+  checked against the rule of signs for real exponents (Laguerre). Polynomials on the line add the count for f(-x).
+- Only elementary functions (`Graph::has_library` in mc-numeric refuses library functions, whose enclosures over
+  wide boxes are not used here). Multiple roots inside an interval, poles inside a rectangle (`tan(z)`, `gamma(z)`),
+  a zero on the boundary, and half-lines for other functions stay unevaluated. A box without an enclosure at 2^-12
+  (rectangles) or 2^-40 (intervals) of the range ends the attempt without retrying at higher precision; at most
+  400,000 boxes per call, shared by the precisions 64, 128 and 256 bits.
+- Not done: `bessel_j`, `fresnel_c`, `gamma` (library enclosures), meromorphic functions (the poles would be
+  counted as the zeros of a denominator), half-lines and the line for functions with an unbounded tail
+  (`exp(2 exp(x)) - log(x^2 + 1) - 20 x - 11`), and the periodic count of `sin(z/2)^5 + tan(4z)^3` on [0, 10^10].
+  Tests: `mc-engine/tests/round41_roots.rs`.

@@ -346,13 +346,23 @@ fn finite<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, hi: T<
                 }
                 out.push(s);
             }
+            let mut whole = true;
             for p in other {
-                out.push(some!(finite_term(sx, p, k, lo, hi, m)?));
+                match finite_term(sx, p, k, lo, hi, m)? {
+                    Some(s) => out.push(s),
+                    None => {
+                        whole = false;
+                        break;
+                    }
+                }
             }
-            return Ok(Some(sx.add(&out)?));
+            if whole {
+                return Ok(Some(sx.add(&out)?));
+            }
         }
     }
-    Ok(None)
+    // nested harmonic sums (the parts together: their stuffle products may share terms)
+    crate::nested::harmonic_sum(sx, f, k, lo, hi)
 }
 
 /// One hypergeometric term summed over a finite symbolic range.
@@ -389,7 +399,8 @@ fn finite_term<'h>(sx: &mut Sx<'_, '_, '_, 'h>, f: T<'h>, k: T<'h>, lo: T<'h>, h
             }
         }
     }
-    Ok(None)
+    // nested harmonic sums
+    crate::nested::harmonic_sum(sx, f, k, lo, hi)
 }
 
 /// `sum_{k=lo}^{hi} c (k + a)^s` for c and s free of k, s not an integer and `lo + a` a positive integer j: the

@@ -295,3 +295,18 @@ differences and ratios, generating functions and convergence, interruption.
   became machine numbers and every probe went through 65536 evaluator terms (a summand containing a sum or product
   is now probed at the exact index first). The value 0.5629461736 agrees with Richardson extrapolation of log P(N) at
   N = 10^4, 2 10^4, 4 10^4 (even N, error c/N) to 1e-12.
+## Round 41: nested harmonic sums
+
+- `nested.rs`: `sum(c s^k/k^r H, [k, lo, n])` with H a product of harmonic, alternating harmonic and multiple
+  harmonic numbers of k or k - 1 (the inner sums of a nested `sum`, which are summed first) is written in
+  multiple harmonic numbers S(n; w) (the S-sums of Moch, Uwer and Weinzierl 2002): S(k; a w) = S(k - 1; a w) +
+  a(k) S(k - 1; w) for an inner sum of k, products of inner sums by the stuffle product (Hoffman 2000), then the
+  definition sum_k s^k/k^r S(k - 1; w) = S(n; (r, s) w). A first letter (0, 1) is summed out, S(n; (0, 1) w) = n
+  S(n; w) - S(n; w with r1 - 1). A summand in k + j is shifted; s(k, 2) and S(k, 2) are written out. A depth-one
+  sum with a weight s != 1 is `harmonic_number(n, r, s)`. Each result is checked by `verify::check_sum`.
+- With this, sums whose bounds are not strict (n1 >= n2 >= ...) give all coarsenings of the strict chain, and
+  `asymptotic_sum(harmonic_number(k)/(k + 1), [k, 1, n - 1], [n, inf, 2])` comes from (H(n)^2 - H(n, 2))/2.
+- Not done: summands with `hyper_harmonic_number` or `boole` of sums of indices (Tornheim double sums), symbolic
+  summation of S-sums with polynomial weights beyond the leading-zero rule (sum k^2 H(k) keeps
+  S(n; (-2, 1), (1, 1))). The evaluator's add left a sum nested in the result when equal multiples of one sum
+  combined: numeric multiples of sums are spread before the final add.

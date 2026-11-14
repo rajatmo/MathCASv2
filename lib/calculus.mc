@@ -3245,16 +3245,69 @@ rule asymptotic_sum(f_, kspec_, sp_) := {
     else if cb_is_rule(sp) then cb_lead(r, x, x0) else r
   } else {
     let s = sum(f, kspec)
-    if not free_of(s, sum) then failure(unevaluated, asymptotic_sum, "the sum has no closed form")
-    else if cb_is_rule(sp) then cb_lead2(s, x, x0) else cb_series(s, x, x0, sp[3])
+    let em = if not free_of(s, sum) and is_list(sp) and length(sp) == 3 and x0 === inf and is_integer(sp[3]) then cb_em_sum(f, kspec, sp) else null
+    if not (em === null) then em
+    else if not free_of(s, sum) then failure(unevaluated, asymptotic_sum, "the sum has no closed form")
+    else {
+      # a closed form whose expansion is not known (harmonic_number(n, 1, exp(-7)) at infinity) gives no answer
+      let r = if cb_is_rule(sp) then cb_lead2(s, x, x0) else cb_series(s, x, x0, sp[3])
+      if free_of(r, series) then r else failure(unevaluated, asymptotic_sum, "the expansion of the closed form is not known")
+    }
   }
 } when cb_asym_spec(sp)
+
+# cb_tail(g, k, n, j0, m): sum_(j >= n + j0) g(j) as n -> inf to order m, for a g whose expansion at infinity has powers j^-a
+# with a > 1 only: each term c j^-a summed as c zeta(a, n + j0), whose expansion at infinity (Euler-Maclaurin, DLMF
+# 25.11.43) the series library has; null for another g
+fn cb_tail_terms(g, k, m) = {
+  let gs = expand(normal(series(g, k, inf, m + 2)))
+  if not free_of(gs, log) or not free_of(gs, exp) then null else if head(gs) === add then apply(list, gs) else [gs]
+}
+fn cb_tail(g, k, n, j0, m) = {
+  let ts = cb_tail_terms(g, k, m)
+  let pw = if ts === null then null else map(t => simplify(-k*d(t, k)/t), ts)
+  if ts === null or some(pw, a => not (is_numeric(a) and is_real(a) and a > 1)) then null
+  else normal(series(calc_total(map(i => simplify(ts[i]*k^pw[i])*zeta(pw[i], n + j0), range(length(ts)))), n, inf, m))
+}
+# a product (sum) over [k, lo, n] with no closed form, n -> inf: its value over [k, lo, inf] (numerically when there
+# is no closed form) times exp(-T) (less T), T the tail from n + 1 on of log f (of f)
+# cb_em_const(f, k, lo, isprod, m): the product (sum) of f over k >= lo as a machine number: the terms up to N = 200
+# at 40 digits and the tail beyond N from the expansion to 8 orders more (its error of the order of N^-(m + 9))
+fn cb_em_const(f, k, lo, isprod, m) = {
+  let nn = 200
+  let t = cb_tail(if isprod then log(f) else f, k, cb_em_n, 1, m + 8)
+  let tv = if t === null then null else n(rewrite(t, cb_em_n -> nn), 40)
+  let vals = map(j => n(rewrite(f, k -> j), 40), range(lo, nn))
+  let c = if tv === null then null else if isprod then product(vals)*exp(tv) else calc_total(vals) + tv
+  if c === null or not is_numeric(c) or not is_real(c) then null else set_precision(c, machine_precision)
+}
+fn cb_em_product(f, kspec, sp) = {
+  let n = sp[1]
+  let m = sp[3]
+  if is_list(kspec) and length(kspec) == 3 and kspec[3] === n and free_of(kspec[2], n) and is_integer(kspec[2]) then {
+    let t = cb_tail(log(f), kspec[1], n, 1, m)
+    let c = if t === null then null else cb_em_const(f, kspec[1], kspec[2], true, m)
+    if t === null or not is_numeric(c) then null else c*normal(series(exp(-t), n, inf, m))
+  } else null
+}
+fn cb_em_sum(f, kspec, sp) = {
+  let n = sp[1]
+  let m = sp[3]
+  if is_list(kspec) and length(kspec) == 3 and kspec[3] === n and free_of(kspec[2], n) and is_integer(kspec[2]) then {
+    let t = cb_tail(f, kspec[1], n, 1, m)
+    let c0 = if t === null then null else sum(f, [kspec[1], kspec[2], inf])
+    let c = if t === null then null else if free_of(c0, sum) and is_numeric(n(c0)) then c0 else cb_em_const(f, kspec[1], kspec[2], false, m)
+    if t === null or not is_numeric(c) then null else c - t
+  } else null
+}
 
 # asymptotic_product(f, [k, a, b], [x, x0, m]): the expansion of the closed-form product to order m in x at x0;
 # x -> x0 for the leading term
 rule asymptotic_product(f_, kspec_, sp_) := {
   let s = product(f, kspec)
-  if not free_of(s, product) then failure(unevaluated, asymptotic_product, "the product has no closed form")
+  let em = if not free_of(s, product) and is_list(sp) and length(sp) == 3 and sp[2] === inf and is_integer(sp[3]) then cb_em_product(f, kspec, sp) else null
+  if not (em === null) then em
+  else if not free_of(s, product) then failure(unevaluated, asymptotic_product, "the product has no closed form")
   else if cb_is_rule(sp) then cb_lead2(s, sp[1], sp[2]) else cb_series(s, sp[1], sp[2], sp[3])
 } when cb_asym_spec(sp)
 # series_term_goal: g with x -> inf: the leading term and g more terms of Stirling's series (the count for
@@ -3286,6 +3339,51 @@ fn cb_regular(fs, ys, pt, x, x0) = {
   not (simplify(det(map(f => map(y => rewrite(d(f, y), sub), ys), fs))) === 0)
 }
 
+# cb_puiseux(f, y, x, k, y0, realq): the branches y(x) of the polynomial equation f(x, y) = 0 as x -> 0 (those
+# through y(0) = y0 when y0 is not null), by Newton's polygon (Newton-Puiseux; Walker, Algebraic Curves (1950),
+# ch. IV.3; Duval, Rational Puiseux expansions, Compositio Math. 70 (1989)). With a_i(x) the coefficient of y^i,
+# each edge of the lower convex hull of the points (i, ord a_i) with slope -g gives the branches y = x^g (c + ...)
+# for the roots c of its characteristic polynomial sum lc(a_i) c^i over the points on the edge; for a simple root,
+# x = t^q, y = t^(g q) (c + z) turns f/t^(b q) (b the edge's value) into an equation regular at (0, 0) whose
+# solution z(t) Newton's iteration on series gives. The branches come by decreasing g, then by the real and the
+# imaginary part of c; a regular branch (g = 0) to x^k, the others to x^g times terms below x^k. A repeated root
+# of a characteristic polynomial (a branch that needs a second polygon) gives null; realq keeps the real branches.
+fn cb_ord(a, x) = {
+  let cl = coefficient_list(expand(a), x)
+  first(select(range(length(cl)), j => not (cl[j] === 0))) - 1
+}
+fn cb_cross(o, a, b) = (a[1] - o[1])*(b[2] - o[2]) - (a[2] - o[2])*(b[1] - o[1])
+fn cb_hull_push(hl, p) = if length(hl) >= 2 and cb_cross(hl[length(hl) - 1], hl[length(hl)], p) <= 0 then cb_hull_push(take(hl, length(hl) - 1), p) else join(hl, [p])
+fn cb_branch(f, y, x, k, g, c, beta) = {
+  let q = denominator(g)
+  let pp = numerator(g)
+  let gg = expand(expand(rewrite(f, [x -> cb_pt^q, y -> cb_pt^pp*(c + cb_pz)]))/cb_pt^(beta*q))
+  let kk = if g === 0 then k else k*q - 1
+  let z = if kk < 1 then 0 else cb_newton([gg], [cb_pz], [0], cb_pt, 0, kk, kk + 2)[1]
+  expand(rewrite(cb_pt^pp*(c + z), cb_pt -> x^(1/q)))
+}
+fn cb_puiseux(f, y, x, k, y0, realq) = {
+  let f1 = if y0 === null then f else expand(rewrite(f, y -> y0 + y))
+  let cs = coefficient_list(f1, y)
+  let pts = map(i => [i - 1, cb_ord(cs[i], x)], select(range(length(cs)), i => not (expand(cs[i]) === 0)))
+  let hull = fold((hl, p) => cb_hull_push(hl, p), [], pts)
+  let edges = select(map(j => [hull[j], hull[j + 1]], range(length(hull) - 1)), e => y0 === null or e[2][2] < e[1][2])
+  let found = map(e => {
+    let g = (e[1][2] - e[2][2])/(e[2][1] - e[1][1])
+    let on = select(pts, p => e[1][1] <= p[1] and p[1] <= e[2][1] and p[2] == e[1][2] - g*(p[1] - e[1][1]))
+    let chp = expand(total(map(p => coefficient(expand(cs[p[1] + 1]), x, p[2])*cb_pc^(p[1] - e[1][1]), on)))
+    let simple = exponent(polynomial_gcd(chp, d(chp, cb_pc)), cb_pc) == 0
+    let cs1 = if simple then map(s => cb_pc_value(s), solve(chp == 0, cb_pc)) else null
+    if cs1 === null then null else {
+      let cs2 = if realq then select(cs1, c => im_part(n(c)) == 0) else cs1
+      map(c => cb_branch(f1, y, x, k, g, c, e[1][2] + g*e[1][1]), sort_by(cs2, c => [re(n(c)), im_part(n(c))]))
+    }
+  }, edges)
+  if some(found, r => r === null) then null
+  else map(r => if y0 === null then r else expand(y0 + r), flatten(found, 1))
+}
+fn cb_pc_value(s) = rewrite(cb_pc, s)
+
 # asymptotic_solve(eqs, [y, y0], [x, x0, k]): the solution y(x) of eqs through y(x0) = y0 as a series to order k;
 # asymptotic_solve(eqs, [y], ...) for each root y0 of eqs at x0; asymptotic_solve(eqs, [[y1, y2], [a1, a2]], ...) for
 # systems; regular points only (an invertible Jacobian in the ys)
@@ -3309,7 +3407,11 @@ rule asymptotic_solve(eqs_, yspec_, xspec_, opts___) := {
   # to infinity (x y^4 - (x + 1) y^2 + x == 1: the degree in y drops at x = 0) need Puiseux expansions in fractional
   # powers, which are not implemented; leaving them out would give an incomplete list
   let lost = length(ys) == 1 and length(fs) == 1 and polynomial_expression_q(fs[1], [ys[1]]) and exponent(rewrite(fs[1], x -> x0), ys[1]) < exponent(fs[1], ys[1])
-  if not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost then
+  # one polynomial equation in x and y: every branch by Newton's polygon
+  let single = length(ys) == 1 and length(fs) == 1 and polynomial_expression_q(fs[1], [ys[1], x]) and every(flatten([opts]), o => o === reals)
+  let pu = if single and (not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost) then cb_puiseux(fs[1], ys[1], x, k, if length(yspec) == 2 then (if several then yspec[2][1] else yspec[2]) else null, realq) else null
+  if not (pu === null) then map(r => [ys[1] -> rewrite(r, x -> xspec[1] - xspec[2])], pu)
+  else if not is_list(starts1) or length(starts) == 0 or length(good) < length(starts1) or lost then
     failure(unevaluated, asymptotic_solve, "a branch through a singular point or to infinity needs a Puiseux expansion")
   else map(pt => {
     let r = cb_newton(fs, ys, pt, x, x0, k, k + 2)

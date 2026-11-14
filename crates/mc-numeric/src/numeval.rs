@@ -211,6 +211,16 @@ impl<'h> Graph<'h> {
         self.index.get(&t).copied().flatten()
     }
 
+    /// Does the island call a library function? (Certified methods use the elementary functions only.)
+    pub fn has_library(&self, is: &Island) -> bool {
+        is.order.iter().any(|&i| matches!(self.nodes[i as usize], Node::Lib(..)))
+    }
+
+    /// Does the island take an absolute value (which is not analytic)?
+    pub fn has_abs(&self, is: &Island) -> bool {
+        is.order.iter().any(|&i| matches!(self.nodes[i as usize], Node::Abs(_)))
+    }
+
     /// Is the node a plain number (no computation)?
     pub fn is_number(&self, i: u32) -> bool {
         matches!(self.nodes[i as usize], Node::Num(_))
