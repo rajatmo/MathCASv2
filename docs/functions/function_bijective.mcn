@@ -46,7 +46,7 @@ function_bijective([x + 2*y, 3*x - y], [x, y])
 #% cell
 [function_bijective(log(x), x, complexes), function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)]
 #% output
-#= [false, function_bijective([log(x), true, -pi < im_part(y) and im_part(y) <= pi], x, y, complexes)]
+#= [false, true]
 
 #% text
 # A cubic beyond its turning points, onto the positive numbers:

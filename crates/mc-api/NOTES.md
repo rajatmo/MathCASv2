@@ -30,7 +30,7 @@ seconds (semantics 18.7). Every clock read in `crates/*/src` was classified:
 | mc-simplify/src/lib.rs | 1 | a (`time_constraint:`) | no |
 | mc-poly/src/natives.rs | 2 | c (internal `time_budget:`, now `work_budget:`) | yes |
 | mc-poly/src/groebner.rs | 2 | b (a test's timing print) | no |
-| mc-calculus/src/props.rs | 2 | c (sampling budget of the property functions) | no: owned with the property functions, which stop answering from samples |
+| mc-calculus/src/props.rs | 2 | c (sampling budget of the property functions) | converted (5M units of work for the refuting search) |
 | mc-fields/src/conway.rs | 6 | b (the table generator, a test: progress and which entries to tabulate) | no |
 | mc-eval/src/constrained.rs | 2 | a (`time_constrained`) | no |
 | mc-eval/src/eval.rs, machine.rs, profile.rs | 1, 2, 1 | b (`profile`) | no |

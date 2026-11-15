@@ -2,6 +2,42 @@
 
 ## Not released yet
 
+Changes that old input will notice. They settle the language before 1.0.
+
+**Names.** Predicates are `is_*`: the 27 that ended in `_q` are renamed (`interval_member_q` is
+`is_interval_member`). Option values and mode arguments are lower-case names, not strings: `method: newton`,
+`direction: from_above`, `axis_object([horizontal, 0])`. A string stays only where its spelling is fixed from
+outside (a file format, a colour scheme, a plot theme). In notebooks the labels are `in N` and `out N` and cell
+style names are lower case; a notebook written with the old names is converted when it is opened.
+
+**Failures and loops.** A failure that is called is that failure: `f(1)` where `f` is a failure gives the
+failure instead of a call that stays as written. `break()` and `continue()` are read by `map`, `table`,
+`select`, `fold` and the other iterating functions, in their parallel forms too. `table()` without a body stays
+unevaluated.
+
+**Monitors are functions.** `evaluation_monitor` and `step_monitor` take a function of the current values;
+there are no held option values. Anything else is `failure(not_a_function, ...)`, and a function that has no
+monitor says `unknown_option` (the function plots). `find_fit` and the Taylor method of `n_dsolve` now call
+monitors.
+
+**Only proved answers.** The property functions (`function_injective`, `function_sign`,
+`function_monotonicity`, `function_convexity` and the others) answer from enclosures, exact values, composition
+rules and limits. Where a sampled answer was given before and no proof is found, the call stays unevaluated.
+Functions of several intervals use the corner rule only when every derivative sign is proved over the box.
+
+**Work, not seconds.** The budgets of integration, limits, `d_solve`, `simplify`, sums and the decision service
+count operations instead of time, so an answer does not depend on the speed of the machine or on what else it is
+doing.
+
+**Interrupts.** Drawing a picture honours an interrupt within a quarter of a second (sampling, meshing and
+writing the picture), and so does `prime_pi` of a large argument.
+
+**Also new.** Proved images of more special functions on wide intervals; `prime_pi` up to 2^60;
+hypergeometric functions (p+1)Fp beyond the unit circle; Lommel and Weber functions at exceptional orders;
+eigenvectors of matrices with parameters; membership of a symbolic point in convex regions, cylinders, cones
+and tori; list plots of several data sets; `reduce` in one integer variable; balanced Hankel transforms; double
+sums along diagonals; Mathieu characteristic values at complex `q`.
+
 **Android.** Screens fade in, the sheet and the bars at the bottom slide, and a page that is scrolled runs on when
 the finger is lifted. A long press on a plot opens the share sheet with it; a shared plot is a sharp picture
 (1600 pixels wide) whatever its size on the page. Interface text is a little larger, and plots made in the app

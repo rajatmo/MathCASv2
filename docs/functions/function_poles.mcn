@@ -107,7 +107,7 @@ series(tan(x)^3 + x, x, pi/2, 1)
 #% cell
 [function_poles(sqrt(x), x), function_poles(gamma(x), x), function_poles(tanh(x), x)]
 #% output
-#= [function_poles(x^(1/2), x), [[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]], function_poles(tanh(x), x)]
+#= [function_poles(x^(1/2), x), [[conditional_expression(-c(1), element(c(1), integers) and c(1) >= 0), 1]], [[conditional_expression(-im/2*pi + im*pi*c(1), element(c(1), integers)), 1]]]
 
 #% section
 # See also
