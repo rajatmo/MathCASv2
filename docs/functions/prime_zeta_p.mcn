@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# It is evaluated for inexact `s` with real part above 1, by the series `sum over k of moebius_mu(k)/k log(zeta(k s))`; `n(prime_zeta_p(2), 30)` gives 30 digits.
+# It is evaluated for inexact `s` with real part above 1, and for real `s` from 1/5 to 1, by the series `sum over k of moebius_mu(k)/k log(zeta(k s))`; `n(prime_zeta_p(2), 30)` gives 30 digits. Below 1 each `log(zeta(k s))` with `k s < 1` is taken on the principal branch, so the value has an imaginary part (`pi/6` at `s = 1/4`).
 
 #% item
 # An exact argument stays unevaluated until `n` is applied.

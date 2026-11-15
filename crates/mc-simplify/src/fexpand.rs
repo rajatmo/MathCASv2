@@ -44,6 +44,9 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
         if let Some(r) = rule(b, n, false) {
             return Ok(Some(r));
         }
+        if let Some(r) = arithmetic(b, f, n) {
+            return Ok(Some(r));
+        }
         if let Some((r, _)) = node(cx, b, f, EXPAND, n)? {
             return Ok(Some(r));
         }
@@ -53,6 +56,17 @@ pub fn function_expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Fac
     let r = crate::powers::gamma_ratio(cx, b, r)?;
     // sqrt(u^2) as u where the sign does not matter (`sin(sqrt(x^2))/sqrt(x^2)` is `sin(x)/x`)
     crate::moves::sqrt_parity(cx, b, r)
+}
+
+/// Functions of number theory by their definitions (round 44): `quotient(m, n)` is `floor(m/n)`; `euler_phi(p)` is
+/// `p - 1` for a prime `p` the facts state.
+fn arithmetic<'h>(b: &B<'h>, f: &Facts<'_, 'h>, n: T<'h>) -> Option<T<'h>> {
+    let (s, args) = b.call_of(n)?;
+    match (b.heap().sym_name(s).as_str(), args) {
+        ("quotient", &[m, k]) if !(b.is_number(m) && b.is_number(k)) => Some(b.call_named("floor", &[b.div(m, k)])),
+        ("euler_phi", &[p]) if f.d.facts.stated_prime(p) => Some(b.sub(p, b.int(1))),
+        _ => None,
+    }
 }
 
 /// `degree` as `pi/180`.

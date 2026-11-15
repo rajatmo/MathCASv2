@@ -70,6 +70,13 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
     let Some((s, args)) = b.call_of(node) else { return Ok(None) };
     let hd = &b.hd;
     let sy = f.syms();
+    if let Some(c) = b.exp_arg(node).filter(|&c| !b.is_number(c) && !f.is_empty()) {
+        // exp(i pi k) = (-1)^k for an integer k (round 44: exp(2 pi i n) is 1 for an integer n)
+        let k = apply(cx, b, "expand", b.div(c, b.mul(&[b.i(), b.heap().sym_term(sy.pi)])))?;
+        if !b.is_number(k) && f.info(cx, k)?.kind == Kind::Integer {
+            return Ok(Some(b.pow(b.int(-1), k)));
+        }
+    }
     if let (true, [base, c]) = (s == hd.pow, args) {
         return power(cx, b, f, *base, *c);
     }
@@ -99,7 +106,47 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
         return Ok((r != *v).then(|| b.call(s, &[r, *c])));
     }
     if let (true, [a, m]) = (name == "mod", args) {
+        if let Some(r) = prime_modulus(cx, b, f, *a, *m)? {
+            return Ok(Some(r));
+        }
         return modulus(cx, b, f, *a, *m);
+    }
+    if let (true, [a, m]) = (name == "quotient", args) {
+        return quotient(cx, b, f, *a, *m);
+    }
+    if let (true, [p, q]) = (name == "gcd" || name == "lcm", args) {
+        // two distinct primes are coprime: gcd 1, lcm the product (Hardy and Wright, 1.2)
+        if f.d.facts.stated_prime(*p) && f.d.facts.stated_prime(*q) && f.d.compare(cx, "unequal", *p, *q)? == Some(true) {
+            return Ok(Some(if name == "gcd" { b.int(1) } else { b.mul(&[*p, *q]) }));
+        }
+        return Ok(None);
+    }
+    if let (true, [p]) = (name == "euler_phi", args) {
+        // phi(p) = p - 1 for a prime p
+        return Ok(f.d.facts.stated_prime(*p).then(|| b.sub(*p, b.int(1))));
+    }
+    if s == hd.mul {
+        return gcd_lcm_product(cx, b, f, args);
+    }
+    if let (true, [u]) = (name == "integer_part", args) {
+        // the floor of a nonnegative value, the ceiling of a nonpositive one
+        let i = f.info(cx, *u)?;
+        if i.kind == Kind::Integer {
+            return Ok(Some(*u));
+        }
+        if f.nonneg(&i) || f.nonpos(&i) {
+            return rounded(cx, b, f, f.nonneg(&i), *u);
+        }
+        return Ok(None);
+    }
+    if matches!(name.as_str(), "unit_box" | "unit_triangle" | "unit_step") && args.len() > 1 {
+        // the forms of several arguments are products of the forms of one (each factor refined)
+        let fs: Vec<T<'h>> = args.iter().map(|&a| b.call(s, &[a])).collect();
+        let r = cx.eval(b.call_named("refine", &[b.mul(&fs)]))?;
+        return Ok(b.is_number(r).then_some(r));
+    }
+    if let (true, [u]) = (name == "unit_box" || name == "unit_triangle", args) {
+        return unit_shape(cx, b, f, name == "unit_box", *u);
     }
     if let (true, [a]) = (name == "fractional_part", args) {
         return fractional(cx, b, f, *a);
@@ -167,6 +214,20 @@ fn node_rule<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>
 /// one has the contrary sign.
 fn element<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, x: T<'h>, d: T<'h>) -> Res<Option<T<'h>>> {
     use crate::facts::Sgn;
+    // the primes, the algebraic and the complex numbers (round 44): by the decision service's closure rules
+    // a comparison of two real values is true or false (round 44)
+    if b.sym_of(d).is_some_and(|s| b.heap().sym_name(s) == "booleans") {
+        if let Some((rel, &[l, r])) = b.call_of(x) {
+            if matches!(b.heap().sym_name(rel).as_str(), "less" | "less_equal" | "greater" | "greater_equal") && f.info(cx, l)?.is_real() && f.info(cx, r)?.is_real() {
+                return Ok(Some(cx.bool(true)));
+            }
+        }
+        return Ok(None);
+    }
+    if matches!(b.sym_of(d).map(|s| b.heap().sym_name(s)).as_deref(), Some("primes" | "algebraics" | "complexes")) {
+        let v = f.d.element(cx, x, d)?;
+        return Ok(v.map(|v| cx.bool(v)));
+    }
     let Some(dom) = crate::element::domain(b, d) else { return Ok(None) };
     let (xs, _) = crate::element::items(b, x);
     let mut all = true;
@@ -525,13 +586,17 @@ fn modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, 
 }
 
 /// Euler's theorem (round 19): `mod(a^(k euler_phi(m)), m) = 1` for integers `a`, `m > 1` with `coprime(a, m)`
-/// and a nonnegative integer `k` (Hardy and Wright, Theorem 72).
+/// and a nonnegative integer `k` (Hardy and Wright, Theorem 72); the same with Carmichael's function
+/// `carmichael_lambda(m)`, the exponent of the group of units mod m (round 44; Carmichael 1910, Ireland and Rosen
+/// 4.1).
 fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> Res<Option<T<'h>>> {
     let Some((p, &[base, ex])) = b.call_of(a) else { return Ok(None) };
     if p != b.hd.pow {
         return Ok(None);
     }
-    let phi = b.call_named("euler_phi", &[m]);
+    let lambda = b.call_named("carmichael_lambda", &[m]);
+    let has_lambda = ex == lambda || matches!(b.call_of(ex), Some((g, fs)) if g == b.hd.mul && fs.contains(&lambda));
+    let phi = if has_lambda { lambda } else { b.call_named("euler_phi", &[m]) };
     let k = if ex == phi { b.int(1) } else { b.div(ex, phi) };
     let int = |cx: &mut NativeCx<'_, '_, 'h>, f: &mut Facts<'_, 'h>, t: T<'h>| -> Res<bool> {
         Ok(matches!(b.heap().view(t), View::Int(_) | View::BigInt { .. }) || f.info(cx, t)?.kind == Kind::Integer)
@@ -543,6 +608,123 @@ fn euler<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a:
         && f.d.compare(cx, "greater_equal", k, b.int(0))? == Some(true)
         && coprime(b, f, base, m);
     Ok(ok.then(|| b.int(1)))
+}
+
+/// `mod(a, p)` for a prime `p` the facts state (round 44; Hardy and Wright, Theorems 71 and 80): Fermat's
+/// `mod(c^p, p) = mod(c, p)` for an integer `c`, and Wilson's `mod((p - 1)!, p) = p - 1` (the factorial is
+/// `gamma(p)` after evaluation).
+fn prime_modulus<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, p: T<'h>) -> Res<Option<T<'h>>> {
+    if !f.d.facts.stated_prime(p) {
+        return Ok(None);
+    }
+    let h = b.heap();
+    match b.call_of(a) {
+        Some((g, &[c, e])) if g == b.hd.pow && e == p && f.info(cx, c)?.kind == Kind::Integer => Ok(Some(b.call_named("mod", &[c, p]))),
+        Some((g, &[u])) if h.sym_name(g) == "gamma" && u == p => Ok(Some(b.sub(p, b.int(1)))),
+        Some((g, &[u])) if h.sym_name(g) == "factorial" && u == b.sub(p, b.int(1)) => Ok(Some(b.sub(p, b.int(1)))),
+        _ => Ok(None),
+    }
+}
+
+/// `quotient(a, m)` (round 44), `floor(a/m)`: the terms of `a` that the facts make integer multiples of `m` come out
+/// (`quotient(4 n + 5, 2)` is `2 n + 2` for an integer `n`, `quotient(c + k n, n)` is `k + quotient(c, n)`); for an
+/// integer number `m`, also `a = alpha k + beta` with numbers `alpha`, `beta` and a term `k` the facts make an
+/// integer, when `m` divides `alpha` (`quotient(2 n - 3, 7)` is `(2 n - 3)/7` when `(n + 2)/7` is an integer).
+/// `floor(t + r) = t + floor(r)` for an integer `t` (Graham, Knuth and Patashnik, 3.1).
+fn quotient<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    if b.is_number(a) && b.is_number(m) || f.is_empty() {
+        return Ok(None);
+    }
+    // (at m = 0 both sides are undefined)
+    if !f.info(cx, m)?.is_real() {
+        return Ok(None);
+    }
+    let terms = b.terms(apply(cx, b, "expand", a)?);
+    let (mut out, mut rest) = (vec![], vec![]);
+    for &t in &terms {
+        cx.tick(1)?;
+        let q = cx.eval(b.div(t, m))?;
+        if f.info(cx, q)?.kind == Kind::Integer {
+            out.push(q);
+        } else {
+            rest.push(t);
+        }
+    }
+    if !out.is_empty() {
+        out.push(b.call_named("quotient", &[b.add(&rest), m]));
+        return Ok(Some(b.add(&out)));
+    }
+    let View::Int(mi) = h.view(m) else { return Ok(None) };
+    if mi == 0 {
+        return Ok(None);
+    }
+    for k in f.d.integer_terms() {
+        cx.tick(1)?;
+        let Some(s) = first_symbol(b, k) else { continue };
+        let (ke, ae) = (apply(cx, b, "expand", k)?, apply(cx, b, "expand", a)?);
+        let ck = cx.eval(b.call_named("coefficient", &[ke, s, b.int(1)]))?;
+        let ca = cx.eval(b.call_named("coefficient", &[ae, s, b.int(1)]))?;
+        if !b.is_number(ck) || !b.is_number(ca) || ck == b.int(0) {
+            continue;
+        }
+        let alpha = b.div(ca, ck);
+        let beta = apply(cx, b, "expand", b.sub(a, b.mul(&[alpha, k])))?;
+        let per = cx.eval(b.div(alpha, m))?;
+        if b.is_number(beta) && matches!(h.view(per), View::Int(_) | View::BigInt { .. }) {
+            let q0 = cx.eval(b.call_named("quotient", &[beta, m]))?;
+            return Ok(Some(b.add(&[b.mul(&[per, k]), q0])));
+        }
+    }
+    Ok(None)
+}
+
+/// The first symbol of `t` that is not a numeric constant, depth first.
+fn first_symbol<'h>(b: &B<'h>, t: T<'h>) -> Option<T<'h>> {
+    let h = b.heap();
+    match h.view(t) {
+        View::Sym(s) => (!matches!(h.sym_name(s).as_str(), "pi" | "e" | "im" | "euler_gamma" | "catalan" | "golden_ratio" | "degree")).then_some(t),
+        View::App { args, .. } => args.iter().find_map(|&a| first_symbol(b, a)),
+        _ => None,
+    }
+}
+
+/// `gcd(a, b) lcm(a, b) = abs(a b)` for integers `a`, `b` (round 44; Hardy and Wright, 1.2): the pair in a product.
+fn gcd_lcm_product<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, fs: &[T<'h>]) -> Res<Option<T<'h>>> {
+    let h = b.heap();
+    let pair = |name: &str| fs.iter().position(|&t| matches!(b.call_of(t), Some((g, xs)) if h.sym_name(g) == name && xs.len() == 2));
+    let (Some(i), Some(j)) = (pair("gcd"), pair("lcm")) else { return Ok(None) };
+    let (Some((_, gx)), Some((_, lx))) = (b.call_of(fs[i]), b.call_of(fs[j])) else { return Ok(None) };
+    if !(gx == lx || gx[0] == lx[1] && gx[1] == lx[0]) {
+        return Ok(None);
+    }
+    for &x in gx {
+        if f.info(cx, x)?.kind != Kind::Integer {
+            return Ok(None);
+        }
+    }
+    let mut rest: Vec<T<'h>> = fs.iter().enumerate().filter(|&(k, _)| k != i && k != j).map(|(_, &t)| t).collect();
+    rest.push(b.call(f.syms().abs, &[b.mul(gx)]));
+    Ok(Some(b.mul(&rest)))
+}
+
+/// `unit_box(u)`: 1 for `abs(u) <= 1/2`, 0 beyond; `unit_triangle(u)`: `1 - abs(u)` for `abs(u) <= 1`, 0 beyond.
+fn unit_shape<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, boxed: bool, u: T<'h>) -> Res<Option<T<'h>>> {
+    if f.is_empty() || b.is_number(u) {
+        return Ok(None);
+    }
+    let w = if boxed { b.rat(1, 2) } else { b.int(1) };
+    if f.d.in_interval(cx, u, b.neg(w), true, w, true)? == Some(true) {
+        let v = if boxed { b.int(1) } else { b.sub(b.int(1), b.call(f.syms().abs, &[u])) };
+        return Ok(Some(v));
+    }
+    let outside = |cx: &mut NativeCx<'_, '_, 'h>, f: &mut Facts<'_, 'h>, rel: &str, c: T<'h>| -> Res<bool> { Ok(f.d.compare(cx, rel, u, c)? == Some(true)) };
+    // the triangle is 0 at its feet too; the box is 1 on its edges
+    let (lt, gt) = if boxed { ("less", "greater") } else { ("less_equal", "greater_equal") };
+    if outside(cx, f, lt, b.neg(w))? || outside(cx, f, gt, w)? {
+        return Ok(Some(b.int(0)));
+    }
+    Ok(None)
 }
 
 /// Is `coprime(a, m)` (or `gcd(a, m) == 1`, either order) one of the facts? (Asked of the facts themselves: the
@@ -565,6 +747,16 @@ fn coprime<'h>(b: &B<'h>, f: &Facts<'_, 'h>, a: T<'h>, m: T<'h>) -> bool {
 fn fractional<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, f: &mut Facts<'_, 'h>, a: T<'h>) -> Res<Option<T<'h>>> {
     if f.info(cx, a)?.kind == Kind::Integer {
         return Ok(Some(b.int(0)));
+    }
+    // a - integer_part(a) where the bounds decide the integer part (round 44: fractional_part(x + 1/2) is x + 1/2
+    // for 0 < x < 1/3)
+    let ia = f.info(cx, a)?;
+    if f.nonneg(&ia) || f.nonpos(&ia) {
+        if let Some(k) = rounded(cx, b, f, f.nonneg(&ia), a)? {
+            if b.is_number(k) {
+                return Ok(Some(b.sub(a, k)));
+            }
+        }
     }
     let Some(c) = f.d.normal_form(cx, b.call_named("mod", &[a, b.int(1)]))? else { return Ok(None) };
     if !matches!(b.heap().view(c), View::Int(_) | View::Rational { .. }) {

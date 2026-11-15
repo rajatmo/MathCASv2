@@ -53,7 +53,7 @@ pub const FUNCTIONS: &[(&str, &str)] = &[
     ("mersenne_prime_exponent", "mersenne_prime_exponent(k): the k-th known Mersenne prime exponent"),
     ("is_mersenne_prime_exponent", "is_mersenne_prime_exponent(p): whether p is the exponent of a known Mersenne prime"),
     ("finite_abelian_group_count", "finite_abelian_group_count(k): the number of abelian groups of order k"),
-    ("finite_group_count", "finite_group_count(k): the number of groups of order k (k <= 64 or squarefree)"),
+    ("finite_group_count", "finite_group_count(k): the number of groups of order k (k <= 64, squarefree, or a prime power up to p^4)"),
     ("frobenius_solve", "frobenius_solve(coins, k), (coins, k, m): the non-negative integer solutions of coins.x = k"),
     ("frobenius_number", "frobenius_number(coins): the largest integer that is not a combination of the coins"),
     ("squares_r", "squares_r(d, k): the number of representations of k as a sum of d squares"),

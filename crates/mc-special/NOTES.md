@@ -1145,3 +1145,9 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   of `mathieu::tridiag_eigen`; the Heun steps (`fast29::heun_step`) and the Hurwitz sum report too now. Each charges
   its terms (`mc_api::work::charge`: about a nanosecond per operation, 1,024 for a double-double term of zeta).
   Every evaluation of the survey longer than 2 ms is now charged above 1,000 units per ms.
+
+## Round 44: the prime zeta function on (0, 1)
+
+The series sum mu(k)/k log(zeta(k s)) (Froberg 1968) for an inexact real s in [1/5, 1), not only (1/2, 1) (below 1/5 the series needs more than 330 terms: a plot down to 0.01 would take minutes, so it stays): each term
+with k s < 1 has zeta(k s) < 0 and is taken on the principal branch, so P(1/4) has the imaginary part pi (1 - 1/2 -
+1/3) = pi/6 and P(4/11) the part pi/2; (digits + 3) 3.33/s terms. Complex s in the critical strip still stay.

@@ -587,3 +587,21 @@ keep the value at random points (11 inputs x 3 points, 30 digits), user transfor
   `together` gives 0 the input is 0 (an identity of meromorphic functions, so a proof; otherwise the test says
   nothing). Applied to the term, and to `function_expand` of it in `full_simplify`; an equation whose sides differ by
   such a zero is `true`. The call above takes a few milliseconds.
+
+## Round 44: number theory and domains under assumptions
+
+`refine` (and through it `simplify`, `full_simplify` with facts) gained, each a theorem with its condition checked
+by the decision service:
+- `gcd(p, q) = 1`, `lcm(p, q) = p q` for stated primes with `p != q`; `gcd(a, b) lcm(a, b) = abs(a b)` for integers
+  (Hardy and Wright 1.2); `euler_phi(p) = p - 1` for a prime (also in `function_expand`).
+- Fermat `mod(c^p, p) = mod(c, p)` and Wilson `mod((p - 1)!, p) = p - 1` for a stated prime (Hardy and Wright,
+  Theorems 71 and 80); Euler's rule now also with `carmichael_lambda(m)` (the exponent of the unit group).
+- `quotient(a, m)`: the terms of `a` that are integer multiples of `m` come out (`floor(t + r) = t + floor(r)` for an
+  integer `t`); for an integer number `m`, `a = alpha k + beta` with `k` an integer term of the facts and
+  `m | alpha`. `function_expand(quotient(m, n))` is `floor(m/n)`.
+- `exp(i pi k) = (-1)^k` for an integer `k`; `integer_part` and `fractional_part` decided by bounds;
+  `unit_box`, `unit_triangle`, `unit_step` of several arguments as products, decided by bounds.
+- `element(x, primes | algebraics | complexes)` through `mc-decide`; `element` of an infinity is `false` for every
+  domain of numbers (`element(inf, complexes)`).
+Gaps: `mod(a, -b) + mod(-a, b) == 0` (no transformation for `mod` of a negated modulus); `quotient(4 n + 5, 2)` is
+`2 + 2 n` where the documented form is `2 (1 + n)` (a form only).

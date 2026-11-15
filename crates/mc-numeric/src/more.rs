@@ -145,6 +145,16 @@ fn acosh_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.is_int(x, -1) {
         return Ok(Some(i_pi(fx, 1, 1)));
     }
+    // on (-1, 1) the principal acosh is i acos (DLMF 4.37.19 with 4.23.22): acosh(1/2) = i pi/3 (round 44, so that
+    // asech(2) = acosh(1/2) has its value)
+    if let Some(Num::Real(r @ Real::Exact(_))) = fx.num(x) {
+        let v = r.to_f64();
+        if v > -1.0 && v < 1.0 {
+            if let Some(c) = closed(fx, "acos", x)? {
+                return Ok(Some(fx.mul(&[fx.i(), c])));
+            }
+        }
+    }
     Ok(fx.infinity(x).map(|_| fx.inf()))
 }
 
@@ -452,6 +462,12 @@ fn integer_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     if fx.infinity(x).is_some() {
         return Ok(Some(x));
     }
+    // truncation toward zero is odd (round 44): integer_part(-x) = -integer_part(x)
+    if fx.num(x).is_none() {
+        if let Some(v) = odd(fx, "integer_part", x) {
+            return Ok(Some(v));
+        }
+    }
     if let Some(Num::Complex(re, im)) = fx.num(x) {
         let (re, im) = (fx.ar.number(&Num::Real(re)), fx.ar.number(&Num::Real(im)));
         let (Some(a), Some(b)) = (integer_part_of(fx, re)?, integer_part_of(fx, im)?) else { return Ok(None) };
@@ -474,6 +490,12 @@ fn fractional_part_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
         }
         Some(_) => return Ok(None),
         None => {}
+    }
+    // odd as integer_part is (round 44)
+    if fx.num(x).is_none() {
+        if let Some(v) = odd(fx, "fractional_part", x) {
+            return Ok(Some(v));
+        }
     }
     let ip = integer_part_e(fx, a)?;
     Ok(ip.map(|ip| fx.sub(x, ip)))
@@ -555,6 +577,12 @@ fn dirac_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn real_abs_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let x = a[0];
+    // even (round 44): real_abs(-x) = real_abs(x)
+    if fx.num(x).is_none() {
+        if let Some(y) = fx.negated(x) {
+            return Ok(Some(fx.call("real_abs", &[y])));
+        }
+    }
     Ok(match sign_of(fx, x)? {
         Some(s) if s < 0 => Some(fx.neg(x)),
         Some(_) => Some(x),
@@ -564,6 +592,12 @@ fn real_abs_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
 
 fn real_sign_e<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     let x = a[0];
+    // odd (round 44): real_sign(-x) = -real_sign(x)
+    if fx.num(x).is_none() {
+        if let Some(v) = odd(fx, "real_sign", x) {
+            return Ok(Some(v));
+        }
+    }
     let machine = fx.machine_of(x).is_some();
     Ok(sign_of(fx, x)?.map(|s| if machine { fx.real(s as f64) } else { fx.int(s) }))
 }

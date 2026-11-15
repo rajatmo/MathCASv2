@@ -160,12 +160,19 @@ impl<'h> Front<'h> {
                 return Ok(QFm::Or(vec![all, none]));
             }
             "xor" => {
-                let [a, b] = args else { return Err("xor of two formulas") };
-                let (a, b) = (self.parse(*a)?, self.parse(*b)?);
-                let na = QFm::Not(Box::new(a.clone()));
-                let nb = QFm::Not(Box::new(b.clone()));
-                return Ok(QFm::Or(vec![QFm::And(vec![a, nb]), QFm::And(vec![na, b])]));
+                // xor(a, b, c, ...) is true when an odd number of its arguments is: folded pairwise
+                let Some((&first, more)) = args.split_first() else { return Err("xor of formulas") };
+                let mut acc = self.parse(first)?;
+                for &u in more {
+                    let b = self.parse(u)?;
+                    let na = QFm::Not(Box::new(acc.clone()));
+                    let nb = QFm::Not(Box::new(b.clone()));
+                    acc = QFm::Or(vec![QFm::And(vec![acc, nb]), QFm::And(vec![na, b])]);
+                }
+                return Ok(acc);
             }
+            "nand" => return Ok(QFm::Not(Box::new(QFm::And(args.iter().map(|&u| self.parse(u)).collect::<Result<_, _>>()?)))),
+            "nor" => return Ok(QFm::Not(Box::new(QFm::Or(args.iter().map(|&u| self.parse(u)).collect::<Result<_, _>>()?)))),
             "element" => {
                 let [_, d] = args else { return Err("element of two arguments") };
                 return if self.sym_name(*d).as_deref() == Some("reals") { Ok(QFm::Const(true)) } else { Err("a domain other than the reals") };

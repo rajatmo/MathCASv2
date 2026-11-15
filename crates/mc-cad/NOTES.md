@@ -317,3 +317,19 @@ gives its points with the rational ones first (`x^5 - 2 x + 1 == 0` gives 1, not
   norm of a residual, `norm(m . [x, y] - b)` = `(|r1|^2 + |r2|^2 + |r3|^2)^(1/2)`, had 2^3 decompositions (4 s,
   past the cell limit for three unknowns) and now has one. A complex u keeps its abs. Test
   `mc-engine/tests/round40_optimization.rs` (minimizers checked against the normal equations).
+
+## Round 44: nand, nor, xor of several formulas
+
+`front.rs` reads `nand(a, ...)` as `not (a and ...)`, `nor` as `not (a or ...)`, and `xor` of any number of formulas
+(folded pairwise: true when an odd number holds). `reduce`, `resolve` and the areas of `integrate(boole(...))` take
+them.
+
+## Round 44: existence by a proved sign change
+
+`witness.rs`: `resolve(exists(x, f(x) == g(x)), reals)` with a non-polynomial equation (and bounds of `x` by numbers)
+is `true` when two exact points `u < v` inside the bounds give decided, opposite signs of `h = f - g` and the interval
+image of `h` over `[u, v]` is a finite real interval; `h` may hold only functions that are continuous wherever they
+are finite and real, so the intermediate value theorem gives a root. With several variables the earlier ones are
+fixed at 0, 1, -1, 1/2. Only `true` is answered (a failed search leaves the sentence); a pole between the two points
+makes the image unbounded, so `exists(x, 1 < x < 2, tan(x) == 0)` stays. Sentences that are false, universal
+sentences and inequalities are not decided this way.

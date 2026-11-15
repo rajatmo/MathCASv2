@@ -161,6 +161,10 @@ fn closed_integer<'h>(cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, nm: &
 pub fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, nm: &numeval::Names, x: T<'h>, dom: Domain) -> Res<Option<bool>> {
     let h = b.heap();
     let ar = &b.ar;
+    // an infinity is in no domain of numbers (round 44: `element(inf, complexes)` is false)
+    if infinite(b, x) {
+        return Ok(Some(false));
+    }
     // a number: its kind
     let kind = match h.view(x) {
         View::Int(_) | View::BigInt { .. } => Some(Kind::Integer),
@@ -231,6 +235,20 @@ pub fn decide<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, nm: &numeval::Names,
         }
         (None, Kind::Unknown) => Some(true),
     })
+}
+
+/// Is `t` an infinity: `inf`, `complex_infinity`, a number times one of them, or `directed_infinity(z)`?
+fn infinite<'h>(b: &B<'h>, t: T<'h>) -> bool {
+    let h = b.heap();
+    let named = |u: T<'h>| b.sym_of(u).is_some_and(|s| matches!(h.sym_name(s).as_str(), "inf" | "complex_infinity"));
+    if named(t) {
+        return true;
+    }
+    match b.call_of(t) {
+        Some((s, args)) if s == b.hd.mul => args.iter().any(|&a| named(a)) && args.iter().all(|&a| named(a) || b.is_number(a)),
+        Some((s, [_])) => h.sym_name(s) == "directed_infinity",
+        _ => false,
+    }
 }
 
 /// The sign condition `x op 0` of a signed domain.

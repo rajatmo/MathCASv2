@@ -241,7 +241,7 @@ const PRELUDE: &[(&str, &str)] = &[
     ("linear_optimization", "linear_optimization(f, cons, vars): the point [x -> ..] minimizing the linear f under the constraints"),
     ("linear_fractional_optimization", "linear_fractional_optimization(f, cons, vars): the point minimizing a ratio of linear functions under the constraints"),
     ("convex_optimization", "convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints"),
-    ("prime_zeta_p", "prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1"),
+    ("prime_zeta_p", "prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1 or real s in [1/5, 1)"),
     ("unit_vector", "unit_vector(n, k), unit_vector(k): the vector of length n with a 1 at position k (the 2-vector for k = 1 or 2)"),
     ("normalized", "normalized(v), normalized(v, f): v divided by its norm (v itself when the norm is 0), or by f(v); also the option normalized: true of histogram (bars of total area 1)"),
     ("angle_vector", "angle_vector(phi), angle_vector([r, phi]), angle_vector([r, theta, phi]), angle_vector(c, p): the unit vector (polar or spherical point) at the angles, relative to c"),

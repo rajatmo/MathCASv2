@@ -416,6 +416,9 @@ fn holder_count(k: Int) = {
 rule finite_group_count(ks_) := map(finite_group_count, ks) when is_list(ks)
 rule finite_group_count(k_) := combinat_group_counts[k] when is_integer(k) and k >= 1 and k <= 64
 rule finite_group_count(k_) := holder_count(k) when is_integer(k) and k > 64 and is_square_free(k)
+# a prime power p^e with e <= 4: 1, 2, 5 and (p odd, as every p^4 above 64 is) 15 groups (Hoelder 1893 for p^3,
+# Burnside, Theory of Groups of Finite Order, 1897, for p^4)
+rule finite_group_count(k_) := [1, 2, 5, 15][factor_integer(k)[1][2]] when is_integer(k) and k > 64 and length(factor_integer(k)) == 1 and factor_integer(k)[1][2] <= 4
 
 # --- representations of integers ---
 

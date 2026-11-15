@@ -43,6 +43,7 @@ pub mod project;
 pub mod reals;
 pub mod sos;
 pub mod vs;
+pub mod witness;
 
 pub use natives::reduce_reals;
 

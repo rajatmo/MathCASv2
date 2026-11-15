@@ -13,7 +13,7 @@
 # `m` must be Hermitian (symmetric for real entries) and positive definite; otherwise the call fails.
 
 #% item
-# Exact matrices give exact factors, with square roots where needed.
+# Exact matrices give exact factors, with square roots where needed. Entries with symbols or constants such as `pi` give the factor row by row; a pivot that is a constant must be proved positive, and with symbols the factor is the general formula, valid where `m` is positive definite.
 
 #% section
 # Examples

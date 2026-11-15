@@ -342,7 +342,11 @@ fn resolve<'h>(cx: &mut NativeCx<'_, '_, 'h>, stop: &Arc<AtomicBool>, args: &[T<
     }
     Ok(match solve_formula(cx, stop, f, &[], Style::Resolve)? {
         Some(t) => Reply::Done(t),
-        None => Reply::Done(unresolved(cx, f)),
+        // a sentence with a non-polynomial equation: a proved sign change is a witness (round 44)
+        None => match crate::witness::exists_by_sign_change(cx, f)? {
+            Some(true) => Reply::Done(cx.bool(true)),
+            _ => Reply::Done(unresolved(cx, f)),
+        },
     })
 }
 

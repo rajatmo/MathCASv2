@@ -55,8 +55,25 @@ fn real_term<'h>(ar: &Arith<'h, Heap>, r: Real) -> T<'h> {
     ar.number(&Num::Real(r))
 }
 
-/// The exponent q of a complex unit (-1)^q with q a non-integer rational.
+/// The exponent q of a complex unit (-1)^q with q a non-integer rational; also of `exp(q i pi)` (round 44: the
+/// same unit, `exp(i pi q) = (-1)^q` on the principal branch).
 fn unit_exponent<'h>(env: &Env, h: &'h Heap, ar: &Arith<'h, Heap>, t: T<'h>) -> Option<Rat> {
+    let exponent = match env.call_of(h, t)? {
+        (s, &[b, e]) if s == env.s.pow && matches!(h.view(b), mc_api::View::Sym(es) if h.sym_name(es) == "e") => Some(e),
+        (s, &[e]) if h.sym_name(s) == "exp" => Some(e),
+        _ => None,
+    };
+    if let Some(e) = exponent {
+        // e^(c pi) with c = q i, q a non-integer rational
+        let (m, &[c, p]) = env.call_of(h, e)? else { return None };
+        if m != env.s.mul || p != h.sym_term(env.s.pi) {
+            return None;
+        }
+        return match ar.num(c) {
+            Some(Num::Complex(Real::Exact(re), Real::Exact(q))) if re.is_zero() && !q.is_int() => Some(q),
+            _ => None,
+        };
+    }
     let (s, &[b, e]) = env.call_of(h, t)? else { return None };
     if s != env.s.pow {
         return None;
@@ -228,6 +245,25 @@ fn part<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, which: Part, args: &[T<'h>
         }
     }
     cx.tick(1)?;
+    // a small integer power of a closed sum that decomposes (round 44): expanded first, so
+    // im_part((e + i pi)^3) = 3 pi e^2 - pi^3
+    if let Some((s, &[base, k])) = env.call_of(h, x) {
+        if s == env.s.pow && matches!(h.view(k), mc_api::View::Int(2..=6)) && env.call_of(h, base).is_some_and(|(a, _)| a == env.s.add) {
+            if let Some(sms) = decompose(env, h, &ar, base) {
+                if sms.iter().any(|sm| sm.unit.is_some() || matches!(sm.c, Num::Complex(..))) {
+                    let f = match which {
+                        Part::Re => env.s.re,
+                        Part::Im => env.s.im_part,
+                        Part::Conj => env.s.conjugate,
+                    };
+                    let ex = cx.eval(h.call(h.sym("expand"), &[x]))?;
+                    if ex != x {
+                        return Ok(Reply::Again(h.call(f, &[ex])));
+                    }
+                }
+            }
+        }
+    }
     Ok(match decompose(env, h, &ar, x) {
         Some(sms) => Reply::Again(distribute(env, h, &ar, which, &sms)),
         None => Reply::Decline,
@@ -347,10 +383,24 @@ pub(crate) fn arg<'h>(env: &Env, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args:
     cx.tick(1)?;
     let Some(sms) = decompose(env, h, &ar, x) else { return Ok(Reply::Decline) };
     let [sm] = sms.as_slice() else { return Ok(Reply::Decline) };
-    if sm.unit.is_some() {
-        return Ok(Reply::Decline);
-    }
     let Some(negative) = factor_signs(env, h, &ar, &sm.real) else { return Ok(Reply::Decline) };
+    if let Some(q) = &sm.unit {
+        // c (-1)^q r with c and r real of decided sign (round 44): the angle q pi, plus pi for a negative c r,
+        // reduced into (-pi, pi]: arg(exp(9 i pi/8)) = -7 pi/8, arg((-5)^(1/5)) = pi/5
+        let Num::Real(c) = &sm.c else { return Ok(Reply::Decline) };
+        let neg = match real_sign(c) {
+            Some(Ordering::Less) => !negative,
+            Some(Ordering::Greater) => negative,
+            _ => return Ok(Reply::Decline),
+        };
+        let a = if neg { q.add(&Rat::from_i64(1)) } else { q.clone() };
+        // into (-1, 1]: a - 2 ceiling((a - 1)/2) = a + 2 floor((1 - a)/2)
+        let half = Rat::new(Int::from_i64(1), Int::from_i64(2));
+        let (fl, _) = Rat::from_i64(1).sub(&a).mul(&half).floor_fract();
+        let a = a.add(&Rat::from_int(fl).mul(&Rat::from_i64(2)));
+        let angle = real_term(&ar, Real::Exact(a));
+        return Ok(Reply::Again(h.call(env.s.mul, &[angle, pi])));
+    }
     let c = if negative { sm.c.neg() } else { sm.c.clone() };
     Ok(Reply::Again(h.call(env.s.arg, &[ar.number(&c)])))
 }
@@ -420,6 +470,18 @@ fn abs_closed<'h>(env: &Env, h: &'h Heap, x: T<'h>) -> Option<T<'h>> {
         }
     }
     let sms = decompose(env, h, &ar, x)?;
+    if sms.len() > 1 {
+        // a closed sum of summands with units (round 44): sqrt(re^2 + im^2) with the parts distributed, so
+        // abs(3 + (-5)^(1/3)) = sqrt((3 + 5^(1/3)/2)^2 + 3 5^(2/3)/4)
+        let complex = sms.iter().any(|sm| sm.unit.is_some() || matches!(sm.c, Num::Complex(..)));
+        if complex && sms.iter().all(|sm| sm.real.iter().all(|&f| real_valued_call(env, h, f).is_none())) {
+            let (re, im) = (distribute(env, h, &ar, Part::Re, &sms), distribute(env, h, &ar, Part::Im, &sms));
+            let sq = |t: T<'h>| h.call(env.s.pow, &[t, h.int(2)]);
+            let half = real_term(&ar, Real::Exact(Rat::new(Int::from_i64(1), Int::from_i64(2))));
+            return Some(h.call(env.s.pow, &[h.call(env.s.add, &[sq(re), sq(im)]), half]));
+        }
+        return None;
+    }
     let [sm] = sms.as_slice() else { return None };
     let mut factors = vec![abs_num(&ar, &sm.c)];
     for &f in &sm.real {

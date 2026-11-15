@@ -176,3 +176,8 @@ bases (the digits are the smallest places).
 - `residue` took the coefficient of t^-1 of `normal(series(...))` also when the series was not computed (an
   unevaluated `series` has no t^-1 term: `residue(zeta(x), [x, 1])` gave 0). Now such a call stays; zeta(u(x)) at a
   point where u = 1 and u' != 0 has the residue 1/u' (the simple pole of zeta at 1 with residue 1, DLMF 25.2.4).
+
+## Round 44: groups of prime-power order
+
+`finite_group_count(p^e)` beyond the table for e <= 4: 1, 2, 5 and (p odd) 15 groups (Hoelder 1893 for p^3;
+Burnside, Theory of Groups of Finite Order, 1897, for p^4).

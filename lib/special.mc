@@ -800,12 +800,13 @@ rule prime_zeta_p(s_) := {
   let top = ceiling((digits + 3)*3.33/re(s)) + 2
   sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
 } when is_inexact(s) and is_real(re(s)) and re(s) > 1
-# a real s in (1/2, 1): the same series, its terms k >= 2 real (k s > 1) and the first log(zeta(s)) of the negative
-# zeta(s) on the principal branch, log|zeta(s)| + i pi
+# a real s in [1/5, 1): the same series; the terms with k s > 1 are real, and each log(zeta(k s)) with k s < 1 (zeta is
+# negative on (0, 1)) is taken on the principal branch, log|zeta(k s)| + i pi (round 44: below 1/2 too, so that
+# P(1/4) = ... + i pi/6 and P(4/11) = ... + i pi/2); the terms fall like 2^(-k s)/k, so (digits + 3) 3.33/s of them
 rule prime_zeta_p(s_) := {
   let digits = if is_machine_number(s) then 17 else precision(s)
   let top = ceiling((digits + 3)*3.33/s) + 2
   sum(map(k => if moebius_mu(k) == 0 then 0 else moebius_mu(k)/k*log(zeta(k*s)), range(top)))
-} when is_inexact(s) and is_real(s) and s > 1/2 and s < 1
+} when is_inexact(s) and is_real(s) and s >= 1/5 and s < 1
 # prime_zeta_p over a list or matrix of arguments
 rule prime_zeta_p(xs_) := map(prime_zeta_p, xs) when is_list(xs)

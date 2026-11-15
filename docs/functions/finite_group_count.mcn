@@ -10,7 +10,7 @@
 # Details
 
 #% item
-# Orders up to 64 come from a table; larger squarefree orders from Hoelder's formula; other orders stay unevaluated.
+# Orders up to 64 come from a table; larger squarefree orders from Hoelder's formula; prime powers `p^2`, `p^3`, `p^4` give 2, 5 and 15; other orders stay unevaluated.
 
 #% section
 # Examples

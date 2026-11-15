@@ -16,6 +16,14 @@
 //!   integer, or the primes for `prime_pi`) cut the interval; on each piece the step function is the constant
 //!   it takes at the piece's midpoint (exact arithmetic), and the side a jump point belongs to is found by
 //!   evaluating at it.
+//! - The other step and piecewise-linear functions of a real variable (round 44): `ramp(u)` is `u` where `u >= 0`;
+//!   `real_abs(u)` as `abs`; `real_sign(u)` and `sign(u)` of a polynomial are `-1`, `0`, `1` by the sign of `u`;
+//!   `unit_box(u)` is `1` on `-1/2 <= u <= 1/2`; `unit_triangle(u)` is `1 + u` on `[-1, 0)` and `1 - u` on
+//!   `[0, 1]`; the forms of several arguments are the products of the one-argument forms. `floor(u, a)`,
+//!   `ceiling(u, a)`, `round(u, a)` are `a` times the step of `u/a`; `fractional_part(u)` is `u - integer_part(u)`;
+//!   `quotient(m, n)` and `mod(m, n)` for a nonzero number `n` are `floor(m/n)` and `m - n floor(m/n)` (the
+//!   definitions, Graham, Knuth and Patashnik, Concrete Mathematics, 3.1 and 3.4), so their jumps are found as
+//!   those of `floor`.
 use super::sets::{self, is_head};
 use crate::common::is_free;
 use crate::term::Build;
@@ -121,6 +129,7 @@ pub fn expand<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, args: &[T<'h>]) 
         let pl = cx.list(&pieces);
         return Ok(Some(cx.eval(b.call("piecewise", &[pl, d]))?));
     }
+    let f = step_forms(cx, b, f, reg.is_some())?;
     let vars = variables(b, f);
     let t = cx.bool(true);
     let Some(cases) = cases_of(cx, b, f, reg, &vars, t)? else { return Ok(None) };
@@ -169,11 +178,62 @@ fn contains_piecewise<'h>(b: &Build<'h>, t: T<'h>) -> bool {
     let h = b.heap();
     match h.view(t) {
         View::App { head, args } => {
-            b.sym_of(head).is_some_and(|s| matches!(h.sym_name(s).as_str(), "piecewise" | "if" | "max" | "min" | "clip" | "unit_step" | "boole" | "abs" | "sign" | "floor" | "ceiling" | "round" | "integer_part" | "prime_pi"))
-                || args.iter().any(|&a| contains_piecewise(b, a))
+            b.sym_of(head).is_some_and(|s| {
+                matches!(
+                    h.sym_name(s).as_str(),
+                    "piecewise"
+                        | "if"
+                        | "max"
+                        | "min"
+                        | "clip"
+                        | "unit_step"
+                        | "boole"
+                        | "abs"
+                        | "sign"
+                        | "floor"
+                        | "ceiling"
+                        | "round"
+                        | "integer_part"
+                        | "prime_pi"
+                        | "ramp"
+                        | "real_abs"
+                        | "real_sign"
+                        | "unit_box"
+                        | "unit_triangle"
+                )
+            }) || args.iter().any(|&a| contains_piecewise(b, a))
         }
         _ => false,
     }
+}
+
+/// `t` with the step functions that are written by others (module comment) rewritten into them: `floor(u, a)`,
+/// `ceiling(u, a)`, `round(u, a)`, `fractional_part(u)`, `quotient(m, n)` and `mod(m, n)` for a nonzero number
+/// `n`, and the products behind `unit_box`, `unit_triangle` and `unit_step` of several arguments.
+fn step_forms<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, bounded: bool) -> Res<T<'h>> {
+    let h = b.heap();
+    let View::App { head, args } = h.view(t) else { return Ok(t) };
+    cx.tick(1)?;
+    let mut out = Vec::with_capacity(args.len());
+    for &a in args {
+        out.push(step_forms(cx, b, a, bounded)?);
+    }
+    let name = b.sym_of(head).map(|s| h.sym_name(s).to_string()).unwrap_or_default();
+    // the forms in floor and integer_part help only where the region cuts them into steps
+    let nonzero_number = |n: T<'h>| bounded && n != b.zero() && b.ar.num(n).is_some_and(|v| v.as_real().is_some());
+    let r = match (name.as_str(), out.as_slice()) {
+        ("floor" | "ceiling" | "round", &[u, a]) if nonzero_number(a) => b.mul(&[a, b.call(&name, &[b.div(u, a)])]),
+        ("fractional_part", &[u]) if bounded => b.sub(u, b.call("integer_part", &[u])),
+        ("quotient", &[m, n]) if nonzero_number(n) => b.call("floor", &[b.div(m, n)]),
+        ("mod", &[m, n]) if nonzero_number(n) => b.sub(m, b.mul(&[n, b.call("floor", &[b.div(m, n)])])),
+        ("unit_box" | "unit_triangle" | "unit_step", us) if us.len() > 1 => {
+            let fs: Vec<T<'h>> = us.iter().map(|&u| b.call(&name, &[u])).collect();
+            b.mul(&fs)
+        }
+        _ if out.as_slice() == args => return Ok(t),
+        _ => h.app(head, &out),
+    };
+    cx.eval(r)
 }
 
 /// Is some condition of a piecewise or `if` in `t` a symbol (not a relation)?
@@ -382,9 +442,34 @@ fn cases_of<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &Build<'h>, t: T<'h>, reg: Opt
             let n = negate(cx, b, c)?;
             Some(vec![(b.zero(), n), (b.one(), c)])
         }
-        "abs" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
+        "abs" | "real_abs" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
             let u = args[0];
             Some(vec![(b.neg(u), cx.eval(b.call("less", &[u, b.zero()]))?), (u, cx.eval(b.call("greater_equal", &[u, b.zero()]))?)])
+        }
+        "ramp" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
+            let u = args[0];
+            Some(vec![(b.zero(), cx.eval(b.call("less", &[u, b.zero()]))?), (u, cx.eval(b.call("greater_equal", &[u, b.zero()]))?)])
+        }
+        "sign" | "real_sign" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
+            let u = args[0];
+            Some(vec![
+                (b.int(-1), cx.eval(b.call("less", &[u, b.zero()]))?),
+                (b.zero(), cx.eval(b.call("equal", &[u, b.zero()]))?),
+                (b.one(), cx.eval(b.call("greater", &[u, b.zero()]))?),
+            ])
+        }
+        "unit_box" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
+            let u = args[0];
+            let inside = cx.eval(b.call("and", &[b.call("less_equal", &[b.rat(-1, 2), u]), b.call("less_equal", &[u, b.rat(1, 2)])]))?;
+            let outside = cx.eval(b.call("or", &[b.call("less", &[u, b.rat(-1, 2)]), b.call("greater", &[u, b.rat(1, 2)])]))?;
+            Some(vec![(b.one(), inside), (b.zero(), outside)])
+        }
+        "unit_triangle" if args.len() == 1 && sets::poly_degree(b, args[0], vars).is_some() => {
+            let u = args[0];
+            let left = cx.eval(b.call("and", &[b.call("less_equal", &[b.int(-1), u]), b.call("less", &[u, b.zero()])]))?;
+            let right = cx.eval(b.call("and", &[b.call("less_equal", &[b.zero(), u]), b.call("less_equal", &[u, b.one()])]))?;
+            let outside = cx.eval(b.call("or", &[b.call("less", &[u, b.int(-1)]), b.call("greater", &[u, b.one()])]))?;
+            Some(vec![(b.add(&[b.one(), u]), left), (b.sub(b.one(), u), right), (b.zero(), outside)])
         }
         "floor" | "ceiling" | "round" | "integer_part" | "prime_pi" if args.len() == 1 => match steps(cx, b, t, reg, vars)? {
             Some(v) => Some(v),

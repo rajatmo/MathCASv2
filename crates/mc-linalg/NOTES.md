@@ -257,3 +257,11 @@ No Rust change. Conventions recorded with property tests (`mc-engine/tests/r36_w
 - Gap: entries with interacting kernels (radicals next to parameters, `[[a, sqrt(2)], [1, a]]`) still decline.
 - The function of a `root` object is written in increasing degree with each coefficient before its power
   (`28 - 20*a + (16 + 10*a)*&1 + ...`), the way such a body reads: it is held, so it keeps the order it is built in.
+
+## Round 44: symbolic Cholesky factors
+
+`cholesky(m)` of a Hermitian (or symmetric) matrix with symbolic or closed non-rational entries (lib/lists.mc,
+`nl_ch_sym`): row by row `u[i][i] = sqrt(m[i][i] - sum conj(u[k][i]) u[k][i])`, `u[i][j] = (m[i][j] - sum conj(u[k][i])
+u[k][j])/u[i][i]` (Golub and Van Loan 4.2.5). A pivot with a closed numeric value must be proved positive by its sign
+(`failure(not_positive_definite)` when proved not, no answer when undecided); with symbols the formula is the generic
+one. Exact rational and machine matrices keep the native kernels.

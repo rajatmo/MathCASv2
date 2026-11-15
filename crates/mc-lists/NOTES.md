@@ -914,3 +914,9 @@ Source in `lib/lists.mc`.
   unevaluated, like `table(i)`. A fuzz test (`mc-engine/tests/round43b_iterators.rs`) calls every iterating function
   with no, one and malformed arguments, the loop signals as values and as elements, nested and in the parallel
   forms; a long campaign of 28,000 inputs found nothing else.
+
+## Round 44: element(x, primes) of a symbol
+
+The rule for integers asked `is_integer(x)`, which the assumptions answer for a symbol, and then `is_prime(x)` of the
+symbol (false): `refine(element(p, primes), element(p, integers))` gave `false`. It now applies to integer numbers
+only; symbols go to the decision service (`mc-decide`, round 44).

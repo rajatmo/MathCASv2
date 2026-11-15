@@ -763,3 +763,19 @@ Unit `Micrograms` (`ug`) added to the quantity table. Gap: `centered_interval` p
   `bessel_j(interval([0.5, 0.6]), interval([2.4, 2.5]))` gives [0.07, 0.60] (the true range is about [0.30, 0.40]):
   the ball form of J_nu with a ball order is about 70 times wider than the variation, and its order derivative has
   no closed form, so neither the monotonicity test nor the mean value form applies in nu.
+
+## Round 44: symmetries of truncation; acosh on (-1, 1)
+
+- `integer_part`, `fractional_part` and `real_sign` are odd and `real_abs` is even for a symbolic argument with a
+  negative sign (`integer_part(-x) = -integer_part(x)`), as `sin` and `tan` are.
+- `acosh(x) = i acos(x)` for an exact real `x` in (-1, 1) when `acos(x)` has a closed form (DLMF 4.37.19 with the
+  principal branches), so `acosh(1/2) = i pi/3` and `asech(2) = acosh(1/2)`, `asech(-2) = 2 i pi/3` evaluate.
+
+## Round 44: parts of closed constants with exponential units
+
+`parts.rs` reads `exp(q i pi)` (q a non-integer rational) as the unit `(-1)^q`, so `re`, `im_part`, `conjugate` of
+such terms distribute; `arg` of `c (-1)^q r` (c and r real of decided sign) is the angle `q pi` (plus pi when `c r` is
+negative) reduced into (-pi, pi] (`arg(exp(9 i pi/8)) = -7 pi/8`, `arg((-5)^(1/5)) = pi/5`); `abs` of a closed sum with
+a unit or a complex coefficient is `sqrt(re^2 + im^2)` of the distributed parts; a power 2..6 of such a sum is
+expanded first (`im_part((e + i pi)^3) = 3 pi e^2 - pi^3`). Gap (a form only): `re(exp(3 i pi/8))` is `cos(3 pi/8)`
+where `sin(pi/8)` is the documented form (no reduction of the angle to the first octant).

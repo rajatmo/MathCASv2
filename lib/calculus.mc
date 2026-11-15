@@ -2919,6 +2919,10 @@ fn calc_series_multi_ok(specs) = every(specs, sp => is_list(sp) and length(sp) =
 rule series(f_, s1_, s2_) := calc_series_multi(f, [s1, s2]) when is_list(s1) and is_list(s2) and calc_series_multi_ok([s1, s2]) and not (calc_series_multi(f, [s1, s2]) === null)
 rule series(f_, s1_, s2_, s3_) := calc_series_multi(f, [s1, s2, s3]) when is_list(s1) and is_list(s2) and is_list(s3) and calc_series_multi_ok([s1, s2, s3]) and not (calc_series_multi(f, [s1, s2, s3]) === null)
 
+# function_range of an integer step of the variable itself (round 44): floor, ceiling, round and integer_part of x
+# take only integer values, and every integer k (at x = k)
+rule function_range(f_, x_, y_) := element(y, integers) when is_symbol(x) and is_symbol(y) and not (x === y) and (f === floor(x) or f === ceiling(x) or f === round(x) or f === integer_part(x))
+
 # --- integrals over regions given by boole or piecewise ---
 
 # integrate(g boole(c), [x1, a1, b1], ..., [xn, an, bn]) (or piecewise([[g, c]]) with default 0): the region c and the
@@ -2927,12 +2931,46 @@ rule series(f_, s1_, s2_, s3_) := calc_series_multi(f, [s1, s2, s3]) when is_lis
 # (Collins' cylindrical algebraic decomposition; Fubini). null when reduce gives no decomposition or a cell is not of
 # the nested form lo(x1..x(i-1)) < xi < hi(x1..x(i-1)).
 fn calc_bi_atoms(c) = if not is_atom(c) and head(c) === `and` then flat_map(calc_bi_atoms, apply(list, c)) else [c]
+# the radicand q of a term c q^(1/2) with q of degree 2 in x and c free of x, else null
+fn calc_bi_rad(t, x) = {
+  let fs = if not is_atom(t) and head(t) === mul then apply(list, t) else [t]
+  let rs = select(fs, u => not is_atom(u) and head(u) === pow and u[2] === 1/2 and not free_of(u[1], x))
+  if length(rs) == 1 and free_of(product(select(fs, u => not (u === rs[1]))), x) and is_polynomial(rs[1][1], x) and exponent(rs[1][1], x) == 2 then rs[1][1] else null
+}
+# a term c q^(1/2) integrated with the square of q completed (x shifted by the vertex x0, so that the bounds and
+# the radicand are simpler: the radicand at an algebraic bound is then a number the arithmetic decides)
+fn calc_bi_shift(t, x, lo, hi) = {
+  let q = calc_bi_rad(t, x)
+  if q === null then integrate(t, [x, lo, hi])
+  else {
+    let x0 = -coefficient(q, x, 1)/(2*coefficient(q, x, 2))
+    integrate((t/q^(1/2))*expand(rewrite(q, x -> x + x0))^(1/2), [x, lo - x0, hi - x0])
+  }
+}
+# the integral of g over [lo, hi]; term by term with completed squares where the whole is left
+fn calc_bi_int(g, x, lo, hi) = {
+  let r = integrate(g, [x, lo, hi])
+  if free_of(r, integrate) then r
+  else {
+    let ts = if not is_atom(g) and head(g) === add then apply(list, g) else [g]
+    let ps = map(t => calc_bi_shift(t, x, lo, hi), ts)
+    if some(ps, p => not free_of(p, integrate)) then r else calc_total(ps)
+  }
+}
 fn calc_bi(form, vs, i, g) = {
   if form === false then 0
   else if i > length(vs) then (if form === true then g else null)
   else if not is_atom(form) and head(form) === `or` then {
     let ps = map(u => calc_bi(u, vs, i, g), apply(list, form))
     if some(ps, p => p === null) then null else calc_total(ps)
+  } else if i == 1 and some(calc_bi_atoms(form), a => calc_free_all(a, vs)) then {
+    # conditions on the parameters only: decided by the assumptions (refine), else no answer
+    let atoms = calc_bi_atoms(form)
+    let ps = map(a => refine(a), select(atoms, a => calc_free_all(a, vs)))
+    let rest_atoms = select(atoms, a => not calc_free_all(a, vs))
+    if some(ps, p => p === false) then 0
+    else if every(ps, p => p === true) then calc_bi(if length(rest_atoms) == 0 then true else fold((p, q) => p and q, rest_atoms[1], rest(rest_atoms)), vs, i, g)
+    else null
   } else {
     let x = vs[i]
     let atoms = calc_bi_atoms(form)
@@ -2948,7 +2986,7 @@ fn calc_bi(form, vs, i, g) = {
         let hi = if length(his) == 0 then inf else his[1]
         let rest_form = if length(others) == 0 then true else fold((p, q) => p and q, others[1], rest(others))
         let body = calc_bi(rest_form, vs, i + 1, g)
-        if body === null then null else integrate(body, [x, lo, hi])
+        if body === null then null else calc_bi_int(body, x, lo, hi)
       }
     }
   }

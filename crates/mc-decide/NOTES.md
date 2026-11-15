@@ -130,3 +130,16 @@ the Rust API through test natives), unit tests of `sturm` and `quad`, the doc te
   for the facts as a second argument, as `assumptions:` and from `assuming`; a refuted condition stays as it was.
   (Adding `full_simplify` to the operators had bypassed its own handling of the facts, and the condition kept every
   conjunct.)
+
+## Round 44: primes, algebraic and complex numbers as facts
+
+- `element(p, primes)` as a fact makes `p` an integer at least 2 and records it; `element(x, algebraics)` and
+  `element(x, complexes)` record `x` as an algebraic or a complex number (before, both facts were ignored).
+- `Decider::element` answers the three domains (`element_beyond_kinds`): a prime is a stated prime or an integer number
+  `is_prime` accepts; *not* a prime is an integer below 2 or an even integer above 2. Algebraic: rational, stated, or
+  built by sums, products and rational powers (a negative power only of a nonzero base) of algebraic numbers.
+  Complex: real, algebraic, stated, or built by sums, products, nonnegative integer powers and the entire functions
+  `exp`, `sin`, `cos`, `sinh`, `cosh`. "Not algebraic" is never answered (transcendence is not decided here).
+- Parity from the parts (`parity_by_parts`): integer numbers, a prime above 2 is odd (2 is even), the parities of
+  the terms of a sum of integers add, a product is even when a factor is. So `p + 1` is even for a prime `p > 2`,
+  `cos((p + q) pi)` is 1 for two such primes. Tests `mc-engine/tests/round44_general.rs`.

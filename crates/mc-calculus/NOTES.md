@@ -1769,3 +1769,18 @@ Source in `lib/calculus.mc` (helpers `r38_`).
   e Gamma(z + 2) Gamma(-z - 1, 1) - cos(pi z)(1 + e Ei(-1))); the convexity of inverse_elliptic_nome_q (no ball
   form of m(q)); the convexity of inverse_jacobi_dn(x, m) in (x, m) (no 30-digit value of elliptic_f at a complex
   amplitude to confirm a non-real point). Tests: `mc-engine/tests/round43b_proofs.rs`.
+
+## Round 44: step functions in piecewise_expand; areas of Boolean combinations
+
+- `piecewise_expand` (props/pw.rs) knows `ramp`, `real_abs`, `real_sign`, `sign` (of a polynomial, the variables real
+  as for `abs`), `unit_box`, `unit_triangle`, and, inside a bounded region, `floor(u, a)`, `ceiling(u, a)`,
+  `round(u, a)` (as `a` times the step of `u/a`), `fractional_part`, `quotient` and `mod` by a nonzero number (their
+  definitions in `floor` and `integer_part`, Graham, Knuth and Patashnik 3.1, 3.4). Forms of several arguments are
+  products. Gap (a form only): pieces are sorted in this system's order, so `unit_triangle(x)` lists `1 + x` first and
+  `fractional_part(x)` on (0, 4) keeps the last piece as the default.
+- Areas (lib/calculus.mc, `calc_bi`): conditions on the parameters only are decided by `refine` under the assumptions
+  (`integrate(boole(x^2 + y^2 <= r^2), ..., assumptions: r > 0)` is `pi r^2`); a cell integral the definite
+  integrator leaves is retried term by term with the square of the radicand completed (`x` shifted by the vertex), so
+  the bounds of the cylindrical decomposition (algebraic numbers such as `1 - sqrt(2)`) become numbers the arithmetic
+  decides; with `nand`, `nor` and `xor` of several formulas in `mc-cad`, the areas of every Boolean combination of
+  two discs come out (`-1 + pi`, `1 + 2 pi`, `17 - pi`, `15 - 2 pi`, `2 + pi`, `15`).

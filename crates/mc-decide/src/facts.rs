@@ -278,6 +278,11 @@ pub struct Facts<'h> {
     s: Arc<Syms>,
     rels: Vec<Rel<'h>>,
     kinds: FxHashMap<T<'h>, Kind>,
+    /// the terms stated prime (`element(p, primes)`, round 44)
+    primes: Vec<T<'h>>,
+    /// the terms stated algebraic (`element(x, algebraics)`) or complex (`element(x, complexes)`): `true` for
+    /// algebraic, `false` for a complex number only
+    numbers: FxHashMap<T<'h>, bool>,
     cache: FxHashMap<T<'h>, Info<'h>>,
     closed: FxHashMap<T<'h>, bool>,
     /// closed real constants of the facts (`pi/2`), used as bounds like numbers
@@ -287,7 +292,17 @@ pub struct Facts<'h> {
 impl<'h> Facts<'h> {
     /// The facts `facts` (terms, as the context holds them).
     pub fn new(cx: &mut NativeCx<'_, '_, 'h>, b: Rc<B<'h>>, s: Arc<Syms>, facts: &[T<'h>]) -> Res<Facts<'h>> {
-        let mut f = Facts { b, s, rels: vec![], kinds: FxHashMap::default(), cache: FxHashMap::default(), closed: FxHashMap::default(), closed_real: FxHashMap::default() };
+        let mut f = Facts {
+            b,
+            s,
+            rels: vec![],
+            kinds: FxHashMap::default(),
+            primes: vec![],
+            numbers: FxHashMap::default(),
+            cache: FxHashMap::default(),
+            closed: FxHashMap::default(),
+            closed_real: FxHashMap::default(),
+        };
         for &t in facts {
             cx.tick(1)?;
             f.add(t);
@@ -302,7 +317,12 @@ impl<'h> Facts<'h> {
 
     /// Are there no facts?
     pub fn is_empty(&self) -> bool {
-        self.rels.is_empty() && self.kinds.is_empty()
+        self.rels.is_empty() && self.kinds.is_empty() && self.numbers.is_empty()
+    }
+
+    /// Is `t` stated prime by the facts?
+    pub fn stated_prime(&self, t: T<'h>) -> bool {
+        self.primes.contains(&t)
     }
 
     /// The terms the facts make integers (`n` for `element(n, integers)`, `m/k` for `mod(m, k) == 0`).
@@ -351,6 +371,31 @@ impl<'h> Facts<'h> {
         if let (Some(op), [l, r]) = (self.s.op(s), args) {
             self.relation(*l, op, *r);
         } else if let (true, [x, dom]) = (s == self.s.element, args) {
+            // the domains outside the kinds (round 44): a prime is an integer of at least 2; an algebraic number
+            // and a complex number are finite complex numbers
+            let extra = self.b.sym_of(*dom).map(|d| self.b.heap().sym_name(d));
+            if let Some(name @ ("primes" | "algebraics" | "complexes")) = extra.as_deref() {
+                let (xs, _) = items(&self.b, *x);
+                for x in xs {
+                    match name {
+                        "primes" => {
+                            self.kind_fact(x, Kind::Integer);
+                            let two = self.b.int(2);
+                            self.relation(x, Op::Ge, two);
+                            if !self.primes.contains(&x) {
+                                self.primes.push(x);
+                            }
+                        }
+                        "algebraics" => {
+                            self.numbers.insert(x, true);
+                        }
+                        _ => {
+                            self.numbers.entry(x).or_insert(false);
+                        }
+                    }
+                }
+                return;
+            }
             let Some(&(_, kind, sgn)) = self.b.sym_of(*dom).and_then(|d| self.s.domains.iter().find(|e| e.0 == d)) else {
                 return;
             };
@@ -1065,7 +1110,145 @@ impl<'h> Facts<'h> {
         if self.info_at(cx, half_odd, d + 1)?.kind == Kind::Integer {
             return Ok(Some(false));
         }
+        self.parity_by_parts(cx, n, d)
+    }
+
+    /// The parity of an integer from its parts (round 44): an integer number; a prime above 2 is odd and 2 even; the
+    /// parities of the terms of a sum of integers add; a product of integers is even when a factor is and odd when
+    /// all are.
+    fn parity_by_parts(&mut self, cx: &mut NativeCx<'_, '_, 'h>, n: T<'h>, d: u32) -> Res<Option<bool>> {
+        if d > MAX_DEPTH {
+            return Ok(None);
+        }
+        let b = self.b.clone();
+        let h = b.heap();
+        match h.view(n) {
+            View::Int(k) => return Ok(Some(k % 2 == 0)),
+            View::BigInt { .. } => {
+                let r = cx.eval(h.call(h.sym("mod"), &[n, b.int(2)]))?;
+                return Ok(match h.view(r) {
+                    View::Int(k) => Some(k == 0),
+                    _ => None,
+                });
+            }
+            _ => {}
+        }
+        if self.primes.contains(&n) {
+            let i = self.info_at(cx, n, d + 1)?;
+            if let Some(lo) = i.range.lo {
+                match self.cmp(lo.c, b.int(2)) {
+                    Some(Ordering::Greater) => return Ok(Some(false)),
+                    Some(Ordering::Equal) if lo.strict => return Ok(Some(false)),
+                    _ => {}
+                }
+            }
+            if i.range.hi.is_some_and(|hi| self.cmp(hi.c, b.int(2)) == Some(Ordering::Equal)) {
+                return Ok(Some(true));
+            }
+            return Ok(None);
+        }
+        let Some((s, args)) = b.call_of(n) else { return Ok(None) };
+        if s != b.hd.add && s != b.hd.mul {
+            return Ok(None);
+        }
+        let mut parities = Vec::with_capacity(args.len());
+        for &a in args {
+            if self.info_at(cx, a, d + 1)?.kind != Kind::Integer {
+                return Ok(None);
+            }
+            parities.push(self.parity_by_parts(cx, a, d + 1)?);
+        }
+        if s == b.hd.add {
+            // even + even, odd + odd are even
+            let mut even = true;
+            for p in parities {
+                let Some(p) = p else { return Ok(None) };
+                even = even == p;
+            }
+            return Ok(Some(even));
+        }
+        if parities.contains(&Some(true)) {
+            return Ok(Some(true));
+        }
+        Ok(parities.iter().all(|p| *p == Some(false)).then_some(false))
+    }
+
+    /// Is `t` an algebraic number (round 44)? `Some(true)` for rational numbers (exact complex ones too), the terms
+    /// the facts make rational or state algebraic, and sums, products and rational powers of algebraic numbers (a
+    /// negative power of a nonzero one); `None` when not known (never `false`: transcendence is not decided here).
+    pub fn algebraic(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, d: u32) -> Res<Option<bool>> {
+        if d > MAX_DEPTH {
+            return Ok(None);
+        }
+        cx.tick(1)?;
+        let b = self.b.clone();
+        let h = b.heap();
+        if b.is_number(t) {
+            let exact = |r: &mc_arith::Real| matches!(r, mc_arith::Real::Exact(_));
+            return Ok(match b.ar.num(t) {
+                Some(mc_arith::Num::Real(r)) if exact(&r) => Some(true),
+                Some(mc_arith::Num::Complex(re, im)) if exact(&re) && exact(&im) => Some(true),
+                _ => None,
+            });
+        }
+        if self.numbers.get(&t) == Some(&true) || self.info_at(cx, t, d + 1)?.kind <= Kind::Rational {
+            return Ok(Some(true));
+        }
+        let Some((s, args)) = b.call_of(t) else { return Ok(None) };
+        if s == b.hd.add || s == b.hd.mul {
+            for &a in args {
+                if self.algebraic(cx, a, d + 1)? != Some(true) {
+                    return Ok(None);
+                }
+            }
+            return Ok(Some(true));
+        }
+        if let (true, [base, ex]) = (s == b.hd.pow, args) {
+            if !matches!(h.view(*ex), View::Int(_) | View::Rational { .. }) || b.sym_of(*base) == Some(b.hd.e) {
+                return Ok(None);
+            }
+            if self.cmp(*ex, b.int(0)) == Some(Ordering::Less) && !self.info_at(cx, *base, d + 1)?.range.nonzero {
+                return Ok(None);
+            }
+            return self.algebraic(cx, *base, d + 1);
+        }
         Ok(None)
+    }
+
+    /// Is `t` a (finite) complex number (round 44)? `Some(true)` for numbers, real values, algebraic ones, the terms
+    /// stated complex, and sums, products, nonnegative integer powers and the entire functions `exp`, `sin`, `cos`,
+    /// `sinh`, `cosh` of complex numbers; `None` when not known.
+    pub fn complex_number(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, d: u32) -> Res<Option<bool>> {
+        if d > MAX_DEPTH {
+            return Ok(None);
+        }
+        cx.tick(1)?;
+        let b = self.b.clone();
+        let h = b.heap();
+        if b.is_number(t) || self.numbers.contains_key(&t) || self.info_at(cx, t, d + 1)?.is_real() || self.algebraic(cx, t, d + 1)? == Some(true) {
+            return Ok(Some(true));
+        }
+        let Some((s, args)) = b.call_of(t) else { return Ok(None) };
+        let entire = s == b.hd.exp || s == b.hd.sin || s == b.hd.cos || s == self.s.sinh || s == self.s.cosh;
+        let parts: &[T<'h>] = if s == b.hd.add || s == b.hd.mul || entire && args.len() == 1 {
+            args
+        } else if let (true, [base, ex]) = (s == b.hd.pow, args) {
+            if b.sym_of(*base) == Some(b.hd.e) {
+                std::slice::from_ref(ex)
+            } else if matches!(h.view(*ex), View::Int(k) if k >= 0) {
+                std::slice::from_ref(base)
+            } else {
+                return Ok(None);
+            }
+        } else {
+            return Ok(None);
+        };
+        for &a in parts {
+            if self.complex_number(cx, a, d + 1)? != Some(true) {
+                return Ok(None);
+            }
+        }
+        Ok(Some(true))
     }
 }
 

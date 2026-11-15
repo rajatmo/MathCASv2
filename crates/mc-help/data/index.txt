@@ -157,7 +157,7 @@ find_sequence_function	core	Language	find_sequence_function(xs, n): a closed for
 linear_optimization	core	Language	linear_optimization(f, cons, vars): the point [x -> ..] minimizing the linear f under the constraints
 linear_fractional_optimization	core	Language	linear_fractional_optimization(f, cons, vars): the point minimizing a ratio of linear functions under the constraints
 convex_optimization	core	Language	convex_optimization(f, cons, vars): the point minimizing the convex f under the constraints
-prime_zeta_p	core	Language	prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1
+prime_zeta_p	core	Language	prime_zeta_p(s): the sum of p^-s over the primes p, numerically for inexact s with re(s) > 1 or real s in [1/5, 1)
 unit_vector	core	Language	unit_vector(n, k), unit_vector(k): the vector of length n with a 1 at position k (the 2-vector for k = 1 or 2)
 normalized	core	Language	normalized(v), normalized(v, f): v divided by its norm (v itself when the norm is 0), or by f(v); also the option normalized: true of histogram (bars of total area 1)
 angle_vector	core	Language	angle_vector(phi), angle_vector([r, phi]), angle_vector([r, theta, phi]), angle_vector(c, p): the unit vector (polar or spherical point) at the angles, relative to c
@@ -505,7 +505,7 @@ de_bruijn_sequence	symbolic	Number sequences	de_bruijn_sequence(alphabet, m): th
 mersenne_prime_exponent	symbolic	Number sequences	mersenne_prime_exponent(k): the k-th known Mersenne prime exponent
 is_mersenne_prime_exponent	symbolic	Number sequences	is_mersenne_prime_exponent(p): whether p is the exponent of a known Mersenne prime
 finite_abelian_group_count	symbolic	Number sequences	finite_abelian_group_count(k): the number of abelian groups of order k
-finite_group_count	symbolic	Number sequences	finite_group_count(k): the number of groups of order k (k <= 64 or squarefree)
+finite_group_count	symbolic	Number sequences	finite_group_count(k): the number of groups of order k (k <= 64, squarefree, or a prime power up to p^4)
 frobenius_solve	symbolic	Number sequences	frobenius_solve(coins, k), (coins, k, m): the non-negative integer solutions of coins.x = k
 frobenius_number	symbolic	Number sequences	frobenius_number(coins): the largest integer that is not a combination of the coins
 squares_r	symbolic	Number sequences	squares_r(d, k): the number of representations of k as a sum of d squares

@@ -432,6 +432,9 @@ impl<'h> Decider<'h> {
         let h = self.b.heap();
         let Some(name) = self.b.sym_of(d).map(|s| h.sym_name(s)) else { return Ok(None) };
         let name = name.as_str();
+        if matches!(name, "primes" | "algebraics" | "complexes") {
+            return self.element_beyond_kinds(cx, x, name);
+        }
         let Some(&(_, kind, sgn)) = DOMAINS.iter().find(|e| e.0 == name) else { return Ok(None) };
         let (xs, _) = crate::facts::items(&self.b, x);
         let mut all = true;
@@ -450,6 +453,50 @@ impl<'h> Decider<'h> {
                 return Ok(Some(false));
             }
             all &= kind_ok && ok;
+        }
+        Ok(all.then_some(true))
+    }
+
+    /// `element(x, d)` for the primes, the algebraic and the complex numbers (round 44). A prime: stated, or an
+    /// integer number that is prime; not a prime: an integer below 2, or an even integer above 2 (the parity from
+    /// the facts: a prime above 2 is odd, so `p + 1` is even). Algebraic: rational, stated, or built from algebraic
+    /// numbers by sums, products and rational powers. Complex: real, algebraic, stated, or built by sums, products,
+    /// nonnegative integer powers and the entire functions. "Not algebraic" and "not complex" are never answered
+    /// here (the element native decides numbers and the infinities).
+    fn element_beyond_kinds(&mut self, cx: &mut NativeCx<'_, '_, 'h>, x: T<'h>, name: &str) -> Res<Option<bool>> {
+        let (xs, _) = crate::facts::items(&self.b, x);
+        let b = self.b.clone();
+        let h = b.heap();
+        let mut all = true;
+        for u in xs {
+            cx.tick(1)?;
+            let ok = match name {
+                "primes" => {
+                    if self.facts.stated_prime(u) {
+                        true
+                    } else if matches!(h.view(u), View::Int(_) | View::BigInt { .. }) {
+                        let r = cx.eval(h.call(h.sym("is_prime"), &[u]))?;
+                        if cx.is_false(r) {
+                            return Ok(Some(false));
+                        }
+                        cx.is_true(r)
+                    } else {
+                        let i = self.info(cx, u)?;
+                        if i.kind == Kind::Integer {
+                            let s = self.sign_of(&i);
+                            let below_two = self.compare(cx, "less", u, b.int(2))? == Some(true);
+                            let above_two = self.compare(cx, "greater", u, b.int(2))? == Some(true);
+                            if below_two || s.is_nonpos() || above_two && self.facts.parity(cx, u, 0)? == Some(true) {
+                                return Ok(Some(false));
+                            }
+                        }
+                        false
+                    }
+                }
+                "algebraics" => self.facts.algebraic(cx, u, 0)? == Some(true),
+                _ => self.facts.complex_number(cx, u, 0)? == Some(true),
+            };
+            all &= ok;
         }
         Ok(all.then_some(true))
     }

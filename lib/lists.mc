@@ -799,7 +799,7 @@ rule knapsack_solve(items_, caps_) := b29_knap_result(items, b29_knap_multi(b29_
 # element(x, primes): whether the integer x is a prime (false for other numbers, a list element by element); other
 # arguments stay unevaluated
 rule element(x_, primes) := map(t => element(t, primes), x) when is_list(x)
-rule element(x_, primes) := x > 1 and is_prime(x) when is_integer(x)
+rule element(x_, primes) := x > 1 and is_prime(x) when is_number(x) and is_integer(x)
 # an exact numeric expression is false only when it is a non-integer rational or its value is far from an integer;
 # one that may be an integer, ((e + 7)^2 - e^2)/7 - 2 e say, is simplified first (and stays unevaluated if that
 # does not decide it)
@@ -1257,6 +1257,31 @@ fn is_real_valued_numeric(x) = is_numeric(x) and is_real(n(x))
 # operator forms whose data comes last: nest_list(f, n)(x) is nest_list(f, x, n), nest(f, n)(x) is nest(f, x, n)
 rule nest_list(f_, n_)(x_) := nest_list(f, x, n) when is_integer(n)
 rule nest(f_, n_)(x_) := nest(f, x, n) when is_integer(n)
+
+# cholesky(m) of a matrix with symbolic or closed non-rational entries (round 44): row by row,
+# u[i][i] = sqrt(m[i][i] - sum_k conj(u[k][i]) u[k][i]) and u[i][j] = (m[i][j] - sum_k conj(u[k][i]) u[k][j])/u[i][i]
+# (Golub and Van Loan, Matrix Computations, 4.2.5). m must be Hermitian (or symmetric) as written. A pivot with a
+# closed numeric value must be proved positive (failure(not_positive_definite) when proved not, no answer when not
+# decided); with symbols the formula is the generic one (valid where m is positive definite).
+fn nl_ch_ok(m) = is_matrix(m) and length(m) >= 1 and length(m) == length(m[1]) and not every(flatten(m), is_number) and every(flatten(m), x => precision(x) === inf) and every(range(length(m)), i => every(range(length(m)), j => m[i][j] === m[j][i] or m[i][j] === conjugate(m[j][i])))
+fn nl_ch_sym(a) = {
+  let n = length(a)
+  var rows = []
+  var bad = false
+  var open = false
+  for i in range(n) {
+    let d = a[i][i] - total(table(conjugate(rows[k][i])*rows[k][i], k, i - 1))
+    if is_numeric(d) then {
+      let s = sign(d)
+      if s === -1 or s === 0 then bad = true
+      else if not (s === 1) then open = true
+    }
+    let p = sqrt(d)
+    rows = append(rows, table(if j < i then 0 else if j == i then p else (a[i][j] - total(table(conjugate(rows[k][i])*rows[k][j], k, i - 1)))/p, j, n))
+  }
+  if bad then "not positive definite" else if open then null else rows
+}
+rule cholesky(m_) := { let r = nl_ch_sym(m); if is_string(r) then failure(not_positive_definite) else r } when nl_ch_ok(m) and not (nl_ch_sym(m) === null)
 
 # qr(m, full): the factorization with a square q: the columns of q completed to an orthonormal basis of the space
 # and r padded with zero rows (m == dot(q, r) still)
