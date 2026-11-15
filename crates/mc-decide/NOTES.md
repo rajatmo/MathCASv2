@@ -125,3 +125,8 @@ the Rust API through test natives), unit tests of `sturm` and `quad`, the doc te
   `mc-cad` after it registers them).
 - `simplify`, `full_simplify` and `refine` simplify the condition with the call's facts: `true` drops it (also for
   other values), `false` makes a conditional truth value `false`, otherwise the simplified condition stays.
+- The condition of a value (not `true` or `false`) is simplified the same way: `full_simplify(conditional_expression(
+  s^-n, re(n) > 0 and re(s) > 0), element(n, positive_integers))` is `conditional_expression(s^-n, re(s) > 0)`,
+  for the facts as a second argument, as `assumptions:` and from `assuming`; a refuted condition stays as it was.
+  (Adding `full_simplify` to the operators had bypassed its own handling of the facts, and the condition kept every
+  conjunct.)

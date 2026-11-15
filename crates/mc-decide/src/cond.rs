@@ -444,6 +444,8 @@ impl Native for Lift {
                     }
                     return self.inner(cx, t, args);
                 };
+                // the condition as the operator leaves it under the call's facts (the value is worked on under it)
+                let mut cond = c;
                 // refine and simplify: a condition the facts imply drops (refine(conditional_expression(1/(1 - a),
                 // |a| < 1), |a| < 1) is 1/(1 - a)); a conditional truth value is decided by its condition
                 if matches!(self.mode, Mode::Operator) && matches!(h.sym_name(self.f).as_str(), "refine" | "simplify" | "full_simplify") {
@@ -464,6 +466,10 @@ impl Native for Lift {
                         }
                         return Ok(Reply::Again(h.call(self.ce, &[v, rc])));
                     }
+                    // a value: the condition simplified under the facts (a refuted one stays as it was)
+                    if rc != h.sym_term(h.sym(names::FALSE)) && !matches!(h.view(rc), View::App { head, .. } if head == h.sym_term(self.f)) {
+                        cond = rc;
+                    }
                 }
                 Ok(Reply::Again(match self.mode {
                     Mode::Normal => v,
@@ -476,8 +482,8 @@ impl Native for Lift {
                         let mut a = vec![v];
                         a.extend_from_slice(rest);
                         let inner = h.call(self.f, &a);
-                        let under = h.call(h.sym("assuming"), &[c, inner]);
-                        h.call(self.ce, &[under, c])
+                        let under = h.call(h.sym("assuming"), &[cond, inner]);
+                        h.call(self.ce, &[under, cond])
                     }
                 }))
             }

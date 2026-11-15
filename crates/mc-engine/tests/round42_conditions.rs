@@ -51,6 +51,23 @@ fn simplify_decides_the_condition_under_facts() {
 }
 
 #[test]
+fn the_condition_of_a_value_is_simplified_under_the_facts() {
+    let mut e = CoreEngine::new();
+    // the strip of a two-sided Laplace transform with a positive integer n: re(n) > 0 holds, re(s) > 0 stays
+    ev(&mut e, "t = conditional_expression(s^-n, re(n) > 0 and re(s) > 0)");
+    for f in ["simplify", "full_simplify", "refine"] {
+        assert_eq!(ev(&mut e, &format!("{f}(t, element(n, positive_integers))")), "conditional_expression(s^-n, re(s) > 0)", "{f}");
+        assert_eq!(ev(&mut e, &format!("{f}(t, assumptions: element(n, positive_integers))")), "conditional_expression(s^-n, re(s) > 0)", "{f}");
+        assert_eq!(ev(&mut e, &format!("assuming(element(n, positive_integers), {f}(t))")), "conditional_expression(s^-n, re(s) > 0)", "{f}");
+        // a list as the value, worked on under the condition; a truth value
+        assert_eq!(ev(&mut e, &format!("{f}(conditional_expression([sqrt(x^2), 1], x > 0 and a > 0), x > 1)")), "conditional_expression([x, 1], a > 0)", "{f}");
+        assert_eq!(ev(&mut e, &format!("{f}(conditional_expression(true, n > 0 and a > 0), n > 1)")), "conditional_expression(true, a > 0)", "{f}");
+    }
+    // facts that imply the whole condition give the value
+    assert_eq!(ev(&mut e, "simplify(t, n > 0 and s > 0)"), "s^-n");
+}
+
+#[test]
 fn reduce_over_the_integers_in_one_variable() {
     let mut e = CoreEngine::new();
     assert_eq!(ev(&mut e, "reduce(x^2 < 5, x, integers)"), "x == -2 or x == -1 or x == 0 or x == 1 or x == 2");
