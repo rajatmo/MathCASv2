@@ -991,7 +991,7 @@ fn sample<'h>(
     b: f64,
     scale: Scale,
 ) -> Res<Series> {
-    let fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x)], &Options::default())?;
+    let fun = crate::held::compile(cx, f, &[Var::scalar(x)], &Options::default())?;
     let mut s = Sampler {
         fun,
         evals: 0,

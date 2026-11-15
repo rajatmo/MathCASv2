@@ -216,8 +216,8 @@ impl Planar {
     /// The points of curve `c` for the parameter `t` in [a, b], as plot points (a missing point breaks the line).
     fn sample<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, c: &Curve<'h>, t: Sym, a: f64, b: f64) -> Res<Vec<(f64, Option<f64>)>> {
         let vars = [Var::scalar(t)];
-        let fx = mc_numfn::compile_expr(cx, c.fx, &vars, &Options::default())?;
-        let fy = if self.polar { None } else { Some(mc_numfn::compile_expr(cx, c.fy, &vars, &Options::default())?) };
+        let fx = crate::held::compile(cx, c.fx, &vars, &Options::default())?;
+        let fy = if self.polar { None } else { Some(crate::held::compile(cx, c.fy, &vars, &Options::default())?) };
         let mut s = Sampler { fx, fy, polar: self.polar, evals: 0 };
         let mut grid = Vec::with_capacity(INITIAL);
         for k in 0..INITIAL {
@@ -276,8 +276,8 @@ fn region<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, s1: T<'h>, s2: T<'h>, o: 
     let mut under = vec![];
     let (mut x0, mut x1, mut y0, mut y1) = (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
     for (k, (fx, fy)) in maps.into_iter().enumerate() {
-        let mut gx = mc_numfn::compile_expr(cx, fx, &vars, &mc_numfn::Options::default())?;
-        let mut gy = mc_numfn::compile_expr(cx, fy, &vars, &mc_numfn::Options::default())?;
+        let mut gx = crate::held::compile(cx, fx, &vars, &mc_numfn::Options::default())?;
+        let mut gy = crate::held::compile(cx, fy, &vars, &mc_numfn::Options::default())?;
         let mut grid = vec![None; (n + 1) * (n + 1)];
         let mut out = [0.0];
         for j in 0..=n {

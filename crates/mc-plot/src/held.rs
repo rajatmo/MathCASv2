@@ -25,19 +25,83 @@ fn is_failure<'h>(cx: &NativeCx<'_, '_, 'h>, t: T<'h>) -> bool {
 
 impl Native for Held {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
-        // monitors take a function (design NUM.8): a value that is not one is a failure showing the form to write; a
-        // plot has no hook for one (its samples are compiled and evaluated in batches), so a function is an unknown
-        // option, never accepted and ignored
+        // monitors take a function (design NUM.8): a value that is not one is a failure showing the form to write. The
+        // evaluation monitor is called at every sample with the sample point (one argument per variable); a plot
+        // takes no steps, so a step monitor is an unknown option, never accepted and ignored
         let (args, mons) = match mc_numfn::take_monitors(cx, args, &mc_numfn::MONITOR_OPTIONS) {
             Ok(v) => v,
             Err(f) => return Ok(Reply::Done(f)),
         };
-        if mons.any() {
+        if mons.steps() {
             let h = cx.heap();
-            let name = if mons.steps() { "step_monitor" } else { "evaluation_monitor" };
-            return Ok(Reply::Done(h.call(h.sym("failure"), &[h.sym_term(h.sym("unknown_option")), h.sym_term(h.sym(name))])));
+            return Ok(Reply::Done(unknown_option(h, "step_monitor")));
         }
-        let args = &args[..];
+        if mons.any() {
+            let before = MONITORS.with(|m| m.replace(Some((mons.clone(), false))));
+            let r = self.sampled(cx, t, &args);
+            let (_, attached) = MONITORS.with(|m| m.replace(before)).unwrap_or_default();
+            let r = r?;
+            let h = cx.heap();
+            // a failure of the monitor ends the plot and is its value
+            if let Some(f) = mons.failure(h) {
+                return Ok(Reply::Done(f));
+            }
+            // a plot that samples no function of its own (or not through the sampler) has no place to call it
+            if !attached {
+                return Ok(Reply::Done(unknown_option(h, "evaluation_monitor")));
+            }
+            return Ok(r);
+        }
+        let before = MONITORS.with(|m| m.replace(None));
+        let r = self.sampled(cx, t, &args);
+        MONITORS.with(|m| m.replace(before));
+        r
+    }
+    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
+        self.0.trace(visit)
+    }
+    fn reads_term(&self) -> bool {
+        self.0.reads_term()
+    }
+    fn curried(&self) -> bool {
+        self.0.curried()
+    }
+}
+
+thread_local! {
+    /// The monitors of the plot being drawn on this thread, and whether a sampled function took them.
+    static MONITORS: std::cell::RefCell<Option<(mc_numfn::Monitors, bool)>> = const { std::cell::RefCell::new(None) };
+}
+
+/// `failure(unknown_option, name)`.
+fn unknown_option<'h>(h: &'h Heap, name: &str) -> T<'h> {
+    h.call(h.sym("failure"), &[h.sym_term(h.sym("unknown_option")), h.sym_term(h.sym(name))])
+}
+
+/// The function `expr` of `vars` at machine reals, as the plots sample it: [`mc_numfn::compile_expr`], with the
+/// evaluation monitor of the plot being drawn (if any) called at every evaluation with the sample point.
+pub(crate) fn compile<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    expr: T<'h>,
+    vars: &[mc_numfn::Var],
+    opts: &mc_numfn::Options,
+) -> Res<Box<dyn mc_numfn::NumFn<'h, f64> + 'h>> {
+    let mons = MONITORS.with(|m| {
+        let mut m = m.borrow_mut();
+        m.as_mut().map(|(mons, attached)| {
+            *attached = true;
+            mons.clone()
+        })
+    });
+    match mons {
+        Some(mons) => mc_numfn::compile_expr_monitored(cx, expr, vars, opts, &mons),
+        None => mc_numfn::compile_expr(cx, expr, vars, opts),
+    }
+}
+
+impl Held {
+    /// The plot with its function evaluated (or kept, see the module docs) and infinite windows made finite.
+    fn sampled<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let Some((&f, rest)) = args.split_first() else {
             return self.0.call(cx, t, args);
         };
@@ -86,15 +150,6 @@ impl Native for Held {
             }
         }
         self.0.call(cx, t, &all)
-    }
-    fn trace(&mut self, visit: &mut dyn FnMut(&mut Raw)) {
-        self.0.trace(visit)
-    }
-    fn reads_term(&self) -> bool {
-        self.0.reads_term()
-    }
-    fn curried(&self) -> bool {
-        self.0.curried()
     }
 }
 

@@ -570,8 +570,13 @@ pub fn simplify<'h>(
 /// Does `t` hold the symbol `golden_ratio`?
 fn has_golden_ratio<'h>(b: &B<'h>, t: T<'h>) -> bool {
     let h = b.heap();
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         match h.view(u) {
             View::Sym(s) => {
                 if h.sym_name(s) == "golden_ratio" {
@@ -605,8 +610,13 @@ fn golden_ratio_number<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, cost: &mut 
 fn has_pi_shift<'h>(b: &B<'h>, t: T<'h>) -> bool {
     let h = b.heap();
     let pi = h.sym_term(h.sym("pi"));
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         let Some((s, args)) = b.call_of(u) else { continue };
         if (s == b.hd.sin || s == b.hd.cos || s == b.hd.tan) && args.len() == 1 {
             let ts = b.terms(args[0]);
@@ -910,8 +920,13 @@ fn prepare<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, k: &mut Ctx<'_, '_, '_,
 /// Is `t` built from numbers and the constants `pi`, `e`, `euler_gamma`, ... only (no free symbols)?
 fn is_free_of_symbols_but_constants<'h>(b: &B<'h>, t: T<'h>) -> bool {
     let h = b.heap();
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         match h.view(u) {
             mc_api::View::Sym(sy) => {
                 if !matches!(h.sym_name(sy).as_str(), "pi" | "e" | "euler_gamma" | "catalan" | "golden_ratio") {

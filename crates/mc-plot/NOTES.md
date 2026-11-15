@@ -270,3 +270,15 @@ used. Tests: `tests/round20.rs`.
   (mc-engine) and the work-counted polls of mc-graphics, a stop raised 200 ms into a heavy plot (3D surfaces,
   contours, 60,000 disks, 200,000 points, 1,200 spheres) ends it within about 50 ms. Test
   `mc-engine/tests/round43b_render.rs`.
+
+## Round 44: the evaluation monitor of the function plots
+
+- `evaluation_monitor: f` on a function plot (the plots registered through `held.rs`) is called at every sample with
+  the sample point, one argument per variable (`plot`: x; `plot3d`, `contour_plot`, `density_plot`: x, y;
+  `parametric_plot`: t). `Held` takes the monitors and keeps them in a thread-local for the duration of the call;
+  `held::compile` replaces `mc_numfn::compile_expr` at every sampling site of the crate and compiles the function
+  with the monitors (`compile_expr_monitored`: the interpreter calls them). A failure from the monitor (`throw`) ends
+  the plot and is its value. A plot that sampled no function through `held::compile` (complex plots, region plots
+  that test conditions) gives `failure(unknown_option, evaluation_monitor)`, never accepting and ignoring it; a step
+  monitor is unknown to every plot (a plot takes no steps). Tests `round44_language.rs`
+  `plots_call_the_evaluation_monitor_at_every_sample`, `round43b_monitors.rs` `plots_take_function_monitors_only`.

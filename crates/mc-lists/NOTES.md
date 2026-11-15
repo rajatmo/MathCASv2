@@ -920,3 +920,16 @@ Source in `lib/lists.mc`.
 The rule for integers asked `is_integer(x)`, which the assumptions answer for a symbol, and then `is_prime(x)` of the
 symbol (false): `refine(element(p, primes), element(p, integers))` gave `false`. It now applies to integer numbers
 only; symbols go to the decision service (`mc-decide`, round 44).
+## Round 44: loop signals in maps over associations and fixed shapes; to_string of a huge tree
+
+- `map(f, assoc(...))` built `assoc(k -> f(v), ...)` and evaluated it: `break()` and `continue()` from `f` were
+  ordinary failures propagated through the rules, so the map gave `failure(break)`. The values are now mapped in
+  order here and the signals read as for a list (`break()` keeps the entries before it, `continue()` leaves the
+  entry out); another failure is the value, as before.
+- A multi-dimensional `array` and `outer` kept a loop signal from their function as an element; the semantics
+  (section 10) say a structure of fixed shape does not read them and a signal ends the call and reaches the
+  iteration around it (as `sort_by` did). Both now end with the first signal; `outer` evaluates its elements in
+  order to find it (an ordinary failure stays an element, as in `table`).
+- `to_string(t)` printed the whole tree of `t`: `nest(x => [x, x], 1, 40)` is a tree of 2^40 leaves, so the text grew
+  past the memory and a stop was not polled. The printer now polls the stop flag and ends past a quarter of the
+  memory the evaluation has left, giving `failure(limit, memory, ...)`.

@@ -257,7 +257,8 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         apply(cx, f, &ix)
     };
     // one dimension is a loop over the indices: `break()` ends it, `continue()` leaves the index out; the elements
-    // of a nested array keep their places, so there the values stay as they are
+    // of a nested array keep their places, so there a loop signal is an ordinary failure that ends the call and
+    // reaches the iteration around it (semantics 10)
     if ds.len() == 1 {
         let out = cx.group_loop(total, cost, &elem)?;
         let out = cx.without_continues(out);
@@ -266,6 +267,9 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
         return Ok(Reply::Again(with_head(cx, list, g, 1)));
     }
     let out = cx.group(total, cost, &elem)?;
+    if let Some(&s) = out.iter().find(|&&v| cx.loop_signal(v).is_some()) {
+        return Ok(Reply::Done(s));
+    }
     let nested = nest_flat(cx, out, &ds);
     let Some(g) = head else { return Ok(Reply::Done(nested)) };
     Ok(Reply::Again(with_head(cx, nested, g, ds.len())))

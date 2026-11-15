@@ -199,7 +199,7 @@ impl Mesh {
 /// A compiled function of the given variables.
 fn compile<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vars: &[Sym]) -> Res<Box<dyn NumFn<'h, f64> + 'h>> {
     let vs: Vec<Var> = vars.iter().map(|&v| Var::scalar(v)).collect();
-    mc_numfn::compile_expr(cx, f, &vs, &Options::default())
+    crate::held::compile(cx, f, &vs, &Options::default())
 }
 
 /// The value of a compiled function at `at` (NaN where it has none).

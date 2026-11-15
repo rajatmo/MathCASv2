@@ -131,6 +131,10 @@ impl Native for Assign {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
         let [x, v] = args else { return Ok(Reply::Decline) };
+        // a loop signal is control, not data: nothing is stored, and it ends the statement (semantics 10)
+        if cx.loop_signal(*v).is_some() {
+            return Ok(Reply::Done(*v));
+        }
         match h.view(*x) {
             View::App { head, args: &[id] } if head == h.sym_term(cx.ev.k.names.local_cell) => {
                 let View::Int(id) = h.view(id) else { return Ok(Reply::Decline) };
@@ -560,6 +564,10 @@ impl Native for Match {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let &[e, arms] = args else { return Ok(Reply::Decline) };
         let Some(arms) = cx.as_list(arms) else { return Ok(Reply::Decline) };
+        // the loop signals are control, not data: they pass through to the iteration that reads them
+        if cx.loop_signal(e).is_some() {
+            return Ok(Reply::Done(e));
+        }
         let mut b = Binds::default();
         for &arm in arms {
             cx.tick(1)?;
@@ -571,6 +579,10 @@ impl Native for Match {
             if let Some(r) = apply(cx, std::slice::from_ref(&rule), e, &mut b)? {
                 return Ok(Reply::Again(r));
             }
+        }
+        let h = cx.heap();
+        if matches!(h.view(e), View::App { head, .. } if head == h.sym_term(h.sym(mc_api::names::FAILURE))) {
+            return Ok(Reply::Done(e));
         }
         Ok(Reply::Done(failure(cx, mc_api::names::failure::NO_MATCH, &[e])))
     }
@@ -816,7 +828,9 @@ pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     k.register(h.sym("local_cell"), a(Hold::None), Box::new(LocalCell));
     k.register_form(h.sym("while"), a(Hold::All), Form::While);
     k.register_form(h.sym("for"), a(Hold::All), Form::For);
-    k.register(h.sym("match"), a(Hold::Rest), Box::new(Match));
+    // `match` reads a failure as data, so a `failure(...)` arm can match it (semantics 10); with no arm matching
+    // the failure is the value
+    k.register(h.sym("match"), keep(a(Hold::Rest)), Box::new(Match));
     k.register(h.sym("rewrite"), a(Hold::None), Box::new(Rewrite));
     k.register(h.sym("replace_list"), a(Hold::None), Box::new(ReplaceList));
     k.register(h.sym("check_options"), a(Hold::None), Box::new(CheckOptions));

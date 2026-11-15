@@ -272,3 +272,20 @@ and `prime_zeta_p` to `lib/special.mc`.
 - Tests: `round43b_iterators.rs` (every iterating function with no, one and malformed arguments, the loop signals
   as values and elements, nested and parallel; `MC_ITER_FUZZ_CASES` for a long campaign: 21,798 + 6,265 inputs
   ran clean), `round43b_monitors.rs`, `round43b_render.rs`.
+
+## Round 44: language, interrupts and budgets, adversarially
+
+- `round44_language.rs`: the print round trip generator (see mc-syntax NOTES), the defects of failures and loop
+  signals in assignments, `match`, maps over associations and fixed shapes (mc-eval and mc-lists NOTES), the plots'
+  evaluation monitor (mc-plot) and the last Taylor step (mc-ode). `probe` (with `MC_R44_PROBE=<file>`,
+  `MC_R44_PROBE_MS`) evaluates a file line by line with a stop after a time, for looking at inputs by hand.
+- `round44_interrupts.rs`: 21 heavy inputs (big integers, factoring, primes, polynomial gcd, `together`, `factor`,
+  `expand`, two Gröbner bases, integration, two plots, `det`, `eigenvalues`, `matrix_rank`, `n_sum`, `prime_pi`,
+  `n_dsolve`, `n(pi, 10^7)`, `reduce`) stopped at a random moment between 50 ms and 1.5 s end within 300 ms; the suite
+  stops each once, `MC_R44_STOPS=3` three times (63 stops, all within 150 ms after the mc-poly fixes; before them a
+  polynomial gcd of 12,341-term inputs ended 4.2 s after the stop and `expand((1 + x + y + z)^120)` 3.5 s after).
+  A second test gives 28 inputs of every area the same printed value on 1, 4 and 16 threads and with every block of
+  fuel delayed.
+- A shown value's text ends at 256 MB (`SHOWN_LIMIT`): `nest(x => [x, x], 1, 40)` (a tree of 2^40 leaves) printed
+  until a stop and grew without bound.
+- Walkers that visit shared subterms once: `machine_constants` and `exact_sign` of `arith.rs`.

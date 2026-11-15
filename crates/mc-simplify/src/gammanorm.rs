@@ -19,8 +19,13 @@ pub const MAX_M: i64 = 12;
 /// The gamma arguments in `t` (distinct, in the order met).
 fn gamma_args<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
     let h = b.heap();
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         if let Some((s, args)) = b.call_of(u) {
             if h.sym_name(s) == "gamma" && args.len() == 1 && !out.contains(&args[0]) {
                 out.push(args[0]);
@@ -33,8 +38,13 @@ fn gamma_args<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
 /// The symbols of `t` that are not constants.
 fn symbols<'h>(b: &B<'h>, t: T<'h>, out: &mut Vec<T<'h>>) {
     let h = b.heap();
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         match h.view(u) {
             View::Sym(s) => {
                 if !matches!(h.sym_name(s).as_str(), "pi" | "e" | "im" | "euler_gamma" | "catalan") && !out.contains(&u) {
@@ -84,8 +94,13 @@ fn shifted<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, n: T<'h>, s: T<'h>, nam
 fn prime_powers<'h>(cx: &mut NativeCx<'_, '_, 'h>, b: &B<'h>, t: T<'h>, n: T<'h>) -> Res<Option<T<'h>>> {
     let h = b.heap();
     let mut pows = vec![];
+    // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+    let mut seen = std::collections::HashSet::new();
     let mut stack = vec![t];
     while let Some(u) = stack.pop() {
+        if !seen.insert(u) {
+            continue;
+        }
         if let Some((s, args)) = b.call_of(u) {
             if s == b.hd.pow && args.len() == 2 && is_rational(b, args[0]) {
                 let mut syms = vec![];

@@ -613,3 +613,12 @@ Gaps: `mod(a, -b) + mod(-a, b) == 0` (no transformation for `mod` of a negated m
   `alternating_harmonic_number(m, r)` by digamma (r = 1) or polygamma of order r - 1 (integer r up to 40) at
   (m + 1)/2 and (m + 2)/2 (DLMF 25.11.12). `digamma(p/q)` for q = 2, 3, 4, 6 by Gauss's theorem (DLMF 5.4.19) with
   the recurrence for the integer part. Each checked against the numeric values.
+## Round 44: shared subterms
+
+- The predicates walked by `simplify` before its search (`has_golden_ratio`, `has_pi_shift`,
+  `is_free_of_symbols_but_constants`, and `gamma_args`, `symbols`, `prime_powers` of `gammanorm.rs`) visited a term
+  as a tree: a term built by sharing (`nest(x => [x, x], 1, 60)` is 61 terms and a tree of 2^60 leaves) took
+  exponential time without polling the stop flag. They now visit each distinct subterm once.
+- Found, not fixed: `simplify` and `factor` of such a term still take time exponential in its depth further on
+  (`simplify(nest(x => [x, x], 1, 22))` takes over 3 s, depth 60 never ends and ignores a stop); the same walker
+  pattern (a stack of arguments with no set of terms seen) occurs at about 240 places in the library crates.

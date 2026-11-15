@@ -68,3 +68,17 @@ picture helpers (`svg_size`, `image_path`, `ImageFormat::sniff`): 3,000 cases of
   `itemnumbered`, ...) in `read_cells`, so every reader sees the current names and the next save writes them; a
   marker with both spellings keeps the current one. Fixtures in both formats: `tests/data/old-names.mcn`,
   `tests/data/new-names.mcn` (`tests/old_names.rs`). Design 08-notebook, 2.1, 2.6 and 7.4.
+
+## Round 44: kind words in any case, the documentation's notebooks
+
+- The kind word of a marker is read in any case: the style names of the notebook model before 1.0 (`Title`,
+  `ItemNumbered`, `Input`) and `#% Output` are markers; before, `#% Title` was content of the cell above (and gave no
+  warning, as the misspelling check lower-cases the word and skips exact names).
+- `tests/documented.rs`: every notebook of `docs/functions` and `docs/guides` (1,929) reads without warnings and
+  prints back to its text; each, labelled, written with the old spellings (CamelCase kinds or kinds without
+  underscores, `label=N`, `n=N`) reads as the labelled current form.
+- The 27 predicates renamed before 1.0 (`possible_zero_q` -> `is_possible_zero`, design 04-syntax 10.1) are
+  converted in the code cells of a notebook when it is read (`renamed_predicates`: whole names outside strings,
+  `#` comments and backquoted names; a qualified `M.match_q` is the module's own), so an old notebook runs; the
+  language itself keeps no aliases. String option values of old code (`method: "LeastSquares"`) are not converted:
+  a string there may be data (`"Polynomial"` as a value), so the reader cannot tell; the call stays unevaluated.

@@ -405,6 +405,11 @@ pub(crate) fn outer<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     }
     let mut chosen = Vec::with_capacity(xss.len());
     let v = outer_at(cx, f, head, xss, depth, 0, &mut chosen)?;
+    // a structure of fixed shape does not read the loop signals: `break()` or `continue()` from `f` is an ordinary
+    // failure that ends the call (semantics 10), and reaches the iteration around it
+    if cx.loop_signal(v).is_some() {
+        return Ok(Reply::Done(v));
+    }
     Ok(Reply::Again(v))
 }
 
@@ -428,7 +433,8 @@ fn outer_at<'h>(
 ) -> Res<T<'h>> {
     if k == xss.len() {
         cx.tick(1)?;
-        return Ok(cx.heap().app(f, chosen));
+        // evaluated here, in order, so a loop signal ends the construction (see `outer`)
+        return cx.eval(cx.heap().app(f, chosen));
     }
     open(cx, f, head, xss, depth, k, xss[k], depth, chosen)
 }
@@ -450,7 +456,12 @@ fn open<'h>(
         View::App { head: g, args } if g == head && left > 0 => {
             let mut out = Vec::with_capacity(args.len());
             for &a in args {
-                out.push(open(cx, f, head, xss, depth, k, a, left - 1, chosen)?);
+                let v = open(cx, f, head, xss, depth, k, a, left - 1, chosen)?;
+                // only a leaf value can be a bare failure: a loop signal ends the construction
+                if cx.loop_signal(v).is_some() {
+                    return Ok(v);
+                }
+                out.push(v);
             }
             Ok(h.app(head, &out))
         }

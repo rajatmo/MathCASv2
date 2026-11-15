@@ -151,7 +151,7 @@ impl Native for Field {
 /// The values of `f` (in `x` and `y`) on the grid `xs` x `ys`, where the function stops having values located on
 /// the grid's edges (compiled when it pays).
 pub(crate) fn sample_grid<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: Sym, y: Sym, xs: &[f64], ys: &[f64]) -> Res<Grid> {
-    let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
+    let mut fun = crate::held::compile(cx, f, &[Var::scalar(x), Var::scalar(y)], &Options::default())?;
     let mut v = Vec::with_capacity(xs.len() * ys.len());
     let mut out = [0.0];
     for &yj in ys {

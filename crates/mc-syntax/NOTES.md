@@ -261,3 +261,16 @@ at the level of `*`, left associative.
 ## Round 36
 
 A slot function without slots (`&(x)`) lowers to `fn([&1], x)`: it takes one argument and ignores it (semantics 6.7: a slot function ignores arguments past its highest slot). `() => x` stays the zero-argument closure.
+
+## Round 44: a limit on printed text
+
+- `Printer::with_limit(bytes)`: past the limit the printing ends with the text so far and `…`, and
+  `Printer::was_cut` tells (also after a stop). The text of a term grows with its tree, which can be exponentially
+  larger than the term; shown values (`mc-engine`, 256 MB) and `to_string` (`mc-lists`) use it.
+- Fuzzing: `tests/fuzz.rs` ran at 10 times its size with three more seeds (about 400,000 terms and texts); one
+  report, a term no reader produces (an assignment to a part of a lambda parameter, which lowering rejects as it
+  should). `mc-engine/tests/round44_language.rs` adds a generator over the engine: random expressions of every form
+  (operators of all levels, strings with escapes, numbers of every kind, options, patterns, blocks, closures,
+  parts, pipes) evaluated, printed and evaluated again (a printed value is a normal form) and held with `quote`
+  (the printed held term reads back as itself); 1,500 cases in the suite, 15,000 run by hand: no difference except
+  balls, which print their correct digits only and read back as machine reals (04-syntax section 4, by design).

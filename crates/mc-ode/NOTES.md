@@ -177,3 +177,12 @@ others. Gap: vector-valued unknowns (`z(0) == [1, 0]`).
 - Seen on the way, left as it is: a step can pass the end of the range (`[t, 0, 12]` steps to 12.217, then back to
   12), because the test of the last step compares `log2` of the remaining length rounded to its leading bit with
   the exact `log2` of the step. The solution stays within its tolerance; a change would move printed digits.
+
+## Round 44: the last Taylor step
+
+- The step that passed the end of the range (round 43b) is fixed at its cause: the remaining length's log2 is now
+  computed to machine accuracy (`log2_fine`: the leading bit's position plus the log2 of the mantissa scaled into
+  [1/2, 1)), so a step within 1% of the rest becomes the last step and ends exactly at the end. `[t, 0, 12]` of
+  `y'' + y = 0` now steps 2.47, 4.91, 7.38, 9.82, 12. Test `round44_language.rs` `taylor_steps_do_not_pass_the_end`
+  (the step times stay within the range, the value at the end agrees with the exact solution, three equations and
+  both directions).

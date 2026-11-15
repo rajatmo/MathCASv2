@@ -82,18 +82,20 @@ fn taylor_monitors_see_the_times() {
     assert_eq!(ev("{ let s = n_dsolve([y'(t) == y(t), y(0) == 1], y, [t, 0, 1], digits: 30); abs((y(1) /. s) - e) < 10^-25 }"), "true");
 }
 
-/// The function plots have no hook: a function monitor is an unknown option, a value that is not a function is
-/// `not_a_function`, and a step monitor is an unknown option; without a monitor the plot is drawn.
+/// The function plots call an evaluation monitor at every sample (round 44, `round44_language.rs`); a value that is
+/// not a function is `not_a_function`, and a step monitor (a plot takes no steps) is an unknown option, as is a
+/// monitor on a plot that samples no function of its own; without a monitor the plot is drawn.
 #[test]
-fn plots_refuse_monitors() {
-    assert_eq!(ev("plot(x, [x, 0, 1], evaluation_monitor: (x => sow(x)))"), "failure(unknown_option, evaluation_monitor)");
-    assert_eq!(ev("plot3d(x*y, [x, 0, 1], [y, 0, 1], evaluation_monitor: ((x, y) => null))"), "failure(unknown_option, evaluation_monitor)");
+fn plots_take_function_monitors_only() {
+    assert!(ev("plot(x, [x, 0, 1], evaluation_monitor: (x => sow(x)))").starts_with("image("));
+    assert!(ev("plot3d(x*y, [x, 0, 1], [y, 0, 1], evaluation_monitor: ((x, y) => null))").starts_with("image("));
     assert_eq!(ev("complex_plot3d(z^2, [z, -1 - im, 1 + im], step_monitor: (z => null))"), "failure(unknown_option, step_monitor)");
+    assert_eq!(ev("complex_plot(z^2, [z, -1 - im, 1 + im], evaluation_monitor: (z => null))"), "failure(unknown_option, evaluation_monitor)");
     let f = ev("plot(x, [x, 0, 1], evaluation_monitor: sow(x))");
     assert!(f.starts_with("failure(not_a_function, evaluation_monitor"), "{f}");
     let f = ev("{ var c = 0; contour_plot(x*y, [x, 0, 1], [y, 0, 1], evaluation_monitor: { c = c + 1 }) }");
     assert!(f.starts_with("failure(not_a_function, evaluation_monitor"), "{f}");
     // nothing is evaluated before the refusal
-    assert_eq!(ev("{ var c = 0; is_failure(plot({ c = c + 1; x }, [x, 0, 1], evaluation_monitor: (x => null))); c }"), "0");
+    assert_eq!(ev("{ var c = 0; is_failure(plot({ c = c + 1; x }, [x, 0, 1], evaluation_monitor: sow(x))); c }"), "0");
     assert!(ev("plot(x, [x, 0, 1])").starts_with("image("));
 }

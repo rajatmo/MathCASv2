@@ -405,3 +405,15 @@ factor by factor and stay products.
   millisecond that the budgets of the tower methods assume (mc-api NOTES, "budgets of work"): the ansatz stops at
   its budget after about 2.3 s, and `integrate` of that integrand takes 2.9 s (4.2 s before round 43, 8.7 s
   after). The gcds of small polynomials gain a few units of fuel each.
+
+## Round 44: a stop during large conversions
+
+- `ratfun::read` summed the terms of a sum as a running sum: n additions of a growing numerator, n^2/2 term copies
+  that no kernel charged (a product by the constant 1 and a constant denominator are free). A sum of 12,341 terms
+  (`expand((x + y + z + 1)^40*(x - y))`) took 3.8 s inside `polynomial_gcd(p, x + 7)`, `factor_square_free`,
+  `together` and `cancel`, and a stop raised meanwhile waited for it. Sums longer than 64 terms are now added in
+  pairs (n log n); shorter ones as before (the same work charged). `polynomial_gcd(p, x + 7)` takes 0.27 s.
+- `Writer::sum` sorted the monomials of a result into the canonical order in one `sort_by`: 300,000 terms
+  (`expand((1 + x + y + z)^120)`) sorted for over 3 s without polling. `Writer::sorted` sorts runs of 4096 and merges
+  them in pairs (a stable merge sort: the order of the stable sort), polling the stop flag between runs; `to_term`
+  gives `Halt::Stopped`. A stop now ends within about 100 ms. Test `round44_interrupts.rs`.

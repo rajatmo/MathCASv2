@@ -84,6 +84,9 @@ impl RatFun {
     }
 }
 
+/// The number of terms above which [`read`] sums in pairs.
+const LONG_SUM: usize = 64;
+
 /// The rational function of `t` in the kernels of `ring` (from [`Conv::ring`] of a rational converter).
 pub fn read<'h, S: Store + ?Sized>(
     c: &Conv<'_, 'h, S>,
@@ -133,12 +136,31 @@ pub fn read<'h, S: Store + ?Sized>(
                 }
             },
             Task::Add(n) => {
-                let xs = vals.split_off(vals.len() - n);
-                let mut acc = RatFun::constant(nv, Z::ZERO, Z::ONE);
-                for x in &xs {
-                    acc = acc.add(x, m)?;
+                // a long sum in pairs: n terms cost n log n term operations, not n^2 / 2 as a running sum (whose
+                // additions of a growing numerator the kernels do not charge, so a stop waited for seconds); a short
+                // one as a running sum, as before (the same work charged)
+                let mut xs = vals.split_off(vals.len() - n);
+                if xs.len() <= LONG_SUM {
+                    let mut acc = RatFun::constant(nv, Z::ZERO, Z::ONE);
+                    for x in &xs {
+                        acc = acc.add(x, m)?;
+                    }
+                    vals.push(acc);
+                    continue;
                 }
-                vals.push(acc);
+                while xs.len() > 1 {
+                    let mut next = Vec::with_capacity(xs.len().div_ceil(2));
+                    let mut it = xs.into_iter();
+                    while let Some(a) = it.next() {
+                        next.push(match it.next() {
+                            Some(b) => a.add(&b, m)?,
+                            None => a,
+                        });
+                    }
+                    xs = next;
+                }
+                // invariant: the pairing keeps one value of at least one
+                vals.push(xs.pop().expect("a sum"));
             }
             Task::Mul(n) => {
                 let xs = vals.split_off(vals.len() - n);

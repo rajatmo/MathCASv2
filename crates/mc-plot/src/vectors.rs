@@ -264,7 +264,7 @@ fn compile_field<'h>(cx: &mut NativeCx<'_, '_, 'h>, comps: &[T<'h>], vars: &[Sym
     let vs: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
     let mut fs = vec![];
     for &c in comps {
-        fs.push(mc_numfn::compile_expr(cx, c, &vs, &Options::default())?);
+        fs.push(crate::held::compile(cx, c, &vs, &Options::default())?);
     }
     Ok(Source::Fun(fs))
 }

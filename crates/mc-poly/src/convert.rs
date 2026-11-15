@@ -443,7 +443,7 @@ impl<'a, 'h, S: Store + ?Sized> Conv<'a, 'h, S> {
         if mc_arith::num::stopped() {
             return Err(Halt::Stopped);
         }
-        Ok(w.sum(terms, &p.den))
+        w.sum(terms, &p.den).ok_or(Halt::Stopped)
     }
 
     /// The canonical term of an integer polynomial.
@@ -470,6 +470,7 @@ struct Writer<'c, 'a, 'h, S: Store + ?Sized> {
 }
 
 /// The sort key of a monomial term.
+#[derive(Clone, Copy)]
 struct Key<'h, 'z> {
     t: T<'h>,
     /// 0 number, 2 symbol, 3 compound (the classes of the canonical order)
@@ -579,25 +580,67 @@ impl<'c, 'a, 'h, S: Store + ?Sized> Writer<'c, 'a, 'h, S> {
     }
 
     /// The canonical sum of distinct monomials (with the numerators of their coefficients over `den`).
-    fn sum(&self, terms: Vec<(T<'h>, &Z)>, den: &Z) -> T<'h> {
+    /// `None` when the stop flag was raised while sorting (a sum of a million terms sorts for seconds).
+    fn sum(&self, terms: Vec<(T<'h>, &Z)>, den: &Z) -> Option<T<'h>> {
         if self.ring.interacting {
             let ts: Vec<T<'h>> = terms.iter().map(|p| p.0).collect();
-            return self.c.ar.add(&ts);
+            return Some(self.c.ar.add(&ts));
         }
         match terms.len() {
-            0 => self.st().int(0),
-            1 => terms[0].0,
+            0 => Some(self.st().int(0)),
+            1 => Some(terms[0].0),
             _ => {
-                let mut keys: Vec<Key<'h, '_>> = terms.iter().map(|&(t, n)| self.key(t, n, den)).collect();
-                keys.sort_by(|a, b| self.cmp(a, b));
+                let keys: Vec<Key<'h, '_>> = terms.iter().map(|&(t, n)| self.key(t, n, den)).collect();
+                let keys = self.sorted(keys)?;
                 let ts: Vec<T<'h>> = keys.iter().map(|k| k.t).collect();
                 let t = self.st().app(self.c.hd.add, &ts);
                 debug_assert!(ts.len() > 2000 || t == self.c.ar.add(&ts), "the direct sum is canonical");
-                t
+                Some(t)
             }
         }
     }
+
+    /// `keys` in the canonical order: runs of [`SORT_RUN`] sorted, then merged in pairs (a stable merge sort, the
+    /// order of a stable sort), polling the stop flag between runs and merges; `None` once it is raised.
+    fn sorted<'z>(&self, mut keys: Vec<Key<'h, 'z>>) -> Option<Vec<Key<'h, 'z>>> {
+        let n = keys.len();
+        for run in keys.chunks_mut(SORT_RUN) {
+            if mc_arith::num::stopped() {
+                return None;
+            }
+            run.sort_by(|a, b| self.cmp(a, b));
+        }
+        let mut width = SORT_RUN;
+        let mut out = Vec::with_capacity(n);
+        while width < n {
+            out.clear();
+            for start in (0..n).step_by(2 * width) {
+                if mc_arith::num::stopped() {
+                    return None;
+                }
+                let (mid, end) = ((start + width).min(n), (start + 2 * width).min(n));
+                let (mut i, mut j) = (start, mid);
+                while i < mid && j < end {
+                    if self.cmp(&keys[j], &keys[i]) == std::cmp::Ordering::Less {
+                        out.push(keys[j]);
+                        j += 1;
+                    } else {
+                        out.push(keys[i]);
+                        i += 1;
+                    }
+                }
+                out.extend_from_slice(&keys[i..mid]);
+                out.extend_from_slice(&keys[j..end]);
+            }
+            std::mem::swap(&mut keys, &mut out);
+            width *= 2;
+        }
+        Some(keys)
+    }
 }
+
+/// The length of the runs [`Writer::sorted`] sorts before merging them.
+const SORT_RUN: usize = 1 << 12;
 
 /// A polynomial as a list of terms with their own denominators.
 pub struct Terms {

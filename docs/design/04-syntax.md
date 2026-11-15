@@ -336,7 +336,9 @@ Names are lower case with underscores. Two rules settle the forms that had more 
 
 - **Predicates are `is_*`.** A function that answers true or false about its argument is named `is_<what>`
   (`is_prime`, `is_possible_zero`, `is_interval_member`), never `<what>_q`. The `*_q` spellings were removed
-  without aliases: an old name is an unknown function like any other and stays unevaluated. Names that end in `_q`
+  without aliases: an old name is an unknown function like any other and stays unevaluated. A notebook saved
+  before 1.0 has them converted in its code cells when it is read (whole names outside strings and comments), as
+  its labels and style names are. Names that end in `_q`
   because `q` is part of the mathematics (`legendre_q`, `gamma_q`, `elliptic_nome_q`, `partitions_q`) are not
   predicates and keep their names. The renamed functions:
 

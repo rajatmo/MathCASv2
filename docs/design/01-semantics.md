@@ -448,12 +448,16 @@ property of the printer, not of the term. Packed polynomials keep their own inte
   | the value of a block statement, of a loop body (an ordinary failure; for `break()` and `continue()` see below) | ends the block or loop with it |
   | an element of a list (`[f(1), f(2)]`, the results of `map` and `table`) | held as data: the list keeps it in place |
   | `is_failure`, `check`, `drop_failures`, `catch`, assignment `x = v` | read as data |
-  | pattern matching (`match`, `match_q`, `cases`, `count`, `position`, `free_of`, and the other functions taking a pattern) | held as data: `failure(___)` patterns match it |
+  | part assignment `xs[k] = v` | a list holds the failure in place; an association cannot hold one (its rules propagate it), so it stays as it was and the failure is the value; a failure as the key propagates |
+  | `match e { ... }` | `e` is read as data: a `failure(...)` arm matches it; with no arm matching, the failure is the value |
+  | pattern matching (`is_match`, `cases`, `count`, `position`, `free_of`, and the other functions taking a pattern) | elements held as data: `failure(___)` patterns match them; a failure as the whole expression searched propagates |
   | a `held` parameter, an argument a function holds | passed as written (data) |
   | a function declared `@handles_failures` | passed in |
 - Loop control is failures too: `break()` is `failure(break)` and `continue()` is `failure(continue)`; they end the
   blocks and strict calls around them, and the innermost iteration reads them. A `while` or `for` loop: break makes
-  its value `null`, continue goes on with the next iteration. (Decision of November 2026.)
+  its value `null`, continue goes on with the next iteration. (Decision of November 2026.) They are control, not
+  data: an assignment (`x = v`, `xs[k] = v`) stores nothing when `v` is a loop signal and ends its statement with it,
+  and `match` passes one through without trying its arms.
 - **Every iterating function reads them** (decision of 15 November 2026): `break()` ends the iteration and the
   result holds what was produced before it; `continue()` skips the element. So
   `map(i => if i == 3 then break() else i, range(5))` is `[1, 2]` and with `continue()` it is `[1, 2, 4, 5]`.

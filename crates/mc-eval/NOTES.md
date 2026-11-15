@@ -783,3 +783,20 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
 - `NativeCx::poll`: `Err` when the evaluation has been stopped. `tick` polls only when it draws a new block of fuel,
   so a native that saw the stop flag in work below the evaluator (a renderer returning `interrupted`) and then
   called `tick(1)` usually went on and returned a value. The plot and graphics natives use `poll`.
+
+## Round 44: failures and loop signals in assignments and match
+
+Found by the adversarial probes of the 1.0 decisions (`round44_language.rs`):
+- `xs[2] = failure(boom)` made `xs` the failure: `with_part` built `replace_part(xs, 2 -> v)`, and the rule, a
+  strict call, propagated the failure through `replace_part` into the rebinding. A failure now goes in through a
+  delayed rule, so a list holds it in its place (as `xs = [1, failure(boom), 3]` does). An association cannot hold
+  one (an association built from rules propagates a failure, semantics 10), so it stays as it was and the failure
+  is the value. A failure as the key propagates. The same for `var` locals: `assign_part` handles failures.
+- The loop signals are control, not data: `x = break()`, `xs[k] = break()` (symbols and `var` locals) store nothing
+  and end the statement with the signal, so the loop around them reads it; before, `ys[i] = if i == 2 then break()
+  else 0` in a `for` loop stored `failure(break)` and went on.
+- `match failure(boom) { failure(t_) => t }` gave the failure: `match` did not handle failures, so its subject
+  propagated before any arm was tried, against the semantics table ("pattern matching: held as data"). `match` now
+  reads a failure as data; with no arm matching the failure is the value; a loop signal passes through without
+  trying the arms (a `_` arm would otherwise swallow `break()`).
+- The semantics table (01-semantics section 10) states these rows.

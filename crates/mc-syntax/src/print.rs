@@ -74,6 +74,10 @@ pub struct Printer<'h, S: Store + ?Sized> {
     display: bool,
     /// shortened forms that do not read back (a long interpolation as `<n points>`): shown output only
     short: bool,
+    /// the most bytes of text: past it the printing ends with the text so far and `…` ([`Printer::with_limit`])
+    limit: Option<usize>,
+    /// whether the last text was cut short (by `stop` or `limit`)
+    cut: std::cell::Cell<bool>,
 }
 
 impl<'h, S: Store + ?Sized> Printer<'h, S> {
@@ -82,7 +86,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     }
 
     pub fn with_numbers(store: &'h S, numbers: Box<dyn NumberFormat + 'h>) -> Self {
-        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None, exp_calls: None, display: false, short: false }
+        Printer { store, heads: Heads::new(store), numbers, series_data: store.sym(SERIES_DATA), stop: None, exp_calls: None, display: false, short: false, limit: None, cut: std::cell::Cell::new(false) }
     }
 
     /// This printer, polling `stop` as it prints: a huge term (a million copies of a deep term) takes long and
@@ -90,6 +94,19 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
     pub fn with_stop(mut self, stop: impl Fn() -> bool + 'h) -> Self {
         self.stop = Some(Box::new(stop));
         self
+    }
+
+    /// This printer, writing at most `bytes` bytes of text: the text of a term grows with its tree, which can be
+    /// exponentially larger than the term itself (`nest(x => [x, x], 1, 40)` is 41 terms and a tree of 2^40
+    /// leaves), so past the limit the printing ends with the text so far and `…` ([`Printer::was_cut`] tells).
+    pub fn with_limit(mut self, bytes: usize) -> Self {
+        self.limit = Some(bytes);
+        self
+    }
+
+    /// Whether the last text printed was cut short by the stop flag or the limit (it ends in `…`).
+    pub fn was_cut(&self) -> bool {
+        self.cut.get()
     }
 
     /// This printer, writing a power of the constant `e` as a call of `exp`: `e^x` is `exp(x)`, which evaluates to
@@ -151,6 +168,7 @@ impl<'h, S: Store + ?Sized> Printer<'h, S> {
             plain: 0,
             num_form: None,
         };
+        self.cut.set(false);
         r.scopes.push();
         r.go();
         r.out
@@ -347,8 +365,11 @@ impl<'p, 'h, S: Store + ?Sized> Run<'p, 'h, S> {
         let mut polled = 0u32;
         while let Some(task) = self.stack.pop() {
             polled += 1;
-            if polled.is_multiple_of(4096) && self.p.stop.as_ref().is_some_and(|stop| stop()) {
+            if (polled.is_multiple_of(4096) && self.p.stop.as_ref().is_some_and(|stop| stop()))
+                || self.p.limit.is_some_and(|n| self.out.len() > n)
+            {
                 self.out.push('…');
+                self.p.cut.set(true);
                 return;
             }
             match task {

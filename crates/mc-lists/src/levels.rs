@@ -489,6 +489,23 @@ impl Native for MapMore {
             [f, x] if cx.as_list(x).is_none() && h.packed(x).is_none() => {
                 let Some((head, xs)) = parts(h, x) else { return self.inner.call(cx, t, args) };
                 let (assoc, rule) = (h.sym_term(h.sym("assoc")), h.sym_term(self.lib.s.rule));
+                // the values of an association are mapped in order here, so the loop signals are read as for a
+                // list (semantics 10): `break()` keeps the entries before it, `continue()` leaves the entry out
+                if head == assoc && xs.iter().all(|&r| matches!(h.view(r), View::App { head: g, args: [_, _] } if g == rule)) {
+                    let mut out = Vec::with_capacity(xs.len());
+                    for &r in xs {
+                        cx.tick(1)?;
+                        let View::App { args: &[k, v], .. } = h.view(r) else { continue };
+                        let y = cx.eval(h.app(f, &[v]))?;
+                        match cx.loop_signal(y) {
+                            Some(mc_eval::LoopSignal::Break) => break,
+                            Some(mc_eval::LoopSignal::Continue) => continue,
+                            None if self.lib.is_failure(h, y) => return Ok(Reply::Done(y)),
+                            None => out.push(h.app(rule, &[k, y])),
+                        }
+                    }
+                    return Ok(Reply::Again(h.app(assoc, &out)));
+                }
                 let out: Vec<T<'h>> = if head == assoc {
                     xs.iter()
                         .map(|&r| match h.view(r) {

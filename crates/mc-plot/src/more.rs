@@ -128,7 +128,7 @@ impl Native for DiscretePlot {
         wraps.apply(cx, &mut look);
         let mut series = vec![];
         for &f in &fs {
-            let mut fun = mc_numfn::compile_expr(cx, f, &[Var::scalar(n)], &Options::default())?;
+            let mut fun = crate::held::compile(cx, f, &[Var::scalar(n)], &Options::default())?;
             let mut pts = Vec::with_capacity(vals.len());
             let mut out = [0.0];
             for (i, &x) in vals.iter().enumerate() {

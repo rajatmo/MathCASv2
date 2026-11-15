@@ -258,8 +258,13 @@ fn machine_constants<'h>(cx: &mut NativeCx<'_, '_, 'h>, c: &Consts, args: &[T<'h
             // (a complex value only for a root object: im and other complex constants keep their exact form)
             let root_head = h.sym_term(h.sym("root"));
             let mut root = false;
+            // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+            let mut seen = std::collections::HashSet::new();
             let mut stack = vec![a];
             while let Some(u) = stack.pop() {
+                if !seen.insert(u) {
+                    continue;
+                }
                 if let View::App { head, args } = h.view(u) {
                     if head == root_head {
                         root = true;
@@ -558,9 +563,14 @@ fn exact_sign<'h>(cx: &mut NativeCx<'_, '_, 'h>, a: T<'h>, b: T<'h>) -> Res<Opti
     let mut subs = vec![];
     for c in ["glaisher", "khinchin"] {
         let s = h.sym_term(h.sym(c));
+        // shared subterms are visited once (a term can be a tree exponentially larger than itself)
+        let mut seen = std::collections::HashSet::new();
         let mut stack = vec![d];
         let mut found = false;
         while let Some(u) = stack.pop() {
+            if !seen.insert(u) {
+                continue;
+            }
             if u == s {
                 found = true;
                 break;

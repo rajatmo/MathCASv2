@@ -926,6 +926,11 @@ struct SetDef(Heads);
 impl Native for SetDef {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [lhs, v] = a else { return Ok(Reply::Decline) };
+        // a loop signal is control, not data: nothing is stored, and it ends the statement (semantics 10); a
+        // delayed definition holds its right side, so it never sees one here
+        if cx.loop_signal(*v).is_some() {
+            return Ok(Reply::Done(*v));
+        }
         // destructuring: `[a, b] = [x, y]` assigns element by element (nested lists too) and gives the value
         if let (Some(ls), Some(vs)) = (cx.as_list(*lhs), cx.as_list(*v)) {
             if ls.len() == vs.len() {
@@ -971,7 +976,17 @@ fn set_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, v: T<'h>) -> Res<Opti
     }
     let mut ks = Vec::with_capacity(idx.len());
     for &i in idx {
-        ks.push(cx.eval(i)?);
+        let k = cx.eval(i)?;
+        if is_failure_term(h, k) {
+            return Ok(Some(Reply::Done(k)));
+        }
+        ks.push(k);
+    }
+    // an assignment reads a failure as data (semantics 10): a list holds it in its place; an association cannot
+    // hold one (its rules propagate a failure), so it stays as it was and the failure is the value
+    // (the loop signals are control: nothing is stored, the signal ends the statement)
+    if is_failure_term(h, v) && (is_assoc(h, cur) || cx.loop_signal(v).is_some()) {
+        return Ok(Some(Reply::Done(v)));
     }
     let pos = if ks.len() == 1 { ks[0] } else { cx.list(&ks) };
     let new = with_part(cx, cur, pos, ks.len() == 1, v)?;
@@ -989,15 +1004,23 @@ fn set_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, lhs: T<'h>, v: T<'h>) -> Res<Opti
 /// an association (`single`), the key is added at the end.
 fn with_part<'h>(cx: &mut NativeCx<'_, '_, 'h>, cur: T<'h>, pos: T<'h>, single: bool, v: T<'h>) -> Res<T<'h>> {
     let h = cx.heap();
-    let rule = h.sym_term(h.sym("rule"));
+    // a failure goes in through a delayed rule, whose right side is not a strict argument (a rule would propagate it)
+    let rule = h.sym_term(h.sym(if is_failure_term(h, v) { mc_api::names::RULE_DELAYED } else { "rule" }));
     let new = cx.eval(h.app(h.sym_term(h.sym("replace_part")), &[cur, h.app(rule, &[pos, v])]))?;
-    if new == cur
-        && single
-        && matches!(h.view(cur), View::App { head, .. } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "assoc"))
-    {
+    if new == cur && single && is_assoc(h, cur) {
         return cx.eval(h.app(h.sym_term(h.sym("append")), &[cur, h.app(rule, &[pos, v])]));
     }
     Ok(new)
+}
+
+/// Whether `t` is `failure(...)`.
+fn is_failure_term<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    h.packed(t).is_none() && matches!(h.view(t), View::App { head, .. } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == mc_api::names::FAILURE))
+}
+
+/// Whether `t` is `assoc(...)`.
+fn is_assoc<'h>(h: &'h Heap, t: T<'h>) -> bool {
+    matches!(h.view(t), View::App { head, .. } if matches!(h.view(head), View::Sym(f) if h.sym_name(f) == "assoc"))
 }
 
 /// `assign_part(x, k, v)`: the value of `x[k] = v` for a `var` local x, as the syntax lowers it: x with part k
@@ -1007,6 +1030,19 @@ struct AssignPart;
 impl Native for AssignPart {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, a: &[T<'h>]) -> Res<Reply<'h>> {
         let [x, k, v] = a else { return Ok(Reply::Decline) };
+        let h = cx.heap();
+        // failures are read as data in the value only (semantics 10, as `x[k] = v` on a symbol): the local and the
+        // key propagate one; an association cannot hold one and stays as it was
+        if is_failure_term(h, *x) || is_failure_term(h, *k) {
+            return Ok(Reply::Done(if is_failure_term(h, *x) { *x } else { *k }));
+        }
+        if is_failure_term(h, *v) && is_assoc(h, *x) {
+            return Ok(Reply::Done(*x));
+        }
+        // a loop signal: the assignment around this call stores nothing and ends the statement with it
+        if cx.loop_signal(*v).is_some() {
+            return Ok(Reply::Done(*v));
+        }
         Ok(Reply::Done(with_part(cx, *x, *k, true, *v)?))
     }
 }
@@ -1144,7 +1180,7 @@ fn is_ground_arg(h: &Heap, t: T<'_>) -> bool {
 pub(crate) fn register(k: &mut Kernel, h: &Heap) {
     let fx = |hold| Attributes { hold, effect: true, ..Attributes::default() };
     k.register(h.sym("is_ground"), Attributes::default(), Box::new(IsGround));
-    k.register(h.sym("assign_part"), Attributes::default(), Box::new(AssignPart));
+    k.register(h.sym("assign_part"), Attributes { handles_failures: true, ..Attributes::default() }, Box::new(AssignPart));
     k.register(h.sym("set_delayed"), fx(Hold::All), Box::new(SetDef(Heads::new(h))));
     // an assignment keeps a failure as the value it assigns (decision p6core.25: `r = find_root(...)` that fails
     // leaves `r` the failure, not unassigned)

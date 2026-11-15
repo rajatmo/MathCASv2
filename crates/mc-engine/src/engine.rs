@@ -800,10 +800,15 @@ impl Default for CoreEngine {
     }
 }
 
+/// The most bytes of a shown value's text. The text grows with the term's tree, which can be exponentially larger
+/// than the term (`nest(x => [x, x], 1, 40)`): past this the text ends in `…`, so showing a value never exhausts
+/// memory or waits for an interrupt.
+const SHOWN_LIMIT: usize = 256 << 20;
+
 /// The printed form of a value: a dataset as a table (`mc_assoc::table_text`), anything else as its term. Printing
-/// polls `stop` (a huge value's text ends in `…` once it is raised).
+/// polls `stop` (a huge value's text ends in `…` once it is raised) and ends past [`SHOWN_LIMIT`].
 fn shown<'h>(h: &'h mc_core::Heap, t: mc_core::T<'h>, stop: &dyn Fn() -> bool, display: bool) -> String {
-    let mut p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_exp_calls();
+    let mut p = Printer::with_numbers(h, Box::new(ArithNumbers)).with_exp_calls().with_limit(SHOWN_LIMIT);
     if display {
         p = p.with_display().with_short_forms();
     }

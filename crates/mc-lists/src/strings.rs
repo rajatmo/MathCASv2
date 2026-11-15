@@ -70,12 +70,24 @@ pub(crate) fn to_string<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>,
         View::Int(v) => return Ok(Reply::Done(h.string(&v.to_string()))),
         _ => {}
     }
-    // the printer's work is linear in the term; huge numbers are converted with the stop flag polled
+    // the printer's work is linear in the term's tree, which may be exponentially larger than the term (shared
+    // subterms): it polls the stop flag and ends past the memory the evaluation has left; huge numbers are
+    // converted with the stop flag polled
     cx.tick(1)?;
+    let stop = lib.stop.clone();
+    let printer = Printer::with_numbers(h, Box::new(Numbers))
+        .with_display()
+        .with_stop(move || stop.load(std::sync::atomic::Ordering::Relaxed))
+        .with_limit(cx.memory_left() / 4);
     let text = {
         let _scope = StopScope::enter(Some(&lib.stop));
-        Printer::with_numbers(h, Box::new(Numbers)).with_display().expr(x)
+        printer.expr(x)
     };
+    if printer.was_cut() {
+        // an interrupt ends the evaluation (the tick polls it); otherwise the text would not fit in memory
+        cx.tick(1)?;
+        return Ok(Reply::Done(lib.too_large(h, _t)));
+    }
     charge_copy(cx, text.len())?;
     Ok(Reply::Done(h.string(&text)))
 }

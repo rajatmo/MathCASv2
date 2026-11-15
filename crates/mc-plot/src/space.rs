@@ -151,7 +151,7 @@ pub(crate) fn iso_surface(g: &Grid3, c: f64) -> Vec<f64> {
 
 pub(crate) fn sample<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, vars: &[Sym; 3], lo: [f64; 3], hi: [f64; 3], n: usize) -> Res<Grid3> {
     let vs: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
-    let mut fun = mc_numfn::compile_expr(cx, f, &vs, &Options::default())?;
+    let mut fun = crate::held::compile(cx, f, &vs, &Options::default())?;
     let mut g = Grid3 { lo, hi, n: [n; 3], v: Vec::with_capacity(n * n * n) };
     let mut out = [0.0];
     for k in 0..n {
@@ -397,7 +397,7 @@ impl Native for Space {
                 let (mut zlo, mut zhi) = (0.0f64, 0.0f64);
                 let mut prims = vec![];
                 for (k, &fk) in fs.iter().enumerate() {
-                    let mut fun = mc_numfn::compile_expr(cx, fk, &vs, &Options::default())?;
+                    let mut fun = crate::held::compile(cx, fk, &vs, &Options::default())?;
                     let mut pts = vec![];
                     let mut stems = vec![];
                     let mut out = [0.0];

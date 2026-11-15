@@ -528,6 +528,17 @@ fn log2(b: &Ball) -> f64 {
     }
 }
 
+/// log2 |b| to machine accuracy (minus infinity for zero): the leading bit's position plus the log2 of the
+/// mantissa scaled into [1/2, 1).
+fn log2_fine(b: &Ball) -> f64 {
+    if b.mid.is_zero() {
+        return f64::NEG_INFINITY;
+    }
+    let bits = b.mid.man.bits() as i64;
+    let m = mc_arith::num::float::dyadic_to_f64(false, &b.mid.man, -bits);
+    b.mid.top() as f64 + m.log2()
+}
+
 /// Integrate the tape's system from `(t0, y0)` to `t1` with a local error of about `10^-digits` relative to
 /// `max(1, |y|)`, at most `max_steps` steps. The evaluation monitor of `mons` is called with the time at which the
 /// right-hand side is expanded (once per step), the step monitor with the time each accepted step ends at, both at
@@ -590,7 +601,9 @@ pub(crate) fn integrate<'h>(
         let (a, b) = (norm(order - 1), norm(order));
         let rho_log2 = ((scale - a) / (order - 1) as f64).min((scale - b) / order as f64);
         let rest = t1.sub(&t, p);
-        let rest_log2 = log2(&rest);
+        // the remaining length's log2 to machine accuracy: `log2` (the leading bit's position) is up to 1 above it,
+        // and a step between the two would pass the end of the range
+        let rest_log2 = log2_fine(&rest);
         let h_log2 = rho_log2 - 2.0 * std::f64::consts::LOG2_E - 0.7 * std::f64::consts::LOG2_E / (order - 1) as f64;
         let (h, last) = if !h_log2.is_finite() || h_log2 >= rest_log2 - 0.01 {
             (rest, true)

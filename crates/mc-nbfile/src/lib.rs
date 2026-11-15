@@ -54,6 +54,92 @@ pub const OUT_LABEL: &str = "out";
 const OLD_IN_LABEL: &str = "label";
 const OLD_OUT_LABEL: &str = "n";
 
+/// The predicates renamed before version 1.0 (`*_q` to `is_*`, design 04-syntax section 10.1). Notebooks saved
+/// earlier name them in their code cells; reading converts them, as it converts the labels and kind words.
+const OLD_PREDICATES: [(&str, &str); 27] = [
+    ("diagonal_matrix_q", "is_diagonal_matrix"),
+    ("diagonalizable_matrix_q", "is_diagonalizable_matrix"),
+    ("disjoint_q", "is_disjoint"),
+    ("hermitian_matrix_q", "is_hermitian_matrix"),
+    ("intersecting_q", "is_intersecting"),
+    ("interval_member_q", "is_interval_member"),
+    ("key_free_q", "is_key_free"),
+    ("key_member_q", "is_key_member"),
+    ("lower_triangular_matrix_q", "is_lower_triangular_matrix"),
+    ("mandelbrot_set_member_q", "is_mandelbrot_set_member"),
+    ("match_q", "is_match"),
+    ("mersenne_prime_exponent_q", "is_mersenne_prime_exponent"),
+    ("palindrome_q", "is_palindrome"),
+    ("perfect_number_q", "is_perfect_number"),
+    ("polynomial_expression_q", "is_polynomial_expression"),
+    ("polynomial_q", "is_polynomial"),
+    ("positive_definite_matrix_q", "is_positive_definite_matrix"),
+    ("possible_zero_q", "is_possible_zero"),
+    ("quadratic_irrational_q", "is_quadratic_irrational"),
+    ("rational_expression_q", "is_rational_expression"),
+    ("real_valued_numeric_q", "is_real_valued_numeric"),
+    ("string_free_q", "is_string_free"),
+    ("string_match_q", "is_string_match"),
+    ("symmetric_matrix_q", "is_symmetric_matrix"),
+    ("true_q", "is_true"),
+    ("upper_triangular_matrix_q", "is_upper_triangular_matrix"),
+    ("value_q", "is_value"),
+];
+
+/// `source` with every name of [`OLD_PREDICATES`] written by its new name, or `None` when it has none. Names are
+/// whole identifiers outside strings and comments (`# ...` to the end of the line); a backquoted name is left as
+/// it is (it names a symbol of the user's).
+pub fn renamed_predicates(source: &str) -> Option<String> {
+    let cs: Vec<char> = source.chars().collect();
+    let mut out = String::with_capacity(source.len());
+    let (mut i, mut changed) = (0, false);
+    while i < cs.len() {
+        let c = cs[i];
+        if c == '"' || c == '`' {
+            // a string (with escapes) or a backquoted name, copied as it is
+            let start = i;
+            i += 1;
+            while i < cs.len() && cs[i] != c {
+                i += if cs[i] == '\\' && c == '"' { 2 } else { 1 };
+            }
+            i = (i + 1).min(cs.len());
+            out.extend(&cs[start..i]);
+        } else if c == '#' {
+            let start = i;
+            while i < cs.len() && cs[i] != '\n' {
+                i += 1;
+            }
+            out.extend(&cs[start..i]);
+        } else if c.is_alphabetic() || c == '_' {
+            let start = i;
+            while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_') {
+                i += 1;
+            }
+            let word: String = cs[start..i].iter().collect();
+            // a qualified name `M.match_q` is the module's own
+            let qualified = start > 0 && cs[start - 1] == '.';
+            match OLD_PREDICATES.iter().find(|(old, _)| *old == word) {
+                Some((_, new)) if !qualified => {
+                    out.push_str(new);
+                    changed = true;
+                }
+                _ => out.push_str(&word),
+            }
+        } else if c.is_ascii_digit() {
+            // a number with its suffix (`2x`, `1e5`) is no name
+            let start = i;
+            while i < cs.len() && (cs[i].is_alphanumeric() || cs[i] == '_' || cs[i] == '.') {
+                i += 1;
+            }
+            out.extend(&cs[start..i]);
+        } else {
+            out.push(c);
+            i += 1;
+        }
+    }
+    changed.then_some(out)
+}
+
 /// `attrs` with the attribute `old` renamed to `new` in place (dropped when `new` is present as well).
 fn renamed(mut attrs: Attrs, old: &str, new: &str) -> Attrs {
     if attrs.has(new) {
@@ -167,8 +253,13 @@ impl Kind {
 
     /// The kind written as `word` in a marker line (`input` is another spelling of `cell`). The names that notebooks
     /// saved before version 1.0 wrote without the underscore (`itemnumbered`, `displayformula`) are read as the
-    /// same kinds, so an old notebook opens; it is written back with the current names.
+    /// same kinds, so an old notebook opens; it is written back with the current names. The word is read in any case:
+    /// the style names of the notebook before version 1.0 (`Title`, `ItemNumbered`, `Input`) are the same kinds.
     pub fn from_name(word: &str) -> Option<Kind> {
+        if !word.is_ascii() {
+            return None;
+        }
+        let word = word.to_ascii_lowercase();
         if word == "input" {
             return Some(Kind::Input);
         }
@@ -505,7 +596,7 @@ enum Line {
 fn classify(line: &str) -> Line {
     let Some(rest) = line.trim_end().strip_prefix("#% ") else { return Line::Other };
     let (word, attrs) = rest.split_once(' ').unwrap_or((rest, ""));
-    if word == "output" {
+    if word.eq_ignore_ascii_case("output") {
         return Line::Output(attrs.to_string());
     }
     match Kind::from_name(word) {
@@ -691,6 +782,13 @@ impl Notebook {
             nb.cells.push(Cell { kind: Kind::Input, attrs: Attrs::new(), lines, outputs: vec![], gap });
         }
         nb.cells.extend(cells);
+        // the predicates renamed before 1.0, in the source of code cells (an old name is unknown to the language)
+        for c in nb.cells.iter_mut().filter(|c| c.is_code()) {
+            let source = c.lines.join("\n");
+            if let Some(new) = renamed_predicates(&source) {
+                c.lines = new.split('\n').map(str::to_string).collect();
+            }
+        }
         Ok((nb, warnings))
     }
 
