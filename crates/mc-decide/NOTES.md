@@ -111,3 +111,17 @@ the Rust API through test natives), unit tests of `sturm` and `quad`, the doc te
 
 - `normal` removes `conditional_expression` nested inside lists, rules and sums (`strip_all`), not only a top-level one.
 - `refine(conditional_expression(v, c), facts)` is `refine(v, facts)` when refine(c, facts) is true (round 36).
+
+## Round 42: conditional truth values
+
+- One form: a statement that holds exactly when a condition `c` on its parameters holds (the property functions with
+  parameters) is `conditional_expression(true, c)`; `conditional_expression(false, c)` fails where `c` holds (the
+  generic case). Where a truth value is read it is its condition (`true` gives `c`, `false` gives `false`):
+  `and`, `or` (on their evaluated form), `not`, `xor`, `implies`, `nand`, `nor`, `equivalent` (`TRUTH_HEADS`) and
+  the test of `if`. Before, `not(conditional_expression(true, a > 0))` was `conditional_expression(false, a > 0)`
+  and `c and b` was `conditional_expression(b, a > 0)`: a value undefined for `a <= 0`, where the property is
+  false. Values that are not `true` or `false` keep the lifting.
+- `reduce` conjoins the condition as before; `resolve` and `find_instance` now do too (`install_late`, called by
+  `mc-cad` after it registers them).
+- `simplify`, `full_simplify` and `refine` simplify the condition with the call's facts: `true` drops it (also for
+  other values), `false` makes a conditional truth value `false`, otherwise the simplified condition stays.

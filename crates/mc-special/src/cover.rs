@@ -492,8 +492,8 @@ fn theta_work<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], k: i64, deriv: bool,
     }
     // theta_3 and theta_4 are real at every real nome, theta_1 and theta_2 (with q^(1/4)) at a positive one
     let real = wk.real && parts(fx, q).is_some_and(|p| p.0 >= 0.0 || k >= 3);
-    if !deriv && mag(fx, xs[1]) > 0.9 {
-        if let Some(v) = theta_modular(fx, k, xs[0], xs[1], wk.w)? {
+    if mag(fx, xs[1]) > 0.9 {
+        if let Some(v) = theta_modular(fx, k, xs[0], xs[1], wk.w, deriv)? {
             return Ok(Some((v, wk, real)));
         }
     }
@@ -506,8 +506,13 @@ fn theta_work<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], k: i64, deriv: bool,
 /// e^(i pi/4) theta_1, theta_2 (z | tau) and theta_3 <-> theta_4 (DLMF 20.7.26-29), tau -> tau' = -1/tau with
 /// theta_k(z | tau) = (-i tau)^(-1/2) e^(i tau' z^2/pi) {-i theta_1, theta_4, theta_3, theta_2}(z tau' | tau') (DLMF
 /// 20.7.30-33), until tau is in the fundamental domain, where |q| <= 0.066. The series near |q| = 1 cancels to the
-/// value: theta_3(0, -0.99) = 8.5e-106 needed some 350 more bits.
-fn theta_modular<'h>(fx: &mut Fx<'_, '_, '_, 'h>, k: i64, z: T<'h>, q: T<'h>, w: u64) -> R<'h> {
+/// value: theta_3(0, -0.99) = 8.5e-106 needed some 350 more bits. With `deriv` the derivative in z: the transformed
+/// value is C e^(alpha z^2) theta_j(c z | tau_n), so its derivative is C e^(alpha z^2) (2 alpha z theta_j(c z) + c
+/// theta_j'(c z)), with alpha the sum of the i tau' c^2/pi of the inversions and c the product of their tau'.
+fn theta_modular<'h>(fx: &mut Fx<'_, '_, '_, 'h>, k: i64, z: T<'h>, q: T<'h>, w: u64, deriv: bool) -> R<'h> {
+    let z0 = z;
+    let mut alpha = fx.int(0);
+    let mut scale = fx.int(1);
     let pi = pi_at(fx, w)?;
     let i = fx.i();
     let lq = fx.eval(fx.call("log", &[q]))?;
@@ -546,13 +551,22 @@ fn theta_modular<'h>(fx: &mut Fx<'_, '_, '_, 'h>, k: i64, z: T<'h>, q: T<'h>, w:
         let ex = fx.call("exp", &[fx.div(fx.mul(&[i, tp, z, z]), pi)]);
         let sign = if j == 1 { fx.neg(i) } else { fx.int(1) };
         mult = fx.eval(fx.mul(&[mult, sign, root, ex]))?;
+        if deriv {
+            alpha = fx.eval(fx.add(&[alpha, fx.div(fx.mul(&[i, tp, scale, scale]), pi)]))?;
+            scale = fx.eval(fx.mul(&[scale, tp]))?;
+        }
         z = fx.eval(fx.mul(&[z, tp]))?;
         j = [0, 1, 4, 3, 2][j as usize];
         tau = tp;
     }
     let qn = fx.eval(fx.call("exp", &[fx.mul(&[i, pi, tau])]))?;
     let Some(v) = theta(fx, j, z, qn, w, false)? else { return Ok(None) };
-    let v = fx.eval(fx.mul(&[mult, v]))?;
+    let v = if deriv {
+        let Some(dv) = theta(fx, j, z, qn, w, true)? else { return Ok(None) };
+        fx.eval(fx.mul(&[mult, fx.add(&[fx.mul(&[fx.int(2), alpha, z0, v]), fx.mul(&[scale, dv])])]))?
+    } else {
+        fx.eval(fx.mul(&[mult, v]))?
+    };
     Ok(fx.num(v).map(|_| v))
 }
 

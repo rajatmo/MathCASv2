@@ -1103,3 +1103,17 @@ small-q series DLMF 28.6.18 and with the period of `mathieu_s` at the value.
   by twice |F'| times the radius, an estimate: elliptic_k of a ball containing m = 1 came out finite
   (11.29 +- 2.26). A ball within four radii of z = 1 now has no value; the estimate elsewhere stays a gap (a proved
   bound of F' over the ball needs F on a larger disc).
+## Round 42: Mathieu characteristic values at a complex q, theta derivatives near |q| = 1
+
+- `mathieu_characteristic_a`/`_b` at a complex q (any real order) stayed unevaluated. The start is the eigenvalue of
+  the complex symmetric tridiagonal matrix (Hill's matrix at a non-integer order, the Fourier matrices of DLMF
+  28.4 at an integer one) continued from r^2 along t q, t from 0 to 1 (Newton's method on the determinant through
+  the logarithmic derivative of the continuants, 64 + 8|q| steps); it is then refined by the secant method on the
+  Floquet condition at rising precision as for real q, and kept only when the refined root is the start's. Beyond
+  |q| = 2000, or when Newton's method does not settle on the path (two eigenvalues meeting), the call stays.
+  Machine arguments take the continued eigenvalue when a second run (a matrix larger by 16, twice the steps) agrees
+  to 1e-12, and stay unevaluated when it does not (near a branch point on the path, as on the imaginary q axis past
+  the meeting of a_0 and a_2): the refinement at rising precision made each point of a plot take seconds.
+- `elliptic_theta_prime` at |q| > 0.9 uses the modular transformations of `elliptic_theta`: the transformed value
+  is C e^(alpha z^2) theta_j(c z | tau_n), so the derivative is C e^(alpha z^2) (2 alpha z theta_j + c theta_j');
+  the series at |q| near 1 was summed directly before.

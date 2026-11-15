@@ -37,6 +37,7 @@ pub mod cost;
 pub mod element;
 pub mod facts;
 pub mod fexpand;
+pub mod gammanorm;
 pub mod identities;
 pub mod logic;
 pub mod moves;

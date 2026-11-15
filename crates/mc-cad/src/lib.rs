@@ -95,4 +95,6 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     }
     k.wrap_native(h.sym("not"), |inner| Box::new(natives::NotQuantifier { inner }));
     mc_decide::register_reals(Box::new(reals::Factory));
+    // resolve and find_instance conjoin the condition of a conditional formula
+    mc_decide::cond::install_late(k, h);
 }

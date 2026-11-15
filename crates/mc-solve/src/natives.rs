@@ -125,6 +125,9 @@ impl Native for SolveNative {
             if let Some(r) = crate::reduce_steps::reduce(cx, args)? {
                 return Ok(Reply::Done(r));
             }
+            if let Some(r) = crate::reduce_forms::integers_one(cx, args)? {
+                return Ok(Reply::Again(r));
+            }
         }
         let (args, _) = crate::domain::strip_no_facts(h, args);
         let env = Env::new(h, self.stop.clone(), self.name);

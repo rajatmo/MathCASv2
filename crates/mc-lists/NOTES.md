@@ -878,3 +878,17 @@ Source in `lib/lists.mc`.
   wrapper).
 - Other terms are still hashed through their printed form: digests of expressions are MathCAS's own and differ
   from those of other systems (strings and byte arrays agree).
+
+## Round 42: the order of groupings
+
+- Within one multiset of heads (heads of two or more arguments) the trees come by canonical form: each call's parts
+  sorted by (more calls first, then the canonical word), the canonical word being the prefix reading of head indices
+  with a leaf after every head. Canonical forms in the order of their words, each followed by the trees it stands
+  for: for each choice of the parts' own trees (the last sorted part fastest, equal parts as multisets), the distinct
+  orders of the parts (position permutations in lexicographic order); an orderless head keeps the sorted order.
+  The enumeration builds the canonical trees once per leaf count (`Canonical`), so the work is the size of the
+  answer. Checked against a separate enumeration of the same rule on sums and products of ones (all 8448 trees of
+  seven leaves) and on heads of arities 2 and 3. With one-argument heads the earlier order stays (wrappings
+  interleaved).
+- `[h -> k, m]` in a list of rules: at most m calls of h in a tree (subtrees over the limit are pruned while the
+  canonical trees are built).

@@ -16,7 +16,10 @@
 # `groupings(n, spec)` groups `range(n)`; a list of lists of one length groups each of them.
 
 #% item
-# Trees with fewer calls come first; then by the root's head in the order given, by the sizes of the root's parts (larger first), by the shapes of the parts and by where the larger parts stand.
+# Trees with fewer calls come first, then by the heads they use. Among trees with the same heads, those that differ only in the order of the parts of their calls come together: the forms are ordered by their heads and leaves read from the root (parts with more calls first, a leaf after every head), and each form is followed by the orders of its parts.
+
+#% item
+# `[h -> k, m]` in a list of rules uses the head `h` at most `m` times in a tree.
 
 #% item
 # An arity 1 wraps: each tree is followed by itself wrapped in each one-argument head.
@@ -61,6 +64,14 @@ groupings([a, b, c, d], [g -> 3, f -> 2])
 groupings([a, b], [neg -> 1, f -> 2])
 #% output
 #= [f(a, b), neg(f(a, b)), f(a, neg(b)), neg(f(a, neg(b))), f(neg(a), b), neg(f(neg(a), b)), f(neg(a), neg(b)), neg(f(neg(a), neg(b)))]
+
+#% text
+# At most one call of `f`:
+
+#% cell
+groupings([a, b, c, d, e], [[f -> 2, 1], g -> 3])
+#% output
+#= [g(g(a, b, c), d, e), g(a, g(b, c, d), e), g(a, b, g(c, d, e))]
 
 #% text
 # Sums and products of three ones:

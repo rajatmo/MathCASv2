@@ -613,10 +613,22 @@ fn run<'h>(
 ) -> Res<T<'h>> {
     // full_simplify: a term that function_expand brings to 0 (or an equation it brings to true) is that, before any
     // search (beta(a, b) - beta(b, a): the search over the gamma forms of the two terms is long)
+    let mut forms = vec![t];
     if cfg.full && !has_facts {
         let fe = cx.eval(b.call_named("function_expand", &[t]))?;
         if fe == b.int(0) || fe == b.heap().sym_term(b.heap().sym(mc_api::names::TRUE)) {
             return Ok(fe);
+        }
+        forms.push(fe);
+    }
+    // a term (or the difference of an equation's sides) that the normal form of its gamma functions brings to 0
+    for f in forms {
+        let (d, answer) = match b.call_of(f) {
+            Some((s, &[l, r])) if b.heap().sym_name(s) == "equal" => (b.sub(l, r), b.heap().sym_term(b.heap().sym(mc_api::names::TRUE))),
+            _ => (f, b.int(0)),
+        };
+        if crate::gammanorm::gamma_zero(cx, b, d)? {
+            return Ok(answer);
         }
     }
     let mut k = Ctx { fx, has_facts, cfg, cost };

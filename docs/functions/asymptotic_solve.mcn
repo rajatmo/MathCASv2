@@ -13,7 +13,10 @@
 # Details
 
 #% item
-# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. When a starting point is singular, or branches go to infinity (the degree in y drops at x0), the answer is a failure: those branches need expansions in fractional powers (Puiseux series), which are not implemented, and a list without them would be incomplete. With `reals`, only the branches through real starting points are given.
+# The series comes from Newton's iteration on truncated power series, which needs an invertible Jacobian in the unknowns at the starting point. For one polynomial equation with a singular starting point, or branches that go to infinity (the degree in y drops at x0), every branch is given by Newton's polygon as a series in fractional powers (Puiseux series); in other such cases the answer is a failure, since a list without those branches would be incomplete. With `reals`, only the real branches are given.
+
+#% item
+# Order of the branches: through regular starting points, in the order of the roots at x0 as `solve` lists them; by Newton's polygon, by the exponent of the leading power of x - x0 (bounded branches first, then those that grow faster), and among equal exponents by the real part, then the imaginary part of the leading coefficient.
 
 #% section
 # Examples

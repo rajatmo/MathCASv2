@@ -576,3 +576,14 @@ keep the value at random points (11 inputs x 3 points, 30 digits), user transfor
   `sinh(v + i pi/2) = i cosh(v)`, `sech(v - i pi/2) = i csch(v)`, with tan, cot, tanh, coth reduced modulo their
   half period (DLMF 4.14, 4.21, 4.28, 4.35). A number times a sum is distributed first (`cos(2 (x/2 - pi/4))`).
   Valid for every complex v, so it is a move of `simplify`; automatic evaluation leaves the shifted forms alone.
+
+## Round 42: gamma functions of one variable
+
+- `full_simplify(function_expand(catalan_number(n) == binomial(2 n, n) - binomial(2 n, n + 1)))` ran to the time
+  limit: the search tries gamma shift forms term by term and never meets the duplication formula. The slow step is
+  that search; the method now is a zero test before it (`gammanorm.rs`): every `gamma(m n + c)` (m a positive
+  integer up to 12, c rational, one symbol n) by Gauss's multiplication formula (DLMF 5.5.6) and the recurrence
+  (DLMF 5.5.1) as a rational function of n times `gamma(n + f)`, 0 <= f < 1, each of those a new symbol; when
+  `together` gives 0 the input is 0 (an identity of meromorphic functions, so a proof; otherwise the test says
+  nothing). Applied to the term, and to `function_expand` of it in `full_simplify`; an equation whose sides differ by
+  such a zero is `true`. The call above takes a few milliseconds.

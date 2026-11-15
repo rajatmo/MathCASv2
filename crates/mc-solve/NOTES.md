@@ -392,3 +392,15 @@ irreducible factor: degree 1 gives the rational, degree 2 `(-b +- sqrt(b^2 - 4ac
   held the unknown).
 - Gap: the equations of `eliminate` are the elimination ideal's lex basis; another generating set (a degree basis)
   is equally right but prints differently.
+
+## Round 42: reduce over the integers in one variable
+
+- `reduce(cond, x, integers)` in one variable without parameters, when no other path answers: the integers of the
+  real solution set (`reduce(cond, x, reals)`), the bounds of each piece made integers by `floor`/`ceiling` (open
+  ends at an integer moved by one; an algebraic bound by the floor of a 40-digit value confirmed by exact
+  comparisons with the integers on both sides); a bounded run of fewer than 1000 integers as `x == k`, a longer or unbounded one
+  as `element(x, integers)` with its integer bounds. `reduce(n <= 0, n, integers)` failed with "reduce works over
+  the reals".
+- `reduce(cond, xs)` whose conjuncts include `element(x, integers)` (or `reals`) for every variable is
+  `reduce(rest, xs, dom)`: `reduce(element(n, integers) and n <= 0)` failed with "expected equations and
+  inequalities".

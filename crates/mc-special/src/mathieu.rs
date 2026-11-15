@@ -648,6 +648,105 @@ fn char_a_asymptotic(r: f64, q: f64) -> Option<f64> {
     Some(terms.iter().rev().sum::<f64>() + 2.0 * s * h - 2.0 * h * h)
 }
 
+/// Complex machine numbers as (re, im).
+type C64 = (f64, f64);
+
+fn c_mul(a: C64, b: C64) -> C64 {
+    (a.0 * b.0 - a.1 * b.1, a.0 * b.1 + a.1 * b.0)
+}
+
+fn c_div(a: C64, b: C64) -> C64 {
+    let d = b.0 * b.0 + b.1 * b.1;
+    ((a.0 * b.0 + a.1 * b.1) / d, (a.1 * b.0 - a.0 * b.1) / d)
+}
+
+/// The eigenvalue of the complex symmetric tridiagonal matrix with diagonal `diag_k + t q slope_k` and off-diagonal
+/// `t q mult_k` that continues `diag[j]` (a simple eigenvalue at t = 0) along t from 0 to 1, for a complex q: Newton's method on
+/// det(H - lambda) through the logarithmic derivative of the continuants (r_k = d_k - lambda - e_k^2/r_(k-1),
+/// r_k' = -1 + e_k^2 r_(k-1)'/r_(k-1)^2, d/dlambda log det = sum r_k'/r_k), a few steps at each of `n` values of t.
+/// `None` when Newton's method does not settle (the path passes a point where two eigenvalues meet).
+fn track_complex(diag: &[f64], slope: &[f64], mult: &[f64], q: C64, j: usize, n: usize) -> Option<C64> {
+    // started next to the diagonal entry: at the entry itself a continuant is exactly 0
+    let mut lam: C64 = (diag[j] + 1e-7 * (1.0 + diag[j].abs()), 1e-7 * (1.0 + diag[j].abs()));
+    for s in 1..=n {
+        let t = s as f64 / n as f64;
+        let e2: Vec<C64> = mult.iter().map(|&m| c_mul((t * q.0 * m, t * q.1 * m), (t * q.0 * m, t * q.1 * m))).collect();
+        let mut settled = false;
+        for _ in 0..30 {
+            let dk = |k: usize| -> C64 { (diag[k] + t * q.0 * slope[k], t * q.1 * slope[k]) };
+            let d0 = dk(0);
+            // a continuant that is exactly 0 is moved off zero, as in the usual Sturm recurrences
+            let nz = |r: C64| if r == (0.0, 0.0) { (1e-100, 0.0) } else { r };
+            let mut r: C64 = nz((d0.0 - lam.0, d0.1 - lam.1));
+            let mut rp: C64 = (-1.0, 0.0);
+            let mut sum = c_div(rp, r);
+            for k in 1..diag.len() {
+                let ratio = c_div(e2[k - 1], r);
+                let rp2 = {
+                    let u = c_div(c_mul(e2[k - 1], rp), c_mul(r, r));
+                    (-1.0 + u.0, u.1)
+                };
+                let d = dk(k);
+                r = nz((d.0 - lam.0 - ratio.0, d.1 - lam.1 - ratio.1));
+                rp = rp2;
+                let term = c_div(rp, r);
+                sum = (sum.0 + term.0, sum.1 + term.1);
+            }
+            let step = c_div((1.0, 0.0), sum);
+            if !step.0.is_finite() || !step.1.is_finite() {
+                return None;
+            }
+            // det/det' = 1/(d log det/dlambda); Newton: lambda - det/det'
+            lam = (lam.0 - step.0, lam.1 - step.1);
+            if step.0.hypot(step.1) <= 1e-15 * (1.0 + lam.0.hypot(lam.1)) {
+                settled = true;
+                break;
+            }
+        }
+        if !settled {
+            return None;
+        }
+    }
+    Some(lam)
+}
+
+/// The machine characteristic value at a complex q (a_r for integer r from the Fourier matrices of DLMF 28.4, the
+/// Floquet value of Hill's matrix at other r, b_r at even r with `odd`), continued from r^2 at q = 0 along the
+/// segment from 0 to q. The steps along the segment grow with |q| so that the continuation follows one eigenvalue;
+/// `more` enlarges the matrix (and doubles the steps from 16 on) for a second estimate.
+fn char_complex_f64(r: f64, q: C64, int_r: bool, odd: bool, more: usize) -> Option<C64> {
+    let qa = q.0.hypot(q.1);
+    let steps = (64 + (qa * 8.0) as usize) * (1 + more / 16);
+    if steps > 20_000 {
+        return None;
+    }
+    let n = r as usize / 2 + 30 + more + (qa.sqrt() * 4.0) as usize;
+    if odd {
+        let diag: Vec<f64> = (0..n).map(|m| (2.0 * m as f64 + 2.0).powi(2)).collect();
+        return track_complex(&diag, &vec![0.0; n], &vec![1.0; n - 1], q, r as usize / 2 - 1, steps);
+    }
+    if int_r {
+        let ri = r as usize;
+        if ri.is_multiple_of(2) {
+            let diag: Vec<f64> = (0..n).map(|m| (2.0 * m as f64).powi(2)).collect();
+            let mut mult = vec![1.0; n - 1];
+            mult[0] = std::f64::consts::SQRT_2;
+            return track_complex(&diag, &vec![0.0; n], &mult, q, ri / 2, steps);
+        }
+        // odd r: the first diagonal term is 1 + q (DLMF 28.4.6)
+        let diag: Vec<f64> = (0..n).map(|m| (2.0 * m as f64 + 1.0).powi(2)).collect();
+        let mut slope = vec![0.0; n];
+        slope[0] = 1.0;
+        return track_complex(&diag, &slope, &vec![1.0; n - 1], q, ri / 2, steps);
+    }
+    let half = (r / 2.0).ceil() as i64;
+    let kk = 30 + more as i64 + (qa.sqrt() * 4.0) as i64;
+    let ks: Vec<i64> = (-half - kk..=kk).collect();
+    let diag: Vec<f64> = ks.iter().map(|&k| (r + 2.0 * k as f64).powi(2)).collect();
+    let j = ks.iter().position(|&k| k == 0)?;
+    track_complex(&diag, &vec![0.0; ks.len()], &vec![1.0; ks.len() - 1], q, j, steps)
+}
+
 fn mathieu_characteristic_a<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'h> {
     char_value(fx, a, false)
 }
@@ -686,6 +785,10 @@ fn mathieu_characteristic_b<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>]) -> R<'
         let mq = fx.eval(fx.neg(q))?;
         return char_value(fx, &[r, mq], false);
     }
+    // b_(2n+2)(-q) = b_(2n+2)(q): a real q by its absolute value; a complex q as it is
+    if parts(fx, q).is_some_and(|p| p.1 != 0.0) {
+        return char_value(fx, &[r, q], true);
+    }
     let aq = fx.eval(fx.call("abs", &[q]))?;
     char_value(fx, &[r, aq], true)
 }
@@ -700,51 +803,73 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         return Ok(None);
     }
     let (Some(rf), Some(qp)) = (fx.f64_of(r), parts(fx, q)) else { return Ok(None) };
-    if qp.1 != 0.0 {
-        return Ok(None);
-    }
-    let qf = qp.0;
     let rf = rf.abs();
     let int_r = rf.fract() == 0.0 && rf < 1e4;
-    // the large-parameter expansion: b_r(q) ~ a_(r-1)(q) to every order for q -> +infinity (DLMF 28.8.1, where
-    // b_(m+1) shares the expansion of a_m)
-    let asym = |rf: f64, qf: f64| if odd { char_a_asymptotic(rf - 1.0, qf) } else { char_a_asymptotic(rf, qf) };
-    // beyond |q| = 1e5 the Taylor steps of the solver number in the tens of thousands (and the bits of the working
-    // precision grow with them): machine arguments take the large-parameter expansion at an integer order, every
-    // other call stays unevaluated
-    if qf.abs() > 1e5 {
-        let machine = crate::fast29::machine_args(fx, a).is_some();
-        return Ok((machine && int_r).then(|| asym(rf, qf)).flatten().map(|v| fx.real(v)));
-    }
-    // the start
-    let a0 = if odd {
-        char_b_even_f64(rf as usize, qf)
-    } else if int_r {
-        char_a_f64(rf as usize, qf)
-    } else {
-        char_nonint_f64(rf, qf)
-    };
+    let qf = qp.0;
+    let qa = qp.0.hypot(qp.1);
+    let complex_q = qp.1 != 0.0;
     // the refined root must be the start's (the eigenvalue of the band, good to about 1e-13 of the matrix's size): a
     // root search that moved to the neighbouring band gives no value
-    let size = (rf.abs() + 2.0 * (30.0 + 4.0 * qf.abs().sqrt())).powi(2) + 2.0 * qf.abs();
-    let near = |v: f64| (v - a0).abs() <= 1e-9 * (1.0 + a0.abs()) + 1e-12 * size;
-    if let Some((ms, _)) = crate::fast29::machine_args(fx, a) {
-        if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0, odd) {
-            if near(v) {
-                return Ok(Some(fx.real(v)));
+    let size = (rf + 2.0 * (30.0 + 4.0 * qa.sqrt())).powi(2) + 2.0 * qa;
+    let a0: C64 = if complex_q {
+        // a complex q: the eigenvalue continued from q = 0, then refined as below
+        if qa > 2e3 {
+            return Ok(None);
+        }
+        let Some(v) = char_complex_f64(rf, qp, int_r, odd, 0) else { return Ok(None) };
+        // machine arguments: the value of a larger matrix with twice the steps along the path must agree to 1e-12
+        // (truncation and the path's branch checked by the second run)
+        if crate::fast29::machine_args(fx, a).is_some() {
+            if let Some(w) = char_complex_f64(rf, qp, int_r, odd, 16) {
+                if (v.0 - w.0).hypot(v.1 - w.1) <= 1e-12 * (1.0 + v.0.hypot(v.1)) {
+                    return Ok(Some(fx.ar.number(&Num::Complex(Real::Machine(w.0), Real::Machine(w.1)))));
+                }
+            }
+            // the two disagree: a path near a point where two values meet; no value rather than a long refinement
+            return Ok(None);
+        }
+        v
+    } else {
+        // the large-parameter expansion: b_r(q) ~ a_(r-1)(q) to every order for q -> +infinity (DLMF 28.8.1, where
+        // b_(m+1) shares the expansion of a_m)
+        let asym = |rf: f64, qf: f64| if odd { char_a_asymptotic(rf - 1.0, qf) } else { char_a_asymptotic(rf, qf) };
+        // beyond |q| = 1e5 the Taylor steps of the solver number in the tens of thousands (and the bits of the
+        // working precision grow with them): machine arguments take the large-parameter expansion at an integer
+        // order, every other call stays unevaluated
+        if qf.abs() > 1e5 {
+            let machine = crate::fast29::machine_args(fx, a).is_some();
+            return Ok((machine && int_r).then(|| asym(rf, qf)).flatten().map(|v| fx.real(v)));
+        }
+        // the start
+        let a0 = if odd {
+            char_b_even_f64(rf as usize, qf)
+        } else if int_r {
+            char_a_f64(rf as usize, qf)
+        } else {
+            char_nonint_f64(rf, qf)
+        };
+        let near = |v: f64| (v - a0).abs() <= 1e-9 * (1.0 + a0.abs()) + 1e-12 * size;
+        if let Some((ms, _)) = crate::fast29::machine_args(fx, a) {
+            if let Some(v) = crate::fast29::mathieu_char_a(rf, ms[1].re, a0, odd) {
+                if near(v) {
+                    return Ok(Some(fx.real(v)));
+                }
+            }
+            // the secant method on a double-double solution found no root (the even solution grows like
+            // e^(c sqrt|q|) and the roots drown in rounding): the expansion, or a clean refusal instead of a
+            // precision spiral
+            if int_r {
+                if let Some(v) = asym(rf, qf) {
+                    return Ok(Some(fx.real(v)));
+                }
             }
         }
-        // the secant method on a double-double solution found no root (the even solution grows like e^(c sqrt|q|)
-        // and the roots drown in rounding): the expansion, or a clean refusal instead of a precision spiral
-        if int_r {
-            if let Some(v) = asym(rf, qf) {
-                return Ok(Some(fx.real(v)));
-            }
+        if qf.abs() > 2e4 {
+            return Ok(None);
         }
-    }
-    if qf.abs() > 2e4 {
-        return Ok(None);
-    }
+        (a0, 0.0)
+    };
+    let near = |v: C64| (v.0 - a0.0).hypot(v.1 - a0.1) <= 1e-9 * (1.0 + a0.0.hypot(a0.1)) + 1e-12 * size;
     let Some((wk, xs)) = work(fx, a, 40) else { return Ok(None) };
     let w = wk.w;
     let pi = crate::cover::pi_at(fx, w)?;
@@ -769,7 +894,13 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         }
     };
     // secant iterations at precisions 64, 128, ..., w + 16 bits, each stage restarted next to the previous root
-    let mut x1 = ball_of(fx, fx.real(a0), 64);
+    let start = if complex_q {
+        let ball = |v: f64| Real::Ball(mc_arith::num::Ball::exact(crate::ball::float_of(v)), 64);
+        fx.ar.number(&Num::Complex(ball(a0.0), ball(a0.1)))
+    } else {
+        fx.real(a0.0)
+    };
+    let mut x1 = ball_of(fx, start, 64);
     let mut ww = 64u64;
     loop {
         x1 = ball_of(fx, mid_term(fx, x1), ww);
@@ -800,12 +931,12 @@ fn char_value<'h>(fx: &mut Fx<'_, '_, '_, 'h>, a: &[T<'h>], odd: bool) -> R<'h> 
         }
         ww = (ww * 2).min(w + 16);
     }
-    if !int_r && parts(fx, x1).is_none_or(|p| !near(p.0)) {
+    if (!int_r || complex_q) && parts(fx, x1).is_none_or(|p| !near(p)) {
         return Ok(None);
     }
     let m =mc_arith::num::Mag::from_float_up(&crate::ball::float_of((mag(fx, x1).max(1.0) * 2f64.powi(-((wk.p as i32).min(1000) - 4))).max(1e-300)));
     let v = crate::cover::map_balls(fx, retag(fx, x1, w), |b| crate::ball::widen(b.clone(), &m));
-    Ok(wk.out(fx, v, true))
+    Ok(wk.out(fx, v, !complex_q))
 }
 
 /// A machine number or ball as a ball at w bits.

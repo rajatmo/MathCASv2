@@ -22,6 +22,9 @@
 # The roots of a polynomial in one unknown are ordered by real part, then imaginary part; complex roots are `complex(re, im)` numbers. `n_solve(eq, x, reals)` keeps the real ones.
 
 #% item
+# Solutions of systems come in the order in which `solve` lists them, a pair of complex conjugate solutions with the negative imaginary part first. Roots that a numeric search adds to reach `max_roots: k` follow the others, by modulus, then the one with the larger imaginary part first.
+
+#% item
 # Families of solutions of periodic equations are listed member by member (16 of them); `max_roots: inf` keeps them as families with their generated parameter, `max_roots: k` keeps the first k solutions.
 
 #% item

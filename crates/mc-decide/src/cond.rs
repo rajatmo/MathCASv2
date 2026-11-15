@@ -18,6 +18,17 @@
 //! condition (`simplify(conditional_expression(sqrt(x^2), x < 0))` is `conditional_expression(-x, x < 0)`),
 //! `normal` gives the value, and `reduce` conjoins the condition to the equation.
 //!
+//! **Conditional truth values.** A statement that holds exactly when a condition `c` on its parameters holds (a
+//! property of a function with parameters: `function_analytic(log(x^2 + a), x)`) has one form,
+//! `conditional_expression(true, c)`; `conditional_expression(false, c)` is a statement that fails for the
+//! parameters where `c` holds (the generic case). Where a truth value is read, a conditional one is its condition:
+//! `conditional_expression(true, c)` is `c` and `conditional_expression(false, c)` is `false`. So the connectives
+//! (`and`, `or`, `not`, `xor`, `implies`, `nand`, `nor`, `equivalent`) and the test of `if` take `c` in its place
+//! (`not(conditional_expression(true, a > 0))` is `a <= 0`, not a conditional `false`); `reduce`, `resolve` and
+//! `find_instance` conjoin the condition (as for every conditional formula); `simplify`, `full_simplify` and
+//! `refine` decide the condition under the facts of the context (`true` or `false` when it is decided, the
+//! condition simplified otherwise). Values that are not `true` or `false` keep the lifting below.
+//!
 //! **Accumulation** ([`Conditions`]): a method that needs a condition (`re(a) > 0` for a convergent integral)
 //! records it in the per-call accumulator instead of returning it; the caller simplifies the conditions once at the
 //! end, under the facts of the context, and attaches them as one conditional result ([`Conditions::finish`]).
@@ -36,16 +47,22 @@ const MAX_CONJUNCTS: usize = 8;
 
 /// The heads that take conditions outward from their arguments.
 pub const VALUE_HEADS: &[&str] = &[
-    names::ADD, names::MUL, names::POW, "equal", "unequal", "less", "less_equal", "greater", "greater_equal", "not", "exp", "log", "sin",
+    names::ADD, names::MUL, names::POW, "equal", "unequal", "less", "less_equal", "greater", "greater_equal", "exp", "log", "sin",
     "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "sech", "csch", "asin", "acos", "atan", "acot", "asinh", "acosh",
     "atanh", "abs", "sign", "gamma", "log_gamma", "erf", "erfc", "floor", "ceiling", "round", "re", "im_part", "conjugate", "arg", "max",
     "min", "real_abs", "real_sign", "sqrt",
 ];
-/// The held connectives, whose evaluated forms take conditions outward.
+/// The held connectives, whose evaluated forms take conditions outward (a conditional truth value is its condition).
 pub const HELD_HEADS: &[&str] = &["and", "or"];
+/// The connectives that read a conditional truth value as its condition (other conditional values are lifted).
+pub const TRUTH_HEADS: &[&str] = &["not", "xor", "implies", "nand", "nor", "equivalent"];
+/// The operators that conjoin the condition to the formula.
+pub const CONJOIN_HEADS: &[&str] = &["reduce"];
+/// The operators registered after this crate that conjoin the condition to the formula ([`install_late`]).
+pub const LATE_CONJOIN_HEADS: &[&str] = &["resolve", "find_instance"];
 /// The operators that work on the value under the condition.
 pub const OPERATOR_HEADS: &[&str] = &[
-    "simplify", "refine", "expand", "factor", "together", "apart", "cancel", "d", "integrate", "limit", "n", "power_expand", "trig_expand",
+    "simplify", "full_simplify", "refine", "expand", "factor", "together", "apart", "cancel", "d", "integrate", "limit", "n", "power_expand", "trig_expand",
     "trig_reduce", "trig_to_exp", "exp_to_trig", "complex_expand", "function_expand", "collect",
 ];
 
@@ -283,6 +300,43 @@ fn lifted<'h>(h: &'h Heap, f: Sym, ce: Sym, bit: u64, args: &[T<'h>]) -> Option<
     Some(h.call(ce, &[h.call(f, &vals), conjunction(h, &conds)]))
 }
 
+/// The truth value `v` (`Some(true)` or `Some(false)`) of a conditional truth value.
+fn truth<'h>(h: &'h Heap, v: T<'h>) -> Option<bool> {
+    match h.view(v) {
+        View::Sym(s) if h.sym_name(s) == names::TRUE => Some(true),
+        View::Sym(s) if h.sym_name(s) == names::FALSE => Some(false),
+        _ => None,
+    }
+}
+
+/// `args` (the first `n` of them) with each conditional truth value read as a truth value: its condition for
+/// `true`, `false` for `false`; `None` when there is none.
+fn truth_read<'h>(h: &'h Heap, ce: Sym, bit: u64, args: &[T<'h>], n: usize) -> Option<Vec<T<'h>>> {
+    let n = n.min(args.len());
+    if !args[..n].iter().any(|&a| h.mask(a) & bit != 0) {
+        return None;
+    }
+    let mut any = false;
+    let mut out = args.to_vec();
+    for a in out.iter_mut().take(n) {
+        if let Some((v, c)) = parts_of(h, ce, *a) {
+            if let Some(b) = truth(h, v) {
+                *a = if b { c } else { v };
+                any = true;
+            }
+        }
+    }
+    any.then_some(out)
+}
+
+/// `f(args)` with conditional truth values read as truth values, or else with the conditions taken outward.
+fn truth_or_lift<'h>(h: &'h Heap, f: Sym, ce: Sym, bit: u64, args: &[T<'h>]) -> Option<T<'h>> {
+    if let Some(new) = truth_read(h, ce, bit, args, args.len()) {
+        return Some(h.call(f, &new));
+    }
+    lifted(h, f, ce, bit, args)
+}
+
 /// `t` with every conditional result inside it replaced by its value.
 fn strip_all<'h>(h: &'h Heap, ce: Sym, bit: u64, t: T<'h>) -> T<'h> {
     if h.mask(t) & bit == 0 {
@@ -305,8 +359,12 @@ fn strip_all<'h>(h: &'h Heap, ce: Sym, bit: u64, t: T<'h>) -> T<'h> {
 enum Mode {
     /// conditions of the arguments go outward
     Value,
-    /// the evaluated form (of a held connective) takes conditions outward
+    /// the evaluated form (of a held connective) reads conditional truth values, then takes conditions outward
     Held,
+    /// a connective: conditional truth values are read as truth values, other conditions go outward
+    Truth,
+    /// `if`: a conditional truth value as the test is read as a truth value
+    If,
     /// the operator works on the value under the condition
     Operator,
     /// `normal`: the value
@@ -344,12 +402,24 @@ impl Native for Lift {
                 }
                 self.inner(cx, t, args)
             }
+            Mode::Truth => {
+                if let Some(r) = truth_or_lift(h, self.f, self.ce, self.bit, args) {
+                    return Ok(Reply::Again(r));
+                }
+                self.inner(cx, t, args)
+            }
+            Mode::If => {
+                if let Some(new) = truth_read(h, self.ce, self.bit, args, 1) {
+                    return Ok(Reply::Again(h.call(self.f, &new)));
+                }
+                self.inner(cx, t, args)
+            }
             Mode::Held => {
                 let r = self.inner(cx, t, args)?;
                 if let Reply::Done(u) = r {
                     if let View::App { head, args: ua } = h.view(u) {
                         if matches!(h.view(head), View::Sym(s) if s == self.f) {
-                            if let Some(l) = lifted(h, self.f, self.ce, self.bit, ua) {
+                            if let Some(l) = truth_or_lift(h, self.f, self.ce, self.bit, ua) {
                                 return Ok(Reply::Again(l));
                             }
                         }
@@ -374,9 +444,9 @@ impl Native for Lift {
                     }
                     return self.inner(cx, t, args);
                 };
-                // refine: a condition the facts imply drops (refine(conditional_expression(1/(1 - a), |a| < 1),
-                // |a| < 1) is 1/(1 - a))
-                if matches!(self.mode, Mode::Operator) && h.sym_name(self.f) == "refine" {
+                // refine and simplify: a condition the facts imply drops (refine(conditional_expression(1/(1 - a),
+                // |a| < 1), |a| < 1) is 1/(1 - a)); a conditional truth value is decided by its condition
+                if matches!(self.mode, Mode::Operator) && matches!(h.sym_name(self.f).as_str(), "refine" | "simplify" | "full_simplify") {
                     let mut a = vec![c];
                     a.extend_from_slice(rest);
                     let rc = cx.eval(h.call(self.f, &a))?;
@@ -384,6 +454,15 @@ impl Native for Lift {
                         let mut a = vec![v];
                         a.extend_from_slice(rest);
                         return Ok(Reply::Again(h.call(self.f, &a)));
+                    }
+                    if truth(h, v).is_some() {
+                        if rc == h.sym_term(h.sym(names::FALSE)) {
+                            return Ok(Reply::Done(rc));
+                        }
+                        if rc == c {
+                            return Ok(Reply::Done(first));
+                        }
+                        return Ok(Reply::Again(h.call(self.ce, &[v, rc])));
                     }
                 }
                 Ok(Reply::Again(match self.mode {
@@ -427,6 +506,17 @@ impl Native for Lift {
     }
 }
 
+/// Wrap the natives of [`LATE_CONJOIN_HEADS`] (registered by a later library) so that they conjoin the condition
+/// of a conditional formula; called by that library after it registers them.
+pub fn install_late(k: &mut Kernel, h: &Heap) {
+    let ce = h.sym(CONDITIONAL);
+    let bit = h.mask(h.sym_term(ce));
+    for &name in LATE_CONJOIN_HEADS {
+        let f = h.sym(name);
+        k.wrap_native(f, |old| Box::new(Lift { f, ce, bit, mode: Mode::Reduce, inner: Some(old) }));
+    }
+}
+
 /// Register `conditional_expression` and the lifting of conditions through the heads of [`VALUE_HEADS`],
 /// [`HELD_HEADS`], [`OPERATOR_HEADS`], `normal` and `reduce`. A head without a native gets an argument-head rule on
 /// `conditional_expression` instead (semantics 6.5), which leaves its other rules alone.
@@ -438,21 +528,26 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
         .iter()
         .map(|&n| (n, Mode::Value))
         .chain(HELD_HEADS.iter().map(|&n| (n, Mode::Held)))
+        .chain(TRUTH_HEADS.iter().map(|&n| (n, Mode::Truth)))
         .chain(OPERATOR_HEADS.iter().map(|&n| (n, Mode::Operator)))
-        .chain([("normal", Mode::Normal), ("reduce", Mode::Reduce)]);
+        .chain(CONJOIN_HEADS.iter().map(|&n| (n, Mode::Reduce)))
+        .chain([("normal", Mode::Normal), ("if", Mode::If)]);
     for (name, mode) in all {
         let f = h.sym(name);
         let wrapped = k.wrap_native(f, |old| Box::new(Lift { f, ce, bit, mode, inner: Some(old) }));
-        if wrapped || !matches!(mode, Mode::Value) {
+        let truth_mode = matches!(mode, Mode::Truth);
+        if wrapped || !matches!(mode, Mode::Value | Mode::Truth) {
             continue;
         }
-        // f(pre___, c @ conditional_expression(_, _), post___) := the lifted call
+        // f(pre___, c @ conditional_expression(_, _), post___) := the lifted call (a connective reads a conditional
+        // truth value as its condition)
         let lhs = pat::call(h, f, vec![pat::seq0(0), pat::call(h, ce, vec![pat::var(1), pat::var(2)]), pat::seq0(3)]);
         let rhs: Rhs = Arc::new(move |b, h| {
             let mut args: Vec<T> = b.seq(0).to_vec();
             args.push(h.call(h.sym(CONDITIONAL), &[b.one(1), b.one(2)]));
             args.extend_from_slice(b.seq(3));
-            lifted(h, f, ce, bit, &args).unwrap_or_else(|| h.call(f, &args))
+            let r = if truth_mode { truth_or_lift(h, f, ce, bit, &args) } else { lifted(h, f, ce, bit, &args) };
+            r.unwrap_or_else(|| h.call(f, &args))
         });
         let _ = k.define_attached(h, lhs, rhs, ce);
     }

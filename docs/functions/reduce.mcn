@@ -328,7 +328,7 @@ reduce(exp(x) == x, x, complexes)
 #= element(c(1), integers) and x == -product_log(c(1), -1)
 
 #% text
-# `working_precision:` is not an option, and the domain `rationals` gives `false` for an equation with only irrational solutions; other domains for inequalities are refused:
+# `working_precision:` is not an option, and the domain `rationals` gives `false` for an equation with only irrational solutions; over the integers, one variable without parameters gives the integers of the real solution set:
 
 #% cell
 reduce(x^2 < 2, x, reals, working_precision: 30)
@@ -343,7 +343,12 @@ reduce(x^2 == 2, x, rationals)
 #% cell
 reduce(x^2 < 2, x, integers)
 #% output
-#! failure(argument, reduce, "reduce works over the reals")
+#= x == -1 or x == 0 or x == 1
+
+#% cell
+reduce(x > 5/2, x, integers)
+#% output
+#= element(x, integers) and x >= 3
 
 #% text
 # The endpoints are exact; `n` gives them to any number of digits:
