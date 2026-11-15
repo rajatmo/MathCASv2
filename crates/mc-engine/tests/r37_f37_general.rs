@@ -377,7 +377,8 @@ fn dense_target_structures() {
     assert_eq!(ev("toeplitz_matrix(5, target_structure: automatic) === toeplitz_matrix(5)"), "true");
     assert_eq!(ev("lower_triangularize([[1, 2, 3], [4, 5, 6], [7, 8, 9]], target_structure: \"Dense\")"), "[[1, 0, 0], [4, 5, 0], [7, 8, 9]]");
     assert_eq!(ev("upper_triangularize([[1, 2], [3, 4]], 1, target_structure: \"Sparse\") === upper_triangularize([[1, 2], [3, 4]], 1)"), "true");
-    assert_eq!(ev("head(hankel_matrix(3, target_structure: \"Symmetric\"))"), "hankel_matrix");
+    // a structure no clause takes: the call is ground (option names are not free symbols), so it fails
+    assert!(ev("hankel_matrix(3, target_structure: \"Symmetric\")").starts_with("failure(no_match, hankel_matrix"));
 }
 
 #[test]

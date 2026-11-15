@@ -4,16 +4,22 @@
 # break
 
 #% text
-# `break()` gives `failure(break)`, which ends the innermost `while` or `for` loop around it; the loop's value is then `null`.
+# `break()` gives `failure(break)`, which ends the innermost iteration around it: a `while` or `for` loop (whose value is then `null`), or an iterating function such as `map`, `table`, `sum`, `select`, `fold` or `nest_while`, whose result then holds what was produced before it.
 
 #% section
 # Details
 
 #% item
-# Like every failure, `failure(break)` ends the blocks and strict calls between it and the loop.
+# Like every failure, `failure(break)` ends the blocks and strict calls between it and the iteration.
 
 #% item
-# Outside a loop it stays a failure value.
+# The iterating functions that read it: `map`, `map_indexed`, `map_thread`, `array` (of one dimension), `table`, `sum` and `product` with explicit ranges, `scan`, `select`, `select_first`, `all_true`, `any_true`, `none_true`, `fold`, `fold_list`, `nest`, `nest_list`, `nest_while`, `nest_while_list`, `fixed_point_list`, and `parallel_map` and `parallel_table` (with the serial result).
+
+#% item
+# Elements after the `break()` are not evaluated: their effects (`print`, `sow`) do not happen.
+
+#% item
+# Outside any iteration it stays a failure value.
 
 #% section
 # Examples
@@ -30,6 +36,21 @@
 { var s = []; for k in range(10) { if k^2 > 20 then break(); s = append(s, k) }; s }
 #% output
 #= [1, 2, 3, 4]
+
+#% cell
+map(i => if i == 3 then break() else i, range(5))
+#% output
+#= [1, 2]
+
+#% cell
+table(if k^2 > 20 then break() else k, [k, 1, 10])
+#% output
+#= [1, 2, 3, 4]
+
+#% cell
+fold((a, b) => if a > 10 then break() else a + b, 0, range(10))
+#% output
+#= 15
 
 #% cell
 break()

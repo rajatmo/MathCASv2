@@ -71,6 +71,9 @@ pub(crate) struct Options<'h> {
     pub event_action: EventAction,
     /// `compile: auto | true | false`: when the right-hand side is compiled
     pub policy: Policy,
+    /// `evaluation_monitor: f`, `step_monitor: f`: called with the time of every evaluation of the right-hand side
+    /// and of every accepted step (`mc_numfn::monitor`; set by the native before the options are read)
+    pub monitors: mc_numfn::Monitors,
 }
 
 impl Options<'_> {
@@ -110,6 +113,7 @@ pub(crate) fn split<'a, 'h>(
         events: None,
         event_action: EventAction::Stop,
         policy: Policy::default(),
+        monitors: mc_numfn::Monitors::default(),
     };
     let Some((&last, rest)) = args.split_last() else { return Ok((args, o)) };
     let View::App { head, args: rules } = h.view(last) else { return Ok((args, o)) };

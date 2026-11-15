@@ -57,6 +57,9 @@
 #% subitem
 # `rigorous: true` gives a ball guaranteed to contain the integral.
 
+#% subitem
+# `evaluation_monitor: f` calls `f` with the point of every evaluation of the integrand, one argument per variable (the integrand is then evaluated by the interpreter, one point after another); a failure `f` gives ends the integration and is the result.
+
 #% item
 # When the error estimate does not reach the goal, a message says how far it got; a deterministic estimate that is still far from the goal is a failure tagged `not_converged` holding the estimate and its error.
 
@@ -186,6 +189,14 @@ n_integrate(sin(x)/x, [x, 0, inf])
 
 #% subsection
 # Options
+
+#% text
+# The points where the integrand is evaluated, collected by `reap`:
+
+#% cell
+take(last(reap(n_integrate(sqrt(x*(1 - x)), [x, 0, 1], evaluation_monitor: (x => sow(x)))))[1], 5)
+#% output
+#= [0.0, 0.015625, 0.03125, 6.103515625e-5, 0.0001220703125]
 
 #% text
 # More digits, as a ball:

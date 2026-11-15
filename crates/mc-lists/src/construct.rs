@@ -1,9 +1,13 @@
 //! Constructors and iteration: `range`, `array`, `table`, `nest`, `nest_list`, `fold`, `fold_list`, and the maps
 //! `map_indexed`, `map_thread`, `scan`.
+//!
+//! Every iteration reads the loop signals of semantics 10 in the values of its function or body: `break()` ends it
+//! (the result holds what was produced before), `continue()` skips the element (no value in a list; an accumulated
+//! value stays as it was).
 use crate::ctx::{apply, count_operand, dims_operand, group_cost, nest_flat, take, Lib, Meter, MAX_CELLS, MAX_LEN};
 use mc_arith::{Kind, Num, Real};
 use mc_core::{Heap, Store, View, T};
-use mc_eval::{NativeCx, Reply, Res};
+use mc_eval::{LoopSignal, NativeCx, Reply, Res};
 
 /// `range(n)`, `range(a, b)`, `range(a, b, step)`: `a, a + step, ...` up to `b` (`a` defaults to 1, `step` to 1).
 /// Machine integers are built directly; other exact bounds exactly; with an inexact bound or step the elements are
@@ -231,7 +235,7 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
     let total: usize = ds.iter().product();
     let cost = group_cost(cx, f);
     let ds_ = &ds;
-    let out = cx.group(total, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let elem = |cx: &mut NativeCx<'_, '_, 'h>, i: usize| {
         cx.tick(1)?;
         let h = cx.heap();
         // the multi-index of flat position i, row-major
@@ -251,7 +255,17 @@ pub(crate) fn array<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args
             r /= d;
         }
         apply(cx, f, &ix)
-    })?;
+    };
+    // one dimension is a loop over the indices: `break()` ends it, `continue()` leaves the index out; the elements
+    // of a nested array keep their places, so there the values stay as they are
+    if ds.len() == 1 {
+        let out = cx.group_loop(total, cost, &elem)?;
+        let out = cx.without_continues(out);
+        let list = cx.list(&out);
+        let Some(g) = head else { return Ok(Reply::Done(list)) };
+        return Ok(Reply::Again(with_head(cx, list, g, 1)));
+    }
+    let out = cx.group(total, cost, &elem)?;
     let nested = nest_flat(cx, out, &ds);
     let Some(g) = head else { return Ok(Reply::Done(nested)) };
     Ok(Reply::Again(with_head(cx, nested, g, ds.len())))
@@ -417,7 +431,8 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
                 cx.tick(1)?;
                 cx.eval(e)
             };
-            let out = if parallel { cx.group_parallel(n, &elem)? } else { cx.group(n, 0, &elem)? };
+            let out = if parallel { cx.group_parallel_loop(n, &elem)? } else { cx.group_loop(n, 0, &elem)? };
+            let out = cx.without_continues(out);
             return Ok(Reply::Done(cx.list(&out)));
         }
         // a symbol alone at the end is neither an iterator nor a count
@@ -444,7 +459,9 @@ pub(crate) fn table_with<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
         cx.tick(1)?;
         apply(cx, f, &[vs_[i]])
     };
-    let out = if parallel { cx.group_parallel(vs.len(), &elem)? } else { cx.group(vs.len(), cost, &elem)? };
+    // the values are the iterations of a loop: `break()` ends it, `continue()` leaves the value out (semantics 10)
+    let out = if parallel { cx.group_parallel_loop(vs.len(), &elem)? } else { cx.group_loop(vs.len(), cost, &elem)? };
+    let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
 }
 
@@ -481,11 +498,12 @@ pub(crate) fn map_indexed<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>
     let [f, xs] = *args else { return Ok(Reply::Decline) };
     let xs = take!(lib.list_operand(h, t, xs, 2));
     let cost = group_cost(cx, f);
-    let out = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let out = cx.group_loop(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
         let h = cx.heap();
         apply(cx, f, &[xs[i], h.int(i as i64 + 1)])
     })?;
+    let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
 }
 
@@ -550,16 +568,18 @@ pub(crate) fn map_thread<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>,
     let n = lists.first().map_or(0, |l| l.len());
     let cost = group_cost(cx, f);
     let lists_ = &lists;
-    let out = cx.group(n, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let out = cx.group_loop(n, cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
         let call: Vec<T<'h>> = lists_.iter().map(|l| l[i]).collect();
         apply(cx, f, &call)
     })?;
+    let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
 }
 
 /// `scan(f, xs)`: `f(x)` evaluated for each element in order, for its effects (`print`, definitions); the value
-/// is `null`, or the first failure `f` gives (which ends the scan).
+/// is `null`, or the first failure `f` gives (which ends the scan). `break()` ends the scan (`null`), `continue()`
+/// goes on with the next element.
 pub(crate) fn scan<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
     let h = cx.heap();
     let [f, xs] = *args else { return Ok(Reply::Decline) };
@@ -567,8 +587,11 @@ pub(crate) fn scan<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args:
     for &x in xs {
         cx.tick(1)?;
         let v = apply(cx, f, &[x])?;
-        if lib.is_failure(h, v) {
-            return Ok(Reply::Done(v));
+        match cx.loop_signal(v) {
+            Some(LoopSignal::Break) => break,
+            Some(LoopSignal::Continue) => continue,
+            None if lib.is_failure(h, v) => return Ok(Reply::Done(v)),
+            None => {}
         }
     }
     Ok(Reply::Done(cx.null()))
@@ -584,7 +607,8 @@ fn times<'h>(lib: &Lib, cx: &NativeCx<'_, '_, 'h>, t: T<'h>, n: T<'h>) -> Result
 }
 
 /// Apply `f` to `x` `n` times, calling `each` with every value (the start included); a failure value ends the
-/// iteration and is returned.
+/// iteration and is returned. `break()` ends it with the value before it; after `continue()` the value stays (the
+/// step counts, and `each` does not see it).
 fn iterate<'h>(
     lib: &Lib,
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -601,10 +625,14 @@ fn iterate<'h>(
     each(x);
     for _ in 0..n {
         cx.tick(1)?;
-        x = if inert { h.app(f, &[x]) } else { apply(cx, f, &[x])? };
-        if lib.is_failure(h, x) {
-            return Ok(Err(x));
+        let y = if inert { h.app(f, &[x]) } else { apply(cx, f, &[x])? };
+        match cx.loop_signal(y) {
+            Some(LoopSignal::Break) => break,
+            Some(LoopSignal::Continue) => continue,
+            None if lib.is_failure(h, y) => return Ok(Err(y)),
+            None => {}
         }
+        x = y;
         each(x);
     }
     Ok(Ok(x))
@@ -858,12 +886,17 @@ fn fold_with<'h>(
     };
     let mut acc = x;
     each(acc);
+    // `break()` ends the fold with the value so far; `continue()` skips the element (the value stays)
     for &a in xs {
         cx.tick(1)?;
-        acc = apply(cx, f, &[acc, a])?;
-        if lib.is_failure(h, acc) {
-            return Ok(Err(Reply::Done(acc)));
+        let v = apply(cx, f, &[acc, a])?;
+        match cx.loop_signal(v) {
+            Some(LoopSignal::Break) => break,
+            Some(LoopSignal::Continue) => continue,
+            None if lib.is_failure(h, v) => return Ok(Err(Reply::Done(v))),
+            None => {}
         }
+        acc = v;
         each(acc);
     }
     Ok(Ok(acc))
@@ -997,17 +1030,27 @@ fn nest_while_steps<'h>(
         if out.len() >= mmin {
             let k = out.len().min(m);
             let ok = apply(cx, test, &out[out.len() - k..])?;
-            if lib.is_failure(h, ok) {
-                return Ok(Reply::Done(ok));
-            }
-            if !cx.is_true(ok) {
-                break;
+            // `break()` from the test ends the loop; `continue()` skips the test (the loop goes on)
+            match cx.loop_signal(ok) {
+                Some(LoopSignal::Break) => break,
+                Some(LoopSignal::Continue) => {}
+                None if lib.is_failure(h, ok) => return Ok(Reply::Done(ok)),
+                None if !cx.is_true(ok) => break,
+                None => {}
             }
         }
-        cur = apply(cx, f, &[cur])?;
-        if lib.is_failure(h, cur) {
-            return Ok(Reply::Done(cur));
+        let next = apply(cx, f, &[cur])?;
+        // `break()` from `f` ends the loop with the values so far; after `continue()` the value stays (the step counts)
+        match cx.loop_signal(next) {
+            Some(LoopSignal::Break) => break,
+            Some(LoopSignal::Continue) => {
+                steps += 1;
+                continue;
+            }
+            None if lib.is_failure(h, next) => return Ok(Reply::Done(next)),
+            None => {}
         }
+        cur = next;
         steps += 1;
         // the list of an unbounded loop (a test that never fails) is cut like `fixed_point_list`'s
         if out.len() >= if list && max == u64::MAX { UNBOUNDED_LEN } else { MAX_LEN } {
@@ -1020,10 +1063,14 @@ fn nest_while_steps<'h>(
     }
     for _ in 0..extra.max(0) {
         cx.tick(1)?;
-        cur = apply(cx, f, &[cur])?;
-        if lib.is_failure(h, cur) {
-            return Ok(Reply::Done(cur));
+        let next = apply(cx, f, &[cur])?;
+        match cx.loop_signal(next) {
+            Some(LoopSignal::Break) => break,
+            Some(LoopSignal::Continue) => continue,
+            None if lib.is_failure(h, next) => return Ok(Reply::Done(next)),
+            None => {}
         }
+        cur = next;
         out.push(cur);
     }
     if extra < 0 {
@@ -1087,6 +1134,10 @@ pub(crate) fn fixed_point_list<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: 
     while steps < max {
         cx.tick(1)?;
         let next = apply(cx, f, &[cur])?;
+        // `break()` ends the list; `continue()` gives no new value, so the value repeats: the list ends too
+        if cx.loop_signal(next).is_some() {
+            break;
+        }
         if lib.is_failure(h, next) {
             return Ok(Reply::Done(next));
         }

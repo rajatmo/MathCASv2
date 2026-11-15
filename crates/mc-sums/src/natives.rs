@@ -399,8 +399,81 @@ pub struct Native {
     pub stop: Arc<AtomicBool>,
 }
 
-impl mc_eval::Native for Native {
+/// The head of a watched summand, [`Watch`].
+pub(crate) const WATCH: &str = "numsum$watch";
+
+/// The running monitored `n_sum` and `n_product` calls: number, evaluation monitor, and the failure it gave. The
+/// monitor is kept here, not in the summand, which the methods substitute into (a closure `n => ...` with the
+/// index's name would lose its parameter).
+static WATCHED: std::sync::Mutex<Vec<(u64, Raw, Option<Raw>)>> = std::sync::Mutex::new(Vec::new());
+
+/// The number of the next monitored call.
+static WATCH_NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// `numsum$watch(id, k, e)`: the summand `e` of the monitored call number `id` at the index value `k`. With a
+/// numeric `k` the call's evaluation monitor is called with it first (every evaluation of a term, by whichever
+/// method `n_sum` uses: exact first terms, acceleration, tails); a failure it gives is recorded for the call and is
+/// the value. With a symbolic `k` (the closed-form and convergence tests) the term is `e` itself.
+pub(crate) struct Watch;
+
+impl mc_eval::Native for Watch {
+    fn reads_term(&self) -> bool {
+        false
+    }
+
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let h = cx.heap();
+        let &[id, k, e] = args else { return Ok(Reply::Decline) };
+        let (View::Int(id), true) = (h.view(id), mc_arith::Arith::new(h).num(k).is_some()) else { return Ok(Reply::Done(e)) };
+        let m = WATCHED.lock().unwrap_or_else(|p| p.into_inner()).iter().find(|w| w.0 == id as u64).map(|w| w.1);
+        let Some(m) = m else { return Ok(Reply::Done(e)) };
+        let v = cx.eval(h.app(m.get(h), &[k]))?;
+        let failed = h.packed(v).is_none() && matches!(h.view(v), View::App { head, .. } if head == h.sym_term(h.sym(names::FAILURE)));
+        if failed {
+            if let Some(w) = WATCHED.lock().unwrap_or_else(|p| p.into_inner()).iter_mut().find(|w| w.0 == id as u64) {
+                w.2.get_or_insert(Raw::new(v));
+            }
+            return Ok(Reply::Done(v));
+        }
+        Ok(Reply::Done(e))
+    }
+}
+
+/// The failure the evaluation monitor of call `id` gave; the call leaves the record.
+fn watch_end<'h>(h: &'h mc_core::Heap, id: u64) -> Option<T<'h>> {
+    let mut all = WATCHED.lock().unwrap_or_else(|p| p.into_inner());
+    let i = all.iter().position(|w| w.0 == id)?;
+    let (_, _, f) = all.remove(i);
+    f.map(|r| r.get(h))
+}
+
+impl mc_eval::Native for Native {
+    fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        if !matches!(self.f, Fun::NSum | Fun::NProduct) {
+            return self.run(cx, t, args, None);
+        }
+        // `evaluation_monitor: f` (`mc_numfn::monitor`): called with the index of every term evaluated
+        let (args, mons) = match mc_numfn::take_monitors(cx, args, &["evaluation_monitor"]) {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        let h = cx.heap();
+        let Some(m) = mons.evaluation_fn(h) else { return self.run(cx, t, &args, None) };
+        let id = WATCH_NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        WATCHED.lock().unwrap_or_else(|p| p.into_inner()).push((id, Raw::new(m), None));
+        let r = self.run(cx, t, &args, Some(id));
+        let failed = watch_end(h, id);
+        let r = r?;
+        Ok(match failed {
+            Some(f) => Reply::Done(f),
+            None => r,
+        })
+    }
+}
+
+impl Native {
+    /// The call; `watch`: the number of a monitored call (the summand is watched).
+    fn run<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>], watch: Option<u64>) -> Res<Reply<'h>> {
         let h = cx.heap();
         let (args, opts) = split_options(h, args);
         let _scope = StopScope::enter(Some(&self.stop));
@@ -440,6 +513,15 @@ impl mc_eval::Native for Native {
                         return Ok(Reply::Again(h.call(h.sym(name), &[g, sp])));
                     }
                     _ => return Ok(Reply::Decline),
+                };
+                // a monitored summand: every evaluation of a term at a numeric index calls the monitor (`Watch`)
+                let watched;
+                let f = match watch {
+                    Some(id) => {
+                        watched = h.call(h.sym(WATCH), &[h.int(id as i64), k, *f]);
+                        &watched
+                    }
+                    None => f,
                 };
                 // working_precision: d (or digits: d): the sum at d digits
                 let digits = option(h, &opts, "working_precision").or_else(|| option(h, &opts, "digits")).and_then(|v| match h.view(v) {

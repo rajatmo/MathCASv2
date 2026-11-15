@@ -157,6 +157,10 @@ pub(crate) fn brent_min<'h>(
                 (v, fv) = (u, fu);
             }
         }
+        // the step monitor sees the best point so far; a failed monitor ends the iteration
+        if !f.step(cx, &[x])? {
+            break;
+        }
     }
     let err = 0.5 * (b - a);
     Ok(Outcome::Done { x: vec![x], err, converged: converged || err <= location_tol(goals, x), iterations })
@@ -241,6 +245,9 @@ pub(crate) fn bfgs<'h>(
         x = xt;
         fx = ft;
         g = gt;
+        if !f.step(cx, &x)? {
+            break;
+        }
         if err <= 4.0 * f64::EPSILON * norm(&x) {
             converged = gscaled(&g, &x, fx) <= gtol.sqrt();
             break;

@@ -160,3 +160,10 @@ others. Gap: vector-valued unknowns (`z(0) == [1, 0]`).
 ## Round 39: no step limit
 
 - `max_steps: inf`: the largest step count accepted (10^8); the run still stops on an interrupt or the memory limit.
+
+## Round 43: monitors
+
+- `n_dsolve(..., evaluation_monitor: f, step_monitor: f)`: functions of the time (`Monitors::with_first(1)`),
+  called at every evaluation of the right-hand side (`Model::new` interprets a monitored right-hand side) and at
+  the end of every accepted step (`driver::integrate`, `Model::step`); a failure ends the integration and is the
+  result. The Taylor method under `digits:` has no monitor hook: monitors there are a bad argument.

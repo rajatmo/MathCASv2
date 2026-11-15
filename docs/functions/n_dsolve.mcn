@@ -33,6 +33,9 @@
 #% subitem
 # `digits: d` solves with Taylor series at `d` decimal digits; values of the solution are then balls.
 
+#% subitem
+# `evaluation_monitor: f` and `step_monitor: f` call `f` with the value of the independent variable at every evaluation of the equations and at the end of every accepted step (machine precision only); a failure `f` gives ends the integration and is the result.
+
 #% item
 # When the step size shrinks to nothing (the solution blows up), the solution covers the part computed and a message says where it stopped.
 
@@ -107,6 +110,14 @@ x(pi) /. osc
 
 #% subsection
 # Options
+
+#% text
+# The times of the accepted steps, the first few:
+
+#% cell
+take(last(reap(n_dsolve([x''(t) + sin(x(t)) == 0, x(0) == 1, x'(0) == 0], x, [t, 0, 10], step_monitor: (t => sow(t)))))[1], 4)
+#% output
+#= [0.010351235061936524, 0.07132228440263969, 0.15149778355017396, 0.25376759367657736]
 
 #% text
 # A stiff equation, with the stiff method:

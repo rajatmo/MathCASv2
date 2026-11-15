@@ -34,6 +34,9 @@
 # A divergent series gives a message and stays unevaluated: the size of the terms far out (`k` near 1000, 10000, 100000) decides, terms that do not tend to zero or that fall no faster than `1/k` with one sign diverge. A series that may converge but only like `1/(k log(k))` is reported as too slowly convergent.
 
 #% item
+# `evaluation_monitor: f` calls `f` with the index of every term evaluated (exactly, numerically, for the tail or the acceleration); a failure `f` gives ends the sum and is the result.
+
+#% item
 # Alternating series are summed by the acceleration of Cohen, Rodriguez Villegas and Zagier; other convergent series (also `sin(k)/k`, `cos(k)/k^2`) by the Abel-Plana formula. `method:` takes `euler_maclaurin` (the Abel-Plana tail), `alternating_signs` or `direct`; an unknown option or method prints a message.
 
 #% section
@@ -110,6 +113,14 @@ n_sum(1/(k*(k + 1)), [k, 1, inf])
 
 #% subsection
 # Options
+
+#% text
+# The indices of the terms evaluated, the first few:
+
+#% cell
+take(last(reap(n_sum(1/(n + 1)^2, [n, 0, inf], evaluation_monitor: (n => sow(n)))))[1], 5)
+#% output
+#= [0, 0, 1, 2, 3]
 
 #% text
 # `working_precision:` (or `digits:`) sums at that many digits:

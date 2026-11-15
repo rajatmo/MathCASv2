@@ -140,8 +140,13 @@ pub(crate) fn integrand<'h>(
     f: T<'h>,
     vars: &[Sym],
     policy: Policy,
+    monitors: &mc_numfn::Monitors,
 ) -> Res<Box<dyn NumFn<'h, f64> + 'h>> {
     let all: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
+    // a monitored integrand runs in the interpreter, point by point in order (`mc_numfn::monitor`)
+    if monitors.any() {
+        return mc_numfn::compile_expr_monitored(cx, f, &all, &mc_numfn::Options::default(), monitors);
+    }
     // the multidimensional methods evaluate many points: compile at once (the cache may already hold the code)
     let policy = match policy {
         Policy::Interpreted => Policy::Interpreted,

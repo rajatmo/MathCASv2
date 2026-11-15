@@ -458,3 +458,10 @@ automatic, c = automatic; o = automatic) when is_list(d) = [a, b, c]` gives `g([
   only when it is unique there (full column rank). Interpolation in several variables is unique only for poised
   data (Gasca and Sauer 2000), so four generic points in the plane, or gradient data that leave a monomial
   unconstrained (x y with data only on the axes), stay unevaluated rather than picking one of many interpolants.
+
+## Round 43: the evaluation monitor
+
+- `n_integrate(..., evaluation_monitor: f)`: `Options::monitors`, set on every integrand the methods build (nested
+  rules real and complex, the multidimensional methods, which then run interpreted point by point instead of `Par`
+  batches, the ball and rigorous rules); `f` gets one argument per variable. A failure it gives is the result. The
+  adaptive rules have no sequence of steps: `step_monitor` is an unknown option.

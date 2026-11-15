@@ -209,6 +209,10 @@ impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Par<'h, I> {
         self.seq.eval(cx, args, out)
     }
 
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[f64]) -> Res<bool> {
+        self.seq.step(cx, args)
+    }
+
     fn eval_batch(&mut self, cx: &mut NativeCx<'_, '_, 'h>, points: &[Vec<f64>], outs: &mut [Vec<f64>]) -> Res<bool> {
         self.seq.eval_batch(cx, points, outs)
     }

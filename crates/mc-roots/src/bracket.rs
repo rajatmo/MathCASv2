@@ -53,6 +53,10 @@ pub(crate) fn secant<'h>(
                     let step = (xt - b).abs();
                     (a, f0, b, f1) = (b, f1, xt, ft);
                     err = step;
+                    // the step monitor sees the new iterate; a failed monitor ends the iteration
+                    if !f.step(cx, &[b])? {
+                        break 'outer;
+                    }
                     if step <= 4.0 * f64::EPSILON * b.abs() || (step <= goals.tol(b.abs()) && step > 0.25 * prev) {
                         converged = true;
                         break 'outer;
@@ -162,6 +166,9 @@ pub(crate) fn brent<'h>(
         match value(cx, f, b)? {
             Some(v) => fb = v,
             None => return Ok(Outcome::NotNumeric(vec![b])),
+        }
+        if !f.step(cx, &[b])? {
+            break;
         }
     }
     // a sign change within a bracket narrower than the goals locates the root (or a jump of the function) to the

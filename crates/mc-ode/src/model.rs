@@ -6,7 +6,7 @@ use crate::system::System;
 use crate::util::mentions;
 use mc_core::{Heap, Store, T};
 use mc_eval::{NativeCx, Res};
-use mc_numfn::{NumFn, Policy, Var};
+use mc_numfn::{Monitors, NumFn, Policy, Var};
 
 /// A function of `(t, y1, ..., yn)`.
 type Fun<'h> = Box<dyn NumFn<'h, f64> + 'h>;
@@ -66,11 +66,17 @@ struct Pending<'h> {
 }
 
 impl<'h> Model<'h> {
-    /// The model of `sys`, its right-hand side compiled as `policy` says.
-    pub fn new(cx: &mut NativeCx<'_, '_, 'h>, sys: &System<'h>, policy: Policy) -> Res<Model<'h>> {
+    /// The model of `sys`, its right-hand side compiled as `policy` says; `monitors` watch the right-hand side's
+    /// evaluations and the accepted steps, with the time as their argument (it is then interpreted).
+    pub fn new(cx: &mut NativeCx<'_, '_, 'h>, sys: &System<'h>, policy: Policy, monitors: &Monitors) -> Res<Model<'h>> {
         let n = sys.n();
         let vars = vars(sys);
-        let f = function(cx, sys.rhs, &vars, n, policy)?;
+        let f: Fun<'h> = if monitors.any() {
+            let opts = mc_numfn::Options { policy, numeric: true, outputs: Some(n) };
+            Box::new(mc_numfn::auto_expr_monitored(cx, sys.rhs, &vars, &opts, monitors.clone().with_first(1))?)
+        } else {
+            function(cx, sys.rhs, &vars, n, policy)?
+        };
         let autonomous = !mentions(cx, sys.rhs, &[sys.t])?;
         Ok(Model {
             n,
@@ -114,6 +120,12 @@ impl<'h> Model<'h> {
     fn load(&mut self, t: f64, y: &[f64]) {
         self.args[0] = t;
         self.args[1..].copy_from_slice(y);
+    }
+
+    /// An accepted step ended at `(t, y)`: the step monitor is called; `false` when a monitor failed.
+    pub fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, t: f64, y: &[f64]) -> Res<bool> {
+        self.load(t, y);
+        self.f.step(cx, &self.args)
     }
 
     /// `F(t, y)` into `out`; `false` when a value is not a finite real.

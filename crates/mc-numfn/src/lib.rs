@@ -31,6 +31,7 @@
 mod cache;
 mod compiled;
 mod interp;
+pub mod monitor;
 pub mod par;
 mod prep;
 mod term;
@@ -39,6 +40,7 @@ mod value;
 pub use cache::{cache_stats, clear_cache, CacheStats, CAPACITY};
 pub use compiled::{Auto, Compiled, Policy, DEFAULT_AFTER};
 pub use interp::{CentralGradient, Interpreted, Machine};
+pub use monitor::{take_monitors, Monitors, MONITOR_OPTIONS};
 pub use par::{par_expr, Par, ParStats, PAR_MIN_POINTS};
 pub use prep::{prepare, replace};
 pub use term::{leaves, TermFn};
@@ -97,9 +99,20 @@ pub trait NumFn<'h, S> {
     fn stats(&self) -> Stats {
         Stats::default()
     }
+
+    /// A step of the method running on the function ended at `args`: the step monitor of the user's function is
+    /// called ([`monitor`]). `false` when a monitor failed: the method stops (and the native gives the failure).
+    /// The default has no monitor.
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S]) -> Res<bool> {
+        let _ = (cx, args);
+        Ok(true)
+    }
 }
 
 impl<'h, S, F: NumFn<'h, S> + ?Sized> NumFn<'h, S> for Box<F> {
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S]) -> Res<bool> {
+        (**self).step(cx, args)
+    }
     fn eval(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S], out: &mut [S]) -> Res<bool> {
         (**self).eval(cx, args, out)
     }
@@ -230,6 +243,18 @@ pub fn compile_expr<'h>(
     Ok(Box::new(auto_expr(cx, expr, vars, opts)?))
 }
 
+/// [`compile_expr`] with monitors ([`monitor`]): with any monitor set, evaluated by the interpreter, which calls
+/// them.
+pub fn compile_expr_monitored<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    expr: T<'h>,
+    vars: &[Var],
+    opts: &Options,
+    monitors: &Monitors,
+) -> Res<Box<dyn NumFn<'h, f64> + 'h>> {
+    Ok(Box::new(auto_expr_monitored(cx, expr, vars, opts, monitors.clone())?))
+}
+
 /// [`compile_expr`] with the concrete type (for [`Auto::refusal`], [`Auto::compiled`]).
 pub fn auto_expr<'h>(
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -237,12 +262,26 @@ pub fn auto_expr<'h>(
     vars: &[Var],
     opts: &Options,
 ) -> Res<Auto<'h, Interpreted<'h>>> {
+    auto_expr_monitored(cx, expr, vars, opts, Monitors::default())
+}
+
+/// [`auto_expr`] with monitors ([`monitor`]): with any monitor set the function is evaluated by the interpreter,
+/// which calls them.
+pub fn auto_expr_monitored<'h>(
+    cx: &mut NativeCx<'_, '_, 'h>,
+    expr: T<'h>,
+    vars: &[Var],
+    opts: &Options,
+    monitors: Monitors,
+) -> Res<Auto<'h, Interpreted<'h>>> {
     let mut interp = Interpreted::new(cx, expr, vars, if opts.numeric { Prep::Machine } else { Prep::None })?;
     if let Some(n) = opts.outputs {
         interp.f.set_outputs(n);
     }
+    let policy = if monitors.any() { Policy::Interpreted } else { opts.policy };
+    interp.f.set_monitors(monitors);
     let (body, numeric) = (interp.body(), interp.numeric());
-    Ok(Auto::new(cx, interp, vars, body, numeric, opts.policy))
+    Ok(Auto::new(cx, interp, vars, body, numeric, policy))
 }
 
 /// The variables and body of a function value with `args` arguments of the kinds `kinds`: a closure

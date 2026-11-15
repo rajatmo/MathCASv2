@@ -144,6 +144,12 @@ pub(crate) fn integrate<'h>(
                 }
                 t = if last { t1 } else { t + h };
                 run.t = t;
+                // the step monitor sees the step's end; a failed monitor ends the integration (the native gives its
+                // failure)
+                if !m.step(cx, t, &y)? {
+                    run.end = End::NotNumeric(t, y);
+                    break;
+                }
                 if last {
                     break;
                 }

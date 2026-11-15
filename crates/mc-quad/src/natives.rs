@@ -257,11 +257,35 @@ impl Native for NIntegrate {
         let h = cx.heap();
         let ar = Arith::new(h).with_stop(self.stop.clone());
         let all = args;
-        let (args, opts) = match options::split(h, &ar, args) {
+        // `evaluation_monitor: f` (a step monitor has no steps to watch in an adaptive rule: an unknown option)
+        let (cleaned, mons) = match mc_numfn::take_monitors(cx, args, &["evaluation_monitor"]) {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        let (args, mut opts) = match options::split(h, &ar, &cleaned) {
             Ok(v) => v,
             Err(OptionError::Unknown(s)) => return Ok(Reply::Done(failure(h, "unknown_option", &[h.sym_term(s)]))),
             Err(OptionError::Bad(s)) => return Ok(bad_argument(h, h.sym_term(s))),
         };
+        opts.monitors = mons.clone();
+        let r = self.integrate(cx, &ar, all, args, opts)?;
+        Ok(match mons.failure(h) {
+            Some(f) => Reply::Done(f),
+            None => r,
+        })
+    }
+}
+
+impl NIntegrate {
+    fn integrate<'h>(
+        &self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        ar: &Arith<'h, Heap>,
+        all: &[T<'h>],
+        args: &[T<'h>],
+        opts: Options,
+    ) -> Res<Reply<'h>> {
+        let h = cx.heap();
         let [f, specs @ ..] = args else { return Ok(Reply::Decline) };
         if specs.is_empty() {
             return Ok(Reply::Decline);
@@ -285,14 +309,14 @@ impl Native for NIntegrate {
         }
         // a path through complex points: the integral along each straight segment
         if specs.len() == 1 {
-            if let Some(r) = contour(cx, &ar, *f, specs[0], all, args.len())? {
+            if let Some(r) = contour(cx, ar, *f, specs[0], all, args.len())? {
                 return Ok(Reply::Done(r));
             }
         }
         if specs.len() > MAX_DIMS || cx.as_list(*f).is_some() {
             return Ok(bad_argument(h, h.int(if cx.as_list(*f).is_some() { 1 } else { MAX_DIMS as i64 + 2 })));
         }
-        let (vars, points) = match ranges(cx, &ar, specs)? {
+        let (vars, points) = match ranges(cx, ar, specs)? {
             Ok(v) => v,
             Err(k) => return Ok(bad_argument(h, h.int(k as i64))),
         };
@@ -311,7 +335,7 @@ impl Native for NIntegrate {
         // integral without a closed form)
         let mut opts = opts;
         if opts.digits.is_none() && !opts.rigorous && points.len() == 1 && opts.method.is_none() {
-            if let Some(d) = ball_digits(h, &ar, *f, &points[0]) {
+            if let Some(d) = ball_digits(h, ar, *f, &points[0]) {
                 opts.digits = Some(d);
             }
         }
@@ -336,7 +360,7 @@ impl Native for NIntegrate {
             if kind.is_some() {
                 return Ok(bad_argument(h, h.sym_term(h.sym("method"))));
             }
-            return ball_call(cx, &ar, *f, &vars, &points, &opts);
+            return ball_call(cx, ar, *f, &vars, &points, &opts);
         }
         // the method (decision quad-1.2): nested one-dimensional rules for one variable or when a one-dimensional
         // method is named; the multidimensional methods otherwise
@@ -347,9 +371,9 @@ impl Native for NIntegrate {
             (None, _) => (None, true),
         };
         match kind {
-            Some(k) => multi_call(cx, &ar, *f, &vars, &points, &opts, k, auto),
+            Some(k) => multi_call(cx, ar, *f, &vars, &points, &opts, k, auto),
             None if vars.len() > MAX_RANGES => Ok(bad_argument(h, h.int(MAX_RANGES as i64 + 2))),
-            None => machine_call(cx, &ar, *f, &vars, &points, &opts),
+            None => machine_call(cx, ar, *f, &vars, &points, &opts),
         }
     }
 }
@@ -404,7 +428,7 @@ fn multi_call<'h>(
     }
     let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
     let ranges = bounds(cx, vars, points, &nopts)?;
-    let g = multi::integrand(cx, f, vars, opts.policy())?;
+    let g = multi::integrand(cx, f, vars, opts.policy(), &opts.monitors)?;
     if g.outputs() != 1 {
         return Ok(bad_argument(h, h.int(1)));
     }
@@ -430,7 +454,7 @@ fn multi_call<'h>(
         // a smooth-looking integrand the lattice rule did not resolve (a peak, a singularity): VEGAS with the same
         // budget, keeping the smaller error estimate
         let ranges = bounds(cx, vars, points, &nopts)?;
-        let g = multi::integrand(cx, f, vars, opts.policy())?;
+        let g = multi::integrand(cx, f, vars, opts.policy(), &opts.monitors)?;
         if let Ok(v) = multi::run(cx, g, ranges, MKind::Vegas, opts)? {
             trace("vegas", vars.len(), v.calls, &Outcome::Done { value: v.value, err: v.err, converged: v.converged });
             if v.err < est.err {
@@ -487,7 +511,7 @@ fn real_outcome<'h>(
 ) -> Res<Outcome<f64>> {
     let all: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
     let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
-    let real = mc_numfn::compile_expr(cx, f, &all, &nopts)?;
+    let real = mc_numfn::compile_expr_monitored(cx, f, &all, &nopts, &opts.monitors)?;
     if real.outputs() != 1 {
         return Ok(Outcome::NotNumeric(vec![]));
     }
@@ -535,7 +559,7 @@ fn machine_call<'h>(
     let all: Vec<Var> = vars.iter().map(|&s| Var::scalar(s)).collect();
     let nopts = mc_numfn::Options { policy: opts.policy(), ..mc_numfn::Options::default() };
     let plan = nested_plan(opts);
-    let real = mc_numfn::compile_expr(cx, f, &all, &nopts)?;
+    let real = mc_numfn::compile_expr_monitored(cx, f, &all, &nopts, &opts.monitors)?;
     if real.outputs() != 1 {
         return Ok(bad_argument(h, h.int(1)));
     }
@@ -546,7 +570,9 @@ fn machine_call<'h>(
     if let Outcome::NotNumeric(pt) = &outcome {
         // a complex value there: the whole integral in complex machine numbers
         if pt.len() == vars.len() && complex_at(cx, f, &all, pt)? {
-            let cf: Box<dyn NumFn<'h, C64> + 'h> = Box::new(Interpreted::new(cx, f, &all, Prep::Machine)?);
+            let mut ci = Interpreted::new(cx, f, &all, Prep::Machine)?;
+            ci.f.set_monitors(opts.monitors.clone());
+            let cf: Box<dyn NumFn<'h, C64> + 'h> = Box::new(ci);
             let bounds = self::bounds(cx, vars, points, &nopts)?;
             let mut p = Problem { f: cf, ranges: bounds, plan, calls: 0 };
             let outcome = p.solve(cx)?;
@@ -749,11 +775,13 @@ fn ball_call<'h>(
     // the far nodes of a half-line: exp of a ball below -2^40 as a tiny ball, not a failure
     let f_tail = if points[0].iter().any(|p| matches!(p, Point::Inf(_))) { tail_safe(h, f) } else { f };
     let mut fb = Interpreted::new(cx, f_tail, &all, Prep::Digits(work))?;
+    fb.f.set_monitors(opts.monitors.clone());
     let goals = opts.ball_goals_log2(d);
     // an oscillating infinite tail: the oscillatory method on balls first (as at machine precision)
     let mut osc = None;
     if !opts.rigorous && ends.iter().any(|e| matches!(e, hp::BEnd::Inf(_))) {
         let mut fm = Interpreted::new(cx, f, &all, Prep::Machine)?;
+        fm.f.set_monitors(opts.monitors.clone());
         osc = crate::oscb::integrate(cx, &mut fm, &mut fb, &ends, p, goals, hp::max_level(d))?;
     }
     let estimate = match osc {
@@ -777,6 +805,7 @@ fn ball_call<'h>(
     // the guaranteed ball: Clenshaw–Curtis with Bernstein-ellipse bounds, aiming at the estimate's accuracy
     let target = hp::log2_abs(&value) + goals.1;
     let mut fr = Interpreted::new(cx, f, &all, Prep::Digits(work))?;
+    fr.f.set_monitors(opts.monitors.clone());
     match rigorous::integrate(cx, &mut fr, f, &ends, p, target)? {
         rigorous::Verdict::Enclosure(b) => Ok(Reply::Done(ar.number(&hp::round(&b, p0)))),
         rigorous::Verdict::Unverified => {

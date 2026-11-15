@@ -565,11 +565,9 @@ impl<'h> Problem<'h> for TermProblem<'_, 'h> {
 }
 
 /// The options this family accepts beyond the root finder's (they are read and ignored where a fixed method is
-/// used: the method names of other systems, monitors, random seeds).
+/// used: the method names of other systems, random seeds). Monitors are taken out before (`mc_numfn::monitor`).
 const IGNORED: &[&str] = &[
     "gradient",
-    "evaluation_monitor",
-    "step_monitor",
     "random_seed",
     "seed",
     "search_points",
@@ -661,6 +659,12 @@ impl Native for Optimize {
                 *args.last_mut().expect("nonempty") = v;
             }
         }
+        // the evaluation monitor watches the objective and the constraints, evaluated together at each point (the
+        // multistart search has no single sequence of steps: a step monitor is an unknown option here)
+        let (args, mons) = match mc_numfn::take_monitors(cx, &args, &["evaluation_monitor"]) {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
         let args = drop_ignored(cx, &args, false);
         let (args, opts) = match split_options(h, &ar, name, &args) {
             Ok(v) => v,
@@ -668,7 +672,8 @@ impl Native for Optimize {
         };
         let &[f, s] = args else { return Ok(Reply::Decline) };
         let _scope = StopScope::enter(Some(&self.stop));
-        solve(self, cx, &ar, f, s, opts.compile, opts.digits).map(Reply::Done)
+        let r = solve(self, cx, &ar, f, s, opts.compile, opts.digits, &mons).map(Reply::Done)?;
+        Ok(crate::natives::monitored(h, &mons, r))
     }
 }
 
@@ -837,6 +842,7 @@ const VECTOR_HEADS: &[&str] = &["dot", "total", "norm", "indexed", "part", "vect
 const MAX_VECTOR: usize = 16;
 
 /// Solve one problem.
+#[allow(clippy::too_many_arguments)]
 fn solve<'h>(
     op: &Optimize,
     cx: &mut NativeCx<'_, '_, 'h>,
@@ -845,6 +851,7 @@ fn solve<'h>(
     s: T<'h>,
     pol: Policy,
     digits: Option<u64>,
+    mons: &mc_numfn::Monitors,
 ) -> Res<T<'h>> {
     let h = cx.heap();
     let name = op.name;
@@ -1054,7 +1061,7 @@ fn solve<'h>(
             Some(j) => !mentions(cx, j, &slot_syms)?,
             None => false,
         };
-        let mut fm = TermFn::new(h, &slots, body);
+        let mut fm = crate::natives::watched(TermFn::new(h, &slots, body), mons);
         if fm.outputs() != items.len() {
             return Ok(bad(h.int(1)));
         }

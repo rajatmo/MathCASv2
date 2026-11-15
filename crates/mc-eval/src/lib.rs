@@ -59,7 +59,7 @@ pub use eval::{session, Abort, CondCx, EvalConfig, EvalStats, Evaluation, Kernel
 pub use index::Rhs;
 pub use inspect::RuleView;
 pub use matcher::{Binds, Val};
-pub use native::{ElemFn, Native, NativeCx, Pattern, Reply};
+pub use native::{ElemFn, LoopSignal, Native, NativeCx, Pattern, Reply};
 pub use eval::{Budget, ParFn, Sub};
 pub use pat::{DefError, Pat, Ty};
 pub use profile::{CallKind, ProfileLine};

@@ -236,6 +236,6 @@ fn interpolation_of_vectors_and_of_two_variables() {
 
 #[test]
 fn unsupported_options_decline() {
-    // find_root has no step monitor: a failure that says so, not a root
-    assert_eq!(ev("find_root(cos(x) == x, [x, 1], step_monitor: sow(x))"), "failure(unknown_option, step_monitor)");
+    // a step monitor is a function: an expression (evaluated before the call) is a failure that says so, not a root
+    assert!(ev("find_root(cos(x) == x, [x, 1], step_monitor: sow(x))").starts_with("failure(not_a_function, step_monitor"));
 }

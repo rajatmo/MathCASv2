@@ -183,6 +183,9 @@ impl Solve {
         if opts.high_precision() && !sys.targets.is_empty() {
             return Ok(Err(bad_argument(h, name, h.string("boundary value problems are solved at machine precision only"))));
         }
+        if opts.high_precision() && opts.monitors.any() {
+            return Ok(Err(bad_argument(h, name, h.string("monitors are called by the machine-precision methods only"))));
+        }
         if opts.high_precision() {
             // the ends as given (3/2 stays exact)
             let start = ar.num(sys.start).expect("a number");
@@ -192,7 +195,7 @@ impl Solve {
         let Some(mut y0) = sys.initial.iter().map(real).collect::<Option<Vec<f64>>>() else {
             return Ok(Err(bad_argument(h, name, h.string("the initial values are not real"))));
         };
-        let mut model = Model::new(cx, &sys, opts.policy)?;
+        let mut model = Model::new(cx, &sys, opts.policy, &opts.monitors)?;
         if !sys.targets.is_empty() {
             let method = if opts.method == Method::Taylor { Method::Auto } else { opts.method };
             let settings = Settings { method, tol: opts.tolerance(), hmax: opts.hmax(hi - lo), max_steps: opts.step_limit() };
@@ -428,11 +431,38 @@ impl Native for Solve {
         let name = self.name();
         let h = cx.heap();
         let ar = Arith::new(h).with_stop(self.stop.clone());
-        let (args, opts) = match options::split(h, &ar, all) {
+        // the monitors (`mc_numfn::monitor`): functions of the time, called at the evaluations of the right-hand side
+        // and at the accepted steps
+        let (cleaned, mons) = match mc_numfn::take_monitors(cx, all, &mc_numfn::MONITOR_OPTIONS) {
+            Ok(v) => v,
+            Err(f) => return Ok(Reply::Done(f)),
+        };
+        let all = &cleaned[..];
+        let (args, mut opts) = match options::split(h, &ar, all) {
             Ok(v) => v,
             Err(OptionError::Unknown(s)) => return Ok(Reply::Done(failure(h, "unknown_option", &[h.sym_term(s)]))),
             Err(OptionError::Bad(s)) => return Ok(Reply::Done(bad_argument(h, name, h.sym_term(s)))),
         };
+        opts.monitors = mons.clone();
+        let r = self.solve(cx, &ar, all, args, &opts)?;
+        Ok(match mons.failure(h) {
+            Some(f) => Reply::Done(f),
+            None => r,
+        })
+    }
+}
+
+impl Solve {
+    fn solve<'h>(
+        &self,
+        cx: &mut NativeCx<'_, '_, 'h>,
+        ar: &Arith<'h, Heap>,
+        all: &[T<'h>],
+        args: &[T<'h>],
+        opts: &Options<'h>,
+    ) -> Res<Reply<'h>> {
+        let name = self.name();
+        let h = cx.heap();
         let (eqs, second, range_term, params) = match (self.kind, args) {
             (Kind::Parametric, &[eqs, expr, r, ps]) => (eqs, expr, r, Some(ps)),
             (Kind::Rules | Kind::Value, &[eqs, second, r]) => (eqs, second, r, None),
@@ -462,15 +492,15 @@ impl Native for Solve {
         if ps.iter().any(|p| ys.contains(p)) {
             return Ok(Reply::Done(bad_argument(h, name, h.string("a parameter is also an unknown"))));
         }
-        let (sys, a, b) = match self.reduce(cx, &ar, eqs, &ys, range_term, &opts, &ps)? {
+        let (sys, a, b) = match self.reduce(cx, ar, eqs, &ys, range_term, opts, &ps)? {
             Ok(v) => v,
             Err(f) => return Ok(Reply::Done(f)),
         };
         if let Some(p) = params {
             let options = if args.len() < all.len() { all[all.len() - 1] } else { cx.null() };
-            return Ok(Reply::Done(parametric::term(h, &ar, &sys, p, second, (&a, &b), options)));
+            return Ok(Reply::Done(parametric::term(h, ar, &sys, p, second, (&a, &b), options)));
         }
-        let solved = match self.integrate(cx, &ar, sys, &opts, a, b)? {
+        let solved = match self.integrate(cx, ar, sys, opts, a, b)? {
             Ok(s) => s,
             Err(f) => return Ok(Reply::Done(f)),
         };

@@ -88,6 +88,26 @@ impl Pattern {
     }
 }
 
+/// The loop signals an iterating function reads in the values of its function or body ([`NativeCx::loop_signal`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum LoopSignal {
+    /// `failure(break)`: the iteration ends; the result holds what was produced before it
+    Break,
+    /// `failure(continue)`: this element is skipped
+    Continue,
+}
+
+/// Whether `v` is `failure(tag)` for the symbol `tag`.
+fn is_signal(h: &Heap, failure: Sym, tag: Sym, v: T<'_>) -> bool {
+    if h.packed(v).is_some() {
+        return false;
+    }
+    match h.view(v) {
+        View::App { head, args: &[k] } => head == h.sym_term(failure) && k == h.sym_term(tag),
+        _ => false,
+    }
+}
+
 /// The function computing element `i` of a group ([`NativeCx::group`]).
 pub type ElemFn<'f, 'h> = dyn Fn(&mut NativeCx<'_, '_, 'h>, usize) -> Res<T<'h>> + Sync + 'f;
 
@@ -352,13 +372,80 @@ impl<'h> NativeCx<'_, '_, 'h> {
     /// with effects in sequential order (semantics 18.2 item 4). `cost` estimates one element's fuel (0: unknown or
     /// effectful, which keeps the group sequential until measured).
     pub fn group(&mut self, n: usize, cost: u64, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
-        self.ev.group(self.cx, cost, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
+        self.ev.group(self.cx, cost, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i), None)
     }
 
     /// The elements `f(0) ... f(n-1)`, split over the session's worker threads at once (`parallel_table` and its
     /// kin, decision sp-core.4): the values, effects and failures are those of evaluating them in order.
     pub fn group_parallel(&mut self, n: usize, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
-        self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i))
+        self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i), None)
+    }
+
+    /// What an iterating function does with a value its function or body gave (semantics 10): `failure(break)`
+    /// (from `break()`) ends the iteration, `failure(continue)` (from `continue()`) skips the element; `None` for
+    /// any other value, other failures included.
+    pub fn loop_signal(&self, t: T<'h>) -> Option<LoopSignal> {
+        let h = self.ev.heap;
+        let failure = self.ev.sym(self.ev.k.names.failure);
+        if h.mask(t) & h.mask(failure) == 0 || h.packed(t).is_some() {
+            return None;
+        }
+        match h.view(t) {
+            View::App { head, args: &[k] } if head == failure => match h.view(k) {
+                View::Sym(s) if h.sym_name(s) == crate::nonlocal::BREAK => Some(LoopSignal::Break),
+                View::Sym(s) if h.sym_name(s) == crate::nonlocal::CONTINUE => Some(LoopSignal::Continue),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// Whether `t` is `failure(break)`.
+    pub fn is_break(&self, t: T<'h>) -> bool {
+        self.loop_signal(t) == Some(LoopSignal::Break)
+    }
+
+    /// Whether `t` is `failure(continue)`.
+    pub fn is_continue(&self, t: T<'h>) -> bool {
+        self.loop_signal(t) == Some(LoopSignal::Continue)
+    }
+
+    /// [`NativeCx::group`] read as the iterations of a loop: the values up to the first `failure(break)` (not
+    /// included), no element after it evaluated on the frontier. Values `failure(continue)` stay in place for the
+    /// caller to skip ([`NativeCx::without_continues`]), so the values stay aligned with the elements.
+    pub fn group_loop(&mut self, n: usize, cost: u64, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
+        let (h, failure) = (self.ev.heap, self.ev.k.names.failure);
+        let brk = h.sym(crate::nonlocal::BREAK);
+        let stop = move |v: T<'h>| is_signal(h, failure, brk, v);
+        let mut out =
+            self.ev.group(self.cx, cost, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i), Some(&stop))?;
+        if out.last().is_some_and(|&v| stop(v)) {
+            out.pop();
+        }
+        Ok(out)
+    }
+
+    /// [`NativeCx::group_parallel`] read as the iterations of a loop, like [`NativeCx::group_loop`]: the result is
+    /// that of the serial loop (the frontier keeps the values in order and stops at the first `failure(break)`;
+    /// speculative work past it is discarded, its effects never happen).
+    pub fn group_parallel_loop(&mut self, n: usize, f: &ElemFn<'_, 'h>) -> Res<Vec<T<'h>>> {
+        let (h, failure) = (self.ev.heap, self.ev.k.names.failure);
+        let brk = h.sym(crate::nonlocal::BREAK);
+        let stop = move |v: T<'h>| is_signal(h, failure, brk, v);
+        let mut out =
+            self.ev.group_parallel(self.cx, n, &|ev: &Eval<'_, 'h>, cx: &mut Cx<'h>, i| f(&mut NativeCx { ev, cx }, i), Some(&stop))?;
+        if out.last().is_some_and(|&v| stop(v)) {
+            out.pop();
+        }
+        Ok(out)
+    }
+
+    /// `vs` without the values `failure(continue)` (the skipped iterations of a loop).
+    pub fn without_continues(&self, vs: Vec<T<'h>>) -> Vec<T<'h>> {
+        if vs.iter().all(|&v| !self.is_continue(v)) {
+            return vs;
+        }
+        vs.into_iter().filter(|&v| !self.is_continue(v)).collect()
     }
 
     /// Evaluate `t` with every call measured ([`crate::profile`]): the value and the measurements, one line per

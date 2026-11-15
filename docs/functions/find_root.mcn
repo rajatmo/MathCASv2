@@ -39,6 +39,9 @@
 #% subitem
 # `compile: auto | true | false` controls whether the function is compiled for the search.
 
+#% subitem
+# `evaluation_monitor: f` and `step_monitor: f` call the function `f` with the current values of the variables, one argument each, at every evaluation of the function and after every step; a failure `f` gives (a `throw`) ends the search and is the result. A value that is not a function is a failure showing the form to write.
+
 #% item
 # A search that does not converge gives a failure tagged `not_converged` holding the last point and the size of the function there.
 
@@ -183,6 +186,22 @@ find_root(cos(x) - x, [x, 0, 1], method: brent)
 find_root(cos(x) - x, [x, 1], max_iterations: 3)
 #% output
 #! failure(not_converged, find_root, [x -> 0.739085133385284], 2.7757526077643035e-5)
+
+#% text
+# `step_monitor:` sees every iterate; `reap` collects what it sows:
+
+#% cell
+reap(find_root(x^2 - 2, [x, 1], step_monitor: (x => sow(x))))
+#% output
+#= [[x -> 1.4142135623730951], [[1.5, 1.4166666666666667, 1.4142156862745099, 1.4142135623746899, 1.4142135623730951]]]
+
+#% text
+# `evaluation_monitor:` counts the evaluations of the function:
+
+#% cell
+{ var c = 0; find_root(cos(x) == x, [x, 1], evaluation_monitor: (x => { c = c + 1 })); c }
+#% output
+#= 5
 
 #% subsection
 # Applications

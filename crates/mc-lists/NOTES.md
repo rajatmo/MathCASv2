@@ -892,3 +892,17 @@ Source in `lib/lists.mc`.
   interleaved).
 - `[h -> k, m]` in a list of rules: at most m calls of h in a tree (subtrees over the limit are pruned while the
   canonical trees are built).
+
+## Round 43: loop signals in iterating functions
+
+- The iterations of `table` (each iterator, and the count form), `map_indexed`, `map_thread`, `array` of one
+  dimension, `parallel_map`, `parallel_table` and `map(..., parallel: true)` run as `group_loop` /
+  `group_parallel_loop` groups (`mc-eval`): `break()` ends the list with the values before it, `continue()` leaves
+  the value out. `sum` and `product` over explicit ranges get their terms from `table`, so they add the terms
+  before the break. `select` ends at a break with the elements chosen so far and passes over a continue;
+  `select_first`, `all_true`, `any_true`, `none_true` stop at a break (deciding on the elements before it) and pass
+  over a continue. The sequential iterations `scan`, `fold`, `fold_list`, `nest`, `nest_list`, `nest_while`,
+  `nest_while_list`, `fixed_point_list` end at a break with what they have and keep the value at a continue (a
+  continue in `fixed_point_list` gives no new value, so the list ends). A multi-dimensional `array` and the key
+  functions (`keys`: `sort_by`, `gather_by`, ...) do not read them: there the signal is an ordinary failure, the
+  call's result, which reaches the iteration around it. Test `mc-engine/tests/round43_language.rs`.

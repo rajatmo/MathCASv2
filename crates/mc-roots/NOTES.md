@@ -234,3 +234,14 @@ are accepted but not called.
   for a function with imaginary values on the real line (`mathieu_s(b_5(q), q, i/2)`) the step -f/f' is real and only
   the rounding of the parts made its imaginary part a ball, which the root then carried (`28.94... + ball(0, 7e-34) i`).
   A step with a definite imaginary part leaves the line as before.
+
+## Round 43: monitors
+
+- `find_root`, `find_minimum`/`find_maximum` (and `find_min_value`, `find_arg_min`, ..., which call them) take
+  `evaluation_monitor:` and `step_monitor:` (`natives::monitors`, `watched`, `monitored`): the monitors watch the
+  user's function (machine `TermFn`, complex Newton, the ball refinement), not its derivatives; the steps are those
+  of `newton::solve`, `bracket::secant`, `bracket::brent`, `minimize::brent_min`, `minimize::bfgs` and
+  `refine::refine` (`NumFn::step`, `TermFn::step`). A failure a monitor gives is the result. `n_minimize` and the
+  constrained `find_minimum` take the evaluation monitor (objective and constraints are one function there); a
+  step monitor is an unknown option (the multistart search has no single sequence of steps). The monitors are no
+  longer in `nopt::IGNORED`.

@@ -45,7 +45,9 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
     };
     let tested = &tested;
     let cost = group_cost(cx, f);
-    let tests = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    // the tests are the iterations of a loop (semantics 10): `break()` ends the selection with the elements chosen
+    // before it, `continue()` passes over the element
+    let tests = cx.group_loop(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
         apply(cx, f, &[tested[i]])
     })?;
@@ -57,7 +59,7 @@ pub(crate) fn select<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, arg
         if pass {
             out.push(x);
             at.push(h.int(i as i64 + 1));
-        } else if out.len() < most && lib.is_failure(h, v) {
+        } else if out.len() < most && lib.is_failure(h, v) && !cx.is_continue(v) {
             return Ok(Reply::Done(v));
         }
         mask.push(cx.bool(pass));

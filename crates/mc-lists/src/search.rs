@@ -245,7 +245,15 @@ pub(crate) fn select_first<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h
         }
     };
     for (i, &x) in xs.iter().enumerate() {
-        match truth(lib, cx, f, x)? {
+        // the tests are the iterations of a loop (semantics 10): `break()` ends the search with nothing found,
+        // `continue()` passes over the element
+        let found = truth(lib, cx, f, x)?;
+        match found {
+            Err(e) if cx.is_break(e) => break,
+            Err(e) if cx.is_continue(e) => continue,
+            _ => {}
+        }
+        match found {
             Ok(true) if prop.is_some() => {
                 let q = prop.unwrap_or(x);
                 let v = match cx.as_list(q) {

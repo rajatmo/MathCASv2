@@ -258,6 +258,10 @@ pub(crate) fn refine<'h>(
             return Ok(Refine::NotNumeric(x));
         };
         x = next;
+        // the step monitor sees the new iterate; a failed monitor ends the refinement (the native gives its failure)
+        if !f.step(cx, ar, &x)? {
+            return Ok(Refine::NotNumeric(x));
+        }
         let before = step;
         step = log2_max(&d);
         // linear convergence: the step shrinks by less than 2^4 (a quadratic one doubles the exponent)

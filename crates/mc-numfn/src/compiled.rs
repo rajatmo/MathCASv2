@@ -375,6 +375,10 @@ impl<'h, I: NumFn<'h, f64>> Auto<'h, I> {
 }
 
 impl<'h, I: NumFn<'h, f64>> NumFn<'h, f64> for Auto<'h, I> {
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[f64]) -> Res<bool> {
+        self.interp.step(cx, args)
+    }
+
     fn eval(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[f64], out: &mut [f64]) -> Res<bool> {
         if self.ready(cx, 1) {
             let c = self.compiled.as_ref().expect("compiled");

@@ -46,6 +46,16 @@ use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering::*};
 use std::sync::Arc;
 
+/// The test that ends a group at an element's value ([`Eval::group`]): `break()` read by an iterating function.
+pub type Stop<'s, 'h> = dyn Fn(T<'h>) -> bool + Sync + 's;
+
+/// Where a group ended: the stop test, and the first element (in element order) whose value satisfied it, once the
+/// frontier has seen it.
+pub(crate) struct Cut<'c, 's, 'h> {
+    stop: Option<&'c Stop<'s, 'h>>,
+    at: Option<usize>,
+}
+
 /// Why an evaluation step stopped early. Never seen by users: [`Kernel::eval`] turns it into a value.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Abort {
@@ -2023,24 +2033,36 @@ impl<'k, 'h> Eval<'k, 'h> {
         let k = args.len().min(8);
         let hint = (0..k).map(est).sum::<u64>() * args.len() as u64 / k as u64;
         let f = |ev: &Self, cx: &mut Cx<'h>, i: usize| if ev.held(hold, i, args[i]) { Ok(args[i]) } else { ev.eval(cx, args[i]) };
-        if self.range(cx, 0, args.len(), hint, 0, &mut out, &mut vec![0; args.len()], &est, &f)? {
+        let mut every = Cut { stop: None, at: None };
+        if self.range(cx, 0, args.len(), hint, 0, &mut out, &mut vec![0; args.len()], &est, &f, &mut every)? {
             return Err(Abort::Hole);
         }
         Ok(out)
     }
 
-    /// `n` elements `f(0..n)`, split by the granularity rule; `c` is the estimated cost of one element.
-    pub(crate) fn group<F>(&self, cx: &mut Cx<'h>, c: u64, n: usize, f: &F) -> Res<Vec<T<'h>>>
+    /// `n` elements `f(0..n)`, split by the granularity rule; `c` is the estimated cost of one element. With `stop`,
+    /// the group ends at the first element whose value satisfies it, in element order: the values up to it (it
+    /// included) are returned, and no element after it is evaluated on the frontier (its effects never happen;
+    /// speculative work past it is discarded).
+    pub(crate) fn group<F>(&self, cx: &mut Cx<'h>, c: u64, n: usize, f: &F, stop: Option<&Stop<'_, 'h>>) -> Res<Vec<T<'h>>>
     where
         F: Fn(&Self, &mut Cx<'h>, usize) -> Res<T<'h>> + Sync,
     {
         let mut out = vec![hole(); n];
+        let mut cut = Cut { stop, at: None };
         if !self.may_split(cx) {
             for (i, o) in out.iter_mut().enumerate() {
                 *o = f(self, cx, i)?;
+                if stop.is_some_and(|s| s(*o)) {
+                    cut.at = Some(i);
+                    break;
+                }
             }
-        } else if self.range(cx, 0, n, c.saturating_mul(n as u64), 0, &mut out, &mut vec![0; n], &|_| c, f)? {
+        } else if self.range(cx, 0, n, c.saturating_mul(n as u64), 0, &mut out, &mut vec![0; n], &|_| c, f, &mut cut)? {
             return Err(Abort::Hole);
+        }
+        if let Some(i) = cut.at {
+            out.truncate(i + 1);
         }
         Ok(out)
     }
@@ -2050,20 +2072,31 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// speculative tasks of the evaluator's ordinary splitting, so the result is the serial one: the frontier keeps
     /// a run's values in order, and evaluates again what a definition since the split may have changed or what
     /// could not run speculatively (an effect, a cell). Serial on one thread and inside a scratch scope.
-    pub(crate) fn group_parallel<F>(&self, cx: &mut Cx<'h>, n: usize, f: &F) -> Res<Vec<T<'h>>>
+    pub(crate) fn group_parallel<F>(&self, cx: &mut Cx<'h>, n: usize, f: &F, stop: Option<&Stop<'_, 'h>>) -> Res<Vec<T<'h>>>
     where
         F: Fn(&Self, &mut Cx<'h>, usize) -> Res<T<'h>> + Sync,
     {
         let mut out = vec![hole(); n];
+        let mut cut = Cut { stop, at: None };
         if cx.threads < 2 || cx.serial > 0 || cx.nest >= SPLIT_NEST {
             for (i, o) in out.iter_mut().enumerate() {
                 *o = f(self, cx, i)?;
+                if stop.is_some_and(|s| s(*o)) {
+                    cut.at = Some(i);
+                    break;
+                }
+            }
+            if let Some(i) = cut.at {
+                out.truncate(i + 1);
             }
             return Ok(out);
         }
         let run = n.div_ceil(4 * cx.threads as usize).max(1);
-        if self.range(cx, 0, n, u64::MAX, run, &mut out, &mut vec![0; n], &|_| u64::MAX, f)? {
+        if self.range(cx, 0, n, u64::MAX, run, &mut out, &mut vec![0; n], &|_| u64::MAX, f, &mut cut)? {
             return Err(Abort::Hole);
+        }
+        if let Some(i) = cut.at {
+            out.truncate(i + 1);
         }
         Ok(out)
     }
@@ -2083,6 +2116,7 @@ impl<'k, 'h> Eval<'k, 'h> {
         fuels: &mut [u64],
         est: &E,
         f: &F,
+        cut: &mut Cut<'_, '_, 'h>,
     ) -> Res<bool>
     where
         E: Fn(usize) -> u64 + Sync,
@@ -2121,9 +2155,12 @@ impl<'k, 'h> Eval<'k, 'h> {
                 }
                 // the speculative part may run on a thread waiting inside a scratch scope: detached, its terms are
                 // shared (decision G.2)
+                // the right part stops at a value satisfying the stop test too, leaving holes after it: if the frontier
+                // evaluates that element again with another value, it fills the holes in order
+                let mut rcut = Cut { stop: cut.stop, at: None };
                 let (rl, rr) = rayon::join(
-                    || self.range(cx, i, mid, 0, force, left, lf, est, f),
-                    || mc_core::detached(|| self.range(&mut rc, mid, hi, 0, force, right, rf, est, f)),
+                    || self.range(cx, i, mid, 0, force, left, lf, est, f, cut),
+                    || mc_core::detached(|| self.range(&mut rc, mid, hi, 0, force, right, rf, est, f, &mut rcut)),
                 );
                 cx.task = task;
                 cx.volatile += rc.volatile;
@@ -2143,7 +2180,11 @@ impl<'k, 'h> Eval<'k, 'h> {
                     return Ok(holes | lh | rh);
                 }
                 debug_assert!(!lh, "the frontier leaves no holes");
-                self.complete(cx, mid, right, rf, epoch0, rc.reads, f)?;
+                if cut.at.is_some() {
+                    // the left part ended the group: the right part's work is discarded
+                    return Ok(holes);
+                }
+                self.complete(cx, mid, right, rf, epoch0, rc.reads, f, cut)?;
                 return Ok(holes);
             }
             let f0 = cx.fuel;
@@ -2156,6 +2197,15 @@ impl<'k, 'h> Eval<'k, 'h> {
                 Ok(v) => {
                     out[i - lo] = v;
                     fuels[i - lo] = cx.fuel - f0;
+                    if cut.stop.is_some_and(|s| s(v)) {
+                        if cx.front {
+                            cut.at = Some(i);
+                            return Ok(holes);
+                        }
+                        // a speculative part leaves the rest as holes (they are never read if the frontier keeps
+                        // this value)
+                        return Ok(true);
+                    }
                 }
                 Err(Abort::Limit) => return Err(Abort::Limit),
                 Err(e) if cx.front => return Err(e),
@@ -2176,19 +2226,34 @@ impl<'k, 'h> Eval<'k, 'h> {
     /// a hole or a definition since the split (including one made while completing this part) touched the part's
     /// read set; then it is evaluated again (the memo answers the unaffected parts).
     #[allow(clippy::too_many_arguments)]
-    fn complete<F>(&self, cx: &mut Cx<'h>, lo: usize, out: &mut [T<'h>], fuels: &mut [u64], epoch0: u32, reads: u64, f: &F) -> Res<()>
+    #[allow(clippy::too_many_arguments)]
+    fn complete<F>(
+        &self,
+        cx: &mut Cx<'h>,
+        lo: usize,
+        out: &mut [T<'h>],
+        fuels: &mut [u64],
+        epoch0: u32,
+        reads: u64,
+        f: &F,
+        cut: &mut Cut<'_, '_, 'h>,
+    ) -> Res<()>
     where
         F: Fn(&Self, &mut Cx<'h>, usize) -> Res<T<'h>> + Sync,
     {
         for (j, (o, fu)) in out.iter_mut().zip(fuels.iter_mut()).enumerate() {
             if o.raw() != HOLE && !self.k.changed(epoch0, cx.epoch, reads) {
                 self.spend(cx, *fu)?;
-                continue;
+            } else {
+                cx.redos += 1;
+                let f0 = cx.fuel;
+                *o = f(self, cx, lo + j)?;
+                *fu = cx.fuel - f0;
             }
-            cx.redos += 1;
-            let f0 = cx.fuel;
-            *o = f(self, cx, lo + j)?;
-            *fu = cx.fuel - f0;
+            if cut.stop.is_some_and(|s| s(*o)) {
+                cut.at = Some(lo + j);
+                return Ok(());
+            }
         }
         Ok(())
     }

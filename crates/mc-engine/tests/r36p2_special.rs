@@ -283,7 +283,7 @@ fn bilateral_series_derivative_and_its_value_at_zero() {
 #[test]
 fn unsupported_inputs_decline() {
     // find_root: options that are not supported answer a failure naming them
-    assert!(ev("find_root(sin(x) - 1, [x, 1.5], step_monitor: 1)").starts_with("failure(unknown_option, step_monitor"));
+    assert!(ev("find_root(sin(x) - 1, [x, 1.5], step_monitor: 1)").starts_with("failure(not_a_function, step_monitor"));
     assert!(ev("find_root(sin(x) - 1, [x, 1.5], damping_factor: 2)").starts_with("failure(unknown_option, damping_factor"));
     // function_range of exp_integral_e is unevaluated and reduce declines
     assert!(ev("reduce(function_range(exp_integral_e(2, x), x, y), y, reals)").starts_with("failure("));

@@ -79,6 +79,8 @@ pub(crate) struct Options {
     pub seed: Option<u64>,
     /// `error_estimate: true`: the result as `around(value, error)` for every method
     pub error_estimate: bool,
+    /// `evaluation_monitor: f`: called with the point of every evaluation of the integrand (`mc_numfn::monitor`)
+    pub monitors: mc_numfn::Monitors,
 }
 
 /// Why the options were refused.

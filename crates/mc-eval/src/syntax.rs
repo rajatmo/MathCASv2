@@ -622,7 +622,6 @@ fn clauses<'h>(h: &'h Heap, hd: &Heads, lhs: T<'h>, body: T<'h>, opts: &[T<'h>])
                 None => xs.push(a),
             }
         }
-        let cond = cond.map(|c| block(lets.clone(), c));
         for given in if named.is_empty() { &[false][..] } else { &[true, false][..] } {
             let mut xs = xs.clone();
             let mut stmts = vec![];
@@ -631,11 +630,16 @@ fn clauses<'h>(h: &'h Heap, hd: &Heads, lhs: T<'h>, body: T<'h>, opts: &[T<'h>])
                 let names: Vec<T<'h>> = named.iter().map(|(_, n, _)| h.string(&h.sym_name(*n))).collect();
                 stmts.push(h.call(h.sym("check_options"), &[o, h.call(h.sym(mc_api::names::LIST), &names)]));
             }
-            stmts.extend(lets.iter().copied());
+            // the bindings of the missing optional parameters, then of the options in order (a default sees the
+            // parameters and the options before it)
+            let mut binds = lets.clone();
             for &(b, name, d) in &named {
                 let v = if *given { h.call(h.sym("option_value"), &[o, h.string(&h.sym_name(name)), d]) } else { d };
-                stmts.push(h.call(hd.let_, &[b, v]));
+                binds.push(h.call(hd.let_, &[b, v]));
             }
+            stmts.extend(binds.iter().copied());
+            // the condition sees the same bindings as the body: an option read in it is its value, not its name
+            let cond = cond.map(|c| block(binds, c));
             let mut lhs = h.app(f, &xs);
             if let Some(c) = cond {
                 lhs = h.call(hd.condition, &[lhs, c]);
@@ -1112,7 +1116,28 @@ impl Native for IsGround {
 
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let h = cx.heap();
-        Ok(Reply::Done(cx.bool(args.iter().all(|&a| is_ground(h, a)))))
+        Ok(Reply::Done(cx.bool(args.iter().all(|&a| is_ground_arg(h, a)))))
+    }
+}
+
+/// [`is_ground`] for the arguments of a call (the catch-all's `args$`, bound to the list of them): in an
+/// `options(name -> v, ...)` argument the names are names, not free symbols, so only the values are inspected
+/// (`k(10, a: 5)` is a ground call).
+fn is_ground_arg(h: &Heap, t: T<'_>) -> bool {
+    if h.packed(t).is_some() {
+        return true;
+    }
+    match h.view(t) {
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == mc_api::names::LIST) => {
+            args.iter().all(|&a| is_ground_arg(h, a))
+        }
+        View::App { head, args } if matches!(h.view(head), View::Sym(s) if h.sym_name(s) == "options") => {
+            args.iter().all(|&r| match h.view(r) {
+                View::App { args: &[_, v], .. } => is_ground(h, v),
+                _ => is_ground(h, r),
+            })
+        }
+        _ => is_ground(h, t),
     }
 }
 

@@ -272,6 +272,12 @@ fn quantify<'h>(lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, t: T<'h>, args: &[T<'h
     for &x in xs {
         cx.tick(1)?;
         let v = apply(cx, f, &[x])?;
+        // `break()` ends the test with the elements before it, `continue()` passes over the element (semantics 10)
+        match cx.loop_signal(v) {
+            Some(mc_eval::LoopSignal::Break) => break,
+            Some(mc_eval::LoopSignal::Continue) => continue,
+            None => {}
+        }
         if lib.is_failure(h, v) {
             return Ok(Reply::Done(v));
         }

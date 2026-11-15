@@ -36,6 +36,9 @@
 #% subitem
 # `compile: auto | true | false` controls whether the function is compiled to machine code for the search.
 
+#% subitem
+# `evaluation_monitor: f` and `step_monitor: f` call `f` with the current values of the variables, one argument each, at every evaluation of the function and after every step; a failure `f` gives (a `throw`) ends the search and is the result.
+
 #% item
 # When the search does not settle, the result is a `failure(not_converged, ...)` holding the last point and an error estimate.
 
@@ -119,6 +122,22 @@ find_minimum(sin(x) + cos(2x), [x, 2], digits: 25)
 find_minimum(x^4 - 3x^2 + x, [x, 1], method: newton)
 #% output
 #= [-1.0702301817761541, [x -> 1.1309011226299859]]
+
+#% text
+# The points the search steps through, with two variables (a function of two arguments):
+
+#% cell
+last(reap(find_minimum(x^2 + 2y^2 - x*y, [[x, 1], [y, 1]], step_monitor: ((x, y) => sow([x, y])))))
+#% output
+#= [[[0.5, -0.5], [0.29303278688524587, 0.026639344262294973], [0.08880207472391502, 0.03610288068935074], [0.0028465241425867788, 0.0049141177231528214], [-8.425348371115214e-5, 0.00030557988728797773], [-8.02544705659028e-6, 6.486346212393056e-7], [-1.453524011570356e-7, -5.1299965092709895e-8], [-2.73364513536133e-10, -4.2131873799727096e-10], [3.3437645191578746e-13, -1.3691906291781584e-12]]]
+
+#% text
+# A monitor can stop the search with `throw`:
+
+#% cell
+catch(find_minimum(exp(x) + 1/x^2, [x, 10], evaluation_monitor: (x => if x <= 0 then throw("x left the domain"))))
+#% output
+#= "x left the domain"
 
 #% subsection
 # Applications

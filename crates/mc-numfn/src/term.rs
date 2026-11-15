@@ -2,6 +2,7 @@
 //! 4A, moved from `mc-roots`): the expression in named variables becomes `fn([x1, ..., xn], body)`, applied to
 //! number terms (a list term for a vector variable). A body that is a (nested) list gives its leaves in row-major
 //! order, so one closure computes a whole residual vector or Jacobian.
+use crate::monitor::Monitors;
 use crate::value::Value;
 use crate::{Arg, Var};
 use mc_api::names;
@@ -21,6 +22,8 @@ pub struct TermFn<'h> {
     list: T<'h>,
     /// evaluations so far (for the tests and measurements)
     pub calls: u64,
+    /// the monitors called at its evaluations and at the steps of the method ([`crate::monitor`])
+    monitors: Monitors,
 }
 
 impl<'h> TermFn<'h> {
@@ -36,7 +39,43 @@ impl<'h> TermFn<'h> {
         let list = h.sym_term(h.sym(names::LIST));
         let closure = h.call(h.sym("fn"), &[h.app(list, &params), body]);
         let outputs = leaves(h, list, body).len();
-        TermFn { heap: h, closure, body, vars: vars.to_vec(), outputs, list, calls: 0 }
+        TermFn { heap: h, closure, body, vars: vars.to_vec(), outputs, list, calls: 0, monitors: Monitors::default() }
+    }
+
+    /// Call `m`'s evaluation monitor at every evaluation and its step monitor at [`TermFn::step`]. A monitored
+    /// function is to be evaluated by the interpreter (compiled code does not call the monitors).
+    pub fn set_monitors(&mut self, m: Monitors) {
+        self.monitors = m;
+    }
+
+    /// The monitors (none set: [`Monitors::any`] is false).
+    pub fn monitors(&self) -> &Monitors {
+        &self.monitors
+    }
+
+    /// The monitor's arguments at the scalar inputs: one term per variable.
+    fn monitor_args<S: Value>(&self, ar: &Arith<'h, Heap>, inputs: &[S]) -> Vec<T<'h>> {
+        let numbers: Vec<T<'h>> = inputs.iter().map(|a| ar.number(&a.to_number())).collect();
+        self.terms(&numbers)
+    }
+
+    /// Call the evaluation monitor at `inputs`; `false` once a monitor has failed.
+    fn evaluated<S: Value>(&self, cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, inputs: &[S]) -> Res<bool> {
+        if !self.monitors.any() {
+            return Ok(true);
+        }
+        let args = self.monitor_args(ar, inputs);
+        self.monitors.evaluated(cx, &args)
+    }
+
+    /// A step of the method ended at `inputs`: the step monitor is called; `false` once a monitor has failed (the
+    /// method stops, and the native gives [`Monitors::failure`]).
+    pub fn step<S: Value>(&self, cx: &mut NativeCx<'_, '_, 'h>, ar: &Arith<'h, Heap>, inputs: &[S]) -> Res<bool> {
+        if !self.monitors.steps() {
+            return Ok(!self.monitors.stopped());
+        }
+        let args = self.monitor_args(ar, inputs);
+        self.monitors.stepped(cx, &args)
     }
 
     /// The number of scalar outputs.
@@ -111,6 +150,9 @@ impl<'h> TermFn<'h> {
         args: &[T<'h>],
     ) -> Res<Option<Vec<Num>>> {
         self.calls += 1;
+        if self.monitors.any() && (self.monitors.stopped() || !self.monitors.evaluated(cx, args)?) {
+            return Ok(None);
+        }
         let this = &*self;
         cx.scratch(|cx| {
             let v = cx.eval(this.call(args))?;
@@ -128,6 +170,10 @@ impl<'h> TermFn<'h> {
         inputs: &[S],
         mut out: impl FnMut(Option<Vec<Num>>) -> R,
     ) -> Res<R> {
+        // the monitor runs before the scratch scope, so its effects need no second run and its terms may stay
+        if self.monitors.any() && !self.evaluated(cx, ar, inputs)? {
+            return Ok(out(None));
+        }
         cx.scratch(|cx| {
             let numbers: Vec<T<'h>> = inputs.iter().map(|a| ar.number(&a.to_number())).collect();
             let v = cx.eval(self.call(&self.terms(&numbers)))?;

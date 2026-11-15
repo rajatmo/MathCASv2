@@ -285,3 +285,21 @@ inputs), `Par::sequential_only`; `par_expr` now uses the cache and never compile
 
 - `C64::to_num` gives a real number for a zero imaginary part (also a negative zero): the interpreted backend then
   evaluates `sqrt(-1.5)` and `unit_step(2.5)` at real arguments (engine B21-30, B21-11). No other change.
+
+## Round 43: monitors
+
+- Options are values: no option is held, so `evaluation_monitor: sow(x)` was evaluated once before the call (and
+  most solvers refused or ignored it). A monitor is now a function of the current values (`monitor.rs`):
+  `take_monitors` takes `evaluation_monitor` / `step_monitor` out of the trailing `options(...)`, refusing a value
+  that is not a function (a closure, or a defined symbol such as `print`) with `failure(not_a_function, name,
+  text)`; `Monitors` keeps the functions and the first failure one gave (shared by its copies, read by the native
+  that set it up). One argument per variable, in the order of the variables (a vector variable gives a list);
+  `with_first(k)` passes only the first k (`n_dsolve`: the time).
+- The hook is `TermFn`: with monitors set, every evaluation (`eval_with`, `eval_terms`, so machine, complex and
+  ball evaluations and the batches of `Machine::eval_batch`) calls the evaluation monitor first, outside the
+  scratch scope, and once a monitor has failed every evaluation reports "not numeric", so the method stops.
+  `NumFn::step` (default: nothing) is the step hook: `Machine`, `Interpreted`, `Auto`, `Par` and `Box` pass it to
+  the `TermFn`, which calls the step monitor. A monitored function is interpreted (`auto_expr_monitored`,
+  `compile_expr_monitored` force `Policy::Interpreted`): compiled code has no place to call the monitor.
+- A failure made inside a scratch scope cannot be kept: `Monitors::run` gives `Abort::Scratch` then, and the
+  native that opened the scope runs again without one (the same path as an effect there).

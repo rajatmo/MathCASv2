@@ -8,7 +8,7 @@
 //! | `same` | two terms | `true` when identical |
 //! | `eval` | one, strict | the argument (evaluated, as strict arguments are) |
 //! | `if` | condition, then, else (the last two held; the else branch may be missing) | the chosen branch, evaluated (`null` for a false condition without else) |
-//! | `map` | function, `list(...)` | `list(f(x)...)`, elements as a speculative group |
+//! | `map` | function, `list(...)` | `list(f(x)...)`, elements as a speculative group; up to the first `break()`, without the elements whose call gave `continue()` |
 //! | `print` | a term | the term; appends it to the output (effect) |
 //! | `define` | symbol (held), value | `null`; sets the own value (effect) |
 //!
@@ -139,11 +139,13 @@ impl Native for Map {
             View::Sym(s) if !cx.is_effect(f) => cx.head_cost(s).max(1),
             _ => 0,
         };
-        let out = cx.group(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+        // `break()` from `f` ends the map with the values before it, `continue()` leaves the element out (semantics 10)
+        let out = cx.group_loop(xs.len(), cost, &|cx: &mut NativeCx<'_, '_, 'h>, i| {
             cx.tick(1)?;
             let h = cx.heap();
             cx.eval(h.app(f, &[xs[i]]))
         })?;
+        let out = cx.without_continues(out);
         Ok(Reply::Done(cx.list(&out)))
     }
 }

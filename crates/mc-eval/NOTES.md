@@ -741,3 +741,39 @@ Not parallel here: `find_instance` (witness search, sequential by design), `trig
   `any(3)` and failed with "a pattern variable that is not a symbol". They are now registered (`nonlocal.rs`) with
   their name held (`any`, `seq1`, `seq0` hold all, `named` its first argument), declining natives otherwise, so
   `x = 3; rewrite(f(1.5), f(x_) :> 2 x)` is 3.0 and x keeps its value. Test `mc-engine/tests/round40_patterns.rs`.
+
+## Round 43: a called failure
+
+- A failure in head position is the call's value (`machine.rs`, `with_head`): `f = integrate(x^x, [x, 0, 1, 2]);
+  f("Values")` gave `failure(...)("Values")`, a call no rule reads, so a failed result seemed to have a property.
+  Once the head is evaluated and is a failure the level finishes with it, before the arguments are evaluated (a
+  `sow` or `print` among them does not run). One place covers every form: a symbol whose value is a failure, a
+  call that returns one (`h(1)(2)`), an operator form whose outer call failed (`select(failure)(xs)`). The table of
+  positions that propagate and that hold a failure as data is in `docs/design/01-semantics.md` section 10. Test
+  `mc-engine/tests/round43_language.rs`.
+
+## Round 43: loop signals in iterating functions
+
+- `break()` and `continue()` stay the failures `failure(break)` and `failure(continue)`; besides `while` and `for`,
+  every iterating function now reads them (semantics 10 has the table). The evaluator offers natives
+  `NativeCx::loop_signal`, `is_break`, `is_continue`, `without_continues`, and the groups `group_loop` and
+  `group_parallel_loop`: a group with a stop test (`Eval::group(.., stop)`, `Cut` in `eval.rs`). The frontier ends
+  the group at the first element, in element order, whose value is a break: the values before it are the result,
+  and no element after it is evaluated on the frontier, so their effects never happen. A speculative part that
+  meets a break leaves the rest of its range as holes (the frontier fills them in order if it gets another value
+  for that element); a speculative part to the right of the frontier's break is discarded; `complete` stops at a
+  kept or recomputed break. So the parallel iterators keep the serial result and the signals need no new control
+  mechanism. `map` (`builtins.rs`) uses `group_loop`. Test `mc-engine/tests/round43_language.rs`.
+
+## Round 43: options in the condition of a definition
+
+- `fn ff(x; lim = 3) when x < lim = x` compared x with the bare symbol `lim`: `clauses` (`syntax.rs`) put the
+  bindings of the missing optional parameters into the condition but the option bindings (`let(lim,
+  option_value(options$, "lim", 3))`, or the default) only into the body. The condition now gets the same bindings
+  as the body, in the same order (optional parameters, then the options; a default sees the parameters and the
+  options before it), so `ff(2)` is 2, `ff(5)` fails with `no_match` and `ff(5, lim: 10)` is 5. `check_options`
+  stays in the body only (an unknown option name keeps its own failure instead of becoming `no_match`).
+- The catch-all's guard `is_ground(args$)` read the option names of an `options(a -> 5)` argument as free
+  symbols, so a call with options that no clause matched stayed unevaluated; `is_ground` now inspects only the
+  values of an `options(...)` argument. A `rule` with options is lowered by the same `clauses`, so its condition sees the options too.
+  Test `mc-engine/tests/round43_language.rs`.

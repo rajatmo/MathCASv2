@@ -86,4 +86,6 @@ pub fn install(k: &mut Kernel, h: &Heap, stop: &Arc<AtomicBool>) {
     ] {
         k.register(h.sym(name), Attributes::default(), Box::new(natives::Native { f, stop: stop.clone() }));
     }
+    // the watched summand of a monitored n_sum or n_product (internal)
+    k.register(h.sym(natives::WATCH), Attributes::default(), Box::new(natives::Watch));
 }

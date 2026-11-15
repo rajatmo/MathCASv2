@@ -317,3 +317,12 @@ differences and ratios, generating functions and convergence, interruption.
   summed with i = r - k: `(-1)^j (H(r - lo, j) - H(d - 1, j))` (before, Hurwitz zeta functions at non-positive
   integers, which the check rejected). With the diagonal summation in `lib/calculus.mc` this gives Tornheim's
   partial sums.
+
+## Round 43: the evaluation monitor
+
+- `n_sum`/`n_product(..., evaluation_monitor: f)`: the terms are evaluated by many routes (exact first terms,
+  acceleration, Abel-Plana at complex points, tails by `n_integrate`), all by substituting into the summand, so the
+  summand is wrapped: `numsum$watch(id, k, e)` calls the monitor of call `id` with `k` when `k` is a number and is
+  `e` itself for a symbolic `k` (the closed-form and convergence tests see the summand). The monitor lives in a
+  registry by call number, not in the term (a closure `n => ...` with the index's name would be substituted into);
+  the first failure it gives is recorded there and is the result.

@@ -28,8 +28,8 @@ reap	core	Language	reap(e), reap(e, p), reap(e, p, f): [value of e, the values s
 repeated	core	Language	repeated(p), repeated(p, n), repeated(p, [m, n]): the pattern of a run of arguments each matching p
 key_value_pattern	core	Language	key_value_pattern([p1, ...]): the pattern of an association (or list of rules) with entries matching p1, ...
 replace_list	core	Language	replace_list(e, rules), replace_list(e, rules, n): the results of every way the rules match the whole of e
-break	core	Language	break(): failure(break), which ends the innermost while or for loop around it with null
-continue	core	Language	continue(): failure(continue), which ends the current iteration of the innermost while or for loop around it
+break	core	Language	break(): failure(break), which ends the innermost loop or iterating function around it (map, table, sum, select, fold, ...: the result holds what came before)
+continue	core	Language	continue(): failure(continue), which skips the current element or iteration of the innermost loop or iterating function around it
 verbatim	core	Language	verbatim(p): the pattern that matches the term p itself, its pattern constructs (x_, _) taken literally
 hold_pattern	core	Language	hold_pattern(p): the pattern p, kept unevaluated where it is written
 alternatives	core	Language	alternatives(p1, p2, ...): the pattern p1 | p2 | ... as a call (apply(alternatives, list) builds one)

@@ -328,6 +328,11 @@ impl<'k, 'h> Eval<'k, 'h> {
         let h = self.heap;
         // invariant: the head stage is entered only for calls
         let View::App { head, args } = h.view(e.t) else { unreachable!("only calls wait for their head") };
+        // a failure called with arguments is that failure (semantics 10): `f = failure(...); f(x)` gives the failure,
+        // never a call of it; the arguments are not evaluated
+        if self.first_failure(&[hv]).is_some() {
+            return Go::Next(self.finish(cx, e, hv));
+        }
         if hv != head {
             attempt!(self, cx, e, self.tick(cx));
             e.t = h.app(hv, args);

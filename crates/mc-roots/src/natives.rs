@@ -24,7 +24,7 @@ use mc_arith::{Arith, Num, Real};
 use mc_core::{Heap, Store, Sym, View, T};
 use mc_eval::{Native, NativeCx, Reply, Res};
 use mc_numeric::machine::C64;
-use mc_numfn::Policy;
+use mc_numfn::{Monitors, Policy};
 use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -165,7 +165,29 @@ pub(crate) fn auto<'r, 'h>(
     policy: Policy,
 ) -> mc_numfn::Auto<'h, Machine<'r, 'h>> {
     let (vars, body) = (f.vars().to_vec(), f.body());
+    // a monitored function runs in the interpreter, which calls the monitors (`mc_numfn::monitor`)
+    let policy = if f.monitors().any() { Policy::Interpreted } else { policy };
     mc_numfn::Auto::new(cx, Machine { f, ar }, &vars, body, false, policy)
+}
+
+/// The arguments without the monitor options, and the monitors; `Err` with the reply when a monitor is not a
+/// function.
+pub(crate) fn monitors<'h>(cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>]) -> Result<(Vec<T<'h>>, Monitors), Reply<'h>> {
+    mc_numfn::take_monitors(cx, args, &mc_numfn::MONITOR_OPTIONS).map_err(Reply::Done)
+}
+
+/// The reply of a monitored computation: the failure a monitor gave, else the computation's reply.
+pub(crate) fn monitored<'h>(h: &'h Heap, m: &Monitors, r: Reply<'h>) -> Reply<'h> {
+    match m.failure(h) {
+        Some(f) => Reply::Done(f),
+        None => r,
+    }
+}
+
+/// `f` with the monitors set (they watch the user's function, not its derivatives).
+pub(crate) fn watched<'h>(mut f: TermFn<'h>, m: &Monitors) -> TermFn<'h> {
+    f.set_monitors(m.clone());
+    f
 }
 
 /// The expression with its numeric constants evaluated: by `n` at machine precision, or to `digits` digits
@@ -263,6 +285,17 @@ enum RootMethod {
 
 impl Native for FindRoot {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
+        let (args, mons) = match monitors(cx, args) {
+            Ok(v) => v,
+            Err(r) => return Ok(r),
+        };
+        let r = self.solve(cx, &args, &mons)?;
+        Ok(monitored(cx.heap(), &mons, r))
+    }
+}
+
+impl FindRoot {
+    fn solve<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], mons: &Monitors) -> Res<Reply<'h>> {
         const NAME: &str = "find_root";
         let h = cx.heap();
         let ar = Arith::new(h).with_stop(self.stop.clone());
@@ -335,7 +368,7 @@ impl Native for FindRoot {
             return Ok(bad_argument(h, NAME, h.int(2)));
         }
         let goals = opts.machine_goals();
-        let mut fm = TermFn::new(h, &vars, numeric(cx, body, None)?);
+        let mut fm = watched(TermFn::new(h, &vars, numeric(cx, body, None)?), mons);
         // every residual a scalar (a nested list would give more outputs than unknowns)
         if fm.outputs() != n {
             return Ok(bad_argument(h, NAME, h.int(1)));
@@ -432,7 +465,7 @@ impl Native for FindRoot {
                 }).fold(0.0f64, f64::max);
                 if opts.digits.is_none() && err > goals.tol(xn) {
                     let d = 30;
-                    let mut fb = TermFn::new(h, &vars, numeric(cx, body, Some(d))?);
+                    let mut fb = watched(TermFn::new(h, &vars, numeric(cx, body, Some(d))?), mons);
                     let mut jb = match symbolic {
                         Some(dt) => Some(TermFn::new(h, &vars, numeric(cx, dt, Some(d))?)),
                         None => None,
@@ -461,7 +494,7 @@ impl Native for FindRoot {
         // refinement with balls (decision R.9), with the derivative for Newton steps and the verification
         let digits = opts.digits.unwrap_or(0);
         let d = digits + options::GUARD_DIGITS;
-        let mut fb = TermFn::new(h, &vars, numeric(cx, body, Some(d))?);
+        let mut fb = watched(TermFn::new(h, &vars, numeric(cx, body, Some(d))?), mons);
         let mut jb = match symbolic {
             Some(dt) => Some(TermFn::new(h, &vars, numeric(cx, dt, Some(d))?)),
             None => None,
@@ -491,7 +524,6 @@ impl Native for FindRoot {
 impl Native for FindExtremum {
     fn call<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, _t: T<'h>, args: &[T<'h>]) -> Res<Reply<'h>> {
         let name = if self.maximum { "find_maximum" } else { "find_minimum" };
-        let h = cx.heap();
         // constraints, bare variables or a region: the constrained solver (decision R.21)
         if let [f, s, ..] = args {
             if crate::nopt::wants_optimizer(cx, *f, *s) {
@@ -505,6 +537,19 @@ impl Native for FindExtremum {
                 return op.call(cx, _t, args);
             }
         }
+        let (args, mons) = match monitors(cx, args) {
+            Ok(v) => v,
+            Err(r) => return Ok(r),
+        };
+        let r = self.solve(cx, &args, &mons)?;
+        Ok(monitored(cx.heap(), &mons, r))
+    }
+}
+
+impl FindExtremum {
+    fn solve<'h>(&self, cx: &mut NativeCx<'_, '_, 'h>, args: &[T<'h>], mons: &Monitors) -> Res<Reply<'h>> {
+        let name = if self.maximum { "find_maximum" } else { "find_minimum" };
+        let h = cx.heap();
         let args = &crate::nopt::drop_ignored(cx, args, true)[..];
         let ar = Arith::new(h).with_stop(self.stop.clone());
         let (args, opts) = match split_options(h, &ar, name, args) {
@@ -539,7 +584,7 @@ impl Native for FindExtremum {
             None => None,
         };
         let mobj = numeric(cx, obj, None)?;
-        let mut fm = TermFn::new(h, &vars, mobj);
+        let mut fm = watched(TermFn::new(h, &vars, mobj), mons);
         // a gradient and Hessian of the right shapes only (an objective that is no scalar function has neither)
         let (grad, hess) = (grad.filter(|&g| TermFn::new(h, &vars, g).outputs() == n), hess);
         let hess = hess.filter(|&t| grad.is_some() && TermFn::new(h, &vars, t).outputs() == n * n);
@@ -576,7 +621,7 @@ impl Native for FindExtremum {
                     }
                     None => {
                         // forward the objective twice: once for values, once for the differences
-                        let mut fd = TermFn::new(h, &vars, mobj);
+                        let mut fd = watched(TermFn::new(h, &vars, mobj), mons);
                         let mut g = CentralGradient { f: auto(cx, &mut fd, &ar, pol), n };
                         minimize::bfgs(cx, &mut fv, &mut g, x0, &goals)?
                     }
@@ -633,7 +678,7 @@ impl Native for FindExtremum {
         let d = digits + options::GUARD_DIGITS;
         let mut gb = TermFn::new(h, &vars, numeric(cx, g, Some(d))?);
         let mut hb = TermFn::new(h, &vars, numeric(cx, hs, Some(d))?);
-        let mut ob = TermFn::new(h, &vars, numeric(cx, obj, Some(d))?);
+        let mut ob = watched(TermFn::new(h, &vars, numeric(cx, obj, Some(d))?), mons);
         let r = refine::refine(cx, &ar, &mut gb, Some(&mut hb), &xs, p, opts.goals_log2(), goals.max_iterations, false)?;
         let r = match r {
             Refine::Done(r) => r,

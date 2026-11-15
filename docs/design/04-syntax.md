@@ -282,6 +282,14 @@ fn n(x, d: Int = 16; guard: Int = 32, max_precision: Int = 100_000) = ...
 n(x, 50, max_precision: 10^6)
 ```
 
+Inside the definition an option is its value everywhere it is read before the body as well (decision of 15
+November 2026): in the condition (`fn f(x; lim = 3) when x < lim = x` compares with 3, or with the value given as
+`f(5, lim: 10)`), and in the default of a later option (`fn k(x; a = 2, b = a + 1)`: b's default sees a). The
+bindings are those of the body: the missing optional parameters first (their defaults see the parameters before
+them), then the options in order (their defaults see every parameter and the options before them). A call with
+ground positional arguments and option values is ground (the option names are names, not free symbols), so a call
+that no clause matches fails with `failure(no_match, ...)` also when options are given.
+
 Named arguments may appear in any order after the positional ones; unknown names are a compile error when the
 signature is known statically, and `failure(unknown_option, name)` otherwise. A positional argument may also stand
 among the named ones, for a stored option list: `plot(f, [x, 0, 1], plot_style: red, opts, frame: true)` reads as

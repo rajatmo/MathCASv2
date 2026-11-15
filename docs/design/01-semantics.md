@@ -409,9 +409,50 @@ property of the printer, not of the term. Packed polynomials keep their own inte
 
 - Errors are values: `failure(tag, details...)`. A failure propagates through strict arguments (a call with a failure
   argument returns that failure) unless the function declares that it handles failures.
+- **A called failure is that failure** (decision of 15 November 2026). A failure in head position, called with any
+  arguments, is the failure itself, and the arguments are not evaluated: `f = integrate(x^x, [x, 0, 1, 2]);
+  f("Values")` gives the failure of `integrate`, never `failure(...)("Values")`; `g(1)(2)` with `g` a failure is `g`.
+- Where a failure is consumed:
+
+  | position | the failure |
+  |---|---|
+  | head of a call (`f(x)`, `f(x)(y)`, an operator form `select(f)(xs)`) | propagates (the call is the failure) |
+  | strict argument: arithmetic, comparisons (`<`, `==`, `!=`, `===`), `and`/`or`/`not`, the condition of `if`, rules `k -> v` (so an association built from them), part extraction `part(x, i)`, `length`, `head`, `to_string`, `n`, numeric functions | propagates |
+  | the function or the list of `map`, `apply`, `select` and the other functions of lists; the argument of a closure `(x => e)(v)` | propagates |
+  | the value of a block statement, of a loop body (an ordinary failure; for `break()` and `continue()` see below) | ends the block or loop with it |
+  | an element of a list (`[f(1), f(2)]`, the results of `map` and `table`) | held as data: the list keeps it in place |
+  | `is_failure`, `check`, `drop_failures`, `catch`, assignment `x = v` | read as data |
+  | pattern matching (`match`, `match_q`, `cases`, `count`, `position`, `free_of`, and the other functions taking a pattern) | held as data: `failure(___)` patterns match it |
+  | a `held` parameter, an argument a function holds | passed as written (data) |
+  | a function declared `@handles_failures` | passed in |
 - Loop control is failures too: `break()` is `failure(break)` and `continue()` is `failure(continue)`; they end the
-  blocks and strict calls around them, and the innermost `while` or `for` loop reads them (break: the loop's value is
-  `null`; continue: the next iteration). Outside a loop they stay as the value. (Decision of November 2026.)
+  blocks and strict calls around them, and the innermost iteration reads them. A `while` or `for` loop: break makes
+  its value `null`, continue goes on with the next iteration. (Decision of November 2026.)
+- **Every iterating function reads them** (decision of 15 November 2026): `break()` ends the iteration and the
+  result holds what was produced before it; `continue()` skips the element. So
+  `map(i => if i == 3 then break() else i, range(5))` is `[1, 2]` and with `continue()` it is `[1, 2, 4, 5]`.
+
+  | function | `break()` | `continue()` |
+  |---|---|---|
+  | `map`, `map_indexed`, `map_thread`, `array` of one dimension, `table` (each iterator; an inner `table` of several iterators is its own loop) | the list of the values before it | the element is left out |
+  | `sum`, `product` over an explicit range or list (their terms come from `table`) | the sum (product) of the terms before it | the term is left out |
+  | `select` | the elements chosen before it | the element is not chosen |
+  | `select_first` | none found (the default, or `failure(not_found, ...)`) | the element is passed over |
+  | `all_true`, `any_true`, `none_true` | decided on the elements before it | the element is passed over |
+  | `scan` | ends, `null` | the next element |
+  | `fold`, `fold_list` | the value (the values) so far | the element is skipped, the value stays |
+  | `nest`, `nest_list` | the value (the values) so far | the step counts, the value stays |
+  | `nest_while`, `nest_while_list` (from `f` or from the test) | the value (the values) so far | from `f`: the value stays; from the test: the test is skipped |
+  | `fixed_point_list` | the values so far | no new value: the list ends |
+  | `parallel_map`, `parallel_table`, `map(..., parallel: true)` | as serially | as serially |
+
+  Elements after a `break()` are not evaluated on the sequential frontier: their effects never happen. **Parallel
+  iterators** keep the serial meaning: the frontier takes the values in order and stops at the first break, so a
+  speculative task's work past it is discarded (a speculative task that meets a break itself stops and leaves the
+  rest to the frontier). A multi-dimensional `array`, the key functions (`sort_by`, `gather_by`, `group_by`, ...)
+  and other functions that build a structure of fixed shape do not read the signals: a signal there is an ordinary
+  failure, so it ends the call and reaches the iteration around it. Outside any iteration the value stays
+  `failure(break)` (`failure(continue)`).
 - Diagnostics (warnings) are attached to the evaluation result as a list, not printed during evaluation. A computation
   that produces a value with a warning still returns the value.
 - Limits are fuel, wall-clock time and memory, set per evaluation with defaults per session. Exceeding one gives

@@ -86,6 +86,10 @@ impl<'h, S: Value + 'static> NumFn<'h, S> for Machine<'_, 'h> {
     fn outputs(&self) -> usize {
         self.f.outputs()
     }
+
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S]) -> Res<bool> {
+        self.f.step(cx, self.ar, args)
+    }
 }
 
 /// The interpreted backend owning its closure and arithmetic: an expression in given variables, evaluated by the
@@ -142,6 +146,9 @@ impl<'h, S: Value + 'static> NumFn<'h, S> for Interpreted<'h> {
     }
     fn backend(&self) -> Backend {
         Backend::Interpreted
+    }
+    fn step(&mut self, cx: &mut NativeCx<'_, '_, 'h>, args: &[S]) -> Res<bool> {
+        self.f.step(cx, &self.ar, args)
     }
 }
 

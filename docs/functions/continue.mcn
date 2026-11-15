@@ -4,13 +4,22 @@
 # continue
 
 #% text
-# `continue()` gives `failure(continue)`, which ends the current iteration of the innermost `while` or `for` loop around it; the loop goes on with the next one.
+# `continue()` gives `failure(continue)`, which ends the current step of the innermost iteration around it: a `while` or `for` loop goes on with its next iteration, and an iterating function such as `map`, `table`, `sum` or `select` leaves the element out.
 
 #% section
 # Details
 
 #% item
-# Like every failure, `failure(continue)` ends the blocks and strict calls between it and the loop.
+# Like every failure, `failure(continue)` ends the blocks and strict calls between it and the iteration.
+
+#% item
+# In `fold`, `nest` and `nest_while` the value stays as it was for that step.
+
+#% item
+# The iterating functions that read it are those listed on the page of `break`.
+
+#% item
+# Outside any iteration it stays a failure value.
 
 #% section
 # Examples
@@ -22,6 +31,16 @@
 { var s = 0; for k in range(10) { if is_odd(k) then continue(); s = s + k }; s }
 #% output
 #= 30
+
+#% cell
+sum(if is_odd(k) then continue() else k, [k, 1, 10])
+#% output
+#= 30
+
+#% cell
+map(x => if x < 0 then continue() else sqrt(x), [4, -1, 9])
+#% output
+#= [2, 3]
 
 #% cell
 total(select(range(10), is_even))

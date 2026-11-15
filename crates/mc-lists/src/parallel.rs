@@ -8,6 +8,10 @@
 //! mutable local of the caller) and every element a definition made since the split may have changed are
 //! evaluated again in order; interrupts and the fuel, memory and time limits stop every worker. With one worker
 //! thread, or inside a scratch scope, the values are evaluated one after another.
+//!
+//! The loop signals of semantics 10 keep their serial meaning: the frontier takes the values in order and stops at
+//! the first `failure(break)` (the result holds the values before it), so speculative work past it is discarded
+//! and its effects never happen; `failure(continue)` leaves the value out.
 use crate::ctx::{apply, Lib};
 use mc_api::names;
 use mc_core::{Store, View, T};
@@ -76,9 +80,10 @@ pub(crate) fn parallel_map<'h>(_lib: &Lib, cx: &mut NativeCx<'_, '_, 'h>, _t: T<
 pub(crate) fn map_parallel<'h>(cx: &mut NativeCx<'_, '_, 'h>, f: T<'h>, x: T<'h>) -> Res<Reply<'h>> {
     let h = cx.heap();
     let Some(xs) = cx.as_list(x) else { return Ok(Reply::Again(h.call(h.sym("map"), &[f, x]))) };
-    let out = cx.group_parallel(xs.len(), &|cx: &mut NativeCx<'_, '_, 'h>, i| {
+    let out = cx.group_parallel_loop(xs.len(), &|cx: &mut NativeCx<'_, '_, 'h>, i| {
         cx.tick(1)?;
         apply(cx, f, &[xs[i]])
     })?;
+    let out = cx.without_continues(out);
     Ok(Reply::Done(cx.list(&out)))
 }

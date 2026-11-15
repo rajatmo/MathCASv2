@@ -136,6 +136,10 @@ pub(crate) fn solve<'h, S: Scalar>(
                 x = xt;
                 fx = ft;
                 err = step;
+                // the step monitor sees the new iterate; a failed monitor ends the iteration
+                if !f.step(cx, &x)? {
+                    break;
+                }
                 let xn = norm(&x);
                 if step <= 4.0 * f64::EPSILON * xn || step == 0.0 {
                     converged = true;
